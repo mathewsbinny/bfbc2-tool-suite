@@ -171,6 +171,22 @@ Results (multi-layer, cells fully inside DICE areas, height tolerance 0.6 m):
 Residual: mostly bare terrain at the slope limit, where DICE's and NavKit's decisions are both speckled
 by small bumps (the walkable set flips cell by cell around 40°), plus a few building tops.
 
+### 3.8 Structures, doors and connectivity (sp_01, 2026-10-15)
+
+- **Seeds on objects too:** terrain-only perimeter seeding dropped decks, platforms and floors (AI order
+  coverage 452 → 596 of DICE's 633).
+- **Border nodes on every layer:** a floor under a roof must get its own border nodes on the sector lines.
+- **Dynamic objects** (`DynamicModelEntityData`: crates, pallets, barrels) and objects with
+  `DisablePathfinding = PdtWhenAlive` (doors – the sub-pen stairwell door) are absent for path data.
+- **Barrier arms:** a forbidden object whose whole collision is one thin raised bar (≥ 0.7 m above its
+  origin, ≤ 0.5 m thick, ≥ 2 m long – the checkpoint pole) is passable; DICE's routes cross closed gates.
+- **Stairs:** on objects, slope from neighbour heights (one-sided on narrow stairs), clearance from a second
+  sample run with the capsule from 0.6 m, also on landings.
+- `ExcludeFromPathfinding` (fences, sandbags, palm trees): making them passable over-connects; not applied.
+- **DICE's route network is not complete connectivity:** two of its groups come within 1.9 m on flat open
+  ground (-309, 99, -415) with no edge. Comparisons against DICE's route groups (`ordercheck.py` pairwise /
+  self-check) therefore measure network layout, not walkability; the runtime bridges such gaps.
+
 The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
 these stages independently.
 

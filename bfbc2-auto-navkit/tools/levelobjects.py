@@ -8,7 +8,8 @@ DbxTool on both folders) and writes, next to it:
   forbid_tris.npy    world-space collision triangles (N x 3 x 3) of every placed object whose blueprint has
                      ForbidPathfinding = true (from the blueprint's <name>_Havok.res packfile)
   dynamic_tris.npy   the same for dynamic (movable / destructible) objects - DynamicModelEntityData blueprints
-                     such as crates, barrels, sandbags; path data treats them as absent
+                     such as crates and barrels - for objects with DisablePathfinding = PdtWhenAlive (doors), and
+                     for barrier arms (a forbidden object that is one thin raised bar): path data treats them as absent
 
 Usage: levelobjects.py <level dir> <level name> [extra blueprint dirs ...]
   e.g. levelobjects.py work\\levels\\sp_01 SP_01 work\\audit\\sp_common work\\audit\\mp_common
@@ -29,7 +30,8 @@ SEP = chr(92)
 
 
 def blueprint_flags(bases):
-    """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic)."""
+    """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic,
+    DisablePathfinding value - e.g. PdtNever / PdtWhenAlive)."""
     flags = {}
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
@@ -38,9 +40,10 @@ def blueprint_flags(bases):
             if 'ForbidPathfinding' not in t and not dynamic:
                 continue
             rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-4]
+            dis = re.search(r'<field name="DisablePathfinding">([A-Za-z]*)<', t)
             flags.setdefault(rel, ('<field name="ForbidPathfinding">true' in t,
                                    '<field name="ExcludeFromPathfinding">true' in t,
-                                   '<field name="AllowPathdataSeeds">true' in t, dynamic))
+                                   '<field name="AllowPathdataSeeds">true' in t, dynamic, dis.group(1) if dis else ''))
     return flags
 
 
@@ -72,7 +75,24 @@ def triangles(path):
         idx = np.frombuffer(pf.d, dtype='<u2', count=ni, offset=ip).reshape(-1, 4)[:, :3]
         if idx.max() < n:
             tris.append(v[idx])
-    return np.concatenate(tris) if tris else None
+    # convex shapes (boxes, rails, doors): the 12 triangles of each shape's bounding box. Vertices are stored as
+    # FourVectors (x0..3, y0..3, z0..3); the first array member of a plausible size holds them.
+    for off in pf.objects_of('hkpConvexVerticesShape'):
+        for k in range(0x10, 0x60, 4):
+            p = pf.deref(off + k)
+            if not p:
+                continue
+            n = struct.unpack_from('<i', pf.d, off + k + 4)[0]
+            if 0 < n < 10000:
+                fv = np.frombuffer(pf.d, dtype='<f4', count=n * 12, offset=p).reshape(n, 3, 4)
+                v = np.stack([fv[:, 0, :].ravel(), fv[:, 1, :].ravel(), fv[:, 2, :].ravel()], 1)
+                lo, hi = v.min(0), v.max(0)
+                c = np.array([[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])])
+                faces = [(0, 1, 3), (0, 3, 2), (4, 6, 7), (4, 7, 5), (0, 4, 5), (0, 5, 1), (2, 3, 7), (2, 7, 6),
+                         (0, 2, 6), (0, 6, 4), (1, 5, 7), (1, 7, 3)]
+                tris.append(c[np.array(faces)])
+                break
+    return np.concatenate(tris).astype(np.float32) if tris else None
 
 
 def main(argv):
@@ -117,7 +137,25 @@ def main(argv):
             return None
         m = np.array(o['m']).reshape(4, 4)        # rows: right, up, forward, translation
         return (t @ m[:3, :3] + m[3, :3]).astype(np.float32)
-    dyn = [w for w in (tris_of(o) for o in objs if o['flags'] and len(o['flags']) > 3 and o['flags'][3]) if w is not None]
+    # dynamic objects, and objects with DisablePathfinding = PdtWhenAlive (doors ...): path data ignores them
+    def barrier_arm(o):
+        """Whole collision is one thin raised bar (boom barrier): >= 0.7 m above the object's origin, <= 0.5 m
+        thick, >= 2 m long. Path data treats it as passable (DICE's routes cross closed checkpoint poles)."""
+        if o['bp'] not in havok:
+            return False
+        if o['bp'] not in cache:
+            cache[o['bp']] = triangles(havok[o['bp']])
+        t = cache[o['bp']]
+        if t is None:
+            return False
+        v = t.reshape(-1, 3)
+        lo, hi = v.min(0), v.max(0)
+        return lo[1] >= 0.7 and hi[1] - lo[1] <= 0.5 and max(hi[0] - lo[0], hi[2] - lo[2]) >= 2.0
+    dyn = [w for w in (tris_of(o) for o in objs + groups
+                       if o['flags'] and ((len(o['flags']) > 3 and o['flags'][3]) or
+                                          (len(o['flags']) > 4 and o['flags'][4] == 'PdtWhenAlive') or
+                                          (o['flags'][0] and barrier_arm(o)))) if w is not None]
+    print('barrier arms:', sorted({o['bp'].split('/')[-1] for o in objs + groups if o['flags'] and o['flags'][0] and barrier_arm(o)}))
     np.save(os.path.join(level_dir, 'dynamic_tris.npy'), np.concatenate(dyn) if dyn else np.zeros((0, 3, 3)))
     print(f'{sum(len(w) for w in dyn)} dynamic-object triangles from {len(dyn)} instances')
     world = []
