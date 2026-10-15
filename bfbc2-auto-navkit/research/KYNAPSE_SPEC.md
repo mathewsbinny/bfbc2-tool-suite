@@ -191,6 +191,44 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
   ground (-309, 99, -415) with no edge. Comparisons against DICE's route groups (`ordercheck.py` pairwise /
   self-check) therefore measure network layout, not walkability; the runtime bridges such gaps.
 
+### 3.9 Areas are single-layer; more levels (2026-10-15)
+
+- **An area never holds two surfaces of the same column.** The 8-connected flood fill of a tile can
+  reach a second floor round a corner (floor and bed / table top / mezzanine 0.5 m apart, joined through
+  a stair or ramp elsewhere in the tile). Such an area overlaps itself in plan, so a point-in-area test
+  (the runtime's and `ordercheck.py`'s) fails on whole rows of it. Rule: a surface whose column the area
+  already holds starts its own area (joined by portals). Before the fix 18 % of NavKit's sp_01 areas had
+  stacked outline segments against 0.3 % of DICE's; after it, sp_01 order coverage rose 590 -> 607 of
+  633 and the pairwise route check 82.4 % -> 89.1 %.
+- **Forbidden-object tolerance 0.08 m** (§3.7 item 2).
+- **Outline sides:** a side of an area cell is interior when *any* connected surface across it belongs to the
+  area (a column can hold two connected surfaces - a stair edge, or a cell split off by the single-layer
+  rule); taking only the nearest one left stray portals inside areas.
+- **45° bridges** only across an open corner (neither cell has a connected surface beside it there - else
+  those sides are portals). Where the inner edges of two bridges cross (one cell with diagonal-only
+  neighbours on both sides of an empty cell) the outline is the boundary of their union: split at the
+  crossing, drop the pieces inside the other strip. Self-check (every cell inside its own outline):
+  sp_004_b 1,851 failing cells -> 323, the rest zero-width cracks (next item).
+- **Cracks:** two adjacent cells of one area that are not connected to each other (a step), both joined
+  to the area elsewhere, give two coincident outline segments. DICE's files contain these too (458 of
+  2,381 areas on sp_004_b with a repeated segment); an inside test cancels coincident pairs.
+- **Objects without their own collision** (`InvWall_SP03`) use the collision of their `Mesh` reference's
+  blueprint (`InvWall`). Missing it left a scripted invisible wall with `DisablePathfinding = PdtWhenAlive`
+  blocking routes; DICE's data passes it (sp_003_b main network 490 -> 680 positions, DICE 712).
+- **Soldier spawn points seed the walkable surface.** DICE's data has closed upper floors (reached by
+  ladders or scripted spawns, no walkable link) as isolated islands of 5-8 nodes; every one holds
+  `SoldierSpawnEntityData` positions, and no seed entities or `AllowPathdataSeeds` objects are there.
+  Seeding from the spawn points (the walkable surface 0-1.5 m below) - sp_004_b coverage 87.3 -> 93.4 %,
+  sp_01 97.0 -> 97.6 %. (Seeding from all AI order positions instead over-covers.)
+- **No lone nodes:** DICE's files have no node without an edge (0 of 24,743 on sp_01). Nodes with no edge in
+  any sector (tiny islands, slivers on a sector line) are dropped (sp_004_b pairwise 76.9 -> 86.4 %).
+- **Ladders are not in the path data:** islands reached only by ladder stay islands; bots spawned there
+  move on that floor only.
+- **Per-level inputs:** `SectorOffsets` (`Levels/<lvl>/Precomputed/Infantry/SectorOffsets.dbx`) gives the
+  sector grid; the sampling box is DICE's sector bounds plus a margin (for levels without data: the
+  playable area). Two sampling runs per level: the normal capsule and the high capsule (from 0.6 m) for
+  stairs and landings.
+
 The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
 these stages independently.
 

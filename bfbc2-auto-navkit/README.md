@@ -45,28 +45,50 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
-## Plan and status (2026-10-14)
+## Plan and status (2026-10-15)
 
 1. **`.hpd` format – done.** Header, sector table, per-sector graph and runtime mesh fully decoded
    (spec §4); `hpdtool.py` parses every campaign file.
 2. **Byte-exact rewrite – done.** `hpdtool.py roundtrip` / `meshtrip` re-emit every shipped file and
    all 7,944 sector meshes identically.
 3. **Builder behaviour – done.** Spec §3: stages, the sampling grid, area cuts, graph rules,
-   auto-seeding on sector perimeters, and the walkability rules (§3.7).
-4. **Generator – first complete version (`tools\navbuild.py`).**
-   - Walkable surfaces: 97.9 % agreement within 0.8 m with DICE's data in a base area, 95.7 % on
-     steep terrain (sp_01 test blocks).
-   - Full pipeline: 100 m sectors (level `SectorOffsets`), 3 × 3 tiles of 50 samples, 8-connected areas
-     bisected above 20 m, outlines with 45° bridges at diagonal contacts, portals (B), border portals
-     (C), neighbour links, route network (area, portal and shared border nodes; straight walkable edges
-     up to 15 m; groups joined through string-pulled waypoints), written as `pathdata.hpd`.
-   - sp_01 (whole level, 86–120 s): 154 sectors, 8,425 areas, 24,946 nodes (DICE: 126 sectors,
-     10,380 areas, 24,743 nodes); 579 graph groups vs DICE's 506; passes `roundtrip` / `meshtrip` /
-     `coverage`; **loads in game** with the AI running (no faults).
+   auto-seeding, the walkability rules (§3.7), structures and doors (§3.8), and the rules found on the
+   other campaign levels (§3.9).
+4. **Generator – runs on all 13 campaign levels (`tools
+avbuild.py`).**
+   - Full pipeline: walkable surfaces from two in-game sampling runs (normal and high capsule) plus the
+     level's objects (`levelobjects.py`), 100 m sectors (level `SectorOffsets`), 3 × 3 tiles of 50
+     samples, single-layer 8-connected areas bisected above 20 m, outlines with 45° bridges, portals (B),
+     border portals (C), neighbour links, route network (area, portal and shared border nodes; walkable
+     edges up to 15 m; groups joined through string-pulled waypoints; no lone nodes), written as
+     `pathdata.hpd`. Seeds: sector perimeter lines and soldier spawn points.
+   - sp_01's file **loads in game** and the AI walks on it (play test 2026-10-15).
+   - Accuracy against DICE's files (`ordercheck.py`: AI order / patrol positions on the areas, and the
+     pairwise route check), 2026-10-15:
+
+| Level | DICE-covered order positions also on NavKit's areas | Pairwise route check | Main route network (NavKit / DICE) |
+|---|---|---|---|
+| sp_01 | 618 / 633 (97.6 %) | 89.5 % | 639 / 607 |
+| sp_02 | 241 / 260 (92.7 %) | 84.2 % | 313 / 362 |
+| sp_03 | 343 / 353 (97.2 %) | 92.4 % | 374 / 232 |
+| sp_04 | 500 / 526 (95.1 %) | 89.5 % | 582 / 593 |
+| sp_003_b | 600 / 635 (94.5 %) | 87.3 % | 686 / 712 |
+| sp_004_b | 169 / 181 (93.4 %) | 86.4 % | 185 / 192 |
+| sp_005 | 304 / 309 (98.4 %) | 97.2 % | 308 / 312 |
+| sp_005_b | 671 / 683 (98.2 %) | 94.8 % | 722 / 728 |
+| sp_006 | 256 / 270 (94.8 %) | 59.5 % | 215 / 263 |
+| sp_007 | 367 / 388 (94.6 %) | 88.6 % | 427 / 443 |
+| sp_008 | 278 / 289 (96.2 %) | 83.4 % | 44 / 16 |
+| sp_008_b | 110 / 113 (97.3 %) | 79.3 % | 107 / 58 |
+| sp_009 | 68 / 72 (94.4 %) | 20.1 % | – (plane interior; measure unsuited) |
+| **All 13** | **4,525 / 4,712 (96.0 %)** | | |
+
+   - The pairwise check compares route-network layout; DICE's own network has gaps (spec §3.8), so it
+     is a guide, not ground truth. sp_006 / sp_008_b / sp_009 are the open leads.
    - Not generated yet: D lines, F cells, "up" border portals, diagonal border portals, detailed zones
-     (pitch 0.2), vehicle data.
-   - Next: behaviour test – AI with NavKit's file vs DICE's on the same mission.
-   - Later: a standalone mode that reads Havok collision directly instead of sampling in game.
+     (pitch 0.2), vehicle data, ladder links (planned for MP bots, optional).
+   - Next: play test of the current sp_01 build against DICE's file; then MP maps (self-check, no DICE
+     data); later a standalone mode that reads Havok collision directly instead of sampling in game.
 
 Credits: see Project OPFOR's `CREDITS.md`. Kynapse is a trademark of Autodesk; Battlefield: Bad
 Company 2 is © Electronic Arts / DICE.
