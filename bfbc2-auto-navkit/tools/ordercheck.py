@@ -70,6 +70,15 @@ def order_points(xml_path):
     return out
 
 
+def drop_cracks(segs):
+    """Coincident segment pairs (in plan) are a zero-width crack inside an area - two adjacent cells of it that
+    are not connected to each other (a step) - not its boundary; both are removed for the inside test."""
+    from collections import Counter
+    key = lambda sg: tuple(sorted(((round(sg[0][0], 2), round(sg[0][2], 2)), (round(sg[1][0], 2), round(sg[1][2], 2)))))
+    n = Counter(key(sg) for sg in segs)
+    return [sg for sg in segs if n[key(sg)] % 2 == 1]
+
+
 class PathData:
     def __init__(self, path):
         f = hpdtool.parse(open(path, 'rb').read())
@@ -79,6 +88,7 @@ class PathData:
             for a in m.areas:
                 segs = [(l[k], l[k + 1]) for l in a.outline for k in range(len(l) - 1)]
                 segs += [(b.p0, b.p1) for b in a.portals] + [(c.p0, c.p1) for c in a.border_portals]
+                segs = drop_cracks(segs)
                 if not segs:
                     continue
                 xs = [p[0] for sg in segs for p in sg]

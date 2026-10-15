@@ -158,6 +158,47 @@ def bisect(level, comp, gi0, gj0):
     return out
 
 
+def clip_bridges(bsegs, bridges):
+    """Outline of overlapping 45-degree bridges is the boundary of their union: where edges of two bridges
+    cross (one cell with diagonal-only neighbours on both sides of an empty cell), split them at the crossing
+    and drop the pieces lying inside the other bridge's strip (half-width 1/sqrt 2 sample about the diagonal)."""
+    def inside(px, pz, b):
+        i, j, di, dj = bridges[b]
+        rx, rz = px - i, pz - j
+        along = (rx * di + rz * dj) / 2.0                   # 0..1 between the two cell centres
+        perp = abs(rx * dj - rz * di) / math.sqrt(2.0)
+        return 0.0 < along < 1.0 and perp < 1.0 / math.sqrt(2.0) - 1e-6
+
+    out = list(bsegs)
+    changed = True
+    while changed:
+        changed = False
+        for u in range(len(out)):
+            for v in range(u + 1, len(out)):
+                (bu, p0, p1), (bv, q0, q1) = out[u], out[v]
+                if bu == bv:
+                    continue
+                d = (p1[0] - p0[0]) * (q1[1] - q0[1]) - (p1[1] - p0[1]) * (q1[0] - q0[0])
+                if abs(d) < 1e-9:
+                    continue
+                t = ((q0[0] - p0[0]) * (q1[1] - q0[1]) - (q0[1] - p0[1]) * (q1[0] - q0[0])) / d
+                s = ((q0[0] - p0[0]) * (p1[1] - p0[1]) - (q0[1] - p0[1]) * (p1[0] - p0[0])) / d
+                if not (1e-6 < t < 1 - 1e-6 and 1e-6 < s < 1 - 1e-6):
+                    continue
+                pieces = []
+                for (b, a0, a1, f), other in (((bu, p0, p1, t), bv), ((bv, q0, q1, s), bu)):
+                    m = (a0[0] + (a1[0] - a0[0]) * f, a0[1] + (a1[1] - a0[1]) * f, a0[2] + (a1[2] - a0[2]) * f)
+                    for c0, c1 in ((a0, m), (m, a1)):
+                        if not inside((c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2, other):
+                            pieces.append((b, c0, c1))
+                out = [x for w, x in enumerate(out) if w not in (u, v)] + pieces
+                changed = True
+                break
+            if changed:
+                break
+    return out
+
+
 def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
     """Boundary edges of every area -> merged runs. Returns per area: portals, borders, outlines."""
     h = PITCH / 2
@@ -190,21 +231,32 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
         # 45-degree bridges between diagonal-only neighbours of this area
         cellset = {(c[0], c[1]) for c in area['cells']}
         bridges = []
+        cell_k = {(c[0], c[1]): c[2] for c in area['cells']}
         for i, j, k in area['cells']:
             for di, dj in ((1, 1), (1, -1)):
                 if (i + di, j + dj) in cellset and (i + di, j) not in cellset and (i, j + dj) not in cellset:
+                    # only across an open corner: neither cell has a connected surface (another area) beside it
+                    # there - otherwise those sides are portals and the strip would overlap the other area
+                    kd = cell_k[(i + di, j + dj)]
+                    if any(level.neighbour(kk, gi0 + a, gj0 + b, x, z) is not None
+                           for kk, a, b, x, z in ((k, i, j, di, 0), (k, i, j, 0, dj),
+                                                  (kd, i + di, j + dj, -di, 0), (kd, i + di, j + dj, 0, -dj))):
+                        continue
                     bridges.append((i, j, di, dj))
         drop = set()
         for i, j, di, dj in bridges:
             # unit outline edges around the corner point (i + di/2, j + dj/2)
             drop.update({('x', i + di * 0.5, j), ('z', j + dj * 0.5, i), ('x', i + di * 0.5, j + dj), ('z', j + dj * 0.5, i + di)})
         portals, borders, outline = [], [], []
-        for i, j, di, dj in bridges:
+        bsegs = []                                          # (bridge, (ax, az, ya), (bx, bz, yb)) local units
+        for bi, (i, j, di, dj) in enumerate(bridges):
             cx, cz = i + di * 0.5, j + dj * 0.5             # shared corner (local sample units)
             ya = level.y[next(c[2] for c in area['cells'] if (c[0], c[1]) == (i, j))] + Y_OFFSET
             yb = level.y[next(c[2] for c in area['cells'] if (c[0], c[1]) == (i + di, j + dj))] + Y_OFFSET
             for (ax, az), (bx, bz) in (((cx - di, cz), (cx, cz + dj)), ((cx, cz - dj), (cx + di, cz))):
-                outline.append([(ox + ax * PITCH, ya, oz + az * PITCH), (ox + bx * PITCH, yb, oz + bz * PITCH)])
+                bsegs.append((bi, (ax, az, ya), (bx, bz, yb)))
+        for _bi, (ax, az, ya), (bx, bz, yb) in clip_bridges(bsegs, bridges):
+            outline.append([(ox + ax * PITCH, ya, oz + az * PITCH), (ox + bx * PITCH, yb, oz + bz * PITCH)])
         for key in list(edges):
             if key[0] == 'E':
                 axis, line = key[2], key[3]
