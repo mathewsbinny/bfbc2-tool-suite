@@ -6,7 +6,12 @@ each pathdata.hpd given reports per point: inside an area (horizontal, with heig
 route-network group of the nearest node.
 
 Usage: ordercheck.py <level.xml> <a.hpd> [<b.hpd> ...]
+
+With two files (reference first), also the pairwise route check: of all point pairs the reference's route
+network connects, the share the second file also connects. With one file, the self-check: the share of
+point pairs on its areas that its route network connects (for maps without reference data).
 """
+import itertools
 import math
 import os
 import re
@@ -146,6 +151,28 @@ def main(argv):
         big = sum(1 for _, s in res if s and s >= 0.25 * biggest)
         print(f'{os.path.basename(os.path.dirname(os.path.dirname(path))) or path}: {os.path.basename(path)}  on an area: {on}/{len(pts)}  '
               f'node within 15 m: {near}  in a large route group (>= 25% of largest): {big}')
+    groups = {}
+    for path in argv[2:]:
+        pdata = PathData(path)
+        groups[path] = [pdata.nearest_group(p)[0] if pdata.on_area(p) else None for _, _, p in pts]
+    if len(argv) == 3:
+        g = groups[argv[2]]
+        idx = [i for i in range(len(pts)) if g[i] is not None]
+        total = len(idx) * (len(idx) - 1) // 2
+        conn = sum(1 for a, b in itertools.combinations(idx, 2) if g[a] == g[b])
+        print(f'self-check: {conn}/{total} point pairs on areas are route-connected ({conn / max(total, 1) * 100:.1f}%)')
+    if len(argv) == 4:
+        gd, go = groups[argv[2]], groups[argv[3]]
+        idx = [i for i in range(len(pts)) if gd[i] is not None]
+        ref = both = extra = 0
+        for a, b in itertools.combinations(idx, 2):
+            dc = gd[a] == gd[b]
+            oc = go[a] is not None and go[a] == go[b]
+            ref += dc
+            both += dc and oc
+            extra += oc and not dc
+        print(f'pairwise route check: {both}/{ref} reference-connected pairs also connected ({both / max(ref, 1) * 100:.1f}%); '
+              f'{extra} pairs connected only in the second file')
     if len(results) == 2:
         (pa, ra), (pb, rb) = list(results.items())
         diff = [(pts[i], ra[i], rb[i]) for i in range(len(pts)) if ra[i][0] != rb[i][0] or bool(ra[i][1]) != bool(rb[i][1])]
