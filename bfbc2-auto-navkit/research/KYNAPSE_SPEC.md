@@ -219,7 +219,7 @@ Sizes: SP_005 infantry has 269 sectors, 69 095 nodes, 199 572 edges and 18.4 MB 
 | 3 × f32 | world position | inside the sector bounds |
 | u32 flags | always `0x80000000` | 537 707 / 537 707 |
 | f32 value | **DistEdgeMax** on the first node of each sector (infantry 15, vehicle 50 – the `PathfindingType` value), 0 elsewhere | 534 931 zeros, 2 391 × 15, 385 × 50 |
-| u32 a | index of the node's first outgoing edge **+ 1** | 2 776 / 2 776 sectors |
+| u32 a | index of the node's first outgoing edge **+ 1**; **0 when the node has no outgoing edges** (5 449 nodes in sp_01, mostly border nodes whose edges are stored in the neighbouring sector) – a non-zero value there makes the runtime read another node's edges (crash in game, 2026-10-15) | 2 776 / 2 776 sectors |
 | u32 b | low u16: k-th entry of the node indices **sorted by x**; high u16: sorted by **y** (spatial lookup lists stored interleaved, one entry per node slot) | 93 % / 98.7 % exact, the rest are ties |
 | u32 c | low u16: k-th entry of the node indices **sorted by z**; **bit 16 set on border nodes** | 92.8 % exact (ties); bit 16 on exactly the 30 351 border nodes of the sample |
 

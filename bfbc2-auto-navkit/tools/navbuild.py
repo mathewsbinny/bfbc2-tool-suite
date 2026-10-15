@@ -498,7 +498,7 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
         first = len(edges)
         for cost, dst in sorted(out_edges[idx], key=lambda e: e[1]):
             edges.append(hpdtool.Edge(cost, idx, dst))
-        nodes[idx].a = first + 1
+        nodes[idx].a = first + 1 if out_edges[idx] else 0     # DICE: 0 = no outgoing edges
     n = len(nodes)
     by_x = sorted(range(n), key=lambda q: nodes[q].pos[0])
     by_y = sorted(range(n), key=lambda q: nodes[q].pos[1])
