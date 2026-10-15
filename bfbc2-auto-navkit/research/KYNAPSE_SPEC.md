@@ -68,14 +68,58 @@ base game and Napisal's install are parsed and written back byte for byte (2026-
 
 Sizes: SP_005 infantry has 269 sectors, 69 095 nodes, 199 572 edges and 18.4 MB of runtime mesh.
 
-### 4.4 Runtime mesh record (decoding in progress)
+### 4.4 Runtime mesh record – structure (complete)
 
-`"KynogonRuntimeMesh"` (18 bytes), u16 0, u32 2, u32 0, u16 sector id, u16 0, then f32: infantry
-`0.025, 0.8, …` / vehicle `0.02, 1.0, …` (second value = Pitch), then the mesh origin and extent
-(e.g. `-201.0, -98.9, 0.0, 101.1`), u32 counts (3, 3 / 6, 6 …), and an offset table (u32 values in
-steps of 4, e.g. `0x78, 0x7C, 0x80 …`) referring to the arrays that follow. Open: the arrays
-(vertices, polygons, heights, edges), meaning of node fields `flags/value/a/b/c` and edge tags,
-cross-sector links, hierarchical database.
+**Verified:** `tools\hpdtool.py coverage` explains every byte of all 7 944 runtime meshes in the base
+game and Napisal's files (no gaps, no overlaps). The record is a relocatable memory image: all
+offsets are relative to the start of the record (the marker), and **-1 means null**. The game's
+loader turns offsets into pointers in place (the relocation walk defines which fields are offsets).
+
+**Header (0x50 bytes):**
+
+| Off | Type | Content |
+|---|---|---|
+| 0x00 | char[20] | `"KynogonRuntimeMesh"` + 2 zero bytes |
+| 0x14 | u16 | version 2 |
+| 0x16 | u16 | flags (0 in files; the loader sets bit 0) |
+| 0x18 | u32 | 0 in files (the loader stores the record address) |
+| 0x1C | u32 | sector id |
+| 0x20 | f32 | resolution: 0.02 vehicle, 0.025 infantry, 0.05 detailed zone |
+| 0x24 | f32 | **Pitch** (1.0 vehicle, 0.8 infantry, 0.2 detailed zone) |
+| 0x28 | 4 × f32 | sector grid cell **minX, maxX, minZ, maxZ** – cells are 100 m; the far sides extend by 1.1 × pitch, inner near sides start one pitch early (e.g. infantry 0x0102: z −0.8 … 100.88) |
+| 0x38 | u32 | tiles across X (3; 6 in detailed zones) |
+| 0x3C | u32 | tiles across Z (3; 6) |
+| 0x40 | f32 | entity radius (2.5 vehicle, 0.4 infantry) |
+| 0x44 | u32 | offset of the tile table (always 0x50) |
+| 0x48 | u32 | number of neighbour-link entries |
+| 0x4C | u32 | offset of the neighbour-link table (−1 if none) |
+
+**Tile table** at 0x50: tilesX × tilesZ + 1 offsets. The last entry points at a 4-byte slot that the
+loader never reads (DICE's tool left uninitialised memory there – keep for exact copies, write 0).
+
+**Tile:** u32 item count n; if n > 0: n × {u32 object offset, f32, f32 (min/max height of the
+object)} followed by u32 end offset (end of this tile's data). An empty tile is just the count.
+
+**Mesh object** (referenced from tiles): 0x50-byte header – u32 sector id (renumbered by the loader
+if the record's id changes), …, f32 entity radius (+0x10), f32 pitch (+0x14), f32 max height
+(+0x18), f32 min height (+0x1C), then pairs {u32 count, u32 offset (relative to the object, −1 if
+none)} at +0x20 (A), +0x28 (B), +0x30 (C), +0x38 (D), +0x40 (E), +0x48 (F). Data follows the
+header contiguously:
+- A: count × 0x20-byte records (offset field at +0x18)
+- B: count × 0x20-byte records – two 3-D points (a segment) and an offset at +0x18
+- C: count × 0x2C-byte records (offset field at +0x18)
+- D, E: an index table of count + 1 u32 (offsets relative to the object) then variable-length data
+  (E holds point lists – polylines)
+- F: (count + 1) × 16-byte table then variable-length data
+Semantics of A–F: in progress.
+
+**Neighbour links:** table of 12-byte entries {u32 neighbour sector id, u32 count, u32 offset of a
+list}; each list holds `count` offsets of link objects; a link object has u32 count at +0x0C followed
+by that many u32 offsets at +0x10.
+
+**Trailer:** the last 8 bytes are {u32 own offset, u32 0}.
+
+Open: meaning of A–F and their offset fields, graph node fields `flags/value/a/b/c`, edge tags.
 
 ## 5. Licence boundary
 

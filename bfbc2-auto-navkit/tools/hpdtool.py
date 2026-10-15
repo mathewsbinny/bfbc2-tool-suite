@@ -93,6 +93,88 @@ def parse(data: bytes) -> HpdFile:
     return HpdFile(header, sectors)
 
 
+MESH_OBJECT_HEADER = 0x50
+
+
+def mesh_layout(m: bytes):
+    """Walk a runtime mesh record (offsets relative to its start) and return a list of
+    (start, end, label) regions plus the parsed structure. Raises ValueError on inconsistencies."""
+    u32 = lambda o: struct.unpack_from('<I', m, o)[0]
+    regions = [(0, 0x50, 'header')]
+    nx, nz = u32(0x38), u32(0x3C)
+    tiles_off, links_n, links_off = u32(0x44), u32(0x48), u32(0x4C)
+    if tiles_off != 0x50:
+        raise ValueError(f'tile table at {tiles_off:#x}')
+    tile_count = nx * nz
+    regions.append((0x50, 0x50 + (tile_count + 1) * 4, 'tile table'))
+    tile_offs = [u32(0x50 + i * 4) for i in range(tile_count + 1)]
+    objects = {}
+    tiles = []
+    for t in range(tile_count):
+        to = tile_offs[t]
+        n = u32(to)
+        items = [struct.unpack_from('<Iff', m, to + 4 + k * 12) for k in range(n)]
+        # An empty tile is just its count; otherwise items are followed by an end offset.
+        end_ptr = u32(to + 4 + n * 12) if n else None
+        regions.append((to, to + (8 + n * 12 if n else 4), f'tile {t}'))
+        for ptr, _, _ in items:
+            if ptr not in objects:
+                objects[ptr] = _object_end(m, ptr)
+                regions.append((ptr, objects[ptr], f'object @{ptr:#x}'))
+        tiles.append((to, items, end_ptr))
+    # The extra (last) tile-table entry points at a 4-byte slot the loader never reads; DICE's tool
+    # left uninitialised memory there (preserved for exact round trips, zero when generating).
+    regions.append((tile_offs[tile_count], tile_offs[tile_count] + 4, 'tile table end slot'))
+    # Trailer: the last 8 bytes hold their own offset and 0.
+    if u32(len(m) - 8) != len(m) - 8 or u32(len(m) - 4) != 0:
+        raise ValueError('mesh trailer not found')
+    regions.append((len(m) - 8, len(m), 'trailer'))
+    links = []
+    if links_n:
+        regions.append((links_off, links_off + links_n * 12, 'link table'))
+        for k in range(links_n):
+            sid, cnt, lst = struct.unpack_from('<3I', m, links_off + k * 12)
+            regions.append((lst, lst + cnt * 4, f'link list {sid:#x}'))
+            for j in range(cnt):
+                lo = u32(lst + j * 4)
+                c = u32(lo + 0xC)
+                regions.append((lo, lo + 0x10 + c * 4, f'link {sid:#x}/{j}'))
+            links.append((sid, cnt, lst))
+    return regions, tiles, objects, links, tile_offs
+
+
+def _object_end(m: bytes, o: int) -> int:
+    u32 = lambda x: struct.unpack_from('<I', m, x)[0]
+    a, b, c = u32(o + 0x20), u32(o + 0x28), u32(o + 0x30)
+    end = o + MESH_OBJECT_HEADER + a * 0x20 + b * 0x20 + c * 0x2C
+    for cnt_off, tab_off, stride in ((0x38, 0x3C, 4), (0x40, 0x44, 4), (0x48, 0x4C, 16)):
+        cnt = u32(o + cnt_off)
+        if not cnt:
+            continue
+        tab = o + u32(o + tab_off)
+        if tab != end:
+            raise ValueError(f'object {o:#x}: table {cnt_off:#x} at {tab:#x}, expected {end:#x}')
+        first = u32(tab)
+        last = u32(tab + cnt * stride)
+        end = tab + (cnt + 1) * stride + ((last - first) & ~3)
+    return end
+
+
+def mesh_coverage(m: bytes):
+    regions, *_ = mesh_layout(m)
+    regions.sort()
+    gaps, overlaps, pos = [], [], 0
+    for s, e, label in regions:
+        if s > pos:
+            gaps.append((pos, s))
+        elif s < pos:
+            overlaps.append((s, pos, label))
+        pos = max(pos, e)
+    if pos < len(m):
+        gaps.append((pos, len(m)))
+    return gaps, overlaps
+
+
 def _block(s: Sector) -> bytes:
     out = bytearray(struct.pack('<2I', len(s.nodes), len(s.edges)))
     for n in s.nodes:
@@ -152,6 +234,31 @@ def main(argv):
         for e in s.edges:
             print(f'  edge {e.tag:#010x} {e.src} -> {e.dst}')
         print(f'  mesh {len(s.mesh)} bytes: {s.mesh[:48].hex(" ")}')
+        return 0
+    if cmd == 'coverage':
+        total = clean = 0
+        gap_kinds = {}
+        for p in _files(argv[2:]):
+            f = parse(open(p, 'rb').read())
+            for s in f.sectors:
+                total += 1
+                try:
+                    gaps, overlaps = mesh_coverage(s.mesh)
+                except (ValueError, struct.error) as ex:
+                    print(f'ERROR {p} sector {s.id:#x}: {ex}')
+                    continue
+                if not gaps and not overlaps:
+                    clean += 1
+                else:
+                    key = (tuple((e - b) for b, e in gaps[:3]), len(overlaps))
+                    gap_kinds[key] = gap_kinds.get(key, 0) + 1
+                    if gap_kinds[key] <= 2:
+                        desc = [f'{b:#x}:{s.mesh[b:e].hex(" ")}' for b, e in gaps[:4]]
+                        print(f'{os.path.basename(os.path.dirname(os.path.dirname(p)))}/{os.path.basename(os.path.dirname(p))} '
+                              f'sector {s.id:#x} len {len(s.mesh):#x} last-tile-entry '
+                              f'{struct.unpack_from("<I", s.mesh, 0x50 + struct.unpack_from("<I", s.mesh, 0x38)[0] * struct.unpack_from("<I", s.mesh, 0x3C)[0] * 4)[0]:#x}: '
+                              f'gaps {desc} overlaps {overlaps[:2]}')
+        print(f'coverage: {clean}/{total} meshes fully explained; gap patterns {len(gap_kinds)}')
         return 0
     if cmd == 'roundtrip':
         ok = bad = 0
