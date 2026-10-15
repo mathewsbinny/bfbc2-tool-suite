@@ -95,6 +95,25 @@ compared the result with DICE's `pathdata.hpd` (39,379 walkable reference cells)
   `FrostbiteAutoSeedStep`). Seeding from five spawn-like points with a step of 0.9 m (8-connected)
   gives 97.4 % within one cell, 11.7 % cell-exact error.
 
+### 3.5 Auto-seeding observed (sp_01, 2026-10-14)
+
+Observed at the boundary only (OPFOR `[dev] navgen` with `navgen_capture=1`: DICE's point-query
+callback of `FrostbiteAutoSeedStep` and DICE's file callbacks; the run stops at the licence check as
+before). Stage 2 ran on two sectors (257, 513 – built around the single given seed):
+
+- **Where:** only on each sector's **perimeter lines, two samples (1.6 m) in from the sector edges**
+  (x = minX + 1.6 / maxX − 1.6 for every z, and z = minZ + 1.6 / maxZ − 1.6 for every x; 972
+  columns for two sectors), at the pitch spacing (0.8 m).
+- **How:** each column is swept from the top of the sector box (UpMax 426.75 + 0.95) to the bottom in
+  **0.4 m steps** with a **sphere of radius 0.4** (EntityRadius); result = geometry within the
+  sphere. Free→blocked transitions mark surfaces (2–4 per column on sp_01: terrain and overhangs).
+- **Output:** `sector_<n>.autoseed` stayed empty in this run (the stage reports "Generating seeds
+  done"), so which transitions become seeds is not observed yet.
+- **Effect on regions:** keeping only walkable regions that touch a perimeter line gives 97.5 % agreement
+  within one cell (8-connected, step ≤ 0.9 m) – the same as spawn-style seeding; the remaining gap is
+  the connectivity rule between samples (too lenient joins regions DICE keeps apart, too strict loses
+  regions DICE keeps, probably via the level's own seed entities).
+
 The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
 these stages independently.
 
