@@ -7,6 +7,8 @@ DbxTool on both folders) and writes, next to it:
                      Assets[i] + Transforms[i]), with blueprint flags
   forbid_tris.npy    world-space collision triangles (N x 3 x 3) of every placed object whose blueprint has
                      ForbidPathfinding = true (from the blueprint's <name>_Havok.res packfile)
+  stair_tris.npy     collision of staircases and ramps (blueprint names with stair / ramp / steps): floor that
+                     does not block its own users' clearance
   dynamic_tris.npy   the same for dynamic (movable / destructible) objects - DynamicModelEntityData blueprints
                      such as crates and barrels - for objects with DisablePathfinding = PdtWhenAlive (doors), and
                      for barrier arms (a forbidden object that is one thin raised bar): path data treats them as absent
@@ -155,12 +157,34 @@ def main(argv):
                        if o['flags'] and ((len(o['flags']) > 3 and o['flags'][3]) or
                                           (len(o['flags']) > 4 and o['flags'][4] == 'PdtWhenAlive') or
                                           (o['flags'][0] and barrier_arm(o)))) if w is not None]
+    # staircases and ramps (DICE blueprint names): their own collision is floor, not an obstacle to clearance
+    stair_like = re.compile(r'stair|ramp|steps', re.I)
+    stairs = [w for w in (tris_of(o) for o in objs + groups if stair_like.search(o['bp'].rsplit('/', 1)[-1]))
+              if w is not None]
+    np.save(os.path.join(level_dir, 'stair_tris.npy'), np.concatenate(stairs) if stairs else np.zeros((0, 3, 3)))
+    print(f'{sum(len(w) for w in stairs)} stair triangles from {len(stairs)} staircases / ramps')
     print('barrier arms:', sorted({o['bp'].split('/')[-1] for o in objs + groups if o['flags'] and o['flags'][0] and barrier_arm(o)}))
     np.save(os.path.join(level_dir, 'dynamic_tris.npy'), np.concatenate(dyn) if dyn else np.zeros((0, 3, 3)))
     print(f'{sum(len(w) for w in dyn)} dynamic-object triangles from {len(dyn)} instances')
+    # objects excluded from path finding (fences, sandbags, palm trees): their collision does not block clearance
+    # (added to the dynamic set); only their footprint at ground level - parts reaching within 0.5 m of the
+    # object's origin height - stays a barrier (exclude_footprint_tris.npy) instead of the whole object
+    excluded = [o for o in objs + groups if o['flags'] and o['flags'][1]]
+    ex_all, ex_foot = [], []
+    for o in excluded:
+        w = tris_of(o)
+        if w is None:
+            continue
+        ex_all.append(w)
+        base = o['m'][13]
+        ex_foot.append(w[w[:, :, 1].min(1) <= base + 0.5])
+    np.save(os.path.join(level_dir, 'exclude_tris.npy'), np.concatenate(ex_all) if ex_all else np.zeros((0, 3, 3)))
+    np.save(os.path.join(level_dir, 'exclude_footprint_tris.npy'),
+            np.concatenate(ex_foot) if ex_foot else np.zeros((0, 3, 3)))
+    print(f'{len(ex_all)} excluded objects: {sum(len(w) for w in ex_all)} triangles, footprint {sum(len(w) for w in ex_foot)}')
     world = []
     for o in objs + groups:
-        if not (o['flags'] and o['flags'][0]):
+        if not (o['flags'] and o['flags'][0]) or o['flags'][1]:
             continue
         w = tris_of(o)
         if w is not None:

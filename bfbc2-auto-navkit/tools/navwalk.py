@@ -156,7 +156,8 @@ def matched_flags(s, other):
 
 
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
-             high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False):
+             high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
+             stair_tris=None, exclude_tris=None, exclude_footprint_tris=None):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -169,11 +170,21 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     clear = (s.flags & 3) == 0
     if dynamic_tris is not None and len(dynamic_tris):
         clear |= near_objects(s, dynamic_tris) & ((s.flags & 2) == 0)
+    if exclude_tris is not None and len(exclude_tris):
+        # excluded objects do not block clearance; their upper parts are not floor
+        clear |= near_objects(s, exclude_tris) & ((s.flags & 2) == 0)
     ok = clear & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01)
+    on_stair = np.zeros(len(y), bool)
+    if stair_tris is not None and len(stair_tris):
+        # staircase objects: surfaces on / right beside them are not blocked by the staircase itself
+        on_stair = near_objects(s, stair_tris, grow=0.4, below=0.6, above=0.6) & ~terrain & ((s.flags & 2) == 0)
     if stairs:
         cand = ~terrain & ((s.flags & 2) == 0)
         gs, hgx, hgz = stair_slope(s, cand)
         stair = cand & (gs >= 12) & (gs <= slope)
+        stair_obj = on_stair & (gs <= 45)
+        ok |= stair_obj
+        stair |= stair_obj & (gs >= 12)
         hi = matched_flags(s, high_capsule) if high_capsule is not None else s.flags
         # landings: object surfaces within two samples of a stair surface on the same level also take the
         # high-capsule clearance (the normal capsule touches the top steps / rail ends there)
@@ -235,6 +246,11 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     ok &= ~onf
     if dynamic_tris is not None and len(dynamic_tris):
         ok &= ~on_objects(s, dynamic_tris)
+    if exclude_tris is not None and len(exclude_tris):
+        ok &= ~on_objects(s, exclude_tris)
+    if exclude_footprint_tris is not None and len(exclude_footprint_tris):
+        # the footprint of an excluded object (trunk base, fence posts and boards) stays a barrier
+        ok &= ~near_objects(s, exclude_footprint_tris, grow=0.3, below=1.0, above=0.5)
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
     per_i = {i for i in range(s.nx) if round((s.min_x + i * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     per_j = {j for j in range(s.nz) if round((s.min_z + j * s.pitch) % SECTOR, 1) in (1.6, 98.4)}

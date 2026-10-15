@@ -25,6 +25,7 @@ are generated at the normal pitch.
 
 Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd> [--step 0.28]
                    [--dynamic dynamic_tris.npy] [--high samples_high_capsule.bin] [--narrow samples_narrow.bin]
+                   [--stairs stair_tris.npy] [--exclude exclude_tris.npy] [--exclude-foot exclude_footprint_tris.npy]
 """
 import math
 import os
@@ -224,7 +225,7 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
 
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
-          narrow_path=None):
+          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None):
     t0 = time.time()
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
@@ -232,8 +233,11 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     dyn = np.load(dynamic_path) if dynamic_path else None
     hi = navsample.load(high_path)[0] if high_path else None
     narrow = navsample.load(narrow_path)[0] if narrow_path else None
+    st = np.load(stairs_path) if stairs_path else None
+    ex = np.load(exclude_path) if exclude_path else None
+    exf = np.load(exclude_foot_path) if exclude_foot_path else None
     keep, gx, gz = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
-                                    narrow_capsule=narrow)
+                                    narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf)
     level = Level(s, keep, step, gx, gz)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
 
@@ -526,7 +530,8 @@ def main(argv):
         return 1
     build(args[0], args[1] if args[1] != '-' else None, int(args[2]), int(args[3]), args[4],
           float(opts.get('--step', 0.28)), dynamic_path=opts.get('--dynamic'), high_path=opts.get('--high'),
-          narrow_path=opts.get('--narrow'))
+          narrow_path=opts.get('--narrow'), stairs_path=opts.get('--stairs'), exclude_path=opts.get('--exclude'),
+          exclude_foot_path=opts.get('--exclude-foot'))
     return 0
 
 
