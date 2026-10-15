@@ -7,7 +7,8 @@ Rules (navkit/research/KYNAPSE_SPEC.md section 3):
   3. regions grow 8-connected between neighbouring samples when the height step, relative to the local
      ground plane (from both normals), is at most StepMax (0.28 m);
   4. regions are seeded on the sector perimeter lines (1.6 m inside every 100 m sector edge), on terrain
-     only (objects do not allow path-data seeds by default).
+     and objects alike (terrain-only seeding cut off decks, platforms and building floors: sp_01's AI order
+     positions went from 463 to 613 of DICE's 633 with object seeds; terrain_seeds_only=True restores it).
 
 Usage:
   navwalk.py score <samples.bin> <pathdata.hpd> [forbid_tris.npy] [--step 0.28] [--slope 40]
@@ -79,7 +80,7 @@ def on_objects(s, tris, tol=0.2):
     return out
 
 
-def walkable(s, forbid_tris=None, slope=40.0, step=0.28):
+def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False):
     """Kept walkable surfaces (bool per surface) by rules 1-4."""
     y = s.y.astype(float)
     ny = np.maximum(s.normal[:, 1], 0.05)
@@ -92,7 +93,7 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28):
     per_j = {j for j in range(s.nz) if round((s.min_z + j * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     keep = np.zeros(len(y), bool)
     q = deque()
-    for k in np.nonzero(ok & terrain)[0]:
+    for k in np.nonzero(ok & terrain if terrain_seeds_only else ok)[0]:
         c = col_of[k]
         if c % s.nx in per_i or c // s.nx in per_j:
             keep[k] = True
