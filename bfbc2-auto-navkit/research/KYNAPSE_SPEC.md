@@ -59,6 +59,25 @@ proven).
 | 5 | Linking graphs | Build the high-level **graph**: nodes mostly within ~1 m of outline corners (obstacle corners offset by roughly the entity radius – measured: ~75 % infantry / ~60 % vehicle nodes), plus nodes in open ground; edges between mutually reachable nodes up to about `DistEdgeMax` (median 6 m; 99 % < 17.6 m infantry, < 48 m vehicle – measured), cost = floor(3-D length × 16). Nodes on sector borders are shared with the neighbouring sector (same id and position, high bit). | `.fsg` |
 | 6 | Building hierarchical database | Assemble per-sector blocks (graph + runtime mesh), sort the node lookup lists by x, y, z, write the sector table with build timestamps. | `pathdata.hpd` |
 
+### 3.3 Walkability measured against the engine (NavKit sampling, sp_01)
+
+OPFOR's `[dev] navsample` option sampled a 200 × 200 m block of sp_01 (sectors 0x908–0xA09, 63,001
+samples at 0.8 m) through the engine's own ray cast and capsule queries; `navkit	ools
+avsample.py`
+compared the result with DICE's `pathdata.hpd` (39,379 walkable reference cells):
+
+- **Slope rule:** walkable when the hit surface's normal is within `GroundSlopeMax` (40°) of vertical.
+  DICE's walkable share drops sharply at exactly that angle (78 % at 35–40°, 22 % at 40–45°);
+  neighbour height differences or smoothed normals match worse. The sphere-cast radius (0.05 or
+  0.001) makes no difference.
+- **Geometry is complete:** flat samples two or more samples away from a non-walkable one match
+  97–100 %, so the engine queries see all collision relevant to the original.
+- **Residual:** with normal ≤ 40° and the soldier capsule (r 0.4 from StepMax 0.28 to 1.9 m), 90.7 % of
+  the reference is found and 17.3 % extra is marked. Practically all disagreement lies within one
+  sample of a walkable edge – the original decides edge cells by a finer rule not identified yet.
+- A ray cast that starts inside geometry (under terrain, inside a slab) reports an immediate hit;
+  the sampler steps down through solid geometry (0.5 m steps, up to 10 m) to find lower storeys.
+
 The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
 these stages independently.
 
