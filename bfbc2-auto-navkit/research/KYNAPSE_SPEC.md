@@ -146,9 +146,13 @@ Implemented in `navkit/tools/navwalk.py` (object data from `navkit/tools/levelob
 assets read with `navkit/tools/hkpack.py`):
 
 1. Candidate: soldier capsule fits and surface normal within 40° (GroundSlopeMax).
-2. **Forbidden objects:** surfaces lying on the collision triangles (within 0.2 m) of placed objects
+2. **Forbidden objects:** surfaces lying on the collision triangles (within 0.08 m) of placed objects
    whose blueprint has `ForbidPathfinding` are removed (rocks, cliffs, boulders, big trees …).
    Footprint hulls are too coarse (they remove ground DICE keeps between rocks).
+   The tolerance is 0.08 m: the sampled height is the hit surface itself, so a surface on the
+   object lies within a few cm of its triangles. 0.2 m marked stair treads touched by decorative
+   rocks / palms / invisible walls as rock (sp_01 hilltop stair route 1/17 positions -> 15/17;
+   order coverage 577 -> 590 of DICE's 633; 0.04-0.06 m loses again, 0.12 m is close).
 3. **Connectivity:** 8-connected; height step relative to the local ground plane (from both normals)
    at most StepMax 0.28 m (0.4 m fits the steep mountain block slightly better).
 4. **Seeds:** sector perimeter lines (1.6 m inside each 100 m sector edge), **terrain only** – objects

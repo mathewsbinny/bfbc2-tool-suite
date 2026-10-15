@@ -157,7 +157,7 @@ def matched_flags(s, other):
 
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
-             stair_tris=None, exclude_tris=None, exclude_footprint_tris=None):
+             stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -205,7 +205,7 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
         # on stairs the treads are flat: take the incline from the neighbour heights, not the tread normals
         gx_all = np.where(stair, hgx, gx_all)
         gz_all = np.where(stair, hgz, gz_all)
-    onf = on_objects(s, forbid_tris)
+    onf = on_objects(s, forbid_tris, tol=forbid_tol)
     slope_ok = s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01
     col_of_w = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
 
