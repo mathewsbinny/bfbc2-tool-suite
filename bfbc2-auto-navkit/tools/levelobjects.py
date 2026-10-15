@@ -7,6 +7,8 @@ DbxTool on both folders) and writes, next to it:
                      Assets[i] + Transforms[i]), with blueprint flags
   forbid_tris.npy    world-space collision triangles (N x 3 x 3) of every placed object whose blueprint has
                      ForbidPathfinding = true (from the blueprint's <name>_Havok.res packfile)
+  dynamic_tris.npy   the same for dynamic (movable / destructible) objects - DynamicModelEntityData blueprints
+                     such as crates, barrels, sandbags; path data treats them as absent
 
 Usage: levelobjects.py <level dir> <level name> [extra blueprint dirs ...]
   e.g. levelobjects.py work\\levels\\sp_01 SP_01 work\\audit\\sp_common work\\audit\\mp_common
@@ -27,17 +29,18 @@ SEP = chr(92)
 
 
 def blueprint_flags(bases):
-    """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds)."""
+    """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic)."""
     flags = {}
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
             t = open(f, encoding='utf-8', errors='replace').read()
-            if 'ForbidPathfinding' not in t:
+            dynamic = 'type="GameSharedResources.DynamicModelEntityData"' in t
+            if 'ForbidPathfinding' not in t and not dynamic:
                 continue
             rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-4]
             flags.setdefault(rel, ('<field name="ForbidPathfinding">true' in t,
                                    '<field name="ExcludeFromPathfinding">true' in t,
-                                   '<field name="AllowPathdataSeeds">true' in t))
+                                   '<field name="AllowPathdataSeeds">true' in t, dynamic))
     return flags
 
 
@@ -103,18 +106,27 @@ def main(argv):
     json.dump(groups, open(os.path.join(level_dir, 'group_instances.json'), 'w'))
 
     havok = havok_index(bases)
-    cache, world, missing = {}, [], set()
-    for o in objs + groups:
-        if not (o['flags'] and o['flags'][0]):
-            continue
+    cache, missing = {}, set()
+
+    def tris_of(o):
         if o['bp'] not in cache:
             cache[o['bp']] = triangles(havok[o['bp']]) if o['bp'] in havok else None
         t = cache[o['bp']]
         if t is None:
             missing.add(o['bp'])
-            continue
+            return None
         m = np.array(o['m']).reshape(4, 4)        # rows: right, up, forward, translation
-        world.append((t @ m[:3, :3] + m[3, :3]).astype(np.float32))
+        return (t @ m[:3, :3] + m[3, :3]).astype(np.float32)
+    dyn = [w for w in (tris_of(o) for o in objs if o['flags'] and len(o['flags']) > 3 and o['flags'][3]) if w is not None]
+    np.save(os.path.join(level_dir, 'dynamic_tris.npy'), np.concatenate(dyn) if dyn else np.zeros((0, 3, 3)))
+    print(f'{sum(len(w) for w in dyn)} dynamic-object triangles from {len(dyn)} instances')
+    world = []
+    for o in objs + groups:
+        if not (o['flags'] and o['flags'][0]):
+            continue
+        w = tris_of(o)
+        if w is not None:
+            world.append(w)
     np.save(os.path.join(level_dir, 'forbid_tris.npy'), np.concatenate(world) if world else np.zeros((0, 3, 3)))
     print(f'{len(objs)} placed objects, {len(groups)} group instances, {len(flags)} blueprints with flags; '
           f'{sum(len(w) for w in world)} forbid triangles from {len(world)} instances; no collision: {sorted(missing)}')

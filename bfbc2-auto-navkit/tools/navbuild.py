@@ -24,6 +24,7 @@ Detail features D and F are not generated (counts 0, allowed by the format); det
 are generated at the normal pitch.
 
 Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd> [--step 0.28]
+                   [--dynamic dynamic_tris.npy] [--high samples_high_capsule.bin]
 """
 import math
 import os
@@ -57,11 +58,12 @@ HEADER = (2, 2, 0, 1, 0, 0, 0, 0, 2, 0, 8, 0) + (0,) * 20 + (36, 12, 1, 0)
 class Level:
     """Kept walkable surfaces on the global sample grid, with the step-rule connectivity."""
 
-    def __init__(self, s, keep, step):
+    def __init__(self, s, keep, step, gx=None, gz=None):
         self.s, self.keep, self.step = s, keep, step
         self.y = s.y.astype(float)
         ny = np.maximum(s.normal[:, 1], 0.05)
-        self.gx, self.gz = -s.normal[:, 0] / ny, -s.normal[:, 2] / ny
+        self.gx = gx if gx is not None else -s.normal[:, 0] / ny
+        self.gz = gz if gz is not None else -s.normal[:, 2] / ny
         self.col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
 
     def surfaces(self, gi, gj):
@@ -221,13 +223,15 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
     return result
 
 
-def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print):
+def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None):
     t0 = time.time()
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
     tris = np.load(tris_path) if tris_path else None
-    keep = navwalk.walkable(s, tris, step=step)
-    level = Level(s, keep, step)
+    dyn = np.load(dynamic_path) if dynamic_path else None
+    hi = navsample.load(high_path)[0] if high_path else None
+    keep, gx, gz = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True)
+    level = Level(s, keep, step, gx, gz)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
 
     # Sectors that contain kept surfaces.
@@ -268,22 +272,24 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print):
             other = (X + dX, Y + dY)
             if other not in info:
                 continue
-            # surfaces on the line, grouped into connected runs along it
-            run, runs = [], []
-            prev = None
+            # every kept surface on the line (all layers: floors under roofs too), grouped into connected runs
+            # along it, one run per layer
+            runs, active = [], []
             for t in WINDOW:
                 i, j = (line, t) if dX else (t, line)
-                ks = level.surfaces(gi0 + i, gj0 + j)
-                k = ks[0] if ks else None
-                if k is not None and prev is not None and level.connected(prev, k, 0 if dX else 1, 1 if dX else 0):
-                    run.append((t, k))
-                else:
-                    if run:
-                        runs.append(run)
-                    run = [(t, k)] if k is not None else []
-                prev = k
-            if run:
-                runs.append(run)
+                nxt = []
+                for k in level.surfaces(gi0 + i, gj0 + j):
+                    for r in active:
+                        if r[-1][0] == t - 1 and level.connected(r[-1][1], k, 0 if dX else 1, 1 if dX else 0):
+                            r.append((t, k))
+                            nxt.append(r)
+                            active.remove(r)
+                            break
+                    else:
+                        r = [(t, k)]
+                        runs.append(r)
+                        nxt.append(r)
+                active = nxt
             for run in runs:
                 n = max(1, int(math.ceil(len(run) * PITCH / BORDER_NODE_SPACING)))
                 for q in range(n):
@@ -516,7 +522,7 @@ def main(argv):
         print(__doc__)
         return 1
     build(args[0], args[1] if args[1] != '-' else None, int(args[2]), int(args[3]), args[4],
-          float(opts.get('--step', 0.28)))
+          float(opts.get('--step', 0.28)), dynamic_path=opts.get('--dynamic'), high_path=opts.get('--high'))
     return 0
 
 

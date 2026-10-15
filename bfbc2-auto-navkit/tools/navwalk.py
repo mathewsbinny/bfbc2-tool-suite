@@ -80,14 +80,123 @@ def on_objects(s, tris, tol=0.2):
     return out
 
 
-def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False):
-    """Kept walkable surfaces (bool per surface) by rules 1-4."""
+def near_objects(s, tris, grow=0.5, below=2.2, above=0.3):
+    """Surfaces within `grow` metres (horizontally) of a triangle's bounding box and from `below` metres under
+    to `above` metres over it - the ground a capsule test around an object would see as blocked."""
+    out = np.zeros(len(s.y), bool)
+    if tris is None or not len(tris):
+        return out
+    y = s.y.astype(float)
+    for t in tris.astype(float):
+        x0, x1 = t[:, 0].min() - grow, t[:, 0].max() + grow
+        z0, z1 = t[:, 2].min() - grow, t[:, 2].max() + grow
+        i0 = max(0, math.ceil((x0 - s.min_x) / s.pitch)); i1 = min(s.nx - 1, math.floor((x1 - s.min_x) / s.pitch))
+        j0 = max(0, math.ceil((z0 - s.min_z) / s.pitch)); j1 = min(s.nz - 1, math.floor((z1 - s.min_z) / s.pitch))
+        y0, y1 = t[:, 1].min() - below, t[:, 1].max() + above
+        for j in range(j0, j1 + 1):
+            for i in range(i0, i1 + 1):
+                c = j * s.nx + i
+                for k in range(s.start[c], s.start[c + 1]):
+                    if y0 <= y[k] <= y1:
+                        out[k] = True
+    return out
+
+
+def stair_slope(s, mask):
+    """Slope (degrees) from neighbouring sample heights on the same layer (central differences, +-1 sample),
+    for the surfaces in mask; 90 where a neighbour is missing."""
+    y = s.y.astype(float)
+    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+    out = np.full(len(y), 90.0)
+    gxo = np.zeros(len(y)); gzo = np.zeros(len(y))
+
+    def layer(i, j, yref):
+        if not (0 <= i < s.nx and 0 <= j < s.nz):
+            return None
+        c = j * s.nx + i
+        best = None
+        for k in range(s.start[c], s.start[c + 1]):
+            if abs(y[k] - yref) <= 0.7 and (best is None or abs(y[k] - yref) < abs(best - yref)):
+                best = y[k]
+        return best
+    for k in np.nonzero(mask)[0]:
+        c = col_of[k]
+        i, j = c % s.nx, c // s.nx
+        a, b, cc, d = layer(i + 1, j, y[k]), layer(i - 1, j, y[k]), layer(i, j + 1, y[k]), layer(i, j - 1, y[k])
+        if a is None and b is None and cc is None and d is None:
+            continue
+
+        def diff(p, m):   # central difference, or one-sided where a neighbour is missing (narrow stairs)
+            if p is not None and m is not None:
+                return (p - m) / (2 * s.pitch)
+            if p is not None:
+                return (p - y[k]) / s.pitch
+            if m is not None:
+                return (y[k] - m) / s.pitch
+            return 0.0
+        gxo[k] = diff(a, b)
+        gzo[k] = diff(cc, d)
+        out[k] = math.degrees(math.atan(math.hypot(gxo[k], gzo[k])))
+    return out, gxo, gzo
+
+
+def matched_flags(s, other):
+    """Capsule flags of a second run over the same grid (e.g. a higher capsule), matched per column by height."""
+    out = np.full(len(s.y), 1, dtype=np.uint8)
+    if other is None:
+        return out
+    for c in range(s.nx * s.nz):
+        oth = range(other.start[c], other.start[c + 1])
+        for k in range(s.start[c], s.start[c + 1]):
+            for n in oth:
+                if abs(float(other.y[n]) - float(s.y[k])) < 0.05:
+                    out[k] = other.flags[n]
+                    break
+    return out
+
+
+def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
+             high_capsule=None, stairs=True, return_gradients=False):
+    """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
+      dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
+      right beside them is not blocked by them;
+      stairs: object surfaces whose slope over neighbouring samples is 12..40 deg count as walkable, with the
+      clearance of the high_capsule run (capsule from 0.6 m) instead of the normal one."""
     y = s.y.astype(float)
     ny = np.maximum(s.normal[:, 1], 0.05)
     gx_all, gz_all = -s.normal[:, 0] / ny, -s.normal[:, 2] / ny
-    ok = ((s.flags & 3) == 0) & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01)
-    ok &= ~on_objects(s, forbid_tris)
     terrain = (s.hit[:, 0] == TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(y), bool)
+    clear = (s.flags & 3) == 0
+    if dynamic_tris is not None and len(dynamic_tris):
+        clear |= near_objects(s, dynamic_tris) & ((s.flags & 2) == 0)
+    ok = clear & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01)
+    if stairs:
+        cand = ~terrain & ((s.flags & 2) == 0)
+        gs, hgx, hgz = stair_slope(s, cand)
+        stair = cand & (gs >= 12) & (gs <= slope)
+        hi = matched_flags(s, high_capsule) if high_capsule is not None else s.flags
+        # landings: object surfaces within two samples of a stair surface on the same level also take the
+        # high-capsule clearance (the normal capsule touches the top steps / rail ends there)
+        landing = np.zeros(len(y), bool)
+        col_of_l = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+        for k in np.nonzero(stair)[0]:
+            c = col_of_l[k]
+            i, j = c % s.nx, c // s.nx
+            for dj in range(-2, 3):
+                for di in range(-2, 3):
+                    a, b = i + di, j + dj
+                    if 0 <= a < s.nx and 0 <= b < s.nz:
+                        cc = b * s.nx + a
+                        for n in range(s.start[cc], s.start[cc + 1]):
+                            if cand[n] and abs(y[n] - y[k]) <= 0.9:
+                                landing[n] = True
+        ok |= (stair | (landing & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01))) & ((hi & 3) == 0)
+        # on stairs the treads are flat: take the incline from the neighbour heights, not the tread normals
+        gx_all = np.where(stair, hgx, gx_all)
+        gz_all = np.where(stair, hgz, gz_all)
+    ok &= ~on_objects(s, forbid_tris)
+    if dynamic_tris is not None and len(dynamic_tris):
+        ok &= ~on_objects(s, dynamic_tris)
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
     per_i = {i for i in range(s.nx) if round((s.min_x + i * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     per_j = {j for j in range(s.nz) if round((s.min_z + j * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
@@ -115,6 +224,8 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
                     if abs(y[n] - y[k] - pred) <= step:
                         keep[n] = True
                         q.append(n)
+    if return_gradients:
+        return keep, gx_all, gz_all
     return keep
 
 
