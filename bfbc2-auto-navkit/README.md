@@ -53,8 +53,7 @@ src\, tests\         (reserved for the generator proper and its tests)
    all 7,944 sector meshes identically.
 3. **Builder behaviour – done.** Spec §3: stages, the sampling grid, area cuts, graph rules,
    auto-seeding on sector perimeters, and the walkability rules (§3.7).
-4. **Generator – first complete version (`tools
-avbuild.py`).**
+4. **Generator – first complete version (`tools\navbuild.py`).**
    - Walkable surfaces: 97.9 % agreement within 0.8 m with DICE's data in a base area, 95.7 % on
      steep terrain (sp_01 test blocks).
    - Full pipeline: 100 m sectors (level `SectorOffsets`), 3 × 3 tiles of 50 samples, 8-connected areas
