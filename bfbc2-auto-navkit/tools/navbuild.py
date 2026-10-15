@@ -287,7 +287,7 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
 
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
-          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None):
+          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None):
     t0 = time.time()
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
@@ -299,7 +299,8 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     ex = np.load(exclude_path) if exclude_path else None
     exf = np.load(exclude_foot_path) if exclude_foot_path else None
     keep, gx, gz = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
-                                    narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf)
+                                    narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf,
+                                    extra_seeds=seeds)
     level = Level(s, keep, step, gx, gz)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
 
@@ -369,7 +370,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
                     border_nodes[(X, Y)].append((nid, pos, k))
                     border_nodes[other].append((nid, pos, k))
 
-    hpd_sectors = []
+    hpd_sectors, graphs = [], []
     stamp = time.localtime()
     date = (stamp.tm_year % 100) * 10000 + (stamp.tm_mon - 1) * 100 + stamp.tm_mday
     clock = stamp.tm_hour * 1000000 + stamp.tm_min * 10000 + stamp.tm_sec * 100
@@ -415,10 +416,14 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         rect = (ox - PITCH, ox + 100 + 1.1 * PITCH, oz - PITCH, oz + 100 + 1.1 * PITCH)
         mesh = kymesh.Mesh(2, 0, 0, sid, RESOLUTION, PITCH, rect, TILES, TILES, RADIUS, tiles, mesh_areas,
                            mesh_links, b'\0' * 4)
-        nodes, edges = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id)
+        pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id)
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]
         bounds = (rect[0], rect[1], min(ys), max(ys), rect[2], rect[3])
-        hpd_sectors.append(hpdtool.Sector(sid, bounds, 0, date, clock, nodes, edges, kymesh.write_mesh(mesh)))
+        graphs.append((sid, bounds, kymesh.write_mesh(mesh), pts, pairs))
+    linked = {pts[i][0] for _sid, _b, _m, pts, pairs in graphs for a_, b_, _d in pairs for i in (a_, b_)}
+    for sid, bounds, mesh_bytes, pts, pairs in graphs:
+        nodes, edges = finalize_graph(pts, pairs, linked)
+        hpd_sectors.append(hpdtool.Sector(sid, bounds, 0, date, clock, nodes, edges, mesh_bytes))
     out = hpdtool.HpdFile(HEADER, hpd_sectors)
     data = hpdtool.write(out)
     open(out_path, 'wb').write(data)
@@ -561,15 +566,25 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
                 pairs.append((u, v, math.dist(pts[u][1], pts[v][1])))
                 parent[find(u)] = find(v)
             changed = True
+    return pts, pairs
+
+
+def finalize_graph(pts, pairs, linked_ids):
+    """Nodes and edges of a sector. Nodes without an edge in any sector (lone nodes on slivers and tiny islands
+    the group joining cannot reach; border ids count edges of both sectors) are dropped - DICE's data has none."""
+    keep = [idx for idx, p in enumerate(pts) if p[0] in linked_ids]
+    new = {old: q for q, old in enumerate(keep)}
     out_edges = defaultdict(list)
     for a_, b_, d in pairs:
-        cost = 0x80000000 | int(math.floor(d * 16))
-        out_edges[a_].append((cost, b_))
-        out_edges[b_].append((cost, a_))
+        if a_ in new and b_ in new:
+            cost = 0x80000000 | int(math.floor(d * 16))
+            out_edges[new[a_]].append((cost, new[b_]))
+            out_edges[new[b_]].append((cost, new[a_]))
     nodes, edges = [], []
-    for idx, (nid, pos, k, i, j) in enumerate(pts):
-        nodes.append(hpdtool.Node(nid, pos, 0x80000000, DIST_EDGE_MAX if idx == 0 else 0.0, 0, 0, 0))
-    for idx in range(len(pts)):
+    for q, idx in enumerate(keep):
+        nid, pos = pts[idx][0], pts[idx][1]
+        nodes.append(hpdtool.Node(nid, pos, 0x80000000, DIST_EDGE_MAX if q == 0 else 0.0, 0, 0, 0))
+    for idx in range(len(nodes)):
         first = len(edges)
         for cost, dst in sorted(out_edges[idx], key=lambda e: e[1]):
             edges.append(hpdtool.Edge(cost, idx, dst))

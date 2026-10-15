@@ -157,7 +157,8 @@ def matched_flags(s, other):
 
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
-             stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08):
+             stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08,
+             extra_seeds=None):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -261,6 +262,18 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
         if c % s.nx in per_i or c // s.nx in per_j:
             keep[k] = True
             q.append(k)
+    for (sx, sy, sz) in (extra_seeds or ()):
+        # level seed points (soldier spawns): the walkable surface at or just below the point
+        i, j = int(round((sx - s.min_x) / s.pitch)), int(round((sz - s.min_z) / s.pitch))
+        if not (0 <= i < s.nx and 0 <= j < s.nz):
+            continue
+        c = j * s.nx + i
+        cand = [n for n in range(s.start[c], s.start[c + 1]) if ok[n] and -1.5 <= y[n] - sy <= 0.5]
+        if cand:
+            n = min(cand, key=lambda n: abs(y[n] - sy))
+            if not keep[n]:
+                keep[n] = True
+                q.append(n)
     while q:
         k = q.popleft()
         c = col_of[k]

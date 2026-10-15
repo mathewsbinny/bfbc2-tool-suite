@@ -140,6 +140,15 @@ def main(argv):
             bp = re.sub(r'_havok$', '', a.rsplit('/', 1)[0].lower())
             groups.append({'group': os.path.basename(f), 'bp': bp, 'flags': flags.get(bp),
                            'm': [float(v) for v in tr[i * 16:(i + 1) * 16]]})
+    # soldier spawn points (seed points of the path data)
+    spawns = []
+    for m in re.finditer(r'type="[A-Za-z]*\.SoldierSpawnEntityData">(.*?)</instance>', x, re.S):
+        t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
+        if t:
+            v = [float(a) for a in t.group(1).split('/')]
+            if any(abs(c) > 1e-3 for c in v[12:15]):
+                spawns.append(v[12:15])
+    json.dump(spawns, open(os.path.join(level_dir, 'soldier_spawns.json'), 'w'))
     json.dump(objs, open(os.path.join(level_dir, 'objects.json'), 'w'))
     json.dump(groups, open(os.path.join(level_dir, 'group_instances.json'), 'w'))
 
