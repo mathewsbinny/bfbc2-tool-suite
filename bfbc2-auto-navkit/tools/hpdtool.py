@@ -6,15 +6,19 @@ Usage:
     python hpdtool.py info <pathdata.hpd>                 file summary
     python hpdtool.py sector <pathdata.hpd> <index>       one sector: nodes, edges, mesh header
     python hpdtool.py roundtrip <file-or-folder>...       parse + write back, compare byte for byte
+    python hpdtool.py coverage <file-or-folder>...        check every byte of every runtime mesh is explained
+    python hpdtool.py meshtrip <file-or-folder>...        structured mesh model (kymesh.py) round trip
 
-Decoded so far: header, sector table, per-sector graph (nodes, edges). The runtime mesh is kept as
-raw bytes until its layout is decoded (the round trip then still proves everything else).
+Sector.mesh holds the raw runtime-mesh record; kymesh.parse_mesh / write_mesh convert it to and
+from the structured model (areas, portals, outlines, cells, neighbour links).
 """
 import os
 import struct
 import sys
 from dataclasses import dataclass, field
 from typing import List, Tuple
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 MAGIC = b'Kynogon HPD\0'
 HEADER_WORDS = 36           # u32 words after the magic (0x0C..0x9B)
@@ -261,6 +265,32 @@ def main(argv):
                               f'gaps {desc} overlaps {overlaps[:2]}')
         print(f'coverage: {clean}/{total} meshes fully explained; gap patterns {len(gap_kinds)}')
         return 0
+    if cmd == 'meshtrip':
+        import kymesh
+        total = same = 0
+        reasons = {}
+        for p in _files(argv[2:]):
+            for s in parse(open(p, 'rb').read()).sectors:
+                total += 1
+                try:
+                    out = kymesh.write_mesh(kymesh.parse_mesh(s.mesh))
+                except Exception as ex:
+                    reasons[type(ex).__name__ + ': ' + str(ex)[:60]] = reasons.get(type(ex).__name__ + ': ' + str(ex)[:60], 0) + 1
+                    continue
+                if out == s.mesh:
+                    same += 1
+                else:
+                    n = min(len(out), len(s.mesh))
+                    first = next((i for i in range(n) if out[i] != s.mesh[i]), n)
+                    key = f'len {len(out) - len(s.mesh):+d}, first diff at word {first // 4 * 4:#x}'
+                    if not reasons:
+                        print(f'first mismatch: {p} sector {s.id:#x}: {key}; '
+                              f'orig {s.mesh[first // 4 * 4:first // 4 * 4 + 16].hex(" ")} new {out[first // 4 * 4:first // 4 * 4 + 16].hex(" ")}')
+                    reasons[key] = reasons.get(key, 0) + 1
+        print(f'mesh round trip: {same}/{total} identical')
+        for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:8]:
+            print(f'  {v:6} x {k}')
+        return 0 if same == total else 2
     if cmd == 'roundtrip':
         ok = bad = 0
         for p in _files(argv[2:]):

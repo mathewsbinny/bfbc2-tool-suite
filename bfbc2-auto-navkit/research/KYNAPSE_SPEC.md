@@ -167,7 +167,40 @@ by that many u32 offsets at +0x10.
   valid data.
 - **Graph:** see 4.3.1.
 
-Open: exact meaning of D, F and the "up" C portals; object +0x0C.
+Open: exact meaning of D, F and the "up" C portals.
+
+### 4.6 Structured round trip and writing conventions
+
+**Verified:** `tools\kymesh.py` parses every runtime mesh into areas, portals, outlines, cells and
+links, and `write_mesh` lays the record out again, recomputing every offset and size – **7 944 / 7 944
+meshes byte-identical** (`hpdtool.py meshtrip`, base game + Napisal). Layout order used by DICE's
+tool (and by the writer):
+
+1. header (0x50), tile table ((tilesX × tilesZ + 1) × 4)
+2. for each tile in table order: the tile record, then every area object it references for the first
+   time
+3. the 4-byte end slot (last tile-table entry points here)
+4. neighbour-link table, then for each entry: its list of link-object offsets followed by the link
+   objects
+5. trailer {own offset, 0}
+
+Conventions observed in all DICE files (what a generator writes):
+
+| Item | Rule |
+|---|---|
+| empty lists (count 0) | offset field = `0xFFFFFFFF` |
+| no neighbour links | link offset `0xFFFFFFFF` |
+| version / flags / loaded | 2 / 0 / 0 |
+| tile table order | column-major: entry t = tile (x = t / tilesZ, z = t mod tilesZ) |
+| tile item floats | the area's (min height, max height) |
+| area +0x00 / +0x10 / +0x14 | = record sector id / entity radius / pitch |
+| area +0x04 / +0x08 | tile x / tile z |
+| area +0x0C | **index of the area within its tile** (0, 1, 2 …) |
+| B +0x18 / +0x1C | target area offset / target area size |
+| C +0x18 / +0x1C | `0xFFFFFFFF` (runtime) |
+| F terminating row | offset of the data end, direction (0, 0, 0) |
+| link object | header {neighbour tile x, neighbour tile z, area index in that tile} (83 % match the mirrored tile; the rest are neighbours with a different tile grid – to confirm), count, offsets of this sector's C records leading there |
+| end slot | 4 bytes, never read – write 0 |
 
 ## 5. Licence boundary
 
