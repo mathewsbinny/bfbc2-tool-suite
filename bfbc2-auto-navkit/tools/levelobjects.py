@@ -49,6 +49,22 @@ def blueprint_flags(bases):
     return flags
 
 
+def mesh_aliases(bases):
+    """lower-case blueprint path -> blueprint path of its Mesh reference (without _mesh), for blueprints that
+    reuse another object's mesh and collision (InvWall_SP03 -> invisiblewall/invwall)."""
+    out = {}
+    for base in bases:
+        for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
+            t = open(f, encoding='utf-8', errors='replace').read()
+            m = re.search(r'<field ref="([^"]*)" name="Mesh"', t)
+            if not m or m.group(1) == 'null':
+                continue
+            rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-4]
+            mesh = m.group(1).rsplit('/', 1)[0].lower()
+            out.setdefault(rel, re.sub(r'_mesh$', '', mesh))
+    return out
+
+
 def havok_index(bases):
     out = {}
     for base in bases:
@@ -128,6 +144,10 @@ def main(argv):
     json.dump(groups, open(os.path.join(level_dir, 'group_instances.json'), 'w'))
 
     havok = havok_index(bases)
+    # blueprints without their own collision asset use the one of the object their Mesh reference names
+    for bp, target in mesh_aliases(bases).items():
+        if bp not in havok and target in havok:
+            havok[bp] = havok[target]
     cache, missing = {}, set()
 
     def tris_of(o):
