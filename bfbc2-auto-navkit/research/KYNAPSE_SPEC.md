@@ -119,7 +119,32 @@ by that many u32 offsets at +0x10.
 
 **Trailer:** the last 8 bytes are {u32 own offset, u32 0}.
 
-Open: meaning of A–F and their offset fields, graph node fields `flags/value/a/b/c`, edge tags.
+### 4.5 Semantics (from statistics over all files and plots made with `tools\hpdview.py`)
+
+![SP_02 infantry, sector 0x0104](img/sp02_infantry_0104.png)
+
+- **Mesh object = one walkable area inside one tile.** Object header +0x04/+0x08 = the tile's
+  x/z index in the sector (0–2, or 0–5 in detailed zones), +0x0C = 0 (possibly a layer index),
+  +0x10 entity radius, +0x14 pitch, +0x18/+0x1C max/min height of the area.
+- **A:** never used (count 0 in all 171 354 objects).
+- **E: the area outline** – line segments (each list holds 2 points = 24 bytes in the samples) on the
+  pitch grid, giving stair-stepped contours, including closed outlines of holes (obstacles). The
+  original generator samples the ground on a regular grid with spacing = pitch and traces contours.
+- **B: portals inside the sector** – segments lying on a tile boundary; +0x18 = offset of the area
+  object on the other side (always another object), +0x1C = an offset inside that object (meaning
+  open).
+- **C: portals on the sector border** – segments on the sector edge; +0x18 and +0x1C are null in the
+  files (filled at runtime when the neighbouring sector is loaded); then three f32 (`1, 1, -0` or
+  `1, 0, 0` in the samples).
+- **D:** short segments, rare (meaning open).
+- **F: special grid cells** – each entry a closed 5-point polygon of one pitch-sized cell with a
+  height per corner; the 16-byte row holds the data offset and a direction vector (`±1, 0, 0` in the
+  samples). Cells come in adjacent pairs – likely ledges / height breaks with their direction.
+- **Graph (block nodes/edges):** the high-level graph used for path planning; nodes inside the
+  sector plus linked nodes of neighbouring sectors (ids with the high bit set).
+
+Open: D, F direction meaning, B +0x1C, C trailing floats, graph node fields `flags/value/a/b/c`,
+edge tags.
 
 ## 5. Licence boundary
 
