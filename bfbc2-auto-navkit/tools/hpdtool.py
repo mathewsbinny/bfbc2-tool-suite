@@ -27,18 +27,19 @@ MESH_MARKER = b'KynogonRuntimeMesh'
 
 @dataclass
 class Node:
-    id: int                  # high bit set on some nodes (apparently linked to other sectors)
+    id: int                  # node id; high bit = border node shared with a neighbouring sector
+                             # (same id and position appear in that sector too)
     pos: Tuple[float, float, float]  # world position, Y up
-    flags: int
-    value: float
-    a: int
-    b: int                   # two packed u16
-    c: int
+    flags: int               # always 0x80000000
+    value: float             # DistEdgeMax on the first node of a sector (infantry 15, vehicle 50), else 0
+    a: int                   # index of this node's first outgoing edge + 1 (edges are sorted by source)
+    b: int                   # low u16: entry of the node list sorted by x; high u16: sorted by y
+    c: int                   # low u16: entry of the node list sorted by z; bit 16: border node
 
 
 @dataclass
 class Edge:
-    tag: int                 # high bit set; low bits vary per edge
+    tag: int                 # cost: 0x80000000 | floor(3-D distance between the nodes * 16)
     src: int
     dst: int
 

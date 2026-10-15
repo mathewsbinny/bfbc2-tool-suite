@@ -62,11 +62,27 @@ base game and Napisal's install are parsed and written back byte for byte (2026-
 | Part | Layout |
 |---|---|
 | counts | u32 node count, u32 edge count |
-| nodes | node count × 36 bytes `<I3fIf3I>`: id (high bit set on some nodes – apparently those linked to neighbouring sectors), position x, y, z (world space, inside the sector bounds), u32 flags (`0x80000000` in the samples), f32 value, u32 a, u32 b (two u16), u32 c |
-| edges | edge count × 12 bytes `<3I>`: tag (high bit set; low bits vary, pairs share a tag), source node index, target node index – usually stored in both directions |
+| nodes | node count × 36 bytes `<I3fIf3I>` – see 4.3.1 |
+| edges | edge count × 12 bytes `<3I>`: cost, source node index, target node index – see 4.3.1 |
 | runtime mesh | the rest of the block, starting with `"KynogonRuntimeMesh"` |
 
 Sizes: SP_005 infantry has 269 sectors, 69 095 nodes, 199 572 edges and 18.4 MB of runtime mesh.
+
+#### 4.3.1 High-level graph (verified statistically over all 2 776 campaign sectors)
+
+| Node field | Meaning | Evidence |
+|---|---|---|
+| u32 id | node id, unique per sector; **high bit = border node shared with a neighbouring sector** | every high-bit node's id appears in a neighbouring sector at exactly the same position (84 688 / 84 688) |
+| 3 × f32 | world position | inside the sector bounds |
+| u32 flags | always `0x80000000` | 537 707 / 537 707 |
+| f32 value | **DistEdgeMax** on the first node of each sector (infantry 15, vehicle 50 – the `PathfindingType` value), 0 elsewhere | 534 931 zeros, 2 391 × 15, 385 × 50 |
+| u32 a | index of the node's first outgoing edge **+ 1** | 2 776 / 2 776 sectors |
+| u32 b | low u16: k-th entry of the node indices **sorted by x**; high u16: sorted by **y** (spatial lookup lists stored interleaved, one entry per node slot) | 93 % / 98.7 % exact, the rest are ties |
+| u32 c | low u16: k-th entry of the node indices **sorted by z**; **bit 16 set on border nodes** | 92.8 % exact (ties); bit 16 on exactly the 30 351 border nodes of the sample |
+
+Edges: **sorted by source node**; cost = `0x80000000 | floor(3-D distance × 16)` (1 521 636 of
+1 521 644 edges exact; the rest differ by float rounding); pairs usually exist in both directions.
+Open for exactness: the tie-break order of the three sorted lists.
 
 ### 4.4 Runtime mesh record – structure (complete)
 
