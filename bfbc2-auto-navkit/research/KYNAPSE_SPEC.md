@@ -133,6 +133,37 @@ before). Stage 2 ran on two sectors (257, 513 – built around the single given 
   or only partly visible to the AI's physics queries. Next: read vegetation placements from the
   level's Havok assets and apply forbid footprints.
 
+### 3.7 Walkability rules that reproduce DICE's data (sp_01, 2026-10-14)
+
+Implemented in `navkit/tools/navwalk.py` (object data from `navkit/tools/levelobjects.py`, Havok
+assets read with `navkit/tools/hkpack.py`):
+
+1. Candidate: soldier capsule fits and surface normal within 40° (GroundSlopeMax).
+2. **Forbidden objects:** surfaces lying on the collision triangles (within 0.2 m) of placed objects
+   whose blueprint has `ForbidPathfinding` are removed (rocks, cliffs, boulders, big trees …).
+   Footprint hulls are too coarse (they remove ground DICE keeps between rocks).
+3. **Connectivity:** 8-connected; height step relative to the local ground plane (from both normals)
+   at most StepMax 0.28 m (0.4 m fits the steep mountain block slightly better).
+4. **Seeds:** sector perimeter lines (1.6 m inside each 100 m sector edge), **terrain only** – objects
+   have `AllowPathdataSeeds` false by default, so roofs crossing a perimeter line are not seeded.
+5. Outline heights in `pathdata.hpd` are ground + 0.95 m (EntityHeight / 2); compare with that offset.
+
+Object data: individually placed objects are `Entity.ReferenceObjectData` (blueprint + matrix);
+grouped objects, forest and middle-growth are `Physics.CompositeHavokAsset` (`Assets[i]` +
+`Transforms[i]`, 4×4 row-major, translation in the last row); collision of a blueprint is its
+`<name>_Havok.res` (Havok 5.5.0 packfile after a DICE header; storage extended mesh subparts:
+vertices at +0x08, 16-bit indices at +0x14 in groups of four).
+
+Results (multi-layer, cells fully inside DICE areas, height tolerance 0.6 m):
+
+| Block | Found | Extra (far) | Within 0.8 m |
+|---|---|---|---|
+| Base area x −600…−400, z −500…−300 (78 spawns, buildings) | 99.5 % | 2.7 % (1.9 %) | **97.9 %** |
+| Mountain x −100…100, z 100…300 (step 0.4) | 92.0 % (98.8 % within 0.8 m) | 6.7 % (3.3 %) | **95.7 %** |
+
+Residual: mostly bare terrain at the slope limit, where DICE's and NavKit's decisions are both speckled
+by small bumps (the walkable set flips cell by cell around 40°), plus a few building tops.
+
 The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
 these stages independently.
 
