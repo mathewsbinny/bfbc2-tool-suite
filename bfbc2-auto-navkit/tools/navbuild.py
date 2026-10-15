@@ -24,7 +24,7 @@ Detail features D and F are not generated (counts 0, allowed by the format); det
 are generated at the normal pitch.
 
 Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd> [--step 0.28]
-                   [--dynamic dynamic_tris.npy] [--high samples_high_capsule.bin]
+                   [--dynamic dynamic_tris.npy] [--high samples_high_capsule.bin] [--narrow samples_narrow.bin]
 """
 import math
 import os
@@ -223,14 +223,17 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
     return result
 
 
-def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None):
+def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
+          narrow_path=None):
     t0 = time.time()
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
     tris = np.load(tris_path) if tris_path else None
     dyn = np.load(dynamic_path) if dynamic_path else None
     hi = navsample.load(high_path)[0] if high_path else None
-    keep, gx, gz = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True)
+    narrow = navsample.load(narrow_path)[0] if narrow_path else None
+    keep, gx, gz = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
+                                    narrow_capsule=narrow)
     level = Level(s, keep, step, gx, gz)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
 
@@ -522,7 +525,8 @@ def main(argv):
         print(__doc__)
         return 1
     build(args[0], args[1] if args[1] != '-' else None, int(args[2]), int(args[3]), args[4],
-          float(opts.get('--step', 0.28)), dynamic_path=opts.get('--dynamic'), high_path=opts.get('--high'))
+          float(opts.get('--step', 0.28)), dynamic_path=opts.get('--dynamic'), high_path=opts.get('--high'),
+          narrow_path=opts.get('--narrow'))
     return 0
 
 

@@ -156,7 +156,7 @@ def matched_flags(s, other):
 
 
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
-             high_capsule=None, stairs=True, return_gradients=False):
+             high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -194,7 +194,45 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
         # on stairs the treads are flat: take the incline from the neighbour heights, not the tread normals
         gx_all = np.where(stair, hgx, gx_all)
         gz_all = np.where(stair, hgz, gz_all)
-    ok &= ~on_objects(s, forbid_tris)
+    onf = on_objects(s, forbid_tris)
+    slope_ok = s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01
+    col_of_w = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+
+    def same_layer(i, j, yref, tol=0.7):
+        if not (0 <= i < s.nx and 0 <= j < s.nz):
+            return []
+        c = j * s.nx + i
+        return [n for n in range(s.start[c], s.start[c + 1]) if abs(y[n] - yref) <= tol]
+    if raised_bars:
+        # a forbidden object's raised bar (barrier arm, low overhang) 0.7..1.9 m above the ground within one
+        # sample does not block clearance there; the bar itself stays forbidden (onf)
+        bar = np.zeros(len(y), bool)
+        for k in np.nonzero(onf & ~terrain)[0]:
+            c = col_of_w[k]
+            i, j = c % s.nx, c // s.nx
+            for dj in (-1, 0, 1):
+                for di in (-1, 0, 1):
+                    a, b = i + di, j + dj
+                    if not (0 <= a < s.nx and 0 <= b < s.nz):
+                        continue
+                    cc = b * s.nx + a
+                    for n in range(s.start[cc], s.start[cc + 1]):
+                        if 0.7 <= y[k] - y[n] <= 1.9 and (s.flags[n] & 2) == 0:
+                            bar[n] = True
+        ok |= bar & slope_ok & ~onf
+    if narrow_capsule is not None:
+        # narrow passages: blocked for the normal capsule, clear for the narrow one, with walkable floor on the
+        # same level on opposite sides (left/right or front/back)
+        nf = matched_flags(s, narrow_capsule)
+        base = ok.copy()
+        for k in np.nonzero(~base & ((nf & 3) == 0) & slope_ok & ((s.flags & 2) == 0) & ~onf)[0]:
+            c = col_of_w[k]
+            i, j = c % s.nx, c // s.nx
+            for (d1, d2) in (((1, 0), (-1, 0)), ((0, 1), (0, -1)), ((1, 1), (-1, -1)), ((1, -1), (-1, 1))):
+                if any(base[n] for n in same_layer(i + d1[0], j + d1[1], y[k])) and                         any(base[n] for n in same_layer(i + d2[0], j + d2[1], y[k])):
+                    ok[k] = True
+                    break
+    ok &= ~onf
     if dynamic_tris is not None and len(dynamic_tris):
         ok &= ~on_objects(s, dynamic_tris)
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
