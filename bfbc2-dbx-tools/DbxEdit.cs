@@ -13,6 +13,11 @@
 //            replace=<old>|<new>     every string exactly <old> becomes <new> (re-points references)
 //            drop=<guid>             removes the instance with that guid; array items referring to it are
 //                                    removed, single references to it become "null"
+//            replaceprefix=<old>|<new>[|<except>...]  strings starting with <old> get <new> as prefix
+//            dropfield=<name>        removes every field named <name> (fields the PC build does not have)
+//            graft=<src.dbx>|<guid>  copies that instance of another file, with every instance of that file it
+//                                    references in-partition (members), strings remapped
+//        a command argument "@file" reads commands from a file (one per line, # comments)
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -29,20 +34,23 @@ class Node
     public List<Node> Children;  // container children
 }
 
-static class DbxEdit
+class Doc
 {
-    static byte[] B;
-    static int P;
-    static List<string> Strings;
-    static List<int> Offsets;
-    static byte[] Blob;          // original string area (kept verbatim when no string changes)
-    static uint HeaderKept;
-    static byte[] Tail;          // bytes after the root element
-    static bool StringsChanged;
+    byte[] B;
+    int P;
+    public List<string> Strings;
+    List<int> Offsets;
+    byte[] Blob;          // original string area (kept verbatim when no string changes)
+    uint HeaderKept;
+    byte[] Tail;          // bytes after the root element
+    public bool StringsChanged;
+    public List<Node> Roots;
+    public bool Ok;
+    public byte[] Original { get { return B; } }
 
-    static uint BE(int o) { return (uint)(B[o] << 24 | B[o + 1] << 16 | B[o + 2] << 8 | B[o + 3]); }
+    uint BE(int o) { return (uint)(B[o] << 24 | B[o + 1] << 16 | B[o + 2] << 8 | B[o + 3]); }
 
-    static int R128()
+    int R128()
     {
         int result = 0, shift = 0;
         while (true)
@@ -65,7 +73,7 @@ static class DbxEdit
         } while (v != 0);
     }
 
-    static Node ReadNode(int prefix)
+    Node ReadNode(int prefix)
     {
         var n = new Node { Prefix = prefix };
         int t = B[P++];
@@ -93,11 +101,11 @@ static class DbxEdit
         return n;
     }
 
-    static List<Node> Load(string path, out bool ok)
+    public Doc(string path)
     {
         B = File.ReadAllBytes(path);
-        ok = B.Length > 24 && Encoding.ASCII.GetString(B, 0, 8) == "{binary}";
-        if (!ok) return null;
+        Ok = B.Length > 24 && Encoding.ASCII.GetString(B, 0, 8) == "{binary}";
+        if (!Ok) return;
         uint reloffset = BE(16), count = BE(20);
         HeaderKept = BE(12);
         Offsets = new List<int>();
@@ -113,21 +121,19 @@ static class DbxEdit
         }
         Blob = new byte[payload - strBase];
         Array.Copy(B, strBase, Blob, 0, Blob.Length);
-        StringsChanged = false;
         P = payload;
-        var roots = new List<Node>();
+        Roots = new List<Node>();
         while (P < B.Length)
         {
             int pre = R128();
             if (pre == 0) { P--; break; }
-            roots.Add(ReadNode(pre));
+            Roots.Add(ReadNode(pre));
         }
         Tail = new byte[B.Length - P];
         Array.Copy(B, P, Tail, 0, Tail.Length);
-        return roots;
     }
 
-    static void WriteNode(List<byte> o, Node n)
+    void WriteNode(List<byte> o, Node n)
     {
         W128(o, n.Prefix);
         o.Add((byte)(n.Type << 4 | n.Attrs.Count));
@@ -141,7 +147,7 @@ static class DbxEdit
         else o.AddRange(n.Raw);
     }
 
-    static byte[] Save(List<Node> roots)
+    public byte[] Save()
     {
         byte[] blob = Blob;
         var offs = Offsets;
@@ -153,7 +159,7 @@ static class DbxEdit
             blob = b.ToArray();
         }
         var payload = new List<byte>();
-        foreach (var r in roots) WriteNode(payload, r);
+        foreach (var r in Roots) WriteNode(payload, r);
         payload.AddRange(Tail);
         int reloffset = 4 * Strings.Count + blob.Length;
         var o = new List<byte>(Encoding.ASCII.GetBytes("{binary}"));
@@ -168,7 +174,7 @@ static class DbxEdit
         return o.ToArray();
     }
 
-    static int Str(string s)
+    public int Str(string s)
     {
         int i = Strings.IndexOf(s);
         if (i >= 0) return i;
@@ -177,13 +183,13 @@ static class DbxEdit
         return Strings.Count - 1;
     }
 
-    static string Attr(Node n, string name)
+    public string Attr(Node n, string name)
     {
         foreach (var a in n.Attrs) if (Strings[a[0]] == name) return Strings[a[1]];
         return null;
     }
 
-    static int Replace(string from, string to)
+    public int Replace(string from, string to)
     {
         int hits = 0;
         for (int i = 0; i < Strings.Count; i++)
@@ -191,17 +197,37 @@ static class DbxEdit
         return hits;
     }
 
+    // Every string starting with <from> (case-insensitive) gets <to> as its prefix, except strings starting with
+    // one of <except>; the replacement keeps the case style of the first letter of <from> as found.
+    public int ReplacePrefix(string from, string to, string[] except)
+    {
+        int hits = 0;
+        for (int i = 0; i < Strings.Count; i++)
+        {
+            string s = Strings[i];
+            if (!s.StartsWith(from, StringComparison.OrdinalIgnoreCase)) continue;
+            if (except.Any(e => e.Length > 0 && s.StartsWith(e, StringComparison.OrdinalIgnoreCase))) continue;
+            bool lower = s.Substring(0, from.Length) == s.Substring(0, from.Length).ToLowerInvariant();
+            Strings[i] = (lower ? to.ToLowerInvariant() : to) + s.Substring(from.Length);
+            hits++;
+            StringsChanged = true;
+        }
+        return hits;
+    }
+
+    static bool SameGuid(string a, string b) { return string.Equals(a, b, StringComparison.OrdinalIgnoreCase); }
+
     // Removes instance <guid>; array items referring to it go, other references become "null".
-    static int Drop(List<Node> nodes, string guid, ref int refs)
+    public int Drop(List<Node> nodes, string guid, ref int refs)
     {
         int removed = 0;
         for (int i = nodes.Count - 1; i >= 0; i--)
         {
             var n = nodes[i];
             string pre = Strings[n.Prefix];
-            if (pre == "instance" && Attr(n, "guid") == guid) { nodes.RemoveAt(i); removed++; continue; }
+            if (pre == "instance" && SameGuid(Attr(n, "guid"), guid)) { nodes.RemoveAt(i); removed++; continue; }
             string r = Attr(n, "ref");
-            if (r != null && (r == guid || r.EndsWith("/" + guid)))
+            if (r != null && (SameGuid(r, guid) || r.EndsWith("/" + guid, StringComparison.OrdinalIgnoreCase)))
             {
                 refs++;
                 if (pre == "item") { nodes.RemoveAt(i); continue; }
@@ -212,6 +238,75 @@ static class DbxEdit
         return removed;
     }
 
+    // Removes every field / array / complex element named <name> (a field the target build does not have).
+    public int DropField(List<Node> nodes, string name)
+    {
+        int removed = 0;
+        for (int i = nodes.Count - 1; i >= 0; i--)
+        {
+            var n = nodes[i];
+            if (Strings[n.Prefix] != "instance" && Attr(n, "name") == name) { nodes.RemoveAt(i); removed++; continue; }
+            if (n.Children != null) removed += DropField(n.Children, name);
+        }
+        return removed;
+    }
+
+    public List<Node> Instances() { return Roots[0].Children.Where(c => Strings[c.Prefix] == "instance").ToList(); }
+
+    // bare (same-partition) references inside a node tree
+    public void LocalRefs(Node n, HashSet<string> outRefs)
+    {
+        string r = Attr(n, "ref");
+        if (r != null && r.Length == 36 && r.IndexOf('/') < 0) outRefs.Add(r.ToUpperInvariant());
+        if (n.Children != null) foreach (var c in n.Children) LocalRefs(c, outRefs);
+    }
+
+    Node CopyFrom(Doc src, Node n)
+    {
+        var c = new Node { Prefix = Str(src.Strings[n.Prefix]), Type = n.Type, Null = n.Null };
+        foreach (var a in n.Attrs) c.Attrs.Add(new[] { Str(src.Strings[a[0]]), Str(src.Strings[a[1]]) });
+        if (n.Type == 2)
+        {
+            // value = varint string index in the source document
+            int idx = 0, shift = 0, k = 0;
+            while (true) { byte b = n.Raw[k++]; idx |= (b & 127) << shift; shift += 7; if ((b >> 7) == 0) break; }
+            var o = new List<byte>();
+            W128(o, Str(src.Strings[idx]));
+            c.Raw = o.ToArray();
+        }
+        else c.Raw = n.Raw;
+        if (n.Children != null) { c.Children = new List<Node>(); foreach (var ch in n.Children) c.Children.Add(CopyFrom(src, ch)); }
+        return c;
+    }
+
+    // Copies instance <guid> of src and every src instance it references in-partition (transitively) that this
+    // document does not have yet; appended after the last instance.
+    public int Graft(Doc src, string guid)
+    {
+        var byGuid = new Dictionary<string, Node>();
+        foreach (var n in src.Instances()) byGuid[src.Attr(n, "guid").ToUpperInvariant()] = n;
+        var have = new HashSet<string>(Instances().Select(n => Attr(n, "guid").ToUpperInvariant()));
+        var todo = new Stack<string>();
+        todo.Push(guid.ToUpperInvariant());
+        int added = 0;
+        while (todo.Count > 0)
+        {
+            string g = todo.Pop();
+            if (have.Contains(g) || !byGuid.ContainsKey(g)) continue;
+            have.Add(g);
+            var n = byGuid[g];
+            Roots[0].Children.Add(CopyFrom(src, n));
+            added++;
+            var refs = new HashSet<string>();
+            src.LocalRefs(n, refs);
+            foreach (var r in refs) todo.Push(r);
+        }
+        return added;
+    }
+}
+
+static class DbxEdit
+{
     static int Main(string[] args)
     {
         if (args.Length >= 2 && args[0] == "roundtrip")
@@ -220,46 +315,70 @@ static class DbxEdit
             int same = 0, diff = 0, skipped = 0;
             foreach (var f in files)
             {
-                bool ok;
-                List<Node> roots;
-                try { roots = Load(f, out ok); } catch (Exception e) { Console.WriteLine("ERROR " + f + ": " + e.Message); diff++; continue; }
-                if (!ok) { skipped++; continue; }
-                var orig = B;
-                var outb = Save(roots);
-                if (outb.SequenceEqual(orig)) same++;
-                else { diff++; if (diff <= 10) Console.WriteLine("DIFF " + f + " (" + orig.Length + " -> " + outb.Length + ")"); }
+                Doc d;
+                try { d = new Doc(f); } catch (Exception e) { Console.WriteLine("ERROR " + f + ": " + e.Message); diff++; continue; }
+                if (!d.Ok) { skipped++; continue; }
+                var outb = d.Save();
+                if (outb.SequenceEqual(d.Original)) same++;
+                else { diff++; if (diff <= 10) Console.WriteLine("DIFF " + f + " (" + d.Original.Length + " -> " + outb.Length + ")"); }
             }
             Console.WriteLine("roundtrip: " + same + " identical, " + diff + " different, " + skipped + " not binary");
             return diff == 0 ? 0 : 1;
         }
         if (args.Length >= 3 && args[0] == "edit")
         {
-            bool ok;
-            var roots = Load(args[1], out ok);
-            if (!ok) { Console.Error.WriteLine("not a binary dbx: " + args[1]); return 2; }
+            var doc = new Doc(args[1]);
+            if (!doc.Ok) { Console.Error.WriteLine("not a binary dbx: " + args[1]); return 2; }
+            var cmds = new List<string>();
             for (int i = 3; i < args.Length; i++)
             {
-                string c = args[i];
+                if (args[i].StartsWith("@"))
+                    cmds.AddRange(File.ReadAllLines(args[i].Substring(1)).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#")));
+                else cmds.Add(args[i]);
+            }
+            var sources = new Dictionary<string, Doc>();
+            foreach (string c in cmds)
+            {
                 if (c.StartsWith("replace="))
                 {
                     var p = c.Substring(8).Split('|');
-                    int h = Replace(p[0], p[1]);
+                    int h = doc.Replace(p[0], p[1]);
                     Console.WriteLine("replace " + p[0] + " -> " + p[1] + ": " + h + " string(s)");
                     if (h == 0) { Console.Error.WriteLine("not found: " + p[0]); return 1; }
                 }
                 else if (c.StartsWith("drop="))
                 {
                     int refs = 0;
-                    int n = Drop(roots, c.Substring(5), ref refs);
+                    int n = doc.Drop(doc.Roots, c.Substring(5), ref refs);
                     Console.WriteLine("drop " + c.Substring(5) + ": " + n + " instance(s), " + refs + " reference(s)");
                     if (n == 0) { Console.Error.WriteLine("no instance " + c.Substring(5)); return 1; }
                 }
+                else if (c.StartsWith("replaceprefix="))
+                {
+                    var p = c.Substring(14).Split('|');
+                    int h = doc.ReplacePrefix(p[0], p[1], p.Skip(2).ToArray());
+                    Console.WriteLine("replaceprefix " + p[0] + " -> " + p[1] + ": " + h + " string(s)");
+                }
+                else if (c.StartsWith("dropfield="))
+                {
+                    int n = doc.DropField(doc.Roots, c.Substring(10));
+                    Console.WriteLine("dropfield " + c.Substring(10) + ": " + n + " element(s)");
+                }
+                else if (c.StartsWith("graft="))
+                {
+                    var p = c.Substring(6).Split('|');
+                    if (!sources.ContainsKey(p[0])) sources[p[0]] = new Doc(p[0]);
+                    int n = doc.Graft(sources[p[0]], p[1]);
+                    Console.WriteLine("graft " + p[1] + " from " + Path.GetFileName(p[0]) + ": " + n + " instance(s)");
+                    if (n == 0) { Console.Error.WriteLine("nothing grafted for " + p[1]); return 1; }
+                }
                 else { Console.Error.WriteLine("unknown command " + c); return 2; }
             }
-            File.WriteAllBytes(args[2], Save(roots));
+            File.WriteAllBytes(args[2], doc.Save());
             return 0;
         }
-        Console.Error.WriteLine("usage: DbxEdit roundtrip <file|folder> | edit <in.dbx> <out.dbx> replace=<old>|<new> drop=<guid> ...");
+        Console.Error.WriteLine("usage: DbxEdit roundtrip <file|folder> | edit <in.dbx> <out.dbx> <command|@file> ...");
+        Console.Error.WriteLine("  replace=<old>|<new>  drop=<guid>  dropfield=<name>  graft=<source.dbx>|<guid>");
         return 2;
     }
 }
