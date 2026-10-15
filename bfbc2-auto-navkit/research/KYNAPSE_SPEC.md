@@ -23,13 +23,44 @@ swept-sphere collision, detailed zones at Pitch 0.2. Vehicle: StepMax 0.4, HoleM
 25–40°, Pitch 1, GraphAccuracy 15, NbSectors 64, EdgeRadius 2.51, EntityHeight 4, radius 2.5,
 cylinder collision.
 
-## 3. Build pipeline (behaviour of the original generator)
+## 3. Build pipeline – behaviour of the original generator
 
-Stages: Dividing sectors → Generating seeds → Generating maps (per sector) → Linking meshes →
-Linking graphs → Building hierarchical database. Intermediate files per sector id `<n>`
-(decimal): `sector_<n>.autoseed`, `.aim`, `.udg`, `.pdl`, `.fdl`, `.fsg`; plus `Sectors.xml`
-(sector definitions) and `BuildChainWorld.xml` (configuration). Level geometry is sampled from the
-loaded physics world through point, ray, capsule (radius/height) and box queries.
+Behavioural description for a re-implementation. Sources: the stage names, settings and engine
+callbacks seen in BFBC2Game.exe (Project OPFOR `research\BFBC2_DECOMP_RESEARCH.md` §9), the partial
+run of the original tool on SP_009 (stages 1–2 completed), and rules measured on the output (all
+campaign files; "measured" = verified statistically, "inferred" = consistent with the data but not
+proven).
+
+### 3.1 Inputs
+
+- **The loaded level's collision world.** The tool never reads source assets; it asks the running
+  engine's physics world (Havok) through five callbacks:
+  - point query – is a position inside geometry / where is the ground (`FUN_00EFE7F0`),
+  - ray cast from a point along a direction for a length – hit position and normal (`FUN_00EFE840`;
+    used for ground height and obstacle edges),
+  - capsule query with the entity radius and height – does a standing agent fit here
+    (`FUN_00EFE920`, collision model `PCMSweptSphere` for infantry),
+  - box query – the alternative volume test (`FUN_00EFE980`, used with `UseBoxApproximation`),
+  - exclusion / forbidden-volume predicates supplied by the level (`ForbidPathfinding`,
+    `ExcludeFromPathfinding`, water below `WaterLevelAdjustment`, `ForbidHeight`).
+- **Settings** per pathfinding type (`AI/Pathfinding/Infantry`, `…/Vehicles`): pitch, step and hole
+  limits, slopes, entity radius and height, edge radius, graph accuracy, number of sectors, detailed
+  zones (finer pitch), `DistEdgeMax`.
+- **Seed points** (walkable start positions, plus automatic seeding).
+
+### 3.2 Stages
+
+| # | Stage (original name) | Behaviour | Output |
+|---|---|---|---|
+| 1 | Dividing sectors | Split the level's bounds into a grid of **100 m sectors**, id = `0xXXYY` (grid x, y). Each sector covers 100 m plus a margin: one pitch on the near side and 1.1 × pitch on the far side (101.68 m for infantry); sectors at the level edge drop the near margin (measured). Detailed zones (`DetailedZoneSettings`) get their own pitch (0.2) and 6 × 6 tiles. | `Sectors.xml` |
+| 2 | Generating seeds | Collect seed points (given + automatic: `AutoSeedStep` probes the ground with point queries). Sectors without a seed are written empty ("No seed found, write empty pathdata"). | `sector_<n>.autoseed` |
+| 3 | Generating maps (per sector) | Sample the ground on a **regular grid with spacing = pitch, at cell centres** – sample (i, j) at (minX + (i + 0.5)·pitch, minZ + (j + 0.5)·pitch) relative to the sector rectangle (measured: outline coordinates lie on cell boundaries). A cell is walkable when the ground is found, the slope is within `GroundSlopeMin/Max`, a capsule of the entity radius and height fits, and it is not forbidden/excluded/water (inferred from settings and callbacks). Flood-fill from the seeds over neighbouring cells whose height difference is within `StepMax` (inferred), so unreachable ground is dropped. | `.aim`, `.udg` (grid maps) |
+| 4 | Linking meshes | Trace the **outlines** of walkable regions along cell boundaries (stair-stepped contours, holes for obstacles – measured). Split each sector into **tiles** (3 × 3; 6 × 6 in detailed zones) and cut regions further on a fixed grid **every 25 cells** (lines at minX + (25k + 24.5)·pitch: 20 m for infantry, 25 m vehicle, 5 m detailed – measured), giving **areas**. Shared cut segments become **portals** (B) to the neighbouring area; segments on the sector border become **border portals** (C) with an outward direction, listed per neighbouring sector/tile/area in the link table. Height breaks along obstacle edges become D lines and F cells (inferred). | `.pdl`, `.fdl` |
+| 5 | Linking graphs | Build the high-level **graph**: nodes mostly within ~1 m of outline corners (obstacle corners offset by roughly the entity radius – measured: ~75 % infantry / ~60 % vehicle nodes), plus nodes in open ground; edges between mutually reachable nodes up to about `DistEdgeMax` (median 6 m; 99 % < 17.6 m infantry, < 48 m vehicle – measured), cost = floor(3-D length × 16). Nodes on sector borders are shared with the neighbouring sector (same id and position, high bit). | `.fsg` |
+| 6 | Building hierarchical database | Assemble per-sector blocks (graph + runtime mesh), sort the node lookup lists by x, y, z, write the sector table with build timestamps. | `pathdata.hpd` |
+
+The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
+these stages independently.
 
 ## 4. `pathdata.hpd`
 
