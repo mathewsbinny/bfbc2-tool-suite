@@ -2,8 +2,11 @@
 
 Usage: python hpdview.py <pathdata.hpd> <sector index | 0xID> <out.png>
 
-Colours: grey = tile grid, black = E lines, blue = D lines, green = B portals (to areas in the same
-sector), red = C portals (sector border), orange = graph nodes, light orange = graph edges.
+Optional 4th/5th arguments: minX maxX minZ maxZ zoom window.
+
+Colours: grey = tile grid, black = E lines, purple = D lines, cyan = F cells (arrow = row direction),
+green = B segments, red = C segments with a horizontal direction (arrow), magenta = C segments with
+direction "up", orange = graph nodes, light orange = graph edges.
 """
 import os
 import struct
@@ -58,7 +61,17 @@ def main():
         for pts in segs_from_lists(m, o, 0x40, 0x44):
             ax.plot([p[0] for p in pts], [p[2] for p in pts], color='black', lw=0.6)
         for pts in segs_from_lists(m, o, 0x38, 0x3C):
-            ax.plot([p[0] for p in pts], [p[2] for p in pts], color='tab:blue', lw=0.6)
+            ax.plot([p[0] for p in pts], [p[2] for p in pts], color='tab:purple', lw=1.6)
+        fc = u32(m, o + 0x48)
+        if fc:
+            tab = o + u32(m, o + 0x4C)
+            for j in range(fc):
+                a, b = o + u32(m, tab + j * 16), o + u32(m, tab + (j + 1) * 16)
+                pts = [struct.unpack_from('<3f', m, q) for q in range(a, b - 11, 12)]
+                ax.fill([p[0] for p in pts], [p[2] for p in pts], color='tab:cyan', alpha=0.6, lw=0)
+                d = struct.unpack_from('<3f', m, tab + j * 16 + 4)
+                cx = sum(p[0] for p in pts) / len(pts); cz = sum(p[2] for p in pts) / len(pts)
+                ax.arrow(cx, cz, d[0] * 0.6, d[2] * 0.6, head_width=0.2, color='teal', lw=0.5)
         nb = u32(m, o + 0x28)
         pos = o + 0x50
         for k in range(nb):
@@ -67,11 +80,19 @@ def main():
         pos += nb * 0x20
         for k in range(u32(m, o + 0x30)):
             r = pos + k * 0x2C
-            ax.plot([f32(m, r), f32(m, r + 12)], [f32(m, r + 8), f32(m, r + 20)], color='tab:red', lw=2)
+            up = f32(m, r + 0x24) > 0.5
+            ax.plot([f32(m, r), f32(m, r + 12)], [f32(m, r + 8), f32(m, r + 20)],
+                    color='tab:red' if not up else 'magenta', lw=2)
+            if not up:
+                mx, mz = (f32(m, r) + f32(m, r + 12)) / 2, (f32(m, r + 8) + f32(m, r + 20)) / 2
+                ax.arrow(mx, mz, f32(m, r + 0x20) * 0.8, f32(m, r + 0x28) * 0.8, head_width=0.25, color='tab:red', lw=0.5)
     for e in s.edges:
         a, b = s.nodes[e.src].pos, s.nodes[e.dst].pos
         ax.plot([a[0], b[0]], [a[2], b[2]], color='moccasin', lw=0.8, zorder=1)
     ax.scatter([n.pos[0] for n in s.nodes], [n.pos[2] for n in s.nodes], s=6, color='tab:orange', zorder=3)
+    if len(sys.argv) >= 8:
+        ax.set_xlim(float(sys.argv[4]), float(sys.argv[5]))
+        ax.set_ylim(float(sys.argv[6]), float(sys.argv[7]))
     ax.set_aspect('equal')
     ax.set_title(f'sector {s.id:#06x}: {len(objects)} areas, {len(s.nodes)} nodes, {len(s.edges)} edges')
     fig.savefig(out, dpi=110, bbox_inches='tight')

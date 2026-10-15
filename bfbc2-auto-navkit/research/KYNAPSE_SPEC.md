@@ -146,21 +146,28 @@ by that many u32 offsets at +0x10.
 - **E: the area outline** – line segments (each list holds 2 points = 24 bytes in the samples) on the
   pitch grid, giving stair-stepped contours, including closed outlines of holes (obstacles). The
   original generator samples the ground on a regular grid with spacing = pitch and traces contours.
-- **B: portals inside the sector** – segments lying on a tile boundary; +0x18 = offset of the area
-  object on the other side (always another object), +0x1C = an offset inside that object (meaning
-  open).
-- **C: portals on the sector border** – segments on the sector edge; +0x18 and +0x1C are null in the
-  files (filled at runtime when the neighbouring sector is loaded); then three f32 (`1, 1, -0` or
-  `1, 0, 0` in the samples).
-- **D:** short segments, rare (meaning open).
-- **F: special grid cells** – each entry a closed 5-point polygon of one pitch-sized cell with a
-  height per corner; the 16-byte row holds the data offset and a direction vector (`±1, 0, 0` in the
-  samples). Cells come in adjacent pairs – likely ledges / height breaks with their direction.
-- **Graph (block nodes/edges):** the high-level graph used for path planning; nodes inside the
-  sector plus linked nodes of neighbouring sectors (ids with the high bit set).
+- **Areas are a decomposition of the walkable ground** into pieces of roughly 20 m (split along tile
+  boundaries and further straight cut lines); black outlines in the plot enclose the non-walkable
+  parts (obstacles), the open space is walkable.
 
-Open: D, F direction meaning, B +0x1C, C trailing floats, graph node fields `flags/value/a/b/c`,
-edge tags.
+![SP_02 infantry, sector 0x0705](img/sp02_infantry_0705.png)
+
+- **B: portals between areas of the same sector** – a segment (two 3-D points) on the shared
+  border; +0x18 = offset of the area object on the other side (always another object of the same
+  record); **+0x1C = size in bytes of that target object** (37 132 / 37 132).
+- **C: portals on the sector border** – a segment on the sector's outer edge (on the 1.1 × pitch
+  margin), +0x18 / +0x1C null in files (set at runtime when the neighbouring sector is loaded),
+  then a unit **direction vector** (+0x20) pointing out of the sector (±x, ±z, diagonals); some have
+  direction "up" (0, 1, 0) – these sit where the outline meets the border, meaning open.
+- **D:** short polylines (mostly 2 points, up to 6) at obstacle edges; present in 21 % of areas.
+- **F: special grid cells** – closed polygons (5–8 points) of pitch-sized cells with a height per
+  corner; each row holds a horizontal direction (±x, ±z, diagonals); at obstacle edges, present in
+  6 % of areas – likely ledges / height breaks with their direction.
+- D and F are detail features: a generator can start without them (counts 0) and still produce
+  valid data.
+- **Graph:** see 4.3.1.
+
+Open: exact meaning of D, F and the "up" C portals; object +0x0C.
 
 ## 5. Licence boundary
 
