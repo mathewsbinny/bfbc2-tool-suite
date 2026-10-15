@@ -78,6 +78,23 @@ compared the result with DICE's `pathdata.hpd` (39,379 walkable reference cells)
 - A ray cast that starts inside geometry (under terrain, inside a slab) reports an immediate hit;
   the sampler steps down through solid geometry (0.5 m steps, up to 10 m) to find lower storeys.
 
+### 3.4 Edge rule and region filter (fine 0.2 m sampling of the same block)
+
+- **Outline geometry:** outline vertices lie on cell corners ((k + 0.5)·pitch in both axes); segments are
+  axis-aligned or exactly 45°. A 45° segment passes through a sample and cuts its cell in half, so
+  comparisons count such cells separately ("cut cells", ~18 % of the reference here).
+- **Outline height:** outline y ≈ ground + 0.95 m (half `EntityHeight`), ±0.4 m; the exact ground
+  point it is taken from is not identified yet.
+- **Slope:** the slope from heights 0.2 m either side of the sample (central difference) against 40°
+  matches best (found 95.4 %, extra 11.8 %); the surface normal is a close second; footprint
+  (agent-disc) and majority rules are worse.
+- **Regions:** most remaining extra cells are whole regions DICE does not keep. Keeping only regions
+  that DICE also has gives 99.9 % agreement within one cell – so the missing rule is which regions the
+  original keeps. DICE has 320 separate walkable regions in this block, many unreachable from any
+  spawn, so seeding is not spawn-based: it comes from the "Generating seeds" stage (DICE's
+  `FrostbiteAutoSeedStep`). Seeding from five spawn-like points with a step of 0.9 m (8-connected)
+  gives 97.4 % within one cell, 11.7 % cell-exact error.
+
 The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
 these stages independently.
 
