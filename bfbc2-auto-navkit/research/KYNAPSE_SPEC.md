@@ -31,40 +31,51 @@ Linking graphs → Building hierarchical database. Intermediate files per sector
 (sector definitions) and `BuildChainWorld.xml` (configuration). Level geometry is sampled from the
 loaded physics world through point, ray, capsule (radius/height) and box queries.
 
-## 4. `pathdata.hpd` (first survey)
+## 4. `pathdata.hpd`
 
-All values little-endian.
+All values little-endian. **Verified** by `tools\hpdtool.py roundtrip`: all 74 `.hpd` files of the
+base game and Napisal's install are parsed and written back byte for byte (2026-10-14).
 
-| Offset | Content |
+### 4.1 File layout
+
+| Offset | Size | Content |
+|---|---|---|
+| 0x00 | 12 | `"Kynogon HPD\0"` |
+| 0x0C | 36 × u32 | header words: `2, 2, <sector count>, 1, 0,0,0,0, 2, 0, 8, 0 … 0, 36, 12, 1, 0` – identical in every file except the count |
+| 0x9C | count × 48 | sector table |
+| 0x9C + count×48 | Σ sizes | sector blocks, contiguous, in table order; they end exactly at the end of the file |
+
+### 4.2 Sector table entry (48 bytes: `<I6f5I`)
+
+| Field | Meaning |
 |---|---|
-| 0x00 | `"Kynogon HPD\0"` (12 bytes) |
-| 0x0C | u32 2 (version?) |
-| 0x10 | u32 2 |
-| 0x14 | **u32 sector count** (sp_009 infantry 9, sp_008_b vehicle 5, sp_005 infantry 269) |
-| 0x18 | u32 1 |
-| … | zeros, then u32 2, 0, 8, zeros … |
-| ~0x8C | `24 c 1 0` (meaning open), then the **sector table** |
+| u32 id | sector grid coordinates `0xXXYY` (0x0101, 0x0102, 0x0201 … = decimal 257, 258, 513 – the original generator's `sector_<n>` file names) |
+| 6 × f32 | bounds **minX, maxX, minY, maxY, minZ, maxZ** (world space, Y up) |
+| u32 | 0 in every file |
+| u32 size | block size in bytes |
+| u32 offset | block offset from the start of the block area (running sum of the previous sizes) |
+| u32 date | build date `YYMMDD` with **zero-based month**: campaign files `100007`–`100012` = January 2010; Napisal's Onslaught files `100330`/`100404`/`100407` = April–May 2010 (built by DICE before the June 2010 Onslaught release) |
+| u32 time | build time `HHMMSScc` (e.g. `13305600` = 13:30:56.00) |
 
-Sector table entry (13 u32; observed):
+### 4.3 Sector block
 
-| Word | Meaning (provisional) |
+| Part | Layout |
 |---|---|
-| 0 | sector id = grid coordinates (`0x0101`, `0x0102`, `0x0103`, `0x0201` … → decimal 257, 258, 259, 513 = the generator's `sector_<n>` names) |
-| 1–6 | six floats – sector bounds (order to be determined) |
-| 7 | 0 |
-| 8 | block size in bytes |
-| 9 | block offset – running sum of the previous sizes |
-| 10 | constant per file (`0x186A8` infantry, `0x186A9` vehicle in the samples) |
-| 11 | constant per file (`0x82AC58`, `0xCC63D4`) – possibly a checksum or build id |
-| 12 | next entry's id follows (entry stride to be confirmed) |
+| counts | u32 node count, u32 edge count |
+| nodes | node count × 36 bytes `<I3fIf3I>`: id (high bit set on some nodes – apparently those linked to neighbouring sectors), position x, y, z (world space, inside the sector bounds), u32 flags (`0x80000000` in the samples), f32 value, u32 a, u32 b (two u16), u32 c |
+| edges | edge count × 12 bytes `<3I>`: tag (high bit set; low bits vary, pairs share a tag), source node index, target node index – usually stored in both directions |
+| runtime mesh | the rest of the block, starting with `"KynogonRuntimeMesh"` |
 
-Sector block: graph / link records (`8000xxxx` words followed by small index pairs) precede a
-`"KynogonRuntimeMesh"` record, which starts with: u16 0, u32 2, …, sector id (bytes `01 01`), then
-floats – infantry `0.025, 0.8, -200.0, …` (0.8 = Pitch), vehicle `0.02, 1.0, -400.0, …` (1.0 =
-Pitch) – then counts (3, 3 / 6, 6 …).
+Sizes: SP_005 infantry has 269 sectors, 69 095 nodes, 199 572 edges and 18.4 MB of runtime mesh.
 
-Open: exact header layout up to the table, table stride, graph record format, runtime mesh layout
-(vertices, polygons, edges, heights), cross-sector links, hierarchical database.
+### 4.4 Runtime mesh record (decoding in progress)
+
+`"KynogonRuntimeMesh"` (18 bytes), u16 0, u32 2, u32 0, u16 sector id, u16 0, then f32: infantry
+`0.025, 0.8, …` / vehicle `0.02, 1.0, …` (second value = Pitch), then the mesh origin and extent
+(e.g. `-201.0, -98.9, 0.0, 101.1`), u32 counts (3, 3 / 6, 6 …), and an offset table (u32 values in
+steps of 4, e.g. `0x78, 0x7C, 0x80 …`) referring to the arrays that follow. Open: the arrays
+(vertices, polygons, heights, edges), meaning of node fields `flags/value/a/b/c` and edge tags,
+cross-sector links, hierarchical database.
 
 ## 5. Licence boundary
 
