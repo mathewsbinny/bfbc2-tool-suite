@@ -59,8 +59,9 @@ HEADER = (2, 2, 0, 1, 0, 0, 0, 0, 2, 0, 8, 0) + (0,) * 20 + (36, 12, 1, 0)
 class Level:
     """Kept walkable surfaces on the global sample grid, with the step-rule connectivity."""
 
-    def __init__(self, s, keep, step, gx=None, gz=None):
+    def __init__(self, s, keep, step, gx=None, gz=None, stair=None):
         self.s, self.keep, self.step = s, keep, step
+        self.stair = stair if stair is not None else np.zeros(len(s.y), bool)
         self.y = s.y.astype(float)
         ny = np.maximum(s.normal[:, 1], 0.05)
         self.gx = gx if gx is not None else -s.normal[:, 0] / ny
@@ -74,8 +75,8 @@ class Level:
         return [k for k in range(self.s.start[c], self.s.start[c + 1]) if self.keep[k]]
 
     def connected(self, k, n, di, dj):
-        pred = PITCH * ((self.gx[k] + self.gx[n]) / 2 * di + (self.gz[k] + self.gz[n]) / 2 * dj)
-        return abs(self.y[n] - self.y[k] - pred) <= self.step
+        return navwalk.step_fits(self.y[n] - self.y[k], (self.gx[k], self.gz[k]), (self.gx[n], self.gz[n]),
+                                 self.stair[k], self.stair[n], di, dj, PITCH, self.step)
 
     def neighbour(self, k, gi, gj, di, dj, prefer=None):
         """The kept surface in column (gi+di, gj+dj) connected to surface k, or None. With prefer (a set of
@@ -298,10 +299,11 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     st = np.load(stairs_path) if stairs_path else None
     ex = np.load(exclude_path) if exclude_path else None
     exf = np.load(exclude_foot_path) if exclude_foot_path else None
-    keep, gx, gz = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
+    keep, gx, gz, stair = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
+                                    return_stairs=True,
                                     narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf,
                                     extra_seeds=seeds)
-    level = Level(s, keep, step, gx, gz)
+    level = Level(s, keep, step, gx, gz, stair)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
 
     # Sectors that contain kept surfaces.

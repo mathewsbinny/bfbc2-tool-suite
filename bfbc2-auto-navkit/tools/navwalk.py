@@ -155,10 +155,22 @@ def matched_flags(s, other):
     return out
 
 
+def step_fits(dy, gk, gn, sk, sn, di, dj, pitch, step):
+    """Height change dy from surface k to its neighbour n (direction di, dj) fits the step rule: within step of the
+    rise predicted by the mean local gradient - or, when one of them is a stair surface, by the stair's own
+    incline (a stair sample next to a flat landing would otherwise halve the predicted rise of the last step)."""
+    if abs(dy - pitch * ((gk[0] + gn[0]) / 2 * di + (gk[1] + gn[1]) / 2 * dj)) <= step:
+        return True
+    for g, st in ((gk, sk), (gn, sn)):
+        if st and abs(dy - pitch * (g[0] * di + g[1] * dj)) <= step:
+            return True
+    return False
+
+
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
              stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08,
-             extra_seeds=None):
+             extra_seeds=None, return_stairs=False):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -167,6 +179,7 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     y = s.y.astype(float)
     ny = np.maximum(s.normal[:, 1], 0.05)
     gx_all, gz_all = -s.normal[:, 0] / ny, -s.normal[:, 2] / ny
+    stair = np.zeros(len(y), bool)
     terrain = (s.hit[:, 0] == TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(y), bool)
     clear = (s.flags & 3) == 0
     if dynamic_tris is not None and len(dynamic_tris):
@@ -287,12 +300,12 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
                 for n in range(s.start[cc], s.start[cc + 1]):
                     if keep[n] or not ok[n]:
                         continue
-                    pred = s.pitch * ((gx_all[k] + gx_all[n]) / 2 * di + (gz_all[k] + gz_all[n]) / 2 * dj)
-                    if abs(y[n] - y[k] - pred) <= step:
+                    if step_fits(y[n] - y[k], (gx_all[k], gz_all[k]), (gx_all[n], gz_all[n]), stair[k], stair[n],
+                                 di, dj, s.pitch, step):
                         keep[n] = True
                         q.append(n)
     if return_gradients:
-        return keep, gx_all, gz_all
+        return (keep, gx_all, gz_all, stair) if return_stairs else (keep, gx_all, gz_all)
     return keep
 
 
