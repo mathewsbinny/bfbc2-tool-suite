@@ -41,6 +41,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   hkpack.py          Havok 5.5 binary packfile reader (the level's *_Havok.res collision assets)
   levelobjects.py    object placements, pathfinding flags, forbidden-object triangles of a level
   navwalk.py         walkability rules + scoring against existing path data
+  navbuild.py        the generator: samples + level objects -> pathdata.hpd
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
@@ -52,12 +53,20 @@ src\, tests\         (reserved for the generator proper and its tests)
    all 7,944 sector meshes identically.
 3. **Builder behaviour – done.** Spec §3: stages, the sampling grid, area cuts, graph rules,
    auto-seeding on sector perimeters, and the walkability rules (§3.7).
-4. **Generator – in progress.**
-   - Walkable surfaces: done for two sp_01 test blocks (97.9 % agreement within 0.8 m in a base
-     area, 95.7 % on steep terrain).
-   - Next: outlines (contours halfway between samples, axis-aligned + 45°), tiles and 25-cell area
-     cuts, portals, the graph, then `pathdata.hpd` via `kymesh.write_mesh` / `hpdtool.write`;
-     compare with DICE's data, validate in game on a campaign level, then multiplayer maps.
+4. **Generator – first complete version (`tools
+avbuild.py`).**
+   - Walkable surfaces: 97.9 % agreement within 0.8 m with DICE's data in a base area, 95.7 % on
+     steep terrain (sp_01 test blocks).
+   - Full pipeline: 100 m sectors (level `SectorOffsets`), 3 × 3 tiles of 50 samples, 8-connected areas
+     bisected above 20 m, outlines with 45° bridges at diagonal contacts, portals (B), border portals
+     (C), neighbour links, route network (area, portal and shared border nodes; straight walkable edges
+     up to 15 m; groups joined through string-pulled waypoints), written as `pathdata.hpd`.
+   - sp_01 (whole level, 86–120 s): 154 sectors, 8,425 areas, 24,946 nodes (DICE: 126 sectors,
+     10,380 areas, 24,743 nodes); 579 graph groups vs DICE's 506; passes `roundtrip` / `meshtrip` /
+     `coverage`; **loads in game** with the AI running (no faults).
+   - Not generated yet: D lines, F cells, "up" border portals, diagonal border portals, detailed zones
+     (pitch 0.2), vehicle data.
+   - Next: behaviour test – AI with NavKit's file vs DICE's on the same mission.
    - Later: a standalone mode that reads Havok collision directly instead of sampling in game.
 
 Credits: see Project OPFOR's `CREDITS.md`. Kynapse is a trademark of Autodesk; Battlefield: Bad
