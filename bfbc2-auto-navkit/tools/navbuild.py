@@ -77,11 +77,14 @@ class Level:
         pred = PITCH * ((self.gx[k] + self.gx[n]) / 2 * di + (self.gz[k] + self.gz[n]) / 2 * dj)
         return abs(self.y[n] - self.y[k] - pred) <= self.step
 
-    def neighbour(self, k, gi, gj, di, dj):
-        """The kept surface in column (gi+di, gj+dj) connected to surface k, or None."""
+    def neighbour(self, k, gi, gj, di, dj, prefer=None):
+        """The kept surface in column (gi+di, gj+dj) connected to surface k, or None. With prefer (a set of
+        surfaces, e.g. those of k's own area), a connected surface in that set is returned first."""
         best, bd = None, 9e9
         for n in self.surfaces(gi + di, gj + dj):
             if self.connected(k, n, di, dj):
+                if prefer is not None and n in prefer:
+                    return n
                 d = abs(self.y[n] - self.y[k])
                 if d < bd:
                     best, bd = n, d
@@ -161,10 +164,13 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
     result = []
     for ai, area in enumerate(areas):
         edges = defaultdict(list)    # (kind, target, axis, line, dir) -> [(along, y0, y1)]
+        own = {c[2] for c in area['cells']}
         for i, j, k in area['cells']:
             yk = level.y[k] + Y_OFFSET
             for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                n = level.neighbour(k, gi0 + i, gj0 + j, di, dj)
+                # a side is interior when any connected surface across it is in this area (two connected
+                # surfaces in one column - stair edge, split-off layer - must not leave a stray portal inside)
+                n = level.neighbour(k, gi0 + i, gj0 + j, di, dj, prefer=own)
                 ni, nj = i + di, j + dj
                 if n is not None and ni in WINDOW and nj in WINDOW:
                     t = area_of.get(n)
