@@ -222,6 +222,18 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
   sp_01 97.0 -> 97.6 %. (Seeding from all AI order positions instead over-covers.)
 - **No lone nodes:** DICE's files have no node without an edge (0 of 24,743 on sp_01). Nodes with no edge in
   any sector (tiny islands, slivers on a sector line) are dropped (sp_004_b pairwise 76.9 -> 86.4 %).
+- **Stair step rule:** where a stair surface meets a flat landing, the mean of the two gradients halves the
+  predicted rise of the last step; the step also fits when it matches the stair surface's own incline
+  (sp_006: a three-step stair into a building block, risers 0.2 / 0.37 / 0.23 m, split the route network -
+  pairwise 59.5 -> 92.7 %).
+- **Narrow passages** (sp_009 plane aisles, seats leave less than the 0.8 m capsule width): DICE's data
+  connects them. The narrow-capsule rule (§3.8, 0.25 m run) now gains on sp_01 (coverage 97.6 -> 97.9 %,
+  pairwise 89.5 -> 90.3 %) but connects ~19,300 more point pairs DICE does not (100,759 vs 81,425 only-ours
+  pairs) - kept optional.
+- **Open:** sp_008_b - NavKit keeps a 36° sloped bridge-foundation strip and a container / fence passage
+  between harbour fences (`ForbidPathfinding`) and invisible walls that DICE leaves out; 3 of the 16 graph
+  edges joining two DICE groups lie entirely on DICE's areas (gaps in DICE's network), the rest cross these
+  two spots.
 - **Ladders are not in the path data:** islands reached only by ladder stay islands; bots spawned there
   move on that floor only.
 - **Per-level inputs:** `SectorOffsets` (`Levels/<lvl>/Precomputed/Infantry/SectorOffsets.dbx`) gives the

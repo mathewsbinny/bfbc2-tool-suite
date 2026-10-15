@@ -76,15 +76,16 @@ avbuild.py`).**
 | sp_004_b | 169 / 181 (93.4 %) | 86.4 % | 185 / 192 |
 | sp_005 | 304 / 309 (98.4 %) | 97.2 % | 308 / 312 |
 | sp_005_b | 671 / 683 (98.2 %) | 94.8 % | 722 / 728 |
-| sp_006 | 256 / 270 (94.8 %) | 59.5 % | 215 / 263 |
+| sp_006 | 258 / 270 (95.6 %) | 92.7 % | 280 / 263 |
 | sp_007 | 367 / 388 (94.6 %) | 88.6 % | 427 / 443 |
 | sp_008 | 278 / 289 (96.2 %) | 83.4 % | 44 / 16 |
 | sp_008_b | 110 / 113 (97.3 %) | 79.3 % | 107 / 58 |
 | sp_009 | 68 / 72 (94.4 %) | 20.1 % | – (plane interior; measure unsuited) |
-| **All 13** | **4,525 / 4,712 (96.0 %)** | | |
+| **All 13** | **4,527 / 4,712 (96.1 %)** | | |
 
    - The pairwise check compares route-network layout; DICE's own network has gaps (spec §3.8), so it
-     is a guide, not ground truth. sp_006 / sp_008_b / sp_009 are the open leads.
+     is a guide, not ground truth. Open leads: sp_008_b (sloped bridge foundation / fence passage DICE leaves
+     out), sp_009 (plane aisles narrower than the capsule; DICE connects them), sp_03 / sp_008 (DICE network gaps).
    - Not generated yet: D lines, F cells, "up" border portals, diagonal border portals, detailed zones
      (pitch 0.2), vehicle data, ladder links (planned for MP bots, optional).
    - Next: play test of the current sp_01 build against DICE's file; then MP maps (self-check, no DICE
