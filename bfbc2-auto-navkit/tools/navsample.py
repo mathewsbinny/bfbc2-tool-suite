@@ -42,6 +42,7 @@ class Samples:
     y: np.ndarray        # per surface
     normal: np.ndarray   # per surface, (n, 3) floats
     flags: np.ndarray    # per surface
+    hit: np.ndarray = None   # per surface (version 2): shape vtable, shape word +0x0C, collidable word +0x1C
 
     def centre(self, i, j):
         return self.min_x + i * self.pitch, self.min_z + j * self.pitch
@@ -55,19 +56,22 @@ def load(path):
     data = open(path, 'rb').read()
     magic, version, pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, _ = \
         HEADER.unpack_from(data, 0)
-    if magic != b'ONS1' or version != 1:
+    if magic != b'ONS1' or version not in (1, 2):
         raise ValueError(f'{path}: not a navsample file')
     pos = HEADER.size
     cols = nx * nz
     start = np.zeros(cols + 1, dtype=np.int64)
-    ys, normals, flags = [], [], []
+    ys, normals, flags, hits = [], [], [], []
+    rec = 8 if version == 1 else 20
     c = 0
     while c < cols and pos < len(data):
         n = data[pos]
         pos += 1
         for _ in range(n):
             y, a, b, d, f = struct.unpack_from('<f3bB', data, pos)
-            pos += 8
+            if version == 2:
+                hits.append(struct.unpack_from('<3I', data, pos + 8))
+            pos += rec
             ys.append(y)
             normals.append((a / 127.0, b / 127.0, d / 127.0))
             flags.append(f)
@@ -76,7 +80,7 @@ def load(path):
     start[c:] = len(ys)   # an interrupted run leaves the rest empty
     return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, start,
                    np.array(ys, dtype=np.float32), np.array(normals, dtype=np.float32).reshape(-1, 3),
-                   np.array(flags, dtype=np.uint8)), c
+                   np.array(flags, dtype=np.uint8), np.array(hits, dtype=np.uint32).reshape(-1, 3)), c
 
 
 def walkable(s, slope_max_deg=40.0):

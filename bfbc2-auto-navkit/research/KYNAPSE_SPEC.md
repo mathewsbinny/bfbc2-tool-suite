@@ -114,6 +114,25 @@ before). Stage 2 ran on two sectors (257, 513 – built around the single given 
   the connectivity rule between samples (too lenient joins regions DICE keeps apart, too strict loses
   regions DICE keeps, probably via the level's own seed entities).
 
+### 3.6 Seeds and forbidden objects (sp_01 level data, 2026-10-14)
+
+- The level file (`levels/SP_01.dbx`) has **no explicit seed list**; `InfantrySeeds`/`VehicleSeeds` are
+  settings flags. sp_01 has 341 spawn entities (soldier, ghost, alternate, vehicle), none in the
+  test block – the block's walkable regions are seeded from sector perimeters only.
+- Object blueprints carry pathfinding flags: `ExcludeFromPathfinding`, `ForbidPathfinding`,
+  `AllowPathdataSeeds`, `LocalPathfinding`, `DisablePathfinding`. On sp_01 `ForbidPathfinding` is set
+  on rocks, boulders, cliffs, stone formations, palm trees, `Tree_XXXL`, trench camo, wreck parts,
+  barrels (27 blueprints, 350 individually placed instances); `ExcludeFromPathfinding` on palm trees
+  and weak fences. Many props are placed through static-model groups whose instance transforms live
+  in the binary Havok assets.
+- Every downward ray in the test block hit the same body type (DICE's ray collector, vtable
+  0x014573D8, keeps the two root collidables at +0x50/+0x54) – no object tops are involved there.
+- The far extra regions (walkable for NavKit, absent in DICE's data) are plain terrain; 34 % have a
+  capsule-blocked sample (a trunk) within 4 m versus 11 % of correctly kept cells. Likely cause:
+  forbid footprints of vegetation (trees, undergrowth) applied by the original build but invisible
+  or only partly visible to the AI's physics queries. Next: read vegetation placements from the
+  level's Havok assets and apply forbid footprints.
+
 The original tool's map-building step (stage 3) is licence-protected (section 5); NavKit implements
 these stages independently.
 
