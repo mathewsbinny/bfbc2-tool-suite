@@ -4,7 +4,12 @@ Interoperability specification written from reverse engineering (see `..\README.
 clean-room rules). Sources: the user's own game files (`Output\win32\ai\levels\<level>\{infantry,
 vehicle}\pathdata.hpd`, 25 campaign files; byte-identical on Xbox 360), Napisal's MP files, and the
 behaviour of the generator code in BFBC2Game.exe build 795745 (Project OPFOR
-`research\BFBC2_DECOMP_RESEARCH.md` §9). Status: 2026-10-14, first survey.
+`research\BFBC2_DECOMP_RESEARCH.md` §9), observed only at its boundary with DICE's engine code, plus
+in-game collision samples taken through the engine's own physics queries. Status 2026-10-14: file
+format complete (§4, byte-exact rewrite); builder stages described (§3.1–3.2); walkability rules
+measured against DICE's data (§3.3–3.7 – the sections record the investigation in order, §3.7 holds
+the current rules and results); mesh/graph generation rules (outlines, areas, portals, graph) still
+to be implemented and checked.
 
 ## 1. Where the data is used
 
@@ -54,7 +59,7 @@ proven).
 |---|---|---|---|
 | 1 | Dividing sectors | Split the level's bounds into a grid of **100 m sectors**, id = `0xXXYY` (grid x, y). Each sector covers 100 m plus a margin: one pitch on the near side and 1.1 × pitch on the far side (101.68 m for infantry); sectors at the level edge drop the near margin (measured). Detailed zones (`DetailedZoneSettings`) get their own pitch (0.2) and 6 × 6 tiles. | `Sectors.xml` |
 | 2 | Generating seeds | Collect seed points (given + automatic: `AutoSeedStep` probes the ground with point queries). Sectors without a seed are written empty ("No seed found, write empty pathdata"). | `sector_<n>.autoseed` |
-| 3 | Generating maps (per sector) | Sample the ground on a **regular grid with spacing = pitch at whole multiples of the pitch in world space** (the rectangle's minX = sector edge − pitch is one) – outlines then run **halfway between samples**, at (k + 0.5)·pitch (measured: every outline vertex; a re-rasterisation of DICE's areas at these sample points reproduces them 100 %). A cell is walkable when the ground is found, the slope is within `GroundSlopeMin/Max`, a capsule of the entity radius and height fits, and it is not forbidden/excluded/water (inferred from settings and callbacks). Flood-fill from the seeds over neighbouring cells whose height difference is within `StepMax` (inferred), so unreachable ground is dropped. | `.aim`, `.udg` (grid maps) |
+| 3 | Generating maps (per sector) | Sample the ground on a **regular grid with spacing = pitch at whole multiples of the pitch in world space** (the rectangle's minX = sector edge − pitch is one) – outlines then run **halfway between samples**, at (k + 0.5)·pitch (measured: every outline vertex; a re-rasterisation of DICE's areas at these sample points reproduces them 100 %). A cell is walkable when the ground is found, the slope is within `GroundSlopeMin/Max`, a capsule of the entity radius and height fits, and it is not forbidden/excluded/water (inferred from settings and callbacks). Flood-fill from the seeds over neighbouring cells whose height difference is within `StepMax` (inferred), so unreachable ground is dropped. Measured rules: §3.7. | `.aim`, `.udg` (grid maps) |
 | 4 | Linking meshes | Trace the **outlines** of walkable regions halfway between samples (stair-stepped contours, holes for obstacles – measured). Split each sector into **tiles** (3 × 3; 6 × 6 in detailed zones) and cut regions further on a fixed grid **every 25 cells** (lines at minX + (25k + 24.5)·pitch: 20 m for infantry, 25 m vehicle, 5 m detailed – measured), giving **areas**. Shared cut segments become **portals** (B) to the neighbouring area; segments on the sector border become **border portals** (C) with an outward direction, listed per neighbouring sector/tile/area in the link table. Height breaks along obstacle edges become D lines and F cells (inferred). | `.pdl`, `.fdl` |
 | 5 | Linking graphs | Build the high-level **graph**: nodes mostly within ~1 m of outline corners (obstacle corners offset by roughly the entity radius – measured: ~75 % infantry / ~60 % vehicle nodes), plus nodes in open ground; edges between mutually reachable nodes up to about `DistEdgeMax` (median 6 m; 99 % < 17.6 m infantry, < 48 m vehicle – measured), cost = floor(3-D length × 16). Nodes on sector borders are shared with the neighbouring sector (same id and position, high bit). | `.fsg` |
 | 6 | Building hierarchical database | Assemble per-sector blocks (graph + runtime mesh), sort the node lookup lists by x, y, z, write the sector table with build timestamps. | `pathdata.hpd` |
@@ -79,6 +84,8 @@ compared the result with DICE's `pathdata.hpd` (39,379 walkable reference cells)
   the sampler steps down through solid geometry (0.5 m steps, up to 10 m) to find lower storeys.
 
 ### 3.4 Edge rule and region filter (fine 0.2 m sampling of the same block)
+
+(Single-layer measure on the mountain block; superseded by the multi-layer rules and results in §3.7.)
 
 - **Outline geometry:** outline vertices lie on cell corners ((k + 0.5)·pitch in both axes); segments are
   axis-aligned or exactly 45°. A 45° segment passes through a sample and cuts its cell in half, so
