@@ -113,21 +113,25 @@ def build_areas(level, gi0, gj0):
 
 
 def components(level, members, gi0, gj0):
-    """8-connected components (step rule) of the given surfaces {k: (i, j)}."""
+    """8-connected components (step rule) of the given surfaces {k: (i, j)}. An area is single-layer in plan: a
+    surface whose column the component already holds (a second floor reached round a corner) starts its own."""
     seen, out = set(), []
     for k0 in members:
         if k0 in seen:
             continue
         comp, q = [], deque([k0])
         seen.add(k0)
+        cols = {members[k0]}
         while q:
             k = q.popleft()
             i, j = members[k]
             comp.append((i, j, k))
             for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
                 n = level.neighbour(k, gi0 + i, gj0 + j, di, dj)
-                if n is not None and n in members and n not in seen and members[n] == (i + di, j + dj):
+                if n is not None and n in members and n not in seen and members[n] == (i + di, j + dj) \
+                        and members[n] not in cols:
                     seen.add(n)
+                    cols.add(members[n])
                     q.append(n)
         out.append(comp)
     return out
