@@ -44,8 +44,10 @@ def find_exe():
     candidates = []
     if os.environ.get('OPFOR_ROOT'):
         candidates.append(os.path.join(os.environ['OPFOR_ROOT'], 'game', 'BFBC2Game.exe'))
-    toolkit = os.path.dirname(HERE)
-    candidates.append(os.path.join(os.path.dirname(toolkit), 'Project OPFOR', 'game', 'BFBC2Game.exe'))
+    d = HERE   # a "Project OPFOR" folder next to one of the folders this tool sits in
+    while os.path.dirname(d) != d:
+        d = os.path.dirname(d)
+        candidates.append(os.path.join(d, 'Project OPFOR', 'game', 'BFBC2Game.exe'))
     for c in candidates:
         if os.path.isfile(c):
             return c

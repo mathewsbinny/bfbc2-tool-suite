@@ -48,10 +48,14 @@ class NavKitError(Exception):
 
 
 def find_opfor(given=None):
-    """The Project OPFOR folder: --opfor, else OPFOR_ROOT, else "Project OPFOR" next to the toolkit folder."""
-    toolkit = os.path.dirname(HERE)
-    candidates = [given, os.environ.get('OPFOR_ROOT'),
-                  os.path.join(os.path.dirname(toolkit), 'Project OPFOR'), os.path.dirname(HERE)]
+    """The Project OPFOR folder: --opfor, else OPFOR_ROOT, else a "Project OPFOR" folder next to one of the folders
+    this tool sits in (e.g. next to the toolkit that holds the suite)."""
+    up = []
+    d = HERE
+    while os.path.dirname(d) != d:
+        d = os.path.dirname(d)
+        up.append(os.path.join(d, 'Project OPFOR'))
+    candidates = [given, os.environ.get('OPFOR_ROOT')] + up
     for c in candidates:
         if c and os.path.isdir(os.path.join(c, 'game')):
             return os.path.abspath(c)

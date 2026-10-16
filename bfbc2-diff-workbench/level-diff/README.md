@@ -10,7 +10,7 @@ removed, and which fields changed. It works on levels and on any other partition
 ## Build
 
 Run `build.bat`. It compiles `LevelDiff.exe` with the C# compiler that ships with Windows. It reads files
-with the toolkit's DbxEdit code, so it needs `bfbc2-dbx-tools` next to this folder (or set `DBX_TOOLS` to
+with the suite's DbxEdit code (`..\..\bfbc2-dbx-tools`; or set `DBX_TOOLS` to
 that folder).
 
 ## Use

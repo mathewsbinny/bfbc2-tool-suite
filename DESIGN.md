@@ -45,16 +45,16 @@ they are built in. It is a draft for review, and it changes as the tools are bui
 
 ## 3. The shared core (`core/`)
 
-### 3.0 What already exists (and the suite builds on)
+### 3.0 What already exists (merged into the suite with its history, 2026-10-16)
 
 | Tool | Where | Used for |
 |---|---|---|
 | FbrbTool | `bfbc2-fbrb-tool` | unpacking bundles |
 | DbxEdit, DbxEditGUI, `FORMAT.md`, test suite and fingerprints | `bfbc2-dbx-tools` | DBX reading and editing, level checks, cull-slot repair; the spec the Python reader is written from |
-| LevelDiff | `bfbc2-level-diff` | field-level diffs of `.dbx` files |
-| crash reader | `bfbc2-crash-reader` | in-game test failures |
+| LevelDiff | `bfbc2-diff-workbench/level-diff` | field-level diffs of `.dbx` files |
+| crash reader | `bfbc2-automated-map-and-bot-test-harness/crash-reader` | in-game test failures |
 | console readers | `bfbc2-console-readers` | Xbox 360 sources |
-| NavKit: `navkit.py`, `navkitGUI.pyw`, generator, `navdiff`, `navparity`, `navcompare`, `ordercheck` | `bfbc2-navkit` | navigation data, and the parity numbers (baseline A) the studio's difference view shows |
+| NavKit: `navkit.py`, `navkitGUI.pyw`, generator, `navdiff`, `navparity`, `navcompare`, `ordercheck` | `bfbc2-auto-navkit` | navigation data, and the parity numbers (baseline A) the studio's difference view shows |
 | `testrun.bat` | Project OPFOR | starting a level in the game and reporting the outcome |
 
 ### 3.1 Data layer

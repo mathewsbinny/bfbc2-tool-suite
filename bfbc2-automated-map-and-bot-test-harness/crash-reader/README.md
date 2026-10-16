@@ -29,7 +29,8 @@ python crashreader.py --symbols my_names.txt  add your own function names and hi
 python crashreader.py --log path\to\opfor.log
 ```
 
-It finds `BFBC2Game.exe` in Project OPFOR's game copy (`OPFOR_ROOT`, or `Project OPFOR` next to the toolkit).
+It finds `BFBC2Game.exe` in Project OPFOR's game copy (`OPFOR_ROOT`, or a `Project OPFOR` folder next to one of
+the folders it sits in).
 Otherwise give it with `--exe`.
 
 Example (a ported level whose model groups lacked physics data):
