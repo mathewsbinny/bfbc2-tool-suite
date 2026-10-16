@@ -1,6 +1,6 @@
 """NavKit generator: in-game collision samples -> Kynapse-format pathdata.hpd (infantry, pitch 0.8).
 
-Pipeline (navkit/research/KYNAPSE_SPEC.md sections 3 and 4):
+Pipeline (research/KYNAPSE_SPEC.md sections 3 and 4):
   1. walkable surfaces: navwalk.walkable (slope, capsule, ForbidPathfinding objects, StepMax, perimeter seeds)
   2. sectors: 100 m grid from the level's SectorOffsets; each sector uses the samples -1 .. 126 of its
      window (two-sample overlap with each neighbour)

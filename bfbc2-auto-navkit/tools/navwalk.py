@@ -1,6 +1,6 @@
 """NavKit: walkable surfaces from in-game collision samples, and scoring against an existing pathdata.hpd.
 
-Rules (navkit/research/KYNAPSE_SPEC.md section 3):
+Rules (research/KYNAPSE_SPEC.md section 3):
   1. a sampled surface is a candidate when the soldier capsule fits and its normal is within
      GroundSlopeMax (40 deg) of vertical;
   2. surfaces lying on a ForbidPathfinding object (forbid_tris.npy from levelobjects.py) are removed;
