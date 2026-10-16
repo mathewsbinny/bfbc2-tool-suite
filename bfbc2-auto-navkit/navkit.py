@@ -14,7 +14,7 @@
 Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: override the sampling box),
          --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit).
 
-NavKit works on Project OPFOR's game copy and uses its in-game sampler. FbrbTool / DbxTool come from the
+NavKit works on Project OPFOR's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
 toolkit (..\\bfbc2-fbrb-tool, ..\\bfbc2-dbx-tools, built with their build.bat) or from OPFOR's tools\\ folder.
 
 Files (in the OPFOR folder): work\\levels\\<level>\\ (unpacked level, objects), work\\navkit\\<level>\\
@@ -74,7 +74,7 @@ class Project:
         if not os.path.isfile(os.path.join(self.game, 'BFBC2Game.exe')):
             raise NavKitError(f'no game copy in {self.game} (run OPFOR\'s setup_game.bat first)')
         self.fbrbtool = find_tool(self.root, 'FbrbTool.exe', 'bfbc2-fbrb-tool')
-        self.dbxtool = find_tool(self.root, 'DbxTool.exe', 'bfbc2-dbx-tools')
+        self.dbxedit = find_tool(self.root, 'DbxEdit.exe', 'bfbc2-dbx-tools')
 
     # --- levels --------------------------------------------------------------------------------------
     def level_dirs(self):
@@ -135,7 +135,7 @@ class Project:
         log(f'  unpacking {os.path.relpath(bundle, self.game)} ...')
         self.run([self.fbrbtool, 'unpack', bundle, dest], log)
         log('  converting binary DBX to XML ...')
-        log('  ' + self.run([self.dbxtool, dest], log)[-1])
+        log('  ' + self.run([self.dbxedit, 'xml', dest], log)[-1])
 
 
 # --- steps -----------------------------------------------------------------------------------------------

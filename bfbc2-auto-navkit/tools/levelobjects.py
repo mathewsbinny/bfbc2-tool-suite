@@ -1,7 +1,7 @@
 """NavKit: object placements and pathfinding flags of a level, from its extracted data.
 
-Reads an unpacked + DbxTool-converted level (FbrbTool unpack of Dist and Package level-00.fbrb, then
-DbxTool on both folders) and writes, next to it:
+Reads an unpacked + XML-converted level (FbrbTool unpack of Dist and Package level-00.fbrb, then
+DbxEdit xml on both folders) and writes, next to it:
   objects.json       individually placed objects (Entity.ReferenceObjectData): blueprint, flags, matrix
   group_instances.json  instances of static-model groups / forest / middlegrowth (Physics.CompositeHavokAsset:
                      Assets[i] + Transforms[i]), with blueprint flags
