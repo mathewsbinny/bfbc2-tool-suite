@@ -270,7 +270,13 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 
 Operations are recorded by position, not by area index or node id, so they still apply after the level
 is regenerated. The order matters, and every operation records who made it and when (`by`, `when`;
-shown on the first one above). `base` names the file the edits were made on:
+shown on the first one above). `by` is the name of the PC the edit was made on (Windows' computer name)
+unless the user sets another name.
+
+**Bases (decided 2026-10-16):** the normal base is NavKit's output - NavKit builds the level, the edits go
+on top, and `navkit apply` re-applies them after every rebuild. Region edits (walkable, unwalkable, seeds)
+are allowed only on a NavKit base. On a DICE base (kept where DICE's data is still better than NavKit's)
+only additive edits are allowed: links, route edges, traversal annotations and notes. `base` names the file the edits were made on:
 - `navkit`: NavKit's output for the level;
 - `dice`: the level's own path data. Only the side file can be shared then, never the edited file,
   which would contain DICE's data.
