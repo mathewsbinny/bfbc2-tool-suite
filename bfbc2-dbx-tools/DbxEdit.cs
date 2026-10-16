@@ -20,6 +20,8 @@
 //            dropfield=<name>        removes every field named <name> (fields the PC build does not have)
 //            graft=<src.dbx>|<guid>[|<before guid>]  copies (inserted before that instance if given) that instance of another file, with every instance of that file it
 //                                    references in-partition (members), strings remapped
+//            additem=<guid>|<array>|<ref>[|<before ref>]  adds an item referring to <ref> to array <array> of
+//                                    instance <guid> (at the end, or before the item referring to <before ref>)
 //        a command argument "@file" reads commands from a file (one per line, # comments)
 using System;
 using System.Collections.Generic;
@@ -272,11 +274,56 @@ class Doc
         var si = src.Instances().FirstOrDefault(n => SameGuid(src.Attr(n, "guid"), srcGuid));
         var di = Instances().FirstOrDefault(n => SameGuid(Attr(n, "guid"), guid));
         if (si == null || di == null) return false;
-        var sf = si.Children.FirstOrDefault(n => src.Attr(n, "name") == field);
+        var sf = Find(src, si, field);
         if (sf == null) return false;
         var copy = CopyFrom(src, sf);
-        int at = di.Children.FindIndex(n => Attr(n, "name") == field);
-        if (at >= 0) di.Children[at] = copy; else di.Children.Add(copy);
+        // replace the field wherever it sits (nested complexes included); else append at the top level
+        if (!ReplaceIn(di, field, copy)) di.Children.Add(copy);
+        return true;
+    }
+
+    static Node Find(Doc d, Node n, string field)
+    {
+        if (n.Children == null) return null;
+        foreach (var c in n.Children)
+        {
+            if (d.Strings[c.Prefix] != "instance" && d.Attr(c, "name") == field) return c;
+            var r = Find(d, c, field);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    bool ReplaceIn(Node n, string field, Node copy)
+    {
+        if (n.Children == null) return false;
+        for (int i = 0; i < n.Children.Count; i++)
+        {
+            if (Attr(n.Children[i], "name") == field) { n.Children[i] = copy; return true; }
+            if (ReplaceIn(n.Children[i], field, copy)) return true;
+        }
+        return false;
+    }
+
+    // Adds an <item ref="..."/> to array <array> of instance <guid>, before the item referring to <before> if given.
+    public bool AddItem(string guid, string array, string reference, string before)
+    {
+        var di = Instances().FirstOrDefault(n => SameGuid(Attr(n, "guid"), guid));
+        if (di == null) return false;
+        var arr = di.Children.FirstOrDefault(c => Strings[c.Prefix] == "array" && Attr(c, "name") == array);
+        if (arr == null || arr.Children == null) return false;
+        var item = arr.Children.FirstOrDefault(c => Strings[c.Prefix] == "item");
+        if (item == null) return false;
+        var added = new Node { Prefix = item.Prefix, Type = item.Type, Null = item.Null, Raw = item.Raw };
+        added.Attrs.Add(new[] { Str("ref"), Str(reference) });
+        if (item.Children != null) added.Children = new List<Node>();
+        int at = arr.Children.Count;
+        if (before != null)
+        {
+            int i = arr.Children.FindIndex(c => SameGuid(Attr(c, "ref"), before));
+            if (i >= 0) at = i;
+        }
+        arr.Children.Insert(at, added);
         return true;
     }
 
@@ -427,13 +474,21 @@ static class DbxEdit
                     int n = doc.DropField(doc.Roots, c.Substring(10));
                     Console.WriteLine("dropfield " + c.Substring(10) + ": " + n + " element(s)");
                 }
+                else if (c.StartsWith("additem="))
+                {
+                    var p = c.Substring(8).Split('|');
+                    bool ok = doc.AddItem(p[0], p[1], p[2], p.Length > 3 ? p[3] : null);
+                    Console.WriteLine("additem " + p[2] + " -> " + p[1] + ": " + (ok ? "added" : "NOT FOUND"));
+                    if (!ok) return 1;
+                }
                 else if (c.StartsWith("graft="))
                 {
                     var p = c.Substring(6).Split('|');
                     if (!sources.ContainsKey(p[0])) sources[p[0]] = new Doc(p[0]);
                     int n = doc.Graft(sources[p[0]], p[1], p.Length > 2 ? p[2] : null);
                     Console.WriteLine("graft " + p[1] + " from " + Path.GetFileName(p[0]) + ": " + n + " instance(s)");
-                    if (n == 0) { Console.Error.WriteLine("nothing grafted for " + p[1]); return 1; }
+                    if (n == 0 && !doc.Instances().Any(x => string.Equals(doc.Attr(x, "guid"), p[1], StringComparison.OrdinalIgnoreCase)))
+                    { Console.Error.WriteLine("nothing grafted for " + p[1]); return 1; }
                 }
                 else { Console.Error.WriteLine("unknown command " + c); return 2; }
             }
