@@ -1,9 +1,16 @@
 # BFBC2 suite: design
 
-Five tools for building and debugging AI on Battlefield: Bad Company 2 maps. They share one core: level
-loading, a 3D view, picking and the game's data formats. Each tool is a mode on top of that core. This
-document fixes what each tool does, what they share, the file formats they write, and the order they are
-built in. It is a draft for review, and it changes as the tools are built.
+Eight tools for building and debugging AI on Battlefield: Bad Company 2 maps, plus Project OPFOR's asset
+builder. They share one core: level loading, a 3D view, picking and the game's data formats.
+
+- **Modes of the 3D view:** the inspector, the navigation studio, the tactical authoring tool and the bot
+  debugger.
+- **Command-line tools on the same core:** the asset pipeline, the diff workbench, the behaviour
+  simulator and the test harness.
+
+This document fixes what each tool does, what they share, the file formats they write, and the order
+they are built in. It is a draft for review, and it changes as the tools are built (last revised
+2026-10-16).
 
 ## 1. The tools
 
@@ -24,7 +31,9 @@ built in. It is a draft for review, and it changes as the tools are built.
 - **Game data comes from the user's own install** and is read where it is. Nothing EA-owned is shipped:
   no geometry, no level data, and no DICE path data.
 - **NavKit stays clean-room.** We learn only from DICE's output files and the generator's boundary with
-  DICE code. The licensed Kynapse generator is never run or bypassed.
+  DICE code. NavKit never uses the licensed Kynapse generator, and nothing in the suite bypasses its
+  licence check. (The toolkit's `kynapse-map-builder` only prepares runs for someone holding a valid
+  licence; it is not part of the suite.)
 - **Edits never count toward DICE parity.** NavKit's parity score measures the generator alone. The
   studio's edits are for maps without DICE data, and for places shown to be beyond any rule (hand edits,
   geometry missing from the shipped game).
@@ -36,18 +45,32 @@ built in. It is a draft for review, and it changes as the tools are built.
 
 ## 3. The shared core (`core/`)
 
+### 3.0 What already exists (and the suite builds on)
+
+| Tool | Where | Used for |
+|---|---|---|
+| FbrbTool | `bfbc2-fbrb-tool` | unpacking bundles |
+| DbxEdit, DbxEditGUI, `FORMAT.md`, test suite and fingerprints | `bfbc2-dbx-tools` | DBX reading and editing, level checks, cull-slot repair; the spec the Python reader is written from |
+| LevelDiff | `bfbc2-level-diff` | field-level diffs of `.dbx` files |
+| crash reader | `bfbc2-crash-reader` | in-game test failures |
+| console readers | `bfbc2-console-readers` | Xbox 360 sources |
+| NavKit: `navkit.py`, `navkitGUI.pyw`, generator, `navdiff`, `navparity`, `navcompare`, `ordercheck` | `bfbc2-navkit` | navigation data, and the parity numbers (baseline A) the studio's difference view shows |
+| `testrun.bat` | Project OPFOR | starting a level in the game and reporting the outcome |
+
 ### 3.1 Data layer
 
 | Source | How it is read | Status |
 |---|---|---|
-| `.fbrb` bundles | FbrbTool unpack, cached per bundle date | works |
-| binary `.dbx` (entities, transforms, properties) | a Python reader written from `bfbc2-dbx-tools/FORMAT.md` (no exe calls, fast) | to write; the format is fully specified |
+| `.fbrb` bundles | FbrbTool unpack | works; a cache per bundle date (as `testrun` keeps) to add |
+| binary `.dbx` (entities, transforms, properties) | a Python reader written from `bfbc2-dbx-tools/FORMAT.md` (no exe calls, fast); until then `DbxEdit xml` | to write; the format is fully specified, and DbxEdit's 31,564 fingerprints check that the reader agrees |
 | object collision (`*_Havok.res`) | NavKit's `hkpack.py` | works for the shapes NavKit uses; other shape types to add |
 | static model groups (instance transforms) | `*_HavokAsset` partitions | works in NavKit |
-| terrain heights | `Terrains/<level>/<level>.Heightfield-000.res` | header read: extent (-1024..1024 m on both axes), height range (0..1000 m), a 2048 grid, then about 4.3 M 16-bit heights; to decode fully |
+| terrain heights | `Terrains/<level>/<level>.Heightfield-000.res` | to decode. The header looks like an extent of -1024..1024 m on both axes, a height range of 0..1000 m and a 2048 grid. The 8.67 MB file fits a 2049 × 2049 grid of 16-bit heights (8.40 MB) plus about 270 KB more. Not verified yet. |
 | water | `<level>.Water.res`, `.Water.Mesh.res` | to research |
+| surfaces measured in game | NavKit's samples (`work\navsample\*.bin`, `navsample.py`) | works; an approximate terrain until the heightfield is decoded |
 | navigation data | NavKit's `hpdtool.py` and `kymesh.py` (byte-exact reader and writer) | works |
-| the level's AI orders, spawns, objectives | level partition entities (as NavKit's `ordercheck` and `levelobjects` read them) | works |
+| spawn points, AI orders and patrol routes | level partition entities (as NavKit's `levelobjects` and `ordercheck` read them) | works |
+| objectives (M-COMs, flags), destructibles, vehicles and vehicle spawns | level partition entities | to read; the entity types are to identify |
 
 ### 3.2 Scene model
 
@@ -93,7 +116,7 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 - **Draw:**
   - terrain, collision meshes (static groups and placed objects) and water;
   - spawn points (per team, human or AI);
-  - objectives (Rush M-COMs, Conquest flags, Onslaught sectors);
+  - objectives (Rush and Onslaught M-COMs, Conquest flags);
   - destructible objects, vehicles and vehicle spawns;
   - AI orders and patrol routes (the level's own AreaOrder and PatrolOrder data).
 - **Click anything** to see its type, GUID, partition, blueprint, transform and full property tree, with
@@ -102,7 +125,9 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 
 ### 4.2 bfbc2-navigation-studio
 
-- **Generate:** run NavKit on a level, with its sampling settings, from the studio.
+- **Generate:** run NavKit on a level, with its sampling settings, from the studio. Sampling starts the
+  game (NavKit measures levels through OPFOR's in-game sampler), so the studio asks first. Building from
+  existing samples does not need the game.
 - **View:**
   - areas coloured by island, sector or pitch; outlines, portals, border portals and the route graph;
   - detailed zones;
@@ -112,7 +137,8 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
   - add or remove seeds, to keep or drop an island;
   - link two areas, add or remove route edges;
   - annotate traversal links (ladders, jumps, vaults, drops);
-  - mark regions as AI-only or vehicle-only.
+  - mark regions as AI-only or vehicle-only (vehicle-only needs vehicle path data, which NavKit does not
+    generate yet).
 - **Inspect:** disconnected regions (islands sorted by size, with the nearest connection to the main
   network), unreachable spawns and objectives.
 - **Path test:** pick two points and see the route over the route graph and areas, its cost, or why
@@ -205,11 +231,19 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 - **Output:** versioned runtime packages for OPFOR's standalone client: bundles registered in
   `package.mft`, `bundleManifest` and the startup bundle; side files in place; backups kept for clean
   uninstall.
-- **Checks before packaging:** schemas of the side files, `DbxEdit check` on every level, references
-  resolved across bundles, and NavKit parity for campaign levels.
+- **Checks before packaging:**
+  - schemas of the side files;
+  - `DbxEdit check` on every level, and `DbxEdit fixslots` where a level uses another level's cull
+    trees;
+  - references resolved across bundles;
+  - path data present for every level that needs it, and read back after writing.
+
+  (NavKit's parity is a development measure, not a packaging check: campaign levels ship with DICE's
+  own path data.)
 - **Report:** missing, incompatible or outdated data.
-- **It absorbs** the import scripts and the bundle manager (OPFOR backlog item 8). The installer builds
-  on it.
+- **It absorbs** the import scripts (`import_onslaught.bat` and its manifest, startup and campaign-fill
+  helpers), the Nelson Bay Onslaught import step that is still to be written, and the bundle manager
+  (OPFOR backlog item 8). The installer builds on it.
 
 ## 5. File formats
 
@@ -220,7 +254,8 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
   "format": "bfbc2-navtune", "version": 1,
   "level": "Levels/MP_005", "base": {"kind": "navkit", "sha1": "..."},
   "operations": [
-    {"op": "walkable",   "region": {"polygon": [[x, z], ...], "y": [low, high]}, "value": true},
+    {"op": "walkable",   "region": {"polygon": [[x, z], ...], "y": [low, high]}, "value": true,
+     "by": "name", "when": "2026-10-16T12:00:00"},
     {"op": "unwalkable", "region": {"box": [x0, y0, z0, x1, y1, z1]}},
     {"op": "seed",       "at": [x, y, z]},
     {"op": "unseed",     "at": [x, y, z]},
@@ -233,7 +268,13 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 ```
 
 Operations are recorded by position, not by area index or node id, so they still apply after the level
-is regenerated. The order matters, and each operation records who made it and when.
+is regenerated. The order matters, and every operation records who made it and when (`by`, `when`;
+shown on the first one above). `base` names the file the edits were made on:
+- `navkit`: NavKit's output for the level;
+- `dice`: the level's own path data. Only the side file can be shared then, never the edited file,
+  which would contain DICE's data.
+
+Its `sha1` lets `navkit apply` warn when the base has changed since.
 
 ### 5.2 `navkit apply <level> <navtune>`
 
@@ -273,8 +314,8 @@ OPFOR telemetry module, and is versioned.
 
 ## 7. Open questions
 
-1. **Terrain heightfield:** the full layout (the 2048 grid plus about 270 KB more: probably patches or
-   levels of detail), and how heights map to metres.
+1. **Terrain heightfield:** the full layout (what the header fields are, the grid, and the about 270 KB
+   after it: probably patches or levels of detail), and how the 16-bit heights map to metres.
 2. **Water:** surface heights and extents (relevant to NavKit's extra-ground gap).
 3. **Traversal links in Kynapse data:** whether the format can carry a ladder or jump link the game's AI
    would use, to be tested in game. Until then, those links go to OPFOR's side file.
@@ -283,3 +324,7 @@ OPFOR telemetry module, and is versioned.
    check.
 5. **Performance:** a whole level's collision (millions of triangles) in one view, with level-of-detail
    or culling if needed.
+6. **Entity types:** which DBX types are objectives (M-COMs, Conquest flags), destructibles, vehicles and
+   vehicle spawns, per game mode.
+7. **Vehicle navigation data:** NavKit makes infantry data only. Vehicle data (pitch 1 m, larger radius)
+   is needed for vehicle-only regions and for the bots' vehicle use (Goal 4).
