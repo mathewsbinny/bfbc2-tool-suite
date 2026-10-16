@@ -35,6 +35,20 @@ a route the panel says why: which island each point is on and where they come cl
 button that flies there), or that no route node is within 15 m of a point. It plans over the graph only; the
 game also smooths routes through the areas. (`core/bfbc2core/navpath.py`; `--path "x,y,z;x,y,z"` for tests.)
 
+**Edit mode (E, milestone M4 step 2).** Draw edits on the level; they are kept in a side file,
+`work\navkit\<level>\<level>.navtune.json` (format: `../DESIGN.md` section 5.1; `core/bfbc2core/navtune.py`).
+Tools: walkable or unwalkable region (click an outline and press Enter, or click two corners of a box; the
+height range runs from 2 m below to 4 m above the clicked points, adjustable), seed, unseed, link two areas,
+add or remove a route edge (two points), traversal (ladder, jump, vault or drop, one- or two-way: the
+bottom, then the top), and note. Every edit records who made it (this PC's name unless you type another)
+and when. The panel lists the edits (fly to one, delete one), with undo (Ctrl+Z), redo (Ctrl+Y), save and
+reload; Esc cancels a drawing. Edits are drawn over the scene: walkable green, unwalkable red, seeds cyan,
+unseeds magenta, links orange, route edges yellow (removals red), traversals white.
+
+Edits are recorded and shown; building them into the path data comes with `navkit apply` (steps 3 to 6). On
+DICE's own data only additive edits are offered (links, route edges, traversals, notes): region edits need
+a NavKit build to rebuild. `--navtune <file>` opens a side file from elsewhere, `--edit` opens the panel.
+
 **Panels**
 
 - *Navigation:* per file the areas (detailed ones), cells, route nodes and edges, islands; DICE ground

@@ -49,10 +49,21 @@ def default_files(root, lv):
     return cand, (ref if ref and os.path.isfile(ref) else None)
 
 
-def cell_quads(xz, y):
+def cell_quads(xz, y, heightfield=None, lift=LIFT):
+    """Two triangles per 0.8 m cell. Cells on terrain follow it (each corner at the terrain's height), so slopes
+    show as a surface rather than as steps; other cells (floors, roofs, bridges) are flat at their height."""
     h = navdata.GRID / 2
-    x, z, yy = xz[:, 0], xz[:, 1], y + LIFT
-    c = [np.stack([x + dx, yy, z + dz], axis=1) for dx, dz in ((-h, -h), (h, -h), (h, h), (-h, h))]
+    x, z = xz[:, 0], xz[:, 1]
+    corners = ((-h, -h), (h, -h), (h, h), (-h, h))
+    on_terrain = np.zeros(len(y), dtype=bool)
+    if heightfield is not None and len(y):
+        on_terrain = np.abs(heightfield.height(x, z) - y) < 0.05
+    c = []
+    for dx, dz in corners:
+        cy = y.copy()
+        if on_terrain.any():
+            cy[on_terrain] = heightfield.height(x[on_terrain] + dx, z[on_terrain] + dz)
+        c.append(np.stack([x + dx, cy + lift, z + dz], axis=1))
     return np.stack([np.stack([c[0], c[1], c[2]], 1), np.stack([c[0], c[2], c[3]], 1)], axis=1).reshape(-1, 3, 3)
 
 
@@ -79,7 +90,7 @@ class Studio:
                                                             ('portals', (0.3, 0.9, 1.0)), ('border portals', (1.0, 0.9, 0.2)),
                                                             ('route graph', (1.0, 0.4, 0.9)))}
             self.layers.update({f'{name} {k}': v for k, v in lay.items()})
-            quads = cell_quads(nav.cell_xz, nav.cell_y)
+            quads = cell_quads(nav.cell_xz, nav.cell_y, lvl.heightfield)
             self.ground_batch[name] = self.scene.add_triangles(quads, np.repeat(base + nav.cell_area, 2), lay['ground'])
             lines = [(k, line) for k, a in enumerate(nav.areas) for line in a.outline]
             psegs = [(k, p0, p1) for k, a in enumerate(nav.areas) for p0, p1, _ in a.portals]
@@ -111,12 +122,13 @@ class Studio:
             miss = ~same_r
             self.layers['DICE ground missing in NavKit'] = L('DICE ground missing in NavKit', MISSING)
             if miss.any():
-                self.scene.add_triangles(cell_quads(ref.cell_xz[miss], ref.cell_y[miss] + 0.03),
+                self.scene.add_triangles(cell_quads(ref.cell_xz[miss], ref.cell_y[miss], lvl.heightfield, LIFT + 0.03),
                                          np.repeat(ID_BASE['DICE'] + ref.cell_area[miss], 2), self.layers['DICE ground missing in NavKit'])
             self.diff = {'reproduced': 100.0 * same_r.mean() if len(same_r) else 0.0,
                          'extra': 100.0 * (~same_c).sum() / max(len(same_r), 1),
                          'dice cells': int(len(same_r)), 'navkit cells': int(len(same_c))}
         self.selected = None
+        self.editor = None                                  # editing.Editor, set by main()
         self.island_file = 'NavKit' if 'NavKit' in files else 'DICE'
         self.spawn_report = {name: self.spawn_islands(nav) for name, nav in files.items()}
         self.apply_colors()
@@ -203,7 +215,20 @@ class Studio:
     # --- path test (P) ------------------------------------------------------------------------------
     def set_path_mode(self, v, on):
         self.path_mode = on
-        v.select_on_click = not on
+        if on and self.editor is not None:
+            self.editor.tool = None                       # one click mode at a time
+        self.sync_click_mode(v)
+
+    def sync_click_mode(self, v):
+        """Clicks select unless the path test or an edit tool takes them."""
+        editing = self.editor is not None and self.editor.active()
+        if editing:
+            self.path_mode = False
+        v.select_on_click = not (getattr(self, 'path_mode', False) or editing)
+
+    def refresh_overlay(self, v):
+        """The overlay: the path test's points and routes, and every edit with the drawing in progress."""
+        v.set_overlay(getattr(self, 'path_segs', []) + (self.editor.segments() if self.editor is not None else []))
 
     def path_point(self, v, p):
         """A click in path mode: the start, then the end (a third click starts again)."""
@@ -234,7 +259,8 @@ class Studio:
             elif r.gap:
                 a, b = g[r.gap[0]], g[r.gap[1]]
                 seg += [(a, b, MISSING), (a, a + np.array([0, 3, 0]), MISSING), (b, b + np.array([0, 3, 0]), MISSING)]
-        v.set_overlay(seg)
+        self.path_segs = seg
+        self.refresh_overlay(v)
 
     def panel_path(self, v):
         if not getattr(self, 'path_mode', False) and not getattr(self, 'routes', None):
@@ -245,8 +271,8 @@ class Studio:
         if changed:
             self.set_path_mode(v, on)
         if imgui.small_button('clear##path'):
-            self.path_pts, self.routes = [], {}
-            v.set_overlay([])
+            self.path_pts, self.routes, self.path_segs = [], {}, []
+            self.refresh_overlay(v)
         pts = getattr(self, 'path_pts', [])
         for label, p in zip(('start', 'end'), pts):
             imgui.text(f'{label}: {p[0]:.1f}, {p[1]:.1f}, {p[2]:.1f}')
@@ -271,6 +297,9 @@ class Studio:
 
     def on_pick(self, v):
         def handler(oid):
+            if self.editor is not None and self.editor.active():
+                self.editor.click(v, v.pick_point)
+                return
             if getattr(self, 'path_mode', False):
                 if v.pick_point is not None:
                     self.path_point(v, v.pick_point)
@@ -417,8 +446,15 @@ def main(argv):
         return 1
     st = Studio(lvl, files, opts.get('--color', 'island'))
     st.triangles = st.scene.triangle_count()
+    import editing
+    st.editor = editing.Editor(st, lvl.opfor, lvl.lv, f'Levels/{lvl.name}')
+    if '--navtune' in opts:                                 # a side file somewhere else (tests, shared files)
+        from bfbc2core import navtune
+        st.editor.path = opts['--navtune']
+        if os.path.isfile(st.editor.path):
+            st.editor.tune = navtune.load(st.editor.path)
     v = viewer.Viewer(st.scene, f'BFBC2 Navigation Studio - {lvl.name}',
-                      panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_path, st.panel_status])
+                      panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_path, st.editor.panel, st.panel_status])
     v.on_pick = st.on_pick(v)
     hide = set(opts.get('--hide', 'objects,DICE ground,DICE outlines,DICE portals,DICE border portals,DICE route graph,'
                                    'NavKit outlines,NavKit portals,NavKit border portals,NavKit route graph').split(','))
@@ -430,12 +466,17 @@ def main(argv):
         n = int(opts['--island'])
         if n < len(nav.islands):
             v.camera.focus(nav.islands[n].centre, 60.0)
+    if '--edit' in argv or '--navtune' in opts:
+        st.editor.open = True
+    st.refresh_overlay(v)
     if '--path' in opts:                                    # tests: a path test between two points
         st.set_path_mode(v, True)
         for p in opts['--path'].split(';'):
             st.path_point(v, [float(c) for c in p.split(',')])
         for name, r in st.routes.items():
             print(f'path {name}: ' + (f'cost {r.cost:.1f} m, {len(r.nodes)} nodes' if r.found else f'none - {r.reason}'))
+    if '--focus' in opts:                                   # tests: the camera on a point
+        v.camera.focus(np.array([float(c) for c in opts['--focus'].split(',')]), float(opts.get('--distance', 45)))
     if '--screenshot' in opts:
         v.exit_after = int(opts.get('--frames', 40))
     v.run()

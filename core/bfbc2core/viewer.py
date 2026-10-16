@@ -16,6 +16,7 @@ from imgui_bundle import hello_imgui, imgui, immapp
 
 MAX_LAYERS = 32
 NO_ID = 0xFFFFFF
+OVERLAY_MAX = 32768             # overlay segments drawn (links, measurements, path tests, edits)
 
 VERTEX = """
 #version 330
@@ -306,7 +307,7 @@ class Viewer:
             self.line_vao = self.ctx.vertex_array(self.prog, [(self.line_vbos[0], '3f', 'in_pos'), (self.line_vbos[1], 'u', 'in_tag'),
                                                               (self.line_vbos[2], '4f1', 'in_col')])
         self.overlay_prog = self.ctx.program(vertex_shader=OVERLAY_VERTEX, fragment_shader=OVERLAY_FRAGMENT)
-        self.overlay_vbo = self.ctx.buffer(reserve=6 * 4 * 2 * 4096, dynamic=True)
+        self.overlay_vbo = self.ctx.buffer(reserve=6 * 4 * 2 * OVERLAY_MAX, dynamic=True)
         self.overlay_vao = self.ctx.vertex_array(self.overlay_prog, [(self.overlay_vbo, '3f 3f', 'in_pos', 'in_col')])
         self._overlay_count = 0
         palette = [c for _, c in self.scene.layers] + [(0.5, 0.5, 0.5)] * (MAX_LAYERS - len(self.scene.layers))
@@ -364,7 +365,7 @@ class Viewer:
             return
         key = self._overlay_version
         if key != self._overlay_key:
-            seg = self.overlay[:4096]
+            seg = self.overlay[:OVERLAY_MAX]
             data = np.array([[*a, *c, *b, *c] for a, b, c in seg], dtype=np.float32)
             self.overlay_vbo.write(data.tobytes())
             self._overlay_count, self._overlay_key = 2 * len(seg), key

@@ -61,6 +61,8 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `core/tests/test_terrain.py` | game | heights within 0.1 m of the in-game terrain samples (13 levels) |
 | `hpdtool roundtrip / meshtrip` | game | every path-data file and navigation mesh written back byte for byte |
 | `core/tests/test_navdata.py` | game | path data as the studio loads it (islands, cache, a file against itself) and the path test (routes, costs from the stored edges, refusals between islands) |
+| `core/tests/test_navtune.py` | quick | navigation side files: every operation saves and loads unchanged, undo / redo, the PC's name recorded, invalid edits refused, DICE bases refuse region edits, the base file's hash |
+| `bfbc2-navigation-studio/tests/test_editing.py` | game | the studio's edit mode driven as clicks would drive it: every tool, outline and box, undo / redo, save and reload, the click mode, DICE-base limits |
 | `tests/test_viewers.py` | game | the Map Inspector and the Navigation Studio open a level, draw it (screenshot not blank) and exit; prints the GPU used |
 | `bfbc2-auto-navkit/tools/navregress.py` | game (2 levels), full (13) | NavKit rebuilds levels with the current code; fails if any DICE-parity measure is worse than the reference run `regression` |
 | DbxEdit corpus, `core/tests/test_dbx.py` | full | every unpacked `.dbx`: DbxEdit's fingerprints, and the Python reader's XML identical to DbxEdit's |
