@@ -1,4 +1,4 @@
-# BFBC2 suite: design
+# BFBC2 Tool Suite: design
 
 Eight tools for building and debugging AI on Battlefield: Bad Company 2 maps, plus Project OPFOR's asset
 builder. They share one core: level loading, a 3D view, picking and the game's data formats.

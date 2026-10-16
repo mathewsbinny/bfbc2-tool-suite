@@ -1,4 +1,4 @@
-# BFBC2 suite
+# BFBC2 Tool Suite
 
 Tools for building and debugging AI on Battlefield: Bad Company 2 maps, in one repository. The 3D tools
 share one core: level loading, a 3D view, picking and the game's data formats.
