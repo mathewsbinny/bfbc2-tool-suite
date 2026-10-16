@@ -21,12 +21,17 @@ The GUI and `navkit.py levels` mark the levels you can use today as *samplable*.
 
 You need:
 
-1. **Project OPFOR, set up and built.** Run `setup_game.bat`, then `build.bat` (the game copy and OPFOR's
-   core), then `build_menus.bat` (it also builds `tools\FbrbTool.exe` and `tools\DbxTool.exe`).
-   OPFOR must be able to start a level: `OPFOR.exe` starts the game.
-2. **Python 3.10 or newer** from [python.org](https://www.python.org/). When you install it, tick
+1. **Project OPFOR, set up and built.** NavKit measures levels in OPFOR's copy of the game, through
+   OPFOR's in-game sampler. In the OPFOR folder, run `setup_game.bat` (the game copy), then `build.bat`
+   (OPFOR's core). `OPFOR.exe` must be able to start the game.
+2. **FbrbTool and DbxTool** from this toolkit: run `build.bat` in the `fbrb-tool` and `dbx-tools` folders.
+   NavKit also accepts the copies OPFOR's `build_menus.bat` puts in OPFOR's `tools\` folder.
+3. **Where OPFOR is.** NavKit looks for a `Project OPFOR` folder next to the toolkit folder (for example
+   `C:\Games\Project OPFOR` next to `C:\Games\Project OPFOR Toolkit`). If yours is elsewhere, set the
+   environment variable `OPFOR_ROOT` to it, or add `--opfor <folder>` to every command.
+4. **Python 3.10 or newer** from [python.org](https://www.python.org/). When you install it, tick
    "Add python.exe to PATH".
-3. **numpy.** Open a command prompt and run:
+5. **numpy.** Open a command prompt and run:
 
    ```
    pip install numpy matplotlib
@@ -38,7 +43,7 @@ Close the game before you use NavKit. Two steps start and close the game on thei
 
 ## The easy way: the NavKit window
 
-Double-click **`navkit\navkitGUI.pyw`**. The window has a level list at the top, the sampling area below
+Double-click **`navkitGUI.pyw`** in the `navkit` folder. The window has a level list at the top, the sampling area below
 it, then the steps, and a log of what NavKit is doing at the bottom.
 
 1. **Pick a level** in the *Level* list, for example `sp_01`. Leave *Only levels with AI* ticked to list
@@ -62,17 +67,17 @@ level. **Open output folder** shows that level's files.
 
 ## The same steps from a command prompt
 
-Run these from the Project OPFOR folder:
+Run these from the `navkit` folder:
 
 ```
-python navkit\navkit.py levels            list levels; "yes (samplable)" = NavKit can build it
-python navkit\navkit.py prepare sp_01
-python navkit\navkit.py sample  sp_01     asks before it starts the game; add --yes to skip the question
-python navkit\navkit.py build   sp_01
-python navkit\navkit.py check   sp_01
-python navkit\navkit.py install sp_01     restore sp_01 puts the original back
-python navkit\navkit.py status  sp_01     what has been done for a level
-python navkit\navkit.py all     sp_01     prepare, sample, build and check in one go
+python navkit.py levels            list levels; "yes (samplable)" = NavKit can build it
+python navkit.py prepare sp_01
+python navkit.py sample  sp_01     asks before it starts the game; add --yes to skip the question
+python navkit.py build   sp_01
+python navkit.py check   sp_01
+python navkit.py install sp_01     restore sp_01 puts the original back
+python navkit.py status  sp_01     what has been done for a level
+python navkit.py all     sp_01     prepare, sample, build and check in one go
 ```
 
 ## Reading the check
@@ -102,6 +107,8 @@ The full report is in `work\navkit\<level>\check.txt`.
 
 ## Where the files go
 
+All of these are inside the Project OPFOR folder:
+
 | File | What it is |
 |---|---|
 | `work\navkit\<level>\navkit.json` | the sampling area and sector numbering chosen by Prepare |
@@ -124,7 +131,7 @@ If parts of the level are missing at the edges, make the area larger. In the win
 *Sampling area* before you click Prepare or Sample in game. From a command prompt, add the area like this:
 
 ```
-python navkit\navkit.py prepare sp_01 --box -900,-620,440,520 --y -30,600
+python navkit.py prepare sp_01 --box -900,-620,440,520 --y -30,600
 ```
 
 `--box` is the west, south, east and north edge in metres (min X, min Z, max X, max Z). `--y` is the
@@ -140,7 +147,8 @@ bottom and top height. Make the top higher than the tallest roof. A larger area 
 | "...has no AI path data, so its AI (and the sampler) may not start" | The level is a stock multiplayer map, which is not supported yet. See [What works today](#what-works-today). |
 | A run was cancelled or the PC crashed during sampling | NavKit edits `game\opfor.ini` while sampling and puts it back afterwards. If that was interrupted, the next Sample puts it back, and **Cancel** in the window does too. The saved copy is `work\navkit\opfor.ini.backup`. |
 | The AI acts oddly with NavKit's file installed | Click **Restore original** (or `navkit.py restore <level>`). The level is back to its original data. |
-| "FbrbTool.exe missing" / "no game copy" | Run `build_menus.bat` or `setup_game.bat` first (see [Before you start](#before-you-start)). |
+| "FbrbTool.exe not found" / "DbxTool.exe not found" | Run `build.bat` in the toolkit's `fbrb-tool` and `dbx-tools` folders (see [Before you start](#before-you-start)). |
+| "Project OPFOR not found" / "no game copy" | Tell NavKit where OPFOR is (`OPFOR_ROOT` or `--opfor`), and run OPFOR's `setup_game.bat` if it has no `game\` folder yet. |
 
 ## How NavKit stays clean
 

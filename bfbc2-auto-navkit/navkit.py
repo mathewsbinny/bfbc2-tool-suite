@@ -1,22 +1,25 @@
 """NavKit driver: one command per step, from a level name to an installed pathdata.hpd.
 
-  python navkit\\navkit.py levels                     list the game's levels (and which can be sampled)
-  python navkit\\navkit.py prepare SP_01              unpack + convert the level, extract its objects,
-                                                      choose the sampling box and sector offsets
-  python navkit\\navkit.py sample  SP_01 [--yes]      two in-game collision sampling runs (launches the game)
-  python navkit\\navkit.py build   SP_01              generate pathdata.hpd
-  python navkit\\navkit.py check   SP_01              score it (against DICE's file if the level has one)
-  python navkit\\navkit.py install SP_01              copy it into the game (DICE's file is backed up once)
-  python navkit\\navkit.py restore SP_01              put the original file back
-  python navkit\\navkit.py all     SP_01 [--yes]      prepare, sample, build, check
-  python navkit\\navkit.py status  SP_01              what has been done for a level
+  python navkit.py levels                     list the game's levels (and which can be sampled)
+  python navkit.py prepare SP_01              unpack + convert the level, extract its objects,
+                                              choose the sampling box and sector offsets
+  python navkit.py sample  SP_01 [--yes]      two in-game collision sampling runs (launches the game)
+  python navkit.py build   SP_01              generate pathdata.hpd
+  python navkit.py check   SP_01              score it (against DICE's file if the level has one)
+  python navkit.py install SP_01              copy it into the game (DICE's file is backed up once)
+  python navkit.py restore SP_01              put the original file back
+  python navkit.py all     SP_01 [--yes]      prepare, sample, build, check
+  python navkit.py status  SP_01              what has been done for a level
 
 Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: override the sampling box),
-         --root <Project OPFOR folder> (default: the folder above navkit\\).
+         --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit).
 
-Files: work\\levels\\<level>\\ (unpacked level, objects), work\\navkit\\<level>\\ (settings, pathdata.hpd,
-check report), work\\navsample\\<level>_navkit*.bin (samples, written by OPFOR's [dev] navsample).
-See navkit\\QUICKSTART.md.
+NavKit works on Project OPFOR's game copy and uses its in-game sampler. FbrbTool / DbxTool come from the
+toolkit (..\\fbrb-tool, ..\\dbx-tools, built with their build.bat) or from OPFOR's tools\\ folder.
+
+Files (in the OPFOR folder): work\\levels\\<level>\\ (unpacked level, objects), work\\navkit\\<level>\\
+(settings, pathdata.hpd, check report), work\\navsample\\<level>_navkit*.bin (samples, written by OPFOR's
+[dev] navsample). See QUICKSTART.md.
 """
 import glob
 import json
@@ -41,19 +44,37 @@ class NavKitError(Exception):
     pass
 
 
+def find_opfor(given=None):
+    """The Project OPFOR folder: --opfor, else OPFOR_ROOT, else "Project OPFOR" next to the toolkit folder."""
+    toolkit = os.path.dirname(HERE)
+    candidates = [given, os.environ.get('OPFOR_ROOT'),
+                  os.path.join(os.path.dirname(toolkit), 'Project OPFOR'), os.path.dirname(HERE)]
+    for c in candidates:
+        if c and os.path.isdir(os.path.join(c, 'game')):
+            return os.path.abspath(c)
+    raise NavKitError('Project OPFOR not found - pass --opfor <folder> or set OPFOR_ROOT '
+                      f'(looked for a game\\ folder in: {", ".join(c for c in candidates if c)})')
+
+
+def find_tool(opfor, exe, toolkit_dir):
+    """A toolkit tool: built in the toolkit (..\\<toolkit_dir>\\<exe>), else OPFOR's tools\\ folder."""
+    for p in (os.path.join(os.path.dirname(HERE), toolkit_dir, exe), os.path.join(opfor, 'tools', exe)):
+        if os.path.isfile(p):
+            return p
+    raise NavKitError(f'{exe} not found - run build.bat in the toolkit\'s {toolkit_dir} folder')
+
+
 class Project:
     def __init__(self, root=None):
-        self.root = os.path.abspath(root or os.path.dirname(HERE))
+        self.root = find_opfor(root)
         self.game = os.path.join(self.root, 'game')
-        self.tools = os.path.join(self.root, 'tools')
         self.work = os.path.join(self.root, 'work')
         self.ini = os.path.join(self.game, 'opfor.ini')
         self.log_path = os.path.join(self.game, 'logs', 'opfor.log')
         if not os.path.isfile(os.path.join(self.game, 'BFBC2Game.exe')):
-            raise NavKitError(f'no game copy in {self.game} (run setup_game.bat first)')
-        for exe in ('FbrbTool.exe', 'DbxTool.exe'):
-            if not os.path.isfile(os.path.join(self.tools, exe)):
-                raise NavKitError(f'{exe} missing in {self.tools} (run build_menus.bat first)')
+            raise NavKitError(f'no game copy in {self.game} (run OPFOR\'s setup_game.bat first)')
+        self.fbrbtool = find_tool(self.root, 'FbrbTool.exe', 'fbrb-tool')
+        self.dbxtool = find_tool(self.root, 'DbxTool.exe', 'dbx-tools')
 
     # --- levels --------------------------------------------------------------------------------------
     def level_dirs(self):
@@ -112,9 +133,9 @@ class Project:
             log(f'  {os.path.relpath(dest, self.root)} already unpacked')
             return
         log(f'  unpacking {os.path.relpath(bundle, self.game)} ...')
-        self.run([os.path.join(self.tools, 'FbrbTool.exe'), 'unpack', bundle, dest], log)
+        self.run([self.fbrbtool, 'unpack', bundle, dest], log)
         log('  converting binary DBX to XML ...')
-        log('  ' + self.run([os.path.join(self.tools, 'DbxTool.exe'), dest], log)[-1])
+        log('  ' + self.run([self.dbxtool, dest], log)[-1])
 
 
 # --- steps -----------------------------------------------------------------------------------------------
@@ -431,7 +452,7 @@ def ask(question):
 def main(argv):
     args = [a for a in argv[1:]]
     opts = {}
-    for k in ('--box', '--y', '--root'):
+    for k in ('--box', '--y', '--opfor', '--root'):   # --root: older name of --opfor
         if k in args:
             i = args.index(k)
             opts[k] = args[i + 1]
@@ -445,7 +466,7 @@ def main(argv):
     y = [float(v) for v in opts['--y'].split(',')] if '--y' in opts else None
     confirm = None if yes else ask
     try:
-        pr = Project(opts.get('--root'))
+        pr = Project(opts.get('--opfor') or opts.get('--root'))
         cmd = args[0]
         if cmd == 'levels':
             levels(pr)

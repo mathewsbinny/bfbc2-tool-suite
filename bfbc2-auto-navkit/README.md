@@ -2,11 +2,12 @@
 
 Standalone tooling to create AI navigation data (`pathdata.hpd`) for Battlefield: Bad Company 2
 levels – including multiplayer maps that never shipped with any – so the game's own AI can move on
-them. Part of Project OPFOR, kept self-contained so it can be published separately for other
-modders.
+them. Developed for Project OPFOR and published separately for other modders, as part of the Project
+OPFOR Toolkit. It measures levels through Project OPFOR's in-game sampler, so it needs an OPFOR install,
+plus the toolkit's FbrbTool and DbxTool.
 
 **To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `navkitGUI.pyw` for the window, or
-run `python navkit\navkit.py` from a command prompt.
+run `python navkit.py` from a command prompt.
 
 ## Why
 
@@ -101,5 +102,7 @@ src\, tests\         (reserved for the generator proper and its tests)
    afterwards, build, check, install / restore with the original kept); `navkitGUI.pyw` is a small window
    over it. Stock MP maps wait for MP support: the sampler needs the level's AI running.
 
-Credits: see Project OPFOR's `CREDITS.md`. Kynapse is a trademark of Autodesk; Battlefield: Bad
-Company 2 is © Electronic Arts / DICE.
+Credits: level data is read with the toolkit's FbrbTool and DbxTool, based on **Frankelstner**'s format
+documentation and **Heico**'s BFBC2 Toolkit. **Napisal**'s path data for multiplayer maps (BBC2 ModPack)
+showed that BC2's AI can run on them. Kynapse is a trademark of Autodesk; Battlefield: Bad Company 2 is
+© Electronic Arts / DICE.
