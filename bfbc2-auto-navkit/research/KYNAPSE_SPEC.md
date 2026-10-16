@@ -67,8 +67,7 @@ proven).
 ### 3.3 Walkability measured against the engine (NavKit sampling, sp_01)
 
 OPFOR's `[dev] navsample` option sampled a 200 × 200 m block of sp_01 (sectors 0x908–0xA09, 63,001
-samples at 0.8 m) through the engine's own ray cast and capsule queries; `navkit	ools
-avsample.py`
+samples at 0.8 m) through the engine's own ray cast and capsule queries; `navkit\tools\navsample.py`
 compared the result with DICE's `pathdata.hpd` (39,379 walkable reference cells):
 
 - **Slope rule:** walkable when the hit surface's normal is within `GroundSlopeMax` (40°) of vertical.

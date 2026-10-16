@@ -5,6 +5,9 @@ levels – including multiplayer maps that never shipped with any – so the gam
 them. Part of Project OPFOR, kept self-contained so it can be published separately for other
 modders.
 
+**To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `NavKit.pyw` for the window, or
+run `python navkit\navkit.py` from a command prompt.
+
 ## Why
 
 BC2's AI uses Autodesk Kynapse. The game ships the Kynapse *runtime* (which loads `pathdata.hpd`)
@@ -32,6 +35,9 @@ licence error. NavKit replaces it with independent code.
 ## Layout
 
 ```
+QUICKSTART.md        how to build path data for a level, step by step
+NavKit.pyw           the NavKit window (Tkinter): the steps below as buttons
+navkit.py            driver: levels / prepare / sample / build / check / install / restore / status / all
 research\            specification (KYNAPSE_SPEC.md) and images (img\)
 tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   hpdtool.py         pathdata.hpd: info / sector / roundtrip / coverage / meshtrip
@@ -42,6 +48,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   levelobjects.py    object placements, pathfinding flags, forbidden-object triangles of a level
   navwalk.py         walkability rules + scoring against existing path data
   navbuild.py        the generator: samples + level objects -> pathdata.hpd
+  ordercheck.py      scoring: AI order positions on the areas, pairwise route check, self-check
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
@@ -54,8 +61,7 @@ src\, tests\         (reserved for the generator proper and its tests)
 3. **Builder behaviour – done.** Spec §3: stages, the sampling grid, area cuts, graph rules,
    auto-seeding, the walkability rules (§3.7), structures and doors (§3.8), and the rules found on the
    other campaign levels (§3.9).
-4. **Generator – runs on all 13 campaign levels (`tools
-avbuild.py`).**
+4. **Generator – runs on all 13 campaign levels (`tools\navbuild.py`).**
    - Full pipeline: walkable surfaces from two in-game sampling runs (normal and high capsule) plus the
      level's objects (`levelobjects.py`), 100 m sectors (level `SectorOffsets`), 3 × 3 tiles of 50
      samples, single-layer 8-connected areas bisected above 20 m, outlines with 45° bridges, portals (B),
@@ -90,6 +96,10 @@ avbuild.py`).**
      (pitch 0.2), vehicle data, ladder links (planned for MP bots, optional).
    - Next: play test of the current sp_01 build against DICE's file; then MP maps (self-check, no DICE
      data); later a standalone mode that reads Havok collision directly instead of sampling in game.
+5. **Tooling – done (2026-10-15).** `navkit.py` runs the whole workflow from a level name (unpack, objects,
+   automatic sampling box and sector offsets, both in-game sampling runs with `opfor.ini` restored
+   afterwards, build, check, install / restore with the original kept); `NavKit.pyw` is a small window
+   over it. Stock MP maps wait for MP support: the sampler needs the level's AI running.
 
 Credits: see Project OPFOR's `CREDITS.md`. Kynapse is a trademark of Autodesk; Battlefield: Bad
 Company 2 is © Electronic Arts / DICE.
