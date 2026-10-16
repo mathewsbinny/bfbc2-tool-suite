@@ -6,9 +6,10 @@
     lvl.terrain                               # (vertices, triangles): the level's height field (terrain.py),
                                               # or NavKit's in-game samples when it cannot be read, or None
     lvl.heightfield                           # terrain.Heightfield, for exact heights (height(x, z))
+    lvl.shapes                                # outlines: areas (capture, combat, order areas) and routes (Shape)
 
 Data comes from the level as NavKit prepares it (OPFOR's work\\levels\\<level>\\dist and pkg, and the shared
-data in work\\navkit\\common\\). Run `navkit.py prepare <level>` once for a level that is not there yet.
+data in work\\navkit\\common\\); a level that is not prepared yet is prepared on first use (offline, no game).
 """
 import glob
 import os
@@ -38,6 +39,16 @@ CATEGORIES = [
     ('area point', r'\.AreaGeometryEntityData$'),
     ('placed object', r'\.ReferenceObjectData$'),
 ]
+# placed objects (ReferenceObjectData), by what their blueprint's object is
+OBJECT_CATEGORIES = {
+    'LadderEntityData': 'ladder',
+    'DynamicModelEntityData': 'dynamic object',      # movable or breakable props: crates, barrels
+    'RigidModelEntityData': 'dynamic object',        # breakable fences
+    'BangerEntityData': 'dynamic object',            # explosive props (gas cylinders)
+    'EffectEntityData': 'effect',
+}
+TEAMS = {'Team1': 1, 'Team2': 2, 'TeamNeutral': 0}
+SHAPE_FIELDS = (('Geometry', 'area'), ('SurroundingGeometry', 'outer area'), ('RouteWaypoints', 'route'))
 
 
 @dataclass
@@ -54,16 +65,45 @@ class Entity:
     blueprint: Optional[str]
     element: dbx.Element
     group: Optional[str] = None           # static-group partition, for group members
+    blueprint_type: Optional[str] = None  # placed objects: the type of the blueprint's object (StaticModelEntityData ...)
+    destructible: bool = False            # placed objects: the blueprint has health states / breakable parts
+    team: Optional[int] = None            # 1, 2, 0 (neutral): spawns, capture points (initial owner), triggers
+    ai: Optional[bool] = None             # soldier spawns: True for AI soldiers, False for human players
 
     @property
     def position(self):
         return None if self.matrix is None else self.matrix[3, :3]
+
+    def refs(self):
+        """Every reference in the property tree: (field path, ref), local GUIDs and partition/GUID paths."""
+        out = []
+
+        def walk(el, path):
+            for c in el.children or ():
+                name = c.attr('name') or c.tag
+                r = c.attr('ref')
+                if r is not None and r != 'null':
+                    out.append((path + name, r))
+                if c.children is not None:
+                    walk(c, path + name + '/')
+        walk(self.element, '')
+        return out
 
 
 @dataclass
 class Mesh:
     entity: int                           # index into Level.entities
     triangles: np.ndarray                 # (n, 3, 3) world space
+
+
+@dataclass
+class Shape:
+    entity: int                           # the entity whose field it is (CapturePoint, CombatArea, an order ...)
+    kind: str                             # 'area', 'outer area' or 'route'
+    points: np.ndarray                    # (n, 3) world positions, in chain order
+    closed: bool                          # areas are rings; routes are open
+    height: float                         # areas: prism height above the points (0: flat)
+    field: str
 
 
 @dataclass
@@ -75,6 +115,7 @@ class Level:
     meshes: List[Mesh] = field(default_factory=list)
     terrain: Optional[tuple] = None
     heightfield: Optional[object] = None  # terrain.Heightfield, when the level's terrain bundle was read
+    shapes: List[Shape] = field(default_factory=list)
     missing_collision: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
 
@@ -110,8 +151,10 @@ def load(level, opfor=None, terrain_stride=2, log=print):
     root = navkit.find_opfor(opfor)
     lv = level.replace('\\', '/').split('/')[-1].lower()
     base = os.path.join(root, 'work', 'levels', lv)
-    if not os.path.isdir(os.path.join(base, 'dist')):
-        raise FileNotFoundError(f'{lv} is not prepared yet - run: python navkit.py prepare {lv}')
+    if not os.path.isdir(os.path.join(base, 'dist')):           # first use: NavKit's offline prepare step
+        log(f'{lv}: not prepared yet - unpacking it (navkit.py prepare {lv}, once)')
+        pr = navkit.Project(root)
+        navkit.prepare(pr, pr.level(lv), log=log)
     bases = [os.path.join(base, 'pkg'), os.path.join(base, 'dist')]
     bases += [d for d in glob.glob(os.path.join(root, 'work', 'navkit', 'common', '*')) if os.path.isdir(d)]
     # the level partition (a Package overlay wins over Dist)
@@ -152,6 +195,9 @@ def load(level, opfor=None, terrain_stride=2, log=print):
                     lvl.entities.append(Entity(len(lvl.entities), f'{el.attr("guid")}#{k}', 'StaticGroupMember', 'StaticGroupMember',
                                                'group member', None, bp.rsplit('/', 1)[-1], os.path.basename(gf)[:-4],
                                                vals[16 * k:16 * (k + 1)].reshape(4, 4), bp, item, group=os.path.basename(gf)))
+    resolve_blueprints(lvl, bases)
+    assign_teams(lvl)
+    lvl.shapes = shapes_of(lvl)
     # collision
     havok = levelobjects.havok_index(bases)
     try:
@@ -175,7 +221,7 @@ def load(level, opfor=None, terrain_stride=2, log=print):
     lvl.missing_collision = sorted(missing)
     source = 'none'
     try:
-        lvl.heightfield = heightfield_of(root, lv, log)
+        lvl.heightfield = heightfield_of(root, lv, log, terrain_name(f.instances))
     except Exception as e:                    # no terrain bundle, FbrbTool missing, unexpected layout
         lvl.notes.append(f'terrain height field not read: {e}')
     if lvl.heightfield is not None:
@@ -189,12 +235,141 @@ def load(level, opfor=None, terrain_stride=2, log=print):
     return lvl
 
 
-def heightfield_of(root, lv, log=print):
-    """The level's terrain height field, unpacking its terrain-00.fbrb into work\\levels\\<lv>\\terrain once."""
+def resolve_blueprints(lvl, bases):
+    """Placed objects: the blueprint's object type and whether it is destructible; categories from them."""
+    files = {}
+
+    def instances(path):
+        if path not in files:
+            files[path] = {}
+            for b in bases:
+                p = os.path.join(b, path + '.dbx')
+                if os.path.isfile(p):
+                    try:
+                        files[path] = {(i.attr('guid') or '').lower(): i for i in dbx.read(p).instances}
+                    except Exception:
+                        pass
+                    break
+        return files[path]
+
+    def broken_up(insts):
+        """Health states or breakable part links anywhere in the blueprint (destructible buildings)."""
+        for i in insts.values():
+            for name in ('HealthStates', 'PartLinks'):
+                c = i.child(name)
+                if c is not None and c.children:
+                    return True
+        return False
+
+    destructible = {}
+    for e in lvl.entities:
+        if e.short_type != 'ReferenceObjectData':
+            continue
+        r = e.element.child('ReferencedObject')
+        ref = r.attr('ref') if r is not None else None
+        if not ref or '/' not in ref:
+            continue
+        path, guid = ref.rsplit('/', 1)
+        insts = instances(path)
+        obj = bp = insts.get(guid.lower())
+        o = bp.child('Object') if bp is not None else None
+        oref = o.attr('ref') if o is not None else None
+        if oref and oref != 'null':
+            if '/' in oref:
+                p2, g2 = oref.rsplit('/', 1)
+                obj = instances(p2).get(g2.lower())
+            else:
+                obj = insts.get(oref.lower())
+        if obj is None:
+            continue
+        e.blueprint_type = (obj.attr('type') or '').rsplit('.', 1)[-1]
+        if path not in destructible:
+            destructible[path] = broken_up(insts)
+        e.destructible = e.blueprint_type == 'StaticModelEntityData' and destructible[path]
+        if (e.blueprint or '').startswith('objects/objects/mpobjective'):
+            e.category = 'objective'                     # Rush M-COM stations
+        elif e.destructible:
+            e.category = 'destructible'
+        else:
+            e.category = OBJECT_CATEGORIES.get(e.blueprint_type, e.category)
+
+
+def assign_teams(lvl):
+    """Team and AI / human from the entity's own fields; alternate spawn points take their spawner's team."""
+    guids = {e.guid.lower(): e for e in lvl.entities}
+    for e in lvl.entities:
+        for name in ('Team', 'InitialOwnerTeam'):
+            c = e.element.child(name)
+            if c is not None and c.kind == dbx.TEXT and c.text in TEAMS:
+                e.team = TEAMS[c.text]
+                break
+        c = e.element.child('PlayerType')
+        if c is not None and c.kind == dbx.TEXT and c.text:
+            e.ai = c.text != 'SSHumanPlayer'
+    for e in lvl.entities:
+        alt = e.element.child('AlternativeSpawnPoints')
+        for item in (alt.children if alt is not None and alt.children else ()):
+            t = guids.get((item.attr('ref') or '').lower())
+            if t is not None and t.team is None:
+                t.team, t.ai = e.team, e.ai
+
+
+def shapes_of(lvl):
+    """Outlines: chains of AreaGeometryEntityData points (Next links) referenced by Geometry, SurroundingGeometry
+    and RouteWaypoints fields. A chain that comes back to its start is an area."""
+    guids = {e.guid.lower(): e for e in lvl.entities}
+    out = []
+    for e in lvl.entities:
+        for name, kind in SHAPE_FIELDS:
+            c = e.element.child(name)
+            for item in (c.children if c is not None and c.children else ()):
+                p = guids.get((item.attr('ref') or '').lower())
+                pts, seen, closed, height = [], set(), False, 0.0
+                while p is not None and p.position is not None:
+                    if p.guid in seen:
+                        closed = True
+                        break
+                    seen.add(p.guid)
+                    pts.append(p.position)
+                    h = p.element.child('Height')
+                    if h is not None and h.kind == dbx.NUMBERS and not height:
+                        height = float(dbx.floats(h)[0])
+                    n = p.element.child('Next')
+                    p = guids.get((n.attr('ref') or '').lower()) if n is not None else None
+                if len(pts) >= 2:
+                    out.append(Shape(e.index, kind, np.array(pts), closed and kind != 'route', height, name))
+    return out
+
+
+def terrain_name(entities):
+    """The terrain's name from the level's TerrainEntityData.TerrainAsset (terrains/mp_009/mp_009 for MP_009GR:
+    a mode variant shares its base map's terrain), or None.
+
+    The entity's transform is NOT applied to the heights: on 11 of the 13 campaign levels it moves the
+    terrain by 1-59 m, yet the stored heights unmoved match the game's terrain to within centimetres."""
+    for el in entities:
+        if (el.attr('type') or '').endswith('.TerrainEntityData'):
+            a = el.child('TerrainAsset')
+            parts = ((a.attr('ref') or '') if a is not None else '').split('/')
+            return parts[1].lower() if len(parts) >= 3 else None
+    return None
+
+
+def heightfield_of(root, lv, log=print, name=None):
+    """The level's terrain height field, unpacking its terrain-00.fbrb into work\\levels\\<lv>\\terrain once.
+    name: from terrain_name(); read from the level partition if not given."""
     import subprocess
     import navkit
+    if name is None:
+        part = None
+        for b in ('pkg', 'dist'):
+            for f in glob.glob(os.path.join(root, 'work', 'levels', lv, b, 'levels', '*.dbx')):
+                if os.path.splitext(os.path.basename(f))[0].lower() == lv:
+                    part = part or f
+        name = terrain_name(dbx.read(part).instances) if part else None
+    name = name or lv
     dest = os.path.join(root, 'work', 'levels', lv, 'terrain')
-    path = terrain.find(dest, lv) if os.path.isdir(dest) else None
+    path = terrain.find(dest, name) if os.path.isdir(dest) else None
     if path is None:
         bundle = None
         for d in glob.glob(os.path.join(root, 'game', 'Dist', 'win32', 'levels', '*')):
@@ -205,7 +380,7 @@ def heightfield_of(root, lv, log=print):
         log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')
         tool = navkit.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool')
         subprocess.run([tool, 'unpack', bundle, dest], check=True, capture_output=True)
-        path = terrain.find(dest, lv)
+        path = terrain.find(dest, name)
         if path is None:
             return None
     return terrain.read(path)

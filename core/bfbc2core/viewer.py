@@ -7,6 +7,7 @@ Camera: orbit - left drag rotates, right or middle drag pans, wheel zooms, doubl
 the mouse; fly - hold the right button and use W A S D (Q / E down / up, Shift faster). F toggles orbit / fly.
 """
 import math
+import os
 import time
 
 import moderngl
@@ -37,6 +38,7 @@ uniform uint selected;     // object id, or 0xFFFFFF
 uniform uint hovered;
 uniform vec3 light;
 uniform int pick;          // 1: write the object id instead of a colour
+uniform int lines;         // 1: drawing lines (no surface normal to shade by)
 in vec3 v_world;
 flat in uint v_tag;
 out vec4 color;
@@ -48,13 +50,31 @@ void main() {
         color = vec4(float(id & 255u), float((id >> 8u) & 255u), float((id >> 16u) & 255u), 255.0) / 255.0;
         return;
     }
-    vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
-    float shade = 0.35 + 0.65 * abs(dot(n, light));
+    float shade = 1.0;
+    if (lines == 0) {
+        vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
+        shade = 0.35 + 0.65 * abs(dot(n, light));
+    }
     vec3 c = palette[layer] * shade;
-    if (id == selected) c = mix(c, vec3(1.0, 0.85, 0.1), 0.65);
-    else if (id == hovered) c = mix(c, vec3(1.0, 1.0, 1.0), 0.25);
+    if (id == selected) c = mix(c, vec3(1.0, 1.0, 1.0), 0.6);
+    else if (id == hovered) c = mix(c, vec3(1.0, 1.0, 1.0), 0.2);
     color = vec4(c, 1.0);
 }
+"""
+# overlay: coloured lines the tool sets every frame (links of the selection, measurements), drawn over everything
+OVERLAY_VERTEX = """
+#version 330
+uniform mat4 mvp;
+in vec3 in_pos;
+in vec3 in_col;
+out vec3 v_col;
+void main() { v_col = in_col; gl_Position = mvp * vec4(in_pos, 1.0); }
+"""
+OVERLAY_FRAGMENT = """
+#version 330
+in vec3 v_col;
+out vec4 color;
+void main() { color = vec4(v_col, 1.0); }
 """
 
 
@@ -66,6 +86,7 @@ class Scene:
     def __init__(self):
         self.layers = []                  # (name, colour)
         self.batches = []                 # (positions (n*3, 3) float32, tags (n*3,) uint32)
+        self.line_batches = []            # (positions (n*2, 3) float32, tags (n*2,) uint32)
         self._sample = []
 
     def layer(self, name, colour):
@@ -106,6 +127,18 @@ class Scene:
         for a, b, cc, d in faces:
             tris += [corners[[a, b, cc]], corners[[a, cc, d]]]
         self.add_triangles(np.array(tris), object_id, layer)
+
+    def add_lines(self, segments, object_id, layer):
+        """segments: (n, 2, 3) world positions."""
+        s = np.asarray(segments, dtype=np.float32).reshape(-1, 3)
+        self.line_batches.append((s, np.full(len(s), (layer << 24) | (object_id & 0xFFFFFF), dtype=np.uint32)))
+
+    def add_polyline(self, points, object_id, layer, closed=False):
+        p = np.asarray(points, dtype=np.float32)
+        if len(p) < 2:
+            return
+        q = np.concatenate([p, p[:1]]) if closed else p
+        self.add_lines(np.stack([q[:-1], q[1:]], axis=1), object_id, layer)
 
     def triangle_count(self):
         return sum(len(p) for p, _ in self.batches) // 3
@@ -198,6 +231,11 @@ class Viewer:
         self.screenshot = None
         self._click_start = None
         self._last_click = 0.0
+        self.pick_point = None            # world point of the last click (None: clicked the sky)
+        self.select_on_click = True       # a tool's mode (measuring) can turn selection by click off
+        self.overlay = []                 # (a, b, colour) segments, set by the tool (set_overlay), drawn over the scene
+        self._overlay_key = None
+        self._overlay_version = 0
 
     # --- GPU ----------------------------------------------------------------------------------------
     def _init(self):
@@ -208,12 +246,23 @@ class Viewer:
         self.vbo_pos = self.ctx.buffer(pos.astype(np.float32).tobytes())
         self.vbo_tag = self.ctx.buffer(tag.astype(np.uint32).tobytes())
         self.vao = self.ctx.vertex_array(self.prog, [(self.vbo_pos, '3f', 'in_pos'), (self.vbo_tag, 'u', 'in_tag')])
+        self.line_vao = None
+        if self.scene.line_batches:
+            lpos = np.concatenate([p for p, _ in self.scene.line_batches])
+            ltag = np.concatenate([t for _, t in self.scene.line_batches])
+            self.line_vbos = (self.ctx.buffer(lpos.astype(np.float32).tobytes()), self.ctx.buffer(ltag.astype(np.uint32).tobytes()))
+            self.line_vao = self.ctx.vertex_array(self.prog, [(self.line_vbos[0], '3f', 'in_pos'), (self.line_vbos[1], 'u', 'in_tag')])
+        self.overlay_prog = self.ctx.program(vertex_shader=OVERLAY_VERTEX, fragment_shader=OVERLAY_FRAGMENT)
+        self.overlay_vbo = self.ctx.buffer(reserve=6 * 4 * 2 * 4096, dynamic=True)
+        self.overlay_vao = self.ctx.vertex_array(self.overlay_prog, [(self.overlay_vbo, '3f 3f', 'in_pos', 'in_col')])
+        self._overlay_count = 0
         palette = [c for _, c in self.scene.layers] + [(0.5, 0.5, 0.5)] * (MAX_LAYERS - len(self.scene.layers))
         self.prog['palette'].value = [tuple(float(x) for x in c) for c in palette]
         light = np.array([0.4, 0.8, 0.3])
         self.prog['light'].value = tuple(light / np.linalg.norm(light))
         self.pick_fbo = None
         self.scene.batches = []           # uploaded; free the CPU copy
+        self.scene.line_batches = []
 
     def _ensure_pick_fbo(self, w, h):
         if self.pick_fbo is None or self.pick_fbo.size != (w, h):
@@ -239,8 +288,41 @@ class Viewer:
         self.prog['selected'].value = self.selected
         self.prog['hovered'].value = self.hovered
         self.prog['pick'].value = 0
+        self.prog['lines'].value = 0
         self.vao.render(moderngl.TRIANGLES)
+        if self.line_vao is not None:
+            self.prog['lines'].value = 1
+            self.line_vao.render(moderngl.LINES)
+            self.prog['lines'].value = 0
         self.ctx.disable(moderngl.DEPTH_TEST)
+        self._draw_overlay(mvp)
+
+    def _draw_overlay(self, mvp):
+        if not self.overlay:
+            return
+        key = self._overlay_version
+        if key != self._overlay_key:
+            seg = self.overlay[:4096]
+            data = np.array([[*a, *c, *b, *c] for a, b, c in seg], dtype=np.float32)
+            self.overlay_vbo.write(data.tobytes())
+            self._overlay_count, self._overlay_key = 2 * len(seg), key
+        self.overlay_prog['mvp'].write(mvp.T.astype(np.float32).tobytes())
+        self.overlay_vao.render(moderngl.LINES, vertices=self._overlay_count)
+
+    def set_overlay(self, segments):
+        """Replace the overlay: a list of (a, b, (r, g, b)) segments, uploaded once per call."""
+        self.overlay = list(segments)
+        self._overlay_version += 1
+
+    def project(self, point):
+        """Window position (x, y from the top left, in imgui units) of a world point, or None if behind the camera."""
+        w, h = self._window_size()
+        mvp, _, _ = self._mvp(w, h)
+        p = mvp.astype(np.float64) @ np.array([*point, 1.0])
+        if p[3] <= 1e-6:
+            return None
+        s = imgui.get_io().display_framebuffer_scale
+        return ((p[0] / p[3] + 1) / 2 * w / s.x, (1 - p[1] / p[3]) / 2 * h / s.y)
 
     def pick(self, x, y):
         """Object id under window pixel (x, y from the top left), or None; also the world point there."""
@@ -254,6 +336,8 @@ class Viewer:
         self.prog['mvp'].write(mvp.T.astype(np.float32).tobytes())
         self.prog['pick'].value = 1
         self.vao.render(moderngl.TRIANGLES)
+        if self.line_vao is not None:
+            self.line_vao.render(moderngl.LINES)
         self.prog['pick'].value = 0
         px, py = int(x), int(h - 1 - y)
         if not (0 <= px < w and 0 <= py < h):
@@ -324,7 +408,9 @@ class Viewer:
                 if now - self._last_click < 0.35 and point is not None:
                     self.camera.focus(point, min(self.camera.distance, 60.0))
                 self._last_click = now
-                self.selected = oid if oid is not None else NO_ID
+                self.pick_point = point
+                if self.select_on_click:
+                    self.selected = oid if oid is not None else NO_ID
                 if self.on_pick:
                     self.on_pick(oid)
         # hover: once the mouse has moved and then rests for a moment (a pick re-renders the scene)
@@ -369,6 +455,11 @@ class Viewer:
         p.callbacks.custom_background = self._background
         p.callbacks.show_gui = self._gui
         p.fps_idling.enable_idling = False
+        # window layout: one file per tool in %APPDATA%\bfbc2-tool-suite, not in the current folder
+        os.makedirs(os.path.join(hello_imgui.ini_folder_location(hello_imgui.IniFolderType.app_user_config_folder),
+                                 'bfbc2-tool-suite'), exist_ok=True)
+        p.ini_folder_type = hello_imgui.IniFolderType.app_user_config_folder
+        p.ini_filename = 'bfbc2-tool-suite/' + ''.join(ch if ch.isalnum() else '_' for ch in self.title.split(' - ')[0]) + '.ini'
         p.imgui_window_params.default_imgui_window_type = hello_imgui.DefaultImGuiWindowType.no_default_window
         immapp.run(p)
         if self.exit_after is not None:

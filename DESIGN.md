@@ -70,7 +70,8 @@ they are built in. It is a draft for review, and it changes as the tools are bui
 | surfaces measured in game | NavKit's samples (`work\navsample\*.bin`, `navsample.py`) | works; the terrain fallback when a level's heightfield cannot be read |
 | navigation data | NavKit's `hpdtool.py` and `kymesh.py` (byte-exact reader and writer) | works |
 | spawn points, AI orders and patrol routes | level partition entities (as NavKit's `levelobjects` and `ordercheck` read them) | works |
-| objectives (M-COMs, flags), destructibles, vehicles and vehicle spawns | level partition entities | to read; the entity types are to identify |
+| objectives (M-COMs, flags), destructibles, vehicles and vehicle spawns | level partition entities, and each placed object's blueprint | read (`core/bfbc2core/level.py`): M-COMs are `mpobjective` blueprints, flags `CapturePointEntityData`; a placed object's group comes from its blueprint's object type (`StaticModelEntityData` with health states or part links = destructible; `DynamicModelEntityData`, `LadderEntityData` ...); teams from `Team` / `InitialOwnerTeam` (alternate spawns: their spawner's); areas and routes are `AreaGeometryEntityData` chains |
+| terrain name and placement | `TerrainEntityData` in the level partition | its `TerrainAsset` names the terrain (mode variants share their base map's: MP_009GR uses `mp_009`). Its transform is **not** applied to the heights: on 11 of 13 campaign levels it moves the terrain 1-59 m, but the stored heights unmoved match the game |
 
 ### 3.2 Scene model
 
@@ -302,8 +303,8 @@ OPFOR telemetry module, and is versioned.
 
 | Milestone | Delivers | Also gives |
 |---|---|---|
-| M1 | the core: data layer (Python DBX reader, collision, terrain heightfield), scene, view, camera, picking, panels | |
-| M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search | |
+| M1 | the core: data layer (Python DBX reader, collision, terrain heightfield), scene, view, camera, picking, panels (done 2026-10-16) | |
+| M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16: see `bfbc2-map-inspector/README.md`; water still to research) | |
 | M3 | Navigation Studio, viewing: navigation layers, islands, detailed zones, difference view against DICE | the 3D view for NavKit's parity work |
 | M4 | Navigation Studio, editing: regions, seeds, links, traversal annotations, path test, finished file and side file, `navkit apply` | |
 | M5 | Test harness, offline: reachability, path batteries, parity, saved runs | |

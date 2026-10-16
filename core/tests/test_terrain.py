@@ -1,4 +1,4 @@
-"""Checks terrain.py against the in-game terrain samples NavKit took (work\navsample\<level>_navkit.bin or
+r"""Checks terrain.py against the in-game terrain samples NavKit took (work\navsample\<level>_navkit.bin or
 _full.bin): per level, the share of terrain samples more than 0.1 m from the decoded height field.
 
   python test_terrain.py [level ...]          default: every level with samples; unpacks terrain-00.fbrb
