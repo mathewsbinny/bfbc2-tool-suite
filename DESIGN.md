@@ -17,7 +17,7 @@ built in. It is a draft for review, and it changes as the tools are built.
 | **bfbc2-asset-pipeline** (in the core) | any BC2 modder | Batch extraction into common formats: geometry and collision to OBJ/glTF, entities and transforms, spawns and objectives to JSON, textures and materials later, dependency reports. It is the same readers the viewer uses. |
 | **bfbc2-diff-workbench** | research | Binary and asset diffing: ImHex pattern files for BC2 formats, plus a report of which structures are understood and what changed, with reproducible extraction logs and hashes. |
 | **bfbc2-ai-behavior-simulator** | Project OPFOR bots | Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls, physics or animation. |
-| **OPFOR asset builder & validator** (in the OPFOR repo) | Project OPFOR | Turns editor outputs into versioned runtime packages for the standalone client, with schema and dependency checks and a report of missing or incompatible data. |
+| **bfbc2-asset-builder** (asset builder & validator, in the OPFOR repo) | Project OPFOR | Turns editor outputs into versioned runtime packages for the standalone client, with schema and dependency checks and a report of missing or incompatible data. |
 
 ## 2. Rules
 
@@ -198,7 +198,7 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
   runs faster than real time; results into the test harness.
 - **Out of scope:** controls, physics, animation, weapon ballistics. Those stay with in-game tests.
 
-### 4.9 OPFOR asset builder & validator (in the Project OPFOR repo)
+### 4.9 bfbc2-asset-builder: asset builder & validator (in the Project OPFOR repo)
 
 - **Inputs:** NavKit output and side files, tactical annotations, level ports and recipes (such as the
   console Onslaught builds), menu patches.
@@ -269,7 +269,7 @@ OPFOR telemetry module, and is versioned.
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
 | alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |
-| with Goal 3 | the bot decision library (engine-independent) and the AI behaviour simulator; the OPFOR asset builder with the installer | |
+| with Goal 3 | the bot decision library (engine-independent) and the AI behaviour simulator; bfbc2-asset-builder with the installer | |
 
 ## 7. Open questions
 

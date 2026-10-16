@@ -15,7 +15,7 @@ loading, a 3D view, picking and the game's data formats.
 | `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs | planned (alongside) |
 | `bfbc2-ai-behavior-simulator/` | runs OPFOR's bot decision code on simplified maps, without the game | planned (with Goal 3) |
 
-The OPFOR asset builder & validator is part of the Project OPFOR repository (DESIGN.md section 4.9).
+The asset builder & validator, `bfbc2-asset-builder`, is part of the Project OPFOR repository (DESIGN.md section 4.9).
 
 The design is in [DESIGN.md](DESIGN.md). Developed for Project OPFOR. Game data is read from your own
 installation and never distributed. Battlefield: Bad Company 2 is © Electronic Arts / DICE.
