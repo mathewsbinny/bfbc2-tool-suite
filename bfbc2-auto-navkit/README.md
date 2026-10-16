@@ -50,6 +50,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   navwalk.py         walkability rules + scoring against existing path data
   navbuild.py        the generator: samples + level objects -> pathdata.hpd
   ordercheck.py      scoring: AI order positions on the areas, pairwise route check, self-check
+  navcompare.py      two files on a level's AI positions: coverage, main network, pairwise, size
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 

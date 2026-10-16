@@ -10,6 +10,9 @@
   python navkit.py restore SP_01              put the original file back
   python navkit.py all     SP_01 [--yes]      prepare, sample, build, check
   python navkit.py status  SP_01              what has been done for a level
+  python navkit.py compare SP_01 [--reference a.hpd] [--candidate b.hpd]
+                                              two path-data files on the level's AI positions
+                                              (default: the original against NavKit's build)
 
 Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: override the sampling box),
          --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit).
@@ -399,7 +402,26 @@ def check(pr, lv, log=print):
     for l in out:
         if re.search(r'positions:|on an area|route check|self-check', l) and not l.startswith('  '):
             log('  ' + l)
+    if ref:
+        import navcompare
+        log('  summary against the original:')
+        navcompare.report(navcompare.compare(xml, ref, ours), lambda m: log('    ' + m))
     log(f'  full report: {os.path.relpath(report, pr.root)}')
+
+
+def compare(pr, lv, log=print, reference=None, candidate=None):
+    """Two path-data files of a level on its AI positions (default: the original against NavKit's build)."""
+    import navcompare
+    s = pr.settings(lv)
+    reference = reference or pr.dice_pathdata(lv)
+    candidate = candidate or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
+    if not reference or not os.path.isfile(reference):
+        raise NavKitError(f'{lv}: no reference file (the level has no original path data; pass --reference)')
+    if not os.path.isfile(candidate):
+        raise NavKitError(f'{lv}: no candidate file {candidate} (build first, or pass --candidate)')
+    xml = os.path.join(pr.level_work(lv), 'dist', 'levels', s['level'] + '.xml')
+    log(f'== compare {lv}: reference {os.path.relpath(reference, pr.root)}, candidate {os.path.relpath(candidate, pr.root)}')
+    navcompare.report(navcompare.compare(xml, reference, candidate), lambda m: log('  ' + m))
 
 
 def install(pr, lv, log=print):
@@ -452,7 +474,7 @@ def ask(question):
 def main(argv):
     args = [a for a in argv[1:]]
     opts = {}
-    for k in ('--box', '--y', '--opfor', '--root'):   # --root: older name of --opfor
+    for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate'):   # --root: older name of --opfor
         if k in args:
             i = args.index(k)
             opts[k] = args[i + 1]
@@ -480,6 +502,8 @@ def main(argv):
             sample(pr, lv, confirm=confirm, box=box, y=y)
         elif cmd == 'build':
             build(pr, lv)
+        elif cmd == 'compare':
+            compare(pr, lv, reference=opts.get('--reference'), candidate=opts.get('--candidate'))
         elif cmd == 'check':
             check(pr, lv)
         elif cmd == 'install':

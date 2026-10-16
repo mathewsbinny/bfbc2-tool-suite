@@ -78,6 +78,7 @@ python navkit.py check   sp_01
 python navkit.py install sp_01     restore sp_01 puts the original back
 python navkit.py status  sp_01     what has been done for a level
 python navkit.py all     sp_01     prepare, sample, build and check in one go
+python navkit.py compare sp_01     the original against NavKit's file; --reference / --candidate for any two files
 ```
 
 ## Reading the check
@@ -99,6 +100,23 @@ pairwise route check: 71277/79663 ... (89.5%)
 - **"pairwise route check"**: of all pairs of positions the original connects with routes, the share
   NavKit also connects. 85 to 95 % is typical. The original has gaps of its own, so this is a guide,
   not a pass mark.
+
+After that comes a summary, which **compare** also prints on its own:
+
+```
+1078 order positions; the reference covers 633, the candidate 618 of those (97.6 %) + 33 more
+main route network: reference 607, candidate 648; pairwise 71277/79663 (89.5 %)
+sectors 126 / 154; nodes 30305 / 31789; edges 82602 / 165744
+```
+
+- **Coverage**: of the positions the original has on walkable ground, how many NavKit's file has too.
+  This is NavKit's headline figure: 96 % across the 13 campaign levels. "+ 33 more" are positions only
+  NavKit covers.
+- **Main route network**: positions connected to a large part of the level's routes, in each file.
+
+`compare` takes any two files with `--reference <file>` and `--candidate <file>`, for example two NavKit
+builds, to see whether a change helped. The same comparison runs without the driver:
+`python tools\navcompare.py <level.xml> <reference.hpd> <candidate.hpd> [--json]`.
 
 For a level without an original file, check does a **self-check**: how many pairs of positions on
 walkable ground NavKit's routes connect.
