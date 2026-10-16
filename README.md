@@ -33,5 +33,13 @@ section 4.9).
 Each tool's folder has its own README. The tools that existed before the suite were merged in with their
 full history (2026-10-16), so `git log -- <folder>/<file>` shows each file's history.
 
+## Licence
+
+MIT (see `LICENSE`) for all code and documentation in this repository. The licence covers only this
+repository's own work: no Electronic Arts / DICE game data, code or other content is included, and the
+tools need your own copy of the game. Third-party libraries keep their own licences (moderngl, imgui-bundle:
+MIT; glfw: zlib; numpy: BSD). Not affiliated with or endorsed by Electronic Arts or DICE; Battlefield and
+Battlefield: Bad Company are trademarks of Electronic Arts Inc.
+
 Developed for Project OPFOR. Game data is read from your own installation and never distributed.
 Battlefield: Bad Company 2 is © Electronic Arts / DICE.
