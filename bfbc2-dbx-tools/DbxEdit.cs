@@ -104,12 +104,26 @@ namespace Bfbc2Dbx
         public List<string> Table;
         public bool TableChanged;
         public List<Element> TopLevel;
-        uint keptHeaderValue;
+        public uint KeptHeaderValue;
         List<int> originalOffsets;
         byte[] originalStringArea;   // offsets table excluded: the string bytes as stored
-        byte[] trailer;              // the closing 0 of the tree and anything after it
+        public byte[] Trailer;              // the closing 0 of the tree and anything after it
 
         public DbxFile(string path) : this(File.ReadAllBytes(path)) { }
+
+        // A new, empty file (header value 0, no trailing bytes: what every game file has). String 0 is the empty
+        // string, as in every game file: index 0 cannot be a tag (a 0 closes the open element).
+        DbxFile()
+        {
+            Original = new byte[0];
+            IsBinary = true;
+            Table = new List<string> { "" };
+            TableChanged = true;
+            TopLevel = new List<Element>();
+            Trailer = new byte[0];
+        }
+
+        public static DbxFile CreateEmpty() { return new DbxFile(); }
 
         public DbxFile(byte[] data)
         {
@@ -117,7 +131,7 @@ namespace Bfbc2Dbx
             IsBinary = data.Length > 24 && Encoding.ASCII.GetString(data, 0, 8) == Magic;
             if (!IsBinary) return;
             uint areaSize = BigEndian.U32(data, 16), count = BigEndian.U32(data, 20);
-            keptHeaderValue = BigEndian.U32(data, 12);
+            KeptHeaderValue = BigEndian.U32(data, 12);
             int stringsAt = 24 + 4 * (int)count, payloadAt = 24 + (int)areaSize;
             originalOffsets = new List<int>();
             for (int i = 0; i < count; i++) originalOffsets.Add((int)BigEndian.U32(data, 24 + 4 * i));
@@ -139,8 +153,8 @@ namespace Bfbc2Dbx
                 if (tag == 0) { pos--; break; }
                 TopLevel.Add(ReadElement(data, ref pos, tag));
             }
-            trailer = new byte[data.Length - pos];
-            Array.Copy(data, pos, trailer, 0, trailer.Length);
+            Trailer = new byte[data.Length - pos];
+            Array.Copy(data, pos, Trailer, 0, Trailer.Length);
         }
 
         static Element ReadElement(byte[] data, ref int pos, int tag)
@@ -192,12 +206,12 @@ namespace Bfbc2Dbx
             }
             var tree = new List<byte>();
             foreach (var e in TopLevel) WriteElement(tree, e);
-            tree.AddRange(trailer);
+            tree.AddRange(Trailer);
 
             uint areaSize = (uint)(4 * Table.Count + stringArea.Length);
             var output = new List<byte>(Encoding.ASCII.GetBytes(Magic));
             BigEndian.Put(output, 24 + areaSize);
-            BigEndian.Put(output, keptHeaderValue);
+            BigEndian.Put(output, KeptHeaderValue);
             BigEndian.Put(output, areaSize);
             BigEndian.Put(output, (uint)Table.Count);
             foreach (int offset in offsets) BigEndian.Put(output, (uint)offset);
@@ -340,7 +354,27 @@ namespace Bfbc2Dbx
             return xml.ToString();
         }
 
-        static string Number(byte[] data, int at, int size, string field)
+        // The value of a non-container element as its XML shows it (unescaped): text, numbers joined by '/', or
+        // true / false / a byte. field = the element's first attribute value (decides whole-number fields).
+        public static string ValueText(DbxFile f, Element e)
+        {
+            string field = e.Attributes.Count > 0 ? f.Table[e.Attributes[0].Value] : "";
+            int pos = 0;
+            if (e.Kind == Element.Text) return f.Table[Varint.Read(e.Payload, ref pos)];
+            if (e.Kind == Element.Numbers)
+            {
+                int n = Varint.Read(e.Payload, ref pos), size = Varint.Read(e.Payload, ref pos);
+                var values = new string[n];
+                for (int i = 0; i < n; i++, pos += size) values[i] = Number(e.Payload, pos, size, field);
+                return string.Join("/", values);
+            }
+            byte v = e.Payload[1];
+            return v == 0 ? "false" : v == 1 ? "true" : v.ToString();
+        }
+
+        public static bool IsWholeNumberField(string field) { return WholeNumberFields.Contains(field); }
+
+        internal static string Number(byte[] data, int at, int size, string field)
         {
             if (size == 4)
             {
@@ -375,6 +409,494 @@ namespace Bfbc2Dbx
             }
             return b.ToString();
         }
+    }
+
+    // Field types learned from binary files: per "tag/first attribute value", the element kind, number size,
+    // whether 4-byte values are decimals or integers, and the first byte of bool / byte values.
+    sealed class TypeBook
+    {
+        public sealed class Entry
+        {
+            public int Kind = -1, Size, FirstByte = 1, Floats, Ints;
+            public byte ContainerByte;
+        }
+
+        readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>();
+
+        public static string Key(string tag, string firstValue) { return tag + "/" + firstValue; }
+
+        public void Learn(DbxFile f)
+        {
+            foreach (var e in f.TopLevel) Learn(f, e);
+        }
+
+        void Learn(DbxFile f, Element e)
+        {
+            string key = Key(f.TagOf(e), e.Attributes.Count > 0 ? f.Table[e.Attributes[0].Value] : "");
+            Entry t;
+            if (!entries.TryGetValue(key, out t)) entries[key] = t = new Entry { Kind = e.Kind };
+            if (e.IsContainer)
+            {
+                t.ContainerByte = e.ContainerByte;
+                foreach (var c in e.Children) Learn(f, c);
+                return;
+            }
+            if (e.Kind == Element.Numbers)
+            {
+                int pos = 0;
+                int n = Varint.Read(e.Payload, ref pos), size = Varint.Read(e.Payload, ref pos);
+                if (n > 0 || t.Size == 0) t.Size = size;
+                if (size == 4)
+                    for (int i = 0; i < n; i++, pos += 4)
+                    {
+                        // evidence only: zero is the same either way, all-ones exponents are padding patterns
+                        uint bits = BigEndian.U32(e.Payload, pos);
+                        if (!XmlImport.PrintsAsWhole(bits, "")) t.Floats++;
+                        else if (bits != 0 && (bits >> 24) == 0) t.Ints++;
+                    }
+            }
+            else if (e.Kind != Element.Text) t.FirstByte = e.Payload[0];
+        }
+
+        public Entry Find(string tag, string firstValue)
+        {
+            Entry t;
+            return entries.TryGetValue(Key(tag, firstValue), out t) ? t : null;
+        }
+    }
+
+    // XML -> binary (FORMAT.md section 6). Elements are matched to a reference file (the original .dbx): unchanged
+    // values keep their exact bytes, changed ones take the reference's types. New elements are typed from the
+    // TypeBook; whatever is left is guessed from the XML and reported.
+    sealed class XmlImport
+    {
+        sealed class Node
+        {
+            public string Tag, Text = "";
+            public readonly List<KeyValuePair<string, string>> Attributes = new List<KeyValuePair<string, string>>();
+            public List<Node> Children;   // null: no child elements
+            public bool SelfClosing, Multiline;
+            public int Line;
+            public string FirstValue { get { return Attributes.Count > 0 ? Attributes[0].Value : ""; } }
+        }
+
+        public int Kept, Changed, Added, Removed, Rounded;
+        public readonly List<string> Guesses = new List<string>();
+        readonly DbxFile file;
+        readonly DbxFile reference;
+        readonly TypeBook types;
+
+        XmlImport(DbxFile file, DbxFile reference, TypeBook types)
+        {
+            this.file = file;
+            this.reference = reference;
+            this.types = types;
+        }
+
+        // Reads <xml> into a binary file. reference: the original .dbx (or null); typeFiles: more files to learn
+        // field types from. The result reuses the reference's string table (new strings are appended).
+        public static DbxFile Import(string xmlPath, DbxFile reference, IEnumerable<DbxFile> typeFiles, out XmlImport report)
+        {
+            var types = new TypeBook();
+            if (reference != null) types.Learn(reference);
+            foreach (var t in typeFiles) types.Learn(t);
+            var target = reference != null ? new DbxFile(reference.Original) : DbxFile.CreateEmpty();
+            report = new XmlImport(target, reference != null ? target : null, types);
+            var root = Parse(xmlPath);
+            var old = target.TopLevel.Count > 0 ? target.TopLevel[0] : null;
+            var top = report.Build(root, old != null && target.TagOf(old) == root.Tag ? old : null, root.Tag);
+            target.TopLevel = new List<Element> { top };
+            return target;
+        }
+
+        // A small XML reader of our own (not System.Xml): the export can contain what a strict parser rejects -
+        // the same attribute twice (game files have it), control characters - and values must keep their exact
+        // line breaks. Handles what editors write too: comments, <?...?>, ' or " quotes, entity and character
+        // references, CDATA.
+        static Node Parse(string path)
+        {
+            var p = new TextParser(File.ReadAllText(path));
+            p.SkipProlog();
+            if (!p.At("<")) throw new InvalidDataException("no root element in " + path);
+            return p.Element();
+        }
+
+        sealed class TextParser
+        {
+            readonly string s;
+            int pos, line = 1;
+            public TextParser(string text) { s = text; }
+
+            public bool At(string t) { return string.CompareOrdinal(s, pos, t, 0, t.Length) == 0; }
+
+            InvalidDataException Fail(string what) { return new InvalidDataException("line " + line + ": " + what); }
+
+            void Advance(int n)
+            {
+                for (int i = 0; i < n && pos < s.Length; i++, pos++) if (s[pos] == '\n') line++;
+            }
+
+            void SkipTo(string end)
+            {
+                int at = s.IndexOf(end, pos, StringComparison.Ordinal);
+                if (at < 0) throw Fail("'" + end + "' missing");
+                Advance(at + end.Length - pos);
+            }
+
+            void SkipSpace() { while (pos < s.Length && char.IsWhiteSpace(s[pos])) Advance(1); }
+
+            public void SkipProlog()
+            {
+                while (true)
+                {
+                    SkipSpace();
+                    if (At("﻿")) Advance(1);
+                    else if (At("<?")) SkipTo("?>");
+                    else if (At("<!--")) SkipTo("-->");
+                    else if (At("<!DOCTYPE")) SkipTo(">");
+                    else return;
+                }
+            }
+
+            string Name()
+            {
+                int start = pos;
+                while (pos < s.Length && !char.IsWhiteSpace(s[pos]) && s[pos] != '/' && s[pos] != '>' && s[pos] != '=') Advance(1);
+                if (pos == start) throw Fail("a name was expected");
+                return s.Substring(start, pos - start);
+            }
+
+            string Decode(string raw)
+            {
+                if (raw.IndexOf('&') < 0) return raw;
+                var b = new StringBuilder(raw.Length);
+                for (int i = 0; i < raw.Length; i++)
+                {
+                    if (raw[i] != '&') { b.Append(raw[i]); continue; }
+                    int semi = raw.IndexOf(';', i);
+                    if (semi < 0) throw Fail("'&' without ';'");
+                    string e = raw.Substring(i + 1, semi - i - 1);
+                    if (e == "amp") b.Append('&');
+                    else if (e == "lt") b.Append('<');
+                    else if (e == "gt") b.Append('>');
+                    else if (e == "quot") b.Append('"');
+                    else if (e == "apos") b.Append('\'');
+                    else if (e.StartsWith("#x") || e.StartsWith("#X")) b.Append(char.ConvertFromUtf32(Convert.ToInt32(e.Substring(2), 16)));
+                    else if (e.StartsWith("#")) b.Append(char.ConvertFromUtf32(int.Parse(e.Substring(1), CultureInfo.InvariantCulture)));
+                    else throw Fail("unknown entity &" + e + ";");
+                    i = semi;
+                }
+                return b.ToString();
+            }
+
+            public Node Element()
+            {
+                Advance(1);   // '<'
+                var n = new Node { Line = line, Tag = Name() };
+                while (true)
+                {
+                    SkipSpace();
+                    if (pos >= s.Length) throw Fail("<" + n.Tag + "> is not closed");
+                    if (At("/>")) { Advance(2); n.SelfClosing = true; return n; }
+                    if (At(">")) { Advance(1); break; }
+                    string key = Name();
+                    SkipSpace();
+                    if (!At("=")) throw Fail("'=' expected after " + key);
+                    Advance(1);
+                    SkipSpace();
+                    if (pos >= s.Length || (s[pos] != '"' && s[pos] != '\'')) throw Fail("a quoted value expected for " + key);
+                    char q = s[pos];
+                    Advance(1);
+                    int end = s.IndexOf(q, pos);
+                    if (end < 0) throw Fail("value of " + key + " not closed");
+                    string raw = s.Substring(pos, end - pos);
+                    Advance(end + 1 - pos);
+                    n.Attributes.Add(new KeyValuePair<string, string>(key, Decode(raw)));
+                }
+                var text = new StringBuilder();
+                bool realText = false;
+                while (true)
+                {
+                    if (pos >= s.Length) throw Fail("<" + n.Tag + "> is not closed");
+                    if (At("</"))
+                    {
+                        Advance(2);
+                        string close = Name();
+                        if (close != n.Tag) throw Fail("</" + close + "> closes <" + n.Tag + ">");
+                        SkipSpace();
+                        if (!At(">")) throw Fail("'>' expected");
+                        Advance(1);
+                        if (n.Children != null && realText) throw Fail("<" + n.Tag + "> has both text and child elements");
+                        n.Text = n.Children == null ? text.ToString() : "";
+                        n.Multiline = n.Children == null && !realText && n.Text.IndexOf('\n') >= 0;
+                        return n;
+                    }
+                    if (At("<!--")) { SkipTo("-->"); continue; }
+                    if (At("<?")) { SkipTo("?>"); continue; }
+                    if (At("<![CDATA["))
+                    {
+                        Advance(9);
+                        int end = s.IndexOf("]]>", pos, StringComparison.Ordinal);
+                        if (end < 0) throw Fail("CDATA not closed");
+                        text.Append(s, pos, end - pos);
+                        realText = true;
+                        Advance(end + 3 - pos);
+                        continue;
+                    }
+                    if (At("<"))
+                    {
+                        if (n.Children == null) n.Children = new List<Node>();
+                        n.Children.Add(Element());
+                        continue;
+                    }
+                    int next = s.IndexOf('<', pos);
+                    if (next < 0) next = s.Length;
+                    string chunk = s.Substring(pos, next - pos);
+                    if (chunk.Any(c => !char.IsWhiteSpace(c))) realText = true;
+                    text.Append(Decode(chunk));
+                    Advance(next - pos);
+                }
+            }
+        }
+
+        static string Norm(string s) { return s.Replace("\r\n", "\n").Replace('\r', '\n'); }
+        static string NormAttribute(string s) { return s.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' '); }
+
+        // What identifies an element among its siblings: its guid, else its name, else its reference, else all
+        // attributes (elements without attributes, like array entries, match by position).
+        static string Key(string tag, IList<KeyValuePair<string, string>> attrs)
+        {
+            foreach (string id in new[] { "guid", "name", "ref" })
+                foreach (var a in attrs)
+                    if (a.Key == id) return tag + "\u0001" + id + "=" + NormAttribute(a.Value);
+            return tag + "\u0001" + string.Join("\u0001", attrs.Select(a => a.Key + "=" + NormAttribute(a.Value)));
+        }
+
+        string KeyOf(Element e)
+        {
+            return Key(reference.TagOf(e), e.Attributes.Select(a => new KeyValuePair<string, string>(reference.Table[a.Name], reference.Table[a.Value])).ToList());
+        }
+
+        Element Build(Node x, Element old, string path)
+        {
+            var e = new Element { Tag = old != null ? old.Tag : file.Intern(x.Tag) };
+            for (int i = 0; i < x.Attributes.Count; i++)
+            {
+                var a = x.Attributes[i];
+                if (old != null && i < old.Attributes.Count && file.Table[old.Attributes[i].Name] == a.Key
+                    && NormAttribute(file.Table[old.Attributes[i].Value]) == NormAttribute(a.Value))
+                    e.Attributes.Add(new Attribute(old.Attributes[i].Name, old.Attributes[i].Value));
+                else e.Attributes.Add(new Attribute(file.Intern(a.Key), file.Intern(a.Value)));
+            }
+            var learned = types.Find(x.Tag, x.FirstValue);
+            int kind = KindOf(x, old, learned, path);
+            e.Kind = kind;
+            if (kind == Element.Container)
+            {
+                if (x.Children == null && x.Text.Trim().Length > 0)
+                    throw new InvalidDataException("line " + x.Line + ": " + path + " holds other elements, not the value '" + x.Text.Trim() + "'");
+                e.ContainerByte = old != null && old.IsContainer ? old.ContainerByte : learned != null && learned.Kind == Element.Container ? learned.ContainerByte : (byte)0;
+                e.Children = new List<Element>();
+                var children = x.Children ?? new List<Node>();
+                var oldChildren = old != null && old.IsContainer ? old.Children : new List<Element>();
+                foreach (var pair in Align(children, oldChildren, path))
+                    e.Children.Add(Build(pair.Key, pair.Value, path + "/" + Describe(pair.Key)));
+                if (old == null) Added++;
+                return e;
+            }
+            if (x.Children != null) throw new InvalidDataException("line " + x.Line + ": " + path + " has child elements but is a value");
+            if (old != null && old.Kind == kind && Norm(XmlExport.ValueText(reference, old)) == Norm(x.Text))
+            {
+                e.Payload = old.Payload;
+                Kept++;
+                return e;
+            }
+            e.Payload = Encode(kind, x, old, learned, path);
+            if (old != null) Changed++; else Added++;
+            return e;
+        }
+
+        static string Describe(Node n)
+        {
+            return n.Tag + (n.Attributes.Count > 0 ? "[" + n.FirstValue + "]" : "");
+        }
+
+        // Pairs each XML child with the reference child it corresponds to (or null): the next unused reference child
+        // with the same key, in order. Reference children left over were removed.
+        List<KeyValuePair<Node, Element>> Align(List<Node> xs, List<Element> olds, string path)
+        {
+            var queues = new Dictionary<string, Queue<int>>();
+            for (int i = 0; i < olds.Count; i++)
+            {
+                string k = KeyOf(olds[i]);
+                Queue<int> q;
+                if (!queues.TryGetValue(k, out q)) queues[k] = q = new Queue<int>();
+                q.Enqueue(i);
+            }
+            var result = new List<KeyValuePair<Node, Element>>();
+            int next = 0, used = 0;
+            foreach (var x in xs)
+            {
+                Queue<int> q;
+                Element match = null;
+                if (queues.TryGetValue(Key(x.Tag, x.Attributes), out q))
+                {
+                    while (q.Count > 0 && q.Peek() < next) q.Dequeue();
+                    if (q.Count > 0)
+                    {
+                        int i = q.Dequeue();
+                        match = olds[i];
+                        next = i + 1;
+                        used++;
+                    }
+                }
+                result.Add(new KeyValuePair<Node, Element>(x, match));
+            }
+            Removed += olds.Count - used;
+            return result;
+        }
+
+        int KindOf(Node x, Element old, TypeBook.Entry learned, string path)
+        {
+            if (x.Children != null) return Element.Container;
+            if (old != null) return old.Kind;
+            // where the XML's shape is unambiguous it decides (the export writes <x/> only for empty text, a line
+            // break inside an empty element only for a container, <x></x> only for an empty number list)
+            if (x.SelfClosing) return Element.Text;
+            if (x.Multiline) return Element.Container;
+            if (x.Text.Length == 0) return Element.Numbers;
+            if (learned != null && learned.Kind >= 0 && learned.Kind != Element.Container) return learned.Kind;
+            // nothing to go by: the XML's own shape
+            if (x.Multiline) { Guess(x, path, "container"); return Element.Container; }
+            if (x.SelfClosing) { Guess(x, path, "empty text"); return Element.Text; }
+            if (x.Text == "true" || x.Text == "false") { Guess(x, path, "bool"); return 6; }
+            if (x.Text.Length == 0 || x.Text.Split('/').All(t => { double d; return double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out d); }))
+            {
+                Guess(x, path, "numbers (4 bytes each)");
+                return Element.Numbers;
+            }
+            Guess(x, path, "text");
+            return Element.Text;
+        }
+
+        void Guess(Node x, string path, string what)
+        {
+            Guesses.Add("line " + x.Line + ": " + path + ": no type known, taken as " + what);
+        }
+
+        // The value bytes for a new text of an existing element, typed like it (what the import does for a changed
+        // value). rounded: true if a decimal had to be rounded to the nearest 4-byte value.
+        public static byte[] EncodeValue(DbxFile f, Element e, string text, out bool rounded)
+        {
+            var imp = new XmlImport(f, f, new TypeBook());
+            var x = new Node { Tag = f.TagOf(e), Text = text };
+            foreach (var a in e.Attributes) x.Attributes.Add(new KeyValuePair<string, string>(f.Table[a.Name], f.Table[a.Value]));
+            byte[] payload = imp.Encode(e.Kind, x, e, null, x.Tag + "[" + x.FirstValue + "]");
+            rounded = imp.Rounded > 0;
+            return payload;
+        }
+
+        byte[] Encode(int kind, Node x, Element old, TypeBook.Entry learned, string path)
+        {
+            string text = x.Text;
+            if (kind == Element.Text) return Varint.Bytes(file.Intern(text));
+            if (kind != Element.Numbers)
+            {
+                byte first = old != null && old.Payload != null && old.Payload.Length == 2 ? old.Payload[0] : learned != null ? (byte)learned.FirstByte : (byte)1;
+                byte value;
+                string t = text.Trim();
+                if (t == "true") value = 1;
+                else if (t == "false") value = 0;
+                else if (!byte.TryParse(t, NumberStyles.None, CultureInfo.InvariantCulture, out value))
+                    throw new InvalidDataException("line " + x.Line + ": " + path + ": '" + text + "' is not true, false or 0-255");
+                return new[] { first, value };
+            }
+            string[] tokens = text.Trim().Length == 0 ? new string[0] : text.Trim().Split('/');
+            int oldCount = 0, oldSize = 0, oldAt = 0;
+            if (old != null && old.Kind == Element.Numbers)
+            {
+                oldCount = Varint.Read(old.Payload, ref oldAt);
+                oldSize = Varint.Read(old.Payload, ref oldAt);
+            }
+            int size = oldSize > 0 ? oldSize : learned != null && learned.Size > 0 ? learned.Size : 4;
+            if (oldSize == 0 && (learned == null || learned.Size == 0) && tokens.Length > 0) Guess(x, path, "4-byte numbers");
+            var output = new List<byte>();
+            Varint.Write(output, tokens.Length);
+            Varint.Write(output, size);
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                string token = tokens[i].Trim();
+                uint? oldBits = size == 4 && i < oldCount ? (uint?)BigEndian.U32(old.Payload, oldAt + 4 * i) : null;
+                if (size == 4)
+                {
+                    BigEndian.Put(output, FourBytes(token, x.FirstValue, oldBits, learned, x, path));
+                }
+                else if (size == 8)
+                {
+                    double d;
+                    if (!double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out d))
+                        throw new InvalidDataException("line " + x.Line + ": " + path + ": '" + token + "' is not a number");
+                    long bits = BitConverter.DoubleToInt64Bits(d);
+                    BigEndian.Put(output, (uint)(bits >> 32));
+                    BigEndian.Put(output, (uint)bits);
+                }
+                else if (size == 2)
+                {
+                    ushort v;
+                    if (!ushort.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out v))
+                        throw new InvalidDataException("line " + x.Line + ": " + path + ": '" + token + "' is not 0-65535");
+                    output.Add((byte)(v >> 8));
+                    output.Add((byte)v);
+                }
+                else throw new InvalidDataException("line " + x.Line + ": " + path + ": numbers of " + size + " bytes cannot be written");
+            }
+            return output.ToArray();
+        }
+
+        // True if the XML shows these 4 bytes as a whole number (FORMAT.md section 3).
+        public static bool PrintsAsWhole(uint bits, string field)
+        {
+            return XmlExport.IsWholeNumberField(field) || (bits >> 24) == 0 || ((bits >> 23) & 0xFF) == 0xFF;
+        }
+
+        // A 4-byte value: the integer or the decimal reading of the token, whichever the XML would show as exactly
+        // this token. When both would (a whole decimal like 1.0 also shows as "1"), the original value's kind
+        // decides, else the field's usual kind, else decimal (reported).
+        uint FourBytes(string token, string field, uint? oldBits, TypeBook.Entry learned, Node x, string path)
+        {
+            var options = new List<uint>();
+            int whole;
+            if (int.TryParse(token, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out whole)
+                && XmlExport.Number(Be((uint)whole), 0, 4, field) == token) options.Add((uint)whole);
+            float f;
+            if (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out f))
+            {
+                uint bits = BitConverter.ToUInt32(BitConverter.GetBytes(f), 0);
+                if (XmlExport.Number(Be(bits), 0, 4, field) == token && !options.Contains(bits)) options.Add(bits);
+            }
+            if (options.Count == 0)
+            {
+                // not stored exactly either way (e.g. more digits than a 4-byte decimal holds): an integer for a whole
+                // number in an integer field, else the nearest decimal
+                bool integerField = oldBits.HasValue ? PrintsAsWhole(oldBits.Value, field) && oldBits.Value != 0
+                                  : learned != null && learned.Ints > learned.Floats;
+                if (integerField && int.TryParse(token, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out whole)) return (uint)whole;
+                if (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out f))
+                {
+                    Rounded++;
+                    return BitConverter.ToUInt32(BitConverter.GetBytes(f), 0);
+                }
+                throw new InvalidDataException("line " + x.Line + ": " + path + ": '" + token + "' is not a number");
+            }
+            if (options.Count == 1) return options[0];
+            // two readings: [0] integer, [1] decimal
+            if (oldBits.HasValue) return PrintsAsWhole(oldBits.Value, field) ? options[0] : options[1];
+            if (learned != null && learned.Floats + learned.Ints > 0) return learned.Floats >= learned.Ints ? options[1] : options[0];
+            Guess(x, path, "decimal for '" + token + "'");
+            return options[1];
+        }
+
+        static byte[] Be(uint v) { return new[] { (byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v }; }
     }
 
     // FORMAT.md section 5: the edit commands. Each returns a count or a success flag; Program prints.
@@ -632,6 +1154,256 @@ namespace Bfbc2Dbx
         }
     }
 
+    // Placed objects (ReferenceObjectData): blueprint name, position and cull slot (Enumeration).
+    sealed class PlacedObject
+    {
+        public Element Instance, Slot;
+        public string Guid, Blueprint;
+        public float X, Y, Z;
+        public int SlotValue { get { return Slot == null ? 0 : (int)BigEndian.U32(Slot.Payload, 2); } }
+
+        public static List<PlacedObject> All(DbxFile f)
+        {
+            var list = new List<PlacedObject>();
+            foreach (var i in f.Instances())
+            {
+                string type = f.Get(i, "type") ?? "";
+                if (!type.EndsWith(".ReferenceObjectData")) continue;
+                var o = new PlacedObject { Instance = i, Guid = f.Get(i, "guid") };
+                foreach (var c in i.Children)
+                {
+                    string name = f.Get(c, "name");
+                    if (name == "Enumeration" && c.Kind == Element.Numbers && c.Payload.Length == 6) o.Slot = c;
+                    else if (name == "ReferencedObject")
+                    {
+                        string r = f.Get(c, "ref") ?? "";
+                        var parts = r.ToLowerInvariant().Split('/');
+                        o.Blueprint = parts.Length >= 2 ? parts[parts.Length - 2] : "";
+                    }
+                    else if (name == "Transform" && c.Kind == Element.Numbers && c.Payload.Length >= 2 + 16 * 4)
+                    {
+                        o.X = Float(c.Payload, 2 + 12 * 4);
+                        o.Y = Float(c.Payload, 2 + 13 * 4);
+                        o.Z = Float(c.Payload, 2 + 14 * 4);
+                    }
+                }
+                list.Add(o);
+            }
+            return list;
+        }
+
+        static float Float(byte[] p, int at) { return BitConverter.ToSingle(BitConverter.GetBytes(BigEndian.U32(p, at)), 0); }
+
+        public string PositionKey
+        {
+            get
+            {
+                var c = CultureInfo.InvariantCulture;
+                return Blueprint + "@" + Math.Round(X, 1).ToString(c) + "," + Math.Round(Y, 1).ToString(c) + "," + Math.Round(Z, 1).ToString(c);
+            }
+        }
+
+        public double Distance(PlacedObject o)
+        {
+            double dx = X - o.X, dy = Y - o.Y, dz = Z - o.Z;
+            return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        public void SetSlot(int value)
+        {
+            Slot.Payload = new byte[] { 1, 4, (byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value };
+        }
+    }
+
+    // Cull slots (FORMAT.md section 7): each object takes the slot of the same object in the level whose static cull
+    // trees the file uses - same guid, else same blueprint and position, else the nearest unused same-blueprint
+    // object within 50 m - and 0 (outside the cull tree) when there is none.
+    static class SlotFixer
+    {
+        public sealed class Result { public int ByGuid, ByPosition, ByNearest, NoCounterpart, Changed; public readonly List<string> Unmatched = new List<string>(); }
+
+        public static Result Fix(DbxFile file, DbxFile cullLevel)
+        {
+            var mine = PlacedObject.All(file).Where(o => o.Slot != null).ToList();
+            var theirs = PlacedObject.All(cullLevel).Where(o => o.Slot != null).ToList();
+            var byGuid = new Dictionary<string, PlacedObject>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in theirs) byGuid[o.Guid] = o;
+            var byPosition = new Dictionary<string, PlacedObject>();
+            foreach (var o in theirs) if (!byPosition.ContainsKey(o.PositionKey)) byPosition[o.PositionKey] = o;
+            var r = new Result();
+            var assigned = new Dictionary<PlacedObject, int>();
+            var left = new List<PlacedObject>();
+            foreach (var o in mine)
+            {
+                PlacedObject t;
+                if (byGuid.TryGetValue(o.Guid, out t)) { assigned[o] = t.SlotValue; r.ByGuid++; }
+                else if (byPosition.TryGetValue(o.PositionKey, out t)) { assigned[o] = t.SlotValue; r.ByPosition++; }
+                else left.Add(o);
+            }
+            var used = new HashSet<int>(assigned.Values);
+            foreach (var o in left)
+            {
+                var best = theirs.Where(t => t.Blueprint == o.Blueprint && t.SlotValue != 0 && !used.Contains(t.SlotValue))
+                                 .OrderBy(t => t.Distance(o)).FirstOrDefault();
+                if (best != null && best.Distance(o) < 50)
+                {
+                    assigned[o] = best.SlotValue;
+                    used.Add(best.SlotValue);
+                    r.ByNearest++;
+                }
+                else
+                {
+                    assigned[o] = 0;
+                    r.NoCounterpart++;
+                    r.Unmatched.Add(o.Blueprint + " " + o.Guid);
+                }
+            }
+            foreach (var kv in assigned)
+                if (kv.Key.SlotValue != kv.Value) { kv.Key.SetSlot(kv.Value); r.Changed++; }
+            return r;
+        }
+    }
+
+    // Problems that crash or break a level, found without starting the game (FORMAT.md section 7).
+    static class LevelCheck
+    {
+        public sealed class Finding
+        {
+            public bool Error;
+            public string Where, Message;
+            public override string ToString() { return (Error ? "ERROR  " : "WARN   ") + Where + ": " + Message; }
+        }
+
+        // model groups and their members need these parts (terrain has its own collision and may leave PhysicsData empty)
+        static readonly string[] WorldTypes = { "ModelGroupEntityData", "ModelGroupMemberData", "ForestEntityData", "TreeMemberData" };
+        // the level's world: must be listed in LevelData Objects, or it is not loaded
+        static readonly string[] ListedWorldTypes = { "TerrainEntityData", "ModelGroupEntityData", "ForestEntityData", "StaticEnvmapEntityData" };
+        static readonly string[] WorldParts = { "PhysicsData", "MeshEntityType" };
+
+        // slotsFrom: the level whose cull trees the file uses (or null); bundles: unpacked folders to resolve
+        // references into other files (or none).
+        public static List<Finding> Run(DbxFile f, DbxFile slotsFrom, IList<string> bundles)
+        {
+            var found = new List<Finding>();
+            var guids = new HashSet<string>(f.Instances().Select(i => f.Get(i, "guid") ?? ""), StringComparer.OrdinalIgnoreCase);
+            var external = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var inst in f.Instances())
+            {
+                string type = f.Get(inst, "type") ?? "", where = Short(type) + " " + f.Get(inst, "guid");
+                bool levelData = type.EndsWith(".LevelData");
+                bool world = WorldTypes.Any(w => type.EndsWith(w));
+                Walk(f, inst, "", (e, path) =>
+                {
+                    string r = f.Get(e, "ref");
+                    if (r == null) return;
+                    bool inObjects = levelData && path.StartsWith("Objects");
+                    bool isLocal = r.Length == 36 && r.IndexOf('/') < 0;
+                    if (r == "null")
+                    {
+                        if (inObjects && f.TagOf(e) == "item")
+                            found.Add(new Finding { Error = true, Where = where + " " + path, Message = "empty entry in the level's object list (the game reads it without a check and crashes)" });
+                        else if (world && WorldParts.Contains(f.Get(e, "name")))
+                            found.Add(new Finding { Error = true, Where = where + " " + path, Message = "world object without " + f.Get(e, "name") + " (the model-group set-up crashes on it)" });
+                    }
+                    else if (isLocal && !guids.Contains(r))
+                        found.Add(new Finding { Error = true, Where = where + " " + path, Message = "refers to instance " + r + ", which is not in this file" + (inObjects ? " (an empty entry in the level's object list: crash)" : "") });
+                    else if (r.IndexOf('/') > 0)
+                    {
+                        int cut = r.LastIndexOf('/');
+                        List<string> users;
+                        string key = r.Substring(0, cut) + "|" + r.Substring(cut + 1);
+                        if (!external.TryGetValue(key, out users)) external[key] = users = new List<string>();
+                        if (users.Count < 3) users.Add(where + " " + path);
+                    }
+                });
+            }
+            CheckWorldListed(f, found);
+            CheckSlots(f, slotsFrom, found);
+            if (bundles.Count > 0) CheckExternal(external, bundles, found);
+            return found;
+        }
+
+        static void CheckWorldListed(DbxFile f, List<Finding> found)
+        {
+            var level = f.Instances().FirstOrDefault(i => (f.Get(i, "type") ?? "").EndsWith(".LevelData"));
+            if (level == null) return;
+            var objects = level.Children.FirstOrDefault(c => f.Get(c, "name") == "Objects" && c.IsContainer);
+            var listed = new HashSet<string>(objects == null ? new string[0] : objects.Children.Select(c => f.Get(c, "ref") ?? ""), StringComparer.OrdinalIgnoreCase);
+            foreach (var i in f.Instances())
+            {
+                string type = f.Get(i, "type") ?? "", guid = f.Get(i, "guid");
+                if (ListedWorldTypes.Any(w => type.EndsWith(w)) && !listed.Contains(guid))
+                    found.Add(new Finding { Error = false, Where = Short(type) + " " + guid, Message = "not in the level's object list, so it is not loaded (missing terrain or buildings in game)" });
+            }
+        }
+
+        static string Short(string type) { int dot = type.LastIndexOf('.'); return dot >= 0 ? type.Substring(dot + 1) : type; }
+
+        static void Walk(DbxFile f, Element e, string path, Action<Element, string> visit)
+        {
+            if (!e.IsContainer) return;
+            var seen = new Dictionary<string, int>();
+            foreach (var c in e.Children)
+            {
+                string name = f.Get(c, "name") ?? f.TagOf(c);
+                int n;
+                seen.TryGetValue(name, out n);
+                seen[name] = n + 1;
+                string p = path.Length == 0 ? name : path + (f.TagOf(c) == "item" ? "[" + n + "]" : "." + name);
+                visit(c, p);
+                Walk(f, c, p, visit);
+            }
+        }
+
+        static void CheckSlots(DbxFile f, DbxFile slotsFrom, List<Finding> found)
+        {
+            var objects = PlacedObject.All(f).Where(o => o.Slot != null && o.SlotValue != 0).ToList();
+            foreach (var g in objects.GroupBy(o => o.SlotValue).Where(g => g.Count() > 1).Take(20))
+                found.Add(new Finding { Error = false, Where = "cull slot " + g.Key, Message = "shared by " + g.Count() + " objects (" + string.Join(", ", g.Take(3).Select(o => o.Blueprint)) + "): they are shown and hidden together - see-through objects" });
+            if (slotsFrom == null) return;
+            var theirs = PlacedObject.All(slotsFrom).Where(o => o.Slot != null).ToDictionary(o => o.Guid, o => o, StringComparer.OrdinalIgnoreCase);
+            var wrong = PlacedObject.All(f).Where(o => o.Slot != null).Where(o => { PlacedObject t; return theirs.TryGetValue(o.Guid, out t) && t.SlotValue != o.SlotValue; }).ToList();
+            if (wrong.Count > 0)
+                found.Add(new Finding { Error = false, Where = "cull slots", Message = wrong.Count + " objects have another slot than the same object in the cull trees' level (e.g. " + string.Join(", ", wrong.Take(3).Select(o => o.Blueprint + " " + o.SlotValue)) + ") - see-through objects; fix with: DbxEdit fixslots" });
+        }
+
+        static void CheckExternal(Dictionary<string, List<string>> external, IList<string> bundles, List<Finding> found)
+        {
+            var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string b in bundles)
+                foreach (string p in Directory.GetFiles(b, "*.dbx", SearchOption.AllDirectories))
+                {
+                    string rel = p.Substring(b.Length).TrimStart('\\', '/').Replace('\\', '/');
+                    rel = rel.Substring(0, rel.Length - 4);
+                    if (!index.ContainsKey(rel)) index[rel] = p;
+                }
+            var loaded = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            int missingFiles = 0;
+            foreach (var kv in external)
+            {
+                var parts = kv.Key.Split('|');
+                string partition = parts[0], guid = parts[1], path;
+                if (!index.TryGetValue(partition, out path))
+                {
+                    if (missingFiles++ < 30)
+                        found.Add(new Finding { Error = false, Where = kv.Value[0], Message = "refers to " + partition + ", which is not in the given folders" });
+                    continue;
+                }
+                HashSet<string> g;
+                if (!loaded.TryGetValue(path, out g))
+                {
+                    var d = new DbxFile(path);
+                    g = d.IsBinary ? new HashSet<string>(d.Instances().Select(i => d.Get(i, "guid") ?? ""), StringComparer.OrdinalIgnoreCase) : null;
+                    loaded[path] = g;
+                }
+                if (g != null && !g.Contains(guid))
+                    found.Add(new Finding { Error = true, Where = kv.Value[0], Message = "refers to instance " + guid + " in " + partition + ", which that file does not have" });
+            }
+            if (missingFiles > 30)
+                found.Add(new Finding { Error = false, Where = "references to other files", Message = (missingFiles - 30) + " more files not in the given folders" });
+        }
+    }
+
     static class Program
     {
         static int Main(string[] args)
@@ -639,7 +1411,13 @@ namespace Bfbc2Dbx
             if (args.Length >= 2 && args[0] == "xml") return Xml(args.Skip(1));
             if (args.Length >= 2 && args[0] == "roundtrip") return Roundtrip(args[1]);
             if (args.Length >= 3 && args[0] == "edit") return Edit(args);
+            if (args.Length >= 3 && args[0] == "import") return Import(args);
+            if (args.Length >= 2 && args[0] == "check") return Check(args);
+            if (args.Length >= 3 && args[0] == "fixslots") return FixSlots(args);
             Console.Error.WriteLine("usage: DbxEdit xml <file|folder> ... | roundtrip <file|folder> | edit <in.dbx> <out.dbx> <command|@file> ...");
+            Console.Error.WriteLine("       DbxEdit import <in.xml> <out.dbx> [--like <original.dbx>] [--types <file.dbx|folder>] ...");
+            Console.Error.WriteLine("       DbxEdit check <level.dbx> [--slots-from <level.dbx>] [--bundle <folder>] ...");
+            Console.Error.WriteLine("       DbxEdit fixslots <in.dbx> <out.dbx> --from <level.dbx>");
             Console.Error.WriteLine("  replace=<old>|<new>  drop=<guid>  dropfield=<name>  graft=<source.dbx>|<guid>");
             return 2;
         }
@@ -667,6 +1445,83 @@ namespace Bfbc2Dbx
                 }
             }
             Console.WriteLine("converted " + converted + " file(s)");
+            return 0;
+        }
+
+        // import <in.xml> <out.dbx> [--like <original.dbx>] [--types <file.dbx|folder>]...
+        // Reference: --like, else <in>.dbx next to the XML. Exit 0 = done, 1 = failed, 3 = written with guessed types.
+        static int Import(string[] args)
+        {
+            string xml = args[1], output = args[2], like = null;
+            var typePaths = new List<string>();
+            for (int i = 3; i < args.Length; i++)
+            {
+                if (args[i] == "--like" && i + 1 < args.Length) like = args[++i];
+                else if (args[i] == "--types" && i + 1 < args.Length) typePaths.Add(args[++i]);
+                else { Console.Error.WriteLine("import: unknown option " + args[i]); return 2; }
+            }
+            if (like == null && File.Exists(Path.ChangeExtension(xml, ".dbx"))) like = Path.ChangeExtension(xml, ".dbx");
+            try
+            {
+                DbxFile reference = null;
+                if (like != null)
+                {
+                    reference = new DbxFile(like);
+                    if (!reference.IsBinary) { Console.Error.WriteLine("import: not a binary dbx: " + like); return 1; }
+                }
+                var typeFiles = typePaths.SelectMany(DbxFiles).Select(p => new DbxFile(p)).Where(d => d.IsBinary).ToList();
+                XmlImport report;
+                var result = XmlImport.Import(xml, reference, typeFiles, out report);
+                File.WriteAllBytes(output, result.Serialize());
+                Console.WriteLine("import " + xml + " -> " + output + (like != null ? " (types from " + like + ")" : "") + ": "
+                                  + report.Kept + " unchanged, " + report.Changed + " changed, " + report.Added + " new, "
+                                  + report.Removed + " removed"
+                                  + (report.Rounded > 0 ? "; " + report.Rounded + " decimal(s) rounded to the nearest 4-byte value" : ""));
+                if (report.Guesses.Count == 0) return 0;
+                foreach (string g in report.Guesses.Take(50)) Console.Error.WriteLine("guess: " + g);
+                Console.Error.WriteLine(report.Guesses.Count + " value(s) typed by guess - check them, or give the original file (--like) or more files (--types)");
+                return 3;
+            }
+            catch (Exception e)
+            {
+                if (!(e is InvalidDataException || e is System.Xml.XmlException || e is IOException || e is UnauthorizedAccessException)) throw;
+                Console.Error.WriteLine("import failed: " + e.Message);
+                return 1;
+            }
+        }
+
+        // check <level.dbx> [--slots-from <level.dbx>] [--bundle <folder>]...   exit 0 = no errors, 1 = errors found
+        static int Check(string[] args)
+        {
+            DbxFile slotsFrom = null;
+            var bundles = new List<string>();
+            for (int i = 2; i < args.Length; i++)
+            {
+                if (args[i] == "--slots-from" && i + 1 < args.Length) slotsFrom = new DbxFile(args[++i]);
+                else if (args[i] == "--bundle" && i + 1 < args.Length) bundles.Add(args[++i]);
+                else { Console.Error.WriteLine("check: unknown option " + args[i]); return 2; }
+            }
+            var f = new DbxFile(args[1]);
+            if (!f.IsBinary) { Console.Error.WriteLine("not a binary dbx: " + args[1]); return 2; }
+            var found = LevelCheck.Run(f, slotsFrom, bundles);
+            foreach (var x in found.OrderBy(x => x.Error ? 0 : 1)) Console.WriteLine(x);
+            int errors = found.Count(x => x.Error);
+            Console.WriteLine("check " + args[1] + ": " + errors + " error(s), " + (found.Count - errors) + " warning(s)");
+            return errors > 0 ? 1 : 0;
+        }
+
+        // fixslots <in.dbx> <out.dbx> --from <level.dbx>
+        static int FixSlots(string[] args)
+        {
+            if (args.Length < 5 || args[3] != "--from") { Console.Error.WriteLine("usage: DbxEdit fixslots <in.dbx> <out.dbx> --from <level.dbx>"); return 2; }
+            var f = new DbxFile(args[1]);
+            var from = new DbxFile(args[4]);
+            if (!f.IsBinary || !from.IsBinary) { Console.Error.WriteLine("not a binary dbx"); return 2; }
+            var r = SlotFixer.Fix(f, from);
+            Console.WriteLine("fixslots: " + r.Changed + " slot(s) changed; matched by guid " + r.ByGuid + ", by blueprint and position "
+                              + r.ByPosition + ", nearest within 50 m " + r.ByNearest + ", no counterpart (slot 0) " + r.NoCounterpart);
+            foreach (string u in r.Unmatched.Take(30)) Console.WriteLine("  no counterpart: " + u);
+            File.WriteAllBytes(args[2], f.Serialize());
             return 0;
         }
 

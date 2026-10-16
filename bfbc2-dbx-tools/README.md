@@ -1,29 +1,96 @@
 # DBX tools
 
-**DbxEdit** reads, converts and edits Battlefield: Bad Company 2's binary `.dbx` files (Frostbite 1 data
-as a tokenised XML tree). The format is the same on PC and Xbox 360.
+**DbxEdit** reads, converts, checks and edits Battlefield: Bad Company 2's binary `.dbx` files (Frostbite 1
+data as a tokenised XML tree), from the command line or in a window (**DbxEditGUI**). The format is the
+same on PC and Xbox 360.
 
-- `DbxEdit xml` converts binary `.dbx` files to readable XML (`<name>.xml` next to each file).
-- `DbxEdit edit` edits binary `.dbx` files directly. Anything it does not change is written back byte for
-  byte, so unchanged files stay identical.
+| Command | What it does |
+|---|---|
+| `DbxEdit xml` | binary `.dbx` to readable XML |
+| `DbxEdit import` | XML back to binary `.dbx` |
+| `DbxEdit edit` | change binary files directly with commands (drop, graft, copy, set, ...) |
+| `DbxEdit check` | find what crashes or breaks a level, without starting the game |
+| `DbxEdit fixslots` | repair cull slots (houses and vehicles turning see-through) |
+| `DbxEdit roundtrip` | read and rewrite files, report any that would change |
+| `DbxEditGUI` | all of this in a window |
 
-[FORMAT.md](FORMAT.md) describes the format and everything DbxEdit outputs; the code is written from it.
+Anything DbxEdit doesn't change is written back byte for byte. [FORMAT.md](FORMAT.md) describes the format
+and everything DbxEdit does; the code is written from it.
 
 ## Build
 
-Run `build.bat`. It compiles `DbxEdit.exe` into this folder with the C# compiler that ships with Windows
-(.NET Framework 4) and needs no install.
+Run `build.bat`. It compiles `DbxEdit.exe` and `DbxEditGUI.exe` into this folder with the C# compiler
+that ships with Windows (.NET Framework 4) and needs no install.
 
-## Convert to XML
+## The window
+
+Start `DbxEditGUI.exe` and open a `.dbx` file (File > Open, or drop it on the window).
+
+- **The tree** shows the file: instances (bold) with their fields, lists and values. Lists open when you
+  expand them.
+- **Select a value** to edit it on the right. Numbers in a list are separated by `/`. Attributes, for
+  example a reference, are edited in the table above it. **Apply** stores the change, and
+  **Go to reference** jumps to the instance a reference points to.
+- **Instance menu** (also on right-click): remove an instance, graft one from another file, copy a field
+  from another file, add a list entry.
+- **Edit menu:** undo (Ctrl+Z), find (Ctrl+F, then F3), replace strings, remove a field everywhere, set a
+  bool everywhere, change the file's own GUID.
+- **Level menu:** check the level (F5), check its cull slots against another level, fix cull slots. The
+  results appear in the bottom pane; double-click a line to go to its instance.
+- **File menu:** save (the first save keeps the original as `<name>.dbx.bak`), export or import XML, and
+  **Save edit script**, which writes your edits as DbxEdit commands to replay on another file.
+
+## Convert to XML and back
 
 ```
 DbxEdit xml <file.dbx | folder> [more ...]
+DbxEdit import <file.xml> <out.dbx> [--like <original.dbx>] [--types <file.dbx | folder>]...
 ```
 
-It converts every binary `.dbx` file it finds (folders are searched recursively) and skips files that
-are already plain XML.
+`xml` converts every binary `.dbx` file it finds (folders are searched recursively) and skips plain-XML
+ones.
 
-## Edit
+The XML doesn't record every type. For example, `1` may be the integer 1 or the decimal 1.0. So `import`
+takes the types from **the original file**: `--like`, or `<name>.dbx` next to the XML.
+
+- **Unchanged values** keep their exact bytes, so an unedited XML gives back the original file exactly.
+- **Changed values** keep their field's type. Decimals with more digits than the game stores are rounded,
+  and the import reports how many.
+- **New elements** take their type from the same field elsewhere in the file. Add more files to learn
+  from with `--types`.
+- **Guesses:** anything still unknown is guessed from the XML, every guess is listed, and the exit code
+  is 3. Without the original file most values are guesses, so keep it next to the XML.
+
+## Check a level
+
+```
+DbxEdit check <level.dbx> [--slots-from <level.dbx>] [--bundle <unpacked folder>]...
+```
+
+It reports, with the crash each one causes:
+
+- **empty or unresolved entries in the level's object list:** the game crashes while loading;
+- **model groups and their members without physics or mesh data:** the game crashes at the model-group
+  set-up;
+- **references to instances the file doesn't have;**
+- **terrain, model groups or forests missing from the object list:** they aren't loaded;
+- **objects that share a cull slot:** they turn see-through together.
+
+Two options add more checks:
+- `--slots-from` names the level whose cull trees this one uses, to find slots that don't match it.
+- `--bundle` names unpacked bundle folders, to check references into other files.
+
+The exit code is 1 if there are errors.
+
+```
+DbxEdit fixslots <in.dbx> <out.dbx> --from <level.dbx>
+```
+
+`fixslots` gives every placed object the cull slot of the same object in the level the cull trees belong
+to. Objects are matched by GUID, else by blueprint and position, else by the nearest unused object of the
+same blueprint within 50 m. Objects with no match get slot 0 (outside the tree).
+
+## Edit with commands
 
 ```
 DbxEdit roundtrip <file.dbx | folder>         parse and rewrite every file, report any that change
@@ -45,24 +112,48 @@ Commands (a `@file` argument reads more commands from a file, one per line; `#` 
 | `set=<field>\|<true\|false\|0-255>` | sets every bool / byte field called `<field>` |
 | `partguid=<guid>` | sets the partition's own GUID (for a copy under a new name) |
 
-The exact rules for each command are in [FORMAT.md](FORMAT.md) section 5.
+The exact rules for each command are in [FORMAT.md](FORMAT.md).
 
-Example: re-point a level's object list from a missing instance to another one, then check the result:
+## Tests
 
 ```
-DbxEdit edit Level.dbx Level_fixed.dbx replace=77bb70bd-4472-466b-ac88-b3510bd55f8e|48a152fe-b52e-4f5c-9f06-1c26c8d8df2d
-DbxEdit xml Level_fixed.dbx
+tests\run_tests.bat                          unit tests: small files built in memory, no game data needed
+tests\run_tests.bat <unpacked folder> [...]  + every binary .dbx in the folders, and the fingerprints
 ```
+
+- **Unit tests** cover the format, the XML export and import (including the XML reader's handling of
+  duplicate attributes, entities, CDATA and line breaks), every edit command, the level check, the slot
+  fixer, the command line (messages and exit codes) and the window.
+- **With game folders** (FbrbTool-unpacked bundles), every binary file must:
+  - round-trip byte for byte;
+  - come back exactly through `xml`, then `import`;
+  - take simulated edits exactly, with every type kept;
+  - without the original file, differ only where a guess was reported.
+- **Fingerprints:** `tests\fingerprints_795745.txt` holds SHA-1s of the XML output and of edit-command
+  results (output file, messages, exit code) for the PC game's files. They were recorded with the version
+  proven identical to the earlier tools, so any later change in behaviour shows up. The file holds only
+  hashes, no game data. Files you don't have are skipped.
 
 ## Tested
 
 On 43,290 unique `.dbx` files (PC, Xbox 360 and Linux server data, plus edited levels):
 
-- `roundtrip`: every binary file comes back byte for byte.
-- `xml`: output byte-identical to the earlier DbxTool (a port of Frankelstner's `dbx.py`), which this
-  replaces.
-- `edit`: every command, alone and combined, on 12 levels, plus a real 9,000-command level merge:
-  output, messages and exit codes identical to the earlier DbxEdit.
+- **`roundtrip`:** every binary file comes back byte for byte.
+- **`xml`:** byte-identical to the earlier DbxTool (a port of Frankelstner's `dbx.py`), which this
+  replaces. The edit commands give output, messages and exit codes identical to the earlier DbxEdit.
+  This was tested on every command, alone and combined, on 12 levels, plus a real 9,000-command level
+  merge.
+- **`import`:**
+  - all 43,289 binary files come back exactly through `xml`, then `import` with the original;
+  - on 1,731 files with simulated edits (values changed, instances removed and copied), the result
+    contains exactly the edits, with every type kept;
+  - without the original, no value differs that wasn't reported as a guess.
+- **`check` and `fixslots`:** on the stages of a real level port, each stage was flagged with the
+  problems it had (an empty object-list entry, model groups without physics, missing world objects, wrong
+  cull slots), with no false alarms on stock levels. `fixslots` reproduced a hand-made slot repair byte
+  for byte.
+- **The window:** opening, editing, saving, undo and the level check were driven from a test program;
+  saving gives the same bytes as the command line.
 
 ## Credits
 

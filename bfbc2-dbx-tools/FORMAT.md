@@ -20,6 +20,9 @@ significant group first; the high bit of each byte means "another byte follows".
 | 24 + 4*N* | | the strings: UTF-8, each ended by a zero byte |
 | 24 + *S* | | payload: the element tree |
 
+String 0 is the empty string in every game file. It cannot name a tag, because a tag index of 0 closes
+the open element, so a new file starts its table with it.
+
 A file is binary DBX if it is longer than 24 bytes and starts with `{binary}`. Other `.dbx` files are plain
 XML already.
 
@@ -117,3 +120,70 @@ tag, then each attribute's name and value, then a text value, then the children 
 
 A `@file` argument reads more commands from that file: one per line, blank lines and lines starting with
 `#` ignored.
+
+## 6. XML import (`DbxEdit import`)
+
+The XML of section 3 leaves out what the binary needs to be exact:
+
+- whether a value is text, a number list or a bool/byte;
+- the size of each number (4, 8 or 2 bytes);
+- for 4-byte numbers, integer or decimal (`1` is both the integer 1 and the decimal 1.0);
+- the container byte, the first byte of bool/byte values, the header value, trailing bytes and the
+  string-table order.
+
+Across 43,289 game files the container byte is always 0, the first byte of bool/byte values always 1,
+the header value always 0, and there are no trailing bytes. But 5.9 million decimals print as whole
+numbers, and 8,683 text values look like numbers. So the import takes types from a **reference file**,
+normally the original `.dbx` the XML was exported from (`--like`, or `<name>.dbx` next to the XML).
+
+- **Matching.** Each XML element is matched to a reference element among its siblings: by `guid`, else
+  `name`, else `ref`, else all attributes, in order. A reference element is used once; the next XML
+  element looks after it, and reference elements left over count as removed.
+- **Unchanged values** (the same text as the reference shows, line endings aside) keep the reference's
+  bytes. Unchanged attributes keep its string indexes. The reference's string table is kept and new
+  strings are appended, so an unedited XML gives the original file byte for byte.
+- **Changed values** keep the reference element's kind and number size. A 4-byte token is read as the
+  integer or the decimal that the XML would print as exactly that token. If both would (`1`), the
+  reference value's reading decides. If neither would (more digits than a 4-byte decimal holds), an
+  integer field takes the integer and anything else the nearest decimal, which is counted as rounded.
+- **New elements** take kind, size and integer-or-decimal from the same field (tag + first attribute
+  value) in the reference or the `--types` files. With no such field, the XML's own shape decides, and
+  each such guess is reported:
+  - `<x ... />` is empty text;
+  - a multi-line element without children is a container;
+  - `true` or `false` is a bool;
+  - `/`-separated numbers are 4-byte numbers;
+  - anything else is text.
+- New files (no reference) get header value 0, container byte 0, first byte 1 and no trailing bytes.
+
+Exit code 0 means written; 1 means failed; 3 means written, but some values were typed by guess.
+
+## 7. Level checks (`DbxEdit check`, `DbxEdit fixslots`)
+
+`check` reports, for a level partition:
+
+- **Error:** an item in LevelData `Objects` that is `null` or refers to an instance not in the file. The
+  game reads the list without a check (function 0x006EFBC0, crash at 0x006EFF8A).
+- **Error:** a `PhysicsData` or `MeshEntityType` reference that is `null` on a model group, model-group
+  member, forest or tree member. The model-group set-up dereferences it (crash at 0x00AF7144). Terrain
+  is exempt, since its collision comes from elsewhere.
+- **Error:** any other local reference to an instance not in the file.
+- **Warning:** terrain, model groups, forests or the static envmap not listed in LevelData `Objects`.
+  These are not loaded.
+- **Warning:** cull slots shared by objects. A `ReferenceObjectData`'s `Enumeration` is its slot in the
+  level's static cull trees: unique per object, 0 for objects outside the trees (dynamic props).
+  Objects that share a slot are shown and hidden together.
+- **Warning** (with `--slots-from <level>`): objects whose slot differs from the same object (by GUID) in
+  the level the cull trees were built for.
+- **With `--bundle <folder>`:** references into other files are resolved against the unpacked folders.
+  - Warning: a referenced file is missing.
+  - Error: the file is there, but the referenced instance is not.
+
+`fixslots <in> <out> --from <level>` gives every object the slot of the same object in `<level>`:
+
+1. by GUID;
+2. else by blueprint name and position (rounded to 0.1 m);
+3. else the nearest unused same-blueprint object within 50 m;
+4. else 0.
+
+It prints how many objects each rule matched.
