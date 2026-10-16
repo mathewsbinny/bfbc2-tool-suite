@@ -314,8 +314,15 @@ OPFOR telemetry module, and is versioned.
 
 ## 7. Open questions
 
-1. **Terrain heightfield:** the full layout (what the header fields are, the grid, and the about 270 KB
-   after it: probably patches or levels of detail), and how the 16-bit heights map to metres.
+1. **Terrain heightfield:** the layout and the height encoding.
+   - **Header, read:** six floats, the extent (-1024, 0, -1024)..(1024, 1000, 1024), i.e. 2048 m square
+     and 0-1000 m high. Then 2048 (the grid), 8 and 9 (probably 9 levels of detail, 2048 halving to 8),
+     and 4,194,304 (= 2048 × 2048 values). Then a table of small 16-bit pairs (per-tile data?).
+   - **Tested, not the layout:** a plain row-major grid of 16-bit heights scaled to 0-1000 m, at any
+     start offset in either order. Checked against DICE's path-data ground heights, the median error is
+     97 m.
+   - **So:** probably tiled, or in level-of-detail order. Until it is decoded, the view uses NavKit's
+     in-game surface samples as terrain.
 2. **Water:** surface heights and extents (relevant to NavKit's extra-ground gap).
 3. **Traversal links in Kynapse data:** whether the format can carry a ladder or jump link the game's AI
    would use, to be tested in game. Until then, those links go to OPFOR's side file.
@@ -324,7 +331,18 @@ OPFOR telemetry module, and is versioned.
    check.
 5. **Performance:** a whole level's collision (millions of triangles) in one view, with level-of-detail
    or culling if needed.
-6. **Entity types:** which DBX types are objectives (M-COMs, Conquest flags), destructibles, vehicles and
-   vehicle spawns, per game mode.
+6. **Entity types (mostly answered):**
+   - **Spawns:** `SoldierSpawnEntityData` and `AlternateSpawnEntityData` (soldiers),
+     `VehicleSpawnEntityData` (vehicles).
+   - **Objectives:**
+     - Conquest flags are `CapturePointEntityData`.
+     - Rush and Onslaught use `MissionObjectiveEntityData`, `ArmDisarmAwardEntityData`,
+       `CapturePointEntityData` and the placed M-COM objects (`objects/objects/mpobjective`).
+   - **Play area:** `CombatAreaTriggerEntityData`, one per team and Rush stage, each with a boundary
+     polygon (`Geometry`, `SurroundingGeometry`) and the field `IsAiAllowedOutside`. This bears on
+     NavKit's extra ground: DICE may have generated only inside the combat areas.
+   - **Out of bounds:** `DamageAreaTriggerEntityData`.
+   - **Still to identify:** destructibles (the `PredestructionEntityData` sets and destructible object
+     types).
 7. **Vehicle navigation data:** NavKit makes infantry data only. Vehicle data (pitch 1 m, larger radius)
    is needed for vehicle-only regions and for the bots' vehicle use (Goal 4).
