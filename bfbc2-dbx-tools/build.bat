@@ -1,9 +1,8 @@
 @echo off
-rem Builds DbxTool.exe and DbxEdit.exe next to this file with the .NET Framework 4 C# compiler (part of Windows).
+rem Builds DbxEdit.exe next to this file with the .NET Framework 4 C# compiler (part of Windows).
 setlocal
 set HERE=%~dp0
 set CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe
 if not exist "%CSC%" (echo C# compiler not found: %CSC% & exit /b 1)
-"%CSC%" -nologo -optimize -out:"%HERE%DbxTool.exe" "%HERE%DbxTool.cs" || exit /b 1
 "%CSC%" -nologo -optimize -out:"%HERE%DbxEdit.exe" "%HERE%DbxEdit.cs" || exit /b 1
-echo Built DbxTool.exe and DbxEdit.exe
+echo Built DbxEdit.exe
