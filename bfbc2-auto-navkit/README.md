@@ -126,6 +126,12 @@ avregress.py` rebuilds levels with the current code (the
      inputs of `navkit.py build`) and fails if any parity measure got worse than the reference run
      (`regression`, made from the code of 2026-10-16 and compared with baseline A). Run it before and after
      every generator change; `--save regression` after an intended improvement.
+     - **The reference against baseline A** (13 levels, 70 minutes): mostly within a few tenths of a point
+       either way, from different build inputs (baseline A's files were built by hand, the reference uses
+       `navkit.py build`'s: spawns as seeds, no exclusion files). Larger: over-connection on SP_008
+       (10.5 -> 35.5 %) and SP_008_B (32.2 -> 69.0 %), connectivity on SP_009 (85.9 -> 83.8 %), AI pairwise on
+       SP_008_B (79.3 -> 76.6 %) and SP_02 (84.2 -> 82.7 %); connectivity better on SP_02 (+0.7) and SP_008
+       (+1.2). Which input makes the SP_008 difference is still to find (likely the exclusion files).
    - **Ground under water (2026-10-16, `tools
 avwater.py`):** DICE keeps walkable ground down to about
      1.5 m under water and almost none deeper (11 campaign levels: 85-90 % of NavKit's ground at 0-1.5 m is
