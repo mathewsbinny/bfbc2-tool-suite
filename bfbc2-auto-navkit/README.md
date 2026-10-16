@@ -5,7 +5,7 @@ levels – including multiplayer maps that never shipped with any – so the gam
 them. Part of Project OPFOR, kept self-contained so it can be published separately for other
 modders.
 
-**To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `NavKit.pyw` for the window, or
+**To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `navkitGUI.pyw` for the window, or
 run `python navkit\navkit.py` from a command prompt.
 
 ## Why
@@ -36,7 +36,7 @@ licence error. NavKit replaces it with independent code.
 
 ```
 QUICKSTART.md        how to build path data for a level, step by step
-NavKit.pyw           the NavKit window (Tkinter): the steps below as buttons
+navkitGUI.pyw        the NavKit window (Tkinter): the steps below as buttons
 navkit.py            driver: levels / prepare / sample / build / check / install / restore / status / all
 research\            specification (KYNAPSE_SPEC.md) and images (img\)
 tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
@@ -98,7 +98,7 @@ src\, tests\         (reserved for the generator proper and its tests)
      data); later a standalone mode that reads Havok collision directly instead of sampling in game.
 5. **Tooling – done (2026-10-15).** `navkit.py` runs the whole workflow from a level name (unpack, objects,
    automatic sampling box and sector offsets, both in-game sampling runs with `opfor.ini` restored
-   afterwards, build, check, install / restore with the original kept); `NavKit.pyw` is a small window
+   afterwards, build, check, install / restore with the original kept); `navkitGUI.pyw` is a small window
    over it. Stock MP maps wait for MP support: the sampler needs the level's AI running.
 
 Credits: see Project OPFOR's `CREDITS.md`. Kynapse is a trademark of Autodesk; Battlefield: Bad

@@ -38,7 +38,7 @@ Close the game before you use NavKit. Two steps start and close the game on thei
 
 ## The easy way: the NavKit window
 
-Double-click **`navkit\NavKit.pyw`**. The window has a level list at the top, the sampling area below
+Double-click **`navkit\navkitGUI.pyw`**. The window has a level list at the top, the sampling area below
 it, then the steps, and a log of what NavKit is doing at the bottom.
 
 1. **Pick a level** in the *Level* list, for example `sp_01`. Leave *Only levels with AI* ticked to list
