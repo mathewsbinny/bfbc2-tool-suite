@@ -15,12 +15,13 @@ share one core: level loading, a 3D view, picking and the game's data formats.
 | `bfbc2-automated-map-and-bot-test-harness/crash-reader/` | **crash reader**: the game's `crashreport.xml` turned into names, code, null pointers and hints |
 | `core/` | the shared core: Python readers for `.dbx`, terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking |
 | `bfbc2-map-inspector/` | **Map Inspector**: browse a level in 3D and inspect every object's source, properties and links; measure |
+| `bfbc2-navigation-studio/` | **Navigation Studio** (viewing): NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network |
 
 **Planned** (see [DESIGN.md](DESIGN.md))
 
 | Folder | Tool | Milestone |
 |---|---|---|
-| `bfbc2-navigation-studio/` | view, edit and test the AI's navigation data (NavKit / Kynapse) | M3-M4 |
+| `bfbc2-navigation-studio/` | editing, the path test and side files for the AI's navigation data | M4 |
 | `bfbc2-automated-map-and-bot-test-harness/` | repeatable map and bot tests, results compared between builds | M5, then growing |
 | `bfbc2-bot-ai-debugger/` | live view of the AI while the game runs (through Project OPFOR) | M6 |
 | `bfbc2-tactical-map-authoring-tool/` | tactical annotations above the navigation data for bots | M7 |
@@ -29,6 +30,14 @@ share one core: level loading, a 3D view, picking and the game's data formats.
 
 The asset builder & validator, `bfbc2-asset-builder`, is part of the Project OPFOR repository (DESIGN.md
 section 4.9).
+
+## The 3D tools and your GPU
+
+The Map Inspector and the Navigation Studio draw with OpenGL 3.3. Each prints the GPU it uses when it starts
+(and shows it in its status line). On a laptop with two GPUs, Windows may give Python the slower integrated
+one: set `python.exe` to "High performance" in Settings > System > Display > Graphics. On the development
+PC that took the Navigation Studio on SP_01 (10.4 million triangles) from the AMD Radeon integrated GPU to
+the GeForce RTX 4060, at 144 frames a second.
 
 ## Tests
 
@@ -51,6 +60,8 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `core/tests/test_level.py` | game | the loader's counts per category, team, shape, collision, terrain and water against `level_snapshot.json` (`--update` after an intended change) |
 | `core/tests/test_terrain.py` | game | heights within 0.1 m of the in-game terrain samples (13 levels) |
 | `hpdtool roundtrip / meshtrip` | game | every path-data file and navigation mesh written back byte for byte |
+| `tests/test_viewers.py` | game | the Map Inspector and the Navigation Studio open a level, draw it (screenshot not blank) and exit; prints the GPU used |
+| `bfbc2-auto-navkit/tools/navregress.py` | game (2 levels), full (13) | NavKit rebuilds levels with the current code; fails if any DICE-parity measure is worse than the reference run `regression` |
 | DbxEdit corpus, `core/tests/test_dbx.py` | full | every unpacked `.dbx`: DbxEdit's fingerprints, and the Python reader's XML identical to DbxEdit's |
 
 Each tool's folder has its own README. The tools that existed before the suite were merged in with their

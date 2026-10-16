@@ -377,7 +377,7 @@ class Inspector:
         imgui.set_next_window_pos((10, io.display_size.y - 40), imgui.Cond_.always)
         imgui.set_next_window_size((io.display_size.x - 20, 30), imgui.Cond_.always)
         imgui.begin('##status', flags=imgui.WindowFlags_.no_decoration | imgui.WindowFlags_.no_inputs | imgui.WindowFlags_.no_background)
-        imgui.text(f'{v.fps:5.1f} fps   {self.scene_triangles:,} triangles   camera: {"fly" if v.camera.fly else "orbit"} (F)   '
+        imgui.text(f'{v.fps:5.1f} fps   {self.scene_triangles:,} triangles   {v.renderer}   camera: {"fly" if v.camera.fly else "orbit"} (F)   '
                    f'click: {"measure" if self.measuring else "select"} (M)   '
                    f'terrain: {"height field" if self.lvl.heightfield is not None else "samples"}')
         imgui.end()

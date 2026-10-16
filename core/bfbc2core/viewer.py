@@ -22,11 +22,14 @@ VERTEX = """
 uniform mat4 mvp;
 in vec3 in_pos;
 in uint in_tag;            // bits 0-23 object id, 24-31 layer
+in vec4 in_col;            // own colour when alpha > 0.5, else the layer's
 out vec3 v_world;
 flat out uint v_tag;
+flat out vec4 v_col;
 void main() {
     v_world = in_pos;
     v_tag = in_tag;
+    v_col = in_col;
     gl_Position = mvp * vec4(in_pos, 1.0);
 }
 """
@@ -41,6 +44,7 @@ uniform int pick;          // 1: write the object id instead of a colour
 uniform int lines;         // 1: drawing lines (no surface normal to shade by)
 in vec3 v_world;
 flat in uint v_tag;
+flat in vec4 v_col;
 out vec4 color;
 void main() {
     uint layer = v_tag >> 24u;
@@ -55,7 +59,7 @@ void main() {
         vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
         shade = 0.35 + 0.65 * abs(dot(n, light));
     }
-    vec3 c = palette[layer] * shade;
+    vec3 c = (v_col.a > 0.5 ? v_col.rgb : palette[layer]) * shade;
     if (id == selected) c = mix(c, vec3(1.0, 1.0, 1.0), 0.6);
     else if (id == hovered) c = mix(c, vec3(1.0, 1.0, 1.0), 0.2);
     color = vec4(c, 1.0);
@@ -80,13 +84,25 @@ void main() { color = vec4(v_col, 1.0); }
 
 # ------------------------------------------------------------------------------------------------ scene
 
+def triangle_colors(colors, n, per=3):
+    """Per-vertex RGBA bytes from one RGB per primitive (alpha 255), or zeros (alpha 0: the layer's colour)."""
+    if colors is None:
+        return np.zeros((n * per, 4), dtype=np.uint8)
+    c = np.clip(np.asarray(colors, dtype=np.float32).reshape(n, 3) * 255.0 + 0.5, 0, 255).astype(np.uint8)
+    out = np.empty((n, 4), dtype=np.uint8)
+    out[:, :3], out[:, 3] = c, 255
+    return np.repeat(out, per, axis=0)
+
+
 class Scene:
     """Triangles to draw: add batches, then the viewer uploads them once."""
 
     def __init__(self):
         self.layers = []                  # (name, colour)
-        self.batches = []                 # (positions (n*3, 3) float32, tags (n*3,) uint32)
-        self.line_batches = []            # (positions (n*2, 3) float32, tags (n*2,) uint32)
+        self.batches = []                 # (positions (n*3, 3) float32, tags (n*3,) uint32, colours (n*3, 4) uint8)
+        self.line_batches = []            # (positions (n*2, 3) float32, tags (n*2,) uint32, colours (n*2, 4) uint8)
+        self.ranges = []                  # per triangle batch: (first vertex, vertex count), for Viewer.set_colors
+        self._vertices = 0
         self._sample = []
 
     def layer(self, name, colour):
@@ -98,13 +114,19 @@ class Scene:
         self.layers.append((name, colour))
         return len(self.layers) - 1
 
-    def add_triangles(self, triangles, object_id, layer):
-        """triangles: (n, 3, 3) world positions."""
+    def add_triangles(self, triangles, object_id, layer, colors=None):
+        """triangles: (n, 3, 3) world positions. object_id: one id, or one per triangle (an (n,) array).
+        colors: None (the layer's colour) or one RGB per triangle ((n, 3) floats 0-1). Returns the batch index."""
         t = np.asarray(triangles, dtype=np.float32).reshape(-1, 3)
-        tag = np.full(len(t), (layer << 24) | (object_id & 0xFFFFFF), dtype=np.uint32)
-        self.batches.append((t, tag))
+        n = len(t) // 3
+        ids = np.broadcast_to(np.asarray(object_id, dtype=np.uint32) & 0xFFFFFF, (n,))
+        tag = np.repeat((np.uint32(layer) << np.uint32(24)) | ids, 3).astype(np.uint32)
+        self.batches.append((t, tag, triangle_colors(colors, n)))
+        self.ranges.append((self._vertices, len(t)))
+        self._vertices += len(t)
         step = max(1, len(t) // 2000)
         self._sample.append(t[::step])
+        return len(self.batches) - 1
 
     @property
     def bounds(self):
@@ -128,10 +150,13 @@ class Scene:
             tris += [corners[[a, b, cc]], corners[[a, cc, d]]]
         self.add_triangles(np.array(tris), object_id, layer)
 
-    def add_lines(self, segments, object_id, layer):
-        """segments: (n, 2, 3) world positions."""
+    def add_lines(self, segments, object_id, layer, colors=None):
+        """segments: (n, 2, 3) world positions; object_id one id or one per segment; colors None or (n, 3)."""
         s = np.asarray(segments, dtype=np.float32).reshape(-1, 3)
-        self.line_batches.append((s, np.full(len(s), (layer << 24) | (object_id & 0xFFFFFF), dtype=np.uint32)))
+        n = len(s) // 2
+        ids = np.broadcast_to(np.asarray(object_id, dtype=np.uint32) & 0xFFFFFF, (n,))
+        tag = np.repeat((np.uint32(layer) << np.uint32(24)) | ids, 2).astype(np.uint32)
+        self.line_batches.append((s, tag, triangle_colors(colors, n, per=2)))
 
     def add_polyline(self, points, object_id, layer, closed=False):
         p = np.asarray(points, dtype=np.float32)
@@ -141,7 +166,7 @@ class Scene:
         self.add_lines(np.stack([q[:-1], q[1:]], axis=1), object_id, layer)
 
     def triangle_count(self):
-        return sum(len(p) for p, _ in self.batches) // 3
+        return sum(len(x[0]) for x in self.batches) // 3
 
 
 # ------------------------------------------------------------------------------------------------ camera
@@ -224,6 +249,7 @@ class Viewer:
         self.hovered = NO_ID
         self.hover_point = None
         self.ctx = None
+        self.renderer = ''                # the GPU OpenGL runs on (set when the window opens)
         self.fps = 0.0
         self._last = time.time()
         self._frames = 0
@@ -240,18 +266,45 @@ class Viewer:
     # --- GPU ----------------------------------------------------------------------------------------
     def _init(self):
         self.ctx = moderngl.create_context()
+        self.renderer = self.ctx.info.get('GL_RENDERER', '?').split('/')[0]
+        print(f'GPU: {self.renderer}' + ('  (on a PC with two GPUs, set python.exe to "High performance" in Windows '
+                                         'Settings > System > Display > Graphics for the faster one)'
+                                         if 'Radeon(TM) Graphics' in self.renderer or 'Intel' in self.renderer else ''))
         self.prog = self.ctx.program(vertex_shader=VERTEX, fragment_shader=FRAGMENT)
-        pos = np.concatenate([p for p, _ in self.scene.batches]) if self.scene.batches else np.zeros((3, 3), np.float32)
-        tag = np.concatenate([t for _, t in self.scene.batches]) if self.scene.batches else np.zeros(3, np.uint32)
+        # batches ordered by layer, so each layer is one range of the buffer and hidden layers are not drawn at all
+        b = self.scene.batches
+        order = sorted(range(len(b)), key=lambda k: int(b[k][1][0] >> 24) if len(b[k][1]) else 0)
+        self.layer_ranges, start = {}, 0
+        new_ranges = list(self.scene.ranges)
+        for k in order:
+            n = len(b[k][0])
+            lay = int(b[k][1][0] >> 24) if n else 0
+            first, count = self.layer_ranges.get(lay, (start, 0))
+            self.layer_ranges[lay] = (first, count + n)
+            new_ranges[k] = (start, n)
+            start += n
+        self.scene.ranges = new_ranges
+        b = [b[k] for k in order]
+        pos = np.concatenate([x[0] for x in b]) if b else np.zeros((3, 3), np.float32)
+        tag = np.concatenate([x[1] for x in b]) if b else np.zeros(3, np.uint32)
+        col = np.concatenate([x[2] for x in b]) if b else np.zeros((3, 4), np.uint8)
         self.vbo_pos = self.ctx.buffer(pos.astype(np.float32).tobytes())
         self.vbo_tag = self.ctx.buffer(tag.astype(np.uint32).tobytes())
-        self.vao = self.ctx.vertex_array(self.prog, [(self.vbo_pos, '3f', 'in_pos'), (self.vbo_tag, 'u', 'in_tag')])
+        self.vbo_col = self.ctx.buffer(col.tobytes())
+        self.vao = self.ctx.vertex_array(self.prog, [(self.vbo_pos, '3f', 'in_pos'), (self.vbo_tag, 'u', 'in_tag'),
+                                                     (self.vbo_col, '4f1', 'in_col')])
         self.line_vao = None
-        if self.scene.line_batches:
-            lpos = np.concatenate([p for p, _ in self.scene.line_batches])
-            ltag = np.concatenate([t for _, t in self.scene.line_batches])
-            self.line_vbos = (self.ctx.buffer(lpos.astype(np.float32).tobytes()), self.ctx.buffer(ltag.astype(np.uint32).tobytes()))
-            self.line_vao = self.ctx.vertex_array(self.prog, [(self.line_vbos[0], '3f', 'in_pos'), (self.line_vbos[1], 'u', 'in_tag')])
+        lb = sorted(self.scene.line_batches, key=lambda x: int(x[1][0] >> 24) if len(x[1]) else 0)
+        self.line_ranges, start = {}, 0
+        for x in lb:
+            lay = int(x[1][0] >> 24) if len(x[1]) else 0
+            first, count = self.line_ranges.get(lay, (start, 0))
+            self.line_ranges[lay] = (first, count + len(x[0]))
+            start += len(x[0])
+        if lb:
+            self.line_vbos = tuple(self.ctx.buffer(np.concatenate([x[k] for x in lb]).tobytes()) for k in range(3))
+            self.line_vao = self.ctx.vertex_array(self.prog, [(self.line_vbos[0], '3f', 'in_pos'), (self.line_vbos[1], 'u', 'in_tag'),
+                                                              (self.line_vbos[2], '4f1', 'in_col')])
         self.overlay_prog = self.ctx.program(vertex_shader=OVERLAY_VERTEX, fragment_shader=OVERLAY_FRAGMENT)
         self.overlay_vbo = self.ctx.buffer(reserve=6 * 4 * 2 * 4096, dynamic=True)
         self.overlay_vao = self.ctx.vertex_array(self.overlay_prog, [(self.overlay_vbo, '3f 3f', 'in_pos', 'in_col')])
@@ -289,13 +342,22 @@ class Viewer:
         self.prog['hovered'].value = self.hovered
         self.prog['pick'].value = 0
         self.prog['lines'].value = 0
-        self.vao.render(moderngl.TRIANGLES)
-        if self.line_vao is not None:
-            self.prog['lines'].value = 1
-            self.line_vao.render(moderngl.LINES)
-            self.prog['lines'].value = 0
+        self._render_layers()
         self.ctx.disable(moderngl.DEPTH_TEST)
         self._draw_overlay(mvp)
+
+    def _render_layers(self):
+        """The visible layers only: each is one range of the triangle (and line) buffer."""
+        for lay, (first, count) in self.layer_ranges.items():
+            if count and self.layer_visible(lay):
+                self.vao.render(moderngl.TRIANGLES, vertices=count, first=first)
+        if self.line_vao is not None:
+            lines = self.prog['lines'].value
+            self.prog['lines'].value = 1
+            for lay, (first, count) in self.line_ranges.items():
+                if count and self.layer_visible(lay):
+                    self.line_vao.render(moderngl.LINES, vertices=count, first=first)
+            self.prog['lines'].value = lines
 
     def _draw_overlay(self, mvp):
         if not self.overlay:
@@ -308,6 +370,17 @@ class Viewer:
             self._overlay_count, self._overlay_key = 2 * len(seg), key
         self.overlay_prog['mvp'].write(mvp.T.astype(np.float32).tobytes())
         self.overlay_vao.render(moderngl.LINES, vertices=self._overlay_count)
+
+    def set_colors(self, batch, colors):
+        """New colours for a triangle batch after upload: one RGB per triangle ((n, 3) floats 0-1), or None for
+        the layer's colour again. (Before the window opens, the scene's own copy is changed.)"""
+        start, count = self.scene.ranges[batch]
+        data = triangle_colors(colors, count // 3)
+        if self.ctx is None:
+            p, t, _ = self.scene.batches[batch]
+            self.scene.batches[batch] = (p, t, data)
+            return
+        self.vbo_col.write(data.tobytes(), offset=start * 4)
 
     def set_overlay(self, segments):
         """Replace the overlay: a list of (a, b, (r, g, b)) segments, uploaded once per call."""
@@ -327,22 +400,22 @@ class Viewer:
     def pick(self, x, y):
         """Object id under window pixel (x, y from the top left), or None; also the world point there."""
         w, h = self._window_size()
+        px, py = int(x), int(h - 1 - y)
+        if not (0 <= px < w and 0 <= py < h):
+            return None, None
         self._ensure_pick_fbo(w, h)
         self.pick_fbo.use()
         self.ctx.viewport = (0, 0, w, h)
         self.pick_fbo.clear(1.0, 1.0, 1.0, 1.0, depth=1.0)
         self.ctx.enable(moderngl.DEPTH_TEST)
+        self.ctx.scissor = (px, py, 1, 1)           # only the pixel under the mouse is drawn
         mvp, proj, view = self._mvp(w, h)
         self.prog['mvp'].write(mvp.T.astype(np.float32).tobytes())
+        self.prog['hidden'].value = self.hidden
         self.prog['pick'].value = 1
-        self.vao.render(moderngl.TRIANGLES)
-        if self.line_vao is not None:
-            self.line_vao.render(moderngl.LINES)
+        self._render_layers()
         self.prog['pick'].value = 0
-        px, py = int(x), int(h - 1 - y)
-        if not (0 <= px < w and 0 <= py < h):
-            self.ctx.screen.use()
-            return None, None
+        self.ctx.scissor = None
         rgba = self.pick_fbo.read(viewport=(px, py, 1, 1), components=4)
         depth = np.frombuffer(self.pick_fbo.read(viewport=(px, py, 1, 1), attachment=-1, dtype='f4'), dtype=np.float32)[0]
         self.ctx.screen.use()

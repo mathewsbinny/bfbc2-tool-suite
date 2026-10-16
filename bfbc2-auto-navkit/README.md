@@ -51,6 +51,10 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   navbuild.py        the generator: samples + level objects -> pathdata.hpd
   ordercheck.py      scoring: AI order positions on the areas, pairwise route check, self-check
   navcompare.py      two files on a level's AI positions: coverage, main network, pairwise, size
+  navdiff.py         two files layer by layer: sectors, walkable cells, areas, boundaries, route graph
+  navparity.py       DICE-parity report over many levels, saved per named run
+  navregress.py      regression test: rebuild levels with the current code, fail if a parity measure got worse
+  navwater.py        water depth against path-data coverage (does the data leave out ground under water?)
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
@@ -117,9 +121,21 @@ src\, tests\         (reserved for the generator proper and its tests)
      `python tools\navparity.py show "baseline A"` prints the per-level table.
    - **The earlier figures measured less:** the AI-position coverage in the table above counts only where
      the level's AI is ordered to go.
+   - **Regression test (2026-10-16):** `tools
+avregress.py` rebuilds levels with the current code (the
+     inputs of `navkit.py build`) and fails if any parity measure got worse than the reference run
+     (`regression`, made from the code of 2026-10-16 and compared with baseline A). Run it before and after
+     every generator change; `--save regression` after an intended improvement.
+   - **Ground under water (2026-10-16, `tools
+avwater.py`):** DICE keeps walkable ground down to about
+     1.5 m under water and almost none deeper (11 campaign levels: 85-90 % of NavKit's ground at 0-1.5 m is
+     DICE's too, 1-8 % below that; DICE has 241 cells at 1.5-2 m, 154 at 2-3 m and none deeper; median
+     per-level limit 1.45 m). NavKit keeps it all: 29 % of NavKit's extra ground is deeper than DICE goes on
+     that level (SP_01 73 %, SP_02 52 %). Dropping ground more than about 1.5 m under water is the first fix
+     for the extra ground.
    - **Next:**
      1. test each stage with DICE's own input (so it can reach 100 % on its own);
-     2. the extra ground and seeding;
+     2. the extra ground (first: ground more than 1.5 m under water) and seeding;
      3. detailed zones (DICE has 145 to 5,409 per level; NavKit none);
      4. area division.
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.

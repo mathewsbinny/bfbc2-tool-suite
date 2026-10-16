@@ -7,9 +7,10 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
   game    + Project OPFOR's game copy, about 10 minutes: FbrbTool on 12 game bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
           round trips, LevelDiff on MP_005, the crash reader's code view on BFBC2Game.exe, the console
-          readers on your own Xbox 360 files (skipped when they are not on the PC)
-  full    + the corpus runs, about 30 minutes: DbxEdit and the Python DBX reader on every unpacked .dbx,
-          FbrbTool on all 1,055 bundles
+          readers on your own Xbox 360 files (skipped when they are not on the PC), the 3D tools opening a
+          level (needs a display), NavKit's regression test on two small levels
+  full    + the corpus runs, about 90 minutes: DbxEdit and the Python DBX reader on every unpacked .dbx,
+          FbrbTool on all 1,055 bundles, NavKit's regression test on all 13 campaign levels
 
 Run `quick` before every commit and `game` before every push; `full` after changes to a format reader.
 """
@@ -61,6 +62,10 @@ def tests():
                                                                'roundtrip', *pathdata_files(root)]),
         ('navigation mesh round trip (kymesh)', 'game', lambda root: [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'),
                                                                     'meshtrip', *pathdata_files(root)]),
+        ('3D tools open and draw (Map Inspector, Navigation Studio)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_viewers.py')]),
+        ('NavKit regression, 2 small levels', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py'),
+                                                       '--levels', 'sp_004_b,sp_009']),
+        ('NavKit regression, all 13 campaign levels', 'full', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py')]),
         ('DbxEdit corpus and fingerprints', 'full', lambda root: ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat'),
                                                                  os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
         ('Python DBX reader against DbxEdit', 'full', lambda root: [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx.py'),

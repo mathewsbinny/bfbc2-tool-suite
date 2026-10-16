@@ -1,0 +1,369 @@
+"""BFBC2 Navigation Studio (viewing, milestone M3): a level's AI navigation data in 3D - NavKit's and DICE's.
+
+  python studio.py <level> [--candidate <pathdata.hpd>] [--reference <pathdata.hpd>] [--color island|sector|pitch|difference]
+  python studio.py <level> --screenshot out.png [--frames N] [--color ...] [--island N] [--hide <layer>,...]   (tests)
+
+Defaults: the reference is DICE's path data in Project OPFOR's game copy; the candidate is NavKit's newest
+build of the level (the newest of work\\navkit\\<level>\\pathdata.hpd, work\\navkit\\regress\\<level>.hpd and
+work\\navbuild\\<level>_W.hpd). Either may be missing.
+
+Each file has its layers: walkable ground (its 0.8 m cells), outlines, portals, border portals and the route graph.
+Colour the ground by island (the main network is green), by sector, by pitch (detailed 0.2 m zones in orange), or
+by difference: NavKit's ground that DICE also has (grey-green) or does not (orange), and DICE's ground NavKit
+lacks (red, its own layer). Panels: the difference figures, the islands (largest first, fly to each), soldier
+spawns that are not on the main network, and the selected area. The camera works as in the Map Inspector.
+"""
+import colorsys
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SUITE = os.path.abspath(os.path.join(HERE, '..'))
+sys.path.insert(0, os.path.join(SUITE, 'core'))
+
+import numpy as np  # noqa: E402
+from imgui_bundle import imgui  # noqa: E402
+
+from bfbc2core import level as levelmod, navdata, viewer  # noqa: E402
+
+FILES = ('NavKit', 'DICE')
+ID_BASE = {'NavKit': 0x200000, 'DICE': 0x400000}          # + area index
+TERRAIN_ID, WATER_ID = 0xFFFFFE, 0xFFFFFD
+COLOR_MODES = ['island', 'sector', 'pitch', 'difference']
+MAIN, SAME_C, EXTRA, MISSING, NORMAL, DETAILED = (0.35, 0.75, 0.35), (0.55, 0.62, 0.55), (1.0, 0.55, 0.15), \
+    (0.9, 0.15, 0.15), (0.30, 0.60, 0.80), (1.0, 0.60, 0.15)
+LIFT = 0.06                                              # ground cells drawn just above the surface
+
+
+def hue(k, s=0.65, v=0.92):
+    return colorsys.hsv_to_rgb((k * 0.618034) % 1.0, s, v)
+
+
+def default_files(root, lv):
+    import navparity
+    ref = navparity.reference_of(root, lv)
+    builds = [p for p in (os.path.join(root, 'work', 'navkit', lv, 'pathdata.hpd'), os.path.join(root, 'work', 'navkit', 'regress', f'{lv}.hpd'),
+                          os.path.join(root, 'work', 'navbuild', f'{lv}_W.hpd')) if os.path.isfile(p)]
+    cand = max(builds, key=os.path.getmtime) if builds else None          # the newest NavKit build
+    return cand, (ref if ref and os.path.isfile(ref) else None)
+
+
+def cell_quads(xz, y):
+    h = navdata.GRID / 2
+    x, z, yy = xz[:, 0], xz[:, 1], y + LIFT
+    c = [np.stack([x + dx, yy, z + dz], axis=1) for dx, dz in ((-h, -h), (h, -h), (h, h), (-h, h))]
+    return np.stack([np.stack([c[0], c[1], c[2]], 1), np.stack([c[0], c[2], c[3]], 1)], axis=1).reshape(-1, 3, 3)
+
+
+class Studio:
+    def __init__(self, lvl, files, color='island'):
+        self.lvl, self.files, self.color = lvl, files, color
+        self.scene = viewer.Scene()
+        L = self.scene.layer
+        self.layers = {'terrain': L('terrain', (0.40, 0.44, 0.36)), 'water': L('water', (0.18, 0.42, 0.78)),
+                       'objects': L('objects', (0.58, 0.57, 0.55)), 'soldier spawns': L('soldier spawns', (0.2, 0.55, 1.0))}
+        if lvl.terrain is not None:
+            self.scene.add_indexed(lvl.terrain[0], lvl.terrain[1], TERRAIN_ID, self.layers['terrain'])
+        if lvl.water is not None and len(lvl.water):
+            self.scene.add_indexed(lvl.water.vertices, lvl.water.triangles, WATER_ID, self.layers['water'])
+        for m in lvl.meshes:
+            self.scene.add_triangles(m.triangles, 0xFFFFF0, self.layers['objects'])
+        self.spawns = [e for e in lvl.entities if e.category == 'soldier spawn' and e.position is not None]
+        for k, e in enumerate(self.spawns):
+            self.scene.add_box(e.position + np.array([0, 0.6, 0]), 1.2, 0x100000 + k, self.layers['soldier spawns'])
+        self.ground_batch, self.same = {}, {}
+        for name, nav in files.items():
+            base = ID_BASE[name]
+            lay = {k: L(f'{name} {k}', col) for k, col in (('ground', (0.5, 0.7, 0.5)), ('outlines', (0.95, 0.95, 0.95)),
+                                                            ('portals', (0.3, 0.9, 1.0)), ('border portals', (1.0, 0.9, 0.2)),
+                                                            ('route graph', (1.0, 0.4, 0.9)))}
+            self.layers.update({f'{name} {k}': v for k, v in lay.items()})
+            quads = cell_quads(nav.cell_xz, nav.cell_y)
+            self.ground_batch[name] = self.scene.add_triangles(quads, np.repeat(base + nav.cell_area, 2), lay['ground'])
+            lines = [(k, line) for k, a in enumerate(nav.areas) for line in a.outline]
+            psegs = [(k, p0, p1) for k, a in enumerate(nav.areas) for p0, p1, _ in a.portals]
+            bsegs = [(k, p0, p1) for k, a in enumerate(nav.areas) for p0, p1 in a.borders]
+            drop = np.array([0, navdata.Y_OFFSET - 0.12, 0])
+            if lines:                                    # all outline polylines at once: segments within each line
+                pts = np.concatenate([l for _, l in lines])
+                owner = np.repeat(np.arange(len(lines)), [len(l) for _, l in lines])
+                keep = owner[:-1] == owner[1:]
+                area_of_line = np.array([k for k, _ in lines])
+                segs = np.stack([pts[:-1][keep], pts[1:][keep]], axis=1)
+                self.scene.add_lines(segs - drop, base + area_of_line[owner[:-1][keep]], lay['outlines'])
+            pids = [base + k for k, _, _ in psegs]
+            bids = [base + k for k, _, _ in bsegs]
+            psegs = [[p0, p1] for _, p0, p1 in psegs]
+            bsegs = [[p0, p1] for _, p0, p1 in bsegs]
+            if psegs:
+                self.scene.add_lines(np.array(psegs) - drop, np.array(pids), lay['portals'])
+            if bsegs:
+                self.scene.add_lines(np.array(bsegs) - drop, np.array(bids), lay['border portals'])
+            if len(nav.edges):
+                p = nav.node_pos - np.array([0, navdata.Y_OFFSET - 0.2, 0])
+                self.scene.add_lines(np.stack([p[nav.edges[:, 0]], p[nav.edges[:, 1]]], axis=1), 0xFFFFF1, lay['route graph'])
+        self.diff = None
+        if len(files) == 2:
+            same_c, same_r = navdata.compare_cells(files['NavKit'], files['DICE'])
+            self.same = {'NavKit': same_c, 'DICE': same_r}
+            ref = files['DICE']
+            miss = ~same_r
+            self.layers['DICE ground missing in NavKit'] = L('DICE ground missing in NavKit', MISSING)
+            if miss.any():
+                self.scene.add_triangles(cell_quads(ref.cell_xz[miss], ref.cell_y[miss] + 0.03),
+                                         np.repeat(ID_BASE['DICE'] + ref.cell_area[miss], 2), self.layers['DICE ground missing in NavKit'])
+            self.diff = {'reproduced': 100.0 * same_r.mean() if len(same_r) else 0.0,
+                         'extra': 100.0 * (~same_c).sum() / max(len(same_r), 1),
+                         'dice cells': int(len(same_r)), 'navkit cells': int(len(same_c))}
+        self.selected = None
+        self.island_file = 'NavKit' if 'NavKit' in files else 'DICE'
+        self.spawn_report = {name: self.spawn_islands(nav) for name, nav in files.items()}
+        self.apply_colors()
+
+    # --- colours ------------------------------------------------------------------------------------
+    def cell_colors(self, name):
+        nav = self.files[name]
+        a = nav.cell_area
+        if self.color == 'island':
+            isl = np.array([x.island for x in nav.areas])[a] if len(a) else np.zeros(0, int)
+            table = np.array([MAIN] + [hue(k) for k in range(1, max(len(nav.islands), 1))]).reshape(-1, 3)
+            return table[np.clip(isl, 0, len(table) - 1)]
+        if self.color == 'sector':
+            sec = np.array([x.sector for x in nav.areas])[a]
+            uniq, inv = np.unique(sec, return_inverse=True)
+            return np.array([hue(k * 7 + 3, 0.5, 0.85) for k in range(len(uniq))])[inv]
+        if self.color == 'pitch':
+            det = np.array([x.detailed for x in nav.areas])[a]
+            return np.where(det[:, None], np.array(DETAILED), np.array(NORMAL))
+        same = self.same.get(name)
+        if same is None:
+            return np.tile(np.array(SAME_C), (len(a), 1))
+        return np.where(same[:, None], np.array(SAME_C if name == 'NavKit' else (0.55, 0.58, 0.68)), np.array(EXTRA if name == 'NavKit' else MISSING))
+
+    def apply_colors(self, v=None):
+        for name, b in self.ground_batch.items():
+            c = np.repeat(self.cell_colors(name), 2, axis=0)
+            (v.set_colors if v is not None else self._scene_colors)(b, c)
+
+    def _scene_colors(self, batch, colors):
+        p, t, _ = self.scene.batches[batch]
+        self.scene.batches[batch] = (p, t, viewer.triangle_colors(colors, len(p) // 3))
+
+    # --- inspection ---------------------------------------------------------------------------------
+    def spawn_islands(self, nav):
+        """Per soldier spawn: the island of the nearest route node (within 15 m, 4 m in height), or None."""
+        out = []
+        if not len(nav.node_pos):
+            return [(e, None, None) for e in self.spawns]
+        g = nav.node_pos - np.array([0, navdata.Y_OFFSET, 0])
+        for e in self.spawns:
+            p = e.position
+            d = np.hypot(g[:, 0] - p[0], g[:, 2] - p[2])
+            d = np.where(np.abs(g[:, 1] - p[1]) <= 4.0, d, 1e9)
+            k = int(np.argmin(d))
+            out.append((e, int(nav.node_island[k]) if d[k] <= 15.0 else None, float(d[k])))
+        return out
+
+    def island_gaps(self, name, limit=300):
+        """Per island (the first <limit>): horizontal distance from its nodes to the main network's nearest node.
+        Computed once per file, on a 10 m grid of the main network's nodes."""
+        cache = self.__dict__.setdefault('_gaps', {})
+        if name not in cache:
+            nav = self.files[name]
+            main = nav.node_pos[nav.node_island == 0][:, [0, 2]] if len(nav.islands) else np.zeros((0, 2))
+            grid = {}
+            for p in main:
+                grid.setdefault((int(p[0] // 10), int(p[1] // 10)), []).append(p)
+            grid = {k: np.array(v) for k, v in grid.items()}
+            out = [0.0]
+            for k in range(1, min(limit, len(nav.islands))):
+                pts = nav.node_pos[nav.node_island == k][:, [0, 2]]
+                best = np.inf
+                for r in (1, 3, 10, 40, 1000):                     # widen the search until something is found
+                    for p in pts:
+                        cx, cz = int(p[0] // 10), int(p[1] // 10)
+                        near = [grid[(x, z)] for x in range(cx - r, cx + r + 1) for z in range(cz - r, cz + r + 1) if (x, z) in grid] \
+                            if r < 40 else [main]
+                        if near:
+                            q = np.concatenate(near)
+                            best = min(best, float(np.min(np.hypot(q[:, 0] - p[0], q[:, 1] - p[1]))))
+                    if np.isfinite(best):
+                        break
+                out.append(best if np.isfinite(best) else 0.0)
+            cache[name] = out
+        return cache[name]
+
+    def area_of_id(self, oid):
+        for name, base in ID_BASE.items():
+            if name in self.files and base <= oid < base + len(self.files[name].areas):
+                return name, oid - base
+        return None
+
+    def on_pick(self, v):
+        def handler(oid):
+            hit = self.area_of_id(oid) if oid is not None else None
+            self.selected = hit
+            if hit is None and oid is not None and 0x100000 <= oid < 0x100000 + len(self.spawns):
+                self.selected = ('spawn', oid - 0x100000)
+        return handler
+
+    # --- panels -------------------------------------------------------------------------------------
+    def panel_main(self, v):
+        imgui.set_next_window_pos((10, 10), imgui.Cond_.first_use_ever)
+        imgui.set_next_window_size((360, 700), imgui.Cond_.first_use_ever)
+        imgui.begin('Navigation')
+        imgui.text(f'{self.lvl.name}')
+        for name, nav in self.files.items():
+            s = navdata.summary(nav)
+            imgui.text_disabled(f'{name}: {os.path.basename(os.path.dirname(os.path.dirname(nav.path))) if name == "DICE" else os.path.basename(nav.path)}')
+            imgui.text(f'  {s["areas"]:,} areas ({s["detailed areas"]:,} detailed), {s["cells"]:,} cells')
+            imgui.text(f'  {s["nodes"]:,} nodes, {s["edges"]:,} edges, {s["islands"]} islands ({s["large islands (25+ nodes)"]} large)')
+        if self.diff:
+            imgui.separator()
+            imgui.text(f'DICE ground reproduced: {self.diff["reproduced"]:.1f} %')
+            imgui.text(f'NavKit extra ground: about +{self.diff["extra"]:.1f} % of DICE\'s')
+            imgui.text_disabled('(cell estimate; navparity.py gives the exact figures)')
+        imgui.separator()
+        imgui.text('colour the ground by')
+        for m in COLOR_MODES:
+            if m == 'difference' and not self.diff:
+                continue
+            imgui.same_line()
+            if imgui.radio_button(m, self.color == m):
+                self.color = m
+                self.apply_colors(v)
+        imgui.separator()
+        for name, i in self.layers.items():
+            changed, on = imgui.checkbox(name, v.layer_visible(i))
+            if changed:
+                v.set_layer_visible(i, on)
+        imgui.end()
+
+    def panel_islands(self, v):
+        w = imgui.get_io().display_size.x
+        imgui.set_next_window_pos((w - 430, 10), imgui.Cond_.first_use_ever)
+        imgui.set_next_window_size((420, 420), imgui.Cond_.first_use_ever)
+        imgui.begin('Islands and spawns')
+        for name in self.files:
+            imgui.same_line()
+            if imgui.radio_button(f'{name}##isl', self.island_file == name):
+                self.island_file = name
+        nav = self.files[self.island_file]
+        bad = [(e, isl, d) for e, isl, d in self.spawn_report[self.island_file] if isl != 0]
+        imgui.text(f'{len(self.spawns)} soldier spawns; {len(bad)} not on the main network')
+        if bad and imgui.tree_node(f'spawns off the main network##{self.island_file}'):
+            for k, (e, isl, d) in enumerate(bad[:100]):
+                label = f'island {isl} (route node {d:.0f} m away)' if isl is not None else 'no route node within 15 m'
+                if imgui.small_button(f'fly##sp{k}'):
+                    v.camera.focus(e.position, 30.0)
+                imgui.same_line()
+                imgui.text(f'{e.name or e.short_type}: {label}')
+            imgui.tree_pop()
+        imgui.separator()
+        gaps = self.island_gaps(self.island_file)
+        imgui.text(f'{len(nav.islands)} islands (largest first; island 0 is the main network)')
+        imgui.begin_child('islands', (0, 0))
+        for k, isl in enumerate(nav.islands[:300]):
+            gap = f', {gaps[k]:.0f} m from the main network' if k and k < len(gaps) else ''
+            if imgui.small_button(f'fly##is{k}'):
+                v.camera.focus(isl.centre - np.array([0, navdata.Y_OFFSET, 0]), 40.0 if k else 300.0)
+            imgui.same_line()
+            imgui.text(f'{k}: {isl.nodes:,} nodes, {isl.cells:,} cells{gap}')
+        imgui.end_child()
+        imgui.end()
+
+    def panel_selection(self, v):
+        if self.selected is None:
+            return
+        io = imgui.get_io()
+        imgui.set_next_window_pos((io.display_size.x - 430, 440), imgui.Cond_.first_use_ever)
+        imgui.set_next_window_size((420, 230), imgui.Cond_.first_use_ever)
+        imgui.begin('Selection')
+        if self.selected[0] == 'spawn':
+            e = self.spawns[self.selected[1]]
+            imgui.text(f'{e.short_type} {e.name or ""}')
+            imgui.text_disabled(e.guid)
+            for name in self.files:
+                _, isl, d = self.spawn_report[name][self.selected[1]]
+                imgui.text(f'{name}: ' + (f'island {isl}' + (' (main network)' if isl == 0 else '') + f', route node {d:.1f} m away'
+                                          if isl is not None else 'no route node within 15 m'))
+        else:
+            name, k = self.selected
+            nav = self.files[name]
+            a = nav.areas[k]
+            isl = nav.islands[a.island] if 0 <= a.island < len(nav.islands) else None
+            imgui.text(f'{name} area {k}: sector 0x{a.sector:04X}, area {a.index}, tile {a.tile[0]},{a.tile[1]}, layer {a.layer}')
+            imgui.text(f'pitch {a.pitch:.2f} m{" (detailed zone)" if a.detailed else ""}, {a.cells:,} cells, height {a.min_y:.1f} - {a.max_y:.1f} m')
+            imgui.text(f'{len(a.outline)} outline lines, {len(a.portals)} portals, {len(a.borders)} border portals')
+            if isl is not None:
+                imgui.text(f'island {a.island}{" (main network)" if a.island == 0 else ""}: {isl.nodes:,} nodes, {isl.cells:,} cells')
+        imgui.end()
+
+    def panel_status(self, v):
+        io = imgui.get_io()
+        if not io.want_capture_mouse and v.hovered not in (viewer.NO_ID,):
+            hit = self.area_of_id(v.hovered)
+            if hit:
+                a = self.files[hit[0]].areas[hit[1]]
+                imgui.set_tooltip(f'{hit[0]} area {hit[1]} - sector 0x{a.sector:04X}, island {a.island}, pitch {a.pitch:.1f}')
+        imgui.set_next_window_pos((10, io.display_size.y - 40), imgui.Cond_.always)
+        imgui.set_next_window_size((io.display_size.x - 20, 30), imgui.Cond_.always)
+        imgui.begin('##status', flags=imgui.WindowFlags_.no_decoration | imgui.WindowFlags_.no_inputs | imgui.WindowFlags_.no_background)
+        imgui.text(f'{v.fps:5.1f} fps   {self.triangles:,} triangles   {v.renderer}   colour: {self.color}   '
+                   f'camera: {"fly" if v.camera.fly else "orbit"} (F)')
+        imgui.end()
+
+
+def main(argv):
+    opts, args, k = {}, [], 1
+    while k < len(argv):
+        if argv[k].startswith('--') and k + 1 < len(argv):
+            opts[argv[k]] = argv[k + 1]
+            k += 2
+        else:
+            args.append(argv[k])
+            k += 1
+    if not args:
+        print(__doc__)
+        return 1
+    lvl = levelmod.load(args[0])
+    import navparity
+    cand, ref = default_files(lvl.opfor, lvl.lv)
+    cand, ref = opts.get('--candidate', cand), opts.get('--reference', ref)
+    cache = os.path.join(lvl.opfor, 'work', 'navstudio', 'cache')
+    files = {}
+    for name, p in (('NavKit', cand), ('DICE', ref)):
+        if p and os.path.isfile(p):
+            print(f'{name}: {p}')
+            files[name] = navdata.load(p, lvl.heightfield, cache)
+    if not files:
+        print('no path data for this level (neither DICE\'s nor a NavKit build)')
+        return 1
+    st = Studio(lvl, files, opts.get('--color', 'island'))
+    st.triangles = st.scene.triangle_count()
+    v = viewer.Viewer(st.scene, f'BFBC2 Navigation Studio - {lvl.name}',
+                      panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_status])
+    v.on_pick = st.on_pick(v)
+    hide = set(opts.get('--hide', 'objects,DICE ground,DICE outlines,DICE portals,DICE border portals,DICE route graph,'
+                                   'NavKit outlines,NavKit portals,NavKit border portals,NavKit route graph').split(','))
+    for name, i in st.layers.items():
+        if name in hide:
+            v.set_layer_visible(i, False)
+    if '--island' in opts:
+        nav = files.get('NavKit') or files['DICE']
+        n = int(opts['--island'])
+        if n < len(nav.islands):
+            v.camera.focus(nav.islands[n].centre, 60.0)
+    if '--screenshot' in opts:
+        v.exit_after = int(opts.get('--frames', 40))
+    v.run()
+    if '--screenshot' in opts and v.screenshot is not None:
+        import matplotlib.pyplot as plt
+        plt.imsave(opts['--screenshot'], np.asarray(v.screenshot))
+        print('screenshot:', opts['--screenshot'])
+    _ = navparity
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
