@@ -20,6 +20,7 @@
 //            dropfield=<name>        removes every field named <name> (fields the PC build does not have)
 //            graft=<src.dbx>|<guid>[|<before guid>]  copies (inserted before that instance if given) that instance of another file, with every instance of that file it
 //                                    references in-partition (members), strings remapped
+//            setfield=<guid>|<field>|<value>  sets a field of that instance (text, or one 4-byte number)
 //            additem=<guid>|<array>|<ref>[|<before ref>]  adds an item referring to <ref> to array <array> of
 //                                    instance <guid> (at the end, or before the item referring to <before ref>)
 //        a command argument "@file" reads commands from a file (one per line, # comments)
@@ -305,6 +306,29 @@ class Doc
         return false;
     }
 
+    // Sets field <field> directly under instance <guid>: a text value, or a single 4-byte number (type 7).
+    public bool SetField(string guid, string field, string value)
+    {
+        var di = Instances().FirstOrDefault(n => SameGuid(Attr(n, "guid"), guid));
+        if (di == null || di.Children == null) return false;
+        var f = di.Children.FirstOrDefault(c => Attr(c, "name") == field && (c.Type == 2 || c.Type == 7));
+        if (f == null) return false;
+        if (f.Type == 7)
+        {
+            // one 4-byte big-endian number: varint count 1, varint size 4, value (int, or float if it has a '.')
+            if (f.Raw.Length != 6 || f.Raw[0] != 1 || f.Raw[1] != 4) return false;
+            byte[] v = value.Contains(".")
+                ? BitConverter.GetBytes(float.Parse(value, System.Globalization.CultureInfo.InvariantCulture))
+                : BitConverter.GetBytes(int.Parse(value));
+            f.Raw = new byte[] { 1, 4, v[3], v[2], v[1], v[0] };
+            return true;
+        }
+        var o = new List<byte>();
+        W128(o, Str(value));
+        f.Raw = o.ToArray();
+        return true;
+    }
+
     // Adds an <item ref="..."/> to array <array> of instance <guid>, before the item referring to <before> if given.
     public bool AddItem(string guid, string array, string reference, string before)
     {
@@ -422,6 +446,7 @@ static class DbxEdit
                 else cmds.Add(args[i]);
             }
             var sources = new Dictionary<string, Doc>();
+            int setfields = 0;
             foreach (string c in cmds)
             {
                 if (c.StartsWith("replace="))
@@ -474,6 +499,12 @@ static class DbxEdit
                     int n = doc.DropField(doc.Roots, c.Substring(10));
                     Console.WriteLine("dropfield " + c.Substring(10) + ": " + n + " element(s)");
                 }
+                else if (c.StartsWith("setfield="))
+                {
+                    var p = c.Substring(9).Split('|');
+                    if (!doc.SetField(p[0], p[1], p[2])) { Console.Error.WriteLine("setfield: no settable field " + p[1] + " in " + p[0]); return 1; }
+                    setfields++;
+                }
                 else if (c.StartsWith("additem="))
                 {
                     var p = c.Substring(8).Split('|');
@@ -492,6 +523,7 @@ static class DbxEdit
                 }
                 else { Console.Error.WriteLine("unknown command " + c); return 2; }
             }
+            if (setfields > 0) Console.WriteLine("setfield: " + setfields + " field(s)");
             File.WriteAllBytes(args[2], doc.Save());
             return 0;
         }
