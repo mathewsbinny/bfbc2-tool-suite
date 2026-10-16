@@ -20,7 +20,11 @@ FbrbTool pack   <dir> <file.fbrb>          rebuild a bundle from an unpacked fol
 sizes. `pack` uses it to rebuild the bundle faithfully. To change a bundle, unpack it, edit or add files
 (add new ones to the manifest), then pack it.
 
-Zero-byte entries are `*deleted*` markers: they remove shared data from the bundle's level.
+Zero-byte entries are `*deleted*` markers: they remove shared data from the bundle's level (mp_005's
+level bundle has 4,334 of its 6,692 entries as markers; all bundles together 286,055). `unpack` lists them in
+`fbrb.manifest` but writes no file for them, so other tools do not meet thousands of empty files that look
+broken; `pack` restores them from the manifest, and the rebuilt bundle's header and payload are identical
+to the original's. Folders unpacked by older versions, which hold the markers as empty files, pack the same.
 
 ## Credits
 

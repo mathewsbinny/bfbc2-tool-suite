@@ -99,8 +99,14 @@ def _strings(data, tolerant):
     return out, 24 + area
 
 
+class DeletedEntry(ValueError):
+    """The file is a bundle's zero-byte *deleted* marker: there is nothing to read (it is not a broken file)."""
+
+
 def parse(data):
     """A binary .dbx file as an element tree (FORMAT.md sections 1-2)."""
+    if not data:
+        raise DeletedEntry('empty file: a *deleted* bundle entry (older FbrbTool unpacks wrote them as files)')
     if not is_binary(data):
         raise ValueError('not a binary .dbx file')
     strings, pos = _strings(data, tolerant=False)

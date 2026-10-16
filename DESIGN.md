@@ -66,7 +66,7 @@ they are built in. It is a draft for review, and it changes as the tools are bui
 | object collision (`*_Havok.res`) | NavKit's `hkpack.py` | works for the shapes NavKit uses; other shape types to add |
 | static model groups (instance transforms) | `*_HavokAsset` partitions | works in NavKit |
 | terrain heights | `Terrains/<level>/<level>.Heightfield-000.res` (in `terrain-00.fbrb`) | decoded (`core/bfbc2core/terrain.py`, section 7 question 1): a 1024² or 2048² grid of 16-bit heights, matching the in-game terrain to within 4.5 cm |
-| water | `<level>.Water.res`, `.Water.Mesh.res` | to research |
+| water | `<terrain>.Water.Mesh.res` (geometry), `<terrain>.Water.res` (drawing copy), in `terrain-00.fbrb` | decoded (`core/bfbc2core/water.py`, section 7 question 2): every level's water mesh, and each triangle's shader (water, coast, wakes, river) |
 | surfaces measured in game | NavKit's samples (`work\navsample\*.bin`, `navsample.py`) | works; the terrain fallback when a level's heightfield cannot be read |
 | navigation data | NavKit's `hpdtool.py` and `kymesh.py` (byte-exact reader and writer) | works |
 | spawn points, AI orders and patrol routes | level partition entities (as NavKit's `levelobjects` and `ordercheck` read them) | works |
@@ -304,10 +304,10 @@ OPFOR telemetry module, and is versioned.
 | Milestone | Delivers | Also gives |
 |---|---|---|
 | M1 | the core: data layer (Python DBX reader, collision, terrain heightfield), scene, view, camera, picking, panels (done 2026-10-16) | |
-| M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16: see `bfbc2-map-inspector/README.md`; water still to research) | |
+| M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16: see `bfbc2-map-inspector/README.md`; water added the same day) | |
 | M3 | Navigation Studio, viewing: navigation layers, islands, detailed zones, difference view against DICE | the 3D view for NavKit's parity work |
 | M4 | Navigation Studio, editing: regions, seeds, links, traversal annotations, path test, finished file and side file, `navkit apply` | |
-| M5 | Test harness, offline: reachability, path batteries, parity, saved runs | |
+| M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`) | |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
 | alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |
@@ -329,7 +329,19 @@ OPFOR telemetry module, and is versioned.
    - **Why it took a second look:** the odd byte at 0x30 makes the heights start at an odd offset. Read from
      0x30 as big-endian, the values look nearly right (a value's high byte comes from its neighbour), so
      about 20 % of samples were 1-4 m off along contour lines; the earlier test at even offsets found nothing.
-2. **Water:** surface heights and extents (relevant to NavKit's extra-ground gap).
+2. **Water: resolved (2026-10-16).** Decoder in `core/bfbc2core/water.py`.
+   - **WaterMesh** (`.Water.Mesh.res`, little-endian): u32 bodies (1 everywhere), then per body u32 vertex
+     count, (f32 x, y, z) vertices, u32 index count, u32 indices. Read on all 36 levels with a terrain
+     bundle, each file consumed exactly; SP_006 and SP_009 have 0 vertices (no water). Heights are per
+     vertex: rivers slope (SP_02 17.9-156.8 m), seas are flat (SP_01 4.4 m).
+   - **VisualWater** (`.Water.Res`): u32 10, u32 stride (36), vertex bytes, vertices (half-float position,
+     normal, texture coordinates), u32 index bytes, indices (the mesh's, on 33 of 34 levels with water; SP_04
+     differs), u32 slot count, the slots' shader paths, u32 range count, ranges (slot, triangles, first
+     index, index count), u32 0, byte 0x46. The ranges give each triangle's shader.
+   - **World frame:** the mesh is used as stored (no entity transform). Much of it lies under the terrain,
+     which hides it (SP_01's sea runs under the island; on SP_02 only valley lakes show); on MP_005, 70 % of
+     the water inside the terrain is 0-20 m above the ground. Not yet compared with the game in play.
+   - **Next for NavKit:** test whether DICE's path data leaves out ground under water (the extra-ground gap).
 3. **Traversal links in Kynapse data:** whether the format can carry a ladder or jump link the game's AI
    would use, to be tested in game. Until then, those links go to OPFOR's side file.
 4. **The path test's fidelity:** routing over the graph matches what the game plans, but not its path

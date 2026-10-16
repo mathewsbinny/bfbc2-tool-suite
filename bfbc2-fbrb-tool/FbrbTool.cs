@@ -9,6 +9,8 @@
 //
 // unpack writes every entry under <outdir>\ by its archive name and a "fbrb.manifest" listing the
 // entries in archive order (name, type, flags, size2), so pack can rebuild the bundle faithfully.
+// Zero-byte "*deleted*" entries (markers that remove shared data from a level) are listed in the manifest
+// only; pack restores them.
 //
 // Usage: FbrbTool unpack <file.fbrb> <outdir>
 //        FbrbTool pack   <dir-with-manifest> <file.fbrb>
@@ -101,17 +103,26 @@ static class FbrbTool
         Directory.CreateDirectory(outDir);
         var manifest = new StringBuilder();
         manifest.AppendLine("# fbrb.manifest - entry order matters. name|type|flags(hex)|size2  zipped=" + (zipped ? 1 : 0));
+        int deleted = 0;
         foreach (var e in entries)
         {
+            manifest.AppendLine(e.Name + "|" + e.Type + "|" + e.Flags.ToString("X8") + "|" + e.Size2);
+            // A deletion marker has no data: it stays in the manifest (pack restores it) but is not written as an
+            // empty file, which other tools would take for a broken one.
+            if (IsDeletedMarker(e)) { deleted++; continue; }
             string target = Path.Combine(outDir, Safe(e.Name));
             Directory.CreateDirectory(Path.GetDirectoryName(target));
             using (var f = File.Create(target)) f.Write(payload, (int)e.Offset, (int)e.Size);
-            manifest.AppendLine(e.Name + "|" + e.Type + "|" + e.Flags.ToString("X8") + "|" + e.Size2);
         }
         File.WriteAllText(Path.Combine(outDir, "fbrb.manifest"), manifest.ToString());
-        Console.WriteLine("unpacked " + entries.Count + " entries (" + payload.Length + " bytes) to " + outDir);
+        Console.WriteLine("unpacked " + entries.Count + " entries (" + payload.Length + " bytes) to " + outDir +
+                          (deleted > 0 ? "; " + deleted + " of them *deleted* markers, listed in fbrb.manifest only" : ""));
         return 0;
     }
+
+    const string DeletedType = "*deleted*";
+
+    static bool IsDeletedMarker(Entry e) { return e.Type == DeletedType && e.Size == 0; }
 
     static int Pack(string dir, string fbrb)
     {
@@ -123,7 +134,10 @@ static class FbrbTool
         {
             if (line.Length == 0 || line[0] == '#') continue;
             string[] p = line.Split('|');
-            byte[] data = File.ReadAllBytes(Path.Combine(dir, Safe(p[0])));
+            string source = Path.Combine(dir, Safe(p[0]));
+            // *deleted* markers have no file since unpack stopped writing them (an empty one from an older unpack
+            // is read as before)
+            byte[] data = p[1] == DeletedType && !File.Exists(source) ? new byte[0] : File.ReadAllBytes(source);
             uint originalSize2 = uint.Parse(p[3]);
             var e = new Entry
             {

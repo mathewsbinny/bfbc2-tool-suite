@@ -21,10 +21,12 @@ from imgui_bundle import imgui  # noqa: E402
 from bfbc2core import dbx, level as levelmod, viewer  # noqa: E402
 
 TERRAIN_ID = 0xFFFFFE
+WATER_ID = 0xFFFF00          # + the index of the triangle's shader in Inspector.water_shaders
 BLUE, RED, GREY = (0.20, 0.55, 1.00), (1.00, 0.30, 0.25), (0.70, 0.70, 0.75)
 # layer: colour, marker size for entities without collision (None: not drawn without collision)
 LAYERS = [
     ('terrain', (0.42, 0.47, 0.36), None),
+    ('water', (0.18, 0.42, 0.78), None),
     ('placed object', (0.62, 0.60, 0.56), 1.0),
     ('destructible', (0.80, 0.64, 0.46), 1.0),
     ('dynamic object', (0.62, 0.48, 0.34), 0.6),
@@ -89,6 +91,14 @@ class Inspector:
                 self.scene.add_lines(np.stack([s.points, top], axis=1), s.entity, lay)
         if lvl.terrain is not None:
             self.scene.add_indexed(lvl.terrain[0], lvl.terrain[1], TERRAIN_ID, self.layer_index['terrain'])
+        self.water_shaders = []
+        w = lvl.water
+        if w is not None and len(w):
+            shader = np.array(w.shader if w.shader else [''] * len(w))
+            for name in dict.fromkeys(shader):                             # one id per shader, for the tooltip
+                k = len(self.water_shaders)
+                self.water_shaders.append(name)
+                self.scene.add_indexed(w.vertices, w.triangles[shader == name], WATER_ID + k, self.layer_index['water'])
         self.counts = {}
         for e in lvl.entities:
             self.counts[layer_name(e)] = self.counts.get(layer_name(e), 0) + 1
@@ -151,7 +161,7 @@ class Inspector:
                     self.measure.append(np.asarray(v.pick_point, dtype=np.float64))
                 self.update_overlay(v)
                 return
-            if oid is None or oid == TERRAIN_ID or oid >= len(self.lvl.entities):
+            if oid is None or oid >= len(self.lvl.entities):               # sky, terrain, water
                 self.select(v, None)
             else:
                 self.select(v, self.lvl.entities[oid])
@@ -184,6 +194,8 @@ class Inspector:
         imgui.separator()
         for name, colour, _ in LAYERS:
             n = self.counts.get(name, 1 if name == 'terrain' else 0)
+            if name == 'water':
+                n = len(self.lvl.water) if self.lvl.water is not None else 0
             if not n:
                 continue
             i = self.layer_index[name]
@@ -309,6 +321,9 @@ class Inspector:
             imgui.text(f'{len(pts)} points; last at {p[0]:.2f}, {p[1]:.2f}, {p[2]:.2f}')
             if self.lvl.heightfield is not None:
                 imgui.text(f'last point above terrain: {p[1] - float(self.lvl.heightfield.height(p[0], p[2])):+.2f} m')
+            depth = self.water_above(p)
+            if depth is not None:
+                imgui.text(f'water surface above it: {depth:+.2f} m')
             if len(pts) >= 2:
                 d = pts[-1] - pts[-2]
                 flat = float(np.hypot(d[0], d[2]))
@@ -318,12 +333,32 @@ class Inspector:
                 imgui.text(f'path total: {sum(float(np.linalg.norm(b - a)) for a, b in zip(pts, pts[1:])):.2f} m')
         imgui.end()
 
+    def water_above(self, p):
+        """Height of the water surface over point p minus p's height, or None where there is no water."""
+        w = self.lvl.water
+        if w is None or not len(w):
+            return None
+        t = w.vertices[w.triangles].astype(np.float64)                     # (m, 3, 3)
+        a, b, c = t[:, 0], t[:, 1], t[:, 2]
+        d = (b[:, 2] - c[:, 2]) * (a[:, 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (a[:, 2] - c[:, 2])
+        with np.errstate(divide='ignore', invalid='ignore'):
+            l1 = ((b[:, 2] - c[:, 2]) * (p[0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (p[2] - c[:, 2])) / d
+            l2 = ((c[:, 2] - a[:, 2]) * (p[0] - c[:, 0]) + (a[:, 0] - c[:, 0]) * (p[2] - c[:, 2])) / d
+        l3 = 1 - l1 - l2
+        inside = (l1 >= 0) & (l2 >= 0) & (l3 >= 0) & np.isfinite(l1)
+        if not inside.any():
+            return None
+        k = np.nonzero(inside)[0][0]
+        return float(l1[k] * a[k, 1] + l2[k] * b[k, 1] + l3[k] * c[k, 1] - p[1])
+
     def tooltip(self, v):
         io = imgui.get_io()
         if io.want_capture_mouse or self.measuring or v.hovered == viewer.NO_ID or imgui.is_mouse_down(imgui.MouseButton_.left):
             return
         if v.hovered == TERRAIN_ID:
             text = 'terrain'
+        elif WATER_ID <= v.hovered < WATER_ID + len(self.water_shaders):
+            text = 'water  ' + (self.water_shaders[v.hovered - WATER_ID] or '(shader unknown)')
         elif v.hovered < len(self.lvl.entities):
             h = self.lvl.entities[v.hovered]
             text = f'{h.short_type}  {h.name or h.id or h.blueprint or ""}'

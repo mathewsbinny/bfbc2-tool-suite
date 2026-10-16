@@ -48,7 +48,9 @@ DbxEdit import <file.xml> <out.dbx> [--like <original.dbx>] [--types <file.dbx |
 ```
 
 `xml` converts every binary `.dbx` file it finds (folders are searched recursively) and skips plain-XML
-ones.
+ones. Empty files are skipped and counted, not reported as errors: they are bundles' `*deleted*` entries,
+which FbrbTool versions before 2026-10-16 unpacked as zero-byte files (current ones list them in
+`fbrb.manifest` only). `roundtrip` counts them the same way.
 
 The XML doesn't record every type. For example, `1` may be the integer 1 or the decimal 1.0. So `import`
 takes the types from **the original file**: `--like`, or `<name>.dbx` next to the XML.

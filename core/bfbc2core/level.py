@@ -7,6 +7,7 @@
                                               # or NavKit's in-game samples when it cannot be read, or None
     lvl.heightfield                           # terrain.Heightfield, for exact heights (height(x, z))
     lvl.shapes                                # outlines: areas (capture, combat, order areas) and routes (Shape)
+    lvl.water                                 # water.Water: surface triangles and each one's shader (water.py)
 
 Data comes from the level as NavKit prepares it (OPFOR's work\\levels\\<level>\\dist and pkg, and the shared
 data in work\\navkit\\common\\); a level that is not prepared yet is prepared on first use (offline, no game).
@@ -20,7 +21,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from . import dbx, terrain
+from . import dbx, terrain, water
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -115,6 +116,7 @@ class Level:
     meshes: List[Mesh] = field(default_factory=list)
     terrain: Optional[tuple] = None
     heightfield: Optional[object] = None  # terrain.Heightfield, when the level's terrain bundle was read
+    water: Optional[object] = None        # water.Water (may have no triangles), from the same bundle
     shapes: List[Shape] = field(default_factory=list)
     missing_collision: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
@@ -224,6 +226,10 @@ def load(level, opfor=None, terrain_stride=2, log=print):
         lvl.heightfield = heightfield_of(root, lv, log, terrain_name(f.instances))
     except Exception as e:                    # no terrain bundle, FbrbTool missing, unexpected layout
         lvl.notes.append(f'terrain height field not read: {e}')
+    try:
+        lvl.water = water.read(os.path.join(root, 'work', 'levels', lv, 'terrain'), terrain_name(f.instances) or lv)
+    except Exception as e:
+        lvl.notes.append(f'water not read: {e}')
     if lvl.heightfield is not None:
         lvl.terrain, source = lvl.heightfield.mesh(terrain_stride), 'height field'
     else:

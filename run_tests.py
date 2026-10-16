@@ -1,0 +1,95 @@
+r"""Runs the suite's tests: one line per test, the failures' output at the end, exit code 1 if any failed.
+
+  python run_tests.py [quick | game | full] [--only <name>] [--list]
+
+  quick   no game data, about a minute: repository rules, DbxEdit unit tests, FbrbTool on a bundle built
+          in the test (needs Windows for the C# tools)
+  game    + Project OPFOR's game copy, about 10 minutes: FbrbTool on 12 game bundles, water on every level,
+          the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
+          round trips
+  full    + the corpus runs, about 30 minutes: DbxEdit and the Python DBX reader on every unpacked .dbx,
+          FbrbTool on all 1,055 bundles
+
+Run `quick` before every commit and `game` before every push; `full` after changes to a format reader.
+"""
+import os
+import subprocess
+import sys
+import time
+
+SUITE = os.path.dirname(os.path.abspath(__file__))
+PY = sys.executable
+TIERS = ['quick', 'game', 'full']
+
+
+def opfor():
+    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+    import navkit
+    return navkit.find_opfor(None)
+
+
+def pathdata_files(root):
+    """Every path-data file: the game copy's (with DICE's originals kept as pathdata.hpd.<suffix> where NavKit's
+    is installed) and OPFOR's work folder's (Xbox Onslaught copies, NavKit's own builds)."""
+    out = []
+    for top in (os.path.join(root, 'game', 'Output', 'win32', 'ai'), os.path.join(root, 'work')):
+        for dp, _, fs in os.walk(top):
+            out += [os.path.join(dp, f) for f in fs if f.lower().startswith('pathdata.hpd')]
+    return sorted(out)
+
+
+def tests():
+    """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
+    t = [
+        ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
+        ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
+        ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
+        ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
+        ('FbrbTool round trip, 12 game bundles', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py'), '--game', '12']),
+        ('water, every level', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_water.py')]),
+        ('level loader snapshot', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_level.py')]),
+        ('terrain against in-game samples', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_terrain.py')]),
+        ('path data round trip (hpdtool)', 'game', lambda root: [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'),
+                                                               'roundtrip', *pathdata_files(root)]),
+        ('navigation mesh round trip (kymesh)', 'game', lambda root: [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'),
+                                                                    'meshtrip', *pathdata_files(root)]),
+        ('DbxEdit corpus and fingerprints', 'full', lambda root: ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat'),
+                                                                 os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
+        ('Python DBX reader against DbxEdit', 'full', lambda root: [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx.py'),
+                                                                   os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
+        ('FbrbTool round trip, every game bundle', 'full', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py'), '--game', '0']),
+    ]
+    return t
+
+
+def main(argv):
+    tier = next((a for a in argv[1:] if a in TIERS), 'quick')
+    only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
+    chosen = [x for x in tests() if TIERS.index(x[1]) <= TIERS.index(tier) and (only is None or only in x[0].lower())]
+    if '--list' in argv:
+        for name, t, _ in chosen:
+            print(f'{t:6s} {name}')
+        return 0
+    root = opfor() if any(callable(a) or t != 'quick' for _, t, a in chosen) else None
+    print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else ''))
+    failures, start = [], time.time()
+    for name, t, args in chosen:
+        if callable(args):
+            args = args(root)
+        t0 = time.time()
+        r = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=SUITE)
+        out = (r.stdout + r.stderr).strip()
+        last = out.splitlines()[-1] if out else ''
+        ok = r.returncode == 0
+        print(f'{"ok  " if ok else "FAIL"} {name:42s} {time.time() - t0:6.1f} s   {last[:90]}', flush=True)
+        if not ok:
+            failures.append((name, out))
+    for name, out in failures:
+        print(f'\n--- {name} (last 25 lines) ---')
+        print('\n'.join(out.splitlines()[-25:]))
+    print(f'\n{len(chosen) - len(failures)} of {len(chosen)} passed in {time.time() - start:.0f} s')
+    return 1 if failures else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

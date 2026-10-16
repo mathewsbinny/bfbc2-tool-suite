@@ -1427,13 +1427,23 @@ namespace Bfbc2Dbx
             return Directory.Exists(path) ? Directory.GetFiles(path, "*.dbx", SearchOption.AllDirectories) : new[] { path };
         }
 
+        // A zero-byte file is a bundle's "*deleted*" entry, as older FbrbTool versions unpacked them (current
+        // ones list them in fbrb.manifest only): there is nothing to read, and it is not an error.
+        static bool DeletedEntry(string f) { return new FileInfo(f).Length == 0; }
+
+        static string DeletedNote(int n)
+        {
+            return n == 0 ? "" : ", skipped " + n + " empty file(s) (*deleted* bundle entries)";
+        }
+
         static int Xml(IEnumerable<string> paths)
         {
-            int converted = 0;
+            int converted = 0, deleted = 0;
             foreach (string f in paths.SelectMany(DbxFiles))
             {
                 try
                 {
+                    if (DeletedEntry(f)) { deleted++; continue; }
                     byte[] data = File.ReadAllBytes(f);
                     if (Encoding.ASCII.GetString(data, 0, 8) == "{binary}")
                         File.WriteAllText(Path.ChangeExtension(f, ".xml"), XmlExport.Convert(data));
@@ -1444,7 +1454,7 @@ namespace Bfbc2Dbx
                     Console.Error.WriteLine(f + ": " + e.Message);
                 }
             }
-            Console.WriteLine("converted " + converted + " file(s)");
+            Console.WriteLine("converted " + converted + " file(s)" + DeletedNote(deleted));
             return 0;
         }
 
@@ -1527,9 +1537,10 @@ namespace Bfbc2Dbx
 
         static int Roundtrip(string path)
         {
-            int same = 0, different = 0, skipped = 0;
+            int same = 0, different = 0, skipped = 0, deleted = 0;
             foreach (string f in DbxFiles(path))
             {
+                if (DeletedEntry(f)) { deleted++; continue; }
                 DbxFile d;
                 try { d = new DbxFile(f); }
                 catch (Exception e)
@@ -1543,7 +1554,7 @@ namespace Bfbc2Dbx
                 if (written.SequenceEqual(d.Original)) same++;
                 else if (++different <= 10) Console.WriteLine("DIFF " + f + " (" + d.Original.Length + " -> " + written.Length + ")");
             }
-            Console.WriteLine("roundtrip: " + same + " identical, " + different + " different, " + skipped + " not binary");
+            Console.WriteLine("roundtrip: " + same + " identical, " + different + " different, " + skipped + " not binary" + DeletedNote(deleted));
             return different == 0 ? 0 : 1;
         }
 
