@@ -14,8 +14,11 @@
 //            drop=<guid>             removes the instance with that guid; array items referring to it are
 //                                    removed, single references to it become "null"
 //            replaceprefix=<old>|<new>[|<except>...]  strings starting with <old> get <new> as prefix
+//            partguid=<guid>         sets the partition's own guid (a copy under a new name gets a new one)
+//            copyfield=<src.dbx>|<src guid>|<field>|<guid>  copies a field (with arrays) from another file's instance
+//            set=<field>|<true|false|0-255>  sets a bool / byte field
 //            dropfield=<name>        removes every field named <name> (fields the PC build does not have)
-//            graft=<src.dbx>|<guid>  copies that instance of another file, with every instance of that file it
+//            graft=<src.dbx>|<guid>[|<before guid>]  copies (inserted before that instance if given) that instance of another file, with every instance of that file it
 //                                    references in-partition (members), strings remapped
 //        a command argument "@file" reads commands from a file (one per line, # comments)
 using System;
@@ -251,6 +254,32 @@ class Doc
         return removed;
     }
 
+    public int SetByte(List<Node> nodes, string name, byte v)
+    {
+        int n = 0;
+        foreach (var x in nodes)
+        {
+            if (x.Children != null) n += SetByte(x.Children, name, v);
+            else if (x.Type != 2 && x.Type != 7 && x.Raw != null && x.Raw.Length == 2 && Attr(x, "name") == name) { x.Raw = new byte[] { x.Raw[0], v }; n++; }
+        }
+        return n;
+    }
+
+    // Replaces (or adds) field <field> of this document's instance <guid> with the same field of src's instance
+    // <srcGuid> (strings remapped). Returns false if either is missing.
+    public bool CopyField(Doc src, string srcGuid, string field, string guid)
+    {
+        var si = src.Instances().FirstOrDefault(n => SameGuid(src.Attr(n, "guid"), srcGuid));
+        var di = Instances().FirstOrDefault(n => SameGuid(Attr(n, "guid"), guid));
+        if (si == null || di == null) return false;
+        var sf = si.Children.FirstOrDefault(n => src.Attr(n, "name") == field);
+        if (sf == null) return false;
+        var copy = CopyFrom(src, sf);
+        int at = di.Children.FindIndex(n => Attr(n, "name") == field);
+        if (at >= 0) di.Children[at] = copy; else di.Children.Add(copy);
+        return true;
+    }
+
     public List<Node> Instances() { return Roots[0].Children.Where(c => Strings[c.Prefix] == "instance").ToList(); }
 
     // bare (same-partition) references inside a node tree
@@ -281,8 +310,17 @@ class Doc
 
     // Copies instance <guid> of src and every src instance it references in-partition (transitively) that this
     // document does not have yet; appended after the last instance.
-    public int Graft(Doc src, string guid)
+    public int Graft(Doc src, string guid) { return Graft(src, guid, null); }
+
+    // As Graft; the copied instances go before instance <before> (keeps the world objects' position in the file).
+    public int Graft(Doc src, string guid, string before)
     {
+        int at = Roots[0].Children.Count;
+        if (before != null)
+        {
+            int i = Roots[0].Children.FindIndex(n => Strings[n.Prefix] == "instance" && SameGuid(Attr(n, "guid"), before));
+            if (i >= 0) at = i;
+        }
         var byGuid = new Dictionary<string, Node>();
         foreach (var n in src.Instances()) byGuid[src.Attr(n, "guid").ToUpperInvariant()] = n;
         var have = new HashSet<string>(Instances().Select(n => Attr(n, "guid").ToUpperInvariant()));
@@ -295,7 +333,7 @@ class Doc
             if (have.Contains(g) || !byGuid.ContainsKey(g)) continue;
             have.Add(g);
             var n = byGuid[g];
-            Roots[0].Children.Add(CopyFrom(src, n));
+            Roots[0].Children.Insert(at++, CopyFrom(src, n));
             added++;
             var refs = new HashSet<string>();
             src.LocalRefs(n, refs);
@@ -359,6 +397,31 @@ static class DbxEdit
                     int h = doc.ReplacePrefix(p[0], p[1], p.Skip(2).ToArray());
                     Console.WriteLine("replaceprefix " + p[0] + " -> " + p[1] + ": " + h + " string(s)");
                 }
+                else if (c.StartsWith("partguid="))
+                {
+                    // the partition's own guid (root element attribute), e.g. for a copy under a new name
+                    var root = doc.Roots[0];
+                    foreach (var at in root.Attrs) if (doc.Strings[at[0]] == "guid") at[1] = doc.Str(c.Substring(9));
+                    Console.WriteLine("partguid " + c.Substring(9));
+                }
+                else if (c.StartsWith("copyfield="))
+                {
+                    // copyfield=<src.dbx>|<src instance guid>|<field>|<instance guid>
+                    var p = c.Substring(10).Split('|');
+                    if (!sources.ContainsKey(p[0])) sources[p[0]] = new Doc(p[0]);
+                    bool ok = doc.CopyField(sources[p[0]], p[1], p[2], p[3]);
+                    Console.WriteLine("copyfield " + p[2] + ": " + (ok ? "copied" : "NOT FOUND"));
+                    if (!ok) return 1;
+                }
+                else if (c.StartsWith("set="))
+                {
+                    // bool / byte field (type 6): set=<field name>|true|false|<0-255>
+                    var p = c.Substring(4).Split('|');
+                    byte v = p[1] == "true" ? (byte)1 : p[1] == "false" ? (byte)0 : byte.Parse(p[1]);
+                    int n = doc.SetByte(doc.Roots, p[0], v);
+                    Console.WriteLine("set " + p[0] + " = " + p[1] + ": " + n + " field(s)");
+                    if (n == 0) { Console.Error.WriteLine("no bool/byte field " + p[0]); return 1; }
+                }
                 else if (c.StartsWith("dropfield="))
                 {
                     int n = doc.DropField(doc.Roots, c.Substring(10));
@@ -368,7 +431,7 @@ static class DbxEdit
                 {
                     var p = c.Substring(6).Split('|');
                     if (!sources.ContainsKey(p[0])) sources[p[0]] = new Doc(p[0]);
-                    int n = doc.Graft(sources[p[0]], p[1]);
+                    int n = doc.Graft(sources[p[0]], p[1], p.Length > 2 ? p[2] : null);
                     Console.WriteLine("graft " + p[1] + " from " + Path.GetFileName(p[0]) + ": " + n + " instance(s)");
                     if (n == 0) { Console.Error.WriteLine("nothing grafted for " + p[1]); return 1; }
                 }
