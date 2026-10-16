@@ -102,6 +102,27 @@ src\, tests\         (reserved for the generator proper and its tests)
    automatic sampling box and sector offsets, both in-game sampling runs with `opfor.ini` restored
    afterwards, build, check, install / restore with the original kept); `navkitGUI.pyw` is a small window
    over it. Stock MP maps wait for MP support: the sampler needs the level's AI running.
+6. **DICE parity – the goal from 2026-10-16: 100 % of DICE's content, not identical bytes.**
+   - **Measured by content:**
+     - `tools\navdiff.py` compares two files layer by layer: sectors, walkable cells, areas,
+       boundaries, route graph. A file against itself scores 100 % on every layer.
+     - `tools\navparity.py` runs it on every level, with islands (connectivity, over-connection) and the
+       AI-position figures, saved per named run.
+   - **Baseline A** (the builds behind the table above), means over the 13 levels:
+     - 98.0 % of DICE's walkable ground reproduced, but +36.9 % extra ground;
+     - 0 % of areas identical, and 0.6 % of route nodes in the same place;
+     - connectivity 96.6 %, over-connection 26.4 %;
+     - AI positions 95.8 %, pairwise 83.5 %.
+
+     `python tools\navparity.py show "baseline A"` prints the per-level table.
+   - **The earlier figures measured less:** the AI-position coverage in the table above counts only where
+     the level's AI is ordered to go.
+   - **Next:**
+     1. test each stage with DICE's own input (so it can reach 100 % on its own);
+     2. the extra ground and seeding;
+     3. detailed zones (DICE has 145 to 5,409 per level; NavKit none);
+     4. area division.
+   - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 
 Credits: level data is read with the suite's FbrbTool and DbxEdit, based on **Frankelstner**'s format
 documentation and **Heico**'s BFBC2 Toolkit. **Napisal**'s path data for multiplayer maps (BBC2 ModPack)
