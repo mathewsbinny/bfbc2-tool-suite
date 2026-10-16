@@ -1,0 +1,378 @@
+"""The suite's 3D view: GPU-drawn triangles with per-object ids, orbit and fly camera, exact picking, panels.
+
+A tool builds a Scene (batches of triangles, each tagged with an object id and a layer), then runs a Viewer with
+its own panel functions. Picking renders the object ids into a hidden buffer and reads the pixel under the mouse.
+
+Camera: orbit - left drag rotates, right or middle drag pans, wheel zooms, double-click focuses on what is under
+the mouse; fly - hold the right button and use W A S D (Q / E down / up, Shift faster). F toggles orbit / fly.
+"""
+import math
+import time
+
+import moderngl
+import numpy as np
+from imgui_bundle import hello_imgui, imgui, immapp
+
+MAX_LAYERS = 32
+NO_ID = 0xFFFFFF
+
+VERTEX = """
+#version 330
+uniform mat4 mvp;
+in vec3 in_pos;
+in uint in_tag;            // bits 0-23 object id, 24-31 layer
+out vec3 v_world;
+flat out uint v_tag;
+void main() {
+    v_world = in_pos;
+    v_tag = in_tag;
+    gl_Position = mvp * vec4(in_pos, 1.0);
+}
+"""
+FRAGMENT = """
+#version 330
+uniform vec3 palette[32];
+uniform uint hidden;       // one bit per layer
+uniform uint selected;     // object id, or 0xFFFFFF
+uniform uint hovered;
+uniform vec3 light;
+uniform int pick;          // 1: write the object id instead of a colour
+in vec3 v_world;
+flat in uint v_tag;
+out vec4 color;
+void main() {
+    uint layer = v_tag >> 24u;
+    uint id = v_tag & 0xFFFFFFu;
+    if (((hidden >> layer) & 1u) != 0u) discard;
+    if (pick == 1) {
+        color = vec4(float(id & 255u), float((id >> 8u) & 255u), float((id >> 16u) & 255u), 255.0) / 255.0;
+        return;
+    }
+    vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
+    float shade = 0.35 + 0.65 * abs(dot(n, light));
+    vec3 c = palette[layer] * shade;
+    if (id == selected) c = mix(c, vec3(1.0, 0.85, 0.1), 0.65);
+    else if (id == hovered) c = mix(c, vec3(1.0, 1.0, 1.0), 0.25);
+    color = vec4(c, 1.0);
+}
+"""
+
+
+# ------------------------------------------------------------------------------------------------ scene
+
+class Scene:
+    """Triangles to draw: add batches, then the viewer uploads them once."""
+
+    def __init__(self):
+        self.layers = []                  # (name, colour)
+        self.batches = []                 # (positions (n*3, 3) float32, tags (n*3,) uint32)
+        self._sample = []
+
+    def layer(self, name, colour):
+        for i, (n, _) in enumerate(self.layers):
+            if n == name:
+                return i
+        if len(self.layers) >= MAX_LAYERS:
+            raise ValueError('too many layers')
+        self.layers.append((name, colour))
+        return len(self.layers) - 1
+
+    def add_triangles(self, triangles, object_id, layer):
+        """triangles: (n, 3, 3) world positions."""
+        t = np.asarray(triangles, dtype=np.float32).reshape(-1, 3)
+        tag = np.full(len(t), (layer << 24) | (object_id & 0xFFFFFF), dtype=np.uint32)
+        self.batches.append((t, tag))
+        step = max(1, len(t) // 2000)
+        self._sample.append(t[::step])
+
+    @property
+    def bounds(self):
+        """Where the bulk of the geometry is: the 1-99 % range of a sample of positions (a few far-away objects,
+        such as sky or background pieces, do not decide the camera's first view)."""
+        if not self._sample:
+            return None
+        pts = np.concatenate(self._sample)
+        return np.percentile(pts, 1, axis=0), np.percentile(pts, 99, axis=0)
+
+    def add_indexed(self, vertices, triangles, object_id, layer):
+        self.add_triangles(np.asarray(vertices, dtype=np.float32)[np.asarray(triangles)], object_id, layer)
+
+    def add_box(self, centre, size, object_id, layer):
+        c = np.asarray(centre, dtype=np.float32)
+        h = size / 2.0
+        corners = np.array([[x, y, z] for x in (-h, h) for y in (-h, h) for z in (-h, h)], dtype=np.float32) + c
+        faces = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+        tris = []
+        for a, b, cc, d in faces:
+            tris += [corners[[a, b, cc]], corners[[a, cc, d]]]
+        self.add_triangles(np.array(tris), object_id, layer)
+
+    def triangle_count(self):
+        return sum(len(p) for p, _ in self.batches) // 3
+
+
+# ------------------------------------------------------------------------------------------------ camera
+
+def perspective(fov_y, aspect, near, far):
+    f = 1.0 / math.tan(math.radians(fov_y) / 2)
+    m = np.zeros((4, 4), dtype=np.float32)
+    m[0, 0], m[1, 1] = f / aspect, f
+    m[2, 2], m[2, 3] = (far + near) / (near - far), 2 * far * near / (near - far)
+    m[3, 2] = -1
+    return m
+
+
+def look_at(eye, target, up=(0, 1, 0)):
+    eye, target, up = (np.asarray(v, dtype=np.float64) for v in (eye, target, up))
+    f = target - eye
+    f /= np.linalg.norm(f)
+    s = np.cross(f, up)
+    if np.linalg.norm(s) < 1e-9:
+        s = np.array([1.0, 0, 0])
+    s /= np.linalg.norm(s)
+    u = np.cross(s, f)
+    m = np.identity(4)
+    m[0, :3], m[1, :3], m[2, :3] = s, u, -f
+    m[:3, 3] = -m[:3, :3] @ eye
+    return m.astype(np.float32)
+
+
+class Camera:
+    def __init__(self):
+        self.target = np.zeros(3)
+        self.yaw, self.pitch, self.distance = 0.6, 0.6, 300.0
+        self.fly = False
+        self.eye_fly = np.array([0.0, 100.0, 0.0])
+        self.fov = 60.0
+
+    def frame(self, lo, hi):
+        self.target = (np.asarray(lo) + np.asarray(hi)) / 2
+        self.distance = float(np.linalg.norm(np.asarray(hi) - np.asarray(lo))) * 0.6 + 10
+
+    def direction(self):
+        return np.array([math.cos(self.pitch) * math.sin(self.yaw), math.sin(self.pitch), math.cos(self.pitch) * math.cos(self.yaw)])
+
+    def eye(self):
+        return self.eye_fly if self.fly else self.target + self.direction() * self.distance
+
+    def matrices(self, aspect):
+        eye = self.eye()
+        target = eye - self.direction() if self.fly else self.target
+        near = max(0.05, (self.distance if not self.fly else 50.0) / 2000.0)
+        return perspective(self.fov, aspect, near, near * 200000.0), look_at(eye, target)
+
+    def toggle_fly(self):
+        if not self.fly:
+            self.eye_fly = self.eye().copy()
+        else:
+            self.target = self.eye_fly - self.direction() * self.distance
+        self.fly = not self.fly
+
+    def focus(self, point, distance=None):
+        self.fly = False
+        self.target = np.asarray(point, dtype=np.float64)
+        if distance:
+            self.distance = distance
+
+
+# ------------------------------------------------------------------------------------------------ viewer
+
+class Viewer:
+    """Runs the window. panels: functions called every frame inside ImGui (for the tool's windows).
+    on_pick(object_id or None): called when the user clicks; the tool decides what selecting means."""
+
+    def __init__(self, scene, title, panels=(), on_pick=None, size=(1600, 950)):
+        self.scene, self.title, self.panels, self.on_pick, self.size = scene, title, list(panels), on_pick, size
+        self.camera = Camera()
+        if scene.bounds is not None:
+            self.camera.frame(*scene.bounds)
+        self.hidden = 0
+        self.selected = NO_ID
+        self.hovered = NO_ID
+        self.hover_point = None
+        self.ctx = None
+        self.fps = 0.0
+        self._last = time.time()
+        self._frames = 0
+        self.exit_after = None            # frames, for screenshots in tests
+        self.screenshot = None
+        self._click_start = None
+        self._last_click = 0.0
+
+    # --- GPU ----------------------------------------------------------------------------------------
+    def _init(self):
+        self.ctx = moderngl.create_context()
+        self.prog = self.ctx.program(vertex_shader=VERTEX, fragment_shader=FRAGMENT)
+        pos = np.concatenate([p for p, _ in self.scene.batches]) if self.scene.batches else np.zeros((3, 3), np.float32)
+        tag = np.concatenate([t for _, t in self.scene.batches]) if self.scene.batches else np.zeros(3, np.uint32)
+        self.vbo_pos = self.ctx.buffer(pos.astype(np.float32).tobytes())
+        self.vbo_tag = self.ctx.buffer(tag.astype(np.uint32).tobytes())
+        self.vao = self.ctx.vertex_array(self.prog, [(self.vbo_pos, '3f', 'in_pos'), (self.vbo_tag, 'u', 'in_tag')])
+        palette = [c for _, c in self.scene.layers] + [(0.5, 0.5, 0.5)] * (MAX_LAYERS - len(self.scene.layers))
+        self.prog['palette'].value = [tuple(float(x) for x in c) for c in palette]
+        light = np.array([0.4, 0.8, 0.3])
+        self.prog['light'].value = tuple(light / np.linalg.norm(light))
+        self.pick_fbo = None
+        self.scene.batches = []           # uploaded; free the CPU copy
+
+    def _ensure_pick_fbo(self, w, h):
+        if self.pick_fbo is None or self.pick_fbo.size != (w, h):
+            if self.pick_fbo is not None:
+                self.pick_fbo.release()
+            self.pick_fbo = self.ctx.framebuffer(color_attachments=[self.ctx.texture((w, h), 4)],
+                                                 depth_attachment=self.ctx.depth_texture((w, h)))
+
+    def _mvp(self, w, h):
+        proj, view = self.camera.matrices(w / max(h, 1))
+        return proj @ view, proj, view
+
+    def _draw(self):
+        w, h = self._window_size()
+        if w <= 0 or h <= 0:
+            return
+        self.ctx.viewport = (0, 0, w, h)
+        self.ctx.clear(0.13, 0.14, 0.16, depth=1.0)
+        self.ctx.enable(moderngl.DEPTH_TEST)
+        mvp, _, _ = self._mvp(w, h)
+        self.prog['mvp'].write(mvp.T.astype(np.float32).tobytes())
+        self.prog['hidden'].value = self.hidden
+        self.prog['selected'].value = self.selected
+        self.prog['hovered'].value = self.hovered
+        self.prog['pick'].value = 0
+        self.vao.render(moderngl.TRIANGLES)
+        self.ctx.disable(moderngl.DEPTH_TEST)
+
+    def pick(self, x, y):
+        """Object id under window pixel (x, y from the top left), or None; also the world point there."""
+        w, h = self._window_size()
+        self._ensure_pick_fbo(w, h)
+        self.pick_fbo.use()
+        self.ctx.viewport = (0, 0, w, h)
+        self.pick_fbo.clear(1.0, 1.0, 1.0, 1.0, depth=1.0)
+        self.ctx.enable(moderngl.DEPTH_TEST)
+        mvp, proj, view = self._mvp(w, h)
+        self.prog['mvp'].write(mvp.T.astype(np.float32).tobytes())
+        self.prog['pick'].value = 1
+        self.vao.render(moderngl.TRIANGLES)
+        self.prog['pick'].value = 0
+        px, py = int(x), int(h - 1 - y)
+        if not (0 <= px < w and 0 <= py < h):
+            self.ctx.screen.use()
+            return None, None
+        rgba = self.pick_fbo.read(viewport=(px, py, 1, 1), components=4)
+        depth = np.frombuffer(self.pick_fbo.read(viewport=(px, py, 1, 1), attachment=-1, dtype='f4'), dtype=np.float32)[0]
+        self.ctx.screen.use()
+        self.ctx.disable(moderngl.DEPTH_TEST)
+        oid = rgba[0] | (rgba[1] << 8) | (rgba[2] << 16)
+        if oid == NO_ID:
+            return None, None
+        ndc = np.array([2 * px / w - 1, 2 * py / h - 1, 2 * depth - 1, 1.0])
+        world = np.linalg.inv(mvp.astype(np.float64)) @ ndc
+        return oid, world[:3] / world[3]
+
+    def _window_size(self):
+        d = imgui.get_io().display_size
+        s = imgui.get_io().display_framebuffer_scale
+        return int(d.x * s.x), int(d.y * s.y)
+
+    # --- input --------------------------------------------------------------------------------------
+    def _input(self):
+        io = imgui.get_io()
+        scale = io.display_framebuffer_scale
+        mx, my = io.mouse_pos.x * scale.x, io.mouse_pos.y * scale.y
+        if not io.want_capture_keyboard and imgui.is_key_pressed(imgui.Key.f):
+            self.camera.toggle_fly()
+        if io.want_capture_mouse:
+            return
+        dx, dy = io.mouse_delta.x, io.mouse_delta.y
+        cam = self.camera
+        if cam.fly:
+            if imgui.is_mouse_down(imgui.MouseButton_.right):
+                cam.yaw -= dx * 0.005
+                cam.pitch = max(-1.5, min(1.5, cam.pitch + dy * 0.005))
+                speed = (60.0 if io.key_shift else 15.0) * io.delta_time
+                fwd = -cam.direction()
+                right = np.cross(fwd, [0, 1, 0])
+                right /= max(np.linalg.norm(right), 1e-9)
+                move = np.zeros(3)
+                for key, v in ((imgui.Key.w, fwd), (imgui.Key.s, -fwd), (imgui.Key.d, right), (imgui.Key.a, -right),
+                               (imgui.Key.e, np.array([0, 1.0, 0])), (imgui.Key.q, np.array([0, -1.0, 0]))):
+                    if imgui.is_key_down(key):
+                        move += v
+                cam.eye_fly = cam.eye_fly + move * speed
+        else:
+            if imgui.is_mouse_down(imgui.MouseButton_.left) and (abs(dx) + abs(dy)) > 0:
+                cam.yaw -= dx * 0.006
+                cam.pitch = max(-1.55, min(1.55, cam.pitch + dy * 0.006))
+            if (imgui.is_mouse_down(imgui.MouseButton_.right) or imgui.is_mouse_down(imgui.MouseButton_.middle)) and (abs(dx) + abs(dy)) > 0:
+                right = np.cross(cam.direction(), [0, 1, 0])
+                right /= max(np.linalg.norm(right), 1e-9)
+                up = np.cross(right, cam.direction())
+                k = cam.distance * 0.0015
+                cam.target = cam.target + right * dx * k + up * dy * k
+            if io.mouse_wheel:
+                cam.distance = max(1.0, cam.distance * (0.85 ** io.mouse_wheel))
+        # click (press and release without dragging) selects; double-click focuses
+        if imgui.is_mouse_clicked(imgui.MouseButton_.left):
+            self._click_start = (mx, my)
+        if imgui.is_mouse_released(imgui.MouseButton_.left) and self._click_start is not None:
+            sx, sy = self._click_start
+            self._click_start = None
+            if abs(mx - sx) + abs(my - sy) < 4:
+                oid, point = self.pick(mx, my)
+                now = time.time()
+                if now - self._last_click < 0.35 and point is not None:
+                    self.camera.focus(point, min(self.camera.distance, 60.0))
+                self._last_click = now
+                self.selected = oid if oid is not None else NO_ID
+                if self.on_pick:
+                    self.on_pick(oid)
+        # hover: once the mouse has moved and then rests for a moment (a pick re-renders the scene)
+        if abs(dx) + abs(dy) > 0:
+            self._hover_due = time.time() + 0.12
+        elif getattr(self, '_hover_due', None) and time.time() >= self._hover_due:
+            self._hover_due = None
+            oid, point = self.pick(mx, my)
+            self.hovered = oid if oid is not None else NO_ID
+            self.hover_point = point
+
+    # --- frame --------------------------------------------------------------------------------------
+    def _background(self):
+        if self.ctx is None:
+            return
+        self._draw()
+
+    def _gui(self):
+        self._frames += 1
+        self._fps_frames = getattr(self, '_fps_frames', 0) + 1
+        now = time.time()
+        if now - self._last >= 1.0:
+            self.fps = self._fps_frames / (now - self._last)
+            self._fps_frames, self._last = 0, now
+        self._input()
+        for p in self.panels:
+            p(self)
+        if self.exit_after is not None and self._frames >= self.exit_after:
+            hello_imgui.get_runner_params().app_shall_exit = True
+
+    def layer_visible(self, layer):
+        return not (self.hidden >> layer) & 1
+
+    def set_layer_visible(self, layer, visible):
+        self.hidden = (self.hidden & ~(1 << layer)) if visible else (self.hidden | (1 << layer))
+
+    def run(self):
+        p = hello_imgui.RunnerParams()
+        p.app_window_params.window_title = self.title
+        p.app_window_params.window_geometry.size = self.size
+        p.callbacks.post_init = self._init
+        p.callbacks.custom_background = self._background
+        p.callbacks.show_gui = self._gui
+        p.fps_idling.enable_idling = False
+        p.imgui_window_params.default_imgui_window_type = hello_imgui.DefaultImGuiWindowType.no_default_window
+        immapp.run(p)
+        if self.exit_after is not None:
+            try:
+                self.screenshot = hello_imgui.final_app_window_screenshot()
+            except Exception:
+                self.screenshot = None
