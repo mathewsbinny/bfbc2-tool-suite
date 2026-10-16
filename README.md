@@ -60,6 +60,7 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `core/tests/test_level.py` | game | the loader's counts per category, team, shape, collision, terrain and water against `level_snapshot.json` (`--update` after an intended change) |
 | `core/tests/test_terrain.py` | game | heights within 0.1 m of the in-game terrain samples (13 levels) |
 | `hpdtool roundtrip / meshtrip` | game | every path-data file and navigation mesh written back byte for byte |
+| `core/tests/test_navdata.py` | game | path data as the studio loads it (islands, cache, a file against itself) and the path test (routes, costs from the stored edges, refusals between islands) |
 | `tests/test_viewers.py` | game | the Map Inspector and the Navigation Studio open a level, draw it (screenshot not blank) and exit; prints the GPU used |
 | `bfbc2-auto-navkit/tools/navregress.py` | game (2 levels), full (13) | NavKit rebuilds levels with the current code; fails if any DICE-parity measure is worse than the reference run `regression` |
 | DbxEdit corpus, `core/tests/test_dbx.py` | full | every unpacked `.dbx`: DbxEdit's fingerprints, and the Python reader's XML identical to DbxEdit's |

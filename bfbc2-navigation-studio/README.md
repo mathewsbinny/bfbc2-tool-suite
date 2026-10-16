@@ -28,6 +28,13 @@ spawns. NavKit's ground is shown at start, the rest can be switched on.
 | pitch | detailed zones (DICE's 0.2 m areas) in orange |
 | difference | NavKit's ground that DICE also has (grey-green) or does not (orange); DICE's ground NavKit lacks is the red layer |
 
+**Path test (P, milestone M4 step 1).** Press P, click a start and an end on the ground: the cheapest route
+over each file's route graph (its own directed edges and stored costs) is drawn - NavKit's yellow, DICE's
+cyan - with its cost, length, the detour against the straight line, and NavKit's cost against DICE's. Without
+a route the panel says why: which island each point is on and where they come closest (drawn in red, with a
+button that flies there), or that no route node is within 15 m of a point. It plans over the graph only; the
+game also smooths routes through the areas. (`core/bfbc2core/navpath.py`; `--path "x,y,z;x,y,z"` for tests.)
+
 **Panels**
 
 - *Navigation:* per file the areas (detailed ones), cells, route nodes and edges, islands; DICE ground

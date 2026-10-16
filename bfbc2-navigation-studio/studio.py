@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(SUITE, 'core'))
 import numpy as np  # noqa: E402
 from imgui_bundle import imgui  # noqa: E402
 
-from bfbc2core import level as levelmod, navdata, viewer  # noqa: E402
+from bfbc2core import level as levelmod, navdata, navpath, viewer  # noqa: E402
 
 FILES = ('NavKit', 'DICE')
 ID_BASE = {'NavKit': 0x200000, 'DICE': 0x400000}          # + area index
@@ -33,6 +33,7 @@ COLOR_MODES = ['island', 'sector', 'pitch', 'difference']
 MAIN, SAME_C, EXTRA, MISSING, NORMAL, DETAILED = (0.35, 0.75, 0.35), (0.55, 0.62, 0.55), (1.0, 0.55, 0.15), \
     (0.9, 0.15, 0.15), (0.30, 0.60, 0.80), (1.0, 0.60, 0.15)
 LIFT = 0.06                                              # ground cells drawn just above the surface
+PATH_COLOURS = {'NavKit': (1.0, 0.85, 0.1), 'DICE': (0.3, 0.9, 1.0)}
 
 
 def hue(k, s=0.65, v=0.92):
@@ -199,8 +200,81 @@ class Studio:
                 return name, oid - base
         return None
 
+    # --- path test (P) ------------------------------------------------------------------------------
+    def set_path_mode(self, v, on):
+        self.path_mode = on
+        v.select_on_click = not on
+
+    def path_point(self, v, p):
+        """A click in path mode: the start, then the end (a third click starts again)."""
+        pts = self.__dict__.setdefault('path_pts', [])
+        if len(pts) >= 2:
+            pts.clear()
+        pts.append(np.asarray(p, dtype=np.float64))
+        self.routes = {}
+        if len(pts) == 2:
+            for name, nav in self.files.items():
+                self.routes[name] = navpath.route(nav, pts[0], pts[1])
+        self.update_path_overlay(v)
+
+    def update_path_overlay(self, v):
+        seg = []
+        for p in getattr(self, 'path_pts', []):
+            for d in ((0.6, 0, 0), (0, 1.5, 0), (0, 0, 0.6)):
+                seg.append((p - np.array(d), p + np.array(d), (1.0, 1.0, 1.0)))
+        for name, r in getattr(self, 'routes', {}).items():
+            nav = self.files[name]
+            col = PATH_COLOURS[name]
+            g = navpath.ground_nodes(nav) + np.array([0, 0.35 if name == 'NavKit' else 0.25, 0])
+            if r.found:
+                chain = g[r.nodes]
+                seg += [(chain[k], chain[k + 1], col) for k in range(len(chain) - 1)]
+                seg.append((self.path_pts[0], chain[0], col))
+                seg.append((chain[-1], self.path_pts[1], col))
+            elif r.gap:
+                a, b = g[r.gap[0]], g[r.gap[1]]
+                seg += [(a, b, MISSING), (a, a + np.array([0, 3, 0]), MISSING), (b, b + np.array([0, 3, 0]), MISSING)]
+        v.set_overlay(seg)
+
+    def panel_path(self, v):
+        if not getattr(self, 'path_mode', False) and not getattr(self, 'routes', None):
+            return
+        imgui.set_next_window_pos((380, 10), imgui.Cond_.first_use_ever)
+        imgui.begin('Path test', flags=imgui.WindowFlags_.always_auto_resize)
+        changed, on = imgui.checkbox('path test (P): click the start, then the end', getattr(self, 'path_mode', False))
+        if changed:
+            self.set_path_mode(v, on)
+        if imgui.small_button('clear##path'):
+            self.path_pts, self.routes = [], {}
+            v.set_overlay([])
+        pts = getattr(self, 'path_pts', [])
+        for label, p in zip(('start', 'end'), pts):
+            imgui.text(f'{label}: {p[0]:.1f}, {p[1]:.1f}, {p[2]:.1f}')
+        for name, r in getattr(self, 'routes', {}).items():
+            imgui.separator()
+            imgui.text_colored(imgui.ImVec4(*PATH_COLOURS[name], 1.0), name)
+            if r.found:
+                imgui.text(f'  route: cost {r.cost:.1f} m over {len(r.nodes)} nodes (length {r.length:.1f} m, '
+                           f'straight {r.straight:.1f} m, x{r.cost / max(r.straight, 1e-9):.2f})')
+                imgui.text(f'  joined at nodes {r.start_join:.1f} m and {r.end_join:.1f} m from the points; island {r.start_island}')
+            else:
+                imgui.text(f'  no route: {r.reason}')
+                if r.gap and imgui.small_button(f'fly to the gap##{name}'):
+                    v.camera.focus((self.files[name].node_pos[r.gap[0]] + self.files[name].node_pos[r.gap[1]]) / 2, 40.0)
+        routes = getattr(self, 'routes', {})
+        if len(routes) == 2 and all(r.found for r in routes.values()):
+            a, b = routes['NavKit'].cost, routes['DICE'].cost
+            imgui.separator()
+            imgui.text(f'NavKit\'s route costs {100.0 * (a - b) / max(b, 1e-9):+.1f} % against DICE\'s')
+        imgui.text_disabled('Over the route graph only; the game also smooths the route through the areas.')
+        imgui.end()
+
     def on_pick(self, v):
         def handler(oid):
+            if getattr(self, 'path_mode', False):
+                if v.pick_point is not None:
+                    self.path_point(v, v.pick_point)
+                return
             hit = self.area_of_id(oid) if oid is not None else None
             self.selected = hit
             if hit is None and oid is not None and 0x100000 <= oid < 0x100000 + len(self.spawns):
@@ -301,6 +375,8 @@ class Studio:
 
     def panel_status(self, v):
         io = imgui.get_io()
+        if not io.want_capture_keyboard and imgui.is_key_pressed(imgui.Key.p):
+            self.set_path_mode(v, not getattr(self, 'path_mode', False))
         if not io.want_capture_mouse and v.hovered not in (viewer.NO_ID,):
             hit = self.area_of_id(v.hovered)
             if hit:
@@ -342,7 +418,7 @@ def main(argv):
     st = Studio(lvl, files, opts.get('--color', 'island'))
     st.triangles = st.scene.triangle_count()
     v = viewer.Viewer(st.scene, f'BFBC2 Navigation Studio - {lvl.name}',
-                      panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_status])
+                      panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_path, st.panel_status])
     v.on_pick = st.on_pick(v)
     hide = set(opts.get('--hide', 'objects,DICE ground,DICE outlines,DICE portals,DICE border portals,DICE route graph,'
                                    'NavKit outlines,NavKit portals,NavKit border portals,NavKit route graph').split(','))
@@ -354,6 +430,12 @@ def main(argv):
         n = int(opts['--island'])
         if n < len(nav.islands):
             v.camera.focus(nav.islands[n].centre, 60.0)
+    if '--path' in opts:                                    # tests: a path test between two points
+        st.set_path_mode(v, True)
+        for p in opts['--path'].split(';'):
+            st.path_point(v, [float(c) for c in p.split(',')])
+        for name, r in st.routes.items():
+            print(f'path {name}: ' + (f'cost {r.cost:.1f} m, {len(r.nodes)} nodes' if r.found else f'none - {r.reason}'))
     if '--screenshot' in opts:
         v.exit_after = int(opts.get('--frames', 40))
     v.run()

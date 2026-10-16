@@ -7,6 +7,7 @@ navdiff); the format is in bfbc2-auto-navkit/research/KYNAPSE_SPEC.md.
     nav.cell_xz, nav.cell_y      every walkable cell on the 0.8 m grid (navdiff's cells), its ground height
     nav.cell_area                the area each cell belongs to
     nav.node_pos, nav.edges      route graph: node positions (ground + 0.95 m, as stored), edges as index pairs
+    nav.edge_cost                each edge's cost in metres, as stored
     nav.node_island, nav.islands islands (connected parts of the graph), largest first
 
 Cells come from navdiff.area_cells (samples inside an area's boundary, height from the nearest boundary point);
@@ -33,7 +34,7 @@ import navdiff  # noqa: E402
 GRID = navdiff.GRID
 Y_OFFSET = navdiff.Y_OFFSET                 # boundaries and nodes are stored 0.95 m above the ground
 DETAILED = 0.5                              # areas with a smaller pitch are detailed zones (DICE: 0.2 m)
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 @dataclass
@@ -73,7 +74,8 @@ class NavData:
     cell_area: np.ndarray                   # (n,) index into areas
     node_pos: np.ndarray                    # (m, 3)
     node_sector: np.ndarray                 # (m,)
-    edges: np.ndarray                       # (k, 2) node indices
+    edges: np.ndarray                       # (k, 2) node indices, source -> destination
+    edge_cost: np.ndarray                   # (k,) metres, as stored (the tag's floor(distance * 16) / 16)
     node_island: np.ndarray                 # (m,) index into islands
     islands: List[Island]
 
@@ -158,7 +160,7 @@ def _load(path, heightfield, cache_dir):
         a.cells = int(n)
 
     # route graph: border nodes repeat in both sectors with the same id - one node per id
-    index, pos, sec, edges = {}, [], [], []
+    index, pos, sec, edges, costs = {}, [], [], [], []
     for s in f.sectors:
         local = []
         for nd in s.nodes:
@@ -169,6 +171,7 @@ def _load(path, heightfield, cache_dir):
             local.append(index[nd.id])
         for e in s.edges:
             edges.append((local[e.src], local[e.dst]))
+            costs.append((e.tag & 0x7FFFFFFF) / 16.0)
     pos = np.array(pos, dtype=np.float64).reshape(-1, 3)
     edges = np.array(edges, dtype=np.int64).reshape(-1, 2)
     parent = np.arange(len(pos))
@@ -213,7 +216,8 @@ def _load(path, heightfield, cache_dir):
     for k, r in enumerate(order):
         sel = node_island == k
         islands.append(Island(int(r), int(sel.sum()), int(island_cells.get(k, 0)), pos[sel].mean(axis=0)))
-    return NavData(path, areas, xz, y, cell_area, pos, np.array(sec), edges, node_island, islands)
+    return NavData(path, areas, xz, y, cell_area, pos, np.array(sec), edges, np.array(costs, dtype=np.float64),
+                   node_island, islands)
 
 
 def compare_cells(cand, ref):
