@@ -65,9 +65,9 @@ they are built in. It is a draft for review, and it changes as the tools are bui
 | binary `.dbx` (entities, transforms, properties) | a Python reader written from `bfbc2-dbx-tools/FORMAT.md` (no exe calls, fast); until then `DbxEdit xml` | to write; the format is fully specified, and DbxEdit's 31,564 fingerprints check that the reader agrees |
 | object collision (`*_Havok.res`) | NavKit's `hkpack.py` | works for the shapes NavKit uses; other shape types to add |
 | static model groups (instance transforms) | `*_HavokAsset` partitions | works in NavKit |
-| terrain heights | `Terrains/<level>/<level>.Heightfield-000.res` | to decode. The header looks like an extent of -1024..1024 m on both axes, a height range of 0..1000 m and a 2048 grid. The 8.67 MB file fits a 2049 × 2049 grid of 16-bit heights (8.40 MB) plus about 270 KB more. Not verified yet. |
+| terrain heights | `Terrains/<level>/<level>.Heightfield-000.res` (in `terrain-00.fbrb`) | decoded (`core/bfbc2core/terrain.py`, section 7 question 1): a 1024² or 2048² grid of 16-bit heights, matching the in-game terrain to within 4.5 cm |
 | water | `<level>.Water.res`, `.Water.Mesh.res` | to research |
-| surfaces measured in game | NavKit's samples (`work\navsample\*.bin`, `navsample.py`) | works; an approximate terrain until the heightfield is decoded |
+| surfaces measured in game | NavKit's samples (`work\navsample\*.bin`, `navsample.py`) | works; the terrain fallback when a level's heightfield cannot be read |
 | navigation data | NavKit's `hpdtool.py` and `kymesh.py` (byte-exact reader and writer) | works |
 | spawn points, AI orders and patrol routes | level partition entities (as NavKit's `levelobjects` and `ordercheck` read them) | works |
 | objectives (M-COMs, flags), destructibles, vehicles and vehicle spawns | level partition entities | to read; the entity types are to identify |
@@ -314,15 +314,20 @@ OPFOR telemetry module, and is versioned.
 
 ## 7. Open questions
 
-1. **Terrain heightfield:** the layout and the height encoding.
-   - **Header, read:** six floats, the extent (-1024, 0, -1024)..(1024, 1000, 1024), i.e. 2048 m square
-     and 0-1000 m high. Then 2048 (the grid), 8 and 9 (probably 9 levels of detail, 2048 halving to 8),
-     and 4,194,304 (= 2048 × 2048 values). Then a table of small 16-bit pairs (per-tile data?).
-   - **Tested, not the layout:** a plain row-major grid of 16-bit heights scaled to 0-1000 m, at any
-     start offset in either order. Checked against DICE's path-data ground heights, the median error is
-     97 m.
-   - **So:** probably tiled, or in level-of-detail order. Until it is decoded, the view uses NavKit's
-     in-game surface samples as terrain.
+1. **Terrain heightfield: resolved (2026-10-16).** Decoder in `core/bfbc2core/terrain.py`; the layout:
+   - **Header (little-endian):** six floats (the world bounds: min x, y, z, max x, y, z), the grid size
+     (1024 or 2048 samples per side), five more u32 (log2(size) - 3, log2(size) - 2, about 256 × size, 0, a
+     count; not needed for heights), then **one byte, 0 in every level**.
+   - **Heights from offset 0x31:** size × size **little-endian** u16, rows along z, columns along x,
+     height = min y + value / 65535 × (max y - min y), sample (i, j) at min + (i, j) × extent / size
+     (1 m on a 2048 m level). Grid squares split along the (i, j)-(i+1, j+1) diagonal.
+   - **Then:** a table of u32 offsets (0, 2, 4, ...) and further data, probably level of detail; not decoded.
+   - **Checked** against the in-game terrain samples of all 13 campaign levels (40 million samples): median
+     error 0.1-10 mm, 99.9 % within 4.5 cm (the sampler's sphere cast has a 5 cm radius), at most 0.03 % of
+     a level's samples more than 0.1 m off.
+   - **Why it took a second look:** the odd byte at 0x30 makes the heights start at an odd offset. Read from
+     0x30 as big-endian, the values look nearly right (a value's high byte comes from its neighbour), so
+     about 20 % of samples were 1-4 m off along contour lines; the earlier test at even offsets found nothing.
 2. **Water:** surface heights and extents (relevant to NavKit's extra-ground gap).
 3. **Traversal links in Kynapse data:** whether the format can carry a ladder or jump link the game's AI
    would use, to be tested in game. Until then, those links go to OPFOR's side file.

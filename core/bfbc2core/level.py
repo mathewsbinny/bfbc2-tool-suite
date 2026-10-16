@@ -3,7 +3,9 @@
     lvl = load('sp_01')                       # by level name, from Project OPFOR's game copy
     lvl.entities                              # every instance of the level partition (Entity)
     lvl.meshes                                # world-space collision triangles per placed object / group member
-    lvl.terrain                               # (vertices, triangles) from NavKit's in-game samples, or None
+    lvl.terrain                               # (vertices, triangles): the level's height field (terrain.py),
+                                              # or NavKit's in-game samples when it cannot be read, or None
+    lvl.heightfield                           # terrain.Heightfield, for exact heights (height(x, z))
 
 Data comes from the level as NavKit prepares it (OPFOR's work\\levels\\<level>\\dist and pkg, and the shared
 data in work\\navkit\\common\\). Run `navkit.py prepare <level>` once for a level that is not there yet.
@@ -17,7 +19,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from . import dbx
+from . import dbx, terrain
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -72,6 +74,7 @@ class Level:
     entities: List[Entity] = field(default_factory=list)
     meshes: List[Mesh] = field(default_factory=list)
     terrain: Optional[tuple] = None
+    heightfield: Optional[object] = None  # terrain.Heightfield, when the level's terrain bundle was read
     missing_collision: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
 
@@ -170,11 +173,42 @@ def load(level, opfor=None, terrain_stride=2, log=print):
         m = e.matrix
         lvl.meshes.append(Mesh(e.index, (t @ m[:3, :3] + m[3, :3]).astype(np.float32)))
     lvl.missing_collision = sorted(missing)
-    lvl.terrain = terrain_from_samples(root, lv, terrain_stride)
+    source = 'none'
+    try:
+        lvl.heightfield = heightfield_of(root, lv, log)
+    except Exception as e:                    # no terrain bundle, FbrbTool missing, unexpected layout
+        lvl.notes.append(f'terrain height field not read: {e}')
+    if lvl.heightfield is not None:
+        lvl.terrain, source = lvl.heightfield.mesh(terrain_stride), 'height field'
+    else:
+        lvl.terrain = terrain_from_samples(root, lv, terrain_stride)
+        source = 'samples' if lvl.terrain else 'none'
     n_tris = sum(len(m.triangles) for m in lvl.meshes)
     log(f'{LV}: {len(lvl.entities)} entities, {len(lvl.meshes)} with collision ({n_tris} triangles), '
-        f'{len(missing)} blueprints without collision, terrain {"from samples" if lvl.terrain else "none"}')
+        f'{len(missing)} blueprints without collision, terrain from {source}')
     return lvl
+
+
+def heightfield_of(root, lv, log=print):
+    """The level's terrain height field, unpacking its terrain-00.fbrb into work\\levels\\<lv>\\terrain once."""
+    import subprocess
+    import navkit
+    dest = os.path.join(root, 'work', 'levels', lv, 'terrain')
+    path = terrain.find(dest, lv) if os.path.isdir(dest) else None
+    if path is None:
+        bundle = None
+        for d in glob.glob(os.path.join(root, 'game', 'Dist', 'win32', 'levels', '*')):
+            if os.path.basename(d).lower() == lv and os.path.isfile(os.path.join(d, 'terrain-00.fbrb')):
+                bundle = os.path.join(d, 'terrain-00.fbrb')
+        if bundle is None:
+            return None
+        log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')
+        tool = navkit.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool')
+        subprocess.run([tool, 'unpack', bundle, dest], check=True, capture_output=True)
+        path = terrain.find(dest, lv)
+        if path is None:
+            return None
+    return terrain.read(path)
 
 
 def terrain_from_samples(root, lv, stride=2):
