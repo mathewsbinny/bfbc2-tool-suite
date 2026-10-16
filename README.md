@@ -44,6 +44,9 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles |
 | DbxEdit unit tests | quick | 93 checks of the format, XML export and import, edits, level check, cull-slot fixer, command line, window |
 | `core/tests/test_fbrb.py` | quick, game, full | unpack + pack gives the same bundle (built here; 12 game bundles; all 1,055), `*deleted*` markers handled |
+| `bfbc2-diff-workbench/level-diff/tests/test_leveldiff.py` | quick, game | two levels built in the test with known differences (changed field, re-created object, list entries added / removed / reordered, instances added / removed); `--match-objects`, `--ignore`, `--type`, `--summary`, JSON, exit codes; MP_005 against itself and Dist against Package |
+| `bfbc2-automated-map-and-bot-test-harness/crash-reader/tests/test_crashreader.py` | quick, game | crash reports built in the game's layout: registers, stack, symbols and hints, null registers, build note, log lines; with the exe: function start, null operand, call before a return address, text on the stack |
+| `bfbc2-console-readers/tests/test_console_readers.py` | quick, game | XDVDFS images (two partition offsets, nested and empty folders) and STFS packages (both hash-table layouts, a fragmented file); with your Xbox 360 files: the disc's 693 files, Onslaught path data from Update #2 and #3 identical and identical to Napisal's PC files |
 | `core/tests/test_water.py` | game | every level's water read exactly, indices in range, a shader per triangle |
 | `core/tests/test_level.py` | game | the loader's counts per category, team, shape, collision, terrain and water against `level_snapshot.json` (`--update` after an intended change) |
 | `core/tests/test_terrain.py` | game | heights within 0.1 m of the in-game terrain samples (13 levels) |

@@ -2,11 +2,12 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
 
   python run_tests.py [quick | game | full] [--only <name>] [--list]
 
-  quick   no game data, about a minute: repository rules, DbxEdit unit tests, FbrbTool on a bundle built
-          in the test (needs Windows for the C# tools)
+  quick   no game data, about a minute: repository rules, DbxEdit unit tests, and on files built by the
+          tests: FbrbTool, LevelDiff, the crash reader, the console readers (needs Windows for the C# tools)
   game    + Project OPFOR's game copy, about 10 minutes: FbrbTool on 12 game bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
-          round trips
+          round trips, LevelDiff on MP_005, the crash reader's code view on BFBC2Game.exe, the console
+          readers on your own Xbox 360 files (skipped when they are not on the PC)
   full    + the corpus runs, about 30 minutes: DbxEdit and the Python DBX reader on every unpacked .dbx,
           FbrbTool on all 1,055 bundles
 
@@ -45,6 +46,13 @@ def tests():
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
+        ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),
+        ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
+        ('crash reader, built reports', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py')]),
+        ('console readers, built images', 'quick', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py')]),
+        ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
+        ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),
+        ('console readers on your Xbox files', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py'), '--game']),
         ('FbrbTool round trip, 12 game bundles', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py'), '--game', '12']),
         ('water, every level', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_water.py')]),
         ('level loader snapshot', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_level.py')]),
