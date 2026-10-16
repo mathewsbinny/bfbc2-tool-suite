@@ -14,6 +14,10 @@ built in. It is a draft for review, and it changes as the tools are built.
 | **bfbc2-tactical-map-authoring-tool** | Project OPFOR bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
 | **bfbc2-bot-ai-debugger** | Project OPFOR bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
 | **bfbc2-automated-map-and-bot-test-harness** | Project OPFOR | Repeatable scenarios across maps, with results saved per build so changes can be compared: reachability, path tests, bot traversal, stuck detection, squad coordination, vehicle use. |
+| **bfbc2-asset-pipeline** (in the core) | any BC2 modder | Batch extraction into common formats: geometry and collision to OBJ/glTF, entities and transforms, spawns and objectives to JSON, textures and materials later, dependency reports. It is the same readers the viewer uses. |
+| **bfbc2-diff-workbench** | research | Binary and asset diffing: ImHex pattern files for BC2 formats, plus a report of which structures are understood and what changed, with reproducible extraction logs and hashes. |
+| **bfbc2-ai-behavior-simulator** | Project OPFOR bots | Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls, physics or animation. |
+| **OPFOR asset builder & validator** (in the OPFOR repo) | Project OPFOR | Turns editor outputs into versioned runtime packages for the standalone client, with schema and dependency checks and a report of missing or incompatible data. |
 
 ## 2. Rules
 
@@ -158,6 +162,55 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 - **Results:** saved per named run, as NavKit's parity runs are, and compared between runs to show
   whether a change improved things.
 
+### 4.6 bfbc2-asset-pipeline (in the core; geometry and entities in M1)
+
+- **Command line:** `bfbc2-extract <level> --geometry obj|gltf --entities json --deps report.json`, and
+  the same for any bundle.
+- **One code path:** it uses the core's data layer, so whatever the viewer can show, the pipeline can
+  export.
+- **Dependency report:** the partitions and resources a level or bundle needs, and where each is found
+  (which bundle), with missing ones flagged. This doubles as the game-wide search index ("where is X
+  defined, who uses it").
+- **Textures, materials and render meshes:** later, when the inspector needs them. Existing community
+  converters are called as external tools where their licence does not allow reusing their code.
+- **Every run writes a log:** inputs with SHA-1, tool versions, outputs with SHA-1.
+
+### 4.7 bfbc2-diff-workbench (alongside research, from M2)
+
+- **ImHex pattern files** (`patterns/*.hexpat`) for BC2's formats, so a file can be viewed as structure
+  and two files diffed by field in ImHex: `pathdata.hpd`, `.fbrb`, the binary DBX header and tree,
+  terrain heightfields, Havok packfiles, then others as they are researched.
+- **`bfbc2-coverage <file>`:** which byte ranges of a file our readers understand, and which are still
+  unknown. It tracks research progress per format.
+- **`bfbc2-bindiff <a> <b>`:** for known formats, changed fields by structure, using LevelDiff, `navdiff`
+  and DbxEdit's parser; for unknown ones, changed byte ranges with their offsets.
+- **Extraction logs and hashes**, so any finding can be reproduced from the same inputs.
+
+### 4.8 bfbc2-ai-behavior-simulator (with OPFOR's bot layer)
+
+- **The rule this brings forward:** OPFOR's bot decision logic is written as an engine-independent
+  library. It reaches the world only through an interface: positions, line of sight, paths, objective
+  states, squad messages. OPFOR's DLL connects that interface to the game; the simulator connects it to a
+  simplified map. Both run the same decision code, so a flaw found in simulation is a flaw in the bots.
+- **The simplified map** comes from NavKit's navigation data (route graph, areas), the tactical
+  annotations, and line of sight from collision geometry.
+- **Scenarios:** teams, spawns and objectives from the level; scripted or random enemy behaviour; many
+  runs faster than real time; results into the test harness.
+- **Out of scope:** controls, physics, animation, weapon ballistics. Those stay with in-game tests.
+
+### 4.9 OPFOR asset builder & validator (in the Project OPFOR repo)
+
+- **Inputs:** NavKit output and side files, tactical annotations, level ports and recipes (such as the
+  console Onslaught builds), menu patches.
+- **Output:** versioned runtime packages for OPFOR's standalone client: bundles registered in
+  `package.mft`, `bundleManifest` and the startup bundle; side files in place; backups kept for clean
+  uninstall.
+- **Checks before packaging:** schemas of the side files, `DbxEdit check` on every level, references
+  resolved across bundles, and NavKit parity for campaign levels.
+- **Report:** missing, incompatible or outdated data.
+- **It absorbs** the import scripts and the bundle manager (OPFOR backlog item 8). The installer builds
+  on it.
+
 ## 5. File formats
 
 ### 5.1 Navigation side file: `<level>.navtune.json`
@@ -215,6 +268,8 @@ OPFOR telemetry module, and is versioned.
 | M5 | Test harness, offline: reachability, path batteries, parity, saved runs | |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
+| alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |
+| with Goal 3 | the bot decision library (engine-independent) and the AI behaviour simulator; the OPFOR asset builder with the installer | |
 
 ## 7. Open questions
 
