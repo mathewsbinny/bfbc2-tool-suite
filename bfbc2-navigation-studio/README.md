@@ -45,7 +45,9 @@ and when. The panel lists the edits (fly to one, delete one), with undo (Ctrl+Z)
 reload; Esc cancels a drawing. Edits are drawn over the scene: walkable green, unwalkable red, seeds cyan,
 unseeds magenta, links orange, route edges yellow (removals red), traversals white.
 
-Edits are recorded and shown; building them into the path data comes with `navkit apply` (steps 3 to 6). On
+**Build with these edits** (step 3) saves the side file and runs `navkit.py apply` in the background (its log in the
+panel); when it is done, **open the result** reopens the studio on the built file. Walkability edits (regions,
+seeds, unseeds) are built in; links, route edges and traversals are recorded for steps 4 and 5. On
 DICE's own data only additive edits are offered (links, route edges, traversals, notes): region edits need
 a NavKit build to rebuild. `--navtune <file>` opens a side file from elsewhere, `--edit` opens the panel.
 

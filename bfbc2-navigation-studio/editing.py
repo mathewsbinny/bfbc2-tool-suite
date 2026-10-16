@@ -92,6 +92,41 @@ class Editor:
         self.y_margin = [2.0, 4.0]              # region height range around the clicked points: below, above
         self.trav_kind, self.two_way, self.note_text = 0, True, ''
         self.by = nt.author()
+        self.job = None                         # the running `navkit.py apply`
+        self.job_log = []
+        self.job_out = os.path.join(root, 'work', 'navkit', lv, 'pathdata.hpd')
+
+    # --- build with the edits (navkit apply) --------------------------------------------------------
+    def start_apply(self):
+        import subprocess
+        import sys
+        import threading
+        self.tune.save(self.path)
+        navkit_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'bfbc2-auto-navkit', 'navkit.py')
+        cmd = [sys.executable, '-u', navkit_py, 'apply', self.lv, '--navtune', self.path, '--out', self.job_out, '--opfor', self.root]
+        self.job_log = ['saved the side file; building with its edits (a full rebuild: about 1-8 minutes) ...']
+        self.job = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace',
+                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+
+        def read():
+            for line in self.job.stdout:
+                self.job_log.append(line.rstrip())
+        threading.Thread(target=read, daemon=True).start()
+
+    def job_state(self):
+        if self.job is None:
+            return None
+        code = self.job.poll()
+        return 'running' if code is None else ('done' if code == 0 else 'failed')
+
+    def reopen_on_result(self, v):
+        """A new studio window on the built file (the scene is uploaded once, so the window is replaced)."""
+        import subprocess
+        import sys
+        from imgui_bundle import hello_imgui
+        studio_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studio.py')
+        subprocess.Popen([sys.executable, studio_py, self.lv, '--candidate', self.job_out, '--navtune', self.path, '--edit'])
+        hello_imgui.get_runner_params().app_shall_exit = True
 
     # --- input --------------------------------------------------------------------------------------
     def active(self):
@@ -202,7 +237,8 @@ class Editor:
         imgui.begin('Edit (E)')
         kind = self.tune.kind
         imgui.text(f'editing {self.target}\'s data ({kind} base) - side file {os.path.relpath(self.path, self.root)}')
-        imgui.text_disabled('Edits are recorded here; navkit apply builds them into the path data.')
+        imgui.text_disabled('Walkability edits build into NavKit\'s file with the button below; links, route edges '
+                            'and traversals are recorded (applied in a later step).')
         changed, self.by = imgui.input_text('recorded as', self.by)
         imgui.separator()
         for key, label in TOOLS:
@@ -264,6 +300,23 @@ class Editor:
             except (OSError, ValueError) as e:
                 self.message = f'not loaded: {e}'
             self.refresh(v)
+        state = self.job_state()
+        if self.tune.kind == 'navkit':
+            if state == 'running':
+                imgui.begin_disabled()
+            if imgui.button('build with these edits (navkit apply)'):
+                self.start_apply()
+            if state == 'running':
+                imgui.end_disabled()
+            imgui.same_line()
+            imgui.text_disabled(f'-> {os.path.relpath(self.job_out, self.root)}')
+        if state is not None:
+            imgui.text({'running': 'building ...', 'done': 'built.', 'failed': 'the build failed:'}[state])
+            for line in self.job_log[-6:]:
+                imgui.text_disabled(line[:110])
+            if state == 'done' and imgui.button('open the result'):
+                self.reopen_on_result(v)
+        imgui.separator()
         imgui.text(f'{len(self.tune.operations)} edit(s)')
         imgui.begin_child('ops', (0, 0))
         drop = None

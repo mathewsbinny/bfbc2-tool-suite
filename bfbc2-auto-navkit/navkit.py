@@ -6,6 +6,10 @@
   python navkit.py sample  SP_01 [--yes]      two in-game collision sampling runs (launches the game)
   python navkit.py build   SP_01              generate pathdata.hpd
   python navkit.py check   SP_01              score it (against DICE's file if the level has one)
+  python navkit.py apply   SP_01 [--navtune file] [--out file]
+                                              build with the edits of the level's navigation side file
+                                              (work\\navkit\\<level>\\<level>.navtune.json, made in the
+                                              Navigation Studio) into work\\navkit\\<level>\\pathdata.hpd
   python navkit.py install SP_01              copy it into the game (DICE's file is backed up once)
   python navkit.py restore SP_01              put the original file back
   python navkit.py all     SP_01 [--yes]      prepare, sample, build, check
@@ -454,6 +458,48 @@ def restore(pr, lv, log=print):
     log(f'== restored the original {os.path.relpath(dest, pr.root)}')
 
 
+def apply(pr, lv, navtune_path=None, out=None, log=print):
+    """Builds the level with the edits of its navigation side file (DESIGN.md sections 5.1-5.2): walkability
+    edits (regions, seeds, unseeds) go into the build; the result is read back to check it. Returns the
+    output path. Links, route edges and traversal annotations are reported, not yet applied."""
+    sys.path.insert(0, os.path.join(HERE, '..', 'core'))
+    from bfbc2core import navtune
+    import navbuild
+    import navregress
+    import hpdtool
+    navtune_path = navtune_path or navtune.default_path(pr.root, lv)
+    if not os.path.isfile(navtune_path):
+        raise NavKitError(f'{lv}: no side file {navtune_path} (make edits in the Navigation Studio first)')
+    try:
+        tune = navtune.load(navtune_path)
+    except ValueError as e:
+        raise NavKitError(str(e))
+    if tune.kind != 'navkit':
+        raise NavKitError(f'{lv}: the side file\'s base is DICE\'s data - region edits need a NavKit base; links and '
+                          f'annotations on DICE data are applied to the written file (not yet)')
+    out = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
+    try:
+        samples, xoff, zoff, f = navregress.inputs(pr.root, lv)
+    except RuntimeError as e:
+        raise NavKitError(str(e))
+    walk = [o for o in tune.operations if o['op'] in ('walkable', 'unwalkable', 'seed', 'unseed')]
+    later = [o for o in tune.operations if o['op'] not in ('walkable', 'unwalkable', 'seed', 'unseed', 'note')]
+    log(f'== apply {lv}: {len(tune.operations)} edit(s) from {os.path.relpath(navtune_path, pr.root)} '
+        f'-> {os.path.relpath(out, pr.root)}')
+    t0 = time.time()
+    navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
+                   high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
+                   seeds=json.load(open(f['soldier_spawns.json'])), edits=walk,
+                   log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
+    data = open(out, 'rb').read()
+    if hpdtool.write(hpdtool.parse(data)) != data:
+        raise NavKitError(f'{out}: does not read back exactly - not usable')
+    log(f'  built and read back in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
+    if later:
+        log(f'  {len(later)} link / route-edge / traversal edit(s) recorded but not applied yet (Navigation Studio M4 steps 4-5)')
+    return out
+
+
 def status(pr, lv, log=print):
     log(f'{lv}:')
     L = pr.level_work(lv)
@@ -478,7 +524,7 @@ def ask(question):
 def main(argv):
     args = [a for a in argv[1:]]
     opts = {}
-    for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate'):   # --root: older name of --opfor
+    for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate', '--navtune', '--out'):   # --root: older name of --opfor
         if k in args:
             i = args.index(k)
             opts[k] = args[i + 1]
@@ -510,6 +556,8 @@ def main(argv):
             compare(pr, lv, reference=opts.get('--reference'), candidate=opts.get('--candidate'))
         elif cmd == 'check':
             check(pr, lv)
+        elif cmd == 'apply':
+            apply(pr, lv, opts.get('--navtune'), opts.get('--out'))
         elif cmd == 'install':
             install(pr, lv)
         elif cmd == 'restore':

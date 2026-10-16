@@ -288,10 +288,20 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
 
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
-          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None):
+          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None):
+    """edits: the operations of a navigation side file (navedits.py applies the walkability ones)."""
     t0 = time.time()
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
+    hand = {}
+    if edits:
+        import navedits
+        e = navedits.edits_for(s, edits)
+        hand = {'force_walkable': e['force_walkable'] if e['surfaces_walkable'] else None,
+                'force_unwalkable': e['force_unwalkable'] if e['surfaces_unwalkable'] else None,
+                'unseeds': e['unseeds']}
+        seeds = list(seeds or []) + e['seeds']
+        log(f'hand edits: {e["counts"]}; surfaces forced walkable {e["surfaces_walkable"]}, unwalkable {e["surfaces_unwalkable"]}')
     tris = np.load(tris_path) if tris_path else None
     dyn = np.load(dynamic_path) if dynamic_path else None
     hi = navsample.load(high_path)[0] if high_path else None
@@ -302,7 +312,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     keep, gx, gz, stair = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
                                     return_stairs=True,
                                     narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf,
-                                    extra_seeds=seeds)
+                                    extra_seeds=seeds, **hand)
     level = Level(s, keep, step, gx, gz, stair)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
 

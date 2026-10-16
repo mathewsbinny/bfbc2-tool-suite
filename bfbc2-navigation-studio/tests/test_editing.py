@@ -104,6 +104,17 @@ def main(argv):
         ed.tune.save(ed.path)
         again = nt.load(ed.path)
         check(again.operations == ed.tune.operations, 'saved and loaded back unchanged')
+        # the apply button: navkit apply in the background, on a copy of the side file, into a temporary file
+        ed.job_out = os.path.join(tmp, 'edited.hpd')
+        ed.start_apply()
+        import time
+        t0 = time.time()
+        while ed.job_state() == 'running' and time.time() - t0 < 900:
+            time.sleep(2)
+        state = ed.job_state()
+        check(state == 'done' and os.path.isfile(ed.job_out) and any('read back' in l for l in ed.job_log),
+              f'the apply button builds with the edits in the background ({time.time() - t0:.0f} s): {state}')
+        check(any('not applied yet' in l for l in ed.job_log), 'its log says which edits are recorded but not applied yet')
         ed.set_open(v, False)
         check(v.select_on_click and ed.tool is None, 'closing the panel gives clicks back to selecting')
 

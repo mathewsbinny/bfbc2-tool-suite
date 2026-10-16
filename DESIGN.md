@@ -285,6 +285,9 @@ Its `sha1` lets `navkit apply` warn when the base has changed since.
 
 ### 5.2 `navkit apply <level> <navtune>`
 
+Status (2026-10-16): walkability operations work (`navkit.py apply <level> [--navtune file] [--out file]`, a full
+rebuild); link, edge and traversal operations are reported, not yet applied.
+
 Applies a side file:
 
 - **Walkability operations** feed into NavKit's build, which then rebuilds the affected sectors.

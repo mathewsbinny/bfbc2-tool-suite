@@ -55,6 +55,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   navparity.py       DICE-parity report over many levels, saved per named run
   navregress.py      regression test: rebuild levels with the current code, fail if a parity measure got worse
   navwater.py        water depth against path-data coverage (does the data leave out ground under water?)
+  navedits.py        the walkability edits of a navigation side file as generator inputs (navkit.py apply)
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
@@ -121,8 +122,7 @@ src\, tests\         (reserved for the generator proper and its tests)
      `python tools\navparity.py show "baseline A"` prints the per-level table.
    - **The earlier figures measured less:** the AI-position coverage in the table above counts only where
      the level's AI is ordered to go.
-   - **Regression test (2026-10-16):** `tools
-avregress.py` rebuilds levels with the current code (the
+   - **Regression test (2026-10-16):** `tools\navregress.py` rebuilds levels with the current code (the
      inputs of `navkit.py build`) and fails if any parity measure got worse than the reference run
      (`regression`, made from the code of 2026-10-16 and compared with baseline A). Run it before and after
      every generator change; `--save regression` after an intended improvement.
@@ -132,8 +132,14 @@ avregress.py` rebuilds levels with the current code (the
        (10.5 -> 35.5 %) and SP_008_B (32.2 -> 69.0 %), connectivity on SP_009 (85.9 -> 83.8 %), AI pairwise on
        SP_008_B (79.3 -> 76.6 %) and SP_02 (84.2 -> 82.7 %); connectivity better on SP_02 (+0.7) and SP_008
        (+1.2). Which input makes the SP_008 difference is still to find (likely the exclusion files).
-   - **Ground under water (2026-10-16, `tools
-avwater.py`):** DICE keeps walkable ground down to about
+   - **Hand edits (2026-10-16): `navkit.py apply <level>`** builds the level with the edits of its
+     navigation side file (`work\navkit\<level>\<level>.navtune.json`, made in the Navigation Studio):
+     unwalkable regions remove the sampled surfaces inside them before seeding (so a cut really
+     disconnects), walkable regions force them in past the slope and clearance rules (they still join the
+     network by the step rule), seeds add a seed, unseeds drop the island at the point. Later edits win where
+     regions overlap. The output is read back to check it. Links, route edges and traversals are recorded,
+     not applied yet. A full rebuild (about 1-8 minutes a level); without edits the build is unchanged.
+   - **Ground under water (2026-10-16, `tools\navwater.py`):** DICE keeps walkable ground down to about
      1.5 m under water and almost none deeper (11 campaign levels: 85-90 % of NavKit's ground at 0-1.5 m is
      DICE's too, 1-8 % below that; DICE has 241 cells at 1.5-2 m, 154 at 2-3 m and none deeper; median
      per-level limit 1.45 m). NavKit keeps it all: 29 % of NavKit's extra ground is deeper than DICE goes on

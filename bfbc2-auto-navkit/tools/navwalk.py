@@ -170,12 +170,14 @@ def step_fits(dy, gk, gn, sk, sn, di, dj, pitch, step):
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
              stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08,
-             extra_seeds=None, return_stairs=False):
+             extra_seeds=None, return_stairs=False, force_walkable=None, force_unwalkable=None, unseeds=None):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
       stairs: object surfaces whose slope over neighbouring samples is 12..40 deg count as walkable, with the
-      clearance of the high_capsule run (capsule from 0.6 m) instead of the normal one."""
+      clearance of the high_capsule run (capsule from 0.6 m) instead of the normal one.
+    Hand edits (navedits.py): force_walkable / force_unwalkable (bool per surface) override the rules before
+    seeding; unseeds (points) drop the island each lies on after seeding."""
     y = s.y.astype(float)
     ny = np.maximum(s.normal[:, 1], 0.05)
     gx_all, gz_all = -s.normal[:, 0] / ny, -s.normal[:, 2] / ny
@@ -265,6 +267,10 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     if exclude_footprint_tris is not None and len(exclude_footprint_tris):
         # the footprint of an excluded object (trunk base, fence posts and boards) stays a barrier
         ok &= ~near_objects(s, exclude_footprint_tris, grow=0.3, below=1.0, above=0.5)
+    if force_walkable is not None:
+        ok |= force_walkable
+    if force_unwalkable is not None:
+        ok &= ~force_unwalkable
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
     per_i = {i for i in range(s.nx) if round((s.min_x + i * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     per_j = {j for j in range(s.nz) if round((s.min_z + j * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
@@ -304,6 +310,37 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
                                  di, dj, s.pitch, step):
                         keep[n] = True
                         q.append(n)
+    for (sx, sy, sz) in (unseeds or ()):
+        # drop the island the point is on: the kept surface at or just below it, and all kept surfaces it
+        # connects to by the same step rule
+        i, j = int(round((sx - s.min_x) / s.pitch)), int(round((sz - s.min_z) / s.pitch))
+        if not (0 <= i < s.nx and 0 <= j < s.nz):
+            continue
+        c = j * s.nx + i
+        cand = [n for n in range(s.start[c], s.start[c + 1]) if keep[n] and -1.5 <= y[n] - sy <= 0.5]
+        if not cand:
+            continue
+        first = min(cand, key=lambda n: abs(y[n] - sy))
+        drop = {first}
+        q = deque([first])
+        while q:
+            k = q.popleft()
+            c = col_of[k]
+            i, j = c % s.nx, c // s.nx
+            for dj in (-1, 0, 1):
+                for di in (-1, 0, 1):
+                    a, b = i + di, j + dj
+                    if not (di or dj) or not (0 <= a < s.nx and 0 <= b < s.nz):
+                        continue
+                    cc = b * s.nx + a
+                    for n in range(s.start[cc], s.start[cc + 1]):
+                        if n in drop or not keep[n]:
+                            continue
+                        if step_fits(y[n] - y[k], (gx_all[k], gz_all[k]), (gx_all[n], gz_all[n]), stair[k], stair[n],
+                                     di, dj, s.pitch, step):
+                            drop.add(n)
+                            q.append(n)
+        keep[list(drop)] = False
     if return_gradients:
         return (keep, gx_all, gz_all, stair) if return_stairs else (keep, gx_all, gz_all)
     return keep
