@@ -47,6 +47,14 @@ SECTOR_SAMPLES = 125            # 100 m / 0.8 m
 WINDOW = range(-1, 127)         # sample indices of a sector window (local)
 TILE = 50                       # samples per tile
 TILES = 3
+CLIP_TO_REFERENCE = True        # on a level with DICE path data, ground outside its extent (navregress.reference_bounds:
+                                # outlines and portals at every pitch) is left out before seeding. A bound to the
+                                # reference extent, NOT a found rule: DICE's edges are straight cuts (its last cell row
+                                # fills 9-64 % of a side) from a generation rectangle that is not in the shipped level
+                                # data. A new map (no DICE data) keeps the sampling box. (KYNAPSE_SPEC.md 4.5)
+EDGE_SECTOR_RULE = 'grid_min'   # which sectors start their tiles at their own edge (EDGE_SECTOR_TILES): 'grid_min' = on
+                                # the sector grid's minimum X (Z) - DICE 3,798 of 3,798 sector axes; 'no_neighbour' = no
+                                # sector on the low side - 3,788 (misses holes inside the map)
 SYMMETRIC_PORTALS = True        # every portal stands on both of its areas (DICE: 771 of 771 have a portal back)
 ONE_WAY_PORTALS = 'drop'        # a portal whose target sees that side as its own interior (a second surface of the
                                 # target in the source's column): 'drop' = outline instead, 'keep' = one-way portal
@@ -107,6 +115,14 @@ def water_tops(s, vertices, triangles):
             sub = top[j0:j1 + 1, i0:i1 + 1]
             np.maximum(sub, h, out=sub)
     return top.ravel()
+
+
+def outside_bounds(s, bounds):
+    """Surfaces whose column lies outside bounds (minX, minZ, maxX, maxZ) - bool per surface (CLIP_TO_REFERENCE)."""
+    col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
+    x, z = s.min_x + (col % s.nx) * s.pitch, s.min_z + (col // s.nx) * s.pitch
+    e = 1e-3                                             # edges inclusive (float noise of the sample grid)
+    return (x < bounds[0] - e) | (x > bounds[2] + e) | (z < bounds[1] - e) | (z > bounds[3] + e)
 
 
 def deep_water(s, water, limit=MAX_WATER_DEPTH):
@@ -411,10 +427,11 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
           narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
-          water=None, max_water_depth=MAX_WATER_DEPTH):
+          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None):
     """edits: the operations of a navigation side file (navedits.py applies the walkability ones).
     water: the level's water mesh (vertices, triangles; core/bfbc2core/water.py): ground more than max_water_depth
-    under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win)."""
+    under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win).
+    bounds: (minX, minZ, maxX, maxZ) of the reference path data (CLIP_TO_REFERENCE), or None."""
     t0 = time.time()
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
@@ -435,6 +452,14 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
                 deep &= ~fw                      # a hand edit forcing ground walkable wins over the water rule
             hand['force_unwalkable'] = deep if fu is None else (fu | deep)
         log(f'water: {int(deep.sum())} surfaces more than {max_water_depth} m under water left out')
+    if bounds is not None and CLIP_TO_REFERENCE:
+        outside = outside_bounds(s, bounds)
+        fw, fu = hand.get('force_walkable'), hand.get('force_unwalkable')
+        if fw is not None:
+            outside &= ~fw                       # a hand edit forcing ground walkable wins here too
+        hand['force_unwalkable'] = outside if fu is None else (fu | outside)
+        log(f'reference extent x {bounds[0]:.1f}..{bounds[2]:.1f}, z {bounds[1]:.1f}..{bounds[3]:.1f}: '
+            f'{int(outside.sum())} surfaces outside left out')
     tris = np.load(tris_path) if tris_path else None
     dyn = np.load(dynamic_path) if dynamic_path else None
     hi = navsample.load(high_path)[0] if high_path else None
@@ -460,10 +485,15 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
 
     # Pass 1: areas per sector, and which area each surface belongs to.
     info = {}
+    have = set(sectors)
+    min_x_sector, min_z_sector = min(X for X, _ in sectors), min(Y for _, Y in sectors)
     for X, Y in sectors:
         gi0, gj0, ox, oz = sector_origin_index(level, X, Y, xoff, zoff)
-        have = set(sectors)
-        start = tuple(0 if EDGE_SECTOR_TILES and low not in have else -1 for low in ((X - 1, Y), (X, Y - 1)))
+        if EDGE_SECTOR_RULE == 'grid_min':
+            edge = (X == min_x_sector, Y == min_z_sector)
+        else:
+            edge = ((X - 1, Y) not in have, (X, Y - 1) not in have)
+        start = tuple(0 if EDGE_SECTOR_TILES and e else -1 for e in edge)
         areas = build_areas(level, gi0, gj0, start)
         # order: tiles column-major, then layer = index within tile
         areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(level.y[c[2]] for c in a['cells'])))

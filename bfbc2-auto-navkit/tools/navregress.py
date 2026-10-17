@@ -80,11 +80,33 @@ def level_water(root, lv):
     return (w.vertices, w.triangles) if w is not None and len(w) else None
 
 
+def reference_bounds(root, lv):
+    """(minX, minZ, maxX, maxZ) of DICE's path data for the level - the extent of its area outlines and portals at
+    every pitch (detailed zones included: on sp_008, sp_008_b, ons_mp_005gr they reach past the normal-pitch ground) -
+    or None when the level has no DICE path data (a new map). Border portals are left out: they sit on sector margins."""
+    import hpdtool
+    import kymesh
+    import numpy as np
+    p = navparity.reference_of(root, lv)
+    if not os.path.isfile(p):
+        return None
+    pts = []
+    for s in hpdtool.parse(open(p, 'rb').read()).sectors:
+        for a in kymesh.parse_mesh(s.mesh).areas:
+            pts += [q for line in a.outline for q in line]
+            pts += [q for pt in a.portals for q in (pt.p0, pt.p1)]
+    if not pts:
+        return None
+    P = np.asarray(pts, float)
+    return float(P[:, 0].min()), float(P[:, 2].min()), float(P[:, 0].max()), float(P[:, 2].max())
+
+
 def build_level(root, lv, out, log=lambda *a: None):
     samples, xoff, zoff, f = inputs(root, lv)
     navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
-                   seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv), log=log)
+                   seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv),
+                   bounds=reference_bounds(root, lv), log=log)
 
 
 DEFAULT_SECONDS = 210                           # a level with no earlier timing: 45 minutes / 13 levels

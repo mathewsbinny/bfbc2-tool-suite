@@ -415,7 +415,18 @@ by that many u32 offsets at +0x10.
     70.5 %); diagonals by their direct step are worse (61.2 / 60.3 %). So the loss is in the diagonal rule, not the
     threshold: DICE links some diagonals the terrain-only side-cell test does not. Open: the test offers the side
     cell's terrain height only, NavKit's builder any surface in the side column (objects) - sp_01 / sp_02 are the
-    object-heavy levels.
+    object-heavy levels. So the diagonal rule is both correct (it reproduces DICE's boundaries) and lossy (it
+    disconnects a few pairs DICE connects); the fix, if any, is not a threshold change.
+  - **sp_009 connectivity with the bisection off (83.8 -> 58.2):** switching each change off in turn on sp_009 - the
+    bisection back on gives 81.5, the area rule, edge-sector tiles, the clip and one-way portals move it by at most
+    3 points. DICE's sp_009 has 26 large areas, so the bisection was not matching DICE's areas: it added route nodes,
+    and inside the aircraft the route edges (straight walkable lines up to 15 m) need nodes close together to pass
+    the aisles. A route-graph gap (node density in large areas), not an area rule; the bisection stays off.
+  - **One-way portals as outline on sp_005:** 11,069 unit portal edges (5.1 %) without an edge back became outline;
+    of the area pairs joined before, 16 are now in different route-graph islands, their smaller side up to 774
+    cells (sp_004_b: 1 pair, 4 cells) - floors and roofs reachable only through the one-way portal, the stacked
+    case DICE handles with detailed zones. AI pairwise 96.6 -> 95.2. Open decision: keep the drop, keep one-way
+    portals there, or wait for detailed zones.
   - **Portals:** both sides of every portal are stored (DICE 771 of 771 with a portal back). On sp_004_b DICE has
     771 portal segments (6,512 m, median 6.4 m, 98 % of the length on tile lines); NavKit 5,563-7,264 (21,600-
     23,600 m, median 0.8 m, 78-85 % on tile lines), 22 % of NavKit's without a portal back.
@@ -456,6 +467,26 @@ by that many u32 offsets at +0x10.
     has no zone / rectangle / bounds entity (only object flags: ForbidPathfinding, ExcludeFromPathfinding,
     NeedsDetailedPathfinding ...); water and forbidden volumes do not make straight edges. So DICE generated in
     a rectangle that is not in the shipped data; its own path data's extent is the best source.
+    **NavKit's bound (`navbuild.CLIP_TO_REFERENCE`, 2026-10-17) - a bound, not a found rule:** on a level with DICE
+    path data, the build leaves out ground outside DICE's extent (`navregress.reference_bounds`: outlines and portals
+    of every area at every pitch; border portals left out - they sit on sector margins), before seeding (seeds lie
+    on fixed world perimeter lines; ground reachable only from seeds outside must not stay). This isolates the
+    interior rules on reference levels. How DICE chose its rectangle is unknown; on a new map (no DICE data) the
+    sampling box stands, which is a different thing (the objects' extent + 50 m).
+    The extent must include detailed zones: on sp_008, sp_008_b and ons_mp_005gr DICE's 0.2 m ground reaches past its
+    normal-pitch ground (28,025 / 33,965 / 37,259 cells); on the other 14 levels no DICE cell lies outside the
+    normal-pitch rectangle.
+    Measured (switch off -> on): sp_004_b sectors 50 -> 40 (DICE 40), extra ground 21.35 -> 8.60 %, over-connection
+    58.28 -> 21.67 %, boundary precision / recall (exact) 66.7 / 63.3 -> 99.4 / 94.1 %, tile-line edges missing /
+    extra 1,274 / 1,277 -> 6 / 0, exact areas 20.0 -> 24.1 %, ground 98.06 -> 98.06 (no DICE ground lost), nodes_near
+    34.69 -> 34.73, connectivity and AI positions unchanged. sp_005: sectors 302 -> 270 (DICE 269; the one extra,
+    0xf01, is ground inside the level-wide box where DICE's edge in that sector row stops ~2 m short), extra ground
+    11.60 -> 7.19 %, precision / recall 96.8 / 81.0 -> 98.9 / 82.8 %, tile-line edges missing / extra 1,452 / 1,388 ->
+    41 / 52, over-connection 18.08 -> 18.10, nodes_near 31.09 -> 31.14, build 300 -> 262 s, file 22.2 -> 20.9 MB.
+    Expected small on sp_01: only 15 % of its extra ground lies outside DICE's extent - the rest is inside it and
+    is a different matter (walkability rules, objects, vegetation, water).
+    The edge-sector rule ('grid_min' vs 'no_neighbour') gives identical builds on sp_004_b and sp_005 (neither has a
+    hole along the grid minimum).
 
 ![SP_02 infantry, sector 0x0705](img/sp02_infantry_0705.png)
 
