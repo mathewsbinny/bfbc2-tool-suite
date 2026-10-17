@@ -60,7 +60,7 @@ proven).
 | 1 | Dividing sectors | Split the level's bounds into a grid of **100 m sectors**, id = `0xXXYY` (grid x, y). Each sector covers 100 m plus a margin: one pitch on the near side and 1.1 × pitch on the far side (101.68 m for infantry); sectors at the level edge drop the near margin (measured). Detailed zones (`DetailedZoneSettings`) get their own pitch (0.2) and 6 × 6 tiles. | `Sectors.xml` |
 | 2 | Generating seeds | Collect seed points (given + automatic: `AutoSeedStep` probes the ground with point queries). Sectors without a seed are written empty ("No seed found, write empty pathdata"). | `sector_<n>.autoseed` |
 | 3 | Generating maps (per sector) | Sample the ground on a **regular grid with spacing = pitch at whole multiples of the pitch in world space** (the rectangle's minX = sector edge − pitch is one) – outlines then run **halfway between samples**, at (k + 0.5)·pitch (measured: every outline vertex; a re-rasterisation of DICE's areas at these sample points reproduces them 100 %). A cell is walkable when the ground is found, the slope is within `GroundSlopeMin/Max`, a capsule of the entity radius and height fits, and it is not forbidden/excluded/water (inferred from settings and callbacks). Flood-fill from the seeds over neighbouring cells whose height difference is within `StepMax` (inferred), so unreachable ground is dropped. Measured rules: §3.7. | `.aim`, `.udg` (grid maps) |
-| 4 | Linking meshes | Trace the **outlines** of walkable regions halfway between samples (stair-stepped contours, holes for obstacles – measured). Split each sector into **tiles** (3 × 3; 6 × 6 in detailed zones) and cut regions further on a fixed grid **every 25 cells** (lines at minX + (25k + 24.5)·pitch: 20 m for infantry, 25 m vehicle, 5 m detailed – measured), giving **areas**. Shared cut segments become **portals** (B) to the neighbouring area; segments on the sector border become **border portals** (C) with an outward direction, listed per neighbouring sector/tile/area in the link table. Height breaks along obstacle edges become D lines and F cells (inferred). | `.pdl`, `.fdl` |
+| 4 | Linking meshes | Trace the **outlines** of walkable regions halfway between samples (stair-stepped contours, holes for obstacles – measured). Split each sector into **tiles** (3 × 3; 6 × 6 in detailed zones) and sometimes cut regions further on a fixed grid **every 25 cells** (lines at minX + (25k + 24.5)·pitch: 20 m for infantry, 25 m vehicle, 5 m detailed – measured; infantry: only part of the ground is cut, see 4.5), giving **areas**. Shared cut segments become **portals** (B) to the neighbouring area; segments on the sector border become **border portals** (C) with an outward direction, listed per neighbouring sector/tile/area in the link table. Height breaks along obstacle edges become D lines and F cells (inferred). | `.pdl`, `.fdl` |
 | 5 | Linking graphs | Build the high-level **graph**: nodes mostly within ~1 m of outline corners (obstacle corners offset by roughly the entity radius – measured: ~75 % infantry / ~60 % vehicle nodes), plus nodes in open ground; edges between mutually reachable nodes up to about `DistEdgeMax` (median 6 m; 99 % < 17.6 m infantry, < 48 m vehicle – measured), cost = floor(3-D length × 16). Nodes on sector borders are shared with the neighbouring sector (same id and position, high bit). | `.fsg` |
 | 6 | Building hierarchical database | Assemble per-sector blocks (graph + runtime mesh), sort the node lookup lists by x, y, z, write the sector table with build timestamps. | `pathdata.hpd` |
 
@@ -153,7 +153,9 @@ assets read with `tools/hkpack.py`):
    rocks / palms / invisible walls as rock (sp_01 hilltop stair route 1/17 positions -> 15/17;
    order coverage 577 -> 590 of DICE's 633; 0.04-0.06 m loses again, 0.12 m is close).
 3. **Connectivity:** 8-connected; height step relative to the local ground plane (from both normals)
-   at most StepMax 0.28 m (0.4 m fits the steep mountain block slightly better).
+   at most StepMax 0.28 m (0.4 m fits the steep mountain block slightly better). This rule decides what is
+   reachable (seeding), portals and routes; how ground divides into areas follows the stricter raw 0.6 m step
+   on terrain (§4.5).
 4. **Seeds:** sector perimeter lines (1.6 m inside each 100 m sector edge), **terrain only** – objects
    have `AllowPathdataSeeds` false by default, so roofs crossing a perimeter line are not seeded.
 5. Outline heights in `pathdata.hpd` are ground + 0.95 m (EntityHeight / 2); compare with that offset.
@@ -361,6 +363,56 @@ by that many u32 offsets at +0x10.
 - **Areas are a decomposition of the walkable ground** into pieces of roughly 20 m (split along tile
   boundaries and further straight cut lines); black outlines in the plot enclose the non-walkable
   parts (obstacles), the open space is walkable.
+- **How DICE divides a tile into areas (infantry, measured 2026-10-16 on sp_004_b, sp_005, sp_007, sp_009):**
+  - Same-sector portals lie on the tile lines (38.8 / 78.8 m into the sector, plus 39.6 / 79.6 steps) and
+    otherwise only on the fixed tile midlines (18.8 / 58.8 m): sp_005 17 %, sp_007 3 %, sp_004_b 2 % of
+    portals. There is no cut at the middle of each area's extent.
+  - The midline cut is not decided by size: whole 2,500-cell tiles stay uncut. Cut ground tends to have long
+    outlines (sp_007: "cut when the summed outline exceeds 300 segments" is right for 99.1 % of ground spanning a
+    midline, against 99.4 % for "never cut"; sp_005: 91.7 % against 94.1 %). The trigger is still unknown.
+  - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
+    36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
+  - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
+    join one area when
+    - straight neighbours: the raw height step between the cell centres (terrain height, no slope correction)
+      is at most **0.6 m** (36.9° at 0.8 m pitch – steeper walkable cells are cut off);
+    - diagonal neighbours: a route through either side cell (walkable or not) has both straight steps at
+      most 0.6 m.
+
+    Evidence (sp_004_b): linked straight steps max 0.591 m, unlinked mostly 0.62 m and above (the terrain's
+    steps are quantised, so any threshold in 0.59–0.62 acts the same); linked diagonals through a side cell
+    max 0.591 m. Regrouping DICE's own normal cells by this rule reproduces 72.3 % of its areas exactly (8 of
+    513 split, 54 groups merge areas) against 33.1 % for joining every neighbour; 0.5 m gives 79 % exact
+    but splits 82 areas. Heights from a dropped 0.4 m or 0.2 m sphere fit worse.
+    DICE places no portal between areas this rule separates inside a tile (136 of 160 single-cell areas have
+    no portal at all). Not yet measured for object surfaces (stairs, floors) – NavKit keeps the slope rule
+    there. Mis-split cases right at the threshold exist (a 0.63 m step inside one DICE area at
+    (-545.6, -687.2)).
+
+    Held-out levels (regrouping DICE's own cells; exact areas raw / slope rule / join all; boundary precision /
+    recall on terrain edges, raw rule):
+    sp_01 66.2 / 49.5 / 49.3 (95.6 / 22.3), sp_02 76.2 / 45.2 / 44.6 (92.4 / 50.4), sp_03 69.6 / 49.6 / 48.8
+    (96.0 / 33.1), sp_005 63.1 / 45.6 / 44.8 (92.7 / 15.0), sp_006 79.4 / 49.8 / 49.7 (94.9 / 47.6), sp_007
+    75.8 / 61.5 / 62.7 (94.1 / 42.5), ons_mp_002 74.4 / 51.7 / 51.9 (90.1 / 36.0); sp_009 has no splits. The
+    rule's boundaries are nearly all DICE's; DICE has more (midline cuts, unknown). On DICE's ground the rule
+    keeps 96.6-99.7 % of the connected cell pairs (sp_02 96.63, sp_01 96.69).
+  - **Which height:** the in-game collision agrees with the heightfield at the cell centres to ~1 cm (median
+    0.011 m), and heights from a dropped 0.2 / 0.4 m sphere fit DICE's areas worse. DICE's outline vertex
+    heights are not a cell-centre sample (within 2 cm of any of the 4 cells around the vertex for 37 % only;
+    not the mean / max / min of the area's own cells either) - they cannot show which height the link test used.
+  - **Tile lines of edge sectors (measured 2026-10-17, all 17 levels):** a sector with no sector next to it on
+    the low x (z) side has its tile lines one cell later on that axis: 39.6 / 79.6 m into the sector instead of
+    38.8 / 78.8 m (its tiles start at sample 0, not -1). 3,788 of 3,798 sector axes follow this; the 10
+    exceptions have early lines with no low neighbour. (`navbuild.EDGE_SECTOR_TILES`: validated on DICE's data,
+    no measured benefit yet - NavKit's extra sectors outside DICE's generation bounds give most edge sectors a
+    low neighbour, so the rule rarely applies until those bounds are reproduced.)
+  - **Portals:** both sides of every portal are stored (DICE 771 of 771 with a portal back). On sp_004_b DICE has
+    771 portal segments (6,512 m, median 6.4 m, 98 % of the length on tile lines); NavKit 5,563-7,264 (21,600-
+    23,600 m, median 0.8 m, 78-85 % on tile lines), 22 % of NavKit's without a portal back.
+  - **Generation bounds:** DICE's ground stops 6-24 m inside NavKit's on every side (sp_004_b x -762.4..126.4,
+    z -886.4..-563.2 against NavKit -770.4..135.2, -910.4..-554.4; also sp_01, sp_005); NavKit makes a whole row
+    of sectors DICE does not have (sp_004_b: 0x100-0xa00). Not the combat areas (5-20 % of DICE's ground lies in
+    them). The bound is not yet known.
 
 ![SP_02 infantry, sector 0x0705](img/sp02_infantry_0705.png)
 

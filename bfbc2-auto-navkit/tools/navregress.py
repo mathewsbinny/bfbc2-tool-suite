@@ -12,6 +12,11 @@ Each measure is compared with the reference run (default "regression"; navparity
 more than the tolerance (points); counts are listed when they change but do not fail. Exit code 0: nothing
 worse; 1: something worse (or a level failed to build); 2: no reference run.
 
+Progress: before each level, its number, its expected time and the run's share done and time left (from each
+level's time in the last run or the reference - saved per level as "seconds" - else from its sample file size at the seconds per MB of the timed levels; each finished level
+updates the estimates of the rest, and the time left is scaled by the pace so far);
+the build's stages are printed indented as they finish.
+
 The run is saved as "regression_last". After an intended improvement, make it the reference:
   navregress.py --save regression          (or: copy regression_last.json to regression.json)
 Default levels: the 13 campaign levels (about 45 minutes); --levels for a subset.
@@ -75,11 +80,42 @@ def level_water(root, lv):
     return (w.vertices, w.triangles) if w is not None and len(w) else None
 
 
-def build_level(root, lv, out, log):
+def build_level(root, lv, out, log=lambda *a: None):
     samples, xoff, zoff, f = inputs(root, lv)
     navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
-                   seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv), log=lambda *a: None)
+                   seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv), log=log)
+
+
+DEFAULT_SECONDS = 210                           # a level with no earlier timing: 45 minutes / 13 levels
+
+
+def duration(s):
+    s = int(round(s))
+    if s < 90:
+        return f'{s} s'
+    if s < 3600:
+        return f'{round(s / 60)} min'
+    return f'{s // 3600} h {s % 3600 // 60:02d} min'
+
+
+def estimates(root, levels, *runs):
+    """Expected seconds per level: its time in the given earlier runs (first found), else its in-game sample file
+    size times the median seconds per MB of every level the runs time, else DEFAULT_SECONDS. runs: {level: row}."""
+    known = {}
+    for rows in runs:
+        for lv, row in rows.items():
+            if lv not in known and row.get('seconds'):
+                known[lv] = row['seconds']
+    size = {}
+    for lv in set(levels) | set(known):
+        try:
+            size[lv] = os.path.getsize(inputs(root, lv)[0]) / 1e6
+        except Exception:
+            pass
+    rates = sorted(known[lv] / size[lv] for lv in known if size.get(lv))
+    rate = rates[len(rates) // 2] if rates else None
+    return {lv: known.get(lv) or (rate * size[lv] if rate and lv in size else DEFAULT_SECONDS) for lv in levels}
 
 
 def compare(ref, now, tol):
@@ -117,18 +153,38 @@ def main(argv):
     outdir = os.path.join(root, 'work', 'navkit', 'regress')
     os.makedirs(outdir, exist_ok=True)
     rows, failed = [], 0
-    print(f'NavKit regression: {len(levels)} level(s), reference "{reference}", tolerance {tol} points')
-    for lv in levels:
+    last_path = navparity.save_path(root, 'regression_last')
+    last_rows = {r['level']: r for r in json.load(open(last_path))['levels']} if os.path.isfile(last_path) else {}
+    est = estimates(root, levels, last_rows, ref_rows)
+    total = sum(est.values())
+    print(f'NavKit regression: {len(levels)} level(s), reference "{reference}", tolerance {tol} points; '
+          f'expected about {duration(total)}')
+    start, done_est, timed = time.time(), 0.0, {}
+    for n, lv in enumerate(levels, 1):
         t0 = time.time()
+        elapsed = t0 - start
+        left = max(total - done_est, 0) * (elapsed / done_est if done_est else 1.0)   # scaled by the pace so far
+        print(f'[{n}/{len(levels)}] {lv}: building (about {duration(est[lv])}); run {100 * done_est / total:.0f} % done, '
+              f'{duration(elapsed)} so far, about {duration(left)} left')
         out = os.path.join(outdir, f'{lv}.hpd')
         try:
-            build_level(root, lv, out, print)
+            build_level(root, lv, out, lambda m: print(f'      {m}'))
+            print(f'      measuring parity against DICE ({duration(time.time() - t0)} in)')
             row = navparity.run_level(root, lv, out, lambda *a: None)
         except Exception as e:
             failed += 1
+            done_est += est[lv]
             print(f'FAIL {lv}: {e}')
             continue
+        done_est += est[lv]
+        row['seconds'] = round(time.time() - t0)
         rows.append(row)
+        timed[lv] = {'seconds': row['seconds']}         # re-estimate the levels to come with this run's times
+        rest = levels[n:]
+        if rest:
+            new = estimates(root, rest, timed, last_rows, ref_rows)
+            total += sum(new[x] - est[x] for x in rest)
+            est.update(new)
         ref = ref_rows.get(lv)
         if ref is None:
             print(f'new  {lv}: not in the reference run ({time.time() - t0:.0f} s)')
@@ -154,7 +210,7 @@ def main(argv):
             run['levels'] = rows + [r for lv, r in ref_rows.items() if lv not in done]
         json.dump(run, open(navparity.save_path(root, name), 'w'), indent=1)
         print(f'saved as reference run "{name}"')
-    print('all passed' if not failed else f'{failed} level(s) worse or failed')
+    print(('all passed' if not failed else f'{failed} level(s) worse or failed') + f' ({duration(time.time() - start)})')
     return 1 if failed else 0
 
 

@@ -5,8 +5,8 @@ Pipeline (research/KYNAPSE_SPEC.md sections 3 and 4):
   2. sectors: 100 m grid from the level's SectorOffsets; each sector uses the samples -1 .. 126 of its
      window (two-sample overlap with each neighbour)
   3. tiles: 3 x 3 per sector, 50 samples each (edges half a sample outside the samples: -1.2, 38.8,
-     78.8, 101.2 m); areas = connected regions of a tile (8-connected, step rule), bisected at the middle
-     of their extent while larger than 25 samples (20 m)
+     78.8, 101.2 m); areas = connected regions of a tile (8-connected, AREA_LINK rule); the old bisection at
+     the middle of their extent (over 25 samples) is off - DICE has no such cut (BISECT_AREAS)
   4. area boundary, traced on the half-sample lines and merged into straight runs:
        portal (B)   - to a connected surface in another area of the same sector
        border (C)   - to a connected surface outside the sector window (direction = outward axis)
@@ -47,7 +47,25 @@ SECTOR_SAMPLES = 125            # 100 m / 0.8 m
 WINDOW = range(-1, 127)         # sample indices of a sector window (local)
 TILE = 50                       # samples per tile
 TILES = 3
-MAX_AREA = 25                   # samples (20 m) before an area is bisected
+EDGE_SECTOR_TILES = True        # a sector with no sector next to it on the low x (or z) side starts its tiles at its
+                                # own edge (sample 0, not -1): tile lines one cell later, 39.6 / 79.6 m into the sector
+                                # (DICE's data: 3,788 of 3,798 sector axes on 17 levels; KYNAPSE_SPEC.md 4.5). Latent
+                                # for now: NavKit's extra sectors outside DICE's bounds give most edge sectors a neighbour
+MAX_AREA = 25                   # samples (20 m) before an area is bisected (only when BISECT_AREAS)
+BISECT_AREAS = False            # DICE does not cut areas at the middle of their extent: its same-sector portals lie on
+                                # the tile lines (38.8 / 78.8 m into the sector) and only sometimes on the fixed tile
+                                # midlines (18.8 / 58.8 m; sp_005 17 %, sp_007 3 %, sp_004_b 2 % of portals), mostly in
+                                # ground with long outlines; trigger not yet known (KYNAPSE_SPEC.md 4.5, 2026-10-16)
+AREA_LINK = 'terrain'           # which neighbours one area joins: 'terrain' = DICE's rule below between terrain
+                                # surfaces (the slope rule elsewhere), 'raw' = DICE's rule everywhere, 'slope' = the
+                                # slope rule. Portals, borders and the route graph keep the slope rule ('slope'), so
+                                # the steep pieces DICE cuts off stay reachable (NavKit lacks some of the steep cells
+                                # that join them in DICE's data: the DICE rule there cost sp_004_b 9 connectivity points)
+LINK_RULE = 'slope'             # the rule for everything else
+LINK_STEP = 0.6                 # DICE: straight neighbours link when their raw height step is <= 0.6 m (36.9 deg at
+                                # 0.8 m - steeper walkable cells are cut off, DICE's single-cell areas); diagonal ones
+                                # when a route through either side cell (walkable or not) has both steps <= 0.6 m
+                                # (sp_004_b terrain: linked steps max 0.591, unlinked mostly 0.62+; KYNAPSE_SPEC.md 4.5)
 RADIUS = 0.4
 RESOLUTION = 0.025
 DIST_EDGE_MAX = 15.0
@@ -110,6 +128,7 @@ class Level:
         self.gx = gx if gx is not None else -s.normal[:, 0] / ny
         self.gz = gz if gz is not None else -s.normal[:, 2] / ny
         self.col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+        self.terrain = (s.hit[:, 0] == navwalk.TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(s.y), bool)
 
     def surfaces(self, gi, gj):
         if not (0 <= gi < self.s.nx and 0 <= gj < self.s.nz):
@@ -117,16 +136,32 @@ class Level:
         c = gj * self.s.nx + gi
         return [k for k in range(self.s.start[c], self.s.start[c + 1]) if self.keep[k]]
 
-    def connected(self, k, n, di, dj):
-        return navwalk.step_fits(self.y[n] - self.y[k], (self.gx[k], self.gz[k]), (self.gx[n], self.gz[n]),
-                                 self.stair[k], self.stair[n], di, dj, PITCH, self.step)
+    def connected(self, k, n, di, dj, rule=None):
+        """Surface n (direction di, dj from k) links to k by rule ('slope', 'raw', 'terrain'; LINK_RULE if None)."""
+        rule = rule or LINK_RULE
+        if rule == 'slope' or (rule == 'terrain' and not (self.terrain[k] and self.terrain[n])):
+            return navwalk.step_fits(self.y[n] - self.y[k], (self.gx[k], self.gz[k]), (self.gx[n], self.gz[n]),
+                                     self.stair[k], self.stair[n], di, dj, PITCH, self.step)
+        y = self.y
+        if not (di and dj):
+            return abs(y[n] - y[k]) <= LINK_STEP
+        # diagonal: through either side column, over any surface there (walkable or not)
+        c = self.col_of[k]
+        gi, gj = c % self.s.nx, c // self.s.nx
+        for a, b in ((gi + di, gj), (gi, gj + dj)):
+            if 0 <= a < self.s.nx and 0 <= b < self.s.nz:
+                m0 = b * self.s.nx + a
+                for m in range(self.s.start[m0], self.s.start[m0 + 1]):
+                    if abs(y[m] - y[k]) <= LINK_STEP and abs(y[n] - y[m]) <= LINK_STEP:
+                        return True
+        return False
 
-    def neighbour(self, k, gi, gj, di, dj, prefer=None):
+    def neighbour(self, k, gi, gj, di, dj, prefer=None, rule=None):
         """The kept surface in column (gi+di, gj+dj) connected to surface k, or None. With prefer (a set of
         surfaces, e.g. those of k's own area), a connected surface in that set is returned first."""
         best, bd = None, 9e9
         for n in self.surfaces(gi + di, gj + dj):
-            if self.connected(k, n, di, dj):
+            if self.connected(k, n, di, dj, rule):
                 if prefer is not None and n in prefer:
                     return n
                 d = abs(self.y[n] - self.y[k])
@@ -142,25 +177,27 @@ def sector_origin_index(level, X, Y, xoff, zoff):
     return int(round((ox - s.min_x) / PITCH)), int(round((oz - s.min_z) / PITCH)), ox, oz
 
 
-def build_areas(level, gi0, gj0):
-    """Areas of one sector: list of dicts {tile: (tx, tz), cells: [(i, j, k)]} (local i, j)."""
+def build_areas(level, gi0, gj0, start=(-1, -1)):
+    """Areas of one sector: list of dicts {tile: (tx, tz), cells: [(i, j, k)]} (local i, j). start: the local sample
+    index where the tiles begin on x and z (-1, or 0 on a side with no neighbouring sector - EDGE_SECTOR_TILES)."""
     cells_by_tile = defaultdict(list)
     for j in WINDOW:
         for i in WINDOW:
             for k in level.surfaces(gi0 + i, gj0 + j):
-                tx, tz = min((i + 1) // TILE, TILES - 1), min((j + 1) // TILE, TILES - 1)
+                tx = min(max(i - start[0], 0) // TILE, TILES - 1)
+                tz = min(max(j - start[1], 0) // TILE, TILES - 1)
                 cells_by_tile[(tx, tz)].append((i, j, k))
     areas = []
     for tile in sorted(cells_by_tile):
         members = {k: (i, j) for i, j, k in cells_by_tile[tile]}
         for comp in components(level, members, gi0, gj0):
-            for piece in bisect(level, comp, gi0, gj0):
+            for piece in (bisect(level, comp, gi0, gj0) if BISECT_AREAS else [comp]):
                 areas.append({'tile': tile, 'cells': piece})
     return areas
 
 
 def components(level, members, gi0, gj0):
-    """8-connected components (step rule) of the given surfaces {k: (i, j)}. An area is single-layer in plan: a
+    """8-connected components (AREA_LINK rule) of the given surfaces {k: (i, j)}. An area is single-layer in plan: a
     surface whose column the component already holds (a second floor reached round a corner) starts its own."""
     seen, out = set(), []
     for k0 in members:
@@ -174,7 +211,7 @@ def components(level, members, gi0, gj0):
             i, j = members[k]
             comp.append((i, j, k))
             for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
-                n = level.neighbour(k, gi0 + i, gj0 + j, di, dj)
+                n = level.neighbour(k, gi0 + i, gj0 + j, di, dj, rule=AREA_LINK)
                 if n is not None and n in members and n not in seen and members[n] == (i + di, j + dj) \
                         and members[n] not in cols:
                     seen.add(n)
@@ -383,7 +420,9 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     info = {}
     for X, Y in sectors:
         gi0, gj0, ox, oz = sector_origin_index(level, X, Y, xoff, zoff)
-        areas = build_areas(level, gi0, gj0)
+        have = set(sectors)
+        start = tuple(0 if EDGE_SECTOR_TILES and low not in have else -1 for low in ((X - 1, Y), (X, Y - 1)))
+        areas = build_areas(level, gi0, gj0, start)
         # order: tiles column-major, then layer = index within tile
         areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(level.y[c[2]] for c in a['cells'])))
         per_tile = defaultdict(int)

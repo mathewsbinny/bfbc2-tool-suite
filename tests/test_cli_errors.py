@@ -44,6 +44,7 @@ def main(argv):
         ('crash reader, a report that is not XML', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'), junk, '--no-code'], 'crashreader', 'what to do'),
         ('STFS reader, a missing package', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'stfs', 'stfs.py'), 'info', missing], 'stfs', 'missing'),
         ('navdiff, missing files', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navdiff.py'), missing, missing], 'navdiff', 'missing'),
+        ('navboundary, a missing NavKit file', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navboundary.py'), 'sp_004_b', missing], 'navboundary', 'what to do'),
         ('test runner, an unknown test name', [PY, os.path.join(SUITE, 'run_tests.py'), 'quick', '--only'], 'run-tests', 'what to do'),
     ]
     try:
