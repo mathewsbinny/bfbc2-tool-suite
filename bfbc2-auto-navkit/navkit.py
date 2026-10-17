@@ -6,11 +6,14 @@
   python navkit.py sample  SP_01 [--yes]      two in-game collision sampling runs (launches the game)
   python navkit.py build   SP_01              generate pathdata.hpd
   python navkit.py check   SP_01              score it (against DICE's file if the level has one)
-  python navkit.py apply   SP_01 [--navtune file] [--out file]
+  python navkit.py apply   SP_01 [--navtune file] [--out file] [--install]
                                               build with the edits of the level's navigation side file
                                               (work\\navkit\\<level>\\<level>.navtune.json, made in the
-                                              Navigation Studio) into work\\navkit\\<level>\\pathdata.hpd
-  python navkit.py install SP_01              copy it into the game (DICE's file is backed up once)
+                                              Navigation Studio) into work\\navkit\\<level>\\pathdata.hpd,
+                                              traversals into <level>.traversal.json, a report next to it;
+                                              --install: then install it
+  python navkit.py install SP_01 [--from file]  copy it (or another built file) into the game, with its
+                                              traversal annotations (DICE's file is backed up once)
   python navkit.py restore SP_01              put the original file back
   python navkit.py all     SP_01 [--yes]      prepare, sample, build, check
   python navkit.py status  SP_01              what has been done for a level
@@ -432,8 +435,15 @@ def compare(pr, lv, log=print, reference=None, candidate=None):
     navcompare.report(navcompare.compare(xml, reference, candidate), lambda m: log('  ' + m))
 
 
-def install(pr, lv, log=print):
-    ours = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
+def traversal_path(folder, lv):
+    """The traversal annotations written next to a level's path data (navtraversal.py)."""
+    return os.path.join(folder, f'{lv}.traversal.json')
+
+
+def install(pr, lv, log=print, src=None):
+    """Copies a built file into the game (DICE's original is kept once, as <file>.opfor-orig), with the level's
+    traversal annotations when it has them (next to the installed path data, for OPFOR's bot layer)."""
+    ours = src or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     if not os.path.isfile(ours):
         raise NavKitError(f'{lv}: not built yet')
     if game_running():
@@ -444,7 +454,13 @@ def install(pr, lv, log=print):
         shutil.copyfile(dest, dest + BACKUP_SUFFIX)
         log(f'  original kept as {os.path.basename(dest)}{BACKUP_SUFFIX}')
     shutil.copyfile(ours, dest)
-    log(f'== installed {os.path.relpath(dest, pr.root)}')
+    log(f'== installed {os.path.relpath(ours, pr.root)} as {os.path.relpath(dest, pr.root)}')
+    trav, trav_dest = traversal_path(os.path.dirname(ours), lv), traversal_path(os.path.dirname(dest), lv)
+    if os.path.isfile(trav):
+        shutil.copyfile(trav, trav_dest)
+        log(f'  traversal annotations installed as {os.path.relpath(trav_dest, pr.root)}')
+    elif os.path.isfile(trav_dest):
+        os.remove(trav_dest)                     # none with this file: no stale annotations from an earlier one
 
 
 def restore(pr, lv, log=print):
@@ -455,14 +471,36 @@ def restore(pr, lv, log=print):
     if game_running():
         raise NavKitError('the game is running - close it first')
     shutil.move(dest + BACKUP_SUFFIX, dest)
+    trav = traversal_path(os.path.dirname(dest), lv)
+    if os.path.isfile(trav):
+        os.remove(trav)
     log(f'== restored the original {os.path.relpath(dest, pr.root)}')
 
 
-def apply(pr, lv, navtune_path=None, out=None, log=print):
+def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
     """Builds the level with the edits of its navigation side file (DESIGN.md sections 5.1-5.2): walkability
     edits (regions, seeds, unseeds) go into the build, then links and route edges into its route graph
-    (navlinks.py); on a DICE base only the graph edits, on a copy of DICE's file. The result is read back to
-    check it. Returns the output path. Traversal annotations are reported, not yet applied."""
+    (navlinks.py); on a DICE base only the graph edits, on a copy of DICE's file. Traversal annotations go to
+    <level>.traversal.json next to it (navtraversal.py). The result is read back to check it, the whole log is
+    kept as <output>.report.txt, and with install_after the result is installed. Returns the output path."""
+    lines = []
+
+    def say(msg):
+        lines.append(msg)
+        log(msg)
+    try:
+        out = _apply(pr, lv, navtune_path, out, say)
+    except NavKitError as e:
+        if out:
+            open(out + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines + [f'error: {e}']) + '\n')
+        raise
+    open(out + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
+    if install_after:
+        install(pr, lv, log=log, src=out)
+    return out
+
+
+def _apply(pr, lv, navtune_path, out, log):
     sys.path.insert(0, os.path.join(HERE, '..', 'core'))
     from bfbc2core import navtune
     import navbuild
@@ -504,6 +542,9 @@ def apply(pr, lv, navtune_path=None, out=None, log=print):
         out = out or os.path.join(pr.out_dir(lv), 'pathdata_dice_edited.hpd')
         log(f'== apply {lv}: {len(tune.operations)} edit(s) on a copy of DICE\'s file -> {os.path.relpath(out, pr.root)} '
             f'(for this PC only)')
+        if tune.base_changed(src):
+            log(f'  note: DICE\'s file is not the one the edits were made on (another game version?); the edits are '
+                f'by position and are applied, but check them')
         shutil.copyfile(src, out)
     if graph:
         f = hpdtool.parse(open(out, 'rb').read())
@@ -511,11 +552,21 @@ def apply(pr, lv, navtune_path=None, out=None, log=print):
         open(out, 'wb').write(hpdtool.write(f))
         log(f'  {sum(ok for _, ok, _ in results)} of {len(graph)} link / route-edge edit(s) applied')
     data = open(out, 'rb').read()
-    if hpdtool.write(hpdtool.parse(data)) != data:
+    f = hpdtool.parse(data)
+    if hpdtool.write(f) != data:
         raise NavKitError(f'{out}: does not read back exactly - not usable')
-    log(f'  read back exactly ({time.time() - t0:.0f} s in all)')
+    trav = traversal_path(os.path.dirname(out), lv)
     if later:
-        log(f'  {len(later)} traversal edit(s) recorded but not applied yet (Navigation Studio M4 step 5)')
+        import navtraversal
+        navtraversal.write(f, out, later, tune.level, trav, log=log)
+        log(f'  {len(later)} traversal annotation(s) written to {os.path.relpath(trav, pr.root)} (for OPFOR\'s bot layer; '
+            f'not route edges - the game\'s AI cannot climb or jump them)')
+    elif os.path.isfile(trav):
+        os.remove(trav)                          # an earlier run's annotations no longer apply
+    notes = sum(o['op'] == 'note' for o in tune.operations)
+    if notes:
+        log(f'  {notes} note(s): kept in the side file only')
+    log(f'  read back exactly ({time.time() - t0:.0f} s in all)')
     return out
 
 
@@ -543,13 +594,14 @@ def ask(question):
 def main(argv):
     args = [a for a in argv[1:]]
     opts = {}
-    for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate', '--navtune', '--out'):   # --root: older name of --opfor
+    for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate', '--navtune', '--out', '--from'):   # --root: older name of --opfor
         if k in args:
             i = args.index(k)
             opts[k] = args[i + 1]
             del args[i:i + 2]
     yes = '--yes' in args
-    args = [a for a in args if a != '--yes']
+    install_flag = '--install' in args
+    args = [a for a in args if a not in ('--yes', '--install')]
     if not args or args[0] in ('-h', '--help', 'help'):
         print(__doc__)
         return 0
@@ -576,9 +628,9 @@ def main(argv):
         elif cmd == 'check':
             check(pr, lv)
         elif cmd == 'apply':
-            apply(pr, lv, opts.get('--navtune'), opts.get('--out'))
+            apply(pr, lv, opts.get('--navtune'), opts.get('--out'), install_after=install_flag)
         elif cmd == 'install':
-            install(pr, lv)
+            install(pr, lv, src=opts.get('--from'))
         elif cmd == 'restore':
             restore(pr, lv)
         elif cmd == 'status':

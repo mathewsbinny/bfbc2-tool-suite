@@ -95,6 +95,7 @@ class Editor:
         self.job = None                         # the running `navkit.py apply`
         self.job_log = []
         self.job_out = os.path.join(root, 'work', 'navkit', lv, 'pathdata.hpd')
+        self.install_msg = ''
 
     # --- build with the edits (navkit apply) --------------------------------------------------------
     def start_apply(self):
@@ -112,6 +113,17 @@ class Editor:
             for line in self.job.stdout:
                 self.job_log.append(line.rstrip())
         threading.Thread(target=read, daemon=True).start()
+
+    def run_navkit(self, args):
+        """navkit.py install / restore (quick): runs to the end, its last line shown in the panel."""
+        import subprocess
+        import sys
+        navkit_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'bfbc2-auto-navkit', 'navkit.py')
+        r = subprocess.run([sys.executable, navkit_py, *args, '--opfor', self.root], capture_output=True, text=True,
+                           errors='replace', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        out = [l for l in (r.stdout + r.stderr).strip().splitlines() if l.strip()]
+        self.install_msg = ' / '.join(out[-2:]) if out else f'navkit {args[0]}: exit {r.returncode}'
+        return r.returncode
 
     def job_state(self):
         if self.job is None:
@@ -320,8 +332,18 @@ class Editor:
             imgui.text({'running': 'building ...', 'done': 'built.', 'failed': 'the build failed:'}[state])
             for line in self.job_log[-6:]:
                 imgui.text_disabled(line[:110])
-            if state == 'done' and imgui.button('open the result'):
-                self.reopen_on_result(v)
+            if state == 'done':
+                if imgui.button('open the result'):
+                    self.reopen_on_result(v)
+                imgui.same_line()
+                if imgui.button('install into the game'):
+                    self.run_navkit(['install', self.lv, '--from', self.job_out])
+                imgui.same_line()
+                if imgui.button('restore DICE\'s original'):
+                    self.run_navkit(['restore', self.lv])
+                imgui.text_disabled(f'report: {os.path.relpath(self.job_out + ".report.txt", self.root)}')
+        if self.install_msg:
+            imgui.text_wrapped(self.install_msg)
         imgui.separator()
         imgui.text(f'{len(self.tune.operations)} edit(s)')
         imgui.begin_child('ops', (0, 0))

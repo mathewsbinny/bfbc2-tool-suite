@@ -57,6 +57,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   navwater.py        water depth against path-data coverage (does the data leave out ground under water?)
   navedits.py        the walkability edits of a navigation side file as generator inputs (navkit.py apply)
   navlinks.py        a side file's links and route edges written into a path-data file's route graph
+  navtraversal.py    a side file's traversal annotations (ladders, jumps ...) as <level>.traversal.json
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
@@ -142,8 +143,13 @@ src\, tests\         (reserved for the generator proper and its tests)
      joins its nearest route node, both nodes must be in one sector (border nodes count for both), links and
      added edges are two-way unless set one-way, costs follow DICE's rule. On a DICE base there is no rebuild:
      the links go into a copy of DICE's file, `pathdata_dice_edited.hpd`, for this PC only. The output is
-     read back to check it. Traversals are recorded, not applied yet. A full rebuild (about 1-8 minutes a
-     level); without edits the build is unchanged.
+     read back to check it. Traversals (ladders, jumps, vaults, drops) go to `<level>.traversal.json` next to
+     it (`tools\navtraversal.py`) for OPFOR's bot layer, not into the path data: the game's AI would plan
+     through a ladder it cannot climb. Each has its ends, the route node and island at each end, and whether
+     it joins two islands. The whole log is kept as `<output>.report.txt`. `--install` then installs the
+     result (`navkit.py install --from <file>` installs any built file), with the traversal file beside the
+     installed path data; `restore` removes both and puts DICE's file back. A full rebuild (about 1-8
+     minutes a level); without edits the build is unchanged.
    - **Edge costs (fixed 2026-10-16):** every DICE edge costs `floor(distance * 16)` from the positions as
      stored; NavKit computed it from unrounded positions, and 138 of SP_004_B's 60,142 costs came out one
      unit off. NavKit now uses the stored positions (0 off; parity measures unchanged).
