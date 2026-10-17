@@ -157,8 +157,16 @@ src\, tests\         (reserved for the generator proper and its tests)
      1.5 m under water and almost none deeper (11 campaign levels: 85-90 % of NavKit's ground at 0-1.5 m is
      DICE's too, 1-8 % below that; DICE has 241 cells at 1.5-2 m, 154 at 2-3 m and none deeper; median
      per-level limit 1.45 m). NavKit keeps it all: 29 % of NavKit's extra ground is deeper than DICE goes on
-     that level (SP_01 73 %, SP_02 52 %). Dropping ground more than about 1.5 m under water is the first fix
-     for the extra ground.
+     that level (SP_01 73 %, SP_02 52 %). DICE's multiplayer data does the same (Onslaught: ONS_MP_002 72 of
+     18,878 floors under water deeper than 1.5 m, ONS_MP_004 1 of 19,639).
+   - **The water rule (2026-10-16):** NavKit's builder leaves out ground more than 1.5 m under the level's
+     water (`navbuild.MAX_WATER_DEPTH`; the water mesh from the terrain bundle; hand edits forcing ground
+     walkable still win). Over the 13 levels, against baseline A: extra ground +36.9 % -> +29.1 % (SP_01
+     54 -> 16 %, SP_008_B 127 -> 91 %, SP_007 17 -> 10 %), DICE ground reproduced 98.0 % (unchanged),
+     connectivity 96.6 % (unchanged); over-connection lower than the earlier reference on most levels.
+     Connectivity fell 0.16 points on SP_04 and SP_004_B (SP_04 is the level where DICE keeps ground deepest,
+     2.64 m) - accepted; a per-level limit is possible later. The reference run `regression` now includes the
+     rule (the one before it: `regression_before_water`).
    - **Next:**
      1. test each stage with DICE's own input (so it can reach 100 % on its own);
      2. the extra ground (first: ground more than 1.5 m under water) and seeding;

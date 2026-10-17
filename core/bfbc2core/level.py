@@ -361,6 +361,18 @@ def terrain_name(entities):
     return None
 
 
+def water_of(root, lv, log=print):
+    """The level's water (water.Water, or None), its terrain bundle unpacked once (as heightfield_of does)."""
+    part = None
+    for b in ('pkg', 'dist'):
+        for f in glob.glob(os.path.join(root, 'work', 'levels', lv, b, 'levels', '*.dbx')):
+            if os.path.splitext(os.path.basename(f))[0].lower() == lv:
+                part = part or f
+    name = (terrain_name(dbx.read(part).instances) if part else None) or lv
+    heightfield_of(root, lv, log, name)                  # unpacks the terrain bundle when it is not there yet
+    return water.read(os.path.join(root, 'work', 'levels', lv, 'terrain'), name)
+
+
 def heightfield_of(root, lv, log=print, name=None):
     """The level's terrain height field, unpacking its terrain-00.fbrb into work\\levels\\<lv>\\terrain once.
     name: from terrain_name(); read from the level partition if not given."""

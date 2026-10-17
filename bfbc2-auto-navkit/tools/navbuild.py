@@ -52,6 +52,49 @@ RADIUS = 0.4
 RESOLUTION = 0.025
 DIST_EDGE_MAX = 15.0
 BORDER_NODE_SPACING = 10.0
+MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
+                                # water is within 1.45 m, median over 11 levels; navwater.py)
+
+
+def water_tops(s, vertices, triangles):
+    """The water surface height over every sample column (-inf where there is no water). The columns are a regular
+    grid, so each water triangle only visits the columns its bounding box covers."""
+    nx, nz, p = s.nx, s.nz, s.pitch
+    top = np.full((nz, nx), -np.inf)
+    if vertices is None or not len(triangles):
+        return top.ravel()
+    tri = np.asarray(vertices, dtype=np.float64)[np.asarray(triangles)]
+    for (ax, ay, az), (bx, by, bz), (cx, cy, cz) in tri:
+        i0 = max(0, int(math.floor((min(ax, bx, cx) - s.min_x) / p)))
+        i1 = min(nx - 1, int(math.ceil((max(ax, bx, cx) - s.min_x) / p)))
+        j0 = max(0, int(math.floor((min(az, bz, cz) - s.min_z) / p)))
+        j1 = min(nz - 1, int(math.ceil((max(az, bz, cz) - s.min_z) / p)))
+        if i0 > i1 or j0 > j1:
+            continue
+        d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz)
+        if abs(d) < 1e-12:
+            continue
+        X = s.min_x + np.arange(i0, i1 + 1) * p
+        Z = s.min_z + np.arange(j0, j1 + 1) * p
+        X, Z = np.meshgrid(X, Z)
+        l1 = ((bz - cz) * (X - cx) + (cx - bx) * (Z - cz)) / d
+        l2 = ((cz - az) * (X - cx) + (ax - cx) * (Z - cz)) / d
+        l3 = 1 - l1 - l2
+        inside = (l1 >= -1e-9) & (l2 >= -1e-9) & (l3 >= -1e-9)
+        if inside.any():
+            h = np.where(inside, l1 * ay + l2 * by + l3 * cy, -np.inf)
+            sub = top[j0:j1 + 1, i0:i1 + 1]
+            np.maximum(sub, h, out=sub)
+    return top.ravel()
+
+
+def deep_water(s, water, limit=MAX_WATER_DEPTH):
+    """Surfaces more than limit metres under the level's water (bool per surface). water: (vertices, triangles)."""
+    if water is None:
+        return np.zeros(len(s.y), dtype=bool)
+    top = water_tops(s, water[0], water[1])
+    col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
+    return (top[col] - s.y.astype(np.float64)) > limit
 Y_OFFSET = 0.95                 # outline / node height above the ground (EntityHeight / 2)
 HEADER = (2, 2, 0, 1, 0, 0, 0, 0, 2, 0, 8, 0) + (0,) * 20 + (36, 12, 1, 0)
 
@@ -288,8 +331,11 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
 
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
-          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None):
-    """edits: the operations of a navigation side file (navedits.py applies the walkability ones)."""
+          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
+          water=None, max_water_depth=MAX_WATER_DEPTH):
+    """edits: the operations of a navigation side file (navedits.py applies the walkability ones).
+    water: the level's water mesh (vertices, triangles; core/bfbc2core/water.py): ground more than max_water_depth
+    under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win)."""
     t0 = time.time()
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
@@ -302,6 +348,14 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
                 'unseeds': e['unseeds']}
         seeds = list(seeds or []) + e['seeds']
         log(f'hand edits: {e["counts"]}; surfaces forced walkable {e["surfaces_walkable"]}, unwalkable {e["surfaces_unwalkable"]}')
+    if water is not None and max_water_depth is not None:
+        deep = deep_water(s, water, max_water_depth)
+        if deep.any():
+            fw, fu = hand.get('force_walkable'), hand.get('force_unwalkable')
+            if fw is not None:
+                deep &= ~fw                      # a hand edit forcing ground walkable wins over the water rule
+            hand['force_unwalkable'] = deep if fu is None else (fu | deep)
+        log(f'water: {int(deep.sum())} surfaces more than {max_water_depth} m under water left out')
     tris = np.load(tris_path) if tris_path else None
     dyn = np.load(dynamic_path) if dynamic_path else None
     hi = navsample.load(high_path)[0] if high_path else None

@@ -67,11 +67,19 @@ def inputs(root, lv):
     return samples, xoff, zoff, files
 
 
+def level_water(root, lv):
+    """The level's water mesh (vertices, triangles) for the build, or None (core/bfbc2core/water.py)."""
+    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+    from bfbc2core import level as levelmod
+    w = levelmod.water_of(root, lv, log=lambda *a: None)
+    return (w.vertices, w.triangles) if w is not None and len(w) else None
+
+
 def build_level(root, lv, out, log):
     samples, xoff, zoff, f = inputs(root, lv)
     navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
-                   seeds=json.load(open(f['soldier_spawns.json'])), log=lambda *a: None)
+                   seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv), log=lambda *a: None)
 
 
 def compare(ref, now, tol):

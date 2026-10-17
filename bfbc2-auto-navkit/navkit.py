@@ -382,6 +382,7 @@ def close_game():
 
 def build(pr, lv, log=print):
     import navbuild
+    import navregress
     s = pr.settings(lv)
     L = pr.level_work(lv)
     for suffix in ('', '_hi'):
@@ -394,6 +395,7 @@ def build(pr, lv, log=print):
                    dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=pr.samples(lv, '_hi'),
                    stairs_path=os.path.join(L, 'stair_tris.npy'),
                    seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
+                   water=navregress.level_water(pr.root, lv),
                    log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
 
@@ -529,6 +531,7 @@ def _apply(pr, lv, navtune_path, out, log):
         navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                        high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                        seeds=json.load(open(f['soldier_spawns.json'])), edits=walk,
+                       water=navregress.level_water(pr.root, lv),
                        log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
         log(f'  built in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
     else:
