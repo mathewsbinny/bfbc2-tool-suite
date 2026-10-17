@@ -19,10 +19,23 @@ namespace Bfbc2Dbx.Gui
         [STAThread]
         static void Main(string[] args)
         {
+            ToolLog.Start("dbxedit-gui");
+            // anything not caught where it happens: logged and explained in a window, the window keeps running
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (s, e) => Crash(e.Exception, false);
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => Crash(e.ExceptionObject as Exception, true);
             try { SetProcessDPIAware(); } catch (Exception) { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainWindow(args.Length > 0 ? args[0] : null));
+        }
+
+        static void Crash(Exception e, bool fatal)
+        {
+            if (e == null) return;
+            ToolLog.Error(e, fatal ? "DbxEditGUI (closing)" : "DbxEditGUI");
+            MessageBox.Show(ToolLog.Report(e), fatal ? "DbxEditGUI - error, closing" : "DbxEditGUI - error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -413,6 +426,7 @@ namespace Bfbc2Dbx.Gui
             {
                 doc = new DbxFile(before);
                 Rebuild(null);
+                ToolLog.Warn("value not accepted: " + ex.Message);
                 MessageBox.Show(this, ex.Message, "Value not accepted", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
@@ -692,7 +706,8 @@ namespace Bfbc2Dbx.Gui
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, ex.Message, "Cannot open " + Path.GetFileName(file), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToolLog.Error(ex, "opening " + file);
+                MessageBox.Show(this, ToolLog.Report(ex), "Cannot open " + Path.GetFileName(file), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -716,7 +731,8 @@ namespace Bfbc2Dbx.Gui
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, ex.Message, "Cannot save", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToolLog.Error(ex, "saving");
+                MessageBox.Show(this, ToolLog.Report(ex), "Cannot save", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -764,7 +780,8 @@ namespace Bfbc2Dbx.Gui
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, ex.Message, "Import failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    ToolLog.Error(ex, "XML import");
+                    MessageBox.Show(this, ToolLog.Report(ex), "Import failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
         }

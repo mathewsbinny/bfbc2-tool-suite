@@ -1408,6 +1408,13 @@ namespace Bfbc2Dbx
     {
         static int Main(string[] args)
         {
+            ToolLog.Start("dbxedit");
+            try { return Run(args); }
+            catch (Exception e) { return ToolLog.Fail(e); }       // unexpected: logged and explained, exit code 1
+        }
+
+        static int Run(string[] args)
+        {
             if (args.Length >= 2 && args[0] == "xml") return Xml(args.Skip(1));
             if (args.Length >= 2 && args[0] == "roundtrip") return Roundtrip(args[1]);
             if (args.Length >= 3 && args[0] == "edit") return Edit(args);
@@ -1452,6 +1459,7 @@ namespace Bfbc2Dbx
                 catch (Exception e)
                 {
                     Console.Error.WriteLine(f + ": " + e.Message);
+                    ToolLog.Warn("xml: " + f + ": " + e.Message);
                 }
             }
             Console.WriteLine("converted " + converted + " file(s)" + DeletedNote(deleted));
@@ -1496,6 +1504,7 @@ namespace Bfbc2Dbx
             {
                 if (!(e is InvalidDataException || e is System.Xml.XmlException || e is IOException || e is UnauthorizedAccessException)) throw;
                 Console.Error.WriteLine("import failed: " + e.Message);
+                ToolLog.Error(e, "import");
                 return 1;
             }
         }
@@ -1546,6 +1555,7 @@ namespace Bfbc2Dbx
                 catch (Exception e)
                 {
                     Console.WriteLine("ERROR " + f + ": " + e.Message);
+                    ToolLog.Warn("roundtrip: " + f + ": " + e.Message);
                     different++;
                     continue;
                 }
@@ -1647,6 +1657,93 @@ namespace Bfbc2Dbx
             if (fieldsSet > 0) Console.WriteLine("setfield: " + fieldsSet + " field(s)");
             File.WriteAllBytes(args[2], file.Serialize());
             return 0;
+        }
+    }
+
+    // Logging and error reports, as the suite's Python tools keep them (core/bfbc2core/errors.py): a log per tool
+    // in %LOCALAPPDATA%\bfbc2-tool-suite\logs\<tool>-<date>.log (the 20 newest kept), and errors explained in
+    // words - the likely cause and what to do - with the log's path.
+    public static class ToolLog
+    {
+        static string tool = "tool", path;
+        const int Keep = 20;
+
+        public static string LogPath { get { return path; } }
+
+        public static void Start(string name)
+        {
+            tool = name;
+            try
+            {
+                // LOCALAPPDATA as the Python tools read it (the same folder; tests point it elsewhere)
+                string local = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+                if (string.IsNullOrEmpty(local)) local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string dir = Path.Combine(Path.Combine(local,
+                                                       "bfbc2-tool-suite"), "logs");
+                Directory.CreateDirectory(dir);
+                path = Path.Combine(dir, name + "-" + DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".log");
+                foreach (string old in Directory.GetFiles(dir, name + "-*.log").OrderByDescending(p => p, StringComparer.OrdinalIgnoreCase).Skip(Keep))
+                    try { File.Delete(old); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                Info("--- " + name + " started: " + string.Join(" ", Environment.GetCommandLineArgs().Skip(1)) + " ---");
+            }
+            catch (Exception) { path = null; }               // no log folder: the tool still runs
+        }
+
+        static void Write(string level, string message)
+        {
+            if (path == null) return;
+            try
+            {
+                File.AppendAllText(path, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss,fff", CultureInfo.InvariantCulture) + " " +
+                                         level.PadRight(7) + " " + message + Environment.NewLine);
+            }
+            catch (Exception) { }
+        }
+
+        public static void Info(string message) { Write("INFO", message); }
+        public static void Warn(string message) { Write("WARNING", message); }
+
+        public static void Error(Exception e, string where)
+        {
+            string[] ce = Explain(e);
+            Write("ERROR", tool + " error" + (where != null ? " in " + where : "") + ": " + ce[0] + Environment.NewLine + e);
+        }
+
+        // { cause, what to do }
+        public static string[] Explain(Exception e)
+        {
+            var io = e as IOException;
+            int code = io != null ? (io.HResult & 0xFFFF) : 0;
+            if (io != null && (code == 32 || code == 33))
+                return new[] { "A file is in use by another program: " + e.Message, "Close the program using it (the game, an editor) and try again." };
+            if (e is UnauthorizedAccessException)
+                return new[] { "A file or folder could not be written or read: " + e.Message, "Check it is not read-only, or choose another folder." };
+            if (e is FileNotFoundException || e is DirectoryNotFoundException)
+                return new[] { "A file the tool needs is missing: " + e.Message, "Check the path." };
+            if (e is InvalidDataException || e is System.IO.EndOfStreamException || e is ArgumentOutOfRangeException || e is IndexOutOfRangeException)
+                return new[] { "The file is not the kind the tool reads, or it is damaged: " + e.Message, "Check it is the right file; unpack it again from the game if it is damaged." };
+            if (e is OutOfMemoryException)
+                return new[] { "The PC ran out of memory.", "Close other programs, or work on fewer files at once." };
+            return new[] { e.GetType().Name + ": " + e.Message, "If it happens again, send the log file to the tool's author." };
+        }
+
+        // The text a user sees: cause, what to do, where the details are.
+        public static string Report(Exception e)
+        {
+            string[] ce = Explain(e);
+            return ce[0] + Environment.NewLine + Environment.NewLine + "What to do: " + ce[1] + Environment.NewLine + Environment.NewLine +
+                   "Details were saved to:" + Environment.NewLine + (path ?? "(no log file)");
+        }
+
+        // A command-line tool's last word on an unexpected error: logged, explained on stderr, exit code 1.
+        public static int Fail(Exception e)
+        {
+            Error(e, null);
+            string[] ce = Explain(e);
+            Console.Error.WriteLine("error: " + ce[0]);
+            Console.Error.WriteLine("  what to do: " + ce[1]);
+            Console.Error.WriteLine("  details: " + (path ?? "(no log file)"));
+            return 1;
         }
     }
 }

@@ -127,4 +127,8 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    from bfbc2core import errors
+    errors.setup('stfs', gui=False)       # a log; an unexpected error explained in words (exit code 1)
+    with errors.guard():
+        sys.exit(main(sys.argv))

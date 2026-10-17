@@ -38,6 +38,13 @@ static class LevelDiff
 
     static int Main(string[] args)
     {
+        ToolLog.Start("leveldiff");
+        try { return MainCore(args); }
+        catch (Exception e) { return ToolLog.Fail(e); }       // unexpected: logged and explained, exit code 1
+    }
+
+    static int MainCore(string[] args)
+    {
         var o = new Options();
         var files = new List<string>();
         for (int i = 0; i < args.Length; i++)
@@ -60,7 +67,14 @@ static class LevelDiff
         }
         DbxFile a, b;
         try { a = new DbxFile(files[0]); b = new DbxFile(files[1]); }
-        catch (Exception e) { Console.Error.WriteLine(e.Message); return 2; }
+        catch (Exception e)
+        {
+            ToolLog.Error(e, "reading the files");
+            string[] ce = ToolLog.Explain(e);
+            Console.Error.WriteLine(e.Message);
+            Console.Error.WriteLine("  what to do: " + ce[1] + "  (details: " + (ToolLog.LogPath ?? "no log") + ")");
+            return 2;
+        }
         if (!a.IsBinary || !b.IsBinary) { Console.Error.WriteLine("both files must be binary .dbx"); return 2; }
         return Run(a, b, files[0], files[1], o);
     }

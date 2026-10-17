@@ -48,6 +48,7 @@ def tests():
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
         ('error handling and logs', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_errors.py')]),
+        ('every command-line tool reports errors', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_cli_errors.py')]),
         ('navigation side files (navtune)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_navtune.py')]),
         ('NavKit walkability edits (navedits)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navedits.py')]),
         ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),
@@ -101,7 +102,8 @@ def main(argv):
         t0 = time.time()
         r = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=SUITE)
         out = (r.stdout + r.stderr).strip()
-        last = out.splitlines()[-1] if out else ''
+        main_out = r.stdout.strip() or out            # the summary line is the test's own last line, not a warning it printed
+        last = main_out.splitlines()[-1] if main_out else ''
         ok = r.returncode == 0
         print(f'{"ok  " if ok else "FAIL"} {name:42s} {time.time() - t0:6.1f} s   {last[:90]}', flush=True)
         if not ok:
@@ -114,4 +116,8 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'core'))
+    from bfbc2core import errors
+    errors.setup('run-tests', gui=False)       # a log; an unexpected error explained in words (exit code 1)
+    with errors.guard():
+        sys.exit(main(sys.argv))

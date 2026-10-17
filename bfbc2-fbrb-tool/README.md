@@ -26,6 +26,12 @@ level bundle has 4,334 of its 6,692 entries as markers; all bundles together 286
 broken; `pack` restores them from the manifest, and the rebuilt bundle's header and payload are identical
 to the original's. Folders unpacked by older versions, which hold the markers as empty files, pack the same.
 
+## Errors and logs
+
+FbrbTool keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` like the suite's other tools. When it cannot do
+a job it says why in words - a file that is not an FbRB bundle or is damaged, a file in use, a missing file,
+a read-only folder - what to do, and where the details are; exit code 1.
+
 ## Credits
 
 The format follows **Frankelstner**'s fbrb script and **Heico**'s BFBC2 Toolkit. Developed for

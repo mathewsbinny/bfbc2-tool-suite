@@ -31,7 +31,10 @@ happened, the likely cause and what to do - for example "a Python library the to
 "the level is not prepared", "a file could not be written - close the game" - and where the log is. In the 3D
 tools an error in one panel does not close the window: it is listed in a Problems window and logged once. The
 suite window checks the libraries when it opens, and when a tool it runs fails it shows that tool's last lines.
-If you report a problem, send the log file.
+The command-line tools - FbrbTool, DbxEdit, LevelDiff, NavKit's `navkit.py` and `tools\*.py`, the crash reader,
+the console readers, the test runner - log the same way and, on an error, print the cause, what to do and the
+log's path (exit code 1); DbxEditGUI and NavKit's window show it in a window. If you report a problem, send the
+log file.
 
 **Ready to use**
 
@@ -91,6 +94,7 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `core/tests/test_terrain.py` | game | heights within 0.1 m of the in-game terrain samples (13 levels) |
 | `hpdtool roundtrip / meshtrip` | game | every path-data file and navigation mesh written back byte for byte |
 | `core/tests/test_navdata.py` | game | path data as the studio loads it (islands, cache, a file against itself) and the path test (routes, costs from the stored edges, refusals between islands) |
+| `tests/test_cli_errors.py` | quick | every command-line tool (C# and Python) given input that must fail: an error exit, the cause and what to do in words, the error in its log |
 | `core/tests/test_errors.py` | quick | error handling: causes explained in words, the log (errors with tracebacks, warnings, other threads), crashes caught with exit code 1, old logs pruned, a failing 3D panel kept to the Problems window |
 | `core/tests/test_navtune.py` | quick | navigation side files: every operation saves and loads unchanged, undo / redo, the PC's name recorded, invalid edits refused, DICE bases refuse region edits, the base file's hash |
 | `bfbc2-auto-navkit/tests/test_navedits.py` | quick | walkability edits as generator inputs on a sample grid built in the test: outlines, boxes, height ranges over stacked floors, later edits winning, seeds and unseeds |

@@ -17,8 +17,10 @@
 //        FbrbTool list   <file.fbrb>
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 
 static class FbrbTool
@@ -66,7 +68,7 @@ static class FbrbTool
     static void Read(string path, out List<Entry> entries, out byte[] payload, out bool zipped)
     {
         byte[] file = File.ReadAllBytes(path);
-        if (file.Length < 8 || Encoding.ASCII.GetString(file, 0, 4) != "FbRB") throw new Exception(path + " is not an FbRB bundle");
+        if (file.Length < 8 || Encoding.ASCII.GetString(file, 0, 4) != "FbRB") throw new InvalidDataException(path + " is not an FbRB bundle");
         int cut = (int)ReadBE(file, 4);
         byte[] h = Gunzip(file, 8, cut);
 
@@ -211,7 +213,7 @@ static class FbrbTool
     {
         byte[] b = File.ReadAllBytes(big);
         string magic = Encoding.ASCII.GetString(b, 0, 4);
-        if (magic != "BIGF" && magic != "BIG4") throw new Exception(big + " is not a BIG archive (" + magic + ")");
+        if (magic != "BIGF" && magic != "BIG4") throw new InvalidDataException(big + " is not a BIG archive (" + magic + ")");
         int count = (int)ReadBE(b, 8);
         int p = 16;
         Directory.CreateDirectory(outDir);
@@ -230,6 +232,7 @@ static class FbrbTool
 
     static int Main(string[] args)
     {
+        ToolLog.Start("fbrbtool");
         try
         {
             if (args.Length == 3 && args[0] == "big") return BigExtract(args[1], args[2]);
@@ -241,8 +244,95 @@ static class FbrbTool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine("error: " + ex.Message);
-            return 1;
+            return ToolLog.Fail(ex);                    // logged and explained (cause, what to do, the log), exit code 1
         }
     }
 }
+
+// Logging and error reports (a copy of DbxEdit.cs's ToolLog: FbrbTool builds on its own), as the suite's Python tools keep them (core/bfbc2core/errors.py): a log per tool
+// in %LOCALAPPDATA%\bfbc2-tool-suite\logs\<tool>-<date>.log (the 20 newest kept), and errors explained in
+// words - the likely cause and what to do - with the log's path.
+static class ToolLog
+{
+    static string tool = "tool", path;
+    const int Keep = 20;
+
+    public static string LogPath { get { return path; } }
+
+    public static void Start(string name)
+    {
+        tool = name;
+        try
+        {
+            // LOCALAPPDATA as the Python tools read it (the same folder; tests point it elsewhere)
+                string local = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+                if (string.IsNullOrEmpty(local)) local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string dir = Path.Combine(Path.Combine(local,
+                                                   "bfbc2-tool-suite"), "logs");
+            Directory.CreateDirectory(dir);
+            path = Path.Combine(dir, name + "-" + DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".log");
+            foreach (string old in Directory.GetFiles(dir, name + "-*.log").OrderByDescending(p => p, StringComparer.OrdinalIgnoreCase).Skip(Keep))
+                try { File.Delete(old); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            Info("--- " + name + " started: " + string.Join(" ", Environment.GetCommandLineArgs().Skip(1)) + " ---");
+        }
+        catch (Exception) { path = null; }               // no log folder: the tool still runs
+    }
+
+    static void Write(string level, string message)
+    {
+        if (path == null) return;
+        try
+        {
+            File.AppendAllText(path, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss,fff", CultureInfo.InvariantCulture) + " " +
+                                     level.PadRight(7) + " " + message + Environment.NewLine);
+        }
+        catch (Exception) { }
+    }
+
+    public static void Info(string message) { Write("INFO", message); }
+    public static void Warn(string message) { Write("WARNING", message); }
+
+    public static void Error(Exception e, string where)
+    {
+        string[] ce = Explain(e);
+        Write("ERROR", tool + " error" + (where != null ? " in " + where : "") + ": " + ce[0] + Environment.NewLine + e);
+    }
+
+    // { cause, what to do }
+    public static string[] Explain(Exception e)
+    {
+        var io = e as IOException;
+        int code = io != null ? (io.HResult & 0xFFFF) : 0;
+        if (io != null && (code == 32 || code == 33))
+            return new[] { "A file is in use by another program: " + e.Message, "Close the program using it (the game, an editor) and try again." };
+        if (e is UnauthorizedAccessException)
+            return new[] { "A file or folder could not be written or read: " + e.Message, "Check it is not read-only, or choose another folder." };
+        if (e is FileNotFoundException || e is DirectoryNotFoundException)
+            return new[] { "A file the tool needs is missing: " + e.Message, "Check the path." };
+        if (e is InvalidDataException || e is System.IO.EndOfStreamException || e is ArgumentOutOfRangeException || e is IndexOutOfRangeException)
+            return new[] { "The file is not the kind the tool reads, or it is damaged: " + e.Message, "Check it is the right file; unpack it again from the game if it is damaged." };
+        if (e is OutOfMemoryException)
+            return new[] { "The PC ran out of memory.", "Close other programs, or work on fewer files at once." };
+        return new[] { e.GetType().Name + ": " + e.Message, "If it happens again, send the log file to the tool's author." };
+    }
+
+    // The text a user sees: cause, what to do, where the details are.
+    public static string Report(Exception e)
+    {
+        string[] ce = Explain(e);
+        return ce[0] + Environment.NewLine + Environment.NewLine + "What to do: " + ce[1] + Environment.NewLine + Environment.NewLine +
+               "Details were saved to:" + Environment.NewLine + (path ?? "(no log file)");
+    }
+
+    // A command-line tool's last word on an unexpected error: logged, explained on stderr, exit code 1.
+    public static int Fail(Exception e)
+    {
+        Error(e, null);
+        string[] ce = Explain(e);
+        Console.Error.WriteLine("error: " + ce[0]);
+        Console.Error.WriteLine("  what to do: " + ce[1]);
+        Console.Error.WriteLine("  details: " + (path ?? "(no log file)"));
+        return 1;
+    }
+}
+
