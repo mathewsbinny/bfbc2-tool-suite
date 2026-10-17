@@ -20,6 +20,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
 sys.path.insert(0, os.path.join(SUITE, 'core'))
+if __name__ == '__main__':                      # the log and error reports start before the heavy imports,
+    from bfbc2core import errors                 # so a missing library is reported too
+    errors.setup('navigation-studio', gui='--screenshot' not in sys.argv)
 
 import numpy as np  # noqa: E402
 from imgui_bundle import imgui  # noqa: E402
@@ -428,9 +431,12 @@ def main(argv):
         else:
             args.append(argv[k])
             k += 1
-    if not args:
-        print(__doc__)
-        return 1
+    if not args:                                            # started without a level: ask for one
+        from bfbc2core import pick
+        lv = pick.pick_level('BFBC2 Navigation Studio')
+        if not lv:
+            return 1
+        args = [lv]
     lvl = levelmod.load(args[0])
     import navparity
     cand, ref = default_files(lvl.opfor, lvl.lv)
@@ -489,4 +495,5 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    with errors.guard():                         # a crash: logged, explained in a window, exit code 1
+        sys.exit(main(sys.argv))

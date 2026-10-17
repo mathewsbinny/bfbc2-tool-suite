@@ -13,6 +13,8 @@ from tkinter import messagebox, ttk
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, '..', 'core'))
+from bfbc2core import errors  # noqa: E402
 import navkit  # noqa: E402
 
 PYTHON = os.path.join(os.path.dirname(sys.executable), 'python.exe')   # console python for the steps
@@ -191,8 +193,10 @@ class App:
         threading.Thread(target=self.reader, args=(self.proc, cmd), daemon=True).start()
 
     def reader(self, proc, cmd):
+        self.tail = []
         for line in proc.stdout:
             self.lines.put(line)
+            self.tail = (self.tail + [line.rstrip()])[-10:]
         rc = proc.wait()
         self.lines.put(('done', cmd, rc))
 
@@ -202,9 +206,17 @@ class App:
                 item = self.lines.get_nowait()
                 if isinstance(item, tuple):
                     _, cmd, rc = item
+                    cancelled, self.cancelled = getattr(self, 'cancelled', False), False
                     self.proc = None
                     self.set_busy(False, f'{cmd}: ' + ('finished' if rc == 0 else 'failed - see the log above'))
                     self.refresh()
+                    errors.logger().info(f'{cmd} {self.level.get()}: exit {rc}')
+                    if rc != 0 and not cancelled:
+                        said = '\n'.join(l for l in getattr(self, 'tail', []) if l.strip())[-1500:]
+                        errors.logger().warning(f'{cmd} failed; last lines:\n{said}')
+                        messagebox.showwarning('NavKit', f'{cmd} did not finish (exit code {rc}).\n\nIt said last:\n'
+                                                         f'{said or "(no output)"}\n\nThe whole output is above; the log:\n'
+                                                         f'{errors._state.get("path")}')
                 else:
                     self.write(item)
         except queue.Empty:
@@ -214,6 +226,7 @@ class App:
     def stop(self):
         if not self.proc:
             return
+        self.cancelled = True
         self.proc.kill()
         self.write('\ncancelled\n')
         # a sampling run killed mid-way leaves the game open and opfor.ini changed
@@ -252,9 +265,12 @@ def main():
         ctypes.windll.shcore.SetProcessDpiAwareness(1)   # sharp text on high-DPI screens
     except Exception:
         pass
-    root = tk.Tk()
-    App(root)
-    root.mainloop()
+    errors.setup('navkit-gui')
+    with errors.guard():
+        root = tk.Tk()
+        root.report_callback_exception = lambda t, v, tb: errors.report(v, tb=tb, where='a button')
+        App(root)
+        root.mainloop()
 
 
 if __name__ == '__main__':

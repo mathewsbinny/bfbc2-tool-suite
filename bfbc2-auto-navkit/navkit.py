@@ -644,9 +644,15 @@ def main(argv):
             raise NavKitError(f'unknown command {cmd!r}')
     except NavKitError as e:
         print('error:', e)
+        import logging
+        logging.getLogger('bfbc2').error(f'{" ".join(argv[1:])}: {e}')
         return 1
     return 0
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+    sys.path.insert(0, os.path.join(HERE, '..', 'core'))
+    from bfbc2core import errors
+    errors.setup('navkit', gui=False)          # a log; an unexpected error explained in words (exit code 1)
+    with errors.guard():
+        sys.exit(main(sys.argv))

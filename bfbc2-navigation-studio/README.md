@@ -4,6 +4,10 @@ View a level's AI navigation data (Kynapse `pathdata.hpd`) in 3D: NavKit's build
 side by side, over the level's terrain, water and objects. Milestone M3 (viewing); editing, the path test
 and side files are M4 (`../DESIGN.md` sections 4.2 and 5).
 
+**Opening it:** in the suite window (`BFBC2 Tool Suite.pyw`), Levels tab: choose a level, then **Open in
+Navigation Studio** (optionally with a NavKit file of your choice). Or double-click `studio.py` here: a level
+picker opens. Or from a command line:
+
 ```
 python studio.py <level>                       e.g. python studio.py sp_01
 python studio.py <level> --candidate <file.hpd> --reference <file.hpd> --color island|sector|pitch|difference

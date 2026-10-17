@@ -260,14 +260,21 @@ class Viewer:
         self._last_click = 0.0
         self.pick_point = None            # world point of the last click (None: clicked the sky)
         self.select_on_click = True       # a tool's mode (measuring) can turn selection by click off
+        self._problems = {}               # errors caught in a frame: (where, type, message) -> text shown
         self.overlay = []                 # (a, b, colour) segments, set by the tool (set_overlay), drawn over the scene
         self._overlay_key = None
         self._overlay_version = 0
 
     # --- GPU ----------------------------------------------------------------------------------------
     def _init(self):
+        io = imgui.get_io()                  # a panel that fails half-way: its windows are closed, not an assert
+        io.config_error_recovery = True
+        io.config_error_recovery_enable_assert = False
+        io.config_error_recovery_enable_tooltip = False
         self.ctx = moderngl.create_context()
         self.renderer = self.ctx.info.get('GL_RENDERER', '?').split('/')[0]
+        from . import errors
+        errors.logger().info(f'GPU: {self.renderer}, OpenGL {self.ctx.info.get("GL_VERSION", "?")}')
         print(f'GPU: {self.renderer}' + ('  (on a PC with two GPUs, set python.exe to "High performance" in Windows '
                                          'Settings > System > Display > Graphics for the faster one)'
                                          if 'Radeon(TM) Graphics' in self.renderer or 'Intel' in self.renderer else ''))
@@ -486,7 +493,7 @@ class Viewer:
                 if self.select_on_click:
                     self.selected = oid if oid is not None else NO_ID
                 if self.on_pick:
-                    self.on_pick(oid)
+                    self._guarded('a click', self.on_pick, oid)
         # hover: once the mouse has moved and then rests for a moment (a pick re-renders the scene)
         if abs(dx) + abs(dy) > 0:
             self._hover_due = time.time() + 0.12
@@ -500,7 +507,36 @@ class Viewer:
     def _background(self):
         if self.ctx is None:
             return
-        self._draw()
+        self._guarded('drawing the 3D view', self._draw)
+
+    def _guarded(self, where, fn, *args):
+        """Runs one part of a frame; an error is logged once (with its cause) and listed in the Problems window
+        instead of closing the tool."""
+        try:
+            fn(*args)
+        except Exception as e:
+            key = (where, type(e).__name__, str(e))
+            if key not in self._problems:
+                from . import errors
+                errors.report(e, where=where, show=False)
+                cause, fix = errors.explain(e)
+                self._problems[key] = f'{where}: {cause}  ({fix})'
+
+    def _problems_window(self):
+        if not self._problems:
+            return
+        from . import errors
+        io = imgui.get_io()
+        imgui.set_next_window_pos((io.display_size.x / 2 - 300, 60), imgui.Cond_.first_use_ever)
+        imgui.set_next_window_size((600, 0), imgui.Cond_.first_use_ever)
+        imgui.begin('Problems', flags=imgui.WindowFlags_.always_auto_resize)
+        imgui.text_colored(imgui.ImVec4(1.0, 0.45, 0.35, 1.0), 'Something went wrong; the tool keeps running.')
+        for key, msg in list(self._problems.items())[-8:]:
+            imgui.text_wrapped(msg)
+            if imgui.small_button(f'dismiss##{hash(key)}'):
+                self._problems.pop(key, None)
+        imgui.text_disabled(f'Details: {errors._state.get("path") or "(no log file)"}')
+        imgui.end()
 
     def _gui(self):
         self._frames += 1
@@ -509,9 +545,10 @@ class Viewer:
         if now - self._last >= 1.0:
             self.fps = self._fps_frames / (now - self._last)
             self._fps_frames, self._last = 0, now
-        self._input()
+        self._guarded('handling the mouse and keys', self._input)
         for p in self.panels:
-            p(self)
+            self._guarded(f'the {getattr(p, "__name__", "panel").replace("panel_", "").replace("_", " ")} panel', p, self)
+        self._problems_window()
         if self.exit_after is not None and self._frames >= self.exit_after:
             hello_imgui.get_runner_params().app_shall_exit = True
 

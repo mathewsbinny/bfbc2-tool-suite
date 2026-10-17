@@ -3,6 +3,36 @@
 Tools for building and debugging AI on Battlefield: Bad Company 2 maps, in one repository. The 3D tools
 share one core: level loading, a 3D view, picking and the game's data formats.
 
+## Getting started
+
+1. Install Python 3.10 or newer, then the libraries the tools use:
+   `pip install numpy matplotlib moderngl glfw imgui-bundle pillow` (and `pefile capstone` for the crash
+   reader's code view).
+2. Put this folder next to your `Project OPFOR` folder (or set `OPFOR_ROOT` to it): the tools read the game
+   copy there.
+3. Double-click **`BFBC2 Tool Suite.pyw`**. One window has every tool:
+   - **Levels:** choose a level, then **Open in Map Inspector** or **Open in Navigation Studio** (or
+     double-click the level). A level is unpacked the first time (offline, about 20 s); the tool's progress
+     shows at the bottom and its 3D window opens when the level is loaded.
+   - **Bundles, Level diff, Crash reader, Xbox files, Tests:** the command-line tools with file pickers and
+     options; their output appears at the bottom.
+   - **More tools:** DbxEditGUI and NavKit's window.
+
+The 3D tools can also be started on their own: double-click `bfbc2-map-inspector\inspector.py` or
+`bfbc2-navigation-studio\studio.py` and a level picker opens, or give the level on the command line
+(`python studio.py sp_01`). On a laptop with two GPUs, see "The 3D tools and your GPU" below.
+
+### When something goes wrong
+
+Every tool keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` (one file per tool and day, the 20 newest
+kept): what it did, warnings, and every error with its full details. When a tool crashes, a window says what
+happened, the likely cause and what to do - for example "a Python library the tool needs is not installed
+(imgui_bundle) - pip install imgui-bundle", "the 3D view could not start OpenGL 3.3 - update the graphics driver",
+"the level is not prepared", "a file could not be written - close the game" - and where the log is. In the 3D
+tools an error in one panel does not close the window: it is listed in a Problems window and logged once. The
+suite window checks the libraries when it opens, and when a tool it runs fails it shows that tool's last lines.
+If you report a problem, send the log file.
+
 **Ready to use**
 
 | Folder | Tool |
@@ -61,12 +91,14 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `core/tests/test_terrain.py` | game | heights within 0.1 m of the in-game terrain samples (13 levels) |
 | `hpdtool roundtrip / meshtrip` | game | every path-data file and navigation mesh written back byte for byte |
 | `core/tests/test_navdata.py` | game | path data as the studio loads it (islands, cache, a file against itself) and the path test (routes, costs from the stored edges, refusals between islands) |
+| `core/tests/test_errors.py` | quick | error handling: causes explained in words, the log (errors with tracebacks, warnings, other threads), crashes caught with exit code 1, old logs pruned, a failing 3D panel kept to the Problems window |
 | `core/tests/test_navtune.py` | quick | navigation side files: every operation saves and loads unchanged, undo / redo, the PC's name recorded, invalid edits refused, DICE bases refuse region edits, the base file's hash |
 | `bfbc2-auto-navkit/tests/test_navedits.py` | quick | walkability edits as generator inputs on a sample grid built in the test: outlines, boxes, height ranges over stacked floors, later edits winning, seeds and unseeds |
 | `bfbc2-auto-navkit/tests/test_links.py` | game | links and route edges written into a route graph: a link joins two islands (no route before, one after), one-way edges, removal, costs by DICE's rule, the first-edge index rule, unreachable links reported, a DICE base edited on a copy |
 | `bfbc2-auto-navkit/tests/test_traversal.py` | game | traversal annotations in `<level>.traversal.json` (ends, route nodes, islands joined; the path data untouched), the apply report, install / restore into a stand-in game folder, `apply --install` |
 | `bfbc2-auto-navkit/tests/test_apply.py` | game | `navkit apply` on sp_004_b: no edits gives the regression build; an unwalkable square leaves no ground, an unseed removes an island, a walkable box adds ground; the output reads back exactly |
 | `bfbc2-navigation-studio/tests/test_editing.py` | game | the studio's edit mode driven as clicks would drive it: every tool, outline and box, undo / redo, save and reload, the click mode, DICE-base limits, the apply button building in the background |
+| `tests/test_hub.py` | game | the suite window driven as clicks would: its tabs and the levels, FbrbTool, LevelDiff, the crash reader and the test runner through their tabs; a failing tool reported with its last lines, a stopped one not; a 3D tool with a bad level exiting cleanly; the level picker |
 | `tests/test_viewers.py` | game | the Map Inspector and the Navigation Studio open a level, draw it (screenshot not blank) and exit; prints the GPU used |
 | `bfbc2-auto-navkit/tools/navregress.py` | game (2 levels), full (13) | NavKit rebuilds levels with the current code; fails if any DICE-parity measure is worse than the reference run `regression` |
 | DbxEdit corpus, `core/tests/test_dbx.py` | full | every unpacked `.dbx`: DbxEdit's fingerprints, and the Python reader's XML identical to DbxEdit's |
