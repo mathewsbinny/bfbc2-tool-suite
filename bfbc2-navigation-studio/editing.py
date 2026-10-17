@@ -151,7 +151,7 @@ class Editor:
             elif name == 'link-areas':
                 o = nt.op('link-areas', a=a, b=b, by=self.by)
             else:
-                o = nt.op('route-edge', a=a, b=b, action=name.split()[1], by=self.by)
+                o = nt.op('route-edge', a=a, b=b, action=name.split()[1], by=self.by, **{'two-way': self.two_way})
             self.commit(o)
         elif name in ('walkable', 'unwalkable') and self.shape == 'box' and len(self.clicks) == 2:
             a, b = self.clicks
@@ -237,8 +237,8 @@ class Editor:
         imgui.begin('Edit (E)')
         kind = self.tune.kind
         imgui.text(f'editing {self.target}\'s data ({kind} base) - side file {os.path.relpath(self.path, self.root)}')
-        imgui.text_disabled('Walkability edits build into NavKit\'s file with the button below; links, route edges '
-                            'and traversals are recorded (applied in a later step).')
+        imgui.text_disabled('The button below builds the edits into the path data: regions and seeds by a rebuild, '
+                            'links and route edges into its route graph. Traversals are recorded (a later step).')
         changed, self.by = imgui.input_text('recorded as', self.by)
         imgui.separator()
         for key, label in TOOLS:
@@ -275,7 +275,10 @@ class Editor:
             _, self.note_text = imgui.input_text('text', self.note_text)
             imgui.text('then click where it belongs')
         elif t in ('link-areas', 'route-edge add', 'route-edge remove'):
-            imgui.text(f'click the first point, then the second ({len(self.clicks)} of 2)')
+            if t != 'link-areas':
+                _, self.two_way = imgui.checkbox('two-way', self.two_way)
+            imgui.text(f'click the first point, then the second ({len(self.clicks)} of 2); each joins the route node '
+                       f'nearest to it')
         elif t in ('seed', 'unseed'):
             imgui.text('click a point on the ground')
         else:
@@ -301,15 +304,18 @@ class Editor:
                 self.message = f'not loaded: {e}'
             self.refresh(v)
         state = self.job_state()
-        if self.tune.kind == 'navkit':
-            if state == 'running':
-                imgui.begin_disabled()
-            if imgui.button('build with these edits (navkit apply)'):
-                self.start_apply()
-            if state == 'running':
-                imgui.end_disabled()
-            imgui.same_line()
-            imgui.text_disabled(f'-> {os.path.relpath(self.job_out, self.root)}')
+        if self.tune.kind == 'dice' and os.path.basename(self.job_out) == 'pathdata.hpd':
+            self.job_out = os.path.join(os.path.dirname(self.job_out), 'pathdata_dice_edited.hpd')   # never over NavKit's
+        if state == 'running':
+            imgui.begin_disabled()
+        label = 'build with these edits (navkit apply)' if self.tune.kind == 'navkit' else \
+            'apply to a copy of DICE\'s file (this PC only)'
+        if imgui.button(label):
+            self.start_apply()
+        if state == 'running':
+            imgui.end_disabled()
+        imgui.same_line()
+        imgui.text_disabled(f'-> {os.path.relpath(self.job_out, self.root)}')
         if state is not None:
             imgui.text({'running': 'building ...', 'done': 'built.', 'failed': 'the build failed:'}[state])
             for line in self.job_log[-6:]:

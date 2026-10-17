@@ -56,6 +56,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   navregress.py      regression test: rebuild levels with the current code, fail if a parity measure got worse
   navwater.py        water depth against path-data coverage (does the data leave out ground under water?)
   navedits.py        the walkability edits of a navigation side file as generator inputs (navkit.py apply)
+  navlinks.py        a side file's links and route edges written into a path-data file's route graph
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
@@ -137,8 +138,15 @@ src\, tests\         (reserved for the generator proper and its tests)
      unwalkable regions remove the sampled surfaces inside them before seeding (so a cut really
      disconnects), walkable regions force them in past the slope and clearance rules (they still join the
      network by the step rule), seeds add a seed, unseeds drop the island at the point. Later edits win where
-     regions overlap. The output is read back to check it. Links, route edges and traversals are recorded,
-     not applied yet. A full rebuild (about 1-8 minutes a level); without edits the build is unchanged.
+     regions overlap. Then links and route edges go into the route graph (`tools\navlinks.py`): each point
+     joins its nearest route node, both nodes must be in one sector (border nodes count for both), links and
+     added edges are two-way unless set one-way, costs follow DICE's rule. On a DICE base there is no rebuild:
+     the links go into a copy of DICE's file, `pathdata_dice_edited.hpd`, for this PC only. The output is
+     read back to check it. Traversals are recorded, not applied yet. A full rebuild (about 1-8 minutes a
+     level); without edits the build is unchanged.
+   - **Edge costs (fixed 2026-10-16):** every DICE edge costs `floor(distance * 16)` from the positions as
+     stored; NavKit computed it from unrounded positions, and 138 of SP_004_B's 60,142 costs came out one
+     unit off. NavKit now uses the stored positions (0 off; parity measures unchanged).
    - **Ground under water (2026-10-16, `tools\navwater.py`):** DICE keeps walkable ground down to about
      1.5 m under water and almost none deeper (11 campaign levels: 85-90 % of NavKit's ground at 0-1.5 m is
      DICE's too, 1-8 % below that; DICE has 241 cells at 1.5-2 m, 154 at 2-3 m and none deeper; median

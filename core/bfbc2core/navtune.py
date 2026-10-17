@@ -104,13 +104,13 @@ def validate(o, kind='navkit'):
                 problems.append(f'{name}: box must be [x0, y0, z0, x1, y1, z1] with each low <= high')
         else:
             problems.append(f'{name}: region must be a polygon or a box')
+    if 'two-way' in o and not isinstance(o['two-way'], bool):
+        problems.append(f'{name}: two-way must be true or false')
     if name == 'route-edge' and o.get('action') not in ('add', 'remove'):
         problems.append('route-edge: action must be add or remove')
     if name == 'traversal':
         if o.get('kind') not in TRAVERSALS:
             problems.append(f'traversal: kind must be one of {", ".join(TRAVERSALS)}')
-        if not isinstance(o.get('two-way', True), bool):
-            problems.append('traversal: two-way must be true or false')
     if name == 'note' and not str(o.get('text', '')).strip():
         problems.append('note: text is empty')
     return problems

@@ -460,8 +460,9 @@ def restore(pr, lv, log=print):
 
 def apply(pr, lv, navtune_path=None, out=None, log=print):
     """Builds the level with the edits of its navigation side file (DESIGN.md sections 5.1-5.2): walkability
-    edits (regions, seeds, unseeds) go into the build; the result is read back to check it. Returns the
-    output path. Links, route edges and traversal annotations are reported, not yet applied."""
+    edits (regions, seeds, unseeds) go into the build, then links and route edges into its route graph
+    (navlinks.py); on a DICE base only the graph edits, on a copy of DICE's file. The result is read back to
+    check it. Returns the output path. Traversal annotations are reported, not yet applied."""
     sys.path.insert(0, os.path.join(HERE, '..', 'core'))
     from bfbc2core import navtune
     import navbuild
@@ -474,29 +475,47 @@ def apply(pr, lv, navtune_path=None, out=None, log=print):
         tune = navtune.load(navtune_path)
     except ValueError as e:
         raise NavKitError(str(e))
-    if tune.kind != 'navkit':
-        raise NavKitError(f'{lv}: the side file\'s base is DICE\'s data - region edits need a NavKit base; links and '
-                          f'annotations on DICE data are applied to the written file (not yet)')
-    out = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
-    try:
-        samples, xoff, zoff, f = navregress.inputs(pr.root, lv)
-    except RuntimeError as e:
-        raise NavKitError(str(e))
+    import navlinks
     walk = [o for o in tune.operations if o['op'] in ('walkable', 'unwalkable', 'seed', 'unseed')]
-    later = [o for o in tune.operations if o['op'] not in ('walkable', 'unwalkable', 'seed', 'unseed', 'note')]
-    log(f'== apply {lv}: {len(tune.operations)} edit(s) from {os.path.relpath(navtune_path, pr.root)} '
-        f'-> {os.path.relpath(out, pr.root)}')
+    graph = [o for o in tune.operations if o['op'] in navlinks.GRAPH_OPS]
+    later = [o for o in tune.operations if o['op'] == 'traversal']
     t0 = time.time()
-    navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
-                   high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
-                   seeds=json.load(open(f['soldier_spawns.json'])), edits=walk,
-                   log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
+    if tune.kind == 'navkit':
+        out = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
+        try:
+            samples, xoff, zoff, f = navregress.inputs(pr.root, lv)
+        except RuntimeError as e:
+            raise NavKitError(str(e))
+        log(f'== apply {lv}: {len(tune.operations)} edit(s) from {os.path.relpath(navtune_path, pr.root)} '
+            f'-> {os.path.relpath(out, pr.root)}')
+        navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
+                       high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
+                       seeds=json.load(open(f['soldier_spawns.json'])), edits=walk,
+                       log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
+        log(f'  built in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
+    else:
+        # a DICE base: no rebuild - the graph edits go into a copy of DICE's file, for this PC only (never
+        # shared: it contains DICE's data; the side file is what can be shared)
+        if walk:
+            raise NavKitError(f'{lv}: region edits need a NavKit base (DESIGN.md 5.1)')
+        src = pr.dice_pathdata(lv)
+        if not src:
+            raise NavKitError(f'{lv}: the side file\'s base is DICE\'s data, but the level has none')
+        out = out or os.path.join(pr.out_dir(lv), 'pathdata_dice_edited.hpd')
+        log(f'== apply {lv}: {len(tune.operations)} edit(s) on a copy of DICE\'s file -> {os.path.relpath(out, pr.root)} '
+            f'(for this PC only)')
+        shutil.copyfile(src, out)
+    if graph:
+        f = hpdtool.parse(open(out, 'rb').read())
+        results = navlinks.apply(f, graph, log=log)
+        open(out, 'wb').write(hpdtool.write(f))
+        log(f'  {sum(ok for _, ok, _ in results)} of {len(graph)} link / route-edge edit(s) applied')
     data = open(out, 'rb').read()
     if hpdtool.write(hpdtool.parse(data)) != data:
         raise NavKitError(f'{out}: does not read back exactly - not usable')
-    log(f'  built and read back in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
+    log(f'  read back exactly ({time.time() - t0:.0f} s in all)')
     if later:
-        log(f'  {len(later)} link / route-edge / traversal edit(s) recorded but not applied yet (Navigation Studio M4 steps 4-5)')
+        log(f'  {len(later)} traversal edit(s) recorded but not applied yet (Navigation Studio M4 step 5)')
     return out
 
 

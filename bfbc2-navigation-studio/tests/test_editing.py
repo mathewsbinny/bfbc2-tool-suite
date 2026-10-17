@@ -114,7 +114,7 @@ def main(argv):
         state = ed.job_state()
         check(state == 'done' and os.path.isfile(ed.job_out) and any('read back' in l for l in ed.job_log),
               f'the apply button builds with the edits in the background ({time.time() - t0:.0f} s): {state}')
-        check(any('not applied yet' in l for l in ed.job_log), 'its log says which edits are recorded but not applied yet')
+        check(any('link / route-edge edit(s) applied' in l for l in ed.job_log), 'its log reports the links and route edges')
         ed.set_open(v, False)
         check(v.select_on_click and ed.tool is None, 'closing the panel gives clicks back to selecting')
 

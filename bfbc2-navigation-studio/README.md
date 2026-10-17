@@ -47,8 +47,11 @@ unseeds magenta, links orange, route edges yellow (removals red), traversals whi
 
 **Build with these edits** (step 3) saves the side file and runs `navkit.py apply` in the background (its log in the
 panel); when it is done, **open the result** reopens the studio on the built file. Walkability edits (regions,
-seeds, unseeds) are built in; links, route edges and traversals are recorded for steps 4 and 5. On
-DICE's own data only additive edits are offered (links, route edges, traversals, notes): region edits need
+seeds, unseeds) are built in, then links and route edges go into the route graph (step 4; each point joins its
+nearest route node, and both must be in one sector - the log says when one could not be placed). Traversals
+are recorded for step 5. On
+DICE's own data only additive edits are offered (links, route edges, traversals, notes; the button writes them
+into a copy, `work\navkit\<level>\pathdata_dice_edited.hpd`, for this PC only): region edits need
 a NavKit build to rebuild. `--navtune <file>` opens a side file from elsewhere, `--edit` opens the panel.
 
 **Panels**

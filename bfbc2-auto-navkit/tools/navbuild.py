@@ -589,6 +589,9 @@ def finalize_graph(pts, pairs, linked_ids):
     out_edges = defaultdict(list)
     for a_, b_, d in pairs:
         if a_ in new and b_ in new:
+            # the cost from the positions as stored (32-bit floats), as every DICE edge is: from the unrounded
+            # positions, 138 of sp_004_b's 60,142 costs came out one unit off
+            d = math.dist(*(tuple(float(np.float32(v)) for v in pts[i][1]) for i in (a_, b_)))
             cost = 0x80000000 | int(math.floor(d * 16))
             out_edges[new[a_]].append((cost, new[b_]))
             out_edges[new[b_]].append((cost, new[a_]))

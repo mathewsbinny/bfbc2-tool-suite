@@ -5,7 +5,7 @@ r"""navkit apply with walkability edits, on a level's NavKit build (sp_004_b by 
 - an unwalkable square on the main network: no walkable ground is left inside it;
 - an unseed on another island: that island is gone;
 - a walkable box: no walkable ground is lost inside it;
-- the output reads back exactly, and the side file's other edits are reported, not applied.
+- the output reads back exactly, and the link edit is applied after the build (or reported with its reason).
 
   python test_apply.py [level]          needs the level's samples and work\navkit\regress\<level>.hpd
 """
@@ -127,7 +127,8 @@ def main(argv):
         bb, ba = cells_in(nav0, box), cells_in(nav1, box)
         check(ba > bb, f'walkable box (beside the main network, where sampled ground is not walkable): '
                        f'{bb} walkable cells before, {ba} after')
-        check(any('not applied yet' in l for l in lines), 'the link edit is reported as recorded, not applied yet')
+        check(any('link-areas' in l for l in lines) and any('link / route-edge edit(s) applied' in l for l in lines),
+              'the link edit is applied after the build, or reported with the reason it could not be')
         check(any('hand edits' in l for l in lines), 'the build log lists the hand edits')
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
