@@ -406,13 +406,56 @@ by that many u32 offsets at +0x10.
     exceptions have early lines with no low neighbour. (`navbuild.EDGE_SECTOR_TILES`: validated on DICE's data,
     no measured benefit yet - NavKit's extra sectors outside DICE's generation bounds give most edge sectors a
     low neighbour, so the rule rarely applies until those bounds are reproduced.)
+  - **Edge-sector rule, refined (2026-10-17):** "the sector is on the minimum X (Z) of the level's sector grid"
+    matches 3,798 of 3,798 sector axes on the 17 levels; "no sector on the low side" gets 3,788 - its 10 misses
+    are holes inside the map. NavKit can use it once its sector set equals DICE's (generation bounds below).
+  - **Diagonal links on DICE's own ground (sp_01 / sp_02, the two levels losing 3.3-3.4 % of connected pairs):**
+    letting every diagonal link restores connectivity to 99.99 / 100 % but drops exact areas to 51 / 47 % and
+    boundary recall to 2-3 %; a 0.62 m threshold changes connectivity by < 0.1 point and loses exact areas (62.9 /
+    70.5 %); diagonals by their direct step are worse (61.2 / 60.3 %). So the loss is in the diagonal rule, not the
+    threshold: DICE links some diagonals the terrain-only side-cell test does not. Open: the test offers the side
+    cell's terrain height only, NavKit's builder any surface in the side column (objects) - sp_01 / sp_02 are the
+    object-heavy levels.
   - **Portals:** both sides of every portal are stored (DICE 771 of 771 with a portal back). On sp_004_b DICE has
     771 portal segments (6,512 m, median 6.4 m, 98 % of the length on tile lines); NavKit 5,563-7,264 (21,600-
     23,600 m, median 0.8 m, 78-85 % on tile lines), 22 % of NavKit's without a portal back.
+    NavKit merges collinear runs as DICE does (end-to-end pieces with the same target on one line: NavKit 274,
+    DICE 265 - DICE also stores some runs in pieces); its count comes from 5,491 separate (area, target, line)
+    groups of one 0.8 m piece: staircase boundaries between areas, which DICE mostly does not link at all.
+  - **Portal symmetry (NavKit, 2026-10-17, `navbuild.SYMMETRIC_PORTALS` / `ONE_WAY_PORTALS`):** one-way portals came
+    from stacked surfaces - A's cell has a neighbour n of area T, but n's column check finds a second surface of T
+    in A's column (T's own interior), so T has no portal back. Mirroring the portal onto T there is wrong: T's
+    side is interior, the portal splits T's outline and its fill (sp_004_b ground 98.06 -> 96.69, AI coverage
+    96.7 -> 87.3, pairwise 87.0 -> 61.9). The rule kept: a portal piece is mirrored only where the target's side
+    is plain outline (none were, on sp_004_b); otherwise the source's piece becomes outline. sp_004_b: 29,462
+    unit portal edges, 2,880 (9.8 %) without the same edge back, all turned into outline; records 7,233 -> 4,746,
+    100 % with a portal back; area pairs losing every portal 564 - 41 still joined through other areas of the
+    sector, 519 in the same route-graph island, 3 already in different islands before, 1 split by the change
+    (sector 0x203, areas of 1 and 4 cells). Parity sp_004_b: AI pairwise 87.0 -> 91.2, connectivity 99.21 ->
+    99.34, nodes_near 35.14 -> 34.69 (one route node per portal run: 6,086 -> 5,510 nodes), area boundaries
+    unchanged; NavKit portals within 1 m of a DICE portal 4.3 -> 6.5 %. sp_01: 87.5 -> 100 % two-way, pairwise
+    87.4 -> 87.9, connectivity 96.12 -> 96.25.
+    **DICE never meets the case:** its normal-pitch areas hold one surface per column within a sector (sp_004_b:
+    0 of 3,267 stacked columns are inside one sector - all are the two-sample sector overlap; sp_01 13, sp_005
+    417). Stacked floors are in its detailed zones (sp_01: 986 of the 999 same-sector stacked columns involve a
+    0.2 m cell). NavKit has 6,329 same-sector stacked columns at normal pitch on sp_004_b.
+  - **Edge costs (sp_01 "costs" 95.83):** the measure covers route edges whose two end nodes match DICE's within
+    5 cm - 24 edges on sp_01; 1 differs by one unit (1/16 m) because an end node is 1.7 cm off. The cost formula
+    0x80000000 | floor(3-D length of the stored float32 positions x 16) holds on all 24 edges, in DICE's file
+    and NavKit's. Not a cost error.
   - **Generation bounds:** DICE's ground stops 6-24 m inside NavKit's on every side (sp_004_b x -762.4..126.4,
     z -886.4..-563.2 against NavKit -770.4..135.2, -910.4..-554.4; also sp_01, sp_005); NavKit makes a whole row
     of sectors DICE does not have (sp_004_b: 0x100-0xa00). Not the combat areas (5-20 % of DICE's ground lies in
-    them). The bound is not yet known.
+    them).
+    Cause on NavKit's side (2026-10-17): `navkit.py sampling_box` samples DICE's path-data extent + 20 m (rounded out
+    to 10 m) and the builder keeps all walkable ground in the box - nothing clips back to DICE's extent.
+    DICE's side: the extent is a straight cut. Along the sides of DICE's ground rectangle its last cell row
+    covers 9-64 % of the side (sp_004_b 28 / 28 / 46 / 51 %, sp_005 33 / 64 / 43 / 9 %, sp_007 37 / 45 / 27 / 35
+    %; ons_mp_002 76 / 0.4 / 35 / 0.7 % - two of its sides are natural edges) - ground that merely ends leaves
+    scattered cells, not a filled straight row. NavKit has 2,000-48,000 cells beyond each side. The level data
+    has no zone / rectangle / bounds entity (only object flags: ForbidPathfinding, ExcludeFromPathfinding,
+    NeedsDetailedPathfinding ...); water and forbidden volumes do not make straight edges. So DICE generated in
+    a rectangle that is not in the shipped data; its own path data's extent is the best source.
 
 ![SP_02 infantry, sector 0x0705](img/sp02_infantry_0705.png)
 

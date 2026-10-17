@@ -47,7 +47,10 @@ SECTOR_SAMPLES = 125            # 100 m / 0.8 m
 WINDOW = range(-1, 127)         # sample indices of a sector window (local)
 TILE = 50                       # samples per tile
 TILES = 3
-EDGE_SECTOR_TILES = True        # a sector with no sector next to it on the low x (or z) side starts its tiles at its
+SYMMETRIC_PORTALS = True        # every portal stands on both of its areas (DICE: 771 of 771 have a portal back)
+ONE_WAY_PORTALS = 'drop'        # a portal whose target sees that side as its own interior (a second surface of the
+                                # target in the source's column): 'drop' = outline instead, 'keep' = one-way portal
+EDGE_SECTOR_TILES = True       # a sector with no sector next to it on the low x (or z) side starts its tiles at its
                                 # own edge (sample 0, not -1): tile lines one cell later, 39.6 / 79.6 m into the sector
                                 # (DICE's data: 3,788 of 3,798 sector axes on 17 levels; KYNAPSE_SPEC.md 4.5). Latent
                                 # for now: NavKit's extra sectors outside DICE's bounds give most edge sectors a neighbour
@@ -281,15 +284,22 @@ def clip_bridges(bsegs, bridges):
 
 
 def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
-    """Boundary edges of every area -> merged runs. Returns per area: portals, borders, outlines."""
+    """Boundary edges of every area -> merged runs. Returns per area: portals, borders, outlines.
+    Portals are symmetric (SYMMETRIC_PORTALS): every portal edge A -> B also stands as B -> A, replacing an outline
+    edge B had there - neighbour() picks the nearest surface in height, so with two surfaces in a column the two
+    sides could disagree and leave a one-way portal (22 % of them on sp_004_b before)."""
     h = PITCH / 2
-    result = []
+    per_area = []
+    mirror = defaultdict(dict)       # area -> {(source area, axis, line, dir, along): y of its own cell there}
+    side_kind = []                   # per area: {(axis, line, dir, along): (kind 'I' interior / 'B' / 'C' / 'E', target)}
     for ai, area in enumerate(areas):
         edges = defaultdict(list)    # (kind, target, axis, line, dir) -> [(along, y0, y1)]
+        sides = {}
         own = {c[2] for c in area['cells']}
         for i, j, k in area['cells']:
             yk = level.y[k] + Y_OFFSET
             for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                side = ('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)
                 # a side is interior when any connected surface across it is in this area (two connected
                 # surfaces in one column - stair edge, split-off layer - must not leave a stray portal inside)
                 n = level.neighbour(k, gi0 + i, gj0 + j, di, dj, prefer=own)
@@ -297,6 +307,7 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
                 if n is not None and ni in WINDOW and nj in WINDOW:
                     t = area_of.get(n)
                     if t == ai:
+                        sides[side] = ('I', None)
                         continue
                     kind, target = ('B', t) if t is not None else ('E', None)
                 elif n is not None:
@@ -309,6 +320,37 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
                 else:
                     key = (kind, target, 'z', j + dj * 0.5, dj)
                     edges[key].append((i, yk))
+                sides[side] = (kind, target)
+                if kind == 'B':
+                    axis, line, along = ('x', i + di * 0.5, j) if di else ('z', j + dj * 0.5, i)
+                    mirror[target][(ai, axis, line, -(di or dj), along)] = level.y[n] + Y_OFFSET
+        per_area.append(edges)
+        side_kind.append(sides)
+    if SYMMETRIC_PORTALS:
+        # only where the target's side is plain outline: an interior side (the column holds a surface of the target
+        # too) or a side holding another portal stays as it is - a portal there would break the area's outline
+        for t, need in mirror.items():
+            edges = per_area[t]
+            for (src, axis, line, d, along), y in need.items():
+                there = side_kind[t].get((axis, line, d, along), ('E', None))
+                if there == ('B', src):                  # a portal back already
+                    continue
+                if there[0] != 'E':
+                    if ONE_WAY_PORTALS == 'drop':        # the source's portal there becomes outline
+                        se = per_area[src]
+                        key = ('B', t, axis, line, -d)
+                        if any(r[0] == along for r in se.get(key, [])):
+                            ys = [r for r in se[key] if r[0] == along]
+                            se[key] = [r for r in se[key] if r[0] != along]
+                            se[('E', None, axis, line, -d)].extend(ys)
+                    continue
+                for key in [k for k in edges if k[0] == 'E' and k[2] == axis and k[3] == line and k[4] == d]:
+                    edges[key] = [r for r in edges[key] if r[0] != along]
+                edges[('B', src, axis, line, d)].append((along, y))
+                side_kind[t][(axis, line, d, along)] = ('B', src)
+    result = []
+    for ai, area in enumerate(areas):
+        edges = per_area[ai]
         # 45-degree bridges between diagonal-only neighbours of this area
         cellset = {(c[0], c[1]) for c in area['cells']}
         bridges = []
