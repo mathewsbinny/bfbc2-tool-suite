@@ -56,8 +56,15 @@ EDGE_SECTOR_RULE = 'grid_min'   # which sectors start their tiles at their own e
                                 # the sector grid's minimum X (Z) - DICE 3,798 of 3,798 sector axes; 'no_neighbour' = no
                                 # sector on the low side - 3,788 (misses holes inside the map)
 SYMMETRIC_PORTALS = True        # every portal stands on both of its areas (DICE: 771 of 771 have a portal back)
-ONE_WAY_PORTALS = 'drop'        # a portal whose target sees that side as its own interior (a second surface of the
-                                # target in the source's column): 'drop' = outline instead, 'keep' = one-way portal
+ONE_WAY_PORTALS = 'drop'        # a portal piece whose target sees that side as its own interior (a second surface of
+                                # the target in the source's column) cannot have a piece back (DICE meets no such case:
+                                # its stacked floors are detailed zones): 'drop' = always outline; 'keep' = always a
+                                # one-way portal; 'restore' = outline unless the two areas are joined through no other
+                                # portal or shared surface level-wide (restore_one_way) - measured on sp_004_b it keeps
+                                # 1,066 one-way records (80 % two-way) and AI pairwise falls 91.2 -> 89.1: most pairs a
+                                # drop leaves without a portal are still joined by the route graph (walkable lines),
+                                # which a portal-level test does not see. Open until the in-game test shows whether the
+                                # runtime needs a portal to cross between areas (KYNAPSE_SPEC.md 4.5)
 EDGE_SECTOR_TILES = True       # a sector with no sector next to it on the low x (or z) side starts its tiles at its
                                 # own edge (sample 0, not -1): tile lines one cell later, 39.6 / 79.6 m into the sector
                                 # (DICE's data: 3,788 of 3,798 sector axes on 17 levels; KYNAPSE_SPEC.md 4.5). Latent
@@ -300,12 +307,23 @@ def clip_bridges(bsegs, bridges):
 
 
 def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
-    """Boundary edges of every area -> merged runs. Returns per area: portals, borders, outlines.
+    """Boundary edges of every area -> merged runs. Returns per area: portals, borders, outlines. One sector on its
+    own: one-way portal pieces are kept ('keep') or become outline (otherwise) - build() decides them level-wide
+    ('restore', restore_one_way)."""
+    per_area, one_way = trace_edges(level, areas, area_of, gi0, gj0)
+    drop_one_way(per_area, one_way, keep=set(range(len(one_way))) if ONE_WAY_PORTALS == 'keep' else set())
+    return trace_emit(level, areas, per_area, gi0, gj0, ox, oz)
+
+
+def trace_edges(level, areas, area_of, gi0, gj0):
+    """Boundary edges of every area: (per area {(kind, target, axis, line, dir): [(along, y)]}, one-way candidates).
     Portals are symmetric (SYMMETRIC_PORTALS): every portal edge A -> B also stands as B -> A, replacing an outline
     edge B had there - neighbour() picks the nearest surface in height, so with two surfaces in a column the two
-    sides could disagree and leave a one-way portal (22 % of them on sp_004_b before)."""
-    h = PITCH / 2
+    sides could disagree and leave a one-way portal (22 % of them on sp_004_b before). Where the target's side is
+    its own interior (a second surface of the target in the source's column) the piece cannot be mirrored: it is a
+    one-way candidate (source area, target area, key, along) for drop_one_way."""
     per_area = []
+    one_way = []
     mirror = defaultdict(dict)       # area -> {(source area, axis, line, dir, along): y of its own cell there}
     side_kind = []                   # per area: {(axis, line, dir, along): (kind 'I' interior / 'B' / 'C' / 'E', target)}
     for ai, area in enumerate(areas):
@@ -352,18 +370,70 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
                 if there == ('B', src):                  # a portal back already
                     continue
                 if there[0] != 'E':
-                    if ONE_WAY_PORTALS == 'drop':        # the source's portal there becomes outline
-                        se = per_area[src]
-                        key = ('B', t, axis, line, -d)
-                        if any(r[0] == along for r in se.get(key, [])):
-                            ys = [r for r in se[key] if r[0] == along]
-                            se[key] = [r for r in se[key] if r[0] != along]
-                            se[('E', None, axis, line, -d)].extend(ys)
+                    key = ('B', t, axis, line, -d)
+                    if any(r[0] == along for r in per_area[src].get(key, [])):
+                        one_way.append((src, t, key, along))
                     continue
                 for key in [k for k in edges if k[0] == 'E' and k[2] == axis and k[3] == line and k[4] == d]:
                     edges[key] = [r for r in edges[key] if r[0] != along]
                 edges[('B', src, axis, line, d)].append((along, y))
                 side_kind[t][(axis, line, d, along)] = ('B', src)
+    return per_area, one_way
+
+
+def drop_one_way(per_area, one_way, keep):
+    """One-way candidates (trace_edges) not in keep (indices) become outline on their source area."""
+    for n, (src, t, key, along) in enumerate(one_way):
+        if n in keep:
+            continue
+        se = per_area[src]
+        ys = [r for r in se.get(key, []) if r[0] == along]
+        se[key] = [r for r in se.get(key, []) if r[0] != along]
+        se[('E', None, key[2], key[3], key[4])].extend(ys)
+
+
+def restore_one_way(sectors, shared):
+    """ONE_WAY_PORTALS 'restore': which one-way candidates to keep. sectors: {sector: (per_area, one_way)} from
+    trace_edges; shared: pairs ((sector, area), (sector, area)) joined across sectors (one surface in both - the
+    sectors' two-sample overlap). Areas are joined through every portal piece that is not a candidate and through
+    shared; then, pair by pair, a pair's candidates are kept only when its two areas are not joined yet (keeping them
+    joins them). Returns {sector: set of kept candidate indices}."""
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    for sec, (per_area, one_way) in sectors.items():
+        cand = {(src, key, along) for src, _t, key, along in one_way}
+        for ai, edges in enumerate(per_area):
+            find((sec, ai))
+            for key, rows in edges.items():
+                if key[0] == 'B' and any((ai, key, r[0]) not in cand for r in rows):
+                    union((sec, ai), (sec, key[1]))
+    for a, b in shared:
+        union(a, b)
+    keep = defaultdict(set)
+    by_pair = defaultdict(list)
+    for sec, (_per_area, one_way) in sectors.items():
+        for n, (src, t, key, along) in enumerate(one_way):
+            by_pair[(sec, src, t)].append(n)
+    for (sec, src, t), ns in sorted(by_pair.items()):
+        if find((sec, src)) != find((sec, t)):
+            keep[sec].update(ns)
+            union((sec, src), (sec, t))
+    return keep
+
+
+def trace_emit(level, areas, per_area, gi0, gj0, ox, oz):
+    """Per area (portals, borders, outline) from its boundary edges: runs merged, 45-degree bridges."""
     result = []
     for ai, area in enumerate(areas):
         edges = per_area[ai]
@@ -551,10 +621,28 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     stamp = time.localtime()
     date = (stamp.tm_year % 100) * 10000 + (stamp.tm_mon - 1) * 100 + stamp.tm_mday
     clock = stamp.tm_hour * 1000000 + stamp.tm_min * 10000 + stamp.tm_sec * 100
+    # boundary edges of every sector, then the one-way portal pieces decided level-wide
+    edge_sets = {}
+    for (X, Y), inf in sorted(info.items()):
+        gi0, gj0, ox, oz = inf['origin']
+        edge_sets[(X, Y)] = trace_edges(level, inf['areas'], inf['area_of'], gi0, gj0)
+    n_cand = sum(len(v[1]) for v in edge_sets.values())
+    if ONE_WAY_PORTALS == 'restore':
+        owners = defaultdict(list)
+        for sec, inf in info.items():
+            for k, ai in inf['area_of'].items():
+                owners[k].append((sec, ai))
+        shared = [(o[0], x) for o in owners.values() if len(o) > 1 for x in o[1:]]
+        keep = restore_one_way(edge_sets, shared)
+    else:
+        keep = {sec: set(range(len(v[1]))) if ONE_WAY_PORTALS == 'keep' else set() for sec, v in edge_sets.items()}
+    for sec, (per_area, one_way) in edge_sets.items():
+        drop_one_way(per_area, one_way, keep.get(sec, set()))
+    log(f'one-way portal pieces: {n_cand}, kept one-way {sum(len(v) for v in keep.values())} ({ONE_WAY_PORTALS})')
     for (X, Y), inf in sorted(info.items()):
         gi0, gj0, ox, oz = inf['origin']
         areas, area_of = inf['areas'], inf['area_of']
-        traced = trace(level, (X, Y), areas, area_of, gi0, gj0, ox, oz)
+        traced = trace_emit(level, areas, edge_sets[(X, Y)][0], gi0, gj0, ox, oz)
         sid = ((X & 0xFF) << 8) | (Y & 0xFF)
         mesh_areas = []
         tiles = [[] for _ in range(TILES * TILES)]

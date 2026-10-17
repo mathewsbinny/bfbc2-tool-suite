@@ -84,7 +84,34 @@ def main(argv):
     outline_a = res_drop[0][2]
     check(any(abs(p0[0] - 0.4) < 1e-6 and abs(p1[0] - 0.4) < 1e-6 for p0, p1 in outline_a),
           "stacked, 'drop': A's side at x 0.4 is outline instead")
-    check(navbuild.SYMMETRIC_PORTALS and navbuild.ONE_WAY_PORTALS == 'drop', 'defaults: symmetric portals, one-way dropped')
+    # 'restore' (level-wide, build()): a one-way candidate stays only when its two areas are joined no other way
+    def restored(lvx, areasx, area_ofx, shared=()):
+        per_area, one_way = navbuild.trace_edges(lvx, areasx, area_ofx, 0, 0)
+        keep = navbuild.restore_one_way({(0, 0): (per_area, one_way)}, shared)
+        navbuild.drop_one_way(per_area, one_way, keep.get((0, 0), set()))
+        return one_way, keep.get((0, 0), set()), unit_portals(navbuild.trace_emit(lvx, areasx, per_area, 0, 0, 0.0, 0.0))
+
+    one_way, kept, up = restored(lv2, areas2, area_of2)
+    check(len(one_way) == 1 and kept == {0} and any(t == 1 for t, _, _ in up[0]),
+          'restore: the stacked pair joined no other way keeps its one-way portal (not severed as under drop)')
+    # the same stacked column, but A and T also meet on flat ground next door: columns (0,1) A, (1,1) T at y 0
+    lv3 = level({0: [0.0, 0.2], 1: [0.1], 2: [0.0], 3: [0.0]}, 2, 2)
+    areas3 = [{'cells': [(0, 0, 0), (0, 1, 3)]}, {'cells': [(0, 0, 1), (1, 0, 2), (1, 1, 4)]}]
+    area_of3 = {0: 0, 3: 0, 1: 1, 2: 1, 4: 1}
+    one_way3, kept3, up3 = restored(lv3, areas3, area_of3)
+    two_way = {(x, z) for t, x, z in up3[0] if t == 1} & {(x, z) for t, x, z in up3[1] if t == 0}
+    check(len(one_way3) >= 1 and not kept3 and two_way,
+          f'restore: a pair also joined by a two-way portal drops its one-way pieces ({len(one_way3)} candidates, kept {len(kept3)})')
+    one_way_rest = sum(1 for t, x, z in up3[0] if t == 1 and (x, z) not in two_way) + \
+        sum(1 for t, x, z in up3[1] if t == 0 and (x, z) not in two_way)
+    check(one_way_rest == 0, 'restore: no one-way piece left where the areas are joined anyway')
+    _, kept_sh, _ = restored(lv2, areas2, area_of2, shared=[(((0, 0), 0), ((0, 0), 1))])
+    check(not kept_sh, 'restore: areas joined through a shared surface across sectors drop the one-way piece')
+    # invariant: after the pass every candidate pair is joined (through kept pieces, portals or shared surfaces)
+    per_area, ow = navbuild.trace_edges(lv2, areas2, area_of2, 0, 0)
+    keep = navbuild.restore_one_way({(0, 0): (per_area, ow)}, ())
+    check(all(n in keep[(0, 0)] for n in range(len(ow))), 'invariant: a pair with no other join keeps every candidate piece')
+    check(navbuild.SYMMETRIC_PORTALS and navbuild.ONE_WAY_PORTALS == 'drop', 'defaults: symmetric portals, one-way pieces dropped (restore open)')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 

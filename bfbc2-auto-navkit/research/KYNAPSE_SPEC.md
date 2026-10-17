@@ -421,12 +421,24 @@ by that many u32 offsets at +0x10.
     bisection back on gives 81.5, the area rule, edge-sector tiles, the clip and one-way portals move it by at most
     3 points. DICE's sp_009 has 26 large areas, so the bisection was not matching DICE's areas: it added route nodes,
     and inside the aircraft the route edges (straight walkable lines up to 15 m) need nodes close together to pass
-    the aisles. A route-graph gap (node density in large areas), not an area rule; the bisection stays off.
+    the aisles. Detailed zones are a factor too: 62 % of sp_009's DICE cells are 0.2 m (51,688 of 82,764) and its
+    over-connection is 0.00 - NavKit's normal-pitch ground does not line up with DICE's detailed ground there, the
+    graph has gaps, and the bisection's extra nodes happened to bridge them. Node density and missing detailed zones
+    together; detailed zones (not the bisection) are the fix. The bisection stays off.
   - **One-way portals as outline on sp_005:** 11,069 unit portal edges (5.1 %) without an edge back became outline;
     of the area pairs joined before, 16 are now in different route-graph islands, their smaller side up to 774
     cells (sp_004_b: 1 pair, 4 cells) - floors and roofs reachable only through the one-way portal, the stacked
-    case DICE handles with detailed zones. AI pairwise 96.6 -> 95.2. Open decision: keep the drop, keep one-way
-    portals there, or wait for detailed zones.
+    case DICE handles with detailed zones. AI pairwise 96.6 -> 95.2.
+    **Restoring them where needed ('restore', 2026-10-17) - negative result with a portal-level test:** keep a one-way
+    piece only when its two areas are joined through no other portal or surface shared across sectors. sp_004_b
+    (clip on): drop / restore / keep all - portal records 4,368 / 5,434 / 6,852, one-way 0 / 1,066 / 1,611, two-way
+    100 / 80.4 / 76.5 %, AI pairwise 91.2 / 89.1 / 87.0, connectivity 99.34 / 99.34 / 99.22, islands 60 / 60 / 61.
+    The expected 1 (sp_004_b) / 16 (sp_005) pairs came from route-graph islands; the route graph is built from
+    walkable straight lines between nodes and still crosses an edge whose portal was dropped (sp_004_b: 519 of the
+    564 pairs left without a portal are joined by the graph alone). A portal-level test sees those pairs as split
+    and restores about 1,000 one-way records. 'drop' stays the default. Whether the runtime needs a portal to cross
+    between two areas (then those 519 pairs are a problem) or follows the route graph is the in-game question; a
+    route-graph-level test (build each sector's graph twice) is the next variant if needed.
   - **Portals:** both sides of every portal are stored (DICE 771 of 771 with a portal back). On sp_004_b DICE has
     771 portal segments (6,512 m, median 6.4 m, 98 % of the length on tile lines); NavKit 5,563-7,264 (21,600-
     23,600 m, median 0.8 m, 78-85 % on tile lines), 22 % of NavKit's without a portal back.
