@@ -572,7 +572,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
             a['layer'] = per_tile[a['tile']]
             per_tile[a['tile']] += 1
         area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
-        info[(X, Y)] = {'areas': areas, 'area_of': area_of, 'origin': (gi0, gj0, ox, oz)}
+        info[(X, Y)] = {'areas': areas, 'area_of': area_of, 'origin': (gi0, gj0, ox, oz), 'start': start}
     log(f'{sum(len(v["areas"]) for v in info.values())} areas ({time.time() - t0:.0f} s)')
 
     # Graph: border nodes shared between sector pairs (global ids), then inner nodes.
@@ -678,7 +678,11 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         for other in sorted(links):
             oid = ((other[0] & 0xFF) << 8) | (other[1] & 0xFF)
             mesh_links.append(kymesh.NeighbourLink(oid, [kymesh.LinkObject(h, refs) for h, refs in sorted(links[other].items())]))
-        rect = (ox - PITCH, ox + 100 + 1.1 * PITCH, oz - PITCH, oz + 100 + 1.1 * PITCH)
+        # the runtime's tile grid starts at the rectangle's minimum (DICE: tile lines 39.6 m past it on 3,748 sector
+        # axes) - so an edge sector, whose tiles start at its own edge, starts its rectangle there too (DICE 0x101:
+        # -800.0 instead of -800.8). The maximum side keeps the 1.1-pitch margin (DICE drops it at the grid's maximum).
+        sx, sz = inf['start']
+        rect = (ox + sx * PITCH, ox + 100 + 1.1 * PITCH, oz + sz * PITCH, oz + 100 + 1.1 * PITCH)
         mesh = kymesh.Mesh(2, 0, 0, sid, RESOLUTION, PITCH, rect, TILES, TILES, RADIUS, tiles, mesh_areas,
                            mesh_links, b'\0' * 4)
         pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id)

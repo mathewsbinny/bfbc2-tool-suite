@@ -406,6 +406,16 @@ by that many u32 offsets at +0x10.
     exceptions have early lines with no low neighbour. (`navbuild.EDGE_SECTOR_TILES`: validated on DICE's data,
     no measured benefit yet - NavKit's extra sectors outside DICE's generation bounds give most edge sectors a
     low neighbour, so the rule rarely applies until those bounds are reproduced.)
+  - **The tile grid starts at the sector's rectangle (2026-10-19):** the mesh record's rect minimum is the tile
+    origin - on 3,748 sector axes (17 levels) DICE's tile lines lie 39.6 m past it (the cell boundary before rect min +
+    40 m). DICE's rect minimum is the sector edge minus one cell of the finest pitch in the sector: -0.8 m in
+    sectors without detailed zones (3,725 axes), -0.2 m in sectors with them (1,028), and 0.0 in edge sectors (369 -
+    the edge-sector tiles). NavKit wrote -0.8 m everywhere while its edge sectors (EDGE_SECTOR_TILES) filed their
+    areas under tiles starting at the edge, so in edge sectors a one-cell band along each tile line was filed under
+    another tile than the runtime looks in - found after the first in-game test of sp_004_b, whose squad spawns in
+    an edge sector (0xa01). Fixed: an edge sector's rect starts at its edge (sp_004_b: NavKit's rect minimum equals
+    DICE's on all 47 axes of sectors without detailed zones; the other 33 are DICE's -0.2 m detailed-zone sectors).
+    The maximum side keeps the 1.1-pitch margin in NavKit (DICE drops it at the grid's maximum, 0xa01: 200.0).
   - **Edge-sector rule, refined (2026-10-17):** "the sector is on the minimum X (Z) of the level's sector grid"
     matches 3,798 of 3,798 sector axes on the 17 levels; "no sector on the low side" gets 3,788 - its 10 misses
     are holes inside the map. NavKit can use it once its sector set equals DICE's (generation bounds below).
