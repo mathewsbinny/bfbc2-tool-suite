@@ -28,6 +28,10 @@ TERRAIN_SHAPE_VTABLE = 0x1454D14   # shape class of terrain hits (navsample vers
 CHARACTER_SHAPE_VTABLE = 0x1483378  # shape class of soldiers standing in the level while it is sampled (their spawns):
                                     # hits 1.3-1.5 m over the floor at the spawn points (sp_006: player, Sweetwater,
                                     # Redford; sp_004_b: player), 137 soldier-sized clusters on sp_004_b; build 795745
+HEADROOM_BAND = (0.5, 2.0)          # ground with the next sampled surface above it this much higher is not walkable: DICE
+                                    # keeps almost none (sp_004_b and sp_01, NavKit ground cells against DICE's: 0.4-0.5 m
+                                    # above 50-52 % kept, 0.5-1.2 m 0-18 %, 1.2-2.0 m 0-1 %; from 2.0 m sp_004_b 32-94 %).
+                                    # Under 0.5 m: thin things (steps, rails) - kept. None to switch off. (2026-10-19)
 CHARACTERS_ABSENT = True            # soldiers are not in path data: their surfaces are not floor and the ground under
                                     # and beside them is not blocked by them (as dynamic props) - before 2026-10-19 the
                                     # squad's spawn cells were left out, and in game the squad could not path to the
@@ -106,6 +110,33 @@ def near_characters(s, character, grow=0.9, below=2.2, above=0.3):
                         if y[k] - below <= y[q] <= y[k] + above:
                             out[q] = True
     return out
+
+
+def headroom(s, ignore=None):
+    """Per surface: the gap to the next sampled surface above it in its column (inf when none); surfaces flagged in
+    `ignore` (soldiers) do not count as above."""
+    y = s.y.astype(float)
+    out = np.full(len(y), np.inf)
+    ign = ignore if ignore is not None else np.zeros(len(y), bool)
+    for c in range(s.nx * s.nz):
+        a, b = s.start[c], s.start[c + 1]
+        if b - a < 2:
+            continue
+        ks = [k for k in range(a, b) if not ign[k]]
+        if len(ks) < 2:
+            continue
+        ys = np.sort(y[ks])
+        for k in ks:
+            higher = ys[ys > y[k] + 0.05]
+            if len(higher):
+                out[k] = higher[0] - y[k]
+    return out
+
+
+def low_headroom(s, ignore, lo, hi):
+    """Surfaces with the next surface above them between lo and hi metres higher (HEADROOM_BAND)."""
+    h = headroom(s, ignore)
+    return (h >= lo) & (h < hi)
 
 
 def near_points(s, points, grow=0.9, below=0.5, above=0.5):
@@ -325,6 +356,8 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     if exclude_footprint_tris is not None and len(exclude_footprint_tris):
         # the footprint of an excluded object (trunk base, fence posts and boards) stays a barrier
         ok &= ~near_objects(s, exclude_footprint_tris, grow=0.3, below=1.0, above=0.5)
+    if HEADROOM_BAND is not None:
+        ok &= ~low_headroom(s, character, *HEADROOM_BAND)
     ok &= ~character                    # last, before hand edits: the stair / landing / bar rules above re-added 68 of
                                         # sp_004_b's 468 soldier surfaces as floor (2026-10-19)
     if force_walkable is not None:

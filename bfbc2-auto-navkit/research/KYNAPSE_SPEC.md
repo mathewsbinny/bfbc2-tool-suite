@@ -415,6 +415,15 @@ by that many u32 offsets at +0x10.
     about 9.6 s later. With DICE's sp_004_b file a running squadmate re-requests its path ~200
     times a second; with NavKit's, after 394 of 400 requests returned true, the squad made one request, waited
     ~9.6 s, and did not move. How NavKit's paths end against the destination is being measured.
+  - **Headroom (2026-10-19):** DICE keeps almost no ground with the next surface above it 0.5-2.0 m higher. NavKit's
+    ground cells against DICE's, by the gap to the next sampled surface above (sp_004_b / sp_01): 0.4-0.5 m 52 / 50 %
+    also DICE ground, 0.5-1.2 m 0-10 / 5-18 %, 1.2-2.0 m 0-1 / 0 %; under 0.5 m (steps, rails) kept; from 2.0 m
+    sp_004_b 32-94 %, sp_01 0-24 % up to 2.9 m (mostly building interiors - open). Rule `navwalk.HEADROOM_BAND`
+    (0.5, 2.0); soldiers overhead do not count. sp_004_b: extra ground 8.69 -> 8.07 %, connectivity 99.06 -> 99.25,
+    AI positions 97.2 -> 97.8 %, islands 58 -> 57; the floor under the squad's deck (a 34-node island, 1.4-2.0 m
+    below it) is gone, and the squad spawns' nearest route nodes are now on their own floor (before: HAGGARD's tied
+    with a node on that floor, REDFORD's on top of an overhang 2.6 m higher) - in game those two squadmates got
+    empty paths from their spawns until moved.
   - **Area height range (2026-10-19):** the area header's min / max height and each tile item's pair hold the area's
     lowest ground and its highest ground + 1.52 m (DICE, all normal-pitch areas of sp_004_b: median +0.000 / +1.520
     against the outline heights minus 0.95; tile items equal to their area's). NavKit wrote -0.95 / +1.55: a metre of
