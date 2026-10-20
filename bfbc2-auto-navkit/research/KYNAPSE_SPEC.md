@@ -406,6 +406,20 @@ by that many u32 offsets at +0x10.
     exceptions have early lines with no low neighbour. (`navbuild.EDGE_SECTOR_TILES`: validated on DICE's data,
     no measured benefit yet - NavKit's extra sectors outside DICE's generation bounds give most edge sectors a
     low neighbour, so the rule rarely applies until those bounds are reproduced.)
+  - **Soldiers in the sampled level (2026-10-19):** NavKit's in-game sampler runs with the level loaded, and the
+    soldiers stand at their spawn points. Collision shape class 0x1483378 is a soldier: on sp_006 hits 1.29-1.53 m over
+    the floor exactly at the player's, Sweetwater's and Redford's spawns, on sp_004_b at the player's, and 137
+    soldier-sized clusters across sp_004_b. The capsule test then rejected the floor under and beside each soldier:
+    the squad's spawn cells were not ground (sp_006: none of the four in an area; sp_004_b: the player). In the
+    sp_004_b NavKit play test the squad did not move: 7 of 73 pathfinder requests found a path, against 400 of 400 with
+    DICE's file (same launch, campaign menu); the requests start at the squad and aim near the player.
+    Rule (`navwalk.CHARACTERS_ABSENT`): soldiers are absent from path data, as dynamic props are - their surfaces
+    are not floor; the floor within 0.9 m of a soldier hit (from 2.2 m under to 0.3 m over it) and within 0.9 m of
+    every soldier spawn point (+-0.5 m of its height - a ray does not always hit a soldier: sp_006 Haggard) is not
+    blocked by them. sp_006: all four squad spawns in one area (as DICE's: one 644-cell area), AI positions 96.3 ->
+    97.4 %, pairwise 94.4 -> 94.6, the rest unchanged; sp_004_b: all four in areas on one island, AI positions
+    96.7 -> 97.2 %, pairwise 91.2 -> 89.7, connectivity 99.34 -> 99.06.
+    Not fixed by it: DICE puts sp_004_b's squad in detailed zones (0.2 m) - NavKit builds that deck at 0.8 m.
   - **The tile grid starts at the sector's rectangle (2026-10-19):** the mesh record's rect minimum is the tile
     origin - on 3,748 sector axes (17 levels) DICE's tile lines lie 39.6 m past it (the cell boundary before rect min +
     40 m). DICE's rect minimum is the sector edge minus one cell of the finest pitch in the sector: -0.8 m in

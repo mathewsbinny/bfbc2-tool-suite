@@ -506,6 +506,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     f, _ = navsample.load(samples_path)
     s = navwalk.coarse(f) if abs(f.pitch - PITCH) > 1e-3 else f
     hand = {}
+    soldiers = list(seeds or [])                 # the level's soldier spawn points (navwalk.CHARACTERS_ABSENT)
     if edits:
         import navedits
         e = navedits.edits_for(s, edits)
@@ -540,7 +541,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     keep, gx, gz, stair = navwalk.walkable(s, tris, step=step, dynamic_tris=dyn, high_capsule=hi, return_gradients=True,
                                     return_stairs=True,
                                     narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf,
-                                    extra_seeds=seeds, **hand)
+                                    extra_seeds=seeds, soldier_points=soldiers, **hand)
     level = Level(s, keep, step, gx, gz, stair)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
 

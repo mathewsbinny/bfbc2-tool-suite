@@ -25,6 +25,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import navsample  # noqa: E402
 
 TERRAIN_SHAPE_VTABLE = 0x1454D14   # shape class of terrain hits (navsample version 2 hit info), build 795745
+CHARACTER_SHAPE_VTABLE = 0x1483378  # shape class of soldiers standing in the level while it is sampled (their spawns):
+                                    # hits 1.3-1.5 m over the floor at the spawn points (sp_006: player, Sweetwater,
+                                    # Redford; sp_004_b: player), 137 soldier-sized clusters on sp_004_b; build 795745
+CHARACTERS_ABSENT = True            # soldiers are not in path data: their surfaces are not floor and the ground under
+                                    # and beside them is not blocked by them (as dynamic props) - before 2026-10-19 the
+                                    # squad's spawn cells were left out, and in game the squad could not path to the
+                                    # player (sp_004_b NavKit play test: 7 of 73 go-to requests found a path)
 OUTLINE_Y_OFFSET = 0.95            # outline heights in pathdata.hpd = ground + EntityHeight / 2
 PITCH = 0.8
 SECTOR = 100.0
@@ -77,6 +84,48 @@ def on_objects(s, tris, tol=0.2):
                 for k in range(s.start[c], s.start[c + 1]):
                     if abs(y[k] - yt) <= tol:
                         out[k] = True
+    return out
+
+
+def near_characters(s, character, grow=0.9, below=2.2, above=0.3):
+    """Surfaces a capsule test would see blocked by a soldier: within `grow` metres (horizontally) of a character hit
+    (CHARACTER_SHAPE_VTABLE) and from `below` metres under to `above` metres over it."""
+    out = np.zeros(len(s.y), bool)
+    y = s.y.astype(float)
+    col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
+    r = int(math.floor(grow / s.pitch + 1e-9))
+    for k in np.nonzero(character)[0]:
+        c = col[k]
+        i, j = c % s.nx, c // s.nx
+        for dj in range(-r, r + 1):
+            for di in range(-r, r + 1):
+                a, b = i + di, j + dj
+                if 0 <= a < s.nx and 0 <= b < s.nz and math.hypot(di, dj) * s.pitch <= grow + 1e-9:
+                    cc = b * s.nx + a
+                    for q in range(s.start[cc], s.start[cc + 1]):
+                        if y[k] - below <= y[q] <= y[k] + above:
+                            out[q] = True
+    return out
+
+
+def near_points(s, points, grow=0.9, below=0.5, above=0.5):
+    """Surfaces within `grow` metres (horizontally) of a point and from `below` under to `above` over its height."""
+    out = np.zeros(len(s.y), bool)
+    y = s.y.astype(float)
+    r = int(math.floor(grow / s.pitch + 1e-9))
+    for px, py, pz in points:
+        i0, j0 = int(round((px - s.min_x) / s.pitch)), int(round((pz - s.min_z) / s.pitch))
+        for dj in range(-r - 1, r + 2):
+            for di in range(-r - 1, r + 2):
+                a, b = i0 + di, j0 + dj
+                if not (0 <= a < s.nx and 0 <= b < s.nz):
+                    continue
+                if math.hypot(s.min_x + a * s.pitch - px, s.min_z + b * s.pitch - pz) > grow + 1e-9:
+                    continue
+                c = b * s.nx + a
+                for q in range(s.start[c], s.start[c + 1]):
+                    if py - below <= y[q] <= py + above:
+                        out[q] = True
     return out
 
 
@@ -170,7 +219,8 @@ def step_fits(dy, gk, gn, sk, sn, di, dj, pitch, step):
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
              stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08,
-             extra_seeds=None, return_stairs=False, force_walkable=None, force_unwalkable=None, unseeds=None):
+             extra_seeds=None, return_stairs=False, force_walkable=None, force_unwalkable=None, unseeds=None,
+             soldier_points=None):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -184,12 +234,20 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     stair = np.zeros(len(y), bool)
     terrain = (s.hit[:, 0] == TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(y), bool)
     clear = (s.flags & 3) == 0
+    character = (s.hit[:, 0] == CHARACTER_SHAPE_VTABLE) if (s.hit is not None and CHARACTERS_ABSENT) else np.zeros(len(y), bool)
+    if character.any():
+        clear |= near_characters(s, character) & ((s.flags & 2) == 0)
+    if soldier_points is not None and len(soldier_points) and CHARACTERS_ABSENT:
+        # soldiers stood at their spawn points while the level was sampled; a downward ray only sees one where it hits
+        # the top of his body (sp_006: Haggard's was missed, his spawn cell still blocked) - so the floor at every
+        # soldier spawn point is not blocked by him either
+        clear |= near_points(s, soldier_points) & ((s.flags & 2) == 0)
     if dynamic_tris is not None and len(dynamic_tris):
         clear |= near_objects(s, dynamic_tris) & ((s.flags & 2) == 0)
     if exclude_tris is not None and len(exclude_tris):
         # excluded objects do not block clearance; their upper parts are not floor
         clear |= near_objects(s, exclude_tris) & ((s.flags & 2) == 0)
-    ok = clear & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01)
+    ok = clear & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01) & ~character
     on_stair = np.zeros(len(y), bool)
     if stair_tris is not None and len(stair_tris):
         # staircase objects: surfaces on / right beside them are not blocked by the staircase itself
