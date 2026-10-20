@@ -389,6 +389,14 @@ by that many u32 offsets at +0x10.
     packages not extracted per level), so the misses are expected to shrink once those are read. Sampled features
     (object ground, stacked floors, stairs, spawns) correlate (90-97 %) but no single threshold holds across levels.
     So the choice is data-driven and systematic, not per level.
+- **How a go-to request turns points into a path (runtime diagnosis, 2026-10-19; Flat mode):** the compute
+  (0x0107F620) is a state machine over an asynchronous path query (a chain of steps). When the query is done, a
+  resolver (the game's 0x00F095C0, through [pathfinder+1F4h] slot +14h) checks each point with a Kynapse point
+  query (0x00F09360 -> 0x0107ADD0, result 1 = accepted); a point that fails is snapped (0x00F01250) within a radius
+  of 0.5 x a configured value; if the snap fails too the request returns false ("no path"). Accepted points go to
+  Kynapse (0x01086CE0), which gives a start and a destination id; the request also returns false when the finished
+  query's result set (sorted records, binary search) does not contain one of them. On sp_004_b with NavKit's
+  headroom file, 3 of 85 false results were point-check failures and 82 were ids missing from the result set.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
