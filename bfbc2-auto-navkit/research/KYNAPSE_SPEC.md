@@ -457,6 +457,11 @@ by that many u32 offsets at +0x10.
 - **Order nodes per level (2026-10-20, 13 campaign levels, with vs without):** order points with a route node within
   1 m rise from 5-24 % to 37-61 %, those beyond 3 m fall from 15-65 % to 1-8 %, for +0.4 to +3.5 % route nodes;
   nodes_near rises on every level. One exception: on sp_009 (a plane interior) connectivity falls 4.4 points.
+  There the order nodes join small route islands that hold soldier spawns (the plane is split into pockets) and
+  become the nearest node for points next to the main network. No general criterion separated that from the
+  needed nodes: "largest component only" drops sp_004_b's stairs-top nodes (its squad's network is the level's
+  second largest), "island with a spawn" keeps sp_009's. sp_009 is built without order nodes
+  (`navbuild.ORDER_NODES_EXCEPT`) until MP maps show whether the pattern recurs.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile

@@ -100,6 +100,14 @@ ORDER_NODES = True              # a route node at AI order positions far from an
                                 # the sp_004_b play test confirms it (2026-10-20)
 ORDER_NODE_MIN = 3.0            # ... when the nearest node on the same floor is farther than this (m)
 ORDER_STATS = {}                # nodes added (for reports)
+ORDER_NODES_EXCEPT = {          # levels built without order nodes, and why (navregress.order_points_of)
+    'sp_009': "sp_009's order points land in the plane's narrow aisles; the general rule would need a different "
+              "criterion (e.g. reachability from the level's spawn area, which sp_009 doesn't have in MP form) - "
+              "deferred until MP application shows whether the same pattern appears there. With them its "
+              "connectivity fell 4.4 points (order nodes in small spawn islands took the nearest-node matches); "
+              "'largest component only' removed the sp_004_b stairs-top nodes the squad needs, and 'island with "
+              "a spawn' keeps all of sp_009's (2026-10-20).",
+}
 DETOUR_REPAIR = False           # add waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it
                                 # adds 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20)
 DETOUR_TRIGGER = 3.0            # repair node pairs within DIST_EDGE_MAX whose route exceeds this x straight - above DICE's
