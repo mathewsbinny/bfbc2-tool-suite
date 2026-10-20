@@ -699,7 +699,8 @@ by that many u32 offsets at +0x10.
   starting in 0x30a. The runtime reads Precomputed/<kind>/SectorOffsets at level load (SectorOffsetX / Z into the
   path-data configuration); the PC port has none, DICE's console bundle has -3,-7. Measured (probes at 0x00F20AD2 /
   0x00F20B48 / 0x00F20BB0): with the asset missing the loader returns a default object and the runtime uses
-  SectorOffsetX = 0, SectorOffsetZ = 0.
+  SectorOffsetX = 0, SectorOffsetZ = 0. Injecting -3,-7 there (OPFOR `[dev] sector_offsets`) makes every request
+  resolve (6,737 / 6,737; at 0,0: 74 of 1,155 failed, all starting in 0x30a); why 0x309 resolved at 0,0 is open.
   The units that do get paths there walk to their one target and stop (3-18 m, arriving within 2-8 s): path end
   EQUAL and the follow branch as on sp_004_b; the mover works on DICE's file - they get no second destination.
 - **AI orders inside obstacles (recorded, not implemented):** an AI order whose position is inside an obstacle and
