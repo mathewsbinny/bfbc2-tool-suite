@@ -426,7 +426,8 @@ by that many u32 offsets at +0x10.
   tail: pairs over 3.0x are given a walk of at most 1.3x. A first version repairing every pair over 1.3x was
   wrong as a policy - it made NavKit's graph far straighter than DICE's (median 1.08x, +65 % nodes, 4x edges).
   Unresolved: if DICE accepts 3x routes, the ratio alone may not be what makes the search fail; to be re-examined
-  if the repair play test is not 100 %.
+  if the repair play test is not 100 %. Answered (play test 2026-10-20): with the failing pairs repaired to
+  1.18x / 1.31x the search still reached no node - the ratio is not the cause.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
