@@ -464,7 +464,9 @@ by that many u32 offsets at +0x10.
   fewer than 25 nodes (`navbuild.ORDER_MIN_ISLAND`) - sp_009 67.45 connectivity (66.99 without order nodes),
   sp_004_b keeps its stairs-top nodes and gains 0.26 connectivity / 0.6 AI pairwise. Campaign levels can have
   several large route networks (sp_004_b: 2,577 and 1,255 nodes), so pockets are told from networks by size, not
-  by "the main network"; the threshold is campaign-calibrated and has to be checked on MP maps.
+  by "the main network"; the threshold is campaign-calibrated and has to be checked on MP maps. Checked on
+  Napisal's ONS_MP_002 file (2026-10-20): 9,781 route nodes in 28 islands - 7,305 and 2,188, then 70 / 48 / 34 and 22
+  under 25 nodes (102 nodes) - the same shape as DICE's campaign files, so 25 falls in the same gap.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
