@@ -417,6 +417,11 @@ by that many u32 offsets at +0x10.
   sp_004_b ids) - and only the owner's copy has the node's edges. Ordinary nodes never have it. With NavKit
   setting it on every border copy, searches on sp_004_b failed to expand ("no node reached"); with owners set,
   false go-to results fell from 164 to 37 and the remaining ones are inside DICE's detailed zone.
+- **Detour ratio (2026-10-20):** on sp_004_b the go-to requests that fail after the three writer fixes have file
+  routes 3.2-6.3x the straight distance; the ones that succeed about 1.06x, and DICE's routes at the failing spot
+  1.02-1.11x. The ground and the walkable line exist in NavKit's 0.8 m samples; NavKit's graph lacks nodes along
+  the crossings. Working assumption (not yet shown in the runtime): the search has a bound that long detours
+  exceed - so NavKit's graph should keep routes near straight-line length, as DICE's do.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
