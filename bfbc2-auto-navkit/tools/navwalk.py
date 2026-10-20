@@ -325,6 +325,8 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     if exclude_footprint_tris is not None and len(exclude_footprint_tris):
         # the footprint of an excluded object (trunk base, fence posts and boards) stays a barrier
         ok &= ~near_objects(s, exclude_footprint_tris, grow=0.3, below=1.0, above=0.5)
+    ok &= ~character                    # last, before hand edits: the stair / landing / bar rules above re-added 68 of
+                                        # sp_004_b's 468 soldier surfaces as floor (2026-10-19)
     if force_walkable is not None:
         ok |= force_walkable
     if force_unwalkable is not None:

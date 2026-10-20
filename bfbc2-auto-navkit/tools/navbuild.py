@@ -139,6 +139,8 @@ def deep_water(s, water, limit=MAX_WATER_DEPTH):
     top = water_tops(s, water[0], water[1])
     col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
     return (top[col] - s.y.astype(np.float64)) > limit
+AREA_Y_MIN = 0.0                # area height range relative to its ground: DICE's convention (see build())
+AREA_Y_MAX = 1.52
 Y_OFFSET = 0.95                 # outline / node height above the ground (EntityHeight / 2)
 HEADER = (2, 2, 0, 1, 0, 0, 0, 0, 2, 0, 8, 0) + (0,) * 20 + (36, 12, 1, 0)
 
@@ -649,7 +651,10 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         tiles = [[] for _ in range(TILES * TILES)]
         for ai, (a, (portals, borders, outline)) in enumerate(zip(areas, traced)):
             ys = [level.y[c[2]] for c in a['cells']]
-            lo, hi = min(ys) - Y_OFFSET, max(ys) + Y_OFFSET + 0.6
+            # DICE's area height range: from its lowest ground to its highest ground + 1.52 m (all normal-pitch
+            # areas of sp_004_b: median +0.000 / +1.520; NavKit had -0.95 / +1.55, a metre of extra room below
+            # each area, so a lower floor's range reached the deck above it - 2026-10-19)
+            lo, hi = min(ys) + AREA_Y_MIN, max(ys) + AREA_Y_MAX
             mesh_areas.append(kymesh.Area(sid, a['tile'][0], a['tile'][1], a['layer'], RADIUS, PITCH, hi, lo,
                                           portals, [b[0] for b in borders], [], outline, []))
             a['borders'] = borders

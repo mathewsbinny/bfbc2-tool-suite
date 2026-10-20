@@ -406,6 +406,16 @@ by that many u32 offsets at +0x10.
     exceptions have early lines with no low neighbour. (`navbuild.EDGE_SECTOR_TILES`: validated on DICE's data,
     no measured benefit yet - NavKit's extra sectors outside DICE's generation bounds give most edge sectors a
     low neighbour, so the rule rarely applies until those bounds are reproduced.)
+  - **Area height range (2026-10-19):** the area header's min / max height and each tile item's pair hold the area's
+    lowest ground and its highest ground + 1.52 m (DICE, all normal-pitch areas of sp_004_b: median +0.000 / +1.520
+    against the outline heights minus 0.95; tile items equal to their area's). NavKit wrote -0.95 / +1.55: a metre of
+    extra room under every area, so on stacked ground a lower floor's range reached the floor above (sp_004_b:
+    575.6..578.4 under a deck at 578.45). Fixed (`navbuild.AREA_Y_MIN` / `AREA_Y_MAX`). Found while the squad still
+    did not move after the soldier fix (pathfinder 394 of 400 true); stored vertex heights themselves match the
+    sampled ground (median error 0.000 m; DICE 0.053).
+  - **Soldier surfaces re-added by later rules:** the stair / landing / bar rules put 68 of sp_004_b's 468 soldier
+    surfaces back as floor after the soldier exclusion (vertices > 0.5 m off the ground near soldiers: 230 of 243).
+    The exclusion now applies after them: vertices off by > 0.5 m 0.21 % -> 0.01 %, none near a soldier.
   - **Soldiers in the sampled level (2026-10-19):** NavKit's in-game sampler runs with the level loaded, and the
     soldiers stand at their spawn points. Collision shape class 0x1483378 is a soldier: on sp_006 hits 1.29-1.53 m over
     the floor exactly at the player's, Sweetwater's and Redford's spawns, on sp_004_b at the player's, and 137
