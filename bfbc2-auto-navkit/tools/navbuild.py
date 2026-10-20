@@ -27,6 +27,7 @@ Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd>
                    [--dynamic dynamic_tris.npy] [--high samples_high_capsule.bin] [--narrow samples_narrow.bin]
                    [--stairs stair_tris.npy] [--exclude exclude_tris.npy] [--exclude-foot exclude_footprint_tris.npy]
 """
+import heapq
 import math
 import os
 import struct
@@ -94,6 +95,11 @@ DIST_EDGE_MAX = 15.0
 DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
+DETOUR_REPAIR = False           # add waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it
+                                # adds 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20)
+DETOUR_MAX = 1.3                # longest route / straight distance kept between nodes within DIST_EDGE_MAX (DICE: 1.02-1.11)
+DETOUR_PASSES = 2               # pass A, then pass B on the repaired graph
+REPAIR_STATS = {}               # nodes added per pass (summed over sectors; for reports)
 BORDER_NODE_SPACING = 10.0
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
@@ -866,7 +872,118 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
                 pairs.append((u, v, math.dist(pts[u][1], pts[v][1])))
                 parent[find(u)] = find(v)
             changed = True
+    if DETOUR_REPAIR:
+        for p in range(DETOUR_PASSES):
+            added = repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id)
+            REPAIR_STATS[p] = REPAIR_STATS.get(p, 0) + added
     return pts, pairs
+
+
+def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id):
+    """Detour repair: for node pairs of the sector within DIST_EDGE_MAX whose graph route is longer than DETOUR_MAX x
+    their straight distance, while a walk over kept surfaces of at most DETOUR_MAX x the straight distance exists, add
+    waypoint nodes along the string-pulled walk and link each new node to the nodes around it by the edge rule.
+    DICE's routes run 1.02-1.11x the straight distance where NavKit's failed go-to requests ran 3.2-6.3x
+    (sp_004_b stairs top, 2026-10-20). Returns the number of nodes added."""
+    adj = defaultdict(dict)
+    for a_, b_, d in pairs:
+        adj[a_][b_] = adj[b_][a_] = min(d, adj[a_].get(b_, 1e18))
+
+    def routes(src, limit):
+        best = {src: 0.0}
+        q = [(0.0, src)]
+        while q:
+            d, u = heapq.heappop(q)
+            if d > best[u] or d > limit:
+                continue
+            for v, w in adj[u].items():
+                if d + w < best.get(v, 1e18):
+                    best[v] = d + w
+                    heapq.heappush(q, (d + w, v))
+        return best
+
+    def walk(k0, k1, limit):
+        """Shortest 8-connected walk over kept surfaces (step rule) from k0 to k1, at most limit metres; list of
+        surfaces or None."""
+        best = {k0: 0.0}
+        prev = {k0: None}
+        q = [(0.0, k0)]
+        while q:
+            d, k = heapq.heappop(q)
+            if k == k1:
+                path = [k]
+                while prev[path[-1]] is not None:
+                    path.append(prev[path[-1]])
+                return path[::-1]
+            if d > best[k]:
+                continue
+            i, j = cell_ij[k]
+            for di in (-1, 0, 1):
+                for dj in (-1, 0, 1):
+                    if not (di or dj) or (i + di) not in WINDOW or (j + dj) not in WINDOW:
+                        continue
+                    n = level.neighbour(k, gi0 + i, gj0 + j, di, dj)
+                    if n is None:
+                        continue
+                    nd = d + (1.4142 if di and dj else 1.0) * PITCH
+                    if nd <= limit and nd < best.get(n, 1e18):
+                        best[n], prev[n] = nd, k
+                        cell_ij.setdefault(n, (i + di, j + dj))
+                        heapq.heappush(q, (nd, n))
+        return None
+
+    def link(u):
+        for q_ in range(len(pts)):
+            if q_ == u or q_ in adj[u]:
+                continue
+            d = math.dist(pts[u][1], pts[q_][1])
+            if d <= DIST_EDGE_MAX and line_walkable(level, pts[u][2], (pts[u][3], pts[u][4]), (pts[q_][3], pts[q_][4]),
+                                                    gi0, gj0, pts[q_][2]):
+                pairs.append((u, q_, d))
+                adj[u][q_] = adj[q_][u] = d
+
+    added = 0
+    n0 = len(pts)
+    for a in range(n0):
+        best = routes(a, DETOUR_MAX * DIST_EDGE_MAX)
+        for b in range(a + 1, n0):
+            straight = math.dist(pts[a][1], pts[b][1])
+            if straight > DIST_EDGE_MAX or straight < 1e-3:
+                continue
+            route = best.get(b, 1e18)
+            if route <= DETOUR_MAX * straight:
+                continue
+            path = walk(pts[a][2], pts[b][2], DETOUR_MAX * straight)   # the walk itself within DETOUR_MAX x straight
+            if path is None:
+                continue
+            way, s = [path[0]], 0
+            while s < len(path) - 1:
+                e = len(path) - 1
+                while e > s + 1 and not (math.dist(cell_ij[path[s]], cell_ij[path[e]]) * PITCH <= DIST_EDGE_MAX and
+                                         line_walkable(level, path[s], cell_ij[path[s]], cell_ij[path[e]], gi0, gj0, path[e])):
+                    e -= 1
+                way.append(path[e])
+                s = e
+            chain = []
+            for k in way:
+                if k in node_at:
+                    chain.append(node_at[k])
+                else:
+                    i, j = cell_ij[k]
+                    pts.append((new_id(), (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH), k, i, j))
+                    node_at[k] = len(pts) - 1
+                    chain.append(len(pts) - 1)
+                    added += 1
+            for u, v in zip(chain, chain[1:]):
+                if v not in adj[u]:
+                    d = math.dist(pts[u][1], pts[v][1])
+                    pairs.append((u, v, d))
+                    adj[u][v] = adj[v][u] = d
+            for u in chain:
+                if u >= n0:
+                    link(u)
+            best = routes(a, DETOUR_MAX * DIST_EDGE_MAX)
+    return added
 
 
 def finalize_graph(pts, pairs, linked_ids, origin=None):
