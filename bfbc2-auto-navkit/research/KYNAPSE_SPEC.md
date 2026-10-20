@@ -414,7 +414,12 @@ by that many u32 offsets at +0x10.
     (which of them NavKit's paths fail is being measured). When a path is not followed, the behaviour retries
     about 9.6 s later. With DICE's sp_004_b file a running squadmate re-requests its path ~200
     times a second; with NavKit's, after 394 of 400 requests returned true, the squad made one request, waited
-    ~9.6 s, and did not move. How NavKit's paths end against the destination is being measured.
+    ~9.6 s, and did not move. The pathfinder runs in 'Flat' mode in BFBC2 (play test 2026-10-19: the inline path
+    computation ran for every one of 1,860 requests), so a path is computed inside the request; the early empty
+    results came from that computation at the squad's spawns (route nodes on other floors - fixed by the headroom
+    band). After that fix the remaining failures were "no path" results into one oversized NavKit area (sp_004_b
+    0x902/91: a 40 x 40 m tile, ground 576.5-584.5 m, plus an overlapping one-cell area) that DICE divides into
+    20 x 20 m areas: the 20 m midline cut matters at runtime, not only for parity.
   - **Headroom (2026-10-19):** DICE keeps almost no ground with the next surface above it 0.5-2.0 m higher. NavKit's
     ground cells against DICE's, by the gap to the next sampled surface above (sp_004_b / sp_01): 0.4-0.5 m 52 / 50 %
     also DICE ground, 0.5-1.2 m 0-10 / 5-18 %, 1.2-2.0 m 0-1 / 0 %; under 0.5 m (steps, rails) kept; from 2.0 m
