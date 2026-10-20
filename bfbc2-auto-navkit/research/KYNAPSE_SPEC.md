@@ -396,7 +396,10 @@ by that many u32 offsets at +0x10.
   of 0.5 x a configured value; if the snap fails too the request returns false ("no path"). Accepted points go to
   Kynapse (0x01086CE0), which gives a start and a destination id; the request also returns false when the finished
   query's result set (sorted records, binary search) does not contain one of them. On sp_004_b with NavKit's
-  headroom file, 3 of 85 false results were point-check failures and 82 were ids missing from the result set.
+    headroom file, 3 of 85 false results were point-check failures and 82 were ids missing from the result set.
+  Three more false exits ([pathfinder+110h] = 3) follow the result-set check: when the query's start and end ids
+  are equal (0x0107FC33 / 0x0107FCB2) or after 0x010795E0 (0x0107FD6B). The point check object is
+  Kaim::CPointWrapper; with NavKit's file it rejects many deck points that NavKit has as ground (snapped instead).
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
