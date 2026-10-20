@@ -607,6 +607,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     # Graph: border nodes shared between sector pairs (global ids), then inner nodes.
     next_id = [1]
     border_nodes = defaultdict(list)     # sector -> [(id, pos, k)]
+    border_at = {}                       # surface -> (id, pos) of the border node on it
 
     def new_id():
         next_id[0] += 1
@@ -642,7 +643,17 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
                     t, k = run[int((q + 0.5) * len(run) / n)]
                     i, j = (line, t) if dX else (t, line)
                     pos = (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH)
+                    if DEDUP_GRAPH_NODES and k in border_at:
+                        # a surface already holding a border node (a sector corner: on both lines): the same
+                        # node, shared with this neighbour too - DICE has border ids in 3 and 4 sectors; two ids
+                        # on one spot were joined by zero-length edges (11 of 13 campaign levels, 2026-10-20)
+                        nid, pos = border_at[k]
+                        for sec in ((X, Y), other):
+                            if not any(b[0] == nid for b in border_nodes[sec]):
+                                border_nodes[sec].append((nid, pos, k))
+                        continue
                     nid = 0x80000000 | new_id()
+                    border_at[k] = (nid, pos)
                     border_nodes[(X, Y)].append((nid, pos, k))
                     border_nodes[other].append((nid, pos, k))
 

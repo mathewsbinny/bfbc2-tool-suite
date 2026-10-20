@@ -447,6 +447,13 @@ by that many u32 offsets at +0x10.
   the larger levels 9-33 % of sectors). NeedsDetailedPathfinding within 10 m picks 304 sectors over the 13 levels,
   300 of them detailed (the 4 others on sp_03 and sp_006), and finds 296 of DICE's 498 detailed sectors - the
   flag's value is read for only 7-49 % of the placements (most blueprints are in shared packages).
+- **Border nodes at sector corners (2026-10-20):** a sector's border nodes lie on its two far lines (x and z); the
+  corner surface lies on both, and NavKit gave it two border ids there, joined by a zero-length edge (11 of 13
+  campaign levels, 2-114 such edges). DICE shares one border id between three or four sectors (sp_004_b: 55 ids
+  in 3 sectors, 36 in 4). NavKit now does the same: a border node on a surface that already holds one reuses its
+  id and joins the third sector's list; the owner is still the sector whose 100 m square holds the node. On
+  sp_008_b, sp_004_b, sp_01 and sp_005_b: zero-cost edges 0, border ids with one owner up 0.2-1.1 points, parity
+  and boundaries unchanged.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
