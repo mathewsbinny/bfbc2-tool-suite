@@ -97,7 +97,10 @@ SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigne
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
 DETOUR_REPAIR = False           # add waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it
                                 # adds 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20)
-DETOUR_MAX = 1.3                # longest route / straight distance kept between nodes within DIST_EDGE_MAX (DICE: 1.02-1.11)
+DETOUR_TRIGGER = 3.0            # repair node pairs within DIST_EDGE_MAX whose route exceeds this x straight - above DICE's
+                                # p90 (3.12; median 1.34, sp_004_b 2026-10-20); the failing go-to routes ran 3.15-6.38x
+DETOUR_MAX = 1.3                # ... to a walk of at most this x straight (DICE at the failing spot: 1.02-1.11)
+DETOUR_LINK_ALL = False         # also link new waypoints to all walkable neighbours within DIST_EDGE_MAX (4x the edges)
 DETOUR_PASSES = 2               # pass A, then pass B on the repaired graph
 REPAIR_STATS = {}               # nodes added per pass (summed over sectors; for reports)
 BORDER_NODE_SPACING = 10.0
@@ -880,9 +883,10 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
 
 
 def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id):
-    """Detour repair: for node pairs of the sector within DIST_EDGE_MAX whose graph route is longer than DETOUR_MAX x
-    their straight distance, while a walk over kept surfaces of at most DETOUR_MAX x the straight distance exists, add
-    waypoint nodes along the string-pulled walk and link each new node to the nodes around it by the edge rule.
+    """Detour repair: for node pairs of the sector within DIST_EDGE_MAX whose graph route is longer than
+    DETOUR_TRIGGER x their straight distance, while a walk over kept surfaces of at most DETOUR_MAX x the straight
+    distance exists, add waypoint nodes along the string-pulled walk, linked along the chain (and to the nodes around
+    them by the edge rule only with DETOUR_LINK_ALL).
     DICE's routes run 1.02-1.11x the straight distance where NavKit's failed go-to requests ran 3.2-6.3x
     (sp_004_b stairs top, 2026-10-20). Returns the number of nodes added."""
     adj = defaultdict(dict)
@@ -945,13 +949,13 @@ def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id
     added = 0
     n0 = len(pts)
     for a in range(n0):
-        best = routes(a, DETOUR_MAX * DIST_EDGE_MAX)
+        best = routes(a, DETOUR_TRIGGER * DIST_EDGE_MAX)
         for b in range(a + 1, n0):
             straight = math.dist(pts[a][1], pts[b][1])
             if straight > DIST_EDGE_MAX or straight < 1e-3:
                 continue
             route = best.get(b, 1e18)
-            if route <= DETOUR_MAX * straight:
+            if route <= DETOUR_TRIGGER * straight:
                 continue
             path = walk(pts[a][2], pts[b][2], DETOUR_MAX * straight)   # the walk itself within DETOUR_MAX x straight
             if path is None:
@@ -979,10 +983,11 @@ def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id
                     d = math.dist(pts[u][1], pts[v][1])
                     pairs.append((u, v, d))
                     adj[u][v] = adj[v][u] = d
-            for u in chain:
-                if u >= n0:
-                    link(u)
-            best = routes(a, DETOUR_MAX * DIST_EDGE_MAX)
+            if DETOUR_LINK_ALL:
+                for u in chain:
+                    if u >= n0:
+                        link(u)
+            best = routes(a, DETOUR_TRIGGER * DIST_EDGE_MAX)
     return added
 
 

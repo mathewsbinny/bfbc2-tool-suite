@@ -420,8 +420,13 @@ by that many u32 offsets at +0x10.
 - **Detour ratio (2026-10-20):** on sp_004_b the go-to requests that fail after the three writer fixes have file
   routes 3.2-6.3x the straight distance; the ones that succeed about 1.06x, and DICE's routes at the failing spot
   1.02-1.11x. The ground and the walkable line exist in NavKit's 0.8 m samples; NavKit's graph lacks nodes along
-  the crossings. Working assumption (not yet shown in the runtime): the search has a bound that long detours
-  exceed - so NavKit's graph should keep routes near straight-line length, as DICE's do.
+  the crossings. Level-wide, DICE's graph is not that straight: over node pairs within 15 m its route /
+  straight ratio has median 1.34x and p90 3.12x (measured 2026-10-20; NavKit before repair 1.33x / 3.69x). The four
+  failing routes (3.15-6.38x) sit above DICE's p90, so the detour repair (navbuild DETOUR_*) targets only that
+  tail: pairs over 3.0x are given a walk of at most 1.3x. A first version repairing every pair over 1.3x was
+  wrong as a policy - it made NavKit's graph far straighter than DICE's (median 1.08x, +65 % nodes, 4x edges).
+  Unresolved: if DICE accepts 3x routes, the ratio alone may not be what makes the search fail; to be re-examined
+  if the repair play test is not 100 %.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
