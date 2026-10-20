@@ -525,6 +525,11 @@ by that many u32 offsets at +0x10.
   6 % of areas – likely ledges / height breaks with their direction.
 - D and F are detail features: a generator can start without them (counts 0) and still produce
   valid data.
+  They are not detailed-zone structures: most sit in normal-pitch areas (sp_004_b D lines 2,793 normal /
+  1,312 detailed, F cells 476 / 20; sp_01 23,876 / 2,416 and 1,738 / 42; sp_005 75,000 / 9,060 and 6,288 / 406).
+  NavKit writes none. "Valid" means the game loads the file; whether the runtime's movement uses them (edge
+  avoidance, steps and drops) is not known - open since the first sp_004_b play test (2026-10-19), where the
+  friendly squad did not move.
 - **Graph:** see 4.3.1.
 
 Open: exact meaning of D, F and the "up" C portals.
