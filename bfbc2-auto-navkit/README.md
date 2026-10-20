@@ -95,8 +95,8 @@ src\, tests\         (reserved for the generator proper and its tests)
      finds paths (394 of 400 requests), but **the friendly squad does not follow them**, where with DICE's
      file it does. After a found path the game checks whether its last point equals the requested destination
      exactly, and further checks decide whether it is followed (`DEVELOPMENT_NOTES.md` in Project OPFOR);
-     measuring how NavKit's paths end, and which check they fail, is the next step. Leaving the level with NavKit's file also crashes at shutdown (an invalid release in
-     Kynapse's memory manager; not with DICE's file) - a separate open bug.
+     measuring how NavKit's paths end, and which check they fail, is the next step. Leaving the level with NavKit's file also crashes at shutdown (a Kynapse block released after its memory manager was
+     destroyed; not with DICE's file) - a separate open bug.
    - Accuracy against DICE's files (`ordercheck.py`: AI order / patrol positions on the areas, and the
      pairwise route check), 2026-10-15:
 
@@ -187,8 +187,7 @@ src\, tests\         (reserved for the generator proper and its tests)
      Connectivity fell 0.16 points on SP_04 and SP_004_B (SP_04 is the level where DICE keeps ground deepest,
      2.64 m) - accepted; a per-level limit is possible later. The reference run `regression` now includes the
      rule (the one before it: `regression_before_water`).
-   - **Area division and bounds (2026-10-17 to 10-19):** `tools
-avboundary.py` compares area boundaries
+   - **Area division and bounds (2026-10-17 to 10-19):** `tools\navboundary.py` compares area boundaries
      cell by cell with DICE's (maps, CSV, precision / recall). On sp_004_b, from the start of this work to
      now: boundary precision / recall about 59 / 54 -> 99.4 / 94.1 %, extra ground 21.5 -> 8.6 %,
      over-connection 55.7 -> 21.7 %, sectors 50 -> 40 (DICE 40), portals with a portal back 78 -> 100 %,

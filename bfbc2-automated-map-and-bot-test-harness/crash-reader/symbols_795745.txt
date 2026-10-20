@@ -45,4 +45,4 @@
 00F1B980  AI: Kynapse world set-up
 00F299A0  Kynapse path-data generator driver  | the original generator needs a CMapBuilder developer licence
 010074E0  Kynapse: wait until a resource is ready  | a hang here: the AI start waits for a resource that never loads (level sub-files under the wrong name?)
-01046AA0  Kynapse allocator
+01046AA0  Kynapse memory release (through the allocator)  | a pure virtual call coming from here at shutdown: a Kynapse block is released after the memory manager was destroyed - seen with NavKit-built path data (Project OPFOR DEVELOPMENT_NOTES, known issues); restore the original pathdata.hpd

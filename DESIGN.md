@@ -324,8 +324,8 @@ OPFOR telemetry module, and is versioned.
 | M1 | the core: data layer (Python DBX reader, collision, terrain heightfield), scene, view, camera, picking, panels (done 2026-10-16) | |
 | M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16: see `bfbc2-map-inspector/README.md`; water added the same day) | |
 | M3 | Navigation Studio, viewing: navigation layers, islands, detailed zones, difference view against DICE (done 2026-10-16: `bfbc2-navigation-studio/README.md`, `core/bfbc2core/navdata.py`) | the 3D view for NavKit's parity work |
-| M4 | Navigation Studio, editing: regions, seeds, links, traversal annotations, path test, finished file and side file, `navkit apply` | |
-| M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`) | |
+| M4 | Navigation Studio, editing: regions, seeds, links, traversal annotations, path test, finished file and side file, `navkit apply` (steps 1-6 done 2026-10-16: `bfbc2-navigation-studio/README.md`; step 7, an in-game check that the game's AI uses a hand-made link, open) | |
+| M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19) | |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
 | alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |

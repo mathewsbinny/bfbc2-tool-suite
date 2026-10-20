@@ -60,7 +60,7 @@ it, then the steps, and a log of what NavKit is doing at the bottom.
    for a large level.
 5. Click **4. Check.** NavKit scores the result (see [Reading the check](#reading-the-check)).
 6. To try it in game, click **Install in game**. NavKit keeps the level's original file. When you
-   are done, click **Restore original** to put it back.
+   are done, click **Restore original** to put it back. See [Trying it in game](#trying-it-in-game).
 
 **Run all (1-4)** does steps 1 to 4 in a row. A tick next to a step means it has been done for that
 level. **Open output folder** shows that level's files.
@@ -109,9 +109,8 @@ main route network: reference 607, candidate 648; pairwise 71277/79663 (89.5 %)
 sectors 126 / 154; nodes 30305 / 31789; edges 82602 / 165744
 ```
 
-- **Coverage**: of the positions the original has on walkable ground, how many NavKit's file has too.
-  This is NavKit's headline figure: 96 % across the 13 campaign levels. "+ 33 more" are positions only
-  NavKit covers.
+- **Coverage**: of the positions the original has on walkable ground, how many NavKit's file has too
+  (about 96-98 % on the campaign levels). "+ 33 more" are positions only NavKit covers.
 - **Main route network**: positions connected to a large part of the level's routes, in each file.
 
 `compare` takes any two files with `--reference <file>` and `--candidate <file>`, for example two NavKit
@@ -122,6 +121,25 @@ For a level without an original file, check does a **self-check**: how many pair
 walkable ground NavKit's routes connect.
 
 The full report is in `work\navkit\<level>\check.txt`.
+
+For a closer comparison with the original - walkable ground, areas, area boundaries, routes, connected
+regions - see the parity tools in [README.md](README.md) (`tools\navparity.py`, `tools\navboundary.py`,
+`tools\navregress.py`).
+
+## Trying it in game
+
+1. Click **Install in game** (or `python navkit.py install <level>`).
+2. Start Project OPFOR as usual (`OPFOR.exe`) and, for a campaign level, start the mission from the
+   campaign menu. (OPFOR's developer trigger, `[dev] level=` / `testrun.bat`, often leaves a campaign level
+   on a black screen.)
+3. Play, watching the AI soldiers.
+4. Quit, then click **Restore original** (or `python navkit.py restore <level>`).
+
+Known problems with NavKit's files today (2026-10-19): on SP_004_B the friendly squad did not follow the
+player at the start of the mission - the cause has been found and fixed in NavKit, and the next play test
+will confirm it; and leaving a level with NavKit's file installed can crash the game when it exits (no
+harm to your files - restore the original as usual). Project OPFOR's `DEVELOPMENT_NOTES.md` has the
+details.
 
 ## Where the files go
 
@@ -145,7 +163,9 @@ Prepare sizes the area automatically:
 - **Levels with path data:** the area that data covers, plus 20 m.
 - **Other levels:** the area around the level's objects and spawn points, plus 50 m.
 
-If parts of the level are missing at the edges, make the area larger. In the window, type new values in
+On a level that has an original file, NavKit keeps its ground inside the area the original covers (so
+the two can be compared); a larger area then adds nothing at the edges. On other levels, if parts of the
+level are missing at the edges, make the area larger. In the window, type new values in
 *Sampling area* before you click Prepare or Sample in game. From a command prompt, add the area like this:
 
 ```

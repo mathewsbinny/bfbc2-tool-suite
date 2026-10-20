@@ -420,7 +420,8 @@ by that many u32 offsets at +0x10.
     also DICE ground, 0.5-1.2 m 0-10 / 5-18 %, 1.2-2.0 m 0-1 / 0 %; under 0.5 m (steps, rails) kept; from 2.0 m
     sp_004_b 32-94 %, sp_01 0-24 % up to 2.9 m (mostly building interiors - open). Rule `navwalk.HEADROOM_BAND`
     (0.5, 2.0); soldiers overhead do not count. sp_004_b: extra ground 8.69 -> 8.07 %, connectivity 99.06 -> 99.25,
-    AI positions 97.2 -> 97.8 %, islands 58 -> 57; the floor under the squad's deck (a 34-node island, 1.4-2.0 m
+    AI positions 97.2 -> 97.8 %, islands 58 -> 57 (sp_01: extra ground 13.97 -> 13.29 %, pairwise 87.9 -> 88.2,
+    islands 491 -> 488, the rest within 0.2 point); the floor under the squad's deck (a 34-node island, 1.4-2.0 m
     below it) is gone, and the squad spawns' nearest route nodes are now on their own floor (before: HAGGARD's tied
     with a node on that floor, REDFORD's on top of an overhang 2.6 m higher) - in game those two squadmates got
     empty paths from their spawns until moved.
