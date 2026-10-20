@@ -95,7 +95,8 @@ DIST_EDGE_MAX = 15.0
 DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
-ORDER_NODES = False             # a route node at AI order positions far from any node (add_order_nodes) - off until
+ORDER_NODES = True              # a route node at AI order positions far from any node (add_order_nodes; needs the level's
+                                # order_points.json from levelobjects.py) - sp_004_b play test 2026-10-20: 0 failures. Was off until
                                 # the sp_004_b play test confirms it (2026-10-20)
 ORDER_NODE_MIN = 3.0            # ... when the nearest node on the same floor is farther than this (m)
 ORDER_STATS = {}                # nodes added (for reports)

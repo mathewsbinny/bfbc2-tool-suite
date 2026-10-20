@@ -437,6 +437,11 @@ by that many u32 offsets at +0x10.
   crashed when leaving the level (pure virtual call while freeing a Kynapse container); with sorted nodes (as
   DICE writes them) it exits cleanly. The container's element count at shutdown (10) is the same either way.
   Confirmed on sp_01 too (2026-10-20, quit to menu, user saw the menu; no crash report).
+- **Order positions need a nearby route node (2026-10-20):** the point -> node resolver takes the nearest node
+  within R = 15 m and accepts it without rejection, but the go-to still failed in the second search stage when
+  that node was 3.6-6.3 m from the order point (DICE: 0.2 m). With a route node at each AI order position
+  (AreaGeometryEntityData transforms on walkable ground with no node within 3 m) the sp_004_b failures went to 0.
+  Why the distance matters inside stage 2 is not traced.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
