@@ -34,6 +34,10 @@ they are built in. It is a draft for review, and it changes as the tools are bui
   DICE code. NavKit never uses the licensed Kynapse generator, and nothing in the suite bypasses its
   licence check. (The toolkit's `kynapse-map-builder` only prepares runs for someone holding a valid
   licence; it is not part of the suite.)
+  When a NavKit file loads but the game's AI misbehaves on it, the runtime may be observed to find out why:
+  OPFOR's probes, and short, targeted disassembly of the instructions around the failing check (no bulk
+  decompiling). That says which property of the file the runtime rejects; how to produce that property
+  is still taken from DICE's output files, and no Kynapse code is copied or translated into NavKit.
 - **Edits never count toward DICE parity.** NavKit's parity score measures the generator alone. The
   studio's edits are for maps without DICE data, and for places shown to be beyond any rule (hand edits,
   geometry missing from the shipped game).

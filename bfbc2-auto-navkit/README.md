@@ -62,7 +62,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
-## Plan and status (2026-10-15)
+## Plan and status (2026-10-19)
 
 1. **`.hpd` format – done.** Header, sector table, per-sector graph and runtime mesh fully decoded
    (spec §4); `hpdtool.py` parses every campaign file.
@@ -74,11 +74,29 @@ src\, tests\         (reserved for the generator proper and its tests)
 4. **Generator – runs on all 13 campaign levels (`tools\navbuild.py`).**
    - Full pipeline: walkable surfaces from two in-game sampling runs (normal and high capsule) plus the
      level's objects (`levelobjects.py`), 100 m sectors (level `SectorOffsets`), 3 × 3 tiles of 50
-     samples, single-layer 8-connected areas (whole pieces of a tile joined by DICE's raw 0.6 m terrain step, no 20 m bisection; on a level with DICE path data the ground is bounded to its extent - a bound for comparison, not a rule found in the level data), outlines with 45° bridges, portals (B),
-     border portals (C), neighbour links, route network (area, portal and shared border nodes; walkable
-     edges up to 15 m; groups joined through string-pulled waypoints; no lone nodes), written as
-     `pathdata.hpd`. Seeds: sector perimeter lines and soldier spawn points.
-   - sp_01's file **loads in game** and the AI walks on it (play test 2026-10-15).
+     samples, single-layer 8-connected areas, outlines with 45° bridges, portals (B), border portals (C),
+     neighbour links, route network (area, portal and shared border nodes; walkable edges up to 15 m;
+     groups joined through string-pulled waypoints; no lone nodes), written as `pathdata.hpd`. Seeds:
+     sector perimeter lines and soldier spawn points.
+   - Rules added 2026-10-17 to 10-19 (details and measurements: spec §4.5):
+     - **areas** are whole pieces of a tile joined by DICE's raw 0.6 m terrain step (`AREA_LINK`); no
+       20 m bisection;
+     - **edge sectors** (on the sector grid's minimum X / Z) start their tiles and their rectangle at
+       their own edge (`EDGE_SECTOR_TILES`, `EDGE_SECTOR_RULE`);
+     - on a level with DICE path data the ground is **bounded to DICE's extent** (`CLIP_TO_REFERENCE` -
+       a bound for comparison, not a rule found in the level data; a new map keeps its sampling box);
+     - **portals** stand on both of their areas; a piece whose target sees that side as its own interior
+       becomes outline (`SYMMETRIC_PORTALS`, `ONE_WAY_PORTALS`);
+     - **soldiers** standing in the level while it was sampled are not in the path data
+       (`navwalk.CHARACTERS_ABSENT`);
+     - each area's **height range** follows DICE's convention: lowest ground to highest ground + 1.52 m.
+   - **In game:** sp_01's file loads and the AI walks on it (play test 2026-10-15). sp_004_b (play tests
+     2026-10-19, same launch as DICE's file, only the `.hpd` differing): the file loads, the pathfinder
+     finds paths (394 of 400 requests), but **the friendly squad does not follow them**, where with DICE's
+     file it does. The game's mover follows a found path only when its last point equals the requested
+     destination exactly (`DEVELOPMENT_NOTES.md` in Project OPFOR); measuring how NavKit's paths end is the
+     next step. Leaving the level with NavKit's file also crashes at shutdown (an invalid release in
+     Kynapse's memory manager; not with DICE's file) - a separate open bug.
    - Accuracy against DICE's files (`ordercheck.py`: AI order / patrol positions on the areas, and the
      pairwise route check), 2026-10-15:
 
@@ -102,10 +120,11 @@ src\, tests\         (reserved for the generator proper and its tests)
    - The pairwise check compares route-network layout; DICE's own network has gaps (spec §3.8), so it
      is a guide, not ground truth. Open leads: sp_008_b (sloped bridge foundation / fence passage DICE leaves
      out), sp_009 (plane aisles narrower than the capsule; DICE connects them), sp_03 / sp_008 (DICE network gaps).
-   - Not generated yet: D lines, F cells, "up" border portals, diagonal border portals, detailed zones
-     (pitch 0.2), vehicle data, ladder links (planned for MP bots, optional).
-   - Next: play test of the current sp_01 build against DICE's file; then MP maps (self-check, no DICE
-     data); later a standalone mode that reads Havok collision directly instead of sampling in game.
+   - Not generated yet: D lines and F cells (mostly in normal-pitch areas, not only detailed zones),
+     "up" border portals, diagonal border portals, the 20 m midline cuts, detailed zones (pitch 0.2),
+     vehicle data, ladder links (planned for MP bots, optional).
+   - Then: MP maps (self-check, no DICE data); later a standalone mode that reads Havok collision
+     directly instead of sampling in game.
 5. **Tooling – done (2026-10-15).** `navkit.py` runs the whole workflow from a level name (unpack, objects,
    automatic sampling box and sector offsets, both in-game sampling runs with `opfor.ini` restored
    afterwards, build, check, install / restore with the original kept); `navkitGUI.pyw` is a small window
@@ -168,11 +187,25 @@ src\, tests\         (reserved for the generator proper and its tests)
      Connectivity fell 0.16 points on SP_04 and SP_004_B (SP_04 is the level where DICE keeps ground deepest,
      2.64 m) - accepted; a per-level limit is possible later. The reference run `regression` now includes the
      rule (the one before it: `regression_before_water`).
+   - **Area division and bounds (2026-10-17 to 10-19):** `tools
+avboundary.py` compares area boundaries
+     cell by cell with DICE's (maps, CSV, precision / recall). On sp_004_b, from the start of this work to
+     now: boundary precision / recall about 59 / 54 -> 99.4 / 94.1 %, extra ground 21.5 -> 8.6 %,
+     over-connection 55.7 -> 21.7 %, sectors 50 -> 40 (DICE 40), portals with a portal back 78 -> 100 %,
+     AI positions 93.4 -> 97.2 %, AI pairwise 85.0 -> 91.2 %; route nodes within 2 m of DICE's 36.5 -> 34.7 %
+     (the bisection's extra nodes had matched by chance). On the other levels measured (sp_005, sp_007,
+     sp_01, sp_006, sp_008_b) the structure measures improve the same way; nodes_near is still below the
+     old reference. Levels whose DICE ground is mostly detailed zones (sp_008, sp_008_b, sp_009,
+     ons_mp_005gr) are to be reported apart until NavKit builds detailed zones. The full 13-level regression
+     is run only when asked (`navregress.py` shows progress and time left per level).
    - **Next:**
-     1. test each stage with DICE's own input (so it can reach 100 % on its own);
-     2. the extra ground (first: ground more than 1.5 m under water) and seeding;
-     3. detailed zones (DICE has 145 to 5,409 per level; NavKit none);
-     4. area division.
+     1. the sp_004_b squad: how NavKit's paths end against the requested destination (game probe
+        `AI: path end vs destination`), then the fix;
+     2. the unload crash with NavKit's file;
+     3. the 20 m midline cuts (DICE cuts some tile ground at 18.8 / 58.8 m into the sector);
+     4. detailed zones (DICE has 145 to 5,409 per level; NavKit none) - DICE's stacked floors and the
+        sp_004_b squad's starting deck are detailed zones;
+     5. D lines, F cells and "up" border portals.
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 
 Credits: level data is read with the suite's FbrbTool and DbxEdit, based on **Frankelstner**'s format
