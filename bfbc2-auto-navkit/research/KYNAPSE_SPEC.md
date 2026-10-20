@@ -409,7 +409,9 @@ by that many u32 offsets at +0x10.
   ordinary nodes ascending, then border nodes (id flag 80000000h) ascending - in all 40 sectors of sp_004_b; the
   runtime binary-searches these arrays when it checks a path's start / destination ids. NavKit's writer
   interleaves border nodes (0 of 40 sectors sorted). Removing NavKit's duplicate nodes (zero-cost edges) did not
-  fix the sp_004_b stops; the node order is the current lead.
+  fix the sp_004_b stops; the node order is the current lead. With the nodes sorted (2026-10-20) the "destination
+  id not in the result" failures stopped (29 -> 0) and the runtime ids equal the file ids; the remaining failures
+  are all the second search stage's code 2 (no node reached from the start).
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
