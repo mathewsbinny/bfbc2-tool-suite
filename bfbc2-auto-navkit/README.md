@@ -93,9 +93,9 @@ src\, tests\         (reserved for the generator proper and its tests)
    - **In game:** sp_01's file loads and the AI walks on it (play test 2026-10-15). sp_004_b (play tests
      2026-10-19, same launch as DICE's file, only the `.hpd` differing): the file loads, the pathfinder
      finds paths (394 of 400 requests), but **the friendly squad does not follow them**, where with DICE's
-     file it does. The game's mover follows a found path only when its last point equals the requested
-     destination exactly (`DEVELOPMENT_NOTES.md` in Project OPFOR); measuring how NavKit's paths end is the
-     next step. Leaving the level with NavKit's file also crashes at shutdown (an invalid release in
+     file it does. After a found path the game checks whether its last point equals the requested destination
+     exactly, and further checks decide whether it is followed (`DEVELOPMENT_NOTES.md` in Project OPFOR);
+     measuring how NavKit's paths end, and which check they fail, is the next step. Leaving the level with NavKit's file also crashes at shutdown (an invalid release in
      Kynapse's memory manager; not with DICE's file) - a separate open bug.
    - Accuracy against DICE's files (`ordercheck.py`: AI order / patrol positions on the areas, and the
      pairwise route check), 2026-10-15:

@@ -408,9 +408,11 @@ by that many u32 offsets at +0x10.
     low neighbour, so the rule rarely applies until those bounds are reproduced.)
   - **What the game requires of a found path (observed at runtime, 2026-10-19; Project OPFOR's probes and a short
     disassembly of the caller - diagnosis only, see DESIGN.md):** the soldier's path request returns true or false;
-    on true, the caller follows the path only if it is not empty and its last point equals the requested
-    destination exactly (x, y and z compared for equality, no tolerance); otherwise it does not follow and the
-    behaviour retries about 9.6 s later. With DICE's sp_004_b file a running squadmate re-requests its path ~200
+    on true, the caller records whether the path is empty, ends exactly on the requested destination (x, y and z
+    compared for equality, no tolerance) or ends elsewhere; an empty path is not followed, a path ending elsewhere
+    goes through a further check on its last point, and both kinds go through more checks before being followed
+    (which of them NavKit's paths fail is being measured). When a path is not followed, the behaviour retries
+    about 9.6 s later. With DICE's sp_004_b file a running squadmate re-requests its path ~200
     times a second; with NavKit's, after 394 of 400 requests returned true, the squad made one request, waited
     ~9.6 s, and did not move. How NavKit's paths end against the destination is being measured.
   - **Area height range (2026-10-19):** the area header's min / max height and each tile item's pair hold the area's
