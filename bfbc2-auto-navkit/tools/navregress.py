@@ -101,11 +101,18 @@ def reference_bounds(root, lv):
     return float(P[:, 0].min()), float(P[:, 2].min()), float(P[:, 0].max()), float(P[:, 2].max())
 
 
+def order_points_of(root, lv):
+    """The level's AI order positions (work/levels/<lv>/order_points.json, written by levelobjects.py), or None."""
+    p = os.path.join(root, 'work', 'levels', lv, 'order_points.json')
+    return json.load(open(p)) if os.path.isfile(p) else None
+
+
 def build_level(root, lv, out, log=lambda *a: None):
     samples, xoff, zoff, f = inputs(root, lv)
     navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                    seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv),
+                   order_points=order_points_of(root, lv),
                    bounds=reference_bounds(root, lv), log=log)
 
 

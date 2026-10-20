@@ -31,6 +31,19 @@ import hkpack  # noqa: E402
 SEP = chr(92)
 
 
+def order_points(level_xml):
+    """AI order positions of a level: the Transform translation of every AreaGeometryEntityData (the points the
+    squad's area / patrol orders send soldiers to; sp_004_b's stairs-top go-to targets are two of them)."""
+    pts = []
+    for m in re.finditer(r'type="Entity\.AreaGeometryEntityData">(.*?)</instance>', level_xml, re.S):
+        t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
+        if t:
+            v = [float(a) for a in t.group(1).split('/')]
+            if len(v) >= 15 and any(abs(c) > 1e-3 for c in v[12:15]):
+                pts.append(v[12:15])
+    return pts
+
+
 def blueprint_flags(bases):
     """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic,
     DisablePathfinding value - e.g. PdtNever / PdtWhenAlive)."""
@@ -149,6 +162,7 @@ def main(argv):
             if any(abs(c) > 1e-3 for c in v[12:15]):
                 spawns.append(v[12:15])
     json.dump(spawns, open(os.path.join(level_dir, 'soldier_spawns.json'), 'w'))
+    json.dump(order_points(x), open(os.path.join(level_dir, 'order_points.json'), 'w'))
     json.dump(objs, open(os.path.join(level_dir, 'objects.json'), 'w'))
     json.dump(groups, open(os.path.join(level_dir, 'group_instances.json'), 'w'))
 

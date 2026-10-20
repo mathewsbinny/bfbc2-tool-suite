@@ -95,6 +95,10 @@ DIST_EDGE_MAX = 15.0
 DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
+ORDER_NODES = False             # a route node at AI order positions far from any node (add_order_nodes) - off until
+                                # the sp_004_b play test confirms it (2026-10-20)
+ORDER_NODE_MIN = 3.0            # ... when the nearest node on the same floor is farther than this (m)
+ORDER_STATS = {}                # nodes added (for reports)
 DETOUR_REPAIR = False           # add waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it
                                 # adds 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20)
 DETOUR_TRIGGER = 3.0            # repair node pairs within DIST_EDGE_MAX whose route exceeds this x straight - above DICE's
@@ -520,7 +524,7 @@ def trace_emit(level, areas, per_area, gi0, gj0, ox, oz):
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
           narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
-          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None):
+          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None):
     """edits: the operations of a navigation side file (navedits.py applies the walkability ones).
     water: the level's water mesh (vertices, triangles; core/bfbc2core/water.py): ground more than max_water_depth
     under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win).
@@ -713,7 +717,8 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         rect = (ox + sx * PITCH, ox + 100 + 1.1 * PITCH, oz + sz * PITCH, oz + 100 + 1.1 * PITCH)
         mesh = kymesh.Mesh(2, 0, 0, sid, RESOLUTION, PITCH, rect, ntiles, ntiles, RADIUS, tiles, mesh_areas,
                            mesh_links, b'\0' * 4)
-        pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id)
+        orders = [p for p in (order_points or ()) if ox <= p[0] < ox + 100 and oz <= p[2] < oz + 100]
+        pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id, orders)
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]
         bounds = (rect[0], rect[1], min(ys), max(ys), rect[2], rect[3])
         graphs.append((sid, bounds, kymesh.write_mesh(mesh), pts, pairs, (ox, oz)))
@@ -747,7 +752,7 @@ def line_walkable(level, k0, a, b, gi0, gj0, k1):
     return k == k1 or abs(level.y[k] - level.y[k1]) <= 0.6
 
 
-def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id):
+def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id, orders=()):
     pts = []    # (id, pos, k, local i, local j)
     # one node per surface: an area-centre or portal node whose surface already holds a node (another area's or
     # portal's, or a border node) is not added - DICE's route graphs have no two nodes at one position except a
@@ -879,7 +884,41 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
         for p in range(DETOUR_PASSES):
             added = repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id)
             REPAIR_STATS[p] = REPAIR_STATS.get(p, 0) + added
+    if ORDER_NODES and orders:
+        ORDER_STATS['added'] = ORDER_STATS.get('added', 0) + add_order_nodes(level, pts, pairs, node_at, area_of, orders,
+                                                                             gi0, gj0, ox, oz, new_id)
     return pts, pairs
+
+
+def add_order_nodes(level, pts, pairs, node_at, area_of, orders, gi0, gj0, ox, oz, new_id):
+    """A route node at each AI order position (AreaGeometryEntityData) on this sector's walkable ground whose nearest
+    route node on the same floor is farther than ORDER_NODE_MIN, linked to every node within DIST_EDGE_MAX it reaches
+    in a straight walkable line. The runtime resolves a go-to point to the nearest gathered node (R = 15 m, the first
+    candidate accepted; 0x0105ED80) - at sp_004_b's stairs top NavKit's nearest node was 3.6-6.3 m from the order
+    points, DICE's 0.2 m, and those requests failed (2026-10-20). Returns the number of nodes added."""
+    s = level.s
+    added = 0
+    for x, y, z in orders:
+        gi, gj = int(round((x - s.min_x) / PITCH)), int(round((z - s.min_z) / PITCH))
+        cands = [k for k in level.surfaces(gi, gj) if k in area_of and abs(level.y[k] - y) <= 1.0]
+        if not cands:
+            continue
+        k = min(cands, key=lambda q: abs(level.y[q] - y))
+        if k in node_at:
+            continue
+        pos = (ox + (gi - gi0) * PITCH, float(level.y[k]) + Y_OFFSET, oz + (gj - gj0) * PITCH)
+        near = [math.hypot(p[1][0] - pos[0], p[1][2] - pos[2]) for p in pts if abs(p[1][1] - pos[1]) < 1.5]
+        if near and min(near) <= ORDER_NODE_MIN:
+            continue
+        u = len(pts)
+        pts.append((new_id(), pos, k, gi - gi0, gj - gj0))
+        node_at[k] = u
+        added += 1
+        for q in range(u):
+            d = math.dist(pos, pts[q][1])
+            if d <= DIST_EDGE_MAX and line_walkable(level, k, (gi - gi0, gj - gj0), (pts[q][3], pts[q][4]), gi0, gj0, pts[q][2]):
+                pairs.append((u, q, d))
+    return added
 
 
 def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id):
