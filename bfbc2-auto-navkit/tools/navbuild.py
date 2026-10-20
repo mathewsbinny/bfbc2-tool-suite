@@ -91,6 +91,7 @@ LINK_STEP = 0.6                 # DICE: straight neighbours link when their raw 
 RADIUS = 0.4
 RESOLUTION = 0.025
 DIST_EDGE_MAX = 15.0
+DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
 BORDER_NODE_SPACING = 10.0
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
@@ -737,13 +738,25 @@ def line_walkable(level, k0, a, b, gi0, gj0, k1):
 
 def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id):
     pts = []    # (id, pos, k, local i, local j)
+    # one node per surface: an area-centre or portal node whose surface already holds a node (another area's or
+    # portal's, or a border node) is not added - DICE's route graphs have no two nodes at one position except a
+    # border node in both of its sectors (sp_004_b: 1,515 shared positions, all border pairs with one id); NavKit
+    # had 377 duplicate pairs joined by zero-length edges (2026-10-20)
+    taken = {k for _nid, _pos, k in borders} if DEDUP_GRAPH_NODES else set()
+
+    def add(i, j, k):
+        if DEDUP_GRAPH_NODES:
+            if k in taken:
+                return
+            taken.add(k)
+        pts.append((new_id(), (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH), k, i, j))
     for a in areas:
         if len(a['cells']) < 4:
             continue
         ci = sum(c[0] for c in a['cells']) / len(a['cells'])
         cj = sum(c[1] for c in a['cells']) / len(a['cells'])
         i, j, k = min(a['cells'], key=lambda c: (c[0] - ci) ** 2 + (c[1] - cj) ** 2)
-        pts.append((new_id(), (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH), k, i, j))
+        add(i, j, k)
     cell_of = {c[2]: (c[0], c[1]) for a in areas for c in a['cells']}
     for ai, (portals, _b, _o) in enumerate(traced):
         for p in portals:
@@ -752,7 +765,7 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
             mx, mz = (p.p0[0] + p.p1[0]) / 2, (p.p0[2] + p.p1[2]) / 2
             best = min(areas[ai]['cells'], key=lambda c: (ox + c[0] * PITCH - mx) ** 2 + (oz + c[1] * PITCH - mz) ** 2)
             i, j, k = best
-            pts.append((new_id(), (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH), k, i, j))
+            add(i, j, k)
     for nid, pos, k in borders:
         i, j = int(round((pos[0] - ox) / PITCH)), int(round((pos[2] - oz) / PITCH))
         pts.append((nid, pos, k, i, j))
