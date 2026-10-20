@@ -26,20 +26,19 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
 import hkpack  # noqa: E402
+from bfbc2core import xmlinst  # noqa: E402
 
 SEP = chr(92)
-# an instance's attributes come in either order: DICE writes guid="..." type="...", Napisal's Onslaught levels
-# type="..." guid="..." - so every instance pattern allows more attributes after type (2026-10-20: ONS_MP_002 had
-# read as 0 placed objects, 0 soldier spawns)
 
 
 def order_points(level_xml):
     """AI order positions of a level: the Transform translation of every AreaGeometryEntityData (the points the
     squad's area / patrol orders send soldiers to; sp_004_b's stairs-top go-to targets are two of them)."""
     pts = []
-    for m in re.finditer(r'type="Entity\.AreaGeometryEntityData"[^>]*>(.*?)</instance>', level_xml, re.S):
-        t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
+    for _typ, _guid, body in xmlinst.instances(level_xml, 'Entity.AreaGeometryEntityData'):
+        t = re.search(r'<complex name="Transform">([^<]*)</complex>', body)
         if t:
             v = [float(a) for a in t.group(1).split('/')]
             if len(v) >= 15 and any(abs(c) > 1e-3 for c in v[12:15]):
@@ -138,9 +137,9 @@ def main(argv):
     flags = blueprint_flags(bases)
     x = open(os.path.join(level_dir, 'dist', 'levels', level + '.xml'), encoding='utf-8', errors='replace').read()
     objs = []
-    for m in re.finditer(r'type="Entity\.ReferenceObjectData"[^>]*>(.*?)</instance>', x, re.S):
-        t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
-        r = re.search(r'<field ref="([^"]*)" name="ReferencedObject"', m.group(1))
+    for _typ, _guid, body in xmlinst.instances(x, 'Entity.ReferenceObjectData'):
+        t = re.search(r'<complex name="Transform">([^<]*)</complex>', body)
+        r = re.search(r'<field ref="([^"]*)" name="ReferencedObject"', body)
         if t and r:
             bp = r.group(1).rsplit('/', 1)[0].lower()
             objs.append({'bp': bp, 'flags': flags.get(bp), 'm': [float(a) for a in t.group(1).split('/')]})
@@ -158,8 +157,8 @@ def main(argv):
                            'm': [float(v) for v in tr[i * 16:(i + 1) * 16]]})
     # soldier spawn points (seed points of the path data)
     spawns = []
-    for m in re.finditer(r'type="[A-Za-z]*\.SoldierSpawnEntityData"[^>]*>(.*?)</instance>', x, re.S):
-        t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
+    for _typ, _guid, body in xmlinst.instances(x, '.SoldierSpawnEntityData'):
+        t = re.search(r'<complex name="Transform">([^<]*)</complex>', body)
         if t:
             v = [float(a) for a in t.group(1).split('/')]
             if any(abs(c) > 1e-3 for c in v[12:15]):

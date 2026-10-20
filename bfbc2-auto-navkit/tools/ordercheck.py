@@ -21,7 +21,9 @@ from collections import Counter, defaultdict
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
 import hpdtool  # noqa: E402
+from bfbc2core import xmlinst  # noqa: E402
 import kymesh  # noqa: E402
 
 Y_OFFSET = 0.95
@@ -30,8 +32,8 @@ Y_OFFSET = 0.95
 def order_points(xml_path):
     x = open(xml_path, encoding='utf-8', errors='replace').read()
     inst = {}
-    for m in re.finditer(r'<instance guid="([^"]*)" type="([^"]*)">(.*?)</instance>', x, re.S):
-        inst[m.group(1).lower()] = (m.group(2), m.group(3))
+    for typ, guid, body in xmlinst.instances(x):
+        inst[guid.lower()] = (typ, body)
 
     def pos(body):
         t = re.search(r'<complex name="Transform">([^<]*)</complex>', body)
