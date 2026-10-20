@@ -693,6 +693,11 @@ by that many u32 offsets at +0x10.
   89-100 % empty, the next row 0 %), where DICE's path data has 4,035 m2 of main-network ground and the terrain
   heightfield has heights. It cut DICE's only hillside link between the last-base hill and the main network (NavKit
   island 2, 164 nodes). The build is not involved; the rays found nothing. Open (sampler).
+  ONS_MP_002's 4 failing pathfinding units all sit north of the z = 300 sector line; the working ones south of it.
+  Checked against DICE's file: both sectors are present (0x309, 0x30a with offsets -3,-7), every start and target
+  is on a DICE area in its main route island (7,305 nodes) - the file has the routes; the runtime fails on requests
+  starting in 0x30a. The runtime reads Precomputed/<kind>/SectorOffsets at level load (SectorOffsetX / Z into the
+  path-data configuration); the PC port has none, DICE's console bundle has -3,-7.
 - **AI orders inside obstacles (recorded, not implemented):** an AI order whose position is inside an obstacle and
   has no area should get an order node on the nearest walkable ground - targets ONS_MP_002's "Arm pre last B"
   (nearest node in a 4-node objective pocket), not a general rule. Background: DICE carves mpobjective
