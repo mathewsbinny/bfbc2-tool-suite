@@ -238,7 +238,11 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
 - **Ladders are not in the path data:** islands reached only by ladder stay islands; bots spawned there
   move on that floor only.
 - **Per-level inputs:** `SectorOffsets` (`Levels/<lvl>/Precomputed/Infantry/SectorOffsets.dbx`) gives the
-  sector grid; the sampling box is DICE's sector bounds plus a margin (for levels without data: the
+  sector grid. Levels without one (the Onslaught ports, stock MP levels, new maps): offset = floor(lowest
+  path-data extent / 100) - 1 per axis, so the first sector id is 1,1 - all 15 shipped SectorOffsets follow it
+  (13 campaign levels and DICE's Xbox ons_mp_005 / ons_mp_008), and so does DICE's ons_mp_002 / ons_mp_004 path
+  data (-3,-7 / -3,-5); a new map without path data uses its sampling box's minimum. Whether the runtime needs the
+  ids to match an offset is unproven. The sampling box is DICE's sector bounds plus a margin (for levels without data: the
   playable area). Two sampling runs per level: the normal capsule and the high capsule (from 0.6 m) for
   stairs and landings.
 

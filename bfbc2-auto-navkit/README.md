@@ -73,7 +73,8 @@ src\, tests\         (reserved for the generator proper and its tests)
    other campaign levels (§3.9).
 4. **Generator – runs on all 13 campaign levels (`tools\navbuild.py`).**
    - Full pipeline: walkable surfaces from two in-game sampling runs (normal and high capsule) plus the
-     level's objects (`levelobjects.py`), 100 m sectors (level `SectorOffsets`), 3 × 3 tiles of 50
+     level's objects (`levelobjects.py`), 100 m sectors (level `SectorOffsets`; without one, DICE's rule:
+     one sector below the path data's lowest extent), 3 × 3 tiles of 50
      samples, single-layer 8-connected areas, outlines with 45° bridges, portals (B), border portals (C),
      neighbour links, route network (area, portal and shared border nodes; walkable edges up to 15 m;
      groups joined through string-pulled waypoints; no lone nodes), written as `pathdata.hpd`. Seeds:

@@ -199,9 +199,18 @@ def prepare(pr, lv, log=print, box=None, y=None):
         zoff = int(re.search(r'name="ZOffset">(-?\d+)<', t).group(1))
     auto_box, auto_y, source = sampling_box(pr, lv, L)
     s = {'level': LV, 'box': box or auto_box, 'y': y or auto_y, 'box_source': 'given' if box else source}
-    s['xoff'] = xoff if xoff is not None else int(math.floor(s['box'][0] / 100.0))
-    s['zoff'] = zoff if zoff is not None else int(math.floor(s['box'][1] / 100.0))
-    s['offsets_source'] = 'SectorOffsets' if xoff is not None else 'from the box'
+    if xoff is None:
+        # No SectorOffsets asset (Onslaught and other MP levels): DICE's rule, one sector below the path data's
+        # lowest extent, so the first sector id is 1,1 - it holds for all 15 shipped SectorOffsets (13 campaign,
+        # ons_mp_005, ons_mp_008). A new map has no path data; its box (which holds the ground) stands in.
+        import navregress
+        ext = navregress.reference_bounds(pr.root, lv)
+        lo = ext[:2] if ext else s['box'][:2]
+        xoff, zoff = int(math.floor(lo[0] / 100.0)) - 1, int(math.floor(lo[1] / 100.0)) - 1
+        s['offsets_source'] = 'rule: path data extent' if ext else 'rule: box'
+    else:
+        s['offsets_source'] = 'SectorOffsets'
+    s['xoff'], s['zoff'] = xoff, zoff
     json.dump(s, open(pr.settings_path(lv), 'w'), indent=1)
     cols = (s['box'][2] - s['box'][0]) / 0.8 * (s['box'][3] - s['box'][1]) / 0.8
     log(f'  box {fmt(s["box"])} ({s["box_source"]}), y {fmt(s["y"])}, sector offsets {s["xoff"]}, {s["zoff"]} '
