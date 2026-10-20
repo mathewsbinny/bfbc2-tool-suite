@@ -45,6 +45,12 @@ ReferenceObjectData    C3A93730-7A4B-488D-A41A-8ACE4F7D3695
     + ObjectSets: 0058f00b-01de-11e0-aba9-cc78fd21fd3a
 ```
 
+## Errors and logs
+
+LevelDiff keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` like the suite's other tools (`ToolLog`, shared
+with DbxEdit). When it cannot do something it prints the cause, what to do and the log's path, and exits with
+code 1. Tests: `tests\test_leveldiff.py` (quick and game tiers of the suite's `run_tests.py`).
+
 ## Credits
 
 Developed for Project OPFOR. The DBX format knowledge comes from the BC2 modding community, above all

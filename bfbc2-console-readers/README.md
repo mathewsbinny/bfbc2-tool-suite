@@ -16,6 +16,12 @@ python xiso\xiso.py list "D:\BFBC2.iso" levels
 python stfs\stfs.py extract "D:\Update3" out levels/ons_mp_008
 ```
 
+## Errors and logs
+
+Both readers keep a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` like the suite's other tools; on an error
+they print the cause, what to do and the log's path (exit code 1). Tests: `tests\test_console_readers.py`
+(built images in the quick tier; with your Xbox 360 files in the game tier).
+
 Format notes are in each script's header (STFS follows the public Free60 documentation).
 
 Developed for Project OPFOR. Xbox is a trademark of Microsoft; Battlefield: Bad Company 2 is
