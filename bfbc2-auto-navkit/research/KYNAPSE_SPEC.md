@@ -400,6 +400,11 @@ by that many u32 offsets at +0x10.
   Three more false exits ([pathfinder+110h] = 3) follow the result-set check: when the query's start and end ids
   are equal (0x0107FC33 / 0x0107FCB2) or after 0x010795E0 (0x0107FD6B). The point check object is
   Kaim::CPointWrapper; with NavKit's file it rejects many deck points that NavKit has as ground (snapped instead).
+  Correction (2026-10-20): the rejected points are off NavKit's ground (no cell within 0.6 m, or 1.5-7 m above
+  it), not deck points. The start / destination ids are route nodes (the query's result records are (id, x, y,
+  z, ...) on NavKit's node positions) in a runtime numbering; the second search stage (0x010795E0) picks the best
+  reached node toward the goal and returns 2 when no node was reached. DICE's route graph has no zero-cost edges;
+  NavKit's headroom build of sp_004_b has 754 (zero-length, between duplicate nodes).
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
