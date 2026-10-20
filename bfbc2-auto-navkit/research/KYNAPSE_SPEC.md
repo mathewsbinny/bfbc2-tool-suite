@@ -442,6 +442,11 @@ by that many u32 offsets at +0x10.
   that node was 3.6-6.3 m from the order point (DICE: 0.2 m). With a route node at each AI order position
   (AreaGeometryEntityData transforms on walkable ground with no node within 3 m) the sp_004_b failures went to 0.
   Why the distance matters inside stage 2 is not traced.
+- **Detailed sectors per campaign level (DICE, 2026-10-20):** 9-85 % of a level's sectors and 12-93 % of its
+  walkable ground (sp_008_b 23 / 27 sectors, 93 %; sp_009 4 / 9, 63 %; sp_004_b 19 / 40, 58 %; sp_008 19 / 41, 46 %;
+  the larger levels 9-33 % of sectors). NeedsDetailedPathfinding within 10 m picks 304 sectors over the 13 levels,
+  300 of them detailed (the 4 others on sp_03 and sp_006), and finds 296 of DICE's 498 detailed sectors - the
+  flag's value is read for only 7-49 % of the placements (most blueprints are in shared packages).
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
