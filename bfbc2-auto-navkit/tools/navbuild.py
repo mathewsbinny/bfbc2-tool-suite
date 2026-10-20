@@ -99,15 +99,14 @@ ORDER_NODES = True              # a route node at AI order positions far from an
                                 # order_points.json from levelobjects.py) - sp_004_b play test 2026-10-20: 0 failures. Was off until
                                 # the sp_004_b play test confirms it (2026-10-20)
 ORDER_NODE_MIN = 3.0            # ... when the nearest node on the same floor is farther than this (m)
-ORDER_STATS = {}                # nodes added (for reports)
-ORDER_NODES_EXCEPT = {          # levels built without order nodes, and why (navregress.order_points_of)
-    'sp_009': "sp_009's order points land in the plane's narrow aisles; the general rule would need a different "
-              "criterion (e.g. reachability from the level's spawn area, which sp_009 doesn't have in MP form) - "
-              "deferred until MP application shows whether the same pattern appears there. With them its "
-              "connectivity fell 4.4 points (order nodes in small spawn islands took the nearest-node matches); "
-              "'largest component only' removed the sp_004_b stairs-top nodes the squad needs, and 'island with "
-              "a spawn' keeps all of sp_009's (2026-10-20).",
-}
+ORDER_STATS = {}                # nodes added, and those removed by prune_order_nodes (for reports)
+ORDER_IDS = set()               # ids of the order nodes of the current build
+ORDER_MIN_ISLAND = 25           # an order node in a route island with fewer nodes is dropped (prune_order_nodes): such
+                                # pockets took the nearest-node matches next to the main networks (sp_009: connectivity
+                                # 66.99 without order nodes, 62.58 with all, 67.45 with this rule; sp_004_b keeps its
+                                # stairs-top nodes and gains 0.26 connectivity / 0.6 AI pairwise). A size, not "the main
+                                # network": campaign levels have several large networks (sp_004_b: 2,577 and 1,255
+                                # nodes). Calibrated on campaign levels; to check on MP geometry (2026-10-20)
 DETOUR_REPAIR = False           # add waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it
                                 # adds 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20)
 DETOUR_TRIGGER = 3.0            # repair node pairs within DIST_EDGE_MAX whose route exceeds this x straight - above DICE's
@@ -616,6 +615,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     next_id = [1]
     border_nodes = defaultdict(list)     # sector -> [(id, pos, k)]
     border_at = {}                       # surface -> (id, pos) of the border node on it
+    ORDER_IDS.clear()
 
     def new_id():
         next_id[0] += 1
@@ -742,6 +742,8 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]
         bounds = (rect[0], rect[1], min(ys), max(ys), rect[2], rect[3])
         graphs.append((sid, bounds, kymesh.write_mesh(mesh), pts, pairs, (ox, oz)))
+    if ORDER_IDS and ORDER_MIN_ISLAND:
+        graphs = prune_order_nodes(graphs)
     linked = {pts[i][0] for _sid, _b, _m, pts, pairs, _o in graphs for a_, b_, _d in pairs for i in (a_, b_)}
     for sid, bounds, mesh_bytes, pts, pairs, origin in graphs:
         nodes, edges = finalize_graph(pts, pairs, linked, origin)
@@ -910,6 +912,43 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
     return pts, pairs
 
 
+def prune_order_nodes(graphs):
+    """Order nodes in a route island under ORDER_MIN_ISLAND nodes lose their edges (finalize_graph then
+    drops them as unlinked); other nodes are untouched. An order node that joins a small pocket becomes the
+    nearest node for points next to the main network, and the runtime takes the nearest node (sp_009: the order
+    nodes cut connectivity 4.4 points through such pockets; 2026-10-20). Components over all sectors (border ids
+    join them). Records the removed ones in ORDER_STATS['removed'] as (id, position, component size)."""
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for _sid, _b, _m, pts, pairs, _o in graphs:
+        for p in pts:
+            find(p[0])
+        for a_, b_, _d in pairs:
+            ra, rb = find(pts[a_][0]), find(pts[b_][0])
+            if ra != rb:
+                parent[ra] = rb
+    size = defaultdict(int)
+    for x in list(parent):
+        size[find(x)] += 1
+    if not size:
+        return graphs
+    drop = {i for i in ORDER_IDS if size[find(i)] < ORDER_MIN_ISLAND}
+    seen = set()
+    for _sid, _b, _m, pts, _pairs, _o in graphs:
+        for p in pts:
+            if p[0] in drop and p[0] not in seen:
+                seen.add(p[0])
+                ORDER_STATS.setdefault('removed', []).append((p[0], tuple(round(v, 2) for v in p[1]), size[find(p[0])]))
+    return [(sid, b, m, pts, [q for q in pairs if pts[q[0]][0] not in drop and pts[q[1]][0] not in drop], o)
+            for sid, b, m, pts, pairs, o in graphs]
+
+
 def add_order_nodes(level, pts, pairs, node_at, area_of, orders, gi0, gj0, ox, oz, new_id):
     """A route node at each AI order position (AreaGeometryEntityData) on this sector's walkable ground whose nearest
     route node on the same floor is farther than ORDER_NODE_MIN, linked to every node within DIST_EDGE_MAX it reaches
@@ -932,6 +971,7 @@ def add_order_nodes(level, pts, pairs, node_at, area_of, orders, gi0, gj0, ox, o
             continue
         u = len(pts)
         pts.append((new_id(), pos, k, gi - gi0, gj - gj0))
+        ORDER_IDS.add(pts[u][0])
         node_at[k] = u
         added += 1
         for q in range(u):

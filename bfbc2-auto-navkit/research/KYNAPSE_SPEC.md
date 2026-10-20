@@ -460,8 +460,11 @@ by that many u32 offsets at +0x10.
   There the order nodes join small route islands that hold soldier spawns (the plane is split into pockets) and
   become the nearest node for points next to the main network. No general criterion separated that from the
   needed nodes: "largest component only" drops sp_004_b's stairs-top nodes (its squad's network is the level's
-  second largest), "island with a spawn" keeps sp_009's. sp_009 is built without order nodes
-  (`navbuild.ORDER_NODES_EXCEPT`) until MP maps show whether the pattern recurs.
+  second largest), "island with a spawn" keeps sp_009's. The rule kept: drop an order node whose route island has
+  fewer than 25 nodes (`navbuild.ORDER_MIN_ISLAND`) - sp_009 67.45 connectivity (66.99 without order nodes),
+  sp_004_b keeps its stairs-top nodes and gains 0.26 connectivity / 0.6 AI pairwise. Campaign levels can have
+  several large route networks (sp_004_b: 2,577 and 1,255 nodes), so pockets are told from networks by size, not
+  by "the main network"; the threshold is campaign-calibrated and has to be checked on MP maps.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile

@@ -102,10 +102,7 @@ def reference_bounds(root, lv):
 
 
 def order_points_of(root, lv):
-    """The level's AI order positions (work/levels/<lv>/order_points.json, written by levelobjects.py), or None
-    (also for the levels in navbuild.ORDER_NODES_EXCEPT)."""
-    if lv.lower() in navbuild.ORDER_NODES_EXCEPT:
-        return None
+    """The level's AI order positions (work/levels/<lv>/order_points.json, written by levelobjects.py), or None."""
     p = os.path.join(root, 'work', 'levels', lv, 'order_points.json')
     return json.load(open(p)) if os.path.isfile(p) else None
 
