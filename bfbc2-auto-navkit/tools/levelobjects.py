@@ -29,13 +29,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hkpack  # noqa: E402
 
 SEP = chr(92)
+# an instance's attributes come in either order: DICE writes guid="..." type="...", Napisal's Onslaught levels
+# type="..." guid="..." - so every instance pattern allows more attributes after type (2026-10-20: ONS_MP_002 had
+# read as 0 placed objects, 0 soldier spawns)
 
 
 def order_points(level_xml):
     """AI order positions of a level: the Transform translation of every AreaGeometryEntityData (the points the
     squad's area / patrol orders send soldiers to; sp_004_b's stairs-top go-to targets are two of them)."""
     pts = []
-    for m in re.finditer(r'type="Entity\.AreaGeometryEntityData">(.*?)</instance>', level_xml, re.S):
+    for m in re.finditer(r'type="Entity\.AreaGeometryEntityData"[^>]*>(.*?)</instance>', level_xml, re.S):
         t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
         if t:
             v = [float(a) for a in t.group(1).split('/')]
@@ -135,7 +138,7 @@ def main(argv):
     flags = blueprint_flags(bases)
     x = open(os.path.join(level_dir, 'dist', 'levels', level + '.xml'), encoding='utf-8', errors='replace').read()
     objs = []
-    for m in re.finditer(r'type="Entity\.ReferenceObjectData">(.*?)</instance>', x, re.S):
+    for m in re.finditer(r'type="Entity\.ReferenceObjectData"[^>]*>(.*?)</instance>', x, re.S):
         t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
         r = re.search(r'<field ref="([^"]*)" name="ReferencedObject"', m.group(1))
         if t and r:
@@ -155,7 +158,7 @@ def main(argv):
                            'm': [float(v) for v in tr[i * 16:(i + 1) * 16]]})
     # soldier spawn points (seed points of the path data)
     spawns = []
-    for m in re.finditer(r'type="[A-Za-z]*\.SoldierSpawnEntityData">(.*?)</instance>', x, re.S):
+    for m in re.finditer(r'type="[A-Za-z]*\.SoldierSpawnEntityData"[^>]*>(.*?)</instance>', x, re.S):
         t = re.search(r'<complex name="Transform">([^<]*)</complex>', m.group(1))
         if t:
             v = [float(a) for a in t.group(1).split('/')]
