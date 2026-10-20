@@ -688,6 +688,16 @@ by that many u32 offsets at +0x10.
   NavKit writes none. "Valid" means the game loads the file; whether the runtime's movement uses them (edge
   avoidance, steps and drops) is not known - open since the first sp_004_b play test (2026-10-19), where the
   friendly squad did not move.
+- **Sampler coverage (ONS_MP_002, 2026-10-20):** the in-game samples can hold a hole the level does not: on
+  ONS_MP_002 both runs record (almost) nothing south of z ~ -511 over the whole map width (rows 0-49 of the box,
+  89-100 % empty, the next row 0 %), where DICE's path data has 4,035 m2 of main-network ground and the terrain
+  heightfield has heights. It cut DICE's only hillside link between the last-base hill and the main network (NavKit
+  island 2, 164 nodes). The build is not involved; the rays found nothing. Open (sampler).
+- **AI orders inside obstacles (recorded, not implemented):** an AI order whose position is inside an obstacle and
+  has no area should get an order node on the nearest walkable ground - targets ONS_MP_002's "Arm pre last B"
+  (nearest node in a 4-node objective pocket), not a general rule. Background: DICE carves mpobjective
+  (ForbidPathfinding = true; 24 of 24 campaign placements without ground) and its own M-COMs (ons_mp_008, holes
+  1.1-1.8 m), so carving objectives stays.
 - **Graph:** see 4.3.1.
 
 Open: exact meaning of D, F and the "up" C portals.
