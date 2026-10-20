@@ -453,7 +453,10 @@ by that many u32 offsets at +0x10.
   in 3 sectors, 36 in 4). NavKit now does the same: a border node on a surface that already holds one reuses its
   id and joins the third sector's list; the owner is still the sector whose 100 m square holds the node. On
   sp_008_b, sp_004_b, sp_01 and sp_005_b: zero-cost edges 0, border ids with one owner up 0.2-1.1 points, parity
-  and boundaries unchanged.
+  and boundaries unchanged. Full 13-level run: zero-cost edges 0 on every level.
+- **Order nodes per level (2026-10-20, 13 campaign levels, with vs without):** order points with a route node within
+  1 m rise from 5-24 % to 37-61 %, those beyond 3 m fall from 15-65 % to 1-8 %, for +0.4 to +3.5 % route nodes;
+  nodes_near rises on every level. One exception: on sp_009 (a plane interior) connectivity falls 4.4 points.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
