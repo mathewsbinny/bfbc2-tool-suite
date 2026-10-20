@@ -47,6 +47,10 @@ SECTOR_SAMPLES = 125            # 100 m / 0.8 m
 WINDOW = range(-1, 127)         # sample indices of a sector window (local)
 TILE = 50                       # samples per tile
 TILES = 3
+TILE_20M_SECTORS = None         # experiment: sector ids (e.g. {0x901, 0x902}) tiled at 20 m (25 samples, 6 x 6 tiles)
+                                # at the normal pitch - DICE's detailed zones have 20 m tiles (but pitch 0.2). For
+                                # offline route checks only: how the runtime gets a sector's tile size is not known
+                                # (its header has no tile size field), so such a build is not for the game (2026-10-19)
 CLIP_TO_REFERENCE = True        # on a level with DICE path data, ground outside its extent (navregress.reference_bounds:
                                 # outlines and portals at every pitch) is left out before seeding. A bound to the
                                 # reference extent, NOT a found rule: DICE's edges are straight cuts (its last cell row
@@ -205,15 +209,20 @@ def sector_origin_index(level, X, Y, xoff, zoff):
     return int(round((ox - s.min_x) / PITCH)), int(round((oz - s.min_z) / PITCH)), ox, oz
 
 
-def build_areas(level, gi0, gj0, start=(-1, -1)):
+def tiling(sid):
+    """(samples per tile, tiles per axis) of a sector."""
+    return (25, 6) if TILE_20M_SECTORS and sid in TILE_20M_SECTORS else (TILE, TILES)
+
+
+def build_areas(level, gi0, gj0, start=(-1, -1), tile=TILE, tiles=TILES):
     """Areas of one sector: list of dicts {tile: (tx, tz), cells: [(i, j, k)]} (local i, j). start: the local sample
     index where the tiles begin on x and z (-1, or 0 on a side with no neighbouring sector - EDGE_SECTOR_TILES)."""
     cells_by_tile = defaultdict(list)
     for j in WINDOW:
         for i in WINDOW:
             for k in level.surfaces(gi0 + i, gj0 + j):
-                tx = min(max(i - start[0], 0) // TILE, TILES - 1)
-                tz = min(max(j - start[1], 0) // TILE, TILES - 1)
+                tx = min(max(i - start[0], 0) // tile, tiles - 1)
+                tz = min(max(j - start[1], 0) // tile, tiles - 1)
                 cells_by_tile[(tx, tz)].append((i, j, k))
     areas = []
     for tile in sorted(cells_by_tile):
@@ -567,7 +576,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         else:
             edge = ((X - 1, Y) not in have, (X, Y - 1) not in have)
         start = tuple(0 if EDGE_SECTOR_TILES and e else -1 for e in edge)
-        areas = build_areas(level, gi0, gj0, start)
+        areas = build_areas(level, gi0, gj0, start, *tiling(((X & 0xFF) << 8) | (Y & 0xFF)))
         # order: tiles column-major, then layer = index within tile
         areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(level.y[c[2]] for c in a['cells'])))
         per_tile = defaultdict(int)
@@ -648,7 +657,8 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         traced = trace_emit(level, areas, edge_sets[(X, Y)][0], gi0, gj0, ox, oz)
         sid = ((X & 0xFF) << 8) | (Y & 0xFF)
         mesh_areas = []
-        tiles = [[] for _ in range(TILES * TILES)]
+        ntiles = tiling(sid)[1]
+        tiles = [[] for _ in range(ntiles * ntiles)]
         for ai, (a, (portals, borders, outline)) in enumerate(zip(areas, traced)):
             ys = [level.y[c[2]] for c in a['cells']]
             # DICE's area height range: from its lowest ground to its highest ground + 1.52 m (all normal-pitch
@@ -658,7 +668,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
             mesh_areas.append(kymesh.Area(sid, a['tile'][0], a['tile'][1], a['layer'], RADIUS, PITCH, hi, lo,
                                           portals, [b[0] for b in borders], [], outline, []))
             a['borders'] = borders
-            tiles[a['tile'][0] * TILES + a['tile'][1]].append(kymesh.TileItem(ai, lo, hi))
+            tiles[a['tile'][0] * ntiles + a['tile'][1]].append(kymesh.TileItem(ai, lo, hi))
         # neighbour links
         links = defaultdict(lambda: defaultdict(list))
         for ai, a in enumerate(areas):
@@ -689,7 +699,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         # -800.0 instead of -800.8). The maximum side keeps the 1.1-pitch margin (DICE drops it at the grid's maximum).
         sx, sz = inf['start']
         rect = (ox + sx * PITCH, ox + 100 + 1.1 * PITCH, oz + sz * PITCH, oz + 100 + 1.1 * PITCH)
-        mesh = kymesh.Mesh(2, 0, 0, sid, RESOLUTION, PITCH, rect, TILES, TILES, RADIUS, tiles, mesh_areas,
+        mesh = kymesh.Mesh(2, 0, 0, sid, RESOLUTION, PITCH, rect, ntiles, ntiles, RADIUS, tiles, mesh_areas,
                            mesh_links, b'\0' * 4)
         pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id)
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]

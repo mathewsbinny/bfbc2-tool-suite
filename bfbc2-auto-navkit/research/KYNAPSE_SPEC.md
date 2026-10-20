@@ -378,6 +378,17 @@ by that many u32 offsets at +0x10.
     uncut areas up to a whole 2,500-cell tile), boundary edges (outline + borders + outgoing portals; "cut when
     over 255" is right for 98.4 % on sp_004_b, 96.8 % on sp_007, 87.5 % on sp_005). sp_004_b has only 2 cut groups.
     Not implemented; parity-only work.
+  - **Detailed zones - which sectors (2026-10-19, sp_004_b, sp_005, sp_007):** a sector is detailed entirely or not
+    at all (0 of 108 detailed sectors also hold pitch-0.8 areas). Header of a detailed sector: pitch 0.2, resolution
+    0.05, 6 x 6 tiles of 20 m (rect -0.2 .. 100.22); normal: pitch 0.8, resolution 0.025, 3 x 3 tiles of 40 m. The
+    header has no tile-size field (how the runtime gets 20 m vs 40 m is not known). **Trigger:** the blueprint field
+    `NeedsDetailedPathfinding` (next to ForbidPathfinding / ExcludeFromPathfinding in the object data). No normal
+    sector on the three levels holds a placement of a flagged blueprint, also with a 10 m margin (0 false of 597
+    sectors); with the 10 m margin the flag finds 18 of 19 detailed sectors on sp_004_b, 18 of 42 on sp_005, 25 of
+    47 on sp_007 - the field is known for only 7 / 41 / 16 % of the placements there (most blueprints are in shared
+    packages not extracted per level), so the misses are expected to shrink once those are read. Sampled features
+    (object ground, stacked floors, stairs, spawns) correlate (90-97 %) but no single threshold holds across levels.
+    So the choice is data-driven and systematic, not per level.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
