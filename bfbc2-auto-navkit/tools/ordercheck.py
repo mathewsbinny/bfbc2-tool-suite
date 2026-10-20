@@ -60,8 +60,8 @@ def order_points(xml_path):
                         q = pos(inst[g][1])
                         if q:
                             pts.append(('PatrolWaypoint', name, q))
-                        nxt = re.search(r'<field ref="([0-9a-f-]{36})" name="Next"', inst[g][1])
-                        g = nxt.group(1).lower() if nxt else ''
+                        nxt = xmlinst.field_ref(inst[g][1], 'Next')
+                        g = nxt.lower() if nxt and re.fullmatch(r'[0-9a-f-]{36}', nxt) else ''
     # unique
     out, seen = [], set()
     for k, n, p in pts:

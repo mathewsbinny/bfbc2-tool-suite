@@ -71,11 +71,11 @@ def mesh_aliases(bases):
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
             t = open(f, encoding='utf-8', errors='replace').read()
-            m = re.search(r'<field ref="([^"]*)" name="Mesh"', t)
-            if not m or m.group(1) == 'null':
+            ref = xmlinst.field_ref(t, 'Mesh')
+            if not ref or ref == 'null':
                 continue
             rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-4]
-            mesh = m.group(1).rsplit('/', 1)[0].lower()
+            mesh = ref.rsplit('/', 1)[0].lower()
             out.setdefault(rel, re.sub(r'_mesh$', '', mesh))
     return out
 
@@ -139,9 +139,9 @@ def main(argv):
     objs = []
     for _typ, _guid, body in xmlinst.instances(x, 'Entity.ReferenceObjectData'):
         t = re.search(r'<complex name="Transform">([^<]*)</complex>', body)
-        r = re.search(r'<field ref="([^"]*)" name="ReferencedObject"', body)
-        if t and r:
-            bp = r.group(1).rsplit('/', 1)[0].lower()
+        r = xmlinst.field_ref(body, 'ReferencedObject')
+        if t and r is not None:
+            bp = r.rsplit('/', 1)[0].lower()
             objs.append({'bp': bp, 'flags': flags.get(bp), 'm': [float(a) for a in t.group(1).split('/')]})
     groups = []
     for f in glob.glob(os.path.join(level_dir, 'dist', 'levels', level, '*_HavokAsset.xml')):
