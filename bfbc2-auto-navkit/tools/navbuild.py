@@ -92,6 +92,7 @@ RADIUS = 0.4
 RESOLUTION = 0.025
 DIST_EDGE_MAX = 15.0
 DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
+SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
 BORDER_NODE_SPACING = 10.0
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
@@ -871,6 +872,12 @@ def finalize_graph(pts, pairs, linked_ids):
     """Nodes and edges of a sector. Nodes without an edge in any sector (lone nodes on slivers and tiny islands
     the group joining cannot reach; border ids count edges of both sectors) are dropped - DICE's data has none."""
     keep = [idx for idx, p in enumerate(pts) if p[0] in linked_ids]
+    if SORT_NODES_BY_ID:
+        # DICE writes a sector's nodes sorted by id as an unsigned 32-bit value - ordinary nodes, then border nodes
+        # (flag 80000000h) - in 40 of 40 sp_004_b sectors (masked to 31 bits: 0 of 40); the runtime binary-searches
+        # these arrays for a path's start / destination ids (0x0108D5E0 / 0x0108D550). NavKit interleaved border
+        # nodes (0 of 40 sorted) - 2026-10-20
+        keep.sort(key=lambda idx: pts[idx][0] & 0xFFFFFFFF)
     new = {old: q for q, old in enumerate(keep)}
     out_edges = defaultdict(list)
     for a_, b_, d in pairs:
