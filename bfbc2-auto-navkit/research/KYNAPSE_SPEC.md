@@ -433,6 +433,9 @@ by that many u32 offsets at +0x10.
   taking the first that passes: in the query's result set, edge / link checks, and a straight-line test on the
   navmesh from the point to the node. So a node only serves a point it can reach in a straight line on the mesh -
   the mesh's area layout, not only the route graph, decides which node a point gets.
+- **Unload crash and node order (2026-10-20):** with a file whose sectors' nodes are not sorted by id, BFBC2
+  crashed when leaving the level (pure virtual call while freeing a Kynapse container); with sorted nodes (as
+  DICE writes them) it exits cleanly. The container's element count at shutdown (10) is the same either way.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
