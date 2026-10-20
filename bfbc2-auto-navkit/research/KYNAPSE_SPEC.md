@@ -412,6 +412,11 @@ by that many u32 offsets at +0x10.
   fix the sp_004_b stops; the node order is the current lead. With the nodes sorted (2026-10-20) the "destination
   id not in the result" failures stopped (29 -> 0) and the runtime ids equal the file ids; the remaining failures
   are all the second search stage's code 2 (no node reached from the start).
+- **Border-node owner (node field c, bit 16; 2026-10-20):** DICE sets it on a border node's copies in the sectors
+  that do not own it; each border id has one owner - the sector whose 100 m square holds the node (1,379 of 1,445
+  sp_004_b ids) - and only the owner's copy has the node's edges. Ordinary nodes never have it. With NavKit
+  setting it on every border copy, searches on sp_004_b failed to expand ("no node reached"); with owners set,
+  false go-to results fell from 164 to 37 and the remaining ones are inside DICE's detailed zone.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
