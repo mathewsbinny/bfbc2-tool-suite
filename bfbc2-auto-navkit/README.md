@@ -201,9 +201,11 @@ src\, tests\         (reserved for the generator proper and its tests)
      1. the sp_004_b squad: how NavKit's paths end against the requested destination (game probe
         `AI: path end vs destination`), then the fix;
      2. the unload crash with NavKit's file;
-     3. the 20 m midline cuts (DICE cuts some tile ground at 18.8 / 58.8 m into the sector);
-     4. detailed zones (DICE has 145 to 5,409 per level; NavKit none) - DICE's stacked floors and the
-        sp_004_b squad's starting deck are detailed zones;
+     3. detailed zones (DICE has 145 to 5,409 per level; NavKit none) - DICE's stacked floors and the
+        sp_004_b squad's starting deck are detailed zones, and the four routes the squad failed in the
+        latest play test all lie in two of them (0x901 / 0x902);
+     4. the 20 m midline cuts (DICE cuts some tile ground at 18.8 / 58.8 m into the sector, on one axis,
+        under a condition not yet found; parity only - not what breaks the sp_004_b routes);
      5. D lines, F cells and "up" border portals.
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 

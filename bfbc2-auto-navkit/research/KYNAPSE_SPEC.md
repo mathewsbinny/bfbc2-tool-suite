@@ -370,6 +370,14 @@ by that many u32 offsets at +0x10.
   - The midline cut is not decided by size: whole 2,500-cell tiles stay uncut. Cut ground tends to have long
     outlines (sp_007: "cut when the summed outline exceeds 300 segments" is right for 99.1 % of ground spanning a
     midline, against 99.4 % for "never cut"; sp_005: 91.7 % against 94.1 %). The trigger is still unknown.
+  - **Midline cut, measured again (2026-10-19, sp_004_b, sp_007, sp_005; unit = DICE areas joined only through
+    portals on a midline, against single areas crossing a midline uncut):** the cut is **conditional**, not a
+    fixed rule. It is on **one axis only** (0 of 326 cut groups are cut on both axes - halves, not quadrants) and
+    along the **longer** side of the area's bounding box (325 of 326). No tested trigger separates cut from uncut
+    on all three levels: height span (cut 6.6-35 m, uncut up to 42 m), cell count (cut halves median ~920 cells,
+    uncut areas up to a whole 2,500-cell tile), boundary edges (outline + borders + outgoing portals; "cut when
+    over 255" is right for 98.4 % on sp_004_b, 96.8 % on sp_007, 87.5 % on sp_005). sp_004_b has only 2 cut groups.
+    Not implemented; parity-only work.
   - DICE also splits steep ground into separate areas: on sp_004_b, 162 of 513 normal areas are single cells at
     36–44° (median 39.5°), and across-area neighbours are steep on both sides (~38–40°).
   - **The area link rule (terrain, measured 2026-10-17, `navbuild.AREA_LINK`):** two terrain cells of a tile
@@ -418,8 +426,11 @@ by that many u32 offsets at +0x10.
     computation ran for every one of 1,860 requests), so a path is computed inside the request; the early empty
     results came from that computation at the squad's spawns (route nodes on other floors - fixed by the headroom
     band). After that fix the remaining failures were "no path" results into one oversized NavKit area (sp_004_b
-    0x902/91: a 40 x 40 m tile, ground 576.5-584.5 m, plus an overlapping one-cell area) that DICE divides into
-    20 x 20 m areas: the 20 m midline cut matters at runtime, not only for parity.
+    0x902/91: a 40 x 40 m tile, ground 576.5-584.5 m, plus an overlapping one-cell area). **Correction
+    (2026-10-19):** that ground is not cut at midlines in DICE's file - sectors 0x901 and 0x902 are **detailed
+    zones** there (all 171 areas pitch 0.2 m, 20 m tiles), which NavKit builds at 0.8 m with 40 m tiles. All
+    four failing routes of the play test start and end in those two sectors. The midline cut is not what breaks
+    them.
   - **Headroom (2026-10-19):** DICE keeps almost no ground with the next surface above it 0.5-2.0 m higher. NavKit's
     ground cells against DICE's, by the gap to the next sampled surface above (sp_004_b / sp_01): 0.4-0.5 m 52 / 50 %
     also DICE ground, 0.5-1.2 m 0-10 / 5-18 %, 1.2-2.0 m 0-1 / 0 %; under 0.5 m (steps, rails) kept; from 2.0 m
