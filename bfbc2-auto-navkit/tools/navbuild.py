@@ -93,6 +93,7 @@ RESOLUTION = 0.025
 DIST_EDGE_MAX = 15.0
 DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
+BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
 BORDER_NODE_SPACING = 10.0
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
@@ -706,10 +707,10 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
         pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id)
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]
         bounds = (rect[0], rect[1], min(ys), max(ys), rect[2], rect[3])
-        graphs.append((sid, bounds, kymesh.write_mesh(mesh), pts, pairs))
-    linked = {pts[i][0] for _sid, _b, _m, pts, pairs in graphs for a_, b_, _d in pairs for i in (a_, b_)}
-    for sid, bounds, mesh_bytes, pts, pairs in graphs:
-        nodes, edges = finalize_graph(pts, pairs, linked)
+        graphs.append((sid, bounds, kymesh.write_mesh(mesh), pts, pairs, (ox, oz)))
+    linked = {pts[i][0] for _sid, _b, _m, pts, pairs, _o in graphs for a_, b_, _d in pairs for i in (a_, b_)}
+    for sid, bounds, mesh_bytes, pts, pairs, origin in graphs:
+        nodes, edges = finalize_graph(pts, pairs, linked, origin)
         hpd_sectors.append(hpdtool.Sector(sid, bounds, 0, date, clock, nodes, edges, mesh_bytes))
     out = hpdtool.HpdFile(HEADER, hpd_sectors)
     data = hpdtool.write(out)
@@ -868,7 +869,7 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
     return pts, pairs
 
 
-def finalize_graph(pts, pairs, linked_ids):
+def finalize_graph(pts, pairs, linked_ids, origin=None):
     """Nodes and edges of a sector. Nodes without an edge in any sector (lone nodes on slivers and tiny islands
     the group joining cannot reach; border ids count edges of both sectors) are dropped - DICE's data has none."""
     keep = [idx for idx, p in enumerate(pts) if p[0] in linked_ids]
@@ -897,13 +898,24 @@ def finalize_graph(pts, pairs, linked_ids):
         for cost, dst in sorted(out_edges[idx], key=lambda e: e[1]):
             edges.append(hpdtool.Edge(cost, idx, dst))
         nodes[idx].a = first + 1 if out_edges[idx] else 0     # DICE: 0 = no outgoing edges
+    def foreign(nd):
+        # bit 16 of c: a border node's copy in a sector that does not own it. DICE: one copy per border id is the
+        # owner (bit clear) - the sector whose 100 m square holds the node (1,379 of 1,445 sp_004_b ids), the
+        # others set; ordinary nodes never. NavKit set the bit on every border copy, so no border node had an
+        # owner (2026-10-20)
+        if not nd.id & 0x80000000:
+            return False
+        if not BORDER_OWNER or origin is None:
+            return True
+        ox, oz = origin
+        return not (ox <= nd.pos[0] < ox + 100 and oz <= nd.pos[2] < oz + 100)
     n = len(nodes)
     by_x = sorted(range(n), key=lambda q: nodes[q].pos[0])
     by_y = sorted(range(n), key=lambda q: nodes[q].pos[1])
     by_z = sorted(range(n), key=lambda q: nodes[q].pos[2])
     for q in range(n):
         nodes[q].b = by_x[q] | (by_y[q] << 16)
-        nodes[q].c = by_z[q] | (0x10000 if nodes[q].id & 0x80000000 else 0)
+        nodes[q].c = by_z[q] | (0x10000 if foreign(nodes[q]) else 0)
     return nodes, edges
 
 
