@@ -49,7 +49,8 @@ it, then the steps, and a log of what NavKit is doing at the bottom.
 1. **Pick a level** in the *Level* list, for example `sp_01`. Leave *Only levels with AI* ticked to list
    only the levels NavKit can measure.
 2. Click **1. Prepare.** NavKit unpacks the level, reads its objects (buildings, fences, stairs, spawn
-   points) and chooses the area to measure. The first time, it also unpacks data shared by all levels,
+   points, and the places the level's AI is sent to) and chooses the area to measure. A level prepared before
+   2026-10-20 does not have those places yet: click Prepare once more. The first time, it also unpacks data shared by all levels,
    which takes about a minute. After that it takes seconds. The *Sampling area* boxes then show the
    chosen area.
 3. Click **2. Sample in game** and confirm. NavKit starts the game, loads the level and measures it. Then
@@ -135,11 +136,15 @@ regions - see the parity tools in [README.md](README.md) (`tools\navparity.py`, 
 3. Play, watching the AI soldiers.
 4. Quit, then click **Restore original** (or `python navkit.py restore <level>`).
 
-Known problems with NavKit's files today (2026-10-19): on SP_004_B the friendly squad did not follow the
-player at the start of the mission - the cause has been found and fixed in NavKit, and the next play test
-will confirm it; and leaving a level with NavKit's file installed can crash the game when it exits (no
-harm to your files - restore the original as usual). Project OPFOR's `DEVELOPMENT_NOTES.md` has the
-details.
+State of NavKit's files today (2026-10-20): on SP_004_B the friendly squad now follows the player and moves
+through the mission on NavKit's file, and leaving a level no longer crashes the game. Parts of DICE's data
+are still missing (detailed zones around buildings, among others), so some levels may still have places
+where the AI stops. Project OPFOR's `DEVELOPMENT_NOTES.md` has the details.
+
+Tip: to start a mission your campaign save is not on, set `level=Levels/<LEVEL>` under `[dev]` in
+`game\opfor.ini` (for example `level=Levels/SP_004_B`), start OPFOR and press **F9** in the main menu. Put
+the line back afterwards (it is normally `level=Levels/MP_005GR`). This can hang on a black loading screen
+for some campaign levels; if it does, close the game and use the campaign menu instead.
 
 ## Where the files go
 

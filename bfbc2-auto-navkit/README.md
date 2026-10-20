@@ -197,16 +197,34 @@ src\, tests\         (reserved for the generator proper and its tests)
      old reference. Levels whose DICE ground is mostly detailed zones (sp_008, sp_008_b, sp_009,
      ons_mp_005gr) are to be reported apart until NavKit builds detailed zones. The full 13-level regression
      is run only when asked (`navregress.py` shows progress and time left per level).
-   - **Next:**
-     1. the sp_004_b squad: how NavKit's paths end against the requested destination (game probe
-        `AI: path end vs destination`), then the fix;
-     2. the unload crash with NavKit's file;
-     3. detailed zones (DICE has 145 to 5,409 per level; NavKit none) - DICE's stacked floors and the
-        sp_004_b squad's starting deck are detailed zones, and the four routes the squad failed in the
-        latest play test all lie in two of them (0x901 / 0x902);
-     4. the 20 m midline cuts (DICE cuts some tile ground at 18.8 / 58.8 m into the sector, on one axis,
-        under a condition not yet found; parity only - not what breaks the sp_004_b routes);
-     5. D lines, F cells and "up" border portals.
+   - **What the game needs from the file (found in play tests on sp_004_b, 2026-10-19 to 10-20):** with
+     these four rules the friendly squad's go-to requests succeed 100 % (they had stalled at the spawn, then
+     at the top of the stairs), and leaving the level no longer crashes (also checked on sp_01). Each is a
+     `tools\navbuild.py` setting, on by default:
+     1. **one route node per surface** (`DEDUP_GRAPH_NODES`): no two ordinary nodes at one position, as in
+        DICE's files (NavKit had 377 duplicate pairs joined by zero-length edges);
+     2. **each sector's nodes sorted by id** (`SORT_NODES_BY_ID`), ordinary nodes first, border nodes
+        (id flag 80000000h) last, as DICE writes them: the game binary-searches these arrays, and unsorted
+        ones made it miss path ids and crash when leaving the level;
+     3. **one owner per border node** (`BORDER_OWNER`): bit 16 of a node's `c` field is set only on the
+        copies in sectors that do not own it (DICE: the owner is the sector whose 100 m square holds the
+        node); NavKit had set it on every copy, and searches did not expand through border nodes;
+     4. **a route node at each AI order position** (`ORDER_NODES`): the game resolves a go-to point to the
+        nearest node within 15 m, and the request failed where that node was 3.6-6.3 m from the order
+        point (DICE: 0.2 m). Order positions are the level's `AreaGeometryEntityData` points, written as
+        `work\levels\<level>\order_points.json` by `levelobjects.py` (part of `navkit.py prepare`).
+     A detour repair pass (`DETOUR_REPAIR`) is kept but off: shorter routes did not fix the stairs-top
+     failure. How the game uses the file is written up in spec §4.5 and in OPFOR's
+     `research\BFBC2_DECOMP_RESEARCH.md` §9.
+   - **Next** (in this order):
+     1. the full 13-level regression with the four rules (running 2026-10-20);
+     2. the tile size of detailed sectors (how the game gets 20 m tiles), then detailed zones at 0.2 m
+        (sectors with an object flagged `NeedsDetailedPathfinding`; new in-game sampling);
+     3. side items: D lines and F cells, "up" border portals, sliver areas, border-to-border duplicate
+        nodes (sp_01 has 22 zero-cost edges from them), the small connectivity / AI pairwise drop the
+        order nodes brought on sp_004_b (-0.22 / -0.6 points);
+     4. then multiplayer maps.
+     The 20 m midline cuts are parity only (conditional, one axis; not what broke the sp_004_b routes).
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 
 Credits: level data is read with the suite's FbrbTool and DbxEdit, based on **Frankelstner**'s format
