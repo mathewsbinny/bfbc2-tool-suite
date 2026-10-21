@@ -739,7 +739,36 @@ by that many u32 offsets at +0x10.
   1.1-1.8 m), so carving objectives stays.
 - **Graph:** see 4.3.1.
 
-Open: exact meaning of D, F and the "up" C portals.
+- **Parity analysis, ONS_MP_002 (2026-10-21; DICE's console infantry file 824862ef against NavKit's build
+  work\navkit\ons_mp_002, offsets -3,-7; offline):**
+  - **Detailed zones cover the playable core.** DICE builds 23 of its 56 sectors at pitch 0.2 (0x0202-0x0203,
+    0x0209-0x020a, 0x0302-0x030a, 0x0404-0x040a, 0x0506-0x0508); NavKit builds all 57 at 0.8. All three failing spots
+    lie in DICE detailed sectors: (83, 254) in 0x0309, the Fishing Port target in 0x040a, the M-COM target in 0x0409.
+  - **Route nodes:** DICE 12,337, NavKit 7,453. Detailed sectors 8,995 / 5,194; normal 3,342 / 2,259. From a point on
+    an area outline to the nearest same-floor node, p50 / p90 / p99: DICE detailed 1.7 / 4.3 / 8.3 m, normal 2.9 / 6.8
+    / 18.6; NavKit 2.8 / 8.4 / 26.1 and 3.4 / 9.9 / 21.3.
+  - **The objective targets are not lost to carving.** NavKit's hole at Fishing Port is 2.4 x 0.8 m (the target in
+    it); at the M-COM the target is on NavKit ground. The gap is node distance: DICE's nearest same-floor node 1.45 /
+    1.47 m, NavKit's 6.35 / 5.59 m.
+  - **Shared (high-bit) nodes are a band, not a row.** DICE's lie a median 2.2 m (p90 9.2, max 15.7 m) from the 100 m
+    grid line, 1.6 m apart along it (p90 5.8); NavKit's sit 0.8 m from it, 8-10 m apart (BORDER_NODE_SPACING 10).
+    Edges between two shared nodes: DICE 8,667 (p50 7.4 m, max 29.9 = two DistEdgeMax reaches), NavKit 2,692 (max
+    14.9). DICE joins neighbouring sectors through about 3x the links; NavKit funnels sector crossings through a sparse
+    row.
+  - **Upper layers:** areas lying wholly above another area of the same sector (> 4 m, overlapping boxes): DICE 48,
+    NavKit 162. At (83, 254) NavKit has two areas 24-30 m above the stop (y 100-106, one portal each); DICE has only
+    the ground area there - it does not keep that surface (consistent with seeded / reachable-only ground, 3.5).
+  - Areas without a route node inside them are normal (DICE 2,098 of 3,279, mostly under 4 m2) - not a difference.
+  - **F cells are two-way step records.** 934 cells, 1 pitch square (0.8 or 0.2 m) at the outline (centre 0.32 m
+    from it). Each has a twin at the same place (centre distance 0 in 926 of 934, same area) facing the opposite way
+    (direction counts +z 248 / -z 248, +x 219 / -x 219); the twins' heights differ by up to about +-0.63 m (p10 / p90).
+    Reading: a height break a soldier can step, stored once per direction of travel, with its corner heights.
+  - **D lines are sub-cell edge detail.** 9,818: 2 points (99 %), axis-aligned (98 %), 0.2-0.84 m long (one pitch),
+    flat, about 0.2 m inside the stair-stepped outline (1 % on it), 58 % with both ends at outline vertices. Reading
+    (inferred): the obstacle edge between the outline's grid corners, at a finer resolution than the pitch.
+
+Open: exact meaning of D, F and the "up" C portals (the readings above are statistical; the runtime's use is not
+known).
 
 ### 4.6 Structured round trip and writing conventions
 
