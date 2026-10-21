@@ -714,7 +714,10 @@ by that many u32 offsets at +0x10.
   no checks); the failure comes from another step of the request (open). So a node-coverage rule would not address it.
   Probed further: the request's node lookup (0x01086CE0) fails there - mostly at its query-chain check 0x0105C440
   (every link of the pathfinder's query chain must be done, status 5, not failed / aborted) before any gather; the
-  point query and the snap do not decide it. Which link is not ready is open.
+  point query and the snap do not decide it. Which link is not ready is open; parked as a known confound (0.65 % of
+  requests in that run). Two different problems, not to be merged: (83, 254) is a query-chain-check failure at a spot,
+  not a destination-point failure; Fishing Port's destination point fails the point query on the objective's footprint
+  (2,053 of 10,883 queries, within about 1 m of the mpobjective origin) - a mission-layer question if it matters.
   The units that do get paths there walk to their one target and stop (3-18 m, arriving within 2-8 s): path end
   EQUAL and the follow branch as on sp_004_b; the mover works on DICE's file - they get no second destination.
 - **AI orders inside obstacles (tried 2026-10-20, not adopted):** an AI order whose position is inside an obstacle and
@@ -725,7 +728,9 @@ by that many u32 offsets at +0x10.
   from AreaOrders. Not adopted: as written it also fires on campaign levels (their orders and waypoints off the
   ground), and on ONS_MP_002 its new nodes got no links and were pruned; the M-COM target has no AreaOrder at all.
   It is not the tool for the Fishing Port failures either: NavKit already has a same-floor node 4.24 m from that
-  target (well inside R = 15 m); what fails there is the request's point resolution, not node proximity. Background: DICE carves mpobjective
+  target (well inside R = 15 m); what fails there is the request's point resolution, not node proximity. Kept
+  stashed (suite stash@{0}) for a future MP map where an order point has no walkable area within 3 m; it fires on
+  campaign levels, so it cannot be committed without a campaign-side filter. Background: DICE carves mpobjective
   (ForbidPathfinding = true; 24 of 24 campaign placements without ground) and its own M-COMs (ons_mp_008, holes
   1.1-1.8 m), so carving objectives stays.
 - **Graph:** see 4.3.1.
