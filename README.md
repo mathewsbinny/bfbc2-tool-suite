@@ -48,7 +48,7 @@ log file.
 | `bfbc2-automated-map-and-bot-test-harness/crash-reader/` | **crash reader**: the game's `crashreport.xml` turned into names, code, null pointers and hints |
 | `core/` | the shared core: Python readers for `.dbx`, terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking |
 | `bfbc2-map-inspector/` | **Map Inspector**: browse a level in 3D and inspect every object's source, properties and links; measure |
-| `bfbc2-navigation-studio/` | **Navigation Studio** (viewing): NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network |
+| `bfbc2-navigation-studio/` | **Navigation Studio** (viewing): NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network; a reference level's AI layer drawn on another level (`--compare`) and an anomaly overlay of NavKit builds, both with JSON export (`overlay.py`) |
 
 **Planned** (see [DESIGN.md](DESIGN.md))
 

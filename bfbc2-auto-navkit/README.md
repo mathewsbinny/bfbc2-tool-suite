@@ -232,14 +232,21 @@ src\, tests\         (reserved for the generator proper and its tests)
        missing - every route request from one sector then fails, on DICE's own file. OPFOR's
        `[dev] sector_offsets=-3,-7` supplies DICE's values; with it the AI advance and destroy an M-COM;
      - the first NavKit-against-DICE play test on an MP map (per unit, with OPFOR's unit counters): NavKit's
-       file fails 1.8-2.5 % of route requests (DICE's 0.09 %) - a route split at (83, 254) and no route node
-       near the two objective targets, which NavKit carves as M-COM footprints - but gets more units walking.
+       file fails 1.8-2.5 % of route requests (DICE's 0.09 %) but gets more units walking. The failures:
+       units stopping at (83, 254) - probed in game, not a route split and not node placement: the request's
+       node lookup fails at the runtime's query-chain check at that spot (0.65 % of requests; parked as a known
+       confound); and the objective targets, where NavKit carves the M-COM footprints and the destination point
+       query fails (a mission-layer question). An order-node rule for orders inside obstacles was tried and not
+       adopted (it fired on campaign levels; kept as a stash).
      - The in-game samples have a coverage hole south of z ~ -511 on this map (a sampler question).
+     - Stock MP maps have no AI layer (HasAI false, one disabled AI spawner, no orders, squads or path data):
+       bots there need an AI layer authored on top, as Napisal did; NavKit's part comes after that.
      Details: OPFOR's `MP_APPLICATION_LOG.md`, spec section 4.5.
    - **Next** (in this order):
-     1. ONS_MP_002: the route split at (83, 254); an order node on the nearest walkable ground for an AI order
-        inside an obstacle (spec 4.5); then a repeat of the play test;
-     2. stock MP_002 with OPFOR's `force_ai` (does the level's own spawning give AI there?);
+     1. combat on ONS_MP_002 (the AI aim but never fire - level-data candidates: no squad entities, player
+        kits on the AI spawners; tests proposed in OPFOR's MP log);
+     2. the AI layer for stock MP maps (a design first; the Navigation Studio's reference overlay shows
+        Napisal's and DICE's layers on a stock map);
      3. the tile size of detailed sectors (how the game gets 20 m tiles), then detailed zones at 0.2 m
         (sectors with an object flagged `NeedsDetailedPathfinding`; new in-game sampling);
      4. side items: D lines and F cells, "up" border portals, sliver areas, border-to-border duplicate
