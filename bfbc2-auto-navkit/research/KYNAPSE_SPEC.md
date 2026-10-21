@@ -712,6 +712,9 @@ by that many u32 offsets at +0x10.
   DICE's are same-level, 2.4-3.6 m. Probed (2026-10-20): the gather bounds height - the node above is never a
   candidate - and the resolver accepts a same-level node of NavKit's main network every time (1,965 / 1,965, 5-6 m,
   no checks); the failure comes from another step of the request (open). So a node-coverage rule would not address it.
+  Probed further: the request's node lookup (0x01086CE0) fails there - mostly at its query-chain check 0x0105C440
+  (every link of the pathfinder's query chain must be done, status 5, not failed / aborted) before any gather; the
+  point query and the snap do not decide it. Which link is not ready is open.
   The units that do get paths there walk to their one target and stop (3-18 m, arriving within 2-8 s): path end
   EQUAL and the follow branch as on sp_004_b; the mover works on DICE's file - they get no second destination.
 - **AI orders inside obstacles (tried 2026-10-20, not adopted):** an AI order whose position is inside an obstacle and
