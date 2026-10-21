@@ -225,8 +225,10 @@ src\, tests\         (reserved for the generator proper and its tests)
    - **Multiplayer, first map: ONS_MP_002 (2026-10-20)** - Napisal's co-op Rush level on Valparaiso, whose
      path data is DICE's Xbox 360 Onslaught file (byte-identical). Found and done on the way:
      - levels without a `SectorOffsets` asset (the Onslaught ports, stock MP maps, new maps) get DICE's rule
-       for the sector numbering: one sector below the path data's lowest extent (all 15 shipped
-       `SectorOffsets` follow it);
+       for the sector numbering: one sector below the path data's lowest extent. Correction (2026-10-21): the
+       rule holds for every shipped infantry asset but not for 7 of 13 vehicle assets; a DICE file's own offset is
+       read from its sector ids (floor(sector centre / 100) - grid id, the most common value: 27 of 27 shipped
+       assets). NavKit's own files are numbered by its own offsets, so its builds stay consistent;
      - the level reader accepts the attribute orders other tools write (`core/bfbc2core/xmlinst.py`);
      - the game itself reads `Precomputed/<kind>/SectorOffsets` at level load and uses 0,0 when it is
        missing - every route request from one sector then fails, on DICE's own file. OPFOR's

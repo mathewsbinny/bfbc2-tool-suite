@@ -239,9 +239,13 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
   move on that floor only.
 - **Per-level inputs:** `SectorOffsets` (`Levels/<lvl>/Precomputed/Infantry/SectorOffsets.dbx`) gives the
   sector grid. Levels without one (the Onslaught ports, stock MP levels, new maps): offset = floor(lowest
-  path-data extent / 100) - 1 per axis, so the first sector id is 1,1 - all 15 shipped SectorOffsets follow it
-  (13 campaign levels and DICE's Xbox ons_mp_005 / ons_mp_008), and so does DICE's ons_mp_002 / ons_mp_004 path
-  data (-3,-7 / -3,-5); a new map without path data uses its sampling box's minimum. Whether the runtime needs the
+  path-data extent / 100) - 1 per axis, so the first sector id is 1,1 - every shipped infantry SectorOffsets
+  follows it (13 campaign levels and DICE's Xbox ons_mp_005 / ons_mp_008), and so does DICE's ons_mp_002 /
+  ons_mp_004 infantry path data (-3,-7 / -3,-5); a new map without path data uses its sampling box's minimum.
+  Correction (2026-10-21): 7 of the 13 shipped vehicle assets do not follow it (vehicle data starts further in
+  than the grid DICE numbered it on; ONS_MP_002's vehicle file: rule -2,-7, asset and ids -3,-7). The offset a file
+  was built with is read from its own sector ids: per sector floor(centre / 100) - grid id, the most common value -
+  27 of 27 shipped assets. OPFOR's apply_sector_offsets.py writes the PC ports' assets that way. Whether the runtime needs the
   ids to match an offset is unproven. The sampling box is DICE's sector bounds plus a margin (for levels without data: the
   playable area). Two sampling runs per level: the normal capsule and the high capsule (from 0.6 m) for
   stairs and landings.
