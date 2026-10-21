@@ -60,6 +60,53 @@ DICE's own data only additive edits are offered (links, route edges, traversals,
 into a copy, `work\navkit\<level>\pathdata_dice_edited.hpd`, for this PC only): region edits need
 a NavKit build to rebuild. `--navtune <file>` opens a side file from elsewhere, `--edit` opens the panel.
 
+**Compare with a reference AI layer (read-only).** Draws another level's AI layer on this level's terrain, for
+example Napisal's Onslaught AI on stock Valparaiso, which has none:
+
+```
+python studio.py mp_002 --compare level:ons_mp_002     Napisal's ONS_MP_002 (any level prepared in Project OPFOR)
+python studio.py mp_002 --compare xbox:ons_mp_002      DICE's Xbox 360 Onslaught level (unpacked into work\xbox_dlc)
+python studio.py mp_002 --compare <path to a level .xml>
+```
+
+It works on a level without any path data. Drawn, each a layer you can switch: AI spawners red, human spawners
+blue (filled box = enabled, outline = disabled; the selection panel shows the team and squad id); AreaOrders
+yellow (a box on a short stem; they carry no team or squad, so the panel shows their AreaType instead); patrol
+orders orange, a line through their waypoints; objective objects (`mpobjective`, `communicationstation`) grey;
+the reference's path-data area outlines light green. The *Compare with reference* panel shows the reference's
+HasAI and SectorOffsets ("none" when the level has no such asset - never inferred), its counts, and filters
+(AI spawners, human spawners, orders, objectives, path data, enabled spawners only). Click a reference marker:
+a line runs to this level's nearest NavKit route node on the same floor (green within the game's 15 m gather
+radius, red beyond) and the panel gives the distance and that node's network. **export JSON** writes
+`work\navstudio\<level>_vs_<source>.json`: per spawner, order, patrol waypoint and objective its position and
+fields, whether NavKit's build has walkable ground there, the nearest same-floor route node and whether it is on
+the main network; a header with both levels, the files and the reference's HasAI and SectorOffsets. The same
+export without opening a window: `python overlay.py <level> --reference <source> [--out file.json]`.
+
+**Anomaly overlay (NavKit builds).** The *Anomaly overlay* panel, and the colour mode *anomaly*: the main
+network green, islands of 25 or more nodes grey, islands under 25 nodes magenta. Flags on top, each a layer with
+its count in the legend: soldier spawns whose nearest route node is on an island under 25 nodes (red outline);
+AI orders and patrol waypoints with no route node within 15 m on their floor (amber outline); sliver areas -
+under 5 cells, no portal or border portal (yellow cells); lonely route nodes - no other node within 12 m on the
+same floor (magenta dots). The orders and spawns are the level's own (read from its level file). **export JSON**
+writes `work\navstudio\<level>_anomalies.json`, per anomaly its class, position and value (island size, cell
+count, distance); headless: `python overlay.py <level> --anomalies`. Read the counts against DICE's own file, not as
+absolutes: on the campaign levels DICE's working data has as many orders and spawns without a nearby node as
+NavKit's (first use, below) - AreaOrder positions are area volumes, not always walkable points.
+
+**First use (2026-10-21).** Napisal's ONS_MP_002 and DICE's Xbox ONS_MP_002 drawn on stock MP_002:
+- none of Napisal's 28 enabled AI spawners lies within 3 m of a DICE console spawner (nearest 6.1-108.5 m, median
+  58.9 m) - his AI layer is his own placement, not a copy of DICE's;
+- 38 of his 41 AreaOrders sit on the PC Rush objectives (within 5 m; median 0.0 m) and only 3 are nearer a DICE
+  console AreaOrder (10 within 5 m of one; median 8.3 m) - his orders follow the PC Rush layout;
+- campaign sanity (AI spawners, AreaOrders and patrol waypoints without a route node within 15 m on their floor):
+  sp_004_b NavKit 7 / 31 / 0 against DICE's 7 / 39 / 0; sp_01 NavKit 52 / 56 / 2 against DICE's 55 / 58 / 3; AI
+  spawners on islands under 25 nodes: sp_004_b 31 (DICE 23), sp_01 19 (DICE 13). NavKit is at or below DICE on the
+  first three and somewhat above on the small-island spawns.
+Not computed as asked: AreaOrders carry no team or squad field (coloured by AreaType instead); a target level
+without a SectorOffsets asset shows "none"; the reference's path-data outlines are drawn at their own heights, not
+flattened; labels are in the panels (the 3D view has no text).
+
 **Panels**
 
 - *Navigation:* per file the areas (detailed ones), cells, route nodes and edges, islands; DICE ground

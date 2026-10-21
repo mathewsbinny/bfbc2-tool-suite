@@ -158,7 +158,20 @@ class NavIndex:
         return [k for i in range(cx - n, cx + n + 1) for j in range(cz - n, cz + n + 1) for k in grid.get((i, j), ())]
 
     def nearest_node(self, p, r=R_GATHER, exclude=None):
-        """(distance, node index, island size, on the main island) of the nearest same-floor node within r, or None."""
+        """(distance, node index, island size, on the main island) of the nearest same-floor node within r, or None.
+        Beyond 200 m (any distance) it searches all nodes at once instead of the 10 m buckets."""
+        if r > 200.0:
+            if not len(self.nav.node_pos):
+                return None
+            d = np.hypot(self.nav.node_pos[:, 0] - p[0], self.nav.node_pos[:, 2] - p[2])
+            d = np.where(np.abs(self.ground_y - p[1]) <= SAME_FLOOR, d, np.inf)
+            if exclude is not None:
+                d[exclude] = np.inf
+            k = int(np.argmin(d))
+            if not np.isfinite(d[k]) or d[k] > r:
+                return None
+            isl = int(self.nav.node_island[k])
+            return round(float(d[k]), 2), k, self.size[isl], isl == 0
         best = None
         for k in self._near(self.nodes, p[0], p[2], r):
             if k == exclude or abs(self.ground_y[k] - p[1]) > SAME_FLOOR:
