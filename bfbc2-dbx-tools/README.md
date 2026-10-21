@@ -110,11 +110,17 @@ Commands (a `@file` argument reads more commands from a file, one per line; `#` 
 | `graft=<src.dbx>\|<guid>[\|<before guid>]` | copies an instance from another file, with every instance of that file it references |
 | `copyfield=<src.dbx>\|<src guid>\|<field>\|<guid>` | copies one field (arrays included) from another file's instance |
 | `additem=<guid>\|<array>\|<ref>[\|<before ref>]` | adds a reference to an array field of an instance |
-| `setfield=<guid>\|<field>\|<value>` | sets a text field or a single 4-byte number of an instance |
+| `setfield=<guid>\|<field>\|<value>` | sets a text field or a single 4-byte number of an instance (not a reference - see below) |
 | `set=<field>\|<true\|false\|0-255>` | sets every bool / byte field called `<field>` |
 | `partguid=<guid>` | sets the partition's own GUID (for a copy under a new name) |
 
 The exact rules for each command are in [FORMAT.md](FORMAT.md).
+
+**Known limitation - `setfield` on a reference field.** It reports `setfield: 1 field(s)` but writes the value as
+the element's text and leaves the reference unchanged: after
+`DbxEdit edit in.dbx out.dbx "setfield=<guid>|Template|objects/x/y/<guid>"`, `DbxEdit xml out.dbx` shows
+`<field name="Template" ref="<old ref>">objects/x/y/<guid></field>`. To change a reference, use
+`copyfield=<src.dbx>|<src guid>|<field>|<guid>` from an instance that already holds the wanted one.
 
 ## Errors and logs
 
