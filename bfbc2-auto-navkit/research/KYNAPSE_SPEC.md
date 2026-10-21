@@ -709,14 +709,18 @@ by that many u32 offsets at +0x10.
   The "split at (83, 254)" is not a graph split (start and target in one NavKit network): units stop at
   (82-83, 254) under a level 24 m above and their start no longer resolves (code 1). NavKit's nearest node there
   by XZ is on the upper level (0.5-1.8 m), its nearest same-level node 4.7-6.2 m away with no clean straight line;
-  DICE's are same-level, 2.4-3.6 m. Whether the runtime's gather ignores height or every same-level candidate fails
-  the line test is open (probe). Candidate rule, not implemented: a route node within about 3 m of every walkable
-  cell by a straight walkable line.
+  DICE's are same-level, 2.4-3.6 m. Probed (2026-10-20): the gather bounds height - the node above is never a
+  candidate - and the resolver accepts a same-level node of NavKit's main network every time (1,965 / 1,965, 5-6 m,
+  no checks); the failure comes from another step of the request (open). So a node-coverage rule would not address it.
   The units that do get paths there walk to their one target and stop (3-18 m, arriving within 2-8 s): path end
   EQUAL and the follow branch as on sp_004_b; the mover works on DICE's file - they get no second destination.
-- **AI orders inside obstacles (recorded, not implemented):** an AI order whose position is inside an obstacle and
+- **AI orders inside obstacles (tried 2026-10-20, not adopted):** an AI order whose position is inside an obstacle and
   has no area should get an order node on the nearest walkable ground - targets ONS_MP_002's "Arm pre last B"
-  (nearest node in a 4-node objective pocket), not a general rule. Background: DICE carves mpobjective
+  (nearest node in a 4-node objective pocket), not a general rule. Tried as ORDER_NODES_IN_OBSTACLES with a 3 m bound
+  (DICE's nodes sit 0.2-1.26 m from such points on ons_mp_008; kept apart from DIST_EDGE_MAX), reading the level's
+  AreaOrder positions (ordercheck) - not the AreaGeometryEntityData points ORDER_NODES uses; the objective targets come
+  from AreaOrders. Not adopted: as written it also fires on campaign levels (their orders and waypoints off the
+  ground), and on ONS_MP_002 its new nodes got no links and were pruned; the M-COM target has no AreaOrder at all. Background: DICE carves mpobjective
   (ForbidPathfinding = true; 24 of 24 campaign placements without ground) and its own M-COMs (ons_mp_008, holes
   1.1-1.8 m), so carving objectives stays.
 - **Graph:** see 4.3.1.
