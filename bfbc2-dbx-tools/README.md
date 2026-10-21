@@ -122,6 +122,15 @@ the element's text and leaves the reference unchanged: after
 `<field name="Template" ref="<old ref>">objects/x/y/<guid></field>`. To change a reference, use
 `copyfield=<src.dbx>|<src guid>|<field>|<guid>` from an instance that already holds the wanted one.
 
+**Known limitation - `import` gives new fields no type from `--types`.** A field the reference does not match
+(for example in an instance with a new guid) is typed by guess even when the same field exists in the `--types`
+files: after `DbxEdit import new.xml out.dbx --types SectorOffsets.dbx` (new.xml: a PathdataSectorOffsets instance
+with a new guid, `<field name="XOffset">-3</field>`), the import reports "no type known, taken as decimal" and writes
+a 4-byte float where the game stores a 4-byte integer. Workaround: write the XML with the reference's own guids and
+import with `--like` (the fields are then changed values and keep their type), then give the result its own guids
+with `edit "replace=<old instance guid>|<new>" "partguid=<new>"`. The reference's string table is kept, so its
+now-unused strings stay in the file.
+
 ## Errors and logs
 
 DbxEdit, DbxEditGUI and LevelDiff (which builds on `DbxEdit.cs`) keep a log in
