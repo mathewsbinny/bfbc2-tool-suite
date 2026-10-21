@@ -49,7 +49,8 @@ it, then the steps, and a log of what NavKit is doing at the bottom.
 1. **Pick a level** in the *Level* list, for example `sp_01`. Leave *Only levels with AI* ticked to list
    only the levels NavKit can measure.
 2. Click **1. Prepare.** NavKit unpacks the level, reads its objects (buildings, fences, stairs, spawn
-   points, and the places the level's AI is sent to) and chooses the area to measure. A level prepared before
+   points, and the places the level's AI is sent to) and chooses the area to measure. It reads levels made with
+   DICE's tools and with modders' tools such as Napisal's, which write the level files in a different order. A level prepared before
    2026-10-20 does not have those places yet: click Prepare once more. The first time, it also unpacks data shared by all levels,
    which takes about a minute. After that it takes seconds. The *Sampling area* boxes then show the
    chosen area.

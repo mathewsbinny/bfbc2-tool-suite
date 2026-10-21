@@ -47,6 +47,8 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   navsample.py       read in-game collision samples; compare with a pathdata.hpd
   hkpack.py          Havok 5.5 binary packfile reader (the level's *_Havok.res collision assets)
   levelobjects.py    object placements, pathfinding flags, forbidden-object triangles of a level
+                     (reads the level XML through core's bfbc2core/xmlinst.py: instances and field refs in any
+                     attribute order - DICE's tools write guid / ref first, Napisal's type / name first)
   navwalk.py         walkability rules + scoring against existing path data
   navbuild.py        the generator: samples + level objects -> pathdata.hpd
   ordercheck.py      scoring: AI order positions on the areas, pairwise route check, self-check
