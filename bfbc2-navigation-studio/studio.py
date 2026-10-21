@@ -2,6 +2,8 @@
 
   python studio.py <level> [--candidate <pathdata.hpd>] [--reference <pathdata.hpd>] [--color island|sector|pitch|difference]
   python studio.py <level> --screenshot out.png [--frames N] [--color ...] [--island N] [--hide <layer>,...]   (tests)
+  python studio.py <level> --compare <source>      a reference level's AI layer on this level (overlay.py; sources
+                                                     level:<lv>, xbox:<lv> or a level .xml); works without path data
 
 Defaults: the reference is DICE's path data in Project OPFOR's game copy; the candidate is NavKit's newest
 build of the level (the newest of work\\navkit\\<level>\\pathdata.hpd, work\\navkit\\regress\\<level>.hpd and
@@ -32,7 +34,18 @@ from bfbc2core import level as levelmod, navdata, navpath, viewer  # noqa: E402
 FILES = ('NavKit', 'DICE')
 ID_BASE = {'NavKit': 0x200000, 'DICE': 0x400000}          # + area index
 TERRAIN_ID, WATER_ID = 0xFFFFFE, 0xFFFFFD
-COLOR_MODES = ['island', 'sector', 'pitch', 'difference']
+COLOR_MODES = ['island', 'sector', 'pitch', 'difference', 'anomaly']
+REF_BASE = 0x600000                                      # + reference entity index (compare overlay)
+DIMMED, WARNING = (0.45, 0.48, 0.45), (0.95, 0.25, 0.85)  # anomaly colours: islands of 25+ nodes, islands under 25
+REF_COLOURS = {'AI spawners (enabled)': (0.95, 0.15, 0.15), 'AI spawners (disabled)': (0.95, 0.45, 0.45),
+               'human spawners (enabled)': (0.2, 0.45, 1.0), 'human spawners (disabled)': (0.55, 0.7, 1.0),
+               'area orders': (1.0, 0.85, 0.2), 'patrol orders': (1.0, 0.6, 0.1), 'objectives': (0.85, 0.85, 0.85),
+               'path data outlines': (0.6, 0.95, 0.6)}
+ANOMALY_COLOURS = {'spawners on small islands': (1.0, 0.1, 0.1), 'orders without a node': (1.0, 0.7, 0.0),
+                   'sliver areas': (1.0, 0.95, 0.3), 'lonely nodes': (1.0, 0.4, 0.9)}
+COMPARE_FILTERS = {'AI spawners': ('AI spawners (enabled)', 'AI spawners (disabled)'),
+                   'human spawners': ('human spawners (enabled)', 'human spawners (disabled)'),
+                   'orders': ('area orders', 'patrol orders'), 'objectives': ('objectives',), 'path data': ('path data outlines',)}
 MAIN, SAME_C, EXTRA, MISSING, NORMAL, DETAILED = (0.35, 0.75, 0.35), (0.55, 0.62, 0.55), (1.0, 0.55, 0.15), \
     (0.9, 0.15, 0.15), (0.30, 0.60, 0.80), (1.0, 0.60, 0.15)
 LIFT = 0.06                                              # ground cells drawn just above the surface
@@ -50,6 +63,14 @@ def default_files(root, lv):
                           os.path.join(root, 'work', 'navbuild', f'{lv}_W.hpd')) if os.path.isfile(p)]
     cand = max(builds, key=os.path.getmtime) if builds else None          # the newest NavKit build
     return cand, (ref if ref and os.path.isfile(ref) else None)
+
+
+def box_edges(centre, size):
+    """The 12 edges of an axis-aligned box (an outline marker)."""
+    c, h = np.asarray(centre, dtype=np.float64), size / 2.0
+    k = np.array([[x, y, z] for x in (-h, h) for y in (-h, h) for z in (-h, h)]) + c
+    pairs = [(a, b) for a in range(8) for b in range(a + 1, 8) if bin(a ^ b).count('1') == 1]
+    return np.array([[k[a], k[b]] for a, b in pairs])
 
 
 def cell_quads(xz, y, heightfield=None, lift=LIFT):
@@ -71,7 +92,7 @@ def cell_quads(xz, y, heightfield=None, lift=LIFT):
 
 
 class Studio:
-    def __init__(self, lvl, files, color='island'):
+    def __init__(self, lvl, files, color='island', compare=None):
         self.lvl, self.files, self.color = lvl, files, color
         self.scene = viewer.Scene()
         L = self.scene.layer
@@ -134,7 +155,155 @@ class Studio:
         self.editor = None                                  # editing.Editor, set by main()
         self.island_file = 'NavKit' if 'NavKit' in files else 'DICE'
         self.spawn_report = {name: self.spawn_islands(nav) for name, nav in files.items()}
+        self.ref_segs = []
+        self.compare, self.compare_index = compare, None
+        self.ref_items = []                                 # (kind, entry) per reference marker, id REF_BASE + index
+        if compare is not None:
+            self.add_compare_layers(compare)
+        self.anomaly = None
+        if 'NavKit' in files:
+            self.add_anomaly_layers()
         self.apply_colors()
+
+    # --- piece 1: a reference level's AI layer -----------------------------------------------------------
+    def add_compare_layers(self, compare):
+        import overlay
+        L = self.scene.layer
+        lay = {k: L(f'reference {k}', c) for k, c in REF_COLOURS.items()}
+        self.layers.update({f'reference {k}': v for k, v in lay.items()})
+        rep = compare['report']
+        for s in rep['spawners']:
+            ai = s['player_type'] == 'SSAiPlayer'
+            key = f'{"AI" if ai else "human"} spawners ({"enabled" if s["enabled"] else "disabled"})'
+            oid = REF_BASE + len(self.ref_items)
+            self.ref_items.append(('spawner', s))
+            p = np.array(s['pos']) + np.array([0, 0.9, 0])
+            if s['enabled']:
+                self.scene.add_box(p, 1.4, oid, lay[key])
+            else:
+                self.scene.add_lines(box_edges(p, 1.4), oid, lay[key])
+        for o in rep['area_orders']:
+            oid = REF_BASE + len(self.ref_items)
+            self.ref_items.append(('area order', o))
+            p = np.array(o['pos']) + np.array([0, 1.2, 0])
+            self.scene.add_box(p, 1.0, oid, lay['area orders'])
+            self.scene.add_lines(np.array([[p - [0, 1.2, 0], p]]), oid, lay['area orders'])
+        for pt in compare['layer']['patrols']:
+            q = np.array(pt['points']) + np.array([0, 0.5, 0])
+            if len(q) > 1:
+                oid = REF_BASE + len(self.ref_items)
+                self.ref_items.append(('patrol', {'name': pt['name'], 'pos': list(q[0] - [0, 0.5, 0]), 'points': pt['points']}))
+                self.scene.add_lines(np.stack([q[:-1], q[1:]], axis=1), oid, lay['patrol orders'])
+        for o in rep['objectives']:
+            oid = REF_BASE + len(self.ref_items)
+            self.ref_items.append(('objective', o))
+            self.scene.add_box(np.array(o['pos']) + np.array([0, 0.6, 0]), 1.2, oid, lay['objectives'])
+        nav = compare.get('pathdata')
+        if nav is not None:
+            lines = [line for a in nav.areas for line in a.outline]
+            if lines:
+                pts = np.concatenate(lines)
+                owner = np.repeat(np.arange(len(lines)), [len(l) for l in lines])
+                keep = owner[:-1] == owner[1:]
+                segs = np.stack([pts[:-1][keep], pts[1:][keep]], axis=1) - np.array([0, navdata.Y_OFFSET - 0.15, 0])
+                self.scene.add_lines(segs, 0xFFFFF2, lay['path data outlines'])
+        self.compare_index = overlay.NavIndex(self.files['NavKit']) if 'NavKit' in self.files else None
+
+    def select_reference(self, k):
+        """A reference marker selected: the line to the target's nearest NavKit route node on its floor."""
+        self.selected = ('ref', k)
+        self.ref_segs = []
+        kind, e = self.ref_items[k]
+        self.ref_near = None
+        if self.compare_index is not None:
+            n = self.compare_index.nearest_node(e['pos'], r=1e9)
+            if n:
+                node = self.files['NavKit'].node_pos[n[1]] - np.array([0, navdata.Y_OFFSET, 0])
+                self.ref_near = n
+                col = (0.3, 1.0, 0.3) if n[0] <= 15.0 else MISSING
+                self.ref_segs = [(np.array(e['pos']) + [0, 0.3, 0], node + [0, 0.3, 0], col)]
+
+    def panel_compare(self, v):
+        if self.compare is None:
+            return
+        rep = self.compare['report']
+        w = imgui.get_io().display_size.x
+        imgui.set_next_window_pos((w - 430, 680), imgui.Cond_.first_use_ever)
+        imgui.begin('Compare with reference', flags=imgui.WindowFlags_.always_auto_resize)
+        imgui.text(f'reference: {rep["reference"]}')
+        imgui.text_disabled(os.path.basename(rep['reference_xml'] or ''))
+        imgui.text(f'HasAI {rep["reference_has_ai"]}; SectorOffsets {rep["reference_sector_offsets"] or "none"}')
+        s = rep['summary']
+        imgui.text(f'{s["spawners"]} spawners ({s["ai_spawners_enabled"]} AI enabled), {s["area_orders"]} area orders, '
+                   f'{s["patrols"]} patrols, {s["objectives"]} objectives')
+        imgui.text(f'target NavKit build: {os.path.basename(os.path.dirname(rep["target_navkit_build"])) if rep["target_navkit_build"] else "none"}')
+        imgui.separator()
+        for label, names in COMPARE_FILTERS.items():
+            ids = [self.layers[f'reference {n}'] for n in names]
+            changed, on = imgui.checkbox(f'{label}##cmp', all(v.layer_visible(i) for i in ids))
+            if changed:
+                for i in ids:
+                    v.set_layer_visible(i, on)
+        dis = [self.layers['reference AI spawners (disabled)'], self.layers['reference human spawners (disabled)']]
+        changed, only = imgui.checkbox('enabled spawners only##cmp', not any(v.layer_visible(i) for i in dis))
+        if changed:
+            for i in dis:
+                v.set_layer_visible(i, not only)
+        if imgui.button('export JSON##cmp'):
+            self.compare['saved'] = save_json(self.lvl.opfor, f'{self.lvl.lv}_vs_{self.compare["slug"]}.json', rep)
+        if self.compare.get('saved'):
+            imgui.text_disabled(self.compare['saved'])
+        imgui.end()
+
+    # --- piece 2: anomalies of NavKit's build -----------------------------------------------------------
+    def add_anomaly_layers(self):
+        import overlay
+        try:
+            _l, xml, _h, _o = overlay.reference_source(f'level:{self.lvl.lv}', self.lvl.opfor)
+            layer = overlay.read_ai_layer(xml) if xml else {'spawners': [], 'area_orders': [], 'patrols': []}
+        except (OSError, ValueError):
+            layer = {'spawners': [], 'area_orders': [], 'patrols': []}
+        nav = self.files['NavKit']
+        self.anomaly = overlay.anomalies(nav, layer)
+        L = self.scene.layer
+        lay = {k: L(f'anomaly: {k}', c) for k, c in ANOMALY_COLOURS.items()}
+        self.layers.update({f'anomaly: {k}': v for k, v in lay.items()})
+        for a in self.anomaly['spawners_on_small_islands']:
+            self.scene.add_lines(box_edges(np.array(a['pos']) + [0, 0.9, 0], 3.0), 0xFFFFF3, lay['spawners on small islands'])
+        for a in self.anomaly['orders_without_node']:
+            self.scene.add_lines(box_edges(np.array(a['pos']) + [0, 1.2, 0], 3.0), 0xFFFFF3, lay['orders without a node'])
+        sl = np.isin(nav.cell_area, [a['area'] for a in self.anomaly['sliver_areas']])
+        if sl.any():
+            self.scene.add_triangles(cell_quads(nav.cell_xz[sl], nav.cell_y[sl], self.lvl.heightfield, LIFT + 0.05),
+                                     np.repeat(ID_BASE['NavKit'] + nav.cell_area[sl], 2), lay['sliver areas'])
+        for a in self.anomaly['lonely_nodes']:
+            self.scene.add_box(np.array(a['pos']) - [0, navdata.Y_OFFSET - 0.4, 0], 0.7, 0xFFFFF3, lay['lonely nodes'])
+
+    def panel_anomaly(self, v):
+        if self.anomaly is None:
+            return
+        imgui.set_next_window_pos((380, 300), imgui.Cond_.first_use_ever)
+        imgui.begin('Anomaly overlay', flags=imgui.WindowFlags_.always_auto_resize)
+        if imgui.radio_button('colour islands by size (anomaly)', self.color == 'anomaly'):
+            self.color = 'anomaly'
+            self.apply_colors(v)
+        imgui.text_disabled('ground: main network green, islands of 25+ nodes grey, under 25 magenta')
+        imgui.text(f'small islands (under 25 nodes): {len(self.anomaly["small_islands"])}')
+        for label, key in (('spawners on small islands', 'spawners_on_small_islands'), ('orders without a node', 'orders_without_node'),
+                           ('sliver areas', 'sliver_areas'), ('lonely nodes', 'lonely_nodes')):
+            i = self.layers[f'anomaly: {label}']
+            imgui.color_button(f'##{label}', imgui.ImVec4(*ANOMALY_COLOURS[label], 1.0), size=(14, 14))
+            imgui.same_line()
+            changed, on = imgui.checkbox(f'{label}: {len(self.anomaly[key])}', v.layer_visible(i))
+            if changed:
+                v.set_layer_visible(i, on)
+        if imgui.button('export JSON##anom'):
+            self.anomaly_saved = save_json(self.lvl.opfor, f'{self.lvl.lv}_anomalies.json',
+                                           {'target': self.lvl.lv, 'navkit_build': self.files['NavKit'].path,
+                                            'counts': {k: len(x) for k, x in self.anomaly.items()}, **self.anomaly})
+        if getattr(self, 'anomaly_saved', None):
+            imgui.text_disabled(self.anomaly_saved)
+        imgui.end()
 
     # --- colours ------------------------------------------------------------------------------------
     def cell_colors(self, name):
@@ -151,6 +320,13 @@ class Studio:
         if self.color == 'pitch':
             det = np.array([x.detailed for x in nav.areas])[a]
             return np.where(det[:, None], np.array(DETAILED), np.array(NORMAL))
+        if self.color == 'anomaly':
+            isl = np.array([x.island for x in nav.areas])[a] if len(a) else np.zeros(0, int)
+            size = np.array([i.nodes for i in nav.islands] or [0])
+            n = size[np.clip(isl, 0, len(size) - 1)]
+            col = np.where((n >= 25)[:, None], np.array(DIMMED), np.array(WARNING))
+            col[isl == 0] = MAIN
+            return col
         same = self.same.get(name)
         if same is None:
             return np.tile(np.array(SAME_C), (len(a), 1))
@@ -231,7 +407,8 @@ class Studio:
 
     def refresh_overlay(self, v):
         """The overlay: the path test's points and routes, and every edit with the drawing in progress."""
-        v.set_overlay(getattr(self, 'path_segs', []) + (self.editor.segments() if self.editor is not None else []))
+        v.set_overlay(getattr(self, 'path_segs', []) + getattr(self, 'ref_segs', []) +
+                      (self.editor.segments() if self.editor is not None else []))
 
     def path_point(self, v, p):
         """A click in path mode: the start, then the end (a third click starts again)."""
@@ -311,6 +488,12 @@ class Studio:
             self.selected = hit
             if hit is None and oid is not None and 0x100000 <= oid < 0x100000 + len(self.spawns):
                 self.selected = ('spawn', oid - 0x100000)
+            if hit is None and oid is not None and REF_BASE <= oid < REF_BASE + len(self.ref_items):
+                self.select_reference(oid - REF_BASE)
+                self.refresh_overlay(v)
+            elif self.ref_segs:
+                self.ref_segs = []
+                self.refresh_overlay(v)
         return handler
 
     # --- panels -------------------------------------------------------------------------------------
@@ -332,7 +515,7 @@ class Studio:
         imgui.separator()
         imgui.text('colour the ground by')
         for m in COLOR_MODES:
-            if m == 'difference' and not self.diff:
+            if (m == 'difference' and not self.diff) or (m == 'anomaly' and self.anomaly is None):
                 continue
             imgui.same_line()
             if imgui.radio_button(m, self.color == m):
@@ -346,6 +529,8 @@ class Studio:
         imgui.end()
 
     def panel_islands(self, v):
+        if not self.files:
+            return
         w = imgui.get_io().display_size.x
         imgui.set_next_window_pos((w - 430, 10), imgui.Cond_.first_use_ever)
         imgui.set_next_window_size((420, 420), imgui.Cond_.first_use_ever)
@@ -385,6 +570,26 @@ class Studio:
         imgui.set_next_window_pos((io.display_size.x - 430, 440), imgui.Cond_.first_use_ever)
         imgui.set_next_window_size((420, 230), imgui.Cond_.first_use_ever)
         imgui.begin('Selection')
+        if self.selected[0] == 'ref':
+            kind, e = self.ref_items[self.selected[1]]
+            imgui.text(f'reference {kind}: {e.get("name") or e.get("type") or ""}')
+            p = e['pos']
+            imgui.text(f'at {p[0]:.1f}, {p[1]:.1f}, {p[2]:.1f}')
+            if kind == 'spawner':
+                imgui.text(f'{e["player_type"]}, {"enabled" if e["enabled"] else "disabled"}, {e["team"]}, {e["squad_id"]}'
+                           f'{", in a squad entity" if e.get("in_squad_entity") else ""}')
+            if kind == 'area order':
+                imgui.text(f'AreaType {e.get("area_type")}')
+            n = getattr(self, 'ref_near', None)
+            if self.compare_index is None:
+                imgui.text_disabled('no NavKit build of the target level')
+            elif n is None:
+                imgui.text('no NavKit route node on its floor')
+            else:
+                imgui.text(f'nearest NavKit route node on its floor: {n[0]:.1f} m ({"within" if n[0] <= 15 else "beyond"} R = 15 m)')
+                imgui.text(f'  in a network of {n[2]:,} nodes{" (the main one)" if n[3] else ""}')
+            imgui.end()
+            return
         if self.selected[0] == 'spawn':
             e = self.spawns[self.selected[1]]
             imgui.text(f'{e.short_type} {e.name or ""}')
@@ -422,6 +627,17 @@ class Studio:
         imgui.end()
 
 
+def save_json(opfor, name, data):
+    """An export into work\\navstudio; returns the path."""
+    import json
+    d = os.path.join(opfor, 'work', 'navstudio')
+    os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, name)
+    with open(p, 'w') as fh:
+        json.dump(data, fh, indent=1, default=lambda o: o.tolist() if hasattr(o, 'tolist') else str(o))
+    return p
+
+
 def main(argv):
     opts, args, k = {}, [], 1
     while k < len(argv):
@@ -447,20 +663,31 @@ def main(argv):
         if p and os.path.isfile(p):
             print(f'{name}: {p}')
             files[name] = navdata.load(p, lvl.heightfield, cache)
-    if not files:
-        print('no path data for this level (neither DICE\'s nor a NavKit build)')
+    compare = None
+    if '--compare' in opts:
+        import overlay
+        spec = opts['--compare']
+        rep = overlay.reference_report(lvl.lv, spec, lvl.opfor, files['NavKit'].path if 'NavKit' in files else None)
+        ref_nav = navdata.load(rep['reference_pathdata'], None, cache) if rep['reference_pathdata'] else None
+        compare = {'report': rep, 'layer': overlay.read_ai_layer(rep['reference_xml']), 'pathdata': ref_nav,
+                   'slug': ''.join(c if c.isalnum() else '_' for c in spec.lower())}
+        print(f'reference: {rep["reference"]} - {rep["summary"]}')
+    if not files and compare is None:
+        print('no path data for this level (neither DICE\'s nor a NavKit build); --compare <source> works without')
         return 1
-    st = Studio(lvl, files, opts.get('--color', 'island'))
+    st = Studio(lvl, files, opts.get('--color', 'island'), compare)
     st.triangles = st.scene.triangle_count()
     import editing
-    st.editor = editing.Editor(st, lvl.opfor, lvl.lv, f'Levels/{lvl.name}')
-    if '--navtune' in opts:                                 # a side file somewhere else (tests, shared files)
+    if files:                                               # edits need path data; a compare-only view has none
+        st.editor = editing.Editor(st, lvl.opfor, lvl.lv, f'Levels/{lvl.name}')
+    if st.editor is not None and '--navtune' in opts:       # a side file somewhere else (tests, shared files)
         from bfbc2core import navtune
         st.editor.path = opts['--navtune']
         if os.path.isfile(st.editor.path):
             st.editor.tune = navtune.load(st.editor.path)
     v = viewer.Viewer(st.scene, f'BFBC2 Navigation Studio - {lvl.name}',
-                      panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_path, st.editor.panel, st.panel_status])
+                      panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_path, st.panel_compare,
+                              st.panel_anomaly] + ([st.editor.panel] if st.editor is not None else []) + [st.panel_status])
     v.on_pick = st.on_pick(v)
     hide = set(opts.get('--hide', 'objects,DICE ground,DICE outlines,DICE portals,DICE border portals,DICE route graph,'
                                    'NavKit outlines,NavKit portals,NavKit border portals,NavKit route graph').split(','))
@@ -472,7 +699,7 @@ def main(argv):
         n = int(opts['--island'])
         if n < len(nav.islands):
             v.camera.focus(nav.islands[n].centre, 60.0)
-    if '--edit' in argv or '--navtune' in opts:
+    if st.editor is not None and ('--edit' in argv or '--navtune' in opts):
         st.editor.open = True
     st.refresh_overlay(v)
     if '--path' in opts:                                    # tests: a path test between two points
