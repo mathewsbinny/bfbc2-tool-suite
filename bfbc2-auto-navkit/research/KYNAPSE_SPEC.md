@@ -720,7 +720,9 @@ by that many u32 offsets at +0x10.
   (DICE's nodes sit 0.2-1.26 m from such points on ons_mp_008; kept apart from DIST_EDGE_MAX), reading the level's
   AreaOrder positions (ordercheck) - not the AreaGeometryEntityData points ORDER_NODES uses; the objective targets come
   from AreaOrders. Not adopted: as written it also fires on campaign levels (their orders and waypoints off the
-  ground), and on ONS_MP_002 its new nodes got no links and were pruned; the M-COM target has no AreaOrder at all. Background: DICE carves mpobjective
+  ground), and on ONS_MP_002 its new nodes got no links and were pruned; the M-COM target has no AreaOrder at all.
+  It is not the tool for the Fishing Port failures either: NavKit already has a same-floor node 4.24 m from that
+  target (well inside R = 15 m); what fails there is the request's point resolution, not node proximity. Background: DICE carves mpobjective
   (ForbidPathfinding = true; 24 of 24 campaign placements without ground) and its own M-COMs (ons_mp_008, holes
   1.1-1.8 m), so carving objectives stays.
 - **Graph:** see 4.3.1.
