@@ -12,7 +12,7 @@ To learn how it works inside, read [README.md](README.md) and the
 | Level | Can NavKit build it? |
 |---|---|
 | The 13 campaign levels (`sp_*`) | Yes. NavKit's files are checked against DICE's. |
-| Onslaught maps (`ons_mp_*`) | Yes. They have AI, so they can be measured. |
+| Onslaught maps (`ons_mp_*`) | Yes. They have AI, so they can be measured. These are Napisal's co-op Rush levels. They ship without the file that tells the game how the path data is numbered, so in game set OPFOR's `[dev] sector_offsets` (ONS_MP_002: `-3,-7`) - with either file, DICE's or NavKit's - or many AI route requests fail. |
 | Stock multiplayer maps (`mp_*`) | **Not yet.** NavKit measures a level while its AI is running, and stock multiplayer maps start without AI. Support is planned. |
 
 The GUI and `navkit.py levels` mark the levels you can use today as *samplable*.
@@ -152,7 +152,7 @@ All of these are inside the Project OPFOR folder:
 
 | File | What it is |
 |---|---|
-| `work\navkit\<level>\navkit.json` | the sampling area and sector numbering chosen by Prepare |
+| `work\navkit\<level>\navkit.json` | the sampling area and sector numbering chosen by Prepare (the level's own `SectorOffsets`, or DICE's rule when it has none) |
 | `work\navsample\<level>_navkit.bin`, `..._navkit_hi.bin` | the two in-game measurements |
 | `work\navkit\<level>\pathdata.hpd` | **the result** |
 | `work\navkit\<level>\check.txt` | the full check report |

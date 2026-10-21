@@ -62,7 +62,7 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
-## Plan and status (2026-10-19)
+## Plan and status (2026-10-20)
 
 1. **`.hpd` format – done.** Header, sector table, per-sector graph and runtime mesh fully decoded
    (spec §4); `hpdtool.py` parses every campaign file.
@@ -217,14 +217,31 @@ src\, tests\         (reserved for the generator proper and its tests)
      A detour repair pass (`DETOUR_REPAIR`) is kept but off: shorter routes did not fix the stairs-top
      failure. How the game uses the file is written up in spec §4.5 and in OPFOR's
      `research\BFBC2_DECOMP_RESEARCH.md` §9.
+   - **13-level regression with the four rules - accepted (2026-10-20):** order nodes in route islands under
+     25 nodes are dropped (`ORDER_MIN_ISLAND`; it replaced a per-level exception for sp_009); zero-cost edges
+     0 everywhere, sorted sectors 100 %, owners 98-100 %.
+   - **Multiplayer, first map: ONS_MP_002 (2026-10-20)** - Napisal's co-op Rush level on Valparaiso, whose
+     path data is DICE's Xbox 360 Onslaught file (byte-identical). Found and done on the way:
+     - levels without a `SectorOffsets` asset (the Onslaught ports, stock MP maps, new maps) get DICE's rule
+       for the sector numbering: one sector below the path data's lowest extent (all 15 shipped
+       `SectorOffsets` follow it);
+     - the level reader accepts the attribute orders other tools write (`core/bfbc2core/xmlinst.py`);
+     - the game itself reads `Precomputed/<kind>/SectorOffsets` at level load and uses 0,0 when it is
+       missing - every route request from one sector then fails, on DICE's own file. OPFOR's
+       `[dev] sector_offsets=-3,-7` supplies DICE's values; with it the AI advance and destroy an M-COM;
+     - the first NavKit-against-DICE play test on an MP map (per unit, with OPFOR's unit counters): NavKit's
+       file fails 1.8-2.5 % of route requests (DICE's 0.09 %) - a route split at (83, 254) and no route node
+       near the two objective targets, which NavKit carves as M-COM footprints - but gets more units walking.
+     - The in-game samples have a coverage hole south of z ~ -511 on this map (a sampler question).
+     Details: OPFOR's `MP_APPLICATION_LOG.md`, spec section 4.5.
    - **Next** (in this order):
-     1. the full 13-level regression with the four rules (running 2026-10-20);
-     2. the tile size of detailed sectors (how the game gets 20 m tiles), then detailed zones at 0.2 m
+     1. ONS_MP_002: the route split at (83, 254); an order node on the nearest walkable ground for an AI order
+        inside an obstacle (spec 4.5); then a repeat of the play test;
+     2. stock MP_002 with OPFOR's `force_ai` (does the level's own spawning give AI there?);
+     3. the tile size of detailed sectors (how the game gets 20 m tiles), then detailed zones at 0.2 m
         (sectors with an object flagged `NeedsDetailedPathfinding`; new in-game sampling);
-     3. side items: D lines and F cells, "up" border portals, sliver areas, border-to-border duplicate
-        nodes (sp_01 has 22 zero-cost edges from them), the small connectivity / AI pairwise drop the
-        order nodes brought on sp_004_b (-0.22 / -0.6 points);
-     4. then multiplayer maps.
+     4. side items: D lines and F cells, "up" border portals, sliver areas, border-to-border duplicate
+        nodes (sp_01 has 22 zero-cost edges from them), the sampler coverage hole.
      The 20 m midline cuts are parity only (conditional, one axis; not what broke the sp_004_b routes).
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 
