@@ -706,6 +706,12 @@ by that many u32 offsets at +0x10.
   (f) on ONS_MP_002 (Rush, offsets -3,-7): NavKit's file fails 1.8-2.5 % of requests (DICE's 0.09 %) - a route split
   at (83, 254) between NavKit's two large networks, and no route node within 4 m of the two objective targets,
   which NavKit carves as mpobjective footprints (stage 2 code 2 about 20 m short).
+  The "split at (83, 254)" is not a graph split (start and target in one NavKit network): units stop at
+  (82-83, 254) under a level 24 m above and their start no longer resolves (code 1). NavKit's nearest node there
+  by XZ is on the upper level (0.5-1.8 m), its nearest same-level node 4.7-6.2 m away with no clean straight line;
+  DICE's are same-level, 2.4-3.6 m. Whether the runtime's gather ignores height or every same-level candidate fails
+  the line test is open (probe). Candidate rule, not implemented: a route node within about 3 m of every walkable
+  cell by a straight walkable line.
   The units that do get paths there walk to their one target and stop (3-18 m, arriving within 2-8 s): path end
   EQUAL and the follow branch as on sp_004_b; the mover works on DICE's file - they get no second destination.
 - **AI orders inside obstacles (recorded, not implemented):** an AI order whose position is inside an obstacle and
