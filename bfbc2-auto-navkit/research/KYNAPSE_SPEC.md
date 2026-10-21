@@ -703,6 +703,9 @@ by that many u32 offsets at +0x10.
   resolve (6,737 / 6,737; at 0,0: 74 of 1,155 failed, all starting in 0x30a); why 0x309 resolved at 0,0 is open.
   Open, separate: one ONS_MP_002 unit fails every request (code 1) after the first M-COM falls, its targets within
   3 m of the destroyed M-COM on ordinary DICE ground (not carved there); its start is not known yet.
+  (f) on ONS_MP_002 (Rush, offsets -3,-7): NavKit's file fails 1.8-2.5 % of requests (DICE's 0.09 %) - a route split
+  at (83, 254) between NavKit's two large networks, and no route node within 4 m of the two objective targets,
+  which NavKit carves as mpobjective footprints (stage 2 code 2 about 20 m short).
   The units that do get paths there walk to their one target and stop (3-18 m, arriving within 2-8 s): path end
   EQUAL and the follow branch as on sp_004_b; the mover works on DICE's file - they get no second destination.
 - **AI orders inside obstacles (recorded, not implemented):** an AI order whose position is inside an obstacle and
