@@ -86,6 +86,12 @@ def havok_index(bases):
         for f in glob.glob(os.path.join(base, '**', '*_havok.res'), recursive=True):
             rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-len('_havok.res')]
             out.setdefault(rel, f)
+            # some assets name their packfile <name>_Havok_Havok.res (sp_009's animated aircraft door,
+            # PdtWhenAlive: without its collision the closed door stayed solid and cut the plane's cabins apart;
+            # inv_Wall): the blueprint is <name>
+            while rel.endswith('_havok'):
+                rel = rel[:-len('_havok')]
+                out.setdefault(rel, f)
     return out
 
 

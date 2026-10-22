@@ -643,9 +643,15 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
                                     return_stairs=True,
                                     narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf,
                                     extra_seeds=list(seeds or []) + list(seed_points or []), soldier_points=soldiers,
-                                    ladders=ladders, **hand)
+                                    ladders=ladders, **hand,
+                                    # roof pruning anchors: soldier spawns, AI order positions, and (stage b) the ground
+                                    # the normal build kept - stage b drops only roofs that build did not have
+                                    anchors=list(seeds or []) + list(order_points or []) + list(seed_points or []))
     level = Level(s, keep, step, gx, gz, stair)
-    log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
+    log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)'
+        + (f'; roof islands dropped {navwalk.ROOF_STATS.get("dropped", 0)} ({navwalk.ROOF_STATS.get("surfaces", 0)} surfaces)'
+           if navwalk.ROOF_PRUNE else ''))
+    navwalk.ROOF_STATS.clear()
     # ladder links: the kept surfaces at each ladder's foot and top (navwalk.ladder_ends)
     ladder_pairs = []
     for lad in (ladders or ()):

@@ -17,7 +17,7 @@ Usage:
 import math
 import os
 import sys
-from collections import deque
+from collections import defaultdict, deque
 
 import numpy as np
 
@@ -36,6 +36,51 @@ CHARACTERS_ABSENT = True            # soldiers are not in path data: their surfa
                                     # and beside them is not blocked by them (as dynamic props) - before 2026-10-19 the
                                     # squad's spawn cells were left out, and in game the squad could not path to the
                                     # player (sp_004_b NavKit play test: 7 of 73 go-to requests found a path)
+STEEP_TERRAIN = False              # terrain whose sampled normal is steeper than the slope limit (up to
+                                    # STEEP_TERRAIN_MAX) is walkable when its slope from the heights STEEP_TERRAIN_SPAN m
+                                    # either side is within the limit: DICE judges slope over a distance, not by a terrain
+                                    # triangle's normal (sp_03, 0.8 m samples: 1.9 % of DICE's ground has a normal over
+                                    # 40 deg, median 36.8 deg from the heights). The 0.8 m grid stepped over such bands; at
+                                    # 0.2 m every column of one failed and cut valley-to-plateau routes (sp_03 detailed
+                                    # build: connectivity 98.8 -> 63.2, 2026-10-22). Off: on sp_03 it raised ground
+                                    # 97.3 -> 98.9 but extra ground 6.2 -> 12.0 and over-connection 19 -> 42 %, and
+                                    # connectivity only 63.2 -> 63.8 - those routes were cut by something else
+STEEP_TERRAIN_MAX = 55.0
+LIP_WIDTH = 2                      # pitch < 0.5 only: a terrain sample steeper than the slope limit (up to
+                                    # STEEP_TERRAIN_MAX) is walkable when walkable ground lies within LIP_WIDTH samples on
+                                    # both opposite sides (an axis or a diagonal) with a slope within the limit between them
+                                    # - a narrow lip. The 0.8 m step rule steps over such lips; at 0.2 m one cut sp_007's
+                                    # north strip off (connectivity 96.2 -> 81.2, 2026-10-22). DICE at pitch 0.2 covers
+                                    # 81-86 % of terrain under 40 deg and 15 % at 40-45, so a blanket rule is wrong
+                                    # (STEEP_TERRAIN); of the lips this accepts DICE covers 40 % (sp_007 window: +0.9 %
+                                    # ground, +1.4 % extra; width 3: +1.3 / +3.0). None to switch off
+LIP_OBJECT_RISE = 0.3              # ... and on objects when the steep sample is within this of the walkable ground on
+                                    # both sides: door sills and thresholds (sp_009's aircraft: a 5 cm sill with steep
+                                    # sides at every hull-section seam cut the aisle at pitch 0.2), never wall tops or
+                                    # ledges; None for terrain only
+ROOF_PRUNE = True                  # drop roof islands nothing reaches: a kept island (step-rule connected) that
+                                    # holds no anchor (soldier spawn, AI order position, ladder end, or ground the
+                                    # normal build kept - stage b), is not the largest, is mostly raised (ROOF_SHARE of
+                                    # it on objects with a surface ROOF_RAISE m or more below), and has no anchored
+                                    # ground within ROOF_NEAR m at its own height (ROOF_NEAR_DY). Ground-level islands
+                                    # stay: DICE keeps those (all 15 levels, 2026-10-22: dropping unanchored islands
+                                    # under 25 nodes cost as much DICE ground as extra it removed), but not detached
+                                    # roofs and scenery tops (this rule: mean -1.31 points extra for -0.28 shared;
+                                    # sp_008 -7.4 / -2.25, sp_01 -3.6 / -0.01)
+ROOF_RAISE = 2.0
+ROOF_SHARE = 0.5
+ROOF_NEAR = 2.0
+ROOF_NEAR_DY = 2.5
+ROOF_STATS = {}
+DYNAMIC_ABSENT_HEADROOM = True     # dynamic props do not count as a ceiling for HEADROOM_BAND (they are absent for path
+                                    # data - a closed gate's leaves made the floor beside it 'low headroom')
+DYNAMIC_FLOOR = 0.3                # a surface on a dynamic prop within this of walkable floor in a neighbouring column
+                                    # stands for the floor under the prop (the sampler records only a prop lying on the
+                                    # floor, e.g. a gate's bottom rail 0.09 m up - its columns were a hole, and at pitch
+                                    # 0.2 a closed gate cut the only way through a wall: sp_003_b's monastery gate,
+                                    # 2026-10-22); None to switch off
+STEEP_TERRAIN_SPAN = 0.8
+STEEP_STATS = {}
 OUTLINE_Y_OFFSET = 0.95            # outline heights in pathdata.hpd = ground + EntityHeight / 2
 PITCH = 0.8
 SECTOR = 100.0
@@ -182,13 +227,12 @@ def near_objects(s, tris, grow=0.5, below=2.2, above=0.3):
     return out
 
 
-def stair_slope(s, mask):
+def stair_slope(s, mask, r=1, tol=0.7):
     """Slope (degrees) from neighbouring sample heights on the same layer (central differences, +-1 sample),
     for the surfaces in mask; 90 where a neighbour is missing. (Measured over +-0.8 m at pitch 0.2 it recognised far
     more stairs, but with a 0.5 m step on them it joined decks and ledges to streets - over-connection 2.2 -> 35.3 % on
     ONS_MP_002; not adopted, 2026-10-21.)"""
     y = s.y.astype(float)
-    r = 1
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
     out = np.full(len(y), 90.0)
     gxo = np.zeros(len(y)); gzo = np.zeros(len(y))
@@ -199,7 +243,7 @@ def stair_slope(s, mask):
         c = j * s.nx + i
         best = None
         for k in range(s.start[c], s.start[c + 1]):
-            if abs(y[k] - yref) <= 0.7 and (best is None or abs(y[k] - yref) < abs(best - yref)):
+            if abs(y[k] - yref) <= tol and (best is None or abs(y[k] - yref) < abs(best - yref)):
                 best = y[k]
         return best
     for k in np.nonzero(mask)[0]:
@@ -221,6 +265,49 @@ def stair_slope(s, mask):
         gzo[k] = diff(cc, d)
         out[k] = math.degrees(math.atan(math.hypot(gxo[k], gzo[k])))
     return out, gxo, gzo
+
+
+def narrow_lips(s, base, cand, slope, width, rise=None):
+    """The cand surfaces (steep terrain) with a base surface (walkable) within width samples on both opposite sides
+    along an axis or a diagonal - same layer, each step within 0.7 m - and a slope within the limit between those two
+    (LIP_WIDTH). rise: the candidate also within this height of both of those (LIP_OBJECT_RISE)."""
+    y = s.y.astype(float)
+    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+    lim = math.tan(math.radians(slope))
+    out = np.zeros(len(y), bool)
+
+    def side(i, j, yref, di, dj):
+        for t in range(1, width + 1):
+            a, b = i + di * t, j + dj * t
+            if not (0 <= a < s.nx and 0 <= b < s.nz):
+                return None
+            c = b * s.nx + a
+            best = None
+            for n in range(s.start[c], s.start[c + 1]):
+                if abs(y[n] - yref) <= 0.7 * t and (best is None or abs(y[n] - yref) < abs(y[best] - yref)):
+                    best = n
+            if best is None:
+                return None
+            if base[best]:
+                return best, t
+        return None
+    for k in np.nonzero(cand)[0]:
+        c = col_of[k]
+        i, j = c % s.nx, c // s.nx
+        for di, dj in ((1, 0), (0, 1), (1, 1), (1, -1)):
+            p = side(i, j, y[k], di, dj)
+            if p is None:
+                continue
+            m = side(i, j, y[k], -di, -dj)
+            if m is None:
+                continue
+            d = (p[1] + m[1]) * s.pitch * (math.sqrt(2) if di and dj else 1)
+            if rise is not None and (abs(y[k] - y[p[0]]) > rise or abs(y[k] - y[m[0]]) > rise):
+                continue
+            if abs(y[p[0]] - y[m[0]]) / d <= lim:
+                out[k] = True
+                break
+    return out
 
 
 def matched_flags(s, other):
@@ -285,7 +372,7 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
              stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08,
              extra_seeds=None, return_stairs=False, force_walkable=None, force_unwalkable=None, unseeds=None,
-             soldier_points=None, ladders=None):
+             soldier_points=None, ladders=None, anchors=None):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -313,6 +400,29 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
         # excluded objects do not block clearance; their upper parts are not floor
         clear |= near_objects(s, exclude_tris) & ((s.flags & 2) == 0)
     ok = clear & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01) & ~character
+    if STEEP_TERRAIN:
+        steep = terrain & clear & ~character & ~ok & (s.normal[:, 1] >= math.cos(math.radians(STEEP_TERRAIN_MAX)))
+        if steep.any():
+            r = max(1, int(round(STEEP_TERRAIN_SPAN / s.pitch)))
+            gs_t, tgx, tgz = stair_slope(s, steep, r=r, tol=max(0.7, 1.2 * r * s.pitch))
+            accept = steep & (gs_t <= slope)
+            ok |= accept
+            # the link rule predicts steps from these gradients: the heights', not the steep normals'
+            gx_all = np.where(accept, tgx, gx_all)
+            gz_all = np.where(accept, tgz, gz_all)
+            STEEP_STATS['accepted'] = STEEP_STATS.get('accepted', 0) + int(accept.sum())
+            STEEP_STATS['candidates'] = STEEP_STATS.get('candidates', 0) + int(steep.sum())
+    if LIP_WIDTH and s.pitch < 0.5:
+        steep_c = clear & ~character & ~ok & (s.normal[:, 1] >= math.cos(math.radians(STEEP_TERRAIN_MAX)))
+        lips = narrow_lips(s, ok, terrain & steep_c, slope, LIP_WIDTH)
+        if LIP_OBJECT_RISE is not None:
+            lips |= narrow_lips(s, ok, ~terrain & steep_c, slope, LIP_WIDTH, rise=LIP_OBJECT_RISE)
+        if lips.any():
+            _gs, lgx, lgz = stair_slope(s, lips)
+            ok |= lips
+            gx_all = np.where(lips, lgx, gx_all)
+            gz_all = np.where(lips, lgz, gz_all)
+        STEEP_STATS['lips'] = STEEP_STATS.get('lips', 0) + int(lips.sum())
     on_stair = np.zeros(len(y), bool)
     if stair_tris is not None and len(stair_tris):
         # staircase objects: surfaces on / right beside them are not blocked by the staircase itself
@@ -383,15 +493,31 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
                     ok[k] = True
                     break
     ok &= ~onf
-    if dynamic_tris is not None and len(dynamic_tris):
-        ok &= ~on_objects(s, dynamic_tris)
+    ondyn = on_objects(s, dynamic_tris) if dynamic_tris is not None and len(dynamic_tris) else np.zeros(len(y), bool)
+    if ondyn.any() or (dynamic_tris is not None and len(dynamic_tris)):
+        # steep hits grazing a dynamic object's vertical faces (a closed door leaf standing on a sample row: the rays
+        # record its faces 0.8-1.5 m above the floor - no triangle lies under them, so on_objects misses them, and as
+        # a 'ceiling' they dropped the floor in sp_009's aircraft doorways) belong to the object too
+        ondyn |= near_objects(s, dynamic_tris, grow=0.1, below=-0.05, above=0.0) & ~slope_ok
+    ok &= ~ondyn
     if exclude_tris is not None and len(exclude_tris):
         ok &= ~on_objects(s, exclude_tris)
     if exclude_footprint_tris is not None and len(exclude_footprint_tris):
         # the footprint of an excluded object (trunk base, fence posts and boards) stays a barrier
         ok &= ~near_objects(s, exclude_footprint_tris, grow=0.3, below=1.0, above=0.5)
     if HEADROOM_BAND is not None:
-        ok &= ~low_headroom(s, character, *HEADROOM_BAND)
+        ok &= ~low_headroom(s, (character | ondyn) if DYNAMIC_ABSENT_HEADROOM else character, *HEADROOM_BAND)
+    if DYNAMIC_FLOOR is not None and ondyn.any():
+        base = ok.copy()
+        for k in np.nonzero(ondyn & ((s.flags & 2) == 0) & slope_ok & ~onf)[0]:
+            c = col_of_w[k]
+            i, j = c % s.nx, c // s.nx
+            # not where the column has its own floor just under the prop
+            if any(not ondyn[n] and 0 < y[k] - y[n] <= DYNAMIC_FLOOR for n in range(s.start[c], s.start[c + 1])):
+                continue
+            if any(base[n] for di in (-1, 0, 1) for dj in (-1, 0, 1) if di or dj
+                   for n in same_layer(i + di, j + dj, y[k], DYNAMIC_FLOOR)):
+                ok[k] = True
     ok &= ~character                    # last, before hand edits: the stair / landing / bar rules above re-added 68 of
                                         # sp_004_b's 468 soldier surfaces as floor (2026-10-19)
     if force_walkable is not None:
@@ -493,9 +619,114 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
                             drop.add(n)
                             q.append(n)
         keep[list(drop)] = False
+    if ROOF_PRUNE:
+        anchor_k = set()
+        for (sx, sy, sz) in (anchors or ()):
+            i, j = int(round((sx - s.min_x) / s.pitch)), int(round((sz - s.min_z) / s.pitch))
+            if 0 <= i < s.nx and 0 <= j < s.nz:
+                c = j * s.nx + i
+                cand = [n for n in range(s.start[c], s.start[c + 1]) if keep[n] and -2.5 <= y[n] - sy <= 2.5]
+                if cand:
+                    anchor_k.add(min(cand, key=lambda n: abs(y[n] - sy)))
+        for lad in (ladders or ()):
+            for e in ladder_ends(s, ok, keep, lad):
+                if e is not None and keep[e]:
+                    anchor_k.add(int(e))
+        drop = roof_islands(s, keep, gx_all, gz_all, stair, step, terrain, anchor_k)
+        keep &= ~drop
     if return_gradients:
         return (keep, gx_all, gz_all, stair) if return_stairs else (keep, gx_all, gz_all)
     return keep
+
+
+def islands_of(s, keep, gx, gz, stair, step):
+    """Island id per kept surface (-1 elsewhere): surfaces joined by the step rule, as walkable's flood joins them."""
+    y = s.y.astype(float)
+    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+    comp = np.full(len(y), -1, np.int64)
+    cid = 0
+    for k0 in np.nonzero(keep)[0]:
+        if comp[k0] >= 0:
+            continue
+        comp[k0] = cid
+        q = deque([k0])
+        while q:
+            k = q.popleft()
+            c = col_of[k]
+            i, j = c % s.nx, c // s.nx
+            for dj in (-1, 0, 1):
+                for di in (-1, 0, 1):
+                    a, b = i + di, j + dj
+                    if not (di or dj) or not (0 <= a < s.nx and 0 <= b < s.nz):
+                        continue
+                    cc = b * s.nx + a
+                    for n in range(s.start[cc], s.start[cc + 1]):
+                        if comp[n] >= 0 or not keep[n]:
+                            continue
+                        if step_fits(y[n] - y[k], (gx[k], gz[k]), (gx[n], gz[n]), stair[k], stair[n], di, dj, s.pitch,
+                                     step):
+                            comp[n] = cid
+                            q.append(n)
+        cid += 1
+    return comp, cid
+
+
+def roof_islands(s, keep, gx, gz, stair, step, terrain, anchor_k):
+    """The kept surfaces ROOF_PRUNE drops (bool per surface)."""
+    y = s.y.astype(float)
+    comp, n = islands_of(s, keep, gx, gz, stair, step)
+    out = np.zeros(len(y), bool)
+    if n < 2:
+        return out
+    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+    lowest = np.minimum.reduceat(y, s.start[:-1].clip(max=len(y) - 1)) if len(y) else y
+    lowest = lowest[col_of]
+    raised = keep & ~terrain & (y - lowest >= ROOF_RAISE)
+    kc = comp[keep]
+    size = np.bincount(kc, minlength=n)
+    rshare = np.bincount(comp[raised], minlength=n) / np.maximum(size, 1)
+    anchored = np.zeros(n, bool)
+    anchored[[comp[k] for k in anchor_k if comp[k] >= 0]] = True
+    anchored[int(np.argmax(size))] = True
+    cand = ~anchored & (rshare >= ROOF_SHARE)
+    if not cand.any():
+        ROOF_STATS['islands'] = ROOF_STATS.get('islands', 0) + n
+        return out
+    # anchored ground near each candidate at its own height: buckets of ROOF_NEAR m; candidate surfaces every ~0.8 m
+    ak = np.nonzero(keep & anchored[np.maximum(comp, 0)] & (comp >= 0))[0]
+    ax = s.min_x + (col_of[ak] % s.nx) * s.pitch
+    az = s.min_z + (col_of[ak] // s.nx) * s.pitch
+    buck = defaultdict(list)
+    for x_, z_, y_ in zip(ax.tolist(), az.tolist(), y[ak].tolist()):
+        buck[(int(math.floor(x_ / ROOF_NEAR)), int(math.floor(z_ / ROOF_NEAR)))].append((x_, z_, y_))
+    every = max(1, int(round(0.8 / s.pitch)))
+    near = np.zeros(n, bool)
+    for k in np.nonzero(keep & cand[np.maximum(comp, 0)] & (comp >= 0))[0]:
+        ci = comp[k]
+        if near[ci]:
+            continue
+        c = col_of[k]
+        i, j = c % s.nx, c // s.nx
+        if i % every or j % every:
+            continue
+        x_, z_ = s.min_x + i * s.pitch, s.min_z + j * s.pitch
+        bx, bz = int(math.floor(x_ / ROOF_NEAR)), int(math.floor(z_ / ROOF_NEAR))
+        for dx in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                for (px, pz, py) in buck.get((bx + dx, bz + dz), ()):
+                    if abs(py - y[k]) <= ROOF_NEAR_DY and math.hypot(px - x_, pz - z_) <= ROOF_NEAR:
+                        near[ci] = True
+                        break
+                if near[ci]:
+                    break
+            if near[ci]:
+                break
+    drop_c = cand & ~near
+    out = keep & (comp >= 0) & drop_c[np.maximum(comp, 0)]
+    ROOF_STATS['islands'] = ROOF_STATS.get('islands', 0) + n
+    ROOF_STATS['dropped'] = ROOF_STATS.get('dropped', 0) + int(drop_c.sum())
+    ROOF_STATS['surfaces'] = ROOF_STATS.get('surfaces', 0) + int(out.sum())
+    return out
 
 
 def score(s, keep, hpd, tol=0.6):
