@@ -92,6 +92,11 @@ LINK_STEP = 0.6                 # DICE: straight neighbours link when their raw 
 RADIUS = 0.4
 RESOLUTION = 0.025
 DIST_EDGE_MAX = 15.0
+NODE_COVER = {'detailed': 4.0, 'normal': None}   # coverage nodes: in each area, a route node wherever walkable ground is
+                                # farther than this (m, straight line, same floor) from every node, farthest first.
+                                # DICE's detailed sectors: 90 % of outline points within 4.3 m of a node, 99 % within
+                                # 8.3; NavKit's area-centre and portal nodes left 5.4 / 18.2 (ONS_MP_002, 2026-10-21).
+                                # Normal sectors: off until checked against the campaign regression
 GABRIEL_EDGES = 'detailed'      # prune the route graph's walkable pairs to the Gabriel graph (no other same-floor node
                                 # inside the circle on the pair as diameter), keeping each sector's connectivity:
                                 # 'detailed' = in pitch-0.2 sectors, 'all', or None. DICE's detailed-sector edges are 71 %
@@ -179,6 +184,7 @@ HEADER = (2, 2, 0, 1, 0, 0, 0, 0, 2, 0, 8, 0) + (0,) * 20 + (36, 12, 1, 0)
 DETAILED_PITCH = 0.2            # DICE's detailed zones: whole sectors at pitch 0.2, resolution 0.05, 6 x 6 tiles of 20 m
                                 # (header rect -0.2 .. 100.22; KYNAPSE_SPEC.md 4.5). Built in a second pass (build(...,
                                 # detailed=...)) from a pitch-0.2 sampling run, merged with the normal build.
+CARRY_RADIUS = 1.0              # a shared node carried across a mixed-pitch seam is attached to ground within this (m)
 DETAILED_LINK_STEP = 0.3        # LINK_STEP in detailed zones: DICE's one-cell height steps inside its pitch-0.2 areas
                                 # (ONS_MP_002, 10,353 outline segments) p99 0.31, p99.9 0.42, max 0.49 m - about half its
                                 # pitch-0.8 values (p99 0.96, max 1.03), not a quarter: the same slope (0.15 m) cut sloped
@@ -731,13 +737,25 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
         gi0, gj0, ox, oz = info[sec]['origin']
         own = info[sec]['area_of']
         for nid, pos in nodes:
+            # within CARRY_RADIUS of the node, on its floor; ground of a larger area first (not a stray speck), then
+            # the nearest - a 3 x 3 search (0.2 m at pitch 0.2) left 74 ONS_MP_002 seam nodes without ground and put
+            # others on specks, and the detailed core lost its links to the normal sectors (connectivity 91.6 -> 60.9)
             gi, gj = int(round((pos[0] - s.min_x) / PITCH)), int(round((pos[2] - s.min_z) / PITCH))
-            cand = [k for di in (0, -1, 1) for dj in (0, -1, 1) for k in level.surfaces(gi + di, gj + dj)
-                    if k in own and abs(level.y[k] + Y_OFFSET - pos[1]) <= 0.6]
+            r = int(math.ceil(CARRY_RADIUS / PITCH))
+            cand = []
+            for di in range(-r, r + 1):
+                for dj in range(-r, r + 1):
+                    dxz = math.hypot(di, dj) * PITCH
+                    if dxz > CARRY_RADIUS:
+                        continue
+                    for k in level.surfaces(gi + di, gj + dj):
+                        if k in own and abs(level.y[k] + Y_OFFSET - pos[1]) <= 0.6:
+                            size = len(info[sec]['areas'][own[k]]['cells'])
+                            cand.append((size < 25, dxz, k))
             if not cand:
                 dropped.add(nid)
                 continue
-            k = min(cand, key=lambda k: abs(level.y[k] + Y_OFFSET - pos[1]))
+            k = min(cand)[2]
             border_nodes[sec].append((nid, pos, k))
 
     # boundary edges of every sector, then the one-way portal pieces decided level-wide
@@ -1007,8 +1025,13 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
             i, j, k = best
             add(i, j, k)
     for nid, pos, k in borders:
-        i, j = int(round((pos[0] - ox) / PITCH)), int(round((pos[2] - oz) / PITCH))
+        # the node's own surface cell (a node carried from another pitch's build sits up to CARRY_RADIUS from it;
+        # walkable lines must start on that cell, not on the cell under the position)
+        i, j = cell_of.get(k) or (int(round((pos[0] - ox) / PITCH)), int(round((pos[2] - oz) / PITCH)))
         pts.append((nid, pos, k, i, j))
+    cover = NODE_COVER.get('detailed' if abs(PITCH - DETAILED_PITCH) < 1e-6 else 'normal')
+    if cover:
+        add_cover_nodes(level, areas, pts, add, ox, oz, cover)
     # edges: pairs within DIST_EDGE_MAX whose straight line is walkable
     cell = DIST_EDGE_MAX
     grid = defaultdict(list)
@@ -1114,6 +1137,33 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
         ORDER_STATS['added'] = ORDER_STATS.get('added', 0) + add_order_nodes(level, pts, pairs, node_at, area_of, orders,
                                                                              gi0, gj0, ox, oz, new_id)
     return pts, pairs
+
+
+def add_cover_nodes(level, areas, pts, add, ox, oz, cover):
+    """NODE_COVER: in every area of 4+ cells, add route nodes (through add, so one per surface) at the cell farthest from
+    all nodes on the same floor (|dy| < 2.5 m) until no cell is farther than cover metres."""
+    for a in areas:
+        if len(a['cells']) < 4:
+            continue
+        C = np.array([(ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH) for i, j, k in a['cells']])
+        x0, x1, z0, z1 = C[:, 0].min() - cover, C[:, 0].max() + cover, C[:, 2].min() - cover, C[:, 2].max() + cover
+        P = np.array([p[1] for p in pts if x0 <= p[1][0] <= x1 and z0 <= p[1][2] <= z1], float).reshape(-1, 3)
+        d = np.full(len(C), np.inf)
+        for q in P:
+            same = np.abs(C[:, 1] - q[1]) < 2.5
+            d = np.where(same, np.minimum(d, np.hypot(C[:, 0] - q[0], C[:, 2] - q[2])), d)
+        while True:
+            w = int(np.argmax(d))
+            if d[w] <= cover:
+                break
+            i, j, k = a['cells'][w]
+            n = len(pts)
+            add(i, j, k)
+            q = C[w]
+            d[w] = 0.0                               # placed (or the surface already held a node)
+            if len(pts) > n:
+                same = np.abs(C[:, 1] - q[1]) < 2.5
+                d = np.where(same, np.minimum(d, np.hypot(C[:, 0] - q[0], C[:, 2] - q[2])), d)
 
 
 def gabriel_prune(pts, pairs):
