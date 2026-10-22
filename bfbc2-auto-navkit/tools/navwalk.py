@@ -184,8 +184,11 @@ def near_objects(s, tris, grow=0.5, below=2.2, above=0.3):
 
 def stair_slope(s, mask):
     """Slope (degrees) from neighbouring sample heights on the same layer (central differences, +-1 sample),
-    for the surfaces in mask; 90 where a neighbour is missing."""
+    for the surfaces in mask; 90 where a neighbour is missing. (Measured over +-0.8 m at pitch 0.2 it recognised far
+    more stairs, but with a 0.5 m step on them it joined decks and ledges to streets - over-connection 2.2 -> 35.3 % on
+    ONS_MP_002; not adopted, 2026-10-21.)"""
     y = s.y.astype(float)
+    r = 1
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
     out = np.full(len(y), 90.0)
     gxo = np.zeros(len(y)); gzo = np.zeros(len(y))
@@ -202,17 +205,17 @@ def stair_slope(s, mask):
     for k in np.nonzero(mask)[0]:
         c = col_of[k]
         i, j = c % s.nx, c // s.nx
-        a, b, cc, d = layer(i + 1, j, y[k]), layer(i - 1, j, y[k]), layer(i, j + 1, y[k]), layer(i, j - 1, y[k])
+        a, b, cc, d = layer(i + r, j, y[k]), layer(i - r, j, y[k]), layer(i, j + r, y[k]), layer(i, j - r, y[k])
         if a is None and b is None and cc is None and d is None:
             continue
 
         def diff(p, m):   # central difference, or one-sided where a neighbour is missing (narrow stairs)
             if p is not None and m is not None:
-                return (p - m) / (2 * s.pitch)
+                return (p - m) / (2 * r * s.pitch)
             if p is not None:
-                return (p - y[k]) / s.pitch
+                return (p - y[k]) / (r * s.pitch)
             if m is not None:
-                return (y[k] - m) / s.pitch
+                return (y[k] - m) / (r * s.pitch)
             return 0.0
         gxo[k] = diff(a, b)
         gzo[k] = diff(cc, d)
@@ -247,11 +250,42 @@ def step_fits(dy, gk, gn, sk, sn, di, dj, pitch, step):
     return False
 
 
+LADDER_REACH = 1.5              # a ladder's ends: the walkable surface nearest the ladder within this (m, horizontally)
+LADDER_FOOT = (-1.0, 1.0)       # ... at the foot: from 1 m below to 1 m above the ladder's bottom
+LADDER_TOP = (-1.5, 0.5)        # ... at the top: 1.5 m below to 0.5 m above its top (its rails stick out over the deck)
+
+
+def ladder_ends(s, ok, keep, lad, reach=LADDER_REACH):
+    """(foot surface, top surface) of a ladder {'lo', 'hi'} (ladders.py): at each end the surface allowed by the rules
+    (ok) nearest the ladder's box, within reach horizontally and the end's height band; kept ground first. None where
+    there is none."""
+    lo, hi = lad['lo'], lad['hi']
+    i0, i1 = int(math.floor((lo[0] - reach - s.min_x) / s.pitch)), int(math.ceil((hi[0] + reach - s.min_x) / s.pitch))
+    j0, j1 = int(math.floor((lo[2] - reach - s.min_z) / s.pitch)), int(math.ceil((hi[2] + reach - s.min_z) / s.pitch))
+    out = []
+    for y0, y1 in ((lo[1] + LADDER_FOOT[0], lo[1] + LADDER_FOOT[1]), (hi[1] + LADDER_TOP[0], hi[1] + LADDER_TOP[1])):
+        best = None
+        for j in range(max(j0, 0), min(j1, s.nz - 1) + 1):
+            for i in range(max(i0, 0), min(i1, s.nx - 1) + 1):
+                x, z = s.min_x + i * s.pitch, s.min_z + j * s.pitch
+                d = math.hypot(max(lo[0] - x, 0, x - hi[0]), max(lo[2] - z, 0, z - hi[2]))
+                if d > reach:
+                    continue
+                c = j * s.nx + i
+                for k in range(s.start[c], s.start[c + 1]):
+                    if ok[k] and y0 <= s.y[k] <= y1:
+                        key = (not keep[k], d)
+                        if best is None or key < best[0]:
+                            best = (key, k)
+        out.append(best[1] if best else None)
+    return out[0], out[1]
+
+
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
              stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08,
              extra_seeds=None, return_stairs=False, force_walkable=None, force_unwalkable=None, unseeds=None,
-             soldier_points=None):
+             soldier_points=None, ladders=None):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -386,23 +420,48 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
             if not keep[n]:
                 keep[n] = True
                 q.append(n)
-    while q:
-        k = q.popleft()
-        c = col_of[k]
-        i, j = c % s.nx, c // s.nx
-        for dj in (-1, 0, 1):
-            for di in (-1, 0, 1):
-                a, b = i + di, j + dj
-                if not (di or dj) or not (0 <= a < s.nx and 0 <= b < s.nz):
-                    continue
-                cc = b * s.nx + a
-                for n in range(s.start[cc], s.start[cc + 1]):
-                    if keep[n] or not ok[n]:
+    def flood():
+        while q:
+            k = q.popleft()
+            c = col_of[k]
+            i, j = c % s.nx, c // s.nx
+            for dj in (-1, 0, 1):
+                for di in (-1, 0, 1):
+                    a, b = i + di, j + dj
+                    if not (di or dj) or not (0 <= a < s.nx and 0 <= b < s.nz):
                         continue
-                    if step_fits(y[n] - y[k], (gx_all[k], gz_all[k]), (gx_all[n], gz_all[n]), stair[k], stair[n],
-                                 di, dj, s.pitch, step):
-                        keep[n] = True
-                        q.append(n)
+                    cc = b * s.nx + a
+                    for n in range(s.start[cc], s.start[cc + 1]):
+                        if keep[n] or not ok[n]:
+                            continue
+                        if step_fits(y[n] - y[k], (gx_all[k], gz_all[k]), (gx_all[n], gz_all[n]), stair[k], stair[n],
+                                     di, dj, s.pitch, step):
+                            keep[n] = True
+                            q.append(n)
+    flood()
+    if ladders:
+        # ladder links: a ladder whose one end stands on kept ground seeds the walkable surface at its other end (a roof
+        # or deck reached only by the ladder - no step joins it, so no seed reached it); repeated until no ladder adds
+        # ground (ladders in a chain). ladder_ends gives the end surfaces.
+        done = set()
+        changed = True
+        while changed:
+            changed = False
+            for li, lad in enumerate(ladders):
+                if li in done:
+                    continue
+                foot, top = ladder_ends(s, ok, keep, lad)
+                kf, kt = foot is not None and keep[foot], top is not None and keep[top]
+                far = top if kf and not kt else foot if kt and not kf else None
+                if far is None:
+                    if kf and kt:
+                        done.add(li)
+                    continue
+                keep[far] = True
+                q.append(far)
+                flood()
+                done.add(li)
+                changed = True
     for (sx, sy, sz) in (unseeds or ()):
         # drop the island the point is on: the kept surface at or just below it, and all kept surfaces it
         # connects to by the same step rule

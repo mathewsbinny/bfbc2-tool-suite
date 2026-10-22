@@ -75,6 +75,23 @@ def terrain_bounds(root, lv):
     return None
 
 
+def ladder_ground(reference, candidate, reference_cells):
+    """Ground reached only through ladder links (navdata: ladder edges, ladder areas): its share of the reference's
+    ground, and how many of its cells the reference lacks (kept out of 'extra ground')."""
+    core = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'core')
+    if core not in sys.path:
+        sys.path.insert(0, core)
+    from bfbc2core import navdata
+    import numpy as np
+    cn, rn = navdata.load(candidate), navdata.load(reference)
+    if not len(cn.cell_area) or not any(a.ladder for a in cn.areas):
+        return {'percent': 0.0, 'extra_cells': 0, 'cells': 0}
+    same_c, _ = navdata.compare_cells(cn, rn)
+    lad = np.array([a.ladder for a in cn.areas])[cn.cell_area]
+    return {'percent': round(100.0 * int(lad.sum()) / max(reference_cells, 1), 2), 'extra_cells': int((lad & ~same_c).sum()),
+            'cells': int(lad.sum())}
+
+
 def pairs(n):
     return n * (n - 1) // 2
 
@@ -125,12 +142,15 @@ def run_level(root, lv, candidate, log):
     d, _, _, _ = navdiff.diff(ref, candidate, log=lambda *a: None, clip=clip)
     a = navcompare.compare(xml, ref, candidate)
     isl = islands(ref, candidate, clip)
+    lad = ladder_ground(ref, candidate, d['cells']['reference'])
     row = {
         'level': lv, 'candidate': candidate, 'reference_clip': clip,
         'sectors_reference': d['sectors']['reference'], 'sectors_candidate': d['sectors']['candidate'],
         'sectors_missing': len(d['sectors']['only_reference']), 'sectors_extra': len(d['sectors']['only_candidate']),
         'ground': d['cells']['parity'],
-        'extra_ground': round(100.0 * d['cells']['only_candidate'] / max(d['cells']['reference'], 1), 2),
+        # extra ground without the ground reached by ladder links (its own column: DICE has no ladder links)
+        'extra_ground': round(100.0 * max(d['cells']['only_candidate'] - lad['extra_cells'], 0) / max(d['cells']['reference'], 1), 2),
+        'ladder_ground': lad['percent'],
         'areas_same': d['areas']['parity'], 'areas_reference': d['areas']['reference'], 'areas_candidate': d['areas']['candidate'],
         'detailed_reference': d['areas']['detailed_reference'], 'detailed_candidate': d['areas']['detailed_candidate'],
         'outline': d['bounds_of_same_areas']['outline'], 'portals': d['bounds_of_same_areas']['portals'],
@@ -153,8 +173,10 @@ COLUMNS = [
     ('portals', 'portals %', '{:.1f}'), ('nodes_same', 'nodes %', '{:.1f}'), ('edges_same', 'edges %', '{:.1f}'),
     ('islands_reference', 'isl.ref', '{}'), ('islands_candidate', 'isl.ours', '{}'), ('connectivity', 'connect %', '{:.1f}'),
     ('over_connection', 'over %', '{:.1f}'), ('ai_coverage', 'AI pos %', '{:.1f}'), ('ai_pairwise', 'pairwise %', '{:.1f}'),
+    ('ladder_ground', 'ladder %', '{:.1f}'),
 ]
-TOTALS = ['ground', 'extra_ground', 'areas_same', 'portals', 'nodes_same', 'edges_same', 'connectivity', 'over_connection', 'ai_coverage', 'ai_pairwise']
+TOTALS = ['ground', 'extra_ground', 'areas_same', 'portals', 'nodes_same', 'edges_same', 'connectivity', 'over_connection', 'ai_coverage', 'ai_pairwise',
+          'ladder_ground']
 
 
 def table(run, other=None, log=print):
@@ -170,19 +192,19 @@ def table(run, other=None, log=print):
             if key in ('portals',) and r['areas_same'] == 0:
                 cells.append(f"{'n/a':>10s}")   # a share of matching areas, and none match
                 continue
-            v = f.format(r[key])
-            if lv in base and isinstance(r[key], (int, float)) and r[key] != base[lv][key]:
-                delta = r[key] - base[lv][key]
+            v = f.format(r.get(key, 0))
+            if lv in base and isinstance(r.get(key, 0), (int, float)) and r.get(key, 0) != base[lv].get(key, 0):
+                delta = r.get(key, 0) - base[lv].get(key, 0)
                 v += f"({'+' if delta > 0 else ''}{f.format(delta) if isinstance(delta, float) else delta})"
             cells.append(f'{v:>10s}')
         log(f'{lv:9s} ' + ' '.join(cells))
-    avg = {k: sum(r[k] for r in rows.values()) / len(rows) for k in TOTALS}
+    avg = {k: sum(r.get(k, 0) for r in rows.values()) / len(rows) for k in TOTALS}
     if all(r['areas_same'] == 0 for r in rows.values()):
         avg.pop('portals')
     line = f"{'mean':9s} " + ' '.join(f"{(f.format(avg[k]) if k in avg else ''):>10s}" for k, _, f in COLUMNS)
     log(line)
     if other:
-        bavg = {k: sum(r[k] for r in other['levels']) / len(other['levels']) for k in TOTALS}
+        bavg = {k: sum(r.get(k, 0) for r in other['levels']) / len(other['levels']) for k in TOTALS}
         log(f"{'change':9s} " + ' '.join(f"{(('+' if avg[k] - bavg[k] > 0 else '') + f.format(avg[k] - bavg[k]) if k in avg and k in bavg else ''):>10s}" for k, _, f in COLUMNS))
 
 

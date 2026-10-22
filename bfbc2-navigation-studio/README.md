@@ -32,6 +32,12 @@ spawns. NavKit's ground is shown at start, the rest can be switched on.
 | pitch | detailed zones (DICE's 0.2 m areas) in orange |
 | difference | NavKit's ground that DICE also has (grey-green) or does not (orange); DICE's ground NavKit lacks is the red layer |
 
+**Ladder ground (2026-10-21).** A NavKit build with ladder links (`tools\ladders.py`) has two more layers per file,
+*ladder ground* (violet: ground reached only through a ladder link - roofs, decks) and *ladder links* (the climbs).
+In the *difference* colouring that ground is violet, not orange: it is deliberate, not extra ground; the Navigation
+panel gives its share apart, and a selected area says when it is ladder ground. Ladder links are found from the
+file itself (route edges climbing more than 2.5 m and steeper than 1.5:1 - DICE's files have none; `core/bfbc2core/navdata.py`).
+
 **Path test (P, milestone M4 step 1).** Press P, click a start and an end on the ground: the cheapest route
 over each file's route graph (its own directed edges and stored costs) is drawn - NavKit's yellow, DICE's
 cyan - with its cost, length, the detour against the straight line, and NavKit's cost against DICE's. Without

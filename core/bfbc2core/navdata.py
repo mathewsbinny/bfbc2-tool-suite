@@ -34,7 +34,10 @@ import navdiff  # noqa: E402
 GRID = navdiff.GRID
 Y_OFFSET = navdiff.Y_OFFSET                 # boundaries and nodes are stored 0.95 m above the ground
 DETAILED = 0.5                              # areas with a smaller pitch are detailed zones (DICE: 0.2 m)
-CACHE_VERSION = 2
+CACHE_VERSION = 3                           # 3: ladder links and ladder ground
+LADDER_DY = 2.5                             # a ladder link: a route edge climbing more than this (m) ...
+LADDER_SLOPE = 1.5                          # ... and more than this many metres per metre across - no walkable link is
+                                            # that steep (DICE's files have none; NavKit's ladder links, ladders.py)
 
 
 @dataclass
@@ -51,6 +54,7 @@ class NavArea:
     borders: List[tuple] = field(default_factory=list)           # (p0, p1)
     island: int = -1                                             # index into NavData.islands
     cells: int = 0
+    ladder: bool = False                                         # ground reached only through a ladder link
 
     @property
     def detailed(self):
@@ -78,6 +82,7 @@ class NavData:
     edge_cost: np.ndarray                   # (k,) metres, as stored (the tag's floor(distance * 16) / 16)
     node_island: np.ndarray                 # (m,) index into islands
     islands: List[Island]
+    ladder_edge: np.ndarray = None          # (k,) bool: the edge is a ladder link (LADDER_DY / LADDER_SLOPE)
 
     @property
     def sectors(self):
@@ -186,6 +191,34 @@ def _load(path, heightfield, cache_dir):
         if ra != rb:
             parent[ra] = rb
     roots = np.array([find(k) for k in range(len(pos))], dtype=np.int64)
+    # ladder links, and the walking parts of each island (its components without them): ground on any walking
+    # part but the island's largest is reached through a ladder - ladder ground
+    if len(edges):
+        d = pos[edges[:, 1]] - pos[edges[:, 0]]
+        dy, h = np.abs(d[:, 1]), np.hypot(d[:, 0], d[:, 2])
+        ladder_edge = (dy > LADDER_DY) & (dy > LADDER_SLOPE * h)
+    else:
+        ladder_edge = np.zeros(0, bool)
+    walk = np.arange(len(pos))
+
+    def wfind(a):
+        while walk[a] != a:
+            walk[a] = walk[walk[a]]
+            a = walk[a]
+        return a
+    for (a, b), lad in zip(edges, ladder_edge):
+        if not lad:
+            ra, rb = wfind(a), wfind(b)
+            if ra != rb:
+                walk[ra] = rb
+    walk_root = np.array([wfind(k) for k in range(len(pos))], dtype=np.int64)
+    base = {}
+    if ladder_edge.any():
+        wsize = Counter(walk_root.tolist())
+        for k in range(len(pos)):
+            r, w = roots[k], walk_root[k]
+            if r not in base or wsize[w] > wsize[base[r]]:
+                base[r] = w
     sizes = Counter(roots.tolist())
     order = [r for r, _ in sizes.most_common()]
     rank = {r: k for k, r in enumerate(order)}
@@ -208,7 +241,9 @@ def _load(path, heightfield, cache_dir):
             continue
         p = pos[cand]
         d = np.hypot(p[:, 0] - centre[k, 0], p[:, 2] - centre[k, 2]) + 3.0 * np.abs(p[:, 1] - Y_OFFSET - centre[k, 1])
-        a.island = int(node_island[cand[int(np.argmin(d))]])
+        kn = cand[int(np.argmin(d))]
+        a.island = int(node_island[kn])
+        a.ladder = bool(base) and walk_root[kn] != base[roots[kn]]
     island_cells = Counter()
     for a in areas:
         island_cells[a.island] += a.cells
@@ -217,7 +252,7 @@ def _load(path, heightfield, cache_dir):
         sel = node_island == k
         islands.append(Island(int(r), int(sel.sum()), int(island_cells.get(k, 0)), pos[sel].mean(axis=0)))
     return NavData(path, areas, xz, y, cell_area, pos, np.array(sec), edges, np.array(costs, dtype=np.float64),
-                   node_island, islands)
+                   node_island, islands, ladder_edge)
 
 
 def compare_cells(cand, ref):
@@ -256,7 +291,9 @@ def compare_cells(cand, ref):
 def summary(nav):
     return {'areas': len(nav.areas), 'detailed areas': sum(a.detailed for a in nav.areas), 'cells': int(len(nav.cell_xz)),
             'nodes': int(len(nav.node_pos)), 'edges': int(len(nav.edges)), 'islands': len(nav.islands),
-            'large islands (25+ nodes)': sum(i.nodes >= 25 for i in nav.islands), 'sectors': len(nav.sectors)}
+            'large islands (25+ nodes)': sum(i.nodes >= 25 for i in nav.islands), 'sectors': len(nav.sectors),
+            'ladder links': int(nav.ladder_edge.sum() // 2) if nav.ladder_edge is not None else 0,
+            'ladder ground cells': sum(a.cells for a in nav.areas if a.ladder)}
 
 
 if __name__ == '__main__':

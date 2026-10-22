@@ -64,6 +64,20 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
+## Detailed zones and ladder links (2026-10-21)
+
+- **Detailed zones (pitch 0.2):** `navkit.py sample <level> --pitch 0.2` samples the sectors DICE builds at 0.2 (from its
+  path data; without it, still to come: the `NeedsDetailedPathfinding` blueprint flag); `navkit.py build` then builds
+  those sectors at 0.2 (6 x 6 tiles, link step 0.3 m, Gabriel-pruned route graph, coverage nodes every 4 m) and merges
+  them with the normal build. ONS_MP_002 against DICE on PC ground: ground 98.5 %, connectivity 98.3, over-connection
+  2.2 % (normal build: 96.7 / 3.9).
+- **Ladder links:** `navkit.py prepare` writes `ladders.json` (`tools\ladders.py`: placed ladder objects and their
+  collision boxes); the build seeds the far end of a ladder whose near end is walkable and links a node at each end.
+  DICE's path data has none; the game puts any soldier who walks into a ladder on it. ONS_MP_002: 6 ladders, their
+  roofs and decks joined to the main network. Not yet play-tested (does a bot on a route take the ladder?).
+- **navparity** clips DICE's reference to the level's terrain (ground beyond it does not exist on PC), matches nodes
+  within 1 m of height, and reports ground reached by ladder as its own column (*ladder %*), not as extra ground.
+
 ## Plan and status (2026-10-20)
 
 1. **`.hpd` format – done.** Header, sector table, per-sector graph and runtime mesh fully decoded

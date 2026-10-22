@@ -49,6 +49,7 @@ COMPARE_FILTERS = {'AI spawners': ('AI spawners (enabled)', 'AI spawners (disabl
 MAIN, SAME_C, EXTRA, MISSING, NORMAL, DETAILED = (0.35, 0.75, 0.35), (0.55, 0.62, 0.55), (1.0, 0.55, 0.15), \
     (0.9, 0.15, 0.15), (0.30, 0.60, 0.80), (1.0, 0.60, 0.15)
 LIFT = 0.06                                              # ground cells drawn just above the surface
+LADDER = (0.62, 0.35, 1.0)                               # ground reached only by ladder links, and the links
 PATH_COLOURS = {'NavKit': (1.0, 0.85, 0.1), 'DICE': (0.3, 0.9, 1.0)}
 
 
@@ -138,6 +139,18 @@ class Studio:
             if len(nav.edges):
                 p = nav.node_pos - np.array([0, navdata.Y_OFFSET - 0.2, 0])
                 self.scene.add_lines(np.stack([p[nav.edges[:, 0]], p[nav.edges[:, 1]]], axis=1), 0xFFFFF1, lay['route graph'])
+            # ladder ground (reached only through ladder links) and the ladder links themselves, as their own layers
+            lad_area = np.array([a.ladder for a in nav.areas], dtype=bool)
+            if lad_area.any() and len(nav.cell_area):
+                sel = lad_area[nav.cell_area]
+                lay['ladder ground'] = self.layers[f'{name} ladder ground'] = L(f'{name} ladder ground', LADDER)
+                self.scene.add_triangles(cell_quads(nav.cell_xz[sel], nav.cell_y[sel], lvl.heightfield, LIFT + 0.05),
+                                         np.repeat(base + nav.cell_area[sel], 2), lay['ladder ground'])
+            if nav.ladder_edge is not None and nav.ladder_edge.any():
+                lay['ladder links'] = self.layers[f'{name} ladder links'] = L(f'{name} ladder links', LADDER)
+                e = nav.edges[nav.ladder_edge]
+                p = nav.node_pos - np.array([0, navdata.Y_OFFSET - 0.3, 0])
+                self.scene.add_lines(np.stack([p[e[:, 0]], p[e[:, 1]]], axis=1), 0xFFFFF1, lay['ladder links'])
         self.diff = None
         if len(files) == 2:
             same_c, same_r = navdata.compare_cells(files['NavKit'], files['DICE'])
@@ -149,7 +162,8 @@ class Studio:
                 self.scene.add_triangles(cell_quads(ref.cell_xz[miss], ref.cell_y[miss], lvl.heightfield, LIFT + 0.03),
                                          np.repeat(ID_BASE['DICE'] + ref.cell_area[miss], 2), self.layers['DICE ground missing in NavKit'])
             self.diff = {'reproduced': 100.0 * same_r.mean() if len(same_r) else 0.0,
-                         'extra': 100.0 * (~same_c).sum() / max(len(same_r), 1),
+                         'extra': 100.0 * (~same_c & ~self._ladder_cells(files['NavKit'])).sum() / max(len(same_r), 1),
+                         'ladder': 100.0 * self._ladder_cells(files['NavKit']).sum() / max(len(same_r), 1),
                          'dice cells': int(len(same_r)), 'navkit cells': int(len(same_c))}
         self.selected = None
         self.editor = None                                  # editing.Editor, set by main()
@@ -330,7 +344,17 @@ class Studio:
         same = self.same.get(name)
         if same is None:
             return np.tile(np.array(SAME_C), (len(a), 1))
-        return np.where(same[:, None], np.array(SAME_C if name == 'NavKit' else (0.55, 0.58, 0.68)), np.array(EXTRA if name == 'NavKit' else MISSING))
+        col = np.where(same[:, None], np.array(SAME_C if name == 'NavKit' else (0.55, 0.58, 0.68)), np.array(EXTRA if name == 'NavKit' else MISSING))
+        lad = np.array([x.ladder for x in nav.areas], dtype=bool)[a] if len(a) else np.zeros(0, bool)
+        col[lad & ~same] = LADDER                       # ladder ground DICE lacks: not 'extra', its own colour
+        return col
+
+    @staticmethod
+    def _ladder_cells(nav):
+        """bool per cell: ground reached only through ladder links (navdata)."""
+        if not len(nav.cell_area):
+            return np.zeros(0, bool)
+        return np.array([a.ladder for a in nav.areas], dtype=bool)[nav.cell_area]
 
     def apply_colors(self, v=None):
         for name, b in self.ground_batch.items():
@@ -507,10 +531,14 @@ class Studio:
             imgui.text_disabled(f'{name}: {os.path.basename(os.path.dirname(os.path.dirname(nav.path))) if name == "DICE" else os.path.basename(nav.path)}')
             imgui.text(f'  {s["areas"]:,} areas ({s["detailed areas"]:,} detailed), {s["cells"]:,} cells')
             imgui.text(f'  {s["nodes"]:,} nodes, {s["edges"]:,} edges, {s["islands"]} islands ({s["large islands (25+ nodes)"]} large)')
+            if s['ladder links']:
+                imgui.text(f'  {s["ladder links"]} ladder links, {s["ladder ground cells"]:,} cells of ladder ground')
         if self.diff:
             imgui.separator()
             imgui.text(f'DICE ground reproduced: {self.diff["reproduced"]:.1f} %')
             imgui.text(f'NavKit extra ground: about +{self.diff["extra"]:.1f} % of DICE\'s')
+            if self.diff.get('ladder'):
+                imgui.text(f'NavKit ladder ground: {self.diff["ladder"]:.2f} % (reached by ladder links)')
             imgui.text_disabled('(cell estimate; navparity.py gives the exact figures)')
         imgui.separator()
         imgui.text('colour the ground by')
@@ -605,6 +633,8 @@ class Studio:
             isl = nav.islands[a.island] if 0 <= a.island < len(nav.islands) else None
             imgui.text(f'{name} area {k}: sector 0x{a.sector:04X}, area {a.index}, tile {a.tile[0]},{a.tile[1]}, layer {a.layer}')
             imgui.text(f'pitch {a.pitch:.2f} m{" (detailed zone)" if a.detailed else ""}, {a.cells:,} cells, height {a.min_y:.1f} - {a.max_y:.1f} m')
+            if a.ladder:
+                imgui.text_colored(imgui.ImVec4(*LADDER, 1.0), 'ladder ground: reached only through a ladder link')
             imgui.text(f'{len(a.outline)} outline lines, {len(a.portals)} portals, {len(a.borders)} border portals')
             if isl is not None:
                 imgui.text(f'island {a.island}{" (main network)" if a.island == 0 else ""}: {isl.nodes:,} nodes, {isl.cells:,} cells')

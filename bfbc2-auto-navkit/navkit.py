@@ -192,6 +192,10 @@ def prepare(pr, lv, log=print, box=None, y=None):
     LV = level_partition_name(L, lv)
     log('  extracting objects, collision and spawn points ...')
     levelobjects.main(['levelobjects.py', L, LV] + common)
+    import ladders
+    lad = ladders.extract(L, common)
+    json.dump(lad, open(os.path.join(L, 'ladders.json'), 'w'), indent=1)
+    log(f'  ladders: {len(lad)} (ladder links: their far ends seeded and linked in the build)')
 
     xoff = zoff = None
     so = glob.glob(os.path.join(L, 'dist', 'levels', lv, 'Precomputed', 'Infantry', 'SectorOffsets.xml'))
@@ -449,6 +453,7 @@ def build(pr, lv, log=print):
                    seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
                    water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
                    order_points=navregress.order_points_of(pr.root, lv),
+                   ladders=json.load(open(os.path.join(L, 'ladders.json'))) if os.path.isfile(os.path.join(L, 'ladders.json')) else None,
                    log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
 

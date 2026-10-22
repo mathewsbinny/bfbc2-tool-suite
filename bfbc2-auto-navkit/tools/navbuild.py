@@ -125,6 +125,7 @@ DETOUR_MAX = 1.3                # ... to a walk of at most this x straight (DICE
 DETOUR_LINK_ALL = False         # also link new waypoints to all walkable neighbours within DIST_EDGE_MAX (4x the edges)
 DETOUR_PASSES = 2               # pass A, then pass B on the repaired graph
 REPAIR_STATS = {}               # nodes added per pass (summed over sectors; for reports)
+LADDER_STATS = {}               # ladder links made, and ladders whose ends lie in two sectors (not linked yet)
 BORDER_NODE_SPACING = 10.0
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
@@ -563,7 +564,7 @@ def trace_emit(level, areas, per_area, gi0, gj0, ox, oz):
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
           narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
-          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, detailed=None):
+          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, detailed=None, ladders=None):
     """edits: the operations of a navigation side file (navedits.py applies the walkability ones).
     water: the level's water mesh (vertices, triangles; core/bfbc2core/water.py): ground more than max_water_depth
     under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win).
@@ -575,22 +576,26 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     common = dict(tris_path=tris_path, step=step, log=log, dynamic_path=dynamic_path, narrow_path=narrow_path,
                   stairs_path=stairs_path, exclude_path=exclude_path, exclude_foot_path=exclude_foot_path,
                   edits=edits, water=water, max_water_depth=max_water_depth, bounds=bounds,
-                  order_points=order_points, t0=t0)
+                  order_points=order_points, t0=t0, ladders=ladders)
     set_pitch(0.8)
     ORDER_IDS.clear()
+    LADDER_STATS.clear()
     a = stage(samples_path, high_path, xoff, zoff, seeds=seeds, **common)
     if detailed:
         graphs = merge_detailed(a, detailed, xoff, zoff, seeds, common, log)
         set_pitch(0.8)
     else:
         graphs = a['graphs']
+    if ladders:
+        log(f'ladders: {len(ladders)}; links made {LADDER_STATS.get("linked", 0)} (counted per stage), ends in two '
+            f'sectors {LADDER_STATS.get("split", 0)}')
     write_file(graphs, out_path, log, t0)
 
 
 def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=print, dynamic_path=None,
           narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
           water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, t0=None,
-          sector_filter=None, grid_min=None, id_start=1, carried=None, seed_points=None):
+          sector_filter=None, grid_min=None, id_start=1, carried=None, seed_points=None, ladders=None):
     """One grid's build (the module's pitch settings, set_pitch): walkable surfaces, sectors, areas, border nodes,
     traced boundaries, meshes and route graphs - not yet written. sector_filter: build only these (X, Y) sectors;
     grid_min: the level's minimum sector X / Y (EDGE_SECTOR_RULE) when the stage holds only part of it; id_start:
@@ -638,9 +643,15 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
                                     return_stairs=True,
                                     narrow_capsule=narrow, stair_tris=st, exclude_tris=ex, exclude_footprint_tris=exf,
                                     extra_seeds=list(seeds or []) + list(seed_points or []), soldier_points=soldiers,
-                                    **hand)
+                                    ladders=ladders, **hand)
     level = Level(s, keep, step, gx, gz, stair)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)')
+    # ladder links: the kept surfaces at each ladder's foot and top (navwalk.ladder_ends)
+    ladder_pairs = []
+    for lad in (ladders or ()):
+        f_, t_ = navwalk.ladder_ends(s, keep, keep, lad)
+        if f_ is not None and t_ is not None:
+            ladder_pairs.append((int(f_), int(t_)))
 
     # Sectors that contain kept surfaces.
     sectors = set()
@@ -805,7 +816,11 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
                            mesh_links, b'\0' * 4)
         meshes[(X, Y)] = mesh
         orders = [p for p in (order_points or ()) if ox <= p[0] < ox + 100 and oz <= p[2] < oz + 100]
-        pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id, orders)
+        lads = [(f_, t_) for f_, t_ in ladder_pairs if f_ in area_of and t_ in area_of]
+        LADDER_STATS['linked'] = LADDER_STATS.get('linked', 0) + len(lads)
+        LADDER_STATS['split'] = LADDER_STATS.get('split', 0) + sum(1 for f_, t_ in ladder_pairs if (f_ in area_of) != (t_ in area_of))
+        pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id, orders,
+                                 lads)
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]
         bounds_ = (rect[0], rect[1], min(ys), max(ys), rect[2], rect[3])
         graphs.append((sid, bounds_, mesh, pts, pairs, (ox, oz)))
@@ -994,7 +1009,7 @@ def line_walkable(level, k0, a, b, gi0, gj0, k1):
     return k == k1 or abs(level.y[k] - level.y[k1]) <= 0.6
 
 
-def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id, orders=()):
+def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id, orders=(), ladders=()):
     pts = []    # (id, pos, k, local i, local j)
     # one node per surface: an area-centre or portal node whose surface already holds a node (another area's or
     # portal's, or a border node) is not added - DICE's route graphs have no two nodes at one position except a
@@ -1050,6 +1065,18 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
                         pairs.append((idx, q, d))
     if GABRIEL_EDGES == 'all' or (GABRIEL_EDGES == 'detailed' and abs(PITCH - DETAILED_PITCH) < 1e-6):
         pairs = gabriel_prune(pts, pairs)
+    for kf, kt in ladders:
+        # a ladder link: a node on the ground at its foot and at its top, joined directly (the climb is no walkable
+        # line); the runtime's mover walks the bot into the ladder, which takes any soldier who walks into it
+        ends = []
+        for k in (kf, kt):
+            idx = next((q for q, p in enumerate(pts) if p[2] == k), None)
+            if idx is None:
+                i, j = cell_of[k]
+                pts.append((new_id(), (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH), k, i, j))
+                idx = len(pts) - 1
+            ends.append(idx)
+        pairs.append((ends[0], ends[1], math.dist(pts[ends[0]][1], pts[ends[1]][1])))
     # Connect remaining groups: grid search (8-connected, step rule) from one group to the nearest node
     # of another, then string-pull the path into straight walkable legs with waypoint nodes.
     parent = list(range(len(pts)))
