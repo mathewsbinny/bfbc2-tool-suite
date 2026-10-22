@@ -92,6 +92,11 @@ LINK_STEP = 0.6                 # DICE: straight neighbours link when their raw 
 RADIUS = 0.4
 RESOLUTION = 0.025
 DIST_EDGE_MAX = 15.0
+GABRIEL_EDGES = 'detailed'      # prune the route graph's walkable pairs to the Gabriel graph (no other same-floor node
+                                # inside the circle on the pair as diameter), keeping each sector's connectivity:
+                                # 'detailed' = in pitch-0.2 sectors, 'all', or None. DICE's detailed-sector edges are 71 %
+                                # Gabriel (RNG 50 %), 2.7 edges per node; NavKit's all-visible-pairs rule gave 15.9 per node
+                                # there (174,024 edges against DICE's 24,710; ONS_MP_002, 2026-10-21)
 DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
@@ -174,8 +179,10 @@ HEADER = (2, 2, 0, 1, 0, 0, 0, 0, 2, 0, 8, 0) + (0,) * 20 + (36, 12, 1, 0)
 DETAILED_PITCH = 0.2            # DICE's detailed zones: whole sectors at pitch 0.2, resolution 0.05, 6 x 6 tiles of 20 m
                                 # (header rect -0.2 .. 100.22; KYNAPSE_SPEC.md 4.5). Built in a second pass (build(...,
                                 # detailed=...)) from a pitch-0.2 sampling run, merged with the normal build.
-LINK_STEP_SLOPE = 0.75          # LINK_STEP per metre of spacing (0.6 m at 0.8 m = 36.9 deg); at 0.2 m: 0.15 m. The
-                                # detailed-zone value is the same slope, not yet measured on DICE's detailed areas
+DETAILED_LINK_STEP = 0.3        # LINK_STEP in detailed zones: DICE's one-cell height steps inside its pitch-0.2 areas
+                                # (ONS_MP_002, 10,353 outline segments) p99 0.31, p99.9 0.42, max 0.49 m - about half its
+                                # pitch-0.8 values (p99 0.96, max 1.03), not a quarter: the same slope (0.15 m) cut sloped
+                                # ground into 3x DICE's areas (8,400 against 2,640; 2026-10-21)
 
 
 def set_pitch(p):
@@ -188,7 +195,7 @@ def set_pitch(p):
     TILES = 6 if detailed else 3
     TILE = int(round((20 if detailed else 40) / p))       # 100 / 50 samples
     RESOLUTION = 0.05 if detailed else 0.025
-    LINK_STEP = round(LINK_STEP_SLOPE * p, 6)
+    LINK_STEP = DETAILED_LINK_STEP if detailed else 0.6
 
 
 class Level:
@@ -1018,6 +1025,8 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
                     d = math.dist(p[1], pts[q][1])
                     if d <= DIST_EDGE_MAX and line_walkable(level, p[2], (p[3], p[4]), (pts[q][3], pts[q][4]), gi0, gj0, pts[q][2]):
                         pairs.append((idx, q, d))
+    if GABRIEL_EDGES == 'all' or (GABRIEL_EDGES == 'detailed' and abs(PITCH - DETAILED_PITCH) < 1e-6):
+        pairs = gabriel_prune(pts, pairs)
     # Connect remaining groups: grid search (8-connected, step rule) from one group to the nearest node
     # of another, then string-pull the path into straight walkable legs with waypoint nodes.
     parent = list(range(len(pts)))
@@ -1105,6 +1114,34 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
         ORDER_STATS['added'] = ORDER_STATS.get('added', 0) + add_order_nodes(level, pts, pairs, node_at, area_of, orders,
                                                                              gi0, gj0, ox, oz, new_id)
     return pts, pairs
+
+
+def gabriel_prune(pts, pairs):
+    """The pairs that are Gabriel edges of the sector's nodes (no other node within 2.5 m of height inside the circle
+    with the pair as diameter), plus the shortest dropped pairs needed to keep every group of nodes the full pair set
+    joins joined (so pruning never splits a route)."""
+    P = np.array([p[1] for p in pts], float)
+    keep, rest = [], []
+    for a_, b_, d in pairs:
+        m = (P[a_] + P[b_]) / 2
+        r2 = (d / 2) ** 2 - 1e-9
+        near = (np.abs(P[:, 1] - m[1]) < 2.5) & (((P[:, 0] - m[0]) ** 2 + (P[:, 2] - m[2]) ** 2) < r2)
+        near[[a_, b_]] = False
+        (rest if near.any() else keep).append((a_, b_, d))
+    parent = list(range(len(pts)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    for a_, b_, _d in keep:
+        parent[find(a_)] = find(b_)
+    for a_, b_, d in sorted(rest, key=lambda e: e[2]):
+        if find(a_) != find(b_):
+            parent[find(a_)] = find(b_)
+            keep.append((a_, b_, d))
+    return keep
 
 
 def prune_order_nodes(graphs):
