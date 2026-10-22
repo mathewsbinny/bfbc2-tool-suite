@@ -64,19 +64,48 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
 src\, tests\         (reserved for the generator proper and its tests)
 ```
 
-## Detailed zones and ladder links (2026-10-21)
+## Detailed zones, ladders and walkability rules (2026-10-21 / 22)
 
-- **Detailed zones (pitch 0.2):** `navkit.py sample <level> --pitch 0.2` samples the sectors DICE builds at 0.2 (from its
-  path data; without it, still to come: the `NeedsDetailedPathfinding` blueprint flag); `navkit.py build` then builds
-  those sectors at 0.2 (6 x 6 tiles, link step 0.3 m, Gabriel-pruned route graph, coverage nodes every 4 m) and merges
-  them with the normal build. ONS_MP_002 against DICE on PC ground: ground 98.5 %, connectivity 98.3, over-connection
-  2.2 % (normal build: 96.7 / 3.9).
+All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregress.py`, run `regression_det_v3`,
+2026-10-22): **ground 98.1 %** of DICE's, **extra ground 8.4 %**, **connectivity 98.3** (of the routes DICE's data
+allows, the share NavKit's allows), over-connection 15.3 % (routes only NavKit's allows: open slopes, stairs, steps
+and ladders - see below).
+
+- **The default pipeline:** `navkit.py sample` (and `all`, and the window's buttons) samples the level at 0.8 m, chooses
+  its detailed zones from the level alone, then samples those at 0.2 m (`DETAILED_BUDGET_MS` = 400 ms of sampling per
+  frame: a 0.2 m run is ten times the columns and must end before a round, or a campaign level with an idle player,
+  does). A run whose level ends first is reported, not waited out. `navkit.py build` builds the detailed sectors at
+  0.2 and merges them with the normal build.
+- **Detailed zones (pitch 0.2):** chosen by `tools\detailed.py` without DICE's data - sectors near an object whose
+  blueprint sets `NeedsDetailedPathfinding`, and sectors with 100+ stacked-floor columns in the 0.8 m samples (93 % of
+  DICE's choice on 14 levels). Built with 6 x 6 tiles, link step 0.3 m, a Gabriel-pruned route graph and coverage
+  nodes every 4 m.
 - **Ladder links:** `navkit.py prepare` writes `ladders.json` (`tools\ladders.py`: placed ladder objects and their
   collision boxes); the build seeds the far end of a ladder whose near end is walkable and links a node at each end.
-  DICE's path data has none; the game puts any soldier who walks into a ladder on it. ONS_MP_002: 6 ladders, their
-  roofs and decks joined to the main network. Not yet play-tested (does a bot on a route take the ladder?).
-- **navparity** clips DICE's reference to the level's terrain (ground beyond it does not exist on PC), matches nodes
-  within 1 m of height, and reports ground reached by ladder as its own column (*ladder %*), not as extra ground.
+  DICE's path data has none; the game puts any soldier who walks into a ladder on it.
+- **Walkability rules added 2026-10-22** (`tools\navwalk.py`, each with a switch and its measurements in the code):
+  - `LIP_WIDTH`: at 0.2 m, a band of up to two samples steeper than 40 deg between walkable ground (a lip the 0.8 m
+    step rule stepped over) is walkable; `LIP_OBJECT_RISE`: the same on objects when the band is within 0.3 m of the
+    floor on both sides (door sills, thresholds). sp_007's north strip, sp_009's aircraft aisles.
+  - `DYNAMIC_FLOOR`, `DYNAMIC_ABSENT_HEADROOM`: dynamic props (and `PdtWhenAlive` doors) are absent for path data -
+    the floor under a prop lying on it counts, and neither the prop nor rays grazing its vertical faces count as a
+    ceiling. sp_003_b's monastery gate, sp_009's aircraft doors.
+  - `ROOF_PRUNE`: roof islands nothing reaches are dropped - an island with no soldier spawn, AI order position or
+    ladder end, mostly on objects with ground 2 m or more below, and no reached ground within 2 m at its own height.
+    Ground-level islands stay (DICE keeps those). sp_008 extra ground 29.5 -> 22.7 %, sp_01 12.2 -> 9.6 %.
+  - Not adopted: a slope test from heights instead of normals (`STEEP_TERRAIN`, off - DICE cuts at 40 deg by the
+    normal: 15 % of 40-45 deg terrain covered), pruning islands by size or by combat area (DICE keeps small islands
+    and ground outside its combat areas).
+- **Collision of assets named `<name>_Havok_Havok.res`** (`levelobjects.havok_index`): indexed under the blueprint's
+  name; before, such an object had no collision in NavKit (sp_009's animated aircraft door stayed solid).
+- **navparity** clips DICE's reference to the level's terrain (ground beyond it does not exist on PC), leaves out
+  DICE's route nodes with no PC ground within 1 m of their height (`stale_nodes`, column *stale_reference_nodes*:
+  data built before late geometry - sp_03's only valley-to-plateau links run under a cliff mesh added afterwards),
+  matches nodes within 1 m of height, and reports ground reached by ladder as its own column (*ladder %*), not as
+  extra ground.
+- **Still open:** sp_003_b (connectivity 93.3: a rocky gully whose rough terrain fails the slope test at 0.2 m almost
+  everywhere), a small seat-row pocket in sp_009's aircraft, and ladder links not yet play-tested with NavKit's
+  files (does a bot on a route take the ladder?).
 
 ## Plan and status (2026-10-20)
 

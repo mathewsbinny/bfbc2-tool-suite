@@ -55,9 +55,13 @@ it, then the steps, and a log of what NavKit is doing at the bottom.
    which takes about a minute. After that it takes seconds. The *Sampling area* boxes then show the
    chosen area.
 3. Click **2. Sample in game** and confirm. NavKit starts the game, loads the level and measures it. Then
-   it closes the game and does it again with a second soldier size. Each run takes about 1 to 5
-   minutes. The game window may stay black the whole time. This is normal.
-   **Do not click in the game or close it.** NavKit closes it when it has finished.
+   it closes the game and does it again with a second soldier size. If the level has *detailed zones* -
+   buildings and other places with floors above floors, which NavKit finds by itself - it then measures
+   those places again, four times more finely, with the same two soldier sizes. That makes up to four game
+   starts. The first two take about 1 to 5 minutes each, the fine ones up to about 15 minutes on a large
+   level. The game window may stay black the whole time. This is normal.
+   **Do not click in the game or close it.** NavKit closes it when it has finished. (If a level ends by
+   itself while NavKit is measuring, NavKit notices, says so and stops; run Sample again.)
 4. Click **3. Build.** NavKit creates `pathdata.hpd` from the measurements. This takes a few minutes
    for a large level.
 5. Click **4. Check.** NavKit scores the result (see [Reading the check](#reading-the-check)).
@@ -75,6 +79,7 @@ Run these from the `bfbc2-auto-navkit` folder:
 python navkit.py levels            list levels; "yes (samplable)" = NavKit can build it
 python navkit.py prepare sp_01
 python navkit.py sample  sp_01     asks before it starts the game; add --yes to skip the question
+                                   (--pitch 0.8 or --pitch 0.2: only the normal or only the fine measurement)
 python navkit.py build   sp_01
 python navkit.py check   sp_01
 python navkit.py install sp_01     restore sp_01 puts the original back
@@ -137,10 +142,11 @@ regions - see the parity tools in [README.md](README.md) (`tools\navparity.py`, 
 3. Play, watching the AI soldiers.
 4. Quit, then click **Restore original** (or `python navkit.py restore <level>`).
 
-State of NavKit's files today (2026-10-20): on SP_004_B the friendly squad now follows the player and moves
-through the mission on NavKit's file, and leaving a level no longer crashes the game. Parts of DICE's data
-are still missing (detailed zones around buildings, among others), so some levels may still have places
-where the AI stops. Project OPFOR's `DEVELOPMENT_NOTES.md` has the details.
+State of NavKit's files today (2026-10-22): on SP_004_B the friendly squad follows the player and moves
+through the mission on NavKit's file, and leaving a level no longer crashes the game. Measured against
+DICE's files on 15 levels, NavKit's files have 98 % of DICE's walkable ground and allow 98 % of the routes
+DICE's allow. Some places still differ (see README.md), so the AI may still stop somewhere. Project OPFOR's
+`DEVELOPMENT_NOTES.md` has the details.
 
 Tip: to start a mission your campaign save is not on, set `level=Levels/<LEVEL>` under `[dev]` in
 `game\opfor.ini` (for example `level=Levels/SP_004_B`), start OPFOR and press **F9** in the main menu. Put
@@ -155,6 +161,8 @@ All of these are inside the Project OPFOR folder:
 |---|---|
 | `work\navkit\<level>\navkit.json` | the sampling area and sector numbering chosen by Prepare (the level's own `SectorOffsets`, or DICE's rule when it has none) |
 | `work\navsample\<level>_navkit.bin`, `..._navkit_hi.bin` | the two in-game measurements |
+| `work\navsample\<level>_navkit_p02.bin`, `..._navkit_hi_p02.bin` | the two fine (0.2 m) measurements of the level's detailed zones |
+| `work\navkit\<level>\detailed.json` | which 100 m squares are detailed zones, and why |
 | `work\navkit\<level>\pathdata.hpd` | **the result** |
 | `work\navkit\<level>\check.txt` | the full check report |
 | `work\levels\<level>\` | the unpacked level and the objects NavKit read from it |

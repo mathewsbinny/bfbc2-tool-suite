@@ -216,6 +216,24 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
 - **Objects without their own collision** (`InvWall_SP03`) use the collision of their `Mesh` reference's
   blueprint (`InvWall`). Missing it left a scripted invisible wall with `DisablePathfinding = PdtWhenAlive`
   blocking routes; DICE's data passes it (sp_003_b main network 490 -> 680 positions, DICE 712).
+- **Collision packfiles named `<name>_Havok_Havok.res`** (sp_009's `plane_floor2_door_animate`, `inv_Wall`) belong to
+  blueprint `<name>`. Missed, the aircraft's `PdtWhenAlive` doors stayed solid and cut its cabins apart; DICE's data
+  walks through them (2026-10-22). A narrower capsule (0.3 / 0.25 / 0.2 m, sampled in game) did not open the doorways
+  and widened the aisles past DICE's 0.8 m: DICE's clearance is the same 0.4 m radius - the doors are simply absent.
+- **Dynamic props at pitch 0.2:** a prop lying on the floor hides it (the rays record only the prop - a gate's bottom
+  rail 0.09 m up), and a thin vertical leaf on a sample row is hit on its faces 0.8-1.5 m up with no triangle under
+  the hit; both are the prop, not floor or ceiling (sp_003_b's monastery gate, sp_009's aircraft doors).
+- **DICE's slope test is the normal's, at 40 deg, on terrain and objects alike** (sp_007 / sp_003_b at pitch 0.2:
+  DICE covers 81-100 % of terrain under 40 deg, 10-33 % at 40-45, under 4 % above; rock meshes in sp_003_b's gully
+  about 0 %). Narrow steep bands (lips, sills) between walkable ground are crossed: at 0.8 m by the step rule, at
+  0.2 m NavKit accepts bands of up to two samples (`LIP_WIDTH`, `LIP_OBJECT_RISE`).
+- **Stale reference data:** DICE's sp_03 links a valley to a plateau only through 93 nodes 1.5-5 m under the PC
+  ground (cliff mesh `sp03_cliff_2` and raised terrain); elsewhere 99.8 % of its nodes are on PC ground. Parity
+  measures leave such nodes out (`navparity.stale_nodes`).
+- **Small islands:** DICE keeps unreached islands at ground level but not detached roofs and scenery tops (all 15
+  levels: dropping unanchored islands under 25 nodes cost as much DICE ground as extra it removed; dropping unreached
+  roof islands without reached ground beside them cost 0.28 points for 1.31). Combat areas do not bound DICE's data
+  (61-95 % of its ground lies outside them on most campaign levels).
 - **Soldier spawn points seed the walkable surface.** DICE's data has closed upper floors (reached by
   ladders or scripted spawns, no walkable link) as isolated islands of 5-8 nodes; every one holds
   `SoldierSpawnEntityData` positions, and no seed entities or `AllowPathdataSeeds` objects are there.

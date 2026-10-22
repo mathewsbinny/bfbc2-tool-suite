@@ -3,7 +3,8 @@
   python navkit.py levels                     list the game's levels (and which can be sampled)
   python navkit.py prepare SP_01              unpack + convert the level, extract its objects,
                                               choose the sampling box and sector offsets
-  python navkit.py sample  SP_01 [--yes]      two in-game collision sampling runs (launches the game)
+  python navkit.py sample  SP_01 [--yes]      in-game collision sampling (launches the game): two runs at 0.8 m,
+                                              then two at 0.2 m over the level's detailed zones (if it has any)
   python navkit.py build   SP_01              generate pathdata.hpd
   python navkit.py check   SP_01              score it (against DICE's file if the level has one)
   python navkit.py apply   SP_01 [--navtune file] [--out file] [--install]
@@ -22,7 +23,7 @@
                                               (default: the original against NavKit's build)
 
 Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: override the sampling box),
-         --pitch 0.2 (sample: a detailed-zone run - by default over the sectors DICE builds at pitch 0.2;
+         --pitch 0.8 / 0.2 (sample: that pass only; 0.2 = a detailed-zone run over the level's detailed sectors;
          writes <level>_navkit_p02.bin / _hi_p02.bin, the level's settings and its 0.8 m samples untouched),
          --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit).
 
@@ -47,6 +48,9 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)   # no console flashes wh
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'tools'))
 
+DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
+                           # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at
+                           # 95 %, SP_006 and SP_007 back at the menu after ~11 min; 400: all 15 levels, 2026-10-22)
 AGENTS = [('normal', '0.4,0.28,1.9', ''), ('high capsule', '0.4,0.6,1.9', '_hi')]   # radius,stepMax,height
 SAMPLE_DONE = re.compile(r'navsample: (done|no physics|cannot create|empty box|needs \[debug\])')
 BACKUP_SUFFIX = '.opfor-orig'
@@ -392,7 +396,7 @@ def pitch_suffix(pitch):
     return '' if abs(pitch - 0.8) < 1e-6 else f'_p{int(round(pitch * 10)):02d}'
 
 
-def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitch=0.8):
+def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitch=0.8, budget_ms=None):
     s = ensure_settings(pr, lv)
     if abs(pitch - 0.8) > 1e-6:
         # a detailed-zone run: its own box (the detailed sectors by default) and only their squares sampled
@@ -418,14 +422,33 @@ def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitc
         out = pr.samples(lv, suffix + ps)
         if os.path.isfile(out):
             os.remove(out)
-        result = sample_run(pr, s, agent, os.path.basename(out)[:-4], log, timeout, pitch)
+        result = sample_run(pr, s, agent, os.path.basename(out)[:-4], log, timeout, pitch, budget_ms)
         if not os.path.isfile(out) or 'done' not in result:
             raise NavKitError(f'sampling did not finish: {result or "no result in the log"}')
     log('  samples: ' + ', '.join(os.path.relpath(pr.samples(lv, a[2] + ps), pr.root) for a in AGENTS))
     return True
 
 
-def sample_run(pr, s, agent, name, log, timeout, pitch=0.8):
+def sample_level(pr, lv, log=print, confirm=None, box=None, y=None):
+    """The level's sampling: the normal and high-capsule runs at 0.8 m, then - when the level has detailed sectors
+    (detailed.py: flagged objects, stacked floors in the 0.8 m samples) - the same two at 0.2 m over those sectors.
+    One confirmation for all game launches."""
+    if confirm and not confirm(f'NavKit will start the game up to four times to sample {lv.upper()} (two 0.8 m runs, then '
+                               'two 0.2 m runs over its detailed zones; about 1-15 minutes each; the screen may stay '
+                               'black). Continue?'):
+        log('  cancelled')
+        return False
+    if not sample(pr, lv, log=log, box=box, y=y):
+        return False
+    ids = detailed_sectors(pr, lv)
+    if not ids:
+        log(f'  {lv}: no detailed sectors - no 0.2 m runs')
+        return True
+    log(f'  {lv}: {len(ids)} detailed sectors - 0.2 m runs')
+    return sample(pr, lv, log=log, pitch=0.2)
+
+
+def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
     orig = open(pr.ini, 'rb').read()
     shutil.copyfile(pr.ini, ini_backup(pr))
     log_start = os.path.getsize(pr.log_path) if os.path.isfile(pr.log_path) else 0
@@ -436,8 +459,11 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8):
                       ('dev', 'navsample_offset', '0'), ('dev', 'navsample_agent', agent), ('debug', 'probes', '1'),
                       ('dev', 'navsample_rects', ';'.join(fmt(r) for r in (s.get('rects') or ())))) + (
             # a pitch-0.2 run is 10x the columns: a larger time budget per frame, so it finishes before a round with
+            # working bots (or a campaign level's idle player: SP_006 back at the menu at 60 %, 2026-10-22) can end;
+            # budget_ms overrides it (a retry at a larger budget: less game time for the same columns)
             # working bots can end (ONS_MP_002 at 40 ms: back to the menu at 95 %, 2026-10-21); normal runs keep the ini's
-            () if abs(pitch - 0.8) < 1e-6 else (('dev', 'navsample_budget_ms', '150'),)):
+            (('dev', 'navsample_budget_ms', str(budget_ms)),) if budget_ms else
+            () if abs(pitch - 0.8) < 1e-6 else (('dev', 'navsample_budget_ms', str(DETAILED_BUDGET_MS)),)):
         t = ini_set(t, sec, k, v)
     result = ''
     try:
@@ -460,6 +486,11 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8):
                 break
             if not game_running():
                 result = 'the game exited'
+                break
+            # back at the main menu after sampling began: the level ended (a round over, a campaign level failed)
+            first = next((i for i, l in enumerate(new) if 'navsample: sampling' in l), None)   # not 'armed': before the menu
+            if first is not None and any('UI cmd [main menu]' in l for l in new[first:]):
+                result = 'the level ended (back at the main menu) - retry with a larger --budget'
                 break
         else:
             result = 'timed out'
@@ -493,9 +524,9 @@ def build(pr, lv, log=print):
     import navregress
     s = pr.settings(lv)
     L = pr.level_work(lv)
-    for suffix in ('', '_hi'):
-        if not os.path.isfile(pr.samples(lv, suffix)):
-            raise NavKitError(f'{lv}: samples missing ({os.path.basename(pr.samples(lv, suffix))}) - run sample first')
+    s08 = pr.samples08(lv)                      # <lv>_navkit.bin, or <lv>_full.bin of older campaign runs
+    if not s08 or not os.path.isfile(s08[:-4] + '_hi.bin'):
+        raise NavKitError(f'{lv}: samples missing ({os.path.basename(pr.samples(lv))} and its _hi run) - run sample first')
     out = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
     t0 = time.time()
@@ -507,8 +538,8 @@ def build(pr, lv, log=print):
                         sectors=set(detailed_sectors(pr, lv)))
         log(f'  detailed zones: {len(detailed["sectors"])} sectors at pitch 0.2'
             + ('' if detailed['high'] else ' (no high-capsule run at 0.2 - stairs use the normal capsule there)'))
-    navbuild.build(pr.samples(lv), os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], out, detailed=detailed,
-                   dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=pr.samples(lv, '_hi'),
+    navbuild.build(s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], out, detailed=detailed,
+                   dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=s08[:-4] + '_hi.bin',
                    stairs_path=os.path.join(L, 'stair_tris.npy'),
                    seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
                    water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
@@ -743,7 +774,10 @@ def main(argv):
         if cmd == 'prepare':
             prepare(pr, lv, box=box, y=y)
         elif cmd == 'sample':
-            sample(pr, lv, confirm=confirm, box=box, y=y, pitch=float(opts.get('--pitch', 0.8)))
+            if '--pitch' in opts:
+                sample(pr, lv, confirm=confirm, box=box, y=y, pitch=float(opts['--pitch']))
+            else:
+                sample_level(pr, lv, confirm=confirm, box=box, y=y)
         elif cmd == 'build':
             build(pr, lv)
         elif cmd == 'compare':
@@ -760,7 +794,7 @@ def main(argv):
             status(pr, lv)
         elif cmd == 'all':
             prepare(pr, lv, box=box, y=y)
-            if sample(pr, lv, confirm=confirm):
+            if sample_level(pr, lv, confirm=confirm):
                 build(pr, lv)
                 check(pr, lv)
         else:

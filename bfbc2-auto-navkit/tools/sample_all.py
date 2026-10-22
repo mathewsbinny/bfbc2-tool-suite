@@ -1,6 +1,6 @@
 """NavKit: sample several levels in one unattended run (each run starts the game, samples, closes it).
 
-  sample_all.py [--pitch 0.2] [--levels sp_009,sp_01,...] [--smoke sp_009] [--log <file>]
+  sample_all.py [--pitch 0.2] [--levels sp_009,sp_01,...] [--smoke sp_009] [--budget <ms per frame>] [--log <file>]
 
 For each level, navkit.py's sample (normal and high-capsule runs). With --pitch 0.2 only the level's detailed
 sectors are sampled (detailed.py); a level without 0.8 m samples gets its 0.8 m runs first (the detailed choice and
@@ -26,6 +26,7 @@ def main(argv):
     pitch = float(opts.get('--pitch', 0.2))
     levels = opts['--levels'].split(',') if '--levels' in opts else list(LEVELS)
     smoke = opts.get('--smoke')
+    budget = int(opts['--budget']) if '--budget' in opts else None
     logf = open(opts.get('--log', os.path.join(navkit.Project(None).work, 'navsample', 'sample_all.log')), 'a', encoding='utf-8')
 
     def log(*a):
@@ -46,7 +47,7 @@ def main(argv):
                 if not navkit.sample(pr, lv, log=log, pitch=0.8):
                     raise navkit.NavKitError('0.8 m sampling cancelled')
             log(f'[{n}/{len(order)}] {lv}: {len(navkit.detailed_sectors(pr, lv)) if abs(pitch - 0.8) > 1e-6 else "all"} sectors')
-            if not navkit.sample(pr, lv, log=log, pitch=pitch):
+            if not navkit.sample(pr, lv, log=log, pitch=pitch, budget_ms=budget):
                 raise navkit.NavKitError('cancelled')
             done.append(lv)
             log(f'[{n}/{len(order)}] {lv}: done in {(time.time() - t1) / 60:.1f} min (total {(time.time() - t0) / 60:.0f} min)')
