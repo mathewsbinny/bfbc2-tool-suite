@@ -107,13 +107,34 @@ def order_points_of(root, lv):
     return json.load(open(p)) if os.path.isfile(p) else None
 
 
+def detailed_of(root, lv, samples, xoff, zoff):
+    """The detailed-zone pass, as navkit.py build does it: the level's pitch-0.2 samples (navkit.py sample --pitch 0.2,
+    work\\navsample\\<lv>_navkit_p02.bin, with _hi_p02) and its detailed sectors chosen from the level alone
+    (detailed.py); None without pitch-0.2 samples."""
+    import detailed
+    p02 = os.path.join(root, 'work', 'navsample', f'{lv}_navkit_p02.bin')
+    if not os.path.isfile(p02):
+        return None
+    hi = p02[:-4].replace('_p02', '_hi_p02') + '.bin'
+    common = [os.path.join(root, 'work', 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
+    chosen, _why = detailed.choose(os.path.join(root, 'work', 'levels', lv), common, samples, xoff, zoff)
+    return dict(samples=p02, high=hi if os.path.isfile(hi) else None, sectors=set(chosen))
+
+
+def ladders_of(root, lv):
+    """The level's ladders (ladders.py, written by navkit.py prepare), or None."""
+    p = os.path.join(root, 'work', 'levels', lv, 'ladders.json')
+    return json.load(open(p)) if os.path.isfile(p) else None
+
+
 def build_level(root, lv, out, log=lambda *a: None):
     samples, xoff, zoff, f = inputs(root, lv)
     navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                    seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv),
                    order_points=order_points_of(root, lv),
-                   bounds=reference_bounds(root, lv), log=log)
+                   bounds=reference_bounds(root, lv), log=log,
+                   detailed=detailed_of(root, lv, samples, xoff, zoff), ladders=ladders_of(root, lv))
 
 
 DEFAULT_SECONDS = 210                           # a level with no earlier timing: 45 minutes / 13 levels

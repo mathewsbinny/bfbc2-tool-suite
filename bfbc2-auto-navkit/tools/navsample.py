@@ -56,8 +56,21 @@ def load(path):
     data = open(path, 'rb').read()
     magic, version, pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, _ = \
         HEADER.unpack_from(data, 0)
-    if magic != b'ONS1' or version not in (1, 2):
+    if magic != b'ONS1' or version not in (1, 2, 3):
         raise ValueError(f'{path}: not a navsample file')
+    if version == 3:
+        # records, then the column counts in one block, then { u64 offset of the counts, "CNT3" } - read at once
+        if len(data) < HEADER.size + 12 or data[-4:] != b'CNT3':
+            raise ValueError(f'{path}: sampling run not finished (no column counts)')
+        at = struct.unpack_from('<Q', data, len(data) - 12)[0]
+        counts = np.frombuffer(data, np.uint8, nx * nz, at).astype(np.int64)
+        start = np.zeros(nx * nz + 1, dtype=np.int64)
+        np.cumsum(counts, out=start[1:])
+        rec = np.frombuffer(data, np.dtype([('y', '<f4'), ('n', 'i1', 3), ('f', 'u1'), ('h', '<u4', 3)]),
+                            int(start[-1]), HEADER.size)
+        return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, start,
+                       rec['y'].astype(np.float32), (rec['n'] / 127.0).astype(np.float32),
+                       rec['f'].astype(np.uint8), rec['h'].astype(np.uint32)), nx * nz
     pos = HEADER.size
     cols = nx * nz
     start = np.zeros(cols + 1, dtype=np.int64)

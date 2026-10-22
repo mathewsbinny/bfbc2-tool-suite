@@ -137,6 +137,14 @@ class Project:
     def samples(self, lv, suffix=''):
         return os.path.join(self.work, 'navsample', f'{lv}_navkit{suffix}.bin')
 
+    def samples08(self, lv):
+        """The level's 0.8 m samples: <lv>_navkit.bin (navkit.py sample) or <lv>_full.bin (older campaign runs)."""
+        for name in (f'{lv}_navkit', f'{lv}_full'):
+            q = os.path.join(self.work, 'navsample', name + '.bin')
+            if os.path.isfile(q):
+                return q
+        return None
+
     def run(self, args, log):
         r = subprocess.run(args, capture_output=True, text=True, errors='replace', creationflags=NO_WINDOW)
         out = (r.stdout + r.stderr).strip().splitlines()
@@ -308,8 +316,58 @@ def recover_ini(pr, log=print):
         log('  restored opfor.ini from the copy an interrupted sampling run left behind')
 
 
+def ensure_settings(pr, lv):
+    """The level's settings (navkit.json); a level sampled before navkit.json existed gets one from what is there: its
+    name (the converted level partition), box and heights (its 0.8 m samples), sector offsets (its SectorOffsets)."""
+    if os.path.isfile(pr.settings_path(lv)):
+        return pr.settings(lv)
+    import navsample
+    L = pr.level_work(lv)
+    sp = pr.samples08(lv)
+    so = glob.glob(os.path.join(L, 'dist', 'levels', '*', 'Precomputed', 'Infantry', 'SectorOffsets.xml'))
+    if not sp or not so:
+        raise NavKitError(f'{lv}: not prepared yet (navkit.py prepare {lv.upper()})')
+    t = open(so[0], encoding='utf-8').read()
+    s, _ = navsample.load(sp)
+    name = level_partition_name(L, lv)
+    st = {'level': name, 'box': [round(s.min_x, 3), round(s.min_z, 3), round(s.min_x + (s.nx - 1) * s.pitch, 3),
+                                 round(s.min_z + (s.nz - 1) * s.pitch, 3)],
+          'y': [round(s.y_bottom, 3), round(s.y_top, 3)], 'box_source': 'its 0.8 m samples',
+          'offsets_source': 'its SectorOffsets', 'xoff': int(re.search(r'name="XOffset">(-?\d+)<', t).group(1)),
+          'zoff': int(re.search(r'name="ZOffset">(-?\d+)<', t).group(1))}
+    json.dump(st, open(pr.settings_path(lv), 'w'), indent=1)
+    return st
+
+
 def detailed_sectors(pr, lv):
-    """The sectors DICE's path data builds as detailed zones (pitch 0.2), as (grid x, grid z) ids; empty without it."""
+    """The sectors to build as detailed zones (pitch 0.2), as (grid x, grid z) - chosen from the level alone
+    (tools\\detailed.py: flagged objects, stacked floors in the 0.8 m samples); cached in work\\navkit\\<lv>\\
+    detailed.json while the samples are the same."""
+    import detailed
+    s = ensure_settings(pr, lv)
+    sp = pr.samples08(lv)
+    cache = os.path.join(pr.out_dir(lv), 'detailed.json')
+    key = f'{os.path.basename(sp) if sp else None}|{os.path.getmtime(sp) if sp else 0}|{detailed.MARGIN}|{detailed.STACKED_MIN}'
+    if os.path.isfile(cache):
+        c = json.load(open(cache))
+        if c.get('key') == key:
+            return [tuple(x) for x in c['sectors']]
+    common = [os.path.join(pr.work, 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
+    chosen, why = detailed.choose(pr.level_work(lv), common, sp, s['xoff'], s['zoff'])
+    json.dump({'key': key, 'sectors': chosen, 'why': why}, open(cache, 'w'))
+    return chosen
+
+
+def detailed_rects(pr, lv, margin=1.0):
+    """The detailed sectors' squares plus a margin (the sampling window's overlap), for navsample_rects."""
+    s = ensure_settings(pr, lv)
+    return [[(i + s['xoff']) * 100 - margin, (j + s['zoff']) * 100 - margin, (i + s['xoff']) * 100 + 100 + margin,
+             (j + s['zoff']) * 100 + 100 + margin] for i, j in detailed_sectors(pr, lv)]
+
+
+def dice_detailed_sectors(pr, lv):
+    """The sectors DICE's path data builds as detailed zones (pitch 0.2), as (grid x, grid z) ids; empty without it.
+    For scoring detailed_sectors only - NavKit does not choose from it."""
     import hpdtool
     import kymesh
     p = pr.dice_pathdata(lv)
@@ -321,10 +379,10 @@ def detailed_sectors(pr, lv):
 
 def detailed_box(pr, lv, margin=1.0):
     """The box around the detailed sectors (their 100 m squares plus a margin), for a pitch-0.2 sampling run."""
-    s = pr.settings(lv)
+    s = ensure_settings(pr, lv)
     ids = detailed_sectors(pr, lv)
     if not ids:
-        raise NavKitError(f'{lv}: no detailed sectors known (no DICE path data with pitch-0.2 sectors) - pass --box')
+        raise NavKitError(f'{lv}: no detailed sectors (no flagged objects or stacked floors) - nothing to sample at 0.2')
     xs, zs = [(i + s['xoff']) * 100 for i, _ in ids], [(j + s['zoff']) * 100 for _, j in ids]
     return [min(xs) - margin, min(zs) - margin, max(xs) + 100 + margin, max(zs) + 100 + margin]
 
@@ -335,10 +393,11 @@ def pitch_suffix(pitch):
 
 
 def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitch=0.8):
-    s = pr.settings(lv)
+    s = ensure_settings(pr, lv)
     if abs(pitch - 0.8) > 1e-6:
-        # a detailed-zone run: its own box (the detailed sectors by default), the level's settings stay as they are
-        s = dict(s, box=box or detailed_box(pr, lv), y=y or s['y'])
+        # a detailed-zone run: its own box (the detailed sectors by default) and only their squares sampled
+        # (navsample_rects); the level's settings stay as they are
+        s = dict(s, box=box or detailed_box(pr, lv), y=y or s['y'], rects=None if box else detailed_rects(pr, lv))
     elif box or y:
         s['box'], s['y'] = box or s['box'], y or s['y']
         json.dump(s, open(pr.settings_path(lv), 'w'), indent=1)
@@ -374,7 +433,8 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8):
     for sec, k, v in (('dev', 'level', 'Levels/' + s['level']), ('dev', 'autostart', '1'), ('dev', 'navsample', '1'),
                       ('dev', 'navsample_name', name), ('dev', 'navsample_box', fmt(s['box'])),
                       ('dev', 'navsample_y', fmt(s['y'])), ('dev', 'navsample_pitch', fmt([pitch])),
-                      ('dev', 'navsample_offset', '0'), ('dev', 'navsample_agent', agent), ('debug', 'probes', '1')) + (
+                      ('dev', 'navsample_offset', '0'), ('dev', 'navsample_agent', agent), ('debug', 'probes', '1'),
+                      ('dev', 'navsample_rects', ';'.join(fmt(r) for r in (s.get('rects') or ())))) + (
             # a pitch-0.2 run is 10x the columns: a larger time budget per frame, so it finishes before a round with
             # working bots can end (ONS_MP_002 at 40 ms: back to the menu at 95 %, 2026-10-21); normal runs keep the ini's
             () if abs(pitch - 0.8) < 1e-6 else (('dev', 'navsample_budget_ms', '150'),)):
