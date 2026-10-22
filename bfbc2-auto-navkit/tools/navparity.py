@@ -35,6 +35,9 @@ import ordercheck  # noqa: E402
 LEVELS = ['sp_01', 'sp_02', 'sp_03', 'sp_04', 'sp_003_b', 'sp_004_b', 'sp_005', 'sp_005_b', 'sp_006', 'sp_007',
           'sp_008', 'sp_008_b', 'sp_009']
 NEAR = 2.0
+NEAR_DY = 1.0                   # height tolerance of a node match (both files' nodes sit 0.95 m over their ground). Was
+                                # 2.5 m: a street node then matched a deck node 2.5 m above it, and ONS_MP_002's detailed
+                                # build showed 119 'missing' DICE links - 12 with 1 m (2026-10-21)
 
 
 def opfor_root(given=None):
@@ -93,7 +96,7 @@ def islands(reference, candidate, clip=None):
             for dz in (-1, 0, 1):
                 for k in grid.get((gx + dx, gz + dz), ()):
                     q = C.nodes[k][1]
-                    if abs(q[1] - p[1]) > 2.5:
+                    if abs(q[1] - p[1]) > NEAR_DY:
                         continue
                     d = (q[0] - p[0]) ** 2 + (q[2] - p[2]) ** 2
                     if d <= NEAR * NEAR and (best is None or d < best_d):
