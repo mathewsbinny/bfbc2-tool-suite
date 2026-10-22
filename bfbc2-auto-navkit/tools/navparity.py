@@ -75,6 +75,46 @@ def terrain_bounds(root, lv):
     return None
 
 
+STALE_DY = 1.0     # a reference route node with no sampled PC surface within this of its ground height is stale
+
+
+def stale_nodes(root, lv, reference, clip=None):
+    """Ids of the reference's route nodes on ground the PC level does not have: no surface of NavKit's 0.8 m samples
+    (the column and its 8 neighbours) within STALE_DY of the node's ground (node height - 0.95). DICE's data was built
+    before some late geometry - sp_03: its only valley-to-plateau links run 1.5-5 m under the cliff mesh sp03_cliff_2
+    and raised terrain (85 nodes; 99.8 % of its nodes are on PC ground) - and a route there is no route on PC, so
+    connectivity leaves those nodes out, as it leaves out ground past the terrain (terrain_bounds). Empty without
+    0.8 m samples."""
+    import numpy as np
+    import hpdtool
+    import navsample
+    sp = next((p for p in (os.path.join(root, 'work', 'navsample', f'{lv}_navkit.bin'),
+                           os.path.join(root, 'work', 'navsample', f'{lv}_full.bin')) if os.path.isfile(p)), None)
+    if sp is None:
+        return set()
+    s, _ = navsample.load(sp)
+    out = set()
+    for sec in hpdtool.parse(open(reference, 'rb').read()).sectors:
+        for n in sec.nodes:
+            x, y, z = n.pos
+            if clip and not (clip[0] <= x <= clip[2] and clip[1] <= z <= clip[3]):
+                continue
+            i, j = int(round((x - s.min_x) / s.pitch)), int(round((z - s.min_z) / s.pitch))
+            if not (1 <= i < s.nx - 1 and 1 <= j < s.nz - 1):
+                continue
+            g = y - 0.95
+            ok = False
+            for dj in (-1, 0, 1):
+                c0 = (j + dj) * s.nx + i
+                a, b = s.start[c0 - 1], s.start[c0 + 2]
+                if b > a and np.min(np.abs(s.y[a:b] - g)) <= STALE_DY:
+                    ok = True
+                    break
+            if not ok:
+                out.add(n.id)
+    return out
+
+
 def ladder_ground(reference, candidate, reference_cells):
     """Ground reached only through ladder links (navdata: ladder edges, ladder areas): its share of the reference's
     ground, and how many of its cells the reference lacks (kept out of 'extra ground')."""
@@ -96,8 +136,8 @@ def pairs(n):
     return n * (n - 1) // 2
 
 
-def islands(reference, candidate, clip=None):
-    R, C = ordercheck.PathData(reference, clip), ordercheck.PathData(candidate)
+def islands(reference, candidate, clip=None, drop=None):
+    R, C = ordercheck.PathData(reference, clip, drop), ordercheck.PathData(candidate)
     res = {'reference': len(R.group_size), 'candidate': len(C.group_size),
            'large_reference': sum(1 for v in R.group_size.values() if v >= 25),
            'large_candidate': sum(1 for v in C.group_size.values() if v >= 25)}
@@ -141,10 +181,11 @@ def run_level(root, lv, candidate, log):
     clip = terrain_bounds(root, lv)
     d, _, _, _ = navdiff.diff(ref, candidate, log=lambda *a: None, clip=clip)
     a = navcompare.compare(xml, ref, candidate)
-    isl = islands(ref, candidate, clip)
+    stale = stale_nodes(root, lv, ref, clip)
+    isl = islands(ref, candidate, clip, stale)
     lad = ladder_ground(ref, candidate, d['cells']['reference'])
     row = {
-        'level': lv, 'candidate': candidate, 'reference_clip': clip,
+        'level': lv, 'candidate': candidate, 'reference_clip': clip, 'stale_reference_nodes': len(stale),
         'sectors_reference': d['sectors']['reference'], 'sectors_candidate': d['sectors']['candidate'],
         'sectors_missing': len(d['sectors']['only_reference']), 'sectors_extra': len(d['sectors']['only_candidate']),
         'ground': d['cells']['parity'],
