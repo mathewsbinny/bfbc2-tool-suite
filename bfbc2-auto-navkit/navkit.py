@@ -22,6 +22,8 @@
                                               (default: the original against NavKit's build)
 
 Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: override the sampling box),
+         --pitch 0.2 (sample: a detailed-zone run - by default over the sectors DICE builds at pitch 0.2;
+         writes <level>_navkit_p02.bin / _hi_p02.bin, the level's settings and its 0.8 m samples untouched),
          --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit).
 
 NavKit works on Project OPFOR's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
@@ -302,12 +304,41 @@ def recover_ini(pr, log=print):
         log('  restored opfor.ini from the copy an interrupted sampling run left behind')
 
 
-def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600):
+def detailed_sectors(pr, lv):
+    """The sectors DICE's path data builds as detailed zones (pitch 0.2), as (grid x, grid z) ids; empty without it."""
+    import hpdtool
+    import kymesh
+    p = pr.dice_pathdata(lv)
+    if not p:
+        return []
+    return sorted((sec.id >> 8, sec.id & 0xff) for sec in hpdtool.parse(open(p, 'rb').read()).sectors
+                  if abs(kymesh.parse_mesh(sec.mesh).pitch - 0.2) < 1e-3)
+
+
+def detailed_box(pr, lv, margin=1.0):
+    """The box around the detailed sectors (their 100 m squares plus a margin), for a pitch-0.2 sampling run."""
     s = pr.settings(lv)
-    if box or y:
+    ids = detailed_sectors(pr, lv)
+    if not ids:
+        raise NavKitError(f'{lv}: no detailed sectors known (no DICE path data with pitch-0.2 sectors) - pass --box')
+    xs, zs = [(i + s['xoff']) * 100 for i, _ in ids], [(j + s['zoff']) * 100 for _, j in ids]
+    return [min(xs) - margin, min(zs) - margin, max(xs) + 100 + margin, max(zs) + 100 + margin]
+
+
+def pitch_suffix(pitch):
+    """Sample-file suffix of a pitch: '' for the normal 0.8, '_p02' for 0.2."""
+    return '' if abs(pitch - 0.8) < 1e-6 else f'_p{int(round(pitch * 10)):02d}'
+
+
+def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitch=0.8):
+    s = pr.settings(lv)
+    if abs(pitch - 0.8) > 1e-6:
+        # a detailed-zone run: its own box (the detailed sectors by default), the level's settings stay as they are
+        s = dict(s, box=box or detailed_box(pr, lv), y=y or s['y'])
+    elif box or y:
         s['box'], s['y'] = box or s['box'], y or s['y']
         json.dump(s, open(pr.settings_path(lv), 'w'), indent=1)
-    log(f'== sample {lv}: box {fmt(s["box"])}, y {fmt(s["y"])}')
+    log(f'== sample {lv}: box {fmt(s["box"])}, y {fmt(s["y"])}, pitch {pitch}')
     if not pr.dice_pathdata(lv):
         log('  warning: this level has no AI path data, so its AI (and the sampler) may not start - see QUICKSTART.md')
     if game_running():
@@ -318,27 +349,31 @@ def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600):
         return False
     recover_ini(pr, log)
     os.makedirs(os.path.join(pr.work, 'navsample'), exist_ok=True)
+    ps = pitch_suffix(pitch)
     for label, agent, suffix in AGENTS:
         log(f'  run {label} ({agent}) ...')
-        out = pr.samples(lv, suffix)
+        out = pr.samples(lv, suffix + ps)
         if os.path.isfile(out):
             os.remove(out)
-        result = sample_run(pr, s, agent, os.path.basename(out)[:-4], log, timeout)
+        result = sample_run(pr, s, agent, os.path.basename(out)[:-4], log, timeout, pitch)
         if not os.path.isfile(out) or 'done' not in result:
             raise NavKitError(f'sampling did not finish: {result or "no result in the log"}')
-    log('  samples: ' + ', '.join(os.path.relpath(pr.samples(lv, a[2]), pr.root) for a in AGENTS))
+    log('  samples: ' + ', '.join(os.path.relpath(pr.samples(lv, a[2] + ps), pr.root) for a in AGENTS))
     return True
 
 
-def sample_run(pr, s, agent, name, log, timeout):
+def sample_run(pr, s, agent, name, log, timeout, pitch=0.8):
     orig = open(pr.ini, 'rb').read()
     shutil.copyfile(pr.ini, ini_backup(pr))
     log_start = os.path.getsize(pr.log_path) if os.path.isfile(pr.log_path) else 0
     t = orig.decode('utf-8', errors='replace')
     for sec, k, v in (('dev', 'level', 'Levels/' + s['level']), ('dev', 'autostart', '1'), ('dev', 'navsample', '1'),
                       ('dev', 'navsample_name', name), ('dev', 'navsample_box', fmt(s['box'])),
-                      ('dev', 'navsample_y', fmt(s['y'])), ('dev', 'navsample_pitch', '0.8'),
-                      ('dev', 'navsample_offset', '0'), ('dev', 'navsample_agent', agent), ('debug', 'probes', '1')):
+                      ('dev', 'navsample_y', fmt(s['y'])), ('dev', 'navsample_pitch', fmt([pitch])),
+                      ('dev', 'navsample_offset', '0'), ('dev', 'navsample_agent', agent), ('debug', 'probes', '1')) + (
+            # a pitch-0.2 run is 10x the columns: a larger time budget per frame, so it finishes before a round with
+            # working bots can end (ONS_MP_002 at 40 ms: back to the menu at 95 %, 2026-10-21); normal runs keep the ini's
+            () if abs(pitch - 0.8) < 1e-6 else (('dev', 'navsample_budget_ms', '150'),)):
         t = ini_set(t, sec, k, v)
     result = ''
     try:
@@ -400,7 +435,15 @@ def build(pr, lv, log=print):
     out = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
     t0 = time.time()
-    navbuild.build(pr.samples(lv), os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], out,
+    detailed = None
+    if os.path.isfile(pr.samples(lv, '_p02')):
+        # the detailed-zone pass: DICE's pitch-0.2 sectors built from the level's pitch-0.2 samples (sample --pitch 0.2)
+        hi02 = pr.samples(lv, '_hi_p02')
+        detailed = dict(samples=pr.samples(lv, '_p02'), high=hi02 if os.path.isfile(hi02) else None,
+                        sectors=set(detailed_sectors(pr, lv)))
+        log(f'  detailed zones: {len(detailed["sectors"])} sectors at pitch 0.2'
+            + ('' if detailed['high'] else ' (no high-capsule run at 0.2 - stairs use the normal capsule there)'))
+    navbuild.build(pr.samples(lv), os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], out, detailed=detailed,
                    dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=pr.samples(lv, '_hi'),
                    stairs_path=os.path.join(L, 'stair_tris.npy'),
                    seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
@@ -608,7 +651,8 @@ def ask(question):
 def main(argv):
     args = [a for a in argv[1:]]
     opts = {}
-    for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate', '--navtune', '--out', '--from'):   # --root: older name of --opfor
+    for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate', '--navtune', '--out', '--from',
+              '--pitch'):   # --root: older name of --opfor
         if k in args:
             i = args.index(k)
             opts[k] = args[i + 1]
@@ -634,7 +678,7 @@ def main(argv):
         if cmd == 'prepare':
             prepare(pr, lv, box=box, y=y)
         elif cmd == 'sample':
-            sample(pr, lv, confirm=confirm, box=box, y=y)
+            sample(pr, lv, confirm=confirm, box=box, y=y, pitch=float(opts.get('--pitch', 0.8)))
         elif cmd == 'build':
             build(pr, lv)
         elif cmd == 'compare':
