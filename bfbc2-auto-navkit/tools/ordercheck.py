@@ -82,8 +82,11 @@ def drop_cracks(segs):
 
 
 class PathData:
-    def __init__(self, path):
+    def __init__(self, path, clip=None):
+        """clip: (minX, minZ, maxX, maxZ) - route nodes outside it, and the edges touching them, are left out (a
+        reference's ground beyond the level's terrain, which the game on PC does not have; navparity)."""
         f = hpdtool.parse(open(path, 'rb').read())
+        inside = (lambda p: clip[0] <= p[0] <= clip[2] and clip[1] <= p[2] <= clip[3]) if clip else (lambda p: True)
         self.areas = []      # (minx, maxx, minz, maxz, miny, maxy, segs)
         for s in f.sectors:
             m = kymesh.parse_mesh(s.mesh)
@@ -108,9 +111,11 @@ class PathData:
         self.nodes = []
         for s in f.sectors:
             for e in s.edges:
-                parent[find(s.nodes[e.src].id)] = find(s.nodes[e.dst].id)
+                if inside(s.nodes[e.src].pos) and inside(s.nodes[e.dst].pos):
+                    parent[find(s.nodes[e.src].id)] = find(s.nodes[e.dst].id)
             for n in s.nodes:
-                self.nodes.append((n.id, n.pos))
+                if inside(n.pos):
+                    self.nodes.append((n.id, n.pos))
         self.group = {nid: find(nid) for nid, _ in self.nodes}
         sizes = Counter(self.group.values())
         self.group_size = sizes

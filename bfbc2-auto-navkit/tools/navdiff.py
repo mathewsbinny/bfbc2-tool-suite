@@ -250,8 +250,13 @@ def pct(a, b):
     return 100.0 * a / b if b else 100.0
 
 
-def diff(reference, candidate, per_sector=False, log=print):
+def diff(reference, candidate, per_sector=False, log=print, clip=None):
+    """clip: (minX, minZ, maxX, maxZ) - reference cells outside it are left out (ground beyond the level's terrain)."""
     R, C = load(reference), load(candidate)
+    if clip:
+        for s in R.values():
+            s._cells = [{ij: h for ij, h in c.items() if clip[0] <= ij[0] * GRID <= clip[2] and clip[1] <= ij[1] * GRID <= clip[3]}
+                        for c in s.cells()]
     only_r, only_c = sorted(set(R) - set(C)), sorted(set(C) - set(R))
     tot = defaultdict(int)
     rows = []

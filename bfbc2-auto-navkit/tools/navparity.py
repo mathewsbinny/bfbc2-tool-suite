@@ -55,12 +55,29 @@ def level_xml(root, lv):
     raise FileNotFoundError(f'{lv}: converted level partition not found in {d} (navkit.py prepare {lv})')
 
 
+def terrain_bounds(root, lv):
+    r"""(minX, minZ, maxX, maxZ) of the level's terrain heightfield (work\levels\<lv>\terrain), or None. DICE's console
+    path data can reach past it (ONS_MP_002: ground to z -527, the PC terrain ends at -512 - 3,600 m2 and a route
+    that do not exist on PC), so the reference is clipped to it: ground and connectivity are measured on PC ground."""
+    core = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'core')
+    if core not in sys.path:
+        sys.path.insert(0, core)
+    from bfbc2core import terrain
+    d = os.path.join(root, 'work', 'levels', lv, 'terrain')
+    for r, _dirs, files in os.walk(d):
+        for f in files:
+            if f.lower().endswith('.heightfield-000.res'):
+                hf = terrain.read(os.path.join(r, f))
+                return (float(hf.min[0]), float(hf.min[2]), float(hf.max[0]), float(hf.max[2]))
+    return None
+
+
 def pairs(n):
     return n * (n - 1) // 2
 
 
-def islands(reference, candidate):
-    R, C = ordercheck.PathData(reference), ordercheck.PathData(candidate)
+def islands(reference, candidate, clip=None):
+    R, C = ordercheck.PathData(reference, clip), ordercheck.PathData(candidate)
     res = {'reference': len(R.group_size), 'candidate': len(C.group_size),
            'large_reference': sum(1 for v in R.group_size.values() if v >= 25),
            'large_candidate': sum(1 for v in C.group_size.values() if v >= 25)}
@@ -101,11 +118,12 @@ def run_level(root, lv, candidate, log):
     ref = reference_of(root, lv)
     xml = level_xml(root, lv)
     t = time.time()
-    d, _, _, _ = navdiff.diff(ref, candidate, log=lambda *a: None)
+    clip = terrain_bounds(root, lv)
+    d, _, _, _ = navdiff.diff(ref, candidate, log=lambda *a: None, clip=clip)
     a = navcompare.compare(xml, ref, candidate)
-    isl = islands(ref, candidate)
+    isl = islands(ref, candidate, clip)
     row = {
-        'level': lv, 'candidate': candidate,
+        'level': lv, 'candidate': candidate, 'reference_clip': clip,
         'sectors_reference': d['sectors']['reference'], 'sectors_candidate': d['sectors']['candidate'],
         'sectors_missing': len(d['sectors']['only_reference']), 'sectors_extra': len(d['sectors']['only_candidate']),
         'ground': d['cells']['parity'],
