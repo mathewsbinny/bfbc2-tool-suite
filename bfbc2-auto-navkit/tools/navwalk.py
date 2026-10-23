@@ -58,6 +58,9 @@ LIP_OBJECT_RISE = 0.3              # ... and on objects when the steep sample is
                                     # both sides: door sills and thresholds (sp_009's aircraft: a 5 cm sill with steep
                                     # sides at every hull-section seam cut the aisle at pitch 0.2), never wall tops or
                                     # ledges; None for terrain only
+LIP_OBJECT_SLOPE_MAX = None        # a slope cap (deg) on object lips; None: any steepness, above STEEP_TERRAIN_MAX
+                                    # only with flat floor on both sides (LIP_OBJECT_FLAT deg; 2026-10-22 evening)
+LIP_OBJECT_FLAT = 15.0
 ROOF_PRUNE = True                  # drop roof islands nothing reaches: a kept island (step-rule connected) that
                                     # holds no anchor (soldier spawn, AI order position, ladder end, or ground the
                                     # normal build kept - stage b), is not the largest, is mostly raised (ROOF_SHARE of
@@ -267,10 +270,11 @@ def stair_slope(s, mask, r=1, tol=0.7):
     return out, gxo, gzo
 
 
-def narrow_lips(s, base, cand, slope, width, rise=None):
+def narrow_lips(s, base, cand, slope, width, rise=None, flat=None):
     """The cand surfaces (steep terrain) with a base surface (walkable) within width samples on both opposite sides
     along an axis or a diagonal - same layer, each step within 0.7 m - and a slope within the limit between those two
-    (LIP_WIDTH). rise: the candidate also within this height of both of those (LIP_OBJECT_RISE)."""
+    (LIP_WIDTH). rise: the candidate also within this height of both of those (LIP_OBJECT_RISE); flat: both of those
+    within this many degrees of level."""
     y = s.y.astype(float)
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
     lim = math.tan(math.radians(slope))
@@ -303,6 +307,8 @@ def narrow_lips(s, base, cand, slope, width, rise=None):
                 continue
             d = (p[1] + m[1]) * s.pitch * (math.sqrt(2) if di and dj else 1)
             if rise is not None and (abs(y[k] - y[p[0]]) > rise or abs(y[k] - y[m[0]]) > rise):
+                continue
+            if flat is not None and min(s.normal[p[0], 1], s.normal[m[0], 1]) < math.cos(math.radians(flat)):
                 continue
             if abs(y[p[0]] - y[m[0]]) / d <= lim:
                 out[k] = True
@@ -416,7 +422,15 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
         steep_c = clear & ~character & ~ok & (s.normal[:, 1] >= math.cos(math.radians(STEEP_TERRAIN_MAX)))
         lips = narrow_lips(s, ok, terrain & steep_c, slope, LIP_WIDTH)
         if LIP_OBJECT_RISE is not None:
-            lips |= narrow_lips(s, ok, ~terrain & steep_c, slope, LIP_WIDTH, rise=LIP_OBJECT_RISE)
+            # on objects any steepness: the height limit alone keeps it to sills (an aircraft door sill's sides are
+            # steeper than 55 deg - sp_009's aft cabin stayed cut off under the terrain cap)
+            obj_c = ~terrain & clear & ~character & ~ok
+            lips |= narrow_lips(s, ok, obj_c & steep_c, slope, LIP_WIDTH, rise=LIP_OBJECT_RISE)
+            if not LIP_OBJECT_SLOPE_MAX:
+                # steeper than STEEP_TERRAIN_MAX: only between flat floors (a door sill's sides; a rock mesh meeting
+                # sloped terrain is not a sill - sp_007's cliff top joined the level through one, 2026-10-22)
+                lips |= narrow_lips(s, ok, obj_c & ~steep_c, slope, LIP_WIDTH, rise=LIP_OBJECT_RISE,
+                                    flat=LIP_OBJECT_FLAT)
         if lips.any():
             _gs, lgx, lgz = stair_slope(s, lips)
             ok |= lips

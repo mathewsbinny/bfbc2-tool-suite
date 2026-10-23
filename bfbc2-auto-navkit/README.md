@@ -66,8 +66,8 @@ src\, tests\         (reserved for the generator proper and its tests)
 
 ## Detailed zones, ladders and walkability rules (2026-10-21 / 22)
 
-All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregress.py`, run `regression_det_v3`,
-2026-10-22): **ground 98.1 %** of DICE's, **extra ground 8.4 %**, **connectivity 98.3** (of the routes DICE's data
+All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregress.py`, run `regression_det_v5`,
+2026-10-23): **ground 98.1 %** of DICE's, **extra ground 8.4 %**, **connectivity 98.5** (of the routes DICE's data
 allows, the share NavKit's allows), over-connection 15.3 % (routes only NavKit's allows: open slopes, stairs, steps
 and ladders - see below).
 
@@ -86,7 +86,9 @@ and ladders - see below).
 - **Walkability rules added 2026-10-22** (`tools\navwalk.py`, each with a switch and its measurements in the code):
   - `LIP_WIDTH`: at 0.2 m, a band of up to two samples steeper than 40 deg between walkable ground (a lip the 0.8 m
     step rule stepped over) is walkable; `LIP_OBJECT_RISE`: the same on objects when the band is within 0.3 m of the
-    floor on both sides (door sills, thresholds). sp_007's north strip, sp_009's aircraft aisles.
+    floor on both sides (door sills, thresholds) - steeper than 55 deg only between flat floors (`LIP_OBJECT_FLAT`
+    15 deg: a rock mesh meeting sloped terrain is no sill). sp_007's north strip, sp_009's aircraft aisles (sp_009
+    connectivity 90.9 -> 100).
   - `DYNAMIC_FLOOR`, `DYNAMIC_ABSENT_HEADROOM`: dynamic props (and `PdtWhenAlive` doors) are absent for path data -
     the floor under a prop lying on it counts, and neither the prop nor rays grazing its vertical faces count as a
     ceiling. sp_003_b's monastery gate, sp_009's aircraft doors.
