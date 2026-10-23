@@ -105,11 +105,24 @@ and ladders - see below).
   data built before late geometry - sp_03's only valley-to-plateau links run under a cliff mesh added afterwards),
   matches nodes within 1 m of height, and reports ground reached by ladder as its own column (*ladder %*), not as
   extra ground.
+- **"Up" border portals** (a border portal whose direction is (0, 1, 0)): about half of DICE's border portals
+  (50-58 % on sp_004_b, sp_01, ONS_MP_002), none of NavKit's. Not a kind of portal: they lie where DICE's ordinary
+  ones lie (the sector margin, along the line), the neighbour sector's area is across them as for the others (100 %),
+  and along one border line consecutive pieces of the same geometry alternate between (1, 0, 0) and (0, 1, 0); the
+  y slot also holds 0.38, 0.92, 0.71 and -2.0. A default or left-over value in DICE's generator; NavKit writes the
+  outward direction, and its files route across sector borders in game. (DICE also splits border portals per 0.8 m
+  cell - 3-4x NavKit's count, the same geometry.)
+- **Anomalies against DICE** (Navigation Studio's overlay counts, 15 levels, 2026-10-22 - DICE / NavKit): soldier
+  spawns on islands under 25 nodes 147 / 72, AI orders without a route node 768 / 686, sliver areas 77,996 /
+  62,708, lonely route nodes 5,081 / 10,011, islands under 25 nodes 5,684 / 6,390. NavKit has fewer of the two that
+  stop bots; more lonely nodes, and more slivers on levels with many detailed sectors (clutter at 0.2 m).
 - **Still open:** sp_003_b (connectivity 93.3: a rocky gully whose rough terrain fails the slope test at 0.2 m almost
-  everywhere), a small seat-row pocket in sp_009's aircraft, and ladder links not yet play-tested with NavKit's
-  files (does a bot on a route take the ladder?).
+  everywhere); soldier spawns on small islands where NavKit has more than DICE (sp_008_b, sp_02, sp_003_b, sp_006,
+  sp_01, a few each); ONS_MP_002's power-line pylons and a cliff top that roof pruning keeps (they stand beside each
+  other at one height); lonely nodes and slivers in detailed zones; vehicle path data; and play tests of the current
+  builds (ladder links included: does a bot on a route take the ladder?).
 
-## Plan and status (2026-10-20)
+## Plan and status (2026-10-23)
 
 1. **`.hpd` format – done.** Header, sector table, per-sector graph and runtime mesh fully decoded
    (spec §4); `hpdtool.py` parses every campaign file.
@@ -118,7 +131,7 @@ and ladders - see below).
 3. **Builder behaviour – done.** Spec §3: stages, the sampling grid, area cuts, graph rules,
    auto-seeding, the walkability rules (§3.7), structures and doors (§3.8), and the rules found on the
    other campaign levels (§3.9).
-4. **Generator – runs on all 13 campaign levels (`tools\navbuild.py`).**
+4. **Generator – runs on all 13 campaign levels and the Onslaught maps (`tools\navbuild.py`).**
    - Full pipeline: walkable surfaces from two in-game sampling runs (normal and high capsule) plus the
      level's objects (`levelobjects.py`), 100 m sectors (level `SectorOffsets`; without one, DICE's rule:
      one sector below the path data's lowest extent), 3 × 3 tiles of 50
@@ -289,16 +302,14 @@ and ladders - see below).
      - Stock MP maps have no AI layer (HasAI false, one disabled AI spawner, no orders, squads or path data):
        bots there need an AI layer authored on top, as Napisal did; NavKit's part comes after that.
      Details: OPFOR's `MP_APPLICATION_LOG.md`, spec section 4.5.
-   - **Next** (in this order):
-     1. combat on ONS_MP_002 (the AI aim but never fire - level-data candidates: no squad entities, player
-        kits on the AI spawners; tests proposed in OPFOR's MP log);
-     2. the AI layer for stock MP maps (a design first; the Navigation Studio's reference overlay shows
-        Napisal's and DICE's layers on a stock map);
-     3. the tile size of detailed sectors (how the game gets 20 m tiles), then detailed zones at 0.2 m
-        (sectors with an object flagged `NeedsDetailedPathfinding`; new in-game sampling);
-     4. side items: D lines and F cells, "up" border portals, sliver areas, border-to-border duplicate
-        nodes (sp_01 has 22 zero-cost edges from them), the sampler coverage hole.
-     The 20 m midline cuts are parity only (conditional, one axis; not what broke the sp_004_b routes).
+   - **Since then (2026-10-21 to 10-23):** combat on ONS_MP_002 fixed (OPFOR's Onslaught import); the sampler's
+     south "hole" is beyond the PC terrain (the reference is now clipped to it); detailed zones at 0.2 m, chosen
+     from the level alone, sampled and built by default; ladder links; the walkability rules and parity measures in
+     the section above; "up" border portals found to be a quirk of DICE's data. The stock-MP AI layer is planned in
+     OPFOR's `STOCK_MP_AI_PLAN.md`.
+   - **Next:** the open items above (spawns on small islands first), D lines and F cells, vehicle path data,
+     border-to-border duplicate nodes (sp_01: 22 zero-cost edges), and play tests. The 20 m midline cuts are
+     parity only (conditional, one axis; not what broke the sp_004_b routes).
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 
 Credits: level data is read with the suite's FbrbTool and DbxEdit, based on **Frankelstner**'s format

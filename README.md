@@ -112,7 +112,7 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `bfbc2-navigation-studio/tests/test_editing.py` | game | the studio's edit mode driven as clicks would drive it: every tool, outline and box, undo / redo, save and reload, the click mode, DICE-base limits, the apply button building in the background |
 | `tests/test_hub.py` | game | the suite window driven as clicks would: its tabs and the levels, FbrbTool, LevelDiff, the crash reader and the test runner through their tabs; a failing tool reported with its last lines, a stopped one not; a 3D tool with a bad level exiting cleanly; the level picker |
 | `tests/test_viewers.py` | game | the Map Inspector and the Navigation Studio open a level, draw it (screenshot not blank) and exit; prints the GPU used |
-| `bfbc2-auto-navkit/tools/navregress.py` | game (2 levels), full (13) | NavKit rebuilds levels with the current code; fails if any DICE-parity measure is worse than the reference run `regression` |
+| `bfbc2-auto-navkit/tools/navregress.py` | game (2 levels), full (15: the 13 campaign levels and ONS_MP_002 / 004, about 5 hours with detailed zones) | NavKit rebuilds levels with the current code; fails if any DICE-parity measure is worse than the reference run (`--reference`, default `regression`; the current one is `regression_det_v5`) |
 | DbxEdit corpus, `core/tests/test_dbx.py` | full | every unpacked `.dbx`: DbxEdit's fingerprints, and the Python reader's XML identical to DbxEdit's |
 
 Each tool's folder has its own README. The tools that existed before the suite were merged in with their

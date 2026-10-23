@@ -98,7 +98,10 @@ same floor (magenta dots). The orders and spawns are the level's own (read from 
 writes `work\navstudio\<level>_anomalies.json`, per anomaly its class, position and value (island size, cell
 count, distance); headless: `python overlay.py <level> --anomalies`. Read the counts against DICE's own file, not as
 absolutes: on the campaign levels DICE's working data has as many orders and spawns without a nearby node as
-NavKit's (first use, below) - AreaOrder positions are area volumes, not always walkable points.
+NavKit's (first use, below) - AreaOrder positions are area volumes, not always walkable points. To count DICE's
+file the same way, pass it as the candidate (`--anomalies --candidate <DICE's pathdata.hpd>`). All 15 levels with
+DICE path data, NavKit's builds of 2026-10-22 (DICE / NavKit): spawns on small islands 147 / 72, orders without a
+node 768 / 686, sliver areas 77,996 / 62,708, lonely nodes 5,081 / 10,011, islands under 25 nodes 5,684 / 6,390.
 
 **First use (2026-10-21).** Napisal's ONS_MP_002 and DICE's Xbox ONS_MP_002 drawn on stock MP_002:
 - none of Napisal's 28 enabled AI spawners lies within 3 m of a DICE console spawner (nearest 6.1-108.5 m, median
