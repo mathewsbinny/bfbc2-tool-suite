@@ -127,6 +127,7 @@ DETOUR_PASSES = 2               # pass A, then pass B on the repaired graph
 REPAIR_STATS = {}               # nodes added per pass (summed over sectors; for reports)
 LADDER_STATS = {}               # ladder links made, and ladders whose ends lie in two sectors (not linked yet)
 BORDER_NODE_SPACING = 10.0
+BRIDGE_UNION = True             # 45-degree bridges: outline from the exact union (bridge_union) - False: clip_bridges
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
 
@@ -373,6 +374,65 @@ def clip_bridges(bsegs, bridges):
     return out
 
 
+def bridge_union(bridges, cell_k, level):
+    """BRIDGE_UNION: the outline of an area's 45-degree bridges as the boundary of their union, exactly. A bridge
+    between diagonal-only cells A (i, j) and B (i + di, j + dj) covers half of each of the two empty cells beside the
+    shared corner - per empty cell, the two quarter triangles (base: a cell side, apex: the centre) whose bases touch
+    that corner. Over the set of covered quarters of the empty cells, a half-diagonal (cell corner to centre) shared
+    by two quarters is interior; the others are the bridges' outline - halves of one diagonal joined. A side of an
+    area cell is covered (no outline there) where the empty cell's quarter on it is. Returns (covered sides in
+    trace_edges' keys, [((ax, az, ya), (bx, bz, yb))] in local sample units). With non-overlapping bridges this is
+    exactly the two diagonals per bridge; overlapping ones (chains, a cell shared by two corners) close where
+    clip_bridges left open ends (1.7-3.1 % of areas on sp_004_b / sp_01, 2026-10-23)."""
+    quarters = {}                                   # (cell i, j, base side (sx, sz)) -> (bridge index, ya, yb)
+    order = []
+    for bi, (i, j, di, dj) in enumerate(bridges):
+        ya = level.y[cell_k[(i, j)]] + Y_OFFSET
+        yb = level.y[cell_k[(i + di, j + dj)]] + Y_OFFSET
+        # empty cell (i, j + dj): its sides towards A (0, -dj) and towards B (di, 0); empty cell (i + di, j): towards
+        # A (-di, 0) and towards B (0, dj) - the order clip_bridges emitted them in
+        for (ei, ej), toward_a, toward_b in (((i, j + dj), (0, -dj), (di, 0)), ((i + di, j), (-di, 0), (0, dj))):
+            for side in (toward_a, toward_b):
+                q = (ei, ej, side)
+                if q not in quarters:
+                    quarters[q] = (bi, ya, yb, toward_a, toward_b)
+                    order.append(q)
+    def corners(ei, ej, side):                      # the two corners of a quarter's base, in half units
+        sx, sz = side
+        if sx:
+            return ((2 * ei + sx, 2 * ej - 1), (2 * ei + sx, 2 * ej + 1))
+        return ((2 * ei - 1, 2 * ej + sz), (2 * ei + 1, 2 * ej + sz))
+    count = defaultdict(int)
+    for (ei, ej, side) in quarters:
+        for c in corners(ei, ej, side):
+            count[(c, ei, ej)] += 1                 # half-diagonal from corner c to the centre of (ei, ej)
+    drop = set()
+    for (ei, ej, side) in quarters:
+        sx, sz = side
+        drop.add(('x', ei + sx * 0.5, ej) if sx else ('z', ej + sz * 0.5, ei))
+    segs, done, emitted = [], set(), set()
+    for (ei, ej, side) in order:
+        bi, ya, yb, toward_a, toward_b = quarters[(ei, ej, side)]
+        if (ei, ej, bi) in done:
+            continue
+        done.add((ei, ej, bi))
+        # this bridge's diagonal through the cell: from A's outer corner to B's outer corner, through the centre
+        ca = [c for c in corners(ei, ej, toward_a) if count[(c, ei, ej)] == 1 and (ei, ej, toward_a) in quarters
+              and (c, ei, ej) not in emitted]
+        cb = [c for c in corners(ei, ej, toward_b) if count[(c, ei, ej)] == 1 and (ei, ej, toward_b) in quarters
+              and (c, ei, ej) not in emitted]
+        emitted.update((c, ei, ej) for c in ca + cb)
+        ctr = (float(ei), float(ej), (ya + yb) / 2.0)
+        pa = [(c[0] / 2.0, c[1] / 2.0, ya) for c in ca]
+        pb = [(c[0] / 2.0, c[1] / 2.0, yb) for c in cb]
+        if len(pa) == 1 and len(pb) == 1:
+            segs.append((pa[0], pb[0]))
+        else:
+            segs.extend((p, ctr) for p in pa)
+            segs.extend((ctr, p) for p in pb)
+    return drop, segs
+
+
 def trace(level, sector, areas, area_of, gi0, gj0, ox, oz):
     """Boundary edges of every area -> merged runs. Returns per area: portals, borders, outlines. One sector on its
     own: one-way portal pieces are kept ('keep') or become outline (otherwise) - build() decides them level-wide
@@ -519,20 +579,25 @@ def trace_emit(level, areas, per_area, gi0, gj0, ox, oz):
                                                   (kd, i + di, j + dj, -di, 0), (kd, i + di, j + dj, 0, -dj))):
                         continue
                     bridges.append((i, j, di, dj))
-        drop = set()
-        for i, j, di, dj in bridges:
-            # unit outline edges around the corner point (i + di/2, j + dj/2)
-            drop.update({('x', i + di * 0.5, j), ('z', j + dj * 0.5, i), ('x', i + di * 0.5, j + dj), ('z', j + dj * 0.5, i + di)})
         portals, borders, outline = [], [], []
-        bsegs = []                                          # (bridge, (ax, az, ya), (bx, bz, yb)) local units
-        for bi, (i, j, di, dj) in enumerate(bridges):
-            cx, cz = i + di * 0.5, j + dj * 0.5             # shared corner (local sample units)
-            ya = level.y[next(c[2] for c in area['cells'] if (c[0], c[1]) == (i, j))] + Y_OFFSET
-            yb = level.y[next(c[2] for c in area['cells'] if (c[0], c[1]) == (i + di, j + dj))] + Y_OFFSET
-            for (ax, az), (bx, bz) in (((cx - di, cz), (cx, cz + dj)), ((cx, cz - dj), (cx + di, cz))):
-                bsegs.append((bi, (ax, az, ya), (bx, bz, yb)))
-        for _bi, (ax, az, ya), (bx, bz, yb) in clip_bridges(bsegs, bridges):
-            outline.append([(ox + ax * PITCH, ya, oz + az * PITCH), (ox + bx * PITCH, yb, oz + bz * PITCH)])
+        if BRIDGE_UNION:
+            drop, dsegs = bridge_union(bridges, cell_k, level)
+            for (ax, az, ya), (bx, bz, yb) in dsegs:
+                outline.append([(ox + ax * PITCH, ya, oz + az * PITCH), (ox + bx * PITCH, yb, oz + bz * PITCH)])
+        else:
+            drop = set()
+            for i, j, di, dj in bridges:
+                # unit outline edges around the corner point (i + di/2, j + dj/2)
+                drop.update({('x', i + di * 0.5, j), ('z', j + dj * 0.5, i), ('x', i + di * 0.5, j + dj), ('z', j + dj * 0.5, i + di)})
+            bsegs = []                                      # (bridge, (ax, az, ya), (bx, bz, yb)) local units
+            for bi, (i, j, di, dj) in enumerate(bridges):
+                cx, cz = i + di * 0.5, j + dj * 0.5         # shared corner (local sample units)
+                ya = level.y[cell_k[(i, j)]] + Y_OFFSET
+                yb = level.y[cell_k[(i + di, j + dj)]] + Y_OFFSET
+                for (ax, az), (bx, bz) in (((cx - di, cz), (cx, cz + dj)), ((cx, cz - dj), (cx + di, cz))):
+                    bsegs.append((bi, (ax, az, ya), (bx, bz, yb)))
+            for _bi, (ax, az, ya), (bx, bz, yb) in clip_bridges(bsegs, bridges):
+                outline.append([(ox + ax * PITCH, ya, oz + az * PITCH), (ox + bx * PITCH, yb, oz + bz * PITCH)])
         for key in list(edges):
             if key[0] == 'E':
                 axis, line = key[2], key[3]

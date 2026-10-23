@@ -234,6 +234,22 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
   levels: dropping unanchored islands under 25 nodes cost as much DICE ground as extra it removed; dropping unreached
   roof islands without reached ground beside them cost 0.28 points for 1.31). Combat areas do not bound DICE's data
   (61-95 % of its ground lies outside them on most campaign levels).
+- **Every area boundary is closed** in DICE's files: an area's outline (E), portals (B) and border portals (C), as
+  segments, meet in pairs at every end point (0 open areas on sp_01 and sp_004_b). Cracks are coincident pairs;
+  45-degree bridges between diagonal-only cells end where the cell edges they replace began. NavKit's clipping of
+  overlapping bridges left open ends in 1.7-3.1 % of areas (2026-10-23; `navbuild.BRIDGE_UNION`: the exact union of
+  the half-cells the bridges cover).
+- **Objective targets on forbidden objects:** the M-COM (`mpobjective`) blueprint sets `ForbidPathfinding`; its top
+  is not floor, and the ground under it is inside its collision (no room for the soldier) - DICE's campaign files
+  have no ground at the origin of any of their 24. Napisal's Onslaught AI orders aim at M-COM origins (0.0-0.1 m),
+  and DICE's console path data has ground there (its layout had no object at those spots): with NavKit's PC file 14
+  of 15 such orders are on no area, and the game's destination query fails. No campaign order sits on an M-COM.
+- **`DisablePathfinding`** on placed objects (15 levels): `PdtNever` 32,854, `PdtWhenAlive` 729 (doors, gates, scripted
+  walls; absent for path data), `PdtWhenDestroyed` 556 (houses, factories, wooden walkways, rope bridges),
+  `PdtWhenPartDestroyed` 13, unset about 4,500. With the level settings `DestructibleLocalPathfindingParts`,
+  `PathObjectCount` and `MaxLocalPathfindingObjects` this points to runtime handling of destruction: path data for the
+  intact level, switched off on objects once destroyed (inferred - how the runtime finds an object's areas is not
+  traced). Openings made by destruction are not routes.
 - **Soldier spawn points seed the walkable surface.** DICE's data has closed upper floors (reached by
   ladders or scripted spawns, no walkable link) as isolated islands of 5-8 nodes; every one holds
   `SoldierSpawnEntityData` positions, and no seed entities or `AllowPathdataSeeds` objects are there.

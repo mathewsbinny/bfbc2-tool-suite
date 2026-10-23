@@ -8,9 +8,11 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
           round trips, LevelDiff on MP_005, the crash reader's code view on BFBC2Game.exe, the console
           readers on your own Xbox 360 files (skipped when they are not on the PC), the 3D tools opening a
-          level (needs a display), NavKit's regression test on two small levels
+          level (needs a display), the structure of DICE's path data (hpdcheck), NavKit's regression test on
+          two small levels
   full    + the corpus runs, about 90 minutes: DbxEdit and the Python DBX reader on every unpacked .dbx,
-          FbrbTool on all 1,055 bundles, NavKit's regression test on all 13 campaign levels
+          FbrbTool on all 1,055 bundles, NavKit's regression test on the 13 campaign levels and the imported
+          Onslaught maps (about 5 hours)
 
 Run `quick` before every commit and `game` before every push; `full` after changes to a format reader.
 """
@@ -28,6 +30,16 @@ def opfor():
     sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
     import navkit
     return navkit.find_opfor(None)
+
+
+def dice_pathdata_files(root):
+    """DICE's path-data files in the game copy: pathdata.hpd, or its kept original where NavKit's is installed."""
+    out = []
+    for dp, _, fs in os.walk(os.path.join(root, 'game', 'Output', 'win32', 'ai')):
+        if 'pathdata.hpd' in [f.lower() for f in fs]:
+            orig = [f for f in fs if f.lower().startswith('pathdata.hpd.')]
+            out.append(os.path.join(dp, orig[0] if orig else 'pathdata.hpd'))
+    return sorted(out)
 
 
 def pathdata_files(root):
@@ -59,6 +71,11 @@ def tests():
         ('NavKit reference extent clip', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_reference_clip.py')]),
         ('NavKit soldiers absent from path data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_characters.py')]),
         ('NavKit headroom band', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_headroom.py')]),
+        ('NavKit narrow lips and door sills', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_lips.py')]),
+        ('NavKit dynamic props (floor under a prop, door leaves)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_dynamic_props.py')]),
+        ('NavKit roof pruning', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_roof_prune.py')]),
+        ('NavKit 45-degree bridges: closed outlines', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_bridge_union.py')]),
+        ('NavKit collision index (Havok packfile names)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_havok_index.py')]),
         ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),
         ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
         ('crash reader, built reports', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py')]),
@@ -75,6 +92,8 @@ def tests():
         ('navigation mesh round trip (kymesh)', 'game', lambda root: [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'),
                                                                     'meshtrip', *pathdata_files(root)]),
         ('navigation data and the path test', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_navdata.py')]),
+        ("path data structure, DICE's files (hpdcheck)", 'game', lambda root: [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdcheck.py'),
+                                                                             *dice_pathdata_files(root)]),
         ('NavKit links and route edges', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_links.py')]),
         ('traversals, the apply report, installing', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_traversal.py')]),
         ('navkit apply with walkability edits', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_apply.py')]),
@@ -83,7 +102,7 @@ def tests():
         ('3D tools open and draw (Map Inspector, Navigation Studio)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_viewers.py')]),
         ('NavKit regression, 2 small levels', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py'),
                                                        '--levels', 'sp_004_b,sp_009']),
-        ('NavKit regression, all 13 campaign levels', 'full', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py')]),
+        ('NavKit regression, all levels with DICE path data', 'full', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py')]),
         ('DbxEdit corpus and fingerprints', 'full', lambda root: ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat'),
                                                                  os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
         ('Python DBX reader against DbxEdit', 'full', lambda root: [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx.py'),

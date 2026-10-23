@@ -66,10 +66,18 @@ src\, tests\         (reserved for the generator proper and its tests)
 
 ## Detailed zones, ladders and walkability rules (2026-10-21 / 22)
 
-All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregress.py`, run `regression_det_v5`,
-2026-10-23): **ground 98.1 %** of DICE's, **extra ground 8.4 %**, **connectivity 98.5** (of the routes DICE's data
-allows, the share NavKit's allows), over-connection 15.3 % (routes only NavKit's allows: open slopes, stairs, steps
-and ladders - see below).
+All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregress.py`, run `regression_det_v6`,
+2026-10-23, now the default reference `regression`): **ground 98.2 %** of DICE's, **extra ground 8.3 %**,
+**connectivity 98.5** (of the routes DICE's data allows, the share NavKit's allows), over-connection 15.3 % (routes
+only NavKit's allows: open slopes, stairs, steps and ladders - see below). **Every area boundary is closed** on all 15
+builds (0 open areas; before the exact bridge tracing below, 1.7 - 3.1 % of the areas on sp_004_b / sp_01 were open,
+DICE has none).
+
+- **Exact bridge tracing (`navbuild.BRIDGE_UNION`, 2026-10-23):** an area's 45-degree bridges are the exact union of
+  the quarter cells they cut, traced as one outline, in place of clipping each bridge on its own (`clip_bridges`,
+  which left gaps where bridges met: open boundaries, and walkable ground in no area). Ground 98.12 -> 98.22 %,
+  extra 8.36 -> 8.31; checked by `tests	est_bridge_union.py` (600 random patterns; the old method fails 107) and by
+  `hpdcheck.py` on every regression build.
 
 - **The default pipeline:** `navkit.py sample` (and `all`, and the window's buttons) samples the level at 0.8 m, chooses
   its detailed zones from the level alone, then samples those at 0.2 m (`DETAILED_BUDGET_MS` = 400 ms of sampling per
@@ -116,11 +124,45 @@ and ladders - see below).
   spawns on islands under 25 nodes 147 / 72, AI orders without a route node 768 / 686, sliver areas 77,996 /
   62,708, lonely route nodes 5,081 / 10,011, islands under 25 nodes 5,684 / 6,390. NavKit has fewer of the two that
   stop bots; more lonely nodes, and more slivers on levels with many detailed sectors (clutter at 0.2 m).
+  - *Lonely nodes* (no other node within 12 m) are node spacing, not junk: on sp_006 2,634 of NavKit's 2,638 are on
+    islands of 25+ nodes - normal sectors get route nodes only at area centres and portals. Proposed: coverage nodes
+    in normal sectors too (`NODE_COVER`, about 8-10 m), tuned by regression.
+  - *Sliver areas* (under 5 cells, no portal) are mostly 0.2 m clutter (sp_006: 7,712 of 9,060 in detailed zones;
+    DICE 1,160): one-area islands nothing routes onto. Proposed: drop isolated areas of a few 0.2 m cells unless a
+    spawn, order or ladder anchors them.
+  - *Border-to-border duplicate nodes* (two border nodes at one spot joined by a zero-length edge): none any more -
+    sp_01, sp_004_b and ONS_MP_002 have 0, as DICE's (shared corner nodes, 2026-10-20).
+- **Missing ground** (DICE's walkable ground NavKit lacks, about 1.9 %; five levels classified, 2026-10-23): 74-97 %
+  of it is a rim beside NavKit's ground. By what NavKit's samples show there: terrain steeper than 40 deg 56 % (DICE's
+  areas reach a cell past where the samples turn steep), walkable but not kept 22 % (on sp_01: DICE's own small
+  unreached islands of 2-23 nodes 64 %, cells outside their own unclosed outline 22 % - fixed by `BRIDGE_UNION`),
+  no surface at DICE's height 17 % (half of it under objects - on ONS_MP_002 vegetation; making vegetation passable
+  was tried and dropped: about 0.1 % of DICE's ground to gain, and both versions lost ground), no room 3.5 %.
+- **Closed area boundaries** (`navbuild.BRIDGE_UNION`, 2026-10-23): DICE's files have no area whose outline, portals
+  and border portals leave an open end; NavKit's had them in 1.7-3.1 % of areas (sp_004_b, sp_01), all at cell
+  corners where a 45-degree bridge piece ends - overlapping bridges were clipped asymmetrically, and an area's cells
+  fell outside its own outline. The bridges' outline is now the exact union of the half-cells they cover.
+- **M-COM targets on the Onslaught maps** (2026-10-23): 14 of the 15 AI attack orders that sit on an M-COM
+  (`mpobjective`, within 3 m; ONS_MP_002 7 of 8, ONS_MP_004 6 of 6) are on no area in NavKit's file - DICE's console
+  file has ground at all 15, its layout having no object there. The M-COM is `ForbidPathfinding` (its top is not
+  floor - DICE's campaign files carve all 24 of theirs); the hole at its centre is its collision (no room for the
+  soldier), not the flag, so clearing the flag would not help. The game's destination query fails there and units
+  stop short. Planned: keep the floor under an AI order point that lies on a forbidden object, out to the walkable
+  ground around it (the order point unchanged - as in DICE's console file, with which bots reach and arm M-COMs).
+  No campaign order sits on an M-COM.
+- **Destruction:** path data describes the intact level (DICE's and NavKit's). Objects carry `DisablePathfinding`:
+  `PdtNever` (32,854 placed objects on the 15 levels), `PdtWhenAlive` (729: doors, gates, scripted walls - absent for
+  path data; NavKit honours it), `PdtWhenDestroyed` (556: houses, factories, walkways, rope bridges - inferred: the
+  runtime switches their path data off once destroyed), `PdtWhenPartDestroyed` (13); level settings
+  `DestructibleLocalPathfindingParts`, `PathObjectCount`, `MaxLocalPathfindingObjects` point to runtime handling.
+  Not yet checked that the switch-off works on NavKit's files (a play-test item). Openings made by destruction are
+  not routes in either; precomputed "breach links" for OPFOR's bot layer are on the TODO list (OPFOR
+  `DEVELOPMENT_NOTES.md`).
 - **Still open:** sp_003_b (connectivity 93.3: a rocky gully whose rough terrain fails the slope test at 0.2 m almost
   everywhere); soldier spawns on small islands where NavKit has more than DICE (sp_008_b, sp_02, sp_003_b, sp_006,
   sp_01, a few each); ONS_MP_002's power-line pylons and a cliff top that roof pruning keeps (they stand beside each
-  other at one height); lonely nodes and slivers in detailed zones; vehicle path data; and play tests of the current
-  builds (ladder links included: does a bot on a route take the ladder?).
+  other at one height); the M-COM target rule (above); lonely nodes and slivers (above); vehicle path data; and play
+  tests of the current builds (ladder links and destroyed houses included).
 
 ## Plan and status (2026-10-23)
 
@@ -307,8 +349,9 @@ and ladders - see below).
      from the level alone, sampled and built by default; ladder links; the walkability rules and parity measures in
      the section above; "up" border portals found to be a quirk of DICE's data. The stock-MP AI layer is planned in
      OPFOR's `STOCK_MP_AI_PLAN.md`.
-   - **Next:** the open items above (spawns on small islands first), D lines and F cells, vehicle path data,
-     border-to-border duplicate nodes (sp_01: 22 zero-cost edges), and play tests. The 20 m midline cuts are
+   - **Next:** the M-COM target rule and a play test on ONS_MP_002 (bots reaching and arming M-COMs; a destroyed
+     house's floors), then the open items above (spawns on small islands first), D lines and F cells, vehicle path
+     data. Later, with OPFOR's bot layer: breach links for walls opened by destruction. The 20 m midline cuts are
      parity only (conditional, one axis; not what broke the sp_004_b routes).
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 

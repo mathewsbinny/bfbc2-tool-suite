@@ -5,7 +5,8 @@ worse than a saved reference run.
 
 Per level: build with the same inputs as `navkit.py build` (in-game samples, ForbidPathfinding, dynamic-object
 and stair triangles, the high-capsule samples, soldier spawns as seeds; the level's SectorOffsets), into
-OPFOR's work\navkit\regress\<level>.hpd; then navparity's measures (navparity.py) against DICE's file.
+OPFOR's work\navkit\regress\<level>.hpd; its structure (hpdcheck.py: closed boundaries, node order, edges - a
+problem fails the level); then navparity's measures (navparity.py) against DICE's file.
 
 Each measure is compared with the reference run (default "regression"; navparity.py's work\navkit\parity\
 <run>.json). Measures where higher is better must not drop, measures where lower is better must not rise, by
@@ -19,7 +20,8 @@ the build's stages are printed indented as they finish.
 
 The run is saved as "regression_last". After an intended improvement, make it the reference:
   navregress.py --save regression          (or: copy regression_last.json to regression.json)
-Default levels: the 13 campaign levels (about 45 minutes); --levels for a subset.
+Default levels: the 13 campaign levels and the Onslaught maps with DICE path data (ONS_MP_002 / 004, when imported) -
+about 5 hours with detailed zones; --levels for a subset.
 """
 import glob
 import json
@@ -35,6 +37,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import navbuild  # noqa: E402
 import navparity  # noqa: E402
+import hpdcheck  # noqa: E402
 
 HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near', 'edges_same',
           'connectivity', 'ai_coverage', 'ai_pairwise']
@@ -190,7 +193,8 @@ def main(argv):
     args = argv[1:]
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     root = navparity.opfor_root(opt('--opfor'))
-    levels = opt('--levels').split(',') if opt('--levels') else navparity.LEVELS
+    levels = opt('--levels').split(',') if opt('--levels') else [
+        lv for lv in navparity.LEVELS + navparity.ONSLAUGHT if os.path.isfile(navparity.reference_of(root, lv))]
     reference = opt('--reference', 'regression')
     tol = float(opt('--tolerance', 0.05))
     ref_path = navparity.save_path(root, reference)
@@ -219,6 +223,9 @@ def main(argv):
         out = os.path.join(outdir, f'{lv}.hpd')
         try:
             build_level(root, lv, out, lambda m: print(f'      {m}'))
+            structure = {k: v for k, v in hpdcheck.check(out).items() if v}    # what DICE's files always satisfy
+            for k, v in structure.items():
+                print(f'      structure: {k}: {len(v)} - {v[0]}')
             print(f'      measuring parity against DICE ({duration(time.time() - t0)} in)')
             row = navparity.run_level(root, lv, out, lambda *a: None)
         except Exception as e:
@@ -228,6 +235,7 @@ def main(argv):
             continue
         done_est += est[lv]
         row['seconds'] = round(time.time() - t0)
+        row['structure_problems'] = sum(len(v) for v in structure.values())
         rows.append(row)
         timed[lv] = {'seconds': row['seconds']}         # re-estimate the levels to come with this run's times
         rest = levels[n:]
@@ -237,9 +245,12 @@ def main(argv):
             est.update(new)
         ref = ref_rows.get(lv)
         if ref is None:
-            print(f'new  {lv}: not in the reference run ({time.time() - t0:.0f} s)')
+            failed += bool(structure)
+            print(f'{"FAIL" if structure else "new "} {lv}: not in the reference run ({time.time() - t0:.0f} s)')
             continue
         worse, better, counts = compare(ref, row, tol)
+        if structure:
+            worse.append(('structure (hpdcheck)', ref.get('structure_problems', 0), row['structure_problems']))
         failed += bool(worse)
         print(f'{"FAIL" if worse else "ok  "} {lv:9s} ground {row["ground"]:6.2f}  extra {row["extra_ground"]:6.2f}  '
               f'nodes {row["nodes_same"]:5.2f}  connect {row["connectivity"]:6.2f}  over {row["over_connection"]:6.2f}  '
