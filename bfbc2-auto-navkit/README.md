@@ -76,7 +76,7 @@ DICE has none).
 - **Exact bridge tracing (`navbuild.BRIDGE_UNION`, 2026-10-23):** an area's 45-degree bridges are the exact union of
   the quarter cells they cut, traced as one outline, in place of clipping each bridge on its own (`clip_bridges`,
   which left gaps where bridges met: open boundaries, and walkable ground in no area). Ground 98.12 -> 98.22 %,
-  extra 8.36 -> 8.31; checked by `tests	est_bridge_union.py` (600 random patterns; the old method fails 107) and by
+  extra 8.36 -> 8.31; checked by `tests\test_bridge_union.py` (600 random patterns; the old method fails 107) and by
   `hpdcheck.py` on every regression build.
 
 - **The default pipeline:** `navkit.py sample` (and `all`, and the window's buttons) samples the level at 0.8 m, chooses
