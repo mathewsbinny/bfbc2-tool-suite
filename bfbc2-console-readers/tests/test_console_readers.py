@@ -156,6 +156,101 @@ def stfs_cli(*args):
     return code, buf.getvalue()
 
 
+# ------------------------------------------------------------------------------------------------ APT
+
+def build_apt(big):
+    """A small APT movie (.apt, .const) in either byte order: character 0 the movie (one empty frame, an export
+    "spr" = 1), 1 a sprite whose one frame has an action (EA_PushLong 0x01020304, Stop, End) and a label "intro",
+    2 an image (texture 2), 3 a shape (bounds 0,0-10,20, geometry 3). Constants: "hello" and register 3."""
+    e = '>' if big else '<'
+    a = bytearray(b'Apt Data:74\x1a\0\0\0\0\0')
+
+    def put(data):
+        while len(a) % 4:
+            a.append(0)
+        at = len(a)
+        a.extend(data)
+        return at
+    code = put(bytes([0xB7]) + struct.pack(e + 'i', 0x01020304) + bytes([0x07, 0x00]))
+    label = put(b'intro\0')
+    export_name = put(b'spr\0')
+    action = put(struct.pack(e + 'II', 1, code))
+    flabel = put(struct.pack(e + 'IIIi', 2, label, 0, 0))
+    items = put(struct.pack(e + 'II', action, flabel))
+    sframes = put(struct.pack(e + 'II', 2, items))
+    sprite = put(struct.pack(e + 'IIIII', 5, 0x09876543, 1, sframes, 0))
+    image = put(struct.pack(e + 'III', 7, 0x09876543, 2))
+    shape = put(struct.pack(e + 'II4fI', 1, 0x09876543, 0, 0, 10, 20, 3))
+    mframes = put(struct.pack(e + 'II', 0, 0))
+    exports = put(struct.pack(e + 'II', export_name, 1))
+    chars = put(b'\0' * 16)
+    movie = put(struct.pack(e + 'IIIIIIIiiIIIII', 9, 0x09876543, 1, mframes, 0, 4, chars, 1280, 720, 33, 0, 0, 1, exports))
+    struct.pack_into(e + '4I', a, chars, movie, sprite, image, shape)
+    c = bytearray(b'Apt constant file\x1a\0\0')
+    hello = 64
+    c += struct.pack(e + 'III', movie, 2, 32) + struct.pack(e + 'IIII', 1, hello, 4, 3)
+    c += b'\0' * (hello - len(c)) + b'hello\0'
+    return bytes(a), bytes(c)
+
+
+def apt_checks(c, work):
+    sys.path.insert(0, os.path.join(ROOT, 'apt'))
+    import apt
+    dumps = {}
+    for big in (False, True):
+        label = 'big-endian' if big else 'little-endian'
+        a, k = build_apt(big)
+        base = os.path.join(work, f'movie_{int(big)}')
+        open(base + '.apt', 'wb').write(a)
+        open(base + '.const', 'wb').write(k)
+        mv = apt.Movie(base + '.apt')
+        c.check(mv.big == big, f'apt: byte order detected ({label})')
+        c.check(mv.const == ['"hello"', 'reg3'], f'apt: constants ({label})', str(mv.const))
+        kinds = [(cid, t) for cid, _, t in mv.characters()]
+        c.check(kinds == [(0, 9), (1, 5), (2, 7), (3, 1)], f'apt: character table ({label})', str(kinds))
+        text = '\n'.join(mv.dump())
+        dumps[big] = text.split('\n', 1)[1]                               # all but the header line (byte order)
+        c.check('FrameLabel "intro" frame 0' in text and 'EA_PushLong 16909060' in text and 'Stop' in text,
+                f'apt: frames, labels and bytecode immediates ({label})')
+        c.check('char 2: image' in text and 'texture=2' in text and 'bounds=(0,0)-(10,20) geometry=3' in text
+                and 'export "spr" = char 1' in text, f'apt: images, shapes and exports ({label})')
+        r = subprocess.run([sys.executable, os.path.join(ROOT, 'apt', 'apt.py'), 'info', base + '.apt'],
+                           capture_output=True, text=True)
+        c.check(r.returncode == 0 and ('big-endian' if big else 'little-endian') in r.stdout
+                and '1 image, 1 movie, 1 shape, 1 sprite' in r.stdout, f'apt: info command ({label})', r.stdout + r.stderr)
+    c.check(dumps[False] == dumps[True], 'apt: both byte orders read the same movie')
+
+
+def console_menu_checks(c, u3, work):
+    """Update #3's console main menu: apt.py reads its main_nav (big-endian) and finds the Onslaught mode picture:
+    the sprite with a frame "onslaught" places shape 634."""
+    fbrb = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
+    e = next((x for x in u3.entries if x['path'].lower() == 'menu/main/mainmenu-00.fbrb'), None)
+    if e is None or not os.path.isfile(fbrb):
+        print('skip the console menu (no menu bundle in Update #3, or FbrbTool.exe not built)')
+        return
+    bundle = os.path.join(work, 'mainmenu-00.fbrb')
+    open(bundle, 'wb').write(u3.read(e))
+    subprocess.run([fbrb, 'unpack', bundle, os.path.join(work, 'menu')], check=True, stdout=subprocess.DEVNULL)
+    sys.path.insert(0, os.path.join(ROOT, 'apt'))
+    import apt
+    mv = apt.Movie(os.path.join(work, 'menu', 'Menu', 'main_nav.res'))
+    c.check(mv.big, 'console main_nav: big-endian')
+    text = mv.dump()
+    c.check(sum('unreadable' in l for l in text) <= 1 and len(text) > 80000, 'console main_nav: dumped in full',
+            f'{len(text)} lines')
+    shape = None
+    for cid, cp, t in mv.characters():
+        if t == 5:
+            fptr = mv.u(cp + 12)
+            for fr in range(mv.u(cp + 8)):
+                n, items = mv.u(fptr + 8 * fr), mv.u(fptr + 8 * fr + 4)
+                its = [mv.u(items + 4 * k) for k in range(n)]
+                if any(mv.u(i) == 2 and mv.s(mv.u(i + 4)) == 'onslaught' for i in its):
+                    shape = next(mv.i(i + 12) for i in its if mv.u(i) == 3)
+    c.check(shape == 634, 'console main_nav: the "onslaught" mode picture is shape 634', str(shape))
+
+
 # ------------------------------------------------------------------------------------------------ user files
 
 def sha(path):
@@ -225,6 +320,7 @@ def game_checks(c, xbox):
                 c.check(hashlib.sha1(u3.read(e)).hexdigest() == sha(pc), f'{lv}: Update #3 path data identical to Napisal\'s PC file')
         if not compared:
             print('skip comparison with Napisal\'s PC files (not installed in the game copy)')
+        console_menu_checks(c, u3, work)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -273,6 +369,8 @@ def main(argv):
             c.check(all(open(os.path.join(dest, *k.split('/')), 'rb').read() == v for k, v in files.items()), f'stfs: extract ({label})')
             code, out = stfs_cli('info', path)
             c.check(code == 0 and '4 entries' in out, f'stfs: info ({label})')
+
+        apt_checks(c, work)
 
         if '--game' in argv:
             xbox = argv[argv.index('--xbox') + 1] if '--xbox' in argv else XBOX_DEFAULT
