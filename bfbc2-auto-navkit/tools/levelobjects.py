@@ -46,6 +46,19 @@ def order_points(level_xml):
     return pts
 
 
+def area_orders(level_xml):
+    """The positions of the level's AreaOrder entities (where an area order sends soldiers - the M-COM targets in
+    Onslaught / Rush), for navwalk.OBJECTIVE_FLOOR."""
+    pts = []
+    for _typ, _guid, body in xmlinst.instances(level_xml, '.AreaOrderEntityData'):
+        t = re.search(r'<complex name="Transform">([^<]*)</complex>', body)
+        if t:
+            v = [float(a) for a in t.group(1).split('/')]
+            if len(v) >= 15 and any(abs(c) > 1e-3 for c in v[12:15]):
+                pts.append(v[12:15])
+    return pts
+
+
 def blueprint_flags(bases):
     """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic,
     DisablePathfinding value - e.g. PdtNever / PdtWhenAlive)."""
@@ -171,6 +184,7 @@ def main(argv):
                 spawns.append(v[12:15])
     json.dump(spawns, open(os.path.join(level_dir, 'soldier_spawns.json'), 'w'))
     json.dump(order_points(x), open(os.path.join(level_dir, 'order_points.json'), 'w'))
+    json.dump(area_orders(x), open(os.path.join(level_dir, 'area_orders.json'), 'w'))
     json.dump(objs, open(os.path.join(level_dir, 'objects.json'), 'w'))
     json.dump(groups, open(os.path.join(level_dir, 'group_instances.json'), 'w'))
 

@@ -104,6 +104,20 @@ def reference_bounds(root, lv):
     return float(P[:, 0].min()), float(P[:, 2].min()), float(P[:, 0].max()), float(P[:, 2].max())
 
 
+def area_orders_of(root, lv):
+    """The level's AreaOrder positions (work/levels/<lv>/area_orders.json from levelobjects.py; for a level prepared
+    before that file existed, read from the level's XML), or None."""
+    p = os.path.join(root, 'work', 'levels', lv, 'area_orders.json')
+    if os.path.isfile(p):
+        return json.load(open(p))
+    try:
+        import levelobjects
+        x = navparity.level_xml(root, lv)
+        return levelobjects.area_orders(open(x, encoding='utf-8', errors='replace').read()) if x else None
+    except Exception:
+        return None
+
+
 def order_points_of(root, lv):
     """The level's AI order positions (work/levels/<lv>/order_points.json, written by levelobjects.py), or None."""
     p = os.path.join(root, 'work', 'levels', lv, 'order_points.json')
@@ -135,7 +149,7 @@ def build_level(root, lv, out, log=lambda *a: None):
     navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
                    high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                    seeds=json.load(open(f['soldier_spawns.json'])), water=level_water(root, lv),
-                   order_points=order_points_of(root, lv),
+                   order_points=order_points_of(root, lv), area_orders=area_orders_of(root, lv),
                    bounds=reference_bounds(root, lv), log=log,
                    detailed=detailed_of(root, lv, samples, xoff, zoff), ladders=ladders_of(root, lv))
 

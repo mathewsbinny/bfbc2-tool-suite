@@ -28,6 +28,37 @@ swept-sphere collision, detailed zones at Pitch 0.2. Vehicle: StepMax 0.4, HoleM
 25–40°, Pitch 1, GraphAccuracy 15, NbSectors 64, EdgeRadius 2.51, EntityHeight 4, radius 2.5,
 cylinder collision.
 
+### 2.1 Vehicle path data (research 2026-10-23)
+
+- **Two pathfinding types only.** `AI/Pathfinding/{Infantry, Vehicles}` (`PathfindingSettings`) with
+  `{InfantryData, VehicleData}` (`PathfindingType`: `OutputName` Infantry / Vehicle). The engine knows two
+  generators, `PgFrostbiteMapBuilder` (infantry) and `PgVehicleMapBuilder` (vehicles), and three collision models
+  (`PCMSweptSphere` infantry, `PCMCylinder` vehicles, `PCMSphere` unused). **There is no air or water type:** BC2's
+  navigation data is ground only. Water is excluded (`ForbidWater` true; `WaterLevelAdjustment` -1.6 for vehicles,
+  -3.5 infantry). AI aircraft and boats have no navigation data: in the campaign they are player-driven or scripted
+  set pieces; the levels' waypoint paths (`AnimatedWaypointData` / `WaypointData`, 10-37 per campaign level, none on
+  the Onslaught maps) are squad and patrol routes for soldiers (one tank patrol on sp_008), used by
+  `AreaGeometryEntityData` orders. `HelicopterControlConstantData` and `BoatFloatPhysicsData` are vehicle physics.
+- **Vehicle settings that differ from infantry** (compared with `mp_common`'s Infantry, whose Pitch 0.2 /
+  GraphAccuracy 0.5 / NbSectors 128 differ from the campaign values above): Pitch 1 (no detailed zones), StepMax /
+  StepLength 0.4, HoleMax 0.75, GroundSlopeMin / Max 25 / 40, EntityHeight 4, EdgeRadius 2.51, ForbidHeight 5,
+  GraphAccuracy 15 (infantry 0.5),
+  NbSectors 64, VerticalPitch 2, MaxPitch 2, `UseExclusions` true (infantry false), `InfantrySeeds` false /
+  `VehicleSeeds` true, `BuildRoads` true, `BuildBridges` false; type data: EntityRadius 2.5, DistEdgeMax 50,
+  `CanGoMaxEntityRadius` 2.5 (infantry 1000), `UseLocalPathfinding` false (infantry true), `AccidentDetection`
+  `PadVehicle` (the enum also has `PadPredictMove`, `PadTaken`), MaxGraphHandles 128, SubgraphsToLoad 3,
+  DiagramHalfWidth 20.
+- **Coverage:** every level with DICE data has a vehicle file except sp_009. It covers far less than the infantry file:
+  sectors 5-78 against 27-380 (sp_03 14 / 304, sp_006 78 / 380, ons_mp_002 19 / 56), route nodes 58-3,802 against
+  959-76,879 - consistent with `VehicleSeeds`: the build floods only from vehicle spawn points
+  (`VehicleSpawnEntityData`, 2-65 per level), so it holds the drivable ground connected to where vehicles start.
+- **Roads:** `BuildRoads` and the levels' terrain splines (`TerrainSplineData`, 1-42 per level) - much of the vehicle
+  ground lies well away from spline control points (sp_04: 39 % of vehicle cells within 15 m of one; ons_mp_004 66 %),
+  so the data is general drivable ground, not a road graph; how roads are marked in it (a record field, costs) is open.
+- **For a generator:** a second sampling run with the vehicle cylinder (radius 2.5, height 4), seeds from vehicle
+  spawns, the vehicle step / slope / hole limits, water depth 1.6 m, exclusions, pitch 1 and GraphAccuracy 15, route
+  edges to 50 m. Air and sea vehicles need navigation OPFOR builds itself (no Kynapse data exists for them).
+
 ## 3. Build pipeline – behaviour of the original generator
 
 Behavioural description for a re-implementation. Sources: the stage names, settings and engine
@@ -244,6 +275,9 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
   have no ground at the origin of any of their 24. Napisal's Onslaught AI orders aim at M-COM origins (0.0-0.1 m),
   and DICE's console path data has ground there (its layout had no object at those spots): with NavKit's PC file 14
   of 15 such orders are on no area, and the game's destination query fails. No campaign order sits on an M-COM.
+  NavKit's objective floor rule (2026-10-24, `navwalk.OBJECTIVE_FLOOR`) keeps the floor under and around an
+  `AreaOrder` position on a forbidden object: in the samples the floor under an M-COM lies on a forbidden triangle
+  itself (its collision's bottom face), with the top 0.6-0.8 m above. Result: 13 of 14 targets on an area (DICE 14).
 - **`DisablePathfinding`** on placed objects (15 levels): `PdtNever` 32,854, `PdtWhenAlive` 729 (doors, gates, scripted
   walls; absent for path data), `PdtWhenDestroyed` 556 (houses, factories, wooden walkways, rope bridges),
   `PdtWhenPartDestroyed` 13, unset about 4,500. With the level settings `DestructibleLocalPathfindingParts`,
@@ -723,9 +757,9 @@ by that many u32 offsets at +0x10.
   valid data.
   They are not detailed-zone structures: most sit in normal-pitch areas (sp_004_b D lines 2,793 normal /
   1,312 detailed, F cells 476 / 20; sp_01 23,876 / 2,416 and 1,738 / 42; sp_005 75,000 / 9,060 and 6,288 / 406).
-  NavKit writes none. "Valid" means the game loads the file; whether the runtime's movement uses them (edge
-  avoidance, steps and drops) is not known - open since the first sp_004_b play test (2026-10-19), where the
-  friendly squad did not move.
+  NavKit writes none. "Valid" means the game loads the file and routes on it. The runtime does use them, in its
+  straight-move test within an area (D as obstacle edges like the outline, F with heights): see the end of this
+  section (2026-10-23). The sp_004_b squad that did not move (2026-10-19) was the route-graph rules, not D / F.
 - **Sampler coverage (ONS_MP_002, 2026-10-20):** the in-game samples can hold a hole the level does not: on
   ONS_MP_002 both runs record (almost) nothing south of z ~ -511 over the whole map width (rows 0-49 of the box,
   89-100 % empty, the next row 0 %), where DICE's path data has 4,035 m2 of main-network ground and the terrain
@@ -801,8 +835,27 @@ by that many u32 offsets at +0x10.
     flat, about 0.2 m inside the stair-stepped outline (1 % on it), 58 % with both ends at outline vertices. Reading
     (inferred): the obstacle edge between the outline's grid corners, at a finer resolution than the pitch.
 
-Open: exact meaning of D, F and the "up" C portals (the readings above are statistical; the runtime's use is not
-known).
+**The runtime uses D and F (targeted disassembly, 2026-10-23).** No code calls the mesh object's plain accessors for
+D / E / F (`0x10713C0` D, `0x10713E0` E, `0x1071400` F - all unused); five functions read the lists inline:
+- **`0x1072A60` - a segment test against one area:** for a segment A -> B it walks the D lines (+0x38 count, +0x3C
+  index table; 12-byte points) and the E outlines (+0x40 / +0x44) through the same segment-against-polyline test
+  (`0x1071900`), then the F cells (+0x48) with the segment's ends and their height difference; a hit ends the test.
+  Flag bits skip each list (2 = D, 1 = E, 4 = F). So **D lines are obstacle edges on a par with the outline**, and F
+  cells take part in the same test with the heights - the "can I move straight from A to B in this area" check
+  (straight moves, path smoothing). `0x1072D00` is the same walk over D, E and F (a variant of the test).
+- It runs in game: `0x1072A60` <- `0x1074B30` <- `0x10756A0` <- `0x1070E60` <- `0xF2CF90` (which also calls
+  `0x105C4C0`, beside the path-query chain check `0x0105C440`) <- `0xF2D170` <- `0x58EF90` (game AI code); other
+  callers are Kynapse objects with vtables.
+- `0x10A3A70` reads the D / E / F counts and tables together (sizes); `0x10A4590` iterates D and E with drawing-style
+  calls (likely debug display).
+
+Consequence for NavKit (no D, no F): the straight-move test sees only the stair-stepped outline. A segment between the
+outline and the true obstacle edge (D lies ~0.2 m inside it) passes in NavKit's file and fails in DICE's - bots may
+cut corners closer to walls; and the height-break check of F cells is missing on steps. Pathfinding itself (areas,
+portals, the route graph) does not use them - NavKit's files route without them. To measure in a play test (corner
+cutting, stepping); generating D lines and F cells stays on NavKit's list.
+
+The "up" C portals are a quirk of DICE's data (NavKit's README, "up" border portals).
 
 ### 4.6 Structured round trip and writing conventions
 

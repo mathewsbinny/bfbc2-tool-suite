@@ -66,12 +66,14 @@ src\, tests\         (reserved for the generator proper and its tests)
 
 ## Detailed zones, ladders and walkability rules (2026-10-21 / 22)
 
-All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregress.py`, run `regression_det_v6`,
-2026-10-23, now the default reference `regression`): **ground 98.2 %** of DICE's, **extra ground 8.3 %**,
+All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregress.py`, run `regression_det_v8`,
+2026-10-24, now the default reference `regression`): **ground 98.2 %** of DICE's, **extra ground 8.3 %**,
 **connectivity 98.5** (of the routes DICE's data allows, the share NavKit's allows), over-connection 15.3 % (routes
-only NavKit's allows: open slopes, stairs, steps and ladders - see below). **Every area boundary is closed** on all 15
-builds (0 open areas; before the exact bridge tracing below, 1.7 - 3.1 % of the areas on sp_004_b / sp_01 were open,
-DICE has none).
+only NavKit's allows: open slopes, stairs, steps and ladders - see below), **AI coverage 98.5** (AI order positions on
+an area; campaign levels 99.0) and pairwise AI routes 86.0. **Every area boundary is closed** on all 15 builds (0 open
+areas; before the exact bridge tracing below, 1.7 - 3.1 % of the areas on sp_004_b / sp_01 were open, DICE has none).
+**M-COM targets:** 13 of the 14 Onslaught attack orders on an M-COM are on an area (DICE 14), with the objective
+floor rule below.
 
 - **Exact bridge tracing (`navbuild.BRIDGE_UNION`, 2026-10-23):** an area's 45-degree bridges are the exact union of
   the quarter cells they cut, traced as one outline, in place of clipping each bridge on its own (`clip_bridges`,
@@ -147,9 +149,21 @@ DICE has none).
   file has ground at all 15, its layout having no object there. The M-COM is `ForbidPathfinding` (its top is not
   floor - DICE's campaign files carve all 24 of theirs); the hole at its centre is its collision (no room for the
   soldier), not the flag, so clearing the flag would not help. The game's destination query fails there and units
-  stop short. Planned: keep the floor under an AI order point that lies on a forbidden object, out to the walkable
-  ground around it (the order point unchanged - as in DICE's console file, with which bots reach and arm M-COMs).
-  No campaign order sits on an M-COM.
+  stop short. No campaign order sits on an M-COM.
+  **Objective floors (`navwalk.OBJECTIVE_FLOOR`, 2026-10-24):** an AI order position (the level's `AreaOrder`
+  entities, `area_orders.json` from `levelobjects.py` - not the area-geometry points of `order_points.json`) that lies
+  on a forbidden object keeps the floor under it, out to `OBJECTIVE_REACH` (1.5 m): the surfaces with the object's
+  top 0.3-2 m above, and the floor at that height the object blocks by clearance. The floor under an M-COM counts as
+  on the object itself (its collision has a bottom face on the ground) - the rule takes it all the same; the top stays
+  forbidden. ONS_MP_002 7 of 8 targets on an area (was 1), ONS_MP_004 6 of 6 (was 0, now at DICE's distances); AI
+  coverage 30 -> 90 and 0 -> 100; campaign levels unchanged. `tests\test_objective_floor.py`.
+  A first version took the area-geometry points: it fired on campaign levels at objects under area corners
+  (sp_02's AI coverage rose 98.5 -> 98.8 from it) and missed the M-COMs - DICE does keep ground at some AI targets on
+  forbidden objects beyond M-COMs, which is worth a separate, measured rule.
+- **Route node on a border node** (`navbuild.build_graph`, 2026-10-24): an area node is never placed on a border
+  node's position - a shared node carried from the other pitch's build is attached to ground up to 1 m away, so its
+  surface could differ from the one under it; sp_007 had a zero-length edge there (`hpdcheck`), sp_005 a coincident
+  pair without one.
 - **Destruction:** path data describes the intact level (DICE's and NavKit's). Objects carry `DisablePathfinding`:
   `PdtNever` (32,854 placed objects on the 15 levels), `PdtWhenAlive` (729: doors, gates, scripted walls - absent for
   path data; NavKit honours it), `PdtWhenDestroyed` (556: houses, factories, walkways, rope bridges - inferred: the
@@ -161,8 +175,9 @@ DICE has none).
 - **Still open:** sp_003_b (connectivity 93.3: a rocky gully whose rough terrain fails the slope test at 0.2 m almost
   everywhere); soldier spawns on small islands where NavKit has more than DICE (sp_008_b, sp_02, sp_003_b, sp_006,
   sp_01, a few each); ONS_MP_002's power-line pylons and a cliff top that roof pruning keeps (they stand beside each
-  other at one height); the M-COM target rule (above); lonely nodes and slivers (above); vehicle path data; and play
-  tests of the current builds (ladder links and destroyed houses included).
+  other at one height); the last M-COM target (ONS_MP_002, 0.87 m from walkable ground); lonely nodes and slivers
+  (above); D lines and F cells (the runtime's straight-move test uses them - spec §4.5); vehicle path data (spec
+  §2.1); and play tests of the current builds (M-COM arming, ladder links and destroyed houses included).
 
 ## Plan and status (2026-10-23)
 
@@ -223,9 +238,10 @@ DICE has none).
    - The pairwise check compares route-network layout; DICE's own network has gaps (spec §3.8), so it
      is a guide, not ground truth. Open leads: sp_008_b (sloped bridge foundation / fence passage DICE leaves
      out), sp_009 (plane aisles narrower than the capsule; DICE connects them), sp_03 / sp_008 (DICE network gaps).
-   - Not generated yet: D lines and F cells (mostly in normal-pitch areas, not only detailed zones),
-     "up" border portals, diagonal border portals, the 20 m midline cuts, detailed zones (pitch 0.2),
-     vehicle data, ladder links (planned for MP bots, optional).
+   - Not generated yet: D lines and F cells (mostly in normal-pitch areas, not only detailed zones; the runtime's
+     straight-move test reads them - spec §4.5), diagonal border portals, the 20 m midline cuts, vehicle data (spec
+     §2.1). Done since: detailed zones (pitch 0.2, 2026-10-21), ladder links (2026-10-22); the "up" border portals
+     are a quirk of DICE's data, not generated on purpose.
    - Then: MP maps (self-check, no DICE data); later a standalone mode that reads Havok collision
      directly instead of sampling in game.
 5. **Tooling – done (2026-10-15).** `navkit.py` runs the whole workflow from a level name (unpack, objects,
@@ -348,11 +364,14 @@ DICE has none).
      south "hole" is beyond the PC terrain (the reference is now clipped to it); detailed zones at 0.2 m, chosen
      from the level alone, sampled and built by default; ladder links; the walkability rules and parity measures in
      the section above; "up" border portals found to be a quirk of DICE's data. The stock-MP AI layer is planned in
-     OPFOR's `STOCK_MP_AI_PLAN.md`.
-   - **Next:** the M-COM target rule and a play test on ONS_MP_002 (bots reaching and arming M-COMs; a destroyed
-     house's floors), then the open items above (spawns on small islands first), D lines and F cells, vehicle path
-     data. Later, with OPFOR's bot layer: breach links for walls opened by destruction. The 20 m midline cuts are
-     parity only (conditional, one axis; not what broke the sp_004_b routes).
+     OPFOR's `STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
+     rule (13 of 14 M-COM targets on an area, AI coverage on the two maps 90 / 100), and what D and F are for at run
+     time (spec §4.5).
+   - **Next:** a play test on Atacama (ONS_MP_002) with the current build (bots reaching and arming M-COMs; a
+     destroyed house's floors; ladders; corner cutting and steps, where D / F would show), then the open items above
+     (spawns on small islands first), D lines and F cells, vehicle path data (a vehicle profile, spec §2.1). Later,
+     with OPFOR's bot layer: breach links for walls opened by destruction. The 20 m midline cuts are parity only
+     (conditional, one axis; not what broke the sp_004_b routes).
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 
 Credits: level data is read with the suite's FbrbTool and DbxEdit, based on **Frankelstner**'s format

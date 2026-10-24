@@ -74,6 +74,7 @@ def tests():
         ('NavKit narrow lips and door sills', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_lips.py')]),
         ('NavKit dynamic props (floor under a prop, door leaves)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_dynamic_props.py')]),
         ('NavKit roof pruning', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_roof_prune.py')]),
+        ('NavKit objective floors (M-COM)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_objective_floor.py')]),
         ('NavKit 45-degree bridges: closed outlines', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_bridge_union.py')]),
         ('NavKit collision index (Havok packfile names)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_havok_index.py')]),
         ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),

@@ -543,7 +543,7 @@ def build(pr, lv, log=print):
                    stairs_path=os.path.join(L, 'stair_tris.npy'),
                    seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
                    water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
-                   order_points=navregress.order_points_of(pr.root, lv),
+                   order_points=navregress.order_points_of(pr.root, lv), area_orders=navregress.area_orders_of(pr.root, lv),
                    ladders=json.load(open(os.path.join(L, 'ladders.json'))) if os.path.isfile(os.path.join(L, 'ladders.json')) else None,
                    log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
@@ -681,7 +681,7 @@ def _apply(pr, lv, navtune_path, out, log):
                        high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
                        seeds=json.load(open(f['soldier_spawns.json'])), edits=walk,
                        water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
-                       order_points=navregress.order_points_of(pr.root, lv),
+                       order_points=navregress.order_points_of(pr.root, lv), area_orders=navregress.area_orders_of(pr.root, lv),
                        log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
         log(f'  built in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
     else:

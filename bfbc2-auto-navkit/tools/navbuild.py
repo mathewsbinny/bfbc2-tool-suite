@@ -629,7 +629,8 @@ def trace_emit(level, areas, per_area, gi0, gj0, ox, oz):
 
 def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
           narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
-          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, detailed=None, ladders=None):
+          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, detailed=None, ladders=None,
+          area_orders=None):
     """edits: the operations of a navigation side file (navedits.py applies the walkability ones).
     water: the level's water mesh (vertices, triangles; core/bfbc2core/water.py): ground more than max_water_depth
     under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win).
@@ -641,7 +642,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     common = dict(tris_path=tris_path, step=step, log=log, dynamic_path=dynamic_path, narrow_path=narrow_path,
                   stairs_path=stairs_path, exclude_path=exclude_path, exclude_foot_path=exclude_foot_path,
                   edits=edits, water=water, max_water_depth=max_water_depth, bounds=bounds,
-                  order_points=order_points, t0=t0, ladders=ladders)
+                  order_points=order_points, t0=t0, ladders=ladders, area_orders=area_orders)
     set_pitch(0.8)
     ORDER_IDS.clear()
     LADDER_STATS.clear()
@@ -659,7 +660,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
 
 def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=print, dynamic_path=None,
           narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
-          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, t0=None,
+          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, area_orders=None, t0=None,
           sector_filter=None, grid_min=None, id_start=1, carried=None, seed_points=None, ladders=None):
     """One grid's build (the module's pitch settings, set_pitch): walkable surfaces, sectors, areas, border nodes,
     traced boundaries, meshes and route graphs - not yet written. sector_filter: build only these (X, Y) sectors;
@@ -711,12 +712,16 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
                                     ladders=ladders, **hand,
                                     # roof pruning anchors: soldier spawns, AI order positions, and (stage b) the ground
                                     # the normal build kept - stage b drops only roofs that build did not have
-                                    anchors=list(seeds or []) + list(order_points or []) + list(seed_points or []))
+                                    anchors=list(seeds or []) + list(order_points or []) + list(seed_points or []),
+                                    objective_points=area_orders)
     level = Level(s, keep, step, gx, gz, stair)
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)'
         + (f'; roof islands dropped {navwalk.ROOF_STATS.get("dropped", 0)} ({navwalk.ROOF_STATS.get("surfaces", 0)} surfaces)'
-           if navwalk.ROOF_PRUNE else ''))
+           if navwalk.ROOF_PRUNE else '')
+        + (f'; objective floors {navwalk.OBJECTIVE_STATS.get("points", 0)} ({navwalk.OBJECTIVE_STATS.get("surfaces", 0)} surfaces)'
+           if navwalk.OBJECTIVE_FLOOR else ''))
     navwalk.ROOF_STATS.clear()
+    navwalk.OBJECTIVE_STATS.clear()
     # ladder links: the kept surfaces at each ladder's foot and top (navwalk.ladder_ends)
     ladder_pairs = []
     for lad in (ladders or ()):
@@ -1087,13 +1092,20 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
     # border node in both of its sectors (sp_004_b: 1,515 shared positions, all border pairs with one id); NavKit
     # had 377 duplicate pairs joined by zero-length edges (2026-10-20)
     taken = {k for _nid, _pos, k in borders} if DEDUP_GRAPH_NODES else set()
+    # ... and none at a border node's position: a shared node carried from the other pitch's build is attached to
+    # ground up to CARRY_RADIUS away, so its surface can differ from the one under its own position - an area node
+    # on that one stood on the border node, joined by a zero-length edge (sp_007 sector 0e0b, 2026-10-23)
+    taken_pos = {tuple(round(v, 3) for v in pos) for _nid, pos, _k in borders} if DEDUP_GRAPH_NODES else set()
 
     def add(i, j, k):
+        pos = (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH)
         if DEDUP_GRAPH_NODES:
-            if k in taken:
+            key = tuple(round(v, 3) for v in pos)
+            if k in taken or key in taken_pos:
                 return
             taken.add(k)
-        pts.append((new_id(), (ox + i * PITCH, float(level.y[k]) + Y_OFFSET, oz + j * PITCH), k, i, j))
+            taken_pos.add(key)
+        pts.append((new_id(), pos, k, i, j))
     for a in areas:
         if len(a['cells']) < 4:
             continue

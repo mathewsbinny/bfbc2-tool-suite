@@ -82,6 +82,13 @@ DYNAMIC_FLOOR = 0.3                # a surface on a dynamic prop within this of 
                                     # floor, e.g. a gate's bottom rail 0.09 m up - its columns were a hole, and at pitch
                                     # 0.2 a closed gate cut the only way through a wall: sp_003_b's monastery gate,
                                     # 2026-10-22); None to switch off
+OBJECTIVE_FLOOR = True             # an AI order position on a ForbidPathfinding object keeps the floor under and around
+                                    # it: the floor whose forbidden top stands 0.3..2 m above it, and the floor at that
+                                    # height within OBJECTIVE_REACH that the object blocks by clearance. M-COMs
+                                    # (mpobjective) are ForbidPathfinding; the order positions where bots arm them stood
+                                    # in its hole - 14 of 15 Onslaught M-COM targets were on no area (2026-10-23)
+OBJECTIVE_REACH = 1.5
+OBJECTIVE_STATS = {}
 STEEP_TERRAIN_SPAN = 0.8
 STEEP_STATS = {}
 OUTLINE_Y_OFFSET = 0.95            # outline heights in pathdata.hpd = ground + EntityHeight / 2
@@ -374,11 +381,50 @@ def ladder_ends(s, ok, keep, lad, reach=LADDER_REACH):
     return out[0], out[1]
 
 
+def objective_floor(s, onf, ok, character, slope_ok, points, reach=None):
+    """OBJECTIVE_FLOOR: the surfaces to add (bool per surface) for the AI order positions lying on a forbidden object."""
+    reach = OBJECTIVE_REACH if reach is None else reach
+    y = s.y.astype(float)
+    add = np.zeros(len(y), bool)
+    r = int(math.ceil(reach / s.pitch))
+    for (px, py, pz) in points:
+        i0, j0 = int(round((px - s.min_x) / s.pitch)), int(round((pz - s.min_z) / s.pitch))
+        cols = []
+        for dj in range(-r, r + 1):
+            for di in range(-r, r + 1):
+                i, j = i0 + di, j0 + dj
+                if 0 <= i < s.nx and 0 <= j < s.nz and math.hypot(di, dj) * s.pitch <= reach:
+                    c = j * s.nx + i
+                    cols.append(range(s.start[c], s.start[c + 1]))
+        # on a forbidden object: a forbidden surface around the position, from 0.5 m below it to 2.5 m above
+        if not any(onf[n] and -0.5 <= y[n] - py <= 2.5 for ns in cols for n in ns):
+            continue
+        # the floor under it: surfaces near the position's height with a forbidden top 0.3..2 m above. They may count
+        # as on the object themselves - an M-COM's collision has a bottom face on the ground, so the ground under it
+        # lies on a forbidden triangle (ONS_MP_002 / 004: 9 of 14 targets missed until 2026-10-23)
+        def under_top(n, ns):
+            return any(onf[m] and 0.3 <= y[m] - y[n] <= 2.0 for m in ns)
+        under = [y[n] for ns in cols for n in ns if slope_ok[n] and abs(y[n] - py) <= 1.5 and under_top(n, ns)]
+        if not under:
+            continue
+        floor = float(np.median(under))
+        n_add = 0
+        for ns in cols:
+            for n in ns:
+                if (not ok[n] and not character[n] and slope_ok[n] and abs(y[n] - floor) <= 0.3
+                        and (not onf[n] or under_top(n, ns))):
+                    add[n] = True
+                    n_add += 1
+        OBJECTIVE_STATS['points'] = OBJECTIVE_STATS.get('points', 0) + 1
+        OBJECTIVE_STATS['surfaces'] = OBJECTIVE_STATS.get('surfaces', 0) + n_add
+    return add
+
+
 def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=False, dynamic_tris=None,
              high_capsule=None, stairs=True, return_gradients=False, narrow_capsule=None, raised_bars=False,
              stair_tris=None, exclude_tris=None, exclude_footprint_tris=None, forbid_tol=0.08,
              extra_seeds=None, return_stairs=False, force_walkable=None, force_unwalkable=None, unseeds=None,
-             soldier_points=None, ladders=None, anchors=None):
+             soldier_points=None, ladders=None, anchors=None, objective_points=None):
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -534,6 +580,8 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
                 ok[k] = True
     ok &= ~character                    # last, before hand edits: the stair / landing / bar rules above re-added 68 of
                                         # sp_004_b's 468 soldier surfaces as floor (2026-10-19)
+    if OBJECTIVE_FLOOR and objective_points and onf.any():
+        ok |= objective_floor(s, onf, ok, character, slope_ok, objective_points)
     if force_walkable is not None:
         ok |= force_walkable
     if force_unwalkable is not None:
