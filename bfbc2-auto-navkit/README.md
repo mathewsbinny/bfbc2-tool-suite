@@ -72,8 +72,8 @@ All 15 levels with DICE path data, rebuilt and measured on PC ground (`navregres
 only NavKit's allows: open slopes, stairs, steps and ladders - see below), **AI coverage 98.5** (AI order positions on
 an area; campaign levels 99.0) and pairwise AI routes 86.0. **Every area boundary is closed** on all 15 builds (0 open
 areas; before the exact bridge tracing below, 1.7 - 3.1 % of the areas on sp_004_b / sp_01 were open, DICE has none).
-**M-COM targets:** 13 of the 14 Onslaught attack orders on an M-COM are on an area (DICE 14), with the objective
-floor rule below.
+**M-COM targets:** all 14 Onslaught attack orders on an M-COM are on an area (DICE 14), with the objective floor
+rule below; AI order coverage on both Onslaught maps 100 %.
 
 - **Exact bridge tracing (`navbuild.BRIDGE_UNION`, 2026-10-23):** an area's 45-degree bridges are the exact union of
   the quarter cells they cut, traced as one outline, in place of clipping each bridge on its own (`clip_bridges`,
@@ -365,8 +365,9 @@ floor rule below.
      from the level alone, sampled and built by default; ladder links; the walkability rules and parity measures in
      the section above; "up" border portals found to be a quirk of DICE's data. The stock-MP AI layer is planned in
      OPFOR's `STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
-     rule (13 of 14 M-COM targets on an area, AI coverage on the two maps 90 / 100), and what D and F are for at run
-     time (spec §4.5).
+     rule (all 14 M-COM targets on an area, AI coverage on the two maps 100 / 100; the floor is the sampled layer
+     nearest the target with enough hits, so a slab over the terrain and stray hits on the object's sides do not
+     mislead it), and what D and F are for at run time (spec §4.5).
    - **Next:** a play test on Atacama (ONS_MP_002) with the current build (bots reaching and arming M-COMs; a
      destroyed house's floors; ladders; corner cutting and steps, where D / F would show), then the open items above
      (spawns on small islands first), D lines and F cells, vehicle path data (a vehicle profile, spec §2.1). Later,

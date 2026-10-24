@@ -407,7 +407,17 @@ def objective_floor(s, onf, ok, character, slope_ok, points, reach=None):
         under = [y[n] for ns in cols for n in ns if slope_ok[n] and abs(y[n] - py) <= 1.5 and under_top(n, ns)]
         if not under:
             continue
-        floor = float(np.median(under))
+        # the layer nearest the position's height: an object can stand on a slab above the terrain, and the terrain
+        # under the slab has the object's top within 2 m too - a median over both took the terrain (ONS_MP_002
+        # "Arm A3": slab 0.9 m above the terrain, 2026-10-24). Layers are 0.1 m height bins with at least 2 hits and a
+        # quarter of the fullest bin's: a few hits on the object's sides sit nearer a position on the object's top than
+        # the floor does (ONS_MP_004: two targets 0.8 m above their floor, stray hits 0.2-0.6 m under them)
+        b, cnt = np.unique(np.round(np.asarray(under) / 0.1).astype(int), return_counts=True)
+        layers = b[cnt >= max(2, 0.25 * cnt.max())] * 0.1
+        if not len(layers):
+            layers = b * 0.1
+        nearest = float(layers[np.argmin(np.abs(layers - py))])
+        floor = float(np.median([v for v in under if abs(v - nearest) <= 0.2]))
         n_add = 0
         for ns in cols:
             for n in ns:

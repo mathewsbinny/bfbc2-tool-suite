@@ -58,6 +58,17 @@ cylinder collision.
 - **For a generator:** a second sampling run with the vehicle cylinder (radius 2.5, height 4), seeds from vehicle
   spawns, the vehicle step / slope / hole limits, water depth 1.6 m, exclusions, pitch 1 and GraphAccuracy 15, route
   edges to 50 m. Air and sea vehicles need navigation OPFOR builds itself (no Kynapse data exists for them).
+- **AI boats without navigation data (Napisal's ons_mp_004, research 2026-10-24).** Isla Inocentes is the only
+  Onslaught port with AI-driven boats: two Team2 `VehicleSpawnEntityData` `Spawn_Pbl` (patrol boat, at (45, 77, -319)
+  and (-8, 76, -2)), linked both ways to four `SSAiPlayer` spawners `Stranded Ship_SS03` (driver seat 0, gunner seat 1,
+  through the spawner's `Vehicle` array). The same set-up seats AI in T-90s and Mi-24 / Mi-28 helicopters; ons_mp_002
+  has none. No order entity is connected to the boat spawners (only the delay trigger that enables them). The level's
+  vehicle file (`vehicle\pathdata.hpd`, DICE's console data) stays on land: water surface y 76.1, lowest vehicle area
+  76.6, lowest vehicle route node 78.9 (infantry file: areas down to 74.7, wading depth). So the boats run on the
+  vehicle AI's generic behaviour with no routes. Whether they travel anywhere, and which pathfinding type the vehicle
+  driver asks for in a boat, is open: a run-time probe (position, speed, route requests of the AI boats) and a short
+  targeted look at the driver's route request answer it. Approach for a water mesh: OPFOR's `STOCK_MP_AI_PLAN.md`
+  section 11.
 
 ## 3. Build pipeline – behaviour of the original generator
 
@@ -278,6 +289,11 @@ by small bumps (the walkable set flips cell by cell around 40°), plus a few bui
   NavKit's objective floor rule (2026-10-24, `navwalk.OBJECTIVE_FLOOR`) keeps the floor under and around an
   `AreaOrder` position on a forbidden object: in the samples the floor under an M-COM lies on a forbidden triangle
   itself (its collision's bottom face), with the top 0.6-0.8 m above. Result: 13 of 14 targets on an area (DICE 14).
+  The floor is the sampled layer nearest the target's height among 0.1 m height bins holding at least 2 hits and a
+  quarter of the fullest bin's (2026-10-24): a median over all candidate surfaces took the terrain under a slab
+  (ONS_MP_002 "Arm A3": the M-COM on a slab 0.9 m above the terrain), and "nearest" alone took stray hits on an
+  M-COM's sides 0.2-0.6 m under a target on its top (ONS_MP_004). Result: all 14 targets on an area, AI coverage
+  100 % on both maps.
 - **`DisablePathfinding`** on placed objects (15 levels): `PdtNever` 32,854, `PdtWhenAlive` 729 (doors, gates, scripted
   walls; absent for path data), `PdtWhenDestroyed` 556 (houses, factories, wooden walkways, rope bridges),
   `PdtWhenPartDestroyed` 13, unset about 4,500. With the level settings `DestructibleLocalPathfindingParts`,
