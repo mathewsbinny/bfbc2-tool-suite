@@ -312,6 +312,7 @@ def main(argv):
             open(argv[3], 'w', encoding='utf-8').write(text)
             print(f'{argv[3]}: {text.count(chr(10))} lines')
         else:
+            sys.stdout.reconfigure(errors='replace')            # names in other code pages: no crash on the console
             sys.stdout.write(text)
     elif argv[1] == 'find':
         if len(argv) < 4:
