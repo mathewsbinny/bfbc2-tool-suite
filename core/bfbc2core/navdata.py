@@ -89,9 +89,25 @@ class NavData:
         return sorted({a.sector for a in self.areas})
 
 
+def _terrain_id(heightfield):
+    """A fingerprint of a height field's content (its bounds and samples), kept on the object."""
+    if heightfield is None:
+        return 'est'
+    fp = getattr(heightfield, '_navdata_id', None)
+    if fp is None:
+        h = hashlib.sha1(np.asarray(heightfield.min, np.float64).tobytes() + np.asarray(heightfield.max, np.float64).tobytes())
+        h.update(np.ascontiguousarray(heightfield.raw).tobytes())
+        fp = 'hf-' + h.hexdigest()[:16]
+        try:
+            heightfield._navdata_id = fp
+        except AttributeError:
+            pass
+    return fp
+
+
 def _key(path, heightfield=None):
     st = os.stat(path)
-    hf = 'hf' if heightfield is not None else 'est'
+    hf = _terrain_id(heightfield)
     return hashlib.sha1(f'{CACHE_VERSION}|{os.path.abspath(path).lower()}|{st.st_size}|{st.st_mtime_ns}|{hf}'.encode()).hexdigest()[:20]
 
 

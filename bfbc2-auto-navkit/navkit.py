@@ -25,7 +25,8 @@
 Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: override the sampling box),
          --pitch 0.8 / 0.2 (sample: that pass only; 0.2 = a detailed-zone run over the level's detailed sectors;
          writes <level>_navkit_p02.bin / _hi_p02.bin, the level's settings and its 0.8 m samples untouched),
-         --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit).
+         --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit),
+         --no-detail (build / apply / all: no D lines or F cells - navbuild.DETAIL_FEATURES off).
 
 NavKit works on Project OPFOR's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
 toolkit (..\\bfbc2-fbrb-tool, ..\\bfbc2-dbx-tools, built with their build.bat) or from OPFOR's tools\\ folder.
@@ -519,17 +520,15 @@ def close_game():
     time.sleep(2)
 
 
-def build(pr, lv, log=print):
-    import navbuild
+def build_inputs(pr, lv, log=print):
+    """(samples, forbid, xoff, zoff, keyword arguments) of navbuild.build for a level: one place, so that build and
+    apply (a build with walkability edits) always pass the same inputs - detailed zones and ladders included."""
     import navregress
     s = pr.settings(lv)
     L = pr.level_work(lv)
     s08 = pr.samples08(lv)                      # <lv>_navkit.bin, or <lv>_full.bin of older campaign runs
     if not s08 or not os.path.isfile(s08[:-4] + '_hi.bin'):
         raise NavKitError(f'{lv}: samples missing ({os.path.basename(pr.samples(lv))} and its _hi run) - run sample first')
-    out = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
-    log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
-    t0 = time.time()
     detailed = None
     if os.path.isfile(pr.samples(lv, '_p02')):
         # the detailed-zone pass: DICE's pitch-0.2 sectors built from the level's pitch-0.2 samples (sample --pitch 0.2)
@@ -538,14 +537,24 @@ def build(pr, lv, log=print):
                         sectors=set(detailed_sectors(pr, lv)))
         log(f'  detailed zones: {len(detailed["sectors"])} sectors at pitch 0.2'
             + ('' if detailed['high'] else ' (no high-capsule run at 0.2 - stairs use the normal capsule there)'))
-    navbuild.build(s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], out, detailed=detailed,
-                   dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=s08[:-4] + '_hi.bin',
-                   stairs_path=os.path.join(L, 'stair_tris.npy'),
-                   seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
-                   water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
-                   order_points=navregress.order_points_of(pr.root, lv), area_orders=navregress.area_orders_of(pr.root, lv),
-                   ladders=json.load(open(os.path.join(L, 'ladders.json'))) if os.path.isfile(os.path.join(L, 'ladders.json')) else None,
-                   log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
+    kw = dict(detailed=detailed,
+              dynamic_path=os.path.join(L, 'dynamic_tris.npy'), high_path=s08[:-4] + '_hi.bin',
+              stairs_path=os.path.join(L, 'stair_tris.npy'),
+              seeds=json.load(open(os.path.join(L, 'soldier_spawns.json'))),
+              water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
+              order_points=navregress.order_points_of(pr.root, lv), area_orders=navregress.area_orders_of(pr.root, lv),
+              ladders=json.load(open(os.path.join(L, 'ladders.json'))) if os.path.isfile(os.path.join(L, 'ladders.json')) else None,
+              log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
+    return s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], kw
+
+
+def build(pr, lv, log=print):
+    import navbuild
+    out = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
+    log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
+    t0 = time.time()
+    samples, forbid, xoff, zoff, kw = build_inputs(pr, lv, log)
+    navbuild.build(samples, forbid, xoff, zoff, out, **kw)
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
 
 
@@ -671,18 +680,11 @@ def _apply(pr, lv, navtune_path, out, log):
     t0 = time.time()
     if tune.kind == 'navkit':
         out = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
-        try:
-            samples, xoff, zoff, f = navregress.inputs(pr.root, lv)
-        except RuntimeError as e:
-            raise NavKitError(str(e))
         log(f'== apply {lv}: {len(tune.operations)} edit(s) from {os.path.relpath(navtune_path, pr.root)} '
             f'-> {os.path.relpath(out, pr.root)}')
-        navbuild.build(samples, f['forbid_tris.npy'], xoff, zoff, out, dynamic_path=f['dynamic_tris.npy'],
-                       high_path=samples[:-4] + '_hi.bin', stairs_path=f['stair_tris.npy'],
-                       seeds=json.load(open(f['soldier_spawns.json'])), edits=walk,
-                       water=navregress.level_water(pr.root, lv), bounds=navregress.reference_bounds(pr.root, lv),
-                       order_points=navregress.order_points_of(pr.root, lv), area_orders=navregress.area_orders_of(pr.root, lv),
-                       log=lambda *a: log('  ' + ' '.join(str(x) for x in a)))
+        # the same inputs as build (detailed zones, ladders ...), plus the edits
+        samples, forbid, xoff, zoff, kw = build_inputs(pr, lv, log)
+        navbuild.build(samples, forbid, xoff, zoff, out, edits=walk, **kw)
         log(f'  built in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
     else:
         # a DICE base: no rebuild - the graph edits go into a copy of DICE's file, for this PC only (never
@@ -755,7 +757,10 @@ def main(argv):
             del args[i:i + 2]
     yes = '--yes' in args
     install_flag = '--install' in args
-    args = [a for a in args if a not in ('--yes', '--install')]
+    if '--no-detail' in args:              # build / apply / all: no D lines or F cells (the output before 2026-10-26)
+        import navbuild
+        navbuild.DETAIL_FEATURES = False
+    args = [a for a in args if a not in ('--yes', '--install', '--no-detail')]
     if not args or args[0] in ('-h', '--help', 'help'):
         print(__doc__)
         return 0

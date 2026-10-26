@@ -15,6 +15,8 @@ Each level is compared with its original (DICE) path data in OPFOR's game copy, 
                  not (over-connection)
   ai positions   the earlier figures on the level's AI order positions: coverage, pairwise route check,
                  main route network
+  D and F        D lines and F cells (navdf.py): precision / recall of D sides and F cells, all and per pitch
+                 (columns df_*)
 
 Runs are saved in OPFOR's work\\navkit\\parity\\<name>.json.
 """
@@ -29,6 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 import navcompare  # noqa: E402
+import navdf  # noqa: E402
 import navdiff  # noqa: E402
 import ordercheck  # noqa: E402
 
@@ -180,7 +183,8 @@ def run_level(root, lv, candidate, log):
     xml = level_xml(root, lv)
     t = time.time()
     clip = terrain_bounds(root, lv)
-    d, _, _, _ = navdiff.diff(ref, candidate, log=lambda *a: None, clip=clip)
+    d, _, R, C = navdiff.diff(ref, candidate, log=lambda *a: None, clip=clip)
+    df = navdf.compare([s.mesh for s in R.values()], [s.mesh for s in C.values()], clip, navdf.ground_of(C))
     a = navcompare.compare(xml, ref, candidate)
     stale = stale_nodes(root, lv, ref, clip)
     isl = islands(ref, candidate, clip, stale)
@@ -204,11 +208,16 @@ def run_level(root, lv, candidate, log):
         'ai_coverage': a['coverage_percent'], 'ai_pairwise': a['pairwise']['percent'],
         'ai_main_reference': a['main_network']['reference'], 'ai_main_candidate': a['main_network']['candidate'],
     }
+    row.update({k: v for k, v in df.items() if k in DF_KEYS})     # D lines and F cells (navdf.py)
     log(f"  {lv:9s} ground {row['ground']:6.2f} % (+{row['extra_ground']:.1f} % extra)  areas {row['areas_same']:6.2f} %  nodes {row['nodes_same']:6.2f} %  "
         f"connectivity {row['connectivity']:6.2f} %  AI positions {row['ai_coverage']:5.1f} %  ({time.time() - t:.0f} s)")
     return row
 
 
+DF_KEYS = ['df_d_precision', 'df_d_recall', 'df_d_recall_near', 'df_d_recall_shared', 'df_f_precision', 'df_f_recall',
+           'df_d_precision_n', 'df_d_recall_n', 'df_f_precision_n', 'df_f_recall_n',
+           'df_d_precision_d', 'df_d_recall_d', 'df_f_precision_d', 'df_f_recall_d', 'df_d_dy',
+           'df_d_reference', 'df_d_candidate', 'df_f_reference', 'df_f_candidate']
 COLUMNS = [
     ('ground', 'ground %', '{:.1f}'), ('extra_ground', 'extra %', '{:.1f}'), ('areas_same', 'areas %', '{:.1f}'),
     ('detailed_reference', 'det.ref', '{}'), ('detailed_candidate', 'det.ours', '{}'),
@@ -216,9 +225,11 @@ COLUMNS = [
     ('islands_reference', 'isl.ref', '{}'), ('islands_candidate', 'isl.ours', '{}'), ('connectivity', 'connect %', '{:.1f}'),
     ('over_connection', 'over %', '{:.1f}'), ('ai_coverage', 'AI pos %', '{:.1f}'), ('ai_pairwise', 'pairwise %', '{:.1f}'),
     ('ladder_ground', 'ladder %', '{:.1f}'),
+    ('df_d_precision', 'D prec %', '{:.1f}'), ('df_d_recall', 'D rec %', '{:.1f}'), ('df_f_precision', 'F prec %', '{:.1f}'),
+    ('df_f_recall', 'F rec %', '{:.1f}'),
 ]
 TOTALS = ['ground', 'extra_ground', 'areas_same', 'portals', 'nodes_same', 'edges_same', 'connectivity', 'over_connection', 'ai_coverage', 'ai_pairwise',
-          'ladder_ground']
+          'ladder_ground', 'df_d_precision', 'df_d_recall', 'df_f_precision', 'df_f_recall']
 
 
 def table(run, other=None, log=print):

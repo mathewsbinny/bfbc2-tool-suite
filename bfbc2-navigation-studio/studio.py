@@ -668,15 +668,27 @@ def save_json(opfor, name, data):
     return p
 
 
-def main(argv):
+FLAGS = {'--edit'}                                          # options without a value
+
+
+def parse_args(argv):
+    """(options, positional arguments): '--name value' pairs, the FLAGS on their own."""
     opts, args, k = {}, [], 1
     while k < len(argv):
-        if argv[k].startswith('--') and k + 1 < len(argv):
+        if argv[k] in FLAGS:
+            opts[argv[k]] = True
+            k += 1
+        elif argv[k].startswith('--') and k + 1 < len(argv):
             opts[argv[k]] = argv[k + 1]
             k += 2
         else:
             args.append(argv[k])
             k += 1
+    return opts, args
+
+
+def main(argv):
+    opts, args = parse_args(argv)
     if not args:                                            # started without a level: ask for one
         from bfbc2core import pick
         lv = pick.pick_level('BFBC2 Navigation Studio')
@@ -729,7 +741,7 @@ def main(argv):
         n = int(opts['--island'])
         if n < len(nav.islands):
             v.camera.focus(nav.islands[n].centre, 60.0)
-    if st.editor is not None and ('--edit' in argv or '--navtune' in opts):
+    if st.editor is not None and ('--edit' in opts or '--navtune' in opts):
         st.editor.open = True
     st.refresh_overlay(v)
     if '--path' in opts:                                    # tests: a path test between two points

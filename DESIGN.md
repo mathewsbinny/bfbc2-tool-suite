@@ -10,7 +10,7 @@ builder. They share one core: level loading, a 3D view, picking and the game's d
 
 This document fixes what each tool does, what they share, the file formats they write, and the order
 they are built in. It is a draft for review, and it changes as the tools are built (last revised
-2026-10-16).
+2026-10-26: the test harness, sections 4.5 and 5.5).
 
 ## 1. The tools
 
@@ -193,6 +193,42 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 - **Results:** saved per named run, as NavKit's parity runs are, and compared between runs to show
   whether a change improved things.
 
+**Design (M5, 2026-10-26; `harness.py`, details in the folder's README).**
+
+- **A test run** is one `harness.py run <name>`: per level, the level's points (soldier spawns; AI targets -
+  AreaOrders, M-COM stations, capture points, mission objectives; AI orders and patrol waypoints), and per
+  path-data file - `dice` (DICE's original), `navkit` (NavKit's build), `installed` (what the game loads, when not
+  DICE's) - the results of the file tests; then the level's AI-readiness checks and its in-game checks. It records
+  the date, the PC, the suite commit (and uncommitted changes), the options, and each file's sha1.
+- **A result** has a status - pass, fail, warn, info (a measurement without an expectation), skip, hold (needs the
+  game), error (could not run; traceback in the log) - a summary line, flat numeric metrics, detail lines and, where
+  points are involved, per-pair or per-point bits for point-by-point comparison.
+- **Infantry points only.** The infantry tests take infantry points; spawner markers, vehicle spawns (land, sea, air,
+  stationary weapon), another map's spawns off this map's ground, objective markers, bases (capture points on
+  M-COM levels), points on water and airborne points are classed and counted, not tested (`testharness/classify.py`).
+- **DICE's file is the reference.** NavKit's builds are measured on the same points and pairs as DICE's file;
+  failures are relative to it (a target DICE reaches and NavKit does not; DICE's routes NavKit does not find). An
+  absolute expectation DICE's own file misses is a warning there, since DICE's data works in the game.
+- **Test kinds, offline:** `structure` (hpdcheck), `reachability` (spawns -> targets over the directed route graph,
+  points joined through the area they stand on; islands), `battery` (seeded random ground-point pairs from DICE's
+  cells and spawn -> target pairs through the path test, `navpath`; success, refusals by cause, route length
+  against DICE's), `orders` (a route node near every AI order, on an area), `offsets` (the file's sector ids
+  against the level's SectorOffsets asset), `parity` (navparity's measures, taken from saved navparity / navregress
+  runs or measured and cached, judged by `navregress.compare`), `level` (AI readiness from the game copy's
+  bundles: HasAI, AI spawners, real templates, templates and their partitions in the load set, kits, AreaOrders,
+  the SectorOffsets asset, installed path data - Project OPFOR's validation criteria, `STOCK_MP_AI_PLAN.md` 6.3).
+- **Comparison:** `harness.py compare <base> <new>` per level, file key, test and metric, each metric with a
+  direction (higher / lower / closer to 1.0 better, or a count) and a tolerance; worse beyond it, or a test that
+  starts failing, is a regression (exit code 1). The format is section 5.5.
+- **Tiers:** quick (every kind on data built in the test, seconds), game (a run on sp_009 and sp_004_b, a
+  repeat without regression, a damaged file flagged; about a minute cached), by hand (every level with DICE data,
+  before and after a NavKit change).
+- **In-game tests plug in through the run's `ingame` part.** Now: `harness.py import-log` turns a session of the
+  user's own `opfor.log` into three checks - the level loads and AI init runs, the SectorOffsets loads read the
+  asset, pathfinders appear after spawning. **On hold (needs playtest):** the harness calling `testrun.bat` per
+  level; the telemetry tests of M6 (bot traversal, stuck detection, squads, vehicles), which will read recordings
+  of the stream in 5.4; and the player's judgement (bots fire, advance, defend).
+
 ### 4.6 bfbc2-asset-pipeline (in the core; geometry and entities in M1)
 
 - **Command line:** `bfbc2-extract <level> --geometry obj|gltf --entities json --deps report.json`, and
@@ -317,6 +353,32 @@ JSON lines over 127.0.0.1 TCP, from OPFOR to the debugger, one frame per update:
 `{"t": ..., "soldiers": [...], "squads": [...], "events": [...]}`. The schema is fixed with the first
 OPFOR telemetry module, and is versioned.
 
+### 5.5 Test harness runs: `<OPFOR>\work\harness\runs\<name>.json`
+
+```json
+{
+  "format": "bfbc2-harness-run", "version": 1, "name": "nightly", "date": "2026-10-26 23:40", "host": "PC name",
+  "suite": {"commit": "9d085a9", "changed": false}, "options": {"levels": ["sp_004_b"], "pairs": 200, "seed": 1},
+  "seconds": 312,
+  "levels": {"sp_004_b": {
+    "name": "SP_004_B", "notes": ["..."], "points": {"sources": 107, "targets": 69, "orders": 310},
+    "files": {
+      "dice":   {"path": "...", "sha1": "...", "size": 0, "tests": {"structure": RESULT, "reachability": RESULT,
+                 "battery": RESULT, "orders": RESULT, "offsets": RESULT}},
+      "navkit": {"path": "...", "sha1": "...", "size": 0, "tests": {"...": RESULT, "parity": RESULT}}},
+    "level":  {"has-ai": RESULT, "ai-spawners": RESULT, "ai-templates": RESULT, "templates-loaded": RESULT,
+               "kits-loaded": RESULT, "orders": RESULT, "offsets-asset": RESULT, "path-data": RESULT},
+    "ingame": {"loads-ai-init": RESULT, "offsets-read": RESULT, "pathfinders": RESULT,
+               "bot-traversal": RESULT, "stuck": RESULT, "squads": RESULT, "vehicles": RESULT}}}
+}
+```
+
+`RESULT` is `{"status": "pass|fail|warn|info|skip|hold|error", "summary": "...", "metrics": {"name": number},
+"details": ["..."], "seconds": 1.2, "data": {...}}`; `data` holds the pair or point bits (`"1"` reached / routed /
+near a node, `"0"` not, `"-"` a point without a route node) and, for batteries, a key of the point set, so two runs
+on the same points compare pair by pair. A newer version is refused by older readers. Caches beside it
+(`work\harness\cache`: navigation data, bundle listings and entries, parity rows) can be deleted at any time.
+
 ## 6. Order of work
 
 | Milestone | Delivers | Also gives |
@@ -325,7 +387,7 @@ OPFOR telemetry module, and is versioned.
 | M2 | Map Inspector: entities, spawns, objectives, destructibles, properties, search (done 2026-10-16: see `bfbc2-map-inspector/README.md`; water added the same day) | |
 | M3 | Navigation Studio, viewing: navigation layers, islands, detailed zones, difference view against DICE (done 2026-10-16: `bfbc2-navigation-studio/README.md`, `core/bfbc2core/navdata.py`) | the 3D view for NavKit's parity work |
 | M4 | Navigation Studio, editing: regions, seeds, links, traversal annotations, path test, finished file and side file, `navkit apply` (steps 1-6 done 2026-10-16: `bfbc2-navigation-studio/README.md`; step 7, an in-game check that the game's AI uses a hand-made link, open) | |
-| M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19) | |
+| M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19; the harness, 2026-10-26: `bfbc2-automated-map-and-bot-test-harness/harness.py` - structure, reachability, batteries, orders, sector offsets, parity, AI readiness from the game copy's bundles, saved runs and their comparison, `import-log` for in-game sessions; running `testrun.bat` per level on hold until play-tested) | the harness's level checks for stock-MP bot maps (`STOCK_MP_AI_PLAN.md` 6.3) |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
 | alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |

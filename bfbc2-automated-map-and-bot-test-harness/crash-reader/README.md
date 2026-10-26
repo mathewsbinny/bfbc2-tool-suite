@@ -48,6 +48,23 @@ Call stack (innermost first; return addresses):
   0x008FC292  model-group entity construction +0x32    <- call 0x61be40
 ```
 
+## Where the exe uses a string or an address (exeref.py)
+
+`exeref.py`, beside the crash reader, answers the targeted questions research keeps asking of `BFBC2Game.exe`, with the
+same code view, names and symbol files:
+
+```
+python exeref.py str Server.UnrestrictedUnlocks --exact --dis    the string, each instruction using its address, a window
+python exeref.py refs 0x8527D0                                    who uses an address (operands, call / jmp targets, tables)
+python exeref.py dis 0x95B7D3 --before 0x10 --after 0x10          a short window of code, strings and known functions named
+```
+
+`str` finds C strings containing a text (any case; `--exact` for the whole string), then the instructions that use
+the string's address and the function each is in; an address held in data (a table of pointers) is listed too. `refs`
+does the same for any address, including calls to a function. Windows are capped at 0x100 bytes each way: short,
+targeted disassembly, as the suite's rules allow - no bulk decompiling, nothing exported. Needs pefile and capstone.
+Test: `tests\test_exeref.py` (a program built in the test; with `--game`, known sites in the game's exe).
+
 ## Names and hints
 
 `symbols_795745.txt` lists functions and crash sites in the PC game, build 795745, that Project OPFOR's

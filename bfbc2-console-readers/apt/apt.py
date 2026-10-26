@@ -19,7 +19,9 @@ Format (OpenSAGE's APT reader and inspection of BC2's files; OPFOR's AptTool doc
            Items {u32 type}: 1 action, 2 frame label {name, flags, frame}, 3 place object, 4 remove object,
            5 background colour, 8 init action {sprite, bytecode}.
   Bytecode: AVM1 (Flash ActionScript 1/2) plus EA opcodes; opcodes >= 0x80 carry arguments, 32-bit ones aligned
-  to 4 bytes from the start of the file.
+  to 4 bytes from the start of the file. Unlike Flash, GetURL2 (0x9A) has no argument and GotoFrame2 (0x9F) an
+  aligned 32-bit one (2026-10-26: with these, every function body of the 56 PC and Xbox 360 menu and HUD movies
+  checked decodes exactly to its end; aptcheck.py in bfbc2-menu-tools relies on that).
 The PC files are little-endian, the Xbox 360 ones big-endian: every 32-bit field, float and multi-byte immediate
 is swapped; the layout is the same. The byte order is detected from the .const header (the movie offset that lies
 inside the .apt file).
@@ -40,10 +42,18 @@ import os
 import re
 import struct
 import sys
+from collections import namedtuple
 
 CHAR_TYPES = {1: 'shape', 2: 'text', 3: 'font', 4: 'button', 5: 'sprite', 6: 'sound', 7: 'image', 8: 'morph',
               9: 'movie', 10: 'statictext', 11: 'none', 12: 'video'}
 SIG = 0x09876543
+
+# a decoded instruction: at (offset in .apt), op, name, arg (as the dump shows it), end (the next instruction; a
+# function's body start), target (branch target), plist (PushData's item list), items (PushData / ConstantPool
+# constant indices), func (Func of a function definition), index (constant-pool index of A2 / A3 / AE-B3), unknown
+# (an opcode with an argument this reader does not know), pool (the constant pool's length at the instruction)
+Ins = namedtuple('Ins', 'at op name arg end target plist items func index unknown pool')
+Func = namedtuple('Func', 'name nparams extra size body')
 
 NAMES = {
     0x00: 'End', 0x04: 'NextFrame', 0x05: 'PrevFrame', 0x06: 'Play', 0x07: 'Stop', 0x0A: 'Add', 0x0B: 'Subtract',
@@ -90,8 +100,13 @@ def read_bigf(path):
 
 
 class Movie:
-    def __init__(self, path):
-        if path.lower().endswith('.apt'):
+    sink = None              # instructions(): called with each decoded instruction while the dump walks the movie
+
+    def __init__(self, path=None, data=None):
+        """path: a menu .res or a .apt with its .const beside it; or data = (name, .apt bytes, .const bytes)."""
+        if data is not None:
+            self.name, self.a, self.c = data
+        elif path.lower().endswith('.apt'):
             self.name = os.path.splitext(os.path.basename(path))[0]
             self.a = open(path, 'rb').read()
             self.c = open(os.path.splitext(path)[0] + '.const', 'rb').read()
@@ -163,69 +178,112 @@ class Movie:
         return f'char {c}: {name} @{cp:#x}'
 
     # --- bytecode ---------------------------------------------------------------------------------------------
+    def decode(self, p, pool):
+        """The instruction at p: (Ins, the constant pool after it). Ins.end is the next instruction (for a function
+        definition, the start of its body). Raises struct.error / IndexError at the end of the file."""
+        a, at, op = self.a, p, self.a[p]
+        p += 1
+        name = NAMES.get(op, f'op_{op:02X}')
+        arg, target, plist, items, func, index = '', None, None, None, None, None
+        K = (lambda k: pool[k] if k < len(pool) else f'pool[{k}]?')
+        al = (lambda q: (q + 3) & ~3)
+        if op == 0xB7:
+            arg = str(self.i(p)); p += 4
+        elif op in (0x81, 0x87, 0x99, 0x9D, 0xB8, 0x94, 0x9F):
+            p = al(p); v = self.i(p); p += 4
+            if op in (0x99, 0x9D, 0xB8):
+                target = p + v
+                arg = f'{v:+d} -> {target:#x}'
+            else:
+                arg = str(v)
+        elif op == 0x83:
+            p = al(p); arg = f'"{self.s(self.u(p))}", "{self.s(self.u(p + 4))}"'; p += 8
+        elif op == 0x88:
+            p = al(p); n, ptr = self.u(p), self.u(p + 4); p += 8
+            items = [self.u(ptr + 4 * k) for k in range(n)]
+            pool = [self.const[g] if g < len(self.const) else f'?{g}' for g in items]
+            arg = f'{n} constants'
+        elif op == 0x8A:
+            p = al(p); arg = f'frame {self.i(p)} skip {self.i(p + 4)}'; p += 8
+        elif op in (0x8B, 0x8C, 0xA1, 0xA4, 0xA5, 0xA6, 0xA7):
+            p = al(p); arg = f'"{self.s(self.u(p))}"'; p += 4
+        elif op == 0x96:
+            p = al(p); n, plist = self.u(p), self.u(p + 4); p += 8
+            items = [self.u(plist + 4 * k) for k in range(min(n, 32))]
+            items += [self.u(plist + 4 * k) for k in range(32, min(n, 4096)) if plist + 4 * k + 4 <= len(a)]
+            shown = [self.const[g] if g < len(self.const) else f'#{g}' for g in items[:32]]
+            arg = ', '.join(shown) + f'   [list {plist:#x}]'
+        elif op == 0x8D:
+            arg = str(a[p]); p += 1
+        elif op in (0xA2, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3):
+            index = a[p]; arg = K(index); p += 1
+        elif op == 0xA3:
+            index = self.w(p); arg = K(index); p += 2
+        elif op == 0xB4:
+            arg = f'{self.f(p):g}'; p += 4
+        elif op == 0xB5:
+            arg = str(struct.unpack_from('b', a, p)[0]); p += 1
+        elif op == 0xB6:
+            arg = str(self.h(p)); p += 2
+        elif op == 0xB9:
+            arg = f'r{a[p]}'; p += 1
+        elif op in (0x9B, 0x8E):
+            p = al(p)
+            fname, nparams = self.s(self.u(p)), self.i(p + 4)
+            if op == 0x8E:
+                extra = f' regs={a[p + 8] if not self.big else a[p + 11]}'
+                size, body = self.i(p + 16), p + 28
+            else:
+                extra, size, body = '', self.i(p + 12), p + 24
+            func = Func(fname, nparams, extra, size, body)
+            p = body
+        return Ins(at, op, name, arg, p, target, plist, items, func, index,
+                   op >= 0x80 and op not in NAMES, len(pool)), pool
+
     def disasm(self, start, indent, out, limit=None, pool=None):
         pool = list(pool or [])
         a, p, guard = self.a, start, 0
         limit = limit if limit is not None else len(a)
         while p < len(a) and p < limit and guard < 200000:
             guard += 1
-            at, op = p, a[p]
-            p += 1
-            name = NAMES.get(op, f'op_{op:02X}')
-            arg = ''
-            K = (lambda k: pool[k] if k < len(pool) else f'pool[{k}]?')
-            al = (lambda q: (q + 3) & ~3)
-            if op == 0xB7:
-                arg = str(self.i(p)); p += 4
-            elif op in (0x81, 0x87, 0x99, 0x9D, 0xB8, 0x94):
-                p = al(p); v = self.i(p); p += 4
-                arg = (f'{v:+d} -> {p + v:#x}' if op in (0x99, 0x9D, 0xB8) else str(v))
-            elif op == 0x83:
-                p = al(p); arg = f'"{self.s(self.u(p))}", "{self.s(self.u(p + 4))}"'; p += 8
-            elif op == 0x88:
-                p = al(p); n, ptr = self.u(p), self.u(p + 4); p += 8
-                pool = [self.const[g] if g < len(self.const) else f'?{g}' for g in (self.u(ptr + 4 * k) for k in range(n))]
-                arg = f'{n} constants'
-            elif op == 0x8A:
-                p = al(p); arg = f'frame {self.i(p)} skip {self.i(p + 4)}'; p += 8
-            elif op in (0x8B, 0x8C, 0xA1, 0xA4, 0xA5, 0xA6, 0xA7):
-                p = al(p); arg = f'"{self.s(self.u(p))}"'; p += 4
-            elif op == 0x96:
-                p = al(p); n, ptr = self.u(p), self.u(p + 4); p += 8
-                items = [self.const[g] if g < len(self.const) else f'#{g}' for g in (self.u(ptr + 4 * k) for k in range(min(n, 32)))]
-                arg = ', '.join(items) + f'   [list {ptr:#x}]'
-            elif op in (0x9A, 0x9F, 0x8D):
-                arg = str(a[p]); p += 1
-            elif op in (0xA2, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3):
-                arg = K(a[p]); p += 1
-            elif op == 0xA3:
-                arg = K(self.w(p)); p += 2
-            elif op == 0xB4:
-                arg = f'{self.f(p):g}'; p += 4
-            elif op == 0xB5:
-                arg = str(struct.unpack_from('b', a, p)[0]); p += 1
-            elif op == 0xB6:
-                arg = str(self.h(p)); p += 2
-            elif op == 0xB9:
-                arg = f'r{a[p]}'; p += 1
-            elif op in (0x9B, 0x8E):
-                p = al(p)
-                fname, nparams = self.s(self.u(p)), self.i(p + 4)
-                if op == 0x8E:
-                    extra = f' regs={a[p + 8] if not self.big else a[p + 11]}'
-                    size, body = self.i(p + 16), p + 28
-                else:
-                    extra, size, body = '', self.i(p + 12), p + 24
-                out.append(f'{indent}{at:06X}  {name} {fname or "<anon>"}({nparams} params){extra} size={size}')
-                self.disasm(body, indent + '    ', out, body + size, pool)
-                p = body + size
+            ins, pool = self.decode(p, pool)
+            if self.sink is not None:
+                self.sink(ins, start, limit, indent)
+            if ins.func:
+                f = ins.func
+                out.append(f'{indent}{ins.at:06X}  {ins.name} {f.name or "<anon>"}({f.nparams} params){f.extra} size={f.size}')
+                self.disasm(f.body, indent + '    ', out, f.body + f.size, pool)
+                p = f.body + f.size
                 continue
-            elif op >= 0x80 and op not in NAMES:
-                out.append(f'{indent}{at:06X}  {name}  ** unknown opcode with argument - stopping')
+            if ins.unknown:
+                out.append(f'{indent}{ins.at:06X}  {ins.name}  ** unknown opcode with argument - stopping')
                 return
-            out.append(f'{indent}{at:06X}  {name}' + (f' {arg}' if arg else ''))
-            if op == 0x00 and limit == len(a):
+            out.append(f'{indent}{ins.at:06X}  {ins.name}' + (f' {ins.arg}' if ins.arg else ''))
+            p = ins.end
+            if ins.op == 0x00 and limit == len(a):
                 return
+
+    def instructions(self):
+        """Every instruction the dump decodes, once each, in dump order: [(Ins, stream start, stream limit, depth)].
+        A frame's action stream has depth 0 and limit = the file's end; a function body's instructions have the
+        function's depth + 1 and limit = the body's end. The dump's text is kept in self.dump_lines."""
+        seen, recs = set(), []
+
+        def sink(ins, start, limit, indent):
+            if ins.at not in seen:
+                seen.add(ins.at)
+                recs.append([ins, start, limit, indent])
+        self.sink = sink
+        try:
+            self.dump_lines = self.dump()
+        finally:
+            self.sink = None
+        depth = {}                                 # a stream's depth: 0 for the streams that no function contains
+        for ins, start, limit, _ in recs:
+            depth.setdefault(start, 0)
+            if ins.func:
+                depth[ins.func.body] = depth[start] + 1
+        return [(ins, start, limit, depth.get(start, 0)) for ins, start, limit, _ in recs]
 
     # --- structure --------------------------------------------------------------------------------------------
     def frames(self, ptr, count, indent, owner, out):

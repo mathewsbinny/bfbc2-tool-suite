@@ -70,6 +70,62 @@ cylinder collision.
   targeted look at the driver's route request answer it. Approach for a water mesh: OPFOR's `STOCK_MP_AI_PLAN.md`
   section 11.
 
+### 2.2 Vehicle path data measured, and NavKit's vehicle generator (2026-10-26)
+
+Measured on DICE's 16 vehicle files (13 campaign levels - all but sp_009 - and the console Onslaught files of
+ONS_MP_002 / 004 / 005gr / 008), against NavKit's in-game samples (14 levels), the terrain height fields and the
+level XML. "Inferred" marks what the data fits but does not prove.
+
+- **One file per pathfinding type, same format.** The vehicle data is its own `vehicle\pathdata.hpd`, not a layer
+  of the infantry file: header, sector table, route graph and runtime mesh exactly as section 4 (every vehicle file
+  round-trips byte for byte; `hpdcheck` passes on all of them). Per sector: pitch 1.0, resolution 0.02, entity
+  radius 2.5, 3 x 3 tiles, DistEdgeMax 50 on the first node; build dates per file (campaign January 2010, Onslaught
+  March - April 2010). Its sector offsets are its own (the most common floor(centre / 100) - grid id; 7 of 13 shipped
+  `Precomputed/Vehicle/SectorOffsets` differ from the "one below the extent" rule, 3.9).
+- **Grid and tiles.** Outline vertices at (k + 0.5) m (99 % of coordinates; the rest are 45-degree bridge points);
+  tile lines 48.5 and 98.5 m into the sector - tiles of **50 samples** as infantry's (40 m at 0.8, 50 m at 1.0), the
+  third tile only 3 samples wide (98.5 .. 101.5). Rect -1.0 .. 101.1, edge sectors from 0.0, at the grid maximum
+  100.0 (as infantry, 4.5). Portals off the tile lines exist but there is no fixed 25 m cut line.
+- **Heights.** Route nodes at ground + **2.0 m** (EntityHeight / 2; median 1.98-1.99 m over the terrain on four
+  levels); area range lowest ground .. highest ground + **3.2 m** (0.8 x EntityHeight; infantry 1.52 = 0.8 x 1.9).
+  Outline vertex heights scatter more (median terrain + 1.65-1.78 on slopes) - not a cell-centre height.
+- **Areas are many and small.** Median area height span 0, 4-5 areas per tile (sp_006: 3,269 areas in 78 sectors);
+  area boundaries away from tile lines have small steps (median 0.14 m) and lean to steeper ground, but no slope or
+  step threshold separates them (open).
+- **Vehicle ground lies on infantry ground** (98.8-99.7 % of its cells; sp_04, sp_006, ONS_MP_002), mostly 3 m or
+  more inside the infantry outline where that outline is an obstacle - not where it is a steep slope: the vehicle
+  ground runs right up to steep banks (no erosion by the radius at slope edges - inferred from maps of sp_04 / sp_01).
+- **Slope:** by the surface normal, vehicle ground stops at about **25-28 degrees** (sp_04 open ground, share that is
+  vehicle ground: 20-22.5 deg 73 %, 22.5-25 58 %, 25-27.5 29 %, 27.5-30 8 %, over 30 under 1 %) - GroundSlopeMin 25.
+- **Clearance (inferred):** objects rising more than StepMax (0.4 m) above the local ground plane within the radius
+  (2.5 m) remove ground; the terrain's own curvature does not - with terrain counted from 0.4 m, 9-18 % of DICE's
+  ground failed the test (banks of sunken roads, valley floors). NavKit counts terrain only from a 0.8 m rise
+  (sp_01: ground 86.4 -> 94.6 %, sp_04 84.9 -> 92.0 %, for +7 / +12 points of extra ground). ExcludeFromPathfinding
+  objects are crushed (DICE: `UseExclusions` true for vehicles only).
+- **Seeds: vehicle spawns and roads (measured).** Of the sectors with vehicle ground in DICE's files nearly all hold
+  a terrain-spline control point (`TerrainSplineData` - DICE's `BuildRoads`) or a vehicle spawn; the sectors without
+  ground mostly hold neither (sectors with ground holding a spline control point or a spawn: sp_04 63 of 65, sp_01
+  30 of 33, sp_006 75 of 77; empty sectors holding neither: sp_04 4 of 7 - the other 3 hold control points -, sp_01
+  2 of 2, sp_006 1 of 2). Land-vehicle spawns alone reach only 22-99 % of DICE's ground (sp_007 37 %, ONS_MP_004
+  22 %); sector perimeter auto-seeds (infantry's rule, 3.5) reach 92-99.9 % but flood far more than DICE has
+  (+92 % extra on sp_01). Fixed weapons and aircraft spawns add little.
+- **Sectors without a seed stay empty (measured).** DICE's file lists sectors with no ground (sp_04 0x0a09: 0 areas,
+  `Sectors without a seed are written empty`), and the ground of the sector next to it stops at the shared line over
+  smooth terrain. The flood does not continue into a sector that has no seed of its own - per-sector seeding (sp_04
+  extra ground 72 -> 26 %, sp_01 24 -> 21 % against one level-wide flood, same seeds).
+- **Which sectors:** DICE built vehicle data in a chosen set of sectors (corridors along the missions' drive routes on
+  campaign levels; sp_04 72 of 380 infantry sectors). No sector list, zone or bounds entity is in the shipped level
+  data (`SectorsDefinitionFile` is a generator input). NavKit clips to the reference file's sectors for parity; a
+  new map gets every sector its seeds reach.
+- **Water:** no DICE vehicle ground more than 1.6 m (WaterLevelAdjustment) under the level's water on the levels
+  measured (ONS_MP_002, sp_01, sp_02, sp_005, sp_007: 0 cells).
+- **Open:** DICE's area division; the route-graph layout (DICE's sectors join through many more border links); which
+  splines are roads (some splines shape terrain or rivers: NavKit seeds sectors DICE left empty, e.g. sp_01
+  (200, -560)); ground DICE keeps that neither spawns nor splines reach (sp_007 20 %, sp_03).
+
+NavKit's generator (`tools\navvehicle.py`, README "Vehicle path data") implements these rules; parity per level
+there.
+
 ## 3. Build pipeline – behaviour of the original generator
 
 Behavioural description for a re-implementation. Sources: the stage names, settings and engine
@@ -102,7 +158,7 @@ proven).
 | 1 | Dividing sectors | Split the level's bounds into a grid of **100 m sectors**, id = `0xXXYY` (grid x, y). Each sector covers 100 m plus a margin: one pitch on the near side and 1.1 × pitch on the far side (101.68 m for infantry); sectors at the level edge drop the near margin (measured). Detailed zones (`DetailedZoneSettings`) get their own pitch (0.2) and 6 × 6 tiles. | `Sectors.xml` |
 | 2 | Generating seeds | Collect seed points (given + automatic: `AutoSeedStep` probes the ground with point queries). Sectors without a seed are written empty ("No seed found, write empty pathdata"). | `sector_<n>.autoseed` |
 | 3 | Generating maps (per sector) | Sample the ground on a **regular grid with spacing = pitch at whole multiples of the pitch in world space** (the rectangle's minX = sector edge − pitch is one) – outlines then run **halfway between samples**, at (k + 0.5)·pitch (measured: every outline vertex; a re-rasterisation of DICE's areas at these sample points reproduces them 100 %). A cell is walkable when the ground is found, the slope is within `GroundSlopeMin/Max`, a capsule of the entity radius and height fits, and it is not forbidden/excluded/water (inferred from settings and callbacks). Flood-fill from the seeds over neighbouring cells whose height difference is within `StepMax` (inferred), so unreachable ground is dropped. Measured rules: §3.7. | `.aim`, `.udg` (grid maps) |
-| 4 | Linking meshes | Trace the **outlines** of walkable regions halfway between samples (stair-stepped contours, holes for obstacles – measured). Split each sector into **tiles** (3 × 3; 6 × 6 in detailed zones) and sometimes cut regions further on a fixed grid **every 25 cells** (lines at minX + (25k + 24.5)·pitch: 20 m for infantry, 25 m vehicle, 5 m detailed – measured; infantry: only part of the ground is cut, see 4.5), giving **areas**. Shared cut segments become **portals** (B) to the neighbouring area; segments on the sector border become **border portals** (C) with an outward direction, listed per neighbouring sector/tile/area in the link table. Height breaks along obstacle edges become D lines and F cells (inferred). | `.pdl`, `.fdl` |
+| 4 | Linking meshes | Trace the **outlines** of walkable regions halfway between samples (stair-stepped contours, holes for obstacles – measured). Split each sector into **tiles** (3 × 3; 6 × 6 in detailed zones) and sometimes cut regions further on a fixed grid **every 25 cells** (lines at minX + (25k + 24.5)·pitch: 20 m for infantry, 25 m vehicle, 5 m detailed – measured; infantry: only part of the ground is cut, see 4.5), giving **areas**. Shared cut segments become **portals** (B) to the neighbouring area; segments on the sector border become **border portals** (C) with an outward direction, listed per neighbouring sector/tile/area in the link table. Sides between two cells of one area that are not linked (height step over the link step) become **D lines**, and cells with both sides along an axis so broken become **F cells**, instead of outline (measured, 4.5 "D lines and F cells - the generator rule"). | `.pdl`, `.fdl` |
 | 5 | Linking graphs | Build the high-level **graph**: nodes mostly within ~1 m of outline corners (obstacle corners offset by roughly the entity radius – measured: ~75 % infantry / ~60 % vehicle nodes), plus nodes in open ground; edges between mutually reachable nodes up to about `DistEdgeMax` (median 6 m; 99 % < 17.6 m infantry, < 48 m vehicle – measured), cost = floor(3-D length × 16). Nodes on sector borders are shared with the neighbouring sector (same id and position, high bit). | `.fsg` |
 | 6 | Building hierarchical database | Assemble per-sector blocks (graph + runtime mesh), sort the node lookup lists by x, y, z, write the sector table with build timestamps. | `pathdata.hpd` |
 
@@ -765,15 +821,16 @@ by that many u32 offsets at +0x10.
   margin), +0x18 / +0x1C null in files (set at runtime when the neighbouring sector is loaded),
   then a unit **direction vector** (+0x20) pointing out of the sector (±x, ±z, diagonals); some have
   direction "up" (0, 1, 0) – these sit where the outline meets the border, meaning open.
-- **D:** short polylines (mostly 2 points, up to 6) at obstacle edges; present in 21 % of areas.
-- **F: special grid cells** – closed polygons (5–8 points) of pitch-sized cells with a height per
-  corner; each row holds a horizontal direction (±x, ±z, diagonals); at obstacle edges, present in
-  6 % of areas – likely ledges / height breaks with their direction.
+- **D:** short polylines (98 % 2 points, up to 8) on cell sides inside an area; present in 21 % of areas.
+- **F:** closed polygons of whole cells with a height per corner; each row holds a direction - in infantry files only
+  ±x and ±z (zero components stored as -0.0; vehicle files also hold diagonals); present in 6 % of areas.
+- **What D and F are, and the rule that makes them:** see "D lines and F cells - the generator rule" below
+  (measured 2026-10-26).
 - D and F are detail features: a generator can start without them (counts 0) and still produce
   valid data.
   They are not detailed-zone structures: most sit in normal-pitch areas (sp_004_b D lines 2,793 normal /
   1,312 detailed, F cells 476 / 20; sp_01 23,876 / 2,416 and 1,738 / 42; sp_005 75,000 / 9,060 and 6,288 / 406).
-  NavKit writes none. "Valid" means the game loads the file and routes on it. The runtime does use them, in its
+  NavKit wrote none until 2026-10-26 (now `navbuild.DETAIL_FEATURES`). "Valid" means the game loads the file and routes on it. The runtime does use them, in its
   straight-move test within an area (D as obstacle edges like the outline, F with heights): see the end of this
   section (2026-10-23). The sp_004_b squad that did not move (2026-10-19) was the route-graph rules, not D / F.
 - **Sampler coverage (ONS_MP_002, 2026-10-20):** the in-game samples can hold a hole the level does not: on
@@ -850,6 +907,9 @@ by that many u32 offsets at +0x10.
   - **D lines are sub-cell edge detail.** 9,818: 2 points (99 %), axis-aligned (98 %), 0.2-0.84 m long (one pitch),
     flat, about 0.2 m inside the stair-stepped outline (1 % on it), 58 % with both ends at outline vertices. Reading
     (inferred): the obstacle edge between the outline's grid corners, at a finer resolution than the pitch.
+    **Corrected (2026-10-26):** D lines lie on the cell sides inside an area, between two cells of the area that are not
+    linked - see "D lines and F cells - the generator rule" below; "0.2 m inside the outline" was the 0.2 m pitch of the
+    detailed sectors.
 
 **The runtime uses D and F (targeted disassembly, 2026-10-23).** No code calls the mesh object's plain accessors for
 D / E / F (`0x10713C0` D, `0x10713E0` E, `0x1071400` F - all unused); five functions read the lists inline:
@@ -872,6 +932,122 @@ portals, the route graph) does not use them - NavKit's files route without them.
 cutting, stepping); generating D lines and F cells stays on NavKit's list.
 
 The "up" C portals are a quirk of DICE's data (NavKit's README, "up" border portals).
+
+**D lines and F cells - the generator rule (measured 2026-10-26; DICE's 15 files, with NavKit's in-game samples
+for the ground heights; scripts compared each DICE area's own cells, from its boundary, with the samples).**
+
+- **Where:** D and F lie on the cell sides of the pitch grid *inside* an area (lines at (k + 0.5) x pitch, as the
+  outline). A side between two straight-neighbour cells of the **same area** whose ground heights differ by **more
+  than the link step** is **broken**: the two cells are in one area through other cells but not linked across this
+  side. Evidence (sp_004_b normal areas, every in-area side, step from the samples): sides with D or F 2,391, of
+  them 70 % with a step of 0.61 m or more; sides without D or F 199,324, of them 14 at 0.61 m or more - from
+  0.61 m every in-area side is D or F, under 0.57 m almost none is; the 0.57-0.61 m band is mixed (the samples
+  differ from DICE's heights by about 1-4 cm; DICE's vertex heights are a median 1 cm under the samples). sp_01 and
+  ONS_MP_002 give the same picture, also on objects (sp_01: D sides up to 1.2 m). The link step is the area rule's
+  raw 0.6 m (4.5, "The area link rule"), on terrain and objects alike.
+- **F cells:** a cell whose **two sides along one axis are both broken** (stepped into and stepped out of along x,
+  or along z) is an F cell of that axis: of the cells with both x sides broken, 303 of 308 are in a DICE x-F
+  polygon, all 303 x-F cells qualify (z: 329 of 335; sp_01 669 / 670 and 1,539 / 1,570; ONS_MP_002 325 / 327 and
+  329 / 335). The F cells of one axis form polygons - 8-connected groups, traced as the outline with 45-degree
+  bridges through the half cells - and every polygon is stored **twice**: direction **-axis**, every corner's
+  height the mean of the area cells on the -axis side of the corner (the two cells touching it there), then
+  **+axis** with the +axis side's (F vertex heights against the samples: median 1 cm, 88 % within 5 cm; the other
+  side's cells are 0.46 m off). Per area all -x records, then +x, then -z, then +z (10,727 of 10,727 areas with F,
+  equal counts per direction); polygons in order of their first cell (lowest x, then lowest z); a -x record starts
+  at that cell's top-left corner (+z side) and runs -z first, keeping that vertex even when it is collinear; the
+  others start at its bottom-left corner and run +x first; counter-clockwise (x right, z up); closed (first point
+  repeated). Directions (-1, -0, -0), (1, -0, -0), (-0, -0, -1), (-0, -0, 1) - zero components are -0.0; the
+  terminating row of the F table is (0, 0, 0) in all files.
+- **D lines:** a broken side that is **not an F cell's side along its axis** (DICE: 12 of 1,726 D sides on sp_004_b
+  touch one) is a D side; it is stored **once per cell** - two lines on the same place facing opposite ways (1,662
+  of 1,726 unit sides doubled; sp_01 12,928 of 13,784) - each with its owner cell on the **right** (2,718 of 2,726
+  checked; the outline runs the same way: area on the right), collinear runs of one owner merged (1-10 cells), and
+  every vertex at the **mean height of the owner's cells touching it along the line** (+0.95). 98 % of DICE's D
+  lines have 2 points.
+- **Corner cuts and L-shaped lines (measured 2026-10-26, sp_01):** where a cell owns D on **two perpendicular sides**
+  (meeting at one of its corners), DICE cuts that corner: the cell's own line is the **diagonal across it** (between its
+  two other corners next to the cut one, through its centre, its remaining half on the right), and the two neighbours'
+  lines join into **one L** round the corner - these are the 3-point lines. 409 of 453 such corners are cut (354 with the
+  L in one line, 55 in two); the other 44 keep straight lines on both sides. Chaining in general: where one D unit
+  ends and exactly one other starts (not its facing twin), DICE continues the line - straight 2,785 of 2,785 joints,
+  right turns 44 of 44, left turns 387 of 447; diagonal pieces stay lines of their own (862 of 890). Implemented
+  (`navdetail.CUT_CORNERS`, `CHAIN_TURNS`); on DICE's own areas with the 0.6 m rule the 3+ point lines go from 0 to 71
+  (DICE 484), 22 of them exact (precision 31 %, recall 4.5 %), D sides 71.2 / 45.6 -> 71.5 / 45.5 %: the step rule
+  finds few of the corners DICE cuts - at the cut corners measured, the sampled steps to the two neighbours were 0.41
+  and 0.50 m (DICE's own D heights put the cut cell 0.1-0.2 m higher than the samples): which cells DICE cuts is not
+  pinned down beyond "two perpendicular D sides".
+- **They replace outline:** DICE's outline never runs along a broken side (the area's outline goes round the area;
+  D and F lie inside it). D lines do not cross the route graph: DICE's route edges cross a D line on 1 of 24,514
+  edges (sp_004_b) and 11 of 82,602 (sp_01) - its graph uses the same straight-move test - while 0.4-0.6 % cross an
+  F polygon side (F cells can be crossed).
+- **Detailed sectors (pitch 0.2) - terrain only (measured 2026-10-26, sp_004_b, DICE's own detailed areas with the
+  pitch-0.2 samples, 3,060,136 in-area sides, 737 with D / F):** sides with an **object cell never break** (24 D / F of
+  401,562 sides, also at steps over 0.6 m); between two **terrain** cells the D / F sides start at 0.173 m (0.15-0.173
+  m: 11 of 62,854; 0.173-0.2: 422 of 1,954; 0.2-0.25: 179 of 431; 0.25-0.3: 24 of 116). Best single-threshold
+  separation: terrain-only step over 0.173 m - precision 25 %, recall 86 % (F1 0.39); the raw step on all surfaces
+  0.26 (15 / 86 %); step minus the slope's rise 0.01, step over two cells 0.16, change of step 0.04, slope 0.03 - so
+  it is a step rule on terrain, and the rest of the separation is not in NavKit's samples (no dependence on position
+  within the 2 m terrain grid or on the slope either). F cells are rare there (sp_004_b 20 of 496).
+- **45-degree cut half cells (outline):** where DICE's outline cuts a cell diagonally, the cut cell takes part with
+  its own height: of its two legs (its sides inside the area) with a step over 0.6 m to a neighbour that is an area
+  cell, 352 of 389 carry D or F (sp_004_b; to a neighbour outside the area 12 of 711) - the plain rule. 15 % of
+  DICE's normal D sides touch such a cell. NavKit's outline cuts corners only at its bridges (diagonal-only cells),
+  not where DICE does, so the half cells are not used in its builds (`navbuild.DETAIL_HALF_CELLS` off - see below).
+- **NavKit (`navbuild.DETAIL_FEATURES`, `tools\navdetail.py`):** this rule at 0.6 m (pitch 0.8), with corner cuts and
+  L lines (`navdetail.CUT_CORNERS`, `CHAIN_TURNS`); the detailed-zone terrain rule (0.175 m, terrain only, no F) is
+  implemented but off (`DETAIL_IN_DETAILED`: on NavKit's builds it wrote 10-20x DICE's lines at 2.5-3 % precision -
+  NavKit's detailed areas join steep terrain DICE's do not), and so are the cut half cells (`DETAIL_HALF_CELLS`: NavKit
+  cuts other corners than DICE; D precision at pitch 0.8 fell 44.6 -> 27.9 % on sp_01); broken sides leave the outline
+  in pairs only (an area's boundary stays closed); route edges do not cross a D side (`DETAIL_BLOCKS_EDGES`). The rule on DICE's own normal areas (cells from
+  their boundaries, heights from the samples) finds DICE's D sides at precision / recall 76 / 46 % (sp_004_b), 71 / 46 %
+  (sp_01), 66 / 44 % (ONS_MP_002), F cells 73 / 42, 47 / 45, 53 / 36 %. On NavKit's builds (its own ground and areas),
+  normal sectors, mean over 14 levels: D 47 / 28 %, F 29 / 33 % (`tools\navdf.py`, in every navparity / navregress row;
+  per level: NavKit's README, "D lines and F cells").
+- **Vehicle files are different (16 DICE vehicle files, pitch 1.0, 16,774 areas; 2026-10-26):** D 7,949 lines, F 2,077
+  records. The infantry rule does not hold there: only 163 D lines form facing pairs (their steps median 0.23 m, p10
+  0.04 m - not a step threshold); 19 % of D lines have 3-8 points and 27 % of their segments are diagonal; F directions
+  include the four diagonals (-z 531, -x-z 490, +x 300, -x 215, -x+z 185, +z 165, +x-z 162, +x+z 29 - no -axis / +axis
+  twins). And DICE's vehicle route edges cross D lines on 245 of 42,307 edges (0.58 %; infantry 0.004 %, same
+  measure, edges within 0.25 m of the line's height) - the vehicle graph is not kept off D lines. NavKit's vehicle
+  builds (`navvehicle.py`) therefore write no D / F (`navvehicle.DETAIL` off) and do not block edges
+  (`DETAIL_BLOCKS_EDGES` off inside `vehicle_settings`); infantry builds keep both on. The vehicle rule is open.
+
+- **Route islands: NavKit's against DICE's (ONS_MP_004, 2026-10-26).** DICE's infantry file has 42 route islands
+  (main 93 % of nodes), NavKit's build had 109 (main 94 %); the test harness's spawn -> target path battery routed
+  67 % of DICE's pairs. Every DICE route edge was checked on NavKit's own ground (the build's kept surfaces at both
+  pitches, the step rule; each end's island = the island of the first route node a ground walk from it reaches):
+  13,026 edges lie within one NavKit island, 1 crosses between two (missing steep ground), 1,034 have an end where
+  NavKit has no ground at DICE's height. **NavKit does not split ground DICE joins at sector seams** (border portals,
+  border nodes and the group joining connect every seam crossing the ground has). The 108 islands besides the main
+  one, by what they stand on:
+
+  | Class | Islands | Nodes | |
+  |---|---|---|---|
+  | ground DICE does not have | 84 | 657 | object tops, crates, M-COM cases, roofs, rooms; 53 touch a sector perimeter seed line (objects are seeds, rule 4 of §3.7; 38 raised, 15 at floor level), 31 come from the normal build's ground seeding the pitch-0.2 pass (20 raised) |
+  | an island DICE has as well | 15 | 236 | |
+  | DICE ground without a DICE node | 1 | 2 | |
+  | DICE joins it: steep cells (normal over 40 deg) cut NavKit's ground | 3 | 38 | the beach at (-24, 77, -379), 31 nodes: cut at (-44, 80.8, -354) |
+  | DICE joins it: ground joined, the group joining missed it (one sector) | 4 | 17 | (-51.8, 79.4, 36.6), (-96.0, 94.6, 144.6), (-119.2, 118.6, 399.6) |
+  | unclear (DICE's node beside it is on the main ground) | 1 | 12 | |
+
+  The harness failures were not missing connections but the **nearest-node join**: a route starts and ends at the
+  route node nearest the point (the runtime's go-to resolution, R = 15 m, first candidate accepted, 0x0105ED80; the
+  harness's path test, `navpath.join`, 15 m across / 4 m in height), and a node of a pocket of extra ground nearer
+  than the floor's own nodes puts the point into the pocket: 31 of the 33 failed spawn -> target pairs ended at two
+  M-COM targets - (-55, 81.9, -156) beside a 2-node pocket 0.6 m above the floor, (-47, 84, 103) under an 18-node
+  roof 3.1-3.8 m above it - the other two at roof / crate pockets at (-96, 87, 96) and (-56, 83, 97). DICE's own
+  file has small islands beside larger ones too (30 of its 37 islands under 25 nodes lie within 8 m / 4 m of one),
+  none of them at its objectives. What separates the two kinds is the ground under the nodes: all 12 small islands
+  DICE has as well stand on terrain, 64 of the 79 small NavKit-only ones on objects, and every pocket that captured a
+  failed route is on objects - DICE seeds terrain only (§3.7 rule 4), NavKit objects too. NavKit's rule
+  (`navislands.py`, `SHADOW_ISLANDS`, `SHADOW_OBJECTS_ONLY`): a route island under 25 nodes, most of them on objects,
+  with no spawn / AI order / objective on its floor, within 8 m across and 4 m in height of a node of an island of 25
+  or more, loses its edges and nodes; its areas stay. ONS_MP_004: 68 islands (426 nodes) dropped, 109 -> 41 islands
+  (DICE 42), spawn -> target battery 67 -> 100 % of DICE's pairs, random pairs unchanged (97.3 %), connectivity
+  97.37 -> 97.90, AI pairwise 40 -> 100 %, ground and extra ground unchanged, over-connection 8.32 -> 8.34, DICE nodes
+  with a NavKit node near 61.15 -> 61.06 %. Dropping terrain pockets as well (`SHADOW_OBJECTS_ONLY` off) gives 15
+  islands and connectivity 98.74, at 60.27 % nodes near and over-connection 8.40 (the islands DICE has as well lose
+  their nodes). The remaining random-pair failures are the steep cut above.
 
 ### 4.6 Structured round trip and writing conventions
 

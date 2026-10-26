@@ -9,6 +9,8 @@ Checks, per file:
   node order          each sector's nodes sorted by unsigned id, border nodes (id flag 80000000h) after the others
                       (the game binary-searches these arrays - navbuild.SORT_NODES_BY_ID)
   zero-length edges   no edge between two different nodes at one position (navbuild.DEDUP_GRAPH_NODES)
+  detail features     every D line has 2+ points; every F polygon is closed (first point repeated) with a horizontal
+                      unit direction (infantry files: +-x / +-z; vehicle files also diagonals) - navbuild.DETAIL_FEATURES
 Every check holds on DICE's 15 files (13 campaign levels, ONS_MP_002 / 004; 2026-10-23). Not checked: the owner bit
 of border nodes (field c bit 16) - DICE's files have border nodes with no owner copy and with two or more.
 """
@@ -24,10 +26,23 @@ import kymesh  # noqa: E402
 BORDER = 0x80000000
 
 
+def detail_problem(a):
+    """What is wrong with an area's D lines / F cells (DICE's conventions), or None."""
+    if any(len(line) < 2 for line in a.d_lines):
+        return 'a D line with fewer than 2 points'
+    for c in a.cells:
+        dx, dy, dz = c.direction
+        if abs(dy) > 1e-6 or abs(dx * dx + dz * dz - 1) > 1e-4:
+            return f'an F record with direction {c.direction}'
+        if len(c.points) < 4 or tuple(c.points[0]) != tuple(c.points[-1]):
+            return 'an F polygon not closed'
+    return None
+
+
 def check(path):
     """{check name: [problem descriptions]} (empty lists: passed)."""
     f = hpdtool.parse(open(path, 'rb').read())
-    out = {'closed boundaries': [], 'edges': [], 'node order': [], 'zero-length edges': []}
+    out = {'closed boundaries': [], 'edges': [], 'node order': [], 'zero-length edges': [], 'detail features': []}
     for s in f.sectors:
         m = kymesh.parse_mesh(s.mesh)
         for ai, a in enumerate(m.areas):
@@ -40,6 +55,9 @@ def check(path):
             odd = [k for k, v in deg.items() if v % 2]
             if odd:
                 out['closed boundaries'].append(f'sector {s.id:04x} area {ai}: {len(odd)} open end(s), e.g. {odd[0]}')
+            bad = detail_problem(a)
+            if bad:
+                out['detail features'].append(f'sector {s.id:04x} area {ai}: {bad}')
         n = len(s.nodes)
         for e in s.edges:
             if not (0 <= e.src < n and 0 <= e.dst < n):

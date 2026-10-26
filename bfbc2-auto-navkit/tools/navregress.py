@@ -40,10 +40,11 @@ import navparity  # noqa: E402
 import hpdcheck  # noqa: E402
 
 HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near', 'edges_same',
-          'connectivity', 'ai_coverage', 'ai_pairwise']
+          'connectivity', 'ai_coverage', 'ai_pairwise',
+          'df_d_precision', 'df_d_recall', 'df_f_precision', 'df_f_recall']     # D lines / F cells (navdf.py)
 LOWER = ['extra_ground', 'over_connection', 'sectors_missing']
 COUNTS = ['sectors_candidate', 'areas_candidate', 'detailed_candidate', 'islands_candidate', 'large_islands_candidate',
-          'ai_main_candidate']
+          'ai_main_candidate', 'df_d_candidate', 'df_f_candidate']
 
 
 def inputs(root, lv):

@@ -147,7 +147,9 @@ def blueprint_of(e):
     return ref.rsplit('/', 1)[0].lower() if ref and '/' in ref else None
 
 
-def load(level, opfor=None, terrain_stride=2, log=print):
+def load(level, opfor=None, terrain_stride=2, log=print, geometry=True):
+    """geometry=False: the level partition's entities, teams and shapes only - no static-group members, collision,
+    terrain or water (a second or two; the test harness's reachability and level checks)."""
     import navkit
     import levelobjects
     root = navkit.find_opfor(opfor)
@@ -180,7 +182,7 @@ def load(level, opfor=None, terrain_stride=2, log=print):
     # static model groups: one entity per member placement. Each group file once: the Package copy wins over
     # Dist, as in the game (and levels\ / Levels\ are the same folder on Windows)
     group_files = {}
-    for b in bases[:2]:
+    for b in (bases[:2] if geometry else ()):
         for gf in glob.glob(os.path.join(b, 'levels', lv, '*_HavokAsset.dbx')):
             group_files.setdefault(os.path.basename(gf).lower(), gf)
     for gf in group_files.values():
@@ -200,6 +202,9 @@ def load(level, opfor=None, terrain_stride=2, log=print):
     resolve_blueprints(lvl, bases)
     assign_teams(lvl)
     lvl.shapes = shapes_of(lvl)
+    if not geometry:
+        log(f'{LV}: {len(lvl.entities)} entities (no geometry)')
+        return lvl
     # collision
     havok = levelobjects.havok_index(bases)
     try:
@@ -390,9 +395,11 @@ def heightfield_of(root, lv, log=print, name=None):
     path = terrain.find(dest, name) if os.path.isdir(dest) else None
     if path is None:
         bundle = None
-        for d in glob.glob(os.path.join(root, 'game', 'Dist', 'win32', 'levels', '*')):
-            if os.path.basename(d).lower() == lv and os.path.isfile(os.path.join(d, 'terrain-00.fbrb')):
-                bundle = os.path.join(d, 'terrain-00.fbrb')
+        # Dist first; a level whose terrain bundle is only in Package (ONS_MP_005GR) takes that one
+        for top in (os.path.join(root, 'game', 'Dist', 'win32', 'levels'), os.path.join(root, 'game', 'Package', 'levels')):
+            for d in glob.glob(os.path.join(top, '*')):
+                if bundle is None and os.path.basename(d).lower() == lv and os.path.isfile(os.path.join(d, 'terrain-00.fbrb')):
+                    bundle = os.path.join(d, 'terrain-00.fbrb')
         if bundle is None:
             return None
         log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')

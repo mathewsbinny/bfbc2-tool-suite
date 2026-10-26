@@ -19,13 +19,16 @@ Pipeline (research/KYNAPSE_SPEC.md sections 3 and 4):
      overlap lines, shared by both sectors (same id and position); edges between nodes up to DistEdgeMax
      apart whose straight line stays on connected walkable samples; cost = 0x80000000 | floor(d * 16)
   7. write with kymesh.write_mesh / hpdtool.write
+  (4b, between 4 and 5) detail features (DETAIL_FEATURES, navdetail.py): sides between two cells of one area whose
+     heights differ by more than DETAIL_STEP become D lines, cells with both sides along an axis so broken become
+     F cells (DICE's rule, KYNAPSE_SPEC.md 4.5) - and are taken out of the outline
 
-Detail features D and F are not generated (counts 0, allowed by the format); detailed zones (pitch 0.2)
-are generated at the normal pitch.
+Detailed zones (pitch 0.2) are a second pass at pitch 0.2 over the chosen sectors (build(..., detailed=...)).
 
 Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd> [--step 0.28]
                    [--dynamic dynamic_tris.npy] [--high samples_high_capsule.bin] [--narrow samples_narrow.bin]
                    [--stairs stair_tris.npy] [--exclude exclude_tris.npy] [--exclude-foot exclude_footprint_tris.npy]
+                   [--no-detail]   (no D lines / F cells: DETAIL_FEATURES off)
 """
 import heapq
 import math
@@ -40,6 +43,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
+import navislands  # noqa: E402
 import navsample  # noqa: E402
 import navwalk  # noqa: E402
 
@@ -130,6 +134,37 @@ BORDER_NODE_SPACING = 10.0
 BRIDGE_UNION = True             # 45-degree bridges: outline from the exact union (bridge_union) - False: clip_bridges
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
+DETAIL_FEATURES = True          # D lines and F cells (navdetail.py): sides between two cells of one area whose heights
+                                # differ by more than DETAIL_STEP are D lines (both sides) or, where a cell has both sides
+                                # along an axis broken, F cells - and not outline (E), as in DICE's files. The runtime's
+                                # straight-move test reads them. False: none (counts 0) and those sides stay outline -
+                                # the output before 2026-10-26 (navkit.py build --no-detail, navbuild.py --no-detail)
+DETAIL_HALF_CELLS = False       # the side cells of 45-degree bridges take part with their own height: a leg (their side
+                                # toward a bridged area cell) breaks as any side (DICE's corner-cut legs with a step over
+                                # 0.6 m to an area cell: 352 of 389 have D or F, sp_004_b). Off: NavKit's bridges are not
+                                # DICE's corner cuts (it cuts more corners), and on NavKit's builds the legs cost D precision
+                                # at pitch 0.8 (sp_01 44.6 -> 27.9 %, sp_004_b 59.3 -> 44.0 %) for 0-3 points of recall
+DETAIL_IN_DETAILED = False      # D lines in detailed (pitch 0.2) sectors, by the terrain rule below. Off: NavKit's detailed
+                                # areas join steep terrain DICE's do not, and the rule writes 10-20x DICE's lines there at
+                                # 2.5-3 % precision (recall 41-69 %; sp_004_b, sp_01, ONS_MP_002, 2026-10-26) - lines that
+                                # also keep route edges off them; the all-pitch D F1 fell on all three levels
+DETAIL_F = {'normal': True, 'detailed': False}   # F cells per pitch; off: such cells' sides are D lines. In detailed zones
+                                # NavKit's F matched none of DICE's (sp_004_b 4,898 records, precision 0.02 %; DICE has 20)
+DETAIL_TERRAIN_ONLY = {'normal': False, 'detailed': True}   # sides break only between two terrain cells - in detailed
+                                # zones DICE has D / F on 713 of 2,658,574 terrain sides and on 24 of 401,562 sides with an
+                                # object cell (sp_004_b); at pitch 0.8 objects break too (sp_01: steps up to 1.2 m)
+DETAIL_STEP = {'normal': 0.6, 'detailed': 0.175}   # the height difference (m) that breaks a side. Pitch 0.8: DICE's
+                                # area link step - its in-area sides with a step from 0.61 m all have D / F (sp_004_b,
+                                # sp_01, ONS_MP_002; spec 4.5). Pitch 0.2: DICE's detailed D sides start at 0.175 m, on
+                                # terrain only (DETAIL_TERRAIN_ONLY): on DICE's own detailed areas, terrain sides over 0.173 m
+                                # find 86 % of its D / F sides at 25 % precision (all surfaces: 15 %); was 0.3 m (NavKit's
+                                # link step there) until the terrain rule - 0.175 on all surfaces gave 17x DICE's lines
+DETAIL_BLOCKS_EDGES = True      # route edges do not cross a D line: line_walkable does not step straight across a D side
+                                # of the sector being built. DICE's route edges cross D lines almost never (sp_004_b 1 of
+                                # 24,514, sp_01 11 of 82,602) - its graph builder uses the same straight-move test; F cell
+                                # sides they do cross (0.4-0.6 %), as NavKit's do. NavKit's edges crossed D lines on 1.7 %
+                                # (sp_004_b) without it: the slope rule links some sides the 0.6 m step breaks (2026-10-26)
+DETAIL_STATS = {}               # D lines, F cells and outline sides moved to D / F (for reports)
 
 
 def water_tops(s, vertices, triangles):
@@ -218,6 +253,7 @@ class Level:
         self.gz = gz if gz is not None else -s.normal[:, 2] / ny
         self.col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
         self.terrain = (s.hit[:, 0] == navwalk.TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(s.y), bool)
+        self.blocked = set()       # (surface, surface) pairs line_walkable does not step across (D sides; DETAIL_BLOCKS_EDGES)
 
     def surfaces(self, gi, gj):
         if not (0 <= gi < self.s.nx and 0 <= gj < self.s.nz):
@@ -559,6 +595,96 @@ def restore_one_way(sectors, shared):
     return keep
 
 
+def half_cells(level, area, gi0, gj0):
+    """The 45-degree bridges' side cells of an area (navdetail's half cells): {((i, j), (di, dj)): height} for each
+    leg - the side of a side cell toward the bridged area cell - and {(i, j): surface}. The side cell's surface is the
+    sampled one (kept or not) nearest the two bridged cells' mean height, within 1 m."""
+    cell_k = {(c[0], c[1]): c[2] for c in area['cells']}
+    half, ks = {}, {}
+    s = level.s
+    for (i, j), k in cell_k.items():
+        for di, dj in ((1, 1), (1, -1)):
+            kb = cell_k.get((i + di, j + dj))
+            if kb is None or (i + di, j) in cell_k or (i, j + dj) in cell_k:
+                continue
+            y0 = (level.y[k] + level.y[kb]) / 2.0
+            for (xi, xj), legs in (((i, j + dj), ((0, -dj), (di, 0))), ((i + di, j), ((-di, 0), (0, dj)))):
+                gi, gj = gi0 + xi, gj0 + xj
+                if not (0 <= gi < s.nx and 0 <= gj < s.nz):
+                    continue
+                c = gj * s.nx + gi
+                col = range(s.start[c], s.start[c + 1])
+                if not len(col):
+                    continue
+                kx = min(col, key=lambda q: abs(level.y[q] - y0))
+                if abs(level.y[kx] - y0) > 1.0:
+                    continue
+                ks[(xi, xj)] = kx
+                for leg in legs:
+                    half[((xi, xj), leg)] = float(level.y[kx])
+    return half, ks
+
+
+def detail_pass(level, areas, per_area, ox, oz, gi0=None, gj0=None):
+    """DETAIL_FEATURES: per area (D polylines, F cells) from navdetail, and the broken sides taken out of the area's
+    outline edges (per_area, from trace_edges; before trace_emit). A side holding a portal or border portal stays one.
+    gi0, gj0: the sector's sample origin - with them, the bridges' half cells take part (DETAIL_HALF_CELLS)."""
+    import navdetail
+    kind = 'detailed' if abs(PITCH - DETAILED_PITCH) < 1e-6 else 'normal'
+    if kind == 'detailed' and not DETAIL_IN_DETAILED:
+        return [([], [])] * len(areas)
+    step = DETAIL_STEP[kind]
+    terrain = getattr(level, 'terrain', None)
+    out = []
+    for ai, area in enumerate(areas):
+        edges = per_area[ai]
+        cells = {(i, j): float(level.y[k]) for i, j, k in area['cells']}
+        ks = {(i, j): k for i, j, k in area['cells']}
+        half = None
+        if DETAIL_HALF_CELLS and gi0 is not None and hasattr(level, 's'):
+            half, hks = half_cells(level, area, gi0, gj0)
+            for c, k in hks.items():
+                ks.setdefault(c, k)
+        breakable = None
+        if DETAIL_TERRAIN_ONLY[kind] and terrain is not None:
+            def breakable(a, b, ks=ks):         # detailed zones: only between terrain cells (DICE: objects never)
+                return a in ks and b in ks and bool(terrain[ks[a]]) and bool(terrain[ks[b]])
+        linked = {(key[2], key[3], key[4], r[0]) for key, rows in edges.items() if key[0] in ('B', 'C') for r in rows}
+
+        def eligible(i, j, di, dj):     # neither of the two cells has a portal or border portal on the side
+            return (('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)) not in linked and \
+                (('x', i + di * 0.5, -di, j) if di else ('z', j + dj * 0.5, -dj, i)) not in linked
+        broken, lines, fcells = navdetail.detail_features(cells, PITCH, ox, oz, step, eligible, half, breakable,
+                                                          with_f=DETAIL_F[kind])
+        if broken and DETAIL_BLOCKS_EDGES and hasattr(level, 'blocked'):
+            fsets = navdetail.f_cell_sets(broken, cells) if DETAIL_F[kind] else (set(), set())
+            for (i, j), (di, dj) in navdetail.d_sides(broken, *fsets):
+                if (i, j) in ks and (i + di, j + dj) in ks:
+                    level.blocked.add((ks[(i, j)], ks[(i + di, j + dj)]))
+        broken = {b_ for b_ in broken if b_[0] in cells and (b_[0][0] + b_[1][0], b_[0][1] + b_[1][1]) in cells}
+        if broken:
+            # a broken side is outline on both of its cells or on neither (the slope rule linked it); taken out of the
+            # outline only as a pair, so the area's boundary stays closed
+            e_at = {(key[2], key[3], key[4], r[0]) for key, rows in edges.items() if key[0] == 'E' for r in rows}
+            gone = defaultdict(set)
+            for (i, j), (di, dj) in broken:
+                axis, line, d, along = ('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)
+                if (axis, line, d, along) in e_at and (axis, line, -d, along) in e_at:
+                    gone[('E', None, axis, line, d)].add(along)
+                elif (axis, line, d, along) in e_at:
+                    DETAIL_STATS['outline_one_sided'] = DETAIL_STATS.get('outline_one_sided', 0) + 1
+            moved = 0
+            for key, alongs in gone.items():
+                before = len(edges[key])
+                edges[key] = [r for r in edges[key] if r[0] not in alongs]
+                moved += before - len(edges[key])
+            DETAIL_STATS['outline_moved'] = DETAIL_STATS.get('outline_moved', 0) + moved
+        DETAIL_STATS['d'] = DETAIL_STATS.get('d', 0) + len(lines)
+        DETAIL_STATS['f'] = DETAIL_STATS.get('f', 0) + len(fcells)
+        out.append((lines, fcells))
+    return out
+
+
 def trace_emit(level, areas, per_area, gi0, gj0, ox, oz):
     """Per area (portals, borders, outline) from its boundary edges: runs merged, 45-degree bridges."""
     result = []
@@ -645,7 +771,9 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
                   order_points=order_points, t0=t0, ladders=ladders, area_orders=area_orders)
     set_pitch(0.8)
     ORDER_IDS.clear()
+    navislands.TERRAIN_IDS.clear()
     LADDER_STATS.clear()
+    DETAIL_STATS.clear()
     a = stage(samples_path, high_path, xoff, zoff, seeds=seeds, **common)
     if detailed:
         graphs = merge_detailed(a, detailed, xoff, zoff, seeds, common, log)
@@ -655,6 +783,14 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     if ladders:
         log(f'ladders: {len(ladders)}; links made {LADDER_STATS.get("linked", 0)} (counted per stage), ends in two '
             f'sectors {LADDER_STATS.get("split", 0)}')
+    if DETAIL_FEATURES:
+        log(f'detail features: {DETAIL_STATS.get("d", 0)} D lines, {DETAIL_STATS.get("f", 0)} F cells; '
+            f'{DETAIL_STATS.get("outline_moved", 0)} outline sides moved to them, '
+            f'{DETAIL_STATS.get("outline_one_sided", 0)} kept (outline on one cell only)')
+    else:
+        log('detail features: off (no D lines or F cells)')
+    # route islands that shadow a larger one lose their nodes (navislands.py: SHADOW_ISLANDS)
+    graphs = navislands.prune(graphs, list(seeds or []) + list(order_points or []) + list(area_orders or []), log)
     write_file(graphs, out_path, log, t0)
 
 
@@ -867,19 +1003,22 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
     for (X, Y), inf in sorted(info.items()):
         gi0, gj0, ox, oz = inf['origin']
         areas, area_of = inf['areas'], inf['area_of']
+        level.blocked = set()            # D sides of this sector only (another sector may hold the cells in two areas)
+        details = (detail_pass(level, areas, edge_sets[(X, Y)][0], ox, oz, gi0, gj0) if DETAIL_FEATURES
+                   else [([], [])] * len(areas))
         traced = trace_emit(level, areas, edge_sets[(X, Y)][0], gi0, gj0, ox, oz)
         sid = ((X & 0xFF) << 8) | (Y & 0xFF)
         mesh_areas = []
         ntiles = tiling(sid)[1]
         tiles = [[] for _ in range(ntiles * ntiles)]
-        for ai, (a, (portals, borders, outline)) in enumerate(zip(areas, traced)):
+        for ai, (a, (portals, borders, outline), (d_lines, f_cells)) in enumerate(zip(areas, traced, details)):
             ys = [level.y[c[2]] for c in a['cells']]
             # DICE's area height range: from its lowest ground to its highest ground + 1.52 m (all normal-pitch
             # areas of sp_004_b: median +0.000 / +1.520; NavKit had -0.95 / +1.55, a metre of extra room below
             # each area, so a lower floor's range reached the deck above it - 2026-10-19)
             lo, hi = min(ys) + AREA_Y_MIN, max(ys) + AREA_Y_MAX
             mesh_areas.append(kymesh.Area(sid, a['tile'][0], a['tile'][1], a['layer'], RADIUS, PITCH, hi, lo,
-                                          portals, [b[0] for b in borders], [], outline, []))
+                                          portals, [b[0] for b in borders], d_lines, outline, f_cells))
             a['borders'] = borders
             tiles[a['tile'][0] * ntiles + a['tile'][1]].append(kymesh.TileItem(ai, lo, hi))
         mesh_links = sector_links(X, Y, areas, mesh_areas, same_grid_resolver(level, info, X, Y))
@@ -897,6 +1036,7 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
         LADDER_STATS['split'] = LADDER_STATS.get('split', 0) + sum(1 for f_, t_ in ladder_pairs if (f_ in area_of) != (t_ in area_of))
         pts, pairs = build_graph(level, areas, area_of, traced, border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id, orders,
                                  lads)
+        navislands.note_nodes(level, pts)        # which nodes stand on terrain (SHADOW_OBJECTS_ONLY)
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]
         bounds_ = (rect[0], rect[1], min(ys), max(ys), rect[2], rect[3])
         graphs.append((sid, bounds_, mesh, pts, pairs, (ox, oz)))
@@ -1066,6 +1206,20 @@ def write_file(graphs, out_path, log, t0):
         f'{sum(len(x.edges) for x in hpd_sectors)} edges, {len(data)} bytes ({time.time() - t0:.0f} s)')
 
 
+def _crosses_d(level, blocked, k, nk, gi, gj, di, dj, xfirst=None):
+    """A step from surface k (column gi, gj) to nk crosses a D side: a straight step across one; a diagonal step when
+    the straight line passes through the side column it leaves first (xfirst: True = (di, 0), False = (0, dj), None =
+    exactly through the corner - then either way) and one of that way's two sides is a D side."""
+    if not (di and dj):
+        return (k, nk) in blocked
+    ways = [(di, 0)] if xfirst else [(0, dj)] if xfirst is False else [(di, 0), (0, dj)]
+    for a, b in ways:
+        s_ = level.neighbour(k, gi, gj, a, b)
+        if s_ is not None and ((k, s_) in blocked or (s_, nk) in blocked):
+            return True
+    return False
+
+
 def line_walkable(level, k0, a, b, gi0, gj0, k1):
     """Straight line from local sample a to b (i, j) over connected kept surfaces, starting on k0, ending on k1."""
     (i0, j0), (i1, j1) = a, b
@@ -1081,6 +1235,15 @@ def line_walkable(level, k0, a, b, gi0, gj0, k1):
             continue
         if nk is None:
             return False
+        blocked = getattr(level, 'blocked', ())
+        xfirst = None
+        if blocked and di and dj:
+            # where the straight line crosses the column line between ci and ci + di: still in row cj -> x first
+            zc = j0 + (j1 - j0) * (ci + di * 0.5 - i0) / (i1 - i0)
+            off = abs(zc - cj)
+            xfirst = None if abs(off - 0.5) < 1e-9 else off < 0.5
+        if blocked and _crosses_d(level, blocked, k, nk, gi0 + ci, gj0 + cj, di, dj, xfirst):
+            return False                 # a D line between them (DETAIL_BLOCKS_EDGES)
         k, ci, cj = nk, ti, tj
     return k == k1 or abs(level.y[k] - level.y[k1]) <= 0.6
 
@@ -1538,6 +1701,9 @@ def main(argv):
     if len(args) < 5:
         print(__doc__)
         return 1
+    if '--no-detail' in argv:
+        global DETAIL_FEATURES
+        DETAIL_FEATURES = False
     build(args[0], args[1] if args[1] != '-' else None, int(args[2]), int(args[3]), args[4],
           float(opts.get('--step', 0.28)), dynamic_path=opts.get('--dynamic'), high_path=opts.get('--high'),
           narrow_path=opts.get('--narrow'), stairs_path=opts.get('--stairs'), exclude_path=opts.get('--exclude'),

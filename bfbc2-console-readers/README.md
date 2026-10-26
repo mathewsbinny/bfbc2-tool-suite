@@ -14,7 +14,11 @@ there is no decryption, and no keys are involved. The menu reader (`apt.py`) rea
 
 `apt.py` shows a movie's characters (sprites, shapes, images, ...), each sprite's frames with their labels and
 placements, and the menu code (ActionScript bytecode with EA's opcodes). Its header documents the format and the
-geometry (`.geo`) and texture-atlas layout behind a menu's pictures. A console menu from your Update package:
+geometry (`.geo`) and texture-atlas layout behind a menu's pictures. `Movie.instructions()` gives the decoded code as
+records (offsets, lengths, branch targets, PushData lists, function bodies) for other tools: the suite's
+`bfbc2-menu-tools` checks menu patches and cross-references the movies with it. (2026-10-26: GetURL2 has no argument
+and GotoFrame2 a 32-bit one in EA's bytecode; dumps made before then misread the bytes after those two opcodes - for
+example a "shared PushData list" in wag that the movie does not have.) A console menu from your Update package:
 
 ```
 python stfs\stfs.py extract "D:\Update3" out menu/main/mainmenu-00.fbrb

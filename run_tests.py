@@ -3,13 +3,15 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
   python run_tests.py [quick | game | full] [--only <name>] [--list]
 
   quick   no game data, about a minute: repository rules, DbxEdit unit tests, and on files built by the
-          tests: FbrbTool, LevelDiff, the crash reader, the console readers (needs Windows for the C# tools)
+          tests: FbrbTool, LevelDiff, the crash reader and exeref, the console readers, the menu tools, the test
+          harness (needs Windows for the C# tools)
   game    + Project OPFOR's game copy, about 10 minutes: FbrbTool on 12 game bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
-          round trips, LevelDiff on MP_005, the crash reader's code view on BFBC2Game.exe, the console
+          round trips, LevelDiff on MP_005, the crash reader's code view and exeref on BFBC2Game.exe, the menu
+          tools on the game's movies and OPFOR's menu patches, the console
           readers on your own Xbox 360 files (skipped when they are not on the PC), the 3D tools opening a
-          level (needs a display), the structure of DICE's path data (hpdcheck), NavKit's regression test on
-          two small levels
+          level (needs a display), the structure of DICE's path data (hpdcheck), the test harness on two small
+          levels, NavKit's regression test on two small levels
   full    + the corpus runs, about 90 minutes: DbxEdit and the Python DBX reader on every unpacked .dbx,
           FbrbTool on all 1,055 bundles, NavKit's regression test on the 13 campaign levels and the imported
           Onslaught maps (about 5 hours)
@@ -61,6 +63,7 @@ def tests():
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
         ('error handling and logs', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_errors.py')]),
         ('every command-line tool reports errors', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_cli_errors.py')]),
+        ('review fixes: apply inputs, stock-MP reinstall, studio flags, cache key', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_review_fixes.py')]),
         ('navigation side files (navtune)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_navtune.py')]),
         ('NavKit water rule (ground too deep under water)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_water_rule.py')]),
         ('NavKit walkability edits (navedits)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navedits.py')]),
@@ -76,14 +79,26 @@ def tests():
         ('NavKit roof pruning', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_roof_prune.py')]),
         ('NavKit objective floors (M-COM)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_objective_floor.py')]),
         ('NavKit 45-degree bridges: closed outlines', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_bridge_union.py')]),
+        ('NavKit D lines and F cells', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_detail_features.py')]),
         ('NavKit collision index (Havok packfile names)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_havok_index.py')]),
+        ('NavKit boat mesh (navwater_mesh)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navwater_mesh.py')]),
+        ('NavKit routes across domains (navdomains)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navdomains.py')]),
+        ('NavKit vehicle path data (navvehicle)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_vehicle.py')]),
+        ('NavKit shadow islands (navislands)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navislands.py')]),
+        ('NavKit offline sampler (navsample_offline)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navsample_offline.py')]),
         ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),
         ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
         ('crash reader, built reports', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py')]),
         ('console readers, built images', 'quick', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py')]),
+        ('menu tools (aptcheck, aptrefs, bc2loc), built data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'tests', 'test_menu_tools.py')]),
+        ('exe string / address references (exeref), built exe', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_exeref.py')]),
+        ('test harness, built data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'tests', 'test_harness.py')]),
+        ('stock-MP AI layer, synthetic levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_stockmp.py')]),
         ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),
         ('console readers on your Xbox files', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py'), '--game']),
+        ('menu tools on the game copy and OPFOR\'s patches', 'game', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'tests', 'test_menu_tools.py'), '--game']),
+        ('exeref on BFBC2Game.exe', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_exeref.py'), '--game']),
         ('FbrbTool round trip, 12 game bundles', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py'), '--game', '12']),
         ('water, every level', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_water.py')]),
         ('level loader snapshot', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_level.py')]),
@@ -95,12 +110,16 @@ def tests():
         ('navigation data and the path test', 'game', [PY, os.path.join(SUITE, 'core', 'tests', 'test_navdata.py')]),
         ("path data structure, DICE's files (hpdcheck)", 'game', lambda root: [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdcheck.py'),
                                                                              *dice_pathdata_files(root)]),
+        ('NavKit boat mesh and routes on ONS_MP_004', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navwater_mesh.py'), '--game']),
+        ('NavKit vehicle path data on ONS_MP_002', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_vehicle_level.py')]),
         ('NavKit links and route edges', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_links.py')]),
         ('traversals, the apply report, installing', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_traversal.py')]),
         ('navkit apply with walkability edits', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_apply.py')]),
         ('Navigation Studio edit mode', 'game', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_editing.py')]),
         ('the suite window (hub) and the level picker', 'game', [PY, os.path.join(SUITE, 'tests', 'test_hub.py')]),
         ('3D tools open and draw (Map Inspector, Navigation Studio)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_viewers.py')]),
+        ('test harness on sp_009 and sp_004_b', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'tests', 'test_harness.py'), '--game']),
+        ('stock-MP AI layer, Atacama Conquest built', 'game', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_stockmp.py'), '--game']),
         ('NavKit regression, 2 small levels', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py'),
                                                        '--levels', 'sp_004_b,sp_009']),
         ('NavKit regression, all levels with DICE path data', 'full', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py')]),
