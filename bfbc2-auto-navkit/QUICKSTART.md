@@ -12,8 +12,8 @@ To learn how it works inside, read [README.md](README.md) and the
 | Level | Can NavKit build it? |
 |---|---|
 | The 13 campaign levels (`sp_*`) | Yes. NavKit's files are checked against DICE's. |
-| Onslaught maps (`ons_mp_*`) | Yes. They have AI, so they can be measured. These are Napisal's co-op Rush levels. They ship without the file that tells the game how the path data is numbered, so in game set OPFOR's `[dev] sector_offsets` (ONS_MP_002: `-3,-7`) - with either file, DICE's or NavKit's - or many AI route requests fail. |
-| Stock multiplayer maps (`mp_*`) | **Not yet.** NavKit measures a level while its AI is running, and stock multiplayer maps start without AI. Support is planned. |
+| Onslaught maps (`ons_mp_*`) | Yes. They have AI, so they can be measured. These are Napisal's co-op Rush levels. Napisal's files lack the asset that tells the game how the path data is numbered; OPFOR's `import_onslaught.bat` adds it (since 2026-10-21), and Prepare reads it. On a level imported before then, set OPFOR's `[dev] sector_offsets` in game (ONS_MP_002: `-3,-7`) or many AI route requests fail. |
+| Stock multiplayer maps (`mp_*`) | **Not from the window yet.** The window and `navkit.py` measure a level while its AI is running, and stock multiplayer maps start without AI. Since 2026-10-26 `tools\navsample_offline.py stockmp` measures and builds them without the game (README, "Standalone sampling"); bots on them also need an AI layer (the suite's `bfbc2-stockmp-ai`). Not play-tested. |
 
 The GUI and `navkit.py levels` mark the levels you can use today as *samplable*.
 
@@ -142,11 +142,12 @@ regions - see the parity tools in [README.md](README.md) (`tools\navparity.py`, 
 3. Play, watching the AI soldiers.
 4. Quit, then click **Restore original** (or `python navkit.py restore <level>`).
 
-State of NavKit's files today (2026-10-22): on SP_004_B the friendly squad follows the player and moves
-through the mission on NavKit's file, and leaving a level no longer crashes the game. Measured against
-DICE's files on 15 levels, NavKit's files have 98 % of DICE's walkable ground and allow 98 % of the routes
-DICE's allow. Some places still differ (see README.md), so the AI may still stop somewhere. Project OPFOR's
-`DEVELOPMENT_NOTES.md` has the details.
+State of NavKit's files today (2026-10-26): on SP_004_B the friendly squad follows the player and moves
+through the mission on NavKit's file (play test 2026-10-20), and leaving a level no longer crashes the game.
+Measured against DICE's files on 15 levels, NavKit's files have 98 % of DICE's walkable ground and allow 98 %
+of the routes DICE's allow. The changes since 2026-10-22 (closed area boundaries, floors at the M-COMs, D lines
+and F cells, fewer small route islands) are measured offline but not yet play-tested. Some places still differ
+(see README.md), so the AI may still stop somewhere. Project OPFOR's `DEVELOPMENT_NOTES.md` has the details.
 
 Tip: to start a mission your campaign save is not on, set `level=Levels/<LEVEL>` under `[dev]` in
 `game\opfor.ini` (for example `level=Levels/SP_004_B`), start OPFOR and press **F9** in the main menu. Put
@@ -196,7 +197,7 @@ bottom and top height. Make the top higher than the tallest roof. A larger area 
 | "the game is running - close it first" | Quit Bad Company 2 (OPFOR) and try again. |
 | "sampling did not finish: the game exited" | The level crashed or was closed during sampling. Look at the end of `game\logs\opfor.log`, then try again. |
 | "sampling did not finish: timed out" | The run took over an hour. Use a smaller area or check that the level loads at all. |
-| "...has no AI path data, so its AI (and the sampler) may not start" | The level is a stock multiplayer map, which is not supported yet. See [What works today](#what-works-today). |
+| "...has no AI path data, so its AI (and the sampler) may not start" | The level is a stock multiplayer map, which the window and `navkit.py` do not support yet. See [What works today](#what-works-today). |
 | A run was cancelled or the PC crashed during sampling | NavKit edits `game\opfor.ini` while sampling and puts it back afterwards. If that was interrupted, the next Sample puts it back, and **Cancel** in the window does too. The saved copy is `work\navkit\opfor.ini.backup`. |
 | The AI acts oddly with NavKit's file installed | Click **Restore original** (or `navkit.py restore <level>`). The level is back to its original data. |
 | "FbrbTool.exe not found" / "DbxEdit.exe not found" | Run `build.bat` in the suite's `bfbc2-fbrb-tool` and `bfbc2-dbx-tools` folders (see [Before you start](#before-you-start)). |

@@ -10,7 +10,8 @@ builder. They share one core: level loading, a 3D view, picking and the game's d
 
 This document fixes what each tool does, what they share, the file formats they write, and the order
 they are built in. It is a draft for review, and it changes as the tools are built (last revised
-2026-10-26: the test harness, sections 4.5 and 5.5).
+2026-10-26: the test harness, sections 4.5 and 5.5; the two tools added outside the original eight, section 1;
+statuses in sections 3.1, 4.2 and 7).
 
 ## 1. The tools
 
@@ -25,6 +26,13 @@ they are built in. It is a draft for review, and it changes as the tools are bui
 | **bfbc2-diff-workbench** | research | Binary and asset diffing: ImHex pattern files for BC2 formats, plus a report of which structures are understood and what changed, with reproducible extraction logs and hashes. |
 | **bfbc2-ai-behavior-simulator** | Project OPFOR bots | Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls, physics or animation. |
 | **bfbc2-asset-builder** (asset builder & validator, in the OPFOR repo) | Project OPFOR | Turns editor outputs into versioned runtime packages for the standalone client, with schema and dependency checks and a report of missing or incompatible data. |
+
+Added beside these eight (2026-10-26, both built; their READMEs):
+
+| Tool | For | In short |
+|---|---|---|
+| **bfbc2-stockmp-ai** | any BC2 modder, Project OPFOR bots | Gives a stock MP level an AI layer (AI spawners, AI orders, event wiring, HasAI, PathfindingTypes, SectorOffsets, AI template) as level data, built into its bundles and checked offline. Not the tactical authoring tool: it writes game data, not annotation side files. |
+| **bfbc2-menu-tools** | any BC2 modder, Project OPFOR | `aptcheck` (menu patches against the rules that crash the menu loader), `aptrefs` (externs, FSCommands and engine events of every movie, with the exe's name / id table), `bc2loc` (localized texts). |
 
 ## 2. Rules
 
@@ -65,8 +73,8 @@ they are built in. It is a draft for review, and it changes as the tools are bui
 
 | Source | How it is read | Status |
 |---|---|---|
-| `.fbrb` bundles | FbrbTool unpack | works; a cache per bundle date (as `testrun` keeps) to add |
-| binary `.dbx` (entities, transforms, properties) | a Python reader written from `bfbc2-dbx-tools/FORMAT.md` (no exe calls, fast); until then `DbxEdit xml` | to write; the format is fully specified, and DbxEdit's 31,564 fingerprints check that the reader agrees |
+| `.fbrb` bundles | FbrbTool unpack; read-only access without unpacking in `core/bfbc2core/fbrb.py` (2026-10-26: entry list and single entries; used by the test harness) | works; a cache per bundle date (as `testrun` keeps) to add |
+| binary `.dbx` (entities, transforms, properties) | a Python reader written from `bfbc2-dbx-tools/FORMAT.md` (no exe calls, fast), `core/bfbc2core/dbx.py` | works (2026-10-16): XML identical to DbxEdit's on all 31,404 fingerprinted files (`core/tests/test_dbx.py`, full tier) |
 | object collision (`*_Havok.res`) | NavKit's `hkpack.py` | works for the shapes NavKit uses; other shape types to add |
 | static model groups (instance transforms) | `*_HavokAsset` partitions | works in NavKit |
 | terrain heights | `Terrains/<level>/<level>.Heightfield-000.res` (in `terrain-00.fbrb`) | decoded (`core/bfbc2core/terrain.py`, section 7 question 1): a 1024² or 2048² grid of 16-bit heights, matching the in-game terrain to within 4.5 cm |
@@ -132,7 +140,8 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 
 - **Generate:** run NavKit on a level, with its sampling settings, from the studio. Sampling starts the
   game (NavKit measures levels through OPFOR's in-game sampler), so the studio asks first. Building from
-  existing samples does not need the game.
+  existing samples does not need the game. (2026-10-26: NavKit's `navsample_offline.py` computes the same
+  samples from the level's collision without the game; not yet wired into `navkit.py` or the studio.)
 - **View:**
   - areas coloured by island, sector or pitch; outlines, portals, border portals and the route graph;
   - detailed zones;
@@ -142,8 +151,8 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
   - add or remove seeds, to keep or drop an island;
   - link two areas, add or remove route edges;
   - annotate traversal links (ladders, jumps, vaults, drops);
-  - mark regions as AI-only or vehicle-only (vehicle-only needs vehicle path data, which NavKit does not
-    generate yet).
+  - mark regions as AI-only or vehicle-only (vehicle-only needs vehicle path data: NavKit builds it since
+    2026-10-26 with `tools\navvehicle.py`, not yet part of `navkit.py`; region marking not built).
 - **Inspect:** disconnected regions (islands sorted by size, with the nearest connection to the main
   network), unreachable spawns and objectives.
 - **Path test:** pick two points and see the route over the route graph and areas, its cost, or why
@@ -442,5 +451,9 @@ on the same points compare pair by pair. A newer version is refused by older rea
    - **Out of bounds:** `DamageAreaTriggerEntityData`.
    - **Still to identify:** destructibles (the `PredestructionEntityData` sets and destructible object
      types).
-7. **Vehicle navigation data:** NavKit makes infantry data only. Vehicle data (pitch 1 m, larger radius)
-   is needed for vehicle-only regions and for the bots' vehicle use (Goal 4).
+7. **Vehicle navigation data:** NavKit made infantry data only until 2026-10-26. Vehicle data (pitch 1 m, larger
+   radius) is needed for vehicle-only regions and for the bots' vehicle use (Goal 4). **Since 2026-10-26:**
+   `bfbc2-auto-navkit/tools/navvehicle.py` builds land-vehicle files offline (77 % of DICE's vehicle ground on 14
+   levels; NavKit README "Vehicle path data", spec §2.2); boat meshes (`navwater_mesh.py`) and a cross-domain route
+   planner (`navdomains.py`, `research/CROSS_DOMAIN_ROUTES.md`) are prototypes for OPFOR's bot layer. Not yet in
+   `navkit.py`, the studio or a play test.

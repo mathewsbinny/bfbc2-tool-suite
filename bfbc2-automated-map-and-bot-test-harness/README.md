@@ -127,6 +127,10 @@ targets reached on ONS_MP_002 / 004):
 | ONS_MP_005GR | 105, 9, 10 | spawns: 72 airborne, 15 spawner marker, 5 air vehicle, 3 land vehicle, 3 other map; targets: 8 base, 4 objective marker; orders: 3 airborne | 100 %, 89 % (8 harbour spawn points 17-28 m from a node, one AreaOrder 171 m) | no build |
 | ONS_MP_008 | 51, 29, 41 | spawns: 6 land vehicle, 3 stationary weapon, 3 spawner marker; targets: 3 airborne; orders: 5 airborne | 72 %, 52 % (14 AreaOrders 24-78 m from DICE's console nodes) | no build |
 
+The NavKit column is NavKit's build before route-island pruning. With it (`navislands.SHADOW_ISLANDS`, 2026-10-26;
+NavKit README "Route islands") ONS_MP_004's spawn -> target battery routes 100 % of DICE's pairs (was 67 %);
+ONS_MP_002's stays at 98.0 %.
+
 Level checks (`testharness/levelchecks.py`; Project OPFOR `STOCK_MP_AI_PLAN.md` 6.3 and `MP_APPLICATION_LOG.md`):
 `has-ai` (LevelData.HasAI), `ai-spawners` (PlayerType SSAiPlayer), `ai-templates` (a real AI template - not the
 DefaultSoldier placeholder, whose AI aim and never fire; not null), `templates-loaded` (each template partition,
@@ -138,7 +142,7 @@ level's bundles), `path-data` (infantry path data installed). These read the **g
 date; when it differs from the game copy, the run says so. The points come from the prepared copy (core
 `level.load` without geometry), which `navkit.py prepare <level>` refreshes.
 
-On a stock MP map the level checks show what it still lacks - MP_005 (Port Valdez): HasAI false, 7 AI spawners all
+On a stock MP map the level checks show what it still lacks - MP_005 (Atacama Desert, Conquest): HasAI false, 7 AI spawners all
 with null templates, no AreaOrders, no SectorOffsets asset, no path data. ONS_MP_002 after OPFOR's import passes
 them all (148 AI spawners on the grunt template, its SectorOffsets -3,-7).
 

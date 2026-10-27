@@ -4,7 +4,9 @@ Standalone tooling to create AI navigation data (`pathdata.hpd`) for Battlefield
 levels – including multiplayer maps that never shipped with any – so the game's own AI can move on
 them. Developed for Project OPFOR and published for other modders as `bfbc2-auto-navkit`, the automated
 navigation-data generator of the BFBC2 suite. It measures levels through Project OPFOR's in-game sampler,
-so it needs an OPFOR install, plus the suite's FbrbTool and DbxEdit.
+so it needs an OPFOR install, plus the suite's FbrbTool and DbxEdit. Since 2026-10-26 the same measurements can
+also be computed without the game (`tools\navsample_offline.py`, "Standalone sampling"; not yet part of
+`navkit.py` or the window).
 
 **To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `navkitGUI.pyw` for the window, or
 run `python navkit.py` from a command prompt.
@@ -50,7 +52,11 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
                      (reads the level XML through core's bfbc2core/xmlinst.py: instances and field refs in any
                      attribute order - DICE's tools write guid / ref first, Napisal's type / name first)
   navwalk.py         walkability rules + scoring against existing path data
+  detailed.py        which sectors are detailed zones (pitch 0.2), from the level alone
+  ladders.py         the level's ladders and their collision boxes, for ladder links (written by prepare)
+  sample_all.py      unattended in-game sampling of several levels
   navbuild.py        the generator: samples + level objects -> pathdata.hpd
+  hpdcheck.py        structure of a pathdata.hpd: closed boundaries, edges, node order, D / F (as DICE's files)
   navdetail.py       D lines and F cells of an area (DICE's rule; used by navbuild; tests\test_detail_features.py)
   navislands.py      shadow islands: small route islands beside a larger one lose their nodes (used by navbuild;
                      tests\test_navislands.py; see "Route islands")
@@ -66,9 +72,13 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
   navlinks.py        a side file's links and route edges written into a path-data file's route graph
   navtraversal.py    a side file's traversal annotations (ladders, jumps ...) as <level>.traversal.json
   navvehicle.py      land-vehicle path data (vehicle\pathdata.hpd): build / compare / parity / info (see "Vehicle path data")
+  navwater_mesh.py   boat navigation mesh on a level's water, a side file for OPFOR's bot layer (prototype)
+  navdomains.py      domain graphs and a route planner across foot / land vehicle / boat / aircraft (prototype;
+                     research\CROSS_DOMAIN_ROUTES.md)
   navsample_offline.py  the in-game sampler's output computed from the level's Havok collision and height field, no
                      game launch; the stock MP batch (see "Standalone sampling")
-src\, tests\         (reserved for the generator proper and its tests)
+tests\               NavKit's tests (run by the suite's run_tests.py; the suite README lists them)
+src\                 (reserved, empty)
 ```
 
 ## Standalone sampling (2026-10-26)
@@ -130,7 +140,43 @@ surfaces have no collision within 0.3 m (objects not in the level partition).
 | sp_009 | 99.7 / 0.2 | 99.98 / 2.0 / 100 / 0.5 / 100 / 73.4 | 99.97 / 2.2 / 100 / 0.5 / 100 / 69.5 |
 | sp_004_b | 98.8 / 1.2 | 98.5 / 7.2 / 99.4 / 19.1 / 97.2 / 82.0 | 98.5 / 7.3 / 99.4 / 18.1 / 99.4 / 84.1 |
 
-STOCK_MP_RESULTS
+**The stock MP maps** (`navsample_offline.py stockmp`, 2026-10-26; every level name built on its own - a mode variant
+has its own partition, objects and combat area; output `work\navkit_offline\<level>\pathdata.hpd`, report
+`work\navkit_offline\stockmp.json`; not installed). `hpdcheck`, `hpdtool roundtrip` and `meshtrip` pass on all 20.
+Reachability: the test harness (run `offline_stockmp`, infantry points only; spawns -> capture points / M-COMs):
+
+| Map | Box (combat areas + 50 m) | Offsets | Detailed sectors | MB | Sample / build (s) | Spawns -> targets tested | Pairs reached | Targets reached | Islands (main %) |
+|---|---|---|---|---|---|---|---|---|---|
+| mp_001 | -290,-350 .. 210,380 | -4,-5 | 46 | 11.6 | 421 / 1410 | 68 -> 5 | 98.5 | 100 | 69 (96) |
+| mp_001sr | -180,-260 .. 50,130 | -3,-4 | 44 | 5.7 | 307 / 736 | 16 -> 2 | 100 | 100 | 44 (94) |
+| mp_002 | -160,-550 .. 350,430 | -3,-7 | 35 | 11.7 | 301 / 823 | 111 -> 10 | 100 | 100 | 100 (88) |
+| mp_002sr | -10,-190 .. 240,290 | -2,-3 | 25 | 5.5 | 217 / 442 | 21 -> 2 | 100 | 100 | 42 (67) |
+| mp_003 | -160,-270 .. 200,210 | -3,-4 | 16 | 8.0 | 183 / 749 | 50 -> 5 | 100 | 100 | 50 (78) |
+| mp_004 | -250,-470 .. 170,430 | -4,-6 | 18 | 9.5 | 207 / 685 | 57 -> 6 | 100 | 100 | 64 (97) |
+| mp_004sdm | -180,-40 .. 50,280 | -3,-2 | 16 | 3.8 | 139 / 386 | 19 -> 2 | 94.7 | 100 | 26 (94) |
+| mp_005 | -540,-310 .. 340,580 | -7,-5 | 60 | 13.4 | 515 / 1364 | 41 -> 4 | 87.8 | 75 | 88 (95) |
+| mp_005sr | -310,-80 .. 80,340 | -5,-2 | 58 | 6.9 | 240 / 785 | 23 -> 2 | 100 | 100 | 30 (96) |
+| mp_006 | -370,-220 .. 920,430 | -5,-4 | 56 | 17.8 | 512 / 2496 | 104 -> 10 | 97.1 | 100 | 179 (95) |
+| mp_006cq | -80,-180 .. 420,370 | -2,-3 | 48 | 10.4 | 463 / 1500 | 65 -> 3 | 95.4 | 100 | 86 (95) |
+| mp_006sdm | 20,-40 .. 300,330 | -1,-2 | 45 | 6.0 | 247 / 576 | 30 -> 1 | 96.7 | 100 | 53 (95) |
+| mp_007 | -230,-280 .. 300,30 | -4,-4 | 24 | 6.1 | 238 / 405 | 49 -> 3 | 100 | 100 | 56 (83) |
+| mp_007sdm | -220,-240 .. 140,20 | -4,-4 | 20 | 4.8 | 186 / 309 | 19 -> 1 | 100 | 100 | 39 (80) |
+| mp_008 | -320,-350 .. 390,-30 | -5,-5 | 27 | 9.5 | 246 / 540 | 57 -> 6 | 100 | 100 | 76 (90) |
+| mp_009cq | -140,-80 .. 310,370 | -3,-2 | 37 | 8.7 | 191 / 436 | 50 -> 5 | 100 | 100 | 135 (58) |
+| mp_009gr | -440,-440 .. 310,380 | -6,-6 | 45 | 16.1 | 256 / 856 | 138 -> 10 | 100 | 100 | 218 (68) |
+| mp_009sdm | -100,-30 .. 290,330 | -2,-2 | 31 | 6.2 | 300 / 495 | 18 -> 1 | 100 | 100 | 75 (71) |
+| mp_012gr | -270,-440 .. 320,540 | -4,-6 | 48 | 13.4 | 428 / 1006 | 89 -> 8 | 100 | 100 | 73 (95) |
+| mp_012sr | -190,-150 .. 90,320 | -3,-3 | 36 | 4.8 | 303 / 423 | 25 -> 2 | 100 | 100 | 22 (96) |
+
+Prepare took 25-160 s per map; in all about 5 hours on one process. Open: MP_005's US/RUS base capture point
+"RUS_Base" stands 10 m over walkable ground (60 m from a node within the harness's height tolerance) - a point-height
+question, the ground there is sampled walkable; capture points the harness calls airborne (MP_006CQ 2, MP_007 2, ...)
+are not tested; MP_002SR's spawn -> target battery routes 0 of 42 pairs through the path test while the route graph
+connects all 42 (to look at); the battery's random pairs come from NavKit's own cells on these maps (no DICE file), so
+its low shares on MP_009CQ / GR (36 / 50 %) measure the many small islands (roofs, props), not missing routes.
+**Before a play test:** each map needs a `Precomputed/Infantry/SectorOffsets` asset with the offsets above (OPFOR's
+`apply_sector_offsets.py`; the runtime uses 0,0 without one - the harness's offsets check fails for that reason) and
+the AI layer (`bfbc2-stockmp-ai`: HasAI, AI templates, orders).
 
 **Integration (not done - navkit.py / navbuild.py belong to another worker):** `navkit.py sample --offline` calling
 `navsample_offline.sample_level` (and `all --offline`), `Project.samples08` / `build` looking in
@@ -445,10 +491,14 @@ rule below; AI order coverage on both Onslaught maps 100 %.
   sp_01, a few each); ONS_MP_002's power-line pylons and a cliff top that roof pruning keeps (they stand beside each
   other at one height); the last M-COM target (ONS_MP_002, 0.87 m from walkable ground); lonely nodes and slivers
   (above); D lines and F cells in detailed zones and beside 45-degree cut half cells (generated since 2026-10-26, see
-  above; those two cases do not follow DICE); vehicle path data (spec
-  §2.1); and play tests of the current builds (M-COM arming, ladder links and destroyed houses included).
+  above; those two cases do not follow DICE); vehicle path data (built offline since 2026-10-26, "Vehicle path
+  data" above; its open items there); and play tests of the current builds (M-COM arming, ladder links and
+  destroyed houses included).
 
-## Plan and status (2026-10-23)
+## Plan and status (2026-10-26)
+
+The newest work is in the sections above (2026-10-26): standalone sampling, vehicle path data, route islands, D lines
+and F cells. None of it is play-tested yet. The steps below keep their history.
 
 1. **`.hpd` format – done.** Header, sector table, per-sector graph and runtime mesh fully decoded
    (spec §4); `hpdtool.py` parses every campaign file.
@@ -507,9 +557,9 @@ rule below; AI order coverage on both Onslaught maps 100 %.
    - The pairwise check compares route-network layout; DICE's own network has gaps (spec §3.8), so it
      is a guide, not ground truth. Open leads: sp_008_b (sloped bridge foundation / fence passage DICE leaves
      out), sp_009 (plane aisles narrower than the capsule; DICE connects them), sp_03 / sp_008 (DICE network gaps).
-   - Not generated yet: diagonal border portals, the 20 m midline cuts, vehicle data (spec
-     §2.1). Done since: detailed zones (pitch 0.2, 2026-10-21), ladder links (2026-10-22), D lines and F cells
-     (2026-10-26); the "up" border portals
+   - Not generated yet: diagonal border portals, the 20 m midline cuts. Done since: detailed zones (pitch 0.2,
+     2026-10-21), ladder links (2026-10-22), D lines and F cells (2026-10-26), vehicle data (2026-10-26,
+     `navvehicle.py`, offline - not yet in `navkit.py`); the "up" border portals
      are a quirk of DICE's data, not generated on purpose.
    - Then: MP maps (self-check, no DICE data); later a standalone mode that reads Havok collision
      directly instead of sampling in game - done 2026-10-26 (`navsample_offline.py`, "Standalone sampling"), with
@@ -517,7 +567,9 @@ rule below; AI order coverage on both Onslaught maps 100 %.
 5. **Tooling – done (2026-10-15).** `navkit.py` runs the whole workflow from a level name (unpack, objects,
    automatic sampling box and sector offsets, both in-game sampling runs with `opfor.ini` restored
    afterwards, build, check, install / restore with the original kept); `navkitGUI.pyw` is a small window
-   over it. Stock MP maps wait for MP support: the sampler needs the level's AI running.
+   over it. Stock MP maps wait for MP support: the in-game sampler needs the level's AI running. (2026-10-26: the
+   offline sampler does not - "Standalone sampling" above, its stock MP batch; and `bfbc2-stockmp-ai` gives a stock
+   map the AI layer bots need.)
 6. **DICE parity – the goal from 2026-10-16: 100 % of DICE's content, not identical bytes.**
    - **Measured by content:**
      - `tools\navdiff.py` compares two files layer by layer: sectors, walkable cells, areas,
@@ -628,7 +680,9 @@ rule below; AI order coverage on both Onslaught maps 100 %.
        adopted (it fired on campaign levels; kept as a stash).
      - The in-game samples have a coverage hole south of z ~ -511 on this map (a sampler question).
      - Stock MP maps have no AI layer (HasAI false, one disabled AI spawner, no orders, squads or path data):
-       bots there need an AI layer authored on top, as Napisal did; NavKit's part comes after that.
+       bots there need an AI layer authored on top, as Napisal did; NavKit's part comes after that. (2026-10-26:
+       the suite's `bfbc2-stockmp-ai` authors that layer; built for Atacama Conquest and Valparaiso Rush, not yet
+       played.)
      Details: OPFOR's `MP_APPLICATION_LOG.md`, spec section 4.5.
    - **Since then (2026-10-21 to 10-23):** combat on ONS_MP_002 fixed (OPFOR's Onslaught import); the sampler's
      south "hole" is beyond the PC terrain (the reference is now clipped to it); detailed zones at 0.2 m, chosen
@@ -637,12 +691,16 @@ rule below; AI order coverage on both Onslaught maps 100 %.
      OPFOR's `STOCK_MP_AI_PLAN.md`. 2026-10-23 / 24: closed area boundaries (`BRIDGE_UNION`), the objective floor
      rule (all 14 M-COM targets on an area, AI coverage on the two maps 100 / 100; the floor is the sampled layer
      nearest the target with enough hits, so a slab over the terrain and stray hits on the object's sides do not
-     mislead it), and what D and F are for at run time (spec §4.5).
-   - **Next:** a play test on Atacama (ONS_MP_002) with the current build (bots reaching and arming M-COMs; a
-     destroyed house's floors; ladders; corner cutting and steps, where D / F would show), then the open items above
-     (spawns on small islands first), a play test of the D lines and F cells (above), vehicle path data (a vehicle profile, spec §2.1). Later,
-     with OPFOR's bot layer: breach links for walls opened by destruction. The 20 m midline cuts are parity only
-     (conditional, one axis; not what broke the sp_004_b routes).
+     mislead it), and what D and F are for at run time (spec §4.5). 2026-10-26: D lines and F cells generated
+     (`regression_df_v1`, the new reference), route-island pruning (`SHADOW_ISLANDS`: ONS_MP_004 109 -> 41 islands,
+     spawn -> target routes 67 -> 100 % of DICE's), vehicle path data (`navvehicle.py`), boat meshes and routes across
+     domains (prototypes), the offline sampler; the suite's test harness measures path-data files against DICE's.
+   - **Next:** a play test on ONS_MP_002 (Valparaiso) with the current build (bots reaching and arming M-COMs; a
+     destroyed house's floors; ladders; corner cutting and steps, where D / F now show; route islands), then the open
+     items above (spawns on small islands first), a play test of a NavKit vehicle file ("Vehicle path data"), and
+     wiring the offline sampler and the vehicle build into `navkit.py`. Later, with OPFOR's bot layer: breach links
+     for walls opened by destruction. The 20 m midline cuts are parity only (conditional, one axis; not what broke
+     the sp_004_b routes).
    - **Accepted limits:** hand edits, and geometry that differs from the shipped game.
 
 Credits: level data is read with the suite's FbrbTool and DbxEdit, based on **Frankelstner**'s format

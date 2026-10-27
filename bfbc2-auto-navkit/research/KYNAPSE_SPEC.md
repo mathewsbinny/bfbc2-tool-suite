@@ -9,7 +9,10 @@ in-game collision samples taken through the engine's own physics queries. Status
 format complete (§4, byte-exact rewrite); builder stages described (§3.1–3.2); walkability rules
 measured against DICE's data (§3.3–3.7 – the sections record the investigation in order, §3.7 holds
 the current rules and results); mesh/graph generation rules (outlines, areas, portals, graph) still
-to be implemented and checked.
+to be implemented and checked. **Status 2026-10-26:** the generator (`tools\navbuild.py`) implements the rules
+recorded here on all 15 levels with DICE path data (parity in `..\README.md`); D lines and F cells (§4.5) and the
+vehicle file (§2.2) are generated; what the runtime needs from the file is in §4.5. The sections keep the order
+in which things were found.
 
 ## 1. Where the data is used
 

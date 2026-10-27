@@ -18,6 +18,9 @@ share one core: level loading, a 3D view, picking and the game's data formats.
      options; their output appears at the bottom.
    - **More tools:** DbxEditGUI and NavKit's window.
 
+   The test harness, the menu tools and the stock-MP AI tool have no tab yet: run them from a command prompt
+   (their READMEs).
+
 The 3D tools can also be started on their own: double-click `bfbc2-map-inspector\inspector.py` or
 `bfbc2-navigation-studio\studio.py` and a level picker opens, or give the level on the command line
 (`python studio.py sp_01`). On a laptop with two GPUs, see "The 3D tools and your GPU" below.
@@ -50,18 +53,18 @@ log file.
 | `bfbc2-menu-tools/` | **menu tools**: `aptcheck.py` checks menu patches against the rules that crash the menu loader (OPFOR's `src\menus\*.patch` too); `aptrefs.py` cross-references the externs, FSCommands and engine events of every menu and HUD movie with the exe's name / id table; `bc2loc.py` looks up and searches the localized texts |
 | `core/` | the shared core: Python readers for `.dbx`, `.fbrb` bundles (read only), terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking |
 | `bfbc2-map-inspector/` | **Map Inspector**: browse a level in 3D and inspect every object's source, properties and links; measure |
-| `bfbc2-navigation-studio/` | **Navigation Studio** (viewing): NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network; a reference level's AI layer drawn on another level (`--compare`) and an anomaly overlay of NavKit builds, both with JSON export (`overlay.py`) |
+| `bfbc2-navigation-studio/` | **Navigation Studio**: NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network; the path test; edit mode (walkable / unwalkable regions, seeds, links, route edges, traversals) into a side file, built with `navkit apply` and installed; a reference level's AI layer drawn on another level (`--compare`) and an anomaly overlay of NavKit builds, both with JSON export (`overlay.py`) |
 | `bfbc2-stockmp-ai/` | **stock-MP AI layer**: gives a stock multiplayer level AI spawners, AI orders and their event wiring (HasAI, PathfindingTypes, SectorOffsets, AI template), proposed from the level's own objectives and spawns, built into its bundles and checked offline (`stockmp.py`) |
 
 **Planned** (see [DESIGN.md](DESIGN.md))
 
 | Folder | Tool | Milestone |
 |---|---|---|
-| `bfbc2-navigation-studio/` | editing, the path test and side files for the AI's navigation data | M4 |
+| `bfbc2-navigation-studio/` | M4 step 7: an in-game check that the game's AI uses a hand-made link (steps 1-6 - path test, editing, side files, `navkit apply`, install - are done) | M4 |
 | `bfbc2-automated-map-and-bot-test-harness/` | in-game tests: `testrun.bat` per level (on hold - needs playtest), bot traversal, stuck detection, squads and vehicles from OPFOR's telemetry | M6, then growing |
 | `bfbc2-bot-ai-debugger/` | live view of the AI while the game runs (through Project OPFOR) | M6 |
 | `bfbc2-tactical-map-authoring-tool/` | tactical annotations above the navigation data for bots | M7 |
-| `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs | alongside |
+| `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs (LevelDiff, in `level-diff/`, is ready) | alongside |
 | `bfbc2-ai-behavior-simulator/` | runs OPFOR's bot decision code on simplified maps, without the game | with Goal 3 |
 
 The asset builder & validator, `bfbc2-asset-builder`, is part of the Project OPFOR repository (DESIGN.md
@@ -123,6 +126,7 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 | `bfbc2-auto-navkit/tests/test_objective_floor.py` | quick | NavKit's objective floors (M-COMs): an AI order position on a forbidden box keeps the floor under and around it, joined to the ground, also when the box's bottom face lies on the ground; the box top stays forbidden; an order position away from forbidden objects changes nothing; the rule off |
 | `bfbc2-auto-navkit/tests/test_bridge_union.py` | quick | NavKit's 45-degree bridges on 600 random cell patterns: every area boundary closed (the old clipping left open ends on about 100 of them); a lone bridge's two diagonals and covered sides |
 | `bfbc2-auto-navkit/tests/test_detail_features.py` | quick | NavKit's D lines and F cells (`navdetail.py`) on synthetic areas: none on flat ground; facing D pairs at a raised cell (owner on the right, its heights); an F pair (-x then +x, DICE's start corners and -0.0 directions, heights from each side) at a cell stepped into and out of; 45-degree bridges between diagonal F cells; 300 random areas (D sides pair up, F polygons closed and covering exactly the F cells); kymesh round trip; outline sides moved only in pairs (`navbuild.detail_pass`); route lines do not step across a D side (`navbuild.line_walkable`) |
+| `bfbc2-auto-navkit/tests/test_navislands.py` | quick | NavKit's route-island pruning (`navislands.py`, `SHADOW_ISLANDS`) on route graphs built in the test: a small island next to a large one loses its edges and nodes; one with a spawn or AI order on its floor, one far away or far above, and a large one stay; border ids join sectors; a pocket on terrain stays with `SHADOW_OBJECTS_ONLY`; the rule off |
 | `bfbc2-auto-navkit/tests/test_havok_index.py` | quick | NavKit's collision index: `<name>_Havok.res` and `<name>_Havok_Havok.res` packfiles found under the blueprint's name |
 | `bfbc2-auto-navkit/tests/test_navsample_offline.py` | quick | NavKit's offline sampler on geometry built in the test: the in-game cast loop (layers, the 0.1 m gap, thin solids stepped through, nothing under the terrain, solid convex pieces, two-sided meshes, edge contacts), the capsule test (walls, ceilings, steep terrain; capsule-triangle intervals against brute force), the version-3 file read back, navsample.cpp's grid alignment, destroyed-state parts |
 | `bfbc2-auto-navkit/tools/hpdcheck.py` | game (DICE's files); every regression build | the structure of a path-data file: closed area boundaries, edges, node order, no zero-length edges - all hold on DICE's files; `navregress.py` fails a level whose build breaks one |
