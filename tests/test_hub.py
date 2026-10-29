@@ -1,7 +1,7 @@
 r"""The suite's window (BFBC2 Tool Suite.pyw) driven as clicks would drive it: it opens with its 7 tabs and the
 game copy's levels; FbrbTool lists a bundle, LevelDiff compares a level with itself, the crash reader reads a
 report built here, the test runner lists a tier - each through its tab's button, its output in the pane; and
-the 3D tools' level picker lists the levels. Needs a display and Project OPFOR's game copy.
+the 3D tools' level picker lists the levels. Needs a display and Project OPFOR BFBC2's game copy.
 
   python tests\test_hub.py [--shots <folder>]       --shots: a screenshot of every tab (for a look)
 """

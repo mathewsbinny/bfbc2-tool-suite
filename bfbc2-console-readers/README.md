@@ -39,5 +39,5 @@ they print the cause, what to do and the log's path (exit code 1). Tests: `tests
 
 Format notes are in each script's header (STFS follows the public Free60 documentation).
 
-Developed for Project OPFOR. Xbox is a trademark of Microsoft; Battlefield: Bad Company 2 is
+Developed for Project OPFOR BFBC2. Xbox is a trademark of Microsoft; Battlefield: Bad Company 2 is
 © Electronic Arts / DICE.

@@ -292,7 +292,7 @@ def runs_folder(args):
     try:
         return runs.runs_dir(opfor(opt(args, '--opfor')))
     except Exception:
-        return os.getcwd()            # paths to .json files still work without Project OPFOR
+        return os.getcwd()            # paths to .json files still work without Project OPFOR BFBC2
 
 
 def cmd_show(args):
@@ -357,7 +357,7 @@ def cmd_ingame(args):
     print(f'In-game tests of {lv}: ON HOLD - needs playtest. The harness does not start the game.')
     print('Planned (ingame.py): testrun.bat per level with [dev] unit_counters_dump=1, then the session imported;')
     print('until then run it yourself and import the log:')
-    print(f'  testrun.bat {lv}            (Project OPFOR; or play the level)')
+    print(f'  testrun.bat {lv}            (Project OPFOR BFBC2; or play the level)')
     print(f'  harness.py import-log <run> --level {lv}')
     for name, what in levelchecks.INGAME:
         print(f'  hold {name:16s} {what}')

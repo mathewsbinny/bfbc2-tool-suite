@@ -3,7 +3,7 @@
 Interoperability specification written from reverse engineering (see `..\README.md` for the
 clean-room rules). Sources: the user's own game files (`Output\win32\ai\levels\<level>\{infantry,
 vehicle}\pathdata.hpd`, 25 campaign files; byte-identical on Xbox 360), Napisal's MP files, and the
-behaviour of the generator code in BFBC2Game.exe build 795745 (Project OPFOR
+behaviour of the generator code in BFBC2Game.exe build 795745 (Project OPFOR BFBC2
 `research\BFBC2_DECOMP_RESEARCH.md` §9), observed only at its boundary with DICE's engine code, plus
 in-game collision samples taken through the engine's own physics queries. Status 2026-10-14: file
 format complete (§4, byte-exact rewrite); builder stages described (§3.1–3.2); walkability rules
@@ -132,7 +132,7 @@ there.
 ## 3. Build pipeline – behaviour of the original generator
 
 Behavioural description for a re-implementation. Sources: the stage names, settings and engine
-callbacks seen in BFBC2Game.exe (Project OPFOR `research\BFBC2_DECOMP_RESEARCH.md` §9), the partial
+callbacks seen in BFBC2Game.exe (Project OPFOR BFBC2 `research\BFBC2_DECOMP_RESEARCH.md` §9), the partial
 run of the original tool on SP_009 (stages 1–2 completed), and rules measured on the output (all
 campaign files; "measured" = verified statistically, "inferred" = consistent with the data but not
 proven).
@@ -660,7 +660,7 @@ by that many u32 offsets at +0x10.
     exceptions have early lines with no low neighbour. (`navbuild.EDGE_SECTOR_TILES`: validated on DICE's data,
     no measured benefit yet - NavKit's extra sectors outside DICE's generation bounds give most edge sectors a
     low neighbour, so the rule rarely applies until those bounds are reproduced.)
-  - **What the game requires of a found path (observed at runtime, 2026-10-19; Project OPFOR's probes and a short
+  - **What the game requires of a found path (observed at runtime, 2026-10-19; Project OPFOR BFBC2's probes and a short
     disassembly of the caller - diagnosis only, see DESIGN.md):** the soldier's path request returns true or false;
     on true, the caller records whether the path is empty, ends exactly on the requested destination (x, y and z
     compared for equality, no tolerance) or ends elsewhere; an empty path is not followed, a path ending elsewhere

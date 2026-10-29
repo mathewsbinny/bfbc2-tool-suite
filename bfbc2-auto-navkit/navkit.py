@@ -25,10 +25,10 @@
 Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: override the sampling box),
          --pitch 0.8 / 0.2 (sample: that pass only; 0.2 = a detailed-zone run over the level's detailed sectors;
          writes <level>_navkit_p02.bin / _hi_p02.bin, the level's settings and its 0.8 m samples untouched),
-         --opfor <Project OPFOR folder> (default: OPFOR_ROOT, else "Project OPFOR" next to the toolkit),
+         --opfor <Project OPFOR BFBC2 folder> (default: OPFOR_ROOT, else "project-opfor-bfbc2" next to the suite),
          --no-detail (build / apply / all: no D lines or F cells - navbuild.DETAIL_FEATURES off).
 
-NavKit works on Project OPFOR's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
+NavKit works on Project OPFOR BFBC2's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
 toolkit (..\\bfbc2-fbrb-tool, ..\\bfbc2-dbx-tools, built with their build.bat) or from OPFOR's tools\\ folder.
 
 Files (in the OPFOR folder): work\\levels\\<level>\\ (unpacked level, objects), work\\navkit\\<level>\\
@@ -62,18 +62,18 @@ class NavKitError(Exception):
 
 
 def find_opfor(given=None):
-    """The Project OPFOR folder: --opfor, else OPFOR_ROOT, else a "Project OPFOR" folder next to one of the folders
-    this tool sits in (e.g. next to the toolkit that holds the suite)."""
+    """The Project OPFOR BFBC2 folder: --opfor, else OPFOR_ROOT, else a "project-opfor-bfbc2" folder next to one of the folders
+    this tool sits in (e.g. next to the suite)."""
     up = []
     d = HERE
     while os.path.dirname(d) != d:
         d = os.path.dirname(d)
-        up.append(os.path.join(d, 'Project OPFOR'))
+        up.append(os.path.join(d, 'project-opfor-bfbc2'))
     candidates = [given, os.environ.get('OPFOR_ROOT')] + up
     for c in candidates:
         if c and os.path.isdir(os.path.join(c, 'game')):
             return os.path.abspath(c)
-    raise NavKitError('Project OPFOR not found - pass --opfor <folder> or set OPFOR_ROOT '
+    raise NavKitError('Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT '
                       f'(looked for a game\\ folder in: {", ".join(c for c in candidates if c)})')
 
 
@@ -469,7 +469,7 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
     result = ''
     try:
         open(pr.ini, 'wb').write(t.encode('utf-8'))
-        subprocess.Popen([os.path.join(pr.root, 'OPFOR.exe')], cwd=pr.root)
+        subprocess.Popen([os.path.join(pr.root, 'OPFOR BFBC2.exe')], cwd=pr.root)
         t0 = time.time()
         last = ''
         time.sleep(15)

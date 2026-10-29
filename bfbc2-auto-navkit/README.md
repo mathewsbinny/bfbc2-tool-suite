@@ -2,8 +2,8 @@
 
 Standalone tooling to create AI navigation data (`pathdata.hpd`) for Battlefield: Bad Company 2
 levels – including multiplayer maps that never shipped with any – so the game's own AI can move on
-them. Developed for Project OPFOR and published for other modders as `bfbc2-auto-navkit`, the automated
-navigation-data generator of the BFBC2 suite. It measures levels through Project OPFOR's in-game sampler,
+them. Developed for Project OPFOR BFBC2 and published for other modders as `bfbc2-auto-navkit`, the automated
+navigation-data generator of the BFBC2 suite. It measures levels through Project OPFOR BFBC2's in-game sampler,
 so it needs an OPFOR install, plus the suite's FbrbTool and DbxEdit. Since 2026-10-26 the same measurements can
 also be computed without the game (`tools\navsample_offline.py`, "Standalone sampling"; not yet part of
 `navkit.py` or the window).
@@ -531,7 +531,7 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
      2026-10-19, same launch as DICE's file, only the `.hpd` differing): the file loads, the pathfinder
      finds paths (394 of 400 requests), but **the friendly squad does not follow them**, where with DICE's
      file it does. After a found path the game checks whether its last point equals the requested destination
-     exactly, and further checks decide whether it is followed (`DEVELOPMENT_NOTES.md` in Project OPFOR);
+     exactly, and further checks decide whether it is followed (`DEVELOPMENT_NOTES.md` in Project OPFOR BFBC2);
      measuring how NavKit's paths end, and which check they fail, is the next step. Leaving the level with NavKit's file also crashes at shutdown (a Kynapse block released after its memory manager was
      destroyed; not with DICE's file) - a separate open bug.
    - Accuracy against DICE's files (`ordercheck.py`: AI order / patrol positions on the areas, and the

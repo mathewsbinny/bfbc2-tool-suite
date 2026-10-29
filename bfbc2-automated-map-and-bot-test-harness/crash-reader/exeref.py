@@ -9,7 +9,7 @@ r"""exeref.py - where BFBC2Game.exe uses a string or an address, with a short di
   python exeref.py dis <address> [--before 0x20] [--after 0x40]
         a short window of code around an address (at most 0x100 bytes each way), the instruction at it marked;
         strings and known functions named
-Options: --exe <BFBC2Game.exe> (default: Project OPFOR's game copy, as the crash reader finds it), --symbols <file>
+Options: --exe <BFBC2Game.exe> (default: Project OPFOR BFBC2's game copy, as the crash reader finds it), --symbols <file>
 (more names, the crash reader's format; symbols_795745.txt is always read).
 
 For targeted questions ("which code reads this setting name", "who calls this function") - the suite's rule is short,

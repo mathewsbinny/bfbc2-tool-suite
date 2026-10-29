@@ -1,5 +1,5 @@
 """A small level picker for the suite's 3D tools, shown when they are started without a level (a double-click,
-or `python studio.py` alone): the levels of Project OPFOR's game copy, double-click or OK to open one.
+or `python studio.py` alone): the levels of Project OPFOR BFBC2's game copy, double-click or OK to open one.
 
     lv = pick_level('BFBC2 Navigation Studio')      # the level name, or None when cancelled
 """
@@ -37,7 +37,7 @@ def pick_level(title):
     try:
         items = levels()
     except Exception as e:
-        messagebox.showerror(title, f'No game copy found: {e}\nPut the suite next to the "Project OPFOR" folder, '
+        messagebox.showerror(title, f'No game copy found: {e}\nPut the suite next to the "project-opfor-bfbc2" folder, '
                                     f'or set OPFOR_ROOT.')
         root.destroy()
         return None

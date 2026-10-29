@@ -20,7 +20,7 @@ Quick (no game data; navigation data, levels, bundles and logs built in the test
     1.0, a test now failing and one fixed, counts, missing and new, battery pairs lost; the report;
   - the command line: compare (exit 1 on a regression, 0 without), show, list, import-log, ingame (on hold, starts
     nothing), an error explained with its log.
-Game (--game, Project OPFOR's game copy; outputs to a temporary folder): the reader against FbrbTool on a level bundle;
+Game (--game, Project OPFOR BFBC2's game copy; outputs to a temporary folder): the reader against FbrbTool on a level bundle;
 a run on sp_009 and sp_004_b (DICE's files pass the structure and offset checks; the level checks pass; points, pair
 data and parity are there); the same run again compares with no regression; a damaged copy of sp_009's path data
 (half its sectors without route edges) is flagged as a regression; the user's opfor.log is read (read only).

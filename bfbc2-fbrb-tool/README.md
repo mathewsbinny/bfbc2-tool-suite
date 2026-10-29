@@ -35,4 +35,4 @@ a read-only folder - what to do, and where the details are; exit code 1.
 ## Credits
 
 The format follows **Frankelstner**'s fbrb script and **Heico**'s BFBC2 Toolkit. Developed for
-Project OPFOR. Battlefield: Bad Company 2 is © Electronic Arts / DICE.
+Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

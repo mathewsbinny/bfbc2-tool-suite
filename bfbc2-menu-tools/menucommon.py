@@ -1,4 +1,4 @@
-r"""Shared helpers of the menu tools: finding Project OPFOR's game copy, reading menu movies from files or straight from
+r"""Shared helpers of the menu tools: finding Project OPFOR BFBC2's game copy, reading menu movies from files or straight from
 the game's bundles (read only), and OPFOR's menu patch format.
 
 Movie names on the command line:
@@ -35,17 +35,17 @@ class MenuToolError(Exception):
 
 
 def find_opfor(given=None):
-    """The Project OPFOR folder: given, else OPFOR_ROOT, else a "Project OPFOR" folder next to one of the folders
+    """The Project OPFOR BFBC2 folder: given, else OPFOR_ROOT, else a "project-opfor-bfbc2" folder next to one of the folders
     this tool sits in."""
     candidates = [given, os.environ.get('OPFOR_ROOT')]
     d = HERE
     while os.path.dirname(d) != d:
         d = os.path.dirname(d)
-        candidates.append(os.path.join(d, 'Project OPFOR'))
+        candidates.append(os.path.join(d, 'project-opfor-bfbc2'))
     for c in candidates:
         if c and os.path.isdir(os.path.join(c, 'game')):
             return os.path.abspath(c)
-    raise MenuToolError('Project OPFOR not found - pass --opfor <folder> or set OPFOR_ROOT')
+    raise MenuToolError('Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT')
 
 
 def out_dir(root):

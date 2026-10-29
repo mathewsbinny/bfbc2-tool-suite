@@ -19,14 +19,14 @@ Python 3.10 or newer (numpy is not needed). Movies are named the same way in all
 | `pristine:main_nav` | OPFOR's pristine copy of the main menu bundle (`original\Package\menu\main\mainmenu-00.fbrb`, kept by `build_menus.bat`): before OPFOR's patches |
 | `<bundle.fbrb>:main_nav` | any bundle |
 
-Project OPFOR's folder is found as the other tools find it (`--opfor`, `OPFOR_ROOT`, or a `Project OPFOR` folder next
+Project OPFOR BFBC2's folder is found as the other tools find it (`--opfor`, `OPFOR_ROOT`, or a `project-opfor-bfbc2` folder next
 to the toolkit). Outputs made from game data go to `<OPFOR>\work\tools_out\`.
 
 ## aptcheck.py - menu patch checks
 
 ```
-python aptcheck.py lint "C:\Games\Project OPFOR\src\menus\*.patch" --installed --brief
-python aptcheck.py verify pristine:main_nav main_nav --patch "C:\Games\Project OPFOR\src\menus\main_nav.patch"
+python aptcheck.py lint "C:\Programming\Projects\project-opfor-bfbc2\src\menus\*.patch" --installed --brief
+python aptcheck.py verify pristine:main_nav main_nav --patch "C:\Programming\Projects\project-opfor-bfbc2\src\menus\main_nav.patch"
 python aptcheck.py check main_root
 ```
 
@@ -101,4 +101,4 @@ exe's strings and the movies' constants (about 840 of the 7,077 English entries)
 `--game`, OPFOR's patch files, every movie of the game copy, the exe's table and getter cases, known events, and the
 English, Russian and Japanese texts (game tier).
 
-Developed for Project OPFOR. Battlefield: Bad Company 2 is © Electronic Arts / DICE.
+Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

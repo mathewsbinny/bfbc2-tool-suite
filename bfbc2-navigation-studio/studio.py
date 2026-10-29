@@ -5,7 +5,7 @@
   python studio.py <level> --compare <source>      a reference level's AI layer on this level (overlay.py; sources
                                                      level:<lv>, xbox:<lv> or a level .xml); works without path data
 
-Defaults: the reference is DICE's path data in Project OPFOR's game copy; the candidate is NavKit's newest
+Defaults: the reference is DICE's path data in Project OPFOR BFBC2's game copy; the candidate is NavKit's newest
 build of the level (the newest of work\\navkit\\<level>\\pathdata.hpd, work\\navkit\\regress\\<level>.hpd and
 work\\navbuild\\<level>_W.hpd). Either may be missing.
 

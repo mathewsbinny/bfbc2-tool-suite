@@ -1,4 +1,4 @@
-r"""exeref.py on a program built here (quick), and with --game on Project OPFOR's BFBC2Game.exe:
+r"""exeref.py on a program built here (quick), and with --game on Project OPFOR BFBC2's BFBC2Game.exe:
 
 - a string found (part of it, any case; or whole with --exact), the instruction that pushes its address, in which
   function (named from a symbols file); a function's callers (call rel32); an address held in data (a table);

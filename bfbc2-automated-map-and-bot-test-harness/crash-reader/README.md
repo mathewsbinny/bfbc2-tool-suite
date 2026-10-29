@@ -10,7 +10,7 @@ addresses and the CPU registers. This tool turns that into something you can act
   stack that aren't code addresses are marked.
 - **hints for known crashes**, for example a level with an empty entry in its object list:
   "run `DbxEdit check`";
-- **the log lines just before the crash**, if you use Project OPFOR.
+- **the log lines just before the crash**, if you use Project OPFOR BFBC2.
 
 It only reads the report and the exe; nothing is sent anywhere.
 
@@ -29,7 +29,7 @@ python crashreader.py --symbols my_names.txt  add your own function names and hi
 python crashreader.py --log path\to\opfor.log
 ```
 
-It finds `BFBC2Game.exe` in Project OPFOR's game copy (`OPFOR_ROOT`, or a `Project OPFOR` folder next to one of
+It finds `BFBC2Game.exe` in Project OPFOR BFBC2's game copy (`OPFOR_ROOT`, or a `project-opfor-bfbc2` folder next to one of
 the folders it sits in).
 Otherwise give it with `--exe`.
 
@@ -67,7 +67,7 @@ Test: `tests\test_exeref.py` (a program built in the test; with `--game`, known 
 
 ## Names and hints
 
-`symbols_795745.txt` lists functions and crash sites in the PC game, build 795745, that Project OPFOR's
+`symbols_795745.txt` lists functions and crash sites in the PC game, build 795745, that Project OPFOR BFBC2's
 research identified. Format, one per line:
 
 ```
@@ -80,5 +80,5 @@ with `--symbols`. Contributions to the bundled list are welcome.
 
 ## Credits
 
-Developed for Project OPFOR. Disassembly by [Capstone](https://www.capstone-engine.org/); exe reading by
+Developed for Project OPFOR BFBC2. Disassembly by [Capstone](https://www.capstone-engine.org/); exe reading by
 [pefile](https://github.com/erocarrera/pefile). Battlefield: Bad Company 2 is © Electronic Arts / DICE.

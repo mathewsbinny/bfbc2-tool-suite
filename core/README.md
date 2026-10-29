@@ -22,7 +22,7 @@ that the 3D tools are built on. Python 3.10+ with `numpy`; the view also needs `
 ```python
 import sys; sys.path.insert(0, r'<suite>\core')
 from bfbc2core import level
-lvl = level.load('mp_005')                    # from Project OPFOR's game copy (found next to the suite)
+lvl = level.load('mp_005')                    # from Project OPFOR BFBC2's game copy (found next to the suite)
 flags = [e for e in lvl.entities if e.category == 'capture point']
 lvl.heightfield.height(-111.0, 163.3)         # terrain height there
 ```

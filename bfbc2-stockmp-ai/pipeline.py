@@ -1,7 +1,7 @@
 """Sources, build and packaging of a stock level's AI layer.
 
 Inputs, all read from the user's own installs (nothing is shipped):
-- the level's level-00 bundles from Project OPFOR's game copy (Dist and Package), unpacked into the work folder;
+- the level's level-00 bundles from Project OPFOR BFBC2's game copy (Dist and Package), unpacked into the work folder;
 - the donor level (DICE's SP_004_B: AreaOrder / AreaTrigger layouts, the SectorOffsets asset layout);
 - sp_common (the AI template chain to pack) and mp_common (kits, PathfindingSettings - only read for checks);
 - the path data named in the configuration (DICE's file where one exists for the world, else a NavKit build).

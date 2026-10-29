@@ -4,7 +4,7 @@ r"""Tests of the stock-MP AI authoring tool.
                                          number kinds, authoring a Conquest and a Rush layer, the configuration
                                          checks, the SectorOffsets asset, install / revert on a fake game folder,
                                          and DbxEdit's check and round trip on the written files
-  python tests\test_stockmp.py --game    + Project OPFOR's game copy: the DBX writer on every file of Atacama's
+  python tests\test_stockmp.py --game    + Project OPFOR BFBC2's game copy: the DBX writer on every file of Atacama's
                                          level bundles, then generate / build / validate Atacama Conquest (MP_005)
                                          in a temporary work folder, twice (the builds must be identical)
 """

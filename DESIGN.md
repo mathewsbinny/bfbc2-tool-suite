@@ -1,6 +1,6 @@
 # BFBC2 Tool Suite: design
 
-Eight tools for building and debugging AI on Battlefield: Bad Company 2 maps, plus Project OPFOR's asset
+Eight tools for building and debugging AI on Battlefield: Bad Company 2 maps, plus Project OPFOR BFBC2's asset
 builder. They share one core: level loading, a 3D view, picking and the game's data formats.
 
 - **Modes of the 3D view:** the inspector, the navigation studio, the tactical authoring tool and the bot
@@ -18,21 +18,21 @@ statuses in sections 3.1, 4.2 and 7).
 | Tool | For | In short |
 |---|---|---|
 | **bfbc2-map-inspector** | any BC2 modder | Browse a level in 3D: geometry, collision, spawns, objectives, destructibles, every placed entity. Click anything to see where it comes from and its properties. |
-| **bfbc2-navigation-studio** | any BC2 modder, Project OPFOR | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
-| **bfbc2-tactical-map-authoring-tool** | Project OPFOR bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
-| **bfbc2-bot-ai-debugger** | Project OPFOR bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
-| **bfbc2-automated-map-and-bot-test-harness** | Project OPFOR | Repeatable scenarios across maps, with results saved per build so changes can be compared: reachability, path tests, bot traversal, stuck detection, squad coordination, vehicle use. |
+| **bfbc2-navigation-studio** | any BC2 modder, Project OPFOR BFBC2 | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
+| **bfbc2-tactical-map-authoring-tool** | Project OPFOR BFBC2 bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
+| **bfbc2-bot-ai-debugger** | Project OPFOR BFBC2 bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
+| **bfbc2-automated-map-and-bot-test-harness** | Project OPFOR BFBC2 | Repeatable scenarios across maps, with results saved per build so changes can be compared: reachability, path tests, bot traversal, stuck detection, squad coordination, vehicle use. |
 | **bfbc2-asset-pipeline** (in the core) | any BC2 modder | Batch extraction into common formats: geometry and collision to OBJ/glTF, entities and transforms, spawns and objectives to JSON, textures and materials later, dependency reports. It is the same readers the viewer uses. |
 | **bfbc2-diff-workbench** | research | Binary and asset diffing: ImHex pattern files for BC2 formats, plus a report of which structures are understood and what changed, with reproducible extraction logs and hashes. |
-| **bfbc2-ai-behavior-simulator** | Project OPFOR bots | Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls, physics or animation. |
-| **bfbc2-asset-builder** (asset builder & validator, in the OPFOR repo) | Project OPFOR | Turns editor outputs into versioned runtime packages for the standalone client, with schema and dependency checks and a report of missing or incompatible data. |
+| **bfbc2-ai-behavior-simulator** | Project OPFOR BFBC2 bots | Runs OPFOR's bot decision code (behaviour trees or state machines, threat scoring, squad orders, objective priorities) on simplified maps, without the game. It finds logic flaws cheaply, though not problems with controls, physics or animation. |
+| **bfbc2-asset-builder** (asset builder & validator, in the OPFOR repo) | Project OPFOR BFBC2 | Turns editor outputs into versioned runtime packages for the standalone client, with schema and dependency checks and a report of missing or incompatible data. |
 
 Added beside these eight (2026-10-26, both built; their READMEs):
 
 | Tool | For | In short |
 |---|---|---|
-| **bfbc2-stockmp-ai** | any BC2 modder, Project OPFOR bots | Gives a stock MP level an AI layer (AI spawners, AI orders, event wiring, HasAI, PathfindingTypes, SectorOffsets, AI template) as level data, built into its bundles and checked offline. Not the tactical authoring tool: it writes game data, not annotation side files. |
-| **bfbc2-menu-tools** | any BC2 modder, Project OPFOR | `aptcheck` (menu patches against the rules that crash the menu loader), `aptrefs` (externs, FSCommands and engine events of every movie, with the exe's name / id table), `bc2loc` (localized texts). |
+| **bfbc2-stockmp-ai** | any BC2 modder, Project OPFOR BFBC2 bots | Gives a stock MP level an AI layer (AI spawners, AI orders, event wiring, HasAI, PathfindingTypes, SectorOffsets, AI template) as level data, built into its bundles and checked offline. Not the tactical authoring tool: it writes game data, not annotation side files. |
+| **bfbc2-menu-tools** | any BC2 modder, Project OPFOR BFBC2 | `aptcheck` (menu patches against the rules that crash the menu loader), `aptrefs` (externs, FSCommands and engine events of every movie, with the exe's name / id table), `bc2loc` (localized texts). |
 
 ## 2. Rules
 
@@ -67,7 +67,7 @@ Added beside these eight (2026-10-26, both built; their READMEs):
 | crash reader | `bfbc2-automated-map-and-bot-test-harness/crash-reader` | in-game test failures |
 | console readers | `bfbc2-console-readers` | Xbox 360 sources |
 | NavKit: `navkit.py`, `navkitGUI.pyw`, generator, `navdiff`, `navparity`, `navcompare`, `ordercheck` | `bfbc2-auto-navkit` | navigation data, and the parity numbers (baseline A) the studio's difference view shows |
-| `testrun.bat` | Project OPFOR | starting a level in the game and reporting the outcome |
+| `testrun.bat` | Project OPFOR BFBC2 | starting a level in the game and reporting the outcome |
 
 ### 3.1 Data layer
 
@@ -225,7 +225,7 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
   against the level's SectorOffsets asset), `parity` (navparity's measures, taken from saved navparity / navregress
   runs or measured and cached, judged by `navregress.compare`), `level` (AI readiness from the game copy's
   bundles: HasAI, AI spawners, real templates, templates and their partitions in the load set, kits, AreaOrders,
-  the SectorOffsets asset, installed path data - Project OPFOR's validation criteria, `STOCK_MP_AI_PLAN.md` 6.3).
+  the SectorOffsets asset, installed path data - Project OPFOR BFBC2's validation criteria, `STOCK_MP_AI_PLAN.md` 6.3).
 - **Comparison:** `harness.py compare <base> <new>` per level, file key, test and metric, each metric with a
   direction (higher / lower / closer to 1.0 better, or a count) and a tolerance; worse beyond it, or a test that
   starts failing, is a regression (exit code 1). The format is section 5.5.
@@ -274,7 +274,7 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
   runs faster than real time; results into the test harness.
 - **Out of scope:** controls, physics, animation, weapon ballistics. Those stay with in-game tests.
 
-### 4.9 bfbc2-asset-builder: asset builder & validator (in the Project OPFOR repo)
+### 4.9 bfbc2-asset-builder: asset builder & validator (in the Project OPFOR BFBC2 repo)
 
 - **Inputs:** NavKit output and side files, tactical annotations, level ports and recipes (such as the
   console Onslaught builds), menu patches.

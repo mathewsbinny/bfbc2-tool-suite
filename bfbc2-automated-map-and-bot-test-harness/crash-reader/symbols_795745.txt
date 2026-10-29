@@ -1,4 +1,4 @@
-# Known functions and crash sites in BFBC2Game.exe, PC build 795745 (Project OPFOR research).
+# Known functions and crash sites in BFBC2Game.exe, PC build 795745 (Project OPFOR BFBC2 research).
 # One per line:  ADDRESS  name  [| hint shown when a crash happens there or in it]
 # Addresses are function starts, or exact crash sites (then the hint explains the crash). Add your own.
 
@@ -45,4 +45,4 @@
 00F1B980  AI: Kynapse world set-up
 00F299A0  Kynapse path-data generator driver  | the original generator needs a CMapBuilder developer licence
 010074E0  Kynapse: wait until a resource is ready  | a hang here: the AI start waits for a resource that never loads (level sub-files under the wrong name?)
-01046AA0  Kynapse memory release (through the allocator)  | a pure virtual call coming from here at shutdown: a Kynapse block is released after the memory manager was destroyed - seen with NavKit-built path data (Project OPFOR DEVELOPMENT_NOTES, known issues); restore the original pathdata.hpd
+01046AA0  Kynapse memory release (through the allocator)  | a pure virtual call coming from here at shutdown: a Kynapse block is released after the memory manager was destroyed - seen with NavKit-built path data (Project OPFOR BFBC2 DEVELOPMENT_NOTES, known issues); restore the original pathdata.hpd

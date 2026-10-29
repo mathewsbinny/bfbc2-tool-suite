@@ -1,7 +1,7 @@
 r"""The Navigation Studio's edit mode without a window: the studio is built for a level (sp_004_b) and the editor
 is driven as clicks would drive it - every tool, an outline finished with Enter, a box, two-point tools, a
 note without text refused, undo / redo, save and reload, the click mode (clicks stop selecting while a tool
-is on), and a DICE base refusing region edits. Needs Project OPFOR's game copy and a NavKit build of the level.
+is on), and a DICE base refusing region edits. Needs Project OPFOR BFBC2's game copy and a NavKit build of the level.
 
   python test_editing.py [level]
 """

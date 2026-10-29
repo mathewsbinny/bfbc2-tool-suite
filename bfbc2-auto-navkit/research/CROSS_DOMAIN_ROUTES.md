@@ -1,6 +1,6 @@
 # Boats and routes across domains: research and design (2026-10-26)
 
-Companion to `KYNAPSE_SPEC.md` §2.1 and Project OPFOR's `STOCK_MP_AI_PLAN.md` §11. The research below was done
+Companion to `KYNAPSE_SPEC.md` §2.1 and Project OPFOR BFBC2's `STOCK_MP_AI_PLAN.md` §11. The research below was done
 offline: level and common data, DICE's path data and string tables of the executable. Nothing was run in the game.
 Tools: `tools\navwater_mesh.py` (boat meshes), `tools\navdomains.py` (domain graph and planner). Tests:
 `tests\test_navwater_mesh.py` and `tests\test_navdomains.py`.

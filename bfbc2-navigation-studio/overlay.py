@@ -5,7 +5,7 @@ NavKit's path data for a level. No level data is written; path data is read, nev
   python overlay.py <target level> --anomalies [--candidate <pathdata.hpd>] [--out <file.json>]
 
 A reference source is one of
-  level:<lv>        a level prepared in Project OPFOR (work\\levels\\<lv>): campaign, Napisal's ONS levels, stock MP;
+  level:<lv>        a level prepared in Project OPFOR BFBC2 (work\\levels\\<lv>): campaign, Napisal's ONS levels, stock MP;
                     its path data is the level's installed original (DICE's, or the console file Napisal's pack installs)
   xbox:<lv>         DICE's Xbox 360 Onslaught level from the user's DLC packages, as unpacked into work\\xbox_dlc
                     (ons_mp_002 in work\\xbox_dlc\\o2, ons_mp_005 / ons_mp_008 in work\\xbox_dlc\\u3)

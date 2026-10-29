@@ -1,5 +1,5 @@
 """NavKit: the traversal annotations of a navigation side file (ladders, jumps, vaults, drops) as
-`<level>.traversal.json`, for Project OPFOR's bot layer (DESIGN.md 5.1-5.2).
+`<level>.traversal.json`, for Project OPFOR BFBC2's bot layer (DESIGN.md 5.1-5.2).
 
 They are not written into the path data: a route edge there would make the game's AI plan through a ladder
 or a jump its movement cannot perform, and get stuck. Whether Kynapse's format can carry such links is

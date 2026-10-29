@@ -184,5 +184,5 @@ On 43,290 unique `.dbx` files (PC, Xbox 360 and Linux server data, plus edited l
 
 The binary DBX format was worked out by the BC2 modding community, above all by **Frankelstner** (his
 `dbx.py` scripts); **Heico**'s BFBC2 Toolkit was a format reference. DbxEdit's code is this project's
-own, written from [FORMAT.md](FORMAT.md). Developed for Project OPFOR. Battlefield: Bad Company 2 is
+own, written from [FORMAT.md](FORMAT.md). Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is
 © Electronic Arts / DICE.

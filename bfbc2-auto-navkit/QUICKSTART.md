@@ -21,13 +21,13 @@ The GUI and `navkit.py levels` mark the levels you can use today as *samplable*.
 
 You need:
 
-1. **Project OPFOR, set up and built.** NavKit measures levels in OPFOR's copy of the game, through
+1. **Project OPFOR BFBC2, set up and built.** NavKit measures levels in OPFOR's copy of the game, through
    OPFOR's in-game sampler. In the OPFOR folder, run `setup_game.bat` (the game copy), then `build.bat`
-   (OPFOR's core). `OPFOR.exe` must be able to start the game.
+   (OPFOR's core). `OPFOR BFBC2.exe` must be able to start the game.
 2. **FbrbTool and DbxEdit** from the suite: run `build.bat` in its `bfbc2-fbrb-tool` and `bfbc2-dbx-tools` folders.
    NavKit also accepts the copies OPFOR's `build_menus.bat` puts in OPFOR's `tools\` folder.
-3. **Where OPFOR is.** NavKit looks for a `Project OPFOR` folder next to one of the folders it sits in (for example
-   `C:\Games\Project OPFOR` next to `C:\Games\Project OPFOR Toolkit`). If yours is elsewhere, set the
+3. **Where OPFOR is.** NavKit looks for a `project-opfor-bfbc2` folder next to one of the folders it sits in (for example
+   `C:\Programming\Projects\project-opfor-bfbc2` next to `C:\Programming\Projects\bfbc2-tool-suite`). If yours is elsewhere, set the
    environment variable `OPFOR_ROOT` to it, or add `--opfor <folder>` to every command.
 4. **Python 3.10 or newer** from [python.org](https://www.python.org/). When you install it, tick
    "Add python.exe to PATH".
@@ -136,7 +136,7 @@ regions - see the parity tools in [README.md](README.md) (`tools\navparity.py`, 
 ## Trying it in game
 
 1. Click **Install in game** (or `python navkit.py install <level>`).
-2. Start Project OPFOR as usual (`OPFOR.exe`) and, for a campaign level, start the mission from the
+2. Start Project OPFOR BFBC2 as usual (`OPFOR BFBC2.exe`) and, for a campaign level, start the mission from the
    campaign menu. (OPFOR's developer trigger, `[dev] level=` / `testrun.bat`, often leaves a campaign level
    on a black screen.)
 3. Play, watching the AI soldiers.
@@ -147,7 +147,7 @@ through the mission on NavKit's file (play test 2026-10-20), and leaving a level
 Measured against DICE's files on 15 levels, NavKit's files have 98 % of DICE's walkable ground and allow 98 %
 of the routes DICE's allow. The changes since 2026-10-22 (closed area boundaries, floors at the M-COMs, D lines
 and F cells, fewer small route islands) are measured offline but not yet play-tested. Some places still differ
-(see README.md), so the AI may still stop somewhere. Project OPFOR's `DEVELOPMENT_NOTES.md` has the details.
+(see README.md), so the AI may still stop somewhere. Project OPFOR BFBC2's `DEVELOPMENT_NOTES.md` has the details.
 
 Tip: to start a mission your campaign save is not on, set `level=Levels/<LEVEL>` under `[dev]` in
 `game\opfor.ini` (for example `level=Levels/SP_004_B`), start OPFOR and press **F9** in the main menu. Put
@@ -156,7 +156,7 @@ for some campaign levels; if it does, close the game and use the campaign menu i
 
 ## Where the files go
 
-All of these are inside the Project OPFOR folder:
+All of these are inside the Project OPFOR BFBC2 folder:
 
 | File | What it is |
 |---|---|
@@ -201,7 +201,7 @@ bottom and top height. Make the top higher than the tallest roof. A larger area 
 | A run was cancelled or the PC crashed during sampling | NavKit edits `game\opfor.ini` while sampling and puts it back afterwards. If that was interrupted, the next Sample puts it back, and **Cancel** in the window does too. The saved copy is `work\navkit\opfor.ini.backup`. |
 | The AI acts oddly with NavKit's file installed | Click **Restore original** (or `navkit.py restore <level>`). The level is back to its original data. |
 | "FbrbTool.exe not found" / "DbxEdit.exe not found" | Run `build.bat` in the suite's `bfbc2-fbrb-tool` and `bfbc2-dbx-tools` folders (see [Before you start](#before-you-start)). |
-| "Project OPFOR not found" / "no game copy" | Tell NavKit where OPFOR is (`OPFOR_ROOT` or `--opfor`), and run OPFOR's `setup_game.bat` if it has no `game\` folder yet. |
+| "Project OPFOR BFBC2 not found" / "no game copy" | Tell NavKit where OPFOR is (`OPFOR_ROOT` or `--opfor`), and run OPFOR's `setup_game.bat` if it has no `game\` folder yet. |
 
 ## How NavKit stays clean
 

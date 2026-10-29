@@ -1,6 +1,6 @@
 """A BC2 level as the suite's tools see it: entities with transforms and sources, collision meshes, terrain.
 
-    lvl = load('sp_01')                       # by level name, from Project OPFOR's game copy
+    lvl = load('sp_01')                       # by level name, from Project OPFOR BFBC2's game copy
     lvl.entities                              # every instance of the level partition (Entity)
     lvl.meshes                                # world-space collision triangles per placed object / group member
     lvl.terrain                               # (vertices, triangles): the level's height field (terrain.py),

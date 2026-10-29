@@ -53,5 +53,5 @@ code 1. Tests: `tests\test_leveldiff.py` (quick and game tiers of the suite's `r
 
 ## Credits
 
-Developed for Project OPFOR. The DBX format knowledge comes from the BC2 modding community, above all
+Developed for Project OPFOR BFBC2. The DBX format knowledge comes from the BC2 modding community, above all
 Frankelstner. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

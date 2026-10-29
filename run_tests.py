@@ -5,7 +5,7 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
   quick   no game data, about a minute: repository rules, DbxEdit unit tests, and on files built by the
           tests: FbrbTool, LevelDiff, the crash reader and exeref, the console readers, the menu tools, the test
           harness (needs Windows for the C# tools)
-  game    + Project OPFOR's game copy, about 10 minutes: FbrbTool on 12 game bundles, water on every level,
+  game    + Project OPFOR BFBC2's game copy, about 10 minutes: FbrbTool on 12 game bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
           round trips, LevelDiff on MP_005, the crash reader's code view and exeref on BFBC2Game.exe, the menu
           tools on the game's movies and OPFOR's menu patches, the console

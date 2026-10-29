@@ -3,7 +3,7 @@ markers are listed in fbrb.manifest but not written as files, and a folder from 
 empty files) packs the same.
 
   python test_fbrb.py                   a bundle built here (no game data)
-  python test_fbrb.py --game [N]        also N bundles of Project OPFOR's game copy (default 12; 0 = all 1,055)
+  python test_fbrb.py --game [N]        also N bundles of Project OPFOR BFBC2's game copy (default 12; 0 = all 1,055)
 """
 import gzip
 import os

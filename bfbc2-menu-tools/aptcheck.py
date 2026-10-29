@@ -32,8 +32,8 @@ lint    checks OPFOR's menu patch files (src\menus\<movie>.patch, applied by bui
         --installed also says whether the movie the game has installed is that result (a stale build otherwise).
 check   the rules above on one movie by itself (the stock movies have a few of their own, listed as notes).
 
---brief leaves out the changed ranges' details. --opfor <folder> names Project OPFOR (default: OPFOR_ROOT, or a
-"Project OPFOR" folder next to the toolkit).
+--brief leaves out the changed ranges' details. --opfor <folder> names Project OPFOR BFBC2 (default: OPFOR_ROOT, or a
+"project-opfor-bfbc2" folder next to the suite).
 Exit code: 0 no errors, 1 errors (or the tool could not run). Rules: OPFOR's DEVELOPMENT_NOTES.md section 3 ("APT
 menus", "Menu build pipeline"); the format: bfbc2-console-readers\apt\apt.py. Nothing is written into the game folder.
 """

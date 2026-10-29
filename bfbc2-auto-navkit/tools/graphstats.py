@@ -1,5 +1,6 @@
 import sys, collections
-sys.path.insert(0, r'C:\Games\Project OPFOR\navkit\tools')
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hpdtool
 for path in sys.argv[1:]:
     f = hpdtool.parse(open(path, 'rb').read())

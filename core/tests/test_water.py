@@ -1,4 +1,4 @@
-r"""water.py on every level of Project OPFOR's game copy: each .Water.Mesh.res is read to its last byte, its
+r"""water.py on every level of Project OPFOR BFBC2's game copy: each .Water.Mesh.res is read to its last byte, its
 indices are in range and its vertices finite, and the VisualWater ranges give every triangle a shader where
 the two files' indices agree (all levels with water but SP_04). SP_006 and SP_009 have no water.
 

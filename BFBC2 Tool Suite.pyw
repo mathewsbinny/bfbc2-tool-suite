@@ -4,7 +4,7 @@ tools moderngl, glfw and imgui-bundle).
 Tabs: Levels (open a level in the Map Inspector or the Navigation Studio), Bundles (FbrbTool), Level diff
 (LevelDiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
 (DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane at the bottom.
-The tools read your own game copy (Project OPFOR's) - nothing is sent anywhere.
+The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
 """
 import json
 import os
@@ -304,8 +304,8 @@ class Hub:
         self.tree.delete(*self.tree.get_children())
         if self.pr is None:
             self.tree.insert('', 'end', text='(no game copy found)', values=('', '', '', ''))
-            self.write(f'Levels: {getattr(self, "pr_error", "Project OPFOR not found")}\n'
-                       'Put the suite next to the "Project OPFOR" folder, or set OPFOR_ROOT.\n')
+            self.write(f'Levels: {getattr(self, "pr_error", "Project OPFOR BFBC2 not found")}\n'
+                       'Put the suite next to the "project-opfor-bfbc2" folder, or set OPFOR_ROOT.\n')
             return
         for lv in self.pr.level_dirs():
             work = os.path.join(self.pr.work, 'levels', lv)

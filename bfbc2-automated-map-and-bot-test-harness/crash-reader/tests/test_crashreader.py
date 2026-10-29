@@ -4,7 +4,7 @@ r"""The crash reader on crash reports built here, in the layout the game writes 
 - the report is read (type, build, crash address, registers, stack) and the bundled symbols load;
 - names and hints for known crash sites (the Md5Buffer object-list crash: "run DbxEdit check");
 - null registers are marked, another build is noted, the log lines before the crash are picked;
-- with --game: the code view on Project OPFOR's BFBC2Game.exe (needs pefile and capstone): the function
+- with --game: the code view on Project OPFOR BFBC2's BFBC2Game.exe (needs pefile and capstone): the function
   start found for a crash site inside a known function, the null register the faulting instruction reads
   through, the call before a return address, and text on the stack told apart from addresses.
 
@@ -108,7 +108,7 @@ def main(argv):
                 image = None
                 c.check(False, 'code view needs: pip install pefile capstone')
             if exe is None:
-                c.check(False, 'BFBC2Game.exe of Project OPFOR not found')
+                c.check(False, 'BFBC2Game.exe of Project OPFOR BFBC2 not found')
             if image is not None:
                 c.check(image.is_code(MD5_SITE) and not image.is_code(0x76FAB5AC), 'the exe: code ranges')
                 c.check(image.function_start(MD5_SITE) == MD5_FUNCTION, 'the function start found for the crash site',

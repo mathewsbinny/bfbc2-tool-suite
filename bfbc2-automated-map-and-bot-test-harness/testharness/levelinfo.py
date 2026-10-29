@@ -1,4 +1,4 @@
-"""What the harness reads about a level, from files only (Project OPFOR's game copy and work folder; never written).
+"""What the harness reads about a level, from files only (Project OPFOR BFBC2's game copy and work folder; never written).
 
     info = gather(root, lv, cache_dir, log)      LevelInfo: points, AI layer, load set, assets
     files = pathdata_files(root, lv, which)      [(key, path)]: 'dice', 'installed', 'navkit'

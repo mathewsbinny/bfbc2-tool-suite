@@ -1,6 +1,6 @@
 r"""Smoke test of the 3D tools: the Map Inspector and the Navigation Studio open a level, draw it and exit; the
 screenshot must not be blank (some detail in it, not one flat colour). Needs a display and OpenGL 3.3, and
-Project OPFOR's game copy. Pixels are not compared: drawing differs between GPUs.
+Project OPFOR BFBC2's game copy. Pixels are not compared: drawing differs between GPUs.
 
   python tests\test_viewers.py [level]          default sp_004_b (small; has DICE path data)
 """

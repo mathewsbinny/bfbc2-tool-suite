@@ -11,7 +11,7 @@ a command line:
 python inspector.py <level>          e.g. python inspector.py mp_005   or   sp_01, mp_009gr, ons_mp_004
 ```
 
-The level is read from Project OPFOR's game copy. The first time a level is opened, it is unpacked
+The level is read from Project OPFOR BFBC2's game copy. The first time a level is opened, it is unpacked
 (NavKit's offline `prepare` step plus the terrain bundle, about 20 s; no game launch). Needs Python 3.10+
 with `numpy`, `moderngl`, `glfw` and `imgui-bundle` (`pip install numpy moderngl glfw imgui-bundle`).
 

@@ -94,7 +94,7 @@ def main(argv):
         return 1
     lv = argv[1].lower()
     opts = dict(zip(argv[2:], argv[3:]))
-    root = os.environ.get('OPFOR_ROOT') or r'C:\Games\Project OPFOR'
+    root = os.environ.get('OPFOR_ROOT') or r'C:\Programming\Projects\project-opfor-bfbc2'
     L = os.path.join(root, 'work', 'levels', lv)
     common = [os.path.join(root, 'work', 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
     xoff, zoff = (int(v) for v in opts['--offsets'].split(','))

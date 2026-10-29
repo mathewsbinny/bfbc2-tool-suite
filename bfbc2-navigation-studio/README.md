@@ -13,7 +13,7 @@ python studio.py <level>                       e.g. python studio.py sp_01
 python studio.py <level> --candidate <file.hpd> --reference <file.hpd> --color island|sector|pitch|difference
 ```
 
-**Files.** The reference is DICE's path data in Project OPFOR's game copy; the candidate is NavKit's newest
+**Files.** The reference is DICE's path data in Project OPFOR BFBC2's game copy; the candidate is NavKit's newest
 build of the level (`work\navkit\<level>\pathdata.hpd`, `work\navkit\regress\<level>.hpd` or
 `work\navbuild\<level>_W.hpd`). Either can be given, and either may be missing. The level is prepared on
 first use (offline); each file's walkable cells are cached in `work\navstudio\cache` (the first opening of a
@@ -70,7 +70,7 @@ a NavKit build to rebuild. `--navtune <file>` opens a side file from elsewhere, 
 example Napisal's Onslaught AI on stock Valparaiso, which has none:
 
 ```
-python studio.py mp_002 --compare level:ons_mp_002     Napisal's ONS_MP_002 (any level prepared in Project OPFOR)
+python studio.py mp_002 --compare level:ons_mp_002     Napisal's ONS_MP_002 (any level prepared in Project OPFOR BFBC2)
 python studio.py mp_002 --compare xbox:ons_mp_002      DICE's Xbox 360 Onslaught level (unpacked into work\xbox_dlc)
 python studio.py mp_002 --compare <path to a level .xml>
 ```

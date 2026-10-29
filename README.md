@@ -8,7 +8,7 @@ share one core: level loading, a 3D view, picking and the game's data formats.
 1. Install Python 3.10 or newer, then the libraries the tools use:
    `pip install numpy matplotlib moderngl glfw imgui-bundle pillow` (and `pefile capstone` for the crash
    reader's code view).
-2. Put this folder next to your `Project OPFOR` folder (or set `OPFOR_ROOT` to it): the tools read the game
+2. Put this folder next to your `project-opfor-bfbc2` folder (or set `OPFOR_ROOT` to it): the tools read the game
    copy there.
 3. Double-click **`BFBC2 Tool Suite.pyw`**. One window has every tool:
    - **Levels:** choose a level, then **Open in Map Inspector** or **Open in Navigation Studio** (or
@@ -62,12 +62,12 @@ log file.
 |---|---|---|
 | `bfbc2-navigation-studio/` | M4 step 7: an in-game check that the game's AI uses a hand-made link (steps 1-6 - path test, editing, side files, `navkit apply`, install - are done) | M4 |
 | `bfbc2-automated-map-and-bot-test-harness/` | in-game tests: `testrun.bat` per level (on hold - needs playtest), bot traversal, stuck detection, squads and vehicles from OPFOR's telemetry | M6, then growing |
-| `bfbc2-bot-ai-debugger/` | live view of the AI while the game runs (through Project OPFOR) | M6 |
+| `bfbc2-bot-ai-debugger/` | live view of the AI while the game runs (through Project OPFOR BFBC2) | M6 |
 | `bfbc2-tactical-map-authoring-tool/` | tactical annotations above the navigation data for bots | M7 |
 | `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs (LevelDiff, in `level-diff/`, is ready) | alongside |
 | `bfbc2-ai-behavior-simulator/` | runs OPFOR's bot decision code on simplified maps, without the game | with Goal 3 |
 
-The asset builder & validator, `bfbc2-asset-builder`, is part of the Project OPFOR repository (DESIGN.md
+The asset builder & validator, `bfbc2-asset-builder`, is part of the Project OPFOR BFBC2 repository (DESIGN.md
 section 4.9).
 
 ## The 3D tools and your GPU
@@ -82,7 +82,7 @@ the GeForce RTX 4060, at 144 frames a second.
 
 ```
 python run_tests.py quick      before every commit: no game data, about a minute
-python run_tests.py game       before every push: uses Project OPFOR's game copy, about 10 minutes
+python run_tests.py game       before every push: uses Project OPFOR BFBC2's game copy, about 10 minutes
 python run_tests.py full       after changing a format reader: every unpacked file, about 30 minutes
 python run_tests.py --list     what each tier runs;   --only <name> runs the tests whose name contains it
 ```
@@ -151,5 +151,5 @@ tools need your own copy of the game. Third-party libraries keep their own licen
 MIT; glfw: zlib; numpy: BSD). Not affiliated with or endorsed by Electronic Arts or DICE; Battlefield and
 Battlefield: Bad Company are trademarks of Electronic Arts Inc.
 
-Developed for Project OPFOR. Game data is read from your own installation and never distributed.
+Developed for Project OPFOR BFBC2. Game data is read from your own installation and never distributed.
 Battlefield: Bad Company 2 is © Electronic Arts / DICE.

@@ -1,4 +1,4 @@
-r"""The menu tools on data built here (quick), and with --game on Project OPFOR's game copy:
+r"""The menu tools on data built here (quick), and with --game on Project OPFOR BFBC2's game copy:
 
 - apt.py's decoder: GetURL2 without an argument, GotoFrame2 with an aligned 32-bit one, every function body decoded to
   its end, the structured instruction list;
