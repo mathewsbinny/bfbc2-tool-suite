@@ -33,12 +33,29 @@ value of the object tree, a correct CRC); and 31 of the 395 BF1943 animations th
 BFBC2's copy after renumbering. The others differ because DICE re-compressed or edited them for BFBC2 (other
 curve formats; the eye and eyelid tracks, where the two soldiers' faces differ).
 
+## Models (`meshport.py`)
+
+`meshport.Porter(source, meshview_index).port(mesh_name, donors=[...])` ports a BF1943 model: every LOD's MeshData
+(the console converter's `mesh.convert` from BF1943's layouts - read from its levels' shader databases with
+`mesh.console_layouts` - into PC layouts with the same elements), the mesh set (each LOD's size recorded), the
+textures in the model's folder, and a plan for the shader database (each part's layout: BFBC2's own part, a donor
+mesh's part - whose material the new one is cloned from - or any layout with those elements; the model's
+materials and textures). Models skinned to the soldier (ske01) have their bone palettes and the mesh set's bone
+list renumbered from BF1943's bone order to BFBC2's. `meshport.preview_parts(result)` gives the ported LOD read
+back from its PC bytes for the mesh viewer's `render` / `page`.
+
+Proven on the oracle: BF1943 weapon models that BFBC2 shipped (Type 100, Nambu pistol, M1911A1, Mk 2 grenade, Shin
+Gunto) port to BFBC2's own files (parts, counts, offsets, index buffer, palettes; every position, normals within
+0.01). Ported so far for the WW2 side project: the Springfield, the k98, both bazookas, the long knife and the wrench
+(1p, 3p). Not yet: rigid mesh sets (BF1943's do not parse yet), installing (the shader database entries).
+
 Not yet: the converted animations still need BFBC2 data to use them (DBX animation entries, anim trees, a weapon that
 plays them) - that is game work in Project OPFOR, not this tool's.
 
 Tests: `tests\test_bf1943import.py` (quick without data: output-path containment, type routing, refused imports;
 `--game`: `check` on the whole source, an import of the Garand bayonet's resources read back, `import.json`
-merging, the source unchanged). The converter's own: `bfbc2-anim-tools\tests\test_granny_port.py`.
+merging, the source unchanged), `tests\test_meshport.py` (game: the oracle models, the WW2 models). The
+converters' own: `bfbc2-anim-tools\tests\test_granny_port.py`, `bfbc2-console-convert\tests\test_mesh_decode.py`.
 
 Developed for Project OPFOR BFBC2. Battlefield 1943 and Battlefield: Bad Company 2 are © Electronic Arts / DICE;
 Granny is a trademark of Epic Games (RAD Game Tools).

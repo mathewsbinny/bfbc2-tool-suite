@@ -202,15 +202,23 @@ def _pair_by_kind(ec, ep, leftovers=False):
     return out if leftovers or not any(pools.values()) else None
 
 
-def convert(b, layouts, drop=None, reorder=False):
+def convert(b, layouts, drop=None, reorder=False, bones=None):
     """Console MeshData -> PC MeshData. layouts: per part (console layout record body, PC layout record body);
     drop: per part, indices of console elements the PC layout does not have (left out, in order); otherwise the
     two layouts must have the same elements in the same order (formats per PC_FORMAT), or, with reorder, the same
     elements in another order (paired by kind, in order: _pair_by_kind); reorder='drop' also leaves out console
-    elements the PC layout has no place for (the last ones of their kind)."""
+    elements the PC layout has no place for (the last ones of their kind). bones ({old index: new index})
+    renumbers the parts' bone palettes - a mesh from another game's skeleton order (Battlefield 1943's soldier); the
+    vertices index the palette, so they stay as they are."""
     m = parse(b, True)
     if len(layouts) != len(m['parts']):
         raise ConvertError(f'{len(m["parts"])} parts, {len(layouts)} layout pairs')
+    if bones is not None:
+        for p in m['parts']:
+            missing = [x for x in p['bones'] if x not in bones]
+            if missing:
+                raise ConvertError(f'part {p["name"]!r}: bones {missing} have no counterpart in the target skeleton')
+            p['bones'] = [bones[x] for x in p['bones']]
     vb = bytearray()
     idx_size = 4 if m['wide_indices'] else 2
     offsets = sorted({q['vertex_offset'] for q in m['parts']} | {m['vertex_bytes']})     # console offsets

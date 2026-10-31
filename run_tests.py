@@ -111,6 +111,7 @@ def tests():
         ('Granny skeletons and animations (read, shift)', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny.py')]),
         ('Granny Xbox 360 -> PC on your Xbox files and BF1943', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_port.py'), '--game']),
         ('BF1943 import pipeline on your BF1943 copy', 'game', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_bf1943import.py'), '--game']),
+        ('BF1943 model port (meshport)', 'game', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_meshport.py')]),
         ('localization files written (bc2loc set)', 'game', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'tests', 'test_bc2loc_write.py')]),
         ('console readers on your Xbox files', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py'), '--game']),
         ('menu tools on the game copy and OPFOR\'s patches', 'game', [PY, os.path.join(SUITE, 'bfbc2-menu-tools', 'tests', 'test_menu_tools.py'), '--game']),
