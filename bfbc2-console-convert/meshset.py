@@ -37,10 +37,13 @@ class _Reader:
         return s
 
 
-def parse(b, kind, big_endian):
-    """{a, z, lod_settings, lods: [{x, sets: [(name, [shader names])], bounds, size, extra, flag, parts, masks}]}"""
+def parse(b, kind, big_endian, flag=None):
+    """{a, z, lod_settings, lods: [{x, sets: [(name, [shader names])], bounds, size, extra, flag, parts, masks}]}.
+    flag: whether a rigid set's LODs have the flag byte - BFBC2's do (PC and Xbox), Battlefield 1943's do not (its
+    rigid sets are one byte a LOD shorter); None: BFBC2's rule. A set read without it gets flag 0, written as BFBC2's."""
     if kind not in KINDS:
         raise ConvertError(f'{kind}: only {", ".join(KINDS)} are converted')
+    has_flag = kind != 'SkinnedMeshSet' if flag is None else flag
     r = _Reader(b, big_endian)
     s = {'a': r.num('I'), 'z': r.u8(), 'lod_settings': r.cstr(), 'lods': []}
     for _ in range(r.num('I')):
@@ -48,7 +51,10 @@ def parse(b, kind, big_endian):
         L = {'x': x, 'shaders': n, 'sets': [(r.cstr(), [r.cstr() for _ in range(n)]) for _ in range(sets)]}
         L['bounds'] = r.num('6f')
         L['size'], L['extra'] = r.num('2I')
-        L['flag'] = r.u8() if kind != 'SkinnedMeshSet' else None        # skinned sets: no flag byte
+        if kind == 'SkinnedMeshSet':
+            L['flag'] = None                                            # skinned sets: no flag byte
+        else:
+            L['flag'] = r.u8() if has_flag else 0
         if kind == 'CompositeMeshSet':
             # parts: hash, name, bounds (6 floats), transform (3 rotation rows and the position: 12 floats);
             # then per shader a 192-bit mask of the parts using it

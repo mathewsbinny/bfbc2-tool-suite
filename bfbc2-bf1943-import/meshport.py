@@ -45,6 +45,16 @@ def signature(layout):
     return tuple((mesh.PC_FORMAT.get(f, f), u, s) for f, u, _, s in mesh.elements(layout)[0])
 
 
+def _subset(small, big):
+    """Whether every element of small is in big (as many times)."""
+    pool = list(big)
+    for e in small:
+        if e not in pool:
+            return False
+        pool.remove(e)
+    return True
+
+
 class Porter:
     def __init__(self, source, ix):
         self.src, self.ix = source, ix
@@ -95,9 +105,24 @@ class Porter:
                 if k.startswith(f'{d}_lod'.lower()) and k.endswith('/standard') and signature(self.ix.parts[k]) == sig:
                     return self.ix.parts[k], 'donor', (d, k.split('/')[-2])
         k = self.by_signature().get(sig)
-        if k is None:
-            raise PortError(f'{name} LOD {lod} {part}: no BFBC2 layout has its elements {sig}')
-        return self.ix.parts[k], f'layout of {k}', None
+        if k is not None:
+            return self.ix.parts[k], f'layout of {k}', None
+        # no layout with exactly its elements: the one keeping the most of them (a donor's first) - the elements it
+        # lacks are left out (mesh.convert reorder='drop'); it must keep positions
+        best = None
+        for d in [None] + list(donors):
+            for k2 in sorted(self.ix.parts):
+                if d is not None and not k2.startswith(f'{d}_lod'.lower()):
+                    continue
+                s2 = signature(self.ix.parts[k2])
+                if _subset(s2, sig) and any(u == 1 for _, u, _ in s2) and (best is None or len(s2) > best[0] or
+                                                                         (len(s2) == best[0] and d and not best[2])):
+                    best = (len(s2), k2, d)
+        if best is None:
+            raise PortError(f'{name} LOD {lod} {part}: no BFBC2 layout holds a part of its elements {sig}')
+        dropped = len(sig) - best[0]
+        return self.ix.parts[best[1]], f'layout of {best[1]} ({dropped} element(s) left out)', \
+            ((best[2], best[1].split('/')[-2]) if best[2] else None)
 
     def port(self, name, donors=()):
         kind = self.kind(name)
@@ -123,7 +148,9 @@ class Porter:
             pc_layouts.append([pc for _, pc in pairs])
         if not lods:
             raise PortError(f'{name}: no LODs in the BF1943 source')
-        s = meshset.parse(self.src.data(f'{name}.res'.lower()), kind, True)
+        # BF1943's rigid sets have no flag byte per LOD (BFBC2's do); composite and skinned sets read as BFBC2's
+        s = meshset.parse(self.src.data(f'{name}.res'.lower()), kind, True,
+                          flag=False if kind == 'RigidMeshSet' else None)
         for L, out in zip(s['lods'], lods):
             L['size'] = meshset.lod_size(out)
             if kind == 'SkinnedMeshSet' and soldier:

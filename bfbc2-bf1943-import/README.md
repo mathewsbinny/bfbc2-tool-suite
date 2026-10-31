@@ -47,7 +47,10 @@ back from its PC bytes for the mesh viewer's `render` / `page`.
 Proven on the oracle: BF1943 weapon models that BFBC2 shipped (Type 100, Nambu pistol, M1911A1, Mk 2 grenade, Shin
 Gunto) port to BFBC2's own files (parts, counts, offsets, index buffer, palettes; every position, normals within
 0.01). Ported so far for the WW2 side project: the Springfield, the k98, both bazookas, the long knife and the wrench
-(1p, 3p). Not yet: rigid mesh sets (BF1943's do not parse yet), installing (the shader database entries).
+(1p, 3p), and the vehicles and fixed guns: Willys, Sherman (hull, tracks), LCVP, B-25, Ki-21, the bombing-raid cockpit
+and bunker, the window mount. BF1943's rigid mesh sets have no flag byte a LOD (`meshset.parse(..., flag=False)`;
+165 read, 37 shared with BFBC2 write as its files). A part with no BFBC2 layout of exactly its elements takes the
+layout keeping the most of them (a donor's first). Not yet: installing (the shader database entries), physics.
 
 Not yet: the converted animations still need BFBC2 data to use them (DBX animation entries, anim trees, a weapon that
 plays them) - that is game work in Project OPFOR, not this tool's.

@@ -3,8 +3,10 @@ r"""meshport.py on Battlefield 1943's models (game tier; skipped without the Ris
 - the oracle: BF1943 weapon models that BFBC2 shipped (Type 100, Nambu pistol, M1911A1, Mk 2 grenade, Shin Gunto)
   port to BFBC2's own files: the same parts, counts, offsets, index buffer and bone palettes (renumbered from BF1943's
   soldier), every position exact and every normal within 0.01 on LOD 0;
+- BF1943's rigid mesh sets read without a flag byte per LOD; at least 37 that BFBC2 shipped write as its files;
 - the models for the WW2 side project port without error (Springfield, k98, both bazookas, long knife, wrench 1p /
-  3p): every LOD, the mesh set with each LOD's size, the textures; each part's PC layout read back gives unit normals
+  3p; Willys, Sherman hull and tracks, LCVP, B-25, Ki-21, the bombing-raid cockpit and bunker, the window mount):
+  every LOD, the mesh set with each LOD's size, the textures; each part's PC layout read back gives unit normals
   and in-range UVs.
 
   python test_meshport.py
@@ -30,6 +32,37 @@ PORTS = [(B + 'US_Springfield1903/Springfield_Mesh', [B + 'Thompson/thompson_Mes
          (B + 'US_LongKnife_knife/US_LongKnife_knife_Mesh', [B + 'Jap_ShinGunto_Knife/Jap_ShinGunto_knife_Mesh']),
          (B + 'Wrench/Wrench_Mesh', [B + 'Thompson/thompson_Mesh']),
          (B + 'Wrench/Wrench_Mesh3p', [B + 'Thompson/thompson_Mesh'])]
+V = 'Objects/Vehicles/Beach/'
+VDONORS = [V + 'Kurogane/kurogane_mesh_Mesh', V + 'Type97-ChiHa/ChiHa_mb_Mesh', V + 'US_Corsair/US_corsair_Mesh']
+PORTS += [(V + n, VDONORS) for n in ('Willys-MB/Willys-MB_Mesh', 'M4-Sherman/US_ShermanM4_tank_Mesh',
+                                     'M4-Sherman/US_ShermanM4_Tracks_mesh', 'LCVP-LandingCraft/gen_Landingcraft_Mesh',
+                                     'Mitchell_bomber/Mitchell_bomber_mesh_Mesh', 'Sally_Bomber/Sally_bomber_Mesh',
+                                     'Cockpits/Cockpit_BombingRaid_US_Mesh', 'BombingRaid_Prototype/AirRaidDummy_Mesh')]
+PORTS += [('Objects/Weapons/Stationary/Mounts/HMG_AGL_WindowMount_Mesh', VDONORS)]
+
+
+def rigid_sets(check, src, ix):
+    """BF1943's rigid mesh sets have no flag byte a LOD: every one reads so, and those BFBC2 shipped as rigid sets
+    write as BFBC2's file once their LOD sizes are BFBC2's (at least 37: DICE re-exported the others)."""
+    meshset = meshport.meshset
+    read = same = 0
+    for k, (_, e) in sorted(src.entries.items()):
+        if e['type'] != 'RigidMeshSet':
+            continue
+        s = meshset.parse(src.data(k), 'RigidMeshSet', True, flag=False)
+        read += 1
+        pc = ix.read(k)
+        if pc is None:
+            continue
+        try:
+            b = meshset.parse(pc, 'RigidMeshSet', False)
+        except meshset.ConvertError:
+            continue
+        if len(s['lods']) == len(b['lods']):
+            for L, M in zip(s['lods'], b['lods']):
+                L['size'], L['flag'] = M['size'], M['flag']
+            same += meshset.write(s, 'RigidMeshSet') == pc
+    check(read >= 160 and same >= 37, f'rigid sets: {read} read without the flag byte; {same} shared ones equal BFBC2\'s')
 
 
 def main():
@@ -49,6 +82,7 @@ def main():
         print(f'SKIP: {e}')
         return 0
     port = meshport.Porter(src, ix)
+    rigid_sets(check, src, ix)
     mesh = meshport.mesh
     for name in ORACLE:
         r = port.port(name)
@@ -72,7 +106,9 @@ def main():
         try:
             r = port.port(name, donors)
             sizes = [L['size'] for L in meshport.meshset.parse(r['meshset'], r['kind'], False)['lods']]
-            ok = sizes == [meshport.meshset.lod_size(b) for b in r['lods']] and r['textures']
+            # textures: the model folder's (the bunker and window mount keep none of their own: they draw others')
+            ok = sizes == [meshport.meshset.lod_size(b) for b in r['lods']] and \
+                (r['textures'] or name.endswith(('AirRaidDummy_Mesh', 'HMG_AGL_WindowMount_Mesh')))
             for b, lays in zip(r['lods'], r['pc_layouts']):
                 m = mesh.parse(b, False)
                 for i, p in enumerate(m['parts']):
