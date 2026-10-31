@@ -10,15 +10,25 @@ animation curves in them.
                                                             move a bone's position track: so its last key is at
                                                             --rest, or by a vector; --ramp moves each key by its
                                                             progress towards the end (a part carried to a mount)
+  python granny.py topc <xbox resource> --out <file> [--from-skeleton <s> --to-skeleton <s>]
+                                                            an Xbox 360 resource as the PC's; with both skeletons,
+                                                            DICE's per-bone table renumbered by bone name (a port
+                                                            from Battlefield 1943: its ske01 -> BFBC2's ske01)
 
 <resource> is a file, or a resource name in the game copy (e.g. characters/skeletons/ske01.res or
 animations/weapons/handheld/m1garand_rgl/1p/1p_fire.res; any case, the .res ending optional).
 
 Xbox 360 resources (BFBC2's console copy, Battlefield 1943) are the same format big-endian throughout, with the
-big-endian Granny magic B595110E 4BB5A56A 502828EB 04B37825; they are read (dump, bones, tracks), never written.
+big-endian Granny magic B595110E 4BB5A56A 502828EB 04B37825; they are read (dump, bones, tracks) and converted
+(topc, to_pc), never patched in place. to_pc reverses a file as Granny does (each section's 32-bit part as u32, its
+16-bit part as u16, then the objects of its mixed-marshalling list member by member) and keeps the console's
+layout; checked on all 2,654 resources of BFBC2's Xbox mp_common / sp_common that have a PC twin of the same size:
+DICE's table, the strings and every value of the object tree match the PC file (Granny's unused Padding members
+aside).
 
-Format (little-endian on PC): u32 10 | u32 n, then n x {u32 bone, u32 1, f32, f32} (animations; DICE's per-bone extra
-values, not read) | u32 count, count x {u16 length, bytes}: the string table | u32 size, then a Granny 2 file (magic
+Format (little-endian on PC): u32 10 | DICE's per-bone table (bone_table: animations n x {u32 bone, u32 k, k x (f32
+start, f32 end)}; delta animations n bone indices, then such a list; skeletons none; bone indices in the
+skeleton's order) | u32 count, count x {u16 length, bytes}: the string table | u32 size, then a Granny 2 file (magic
 29DE6CC0 BAA4532B 25F5B7A5 F666E2EE, format revision 7, 32-bit): sections with relocation tables (12 bytes each:
 offset in the section, target section, target offset), a root type (member definitions, 32 bytes each: type, name,
 child definition, array size, 4 x u32) and a root object. DICE stores every name - member names and strings in the
@@ -39,6 +49,7 @@ import math
 import os
 import struct
 import sys
+import zlib
 
 MAGIC = bytes.fromhex('29DE6CC0BAA4532B25F5B7A5F666E2EE')
 MAGIC_BE = bytes.fromhex('B595110E4BB5A56A502828EB04B37825')     # the same format, 32-bit big-endian
@@ -69,6 +80,7 @@ class Granny:
             p = k - 4 if k >= 4 else p
         if not self._strings_at(b, p):
             raise GrannyError(f'{where}: no string table where one is expected')
+        self.strings_from = p                                # DICE's table (if any) is b[4:p]
         n = struct.unpack_from(self.e + 'I', b, p)[0]
         p += 4
         self.strings = []
@@ -400,6 +412,160 @@ def sample(keys, t, default):
     return keys[-1][1]
 
 
+# ------------------------------------------------------------------------------------------------ Xbox 360 -> PC
+
+def _intervals(words, p):
+    """Positions of the bones of a count-prefixed list of {bone, k, k x (f32 start, f32 end)} at p; and its end."""
+    at = []
+    n = words[p]
+    p += 1
+    for _ in range(n):
+        if p + 2 > len(words):
+            raise GrannyError('DICE bone table: a record runs past its end')
+        at.append(p)
+        p += 2 + 2 * words[p + 1]
+    return at, p
+
+
+def bone_table(words):
+    """Where DICE's per-bone table keeps bone indices, from the u32 words before the string table (the first is 10).
+    ('none', []): a skeleton. ('animation', positions): n records {bone, k, k x (f32 start, f32 end)} - the bones
+    and time ranges DICE marks (k is 1 almost always). ('delta', positions): n bones (the delta's tracks), then m
+    such records. Found over all 2,600 of BFBC2's PC animations; positions index into words."""
+    if len(words) == 1:
+        return 'none', []
+    try:
+        at, end = _intervals(words, 1)
+        if end == len(words):
+            return 'animation', at
+    except GrannyError:
+        pass
+    n = words[1]
+    if 2 + n < len(words):
+        at, end = _intervals(words, 2 + n)
+        if end == len(words):
+            return 'delta', list(range(2, 2 + n)) + at
+    raise GrannyError(f'unknown DICE bone table: {len(words)} words, count {words[1]}')
+
+
+def renumber(words, bones, where='resource'):
+    """DICE's table (u32 words) with its bones renumbered ({old: new}) and kept in the order DICE writes them: a
+    delta's bone list and the interval records each sorted by bone index (as in every BFBC2 file)."""
+    kind, _ = bone_table(words)
+    if kind == 'none':
+        return list(words)
+
+    def new(i):
+        if i not in bones:
+            raise GrannyError(f'{where}: bone {i} of its {kind} table has no counterpart in the target skeleton')
+        return bones[i]
+
+    out = [words[0]]
+    if kind == 'animation':
+        recs, _ = _records(words, 1, new)
+        return out + recs
+    n = words[1]
+    recs, _ = _records(words, 2 + n, new)
+    return out + [n] + sorted(new(i) for i in words[2:2 + n]) + recs
+
+
+def _records(words, p, new):
+    """A count-prefixed list of {bone, k, 2k values} at p, bones renumbered by new() and sorted; and its end."""
+    recs = []
+    q = p + 1
+    for _ in range(words[p]):
+        k = words[q + 1]
+        recs.append([new(words[q]), k] + list(words[q + 2:q + 2 + 2 * k]))
+        q += 2 + 2 * k
+    return [len(recs)] + [w for r in sorted(recs, key=lambda r: r[0]) for w in r], q
+
+
+def bone_map(src_skeleton, dst_skeleton):
+    """{index in src: index in dst} by bone name; both are skeleton resources (bytes, any byte order)."""
+    s = [b['Name'] for b in Granny(src_skeleton, 'source skeleton').root()['Skeletons'][0]['Bones']]
+    d = [b['Name'] for b in Granny(dst_skeleton, 'target skeleton').root()['Skeletons'][0]['Bones']]
+    at = {n: i for i, n in enumerate(d)}
+    return {i: at[n] for i, n in enumerate(s) if n in at}
+
+
+_WORDS = {2: 1, 3: 2, 4: 2, 5: 2, 7: 3, 8: 1, 9: 17, 10: 1, 19: 1, 20: 1, 22: 1}       # members of 32-bit fields
+_HALVES = {15, 16, 17, 18, 21}
+
+
+def _swap(dst, src, at, size, count):
+    for i in range(at, at + size * count, size):
+        dst[i:i + size] = src[i:i + size][::-1]
+
+
+def to_pc(b, bones=None, where='resource'):
+    """An Xbox 360 (big-endian) Granny resource as the PC's little-endian one. DICE's table and string table are
+    swapped field by field; the Granny file as Granny reverses a file: each section's 32-bit part (up to First16Bit)
+    as u32, its 16-bit part (to First8Bit) as u16, the rest kept; then every object of the section's mixed-marshalling
+    list member by member from its type; the header, section table, pointer fixups and marshalling lists as u32. The
+    Granny CRC is recomputed. bones ({old index: new index}) renumbers DICE's per-bone table (a port to another
+    skeleton's bone order); a bone missing from it is an error. The layout (section order, offsets) stays the
+    console's."""
+    g = Granny(b, where)
+    if g.e != '>':
+        raise GrannyError(f'{where}: already little-endian (a PC resource)')
+    out = bytearray(b)
+    words = list(struct.unpack_from('>%dI' % (g.strings_from // 4), b, 0))
+    if bones is not None:
+        words = renumber(words, bones, where)
+    struct.pack_into('<%dI' % len(words), out, 0, *words)
+    p = g.strings_from
+    _swap(out, b, p, 4, 1)
+    p += 4
+    for _ in range(len(g.strings)):
+        ln = struct.unpack_from('>H', b, p)[0]
+        _swap(out, b, p, 2, 1)
+        p += 2 + ln
+    _swap(out, b, p, 4, 1)                                  # the Granny file's size
+    G = g.gr2
+    out[G:G + 16] = MAGIC
+    header = struct.unpack_from('>I', b, G + 16)[0]
+    _swap(out, b, G + 16, 4, (header - 16) // 4)
+    soff, count = struct.unpack_from('>5I', b, G + 32)[3:5]
+    for k in range(count):
+        _, off, size, _, _, f16, f8, roff, rcount, moff, mcount = struct.unpack_from('>11I', b, G + 32 + soff + 44 * k)
+        if f16 % 4 or f16 > f8 or f8 > size:
+            raise GrannyError(f'{where}: section {k}: 16-bit part at {f16}, 8-bit at {f8}, size {size}')
+        base = G + off
+        _swap(out, b, base, 4, f16 // 4)
+        _swap(out, b, base + f16, 2, (f8 - f16) // 2)
+        _swap(out, b, G + roff, 4, 3 * rcount)
+        _swap(out, b, G + moff, 4, 4 * mcount)
+        for m in range(mcount):
+            n, o, ts, to = struct.unpack_from('>4I', b, G + moff + 16 * m)
+            sz = g.size((ts, to))
+            for i in range(n):
+                _marshal(g, out, b, (ts, to), base + o + i * sz)
+    crc = zlib.crc32(bytes(out[G + 32 + soff:G + g.total])) & 0xFFFFFFFF
+    struct.pack_into('<I', out, G + 40, crc)
+    return bytes(out)
+
+
+def _marshal(g, out, b, tref, at):
+    """One object of type tref at absolute position `at`, member by member from the big-endian bytes."""
+    for t, _, child, arr in g.members(tref):
+        n = max(arr, 1)
+        if t == 1:
+            sz = g.size(child)
+            for i in range(n):
+                _marshal(g, out, b, child, at + i * sz)
+            at += sz * n
+        elif t in _WORDS:
+            _swap(out, b, at, 4, _WORDS[t] * n)
+            at += SIZES[t] * n
+        elif t in _HALVES:
+            _swap(out, b, at, 2, n)
+            at += 2 * n
+        else:                                               # 8-bit members: undo the 32-bit part's blind swap
+            sz = SIZES.get(t, 0) * n
+            out[at:at + sz] = b[at:at + sz]
+            at += sz
+
+
 # ------------------------------------------------------------------------------------------------ game copy
 
 def load(arg, opfor=None):
@@ -454,10 +620,24 @@ def main(argv):
             opts[a] = next(it, None)
         else:
             args.append(a)
-    if len(args) < 2 or args[0] not in ('dump', 'bones', 'tracks', 'shift'):
+    if len(args) < 2 or args[0] not in ('dump', 'bones', 'tracks', 'shift', 'topc'):
         print(__doc__)
         return 1
     b, where = load(args[1], opts.get('--opfor'))
+    if args[0] == 'topc':
+        if not opts.get('--out'):
+            raise GrannyError('topc needs --out <file>')
+        bones = None
+        if opts.get('--from-skeleton') or opts.get('--to-skeleton'):
+            if not (opts.get('--from-skeleton') and opts.get('--to-skeleton')):
+                raise GrannyError('renumbering needs both --from-skeleton and --to-skeleton')
+            bones = bone_map(load(opts['--from-skeleton'], opts.get('--opfor'))[0],
+                             load(opts['--to-skeleton'], opts.get('--opfor'))[0])
+        out = to_pc(b, bones, where)
+        os.makedirs(os.path.dirname(os.path.abspath(opts['--out'])), exist_ok=True)
+        open(opts['--out'], 'wb').write(out)
+        print(f'{where}: {len(out)} bytes, little-endian' + (', bones renumbered' if bones else '') + f' -> {opts["--out"]}')
+        return 0
     g = Granny(b, where)
     if args[0] == 'shift':
         if not opts.get('--bone') or not opts.get('--out') or not (opts.get('--rest') or opts.get('--by')):

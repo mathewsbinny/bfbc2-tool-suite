@@ -54,6 +54,7 @@ def main(argv):
         ('test harness, a missing saved run', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'harness.py'), 'show', missing + '.json'], 'harness', 'missing'),
         ('test harness, a file that is not a run', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'harness.py'), 'compare', notrun, notrun], 'harness', 'what to do'),
         ('test runner, an unknown test name', [PY, os.path.join(SUITE, 'run_tests.py'), 'quick', '--only'], 'run-tests', 'what to do'),
+        ('BF1943 import, a missing source folder', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'bf1943import.py'), 'list', '--source', missing], 'bf1943import', 'what to do'),
     ]
     try:
         for label, args, log_name, says in cases:

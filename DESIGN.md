@@ -43,7 +43,8 @@ Added since (2026-10-27 to 10-31, for the console Onslaught ports and the WW2 si
 | **bfbc2-culltree** | any BC2 modder | A level's static cull tree: verify it, give objects without a place one. |
 | **bfbc2-mesh-viewer** | any BC2 modder | Any model of the game with its textures, as a browser page and a picture. Takes the "render meshes" part of 4.6 below. |
 | **bfbc2-model-tools** | any BC2 modder | Edit skinned meshes (replace or add a part's geometry) and build simple solids on texture atlases. |
-| **bfbc2-anim-tools** | any BC2 modder | Granny skeletons and animations: decode tracks and curves, move a bone's position track. |
+| **bfbc2-anim-tools** | any BC2 modder | Granny skeletons and animations: decode tracks and curves, move a bone's position track; convert Xbox 360 resources to the PC's format, renumbering DICE's bone table onto another skeleton. |
+| **bfbc2-bf1943-import** | any BC2 modder with BF1943 | The user's Battlefield 1943 (Xbox 360) resources into BFBC2's PC formats - animations, skeletons, textures so far - with a record per resource; reads the BF1943 suite's bundles, writes only to OPFOR's work folder. |
 
 ## 2. Rules
 

@@ -24,6 +24,9 @@ _state = {'tool': None, 'path': None, 'gui': True}
 
 # (test on the error, the cause in words, what to do)
 CAUSES = [
+    (lambda e: bool(getattr(e, 'what_to_do', None)),              # a tool's own error that says what to do
+     lambda e: str(e),
+     lambda e: e.what_to_do),
     (lambda e: isinstance(e, ModuleNotFoundError),
      lambda e: f'A Python library the tool needs is not installed ({e.name}).',
      lambda e: f'Install it: pip install {PIP_NAMES.get(e.name, e.name)}'),
