@@ -161,6 +161,62 @@ def read(path):
         return parse(f.read())
 
 
+def _put_varint(out, v):
+    while True:
+        b = v & 0x7F
+        v >>= 7
+        if v:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return
+
+
+def write(f):
+    """A DbxFile (element tree) as a binary .dbx (FORMAT.md sections 1-2): a fresh string table - the empty string
+    first, then each string in the order the tree first uses it -, container bytes 0, header value 0. Not
+    byte-identical to a game file (DbxEdit keeps a file's own string order), but the same tree: parse(write(f))
+    gives f back."""
+    index = {'': 0}
+    order = ['']
+
+    def sid(s):
+        if s not in index:
+            index[s] = len(order)
+            order.append(s)
+        return index[s]
+
+    body = bytearray()
+
+    def emit(e):
+        if len(e.attributes) > 15:
+            raise ValueError(f'{e.tag}: {len(e.attributes)} attributes (15 at most)')
+        _put_varint(body, sid(e.tag))
+        body.append((e.kind << 4) | len(e.attributes))
+        for k, v in e.attributes:
+            _put_varint(body, sid(k))
+            _put_varint(body, sid(v))
+        if e.kind == CONTAINER:
+            body.append(0)
+            for c in e.children or ():
+                emit(c)
+            body.append(0)
+        elif e.kind == TEXT:
+            _put_varint(body, sid(e.text))
+        else:
+            body.extend(e.raw)
+
+    for r in f.roots:
+        emit(r)
+    offsets, blob = [], bytearray()
+    for s in order:
+        offsets.append(len(blob))
+        blob += s.encode('utf-8') + b'\0'
+    area = 4 * len(order) + len(blob)
+    head = MAGIC + struct.pack('>4I', 24 + area, 0, area, len(order))
+    return bytes(head + struct.pack(f'>{len(order)}I', *offsets) + blob + body)
+
+
 # ------------------------------------------------------------------------------------------------ values
 
 def numbers(e):

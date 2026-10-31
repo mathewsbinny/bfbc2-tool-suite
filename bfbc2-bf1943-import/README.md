@@ -70,13 +70,29 @@ bunker and the machine-gun mounts. Open: the MOPP code is BF1943's (4.6.1-built;
 where DICE rebuilt them) - the game has to show it collides right; velocity limits other than 200 are refused
 until their 8-bit encoding is known.
 
+## Data partitions (`dbxport.py`)
+
+BF1943's binary DBX is BFBC2's format (strings, varints, big-endian numbers); the schema differs by a few fields per
+type. `dbxport.port(bf1943_bytes, dbxport.Templates([...BFBC2 partitions or unpacked folders...]))` aligns each
+instance with a BFBC2 instance of its type: shared fields keep BF1943's values in BFBC2's order, BFBC2-only fields
+take the template's value, BF1943-only fields are left out, every change reported; written with
+`bfbc2core.dbx.write` (new in the core: a binary DBX writer; 300 BFBC2 partitions parse back to the same tree, and
+DbxEdit reads its output and writes it back unchanged).
+
+Not ported, by design: BF1943's anim-tree and input partitions. BFBC2 ships its anim trees compiled (AnimTreeInfo)
+with no node instances in the partitions, so a ported weapon uses a BFBC2 tree cloned with BF1943's animations swapped
+in place. Four BF1943 types do not exist in BFBC2 (its executable has no such class): AirRaidEffectsData and
+TeamVehicleProjectileEntityData (the air raid: the bunker fires the bombers as projectiles), CarHornComponentData,
+ScorePartComponentData - the air raid has to be built from BFBC2's own classes.
+
 Not yet: the converted animations still need BFBC2 data to use them (DBX animation entries, anim trees, a weapon that
 plays them) - that is game work in Project OPFOR, not this tool's.
 
 Tests: `tests\test_bf1943import.py` (quick without data: output-path containment, type routing, refused imports;
 `--game`: `check` on the whole source, an import of the Garand bayonet's resources read back, `import.json`
 merging, the source unchanged), `tests\test_meshport.py` (game: the oracle models, the WW2 models),
-`tests\test_havokport.py` (game: the Kurogane oracle, the re-exported Zero and Corsair, the WW2 physics). The
+`tests\test_havokport.py` (game: the Kurogane oracle, the re-exported Zero and Corsair, the WW2 physics),
+`tests\test_dbxport.py` (game: the writer on BFBC2 partitions, the Springfield mesh partition ported). The
 converters' own: `bfbc2-anim-tools\tests\test_granny_port.py`, `bfbc2-console-convert\tests\test_mesh_decode.py`.
 
 Developed for Project OPFOR BFBC2. Battlefield 1943 and Battlefield: Bad Company 2 are © Electronic Arts / DICE;
