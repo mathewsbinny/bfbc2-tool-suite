@@ -89,8 +89,7 @@ def bundle_names(path, cache_dir):
             return set(json.load(open(cp)))
     names = set(fbrb.names(path))
     if cache_dir:
-        os.makedirs(os.path.dirname(cp), exist_ok=True)
-        json.dump(sorted(names), open(cp, 'w'))
+        write_atomic(cp, json.dumps(sorted(names)))
     return names
 
 
@@ -110,9 +109,7 @@ def bundle_read(path, wanted, cache_dir):
         for n, b in got.items():
             out[n] = b
             if cache_dir:
-                d = os.path.join(cache_dir, 'bundles', key)
-                os.makedirs(d, exist_ok=True)
-                open(os.path.join(d, n.replace('/', '__')), 'wb').write(b)
+                write_atomic(os.path.join(cache_dir, 'bundles', key, n.replace('/', '__')), b)
     return out
 
 
@@ -243,8 +240,7 @@ def _real_names(path, cache_dir):
             return json.load(open(cp))
     names = [e.name for e in fbrb.entries(path) if not e.deleted]
     if cache_dir:
-        os.makedirs(os.path.dirname(cp), exist_ok=True)
-        json.dump(names, open(cp, 'w'))
+        write_atomic(cp, json.dumps(names))
     return names
 
 
@@ -346,9 +342,9 @@ def pathdata_files(root, lv, which=('dice', 'navkit'), navkit_source='auto'):
     dice = navparity.reference_of(root, lv)
     inst = os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
     for key in which:
-        if key == 'dice' and os.path.isfile(dice) and _is_dice(dice):
+        if key == 'dice' and dice and os.path.isfile(dice) and _is_dice(dice):
             out.append(('dice', dice))
-        elif key == 'installed' and os.path.isfile(inst) and os.path.abspath(inst) != os.path.abspath(dice):
+        elif key == 'installed' and os.path.isfile(inst) and (not dice or os.path.abspath(inst) != os.path.abspath(dice)):
             out.append(('installed', inst))
         elif key == 'navkit':
             cands = {'regress': [os.path.join(root, 'work', 'navkit', 'regress', f'{lv}.hpd')],
@@ -371,6 +367,16 @@ def _is_dice(path):
     except Exception:
         return False
     return bool(f.sectors) and all(s.date < 200000 for s in f.sectors[:5])
+
+
+def write_atomic(path, data):
+    """Writes bytes (or text) through a temporary file and a rename: an interrupted write never leaves a partial
+    cache file that later runs would trust."""
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    tmp = path + '.tmp'
+    with open(tmp, 'wb') as fh:
+        fh.write(data.encode('utf-8') if isinstance(data, str) else data)
+    os.replace(tmp, path)
 
 
 def sha1(path):

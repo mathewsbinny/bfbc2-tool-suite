@@ -97,12 +97,22 @@ def apply(f, operations, log=print):
             results.append((k, True, f'{name}: {added} edge(s) added in sector 0x{s.id:04X}, {length:.1f} m'
                                      f'{" (already there)" if not added else ""}{warn}'))
         else:
-            before = len(s.edges)
-            drop = set(dirs)
-            s.edges[:] = [e for e in s.edges if (e.src, e.dst) not in drop]
-            removed = before - len(s.edges)
-            touched.add(si)
-            results.append((k, removed > 0, f'route-edge remove: {removed} edge(s) removed in sector 0x{s.id:04X}'
+            # an edge between two border nodes is in every sector that shares both (same node ids): remove it in all
+            ida, idb = s.nodes[ia].id, s.nodes[ib].id
+            want = {(ida, idb), (idb, ida)} if two_way else {(ida, idb)}
+            removed, where = 0, []
+            shared = bool(ida & 0x80000000) and bool(idb & 0x80000000)    # only border nodes share ids across sectors
+            for sj, t in enumerate(f.sectors):
+                ids = [n.id for n in t.nodes]
+                if sj != si and not (shared and ida in ids and idb in ids):
+                    continue
+                before = len(t.edges)
+                t.edges[:] = [e for e in t.edges if (ids[e.src], ids[e.dst]) not in want]
+                if len(t.edges) != before:
+                    removed += before - len(t.edges)
+                    where.append(f'0x{t.id:04X}')
+                    touched.add(sj)
+            results.append((k, removed > 0, f'route-edge remove: {removed} edge(s) removed in sector(s) {", ".join(where)}'
                                             if removed else f'route-edge remove: no edge between those nodes in sector 0x{s.id:04X}'))
     for si in touched:
         recompute_first_edges(f.sectors[si])

@@ -50,8 +50,24 @@ def opfor_root(given=None):
 
 
 def reference_of(root, lv):
+    """DICE's infantry path data of a level (the kept original where NavKit's is installed), or None: no file, or
+    only NavKit's (installed where the level had none, marked .opfor-new)."""
     p = os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
-    return p + '.opfor-orig' if os.path.isfile(p + '.opfor-orig') else p
+    if os.path.isfile(p + '.opfor-orig'):
+        return p + '.opfor-orig'
+    return p if os.path.isfile(p) and not os.path.isfile(p + '.opfor-new') else None
+
+
+def _sha1(path):
+    import hashlib
+    return hashlib.sha1(open(path, 'rb').read()).hexdigest()
+
+
+def need_reference(root, lv):
+    ref = reference_of(root, lv)
+    if ref is None:
+        raise RuntimeError(f'{lv}: no DICE path data to compare with (none in the game copy, or only NavKit\'s)')
+    return ref
 
 
 def level_xml(root, lv):
@@ -179,7 +195,7 @@ def islands(reference, candidate, clip=None, drop=None):
 
 
 def run_level(root, lv, candidate, log):
-    ref = reference_of(root, lv)
+    ref = need_reference(root, lv)
     xml = level_xml(root, lv)
     t = time.time()
     clip = terrain_bounds(root, lv)
@@ -190,7 +206,7 @@ def run_level(root, lv, candidate, log):
     isl = islands(ref, candidate, clip, stale)
     lad = ladder_ground(ref, candidate, d['cells']['reference'])
     row = {
-        'level': lv, 'candidate': candidate, 'reference_clip': clip, 'stale_reference_nodes': len(stale),
+        'level': lv, 'candidate': candidate, 'candidate_sha1': _sha1(candidate), 'reference_clip': clip, 'stale_reference_nodes': len(stale),
         'sectors_reference': d['sectors']['reference'], 'sectors_candidate': d['sectors']['candidate'],
         'sectors_missing': len(d['sectors']['only_reference']), 'sectors_extra': len(d['sectors']['only_candidate']),
         'ground': d['cells']['parity'],

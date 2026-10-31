@@ -215,7 +215,7 @@ def main(argv):
         import navparity
         root = navparity.opfor_root(opt('--opfor'))
         lv = opt('--level')
-        ref = navparity.reference_of(root, lv)
+        ref = navparity.need_reference(root, lv)
         cand = [a for a in args if a.lower().endswith('.hpd')][0]
         clip = clip or navparity.terrain_bounds(root, lv)
     else:

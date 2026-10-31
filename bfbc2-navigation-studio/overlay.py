@@ -52,7 +52,7 @@ def reference_source(spec, opfor):
         xml = next((os.path.join(d, f) for f in os.listdir(d) if f.lower() == lv + '.xml'), None) if os.path.isdir(d) else None
         import navparity
         hpd = navparity.reference_of(opfor, lv)
-        return f'{lv} (OPFOR level copy)', xml, hpd if os.path.isfile(hpd) else None, _offsets_xml(os.path.join(d, lv))
+        return f'{lv} (OPFOR level copy)', xml, hpd if hpd and os.path.isfile(hpd) else None, _offsets_xml(os.path.join(d, lv))
     if kind == 'xbox':
         base = os.path.join(opfor, 'work', 'xbox_dlc')
         dirs = [os.path.join(base, 'o2', 'levels')] if lv == 'ons_mp_002' else [os.path.join(base, 'u3', 'levels', lv, 'x_level', 'levels')]
@@ -293,7 +293,7 @@ def main(argv):
     out = opts.get('--out') or os.path.join(opfor, 'work', 'navstudio',
                                             f'{target}_anomalies.json' if '--anomalies' in opts else
                                             f'{target}_vs_{re.sub(r"[^a-z0-9_]+", "_", opts["--reference"].lower())}.json')
-    os.makedirs(os.path.dirname(out), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)      # (a bare file name: the current folder)
     json.dump(rep, open(out, 'w'), indent=1)
     print(json.dumps(rep.get('summary') or rep.get('counts')), '->', out)
     return 0

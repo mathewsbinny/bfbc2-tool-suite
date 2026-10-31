@@ -40,13 +40,14 @@ static class LevelDiff
     {
         ToolLog.Start("leveldiff");
         try { return MainCore(args); }
-        catch (Exception e) { return ToolLog.Fail(e); }       // unexpected: logged and explained, exit code 1
+        catch (Exception e) { ToolLog.Fail(e); return 3; }    // unexpected: logged and explained; 3, not 1 (1 = files differ)
     }
 
     static int MainCore(string[] args)
     {
         var o = new Options();
         var files = new List<string>();
+        bool missingValue = false;
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -54,13 +55,13 @@ static class LevelDiff
                 case "--match-objects": o.MatchObjects = true; break;
                 case "--summary": o.Summary = true; break;
                 case "--all": o.All = true; break;
-                case "--type": o.Type = Next(args, ref i); break;
-                case "--ignore": o.Ignore.Add(Next(args, ref i)); break;
-                case "--json": o.Json = Next(args, ref i); break;
+                case "--type": o.Type = Next(args, ref i); missingValue |= o.Type == null; break;
+                case "--ignore": { string v = Next(args, ref i); if (v == null) missingValue = true; else o.Ignore.Add(v); break; }
+                case "--json": o.Json = Next(args, ref i); missingValue |= o.Json == null; break;
                 default: files.Add(args[i]); break;
             }
         }
-        if (files.Count != 2 || files.Any(f => f == null))
+        if (files.Count != 2 || files.Any(f => f == null) || missingValue)
         {
             Console.Error.WriteLine("usage: LevelDiff <a.dbx> <b.dbx> [--match-objects] [--type <text>] [--ignore <field>] [--summary] [--all] [--json <file>]");
             return 2;

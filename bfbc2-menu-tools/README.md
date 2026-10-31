@@ -8,7 +8,7 @@ never write into it. There is no menu viewer here.
 |---|---|
 | `aptcheck.py` | checking menu patches before a build reaches the game: the rules whose breaking crashes the menu loader |
 | `aptrefs.py` | what the movies ask of the engine (`extern.<name>`), send it (FSCommands) and handle (engine events), with the exe's name / id table |
-| `bc2loc.py` | the game's localized texts: look up a key, search the texts, the keys a movie uses |
+| `bc2loc.py` | the game's localized texts: look up a key, search the texts, the keys a movie uses; write texts |
 
 Python 3.10 or newer (numpy is not needed). Movies are named the same way in all three:
 
@@ -95,10 +95,26 @@ or two for Japanese). PC texts are stored under `WIN32_<key>` (`WIN32_PC_SERVER_
 there first, as the PC game does. Keys themselves are not stored: `search` and `dump` name the ones found among the
 exe's strings and the movies' constants (about 840 of the 7,077 English entries). The format is in the script's header.
 
+`set` writes language files with texts set or added (`python bc2loc.py set NAME_X="TEXT" --out <folder> --lang all`):
+ASCII only (those bytes are themselves in every language's encoding); the texts already there keep their bytes, new
+ones are appended, the table stays sorted by hash; with nothing set the file comes back byte-identical. Nothing is
+written into the game folder.
+
+### How a weapon gets its name on screen
+
+A weapon's own `Name` (its `SoldierWeaponData`, e.g. `Garand`, `M1A1 Thompson`, `40mmgl`) is looked up in
+`Menu/shared_config.dbx` (a `UISharedConfigAsset`, `Package\async\startup-00.fbrb`): a `PersistentWeapon` entry gives
+`NameSID` / `DescriptionSID` / `Abbreviation` and the unlock picture (`Garand` -> `NAME_M1` "WWII M1 GARAND"), a kill
+message entry gives `PresentationSID` (`KILL_MSG_M1` "{0:s}<WWII M1 GARAND>"). The stats screens group names by
+`Awards/WeaponCategories.dbx` (`ABBR_M1` "M1"). The HUD movies take the text from the engine (`extern.kitWeapons`);
+their own weapon-name lists are debug mock data. A weapon whose `Name` has no entry has no text - DICE's Type 5 rifle
+grenade (`JAP_riflegrenade`) has none, and the Type 5 rifle shares the Garand's `Name`.
+
 ## Tests
 
 `tests\test_menu_tools.py`: a movie, patch files, a language file and an exe built in the test (quick tier); with
 `--game`, OPFOR's patch files, every movie of the game copy, the exe's table and getter cases, known events, and the
-English, Russian and Japanese texts (game tier).
+English, Russian and Japanese texts (game tier). `tests\test_bc2loc_write.py`: every language written back
+identical and edited with `set` (game tier).
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

@@ -1316,7 +1316,7 @@ def parity(root, levels, name='offline', log=print):
                                      'extra': round(100.0 * d['cells']['only_candidate'] / max(d['cells']['reference'], 1), 2),
                                      'areas_same': d['areas']['parity'], 'nodes_same': d['graph']['node_parity'],
                                      'edges_same': d['graph']['edge_parity']}}
-        if os.path.isfile(navparity.reference_of(root, lv)):
+        if navparity.reference_of(root, lv):
             row['dice_offline'] = navparity.run_level(root, lv, off_hpd, log)
             row['dice_ingame'] = navparity.run_level(root, lv, ing_hpd, log)
         report[lv] = row

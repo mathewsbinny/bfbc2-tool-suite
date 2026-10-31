@@ -145,7 +145,7 @@ class App:
                 'check': os.path.isfile(os.path.join(out, 'check.txt'))}
         for k, m in self.marks.items():
             m['text'] = '✔' if done[k] else ''
-        inst = os.path.isfile(self.pr.pathdata(lv) + navkit.BACKUP_SUFFIX)
+        inst = any(os.path.isfile(self.pr.pathdata(lv) + s) for s in (navkit.BACKUP_SUFFIX, navkit.NEW_SUFFIX))
         orig = self.pr.dice_pathdata(lv)
         self.installed['text'] = ('NavKit\'s path data is INSTALLED in the game for this level.' if inst else
                                   'The game uses the level\'s original path data.' if orig else

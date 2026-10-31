@@ -476,7 +476,7 @@ def game(check, tmp):
     r = harness('run', 'g1', '--levels', 'sp_009,sp_004_b', '--pairs', '100', '--level-pairs', '50')
     path = os.path.join(runs_dir, 'g1.json')
     check(os.path.isfile(path), f'a run on sp_009 and sp_004_b is saved (exit {r.returncode}: '
-          + (r.stdout.strip().splitlines() or [''])[-2].strip() + ')')
+          + ([''] + (r.stdout + r.stderr).strip().splitlines())[-1].strip() + ')')
     if not os.path.isfile(path):
         print(r.stdout[-3000:], r.stderr[-3000:])
         return

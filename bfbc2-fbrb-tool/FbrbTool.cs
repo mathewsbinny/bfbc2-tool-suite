@@ -67,6 +67,15 @@ static class FbrbTool
 
     static void Read(string path, out List<Entry> entries, out byte[] payload, out bool zipped)
     {
+        uint payloadField; int headerRegion;
+        Read(path, out entries, out payload, out zipped, out payloadField, out headerRegion);
+    }
+
+    // payloadField: the header's payload-length field; headerRegion: 8 + the header's stored length (where the
+    // payload starts in the file)
+    static void Read(string path, out List<Entry> entries, out byte[] payload, out bool zipped, out uint payloadField,
+                     out int headerRegion)
+    {
         byte[] file = File.ReadAllBytes(path);
         if (file.Length < 8 || Encoding.ASCII.GetString(file, 0, 4) != "FbRB") throw new InvalidDataException(path + " is not an FbRB bundle");
         int cut = (int)ReadBE(file, 4);
@@ -91,28 +100,45 @@ static class FbrbTool
         }
         int tail = strBase + strlen + 4 + count * 24;
         zipped = h[tail] != 0;
+        payloadField = h.Length >= tail + 5 ? ReadBE(h, tail + 1) : 0;
+        headerRegion = 8 + cut;
         int rest = file.Length - 8 - cut;
         if (zipped) payload = Gunzip(file, 8 + cut, rest);
         else { payload = new byte[rest]; Buffer.BlockCopy(file, 8 + cut, payload, 0, rest); }
     }
 
-    static string Safe(string archiveName) { return archiveName.Replace('/', Path.DirectorySeparatorChar); }
+    // A bundle entry name becomes a path under <root>. Names can come from untrusted or malformed bundles, so an
+    // absolute path or a ".." traversal must not be allowed to reach outside the folder being written to.
+    static string Safe(string root, string archiveName)
+    {
+        if (string.IsNullOrEmpty(archiveName))
+            throw new InvalidDataException("empty entry name in the bundle");
+        string name = archiveName.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        if (Path.IsPathRooted(name))
+            throw new InvalidDataException("entry escapes the output folder: " + archiveName);
+        string rootFull = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string full = Path.GetFullPath(Path.Combine(root, name));
+        if (!full.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("entry escapes the output folder: " + archiveName);
+        return full;
+    }
 
     static int Unpack(string fbrb, string outDir)
     {
-        List<Entry> entries; byte[] payload; bool zipped;
-        Read(fbrb, out entries, out payload, out zipped);
+        List<Entry> entries; byte[] payload; bool zipped; uint payloadField; int headerRegion;
+        Read(fbrb, out entries, out payload, out zipped, out payloadField, out headerRegion);
         Directory.CreateDirectory(outDir);
         var manifest = new StringBuilder();
-        manifest.AppendLine("# fbrb.manifest - entry order matters. name|type|flags(hex)|size2  zipped=" + (zipped ? 1 : 0));
+        manifest.AppendLine("# fbrb.manifest - entry order matters. name|type|flags(hex)|size2|size  zipped=" + (zipped ? 1 : 0)
+                            + (zipped ? "" : LayoutTokens(entries, payload, payloadField, headerRegion)));
         int deleted = 0;
         foreach (var e in entries)
         {
-            manifest.AppendLine(e.Name + "|" + e.Type + "|" + e.Flags.ToString("X8") + "|" + e.Size2);
+            manifest.AppendLine(e.Name + "|" + e.Type + "|" + e.Flags.ToString("X8") + "|" + e.Size2 + "|" + e.Size);
             // A deletion marker has no data: it stays in the manifest (pack restores it) but is not written as an
             // empty file, which other tools would take for a broken one.
             if (IsDeletedMarker(e)) { deleted++; continue; }
-            string target = Path.Combine(outDir, Safe(e.Name));
+            string target = Safe(outDir, e.Name);
             Directory.CreateDirectory(Path.GetDirectoryName(target));
             using (var f = File.Create(target)) f.Write(payload, (int)e.Offset, (int)e.Size);
         }
@@ -120,6 +146,41 @@ static class FbrbTool
         Console.WriteLine("unpacked " + entries.Count + " entries (" + payload.Length + " bytes) to " + outDir +
                           (deleted > 0 ? "; " + deleted + " of them *deleted* markers, listed in fbrb.manifest only" : ""));
         return 0;
+    }
+
+    // DICE's padded layouts of uncompressed bundles, which pack must rebuild (the async ondemand_* and streaming_*
+    // bundles; every other bundle packs its entries back to back and gets no tokens):
+    //   layout=align4096  each entry after the first starts on a 4096-byte boundary, the gap filled with 0xBF
+    //   layout=gap64      64 bytes of 0xBF between entries
+    //   hdr=N             the header region (8 + its stored length) padded with zeros to a multiple of N
+    //   plen=size2        the header's payload length is the last entry's offset + size2 (not the payload's length)
+    //   size2=minus64     every entry's size2 is its size - 64 (kept for an edited entry too)
+    static string LayoutTokens(List<Entry> entries, byte[] payload, uint payloadField, int headerRegion)
+    {
+        var nd = entries.Where(e => !IsDeletedMarker(e)).ToList();
+        if (nd.Count < 2) return "";
+        bool align = true, gap = true;
+        for (int i = 1; i < nd.Count; i++)
+        {
+            long end = (long)nd[i - 1].Offset + nd[i - 1].Size, at = nd[i].Offset;
+            bool filled = at >= end && at <= payload.Length;
+            for (long k = end; filled && k < at; k++) filled = payload[k] == 0xBF;
+            align &= filled && at % 4096 == 0 && at - end < 4096;
+            gap &= filled && at - end == 64;
+        }
+        if (!align && !gap) return "";
+        var last = nd[nd.Count - 1];
+        string s = " layout=" + (align ? "align4096" : "gap64") + " hdr=" + (headerRegion % 4096 == 0 ? 4096 : headerRegion % 4 == 0 ? 4 : 1);
+        if (payloadField != payload.Length && payloadField == last.Offset + last.Size2) s += " plen=size2";
+        if (nd.All(e => e.Size >= 64 && e.Size2 == e.Size - 64)) s += " size2=minus64";
+        return s;
+    }
+
+    static string Token(string line, string key)
+    {
+        foreach (string t in line.Split(' '))
+            if (t.StartsWith(key + "=")) return t.Substring(key.Length + 1);
+        return null;
     }
 
     const string DeletedType = "*deleted*";
@@ -130,25 +191,44 @@ static class FbrbTool
     {
         string[] lines = File.ReadAllLines(Path.Combine(dir, "fbrb.manifest"));
         bool zipped = lines[0].Contains("zipped=1");
+        string layout = zipped ? null : Token(lines[0], "layout");
+        int hdrAlign = int.Parse(Token(lines[0], "hdr") ?? "1");
+        bool plenSize2 = Token(lines[0], "plen") == "size2", minus64 = Token(lines[0], "size2") == "minus64";
         var entries = new List<Entry>();
         var payload = new MemoryStream();
+        bool first = true;
         foreach (string line in lines)
         {
             if (line.Length == 0 || line[0] == '#') continue;
             string[] p = line.Split('|');
-            string source = Path.Combine(dir, Safe(p[0]));
+            string source = Safe(dir, p[0]);
             // *deleted* markers have no file since unpack stopped writing them (an empty one from an older unpack
             // is read as before)
             byte[] data = p[1] == DeletedType && !File.Exists(source) ? new byte[0] : File.ReadAllBytes(source);
             uint originalSize2 = uint.Parse(p[3]);
+            bool hasSize = p.Length > 4;
+            if (!hasSize && originalSize2 != (uint)data.Length)
+                throw new InvalidDataException("fbrb.manifest is from an older unpack (no size column) and entry '" +
+                    p[0] + "' has a differing size2 - unpack the bundle again to rebuild the manifest");
+            uint originalSize = hasSize ? uint.Parse(p[4]) : (uint)data.Length;
+            bool marker = p[1] == DeletedType && data.Length == 0;
+            if (layout != null && !marker)
+            {
+                // DICE's padding before every entry after the first (markers take the position as it is)
+                if (!first && layout == "align4096") while (payload.Length % 4096 != 0) payload.WriteByte(0xBF);
+                if (!first && layout == "gap64") for (int k = 0; k < 64; k++) payload.WriteByte(0xBF);
+                first = false;
+            }
             var e = new Entry
             {
                 Name = p[0], Type = p[1], Flags = Convert.ToUInt32(p[2], 16),
                 Offset = (uint)payload.Length, Size = (uint)data.Length,
             };
             // size2 equals size for nearly every entry; a differing original value is only kept
-            // when the file was not modified (same size).
-            e.Size2 = (originalSize2 != e.Size && data.Length == (int)originalSize2) ? originalSize2 : e.Size;
+            // when the file was not modified (its length is still the size it unpacked to, recorded in the manifest).
+            e.Size2 = (originalSize2 != e.Size && data.Length == (int)originalSize) ? originalSize2 : e.Size;
+            if (minus64 && !marker && data.Length != (int)originalSize && e.Size >= 64)
+                e.Size2 = e.Size - 64;              // an edited entry of a bundle whose entries all have size - 64
             payload.Write(data, 0, data.Length);
             entries.Add(e);
         }
@@ -182,9 +262,17 @@ static class FbrbTool
             WriteBE(header, e.Size); WriteBE(header, e.Size2); WriteBE(header, typeOffsets[e.Type]);
         }
         header.WriteByte((byte)(zipped ? 1 : 0));
-        WriteBE(header, (uint)payload.Length);
+        var lastData = entries.LastOrDefault(x => !IsDeletedMarker(x));
+        WriteBE(header, plenSize2 && lastData != null ? lastData.Offset + lastData.Size2 : (uint)payload.Length);
 
         byte[] part1 = Gzip(header.ToArray());
+        if (hdrAlign > 1)
+        {
+            // zeros after the gzip stream, so the payload starts where DICE's layout has it (readers stop at the
+            // stream's end)
+            int pad = (hdrAlign - (8 + part1.Length) % hdrAlign) % hdrAlign;
+            Array.Resize(ref part1, part1.Length + pad);
+        }
         byte[] part2 = zipped ? Gzip(payload.ToArray()) : payload.ToArray();
         using (var f = File.Create(fbrb))
         {
@@ -222,7 +310,7 @@ static class FbrbTool
             int offset = (int)ReadBE(b, p), size = (int)ReadBE(b, p + 4);
             string name = CString(b, p + 8);
             p += 8 + name.Length + 1;
-            string target = Path.Combine(outDir, name.Replace('/', Path.DirectorySeparatorChar));
+            string target = Safe(outDir, name);
             Directory.CreateDirectory(Path.GetDirectoryName(target));
             using (var f = File.Create(target)) f.Write(b, offset, size);
             Console.WriteLine(size.ToString().PadLeft(9) + "  " + name);
@@ -301,6 +389,9 @@ static class ToolLog
     // { cause, what to do }
     public static string[] Explain(Exception e)
     {
+        if (e is PathTooLongException)
+            return new[] { "an entry's path in the output folder is longer than Windows allows (260 characters)",
+                           "Unpack into a folder with a shorter path (e.g. C:\\work\\x)." };
         var io = e as IOException;
         int code = io != null ? (io.HResult & 0xFFFF) : 0;
         if (io != null && (code == 32 || code == 33))

@@ -126,8 +126,10 @@ class Hub:
                                                    f'Install them with:\npip install {pip}')
 
     # --- running tools ------------------------------------------------------------------------------
-    def run(self, args, label, cwd=None):
-        """One tool in the background (the tab's), its output streamed to the pane."""
+    def run(self, args, label, cwd=None, ok=(0,)):
+        """One tool in the background (the tab's), its output streamed to the pane. ok: the exit codes that are
+        not failures (LevelDiff: 1 = the files differ, a result)."""
+        self.ok_codes[label] = tuple(ok)
         if self.proc is not None and self.proc.poll() is None:
             messagebox.showinfo('BFBC2 Tool Suite', 'A tool is still running - wait for it or press Stop.')
             return
@@ -207,7 +209,7 @@ class Hub:
                         self.stop_btn.configure(state='disabled')
                         if label.startswith('Levels'):
                             self.fill_levels()
-                    if code not in (0, None) and not self.stopped:
+                    if code not in (None,) + self.ok_codes.get(label, (0,)) and not self.stopped:
                         self.failed(label, code, main)
                     self.stopped = False
                 else:
@@ -217,6 +219,7 @@ class Hub:
         self.root.after(100, self.pump)
 
     stopped = False
+    ok_codes = {}
 
     def failed(self, label, code, main):
         """A tool ended with an error: logged, and the user told what it said last. The 3D tools and other
@@ -233,7 +236,12 @@ class Hub:
     def stop(self):
         if self.proc is not None and self.proc.poll() is None:
             self.stopped = True
-            self.proc.terminate()
+            if os.name == 'nt':
+                # the whole tree: a tool's own children (run_tests.py's tests) would run on after terminate()
+                subprocess.run(['taskkill', '/T', '/F', '/PID', str(self.proc.pid)], capture_output=True,
+                               creationflags=NO_WINDOW)
+            else:
+                self.proc.terminate()
             self.write('stopped.\n')
             errors.logger().info('stopped by the user')
 
@@ -410,7 +418,7 @@ class Hub:
                 args += ['--ignore', field]
         if self.ld_json.get().strip():
             args += ['--json', self.ld_json.get().strip()]
-        self.run(args, 'LevelDiff')
+        self.run(args, 'LevelDiff', ok=(0, 1))          # 1: the files differ (LevelDiff's result)
 
     # --- Crash reader -------------------------------------------------------------------------------
     def tab_crash(self):

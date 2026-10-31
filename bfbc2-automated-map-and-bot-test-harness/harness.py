@@ -28,7 +28,8 @@ kits, AreaOrders, the SectorOffsets asset, installed path data); the in-game che
 Default levels: every level with DICE path data (NavKit's 13 campaign levels and ONS_MP_002 / 004) - over an hour on
 the first run (DICE-parity of NavKit's builds, about 1-15 minutes per level, is cached); --levels for a subset.
 Saved as <OPFOR>\work\harness\runs\<name>.json (default name "last"); with --reference, compared with that run.
-Exit code: 0 nothing failed (and no regression), 1 a test failed or something got worse, 2 a run not found.
+Exit code: 0 nothing failed (and no regression), 1 a test failed, something got worse, or a run was not
+found (run --reference with an unknown run: 2).
 """
 import functools
 import os
@@ -92,16 +93,18 @@ def parity_row(root, lv, path, cache):
             continue
         for row in run['levels']:
             if row.get('level') == lv and os.path.normcase(os.path.abspath(row.get('candidate', ''))) == os.path.normcase(os.path.abspath(path)) \
-                    and mtime <= when:
+                    and mtime <= when and row.get('candidate_sha1') == levelinfo.sha1(path):
+                # rows record the file's sha1: a saved run can carry rows of an earlier build at the same path
                 return row, f"navparity run '{run['name']}' ({run['date']})"
     ref = navparity.reference_of(root, lv)
+    if not ref:
+        return None, 'no DICE path data to compare with'
     key = f'{levelinfo.sha1(ref)[:12]}_{levelinfo.sha1(path)[:12]}'
     cp = os.path.join(cache, 'parity', f'{lv}_{key}.json')
     if os.path.isfile(cp):
         return json.load(open(cp)), 'the harness cache'
     row = navparity.run_level(root, lv, path, lambda *a: None)
-    os.makedirs(os.path.dirname(cp), exist_ok=True)
-    json.dump(row, open(cp, 'w'), indent=1)
+    levelinfo.write_atomic(cp, json.dumps(row, indent=1))
     return row, 'measured now'
 
 
@@ -110,6 +113,8 @@ def parity(root, lv, path, cache):
     import navparity
     import navregress
     row, source = parity_row(root, lv, path, cache)
+    if row is None:
+        return checks.Result('skip', f'no parity measures: {source}', {}, [])
     m = {k: v for k, v in row.items() if isinstance(v, (int, float)) and not isinstance(v, bool) and k != 'seconds'}
     summ = (f"ground {m.get('ground', 0):.1f} % (+{m.get('extra_ground', 0):.1f} % extra), nodes {m.get('nodes_same', 0):.1f} %, "
             f"connectivity {m.get('connectivity', 0):.1f} % (over {m.get('over_connection', 0):.1f} %), "
@@ -149,15 +154,25 @@ def run_level(root, lv, opts, cache, log=print):
     L['notes'] += info.notes
     log(f'  level read ({time.time() - t0:.0f} s): {len(info.sources)} spawns, {len(info.targets)} targets, {len(info.orders)} orders')
     files = levelinfo.pathdata_files(root, lv, opts['files'], opts['navkit'])
-    if not files:
-        L['notes'].append('no path-data file found for the files asked for (' + ', '.join(opts['files']) + ')')
+    for key in opts['files']:
+        if not any(k == key for k, _ in files):
+            L['notes'].append(f'no {key} path-data file found for this level')
+            # "installed" is left out on purpose where the game loads DICE's own file: nothing to test, no error
+            L['files'][key] = {'tests': {'missing': checks.Result(
+                'skip' if key == 'installed' else 'error',
+                'the game loads DICE\'s own path data (nothing else installed)' if key == 'installed'
+                else f'{key} path data not found for this level').as_dict()}}
     ref_key = 'dice' if any(k == 'dice' for k, _ in files) else (files[0][0] if files else None)
     files.sort(key=lambda kp: kp[0] != ref_key)               # the reference file first
     ref = {}
     tests = opts['tests']
     # infantry points only for the infantry tests: classes from the entities (levelinfo) and from what lies under each
     # point - terrain, water and the reference file's walkable cells (the same classes for every file of the level)
-    ref_nav = navdata.load(files[0][1], cache_dir=os.path.join(cache, 'navdata')) if files else None
+    try:
+        ref_nav = navdata.load(files[0][1], cache_dir=os.path.join(cache, 'navdata')) if files else None
+    except Exception as e:                       # a damaged or half-written file: this level's error, not the run's
+        L['level']['path-data-read'] = checks.Result('error', f'{files[0][1]} could not be read: {e}').as_dict()
+        return L
     ground = classify.Ground(ref_nav, info.heightfield, info.water)
     for pts in (info.sources, info.targets, info.orders):
         classify.by_ground(pts, ground)
@@ -172,10 +187,14 @@ def run_level(root, lv, opts, cache, log=print):
         + '; '.join(f'{k} {classify.excluded_text(v)}' for k, v in (('spawns', ex_s), ('targets', ex_t), ('orders', ex_o)) if v))
     for key, path in files:
         tf = time.time()
-        F = {'path': path, 'sha1': levelinfo.sha1(path), 'size': os.path.getsize(path), 'tests': {}}
+        try:
+            F = {'path': path, 'sha1': levelinfo.sha1(path), 'size': os.path.getsize(path), 'tests': {}}
+            nav = ref_nav if key == ref_key else navdata.load(path, cache_dir=os.path.join(cache, 'navdata'))
+        except Exception as e:                   # one unreadable file: an error for it, the run goes on
+            L['files'][key] = {'path': path, 'tests': {'read': checks.Result('error', f'could not be read: {e}').as_dict()}}
+            continue
         L['files'][key] = F
         res = F['tests']
-        nav = ref_nav if key == ref_key else navdata.load(path, cache_dir=os.path.join(cache, 'navdata'))
         if 'structure' in tests:
             res['structure'] = timed(lambda: checks.structure(hpdcheck.check(path)))
         if 'reachability' in tests:
@@ -253,7 +272,7 @@ def cmd_run(args):
     name = (positional(args) or ['last'])[0]
     levels = opt(args, '--levels')
     levels = [x.strip().lower() for x in levels.split(',')] if levels else [
-        lv for lv in navparity.LEVELS + navparity.ONSLAUGHT if os.path.isfile(navparity.reference_of(root, lv))]
+        lv for lv in navparity.LEVELS + navparity.ONSLAUGHT if navparity.reference_of(root, lv)]
     tests = [t.strip() for t in opt(args, '--tests', ','.join(TESTS)).split(',')]
     unknown = [t for t in tests if t not in TESTS]
     if unknown:
@@ -262,9 +281,16 @@ def cmd_run(args):
                'navkit': opt(args, '--navkit', 'auto'), 'tests': tests, 'pairs': int(opt(args, '--pairs', 200)),
                'level_pairs': int(opt(args, '--level-pairs', 100)), 'seed': int(opt(args, '--seed', 1))}
     reference = opt(args, '--reference')
-    if reference and not os.path.isfile(runs.path_of(reference, folder)):
-        print(f'no saved run "{reference}" ({runs.path_of(reference, folder)}); see: harness.py list')
+    ref_path = runs.path_of(reference, folder) if reference else None
+    if reference and not os.path.isfile(ref_path):
+        print(f'no saved run "{reference}" ({ref_path}); see: harness.py list')
         return 2
+    out_path = runs.path_of(name, folder)
+    if reference and os.path.normcase(os.path.abspath(out_path)) == os.path.normcase(os.path.abspath(ref_path)):
+        print(f'--reference "{reference}" names the same file as the output run "{name}" ({out_path}); '
+              f'give the output a different name so the baseline is not overwritten')
+        return 2
+    base = runs.load(ref_path) if reference else None
     run = runs.new_run(name, options, SUITE)
     cache = cache_dir(root)
     start = time.time()
@@ -273,14 +299,13 @@ def cmd_run(args):
         print(f'[{n}/{len(levels)}] {lv}')
         run['levels'][lv] = run_level(root, lv, options, cache)
     run['seconds'] = round(time.time() - start)
-    path = runs.save(run, runs.path_of(name, folder))
+    path = runs.save(run, out_path)
     print()
     runs.report(run)
     print(f'saved: {path}')
     bad = any(r['status'] in runs.BAD for *_x, r in runs.results(run))
     if reference:
         print()
-        base = runs.load(runs.path_of(reference, folder))
         bad |= runs.compare_report(base, run, runs.compare(base, run, float(opt(args, '--scale', 1.0)))) > 0
     return 1 if bad else 0
 

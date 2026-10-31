@@ -37,7 +37,8 @@ Options of `run`: `--levels` (default: every level with DICE path data, the 13 c
 `structure,reachability,battery,orders,offsets,parity,level`), `--pairs 200` and `--level-pairs 100` (battery
 sizes), `--seed 1`, `--reference <run>`, `--scale 1` (multiplies every tolerance), `--opfor <folder>`,
 `--runs <folder>` (where runs are kept; default `<OPFOR>\work\harness\runs`). Exit code: 0 nothing failed and no
-regression, 1 a test failed or something got worse, 2 a run named that does not exist.
+regression, 1 a test failed, something got worse, or `show` / `compare` / `import-log` named a run that does not
+exist; 2 `run --reference` named a run that does not exist.
 
 Example (sp_004_b, NavKit's regression build of 2026-10-24; shortened):
 

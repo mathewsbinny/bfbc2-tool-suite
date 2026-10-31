@@ -203,7 +203,8 @@ def compare(base, new, scale=1.0):
             out.append(('missing', *k, '', a[k]['status'], None))
     for k in b.keys() - a.keys():
         if k[0] in base['levels']:
-            out.append(('new', *k, '', None, b[k]['status']))
+            # a test only the new run has, failing (e.g. the level could not be read): a regression, not just "new"
+            out.append(('status' if b[k]['status'] in BAD else 'new', *k, '', None, b[k]['status']))
     for lv in base['levels'].keys() - new['levels'].keys():
         out.append(('missing', lv, '', '', '', 'level', None))
     for lv in new['levels'].keys() - base['levels'].keys():

@@ -92,7 +92,7 @@ def reference_bounds(root, lv):
     import kymesh
     import numpy as np
     p = navparity.reference_of(root, lv)
-    if not os.path.isfile(p):
+    if not p or not os.path.isfile(p):
         return None
     pts = []
     for s in hpdtool.parse(open(p, 'rb').read()).sectors:
@@ -209,7 +209,7 @@ def main(argv):
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     root = navparity.opfor_root(opt('--opfor'))
     levels = opt('--levels').split(',') if opt('--levels') else [
-        lv for lv in navparity.LEVELS + navparity.ONSLAUGHT if os.path.isfile(navparity.reference_of(root, lv))]
+        lv for lv in navparity.LEVELS + navparity.ONSLAUGHT if navparity.reference_of(root, lv)]
     reference = opt('--reference', 'regression')
     tol = float(opt('--tolerance', 0.05))
     ref_path = navparity.save_path(root, reference)

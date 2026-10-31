@@ -120,11 +120,13 @@ def evaluate(s, asset):
     else:
         reads = sorted(set(s.offset_loads))
         want = tuple(asset) if isinstance(asset, tuple) else None
-        good = want is not None and want in s.offset_loads and s.override is None
+        # every load (infantry and vehicle) must read the asset's values; with the asset unknown there is nothing
+        # to compare with (the level not in the run, the run made without the level tests): held, not failed
+        good = want is not None and all(r == want for r in s.offset_loads) and s.override is None
         why = (f'loads read {", ".join(f"{x},{z}" for x, z in reads)}' + (f'; override on ({s.override[0]},{s.override[1]})' if s.override else '')
-               + (f'; the asset says {want[0]},{want[1]}' if want else '; the level has no asset'))
-        out['offsets-read'] = Result('pass' if good else 'fail', f'{src}: {why}', {'loads': len(s.offset_loads),
-                                                                                    'override': int(s.override is not None)})
+               + (f'; the asset says {want[0]},{want[1]}' if want else '; the asset\'s values are not known'))
+        out['offsets-read'] = Result('hold' if want is None else 'pass' if good else 'fail', f'{src}: {why}',
+                                     {'loads': len(s.offset_loads), 'override': int(s.override is not None)})
     if not s.pathfinders:
         out['pathfinders'] = Result('hold', f'{src}: no unit-counter lines (set [dev] unit_counters_dump=1 for the run)')
     else:

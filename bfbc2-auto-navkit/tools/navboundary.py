@@ -306,7 +306,7 @@ def main(argv):
     out = opt('--out') or os.path.join(root, 'work', 'navkit', 'boundary', lv)
     os.makedirs(out, exist_ok=True)
     t = time.time()
-    ref = navdata.load(navparity.reference_of(root, lv))
+    ref = navdata.load(navparity.need_reference(root, lv))
     cand = navdata.load(cand_path)
     try:
         hf = levelmod.heightfield_of(root, lv, log=lambda *a: None)

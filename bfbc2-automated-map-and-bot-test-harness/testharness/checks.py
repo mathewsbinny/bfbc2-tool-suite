@@ -239,7 +239,8 @@ def reachability(nav, sources, targets, reference=None, max_parity_loss=5.0, bas
         status = 'fail' if lost or m['reach_parity_pct'] < 100 - max_parity_loss else \
                  'warn' if m['reach_parity_pct'] < 100 else 'pass'
     elif status != 'skip':
-        status = 'warn' if (T and not all(t_reached)) else 'pass'
+        # no targets at all is not a pass: the level's target extraction found nothing to reach
+        status = 'warn' if (not T or not all(t_reached)) else 'pass'
     summ = (f'{S} spawns -> {T} targets: {m["pairs_reached_pct"]:.1f} % of {pairs} pairs reached, '
             f'{m["targets_reached_pct"]:.0f} % of targets from some spawn; {m["islands"]} islands, main '
             f'{m["main_island_nodes_pct"]:.0f} % of nodes')

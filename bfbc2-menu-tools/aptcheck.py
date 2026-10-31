@@ -377,9 +377,10 @@ def cmd_check(args, opfor):
         f = code.findings()
         rep.add('info', f'{len(code.by_at)} instructions, {len(code.funcs)} functions, {len(code.m.const)} constants')
         for key, x in sorted(f.items(), key=lambda x: (x[0][0], x[0][1])):
-            rep.add('note', f'{x.kind}: {x.text}')
+            rep.add('error', f'{x.kind}: {x.text}')     # no stock movie breaks a rule (128 checked, 2026-10-31)
         rep.show()
-    return errors
+        errors += rep.errors
+    return 1 if errors else 0
 
 
 def take(args, flag):

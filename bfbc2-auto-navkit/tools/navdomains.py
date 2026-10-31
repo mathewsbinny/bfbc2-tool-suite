@@ -403,7 +403,7 @@ def shortest_path(adj, src, dst, n):
 
 def level_world(root, lv, watermesh=None, infantry=None, vehicle=None, log=print):
     import navparity
-    inf_path = infantry or navparity.reference_of(root, lv)
+    inf_path = infantry or navparity.need_reference(root, lv)
     domains = [kynapse_domain('infantry', inf_path, INFANTRY_SPEED)]
     veh_path = vehicle or os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'vehicle', 'pathdata.hpd')
     if os.path.isfile(veh_path + '.opfor-orig'):

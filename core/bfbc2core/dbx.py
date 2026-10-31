@@ -140,12 +140,19 @@ def parse(data):
             start = pos
             count, pos = _varint(data, pos)
             size, pos = _varint(data, pos)
-            pos += count * size
-            e.raw = data[start:pos]
+            end = pos + count * size
+            if end > n:
+                raise ValueError(f'truncated file: {count} numbers of {size} bytes run past the end')
+            pos = end
+            e.raw = data[start:end]
         else:
+            if pos + 2 > n:
+                raise ValueError('truncated file: value cut short')
             e.raw = data[pos:pos + 2]
             pos += 2
         (stack[-1].children if stack else roots).append(e)
+    if stack:
+        raise ValueError('truncated file: unclosed container(s)')
     return DbxFile(strings, roots)
 
 
@@ -225,7 +232,9 @@ def _number_text(raw, size, field_name):
         return _net_r_single(raw)
     if size == 8:
         return _net_r_double(raw)
-    return str(raw[0] << 8 | raw[1])
+    if size == 2 and len(raw) >= 2:
+        return str(raw[0] << 8 | raw[1])
+    return str(int.from_bytes(bytes(raw), 'big'))        # other sizes (none known in game files): as a whole number
 
 
 def value(e):
@@ -236,6 +245,8 @@ def value(e):
         size, vals = numbers(e)
         first = e.attributes[0][1] if e.attributes else ''
         return '/'.join(_number_text(v, size, first) for v in vals)
+    if len(e.raw) < 2:
+        raise ValueError(f'a {len(e.raw)}-byte bool / byte value (expected 2 bytes)')
     v = e.raw[1]
     return 'false' if v == 0 else 'true' if v == 1 else str(v)
 

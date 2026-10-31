@@ -161,12 +161,27 @@ def name_of(a, syms, image):
     return '', ''
 
 
-def log_before_crash(path, lines=18):
+def log_before_crash(path, lines=18, when=None):
+    """The log lines that led up to the crash that wrote the report: the crashreport.xml line whose time of day is
+    within 2 minutes of `when` (the report's modification time, seconds since the epoch), the latest such; without
+    `when`, the last one. [] when no crash in the log matches."""
     try:
         text = open(path, encoding='utf-8', errors='replace').read().splitlines()
     except OSError:
         return []
     marks = [i for i, l in enumerate(text) if 'crashreport.xml' in l]
+    if when is not None:
+        import time
+        t = time.localtime(when)
+        want = t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
+
+        def near(line):
+            m = re.match(r'\[(\d\d):(\d\d):(\d\d)', line)
+            if not m:
+                return True                 # no time on the line (an older log): nothing to tell crashes apart by
+            d = abs(int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) - want)
+            return min(d, 86400 - d) <= 120
+        marks = [i for i in marks if near(text[i])]
     if not marks:
         return []
     end = marks[-1]
@@ -264,11 +279,13 @@ def main(argv):
         candidate = os.path.join(os.path.dirname(exe), 'logs', 'opfor.log')
         log = candidate if os.path.isfile(candidate) else None
     if log:
-        before = log_before_crash(log)
+        before = log_before_crash(log, when=os.path.getmtime(report_path))
         if before:
             print(f'\nLast log lines before the crash ({log}):')
             for l in before:
                 print('  ' + l[:200])
+        else:
+            print(f'\n(no crash at the report\'s time in {log}: its log lines are not shown)')
     return 0
 
 

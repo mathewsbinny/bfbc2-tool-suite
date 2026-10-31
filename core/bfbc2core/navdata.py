@@ -124,8 +124,12 @@ def _cells(f, heightfield, cache_dir, path):
     if cache_dir:
         cp = os.path.join(cache_dir, _key(path) + '.npz')
         if os.path.isfile(cp):
-            z = np.load(cp)
-            return z['xz'], _ground(z['xz'], z['est'], heightfield), z['area'], z['est']
+            try:
+                with np.load(cp) as z:                           # closed again: no lock left on the file
+                    xz, area, est = z['xz'], z['area'], z['est']
+                return xz, _ground(xz, est, heightfield), area, est
+            except Exception:
+                pass                                             # a damaged cache entry is rebuilt
     xz, ys, area_of = [], [], []
     k = 0
     for s in f.sectors:
@@ -143,7 +147,10 @@ def _cells(f, heightfield, cache_dir, path):
     y = _ground(xz, est, heightfield)
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
-        np.savez(os.path.join(cache_dir, _key(path) + '.npz'), xz=xz, y=y, area=area, est=est)
+        cp = os.path.join(cache_dir, _key(path) + '.npz')
+        with open(cp + '.tmp', 'wb') as fh:                      # a file object: numpy adds no .npz of its own
+            np.savez(fh, xz=xz, y=y, area=area, est=est)
+        os.replace(cp + '.tmp', cp)                              # an interrupted write leaves no half file
     return xz, y, area, est
 
 
@@ -160,8 +167,9 @@ def load(path, heightfield=None, cache_dir=None):
                 pass                                         # an unreadable cache entry is rebuilt
         nav = _load(path, heightfield, cache_dir)
         os.makedirs(cache_dir, exist_ok=True)
-        with open(pk, 'wb') as fh:
+        with open(pk + '.tmp', 'wb') as fh:
             pickle.dump(nav, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(pk + '.tmp', pk)
         return nav
     return _load(path, heightfield, None)
 

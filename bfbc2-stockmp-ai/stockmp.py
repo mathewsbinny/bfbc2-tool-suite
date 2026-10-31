@@ -70,13 +70,45 @@ def summary(paths):
         print(f'  stage {st.index}: {st.trigger_name}, M-COMs {[tuple(round(x) for x in p) for _g, p in st.mcoms]}')
 
 
+def installed_files(game, lv):
+    """Rel paths of the files --apply installed for <lv>, from the *.opfor-stockmp-applied markers under the game
+    folder - the installation record, independent of what is still in the build output."""
+    rels = []
+    for dp, _d, fs in os.walk(game):
+        for f in fs:
+            if f.endswith(APPLIED):
+                rel = os.path.relpath(os.path.join(dp, f), game)[:-len(APPLIED)]
+                if lv.lower() in {c.lower() for c in rel.replace(os.sep, '/').split('/')}:
+                    rels.append(rel)
+    return rels
+
+
 def install(paths, argv):
     game = opt(argv, '--game', paths.game)
     out = os.path.join(paths.root, 'out', 'game')
-    files = [os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs]
-    if not files:
-        raise SystemExit(f'nothing built in {out} (run build first)')
     mode = '--apply' if '--apply' in argv else '--revert' if '--revert' in argv else '--plan'
+    if mode == '--revert':
+        files = set(os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs)
+        files |= set(installed_files(game, paths.lv))
+        if not files:
+            print(f'nothing installed by stock-MP in {game} (no {APPLIED} markers, nothing built)')
+            return
+    else:
+        files = [os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs]
+        if not files:
+            raise SystemExit(f'nothing built in {out} (run build first)')
+    if mode in ('--apply', '--revert'):
+        # every file checked before any is written: a refusal half-way would leave Dist and Package (and the path
+        # data) from different builds
+        changed = []
+        for rel in sorted(files):
+            dst = os.path.join(game, rel)
+            if os.path.isfile(dst) and os.path.isfile(dst + APPLIED) and \
+                    open(dst + APPLIED).read().strip() != pipeline.sha(dst):
+                changed.append(rel)
+        if changed:
+            raise SystemExit(f'changed after the install (by something else) - nothing {"installed" if mode == "--apply" else "reverted"}: '
+                             + ', '.join(changed) + f' (delete their {APPLIED} markers to take them as they are now)')
     for rel in sorted(files):
         dst = os.path.join(game, rel)
         src = os.path.join(out, rel)
@@ -84,7 +116,16 @@ def install(paths, argv):
             state = 'replace' if os.path.isfile(dst) else 'new'
             print(f'{state:8s} {rel}')
         elif mode == '--apply':
-            installed = os.path.isfile(dst + APPLIED) and open(dst + APPLIED).read().strip() == pipeline.sha(dst)
+            marker = dst + APPLIED
+            installed = False
+            if os.path.isfile(marker):
+                if not os.path.isfile(dst):
+                    installed = False          # deleted after the install: install the new build again
+                else:
+                    installed = open(marker).read().strip() == pipeline.sha(dst)
+                    if not installed:
+                        raise SystemExit(f'{rel} changed after the install - not overwriting it '
+                                         f'(revert it first, or delete {marker})')
             if installed and pipeline.sha(dst) == pipeline.sha(src):
                 print(f'already   {rel}')
                 continue
@@ -95,13 +136,15 @@ def install(paths, argv):
             open(dst + APPLIED, 'w').write(pipeline.sha(dst))
             print(f'installed {rel}')
         else:
-            if os.path.isfile(dst + APPLIED) and open(dst + APPLIED).read().strip() != pipeline.sha(dst):
+            if os.path.isfile(dst) and os.path.isfile(dst + APPLIED) and \
+                    open(dst + APPLIED).read().strip() != pipeline.sha(dst):
                 raise SystemExit(f'{rel} changed after the install - not reverting it')
             if os.path.isfile(dst + BACKUP):
                 os.replace(dst + BACKUP, dst)
                 print(f'restored  {rel}')
             elif os.path.isfile(dst + APPLIED):
-                os.remove(dst)
+                if os.path.isfile(dst):
+                    os.remove(dst)
                 print(f'removed   {rel}')
             if os.path.isfile(dst + APPLIED):
                 os.remove(dst + APPLIED)

@@ -36,6 +36,7 @@ Files (in the OPFOR folder): work\\levels\\<level>\\ (unpacked level, objects), 
 [dev] navsample). See QUICKSTART.md.
 """
 import glob
+import hashlib
 import json
 import math
 import os
@@ -55,6 +56,15 @@ DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the 
 AGENTS = [('normal', '0.4,0.28,1.9', ''), ('high capsule', '0.4,0.6,1.9', '_hi')]   # radius,stepMax,height
 SAMPLE_DONE = re.compile(r'navsample: (done|no physics|cannot create|empty box|needs \[debug\])')
 BACKUP_SUFFIX = '.opfor-orig'
+NEW_SUFFIX = '.opfor-new'       # where NavKit installed onto a level that had no path data to back up
+
+
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
 
 
 class NavKitError(Exception):
@@ -108,11 +118,13 @@ class Project:
         return os.path.join(self.game, 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
 
     def dice_pathdata(self, lv):
-        """The level's original path data (the backup if NavKit's file is installed), or None."""
+        """The level's original path data (the backup if NavKit's file is installed), or None - also where NavKit
+        was installed onto a level that had none (NEW_SUFFIX): that file is NavKit's own."""
         p = self.pathdata(lv)
-        for f in (p + BACKUP_SUFFIX, p):
-            if os.path.isfile(f):
-                return f
+        if os.path.isfile(p + BACKUP_SUFFIX):
+            return p + BACKUP_SUFFIX
+        if os.path.isfile(p) and not os.path.isfile(p + NEW_SUFFIX):     # NEW_SUFFIX: the file there is NavKit's
+            return p
         return None
 
     def level(self, name):
@@ -158,13 +170,19 @@ class Project:
         return out
 
     def unpack(self, bundle, dest, log):
-        if os.path.isdir(dest) and os.listdir(dest):
+        stamp = os.path.join(dest, '.source.sha256')
+        source_hash = _sha256(bundle)
+        if os.path.isfile(os.path.join(dest, 'fbrb.manifest')) and os.path.isfile(stamp) \
+                and open(stamp).read().strip() == source_hash:
             log(f'  {os.path.relpath(dest, self.root)} already unpacked')
             return
         log(f'  unpacking {os.path.relpath(bundle, self.game)} ...')
+        if os.path.isdir(dest):
+            shutil.rmtree(dest, ignore_errors=True)
         self.run([self.fbrbtool, 'unpack', bundle, dest], log)
         log('  converting binary DBX to XML ...')
         log('  ' + self.run([self.dbxedit, 'xml', dest], log)[-1])
+        open(stamp, 'w').write(source_hash)
 
 
 # --- steps -----------------------------------------------------------------------------------------------
@@ -177,7 +195,7 @@ def levels(pr, log=print):
             done.append('prepared')
         if os.path.isfile(os.path.join(pr.work, 'navkit', lv, 'pathdata.hpd')):
             done.append('built')
-        if os.path.isfile(pr.pathdata(lv) + BACKUP_SUFFIX):
+        if os.path.isfile(pr.pathdata(lv) + BACKUP_SUFFIX) or os.path.isfile(pr.pathdata(lv) + NEW_SUFFIX):
             done.append('INSTALLED')
         log(f'{lv:12s} {ai:14s} {", ".join(done)}')
 
@@ -405,6 +423,11 @@ def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitc
         s = dict(s, box=box or detailed_box(pr, lv), y=y or s['y'], rects=None if box else detailed_rects(pr, lv))
     elif box or y:
         s['box'], s['y'] = box or s['box'], y or s['y']
+        if box and s.get('offsets_source') == 'rule: box':
+            # offsets from the box (a level without path data): follow the new box, or ground below the old
+            # lowest sector would get grid positions below 0 (prepare does the same)
+            s['xoff'], s['zoff'] = int(math.floor(box[0] / 100.0)) - 1, int(math.floor(box[1] / 100.0)) - 1
+            log(f'  sector offsets follow the box: {s["xoff"]}, {s["zoff"]}')
         json.dump(s, open(pr.settings_path(lv), 'w'), indent=1)
     log(f'== sample {lv}: box {fmt(s["box"])}, y {fmt(s["y"])}, pitch {pitch}')
     if not pr.dice_pathdata(lv):
@@ -554,6 +577,9 @@ def build(pr, lv, log=print):
     log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
     t0 = time.time()
     samples, forbid, xoff, zoff, kw = build_inputs(pr, lv, log)
+    trav = traversal_path(os.path.dirname(out), lv)
+    if os.path.isfile(trav):
+        os.remove(trav)                          # annotations of the previous file: its node ids no longer hold
     navbuild.build(samples, forbid, xoff, zoff, out, **kw)
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
 
@@ -610,31 +636,51 @@ def install(pr, lv, log=print, src=None):
         raise NavKitError('the game is running - close it first')
     dest = pr.pathdata(lv)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    if os.path.isfile(dest) and not os.path.isfile(dest + BACKUP_SUFFIX):
-        shutil.copyfile(dest, dest + BACKUP_SUFFIX)
-        log(f'  original kept as {os.path.basename(dest)}{BACKUP_SUFFIX}')
+    if not os.path.isfile(dest + NEW_SUFFIX) and not os.path.isfile(dest + BACKUP_SUFFIX):
+        if os.path.isfile(dest):
+            shutil.copyfile(dest, dest + BACKUP_SUFFIX)
+            log(f'  original kept as {os.path.basename(dest)}{BACKUP_SUFFIX}')
+        else:
+            open(dest + NEW_SUFFIX, 'w').close()  # no original: record that, so restore can remove the file
+            log(f'  noting {os.path.basename(dest)} had no original (restore will remove it)')
     shutil.copyfile(ours, dest)
     log(f'== installed {os.path.relpath(ours, pr.root)} as {os.path.relpath(dest, pr.root)}')
     trav, trav_dest = traversal_path(os.path.dirname(ours), lv), traversal_path(os.path.dirname(dest), lv)
-    if os.path.isfile(trav):
+    sha = hashlib.sha1(open(ours, 'rb').read()).hexdigest()
+    try:
+        made_for = json.load(open(trav, encoding='utf-8')).get('pathdata_sha1') if os.path.isfile(trav) else None
+    except (OSError, ValueError):
+        made_for = None
+    if made_for == sha:
         shutil.copyfile(trav, trav_dest)
         log(f'  traversal annotations installed as {os.path.relpath(trav_dest, pr.root)}')
-    elif os.path.isfile(trav_dest):
-        os.remove(trav_dest)                     # none with this file: no stale annotations from an earlier one
+    else:
+        if os.path.isfile(trav):                 # written for another build of the file (its node ids differ)
+            log(f'  traversal annotations {os.path.basename(trav)} not installed: made for another path-data file')
+        if os.path.isfile(trav_dest):
+            os.remove(trav_dest)                 # none with this file: no stale annotations from an earlier one
 
 
 def restore(pr, lv, log=print):
     dest = pr.pathdata(lv)
-    if not os.path.isfile(dest + BACKUP_SUFFIX):
-        log(f'{lv}: nothing to restore (no NavKit file installed over an original)')
+    if not os.path.isfile(dest + BACKUP_SUFFIX) and not os.path.isfile(dest + NEW_SUFFIX):
+        log(f'{lv}: nothing to restore (no NavKit file installed)')
         return
     if game_running():
         raise NavKitError('the game is running - close it first')
-    shutil.move(dest + BACKUP_SUFFIX, dest)
+    if os.path.isfile(dest + BACKUP_SUFFIX):
+        shutil.move(dest + BACKUP_SUFFIX, dest)
+        if os.path.isfile(dest + NEW_SUFFIX):
+            os.remove(dest + NEW_SUFFIX)      # a stale no-original marker: the original is restored now
+        log(f'== restored the original {os.path.relpath(dest, pr.root)}')
+    else:
+        if os.path.isfile(dest):
+            os.remove(dest)
+        os.remove(dest + NEW_SUFFIX)
+        log(f'== removed the installed {os.path.relpath(dest, pr.root)} (the level had no path data before)')
     trav = traversal_path(os.path.dirname(dest), lv)
     if os.path.isfile(trav):
         os.remove(trav)
-    log(f'== restored the original {os.path.relpath(dest, pr.root)}')
 
 
 def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
@@ -738,7 +784,7 @@ def status(pr, lv, log=print):
         log(f'  samples{suf or "":12s}: {time.ctime(os.path.getmtime(p)) if os.path.isfile(p) else "no"}')
     p = os.path.join(pr.work, 'navkit', lv, 'pathdata.hpd')
     log(f'  built              : {time.ctime(os.path.getmtime(p)) if os.path.isfile(p) else "no"}')
-    log(f'  installed in game  : {"yes" if os.path.isfile(pr.pathdata(lv) + BACKUP_SUFFIX) else "no"}')
+    log(f'  installed in game  : {"yes" if os.path.isfile(pr.pathdata(lv) + BACKUP_SUFFIX) or os.path.isfile(pr.pathdata(lv) + NEW_SUFFIX) else "no"}')
     del L
 
 

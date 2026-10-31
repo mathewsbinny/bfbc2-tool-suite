@@ -418,6 +418,9 @@ namespace Bfbc2Dbx
         public sealed class Entry
         {
             public int Kind = -1, Size, FirstByte = 1, Floats, Ints;
+            // a field name can be numbers in one instance type and a bool in another (InitialValue of waypoint
+            // anim-tree properties): the bool / byte kind seen for it, for new values written true / false
+            public int ByteKind = -1;
             public byte ContainerByte;
         }
 
@@ -453,9 +456,16 @@ namespace Bfbc2Dbx
                         uint bits = BigEndian.U32(e.Payload, pos);
                         if (!XmlImport.PrintsAsWhole(bits, "")) t.Floats++;
                         else if (bits != 0 && (bits >> 24) == 0) t.Ints++;
+                        // small negative integers (-1 slot indices: LinkedToWeaponSlot, AltWeaponSlot): as floats
+                        // these bits are NaN, so they are integer evidence too (else every -1 field stays untyped)
+                        else if ((bits >> 24) == 0xFF && (bits & 0x00800000) != 0) t.Ints++;
                     }
             }
-            else if (e.Kind != Element.Text) t.FirstByte = e.Payload[0];
+            else if (e.Kind != Element.Text)
+            {
+                t.FirstByte = e.Payload[0];
+                t.ByteKind = e.Kind;
+            }
         }
 
         public Entry Find(string tag, string firstValue)
@@ -765,6 +775,7 @@ namespace Bfbc2Dbx
             if (x.SelfClosing) return Element.Text;
             if (x.Multiline) return Element.Container;
             if (x.Text.Length == 0) return Element.Numbers;
+            if (learned != null && learned.ByteKind >= 0 && (x.Text == "true" || x.Text == "false")) return learned.ByteKind;
             if (learned != null && learned.Kind >= 0 && learned.Kind != Element.Container) return learned.Kind;
             // nothing to go by: the XML's own shape
             if (x.Multiline) { Guess(x, path, "container"); return Element.Container; }
@@ -1017,12 +1028,10 @@ namespace Bfbc2Dbx
                 e.Payload = Varint.Bytes(file.Intern(value));
                 return true;
             }
-            // one 4-byte number: count 1, size 4, big-endian value (float if the text has a '.')
-            if (e.Payload.Length != 6 || e.Payload[0] != 1 || e.Payload[1] != 4) return false;
-            uint bits = value.Contains(".")
-                ? BitConverter.ToUInt32(BitConverter.GetBytes(float.Parse(value, CultureInfo.InvariantCulture)), 0)
-                : (uint)int.Parse(value);
-            e.Payload = new byte[] { 1, 4, (byte)(bits >> 24), (byte)(bits >> 16), (byte)(bits >> 8), (byte)bits };
+            // numbers typed like the field's current value (integer or decimal from its bits, as the XML import does):
+            // "3" into a decimal field is 3.0, not the integer bits 3 (which read as 4.2e-45)
+            bool rounded;
+            e.Payload = XmlImport.EncodeValue(file, e, value, out rounded);
             return true;
         }
 
@@ -1576,7 +1585,10 @@ namespace Bfbc2Dbx
             foreach (string a in args.Skip(3))
             {
                 if (a.StartsWith("@"))
-                    commands.AddRange(File.ReadAllLines(a.Substring(1)).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#")));
+                    // a setfield line keeps its value's spaces (the GUI records values as they are); others are trimmed
+                    commands.AddRange(File.ReadAllLines(a.Substring(1))
+                        .Select(l => l.TrimStart().StartsWith("setfield=") ? l.TrimStart() : l.Trim())
+                        .Where(l => l.Trim().Length > 0 && !l.StartsWith("#")));
                 else commands.Add(a);
             }
             var editor = new Editor(file);
@@ -1587,7 +1599,9 @@ namespace Bfbc2Dbx
             {
                 int eq = c.IndexOf('=');
                 string verb = eq < 0 ? c : c.Substring(0, eq + 1);
-                string[] p = eq < 0 ? new string[0] : c.Substring(eq + 1).Split('|');
+                // setfield=<guid>|<field>|<value>: the value is everything after the second '|' (it may hold '|')
+                string[] p = eq < 0 ? new string[0] : verb == "setfield=" ? c.Substring(eq + 1).Split(new[] { '|' }, 3)
+                                                                          : c.Substring(eq + 1).Split('|');
                 switch (verb)
                 {
                     case "replace=":

@@ -119,6 +119,9 @@ class Movie:
             raise ValueError('not an APT constant file')
         le, be = struct.unpack_from('<I', self.c, 20)[0], struct.unpack_from('>I', self.c, 20)[0]
         self.big = not (0 < le < len(self.a)) and 0 < be < len(self.a)
+        if 0 < be <= len(self.a) - 8 and self.a[be + 4:be + 8] == b'\x09\x87\x65\x43' and \
+                not (0 < le <= len(self.a) - 8 and self.a[le + 4:le + 8] == b'\x43\x65\x87\x09'):
+            self.big = True          # both offsets inside the file (Xbox 360 hud_crosshair): the signature decides
         self.e = '>' if self.big else '<'
         self.movie = be if self.big else le
         count, entries = self.cu(24), self.cu(28)
@@ -231,7 +234,7 @@ class Movie:
             p = al(p)
             fname, nparams = self.s(self.u(p)), self.i(p + 4)
             if op == 0x8E:
-                extra = f' regs={a[p + 8] if not self.big else a[p + 11]}'
+                extra = f' regs={a[p + 8] if not self.big else a[p + 9]}'   # u16 register count, u16 flags
                 size, body = self.i(p + 16), p + 28
             else:
                 extra, size, body = '', self.i(p + 12), p + 24

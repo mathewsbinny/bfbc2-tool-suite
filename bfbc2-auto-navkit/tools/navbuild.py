@@ -771,6 +771,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
                   order_points=order_points, t0=t0, ladders=ladders, area_orders=area_orders)
     set_pitch(0.8)
     ORDER_IDS.clear()
+    ORDER_STATS.clear()                     # reports of this build only (navregress / the GUI build several)
     navislands.TERRAIN_IDS.clear()
     LADDER_STATS.clear()
     DETAIL_STATS.clear()
@@ -874,6 +875,14 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
     if sector_filter is not None:
         sectors &= set(sector_filter)
     sectors = sorted(sectors)
+    if not sectors and sector_filter is None:        # (a detailed pass may find none: merge_detailed handles it)
+        raise RuntimeError('no walkable ground was kept (the samples hold none inside the box): check the box and '
+                           'the samples')
+    bad = [(X, Y) for X, Y in sectors if not (0 <= X <= 255 and 0 <= Y <= 255)]
+    if bad:
+        # a sector id is 0xXXYY: a grid position outside 0..255 would wrap into another sector's id
+        raise RuntimeError(f'{len(bad)} sector(s) outside the 256 x 256 grid (e.g. {bad[0]}, offsets {xoff}, {zoff}): '
+                           f'the box reaches below the sector offsets - run prepare again after widening the box')
     log(f'{len(sectors)} sectors (pitch {PITCH:g})')
 
     # Pass 1: areas per sector, and which area each surface belongs to.
@@ -1161,7 +1170,9 @@ def merge_detailed(a, detailed, xoff, zoff, seeds, common, log):
         log(f'detailed pass: {len(missing)} sectors without ground at pitch {DETAILED_PITCH} kept at the normal pitch: '
             + ', '.join(f'{(X & 0xFF) << 8 | (Y & 0xFF):04x}' for X, Y in sorted(missing)))
     dset = b['sectors']
-    drop = b['dropped']
+    # only nodes on the seams of detailed sectors stage b built: a detailed sector it had no ground for stays at
+    # the normal pitch, and its seam nodes - in a's build on both sides - keep their edges
+    drop = {nid for nid in b['dropped'] if owners[nid] & dset}
     log(f'detailed pass: {len(drop)} mixed-seam shared nodes without ground at pitch {DETAILED_PITCH} dropped')
     # links across mixed seams: b's sectors to a's normal neighbours, a's normal sectors to b's detailed ones
     a_norm = {sec: g for sec, g in zip(sorted(a['sectors']), a['graphs']) if sec not in dset}

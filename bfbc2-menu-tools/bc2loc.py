@@ -7,6 +7,9 @@ texts, list the keys a menu movie uses.
   python bc2loc.py dump [--lang english] [--out <file>]     every entry: hash, key (where found), text; default
                                                             <OPFOR>\work\tools_out\loc_<lang>.txt
   python bc2loc.py langs                                    the languages of the game copy
+  python bc2loc.py set <key>=<text>... --out <folder> [--lang <lang> | --lang all]
+                                                            the language file(s) with those texts set (ASCII; a
+                                                            key not in the file is added), written to <folder>
 Options: --file <language_x_normal.bin> reads that file (its _histogram.bin beside it) instead of the game copy's
 Dist\win32\overlay-00.fbrb; --no-keys skips naming keys (search / dump); --opfor <folder>.
 
@@ -49,12 +52,16 @@ class LocFile:
         if size != len(data) - 8 or 8 + table + 8 * count > len(data):
             raise mc.MenuToolError(f'{name}: the header does not match the file (size {size + 8}, {count} entries)')
         self.name = data[20:36].split(b'\0')[0].decode('latin1')
+        self.data, self.offsets = data, {}
         base, self.raw, self.order = 8 + strings, {}, []
         for i in range(count):
             h, o = struct.unpack_from('<II', data, 8 + table + 8 * i)
             e = data.find(b'\0', base + o)
             self.raw[h] = data[base + o:e if e >= 0 else len(data)]
+            self.offsets[h] = o
             self.order.append(h)
+        self.strings = data[base:]
+        self.changed = {}
         self.table = None
         if histogram:
             if struct.unpack_from('<I', histogram, 0)[0] != 0x39001:
@@ -80,6 +87,38 @@ class LocFile:
 
     def text(self, h):
         return self.decode(self.raw[h]) if h in self.raw else None
+
+    def set(self, key, text):
+        """Gives key (a name, or 0x<hash>) the text: ASCII only, stored as it is (bytes below 0x80 are themselves
+        in every language's encoding)."""
+        if re.fullmatch(r'0x[0-9A-Fa-f]{1,8}', key):
+            h = int(key, 16)
+        else:
+            # the PC text WIN32_<key> where the file has one: that is what the game (and get) reads first
+            h = khash(PC_PREFIX + key) if khash(PC_PREFIX + key) in self.raw else khash(key)
+        if any(ord(c) >= 0x80 or c == '\0' for c in text):
+            raise mc.MenuToolError(f'{key}: only ASCII text without NUL can be written ({text!r})')
+        b = text.encode('ascii')
+        self.raw[h] = b
+        self.changed[h] = b
+        if h not in self.order:
+            self.order.append(h)
+        return h
+
+    def to_bytes(self):
+        """The file again: the texts it had kept where they were, new or changed ones appended; the entry table
+        sorted by hash. Unchanged, it is the file it was read from."""
+        strings = bytearray(self.strings)
+        offsets = dict(self.offsets)
+        for h, b in self.changed.items():
+            offsets[h] = len(strings)
+            strings += b + b'\0'
+        order = sorted(offsets)
+        table = b''.join(struct.pack('<II', h, offsets[h]) for h in order)
+        out = bytearray(struct.pack('<5I', 0x39000, 0, len(order), 28, 28 + len(table)))
+        out += self.data[20:36] + table + strings
+        struct.pack_into('<I', out, 4, len(out) - 8)
+        return bytes(out)
 
     def lookup(self, key):
         """(hash, the name it was found under, text) - the PC text WIN32_<key> first, then the key; or None."""
@@ -179,7 +218,7 @@ def take(args, flag):
 
 def main(argv):
     args = list(argv[1:])
-    if not args or args[0] not in ('get', 'search', 'movie', 'dump', 'langs'):
+    if not args or args[0] not in ('get', 'search', 'movie', 'dump', 'langs', 'set'):
         print(__doc__)
         return 1 if args else 0
     sys.stdout.reconfigure(errors='replace')
@@ -193,6 +232,23 @@ def main(argv):
     if cmd == 'langs':
         for k, b in sorted(languages(root or mc.find_opfor()).items()):
             print(f'{k:10s} {b}')
+        return 0
+    if cmd == 'set':
+        pairs = [a.split('=', 1) for a in args if '=' in a]
+        if not pairs or not out:
+            raise mc.MenuToolError('set needs <key>=<text>... and --out <folder>')
+        if path and lang == 'all':
+            raise mc.MenuToolError('--file is one language\'s file: give it without --lang all')
+        langs = sorted(languages(root or mc.find_opfor())) if lang == 'all' else [lang]
+        os.makedirs(out, exist_ok=True)
+        for lg in langs:
+            loc = load(lg, root, path)
+            for k, t in pairs:
+                loc.set(k, t)
+            # a --file keeps its own name (its language is the file's, whatever --lang says)
+            dst = os.path.join(out, os.path.basename(path) if path else f'language_{lg.lower()}_normal.bin')
+            open(dst, 'wb').write(loc.to_bytes())
+            print(f'{dst}: {len(pairs)} text(s) set')
         return 0
     loc = load(lang, root, path)
     if cmd == 'get':

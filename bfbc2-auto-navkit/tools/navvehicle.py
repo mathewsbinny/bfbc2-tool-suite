@@ -630,7 +630,9 @@ def reference_of(root, lv):
     if not os.path.isdir(d):
         return None
     fs = os.listdir(d)
-    orig = [f for f in fs if f.lower().startswith('pathdata.hpd.')]
+    if any(f.lower() == 'pathdata.hpd.opfor-new' for f in fs):
+        return None                         # NavKit's file installed where the level had none: no DICE file
+    orig = [f for f in fs if f.lower().startswith('pathdata.hpd.') and f.lower() != 'pathdata.hpd.opfor-new']
     if orig:
         return os.path.join(d, orig[0])
     return os.path.join(d, 'pathdata.hpd') if 'pathdata.hpd' in [f.lower() for f in fs] else None
