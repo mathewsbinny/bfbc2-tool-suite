@@ -50,14 +50,33 @@ Gunto) port to BFBC2's own files (parts, counts, offsets, index buffer, palettes
 (1p, 3p), and the vehicles and fixed guns: Willys, Sherman (hull, tracks), LCVP, B-25, Ki-21, the bombing-raid cockpit
 and bunker, the window mount. BF1943's rigid mesh sets have no flag byte a LOD (`meshset.parse(..., flag=False)`;
 165 read, 37 shared with BFBC2 write as its files). A part with no BFBC2 layout of exactly its elements takes the
-layout keeping the most of them (a donor's first). Not yet: installing (the shader database entries), physics.
+layout keeping the most of them (a donor's first). Not yet: installing (the shader database entries).
+
+## Physics (`havokport.py`)
+
+`havokport.convert(bf1943_resource, template, havok.classes(exe))` turns BF1943's physics (Havok 4.6.1, Xbox 360)
+into BFBC2's PC format (Havok 5.5.0). BF1943's packfiles carry no class reflection, so what changed was measured on
+the physics both games ship (Kurogane, Zero, Corsair): the physics classes gained a "p"; every object kept its size;
+hkRigidBody and hkMoppBvTreeShape moved fields (their 4.6.1 layouts are in the module); the rest have 5.5.0's layout.
+Stage 1 rewrites the packfile as a big-endian 5.5.0 one - the class-name section from a BFBC2 file (`template`: its
+names and signatures), the two classes rewritten in place, the deactivator objects 5.5.0 dropped left out, class-name
+strings renamed, fixups rebuilt; stage 2 is the console converter (`havok.py`), which swaps every field by BFBC2's
+own layouts and stops on any byte they do not account for.
+
+Proven: BF1943's Kurogane converts to BFBC2's Kurogane object for object (62) and field for field but for values the
+game rebuilds at load; the Zero and Corsair (re-exported by DICE for BFBC2) pair all but the subparts DICE merged.
+Converted for the WW2 side project: the Willys (and wreck), Sherman, LCVP and its shell, B-25, Ki-21, the air-raid
+bunker and the machine-gun mounts. Open: the MOPP code is BF1943's (4.6.1-built; BFBC2's own differ by a byte or two
+where DICE rebuilt them) - the game has to show it collides right; velocity limits other than 200 are refused
+until their 8-bit encoding is known.
 
 Not yet: the converted animations still need BFBC2 data to use them (DBX animation entries, anim trees, a weapon that
 plays them) - that is game work in Project OPFOR, not this tool's.
 
 Tests: `tests\test_bf1943import.py` (quick without data: output-path containment, type routing, refused imports;
 `--game`: `check` on the whole source, an import of the Garand bayonet's resources read back, `import.json`
-merging, the source unchanged), `tests\test_meshport.py` (game: the oracle models, the WW2 models). The
+merging, the source unchanged), `tests\test_meshport.py` (game: the oracle models, the WW2 models),
+`tests\test_havokport.py` (game: the Kurogane oracle, the re-exported Zero and Corsair, the WW2 physics). The
 converters' own: `bfbc2-anim-tools\tests\test_granny_port.py`, `bfbc2-console-convert\tests\test_mesh_decode.py`.
 
 Developed for Project OPFOR BFBC2. Battlefield 1943 and Battlefield: Bad Company 2 are © Electronic Arts / DICE;
