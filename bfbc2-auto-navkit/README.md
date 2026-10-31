@@ -371,7 +371,15 @@ equal or higher (sp_003_b 93.26 -> 93.38, sp_005 99.15 -> 99.25), nodes_near hig
 +0.12 to +0.20 on sp_003_b, sp_03, sp_005_b, sp_005 (-0.28 on sp_01), and the edge-cost match (measured on a few
 dozen matched edges) one or two edges lower on sp_003_b, sp_03, sp_005_b - both from `DETAIL_BLOCKS_EDGES` (sp_003_b
 rebuilt with it off gives the reference's 29.16 / 92.68 exactly). The blocking was accepted (2026-10-26):
-`regression_df_v1` is now the reference `regression` (the one before stays as `regression_det_v8`).
+`regression_df_v1` was the reference `regression` from then (the one before stays as `regression_det_v8`).
+
+**Reference re-saved 2026-10-31** (after the suite review fixes, at the user's request): the full run of that day is
+`regression` (15 levels: ground 98.2 %, extra 8.3 %, connectivity 98.8, AI coverage 99.2); `regression_df_v1` is
+kept as `regression_before_2026-10-31_reference`. Against it that run was slightly lower on `nodes_near` (by 0.05 -
+0.65) and D-line recall (by 0.05 - 0.5; sp_008 22.1 -> 13.6 %) on most levels, connectivity higher (98.5 -> 98.8);
+the cause of the drift is not established. Review fixes of that day that change builds: a detailed sector with no
+ground at 0.2 m keeps its seam edges (they were dropped), sector ids outside 0..255 are refused, and the reference
+file is never NavKit's own file installed on a level without an original.
 
 - **Infantry only:** DICE's vehicle files do not follow this rule (D lines mostly single, a quarter of their segments
   diagonal, F records in eight directions without twins) and their route edges cross D lines on 0.58 % of edges

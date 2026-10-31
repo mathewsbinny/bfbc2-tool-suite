@@ -126,3 +126,57 @@ picture (`texture.check`, `convert.py verify-texture`, `tests/test_texture.py`, 
 Console 3 and 5 (the PC's 8-bit format 10 and 32-bit format 9 textures: masks, decals; 31 files in the four
 builds) are smaller on the console than the PC's uncompressed data (about 4 and 16 bits per texel), so they are
 another, compressed encoding; they are refused until it is identified.
+
+## 3. MeshData (a mesh LOD's parts, vertices and indices)
+
+`<mesh>_lod<N>_data.res`, the same grammar on both platforms (console big-endian, PC little-endian):
+
+```
+u32 h0; u8 h1[2]; u8 part count
+per part: cstr name; u32 triangles, vertices, first index, vertex offset (bytes);
+          u8 stride, k, fa, fb (fb = the part's bone count); u16 bone count, u16 bones[count] (skeleton bones)
+4 lists: u32 n, u8 part indices[n]
+u32 vertex bytes, index bytes, wide indices (1: 32-bit)
+vertex bytes, then index bytes
+```
+
+A part draws `triangles` triangles from `first index` (in indices); vertex i of an index is at `vertex offset + i x
+stride`. Parts may share a vertex window (a depth-only `_ZOnly` part drawing other parts' vertices), and a depth-only
+part's index range may cover several parts' triangles; a part uses the vertices from its lowest to its highest index.
+
+**Vertex layouts are not in the file:** the level's shader database names each part (`<mesh>_lod<N>/<part>/<technique>`)
+with a layout (the suite's `bfbc2-shader-tools\FORMAT.md`: 73-byte records, 16 x (format, usage, offset, stream),
+the element count at byte 64, the stride at 69). Element formats: 0x03 float3, 0x04 float4, 0x05 half, 0x06 half2,
+0x07 half3, 0x08 half4, 0x0C ubyte4 (bone indices, weights), console-only 0x2B (signed normalized 11:11:10 ->
+PC half4 x, y, z, 1) and 0x0D (unsigned normalized bytes w, z, y, x -> PC half4). Usage: 0 texture coordinate (the
+n-th in element order), 1 position, 2 bone indices, 3 bone weights, 4 normal, 5 tangent, 6 binormal, 7 position w.
+PC weapons: one bone per vertex (all four indices equal, weights 255, 0, 0, 0), normal / tangent / binormal w = 1,
+binormal = -(normal x tangent) or + where the texture is mirrored.
+
+**Converting (`mesh.convert`):** per part a (console layout, PC layout) pair, matched element by element (in order,
+or by kind with `reorder`; `reorder='drop'` leaves out console elements the PC layout has no place for). Parts that
+share a console region and a PC layout share one converted region (indices unchanged); parts given different PC
+layouts for one console region each get the window of vertices they use, at an offset that keeps their indices. The
+index buffer is converted whole (byte-swapped; 32-bit console indices narrowed to 16 bits). Checked on the Mark V:
+every part's indices inside the vertex data, offsets on whole vertices (2026-10-30); all 2,571 console MeshData files
+of the four Onslaught builds parse.
+
+## 4. Mesh sets (a mesh's LODs)
+
+`<mesh>.res`, kinds RigidMeshSet, CompositeMeshSet, SkinnedMeshSet (console big-endian):
+
+```
+u32 a; u8 z; cstr LOD settings; u32 LOD count
+per LOD: u8 x, u8 shader count n, u8 set count
+         per set: cstr name ("<mesh asset>/<shader set guid>"), n x cstr shader (one per part, in part order)
+         6 x f32 bounds (min x, y, z, max x, y, z); u32 size; u32 extra
+         Rigid / Composite: u8 flag
+         Composite: u32 part count, per part (u32 hash, cstr name, 6 x f32 bounds, 12 x f32 transform);
+                    n x 3 x u64 masks (per shader, the parts using it)
+         Skinned: u32 bone count b, b x u32 skeleton bones, b x u32 bone name hashes (no flag byte)
+```
+
+**A LOD's size is its MeshData's vertex bytes + index bytes + 12**, not the file's length (all 2,463 console and
+619 PC mp_common LODs; `meshset.lod_size`). A third-person mesh may name its first-person partner's shader set.
+All 743 rigid, 251 composite and 187 skinned console mesh sets parse and write back at the same length; the Garand
+and Type 5 PC mesh sets write back byte-identical (2026-10-30).

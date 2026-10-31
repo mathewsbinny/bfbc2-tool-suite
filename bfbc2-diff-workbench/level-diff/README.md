@@ -28,7 +28,8 @@ LevelDiff <a.dbx> <b.dbx> [options]
 | `--all` | list everything (default: the first 40 per section) |
 | `--json <file>` | also write the full result as JSON |
 
-The exit code is 0 if the files have no differences, 1 if they do, 2 for bad input.
+The exit code is 0 if the files have no differences, 1 if they do, 2 for bad input (an option without its value
+included), 3 for an unexpected error.
 
 Instances are matched by GUID. Each changed instance lists its fields as `path: old  ->  new`. Lists of
 references (like a level's `Objects`) are compared as sets: `-` for entries only in A, `+` for entries only
@@ -49,7 +50,7 @@ ReferenceObjectData    C3A93730-7A4B-488D-A41A-8ACE4F7D3695
 
 LevelDiff keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` like the suite's other tools (`ToolLog`, shared
 with DbxEdit). When it cannot do something it prints the cause, what to do and the log's path, and exits with
-code 1. Tests: `tests\test_leveldiff.py` (quick and game tiers of the suite's `run_tests.py`).
+code 2 (bad input) or 3 (unexpected). Tests: `tests\test_leveldiff.py` (quick and game tiers of the suite's `run_tests.py`).
 
 ## Credits
 

@@ -32,7 +32,18 @@ Added beside these eight (2026-10-26, both built; their READMEs):
 | Tool | For | In short |
 |---|---|---|
 | **bfbc2-stockmp-ai** | any BC2 modder, Project OPFOR BFBC2 bots | Gives a stock MP level an AI layer (AI spawners, AI orders, event wiring, HasAI, PathfindingTypes, SectorOffsets, AI template) as level data, built into its bundles and checked offline. Not the tactical authoring tool: it writes game data, not annotation side files. |
-| **bfbc2-menu-tools** | any BC2 modder, Project OPFOR BFBC2 | `aptcheck` (menu patches against the rules that crash the menu loader), `aptrefs` (externs, FSCommands and engine events of every movie, with the exe's name / id table), `bc2loc` (localized texts). |
+| **bfbc2-menu-tools** | any BC2 modder, Project OPFOR BFBC2 | `aptcheck` (menu patches against the rules that crash the menu loader), `aptrefs` (externs, FSCommands and engine events of every movie, with the exe's name / id table), `bc2loc` (localized texts; `set` writes them), `aptgraft` (writes APT movies; grafts characters and mode cases between movies). |
+
+Added since (2026-10-27 to 10-31, for the console Onslaught ports and the WW2 side project; their READMEs):
+
+| Tool | For | In short |
+|---|---|---|
+| **bfbc2-console-convert** | any BC2 modder | Xbox 360 resources to PC: Havok physics, textures, MeshData and mesh sets (`FORMAT.md`). |
+| **bfbc2-shader-tools** | any BC2 modder | The levels' shader databases: read, check, merge other levels' entries in, clone an entry for a new mesh. |
+| **bfbc2-culltree** | any BC2 modder | A level's static cull tree: verify it, give objects without a place one. |
+| **bfbc2-mesh-viewer** | any BC2 modder | Any model of the game with its textures, as a browser page and a picture. Takes the "render meshes" part of 4.6 below. |
+| **bfbc2-model-tools** | any BC2 modder | Edit skinned meshes (replace or add a part's geometry) and build simple solids on texture atlases. |
+| **bfbc2-anim-tools** | any BC2 modder | Granny skeletons and animations: decode tracks and curves, move a bone's position track. |
 
 ## 2. Rules
 

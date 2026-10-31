@@ -26,6 +26,14 @@ level bundle has 4,334 of its 6,692 entries as markers; all bundles together 286
 broken; `pack` restores them from the manifest, and the rebuilt bundle's header and payload are identical
 to the original's. Folders unpacked by older versions, which hold the markers as empty files, pack the same.
 
+Padded layouts (2026-10-31): the uncompressed async `ondemand_*` and `streaming_*` bundles are laid out by DICE's
+packer with padding - every entry on a 4096-byte boundary (0xBF between entries) or 64 bytes of 0xBF between
+entries, the header region padded with zeros, and in the async ones a payload-length field of the last entry's
+offset + size2. `unpack` records such a layout on the manifest's first line (`layout=align4096` or `layout=gap64`,
+`hdr=<alignment>`, `plen=size2`, `size2=minus64`) and `pack` rebuilds it, so all 1,063 bundles of the game round-trip
+(every other bundle gets no tokens and packs as before). An unpack into a folder whose paths would pass Windows'
+260-character limit says so; unpack into a shorter path.
+
 ## Errors and logs
 
 FbrbTool keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` like the suite's other tools. When it cannot do

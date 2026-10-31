@@ -81,6 +81,18 @@ The report lists the entries added (and from which donor), programs shared, any 
 mesh-part name the file has with other content: the existing one is kept), and the needed names still without an
 entry.
 
+### Cloning an entry for a new mesh (from Python)
+
+`Merger.clone_entry(donor, entry, new_name, textures)` adds a donor's entry again under a new name - a mesh the
+database has never drawn, e.g. a mesh converted from the console (OPFOR's `console_markv.py`) or a new weapon
+variant: its programs get new ids (MD5 of the new name and the old id), their keys name the new entry, and copies of
+their parameter blocks carry the new texture names (`textures`: {old name: new name}). Texture names are replaced only
+as whole names at the start of their field, within the field's 128 bytes; every name to replace must be one the
+entry uses (exact case) - otherwise nothing is added and the error names it. `Merger.add_part(name, layout_guid,
+donor)` names a mesh part's vertex layout (`<mesh>_lod<N>/<part>/<technique>`). A plain database file's kind comes
+from its name (`Dx9`, `Dx10`, `Dx11`); a contradicting `--dx` or base kind is refused, not merged (Dx10 and Dx11
+share a layout and would parse either way).
+
 ### Putting a merged database into the game
 
 Not done by the tool. Copy the level bundle out of the game folder, `FbrbTool unpack` it, replace the three

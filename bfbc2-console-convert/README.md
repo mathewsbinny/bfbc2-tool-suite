@@ -15,7 +15,7 @@ python convert.py verify-texture <pc folder> <console folder>... [--report <file
 |---|---|---|
 | HavokPhysicsData (physics) | done | all 400 shared console / PC files equivalent (FORMAT.md 1.3) |
 | textures (XenonTexture -> ITexture) | DXT1 / DXT3 / DXT5 / BC5, 2D and cube maps | 251 shared console / PC textures: byte-identical or the same picture (FORMAT.md 2.3) |
-| meshes (MeshData, mesh sets) | planned | |
+| meshes (MeshData) and mesh sets (rigid, composite, skinned) | done (`mesh.py`, `meshset.py`; used by OPFOR's `console_markv.py`) | Mark V converted and loading on PC; every console MeshData and mesh set of the Onslaught builds parses (FORMAT.md 3-4) |
 
 Folders are unpacked bundles (FbrbTool). Format notes and the checks: [FORMAT.md](FORMAT.md). Tests:
 `tests\test_havok.py`, `tests\test_texture.py` (game tier: your game copy and console files; skipped without them).

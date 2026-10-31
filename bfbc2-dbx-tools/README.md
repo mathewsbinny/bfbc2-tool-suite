@@ -110,7 +110,7 @@ Commands (a `@file` argument reads more commands from a file, one per line; `#` 
 | `graft=<src.dbx>\|<guid>[\|<before guid>]` | copies an instance from another file, with every instance of that file it references |
 | `copyfield=<src.dbx>\|<src guid>\|<field>\|<guid>` | copies one field (arrays included) from another file's instance |
 | `additem=<guid>\|<array>\|<ref>[\|<before ref>]` | adds a reference to an array field of an instance |
-| `setfield=<guid>\|<field>\|<value>` | sets a text field or a single 4-byte number of an instance (not a reference - see below) |
+| `setfield=<guid>\|<field>\|<value>` | sets a text field or the numbers of an instance's field (not a reference - see below); numbers are typed like the field's current value, as the XML import does (`3` in a decimal field is 3.0); the value is everything after the second `\|` and keeps its spaces in a script |
 | `set=<field>\|<true\|false\|0-255>` | sets every bool / byte field called `<field>` |
 | `partguid=<guid>` | sets the partition's own GUID (for a copy under a new name) |
 
@@ -121,6 +121,10 @@ the element's text and leaves the reference unchanged: after
 `DbxEdit edit in.dbx out.dbx "setfield=<guid>|Template|objects/x/y/<guid>"`, `DbxEdit xml out.dbx` shows
 `<field name="Template" ref="<old ref>">objects/x/y/<guid></field>`. To change a reference, use
 `copyfield=<src.dbx>|<src guid>|<field>|<guid>` from an instance that already holds the wanted one.
+
+**New values of fields with two kinds.** A field name can be a number in one instance type and a bool in another
+(`InitialValue` of waypoint anim-tree properties): `import` types a new `true` / `false` value of such a field as a
+bool (2026-10-31; it was taken as a number and refused).
 
 **Known limitation - `import` gives new fields no type from `--types`.** A field the reference does not match
 (for example in an instance with a new guid) is typed by guess even when the same field exists in the `--types`
