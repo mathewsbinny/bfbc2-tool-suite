@@ -105,6 +105,7 @@ def tests():
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),
         ('console resource converter: physics (havok)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_havok.py')]),
         ('console resource converter: textures', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_texture.py')]),
+        ('console mesh decoding (Xbox vs PC, BF1943)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_mesh_decode.py')]),
         ('mesh viewer on the game\'s models', 'game', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview.py')]),
         ('model tools: skinned meshes, mesh sets, shapes', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_models.py')]),
         ('Granny skeletons and animations (read, shift)', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny.py')]),

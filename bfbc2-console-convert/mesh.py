@@ -109,6 +109,83 @@ def element(fc, fp, raw, colour=False):
     raise ConvertError(f'vertex element format {fc:#04x} -> {fp:#04x} is not converted')
 
 
+def console_layouts(db):
+    """{mesh part name (lower case, '<mesh>_lod<N>/<part>/<technique>'): layout record body} of a console shader
+    database (Shaders/Single.res: BFBC2's Xbox levels, Battlefield 1943's). Part names are stored as name, NUL, the
+    16-byte guid of its layout; a run of them is walked name by name, so a guid byte that happens to be printable is
+    not taken for the next name's first letter. Each guid's layout record is found where the guid is followed by a
+    plausible record (1 to 16 elements)."""
+    import re
+    raw, rec, prev = [], 16 + 0x49, None
+    for m in re.finditer(rb'[ -~]{4,300}?_lod\d+/[ -~]+?\x00', db):
+        start, end = m.start(), m.end()                      # end: just past the NUL
+        anchored = prev is not None and start <= prev + 16 < end
+        if anchored:                                         # it follows a record: its name begins after that guid
+            start = prev + 16
+        raw.append((db[start:end - 1].decode('latin-1').lower(), db[end:end + 16], anchored))
+        prev = end
+    # the first name of a run has no record before it: a printable guid byte there shows as a stray first letter,
+    # dropped when the rest of the name starts with a top folder the anchored names use
+    roots = {n.split('/')[0] for n, _, a in raw if a}
+    out = {}
+    for n, g, a in raw:
+        if not a and n.split('/')[0] not in roots and n.split('/')[0][1:] in roots:
+            n = n[1:]
+        out[n] = g
+    found = {}
+    for g in set(out.values()):
+        p = db.find(g)
+        while p >= 0:
+            if p + rec <= len(db) and 0 < db[p + 16 + 64] <= 16 and db[p + 16 + 65] == 0:
+                found[g] = db[p + 16:p + rec]
+                break
+            p = db.find(g, p + 1)
+    return {n: found[g] for n, g in out.items() if g in found}
+
+
+USAGES = {0: 'uvs', 1: 'positions', 2: 'blend_indices', 3: 'weights', 4: 'normals', 5: 'tangents', 6: 'binormals'}
+_PC_DTYPE = {0x03: ('<f4', 3), 0x04: ('<f4', 4), 0x05: ('<f2', 1), 0x06: ('<f2', 2), 0x07: ('<f2', 3),
+             0x08: ('<f2', 4), 0x0C: ('u1', 4)}
+
+
+def decode(b, layout, part, big_endian=True):
+    """One part of a MeshData file as arrays: {positions, normals, tangents, binormals, uvs, weights (0..1),
+    blend_indices (into the part's bone palette), bones (skeleton indices: the palette applied), indices (m, 3; into
+    these arrays)} - each element present in the layout record body (console: the source game's shader database; PC:
+    BFBC2's). Only the vertices the part's triangles use (its window) are read; stream 0."""
+    m = parse(b, big_endian)
+    p = m['parts'][part] if isinstance(part, int) else next(q for q in m['parts'] if q['name'].decode('latin-1') == part)
+    els, stride = elements(layout)
+    if p['stride'] != stride:
+        raise ConvertError(f'part {p["name"]!r}: stride {p["stride"]}, its layout says {stride}')
+    isz = 4 if m['wide_indices'] else 2
+    e = '>' if big_endian else '<'
+    idx = np.frombuffer(b, e + ('u4' if isz == 4 else 'u2'), p['triangles'] * 3,
+                        m['data'] + m['vertex_bytes'] + p['first_index'] * isz).astype(np.int64)
+    lo = int(idx.min()) if len(idx) else 0
+    n = (int(idx.max()) - lo + 1) if len(idx) else 0
+    base = m['data'] + p['vertex_offset'] + lo * stride
+    raw = np.frombuffer(b, np.uint8, n * stride, base).reshape(n, stride) if n else np.zeros((0, stride), np.uint8)
+    out = {'indices': (idx - lo).reshape(-1, 3)}
+    for f, usage, off, stream in els:
+        if stream != 0 or usage not in USAGES or USAGES[usage] in out:
+            continue
+        fp = PC_FORMAT.get(f, f) if big_endian else f
+        if fp not in _PC_DTYPE:
+            raise ConvertError(f'part {p["name"]!r}: vertex element format {f:#04x} is not decoded')
+        cols = raw[:, off:off + SIZE[f]]
+        pc = b''.join(element(f, fp, bytes(r)) for r in cols) if big_endian else cols.tobytes()
+        dt, k = _PC_DTYPE[fp]
+        v = np.frombuffer(pc, dt).reshape(n, k)
+        out[USAGES[usage]] = v.astype(np.float32) if dt != 'u1' else v.copy()
+    if 'weights' in out:
+        out['weights'] = out['weights'].astype(np.float32) / 255.0
+    if 'blend_indices' in out and p['bones']:
+        pal = np.array(p['bones'])
+        out['bones'] = pal[np.minimum(out['blend_indices'], len(pal) - 1)]
+    return out
+
+
 def _pair_by_kind(ec, ep, leftovers=False):
     """Console element index for each PC element when the two layouts hold the same elements in another order:
     the k-th PC element of a kind (format, usage, stream) takes the k-th console element of that kind. With
