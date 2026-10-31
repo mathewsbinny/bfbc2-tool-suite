@@ -22,7 +22,14 @@ What it found (2026-10-30): every weapon bone's bind pose is the weapon root (0,
 jntWpn_6 / jntWpn_7 shows depends on the animation's offset of that bone from jntWpn_1. DICE's rifle grenade sets
 disagree: the Garand's hold the grenade bone at z 1.2826, the Type 5's at 1.4162.
 
-Test: `tests\test_granny.py` (game tier). Generated aim poses (`*_generatedaimanimation`) are another format and are
+Xbox 360 resources (big-endian: BFBC2's console copy, Battlefield 1943) are read too - `dump`, `bones`, `tracks` -
+but never written. Found with it (2026-10-31): Battlefield 1943's `ske01` has BFBC2's 147 bones with the same
+parents, in another order; the body and weapon bones bind within 1.3 mm of BFBC2's, only the face (eyes, lids,
+brows) differs by up to 3 cm. Animations bind tracks by bone name, but DICE's per-bone table at the start of an
+animation resource holds bone indices, so a port from BF1943 has to renumber it.
+
+Test: `tests\test_granny.py` (game tier; also a big-endian header, the write refusal, and - when extracted into
+OPFOR's `work\bf1943\skeleton` - BF1943's skeleton against the PC one). Generated aim poses (`*_generatedaimanimation`) are another format and are
 not read.
 
 Developed for Project OPFOR BFBC2. Granny is a trademark of Epic Games (RAD Game Tools); Battlefield: Bad Company 2

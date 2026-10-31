@@ -14,7 +14,10 @@ animation curves in them.
 <resource> is a file, or a resource name in the game copy (e.g. characters/skeletons/ske01.res or
 animations/weapons/handheld/m1garand_rgl/1p/1p_fire.res; any case, the .res ending optional).
 
-Format (little-endian): u32 10 | u32 n, then n x {u32 bone, u32 1, f32, f32} (animations; DICE's per-bone extra
+Xbox 360 resources (BFBC2's console copy, Battlefield 1943) are the same format big-endian throughout, with the
+big-endian Granny magic B595110E 4BB5A56A 502828EB 04B37825; they are read (dump, bones, tracks), never written.
+
+Format (little-endian on PC): u32 10 | u32 n, then n x {u32 bone, u32 1, f32, f32} (animations; DICE's per-bone extra
 values, not read) | u32 count, count x {u16 length, bytes}: the string table | u32 size, then a Granny 2 file (magic
 29DE6CC0 BAA4532B 25F5B7A5 F666E2EE, format revision 7, 32-bit): sections with relocation tables (12 bytes each:
 offset in the section, target section, target offset), a root type (member definitions, 32 bytes each: type, name,
@@ -38,6 +41,7 @@ import struct
 import sys
 
 MAGIC = bytes.fromhex('29DE6CC0BAA4532B25F5B7A5F666E2EE')
+MAGIC_BE = bytes.fromhex('B595110E4BB5A56A502828EB04B37825')     # the same format, 32-bit big-endian
 SIZES = {2: 4, 3: 8, 4: 8, 5: 8, 7: 12, 8: 4, 9: 68, 10: 4, 11: 1, 12: 1, 13: 1, 14: 1, 15: 2, 16: 2, 17: 2, 18: 2,
          19: 4, 20: 4, 21: 2, 22: 4}
 SCALAR = {10: '<f', 11: '<b', 12: '<B', 13: '<b', 14: '<B', 15: '<h', 16: '<H', 17: '<h', 18: '<H', 19: '<i',
@@ -53,52 +57,54 @@ class Granny:
 
     def __init__(self, b, where='file'):
         self.where = where
-        if struct.unpack_from('<I', b, 0)[0] != 10:
+        if len(b) < 4 or 10 not in struct.unpack_from('<I', b, 0) + struct.unpack_from('>I', b, 0):
             raise GrannyError(f'{where}: not a Granny resource of this game (version {struct.unpack_from("<I", b, 0)[0]})')
+        # PC resources are little-endian; Xbox 360 ones (BFBC2's console copy, Battlefield 1943) big-endian throughout
+        self.e = '<' if struct.unpack_from('<I', b, 0)[0] == 10 else '>'
         p = 4
         # a skeleton starts with the strings; animations have a per-bone table first (16-byte records; delta
         # animations other layouts), so the table is found by its first string, "<file>"
         if not self._strings_at(b, p):
-            k = b.find(b'\x06\x00<file>', p)
+            k = b.find(struct.pack(self.e + 'H', 6) + b'<file>', p)
             p = k - 4 if k >= 4 else p
         if not self._strings_at(b, p):
             raise GrannyError(f'{where}: no string table where one is expected')
-        n = struct.unpack_from('<I', b, p)[0]
+        n = struct.unpack_from(self.e + 'I', b, p)[0]
         p += 4
         self.strings = []
         for _ in range(n):
-            ln = struct.unpack_from('<H', b, p)[0]
+            ln = struct.unpack_from(self.e + 'H', b, p)[0]
             self.strings.append(b[p + 2:p + 2 + ln].decode('latin-1'))
             p += 2 + ln
         g = b[p + 4:]
         self.data = bytearray(b)
         self.gr2 = p + 4                                    # where the Granny file starts in the resource
-        if g[:16] != MAGIC:
-            raise GrannyError(f'{where}: no Granny 2 (32-bit little-endian) file after the string table')
-        rev, _, _, soff, count = struct.unpack_from('<5I', g, 32)
+        if g[:16] != (MAGIC if self.e == '<' else MAGIC_BE):
+            raise GrannyError(f'{where}: no Granny 2 (32-bit, {"little" if self.e == "<" else "big"}-endian) file '
+                              f'after the string table')
+        rev, _, _, soff, count = struct.unpack_from(self.e + '5I', g, 32)
         if rev != 7:
             raise GrannyError(f'{where}: Granny format revision {rev}; this reader knows 7')
-        self.root_type = struct.unpack_from('<2I', g, 52)
-        self.root_obj = struct.unpack_from('<2I', g, 60)
+        self.root_type = struct.unpack_from(self.e + '2I', g, 52)
+        self.root_obj = struct.unpack_from(self.e + '2I', g, 60)
         self.sections, self.reloc, self.section_at = [], {}, []
-        self.total = struct.unpack_from('<I', g, 36)[0]
+        self.total = struct.unpack_from(self.e + 'I', g, 36)[0]
         self.crc_from = 32 + soff                            # the CRC covers the section table to the end
         for k in range(count):
-            comp, off, size, _, _, _, _, roff, rcount, _, _ = struct.unpack_from('<11I', g, 32 + soff + 44 * k)
+            comp, off, size, _, _, _, _, roff, rcount, _, _ = struct.unpack_from(self.e + '11I', g, 32 + soff + 44 * k)
             if comp:
                 raise GrannyError(f'{where}: section {k} is compressed (type {comp}); not read')
             self.sections.append(bytearray(g[off:off + size]))
             self.section_at.append(self.gr2 + off)
             for r in range(rcount):
-                o, ts, to = struct.unpack_from('<3I', g, roff + 12 * r)
+                o, ts, to = struct.unpack_from(self.e + '3I', g, roff + 12 * r)
                 self.reloc[(k, o)] = (ts, to)
         self._types = {}
 
-    @staticmethod
-    def _strings_at(b, p):
+    def _strings_at(self, b, p):
         try:
-            n = struct.unpack_from('<I', b, p)[0]
-            ln = struct.unpack_from('<H', b, p + 4)[0]
+            n = struct.unpack_from(self.e + 'I', b, p)[0]
+            ln = struct.unpack_from(self.e + 'H', b, p + 4)[0]
             return 0 < n < 100000 and b[p + 6:p + 6 + ln] == b'<file>'
         except struct.error:
             return False
@@ -112,7 +118,7 @@ class Granny:
             sec, off = ref
             out = []
             while True:
-                t, nm, _, arr = struct.unpack_from('<4I', self.sections[sec], off)
+                t, nm, _, arr = struct.unpack_from(self.e + '4I', self.sections[sec], off)
                 if t == 0:
                     break
                 out.append((t, self.name(nm), self.reloc.get((sec, off + 8)), arr))
@@ -154,18 +160,18 @@ class Granny:
         if t == 2:
             return self.read(child, self._ptr(sec, off), depth + 1, limit)
         if t == 3:
-            n = struct.unpack_from('<I', d, off)[0]
+            n = struct.unpack_from(self.e + 'I', d, off)[0]
             p = self._ptr(sec, off + 4)
             if p is None or n == 0:
                 return []
             ms = self.members(child)
             if len(ms) == 1 and ms[0][0] in SCALAR and ms[0][3] == 0:           # an array of plain numbers
                 fmt = SCALAR[ms[0][0]]
-                return list(struct.unpack_from('<%d%s' % (n, fmt[1]), self.sections[p[0]], p[1]))
+                return list(struct.unpack_from(self.e + '%d%s' % (n, fmt[1]), self.sections[p[0]], p[1]))
             sz = self.size(child)
             return [self.read(child, (p[0], p[1] + k * sz), depth + 1, limit) for k in range(n)]
         if t == 4:
-            n = struct.unpack_from('<I', d, off)[0]
+            n = struct.unpack_from(self.e + 'I', d, off)[0]
             p = self._ptr(sec, off + 4)
             if p is None:
                 return []
@@ -180,7 +186,7 @@ class Granny:
             return v
         if t == 7:
             tp = self._ptr(sec, off)
-            n = struct.unpack_from('<I', d, off + 4)[0]
+            n = struct.unpack_from(self.e + 'I', d, off + 4)[0]
             p = self._ptr(sec, off + 8)
             if tp is None or p is None:
                 return []
@@ -191,12 +197,12 @@ class Granny:
             if p is not None:                                                 # a real pointer: a C string
                 s = self.sections[p[0]]
                 return s[p[1]:s.index(b'\0', p[1])].decode('latin-1')
-            return self.name(struct.unpack_from('<I', d, off)[0])
+            return self.name(struct.unpack_from(self.e + 'I', d, off)[0])
         if t == 9:
-            v = struct.unpack_from('<I16f', d, off)
+            v = struct.unpack_from(self.e + 'I16f', d, off)
             return {'Flags': v[0], 'Position': v[1:4], 'Orientation': v[4:8], 'ScaleShear': v[8:17]}
         if t in SCALAR:
-            return struct.unpack_from(SCALAR[t], d, off)[0]
+            return struct.unpack_from(self.e + SCALAR[t][1:], d, off)[0]
         return None
 
     def root(self, limit=64):
@@ -214,6 +220,8 @@ class Granny:
         raise GrannyError(f'{self.where}: no member {name}')
 
     def put(self, at, fmt, *values):
+        if self.e != '<':
+            raise GrannyError(f'{self.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
         sec, off = at
         pos = self.section_at[sec] + off
         struct.pack_into(fmt, self.data, pos, *values)
@@ -230,6 +238,8 @@ class Granny:
     def to_bytes(self):
         """The resource with its Granny CRC recomputed."""
         import zlib
+        if self.e != '<':
+            raise GrannyError(f'{self.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
         g0 = self.gr2
         crc = zlib.crc32(bytes(self.data[g0 + self.crc_from:g0 + self.total])) & 0xFFFFFFFF
         struct.pack_into('<I', self.data, g0 + 40, crc)

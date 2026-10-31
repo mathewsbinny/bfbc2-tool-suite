@@ -7,7 +7,9 @@ r"""granny.py on the game's files (game tier; skipped without them):
   curves hold spline control points, which need not be);
 - shift: a constant track (1p_lower), a quantized one moved by its offsets (1p_fire) and a re-quantized ramp
   (Type 5 1p_reload) - the bone's keys land where asked, every other track of the file reads exactly as before,
-  the file keeps its size and its Granny CRC is right (it is recomputed and checked against zlib).
+  the file keeps its size and its Granny CRC is right (it is recomputed and checked against zlib);
+- big-endian (Xbox 360): a minimal resource is read and refused for writing; Battlefield 1943's skeleton, when
+  extracted into OPFOR's work\bf1943\skeleton, has the PC skeleton's bones and parents.
 
   python test_granny.py
 """
@@ -48,6 +50,37 @@ def tracks(g):
 def crc_ok(b, g):
     stored = struct.unpack_from('<I', b, g.gr2 + 40)[0]
     return stored == zlib.crc32(b[g.gr2 + g.crc_from:g.gr2 + g.total]) & 0xFFFFFFFF
+
+
+def big_endian(ix, pc_bones):
+    """A minimal big-endian resource is read and refused for writing; an Xbox 360 skeleton, when one has been
+    extracted into OPFOR's work\\bf1943\\skeleton (Battlefield 1943's), has the PC skeleton's bones and parents."""
+    fails = []
+    gr2 = granny.MAGIC_BE + bytes(16) + struct.pack('>5I', 7, 72, 0, 40, 0) + bytes(20)
+    res = struct.pack('>2IH', 10, 1, 6) + b'<file>' + struct.pack('>I', len(gr2)) + gr2
+    g = granny.Granny(res, 'synthetic')
+    if g.e != '>' or g.strings != ['<file>']:
+        fails.append(f'big-endian header: byte order {g.e}, strings {g.strings}')
+    try:
+        g.to_bytes()
+        fails.append('big-endian resource: to_bytes did not refuse')
+    except granny.GrannyError:
+        pass
+    path = os.path.join(ix.root, 'work', 'bf1943', 'skeleton', 'Characters', 'Skeletons', 'ske01.res')
+    if not os.path.isfile(path):
+        print('big-endian: header and write refusal ok; no extracted Xbox 360 skeleton, its comparison skipped')
+        return fails
+    xb = granny.Granny(open(path, 'rb').read(), path).root()['Skeletons'][0]['Bones']
+
+    def parents(bones):
+        names = [b['Name'] for b in bones]
+        return {b['Name']: names[b['ParentIndex']] if b['ParentIndex'] >= 0 else None for b in bones}
+    same = parents(pc_bones) == parents(xb)
+    if not same:
+        fails.append(f'Xbox 360 skeleton: bones or parents differ from the PC one ({len(xb)} bones)')
+    print(f'big-endian: {len(xb)} bones, the same bones and parents as the PC skeleton' if same else
+          'big-endian: FAILED')
+    return fails
 
 
 def main():
@@ -140,6 +173,7 @@ def main():
             if max(abs(new[0][1][i] - old[0][1][i]) for i in range(3)) > 3e-3:
                 fails.append(f'{name}: first key moved ({old[0][1]} -> {new[0][1]})')
         print(f'shift {name.split("/")[-1]} ({check}): ok' if not any(name in f for f in fails) else f'shift {name}: FAILED')
+    fails += big_endian(ix, sk)
     for f in fails[:20]:
         print('FAIL', f)
     return 1 if fails else 0
