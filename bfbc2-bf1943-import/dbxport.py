@@ -130,20 +130,31 @@ def _align(e, t, path, report, resolve=None):
     return dbx.Element(e.tag, e.kind, list(e.attributes), e.text, e.raw, new)
 
 
-def port(data, templates, resolve=None, drop_untemplated=False):
+# BF1943 types BFBC2's executable has no class for (2026-10-31): dropped by port(drop_types=NOT_IN_BFBC2)
+NOT_IN_BFBC2 = {'GameSharedResources.AirRaidEffectsData', 'GameSharedResources.TeamVehicleProjectileEntityData',
+                'GameSharedResources.CarHornComponentData', 'GameSharedResources.ScorePartComponentData'}
+
+
+def port(data, templates, resolve=None, drop_untemplated=False, drop_types=()):
     """(BFBC2 .dbx bytes, report lines) for a BF1943 partition. resolve(partition): whether a referenced partition
     will exist (None: references kept). drop_untemplated: instances of a type the templates do not have (a BFBC2
     donor partition does not carry, e.g. BF1943's embedded PersistentWeapon) are left out, and references to them
-    take the template's value; otherwise they are kept as BF1943 has them."""
+    take the template's value; otherwise they are kept as BF1943 has them. drop_types: types left out whatever the
+    templates (NOT_IN_BFBC2: the classes BFBC2 does not have), references to them handled the same way."""
     f = dbx.parse(data)
     report = []
     part = f.partition
     dropped = set()
-    if drop_untemplated:
-        for inst in part.children or ():
-            if inst.tag == 'instance' and inst.attr('type') not in templates:
-                dropped.add((inst.attr('guid') or '').lower())
-                report.append(f'left out instance {inst.attr("type")} ({inst.attr("guid")}): the donor has none')
+    for inst in part.children or ():
+        if inst.tag != 'instance':
+            continue
+        t = inst.attr('type')
+        if t in drop_types:
+            dropped.add((inst.attr('guid') or '').lower())
+            report.append(f'left out instance {t} ({inst.attr("guid")}): BFBC2 has no such class')
+        elif drop_untemplated and t not in templates:
+            dropped.add((inst.attr('guid') or '').lower())
+            report.append(f'left out instance {t} ({inst.attr("guid")}): the donor has none')
     res = None
     if resolve is not None or dropped:
         def res(target):
