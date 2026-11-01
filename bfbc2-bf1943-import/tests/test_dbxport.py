@@ -74,6 +74,26 @@ def main():
     added = {r.split('.')[-1].split(' ')[0] for r in report if r.startswith('added')}
     check(ok and kept and {'MemoryReportGroup', 'HighPriorityOccluderMesh', 'RadiosityMesh'} <= added,
           f'port: Springfield mesh in BFBC2\'s schema ({len(report)} changes), BF1943\'s values kept')
+    # the weapon: BF1943's single mesh fields become BFBC2's arrays, its embedded PersistentWeapon is left out and the
+    # reference to it takes the donor's, references to partitions neither game will have take the donor's values
+    WPN, DONOR = 'objects/weapons/handheld/beach/us_springfield1903/springfield1903.dbx', \
+        'objects/weapons/handheld/us_sni_m24/us_sni_m24.dbx'
+    T = dbxport.Templates([('m24', ix.read(DONOR))])
+    folder = 'objects/weapons/handheld/beach/us_springfield1903/'
+    wout, wrep = dbxport.port(src.data(WPN), T, lambda p: p.startswith(folder) and 'animtree' not in p or
+                              f'{p}.dbx' in ix.where, drop_untemplated=True)
+    w = dbx.parse(wout)
+    state = next(i for i in w.instances if i.attr('type') == 'GameSharedResources.SoldierWeaponData') \
+        .child('WeaponStates').children[0]
+    meshes = [c.attr('ref') for c in state.child('Meshes1p').children]
+    d_state = next(i for i in dbx.parse(ix.read(DONOR)).instances
+                   if i.attr('type') == 'GameSharedResources.SoldierWeaponData').child('WeaponStates').children[0]
+    check(meshes and meshes[0].startswith(folder + 'springfield_mesh/') and
+          state.child('AnimTree1p').attr('ref') == d_state.child('AnimTree1p').attr('ref') and
+          not any(i.attr('type') == 'GameSharedResources.PersistentWeapon' for i in w.instances) and
+          any(r.startswith('converted') for r in wrep),
+          'port: the Springfield weapon - its own mesh (Mesh1p -> Meshes1p), the donor\'s anim tree for BF1943\'s, '
+          'BF1943\'s PersistentWeapon left out')
     exe = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
     if os.path.isfile(exe):
         tmp = tempfile.mkdtemp(prefix='dbxport_')

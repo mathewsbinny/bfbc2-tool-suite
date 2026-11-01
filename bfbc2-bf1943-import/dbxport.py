@@ -51,6 +51,10 @@ class Templates:
         return t in self.by_type
 
 
+# BFBC2 array field: the BF1943 single-reference field it replaced (a weapon state's meshes)
+ONE_TO_ARRAY = {'Meshes1p': 'Mesh1p', 'Meshes3p': 'Mesh3p'}
+
+
 def _named(children):
     out = {}
     for c in children or ():
@@ -60,8 +64,32 @@ def _named(children):
     return out
 
 
-def _align(e, t, path, report):
-    """e (BF1943) aligned with t (BFBC2): a new element."""
+def _lost(e, resolve):
+    """The reference e itself holds (its 'ref', or its items' for an array of references), if it will not resolve:
+    resolve(target) gets '<partition>' for a reference into another partition, '#<guid>' for one inside this one."""
+    refs = [e.attr('ref')] if e.attr('ref') else []
+    if e.tag == 'array':
+        refs += [c.attr('ref') for c in (e.children or ()) if c.attr('ref') and not c.children]
+    out = []
+    for r in refs:
+        if r == 'null':
+            continue
+        target = r.rsplit('/', 1)[0] if '/' in r else '#' + r.lower()
+        if not resolve(target):
+            out.append(target)
+    return out
+
+
+def _align(e, t, path, report, resolve=None):
+    """e (BF1943) aligned with t (BFBC2): a new element. resolve(target) says whether a reference will resolve (see
+    _lost); a field - or an array of references - holding one that will not takes the template's value instead
+    (structs and arrays of structs are aligned field by field, so only the field holding it is replaced)."""
+    if resolve is not None and e.attr('name') is not None:
+        lost = _lost(e, resolve)
+        if lost:
+            report.append(f'substituted {path} (refers to {lost[0]}{" and more" if len(lost) > 1 else ""}): the '
+                          f'template\'s value')
+            return copy.deepcopy(t)
     if e.kind != dbx.CONTAINER or t.kind != dbx.CONTAINER:
         return e
     if e.tag == 'array':
@@ -69,7 +97,7 @@ def _align(e, t, path, report):
         proto = next((c for c in (t.children or ()) if c.kind == dbx.CONTAINER), None)
         new = []
         for i, c in enumerate(items):
-            new.append(_align(c, proto, f'{path}[{i}]', report) if proto is not None and c.kind == dbx.CONTAINER
+            new.append(_align(c, proto, f'{path}[{i}]', report, resolve) if proto is not None and c.kind == dbx.CONTAINER
                        else c)
         return dbx.Element(e.tag, e.kind, list(e.attributes), e.text, e.raw, new)
     mine = _named(e.children)
@@ -79,35 +107,62 @@ def _align(e, t, path, report):
         n = c.attr('name')
         if n is None:
             continue
+        single = ONE_TO_ARRAY.get(n)
+        if n not in mine and single in mine and c.tag == 'array' and c.children:
+            # BF1943's single reference -> BFBC2's array of references (Mesh1p -> Meshes1p): one item, BF1943's
+            item = copy.deepcopy(c.children[0])
+            item.attributes = [(k, mine[single].attr('ref') if k == 'ref' else v) for k, v in item.attributes]
+            arr = dbx.Element(c.tag, c.kind, list(c.attributes), c.text, c.raw, [item])
+            new.append(_align(arr, c, f'{path}.{n}', report, resolve))
+            report.append(f'converted {path}.{single} -> {n} (one item)')
+            continue
         if n in mine:
-            new.append(_align(mine[n], c, f'{path}.{n}', report))
+            new.append(_align(mine[n], c, f'{path}.{n}', report, resolve))
         else:
             new.append(copy.deepcopy(c))
             report.append(f'added {path}.{n} (BFBC2\'s value)')
+    converted = {ONE_TO_ARRAY[n] for n in theirs if n in ONE_TO_ARRAY}
     for n in mine:
-        if n not in theirs:
+        if n not in theirs and n not in converted:
             report.append(f'left out {path}.{n} (BF1943 only)')
     # unnamed children BFBC2's template has none of (rare): kept as they are
     new += [c for c in (e.children or ()) if c.attr('name') is None and e.tag != 'array']
     return dbx.Element(e.tag, e.kind, list(e.attributes), e.text, e.raw, new)
 
 
-def port(data, templates):
-    """(BFBC2 .dbx bytes, report lines) for a BF1943 partition."""
+def port(data, templates, resolve=None, drop_untemplated=False):
+    """(BFBC2 .dbx bytes, report lines) for a BF1943 partition. resolve(partition): whether a referenced partition
+    will exist (None: references kept). drop_untemplated: instances of a type the templates do not have (a BFBC2
+    donor partition does not carry, e.g. BF1943's embedded PersistentWeapon) are left out, and references to them
+    take the template's value; otherwise they are kept as BF1943 has them."""
     f = dbx.parse(data)
     report = []
     part = f.partition
+    dropped = set()
+    if drop_untemplated:
+        for inst in part.children or ():
+            if inst.tag == 'instance' and inst.attr('type') not in templates:
+                dropped.add((inst.attr('guid') or '').lower())
+                report.append(f'left out instance {inst.attr("type")} ({inst.attr("guid")}): the donor has none')
+    res = None
+    if resolve is not None or dropped:
+        def res(target):
+            if target.startswith('#'):
+                return target[1:] not in dropped
+            return resolve is None or resolve(target)
     new = []
     for inst in part.children or ():
         if inst.tag != 'instance':
             new.append(inst)
             continue
         t = inst.attr('type')
+        if (inst.attr('guid') or '').lower() in dropped:
+            continue
         if t not in templates:
             report.append(f'type {t} ({inst.attr("guid")}): no BFBC2 template - kept as BF1943 has it')
             new.append(inst)
             continue
-        new.append(_align(inst, templates.by_type[t], t, report))
+        new.append(_align(inst, templates.by_type[t], t, report, res))
     out = dbx.DbxFile(f.strings, [dbx.Element(part.tag, part.kind, list(part.attributes), part.text, part.raw, new)]
                       + f.roots[1:])
     return dbx.write(out), report
