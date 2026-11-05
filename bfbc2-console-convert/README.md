@@ -38,5 +38,21 @@ Battlefield: Bad Company 2 is © Electronic Arts / DICE.
 BFBC2's PC format; `terrain.heightfield(bf1943_bytes, source='bf1943')` for Battlefield 1943's, whose header lacks
 one field (the length of the tail's first section, computed from the tail). Proven on BFBC2's Xbox / PC twins: the
 heightfield byte for byte on the 7 levels DICE did not edit after the Xbox build (the other 13: the same structure,
-PC terrain edits in the heights), the water mesh byte for byte on all 20 (`tests	est_terrain.py`). The material
-map, visual terrain and visual water are not converted yet.
+PC terrain edits in the heights), the water mesh byte for byte on all 20 (`tests\test_terrain.py`).
+
+`terrain.material_map(xbox_bytes)`: the TerrainMaterialMap, byte for byte on all 20.
+
+`terrain.visual_terrain(xbox_bytes)`: the VisualTerrain (`<lv>.visual.res`: roads, patch shaders with their
+undergrowth meshes, one patch map per terrain block), the same size on both platforms. Byte for byte on mp_003, mp_005,
+mp_005sr; on the others every part is byte for byte except what DICE changed for the PC after the Xbox build: the
+roads of mp_001, mp_004, mp_006, mp_008, mp_012 (rebuilt, patches reordered), mp_008's patch shaders, and the
+sub-terrain patch maps (the PC's are 4 x 4 cells because its sub-heightfields have 64 samples; the Xbox's 8 x 8 are
+kept, matching the Xbox's 128-sample sub-heightfields).
+
+`terrain.visual_water(xbox_bytes)`: the VisualWater (`<lv>.water.res`). Not a byte swap: the Xbox packs each vertex's
+normal and tangent as DEC3N (10 bits a component, 28-byte vertices), the PC keeps 4 half floats (36 bytes), so the PC
+file is 8 bytes a vertex larger. They are decoded (x / 511); everything else is byte for byte on all 20 levels (whole
+files on 6), the normals / tangents 91% exact and within 1 / 511 elsewhere (the PC's last bits are not in the Xbox file).
+
+Battlefield 1943's visual terrain and visual water (Wake Island, Iwo Jima, Guadalcanal, Coral Sea) convert and read
+back as BFBC2's PC formats. The grammars are in terrain.py's docstring.
