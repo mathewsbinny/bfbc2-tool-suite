@@ -57,6 +57,10 @@ def main():
     if waters:
         ok = sum(terrain.water_mesh(x) == p for _, x, p in waters)
         check(ok == len(waters), f'water mesh: {ok} of {len(waters)} levels byte for byte')
+    maps = list(twins('-materialmap.res'))
+    if maps:
+        ok = sum(terrain.material_map(x) == p for _, x, p in maps)
+        check(ok == len(maps), f'material map: {ok} of {len(maps)} levels byte for byte')
     try:
         import bf1943import
         src = bf1943import.Source(bf1943import.default_source())
@@ -73,6 +77,9 @@ def main():
     raw = np.frombuffer(w, '>u2', 2048 * 2048, 0x2D).reshape(2048, 2048)
     check(h.size == 2048 and np.array_equal(h.raw, raw) and struct.unpack_from('<I', c, 0x2D)[0] == 181056,
           'Wake Island heightfield: BFBC2\'s layout, its heights, first section 181,056 bytes')
+    names = terrain.material_names(terrain.material_map(src.data('terrains/wake_island_s/wake_island_s-materialmap.res')))
+    check(names[:3] == ['defaultmaterial', 'Dirt', 'Grass'] and 'Water_solidground' in names,
+          f'Wake Island material map: converted, {len(names)} materials')
     return 1 if fails else 0
 
 

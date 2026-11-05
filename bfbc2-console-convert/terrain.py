@@ -4,6 +4,7 @@ r"""terrain.py - Xbox 360 terrain resources in BFBC2's PC formats (BFBC2's own X
     pc = terrain.heightfield(console_bytes)                      # TerrainHeightfield
     pc = terrain.heightfield(bf1943_bytes, source='bf1943')
     pc = terrain.water_mesh(console_bytes)                       # WaterMesh
+    pc = terrain.material_map(console_bytes)                     # TerrainMaterialMap
 
 Proven on BFBC2's Xbox / PC twins (tests\test_terrain.py): the converted Xbox heightfield equals the PC file byte for
 byte on the 7 levels DICE did not edit after the Xbox build; on the other 13 the heights differ in places (PC terrain
@@ -24,6 +25,12 @@ Battlefield 1943's header has no A (heights at 0x2D) and other values at 0x28 (7
 A is computed from the tail, those two written as BFBC2 has them.
 
 WaterMesh: 4-byte values throughout (all levels).
+
+TerrainMaterialMap (all 20 levels byte for byte; BF1943's Wake Island, Iwo Jima, Guadalcanal read the same way):
+    u32 width (2048 / 4096), u16 blocks b (32 / 128)
+    b x { u32 length, length bytes (the material data: bytes, as they are), u16 x 256 }
+    then { u32 length, length bytes } to the end: the material names, NUL-separated ("defaultmaterial", "Grass",
+    "Dirt", ...; BF1943's include DefaultGround, Water_solidground)
 """
 import struct
 
@@ -75,3 +82,40 @@ def water_mesh(x):
     if len(x) % 4:
         raise TerrainError(f'water mesh: {len(x)} bytes, not 4-byte values')
     return np.frombuffer(x, '>u4').astype('<u4').tobytes()
+
+
+def material_map(x):
+    """An Xbox TerrainMaterialMap (BFBC2's or BF1943's) as BFBC2's PC file."""
+    out = bytearray(x)
+    w, b = struct.unpack_from('>IH', x, 0)
+    struct.pack_into('<IH', out, 0, w, b)
+    o = 6
+    for _ in range(b):
+        L = struct.unpack_from('>I', x, o)[0]
+        struct.pack_into('<I', out, o, L)
+        o += 4 + L
+        if o + 512 > len(x):
+            raise TerrainError(f'material map: block runs past the end ({o + 512} > {len(x)})')
+        _swap(x, out, 'u2', 256, o)
+        o += 512
+    while o < len(x):
+        L = struct.unpack_from('>I', x, o)[0]
+        struct.pack_into('<I', out, o, L)
+        o += 4 + L
+    if o != len(x):
+        raise TerrainError(f'material map: the names end at {o}, the file at {len(x)}')
+    return bytes(out)
+
+
+def material_names(pc):
+    """The material names of a PC TerrainMaterialMap."""
+    w, b = struct.unpack_from('<IH', pc, 0)
+    o = 6
+    for _ in range(b):
+        o += 4 + struct.unpack_from('<I', pc, o)[0] + 512
+    names = []
+    while o < len(pc):
+        L = struct.unpack_from('<I', pc, o)[0]
+        names += [n.decode('latin-1') for n in pc[o + 4:o + 4 + L].split(b'\0') if n]
+        o += 4 + L
+    return names
