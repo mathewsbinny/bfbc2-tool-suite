@@ -14,9 +14,9 @@ HEADER = 92                    # 8 u32 (version, type, format, flags, width, hei
 CUBE = 1
 # format code (the same on both platforms) -> (bytes per block, block edge in texels, name)
 FORMATS = {0: (8, 4, 'DXT1'), 18: (8, 4, 'DXT1 (normal map)'), 1: (16, 4, 'DXT3'), 2: (16, 4, 'DXT5'),
-           19: (16, 4, 'BC5 / DXN'), 20: (16, 4, 'BC5 / DXN (20)')}
+           19: (16, 4, 'BC5 / DXN'), 20: (16, 4, 'BC5 / DXN (20)'), 3: (8, 4, 'DXT5A (console only: decoded to PC 10)')}
 # console codes whose PC counterpart is another, uncompressed, format (not converted yet: FORMAT.md 2.4)
-OTHER = {3: 'console 3 (PC 10, 8-bit)', 5: 'console 5 (PC 9, 32-bit)', 9: '9 (32-bit)', 10: '10 (8-bit)'}
+OTHER = {5: 'console 5 (PC 9, 32-bit)', 9: '9 (32-bit)', 10: '10 (8-bit)'}
 
 
 class ConvertError(Exception):
@@ -97,11 +97,57 @@ def layout(w, h, mips, fmt, slices=1):
     return where, pos
 
 
+DXT5A, L8, L8_FLAGS = 3, 10, 2
+
+
+def _dxt5a_block(block):
+    """One 8-byte single-channel block (DXT5's alpha half: two end values, 16 x 3-bit indices) -> 4 x 4 bytes."""
+    import numpy as np
+    a0, a1 = block[0], block[1]
+    bits = int.from_bytes(bytes(block[2:8]), 'little')
+    if a0 > a1:
+        pal = [a0, a1] + [((7 - i) * a0 + i * a1) // 7 for i in range(1, 7)]
+    else:
+        pal = [a0, a1] + [((5 - i) * a0 + i * a1) // 5 for i in range(1, 5)] + [0, 255]
+    return np.array([pal[(bits >> (3 * i)) & 7] for i in range(16)], np.uint8).reshape(4, 4)
+
+
+def _convert_dxt5a(b, ver, typ, w, h, mips):
+    """Console 3 (DXT5A, 4 bits per texel: the Xenos GPU's single-channel block format) -> the PC's 8-bit format 10,
+    decoded level by level. Proven on BFBC2's twins, whose console copies are half the PC's size: the console's
+    level 0 decoded equals the PC's level 1 within the format's error (correlation 0.995-0.9998, mean difference
+    1-2 of 255; tests\\test_texture.py). The result keeps the console's size."""
+    import numpy as np
+    if typ != 0:
+        raise ConvertError(f'texture type {typ} in console format 3 is not converted (2D only)')
+    where, size = layout(w, h, mips, DXT5A, 1)
+    data = bytearray(b[HEADER:])
+    if len(data) < size:
+        raise ConvertError(f'{len(data)} bytes of texture data, the layout needs {size}')
+    for i in range(0, len(data) - 1, 2):                  # 16-bit words are byte-swapped on the console
+        data[i], data[i + 1] = data[i + 1], data[i]
+    levels = []
+    for m in range(mips):
+        start, pitch, ox, oy = where[0][m]
+        lw, lh = max(w >> m, 1), max(h >> m, 1)
+        bw, bh = max((lw + 3) // 4, 1), max((lh + 3) // 4, 1)
+        img = np.zeros((bh * 4, bw * 4), np.uint8)
+        for y in range(bh):
+            for x in range(bw):
+                s = start + tiled(x + ox, y + oy, pitch, 3) * 8
+                img[y * 4:y * 4 + 4, x * 4:x * 4 + 4] = _dxt5a_block(data[s:s + 8])
+        levels.append(img[:lh, :lw].tobytes())
+    sizes = [len(lv) for lv in levels] + [0] * (15 - mips)
+    return struct.pack('<8I', ver, typ, L8, L8_FLAGS, w, h, 0, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
+
+
 def convert(b):
     """A console XenonTexture resource -> the PC ITexture resource."""
     if len(b) < HEADER:
         raise ConvertError('shorter than a texture header')
     ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('>8I', b, 0)
+    if fmt == DXT5A:
+        return _convert_dxt5a(b, ver, typ, w, h, mips)
     if fmt not in FORMATS:
         raise ConvertError(f'texture format {OTHER.get(fmt, fmt)} is not converted (FORMAT.md 2.4)')
     if typ not in (0, CUBE) or depth not in (0, 1):

@@ -123,9 +123,13 @@ picture (`texture.check`, `convert.py verify-texture`, `tests/test_texture.py`, 
 
 ### 2.4 Not converted
 
-Console 3 and 5 (the PC's 8-bit format 10 and 32-bit format 9 textures: masks, decals; 31 files in the four
-builds) are smaller on the console than the PC's uncompressed data (about 4 and 16 bits per texel), so they are
-another, compressed encoding; they are refused until it is identified.
+Console 5 (the PC's 32-bit format 9) is refused until its encoding is identified.
+
+**Console 3 is DXT5A** (2026-11-05): the Xenos GPU's single-channel block format - DXT5's alpha half, 8 bytes per
+4 x 4 block, tiled like DXT1 - which the PC keeps as 8-bit format 10 (flags 2). The console copies are half the PC's
+size (128 x 128 against 256 x 256): its 32,768 bytes are four 4 KB-aligned 8,192-byte slots (three levels, then the
+packed tail). `convert` decodes it level by level to format 10 at the console's size; the decoded level 0 equals the
+PC's level 1 within the format's error (correlation 0.995-0.9998, mean difference 1-2 of 255).
 
 ## 3. MeshData (a mesh LOD's parts, vertices and indices)
 

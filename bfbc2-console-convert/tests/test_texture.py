@@ -99,6 +99,30 @@ def main():
             checked['different art'] += 1
         else:
             checked['same picture' + (' (cube)' if cube else '')] += 1
+    # console 3 (DXT5A) -> PC 8-bit: the console copies are half the PC's size, so the converted level 0 is held
+    # against the PC's level 1
+    import numpy as np
+    corrs = []
+    for rel in sorted(set(pc) & set(con)):
+        c = open(con[rel], 'rb').read()
+        if struct.unpack_from('>I', c, 8)[0] != texture.DXT5A:
+            continue
+        p = open(pc[rel], 'rb').read()
+        out = texture.convert(c)
+        w, h = struct.unpack_from('<2I', out, 16)
+        pw, ph, = struct.unpack_from('<2I', p, 16)
+        if struct.unpack_from('<I', p, 8)[0] != texture.L8 or (pw, ph) != (2 * w, 2 * h):
+            continue
+        mine = np.frombuffer(out, np.uint8, w * h, texture.HEADER).astype(float)
+        theirs = np.frombuffer(p, np.uint8, w * h, texture.HEADER + struct.unpack_from('<I', p, 32)[0]).astype(float)
+        if mine.std() > 0 and theirs.std() > 0:
+            corrs.append(float(np.corrcoef(mine, theirs)[0, 1]))
+    if corrs:
+        print(f'console 3 (DXT5A): {len(corrs)} pairs, the PC level 1 matched with correlation {min(corrs):.4f} at least')
+        if min(corrs) < 0.98:
+            fails.append(f'console 3: a pair matched with correlation {min(corrs):.3f} only')
+    else:
+        print('console 3 (DXT5A): no pair to compare')
     print(f'console: {dict(done)}; shared: {dict(checked)}')
     if checked['same picture'] + checked['byte-identical'] < 180:
         fails.append(f'only {checked["same picture"] + checked["byte-identical"]} comparable pairs (expected 180+)')
