@@ -53,6 +53,9 @@ class Templates:
 
 # BFBC2 array field: the BF1943 single-reference field it replaced (a weapon state's meshes)
 ONE_TO_ARRAY = {'Meshes1p': 'Mesh1p', 'Meshes3p': 'Mesh3p'}
+# BFBC2 field: the BF1943 field it was renamed from, aligned as the same field (a physics asset's part table: BF1943's
+# {Name, MaterialName} items, BFBC2's with HashName, MaterialIndex, Aabb, Translation - all 0 in DICE's files)
+RENAMED = {'PartInfoDatas': 'PartMaterialDatas'}
 
 
 def _named(children):
@@ -116,12 +119,19 @@ def _align(e, t, path, report, resolve=None):
             new.append(_align(arr, c, f'{path}.{n}', report, resolve))
             report.append(f'converted {path}.{single} -> {n} (one item)')
             continue
+        old = RENAMED.get(n)
+        if n not in mine and old in mine:
+            el = copy.deepcopy(mine[old])
+            el.attributes = [(k, n if k == 'name' else v) for k, v in el.attributes]
+            new.append(_align(el, c, f'{path}.{n}', report, resolve))
+            report.append(f'renamed {path}.{old} -> {n}')
+            continue
         if n in mine:
             new.append(_align(mine[n], c, f'{path}.{n}', report, resolve))
         else:
             new.append(copy.deepcopy(c))
             report.append(f'added {path}.{n} (BFBC2\'s value)')
-    converted = {ONE_TO_ARRAY[n] for n in theirs if n in ONE_TO_ARRAY}
+    converted = {ONE_TO_ARRAY[n] for n in theirs if n in ONE_TO_ARRAY} | {RENAMED[n] for n in theirs if n in RENAMED}
     for n in mine:
         if n not in theirs and n not in converted:
             report.append(f'left out {path}.{n} (BF1943 only)')
@@ -174,6 +184,43 @@ def port(data, templates, resolve=None, drop_untemplated=False, drop_types=()):
             new.append(inst)
             continue
         new.append(_align(inst, templates.by_type[t], t, report, res))
+    _part_link_names(new, report)
     out = dbx.DbxFile(f.strings, [dbx.Element(part.tag, part.kind, list(part.attributes), part.text, part.raw, new)]
                       + f.roots[1:])
     return dbx.write(out), report
+
+
+def _field(e, name):
+    return next((c for c in e.children or () if c.attr('name') == name), None)
+
+
+def _part_link_names(instances, report):
+    """A part link's PartComponentName1 / 2 (BFBC2 only; a template's value after aligning): the names of the
+    components its indices point at, in its object's Components list - as DICE's files hold them (house_01_10x8,
+    barrack, house_12_14x8: 112 of 112 links)."""
+    by = {(i.attr('guid') or '').lower(): i for i in instances if i.tag == 'instance'}
+    for i in by.values():
+        links, comps = _field(i, 'PartLinks'), _field(i, 'Components')
+        if links is None or comps is None:
+            continue
+        names = []
+        for c in comps.children or ():
+            target = by.get((c.attr('ref') or '').lower())
+            n = _field(target, 'Name') if target is not None else None
+            names.append(n.text if n is not None else None)
+        fixed = 0
+        for item in links.children or ():
+            link = by.get((item.attr('ref') or '').lower())
+            if link is None:
+                continue
+            for k in ('1', '2'):
+                idx, name = _field(link, 'PartComponentIndex' + k), _field(link, 'PartComponentName' + k)
+                if idx is None or name is None:
+                    continue
+                j = int(dbx.value(idx))
+                want = names[j] if 0 <= j < len(names) and names[j] is not None else ''
+                if name.text != want:
+                    name.text = want
+                    fixed += 1
+        if fixed:
+            report.append(f'derived {fixed} part link names from their indices')

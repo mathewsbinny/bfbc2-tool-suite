@@ -11,6 +11,7 @@ r"""The DBX writer (bfbc2core.dbx.write) and dbxport.py (game tier; each part sk
 import glob
 import os
 import random
+import re
 import subprocess
 import sys
 import tempfile
@@ -94,6 +95,25 @@ def main():
           any(r.startswith('converted') for r in wrep),
           'port: the Springfield weapon - its own mesh (Mesh1p -> Meshes1p), the donor\'s anim tree for BF1943\'s, '
           'BF1943\'s PersistentWeapon left out')
+    # a building: its physics part table is BF1943's own (PartMaterialDatas -> PartInfoDatas, 37 parts, not the
+    # template's), its part links named from their indices (the template's names replaced)
+    H = 'objects/architecture/beach/beachhouse_t01/beachhouse_t01'
+    T = dbxport.Templates([(p, ix.read(p + '.dbx')) for p in
+                           ('objects/objects/boat_house/boat_house_havok', 'objects/buildings/barrack/barrack')])
+    hav = dbx.parse(dbxport.port(src.data(H + '_havok.dbx'), T)[0])
+    names = [c.child('Name').text for c in next(i for i in hav.instances if i.child('PartInfoDatas') is not None)
+             .child('PartInfoDatas').children]
+    theirs = re.findall(r'<field name="Name">(part[^<]*|ruin)</field>', dbx.to_xml(src.data(H + '_havok.dbx')))
+    check(names == theirs and len(names) > 5, f'port: a building\'s physics part table is its own ({len(names)} parts)',
+          f'{names[:5]} vs {theirs[:5]}')
+    b = dbx.parse(dbxport.port(src.data(H + '.dbx'), T)[0])
+    by = {i.attr('guid').lower(): i for i in b.instances}
+    sm = next(i for i in b.instances if i.attr('type') == 'GameSharedResources.StaticModelEntityData')
+    comps = [by[c.attr('ref').lower()].child('Name').text for c in sm.child('Components').children]
+    links = [by[c.attr('ref').lower()] for c in sm.child('PartLinks').children]
+    check(links and all(comps[int(dbx.value(k.child('PartComponentIndex1')))] == k.child('PartComponentName1').text and
+                        comps[int(dbx.value(k.child('PartComponentIndex2')))] == k.child('PartComponentName2').text
+                        for k in links), f'port: a building\'s {len(links)} part links named from their indices')
     exe = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
     if os.path.isfile(exe):
         tmp = tempfile.mkdtemp(prefix='dbxport_')
