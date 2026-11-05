@@ -14,9 +14,11 @@ HEADER = 92                    # 8 u32 (version, type, format, flags, width, hei
 CUBE = 1
 # format code (the same on both platforms) -> (bytes per block, block edge in texels, name)
 FORMATS = {0: (8, 4, 'DXT1'), 18: (8, 4, 'DXT1 (normal map)'), 1: (16, 4, 'DXT3'), 2: (16, 4, 'DXT5'),
-           19: (16, 4, 'BC5 / DXN'), 20: (16, 4, 'BC5 / DXN (20)'), 3: (8, 4, 'DXT5A (console only: decoded to PC 10)')}
-# console codes whose PC counterpart is another, uncompressed, format (not converted yet: FORMAT.md 2.4)
-OTHER = {5: 'console 5 (PC 9, 32-bit)', 9: '9 (32-bit)', 10: '10 (8-bit)'}
+           19: (16, 4, 'BC5 / DXN'), 20: (16, 4, 'BC5 / DXN (20)'), 3: (8, 4, 'DXT5A (console only: decoded to PC 10)'),
+           13: (8, 1, 'RGBA16F (half floats; untiled as they are)'),
+           5: (2, 1, 'RGB565 (console only: decoded to PC 9, B8G8R8A8)')}
+# console codes whose PC counterpart is another format (not converted: FORMAT.md 2.4)
+OTHER = {9: '9 (32-bit)', 10: '10 (8-bit)'}
 
 
 class ConvertError(Exception):
@@ -141,6 +143,38 @@ def _convert_dxt5a(b, ver, typ, w, h, mips):
     return struct.pack('<8I', ver, typ, L8, L8_FLAGS, w, h, 0, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
 
 
+RGB565, BGRA8 = 5, 9
+
+
+def _convert_565(b, ver, typ, flags, w, h, mips):
+    """Console 5 (16-bit RGB565: red in the top 5 bits, blue in the low 5) -> the PC's 32-bit format 9, its bytes
+    blue, green, red, alpha 255. Proven on BFBC2's twins of the same size: within the 5 / 6-bit rounding of the
+    PC's 8-bit values (tests\\test_texture.py)."""
+    import numpy as np
+    if typ != 0:
+        raise ConvertError(f'texture type {typ} in console format 5 is not converted (2D only)')
+    where, size = layout(w, h, mips, RGB565, 1)
+    data = bytearray(b[HEADER:])
+    if len(data) < size:
+        raise ConvertError(f'{len(data)} bytes of texture data, the layout needs {size}')
+    for i in range(0, len(data) - 1, 2):                  # 16-bit words are byte-swapped on the console
+        data[i], data[i + 1] = data[i + 1], data[i]
+    levels = []
+    for m in range(mips):
+        start, pitch, ox, oy = where[0][m]
+        lw, lh = max(w >> m, 1), max(h >> m, 1)
+        v = np.zeros(lw * lh, np.int64)
+        for y in range(lh):
+            for x in range(lw):
+                s = start + tiled(x + ox, y + oy, pitch, 1) * 2
+                v[y * lw + x] = data[s] | data[s + 1] << 8
+        r5, g6, b5 = (v >> 11) & 31, (v >> 5) & 63, v & 31
+        px = np.stack([(b5 << 3) | (b5 >> 2), (g6 << 2) | (g6 >> 4), (r5 << 3) | (r5 >> 2), np.full_like(v, 255)], 1)
+        levels.append(px.astype(np.uint8).tobytes())
+    sizes = [len(lv) for lv in levels] + [0] * (15 - mips)
+    return struct.pack('<8I', ver, typ, BGRA8, flags, w, h, 0, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
+
+
 def convert(b):
     """A console XenonTexture resource -> the PC ITexture resource."""
     if len(b) < HEADER:
@@ -148,6 +182,8 @@ def convert(b):
     ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('>8I', b, 0)
     if fmt == DXT5A:
         return _convert_dxt5a(b, ver, typ, w, h, mips)
+    if fmt == RGB565:
+        return _convert_565(b, ver, typ, flags, w, h, mips)
     if fmt not in FORMATS:
         raise ConvertError(f'texture format {OTHER.get(fmt, fmt)} is not converted (FORMAT.md 2.4)')
     if typ not in (0, CUBE) or depth not in (0, 1):

@@ -123,7 +123,13 @@ picture (`texture.check`, `convert.py verify-texture`, `tests/test_texture.py`, 
 
 ### 2.4 Not converted
 
-Console 5 (the PC's 32-bit format 9) is refused until its encoding is identified.
+**Console 5 is RGB565** (2026-11-05): 16 bits a texel (red in the top 5 bits, blue in the low 5), tiled; the PC keeps
+it as 32-bit format 9 (bytes blue, green, red, alpha 255). `convert` expands it; on BFBC2's twins of the same size
+the result is within the 5 / 6-bit rounding of the PC's values (red and blue 8, green 4).
+
+**Console 13 is RGBA16F** (the same code on the PC): 8-byte texels of four half floats, untiled as they are. On
+BFBC2's sky_beach_generic_rgba16f cube the console's level 0 equals the PC's level 1 (the PC copy is twice the size)
+on every face, byte for byte.
 
 **Console 3 is DXT5A** (2026-11-05): the Xenos GPU's single-channel block format - DXT5's alpha half, 8 bytes per
 4 x 4 block, tiled like DXT1 - which the PC keeps as 8-bit format 10 (flags 2). The console copies are half the PC's

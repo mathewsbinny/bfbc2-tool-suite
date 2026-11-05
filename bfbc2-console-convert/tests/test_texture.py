@@ -51,10 +51,64 @@ def index(kind, console):
     return out
 
 
+# BFBC2 twins in console formats 5 (RGB565) and 13 (RGBA16F): (name, console, PC) - same size where noted
+TWINS_5_13 = ['terrains/_textures/_general/mudmask_01_rgbm.res', 'terrains/mp_003/textures/mp03_mudmask.res',
+              'terrains/mp_004/textures/mp04_mudmask.res', 'textures/sky/sky_beach_generic_rgba16f.res']
+
+
+def formats_5_13(fails):
+    """Console 5 -> PC 9 within the RGB565 rounding (red / blue 8, green 4) on the twins of the same size; console 13
+    (RGBA16F cube) untiled: its level 0 equals the PC's level 1 (the PC copy is twice the size) on every face."""
+    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+    from bfbc2core import fbrb
+    import numpy as np
+    want = set(TWINS_5_13)
+    found = {'x': {}, 'p': {}}
+    for tag, pat in (('x', os.path.join(WORK, 'xbox', '**', '*.fbrb')), ('p', os.path.join(OPFOR, 'game', '**', '*.fbrb'))):
+        for path in glob.glob(pat, recursive=True):
+            try:
+                for e in fbrb.entries(path):
+                    if e.name.lower() in want and not getattr(e, 'deleted', False):
+                        found[tag].setdefault(e.name.lower(), (path, e.name))
+            except Exception:                                    # noqa: BLE001 - not a bundle this reader takes
+                continue
+    pairs = [n for n in TWINS_5_13 if n in found['x'] and n in found['p']]
+    if not pairs:
+        print('SKIP console 5 / 13: no BFBC2 twins')
+        return
+    ok5 = ok13 = 0
+    for n in pairs:
+        x = fbrb.read(found['x'][n][0], [found['x'][n][1]])[found['x'][n][1]]
+        p = fbrb.read(found['p'][n][0], [found['p'][n][1]])[found['p'][n][1]]
+        out = texture.convert(x)
+        fmt, w, h = struct.unpack_from('<I', out, 8)[0], *struct.unpack_from('<2I', out, 16)
+        if fmt == texture.BGRA8:
+            a = np.frombuffer(out, np.uint8, w * h * 4, texture.HEADER).reshape(-1, 4).astype(int)
+            b = np.frombuffer(p, np.uint8, w * h * 4, texture.HEADER).reshape(-1, 4).astype(int)
+            d = np.abs(a - b).max(0)
+            ok5 += bool(d[0] <= 8 and d[1] <= 4 and d[2] <= 8 and d[3] == 0)
+        else:
+            sizes = struct.unpack_from('<15I', p, 32)
+            n0 = w * h * 8
+            psum = sum(sizes[:struct.unpack_from('<I', p, 28)[0]])
+            osum = sum(struct.unpack_from('<15I', out, 32)[:struct.unpack_from('<I', out, 28)[0]])
+            ok13 += all(out[texture.HEADER + f * osum:texture.HEADER + f * osum + n0] ==
+                        p[texture.HEADER + f * psum + sizes[0]:texture.HEADER + f * psum + sizes[0] + n0] for f in range(6))
+    n5 = sum(1 for n in pairs if 'rgba16f' not in n)
+    print(f'console 5 (RGB565 -> PC 9): {ok5} of {n5} twins within the rounding; console 13 (RGBA16F cube): '
+          f'{ok13} of {len(pairs) - n5} equal to the PC\'s level 1 on every face')
+    if ok5 != n5 or ok13 != len(pairs) - n5:
+        fails.append('console 5 / 13: a twin out of bounds')
+
+
 def main():
+    fails5 = []
+    formats_5_13(fails5)
+    for f in fails5:
+        print('FAIL', f)
     if not glob.glob(os.path.join(WORK, 'onslaught', 'build_*', 'con_*')):
         print('skipped: needs Project OPFOR BFBC2 with the console Onslaught builds')
-        return 0
+        return 1 if fails5 else 0
     fails = []
     con = index('XenonTexture', True)
     pc = index('ITexture', False)
@@ -82,7 +136,8 @@ def main():
     checked = collections.Counter()
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()
-        if struct.unpack_from('>I', c, 8)[0] not in texture.FORMATS:
+        cf = struct.unpack_from('>I', c, 8)[0]
+        if cf not in texture.FORMATS or cf in (texture.DXT5A, texture.RGB565):   # decoded to another format: own checks
             continue
         out = texture.convert(c)
         if out[:texture.HEADER] != p[:texture.HEADER]:
@@ -128,6 +183,7 @@ def main():
         fails.append(f'only {checked["same picture"] + checked["byte-identical"]} comparable pairs (expected 180+)')
     if not checked['same picture (cube)']:
         fails.append('no cube map compared')
+    fails += fails5
     for f in fails[:20]:
         print('FAIL', f)
     return 1 if fails else 0
