@@ -10,11 +10,14 @@ Layout (all little-endian; checked against the in-game terrain samples of 13 cam
 
     0x00  6 x f32      world bounds: min x, min y, min z, max x, max y, max z
     0x18  u32          size: samples per side (1024 or 2048)
-    0x1C  u32 x 5      log2(size) - 3, log2(size) - 2, about 256 * size, 0, a count - not decoded
-    0x30  u8           0 in every level seen
+    0x1C  u32 x 2      log2(size) - 3, log2(size) - 2
+    0x24  u16 x 2      0, size / 256
+    0x28  u32, u8      0, 0 in every level seen
+    0x2D  u32          the length in bytes of the tail's first section (bfbc2-console-convert terrain.py)
     0x31  u16 x size^2 heights, rows along z, columns along x: height = min y + value / 65535 * (max y - min y),
                        sample (i, j) at (min x + i * (max x - min x) / size, min z + j * (max z - min z) / size)
-    then               a table of u32 offsets (0, 2, 4, ...) and further data, probably level of detail - not decoded
+    then               u32 x size offsets (u16 units) into the tail's first section, then u16 values: the first
+                       section, then a part of fixed length (62,474 bytes at 1024, 256,012 at 2048) - not decoded
 """
 import os
 import struct

@@ -31,3 +31,12 @@ The texture check needs `numpy`.
 
 Developed for Project OPFOR BFBC2. Havok is a trademark of Microsoft; Xbox is a trademark of Microsoft;
 Battlefield: Bad Company 2 is © Electronic Arts / DICE.
+
+## Terrain (terrain.py)
+
+`terrain.heightfield(xbox_bytes)` and `terrain.water_mesh(xbox_bytes)`: a level's TerrainHeightfield and WaterMesh in
+BFBC2's PC format; `terrain.heightfield(bf1943_bytes, source='bf1943')` for Battlefield 1943's, whose header lacks
+one field (the length of the tail's first section, computed from the tail). Proven on BFBC2's Xbox / PC twins: the
+heightfield byte for byte on the 7 levels DICE did not edit after the Xbox build (the other 13: the same structure,
+PC terrain edits in the heights), the water mesh byte for byte on all 20 (`tests	est_terrain.py`). The material
+map, visual terrain and visual water are not converted yet.
