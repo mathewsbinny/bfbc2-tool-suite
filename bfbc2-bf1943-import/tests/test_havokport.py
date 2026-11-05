@@ -28,6 +28,8 @@ from havok import ARRAY, ENUM, FLAGS, PLAIN, POINTER, SIMPLEARRAY, STRUCT, VARIA
 V = 'objects/vehicles/beach/'
 KUROGANE = V + 'kurogane/kurogane_mesh_havok.res'
 REEXPORTED = [V + 'jap_zero_fighter/zero_fighter_havok.res', V + 'us_corsair/us_corsair_havok.res']
+ANTENNA = 'objects/beach_objects/antenna_01/antenna_01_banger_havok.res'      # velocity limit 10, convex + list shapes
+BANGER = 'objects/levelspecific_objects/ghosttown_lamppolelong/ghosttown_lamppolelong_banger_havok.res'
 WW2 = [V + 'willys-mb/willys-mb_havok.res', V + 'willys-mb/willys-mb_wreck_havok.res',
        V + 'm4-sherman/us_shermanm4_tank_havok.res', V + 'lcvp-landingcraft/gen_landingcraft_havok.res',
        'objects/beach_objects/invisible_boat_wall/lcvp_shell_havok.res', V + 'mitchell_bomber/mitchell_bomber_mesh_havok.res',
@@ -146,6 +148,18 @@ def main():
     check(len(pairs) == n_out == n_ref and not bad,
           f'oracle Kurogane: {len(pairs)} of {n_out} / {n_ref} objects paired, every field equal but runtime caches',
           ', '.join(f'{k} {v}' for k, v in sorted(bad.items())[:6]))
+    # velocity limits: Havok's hkUFloat8 table from the executable; the Kurogane's 200 -> 0x7F as BFBC2's own file
+    table = havokport.ufloat8_table(open(os.path.join(root, 'game', 'BFBC2Game.exe'), 'rb').read())
+    check(table is not None and len(table) == 256 and havokport.ufloat8(200.0, table) == 0x7F,
+          'hkUFloat8 table found in the executable; 200 -> 0x7F')
+    if table is not None:
+        check(havokport.convert(src.data(KUROGANE), template, K, table) == out,
+              'oracle Kurogane: the same bytes with the table')
+        try:
+            a = havokport.convert(src.data(ANTENNA), ix.read(BANGER), K, table)
+            check(b'hkpRigidBody' in a, 'antenna banger (velocity limit 10): converted with the table')
+        except Exception as e:                                   # noqa: BLE001
+            check(False, 'antenna banger (velocity limit 10)', str(e))
     for name in REEXPORTED:
         out = havokport.convert(src.data(name), template, K)
         pairs, n_out, n_ref, bad = compare(hp, L, out, ix.read(name))

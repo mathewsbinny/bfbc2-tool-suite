@@ -45,7 +45,26 @@ RIGID_COPY = [(0, 0, 48),            # object header, collidable up to the broad
 RIGID_CONST = [(48, b'\0\0\0\x01'),  # cached bounding volume: min[0] > max[0] marks it invalid (rebuilt at load)
                (202, b'\x03\x01')]   # spuCollisionCallback eventFilter, userFilter (BFBC2's values)
 RIGID_DROPPED_SLOTS = {144}           # the deactivator
-VELOCITY_BYTE = {200.0: 0x7F}        # hkUFloat8 of the velocity limits: the value BF1943's vehicles use
+VELOCITY_BYTE = {200.0: 0x7F}        # hkUFloat8 of the velocity limits without a table: the value BF1943's vehicles use
+
+
+def ufloat8_table(exe):
+    """Havok's hkUFloat8 decoding table (256 rising floats: 0, 0.01, ... about 1e6) found in the user's executable
+    (bytes); None if absent. 5.5.0 stores a rigid body's velocity limits as an index into it."""
+    import numpy as np
+    for off in range(4):
+        a = np.frombuffer(exe, '<f4', (len(exe) - off) // 4, off)
+        for i in np.where(a == np.float32(0.01))[0]:
+            t = a[i - 1:i + 255].astype(float)
+            if i >= 1 and len(t) == 256 and t[0] == 0 and 9e5 < t[255] < 1.1e6 and (np.diff(t) > 0).all():
+                return [float(v) for v in t]
+    return None
+
+
+def ufloat8(v, table):
+    """v as an index into the table: the nearest value (200 -> 0x7F, 202.8 - the Kurogane's byte in BFBC2's own
+    file; rounding up would give the same there, rounding down would not)."""
+    return min(range(len(table)), key=lambda i: abs(table[i] - v))
 MOPP_TREE_COPY = [(0, 0, 16), (24, 16, 4), (20, 52, 4)]   # header; code pointer; child shape pointer
 
 
@@ -100,9 +119,10 @@ def _classnames(d, start, e):
     return out
 
 
-def restructure(b, template, classes):
+def restructure(b, template, classes, table=None):
     """The 4.6.1 resource b as a big-endian 5.5.0 one (DICE's wrapper kept); template: a BFBC2 PC physics resource
-    whose class-name section names every class b's objects need."""
+    whose class-name section names every class b's objects need; table: ufloat8_table (else only VELOCITY_BYTE's
+    velocity limits are known)."""
     p = b.find(MAGIC)
     if p < 0 or b'Havok-4.6.1' not in b[p + 40:p + 56]:
         raise PortError('not a Havok 4.6.1 packfile')
@@ -165,8 +185,12 @@ def restructure(b, template, classes):
                 new[dst:dst + len(val)] = val
             for k, src in ((396, 340), (397, 344)):
                 v = round(struct.unpack_from('>f', old, src)[0], 3)
+                if table is not None:
+                    new[k] = ufloat8(v, table)
+                    continue
                 if v not in VELOCITY_BYTE:
-                    raise PortError(f'rigid body at {o:#x}: a velocity limit of {v} (only {sorted(VELOCITY_BYTE)} known)')
+                    raise PortError(f'rigid body at {o:#x}: a velocity limit of {v} (only {sorted(VELOCITY_BYTE)} known;'
+                                    f' pass ufloat8_table(exe))')
                 new[k] = VELOCITY_BYTE[v]
             new[398] = old[357]                     # deactivationClass
             for s in RIGID_DROPPED_SLOTS:
@@ -258,6 +282,6 @@ def restructure(b, template, classes):
     return b[:p] + bytes(head) + bytes(st) + bytes(new_cn) + data_bytes
 
 
-def convert(b, template, classes):
-    """BF1943's physics resource b -> BFBC2's PC format."""
-    return havok.convert(restructure(b, template, classes), classes)
+def convert(b, template, classes, table=None):
+    """BF1943's physics resource b -> BFBC2's PC format (table: ufloat8_table, for velocity limits other than 200)."""
+    return havok.convert(restructure(b, template, classes, table), classes)
