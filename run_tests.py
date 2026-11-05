@@ -109,6 +109,7 @@ def tests():
         ('console mesh decoding (Xbox vs PC, BF1943)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_mesh_decode.py')]),
         ('console terrain conversion (Xbox vs PC, BF1943 Wake)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_terrain.py')]),
         ('console soot meshes (Xbox vs PC, BF1943)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_soot.py')]),
+        ('console sounds: EA-XMA -> EA-XAS (Xbox vs PC, BF1943)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_audio.py')]),
         ('mesh viewer on the game\'s models', 'game', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview.py')]),
         ('model tools: skinned meshes, mesh sets, shapes', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_models.py')]),
         ('Granny skeletons and animations (read, shift)', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny.py')]),
