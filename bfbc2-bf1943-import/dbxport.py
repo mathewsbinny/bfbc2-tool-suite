@@ -83,10 +83,32 @@ def _lost(e, resolve):
     return out
 
 
-def _align(e, t, path, report, resolve=None):
+def _pruned(e, resolve, path, report):
+    """An array without the items that would not resolve: a reference item, or a struct item one of whose own
+    reference fields would not (an event connection to a left-out entity)."""
+    keep = []
+    for c in e.children or ():
+        if c.kind == dbx.CONTAINER and c.tag != 'array':
+            gone = [x for f in (c.children or ()) if f.attr('ref') for x in _lost(f, resolve)]
+        else:
+            gone = [r for r in [c.attr('ref')] if r and r != 'null' and
+                    not resolve(r.rsplit('/', 1)[0] if '/' in r else '#' + r.lower())]
+        if gone:
+            continue
+        keep.append(c)
+    n = len(e.children or ()) - len(keep)
+    if n:
+        report.append(f'pruned {path}: {n} item(s) referring to what will not exist')
+    return dbx.Element(e.tag, e.kind, list(e.attributes), e.text, e.raw, keep)
+
+
+def _align(e, t, path, report, resolve=None, prune=False):
     """e (BF1943) aligned with t (BFBC2): a new element. resolve(target) says whether a reference will resolve (see
     _lost); a field - or an array of references - holding one that will not takes the template's value instead
-    (structs and arrays of structs are aligned field by field, so only the field holding it is replaced)."""
+    (structs and arrays of structs are aligned field by field, so only the field holding it is replaced). prune: an
+    array instead loses the items that would not resolve (_pruned)."""
+    if prune and resolve is not None and e.tag == 'array':
+        e = _pruned(e, resolve, path, report)
     if resolve is not None and e.attr('name') is not None:
         lost = _lost(e, resolve)
         if lost:
@@ -100,7 +122,7 @@ def _align(e, t, path, report, resolve=None):
         proto = next((c for c in (t.children or ()) if c.kind == dbx.CONTAINER), None)
         new = []
         for i, c in enumerate(items):
-            new.append(_align(c, proto, f'{path}[{i}]', report, resolve) if proto is not None and c.kind == dbx.CONTAINER
+            new.append(_align(c, proto, f'{path}[{i}]', report, resolve, prune) if proto is not None and c.kind == dbx.CONTAINER
                        else c)
         return dbx.Element(e.tag, e.kind, list(e.attributes), e.text, e.raw, new)
     mine = _named(e.children)
@@ -116,18 +138,18 @@ def _align(e, t, path, report, resolve=None):
             item = copy.deepcopy(c.children[0])
             item.attributes = [(k, mine[single].attr('ref') if k == 'ref' else v) for k, v in item.attributes]
             arr = dbx.Element(c.tag, c.kind, list(c.attributes), c.text, c.raw, [item])
-            new.append(_align(arr, c, f'{path}.{n}', report, resolve))
+            new.append(_align(arr, c, f'{path}.{n}', report, resolve, prune))
             report.append(f'converted {path}.{single} -> {n} (one item)')
             continue
         old = RENAMED.get(n)
         if n not in mine and old in mine:
             el = copy.deepcopy(mine[old])
             el.attributes = [(k, n if k == 'name' else v) for k, v in el.attributes]
-            new.append(_align(el, c, f'{path}.{n}', report, resolve))
+            new.append(_align(el, c, f'{path}.{n}', report, resolve, prune))
             report.append(f'renamed {path}.{old} -> {n}')
             continue
         if n in mine:
-            new.append(_align(mine[n], c, f'{path}.{n}', report, resolve))
+            new.append(_align(mine[n], c, f'{path}.{n}', report, resolve, prune))
         else:
             new.append(copy.deepcopy(c))
             report.append(f'added {path}.{n} (BFBC2\'s value)')
@@ -141,16 +163,22 @@ def _align(e, t, path, report, resolve=None):
 
 
 # BF1943 types BFBC2's executable has no class for (2026-10-31): dropped by port(drop_types=NOT_IN_BFBC2)
+# a placement needs its object: port(required=REQUIRED) leaves out one whose object no partition will supply
+REQUIRED = {'Entity.ReferenceObjectData': 'ReferencedObject'}
 NOT_IN_BFBC2 = {'GameSharedResources.AirRaidEffectsData', 'GameSharedResources.TeamVehicleProjectileEntityData',
                 'GameSharedResources.CarHornComponentData', 'GameSharedResources.ScorePartComponentData'}
 
 
-def port(data, templates, resolve=None, drop_untemplated=False, drop_types=()):
+def port(data, templates, resolve=None, drop_untemplated=False, drop_types=(), prune=False, required=None):
     """(BFBC2 .dbx bytes, report lines) for a BF1943 partition. resolve(partition): whether a referenced partition
     will exist (None: references kept). drop_untemplated: instances of a type the templates do not have (a BFBC2
     donor partition does not carry, e.g. BF1943's embedded PersistentWeapon) are left out, and references to them
     take the template's value; otherwise they are kept as BF1943 has them. drop_types: types left out whatever the
-    templates (NOT_IN_BFBC2: the classes BFBC2 does not have), references to them handled the same way."""
+    templates (NOT_IN_BFBC2: the classes BFBC2 does not have), references to them handled the same way. prune (a
+    level): arrays lose the items that would not resolve - an event connection to a left-out entity, an object list's
+    entry - instead of taking the template's array. required {type: field}: an instance whose reference in that field
+    would not resolve is left out too (a placement of an object no partition will supply: REQUIRED), and what refers
+    to it pruned in turn."""
     f = dbx.parse(data)
     report = []
     part = f.partition
@@ -165,6 +193,14 @@ def port(data, templates, resolve=None, drop_untemplated=False, drop_types=()):
         elif drop_untemplated and t not in templates:
             dropped.add((inst.attr('guid') or '').lower())
             report.append(f'left out instance {t} ({inst.attr("guid")}): the donor has none')
+    for inst in part.children or ():
+        field = (required or {}).get(inst.attr('type'))
+        f_ = _field(inst, field) if field else None
+        r = f_.attr('ref') if f_ is not None else None
+        if r and r != 'null' and '/' in r and resolve is not None and not resolve(r.rsplit('/', 1)[0]):
+            dropped.add((inst.attr('guid') or '').lower())
+            report.append(f'left out instance {inst.attr("type")} ({inst.attr("guid")}): its {field} {r.rsplit("/", 1)[0]}'
+                          f' will not exist')
     res = None
     if resolve is not None or dropped:
         def res(target):
@@ -183,7 +219,7 @@ def port(data, templates, resolve=None, drop_untemplated=False, drop_types=()):
             report.append(f'type {t} ({inst.attr("guid")}): no BFBC2 template - kept as BF1943 has it')
             new.append(inst)
             continue
-        new.append(_align(inst, templates.by_type[t], t, report, res))
+        new.append(_align(inst, templates.by_type[t], t, report, res, prune))
     _part_link_names(new, report)
     out = dbx.DbxFile(f.strings, [dbx.Element(part.tag, part.kind, list(part.attributes), part.text, part.raw, new)]
                       + f.roots[1:])

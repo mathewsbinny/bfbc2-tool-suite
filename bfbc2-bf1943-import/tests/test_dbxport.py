@@ -114,6 +114,24 @@ def main():
     check(links and all(comps[int(dbx.value(k.child('PartComponentIndex1')))] == k.child('PartComponentName1').text and
                         comps[int(dbx.value(k.child('PartComponentIndex2')))] == k.child('PartComponentName2').text
                         for k in links), f'port: a building\'s {len(links)} part links named from their indices')
+    # a level (Wake Island): with prune, an entity left out takes its event connections with it (none is redirected
+    # to a template's entity); with required, a placement of an object that will not exist is left out
+    L = 'levels/wake_island_s.dbx'
+    T = dbxport.Templates([('mp_005', ix.read('levels/mp_005.dbx'))])
+    gone = 'GameSharedResources.LiveSessionEntityData'
+    lv, rep = dbxport.port(src.data(L), T, lambda p: not p.startswith('effects/'), drop_types={gone}, prune=True,
+                           required=dbxport.REQUIRED)
+    f = dbx.parse(lv)
+    data = next(i for i in f.instances if i.child('EventConnections') is not None)
+    guids = {i.attr('guid').lower() for i in f.instances}
+    ends = [c.child(k).attr('ref').lower() for c in data.child('EventConnections').children for k in ('Source', 'Target')]
+    places = [i.child('ReferencedObject').attr('ref') for i in f.instances
+              if i.attr('type') == 'Entity.ReferenceObjectData']
+    n_before = len([1 for i in dbx.parse(src.data(L)).instances if i.attr('type') == 'Entity.ReferenceObjectData'])
+    check(all(g in guids or '/' in g for g in ends) and any(r.startswith('pruned') for r in rep) and
+          not any(p.startswith('effects/') for p in places) and len(places) < n_before,
+          f'port: a level pruned - every event connection\'s ends exist, {n_before - len(places)} placements of '
+          f'missing objects left out')
     exe = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
     if os.path.isfile(exe):
         tmp = tempfile.mkdtemp(prefix='dbxport_')
