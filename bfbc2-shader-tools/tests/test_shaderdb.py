@@ -9,10 +9,18 @@ r"""shaderdb.py on databases built here (quick), and with --game on Project OPFO
   and entry groups renumbered, the merged file re-parses to the same bytes, passes the checks and every entry draws
   with what it drew with in its source; a Dx9 donor for a Dx10 base is refused; the program limit; the same inputs
   give the same bytes; the command line (info, list, merge, roundtrip) on the built files;
+- built Xbox 360 (big-endian) databases: recognised from their first bytes, parse and write the same bytes, pass the
+  checks (GUIDs with big-endian fields, sorted by their PC byte order); parameter blocks' textures and constants read
+  in both byte orders; an Xbox donor for a PC base is refused;
 - with --game: the three databases of mp_008cq and ons_mp_008 read from the bundles round trip; ONS_MP_008 merged
-  with mp_008cq's flags and flagpole (all three kinds): the flags covered, the base unchanged entry by entry.
+  with mp_008cq's flags and flagpole (all three kinds): the flags covered, the base unchanged entry by entry;
+- with --game or --xbox (each part skipped when its files are missing): every BFBC2 Xbox level database
+  (work\xbox\dist\xenon\levels\<lv>\level-00.fbrb) round trips and passes the checks; Xbox vs PC Dx9 twins of
+  mp_002, mp_005, mp_008: entries (GUIDs equal in PC byte order), mesh-part names and their layouts' elements, and
+  each entry's textures (sampler, name) match; Battlefield 1943's Wake Island database (Xbox only) reads, with its
+  entries' textures (Hangar_t01's printed) and its part layouts equal to bfbc2-console-convert's console_layouts.
 
-  python test_shaderdb.py [--game]
+  python test_shaderdb.py [--game] [--xbox]
 """
 import hashlib
 import os
@@ -43,44 +51,78 @@ def guid(rng):
     return bytes(rng.randrange(256) for _ in range(16))
 
 
-def build(dx, entries, seed, shared=b''):
+def build(dx, entries, seed, shared=b'', big_endian=False):
     """A consistent database. entries: [(name, programs)]; each program gets its own shaders and parameter block,
     plus one parameter block, binding table and register table every file shares (shared: extra bytes in them, so two
-    files can share or not)."""
+    files can share or not). big_endian: an Xbox 360 one (Xenon vertex elements, GUIDs with big-endian fields)."""
     rng = random.Random(seed)
-    db = sd.ShaderDb(dx)
+    db = sd.ShaderDb(dx, big_endian)
+    e = db.e
     db.version, db.flag = 120, 0
-    db.params = [struct.pack('<I', 8 + len(shared)) + b'PARM' + shared]
-    db.bindings = [struct.pack('<HH', 1, 7) + b'\x24\x09\x00\x01']
-    db.regs = [struct.pack('<I', 1) + b'REGS']
+    db.params = [struct.pack(e + 'I', 8 + len(shared)) + b'PARM' + shared]
+    db.bindings = [struct.pack(e + 'HH', 1, 7) + b'\x24\x09\x00\x01']
+    db.regs = [struct.pack(e + 'I', 1) + b'REGS']
     frag = (f'Systems/Fragment_{seed}', guid(rng))
     db.fragments = [('Systems/Emitter/ShaderFragment', b'F' * 16), frag]
     layout = guid(rng)
     db.layouts = [b'L' * 16 + bytes(0x49), layout + bytes(range(0x49))]
     progs = []
     for name, n in entries:
-        g = hashlib.md5(name.encode('latin-1')).digest()
+        g = db.name_guid(name)
         db.entries.append((name, g))
         mesh, material = '/'.join(name.split('/')[:3]), name.rsplit('/', 1)[1]
         db.parts.append((f'{mesh}_lod0/part|{material}/Standard', layout))
         for _ in range(n):
             pi = len(db.params)
-            db.params.append(struct.pack('<I', 12) + guid(rng)[:8])
-            vt = struct.pack('<I', 1) + bytes(8) if dx == 9 else \
-                struct.pack('<I', 3) + b'abc' + struct.pack('<I', 1) + bytes(0x1c) + struct.pack('<I', 1) + b'POSITION\0'
+            db.params.append(struct.pack(e + 'I', 12) + guid(rng)[:8])
+            if big_endian:
+                vt = struct.pack(e + 'I', 1) + bytes(12) + bytes([12]) + bytes(15)
+            elif dx == 9:
+                vt = struct.pack('<I', 1) + bytes(8)
+            else:
+                vt = struct.pack('<I', 3) + b'abc' + struct.pack('<I', 1) + bytes(0x1c) + struct.pack('<I', 1) + b'POSITION\0'
             db.vs.append(sd.Shader(guid(rng), b'\x01' + guid(rng), 0, 0, 0, vt))
             db.ps.append(sd.Shader(guid(rng), b'\x00' + guid(rng) * 2, pi, 0, 0))
             key = g + (frag[1] if rng.random() < 0.5 else bytes(16)) + layout + bytes(40)
-            rec = guid(rng) + bytes(16) + struct.pack('<4I', len(db.vs) - 1, len(db.ps) - 1, pi, 0)
+            rec = guid(rng) + bytes(16) + struct.pack(e + '4I', len(db.vs) - 1, len(db.ps) - 1, pi, 0)
             progs.append((rec, key))
-    progs.sort(key=lambda t: t[0][:16])
+    progs.sort(key=lambda t: db.pc_guid(t[0][:16]))
     db.programs = [p for p, _ in progs]
     db.keys = [k for _, k in progs]
     groups = {}
     for i, k in enumerate(db.keys):
         groups.setdefault(k[:16], []).append(i)
-    db.groups = sorted(groups.items())
+    db.groups = sorted(groups.items(), key=lambda t: db.pc_guid(t[0]))
     db.label = f'built{seed}'
+    return db
+
+
+def param_block(e, textures, constants=()):
+    """A parameter block as DICE's are laid out (FORMAT.md section 2, 'Section 1'): textures [(sampler, name)],
+    constants [(name, register, components, 4 values)], one sampler-state record."""
+    tex = b''.join(bytes([s, 0, 0, 0]) + name.encode().ljust(0x80, b'\0') + bytes(8) for s, name in textures)
+    con = b''.join(name.encode().ljust(0x20, b'\0') + struct.pack(e + 'I', 0x1234) + bytes([reg, comps, 0, 0])
+                   + struct.pack(e + '4f', *vals) for name, reg, comps, vals in constants)
+    samplers = bytes(4) + bytes([1, 3, 2, 2, 1, 1, 1, 0])
+    tex_end = 0x20 + len(tex)
+    con_end = tex_end + len(con)
+    size = con_end + len(samplers)
+    head = struct.pack(e + '6I', size, 0x20, 0x20, tex_end, con_end, con_end)
+    head += bytes([1, 1, 0, len(textures), len(constants), 0, 1, 0])
+    return head + tex + con + samplers
+
+
+def with_textures(db, per_entry):
+    """Gives each program of an entry a second parameter block naming the entry's textures (per_entry: {entry
+    name: [(sampler, texture name)]})."""
+    groups = db.entry_programs()
+    for name, g in db.entries:
+        if name not in per_entry:
+            continue
+        k = len(db.params)
+        db.params.append(param_block(db.e, per_entry[name], [('DirtColor', 8, 3, (0.5, 0.25, 1.0, 0.0))]))
+        for i in groups[g]:
+            db.programs[i] = db.programs[i][:0x2c] + struct.pack(db.e + 'I', k)
     return db
 
 
@@ -205,6 +247,48 @@ def quick(c, tmp):
     c.check(r.returncode == 1 and 'shader database' in (r.stdout + r.stderr).lower(),
             'command line: a file that is not a database is refused in words', r.stdout + r.stderr)
 
+    # ---- Xbox 360 (big-endian) databases, and parameter blocks
+    tex = {A: [(1, 'Textures/A/Metal_Nm'), (2, 'Textures/A/Metal_C')], B: [(1, 'Textures/B/Wood_Df')]}
+    for big in (False, True):
+        kind = 'Xbox 360' if big else 'PC Dx9'
+        db = with_textures(build(9, [(A, 3), (B, 2)], 30, big_endian=big), tex)
+        data = db.to_bytes()
+        c.check(sd.ShaderDb.is_big_endian(data) == big, f'{kind}: byte order recognised from the first bytes')
+        again = sd.ShaderDb.parse(data)
+        c.check(again.big_endian == big and again.to_bytes() == data and again.check() == [],
+                f'{kind}: built database parses, writes the same bytes and passes the checks', '; '.join(again.check()))
+        got = sd.entry_textures(again)
+        c.check(got == {A: [(1, 0, 'Textures/A/Metal_Nm'), (2, 0, 'Textures/A/Metal_C')],
+                        B: [(1, 0, 'Textures/B/Wood_Df')]},
+                f'{kind}: entry_textures gives each entry its textures and samplers', str(got))
+        k = again.program_refs(again.entry_programs()[again.entries[0][1]][0])[3]
+        consts = sd.block_constants(again.params[k], again.e)
+        c.check(consts == [('DirtColor', 8, 3, (0.5, 0.25, 1.0, 0.0))], f'{kind}: block_constants reads a constant',
+                str(consts))
+        if big:
+            c.check(again.entries[0][1] == sd.swap_guid(hashlib.md5(A.encode()).digest()),
+                    'Xbox 360: entry GUIDs are MD5(name) with big-endian fields')
+            bad = build(9, [(A, 12)], 31, big_endian=True)
+            bad.programs.sort(key=lambda p: p[:16])         # the file's own byte order: not DICE's
+            c.check(bad.programs != sorted(bad.programs, key=lambda p: bad.pc_guid(p[:16]))
+                    and any('sorted' in p for p in bad.check()),
+                    'Xbox 360: programs must be sorted by the PC byte order of their GUIDs')
+            try:
+                sd.merge(build(9, [(A, 1)], 1), [(db, 'xbox')], ['objects/b/b_mesh'])
+                c.check(False, 'an Xbox 360 donor for a PC base is refused')
+            except sd.ShaderDbError:
+                c.check(True, 'an Xbox 360 donor for a PC base is refused')
+            path = os.path.join(tmp, 'Single.res')
+            open(path, 'wb').write(data)
+            r = run('textures', path, 'b_mesh')
+            c.check(r.returncode == 0 and 'Textures/B/Wood_Df   [color]' in r.stdout and '1 of 2 entries' in r.stdout,
+                    'command line: textures on an Xbox 360 file', r.stdout + r.stderr)
+            r = run('info', path)
+            c.check(r.returncode == 0 and 'Xbox 360' in r.stdout and 'identical bytes' in r.stdout,
+                    'command line: info on an Xbox 360 file', r.stdout + r.stderr)
+    c.check([sd.texture_kind(n) for n in ('A_Nm', 'A_C', 'A_Df', 'A_Sp', 'A_Gm', 'A_Occlusion', 'A_RGBM')]
+            == ['normal', 'color', 'color', 'specular', 'gloss', 'occlusion', ''], 'texture_kind from name suffixes')
+
 
 # ------------------------------------------------------------------------------------------------ the game copy
 
@@ -235,12 +319,116 @@ def game(c, tmp):
                 f'every entry draws as in its source', '; '.join(problems) + str(cover))
 
 
+# ------------------------------------------------------------------------------------------------ Xbox 360 data
+
+TWINS = ('mp_002', 'mp_005', 'mp_008')
+
+
+def _elements(body):
+    """A layout record body's elements as (usage, stream): the formats differ between Xbox and PC (packed normals)."""
+    return [(body[4 * i + 1], body[4 * i + 3]) for i in range(body[64])]
+
+
+def xbox(c):
+    try:
+        opfor = sd.find_opfor()
+    except sd.ShaderDbError as e:
+        opfor = None
+        print(f'SKIP BFBC2 Xbox levels: {e}')
+    levels = os.path.join(opfor, 'work', 'xbox', 'dist', 'xenon', 'levels') if opfor else ''
+    if opfor and not os.path.isdir(levels):
+        print(f'SKIP BFBC2 Xbox levels: no unpacked Xbox copy at {levels}')
+    elif opfor:
+        bundles = {lv.lower(): os.path.join(levels, lv, 'level-00.fbrb') for lv in sorted(os.listdir(levels))
+                   if os.path.isfile(os.path.join(levels, lv, 'level-00.fbrb'))}
+        n, bad = 0, []
+        for lv, path in bundles.items():
+            if not sd.bundle_databases(path):
+                continue                                    # mp_common, sp_common: no database
+            db, data = sd.load(path)
+            n += 1
+            if not db.big_endian or db.to_bytes() != data or db.check():
+                bad.append(f'{lv}: {"; ".join(db.check()) or "not read as Xbox 360 / other bytes"}')
+        c.check(n > 0 and not bad, f'BFBC2 Xbox: {n} level databases read as Xbox 360, write the same bytes, pass '
+                f'the checks', '; '.join(bad[:3]))
+        for lv in TWINS:
+            if lv not in bundles:
+                print(f'SKIP {lv}: no Xbox bundle')
+                continue
+            x, _ = sd.load(bundles[lv])
+            p, _ = sd.load(f'level:{lv}', 9)
+            xe, pe = dict(x.entries), dict(p.entries)
+            common = xe.keys() & pe.keys()
+            c.check(len(common) >= 0.99 * len(xe) and all(sd.swap_guid(xe[n]) == pe[n] for n in common),
+                    f'{lv} Xbox vs PC: {len(common)} entries in both (Xbox {len(xe)}, PC {len(pe)}), the same GUIDs '
+                    f'in PC byte order', f'{len(xe.keys() - pe.keys())} Xbox only')
+            xl, pl = sd.part_layouts(x), sd.part_layouts(p)
+            std = [n for n in xl if n.endswith('/Standard')]
+            same = [n for n in std if n in pl and _elements(xl[n]) == _elements(pl[n])]
+            c.check(len(same) >= 0.98 * len(std), f'{lv} Xbox vs PC: {len(same)} of {len(std)} Xbox mesh parts '
+                    f'(Standard) are in PC with the same layout elements (usage, stream); PC has {len(pl)} parts '
+                    f'(+ StreamInstancingFloat)')
+            tx, tp = sd.entry_textures(x), sd.entry_textures(p)
+            eq = [n for n in common if tx[n] == tp[n]]
+            names = [n for n in common if {t for _, _, t in tx[n]} == {t for _, _, t in tp[n]}]
+            odd = sorted(n for n in common if tx[n] != tp[n] and not n.startswith('Terrains/'))
+            c.check(len(eq) >= 0.97 * len(common) and odd == ['Shaders/WaterOcean'],
+                    f'{lv} Xbox vs PC: {len(eq)} of {len(common)} entries name the same textures on the same samplers '
+                    f'({len(names)} the same texture names; the others terrain patches with an extra Xbox normal map, '
+                    f'and the ocean)', str(odd[:4]))
+    wake(c)
+
+
+def wake(c):
+    xenon = os.environ.get('BF1943_XENON') or os.path.join(ROOT, '..', '..', 'operation-rising-sun', 'work',
+                                                           'extracted', 'dist', 'xenon')
+    lvl = os.path.join(xenon, 'levels', 'wake_island_s', 'reduced-level-00.fbrb')
+    fb = os.path.join(ROOT, '..', '..', 'bf1943-tool-suite', 'bf1943-fbrb-tool')
+    if not os.path.isfile(lvl) or not os.path.isfile(os.path.join(fb, 'fbrb1943.py')):
+        print('SKIP Battlefield 1943 Wake Island: no extracted copy or no BF1943 bundle reader')
+        return
+    sys.path.insert(0, fb)
+    import fbrb1943
+    bundle = fbrb1943.Bundle(open(lvl, 'rb').read())
+    name = next(e['name'] for e in bundle.entries if e['type'] == 'Dx9ShaderDatabase')
+    data = bundle.data(name)
+    db = sd.ShaderDb.parse(data, where=name)
+    c.check(db.big_endian and db.version == 117 and db.key_size == 0x5c and db.to_bytes() == data and db.check() == [],
+            f'BF1943 Wake {name}: Xbox 360, version 117 (program keys 0x5c bytes), {len(data):,} bytes, '
+            f'{len(db.entries)} entries, {len(db.programs)} programs, {len(db.parts)} mesh-part names, '
+            f'{len(db.layouts)} vertex layouts; writes the same bytes, passes the checks', '; '.join(db.check()))
+    tex = sd.entry_textures(db)
+    allt = {t for v in tex.values() for _, _, t in v}
+    hangar = [n for n in tex if n.startswith('Objects/Architecture/Beach/Hangar_t01/Hangar_t01_Mesh/')]
+    c.check(len(hangar) >= 5 and all(tex[n] for n in hangar),
+            f'BF1943 Wake: {sum(1 for v in tex.values() if v)} of {len(tex)} entries name textures, {len(allt)} '
+            f'textures in all; Hangar_t01_Mesh has {len(hangar)} entries, each with textures')
+    for n in hangar[:3]:
+        print(f'     {n}')
+        for s, _, t in tex[n]:
+            print(f'         s{s}  {t}  {sd.texture_kind(t)}')
+    cc = os.path.join(ROOT, '..', 'bfbc2-console-convert')
+    try:
+        sys.path.insert(0, cc)
+        import mesh
+    except ImportError as e:
+        print(f'SKIP BF1943 Wake layouts vs console_layouts: {e}')
+        return
+    mine = {n.lower(): b for n, b in sd.part_layouts(db).items()}
+    theirs = mesh.console_layouts(data)
+    c.check(theirs and all(mine.get(n) == b for n, b in theirs.items()),
+            f'BF1943 Wake: part_layouts agrees with console_layouts on all {len(theirs)} parts it finds '
+            f'(part_layouts: {len(mine)}, with the standalone names)')
+
+
 def main(argv):
     c = Checks()
     with tempfile.TemporaryDirectory(prefix='shaderdb_') as tmp:
         quick(c, tmp)
         if '--game' in argv:
             game(c, tmp)
+        if '--game' in argv or '--xbox' in argv:
+            xbox(c)
     print(f'{c.failed} failed' if c.failed else 'all passed')
     return 1 if c.failed else 0
 

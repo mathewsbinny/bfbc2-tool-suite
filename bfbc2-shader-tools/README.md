@@ -4,6 +4,12 @@
 `Levels/<LV>/Shaders/Dx9_Single.res`, `Dx10_Single.res` and `Dx11_Single.res` in each level bundle (FbrbTool types
 `Dx9ShaderDatabase`, `Dx10ShaderDatabase`, `Dx11ShaderDatabase`). The format is in [FORMAT.md](FORMAT.md).
 
+It also **reads Xbox 360 databases** - BFBC2's Xbox levels' `Levels/<LV>/Shaders/Single.res` and Battlefield 1943's
+(`Levels/Wake_island_s/Shaders/Single.res`; both listed as `Dx9ShaderDatabase`): the same layout big-endian, with
+Xenon shader code (FORMAT.md section 8). They are recognised from their first bytes; `info`, `list`, `textures` and
+`roundtrip` work on them. They are read for what they name - entries, mesh-part names, vertex layouts and the textures
+each entry uses - so that PC entries can be built for console meshes; an Xbox database is never merged into a PC one.
+
 Why: a level's database only has entries for the meshes that level places, each keyed by
 `<mesh path>/<shader path>`. A mesh with no entry draws invisibly. When a level is given objects its database was
 not built for (an Onslaught map made from PC Rush data has capture flags, other vehicles, other kits), the entries
@@ -24,12 +30,16 @@ python shaderdb.py find  needs.txt --base level:ons_mp_008
 python shaderdb.py merge level:ons_mp_008 level:mp_008cq level:mp_001 --need needs.txt -o "C:\...\work\shaderdb\ons_mp_008\Dx9_Single.res"
 python shaderdb.py --dx 10 merge level:ons_mp_008 level:mp_008cq level:mp_001 --need needs.txt -o "...\Dx10_Single.res"
 python shaderdb.py roundtrip --levels
+python shaderdb.py textures level:mp_005 Humvee --constants
+python shaderdb.py textures "C:\...\work\xbox\dist\xenon\levels\mp_005\level-00.fbrb" Humvee
+python shaderdb.py textures "C:\...\Wake_island_s\Shaders\Single.res" Hangar_t01
 ```
 
 | Command | Does |
 |---|---|
 | `info <db>` | section counts, the consistency checks (FORMAT.md section 4), and whether writing the file again gives the same bytes; exit code 1 if not |
 | `list <db> [filter] [--parts]` | the entries as `mesh \| shader` with their program count and shader bytes; `--parts` the mesh-part names and their vertex layouts |
+| `textures <db> [filter] [--constants]` | for each entry, the textures its parameter blocks name: sampler register (`s3`), texture name, and what it is for as its name's suffix suggests (`_C`/`_Df` color, `_Nm`/`_N` normal, `_Sp` specular, `_Gm` gloss, `_Occlusion` occlusion; cube maps marked); `--constants` adds the named shader constants and their values |
 | `cover <db> <level folder> [--all]` | the meshes the level's `.dbx` files use that have no entry; references it cannot classify are listed apart |
 | `needs <level folder> [-o file]` | those meshes, one per line: the list `merge --need` takes |
 | `find <needs> [--base <db>]` | for each needed mesh (with `--base`, each the base lacks), the game copy's levels whose database has entries for it |
@@ -93,6 +103,23 @@ donor)` names a mesh part's vertex layout (`<mesh>_lod<N>/<part>/<technique>`). 
 from its name (`Dx9`, `Dx10`, `Dx11`); a contradicting `--dx` or base kind is refused, not merged (Dx10 and Dx11
 share a layout and would parse either way).
 
+### Reading textures and layouts (from Python)
+
+```python
+import shaderdb as sd
+db = sd.ShaderDb.parse(data)            # PC or Xbox 360, from the first bytes; db.big_endian, db.platform
+sd.entry_textures(db)                   # {entry name: [(sampler, cube, texture name)]}
+sd.block_textures(block, db.e)          # one parameter block's textures; sd.block_constants: its constants
+sd.part_layouts(db)                     # {mesh-part name: vertex layout record body (0x49 bytes)}
+sd.texture_kind(name)                   # 'color', 'normal', 'specular', 'gloss', 'occlusion' or '' (by suffix)
+db.pc_guid(g)                           # a GUID of the file in PC byte order (Xbox files swap its first 3 fields)
+```
+
+The databases do not name what a texture is for: a texture record names the sampler register only, and the shaders'
+constant tables call their samplers `sampler_Texture<N>`. The sampler numbers are the same in a level's Xbox and PC
+databases (BFBC2's twins), so an entry with the same shader can be matched sampler for sampler; otherwise the
+texture names' suffixes (DICE's naming) tell color, normal, specular and gloss maps apart.
+
 ### Putting a merged database into the game
 
 Not done by the tool. Copy the level bundle out of the game folder, `FbrbTool unpack` it, replace the three
@@ -107,5 +134,9 @@ mesh's own bundle). No merged database has been loaded in the game yet.
 
 `tests\test_shaderdb.py` (in `run_tests.py quick`): databases built by the test, Dx9 and Dx10/11 - round trip,
 refused and broken files, merges (which donor wins, `--all-names`, shared records, renumbering, re-parse, content
-check, determinism, the program limit) and the command line. `--game` adds the game copy: mp_008cq's and
-ons_mp_008's databases round trip, and ONS_MP_008 merged with mp_008cq's capture flags in all three kinds.
+check, determinism, the program limit) and the command line; built Xbox 360 databases (byte order recognised,
+round trip, GUID order) and parameter blocks' textures and constants in both byte orders. `--game` adds the game
+copy: mp_008cq's and ons_mp_008's databases round trip, and ONS_MP_008 merged with mp_008cq's capture flags in all
+three kinds. `--xbox` (also run by `--game`; each part skipped when its files are missing) reads every BFBC2 Xbox
+level database (`work\xbox\dist\xenon\levels`), compares the Xbox and PC Dx9 databases of mp_002, mp_005 and mp_008
+(entries, mesh parts and layouts, each entry's textures) and reads Battlefield 1943's Wake Island database.

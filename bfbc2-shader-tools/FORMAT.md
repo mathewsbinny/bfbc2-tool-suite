@@ -9,7 +9,8 @@ group per database with its render path (`ShaderRenderPath_Dx9` / `_Dx10` / `_Dx
 How it was found: the loaders in `BFBC2Game.exe` were read with short, targeted disassembly (exeref.py), then the
 layout was checked on data. Every database in the game copy's level bundles (270: 81 of each kind, plus copies in
 OPFOR's own bundles) parses to its last byte, writes back to the same bytes, and passes every check in section 4
-(`shaderdb.py roundtrip --levels`).
+(`shaderdb.py roundtrip --levels`). The Xbox 360 databases of BFBC2 and Battlefield 1943 are the same layout
+big-endian, with a few differences (section 8).
 
 | | Dx9 | Dx10 | Dx11 |
 |---|---|---|---|
@@ -18,7 +19,7 @@ OPFOR's own bundles) parses to its last byte, writes back to the same bytes, and
 
 ## 1. Primitives
 
-Little-endian. `u8`, `u16`, `u32`. `guid` = 16 bytes (read as u32, u16, u16, 8 bytes; stored as they are).
+Little-endian (Xbox 360 databases: big-endian, section 8). `u8`, `u16`, `u32`. `guid` = 16 bytes (read as u32, u16, u16, 8 bytes; stored as they are).
 `cstr` = bytes up to a 0 byte (read one byte at a time). Records follow each other with no padding and no offsets:
 the file is a stream, read front to back.
 
@@ -46,6 +47,38 @@ byte-identical in different levels' files, so a block can be copied unchanged. B
 parameters, among them texture names in fixed 0x80-byte fields (`Characters/US/US_Textures/Holster_Beretta_Nm`).
 Referenced by index from shaders (section 4, 5) and programs (section 6).
 
+Inside a block (read from the data; true for every block of the PC and Xbox databases read, `shaderdb.py`
+`block_textures`, `block_constants`, `block_engine_textures`):
+
+```
+0x00  u32 size                 the whole block, a multiple of 16 (zero padding at the end)
+0x04  u32 0x20, u32 0x20       (always)
+0x0c  u32 textures end         = constants start; textures start at 0x20
+0x10  u32 constants end        = engine textures start
+0x14  u32 engine textures end  = sampler states start
+0x18  u8, u8, u8 0             (not interpreted)
+0x1b  u8 textures              count of 0x8c-byte texture records
+0x1c  u8 constants             count of 0x38-byte constant records
+0x1d  u8 engine textures       count of 0x28-byte records
+0x1e  u8 sampler states        count of 8-byte records
+0x1f  u8 0
+0x20  textures:  u8 sampler register (s<N>), u8 cube (1: a cube map - environment maps, sky; else 0), 2 zero bytes,
+                 0x80-byte name (zero-padded), 8 zero bytes
+      constants: 0x20-byte name, u32 (a hash of the name), u8 register (c<N>), u8 components used (1-4), 2 zero,
+                 4 floats (the value)
+      engine textures: 0x20-byte parameter name (heightmap, maskTileMap, DepthBuffer, BaseTexture1 ...), u32 (hash),
+                 u16 sampler register, 2 zero - textures the engine binds itself; no texture name
+      sampler states: 8 bytes each (sampler register first; not interpreted)
+```
+
+Programs (section 6) have two blocks: the first one holds no textures in any file seen; the textures an entry uses
+are in its programs' second blocks. The shaders' own blocks (section 4, 5) hold sampler states only. **Nothing names
+what a texture is for**: the record gives only the sampler register, and the shaders' constant tables call the
+samplers `sampler_Texture`, `sampler_Texture2` ... The texture names follow DICE's suffixes (`_C`/`_Df` color, `_Nm`/
+`_N` normal, `_Sp` specular, `_Gm` gloss mask, `_Occlusion` occlusion), which is what `texture_kind` goes by. The
+programs of one entry (permutations) normally bind the same textures to the same samplers; some (BF1943's
+`DetailsMetal_t02`) put the same textures on other samplers in different programs.
+
 ### Section 2: binding tables
 
 `u32 n`, then n x { `u16 k`, `4k + 2` bytes }. Kept whole. Referenced by index from shaders.
@@ -66,6 +99,8 @@ size   code         Dx9: 1 flag byte (bit 0: only created when a device capabili
 u32    parameter block (section 1 index)
 u32    binding table (section 2 index)
 u32    register table (section 3 index)
+Xbox:    u32 k, k x 12 bytes, 16 bytes Xenon D3DVERTEXELEMENT9 (u16 stream, u16 offset, u32 type, u8 method,
+                                       usage, usage index, pad; big-endian), then a u8 stride per stream (section 8)
 Dx9:     u32 k, k x 8 bytes            D3DVERTEXELEMENT9 (CreateVertexDeclaration)
 Dx10/11: u32 n, n bytes                (kept with the input layout; probably the input signature)
          u32 m, m x 0x1c bytes         input element descriptions (D3D10/11_INPUT_ELEMENT_DESC, name pointer field unused)
@@ -190,3 +225,65 @@ the result draws with exactly what it drew with in its source file.
 - Whether the engine has limits other than the u16 program index (for example on the number of shaders), and what
   it does with an entry whose textures (named in its parameter blocks) are not in the level: neither was traced and
   no merged file has been loaded in the game.
+- Parameter blocks: bytes 0x18 and 0x19 of the header, the u32 after a constant's or engine texture's name (a hash
+  of it, not checked against any function) and the 8 bytes of a sampler state.
+
+## 8. Xbox 360 databases (BFBC2's Xbox levels, Battlefield 1943)
+
+BFBC2's Xbox levels have one database each, `Levels/<LV>/Shaders/Single.res`; Battlefield 1943 (Xbox only) the same
+(`Levels/Wake_island_s/Shaders/Single.res`, 4,019,811 bytes). FbrbTool lists both as `Dx9ShaderDatabase`. Found by
+reading BFBC2's Xbox and PC databases of the same levels side by side (no console code was disassembled). Every
+BFBC2 Xbox level database (20) and BF1943 Wake's parse to their last byte, write back to the same bytes and pass
+section 4's checks (`test_shaderdb.py --xbox`).
+
+**The layout is the PC one (section 2) with these differences:**
+
+- Numbers are **big-endian**: the version, every count and size, the shader / program indices (section 4, 5, 6),
+  the entry groups' u16 program indices, and the parameter blocks' header offsets and float values. Bytes stay
+  bytes (a texture record's sampler and cube flag, a constant's register and components, the layout records of
+  section 7, whose element bytes read the same way on both); an engine texture's sampler is a u16 and big-endian.
+- **GUIDs are stored with big-endian fields**: the first three fields (u32, u16, u16) byte-swapped against the PC
+  file's bytes, the last 8 bytes as they are (`swap_guid`). So an entry's GUID is MD5(name) with its first 4, 2 and 2
+  bytes reversed, and the same entry, fragment or layout has the swapped GUID of its PC twin. Programs and entry
+  groups are **sorted by the GUID's PC byte order** (that is, by the swapped bytes), not by the stored bytes.
+- Version: 120 for BFBC2's Xbox files (as on PC), **117 for BF1943**, whose **program keys are 0x5c bytes** (44
+  permutation bytes instead of 40); every other record has the PC size.
+- Shader code is Xenon microcode (vertex shaders start `10 2A 11 01`, pixel shaders `10 2A 11 00`, then a constant
+  table and the compiler's .pdb path); there is no flag byte before it. The code is not comparable with PC code.
+- A vertex shader's input description (section 4's tail) is u32 k, k x 12-byte Xenon vertex elements (ending with
+  the D3DDECL_END element), then 16 bytes: one u8 stride per vertex stream.
+
+**What matches a PC twin** (BFBC2 mp_002, mp_005, mp_008: Xbox `Single.res` against PC `Dx9_Single.res`):
+
+| | mp_002 | mp_005 | mp_008 |
+|---|---|---|---|
+| entries Xbox / PC / in both | 1,659 / 1,688 / 1,656 | 1,670 / 1,714 / 1,669 | 1,763 / 1,794 / 1,761 |
+| entries in both naming the same textures on the same samplers | 1,622 | 1,655 | 1,760 |
+| Xbox `Standard` mesh parts in PC with the same layout elements (usage, stream) | 3,086 of 3,097 | 3,011 of 3,016 | 3,298 of 3,303 |
+
+- Entry names are the same apart from a few (PC's `All_White` character shaders, Xbox's `LaserDesignatorScope`
+  edge shader), and their GUIDs are the swapped PC ones.
+- Mesh-part names: the Xbox file has the `Standard` (and `StreamInstancingHalf`) parts; PC adds a
+  `StreamInstancingFloat` part for every part. A layout lists the same elements (usage, stream) but in console
+  formats where the PC has wider ones (packed normals `0x2B` for PC half4 `0x08` ...), and then its GUID differs:
+  16 of mp_005's 64 Xbox layouts have the (swapped) GUID of a PC layout, 12 of them with the same bytes and 4
+  differing only in byte 0x45 of the body (the vertex stride: 0x0c on Xbox, 0x10 on PC). The Xbox
+  `StreamInstancingHalf` layouts have one element more (stream 2). `bfbc2-console-convert`'s `console_layouts`
+  finds the same layout for every part name it finds (BF1943 Wake: all 1,341).
+- Textures: the differences are terrain patch shaders (the Xbox ones bind one or two normal maps more, `_N`) and
+  `Shaders/WaterOcean` (PC binds the foam texture on two samplers). Named constants are the same names and values
+  (on other registers: the compiled shaders differ); the parameter blocks are not byte-identical.
+- Programs, shaders and parameter blocks differ in number (mp_005: 6,440 programs and 2,134 parameter blocks on
+  Xbox, 19,764 and 4,148 on PC): the console compiles fewer permutations.
+
+**Battlefield 1943's Wake Island** (`Levels/Wake_island_s/Shaders/Single.res`): 544 entries (400 Objects, 63
+Terrains, 42 Characters, 21 Shaders, 18 Systems), 3,539 programs, 735 vertex and 815 pixel shaders, 1,016 parameter
+blocks, 55 vertex layouts, 1,354 mesh-part names, 13 fragments. 514 entries name textures, 428 textures in all,
+e.g. `Objects/Architecture/Beach/Hangar_t01/Hangar_t01_Mesh/Objects/Architecture/Shaders_Beach/Metal/CorrugatedMetal_t01`:
+s1 `Textures/Metal/CorrugatedMetal_t02_Nm`, s2 `Textures/Ambient_Occlusion/Hangar_t01_Mesh_Occlusion`, s3
+`Textures/Metal/Metal_t12_Df`, s4 `Textures/Metal/CorrugatedMetal_t02_Df`, s5 `Textures/Decals/Trash_02_C`, s6
+`Textures/Terrain/Forest/barr_C`, s7 `Textures/Masks/Rust_t01_Gm`, s8
+`Textures/Specular_Generic/512/Generic_t01_Sp`.
+
+Writing Xbox databases is possible in the code (`to_bytes` keeps the byte order) but is not a goal and was never
+tried on a console; merging refuses to mix an Xbox database with a PC one.

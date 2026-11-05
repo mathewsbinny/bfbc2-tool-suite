@@ -8,6 +8,10 @@ Dx10ShaderDatabase, Dx11ShaderDatabase). The format is described in FORMAT.md be
   python shaderdb.py list <db> [filter] [--parts]
         the entries: mesh | shader, their programs and the shader bytes they use (filter: a case-insensitive part
         of the entry's name); --parts lists the mesh-part names instead
+  python shaderdb.py textures <db> [filter] [--constants]
+        for each entry, the textures its parameter blocks name: sampler register, texture name and (guessed from the
+        name's suffix) what it is for; --constants also the named shader constants and their values, and the
+        textures the engine binds (heightmap ...)
   python shaderdb.py merge <base db> <donor db>... --need <names.txt | unpacked level folder> -o <out.res>
                      [--all-names]
         the base kept entry for entry; for each needed mesh (or name prefix) the base has no entry for, every donor
@@ -28,6 +32,10 @@ Dx10ShaderDatabase, Dx11ShaderDatabase). The format is described in FORMAT.md be
 A <db> is a .res file (FbrbTool unpack), <bundle.fbrb>[:<entry>] or level:<name>[:<entry>] (the game copy's
 levels\<name>\level-00.fbrb, Package over Dist). Bundles are read in place; the database of the kind asked for is
 taken (the bundle's own Levels/<name>/Shaders/ one when there are several).
+
+Xbox 360 databases (BFBC2's Xbox levels' Levels/<LV>/Shaders/Single.res, Battlefield 1943's; big-endian, FORMAT.md
+section 8) are recognised by their first bytes and read by info, list, textures and roundtrip; merging is for files
+of one kind only (an Xbox file is never merged with a PC one).
 
 Options: --dx 9|10|11 (default: from the file name, Dx9_* / Dx10_* / Dx11_*; for bundles 9, or the base's kind for
 donors), --opfor <Project OPFOR BFBC2 folder> (default: OPFOR_ROOT, or project-opfor-bfbc2 next to the suite).
@@ -50,9 +58,16 @@ for _p in (os.path.join(SUITE, 'core'),):
 
 PROGRAM_SIZE = 0x30        # section 6a record
 KEY_SIZE = 0x58            # section 6b record (the program's key)
+KEY_SIZES = {117: 0x5c}    # other versions' key sizes: 117 = Battlefield 1943 (Xbox 360), 4 permutation bytes more
 LAYOUT_SIZE = 0x59         # section 7 record (GUID + 0x49 bytes)
 MAX_PROGRAMS = 0x10000     # entry groups index programs with u16
 ZERO_GUID = bytes(16)
+
+
+def swap_guid(g):
+    """A GUID's bytes in the other byte order: the first three fields (u32, u16, u16) reversed, the last 8 bytes
+    kept. Xbox 360 databases store GUIDs with big-endian fields, PC databases little-endian (FORMAT.md section 8)."""
+    return g[3::-1] + g[5:3:-1] + g[7:5:-1] + g[8:]
 
 
 class ShaderDbError(Exception):
@@ -65,17 +80,18 @@ class Shader:
     """A vertex or pixel shader (sections 4 and 5): GUID, the compiled code (first byte a flag), the indices of its
     parameter block (section 1), binding table (section 2) and register table (section 3), and for vertex shaders
     the input description that follows (Dx9: u32 n + n D3DVERTEXELEMENT9; Dx10/11: u32 n + n bytes, u32 m + m 0x1c
-    input elements, u32 k + k semantic names), kept as raw bytes."""
+    input elements, u32 k + k semantic names; Xbox 360: u32 n + n 12-byte vertex elements + 16 stream strides), kept
+    as raw bytes."""
     __slots__ = ('guid', 'code', 'param', 'binding', 'regs', 'tail')
 
     def __init__(self, guid, code, param, binding, regs, tail=b''):
         self.guid, self.code, self.param, self.binding, self.regs, self.tail = guid, code, param, binding, regs, tail
 
-    def write(self, out):
+    def write(self, out, e='<'):
         out += self.guid
-        out += struct.pack('<I', len(self.code))
+        out += struct.pack(e + 'I', len(self.code))
         out += self.code
-        out += struct.pack('<3I', self.param, self.binding, self.regs)
+        out += struct.pack(e + '3I', self.param, self.binding, self.regs)
         out += self.tail
 
 
@@ -93,10 +109,17 @@ class ShaderDb:
     fragments section 8.2: (name, GUID) - shader fragments (Systems/...) named by program keys
     parts     section 8.3: (name, GUID) - mesh lod part + technique -> vertex layout GUID
     groups    section 8.4: (GUID, [program indices]) - an entry's programs (u16 each)
+
+    big_endian: an Xbox 360 database (BFBC2's Xbox levels' Shaders/Single.res, Battlefield 1943's): the same
+    sections with big-endian numbers and GUIDs, Xenon shader code and Xenon vertex elements (FORMAT.md section 8).
+    The raw records (parameter blocks, programs, keys, layouts, GUIDs) are kept in the file's byte order.
     """
 
-    def __init__(self, dx):
+    def __init__(self, dx, big_endian=False):
         self.dx = dx
+        self.big_endian = big_endian
+        self.e = '>' if big_endian else '<'
+        self.key_size = KEY_SIZE
         self.label = ''
         self.version = 0
         self.flag = 0
@@ -106,12 +129,40 @@ class ShaderDb:
         self.entries, self.fragments, self.parts = [], [], []
         self.groups = []
 
+    @property
+    def platform(self):
+        return 'Xbox 360' if self.big_endian else f'Dx{self.dx}'
+
+    def name_guid(self, name):
+        """The GUID an entry of this name has: MD5 of the name, in the file's byte order."""
+        g = hashlib.md5(name.encode('latin-1')).digest()
+        return swap_guid(g) if self.big_endian else g
+
+    def pc_guid(self, g):
+        """A GUID of this file in PC byte order (as a PC database stores the same GUID)."""
+        return swap_guid(g) if self.big_endian else g
+
     # ---- reading
 
+    @staticmethod
+    def is_big_endian(data):
+        """Does the data look like an Xbox 360 (big-endian) database? The version (120 BFBC2, 117 BF1943) is a small
+        number: read little-endian it is huge."""
+        return len(data) >= 4 and data[0] == 0 and data[3] != 0
+
     @classmethod
-    def parse(cls, data, dx=None, where='file'):
+    def parse(cls, data, dx=None, where='file', big_endian=None):
+        """big_endian: None = from the data (an Xbox 360 database is read whatever dx says: its vertex shaders have
+        one layout; it keeps dx, default 9 - FbrbTool lists it as Dx9ShaderDatabase)."""
         if len(data) < 9:
             raise ShaderDbError(f'{where} is not a shader database (too short)')
+        if big_endian is None:
+            big_endian = cls.is_big_endian(data)
+        if big_endian:
+            try:
+                return cls._parse(data, dx or 9, where, True)
+            except ShaderDbError as e:
+                raise ShaderDbError(f'{where} is not a shader database this tool reads (as Xbox 360: {e})')
         layouts = [dx] if dx else [9, 10]
         errors = []
         for d in layouts:
@@ -122,11 +173,12 @@ class ShaderDb:
         raise ShaderDbError(f'{where} is not a shader database this tool reads ({"; ".join(errors)})')
 
     @classmethod
-    def _parse(cls, data, dx, where):
-        db = cls(dx)
-        r = _Reader(data, where)
+    def _parse(cls, data, dx, where, big_endian=False):
+        db = cls(dx, big_endian)
+        r = _Reader(data, where, db.e)
         db.version = r.u32()
         db.flag = r.u8()
+        db.key_size = KEY_SIZES.get(db.version, KEY_SIZE)
         n = r.count(8)
         for _ in range(n):
             start = r.o
@@ -151,7 +203,9 @@ class ShaderDb:
         for _ in range(n):
             guid, code, refs = r.raw(16), r.blob(), r.refs()
             start = r.o
-            if dx == 9:
+            if big_endian:
+                r.skip(12 * r.u32() + 16)          # Xenon vertex elements, then 16 stream strides (u8)
+            elif dx == 9:
                 r.skip(8 * r.u32())
             else:
                 r.skip(r.u32())
@@ -165,10 +219,10 @@ class ShaderDb:
             db.ps.append(Shader(guid, code, *refs))
         n = r.count(PROGRAM_SIZE)
         db.programs = [r.raw(PROGRAM_SIZE) for _ in range(n)]
-        n2 = r.count(KEY_SIZE)
+        n2 = r.count(db.key_size)
         if n2 != n:
             raise ShaderDbError(f'{where}: {n} programs but {n2} program keys')
-        db.keys = [r.raw(KEY_SIZE) for _ in range(n2)]
+        db.keys = [r.raw(db.key_size) for _ in range(n2)]
         n = r.count(LAYOUT_SIZE)
         db.layouts = [r.raw(LAYOUT_SIZE) for _ in range(n)]
         for lst in (db.entries, db.fragments, db.parts):
@@ -178,7 +232,7 @@ class ShaderDb:
         for _ in range(r.count(20)):
             guid = r.raw(16)
             k = r.u32()
-            idx = list(struct.unpack_from(f'<{k}H', data, r.o)) if r.o + 2 * k <= len(data) else None
+            idx = list(struct.unpack_from(f'{db.e}{k}H', data, r.o)) if r.o + 2 * k <= len(data) else None
             if idx is None:
                 raise ShaderDbError(f'{where}: entry group runs past the end of the file')
             r.o += 2 * k
@@ -193,36 +247,37 @@ class ShaderDb:
     # ---- writing
 
     def to_bytes(self):
+        e = self.e
         out = bytearray()
-        out += struct.pack('<IB', self.version, self.flag)
+        out += struct.pack(e + 'IB', self.version, self.flag)
         for lst in (self.params, self.bindings, self.regs):
-            out += struct.pack('<I', len(lst))
+            out += struct.pack(e + 'I', len(lst))
             for rec in lst:
                 out += rec
         for lst in (self.vs, self.ps):
-            out += struct.pack('<I', len(lst))
+            out += struct.pack(e + 'I', len(lst))
             for s in lst:
-                s.write(out)
-        out += struct.pack('<I', len(self.programs))
+                s.write(out, e)
+        out += struct.pack(e + 'I', len(self.programs))
         out += b''.join(self.programs)
-        out += struct.pack('<I', len(self.keys))
+        out += struct.pack(e + 'I', len(self.keys))
         out += b''.join(self.keys)
-        out += struct.pack('<I', len(self.layouts))
+        out += struct.pack(e + 'I', len(self.layouts))
         out += b''.join(self.layouts)
         for lst in (self.entries, self.fragments, self.parts):
-            out += struct.pack('<I', len(lst))
+            out += struct.pack(e + 'I', len(lst))
             for name, guid in lst:
                 out += name.encode('latin-1') + b'\0' + guid
-        out += struct.pack('<I', len(self.groups))
+        out += struct.pack(e + 'I', len(self.groups))
         for guid, idx in self.groups:
-            out += guid + struct.pack(f'<I{len(idx)}H', len(idx), *idx)
+            out += guid + struct.pack(f'{e}I{len(idx)}H', len(idx), *idx)
         return bytes(out)
 
     # ---- views
 
     def program_refs(self, i):
         """(vertex shader, pixel shader, parameter block, parameter block) indices of program i."""
-        return struct.unpack_from('<4I', self.programs[i], 0x20)
+        return struct.unpack_from(self.e + '4I', self.programs[i], 0x20)
 
     def entry_programs(self):
         """{entry GUID: [program indices]}"""
@@ -248,7 +303,7 @@ class ShaderDb:
         if len(self.keys) != n:
             p.append(f'{n} programs but {len(self.keys)} keys')
         guids = [r[:16] for r in self.programs]
-        if guids != sorted(guids):
+        if guids != sorted(guids, key=self.pc_guid):       # Xbox 360 files too sort by the PC byte order
             p.append('programs not sorted by GUID')
         if len(set(guids)) != n:
             p.append(f'{n - len(set(guids))} program GUIDs repeated')
@@ -257,7 +312,7 @@ class ShaderDb:
             if v >= len(self.vs) or f >= len(self.ps) or a >= len(self.params) or b >= len(self.params):
                 p.append(f'program {i} names a shader or parameter block past the end of its section')
                 break
-        bad = [nm for nm, g in self.entries if hashlib.md5(nm.encode('latin-1')).digest() != g]
+        bad = [nm for nm, g in self.entries if self.name_guid(nm) != g]
         if bad:
             p.append(f'{len(bad)} entry GUIDs are not MD5(name), e.g. {bad[0]}')
         names = [nm for nm, _ in self.entries]
@@ -269,7 +324,7 @@ class ShaderDb:
         if len(lay_g) != len(self.layouts):
             p.append('vertex layout GUIDs repeated')
         group_g = [g for g, _ in self.groups]
-        if group_g != sorted(group_g):
+        if group_g != sorted(group_g, key=self.pc_guid):
             p.append('entry groups not sorted by GUID')
         if set(group_g) != entry_g or len(group_g) != len(entry_g):
             p.append(f'entry groups ({len(group_g)}) do not match the entries ({len(entry_g)}) one to one')
@@ -301,8 +356,9 @@ class ShaderDb:
 
 
 class _Reader:
-    def __init__(self, data, where):
+    def __init__(self, data, where, e='<'):
         self.d, self.o, self.where = data, 0, where
+        self.h, self.i = e + 'H', e + 'I'
 
     def need(self, n):
         if self.o + n > len(self.d):
@@ -316,12 +372,12 @@ class _Reader:
     def u16(self):
         self.need(2)
         self.o += 2
-        return struct.unpack_from('<H', self.d, self.o - 2)[0]
+        return struct.unpack_from(self.h, self.d, self.o - 2)[0]
 
     def u32(self):
         self.need(4)
         self.o += 4
-        return struct.unpack_from('<I', self.d, self.o - 4)[0]
+        return struct.unpack_from(self.i, self.d, self.o - 4)[0]
 
     def count(self, min_size):
         n = self.u32()
@@ -620,10 +676,14 @@ class Merger:
             lst.append(new)
         return i
 
+    def _same_kind(self, donor, label):
+        o = self.out
+        if (donor.dx, donor.big_endian, donor.key_size) != (o.dx, o.big_endian, o.key_size):
+            raise ShaderDbError(f'{label} is a {donor.platform} database (version {donor.version}) and the base is '
+                                f'{o.platform} (version {o.version}): merge files of the same kind')
+
     def add_donor(self, donor, label):
-        if donor.dx != self.out.dx:
-            raise ShaderDbError(f'{label} is a Dx{donor.dx} database and the base is Dx{self.out.dx}: merge files '
-                                f'of the same kind')
+        self._same_kind(donor, label)
         o = self.out
         groups = donor.entry_programs()
         frag_names = {g: n for n, g in donor.fragments}
@@ -650,7 +710,7 @@ class Merger:
                 nf = self._shader(donor, donor.ps[f], o.ps, self.ps_ix)
                 na = self._table(donor.params[a], o.params, self.param_ix)
                 nb = self._table(donor.params[b], o.params, self.param_ix)
-                new = prog[:0x20] + struct.pack('<4I', nv, nf, na, nb)
+                new = prog[:0x20] + struct.pack(o.e + '4I', nv, nf, na, nb)
                 self.prog_ix[pg] = ('new', len(self.new_programs))
                 self.prog_body[pg] = (prog[:0x20], key)
                 progs.append(self.prog_ix[pg])
@@ -688,8 +748,7 @@ class Merger:
         with texture names replaced (textures: {old name: new name}; the names sit in zero-padded fields, FORMAT.md
         section 1, so a new name may be as long as the old one plus its padding). The shaders, tables, fragments and
         vertex layouts are shared as add_donor shares them. Returns the number of programs."""
-        if donor.dx != self.out.dx:
-            raise ShaderDbError(f'{label} is a Dx{donor.dx} database and the base is Dx{self.out.dx}')
+        self._same_kind(donor, label)
         if new_name in self.entry_names:
             raise ShaderDbError(f'{new_name}: the database has this entry already')
         groups = donor.entry_programs()
@@ -697,7 +756,7 @@ class Merger:
         if guid_old is None:
             raise ShaderDbError(f'{label} has no entry {entry}')
         o = self.out
-        new_guid = hashlib.md5(new_name.encode('latin-1')).digest()
+        new_guid = o.name_guid(new_name)
         frag_names = {g: n for n, g in donor.fragments}
         layouts = {r[:16]: r for r in donor.layouts}
         textures = {k.encode('latin-1'): v.encode('latin-1') for k, v in (textures or {}).items()}
@@ -724,7 +783,7 @@ class Merger:
             nf = self._shader(donor, donor.ps[f], o.ps, self.ps_ix)
             na = self._table(_retexture(donor.params[a], textures, new_name, hits), o.params, self.param_ix)
             nb = self._table(_retexture(donor.params[b], textures, new_name, hits), o.params, self.param_ix)
-            new = pg + prog[16:0x20] + struct.pack('<4I', nv, nf, na, nb)
+            new = pg + prog[16:0x20] + struct.pack(o.e + '4I', nv, nf, na, nb)
             nkey = new_guid + key[16:]
             self.prog_ix[pg] = ('new', len(self.new_programs))
             self.prog_body[pg] = (new[:0x20], nkey)
@@ -767,12 +826,12 @@ class Merger:
                                 f'{MAX_PROGRAMS - 1}: take fewer donor entries')
         allp = [(p, k, ('old', i)) for i, (p, k) in enumerate(zip(o.programs, o.keys))]
         allp += [(p, k, ('new', i)) for i, (p, k) in enumerate(self.new_programs)]
-        allp.sort(key=lambda t: t[0][:16])
+        allp.sort(key=lambda t: o.pc_guid(t[0][:16]))
         where = {t[2]: i for i, t in enumerate(allp)}
         o.programs = [t[0] for t in allp]
         o.keys = [t[1] for t in allp]
         groups = [(g, sorted(where[x] for x in idx)) for g, idx in self.groups.items()]
-        groups.sort(key=lambda t: t[0])
+        groups.sort(key=lambda t: o.pc_guid(t[0]))
         o.groups = groups
         return o
 
@@ -806,6 +865,105 @@ def _retexture(block, textures, where, hits=None):
             if hits is not None:
                 hits[old] = hits.get(old, 0) + 1
     return bytes(out)
+
+
+# ------------------------------------------------------------------------------------------------ parameter blocks
+
+PARAM_HEADER = 0x20                     # FORMAT.md 'Section 1: parameter blocks': size, 5 offsets, 8 count bytes
+TEXTURE_RECORD = 0x8c                   # u8 sampler, u8 cube, 2 zero bytes, 0x80-byte name, 8 zero bytes
+CONSTANT_RECORD = 0x38                  # 0x20-byte name, u32 hash, u8 register, u8 components, 2 zero, float4
+ENGINE_TEXTURE_RECORD = 0x28            # 0x20-byte parameter name, u32 hash, u16 sampler, 2 zero
+
+
+def block_textures(block, e='<'):
+    """[(sampler, cube, texture name)] of a parameter block (FORMAT.md 'Section 1: parameter blocks'): the texture
+    records, in block order. sampler: the shader's sampler register the texture is bound to (s<N>); cube: 1 for a
+    cube map (environment maps, sky), else 0. Empty for a block without textures (or one not laid out so)."""
+    if len(block) < PARAM_HEADER:
+        return []
+    size, _, _, tex_end, _, _ = struct.unpack_from(e + '6I', block, 0)
+    n = block[0x1b]
+    if size != len(block) or tex_end != PARAM_HEADER + n * TEXTURE_RECORD or tex_end > size:
+        return []
+    out = []
+    for i in range(n):
+        o = PARAM_HEADER + i * TEXTURE_RECORD
+        name = block[o + 4:o + 4 + TEXTURE_FIELD].split(b'\0', 1)[0].decode('latin-1')
+        out.append((block[o], block[o + 1], name))
+    return out
+
+
+def block_constants(block, e='<'):
+    """[(name, register, components, (4 floats))] of a parameter block: its named shader constants (c<register>,
+    the first `components` of the four values used) with the values the block sets."""
+    if len(block) < PARAM_HEADER:
+        return []
+    size, _, _, start, end, _ = struct.unpack_from(e + '6I', block, 0)
+    n = block[0x1c]
+    if size != len(block) or end != start + n * CONSTANT_RECORD or end > size:
+        return []
+    out = []
+    for i in range(n):
+        o = start + i * CONSTANT_RECORD
+        name = block[o:o + 0x20].split(b'\0', 1)[0].decode('latin-1')
+        out.append((name, block[o + 0x24], block[o + 0x25], struct.unpack_from(e + '4f', block, o + 0x28)))
+    return out
+
+
+def block_engine_textures(block, e='<'):
+    """[(parameter name, sampler)] of a parameter block: the textures the engine binds itself (heightmap,
+    maskTileMap, DepthBuffer ...), named by parameter, no texture name (0x28-byte records after the constants)."""
+    if len(block) < PARAM_HEADER:
+        return []
+    size, _, _, _, start, end = struct.unpack_from(e + '6I', block, 0)
+    n = block[0x1d]
+    if size != len(block) or end != start + n * ENGINE_TEXTURE_RECORD or end > size:
+        return []
+    return [(block[o:o + 0x20].split(b'\0', 1)[0].decode('latin-1'), struct.unpack_from(e + 'H', block, o + 0x24)[0])
+            for o in range(start, end, ENGINE_TEXTURE_RECORD)]
+
+
+def entry_textures(db, names=None):
+    """{entry name: [(sampler, cube, texture name)]}: the textures the parameter blocks of an entry's programs
+    name (both blocks of every program), each (sampler, cube, name) once, sorted by sampler. An entry's programs
+    (permutations: lighting, shadows, instancing ...) normally bind the same textures to the same samplers; a
+    sampler holding different textures in different programs is listed once per texture."""
+    progs = db.entry_programs()
+    cache = {}
+    out = {}
+    for name, g in db.entries:
+        if names is not None and name not in names:
+            continue
+        found = set()
+        for i in progs.get(g, []):
+            for k in db.program_refs(i)[2:]:
+                if k not in cache:
+                    cache[k] = block_textures(db.params[k], db.e)
+                found.update(cache[k])
+        out[name] = sorted(found)
+    return out
+
+
+TEXTURE_KINDS = (('normal', ('_nm', '_n', '_normal', '_norm')), ('specular', ('_sp', '_spec', '_s')),
+                 ('gloss', ('_gm', '_g')), ('occlusion', ('_occlusion', '_oc', '_ao')),
+                 ('color', ('_c', '_df', '_d', '_color', '_diffuse', '_cm')))
+
+
+def texture_kind(name):
+    """What a texture is for, guessed from its name's suffix (DICE's naming: _C / _Df color, _Nm / _N normal, _Sp
+    specular, _Gm gloss mask, _Occlusion / _Oc / _AO occlusion), else ''. The databases do not say: a texture
+    record names only the sampler register, and the shaders' constant tables call their samplers sampler_Texture<N>."""
+    low = name.lower()
+    for kind, ends in TEXTURE_KINDS:
+        if low.endswith(ends):
+            return kind
+    return ''
+
+
+def part_layouts(db):
+    """{mesh-part name: its vertex layout's 0x49-byte record body} (section 8.3 -> section 7)."""
+    lay = {r[:16]: r[16:] for r in db.layouts}
+    return {name: lay[g] for name, g in db.parts if g in lay}
 
 
 def _first_index(items):
@@ -887,7 +1045,7 @@ def entry_rows(db):
 
 def cmd_info(a):
     db, data = load(a.res, a.dx, a.opfor)
-    print(f'{db.label}: Dx{db.dx} shader database, {len(data):,} bytes, version {db.version}, flag {db.flag}')
+    print(f'{db.label}: {db.platform} shader database, {len(data):,} bytes, version {db.version}, flag {db.flag}')
     for label, lst in (('1 parameter blocks', db.params), ('2 binding tables', db.bindings),
                        ('3 register tables', db.regs), ('4 vertex shaders', db.vs), ('5 pixel shaders', db.ps),
                        ('6 programs (and keys)', db.programs), ('7 vertex layouts', db.layouts),
@@ -921,6 +1079,36 @@ def cmd_list(a):
     for mesh, shader, n, size in rows:
         print(f'{n:8} {size:9,}  {mesh or "-"}  |  {shader}')
     print(f'{len(rows)} of {len(db.entries)} entries, {len({r[0].lower() for r in rows if r[0]})} meshes')
+    return 0
+
+
+def cmd_textures(a):
+    db, _ = load(a.res, a.dx, a.opfor)
+    flt = (a.filter or '').lower()
+    tex = entry_textures(db)
+    progs = db.entry_programs()
+    n = 0
+    for name, g in db.entries:
+        if flt not in name.lower():
+            continue
+        n += 1
+        print(name)
+        for s, cube, t in tex[name]:
+            kind = 'cube map' if cube else texture_kind(t)
+            print(f'    s{s:<2}  {t}{f"   [{kind}]" if kind else ""}')
+        if a.constants:
+            seen = set()
+            for i in progs.get(g, []):
+                for k in db.program_refs(i)[2:]:
+                    for cname, _, comps, vals in block_constants(db.params[k], db.e):
+                        if (cname, vals[:comps]) not in seen:
+                            seen.add((cname, vals[:comps]))
+                            print(f'    {cname} = {", ".join(f"{v:g}" for v in vals[:comps])}')
+                    for pname, s in block_engine_textures(db.params[k], db.e):
+                        if (pname, s) not in seen:
+                            seen.add((pname, s))
+                            print(f'    s{s:<2}  ({pname}: bound by the engine)')
+    print(f'{n} of {len(db.entries)} entries; {len({t for v in tex.values() for _, _, t in v})} textures named in all')
     return 0
 
 
@@ -1069,6 +1257,10 @@ def main(argv=None):
     p.add_argument('res')
     p.add_argument('filter', nargs='?')
     p.add_argument('--parts', action='store_true')
+    p = sub.add_parser('textures')
+    p.add_argument('res')
+    p.add_argument('filter', nargs='?')
+    p.add_argument('--constants', action='store_true', help='also the named constants and their values')
     p = sub.add_parser('merge')
     p.add_argument('base')
     p.add_argument('donors', nargs='+')
@@ -1090,7 +1282,7 @@ def main(argv=None):
     p.add_argument('level')
     p.add_argument('-o', '--out')
     a = ap.parse_args(argv)
-    return {'info': cmd_info, 'list': cmd_list, 'merge': cmd_merge, 'cover': cmd_cover, 'roundtrip': cmd_roundtrip,
+    return {'info': cmd_info, 'list': cmd_list, 'textures': cmd_textures, 'merge': cmd_merge, 'cover': cmd_cover, 'roundtrip': cmd_roundtrip,
             'needs': cmd_needs, 'find': cmd_find}[a.cmd](a)
 
 
