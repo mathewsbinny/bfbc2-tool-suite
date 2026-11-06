@@ -12,7 +12,8 @@ OPFOR BFBC2's game copy:
 - the command line (roundtrip, convert, deps, graft).
 With --game: every SwfMovie of the game copy's bundles (Dist and Package) round-trips byte for byte and packed; with
 OPFOR's copy of the Xbox 360 HUD (work\xbox_dlc\hud\con_ingame, skipped when absent), the Onslaught timer graft
-into the PC hudlayer_shared the game loads: aptcheck finds nothing, apt.py's dump only gains lines.
+into the PC hudlayer_shared the game loads: aptcheck finds nothing, apt.py's dump only gains lines; label-alias on
+mp_common's weaponicon (a frame label next to PBLB's in all three timelines).
 
   python test_aptgraft.py [--game]
 """
@@ -307,6 +308,25 @@ def game(c):
                         bad.append(f'{os.path.relpath(p, root)}:{name}: {probs[0]}')
     c.check(len(seen) > 80 and not bad, f'every SwfMovie of the game copy round-trips byte for byte and packed '
                                         f'({len(seen)} different, {files} entries)', '; '.join(bad[:4]))
+    # label-alias: the vehicle icons in weaponicon are frames labelled with the vehicle's name
+    common = os.path.join(root, 'game', 'Dist', 'win32', 'levels', 'mp_common', 'ingame-00.fbrb')
+    if os.path.isfile(common):
+        wi = ag.Movie.load(common + ':weaponicon')
+        n = ag.add_label_alias(wi, 'PBLB', 'Type95 Boat')
+        lines = apt_movie(wi.write(layout=ag.GRAFT_LAYOUT)).dump()
+        pairs = [k for k, ln in enumerate(lines) if 'FrameLabel "Type95 Boat"' in ln]
+        same = all(lines[k].split('frame')[-1] == next(ln for ln in lines[k - 3:k] if '"PBLB"' in ln).split('frame')[-1]
+                   for k in pairs)
+        c.check(n == 3 and len(pairs) == 3 and same and not aptcheck.Code(apt_movie(wi.write(layout=ag.GRAFT_LAYOUT))
+                                                                           ).findings()
+                and ag.add_label_alias(wi, 'PBLB', 'Type95 Boat') == 0,
+                'weaponicon: label-alias puts "Type95 Boat" on PBLB\'s frame in its 3 timelines, aptcheck finds '
+                'nothing, a second run adds none')
+        try:
+            ag.add_label_alias(wi, 'NO_SUCH_LABEL', 'x')
+            c.check(False, 'label-alias refuses a label the movie lacks')
+        except ag.AptError:
+            c.check(True, 'label-alias refuses a label the movie lacks')
     con = os.path.join(root, 'work', 'xbox_dlc', 'hud', 'con_ingame', 'Menu', 'hudlayer_shared.res')
     pcb = os.path.join(root, 'game', 'Package', 'levels', 'ons_mp_002', 'ingame-00.fbrb')
     if os.path.isfile(pcb + '.opfor-hud-orig'):

@@ -8,6 +8,7 @@ character with everything it uses from one movie into another.
   python aptgraft.py onslaught-timer <PC hudlayer_shared> <console hudlayer_shared> <out.res> [--no-lms] [--no-place]
   python aptgraft.py mode-case <movie> <out.res> --function F --mode M --key K [--fallback TEXT]
   python aptgraft.py mode-alias <movie> <out.res> --mode M --like L [--function F[,F...]]
+  python aptgraft.py label-alias <movie> <out.res> --like L --alias A[,A...]
 
 <movie>, <target>, <source>: a menu .res (a BIGF archive of <name>.apt, .const, .geo), a .apt with its .const / .geo
 beside it, or <bundle.fbrb>:<name> (read straight from a bundle). A folder: every SwfMovie of its unpacked bundles
@@ -32,6 +33,9 @@ mode-alias makes mode M take mode L's branch in switches `<mode value> === "L" -
            M next to it), in the functions F (default: every function with such a switch, named or anonymous). For
            Onslaught's team names (by faction, as Conquest's): hud_root --mode onslaught --like conquest (the spawn
            screen showed "Missing DESC tag!! onslaught"), loadingscreen_mp --function getTeamName,showGameModeComponents.
+label-alias  adds frame label A next to every frame label L (each timeline: the movie's and its sprites'), so a
+           name the movie looks up by label finds L's frame. For a new vehicle's HUD / kill-feed icon: weaponicon
+           --like PBLB --alias "Type95 Boat" (its icons are frames labelled with the vehicle's entity name).
 Nothing is ever written into the game folder; outputs go where you say.
 
 THE MODEL. Every structure of the three members is a node: Raw (a header), Str (a C string), Words (32-bit fields; a
@@ -1466,6 +1470,34 @@ def add_mode_case(movie, func, mode, key, fallback='Missing DESC tag!! '):
     return done
 
 
+def add_label_alias(movie, like, alias):
+    """In every timeline (the movie's own and each sprite's) that has the frame label `like`, a label `alias` on the
+    same frame with like's flags: a name the movie looks up with gotoAndStop / gotoAndPlay lands on like's frame (the
+    HUD's vehicle and kill-feed icons are frames labelled with the vehicle's name: weaponicon's vhIcons, VEHICLES).
+    A timeline that has alias already is left. Returns the number of labels added."""
+    owners = [None] + [movie.char(c) for c in range(len(movie.chartable.vals)) if movie.char_type(c) == 5]
+    added = found = 0
+    for owner in owners:
+        fr = movie.frames(owner)
+        labels = {}
+        for f in range(len(fr.vals) // 2):
+            for it in movie.frame_items(f, owner):
+                if it.tag == 'label':
+                    labels.setdefault(text(it.vals[1]), (f, it))
+        if like not in labels:
+            continue
+        found += 1
+        if alias in labels:
+            continue
+        f, it = labels[like]
+        movie.add_item(f, Words('apt', None, [2, Ref(Str('apt', None, alias.encode('latin1'))), it.vals[2], it.vals[3]],
+                                'label'), owner)
+        added += 1
+    if not found:
+        raise AptError(f'{movie.label}: no frame label "{like}"')
+    return added
+
+
 def add_mode_alias(movie, mode, like, funcs=None):
     """Makes mode take the branch of mode like in mode switches of the form <push the mode value: PushData of one
     register or PushValueOfVar>; PushConstant like; StrictEquals (or Equals2); BranchIfTrue X - a copy of the four
@@ -1782,7 +1814,7 @@ def take_flag(args, flag):
 
 def main(argv):
     args = argv[1:]
-    if not args or args[0] not in ('roundtrip', 'convert', 'deps', 'graft', 'onslaught-timer', 'mode-case', 'mode-alias'):
+    if not args or args[0] not in ('roundtrip', 'convert', 'deps', 'graft', 'onslaught-timer', 'mode-case', 'mode-alias', 'label-alias'):
         print(__doc__)
         return 1
     cmd = args.pop(0)
@@ -1876,6 +1908,15 @@ def main(argv):
         n = add_mode_alias(m, mode, like, funcs.split(',') if funcs else None)
         open(args[1], 'wb').write(m.to_res(layout=GRAFT_LAYOUT))
         print(f'{args[1]}: {n} switch(es) send {mode} the way of {like}')
+        return 0
+    if cmd == 'label-alias':
+        like, aliases = take(args, '--like'), take(args, '--alias')
+        if len(args) != 2 or not (like and aliases):
+            raise AptError('label-alias <movie> <out.res> --like L --alias A[,A...]')
+        m = Movie.load(args[0])
+        n = sum(add_label_alias(m, like, a) for a in aliases.split(','))
+        open(args[1], 'wb').write(m.to_res(layout=GRAFT_LAYOUT))
+        print(f'{args[1]}: {n} frame label(s) added on "{like}"\'s frames: {aliases}')
         return 0
     if cmd == 'onslaught-timer':
         lms = not take_flag(args, '--no-lms')
