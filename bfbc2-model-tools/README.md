@@ -11,6 +11,8 @@ Build and edit Battlefield: Bad Company 2 skinned meshes (weapons) on the PC.
   tangents the way the game's weapon meshes store them.
 - `texwrite.py` - PC textures (`ITexture` .res) from pictures: DXT1 colour maps (format 0) and DXT1 normal maps
   (format 18) with every mip level, laid out as DICE's weapon textures are.
+- `decimate.py` - fewer triangles (third-person LODs): quadric edge collapses onto existing vertices, so texture
+  coordinates, normals and bones stay exact; texture seams stay closed, bones are never merged.
 - Skinned mesh sets (`SkinnedMeshSet`) are read and written by the console converter's `meshset.py`: the rigid
   layout without the flag byte, then per LOD the skeleton bones its parts use and their name hashes.
 
@@ -19,6 +21,7 @@ uses these to model the WW2 rifles' bayonets and rifle grenades onto DICE's surv
 
 Test: `tests\test_models.py` (game tier: every Garand / Type 5 LOD and mesh set written back byte-identical, a part
 replaced and read back); `tests\test_texwrite.py` (DICE's level layout, round trips through the console converter's
-decoder, unit-length normal mips; with the game, two of DICE's weapon textures encoded again).
+decoder, unit-length normal mips; with the game, two of DICE's weapon textures encoded again); `tests\test_decimate.py`
+(a seamed sphere stays closed and round, two bones stay apart).
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

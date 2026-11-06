@@ -113,6 +113,7 @@ def tests():
         ('mesh viewer on the game\'s models', 'game', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview.py')]),
         ('model tools: skinned meshes, mesh sets, shapes', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_models.py')]),
         ('model tools: PC textures from pictures (DXT1)', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_texwrite.py')]),
+        ('model tools: mesh decimation (seams closed, bones apart)', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_decimate.py')]),
         ('Granny skeletons and animations (read, shift)', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny.py')]),
         ('Granny Xbox 360 -> PC on your Xbox files and BF1943', 'game', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_port.py'), '--game']),
         ('BF1943 import pipeline on your BF1943 copy', 'game', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_bf1943import.py'), '--game']),
