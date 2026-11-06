@@ -50,7 +50,8 @@ class ViewError(Exception):
 
 def _bundles(root):
     """Stock bundles - levels, async (weapons, characters ...) and the rest - Package before Dist (OPFOR's own
-    builds and Onslaught levels left out)."""
+    builds and Onslaught levels left out, and any level an OPFOR install step put there: its folder holds an
+    opfor-*-installed.json record, e.g. Wake Island's)."""
     out = []
     for w in ('Package', os.path.join('Dist', 'win32')):
         top = os.path.join(root, 'game', w)
@@ -58,6 +59,9 @@ def _bundles(root):
             dn.sort()
             rel = os.path.relpath(dp, top).replace(os.sep, '/').lower()
             if re.match(r'levels/(ons_|opfor_)', rel):
+                continue
+            if rel.startswith('levels/') and any(re.fullmatch(r'opfor-.+-installed\.json', f.lower()) for f in fn):
+                dn[:] = []                                   # its vo\ sub-folder too
                 continue
             for f in sorted(fn):
                 if f.lower().endswith('.fbrb'):

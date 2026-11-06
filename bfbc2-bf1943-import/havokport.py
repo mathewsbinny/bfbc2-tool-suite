@@ -270,7 +270,7 @@ def restructure(b, template, classes, table=None):
     struct.pack_into('>I', head, 12, 5)                         # file version
     root_name = names[struct.unpack_from('>I', b, p + 36)[0]]
     struct.pack_into('>5I', head, 20, 3, 2, 0, 0, at[_rename(root_name, classes)])
-    head[40:56] = b'Havok-5.5.0-r1\0\0'
+    head[40:56] = b'Havok-5.5.0-r1\0\xff'                       # as BFBC2's own files pad it (0xFF after the NUL)
     cn_start = 64 + 48 * 3
     data_start = cn_start + len(new_cn)
     st = bytearray()
@@ -282,6 +282,55 @@ def restructure(b, template, classes, table=None):
     return b[:p] + bytes(head) + bytes(st) + bytes(new_cn) + data_bytes
 
 
+def wrapper_run_table(b):
+    """(offset, M, C, big-endian) of the material table that opens the wrapper's byte run (bfbc2-console-convert
+    FORMAT.md 1.1): u16 M groups, u16 C material hashes, C u32 hashes, M u16 group ends (the last = C), then the
+    per-part bytes. BFBC2 writes the table little-endian on both platforms; BF1943 big-endian. None: no table found
+    in either byte order."""
+    o = b.find(MAGIC)
+    n = struct.unpack_from('<I', b, 0)[0]
+    p = 8 + 4 * n
+    if p + 2 > o:
+        return None
+    a = struct.unpack_from('<H', b, p)[0]
+    p += 2 + 12 * a
+    if p + 2 > o:
+        return None
+    c = struct.unpack_from('<H', b, p)[0]
+    p += 2 + 24 * c
+    if p + 4 > o:
+        return None
+    if struct.unpack_from('<H', b, p)[0] == 0:
+        return p, 0, 0, False                  # no table (a single body's wrapper): the same in either byte order
+    for e, big in (('<', False), ('>', True)):
+        m, k = struct.unpack_from(e + '2H', b, p)
+        end = p + 4 + 4 * k + 2 * m
+        if end > o - 8:
+            continue
+        ends = struct.unpack_from(f'{e}{m}H', b, p + 4 + 4 * k) if m else ()
+        if (m == 0 and k == 0) or (ends and ends[-1] == k and all(x <= y for x, y in zip(ends, ends[1:]))):
+            return p, m, k, big
+    return None
+
+
+def _run_table_to_pc(b):
+    """The wrapper's material table in BFBC2's byte order (little-endian)."""
+    t = wrapper_run_table(b)
+    if t is None:
+        if b.find(MAGIC) >= 0 and struct.unpack_from('<I', b, 0)[0] != struct.unpack_from('<I', b, 4)[0]:
+            return b                          # not the part-list wrapper (FORMAT.md 1.1): nothing to swap
+        raise PortError('the wrapper\'s material table (the byte run\'s start) is in neither byte order')
+    p, m, k, big = t
+    if not big:
+        return b
+    out = bytearray(b)
+    fmt = f'2H{k}I{m}H'
+    out[p:p + struct.calcsize('<' + fmt)] = struct.pack('<' + fmt, *struct.unpack_from('>' + fmt, b, p))
+    return bytes(out)
+
+
 def convert(b, template, classes, table=None):
-    """BF1943's physics resource b -> BFBC2's PC format (table: ufloat8_table, for velocity limits other than 200)."""
-    return havok.convert(restructure(b, template, classes, table), classes)
+    """BF1943's physics resource b -> BFBC2's PC format (table: ufloat8_table, for velocity limits other than 200).
+    The wrapper's material table is swapped too: BF1943 writes it big-endian, and BFBC2's loader, which reads its
+    counts to find the packfile, otherwise lands short of it (a null version string at load, 0xC585D8)."""
+    return _run_table_to_pc(havok.convert(restructure(b, template, classes, table), classes))

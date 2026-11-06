@@ -102,12 +102,39 @@ def _pruned(e, resolve, path, report):
     return dbx.Element(e.tag, e.kind, list(e.attributes), e.text, e.raw, keep)
 
 
+def _local(r):
+    return bool(r) and r != 'null' and '/' not in r
+
+
+def _without_local_refs(e, path, report):
+    """A field taken from the template without the template's own instances: a reference to one (a guid with no
+    partition) would name an instance this partition does not have - array items naming one are left out, a single
+    reference is nulled (BF1943's Wake ambient sounds have no IndoorDampings: mp_005's three, all dangling)."""
+    if _local(e.attr('ref')):
+        e.attributes = [(k, 'null' if k == 'ref' else v) for k, v in e.attributes]
+        report.append(f'nulled {path} (the template\'s own instance)')
+    if e.children:
+        keep = []
+        for c in e.children:
+            if e.tag == 'array' and not c.children and _local(c.attr('ref')):
+                continue
+            keep.append(_without_local_refs(c, path, report))
+        if len(keep) != len(e.children):
+            report.append(f'emptied {path}: {len(e.children) - len(keep)} item(s) naming the template\'s instances')
+        e.children = keep
+    return e
+
+
 def _align(e, t, path, report, resolve=None, prune=False):
     """e (BF1943) aligned with t (BFBC2): a new element. resolve(target) says whether a reference will resolve (see
-    _lost); a field - or an array of references - holding one that will not takes the template's value instead
-    (structs and arrays of structs are aligned field by field, so only the field holding it is replaced). prune: an
-    array instead loses the items that would not resolve (_pruned)."""
-    if prune and resolve is not None and e.tag == 'array':
+    _lost); a field holding one that will not takes the template's value instead (structs and arrays of structs are
+    aligned field by field, so only the field holding it is replaced); an array of references - and with prune, any
+    array - loses the items that would not resolve (_pruned)."""
+    # an array of references always loses just the items that will not resolve: the template's array would name the
+    # template's own instances, which this partition does not have (BF1943's Willys: the VehicleComponentData's
+    # components - one, the car horn, left out - became the donor's 23 guids, all dangling: a null component at load)
+    if resolve is not None and e.tag == 'array' and (prune or any(
+            c.attr('ref') and not c.children for c in (e.children or ()))):
         e = _pruned(e, resolve, path, report)
     if resolve is not None and e.attr('name') is not None:
         lost = _lost(e, resolve)
@@ -151,7 +178,7 @@ def _align(e, t, path, report, resolve=None, prune=False):
         if n in mine:
             new.append(_align(mine[n], c, f'{path}.{n}', report, resolve, prune))
         else:
-            new.append(copy.deepcopy(c))
+            new.append(_without_local_refs(copy.deepcopy(c), f'{path}.{n}', report))
             report.append(f'added {path}.{n} (BFBC2\'s value)')
     converted = {ONE_TO_ARRAY[n] for n in theirs if n in ONE_TO_ARRAY} | {RENAMED[n] for n in theirs if n in RENAMED}
     for n in mine:
