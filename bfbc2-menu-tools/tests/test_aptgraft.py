@@ -13,7 +13,8 @@ OPFOR BFBC2's game copy:
 With --game: every SwfMovie of the game copy's bundles (Dist and Package) round-trips byte for byte and packed; with
 OPFOR's copy of the Xbox 360 HUD (work\xbox_dlc\hud\con_ingame, skipped when absent), the Onslaught timer graft
 into the PC hudlayer_shared the game loads: aptcheck finds nothing, apt.py's dump only gains lines; label-alias on
-mp_common's weaponicon (a frame label next to PBLB's in all three timelines).
+mp_common's weaponicon (a frame label next to PBLB's in all three timelines); add_icon_frame there (an image, its
+textured-quad shape and a WeaponIcon frame placing it; refusals).
 
   python test_aptgraft.py [--game]
 """
@@ -327,6 +328,27 @@ def game(c):
             c.check(False, 'label-alias refuses a label the movie lacks')
         except ag.AptError:
             c.check(True, 'label-alias refuses a label the movie lacks')
+        # add_icon_frame: a vehicle icon of its own (an image, its textured-quad shape, a WeaponIcon frame)
+        wi = ag.Movie.load(common + ':weaponicon')
+        image, frames = ag.add_icon_frame(wi, 'PBLB', 'Test Boat', (78, 20))
+        written = apt_movie(wi.write(layout=ag.GRAFT_LAYOUT))
+        lines = written.dump()
+        k = next((i for i, ln in enumerate(lines) if 'FrameLabel "Test Boat"' in ln), None)
+        placed = k is not None and f'char={image + 1} ' in lines[k + 1] and 'depth=1' in lines[k + 1]
+        chars = (any(ln.startswith(f'char {image}: image') and f'texture={image}' in ln for ln in lines) and
+                 any(ln.startswith(f'char {image + 1}: shape') and 'bounds=(-39,-10)-(39,10)' in ln for ln in lines))
+        part = wi.geo_entry(image + 1)
+        uses = part is not None and part[0].vals[part[1] + 2].node.vals[0].node.vals[20] == image
+        c.check(frames == 1 and placed and chars and uses and not aptcheck.Code(written).findings(),
+                'weaponicon: add_icon_frame adds an image, a 78 x 20 shape drawing it and a "Test Boat" frame placing '
+                'it at the patrol boat\'s depth; aptcheck finds nothing')
+        for bad, what in ((('PBLB', 'Test Boat'), 'a label the timeline has already'),
+                          (('NO_SUCH_LABEL', 'x'), 'a label the movie lacks')):
+            try:
+                ag.add_icon_frame(wi, *bad, (10, 10))
+                c.check(False, f'add_icon_frame refuses {what}')
+            except ag.AptError:
+                c.check(True, f'add_icon_frame refuses {what}')
     con = os.path.join(root, 'work', 'xbox_dlc', 'hud', 'con_ingame', 'Menu', 'hudlayer_shared.res')
     pcb = os.path.join(root, 'game', 'Package', 'levels', 'ons_mp_002', 'ingame-00.fbrb')
     if os.path.isfile(pcb + '.opfor-hud-orig'):

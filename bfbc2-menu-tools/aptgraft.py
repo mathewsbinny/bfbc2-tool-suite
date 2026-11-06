@@ -36,6 +36,10 @@ mode-alias makes mode M take mode L's branch in switches `<mode value> === "L" -
 label-alias  adds frame label A next to every frame label L (each timeline: the movie's and its sprites'), so a
            name the movie looks up by label finds L's frame. For a new vehicle's HUD / kill-feed icon: weaponicon
            --like PBLB --alias "Type95 Boat" (its icons are frames labelled with the vehicle's entity name).
+add_icon_frame (a function, no command): an icon of its own - an image character (pixels: the caller's, in the
+           movie's texture atlas, TextureFile = the image's id), a textured-quad shape of a given size drawing it, and
+           a frame labelled with the new name, placing it as the like frame places its shape, in each timeline whose
+           like frame places one (OPFOR src\tools\ww2\type95_icon.py: the Type 95 boat's silhouette).
 Nothing is ever written into the game folder; outputs go where you say.
 
 THE MODEL. Every structure of the three members is a node: Raw (a header), Str (a C string), Words (32-bit fields; a
@@ -1496,6 +1500,71 @@ def add_label_alias(movie, like, alias):
     if not found:
         raise AptError(f'{movie.label}: no frame label "{like}"')
     return added
+
+
+def add_icon_frame(movie, like, label, size):
+    """A new icon of its own for the frames labelled `like` (the HUD's vehicle and kill-feed icons: weaponicon's
+    WeaponIcon timeline places, on each vehicle's labelled frame, a shape drawing a bitmap of the movie's texture
+    atlas). Adds an image character (its texture id = its character id: the atlas entry's TextureFile to give it),
+    a shape of `size` (width, height in pixels) drawing it - like's shape's textured quad scaled, its texture matrix
+    centred on the new size - and, in every timeline whose `like` frame places a shape, a frame at the end labelled
+    `label` that places the new shape as `like`'s frame places its own (depth, flags, matrix, name). Timelines
+    whose `like` frame places no shape (it shows an earlier frame's) are left: give them a label-alias. Returns
+    (image character id, timelines given a frame)."""
+    def frame_of(lbl, owner):
+        try:
+            return movie.label_frame(lbl, owner)
+        except AptError:
+            return None
+    owners = [None] + [movie.char(c) for c in range(len(movie.chartable.vals)) if movie.char_type(c) == 5]
+    found = []
+    for owner in owners:
+        f = frame_of(like, owner)
+        if f is None:
+            continue
+        if frame_of(label, owner) is not None:
+            raise AptError(f'{movie.label}: a timeline has the label "{label}" already')
+        places = [it for it in movie.frame_items(f, owner) if it.tag == 'place' and it.vals[1] & 0x02
+                  and not isinstance(it.vals[3], Ref) and movie.char_type(it.vals[3]) == 1]
+        if places:
+            found.append((owner, f, places[0]))
+    if not found:
+        raise AptError(f'{movie.label}: no frame labelled "{like}" places a shape')
+    like_shape = found[0][2].vals[3]
+    entry = movie.geo_entry(like_shape)
+    if entry is None:
+        raise AptError(f'{movie.label}: shape {like_shape} has no geometry')
+    table, k = entry
+    parts = table.vals[k + 2].node.vals
+    if len(parts) != 1 or parts[0].node.vals[0] != 5:
+        raise AptError(f'{movie.label}: shape {like_shape} is not one textured quad')
+    src = parts[0].node.vals
+    sv = movie.char(like_shape).vals
+    fl = lambda v: struct.unpack('<f', struct.pack('<I', v & 0xFFFFFFFF))[0]      # noqa: E731
+    w0, h0 = fl(sv[4]) - fl(sv[2]), fl(sv[5]) - fl(sv[3])
+    w, h = size
+    image = movie.add_char(Words('apt', None, [7, SIG, 0], 'image'))
+    movie.char(image).vals[2] = image
+    verts = [f32(fl(v) * (w / w0 if i % 2 == 0 else h / h0)) for i, v in enumerate(src[2].node.vals)]
+    matrix = list(src[4:20])
+    matrix[12], matrix[13] = f32(w / 2), f32(h / 2)
+    part = Words('geo', None, [5, src[1], Ref(Words('geo', None, verts, 'geo.vertices')), src[3]] + matrix +
+                 [image, 0], 'geo.part5')
+    shape = movie.add_char(Words('apt', None, [1, SIG, f32(-w / 2), f32(-h / 2), f32(w / 2), f32(h / 2), 0], 'shape'))
+    movie.char(shape).vals[6] = shape
+    movie.add_geometry(shape, Words('geo', None, [Ref(part)], 'geo.parts'))
+    for owner, f, place in found:
+        v = list(place.vals)
+        v[3] = shape
+        if isinstance(v[13], Ref):
+            v[13] = Ref(Str('apt', None, v[13].node.text))
+        if v[15]:
+            raise AptError(f'{movie.label}: "{like}" places its shape with clip actions - not copied')
+        new = len(movie.frames(owner).vals) // 2
+        movie.add_item(new, Words('apt', None, [2, Ref(Str('apt', None, label.encode('latin1'))), 0, new], 'label'),
+                       owner)
+        movie.add_item(new, Words('apt', None, v, 'place'), owner)
+    return image, len(found)
 
 
 def add_mode_alias(movie, mode, like, funcs=None):
