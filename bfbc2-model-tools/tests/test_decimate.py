@@ -5,7 +5,8 @@ taken from 1,984 triangles to 500:
 - closed: welded by position every edge has exactly two triangles - the seam did not open;
 - every vertex left is an input vertex with its own position, texture coordinates, normal and bone;
 - round: every triangle's middle within 6 % of the radius of the sphere;
-- bones: a second sphere touching the first on another bone keeps all its points where they were (never merged in).
+- bones: a second sphere touching the first on another bone keeps all its points where they were (never merged in);
+- max_cost: a cap below every collapse's cost leaves the sphere whole; a cap between stops short of the target.
 
   python test_decimate.py
 """
@@ -78,6 +79,12 @@ def main():
     if moved or mixed:
         fails.append(f'bones mixed: {moved} vertices of bone 1 moved off it, {mixed} triangles on two bones')
     print(f'two bones: {len(t)} triangles, none across bones: {not mixed}')
+    # max_cost
+    whole = decimate.decimate(pos, nrm, uv, tris, bone, 500, max_cost=1e-12)[3]
+    some = decimate.decimate(pos, nrm, uv, tris, bone, 500, max_cost=1e-5)[3]
+    if len(whole) != len(tris) or not 500 < len(some) < len(tris):
+        fails.append(f'max_cost: {len(whole)} triangles with a tiny cap (want {len(tris)}), {len(some)} with 1e-5')
+    print(f'max_cost: 1e-12 keeps {len(whole)} triangles, 1e-5 stops at {len(some)}')
     for f in fails:
         print('FAIL', f)
     return 1 if fails else 0

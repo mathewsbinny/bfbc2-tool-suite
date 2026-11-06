@@ -9,7 +9,9 @@ are (a seam). Wedges at one position with one bone are one point of the surface;
 neighbouring point, and each of its wedges onto the neighbour's wedge it shares a triangle with - a point with a
 wedge that shares no triangle with any of the neighbour's (a seam's corner, or a collapse across a seam) is not
 moved there, so seams stay closed and every texture area keeps its own coordinates. Points are never merged across
-bones. A collapse that would turn a triangle over (normal off by more than ~80 degrees) or leave a sliver is
+bones. max_cost (optional) stops short of the target once the cheapest collapse left costs more (the quadric error:
+squared distance times area, m^4): where seams keep the cheap collapses from happening, the target would otherwise be
+reached by collapsing large shapes. A collapse that would turn a triangle over (normal off by more than ~80 degrees) or leave a sliver is
 refused. Open edges (the rims of open surfaces) weigh as planes across them, so outlines keep their shape.
 """
 import heapq
@@ -27,7 +29,7 @@ def _plane_quadric(a, b, c):
     return np.outer(p, p) * area
 
 
-def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0):
+def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0, max_cost=None):
     pos, nrm, uv = (np.asarray(x, float) for x in (pos, nrm, uv))
     tris = np.asarray(tris, np.int64).copy()
     bone = np.asarray(bone, np.int64)
@@ -106,9 +108,11 @@ def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0):
         return np.cross(b - a, c - a)
 
     while count > target and heap:
-        _, u, v, vu, vv = heapq.heappop(heap)
+        c, u, v, vu, vv = heapq.heappop(heap)
         if vu != version[u] or vv != version[v] or not wedges[u] or not wedges[v] or v not in nbr[u]:
             continue
+        if max_cost is not None and c > max_cost:
+            break                                         # every collapse left would cost more: stop short of target
         tu = ptris(u)
         shared = {t for t in tu if any(key[w] == v for w in tris[t])}
         # each of u's wedges -> v's wedge it shares a triangle with
