@@ -3,3 +3,7 @@ __pycache__/
 
 # hello_imgui window layout, per user
 BFBC2_*.ini
+
+# built locally (bfbc2-shader-tools/native/build.bat)
+*.exe
+*.obj

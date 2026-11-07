@@ -45,6 +45,7 @@ class Interface:
     def __init__(self, interpolators, vs_inputs=None, material=None, sampler_fix=None, colour_scale=1.0,
                  instanced=False, bones_as_world=False):
         self.bones_as_world = bones_as_world        # BFBC2 composite (kind 9): parts drawn with the world transform
+        self.trace_nan = False                      # debug: output the first instruction whose result is NaN / inf
         self.instanced = instanced                  # VS: the world transform comes per instance (BFBC2 stream 1)
         self.interpolators = interpolators          # [usage index] the VS writes (TEXCOORDn), shared VS -> PS
         self.vs_inputs = vs_inputs or {}            # VS: usage index -> HLSL type of the PC element ('float4')
@@ -169,7 +170,7 @@ class _Emitter:
         if op == 'add':
             return f'({a[0]} + {a[1]})'
         if op == 'mul':
-            return f'({a[0]} * {a[1]})'
+            return f'xmul({a[0]}, {a[1]})'
         if op == 'max':
             return f'max({a[0]}, {a[1]})'
         if op == 'min':
@@ -184,16 +185,16 @@ class _Emitter:
         if op == 'floor':
             return f'floor({a[0]})'
         if op == 'mad':
-            return f'({a[0]} * {a[1]} + {a[2]})'
+            return f'(xmul({a[0]}, {a[1]}) + {a[2]})'
         if op in ('cndeq', 'cndge', 'cndgt'):
             cmp = {'cndeq': '==', 'cndge': '>=', 'cndgt': '>'}[op]
             return f'xsel(({a[0]}) {cmp} 0.0, {a[1]}, {a[2]})'
         if op == 'dp4':
-            return f'dot({a[0]}, {a[1]}).xxxx'
+            return f'xdot4({a[0]}, {a[1]}).xxxx'
         if op == 'dp3':
-            return f'dot(({a[0]}).xyz, ({a[1]}).xyz).xxxx'
+            return f'xdot4(float4(({a[0]}).xyz, 0.0), float4(({a[1]}).xyz, 0.0)).xxxx'
         if op == 'dp2add':
-            return f'(dot(({a[0]}).xy, ({a[1]}).xy) + ({a[2]}).x).xxxx'
+            return f'(xdot4(float4(({a[0]}).xy, 0.0, 0.0), float4(({a[1]}).xy, 0.0, 0.0)) + ({a[2]}).x).xxxx'
         if op == 'cube':
             # src0 = d.zzxy, src1 = d.yxzz: the direction is (src0.z, src0.w, src0.x)
             self.w(f'cubeDir = float3(({a[0]}).z, ({a[0]}).w, ({a[0]}).x);')
@@ -239,11 +240,11 @@ class _Emitter:
         if op == 'adds_prev':
             return f'({a} + ps)'
         if op in ('muls', 'mulsc'):
-            return f'({a} * {b})'
+            return f'xmul1({a}, {b})'
         if op == 'muls_prev':
-            return f'({a} * ps)'
+            return f'xmul1({a}, ps)'
         if op == 'muls_prev2':
-            return f'((ps == -{FLT_MAX} || !isfinite(ps) || !isfinite({b}) || {b} <= 0.0) ? -{FLT_MAX} : {a} * ps)'
+            return f'((ps == -{FLT_MAX} || !isfinite(ps) || !isfinite({b}) || {b} <= 0.0) ? -{FLT_MAX} : xmul1({a}, ps))'
         if op == 'maxs':
             return f'max({a}, {b})'
         if op == 'mins':
@@ -338,8 +339,12 @@ class _Emitter:
         sca = None if ins.scalar_nop else self.scalar(ins)
         if vec is not None:
             self.w(f'float4 v{k} = {vec};')
+            if self.iface.trace_nan:
+                self.w(f'if (firstNan < 0.0 && any(isnan(v{k}) || isinf(v{k}))) firstNan = {k}.0;')
         if sca is not None:
             self.w(f'float s{k} = {sca};')
+            if self.iface.trace_nan:
+                self.w(f'if (firstNan < 0.0 && (isnan(s{k}) || isinf(s{k}))) firstNan = {k}.5;')
         if vec is not None:
             self.write(ins.vector_dest, f'v{k}', None, True)
         if sca is not None:
@@ -508,11 +513,12 @@ class _Emitter:
         regs = sorted(self.used_regs | set(range(n)))
         decl = ['    float4 ' + ', '.join(f'r{i} = 0.0' for i in regs) + ';',
                 '    float ps = 0.0; bool p0 = false; bool p0_next = false; int a0 = 0; float texLod = 0.0;',
+                '    float firstNan = -1.0;',
                 '    float3 cubeDir = float3(0.0, 0.0, 1.0);']
         if self.ps:
             outs = [k for k in range(4) if sh.header.outputs >> k & 1]
             out.append('struct PSOut {' + ''.join(f' float4 c{k} : SV_Target{k};' for k in outs) + ' };')
-            out.append('PSOut main(V2P i) {')
+            out.append('PSOut main(V2P i, bool frontFace : SV_IsFrontFace) {')
             out += decl
             out += [f'    float4 oC{k} = 0.0;' for k in outs]
             for it in sh.header.interpolators:
@@ -520,9 +526,15 @@ class _Emitter:
                     raise TranslateError(f'PS reads TEXCOORD{it.usage_index}, the VS does not write it')
                 out.append(f'    r{it.reg} = i.t{it.usage_index};')
             if sh.header.context_misc_fields.sc_output_screen_xy:
-                raise TranslateError('vPos (param gen) is not supported yet')
+                # PsParamGen (Xenia's dxbc_shader_translator): XY the pixel's integer position, X's sign bit set on
+                # back faces; ZW point-sprite coordinates (0: not a point)
+                n = sh.header.context_misc_fields.param_gen_pos
+                out.append(f'    r{n} = float4(floor(i.pos.xy), 0.0, 0.0);')
+                out.append(f'    if (!frontFace) r{n}.x = asfloat(asuint(r{n}.x) | 0x80000000u);')
             out += body
             out.append('    PSOut po;')
+            if iface.trace_nan:
+                out.append('    oC0 = float4(firstNan, 0.0, 0.0, 1.0);   // debug: first instruction giving NaN / inf')
             out += [f'    po.c{k} = oC{k};' for k in outs]
             out.append('    return po;')
         else:
@@ -553,6 +565,11 @@ float4 xcube(float3 d) {
     if (a.y >= a.x) return float4(d.y < 0.0 ? -d.z : d.z, d.x, 2.0 * d.y, d.y < 0.0 ? 3.0 : 2.0);
     return float4(-d.y, d.x < 0.0 ? d.z : -d.z, 2.0 * d.x, d.x < 0.0 ? 1.0 : 0.0);
 }
+// Xenos multiplies as Direct3D 9 does: 0 * anything = 0 (also 0 * inf, 0 * NaN), unlike IEEE (Xenia's
+// "legacy multiply"); shaders rely on it when they normalise zero vectors
+float4 xmul(float4 a, float4 b) { return (a == 0.0 || b == 0.0) ? 0.0 : a * b; }
+float xmul1(float a, float b) { return (a == 0.0 || b == 0.0) ? 0.0 : a * b; }
+float xdot4(float4 a, float4 b) { float4 m = xmul(a, b); return m.x + m.y + m.z + m.w; }
 float xmax4(float4 v) { return max(max(v.x, v.y), max(v.z, v.w)); }
 float xlog(float a) { float t = a == 1.0 ? 0.0 : log2(a); return isinf(t) && t < 0.0 ? -3.402823466e+38 : t; }
 float xrcp(float a) { return a == 1.0 ? 1.0 : 1.0 / a; }
