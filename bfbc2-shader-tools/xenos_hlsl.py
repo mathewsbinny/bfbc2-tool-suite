@@ -24,6 +24,7 @@ ENGINE_SIZE = {
     'boneMatrices': 180, 'boneVectors': 180,
 }
 SHADOW = 'outdoorLightShadowmapTexture'
+PROBE_X0, PROBE_Y0, PROBE_W, PROBE_H = 60, 100, 26, 20     # the bit-bar block (screen pixels)
 # instanced draws (BFBC2 StreamInstancingFloat): these engine matrices are rebuilt from the instance's rows
 INSTANCED = {'worldMatrix': 'instW', 'worldViewProjMatrix': 'instWVP'}
 INSTANCE_SEMANTICS = (13, 14, 15)
@@ -46,6 +47,7 @@ class Interface:
                  instanced=False, bones_as_world=False):
         self.bones_as_world = bones_as_world        # BFBC2 composite (kind 9): parts drawn with the world transform
         self.trace_nan = False                      # debug: output the first instruction whose result is NaN / inf
+        self.probe = None                           # debug: [constant expressions] drawn as bit bars (PROBE_*)
         self.instanced = instanced                  # VS: the world transform comes per instance (BFBC2 stream 1)
         self.interpolators = interpolators          # [usage index] the VS writes (TEXCOORDn), shared VS -> PS
         self.vs_inputs = vs_inputs or {}            # VS: usage index -> HLSL type of the PC element ('float4')
@@ -535,6 +537,14 @@ class _Emitter:
             out.append('    PSOut po;')
             if iface.trace_nan:
                 out.append('    oC0 = float4(firstNan, 0.0, 0.0, 1.0);   // debug: first instruction giving NaN / inf')
+            if iface.probe:
+                # debug: the engine's constants as bit bars (white = 1) - read back from a screenshot, exact whatever
+                # the tone mapping does to black and very bright white
+                out.append(f'    float probeVals[{len(iface.probe)}] = {{ {", ".join(iface.probe)} }};')
+                out.append(f'    int2 pc = int2((i.pos.xy - float2({PROBE_X0}, {PROBE_Y0})) / float2({PROBE_W}, {PROBE_H}));')
+                out.append(f'    if (pc.x >= 0 && pc.x < 32 && pc.y >= 0 && pc.y < {len(iface.probe)})')
+                out.append('        oC0 = ((asuint(probeVals[pc.y]) >> (31 - pc.x)) & 1) ? float4(2.0, 0.0, 2.0, 1.0) '
+                           ': float4(0.0, 2.0, 0.0, 1.0);')
             out += [f'    po.c{k} = oC{k};' for k in outs]
             out.append('    return po;')
         else:
