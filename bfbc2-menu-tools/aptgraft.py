@@ -1561,8 +1561,13 @@ def add_icon_frame(movie, like, label, size):
         if v[15]:
             raise AptError(f'{movie.label}: "{like}" places its shape with clip actions - not copied')
         new = len(movie.frames(owner).vals) // 2
-        movie.add_item(new, Words('apt', None, [2, Ref(Str('apt', None, label.encode('latin1'))), 0, new], 'label'),
-                       owner)
+        # the label takes like's label flags (DICE's frame labels carry 0x70000; frames labelled with 0 drew as white
+        # boxes on Wake's deploy grid)
+        like_label = next((it for it in movie.frame_items(f, owner) if it.tag == 'label' and text(it.vals[1]) == like),
+                          None)
+        flags = like_label.vals[2] if like_label is not None else 0
+        movie.add_item(new, Words('apt', None, [2, Ref(Str('apt', None, label.encode('latin1'))), flags, new],
+                                  'label'), owner)
         movie.add_item(new, Words('apt', None, v, 'place'), owner)
     return image, len(found)
 
