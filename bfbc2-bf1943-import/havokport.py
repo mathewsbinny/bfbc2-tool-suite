@@ -329,8 +329,66 @@ def _run_table_to_pc(b):
     return bytes(out)
 
 
+SHAPE_MESHES = {'hkpExtendedMeshShape', 'hkpStorageExtendedMeshShape'}
+SUBPART_SIZE, SUBPARTS_AT = 64, 88       # a shape subpart's size; hkpExtendedMeshShape::shapesSubparts (pointer, count)
+
+
+def shape_subparts_to_550(pc):
+    """A PC packfile's extended mesh shapes with each shape subpart's placement in 5.5.0's order: 4.6.1 keeps the
+    translation at 32 and the rotation quaternion at 48, 5.5.0 the rotation at 32 and the translation at 48. The
+    model groups' physics (forest, middle growth, static and rigid groups: one subpart per placed object) carry them;
+    left in 4.6.1's order, each object's position was read as its rotation - Wake's palms drew as sheets hundreds of
+    metres long across the sky. Swapped only where the data shows it (a subpart whose 'rotation' is no unit
+    quaternion and whose 'translation' is one). Returns (bytes, subparts swapped)."""
+    import numpy as np
+    b = bytearray(pc)
+    p = bytes(b).find(MAGIC)
+    if p < 0:
+        return pc, 0
+    nsec = struct.unpack_from('<I', b, p + 20)[0]
+    secs = {}
+    for i in range(nsec):
+        h = p + 64 + 48 * i
+        secs[bytes(b[h:h + 19]).split(b'\0')[0].decode('latin-1')] = struct.unpack_from('<7I', b, h + 20)
+    if '__data__' not in secs or '__classnames__' not in secs:
+        return pc, 0
+    cstart, cloc = secs['__classnames__'][:2]
+    names, o = {}, p + cstart
+    while o + 5 < p + cstart + cloc:
+        if struct.unpack_from('<I', b, o)[0] == 0xFFFFFFFF:
+            break
+        q = b.index(0, o + 5)
+        names[o + 5 - (p + cstart)] = bytes(b[o + 5:q]).decode('latin-1')
+        o = q + 1
+    start, loc, glob, virt, exp = secs['__data__'][:5]
+    base = p + start
+    local = {}
+    for o in range(base + loc, base + glob - 7, 8):
+        s, d = struct.unpack_from('<2I', b, o)
+        if s != 0xFFFFFFFF:
+            local[s] = d
+    swapped = 0
+    for o in range(base + virt, base + exp - 11, 12):
+        off, _, cn = struct.unpack_from('<3I', b, o)
+        if off == 0xFFFFFFFF or names.get(cn) not in SHAPE_MESHES:
+            continue
+        arr, cnt = local.get(off + SUBPARTS_AT), struct.unpack_from('<I', b, base + off + SUBPARTS_AT + 4)[0]
+        if arr is None:
+            continue
+        for k in range(cnt):
+            r = base + arr + SUBPART_SIZE * k
+            rot = np.frombuffer(bytes(b[r + 32:r + 48]), '<f4')
+            tra = np.frombuffer(bytes(b[r + 48:r + 64]), '<f4')
+            if abs(np.linalg.norm(rot) - 1) > 1e-2 and abs(np.linalg.norm(tra) - 1) < 1e-2:
+                b[r + 32:r + 48], b[r + 48:r + 64] = bytes(tra), bytes(rot)
+                swapped += 1
+    return bytes(b), swapped
+
+
 def convert(b, template, classes, table=None):
     """BF1943's physics resource b -> BFBC2's PC format (table: ufloat8_table, for velocity limits other than 200).
     The wrapper's material table is swapped too: BF1943 writes it big-endian, and BFBC2's loader, which reads its
-    counts to find the packfile, otherwise lands short of it (a null version string at load, 0xC585D8)."""
-    return _run_table_to_pc(havok.convert(restructure(b, template, classes, table), classes))
+    counts to find the packfile, otherwise lands short of it (a null version string at load, 0xC585D8). The model
+    groups' shape subparts get 5.5.0's field order (shape_subparts_to_550)."""
+    pc = _run_table_to_pc(havok.convert(restructure(b, template, classes, table), classes))
+    return shape_subparts_to_550(pc)[0]

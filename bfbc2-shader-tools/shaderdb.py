@@ -526,7 +526,8 @@ def part_mesh(name):
 
 MESH_FIELDS = re.compile(r'mesh', re.I)
 NOT_MESH_FIELDS = {'lodsettings', 'shadersets', 'shader', 'emitter', 'asset'}
-MESH_TYPES = ('Render.SkinnedMeshAsset', 'Render.RigidMeshAsset', 'Render.CompositeMeshAsset')
+# tree meshes (forests' and middle-growth groups' TreeMeshEntityData: trees, bushes) draw with database entries too
+MESH_TYPES = ('Render.SkinnedMeshAsset', 'Render.RigidMeshAsset', 'Render.CompositeMeshAsset', 'Render.TreeMeshAsset')
 
 
 class LevelMeshes(dict):
