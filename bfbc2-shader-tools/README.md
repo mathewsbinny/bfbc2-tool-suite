@@ -140,3 +140,21 @@ copy: mp_008cq's and ons_mp_008's databases round trip, and ONS_MP_008 merged wi
 three kinds. `--xbox` (also run by `--game`; each part skipped when its files are missing) reads every BFBC2 Xbox
 level database (`work\xbox\dist\xenon\levels`), compares the Xbox and PC Dx9 databases of mp_002, mp_005 and mp_008
 (entries, mesh parts and layouts, each entry's textures) and reads Battlefield 1943's Wake Island database.
+
+## Xbox 360 shaders on PC (xenos.py, xenos_hlsl.py, pcbuild.py)
+
+For console content brought to PC (Battlefield 1943's), the Xbox shaders themselves can be used:
+
+- `xenos.py` decodes an Xbox 360 shader from an Xbox database (`parse_shader(db.vs[i].code)`): its constant table,
+  literal constants, interpolators and vertex elements, and the Xenos microcode (control flow, ALU, fetches);
+  `disasm()` prints it. The container and microcode as implemented are in [XENOS.md](XENOS.md). Written from
+  Xenia's documentation of the microcode (BSD-3) and checked against XenosRecomp's container field names (MIT);
+  every shader of Battlefield 1943's Wake Island decodes.
+- `xenos_hlsl.py` translates a decoded shader to HLSL for shader model 4 / 5 (BFBC2's Dx10 / Dx11 renderers):
+  engine constants keep their names, material constants and literals become constants, the shadow map is read as
+  depth, cube-map fetches keep their direction, instanced draws rebuild the world matrix from the instance rows.
+  Not handled yet: the screen-position input (vPos), loop-relative addressing, Dx9.
+- `pcbuild.py` compiles with the system's `d3dcompiler_47.dll` and builds what a PC database stores beside the code:
+  the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks.
+
+Project OPFOR's `wake_translate.py` puts them together for Wake Island.

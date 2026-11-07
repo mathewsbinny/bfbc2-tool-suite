@@ -56,7 +56,8 @@ Inside a block (read from the data; true for every block of the PC and Xbox data
 0x0c  u32 textures end         = constants start; textures start at 0x20
 0x10  u32 constants end        = engine textures start
 0x14  u32 engine textures end  = sampler states start
-0x18  u8, u8, u8 0             (not interpreted)
+0x18  u8, u8, u8 0             0x18 / 0x19: the shader's constant registers (Dx10/11: $Globals size / 16; the same
+                               number as its binding table's first word); 0x1a 0
 0x1b  u8 textures              count of 0x8c-byte texture records
 0x1c  u8 constants             count of 0x38-byte constant records
 0x1d  u8 engine textures       count of 0x28-byte records
@@ -68,7 +69,7 @@ Inside a block (read from the data; true for every block of the PC and Xbox data
                  4 floats (the value)
       engine textures: 0x20-byte parameter name (heightmap, maskTileMap, DepthBuffer, BaseTexture1 ...), u32 (hash),
                  u16 sampler register, 2 zero - textures the engine binds itself; no texture name
-      sampler states: 8 bytes each (sampler register first; not interpreted)
+      sampler states: 60 bytes each (sampler register first; not interpreted)
 ```
 
 Programs (section 6) have two blocks: the first one holds no textures in any file seen; the textures an entry uses
@@ -81,7 +82,22 @@ programs of one entry (permutations) normally bind the same textures to the same
 
 ### Section 2: binding tables
 
-`u32 n`, then n x { `u16 k`, `4k + 2` bytes }. Kept whole. Referenced by index from shaders.
+`u32 n`, then n x { `u16 k`, `u16 first`, k x 4-byte records }. Referenced by index from shaders. A shader's binding
+table says which engine values the renderer writes into its constant registers:
+
+- `first`: the first register after the engine's (where a material's `constants` array starts; Dx10/11: the
+  $Globals size in registers when there are none);
+- a record: `u8 parameter id`, `u8 register` (Dx9 c<N>; Dx10/11 the byte offset in $Globals / 16), `u8 index`
+  (0xff, or the point light / shadow cascade number for the indexed parameters), `u8 count` (1; for the bone
+  arrays the declared element count: 60 for `float4x3 boneMatrices[60]`, 180 for `float4 boneMatrices[180]`).
+
+Parameter ids (every BFBC2 Dx9 database's records against its shaders' constant tables): 0 viewMatrix,
+2 viewProjMatrix, 6 worldViewProjMatrix, 8 worldMatrix, 22 viewportZMinMax, 23 boneMatrices / boneVectors,
+24 cameraPos, 25 time, 26 invScreenSize, 27-29 pointLightPos / Color / Radius (index = light), 30 outdoorLightDir,
+31 outdoorLightHemisphereDir, 32 outdoorLightKeyColor, 33 outdoorLightKeySpecularColorAndHemisphereVisibility,
+34 outdoorLightTopColor, 35 outdoorLightBottomColor, 36 outdoorLightShadowTransform (index = cascade),
+37 outdoorLightShadowmapSizeAndInvSize, 45 transparentStartAndEndAndClamp. DICE's tables also bind cameraPos when
+the compiler dropped it from the shader; `pcbuild.binding_table` builds a table from a compiled shader.
 
 ### Section 3: register tables
 
@@ -133,7 +149,7 @@ Then `u32 n` again (the same count) and n x 0x58-byte program keys, key i belong
 | 0x00 | guid of the entry the program belongs to (section 8.1) |
 | 0x10 | guid of a shader fragment (section 8.2), or zero |
 | 0x20 | guid of a vertex layout (section 7) |
-| 0x30 | 40 bytes: the permutation (flags, counts) |
+| 0x30 | 40 bytes: the permutation. Byte 0: the pass (0 main, 5 depth only); byte 3: the mesh kind (0 rigid, 1 bone-transformed - vehicles, weapons -, 4 skinned character, 9 destructible composite, whose `boneMatrices` hold one visibility register per part, not transforms); byte 4: 1 = instanced (stream 1 carries the instance's three world rows); byte 8 (and 14): a point light. The renderer looks a program up by the mesh part's layout and the permutation: an entry with no program for them draws with something else, silently |
 
 The keys are read into a temporary buffer, checksummed into the programs' +0x18 and freed.
 
@@ -220,8 +236,9 @@ the result draws with exactly what it drew with in its source file.
 
 ## 7. Not known
 
-- The meaning of program +0x10 / +0x14, the binding and register tables, the 40 permutation bytes of a key and the
-  0x49 bytes of a layout (all copied as they are).
+- The meaning of program +0x10 / +0x14, the register tables (Dx10/11: the samplers the engine binds - s0 the
+  shadow-map comparison sampler, s1 the default one), most permutation bytes of a key and the 0x49 bytes of a
+  layout (all copied as they are).
 - Whether the engine has limits other than the u16 program index (for example on the number of shaders), and what
   it does with an entry whose textures (named in its parameter blocks) are not in the level: neither was traced and
   no merged file has been loaded in the game.
