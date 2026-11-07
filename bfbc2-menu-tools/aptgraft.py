@@ -753,17 +753,22 @@ class Movie:
         n = self.char(cid)
         return text(n.vals[2]) if n is not None and n.vals[0] == 3 else None
 
-    def frames(self, owner=None):
-        """The frames node (2 fields per frame) of the movie or of a sprite node."""
+    def frames(self, owner=None, create=False):
+        """The frames node (2 fields per frame) of the movie or of a sprite node. A sprite without frames (frames
+        pointer 0) gets one only when create: reading must not attach an empty node - written, its pointer is not 0
+        but an address shared with the next node, and the engine's movie unload (0x1304690) reads a first frame there
+        whenever the pointer is set (the Pacific War main_nav crashed at 0x13046DA on 23 such sprites)."""
         owner = owner or self.movie
         if not isinstance(owner.vals[3], Ref):
+            if not create:
+                return Words('apt', None, [], 'frames')               # detached: nothing written
             owner.vals[3] = Ref(Words('apt', None, [], 'frames'))
         return owner.vals[3].node
 
     def items(self, frame, owner=None, create=False):
         """The item list node of a frame (created, when create, for a frame without one; an empty list read from
         the file is replaced, never appended to: several empty frames can share one)."""
-        fr = self.frames(owner)
+        fr = self.frames(owner, create=create)
         if 2 * frame + 1 >= len(fr.vals):
             if not create:
                 return None
