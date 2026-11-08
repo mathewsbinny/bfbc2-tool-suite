@@ -52,7 +52,8 @@ class Interface:
         self.interpolators = interpolators          # [usage index] the VS writes (TEXCOORDn), shared VS -> PS
         self.vs_inputs = vs_inputs or {}            # VS: usage index -> HLSL type of the PC element ('float4')
         self.material = material or {}              # name -> (x, y, z, w)
-        self.sampler_fix = sampler_fix or {}        # sampler register -> swizzle applied to fetched values ('xxxw')
+        self.sampler_fix = sampler_fix or {}        # sampler register -> swizzle applied to fetched values ('xxxw'), or
+        #                                             a wrapping expression with {} ('xsrgb({})': an sRGB view's value re-encoded)
         self.colour_scale = colour_scale
 
 
@@ -402,7 +403,9 @@ class _Emitter:
             else:
                 e = f'{tex}.Sample(sampler1, {coord})'
         fix = self.iface.sampler_fix.get(reg)
-        if fix:
+        if fix and '{}' in fix:                    # a wrapping expression, e.g. 'xsrgb({})'
+            e = fix.format(e)
+        elif fix:
             e = f'({e}).{fix}'
         self.w(f'float4 f{ins.address} = {e};')
         self.fetch_write(ins, f'f{ins.address}')
@@ -589,6 +592,7 @@ float xrsq(float a) { return a == 1.0 ? 1.0 : rsqrt(a); }
 float xrsqc(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -3.402823466e+38 : 3.402823466e+38) : t; }
 float xrsqf(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -0.0 : 0.0) : t; }
 float2 tdim(Texture2D t) { uint w, h; t.GetDimensions(w, h); return float2(w, h); }
+float4 xsrgb(float4 c) { float3 l = saturate(c.rgb); return float4(l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1.0 / 2.4) - 0.055, c.a); }
 '''.strip('\n').split('\n')
 
 
