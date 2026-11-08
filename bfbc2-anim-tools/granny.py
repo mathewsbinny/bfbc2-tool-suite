@@ -393,6 +393,38 @@ def shift_position(g, curve, delta, ramp=False):
     raise GrannyError(f'curve format {t}: moving it is not supported')
 
 
+def set_orientations(g, curve, quats):
+    """Writes one quaternion (x, y, z, w) per key into a quantized orientation curve (D4nK16uC15u / D4nK8uC7u, read
+    from g), in place; the knots (times) are kept. The curve's scale / offset selectors are set to table entry 0 for
+    every component ([-0.7071, 0.7071]: any quaternion's three smallest components fit), each key stored with its
+    largest component dropped and made positive (q and -q are the same rotation)."""
+    t = curve.get('__type__', '')
+    if not t.endswith(('D4nK16uC15u', 'D4nK8uC7u')):
+        raise GrannyError(f'curve format {t}: writing orientations is not supported')
+    wide = t.endswith('D4nK16uC15u')
+    top, unit, fmt = (0x8000, 1 / 32767, '<H') if wide else (0x80, 1 / 127, '<B')
+    mask = top - 1
+    n = len(curve['KnotsControls']) // 4
+    if len(quats) != n:
+        raise GrannyError(f'{len(quats)} quaternions for {n} keys')
+    scale, offset = SCALE_TABLE[0] * unit, OFFSET_TABLE[0]
+    sec, off = g.array_at(curve, 'KnotsControls')
+    size = 2 if wide else 1
+    for k, q in enumerate(quats):
+        q = [float(v) for v in q]
+        norm = math.sqrt(sum(v * v for v in q)) or 1.0
+        q = [v / norm for v in q]
+        i1 = max(range(4), key=lambda i: abs(q[i]))
+        if q[i1] < 0:
+            q = [-v for v in q]
+        enc = [max(0, min(mask, round((q[i] - offset) / scale))) for i in ((i1 + 1) & 3, (i1 + 2) & 3, (i1 + 3) & 3)]
+        a, b, c = enc[0], enc[1] | (top if i1 & 2 else 0), enc[2] | (top if i1 & 1 else 0)
+        for j, v in enumerate((a, b, c)):
+            g.put((sec, off + (n + 3 * k + j) * size), fmt, v)
+    g.put(g.field(curve, 'ScaleOffsetTableEntries'), '<H', 0)        # a 16-bit field (OneOverKnotScale follows)
+    return f'{n} orientation keys written'
+
+
 def sample(keys, t, default):
     if not keys:
         return default
