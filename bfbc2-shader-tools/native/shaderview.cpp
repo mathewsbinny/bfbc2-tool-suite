@@ -11,6 +11,8 @@
 //   cb <vs|ps> <file>                    ($Globals contents, slot b0)
 //   tex <slot> <2d|cube> <file>          (file: u32 w, u32 h, u32 faces, then RGBA float32 texels per face)
 //   draw
+// "blend 1" draws the next draws alpha blended (source alpha, inverse source alpha; depth tested, not written) until
+// "blend 0" (a frame starts opaque).
 // The shadow map (t0) is a 1x1 depth of 1 (lit); s0 a comparison sampler, s1 trilinear anisotropic wrap.
 #include <d3d11.h>
 #include <cstdio>
@@ -98,6 +100,17 @@ int main(int argc, char **argv) {
     D3D11_DEPTH_STENCIL_DESC dd = {}; dd.DepthEnable = TRUE; dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     dd.DepthFunc = D3D11_COMPARISON_LESS;
     ID3D11DepthStencilState *ds; check(dev->CreateDepthStencilState(&dd, &ds), "depth state");
+    dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    ID3D11DepthStencilState *dsNoWrite; check(dev->CreateDepthStencilState(&dd, &dsNoWrite), "depth state (blend)");
+    D3D11_BLEND_DESC bdesc = {};
+    bdesc.RenderTarget[0].BlendEnable = TRUE;
+    bdesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA; bdesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    bdesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    bdesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE; bdesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    bdesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    bdesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    ID3D11BlendState *alphaBlend; check(dev->CreateBlendState(&bdesc, &alphaBlend), "blend state");
+    bool blending = false;
 
     std::ifstream job(argv[1]);
     std::string line, out;
@@ -127,7 +140,9 @@ int main(int argc, char **argv) {
             check(dev->CreateDepthStencilView(depth, nullptr, &dsv), "dsv");
             ctx->ClearRenderTargetView(rtv, c);
             ctx->ClearDepthStencilView(dsv, D3D11_CLEAR_DEPTH, 1.0f, 0);
-        } else if (cmd == "vs") { std::string p; s >> p; vsc = load(p); els.clear(); texs.clear(); }
+            blending = false;
+        } else if (cmd == "blend") { int on = 0; s >> on; blending = on != 0; }
+        else if (cmd == "vs") { std::string p; s >> p; vsc = load(p); els.clear(); texs.clear(); }
         else if (cmd == "ps") { std::string p; s >> p; psc = load(p); }
         else if (cmd == "el") {
             UINT si, fmt, slot, off, inst; s >> si >> fmt >> slot >> off >> inst;
@@ -152,7 +167,9 @@ int main(int argc, char **argv) {
             ID3D11Buffer *cp = cbp.empty() ? nullptr : buffer(cbp.data(), cbp.size(), D3D11_BIND_CONSTANT_BUFFER);
             ctx->OMSetRenderTargets(1, &rtv, dsv);
             D3D11_VIEWPORT vp = {0, 0, (float)W, (float)H, 0, 1};
-            ctx->RSSetViewports(1, &vp); ctx->RSSetState(rs); ctx->OMSetDepthStencilState(ds, 0);
+            ctx->RSSetViewports(1, &vp); ctx->RSSetState(rs);
+            ctx->OMSetDepthStencilState(blending ? dsNoWrite : ds, 0);
+            ctx->OMSetBlendState(blending ? alphaBlend : nullptr, nullptr, 0xffffffff);
             ctx->IASetInputLayout(il);
             ctx->IASetVertexBuffers(0, 1, &vb, &stride, &vbOff);
             ctx->IASetIndexBuffer(ib, ibBits == 32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT, ibOff);
