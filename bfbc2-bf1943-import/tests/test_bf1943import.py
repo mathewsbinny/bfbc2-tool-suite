@@ -54,7 +54,7 @@ def units(check):
         routes = {'GrannyAnimation': 'animation to PC', 'DeltaAnimation': 'animation to PC',
                   'GrannyModel': 'skeleton to PC', 'XenonTexture': 'texture to PC',
                   'MeshData': 'not converted', 'HavokPhysicsData': 'not converted', '<non-resource>': 'not converted',
-                  'AimAnimation': 'not converted', 'Wave': 'not converted'}
+                  'AimAnimation': 'aim animation to PC', 'Wave': 'not converted'}
         check(all(bi.plan(k).startswith(v) for k, v in routes.items()), 'plan: every type routed or explained')
         src = FakeSource(os.path.join(out, 'source'))
         for args, what in ((([], os.path.join(out, 'o')), 'no filter'),

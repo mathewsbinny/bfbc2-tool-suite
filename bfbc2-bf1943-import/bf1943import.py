@@ -23,9 +23,11 @@ What is converted (PLAN):
   another order); otherwise (vehicles, props) the indices are kept and the record says so.
 - GrannyModel (skeletons): to little-endian.
 - XenonTexture: to the PC's ITexture (bfbc2-console-convert texture.convert; DXT1/3/5, BC5; 8-bit formats not yet).
+- AimAnimation (third-person aim poses): to little-endian with the bone table renumbered onto BFBC2's soldier
+  (bfbc2-anim-tools aimanim.to_pc).
 Everything else is listed with the reason it is not converted yet: MeshData and mesh sets (need PC vertex layouts
 from a shader database), Havok physics (BF1943's Havok differs from BFBC2's), DBX partitions (another game's
-data), AimAnimation (holds memory addresses; format not decoded), sounds.
+data), sounds.
 
 The game copy and the source are never written; <out> may not lie inside either.
 """
@@ -42,6 +44,7 @@ sys.path.insert(0, os.path.join(SUITE, 'bfbc2-console-convert'))
 sys.path.insert(0, os.path.join(SUITE, 'bfbc2-mesh-viewer'))
 sys.path.insert(0, os.path.join(SUITE, 'bfbc2-shader-tools'))
 from bfbc2core import errors  # noqa: E402
+import aimanim  # noqa: E402
 import granny  # noqa: E402
 
 SOLDIER = 'characters/skeletons/ske01.res'
@@ -52,7 +55,6 @@ NOT_YET = {
     'SkinnedMeshSet': 'mesh set: needs its meshes converted first',
     'CompositeMeshSet': 'mesh set: needs its meshes converted first',
     'HavokPhysicsData': "physics: BF1943's Havok differs from BFBC2's",
-    'AimAnimation': 'aim animation: holds memory addresses; format not decoded',
     'AnimTreeInfo': 'animation tree: format not decoded',
     '<non-resource>': "DBX partition: another game's data",
 }
@@ -120,6 +122,8 @@ def plan(kind):
         return 'animation to PC (bones renumbered onto BFBC2\'s soldier when it animates the soldier)'
     if kind == 'GrannyModel':
         return 'skeleton to PC'
+    if kind == 'AimAnimation':
+        return "aim animation to PC (bones renumbered onto BFBC2's soldier)"
     if kind == 'XenonTexture':
         return 'texture to PC'
     return 'not converted: ' + NOT_YET.get(kind, f'{kind}: no converter')
@@ -169,6 +173,10 @@ class Importer:
                 rec['done'] = 'animation to PC; bone indices kept (not a soldier animation)'
                 if at:
                     rec['note'] = 'its bone table indexes another skeleton: check that skeleton\'s bone order'
+        elif kind == 'AimAnimation':
+            bones, _ = self.soldier_map()
+            out = aimanim.to_pc(b, bones)
+            rec['done'] = "aim animation to PC; bone table renumbered onto BFBC2's soldier"
         elif kind == 'GrannyModel':
             out = granny.to_pc(b, None, e['name'])
             rec['done'] = 'skeleton to PC'

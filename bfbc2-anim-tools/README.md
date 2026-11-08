@@ -41,8 +41,14 @@ kept); 31 BF1943 animations convert to exactly BFBC2's copy. The pipeline that u
 
 Tests: `tests\test_granny.py` (game tier; also a big-endian header, the write refusal, and - when extracted into
 OPFOR's `work\bf1943\skeleton` - BF1943's skeleton against the PC one) and `tests\test_granny_port.py` (quick: the
-bone tables; `--game`: the Xbox corpus and BF1943). Generated aim poses (`*_generatedaimanimation`, AimAnimation) are
-another format - they hold memory addresses - and are not read or converted.
+bone tables; `--game`: the Xbox corpus and BF1943).
+
+Generated aim poses (`*_generatedaimanimation`, AimAnimation: a third-person weapon's upper body and weapon bones over
+a 5 x 5 grid of aim directions) are another format, read and written by `aimanim.py` (layout in its docstring:
+header, a (bone, kind) table, then per bone a fixed transform, one position and 25 rotations, or 25 transforms).
+`aimanim.to_pc` converts Battlefield 1943's onto BFBC2's soldier; `bfbc2-bf1943-import` uses it. Every aim pose of
+the game copy (266) reads to its exact size and writes back byte for byte, every BF1943 one (47) converts:
+`tests\test_aimanim.py` (`--game` for those).
 
 Developed for Project OPFOR BFBC2. Granny is a trademark of Epic Games (RAD Game Tools); Battlefield: Bad Company 2
 is © Electronic Arts / DICE.
