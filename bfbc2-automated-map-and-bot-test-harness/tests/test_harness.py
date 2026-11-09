@@ -402,6 +402,14 @@ def quick(check, tmp):
     check(runs.shown(here, os.path.join('C:\\', 'opfor')) == os.path.join('game', 'a.hpd')
           and runs.shown(there, os.path.join('C:\\', 'opfor')) == there,          # Windows (the harness's platform)
           'a file on another drive is logged by its full path (relpath raised ValueError and ended the run)')
+    folder = os.path.join(tmp, 'runs')
+    check(runs.path_of('my run', folder) == os.path.join(folder, 'my_run.json') and runs.path_of('x.json', folder) == 'x.json'
+          and runs.path_of('sub/x', folder) == 'sub/x', 'run names: a name in the runs folder, a path as given')
+    check(runs.spec('battery', 'random.length_ratio_median') == ('one', 0.02) and runs.spec('structure', 'x') == ('lower', 0)
+          and runs.spec('parity', 'ground') == ('higher', runs.PARITY_TOL) and runs.spec('orders', 'n') == ('count', 0)
+          and runs.spec('unknown', 'x') == ('count', 0), 'metric directions and tolerances (spec)')
+    check(runs.counts_text({'fail': 2, 'pass': 3, 'hold': 1}) == '3 ok, 2 FAIL, 1 on hold' and runs.counts_text({}) == '',
+          'status counts as text, in a fixed order')
     other = os.path.join(tmp, 'other.json')
     json.dump({'format': 'bfbc2-navtune'}, open(other, 'w'))
     try:
