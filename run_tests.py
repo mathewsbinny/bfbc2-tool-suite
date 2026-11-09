@@ -59,8 +59,10 @@ def tests():
     """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
     t = [
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
-        ('lint (ruff check, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
-        ('types (mypy, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
+        ('lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
+        ('types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
+        ('core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),
+        ('converter edges (dbx numbers, dbxport references, texture check)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_edges.py')]),
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
