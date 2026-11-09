@@ -6,6 +6,8 @@ the game copy).
   the values the game rebuilds at load (a collidable's cached bounding volume, a motion's deactivation counters and
   saved quality type, a triangle subpart's offset) and MOPP code lengths DICE rebuilt by a byte or two;
 - the Zero and Corsair, which DICE re-exported for BFBC2, convert and pair all but the subparts DICE merged;
+- model groups (mp_004, mp_005: DICE's files with the w lanes zeroed): translation.w and the shapes' aabb w lanes
+  written back as DICE's (havokport.aabb_w);
 - the WW2 side project's physics convert: Willys (and wreck), Sherman, LCVP and its shell, B-25, Ki-21, the air-raid
   bunker, the machine-gun mounts - every byte accounted for by a 5.5.0 field (the console converter's check).
 
@@ -127,6 +129,47 @@ def compare(hp, L, out, ref):
     return pairs, len(po.objects), len(pb.objects), bad
 
 
+def model_group_w(hp, K, ix, check):
+    """DICE's model-group physics of mp_004 and mp_005 with every w lane shape_subparts_to_550 writes zeroed (as
+    BF1943's 4.6.1 files have them): it writes translation.w back on every subpart as DICE's, and aabbCenter.w /
+    aabbHalfExtents.w within 0.01 (5 of the 7 shapes exactly)."""
+    given = {n: {'size': k.size, 'parent': k.parent, 'members': [
+        {'name': m.name, 'class': ('given', m.cls) if m.cls else None, 'type': m.type, 'subtype': m.subtype,
+         'carray': m.carray, 'offset': m.offset} for m in k.members]} for n, k in K.items()}
+    shapes = exact = subparts = 0
+    worst = 0.0
+    for lvl in ('mp_004', 'mp_005'):
+        for name in sorted(n for n in ix.where if n.startswith(f'levels/{lvl}/') and n.endswith('_havokasset.res')):
+            b = ix.read(name)
+            p = hp.Packfile(b, b.find(hp.MAGIC), classes=given)
+            z = bytearray(b)
+            ref = {}
+            for o in p.objects_of('hkpExtendedMeshShape'):
+                s = p.read_object(o, 'hkpExtendedMeshShape')
+                if not s['shapesSubparts']:
+                    continue
+                ref[o] = s
+                struct.pack_into('<f', z, o + havokport.HALF_EXTENTS_AT + 12, 0.0)
+                struct.pack_into('<f', z, o + havokport.CENTER_AT + 12, 0.0)
+                for k in range(len(s['shapesSubparts'])):
+                    struct.pack_into('<f', z, p.ptr[o + havokport.SUBPARTS_AT] + havokport.SUBPART_SIZE * k + 60, 0.0)
+            out = havokport.shape_subparts_to_550(bytes(z))[0]
+            q = hp.Packfile(out, out.find(hp.MAGIC), classes=given)
+            for o, s in ref.items():
+                t = q.read_object(o, 'hkpExtendedMeshShape')
+                e = max(abs(t['aabbCenter'][3] - s['aabbCenter'][3]),
+                        abs(t['aabbHalfExtents'][3] - s['aabbHalfExtents'][3]))
+                shapes += 1
+                exact += e < 1e-4
+                worst = max(worst, e)
+                subparts += sum(x['translation'][3] != y['translation'][3]
+                                for x, y in zip(t['shapesSubparts'], s['shapesSubparts']))
+    check(shapes == 7 and subparts == 0, f'model groups mp_004 / mp_005: translation.w written as DICE\'s on every '
+          f'subpart of {shapes} shapes', f'{subparts} differ')
+    check(shapes == 7 and exact >= 5 and worst < 0.01, f'model groups mp_004 / mp_005: aabb w lanes as DICE\'s '
+          f'({exact} of {shapes} exactly, the others within {worst:.4f})')
+
+
 def main():
     fails = []
 
@@ -165,6 +208,7 @@ def main():
             check(b'hkpRigidBody' in a, 'antenna banger (velocity limit 10): converted with the table')
         except Exception as e:                                   # noqa: BLE001
             check(False, 'antenna banger (velocity limit 10)', str(e))
+    model_group_w(hp, K, ix, check)
     for name in REEXPORTED:
         out = havokport.convert(src.data(name), template, K)
         pairs, n_out, n_ref, bad = compare(hp, L, out, ix.read(name))

@@ -23,6 +23,7 @@ chunk subdivision, as BFBC2's). The other classes the vehicles use have 5.5.0's 
 import os
 import struct
 import sys
+from typing import Any, cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -73,7 +74,7 @@ def ufloat8(v, table):
 MOPP_TREE_COPY = [(0, 0, 16), (24, 16, 4), (20, 52, 4)]   # header; code pointer; child shape pointer
 
 
-AABB_W = {'hkListShape', 'hkStorageExtendedMeshShape'}
+AABB_W = {'hkListShape', 'hkStorageExtendedMeshShape', 'hkExtendedMeshShape'}
 
 
 def _member_offset(classes, cls, name):
@@ -336,6 +337,47 @@ def _run_table_to_pc(b):
 
 SHAPE_MESHES = {'hkpExtendedMeshShape', 'hkpStorageExtendedMeshShape'}
 SUBPART_SIZE, SUBPARTS_AT = 64, 88       # a shape subpart's size; hkpExtendedMeshShape::shapesSubparts (pointer, count)
+TRIANGLE_SUBPARTS_AT = 80                # hkpExtendedMeshShape::trianglesSubparts (pointer, count)
+HALF_EXTENTS_AT, CENTER_AT = 48, 64      # hkpExtendedMeshShape::aabbHalfExtents, aabbCenter
+CHILDREN_AT = 16                         # ShapesSubpart::childShapes (pointer, count)
+# a convex child's local box: hkpConvexVerticesShape aabbHalfExtents / aabbCenter; hkpBoxShape halfExtents (centre 0)
+CONVEX_BOX: dict[str, tuple[int, int | None]] = {'hkpConvexVerticesShape': (32, 48), 'hkpBoxShape': (32, None)}
+CONVEX_RADIUS_AT = 16                    # hkpConvexShape::radius
+
+
+def subpart_w_lanes(q):
+    """The w lanes of the three rotation columns BFBC2's exporter builds from a shape subpart's quaternion (x, y, z,
+    w), float32: (2(xw - yz), 2(yw + xz), 0). Not part of the rotation (Havok ignores the w lanes); they are what
+    DICE's model groups' bounding boxes carry in w (aabb_w). Decoded from DICE's own files: with them the w of every
+    shape subpart's transformed child box reproduces aabbCenter.w and aabbHalfExtents.w exactly in 146 of the 299
+    model-group shapes of all BFBC2 levels, among them mp_004's three, and within 0.001 in half of them, 0.1 in 90 %,
+    1.66 at worst - the rest is not decoded (DICE's placements of those groups' objects, e.g. scaled ones, are not in
+    the file)."""
+    import numpy as np
+    x, y, z, w = (np.float32(v) for v in q)
+    two = np.float32(2)
+    return np.array([two * (x * w - y * z), two * (y * w + x * z), np.float32(0)], np.float32)
+
+
+def aabb_w(parts):
+    """(aabbCenter.w, aabbHalfExtents.w) of an extended mesh shape built of shape subparts, as Havok's
+    hkAabbUtil::calcAabb gives them in BFBC2's files: per child, its box centre turned into the subpart's frame plus
+    the translation's w (1.0), and its half extents turned with the absolute w lanes of the rotation columns
+    (subpart_w_lanes) plus the convex radius; the min / max over all children; centre = (max + min) / 2,
+    half = (max - min) / 2. parts: [(quaternion, [(centre xyz, half extents xyz, radius)])]; None when no child."""
+    import numpy as np
+    lo: Any = None
+    hi: Any = None
+    for q, children in parts:
+        cw = subpart_w_lanes(q)
+        for c, h, r in children:
+            cen = np.float32(1) + np.float32(np.dot(cw, np.asarray(c, np.float32)))
+            he = np.float32(np.abs(cw * np.asarray(h, np.float32)).sum()) + np.float32(r)
+            lo = cen - he if lo is None else min(lo, cen - he)
+            hi = cen + he if hi is None else max(hi, cen + he)
+    if lo is None:
+        return None
+    return float((hi + lo) * np.float32(0.5)), float((hi - lo) * np.float32(0.5))
 
 
 def shape_subparts_to_550(pc):
@@ -344,7 +386,11 @@ def shape_subparts_to_550(pc):
     model groups' physics (forest, middle growth, static and rigid groups: one subpart per placed object) carry them;
     left in 4.6.1's order, each object's position was read as its rotation - Wake's palms drew as sheets hundreds of
     metres long across the sky. Swapped only where the data shows it (a subpart whose 'rotation' is no unit
-    quaternion and whose 'translation' is one). Returns (bytes, subparts swapped)."""
+    quaternion and whose 'translation' is one).
+
+    The w lanes as BFBC2's exporter writes them (4.6.1's are 0): every shape subpart with children has translation.w
+    1.0 (all 277,950 such subparts of BFBC2's levels; the empty subpart Havok adds last keeps 0), and a shape built
+    of shape subparts only gets aabbCenter.w / aabbHalfExtents.w from aabb_w. Returns (bytes, subparts swapped)."""
     import numpy as np
     b = bytearray(pc)
     p = bytes(b).find(MAGIC)
@@ -372,14 +418,25 @@ def shape_subparts_to_550(pc):
         s, d = struct.unpack_from('<2I', b, o)
         if s != 0xFFFFFFFF:
             local[s] = d
+    objects = {}                                    # pointers to objects: the global fixups (into this section)
+    for o in range(base + glob, base + virt - 11, 12):
+        s, sec, d = struct.unpack_from('<3I', b, o)
+        if s != 0xFFFFFFFF:
+            objects[s] = d
     swapped = 0
+    kinds: dict[int, str] = {}
     for o in range(base + virt, base + exp - 11, 12):
         off, _, cn = struct.unpack_from('<3I', b, o)
-        if off == 0xFFFFFFFF or names.get(cn) not in SHAPE_MESHES:
+        if off != 0xFFFFFFFF:
+            kinds[off] = names.get(cn, '')
+    for off, cls in kinds.items():
+        if cls not in SHAPE_MESHES:
             continue
         arr, cnt = local.get(off + SUBPARTS_AT), struct.unpack_from('<I', b, base + off + SUBPARTS_AT + 4)[0]
         if arr is None:
             continue
+        parts: list[tuple[tuple[float, ...], list[tuple[tuple[float, ...], tuple[float, ...], float]]]] = []
+        known = True
         for k in range(cnt):
             r = base + arr + SUBPART_SIZE * k
             rot = np.frombuffer(bytes(b[r + 32:r + 48]), '<f4')
@@ -387,6 +444,30 @@ def shape_subparts_to_550(pc):
             if abs(np.linalg.norm(rot) - 1) > 1e-2 and abs(np.linalg.norm(tra) - 1) < 1e-2:
                 b[r + 32:r + 48], b[r + 48:r + 64] = bytes(tra), bytes(rot)
                 swapped += 1
+            nch = struct.unpack_from('<I', b, r + CHILDREN_AT + 4)[0]
+            if not nch:
+                continue
+            struct.pack_into('<f', b, r + 60, 1.0)                  # translation.w
+            quat = struct.unpack_from('<4f', b, r + 32)
+            children = []
+            carr = local.get(arr + SUBPART_SIZE * k + CHILDREN_AT)
+            if carr is None:
+                known = False
+            for i in range(nch if carr is not None else 0):
+                c = objects.get(cast(int, carr) + 4 * i)
+                box = CONVEX_BOX.get(kinds.get(c, '') if c is not None else '')
+                if c is None or box is None:
+                    known = False
+                    break
+                half = struct.unpack_from('<3f', b, base + c + box[0])
+                cen = struct.unpack_from('<3f', b, base + c + box[1]) if box[1] is not None else (0.0, 0.0, 0.0)
+                children.append((cen, half, struct.unpack_from('<f', b, base + c + CONVEX_RADIUS_AT)[0]))
+            parts.append((quat, children))
+        has_triangles = struct.unpack_from('<I', b, base + off + TRIANGLE_SUBPARTS_AT + 4)[0] > 0
+        w = aabb_w(parts) if known and not has_triangles else None
+        if w is not None:
+            struct.pack_into('<f', b, base + off + CENTER_AT + 12, w[0])
+            struct.pack_into('<f', b, base + off + HALF_EXTENTS_AT + 12, w[1])
     return bytes(b), swapped
 
 
