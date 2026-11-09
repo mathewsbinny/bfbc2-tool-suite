@@ -116,7 +116,7 @@ def movie_refs(code):
     """{'extern': {name: [offsets]}, 'extern_param': {...}, 'extern_write': {...}, 'fscommand': {...},
     'events': {name: [(offset, params or None, how)]}} of one movie (aptcheck.Code)."""
     streams, funcs_by_name = {}, {}
-    for ins, start, limit, depth in code.recs:
+    for ins, start, _limit, _depth in code.recs:
         streams.setdefault(start, []).append(ins)
         if ins.func and ins.func.name:
             funcs_by_name.setdefault(ins.func.name, ins.func.nparams)
@@ -135,7 +135,7 @@ def movie_refs(code):
             return funcs_by_name[name], f'function {name}'
         return None, f'handler {name}' if name else 'handler unknown'
 
-    for start, L in streams.items():
+    for L in streams.values():
         L.sort(key=lambda i: i.at)
         for k, ins in enumerate(L):
             nxt = L[k + 1] if k + 1 < len(L) else None
@@ -205,7 +205,7 @@ def scan_movies(specs, sets, root):
         movies = mc.bundle_movies(layers)
         from bfbc2core import fbrb
         by_bundle = {}
-        for name, (bundle, entry) in movies.items():
+        for _name, (bundle, entry) in movies.items():
             by_bundle.setdefault(bundle, []).append(entry)
         for bundle, entries in by_bundle.items():
             data = fbrb.read(bundle, entries)
@@ -223,7 +223,7 @@ def scan_movies(specs, sets, root):
 
 def cross_reference(found, table, cases, exe_strings):
     ids = {}
-    for name, i, va in table:
+    for name, i, _va in table:
         ids.setdefault(name, i)
     rows = {}
     for label, _, refs in found:
@@ -241,7 +241,7 @@ def cross_reference(found, table, cases, exe_strings):
         i = ids.get(name)
         case = None
         if kind == 'extern' and i is not None:
-            for key, title, _, _ in GETTERS:
+            for key, _title, _, _ in GETTERS:
                 if i in cases.get(key, {}):
                     case = f'{key} {cases[key][i]:#x}'
                     break
@@ -324,7 +324,7 @@ def main(argv):
     if cmd == 'table':
         print(f'{img.path}: {len(table)} names, table at {table[0][2]:#x}'
               + ('' if cases else ' (not build 795745: getter cases not read)'))
-        for name, i, va in table:
+        for name, i, _va in table:
             c = [f'{k} {cases[k][i]:#x}' for k, *_ in GETTERS if i in cases.get(k, {})]
             print(f'  {i:#6x}  {name:40s} {"  ".join(c)}')
         return 0

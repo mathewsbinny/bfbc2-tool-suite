@@ -188,7 +188,7 @@ class Project:
 # --- steps -----------------------------------------------------------------------------------------------
 def levels(pr, log=print):
     log('level        AI path data   NavKit')
-    for lv, d in pr.level_dirs().items():
+    for lv, _d in pr.level_dirs().items():
         ai = 'yes (samplable)' if pr.dice_pathdata(lv) else 'no'
         done = []
         if os.path.isfile(os.path.join(pr.work, 'navkit', lv, 'navkit.json')):
@@ -721,7 +721,7 @@ def _apply(pr, lv, navtune_path, out, log, target=None):
     try:
         tune = navtune.load(navtune_path)
     except ValueError as e:
-        raise NavKitError(str(e))
+        raise NavKitError(str(e)) from e
     import navlinks
     walk = [o for o in tune.operations if o['op'] in ('walkable', 'unwalkable', 'seed', 'unseed')]
     graph = [o for o in tune.operations if o['op'] in navlinks.GRAPH_OPS]

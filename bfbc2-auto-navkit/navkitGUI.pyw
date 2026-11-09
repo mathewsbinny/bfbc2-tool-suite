@@ -158,7 +158,7 @@ class App:
         try:
             [float(v) for v in vals]
         except ValueError:
-            raise ValueError('The sampling area must be numbers.')
+            raise ValueError('The sampling area must be numbers.') from None
         return ['--box', ','.join(vals[:4]), '--y', ','.join(vals[4:])]
 
     # --- running steps ---------------------------------------------------------------------------------

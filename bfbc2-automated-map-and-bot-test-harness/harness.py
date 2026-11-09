@@ -196,7 +196,7 @@ def run_level(root, lv, opts, cache, log=print):
         L['files'][key] = F
         res = F['tests']
         if 'structure' in tests:
-            res['structure'] = timed(lambda: checks.structure(hpdcheck.check(path)))
+            res['structure'] = timed(lambda path=path: checks.structure(hpdcheck.check(path)))
         if 'reachability' in tests:
             r = timed(checks.reachability, nav, sources, targets, None if key == ref_key else ref.get('reach'),
                       baseline=key == 'dice')
@@ -204,7 +204,7 @@ def run_level(root, lv, opts, cache, log=print):
             if key == ref_key:
                 ref['reach'] = r.data
         if 'battery' in tests:
-            def bat():
+            def bat(key=key, nav=nav):           # this file's (the loop's) key and data
                 if key == ref_key:
                     ref['pairs'] = {'random': list(zip(*[iter(checks.random_points(nav, 2 * opts['pairs'], opts['seed'], lv))] * 2)),
                                     'level': checks.level_pairs(sources, targets, opts['level_pairs'], opts['seed'], lv)}
@@ -219,14 +219,15 @@ def run_level(root, lv, opts, cache, log=print):
                 return checks.merge(out, names)
             res['battery'] = timed(bat)
         if 'orders' in tests:
-            r = timed(lambda: checks.orders(nav, orders, ordercheck.PathData(path).on_area,
-                                            None if key == ref_key else ref.get('orders'), baseline=key == 'dice'))
+            r = timed(lambda nav=nav, path=path, key=key: checks.orders(nav, orders, ordercheck.PathData(path).on_area,
+                                                                         None if key == ref_key else ref.get('orders'),
+                                                                         baseline=key == 'dice'))
             res['orders'] = r
             if key == ref_key:
                 ref['orders'] = r.data
         if 'offsets' in tests:
-            res['offsets'] = timed(lambda: checks.offsets(checks.sector_offsets(hpdtool.parse(open(path, 'rb').read()).sectors),
-                                                          info.assets.get('Infantry')))
+            res['offsets'] = timed(lambda path=path: checks.offsets(checks.sector_offsets(hpdtool.parse(open(path, 'rb').read()).sectors),
+                                                                    info.assets.get('Infantry')))
         if 'parity' in tests and key != 'dice' and ref_key == 'dice':
             res['parity'] = timed(parity, root, lv, path, cache)
         for t in list(res):

@@ -1457,7 +1457,7 @@ def add_mode_case(movie, func, mode, key, fallback='Missing DESC tag!! '):
             if (var.op, add.op, setr.op, pop.op, br.op) != (0xAE, 0x47, 0x87, 0x17, 0x99):
                 raise AptError(f'{func}: the fallback is not the expected shape')
 
-            def pc(t):
+            def pc(t, names=names, pool=pool):
                 if t not in names:
                     pool.vals.append(movie.const_index(('s', t.encode('latin1'))))
                     names.append(t)
@@ -1656,13 +1656,13 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
     pc_externs = {name for n in code_nodes(pc) for _, _, name in extern_reads(pc, n)}
     if pc.big or not con.big:
         raise AptError('give the PC movie (little-endian) first, then the console one (big-endian)')
-    for cid, want in ((CON_TIMER, 'onslaught_timer'), (CON_LMS, 'lastManStanding')):
+    for cid, _want in ((CON_TIMER, 'onslaught_timer'), (CON_LMS, 'lastManStanding')):
         if con.char_type(cid) != 5:
             raise AptError(f'{con.label}: character {cid} is not a sprite - not the expected console movie')
     con_place0 = {text(i.vals[13]): i for i in con.frame_items(0) if i.tag == 'place'}
     if 'lastManStanding' not in con_place0:
         raise AptError(f'{con.label}: frame 0 places no lastManStanding - not the expected console movie')
-    for key, (stream, first, end) in CON_SNIPPETS.items():
+    for _key, (stream, _first, _end) in CON_SNIPPETS.items():
         if ('apt', stream, 'c') not in con.cache:
             raise AptError(f'{con.label}: no action stream at {stream:#x} - not the expected console movie')
     names = {text(i.vals[13]) for f in range(len(pc.frames().vals) // 2) for i in pc.frame_items(f)
@@ -1689,8 +1689,9 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
         return Words('apt', None, [1, Ref(code)], 'action')
 
     # the characters
-    tid = g.char(CON_TIMER)
-    lid = g.char(CON_LMS) if lms else None
+    g.char(CON_TIMER)                    # taken into the PC movie (the ids are looked up again where used)
+    if lms:
+        g.char(CON_LMS)
     # frame 0: the banner placed (hidden); the timer hidden unless onslaught (it is placed from "playing" on)
     if lms and place:
         src = g.node(con_place0['lastManStanding'])

@@ -58,7 +58,7 @@ def main():
         if cmd == 'list':
             flt = sys.argv[3].lower() if len(sys.argv) > 3 else ''
             print(f'partition at 0x{base:X}, {len(files)} files')
-            for path, sec, sz in files:
+            for path, _sec, sz in files:
                 if flt in path.lower(): print(f'{sz:12d}  {path}')
         elif cmd == 'extract':
             out = sys.argv[3]; flt = sys.argv[4].lower() if len(sys.argv) > 4 else ''

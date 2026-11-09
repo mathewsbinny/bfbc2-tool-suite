@@ -42,7 +42,7 @@ def order_points(xml_path):
         return (v[12], v[13], v[14]) if any(abs(c) > 1e-3 for c in v[12:15]) else None
 
     pts = []
-    for guid, (typ, body) in inst.items():
+    for _guid, (typ, body) in inst.items():
         short = typ.split('.')[-1]
         if short in ('AreaOrderEntityData', 'PatrolOrderEntityData', 'InterludeOrderEntityData',
                      'FireAtAreaOrderEntityData'):
@@ -163,7 +163,7 @@ def main(argv):
         pdata = PathData(path)
         biggest = max(pdata.group_size.values(), default=0)
         res = []
-        for k, n, p in pts:
+        for _k, _n, p in pts:
             on = pdata.on_area(p)
             g, size = pdata.nearest_group(p)
             res.append((on, size))

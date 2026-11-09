@@ -6,7 +6,7 @@ import hpdtool
 for path in sys.argv[1:]:
     f = hpdtool.parse(open(path, 'rb').read())
     parent = {}
-    def find(x):
+    def find(x, parent=parent):
         while parent.setdefault(x, x) != x:
             parent[x] = parent[parent[x]]; x = parent[x]
         return x

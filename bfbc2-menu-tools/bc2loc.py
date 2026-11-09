@@ -193,7 +193,7 @@ def movie_constants_all(root):
         if not layers:
             continue
         by_bundle = {}
-        for name, (bundle, entry) in mc.bundle_movies(layers).items():
+        for _name, (bundle, entry) in mc.bundle_movies(layers).items():
             by_bundle.setdefault(bundle, []).append(entry)
         for bundle, entries in by_bundle.items():
             for entry, data in fbrb.read(bundle, entries).items():
@@ -287,7 +287,7 @@ def main(argv):
                     if r:
                         rows.append((c[1:-1], r))
             print(f'{label}: {len(rows)} localization key(s) among {len(seen)} string constants')
-            for key, (h, name, text) in sorted(rows):
+            for key, (_h, name, text) in sorted(rows):
                 print(f'  {key:40s} {text!r}' + ('   (PC text)' if name.startswith(PC_PREFIX) else ''))
         return 0
     if cmd == 'dump':

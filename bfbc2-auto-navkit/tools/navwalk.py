@@ -263,7 +263,7 @@ def stair_slope(s, mask, r=1, tol=0.7):
         if a is None and b is None and cc is None and d is None:
             continue
 
-        def diff(p, m):   # central difference, or one-sided where a neighbour is missing (narrow stairs)
+        def diff(p, m, k=k):   # central difference, or one-sided where a neighbour is missing (narrow stairs)
             if p is not None and m is not None:
                 return (p - m) / (2 * r * s.pitch)
             if p is not None:

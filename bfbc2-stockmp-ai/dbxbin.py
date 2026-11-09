@@ -136,7 +136,7 @@ class Dbx:
     # -- edits (all keep the element's kind)
     def set_attr(self, e, name, value):
         vi = self.intern(value)
-        for k, (a, v) in enumerate(e.attrs):
+        for k, (a, _v) in enumerate(e.attrs):
             if self.strings[a] == name:
                 e.attrs[k] = (a, vi)
                 return

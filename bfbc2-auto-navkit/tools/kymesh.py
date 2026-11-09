@@ -218,7 +218,7 @@ def write_mesh(mesh: Mesh) -> bytes:
         struct.pack_into('<I', out, tab + i * 4, to)
     # Patch B portal targets (offset and size of the target area).
     sizes = [len(b[0]) for b in bodies]
-    for i, (body, portal_pos) in enumerate(bodies):
+    for i, (_body, portal_pos) in enumerate(bodies):
         base = area_off[i]
         for k, p in enumerate(mesh.areas[i].portals):
             struct.pack_into('<II', out, base + portal_pos + k * 0x20 + 0x18, area_off[p.target], sizes[p.target])

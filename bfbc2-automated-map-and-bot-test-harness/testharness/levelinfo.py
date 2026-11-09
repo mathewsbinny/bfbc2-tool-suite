@@ -167,7 +167,7 @@ def ai_layer(info, data):
             c = el.child('HasAI')
             info.has_ai = (dbx.value(c) == 'true') if c is not None else None
         elif t == 'SoldierSpawnEntityData':
-            v = lambda n: (dbx.value(el.child(n)) if el.child(n) is not None else None)
+            v = lambda n, el=el: (dbx.value(el.child(n)) if el.child(n) is not None else None)
             info.spawners.append(Spawner(el.attr('guid') or '', v('Name') or '', teams.get(v('Team')), v('PlayerType') == 'SSAiPlayer',
                                          v('Enabled') == 'true', _ref_partition(el, 'Template'), _ref_partition(el, 'SoldierKit')))
         elif t == 'AreaOrderEntityData':

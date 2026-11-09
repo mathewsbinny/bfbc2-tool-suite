@@ -190,7 +190,7 @@ def reachability(nav, sources, targets, reference=None, max_parity_loss=5.0, bas
     js, jt = joins(nav, sources), joins(nav, targets)
     cache = {}
     bits = []
-    for (ns, _), s in zip(js, sources):
+    for (ns, _), _s in zip(js, sources):
         if ns is not None and ns not in cache:
             cache[ns] = reach_from(nav, ns, adj)
         for nt, _ in jt:

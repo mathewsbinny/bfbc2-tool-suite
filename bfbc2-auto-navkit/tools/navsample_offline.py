@@ -838,7 +838,7 @@ def capsule_blocked(grid, cols, ys, tris, bottoms, hf=None, radius=RADIUS, heigh
     skey = key[o]
     if len(tris):
         a = tris
-        xs, zs, yy = a[:, :, 0], a[:, :, 2], a[:, :, 1]
+        xs, zs = a[:, :, 0], a[:, :, 2]
         i0, i1 = _ranges(xs.min(1) - radius, xs.max(1) + radius, grid.min_x, grid.pitch, grid.nx)
         j0, j1 = _ranges(zs.min(1) - radius, zs.max(1) + radius, grid.min_z, grid.pitch, grid.nz)
         diff = {b: np.zeros(len(ys) + 1, np.int64) for b in bottoms}

@@ -187,7 +187,7 @@ def parse_int(s):
     try:
         return int(s, 16) if s.lower().startswith('0x') or re.fullmatch(r'[0-9A-Fa-f]{6,8}', s) else int(s, 0)
     except ValueError:
-        raise ExeRefError(f'"{s}" is not an address (hex, e.g. 0x0143375C)')
+        raise ExeRefError(f'"{s}" is not an address (hex, e.g. 0x0143375C)') from None
 
 
 def take(args, flag, default=None, has_value=True):
@@ -236,7 +236,7 @@ def main(argv):
         if data:
             print('    held in data at ' + ', '.join(f'{d:08X}' for d in data) + (' ...' if len(data) >= 10 else '')
                   + '  (a table or a vtable: exeref.py refs <that address> finds its users)')
-        for va, ins, kind in found:
+        for va, ins, _kind in found:
             print(f'    {va:08X}  {ins.mnemonic} {ins.op_str:40s} in {func_name(exe, va, syms)}')
             if dis_n:
                 for line in window(exe, va, dis_n * 4, dis_n * 4, syms):

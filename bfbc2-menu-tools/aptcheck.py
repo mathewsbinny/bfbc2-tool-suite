@@ -62,7 +62,7 @@ class Code:
         self.streams = {}
         self.funcs = []                        # (body start, body end, definition offset, name)
         last = {}
-        for ins, start, limit, depth in self.recs:
+        for ins, start, _limit, _depth in self.recs:
             self.streams.setdefault(start, set()).add(ins.at)
             if ins.func:
                 prev = last.get(start)
@@ -377,7 +377,7 @@ def cmd_check(args, opfor):
         rep = Report(f'check {label}')
         f = code.findings()
         rep.add('info', f'{len(code.by_at)} instructions, {len(code.funcs)} functions, {len(code.m.const)} constants')
-        for key, x in sorted(f.items(), key=lambda x: (x[0][0], x[0][1])):
+        for _key, x in sorted(f.items(), key=lambda x: (x[0][0], x[0][1])):
             rep.add('error', f'{x.kind}: {x.text}')     # no stock movie breaks a rule (128 checked, 2026-10-31)
         rep.show()
         errors += rep.errors

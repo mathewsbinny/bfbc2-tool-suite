@@ -434,7 +434,7 @@ class CullTree:
             mx = struct.unpack('>f', v['Max'][1])[0]
             keys = [struct.unpack('>H', v['SphereKey' + a][1][:2])[0] for a in 'XYZW']
         except KeyError as e:
-            raise CullTreeError(f'a cull tree node has no field {e}')
+            raise CullTreeError(f'a cull tree node has no field {e}') from e
         return (right, mx, *keys)
 
     @property

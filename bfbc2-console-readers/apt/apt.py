@@ -282,7 +282,7 @@ class Movie:
         finally:
             self.sink = None
         depth = {}                                 # a stream's depth: 0 for the streams that no function contains
-        for ins, start, limit, _ in recs:
+        for ins, start, _limit, _ in recs:
             depth.setdefault(start, 0)
             if ins.func:
                 depth[ins.func.body] = depth[start] + 1

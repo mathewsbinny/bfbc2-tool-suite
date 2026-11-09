@@ -400,13 +400,13 @@ def build_loc():
              'JP': b'\x80\x85\x83'}
     items = sorted((bc2loc.khash(k), v) for k, v in texts.items())
     strings, offs = bytearray(), []
-    for h, v in items:
+    for _h, v in items:
         offs.append(len(strings))
         strings += v + b'\0'
     table_off = 0x1C
     strings_off = table_off + 8 * len(items)
     body = bytearray(b'NORMAL'.ljust(16, b'\0'))
-    for (h, v), o in zip(items, offs):
+    for (h, _v), o in zip(items, offs):
         body += struct.pack('<II', h, o)
     body += strings
     data = struct.pack('<5I', 0x39000, 20 + len(body) - 8 + 0, len(items), table_off, strings_off) + body
@@ -433,7 +433,7 @@ def game(c):
             continue
         from bfbc2core import fbrb
         by_bundle = {}
-        for name, (bundle, entry) in mc.bundle_movies(layers).items():
+        for _name, (bundle, entry) in mc.bundle_movies(layers).items():
             by_bundle.setdefault(bundle, []).append(entry)
         for bundle, entries in by_bundle.items():
             for entry, data in fbrb.read(bundle, entries).items():
@@ -457,7 +457,7 @@ def game(c):
             'aptrefs: getter cases (platform -> 0x95B7D3, editableInputList -> 0x95AF2E)')
     found = aptrefs.scan_movies(['main_root'], None, root) + aptrefs.scan_movies(None, {'mp_hud'}, root)
     ev = {}
-    for label, name, refs in found:
+    for _label, _name, refs in found:
         for n, uses in refs['events'].items():
             ev.setdefault(n, set()).update(u[1] for u in uses)
     c.check(ev.get('presenceLoginAccount') == {2} and ev.get('serverSystemMessage') == {3} and ev.get('uInt') == {1},

@@ -531,7 +531,7 @@ def game(check, tmp):
     bad = os.path.join(tmp, 'broken', 'sp_009.hpd')
     os.makedirs(os.path.dirname(bad))
     open(bad, 'wb').write(hpdtool.write(f))
-    r3 = harness('run', 'g3', '--levels', 'sp_009', '--navkit', bad.replace('sp_009.hpd', '{lv}.hpd'),
+    harness('run', 'g3', '--levels', 'sp_009', '--navkit', bad.replace('sp_009.hpd', '{lv}.hpd'),
                  '--tests', 'structure,reachability,battery,orders,offsets')
     r4 = harness('compare', 'g1', 'g3')
     check(r4.returncode == 1 and 'worse' in r4.stdout and 'sp_009 navkit' in r4.stdout,

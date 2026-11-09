@@ -89,7 +89,7 @@ class Index:
             pass
         print('indexing the game copy (once; cached) ...', file=sys.stderr)
         self.where, self.parts, self.entries = {}, {}, {}
-        for lv, b in bundles:
+        for _lv, b in bundles:
             try:
                 ents = fbrb.entries(b)
             except Exception:                                   # noqa: BLE001 - an unreadable bundle is skipped

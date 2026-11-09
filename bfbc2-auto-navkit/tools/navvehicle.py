@@ -735,7 +735,7 @@ def build_level(root, lv, out_path=None, sectors='reference', seeds_kind=SEED_KI
         import navparity
         xml = open(navparity.level_xml(root, lv), encoding='utf-8', errors='replace').read()
     except Exception as e:                                   # noqa: BLE001 - reported, the build needs seeds
-        raise RuntimeError(f'{lv}: level XML not found ({e}); run navkit.py prepare {lv}')
+        raise RuntimeError(f'{lv}: level XML not found ({e}); run navkit.py prepare {lv}') from e
     spawns = vehicle_spawns(xml)
     pts = [sp_['pos'] for sp_ in spawns if sp_['kind'] in seeds_kind or 'all' in seeds_kind]
     roads = road_points(xml) if SEED_ROADS else []

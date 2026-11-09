@@ -162,7 +162,7 @@ def islands(reference, candidate, clip=None, drop=None):
            'large_reference': sum(1 for v in R.group_size.values() if v >= 25),
            'large_candidate': sum(1 for v in C.group_size.values() if v >= 25)}
     grid = defaultdict(list)
-    for k, (nid, p) in enumerate(C.nodes):
+    for k, (_nid, p) in enumerate(C.nodes):
         grid[(math.floor(p[0] / NEAR), math.floor(p[2] / NEAR))].append(k)
     table = Counter()
     matched = 0

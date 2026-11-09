@@ -252,7 +252,7 @@ def console_menu_checks(c, u3, work):
     c.check(sum('unreadable' in l for l in text) <= 1 and len(text) > 80000, 'console main_nav: dumped in full',
             f'{len(text)} lines')
     shape = None
-    for cid, cp, t in mv.characters():
+    for _cid, cp, t in mv.characters():
         if t == 5:
             fptr = mv.u(cp + 12)
             for fr in range(mv.u(cp + 8)):

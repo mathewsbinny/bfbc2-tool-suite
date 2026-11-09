@@ -546,7 +546,7 @@ def trace_edges(level, areas, area_of, gi0, gj0):
 
 def drop_one_way(per_area, one_way, keep):
     """One-way candidates (trace_edges) not in keep (indices) become outline on their source area."""
-    for n, (src, t, key, along) in enumerate(one_way):
+    for n, (src, _t, key, along) in enumerate(one_way):
         if n in keep:
             continue
         se = per_area[src]
@@ -586,7 +586,7 @@ def restore_one_way(sectors, shared):
     keep = defaultdict(set)
     by_pair = defaultdict(list)
     for sec, (_per_area, one_way) in sectors.items():
-        for n, (src, t, key, along) in enumerate(one_way):
+        for n, (src, t, _key, _along) in enumerate(one_way):
             by_pair[(sec, src, t)].append(n)
     for (sec, src, t), ns in sorted(by_pair.items()):
         if find((sec, src)) != find((sec, t)):
@@ -651,7 +651,7 @@ def detail_pass(level, areas, per_area, ox, oz, gi0=None, gj0=None):
                 return a in ks and b in ks and bool(terrain[ks[a]]) and bool(terrain[ks[b]])
         linked = {(key[2], key[3], key[4], r[0]) for key, rows in edges.items() if key[0] in ('B', 'C') for r in rows}
 
-        def eligible(i, j, di, dj):     # neither of the two cells has a portal or border portal on the side
+        def eligible(i, j, di, dj, linked=linked):     # neither of the two cells has a portal or border portal on the side
             return (('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)) not in linked and \
                 (('x', i + di * 0.5, -di, j) if di else ('z', j + dj * 0.5, -dj, i)) not in linked
         broken, lines, fcells = navdetail.detail_features(cells, PITCH, ox, oz, step, eligible, half, breakable,
@@ -728,7 +728,7 @@ def trace_emit(level, areas, per_area, gi0, gj0, ox, oz):
             if key[0] == 'E':
                 axis, line = key[2], key[3]
                 edges[key] = [r for r in edges[key] if (axis, line, r[0]) not in drop]
-        for (kind, target, axis, line, d), runs in edges.items():
+        for (kind, target, axis, line, _d), runs in edges.items():
             runs.sort()
             start = 0
             for r in range(1, len(runs) + 1):
@@ -1185,7 +1185,7 @@ def merge_detailed(a, detailed, xoff, zoff, seeds, common, log):
                                                       if s_ in mine}, X, Y)
             cross = cross_grid_resolver(here, there, X, Y)
             mesh.links = sector_links(X, Y, areas, mesh.areas,
-                                      lambda other, ar, bd, s=same, c=cross: s(other, ar, bd) if other in mine else c(other, ar, bd))
+                                      lambda other, ar, bd, s=same, c=cross, mine=mine: s(other, ar, bd) if other in mine else c(other, ar, bd))
     merged = []
     for sec in sorted(set(a_norm) | set(b_det)):
         sid, bnd, mesh, pts_, pairs, origin = a_norm[sec] if sec in a_norm else b_det[sec]

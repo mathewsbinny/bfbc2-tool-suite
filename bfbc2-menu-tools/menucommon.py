@@ -147,7 +147,7 @@ def movie_from_members(members, label='movie'):
     try:
         return apt.Movie(data=(name, members[aptname], members[const]))
     except (ValueError, struct.error) as e:
-        raise MenuToolError(f'{label} is not a readable APT movie: {e}')
+        raise MenuToolError(f'{label} is not a readable APT movie: {e}') from e
 
 
 # ------------------------------------------------------------------------------------------------ patch files
@@ -301,7 +301,7 @@ class PEImage:
         return None
 
     def va(self, off):
-        for _, sva, vs, ra, rs, _ in self.sections:
+        for _, sva, _vs, ra, rs, _ in self.sections:
             if ra <= off < ra + rs:
                 return sva + off - ra
         return None
@@ -329,7 +329,7 @@ class PEImage:
         import re
         out = {}
         pat = re.compile(rb'[\x20-\x7e]{%d,}(?=\x00)' % minimum)
-        for _, sva, vs, ra, rs, _ in self.data_sections():
+        for _, sva, _vs, ra, rs, _ in self.data_sections():
             for m in pat.finditer(self.b, ra, ra + rs):
                 starts = [m.start()] + [o for o in range((m.start() + 4) & ~3, m.end() - minimum + 1, 4) if o != m.start()]
                 for o in starts:
@@ -339,7 +339,7 @@ class PEImage:
     def find_cstring(self, text):
         """The virtual addresses of the C string text (whole string) in the data sections."""
         out, pat = [], b'\0' + text.encode('ascii') + b'\0'
-        for _, sva, vs, ra, rs, _ in self.data_sections():
+        for _, sva, _vs, ra, rs, _ in self.data_sections():
             j = self.b.find(pat, ra, ra + rs)
             while j >= 0:
                 out.append(sva + j + 1 - ra)
