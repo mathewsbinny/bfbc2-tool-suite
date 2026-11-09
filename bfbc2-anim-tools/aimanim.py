@@ -22,6 +22,7 @@ All numbers 32-bit floats. Nothing else (the "memory addresses" the importer lis
 """
 import struct
 import sys
+from typing import Any
 
 KIND_NAMES = {0: 'fixed', 1: 'rotation', 2: 'moving'}
 
@@ -49,6 +50,7 @@ def parse(b, big_endian=False):
     o = _data_at(nb)
     f4 = lambda at: struct.unpack_from(e + '4f', b, at)                                 # noqa: E731
     bones = []
+    block: tuple[Any, Any] | list[tuple[Any, Any]]
     for bone, kind in table:
         if kind == 0:
             block = (f4(o), f4(o + 16))

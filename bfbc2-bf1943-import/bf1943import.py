@@ -35,6 +35,7 @@ import hashlib
 import json
 import os
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
@@ -91,6 +92,8 @@ class Source:
             raise Bf1943ImportError(f'no BF1943 source folder at {folder} (pass --source: the extracted dist\\xenon folder)')
         self.folder = os.path.abspath(folder)
         fb = fbrb1943()
+        self.bundles: dict[str, Any]
+        self.entries: dict[str, tuple[str, dict[str, Any]]]
         self.bundles, self.entries = {}, {}
         for dp, _, fs in os.walk(self.folder):
             for f in sorted(fs):
@@ -263,6 +266,8 @@ def check(source, opfor=None, log=print):
     imp = Importer(source, opfor)
     bones, names = imp.soldier_map()
     pc_names = None
+    fails: list[str]
+    counts: dict[str, int]
     fails, counts = [], {}
     for k, (_rel, e) in sorted(source.entries.items()):
         if e['type'] not in ANIMATIONS + ('GrannyModel',):

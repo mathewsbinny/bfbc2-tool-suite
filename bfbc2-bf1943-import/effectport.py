@@ -24,6 +24,7 @@ How it is ported:
 import os
 import re
 import sys
+from typing import cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
@@ -113,10 +114,10 @@ def templates(ix, types):
 def check_defaults(data, report):
     f = dbx.parse(data)
     for inst in f.instances:
-        t = inst.attr('type').split('.')[-1]
+        t = cast(str, inst.attr('type')).split('.')[-1]
         for (tt, fld), want in DEFAULTS.items():
             if t == tt and inst.child(fld) is not None:
-                got = dbx.value(inst.child(fld))
+                got = dbx.value(cast(dbx.Element, inst.child(fld)))
                 if got != want:
                     report.append(f'DEFAULT {t}.{fld} = {got}, DICE usually {want}')
 
@@ -154,7 +155,7 @@ def port(src, ix, effect, level, shared=None, plan=None):
               f'{sum(k == "texture" for _, _, k in plan)} textures, {sum(k == "bfbc2" for _, _, k in plan)} kept as '
               f'BFBC2\'s, {sum(k == "missing" for _, _, k in plan)} missing; templates {pool}']
     if missing:
-        report.append(f'types no BFBC2 template holds (kept as BF1943 has them): {sorted(missing)}')
+        report.append(f'types no BFBC2 template holds (kept as BF1943 has them): {sorted(cast('set[str]', missing))}')
     ours = {n for n, _, k in plan if k in ('port', 'texture', 'sound')}     # 'sound': the caller ports it
     bc2 = {n[:-4] for n in ix.where if n.endswith('.dbx')}
     resolve = lambda q: q.lower() in ours or q.lower() in bc2 or q.lower() == 'textures/effects/emittersystem/defaultnormalmap'  # noqa: E731

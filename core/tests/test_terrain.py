@@ -40,7 +40,7 @@ def check(root, lv, samples):
 
 def main(argv):
     root = navkit.find_opfor(None)
-    found = {}
+    found: dict[str, str] = {}
     for f in sorted(glob.glob(os.path.join(root, 'work', 'navsample', '*.bin'))):
         name = os.path.basename(f)
         for suffix in ('_navkit.bin', '_full.bin'):

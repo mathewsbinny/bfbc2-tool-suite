@@ -38,7 +38,7 @@ def pc_folder(root):
 
 
 def index(kind, console):
-    out = {}
+    out: dict[str, str] = {}
     for root, _, files in os.walk(WORK):
         if 'fbrb.manifest' not in files or not (console_folder(root) if console else pc_folder(root)):
             continue
@@ -63,7 +63,7 @@ def formats_5_13(fails):
     from bfbc2core import fbrb
     import numpy as np
     want = set(TWINS_5_13)
-    found = {'x': {}, 'p': {}}
+    found: dict[str, dict[str, tuple[str, str]]] = {'x': {}, 'p': {}}
     for tag, pat in (('x', os.path.join(WORK, 'xbox', '**', '*.fbrb')), ('p', os.path.join(OPFOR, 'game', '**', '*.fbrb'))):
         for path in glob.glob(pat, recursive=True):
             try:
@@ -103,7 +103,7 @@ def formats_5_13(fails):
 
 
 def main():
-    fails5 = []
+    fails5: list[str] = []
     formats_5_13(fails5)
     for f in fails5:
         print('FAIL', f)
@@ -113,7 +113,7 @@ def main():
     fails = []
     con = index('XenonTexture', True)
     pc = index('ITexture', False)
-    done = collections.Counter()
+    done: collections.Counter[str] = collections.Counter()
     for rel, p in con.items():
         b = open(p, 'rb').read()
         fmt = struct.unpack_from('>I', b, 8)[0]
@@ -134,7 +134,7 @@ def main():
             done['converted'] += 1
         except texture.ConvertError as e:
             fails.append(f'{rel}: {e}')
-    checked = collections.Counter()
+    checked: collections.Counter[str] = collections.Counter()
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()
         cf = struct.unpack_from('>I', c, 8)[0]

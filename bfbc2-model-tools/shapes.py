@@ -6,6 +6,7 @@ Units are metres in the model's space (Bad Company 2 weapons: +z along the barre
 is (u0, v0, u1, v1) on the texture; where an axis maps to a rect, the first value goes to the rect's first edge.
 """
 import math
+from typing import Any
 
 import numpy as np
 
@@ -98,6 +99,10 @@ def lathe(profile, center, rect, segments=16, wraps=1.0, start=0.0, closed=False
         seg_len.append(seg_len[-1] + math.hypot(z1 - z0, r1 - r0))
     total = seg_len[-1] or 1.0
     u0, v0, u1, v1 = rect
+    pos: list[tuple[Any, Any, Any]]
+    nrm: list[tuple[float, float, float]]
+    uv: list[tuple[Any, Any]]
+    tris: list[tuple[int, int, int]]
     pos, nrm, uv, tris = [], [], [], []
     cx, cy = center
     # one ring of vertices per profile segment end (hard edges between segments)
@@ -133,6 +138,7 @@ def _triangulate(poly):
     def cross(o, a, b):
         return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
 
+    out: list[tuple[int, ...]]
     out, guard = [], 0
     while len(idx) > 3 and guard < 10000:
         guard += 1

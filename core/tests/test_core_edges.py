@@ -14,6 +14,7 @@ import sys
 import tempfile
 import threading
 import types
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..'))
@@ -41,10 +42,14 @@ def main(argv):
         w = water.read(tmp, 'MP_005')
         check(w is not None and len(w.triangles) == 1, 'water.read: the terrain name in any case')
 
-        calls = []
-        fake = types.ModuleType('tkinter')
+        calls: list[str] = []
+        fake: Any = types.ModuleType('tkinter')
         fake._default_root = None
-        fake.Tk = lambda: calls.append('Tk') or types.SimpleNamespace(withdraw=lambda: None, destroy=lambda: None)
+
+        def fake_tk() -> types.SimpleNamespace:
+            calls.append('Tk')
+            return types.SimpleNamespace(withdraw=lambda: None, destroy=lambda: None)
+        fake.Tk = fake_tk
         fake.messagebox = types.SimpleNamespace(showerror=lambda *a, **k: calls.append('showerror'),
                                                 showwarning=lambda *a, **k: calls.append('showwarning'))
         saved = sys.modules.get('tkinter'), sys.modules.get('tkinter.messagebox')

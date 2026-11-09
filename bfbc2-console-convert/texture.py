@@ -75,7 +75,7 @@ def layout(w, h, mips, fmt, slices=1):
     bw, bh = blocks(w), blocks(h)
     base_pitch = _align(bw, 32)
     base_size = _align(base_pitch * _align(bh, 32) * bpb, 4096)
-    where = [[None] * mips for _ in range(slices)]
+    where: list[list[tuple[int, ...] | None]] = [[None] * mips for _ in range(slices)]
     pos = base_size * slices
     tail = None                                           # (start, pitch, size)
     for m in range(mips):

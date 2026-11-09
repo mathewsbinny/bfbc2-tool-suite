@@ -27,8 +27,8 @@ class Templates:
     carries all its fields, so one is enough). Folders of unpacked bundles, .dbx files, or (name, bytes) pairs."""
 
     def __init__(self, sources):
-        self.by_type = {}
-        self.where = {}
+        self.by_type: dict[str, dbx.Element] = {}
+        self.where: dict[str, str] = {}
         for s in sources:
             items = []
             if isinstance(s, tuple):

@@ -32,7 +32,7 @@ SFX = ['sound/beach_sfx/weapons/', 'sound/beach_sfx/vehicles/', 'sound/explosion
 
 def waves(pattern):
     """{lower-case name: bytes} of every Wave resource in the bundles (one read per bundle)."""
-    where = {}
+    where: dict[str, tuple[str, str]] = {}
     for p in glob.glob(pattern, recursive=True):
         try:
             entries = fbrb.entries(p)
@@ -220,6 +220,7 @@ def main():
         print(f'SKIP Battlefield 1943: {e}')
         return 1 if fails else 0
     ks = sorted(k for k, (_, e) in src.entries.items() if e.get('type') == 'Wave')
+    stats: collections.Counter[tuple[int, int, bool, int] | str]
     ws, bad, stats = {}, [], collections.Counter()
     for k in ks:
         try:
@@ -263,11 +264,11 @@ def main():
         good &= w.intro == segs[0] and w.outro == segs[2]
         d = np.vstack([audio.ffmpeg_decode_xas(st) for st in sts])
         s = snr(a, d)
-        bound = f', the format\'s bound {best_xas_snr(a):.1f} dB' if s < 30 else ''
+        bound_note = f', the format\'s bound {best_xas_snr(a):.1f} dB' if s < 30 else ''
         check(good and len(d) == len(a) and s > 20 and corr(a, d) > 0.99,
               f'Battlefield 1943 {k.split("/")[-1]}: {w.channels} ch {rate} Hz, {len(a)} samples '
               f'{"(streamed) " if streams else ""}{"segments " + str(segs) + " " if segs[0] or segs[2] else ""}-> PC '
-              f'Wave {len(pc)} bytes; ffmpeg\'s adpcm_ea_xas vs the XMA decode: SNR {s:.1f} dB{bound}, correlation '
+              f'Wave {len(pc)} bytes; ffmpeg\'s adpcm_ea_xas vs the XMA decode: SNR {s:.1f} dB{bound_note}, correlation '
               f'{corr(a, d):.5f}')
     return 1 if fails else 0
 

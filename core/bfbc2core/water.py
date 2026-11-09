@@ -23,7 +23,6 @@ VisualWater (the drawing copy; only the parts used here):
 import os
 import struct
 from dataclasses import dataclass
-from typing import List, Optional
 
 import numpy as np
 
@@ -32,17 +31,19 @@ import numpy as np
 class Water:
     vertices: np.ndarray                  # (n, 3) float32
     triangles: np.ndarray                 # (m, 3) uint32
-    shader: Optional[List[str]] = None    # per triangle, from the VisualWater ranges; None if they do not match
-    shaders: Optional[List[str]] = None   # the VisualWater slots
+    shader: list[str] | None = None       # per triangle, from the VisualWater ranges; None if they do not match
+    shaders: list[str] | None = None      # the VisualWater slots
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.triangles)
 
 
-def read_mesh(path):
+def read_mesh(path: str) -> tuple[np.ndarray, np.ndarray]:
     """(vertices, triangles) of every body in a .Water.Mesh.res, bodies joined."""
     d = open(path, 'rb').read()
     bodies = struct.unpack_from('<I', d, 0)[0]
+    verts: list[np.ndarray]
+    tris: list[np.ndarray]
     o, verts, tris = 4, [], []
     base = 0
     for _ in range(bodies):
@@ -61,7 +62,7 @@ def read_mesh(path):
             np.concatenate(tris) if tris else np.zeros((0, 3), np.uint32))
 
 
-def read_visual(path):
+def read_visual(path: str) -> tuple[np.ndarray, list[str], list[tuple[int, ...]]]:
     """(indices, slot shader paths, ranges [(slot, triangles, first index, index count)]) of a .Water.res."""
     d = open(path, 'rb').read()
     _, stride, size = struct.unpack_from('<3I', d, 0)
@@ -71,7 +72,7 @@ def read_visual(path):
     o += 4 + ib
     slots = struct.unpack_from('<I', d, o)[0]
     o += 4
-    names = []
+    names: list[str] = []
     for _ in range(slots + 1):                 # the slots, then the fragment shader
         e = d.index(b'\0', o)
         names.append(d[o:e].decode('ascii', 'replace'))
@@ -83,8 +84,10 @@ def read_visual(path):
     return indices, names[:slots], ranges
 
 
-def read(folder, name):
+def read(folder: str, name: str) -> Water | None:
     """The water of terrain <name> under an unpacked terrain-00.fbrb (None if it has no water files)."""
+    mesh: str | None
+    visual: str | None
     mesh = visual = None
     name = name.lower()                          # any case of the terrain name
     for root, _, files in os.walk(folder):

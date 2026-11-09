@@ -95,6 +95,8 @@ def xbox_corpus(check, root):
         pc_names = fbrb.names(bundles[0])
         common = sorted(k for k in xb if k in pc_names)
         pcs = fbrb.read(bundles[0], common)
+        counts: dict[str, int]
+        fails: list[str]
         counts, fails, skipped = {}, [], 0
         for k in common:
             x = open(os.path.join(xdir, *xb[k][0].split('/')), 'rb').read()

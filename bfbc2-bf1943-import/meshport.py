@@ -22,6 +22,7 @@ Thompson differs in 1.8 % of its vertices, which DICE moved for BFBC2.
 import os
 import re
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
@@ -133,7 +134,7 @@ class Porter:
     def port(self, name, donors=()):
         kind = self.kind(name)
         soldier = self.skinned_to_soldier(name)
-        bones = self.bones() if soldier else None
+        bones: Any = self.bones() if soldier else None          # a soldier's bone map, used only for soldiers
         lods, plan, notes, pc_layouts = [], {'mesh': name, 'kind': kind, 'skinned_to_soldier': soldier, 'parts': {}}, [], []
         for lod in range(16):
             key = f'{name}_lod{lod}_data.res'.lower()

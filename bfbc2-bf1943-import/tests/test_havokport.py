@@ -105,7 +105,7 @@ def compare(hp, L, out, ref):
             ta, tb = po.ptr.get(A), pb.ptr.get(B)
             if ta in oo and tb in ob:
                 todo.append((ta, tb))
-    bad = collections.Counter()
+    bad: collections.Counter[str] = collections.Counter()
     for (a, b), cls in pairs.items():
         for name, off, size in L.fields(cls):
             if any(r in name for r in RUNTIME):

@@ -50,6 +50,7 @@ import os
 import struct
 import sys
 import zlib
+from typing import Any
 
 MAGIC = bytes.fromhex('29DE6CC0BAA4532B25F5B7A5F666E2EE')
 MAGIC_BE = bytes.fromhex('B595110E4BB5A56A502828EB04B37825')     # the same format, 32-bit big-endian
@@ -643,6 +644,8 @@ def animations(g):
 
 
 def main(argv):
+    args: list[str]
+    opts: dict[str, Any]                       # --ramp: True; other options: their value (None when it is missing)
     args, opts = [], {}
     it = iter(argv[1:])
     for a in it:

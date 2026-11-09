@@ -15,6 +15,7 @@ reached by collapsing large shapes. A collapse that would turn a triangle over (
 refused. Open edges (the rims of open surfaces) weigh as planes across them, so outlines keep their shape.
 """
 import heapq
+from typing import Any
 
 import numpy as np
 
@@ -38,11 +39,11 @@ def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0, max_cost=No
     npts = key.max() + 1
     ppos = np.zeros((npts, 3))
     ppos[key] = pos
-    wedges = [set() for _ in range(npts)]
+    wedges: list[set[int]] = [set() for _ in range(npts)]
     for w, k in enumerate(key):
         wedges[k].add(w)
     alive = np.ones(len(tris), bool)
-    vt = [set() for _ in range(len(pos))]                 # wedge -> triangles
+    vt: list[set[int]] = [set() for _ in range(len(pos))]                 # wedge -> triangles
     for t, (a, b, c) in enumerate(tris):
         vt[a].add(t)
         vt[b].add(t)
@@ -56,7 +57,7 @@ def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0, max_cost=No
 
     # quadrics: triangle planes, and planes across open edges
     Q = np.zeros((npts, 4, 4))
-    edges = {}
+    edges: dict[tuple[Any, Any], list[int]] = {}
     for t, (a, b, c) in enumerate(tris):
         q = _plane_quadric(pos[a], pos[b], pos[c])
         for w in (a, b, c):
@@ -78,7 +79,7 @@ def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0, max_cost=No
             q = np.outer(pl, pl) * boundary_weight * np.dot(d, d)
             Q[p0] += q
             Q[p1] += q
-    nbr = [set() for _ in range(npts)]
+    nbr: list[set[Any]] = [set() for _ in range(npts)]
     for p0, p1 in edges:
         if p0 != p1:
             nbr[p0].add(p1)
@@ -89,7 +90,7 @@ def decimate(pos, nrm, uv, tris, bone, target, boundary_weight=10.0, max_cost=No
         x = np.append(ppos[v], 1.0)
         return float(x @ (Q[u] + Q[v]) @ x)
 
-    heap = []
+    heap: list[tuple[float, Any, Any, Any, Any]] = []
 
     def push(u):
         for v in nbr[u]:

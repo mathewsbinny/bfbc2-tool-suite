@@ -7,6 +7,13 @@ translate(sh, iface) -> HLSL source with entry point 'main'. iface (Interface) t
 provides: the vertex inputs (VS), the interpolators shared by the VS and PS, material constant values, and per-sampler
 fix-ups. Engine constants keep their names (pcbuild binds them by name).
 """
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from xenos import Obj
 
 
 FLT_MAX = '3.402823466e+38'
@@ -41,11 +48,12 @@ class TranslateError(Exception):
 
 
 class Interface:
-    def __init__(self, interpolators, vs_inputs=None, material=None, sampler_fix=None, colour_scale=1.0,
-                 instanced=False, bones_as_world=False):
+    def __init__(self, interpolators: Sequence[int], vs_inputs: dict[int, str] | None = None,
+                 material: dict[str, Any] | None = None, sampler_fix: dict[int, str] | None = None,
+                 colour_scale: float = 1.0, instanced: bool = False, bones_as_world: bool = False) -> None:
         self.bones_as_world = bones_as_world        # BFBC2 composite (kind 9): parts drawn with the world transform
         self.trace_nan = False                      # debug: output the first instruction whose result is NaN / inf
-        self.probe = None                           # debug: [constant expressions] drawn as bit bars (PROBE_*)
+        self.probe: list[str] | None = None         # debug: [constant expressions] drawn as bit bars (PROBE_*)
         self.instanced = instanced                  # VS: the world transform comes per instance (BFBC2 stream 1)
         self.interpolators = interpolators          # [usage index] the VS writes (TEXCOORDn), shared VS -> PS
         self.vs_inputs = vs_inputs or {}            # VS: usage index -> HLSL type of the PC element ('float4')
@@ -55,7 +63,7 @@ class Interface:
         self.colour_scale = colour_scale
 
 
-def _f(v):
+def _f(v: float) -> str:
     if v != v:
         return '0.0'
     if v in (float('inf'), float('-inf')):
@@ -65,25 +73,32 @@ def _f(v):
 
 
 class _Emitter:
-    def __init__(self, sh, iface):
+    samplers: dict[int, tuple[str, str, str]]   # sampler register -> (texture name, HLSL type, constant name)
+    vfetch_element: dict[int, int]              # vfetch slot -> TEXCOORD usage index
+    block_pred: bool | None
+    pred_written: bool
+    cube_dir_set: bool
+    need_world: bool
+
+    def __init__(self, sh: Obj, iface: Interface) -> None:
         self.sh, self.iface = sh, iface
         self.ps = sh.is_pixel
-        self.lines = []
+        self.lines: list[str] = []
         self.depth = 1
         self.cube_dir = None
-        self.cmap = {}            # const register -> expression of a float4
-        self.globals_ = []        # cbuffer declarations
-        self.statics = []
-        self.textures = []
-        self.used_regs = set()
+        self.cmap: dict[int, str] = {}  # const register -> expression of a float4
+        self.globals_: list[str] = []   # cbuffer declarations
+        self.statics: list[str] = []
+        self.textures: list[str] = []
+        self.used_regs: set[int] = set()
 
-    def w(self, s):
+    def w(self, s: str) -> None:
         self.lines.append('    ' * self.depth + s)
 
     # ---------------------------------------------------------------- declarations
-    def constants(self):
+    def constants(self) -> None:
         ct = self.sh.ctab.constants if self.sh.ctab else []
-        declared = set()
+        declared: set[str] = set()
         for c in ct:
             if c.regset != 'float4':
                 continue
@@ -130,7 +145,7 @@ class _Emitter:
             self.samplers[c.reg] = (tex, typ, name)
 
     # ---------------------------------------------------------------- operands
-    def const(self, idx, rel):
+    def const(self, idx: int, rel: str | None) -> str:
         if rel:
             if rel != 'a0':
                 raise TranslateError(f'loop-relative constant addressing (c[{idx}+{rel}])')
@@ -145,11 +160,11 @@ class _Emitter:
             raise TranslateError(f'relative constant addressing c[{idx}+a0] outside an engine array')
         return self.cmap.get(idx, 'float4(0.0, 0.0, 0.0, 0.0)')
 
-    def reg(self, i):
+    def reg(self, i: int) -> str:
         self.used_regs.add(i)
         return f'r{i}'
 
-    def operand(self, o, swz=None):
+    def operand(self, o: Obj, swz: str | None = None) -> str:
         if o.file == 'temp':
             if o.rel:
                 raise TranslateError('relative temp addressing is not supported')
@@ -165,7 +180,7 @@ class _Emitter:
         return e
 
     # ---------------------------------------------------------------- ALU
-    def vector(self, ins):
+    def vector(self, ins: Obj) -> str:
         op = ins.vector_op
         a = [self.operand(o) for o in ins.vector_operands]
         if op == 'add':
@@ -218,7 +233,7 @@ class _Emitter:
             return f'max({a[0]}, {a[1]})'
         raise TranslateError(f'vector op {op}')
 
-    def scalar(self, ins):
+    def scalar(self, ins: Obj) -> str:
         op = ins.scalar_op
         ops = ins.scalar_operands
         if op == 'retain_prev':
@@ -229,6 +244,7 @@ class _Emitter:
                 self.pred_written = True
                 return FLT_MAX
             raise TranslateError(f'scalar op {op}')
+        b: str | None                         # the second operand, none for a single-component one
         if len(ops) == 2:                     # mulsc / addsc / subsc: c[].a (op) r[].b
             a = self.operand(ops[0], ops[0].components)
             b = self.operand(ops[1], ops[1].components)
@@ -305,7 +321,7 @@ class _Emitter:
             return f'cos({a})'
         raise TranslateError(f'scalar op {op}')
 
-    def write(self, dest, value, comps_from, is_vector):
+    def write(self, dest: Obj, value: str, comps_from: object, is_vector: bool) -> None:
         """dest.write: per component 'x'..'w' (take that component of value), '0', '1', '_'."""
         if dest.file == 'temp':
             if dest.rel:
@@ -324,7 +340,7 @@ class _Emitter:
                 src = f'saturate({src})'
             self.w(f'{target}.{c} = {src};')
 
-    def out_name(self, dest):
+    def out_name(self, dest: Obj) -> str:
         if dest.file == 'oPos':
             return 'o.pos'
         if dest.file == 'o':
@@ -333,7 +349,7 @@ class _Emitter:
             return f'oC{dest.index}'
         raise TranslateError(f'export to {dest.file}')
 
-    def alu(self, ins):
+    def alu(self, ins: Obj) -> None:
         self.pred_written = False
         k = ins.address
         vec = None if ins.vector_nop else self.vector(ins)
@@ -355,7 +371,7 @@ class _Emitter:
             self.w('p0 = p0_next;')
 
     # ---------------------------------------------------------------- fetch
-    def fetch(self, ins):
+    def fetch(self, ins: Obj) -> None:
         if ins.fetch_kind == 'vertex':
             el = self.vfetch_element.get(ins.address)
             if el is None:
@@ -408,7 +424,7 @@ class _Emitter:
         self.w(f'float4 f{ins.address} = {e};')
         self.fetch_write(ins, f'f{ins.address}')
 
-    def fetch_write(self, ins, val):
+    def fetch_write(self, ins: Obj, val: str) -> None:
         target = self.reg(ins.dst)
         for c, ch in zip('xyzw', ins.dst_swizzle):
             if ch in '_?':
@@ -419,7 +435,7 @@ class _Emitter:
                 self.w(f'{target}.{c} = {val}.{ch};')
 
     # ---------------------------------------------------------------- control flow
-    def instr(self, ins):
+    def instr(self, ins: Obj) -> None:
         pred = ins.predicated and not self.block_pred_covers(ins)
         if pred:
             self.w(f'if (p0 == {"true" if ins.pred_condition else "false"}) {{')
@@ -432,10 +448,10 @@ class _Emitter:
             self.depth -= 1
             self.w('}')
 
-    def block_pred_covers(self, ins):
+    def block_pred_covers(self, ins: Obj) -> bool:
         return self.block_pred is not None and self.block_pred == ins.pred_condition
 
-    def cfs(self, lst, start, end):
+    def cfs(self, lst: list[Obj], start: int, end: int) -> None:
         i = start
         while i < end:
             cf = lst[i]
@@ -477,7 +493,7 @@ class _Emitter:
                 raise TranslateError(f'control flow {cf.op} is not supported')
 
     # ---------------------------------------------------------------- whole shader
-    def run(self):
+    def run(self) -> str:
         sh = self.sh
         self.block_pred = None
         self.cube_dir_set = any(i.kind == 'alu' and i.vector_op == 'cube' and not i.vector_nop
@@ -496,7 +512,7 @@ class _Emitter:
         del self.lines[body_start:]
         return self.assemble(body)
 
-    def assemble(self, body):
+    def assemble(self, body: list[str]) -> str:
         sh, iface = self.sh, self.iface
         out = ['// translated from Xbox 360 (Xenos) microcode', '#define xsel(c, a, b) ((c) ? (a) : (b))']
         out += HELPERS
@@ -594,5 +610,5 @@ float4 xsrgb(float4 c) { float3 l = saturate(c.rgb); return float4(l <= 0.003130
 '''.strip('\n').split('\n')
 
 
-def translate(sh, iface):
+def translate(sh: Obj, iface: Interface) -> str:
     return _Emitter(sh, iface).run()

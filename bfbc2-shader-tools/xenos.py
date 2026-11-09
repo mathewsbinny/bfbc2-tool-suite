@@ -23,6 +23,7 @@ API:
 from __future__ import annotations
 
 import struct
+from typing import TYPE_CHECKING, Any
 
 __all__ = ['parse_shader', 'disasm', 'XenosError', 'VECTOR_OPS', 'SCALAR_OPS',
            'CF_OPS', 'FETCH_OPS']
@@ -32,11 +33,11 @@ class XenosError(Exception):
     pass
 
 
-def _bits(v, lo, n):
+def _bits(v: int, lo: int, n: int) -> int:
     return (v >> lo) & ((1 << n) - 1)
 
 
-def _sbits(v, lo, n):
+def _sbits(v: int, lo: int, n: int) -> int:
     x = _bits(v, lo, n)
     return x - (1 << n) if x & (1 << (n - 1)) else x
 
@@ -44,16 +45,20 @@ def _sbits(v, lo, n):
 class Obj:
     """Plain attribute bag with a readable repr and dict export."""
 
-    def __init__(self, **kw):
+    if TYPE_CHECKING:                       # any attribute: the decoder sets them per kind (cf, alu, fetch ...)
+        def __getattr__(self, name: str) -> Any: ...
+        def __setattr__(self, name: str, value: Any) -> None: ...
+
+    def __init__(self, **kw: Any) -> None:
         self.__dict__.update(kw)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '%s(%s)' % (getattr(self, 'kind', type(self).__name__),
                            ', '.join('%s=%r' % kv for kv in self.__dict__.items()
                                      if kv[0] != 'kind'))
 
-    def to_dict(self):
-        def conv(v):
+    def to_dict(self) -> dict[str, Any]:
+        def conv(v: Any) -> Any:
             if isinstance(v, Obj):
                 return v.to_dict()
             if isinstance(v, (list, tuple)):
@@ -144,31 +149,36 @@ PARAM_TYPE = ['void', 'bool', 'int', 'float', 'string', 'texture',
 XYZW = 'xyzw'
 
 
+Words = tuple[int, ...]                     # an ALU or fetch instruction's three dwords
+Literals = dict[int, tuple[float, ...]]     # def c#: register -> 4 floats
+IntLiterals = dict[int, tuple[int, ...]]    # defi i#: register -> 4 ints
+
+
 # --------------------------------------------------------------------------
 # Container
 # --------------------------------------------------------------------------
 
 class _Reader:
-    def __init__(self, b):
+    def __init__(self, b: bytes) -> None:
         self.b = b
 
-    def u32(self, o):
+    def u32(self, o: int) -> int:
         if o < 0 or o + 4 > len(self.b):
             raise XenosError('read past end at 0x%x' % o)
         return struct.unpack_from('>I', self.b, o)[0]
 
-    def u16(self, o):
+    def u16(self, o: int) -> int:
         return struct.unpack_from('>H', self.b, o)[0]
 
-    def f32(self, o):
+    def f32(self, o: int) -> float:
         return struct.unpack_from('>f', self.b, o)[0]
 
-    def cstr(self, o):
+    def cstr(self, o: int) -> str:
         e = self.b.index(b'\0', o)
         return self.b[o:e].decode('latin-1')
 
 
-def _parse_type(r, base, off, depth=0):
+def _parse_type(r: _Reader, base: int, off: int, depth: int = 0) -> Obj:
     t = Obj(cls=PARAM_CLASS[r.u16(base + off)] if r.u16(base + off) < 6 else r.u16(base + off),
             type=PARAM_TYPE[r.u16(base + off + 2)] if r.u16(base + off + 2) < 20 else r.u16(base + off + 2),
             rows=r.u16(base + off + 4), cols=r.u16(base + off + 6),
@@ -183,7 +193,7 @@ def _parse_type(r, base, off, depth=0):
     return t
 
 
-def _parse_ctab(r, off):
+def _parse_ctab(r: _Reader, off: int) -> Obj:
     size = r.u32(off)
     base = off + 4
     hdr = [r.u32(base + 4 * k) for k in range(7)]
@@ -204,14 +214,15 @@ def _parse_ctab(r, off):
     return ct
 
 
-def _parse_definitions(r, off, vsize, is_pixel):
+def _parse_definitions(r: _Reader, off: int, vsize: int, is_pixel: bool) -> tuple[Obj, Literals, IntLiterals]:
     """Literal (def) constants. Returns (table obj, floats, ints, bools)."""
     h = [r.u32(off + 4 * k) for k in range(5)]
     size = h[4]
     words = [r.u32(off + 20 + 4 * k) for k in range(size // 4)]
     dt = Obj(offset=off, field0=h[0], field4=h[1], field8=h[2], fieldC=h[3],
              size=size, raw_words=words, float_defs=[], int_defs=[], bool_words=[])
-    floats, ints = {}, {}
+    floats: Literals = {}
+    ints: IntLiterals = {}
     p = 0
     while p < len(words) and words[p]:
         reg, cnt, phys = words[p] >> 16, words[p] & 0xffff, words[p + 1]
@@ -240,7 +251,7 @@ def _parse_definitions(r, off, vsize, is_pixel):
     return dt, floats, ints
 
 
-def _parse_header(r, off, is_pixel, vsize):
+def _parse_header(r: _Reader, off: int, is_pixel: bool, vsize: int) -> Obj:
     w = lambda k: r.u32(off + 4 * k)
     h = Obj(offset=off, physical_offset=w(0), physical_size=w(1),
             program_cntl=w(2), context_misc=w(3), field10=w(4),
@@ -316,7 +327,7 @@ def _parse_header(r, off, is_pixel, vsize):
 # Microcode
 # --------------------------------------------------------------------------
 
-def _decode_cf(w0, w1, index):
+def _decode_cf(w0: int, w1: int, index: int) -> Obj:
     """w0 = low dword, w1 = the 16 high bits (Xenia's dword_1)."""
     op = _bits(w1, 12, 4)
     cf = Obj(kind='cf', index=index, opcode=op, op=CF_OPS[op],
@@ -371,11 +382,11 @@ def _decode_cf(w0, w1, index):
     return cf
 
 
-def _swz_alu(sw, comp):
+def _swz_alu(sw: int, comp: int) -> int:
     return ((sw >> (2 * comp)) + comp) & 3
 
 
-def _alu_operand(w, i):
+def _alu_operand(w: Words, i: int) -> Obj:
     """Vector operand i (1..3) per Xenia ParseAluInstructionOperand."""
     w0, w1, w2 = w
     reg = _bits(w2, 8 * (3 - i), 8)
@@ -397,7 +408,7 @@ def _alu_operand(w, i):
     return o
 
 
-def _const_rel(w, i):
+def _const_rel(w: Words, i: int) -> str | None:
     w0, w1, w2 = w
     c0, c1 = _bits(w1, 31, 1), _bits(w1, 30, 1)
     t1, t2 = _bits(w2, 31, 1), _bits(w2, 30, 1)
@@ -412,7 +423,7 @@ def _const_rel(w, i):
     return 'a0' if _bits(w1, 29, 1) else 'aL'
 
 
-def _export_target(idx, is_pixel):
+def _export_target(idx: int, is_pixel: bool) -> tuple[str, int | None]:
     if idx == 32:
         return 'eA', None
     if 33 <= idx <= 37:
@@ -432,7 +443,7 @@ def _export_target(idx, is_pixel):
     return 'export?', idx
 
 
-def _decode_alu(w, addr, is_pixel):
+def _decode_alu(w: Words, addr: int, is_pixel: bool) -> Obj:
     w0, w1, w2 = w
     vop = _bits(w2, 24, 5)
     sop = _bits(w0, 26, 6)
@@ -497,7 +508,7 @@ def _decode_alu(w, addr, is_pixel):
     return ins
 
 
-def _vector_default_nop(ins):
+def _vector_default_nop(ins: Obj) -> bool:
     if ins.vector_opcode != 2 or ins.vector_dest.write.strip('_') or ins.vector_dest.saturate:
         return False
     for o in ins.vector_operands:
@@ -509,11 +520,11 @@ def _vector_default_nop(ins):
     return True
 
 
-def _fetch_dst(swz):
+def _fetch_dst(swz: int) -> str:
     return ''.join('xyzw01?_'[_bits(swz, 3 * c, 3)] for c in range(4))
 
 
-def _decode_fetch(w, addr, prev_vfetch):
+def _decode_fetch(w: Words, addr: int, prev_vfetch: Obj | None) -> Obj:
     w0, w1, w2 = w
     op = _bits(w0, 0, 5)
     ins = Obj(kind='fetch', address=addr, raw=w, opcode=op,
@@ -587,7 +598,7 @@ def _decode_fetch(w, addr, prev_vfetch):
     return ins
 
 
-def _decode_microcode(r, code_off, size, is_pixel):
+def _decode_microcode(r: _Reader, code_off: int, size: int, is_pixel: bool) -> Obj:
     nw = size // 4
     words = [r.u32(code_off + 4 * k) for k in range(nw)]
     nslots = nw // 3
@@ -611,8 +622,8 @@ def _decode_microcode(r, code_off, size, is_pixel):
         last -= 1
     cf_padding = cfs[last:]
     cfs = cfs[:last]
-    instrs = {}
-    prev_vf = None
+    instrs: dict[int, Obj] = {}
+    prev_vf: Obj | None = None
     for cf in cfs:
         if cf.opcode not in _CF_EXEC:
             continue
@@ -648,7 +659,7 @@ def _decode_microcode(r, code_off, size, is_pixel):
 # Top level
 # --------------------------------------------------------------------------
 
-def parse_shader(blob, is_pixel=None):
+def parse_shader(blob: bytes | bytearray | memoryview, is_pixel: bool | None = None) -> Obj:
     blob = bytes(blob)
     r = _Reader(blob)
     magic = r.u32(0)
@@ -701,17 +712,17 @@ def parse_shader(blob, is_pixel=None):
 # Disassembly
 # --------------------------------------------------------------------------
 
-def _pred(p, c):
+def _pred(p: object, c: object) -> str:
     return (' (p0) ' if c else '(!p0) ') if p else '      '
 
 
-def _reg(file, index, rel):
+def _reg(file: str, index: int, rel: str | None) -> str:
     if rel:
         return '%s[%d+%s]' % (file, index, rel)
     return '%s%d' % (file, index)
 
 
-def _src(o, ncomp=4):
+def _src(o: Obj, ncomp: int = 4) -> str:
     s = '-' if o.negate else ''
     f = 'r' if o.file == 'temp' else 'c'
     if o.abs:
@@ -726,7 +737,7 @@ def _src(o, ncomp=4):
     return s + '.' + comps
 
 
-def _dst(d):
+def _dst(d: Obj) -> str:
     if d.file == 'temp':
         s = _reg('r', d.index, d.rel)
     elif d.index is None:
@@ -740,8 +751,8 @@ def _dst(d):
     return s + '.' + d.write
 
 
-def disasm_instruction(ins):
-    lines = []
+def disasm_instruction(ins: Obj) -> list[str]:
+    lines: list[str] = []
     if ins.kind == 'alu':
         p = _pred(ins.predicated, ins.pred_condition)
         if ins.vector_nop and ins.scalar_nop:
@@ -810,7 +821,7 @@ def disasm_instruction(ins):
     return [s]
 
 
-def _cf_text(cf, is_pixel):
+def _cf_text(cf: Obj, is_pixel: bool) -> str:
     op = cf.opcode
     if op == 0:
         return '      cnop'
@@ -852,8 +863,8 @@ def _cf_text(cf, is_pixel):
     return '      cf_%d' % op
 
 
-def disasm(sh, show_raw=False, show_header=True):
-    out = []
+def disasm(sh: Obj, show_raw: bool = False, show_header: bool = True) -> str:
+    out: list[str] = []
     kind = 'ps' if sh.is_pixel else 'vs'
     if show_header:
         h = sh.header
@@ -887,7 +898,7 @@ def disasm(sh, show_raw=False, show_header=True):
             for it in h.interpolators:
                 out.append('    dcl_%s%d o%d  (exported at slots %s)' % (
                     it.usage.lower(), it.usage_index, it.reg, ','.join(map(str, it.export_addresses))))
-    labels = set()
+    labels: set[int] = set()
     for cf in sh.cf:
         if cf.opcode in (7, 8, 9, 11):
             labels.add(cf.address)

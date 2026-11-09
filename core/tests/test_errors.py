@@ -50,8 +50,9 @@ def main(argv):
         path = errors._state['path']
         check(os.path.isfile(path) and os.path.dirname(path) == os.path.join(tmp, 'bfbc2-tool-suite', 'logs'),
               'the log file is in %LOCALAPPDATA%\\bfbc2-tool-suite\\logs')
+        empty: dict[str, int] = {}
         try:
-            {}['missing key']
+            empty['missing key']
         except KeyError as ex:
             errors.report(ex, where='a test')
         errors.warn('something to look at')

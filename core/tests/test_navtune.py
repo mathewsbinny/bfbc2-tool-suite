@@ -10,6 +10,7 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..'))
@@ -29,12 +30,13 @@ def main(argv):
         base = os.path.join(tmp, 'pathdata.hpd')
         open(base, 'wb').write(b'not real path data, only hashed')
         t = nt.NavTune.new('Levels/SP_TEST', base, kind='navkit')
+        two_way: dict[str, Any] = {'two-way': True}
         ops = [nt.op('walkable', region=nt.polygon([(0, 0), (10, 0), (10, 10)], 5, 9), value=True),
                nt.op('unwalkable', region=nt.box(1, 2, 3, -4, 8, 6)),
                nt.op('seed', at=(1.23456, 2, 3)), nt.op('unseed', at=(4, 5, 6)),
                nt.op('link-areas', a=(0, 0, 0), b=(5, 0, 5)),
                nt.op('route-edge', a=(0, 0, 0), b=(5, 0, 5), action='add'),
-               nt.op('traversal', kind='ladder', bottom=(0, 0, 0), top=(0, 6, 0), **{'two-way': True}),
+               nt.op('traversal', kind='ladder', bottom=(0, 0, 0), top=(0, 6, 0), **two_way),
                nt.op('note', at=(1, 1, 1), text='check this corner')]
         for o in ops:
             t.add(o)

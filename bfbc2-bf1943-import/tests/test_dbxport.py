@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -27,7 +28,7 @@ MESH = 'objects/weapons/handheld/beach/us_springfield1903/springfield_mesh.dbx'
 M24 = 'objects/weapons/handheld/us_sni_m24/us_sni_m24_mesh.dbx'
 
 
-def same(a, b):
+def same(a: dbx.Element, b: dbx.Element) -> bool:
     return (a.tag, a.kind, a.attributes, a.text, a.raw) == (b.tag, b.kind, b.attributes, b.text, b.raw) and \
         len(a.children or []) == len(b.children or []) and all(same(x, y) for x, y in zip(a.children or [], b.children or []))
 
@@ -46,8 +47,8 @@ def main():
         random.seed(7)
         bad = 0
         sample = random.sample(files, min(300, len(files)))
-        for f in sample:
-            x = dbx.parse(open(f, 'rb').read())
+        for path in sample:
+            x = dbx.parse(open(path, 'rb').read())
             y = dbx.parse(dbx.write(x))
             bad += not (len(x.roots) == len(y.roots) and all(same(a, b) for a, b in zip(x.roots, y.roots)))
         check(bad == 0, f'write: {len(sample)} BFBC2 partitions parse back to the same tree', f'{bad} differ')
@@ -64,6 +65,8 @@ def main():
         return 1 if fails else 0
     T = dbxport.Templates([('m24_mesh', ix.read(M24))])
     out, report = dbxport.port(src.data(MESH), T)
+    f: Any                          # the ported partitions: elements the test knows are there (child / attr not None)
+    t: Any
     f, t = dbx.parse(out), dbx.parse(ix.read(M24))
     ok = True
     for inst in f.instances:
@@ -83,11 +86,12 @@ def main():
     folder = 'objects/weapons/handheld/beach/us_springfield1903/'
     wout, wrep = dbxport.port(src.data(WPN), T, lambda p: p.startswith(folder) and 'animtree' not in p or
                               f'{p}.dbx' in ix.where, drop_untemplated=True)
-    w = dbx.parse(wout)
+    w: Any = dbx.parse(wout)
     state = next(i for i in w.instances if i.attr('type') == 'GameSharedResources.SoldierWeaponData') \
         .child('WeaponStates').children[0]
     meshes = [c.attr('ref') for c in state.child('Meshes1p').children]
-    d_state = next(i for i in dbx.parse(ix.read(DONOR)).instances
+    donor: Any = dbx.parse(ix.read(DONOR))
+    d_state = next(i for i in donor.instances
                    if i.attr('type') == 'GameSharedResources.SoldierWeaponData').child('WeaponStates').children[0]
     check(meshes and meshes[0].startswith(folder + 'springfield_mesh/') and
           state.child('AnimTree1p').attr('ref') == d_state.child('AnimTree1p').attr('ref') and
@@ -100,13 +104,13 @@ def main():
     H = 'objects/architecture/beach/beachhouse_t01/beachhouse_t01'
     T = dbxport.Templates([(p, ix.read(p + '.dbx')) for p in
                            ('objects/objects/boat_house/boat_house_havok', 'objects/buildings/barrack/barrack')])
-    hav = dbx.parse(dbxport.port(src.data(H + '_havok.dbx'), T)[0])
+    hav: Any = dbx.parse(dbxport.port(src.data(H + '_havok.dbx'), T)[0])
     names = [c.child('Name').text for c in next(i for i in hav.instances if i.child('PartInfoDatas') is not None)
              .child('PartInfoDatas').children]
     theirs = re.findall(r'<field name="Name">(part[^<]*|ruin)</field>', dbx.to_xml(src.data(H + '_havok.dbx')))
     check(names == theirs and len(names) > 5, f'port: a building\'s physics part table is its own ({len(names)} parts)',
           f'{names[:5]} vs {theirs[:5]}')
-    b = dbx.parse(dbxport.port(src.data(H + '.dbx'), T)[0])
+    b: Any = dbx.parse(dbxport.port(src.data(H + '.dbx'), T)[0])
     by = {i.attr('guid').lower(): i for i in b.instances}
     sm = next(i for i in b.instances if i.attr('type') == 'GameSharedResources.StaticModelEntityData')
     comps = [by[c.attr('ref').lower()].child('Name').text for c in sm.child('Components').children]

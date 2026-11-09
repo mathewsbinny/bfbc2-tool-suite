@@ -62,16 +62,18 @@ def instances(data):
     f = dbx.parse(data)
     out = {}
     for inst in f.instances:
-        fields = {}
+        fields: dict[str, tuple[int | str, str]] = {}
         flatten(inst, '', fields)
         out[(inst.attr('guid') or '').upper()] = (inst.attr('type'), fields)
     return out
 
 
 def compare(src, ix, names, log=print):
-    stats = collections.defaultdict(collections.Counter)            # (type, field) -> class counts
-    examples = collections.defaultdict(list)
-    enums = collections.defaultdict(collections.Counter)            # (type, field) -> (number, name) counts
+    stats: collections.defaultdict[tuple[str, str], collections.Counter[str]] = \
+        collections.defaultdict(collections.Counter)                # (type, field) -> class counts
+    examples: collections.defaultdict[tuple[str, str], list[str]] = collections.defaultdict(list)
+    enums: collections.defaultdict[tuple[str, str], collections.Counter[tuple[str, str]]] = \
+        collections.defaultdict(collections.Counter)                # (type, field) -> (number, name) counts
     partitions = matched = 0
     for k in names:
         try:
@@ -148,7 +150,7 @@ def main(argv=None):
     both = sorted(k for k in src.entries if k.endswith('.dbx') and k in ix.where and
                   (not a.names or any(x.lower() in k for x in a.names)))
     partitions, matched, stats, examples, enums = compare(src, ix, both)
-    classes = collections.Counter()
+    classes: collections.Counter[str] = collections.Counter()
     for c in stats.values():
         classes.update(c)
     with open(a.o, 'w', encoding='utf-8') as f:

@@ -90,6 +90,8 @@ def classes(exe):
     24-byte hkClassMember records (name, class, enum, type, subtype, C array size, flags, offset, attributes)."""
     pe = _PE(exe)
     d = pe.d
+    sites: list[tuple[int, int, list[int]]]
+    ctors: collections.Counter[int]
     sites, ctors = [], collections.Counter()
     i = 0
     while True:
@@ -235,6 +237,8 @@ class Packfile:
             if exp != end or imp != end:
                 raise ConvertError(f'{tag}: exports or imports (not handled)')
             self.note = ('fixups', tag)
+            self.local: dict[int, int]
+            self.glob: dict[int, tuple[int, int]]
             self.local, self.glob = {}, {}
             for o in self._entries(base + loc, base + glob, 8):
                 self.swap(o, 4, 2)
@@ -404,6 +408,8 @@ def verify(console, pc, klasses):
     w = convert_wrapper(console, o)
     pf = Packfile(console, o, klasses)
     out = pf.convert()
+    why: collections.Counter[str]
+    bad: list[int]
     why, bad = collections.Counter(), []
     if w != pc[:o]:
         bad.append(next(i for i in range(o) if i >= len(w) or w[i] != pc[i]))

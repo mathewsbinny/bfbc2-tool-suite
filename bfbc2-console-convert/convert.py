@@ -76,12 +76,12 @@ def cmd_havok(a):
 def cmd_verify_havok(a):
     k = havok.classes(a.exe or default_exe())
     pc = manifest(a.pc, 'HavokPhysicsData')
-    con = {}
+    con: dict[str, str] = {}
     for f in a.console:
         for rel, p in manifest(f, 'HavokPhysicsData').items():
             con.setdefault(rel, p)
-    total = collections.Counter()
-    reasons = collections.Counter()
+    total: collections.Counter[str] = collections.Counter()
+    reasons: collections.Counter[str] = collections.Counter()
     lines = []
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()
@@ -123,10 +123,12 @@ def cmd_texture(a):
 
 def cmd_verify_texture(a):
     pc = manifest(a.pc, 'ITexture')
-    con = {}
+    con: dict[str, str] = {}
     for f in a.console:
         for rel, p in manifest(f, 'XenonTexture').items():
             con.setdefault(rel, p)
+    total: collections.Counter[str]
+    lines: list[str]
     total, lines = collections.Counter(), []
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()

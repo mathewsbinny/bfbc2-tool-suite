@@ -19,6 +19,7 @@ import re
 import struct
 import sys
 import zlib
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..'))
@@ -139,11 +140,12 @@ def main():
     if parsed != len(files) - aim or parsed < 50:
         fails.append(f'{parsed} animations parsed of {len(files) - aim} (and at least 50 expected)')
 
-    for name, bone, kw, check in (
+    cases: tuple[tuple[str, str, dict[str, Any], str], ...] = (
             ('animations/weapons/handheld/m1garand_rgl/1p/1p_lower.res', 'jntWpn_7', {'by': '0,0,0.1336'}, 'all'),
             ('animations/weapons/handheld/m1garand_rgl/1p/1p_fire.res', 'jntWpn_7', {'by': '0,0,0.1336'}, 'all'),
             ('animations/weapons/handheld/beach/jap_type5_rgl/1p/1p_reload.res', 'jntWpn_7',
-             {'rest': '0,0.0973,1.2826', 'ramp': True}, 'ends')):
+             {'rest': '0,0.0973,1.2826', 'ramp': True}, 'ends'))
+    for name, bone, kw, check in cases:
         b = ix.read(name)
         g0 = granny.Granny(b, name)
         before = tracks(g0)

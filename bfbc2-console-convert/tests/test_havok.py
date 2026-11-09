@@ -45,7 +45,7 @@ def main():
     if (mopp['child'].offset, mopp['child'].type, mopp['childSize'].offset, mopp['childSize'].type) != \
             (0x30, havok.STRUCT, 0x38, havok.INT32):
         fails.append(f'hkpMoppBvTreeShape members read wrongly: {mopp}')
-    con = {}
+    con: dict[str, str] = {}
     for f in CONSOLE:
         for rel, p in convert.manifest(f, 'HavokPhysicsData').items():
             con.setdefault(rel, p)

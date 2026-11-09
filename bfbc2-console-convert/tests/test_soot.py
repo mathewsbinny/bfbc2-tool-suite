@@ -17,7 +17,7 @@ OPFOR = os.path.join(SUITE, '..', 'project-opfor-bfbc2')
 
 
 def soot_entries(pattern):
-    out = {}
+    out: dict[str, tuple[str, str]] = {}
     for p in glob.glob(pattern, recursive=True):
         try:
             entries = fbrb.entries(p)

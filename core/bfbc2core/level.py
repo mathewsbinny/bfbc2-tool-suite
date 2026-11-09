@@ -16,12 +16,17 @@ import glob
 import os
 import re
 import sys
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from . import dbx, terrain, water
+
+if TYPE_CHECKING:
+    from .terrain import Heightfield
+    from .water import Water
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -59,27 +64,27 @@ class Entity:
     type: str
     short_type: str
     category: str
-    id: Optional[str]
-    name: Optional[str]
+    id: str | None
+    name: str | None
     partition: str
-    matrix: Optional[np.ndarray]          # 4 x 4, rows: right, up, forward, translation
-    blueprint: Optional[str]
+    matrix: np.ndarray | None             # 4 x 4, rows: right, up, forward, translation
+    blueprint: str | None
     element: dbx.Element
-    group: Optional[str] = None           # static-group partition, for group members
-    blueprint_type: Optional[str] = None  # placed objects: the type of the blueprint's object (StaticModelEntityData ...)
+    group: str | None = None              # static-group partition, for group members
+    blueprint_type: str | None = None     # placed objects: the type of the blueprint's object (StaticModelEntityData ...)
     destructible: bool = False            # placed objects: the blueprint has health states / breakable parts
-    team: Optional[int] = None            # 1, 2, 0 (neutral): spawns, capture points (initial owner), triggers
-    ai: Optional[bool] = None             # soldier spawns: True for AI soldiers, False for human players
+    team: int | None = None               # 1, 2, 0 (neutral): spawns, capture points (initial owner), triggers
+    ai: bool | None = None                # soldier spawns: True for AI soldiers, False for human players
 
     @property
-    def position(self):
+    def position(self) -> np.ndarray | None:
         return None if self.matrix is None else self.matrix[3, :3]
 
-    def refs(self):
+    def refs(self) -> list[tuple[str, str]]:
         """Every reference in the property tree: (field path, ref), local GUIDs and partition/GUID paths."""
-        out = []
+        out: list[tuple[str, str]] = []
 
-        def walk(el, path):
+        def walk(el: dbx.Element, path: str) -> None:
             for c in el.children or ():
                 name = c.attr('name') or c.tag
                 r = c.attr('ref')
@@ -112,28 +117,28 @@ class Level:
     name: str
     lv: str
     opfor: str
-    entities: List[Entity] = field(default_factory=list)
-    meshes: List[Mesh] = field(default_factory=list)
-    terrain: Optional[tuple] = None
-    heightfield: Optional[object] = None  # terrain.Heightfield, when the level's terrain bundle was read
-    water: Optional[object] = None        # water.Water (may have no triangles), from the same bundle
-    shapes: List[Shape] = field(default_factory=list)
-    missing_collision: List[str] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    entities: list[Entity] = field(default_factory=list)
+    meshes: list[Mesh] = field(default_factory=list)
+    terrain: tuple[np.ndarray, np.ndarray] | None = None
+    heightfield: 'Heightfield | None' = None  # terrain.Heightfield, when the level's terrain bundle was read
+    water: 'Water | None' = None          # water.Water (may have no triangles), from the same bundle
+    shapes: list[Shape] = field(default_factory=list)
+    missing_collision: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
-    def by_guid(self, guid):
+    def by_guid(self, guid: str) -> Entity | None:
         g = guid.lower()
         return next((e for e in self.entities if e.guid.lower() == g), None)
 
 
-def category_of(t):
+def category_of(t: str | None) -> str:
     for name, rx in CATEGORIES:
         if re.search(rx, t or ''):
             return name
     return 'other'
 
 
-def transform_of(e):
+def transform_of(e: dbx.Element) -> np.ndarray | None:
     t = e.child('Transform')
     if t is None or t.kind != dbx.NUMBERS:
         return None
@@ -141,13 +146,14 @@ def transform_of(e):
     return np.array(v, dtype=np.float64).reshape(4, 4) if len(v) == 16 else None
 
 
-def blueprint_of(e):
+def blueprint_of(e: dbx.Element) -> str | None:
     r = e.child('ReferencedObject')
     ref = r.attr('ref') if r is not None else None
     return ref.rsplit('/', 1)[0].lower() if ref and '/' in ref else None
 
 
-def load(level, opfor=None, terrain_stride=2, log=print, geometry=True):
+def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Callable[[str], Any] = print,
+         geometry: bool = True) -> Level:
     """geometry=False: the level partition's entities, teams and shapes only - no static-group members, collision,
     terrain or water (a second or two; the test harness's reachability and level checks)."""
     import navkit
@@ -164,9 +170,9 @@ def load(level, opfor=None, terrain_stride=2, log=print, geometry=True):
     # the level partition (a Package overlay wins over Dist)
     part = None
     for b in bases[:2]:
-        for f in glob.glob(os.path.join(b, 'levels', '*.dbx')):
-            if os.path.splitext(os.path.basename(f))[0].lower() == lv:
-                part = part or f
+        for pf in glob.glob(os.path.join(b, 'levels', '*.dbx')):
+            if os.path.splitext(os.path.basename(pf))[0].lower() == lv:
+                part = part or pf
     if part is None:
         raise FileNotFoundError(f'{lv}: level partition not found under {base}')
     LV = os.path.splitext(os.path.basename(part))[0]
@@ -177,11 +183,13 @@ def load(level, opfor=None, terrain_stride=2, log=print, geometry=True):
     for el in f.instances:
         t = el.attr('type') or ''
         lvl.entities.append(Entity(len(lvl.entities), el.attr('guid') or '', t, t.rsplit('.', 1)[-1], category_of(t), el.attr('id'),
-                                   (el.child('Name').text if el.child('Name') is not None and el.child('Name').kind == dbx.TEXT else None),
+                                   (cast(dbx.Element, el.child('Name')).text
+                                    if el.child('Name') is not None and cast(dbx.Element, el.child('Name')).kind == dbx.TEXT
+                                    else None),
                                    pname, transform_of(el), blueprint_of(el), el))
     # static model groups: one entity per member placement. Each group file once: the Package copy wins over
     # Dist, as in the game (and levels\ / Levels\ are the same folder on Windows)
-    group_files = {}
+    group_files: dict[str, str] = {}
     for b in (bases[:2] if geometry else ()):
         for gf in glob.glob(os.path.join(b, 'levels', lv, '*_HavokAsset.dbx')):
             group_files.setdefault(os.path.basename(gf).lower(), gf)
@@ -213,6 +221,8 @@ def load(level, opfor=None, terrain_stride=2, log=print, geometry=True):
                 havok[bp] = havok[target]
     except Exception as ex:                   # needs the converted XML NavKit's prepare writes
         lvl.notes.append(f'blueprint mesh aliases not read: {ex}')
+    cache: dict[str, Any]
+    missing: set[str]
     cache, missing = {}, set()
     for e in lvl.entities:
         if e.blueprint is None or e.matrix is None:
@@ -246,11 +256,11 @@ def load(level, opfor=None, terrain_stride=2, log=print, geometry=True):
     return lvl
 
 
-def resolve_blueprints(lvl, bases):
+def resolve_blueprints(lvl: Level, bases: list[str]) -> None:
     """Placed objects: the blueprint's object type and whether it is destructible; categories from them."""
-    files = {}
+    files: dict[str, dict[str, dbx.Element]] = {}
 
-    def instances(path):
+    def instances(path: str) -> dict[str, dbx.Element]:
         if path not in files:
             files[path] = {}
             for b in bases:
@@ -263,7 +273,7 @@ def resolve_blueprints(lvl, bases):
                     break
         return files[path]
 
-    def broken_up(insts):
+    def broken_up(insts: dict[str, dbx.Element]) -> bool:
         """Health states or breakable part links anywhere in the blueprint (destructible buildings)."""
         for i in insts.values():
             for name in ('HealthStates', 'PartLinks'):
@@ -272,7 +282,7 @@ def resolve_blueprints(lvl, bases):
                     return True
         return False
 
-    destructible = {}
+    destructible: dict[str, bool] = {}
     for e in lvl.entities:
         if e.short_type != 'ReferenceObjectData':
             continue
@@ -305,7 +315,7 @@ def resolve_blueprints(lvl, bases):
             e.category = OBJECT_CATEGORIES.get(e.blueprint_type, e.category)
 
 
-def assign_teams(lvl):
+def assign_teams(lvl: Level) -> None:
     """Team and AI / human from the entity's own fields; alternate spawn points take their spawner's team."""
     guids = {e.guid.lower(): e for e in lvl.entities}
     for e in lvl.entities:
@@ -325,16 +335,18 @@ def assign_teams(lvl):
                 t.team, t.ai = e.team, e.ai
 
 
-def shapes_of(lvl):
+def shapes_of(lvl: Level) -> list[Shape]:
     """Outlines: chains of AreaGeometryEntityData points (Next links) referenced by Geometry, SurroundingGeometry
     and RouteWaypoints fields. A chain that comes back to its start is an area."""
     guids = {e.guid.lower(): e for e in lvl.entities}
-    out = []
+    out: list[Shape] = []
     for e in lvl.entities:
         for name, kind in SHAPE_FIELDS:
             c = e.element.child(name)
             for item in (c.children if c is not None and c.children else ()):
                 p = guids.get((item.attr('ref') or '').lower())
+                pts: list[np.ndarray]
+                seen: set[str]
                 pts, seen, closed, height = [], set(), False, 0.0
                 while p is not None and p.position is not None:
                     if p.guid in seen:
@@ -352,7 +364,7 @@ def shapes_of(lvl):
     return out
 
 
-def terrain_name(entities):
+def terrain_name(entities: Iterable[dbx.Element]) -> str | None:
     """The terrain's name from the level's TerrainEntityData.TerrainAsset (terrains/mp_009/mp_009 for MP_009GR:
     a mode variant shares its base map's terrain), or None.
 
@@ -366,7 +378,7 @@ def terrain_name(entities):
     return None
 
 
-def water_of(root, lv, log=print):
+def water_of(root: str, lv: str, log: Callable[[str], Any] = print) -> 'water.Water | None':
     """The level's water (water.Water, or None), its terrain bundle unpacked once (as heightfield_of does)."""
     part = None
     for b in ('pkg', 'dist'):
@@ -378,7 +390,8 @@ def water_of(root, lv, log=print):
     return water.read(os.path.join(root, 'work', 'levels', lv, 'terrain'), name)
 
 
-def heightfield_of(root, lv, log=print, name=None):
+def heightfield_of(root: str, lv: str, log: Callable[[str], Any] = print,
+                   name: str | None = None) -> terrain.Heightfield | None:
     """The level's terrain height field, unpacking its terrain-00.fbrb into work\\levels\\<lv>\\terrain once.
     name: from terrain_name(); read from the level partition if not given."""
     import subprocess
@@ -411,7 +424,7 @@ def heightfield_of(root, lv, log=print, name=None):
     return terrain.read(path)
 
 
-def terrain_from_samples(root, lv, stride=2):
+def terrain_from_samples(root: str, lv: str, stride: int = 2) -> tuple[np.ndarray, np.ndarray] | None:
     """A height-field mesh from NavKit's in-game samples: per column the highest surface that hit terrain,
     every <stride>-th sample. Returns (vertices (n, 3), triangles (m, 3) indices) or None."""
     import navsample

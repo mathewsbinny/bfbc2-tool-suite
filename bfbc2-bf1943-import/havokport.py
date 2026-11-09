@@ -249,7 +249,7 @@ def restructure(b, template, classes, table=None):
             raise PortError(f'a global fixup into section {tags[sec]}')
     new_virt = [(o, 0, at[_rename(n, classes)]) for o, n in kept]
 
-    def table(rows, size):
+    def pack_table(rows, size):
         out = bytearray()
         for r in rows:
             out += struct.pack('>%dI' % (size // 4), *r)
@@ -257,9 +257,9 @@ def restructure(b, template, classes, table=None):
             out += b'\xff'
         return out
 
-    lt = table(sorted(new_local.items()), 8)
-    gt = table(sorted(new_glob), 12)
-    vt = table(sorted(new_virt), 12)
+    lt = pack_table(sorted(new_local.items()), 8)
+    gt = pack_table(sorted(new_glob), 12)
+    vt = pack_table(sorted(new_virt), 12)
     d_loc = len(content)
     d_glob = d_loc + len(lt)
     d_virt = d_glob + len(gt)

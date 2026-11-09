@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import sys
+from typing import Any
 
 import numpy as np
 
@@ -62,6 +63,8 @@ def compare_part(ours, dice, po, pd, layout):
     b = np.frombuffer(dice[0], np.uint8, n * st, dice[1] + pd['vertex_offset']).reshape(n, st)
     if np.array_equal(a, b):
         return 'identical', []
+    notes: list[str]
+    beyond: list[str]
     notes, beyond = [], []
     for fmt, usage, off, stream in mesh.elements(layout)[0]:
         if stream != 0 or fmt not in DTYPE or np.array_equal(a[:, off:off + 1], b[:, off:off + 1]) and \
@@ -117,7 +120,7 @@ def compare_mesh(port, ix, name):
             out['meshset'].append(f'not compared ({e})')
     for lod, ours in enumerate(r['lods']):
         dice = ix.read(f'{low}_lod{lod}_data.res')
-        row = {'lod': lod, 'parts': {}}
+        row: dict[str, Any] = {'lod': lod, 'parts': {}}
         out['lods'].append(row)
         if dice is None:
             row['note'] = 'DICE has no such LOD'
@@ -193,7 +196,7 @@ def shared_meshes(src, ix):
 
 def summary(rows):
     import collections
-    parts = collections.Counter()
+    parts: collections.Counter[str] = collections.Counter()
     for r in rows:
         for L in r.get('lods', []):
             if L.get('identical'):
