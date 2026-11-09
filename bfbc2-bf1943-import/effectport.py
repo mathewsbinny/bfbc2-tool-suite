@@ -19,7 +19,8 @@ How it is ported:
   DEFAULTS checks the templates give exactly those);
 - a BF1943 sound BFBC2 lacks is not ported here (no sound templates, no wave conversion): port() reports it
   (SOUND lines, sounds_of()) for the caller's sound porter (OPFOR wake_level.port_sounds);
-- a reference that will resolve to nothing is reported (dbxport substitutes the template's value).
+- a reference that will resolve to nothing is null and reported (dbxport: no template value stands in for it);
+- the report is a dbxport.Report: its records hold every partition's dbxport records (sounds_of reads them).
 """
 import os
 import re
@@ -93,25 +94,53 @@ def walk(src, ix, effect, level):
     return out
 
 
-def templates(ix, types):
-    """dbxport.Templates from TEMPLATES plus BFBC2 emitter documents covering the types (greedy, by index order)."""
+def _read_many(ix, names):
+    """{name: bytes} of BFBC2 partitions, read a bundle at a time (one open per bundle, not per partition)."""
+    from bfbc2core import fbrb
+    by: dict[str, list[tuple[str, str]]] = {}
+    for n in names:
+        hit = ix.where.get(n.lower())
+        if hit:
+            by.setdefault(hit[0], []).append((n, hit[1]))
+    out = {}
+    for b, items in by.items():
+        want = {e.lower(): n for n, e in items}
+        for i in range(0, len(items), 400):
+            for e, d in fbrb.read(b, [x for _, x in items[i:i + 400]]).items():
+                if e.lower() in want:
+                    out[want[e.lower()]] = d
+    return out
+
+
+def templates(ix, types, catalogue=None):
+    """dbxport.Templates from TEMPLATES plus BFBC2 emitter documents covering the types (greedy, by name order).
+    The emitter documents are read a bundle at a time and parsed only when their bytes name a type still needed
+    (a type's name is in the partition's string table): the scan over BFBC2's 18,343 emitter documents was I/O-bound
+    (35 minutes for the material grid's effects)."""
     pool = list(TEMPLATES)
+    datas = {p + '.dbx': ix.read(p + '.dbx') for p in pool}
     have = set()
-    for p in pool:
-        have |= {i.attr('type') for i in dbx.parse(ix.read(p + '.dbx')).instances}
+    for d in datas.values():
+        have |= {i.attr('type') for i in dbx.parse(d).instances}
     need = set(types) - have
     if need:
-        for n in sorted(k for k in ix.where if '/emitters/' in k and k.endswith('.dbx')):
-            b = ix.read(n)
-            if b is None:
-                continue
-            got = {i.attr('type') for i in dbx.parse(b).instances} & need
-            if got:
-                pool.append(n[:-4])
-                need -= got
+        cands = sorted(k for k in ix.where if '/emitters/' in k and k.endswith('.dbx'))
+        for i in range(0, len(cands), 2000):
             if not need:
                 break
-    return dbxport.Templates([(p, ix.read(p + '.dbx')) for p in pool]), pool, need
+            batch = _read_many(ix, cands[i:i + 2000])
+            for n in cands[i:i + 2000]:
+                b = batch.get(n)
+                if b is None or not any(t.encode() in b for t in need):
+                    continue
+                got = {x.attr('type') for x in dbx.parse(b).instances} & need
+                if got:
+                    pool.append(n[:-4])
+                    datas[n] = b
+                    need -= got
+                if not need:
+                    break
+    return dbxport.Templates([(p, datas[p + '.dbx']) for p in pool], catalogue), pool, need
 
 
 def check_defaults(data, report):
@@ -122,10 +151,13 @@ def check_defaults(data, report):
             if t == tt and inst.child(fld) is not None:
                 got = dbx.value(cast(dbx.Element, inst.child(fld)))
                 if got != want:
-                    report.append(f'DEFAULT {t}.{fld} = {got}, DICE usually {want}')
+                    line = f'DEFAULT {t}.{fld} = {got}, DICE usually {want}'
+                    if isinstance(report, dbxport.Report):
+                        report.records.append(dbxport.Record(f'{t}.{fld}', 'default', old=got, new=want, text=line))
+                    report.append(line)
 
 
-def port_many(src, ix, effects, level, log=print):
+def port_many(src, ix, effects, level, log=print, catalogue=None):
     """{file: bytes}, report for several effects - the templates found once for all of them (each effect's own
     search scans BFBC2's emitter documents: slow for dozens)."""
     plans = {e: walk(src, ix, e, level) for e in effects}
@@ -134,51 +166,75 @@ def port_many(src, ix, effects, level, log=print):
         for _name, key, kind in plan:
             if kind == 'port':
                 types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
-    shared = templates(ix, types)
-    files, report = {}, []
+    shared = templates(ix, types, catalogue)
+    files, report = {}, dbxport.Report()
     for n, e in enumerate(effects):
-        f, r = port(src, ix, e, level, shared=shared, plan=plans[e])
+        f, r = port(src, ix, e, level, shared=shared, plan=plans[e], catalogue=catalogue)
         files.update(f)
-        report += r
+        report.extend_from(r)
         log(f'  effect {n + 1}/{len(effects)} {e.rsplit("/", 1)[-1]}: {len(f)} files')
     return files, report
 
 
-def port(src, ix, effect, level, shared=None, plan=None):
+# the dbxport records whose lines the effect report shows (all of them are in report.records)
+SHOWN = ('substituted', 'nulled', 'relocated', 'pruned', 'guarded', 'value', 'UNMAPPED', 'left out instance', 'type',
+         'untemplated', 'nested', 'renamed', 'enum', 'schema')
+
+
+def _shown(name):
+    def line(r: dbxport.Record) -> str | None:
+        return f'  {name}: {r.line()}' if r.action in SHOWN else None
+    return line
+
+
+def port(src, ix, effect, level, shared=None, plan=None, catalogue=None):
+    """({file: bytes}, dbxport.Report) of one effect. The report's records: the effect's summary ('summary'), each
+    partition's dbxport records (their partition set), 'sound' (a BF1943 sound for the caller's sound porter: its
+    path), 'missing', 'default'; its lines as before (the dbxport lines of SHOWN, indented under the partition)."""
     import texture
     plan = plan or walk(src, ix, effect, level)
     types = set()
     for _name, key, kind in plan:
         if kind == 'port':
             types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
-    T, pool, missing = shared or templates(ix, types)
-    missing = set(types) - set(T.by_type)
-    report = [f'{effect}: {sum(k == "port" for _, _, k in plan)} partitions to port, '
-              f'{sum(k == "sound" for _, _, k in plan)} sounds for the sound porter, '
-              f'{sum(k == "texture" for _, _, k in plan)} textures, {sum(k == "bfbc2" for _, _, k in plan)} kept as '
-              f'BFBC2\'s, {sum(k == "missing" for _, _, k in plan)} missing; templates {pool}']
+    T, pool, missing = shared or templates(ix, types, catalogue)
+    missing = set(types) - set(T.candidates)
+    report = dbxport.Report()
+
+    def say(path, action, text, **kw):
+        report.records.append(dbxport.Record(path, action, text=text, **kw))
+        report.append(text)
+    say(effect, 'summary', f'{effect}: {sum(k == "port" for _, _, k in plan)} partitions to port, '
+        f'{sum(k == "sound" for _, _, k in plan)} sounds for the sound porter, '
+        f'{sum(k == "texture" for _, _, k in plan)} textures, {sum(k == "bfbc2" for _, _, k in plan)} kept as '
+        f'BFBC2\'s, {sum(k == "missing" for _, _, k in plan)} missing; templates {pool}')
     if missing:
-        report.append(f'types no BFBC2 template holds (kept as BF1943 has them): {sorted(cast('set[str]', missing))}')
+        say(effect, 'types', 'types no BFBC2 template holds (the catalogue\'s class defaults, or kept as BF1943 has '
+            f'them): {sorted(cast("set[str]", missing))}')
     ours = {n for n, _, k in plan if k in ('port', 'texture', 'sound')}     # 'sound': the caller ports it
     bc2 = {n[:-4] for n in ix.where if n.endswith('.dbx')}
     resolve = lambda q: q.lower() in ours or q.lower() in bc2 or q.lower() == 'textures/effects/emittersystem/defaultnormalmap'  # noqa: E731
     files = {}
     for name, key, kind in plan:
         if kind == 'port':
-            data, rep = dbxport.port(src.data(key), T, resolve)
+            data, rep = dbxport.port(src.data(key), T, resolve, catalogue=catalogue, name=name)
             files[name + '.dbx'] = data
             check_defaults(data, report)
-            report += [f'  {name}: {r}' for r in rep if r.startswith(('substituted', 'value', 'UNMAPPED', 'left out instance', 'type ', 'nested', 'renamed'))]
+            report.extend_from(rep, name, _shown(name))
         elif kind == 'texture':
             e = src.entries[name + '.res'][1]
             files[e['name']] = texture.convert(src.data(name + '.res'))
         elif kind == 'sound':
-            report.append(f'SOUND {name}: BF1943\'s, for the sound porter')
+            say(name, 'sound', f'SOUND {name}: BF1943\'s, for the sound porter')
         elif kind == 'missing':
-            report.append(f'  MISSING {name}: neither BF1943 nor BFBC2 has it')
+            say(name, 'missing', f'  MISSING {name}: neither BF1943 nor BFBC2 has it')
     return files, report
 
 
 def sounds_of(report):
-    """The BF1943 sound partitions port() / port_many() left for a sound porter (their SOUND report lines)."""
+    """The BF1943 sound partitions port() / port_many() left for a sound porter (their 'sound' records; a report
+    from before records - a cache - by its SOUND lines)."""
+    records = getattr(report, 'records', None)
+    if records is not None:
+        return sorted({r.path for r in records if r.action == 'sound'})
     return sorted({r.split(' ', 2)[1][:-1] for r in report if r.startswith('SOUND ')})
