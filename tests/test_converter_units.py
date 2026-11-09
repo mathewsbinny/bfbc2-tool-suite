@@ -2,6 +2,8 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
 
 - havokport: a model group's shape subparts get translation.w 1.0 and the shape's aabbCenter.w / aabbHalfExtents.w
   as DICE's exporter writes them (values from two of DICE's own levels: mp_006's rigid group, sp_008's static grid);
+- texture: console format 10 (L8) untiled byte for byte, not byte-swapped, each PC row padded to 4 bytes, the
+  console's flags kept; console 3 (DXT5A) -> PC 10 keeps the console's flags (bit 1 clear) and pads its rows too;
 - mesh.texcoord_element: the texture coordinates are the first half2 / float2 usage-0 element (soldiers, trees),
   else the first other float one (material-mask meshes), never a colour byte element; decode reads that one;
 
@@ -20,6 +22,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('core', 'bf1943-import', 'console-convert')
 import havokport  # noqa: E402
 import mesh  # noqa: E402
+import texture  # noqa: E402
 
 FAILED = [0]
 
@@ -131,8 +134,54 @@ def texcoords() -> None:
     check(ok, 'mesh.decode: uvs from the half2, not the half4 before it', detail)
 
 
+def console_texture(fmt, w, h, mips, flags, texel):
+    """A console texture of fmt (L8 or DXT5A) whose level m's texel / block (x, y) holds texel(m, x, y) (bytes)."""
+    bpb, edge, _ = texture.FORMATS[fmt]
+    where, size = texture.layout(w, h, mips, fmt, 1)
+    data = bytearray(size)
+    for m in range(mips):
+        start, pitch, ox, oy = where[0][m]
+        bw, bh = max((max(w >> m, 1) + edge - 1) // edge, 1), max((max(h >> m, 1) + edge - 1) // edge, 1)
+        for y in range(bh):
+            for x in range(bw):
+                at = start + texture.tiled(x + ox, y + oy, pitch, {1: 0, 8: 3}[bpb]) * bpb
+                data[at:at + bpb] = texel(m, x, y)
+    if bpb > 1:                                           # 16-bit words byte-swapped, as the console keeps them
+        for i in range(0, len(data) - 1, 2):
+            data[i], data[i + 1] = data[i + 1], data[i]
+    sizes = [size] + [0] * 14
+    return struct.pack('>8I', 3, 0, fmt, flags, w, h, 1, mips) + struct.pack('>15I', *sizes) + bytes(data)
+
+
+def textures() -> None:
+    val = lambda m, x, y: bytes([(m * 64 + y * 8 + x) & 255])          # noqa: E731
+    con = console_texture(texture.L8, 8, 8, 4, 1, val)
+    try:
+        pc = texture.convert(con)
+    except texture.ConvertError as ex:
+        check(False, 'texture: console 10 (L8) converts', str(ex))
+        return
+    head = struct.unpack_from('<8I', pc, 0)
+    sizes = struct.unpack_from('<15I', pc, 32)[:4]
+    lv = texture.levels(pc)
+    want0 = bytes((y * 8 + x) & 255 for y in range(8) for x in range(8))
+    want2 = bytes([128, 129, 0, 0, 136, 137, 0, 0])                      # level 2 (2 x 2): rows padded to 4 bytes
+    check(head[2] == 10 and head[3] == 1 and sizes == (64, 16, 8, 4), 'texture: console 10 -> PC 10, the console\'s '
+          'flags, level sizes 64 / 16 / 8 / 4 (rows of the 2 x 2 and 1 x 1 levels padded to 4 bytes)', f'{head} {sizes}')
+    check(lv[0][4] == want0 and lv[2][4] == want2 and lv[3][4] == bytes([192, 0, 0, 0]),
+          'texture: console 10 texels untiled as they are (no byte swap)', f'{lv[2][4].hex()} {lv[3][4].hex()}')
+    block = lambda m, x, y: bytes([200, 100, 0, 0, 0, 0, 0, 0])         # noqa: E731 - every texel 200
+    con3 = console_texture(texture.DXT5A, 8, 8, 2, 0, block)
+    pc3 = texture.convert(con3)
+    h3 = struct.unpack_from('<8I', pc3, 0)
+    check(h3[2] == texture.L8 and h3[3] & texture.HALVED_ON_CONSOLE == 0 and set(texture.levels(pc3)[0][4]) == {200},
+          'texture: console 3 (DXT5A) -> PC 10 keeps the console\'s flags (no bit 1: it is at the console\'s size)',
+          str(h3))
+
+
 def main() -> int:
     havok_model_group()
+    textures()
     texcoords()
     print('all passed' if not FAILED[0] else f'{FAILED[0]} check(s) failed')
     return 1 if FAILED[0] else 0
