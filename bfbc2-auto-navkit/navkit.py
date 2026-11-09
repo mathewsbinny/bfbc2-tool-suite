@@ -379,7 +379,7 @@ def detailed_sectors(pr, lv):
     common = [os.path.join(pr.work, 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
     chosen, why = detailed.choose(pr.level_work(lv), common, sp, s['xoff'], s['zoff'])
     json.dump({'key': key, 'sectors': chosen, 'why': why}, open(cache, 'w'))
-    return chosen
+    return [tuple(x) for x in chosen]       # as the cached answer gives them
 
 
 def detailed_rects(pr, lv, margin=1.0):
