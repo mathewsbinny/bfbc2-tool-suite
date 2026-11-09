@@ -432,7 +432,7 @@ def game(c):
         if not layers:
             continue
         from bfbc2core import fbrb
-        by_bundle = {}
+        by_bundle: dict[str, list[str]] = {}
         for _name, (bundle, entry) in mc.bundle_movies(layers).items():
             by_bundle.setdefault(bundle, []).append(entry)
         for bundle, entries in by_bundle.items():
@@ -456,7 +456,7 @@ def game(c):
     c.check(cases.get('generic', {}).get(0xB9) == 0x95B7D3 and cases['generic'].get(0x13C) == 0x95AF2E,
             'aptrefs: getter cases (platform -> 0x95B7D3, editableInputList -> 0x95AF2E)')
     found = aptrefs.scan_movies(['main_root'], None, root) + aptrefs.scan_movies(None, {'mp_hud'}, root)
-    ev = {}
+    ev: dict[str, set[int]] = {}
     for _label, _name, refs in found:
         for n, uses in refs['events'].items():
             ev.setdefault(n, set()).update(u[1] for u in uses)

@@ -21,6 +21,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
@@ -48,6 +49,8 @@ class Checks:
 def dir_table(entries):
     """A directory table: entries (name, sector, size, attr) as a binary tree, root node first."""
     entries = sorted(entries, key=lambda e: e[0].lower())
+    order: list[Any]
+    links: dict[int, tuple[int | None, int | None]]
     order, links = [], {}
 
     def place(lo, hi):
@@ -272,11 +275,11 @@ def sha(path):
 def game_checks(c, xbox):
     iso = os.path.join(xbox, 'Battlefield Bad Company 2 Limited Edition (XBOX 360).iso')
     if os.path.isfile(iso):
-        with open(iso, 'rb') as f:
-            base = xiso.find_partition(f)
-            f.seek(base + 32 * SECTOR + 20)
-            root_sec, root_size = struct.unpack('<II', f.read(8))
-            files = list(xiso.walk(f, base, root_sec, root_size))
+        with open(iso, 'rb') as fh:
+            base = xiso.find_partition(fh)
+            fh.seek(base + 32 * SECTOR + 20)
+            root_sec, root_size = struct.unpack('<II', fh.read(8))
+            files = list(xiso.walk(fh, base, root_sec, root_size))
         c.check(base == 0xFD90000, 'disc image: the XGD2 game partition at 0xFD90000')
         names = {p.lower() for p, _, _ in files}
         c.check(len(files) == 693 and 'default.xex' in names, 'disc image: all 693 files listed, default.xex among them',

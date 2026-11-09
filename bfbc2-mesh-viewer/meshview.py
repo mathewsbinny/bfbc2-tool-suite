@@ -73,6 +73,9 @@ class Index:
     """Which bundle holds each entry (first stock bundle), and every level's Dx9 shader database facts: part name ->
     vertex layout record, entry name -> texture names. Cached in work\\tools_out\\meshview_index.pkl, rebuilt when a
     bundle changes."""
+    where: dict[str, tuple[str, str]]          # entry name (lower case) -> (bundle, entry name)
+    parts: dict[str, bytes]                    # part name -> vertex layout record (after its GUID)
+    entries: dict[str, list[str]]              # shader database entry name -> texture names
 
     def __init__(self, root):
         self.root = root

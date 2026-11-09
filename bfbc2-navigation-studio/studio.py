@@ -18,6 +18,7 @@ spawns that are not on the main network, and the selected area. The camera works
 import colorsys
 import os
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
@@ -93,6 +94,8 @@ def cell_quads(xz, y, heightfield=None, lift=LIFT):
 
 
 class Studio:
+    triangles: int                             # set by main() once the scene is built
+
     def __init__(self, lvl, files, color='island', compare=None):
         self.lvl, self.files, self.color = lvl, files, color
         self.scene = viewer.Scene()
@@ -130,12 +133,12 @@ class Studio:
                 self.scene.add_lines(segs - drop, base + area_of_line[owner[:-1][keep]], lay['outlines'])
             pids = [base + k for k, _, _ in psegs]
             bids = [base + k for k, _, _ in bsegs]
-            psegs = [[p0, p1] for _, p0, p1 in psegs]
-            bsegs = [[p0, p1] for _, p0, p1 in bsegs]
-            if psegs:
-                self.scene.add_lines(np.array(psegs) - drop, np.array(pids), lay['portals'])
-            if bsegs:
-                self.scene.add_lines(np.array(bsegs) - drop, np.array(bids), lay['border portals'])
+            pends = [[p0, p1] for _, p0, p1 in psegs]
+            bends = [[p0, p1] for _, p0, p1 in bsegs]
+            if pends:
+                self.scene.add_lines(np.array(pends) - drop, np.array(pids), lay['portals'])
+            if bends:
+                self.scene.add_lines(np.array(bends) - drop, np.array(bids), lay['border portals'])
             if len(nav.edges):
                 p = nav.node_pos - np.array([0, navdata.Y_OFFSET - 0.2, 0])
                 self.scene.add_lines(np.stack([p[nav.edges[:, 0]], p[nav.edges[:, 1]]], axis=1), 0xFFFFF1, lay['route graph'])
@@ -387,7 +390,7 @@ class Studio:
         if name not in cache:
             nav = self.files[name]
             main = nav.node_pos[nav.node_island == 0][:, [0, 2]] if len(nav.islands) else np.zeros((0, 2))
-            grid = {}
+            grid: dict[tuple[int, int], Any] = {}
             for p in main:
                 grid.setdefault((int(p[0] // 10), int(p[1] // 10)), []).append(p)
             grid = {k: np.array(v) for k, v in grid.items()}

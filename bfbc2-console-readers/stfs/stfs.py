@@ -18,12 +18,26 @@ Velocity reads them). File table entries are 0x40 bytes: name (0x28), flags (low
 import os
 import struct
 import sys
+from collections.abc import Sequence
+from typing import NotRequired, TypedDict
 
 BLOCK = 0x1000
 
 
+class Entry(TypedDict):
+    """A file table entry (Package.entries)."""
+    name: str
+    dir: bool
+    consecutive: bool
+    count: int
+    start: int
+    parent: int
+    size: int
+    path: NotRequired[str]                 # set once the table is read: the names from the root down, '/'-joined
+
+
 class Package:
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.f = open(path, 'rb')
         h = self.f.read(0x1000)
         self.magic = h[:4]
@@ -39,7 +53,7 @@ class Package:
         self.shift = 0 if (self.separation & 1) else 1
         self.entries = self._file_table()
 
-    def _fix(self, block):
+    def _fix(self, block: int) -> int:
         """Data block number -> raw block number: a level-0 hash table precedes every 0xAA data blocks
         (the first one included), a level-1 table every 0x70E4, a level-2 table after that."""
         n = (((block + 0xAA) // 0xAA) << self.shift) + block
@@ -49,10 +63,10 @@ class Package:
             return n + (((block + 0x70E4) // 0x70E4) << self.shift)
         return (1 << self.shift) + n + (((block + 0x70E4) // 0x70E4) << self.shift)
 
-    def _addr(self, block):
+    def _addr(self, block: int) -> int:
         return self.base + self._fix(block) * BLOCK
 
-    def _level0_raw(self, block):
+    def _level0_raw(self, block: int) -> int:
         """Raw block of the first copy of the level-0 hash table holding a data block's entry."""
         if block < 0xAA:
             return 0
@@ -61,18 +75,18 @@ class Package:
             raw += 1 << self.shift
         return raw
 
-    def _level1_raw(self, block):
+    def _level1_raw(self, block: int) -> int:
         """Raw block of the first copy of the level-1 hash table above a data block's level-0 table."""
         if block < 0x70E4:
             return 0xAA + (1 << self.shift)
         raw = (block // 0x70E4) * (0x70E4 + (0xAB << self.shift)) + (((block // 0x4AF768) + 1) << self.shift)
         return raw if block // 0x4AF768 == 0 else raw + (1 << self.shift)
 
-    def _status(self, raw, index):
+    def _status(self, raw: int, index: int) -> bytes:
         self.f.seek(self.base + raw * BLOCK + index * 0x18 + 0x14)
         return self.f.read(1) or bytes(1)
 
-    def _hash_entry(self, block):
+    def _hash_entry(self, block: int) -> bytes:
         """Level-0 hash entry of a data block, from the live copy of its table."""
         live = 0
         if self.shift:                                    # two copies of each table
@@ -88,25 +102,26 @@ class Package:
         self.f.seek(self.base + (self._level0_raw(block) + live) * BLOCK + (block % 0xAA) * 0x18)
         return self.f.read(0x18)
 
-    def _next(self, block):
+    def _next(self, block: int) -> int:
         e = self._hash_entry(block)
         return int.from_bytes(e[0x15:0x18], 'big')
 
-    def _blocks(self, start, count, consecutive):
+    def _blocks(self, start: int, count: int, consecutive: bool) -> list[int]:
         if consecutive:
             return list(range(start, start + count))
+        out: list[int]
         out, b = [], start
         for _ in range(count):
             out.append(b)
             b = self._next(b)
         return out
 
-    def _file_table(self):
+    def _file_table(self) -> list[Entry]:
         raw = b''
         for b in self._blocks(self.ft_start, self.ft_blocks, False):
             self.f.seek(self._addr(b))
             raw += self.f.read(BLOCK)
-        entries = []
+        entries: list[Entry] = []
         for i in range(0, len(raw), 0x40):
             e = raw[i:i + 0x40]
             flags = e[0x28]
@@ -116,15 +131,15 @@ class Package:
                             'consecutive': bool(flags & 0x40), 'count': int.from_bytes(e[0x29:0x2C], 'little'),
                             'start': int.from_bytes(e[0x2F:0x32], 'little'), 'parent': struct.unpack_from('>H', e, 0x32)[0],
                             'size': struct.unpack_from('>I', e, 0x34)[0]})
-        for e in entries:
-            parts, p = [e['name']], e['parent']
+        for ent in entries:
+            parts, p = [ent['name']], ent['parent']
             while p != 0xFFFF and p < len(entries):
                 parts.append(entries[p]['name'])
                 p = entries[p]['parent']
-            e['path'] = '/'.join(reversed(parts))
+            ent['path'] = '/'.join(reversed(parts))
         return entries
 
-    def read(self, e):
+    def read(self, e: Entry) -> bytes:
         out = bytearray()
         for b in self._blocks(e['start'], e['count'], e['consecutive']):
             self.f.seek(self._addr(b))
@@ -132,7 +147,7 @@ class Package:
         return bytes(out[:e['size']])
 
 
-def main(argv):
+def main(argv: Sequence[str]) -> int:
     if len(argv) < 3 or argv[1] not in ('info', 'list', 'extract') or (argv[1] == 'extract' and len(argv) < 4):
         print(__doc__)                 # extract without its output folder: the usage, not an IndexError
         return 1

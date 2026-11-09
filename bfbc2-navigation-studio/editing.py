@@ -73,18 +73,19 @@ class Editor:
         self.target = 'NavKit' if 'NavKit' in studio.files else 'DICE'
         nav = studio.files[self.target]
         self.path = nt.default_path(root, lv)
-        self.tune = None
+        tune: nt.NavTune | None = None
         self.message = ''
         if os.path.isfile(self.path):
             try:
-                self.tune = nt.load(self.path)
-                if self.tune.base_changed(nav.path):
-                    self.message = (f'the side file was made on another version of {self.tune.base.get("file", "the base file")}; '
+                tune = nt.load(self.path)
+                if tune.base_changed(nav.path):
+                    self.message = (f'the side file was made on another version of {tune.base.get("file", "the base file")}; '
                                     f'its edits are by position, so they still show and apply')
             except ValueError as e:
                 self.message = f'side file not read: {e}'
-        if self.tune is None:
-            self.tune = nt.NavTune.new(level_name, nav.path, kind='navkit' if self.target == 'NavKit' else 'dice')
+        if tune is None:
+            tune = nt.NavTune.new(level_name, nav.path, kind='navkit' if self.target == 'NavKit' else 'dice')
+        self.tune: nt.NavTune = tune
         self.open = False
         self.tool = None
         self.shape = 'polygon'

@@ -12,13 +12,15 @@ entries are 4-byte aligned and never cross a sector (0xFF padding). All little-e
 import os
 import struct
 import sys
+from collections.abc import Iterator
+from typing import BinaryIO
 
 SECTOR = 2048
 MAGIC = b'MICROSOFT*XBOX*MEDIA'
 PARTITIONS = (0x0, 0xFD90000, 0x2080000, 0x18300000)  # plain/xiso, XGD2, XGD3, XGD1
 
 
-def find_partition(f):
+def find_partition(f: BinaryIO) -> int:
     for base in PARTITIONS:
         f.seek(base + 32 * SECTOR)
         if f.read(20) == MAGIC:
@@ -26,12 +28,12 @@ def find_partition(f):
     raise SystemExit('no XDVDFS volume found')
 
 
-def walk(f, base, sector, size, prefix=''):
+def walk(f: BinaryIO, base: int, sector: int, size: int, prefix: str = '') -> Iterator[tuple[str, int, int]]:
     f.seek(base + sector * SECTOR)
     table = f.read(size)
-    seen = set()
+    seen: set[int] = set()
 
-    def node(off):
+    def node(off: int) -> Iterator[tuple[str, int, int]]:
         if off in seen or off + 14 > len(table): return
         seen.add(off)
         left, right, sec, sz, attr, nlen = struct.unpack_from('<HHIIBB', table, off)
@@ -48,7 +50,7 @@ def walk(f, base, sector, size, prefix=''):
     yield from node(0)
 
 
-def main():
+def main() -> int:
     cmd, iso = sys.argv[1], sys.argv[2]
     with open(iso, 'rb') as f:
         base = find_partition(f)
@@ -77,6 +79,7 @@ def main():
                         o.write(chunk); left -= len(chunk)
                 n += 1
             print(f'extracted {n} files to {out}')
+    return 0
 
 
 if __name__ == '__main__':

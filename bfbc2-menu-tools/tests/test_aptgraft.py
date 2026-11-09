@@ -342,10 +342,10 @@ def game(c):
         c.check(frames == 1 and placed and chars and uses and not aptcheck.Code(written).findings(),
                 'weaponicon: add_icon_frame adds an image, a 78 x 20 shape drawing it and a "Test Boat" frame placing '
                 'it at the patrol boat\'s depth; aptcheck finds nothing')
-        for bad, what in ((('PBLB', 'Test Boat'), 'a label the timeline has already'),
-                          (('NO_SUCH_LABEL', 'x'), 'a label the movie lacks')):
+        for bad_args, what in ((('PBLB', 'Test Boat'), 'a label the timeline has already'),
+                               (('NO_SUCH_LABEL', 'x'), 'a label the movie lacks')):
             try:
-                ag.add_icon_frame(wi, *bad, (10, 10))
+                ag.add_icon_frame(wi, *bad_args, (10, 10))
                 c.check(False, f'add_icon_frame refuses {what}')
             except ag.AptError:
                 c.check(True, f'add_icon_frame refuses {what}')
