@@ -94,6 +94,15 @@ def runs_dir(root, given=None):
     return d
 
 
+def shown(path, root):
+    """A file's path for the log: relative to the OPFOR folder, or as given where it cannot be (another drive -
+    os.path.relpath raises ValueError on Windows)."""
+    try:
+        return os.path.relpath(path, root)
+    except ValueError:
+        return path
+
+
 def path_of(name_or_path, folder):
     """A run's file: a path to a .json as given, else <folder>\\<name>.json."""
     if name_or_path.lower().endswith('.json') or os.path.sep in name_or_path or '/' in name_or_path:

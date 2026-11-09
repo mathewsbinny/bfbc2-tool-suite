@@ -397,6 +397,11 @@ def quick(check, tmp):
                     level_status='fail', bits='1011')
     p = runs.save(base, os.path.join(tmp, 'base.json'))
     check(runs.load(p) == json.load(open(p)) and not os.path.exists(p + '.tmp'), 'a run saves and loads (no temporary file left)')
+    here = os.path.join('C:\\', 'opfor', 'game', 'a.hpd')
+    there = os.path.join('D:\\', 'builds', 'a.hpd')
+    check(runs.shown(here, os.path.join('C:\\', 'opfor')) == os.path.join('game', 'a.hpd')
+          and runs.shown(there, os.path.join('C:\\', 'opfor')) == there,          # Windows (the harness's platform)
+          'a file on another drive is logged by its full path (relpath raised ValueError and ended the run)')
     other = os.path.join(tmp, 'other.json')
     json.dump({'format': 'bfbc2-navtune'}, open(other, 'w'))
     try:

@@ -231,7 +231,7 @@ def run_level(root, lv, opts, cache, log=print):
             res['parity'] = timed(parity, root, lv, path, cache)
         for t in list(res):
             res[t] = res[t].as_dict()
-        log(f'  {key:9s} {os.path.relpath(path, root)}: ' + ', '.join(f'{t} {runs.LABEL[r["status"]].strip()}' for t, r in res.items())
+        log(f'  {key:9s} {runs.shown(path, root)}: ' + ', '.join(f'{t} {runs.LABEL[r["status"]].strip()}' for t, r in res.items())
             + f' ({time.time() - tf:.0f} s)')
     if 'level' in tests:
         for name, r in levelchecks.all_checks(info, levelinfo.PLACEHOLDER).items():
