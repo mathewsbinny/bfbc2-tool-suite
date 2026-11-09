@@ -103,15 +103,19 @@ def xiso_cli(*args):
 
 # ------------------------------------------------------------------------------------------------ STFS
 
-def build_stfs(path, read_only):
+def build_stfs(path, read_only, live=None):
     """Data blocks: 0 file table; 1-2 Content/a.bin (consecutive); 5 -> 3 -> 4 Content/b.bin (fragmented);
-    6 top.txt."""
+    6 top.txt. live (two-table packages): None - both copies of the level-0 table the same; 'separation' - the
+    second copy live by separation bit 0x02; 'level1' - more than 0xAA blocks allocated, the second copy live by
+    status bit 0x40 of its entry in the level-1 table. The other copy then holds a stale chain (5 -> 4 -> 3)."""
     files = {'Content/a.bin': os.urandom(6000), 'Content/b.bin': os.urandom(9000), 'top.txt': b'top level'}
     h = bytearray(0x1000)
     h[0:4] = b'LIVE'
     header_size = 0x971A
     struct.pack_into('>I', h, 0x340, header_size)
-    h[0x37B] = 1 if read_only else 0
+    h[0x37B] = 1 if read_only else 2 if live == 'separation' else 0
+    if live == 'level1':
+        struct.pack_into('>I', h, 0x395, 0x100)
     struct.pack_into('<H', h, 0x37C, 1)
     h[0x37E:0x381] = (0).to_bytes(3, 'little')
     name = 'Test Package'.encode('utf-16-be')
@@ -138,11 +142,19 @@ def build_stfs(path, read_only):
     hashes = bytearray(0x1000)
     for b, nxt in ((0, 0xFFFFFF), (5, 3), (3, 4), (4, 0xFFFFFF)):
         hashes[b * 0x18 + 0x15:b * 0x18 + 0x18] = nxt.to_bytes(3, 'big')
+    stale = bytearray(hashes)
+    for b, nxt in ((5, 4), (4, 3), (3, 0xFFFFFF)):
+        stale[b * 0x18 + 0x15:b * 0x18 + 0x18] = nxt.to_bytes(3, 'big')
     with open(path, 'wb') as f:
         f.write(h)
         for k in range(tables):                       # the level-0 hash table(s) before the first data block
             f.seek(base + k * 0x1000)
-            f.write(hashes)
+            f.write(stale if live and k == 0 else hashes)
+        if live == 'level1':                           # the level-1 table (first copy at raw block 0xAC)
+            l1 = bytearray(0x1000)
+            l1[0x14] = 0x40
+            f.seek(base + 0xAC * 0x1000)
+            f.write(l1)
         for b, blob in blocks.items():
             f.seek(base + (tables + b) * 0x1000)
             f.write(blob.ljust(0x1000, b'\0'))
@@ -380,6 +392,19 @@ def main(argv):
             c.check(all(open(os.path.join(dest, *k.split('/')), 'rb').read() == v for k, v in files.items()), f'stfs: extract ({label})')
             code, out = stfs_cli('info', path)
             c.check(code == 0 and '4 entries' in out, f'stfs: info ({label})')
+        for live, label in (('separation', 'separation bit 0x02'), ('level1', 'status bit 0x40 in the level-1 table')):
+            path = os.path.join(work, f'pkg_{live}')
+            files = build_stfs(path, False, live)
+            p = stfs.Package(path)
+            paths = {e['path']: e for e in p.entries}
+            c.check(p.read(paths['Content/b.bin']) == files['Content/b.bin'],
+                    f'stfs: a fragmented file read through the live copy of its hash table ({label})')
+            p.f.close()
+        try:
+            code, out = stfs_cli('extract', path)
+            c.check(code == 1 and 'Usage' in out, 'stfs: extract without an output folder prints the usage')
+        except IndexError:
+            c.check(False, 'stfs: extract without an output folder prints the usage (it was an IndexError)')
 
         apt_checks(c, work)
 
