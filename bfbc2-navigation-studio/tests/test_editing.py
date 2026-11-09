@@ -9,6 +9,7 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import cast
 
 import numpy as np
 
@@ -120,7 +121,8 @@ def main(argv):
 
         dice = editing.Editor(st, lvl.opfor, lvl.lv, f'Levels/{lvl.name}')
         dice.target = 'DICE'
-        dice.tune = nt.NavTune.new(f'Levels/{lvl.name}', files['DICE'].path, kind='dice') if 'DICE' in files else None
+        dice.tune = cast(nt.NavTune, nt.NavTune.new(f'Levels/{lvl.name}', files['DICE'].path, kind='dice')
+                         if 'DICE' in files else None)
         if dice.tune is not None:
             dice.open, dice.tool = True, 'seed'
             dice.click(v, pts[0])

@@ -54,11 +54,12 @@ LADDER = (0.62, 0.35, 1.0)                               # ground reached only b
 PATH_COLOURS = {'NavKit': (1.0, 0.85, 0.1), 'DICE': (0.3, 0.9, 1.0)}
 
 
-def hue(k, s=0.65, v=0.92):
+def hue(k: float, s: float = 0.65, v: float = 0.92) -> tuple[float, float, float]:
     return colorsys.hsv_to_rgb((k * 0.618034) % 1.0, s, v)
 
 
-def default_files(root, lv):
+def default_files(root: str, lv: str) -> tuple[str | None, str | None]:
+    """(NavKit's newest build of the level, DICE's path data), each None when there is none."""
     import navparity
     ref = navparity.reference_of(root, lv)
     builds = [p for p in (os.path.join(root, 'work', 'navkit', lv, 'pathdata.hpd'), os.path.join(root, 'work', 'navkit', 'regress', f'{lv}.hpd'),
@@ -67,7 +68,7 @@ def default_files(root, lv):
     return cand, (ref if ref and os.path.isfile(ref) else None)
 
 
-def box_edges(centre, size):
+def box_edges(centre: Any, size: float) -> np.ndarray:
     """The 12 edges of an axis-aligned box (an outline marker)."""
     c, h = np.asarray(centre, dtype=np.float64), size / 2.0
     k = np.array([[x, y, z] for x in (-h, h) for y in (-h, h) for z in (-h, h)]) + c
@@ -494,11 +495,10 @@ class Studio:
                 imgui.text(f'  no route: {r.reason}')
                 if r.gap and imgui.small_button(f'fly to the gap##{name}'):
                     v.camera.focus((self.files[name].node_pos[r.gap[0]] + self.files[name].node_pos[r.gap[1]]) / 2, 40.0)
-        routes = getattr(self, 'routes', {})
-        if len(routes) == 2 and all(r.found for r in routes.values()):
-            a, b = routes['NavKit'].cost, routes['DICE'].cost
+        change = route_cost_change(getattr(self, 'routes', {}))
+        if change is not None:
             imgui.separator()
-            imgui.text(f'NavKit\'s route costs {100.0 * (a - b) / max(b, 1e-9):+.1f} % against DICE\'s')
+            imgui.text(f'NavKit\'s route costs {change:+.1f} % against DICE\'s')
         imgui.text_disabled('Over the route graph only; the game also smooths the route through the areas.')
         imgui.end()
 
@@ -660,7 +660,22 @@ class Studio:
         imgui.end()
 
 
-def save_json(opfor, name, data):
+def route_cost_change(routes: dict[str, navpath.Route]) -> float | None:
+    """NavKit's route cost against DICE's, in per cent (+: NavKit's is dearer), when both files found a route."""
+    if len(routes) != 2 or not all(r.found for r in routes.values()):
+        return None
+    a, b = routes['NavKit'].cost, routes['DICE'].cost
+    return 100.0 * (a - b) / max(b, 1e-9)
+
+
+def hidden_at_start(opts: dict[str, Any]) -> set[str]:
+    """The layers hidden when the window opens: --hide's list, else the objects and every outline / portal / graph
+    layer (the ground stays on)."""
+    return set(opts.get('--hide', 'objects,DICE ground,DICE outlines,DICE portals,DICE border portals,DICE route graph,'
+                                  'NavKit outlines,NavKit portals,NavKit border portals,NavKit route graph').split(','))
+
+
+def save_json(opfor: str, name: str, data: Any) -> str:
     """An export into work\\navstudio; returns the path."""
     import json
     d = os.path.join(opfor, 'work', 'navstudio')
@@ -674,9 +689,11 @@ def save_json(opfor, name, data):
 FLAGS = {'--edit'}                                          # options without a value
 
 
-def parse_args(argv):
+def parse_args(argv: list[str]) -> tuple[dict[str, Any], list[str]]:
     """(options, positional arguments): '--name value' pairs, the FLAGS on their own."""
-    opts, args, k = {}, [], 1
+    opts: dict[str, Any] = {}
+    args: list[str] = []
+    k = 1
     while k < len(argv):
         if argv[k] in FLAGS:
             opts[argv[k]] = True
@@ -734,8 +751,7 @@ def main(argv):
                       panels=[st.panel_main, st.panel_islands, st.panel_selection, st.panel_path, st.panel_compare,
                               st.panel_anomaly] + ([st.editor.panel] if st.editor is not None else []) + [st.panel_status])
     v.on_pick = st.on_pick(v)
-    hide = set(opts.get('--hide', 'objects,DICE ground,DICE outlines,DICE portals,DICE border portals,DICE route graph,'
-                                   'NavKit outlines,NavKit portals,NavKit border portals,NavKit route graph').split(','))
+    hide = hidden_at_start(opts)
     for name, i in st.layers.items():
         if name in hide:
             v.set_layer_visible(i, False)
