@@ -53,6 +53,7 @@ import os
 import struct
 import sys
 import time
+from typing import cast
 
 import numpy as np
 
@@ -955,7 +956,9 @@ def sample_grid(grid, geom, hf, log=print, bottoms=(0.28, 0.6)):
     hit[:, 1] = RAY_SHAPE_VTABLE
     nq = (np.clip(np.rint(N * 127), -127, 127) / 127.0).astype(np.float32)
     for b in bottoms:
-        out[b] = navsample.Samples(np.float32(grid.pitch), np.float32(grid.min_x), np.float32(grid.min_z), grid.nx,
+        # the file's float32 header values (Samples declares float)
+        out[b] = navsample.Samples(cast(float, np.float32(grid.pitch)), cast(float, np.float32(grid.min_x)),
+                                   cast(float, np.float32(grid.min_z)), grid.nx,
                                    grid.nz, grid.y_top, grid.y_bottom, RADIUS, b, HEIGHT, RAY_RADIUS, start,
                                    Y.astype(np.float32), nq, blocked[b].astype(np.uint8), hit)
     log(f'  sampled {grid.nx} x {grid.nz} columns at {grid.pitch:g} m: {len(Y):,} surfaces, '

@@ -44,6 +44,7 @@ import zlib
 from collections import deque
 from dataclasses import dataclass, field
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
@@ -127,7 +128,7 @@ def surface_heights(grid, vertices, triangles):
     """The water surface over each cell centre ((nz, nx), NaN where none); the highest where pieces overlap.
     navbuild.water_tops on a column grid with the cells' layout."""
     import navbuild
-    s = SimpleNamespace(nx=grid.nx, nz=grid.nz, pitch=grid.pitch, min_x=grid.x0, min_z=grid.z0)
+    s: Any = SimpleNamespace(nx=grid.nx, nz=grid.nz, pitch=grid.pitch, min_x=grid.x0, min_z=grid.z0)   # the Samples fields read
     top = navbuild.water_tops(s, vertices, triangles).reshape(grid.nz, grid.nx)
     return np.where(np.isfinite(top), top, np.nan)
 

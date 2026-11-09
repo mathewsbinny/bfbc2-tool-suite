@@ -62,6 +62,7 @@ def walkable_box(root, lv, nav, g, main_nodes, half=5.0):
             continue
         if best is None or gain > best[0]:
             best = (gain, p)
+    assert best is not None
     p = best[1]
     return nt.box(p[0] - half, p[1] - 1.0, p[2] - half, p[0] + half, p[1] + 1.0, p[2] + half), p
 

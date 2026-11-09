@@ -433,7 +433,7 @@ def road_points(level_xml, step=ROAD_STEP):
         p = re.search(r'<complex name="Position">([^<]*)</complex>', body)
         if p:
             pos[g.lower()] = [float(a) for a in p.group(1).split('/')[:3]]
-    out = []
+    out: list[tuple[float, ...]] = []
     for _t, _g, body in xmlinst.instances(level_xml, 'Terrain.TerrainSplineData'):
         if '<array name="Points">' not in body:
             continue

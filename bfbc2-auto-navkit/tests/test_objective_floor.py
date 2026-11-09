@@ -29,9 +29,13 @@ def grid():
     ys, hit, flags, start = [], [], [], [0]
     for j in range(NZ):
         for i in range(NX):
-            ys.append(0.0), hit.append(navwalk.TERRAIN_SHAPE_VTABLE), flags.append(1 if (i, j) in RING else 0)
+            ys.append(0.0)
+            hit.append(navwalk.TERRAIN_SHAPE_VTABLE)
+            flags.append(1 if (i, j) in RING else 0)
             if (i, j) in BOX:
-                ys.append(TOP), hit.append(OBJECT), flags.append(0)
+                ys.append(TOP)
+                hit.append(OBJECT)
+                flags.append(0)
             start.append(len(ys))
     n = len(ys)
     return SimpleNamespace(nx=NX, nz=NZ, pitch=P, min_x=X0, min_z=X0, start=np.array(start), y=np.array(ys, np.float32),
@@ -48,10 +52,16 @@ def slab_grid():
     ys, hit, flags, start = [], [], [], [0]
     for j in range(NZ):
         for i in range(NX):
-            ys.append(0.0), hit.append(navwalk.TERRAIN_SHAPE_VTABLE), flags.append(1)
-            ys.append(SLAB), hit.append(OBJECT), flags.append(1 if (i, j) in RING else 0)
+            ys.append(0.0)
+            hit.append(navwalk.TERRAIN_SHAPE_VTABLE)
+            flags.append(1)
+            ys.append(SLAB)
+            hit.append(OBJECT)
+            flags.append(1 if (i, j) in RING else 0)
             if (i, j) in BOX:
-                ys.append(SLAB + TOP), hit.append(OBJECT), flags.append(0)
+                ys.append(SLAB + TOP)
+                hit.append(OBJECT)
+                flags.append(0)
             start.append(len(ys))
     n = len(ys)
     return SimpleNamespace(nx=NX, nz=NZ, pitch=P, min_x=X0, min_z=X0, start=np.array(start), y=np.array(ys, np.float32),
@@ -73,7 +83,9 @@ def stray_grid():
         hit += [int(h[0]) for h in s.hit[a:b]]
         flags += [int(f) for f in s.flags[a:b]]
         if (c % NX, c // NX) in STRAY:
-            ys.append(TOP - 0.4), hit.append(OBJECT), flags.append(0)
+            ys.append(TOP - 0.4)
+            hit.append(OBJECT)
+            flags.append(0)
         start.append(len(ys))
     n = len(ys)
     return SimpleNamespace(nx=NX, nz=NZ, pitch=P, min_x=X0, min_z=X0, start=np.array(start), y=np.array(ys, np.float32),

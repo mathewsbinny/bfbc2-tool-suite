@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import Any, cast
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -71,6 +72,7 @@ def main(argv):
                 best = gap if best is None or gap[2] < best[2] else best
         check(best is not None, 'an island within 12 m of the main network, in the same sector')
         g = navpath.ground_nodes(nav)
+        assert best is not None
         a, b = g[best[0]], g[best[1]]
         r0 = navpath.route(nav, a, b)
         check(not r0.found, f'before the link: no route ({r0.reason})')
@@ -119,7 +121,8 @@ def main(argv):
         open(nav3_path, 'wb').write(hpdtool.write(f3))
         check(not navpath.route(navdata.load(nav3_path), a, b).found, 'removing the edge (both ways) cuts the link again')
         f4 = hpdtool.parse(raw)
-        navlinks.apply(f4, [nt.op('route-edge', a=a, b=b, action='add', **{'two-way': False})], log=lambda *x: None)
+        navlinks.apply(f4, [nt.op('route-edge', a=a, b=b, action='add', **cast(dict[str, Any], {'two-way': False}))],
+                       log=lambda *x: None)
         p4 = os.path.join(tmp, 'oneway.hpd')
         open(p4, 'wb').write(hpdtool.write(f4))
         nav4 = navdata.load(p4)

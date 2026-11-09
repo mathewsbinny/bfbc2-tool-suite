@@ -9,6 +9,7 @@ import os
 import sys
 from collections import Counter
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
@@ -25,8 +26,8 @@ def level(columns, nx, nz):
         start.append(len(ys))
     n = len(ys)
     normal = np.tile(np.array([0.0, 1.0, 0.0], np.float32), (n, 1))
-    s = SimpleNamespace(nx=nx, nz=nz, pitch=0.8, min_x=0.0, min_z=0.0, start=np.array(start), y=np.array(ys, np.float32),
-                        normal=normal, hit=None)
+    s: Any = SimpleNamespace(nx=nx, nz=nz, pitch=0.8, min_x=0.0, min_z=0.0, start=np.array(start),
+                             y=np.array(ys, np.float32), normal=normal, hit=None)     # a stand-in for navsample.Samples
     return navbuild.Level(s, np.ones(n, bool), 0.28)
 
 

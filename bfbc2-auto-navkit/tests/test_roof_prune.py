@@ -30,10 +30,12 @@ def grid():
     for j in range(NZ):
         for i in range(NX):
             if (i, j) not in GAP:
-                ys.append(0.0), hit.append(navwalk.TERRAIN_SHAPE_VTABLE)
+                ys.append(0.0)
+                hit.append(navwalk.TERRAIN_SHAPE_VTABLE)
             for cells, y in ((LONE, 5.0), (NEAR, 5.0), (DECK, 5.3)):
                 if (i, j) in cells:
-                    ys.append(y), hit.append(OBJECT)
+                    ys.append(y)
+                    hit.append(OBJECT)
             start.append(len(ys))
     n = len(ys)
     return SimpleNamespace(nx=NX, nz=NZ, pitch=P, min_x=X0, min_z=X0, start=np.array(start), y=np.array(ys, np.float32),

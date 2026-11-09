@@ -8,6 +8,7 @@ plane, so portals and routes keep it; object surfaces use the slope rule under '
 import os
 import sys
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
@@ -29,8 +30,8 @@ def level(heights, keep=None, terrain=None):
     if terrain is not None:
         hit = np.zeros((h.size, 2), np.int64)
         hit[np.array(terrain, bool).ravel(), 0] = navwalk.TERRAIN_SHAPE_VTABLE
-    s = SimpleNamespace(nx=nx, nz=nz, pitch=0.8, min_x=0.0, min_z=0.0, start=np.arange(h.size + 1),
-                        y=h.ravel().astype(np.float32), normal=n.astype(np.float32), hit=hit)
+    s: Any = SimpleNamespace(nx=nx, nz=nz, pitch=0.8, min_x=0.0, min_z=0.0, start=np.arange(h.size + 1),
+                             y=h.ravel().astype(np.float32), normal=n.astype(np.float32), hit=hit)   # a Samples stand-in
     k = np.ones(h.size, bool) if keep is None else np.array(keep, bool).ravel()
     return navbuild.Level(s, k, 0.28)
 

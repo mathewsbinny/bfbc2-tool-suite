@@ -10,6 +10,7 @@ import random
 import sys
 from collections import Counter
 from types import SimpleNamespace
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
@@ -78,7 +79,7 @@ def main(argv):
             continue
         with_bridges += 1
         cell_k = {c: k for k, c in enumerate(sorted(cells))}
-        level = SimpleNamespace(y=[0.0] * len(cell_k))
+        level: Any = SimpleNamespace(y=[0.0] * len(cell_k))       # a navbuild.Level stand-in (bridge_union reads y)
         drop, segs = navbuild.bridge_union(bridges, cell_k, level)
         diag = [((a[0], a[1]), (b[0], b[1])) for a, b in segs]
         if open_ends(cells, drop, diag):
@@ -98,7 +99,8 @@ def main(argv):
     # one bridge alone: exactly its two diagonals, from A's corners to B's corners
     cells = {(0, 0), (1, 1)}
     cell_k = {(0, 0): 0, (1, 1): 1}
-    drop, segs = navbuild.bridge_union(bridges_of(cells), cell_k, SimpleNamespace(y=[1.0, 2.0]))
+    level = SimpleNamespace(y=[1.0, 2.0])
+    drop, segs = navbuild.bridge_union(bridges_of(cells), cell_k, level)
     ends = sorted(((a[0], a[1], a[2]), (b[0], b[1], b[2])) for a, b in segs)
     check(ends == [((-0.5, 0.5, 1.0 + navbuild.Y_OFFSET), (0.5, 1.5, 2.0 + navbuild.Y_OFFSET)),
                    ((0.5, -0.5, 1.0 + navbuild.Y_OFFSET), (1.5, 0.5, 2.0 + navbuild.Y_OFFSET))],

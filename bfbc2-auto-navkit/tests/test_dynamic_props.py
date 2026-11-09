@@ -35,8 +35,10 @@ def door_row(rail_on_door=True):
     surf = {3: [(2.2, (0.0, 1.0, 0.0)), (1.0, (0.995, 0.1, 0.0)), (0.06, (0.0, 1.0, 0.0))]}
     ys, nrm, flags, start = [], [], [], [0]
     for i in range(7):
-        for y, n in surf.get(i, [(0.0, (0.0, 1.0, 0.0))]):
-            ys.append(y), nrm.append(n), flags.append(1 if i in (2, 4) or (i == 3 and y < 0.5) else 0)
+        for y, nv in surf.get(i, [(0.0, (0.0, 1.0, 0.0))]):
+            ys.append(y)
+            nrm.append(nv)
+            flags.append(1 if i in (2, 4) or (i == 3 and y < 0.5) else 0)
         start.append(len(ys))
     n = len(ys)
     s = SimpleNamespace(nx=7, nz=1, pitch=PITCH, min_x=X0, min_z=X0, start=np.array(start), y=np.array(ys, np.float32),

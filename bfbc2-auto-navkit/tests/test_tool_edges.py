@@ -16,6 +16,7 @@ import sys
 import tempfile
 from collections import Counter
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
@@ -69,13 +70,18 @@ def main(argv):
         samples = os.path.join(tmp, 'samples08.bin')
         open(samples, 'wb').write(b'x')
         settings = {'xoff': 0, 'zoff': 0}
-        calls = []
-        pr = SimpleNamespace(samples08=lambda lv: samples, out_dir=lambda lv: tmp, work=tmp,
-                             level_work=lambda lv: tmp)
+        calls: list[tuple[Any, ...]] = []
+        pr: Any = SimpleNamespace(samples08=lambda lv: samples, out_dir=lambda lv: tmp, work=tmp,   # a Project stand-in
+                                  level_work=lambda lv: tmp)
         import detailed
         saved = navkit.ensure_settings, detailed.choose
-        navkit.ensure_settings = lambda pr_, lv: dict(settings)
-        detailed.choose = lambda *a: (calls.append(a[3:5]) or [[len(calls), 0]], ['why'])
+        nk: Any = navkit                    # monkeypatched below (the stand-ins are not typed as the real ones)
+
+        def choose(*a: Any) -> tuple[list[list[int]], list[str]]:
+            calls.append(a[3:5])
+            return [[len(calls), 0]], ['why']
+        nk.ensure_settings = lambda pr_, lv: dict(settings)
+        detailed.choose = choose
         try:
             first = navkit.detailed_sectors(pr, 'lv')
             again = navkit.detailed_sectors(pr, 'lv')
@@ -155,15 +161,15 @@ def main(argv):
 
             def level(self, name):
                 return name
-        navkit.Project = FakeProject
-        navkit.build = lambda pr, lv, log=print, cfg=None: seen.append(('build', cfg))
-        navkit.apply = lambda pr, lv, *a_, cfg=None, **k_: seen.append(('apply', cfg))
+        nk.Project = FakeProject
+        nk.build = lambda pr, lv, log=print, cfg=None: seen.append(('build', cfg))
+        nk.apply = lambda pr, lv, *a_, cfg=None, **k_: seen.append(('apply', cfg))
         try:
             navkit.main(['navkit.py', 'build', 'lv', '--no-detail'])
             navkit.main(['navkit.py', 'apply', 'lv', '--no-detail'])
             navkit.main(['navkit.py', 'build', 'lv'])
         finally:
-            navkit.Project, navkit.build, navkit.apply = real_project, real_build, real_apply
+            nk.Project, nk.build, nk.apply = real_project, real_build, real_apply
         check([(w, c is not None and not c.detail_features) for w, c in seen[:2]] == [('build', True), ('apply', True)]
               and seen[2] == ('build', None) and navbuild.DEFAULTS.detail_features,
               'navkit --no-detail: build / apply get BuildSettings with detail features off, the defaults stay on',
@@ -186,6 +192,7 @@ def main(argv):
         parent = subprocess.Popen([sys.executable, '-c', 'import subprocess, sys, time; c = subprocess.Popen([sys.executable, '
                                    '"-c", "import time; time.sleep(60)"]); print(c.pid, flush=True); time.sleep(60)'],
                                   stdout=subprocess.PIPE, text=True)
+        assert parent.stdout is not None
         child = int(parent.stdout.readline())
         gui.kill_tree(parent)
         parent.wait(10)

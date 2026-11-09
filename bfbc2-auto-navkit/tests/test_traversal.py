@@ -16,6 +16,7 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import Any, cast
 
 import numpy as np
 
@@ -38,7 +39,7 @@ def main(argv):
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}', flush=True)
 
-    pr = navkit.Project(None)
+    pr: Any = navkit.Project(None)          # (Any: two of its methods are replaced below)
     dice = pr.dice_pathdata(lv)
     if not dice:
         print(f'FAIL {lv} has no DICE path data')
@@ -51,8 +52,9 @@ def main(argv):
         other_n = np.nonzero(nav.node_island == 1)[0]
         bottom, top = g[main_n[0]], g[other_n[0]]
         t = nt.NavTune.new(f'Levels/{lv}', dice, kind='dice')
-        t.add(nt.op('traversal', kind='ladder', bottom=bottom, top=top, **{'two-way': True}))
-        t.add(nt.op('traversal', kind='drop', bottom=g[main_n[1]], top=g[main_n[1]] + [0, 3, 0], **{'two-way': False}))
+        t.add(nt.op('traversal', kind='ladder', bottom=bottom, top=top, **cast(dict[str, Any], {'two-way': True})))
+        t.add(nt.op('traversal', kind='drop', bottom=g[main_n[1]], top=g[main_n[1]] + [0, 3, 0],
+                     **cast(dict[str, Any], {'two-way': False})))
         t.add(nt.op('traversal', kind='jump', bottom=g[main_n[0]] + [5000, 0, 5000], top=g[main_n[0]] + [5003, 0, 5000]))
         t.add(nt.op('note', at=bottom, text='checked'))
         p = os.path.join(tmp, f'{lv}.navtune.json')

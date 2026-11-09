@@ -66,8 +66,10 @@ def inputs(root, lv):
         if not so:
             raise RuntimeError(f'{lv}: no navkit.json and no SectorOffsets.xml (run navkit.py prepare {lv})')
         t = open(so[0], encoding='utf-8').read()
-        xoff = int(re.search(r'name="XOffset">(-?\d+)<', t).group(1))
-        zoff = int(re.search(r'name="ZOffset">(-?\d+)<', t).group(1))
+        mx, mz = re.search(r'name="XOffset">(-?\d+)<', t), re.search(r'name="ZOffset">(-?\d+)<', t)
+        if mx is None or mz is None:
+            raise RuntimeError(f'{so[0]}: no XOffset / ZOffset value (re-run navkit.py prepare {lv})')
+        xoff, zoff = int(mx.group(1)), int(mz.group(1))
     files = {k: os.path.join(L, k) for k in ('forbid_tris.npy', 'dynamic_tris.npy', 'stair_tris.npy', 'soldier_spawns.json')}
     missing = [k for k, p in files.items() if not os.path.isfile(p)]
     if missing:

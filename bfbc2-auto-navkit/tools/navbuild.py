@@ -38,8 +38,9 @@ import os
 import sys
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable, Container, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -49,6 +50,19 @@ import kymesh  # noqa: E402
 import navislands  # noqa: E402
 import navsample  # noqa: E402
 import navwalk  # noqa: E402
+
+type Vec3 = tuple[float, float, float]
+type Cell = tuple[int, int, int]                # an area cell: (local i, local j, surface)
+type AreaInfo = dict[str, Any]                  # an area: {'tile': (tx, tz), 'cells': [Cell], 'layer', 'borders'}
+type EdgeRows = dict[Any, list[Any]]            # one area's boundary edges: {(kind, target, axis, line, dir): [(along, y)]}
+type OneWay = tuple[int, int, tuple[Any, ...], Any]   # a one-way candidate: (source area, target area, key, along)
+type Traced = tuple[list[kymesh.Portal], list[Any], list[list[Vec3]]]   # (portals, borders, outline) of an area
+type RouteNode = tuple[int, Vec3, int, int, int]   # a route node: (id, pos, surface, local i, local j)
+type RoutePair = tuple[int, int, float]         # a route edge: (node index, node index, length)
+type Graph = tuple[int, tuple[float, ...], kymesh.Mesh, list[RouteNode], list[RoutePair], tuple[float, float]]
+type Resolver = Callable[[tuple[int, int], AreaInfo, Any], tuple[int, int, int] | None]
+type Log = Callable[..., object]
+type Points = Sequence[Sequence[float]]         # world points (x, y, z)
 
 PITCH = 0.8
 SECTOR_SAMPLES = 125            # 100 m / 0.8 m
@@ -169,7 +183,7 @@ DETAIL_BLOCKS_EDGES = True      # route edges do not cross a D line: line_walkab
 DETAIL_STATS: dict[str, int] = {}               # D lines, F cells and outline sides moved to D / F (for reports)
 
 
-def water_tops(s, vertices, triangles):
+def water_tops(s: navsample.Samples, vertices: np.ndarray | None, triangles: np.ndarray) -> np.ndarray:
     """The water surface height over every sample column (-inf where there is no water). The columns are a regular
     grid, so each water triangle only visits the columns its bounding box covers."""
     nx, nz, p = s.nx, s.nz, s.pitch
@@ -201,7 +215,7 @@ def water_tops(s, vertices, triangles):
     return top.ravel()
 
 
-def outside_bounds(s, bounds):
+def outside_bounds(s: navsample.Samples, bounds: Sequence[float]) -> np.ndarray:
     """Surfaces whose column lies outside bounds (minX, minZ, maxX, maxZ) - bool per surface (CLIP_TO_REFERENCE)."""
     col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
     x, z = s.min_x + (col % s.nx) * s.pitch, s.min_z + (col // s.nx) * s.pitch
@@ -209,7 +223,7 @@ def outside_bounds(s, bounds):
     return (x < bounds[0] - e) | (x > bounds[2] + e) | (z < bounds[1] - e) | (z > bounds[3] + e)
 
 
-def deep_water(s, water, limit=MAX_WATER_DEPTH):
+def deep_water(s: navsample.Samples, water: tuple[np.ndarray, np.ndarray] | None, limit: float = MAX_WATER_DEPTH) -> np.ndarray:
     """Surfaces more than limit metres under the level's water (bool per surface). water: (vertices, triangles)."""
     if water is None:
         return np.zeros(len(s.y), dtype=bool)
@@ -230,7 +244,7 @@ DETAILED_LINK_STEP = 0.3        # LINK_STEP in detailed zones: DICE's one-cell h
                                 # ground into 3x DICE's areas (8,400 against 2,640; 2026-10-21)
 
 
-def grid_settings(p):
+def grid_settings(p: float) -> dict[str, Any]:
     """The grid settings of a build at pitch p - 0.8 (normal sectors) or 0.2 (detailed zones) - as BuildSettings
     fields: sector size in samples, window, tiles, mesh resolution and the area link step."""
     sector_samples = int(round(100 / p))                  # 125 / 500
@@ -271,16 +285,16 @@ class BuildSettings:
     detail_blocks_edges: bool = DETAIL_BLOCKS_EDGES
     tile_20m_sectors: frozenset[int] | None = TILE_20M_SECTORS
 
-    def at_pitch(self, p):
+    def at_pitch(self, p: float) -> 'BuildSettings':
         """These settings with the grid of pitch p (grid_settings)."""
         return replace(self, **grid_settings(p))
 
-    def detailed(self):
+    def detailed(self) -> 'BuildSettings':
         """These settings for the detailed-zone pass (pitch 0.2, 6 x 6 tiles of 20 m, resolution 0.05)."""
         return self.at_pitch(DETAILED_PITCH)
 
     @property
-    def kind(self):
+    def kind(self) -> str:
         """'detailed' at pitch 0.2, else 'normal' (the key of the per-pitch settings)."""
         return 'detailed' if abs(self.pitch - DETAILED_PITCH) < 1e-6 else 'normal'
 
@@ -288,7 +302,7 @@ class BuildSettings:
 DEFAULTS = BuildSettings()
 
 
-def reset_stats():
+def reset_stats() -> None:
     """Clears the per-build report counters and id sets: this module's, navislands' and navwalk's (build() at its
     start; ORDER_IDS also decides which order nodes prune_order_nodes may drop)."""
     for d in (ORDER_IDS, ORDER_STATS, LADDER_STATS, DETAIL_STATS, navislands.TERRAIN_IDS, navwalk.ROOF_STATS,
@@ -300,7 +314,8 @@ class Level:
     """Kept walkable surfaces on the global sample grid, with the step-rule connectivity (cfg: the build's settings -
     its pitch and link step)."""
 
-    def __init__(self, s, keep, step, gx=None, gz=None, stair=None, cfg=DEFAULTS):
+    def __init__(self, s: navsample.Samples, keep: np.ndarray, step: float, gx: np.ndarray | None = None,
+                 gz: np.ndarray | None = None, stair: np.ndarray | None = None, cfg: BuildSettings = DEFAULTS) -> None:
         self.s, self.keep, self.step, self.cfg = s, keep, step, cfg
         self.stair = stair if stair is not None else np.zeros(len(s.y), bool)
         self.y = s.y.astype(float)
@@ -309,15 +324,15 @@ class Level:
         self.gz = gz if gz is not None else -s.normal[:, 2] / ny
         self.col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
         self.terrain = (s.hit[:, 0] == navwalk.TERRAIN_SHAPE_VTABLE) if s.hit is not None else np.ones(len(s.y), bool)
-        self.blocked = set()       # (surface, surface) pairs line_walkable does not step across (D sides; DETAIL_BLOCKS_EDGES)
+        self.blocked: set[tuple[int, int]] = set()       # (surface, surface) pairs line_walkable does not step across (D sides; DETAIL_BLOCKS_EDGES)
 
-    def surfaces(self, gi, gj):
+    def surfaces(self, gi: int, gj: int) -> Sequence[int]:
         if not (0 <= gi < self.s.nx and 0 <= gj < self.s.nz):
             return range(0)
         c = gj * self.s.nx + gi
         return [k for k in range(self.s.start[c], self.s.start[c + 1]) if self.keep[k]]
 
-    def connected(self, k, n, di, dj, rule=None):
+    def connected(self, k: int, n: int, di: int, dj: int, rule: str | None = None) -> bool:
         """Surface n (direction di, dj from k) links to k by rule ('slope', 'raw', 'terrain'; LINK_RULE if None)."""
         rule = rule or LINK_RULE
         if rule == 'slope' or (rule == 'terrain' and not (self.terrain[k] and self.terrain[n])):
@@ -337,7 +352,8 @@ class Level:
                         return True
         return False
 
-    def neighbour(self, k, gi, gj, di, dj, prefer=None, rule=None):
+    def neighbour(self, k: int, gi: int, gj: int, di: int, dj: int, prefer: Container[int] | None = None,
+                  rule: str | None = None) -> int | None:
         """The kept surface in column (gi+di, gj+dj) connected to surface k, or None. With prefer (a set of
         surfaces, e.g. those of k's own area), a connected surface in that set is returned first."""
         best, bd = None, 9e9
@@ -351,25 +367,27 @@ class Level:
         return best
 
 
-def sector_origin_index(level, X, Y, xoff, zoff, cfg=DEFAULTS):
+def sector_origin_index(level: Level, X: int, Y: int, xoff: int, zoff: int,
+                        cfg: BuildSettings = DEFAULTS) -> tuple[int, int, float, float]:
     """Global sample index of the sector's local sample (0, 0)."""
     s = level.s
     ox, oz = (X + xoff) * 100.0, (Y + zoff) * 100.0
     return int(round((ox - s.min_x) / cfg.pitch)), int(round((oz - s.min_z) / cfg.pitch)), ox, oz
 
 
-def tiling(sid, cfg=DEFAULTS):
+def tiling(sid: int, cfg: BuildSettings = DEFAULTS) -> tuple[int, int]:
     """(samples per tile, tiles per axis) of a sector."""
     return (25, 6) if cfg.tile_20m_sectors and sid in cfg.tile_20m_sectors else (cfg.tile, cfg.tiles)
 
 
-def build_areas(level, gi0, gj0, start=(-1, -1), tile=None, tiles=None, cfg=DEFAULTS):
+def build_areas(level: Level, gi0: int, gj0: int, start: Sequence[int] = (-1, -1), tile: int | None = None,
+                tiles: int | None = None, cfg: BuildSettings = DEFAULTS) -> list[AreaInfo]:
     """Areas of one sector: list of dicts {tile: (tx, tz), cells: [(i, j, k)]} (local i, j). start: the local sample
     index where the tiles begin on x and z (-1, or 0 on a side with no neighbouring sector - EDGE_SECTOR_TILES); tile,
     tiles: samples per tile and tiles per axis (cfg's if None)."""
     tile = cfg.tile if tile is None else tile
     tiles = cfg.tiles if tiles is None else tiles
-    cells_by_tile = defaultdict(list)
+    cells_by_tile: defaultdict[tuple[int, int], list[Cell]] = defaultdict(list)
     for j in cfg.window:
         for i in cfg.window:
             for k in level.surfaces(gi0 + i, gj0 + j):
@@ -377,15 +395,15 @@ def build_areas(level, gi0, gj0, start=(-1, -1), tile=None, tiles=None, cfg=DEFA
                 tz = min(max(j - start[1], 0) // tile, tiles - 1)
                 cells_by_tile[(tx, tz)].append((i, j, k))
     areas = []
-    for tile in sorted(cells_by_tile):
-        members = {k: (i, j) for i, j, k in cells_by_tile[tile]}
+    for tkey in sorted(cells_by_tile):
+        members = {k: (i, j) for i, j, k in cells_by_tile[tkey]}
         for comp in components(level, members, gi0, gj0):
             for piece in (bisect(level, comp, gi0, gj0) if BISECT_AREAS else [comp]):
-                areas.append({'tile': tile, 'cells': piece})
+                areas.append({'tile': tkey, 'cells': piece})
     return areas
 
 
-def components(level, members, gi0, gj0):
+def components(level: Level, members: dict[int, tuple[int, int]], gi0: int, gj0: int) -> list[list[Cell]]:
     """8-connected components (AREA_LINK rule) of the given surfaces {k: (i, j)}. An area is single-layer in plan: a
     surface whose column the component already holds (a second floor reached round a corner) starts its own."""
     seen, out = set(), []
@@ -410,7 +428,7 @@ def components(level, members, gi0, gj0):
     return out
 
 
-def bisect(level, comp, gi0, gj0):
+def bisect(level: Level, comp: list[Cell], gi0: int, gj0: int) -> list[list[Cell]]:
     i0, i1 = min(c[0] for c in comp), max(c[0] for c in comp)
     j0, j1 = min(c[1] for c in comp), max(c[1] for c in comp)
     if i1 - i0 + 1 <= MAX_AREA and j1 - j0 + 1 <= MAX_AREA:
@@ -428,11 +446,12 @@ def bisect(level, comp, gi0, gj0):
     return out
 
 
-def clip_bridges(bsegs, bridges):
+def clip_bridges(bsegs: Iterable[tuple[int, Vec3, Vec3]],
+                 bridges: Sequence[tuple[int, int, int, int]]) -> list[tuple[int, Vec3, Vec3]]:
     """Outline of overlapping 45-degree bridges is the boundary of their union: where edges of two bridges
     cross (one cell with diagonal-only neighbours on both sides of an empty cell), split them at the crossing
     and drop the pieces lying inside the other bridge's strip (half-width 1/sqrt 2 sample about the diagonal)."""
-    def inside(px, pz, b):
+    def inside(px: float, pz: float, b: int) -> bool:
         i, j, di, dj = bridges[b]
         rx, rz = px - i, pz - j
         along = (rx * di + rz * dj) / 2.0                   # 0..1 between the two cell centres
@@ -469,7 +488,8 @@ def clip_bridges(bsegs, bridges):
     return out
 
 
-def bridge_union(bridges, cell_k, level, cfg=DEFAULTS):
+def bridge_union(bridges: Sequence[tuple[int, int, int, int]], cell_k: dict[tuple[int, int], int], level: Level,
+                 cfg: BuildSettings = DEFAULTS) -> tuple[set[tuple[Any, ...]], list[tuple[Vec3, Vec3]]]:
     """BRIDGE_UNION: the outline of an area's 45-degree bridges as the boundary of their union, exactly. A bridge
     between diagonal-only cells A (i, j) and B (i + di, j + dj) covers half of each of the two empty cells beside the
     shared corner - per empty cell, the two quarter triangles (base: a cell side, apex: the centre) whose bases touch
@@ -492,7 +512,7 @@ def bridge_union(bridges, cell_k, level, cfg=DEFAULTS):
                 if q not in quarters:
                     quarters[q] = (bi, ya, yb, toward_a, toward_b)
                     order.append(q)
-    def corners(ei, ej, side):                      # the two corners of a quarter's base, in half units
+    def corners(ei: int, ej: int, side: tuple[int, int]) -> tuple[tuple[int, int], tuple[int, int]]:                      # the two corners of a quarter's base, in half units
         sx, sz = side
         if sx:
             return ((2 * ei + sx, 2 * ej - 1), (2 * ei + sx, 2 * ej + 1))
@@ -529,7 +549,8 @@ def bridge_union(bridges, cell_k, level, cfg=DEFAULTS):
     return drop, segs
 
 
-def trace(level, sector, areas, area_of, gi0, gj0, ox, oz, cfg=DEFAULTS):
+def trace(level: Level, sector: tuple[int, int], areas: Sequence[AreaInfo], area_of: dict[int, int], gi0: int,
+          gj0: int, ox: float, oz: float, cfg: BuildSettings = DEFAULTS) -> list[Traced]:
     """Boundary edges of every area -> merged runs. Returns per area: portals, borders, outlines. One sector on its
     own: one-way portal pieces are kept ('keep') or become outline (otherwise) - build() decides them level-wide
     ('restore', restore_one_way)."""
@@ -538,21 +559,23 @@ def trace(level, sector, areas, area_of, gi0, gj0, ox, oz, cfg=DEFAULTS):
     return trace_emit(level, areas, per_area, gi0, gj0, ox, oz, cfg)
 
 
-def trace_edges(level, areas, area_of, gi0, gj0, cfg=DEFAULTS):
+def trace_edges(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int], gi0: int, gj0: int,
+                cfg: BuildSettings = DEFAULTS) -> tuple[list[EdgeRows], list[OneWay]]:
     """Boundary edges of every area: (per area {(kind, target, axis, line, dir): [(along, y)]}, one-way candidates).
     Portals are symmetric (SYMMETRIC_PORTALS): every portal edge A -> B also stands as B -> A, replacing an outline
     edge B had there - neighbour() picks the nearest surface in height, so with two surfaces in a column the two
     sides could disagree and leave a one-way portal (22 % of them on sp_004_b before). Where the target's side is
     its own interior (a second surface of the target in the source's column) the piece cannot be mirrored: it is a
     one-way candidate (source area, target area, key, along) for drop_one_way."""
-    per_area = []
-    one_way = []
-    mirror: defaultdict[Any, dict[tuple[Any, ...], float]]
+    per_area: list[EdgeRows] = []
+    one_way: list[OneWay] = []
+    mirror: defaultdict[Any, dict[tuple[Any, ...], Any]]
     mirror = defaultdict(dict)       # area -> {(source area, axis, line, dir, along): y of its own cell there}
-    side_kind = []                   # per area: {(axis, line, dir, along): (kind 'I' interior / 'B' / 'C' / 'E', target)}
+    side_kind: list[dict[tuple[Any, ...], tuple[str, Any]]] = []                   # per area: {(axis, line, dir, along): (kind 'I' interior / 'B' / 'C' / 'E', target)}
     for ai, area in enumerate(areas):
-        edges = defaultdict(list)    # (kind, target, axis, line, dir) -> [(along, y0, y1)]
-        sides = {}
+        edges: EdgeRows = defaultdict(list)    # (kind, target, axis, line, dir) -> [(along, y0, y1)]
+        sides: dict[tuple[Any, ...], tuple[str, Any]] = {}
+        target: Any
         own = {c[2] for c in area['cells']}
         for i, j, k in area['cells']:
             yk = level.y[k] + cfg.y_offset
@@ -605,7 +628,7 @@ def trace_edges(level, areas, area_of, gi0, gj0, cfg=DEFAULTS):
     return per_area, one_way
 
 
-def drop_one_way(per_area, one_way, keep):
+def drop_one_way(per_area: Sequence[EdgeRows], one_way: Sequence[OneWay], keep: Container[int]) -> None:
     """One-way candidates (trace_edges) not in keep (indices) become outline on their source area."""
     for n, (src, _t, key, along) in enumerate(one_way):
         if n in keep:
@@ -616,7 +639,9 @@ def drop_one_way(per_area, one_way, keep):
         se[('E', None, key[2], key[3], key[4])].extend(ys)
 
 
-def restore_one_way(sectors, shared):
+def restore_one_way(sectors: Mapping[tuple[int, int], tuple[Sequence[EdgeRows], Sequence[OneWay]]],
+                    shared: Iterable[tuple[tuple[tuple[int, int], int], tuple[tuple[int, int], int]]]
+                    ) -> defaultdict[tuple[int, int], set[int]]:
     """ONE_WAY_PORTALS 'restore': which one-way candidates to keep. sectors: {sector: (per_area, one_way)} from
     trace_edges; shared: pairs ((sector, area), (sector, area)) joined across sectors (one surface in both - the
     sectors' two-sample overlap). Areas are joined through every portal piece that is not a candidate and through
@@ -624,14 +649,14 @@ def restore_one_way(sectors, shared):
     joins them). Returns {sector: set of kept candidate indices}."""
     parent: dict[tuple[tuple[int, int], int], tuple[tuple[int, int], int]] = {}
 
-    def find(x):
+    def find(x: tuple[tuple[int, int], int]) -> tuple[tuple[int, int], int]:
         parent.setdefault(x, x)
         while parent[x] != x:
             parent[x] = parent[parent[x]]
             x = parent[x]
         return x
 
-    def union(a, b):
+    def union(a: tuple[tuple[int, int], int], b: tuple[tuple[int, int], int]) -> None:
         ra, rb = find(a), find(b)
         if ra != rb:
             parent[ra] = rb
@@ -656,7 +681,8 @@ def restore_one_way(sectors, shared):
     return keep
 
 
-def half_cells(level, area, gi0, gj0):
+def half_cells(level: Level, area: AreaInfo, gi0: int,
+               gj0: int) -> tuple[dict[tuple[tuple[int, int], tuple[int, int]], float], dict[tuple[int, int], int]]:
     """The 45-degree bridges' side cells of an area (navdetail's half cells): {((i, j), (di, dj)): height} for each
     leg - the side of a side cell toward the bridged area cell - and {(i, j): surface}. The side cell's surface is the
     sampled one (kept or not) nearest the two bridged cells' mean height, within 1 m."""
@@ -686,7 +712,8 @@ def half_cells(level, area, gi0, gj0):
     return half, ks
 
 
-def detail_pass(level, areas, per_area, ox, oz, gi0=None, gj0=None, cfg=DEFAULTS):
+def detail_pass(level: Any, areas: Sequence[AreaInfo], per_area: Sequence[EdgeRows], ox: float, oz: float,
+                gi0: int | None = None, gj0: int | None = None, cfg: BuildSettings = DEFAULTS) -> list[tuple[list[Any], list[Any]]]:
     """DETAIL_FEATURES: per area (D polylines, F cells) from navdetail, and the broken sides taken out of the area's
     outline edges (per_area, from trace_edges; before trace_emit). A side holding a portal or border portal stays one.
     gi0, gj0: the sector's sample origin - with them, the bridges' half cells take part (DETAIL_HALF_CELLS)."""
@@ -703,16 +730,16 @@ def detail_pass(level, areas, per_area, ox, oz, gi0=None, gj0=None, cfg=DEFAULTS
         ks = {(i, j): k for i, j, k in area['cells']}
         half = None
         if DETAIL_HALF_CELLS and gi0 is not None and hasattr(level, 's'):
-            half, hks = half_cells(level, area, gi0, gj0)
+            half, hks = half_cells(level, area, gi0, cast(int, gj0))     # gi0, gj0: both or neither
             for c, k in hks.items():
                 ks.setdefault(c, k)
         breakable = None
         if DETAIL_TERRAIN_ONLY[kind] and terrain is not None:
-            def breakable(a, b, ks=ks):         # detailed zones: only between terrain cells (DICE: objects never)
+            def breakable(a: tuple[int, int], b: tuple[int, int], ks: dict[tuple[int, int], int] = ks) -> bool:         # detailed zones: only between terrain cells (DICE: objects never)
                 return a in ks and b in ks and bool(terrain[ks[a]]) and bool(terrain[ks[b]])
         linked = {(key[2], key[3], key[4], r[0]) for key, rows in edges.items() if key[0] in ('B', 'C') for r in rows}
 
-        def eligible(i, j, di, dj, linked=linked):     # neither of the two cells has a portal or border portal on the side
+        def eligible(i: int, j: int, di: int, dj: int, linked: set[tuple[Any, ...]] = linked) -> bool:     # neither of the two cells has a portal or border portal on the side
             return (('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)) not in linked and \
                 (('x', i + di * 0.5, -di, j) if di else ('z', j + dj * 0.5, -dj, i)) not in linked
         broken, lines, fcells = navdetail.detail_features(cells, cfg.pitch, ox, oz, step, eligible, half, breakable,
@@ -746,7 +773,8 @@ def detail_pass(level, areas, per_area, ox, oz, gi0=None, gj0=None, cfg=DEFAULTS
     return out
 
 
-def trace_emit(level, areas, per_area, gi0, gj0, ox, oz, cfg=DEFAULTS):
+def trace_emit(level: Level, areas: Sequence[AreaInfo], per_area: Sequence[EdgeRows], gi0: int, gj0: int, ox: float,
+               oz: float, cfg: BuildSettings = DEFAULTS) -> list[Traced]:
     """Per area (portals, borders, outline) from its boundary edges: runs merged, 45-degree bridges."""
     result = []
     for ai, area in enumerate(areas):
@@ -816,10 +844,14 @@ def trace_emit(level, areas, per_area, gi0, gj0, ox, oz, cfg=DEFAULTS):
     return result
 
 
-def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, dynamic_path=None, high_path=None,
-          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
-          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, detailed=None, ladders=None,
-          area_orders=None, cfg=DEFAULTS):
+def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,
+          log: Log = print, dynamic_path: str | None = None, high_path: str | None = None,
+          narrow_path: str | None = None, stairs_path: str | None = None, exclude_path: str | None = None,
+          exclude_foot_path: str | None = None, seeds: Points | None = None, edits: list[dict[str, Any]] | None = None,
+          water: tuple[np.ndarray, np.ndarray] | None = None, max_water_depth: float | None = MAX_WATER_DEPTH,
+          bounds: Sequence[float] | None = None, order_points: Points | None = None,
+          detailed: dict[str, Any] | None = None, ladders: Sequence[dict[str, Any]] | None = None,
+          area_orders: Points | None = None, cfg: BuildSettings = DEFAULTS) -> None:
     """edits: the operations of a navigation side file (navedits.py applies the walkability ones).
     water: the level's water mesh (vertices, triangles; core/bfbc2core/water.py): ground more than max_water_depth
     under it is not walkable, as in DICE's data (hand edits forcing ground walkable still win).
@@ -830,7 +862,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     cfg: the build's settings (BuildSettings; the normal infantry build by default - the detailed pass uses
     cfg.detailed())."""
     t0 = time.time()
-    common = dict(tris_path=tris_path, step=step, log=log, dynamic_path=dynamic_path, narrow_path=narrow_path,
+    common: dict[str, Any] = dict(tris_path=tris_path, step=step, log=log, dynamic_path=dynamic_path, narrow_path=narrow_path,
                   stairs_path=stairs_path, exclude_path=exclude_path, exclude_foot_path=exclude_foot_path,
                   edits=edits, water=water, max_water_depth=max_water_depth, bounds=bounds,
                   order_points=order_points, t0=t0, ladders=ladders, area_orders=area_orders)
@@ -854,11 +886,17 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
     write_file(graphs, out_path, log, t0, cfg)
 
 
-def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=print, dynamic_path=None,
-          narrow_path=None, stairs_path=None, exclude_path=None, exclude_foot_path=None, seeds=None, edits=None,
-          water=None, max_water_depth=MAX_WATER_DEPTH, bounds=None, order_points=None, area_orders=None, t0=None,
-          sector_filter=None, grid_min=None, id_start=1, carried=None, seed_points=None, ladders=None, cfg=DEFAULTS,
-          grid=None):
+def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int, tris_path: str | None = None,
+          step: float = 0.28, log: Log = print, dynamic_path: str | None = None,
+          narrow_path: str | None = None, stairs_path: str | None = None, exclude_path: str | None = None,
+          exclude_foot_path: str | None = None, seeds: Points | None = None, edits: list[dict[str, Any]] | None = None,
+          water: tuple[np.ndarray, np.ndarray] | None = None, max_water_depth: float | None = MAX_WATER_DEPTH,
+          bounds: Sequence[float] | None = None, order_points: Points | None = None, area_orders: Points | None = None,
+          t0: float | None = None, sector_filter: Iterable[tuple[int, int]] | None = None,
+          grid_min: tuple[int, int] | None = None, id_start: int = 1,
+          carried: dict[tuple[int, int], list[tuple[int, Vec3]]] | None = None, seed_points: Points | None = None,
+          ladders: Sequence[dict[str, Any]] | None = None, cfg: BuildSettings = DEFAULTS,
+          grid: tuple[Any, ...] | None = None) -> dict[str, Any]:
     """One grid's build (cfg: its BuildSettings - pitch, tiles ...): walkable surfaces, sectors, areas, border
     nodes, traced boundaries, meshes and route graphs - not yet written. sector_filter: build only these (X, Y) sectors;
     grid_min: the level's minimum sector X / Y (EDGE_SECTOR_RULE) when the stage holds only part of it; id_start:
@@ -872,9 +910,9 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
     if grid is not None:
         s, keep, gx, gz, stair = grid
     else:
-        f, _ = navsample.load(samples_path)
+        f, _ = navsample.load(cast(str, samples_path))     # read when there is no grid
         s = navwalk.coarse(f) if abs(f.pitch - cfg.pitch) > 1e-3 else f
-        hand = {}
+        hand: dict[str, Any] = {}
         soldiers = list(seeds or [])                 # the level's soldier spawn points (navwalk.CHARACTERS_ABSENT)
         if edits:
             import navedits
@@ -951,7 +989,7 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
     log(f'{len(sectors)} sectors (pitch {cfg.pitch:g})')
 
     # Pass 1: areas per sector, and which area each surface belongs to.
-    info = {}
+    info: dict[tuple[int, int], dict[str, Any]] = {}
     have = set(sectors)
     min_x_sector, min_z_sector = grid_min or (min(X for X, _ in sectors), min(Y for _, Y in sectors))
     for X, Y in sectors:
@@ -979,7 +1017,7 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
     border_nodes = defaultdict(list)     # sector -> [(id, pos, k)]
     border_at = {}                       # surface -> (id, pos) of the border node on it
 
-    def new_id():
+    def new_id() -> int:
         next_id[0] += 1
         return next_id[0]
 
@@ -1121,7 +1159,8 @@ def stage(samples_path, high_path, xoff, zoff, tris_path=None, step=0.28, log=pr
             'dropped': dropped, 'pitch': cfg.pitch, 'meshes': meshes, 'sectors': set(info)}
 
 
-def sector_links(X, Y, areas, mesh_areas, resolve):
+def sector_links(X: int, Y: int, areas: Sequence[AreaInfo], mesh_areas: Sequence[kymesh.Area],
+                 resolve: Callable[..., tuple[int, int, int] | None]) -> list[kymesh.NeighbourLink]:
     """The neighbour links of a sector: for every border portal (C), the area across it - resolve(other, area,
     border) gives its (tile x, tile z, layer) in the other sector, or None."""
     links: defaultdict[tuple[int, int], defaultdict[tuple[int, int, int], list[tuple[int, int]]]]
@@ -1143,7 +1182,7 @@ def sector_links(X, Y, areas, mesh_areas, resolve):
     return mesh_links
 
 
-def border_cell(a, b):
+def border_cell(a: AreaInfo, b: tuple[Any, ...]) -> tuple[int, int, int | None, int, int]:
     """(i, j, k) of the area's cell just inside a border portal (the middle of its run), and the step (di, dj)."""
     bp, t0_, t1_, line = b
     di, dj = int(bp.direction[0]), int(bp.direction[2])
@@ -1153,11 +1192,11 @@ def border_cell(a, b):
     return i - di, j - dj, k, di, dj
 
 
-def same_grid_resolver(level, info, X, Y):
+def same_grid_resolver(level: Level, info: dict[tuple[int, int], dict[str, Any]], X: int, Y: int) -> Resolver:
     """resolve for sector_links within one stage: the connected surface across, in the other sector's areas."""
     gi0, gj0, _ox, _oz = info[(X, Y)]['origin']
 
-    def resolve(other, a, b):
+    def resolve(other: tuple[int, int], a: AreaInfo, b: tuple[Any, ...]) -> tuple[int, int, int] | None:
         if other not in info:
             return None
         i, j, k_here, di, dj = border_cell(a, b)
@@ -1172,7 +1211,7 @@ def same_grid_resolver(level, info, X, Y):
     return resolve
 
 
-def cross_grid_resolver(here, there, X, Y):
+def cross_grid_resolver(here: dict[str, Any], there: dict[str, Any], X: int, Y: int) -> Resolver:
     """resolve for sector_links across two stages (a detailed sector next to a normal one): the cell just across
     the border, in world coordinates, looked up on the other stage's grid - its kept surface nearest in height
     (within 0.8 m) that belongs to the other sector's areas."""
@@ -1181,7 +1220,7 @@ def cross_grid_resolver(here, there, X, Y):
     p_here, olv, p_there = here['pitch'], there['level'], there['pitch']
     os_ = olv.s
 
-    def resolve(other, a, b):
+    def resolve(other: tuple[int, int], a: AreaInfo, b: tuple[Any, ...]) -> tuple[int, int, int] | None:
         if other not in there['info']:
             return None
         i, j, k_here, di, dj = border_cell(a, b)
@@ -1201,7 +1240,8 @@ def cross_grid_resolver(here, there, X, Y):
     return resolve
 
 
-def merge_detailed(a, detailed, xoff, zoff, seeds, common, log, cfg=DEFAULTS):
+def merge_detailed(a: dict[str, Any], detailed: dict[str, Any], xoff: int, zoff: int, seeds: Points | None,
+                   common: dict[str, Any], log: Log, cfg: BuildSettings = DEFAULTS) -> list[Graph]:
     """The second pass: DICE's detailed-zone sectors built at pitch 0.2 from their own sampling run (stage b),
     merged with the normal build a. Stage b is seeded from a's walkable ground in those sectors (ground joined to the
     rest of the level only through normal sectors would otherwise be lost) and continues a's node ids. Shared nodes
@@ -1268,7 +1308,7 @@ def merge_detailed(a, detailed, xoff, zoff, seeds, common, log, cfg=DEFAULTS):
     return merged
 
 
-def write_file(graphs, out_path, log, t0, cfg=DEFAULTS):
+def write_file(graphs: Sequence[Graph], out_path: str, log: Log, t0: float, cfg: BuildSettings = DEFAULTS) -> None:
     """Order-node pruning, final node / edge tables, and the file."""
     hpd_sectors = []
     stamp = time.localtime()
@@ -1287,7 +1327,8 @@ def write_file(graphs, out_path, log, t0, cfg=DEFAULTS):
         f'{sum(len(x.edges) for x in hpd_sectors)} edges, {len(data)} bytes ({time.time() - t0:.0f} s)')
 
 
-def _crosses_d(level, blocked, k, nk, gi, gj, di, dj, xfirst=None):
+def _crosses_d(level: Any, blocked: Container[tuple[int, int]], k: int, nk: int, gi: int, gj: int, di: int, dj: int,
+               xfirst: bool | None = None) -> bool:
     """A step from surface k (column gi, gj) to nk crosses a D side: a straight step across one; a diagonal step when
     the straight line passes through the side column it leaves first (xfirst: True = (di, 0), False = (0, dj), None =
     exactly through the corner - then either way) and one of that way's two sides is a D side."""
@@ -1301,7 +1342,7 @@ def _crosses_d(level, blocked, k, nk, gi, gj, di, dj, xfirst=None):
     return False
 
 
-def line_walkable(level, k0, a, b, gi0, gj0, k1):
+def line_walkable(level: Any, k0: int, a: tuple[int, int], b: tuple[int, int], gi0: int, gj0: int, k1: int) -> bool:
     """Straight line from local sample a to b (i, j) over connected kept surfaces, starting on k0, ending on k1."""
     (i0, j0), (i1, j1) = a, b
     n = max(abs(i1 - i0), abs(j1 - j0))
@@ -1329,8 +1370,11 @@ def line_walkable(level, k0, a, b, gi0, gj0, k1):
     return k == k1 or abs(level.y[k] - level.y[k1]) <= 0.6
 
 
-def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id, orders=(), ladders=(), cfg=DEFAULTS):
-    pts = []    # (id, pos, k, local i, local j)
+def build_graph(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int], traced: Sequence[Traced],
+                borders: Sequence[tuple[int, Vec3, int]], gi0: int, gj0: int, ox: float, oz: float,
+                new_id: Callable[[], int], orders: Points = (), ladders: Sequence[tuple[int, int]] = (),
+                cfg: BuildSettings = DEFAULTS) -> tuple[list[RouteNode], list[RoutePair]]:
+    pts: list[RouteNode] = []    # (id, pos, k, local i, local j)
     # one node per surface: an area-centre or portal node whose surface already holds a node (another area's or
     # portal's, or a border node) is not added - DICE's route graphs have no two nodes at one position except a
     # border node in both of its sectors (sp_004_b: 1,515 shared positions, all border pairs with one id); NavKit
@@ -1340,8 +1384,9 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
     # ground up to CARRY_RADIUS away, so its surface can differ from the one under its own position - an area node
     # on that one stood on the border node, joined by a zero-length edge (sp_007 sector 0e0b, 2026-10-23)
     taken_pos = {tuple(round(v, 3) for v in pos) for _nid, pos, _k in borders} if DEDUP_GRAPH_NODES else set()
+    a: Any                                  # an area here, a path index in the string pulling below
 
-    def add(i, j, k):
+    def add(i: int, j: int, k: int) -> None:
         pos = (ox + i * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + j * cfg.pitch)
         if DEDUP_GRAPH_NODES:
             key = tuple(round(v, 3) for v in pos)
@@ -1358,6 +1403,7 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
         i, j, k = min(a['cells'], key=lambda c: (c[0] - ci) ** 2 + (c[1] - cj) ** 2)
         add(i, j, k)
     cell_of = {c[2]: (c[0], c[1]) for a in areas for c in a['cells']}
+    p: Any                                  # a portal here, a route node below
     for ai, (portals, _b, _o) in enumerate(traced):
         for p in portals:
             if p.target < ai:
@@ -1408,7 +1454,7 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
     # of another, then string-pull the path into straight walkable legs with waypoint nodes.
     parent = list(range(len(pts)))
 
-    def find(x):
+    def find(x: int) -> int:
         while parent[x] != x:
             parent[x] = parent[parent[x]]
             x = parent[x]
@@ -1432,7 +1478,7 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
         for root, members in sorted(groups.items(), key=lambda g: len(g[1])):
             if find(members[0]) != root:
                 continue
-            prev = {pts[m][2]: None for m in members}
+            prev: dict[int, Any] = {pts[m][2]: None for m in members}
             queue = deque(pts[m][2] for m in members)
             target = None
             while queue and target is None:
@@ -1492,7 +1538,8 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
     return pts, pairs
 
 
-def add_cover_nodes(level, areas, pts, add, ox, oz, cover, cfg=DEFAULTS):
+def add_cover_nodes(level: Level, areas: Sequence[AreaInfo], pts: list[RouteNode], add: Callable[[int, int, int], None],
+                    ox: float, oz: float, cover: float, cfg: BuildSettings = DEFAULTS) -> None:
     """NODE_COVER: in every area of 4+ cells, add route nodes (through add, so one per surface) at the cell farthest from
     all nodes on the same floor (|dy| < 2.5 m) until no cell is farther than cover metres."""
     for a in areas:
@@ -1519,7 +1566,7 @@ def add_cover_nodes(level, areas, pts, add, ox, oz, cover, cfg=DEFAULTS):
                 d = np.where(same, np.minimum(d, np.hypot(C[:, 0] - q[0], C[:, 2] - q[2])), d)
 
 
-def gabriel_prune(pts, pairs):
+def gabriel_prune(pts: Sequence[RouteNode], pairs: Iterable[RoutePair]) -> list[RoutePair]:
     """The pairs that are Gabriel edges of the sector's nodes (no other node within 2.5 m of height inside the circle
     with the pair as diameter), plus the shortest dropped pairs needed to keep every group of nodes the full pair set
     joins joined (so pruning never splits a route)."""
@@ -1535,7 +1582,7 @@ def gabriel_prune(pts, pairs):
         (rest if near.any() else keep).append((a_, b_, d))
     parent = list(range(len(pts)))
 
-    def find(x):
+    def find(x: int) -> int:
         while parent[x] != x:
             parent[x] = parent[parent[x]]
             x = parent[x]
@@ -1549,7 +1596,7 @@ def gabriel_prune(pts, pairs):
     return keep
 
 
-def prune_order_nodes(graphs):
+def prune_order_nodes(graphs: Sequence[Graph]) -> Sequence[Graph]:
     """Order nodes in a route island under ORDER_MIN_ISLAND nodes lose their edges (finalize_graph then
     drops them as unlinked); other nodes are untouched. An order node that joins a small pocket becomes the
     nearest node for points next to the main network, and the runtime takes the nearest node (sp_009: the order
@@ -1557,7 +1604,7 @@ def prune_order_nodes(graphs):
     join them). Records the removed ones in ORDER_STATS['removed'] as (id, position, component size)."""
     parent: dict[int, int] = {}
 
-    def find(x):
+    def find(x: int) -> int:
         parent.setdefault(x, x)
         while parent[x] != x:
             parent[x] = parent[parent[x]]
@@ -1586,7 +1633,9 @@ def prune_order_nodes(graphs):
             for sid, b, m, pts, pairs, o in graphs]
 
 
-def add_order_nodes(level, pts, pairs, node_at, area_of, orders, gi0, gj0, ox, oz, new_id, cfg=DEFAULTS):
+def add_order_nodes(level: Level, pts: list[RouteNode], pairs: list[RoutePair], node_at: dict[int, int],
+                    area_of: dict[int, int], orders: Points, gi0: int, gj0: int, ox: float, oz: float,
+                    new_id: Callable[[], int], cfg: BuildSettings = DEFAULTS) -> int:
     """A route node at each AI order position (AreaGeometryEntityData) on this sector's walkable ground whose nearest
     route node on the same floor is farther than ORDER_NODE_MIN, linked to every node within DIST_EDGE_MAX it reaches
     in a straight walkable line. The runtime resolves a go-to point to the nearest gathered node (R = 15 m, the first
@@ -1618,7 +1667,9 @@ def add_order_nodes(level, pts, pairs, node_at, area_of, orders, gi0, gj0, ox, o
     return added
 
 
-def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id, cfg=DEFAULTS):
+def repair_detours(level: Level, pts: list[RouteNode], pairs: list[RoutePair], node_at: dict[int, int],
+                   cell_ij: dict[int, tuple[int, int]], gi0: int, gj0: int, ox: float, oz: float,
+                   new_id: Callable[[], int], cfg: BuildSettings = DEFAULTS) -> int:
     """Detour repair: for node pairs of the sector within DIST_EDGE_MAX whose graph route is longer than
     DETOUR_TRIGGER x their straight distance, while a walk over kept surfaces of at most DETOUR_MAX x the straight
     distance exists, add waypoint nodes along the string-pulled walk, linked along the chain (and to the nodes around
@@ -1629,7 +1680,7 @@ def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id
     for a_, b_, d in pairs:
         adj[a_][b_] = adj[b_][a_] = min(d, adj[a_].get(b_, 1e18))
 
-    def routes(src, limit):
+    def routes(src: int, limit: float) -> dict[int, float]:
         best = {src: 0.0}
         q = [(0.0, src)]
         while q:
@@ -1642,11 +1693,11 @@ def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id
                     heapq.heappush(q, (d + w, v))
         return best
 
-    def walk(k0, k1, limit):
+    def walk(k0: int, k1: int, limit: float) -> list[int] | None:
         """Shortest 8-connected walk over kept surfaces (step rule) from k0 to k1, at most limit metres; list of
         surfaces or None."""
         best = {k0: 0.0}
-        prev = {k0: None}
+        prev: dict[int, Any] = {k0: None}
         q = [(0.0, k0)]
         while q:
             d, k = heapq.heappop(q)
@@ -1672,7 +1723,7 @@ def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id
                         heapq.heappush(q, (nd, n))
         return None
 
-    def link(u):
+    def link(u: int) -> None:
         for q_ in range(len(pts)):
             if q_ == u or q_ in adj[u]:
                 continue
@@ -1727,7 +1778,9 @@ def repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id
     return added
 
 
-def finalize_graph(pts, pairs, linked_ids, origin=None, cfg=DEFAULTS):
+def finalize_graph(pts: Sequence[RouteNode], pairs: Iterable[RoutePair], linked_ids: Container[int],
+                   origin: tuple[float, float] | None = None,
+                   cfg: BuildSettings = DEFAULTS) -> tuple[list[hpdtool.Node], list[hpdtool.Edge]]:
     """Nodes and edges of a sector. Nodes without an edge in any sector (lone nodes on slivers and tiny islands
     the group joining cannot reach; border ids count edges of both sectors) are dropped - DICE's data has none."""
     keep = [idx for idx, p in enumerate(pts) if p[0] in linked_ids]
@@ -1758,7 +1811,7 @@ def finalize_graph(pts, pairs, linked_ids, origin=None, cfg=DEFAULTS):
         for cost, dst in sorted(out_edges[idx], key=lambda e: e[1]):
             edges.append(hpdtool.Edge(cost, idx, dst))
         nodes[idx].a = first + 1 if out_edges[idx] else 0     # DICE: 0 = no outgoing edges
-    def foreign(nd):
+    def foreign(nd: hpdtool.Node) -> bool:
         # bit 16 of c: a border node's copy in a sector that does not own it. DICE: one copy per border id is the
         # owner (bit clear) - the sector whose 100 m square holds the node (1,379 of 1,445 sp_004_b ids), the
         # others set; ordinary nodes never. NavKit set the bit on every border copy, so no border node had an
@@ -1779,7 +1832,7 @@ def finalize_graph(pts, pairs, linked_ids, origin=None, cfg=DEFAULTS):
     return nodes, edges
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     args = [a for a in argv[1:] if not a.startswith('--')]
     opts = dict(zip(argv[1:], argv[2:]))
     if len(args) < 5:
