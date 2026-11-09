@@ -692,15 +692,16 @@ def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
     <level>.traversal.json next to it (navtraversal.py). The result is read back to check it, the whole log is
     kept as <output>.report.txt, and with install_after the result is installed. Returns the output path."""
     lines = []
+    target = {'out': out}               # the output path, as soon as _apply knows it (its default depends on the base)
 
     def say(msg):
         lines.append(msg)
         log(msg)
     try:
-        out = _apply(pr, lv, navtune_path, out, say)
-    except NavKitError as e:
-        if out:
-            open(out + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines + [f'error: {e}']) + '\n')
+        out = _apply(pr, lv, navtune_path, out, say, target)
+    except Exception as e:              # any failure: the report of what was done, and the error (then re-raised)
+        if target['out']:
+            open(target['out'] + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines + [f'error: {e}']) + '\n')
         raise
     open(out + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
     if install_after:
@@ -708,7 +709,8 @@ def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
     return out
 
 
-def _apply(pr, lv, navtune_path, out, log):
+def _apply(pr, lv, navtune_path, out, log, target=None):
+    target = target if target is not None else {}
     sys.path.insert(0, os.path.join(HERE, '..', 'core'))
     from bfbc2core import navtune
     import navbuild
@@ -726,7 +728,7 @@ def _apply(pr, lv, navtune_path, out, log):
     later = [o for o in tune.operations if o['op'] == 'traversal']
     t0 = time.time()
     if tune.kind == 'navkit':
-        out = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
+        out = target['out'] = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
         log(f'== apply {lv}: {len(tune.operations)} edit(s) from {os.path.relpath(navtune_path, pr.root)} '
             f'-> {os.path.relpath(out, pr.root)}')
         # the same inputs as build (detailed zones, ladders ...), plus the edits
@@ -741,7 +743,7 @@ def _apply(pr, lv, navtune_path, out, log):
         src = pr.dice_pathdata(lv)
         if not src:
             raise NavKitError(f'{lv}: the side file\'s base is DICE\'s data, but the level has none')
-        out = out or os.path.join(pr.out_dir(lv), 'pathdata_dice_edited.hpd')
+        out = target['out'] = out or os.path.join(pr.out_dir(lv), 'pathdata_dice_edited.hpd')
         log(f'== apply {lv}: {len(tune.operations)} edit(s) on a copy of DICE\'s file -> {os.path.relpath(out, pr.root)} '
             f'(for this PC only)')
         if tune.base_changed(src):
