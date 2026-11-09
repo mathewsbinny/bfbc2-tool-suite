@@ -7,7 +7,10 @@ r"""meshport.py on Battlefield 1943's models (game tier; skipped without the Ris
 - the models for the WW2 side project port without error (Springfield, k98, both bazookas, long knife, wrench 1p /
   3p; Willys, Sherman hull and tracks, LCVP, B-25, Ki-21, the bombing-raid cockpit and bunker, the window mount):
   every LOD, the mesh set with each LOD's size, the textures; each part's PC layout read back gives unit normals
-  and in-range UVs.
+  and in-range UVs;
+- rename: BF1943's US scout ported under Characters/WW2/ (next to BFBC2's same-named scout): the same LOD bytes and
+  textures as the plain port, every name the mesh set holds (shader sets, shaders, LOD settings) and every output
+  name under the new namespace, plan['renamed'] covering them, the skeleton pose converted (a PC Granny file).
 
   python test_meshport.py
 """
@@ -44,6 +47,39 @@ PORTS += [(V + n, VDONORS) for n in ('Willys-MB/Willys-MB_Mesh', 'M4-Sherman/US_
                                      'Mitchell_bomber/Mitchell_bomber_mesh_Mesh', 'Sally_Bomber/Sally_bomber_Mesh',
                                      'Cockpits/Cockpit_BombingRaid_US_Mesh', 'BombingRaid_Prototype/AirRaidDummy_Mesh')]
 PORTS += [('Objects/Weapons/Stationary/Mounts/HMG_AGL_WindowMount_Mesh', VDONORS)]
+
+
+SCOUT = 'Characters/Beach/3P/Us_Scout/US_Scout_Mesh'
+
+
+def renamed_port(check, p):
+    """The scout under Characters/WW2/: everything as the plain port but the names."""
+    import granny
+    meshset = meshport.meshset
+    try:
+        plain = p.port(SCOUT)
+        r = p.port(SCOUT, rename={'Characters/Beach/': 'Characters/WW2/'})
+    except Exception as e:                                       # noqa: BLE001
+        check(False, 'rename: the scout ports under Characters/WW2/', repr(e))
+        return
+    s = meshset.parse(r['meshset'], 'SkinnedMeshSet', False)
+    strings = [s['lod_settings']] + [x for L in s['lods'] for n, shs in L['sets'] for x in [n] + shs]
+    old = [x for x in strings if x.lower().startswith(b'characters/beach/')]
+    names = [r['names']['meshset']] + r['names']['lods'] + list(r['textures']) + list(r['poses'])
+    check(r['lods'] == plain['lods'] and sorted(r['textures'].values()) == sorted(plain['textures'].values())
+          and len(r['meshset']) == len(plain['meshset']) - 2 * sum(1 for x in strings if x.lower().startswith(b'characters/ww2/')),
+          f'rename: the scout\'s {len(r["lods"])} LODs and {len(r["textures"])} textures as the plain port\'s, the mesh '
+          f'set shorter by the names only')
+    check(not old and all(n.lower().startswith('characters/ww2/') for n in names) and
+          all(o in r['plan']['renamed'] for o in [SCOUT, 'Characters/Beach/3P/Jap_Shared/Jap_LodSettings']),
+          f'rename: every name under Characters/WW2/ ({len(strings)} mesh set strings, {len(names)} outputs)',
+          f'{old[:3]} {names[:3]}')
+    pose = next(iter(r['poses'].values()), None)
+    try:
+        ok = pose is not None and granny.Granny(pose).e == '<'
+    except granny.GrannyError:
+        ok = False
+    check(ok, 'rename: the scout\'s skeleton pose converted under the new name', str(list(r['poses'])))
 
 
 def rigid_sets(check, src, ix):
@@ -87,6 +123,7 @@ def main():
         print(f'SKIP: {e}')
         return 0
     port = meshport.Porter(src, ix)
+    renamed_port(check, port)
     rigid_sets(check, src, ix)
     mesh = meshport.mesh
     for name in ORACLE:

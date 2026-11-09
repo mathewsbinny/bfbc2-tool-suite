@@ -4,6 +4,8 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
   as DICE's exporter writes them (values from two of DICE's own levels: mp_006's rigid group, sp_008's static grid);
 - texture: console format 10 (L8) untiled byte for byte, not byte-swapped, each PC row padded to 4 bytes, the
   console's flags kept; console 3 (DXT5A) -> PC 10 keeps the console's flags (bit 1 clear) and pads its rows too;
+- meshport rename: a prefix map renames any case, the longest prefix first, keeps other names; a mesh set's LOD
+  settings, shader set and shader names renamed and listed, its bytes otherwise the same;
 - mesh.texcoord_element: the texture coordinates are the first half2 / float2 usage-0 element (soldiers, trees),
   else the first other float one (material-mask meshes), never a colour byte element; decode reads that one;
 
@@ -22,6 +24,8 @@ import suite_paths  # noqa: E402
 suite_paths.use('core', 'bf1943-import', 'console-convert')
 import havokport  # noqa: E402
 import mesh  # noqa: E402
+import meshport  # noqa: E402
+import meshset  # noqa: E402
 import texture  # noqa: E402
 
 FAILED = [0]
@@ -179,9 +183,31 @@ def textures() -> None:
           str(h3))
 
 
+def mesh_rename() -> None:
+    R = meshport.renamer({'Characters/Beach/': 'Characters/WW2/', 'characters/beach/3p/us_shared/': 'Shared/'})
+    got = [R('characters/BEACH/3P/Us_Scout/US_Scout_Mesh'), R('Characters/Beach/3P/Us_Shared/Eyeball'),
+           R('Objects/Beach/x'), meshport.renamer(None)('a/b'), meshport.renamer(str.upper)('a/b')]
+    check(got == ['Characters/WW2/3P/Us_Scout/US_Scout_Mesh', 'Shared/Eyeball', 'Objects/Beach/x', 'a/b', 'A/B'],
+          'meshport.renamer: prefixes in any case, the longest first, other names kept; None; a function', str(got))
+    s = {'a': 42, 'z': 0, 'lod_settings': b'Characters/Beach/3P/Jap_Shared/Jap_LodSettings', 'lods': [
+        {'x': 0, 'shaders': 2, 'sets': [(b'Characters/Beach/3P/Us_Scout/US_Scout_Mesh/7F9DD04A-A5C3-11DD-9159-9004097745C1',
+                                         [b'Characters/Beach/3P/Us_Scout/shaders/scout_head', b'Textures/x'])],
+         'bounds': (0.0,) * 6, 'size': 12, 'extra': 0, 'bones': [0, 1], 'bone_hashes': [5, 6]}]}
+    before = meshset.write(s, 'SkinnedMeshSet')
+    done = meshport.rename_meshset(s, meshport.renamer({'Characters/Beach/': 'Characters/WW2/'}))
+    after = meshset.write(s, 'SkinnedMeshSet')
+    back = meshset.parse(after, 'SkinnedMeshSet', False)
+    check(len(done) == 3 and back['lod_settings'] == b'Characters/WW2/3P/Jap_Shared/Jap_LodSettings'
+          and back['lods'][0]['sets'][0][0].startswith(b'Characters/WW2/3P/Us_Scout/US_Scout_Mesh/7F9DD04A')
+          and back['lods'][0]['sets'][0][1] == [b'Characters/WW2/3P/Us_Scout/shaders/scout_head', b'Textures/x']
+          and len(after) == len(before) - 6 and back['lods'][0]['bones'] == [0, 1],
+          'meshport.rename_meshset: LOD settings, shader set and shader names renamed, the rest kept', str(done))
+
+
 def main() -> int:
     havok_model_group()
     textures()
+    mesh_rename()
     texcoords()
     print('all passed' if not FAILED[0] else f'{FAILED[0]} check(s) failed')
     return 1 if FAILED[0] else 0

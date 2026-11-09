@@ -4,7 +4,15 @@ textures, and the plan for the shader database (which BFBC2 material each new ma
     import bf1943import, meshport, meshview, shaderdb
     p = meshport.Porter(bf1943import.Source(bf1943import.default_source()), meshview.Index(shaderdb.find_opfor(None)))
     r = p.port('Objects/Weapons/Handheld/Beach/US_Springfield1903/Springfield_Mesh', donors=[...])
-    # r: {kind, lods: [PC MeshData bytes], meshset: PC bytes, textures: {name: PC bytes}, plan: {...}, notes: [...]}
+    # r: {kind, lods: [PC MeshData bytes], meshset: PC bytes, textures: {name: PC bytes}, poses: {name: PC bytes},
+    #     names: {lods: [names], meshset: name}, plan: {...}, notes: [...]}
+    r = p.port('Characters/Beach/3P/Us_Scout/US_Scout_Mesh', rename={'Characters/Beach/': 'Characters/WW2/'})
+
+rename ({old prefix: new prefix}, any case; or a function of a name) ports the mesh under a new name / namespace -
+BF1943's soldiers next to BFBC2's same-named ones: every name the port writes or the mesh set holds is renamed: the
+LOD MeshData and mesh set names, the mesh set's shader set names (materials), shader names and LOD settings, the
+textures and skeleton poses of the mesh's folder. plan['renamed'] maps each old name to its new one, for the
+partitions the caller clones (shaders, LOD settings, the mesh's own).
 
 A mesh part's vertices are written in a PC vertex layout with the same elements as its BF1943 layout (positions,
 bone indices and weights, normal / binormal / tangent, UVs - formats as the console converter maps them):
@@ -58,6 +66,41 @@ def _subset(small, big):
             return False
         pool.remove(e)
     return True
+
+
+def renamer(rename):
+    """A function of a name for Porter.port's rename: None keeps names; a function is used as it is; a dict {old
+    prefix: new prefix} renames a name starting with a prefix (any case, the longest first), keeping the rest as it
+    is."""
+    if rename is None:
+        return lambda n: n
+    if callable(rename):
+        return rename
+    pairs = sorted(rename.items(), key=lambda kv: -len(kv[0]))
+
+    def f(n):
+        for old, new in pairs:
+            if n.lower().startswith(old.lower()):
+                return new + n[len(old):]
+        return n
+    return f
+
+
+def rename_meshset(s, rename):
+    """A parsed mesh set (meshset.parse) with its names renamed in place - the LOD settings, each LOD's shader set
+    names (the mesh's name and its shader set's guid) and shader names; returns {old: new} of the names changed."""
+    done = {}
+
+    def r(b):
+        old = b.decode('latin-1')
+        new = rename(old)
+        if new != old:
+            done[old] = new
+        return new.encode('latin-1')
+    s['lod_settings'] = r(s['lod_settings'])
+    for L in s['lods']:
+        L['sets'] = [(r(name), [r(sh) for sh in shaders]) for name, shaders in L['sets']]
+    return done
 
 
 class Porter:
@@ -135,7 +178,9 @@ class Porter:
         return self.ix.parts[best[1]], f'layout of {best[1]} ({dropped} element(s) left out)', \
             ((best[2], best[1].split('/')[-2]) if best[2] else None)
 
-    def port(self, name, donors=()):
+    def port(self, name, donors=(), rename=None):
+        """The mesh's PC files (module docstring); rename: under another name / namespace (renamer)."""
+        R = renamer(rename)
         kind = self.kind(name)
         soldier = self.skinned_to_soldier(name)
         bones: Any = self.bones() if soldier else None          # a soldier's bone map, used only for soldiers
@@ -166,18 +211,40 @@ class Porter:
             L['size'] = meshset.lod_size(out)
             if kind == 'SkinnedMeshSet' and soldier:
                 L['bones'] = [bones[x] for x in L['bones']]
+        renamed = rename_meshset(s, R)
         plan['materials'] = sorted({sh.decode('latin-1') for L in s['lods'] for _, shs in L['sets'] for sh in shs})
         folder = name.rsplit('/', 1)[0].lower() + '/'
-        textures = {}
+        textures, poses = {}, {}
         for k, (_, e) in sorted(self.src.entries.items()):
-            if e['type'] == 'XenonTexture' and k.startswith(folder):
+            if not k.startswith(folder):
+                continue
+            if e['type'] == 'XenonTexture':
                 try:
-                    textures[e['name']] = texture.convert(self.src.data(k))
+                    textures[R(e['name'])] = texture.convert(self.src.data(k))
                 except texture.ConvertError as er:
                     notes.append(f'{e["name"]}: not converted ({er})')
+                    continue
+            elif e['type'] == 'GrannyAnimation' and k.endswith('skeletonpose.res') and '/' not in k[len(folder):]:
+                # the mesh's skeleton pose (a one-frame animation of its skeleton), its bone table onto BFBC2's
+                try:
+                    poses[R(e['name'])] = granny.to_pc(self.src.data(k), bones, e['name'])
+                except granny.GrannyError as er:
+                    notes.append(f'{e["name"]}: not converted ({er})')
+                    continue
+            else:
+                continue
+            if R(e['name']) != e['name']:
+                renamed[e['name']] = R(e['name'])
+        new = R(name)
+        names = {'lods': [f'{new}_lod{i}_data' for i in range(len(lods))], 'meshset': new}
+        if new != name:
+            renamed[name] = new
+            renamed.update({f'{name}_lod{i}_data': f'{new}_lod{i}_data' for i in range(len(lods))})
+            plan['mesh'], plan['source_mesh'] = new, name
         plan['textures'] = sorted(textures)
-        return {'kind': kind, 'lods': lods, 'meshset': meshset.write(s, kind), 'textures': textures, 'plan': plan,
-                'notes': notes, 'pc_layouts': pc_layouts}
+        plan['renamed'] = renamed
+        return {'kind': kind, 'lods': lods, 'meshset': meshset.write(s, kind), 'textures': textures, 'poses': poses,
+                'names': names, 'plan': plan, 'notes': notes, 'pc_layouts': pc_layouts}
 
 
 COLOUR = re.compile(r'_(c|d|cm|dm|diffuse|basecolor)\.res$', re.I)
