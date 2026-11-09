@@ -690,8 +690,10 @@ def _consensus(group, k, tol):
     return good if len(good) * 2 > len(group) else []
 
 
-def ref_pairs(refs, ref_dirs, log):
-    """(tree, level, label) for each --ref level and every level under each --ref-dir that has its tree."""
+def ref_pairs(refs, ref_dirs, log, target=None):
+    """(tree, level, label) for each --ref level and every level under each --ref-dir that has its tree. target: the
+    (tree path, level path) being checked - never its own reference (a --ref-dir holding the whole levels folder read
+    it a second time, and its instances confirmed themselves)."""
     paths = list(refs)
     for d in ref_dirs:
         for p in sorted(glob.glob(os.path.join(d, '**', '*.dbx'), recursive=True)):
@@ -702,8 +704,13 @@ def ref_pairs(refs, ref_dirs, log):
                 if b'ExclusiveStaticCullTree' not in f.read():      # not a level partition
                     continue
             paths.append(p)
+    def same(a):
+        return os.path.normcase(os.path.abspath(a))
     out, seen = [], set()
+    skip = {same(x) for x in target} if target is not None else set()    # the target's tree and level files
     for p in paths:
+        if same(p) in skip:
+            continue
         try:
             lv = Level(p)
         except CullTreeError:
@@ -712,6 +719,8 @@ def ref_pairs(refs, ref_dirs, log):
         if not tp:
             if p in refs:
                 log(f'note: {p}: its exclusive cull tree was not found beside it; not used')
+            continue
+        if same(tp) in skip:                  # another level file naming the target's own tree
             continue
         key = (os.path.basename(p).lower(), os.path.getsize(tp))
         if key in seen:
@@ -1011,7 +1020,7 @@ def cmd_verify(args, log):
     t, lv = CullTree(args[0]), Level(args[1])
     client = CullTree(client_p) if client_p else None
     log(f'tree  {args[0]}\nlevel {args[1]}')
-    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log)
+    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log, target=(args[0], args[1]))
     found = collect(pairs)
     bad = _report(check_structure(t, client), log)
     res, detail = object_checks(t, lv, found)
@@ -1053,7 +1062,7 @@ def cmd_add(args, log):
             raise CullTreeError('write the results to new files (--out-tree / --out-level), not over the inputs')
     t, lv = CullTree(args[0]), Level(args[1])
     client = CullTree(client_p) if client_p else None
-    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log)
+    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log, target=(args[0], args[1]))
     found = collect(pairs)
     if away is not None:
         moved = misplaced(t, lv, found, float(away))

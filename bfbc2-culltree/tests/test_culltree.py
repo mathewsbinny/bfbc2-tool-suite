@@ -299,6 +299,12 @@ def main(argv):
         r = run(['verify', ot, ol, '--ref-dir', os.path.join(TMP, 'ref'), '--added',
                  '00000000-0000-0000-0000-000000000006,00000000-0000-0000-0000-000000000007'])
         c.check(r.returncode == 0 and 'all checks passed' in r.stdout, 'verify passes on the result, with --added', r.stdout[-600:])
+        # a --ref-dir that holds the target level itself: the target is not its own reference
+        r = run(['add', tree_p, level_p, '--auto', '--ref-dir', os.path.join(TMP, 'target'), '--ref-dir', os.path.join(TMP, 'ref'),
+                 '--out-tree', ot + 's', '--out-level', ol + 's'])
+        hut_line = next((l for l in r.stdout.splitlines() if '00000000-0000-0000-0000-000000000006' in l), '')
+        c.check(r.returncode == 0 and '0 agreeing elsewhere' in hut_line,
+                'a --ref-dir holding the target level: its huts do not confirm themselves', hut_line + r.stderr[-300:])
 
         # refused cases
         r = run(['add', ot, ol, '--objects', '00000000-0000-0000-0000-000000000006', '--out-tree', ot + '2', '--out-level', ol + '2'])
