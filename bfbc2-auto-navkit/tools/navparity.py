@@ -158,17 +158,17 @@ def pairs(n):
 
 def islands(reference, candidate, clip=None, drop=None):
     R, C = ordercheck.PathData(reference, clip, drop), ordercheck.PathData(candidate)
-    res = {'reference': len(R.group_size), 'candidate': len(C.group_size),
+    res: dict[str, float] = {'reference': len(R.group_size), 'candidate': len(C.group_size),
            'large_reference': sum(1 for v in R.group_size.values() if v >= 25),
            'large_candidate': sum(1 for v in C.group_size.values() if v >= 25)}
     grid = defaultdict(list)
     for k, (_nid, p) in enumerate(C.nodes):
         grid[(math.floor(p[0] / NEAR), math.floor(p[2] / NEAR))].append(k)
-    table = Counter()
+    table: Counter[tuple[int, int]] = Counter()
     matched = 0
     for nid, p in R.nodes:
         gx, gz = math.floor(p[0] / NEAR), math.floor(p[2] / NEAR)
-        best, best_d = None, None
+        best, best_d = None, math.inf
         for dx in (-1, 0, 1):
             for dz in (-1, 0, 1):
                 for k in grid.get((gx + dx, gz + dz), ()):
@@ -181,6 +181,8 @@ def islands(reference, candidate, clip=None, drop=None):
         if best is not None:
             matched += 1
             table[(R.group[nid], C.group[C.nodes[best][0]])] += 1
+    by_ref: Counter[int]
+    by_cand: Counter[int]
     by_ref, by_cand = Counter(), Counter()
     for (gr, gc), n in table.items():
         by_ref[gr] += n

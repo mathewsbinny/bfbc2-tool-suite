@@ -62,7 +62,7 @@ def area_orders(level_xml):
 def blueprint_flags(bases):
     """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic,
     DisablePathfinding value - e.g. PdtNever / PdtWhenAlive)."""
-    flags = {}
+    flags: dict[str, tuple[bool, bool, bool, bool, str]] = {}
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
             t = open(f, encoding='utf-8', errors='replace').read()
@@ -80,7 +80,7 @@ def blueprint_flags(bases):
 def mesh_aliases(bases):
     """lower-case blueprint path -> blueprint path of its Mesh reference (without _mesh), for blueprints that
     reuse another object's mesh and collision (InvWall_SP03 -> invisiblewall/invwall)."""
-    out = {}
+    out: dict[str, str] = {}
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
             t = open(f, encoding='utf-8', errors='replace').read()
@@ -94,7 +94,7 @@ def mesh_aliases(bases):
 
 
 def havok_index(bases):
-    out = {}
+    out: dict[str, str] = {}
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*_havok.res'), recursive=True):
             rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-len('_havok.res')]
@@ -164,12 +164,12 @@ def main(argv):
             objs.append({'bp': bp, 'flags': flags.get(bp), 'm': [float(a) for a in t.group(1).split('/')]})
     groups = []
     for f in glob.glob(os.path.join(level_dir, 'dist', 'levels', level, '*_HavokAsset.xml')):
-        t = open(f, encoding='utf-8').read()
-        tr = re.search(r'<array name="Transforms">([^<]*)<', t)
-        if not tr:
+        text = open(f, encoding='utf-8').read()
+        trm = re.search(r'<array name="Transforms">([^<]*)<', text)
+        if not trm:
             continue
-        tr = tr.group(1).split('/')
-        assets = re.findall(r'<item ref="([^"]*)" />', t.split('<array name="Assets">')[1].split('</array>')[0])
+        tr = trm.group(1).split('/')
+        assets = re.findall(r'<item ref="([^"]*)" />', text.split('<array name="Assets">')[1].split('</array>')[0])
         for i, a in enumerate(assets):
             bp = re.sub(r'_havok$', '', a.rsplit('/', 1)[0].lower())
             groups.append({'group': os.path.basename(f), 'bp': bp, 'flags': flags.get(bp),

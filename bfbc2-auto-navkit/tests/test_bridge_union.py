@@ -28,7 +28,7 @@ def bridges_of(cells):
 
 def open_ends(cells, drop, diag):
     """End points (half-sample units) of the boundary met an odd number of times."""
-    deg = Counter()
+    deg: Counter[tuple[int, int]] = Counter()
     for i, j in cells:
         for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             if (i + di, j + dj) in cells:
@@ -83,7 +83,7 @@ def main(argv):
         diag = [((a[0], a[1]), (b[0], b[1])) for a, b in segs]
         if open_ends(cells, drop, diag):
             bad_new += 1
-        corners = Counter()
+        corners: Counter[tuple[int, int]] = Counter()
         for i, j, di, dj in bridges:
             corners[(i + di, j)] += 1
             corners[(i, j + dj)] += 1

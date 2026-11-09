@@ -29,6 +29,11 @@ JOIN_XZ, JOIN_Y, Y_OFFSET = 15.0, 4.0, 0.95
 
 def graph(f):
     """Unique nodes (by id) with their sector, position and island (0 = the largest)."""
+    index: dict[int, int]
+    ids: list[int]
+    secs: list[int]
+    pos: list[tuple[float, float, float]]
+    edges: list[tuple[int, int]]
     index, ids, secs, pos, edges = {}, [], [], [], []
     for s in f.sectors:
         local = []

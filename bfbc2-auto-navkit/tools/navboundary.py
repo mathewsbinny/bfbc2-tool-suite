@@ -87,7 +87,7 @@ def _nearest(a, b):
     if not len(b):
         return np.full(len(a), np.inf)
     cell = 10.0
-    buckets = {}
+    buckets: dict[tuple[int, int], list[int]] = {}
     for k, (x, z) in enumerate(b.tolist()):
         buckets.setdefault((int(x // cell), int(z // cell)), []).append(k)
     out = np.full(len(a), np.inf)
@@ -124,15 +124,15 @@ def diagnose(ref, cand, heightfield=None):
     size_r = Counter(rarea.tolist())
     # DICE areas NavKit merges: the NavKit area holding most of a DICE area's shared cells also holds other DICE areas
     pairs = Counter(zip(a_r.tolist(), a_c.tolist()))
-    best = {}
+    best: dict[int, tuple[int, int]] = {}
     for (r, c), k in pairs.items():
         if k > best.get(r, (None, -1))[1]:
             best[r] = (c, k)
-    c_to_r = {}
+    c_to_r: dict[int, set[int]] = {}
     for (r, c) in pairs:
         c_to_r.setdefault(c, set()).add(r)
     merged_r = {r for r, (c, _) in best.items() if len(c_to_r[c]) > 1}
-    r_to_c = {}
+    r_to_c: dict[int, set[int]] = {}
     for (r, c) in pairs:
         r_to_c.setdefault(r, set()).add(c)
     exact = sum(1 for r, cs in r_to_c.items() if len(cs) == 1 and c_to_r[next(iter(cs))] == {r}
@@ -165,7 +165,7 @@ def diagnose(ref, cand, heightfield=None):
     kind[BD & BC] = 'match'
     kind[BD & ~BC] = 'missing'
     kind[~BD & BC] = 'extra'
-    summary = {'shared_cells': int(n), 'dice_only_cells': int((~both).sum()), 'navkit_only_cells': int(len(ckey) - both.sum()),
+    summary: dict[str, float | None] = {'shared_cells': int(n), 'dice_only_cells': int((~both).sum()), 'navkit_only_cells': int(len(ckey) - both.sum()),
                'multi_layer_columns_left_out': int(len(multi)),
                'edges': int(len(P)), 'match': int((BD & BC).sum()), 'missing': int((BD & ~BC).sum()),
                'extra': int((~BD & BC).sum()),

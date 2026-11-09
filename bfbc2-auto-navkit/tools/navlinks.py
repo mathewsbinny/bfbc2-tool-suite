@@ -57,7 +57,7 @@ def find_pair(f, a, b):
 def recompute_first_edges(sector):
     """Edges sorted by source node (stable: existing order kept within a source); each node's `a` set."""
     sector.edges.sort(key=lambda e: e.src)
-    first = {}
+    first: dict[int, int] = {}
     for k, e in enumerate(sector.edges):
         first.setdefault(e.src, k)
     for n, node in enumerate(sector.nodes):

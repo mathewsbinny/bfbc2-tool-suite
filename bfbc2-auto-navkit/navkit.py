@@ -268,7 +268,7 @@ def level_partition_name(L, lv):
 def sampling_box(pr, lv, L):
     """Box (minX, minZ, maxX, maxZ) and y (bottom, top): the original path data's extent plus 20 m if the
     level has path data, else the extent of its placed objects and spawn points plus 50 m."""
-    pts = []
+    pts: list[tuple[float, ...]] = []
     ref = pr.dice_pathdata(lv)
     if ref:
         import hpdtool
@@ -506,8 +506,8 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
             if prog and prog[-1] != last:
                 last = prog[-1]
                 log('    ' + last.split('navsample:', 1)[1].strip())
-            m = [SAMPLE_DONE.search(l) for l in new]
-            m = [x for x in m if x]
+            found = [SAMPLE_DONE.search(l) for l in new]
+            m = [x for x in found if x]
             if m:
                 result = m[-1].group(1)
                 break

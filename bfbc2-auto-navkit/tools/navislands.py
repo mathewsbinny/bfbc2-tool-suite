@@ -54,7 +54,7 @@ def note_nodes(level, pts):
 
 def components(graphs):
     """{node id: root id}, {root id: node count}, {node id: position} over all sectors' (pts, pairs)."""
-    parent = {}
+    parent: dict[int, int] = {}
 
     def find(x):
         parent.setdefault(x, x)
@@ -62,7 +62,7 @@ def components(graphs):
             parent[x] = parent[parent[x]]
             x = parent[x]
         return x
-    pos = {}
+    pos: dict[int, tuple[float, float, float]] = {}
     for g in graphs:
         pts, pairs = g[3], g[4]
         for p in pts:
@@ -72,13 +72,13 @@ def components(graphs):
             ra, rb = find(pts[a][0]), find(pts[b][0])
             if ra != rb:
                 parent[ra] = rb
-    linked = set()                                 # nodes without an edge are dropped by finalize_graph anyway
+    linked: set[int] = set()                       # nodes without an edge are dropped by finalize_graph anyway
     for g in graphs:
         pts = g[3]
         for a, b, _d in g[4]:
             linked.update((pts[a][0], pts[b][0]))
     root = {i: find(i) for i in pos if i in linked}
-    size = defaultdict(int)
+    size: defaultdict[int, int] = defaultdict(int)
     for r in root.values():
         size[r] += 1
     return root, size, pos
@@ -92,7 +92,7 @@ def shadowing(graphs, anchors=(), min_nodes=None, xz=None, dy=None):
     root, size, pos = components(graphs)
     small = {r for r, n in size.items() if n < min_nodes}
     if SHADOW_OBJECTS_ONLY and small:
-        on_terrain = defaultdict(int)
+        on_terrain: defaultdict[int, int] = defaultdict(int)
         for i, r in root.items():
             if r in small and i in TERRAIN_IDS:
                 on_terrain[r] += 1

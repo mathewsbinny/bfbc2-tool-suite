@@ -59,7 +59,7 @@ def main(argv):
         t.save(p)
         out = os.path.join(tmp, 'out', 'pathdata_dice_edited.hpd')
         os.makedirs(os.path.dirname(out))
-        lines = []
+        lines: list[str] = []
         navkit.apply(pr, lv, p, out, log=lines.append)
         check(open(out, 'rb').read() == open(dice, 'rb').read(), 'traversals only: the path data is DICE\'s, byte for byte')
         trav = navkit.traversal_path(os.path.dirname(out), lv)

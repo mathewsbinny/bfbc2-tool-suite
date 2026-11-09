@@ -48,19 +48,19 @@ def water_heights(points, water):
     top = np.full(len(points), NO_WATER)
     if water is None or not len(water):
         return top
-    tiles = defaultdict(list)
+    members = defaultdict(list)
     keys = np.floor(points / TILE).astype(np.int64)
     for n, (a, b) in enumerate(keys):
-        tiles[(a, b)].append(n)
-    tiles = {k: np.array(v) for k, v in tiles.items()}
+        members[(a, b)].append(n)
+    tiles = {k: np.array(v) for k, v in members.items()}
     tri = water.vertices[water.triangles].astype(np.float64)
     lo = np.floor(tri[:, :, [0, 2]].min(axis=1) / TILE).astype(np.int64)
     hi = np.floor(tri[:, :, [0, 2]].max(axis=1) / TILE).astype(np.int64)
     for t in range(len(tri)):
-        idx = [tiles[(a, b)] for a in range(lo[t, 0], hi[t, 0] + 1) for b in range(lo[t, 1], hi[t, 1] + 1) if (a, b) in tiles]
-        if not idx:
+        parts = [tiles[(a, b)] for a in range(lo[t, 0], hi[t, 0] + 1) for b in range(lo[t, 1], hi[t, 1] + 1) if (a, b) in tiles]
+        if not parts:
             continue
-        idx = np.concatenate(idx)
+        idx = np.concatenate(parts)
         p = points[idx]
         (ax, ay, az), (bx, by, bz), (cx, cy, cz) = tri[t]
         d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz)
@@ -79,7 +79,7 @@ def water_heights(points, water):
 
 def floors(cellmap):
     """Every floor of every cell: ((i, j), height estimate), stacked floors (a bridge over a river) apart."""
-    out = []
+    out: list[tuple[tuple[int, int], float]] = []
     for ij, ys in cellmap.items():
         for y in sorted(set(round(v, 1) for v in ys)):
             if not out or out[-1][0] != ij or abs(out[-1][1] - y) > 1.0:
@@ -135,7 +135,7 @@ def level_report(root, lv, candidate, log=print):
     floors_d = defaultdict(list)
     for ij, y in fd:
         floors_d[ij].append(y)
-    count_n = defaultdict(int)
+    count_n: defaultdict[tuple[int, int], int] = defaultdict(int)
     for ij, _ in fn:
         count_n[ij] += 1
     has = np.array([bool(floors_d.get(ij)) and ((count_n[ij] == 1 and len(floors_d[ij]) == 1)
@@ -168,7 +168,7 @@ def main(argv):
     skip = {opt('--candidate'), opt('--json'), opt('--opfor')}
     levels = [a for a in args if not a.startswith('--') and a not in skip] or [lv for lv in navparity.LEVELS if lv not in ('sp_006', 'sp_009')]
     reports = []
-    totals = defaultdict(lambda: [0, 0, 0])
+    totals: defaultdict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
     for lv in levels:
         r = level_report(root, lv, pattern.replace('{lv}', lv))
         if r is None:

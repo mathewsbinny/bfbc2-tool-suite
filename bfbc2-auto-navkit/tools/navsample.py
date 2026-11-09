@@ -13,6 +13,7 @@ import os
 import struct
 import sys
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import numpy as np
@@ -44,15 +45,15 @@ class Samples:
     flags: np.ndarray    # per surface
     hit: np.ndarray | None = None   # per surface (version 2): shape vtable, shape word +0x0C, collidable word +0x1C
 
-    def centre(self, i, j):
+    def centre(self, i: int, j: int) -> tuple[float, float]:
         return self.min_x + i * self.pitch, self.min_z + j * self.pitch
 
-    def column(self, i, j):
+    def column(self, i: int, j: int) -> range:
         c = j * self.nx + i
         return range(self.start[c], self.start[c + 1])
 
 
-def load(path):
+def load(path: str) -> tuple[Samples, int]:
     data = open(path, 'rb').read()
     magic, version, pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, _ = \
         HEADER.unpack_from(data, 0)
@@ -74,8 +75,11 @@ def load(path):
     pos = HEADER.size
     cols = nx * nz
     start = np.zeros(cols + 1, dtype=np.int64)
-    ys, normals, flags, hits = [], [], [], []
-    rec = 8 if version == 1 else 20
+    ys: list[float] = []
+    normals: list[tuple[float, float, float]] = []
+    flags: list[int] = []
+    hits: list[tuple[int, ...]] = []
+    rec_size = 8 if version == 1 else 20
     c = 0
     while c < cols and pos < len(data):
         n = data[pos]
@@ -84,7 +88,7 @@ def load(path):
             y, a, b, d, f = struct.unpack_from('<f3bB', data, pos)
             if version == 2:
                 hits.append(struct.unpack_from('<3I', data, pos + 8))
-            pos += rec
+            pos += rec_size
             ys.append(y)
             normals.append((a / 127.0, b / 127.0, d / 127.0))
             flags.append(f)
@@ -96,13 +100,13 @@ def load(path):
                    np.array(flags, dtype=np.uint8), np.array(hits, dtype=np.uint32).reshape(-1, 3)), c
 
 
-def walkable(s, slope_max_deg=40.0):
+def walkable(s: Samples, slope_max_deg: float = 40.0) -> np.ndarray:
     """Per surface: the soldier fits (no capsule overlap) and the ground is not too steep."""
     min_ny = math.cos(math.radians(slope_max_deg)) - 0.01
     return ((s.flags & (BLOCKED | FAULT)) == 0) & (s.normal[:, 1] >= min_ny)
 
 
-def reference_cells(s, hpd_path):
+def reference_cells(s: Samples, hpd_path: str) -> dict[int, list[tuple[float, float, float]]]:
     """Rasterises the areas of an existing pathdata.hpd onto the sample grid.
     Returns {column: [(min_y, max_y, coverage), ...]}. Outlines run on cell corners ((k + 0.5) * pitch)
     with axis-aligned and 45-degree segments; a 45-degree segment passes through a sample and cuts its
@@ -110,7 +114,7 @@ def reference_cells(s, hpd_path):
     1 = whole cell inside, 0.5 = cut by a diagonal, 0.25/0.75 = rarer cases. Layers of overlapping
     areas (sector margins) are merged, keeping the largest coverage."""
     f = hpdtool.parse(open(hpd_path, 'rb').read())
-    cells = {}
+    cells: dict[int, list[tuple[float, float, float]]] = {}
     for sec in f.sectors:
         m = kymesh.parse_mesh(sec.mesh)
         for a in m.areas:
@@ -157,10 +161,10 @@ def reference_cells(s, hpd_path):
     return cells
 
 
-def flood(s, ok, seeds, max_dy):
+def flood(s: Samples, ok: np.ndarray, seeds: Iterable[int], max_dy: float) -> np.ndarray:
     """Surfaces reachable from the seed surfaces over walkable neighbours (4-connected, |dy| <= max_dy)."""
     reach = np.zeros(len(s.y), dtype=bool)
-    q = deque()
+    q: deque[int] = deque()
     for k in seeds:
         if ok[k] and not reach[k]:
             reach[k] = True
@@ -181,7 +185,8 @@ def flood(s, ok, seeds, max_dy):
     return reach
 
 
-def compare(s, hpd_path, png=None, slope=40.0, step=0.28, tol=0.6):
+def compare(s: Samples, hpd_path: str, png: str | None = None, slope: float = 40.0, step: float = 0.28,
+            tol: float = 0.6) -> None:
     ref = reference_cells(s, hpd_path)
     ok = walkable(s, slope)
     tp = fn = fp_raw = 0
@@ -238,7 +243,7 @@ def compare(s, hpd_path, png=None, slope=40.0, step=0.28, tol=0.6):
         print('wrote', png)
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     if len(argv) < 3:
         print(__doc__)
         return 1

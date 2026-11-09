@@ -92,12 +92,12 @@ class Mesh:
     links_null_offset: int = NULL
 
 
-def _u32(m, o): return struct.unpack_from('<I', m, o)[0]
-def _f32(m, o): return struct.unpack_from('<f', m, o)[0]
-def _v3(m, o): return struct.unpack_from('<3f', m, o)
+def _u32(m: bytes, o: int) -> int: return struct.unpack_from('<I', m, o)[0]
+def _f32(m: bytes, o: int) -> float: return struct.unpack_from('<f', m, o)[0]
+def _v3(m: bytes, o: int) -> Vec3: return struct.unpack_from('<3f', m, o)
 
 
-def _points(m, a, b):
+def _points(m: bytes, a: int, b: int) -> List[Vec3]:
     return [_v3(m, q) for q in range(a, b, 12)]
 
 
@@ -241,7 +241,7 @@ def write_mesh(mesh: Mesh) -> bytes:
     return bytes(out)
 
 
-def _area_body(a: Area):
+def _area_body(a: Area) -> tuple[bytes, int]:
     """Bytes of one area object with B target fields zeroed; returns (bytes, offset of the B records)."""
     hdr_size = 0x50
     blob = bytearray()

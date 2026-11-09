@@ -42,10 +42,11 @@ def flagged_sectors(level_dir, common, xoff, zoff, margin=MARGIN):
         if bp not in cache:
             cache[bp] = levelobjects.triangles(hv[bp]) if bp in hv else None
         t = np.array(o['m'][12:15])
-        if cache[bp] is None:
+        tris = cache[bp]
+        if tris is None:
             x0, z0, x1, z1 = t[0], t[2], t[0], t[2]
         else:
-            V = cache[bp].reshape(-1, 3) @ np.array([o['m'][0:3], o['m'][4:7], o['m'][8:11]]) + t
+            V = tris.reshape(-1, 3) @ np.array([o['m'][0:3], o['m'][4:7], o['m'][8:11]]) + t
             x0, z0, x1, z1 = V[:, 0].min(), V[:, 2].min(), V[:, 0].max(), V[:, 2].max()
         for X in range(int(math.floor((x0 - margin) / 100)) - xoff, int(math.floor((x1 + margin) / 100)) - xoff + 1):
             for Z in range(int(math.floor((z0 - margin) / 100)) - zoff, int(math.floor((z1 + margin) / 100)) - zoff + 1):
@@ -81,6 +82,8 @@ def score(chosen, dice_pathdata):
     """Against DICE's choice (evaluation only): (found, DICE detailed, chosen sectors DICE builds at 0.8)."""
     import hpdtool
     import kymesh
+    det: set[tuple[int, int]]
+    norm: set[tuple[int, int]]
     det, norm = set(), set()
     for s in hpdtool.parse(open(dice_pathdata, 'rb').read()).sectors:
         (det if abs(kymesh.parse_mesh(s.mesh).pitch - 0.2) < 1e-3 else norm).add((s.id >> 8, s.id & 0xff))

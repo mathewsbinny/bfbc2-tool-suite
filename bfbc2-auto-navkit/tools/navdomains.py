@@ -33,6 +33,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
@@ -71,7 +72,7 @@ class Domain:
 def graph_domain(name, pos, edges, speed, costs=None, source=None):
     """A domain from positions and two-way edges; cost = metres (given, else 3-D length) / speed."""
     pos = np.asarray(pos, float).reshape(-1, 3)
-    adj = [[] for _ in range(len(pos))]
+    adj: list[list[tuple[int, float]]] = [[] for _ in range(len(pos))]
     seen = set()
     for k, (a, b) in enumerate(edges):
         a, b = int(a), int(b)
@@ -91,6 +92,7 @@ def kynapse_domain(name, path, speed):
     taken two-way; their stored costs (metres) divided by speed."""
     import hpdtool
     f = hpdtool.parse(open(path, 'rb').read())
+    pos: list[tuple[float, float, float]]
     index, pos, edges, costs = {}, [], [], []
     for s in f.sectors:
         local = []
@@ -154,9 +156,9 @@ class Transition:
 def dismount_points(land, infantry, reach=DISMOUNT_REACH, spacing=DISMOUNT_SPACING):
     """(land node, infantry node) pairs: a land-vehicle node with an infantry node within reach (height within
     2 m), one per spacing tile."""
-    keep = {}
+    keep: dict[tuple[int, int], tuple[int, int, float]] = {}
     inf = infantry.pos
-    tiles = {}
+    tiles: dict[tuple[int, int], list[int]] = {}
     for k, p in enumerate(inf):
         tiles.setdefault((int(p[0] // reach), int(p[2] // reach)), []).append(k)
     for v, p in enumerate(land.pos):
@@ -232,13 +234,13 @@ class World:
 
     def tables(self):
         """Per domain: {node of a transition point: {other such node: seconds}} - the offline cost tables."""
-        points = {}
+        points: dict[str, set[int]] = {}
         for t in self.transitions:
             points.setdefault(t.a[0], set()).add(t.a[1])
             points.setdefault(t.b[0], set()).add(t.b[1])
-        out = {}
-        for dom, nodes in points.items():
-            nodes = sorted(nodes)
+        out: dict[str, dict[int, dict[int, float]]] = {}
+        for dom, members in points.items():
+            nodes = sorted(members)
             out[dom] = {}
             for n in nodes:
                 dist = self.leg_dijkstra(dom, n)
@@ -255,7 +257,7 @@ class World:
         to_goal = self.leg_dijkstra(gd, gn)                     # edges are two-way: reverse = forward
         # abstract graph: S, G, and the two ends of every transition
         S, G = ('S',), ('G',)
-        adj = {S: [], G: []}
+        adj: dict[tuple[Any, ...], list[tuple[tuple[Any, ...], float, tuple[Any, ...]]]] = {S: [], G: []}
 
         def edge(a, b, c, what):
             if math.isfinite(c):
@@ -263,7 +265,7 @@ class World:
                 adj.setdefault(b, adj.get(b, []))
         if sd == gd and math.isfinite(from_start[gn]):
             edge(S, G, from_start[gn], ('leg', sd, sn, gn))
-        ends = {}
+        ends: dict[tuple[str, int], list[tuple[str, Any]]] = {}
         for t in self.transitions:
             if t.tag in unavailable or t.id in unavailable:
                 continue
@@ -326,7 +328,7 @@ class World:
         for name, d in self.domains.items():
             offs[name] = n
             n += d.n
-        adj = [[] for _ in range(n)]
+        adj: list[list[tuple[int, float]]] = [[] for _ in range(n)]
         for name, d in self.domains.items():
             o = offs[name]
             for a, nb in enumerate(d.adj):
@@ -462,7 +464,7 @@ def level_world(root, lv, watermesh=None, infantry=None, vehicle=None, log=print
 
 
 def count_kinds(W):
-    out = {}
+    out: dict[str, int] = {}
     for t in W.transitions:
         key = f'{t.kind} {t.b[0] if t.kind == "enter" else t.a[0]}'
         out[key] = out.get(key, 0) + 1

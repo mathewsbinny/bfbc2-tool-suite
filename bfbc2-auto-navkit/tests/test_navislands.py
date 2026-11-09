@@ -8,6 +8,7 @@ as they were.
 """
 import os
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
@@ -25,6 +26,7 @@ def chain(ids, xs, y, z):
 
 
 def sector(parts, sid=0x0101, origin=(0.0, 0.0)):
+    pts: list[tuple[Any, ...]]
     pts, pairs = [], []
     for p, q in parts:
         off = len(pts)

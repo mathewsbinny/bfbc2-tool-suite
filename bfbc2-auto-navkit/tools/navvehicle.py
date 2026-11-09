@@ -516,7 +516,7 @@ def flood(s, cand, seeds, step=None, gx=None, gz=None):
     y = s.y.astype(np.float64)
     keep = np.zeros(len(y), bool)
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
-    q = deque()
+    q: deque[int] = deque()
     for k in seeds:
         if k >= 0 and cand[k] and not keep[k]:
             keep[k] = True
@@ -638,7 +638,7 @@ def file_offsets(path):
     """The sector offsets a path-data file was built with, from its own sector ids (spec 3.9): per sector
     floor(centre / 100) - grid id, the most common value."""
     f = hpdtool.parse(open(path, 'rb').read())
-    c = Counter()
+    c: Counter[tuple[int, int]] = Counter()
     for s in f.sectors:
         X, Y = s.id >> 8, s.id & 0xFF
         b = s.bounds
@@ -762,7 +762,11 @@ def build_level(root, lv, out_path=None, sectors='reference', seeds_kind=SEED_KI
 def info(path):
     """Summary of a (vehicle) path-data file."""
     f = hpdtool.parse(open(path, 'rb').read())
-    c = Counter()
+    c: Counter[str] = Counter()
+    pitch: Counter[float]
+    res_: Counter[float]
+    rad: Counter[float]
+    tiles: Counter[tuple[int, int]]
     pitch, res_, rad, tiles = Counter(), Counter(), Counter(), Counter()
     for s in f.sectors:
         m = kymesh.parse_mesh(s.mesh)

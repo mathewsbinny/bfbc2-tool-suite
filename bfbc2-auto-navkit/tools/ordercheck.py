@@ -102,7 +102,7 @@ class PathData:
                 ys = [p[1] for sg in segs for p in sg]
                 self.areas.append((min(xs), max(xs), min(zs), max(zs), min(ys) - Y_OFFSET, max(ys) - Y_OFFSET, segs))
         # graph groups (shared border node ids join sectors)
-        parent = {}
+        parent: dict[int, int] = {}
 
         def find(a):
             while parent.setdefault(a, a) != a:
@@ -199,8 +199,8 @@ def main(argv):
         (pa, ra), (pb, rb) = list(results.items())
         diff = [(pts[i], ra[i], rb[i]) for i in range(len(pts)) if ra[i][0] != rb[i][0] or bool(ra[i][1]) != bool(rb[i][1])]
         print(f'\npoints that differ ({len(diff)}): first = {os.path.basename(pa)}, second = {os.path.basename(pb)}')
-        for (k, n, p), a, b in diff[:60]:
-            print(f'  {k:22s} {n[:34]:34s} ({p[0]:8.1f} {p[1]:6.1f} {p[2]:8.1f})  on-area {a[0]!s:5} / {b[0]!s:5}   group size {a[1]} / {b[1]}')
+        for (k, nm, p), ga, gb in diff[:60]:
+            print(f'  {k:22s} {nm[:34]:34s} ({p[0]:8.1f} {p[1]:6.1f} {p[2]:8.1f})  on-area {ga[0]!s:5} / {gb[0]!s:5}   group size {ga[1]} / {gb[1]}')
     return 0
 
 

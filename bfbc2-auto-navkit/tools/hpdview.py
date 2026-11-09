@@ -27,7 +27,7 @@ f32 = lambda m, o: struct.unpack_from('<f', m, o)[0]
 def segs_from_lists(m, o, count_off, table_off):
     """D/E lists: index table of count+1 offsets (relative to the object), data = 3-D points."""
     cnt = u32(m, o + count_off)
-    out = []
+    out: list[list[tuple[float, ...]]] = []
     if not cnt:
         return out
     tab = o + u32(m, o + table_off)

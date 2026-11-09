@@ -100,13 +100,14 @@ def coarse(f):
     """Every (PITCH / f.pitch)-th column of a fine run, keeping all surfaces of the column."""
     step = int(round(PITCH / f.pitch))
     nx, nz = (f.nx - 1) // step + 1, (f.nz - 1) // step + 1
-    start, idx = [0], []
+    picked: list[int]
+    start, picked = [0], []
     for j in range(nz):
         for i in range(nx):
             c = (j * step) * f.nx + i * step
-            idx.extend(range(f.start[c], f.start[c + 1]))
-            start.append(len(idx))
-    idx = np.array(idx, dtype=np.int64)
+            picked.extend(range(f.start[c], f.start[c + 1]))
+            start.append(len(picked))
+    idx = np.array(picked, dtype=np.int64)
     hit = f.hit[idx] if f.hit is not None and len(f.hit) else None
     return navsample.Samples(PITCH, f.min_x, f.min_z, nx, nz, f.y_top, f.y_bottom, f.radius, f.cap_bottom,
                              f.cap_top, f.ray_radius, np.array(start), f.y[idx], f.normal[idx], f.flags[idx], hit)
@@ -600,7 +601,7 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     per_i = {i for i in range(s.nx) if round((s.min_x + i * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     per_j = {j for j in range(s.nz) if round((s.min_z + j * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     keep = np.zeros(len(y), bool)
-    q = deque()
+    q: deque[int] = deque()
     for k in np.nonzero(ok & terrain if terrain_seeds_only else ok)[0]:
         c = col_of[k]
         if c % s.nx in per_i or c // s.nx in per_j:

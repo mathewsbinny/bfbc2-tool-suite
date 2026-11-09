@@ -31,7 +31,7 @@ def first_edge_rule(f):
         srcs = [e.src for e in s.edges]
         if srcs != sorted(srcs):
             return False
-        first = {}
+        first: dict[int, int] = {}
         for k, e in enumerate(s.edges):
             first.setdefault(e.src, k)
         if any(node.a != (first[n] + 1 if n in first else 0) for n, node in enumerate(s.nodes)):
@@ -81,7 +81,7 @@ def main(argv):
         t.add(nt.op('link-areas', a=far_a, b=far_b))                       # far apart: no sector holds both
         p = os.path.join(tmp, f'{lv}.navtune.json')
         t.save(p)
-        lines = []                                     # (navkit apply on a NavKit base rebuilds: see test_apply.py)
+        lines: list[str] = []                          # (navkit apply on a NavKit base rebuilds: see test_apply.py)
         f2 = hpdtool.parse(raw)
         results = navlinks.apply(f2, t.operations, log=lines.append)
         check(results[0][1] and 'added' in results[0][2], f'the link is applied: {results[0][2]}')

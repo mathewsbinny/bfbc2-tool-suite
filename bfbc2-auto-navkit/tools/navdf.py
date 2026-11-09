@@ -48,7 +48,7 @@ def features(meshes, clip=None):
     """{'d': {(cls, axis, line, along, side): [heights]}, 'f': {(cls, axis, sign, i, j): [heights]}, counts}.
     meshes: [kymesh.Mesh]; clip: (minX, minZ, maxX, maxZ) or None (features outside are left out)."""
     d, f = defaultdict(list), defaultdict(list)
-    cnt = defaultdict(int)
+    cnt: defaultdict[str, int] = defaultdict(int)
 
     def inside(x, z):
         return clip is None or (clip[0] <= x <= clip[2] and clip[1] <= z <= clip[3])

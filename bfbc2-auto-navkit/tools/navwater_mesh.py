@@ -299,7 +299,7 @@ def regions_of(free):
     """Region id per cell (-1 where not free), regions ordered by size (largest 0)."""
     nz, nx = free.shape
     lab = np.full(free.shape, -1, np.int64)
-    sizes = []
+    sizes: list[int] = []
     for j0, i0 in zip(*np.nonzero(free)):
         if lab[j0, i0] >= 0:
             continue
@@ -365,8 +365,9 @@ class UnionFind:
 def build_graph(free, region, clear, grid, surface, block=BLOCK, edge_blocks=EDGE_BLOCKS):
     """Route nodes and edges per region. Returns (nodes [(i, j)], node_region, edges [(a, b)], repairs)."""
     nz, nx = free.shape
+    nodes: list[tuple[np.integer, np.integer]]
     nodes, node_region, node_block = [], [], []
-    by_block = {}
+    by_block: dict[tuple[int, int], list[int]] = {}
     for bj in range(0, nz, block):
         for bi in range(0, nx, block):
             sub = region[bj:bj + block, bi:bi + block]
@@ -518,7 +519,7 @@ def shore_links(grid, surface, flags, region, clear, cells, heightfield, profile
     found = np.isfinite(best_d)
     cand, best_d, best_c = cand[found], best_d[found], best_c[found]
     # one link per spacing tile of shore, per land island and boat region: the shortest
-    keep = {}
+    keep: dict[tuple[int, int, int, int], int] = {}
     for n, c in enumerate(cand):
         reg = int(region[best_c[n, 1], best_c[n, 0]])
         key = (int(math.floor(xz[c, 0] / spacing)), int(math.floor(xz[c, 1] / spacing)), int(isl[c]), reg)
@@ -636,7 +637,7 @@ def validate(wm):
     uf = UnionFind(len(wm.nodes))
     for a, b in wm.edges:
         uf.union(a, b)
-    comps = {}
+    comps: dict[int, set[int]] = {}
     for k, r in enumerate(wm.node_region):
         comps.setdefault(r, set()).add(uf.find(k))
     split = sum(1 for r in comps if len(comps[r]) > 1)
@@ -644,7 +645,7 @@ def validate(wm):
     # sight coverage on a sample of free cells: a node of the same region in straight sight within 3 blocks
     js, is_ = np.nonzero(free)
     rng = np.random.default_rng(0)
-    pick = rng.choice(len(js), size=min(2000, len(js)), replace=False) if len(js) else []
+    pick: np.ndarray | list[int] = rng.choice(len(js), size=min(2000, len(js)), replace=False) if len(js) else []
     by_cell = np.array(wm.nodes) if wm.nodes else np.zeros((0, 2), int)
     seen = 0
     for k in pick:
@@ -729,7 +730,7 @@ def dijkstra(n, adj, src):
 
 
 def adjacency(wm):
-    adj = [[] for _ in wm.nodes]
+    adj: list[list[tuple[int, float]]] = [[] for _ in wm.nodes]
     for a, b in wm.edges:
         c = wm.edge_cost(a, b)
         adj[a].append((b, c))
@@ -777,7 +778,7 @@ def to_json(wm):
     for k, (i, j) in enumerate(wm.nodes):
         x, y, z = wm.node_pos(k)
         nodes.append([round(x, 2), round(y, 2), round(z, 2), wm.node_region[k], round(float(wm.clear[j, i]), 2)])
-    counts = {}
+    counts: dict[int, int] = {}
     for r in wm.node_region:
         counts[r] = counts.get(r, 0) + 1
     return {'format': FORMAT, 'version': VERSION, 'level': wm.level,
@@ -905,7 +906,7 @@ def level_run(root, lv, profile, pitch=2.0, box=None, infantry=None, out_dir=Non
         links = shore_links(grid, surface, wm.flags, wm.region, wm.clear, cells, hf, profile, nav.node_pos, nav.node_island)
         wm.infantry = {'file': os.path.relpath(inf, root), 'sha1': sha1(inf)}
         # recheck: every land end on a walkable cell of that file (navdiff's 0.8 m cells, same height)
-        key = {(int(round(x / navdata.GRID)), int(round(z / navdata.GRID))): [] for x, z in cells[0]}
+        key: dict[tuple[int, int], list[float]] = {(int(round(x / navdata.GRID)), int(round(z / navdata.GRID))): [] for x, z in cells[0]}
         for (x, z), yy in zip(cells[0], cells[1]):
             key[(int(round(x / navdata.GRID)), int(round(z / navdata.GRID)))].append(yy)
         on = sum(1 for l in links if any(abs(yy - l['land'][1]) < 0.05 for yy in
