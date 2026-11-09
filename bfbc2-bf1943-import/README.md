@@ -33,6 +33,20 @@ value of the object tree, a correct CRC); and 31 of the 395 BF1943 animations th
 BFBC2's copy after renumbering. The others differ because DICE re-compressed or edited them for BFBC2 (other
 curve formats; the eye and eyelid tracks, where the two soldiers' faces differ).
 
+## Parity with DICE's own conversions (`portparity.py`)
+
+`python portparity.py [name part ...] [-o report.txt]` converts every model BFBC2 also ships in a PC version (148:
+the campaign prologue's Zero and Corsair, props, trees, weapons, soldiers) with `meshport` and `texture.convert`, and
+compares the result with DICE's, element by element. Per part: identical, precision (normal frames within 0.25 deg -
+DICE built its PC normals from the source art, so about 0.1 deg is the Xbox data's own rounding), differs (the
+elements named, with their largest difference; a whole part moved by one offset is reported as rebased), other-model
+(another revision: other counts). Per mesh set: LODs, composite part names and transforms. Per texture: format, size,
+mips and the picture at the smaller size (PSNR). Writes the report and a JSON of every row.
+
+First run (2026-11-08): no converter fault in the matched models - the differences are DICE's edits (parts rebased,
+UVs remapped, per-vertex data DICE added) or other revisions; gaps: no TreeMeshSet, BF1943's palm / acacia bark parts
+(indices beyond their own vertex count) refused by `mesh.convert`.
+
 ## Models (`meshport.py`)
 
 `meshport.Porter(source, meshview_index).port(mesh_name, donors=[...])` ports a BF1943 model: every LOD's MeshData
