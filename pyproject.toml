@@ -40,7 +40,7 @@ quote-style = 'single'
 python_version = '3.12'
 mypy_path = 'core'
 ignore_missing_imports = true        # numpy, imgui_bundle, moderngl ... are optional and untyped here
-check_untyped_defs = false           # the code is mostly unannotated: start with annotated functions only
+check_untyped_defs = true            # every function body is checked, annotated or not
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
@@ -49,8 +49,11 @@ disable_error_code = ['annotation-unchecked']   # typed locals inside not-yet-ty
 
 # Fully annotated modules: every function typed, bodies checked. Keep them so (a new untyped def is an error).
 [[tool.mypy.overrides]]
-module = ['hpdtool', 'kymesh', 'navsample', 'menucommon', 'culltree', 'apt', 'stfs', 'xiso', 'dbxbin', 'pipeline',
-          'testharness.runs', 'testharness.ingame', 'testharness.levelchecks', 'testharness']
-check_untyped_defs = true
+module = ['hpdtool', 'kymesh', 'navsample', 'navbuild', 'navwalk', 'navkit', 'menucommon', 'aptgraft', 'culltree',
+          'apt', 'stfs', 'xiso', 'dbxbin', 'pipeline', 'stockmp', 'shaderdb', 'xenos', 'xenos_hlsl', 'pcbuild',
+          'testharness.runs', 'testharness.ingame', 'testharness.levelchecks', 'testharness', 'bfbc2core', 'bfbc2core.*',
+          'test_bc2loc_write', 'test_meshview', 'test_meshview_index', 'test_crashreader', 'test_exeref', 'test_types',
+          'test_lint', 'test_repo', 'test_converter_edges', 'test_cli_errors', 'test_viewers', 'test_hub',
+          'test_shaderdb']
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
