@@ -9,7 +9,7 @@
 # (single quotes, lines up to about 120 characters, prose comments aligned to the right of the code).
 
 [tool.ruff]
-target-version = 'py311'
+target-version = 'py312'                  # the suite runs on 3.12+ (f-strings with backslashes in bf1943-import)
 line-length = 120
 extend-exclude = ['__pycache__']
 
@@ -37,7 +37,7 @@ ignore = [
 quote-style = 'single'
 
 [tool.mypy]
-python_version = '3.11'
+python_version = '3.12'
 mypy_path = 'core'
 ignore_missing_imports = true        # numpy, imgui_bundle, moderngl ... are optional and untyped here
 check_untyped_defs = false           # the code is mostly unannotated: start with annotated functions only

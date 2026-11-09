@@ -58,6 +58,7 @@ def tests():
     """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
     t = [
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
+        ('lint (ruff check, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
@@ -171,7 +172,7 @@ def main(argv):
     root = opfor() if any(callable(a) or t != 'quick' for _, t, a in chosen) else None
     print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else ''))
     failures, start = [], time.time()
-    for name, t, args in chosen:
+    for name, _t, args in chosen:
         if callable(args):
             args = args(root)
         t0 = time.time()
