@@ -62,11 +62,13 @@ varying ones take DICE's usual value (`DEFAULTS`: SpawnProbability 1, no post ef
 Used for the Bofors' flak burst (effect_aa_detonationblast: 3 emitters, 6 textures) and the Sherman's shell
 detonation (effect_detonation_l_01).
 
-`effectport.port_many(src, ix, effects, level)` ports several at once with one template search (the search reads
-BFBC2's 18,343 emitter documents when a type is rare: ~35 min; once per call, not per effect) - Wake's 44 impact
-effects. A BF1943 sound an effect reaches (BFBC2 lacking it) is not ported here: aligned on effect templates its
-Audio.* types stayed unaligned and its waves were left out. It is listed (`SOUND` report lines, `sounds_of(report)`)
-for the caller's sound porter, and the effect's reference to it is kept.
+`effectport.port_many(src, ix, effects, level)` ports several at once with one template search - Wake's 44 impact
+effects. The search over BFBC2's 18,343 emitter documents reads them a bundle at a time and parses only those whose
+bytes name a type still needed (it read and parsed them one by one: ~35 min). A BF1943 sound an effect reaches (BFBC2
+lacking it) is not ported here: aligned on effect templates its Audio.* types stayed unaligned and its waves were left
+out. It is listed (a `sound` record, `sounds_of(report)`) for the caller's sound porter, and the effect's reference to
+it is kept. The report is a `dbxport.Report`: its records hold every partition's dbxport records (their `partition`
+set), its lines the summary and the notable ones as before.
 
 ## Models (`meshport.py`)
 
@@ -107,6 +109,39 @@ until their 8-bit encoding is known.
 
 ## Data partitions (`dbxport.py`)
 
+**Stage 1 rewrite (2026-11-09; research DBXPORT_DEEP_AUDIT.md in Project OPFOR).** The module docstring has the rules;
+in short:
+- Templates are ranked per instance: DICE's same-guid counterpart, the caller's paired donor partitions (`donors=`),
+  the pool's instance whose role matches (input actions; slot - the array of local references naming it, so zoom
+  level n takes zoom level n; position among its type - the seat), then the catalogue's class default. Every candidate
+  is kept, folders are globbed sorted, a pool partition the game copy lacks fails (`MissingTemplate`), and each
+  instance's choice is a `template` record.
+- References are resolved over (partition, guid) - `dbxcatalogue.py` indexes BFBC2's 606,896 instances: a guid DICE
+  moved is rewritten (`relocated`: BF1943's beach halo aimers), and a reference that will not resolve is null unless
+  the counterpart or the caller's `stand_ins` give one. A template's value is never substituted for another role's
+  (the Sherman's cannon fired with the Humvee's horn); `ROLE_GUARDS` refuse a horn as a weapon sound, a vehicle's death
+  explosion as a weapon's detonation, a soldier clip on an object. The same rules cover what a template adds and
+  instances without a template; `primaryInstance` follows a left-out primary; `strict=True` fails on any of it.
+- `drop_untemplated` drops only classes BFBC2 lacks (the catalogue's classes and the executable's names), after
+  `TYPE_AS`.
+- Every field's shape is checked against the template and the catalogue (container / leaf, number count and kind, enum
+  names the executable has); a mismatch is a `SchemaError` unless a converter handles it (`ENUM_NUMBERS`, with or
+  without a template; a bool into the target's own number type; `ONE_TO_ARRAY` with empty or null; the explicit
+  `NESTED` map; an empty curve). An empty template array takes its item from another instance of the type.
+- Value passes: EIA -> Eia in every field (`EIAFireCountermeasure` is BFBC2's `EiaFireCountermeasure`), bone indices
+  on BFBC2's skeleton (`BoneTables`: BoneId by its BoneName, SoldierIKData / SkeletonAsset indices), and DICE's
+  conventions for the BF1943 weapons it brought over (`DICE_CONVENTIONS`: gravity, 600 m/s, finite ammo and pickups,
+  no auto-aim, press to zoom, sprint look, AimHead, AnimBaseSet, the template's recoil; `conventions=False` keeps
+  BF1943's values).
+- Empty arrays are written as TEXT elements (all 9,400 of DICE's are).
+- `port` returns `(bytes, Report)`: the old text lines, and `report.records` (`Record(path, action, old, new, source,
+  step, note, partition)`) for callers to read instead of parsing text.
+
+`python dbxparity.py --predict` scores the passes and conventions on the weapon and vehicle partitions both games
+ship (fair pools, `FAIR_POOLS`); `tests\test_dbxport_rules.py` (quick) holds the deep analysis' 19 edge cases and a
+test per rule; `tests\test_dbxport_fair.py` ports every partition both games ship on a fair pool and checks it against
+DICE's (`--quick`: 7 partitions, in the quick tier when the game data is there).
+
 BF1943's binary DBX is BFBC2's format (strings, varints, big-endian numbers); the schema differs by a few fields per
 type. `dbxport.port(bf1943_bytes, dbxport.Templates([...BFBC2 partitions or unpacked folders...]))` aligns each
 instance with a BFBC2 instance of its type: shared fields keep BF1943's values in BFBC2's order, BFBC2-only fields
@@ -140,10 +175,10 @@ dice-only). What it found is now in dbxport:
 - Not portable: BF1943's `BulletEntityData.VehicleDetonationTargets` (the Bofors' proximity fuse by vehicle type) -
   BFBC2 has only the radius.
 
-Values BF1943 writes otherwise are translated (`hint_value`, reported as `value ...`): the vehicle seat hints'
-input actions (BF1943's enum spelling `EIAChangeEntry` / `EIUndefined` -> BFBC2's `EiaChangeEntry` /
-`EiaUndefined`: the engine resolves enums by name, so BF1943's named no key; the countermeasure action BFBC2 lacks ->
-undefined) and texts (`VH_SWITCH` -> `VEHICLE_HINT_CHANGE_POSITION`, which has BFBC2's PC text naming the key;
+Values BF1943 writes otherwise are translated (`eia_value`, `hint_value`, reported as `value ...`): the input
+actions in every field (BF1943's enum spelling `EIAChangeEntry` / `EIUndefined` -> BFBC2's `EiaChangeEntry` /
+`EiaUndefined`: the engine resolves enums by name, so BF1943's named no key; `EIAFireCountermeasure` ->
+`EiaFireCountermeasure`, BFBC2's value 11) and the seat hints' texts (`VH_SWITCH` -> `VEHICLE_HINT_CHANGE_POSITION`, which has BFBC2's PC text naming the key;
 `VH_BOAT_THROTTLE`, which BFBC2 lacks -> `VEHICLE_HINT_ACCELERATE`).
 
 Not ported, by design: BF1943's anim-tree and input partitions. BFBC2 ships its anim trees compiled (AnimTreeInfo)
@@ -159,7 +194,9 @@ Tests: `tests\test_bf1943import.py` (quick without data: output-path containment
 `--game`: `check` on the whole source, an import of the Garand bayonet's resources read back, `import.json`
 merging, the source unchanged), `tests\test_meshport.py` (game: the oracle models, the WW2 models),
 `tests\test_havokport.py` (game: the Kurogane oracle, the re-exported Zero and Corsair, the WW2 physics),
-`tests\test_dbxport.py` (game: the writer on BFBC2 partitions, the Springfield mesh partition ported). The
+`tests\test_dbxport.py` (game: the writer on BFBC2 partitions, the Springfield mesh partition ported),
+`tests\test_dbxport_rules.py` (quick: the rules on crafted partitions), `tests\test_dbxport_fair.py` (game: every
+shared partition against DICE's; `--quick` in the quick tier). The
 converters' own: `bfbc2-anim-tools\tests\test_granny_port.py`, `bfbc2-console-convert\tests\test_mesh_decode.py`.
 
 Developed for Project OPFOR BFBC2. Battlefield 1943 and Battlefield: Bad Company 2 are © Electronic Arts / DICE;

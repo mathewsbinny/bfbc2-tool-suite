@@ -15,6 +15,16 @@ included, and every difference is classified over all partitions:
   value           the same field, another value (DICE's edits, or a format difference)
 
     python dbxparity.py [name part ...] [-o report.txt]      (default: every partition both games have)
+    python dbxparity.py --predict [name part ...] [-o report.txt]
+
+--predict scores dbxport's value passes and DICE's conventions (dbxport.DICE_CONVENTIONS, the bone remap, the EIA
+spellings): each weapon and vehicle partition both games have is ported from BF1943's copy on a fair pool (FAIR_POOLS:
+the callers' kind of donors, never DICE's same-named partition; the catalogue's class defaults, never the partition's
+own) with the passes and without them, and each field a pass targets (PREDICTED) is compared with DICE's value:
+how many DICE values the passes reproduce, against BF1943's value as it was. Rule-derived fields (gravity, speed,
+auto-aim, sprint look, bones, enum spellings) are scored on their own; template-derived ones (recoil, magazines,
+pickups, AlwaysAimHead, the donor's AnimBaseSet) depend on the donor - also scored with DICE's version in the pool
+(the counterpart, which the ranked template choice takes whenever BFBC2 ships the instance).
 
 The report lists, per (type, field), how often each class occurred and examples; a JSON beside it has the enum
 pairings. dbxport's value translations are checked against it (dbxport.hint_value and the enum maps).
@@ -139,6 +149,138 @@ def compare(src, ix, names, log=print):
     return partitions, matched, stats, examples, enums
 
 
+# the fair pools: BFBC2 donors of the kind the callers use (OPFOR's ww2 builds), per partition family
+_V, _VIET = 'objects/vehicles/beach', 'objects/vehicles/vietnam'
+_COMMON = [f'{_V}/kurogane/kurogane_wreck', f'{_V}/kurogane/kurogane_mesh_mesh', f'{_V}/type97-chiha/chiha_mb_mesh',
+           'systems/mesh/defaultmeshlodsettings', 'objects/weapons/handheld/beach/thompson/thompson_lodsettings',
+           'objects/vehicles/sea/lcrs/lcrs', 'objects/vehicles/air/ah60/ah60']
+_JEEP = [f'{_VIET}/m151a1/m151a1', f'{_V}/kurogane/kurogane', 'objects/vehicles/land/humvee/humvee']
+_PLANE = [f'{_V}/us_corsair/corsair', f'{_V}/jap_zero_fighter/zero_fighter']
+_M24 = 'objects/weapons/handheld/us_sni_m24'
+FAIR_POOLS = {
+    'objects': ['objects/objects/boat_house/boat_house', 'objects/objects/boat_house/boat_house_mesh',
+                'objects/objects/boat_house/boat_house_havok',
+                'objects/street_objects/rowing_boat_t01v01/rowing_boat_t01v01',
+                'objects/street_objects/rowing_boat_t01v01/rowing_boat_t01v01_mesh',
+                'objects/street_objects/rowing_boat_t01v01/rowing_boat_t01v01_havok',
+                'systems/mesh/defaultmeshlodsettings', 'objects/vehicles/beach/kurogane/kurogane_wreck',
+                'objects/buildings/barrack/barrack', 'objects/buildings/barrack/barrack_mesh',
+                'objects/buildings/barrack/barrack_havok', 'objects/buildings/house_06_8x8/house_06_8x8'],
+    'zero': [f'{_V}/jap_zero_fighter/zero_fighter', f'{_V}/jap_zero_fighter/zero_firing',
+             f'{_V}/jap_zero_fighter/zero_bombs_firing'] + _PLANE + _COMMON,
+    'corsair': [f'{_V}/us_corsair/corsair', f'{_V}/us_corsair/corsair_firing',
+                f'{_V}/us_corsair/corsair_bombs_firing'] + _PLANE + _COMMON,
+    'kurogane': _JEEP + _COMMON,
+    'chiha': [f'{_V}/type97-chiha/type97-chiha', f'{_VIET}/m48pattontank/m48'] + _JEEP + _COMMON,
+    'bofors': [f'{_V}/stationary_aa_bofors/aa_bofors', f'{_V}/stationary_aa_bofors/aa_bofors_firing'] + _COMMON,
+    'vehicles': [f'{_V}/stationary_hmg_30cal/30cal_window'] + _COMMON,
+    'weapons': [f'{_M24}/us_sni_m24', f'{_M24}/us_sni_m24_firing', f'{_M24}/us_sni_m24_mesh',
+                'objects/weapons/handheld/beach/thompson/thompson_lodsettings', 'systems/mesh/defaultmeshlodsettings'],
+}
+
+
+def family(k):
+    """A shared partition's family: weapons, vehicles (by vehicle), objects, effects, sounds, other."""
+    if k.startswith('objects/weapons/'):
+        return 'weapons'
+    if k.startswith('objects/vehicles/'):
+        return next((v for v in ('zero', 'corsair', 'kurogane', 'chiha', 'bofors') if v in k), 'vehicles')
+    if k.startswith('objects/'):
+        return 'objects'
+    if k.startswith(('effects/', 'fx/', 'emitters/')):
+        return 'effects'
+    return 'sounds' if k.startswith('sound/') else 'other'
+
+
+def fair_pool(k):
+    """The fair pool of a shared partition (its own name left out): FAIR_POOLS, none for the families without one
+    (the catalogue's class defaults)."""
+    name = k[:-4] if k.endswith('.dbx') else k
+    return [p for p in FAIR_POOLS.get(family(k), []) if p != name]
+
+
+def fair_catalogue(cat, exclude):
+    """The catalogue with class defaults that are not the partition's own (its second instance instead)."""
+    import copy
+    c = copy.copy(cat)
+    c.defaults = {t: (cat.others[t] if v[0] == exclude and t in cat.others else v)
+                  for t, v in cat.defaults.items() if v[0] != exclude or t in cat.others}
+    return c
+
+
+# the fields DICE's conventions and dbxport's value passes target: (type, field path) patterns; rule-derived (the
+# value follows from BF1943's and the rule) or template-derived (the donor's)
+PREDICTED = [
+    ('rule', 'BulletEntityData', r'\.Gravity$'), ('rule', 'GrenadeEntityData', r'\.Gravity$'),
+    ('rule', 'FiringFunctionData', r'\.Shot\.InitialSpeed$'), ('rule', 'WeaponFiringData', r'\.UseAutoAiming$'),
+    ('rule', 'ZoomLevelData', r'\.SprintLookSpeedMultiplier$'), ('rule', 'BoneFakePhysicsData', r'\.BoneId$'),
+    ('rule', '', r'(InputAction|ActionToSuppress|HintAction\d)$'),
+    ('template', 'SoldierAimingSimulationData', r'\.ZoomType$'),
+    ('template', 'SoldierWeaponData', r'\.AnimBaseSet$'),
+    ('template', 'SoldierWeaponData', r'\.WeaponStates\[\d+\]\.AlwaysAimHead$'),
+    ('template', 'FiringFunctionData', r'\.Ammo\.(NumberOfMagazines|AmmoPickupMinAmount|AmmoPickupMaxAmount)$'),
+    ('template', 'FiringFunctionData', r'\.FireLogic\.Recoil\.\w+$'),
+]
+
+
+def predict(src, ix, names, cat, bones, log=print):
+    """{(kind, type, field): Counter(dice, predicted, baseline, counterpart)}: how many of DICE's values each pass
+    reproduces (see the module docstring)."""
+    import dbxport
+    bc2 = {n[:-4] for n in ix.where if n.endswith('.dbx')}
+    out: collections.defaultdict[tuple, collections.Counter[str]] = collections.defaultdict(collections.Counter)
+    examples: collections.defaultdict[tuple, list[str]] = collections.defaultdict(list)
+    tcache: dict = {}
+
+    def templates(pool):
+        key = tuple(pool)
+        if key not in tcache:
+            tcache[key] = dbxport.Templates.from_index(ix, key)
+        return tcache[key]
+    for k in names:
+        name = k[:-4]
+        folder = name.rsplit('/', 1)[0]
+        ported = {e[:-4] for e in src.entries if e.endswith('.dbx') and e.rsplit('/', 1)[0] == folder}
+        ours = {p: dbxport.guids_of(src.data(p + '.dbx')) for p in ported}
+
+        def resolve(p, ported=ported):
+            q = p.lower()
+            return q in ported or q in bc2 or '/shaders/' in q or '/shader/' in q
+        kw = dict(drop_types=dbxport.NOT_IN_BFBC2, drop_untemplated=True, name=name, ours=ours, schema='report')
+        fc = fair_catalogue(cat, name)
+        runs = {}
+        try:
+            runs['predicted'] = dbxport.port(src.data(k), templates(fair_pool(k)), resolve, catalogue=fc,
+                                             bones=bones, **kw)[0]
+            runs['baseline'] = dbxport.port(src.data(k), templates(fair_pool(k)), resolve, catalogue=fc,
+                                            conventions=False, **kw)[0]
+            runs['counterpart'] = dbxport.port(src.data(k), templates([name] + fair_pool(k)), resolve, catalogue=cat,
+                                               bones=bones, **kw)[0]
+        except dbxport.PortError as e:
+            log(f'  {k}: not ported ({e})')
+            continue
+        dice = instances(ix.read(k))
+        got = {r: instances(d) for r, d in runs.items()}
+        for g, (t, fd) in dice.items():
+            short = t.split('.')[-1]
+            for p, (_kd, vd) in fd.items():
+                for kind_, tp, pat in PREDICTED:
+                    if tp and tp != short or not re.search(pat, p):
+                        continue
+                    key = (kind_, short, re.sub(r'\[\d+\]', '[]', p))
+                    hits = {r: got[r].get(g, (None, {}))[1].get(p, (None, None))[1] for r in runs}
+                    if hits['baseline'] is None:
+                        continue
+                    out[key]['fields'] += 1
+                    for r, v in hits.items():
+                        out[key][r] += v == vd
+                    if hits['predicted'] != vd and len(examples[key]) < 3:
+                        examples[key].append(f'{k.rsplit("/", 1)[-1]}: DICE {vd} predicted {hits["predicted"]} '
+                                             f'BF1943 {hits["baseline"]}')
+                    break
+    return out, examples
+
+
 def main(argv=None):
     import bf1943import
     suite_paths.use('mesh-viewer')
@@ -147,9 +289,36 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('names', nargs='*')
     ap.add_argument('-o', default='dbxparity.txt')
+    ap.add_argument('--predict', action='store_true', help='score dbxport\'s value passes and DICE\'s conventions')
     a = ap.parse_args(argv)
     src = bf1943import.Source(bf1943import.default_source())
     ix = meshview.Index(shaderdb.find_opfor(None))
+    if a.predict:
+        import dbxcatalogue
+        import dbxport
+        cat = dbxcatalogue.load(ix)
+        bones = dbxport.BoneTables.ske01(src, ix)
+        names = sorted(k for k in src.entries if k.endswith('.dbx') and k in ix.where and
+                       family(k) not in ('objects', 'effects', 'sounds', 'other') and
+                       (not a.names or any(x.lower() in k for x in a.names)))
+        out, examples = predict(src, ix, names, cat, bones)
+        tot: collections.Counter[str] = collections.Counter()
+        with open(a.o, 'w', encoding='utf-8') as f:
+            f.write(f'dbxport --predict on {len(names)} weapon / vehicle partitions both games have: of DICE\'s values, '
+                    f'how many BF1943\'s value (baseline), the passes on a fair pool (predicted) and with DICE\'s '
+                    f'version in the pool (counterpart) give\n\n')
+            for kind_ in ('rule', 'template'):
+                f.write(f'== {kind_}-derived\n')
+                for key, c in sorted(out.items()):
+                    if key[0] != kind_:
+                        continue
+                    tot.update({f'{kind_} {x}': v for x, v in c.items()})
+                    f.write(f'  {key[1]}{key[2]}: {c["fields"]} fields; baseline {c["baseline"]}, predicted '
+                            f'{c["predicted"]}, counterpart {c["counterpart"]}'
+                            + (f' | {" ; ".join(examples[key])}' if c['predicted'] != c['fields'] else '') + '\n')
+            f.write(f'\ntotals: {dict(tot)}\n')
+        print(f'{len(names)} partitions; {dict(tot)} -> {a.o}')
+        return 0
     both = sorted(k for k in src.entries if k.endswith('.dbx') and k in ix.where and
                   (not a.names or any(x.lower() in k for x in a.names)))
     partitions, matched, stats, examples, enums = compare(src, ix, both)
