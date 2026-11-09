@@ -370,7 +370,8 @@ def detailed_sectors(pr, lv):
     s = ensure_settings(pr, lv)
     sp = pr.samples08(lv)
     cache = os.path.join(pr.out_dir(lv), 'detailed.json')
-    key = f'{os.path.basename(sp) if sp else None}|{os.path.getmtime(sp) if sp else 0}|{detailed.MARGIN}|{detailed.STACKED_MIN}'
+    key = (f'{os.path.basename(sp) if sp else None}|{os.path.getmtime(sp) if sp else 0}|{detailed.MARGIN}|{detailed.STACKED_MIN}'
+           f'|{s["xoff"]}|{s["zoff"]}')     # the sector ids are relative to the offsets: a new --box changes them
     if os.path.isfile(cache):
         c = json.load(open(cache))
         if c.get('key') == key:
@@ -514,7 +515,8 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
             # back at the main menu after sampling began: the level ended (a round over, a campaign level failed)
             first = next((i for i, l in enumerate(new) if 'navsample: sampling' in l), None)   # not 'armed': before the menu
             if first is not None and any('UI cmd [main menu]' in l for l in new[first:]):
-                result = 'the level ended (back at the main menu) - retry with a larger --budget'
+                result = ('the level ended (back at the main menu) - retry with a larger budget: '
+                          'tools\\sample_all.py --levels <level> --budget <ms per frame>')   # navkit.py has no --budget
                 break
         else:
             result = 'timed out'
