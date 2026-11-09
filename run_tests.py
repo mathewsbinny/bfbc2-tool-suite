@@ -118,6 +118,7 @@ def tests():
         ('shader databases: Xbox 360 (BFBC2 twins, BF1943 Wake)', 'game', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb.py'), '--xbox']),
         ('Granny Xbox 360 -> PC: DICE bone tables', 'quick', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_port.py')]),
         ('BF1943 import pipeline, no data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_bf1943import.py')]),
+        ('emitter atlases merged, emitters re-pointed (synthetic)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_emitteratlas.py')]),
         ('path locators: the same answers as a reference checkout (main)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_locators.py')]),
         ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),
