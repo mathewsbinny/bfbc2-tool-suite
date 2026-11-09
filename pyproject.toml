@@ -1,0 +1,47 @@
+# Lint and type-check settings for the suite's Python tools. Not a package: the tools are scripts run as
+# `python <tool>.py`, each finding the shared core (core/bfbc2core) and its own siblings through sys.path.
+#
+#   python -m ruff check <folder>
+#   python -m mypy <folder>          (one tool folder at a time: several folders have modules of the same name)
+#
+# Conservative on purpose: the checks catch errors (undefined names, unused imports and variables, mutable
+# defaults, bare excepts), not style the code does not follow. No `ruff format`: the code keeps its own layout
+# (single quotes, lines up to about 120 characters, prose comments aligned to the right of the code).
+
+[tool.ruff]
+target-version = 'py311'
+line-length = 120
+extend-exclude = ['__pycache__']
+
+[tool.ruff.lint]
+select = [
+    'F',     # pyflakes: undefined names, unused imports / variables, redefinitions
+    'E',     # pycodestyle errors
+    'W',     # pycodestyle warnings
+    'B',     # bugbear: likely bugs (mutable defaults, loop variables in closures, ...)
+]
+ignore = [
+    'E501',  # long lines: about 900 lines run past 120 characters (paths, tables, prose comments) - not enforced
+    'E701',  # several statements on one line (`if x: continue`) - the code's own compact style
+    'E702',
+    'E731',  # lambdas assigned to names - used for small local helpers
+    'E741',  # `l` as a name - used for lines / lengths throughout
+    'E402',  # imports after sys.path.insert - how every tool finds core and its siblings
+    'B905',  # zip() without strict= - the code zips equal-length sequences by construction
+]
+
+[tool.ruff.lint.per-file-ignores]
+'**/tests/*.py' = ['B011']           # assert False in test scripts
+
+[tool.ruff.format]
+quote-style = 'single'
+
+[tool.mypy]
+python_version = '3.11'
+mypy_path = 'core'
+ignore_missing_imports = true        # numpy, imgui_bundle, moderngl ... are optional and untyped here
+check_untyped_defs = false           # the code is mostly unannotated: start with annotated functions only
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+explicit_package_bases = true
