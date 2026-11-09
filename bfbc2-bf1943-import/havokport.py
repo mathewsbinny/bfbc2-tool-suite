@@ -17,6 +17,12 @@ filters 3 / 1) and extended listeners, and its motion packs the two velocity lim
 hkMoppBvTreeShape moved its code pointer to 16 and its child to 52; hkMoppCode gained a build type (1: built without
 chunk subdivision, as BFBC2's). The other classes the vehicles use have 5.5.0's layout already.
 
+The MOPP code itself is kept as BF1943's 4.6.1 builder wrote it (it differs from DICE's rebuilt code in split choices
+and jump offsets only): both versions use the same byte code, and decoded (mopp.py) on the 88 physics files both games
+ship, every one of the 54,245 triangles of BF1943's 236 converted codes reaches its terminal, 11,800 rays cast
+through them hit what brute force hits, and the trees are as tight as DICE's (a triangle's own box returns 28.3 % of
+the keys, DICE's 27.7 %) - no rebuild is needed.
+
     import havokport
     pc_bytes = havokport.convert(bf1943_bytes, template_pc_bytes, havok.classes(exe))
 """

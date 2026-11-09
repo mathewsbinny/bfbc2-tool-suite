@@ -2,6 +2,8 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
 
 - havokport: a model group's shape subparts get translation.w 1.0 and the shape's aabbCenter.w / aabbHalfExtents.w
   as DICE's exporter writes them (values from two of DICE's own levels: mp_006's rigid group, sp_008's static grid);
+- mopp: a hand-made byte code (bounds, a split, a one-value split, a 16-bit split, a rescale, terminal offsets, a
+  jump) answers box queries cell by cell; the ray cast on it equals brute force; an unknown opcode is refused;
 - texture: console format 10 (L8) untiled byte for byte, not byte-swapped, each PC row padded to 4 bytes, the
   console's flags kept; console 3 (DXT5A) -> PC 10 keeps the console's flags (bit 1 clear) and pads its rows too;
 - meshport rename: a prefix map renames any case, the longest prefix first, keeps other names; a mesh set's LOD
@@ -26,6 +28,7 @@ import havokport  # noqa: E402
 import mesh  # noqa: E402
 import meshport  # noqa: E402
 import meshset  # noqa: E402
+import mopp  # noqa: E402
 import texture  # noqa: E402
 
 FAILED = [0]
@@ -204,8 +207,40 @@ def mesh_rename() -> None:
           'meshport.rename_meshset: LOD settings, shader set and shader names renamed, the rest kept', str(done))
 
 
+def mopp_vm() -> None:
+    info = (0.0, 0.0, 0.0, 65536.0)                      # 1 m = one byte at the start (q = p * 65536, shift 16)
+    code = bytes([0x28, 0, 10,                             # 0: z within 0..10
+                  0x10, 4, 5, 5,                           # 3: x <= 4 -> 7; x >= 5 -> 12
+                  0x21, 2, 1,                              # 7: y <= 2 -> 10; y >= 2 -> 11
+                  0x30, 0x31,                              # 10, 11: terminals 0, 1
+                  0x09, 8,                                 # 12: terminal offset 8
+                  0x23, 6, 7, 0, 1, 0, 2,                  # 14: x <= 6 -> 22; x >= 7 -> 23
+                  0x00, 0x32,                              # 21: (pad) 22: terminal 2 + 8
+                  0x01, 6, 0, 0,                           # 23: rescale into x cell 6, one more bit (half metres)
+                  0x05, 1, 0x00,                           # 27: jump over a pad
+                  0x26, 3, 255,                            # 30: x >= 3 half metres past 6 m (7.5 m)
+                  0x50, 40])                               # 33: terminal 40 + 8
+    q = lambda lo, hi: sorted(mopp.query(code, info, lo, hi))                                   # noqa: E731
+    got = [q((1, 1, 1), (1.5, 1.5, 1.5)), q((1, 3, 1), (1, 3.5, 1)), q((5.2, 0, 0), (6.5, 0, 0)),
+           q((7.2, 0, 0), (7.4, 0, 0)), q((8.5, 0, 0), (9, 0, 0)), q((0, 0, 11), (1, 1, 12))]
+    check(got == [[0], [1], [10], [], [48], []], 'mopp: bounds, splits, terminal offsets, rescale and jumps answer '
+          'box queries cell by cell', str(got))
+    tris = {0: [[0, 0, 1], [3, 0, 1], [0, 2, 1]], 1: [[0, 3, 2], [3, 3, 2], [0, 4, 2]], 10: [[5.5, 0, 0], [6, 1, 0], [5.5, 1, 1]]}
+    rays = [((1, 1, 5), (0, 0, -1)), ((1, 3.2, 5), (0, 0, -1)), ((5.7, 0.5, 5), (0, 0, -1)), ((9, 9, 9), (0, 0, 1))]
+    same = [mopp.ray_cast(code, info, tris, o, d, 20) == mopp.ray_cast_brute(tris, o, d, 20) for o, d in rays]
+    check(all(same) and mopp.ray_cast(code, info, tris, (1, 1, 5), (0, 0, -1), 20) == (4.0, 0),
+          'mopp: the ray cast through the tree equals brute force', str(same))
+    try:
+        mopp.query_int(bytes([0x7F]), [0, 0, 0], [1, 1, 1])
+        refused = False
+    except mopp.MoppError:
+        refused = True
+    check(refused, 'mopp: an unknown opcode is refused')
+
+
 def main() -> int:
     havok_model_group()
+    mopp_vm()
     textures()
     mesh_rename()
     texcoords()
