@@ -565,6 +565,8 @@ class Level:
         base = os.path.dirname(os.path.abspath(self.path))
         while parts and parts[0].lower() != 'levels':
             parts = parts[1:]
+        if not parts:                         # no levels/ segment: the walk below would return the level's folder
+            return None
         p = base
         rest = parts[1:]
         for i, q in enumerate(rest):

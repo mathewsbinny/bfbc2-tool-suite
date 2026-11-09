@@ -235,6 +235,10 @@ def main(argv):
         c.check(all(ok for ok, _ in ct.check_structure(t)), 'structure checks pass on the built tree')
         lv = ct.Level(level_p)
         c.check(lv.tree_path() and os.path.samefile(lv.tree_path(), tree_p), 'the level\'s tree found through its reference')
+        saved = dict(lv.tree_refs)
+        lv.tree_refs['ExclusiveStaticCullTree'] = 'other/staticculltree_x/00000000-0000-0000-0000-000000000000'
+        c.check(lv.tree_path() is None, 'a tree reference without a levels/ segment finds no tree (it gave the folder)')
+        lv.tree_refs = saved
         lo = ct.leaves_of(t, lv)
         c.check(sorted(len(v) for v in lo.values()) == [1, 1, 2, 2, 2], 'leaves per object from the slots')
 
