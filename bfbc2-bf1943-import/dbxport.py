@@ -58,6 +58,41 @@ ONE_TO_ARRAY = {'Meshes1p': 'Mesh1p', 'Meshes3p': 'Mesh3p'}
 RENAMED = {'PartInfoDatas': 'PartMaterialDatas'}
 
 
+# Field values BF1943 writes otherwise than BFBC2. The vehicle seat hints (HintLine1 / 2 + HintAction1 / 2: the text
+# and the input action whose key the HUD names beside it): BF1943 spells the input-action enum EIA... / EIUndefined,
+# BFBC2 Eia... / EiaUndefined - the engine resolves enums by name, so BF1943's spellings named no key; BF1943's hint
+# texts VH_SWITCH (BFBC2 has it, without a PC text) and VH_BOAT_THROTTLE (BFBC2 has none) become the texts BFBC2's
+# own vehicles show (VEHICLE_HINT_CHANGE_POSITION, whose PC text WIN32_... names the key; VEHICLE_HINT_ACCELERATE);
+# BF1943's countermeasure action (the Sherman's coax line) has no BFBC2 action - undefined, as BFBC2's tanks have it.
+HINT_ACTIONS = {'EIUndefined': 'EiaUndefined', 'EIAFireCountermeasure': 'EiaUndefined'}
+HINT_TEXTS = {'VH_SWITCH': 'VEHICLE_HINT_CHANGE_POSITION', 'VH_BOAT_THROTTLE': 'VEHICLE_HINT_ACCELERATE'}
+
+
+def hint_value(field, value):
+    """The BFBC2 value of a BF1943 seat-hint field's value (unchanged when it needs none)."""
+    v = value.strip()
+    if field in ('HintAction1', 'HintAction2'):
+        if v in HINT_ACTIONS:
+            return HINT_ACTIONS[v]
+        if v.startswith('EIA'):
+            return 'Eia' + v[3:]
+    elif field in ('HintLine1', 'HintLine2') and v in HINT_TEXTS:
+        return HINT_TEXTS[v]
+    return value
+
+
+def _values(e, report):
+    """BF1943's values of the fields above, as BFBC2 writes them (in place)."""
+    n = e.attr('name')
+    if n in ('HintAction1', 'HintAction2', 'HintLine1', 'HintLine2') and e.text is not None:
+        new = hint_value(n, e.text)
+        if new != e.text:
+            report.append(f'value {n}: {e.text.strip()} -> {new}')
+            e.text = new
+    for c in e.children or ():
+        _values(c, report)
+
+
 def _named(children):
     out = {}
     for c in children or ():
@@ -248,6 +283,8 @@ def port(data, templates, resolve=None, drop_untemplated=False, drop_types=(), p
             continue
         new.append(_align(inst, templates.by_type[t], t, report, res, prune))
     _part_link_names(new, report)
+    for e in new:
+        _values(e, report)
     out = dbx.DbxFile(f.strings, [dbx.Element(part.tag, part.kind, list(part.attributes), part.text, part.raw, new)]
                       + f.roots[1:])
     return dbx.write(out), report

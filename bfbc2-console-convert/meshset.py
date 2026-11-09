@@ -1,5 +1,6 @@
-r"""Xbox 360 -> PC conversion of mesh sets (RigidMeshSet, CompositeMeshSet resources: a mesh's LODs, their shader
-names, bounds, MeshData sizes and, for a composite mesh, its parts). Format: FORMAT.md section 4.
+r"""Xbox 360 -> PC conversion of mesh sets (RigidMeshSet, CompositeMeshSet, SkinnedMeshSet, TreeMeshSet resources: a
+mesh's LODs, their shader names, bounds, MeshData sizes and, for a composite or tree mesh, its parts; a tree's
+billboard shader). Format: FORMAT.md section 4.
 
     import meshset
     s = meshset.parse(console_bytes, 'CompositeMeshSet', big_endian=True)
@@ -10,7 +11,12 @@ not the file's length: lod_size().
 """
 import struct
 
-KINDS = ('RigidMeshSet', 'CompositeMeshSet', 'SkinnedMeshSet')
+KINDS = ('RigidMeshSet', 'CompositeMeshSet', 'SkinnedMeshSet', 'TreeMeshSet')
+# A TreeMeshSet's LOD is a composite one (parts: the tree's levels - trunk, branches, fronds - and the shader masks)
+# followed by the name of the shader that draws the tree as a distant billboard ('' when none) and a number (1 for
+# the palms, 0 for the bush - its meaning not yet known; carried over). Battlefield 1943's and BFBC2's are the same
+# layout (the palm's: 2,199 bytes in both).
+COMPOSITE_LIKE = ('CompositeMeshSet', 'TreeMeshSet')
 
 
 class ConvertError(Exception):
@@ -55,11 +61,13 @@ def parse(b, kind, big_endian, flag=None):
             L['flag'] = None                                            # skinned sets: no flag byte
         else:
             L['flag'] = r.u8() if has_flag else 0
-        if kind == 'CompositeMeshSet':
+        if kind in COMPOSITE_LIKE:
             # parts: hash, name, bounds (6 floats), transform (3 rotation rows and the position: 12 floats);
             # then per shader a 192-bit mask of the parts using it
             L['parts'] = [(r.num('I'), r.cstr(), r.num('6f'), r.num('12f')) for _ in range(r.num('I'))]
             L['masks'] = [r.num('3Q') for _ in range(n)]
+        if kind == 'TreeMeshSet':
+            L['billboard'], L['tree_value'] = r.cstr(), r.num('I')
         if kind == 'SkinnedMeshSet':
             # the skeleton bones the LOD's parts use, then their name hashes
             nb = r.num('I')
@@ -82,12 +90,14 @@ def write(s, kind):
         out += struct.pack('<6f2I', *L['bounds'], L['size'], L['extra'])
         if kind != 'SkinnedMeshSet':
             out += bytes([L['flag']])
-        if kind == 'CompositeMeshSet':
+        if kind in COMPOSITE_LIKE:
             out += struct.pack('<I', len(L['parts']))
             for h, name, bounds, transform in L['parts']:
                 out += struct.pack('<I', h) + name + b'\0' + struct.pack('<6f12f', *bounds, *transform)
             for m in L['masks']:
                 out += struct.pack('<3Q', *m)
+        if kind == 'TreeMeshSet':
+            out += L['billboard'] + b'\0' + struct.pack('<I', L['tree_value'])
         if kind == 'SkinnedMeshSet':
             out += struct.pack('<I', len(L['bones'])) + struct.pack('<%dI' % len(L['bones']), *L['bones'])
             out += struct.pack('<%dI' % len(L['bone_hashes']), *L['bone_hashes'])

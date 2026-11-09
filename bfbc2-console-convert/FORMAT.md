@@ -151,7 +151,13 @@ vertex bytes, then index bytes
 ```
 
 A part draws `triangles` triangles from `first index` (in indices); vertex i of an index is at `vertex offset + i x
-stride`. Parts may share a vertex window (a depth-only `_ZOnly` part drawing other parts' vertices), and a depth-only
+stride`. **`k` is the primitive type: 3 a triangle list (`triangles x 3` indices), 5 a triangle strip (`triangles + 2`
+indices; odd triangles reverse their winding; repeated indices join strips with degenerate triangles; no restart
+index).** Battlefield 1943's trees draw their bark and some depth-only parts as strips (81 parts over all its meshes);
+BFBC2's PC meshes are lists only. `mesh.convert` unrolls strips into lists (degenerate triangles left out), appended
+after the console's indices so no other part's first index moves: the palm's bark top (216 strip triangles) gives
+DICE's 79 triangles exactly, every one with DICE's winding (2026-11-08). Read as lists, the strips overran into the
+next parts' indices (the bark's "indices up to 2,269" for 617 vertices). Parts may share a vertex window (a depth-only `_ZOnly` part drawing other parts' vertices), and a depth-only
 part's index range may cover several parts' triangles; a part uses the vertices from its lowest to its highest index.
 
 **Vertex layouts are not in the file:** the level's shader database names each part (`<mesh>_lod<N>/<part>/<technique>`)
@@ -173,20 +179,23 @@ of the four Onslaught builds parse.
 
 ## 4. Mesh sets (a mesh's LODs)
 
-`<mesh>.res`, kinds RigidMeshSet, CompositeMeshSet, SkinnedMeshSet (console big-endian):
+`<mesh>.res`, kinds RigidMeshSet, CompositeMeshSet, SkinnedMeshSet, TreeMeshSet (console big-endian):
 
 ```
 u32 a; u8 z; cstr LOD settings; u32 LOD count
 per LOD: u8 x, u8 shader count n, u8 set count
          per set: cstr name ("<mesh asset>/<shader set guid>"), n x cstr shader (one per part, in part order)
          6 x f32 bounds (min x, y, z, max x, y, z); u32 size; u32 extra
-         Rigid / Composite: u8 flag
-         Composite: u32 part count, per part (u32 hash, cstr name, 6 x f32 bounds, 12 x f32 transform);
+         Rigid / Composite / Tree: u8 flag
+         Composite / Tree: u32 part count, per part (u32 hash, cstr name, 6 x f32 bounds, 12 x f32 transform);
                     n x 3 x u64 masks (per shader, the parts using it)
+         Tree: cstr billboard shader (the tree drawn far away; '' when none), u32 (1 palms, 0 bush: unknown)
          Skinned: u32 bone count b, b x u32 skeleton bones, b x u32 bone name hashes (no flag byte)
 ```
 
 **A LOD's size is its MeshData's vertex bytes + index bytes + 12**, not the file's length (all 2,463 console and
 619 PC mp_common LODs; `meshset.lod_size`). A third-person mesh may name its first-person partner's shader set.
 All 743 rigid, 251 composite and 187 skinned console mesh sets parse and write back at the same length; the Garand
-and Type 5 PC mesh sets write back byte-identical (2026-10-30).
+and Type 5 PC mesh sets write back byte-identical (2026-10-30). TreeMeshSet (2026-11-08): all 92 of BFBC2's PC tree
+mesh sets read and write back byte-identical, and all 13 of Battlefield 1943's read; the palm's is 2,199 bytes in both
+games. A tree's parts are its levels (trunk, branches, fronds: `lod0|Level01` ..).

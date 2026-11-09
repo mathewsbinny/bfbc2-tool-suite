@@ -44,8 +44,11 @@ elements named, with their largest difference; a whole part moved by one offset 
 mips and the picture at the smaller size (PSNR). Writes the report and a JSON of every row.
 
 First run (2026-11-08): no converter fault in the matched models - the differences are DICE's edits (parts rebased,
-UVs remapped, per-vertex data DICE added) or other revisions; gaps: no TreeMeshSet, BF1943's palm / acacia bark parts
-(indices beyond their own vertex count) refused by `mesh.convert`.
+UVs remapped, per-vertex data DICE added) or other revisions. The two gaps it found are closed the same day: tree mesh
+sets (`meshset` TreeMeshSet: a composite LOD + the billboard shader's name + a number; all 92 of BFBC2's round-trip
+byte-identical) and triangle strips (the part record's `k` = 5: BF1943's bark parts; `mesh.convert` unrolls them -
+the palm's bark top gives DICE's triangles exactly). 147 of the 148 shared models now convert (the last,
+objects/ui/uibackground, has no layout in BF1943's shader databases).
 
 ## Models (`meshport.py`)
 
@@ -92,6 +95,12 @@ instance with a BFBC2 instance of its type: shared fields keep BF1943's values i
 take the template's value, BF1943-only fields are left out, every change reported; written with
 `bfbc2core.dbx.write` (new in the core: a binary DBX writer; 300 BFBC2 partitions parse back to the same tree, and
 DbxEdit reads its output and writes it back unchanged).
+
+Values BF1943 writes otherwise are translated (`hint_value`, reported as `value ...`): the vehicle seat hints'
+input actions (BF1943's enum spelling `EIAChangeEntry` / `EIUndefined` -> BFBC2's `EiaChangeEntry` /
+`EiaUndefined`: the engine resolves enums by name, so BF1943's named no key; the countermeasure action BFBC2 lacks ->
+undefined) and texts (`VH_SWITCH` -> `VEHICLE_HINT_CHANGE_POSITION`, which has BFBC2's PC text naming the key;
+`VH_BOAT_THROTTLE`, which BFBC2 lacks -> `VEHICLE_HINT_ACCELERATE`).
 
 Not ported, by design: BF1943's anim-tree and input partitions. BFBC2 ships its anim trees compiled (AnimTreeInfo)
 with no node instances in the partitions, so a ported weapon uses a BFBC2 tree cloned with BF1943's animations swapped

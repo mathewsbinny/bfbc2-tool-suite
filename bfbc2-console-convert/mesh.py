@@ -160,8 +160,10 @@ def decode(b, layout, part, big_endian=True):
         raise ConvertError(f'part {p["name"]!r}: stride {p["stride"]}, its layout says {stride}')
     isz = 4 if m['wide_indices'] else 2
     e = '>' if big_endian else '<'
-    idx = np.frombuffer(b, e + ('u4' if isz == 4 else 'u2'), p['triangles'] * 3,
+    idx = np.frombuffer(b, e + ('u4' if isz == 4 else 'u2'), index_count(p),
                         m['data'] + m['vertex_bytes'] + p['first_index'] * isz).astype(np.int64)
+    if p['k'] == STRIP:
+        idx = np.array(strip_to_list(idx.tolist()), np.int64)
     lo = int(idx.min()) if len(idx) else 0
     n = (int(idx.max()) - lo + 1) if len(idx) else 0
     base = m['data'] + p['vertex_offset'] + lo * stride
@@ -200,6 +202,30 @@ def _pair_by_kind(ec, ep, leftovers=False):
             return None
         out.append(pool.pop(0))
     return out if leftovers or not any(pools.values()) else None
+
+
+# A part's primitive type (its record's k): 3 a triangle list, 5 a triangle strip (triangles + 2 indices; consecutive
+# triangles alternate winding; repeated indices join strips with degenerate triangles; no restart index). Battlefield
+# 1943's trees draw their bark and some depth-only parts as strips (81 parts of its meshes); BFBC2's PC meshes are
+# lists only - DICE's PC palms and acacias have k = 3 throughout.
+LIST, STRIP = 3, 5
+
+
+def index_count(p):
+    """How many indices a part's triangles take."""
+    return p['triangles'] + 2 if p['k'] == STRIP else p['triangles'] * 3
+
+
+def strip_to_list(s):
+    """A triangle strip's indices -> a triangle list's (degenerate triangles left out, each triangle's winding the
+    strip's: triangle i is (s[i], s[i+1], s[i+2]) for even i, (s[i+1], s[i], s[i+2]) for odd i)."""
+    out = []
+    for i in range(len(s) - 2):
+        a, b_, c = s[i], s[i + 1], s[i + 2]
+        if a == b_ or b_ == c or a == c:
+            continue
+        out += (a, b_, c) if i % 2 == 0 else (b_, a, c)
+    return out
 
 
 def convert(b, layouts, drop=None, reorder=False, bones=None):
@@ -281,7 +307,7 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
             raise ConvertError(f'part {p["name"]!r}: {nxt - p["vertex_offset"]} vertex bytes, not a whole number of '
                                f'{sc}-byte vertices')
         region = (nxt - p['vertex_offset']) // sc
-        used = idx_all[p['first_index']:p['first_index'] + p['triangles'] * 3]
+        used = idx_all[p['first_index']:p['first_index'] + index_count(p)]
         lo = min(used) if used else 0
         if used and max(used) >= lo + p['vertices'] or lo + p['vertices'] > region:
             raise ConvertError(f'part {p["name"]!r}: its indices leave the window of its {p["vertices"]} vertices')
@@ -303,9 +329,16 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     # the index buffer as a whole (parts' ranges may overlap: a depth-only part can draw several parts' triangles),
     # byte-swapped and, when the console's are 32-bit, narrowed to 16 bits; first_index counts indices on both
     count = m['index_bytes'] // idx_size
-    ind = struct.unpack_from('>%d%s' % (count, 'I' if idx_size == 4 else 'H'), b, m['data'] + m['vertex_bytes'])
+    ind = list(struct.unpack_from('>%d%s' % (count, 'I' if idx_size == 4 else 'H'), b, m['data'] + m['vertex_bytes']))
+    # strips become lists, appended after the console's indices (every other part keeps its first index; the strip's
+    # own indices stay unused where they were)
+    for p in m['parts']:
+        if p['k'] == STRIP:
+            tri = strip_to_list(ind[p['first_index']:p['first_index'] + index_count(p)])
+            p.update(first_index=len(ind), triangles=len(tri) // 3, k=LIST)
+            ind += tri
     if max(ind, default=0) > 0xFFFF:
         raise ConvertError(f'index {max(ind)}: the PC mesh data has 16-bit indices only')
-    ib = struct.pack('<%dH' % count, *ind)
+    ib = struct.pack('<%dH' % len(ind), *ind)
     m['wide_indices'] = 0
     return write(m, bytes(vb), bytes(ib))
