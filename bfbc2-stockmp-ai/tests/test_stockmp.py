@@ -345,6 +345,19 @@ def quick(tmp):
     check(open(tgt, 'rb').read() == b'stock bundle' and not os.path.exists(tgt + stockmp.BACKUP)
           and not os.path.exists(tgt + stockmp.APPLIED), 'install --revert restores the original')
 
+    # sector offsets from path data without sectors: a build error, not an IndexError
+    import hpdtool
+    empty = os.path.join(tmp, 'empty.hpd')
+    open(empty, 'wb').write(hpdtool.write(hpdtool.HpdFile(tuple([0] * hpdtool.HEADER_WORDS), [])))
+    try:
+        pipeline.sector_offsets(empty)
+        said = 'no error'
+    except pipeline.BuildError as e:
+        said = str(e)
+    except IndexError as e:
+        said = f'IndexError {e}'
+    check('no sectors' in said, f'sector offsets of path data without sectors: a build error ({said})')
+
 
 # ------------------------------------------------------------------------------------------ game tests
 

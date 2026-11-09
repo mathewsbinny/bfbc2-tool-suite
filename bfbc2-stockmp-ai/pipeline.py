@@ -177,6 +177,8 @@ def sector_offsets(hpd):
         cx[math.floor((b[0] + b[1]) / 200) - (s.id >> 8)] += 1
         cz[math.floor((b[4] + b[5]) / 200) - (s.id & 0xff)] += 1
         n += 1
+    if not n:                                   # an empty build: nothing to take the offsets from
+        raise BuildError(f'{hpd}: no sectors in the path data (an empty or failed build?)')
     (x, nx), (z, nz) = cx.most_common(1)[0], cz.most_common(1)[0]
     if min(nx, nz) / n < MIN_AGREEMENT:
         raise BuildError(f'{hpd}: sector ids disagree ({dict(cx)} / {dict(cz)})')
