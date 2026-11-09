@@ -45,3 +45,12 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
 explicit_package_bases = true
+disable_error_code = ['annotation-unchecked']   # typed locals inside not-yet-typed functions: a note per line, not news
+
+# Fully annotated modules: every function typed, bodies checked. Keep them so (a new untyped def is an error).
+[[tool.mypy.overrides]]
+module = ['hpdtool', 'kymesh', 'navsample', 'menucommon', 'culltree', 'apt', 'stfs', 'xiso', 'dbxbin', 'pipeline',
+          'testharness.runs', 'testharness.ingame', 'testharness.levelchecks', 'testharness']
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

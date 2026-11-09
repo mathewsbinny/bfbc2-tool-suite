@@ -60,6 +60,7 @@ def tests():
     t = [
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
         ('lint (ruff check, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
+        ('types (mypy, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
