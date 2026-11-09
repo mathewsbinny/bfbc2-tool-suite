@@ -14,7 +14,6 @@ by the previous stage's MultipleTrigger (OnTrigger -> Enable) and its OnTrigger 
 CombatAreaTrigger. The first stage's trigger is the one no other MultipleTrigger enables.
 """
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
 
 import dbxbin
 
@@ -65,10 +64,10 @@ class CapturePoint:
     guid: str
     name: str
     label: str
-    pos: Tuple[float, float, float]
+    pos: tuple[float, float, float]
     owner: str                       # InitialOwnerTeam
-    spawners: List[str]
-    outline: List[Tuple[float, float, float]] = field(default_factory=list)
+    spawners: list[str]
+    outline: list[tuple[float, float, float]] = field(default_factory=list)
 
     def half_extents(self, minimum=6.0, maximum=30.0):
         if not self.outline:
@@ -87,10 +86,10 @@ class Spawner:
     name: str
     team: str
     player_type: str
-    pos: Tuple[float, float, float]
+    pos: tuple[float, float, float]
     enabled: bool
-    alternates: List[Tuple[str, Tuple[float, float, float]]]
-    flag: Optional[str] = None       # the capture point that lists it (its Spawners)
+    alternates: list[tuple[str, tuple[float, float, float]]]
+    flag: str | None = None       # the capture point that lists it (its Spawners)
 
 
 @dataclass
@@ -98,7 +97,7 @@ class Stage:
     index: int
     trigger: str                     # MultipleTriggerEntityData guid: OnTrigger = this stage's M-COMs are destroyed
     trigger_name: str
-    mcoms: List[Tuple[str, Tuple[float, float, float]]]
+    mcoms: list[tuple[str, tuple[float, float, float]]]
 
 
 class Model:

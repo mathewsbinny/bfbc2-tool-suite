@@ -362,10 +362,7 @@ def step_fits(dy: float, gk: Sequence[float], gn: Sequence[float], sk: bool, sn:
     incline (a stair sample next to a flat landing would otherwise halve the predicted rise of the last step)."""
     if abs(dy - pitch * ((gk[0] + gn[0]) / 2 * di + (gk[1] + gn[1]) / 2 * dj)) <= step:
         return True
-    for g, st in ((gk, sk), (gn, sn)):
-        if st and abs(dy - pitch * (g[0] * di + g[1] * dj)) <= step:
-            return True
-    return False
+    return any(st and abs(dy - pitch * (g[0] * di + g[1] * dj)) <= step for g, st in ((gk, sk), (gn, sn)))
 
 
 LADDER_REACH = 1.5              # a ladder's ends: the walkable surface nearest the ladder within this (m, horizontally)

@@ -14,6 +14,7 @@ Cells come from navdiff.area_cells (samples inside an area's boundary, height fr
 where a cell lies on terrain, the terrain height field's height is used instead. That step is slow for a
 whole level (10-40 s), so it is cached per file (size and date) when cache_dir is given.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -103,10 +104,8 @@ def _terrain_id(heightfield: Any) -> str:
         h = hashlib.sha1(np.asarray(heightfield.min, np.float64).tobytes() + np.asarray(heightfield.max, np.float64).tobytes())
         h.update(np.ascontiguousarray(heightfield.raw).tobytes())
         fp = 'hf-' + h.hexdigest()[:16]
-        try:
+        with contextlib.suppress(AttributeError):
             heightfield._navdata_id = fp
-        except AttributeError:
-            pass
     return fp
 
 

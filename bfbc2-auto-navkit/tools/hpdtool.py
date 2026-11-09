@@ -17,7 +17,7 @@ import struct
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, List, Tuple
+from typing import Any
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
@@ -39,7 +39,7 @@ MESH_MARKER = b'KynogonRuntimeMesh'
 class Node:
     id: int                  # node id; high bit = border node shared with a neighbouring sector
                              # (same id and position appear in that sector too)
-    pos: Tuple[float, float, float]  # world position, Y up
+    pos: tuple[float, float, float]  # world position, Y up
     flags: int               # always 0x80000000
     value: float             # DistEdgeMax on the first node of a sector (infantry 15, vehicle 50), else 0
     a: int                   # index of this node's first outgoing edge + 1 (edges are sorted by source)
@@ -57,19 +57,19 @@ class Edge:
 @dataclass
 class Sector:
     id: int                  # grid coordinates, 0xXXYY
-    bounds: Tuple[float, ...]  # minX, maxX, minY, maxY, minZ, maxZ
+    bounds: tuple[float, ...]  # minX, maxX, minY, maxY, minZ, maxZ
     reserved: int            # always 0 so far
     date: int                # build date YYMMDD, zero-based month (100007 = 2010-01-07)
     time: int                # build time HHMMSScc
-    nodes: List[Node] = field(default_factory=list)
-    edges: List[Edge] = field(default_factory=list)
+    nodes: list[Node] = field(default_factory=list)
+    edges: list[Edge] = field(default_factory=list)
     mesh: bytes = b''        # runtime mesh record (starts with "KynogonRuntimeMesh"), raw for now
 
 
 @dataclass
 class HpdFile:
-    header: Tuple[int, ...]  # the 36 header words (word 2 = sector count, rewritten on save)
-    sectors: List[Sector]
+    header: tuple[int, ...]  # the 36 header words (word 2 = sector count, rewritten on save)
+    sectors: list[Sector]
 
 
 def parse(data: bytes) -> HpdFile:

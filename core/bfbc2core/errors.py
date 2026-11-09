@@ -103,10 +103,8 @@ def setup(tool: str, gui: bool = True, level: int = logging.INFO) -> logging.Log
 def _prune(tool: str) -> None:
     files = sorted(glob.glob(os.path.join(log_dir(), f'{tool}-*.log')))
     for p in files[:-KEEP]:
-        try:
+        with contextlib.suppress(OSError):
             os.remove(p)
-        except OSError:
-            pass
 
 
 def logger() -> logging.Logger:

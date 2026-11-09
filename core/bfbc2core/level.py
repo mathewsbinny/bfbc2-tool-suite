@@ -34,6 +34,8 @@ NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+import contextlib
+
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools', 'navkit')
@@ -270,10 +272,8 @@ def resolve_blueprints(lvl: Level, bases: list[str]) -> None:
             for b in bases:
                 p = os.path.join(b, path + '.dbx')
                 if os.path.isfile(p):
-                    try:
+                    with contextlib.suppress(Exception):
                         files[path] = {(i.attr('guid') or '').lower(): i for i in dbx.read(p).instances}
-                    except Exception:
-                        pass
                     break
         return files[path]
 

@@ -873,10 +873,7 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
                   order_points=order_points, t0=t0, ladders=ladders, area_orders=area_orders)
     reset_stats()                           # reports of this build only (navregress / the GUI build several)
     a = stage(samples_path, high_path, xoff, zoff, seeds=seeds, **common, cfg=cfg)
-    if detailed:
-        graphs = merge_detailed(a, detailed, xoff, zoff, seeds, common, log, cfg)
-    else:
-        graphs = a['graphs']
+    graphs = merge_detailed(a, detailed, xoff, zoff, seeds, common, log, cfg) if detailed else a['graphs']
     if ladders:
         log(f'ladders: {len(ladders)}; links made {LADDER_STATS.get("linked", 0)} (counted per stage), ends in two '
             f'sectors {LADDER_STATS.get("split", 0)}')
@@ -1000,7 +997,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     for X, Y in sectors:
         gi0, gj0, ox, oz = sector_origin_index(level, X, Y, xoff, zoff, cfg)
         if EDGE_SECTOR_RULE == 'grid_min':
-            edge = (X == min_x_sector, Y == min_z_sector)
+            edge = (min_x_sector == X, min_z_sector == Y)
         else:
             edge = ((X - 1, Y) not in have, (X, Y - 1) not in have)
         start = tuple(0 if EDGE_SECTOR_TILES and e else -1 for e in edge)

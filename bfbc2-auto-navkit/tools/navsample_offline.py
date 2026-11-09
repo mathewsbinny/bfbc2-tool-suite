@@ -922,10 +922,7 @@ def sample_grid(grid, geom, hf, log=print, bottoms=(0.28, 0.6)):
         cc, cy, ct, cen = cc[up], cy[up], ct[up], cen[up]
     solid = (np.concatenate(sc), np.concatenate(slo), np.concatenate(shi))
     log(f'  hits: {len(mc):,} mesh, {len(cc):,} convex ({time.time() - t0:.0f} s)')
-    if grid.mask is not None:
-        all_cols = np.nonzero(grid.mask.ravel())[0]
-    else:
-        all_cols = np.arange(grid.ncols)
+    all_cols = np.nonzero(grid.mask.ravel())[0] if grid.mask is not None else np.arange(grid.ncols)
     ty = np.full(grid.ncols, np.nan)
     if hf is not None:
         for s in range(0, len(all_cols), 2_000_000):

@@ -31,6 +31,7 @@ Saved as <OPFOR>\work\harness\runs\<name>.json (default name "last"); with --ref
 Exit code: 0 nothing failed (and no regression), 1 a test failed, something got worse, or a run was not
 found (run --reference with an unknown run: 2).
 """
+import contextlib
 import os
 import sys
 import time
@@ -410,10 +411,8 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    try:
+    with contextlib.suppress(AttributeError):        # stdout replaced by something without it
         sys.stdout.reconfigure(line_buffering=True)   # type: ignore[union-attr]  # progress shows at once when the output goes to a file
-    except AttributeError:                            # stdout replaced by something without it
-        pass
     from bfbc2core import errors
     errors.setup('harness', gui=False)        # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

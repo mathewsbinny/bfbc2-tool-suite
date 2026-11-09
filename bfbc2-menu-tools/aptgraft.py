@@ -1367,7 +1367,7 @@ def extern_reads(movie: Movie, code: Code) -> list[tuple[list[Ins], int, str]]:
         for k, i in enumerate(lst):
             if i.op == 0x88:
                 pool = [movie.const_text(x) for x in i.args[1].node.vals] if isinstance(i.args[1], Ref) else []
-            if i.op == 0xAF and 0 < k and k + 1 < len(lst) and lst[k + 1].op == 0xAF and i.args[0] < len(pool) \
+            if i.op == 0xAF and k > 0 and k + 1 < len(lst) and lst[k + 1].op == 0xAF and i.args[0] < len(pool) \
                     and pool[i.args[0]] == 'extern' and lst[k + 1].args[0] < len(pool):
                 out.append((lst, k - 1, pool[lst[k + 1].args[0]]))
             if i.body is not None:

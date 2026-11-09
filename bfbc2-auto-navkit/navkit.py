@@ -836,7 +836,7 @@ def main(argv: list[str]) -> int:
             del args[i:i + 2]
     yes = '--yes' in args
     install_flag = '--install' in args
-    cfg: 'navbuild.BuildSettings | None' = None
+    cfg: 'navbuild.BuildSettings | None' = None   # noqa: UP037 - navbuild is imported below, only when needed
     if '--no-detail' in args:              # build / apply / all: no D lines or F cells (the output before 2026-10-26)
         import dataclasses
 

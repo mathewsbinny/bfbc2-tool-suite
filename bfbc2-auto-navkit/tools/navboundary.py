@@ -206,7 +206,7 @@ def render(path, cells, edges, portals, only, region, title):
     fig, ax = plt.subplots(figsize=(12, 12), dpi=110 if span > 400 else 150)
     ij = cells['ij']
     X, Z = ij[:, 0] * G, ij[:, 1] * G
-    inr = (X >= x0) & (X <= x1) & (Z >= z0) & (Z <= z1)
+    inr = (x0 <= X) & (x1 >= X) & (z0 <= Z) & (z1 >= Z)
     ms = max(0.2, (72 * 12 / (span / G)) ** 2 * 0.9)
     if cells['slope'] is not None:
         sc = ax.scatter(X[inr], Z[inr], c=cells['slope'][inr], cmap='Greys', vmin=0, vmax=50, s=ms, marker='s', linewidths=0)

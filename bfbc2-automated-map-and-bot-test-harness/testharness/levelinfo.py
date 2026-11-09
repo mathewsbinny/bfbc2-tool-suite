@@ -18,7 +18,6 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from .checks import Point
 
@@ -40,33 +39,33 @@ KINDS = ('Infantry', 'Vehicle')
 class Spawner:
     guid: str
     name: str
-    team: Optional[int]
+    team: int | None
     ai: bool
     enabled: bool
-    template: Optional[str]          # partition path of the Template ref (lower case), or None for null
-    kit: Optional[str]               # partition path of the SoldierKit ref
+    template: str | None          # partition path of the Template ref (lower case), or None for null
+    kit: str | None               # partition path of the SoldierKit ref
 
 
 @dataclass
 class LevelInfo:
     lv: str
     name: str = ''
-    sources: List[Point] = field(default_factory=list)       # soldier spawns
-    targets: List[Point] = field(default_factory=list)       # AreaOrders, M-COMs, capture points, mission objectives
-    orders: List[Point] = field(default_factory=list)        # AI orders and patrol waypoints (ordercheck)
-    has_ai: Optional[bool] = None
-    spawners: List[Spawner] = field(default_factory=list)
+    sources: list[Point] = field(default_factory=list)       # soldier spawns
+    targets: list[Point] = field(default_factory=list)       # AreaOrders, M-COMs, capture points, mission objectives
+    orders: list[Point] = field(default_factory=list)        # AI orders and patrol waypoints (ordercheck)
+    has_ai: bool | None = None
+    spawners: list[Spawner] = field(default_factory=list)
     area_orders: int = 0
-    load_set: List[tuple] = field(default_factory=list)      # (target as package.mft writes it, path, exists)
+    load_set: list[tuple] = field(default_factory=list)      # (target as package.mft writes it, path, exists)
     entries: dict = field(default_factory=dict)              # bundle path -> set of lower-case entry names
     assets: dict = field(default_factory=dict)               # 'Infantry' / 'Vehicle' -> (x, z), None (absent), 'unread'
     template_refs: dict = field(default_factory=dict)        # template partition -> [partitions it refers to]
-    installed: Optional[str] = None                          # the path data the game loads (infantry), or None
-    notes: List[str] = field(default_factory=list)
+    installed: str | None = None                          # the path data the game loads (infantry), or None
+    notes: list[str] = field(default_factory=list)
     level_source: str = ''                                   # bundle the AI layer was read from
-    level_partition_sha1: Optional[str] = None
-    heightfield: Optional[object] = None                     # terrain.Heightfield, for the ground classes
-    water: Optional[object] = None                           # water.Water
+    level_partition_sha1: str | None = None
+    heightfield: object | None = None                     # terrain.Heightfield, for the ground classes
+    water: object | None = None                           # water.Water
 
     def in_load_set(self, partition):
         """The first load-set bundle holding <partition>.dbx (lower-case match), or None."""

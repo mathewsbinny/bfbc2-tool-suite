@@ -65,7 +65,7 @@ def main(argv):
     b, d, f = navdetail.detail_features(cells, P, 0, 0, 0.6)
     d = [line for line in d if all(p[2] > 0.3 and p[2] < 0.5 for p in line)]    # the z-line between the rows
     check(len(d) == 2 and not f, f'a ledge: a pair of D lines along it, no F ({len(d)}, {len(f)})')
-    keys = Counter(frozenset((r2((p[0], 0, p[2])) for p in line)) for line in d)
+    keys = Counter(frozenset(r2((p[0], 0, p[2])) for p in line) for line in d)
     check(all(v == 2 for v in keys.values()), 'D lines come in pairs on the same place (the run of two cells merged)')
     ok = True
     for line in d:

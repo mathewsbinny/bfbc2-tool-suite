@@ -19,6 +19,9 @@ select = [
     'E',     # pycodestyle errors
     'W',     # pycodestyle warnings
     'B',     # bugbear: likely bugs (mutable defaults, loop variables in closures, ...)
+    'I',     # import order within each block (the suite_paths bootstrap separates the blocks)
+    'UP',    # pyupgrade: builtin generics, X | None, no outdated imports
+    'SIM',   # simplifications
 ]
 ignore = [
     'E501',  # long lines: about 900 lines run past 120 characters (paths, tables, prose comments) - not enforced
@@ -28,6 +31,10 @@ ignore = [
     'E741',  # `l` as a name - used for lines / lengths throughout
     'E402',  # imports after sys.path.insert - how every tool finds core and its siblings
     'B905',  # zip() without strict= - the code zips equal-length sequences by construction
+    'SIM115',  # open() without a with-block: `open(p, 'rb').read()` is the house idiom (CPython closes it at once;
+               # no file is reopened while still held - reviewed in rounds 1 and 3)
+    'UP031',   # %-formatting: kept where the code formats C-like output (the Xenos disassembly); a rewrite could
+               # change how a value prints
 ]
 
 [tool.ruff.lint.per-file-ignores]

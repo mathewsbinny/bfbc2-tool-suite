@@ -9,6 +9,8 @@ import sys
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+import contextlib
+
 import suite_paths  # noqa: E402
 
 
@@ -35,10 +37,8 @@ def pick_level(title: str) -> str | None:
     root = tk.Tk()
     root.title(title)
     root.minsize(460, 420)
-    try:
+    with contextlib.suppress(tk.TclError):
         ttk.Style().theme_use('vista')
-    except tk.TclError:
-        pass
     try:
         items = levels()
     except Exception as e:

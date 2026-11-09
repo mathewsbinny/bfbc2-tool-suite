@@ -47,10 +47,7 @@ def segs_from_lists(m, o, count_off, table_off):
 def main():
     path, which, out = sys.argv[1], sys.argv[2], sys.argv[3]
     f = hpdtool.parse(open(path, 'rb').read())
-    if which.startswith('0x'):
-        s = next(x for x in f.sectors if x.id == int(which, 16))
-    else:
-        s = f.sectors[int(which)]
+    s = next(x for x in f.sectors if x.id == int(which, 16)) if which.startswith('0x') else f.sectors[int(which)]
     m = s.mesh
     _, tiles, objects, _, _ = hpdtool.mesh_layout(m)
     fig, ax = plt.subplots(figsize=(12, 12))

@@ -27,7 +27,6 @@ import math
 import zlib
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 import numpy as np
 
@@ -41,7 +40,7 @@ class Result:
     status: str
     summary: str = ''
     metrics: dict = field(default_factory=dict)
-    details: List[str] = field(default_factory=list)
+    details: list[str] = field(default_factory=list)
     data: dict = field(default_factory=dict)          # kept in the run for later comparison (pair bits ...)
     seconds: float = 0.0
 
@@ -60,8 +59,8 @@ class Point:
     kind: str                       # 'spawn', 'AreaOrder', 'M-COM', 'capture point', 'objective', order kinds ...
     name: str
     pos: tuple                      # world x, y, z (y up)
-    team: Optional[int] = None
-    ai: Optional[bool] = None
+    team: int | None = None
+    ai: bool | None = None
     cls: str = 'infantry'           # classify.py: infantry points are tested, the others counted
     why: str = ''
 

@@ -23,6 +23,7 @@ The run is saved as "regression_last". After an intended improvement, make it th
 Default levels: the 13 campaign levels and the Onslaught maps with DICE path data (ONS_MP_002 / 004, when imported) -
 about 5 hours with detailed zones; --levels for a subset.
 """
+import contextlib
 import glob
 import json
 import os
@@ -180,10 +181,8 @@ def estimates(root, levels, *runs):
                 known[lv] = row['seconds']
     size = {}
     for lv in set(levels) | set(known):
-        try:
+        with contextlib.suppress(Exception):
             size[lv] = os.path.getsize(inputs(root, lv)[0]) / 1e6
-        except Exception:
-            pass
     rates = sorted(known[lv] / size[lv] for lv in known if size.get(lv))
     rate = rates[len(rates) // 2] if rates else None
     return {lv: known.get(lv) or (rate * size[lv] if rate and lv in size else DEFAULT_SECONDS) for lv in levels}
@@ -294,10 +293,8 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    try:
+    with contextlib.suppress(AttributeError):        # stdout replaced by something without it
         sys.stdout.reconfigure(line_buffering=True)   # type: ignore[union-attr]  # progress shows at once when the output goes to a file
-    except AttributeError:                            # stdout replaced by something without it
-        pass
     from bfbc2core import errors
     errors.setup('navregress', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

@@ -31,6 +31,7 @@ data), sounds.
 
 The game copy and the source are never written; <out> may not lie inside either.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -219,10 +220,8 @@ def run_import(source, filters, out_dir, opfor=None, log=print):
     if not keys:
         raise Bf1943ImportError(f'no BF1943 resource name contains {" and ".join(filters)} (list shows the names)')
     game = None
-    try:
+    with contextlib.suppress(Exception):                    # no game copy: only the source is guarded
         game = os.path.join(shaderdb.find_opfor(opfor), 'game')
-    except Exception:                                       # noqa: BLE001 - no game copy: only the source is guarded
-        pass
     for guarded in (source.folder, game):
         if guarded and _inside(out_dir, guarded):
             raise Bf1943ImportError(f'{out_dir}: the output folder may not lie inside {guarded}')

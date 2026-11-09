@@ -223,7 +223,7 @@ def strip_to_list(s):
     out: list[tuple[int, int, int]] = []
     for i in range(len(s) - 2):
         a, b_, c = s[i], s[i + 1], s[i + 2]
-        if a == b_ or b_ == c or a == c:
+        if a in (b_, c) or b_ == c:
             continue
         out += (a, b_, c) if i % 2 == 0 else (b_, a, c)
     return out

@@ -398,10 +398,7 @@ class _Emitter:
         if not op.startswith('tfetch'):
             raise TranslateError(f'fetch op {op}')
         if typ == 'TextureCube':
-            if self.cube_dir_set:
-                coord = 'cubeDir'
-            else:
-                coord = src
+            coord = 'cubeDir' if self.cube_dir_set else src
             e = f'{tex}.Sample(sampler1, {coord})'
         elif name == SHADOW or (ins.mag_filter == 'point' and ins.min_filter == 'point'):
             # point taps: exact texel loads (the shadow map is a depth texture: raw depth)

@@ -122,7 +122,7 @@ def main(argv):
               dataclasses.replace(dd, **navbuild.grid_settings(0.8)) == d,
               'navbuild: the detailed variant is the pitch-0.2 grid (the old set_pitch(0.2)), the rest unchanged', str(dd))
         nd = dataclasses.replace(d, detail_features=False)
-        check(not nd.detail_features and d.detail_features and navbuild.DEFAULTS == navbuild.BuildSettings(),
+        check(not nd.detail_features and d.detail_features and navbuild.BuildSettings() == navbuild.DEFAULTS,
               'navbuild: replace gives a changed copy, the defaults stay')
         try:
             d.__setattr__('pitch', 0.2)

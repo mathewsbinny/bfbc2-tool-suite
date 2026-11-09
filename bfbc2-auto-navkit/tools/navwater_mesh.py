@@ -53,6 +53,8 @@ SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+import contextlib
+
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
@@ -147,7 +149,7 @@ def terrain_heights(grid, heightfield):
     for dx, dz in ((-h, 0), (h, 0), (0, -h), (0, h)):
         out = np.maximum(out, heightfield.height(X + dx, Z + dz))
     lo, hi = heightfield.min, heightfield.max
-    outside = (X < lo[0]) | (X > hi[0]) | (Z < lo[2]) | (Z > hi[2])
+    outside = (lo[0] > X) | (hi[0] < X) | (lo[2] > Z) | (hi[2] < Z)
     return np.where(outside, -np.inf, out)
 
 
@@ -927,10 +929,8 @@ def level_run(root, lv, profile, pitch=2.0, box=None, infantry=None, out_dir=Non
     else:
         log(f'{lv}: no infantry path data - no shore links')
     xml = None
-    try:
+    with contextlib.suppress(FileNotFoundError, OSError):
         xml = open(navparity.level_xml(root, lv), encoding='utf-8', errors='replace').read()
-    except (FileNotFoundError, OSError):
-        pass
     attach(wm, links, sea_spawns(xml) if xml else [])
     wm.stats['spawns'] = {'sea_spawns': len(wm.spawns), 'in_box': int(sum(bool(wm.grid.inside(*wm.grid.cell_of(s['pos'][0], s['pos'][2]))) for s in wm.spawns)),
                           'attached': sum(s['node'] is not None for s in wm.spawns),

@@ -110,9 +110,8 @@ def validate(o: dict[str, Any], kind: str = 'navkit') -> list[str]:
         problems.append(f'{name}: two-way must be true or false')
     if name == 'route-edge' and o.get('action') not in ('add', 'remove'):
         problems.append('route-edge: action must be add or remove')
-    if name == 'traversal':
-        if o.get('kind') not in TRAVERSALS:
-            problems.append(f'traversal: kind must be one of {", ".join(TRAVERSALS)}')
+    if name == 'traversal' and o.get('kind') not in TRAVERSALS:
+        problems.append(f'traversal: kind must be one of {", ".join(TRAVERSALS)}')
     if name == 'note' and not str(o.get('text', '')).strip():
         problems.append('note: text is empty')
     return problems

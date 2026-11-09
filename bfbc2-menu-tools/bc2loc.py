@@ -25,6 +25,7 @@ Format (little-endian; the same layout for _normal, _huge and _numbers):
 Keys are not stored, only their hashes: names come from the strings of BFBC2Game.exe and the constants of the menu
 and HUD movies that hash to an entry. Nothing is written into the game folder.
 """
+import contextlib
 import io
 import os
 import re
@@ -172,10 +173,8 @@ def key_names(loc, root=None, exe=None, movies=True):
     except (mc.MenuToolError, FileNotFoundError):
         pass
     if movies:
-        try:
+        with contextlib.suppress(mc.MenuToolError):
             cands.update(movie_constants_all(root))
-        except mc.MenuToolError:
-            pass
     out = {}
     for s in cands:
         for name in (s, PC_PREFIX + s):

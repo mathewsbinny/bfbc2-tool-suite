@@ -515,9 +515,7 @@ def _vector_default_nop(ins: Obj) -> bool:
         if (o.file != 'temp' or o.index or o.rel or o.negate or o.abs
                 or o.swizzle != 'xyzw'):
             return False
-    if not ins.is_export and (ins.vector_dest.index or ins.vector_dest.rel):
-        return False
-    return True
+    return not (not ins.is_export and (ins.vector_dest.index or ins.vector_dest.rel))
 
 
 def _fetch_dst(swz: int) -> str:
