@@ -100,10 +100,16 @@ class Porter:
         if own in self.ix.parts and signature(self.ix.parts[own]) == signature(bf_layout):
             return self.ix.parts[own], 'BFBC2 has this part', None
         sig = signature(bf_layout)
+        # a donor part of the same material kind first (the part name's last word: _Glass takes a glass part, not
+        # the first part with the same vertex - the US tank cockpit's glass took the JP cockpit's body, opaque)
+        kind = part.rsplit('_', 1)[-1].lower() if '_' in part else ''
         for d in donors:
-            for k in sorted(self.ix.parts):
-                if k.startswith(f'{d}_lod'.lower()) and k.endswith('/standard') and signature(self.ix.parts[k]) == sig:
-                    return self.ix.parts[k], 'donor', (d, k.split('/')[-2])
+            hits = [k for k in sorted(self.ix.parts) if k.startswith(f'{d}_lod'.lower()) and k.endswith('/standard')
+                    and signature(self.ix.parts[k]) == sig]
+            same = [k for k in hits if k.split('/')[-2].rsplit('_', 1)[-1] == kind]
+            if hits:
+                k = (same or hits)[0]
+                return self.ix.parts[k], 'donor', (d, k.split('/')[-2])
         k = self.by_signature().get(sig)
         if k is not None:
             return self.ix.parts[k], f'layout of {k}', None

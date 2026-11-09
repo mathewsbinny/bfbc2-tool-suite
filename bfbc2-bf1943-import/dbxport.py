@@ -69,9 +69,12 @@ RENAMED = {'PartInfoDatas': 'PartMaterialDatas',
 # BF1943's agrees up to 6 (Roll) and differs after (its 7 is DICE's EiaFire, BFBC2's 7 EiaSwitchPrimaryWeapon), so
 # only paired numbers are mapped. A number not in its map is reported (UNMAPPED) and takes the template's value.
 # Kept as numbers, BFBC2 read no input: the ported steering wheels and gun mounts did not turn (playtest 2026-11-08).
+# 16 drives the planes' landing gear (its legs, wheels and hatches: BF1943's LandingGearEntryComponentData raises it
+# on its own input); DICE's prologue planes (never player-flown) put it on EiaPitch, which would fold the gear with
+# every pitch input - BFBC2 has no gear input, so it is left undefined: the gear stays down
 ENUM_NUMBERS = {
     ('ChildRotationBodyData', 'RotationInput'): {0: 'EiaThrottle', 4: 'EiaYaw', 5: 'EiaPitch', 6: 'EiaRoll',
-                                                 7: 'EiaFire', 16: 'EiaPitch'},
+                                                 7: 'EiaFire', 16: 'EiaUndefined'},
     ('ChildMovingBodyData', 'InputAction'): {0: 'EiaFire', 7: 'EiaFire'},
 }
 
@@ -302,8 +305,15 @@ def _align(e, t, path, report, resolve=None, prune=False):
 # BF1943 types BFBC2's executable has no class for (2026-10-31): dropped by port(drop_types=NOT_IN_BFBC2)
 # a placement needs its object: port(required=REQUIRED) leaves out one whose object no partition will supply
 REQUIRED = {'Entity.ReferenceObjectData': 'ReferencedObject'}
+# BF1943 classes BFBC2 lacks whose instances become a BFBC2 class (aligned on its template; the BF1943-only fields
+# reported as left out): the planes' pilot seat, a player entry that also retracts the landing gear (BFBC2 has no
+# such class - its executable has no LandingGear string - and no gear input; DICE's prologue planes have a plain
+# PlayerEntryComponentData there)
+TYPE_AS = {'GameSharedResources.LandingGearEntryComponentData': 'GameSharedResources.PlayerEntryComponentData'}
 NOT_IN_BFBC2 = {'GameSharedResources.AirRaidEffectsData', 'GameSharedResources.TeamVehicleProjectileEntityData',
-                'GameSharedResources.CarHornComponentData', 'GameSharedResources.ScorePartComponentData'}
+                'GameSharedResources.CarHornComponentData', 'GameSharedResources.ScorePartComponentData',
+                # the planes' HUD tracker (their pilot seat's HudData): no such class in BFBC2 (2026-11-08)
+                'GameSharedResources.HudVehicleTrackerData'}
 
 
 def port(data, templates, resolve=None, drop_untemplated=False, drop_types=(), prune=False, required=None):
@@ -352,6 +362,13 @@ def port(data, templates, resolve=None, drop_untemplated=False, drop_types=(), p
         t = inst.attr('type')
         if (inst.attr('guid') or '').lower() in dropped:
             continue
+        if t in TYPE_AS and t not in templates:
+            # a BF1943 class BFBC2 lacks whose instances BFBC2 writes as another class (the planes' pilot seat)
+            new_t = TYPE_AS[t]
+            inst = dbx.Element(inst.tag, inst.kind, [(k, new_t if k == 'type' else v) for k, v in inst.attributes],
+                               inst.text, inst.raw, inst.children)
+            report.append(f'type {t} ({inst.attr("guid")}) written as {new_t}')
+            t = new_t
         if t not in templates:
             report.append(f'type {t} ({inst.attr("guid")}): no BFBC2 template - kept as BF1943 has it')
             new.append(inst)

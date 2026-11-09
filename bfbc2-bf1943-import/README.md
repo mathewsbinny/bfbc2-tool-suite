@@ -50,6 +50,18 @@ byte-identical) and triangle strips (the part record's `k` = 5: BF1943's bark pa
 the palm's bark top gives DICE's triangles exactly). 147 of the 148 shared models now convert (the last,
 objects/ui/uibackground, has no layout in BF1943's shader databases).
 
+## Effects (`effectport.py`)
+
+`effectport.port(src, ix, effect, level)` ports a BF1943 effect and everything it reaches: the EffectAsset, the
+emitter documents (BF1943 keeps them per level: `levels/<level>/emitters/...`, the partition inside named
+`emitters/...`), their textures (converted; BFBC2's own kept where it has the name) - sounds and other partitions
+BFBC2 has stay references. Each partition goes through dbxport on BFBC2 templates that cover every Emitter.* type
+(DICE's small detonation and the emitter documents found to hold the rest). Checked first with `dbxparity.py` on
+the 70 effect partitions both games have: no enum, kind, nested or renamed field; of the 26 fields BFBC2 added, the
+varying ones take DICE's usual value (`DEFAULTS`: SpawnProbability 1, no post effect), which the port checks.
+Used for the Bofors' flak burst (effect_aa_detonationblast: 3 emitters, 6 textures) and the Sherman's shell
+detonation (effect_detonation_l_01).
+
 ## Models (`meshport.py`)
 
 `meshport.Porter(source, meshview_index).port(mesh_name, donors=[...])` ports a BF1943 model: every LOD's MeshData
@@ -113,6 +125,12 @@ dice-only). What it found is now in dbxport:
 - Nested: a BFBC2 struct whose fields BF1943 keeps one level up is built from them - BF1943's recoil
   (`FireLogic.Max/MinRecoilAngleX/Y/Z`, `Max/MinRecoilFov`, `RecoilFollowsDispersion`) is BFBC2's
   `FireLogic.Recoil.*`; before, every ported weapon fired with its template's recoil.
+- Classes BFBC2 lacks: `TYPE_AS` writes BF1943's `LandingGearEntryComponentData` (the planes' pilot seat: a player
+  entry that retracts the gear) as a `PlayerEntryComponentData`; `NOT_IN_BFBC2` drops `HudVehicleTrackerData` (no
+  such class in BFBC2's executable). `RotationInput` 16 (the gear's legs and hatches) becomes `EiaUndefined`: BFBC2
+  has no gear input (DICE's never-flown prologue planes put it on `EiaPitch`).
+- BF1943-only fields left out (SpottedTime, GiveScore, NeverSlowDown, AutoFireDelay, ShotLimit, ...): checked with
+  dbxparity - DICE's own conversions of the same instances lack every one of them too.
 - Not portable: BF1943's `BulletEntityData.VehicleDetonationTargets` (the Bofors' proximity fuse by vehicle type) -
   BFBC2 has only the radius.
 
