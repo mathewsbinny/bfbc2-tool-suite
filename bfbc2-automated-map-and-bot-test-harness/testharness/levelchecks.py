@@ -111,7 +111,8 @@ def offsets_asset(info):
                       {'asset': 0})
     txt = 'present, not read' if a == 'unread' else f'{a[0]},{a[1]}'
     vt = '' if v is None else f'; Vehicle {"present" if v == "unread" else f"{v[0]},{v[1]}"}'
-    m = {'asset': 1, **({'x': a[0], 'z': a[1]} if a != 'unread' else {})}
+    m = {'asset': 1, **({'x': a[0], 'z': a[1]} if a != 'unread' else {}),
+         **({'vx': v[0], 'vz': v[1]} if v not in (None, 'unread') else {})}
     return Result('pass' if a != 'unread' else 'warn', f'Infantry SectorOffsets {txt}{vt}', m)
 
 

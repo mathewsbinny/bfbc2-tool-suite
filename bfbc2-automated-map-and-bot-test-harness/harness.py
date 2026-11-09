@@ -365,7 +365,8 @@ def cmd_import_log(args):
     L = run['levels'].setdefault(lv, {'name': lv, 'notes': [], 'points': {}, 'files': {}, 'level': {}, 'ingame': {}})
     m = L.get('level', {}).get('offsets-asset', {}).get('metrics', {})     # the asset's values, from the run's level checks
     asset = (m['x'], m['z']) if 'x' in m and 'z' in m else None
-    for name, r in ingame.evaluate(s, asset).items():
+    vehicle = (m['vx'], m['vz']) if 'vx' in m and 'vz' in m else None
+    for name, r in ingame.evaluate(s, asset, vehicle).items():
         L.setdefault('ingame', {})[name] = r.as_dict()
     runs.save(run, path)
     print(f'{lv}: session {s.start} (PID {s.pid}) of {len(found)} in {log_path}')

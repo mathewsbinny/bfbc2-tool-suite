@@ -105,8 +105,9 @@ def for_level(all_sessions, lv):
     return [s for s in all_sessions if s.level and s.level.lower().split('/')[-1] == want]
 
 
-def evaluate(s, asset):
-    """{name: Result} for one session. asset: the level's Infantry SectorOffsets (x, z), or None."""
+def evaluate(s, asset, vehicle=None):
+    """{name: Result} for one session. asset: the level's Infantry SectorOffsets (x, z), or None; vehicle: its
+    Vehicle SectorOffsets (x, z) where known - the loads (infantry and vehicle alike in the log) may read either."""
     src = f'opfor.log session {s.start} (PID {s.pid})'
     out = {}
     ok = s.in_game and 'AI init' in s.events and not s.crashed
@@ -120,11 +121,14 @@ def evaluate(s, asset):
     else:
         reads = sorted(set(s.offset_loads))
         want = tuple(asset) if isinstance(asset, tuple) else None
-        # every load (infantry and vehicle) must read the asset's values; with the asset unknown there is nothing
-        # to compare with (the level not in the run, the run made without the level tests): held, not failed
-        good = want is not None and all(r == want for r in s.offset_loads) and s.override is None
+        allowed = {want} | ({tuple(vehicle)} if isinstance(vehicle, tuple) else set())
+        # every load must read the Infantry or the Vehicle asset's values (the log does not say which kind a load
+        # is; stock-MP AI levels can give the two kinds different offsets); with the Infantry asset unknown there is
+        # nothing to compare with (the level not in the run, the run made without the level tests): held, not failed
+        good = want is not None and all(r in allowed for r in s.offset_loads) and s.override is None
         why = (f'loads read {", ".join(f"{x},{z}" for x, z in reads)}' + (f'; override on ({s.override[0]},{s.override[1]})' if s.override else '')
-               + (f'; the asset says {want[0]},{want[1]}' if want else '; the asset\'s values are not known'))
+               + (f'; the asset says {want[0]},{want[1]}' if want else '; the asset\'s values are not known')
+               + (f' (Vehicle {vehicle[0]},{vehicle[1]})' if want and isinstance(vehicle, tuple) and tuple(vehicle) != want else ''))
         out['offsets-read'] = Result('hold' if want is None else 'pass' if good else 'fail', f'{src}: {why}',
                                      {'loads': len(s.offset_loads), 'override': int(s.override is not None)})
     if not s.pathfinders:

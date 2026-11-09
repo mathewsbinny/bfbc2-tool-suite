@@ -389,6 +389,18 @@ def quick(check, tmp):
     ev2 = ingame.evaluate(ss[2], (-3, -7))
     check(ev2['loads-ai-init'].status == 'fail' and ev2['offsets-read'].status == 'fail' and ev2['pathfinders'].status == 'hold',
           'a crashed session with the override and 0,0 loads fails; no unit counters: on hold')
+    mixed = ss[1]
+    saved_loads = list(mixed.offset_loads)
+    mixed.offset_loads = [(-3, -7), (-2, -6)]                     # an infantry load and a vehicle load
+    try:
+        ev3 = ingame.evaluate(mixed, (-3, -7), (-2, -6))
+        ev4 = ingame.evaluate(mixed, (-3, -7))
+        ev5 = ingame.evaluate(mixed, (-3, -7), (-1, -1))
+    except TypeError as e:                                         # evaluate without the Vehicle asset (old code)
+        ev3 = ev4 = ev5 = {'offsets-read': checks.Result('error', str(e))}
+    mixed.offset_loads = saved_loads
+    check(ev3['offsets-read'].status == 'pass' and ev4['offsets-read'].status == 'fail' and ev5['offsets-read'].status == 'fail',
+          'offsets-read: a load of the Vehicle asset\'s values passes; values of neither asset fail')
     check(all(r.status == 'hold' for r in ingame.telemetry_tests().values()), 'the telemetry tests (M6) are on hold')
 
     # saved runs and comparison
