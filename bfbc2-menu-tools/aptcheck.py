@@ -42,6 +42,7 @@ import glob
 import os
 import sys
 from collections import namedtuple
+from typing import Any
 
 import menucommon as mc
 
@@ -59,10 +60,10 @@ class Code:
         self.recs = movie.instructions()
         self.by_at = {r[0].at: r for r in self.recs}
         self.starts = sorted(self.by_at)
-        self.streams = {}
+        self.streams: dict[int, set[int]] = {}
         self.funcs = []                        # (body start, body end, definition offset, name)
-        last = {}
-        for ins, start, limit, depth in self.recs:
+        last: dict[int, Any] = {}
+        for ins, start, _limit, _depth in self.recs:
             self.streams.setdefault(start, set()).add(ins.at)
             if ins.func:
                 prev = last.get(start)
@@ -96,7 +97,7 @@ class Code:
     def findings(self):
         m, out = self.m, {}
         nconst = len(m.const)
-        users = {}
+        users: dict[int, list[int]] = {}
         for ins, start, limit, depth in self.recs:
             if ins.plist is not None:
                 users.setdefault(ins.plist, []).append(ins.at)
@@ -121,7 +122,7 @@ class Code:
             if len(ats) > 1:
                 out[('shared-list', plist)] = Finding('shared-list', plist, f'PushData list {plist:#x} used by {len(ats)} '
                                                       f'PushData: {", ".join(f"{a:06X}" for a in sorted(ats))}')
-        ends = {}
+        ends: dict[tuple[int, int], int] = {}
         for ins, start, limit, depth in self.recs:
             if depth > 0:
                 e = ins.func.body + ins.func.size if ins.func else ins.end
@@ -145,7 +146,7 @@ class Code:
 
 def ranges(offsets, gap=4):
     """Changed offsets as [start, end) ranges; ranges fewer than gap bytes apart are shown as one."""
-    out = []
+    out: list[list[int]] = []
     for o in sorted(offsets):
         if out and o - out[-1][1] < gap:
             out[-1][1] = o + 1
@@ -296,12 +297,13 @@ def verify(orig_members, new_members, rep, named=None, label='movie'):
 # ------------------------------------------------------------------------------------------------ commands
 
 def cmd_verify(args, opfor):
+    patch = take(args, '--patch')
+    brief = take_flag(args, '--brief')     # taken out first: before the movies it was read as the original's name
     if len(args) < 2:
         raise mc.MenuToolError('verify needs <original> <patched>')
-    patch = take(args, '--patch')
     ol, om = mc.resolve(args[0], opfor)
     nl, nm = mc.resolve(args[1], opfor)
-    rep = Report(f'verify {ol}\n    -> {nl}')
+    rep = Report(f'verify {ol}\n    -> {nl}', brief)
     named = None
     if patch:
         lines, problems = mc.parse_patch(patch)
@@ -332,11 +334,12 @@ def cmd_lint(args, opfor):
         lines, problems = mc.parse_patch(path)
         for n, p in problems:
             rep.add('error', f'line {n}: {p}')
-        spans = {}
+        spans: dict[tuple[str, int], int] = {}
         for pl in lines:
             if not pl.comment:
                 rep.add('warning', f'line {pl.number}: no comment, on the line or just above it (OPFOR comments every patch)')
             if pl.kind == 'patch':
+                assert pl.offset is not None and pl.new is not None    # parse_patch sets both on a patch line
                 if bytes(t for t in pl.new if not isinstance(t, tuple)) == pl.expected and not any(isinstance(t, tuple) for t in pl.new):
                     rep.add('warning', f'line {pl.number}: changes nothing (new bytes = expected bytes)')
                 for o in range(pl.offset, pl.offset + len(pl.expected)):
@@ -376,7 +379,7 @@ def cmd_check(args, opfor):
         rep = Report(f'check {label}')
         f = code.findings()
         rep.add('info', f'{len(code.by_at)} instructions, {len(code.funcs)} functions, {len(code.m.const)} constants')
-        for key, x in sorted(f.items(), key=lambda x: (x[0][0], x[0][1])):
+        for _key, x in sorted(f.items(), key=lambda x: (x[0][0], x[0][1])):
             rep.add('error', f'{x.kind}: {x.text}')     # no stock movie breaks a rule (128 checked, 2026-10-31)
         rep.show()
         errors += rep.errors

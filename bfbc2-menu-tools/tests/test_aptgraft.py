@@ -177,7 +177,7 @@ def quick(c, work):
     kinds = sorted(k for _, k, _ in g.added)
     c.check(new == 3 and kinds == ['shape', 'sprite'] and g.cmap[imp] == 2,
             'graft: renumbered after the target\'s characters, the import mapped to the target\'s', str(g.added))
-    c.check(f'PlaceObject depth=7 char={new}' in d2 and f'PlaceObject depth=3 char=2 flags=0xa6 name="label"' in d2,
+    c.check(f'PlaceObject depth=7 char={new}' in d2 and 'PlaceObject depth=3 char=2 flags=0xa6 name="label"' in d2,
             'graft: placed, and the import placement points at the target\'s TextManager')
     ent = res2.geo_entry(g.cmap[sid])
     c.check(ent is not None and res2.char(g.cmap[sid]).vals[6] == g.cmap[sid],
@@ -342,10 +342,10 @@ def game(c):
         c.check(frames == 1 and placed and chars and uses and not aptcheck.Code(written).findings(),
                 'weaponicon: add_icon_frame adds an image, a 78 x 20 shape drawing it and a "Test Boat" frame placing '
                 'it at the patrol boat\'s depth; aptcheck finds nothing')
-        for bad, what in ((('PBLB', 'Test Boat'), 'a label the timeline has already'),
-                          (('NO_SUCH_LABEL', 'x'), 'a label the movie lacks')):
+        for bad_args, what in ((('PBLB', 'Test Boat'), 'a label the timeline has already'),
+                               (('NO_SUCH_LABEL', 'x'), 'a label the movie lacks')):
             try:
-                ag.add_icon_frame(wi, *bad, (10, 10))
+                ag.add_icon_frame(wi, *bad_args, (10, 10))
                 c.check(False, f'add_icon_frame refuses {what}')
             except ag.AptError:
                 c.check(True, f'add_icon_frame refuses {what}')

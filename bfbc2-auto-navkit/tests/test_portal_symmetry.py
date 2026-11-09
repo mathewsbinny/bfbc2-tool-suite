@@ -34,7 +34,7 @@ def unit_portals(result):
     """Per area: Counter of (target, unit edge midpoint) for every 0.8 m piece of its portals."""
     out = []
     for portals, _borders, _outline in result:
-        c = Counter()
+        c: Counter[tuple[int, float, float]] = Counter()
         for p in portals:
             (x0, _, z0), (x1, _, z1) = p.p0, p.p1
             n = max(1, int(round(max(abs(x1 - x0), abs(z1 - z0)) / 0.8)))

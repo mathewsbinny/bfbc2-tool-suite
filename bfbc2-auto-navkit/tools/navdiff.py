@@ -20,6 +20,7 @@ import math
 import os
 import sys
 from collections import defaultdict
+from typing import Any
 
 import numpy as np
 
@@ -58,7 +59,7 @@ def load(path):
 
 def segments(area):
     """All boundary segments of an area in (x, y, z): outline polylines, portals, border portals."""
-    segs = []
+    segs: list[tuple[kymesh.Vec3, kymesh.Vec3]] = []
     for line in area.outline:
         segs.extend(zip(line[:-1], line[1:]))
     segs.extend((p.p0, p.p1) for p in area.portals)
@@ -79,8 +80,8 @@ def area_cells(area):
     zs = np.concatenate([a[:, 2], b[:, 2]])
     i0, i1 = int(math.floor(xs.min() / pitch)) - 1, int(math.ceil(xs.max() / pitch)) + 1
     j0, j1 = int(math.floor(zs.min() / pitch)) - 1, int(math.ceil(zs.max() / pitch)) + 1
-    ii, jj = np.meshgrid(np.arange(i0, i1 + 1), np.arange(j0, j1 + 1), indexing='ij')
-    ii, jj = ii.ravel(), jj.ravel()
+    gi, gj = np.meshgrid(np.arange(i0, i1 + 1), np.arange(j0, j1 + 1), indexing='ij')
+    ii, jj = gi.ravel(), gj.ravel()
     # a tiny offset keeps sample points off the 45-degree bridges that pass through cell corners
     px = ii * pitch + pitch * 1.37e-3
     pz = jj * pitch + pitch * 0.71e-3
@@ -156,7 +157,7 @@ def pieces(segs, pitch):
 
 
 def compare_sector(ref, cand):
-    r = {'cells_ref': 0, 'cells_cand': 0, 'cells_same': 0, 'areas_ref': len(ref.mesh.areas), 'areas_cand': len(cand.mesh.areas),
+    r: dict[str, Any] = {'cells_ref': 0, 'cells_cand': 0, 'cells_same': 0, 'areas_ref': len(ref.mesh.areas), 'areas_cand': len(cand.mesh.areas),
          'areas_same': 0, 'areas_split': 0, 'areas_other': 0, 'outline_same': 0, 'portals_same': 0, 'borders_same': 0,
          'nodes_ref': len(ref.nodes), 'nodes_cand': len(cand.nodes), 'nodes_same': 0, 'edges_ref': len(ref.edges),
          'edges_same': 0, 'costs_same': 0, 'only_ref': [], 'only_cand': [],
@@ -258,7 +259,7 @@ def diff(reference, candidate, per_sector=False, log=print, clip=None):
             s._cells = [{ij: h for ij, h in c.items() if clip[0] <= ij[0] * GRID <= clip[2] and clip[1] <= ij[1] * GRID <= clip[3]}
                         for c in s.cells()]
     only_r, only_c = sorted(set(R) - set(C)), sorted(set(C) - set(R))
-    tot = defaultdict(int)
+    tot: defaultdict[str, int] = defaultdict(int)
     rows = []
     for sid in sorted(set(R) & set(C)):
         r = compare_sector(R[sid], C[sid])
@@ -318,7 +319,7 @@ def pngs(rows, R, C, out_dir, top):
     os.makedirs(out_dir, exist_ok=True)
     for r in sorted(rows, key=lambda r: -(len(r['only_ref']) + len(r['only_cand'])))[:top]:
         sid = r['id']
-        pitch = R[sid].mesh.pitch
+        pitch = GRID                    # cells() indexes the comparison grid, not the area's own pitch (0.2 in detailed zones)
         fig, ax = plt.subplots(figsize=(8, 8))
         same = [ij for cells in R[sid].cells() for ij in cells]
         if same:

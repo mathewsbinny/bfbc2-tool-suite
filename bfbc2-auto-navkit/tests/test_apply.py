@@ -112,7 +112,7 @@ def main(argv):
         t.add(nt.op('link-areas', a=c, b=d))
         p = os.path.join(tmp, f'{lv}.navtune.json')
         t.save(p)
-        lines = []
+        lines: list[str] = []
         out = navkit.apply(pr, lv, p, os.path.join(tmp, 'edited.hpd'), log=lines.append)
         data = open(out, 'rb').read()
         check(hpdtool.write(hpdtool.parse(data)) == data, 'the edited file reads back exactly')

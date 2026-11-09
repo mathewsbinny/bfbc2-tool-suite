@@ -11,7 +11,6 @@ no ground within the vehicle radius of the block, hpdcheck's structural checks, 
 
   python test_vehicle.py
 """
-import math
 import os
 import sys
 import tempfile
@@ -41,7 +40,7 @@ def level(nx=250, nz=125, slope_x=0.0):
     n = n / np.linalg.norm(n)
     for j in range(nz):
         for i in range(nx):
-            x, z = i * 0.8, j * 0.8
+            x = i * 0.8
             g = GROUND + slope_x * x
             if 75 <= i <= 78 and 50 <= j <= 70:
                 col = [(BLOCK[4], (0, 1, 0), 0, OBJECT), (g, n, navsample.BLOCKED, TERRAIN)]
@@ -144,6 +143,15 @@ def main(argv):
         data = open(out, 'rb').read()
         f = hpdtool.parse(data)
         check(hpdtool.write(f) == data, 'byte-exact round trip (hpdtool)')
+        cut = os.path.join(tmp, 'cut.hpd')
+        open(cut, 'wb').write(data[:len(data) // 2])
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = hpdtool.main(['hpdtool.py', 'roundtrip', out, cut])
+        check(rc == 2 and 'round trip: 1 identical, 1 different' in buf.getvalue(),
+              'hpdtool roundtrip: a truncated file is one failure, the batch goes on')
         meshes = [kymesh.parse_mesh(s.mesh) for s in f.sectors]
         check(all(kymesh.write_mesh(mm) == s.mesh for mm, s in zip(meshes, f.sectors)), 'byte-exact mesh round trip (kymesh)')
         check(len(f.sectors) == 2, f'two sectors ({len(f.sectors)})')

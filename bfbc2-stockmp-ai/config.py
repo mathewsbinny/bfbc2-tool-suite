@@ -137,6 +137,7 @@ class Snapper:
 
     def nearest(self, p):
         import numpy as np
+        assert self.pd is not None                     # callers check snap.pd first
         P = self.pd.pos
         d = np.hypot(P[:, 0] - p[0], P[:, 2] - p[2])
         d = np.where(np.abs(P[:, 1] - NODE_Y - p[1]) <= 4.0, d, 1e9)
@@ -183,7 +184,8 @@ def place(snap, candidates, n, notes, label, ring=2.5):
             good.append(g)
     if not good:
         return []
-    out, k = [], 0
+    out: list[tuple[float, ...]] = []
+    k = 0
     while len(out) < n and k < 50 * n:
         base = good[k % len(good)]
         r = k // len(good)
@@ -209,7 +211,7 @@ def generate(model, lv, kit_refs, pathdata, bots_per_team=8, layer='full', stock
              trigger_radius=100.0, rush_bots=(4, 4)):
     """A first configuration for the level, from its own objectives and spawns."""
     snap = Snapper(pathdata.get('infantry'))
-    notes = []
+    notes: list[str] = []
     teams = {t: {'faction': model.factions.get(t), 'kits': kits_for(model.factions.get(t), kit_refs)}
              for t in ('Team1', 'Team2')}
     c = {'format': FORMAT, 'version': VERSION, 'lv': lv, 'level': model.name, 'mode': model.mode, 'layer': layer,
@@ -255,7 +257,7 @@ def _conquest(c, m, snap, n, half, radius, notes):
         pts = place(snap, cands, n, notes, f'{t} base')
         tag = 't1' if t == 'Team1' else 't2'
         order_flags = sorted(flags, key=lambda f: _dist(f.pos, home))
-        assign = {f.guid: [] for f in order_flags}
+        assign: dict[str, list[str]] = {f.guid: [] for f in order_flags}
         for i, p in enumerate(pts):
             sid = f'{tag}_{i:02d}'
             f = order_flags[i % len(order_flags)]

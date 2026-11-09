@@ -47,7 +47,9 @@ from collections import Counter, deque
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+for _p in (HERE, os.path.abspath(os.path.join(HERE, '..', '..', 'core'))):   # once, at import
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import navsample  # noqa: E402
@@ -123,7 +125,6 @@ def vehicle_kind(ref):
 def vehicle_spawns(level_xml):
     """The level's VehicleSpawnEntityData: [{'pos': (x, y, z), 'vehicle': blueprint path, 'kind', 'name',
     'enabled'}] (spawns at the origin - unplaced templates - are left out)."""
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
     from bfbc2core import xmlinst
     out = []
     for _typ, _guid, body in xmlinst.instances(level_xml, '.VehicleSpawnEntityData'):
@@ -426,7 +427,6 @@ def road_points(level_xml, step=ROAD_STEP):
     """Seed points along the level's terrain splines (Terrain.TerrainSplineData: its Points, TerrainSplinePointData
     positions, in order), every `step` m along each polyline - DICE's `BuildRoads`: of the sectors with vehicle ground
     in DICE's files nearly all hold a spline control point or a vehicle spawn, the empty ones mostly neither (spec 2.2)."""
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
     from bfbc2core import xmlinst
     pos = {}
     for _t, g, body in xmlinst.instances(level_xml, 'Terrain.TerrainSplinePointData'):
@@ -516,7 +516,7 @@ def flood(s, cand, seeds, step=None, gx=None, gz=None):
     y = s.y.astype(np.float64)
     keep = np.zeros(len(y), bool)
     col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
-    q = deque()
+    q: deque[int] = deque()
     for k in seeds:
         if k >= 0 and cand[k] and not keep[k]:
             keep[k] = True
@@ -561,8 +561,7 @@ def vehicle_settings(detail=None):
              'DIST_EDGE_MAX', 'Y_OFFSET', 'AREA_Y_MIN', 'AREA_Y_MAX', 'BORDER_NODE_SPACING', 'NODE_COVER',
              'ORDER_NODES', 'CLIP_TO_REFERENCE', 'DETAIL_FEATURES', 'DETAIL_STEP', 'DETAIL_BLOCKS_EDGES',
              'TILE_20M_SECTORS']
-    saved = {n: getattr(navbuild, n) for n in names if hasattr(navbuild, n)}
-    try:
+    with navbuild.saved_settings(names):
         navbuild.set_pitch(PITCH)
         navbuild.TILE, navbuild.TILES = TILE, TILES
         navbuild.RESOLUTION, navbuild.LINK_STEP, navbuild.RADIUS = RESOLUTION, LINK_STEP, RADIUS
@@ -573,16 +572,13 @@ def vehicle_settings(detail=None):
         navbuild.ORDER_NODES = False
         navbuild.CLIP_TO_REFERENCE = False
         navbuild.TILE_20M_SECTORS = None
-        if 'DETAIL_FEATURES' in saved:
+        if hasattr(navbuild, 'DETAIL_FEATURES'):
             navbuild.DETAIL_FEATURES = DETAIL if detail is None else detail
-        if 'DETAIL_STEP' in saved:
-            navbuild.DETAIL_STEP = dict(saved['DETAIL_STEP'], normal=LINK_STEP)
-        if 'DETAIL_BLOCKS_EDGES' in saved:
+        if hasattr(navbuild, 'DETAIL_STEP'):
+            navbuild.DETAIL_STEP = dict(navbuild.DETAIL_STEP, normal=LINK_STEP)
+        if hasattr(navbuild, 'DETAIL_BLOCKS_EDGES'):
             navbuild.DETAIL_BLOCKS_EDGES = False   # DICE's vehicle edges cross D lines (0.58 %; infantry 0.004 %)
         yield navbuild
-    finally:
-        for n, v in saved.items():
-            setattr(navbuild, n, v)
 
 
 class _Shim:
@@ -642,7 +638,7 @@ def file_offsets(path):
     """The sector offsets a path-data file was built with, from its own sector ids (spec 3.9): per sector
     floor(centre / 100) - grid id, the most common value."""
     f = hpdtool.parse(open(path, 'rb').read())
-    c = Counter()
+    c: Counter[tuple[int, int]] = Counter()
     for s in f.sectors:
         X, Y = s.id >> 8, s.id & 0xFF
         b = s.bounds
@@ -735,7 +731,7 @@ def build_level(root, lv, out_path=None, sectors='reference', seeds_kind=SEED_KI
         import navparity
         xml = open(navparity.level_xml(root, lv), encoding='utf-8', errors='replace').read()
     except Exception as e:                                   # noqa: BLE001 - reported, the build needs seeds
-        raise RuntimeError(f'{lv}: level XML not found ({e}); run navkit.py prepare {lv}')
+        raise RuntimeError(f'{lv}: level XML not found ({e}); run navkit.py prepare {lv}') from e
     spawns = vehicle_spawns(xml)
     pts = [sp_['pos'] for sp_ in spawns if sp_['kind'] in seeds_kind or 'all' in seeds_kind]
     roads = road_points(xml) if SEED_ROADS else []
@@ -766,7 +762,11 @@ def build_level(root, lv, out_path=None, sectors='reference', seeds_kind=SEED_KI
 def info(path):
     """Summary of a (vehicle) path-data file."""
     f = hpdtool.parse(open(path, 'rb').read())
-    c = Counter()
+    c: Counter[str] = Counter()
+    pitch: Counter[float]
+    res_: Counter[float]
+    rad: Counter[float]
+    tiles: Counter[tuple[int, int]]
     pitch, res_, rad, tiles = Counter(), Counter(), Counter(), Counter()
     for s in f.sectors:
         m = kymesh.parse_mesh(s.mesh)

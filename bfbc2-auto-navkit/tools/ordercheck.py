@@ -12,11 +12,10 @@ network connects, the share the second file also connects. With one file, the se
 point pairs on its areas that its route network connects (for maps without reference data).
 """
 import itertools
-import math
 import os
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 
 import numpy as np
 
@@ -43,7 +42,7 @@ def order_points(xml_path):
         return (v[12], v[13], v[14]) if any(abs(c) > 1e-3 for c in v[12:15]) else None
 
     pts = []
-    for guid, (typ, body) in inst.items():
+    for _guid, (typ, body) in inst.items():
         short = typ.split('.')[-1]
         if short in ('AreaOrderEntityData', 'PatrolOrderEntityData', 'InterludeOrderEntityData',
                      'FireAtAreaOrderEntityData'):
@@ -103,7 +102,7 @@ class PathData:
                 ys = [p[1] for sg in segs for p in sg]
                 self.areas.append((min(xs), max(xs), min(zs), max(zs), min(ys) - Y_OFFSET, max(ys) - Y_OFFSET, segs))
         # graph groups (shared border node ids join sectors)
-        parent = {}
+        parent: dict[int, int] = {}
 
         def find(a):
             while parent.setdefault(a, a) != a:
@@ -142,6 +141,8 @@ class PathData:
         return False
 
     def nearest_group(self, p, radius=15.0):
+        if not self.ids:                  # no route nodes (an empty or failed build): no group, not an error
+            return None, None
         d = np.hypot(self.pos[:, 0] - p[0], self.pos[:, 2] - p[2])
         d = np.where(np.abs(self.pos[:, 1] - Y_OFFSET - p[1]) <= 4.0, d, 1e9)
         k = int(np.argmin(d))
@@ -160,9 +161,9 @@ def main(argv):
     results = {}
     for path in argv[2:]:
         pdata = PathData(path)
-        biggest = max(pdata.group_size.values())
+        biggest = max(pdata.group_size.values(), default=0)
         res = []
-        for k, n, p in pts:
+        for _k, _n, p in pts:
             on = pdata.on_area(p)
             g, size = pdata.nearest_group(p)
             res.append((on, size))
@@ -198,8 +199,8 @@ def main(argv):
         (pa, ra), (pb, rb) = list(results.items())
         diff = [(pts[i], ra[i], rb[i]) for i in range(len(pts)) if ra[i][0] != rb[i][0] or bool(ra[i][1]) != bool(rb[i][1])]
         print(f'\npoints that differ ({len(diff)}): first = {os.path.basename(pa)}, second = {os.path.basename(pb)}')
-        for (k, n, p), a, b in diff[:60]:
-            print(f'  {k:22s} {n[:34]:34s} ({p[0]:8.1f} {p[1]:6.1f} {p[2]:8.1f})  on-area {a[0]!s:5} / {b[0]!s:5}   group size {a[1]} / {b[1]}')
+        for (k, nm, p), ga, gb in diff[:60]:
+            print(f'  {k:22s} {nm[:34]:34s} ({p[0]:8.1f} {p[1]:6.1f} {p[2]:8.1f})  on-area {ga[0]!s:5} / {gb[0]!s:5}   group size {ga[1]} / {gb[1]}')
     return 0
 
 

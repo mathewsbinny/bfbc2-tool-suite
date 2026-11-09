@@ -167,7 +167,7 @@ def ai_layer(info, data):
             c = el.child('HasAI')
             info.has_ai = (dbx.value(c) == 'true') if c is not None else None
         elif t == 'SoldierSpawnEntityData':
-            v = lambda n: (dbx.value(el.child(n)) if el.child(n) is not None else None)
+            v = lambda n, el=el: (dbx.value(el.child(n)) if el.child(n) is not None else None)
             info.spawners.append(Spawner(el.attr('guid') or '', v('Name') or '', teams.get(v('Team')), v('PlayerType') == 'SSAiPlayer',
                                          v('Enabled') == 'true', _ref_partition(el, 'Template'), _ref_partition(el, 'SoldierKit')))
         elif t == 'AreaOrderEntityData':
@@ -220,7 +220,7 @@ def game_level(root, lv, info, cache_dir, log):
             continue
         try:
             real = next(n for n in _real_names(holder, cache_dir) if n.lower() == tpl + '.dbx')
-            refs = set()
+            refs: set[str] = set()
             for el in dbx.parse(bundle_read(holder, [real], cache_dir)[real]).instances:
                 _refs(el, refs)
             info.template_refs[tpl] = sorted(refs - {tpl})
@@ -262,12 +262,12 @@ def points(root, lv, info, log):
     import ordercheck
     try:
         lvl = level.load(lv, root, log=log, geometry=False)
-    except Exception as e:
+    except Exception as ex:
         # NavKit's prepare stops on a level whose partition is only in its Package bundle (ONS_MP_005GR: its Dist
         # bundle holds MP_005's partitions); it has unpacked both bundles by then, so the loader reads them
         if not os.path.isdir(os.path.join(root, 'work', 'levels', lv, 'dist')):
             raise
-        info.notes.append(f'NavKit\'s prepare stopped ({e}); the level was read from its unpacked bundles')
+        info.notes.append(f'NavKit\'s prepare stopped ({ex}); the level was read from its unpacked bundles')
         lvl = level.load(lv, root, log=log, geometry=False)
     info.name = info.name or lvl.name
     seen = set()

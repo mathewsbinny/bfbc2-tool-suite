@@ -40,6 +40,8 @@ import os
 import struct
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from typing import Any, Literal, overload
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
@@ -52,6 +54,14 @@ RADIUS_SCALE = 4.0             # SphereKeyW = radius * 4, signed 16-bit
 STACK_SLOTS = 128              # traversal stack: dwords at +0x20 .. +0x21F of the query object
 NODE_FIELDS = ('Right', 'Max', 'SphereKeyX', 'SphereKeyY', 'SphereKeyZ', 'SphereKeyW')
 
+NodeData = tuple[Any, ...]                     # a node as stored: (Right, Max, kx, ky, kz, kw)
+Vec = tuple[float, ...]                        # a point (x, y, z)
+ShapeLeaf = tuple[Vec, float, float]           # a blueprint's leaf: (local centre, radius key, Max)
+Instance = tuple[str, int, list[ShapeLeaf], 'Placed']    # collect(): (label, leaf count, leaves, object)
+Found = Mapping[str, list[Instance]]           # collect()'s {blueprint: [instance]}
+Pair = tuple['CullTree', 'Level', str]         # (tree, level, label)
+Log = Callable[[str], object]
+
 
 class CullTreeError(Exception):
     pass
@@ -61,7 +71,7 @@ class CullTreeError(Exception):
 # A minimal codec (bfbc2-dbx-tools/FORMAT.md sections 1, 2 and 4) that keeps every byte, so an unchanged file is
 # written back exactly and a changed one differs only where values or array items were changed.
 
-def _varint(data, pos):
+def _varint(data: bytes, pos: int) -> tuple[int, int]:
     v = shift = 0
     while True:
         b = data[pos]
@@ -72,7 +82,7 @@ def _varint(data, pos):
         shift += 7
 
 
-def _put_varint(v, out):
+def _put_varint(v: int, out: bytearray) -> None:
     while True:
         b = v & 0x7F
         v >>= 7
@@ -85,18 +95,25 @@ def _put_varint(v, out):
 
 class El:
     __slots__ = ('tag', 'head', 'attrs', 'extra', 'value', 'children', 'doc')
+    doc: 'Doc'
+    tag: int
+    head: int
+    attrs: list[tuple[int, int]]
+    extra: int
+    value: bytes
+    children: 'list[El] | None'               # a container's elements; None for a value
 
-    def __init__(self, doc, tag, head, attrs):
+    def __init__(self, doc: 'Doc', tag: int, head: int, attrs: list[tuple[int, int]]) -> None:
         self.doc, self.tag, self.head, self.attrs = doc, tag, head, attrs
         self.extra = 0
         self.value = b''
         self.children = None
 
     @property
-    def kind(self):
+    def kind(self) -> int:
         return self.head >> 4
 
-    def attr(self, name):
+    def attr(self, name: str) -> str | None:
         s = self.doc.strings
         for k, v in self.attrs:
             if s[k] == name:
@@ -104,22 +121,22 @@ class El:
         return None
 
     @property
-    def name(self):
+    def name(self) -> str | None:
         return self.attr('name')
 
-    def child(self, name):
+    def child(self, name: str) -> 'El | None':
         for c in self.children or ():
             if c.name == name:
                 return c
         return None
 
-    def numbers(self):
+    def numbers(self) -> tuple[int, list[bytes]]:
         """(size, [raw big-endian values]) of a NUMBERS element."""
         count, p = _varint(self.value, 0)
         size, p = _varint(self.value, p)
         return size, [self.value[p + i * size:p + (i + 1) * size] for i in range(count)]
 
-    def set_numbers(self, size, values):
+    def set_numbers(self, size: int, values: Sequence[bytes]) -> None:
         out = bytearray()
         _put_varint(len(values), out)
         _put_varint(size, out)
@@ -129,7 +146,7 @@ class El:
             out += v
         self.value = bytes(out)
 
-    def clone(self):
+    def clone(self) -> 'El':
         e = El(self.doc, self.tag, self.head, list(self.attrs))
         e.extra, e.value = self.extra, self.value
         if self.children is not None:
@@ -138,7 +155,7 @@ class El:
 
 
 class Doc:
-    def __init__(self, data, name):
+    def __init__(self, data: bytes, name: str) -> None:
         if len(data) <= 24 or not data.startswith(MAGIC):
             raise CullTreeError(f'{name} is not a binary .dbx file')
         self.name = name
@@ -146,12 +163,14 @@ class Doc:
         size, count = struct.unpack_from('>II', data, 16)
         self.string_area = data[24:24 + size]
         base = 24 + 4 * count
-        self.strings = []
+        self.strings: list[str] = []
         for i in range(count):
             off = struct.unpack_from('>I', data, 24 + 4 * i)[0]
             end = data.index(b'\0', base + off)
             self.strings.append(data[base + off:end].decode('utf-8', 'replace'))
         pos = 24 + size
+        self.roots: list[El]
+        stack: list[El]
         self.roots, stack = [], []
         while pos < len(data):
             tag, p = _varint(data, pos)
@@ -170,7 +189,9 @@ class Doc:
                 v, pos = _varint(data, pos)
                 attrs.append((k, v))
             e = El(self, tag, head, attrs)
-            (stack[-1].children if stack else self.roots).append(e)
+            siblings = stack[-1].children if stack else self.roots
+            assert siblings is not None                # the stack holds containers only
+            siblings.append(e)
             kind = head >> 4
             if kind == CONTAINER:
                 e.extra = data[pos]
@@ -197,14 +218,14 @@ class Doc:
         self.trailer = data[pos:]
 
     @classmethod
-    def read(cls, path):
+    def read(cls, path: str) -> 'Doc':
         with open(path, 'rb') as f:
             return cls(f.read(), os.path.basename(path))
 
-    def tobytes(self):
+    def tobytes(self) -> bytes:
         out = bytearray()
 
-        def put(e):
+        def put(e: El) -> None:
             _put_varint(e.tag, out)
             out.append(e.head)
             for k, v in e.attrs:
@@ -212,6 +233,7 @@ class Doc:
                 _put_varint(v, out)
             if e.kind == CONTAINER:
                 out.append(e.extra)
+                assert e.children is not None          # the reader gives every container a list
                 for c in e.children:
                     put(c)
                 out.append(0)
@@ -224,59 +246,61 @@ class Doc:
         header = MAGIC + struct.pack('>I', 24 + len(self.string_area)) + self.head12 + struct.pack('>II', len(self.string_area), n)
         return header + self.string_area + payload
 
-    def write(self, path):
+    def write(self, path: str) -> None:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, 'wb') as f:
             f.write(self.tobytes())
 
     @property
-    def instances(self):
-        return [e for e in self.roots[0].children if self.strings[e.tag] == 'instance']
+    def instances(self) -> list[El]:
+        return [e for e in self.roots[0].children or () if self.strings[e.tag] == 'instance']
 
 
-def _int(e):
+def _int(e: El) -> int:
     size, v = e.numbers()
     if size != 4 or len(v) != 1:
         raise CullTreeError('internal: not a single 4-byte number')
     return struct.unpack('>i', v[0])[0]
 
 
-def _floats(e):
+def _floats(e: El) -> list[float]:
     size, v = e.numbers()
     return [struct.unpack('>f', x)[0] for x in v] if size == 4 else []
 
 
 # ------------------------------------------------------------------------------------------------ the tree
 
-def s16(v):
+def s16(v: int) -> int:
     return v - 65536 if v >= 32768 else v
 
 
-def u16(v):
+def u16(v: int) -> int:
     return v & 0xFFFF
 
 
 class Sphere:
     __slots__ = ('c', 'r')
+    c: Vec
+    r: float
 
-    def __init__(self, c, r):
+    def __init__(self, c: Iterable[float], r: float) -> None:
         self.c, self.r = tuple(c), r
 
-    def contains(self, o, eps=1e-6):
+    def contains(self, o: 'Sphere', eps: float = 1e-6) -> bool:
         return _dist(self.c, o.c) + o.r <= self.r + eps
 
 
-def _dist(a, b):
+def _dist(a: Iterable[float], b: Iterable[float]) -> float:
     return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
-def decode(node):
+def decode(node: NodeData) -> Sphere:
     """The sphere a node's keys stand for, as the game decodes it (centre key / 16, radius key / 4)."""
     _, _, x, y, z, w = node
     return Sphere((s16(x) / CENTER_SCALE, s16(y) / CENTER_SCALE, s16(z) / CENTER_SCALE), s16(w) / RADIUS_SCALE)
 
 
-def encode(sphere, contain=()):
+def encode(sphere: Sphere, contain: Iterable[Sphere] = ()) -> list[int]:
     """Keys for a sphere: centre rounded to 1/16, radius rounded up to 1/4 so that the decoded sphere contains the
     given sphere and every sphere in contain (decoded spheres of children)."""
     keys = [int(round(v * CENTER_SCALE)) for v in sphere.c]
@@ -290,7 +314,7 @@ def encode(sphere, contain=()):
     return [u16(k) for k in keys] + [w]
 
 
-def enclose(a, b):
+def enclose(a: Sphere, b: Sphere) -> Sphere:
     """The smallest sphere containing spheres a and b."""
     d = _dist(a.c, b.c)
     if d + b.r <= a.r:
@@ -305,26 +329,32 @@ def enclose(a, b):
 class Node:
     """A tree node: leaf (leaf index) or internal (left, right); data = (Right, Max, kx, ky, kz, kw) as stored."""
     __slots__ = ('data', 'left', 'right', 'leaf', 'new')
+    data: NodeData
+    left: 'Node | None'
+    right: 'Node | None'
+    leaf: int | None
+    new: bool
 
-    def __init__(self, data, left=None, right=None, leaf=None, new=False):
+    def __init__(self, data: NodeData, left: 'Node | None' = None, right: 'Node | None' = None,
+                 leaf: int | None = None, new: bool = False) -> None:
         self.data, self.left, self.right, self.leaf, self.new = data, left, right, leaf, new
 
     @property
-    def sphere(self):
+    def sphere(self) -> Sphere:
         return decode(self.data)
 
     @property
-    def max(self):
+    def max(self) -> float:
         return self.data[1]
 
 
-def build(nodes):
+def build(nodes: Sequence[NodeData]) -> tuple[Node, int]:
     """The preorder node list as a linked tree; checks every Right offset (left child = next node, right child =
     this node + Right, Right = 1 + size of the left subtree). Returns (root, used node count)."""
     if not nodes or nodes[0][0] == 0:
         raise CullTreeError('the tree is empty')
-    root = None
-    work = [(0, None, None)]
+    root: Node | None = None
+    work: list[tuple[int, Node | None, str]] = [(0, None, '')]    # (node index, parent, the parent's side)
     order = []
     while work:
         i, parent, side = work.pop()
@@ -347,6 +377,7 @@ def build(nodes):
         else:
             setattr(parent, side, n)
     used = len(order)
+    assert root is not None                    # node 0, set on the first pass
     # the linked tree written back in preorder must give the same Right offsets (no overlaps, no gaps)
     flat = flatten(root)
     if len(flat) != used or [f[0] for f in flat] != [nodes[i][0] for i in range(used)]:
@@ -354,10 +385,10 @@ def build(nodes):
     return root, used
 
 
-def flatten(root):
+def flatten(root: Node) -> list[NodeData]:
     """Preorder node tuples with Right recomputed from the left subtree's size."""
     out = []
-    sizes = {}
+    sizes: dict[int, int] = {}
     # post-order sizes
     st = [(root, False)]
     while st:
@@ -367,48 +398,52 @@ def flatten(root):
         elif done:
             sizes[id(n)] = 1 + sizes[id(n.left)] + sizes[id(n.right)]
         else:
+            assert n.left is not None and n.right is not None    # an internal node has both children
             st.append((n, True))
             st.append((n.right, False))
             st.append((n.left, False))
-    st = [root]
-    while st:
-        n = st.pop()
+    pre = [root]
+    while pre:
+        n = pre.pop()
         if n.leaf is not None:
             out.append(n.data)
         else:
+            assert n.left is not None and n.right is not None
             right = 1 + sizes[id(n.left)]
             n.data = (right,) + tuple(n.data[1:])
             out.append(n.data)
-            st.append(n.right)
-            st.append(n.left)
+            pre.append(n.right)
+            pre.append(n.left)
     return out
 
 
-def walk(root):
+def walk(root: Node) -> Iterator[tuple[Node, tuple[Node, ...]]]:
     """(node, ancestors) for every node, preorder."""
-    st = [(root, ())]
+    st: list[tuple[Node, tuple[Node, ...]]] = [(root, ())]
     while st:
         n, anc = st.pop()
         yield n, anc
         if n.leaf is None:
+            assert n.left is not None and n.right is not None
             st.append((n.right, anc + (n,)))
             st.append((n.left, anc + (n,)))
 
 
 class CullTree:
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.path = path
         self.doc = Doc.read(path)
         inst = [e for e in self.doc.instances if e.attr('type') == 'World.StaticCullTreeData']
         if not inst:
             raise CullTreeError(f'{os.path.basename(path)} has no World.StaticCullTreeData instance (not a cull tree)')
         self.inst = inst[0]
-        self.array = self.inst.child('Nodes')
+        array = self.inst.child('Nodes')
         eo = self.inst.child('EnumOffset')
-        if self.array is None or eo is None:
+        if array is None or eo is None:
             raise CullTreeError(f'{os.path.basename(path)}: the cull tree has no Nodes or EnumOffset field')
+        self.array: El = array
         self.enum_offset = _int(eo)
-        self.nodes = [self._node(c) for c in self.array.children]
+        self.nodes = [self._node(c) for c in self.array.children or ()]
         used = len(self.nodes)
         while used and self.nodes[used - 1] == (0, 0.0, 0, 0, 0, 0):
             used -= 1
@@ -417,16 +452,16 @@ class CullTree:
             raise CullTreeError(f'{os.path.basename(path)}: {used - self.used} nodes before the spare ones are not '
                                 'reached from the root')
         self.spare = len(self.nodes) - used
-        self.leaf_node = {}
+        self.leaf_node: dict[int, Node | None] = {}    # add() holds a new leaf's index with None until it is linked
         for n, _ in walk(self.root):
             if n.leaf is not None:
                 if n.leaf in self.leaf_node:
                     raise CullTreeError(f'{os.path.basename(path)}: leaf index {n.leaf} is used twice')
                 self.leaf_node[n.leaf] = n
 
-    def _node(self, c):
+    def _node(self, c: El) -> NodeData:
         v = {}
-        for f in c.children:
+        for f in c.children or ():
             size, vals = f.numbers()
             v[f.name] = (size, vals[0])
         try:
@@ -434,17 +469,17 @@ class CullTree:
             mx = struct.unpack('>f', v['Max'][1])[0]
             keys = [struct.unpack('>H', v['SphereKey' + a][1][:2])[0] for a in 'XYZW']
         except KeyError as e:
-            raise CullTreeError(f'a cull tree node has no field {e}')
+            raise CullTreeError(f'a cull tree node has no field {e}') from e
         return (right, mx, *keys)
 
     @property
-    def leaves(self):
+    def leaves(self) -> int:
         return len(self.leaf_node)
 
-    def leaf_range_ok(self):
+    def leaf_range_ok(self) -> bool:
         return sorted(self.leaf_node) == list(range(1, self.leaves + 1))
 
-    def depth_and_stack(self):
+    def depth_and_stack(self) -> tuple[int, int]:
         """Deepest leaf (edges from the root) and the most stack entries the game's traversal can need when every
         sphere test passes (it pushes the right child, then the left, and pops)."""
         depth, stack, most = 0, [(self.root, 0)], 0
@@ -453,18 +488,20 @@ class CullTree:
             n, d = stack.pop()
             depth = max(depth, d)
             if n.leaf is None:
+                assert n.left is not None and n.right is not None
                 stack.append((n.right, d + 1))
                 stack.append((n.left, d + 1))
         return depth, most
 
-    def write(self, path):
+    def write(self, path: str) -> None:
         flat = flatten(self.root)
         flat += [(0, 0.0, 0, 0, 0, 0)] * SPARE
+        assert self.array.children is not None
         tmpl = self.array.children[0]
         items = []
         for d in flat:
             c = tmpl.clone()
-            for f in c.children:
+            for f in c.children or ():
                 nm = f.name
                 size, _ = f.numbers()
                 if nm == 'Right':
@@ -488,16 +525,22 @@ class CullTree:
 
 class Placed:
     __slots__ = ('guid', 'blueprint', 'm', 'enum', 'el', 'level')
+    guid: str
+    blueprint: str                             # the blueprint's path, lower case
+    m: list[list[float]]                       # the transform's four rows
+    enum: int                                  # Enumeration: the slot (0: none)
+    el: El                                     # the Enumeration field
+    level: 'Level'
 
     @property
-    def pos(self):
+    def pos(self) -> Vec:
         return tuple(self.m[3][:3])
 
-    def to_world(self, local):
+    def to_world(self, local: Sequence[float]) -> Vec:
         m = self.m
         return tuple(local[0] * m[0][i] + local[1] * m[1][i] + local[2] * m[2][i] + m[3][i] for i in range(3))
 
-    def to_local(self, world):
+    def to_local(self, world: Sequence[float]) -> Vec:
         m = self.m
         r = [m[0][:3], m[1][:3], m[2][:3]]
         inv = _inv3(r)
@@ -505,11 +548,11 @@ class Placed:
         return tuple(sum(d[j] * inv[j][i] for j in range(3)) for i in range(3))
 
     @property
-    def scale(self):
+    def scale(self) -> float:
         return max(math.sqrt(sum(x * x for x in self.m[i][:3])) for i in range(3))
 
 
-def _inv3(r):
+def _inv3(r: Sequence[Sequence[float]]) -> list[list[float]]:
     a, b, c = r
     det = (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]))
     if abs(det) < 1e-12:
@@ -521,11 +564,11 @@ def _inv3(r):
 
 
 class Level:
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.path = path
         self.doc = Doc.read(path)
-        self.objects = []
-        self.tree_refs = {}
+        self.objects: list[Placed] = []
+        self.tree_refs: dict[str, str | None] = {}
         for e in self.doc.instances:
             for f in ('ExclusiveStaticCullTree', 'ClientStaticCullTree'):
                 c = e.child(f)
@@ -537,7 +580,7 @@ class Level:
             if en is None or tr is None:
                 continue
             o = Placed()
-            o.guid = e.attr('guid')
+            o.guid = e.attr('guid') or ''              # (an instance always has one)
             ref = ro.attr('ref') if ro is not None else None
             o.blueprint = ref.rsplit('/', 1)[0].lower() if ref and '/' in ref else (ref or '')
             v = _floats(tr)
@@ -552,11 +595,11 @@ class Level:
             raise CullTreeError(f'{os.path.basename(path)} has no placed objects (Entity.ReferenceObjectData): '
                                 'not a level partition')
 
-    def by_guid(self, guid):
+    def by_guid(self, guid: str) -> Placed | None:
         g = guid.strip().lower()
         return next((o for o in self.objects if o.guid.lower() == g), None)
 
-    def tree_path(self, field='ExclusiveStaticCullTree'):
+    def tree_path(self, field: str = 'ExclusiveStaticCullTree') -> str | None:
         """The tree file a level refers to: levels/<x>/staticculltree_* beside the level's own folder."""
         ref = self.tree_refs.get(field)
         if not ref:
@@ -565,6 +608,8 @@ class Level:
         base = os.path.dirname(os.path.abspath(self.path))
         while parts and parts[0].lower() != 'levels':
             parts = parts[1:]
+        if not parts:                         # no levels/ segment: the walk below would return the level's folder
+            return None
         p = base
         rest = parts[1:]
         for i, q in enumerate(rest):
@@ -579,17 +624,17 @@ class Level:
             p = os.path.join(p, sorted(m)[0])
         return p
 
-    def set_enum(self, o, value):
+    def set_enum(self, o: Placed, value: int) -> None:
         o.el.set_numbers(4, [struct.pack('>i', value)])
         o.enum = value
 
 
-def leaves_of(tree, level):
+def leaves_of(tree: 'CullTree', level: Level) -> dict[Placed, list[int]]:
     """{object: [leaf indices]} for the level's slotted objects in this tree: from its slot up to the next object's
     slot (or the last leaf)."""
     eo, last = tree.enum_offset, tree.enum_offset + tree.leaves
     slotted = sorted((o for o in level.objects if eo < o.enum <= last), key=lambda o: o.enum)
-    out = {}
+    out: dict[Placed, list[int]] = {}
     for i, o in enumerate(slotted):
         nxt = slotted[i + 1].enum if i + 1 < len(slotted) else last + 1
         out[o] = list(range(o.enum - eo, max(o.enum - eo + 1, nxt - eo)))
@@ -601,11 +646,11 @@ def leaves_of(tree, level):
 class Shape:
     """A blueprint's leaves in its own space: [(local centre, radius key, Max)] per leaf, from its instances."""
 
-    def __init__(self, blueprint, leaves, source, count, confirmed=0):
+    def __init__(self, blueprint: str, leaves: list[ShapeLeaf], source: str, count: int, confirmed: int = 0) -> None:
         self.blueprint, self.leaves, self.source, self.count = blueprint, leaves, source, count
         self.confirmed = confirmed             # agreeing instances in other levels
 
-    def place(self, o):
+    def place(self, o: Placed) -> list[tuple[Sphere, float]]:
         """[(world sphere, radius key, Max)] for object o: centre moved and rotated with its transform, radius and
         Max scaled; the radius key is the largest the instances have, plus 1 (0.25 m) for the new centre's
         rounding."""
@@ -617,19 +662,19 @@ class Shape:
         return out
 
 
-def _median(vals):
+def _median(vals: Iterable[float]) -> float:
     v = sorted(vals)
     n = len(v)
     return v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2
 
 
-def collect(pairs):
+def collect(pairs: Iterable[Pair]) -> defaultdict[str, list[Instance]]:
     """Every slotted instance of every blueprint in (tree, level, label) pairs, in order:
     {blueprint: [(label, k, [(local centre, w, Max)], object)]}."""
-    found = defaultdict(list)
+    found: defaultdict[str, list[Instance]] = defaultdict(list)
     for tree, level, label in pairs:
         for o, lv in leaves_of(tree, level).items():
-            sph = []
+            sph: list[ShapeLeaf] = []
             s = o.scale or 1.0
             for li in lv:
                 n = tree.leaf_node.get(li)
@@ -641,7 +686,7 @@ def collect(pairs):
     return found
 
 
-def shape_for(blueprint, found, tol=0.5):
+def shape_for(blueprint: str, found: Found, tol: float = 0.5) -> 'Shape | None':
     """The blueprint's shape from its instances: the most common leaf count; per level (label), the instances whose
     local centres lie within tol m of that level's median (a port with shuffled slots gives wrong ones). The
     first level (the target's own instances come first) whose shape is confirmed wins: by 3 or more agreeing
@@ -660,7 +705,7 @@ def shape_for(blueprint, found, tol=0.5):
     if not groups:
         return None
 
-    def agree(a, b):
+    def agree(a: Sequence[ShapeLeaf], b: Sequence[ShapeLeaf]) -> bool:
         return all(_dist(x[0], y[0]) <= tol and abs(x[2] - y[2]) <= 0.01 * max(x[2], y[2], 1e-6) for x, y in zip(a, b))
     for label, good, leaves in groups:
         others = sum(len(g) for lb, g, lv in groups if lb != label and agree(leaves, lv))
@@ -670,8 +715,8 @@ def shape_for(blueprint, found, tol=0.5):
     return Shape(blueprint, leaves, label, len(good), 0)
 
 
-def _shape_leaves(good, k):
-    leaves = []
+def _shape_leaves(good: Sequence[Instance], k: int) -> list[ShapeLeaf]:
+    leaves: list[ShapeLeaf] = []
     for j in range(k):
         c = tuple(_median([g[2][j][0][a] for g in good]) for a in range(3))
         w = max(g[2][j][1] for g in good)
@@ -680,7 +725,7 @@ def _shape_leaves(good, k):
     return leaves
 
 
-def _consensus(group, k, tol):
+def _consensus(group: Sequence[Instance], k: int, tol: float) -> list[Instance]:
     if not group:
         return []
     med = [tuple(_median([g[2][j][0][a] for g in group]) for a in range(3)) for j in range(k)]
@@ -688,8 +733,11 @@ def _consensus(group, k, tol):
     return good if len(good) * 2 > len(group) else []
 
 
-def ref_pairs(refs, ref_dirs, log):
-    """(tree, level, label) for each --ref level and every level under each --ref-dir that has its tree."""
+def ref_pairs(refs: Sequence[str], ref_dirs: Iterable[str], log: Log,
+              target: tuple[str, str] | None = None) -> list[Pair]:
+    """(tree, level, label) for each --ref level and every level under each --ref-dir that has its tree. target: the
+    (tree path, level path) being checked - never its own reference (a --ref-dir holding the whole levels folder read
+    it a second time, and its instances confirmed themselves)."""
     paths = list(refs)
     for d in ref_dirs:
         for p in sorted(glob.glob(os.path.join(d, '**', '*.dbx'), recursive=True)):
@@ -700,8 +748,15 @@ def ref_pairs(refs, ref_dirs, log):
                 if b'ExclusiveStaticCullTree' not in f.read():      # not a level partition
                     continue
             paths.append(p)
+    def same(a: str) -> str:
+        return os.path.normcase(os.path.abspath(a))
+    out: list[Pair]
+    seen: set[tuple[str, int]]
     out, seen = [], set()
+    skip = {same(x) for x in target} if target is not None else set()    # the target's tree and level files
     for p in paths:
+        if same(p) in skip:
+            continue
         try:
             lv = Level(p)
         except CullTreeError:
@@ -710,6 +765,8 @@ def ref_pairs(refs, ref_dirs, log):
         if not tp:
             if p in refs:
                 log(f'note: {p}: its exclusive cull tree was not found beside it; not used')
+            continue
+        if same(tp) in skip:                  # another level file naming the target's own tree
             continue
         key = (os.path.basename(p).lower(), os.path.getsize(tp))
         if key in seen:
@@ -724,7 +781,7 @@ def ref_pairs(refs, ref_dirs, log):
 
 # ------------------------------------------------------------------------------------------------ add
 
-def insert(tree, sub, sph):
+def insert(tree: CullTree, sub: Node, sph: Sphere) -> Node:
     """Inserts subtree sub (sphere sph) where the tree's spheres already contain it: down from the root, into a
     child whose decoded sphere contains sph (the smaller one); where neither does, a new internal node takes the
     place of the child that grows least. That child stays on its side under the new node (the game tests left and
@@ -736,6 +793,7 @@ def insert(tree, sub, sph):
     while True:
         if n.leaf is not None:
             raise CullTreeError('internal: descended into a leaf')
+        assert n.left is not None and n.right is not None
         cands = [c for c in (n.left, n.right) if c.sphere.contains(sph)]
         if cands:
             c = min(cands, key=lambda x: x.sphere.r)
@@ -745,6 +803,7 @@ def insert(tree, sub, sph):
                 continue
             target, parent = c, n
         else:
+            assert n.left is not None and n.right is not None    # an internal node has both children
             grow = lambda x: enclose(x.sphere, sph).r - x.sphere.r  # noqa: E731
             target, parent = min((n.left, n.right), key=grow), n
         break
@@ -766,7 +825,7 @@ def insert(tree, sub, sph):
     return p
 
 
-def make_subtree(placed, first_leaf):
+def make_subtree(placed: Sequence[tuple[Sphere, float]], first_leaf: int) -> tuple[Node, Sphere]:
     """The nodes for one object's leaves: one leaf, or an internal node over a balanced split of them (two leaves:
     an internal node with the two leaves, as stock trees often hold an object)."""
     leaves = []
@@ -774,7 +833,7 @@ def make_subtree(placed, first_leaf):
         keys = encode(s)
         leaves.append(Node(((LEAF | (first_leaf + j)) - (1 << 32), mx, *keys), leaf=first_leaf + j, new=True))
 
-    def join(ns):
+    def join(ns: list[Node]) -> Node:
         if len(ns) == 1:
             return ns[0]
         h = len(ns) // 2
@@ -788,7 +847,8 @@ def make_subtree(placed, first_leaf):
     return top, top.sphere if top.leaf is None else whole
 
 
-def add(tree, level, objects, found, log):
+def add(tree: CullTree, level: Level, objects: Iterable[Placed], found: Found, log: Log
+        ) -> list[tuple[Placed, int, list[int], Shape]]:
     """Gives each object (slot 0) new leaves; returns [(object, slot, leaves, shape)]."""
     done = []
     for o in objects:
@@ -819,15 +879,15 @@ def add(tree, level, objects, found, log):
     return done
 
 
-def _fmt(v):
+def _fmt(v: Iterable[float]) -> str:
     return '(' + ', '.join(f'{x:.1f}' for x in v) + ')'
 
 
-def auto_objects(level, found):
+def auto_objects(level: Level, found: Found) -> list[Placed]:
     return [o for o in level.objects if o.enum == 0 and o.blueprint and o.blueprint in found]
 
 
-def misplaced(tree, level, found, metres):
+def misplaced(tree: CullTree, level: Level, found: Found, metres: float) -> list[tuple[Placed, float]]:
     """[(object, metres off)]: slotted objects whose leaves lie more than metres from where the blueprint's other
     instances (leave-one-out) put them, and whose blueprint has a shape without them."""
     out = []
@@ -837,8 +897,8 @@ def misplaced(tree, level, found, metres):
         if sh is None:
             continue
         k = min(len(sh.leaves), len(ids))
-        off = [_dist(o.to_world(sh.leaves[j][0]), tree.leaf_node[ids[j]].sphere.c) for j in range(k)
-               if tree.leaf_node.get(ids[j]) is not None]
+        off = [_dist(o.to_world(sh.leaves[j][0]), n.sphere.c) for j in range(k)
+               if (n := tree.leaf_node.get(ids[j])) is not None]
         if off and max(off) > metres:
             out.append((o, max(off)))
     return out
@@ -846,7 +906,7 @@ def misplaced(tree, level, found, metres):
 
 # ------------------------------------------------------------------------------------------------ checks
 
-def check_structure(tree, client=None):
+def check_structure(tree: CullTree, client: CullTree | None = None) -> list[tuple[bool, str]]:
     """[(ok, text)] for the tree's own rules."""
     res = []
     flat = flatten(tree.root)
@@ -855,7 +915,8 @@ def check_structure(tree, client=None):
     res.append((tree.spare == SPARE, f'{tree.spare} all-zero spare nodes after the used ones (stock trees: {SPARE})'))
     res.append((tree.leaf_range_ok(), f'leaf indices 1..{tree.leaves}, each once'))
     res.append((tree.used == 2 * tree.leaves - 1, f'{tree.used} used nodes = 2 x {tree.leaves} leaves - 1 (binary tree)'))
-    bad_max = [n for n, _ in walk(tree.root) if n.leaf is None and n.max != max(n.left.max, n.right.max)]
+    bad_max = [n for n, _ in walk(tree.root) if n.leaf is None and n.left is not None and n.right is not None
+               and n.max != max(n.left.max, n.right.max)]
     res.append((not bad_max, f'every internal node\'s Max is the larger of its children\'s ({len(bad_max)} not)'))
     depth, most = tree.depth_and_stack()
     res.append((most <= STACK_SLOTS, f'deepest leaf {depth} levels; traversal stack up to {most} of {STACK_SLOTS} entries'))
@@ -866,7 +927,7 @@ def check_structure(tree, client=None):
     return res
 
 
-def containment(tree, leaf_ids):
+def containment(tree: CullTree, leaf_ids: Iterable[int]) -> list[tuple[int, int, int]]:
     """For the given leaves: (leaf, ancestors whose decoded sphere does not contain the leaf's sphere, path length),
     the root excepted (the traversal tests children only)."""
     want = set(leaf_ids)
@@ -879,8 +940,10 @@ def containment(tree, leaf_ids):
     return out
 
 
-def object_checks(tree, level, found):
+def object_checks(tree: CullTree, level: Level, found: Found) -> tuple[list[tuple[bool, str]], list[str]]:
     """Slots and spheres of the level's objects: [(ok, text)], details [str]."""
+    res: list[tuple[bool, str]]
+    detail: list[str]
     res, detail = [], []
     eo, last = tree.enum_offset, tree.enum_offset + tree.leaves
     cnt = Counter(o.enum for o in level.objects if o.enum)
@@ -894,6 +957,8 @@ def object_checks(tree, level, found):
     used = sum(len(v) for v in lv.values())
     res.append((True, f'{used} of {tree.leaves} leaves start at or follow an object\'s slot'))
     # leave-one-out prediction against the same blueprint's other instances
+    errs: list[float]
+    worst: list[tuple[float, Placed, int]]
     errs, rad_short, n_cmp, worst = [], 0, 0, []
     for o, ids in lv.items():
         inst = [x for x in found.get(o.blueprint, []) if x[3] is not o]
@@ -926,7 +991,8 @@ def object_checks(tree, level, found):
             if e > 1.0:
                 detail.append(f'  leaf {li} of {o.guid} ({o.blueprint.rsplit("/", 1)[-1]}) is {e:.2f} m from where '
                               'the blueprint\'s other instances put it')
-    inside = sum(1 for o, ids in lv.items() if ids[0] in tree.leaf_node and tree.leaf_node[ids[0]].sphere.contains(Sphere(o.pos, 0)))
+    inside = sum(1 for o, ids in lv.items()
+                 if (first := tree.leaf_node.get(ids[0])) is not None and first.sphere.contains(Sphere(o.pos, 0)))
     res.append((True, f'object origin inside its first leaf\'s sphere: {inside} of {len(lv)} (models built away '
                       'from their origin, e.g. distant scenery, are not)'))
     zero = [o for o in level.objects if o.enum == 0]
@@ -940,7 +1006,11 @@ def object_checks(tree, level, found):
 
 # ------------------------------------------------------------------------------------------------ command line
 
-def _arg(args, name, many=False):
+@overload
+def _arg(args: list[str], name: str, many: Literal[False] = False) -> str | None: ...
+@overload
+def _arg(args: list[str], name: str, many: Literal[True]) -> list[str]: ...
+def _arg(args: list[str], name: str, many: bool = False) -> str | None | list[str]:
     vals = []
     while name in args:
         i = args.index(name)
@@ -951,7 +1021,7 @@ def _arg(args, name, many=False):
     return vals if many else (vals[-1] if vals else None)
 
 
-def _flag(args, name):
+def _flag(args: list[str], name: str) -> bool:
     if name in args:
         args.remove(name)
         return True
@@ -959,21 +1029,21 @@ def _flag(args, name):
 
 
 class Out:
-    def __init__(self):
-        self.lines = []
+    def __init__(self) -> None:
+        self.lines: list[str] = []
 
-    def __call__(self, s=''):
+    def __call__(self, s: str = '') -> None:
         print(s, flush=True)
         self.lines.append(s)
 
-    def save(self, path):
+    def save(self, path: str | None) -> None:
         if path:
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
             with open(path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(self.lines) + '\n')
 
 
-def _report(res, log):
+def _report(res: Iterable[tuple[bool, str]], log: Log) -> int:
     bad = 0
     for ok, text in res:
         bad += not ok
@@ -981,7 +1051,7 @@ def _report(res, log):
     return bad
 
 
-def cmd_info(args, log):
+def cmd_info(args: list[str], log: Log) -> int:
     t = CullTree(args[0])
     depth, most = t.depth_and_stack()
     r = t.root.sphere
@@ -1001,7 +1071,7 @@ def cmd_info(args, log):
     return 0
 
 
-def cmd_verify(args, log):
+def cmd_verify(args: list[str], log: Log) -> int:
     refs, dirs = _arg(args, '--ref', True), _arg(args, '--ref-dir', True)
     client_p, added, report = _arg(args, '--client'), _arg(args, '--added'), _arg(args, '--report')
     if len(args) != 2:
@@ -1009,7 +1079,7 @@ def cmd_verify(args, log):
     t, lv = CullTree(args[0]), Level(args[1])
     client = CullTree(client_p) if client_p else None
     log(f'tree  {args[0]}\nlevel {args[1]}')
-    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log)
+    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log, target=(args[0], args[1]))
     found = collect(pairs)
     bad = _report(check_structure(t, client), log)
     res, detail = object_checks(t, lv, found)
@@ -1038,7 +1108,7 @@ def cmd_verify(args, log):
     return 1 if bad else 0
 
 
-def cmd_add(args, log):
+def cmd_add(args: list[str], log: Log) -> int:
     refs, dirs = _arg(args, '--ref', True), _arg(args, '--ref-dir', True)
     objs_arg, auto = _arg(args, '--objects'), _flag(args, '--auto')
     away = _arg(args, '--misplaced')
@@ -1046,12 +1116,12 @@ def cmd_add(args, log):
     client_p, report = _arg(args, '--client'), _arg(args, '--report')
     if len(args) != 2 or not out_tree or not out_level or not (objs_arg or auto):
         raise CullTreeError('add needs <tree.dbx> <level.dbx>, --objects or --auto, --out-tree and --out-level')
-    for o in (out_tree, out_level):
-        if os.path.abspath(o).lower() in (os.path.abspath(args[0]).lower(), os.path.abspath(args[1]).lower()):
+    for path in (out_tree, out_level):
+        if os.path.abspath(path).lower() in (os.path.abspath(args[0]).lower(), os.path.abspath(args[1]).lower()):
             raise CullTreeError('write the results to new files (--out-tree / --out-level), not over the inputs')
     t, lv = CullTree(args[0]), Level(args[1])
     client = CullTree(client_p) if client_p else None
-    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log)
+    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log, target=(args[0], args[1]))
     found = collect(pairs)
     if away is not None:
         moved = misplaced(t, lv, found, float(away))
@@ -1070,6 +1140,7 @@ def cmd_add(args, log):
             log(f'  beyond the tree\'s range, left at slot 0: {o.guid} {o.blueprint.rsplit("/", 1)[-1]} at {_fmt(o.pos)}')
         objs = [o for o in objs if o not in far]
     else:
+        assert objs_arg is not None                # checked above: --objects or --auto
         guids = objs_arg
         if guids.startswith('@'):
             with open(guids[1:], encoding='utf-8') as f:
@@ -1078,10 +1149,10 @@ def cmd_add(args, log):
         for g in guids.split(','):
             if not g.strip():
                 continue
-            o = lv.by_guid(g)
-            if o is None:
+            obj = lv.by_guid(g)
+            if obj is None:
                 raise CullTreeError(f'object {g} is not in {os.path.basename(args[1])}')
-            objs.append(o)
+            objs.append(obj)
     if not objs:
         log('nothing to add')
         return 0
@@ -1100,6 +1171,7 @@ def cmd_add(args, log):
         c = containment(t2, ids)
         miss = sum(m for _, m, _ in c)
         o2 = lv2.by_guid(o.guid)
+        assert o2 is not None                      # add() set its slot in this level
         ok = len(c) == len(ids) and miss == 0 and o2.enum == slot
         bad += not ok
         log(f'{"ok  " if ok else "FAIL"} {o.guid}: slot {o2.enum}, leaves {ids} reached through containing spheres')
@@ -1109,7 +1181,7 @@ def cmd_add(args, log):
     return 1 if bad else 0
 
 
-def main(argv):
+def main(argv: Sequence[str]) -> int:
     args = list(argv[1:])
     if not args or args[0] in ('-h', '--help', 'help'):
         print(__doc__)

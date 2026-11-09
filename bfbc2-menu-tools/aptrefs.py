@@ -28,6 +28,7 @@ import os
 import re
 import struct
 import sys
+from typing import Any
 
 import menucommon as mc
 
@@ -56,7 +57,7 @@ def extern_table(img):
         p, i = struct.unpack_from('<II', img.b, off)
         s = img.cstr(p, 80)
         return (s, i) if s and IDENT.match(s) and i < 0x1000 else None
-    best = []
+    best: list[tuple[str, int, int | None]] = []
     for va in img.find_cstring('presenceRequestOnline'):
         for j in img.find_dword(va):
             if not pair(j):
@@ -115,12 +116,14 @@ def count_arg(ins):
 def movie_refs(code):
     """{'extern': {name: [offsets]}, 'extern_param': {...}, 'extern_write': {...}, 'fscommand': {...},
     'events': {name: [(offset, params or None, how)]}} of one movie (aptcheck.Code)."""
+    streams: dict[int, list[Any]]
+    funcs_by_name: dict[str, int]
     streams, funcs_by_name = {}, {}
-    for ins, start, limit, depth in code.recs:
+    for ins, start, _limit, _depth in code.recs:
         streams.setdefault(start, []).append(ins)
         if ins.func and ins.func.name:
             funcs_by_name.setdefault(ins.func.name, ins.func.nparams)
-    out = {'extern': {}, 'extern_param': {}, 'extern_write': {}, 'fscommand': {}, 'events': {}}
+    out: dict[str, dict[str, list[Any]]] = {'extern': {}, 'extern_param': {}, 'extern_write': {}, 'fscommand': {}, 'events': {}}
 
     def add(kind, name, at, extra=None):
         out[kind].setdefault(name, []).append(at if extra is None else (at, *extra))
@@ -135,7 +138,7 @@ def movie_refs(code):
             return funcs_by_name[name], f'function {name}'
         return None, f'handler {name}' if name else 'handler unknown'
 
-    for start, L in streams.items():
+    for L in streams.values():
         L.sort(key=lambda i: i.at)
         for k, ins in enumerate(L):
             nxt = L[k + 1] if k + 1 < len(L) else None
@@ -204,8 +207,8 @@ def scan_movies(specs, sets, root):
             continue
         movies = mc.bundle_movies(layers)
         from bfbc2core import fbrb
-        by_bundle = {}
-        for name, (bundle, entry) in movies.items():
+        by_bundle: dict[str, list[str]] = {}
+        for _name, (bundle, entry) in movies.items():
             by_bundle.setdefault(bundle, []).append(entry)
         for bundle, entries in by_bundle.items():
             data = fbrb.read(bundle, entries)
@@ -222,10 +225,10 @@ def scan_movies(specs, sets, root):
 # ------------------------------------------------------------------------------------------------ output
 
 def cross_reference(found, table, cases, exe_strings):
-    ids = {}
-    for name, i, va in table:
+    ids: dict[str, int] = {}
+    for name, i, _va in table:
         ids.setdefault(name, i)
-    rows = {}
+    rows: dict[tuple[str, str], dict[str, Any]] = {}
     for label, _, refs in found:
         for kind, key in (('extern', 'extern'), ('extern', 'extern_param'), ('extern-write', 'extern_write'),
                           ('fscommand', 'fscommand'), ('event', 'events')):
@@ -241,7 +244,7 @@ def cross_reference(found, table, cases, exe_strings):
         i = ids.get(name)
         case = None
         if kind == 'extern' and i is not None:
-            for key, title, _, _ in GETTERS:
+            for key, _title, _, _ in GETTERS:
                 if i in cases.get(key, {}):
                     case = f'{key} {cases[key][i]:#x}'
                     break
@@ -324,7 +327,7 @@ def main(argv):
     if cmd == 'table':
         print(f'{img.path}: {len(table)} names, table at {table[0][2]:#x}'
               + ('' if cases else ' (not build 795745: getter cases not read)'))
-        for name, i, va in table:
+        for name, i, _va in table:
             c = [f'{k} {cases[k][i]:#x}' for k, *_ in GETTERS if i in cases.get(k, {})]
             print(f'  {i:#6x}  {name:40s} {"  ".join(c)}')
         return 0
@@ -359,7 +362,7 @@ def main(argv):
     if js:
         json.dump({'movies': {label: refs for label, _, refs in found}, 'names': rows,
                    'table': [{'name': n, 'id': i} for n, i, _ in table]}, open(js, 'w', encoding='utf-8'), indent=1, default=list)
-    kinds = {}
+    kinds: dict[str, int] = {}
     for r in rows:
         kinds[r['kind']] = kinds.get(r['kind'], 0) + 1
     unanswered = [r['name'] for r in rows if r['kind'] == 'extern' and r['getter_case'] == 'none']

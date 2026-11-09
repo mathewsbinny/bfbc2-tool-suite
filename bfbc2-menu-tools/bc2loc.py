@@ -25,10 +25,12 @@ Format (little-endian; the same layout for _normal, _huge and _numbers):
 Keys are not stored, only their hashes: names come from the strings of BFBC2Game.exe and the constants of the menu
 and HUD movies that hash to an entry. Nothing is written into the game folder.
 """
+import io
 import os
 import re
 import struct
 import sys
+from typing import cast
 
 import menucommon as mc
 
@@ -163,7 +165,7 @@ def load(lang, root=None, path=None):
 
 def key_names(loc, root=None, exe=None, movies=True):
     """{hash: key name} for the entries whose key is among the exe's strings or the menu / HUD movies' constants."""
-    cands = set()
+    cands: set[str] = set()
     try:
         img = mc.PEImage(mc.find_exe(root, exe))
         cands.update(s for s in img.strings(2) if len(s) < 120)
@@ -186,14 +188,14 @@ def key_names(loc, root=None, exe=None, movies=True):
 def movie_constants_all(root):
     from bfbc2core import fbrb
     root = root or mc.find_opfor()
-    out = set()
+    out: set[str] = set()
     pristine = os.path.join(root, 'original', *('Package/' + mc.MENU_BUNDLE).split('/'))
     sets = [mc.bundle_layers(root, rel) for key, rel in mc.MOVIE_SETS] + ([[pristine]] if os.path.isfile(pristine) else [])
     for layers in sets:                  # the pristine menus too: OPFOR's patches retarget some key constants
         if not layers:
             continue
-        by_bundle = {}
-        for name, (bundle, entry) in mc.bundle_movies(layers).items():
+        by_bundle: dict[str, list[str]] = {}
+        for _name, (bundle, entry) in mc.bundle_movies(layers).items():
             by_bundle.setdefault(bundle, []).append(entry)
         for bundle, entries in by_bundle.items():
             for entry, data in fbrb.read(bundle, entries).items():
@@ -221,7 +223,7 @@ def main(argv):
     if not args or args[0] not in ('get', 'search', 'movie', 'dump', 'langs', 'set'):
         print(__doc__)
         return 1 if args else 0
-    sys.stdout.reconfigure(errors='replace')
+    cast(io.TextIOWrapper, sys.stdout).reconfigure(errors='replace')
     cmd = args.pop(0)
     root = take(args, '--opfor')
     lang = take(args, '--lang') or 'english'
@@ -287,7 +289,7 @@ def main(argv):
                     if r:
                         rows.append((c[1:-1], r))
             print(f'{label}: {len(rows)} localization key(s) among {len(seen)} string constants')
-            for key, (h, name, text) in sorted(rows):
+            for key, (_h, name, text) in sorted(rows):
                 print(f'  {key:40s} {text!r}' + ('   (PC text)' if name.startswith(PC_PREFIX) else ''))
         return 0
     if cmd == 'dump':

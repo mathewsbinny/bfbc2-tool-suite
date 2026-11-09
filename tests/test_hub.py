@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(SUITE, 'core'))
 
 def load_hub():
     spec = importlib.util.spec_from_file_location('suite_hub', os.path.join(SUITE, 'BFBC2 Tool Suite.pyw'))
+    assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

@@ -13,6 +13,7 @@ Nothing is ever written into the game folder.
 import os
 import struct
 import sys
+from collections.abc import Iterable, Mapping
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
@@ -29,12 +30,15 @@ MOVIE_SETS = [('menu', 'menu/main/mainmenu-00.fbrb'), ('mp_hud', 'levels/mp_comm
               ('sp_loader', 'levels/sp_common/loader-00.fbrb'), ('mp2_hud', 'levels/mp2_common/ingame-00.fbrb'),
               ('nam_hud', 'levels/nam_common/ingame-00.fbrb')]
 
+NewByte = int | tuple[str, str]               # a patch line's new byte, or ('label', name): an appended string's offset
+Section = tuple[str, int, int, int, int, int]  # PEImage.sections: (name, va, virtual size, file offset, raw size, flags)
+
 
 class MenuToolError(Exception):
     """A problem with the input the user can fix (explained in words by errors.guard)."""
 
 
-def find_opfor(given=None):
+def find_opfor(given: str | None = None) -> str:
     """The Project OPFOR BFBC2 folder: given, else OPFOR_ROOT, else a "project-opfor-bfbc2" folder next to one of the folders
     this tool sits in."""
     candidates = [given, os.environ.get('OPFOR_ROOT')]
@@ -48,14 +52,14 @@ def find_opfor(given=None):
     raise MenuToolError('Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT')
 
 
-def out_dir(root):
+def out_dir(root: str) -> str:
     """Where outputs made from game data go: <OPFOR>\\work\\tools_out (never the game folder)."""
     d = os.path.join(root, 'work', 'tools_out')
     os.makedirs(d, exist_ok=True)
     return d
 
 
-def bundle_layers(root, rel):
+def bundle_layers(root: str, rel: str) -> list[str]:
     """The existing copies of a bundle, lowest first: Dist\\win32\\<rel>, then Package\\<rel>."""
     out = []
     for p in (os.path.join(root, 'game', 'Dist', 'win32', *rel.split('/')), os.path.join(root, 'game', 'Package', *rel.split('/'))):
@@ -64,11 +68,11 @@ def bundle_layers(root, rel):
     return out
 
 
-def bundle_movies(paths):
+def bundle_movies(paths: Iterable[str]) -> dict[str, tuple[str, str]]:
     """{movie name: (bundle path, entry name)} of the SwfMovie entries Menu/<name>.res in the bundles (later win;
     a *deleted* marker removes)."""
     from bfbc2core import fbrb
-    out = {}
+    out: dict[str, tuple[str, str]] = {}
     for p in paths:
         for e in fbrb.entries(p):
             low = e.name.lower()
@@ -81,16 +85,17 @@ def bundle_movies(paths):
     return out
 
 
-def read_entry(bundle, entry):
+def read_entry(bundle: str, entry: str) -> bytes:
     from bfbc2core import fbrb
     return fbrb.read(bundle, [entry])[entry]
 
 
-def parse_bigf(b, where='file'):
+def parse_bigf(b: bytes, where: str = 'file') -> dict[str, bytes]:
     """BIGF members {name: bytes} and their order (apt.read_bigf, from bytes)."""
     if b[:4] != b'BIGF':
         raise MenuToolError(f'{where} is not a menu movie (.res, a BIGF archive)')
     n = struct.unpack_from('>I', b, 8)[0]
+    out: dict[str, bytes]
     p, out = 16, {}
     for _ in range(n):
         off, size = struct.unpack_from('>II', b, p)
@@ -100,7 +105,7 @@ def parse_bigf(b, where='file'):
     return out
 
 
-def resolve(spec, root=None):
+def resolve(spec: str, root: str | None = None) -> tuple[str, dict[str, bytes]]:
     """A movie spec (module doc) -> (label, {member: bytes}). Members of a .apt given alone: .apt and .const."""
     if os.path.isfile(spec):
         if spec.lower().endswith('.apt'):
@@ -135,7 +140,7 @@ def resolve(spec, root=None):
     return f'{bundle}:{entry}', parse_bigf(read_entry(bundle, entry), entry)
 
 
-def movie_from_members(members, label='movie'):
+def movie_from_members(members: Mapping[str, bytes], label: str = 'movie') -> apt.Movie:
     """An apt.Movie from BIGF members (or a .apt / .const pair)."""
     aptname = next((k for k in members if k.lower().endswith('.apt')), None)
     if aptname is None:
@@ -147,25 +152,29 @@ def movie_from_members(members, label='movie'):
     try:
         return apt.Movie(data=(name, members[aptname], members[const]))
     except (ValueError, struct.error) as e:
-        raise MenuToolError(f'{label} is not a readable APT movie: {e}')
+        raise MenuToolError(f'{label} is not a readable APT movie: {e}') from e
 
 
 # ------------------------------------------------------------------------------------------------ patch files
 
 class PatchLine:
-    def __init__(self, number, raw, kind, member, offset=None, expected=b'', new=None, label=None, text=None, comment=''):
+    def __init__(self, number: int, raw: str, kind: str, member: str, offset: int | None = None, expected: bytes = b'',
+                 new: list[NewByte] | None = None, label: str | None = None, text: str | None = None,
+                 comment: str = '') -> None:
         self.number, self.raw, self.kind, self.member = number, raw, kind, member
         self.offset, self.expected, self.new, self.label, self.text, self.comment = offset, expected, new, label, text, comment
 
-    def where(self):
+    def where(self) -> str:
         return f'line {self.number}'
 
 
-def parse_patch(path):
+def parse_patch(path: str) -> tuple[list[PatchLine], list[tuple[int, str]]]:
     """OPFOR's menu patch format (src\\tools\\apt\\AptTool.cs, the reference):
       <member> <hex offset> <expected hex bytes> -> <new hex bytes | @label>   # comment
       append <member> <label> "text"                                          # comment
     Returns ([PatchLine], [(line number, problem)]); new bytes may hold ('label', name) items."""
+    lines: list[PatchLine]
+    problems: list[tuple[int, str]]
     lines, problems = [], []
     above = ''                                     # the comment block just above a line (OPFOR comments groups so)
     for n, raw in enumerate(open(path, encoding='utf-8', errors='replace').read().splitlines(), 1):
@@ -207,7 +216,7 @@ def parse_patch(path):
         except ValueError:
             problems.append((n, f'offset and expected bytes must be hex (bytes as two digits): {" ".join(left[1:])}'))
             continue
-        new = []
+        new: list[NewByte] = []
         bad = False
         for t in right:
             if t.startswith('@'):
@@ -223,12 +232,16 @@ def parse_patch(path):
     return lines, problems
 
 
-def apply_patch(members, lines):
+def apply_patch(members: Mapping[str, bytes], lines: Iterable[PatchLine]
+                ) -> tuple[dict[str, bytes], dict[str, set[int]], list[tuple[int, str]]]:
     """Applies parsed patch lines to BIGF members as AptTool does (appends 4-byte aligned, @label = the appended
     string's offset, little-endian; every expected byte checked). Returns (new members, {member: set of changed
     offsets the lines name}, [(line number, problem)])."""
     data = {k: bytearray(v) for k, v in members.items()}
     lower = {k.lower(): k for k in data}
+    labels: dict[str, int]
+    named: dict[str, set[int]]
+    problems: list[tuple[int, str]]
     labels, named, problems = {}, {}, []
     for pl in lines:
         m = lower.get(pl.member.lower())
@@ -237,6 +250,7 @@ def apply_patch(members, lines):
             continue
         buf = data[m]
         if pl.kind == 'append':
+            assert pl.label is not None and pl.text is not None   # parse_patch sets both on an append line
             while len(buf) % 4:
                 buf.append(0)
             if pl.label in labels:
@@ -244,6 +258,7 @@ def apply_patch(members, lines):
             labels[pl.label] = len(buf)
             buf += pl.text.encode('ascii', 'replace') + b'\0'
             continue
+        assert pl.offset is not None and pl.new is not None    # ... and offset and new bytes on a patch line
         new = bytearray()
         for t in pl.new:
             if isinstance(t, tuple):
@@ -276,7 +291,7 @@ def apply_patch(members, lines):
 class PEImage:
     """A 32-bit Windows exe's sections, for reading its data (strings, tables) - no code is decoded here."""
 
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.path = path
         b = self.b = open(path, 'rb').read()
         if b[:2] != b'MZ' or len(b) < 0x40:
@@ -287,29 +302,29 @@ class PEImage:
         n, opt = struct.unpack_from('<H', b, pe + 6)[0], struct.unpack_from('<H', b, pe + 20)[0]
         self.timestamp = struct.unpack_from('<I', b, pe + 8)[0]
         self.base = struct.unpack_from('<I', b, pe + 52)[0]
-        self.sections = []                     # (name, va, virtual size, file offset, raw size, flags)
+        self.sections: list[Section] = []      # (name, va, virtual size, file offset, raw size, flags)
         for i in range(n):
             o = pe + 24 + opt + 40 * i
             vs, va, rs, ra = struct.unpack_from('<IIII', b, o + 8)
             self.sections.append((b[o:o + 8].rstrip(b'\0').decode('latin1'), self.base + va, vs, ra, rs,
                                   struct.unpack_from('<I', b, o + 36)[0]))
 
-    def off(self, va):
+    def off(self, va: int) -> int | None:
         for _, sva, vs, ra, rs, _ in self.sections:
             if sva <= va < sva + min(vs, rs) if vs else sva <= va < sva + rs:
                 return va - sva + ra
         return None
 
-    def va(self, off):
-        for _, sva, vs, ra, rs, _ in self.sections:
+    def va(self, off: int) -> int | None:
+        for _, sva, _vs, ra, rs, _ in self.sections:
             if ra <= off < ra + rs:
                 return sva + off - ra
         return None
 
-    def is_code(self, va):
+    def is_code(self, va: int) -> bool:
         return any(sva <= va < sva + vs and fl & 0x20000000 for _, sva, vs, _, _, fl in self.sections)
 
-    def cstr(self, va, limit=200):
+    def cstr(self, va: int, limit: int = 200) -> str | None:
         """The printable ASCII C string at va, or None."""
         o = self.off(va) if va else None
         if o is None:
@@ -320,34 +335,36 @@ class PEImage:
         s = self.b[o:e]
         return s.decode('ascii') if s and all(32 <= ch < 127 for ch in s) else None
 
-    def data_sections(self):
+    def data_sections(self) -> list[Section]:
         return [s for s in self.sections if not s[5] & 0x20000000 and s[0] not in ('.rsrc', '.tls')]
 
-    def strings(self, minimum=3):
+    def strings(self, minimum: int = 3) -> dict[str, list[int]]:
         """The printable C strings of the data sections: {text: [va, ...]}. A string starts after a 00 byte or, inside
         a longer printable run (data before it that happens to be printable), at a 4-byte aligned offset."""
         import re
-        out = {}
+        out: dict[str, list[int]] = {}
         pat = re.compile(rb'[\x20-\x7e]{%d,}(?=\x00)' % minimum)
-        for _, sva, vs, ra, rs, _ in self.data_sections():
+        for _, sva, _vs, ra, rs, _ in self.data_sections():
             for m in pat.finditer(self.b, ra, ra + rs):
                 starts = [m.start()] + [o for o in range((m.start() + 4) & ~3, m.end() - minimum + 1, 4) if o != m.start()]
                 for o in starts:
                     out.setdefault(self.b[o:m.end()].decode('ascii'), []).append(sva + o - ra)
         return out
 
-    def find_cstring(self, text):
+    def find_cstring(self, text: str) -> list[int]:
         """The virtual addresses of the C string text (whole string) in the data sections."""
+        out: list[int]
         out, pat = [], b'\0' + text.encode('ascii') + b'\0'
-        for _, sva, vs, ra, rs, _ in self.data_sections():
+        for _, sva, _vs, ra, rs, _ in self.data_sections():
             j = self.b.find(pat, ra, ra + rs)
             while j >= 0:
                 out.append(sva + j + 1 - ra)
                 j = self.b.find(pat, j + 1, ra + rs)
         return out
 
-    def find_dword(self, value, sections=None):
+    def find_dword(self, value: int, sections: Iterable[Section] | None = None) -> list[int]:
         """File offsets in the data sections where the little-endian 32-bit value is stored, 4-byte aligned."""
+        out: list[int]
         pat, out = struct.pack('<I', value), []
         for s in sections or self.data_sections():
             _, sva, vs, ra, rs, _ = s
@@ -359,7 +376,7 @@ class PEImage:
         return out
 
 
-def find_exe(root=None, given=None):
+def find_exe(root: str | None = None, given: str | None = None) -> str:
     if given:
         if not os.path.isfile(given):
             raise FileNotFoundError(given)

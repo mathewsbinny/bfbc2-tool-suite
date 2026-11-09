@@ -74,7 +74,7 @@ ROOF_RAISE = 2.0
 ROOF_SHARE = 0.5
 ROOF_NEAR = 2.0
 ROOF_NEAR_DY = 2.5
-ROOF_STATS = {}
+ROOF_STATS: dict[str, int] = {}
 DYNAMIC_ABSENT_HEADROOM = True     # dynamic props do not count as a ceiling for HEADROOM_BAND (they are absent for path
                                     # data - a closed gate's leaves made the floor beside it 'low headroom')
 DYNAMIC_FLOOR = 0.3                # a surface on a dynamic prop within this of walkable floor in a neighbouring column
@@ -88,9 +88,9 @@ OBJECTIVE_FLOOR = True             # an AI order position on a ForbidPathfinding
                                     # (mpobjective) are ForbidPathfinding; the order positions where bots arm them stood
                                     # in its hole - 14 of 15 Onslaught M-COM targets were on no area (2026-10-23)
 OBJECTIVE_REACH = 1.5
-OBJECTIVE_STATS = {}
+OBJECTIVE_STATS: dict[str, int] = {}
 STEEP_TERRAIN_SPAN = 0.8
-STEEP_STATS = {}
+STEEP_STATS: dict[str, int] = {}
 OUTLINE_Y_OFFSET = 0.95            # outline heights in pathdata.hpd = ground + EntityHeight / 2
 PITCH = 0.8
 SECTOR = 100.0
@@ -100,13 +100,14 @@ def coarse(f):
     """Every (PITCH / f.pitch)-th column of a fine run, keeping all surfaces of the column."""
     step = int(round(PITCH / f.pitch))
     nx, nz = (f.nx - 1) // step + 1, (f.nz - 1) // step + 1
-    start, idx = [0], []
+    picked: list[int]
+    start, picked = [0], []
     for j in range(nz):
         for i in range(nx):
             c = (j * step) * f.nx + i * step
-            idx.extend(range(f.start[c], f.start[c + 1]))
-            start.append(len(idx))
-    idx = np.array(idx, dtype=np.int64)
+            picked.extend(range(f.start[c], f.start[c + 1]))
+            start.append(len(picked))
+    idx = np.array(picked, dtype=np.int64)
     hit = f.hit[idx] if f.hit is not None and len(f.hit) else None
     return navsample.Samples(PITCH, f.min_x, f.min_z, nx, nz, f.y_top, f.y_bottom, f.radius, f.cap_bottom,
                              f.cap_top, f.ray_radius, np.array(start), f.y[idx], f.normal[idx], f.flags[idx], hit)
@@ -263,7 +264,7 @@ def stair_slope(s, mask, r=1, tol=0.7):
         if a is None and b is None and cc is None and d is None:
             continue
 
-        def diff(p, m):   # central difference, or one-sided where a neighbour is missing (narrow stairs)
+        def diff(p, m, k=k):   # central difference, or one-sided where a neighbour is missing (narrow stairs)
             if p is not None and m is not None:
                 return (p - m) / (2 * r * s.pitch)
             if p is not None:
@@ -600,7 +601,7 @@ def walkable(s, forbid_tris=None, slope=40.0, step=0.28, terrain_seeds_only=Fals
     per_i = {i for i in range(s.nx) if round((s.min_x + i * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     per_j = {j for j in range(s.nz) if round((s.min_z + j * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     keep = np.zeros(len(y), bool)
-    q = deque()
+    q: deque[int] = deque()
     for k in np.nonzero(ok & terrain if terrain_seeds_only else ok)[0]:
         c = col_of[k]
         if c % s.nx in per_i or c // s.nx in per_j:

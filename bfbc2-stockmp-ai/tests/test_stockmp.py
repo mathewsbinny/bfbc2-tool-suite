@@ -8,7 +8,6 @@ r"""Tests of the stock-MP AI authoring tool.
                                          level bundles, then generate / build / validate Atacama Conquest (MP_005)
                                          in a temporary work folder, twice (the builds must be identical)
 """
-import hashlib
 import json
 import os
 import shutil
@@ -29,7 +28,7 @@ import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
 from bfbc2core import dbx as coredbx  # noqa: E402
 
-FAILED = []
+FAILED: list[str] = []
 
 
 def check(ok, what):
@@ -345,6 +344,40 @@ def quick(tmp):
     stockmp.install(paths, ['--revert'])
     check(open(tgt, 'rb').read() == b'stock bundle' and not os.path.exists(tgt + stockmp.BACKUP)
           and not os.path.exists(tgt + stockmp.APPLIED), 'install --revert restores the original')
+
+    # common bundles: NavKit's shared unpack while it is not older than the game's bundle, else the own stamped cache
+    cp = pipeline.Paths('mp_test', opfor=tmp, work=os.path.join(tmp, 'stockmp_c'), game=os.path.join(tmp, 'game_c'))
+    shared = os.path.join(cp.common, 'mp_common')
+    bundle = os.path.join(cp.game, 'Dist', 'win32', 'levels', 'mp_common', 'level-00.fbrb')
+    for f, data in ((os.path.join(shared, 'fbrb.manifest'), b'x'), (bundle, b'bundle')):
+        os.makedirs(os.path.dirname(f), exist_ok=True)
+        open(f, 'wb').write(data)
+    os.utime(bundle, (1_700_000_000, 1_700_000_000))
+    os.utime(os.path.join(shared, 'fbrb.manifest'), (1_700_000_100, 1_700_000_100))
+    calls = []
+    real_unpacked = pipeline.unpacked
+    pipeline.unpacked = lambda bundle, d: calls.append((bundle, d)) or d  # type: ignore[func-returns-value, unused-ignore]
+    try:
+        fresh = pipeline.common(cp, 'mp_common')
+        os.utime(bundle, (1_700_000_200, 1_700_000_200))                 # the game's bundle changed since
+        stale = pipeline.common(cp, 'mp_common')
+    finally:
+        pipeline.unpacked = real_unpacked
+    check(fresh == shared and stale == os.path.join(cp.cache, 'mp_common') and calls == [(bundle, stale)],
+          'common bundles: NavKit\'s unpack while current, the own stamped unpack once the game\'s bundle is newer')
+
+    # sector offsets from path data without sectors: a build error, not an IndexError
+    import hpdtool
+    empty = os.path.join(tmp, 'empty.hpd')
+    open(empty, 'wb').write(hpdtool.write(hpdtool.HpdFile(tuple([0] * hpdtool.HEADER_WORDS), [])))
+    try:
+        pipeline.sector_offsets(empty)
+        said = 'no error'
+    except pipeline.BuildError as e:
+        said = str(e)
+    except IndexError as e:
+        said = f'IndexError {e}'
+    check('no sectors' in said, f'sector offsets of path data without sectors: a build error ({said})')
 
 
 # ------------------------------------------------------------------------------------------ game tests

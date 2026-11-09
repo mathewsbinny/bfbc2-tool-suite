@@ -48,7 +48,9 @@ import time
 
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)   # no console flashes when run from the GUI
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, 'tools'))
+for _p in (os.path.join(HERE, 'tools'), os.path.abspath(os.path.join(HERE, '..', 'core'))):   # once, at import
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
                            # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at
@@ -188,7 +190,7 @@ class Project:
 # --- steps -----------------------------------------------------------------------------------------------
 def levels(pr, log=print):
     log('level        AI path data   NavKit')
-    for lv, d in pr.level_dirs().items():
+    for lv, _d in pr.level_dirs().items():
         ai = 'yes (samplable)' if pr.dice_pathdata(lv) else 'no'
         done = []
         if os.path.isfile(os.path.join(pr.work, 'navkit', lv, 'navkit.json')):
@@ -266,7 +268,7 @@ def level_partition_name(L, lv):
 def sampling_box(pr, lv, L):
     """Box (minX, minZ, maxX, maxZ) and y (bottom, top): the original path data's extent plus 20 m if the
     level has path data, else the extent of its placed objects and spawn points plus 50 m."""
-    pts = []
+    pts: list[tuple[float, ...]] = []
     ref = pr.dice_pathdata(lv)
     if ref:
         import hpdtool
@@ -370,7 +372,8 @@ def detailed_sectors(pr, lv):
     s = ensure_settings(pr, lv)
     sp = pr.samples08(lv)
     cache = os.path.join(pr.out_dir(lv), 'detailed.json')
-    key = f'{os.path.basename(sp) if sp else None}|{os.path.getmtime(sp) if sp else 0}|{detailed.MARGIN}|{detailed.STACKED_MIN}'
+    key = (f'{os.path.basename(sp) if sp else None}|{os.path.getmtime(sp) if sp else 0}|{detailed.MARGIN}|{detailed.STACKED_MIN}'
+           f'|{s["xoff"]}|{s["zoff"]}')     # the sector ids are relative to the offsets: a new --box changes them
     if os.path.isfile(cache):
         c = json.load(open(cache))
         if c.get('key') == key:
@@ -378,7 +381,7 @@ def detailed_sectors(pr, lv):
     common = [os.path.join(pr.work, 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
     chosen, why = detailed.choose(pr.level_work(lv), common, sp, s['xoff'], s['zoff'])
     json.dump({'key': key, 'sectors': chosen, 'why': why}, open(cache, 'w'))
-    return chosen
+    return [tuple(x) for x in chosen]       # as the cached answer gives them
 
 
 def detailed_rects(pr, lv, margin=1.0):
@@ -503,8 +506,8 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
             if prog and prog[-1] != last:
                 last = prog[-1]
                 log('    ' + last.split('navsample:', 1)[1].strip())
-            m = [SAMPLE_DONE.search(l) for l in new]
-            m = [x for x in m if x]
+            found = [SAMPLE_DONE.search(l) for l in new]
+            m = [x for x in found if x]
             if m:
                 result = m[-1].group(1)
                 break
@@ -514,7 +517,8 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
             # back at the main menu after sampling began: the level ended (a round over, a campaign level failed)
             first = next((i for i, l in enumerate(new) if 'navsample: sampling' in l), None)   # not 'armed': before the menu
             if first is not None and any('UI cmd [main menu]' in l for l in new[first:]):
-                result = 'the level ended (back at the main menu) - retry with a larger --budget'
+                result = ('the level ended (back at the main menu) - retry with a larger budget: '
+                          'tools\\sample_all.py --levels <level> --budget <ms per frame>')   # navkit.py has no --budget
                 break
         else:
             result = 'timed out'
@@ -690,15 +694,16 @@ def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
     <level>.traversal.json next to it (navtraversal.py). The result is read back to check it, the whole log is
     kept as <output>.report.txt, and with install_after the result is installed. Returns the output path."""
     lines = []
+    target = {'out': out}               # the output path, as soon as _apply knows it (its default depends on the base)
 
     def say(msg):
         lines.append(msg)
         log(msg)
     try:
-        out = _apply(pr, lv, navtune_path, out, say)
-    except NavKitError as e:
-        if out:
-            open(out + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines + [f'error: {e}']) + '\n')
+        out = _apply(pr, lv, navtune_path, out, say, target)
+    except Exception as e:              # any failure: the report of what was done, and the error (then re-raised)
+        if target['out']:
+            open(target['out'] + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines + [f'error: {e}']) + '\n')
         raise
     open(out + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
     if install_after:
@@ -706,11 +711,10 @@ def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
     return out
 
 
-def _apply(pr, lv, navtune_path, out, log):
-    sys.path.insert(0, os.path.join(HERE, '..', 'core'))
+def _apply(pr, lv, navtune_path, out, log, target=None):
+    target = target if target is not None else {}
     from bfbc2core import navtune
     import navbuild
-    import navregress
     import hpdtool
     navtune_path = navtune_path or navtune.default_path(pr.root, lv)
     if not os.path.isfile(navtune_path):
@@ -718,14 +722,14 @@ def _apply(pr, lv, navtune_path, out, log):
     try:
         tune = navtune.load(navtune_path)
     except ValueError as e:
-        raise NavKitError(str(e))
+        raise NavKitError(str(e)) from e
     import navlinks
     walk = [o for o in tune.operations if o['op'] in ('walkable', 'unwalkable', 'seed', 'unseed')]
     graph = [o for o in tune.operations if o['op'] in navlinks.GRAPH_OPS]
     later = [o for o in tune.operations if o['op'] == 'traversal']
     t0 = time.time()
     if tune.kind == 'navkit':
-        out = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
+        out = target['out'] = out or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
         log(f'== apply {lv}: {len(tune.operations)} edit(s) from {os.path.relpath(navtune_path, pr.root)} '
             f'-> {os.path.relpath(out, pr.root)}')
         # the same inputs as build (detailed zones, ladders ...), plus the edits
@@ -740,12 +744,12 @@ def _apply(pr, lv, navtune_path, out, log):
         src = pr.dice_pathdata(lv)
         if not src:
             raise NavKitError(f'{lv}: the side file\'s base is DICE\'s data, but the level has none')
-        out = out or os.path.join(pr.out_dir(lv), 'pathdata_dice_edited.hpd')
+        out = target['out'] = out or os.path.join(pr.out_dir(lv), 'pathdata_dice_edited.hpd')
         log(f'== apply {lv}: {len(tune.operations)} edit(s) on a copy of DICE\'s file -> {os.path.relpath(out, pr.root)} '
             f'(for this PC only)')
         if tune.base_changed(src):
-            log(f'  note: DICE\'s file is not the one the edits were made on (another game version?); the edits are '
-                f'by position and are applied, but check them')
+            log('  note: DICE\'s file is not the one the edits were made on (another game version?); the edits are '
+                'by position and are applied, but check them')
         shutil.copyfile(src, out)
     if graph:
         f = hpdtool.parse(open(out, 'rb').read())
@@ -859,7 +863,6 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(HERE, '..', 'core'))
     from bfbc2core import errors
     errors.setup('navkit', gui=False)          # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

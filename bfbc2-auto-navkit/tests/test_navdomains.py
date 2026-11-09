@@ -8,7 +8,6 @@ search over all domains joined costs (300 random queries on random worlds), legs
 """
 import math
 import os
-import random
 import sys
 
 import numpy as np

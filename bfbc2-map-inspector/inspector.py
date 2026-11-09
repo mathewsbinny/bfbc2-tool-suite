@@ -63,6 +63,8 @@ def layer_name(e):
 
 
 class Inspector:
+    scene_triangles: int                       # set by main() once the scene is built
+
     def __init__(self, lvl):
         self.lvl = lvl
         self.scene = viewer.Scene()
@@ -94,7 +96,7 @@ class Inspector:
                 self.scene.add_lines(np.stack([s.points, top], axis=1), s.entity, lay)
         if lvl.terrain is not None:
             self.scene.add_indexed(lvl.terrain[0], lvl.terrain[1], TERRAIN_ID, self.layer_index['terrain'])
-        self.water_shaders = []
+        self.water_shaders: list[str] = []
         w = lvl.water
         if w is not None and len(w):
             shader = np.array(w.shader if w.shader else [''] * len(w))
@@ -102,11 +104,11 @@ class Inspector:
                 k = len(self.water_shaders)
                 self.water_shaders.append(name)
                 self.scene.add_indexed(w.vertices, w.triangles[shader == name], WATER_ID + k, self.layer_index['water'])
-        self.counts = {}
+        self.counts: dict[str, int] = {}
         for e in lvl.entities:
             self.counts[layer_name(e)] = self.counts.get(layer_name(e), 0) + 1
         self.guids = {e.guid.lower(): e for e in lvl.entities}
-        self.referrers = {}                                                # entity index -> [(field, entity)]
+        self.referrers: dict[int, list[tuple[str, levelmod.Entity]]] = {}  # entity index -> [(field, entity)]
         for e in lvl.entities:
             if e.short_type == 'LevelData':                                # lists every object; not a link
                 continue
@@ -114,7 +116,7 @@ class Inspector:
                 t = self.guids.get(r.lower())
                 if t is not None and t is not e:
                     self.referrers.setdefault(t.index, []).append((path, e))
-        types = {}
+        types: dict[str, int] = {}
         for e in lvl.entities:
             types[e.short_type] = types.get(e.short_type, 0) + 1
         self.types = sorted(types.items(), key=lambda kv: -kv[1])
@@ -136,7 +138,7 @@ class Inspector:
 
     def links(self, e):
         """Segments to the positioned entities the selection references (yellow) and that reference it (cyan)."""
-        out = []
+        out: list[tuple[np.ndarray, np.ndarray, tuple[float, float, float]]] = []
         if e is None or e.position is None:
             return out
         for _, r in e.refs():

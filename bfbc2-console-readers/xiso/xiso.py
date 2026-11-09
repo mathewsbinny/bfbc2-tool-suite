@@ -9,14 +9,18 @@ root directory sector (u32) and size (u32). Directory entries form a binary tree
 u16 left, u16 right (offsets in dwords), u32 sector, u32 size, u8 attributes, u8 name length, name;
 entries are 4-byte aligned and never cross a sector (0xFF padding). All little-endian.
 """
-import os, struct, sys
+import os
+import struct
+import sys
+from collections.abc import Iterator
+from typing import BinaryIO
 
 SECTOR = 2048
 MAGIC = b'MICROSOFT*XBOX*MEDIA'
 PARTITIONS = (0x0, 0xFD90000, 0x2080000, 0x18300000)  # plain/xiso, XGD2, XGD3, XGD1
 
 
-def find_partition(f):
+def find_partition(f: BinaryIO) -> int:
     for base in PARTITIONS:
         f.seek(base + 32 * SECTOR)
         if f.read(20) == MAGIC:
@@ -24,12 +28,12 @@ def find_partition(f):
     raise SystemExit('no XDVDFS volume found')
 
 
-def walk(f, base, sector, size, prefix=''):
+def walk(f: BinaryIO, base: int, sector: int, size: int, prefix: str = '') -> Iterator[tuple[str, int, int]]:
     f.seek(base + sector * SECTOR)
     table = f.read(size)
-    seen = set()
+    seen: set[int] = set()
 
-    def node(off):
+    def node(off: int) -> Iterator[tuple[str, int, int]]:
         if off in seen or off + 14 > len(table): return
         seen.add(off)
         left, right, sec, sz, attr, nlen = struct.unpack_from('<HHIIBB', table, off)
@@ -46,7 +50,7 @@ def walk(f, base, sector, size, prefix=''):
     yield from node(0)
 
 
-def main():
+def main() -> int:
     cmd, iso = sys.argv[1], sys.argv[2]
     with open(iso, 'rb') as f:
         base = find_partition(f)
@@ -56,7 +60,7 @@ def main():
         if cmd == 'list':
             flt = sys.argv[3].lower() if len(sys.argv) > 3 else ''
             print(f'partition at 0x{base:X}, {len(files)} files')
-            for path, sec, sz in files:
+            for path, _sec, sz in files:
                 if flt in path.lower(): print(f'{sz:12d}  {path}')
         elif cmd == 'extract':
             out = sys.argv[3]; flt = sys.argv[4].lower() if len(sys.argv) > 4 else ''
@@ -69,9 +73,13 @@ def main():
                 with open(dst, 'wb') as o:
                     left = sz
                     while left:
-                        chunk = f.read(min(left, 1 << 22)); o.write(chunk); left -= len(chunk)
+                        chunk = f.read(min(left, 1 << 22))
+                        if not chunk:           # the image ends inside the file (truncated, or a corrupt entry)
+                            raise SystemExit(f'{path}: the image ends {left:,} bytes before the end of the file')
+                        o.write(chunk); left -= len(chunk)
                 n += 1
             print(f'extracted {n} files to {out}')
+    return 0
 
 
 if __name__ == '__main__':

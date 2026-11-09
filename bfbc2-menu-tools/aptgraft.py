@@ -126,6 +126,7 @@ import os
 import re
 import struct
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
@@ -233,7 +234,7 @@ class Code(Node):
         return len(assemble(self.ins, phase, '<', None))
 
     def refs(self):
-        out = []
+        out: list[Node] = []
 
         def walk(lst):
             for i in lst:
@@ -261,7 +262,7 @@ def _al(p):
 def assemble(stream, pos, e, resolve):
     """Bytes of an instruction stream that starts at file offset pos (alignment depends on it). resolve(node) -> its
     offset, or None to size only (pointers written as 0)."""
-    posmap = {}
+    posmap: dict[int, int] = {}
     _place(stream, pos, posmap)
     out = bytearray()
     _emit(stream, pos, e, resolve, posmap, out)
@@ -392,6 +393,7 @@ def write_bigf(members):
 
 class Movie:
     """A parsed movie. Movie(members=[(name, bytes)]) or Movie.load(spec)."""
+    _cidx: dict[Any, int]                     # const_index(): {constant: index}, built on first use
 
     def __init__(self, members, label='movie'):
         self.label = label
@@ -634,6 +636,7 @@ class Movie:
     def _stream(self, p, end):
         """Instructions from p: to the top-level End (end None) or to end exactly. -> (list, end)."""
         a, u, e = self.data['apt'], (lambda o: self._u('apt', o)), self.e
+        out: list[Ins]
         out, start = [], p
         while True:
             if end is None and out and out[-1].op == 0:
@@ -872,6 +875,8 @@ class Movie:
     # --- writing ---------------------------------------------------------------------------------------------
     def reachable(self):
         """{file: [nodes]} reachable from the roots, each once."""
+        seen: set[int]
+        out: dict[str, list[Node]]
         seen, out = set(), {f: [] for f in self.roots}
         stack = [n for f in self.roots for n in self.roots[f]]
         while stack:
@@ -924,8 +929,8 @@ class Movie:
             data[f] = bytes(buf)
         out = []
         for name in self.order:
-            f = next((k for k, v in self.names.items() if v == name), None)
-            out.append((name, data[f] if f else dict(self.extra)[name]))
+            fk = next((k for k, v in self.names.items() if v == name), None)
+            out.append((name, data[fk] if fk else dict(self.extra)[name]))
         return out
 
     def _layout(self, nodes, f, layout, gap):
@@ -1138,6 +1143,7 @@ class Grafter:
             return self.memo[id(n)]
         if n.file == 'const':
             raise AptError('constant-file data is copied by index, not as nodes')
+        c: Node
         if isinstance(n, Str):
             c = Str(n.file, None, n.text, n.tag)
         elif isinstance(n, Raw):
@@ -1175,7 +1181,7 @@ class Grafter:
     def stream(self, lst, imap=None):
         """A copy of an instruction list (function bodies too), Refs copied, branch targets kept inside."""
         imap = {} if imap is None else imap
-        out = []
+        out: list[Ins] = []
         imap[id(lst)] = out
         for i in lst:
             j = Ins(i.op, [Ref(self.node(a.node)) if isinstance(a, Ref) else a for a in i.args], at=None)
@@ -1283,6 +1289,7 @@ def place_item(movie, depth, cid, name, x, y, flags=0x26, src_item=None):
 
 def free_depths(movie, count, start=2):
     used = movie.timeline_depths()
+    out: list[int]
     out, d = [], start
     while len(out) < count:
         if d not in used:
@@ -1457,7 +1464,7 @@ def add_mode_case(movie, func, mode, key, fallback='Missing DESC tag!! '):
             if (var.op, add.op, setr.op, pop.op, br.op) != (0xAE, 0x47, 0x87, 0x17, 0x99):
                 raise AptError(f'{func}: the fallback is not the expected shape')
 
-            def pc(t):
+            def pc(t, names=names, pool=pool):
                 if t not in names:
                     pool.vals.append(movie.const_index(('s', t.encode('latin1'))))
                     names.append(t)
@@ -1488,7 +1495,7 @@ def add_label_alias(movie, like, alias):
     added = found = 0
     for owner in owners:
         fr = movie.frames(owner)
-        labels = {}
+        labels: dict[str, tuple[int, Any]] = {}
         for f in range(len(fr.vals) // 2):
             for it in movie.frame_items(f, owner):
                 if it.tag == 'label':
@@ -1656,13 +1663,13 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
     pc_externs = {name for n in code_nodes(pc) for _, _, name in extern_reads(pc, n)}
     if pc.big or not con.big:
         raise AptError('give the PC movie (little-endian) first, then the console one (big-endian)')
-    for cid, want in ((CON_TIMER, 'onslaught_timer'), (CON_LMS, 'lastManStanding')):
+    for cid, _want in ((CON_TIMER, 'onslaught_timer'), (CON_LMS, 'lastManStanding')):
         if con.char_type(cid) != 5:
             raise AptError(f'{con.label}: character {cid} is not a sprite - not the expected console movie')
     con_place0 = {text(i.vals[13]): i for i in con.frame_items(0) if i.tag == 'place'}
     if 'lastManStanding' not in con_place0:
         raise AptError(f'{con.label}: frame 0 places no lastManStanding - not the expected console movie')
-    for key, (stream, first, end) in CON_SNIPPETS.items():
+    for _key, (stream, _first, _end) in CON_SNIPPETS.items():
         if ('apt', stream, 'c') not in con.cache:
             raise AptError(f'{con.label}: no action stream at {stream:#x} - not the expected console movie')
     names = {text(i.vals[13]) for f in range(len(pc.frames().vals) // 2) for i in pc.frame_items(f)
@@ -1689,8 +1696,9 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
         return Words('apt', None, [1, Ref(code)], 'action')
 
     # the characters
-    tid = g.char(CON_TIMER)
-    lid = g.char(CON_LMS) if lms else None
+    g.char(CON_TIMER)                    # taken into the PC movie (the ids are looked up again where used)
+    if lms:
+        g.char(CON_LMS)
     # frame 0: the banner placed (hidden); the timer hidden unless onslaught (it is placed from "playing" on)
     if lms and place:
         src = g.node(con_place0['lastManStanding'])
@@ -1771,7 +1779,7 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
 def deps(movie, cid):
     """What character cid uses: {'chars': {id: type}, 'imports': [...], 'fonts': [...], 'images': [...],
     'geometry': [...], 'constants': [...], 'strings': n}."""
-    out = {'chars': {}, 'imports': [], 'fonts': [], 'images': [], 'geometry': [], 'constants': set()}
+    out: dict[str, Any] = {'chars': {}, 'imports': [], 'fonts': [], 'images': [], 'geometry': [], 'constants': set()}
     imps = {c: (m, n) for m, n, c in movie.imports()}
     seen = set()
 

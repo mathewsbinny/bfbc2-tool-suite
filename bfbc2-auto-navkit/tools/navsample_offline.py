@@ -47,7 +47,6 @@ and capsule see bodies named BODIES (default 'h' and 'c'); 'e' bodies are anothe
 Clean room: only the level's data files are read (Havok packfiles through hkpack.py, the height field through
 core's terrain.py); no game code runs.
 """
-import glob
 import json
 import math
 import os
@@ -239,7 +238,7 @@ def asset_bodies(path):
             np_ = pf.deref(b + 0x70)
             name = pf.cstr(np_) if np_ else ''
             m = np.frombuffer(pf.d, '<f4', 16, b + 0xE0).reshape(4, 4).astype(np.float64)
-            parts = []
+            parts: list[tuple[int, np.ndarray, int]] = []
             try:
                 _shape_parts(pf, pf.deref(b + 0x10), np.zeros(3), parts)
             except (struct.error, ValueError, IndexError):
@@ -304,6 +303,8 @@ def destroyed_parts(blueprint_xml):
         mn = re.search(r'<field name="MeshName">([^<]*)</field>', body)
         hp = re.search(r'<field name="Health">([-0-9.eE]+)</field>', body)
         states[g.lower()] = ((mn.group(1) if mn else '').lower(), float(hp.group(1)) if hp else 0.0)
+    shown: set[str]
+    later: set[str]
     shown, later = set(), set()
     for body in re.findall(r'type="GameSharedResources.PartComponentData">(.*?)</instance>', t, re.S):
         hs = re.search(r'<array name="HealthStates">(.*?)</array>', body, re.S)
@@ -335,8 +336,8 @@ def level_geometry(level_dir, extra_bases=(), log=print, box=None):
     groups = json.load(open(os.path.join(level_dir, 'group_instances.json')))
     cache = {}
     T, K, S, B, I, OFF, V = [], [], [], [], [], [], []
-    names = []
-    name_id = {}
+    names: list[str] = []
+    name_id: dict[str, int] = {}
     missing = set()
     solid_id = 0
     for o in objs + groups:
@@ -839,7 +840,7 @@ def capsule_blocked(grid, cols, ys, tris, bottoms, hf=None, radius=RADIUS, heigh
     skey = key[o]
     if len(tris):
         a = tris
-        xs, zs, yy = a[:, :, 0], a[:, :, 2], a[:, :, 1]
+        xs, zs = a[:, :, 0], a[:, :, 2]
         i0, i1 = _ranges(xs.min(1) - radius, xs.max(1) + radius, grid.min_x, grid.pitch, grid.nx)
         j0, j1 = _ranges(zs.min(1) - radius, zs.max(1) + radius, grid.min_z, grid.pitch, grid.nz)
         diff = {b: np.zeros(len(ys) + 1, np.int64) for b in bottoms}
@@ -996,7 +997,7 @@ def compare(a, b, tol=0.1, slope=40.0, log=print, both_only=True):
         raise ValueError('not the same grid')
     na, nb = np.diff(a.start), np.diff(b.start)
     cols = np.nonzero(na > 0)[0] if both_only else np.arange(a.nx * a.nz)
-    r = {'columns': int(len(cols)), 'surfaces_a': int(na[cols].sum()), 'surfaces_b': int(nb[cols].sum())}
+    r: dict[str, float] = {'columns': int(len(cols)), 'surfaces_a': int(na[cols].sum()), 'surfaces_b': int(nb[cols].sum())}
     r['layers_equal'] = float(np.mean(na[cols] == nb[cols]) * 100)
     # top surface height
     both = cols[(na[cols] > 0) & (nb[cols] > 0)]
@@ -1269,7 +1270,6 @@ def parity(root, levels, name='offline', log=print):
     """For levels with in-game samples (and DICE path data): offline samples on the in-game files' grids, NavKit
     built from each, and the measures: navdiff of the offline build against the in-game build (same code, only the
     samples differ), and navparity of both against DICE's file. Saved as work\\navkit_offline\\parity_<name>.json."""
-    import shutil
     import navdiff
     import navparity
     import navregress
@@ -1383,7 +1383,7 @@ def check_level(root, lv, path, log=print):
     import navkit
     pr = navkit.Project(root)
     s = navkit.ensure_settings(pr, lv)
-    res = {}
+    res: dict[str, tuple[int, str | list[str]]] = {}
     for name, args in (('hpdcheck', [os.path.join(HERE, 'hpdcheck.py'), path]),
                        ('roundtrip', [os.path.join(HERE, 'hpdtool.py'), 'roundtrip', path]),
                        ('meshtrip', [os.path.join(HERE, 'hpdtool.py'), 'meshtrip', path])):

@@ -57,12 +57,13 @@ def grid_nav(parts, extra_edges=(), one_way=(), cells_of=None):
     """NavData of lattices: parts = [(x0, z0, nx, nz, y, step)], each a lattice of route nodes (bidirectional edges
     to the right and forward neighbours) with one area of 0.8 m cells under it; extra_edges / one_way: (a, b) node
     index pairs joined both ways / one way. Islands from the edges, as navdata does."""
-    pos, edges, areas, cxz, cy, ca = [], [], [], [], [], []
+    xyz: list[tuple[float, float, float]] = []
+    edges, areas, cxz, cy, ca = [], [], [], [], []
     for k, (x0, z0, nx, nz, y, step) in enumerate(parts):
-        base = len(pos)
+        base = len(xyz)
         for j in range(nz):
             for i in range(nx):
-                pos.append((x0 + i * step, y + navdata.Y_OFFSET, z0 + j * step))
+                xyz.append((x0 + i * step, y + navdata.Y_OFFSET, z0 + j * step))
                 n = base + j * nx + i
                 if i + 1 < nx:
                     edges += [(n, n + 1), (n + 1, n)]
@@ -78,7 +79,7 @@ def grid_nav(parts, extra_edges=(), one_way=(), cells_of=None):
     for a, b in extra_edges:
         edges += [(a, b), (b, a)]
     edges += list(one_way)
-    pos = np.array(pos, float)
+    pos = np.array(xyz, float)
     E = np.array(edges, np.int64).reshape(-1, 2)
     cost = np.linalg.norm(pos[E[:, 1]] - pos[E[:, 0]], axis=1)
     parent = list(range(len(pos)))
@@ -267,10 +268,10 @@ def quick(check, tmp):
     check('reach_parity_pct' not in rs.metrics, 'a reference that connects no pair gives no parity measure')
     # area join: a point on the main ground, beside a small roof island 2 m up whose node is nearer
     roofed = grid_nav([(0, 0, 5, 5, 0.0, 10.0), (20.2, 19.4, 2, 1, 2.0, 1.0)])
-    p = (20.4, 0.0, 19.6)
+    pt = (20.4, 0.0, 19.6)
     from bfbc2core import navpath
-    kn, _ = navpath.join(roofed, p)
-    ka, _ = checks.join(roofed, p)
+    kn, _ = navpath.join(roofed, pt)
+    ka, _ = checks.join(roofed, pt)
     check(roofed.node_island[kn] == 1 and roofed.node_island[ka] == 0,
           'a point on the main ground joins the main ground (area join); the nearest-node join takes the roof island')
 
@@ -389,6 +390,18 @@ def quick(check, tmp):
     ev2 = ingame.evaluate(ss[2], (-3, -7))
     check(ev2['loads-ai-init'].status == 'fail' and ev2['offsets-read'].status == 'fail' and ev2['pathfinders'].status == 'hold',
           'a crashed session with the override and 0,0 loads fails; no unit counters: on hold')
+    mixed = ss[1]
+    saved_loads = list(mixed.offset_loads)
+    mixed.offset_loads = [(-3, -7), (-2, -6)]                     # an infantry load and a vehicle load
+    try:
+        ev3 = ingame.evaluate(mixed, (-3, -7), (-2, -6))
+        ev4 = ingame.evaluate(mixed, (-3, -7))
+        ev5 = ingame.evaluate(mixed, (-3, -7), (-1, -1))
+    except TypeError as e:                                         # evaluate without the Vehicle asset (old code)
+        ev3 = ev4 = ev5 = {'offsets-read': checks.Result('error', str(e))}
+    mixed.offset_loads = saved_loads
+    check(ev3['offsets-read'].status == 'pass' and ev4['offsets-read'].status == 'fail' and ev5['offsets-read'].status == 'fail',
+          'offsets-read: a load of the Vehicle asset\'s values passes; values of neither asset fail')
     check(all(r.status == 'hold' for r in ingame.telemetry_tests().values()), 'the telemetry tests (M6) are on hold')
 
     # saved runs and comparison
@@ -397,6 +410,19 @@ def quick(check, tmp):
                     level_status='fail', bits='1011')
     p = runs.save(base, os.path.join(tmp, 'base.json'))
     check(runs.load(p) == json.load(open(p)) and not os.path.exists(p + '.tmp'), 'a run saves and loads (no temporary file left)')
+    here = os.path.join('C:\\', 'opfor', 'game', 'a.hpd')
+    there = os.path.join('D:\\', 'builds', 'a.hpd')
+    check(runs.shown(here, os.path.join('C:\\', 'opfor')) == os.path.join('game', 'a.hpd')
+          and runs.shown(there, os.path.join('C:\\', 'opfor')) == there,          # Windows (the harness's platform)
+          'a file on another drive is logged by its full path (relpath raised ValueError and ended the run)')
+    folder = os.path.join(tmp, 'runs')
+    check(runs.path_of('my run', folder) == os.path.join(folder, 'my_run.json') and runs.path_of('x.json', folder) == 'x.json'
+          and runs.path_of('sub/x', folder) == 'sub/x', 'run names: a name in the runs folder, a path as given')
+    check(runs.spec('battery', 'random.length_ratio_median') == ('one', 0.02) and runs.spec('structure', 'x') == ('lower', 0)
+          and runs.spec('parity', 'ground') == ('higher', runs.PARITY_TOL) and runs.spec('orders', 'n') == ('count', 0)
+          and runs.spec('unknown', 'x') == ('count', 0), 'metric directions and tolerances (spec)')
+    check(runs.counts_text({'fail': 2, 'pass': 3, 'hold': 1}) == '3 ok, 2 FAIL, 1 on hold' and runs.counts_text({}) == '',
+          'status counts as text, in a fixed order')
     other = os.path.join(tmp, 'other.json')
     json.dump({'format': 'bfbc2-navtune'}, open(other, 'w'))
     try:
@@ -506,7 +532,7 @@ def game(check, tmp):
     bad = os.path.join(tmp, 'broken', 'sp_009.hpd')
     os.makedirs(os.path.dirname(bad))
     open(bad, 'wb').write(hpdtool.write(f))
-    r3 = harness('run', 'g3', '--levels', 'sp_009', '--navkit', bad.replace('sp_009.hpd', '{lv}.hpd'),
+    harness('run', 'g3', '--levels', 'sp_009', '--navkit', bad.replace('sp_009.hpd', '{lv}.hpd'),
                  '--tests', 'structure,reachability,battery,orders,offsets')
     r4 = harness('compare', 'g1', 'g3')
     check(r4.returncode == 1 and 'worse' in r4.stdout and 'sp_009 navkit' in r4.stdout,

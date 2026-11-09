@@ -50,8 +50,8 @@ def main(argv):
     real_parse, real_mesh = hpdtool.parse, kymesh.parse_mesh
     try:
         navregress.navparity.reference_of = lambda root, lv: fake if lv == 'with' else os.path.join(tmp, 'none.hpd')
-        hpdtool.parse = lambda data: SimpleNamespace(sectors=[SimpleNamespace(mesh=b'')])
-        kymesh.parse_mesh = lambda mesh: SimpleNamespace(areas=[area, detailed])
+        hpdtool.parse = lambda data: SimpleNamespace(sectors=[SimpleNamespace(mesh=b'')])  # type: ignore[return-value]
+        kymesh.parse_mesh = lambda mesh: SimpleNamespace(areas=[area, detailed])  # type: ignore[return-value]
         b = navregress.reference_bounds(tmp, 'with')
         none = navregress.reference_bounds(tmp, 'without')
     finally:

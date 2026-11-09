@@ -127,7 +127,7 @@ def check_changes(orig, authored, c, tmp):
     fo, oinst = _core_instances(orig)
     fa, ainst = _core_instances(authored)
     bad = []
-    changed = Counter()
+    changed: Counter[str] = Counter()
 
     def flat(e, path=''):
         out = {}
@@ -170,7 +170,7 @@ def check_changes(orig, authored, c, tmp):
 
 def _partition_index(folders):
     """lower-case partition path (no .dbx) -> folder file path, over unpacked bundle folders."""
-    idx = {}
+    idx: dict[str, str] = {}
     for top in folders:
         for dp, _ds, fs in os.walk(top):
             for fn in fs:
@@ -255,7 +255,7 @@ def check_navigation(c, hpd):
     snap = cfgmod.Snapper(hpd)
     if snap.pd is None:
         return False, f'no path data at {hpd}'
-    bad, info = [], []
+    bad = []
     groups = {}
     for s in c['spawners']:
         p = tuple(s['pos'])
@@ -267,7 +267,7 @@ def check_navigation(c, hpd):
         if size < 0.25 * snap.biggest:
             bad.append(f'spawner {s["id"]}: on a small island ({size} nodes)')
         groups[s['id']] = snap.pd.group[snap.pd.ids[_nearest_index(snap, q)]]
-    listed = Counter()
+    listed: Counter[str] = Counter()
     worst = 0.0
     for o in c['orders']:
         dist, node, size = snap.nearest(tuple(o['pos']))
@@ -349,16 +349,16 @@ def validate(paths, c, log=print):
             bdir = os.path.join(paths.root, 'build', v)
             sdir = paths.src(v)
             var = dict(var, sector_offsets_values=so, template_pack=rep.get('template_pack', []))
-            for name, fn in (('DbxEdit check', lambda: check_dbxedit(orig, auth, bdir, sdir, mp_common)),
-                             ('round trips', lambda: check_roundtrip(auth, tmp)),
-                             ('structure (second reader)', lambda: check_structure(orig, auth, c)),
-                             ('only intended changes', lambda: check_changes(orig, auth, c, tmp)),
-                             ('references into other partitions', lambda: check_external(orig, auth, [bdir, mp_common])),
-                             ('packed assets', lambda: check_assets(bdir, var, c, lv_upper)),
-                             ('Rush stages', lambda: check_stages(auth, c)),
-                             ('packed bundle', lambda: check_packed(paths.out_bundle(v), bdir, tmp))):
+            for name, fn, args in (('DbxEdit check', check_dbxedit, (orig, auth, bdir, sdir, mp_common)),
+                                   ('round trips', check_roundtrip, (auth, tmp)),
+                                   ('structure (second reader)', check_structure, (orig, auth, c)),
+                                   ('only intended changes', check_changes, (orig, auth, c, tmp)),
+                                   ('references into other partitions', check_external, (orig, auth, [bdir, mp_common])),
+                                   ('packed assets', check_assets, (bdir, var, c, lv_upper)),
+                                   ('Rush stages', check_stages, (auth, c)),
+                                   ('packed bundle', check_packed, (paths.out_bundle(v), bdir, tmp))):
                 try:
-                    ok, detail = fn()
+                    ok, detail = fn(*args)
                 except Exception as e:                       # a check that cannot run is a failed check
                     ok, detail = False, f'{type(e).__name__}: {e}'
                 results.append((f'{v}: {name}', ok, detail))

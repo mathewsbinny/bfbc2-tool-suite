@@ -31,10 +31,10 @@ Saved as <OPFOR>\work\harness\runs\<name>.json (default name "last"); with --ref
 Exit code: 0 nothing failed (and no regression), 1 a test failed, something got worse, or a run was not
 found (run --reference with an unknown run: 2).
 """
-import functools
 import os
 import sys
 import time
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
@@ -45,7 +45,6 @@ for _p in (HERE, os.path.join(SUITE, 'core'), NAVKIT, os.path.join(NAVKIT, 'tool
 
 from testharness import checks, classify, ingame, levelchecks, runs  # noqa: E402
 
-print = functools.partial(print, flush=True)      # progress shows at once when the output goes to a file
 TESTS = ['structure', 'reachability', 'battery', 'orders', 'offsets', 'parity', 'level']
 
 
@@ -164,7 +163,7 @@ def run_level(root, lv, opts, cache, log=print):
                 else f'{key} path data not found for this level').as_dict()}}
     ref_key = 'dice' if any(k == 'dice' for k, _ in files) else (files[0][0] if files else None)
     files.sort(key=lambda kp: kp[0] != ref_key)               # the reference file first
-    ref = {}
+    ref: dict[str, Any] = {}
     tests = opts['tests']
     # infantry points only for the infantry tests: classes from the entities (levelinfo) and from what lies under each
     # point - terrain, water and the reference file's walkable cells (the same classes for every file of the level)
@@ -196,7 +195,7 @@ def run_level(root, lv, opts, cache, log=print):
         L['files'][key] = F
         res = F['tests']
         if 'structure' in tests:
-            res['structure'] = timed(lambda: checks.structure(hpdcheck.check(path)))
+            res['structure'] = timed(lambda path=path: checks.structure(hpdcheck.check(path)))
         if 'reachability' in tests:
             r = timed(checks.reachability, nav, sources, targets, None if key == ref_key else ref.get('reach'),
                       baseline=key == 'dice')
@@ -204,7 +203,7 @@ def run_level(root, lv, opts, cache, log=print):
             if key == ref_key:
                 ref['reach'] = r.data
         if 'battery' in tests:
-            def bat():
+            def bat(key=key, nav=nav):           # this file's (the loop's) key and data
                 if key == ref_key:
                     ref['pairs'] = {'random': list(zip(*[iter(checks.random_points(nav, 2 * opts['pairs'], opts['seed'], lv))] * 2)),
                                     'level': checks.level_pairs(sources, targets, opts['level_pairs'], opts['seed'], lv)}
@@ -219,19 +218,20 @@ def run_level(root, lv, opts, cache, log=print):
                 return checks.merge(out, names)
             res['battery'] = timed(bat)
         if 'orders' in tests:
-            r = timed(lambda: checks.orders(nav, orders, ordercheck.PathData(path).on_area,
-                                            None if key == ref_key else ref.get('orders'), baseline=key == 'dice'))
+            r = timed(lambda nav=nav, path=path, key=key: checks.orders(nav, orders, ordercheck.PathData(path).on_area,
+                                                                         None if key == ref_key else ref.get('orders'),
+                                                                         baseline=key == 'dice'))
             res['orders'] = r
             if key == ref_key:
                 ref['orders'] = r.data
         if 'offsets' in tests:
-            res['offsets'] = timed(lambda: checks.offsets(checks.sector_offsets(hpdtool.parse(open(path, 'rb').read()).sectors),
-                                                          info.assets.get('Infantry')))
+            res['offsets'] = timed(lambda path=path: checks.offsets(checks.sector_offsets(hpdtool.parse(open(path, 'rb').read()).sectors),
+                                                                    info.assets.get('Infantry')))
         if 'parity' in tests and key != 'dice' and ref_key == 'dice':
             res['parity'] = timed(parity, root, lv, path, cache)
         for t in list(res):
             res[t] = res[t].as_dict()
-        log(f'  {key:9s} {os.path.relpath(path, root)}: ' + ', '.join(f'{t} {runs.LABEL[r["status"]].strip()}' for t, r in res.items())
+        log(f'  {key:9s} {runs.shown(path, root)}: ' + ', '.join(f'{t} {runs.LABEL[r["status"]].strip()}' for t, r in res.items())
             + f' ({time.time() - tf:.0f} s)')
     if 'level' in tests:
         for name, r in levelchecks.all_checks(info, levelinfo.PLACEHOLDER).items():
@@ -282,15 +282,16 @@ def cmd_run(args):
                'level_pairs': int(opt(args, '--level-pairs', 100)), 'seed': int(opt(args, '--seed', 1))}
     reference = opt(args, '--reference')
     ref_path = runs.path_of(reference, folder) if reference else None
-    if reference and not os.path.isfile(ref_path):
+    if ref_path is not None and not os.path.isfile(ref_path):
         print(f'no saved run "{reference}" ({ref_path}); see: harness.py list')
         return 2
     out_path = runs.path_of(name, folder)
-    if reference and os.path.normcase(os.path.abspath(out_path)) == os.path.normcase(os.path.abspath(ref_path)):
+    if ref_path is not None and \
+            os.path.normcase(os.path.abspath(out_path)) == os.path.normcase(os.path.abspath(ref_path)):
         print(f'--reference "{reference}" names the same file as the output run "{name}" ({out_path}); '
               f'give the output a different name so the baseline is not overwritten')
         return 2
-    base = runs.load(ref_path) if reference else None
+    base = runs.load(ref_path) if ref_path is not None else None
     run = runs.new_run(name, options, SUITE)
     cache = cache_dir(root)
     start = time.time()
@@ -304,7 +305,7 @@ def cmd_run(args):
     runs.report(run)
     print(f'saved: {path}')
     bad = any(r['status'] in runs.BAD for *_x, r in runs.results(run))
-    if reference:
+    if base is not None:
         print()
         bad |= runs.compare_report(base, run, runs.compare(base, run, float(opt(args, '--scale', 1.0)))) > 0
     return 1 if bad else 0
@@ -365,7 +366,8 @@ def cmd_import_log(args):
     L = run['levels'].setdefault(lv, {'name': lv, 'notes': [], 'points': {}, 'files': {}, 'level': {}, 'ingame': {}})
     m = L.get('level', {}).get('offsets-asset', {}).get('metrics', {})     # the asset's values, from the run's level checks
     asset = (m['x'], m['z']) if 'x' in m and 'z' in m else None
-    for name, r in ingame.evaluate(s, asset).items():
+    vehicle = (m['vx'], m['vz']) if 'vx' in m and 'vz' in m else None
+    for name, r in ingame.evaluate(s, asset, vehicle).items():
         L.setdefault('ingame', {})[name] = r.as_dict()
     runs.save(run, path)
     print(f'{lv}: session {s.start} (PID {s.pid}) of {len(found)} in {log_path}')
@@ -403,6 +405,10 @@ def main(argv):
 
 
 if __name__ == '__main__':
+    try:
+        sys.stdout.reconfigure(line_buffering=True)   # type: ignore[union-attr]  # progress shows at once when the output goes to a file
+    except AttributeError:                            # stdout replaced by something without it
+        pass
     from bfbc2core import errors
     errors.setup('harness', gui=False)        # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

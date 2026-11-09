@@ -16,7 +16,8 @@ import os
 import struct
 import sys
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from collections.abc import Iterable, Iterator
+from typing import Any, List, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -101,7 +102,8 @@ def parse(data: bytes) -> HpdFile:
 MESH_OBJECT_HEADER = 0x50
 
 
-def mesh_layout(m: bytes):
+def mesh_layout(m: bytes) -> tuple[list[tuple[int, int, str]], list[tuple[int, list[tuple[Any, ...]], int | None]],
+                                   dict[int, int], list[tuple[int, int, int]], list[int]]:
     """Walk a runtime mesh record (offsets relative to its start) and return a list of
     (start, end, label) regions plus the parsed structure. Raises ValueError on inconsistencies."""
     u32 = lambda o: struct.unpack_from('<I', m, o)[0]
@@ -113,8 +115,8 @@ def mesh_layout(m: bytes):
     tile_count = nx * nz
     regions.append((0x50, 0x50 + (tile_count + 1) * 4, 'tile table'))
     tile_offs = [u32(0x50 + i * 4) for i in range(tile_count + 1)]
-    objects = {}
-    tiles = []
+    objects: dict[int, int] = {}
+    tiles: list[tuple[int, list[tuple[Any, ...]], int | None]] = []
     for t in range(tile_count):
         to = tile_offs[t]
         n = u32(to)
@@ -165,10 +167,12 @@ def _object_end(m: bytes, o: int) -> int:
     return end
 
 
-def mesh_coverage(m: bytes):
+def mesh_coverage(m: bytes) -> tuple[list[tuple[int, int]], list[tuple[int, int, str]]]:
     regions, *_ = mesh_layout(m)
     regions.sort()
-    gaps, overlaps, pos = [], [], 0
+    gaps: list[tuple[int, int]] = []
+    overlaps: list[tuple[int, int, str]] = []
+    pos = 0
     for s, e, label in regions:
         if s > pos:
             gaps.append((pos, s))
@@ -204,7 +208,7 @@ def write(f: HpdFile) -> bytes:
     return bytes(out)
 
 
-def _files(args):
+def _files(args: Iterable[str]) -> Iterator[str]:
     for a in args:
         if os.path.isdir(a):
             for dp, _, fs in os.walk(a):
@@ -215,7 +219,7 @@ def _files(args):
             yield a
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     if len(argv) < 3:
         print(__doc__)
         return 1
@@ -242,7 +246,7 @@ def main(argv):
         return 0
     if cmd == 'coverage':
         total = clean = 0
-        gap_kinds = {}
+        gap_kinds: dict[tuple[tuple[int, ...], int], int] = {}
         for p in _files(argv[2:]):
             f = parse(open(p, 'rb').read())
             for s in f.sectors:
@@ -268,7 +272,7 @@ def main(argv):
     if cmd == 'meshtrip':
         import kymesh
         total = same = 0
-        reasons = {}
+        reasons: dict[str, int] = {}
         for p in _files(argv[2:]):
             for s in parse(open(p, 'rb').read()).sectors:
                 total += 1
@@ -280,13 +284,13 @@ def main(argv):
                 if out == s.mesh:
                     same += 1
                 else:
-                    n = min(len(out), len(s.mesh))
-                    first = next((i for i in range(n) if out[i] != s.mesh[i]), n)
-                    key = f'len {len(out) - len(s.mesh):+d}, first diff at word {first // 4 * 4:#x}'
+                    common = min(len(out), len(s.mesh))
+                    first = next((i for i in range(common) if out[i] != s.mesh[i]), common)
+                    diff = f'len {len(out) - len(s.mesh):+d}, first diff at word {first // 4 * 4:#x}'
                     if not reasons:
-                        print(f'first mismatch: {p} sector {s.id:#x}: {key}; '
+                        print(f'first mismatch: {p} sector {s.id:#x}: {diff}; '
                               f'orig {s.mesh[first // 4 * 4:first // 4 * 4 + 16].hex(" ")} new {out[first // 4 * 4:first // 4 * 4 + 16].hex(" ")}')
-                    reasons[key] = reasons.get(key, 0) + 1
+                    reasons[diff] = reasons.get(diff, 0) + 1
         print(f'mesh round trip: {same}/{total} identical')
         for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:8]:
             print(f'  {v:6} x {k}')
@@ -297,7 +301,7 @@ def main(argv):
             data = open(p, 'rb').read()
             try:
                 same = write(parse(data)) == data
-            except ValueError as ex:
+            except (ValueError, struct.error) as ex:      # a truncated file: one failure, not the end of the batch
                 same = False
                 print(f'ERROR {p}: {ex}')
             ok += same

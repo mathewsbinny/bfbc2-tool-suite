@@ -2,7 +2,7 @@ r"""meshview.py - look at the game's models: a mesh's parts with their colour te
 browser (orbit, zoom, a switch per part) and as a picture.
 
   python meshview.py <mesh>... [--out <folder>] [--lod N] [--png] [--size W] [--view side|top|front]
-                                                                                 [--level <lv>] [--opfor <folder>]
+                                                                                 [--opfor <folder>]
   python meshview.py find <text> [--opfor <folder>]          mesh names containing <text>
 
 <mesh> is a mesh asset name as the game's files give it, e.g. Objects/Weapons/Handheld/Beach/M1Garand/M1Garand_Mesh
@@ -73,6 +73,9 @@ class Index:
     """Which bundle holds each entry (first stock bundle), and every level's Dx9 shader database facts: part name ->
     vertex layout record, entry name -> texture names. Cached in work\\tools_out\\meshview_index.pkl, rebuilt when a
     bundle changes."""
+    where: dict[str, tuple[str, str]]          # entry name (lower case) -> (bundle, entry name)
+    parts: dict[str, bytes]                    # part name -> vertex layout record (after its GUID)
+    entries: dict[str, list[str]]              # shader database entry name -> texture names
 
     def __init__(self, root):
         self.root = root
@@ -80,15 +83,16 @@ class Index:
         sig = [(b, os.path.getsize(b), int(os.path.getmtime(b))) for _, b in bundles]
         path = os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
         try:
-            c = pickle.load(open(path, 'rb'))
+            with open(path, 'rb') as fh:
+                c = pickle.load(fh)
             if c['version'] == CACHE_VERSION and c['sig'] == sig:
                 self.__dict__.update(c['data'])
                 return
-        except (OSError, EOFError, KeyError, pickle.UnpicklingError):
+        except Exception:                                       # noqa: BLE001 - missing, old, corrupt or foreign: rebuilt
             pass
         print('indexing the game copy (once; cached) ...', file=sys.stderr)
         self.where, self.parts, self.entries = {}, {}, {}
-        for lv, b in bundles:
+        for _lv, b in bundles:
             try:
                 ents = fbrb.entries(b)
             except Exception:                                   # noqa: BLE001 - an unreadable bundle is skipped
@@ -120,8 +124,9 @@ class Index:
                                 tex.append(s)
                 self.entries[n.lower()] = tex
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        pickle.dump({'version': CACHE_VERSION, 'sig': sig,
-                     'data': {'where': self.where, 'parts': self.parts, 'entries': self.entries}}, open(path, 'wb'))
+        with open(path, 'wb') as fh:
+            pickle.dump({'version': CACHE_VERSION, 'sig': sig,
+                         'data': {'where': self.where, 'parts': self.parts, 'entries': self.entries}}, fh)
 
     def read(self, name):
         hit = self.where.get(name.lower())
@@ -416,6 +421,8 @@ def main(argv):
     if not args:
         print(__doc__)
         return 1
+    if '--level' in opts:                 # once named the level whose shader database to read; all are indexed now
+        print('note: --level is not needed (every level\'s shader database is indexed); ignored', file=sys.stderr)
     root = shaderdb.find_opfor(opts.get('--opfor'))
     ix = Index(root)
     if args[0] == 'find':

@@ -21,6 +21,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
@@ -48,6 +49,8 @@ class Checks:
 def dir_table(entries):
     """A directory table: entries (name, sector, size, attr) as a binary tree, root node first."""
     entries = sorted(entries, key=lambda e: e[0].lower())
+    order: list[Any]
+    links: dict[int, tuple[int | None, int | None]]
     order, links = [], {}
 
     def place(lo, hi):
@@ -103,15 +106,19 @@ def xiso_cli(*args):
 
 # ------------------------------------------------------------------------------------------------ STFS
 
-def build_stfs(path, read_only):
+def build_stfs(path, read_only, live=None):
     """Data blocks: 0 file table; 1-2 Content/a.bin (consecutive); 5 -> 3 -> 4 Content/b.bin (fragmented);
-    6 top.txt."""
+    6 top.txt. live (two-table packages): None - both copies of the level-0 table the same; 'separation' - the
+    second copy live by separation bit 0x02; 'level1' - more than 0xAA blocks allocated, the second copy live by
+    status bit 0x40 of its entry in the level-1 table. The other copy then holds a stale chain (5 -> 4 -> 3)."""
     files = {'Content/a.bin': os.urandom(6000), 'Content/b.bin': os.urandom(9000), 'top.txt': b'top level'}
     h = bytearray(0x1000)
     h[0:4] = b'LIVE'
     header_size = 0x971A
     struct.pack_into('>I', h, 0x340, header_size)
-    h[0x37B] = 1 if read_only else 0
+    h[0x37B] = 1 if read_only else 2 if live == 'separation' else 0
+    if live == 'level1':
+        struct.pack_into('>I', h, 0x395, 0x100)
     struct.pack_into('<H', h, 0x37C, 1)
     h[0x37E:0x381] = (0).to_bytes(3, 'little')
     name = 'Test Package'.encode('utf-16-be')
@@ -138,11 +145,19 @@ def build_stfs(path, read_only):
     hashes = bytearray(0x1000)
     for b, nxt in ((0, 0xFFFFFF), (5, 3), (3, 4), (4, 0xFFFFFF)):
         hashes[b * 0x18 + 0x15:b * 0x18 + 0x18] = nxt.to_bytes(3, 'big')
+    stale = bytearray(hashes)
+    for b, nxt in ((5, 4), (4, 3), (3, 0xFFFFFF)):
+        stale[b * 0x18 + 0x15:b * 0x18 + 0x18] = nxt.to_bytes(3, 'big')
     with open(path, 'wb') as f:
         f.write(h)
         for k in range(tables):                       # the level-0 hash table(s) before the first data block
             f.seek(base + k * 0x1000)
-            f.write(hashes)
+            f.write(stale if live and k == 0 else hashes)
+        if live == 'level1':                           # the level-1 table (first copy at raw block 0xAC)
+            l1 = bytearray(0x1000)
+            l1[0x14] = 0x40
+            f.seek(base + 0xAC * 0x1000)
+            f.write(l1)
         for b, blob in blocks.items():
             f.seek(base + (tables + b) * 0x1000)
             f.write(blob.ljust(0x1000, b'\0'))
@@ -240,7 +255,7 @@ def console_menu_checks(c, u3, work):
     c.check(sum('unreadable' in l for l in text) <= 1 and len(text) > 80000, 'console main_nav: dumped in full',
             f'{len(text)} lines')
     shape = None
-    for cid, cp, t in mv.characters():
+    for _cid, cp, t in mv.characters():
         if t == 5:
             fptr = mv.u(cp + 12)
             for fr in range(mv.u(cp + 8)):
@@ -260,14 +275,14 @@ def sha(path):
 def game_checks(c, xbox):
     iso = os.path.join(xbox, 'Battlefield Bad Company 2 Limited Edition (XBOX 360).iso')
     if os.path.isfile(iso):
-        with open(iso, 'rb') as f:
-            base = xiso.find_partition(f)
-            f.seek(base + 32 * SECTOR + 20)
-            root_sec, root_size = struct.unpack('<II', f.read(8))
-            files = list(xiso.walk(f, base, root_sec, root_size))
+        with open(iso, 'rb') as fh:
+            base = xiso.find_partition(fh)
+            fh.seek(base + 32 * SECTOR + 20)
+            root_sec, root_size = struct.unpack('<II', fh.read(8))
+            files = list(xiso.walk(fh, base, root_sec, root_size))
         c.check(base == 0xFD90000, 'disc image: the XGD2 game partition at 0xFD90000')
         names = {p.lower() for p, _, _ in files}
-        c.check(len(files) == 693 and 'default.xex' in names, f'disc image: all 693 files listed, default.xex among them',
+        c.check(len(files) == 693 and 'default.xex' in names, 'disc image: all 693 files listed, default.xex among them',
                 f'{len(files)} files')
     else:
         print(f'skip disc image (not found: {iso})')
@@ -279,8 +294,8 @@ def game_checks(c, xbox):
     for f in sorted(os.listdir(folder)):
         try:
             p = stfs.Package(os.path.join(folder, f))
-        except Exception as e:
-            c.check(False, f'package {f} opens', str(e))
+        except Exception as ex:
+            c.check(False, f'package {f} opens', str(ex))
             continue
         pkgs[p.name] = p
     c.check(all(p.magic == b'LIVE' for p in pkgs.values()) and len(pkgs) == 3, f'three LIVE packages: {sorted(pkgs)}')
@@ -350,6 +365,17 @@ def main(argv):
         open(blank, 'wb').write(b'\0' * (40 * SECTOR))
         r = xiso_cli('list', blank)
         c.check(r.returncode != 0 and 'no XDVDFS volume' in (r.stdout + r.stderr), 'xiso: an image without a volume is refused')
+        cut = os.path.join(work, 'cut.iso')                  # ends inside level-00.fbrb (5000 bytes from sector 42)
+        build_xiso(cut, 0)
+        with open(cut, 'r+b') as f:
+            f.truncate(43 * SECTOR)
+        what = 'xiso: extract from a truncated image stops with an error (it used to loop forever)'
+        try:
+            r = subprocess.run([sys.executable, os.path.join(ROOT, 'xiso', 'xiso.py'), 'extract', cut,
+                                os.path.join(work, 'cut')], capture_output=True, text=True, timeout=60)
+            c.check(r.returncode != 0 and 'image ends' in (r.stdout + r.stderr), what, (r.stdout + r.stderr)[-300:])
+        except subprocess.TimeoutExpired:
+            c.check(False, what)
 
         for read_only in (True, False):
             label = 'read-only package' if read_only else 'package with two hash tables'
@@ -369,6 +395,19 @@ def main(argv):
             c.check(all(open(os.path.join(dest, *k.split('/')), 'rb').read() == v for k, v in files.items()), f'stfs: extract ({label})')
             code, out = stfs_cli('info', path)
             c.check(code == 0 and '4 entries' in out, f'stfs: info ({label})')
+        for live, label in (('separation', 'separation bit 0x02'), ('level1', 'status bit 0x40 in the level-1 table')):
+            path = os.path.join(work, f'pkg_{live}')
+            files = build_stfs(path, False, live)
+            p = stfs.Package(path)
+            paths = {e['path']: e for e in p.entries}
+            c.check(p.read(paths['Content/b.bin']) == files['Content/b.bin'],
+                    f'stfs: a fragmented file read through the live copy of its hash table ({label})')
+            p.f.close()
+        try:
+            code, out = stfs_cli('extract', path)
+            c.check(code == 1 and 'Usage' in out, 'stfs: extract without an output folder prints the usage')
+        except IndexError:
+            c.check(False, 'stfs: extract without an output folder prints the usage (it was an IndexError)')
 
         apt_checks(c, work)
 

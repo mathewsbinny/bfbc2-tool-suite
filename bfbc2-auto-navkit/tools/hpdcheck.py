@@ -42,11 +42,11 @@ def detail_problem(a):
 def check(path):
     """{check name: [problem descriptions]} (empty lists: passed)."""
     f = hpdtool.parse(open(path, 'rb').read())
-    out = {'closed boundaries': [], 'edges': [], 'node order': [], 'zero-length edges': [], 'detail features': []}
+    out: dict[str, list[str]] = {'closed boundaries': [], 'edges': [], 'node order': [], 'zero-length edges': [], 'detail features': []}
     for s in f.sectors:
         m = kymesh.parse_mesh(s.mesh)
         for ai, a in enumerate(m.areas):
-            deg = Counter()
+            deg: Counter[tuple[float, float]] = Counter()
             segs = [(l[k], l[k + 1]) for l in a.outline for k in range(len(l) - 1)]
             segs += [(b.p0, b.p1) for b in a.portals] + [(c.p0, c.p1) for c in a.border_portals]
             for p, q in segs:
@@ -63,9 +63,9 @@ def check(path):
             if not (0 <= e.src < n and 0 <= e.dst < n):
                 out['edges'].append(f'sector {s.id:04x}: edge {e.src} -> {e.dst} of {n} nodes')
                 continue
-            a, b = s.nodes[e.src], s.nodes[e.dst]
-            if a.id != b.id and tuple(a.pos) == tuple(b.pos):
-                out['zero-length edges'].append(f'sector {s.id:04x}: nodes {a.id:08x} and {b.id:08x} at {tuple(round(v, 2) for v in a.pos)}')
+            na, nb = s.nodes[e.src], s.nodes[e.dst]
+            if na.id != nb.id and tuple(na.pos) == tuple(nb.pos):
+                out['zero-length edges'].append(f'sector {s.id:04x}: nodes {na.id:08x} and {nb.id:08x} at {tuple(round(v, 2) for v in na.pos)}')
         ids = [nd.id & 0xFFFFFFFF for nd in s.nodes]
         key = [((i & BORDER) != 0, i) for i in ids]
         if key != sorted(key):

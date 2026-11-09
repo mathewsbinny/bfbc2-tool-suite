@@ -169,8 +169,8 @@ def main(argv):
     # 9. the file: navsample.cpp's version-3 layout, read back by navsample.py
     g = geometry([(slab(-2.1, -2.1, 2.1, 2.1, 2.7, 3.0), no.KIND_MESH)])
     s = no.sample_grid(grid, g, flat, log=lambda *a: None)[0.6]
-    with tempfile.TemporaryDirectory() as d:
-        p = os.path.join(d, 'x_navkit_hi.bin')
+    with tempfile.TemporaryDirectory() as tmp:
+        p = os.path.join(tmp, 'x_navkit_hi.bin')
         no.write(p, s)
         b, cols = navsample.load(p)
         check(cols == grid.ncols and np.array_equal(b.start, s.start) and np.allclose(b.y, s.y) and
@@ -235,13 +235,13 @@ def main(argv):
 			</complex>
 		</array></instance></partition>
 '''
-    with tempfile.TemporaryDirectory() as d:
-        bp, hx = os.path.join(d, 'House.xml'), os.path.join(d, 'House_Havok.xml')
+    with tempfile.TemporaryDirectory() as tmp:
+        bp, hx = os.path.join(tmp, 'House.xml'), os.path.join(tmp, 'House_Havok.xml')
         open(bp, 'w').write(xml)
         open(hx, 'w').write(hav)
         check(no.destroyed_parts(bp) == {'ruin_downed'}, f'destroyed parts: {no.destroyed_parts(bp)}')
         check(no.part_names(hx[:-4] + '.res') == ['base', 'part_01', 'ruin', 'ruin_downed'], 'part names in order')
-        check(no.destroyed_parts(os.path.join(d, 'missing.xml')) == set(), 'no blueprint: no destroyed parts')
+        check(no.destroyed_parts(os.path.join(tmp, 'missing.xml')) == set(), 'no blueprint: no destroyed parts')
 
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0

@@ -19,6 +19,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
@@ -101,7 +102,7 @@ def num4i(name, v):
 
 
 def tree_file(nodes, enum_offset, guid='11111111-0000-0000-0000-000000000001'):
-    items = []
+    items: list[Any] = []
     for r, mx, x, y, z, w in nodes:
         items.append(('complex', ct.CONTAINER, [], [
             num4i('Right', r),
@@ -125,6 +126,7 @@ def rot_y(deg, pos, scale=1.0):
 
 def level_file(objects, tree_ref='levels/test/staticculltree_exclusive/11111111-0000-0000-0000-000000000001'):
     """objects: (guid, blueprint, transform 16 floats, enumeration)."""
+    insts: list[tuple[str, int, list[tuple[str, Any]], Any]]
     insts = [('instance', ct.CONTAINER, [('guid', 'AAAAAAAA-0000-0000-0000-000000000000'), ('type', 'Levels.LevelData')], [
         ('field', ct.TEXT, [('ref', tree_ref), ('name', 'ExclusiveStaticCullTree')], ''),
         ('field', ct.TEXT, [('ref', 'null'), ('name', 'ClientStaticCullTree')], '')])]
@@ -234,7 +236,11 @@ def main(argv):
         c.check(open(out, 'rb').read() == tdata, 'an unchanged tree is written back byte for byte')
         c.check(all(ok for ok, _ in ct.check_structure(t)), 'structure checks pass on the built tree')
         lv = ct.Level(level_p)
-        c.check(lv.tree_path() and os.path.samefile(lv.tree_path(), tree_p), 'the level\'s tree found through its reference')
+        c.check((tp := lv.tree_path()) and os.path.samefile(tp, tree_p), 'the level\'s tree found through its reference')
+        saved = dict(lv.tree_refs)
+        lv.tree_refs['ExclusiveStaticCullTree'] = 'other/staticculltree_x/00000000-0000-0000-0000-000000000000'
+        c.check(lv.tree_path() is None, 'a tree reference without a levels/ segment finds no tree (it gave the folder)')
+        lv.tree_refs = saved
         lo = ct.leaves_of(t, lv)
         c.check(sorted(len(v) for v in lo.values()) == [1, 1, 2, 2, 2], 'leaves per object from the slots')
 
@@ -276,6 +282,7 @@ def main(argv):
                 r.stdout[-600:] + r.stderr[-600:])
         t2, lv2 = ct.CullTree(ot), ct.Level(ol)
         hut, lamp = lv2.by_guid('00000000-0000-0000-0000-000000000006'), lv2.by_guid('00000000-0000-0000-0000-000000000007')
+        assert hut is not None and lamp is not None
         c.check(hut.enum == eo + 9 and lamp.enum == eo + 11, 'new slots follow the last leaf (EnumOffset + 9, + 11)',
                 f'{hut.enum} {lamp.enum}')
         c.check(t2.leaves == 12 and t2.used == 23 and t2.spare == 256, 'tree: 4 new leaves, 8 new nodes, 256 spare kept',
@@ -295,6 +302,12 @@ def main(argv):
         r = run(['verify', ot, ol, '--ref-dir', os.path.join(TMP, 'ref'), '--added',
                  '00000000-0000-0000-0000-000000000006,00000000-0000-0000-0000-000000000007'])
         c.check(r.returncode == 0 and 'all checks passed' in r.stdout, 'verify passes on the result, with --added', r.stdout[-600:])
+        # a --ref-dir that holds the target level itself: the target is not its own reference
+        r = run(['add', tree_p, level_p, '--auto', '--ref-dir', os.path.join(TMP, 'target'), '--ref-dir', os.path.join(TMP, 'ref'),
+                 '--out-tree', ot + 's', '--out-level', ol + 's'])
+        hut_line = next((l for l in r.stdout.splitlines() if '00000000-0000-0000-0000-000000000006' in l), '')
+        c.check(r.returncode == 0 and '0 agreeing elsewhere' in hut_line,
+                'a --ref-dir holding the target level: its huts do not confirm themselves', hut_line + r.stderr[-300:])
 
         # refused cases
         r = run(['add', ot, ol, '--objects', '00000000-0000-0000-0000-000000000006', '--out-tree', ot + '2', '--out-level', ol + '2'])

@@ -29,7 +29,8 @@ TIERS = ['quick', 'game', 'full']
 
 
 def opfor():
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+    if os.path.join(SUITE, 'bfbc2-auto-navkit') not in sys.path:
+        sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
     import navkit
     return navkit.find_opfor(None)
 
@@ -58,6 +59,8 @@ def tests():
     """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
     t = [
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
+        ('lint (ruff check, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
+        ('types (mypy, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
@@ -88,6 +91,9 @@ def tests():
         ('NavKit vehicle path data (navvehicle)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_vehicle.py')]),
         ('NavKit shadow islands (navislands)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navislands.py')]),
         ('NavKit offline sampler (navsample_offline)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navsample_offline.py')]),
+        ('NavKit tool edges (ordercheck, detailed cache, navdiff pictures)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_tool_edges.py')]),
+        ('Navigation Studio edit mode, no game (editing, overlay usage)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_editing_offline.py')]),
+        ('mesh viewer index and cache, stand-in bundles', 'quick', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview_index.py')]),
         ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),
         ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
         ('crash reader, built reports', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py')]),
@@ -168,7 +174,7 @@ def main(argv):
     root = opfor() if any(callable(a) or t != 'quick' for _, t, a in chosen) else None
     print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else ''))
     failures, start = [], time.time()
-    for name, t, args in chosen:
+    for name, _t, args in chosen:
         if callable(args):
             args = args(root)
         t0 = time.time()

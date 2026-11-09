@@ -22,7 +22,7 @@ import struct
 from collections import Counter, defaultdict
 
 import dbxbin
-from levelmodel import local, text
+from levelmodel import text
 
 NS = 'opfor:stockmp'
 PATHFINDING = ['ai/pathfinding/infantry/3096da77-3146-479c-ae35-c822273a54a7',
@@ -39,7 +39,8 @@ class NumberKinds:
     type book - its known limitation with XOffset -3)."""
 
     def __init__(self, *files):
-        self.ints, self.floats = Counter(), Counter()
+        self.ints: Counter[str] = Counter()
+        self.floats: Counter[str] = Counter()
         for d in files:
             for e in d.partition.walk():
                 if e.kind != dbxbin.NUMBERS or not e.attrs:
@@ -72,7 +73,7 @@ class Author:
         self.new = []                  # new instance elements, in order
         self.events = []               # (source guid, source event, target guid, target event)
         self.guid_of = {}              # config id -> guid
-        self.report = Counter()
+        self.report: Counter[str] = Counter()
         self._protos()
 
     # ------------------------------------------------------------------ prototypes
@@ -184,7 +185,7 @@ class Author:
             return self.finish()
         for s in cfg['spawners']:
             self.spawner(s)
-        triggers = {}
+        triggers: dict[tuple[int, int, float], str] = {}
         for o in cfg['orders']:
             self.order(o, triggers)
         self.stages()
@@ -217,7 +218,7 @@ class Author:
         self.report[f'AI spawners {s["team"]}'] += 1
 
     def order(self, o, triggers):
-        cfg, d = self.cfg, self.d
+        cfg = self.cfg
         g = self.guid('order', o['id'])
         self.guid_of[o['id']] = g
         e = self.instance(self.p_order, self.donor, g)
@@ -285,7 +286,7 @@ class Author:
         stages = self.cfg.get('stages') or []
         if not stages:
             return
-        by_stage = defaultdict(lambda: {'spawners': [], 'orders': []})
+        by_stage: defaultdict[int, dict[str, list[str]]] = defaultdict(lambda: {'spawners': [], 'orders': []})
         for s in self.cfg['spawners']:
             if s.get('stage') is not None:
                 by_stage[s['stage']]['spawners'].append(self.guid_of[s['id']])

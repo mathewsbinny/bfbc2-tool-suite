@@ -44,7 +44,7 @@ def edits_for(s, operations):
     fw = np.zeros(len(y), dtype=bool)
     fu = np.zeros(len(y), dtype=bool)
     seeds, unseeds = [], []
-    counts = {}
+    counts: dict[str, int] = {}
     for o in operations:
         name = o.get('op')
         if name not in WALKABILITY:

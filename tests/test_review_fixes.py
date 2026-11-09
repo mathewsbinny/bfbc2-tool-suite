@@ -71,6 +71,21 @@ def navkit_apply(c, work):
     c.check(seen.get('detailed') == {'sectors': {1}} and seen.get('ladders') == [{'a': 1}] and 'edits' in seen,
             'navkit apply: built with the normal build\'s inputs (detailed zones, ladders) plus the edits', str(seen.keys()))
 
+    # a failed apply without --out still keeps its report beside the default output
+    def failing_build(*a, **kw):
+        raise navkit.NavKitError('the build failed here')
+    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, failing_build, lambda p: Tune()
+    report = os.path.join(work, 'pathdata.hpd.report.txt')
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            navkit.apply(Pr(), 'lv', side, None, log=lambda *a: None)
+    except navkit.NavKitError:
+        pass
+    finally:
+        navkit.build_inputs, navbuild.build, navtune.load = saved
+    c.check(os.path.isfile(report) and 'error: the build failed here' in open(report, encoding='utf-8').read(),
+            'navkit apply: a failure without --out still writes <output>.report.txt with the error')
+
 
 def stockmp_install(c, work):
     sys.path.insert(0, os.path.join(SUITE, 'bfbc2-stockmp-ai'))

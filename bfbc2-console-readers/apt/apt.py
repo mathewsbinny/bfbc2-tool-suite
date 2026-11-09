@@ -38,11 +38,14 @@ Apt converts a movie's offsets to pointers once, in place, by walking its struct
 runtime 0x1309880 for bytecode; the character walk and its inverse at 0x1319730) - see OPFOR's DEVELOPMENT_NOTES.md
 for the rules this sets for editing movies.
 """
+import io
 import os
 import re
 import struct
 import sys
 from collections import namedtuple
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any, cast
 
 CHAR_TYPES = {1: 'shape', 2: 'text', 3: 'font', 4: 'button', 5: 'sprite', 6: 'sound', 7: 'image', 8: 'morph',
               9: 'movie', 10: 'statictext', 11: 'none', 12: 'video'}
@@ -54,6 +57,7 @@ SIG = 0x09876543
 # (an opcode with an argument this reader does not know), pool (the constant pool's length at the instruction)
 Ins = namedtuple('Ins', 'at op name arg end target plist items func index unknown pool')
 Func = namedtuple('Func', 'name nparams extra size body')
+Sink = Callable[[Ins, int, int, str], object]   # Movie.sink(ins, stream start, stream limit, indent)
 
 NAMES = {
     0x00: 'End', 0x04: 'NextFrame', 0x05: 'PrevFrame', 0x06: 'Play', 0x07: 'Stop', 0x0A: 'Add', 0x0B: 'Subtract',
@@ -83,13 +87,14 @@ NAMES = {
 }
 
 
-def read_bigf(path):
+def read_bigf(path: str) -> dict[str, bytes]:
     """Members of a BIGF archive (menu SwfMovie resource): {name: bytes}. Index entries are big-endian on every
     platform: u32 offset, u32 size, C string name."""
     b = open(path, 'rb').read()
     if b[:4] != b'BIGF':
         raise ValueError(f'{path} is not a BIGF archive (a menu .res)')
     n = struct.unpack_from('>I', b, 8)[0]
+    out: dict[str, bytes]
     p, out = 16, {}
     for _ in range(n):
         off, size = struct.unpack_from('>II', b, p)
@@ -100,12 +105,15 @@ def read_bigf(path):
 
 
 class Movie:
-    sink = None              # instructions(): called with each decoded instruction while the dump walks the movie
+    sink: Sink | None = None  # instructions(): called with each decoded instruction while the dump walks the movie
+    dump_lines: list[str]    # instructions(): the dump's text
 
-    def __init__(self, path=None, data=None):
+    def __init__(self, path: str | None = None, data: tuple[str, bytes, bytes] | None = None) -> None:
         """path: a menu .res or a .apt with its .const beside it; or data = (name, .apt bytes, .const bytes)."""
         if data is not None:
             self.name, self.a, self.c = data
+        elif path is None:
+            raise TypeError('Movie needs a path or data')
         elif path.lower().endswith('.apt'):
             self.name = os.path.splitext(os.path.basename(path))[0]
             self.a = open(path, 'rb').read()
@@ -125,7 +133,7 @@ class Movie:
         self.e = '>' if self.big else '<'
         self.movie = be if self.big else le
         count, entries = self.cu(24), self.cu(28)
-        self.const = []
+        self.const: list[str] = []
         for i in range(count):
             t, v = self.cu(entries + 8 * i), self.cu(entries + 8 * i + 4)
             if t == 1:
@@ -136,27 +144,27 @@ class Movie:
                 self.const.append(f'type{t}:{v}')
 
     # field readers in the movie's byte order
-    def cu(self, o): return struct.unpack_from(self.e + 'I', self.c, o)[0]
-    def u(self, o): return struct.unpack_from(self.e + 'I', self.a, o)[0]
-    def i(self, o): return struct.unpack_from(self.e + 'i', self.a, o)[0]
-    def f(self, o): return struct.unpack_from(self.e + 'f', self.a, o)[0]
-    def h(self, o): return struct.unpack_from(self.e + 'h', self.a, o)[0]
-    def w(self, o): return struct.unpack_from(self.e + 'H', self.a, o)[0]
+    def cu(self, o: int) -> int: return struct.unpack_from(self.e + 'I', self.c, o)[0]
+    def u(self, o: int) -> int: return struct.unpack_from(self.e + 'I', self.a, o)[0]
+    def i(self, o: int) -> int: return struct.unpack_from(self.e + 'i', self.a, o)[0]
+    def f(self, o: int) -> float: return struct.unpack_from(self.e + 'f', self.a, o)[0]
+    def h(self, o: int) -> int: return struct.unpack_from(self.e + 'h', self.a, o)[0]
+    def w(self, o: int) -> int: return struct.unpack_from(self.e + 'H', self.a, o)[0]
 
     @staticmethod
-    def cstr(buf, p):
+    def cstr(buf: bytes, p: int) -> str:
         if not p or p >= len(buf):
             return 'null'
         e = buf.find(b'\0', p)
         return buf[p:e if e >= 0 else len(buf)].decode('latin1')
 
-    def s(self, p): return self.cstr(self.a, p)
+    def s(self, p: int) -> str: return self.cstr(self.a, p)
 
     # --- characters -------------------------------------------------------------------------------------------
-    def characters(self):
+    def characters(self) -> list[tuple[int, int, int | None]]:
         m = self.movie
         count, ptr = self.u(m + 20), self.u(m + 24)
-        out = []
+        out: list[tuple[int, int, int | None]] = []
         for c in range(count):
             cp = self.u(ptr + 4 * c)
             if not cp or cp + 8 > len(self.a) or self.u(cp + 4) != SIG:
@@ -165,7 +173,7 @@ class Movie:
             out.append((c, cp, self.u(cp)))
         return out
 
-    def describe(self, c, cp, t):
+    def describe(self, c: int, cp: int, t: int | None) -> str:
         if t is None:
             return f'char {c}: (none)'
         name = CHAR_TYPES.get(t, f'type{t}')
@@ -181,12 +189,17 @@ class Movie:
         return f'char {c}: {name} @{cp:#x}'
 
     # --- bytecode ---------------------------------------------------------------------------------------------
-    def decode(self, p, pool):
+    def decode(self, p: int, pool: list[str]) -> tuple[Ins, list[str]]:
         """The instruction at p: (Ins, the constant pool after it). Ins.end is the next instruction (for a function
         definition, the start of its body). Raises struct.error / IndexError at the end of the file."""
         a, at, op = self.a, p, self.a[p]
         p += 1
         name = NAMES.get(op, f'op_{op:02X}')
+        target: int | None
+        plist: int | None
+        items: list[int] | None
+        func: Func | None
+        index: int | None
         arg, target, plist, items, func, index = '', None, None, None, None, None
         K = (lambda k: pool[k] if k < len(pool) else f'pool[{k}]?')
         al = (lambda q: (q + 3) & ~3)
@@ -243,7 +256,8 @@ class Movie:
         return Ins(at, op, name, arg, p, target, plist, items, func, index,
                    op >= 0x80 and op not in NAMES, len(pool)), pool
 
-    def disasm(self, start, indent, out, limit=None, pool=None):
+    def disasm(self, start: int, indent: str, out: list[str], limit: int | None = None,
+               pool: Iterable[str] | None = None) -> None:
         pool = list(pool or [])
         a, p, guard = self.a, start, 0
         limit = limit if limit is not None else len(a)
@@ -266,13 +280,15 @@ class Movie:
             if ins.op == 0x00 and limit == len(a):
                 return
 
-    def instructions(self):
+    def instructions(self) -> list[tuple[Ins, int, int, int]]:
         """Every instruction the dump decodes, once each, in dump order: [(Ins, stream start, stream limit, depth)].
         A frame's action stream has depth 0 and limit = the file's end; a function body's instructions have the
         function's depth + 1 and limit = the body's end. The dump's text is kept in self.dump_lines."""
+        seen: set[int]
+        recs: list[list[Any]]
         seen, recs = set(), []
 
-        def sink(ins, start, limit, indent):
+        def sink(ins: Ins, start: int, limit: int, indent: str) -> None:
             if ins.at not in seen:
                 seen.add(ins.at)
                 recs.append([ins, start, limit, indent])
@@ -281,15 +297,15 @@ class Movie:
             self.dump_lines = self.dump()
         finally:
             self.sink = None
-        depth = {}                                 # a stream's depth: 0 for the streams that no function contains
-        for ins, start, limit, _ in recs:
+        depth: dict[int, int] = {}                 # a stream's depth: 0 for the streams that no function contains
+        for ins, start, _limit, _ in recs:
             depth.setdefault(start, 0)
             if ins.func:
                 depth[ins.func.body] = depth[start] + 1
         return [(ins, start, limit, depth.get(start, 0)) for ins, start, limit, _ in recs]
 
     # --- structure --------------------------------------------------------------------------------------------
-    def frames(self, ptr, count, indent, owner, out):
+    def frames(self, ptr: int, count: int, indent: str, owner: str, out: list[str]) -> None:
         for fr in range(count):
             n, items = self.u(ptr + 8 * fr), self.u(ptr + 8 * fr + 4)
             out.append(f'{indent}{owner} frame {fr} ({n} items)')
@@ -300,7 +316,7 @@ class Movie:
                 except (struct.error, IndexError, ValueError) as e:
                     out.append(f'{ind}** item {k} of this frame unreadable: {e}')
 
-    def item(self, items, k, ind, out):
+    def item(self, items: int, k: int, ind: str, out: list[str]) -> None:
                 it = self.u(items + 4 * k)
                 t = self.u(it)
                 if t == 1:
@@ -330,7 +346,8 @@ class Movie:
                 else:
                     out.append(f'{ind}item type {t} @{it:X}')
 
-    def dump(self):
+    def dump(self) -> list[str]:
+        out: list[str]
         m, out = self.movie, []
         frames, fptr = self.u(m + 8), self.u(m + 12)
         out.append(f'Movie {self.name} {self.i(m + 28)}x{self.i(m + 32)} frames={frames} characters={self.u(m + 20)} '
@@ -350,7 +367,7 @@ class Movie:
         return out
 
 
-def main(argv):
+def main(argv: Sequence[str]) -> int:
     if len(argv) < 3 or argv[1] not in ('info', 'chars', 'dump', 'find'):
         print(__doc__)
         return 1
@@ -373,7 +390,7 @@ def main(argv):
             open(argv[3], 'w', encoding='utf-8').write(text)
             print(f'{argv[3]}: {text.count(chr(10))} lines')
         else:
-            sys.stdout.reconfigure(errors='replace')            # names in other code pages: no crash on the console
+            cast(io.TextIOWrapper, sys.stdout).reconfigure(errors='replace')    # other code pages: no crash on the console
             sys.stdout.write(text)
     elif argv[1] == 'find':
         if len(argv) < 4:

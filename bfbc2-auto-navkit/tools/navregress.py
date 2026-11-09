@@ -28,13 +28,12 @@ import json
 import os
 import re
 import sys
-import functools
 import time
 
-print = functools.partial(print, flush=True)   # progress shows at once when the output goes to a file
-
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+for _p in (HERE, os.path.abspath(os.path.join(HERE, '..', '..', 'core'))):   # once, at import
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 import navbuild  # noqa: E402
 import navparity  # noqa: E402
 import hpdcheck  # noqa: E402
@@ -78,7 +77,6 @@ def inputs(root, lv):
 
 def level_water(root, lv):
     """The level's water mesh (vertices, triangles) for the build, or None (core/bfbc2core/water.py)."""
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
     from bfbc2core import level as levelmod
     w = levelmod.water_of(root, lv, log=lambda *a: None)
     return (w.vertices, w.triangles) if w is not None and len(w) else None
@@ -291,7 +289,10 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    try:
+        sys.stdout.reconfigure(line_buffering=True)   # type: ignore[union-attr]  # progress shows at once when the output goes to a file
+    except AttributeError:                            # stdout replaced by something without it
+        pass
     from bfbc2core import errors
     errors.setup('navregress', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

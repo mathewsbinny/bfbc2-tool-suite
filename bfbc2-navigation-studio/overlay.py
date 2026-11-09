@@ -21,6 +21,7 @@ import os
 import re
 import sys
 from collections import Counter, defaultdict
+from typing import Any
 
 import numpy as np
 
@@ -97,7 +98,7 @@ def read_ai_layer(xml_path):
     """The AI layer of a level partition (see the module docstring)."""
     t = open(xml_path, encoding='utf-8', errors='replace').read()
     inst = {g.lower(): (ty, b) for ty, g, b in xmlinst.instances(t)}
-    layer = {'has_ai': None, 'spawners': [], 'area_orders': [], 'patrols': [], 'objectives': []}
+    layer: dict[str, Any] = {'has_ai': None, 'spawners': [], 'area_orders': [], 'patrols': [], 'objectives': []}
     for ty, b in inst.values():
         short = ty.split('.')[-1]
         if short == 'LevelData' and layer['has_ai'] is None:
@@ -205,7 +206,7 @@ def reference_report(target, source_spec, opfor, candidate=None):
     layer = read_ai_layer(xml)
     cand = candidate or default_candidate(opfor, target)
     idx = NavIndex(navdata.load(cand)) if cand else None
-    rows = {'spawners': [], 'area_orders': [], 'patrol_points': [], 'objectives': []}
+    rows: dict[str, list[dict[str, Any]]] = {'spawners': [], 'area_orders': [], 'patrol_points': [], 'objectives': []}
     for s in layer['spawners']:
         rows['spawners'].append({k: s[k] for k in ('pos', 'name', 'player_type', 'enabled', 'team', 'squad_id', 'in_squad_entity')} | _node_row(idx, s['pos']))
     for o in layer['area_orders']:
@@ -231,7 +232,7 @@ def default_candidate(opfor, lv):
 def anomalies(nav, layer):
     """Per class, the anomalies of a NavKit build against the level's own AI layer (read_ai_layer of the target)."""
     idx = NavIndex(nav)
-    out = {'small_islands': [], 'spawners_on_small_islands': [], 'orders_without_node': [], 'sliver_areas': [], 'lonely_nodes': []}
+    out: dict[str, list[dict[str, Any]]] = {'small_islands': [], 'spawners_on_small_islands': [], 'orders_without_node': [], 'sliver_areas': [], 'lonely_nodes': []}
     for k, isl in enumerate(nav.islands):
         if isl.nodes < SMALL_ISLAND:
             out['small_islands'].append({'island': k, 'pos': [round(float(c), 2) for c in isl.centre], 'nodes': isl.nodes, 'cells': isl.cells})
@@ -282,8 +283,8 @@ def main(argv):
         else:
             args.append(argv[k])
             k += 1
-    if not args:
-        print(__doc__)
+    if not args or ('--anomalies' not in opts and not isinstance(opts.get('--reference'), str)):
+        print(__doc__)                    # neither mode named (or --reference without its source): the usage
         return 1
     import navparity
     opfor = navparity.opfor_root(None)

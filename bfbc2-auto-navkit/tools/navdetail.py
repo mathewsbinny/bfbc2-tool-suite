@@ -143,6 +143,7 @@ def d_lines(sides, cells, pitch, ox, oz, cuts=None):
     starts = defaultdict(list)
     for k, sg in enumerate(segs):
         starts[sg[0]].append(k)
+    prv_count: defaultdict[int, int]
     nxt, prv_count = {}, defaultdict(int)
     cand = {}
     for k, (a, b, _ya, _yb) in enumerate(segs):
@@ -235,7 +236,7 @@ def _quarters(comp):
 def _loops(quarters):
     """Boundary of a union of quarter triangles: closed loops of half-unit vertices, counter-clockwise (x right,
     z up; inside on the left)."""
-    edges = defaultdict(int)
+    edges: defaultdict[tuple[tuple[int, int], tuple[int, int]], int] = defaultdict(int)
     for (i, j), (sx, sz) in quarters:
         c = (2 * i, 2 * j)
         if sx:

@@ -7,7 +7,7 @@ out again and recomputes every offset.
 """
 import struct
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 NULL = 0xFFFFFFFF
 MARKER = b'KynogonRuntimeMesh\0\0'
@@ -92,12 +92,12 @@ class Mesh:
     links_null_offset: int = NULL
 
 
-def _u32(m, o): return struct.unpack_from('<I', m, o)[0]
-def _f32(m, o): return struct.unpack_from('<f', m, o)[0]
-def _v3(m, o): return struct.unpack_from('<3f', m, o)
+def _u32(m: bytes, o: int) -> int: return struct.unpack_from('<I', m, o)[0]
+def _f32(m: bytes, o: int) -> float: return struct.unpack_from('<f', m, o)[0]
+def _v3(m: bytes, o: int) -> Vec3: return struct.unpack_from('<3f', m, o)
 
 
-def _points(m, a, b):
+def _points(m: bytes, a: int, b: int) -> List[Vec3]:
     return [_v3(m, q) for q in range(a, b, 12)]
 
 
@@ -115,7 +115,7 @@ def parse_mesh(m: bytes) -> Mesh:
     tile_offs = [_u32(m, tile_tab + i * 4) for i in range(ntiles + 1)]
 
     area_index = {}           # object offset -> index
-    area_offsets = []
+    area_offsets: List[int] = []
     tiles_raw = []
     for t in range(ntiles):
         to = tile_offs[t]
@@ -137,11 +137,11 @@ def parse_mesh(m: bytes) -> Mesh:
         area = Area(hdr[0], hdr[1], hdr[2], hdr[3], hdr[4], hdr[5], hdr[6], hdr[7], null_offsets=null_offsets)
         if cnt[0x20]:
             raise ValueError('A records present (never seen before)')
-        pos = o + offs[0x28] if cnt[0x28] else None
+        pos = o + offs[0x28]                   # read only when the count is not 0
         for k in range(cnt[0x28]):
             r = pos + k * 0x20
             area.portals.append(Portal(_v3(m, r), _v3(m, r + 12), _u32(m, r + 0x18)))   # target resolved below
-        pos = o + offs[0x30] if cnt[0x30] else None
+        pos = o + offs[0x30]
         for k in range(cnt[0x30]):
             r = pos + k * 0x2C
             area.border_portals.append(BorderPortal(_v3(m, r), _v3(m, r + 12), _v3(m, r + 0x20),
@@ -218,7 +218,7 @@ def write_mesh(mesh: Mesh) -> bytes:
         struct.pack_into('<I', out, tab + i * 4, to)
     # Patch B portal targets (offset and size of the target area).
     sizes = [len(b[0]) for b in bodies]
-    for i, (body, portal_pos) in enumerate(bodies):
+    for i, (_body, portal_pos) in enumerate(bodies):
         base = area_off[i]
         for k, p in enumerate(mesh.areas[i].portals):
             struct.pack_into('<II', out, base + portal_pos + k * 0x20 + 0x18, area_off[p.target], sizes[p.target])
@@ -241,7 +241,7 @@ def write_mesh(mesh: Mesh) -> bytes:
     return bytes(out)
 
 
-def _area_body(a: Area):
+def _area_body(a: Area) -> tuple[bytes, int]:
     """Bytes of one area object with B target fields zeroed; returns (bytes, offset of the B records)."""
     hdr_size = 0x50
     blob = bytearray()
@@ -275,12 +275,12 @@ def _area_body(a: Area):
         tab = hdr_size + len(blob)
         off[0x48] = tab
         q = tab + (len(a.cells) + 1) * 16
-        for c in a.cells:
-            blob += struct.pack('<I3f', q, *c.direction)
-            q += len(c.points) * 12
+        for cell in a.cells:
+            blob += struct.pack('<I3f', q, *cell.direction)
+            q += len(cell.points) * 12
         blob += struct.pack('<I3f', q, *a.end_row)
-        for c in a.cells:
-            for pt in c.points:
+        for cell in a.cells:
+            for pt in cell.points:
                 blob += struct.pack('<3f', *pt)
     else:
         off[0x48] = a.null_offsets.get(0x48, NULL)

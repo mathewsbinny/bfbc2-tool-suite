@@ -1,15 +1,16 @@
-import sys, collections
+import sys
+import collections
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hpdtool
 for path in sys.argv[1:]:
     f = hpdtool.parse(open(path, 'rb').read())
-    parent = {}
-    def find(x):
+    parent: dict[int, int] = {}
+    def find(x, parent=parent):
         while parent.setdefault(x, x) != x:
             parent[x] = parent[parent[x]]; x = parent[x]
         return x
-    deg = collections.Counter(); ids = set()
+    deg: collections.Counter[int] = collections.Counter(); ids = set()
     for s in f.sectors:
         for e in s.edges:
             a, b = s.nodes[e.src].id, s.nodes[e.dst].id

@@ -27,12 +27,26 @@ STEPS = [('prepare', '1. Prepare', 'Unpack the level, extract its objects, choos
          ('check', '4. Check', 'Score the result (against the original path data if the level has one)')]
 
 
+def kill_tree(proc):
+    """Ends a process and its children (Windows: taskkill /T); the process alone where that is not possible."""
+    if os.name == 'nt':
+        r = subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'], capture_output=True,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        if r.returncode == 0:
+            return
+    try:
+        proc.kill()
+    except OSError:                       # already gone
+        pass
+
+
 class App:
     def __init__(self, root):
         self.root = root
         self.proc = None
         self.saved = []
-        self.lines = queue.Queue()
+        self.lines = queue.Queue()        # the reader thread's only way to the window: output lines, then ('done', ...)
+        self.cancelled = False            # set and read on the Tk thread only
         root.title('BC2 NavKit')
         root.minsize(760, 520)
         try:
@@ -158,7 +172,7 @@ class App:
         try:
             [float(v) for v in vals]
         except ValueError:
-            raise ValueError('The sampling area must be numbers.')
+            raise ValueError('The sampling area must be numbers.') from None
         return ['--box', ','.join(vals[:4]), '--y', ','.join(vals[4:])]
 
     # --- running steps ---------------------------------------------------------------------------------
@@ -193,26 +207,28 @@ class App:
         threading.Thread(target=self.reader, args=(self.proc, cmd), daemon=True).start()
 
     def reader(self, proc, cmd):
-        self.tail = []
+        """The step's output, line by line, into the queue (a thread: it touches nothing of the window's); its last
+        lines go with the final ('done', cmd, exit code, last lines)."""
+        tail = []
         for line in proc.stdout:
             self.lines.put(line)
-            self.tail = (self.tail + [line.rstrip()])[-10:]
+            tail = (tail + [line.rstrip()])[-10:]
         rc = proc.wait()
-        self.lines.put(('done', cmd, rc))
+        self.lines.put(('done', cmd, rc, tail))
 
     def pump(self):
         try:
             while True:
                 item = self.lines.get_nowait()
                 if isinstance(item, tuple):
-                    _, cmd, rc = item
-                    cancelled, self.cancelled = getattr(self, 'cancelled', False), False
+                    _, cmd, rc, tail = item
+                    cancelled, self.cancelled = self.cancelled, False
                     self.proc = None
                     self.set_busy(False, f'{cmd}: ' + ('finished' if rc == 0 else 'failed - see the log above'))
                     self.refresh()
                     errors.logger().info(f'{cmd} {self.level.get()}: exit {rc}')
                     if rc != 0 and not cancelled:
-                        said = '\n'.join(l for l in getattr(self, 'tail', []) if l.strip())[-1500:]
+                        said = '\n'.join(l for l in tail if l.strip())[-1500:]
                         errors.logger().warning(f'{cmd} failed; last lines:\n{said}')
                         messagebox.showwarning('NavKit', f'{cmd} did not finish (exit code {rc}).\n\nIt said last:\n'
                                                          f'{said or "(no output)"}\n\nThe whole output is above; the log:\n'
@@ -227,7 +243,7 @@ class App:
         if not self.proc:
             return
         self.cancelled = True
-        self.proc.kill()
+        kill_tree(self.proc)              # navkit.py and what it started (FbrbTool, DbxEdit ...)
         self.write('\ncancelled\n')
         # a sampling run killed mid-way leaves the game open and opfor.ini changed
         navkit.close_game()
