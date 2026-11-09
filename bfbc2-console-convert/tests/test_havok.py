@@ -19,9 +19,10 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('console-convert')
-import havok  # noqa: E402
 import convert  # noqa: E402
+import havok  # noqa: E402
 
 OPFOR = os.environ.get('OPFOR_ROOT') or os.path.abspath(os.path.join(HERE, '..', '..', '..', 'project-opfor-bfbc2'))
 EXE = os.path.join(OPFOR, 'game', 'BFBC2Game.exe')

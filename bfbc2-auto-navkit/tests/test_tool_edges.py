@@ -25,6 +25,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit', 'navkit-tools')
 import navcompare  # noqa: E402
 import navdiff  # noqa: E402
@@ -109,6 +110,7 @@ def main(argv):
 
         # navbuild's settings: a value passed through the build (no module settings rewritten)
         import dataclasses
+
         import navbuild
         d = navbuild.DEFAULTS
         check((d.pitch, d.sector_samples, d.window, d.tile, d.tiles, d.resolution, d.link_step, d.kind) ==

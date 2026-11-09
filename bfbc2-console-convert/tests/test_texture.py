@@ -23,6 +23,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('console-convert')
 import texture  # noqa: E402
 
@@ -64,8 +65,8 @@ def formats_5_13(fails):
     """Console 5 -> PC 9 within the RGB565 rounding (red / blue 8, green 4) on the twins of the same size; console 13
     (RGBA16F cube) untiled: its level 0 equals the PC's level 1 (the PC copy is twice the size) on every face."""
     suite_paths.use('core')
-    from bfbc2core import fbrb
     import numpy as np
+    from bfbc2core import fbrb
     want = set(TWINS_5_13)
     found: dict[str, dict[str, tuple[str, str]]] = {'x': {}, 'p': {}}
     for tag, pat in (('x', os.path.join(WORK, 'xbox', '**', '*.fbrb')), ('p', os.path.join(OPFOR, 'game', '**', '*.fbrb'))):

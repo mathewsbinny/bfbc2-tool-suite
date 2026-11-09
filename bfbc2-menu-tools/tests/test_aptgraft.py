@@ -21,11 +21,11 @@ textured-quad shape and a WeaponIcon frame placing it; refusals).
 import difflib
 import hashlib
 import os
+import shutil
 import struct
 import subprocess
 import sys
 import tempfile
-import shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
@@ -33,12 +33,13 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
-suite_paths.use('menu-tools')
-import menucommon as mc  # noqa: E402
+
+suite_paths.use('menu-tools', 'apt')
+import apt  # noqa: E402
 import aptcheck  # noqa: E402
 import aptgraft as ag  # noqa: E402
-import apt  # noqa: E402
-from aptgraft import Ref, Str, Words, Code, Ins, Builder  # noqa: E402
+import menucommon as mc  # noqa: E402
+from aptgraft import Builder, Code, Ins, Ref, Str, Words  # noqa: E402
 
 SIG = 0x09876543
 

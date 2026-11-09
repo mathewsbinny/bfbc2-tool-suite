@@ -17,9 +17,10 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit', 'core')
-from bfbc2core import navdata, navpath  # noqa: E402
 import navkit  # noqa: E402
+from bfbc2core import navdata, navpath  # noqa: E402
 
 ISLANDS = {'sp_004_b': 69, 'sp_01': 506, 'sp_009': 3}      # DICE's files, as baseline A counted them
 

@@ -45,6 +45,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools', 'navkit', 'core', 'harness')
 from bfbc2core import fbrb, navdata  # noqa: E402
 from testharness import checks, classify, ingame, levelchecks, levelinfo, runs  # noqa: E402

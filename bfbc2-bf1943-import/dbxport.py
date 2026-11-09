@@ -13,8 +13,8 @@ omission and type BFBC2 has no template for is reported. The result is written w
 """
 import copy
 import glob
-import struct
 import os
+import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +22,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core')
 from bfbc2core import dbx  # noqa: E402
 

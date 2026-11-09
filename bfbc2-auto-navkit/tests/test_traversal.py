@@ -27,9 +27,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit-tools', 'navkit')
 import navkit  # noqa: E402
-from bfbc2core import navdata, navpath, navtune as nt  # noqa: E402
+from bfbc2core import navdata, navpath  # noqa: E402
+from bfbc2core import navtune as nt
 
 
 def main(argv):

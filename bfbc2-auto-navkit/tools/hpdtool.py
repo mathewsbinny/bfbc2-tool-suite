@@ -15,14 +15,15 @@ from the structured model (areas, portals, outlines, cells, neighbour links).
 import os
 import struct
 import sys
-from dataclasses import dataclass, field
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass, field
 from typing import Any, List, Tuple
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools')
 
 MAGIC = b'Kynogon HPD\0'

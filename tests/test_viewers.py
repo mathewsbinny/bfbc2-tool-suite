@@ -18,8 +18,8 @@ RUNS = [
 
 
 def main(argv: list[str]) -> int:
-    import numpy as np
     import matplotlib.image as mpimg
+    import numpy as np
     lv = argv[1] if len(argv) > 1 else 'sp_004_b'
     failed = 0
     with tempfile.TemporaryDirectory() as tmp:

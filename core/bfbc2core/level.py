@@ -35,6 +35,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools', 'navkit')
 
 # entity categories by type (DESIGN.md open question 6)
@@ -159,8 +160,8 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
          geometry: bool = True) -> Level:
     """geometry=False: the level partition's entities, teams and shapes only - no static-group members, collision,
     terrain or water (a second or two; the test harness's reachability and level checks)."""
-    import navkit
     import levelobjects
+    import navkit
     root = navkit.find_opfor(opfor)
     lv = level.replace('\\', '/').split('/')[-1].lower()
     base = os.path.join(root, 'work', 'levels', lv)
@@ -398,6 +399,7 @@ def heightfield_of(root: str, lv: str, log: Callable[[str], Any] = print,
     """The level's terrain height field, unpacking its terrain-00.fbrb into work\\levels\\<lv>\\terrain once.
     name: from terrain_name(); read from the level partition if not given."""
     import subprocess
+
     import navkit
     if name is None:
         part = None

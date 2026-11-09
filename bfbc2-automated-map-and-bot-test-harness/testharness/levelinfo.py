@@ -29,6 +29,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools', 'navkit', 'core')
 
 PLACEHOLDER = 'objects/soldiers/templates/defaultsoldier'     # "FAIL No Template": aims, never fires (MP log, test A')
@@ -262,9 +263,10 @@ def level_xml(root, lv):
 
 def points(root, lv, info, log):
     """Spawns, AI targets and orders from the prepared level (core level.load, geometry off)."""
-    from bfbc2core import level
-    from . import classify
     import ordercheck
+    from bfbc2core import level
+
+    from . import classify
     try:
         lvl = level.load(lv, root, log=log, geometry=False)
     except Exception as ex:

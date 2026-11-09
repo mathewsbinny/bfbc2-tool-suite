@@ -34,6 +34,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit-tools')
 
 TOLERANCES = (0, 1, 2)
@@ -197,8 +198,8 @@ def render(path, cells, edges, portals, only, region, title):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    from matplotlib.collections import LineCollection
     from bfbc2core import navdata
+    from matplotlib.collections import LineCollection
     G = navdata.GRID
     x0, z0, x1, z1 = region
     span = max(x1 - x0, z1 - z0)
@@ -300,7 +301,8 @@ def main(argv):
         print(__doc__)
         return 2
     import navparity
-    from bfbc2core import navdata, level as levelmod
+    from bfbc2core import level as levelmod
+    from bfbc2core import navdata
     lv = pos[0].lower()
     root = navparity.opfor_root(opt('--opfor'))
     cand_path = pos[1] if len(pos) > 1 else os.path.join(root, 'work', 'navkit', 'regress', f'{lv}.hpd')

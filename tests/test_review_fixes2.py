@@ -27,6 +27,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools', 'navkit', 'core')
 
 
@@ -164,8 +165,8 @@ def navkit_restore_deleted(c, work):
 
 def stockmp_case(c, work):
     suite_paths.use('stockmp')
-    import stockmp
     import pipeline
+    import stockmp
     game = os.path.join(work, 'game')
     paths = pipeline.Paths('mp_test', opfor=work, work=os.path.join(work, 'stockmp'), game=game)
     out = os.path.join(paths.root, 'out', 'game')

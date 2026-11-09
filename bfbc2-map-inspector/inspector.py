@@ -17,15 +17,16 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core')
 if __name__ == '__main__':                      # the log and error reports start before the heavy imports,
-    from bfbc2core import errors                 # so a missing library is reported too
+    from bfbc2core import errors  # so a missing library is reported too
     errors.setup('map-inspector', gui='--screenshot' not in sys.argv)
 
 import numpy as np  # noqa: E402
+from bfbc2core import dbx, viewer  # noqa: E402
+from bfbc2core import level as levelmod
 from imgui_bundle import imgui  # noqa: E402
-
-from bfbc2core import dbx, level as levelmod, viewer  # noqa: E402
 
 TERRAIN_ID = 0xFFFFFE
 WATER_ID = 0xFFFF00          # + the index of the triangle's shader in Inspector.water_shaders

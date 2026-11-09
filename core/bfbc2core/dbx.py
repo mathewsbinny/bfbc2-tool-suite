@@ -10,8 +10,8 @@ Elements keep their kind and raw value bytes, so numbers can be read exactly (nu
 """
 import math
 import struct
-from decimal import ROUND_HALF_UP, Decimal
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 from os import PathLike
 from typing import cast
 

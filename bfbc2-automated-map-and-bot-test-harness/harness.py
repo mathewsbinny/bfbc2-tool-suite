@@ -43,6 +43,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools', 'navkit', 'core', 'harness')
 
 from testharness import checks, classify, ingame, levelchecks, runs  # noqa: E402
@@ -80,6 +81,7 @@ def parity_row(root, lv, path, cache):
     """navparity's row for the file: from a saved navparity run that measured this file (and the file is not newer
     than that run), else from the harness cache (by both files' sha1), else measured now (navparity.run_level)."""
     import json
+
     import navparity
     from testharness import levelinfo
     mtime = os.path.getmtime(path)
@@ -111,6 +113,7 @@ def parity_row(root, lv, path, cache):
 
 def parity(root, lv, path, cache):
     import json
+
     import navparity
     import navregress
     row, source = parity_row(root, lv, path, cache)

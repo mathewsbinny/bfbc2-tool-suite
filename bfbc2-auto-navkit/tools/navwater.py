@@ -25,6 +25,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit-tools')
 import navdiff  # noqa: E402
 import navparity  # noqa: E402
@@ -113,7 +114,8 @@ def band_of(d):
 
 
 def level_report(root, lv, candidate, log=print):
-    from bfbc2core import level as levelmod, water as watermod
+    from bfbc2core import level as levelmod
+    from bfbc2core import water as watermod
     ref = navparity.reference_of(root, lv)
     name = None
     for b in ('pkg', 'dist'):

@@ -32,6 +32,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit', 'navkit-tools')
 import navcompare  # noqa: E402
 import navdf  # noqa: E402
@@ -106,9 +107,9 @@ def stale_nodes(root, lv, reference, clip=None):
     and raised terrain (85 nodes; 99.8 % of its nodes are on PC ground) - and a route there is no route on PC, so
     connectivity leaves those nodes out, as it leaves out ground past the terrain (terrain_bounds). Empty without
     0.8 m samples."""
-    import numpy as np
     import hpdtool
     import navsample
+    import numpy as np
     sp = next((p for p in (os.path.join(root, 'work', 'navsample', f'{lv}_navkit.bin'),
                            os.path.join(root, 'work', 'navsample', f'{lv}_full.bin')) if os.path.isfile(p)), None)
     if sp is None:
@@ -140,8 +141,8 @@ def ladder_ground(reference, candidate, reference_cells):
     """Ground reached only through ladder links (navdata: ladder edges, ladder areas): its share of the reference's
     ground, and how many of its cells the reference lacks (kept out of 'extra ground')."""
     suite_paths.use('core')
-    from bfbc2core import navdata
     import numpy as np
+    from bfbc2core import navdata
     cn, rn = navdata.load(candidate), navdata.load(reference)
     if not len(cn.cell_area) or not any(a.ladder for a in cn.areas):
         return {'percent': 0.0, 'extra_cells': 0, 'cells': 0}

@@ -1,13 +1,15 @@
-import sys
 import collections
 import os
+import sys
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools')
 import hpdtool
+
 for path in sys.argv[1:]:
     f = hpdtool.parse(open(path, 'rb').read())
     parent: dict[int, int] = {}

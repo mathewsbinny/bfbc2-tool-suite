@@ -62,6 +62,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit', 'navkit-tools')
 import hkpack  # noqa: E402
 import navsample  # noqa: E402
@@ -1385,6 +1386,7 @@ def build_level(root, lv, out=None, log=print, samples_dir=None):
 def check_level(root, lv, path, log=print):
     """hpdcheck, byte-exact roundtrip / meshtrip, and ordercheck (self-check without DICE data) of a build."""
     import subprocess
+
     import navkit
     pr = navkit.Project(root)
     s = navkit.ensure_settings(pr, lv)

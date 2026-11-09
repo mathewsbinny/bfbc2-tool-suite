@@ -18,9 +18,10 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit', 'core')
-from bfbc2core import water  # noqa: E402
 import navkit  # noqa: E402
+from bfbc2core import water  # noqa: E402
 
 TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 NO_WATER = {'sp_006', 'sp_009'}

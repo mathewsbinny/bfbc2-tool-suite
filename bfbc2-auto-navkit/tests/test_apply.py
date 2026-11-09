@@ -23,10 +23,12 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit-tools', 'navkit')
-import navkit  # noqa: E402
 import hpdtool  # noqa: E402
-from bfbc2core import navdata, navpath, navtune as nt  # noqa: E402
+import navkit  # noqa: E402
+from bfbc2core import navdata, navpath  # noqa: E402
+from bfbc2core import navtune as nt
 
 
 def cells_in(nav, region, inset=0.0):
@@ -47,9 +49,9 @@ def walkable_box(root, lv, nav, g, main_nodes, half=5.0):
     """A box on the edge of the main network (some walkable ground in it already) with the most sampled surfaces
     that are not walkable ground in the build (ground blocked by objects, steep spots): forcing it walkable must
     add ground."""
+    import navedits
     import navregress
     import navsample
-    import navedits
     samples = navregress.inputs(root, lv)[0]
     s, _ = navsample.load(samples)
     sx, sz, sy = navedits.surface_positions(s)

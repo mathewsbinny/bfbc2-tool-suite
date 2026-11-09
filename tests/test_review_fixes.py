@@ -22,6 +22,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools', 'navkit', 'core')
 
 
@@ -39,8 +40,8 @@ class Stop(Exception):
 
 
 def navkit_apply(c, work):
-    import navkit
     import navbuild
+    import navkit
     from bfbc2core import navtune
     seen = {}
 
@@ -95,8 +96,8 @@ def navkit_apply(c, work):
 
 def stockmp_install(c, work):
     suite_paths.use('stockmp')
-    import stockmp
     import pipeline
+    import stockmp
     game = os.path.join(work, 'game')
     paths = pipeline.Paths('mp_test', opfor=work, work=os.path.join(work, 'stockmp'), game=game)
     out = os.path.join(paths.root, 'out', 'game', 'Levels')

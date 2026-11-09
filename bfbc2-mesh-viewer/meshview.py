@@ -33,11 +33,12 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'shader-tools', 'console-convert')
-from bfbc2core import dbx, fbrb  # noqa: E402
 import mesh as meshdata  # noqa: E402
 import shaderdb  # noqa: E402
 import texture  # noqa: E402
+from bfbc2core import dbx, fbrb  # noqa: E402
 
 SIZE = dict(meshdata.SIZE)
 COLOUR = re.compile(r'(?i)_(d|dm|cm|c|col|color|colour|diff|diffuse|alb)$')

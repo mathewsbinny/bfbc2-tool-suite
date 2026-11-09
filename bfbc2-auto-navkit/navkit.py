@@ -59,6 +59,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit-tools')
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
@@ -741,9 +742,9 @@ def apply(pr: Project, lv: str, navtune_path: str | None = None, out: str | None
 def _apply(pr: Project, lv: str, navtune_path: str | None, out: str | None, log: Log,
            target: dict[str, str | None] | None = None, cfg: 'navbuild.BuildSettings | None' = None) -> str:
     target = target if target is not None else {}
-    from bfbc2core import navtune
-    import navbuild
     import hpdtool
+    import navbuild
+    from bfbc2core import navtune
     navtune_path = navtune_path or navtune.default_path(pr.root, lv)
     if not os.path.isfile(navtune_path):
         raise NavKitError(f'{lv}: no side file {navtune_path} (make edits in the Navigation Studio first)')
@@ -838,6 +839,7 @@ def main(argv: list[str]) -> int:
     cfg: 'navbuild.BuildSettings | None' = None
     if '--no-detail' in args:              # build / apply / all: no D lines or F cells (the output before 2026-10-26)
         import dataclasses
+
         import navbuild
         cfg = dataclasses.replace(navbuild.DEFAULTS, detail_features=False)
     args = [a for a in args if a not in ('--yes', '--install', '--no-detail')]

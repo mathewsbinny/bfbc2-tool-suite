@@ -35,10 +35,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit-tools')
+import hpdcheck  # noqa: E402
 import navbuild  # noqa: E402
 import navparity  # noqa: E402
-import hpdcheck  # noqa: E402
 
 HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near', 'edges_same',
           'connectivity', 'ai_coverage', 'ai_pairwise',

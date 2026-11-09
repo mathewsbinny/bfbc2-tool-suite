@@ -34,6 +34,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('bf1943-import', 'model-tools', 'mesh-viewer', 'anim-tools', 'console-convert', 'core')
 import mesh  # noqa: E402
 import meshset  # noqa: E402

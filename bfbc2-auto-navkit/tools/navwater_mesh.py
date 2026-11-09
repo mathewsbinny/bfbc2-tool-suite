@@ -54,6 +54,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'navkit-tools')
 
 FORMAT, VERSION = 'opfor-watermesh', 1
@@ -857,9 +858,10 @@ def sha1(path):
 
 def level_run(root, lv, profile, pitch=2.0, box=None, infantry=None, out_dir=None, use_objects=True,
               use_samples=True, log=print):
-    from bfbc2core import level as levelmod, navdata
     import navparity
     import navsample
+    from bfbc2core import level as levelmod
+    from bfbc2core import navdata
     t0 = time.time()
     out_dir = out_dir or os.path.join(root, 'work', 'navwater', lv)
     os.makedirs(out_dir, exist_ok=True)

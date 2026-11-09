@@ -19,6 +19,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('console-convert', 'core', 'mesh-viewer', 'shader-tools', 'bf1943-import', 'anim-tools')
 import mesh  # noqa: E402
 import meshset  # noqa: E402
@@ -43,8 +44,8 @@ def quick():
 
 
 def game():
-    import numpy as np
     import meshview
+    import numpy as np
     import shaderdb
     from bfbc2core import fbrb
     opfor = shaderdb.find_opfor(None)

@@ -43,10 +43,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('shader-tools', 'mesh-viewer', 'console-convert', 'anim-tools', 'core')
-from bfbc2core import errors  # noqa: E402
 import aimanim  # noqa: E402
 import granny  # noqa: E402
+from bfbc2core import errors  # noqa: E402
 
 SOLDIER = 'characters/skeletons/ske01.res'
 ANIMATIONS = ('GrannyAnimation', 'DeltaAnimation')

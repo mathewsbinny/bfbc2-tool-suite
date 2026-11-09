@@ -18,10 +18,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'bf1943-import', 'console-convert')
-from bfbc2core import dbx  # noqa: E402
 import dbxport  # noqa: E402
 import texture  # noqa: E402
+from bfbc2core import dbx  # noqa: E402
 
 
 def main(argv: list[str]) -> int:

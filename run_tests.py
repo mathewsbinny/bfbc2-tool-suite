@@ -27,6 +27,7 @@ SUITE = os.path.dirname(os.path.abspath(__file__))
 if SUITE not in sys.path:
     sys.path.insert(0, SUITE)
 import suite_paths  # noqa: E402
+
 PY = sys.executable
 TIERS = ['quick', 'game', 'full']
 

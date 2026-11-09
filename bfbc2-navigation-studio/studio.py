@@ -26,15 +26,16 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core')
 if __name__ == '__main__':                      # the log and error reports start before the heavy imports,
-    from bfbc2core import errors                 # so a missing library is reported too
+    from bfbc2core import errors  # so a missing library is reported too
     errors.setup('navigation-studio', gui='--screenshot' not in sys.argv)
 
 import numpy as np  # noqa: E402
+from bfbc2core import level as levelmod  # noqa: E402
+from bfbc2core import navdata, navpath, viewer
 from imgui_bundle import imgui  # noqa: E402
-
-from bfbc2core import level as levelmod, navdata, navpath, viewer  # noqa: E402
 
 FILES = ('NavKit', 'DICE')
 ID_BASE = {'NavKit': 0x200000, 'DICE': 0x400000}          # + area index

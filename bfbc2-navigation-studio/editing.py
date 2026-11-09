@@ -18,6 +18,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core')
 from bfbc2core import navtune as nt  # noqa: E402
 
@@ -143,6 +144,7 @@ class Editor:
         """A new studio window on the built file (the scene is uploaded once, so the window is replaced)."""
         import subprocess
         import sys
+
         from imgui_bundle import hello_imgui
         studio_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studio.py')
         subprocess.Popen([sys.executable, studio_py, self.lv, '--candidate', self.job_out, '--navtune', self.path, '--edit'])

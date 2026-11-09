@@ -22,9 +22,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('core', 'map-inspector')
 import inspector  # noqa: E402
-from bfbc2core import dbx, level as levelmod, viewer  # noqa: E402
+from bfbc2core import dbx, viewer  # noqa: E402
+from bfbc2core import level as levelmod
 from imgui_bundle import imgui  # noqa: E402
 
 G = lambda n: f'00000000-0000-4000-8000-{n:012d}'

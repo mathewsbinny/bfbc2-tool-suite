@@ -23,6 +23,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('bf1943-import', 'core')
 import bf1943import as bi  # noqa: E402
 import dbxport  # noqa: E402

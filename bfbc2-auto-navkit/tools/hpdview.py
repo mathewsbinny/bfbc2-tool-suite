@@ -16,13 +16,14 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
+
 suite_paths.use('navkit-tools')
 
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
+matplotlib.use('Agg')
 import hpdtool
+import matplotlib.pyplot as plt
 
 u32 = lambda m, o: struct.unpack_from('<I', m, o)[0]
 f32 = lambda m, o: struct.unpack_from('<f', m, o)[0]
