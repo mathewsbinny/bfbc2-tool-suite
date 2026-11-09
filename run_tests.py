@@ -29,7 +29,8 @@ TIERS = ['quick', 'game', 'full']
 
 
 def opfor():
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+    if os.path.join(SUITE, 'bfbc2-auto-navkit') not in sys.path:
+        sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
     import navkit
     return navkit.find_opfor(None)
 

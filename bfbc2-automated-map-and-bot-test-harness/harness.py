@@ -31,7 +31,6 @@ Saved as <OPFOR>\work\harness\runs\<name>.json (default name "last"); with --ref
 Exit code: 0 nothing failed (and no regression), 1 a test failed, something got worse, or a run was not
 found (run --reference with an unknown run: 2).
 """
-import functools
 import os
 import sys
 import time
@@ -45,7 +44,6 @@ for _p in (HERE, os.path.join(SUITE, 'core'), NAVKIT, os.path.join(NAVKIT, 'tool
 
 from testharness import checks, classify, ingame, levelchecks, runs  # noqa: E402
 
-print = functools.partial(print, flush=True)      # progress shows at once when the output goes to a file
 TESTS = ['structure', 'reachability', 'battery', 'orders', 'offsets', 'parity', 'level']
 
 
@@ -405,6 +403,10 @@ def main(argv):
 
 
 if __name__ == '__main__':
+    try:
+        sys.stdout.reconfigure(line_buffering=True)   # progress shows at once when the output goes to a file
+    except AttributeError:                            # stdout replaced by something without it
+        pass
     from bfbc2core import errors
     errors.setup('harness', gui=False)        # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():
