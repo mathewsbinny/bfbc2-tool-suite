@@ -22,7 +22,10 @@ What is converted (PLAN):
   per-bone table is renumbered from BF1943's soldier skeleton (ske01) to BFBC2's (same 147 bones and parents,
   another order); otherwise (vehicles, props) the indices are kept and the record says so.
 - GrannyModel (skeletons): to little-endian.
-- XenonTexture: to the PC's ITexture (bfbc2-console-convert texture.convert; DXT1/3/5, BC5; 8-bit formats not yet).
+- XenonTexture: to the PC's ITexture (bfbc2-console-convert texture.convert; DXT1/3/5, BC5, DXT5A, RGB565, L8).
+  A third-person undeploy (3p/StandUnDeploy, 3p/CrouchUnDeploy) gets the tracks DICE adds to every one it ships:
+  the same weapon's same-stance deploy animates 25 more bones than the undeploy (19 weapon parts, 6 thumbs) - on
+  all 22 BF1943 undeploys BFBC2 has, exactly the 25 DICE added (undeploy_tracks).
 - AimAnimation (third-person aim poses): to little-endian with the bone table renumbered onto BFBC2's soldier
   (bfbc2-anim-tools aimanim.to_pc).
 Everything else is listed with the reason it is not converted yet: MeshData and mesh sets (need PC vertex layouts
@@ -35,6 +38,7 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 import sys
 from typing import Any
 
@@ -51,6 +55,9 @@ import granny  # noqa: E402
 from bfbc2core import errors, paths  # noqa: E402
 
 SOLDIER = 'characters/skeletons/ske01.res'
+UNDEPLOY = re.compile(r'/3p/(stand|crouch)undeploy\.res$')
+PARKED = 0.5                        # m: a deploy's weapon part this far from the HandsIkPose is parked (undeploy_tracks)
+TRACK_FORMATS = 'animations/weapons/handheld/m1garand/3p/standundeploy.res'  # DICE's: the curve formats added
 ANIMATIONS = ('GrannyAnimation', 'DeltaAnimation')
 NOT_YET = {
     'MeshData': 'mesh data: needs PC vertex layouts from a shader database',
@@ -158,8 +165,61 @@ class Importer:
             self._bones = (granny.bone_map(self.src_soldier, pc), names)
         return self._bones
 
-    def convert(self, key):
-        """(output bytes or None, record) for one resource."""
+    def index(self):
+        """The game copy's stock bundles (meshview.Index), opened once."""
+        if getattr(self, '_ix', None) is None:
+            import meshview
+            import shaderdb
+            self._ix = meshview.Index(shaderdb.find_opfor(self._opfor))
+        return self._ix
+
+    def undeploy_tracks(self, key, out):
+        """(PC bytes, note) of a converted third-person undeploy with the tracks DICE adds: the bones its weapon's
+        same-stance deploy animates and it does not (BF1943's 3p undeploys: 63 tracks, the deploys 88 - 19 weapon
+        parts and 6 thumbs, the 25 DICE added to all 22 it shipped). Each holds the deploy's last frame (DICE's rule
+        for the weapon parts; DICE's thumbs are animated, which no BF1943 file has - the deploy's last frame is 13 deg
+        from them on average, the bind pose 20), but a weapon part the deploy has parked 0.5 m or more from the
+        weapon's HandsIkPose takes that pose (the crouching Garand's clip parts). Curve formats from DICE's own
+        Garand undeploy (DaIdentity, D3 / D4Constant32f). Measured on the 22: tests\\test_bf1943import.py."""
+        m = UNDEPLOY.search(key)
+        if not m:
+            return out, None
+        dep = key[:m.start()] + f'/3p/{m.group(1)}deploy.res'
+        if dep not in self.src.entries:
+            return out, None
+        have = {t['Name'] for t in granny.animations(granny.Granny(out, key))[0]['TrackGroups'][0]['TransformTracks']}
+
+        def tracks(k):
+            g = granny.Granny(self.convert(k, extra_tracks=False)[0], k)
+            return {t['Name']: t for t in granny.animations(g)[0]['TrackGroups'][0]['TransformTracks']}
+        dtr = tracks(dep)
+        ik_key = key[:m.start()] + '/3p/handsikpose.res'
+        ik = tracks(ik_key) if ik_key in self.src.entries else {}
+
+        def last(t, curve):
+            k = granny.curve_keys(t[curve]['CurveData'])
+            return k[-1][1] if k else None
+        add = []
+        for name in sorted(set(dtr) - have):
+            pos, ori = last(dtr[name], 'PositionCurve'), last(dtr[name], 'OrientationCurve')
+            if name in ik and name.startswith('jntWpn'):
+                ip, io = last(ik[name], 'PositionCurve'), last(ik[name], 'OrientationCurve')
+                d = sum((a - b) ** 2 for a, b in zip(pos or (0, 0, 0), ip or (0, 0, 0))) ** 0.5
+                if d >= PARKED:
+                    pos, ori = ip, io
+            add.append({'name': name, 'position': ('constant', pos) if pos else None,
+                        'orientation': ('constant', ori) if ori else None})
+        if not add:
+            return out, None
+        donor = self.index().read(TRACK_FORMATS)
+        if donor is None:
+            raise Bf1943ImportError(f'the game copy has no {TRACK_FORMATS} (the curve formats for the added tracks)')
+        return granny.add_tracks(out, add, donor, key), f'{len(add)} tracks added from {dep.rsplit("/", 1)[-1]} ' \
+            f'(the bones its deploy animates, held at its last frame)'
+
+    def convert(self, key, extra_tracks=True):
+        """(output bytes or None, record) for one resource; extra_tracks: a 3p undeploy gets DICE's added tracks
+        (undeploy_tracks)."""
         rel, e = self.src.entries[key]
         b = self.src.data(key)
         rec = {'name': e['name'], 'type': e['type'], 'bundle': rel, 'sha256': hashlib.sha256(b).hexdigest()}
@@ -174,6 +234,10 @@ class Importer:
             if tracks and tracks <= names:
                 out = granny.to_pc(b, bones, e['name'])
                 rec['done'] = f'animation to PC; {table} table of {len(at)} bone(s) renumbered onto BFBC2\'s soldier'
+                if extra_tracks and kind == 'GrannyAnimation':
+                    out, note = self.undeploy_tracks(key, out)
+                    if note:
+                        rec['done'] += '; ' + note
             else:
                 out = granny.to_pc(b, None, e['name'])
                 rec['done'] = 'animation to PC; bone indices kept (not a soldier animation)'
@@ -275,6 +339,13 @@ def check(source, opfor=None, log=print):
             continue
         try:
             out, rec = imp.convert(k)
+            full = out
+            if 'tracks added' in rec['done']:                   # a 3p undeploy: the tree is checked without them
+                out = imp.convert(k, extra_tracks=False)[0]
+                old = {t['Name']: clean(t) for t in granny.animations(granny.Granny(out))[0]['TrackGroups'][0]['TransformTracks']}
+                new = {t['Name']: clean(t) for t in granny.animations(granny.Granny(full))[0]['TrackGroups'][0]['TransformTracks']}
+                if any(new.get(n) != t for n, t in old.items()):
+                    raise granny.GrannyError('adding tracks changed a track it had')
             src, cv = granny.Granny(source.data(k), e['name']), granny.Granny(out, e['name'])
             if cv.e != '<':
                 raise granny.GrannyError('output is not little-endian')
