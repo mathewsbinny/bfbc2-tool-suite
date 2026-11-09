@@ -296,12 +296,13 @@ def verify(orig_members, new_members, rep, named=None, label='movie'):
 # ------------------------------------------------------------------------------------------------ commands
 
 def cmd_verify(args, opfor):
+    patch = take(args, '--patch')
+    brief = take_flag(args, '--brief')     # taken out first: before the movies it was read as the original's name
     if len(args) < 2:
         raise mc.MenuToolError('verify needs <original> <patched>')
-    patch = take(args, '--patch')
     ol, om = mc.resolve(args[0], opfor)
     nl, nm = mc.resolve(args[1], opfor)
-    rep = Report(f'verify {ol}\n    -> {nl}')
+    rep = Report(f'verify {ol}\n    -> {nl}', brief)
     named = None
     if patch:
         lines, problems = mc.parse_patch(patch)

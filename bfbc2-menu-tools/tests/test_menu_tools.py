@@ -286,6 +286,9 @@ def quick(c, work):
     open(newres, 'wb').write(bigf(patched(members, {((marks['push2'] + 4) & ~3) + 4: struct.pack('<I', marks['list1'])})))
     code_, out = run('aptcheck.py', 'verify', res, newres)
     c.check(code_ == 1 and 'shared-list' in out, 'verify command: a shared PushData list fails (exit 1)', out[-400:])
+    code_, out = run('aptcheck.py', 'verify', '--brief', res, newres)
+    c.check(code_ == 1 and 'shared-list' in out, 'verify command: --brief before the movies is an option, not a movie',
+            out[-400:])
     code_, out = run('aptcheck.py', 'check', res)
     c.check(code_ == 0 and '2 functions' in out, 'check command on a .res', out[-300:])
 
