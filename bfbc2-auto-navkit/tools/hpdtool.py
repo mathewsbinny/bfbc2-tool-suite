@@ -297,7 +297,7 @@ def main(argv):
             data = open(p, 'rb').read()
             try:
                 same = write(parse(data)) == data
-            except ValueError as ex:
+            except (ValueError, struct.error) as ex:      # a truncated file: one failure, not the end of the batch
                 same = False
                 print(f'ERROR {p}: {ex}')
             ok += same
