@@ -3,8 +3,9 @@ fix of the round-3 audit (QUALITY_AUDIT.md):
 
 - core dbx: a number field of an unusual size (not 2, 4 or 8 bytes) prints its first two bytes as an unsigned 16-bit
   number, as to_xml and DbxEdit do (it printed the whole value as one integer);
-- dbxport: a field taking the template's value (BF1943's reference would not resolve) loses the template's own
-  instance references (a local guid would dangle in the ported partition);
+- dbxport: a reference that will not resolve is null (the template's value is never substituted for it: the Stage 1
+  rewrite); taken from the template through a stand-in (STAND_INS: TEMPLATE), the template's own instance references
+  are left out (a local guid would dangle in the ported partition) and its references into other partitions kept;
 - console texture check: a format without a block decoder (RGBA16F) is not measured (it raised IndexError).
 
   python tests\test_converter_edges.py
@@ -39,15 +40,31 @@ def main(argv: list[str]) -> int:
     check(dbx._number_text(bytes([0x12, 0x34]), 2, '') == '4660', 'dbx: a 2-byte number unchanged')
 
     # BF1943's field refers to an instance that will not resolve; the template's value names its own instance
-    e = dbx.Element('field', dbx.TEXT, [('name', 'HudData'), ('ref', 'bf1943-guid-0001')])
-    t = dbx.Element('field', dbx.TEXT, [('name', 'HudData'), ('ref', 'template-local-guid')])
-    report: list[str] = []
-    out = dbxport._align(e, t, 'Seat.HudData', report, resolve=lambda target: False)
-    check(out.attr('ref') == 'null' and any(r.startswith('nulled') for r in report),
-          'dbxport: a substituted template value does not keep the template\'s own instance', f'{out.attr("ref")} {report}')
-    t2 = dbx.Element('field', dbx.TEXT, [('name', 'Effect'), ('ref', 'effects/x/y/0000-guid')])
-    out2 = dbxport._align(e, t2, 'Weapon.Effect', [], resolve=lambda target: False)
-    check(out2.attr('ref') == 'effects/x/y/0000-guid', 'dbxport: a substituted reference into another partition is kept')
+    def one(fields: list[dbx.Element], guid: str) -> bytes:
+        inst = dbx.Element('instance', dbx.CONTAINER, [('guid', guid), ('type', 'X.Seat')], '', b'', fields)
+        part = dbx.Element('partition', dbx.CONTAINER, [('guid', guid), ('primaryInstance', guid)], '', b'', [inst])
+        return dbx.write(dbx.DbxFile([], [part]))
+    g, tg = '00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000b'
+    other = '00000000-0000-0000-0000-00000000000c'
+    bf = one([dbx.Element('field', dbx.TEXT, [('ref', other), ('name', 'HudData')]),
+              dbx.Element('field', dbx.TEXT, [('ref', f'effects/bf/{other}'), ('name', 'Effect')])], g)
+    T = dbxport.Templates([('tpl', one([dbx.Element('field', dbx.TEXT, [('ref', tg), ('name', 'HudData')]),
+                                        dbx.Element('field', dbx.TEXT, [('ref', f'effects/x/{tg}'), ('name', 'Effect')])],
+                                       tg))])
+    out, report = dbxport.port(bf, T, lambda p: p == 'effects/x')
+    inst = dbx.parse(out).instances[0]
+    hud, fx = inst.child('HudData'), inst.child('Effect')
+    check(hud is not None and fx is not None and hud.attr('ref') == 'null' and fx.attr('ref') == 'null' and
+          not report.of('substituted'), 'dbxport: an unresolved reference is null, no template value substituted',
+          str(report))
+    out, report = dbxport.port(bf, T, lambda p: p == 'effects/x',
+                               stand_ins={('HudData', '*'): dbxport.TEMPLATE, ('Effect', '*'): dbxport.TEMPLATE})
+    inst = dbx.parse(out).instances[0]
+    hud, fx = inst.child('HudData'), inst.child('Effect')
+    check(hud is not None and hud.attr('ref') == 'null' and report.of('nulled'),
+          'dbxport: a stand-in template value does not keep the template\'s own instance', str(report))
+    check(fx is not None and fx.attr('ref') == f'effects/x/{tg}',
+          'dbxport: a stand-in template reference into another partition is kept')
 
     sizes = [16 * 16 * 8, 8 * 8 * 8]                                    # two levels: the mip chain is compared
     hdr = struct.pack('<8I', 0, 0, 13, 0, 16, 16, 1, 2) + struct.pack('<15I', *sizes, *([0] * 13))

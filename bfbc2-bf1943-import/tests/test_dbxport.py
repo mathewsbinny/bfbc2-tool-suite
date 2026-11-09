@@ -86,14 +86,18 @@ def main():
     added = {r.split('.')[-1].split(' ')[0] for r in report if r.startswith('added')}
     check(ok and kept and {'MemoryReportGroup', 'HighPriorityOccluderMesh', 'RadiosityMesh'} <= added,
           f'port: Springfield mesh in BFBC2\'s schema ({len(report)} changes), BF1943\'s values kept')
-    # the weapon: BF1943's single mesh fields become BFBC2's arrays, its embedded PersistentWeapon is left out and the
-    # reference to it takes the donor's, references to partitions neither game will have take the donor's values
+    # the weapon: BF1943's single mesh fields become BFBC2's arrays, its embedded PersistentWeapon is left out (DICE's
+    # convention) and the reference to it takes the donor's (a stand-in), the anim trees (partitions neither game will
+    # have) the donor's through the caller's stand-ins - null without them
+    import dbxcatalogue
+    cat = dbxcatalogue.load(ix)
     WPN, DONOR = 'objects/weapons/handheld/beach/us_springfield1903/springfield1903.dbx', \
         'objects/weapons/handheld/us_sni_m24/us_sni_m24.dbx'
     T = dbxport.Templates([('m24', ix.read(DONOR))])
     folder = 'objects/weapons/handheld/beach/us_springfield1903/'
+    stand_ins = {(f, '*'): dbxport.TEMPLATE for f in ('AnimTree1p', 'AnimTree3p', 'Persistence')}
     wout, wrep = dbxport.port(src.data(WPN), T, lambda p: p.startswith(folder) and 'animtree' not in p or
-                              f'{p}.dbx' in ix.where, drop_untemplated=True)
+                              f'{p}.dbx' in ix.where, drop_untemplated=True, catalogue=cat, stand_ins=stand_ins)
     w: Any = dbx.parse(wout)
     state = next(i for i in w.instances if i.attr('type') == 'GameSharedResources.SoldierWeaponData') \
         .child('WeaponStates').children[0]
@@ -105,8 +109,13 @@ def main():
           state.child('AnimTree1p').attr('ref') == d_state.child('AnimTree1p').attr('ref') and
           not any(i.attr('type') == 'GameSharedResources.PersistentWeapon' for i in w.instances) and
           any(r.startswith('converted') for r in wrep),
-          'port: the Springfield weapon - its own mesh (Mesh1p -> Meshes1p), the donor\'s anim tree for BF1943\'s, '
-          'BF1943\'s PersistentWeapon left out')
+          'port: the Springfield weapon - its own mesh (Mesh1p -> Meshes1p), the donor\'s anim tree for BF1943\'s '
+          '(a stand-in), BF1943\'s PersistentWeapon left out')
+    nout, _ = dbxport.port(src.data(WPN), T, lambda p: p.startswith(folder) and 'animtree' not in p or
+                           f'{p}.dbx' in ix.where, drop_untemplated=True, catalogue=cat)
+    nf: Any = dbx.parse(nout)
+    n_state = next(i for i in nf.instances if i.attr('type') == 'GameSharedResources.SoldierWeaponData')         .child('WeaponStates').children[0]
+    check(n_state.child('AnimTree1p').attr('ref') == 'null', 'port: without a stand-in the tree BF1943 names is null')
     # a building: its physics part table is BF1943's own (PartMaterialDatas -> PartInfoDatas, 37 parts, not the
     # template's), its part links named from their indices (the template's names replaced)
     H = 'objects/architecture/beach/beachhouse_t01/beachhouse_t01'
