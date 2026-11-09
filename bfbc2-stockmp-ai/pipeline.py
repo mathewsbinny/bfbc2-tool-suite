@@ -145,10 +145,15 @@ def donor(paths):
 
 
 def common(paths, name):
+    """A common bundle (mp_common, sp_common) unpacked: NavKit's shared unpack (work\\navkit\\common\\<name>) while it
+    is at least as new as the game's bundle, else this tool's own cached unpack (stamped with the bundle's hash) - a
+    game bundle changed since NavKit unpacked it (a patch, a mod installed) is not read from the stale copy."""
+    bundle = os.path.join(paths.game, 'Dist', 'win32', 'levels', name, 'level-00.fbrb')
     d = os.path.join(paths.common, name)
-    if os.path.isfile(os.path.join(d, 'fbrb.manifest')):
+    manifest = os.path.join(d, 'fbrb.manifest')
+    if os.path.isfile(manifest) and (not os.path.isfile(bundle) or os.path.getmtime(manifest) >= os.path.getmtime(bundle)):
         return d
-    return unpacked(os.path.join(paths.game, 'Dist', 'win32', 'levels', name, 'level-00.fbrb'), os.path.join(paths.cache, name))
+    return unpacked(bundle, os.path.join(paths.cache, name))
 
 
 def kit_refs(paths):
