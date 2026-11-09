@@ -98,32 +98,76 @@ def main(argv):
         check(size is not None and 400 <= size[0] <= 1200 and 400 <= size[1] <= 1200,
               'navdiff: one PNG per sector, of a plausible size (8 x 8 inches at 110 dpi, trimmed)', str(size))
 
-        # navbuild's grid settings: a detailed pass that fails leaves the normal pitch behind, not 0.2
+        # navbuild's settings: a value passed through the build (no module settings rewritten)
+        import dataclasses
         import navbuild
-        navbuild.set_pitch(0.8)
-        before = {n: getattr(navbuild, n) for n in ('PITCH', 'SECTOR_SAMPLES', 'TILE', 'TILES', 'RESOLUTION', 'LINK_STEP')}
+        d = navbuild.DEFAULTS
+        check((d.pitch, d.sector_samples, d.window, d.tile, d.tiles, d.resolution, d.link_step, d.kind) ==
+              (0.8, 125, range(-1, 127), 50, 3, 0.025, 0.6, 'normal'),
+              'navbuild: the default settings are the normal pitch-0.8 grid', str(d))
+        dd = d.detailed()
+        check((dd.pitch, dd.sector_samples, dd.window, dd.tile, dd.tiles, dd.resolution, dd.link_step, dd.kind) ==
+              (0.2, 500, range(-1, 502), 100, 6, 0.05, navbuild.DETAILED_LINK_STEP, 'detailed') and
+              dataclasses.replace(dd, **navbuild.grid_settings(0.8)) == d,
+              'navbuild: the detailed variant is the pitch-0.2 grid (the old set_pitch(0.2)), the rest unchanged', str(dd))
+        nd = dataclasses.replace(d, detail_features=False)
+        check(not nd.detail_features and d.detail_features and navbuild.DEFAULTS == navbuild.BuildSettings(),
+              'navbuild: replace gives a changed copy, the defaults stay')
+        try:
+            d.__setattr__('pitch', 0.2)
+            frozen = False
+        except dataclasses.FrozenInstanceError:
+            frozen = True
+        check(frozen and not hasattr(navbuild, 'set_pitch') and not hasattr(navbuild, 'saved_settings'),
+              'navbuild: the settings are frozen; set_pitch / saved_settings are gone')
+        # the detailed pass gets the detailed settings; a stage that fails leaves nothing behind
         a = {'sectors': {(0, 0)}, 'border_nodes': {}, 'next_id': 0,
              'level': SimpleNamespace(s=SimpleNamespace(min_x=0.0, min_z=0.0, nx=1, pitch=0.8), keep=np.zeros(0, bool),
                                       col_of=np.zeros(0, int), y=np.zeros(0))}
         real_stage = navbuild.stage
+        got = {}
 
         def failing_stage(*a_, **k_):
+            got.update(k_)
             raise RuntimeError('the detailed stage failed')
         navbuild.stage = failing_stage
         try:
-            navbuild.merge_detailed(a, {'sectors': {(0, 0)}, 'samples': 'none'}, 0, 0, [], {}, lambda *m: None)
+            navbuild.merge_detailed(a, {'sectors': {(0, 0)}, 'samples': 'none'}, 0, 0, [], {}, lambda *m: None, nd)
         except RuntimeError:
             pass
         finally:
             navbuild.stage = real_stage
-        after = {n: getattr(navbuild, n) for n in before}
-        check(after == before, 'navbuild: a failed detailed pass puts the grid settings back (pitch 0.8)', f'{before} -> {after}')
+        check(got.get('cfg') == nd.detailed() and not got['cfg'].detail_features and navbuild.DEFAULTS.pitch == 0.8,
+              'navbuild: merge_detailed runs stage b with cfg.detailed() (the other settings kept)',
+              str(got.get('cfg')))
         navbuild.ORDER_STATS['added'] = 3
         navbuild.navwalk.STEEP_STATS['lips'] = 2
         navbuild.reset_stats()
         check(not navbuild.ORDER_STATS and not navbuild.navwalk.STEEP_STATS and not hasattr(navbuild, 'REPAIR_STATS'),
               'navbuild: reset_stats clears every per-build counter (REPAIR_STATS, never read, is gone)')
-        navbuild.set_pitch(0.8)
+        # navkit.py --no-detail: build / apply get settings with detail features off; navbuild's defaults untouched
+        seen = []
+        real_project, real_build, real_apply = navkit.Project, navkit.build, navkit.apply
+
+        class FakeProject:
+            def __init__(self, root=None):
+                pass
+
+            def level(self, name):
+                return name
+        navkit.Project = FakeProject
+        navkit.build = lambda pr, lv, log=print, cfg=None: seen.append(('build', cfg))
+        navkit.apply = lambda pr, lv, *a_, cfg=None, **k_: seen.append(('apply', cfg))
+        try:
+            navkit.main(['navkit.py', 'build', 'lv', '--no-detail'])
+            navkit.main(['navkit.py', 'apply', 'lv', '--no-detail'])
+            navkit.main(['navkit.py', 'build', 'lv'])
+        finally:
+            navkit.Project, navkit.build, navkit.apply = real_project, real_build, real_apply
+        check([(w, c is not None and not c.detail_features) for w, c in seen[:2]] == [('build', True), ('apply', True)]
+              and seen[2] == ('build', None) and navbuild.DEFAULTS.detail_features,
+              'navkit --no-detail: build / apply get BuildSettings with detail features off, the defaults stay on',
+              str(seen))
 
         # the GUI's reader thread hands everything over through the queue; Cancel ends the step and its children
         from importlib.machinery import SourceFileLoader

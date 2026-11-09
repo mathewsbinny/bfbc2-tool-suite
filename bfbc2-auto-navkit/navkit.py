@@ -26,7 +26,7 @@ Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: overrid
          --pitch 0.8 / 0.2 (sample: that pass only; 0.2 = a detailed-zone run over the level's detailed sectors;
          writes <level>_navkit_p02.bin / _hi_p02.bin, the level's settings and its 0.8 m samples untouched),
          --opfor <Project OPFOR BFBC2 folder> (default: OPFOR_ROOT, else "project-opfor-bfbc2" next to the suite),
-         --no-detail (build / apply / all: no D lines or F cells - navbuild.DETAIL_FEATURES off).
+         --no-detail (build / apply / all: no D lines or F cells - navbuild.BuildSettings detail_features off).
 
 NavKit works on Project OPFOR BFBC2's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
 toolkit (..\\bfbc2-fbrb-tool, ..\\bfbc2-dbx-tools, built with their build.bat) or from OPFOR's tools\\ folder.
@@ -575,7 +575,8 @@ def build_inputs(pr, lv, log=print):
     return s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], kw
 
 
-def build(pr, lv, log=print):
+def build(pr, lv, log=print, cfg=None):
+    """cfg: navbuild.BuildSettings for the build (None: navbuild's defaults)."""
     import navbuild
     out = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
@@ -584,7 +585,7 @@ def build(pr, lv, log=print):
     trav = traversal_path(os.path.dirname(out), lv)
     if os.path.isfile(trav):
         os.remove(trav)                          # annotations of the previous file: its node ids no longer hold
-    navbuild.build(samples, forbid, xoff, zoff, out, **kw)
+    navbuild.build(samples, forbid, xoff, zoff, out, **kw, cfg=cfg or navbuild.DEFAULTS)
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
 
 
@@ -687,12 +688,13 @@ def restore(pr, lv, log=print):
         os.remove(trav)
 
 
-def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
+def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False, cfg=None):
     """Builds the level with the edits of its navigation side file (DESIGN.md sections 5.1-5.2): walkability
     edits (regions, seeds, unseeds) go into the build, then links and route edges into its route graph
     (navlinks.py); on a DICE base only the graph edits, on a copy of DICE's file. Traversal annotations go to
     <level>.traversal.json next to it (navtraversal.py). The result is read back to check it, the whole log is
-    kept as <output>.report.txt, and with install_after the result is installed. Returns the output path."""
+    kept as <output>.report.txt, and with install_after the result is installed. cfg: navbuild.BuildSettings for a
+    NavKit-base build (None: navbuild's defaults). Returns the output path."""
     lines = []
     target = {'out': out}               # the output path, as soon as _apply knows it (its default depends on the base)
 
@@ -700,7 +702,7 @@ def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
         lines.append(msg)
         log(msg)
     try:
-        out = _apply(pr, lv, navtune_path, out, say, target)
+        out = _apply(pr, lv, navtune_path, out, say, target, cfg)
     except Exception as e:              # any failure: the report of what was done, and the error (then re-raised)
         if target['out']:
             open(target['out'] + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines + [f'error: {e}']) + '\n')
@@ -711,7 +713,7 @@ def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
     return out
 
 
-def _apply(pr, lv, navtune_path, out, log, target=None):
+def _apply(pr, lv, navtune_path, out, log, target=None, cfg=None):
     target = target if target is not None else {}
     from bfbc2core import navtune
     import navbuild
@@ -734,7 +736,7 @@ def _apply(pr, lv, navtune_path, out, log, target=None):
             f'-> {os.path.relpath(out, pr.root)}')
         # the same inputs as build (detailed zones, ladders ...), plus the edits
         samples, forbid, xoff, zoff, kw = build_inputs(pr, lv, log)
-        navbuild.build(samples, forbid, xoff, zoff, out, edits=walk, **kw)
+        navbuild.build(samples, forbid, xoff, zoff, out, edits=walk, **kw, cfg=cfg or navbuild.DEFAULTS)
         log(f'  built in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
     else:
         # a DICE base: no rebuild - the graph edits go into a copy of DICE's file, for this PC only (never
@@ -807,9 +809,11 @@ def main(argv):
             del args[i:i + 2]
     yes = '--yes' in args
     install_flag = '--install' in args
+    cfg = None
     if '--no-detail' in args:              # build / apply / all: no D lines or F cells (the output before 2026-10-26)
+        import dataclasses
         import navbuild
-        navbuild.DETAIL_FEATURES = False
+        cfg = dataclasses.replace(navbuild.DEFAULTS, detail_features=False)
     args = [a for a in args if a not in ('--yes', '--install', '--no-detail')]
     if not args or args[0] in ('-h', '--help', 'help'):
         print(__doc__)
@@ -834,13 +838,13 @@ def main(argv):
             else:
                 sample_level(pr, lv, confirm=confirm, box=box, y=y)
         elif cmd == 'build':
-            build(pr, lv)
+            build(pr, lv, cfg=cfg)
         elif cmd == 'compare':
             compare(pr, lv, reference=opts.get('--reference'), candidate=opts.get('--candidate'))
         elif cmd == 'check':
             check(pr, lv)
         elif cmd == 'apply':
-            apply(pr, lv, opts.get('--navtune'), opts.get('--out'), install_after=install_flag)
+            apply(pr, lv, opts.get('--navtune'), opts.get('--out'), install_after=install_flag, cfg=cfg)
         elif cmd == 'install':
             install(pr, lv, src=opts.get('--from'))
         elif cmd == 'restore':
@@ -850,7 +854,7 @@ def main(argv):
         elif cmd == 'all':
             prepare(pr, lv, box=box, y=y)
             if sample_level(pr, lv, confirm=confirm):
-                build(pr, lv)
+                build(pr, lv, cfg=cfg)
                 check(pr, lv)
         else:
             raise NavKitError(f'unknown command {cmd!r}')

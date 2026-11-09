@@ -197,7 +197,6 @@ def main(argv):
           kymesh.write_mesh(kymesh.parse_mesh(data)) == data, 'kymesh: D lines and F cells written, read back, rewritten byte for byte')
 
     # navbuild.detail_pass: broken sides leave the outline in pairs only
-    navbuild.set_pitch(0.8)
     ys = [0.0, 0.0, 0.0, 0.7]                                 # k: (0,0) (1,0) (0,1) (1,1)
     level = SimpleNamespace(y=ys)
     cells_area = {'cells': [(0, 0, 0), (1, 0, 1), (0, 1, 2), (1, 1, 3)]}
@@ -206,11 +205,15 @@ def main(argv):
                  E('z', 0.5, 1): [(1, 0.95)],                                     # (1,0)|(1,1): on one cell only
                  E('x', -0.5, -1): [(0, 0.95), (1, 0.95)]}]                       # the area's own west edge
     navbuild.DETAIL_STATS.clear()
-    out = navbuild.detail_pass(level, [cells_area], per_area, 0.0, 0.0)
+    out = navbuild.detail_pass(level, [cells_area], per_area, 0.0, 0.0, cfg=navbuild.DEFAULTS)
     e = per_area[0]
     check(e[E('x', 0.5, 1)] == [] and e[E('x', 0.5, -1)] == [] and e[E('z', 0.5, 1)] == [(1, 0.95)] and
           e[E('x', -0.5, -1)] == [(0, 0.95), (1, 0.95)], 'detail_pass: a pair of outline sides moved to D, a one-sided one kept, the rest untouched')
     check(len(out[0][0]) == 2 and navbuild.DETAIL_STATS.get('outline_one_sided') == 1, 'detail_pass: the D lines of the area (two L-shaped), the one-sided side counted')
+    per_area_d = [{E('x', 0.5, 1): [(1, 0.95)], E('x', 0.5, -1): [(1, 1.65)]}]
+    out_d = navbuild.detail_pass(level, [cells_area], per_area_d, 0.0, 0.0, cfg=navbuild.DEFAULTS.detailed())
+    check(out_d == [([], [])] and per_area_d[0][E('x', 0.5, 1)] == [(1, 0.95)],
+          'detail_pass with the detailed settings (pitch 0.2): no D / F there (DETAIL_IN_DETAILED off), outline untouched')
     # route edges and D sides (DETAIL_BLOCKS_EDGES): a flat 3 x 3 grid, surface k = j * 3 + i
     class Grid:
         y = [0.0] * 9

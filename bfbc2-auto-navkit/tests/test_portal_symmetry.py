@@ -69,15 +69,10 @@ def main(argv):
     lv2 = level({0: [0.0, 0.2], 1: [0.1]}, 2, 1)
     areas2 = [{'cells': [(0, 0, 0)]}, {'cells': [(0, 0, 1), (1, 0, 2)]}]
     area_of2 = {0: 0, 1: 1, 2: 1}
-    old = navbuild.ONE_WAY_PORTALS
-    try:
-        navbuild.ONE_WAY_PORTALS = 'keep'
-        up_keep = unit_portals(navbuild.trace(lv2, (0, 0), areas2, area_of2, 0, 0, 0.0, 0.0))
-        navbuild.ONE_WAY_PORTALS = 'drop'
-        res_drop = navbuild.trace(lv2, (0, 0), areas2, area_of2, 0, 0, 0.0, 0.0)
-        up_drop = unit_portals(res_drop)
-    finally:
-        navbuild.ONE_WAY_PORTALS = old
+    keep_cfg = navbuild.BuildSettings(one_way_portals='keep')
+    up_keep = unit_portals(navbuild.trace(lv2, (0, 0), areas2, area_of2, 0, 0, 0.0, 0.0, keep_cfg))
+    res_drop = navbuild.trace(lv2, (0, 0), areas2, area_of2, 0, 0, 0.0, 0.0, navbuild.BuildSettings(one_way_portals='drop'))
+    up_drop = unit_portals(res_drop)
     check(any(t == 1 for t, _, _ in up_keep[0]) and not any(t == 0 for t, _, _ in up_keep[1]),
           "stacked, 'keep': A has a portal into T, T none back (the one-way case)")
     check(not up_drop[0] and not up_drop[1], "stacked, 'drop': no portal either way")
@@ -111,7 +106,7 @@ def main(argv):
     per_area, ow = navbuild.trace_edges(lv2, areas2, area_of2, 0, 0)
     keep = navbuild.restore_one_way({(0, 0): (per_area, ow)}, ())
     check(all(n in keep[(0, 0)] for n in range(len(ow))), 'invariant: a pair with no other join keeps every candidate piece')
-    check(navbuild.SYMMETRIC_PORTALS and navbuild.ONE_WAY_PORTALS == 'drop', 'defaults: symmetric portals, one-way pieces dropped (restore open)')
+    check(navbuild.SYMMETRIC_PORTALS and navbuild.ONE_WAY_PORTALS == navbuild.DEFAULTS.one_way_portals == 'drop', 'defaults: symmetric portals, one-way pieces dropped (restore open)')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 
