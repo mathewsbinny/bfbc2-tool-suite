@@ -34,6 +34,7 @@ found (run --reference with an unknown run: 2).
 import os
 import sys
 import time
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
@@ -162,7 +163,7 @@ def run_level(root, lv, opts, cache, log=print):
                 else f'{key} path data not found for this level').as_dict()}}
     ref_key = 'dice' if any(k == 'dice' for k, _ in files) else (files[0][0] if files else None)
     files.sort(key=lambda kp: kp[0] != ref_key)               # the reference file first
-    ref = {}
+    ref: dict[str, Any] = {}
     tests = opts['tests']
     # infantry points only for the infantry tests: classes from the entities (levelinfo) and from what lies under each
     # point - terrain, water and the reference file's walkable cells (the same classes for every file of the level)
@@ -281,15 +282,16 @@ def cmd_run(args):
                'level_pairs': int(opt(args, '--level-pairs', 100)), 'seed': int(opt(args, '--seed', 1))}
     reference = opt(args, '--reference')
     ref_path = runs.path_of(reference, folder) if reference else None
-    if reference and not os.path.isfile(ref_path):
+    if ref_path is not None and not os.path.isfile(ref_path):
         print(f'no saved run "{reference}" ({ref_path}); see: harness.py list')
         return 2
     out_path = runs.path_of(name, folder)
-    if reference and os.path.normcase(os.path.abspath(out_path)) == os.path.normcase(os.path.abspath(ref_path)):
+    if ref_path is not None and \
+            os.path.normcase(os.path.abspath(out_path)) == os.path.normcase(os.path.abspath(ref_path)):
         print(f'--reference "{reference}" names the same file as the output run "{name}" ({out_path}); '
               f'give the output a different name so the baseline is not overwritten')
         return 2
-    base = runs.load(ref_path) if reference else None
+    base = runs.load(ref_path) if ref_path is not None else None
     run = runs.new_run(name, options, SUITE)
     cache = cache_dir(root)
     start = time.time()
@@ -303,7 +305,7 @@ def cmd_run(args):
     runs.report(run)
     print(f'saved: {path}')
     bad = any(r['status'] in runs.BAD for *_x, r in runs.results(run))
-    if reference:
+    if base is not None:
         print()
         bad |= runs.compare_report(base, run, runs.compare(base, run, float(opt(args, '--scale', 1.0)))) > 0
     return 1 if bad else 0

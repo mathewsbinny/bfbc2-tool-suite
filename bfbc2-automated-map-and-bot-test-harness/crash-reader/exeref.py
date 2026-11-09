@@ -20,6 +20,7 @@ import os
 import re
 import struct
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -94,7 +95,8 @@ class Exe(crashreader.Image):
     def refs(self, value, limit=200):
         """Code addresses of instructions using value: (va, instruction, kind)."""
         import numpy as np
-        out, pat = [], struct.pack('<I', value)
+        out: list[tuple[int, Any, str]] = []
+        pat = struct.pack('<I', value)
         for lo, hi in self.code_ranges():
             o, end = lo - self.base, hi - self.base
             j = self.data.find(pat, o, end)
@@ -124,7 +126,8 @@ class Exe(crashreader.Image):
 
     def data_refs(self, value, limit=10):
         """Addresses in the data sections that hold value (4-byte aligned): tables of pointers, vtables."""
-        out, pat = [], struct.pack('<I', value)
+        out: list[int] = []
+        pat = struct.pack('<I', value)
         for lo, hi in self.data_ranges():
             j = self.data.find(pat, lo - self.base, hi - self.base)
             while j >= 0 and len(out) < limit:

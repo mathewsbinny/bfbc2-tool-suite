@@ -57,12 +57,13 @@ def grid_nav(parts, extra_edges=(), one_way=(), cells_of=None):
     """NavData of lattices: parts = [(x0, z0, nx, nz, y, step)], each a lattice of route nodes (bidirectional edges
     to the right and forward neighbours) with one area of 0.8 m cells under it; extra_edges / one_way: (a, b) node
     index pairs joined both ways / one way. Islands from the edges, as navdata does."""
-    pos, edges, areas, cxz, cy, ca = [], [], [], [], [], []
+    xyz: list[tuple[float, float, float]] = []
+    edges, areas, cxz, cy, ca = [], [], [], [], []
     for k, (x0, z0, nx, nz, y, step) in enumerate(parts):
-        base = len(pos)
+        base = len(xyz)
         for j in range(nz):
             for i in range(nx):
-                pos.append((x0 + i * step, y + navdata.Y_OFFSET, z0 + j * step))
+                xyz.append((x0 + i * step, y + navdata.Y_OFFSET, z0 + j * step))
                 n = base + j * nx + i
                 if i + 1 < nx:
                     edges += [(n, n + 1), (n + 1, n)]
@@ -78,7 +79,7 @@ def grid_nav(parts, extra_edges=(), one_way=(), cells_of=None):
     for a, b in extra_edges:
         edges += [(a, b), (b, a)]
     edges += list(one_way)
-    pos = np.array(pos, float)
+    pos = np.array(xyz, float)
     E = np.array(edges, np.int64).reshape(-1, 2)
     cost = np.linalg.norm(pos[E[:, 1]] - pos[E[:, 0]], axis=1)
     parent = list(range(len(pos)))
@@ -267,10 +268,10 @@ def quick(check, tmp):
     check('reach_parity_pct' not in rs.metrics, 'a reference that connects no pair gives no parity measure')
     # area join: a point on the main ground, beside a small roof island 2 m up whose node is nearer
     roofed = grid_nav([(0, 0, 5, 5, 0.0, 10.0), (20.2, 19.4, 2, 1, 2.0, 1.0)])
-    p = (20.4, 0.0, 19.6)
+    pt = (20.4, 0.0, 19.6)
     from bfbc2core import navpath
-    kn, _ = navpath.join(roofed, p)
-    ka, _ = checks.join(roofed, p)
+    kn, _ = navpath.join(roofed, pt)
+    ka, _ = checks.join(roofed, pt)
     check(roofed.node_island[kn] == 1 and roofed.node_island[ka] == 0,
           'a point on the main ground joins the main ground (area join); the nearest-node join takes the roof island')
 

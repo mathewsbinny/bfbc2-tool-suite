@@ -181,7 +181,7 @@ class Model:
     def rush_stages(self):
         """Stages in order, from the stock stage logic: MultipleTriggers fed by M-COM onDestroyed."""
         mcom = {g: p for g, _n, p in self.mcoms}
-        fed = {}
+        fed: dict[str, list[tuple[str, tuple[float, float, float]]]] = {}
         enabled_by = {}
         for s, se, t, te in self.events:
             if self.typ(t) != 'MultipleTriggerEntityData':
@@ -197,7 +197,9 @@ class Model:
         firsts.sort(key=lambda t: -self._chain_len(t, nxt))
         if not firsts:
             return []
-        out, cur, seen = [], firsts[0], set()
+        out: list[Stage] = []
+        cur: str | None = firsts[0]
+        seen: set[str] = set()
         while cur and cur not in seen:
             seen.add(cur)
             out.append(Stage(len(out), cur, text(self.inst[cur], 'Name') or '', sorted(fed[cur])))

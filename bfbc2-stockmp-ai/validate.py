@@ -127,7 +127,7 @@ def check_changes(orig, authored, c, tmp):
     fo, oinst = _core_instances(orig)
     fa, ainst = _core_instances(authored)
     bad = []
-    changed = Counter()
+    changed: Counter[str] = Counter()
 
     def flat(e, path=''):
         out = {}
@@ -170,7 +170,7 @@ def check_changes(orig, authored, c, tmp):
 
 def _partition_index(folders):
     """lower-case partition path (no .dbx) -> folder file path, over unpacked bundle folders."""
-    idx = {}
+    idx: dict[str, str] = {}
     for top in folders:
         for dp, _ds, fs in os.walk(top):
             for fn in fs:
@@ -267,7 +267,7 @@ def check_navigation(c, hpd):
         if size < 0.25 * snap.biggest:
             bad.append(f'spawner {s["id"]}: on a small island ({size} nodes)')
         groups[s['id']] = snap.pd.group[snap.pd.ids[_nearest_index(snap, q)]]
-    listed = Counter()
+    listed: Counter[str] = Counter()
     worst = 0.0
     for o in c['orders']:
         dist, node, size = snap.nearest(tuple(o['pos']))

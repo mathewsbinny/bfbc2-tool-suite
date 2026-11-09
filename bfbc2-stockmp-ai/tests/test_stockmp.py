@@ -356,7 +356,7 @@ def quick(tmp):
     os.utime(os.path.join(shared, 'fbrb.manifest'), (1_700_000_100, 1_700_000_100))
     calls = []
     real_unpacked = pipeline.unpacked
-    pipeline.unpacked = lambda b, d: calls.append((b, d)) or d
+    pipeline.unpacked = lambda bundle, d: calls.append((bundle, d)) or d  # type: ignore[func-returns-value, unused-ignore]
     try:
         fresh = pipeline.common(cp, 'mp_common')
         os.utime(bundle, (1_700_000_200, 1_700_000_200))                 # the game's bundle changed since

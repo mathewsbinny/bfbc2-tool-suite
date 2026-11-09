@@ -55,12 +55,13 @@ class Session:
     lines: int = 0
 
     @property
-    def in_game(self):
+    def in_game(self) -> bool:
         return IN_GAME in self.states
 
 
-def sessions(text):
-    out, cur = [], None
+def sessions(text: str) -> list[Session]:
+    out: list[Session] = []
+    cur: Session | None = None
     for line in text.splitlines():
         m = START.search(line)
         if m:
@@ -99,17 +100,17 @@ def sessions(text):
     return out
 
 
-def for_level(all_sessions, lv):
+def for_level(all_sessions: list[Session], lv: str) -> list[Session]:
     """The sessions that started the level (latest last)."""
     want = lv.lower().split('/')[-1]
     return [s for s in all_sessions if s.level and s.level.lower().split('/')[-1] == want]
 
 
-def evaluate(s, asset, vehicle=None):
+def evaluate(s: Session, asset: tuple[int, int] | None, vehicle: tuple[int, int] | None = None) -> dict[str, Result]:
     """{name: Result} for one session. asset: the level's Infantry SectorOffsets (x, z), or None; vehicle: its
     Vehicle SectorOffsets (x, z) where known - the loads (infantry and vehicle alike in the log) may read either."""
     src = f'opfor.log session {s.start} (PID {s.pid})'
-    out = {}
+    out: dict[str, Result] = {}
     ok = s.in_game and 'AI init' in s.events and not s.crashed
     out['loads-ai-init'] = Result('pass' if ok else 'fail',
                                   f'{src}: ' + ('crashed' if s.crashed else
@@ -141,5 +142,5 @@ def evaluate(s, asset, vehicle=None):
     return out
 
 
-def telemetry_tests():
+def telemetry_tests() -> dict[str, Result]:
     return {name: Result('hold', f'{what} - ON HOLD: needs OPFOR\'s telemetry module (milestone M6)') for name, what in TELEMETRY_TESTS}

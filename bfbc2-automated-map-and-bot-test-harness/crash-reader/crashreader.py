@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import xml.etree.ElementTree as ET
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REGISTERS = ['Eax', 'Ebx', 'Ecx', 'Edx', 'Esi', 'Edi', 'Ebp', 'Esp', 'Eip']
@@ -205,7 +206,9 @@ def log_before_crash(path, lines=18, when=None):
 
 
 def main(argv):
-    args, opts, i = [], {'--symbols': []}, 1
+    args: list[str] = []
+    opts: dict[str, Any] = {'--symbols': []}
+    i = 1
     while i < len(argv):
         a = argv[i]
         if a in ('--exe', '--log') and i + 1 < len(argv):

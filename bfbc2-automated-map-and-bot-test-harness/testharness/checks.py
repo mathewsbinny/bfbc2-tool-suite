@@ -189,16 +189,16 @@ def reachability(nav, sources, targets, reference=None, max_parity_loss=5.0, bas
     adj = adjacency(nav)
     js, jt = joins(nav, sources), joins(nav, targets)
     cache = {}
-    bits = []
+    marks: list[str] = []
     for (ns, _), _s in zip(js, sources):
         if ns is not None and ns not in cache:
             cache[ns] = reach_from(nav, ns, adj)
         for nt, _ in jt:
             if ns is None or nt is None:
-                bits.append('-')
+                marks.append('-')
             else:
-                bits.append('1' if nt in cache[ns] else '0')
-    bits = ''.join(bits)
+                marks.append('1' if nt in cache[ns] else '0')
+    bits = ''.join(marks)
     S, T = len(sources), len(targets)
     joined_s = sum(n is not None for n, _ in js)
     joined_t = sum(n is not None for n, _ in jt)
@@ -377,7 +377,8 @@ def sector_offsets(sectors):
     """((x, z), (share x, share z)) from a file's sectors (hpdtool.Sector: id 0xXXYY, bounds minX, maxX, minY, maxY,
     minZ, maxZ): per sector floor(centre / 100) - its grid id, the most common value (OPFOR's
     src/tools/onslaught/apply_sector_offsets.py; reproduces all 27 shipped PC assets). None without sectors."""
-    cx, cz = Counter(), Counter()
+    cx: Counter[int] = Counter()
+    cz: Counter[int] = Counter()
     for s in sectors:
         b = s.bounds
         cx[math.floor((b[0] + b[1]) / 200) - (s.id >> 8)] += 1

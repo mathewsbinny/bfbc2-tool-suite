@@ -57,12 +57,16 @@ def pathdata_for(paths, folder=None):
 def summary(paths):
     v, b = paths.bundles()[-1]
     d = pipeline.unpacked(b, paths.src(v))
-    m = levelmodel.Model(dbxbin.read(pipeline.find_entry(d, pipeline.level_entry(d, pipeline._level_name(d, paths.lv)))))
+    entry = pipeline.level_entry(d, pipeline._level_name(d, paths.lv))
+    assert entry is not None
+    lvl = pipeline.find_entry(d, entry)
+    assert lvl is not None
+    m = levelmodel.Model(dbxbin.read(lvl))
     print(f'{m.name}: mode {m.mode}, factions {m.factions}, attacker {m.attacker}, HasAI {m.has_ai}')
     for cp in m.capture_points:
         print(f'  capture point {cp.label or cp.name:14s} owner {cp.owner:11s} at {tuple(round(x) for x in cp.pos)}, '
               f'{len(cp.spawners)} spawners')
-    kinds = {}
+    kinds: dict[tuple[str, str], int] = {}
     for s in m.spawners:
         kinds[(s.team, s.player_type)] = kinds.get((s.team, s.player_type), 0) + 1
     print(f'  soldier spawners: {kinds}')
@@ -87,6 +91,7 @@ def install(paths, argv):
     game = opt(argv, '--game', paths.game)
     out = os.path.join(paths.root, 'out', 'game')
     mode = '--apply' if '--apply' in argv else '--revert' if '--revert' in argv else '--plan'
+    files: set[str] | list[str]
     if mode == '--revert':
         files = set(os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs)
         files |= set(installed_files(game, paths.lv))

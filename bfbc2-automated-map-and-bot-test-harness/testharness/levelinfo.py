@@ -220,7 +220,7 @@ def game_level(root, lv, info, cache_dir, log):
             continue
         try:
             real = next(n for n in _real_names(holder, cache_dir) if n.lower() == tpl + '.dbx')
-            refs = set()
+            refs: set[str] = set()
             for el in dbx.parse(bundle_read(holder, [real], cache_dir)[real]).instances:
                 _refs(el, refs)
             info.template_refs[tpl] = sorted(refs - {tpl})
