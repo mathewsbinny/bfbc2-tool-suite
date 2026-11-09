@@ -438,7 +438,9 @@ DICE_MOVED_CLASSES = {'GameSharedResources.PersistentWeapon'}
 #                      the power tool's wabsHg, a pistol's wabsHg)
 #  FireLogic.Recoil    the template's (DICE zeroed or retuned every nonzero BF1943 recoil: 27 firings)
 FIREARM_SPEED = 100.0
-WEAPON_PARTITION = re.compile(r'(^|/)(weapons|.*_firing)(/|$)|firing', re.I)
+# the weapon conventions apply to the soldiers' weapons (handheld, stationary): DICE kept the planes' and tanks'
+# guns as BF1943 had them (the Zero's bullets: 480 m/s, no drop - dbxparity --predict)
+WEAPON_PARTITION = re.compile(r'^objects/weapons/', re.I)
 
 
 # ------------------------------------------------------------------------------------------------ bones
@@ -1408,7 +1410,7 @@ def _bones(inst: dbx.Element, B: BoneTables, P: _Port) -> None:
         if name is not None and bid is not None and bid.kind == dbx.NUMBERS:
             new = B.at.get(name.text.strip())
             old = _ints(bid)
-            if new is not None and old != [new]:
+            if new is not None and old != [new] and old != [0]:    # 0: an unset entry (DICE keeps it 0)
                 _set_value(bid, P, f'{t}.BoneId', [struct.pack('>i', new)], 4, f'bone {name.text.strip()}', 'bones')
         return
     nm = _field(inst, 'Name')
