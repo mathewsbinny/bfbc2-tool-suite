@@ -6,7 +6,7 @@ pools: objects, vehicles, weapons; the catalogue's class defaults for the rest, 
 catalogue, BFBC2's soldier skeleton and DICE's conventions. Asserted:
 
   - the port succeeds (no SchemaError: every shape difference has a converter), but for NOT_PORTABLE (what BFBC2
-    changed beyond a converter: the anim trees' aim tables) - those must fail with a
+    changed beyond a converter: the 3p soldier anim trees' aim tables) - those must fail with a
     SchemaError; partitions with a type only DICE's same-named partition holds (no fair template: menus, awards,
     localization) are counted and left out;
   - no 'kind' or 'schema' differences from DICE's version: each instance both have holds DICE's fields, each leaf
@@ -46,7 +46,7 @@ QUICK = ['objects/weapons/handheld/beach/thompson/thompson.dbx', 'objects/weapon
 AIMER = 'objects/soldiers/common/beach/defaulthaloaimer'
 # partitions dbxport refuses, rightly: BFBC2's shape is not BF1943's and no converter can make it (anim trees are
 # not ported by design - BFBC2 ships them compiled; its AimDirections tables hold 104 numbers, BF1943's 40)
-NOT_PORTABLE = re.compile(r'^characters/animtree/')
+NOT_PORTABLE = re.compile(r'^characters/animtree/soldieranimtree3p')
 
 
 def cat_of(k: str) -> str:
