@@ -282,8 +282,8 @@ def main(argv):
         else:
             args.append(argv[k])
             k += 1
-    if not args:
-        print(__doc__)
+    if not args or ('--anomalies' not in opts and not isinstance(opts.get('--reference'), str)):
+        print(__doc__)                    # neither mode named (or --reference without its source): the usage
         return 1
     import navparity
     opfor = navparity.opfor_root(None)
