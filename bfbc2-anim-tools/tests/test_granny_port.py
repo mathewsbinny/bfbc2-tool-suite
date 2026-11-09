@@ -31,6 +31,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'anim-tools')
 import granny  # noqa: E402
+from bfbc2core import paths  # noqa: E402
 
 KINDS = ('GrannyAnimation', 'DeltaAnimation', 'GrannyModel')
 SAME_AS_BFBC2_AT_LEAST = 31
@@ -74,10 +75,10 @@ def units(check):
 
 
 def opfor():
-    for root in (os.environ.get('OPFOR_ROOT'), os.path.join(SUITE, '..', 'project-opfor-bfbc2')):
-        if root and os.path.isdir(os.path.join(root, 'game')):
-            return os.path.abspath(root)
-    return None
+    try:                    # OPFOR_ROOT, else beside the suite (not further up)
+        return paths.find_opfor(walk=False, suite=SUITE)
+    except paths.GameCopyNotFound:
+        return None
 
 
 def xbox_corpus(check, root):
@@ -129,14 +130,13 @@ def xbox_corpus(check, root):
 
 
 def bf1943(check, root):
-    xenon = os.environ.get('BF1943_XENON') or os.path.join(SUITE, '..', 'operation-rising-sun', 'work', 'extracted',
-                                                           'dist', 'xenon')
+    xenon = paths.sibling(paths.BF1943_WORKSPACE, 'work', 'extracted', 'dist', 'xenon', env='BF1943_XENON', suite=SUITE)
     common = os.path.join(xenon, 'levels', 'levels-common-00.fbrb')
-    fb = os.path.join(SUITE, '..', 'bf1943-tool-suite', 'bf1943-fbrb-tool')
+    fb = paths.sibling(paths.BF1943_SUITE, 'bf1943-fbrb-tool', suite=SUITE)
     if not os.path.isfile(common) or not os.path.isfile(os.path.join(fb, 'fbrb1943.py')):
         print('SKIP Battlefield 1943: no extracted copy (Rising Sun workspace) or no BF1943 bundle reader')
         return
-    sys.path.insert(0, fb)
+    paths.use_folder(fb)
     suite_paths.use('shader-tools', 'mesh-viewer')
     import fbrb1943
     import meshview

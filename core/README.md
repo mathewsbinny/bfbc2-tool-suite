@@ -18,6 +18,7 @@ that the 3D tools are built on. Python 3.10+ with `numpy`; the view also needs `
 | `navtune.py` | navigation side files (`<level>.navtune.json`): the edits made to a level's AI navigation, their author (the PC's name) and the base they were made on | `tests/test_navtune.py` |
 | `pick.py` | the level picker the 3D tools show when started without a level | `../tests/test_viewers.py` |
 | `errors.py` | error handling and logs for every tool: a log per tool and day in `%LOCALAPPDATA%\bfbc2-tool-suite\logs`, the cause and what to do when something fails, a window for the windowed tools | `tests/test_errors.py` |
+| `paths.py` | where things are: Project OPFOR BFBC2 (`find_opfor`: the given folder, `OPFOR_ROOT`, then `project-opfor-bfbc2` beside or above the suite), its game copy (`game_dir`, `game_exe`, `find_game_exe`), the suite's built tools (`find_tool`), the sibling projects (`sibling`, `find_sibling`: bf1943-tool-suite, operation-rising-sun); `GameCopyNotFound`. Every tool's own locator (`navkit.find_opfor`, `shaderdb.find_opfor`, ...) is a wrapper over it, keeping its search order and messages (listed in the module) | `tests/test_paths.py` (a stand-in tree); `../tests/test_locators.py` (each locator against a reference checkout) |
 
 ```python
 import sys; sys.path.insert(0, r'<suite>\core')

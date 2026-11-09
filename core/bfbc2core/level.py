@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
-from . import dbx, terrain, water
+from . import dbx, paths, terrain, water
 
 if TYPE_CHECKING:
     from .terrain import Heightfield
@@ -164,7 +164,7 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
     terrain or water (a second or two; the test harness's reachability and level checks)."""
     import levelobjects
     import navkit
-    root = navkit.find_opfor(opfor)
+    root = paths.find_opfor(opfor, start=SUITE)          # NavKit's search and message (GameCopyNotFound)
     lv = level.replace('\\', '/').split('/')[-1].lower()
     base = os.path.join(root, 'work', 'levels', lv)
     if not os.path.isdir(os.path.join(base, 'dist')):           # first use: NavKit's offline prepare step
@@ -399,8 +399,6 @@ def heightfield_of(root: str, lv: str, log: Callable[[str], Any] = print,
     """The level's terrain height field, unpacking its terrain-00.fbrb into work\\levels\\<lv>\\terrain once.
     name: from terrain_name(); read from the level partition if not given."""
     import subprocess
-
-    import navkit
     if name is None:
         part = None
         for b in ('pkg', 'dist'):
@@ -421,7 +419,7 @@ def heightfield_of(root: str, lv: str, log: Callable[[str], Any] = print,
         if bundle is None:
             return None
         log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')
-        tool = navkit.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool')
+        tool = paths.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool', suite=SUITE)   # as navkit.find_tool (ToolNotFound)
         subprocess.run([tool, 'unpack', bundle, dest], check=True, capture_output=True)
         path = terrain.find(dest, name)
         if path is None:

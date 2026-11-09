@@ -17,10 +17,13 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('console-convert', 'core', 'bf1943-import')
 import terrain  # noqa: E402
-from bfbc2core import fbrb  # noqa: E402
+from bfbc2core import (
+    fbrb,  # noqa: E402
+    paths,  # noqa: E402
+)
 from bfbc2core import terrain as hf  # noqa: E402
 
-OPFOR = os.path.join(SUITE, '..', 'project-opfor-bfbc2')
+OPFOR = paths.sibling(paths.OPFOR_DIR, suite=SUITE)      # beside the suite; OPFOR_ROOT not read
 # the levels DICE did not edit the PC terrain of after the Xbox build (the others' heights differ in places)
 UNEDITED = {'mp_002', 'mp_002sr', 'mp_003', 'mp_004', 'mp_004sdm', 'mp_005', 'mp_005sr'}
 

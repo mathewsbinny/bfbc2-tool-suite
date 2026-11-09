@@ -25,9 +25,10 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('navkit-tools')
+suite_paths.use('navkit-tools', 'core')
 import levelobjects  # noqa: E402
 import navsample  # noqa: E402
+from bfbc2core import paths  # noqa: E402
 
 MARGIN = 5.0           # m around a flagged object's collision box
 STACKED_MIN = 100      # stacked-floor columns (0.8 m samples) that make a sector detailed
@@ -96,13 +97,20 @@ def score(chosen, dice_pathdata):
     return len(det & c), len(det), len(norm & c)
 
 
+def opfor_root():
+    r"""Project OPFOR BFBC2's folder: OPFOR_ROOT as it is (unchecked: only work\ and DICE's path data are read), else
+    NavKit's search (bfbc2core.paths.find_opfor, walking up from the suite). Was OPFOR_ROOT or a fixed
+    C:\Programming\Projects\project-opfor-bfbc2, which the search finds on the machine it was written on."""
+    return os.environ.get(paths.OPFOR_ENV) or paths.find_opfor(start=os.path.dirname(os.path.dirname(HERE)))
+
+
 def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 1
     lv = argv[1].lower()
     opts = dict(zip(argv[2:], argv[3:]))
-    root = os.environ.get('OPFOR_ROOT') or r'C:\Programming\Projects\project-opfor-bfbc2'
+    root = opfor_root()
     L = os.path.join(root, 'work', 'levels', lv)
     common = [os.path.join(root, 'work', 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
     xoff, zoff = (int(v) for v in opts['--offsets'].split(','))

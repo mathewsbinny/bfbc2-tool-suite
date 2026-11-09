@@ -65,6 +65,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
+from bfbc2core import paths  # noqa: E402
 
 PROGRAM_SIZE = 0x30        # section 6a record
 KEY_SIZE = 0x58            # section 6b record (the program's key)
@@ -444,10 +445,12 @@ def dx_from_name(path: str) -> int | None:
 
 
 def find_opfor(given: str | None = None) -> str:
-    """Project OPFOR BFBC2's folder: given, else OPFOR_ROOT, else a project-opfor-bfbc2 folder next to the suite."""
-    for c in (given, os.environ.get('OPFOR_ROOT'), os.path.join(os.path.dirname(SUITE), 'project-opfor-bfbc2')):
-        if c and os.path.isdir(os.path.join(c, 'game')):
-            return os.path.abspath(c)
+    """Project OPFOR BFBC2's folder: given, else OPFOR_ROOT, else a project-opfor-bfbc2 folder next to the suite
+    (only there: bfbc2core.paths.find_opfor with walk=False; NavKit's also looks further up)."""
+    try:
+        return paths.find_opfor(given, walk=False, suite=SUITE)
+    except paths.GameCopyNotFound:
+        pass
     raise ShaderDbError('Project OPFOR BFBC2 not found (no game copy): put the suite next to the project-opfor-bfbc2 '
                         'folder, set OPFOR_ROOT, or give --opfor')
 

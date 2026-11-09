@@ -32,15 +32,17 @@ import levelmodel
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-FBRB = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
-DBX = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
-NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('navkit', 'navkit-tools')
+suite_paths.use('navkit', 'navkit-tools', 'core')
+from bfbc2core import paths as corepaths  # noqa: E402  (not `paths`: the functions below name their Paths that)
+
+FBRB = corepaths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe', SUITE)
+DBX = corepaths.suite_tool('bfbc2-dbx-tools', 'DbxEdit.exe', SUITE)
+NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
 
 DONOR_LEVEL = 'SP_004_B'
 MIN_AGREEMENT = 0.75          # as apply_sector_offsets.py
@@ -73,9 +75,8 @@ class Paths:
 
     def __init__(self, lv: str, opfor: str | None = None, work: str | None = None, variant: str | None = None,
                  game: str | None = None) -> None:
-        if opfor is None:
-            import navkit
-            opfor = navkit.find_opfor(None)
+        if opfor is None:      # NavKit's search (walking up from the suite) and message; GameCopyNotFound
+            opfor = corepaths.find_opfor(None, start=SUITE)
         self.opfor: str = opfor
         self.lv = lv.lower()
         self.game = game or os.path.join(opfor, 'game')

@@ -579,3 +579,89 @@ scores are the provisional read-only ones.
 4. **Annotate the converters' remaining functions** and the large NavKit tools; grow the strict list. Then consider
    `disallow_untyped_defs` globally.
 5. **Long lines, per file, with the owner's consent.** Then enforce E501 at 120 characters, folder by folder.
+
+## Architecture step M1 (2026-11-09): one path finder - done
+
+Branch `arch/m1-paths-2026-11-09`, from `main` at a482659. This is step M1 of the architecture audit's migration plan
+(ARCHITECTURE_AUDIT.md 4.4 and 8.3). Not pushed. Nothing was written to the game copy, and the game was not started.
+
+**What changed:**
+- **`core/bfbc2core/paths.py`** is the one implementation of path discovery. It needs only `os` and `sys`, and it
+  covers:
+  - Project OPFOR BFBC2 (`find_opfor`, `opfor_candidates`, `walk_up`);
+  - the game copy (`game_dir`, `game_exe`, `find_game_exe`);
+  - the suite (`SUITE`, `suite_root`) and its built tools (`suite_tool`, `find_tool`);
+  - the sibling projects (`sibling`, `find_sibling`, `use_folder`);
+  - the errors `GameCopyNotFound` and `ToolNotFound`.
+- **`errors.explain`** recognises `GameCopyNotFound` by type. The text tests stay, for the tools' own errors.
+- **The old locators are wrappers.** Each keeps its signature, return value, exception type and message:
+  - `navkit.find_opfor` / `find_tool` / `Project`;
+  - `menucommon.find_opfor` / `find_exe`;
+  - `shaderdb.find_opfor`;
+  - `convert.default_exe`;
+  - `crashreader.find_exe`;
+  - `bf1943import.default_source` / `fbrb1943`.
+
+  `navparity` / `navvehicle.opfor_root`, `harness.opfor` and `run_tests.opfor` were already wrappers over
+  `navkit.find_opfor`, and are unchanged.
+- **detailed.py's hard-coded path** is now `detailed.opfor_root()`: `OPFOR_ROOT` as before, else NavKit's search. On
+  this machine the search finds the same folder.
+- **`pipeline.Paths` and `level.load` / `heightfield_of`** find the folder through `paths`, so they no longer import
+  NavKit for it. This partly fixes audit edges 1 and 8.
+- **`bf1943import.fbrb1943`** no longer grows `sys.path` on every call.
+- **Tests:** the game-data tests' sibling and OPFOR paths, including the last sys.path lines naming
+  bf1943-tool-suite, go through `paths`.
+
+**The search orders differ between locators, and each one keeps its own.** They are documented in the module:
+- **navkit, menucommon, detailed, pipeline, level:** walk up from the suite. The first candidate is inside the suite.
+- **shaderdb and convert:** the folder beside the suite only.
+- **crashreader:** walks up from the harness folder, one level lower than the others.
+- **convert and crashreader:** take no given folder, and need `game\BFBC2Game.exe`. The others need only `game\`.
+- **detailed:** takes `OPFOR_ROOT` unchecked.
+- **The BF1943 locators:** `default_source` takes `BF1943_XENON` *before* the folder beside the suite, and does not
+  check it. `fbrb1943` takes the folder beside the suite *before* `BF1943_SUITE_FBRB`.
+- **The game-data tests:** some read `OPFOR_ROOT` and some do not.
+- **Never resolved:** paths are made absolute but not resolved, so a junction is searched beside itself.
+- **`OPFOR_TOOLKIT`:** the suite still never reads it.
+
+**Intended differences, all checked by test_locators:**
+- `convert.default_exe` now spells the folder beside the suite without `..\..`. It is the same file.
+- `pipeline.Paths` and `level.load` raise `GameCopyNotFound` rather than `NavKitError`, with the same message and the
+  same `errors.explain` cause. Nothing caught the old type.
+- `level.heightfield_of` raises `ToolNotFound` rather than `NavKitError`, with the same message.
+- With no OPFOR at all, detailed.py now raises instead of using the fixed path.
+
+**Tests:**
+- **Quick tier:** 55 of 55 pass. The new test is `core/tests/test_paths.py`, 42 checks on a stand-in tree:
+  - OPFOR beside, inside and above the suite;
+  - the given folder before `OPFOR_ROOT` before the search; an empty `OPFOR_ROOT` counts as unset;
+  - a missing game copy and missing siblings;
+  - relative and junction layouts;
+  - importable with only `core` on sys.path.
+- **ruff and mypy:** clean. `bfbc2core.paths`, `test_paths` and `test_locators` are on the strict list.
+- **`tests/test_locators.py` (game tier, new):** passes. Every locator is asked in a subprocess of this checkout and
+  of the main checkout, run with `python -I -B` so nothing is written there. Three runs: plain, with `OPFOR_ROOT` /
+  `BF1943_XENON` set, and with OPFOR and the BF1943 suite hidden. Values, exception types, messages and causes are
+  identical, apart from the differences above.
+- **Importability:** every one of the 187 files imports with only its own folder on sys.path, and with its folder plus
+  `core`, as on main. The same 8 fail on both trees: moderngl / imgui_bundle are not visible under `-I`.
+- **Game tests that only read the game** all pass:
+  - console-convert, 8;
+  - bf1943-import and BF1943 related, 11;
+  - shader-tools, 2;
+  - granny, 3.
+- **`bf1943import.py import garand`:** run on main and on the branch, each into a scratch folder. The 78 files (77
+  outputs and import.json) are byte-identical, and so is the log.
+
+**Left for later steps:**
+- **M4:** `navparity.opfor_root` / `navvehicle.opfor_root` still go through navkit, because they keep NavKitError
+  (edges 12-16).
+- **M4 / M5:** `pick.py` (edge 3) still uses `navkit.Project`. `level.load` still calls `navkit.Project` /
+  `prepare` for an unprepared level (edge 1).
+- **Not converted:**
+  - the hub's `TOOLS` table (`BFBC2 Tool Suite.pyw:37`, an exe and build.bat pair);
+  - the per-module `SUITE = ...` constants;
+  - OPFOR's `attachments.py` `DBXEDIT`.
+- **Not unified:** the differing search orders, on purpose. Unify them only as a deliberate change. shaderdb
+  widening to the walk-up was the audit's suggestion.
+- **Not touched:** the implicit `shaderdb` edge in OPFOR's attachments.py (M3).

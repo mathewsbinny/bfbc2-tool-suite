@@ -24,8 +24,9 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('console-convert', 'mesh-viewer', 'shader-tools')
+suite_paths.use('console-convert', 'mesh-viewer', 'shader-tools', 'core')
 import mesh  # noqa: E402
+from bfbc2core import paths  # noqa: E402
 
 TOL = 0.01
 
@@ -79,14 +80,13 @@ def bfbc2_xbox(check, opfor):
 
 
 def bf1943(check):
-    xenon = os.environ.get('BF1943_XENON') or os.path.join(SUITE, '..', 'operation-rising-sun', 'work', 'extracted',
-                                                           'dist', 'xenon')
-    fb = os.path.join(SUITE, '..', 'bf1943-tool-suite', 'bf1943-fbrb-tool')
+    xenon = paths.sibling(paths.BF1943_WORKSPACE, 'work', 'extracted', 'dist', 'xenon', env='BF1943_XENON', suite=SUITE)
+    fb = paths.sibling(paths.BF1943_SUITE, 'bf1943-fbrb-tool', suite=SUITE)
     lvl = os.path.join(xenon, 'levels', 'guadal_canal', 'reduced-level-00.fbrb')
     if not os.path.isfile(lvl) or not os.path.isfile(os.path.join(fb, 'fbrb1943.py')):
         print('SKIP Battlefield 1943: no extracted copy or no BF1943 bundle reader')
         return
-    sys.path.insert(0, fb)
+    paths.use_folder(fb)
     import fbrb1943
     lb = fbrb1943.Bundle(open(lvl, 'rb').read())
     db = next(e['name'] for e in lb.entries if e['type'] == 'Dx9ShaderDatabase')
@@ -121,11 +121,10 @@ def main():
         if not ok:
             fails.append(what)
 
-    opfor = None
-    for root in (os.environ.get('OPFOR_ROOT'), os.path.join(SUITE, '..', 'project-opfor-bfbc2')):
-        if root and os.path.isdir(os.path.join(root, 'game')):
-            opfor = os.path.abspath(root)
-            break
+    try:                    # OPFOR_ROOT, else beside the suite (not further up)
+        opfor: str | None = paths.find_opfor(walk=False, suite=SUITE)
+    except paths.GameCopyNotFound:
+        opfor = None
     if opfor is None:
         print('SKIP: no Project OPFOR BFBC2 game copy')
     else:

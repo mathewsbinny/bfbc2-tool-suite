@@ -22,6 +22,8 @@ from collections.abc import Iterator
 from types import TracebackType
 from typing import Any, cast
 
+from . import paths
+
 KEEP = 20
 _state: dict[str, Any] = {'tool': None, 'path': None, 'gui': True}
 
@@ -37,7 +39,8 @@ CAUSES = [
      lambda e: 'The 3D view could not start OpenGL 3.3 (the graphics driver is too old, or Python runs on a GPU without it).',
      lambda e: 'Update the graphics driver; on a laptop with two GPUs set python.exe to "High performance" in Windows '
                'Settings > System > Display > Graphics.'),
-    (lambda e: 'no game copy' in str(e).lower() or 'project opfor' in str(e).lower() and 'not found' in str(e).lower(),
+    (lambda e: isinstance(e, paths.GameCopyNotFound)                 # by type; by text for the tools' own errors
+     or 'no game copy' in str(e).lower() or 'project opfor' in str(e).lower() and 'not found' in str(e).lower(),
      lambda e: 'The tools could not find Project OPFOR BFBC2\'s game copy.',
      lambda e: 'Put the suite folder next to the "project-opfor-bfbc2" folder, or set OPFOR_ROOT to it.'),
     (lambda e: 'not prepared' in str(e).lower() or 'unknown level' in str(e).lower(),

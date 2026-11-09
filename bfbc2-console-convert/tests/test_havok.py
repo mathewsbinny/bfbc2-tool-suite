@@ -20,11 +20,12 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('console-convert')
+suite_paths.use('console-convert', 'core')
 import convert  # noqa: E402
 import havok  # noqa: E402
+from bfbc2core import paths  # noqa: E402
 
-OPFOR = os.environ.get('OPFOR_ROOT') or os.path.abspath(os.path.join(HERE, '..', '..', '..', 'project-opfor-bfbc2'))
+OPFOR = paths.sibling(paths.OPFOR_DIR, env=paths.OPFOR_ENV, suite=os.path.dirname(os.path.dirname(HERE)))
 EXE = os.path.join(OPFOR, 'game', 'BFBC2Game.exe')
 PC = os.path.join(OPFOR, 'work', 'audit', 'mp_common')                 # PC mp_common, unpacked
 CONSOLE = sorted(glob.glob(os.path.join(OPFOR, 'work', 'onslaught', 'build_*', 'con_*')))

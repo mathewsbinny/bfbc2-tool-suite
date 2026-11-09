@@ -38,8 +38,9 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('shader-tools')
+suite_paths.use('shader-tools', 'core')
 import shaderdb as sd  # noqa: E402
+from bfbc2core import paths  # noqa: E402
 
 
 class Checks:
@@ -390,14 +391,14 @@ def xbox(c: Checks) -> None:
 
 
 def wake(c: Checks) -> None:
-    xenon = os.environ.get('BF1943_XENON') or os.path.join(ROOT, '..', '..', 'operation-rising-sun', 'work',
-                                                           'extracted', 'dist', 'xenon')
+    suite = os.path.dirname(ROOT)
+    xenon = paths.sibling(paths.BF1943_WORKSPACE, 'work', 'extracted', 'dist', 'xenon', env='BF1943_XENON', suite=suite)
     lvl = os.path.join(xenon, 'levels', 'wake_island_s', 'reduced-level-00.fbrb')
-    fb = os.path.join(ROOT, '..', '..', 'bf1943-tool-suite', 'bf1943-fbrb-tool')
+    fb = paths.sibling(paths.BF1943_SUITE, 'bf1943-fbrb-tool', suite=suite)
     if not os.path.isfile(lvl) or not os.path.isfile(os.path.join(fb, 'fbrb1943.py')):
         print('SKIP Battlefield 1943 Wake Island: no extracted copy or no BF1943 bundle reader')
         return
-    sys.path.insert(0, fb)
+    paths.use_folder(fb)
     import fbrb1943
     bundle = fbrb1943.Bundle(open(lvl, 'rb').read())
     name = next(e['name'] for e in bundle.entries if e['type'] == 'Dx9ShaderDatabase')
