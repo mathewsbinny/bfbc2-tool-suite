@@ -159,9 +159,6 @@ def tests():
 
 def main(argv):
     tier = next((a for a in argv[1:] if a in TIERS), 'quick')
-    if '--only' in argv and argv.index('--only') + 1 >= len(argv):
-        print('--only needs a name (part of a test\'s name; --list shows them)')
-        return 2
     only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
     chosen = [x for x in tests() if TIERS.index(x[1]) <= TIERS.index(tier) and (only is None or only in x[0].lower())]
     if '--list' in argv:
