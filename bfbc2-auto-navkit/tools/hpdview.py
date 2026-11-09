@@ -12,7 +12,11 @@ import os
 import struct
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools')
 
 import matplotlib
 matplotlib.use('Agg')
@@ -100,7 +104,7 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('hpdview', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

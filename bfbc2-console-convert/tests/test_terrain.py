@@ -10,7 +10,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(os.path.dirname(HERE))
-sys.path[:0] = [os.path.dirname(HERE), os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-bf1943-import')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('console-convert', 'core', 'bf1943-import')
 import terrain  # noqa: E402
 from bfbc2core import fbrb  # noqa: E402
 from bfbc2core import terrain as hf  # noqa: E402

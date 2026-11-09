@@ -26,8 +26,11 @@ from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-for p in ('core', 'bfbc2-console-convert', 'bfbc2-anim-tools', 'bfbc2-mesh-viewer'):
-    sys.path.insert(0, os.path.join(SUITE, p))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('mesh-viewer', 'anim-tools', 'console-convert', 'core')
 import granny  # noqa: E402
 import mesh  # noqa: E402
 import meshset  # noqa: E402

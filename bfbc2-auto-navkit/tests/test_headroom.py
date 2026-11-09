@@ -11,7 +11,11 @@ from types import SimpleNamespace
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools')
 import navwalk  # noqa: E402
 
 

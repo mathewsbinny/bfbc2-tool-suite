@@ -28,9 +28,11 @@ from typing import cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-for p in ('core', 'bfbc2-console-convert'):
-    sys.path.insert(0, os.path.join(SUITE, p))
-sys.path.insert(0, HERE)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('bf1943-import', 'console-convert', 'core')
 import dbxport  # noqa: E402
 from bfbc2core import dbx  # noqa: E402
 

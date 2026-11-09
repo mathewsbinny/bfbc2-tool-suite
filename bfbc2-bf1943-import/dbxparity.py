@@ -28,9 +28,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-for p in ('core', 'bfbc2-shader-tools'):
-    sys.path.insert(0, os.path.join(SUITE, p))
-sys.path.insert(0, HERE)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('bf1943-import', 'shader-tools', 'core')
 from bfbc2core import dbx  # noqa: E402
 
 NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*$')
@@ -138,7 +140,7 @@ def compare(src, ix, names, log=print):
 
 def main(argv=None):
     import bf1943import
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-mesh-viewer'))
+    suite_paths.use('mesh-viewer')
     import meshview
     import shaderdb
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])

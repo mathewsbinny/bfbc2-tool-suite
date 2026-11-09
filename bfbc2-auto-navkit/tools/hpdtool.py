@@ -19,7 +19,11 @@ from dataclasses import dataclass, field
 from collections.abc import Iterable, Iterator
 from typing import Any, List, Tuple
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools')
 
 MAGIC = b'Kynogon HPD\0'
 HEADER_WORDS = 36           # u32 words after the magic (0x0C..0x9B)
@@ -315,7 +319,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('hpdtool', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

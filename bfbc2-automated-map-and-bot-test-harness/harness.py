@@ -39,9 +39,11 @@ from typing import Any
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
-for _p in (HERE, os.path.join(SUITE, 'core'), NAVKIT, os.path.join(NAVKIT, 'tools')):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools', 'navkit', 'core', 'harness')
 
 from testharness import checks, classify, ingame, levelchecks, runs  # noqa: E402
 

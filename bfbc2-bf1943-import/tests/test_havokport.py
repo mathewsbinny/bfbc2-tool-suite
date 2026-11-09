@@ -18,8 +18,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(SUITE, 'bfbc2-mesh-viewer'), os.path.join(SUITE, 'bfbc2-shader-tools'),
-                os.path.join(SUITE, 'bfbc2-console-convert')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools', 'console-convert')
 import bf1943import as bi  # noqa: E402
 import havok  # noqa: E402
 import havokport  # noqa: E402

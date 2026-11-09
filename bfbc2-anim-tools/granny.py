@@ -52,6 +52,11 @@ import sys
 import zlib
 from typing import Any
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
 MAGIC = bytes.fromhex('29DE6CC0BAA4532B25F5B7A5F666E2EE')
 MAGIC_BE = bytes.fromhex('B595110E4BB5A56A502828EB04B37825')     # the same format, 32-bit big-endian
 SIZES = {2: 4, 3: 8, 4: 8, 5: 8, 7: 12, 8: 4, 9: 68, 10: 4, 11: 1, 12: 1, 13: 1, 14: 1, 15: 2, 16: 2, 17: 2, 18: 2,
@@ -604,7 +609,7 @@ def _marshal(g, out, b, tref, at):
 def load(arg, opfor=None):
     if os.path.isfile(arg):
         return open(arg, 'rb').read(), arg
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'bfbc2-mesh-viewer'))
+    suite_paths.use('mesh-viewer')
     import meshview
     import shaderdb
     ix = meshview.Index(shaderdb.find_opfor(opfor))

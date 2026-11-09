@@ -19,7 +19,11 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, TOOL)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('crash-reader')
 import crashreader  # noqa: E402
 
 MD5_SITE, MD5_FUNCTION = 0x006EFF8A, 0x006EFBC0      # Md5Buffer object-list crash, inside its function

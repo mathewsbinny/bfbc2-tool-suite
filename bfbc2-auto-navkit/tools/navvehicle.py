@@ -47,9 +47,11 @@ from dataclasses import replace
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _p in (HERE, os.path.abspath(os.path.join(HERE, '..', '..', 'core'))):   # once, at import
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navkit-tools')
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import navsample  # noqa: E402
@@ -882,7 +884,7 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('navvehicle', gui=False)
     with errors.guard():

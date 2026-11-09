@@ -17,7 +17,12 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.dirname(HERE)
-sys.path[:0] = [HERE, TOOL, os.path.join(os.path.dirname(TOOL), 'core')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('stockmp', 'core')
+sys.path.insert(0, HERE)                    # test_stockmp, beside this file (a tests folder has no short name)
 
 import author  # noqa: E402
 import config as cfgmod  # noqa: E402

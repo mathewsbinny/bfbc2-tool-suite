@@ -8,12 +8,18 @@ jump, vault, drop: bottom then top), note. Enter finishes an outline, Esc cancel
 Ctrl+Z / Ctrl+Y undo and redo.
 """
 import os
+import sys
 from typing import Any
 
 import numpy as np
 from imgui_bundle import imgui
 
-from bfbc2core import navtune as nt
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core')
+from bfbc2core import navtune as nt  # noqa: E402
 
 TOOLS = [('walkable', 'walkable region'), ('unwalkable', 'unwalkable region'), ('seed', 'seed'), ('unseed', 'unseed'),
          ('link-areas', 'link two areas'), ('route-edge add', 'add a route edge'), ('route-edge remove', 'remove a route edge'),

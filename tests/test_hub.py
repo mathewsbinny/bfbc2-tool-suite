@@ -13,7 +13,11 @@ import time
 import types
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core')
 
 
 def load_hub() -> types.ModuleType:

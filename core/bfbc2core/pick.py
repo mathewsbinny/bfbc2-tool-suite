@@ -6,9 +6,14 @@ or `python studio.py` alone): the levels of Project OPFOR BFBC2's game copy, dou
 import os
 import sys
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
 
 def levels() -> list[tuple[str, str]]:
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'bfbc2-auto-navkit'))
+    suite_paths.use('navkit')
     import navkit
     pr = navkit.Project()
     out = []

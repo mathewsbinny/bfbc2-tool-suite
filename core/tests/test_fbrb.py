@@ -13,6 +13,11 @@ import subprocess
 import sys
 import tempfile
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
 TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
@@ -109,7 +114,7 @@ def main(argv):
                 failed += 1
                 print('FAIL empty non-marker entry was not written')
         if '--game' in argv:
-            sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+            suite_paths.use('navkit')
             import navkit
             game = os.path.join(navkit.find_opfor(None), 'game')
             k = argv.index('--game')

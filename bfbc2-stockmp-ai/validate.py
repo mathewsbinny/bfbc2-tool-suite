@@ -34,7 +34,11 @@ import pipeline
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core')
 from bfbc2core import dbx as coredbx  # noqa: E402
 
 ORDER_NODE = 15.0

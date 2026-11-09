@@ -25,9 +25,11 @@ from .checks import Point
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
-for p in (os.path.join(SUITE, 'core'), NAVKIT, os.path.join(NAVKIT, 'tools')):
-    if p not in sys.path:
-        sys.path.insert(0, p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools', 'navkit', 'core')
 
 PLACEHOLDER = 'objects/soldiers/templates/defaultsoldier'     # "FAIL No Template": aims, never fires (MP log, test A')
 KINDS = ('Infantry', 'Vehicle')

@@ -29,7 +29,11 @@ import shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, ROOT)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('menu-tools')
 import menucommon as mc  # noqa: E402
 import aptcheck  # noqa: E402
 import aptgraft as ag  # noqa: E402

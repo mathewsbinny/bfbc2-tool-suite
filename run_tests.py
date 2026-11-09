@@ -24,13 +24,15 @@ import sys
 import time
 
 SUITE = os.path.dirname(os.path.abspath(__file__))
+if SUITE not in sys.path:
+    sys.path.insert(0, SUITE)
+import suite_paths  # noqa: E402
 PY = sys.executable
 TIERS = ['quick', 'game', 'full']
 
 
 def opfor():
-    if os.path.join(SUITE, 'bfbc2-auto-navkit') not in sys.path:
-        sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+    suite_paths.use('navkit')
     import navkit
     return navkit.find_opfor(None)
 
@@ -200,7 +202,7 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('run-tests', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

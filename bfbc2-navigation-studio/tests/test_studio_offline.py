@@ -21,8 +21,11 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STUDIO = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, STUDIO)
-sys.path.insert(0, os.path.join(STUDIO, '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navigation-studio')
 import overlay  # noqa: E402
 import studio  # noqa: E402
 from bfbc2core import navdata, navpath, navtune, viewer  # noqa: E402

@@ -23,8 +23,11 @@ import sys
 from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'stockmp')
 
 import config as cfgmod  # noqa: E402
 import dbxbin  # noqa: E402

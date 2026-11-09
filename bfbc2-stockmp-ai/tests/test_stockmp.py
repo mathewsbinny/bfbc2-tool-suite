@@ -20,7 +20,11 @@ from typing import Any
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.dirname(HERE)
 SUITE = os.path.dirname(TOOL)
-sys.path[:0] = [TOOL, os.path.join(SUITE, 'core')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('stockmp', 'core')
 
 import author  # noqa: E402
 import config as cfgmod  # noqa: E402

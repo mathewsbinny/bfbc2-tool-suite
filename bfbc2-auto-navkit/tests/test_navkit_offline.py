@@ -28,9 +28,11 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
-sys.path.insert(0, os.path.join(HERE, '..'))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navkit', 'navkit-tools')
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import ladders  # noqa: E402

@@ -29,8 +29,11 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-sys.path[:0] = [os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-shader-tools'),
-                os.path.join(SUITE, 'bfbc2-console-convert')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'shader-tools', 'console-convert')
 from bfbc2core import dbx, fbrb  # noqa: E402
 import mesh as meshdata  # noqa: E402
 import shaderdb  # noqa: E402

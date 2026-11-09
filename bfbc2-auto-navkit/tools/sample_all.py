@@ -13,7 +13,11 @@ import time
 import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [HERE, os.path.dirname(HERE)]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools', 'navkit')
 import navkit  # noqa: E402
 
 LEVELS = ['sp_01', 'sp_02', 'sp_03', 'sp_04', 'sp_003_b', 'sp_004_b', 'sp_005', 'sp_005_b', 'sp_006', 'sp_007', 'sp_008',

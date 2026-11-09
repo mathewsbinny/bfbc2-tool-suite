@@ -19,7 +19,11 @@ from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(SUITE, 'core')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('bf1943-import', 'core')
 import bf1943import as bi  # noqa: E402
 import dbxport  # noqa: E402
 from bfbc2core import dbx  # noqa: E402
@@ -56,7 +60,7 @@ def main():
         print('SKIP write: no unpacked BFBC2 partitions (work\\audit\\mp_common)')
     try:
         src = bi.Source(bi.default_source())
-        sys.path[:0] = [os.path.join(SUITE, 'bfbc2-mesh-viewer'), os.path.join(SUITE, 'bfbc2-shader-tools')]
+        suite_paths.use('mesh-viewer', 'shader-tools')
         import meshview
         import shaderdb
         ix = meshview.Index(shaderdb.find_opfor(None))

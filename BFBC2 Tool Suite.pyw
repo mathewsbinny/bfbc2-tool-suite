@@ -16,8 +16,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 SUITE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+if SUITE not in sys.path:
+    sys.path.insert(0, SUITE)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navkit')
 from bfbc2core import errors  # noqa: E402
 
 # library -> what needs it (checked when the window opens)

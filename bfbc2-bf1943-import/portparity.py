@@ -30,9 +30,11 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-for p in ('core', 'bfbc2-console-convert', 'bfbc2-anim-tools', 'bfbc2-mesh-viewer', 'bfbc2-model-tools'):
-    sys.path.insert(0, os.path.join(SUITE, p))
-sys.path.insert(0, HERE)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('bf1943-import', 'model-tools', 'mesh-viewer', 'anim-tools', 'console-convert', 'core')
 import mesh  # noqa: E402
 import meshset  # noqa: E402
 import texture  # noqa: E402
@@ -210,7 +212,7 @@ def summary(rows):
 def main(argv=None):
     import bf1943import
     import meshport
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-shader-tools'))
+    suite_paths.use('shader-tools')
     import meshview
     import shaderdb
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])

@@ -13,7 +13,11 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'bfbc2-console-convert'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('console-convert')
 import mesh as meshdata  # noqa: E402
 
 POS, WEIGHTS, INDICES, NORMAL, TANGENT, BINORMAL, TEX, POS_W = 1, 3, 2, 4, 5, 6, 0, 7

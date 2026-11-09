@@ -20,8 +20,11 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(HERE, '..', '..', 'bfbc2-console-convert'),
-                os.path.join(HERE, '..', '..', 'bfbc2-mesh-viewer')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('model-tools', 'console-convert', 'mesh-viewer')
 import texture  # noqa: E402
 import texwrite  # noqa: E402
 

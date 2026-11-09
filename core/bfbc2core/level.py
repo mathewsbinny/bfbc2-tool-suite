@@ -31,8 +31,11 @@ if TYPE_CHECKING:
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
-sys.path.insert(0, NAVKIT)
-sys.path.insert(0, os.path.join(NAVKIT, 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools', 'navkit')
 
 # entity categories by type (DESIGN.md open question 6)
 CATEGORIES = [

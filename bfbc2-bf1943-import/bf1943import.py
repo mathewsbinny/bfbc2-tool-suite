@@ -39,11 +39,11 @@ from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(SUITE, 'core'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-anim-tools'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-console-convert'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-mesh-viewer'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-shader-tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('shader-tools', 'mesh-viewer', 'console-convert', 'anim-tools', 'core')
 from bfbc2core import errors  # noqa: E402
 import aimanim  # noqa: E402
 import granny  # noqa: E402

@@ -14,8 +14,11 @@ from types import SimpleNamespace
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navkit-tools')
 import navboundary  # noqa: E402
 from bfbc2core import navdata  # noqa: E402
 

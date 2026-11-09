@@ -13,7 +13,11 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core')
 if __name__ == '__main__':                      # the log and error reports start before the heavy imports,
     from bfbc2core import errors                 # so a missing library is reported too
     errors.setup('map-inspector', gui='--screenshot' not in sys.argv)

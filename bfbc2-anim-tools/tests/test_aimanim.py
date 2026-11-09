@@ -22,8 +22,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path.insert(0, os.path.join(HERE, '..'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'anim-tools')
 import aimanim  # noqa: E402
 
 N = 25
@@ -85,9 +88,7 @@ def unit_quats(a):
 
 
 def game(check):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-mesh-viewer'))
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-shader-tools'))
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-bf1943-import'))
+    suite_paths.use('bf1943-import', 'shader-tools', 'mesh-viewer')
     try:
         import meshview
         import shaderdb

@@ -16,8 +16,11 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(HERE, '..', '..', 'bfbc2-mesh-viewer'),
-                os.path.join(HERE, '..', '..', 'bfbc2-console-convert')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('model-tools', 'mesh-viewer', 'console-convert')
 import meshset  # noqa: E402
 import skinmesh  # noqa: E402
 from shapes import extrude, fix_winding, lathe  # noqa: E402

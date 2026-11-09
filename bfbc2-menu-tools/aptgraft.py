@@ -131,9 +131,11 @@ from typing import Any, Literal, cast, overload
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
-for _p in (os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-console-readers', 'apt')):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('apt', 'core')
 
 import apt  # noqa: E402  (the suite's APT reader: opcode names, the dump used to check written movies)
 

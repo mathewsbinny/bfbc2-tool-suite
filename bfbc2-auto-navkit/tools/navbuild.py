@@ -44,7 +44,11 @@ from typing import Any, cast
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools')
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import navislands  # noqa: E402
@@ -1847,7 +1851,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('navbuild', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

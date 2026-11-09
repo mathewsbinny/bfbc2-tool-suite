@@ -18,9 +18,11 @@ import tempfile
 from typing import Any
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('navkit-tools', 'navkit', 'core')
 
 
 class Checks:
@@ -92,7 +94,7 @@ def navkit_apply(c, work):
 
 
 def stockmp_install(c, work):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-stockmp-ai'))
+    suite_paths.use('stockmp')
     import stockmp
     import pipeline
     game = os.path.join(work, 'game')
@@ -123,7 +125,7 @@ def stockmp_install(c, work):
 
 
 def studio_args(c):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-navigation-studio'))
+    suite_paths.use('navigation-studio')
     try:
         import studio
     except ImportError as e:

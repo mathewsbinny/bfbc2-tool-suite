@@ -55,9 +55,11 @@ type Log = Callable[[str], object]
 
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)   # no console flashes when run from the GUI
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _p in (os.path.join(HERE, 'tools'), os.path.abspath(os.path.join(HERE, '..', 'core'))):   # once, at import
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navkit-tools')
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
                            # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at

@@ -25,7 +25,11 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'bfbc2-console-convert'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('console-convert')
 import havok  # noqa: E402
 
 MAGIC = havok.MAGIC

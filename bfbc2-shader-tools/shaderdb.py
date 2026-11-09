@@ -59,9 +59,11 @@ if TYPE_CHECKING:
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
-for _p in (os.path.join(SUITE, 'core'),):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core')
 
 PROGRAM_SIZE = 0x30        # section 6a record
 KEY_SIZE = 0x58            # section 6b record (the program's key)

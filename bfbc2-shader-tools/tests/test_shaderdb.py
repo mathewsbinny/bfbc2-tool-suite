@@ -33,7 +33,11 @@ from collections.abc import Sequence
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, ROOT)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('shader-tools')
 import shaderdb as sd  # noqa: E402
 
 
@@ -412,9 +416,8 @@ def wake(c: Checks) -> None:
         print(f'     {n}')
         for s, _, t in tex[n]:
             print(f'         s{s}  {t}  {sd.texture_kind(t)}')
-    cc = os.path.join(ROOT, '..', 'bfbc2-console-convert')
     try:
-        sys.path.insert(0, cc)
+        suite_paths.use('console-convert')
         import mesh
     except ImportError as e:
         print(f'SKIP BF1943 Wake layouts vs console_layouts: {e}')

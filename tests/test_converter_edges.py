@@ -14,8 +14,11 @@ import struct
 import sys
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path[:0] = [os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-bf1943-import'),
-                os.path.join(SUITE, 'bfbc2-console-convert')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'bf1943-import', 'console-convert')
 from bfbc2core import dbx  # noqa: E402
 import dbxport  # noqa: E402
 import texture  # noqa: E402

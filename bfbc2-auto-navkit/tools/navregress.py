@@ -31,9 +31,11 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _p in (HERE, os.path.abspath(os.path.join(HERE, '..', '..', 'core'))):   # once, at import
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navkit-tools')
 import navbuild  # noqa: E402
 import navparity  # noqa: E402
 import hpdcheck  # noqa: E402

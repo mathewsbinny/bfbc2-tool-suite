@@ -22,14 +22,18 @@ import zlib
 from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('anim-tools')
 import granny  # noqa: E402
 
 ANIMS = re.compile(r'animations/weapons/handheld/(m1garand|m1garand_rgl|beach/jap_type5|beach/jap_type5_rgl)/.*\.res$')
 
 
 def index():
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'bfbc2-mesh-viewer'))
+    suite_paths.use('mesh-viewer')
     import meshview
     import shaderdb
     try:

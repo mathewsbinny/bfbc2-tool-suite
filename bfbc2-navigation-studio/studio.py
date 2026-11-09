@@ -22,7 +22,11 @@ from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core')
 if __name__ == '__main__':                      # the log and error reports start before the heavy imports,
     from bfbc2core import errors                 # so a missing library is reported too
     errors.setup('navigation-studio', gui='--screenshot' not in sys.argv)

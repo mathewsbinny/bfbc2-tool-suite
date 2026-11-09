@@ -21,8 +21,11 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+suite_paths.use('core', 'navkit-tools')
 import navdiff  # noqa: E402
 import navparity  # noqa: E402
 
@@ -204,7 +207,7 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('navwater', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():
