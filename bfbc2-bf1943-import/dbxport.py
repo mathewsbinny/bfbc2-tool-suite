@@ -565,6 +565,8 @@ class _Port:
         self.report = Report()
         self.dropped: set[str] = set()
         self.local = {(i.attr('guid') or '').lower() for i in f.instances}
+        self.by_guid = {(i.attr('guid') or '').lower(): i for i in f.instances}
+        self.inlined: set[str] = set()
         self.errors: list[str] = []
         self.chosen: dict[str, tuple[str, Candidate | None]] = {}
         self.name = (opts.get('name') or '').lower()
@@ -882,6 +884,10 @@ class _Port:
             ipath = f'{path}[{i}]'
             r = c.attr('ref')
             if titems and (r is not None and not c.children) != tref:
+                inline = self.inlined_item(c, titems[i] if i < len(titems) else titems[0], ipath, tpath, itype, step)
+                if inline is not None:
+                    keep.append(inline)
+                    continue
                 # items of another kind than BFBC2's (references where BFBC2 holds structs inline, or the reverse)
                 self.schema(ipath, c, titems[0])
                 keep.append(c)
@@ -925,6 +931,24 @@ class _Port:
         if not keep:
             return _empty_array(e)
         return dbx.Element(e.tag, dbx.CONTAINER, list(e.attributes), e.text, e.raw, keep)
+
+    def inlined_item(self, c: dbx.Element, ti: dbx.Element, ipath: str, tpath: str, itype: str,
+                     step: str) -> dbx.Element | None:
+        """INLINE converter: BF1943's reference to a local instance where BFBC2 holds the struct inline (DICE's mp_005
+        RichPresenceConnection.ContextPairs, BF1943's RichPresenceContextPair instances): the instance's fields as the
+        item, aligned on BFBC2's; the instance is left out when nothing else names it."""
+        r = c.attr('ref')
+        if r is None or c.children or '/' in r or ti.kind != dbx.CONTAINER or ti.attr('ref') is not None:
+            return None
+        inst = self.by_guid.get(r.lower())
+        if inst is None:
+            return None
+        item = dbx.Element('complex', dbx.CONTAINER, [], '', b'', copy.deepcopy(inst.children or []))
+        out = self.align(item, ti, ipath, tpath + '[]', itype, step)
+        self.inlined.add(r.lower())
+        self.add(ipath, 'converted', note=f'a reference to {inst.attr("type")} ({inst.attr("guid")}) as BFBC2\'s '
+                 'inline struct')
+        return out
 
     def lost_inside(self, e: dbx.Element) -> bool:
         """Whether a struct item holds a reference (any depth) that will not resolve, even relocated."""
@@ -1208,6 +1232,23 @@ def port(data: bytes, templates: Templates, resolve: Callable[[str], bool] | Non
         out = P.align(inst, cand.element if cand is not None else None, t, '', t, step)
         if out is not None:
             new.append(out)
+    if P.inlined:                              # instances now held inline: left out unless something else names them
+        still: set[str] = set()
+
+        def named(e: dbx.Element) -> None:
+            r = e.attr('ref')
+            if r and '/' not in r:
+                still.add(r.lower())
+            for c in e.children or ():
+                named(c)
+        for inst in new:
+            if (inst.attr('guid') or '').lower() not in P.inlined:
+                named(inst)
+        gone = P.inlined - still
+        new = [i for i in new if (i.attr('guid') or '').lower() not in gone]
+        P.errors = [e for e in P.errors if not any(g in e.lower() for g in gone)]
+        for g in sorted(gone):
+            P.add(f'#{g}', 'left out instance', note='held inline by what named it (BFBC2\'s shape)')
     if P.errors:
         if schema == 'error':
             raise SchemaError(P.errors)

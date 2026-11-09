@@ -395,6 +395,17 @@ def main() -> int:
     check(raises(lambda: dbxport.port(bf, tmpl(inst(B + '1', 'X.E', [txt('Kind', 'ValA')])), catalogue=cat,
                                       strict=True), dbxport.PortError), 'gate: ... and fails a strict port')
 
+    # INLINE: a reference to a local instance where BFBC2 holds the struct inline (rich presence context pairs)
+    t = tmpl(inst(B + '1', 'X.Conn', [arr('Pairs', [cx('', [num('Index', [0], '>i'), txt('Kind', 'Normal')])])]))
+    bf = part(A + '1', [inst(A + '1', 'X.Conn', [arr('Pairs', [item(A + '2')])]),
+                        inst(A + '2', 'X.Pair', [num('Index', [3], '>i'), txt('Old', 'o')])])
+    data, rep = dbxport.port(bf, t)
+    f = parsed(data)
+    it = f.instances[0].child('Pairs').children[0]
+    check(len(f.instances) == 1 and it.tag == 'complex' and dbx.value(it.child('Index')) == '3' and
+          it.child('Kind').text == 'Normal' and rep.of('converted'),
+          'INLINE: the referenced instance held inline, aligned on BFBC2\'s item, the instance left out')
+
     # ---------------------------------------------------------------- value passes
     bf = part(A + '1', [inst(A + '1', 'X.Hud', [txt('HintAction1', 'EIAFireCountermeasure'), txt('HintAction2', 'EIUndefined'),
                                                 txt('HintLine1', 'VH_SWITCH'),
