@@ -80,8 +80,9 @@ def read(path):
 
 def find(folder, lv):
     """The level's .Heightfield-000.res under an unpacked terrain-00.fbrb, or None."""
+    want = f'{lv}.heightfield-000.res'.lower()       # any case of the level name
     for root, _, files in os.walk(folder):
         for name in files:
-            if name.lower() == f'{lv}.heightfield-000.res':
+            if name.lower() == want:
                 return os.path.join(root, name)
     return None

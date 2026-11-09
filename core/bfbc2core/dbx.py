@@ -288,9 +288,9 @@ def _number_text(raw, size, field_name):
         return _net_r_single(raw)
     if size == 8:
         return _net_r_double(raw)
-    if size == 2 and len(raw) >= 2:
-        return str(raw[0] << 8 | raw[1])
-    return str(int.from_bytes(bytes(raw), 'big'))        # other sizes (none known in game files): as a whole number
+    if len(raw) >= 2:                                   # 2, and other sizes (none known in game files): the first
+        return str(raw[0] << 8 | raw[1])                # two bytes as an unsigned 16-bit number, as to_xml / DbxEdit
+    return str(int.from_bytes(bytes(raw), 'big'))
 
 
 def value(e):

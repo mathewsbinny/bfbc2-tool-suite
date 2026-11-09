@@ -29,7 +29,7 @@ def build(entries, zipped=True):
             types[typ] = len(strings)
             strings += typ.encode('ascii') + b'\0'
     payload, table = bytearray(), bytearray()
-    for (name, typ, flags, data), off in zip(entries, names):
+    for (_name, typ, flags, data), off in zip(entries, names):
         table += struct.pack('>6I', off, flags, len(payload), len(data), len(data), types[typ])
         payload += data
     header = struct.pack('>2I', 2, len(strings)) + strings + struct.pack('>I', len(entries)) + table

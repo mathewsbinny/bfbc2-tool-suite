@@ -211,8 +211,8 @@ def load(level, opfor=None, terrain_stride=2, log=print, geometry=True):
         for bp, target in levelobjects.mesh_aliases(bases).items():
             if bp not in havok and target in havok:
                 havok[bp] = havok[target]
-    except Exception as e:                    # needs the converted XML NavKit's prepare writes
-        lvl.notes.append(f'blueprint mesh aliases not read: {e}')
+    except Exception as ex:                   # needs the converted XML NavKit's prepare writes
+        lvl.notes.append(f'blueprint mesh aliases not read: {ex}')
     cache, missing = {}, set()
     for e in lvl.entities:
         if e.blueprint is None or e.matrix is None:

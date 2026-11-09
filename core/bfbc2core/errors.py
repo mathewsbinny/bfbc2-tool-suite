@@ -50,7 +50,7 @@ CAUSES = [
      lambda e: 'The PC ran out of memory.',
      lambda e: 'Close other programs, or open a smaller level.'),
 ]
-PIP_NAMES = {'imgui_bundle': 'imgui-bundle', 'PIL': 'pillow', 'capstone': 'capstone', 'pefile': 'pefile'}
+PIP_NAMES: dict[str, str] = {'imgui_bundle': 'imgui-bundle', 'PIL': 'pillow', 'capstone': 'capstone', 'pefile': 'pefile'}
 
 
 def log_dir():
@@ -131,6 +131,8 @@ def warn(message, show=False):
 
 
 def _window(title, text, kind='error'):
+    if threading.current_thread() is not threading.main_thread():
+        return                                  # Tk only on the main thread (a worker's error: printed and logged)
     try:
         import tkinter as tk
         from tkinter import messagebox
@@ -157,7 +159,7 @@ def guard(tool=None, gui=None):
         raise
     except KeyboardInterrupt:
         logger().info('stopped (Ctrl+C)')
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except BaseException as e:
         report(e)
-        raise SystemExit(1)
+        raise SystemExit(1) from e

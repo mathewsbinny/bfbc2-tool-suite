@@ -4,8 +4,10 @@
     r.found, r.nodes, r.cost, r.reason, r.start_island, r.end_island, r.gap
 
 The points are joined to the graph at the nearest route node within 15 m horizontally and 4 m in height (as
-the studio's spawn check does); the route is the cheapest over the file's own directed edges and their
-stored costs (A*, straight-line distance as the estimate). Without a route, the result says which island
+the studio's spawn check does); the route is found over the file's own directed edges and their stored costs
+(A*, straight-line distance as the estimate). The stored costs are the edge lengths rounded down to 1/16 m, so the
+estimate can exceed the remaining cost by up to 1/16 m per edge: a found route is the cheapest or within that
+much of it (a few centimetres; the harness's route measures were taken this way, so it is kept). Without a route, the result says which island
 each point is on and where the two islands come closest. This plans over the graph only: the game also
 smooths the route through the areas, which this does not do (DESIGN.md section 7, question 4).
 """

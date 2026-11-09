@@ -82,7 +82,7 @@ class NavData:
     edge_cost: np.ndarray                   # (k,) metres, as stored (the tag's floor(distance * 16) / 16)
     node_island: np.ndarray                 # (m,) index into islands
     islands: List[Island]
-    ladder_edge: np.ndarray = None          # (k,) bool: the edge is a ladder link (LADDER_DY / LADDER_SLOPE)
+    ladder_edge: np.ndarray | None = None   # (k,) bool: the edge is a ladder link (LADDER_DY / LADDER_SLOPE)
 
     @property
     def sectors(self):
@@ -148,9 +148,10 @@ def _cells(f, heightfield, cache_dir, path):
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
         cp = os.path.join(cache_dir, _key(path) + '.npz')
-        with open(cp + '.tmp', 'wb') as fh:                      # a file object: numpy adds no .npz of its own
+        tmp = f'{cp}.{os.getpid()}.tmp'                         # per process: two tools writing at once do not collide
+        with open(tmp, 'wb') as fh:                      # a file object: numpy adds no .npz of its own
             np.savez(fh, xz=xz, y=y, area=area, est=est)
-        os.replace(cp + '.tmp', cp)                              # an interrupted write leaves no half file
+        os.replace(tmp, cp)                              # an interrupted write leaves no half file
     return xz, y, area, est
 
 
@@ -167,9 +168,10 @@ def load(path, heightfield=None, cache_dir=None):
                 pass                                         # an unreadable cache entry is rebuilt
         nav = _load(path, heightfield, cache_dir)
         os.makedirs(cache_dir, exist_ok=True)
-        with open(pk + '.tmp', 'wb') as fh:
+        tmp = f'{pk}.{os.getpid()}.tmp'
+        with open(tmp, 'wb') as fh:
             pickle.dump(nav, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        os.replace(pk + '.tmp', pk)
+        os.replace(tmp, pk)
         return nav
     return _load(path, heightfield, None)
 

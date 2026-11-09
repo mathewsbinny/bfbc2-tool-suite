@@ -37,8 +37,8 @@ def main(argv):
         except ModuleNotFoundError as e:
             cause, fix = errors.explain(e)
             check('not installed' in cause and fix == 'Install it: pip install not_a_real_library_xyz', 'a missing library: cause and pip line')
-        e = ModuleNotFoundError("No module named 'imgui_bundle'", name='imgui_bundle')
-        check(errors.explain(e)[1] == 'Install it: pip install imgui-bundle', 'pip names differ from module names (imgui-bundle)')
+        mnf = ModuleNotFoundError("No module named 'imgui_bundle'", name='imgui_bundle')
+        check(errors.explain(mnf)[1] == 'Install it: pip install imgui-bundle', 'pip names differ from module names (imgui-bundle)')
         check('could not be written or read' in errors.explain(PermissionError(13, 'denied', 'C:/x.hpd'))[0], 'a file in use or read-only')
         check('missing' in errors.explain(FileNotFoundError(2, 'no', 'C:/y.dbx'))[0], 'a missing file')
         check('out of memory' in errors.explain(MemoryError())[0], 'out of memory')
@@ -55,7 +55,7 @@ def main(argv):
         except KeyError as ex:
             errors.report(ex, where='a test')
         errors.warn('something to look at')
-        warnings.warn('a Python warning')
+        warnings.warn('a Python warning', stacklevel=1)
         t = threading.Thread(target=lambda: 1 / 0, name='worker')
         t.start()
         t.join()
