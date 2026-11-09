@@ -59,8 +59,9 @@ disable_error_code = ['annotation-unchecked']   # typed locals inside not-yet-ty
 module = ['hpdtool', 'kymesh', 'navsample', 'navbuild', 'navwalk', 'navkit', 'menucommon', 'aptgraft', 'culltree',
           'apt', 'stfs', 'xiso', 'dbxbin', 'pipeline', 'stockmp', 'shaderdb', 'xenos', 'xenos_hlsl', 'pcbuild',
           'testharness.runs', 'testharness.ingame', 'testharness.levelchecks', 'testharness', 'bfbc2core', 'bfbc2core.*',
+          'bfbc2core.paths',
           'test_bc2loc_write', 'test_meshview', 'test_meshview_index', 'test_crashreader', 'test_exeref', 'test_types',
           'test_lint', 'test_repo', 'test_converter_edges', 'test_cli_errors', 'test_viewers', 'test_hub',
-          'test_shaderdb']
+          'test_shaderdb', 'test_paths', 'test_locators']
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
