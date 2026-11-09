@@ -47,7 +47,9 @@ from collections import Counter, deque
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+for _p in (HERE, os.path.abspath(os.path.join(HERE, '..', '..', 'core'))):   # once, at import
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import navsample  # noqa: E402
@@ -123,7 +125,6 @@ def vehicle_kind(ref):
 def vehicle_spawns(level_xml):
     """The level's VehicleSpawnEntityData: [{'pos': (x, y, z), 'vehicle': blueprint path, 'kind', 'name',
     'enabled'}] (spawns at the origin - unplaced templates - are left out)."""
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
     from bfbc2core import xmlinst
     out = []
     for _typ, _guid, body in xmlinst.instances(level_xml, '.VehicleSpawnEntityData'):
@@ -426,7 +427,6 @@ def road_points(level_xml, step=ROAD_STEP):
     """Seed points along the level's terrain splines (Terrain.TerrainSplineData: its Points, TerrainSplinePointData
     positions, in order), every `step` m along each polyline - DICE's `BuildRoads`: of the sectors with vehicle ground
     in DICE's files nearly all hold a spline control point or a vehicle spawn, the empty ones mostly neither (spec 2.2)."""
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
     from bfbc2core import xmlinst
     pos = {}
     for _t, g, body in xmlinst.instances(level_xml, 'Terrain.TerrainSplinePointData'):
@@ -561,8 +561,7 @@ def vehicle_settings(detail=None):
              'DIST_EDGE_MAX', 'Y_OFFSET', 'AREA_Y_MIN', 'AREA_Y_MAX', 'BORDER_NODE_SPACING', 'NODE_COVER',
              'ORDER_NODES', 'CLIP_TO_REFERENCE', 'DETAIL_FEATURES', 'DETAIL_STEP', 'DETAIL_BLOCKS_EDGES',
              'TILE_20M_SECTORS']
-    saved = {n: getattr(navbuild, n) for n in names if hasattr(navbuild, n)}
-    try:
+    with navbuild.saved_settings(names):
         navbuild.set_pitch(PITCH)
         navbuild.TILE, navbuild.TILES = TILE, TILES
         navbuild.RESOLUTION, navbuild.LINK_STEP, navbuild.RADIUS = RESOLUTION, LINK_STEP, RADIUS
@@ -573,16 +572,13 @@ def vehicle_settings(detail=None):
         navbuild.ORDER_NODES = False
         navbuild.CLIP_TO_REFERENCE = False
         navbuild.TILE_20M_SECTORS = None
-        if 'DETAIL_FEATURES' in saved:
+        if hasattr(navbuild, 'DETAIL_FEATURES'):
             navbuild.DETAIL_FEATURES = DETAIL if detail is None else detail
-        if 'DETAIL_STEP' in saved:
-            navbuild.DETAIL_STEP = dict(saved['DETAIL_STEP'], normal=LINK_STEP)
-        if 'DETAIL_BLOCKS_EDGES' in saved:
+        if hasattr(navbuild, 'DETAIL_STEP'):
+            navbuild.DETAIL_STEP = dict(navbuild.DETAIL_STEP, normal=LINK_STEP)
+        if hasattr(navbuild, 'DETAIL_BLOCKS_EDGES'):
             navbuild.DETAIL_BLOCKS_EDGES = False   # DICE's vehicle edges cross D lines (0.58 %; infantry 0.004 %)
         yield navbuild
-    finally:
-        for n, v in saved.items():
-            setattr(navbuild, n, v)
 
 
 class _Shim:

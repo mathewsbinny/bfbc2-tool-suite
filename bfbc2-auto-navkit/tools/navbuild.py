@@ -30,6 +30,7 @@ Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd>
                    [--stairs stair_tris.npy] [--exclude exclude_tris.npy] [--exclude-foot exclude_footprint_tris.npy]
                    [--no-detail]   (no D lines / F cells: DETAIL_FEATURES off)
 """
+import contextlib
 import heapq
 import math
 import os
@@ -128,7 +129,6 @@ DETOUR_TRIGGER = 3.0            # repair node pairs within DIST_EDGE_MAX whose r
 DETOUR_MAX = 1.3                # ... to a walk of at most this x straight (DICE at the failing spot: 1.02-1.11)
 DETOUR_LINK_ALL = False         # also link new waypoints to all walkable neighbours within DIST_EDGE_MAX (4x the edges)
 DETOUR_PASSES = 2               # pass A, then pass B on the repaired graph
-REPAIR_STATS: dict[Any, int] = {}               # nodes added per pass (summed over sectors; for reports)
 LADDER_STATS: dict[str, int] = {}               # ladder links made, and ladders whose ends lie in two sectors (not linked yet)
 BORDER_NODE_SPACING = 10.0
 BRIDGE_UNION = True             # 45-degree bridges: outline from the exact union (bridge_union) - False: clip_bridges
@@ -226,6 +226,30 @@ DETAILED_LINK_STEP = 0.3        # LINK_STEP in detailed zones: DICE's one-cell h
                                 # (ONS_MP_002, 10,353 outline segments) p99 0.31, p99.9 0.42, max 0.49 m - about half its
                                 # pitch-0.8 values (p99 0.96, max 1.03), not a quarter: the same slope (0.15 m) cut sloped
                                 # ground into 3x DICE's areas (8,400 against 2,640; 2026-10-21)
+
+
+GRID_SETTINGS = ('PITCH', 'SECTOR_SAMPLES', 'WINDOW', 'TILE', 'TILES', 'RESOLUTION', 'LINK_STEP')
+
+
+@contextlib.contextmanager
+def saved_settings(names=GRID_SETTINGS):
+    """The module's build settings (the grid's by default; any module-level names) put back as they were when the
+    block ends, by an exception too: a detailed pass or a vehicle build that fails leaves no pitch-0.2 or vehicle
+    settings behind for the next build in the same process (navregress, the GUI, navvehicle)."""
+    g = globals()
+    saved = {n: g[n] for n in names if n in g}
+    try:
+        yield sys.modules[__name__]
+    finally:
+        g.update(saved)
+
+
+def reset_stats():
+    """Clears the per-build report counters and id sets: this module's, navislands' and navwalk's (build() at its
+    start; ORDER_IDS also decides which order nodes prune_order_nodes may drop)."""
+    for d in (ORDER_IDS, ORDER_STATS, LADDER_STATS, DETAIL_STATS, navislands.TERRAIN_IDS, navwalk.ROOF_STATS,
+              navwalk.OBJECTIVE_STATS, navwalk.STEEP_STATS):
+        d.clear()
 
 
 def set_pitch(p):
@@ -770,11 +794,7 @@ def build(samples_path, tris_path, xoff, zoff, out_path, step=0.28, log=print, d
                   edits=edits, water=water, max_water_depth=max_water_depth, bounds=bounds,
                   order_points=order_points, t0=t0, ladders=ladders, area_orders=area_orders)
     set_pitch(0.8)
-    ORDER_IDS.clear()
-    ORDER_STATS.clear()                     # reports of this build only (navregress / the GUI build several)
-    navislands.TERRAIN_IDS.clear()
-    LADDER_STATS.clear()
-    DETAIL_STATS.clear()
+    reset_stats()                           # reports of this build only (navregress / the GUI build several)
     a = stage(samples_path, high_path, xoff, zoff, seeds=seeds, **common)
     if detailed:
         graphs = merge_detailed(a, detailed, xoff, zoff, seeds, common, log)
@@ -1133,6 +1153,12 @@ def cross_grid_resolver(here, there, X, Y):
 
 
 def merge_detailed(a, detailed, xoff, zoff, seeds, common, log):
+    """_merge_detailed with the grid settings put back afterwards (it switches them to pitch 0.2)."""
+    with saved_settings():
+        return _merge_detailed(a, detailed, xoff, zoff, seeds, common, log)
+
+
+def _merge_detailed(a, detailed, xoff, zoff, seeds, common, log):
     """The second pass: DICE's detailed-zone sectors built at pitch 0.2 from their own sampling run (stage b),
     merged with the normal build a. Stage b is seeded from a's walkable ground in those sectors (ground joined to the
     rest of the level only through normal sectors would otherwise be lost) and continues a's node ids. Shared nodes
@@ -1414,9 +1440,8 @@ def build_graph(level, areas, area_of, traced, borders, gi0, gj0, ox, oz, new_id
                 parent[find(u)] = find(v)
             changed = True
     if DETOUR_REPAIR:
-        for p in range(DETOUR_PASSES):
-            added = repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id)
-            REPAIR_STATS[p] = REPAIR_STATS.get(p, 0) + added
+        for _pass in range(DETOUR_PASSES):
+            repair_detours(level, pts, pairs, node_at, cell_ij, gi0, gj0, ox, oz, new_id)
     if ORDER_NODES and orders:
         ORDER_STATS['added'] = ORDER_STATS.get('added', 0) + add_order_nodes(level, pts, pairs, node_at, area_of, orders,
                                                                              gi0, gj0, ox, oz, new_id)

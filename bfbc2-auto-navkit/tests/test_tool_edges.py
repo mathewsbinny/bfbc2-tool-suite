@@ -4,7 +4,8 @@ r"""Edge cases of NavKit's smaller tools, on data built here (no game data):
   main network - not a crash;
 - navkit's detailed-sector cache (work\navkit\<lv>\detailed.json): reused while the samples and the sector offsets
   are the same, chosen again when the offsets change (a new --box);
-- navdiff's sector pictures (pngs): one PNG per sector, of the expected size.
+- navdiff's sector pictures (pngs): one PNG per sector, of the expected size;
+- the GUI's reader thread: output and the result through the queue only; Cancel ends the step's process tree.
 
   python test_tool_edges.py
 """
@@ -96,6 +97,58 @@ def main(argv):
         size = png_size(p) if os.path.isfile(p) else None
         check(size is not None and 400 <= size[0] <= 1200 and 400 <= size[1] <= 1200,
               'navdiff: one PNG per sector, of a plausible size (8 x 8 inches at 110 dpi, trimmed)', str(size))
+
+        # navbuild's grid settings: a detailed pass that fails leaves the normal pitch behind, not 0.2
+        import navbuild
+        navbuild.set_pitch(0.8)
+        before = {n: getattr(navbuild, n) for n in ('PITCH', 'SECTOR_SAMPLES', 'TILE', 'TILES', 'RESOLUTION', 'LINK_STEP')}
+        a = {'sectors': {(0, 0)}, 'border_nodes': {}, 'next_id': 0,
+             'level': SimpleNamespace(s=SimpleNamespace(min_x=0.0, min_z=0.0, nx=1, pitch=0.8), keep=np.zeros(0, bool),
+                                      col_of=np.zeros(0, int), y=np.zeros(0))}
+        real_stage = navbuild.stage
+
+        def failing_stage(*a_, **k_):
+            raise RuntimeError('the detailed stage failed')
+        navbuild.stage = failing_stage
+        try:
+            navbuild.merge_detailed(a, {'sectors': {(0, 0)}, 'samples': 'none'}, 0, 0, [], {}, lambda *m: None)
+        except RuntimeError:
+            pass
+        finally:
+            navbuild.stage = real_stage
+        after = {n: getattr(navbuild, n) for n in before}
+        check(after == before, 'navbuild: a failed detailed pass puts the grid settings back (pitch 0.8)', f'{before} -> {after}')
+        navbuild.ORDER_STATS['added'] = 3
+        navbuild.navwalk.STEEP_STATS['lips'] = 2
+        navbuild.reset_stats()
+        check(not navbuild.ORDER_STATS and not navbuild.navwalk.STEEP_STATS and not hasattr(navbuild, 'REPAIR_STATS'),
+              'navbuild: reset_stats clears every per-build counter (REPAIR_STATS, never read, is gone)')
+        navbuild.set_pitch(0.8)
+
+        # the GUI's reader thread hands everything over through the queue; Cancel ends the step and its children
+        from importlib.machinery import SourceFileLoader
+        gui = SourceFileLoader('navkitGUI', os.path.join(HERE, '..', 'navkitGUI.pyw')).load_module()
+        import queue
+        import subprocess
+        app = gui.App.__new__(gui.App)
+        app.lines = queue.Queue()
+        proc = subprocess.Popen([sys.executable, '-c', 'print("one"); print("two")'], stdout=subprocess.PIPE, text=True)
+        app.reader(proc, 'check')
+        items = []
+        while not app.lines.empty():
+            items.append(app.lines.get())
+        check([i.strip() for i in items[:2]] == ['one', 'two'] and items[-1] == ('done', 'check', 0, ['one', 'two']) and not hasattr(app, 'tail'),
+              'GUI reader: lines, then (done, step, exit code, last lines) through the queue - no shared attributes', str(items))
+        parent = subprocess.Popen([sys.executable, '-c', 'import subprocess, sys, time; c = subprocess.Popen([sys.executable, '
+                                   '"-c", "import time; time.sleep(60)"]); print(c.pid, flush=True); time.sleep(60)'],
+                                  stdout=subprocess.PIPE, text=True)
+        child = int(parent.stdout.readline())
+        gui.kill_tree(parent)
+        parent.wait(10)
+        import time
+        time.sleep(0.5)
+        alive = subprocess.run(['tasklist', '/FI', f'PID eq {child}'], capture_output=True, text=True).stdout if os.name == 'nt' else ''
+        check(parent.poll() is not None and str(child) not in alive, 'GUI Cancel: the step and the processes it started end')
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print('all passed' if not failed else f'{failed} check(s) failed')
