@@ -12,7 +12,10 @@ Build and edit Battlefield: Bad Company 2 skinned meshes (weapons) on the PC.
 - `texwrite.py` - PC textures (`ITexture` .res) from pictures: DXT1 colour maps (format 0), DXT1 normal maps
   (format 18) and DXT5 pictures with alpha (format 2; one level, as DICE's award images), laid out as DICE's
   textures are; `wrapped()` gives the on-demand bundles' form (`RES\x02` + type name, sizes, payload: every entry of
-  `async\ondemand_awards-00.fbrb`); `alpha5()` decodes a DXT5 level's alpha.
+  `async\ondemand_awards-00.fbrb`); `alpha5()` decodes a DXT5 level's alpha. For textures composed level by level
+  (the emitter atlases, `bfbc2-bf1943-import\emitteratlas.py`): `resource()` (the header over given levels),
+  `l8_down()` / `l8_bytes()` (an 8-bit level as DICE's emitter atlases have it: the rounded 2 x 2 mean, rows padded to
+  4 bytes), `atlas_levels()` (their level count).
 - `decimate.py` - fewer triangles (third-person LODs): quadric edge collapses onto existing vertices, so texture
   coordinates, normals and bones stay exact; texture seams stay closed, bones are never merged.
 - Skinned mesh sets (`SkinnedMeshSet`) are read and written by the console converter's `meshset.py`: the rigid

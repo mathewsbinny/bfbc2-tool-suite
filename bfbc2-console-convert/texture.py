@@ -218,8 +218,14 @@ def convert(b):
 # ---------------------------------------------------------------- checking (numpy)
 
 def decode(level, w, h, fmt):
-    """One level's blocks (PC order) -> (h, w, 4) int array: DXT1 / DXT3 / DXT5 / BC5."""
+    """One level's blocks (PC order) -> (h, w, 3) int array: DXT1 / DXT3 / DXT5 / BC5 (red, green; blue 0); and the
+    8-bit format 10 (the value in all three; rows as stored: DICE pads a row to 4 bytes, the converter does not)."""
     import numpy as np
+    if fmt == L8:
+        w, h = max(w, 1), max(h, 1)
+        pitch = max(w, len(level) // h)
+        a = np.frombuffer(level[:pitch * h], np.uint8).reshape(h, pitch)[:, :w].astype(np.int32)
+        return np.repeat(a[:, :, None], 3, 2)
     bpb = FORMATS[fmt][0]
     bw, bh = max((w + 3) // 4, 1), max((h + 3) // 4, 1)
     blk = np.frombuffer(level[:bw * bh * bpb], np.uint8).reshape(-1, bpb)
