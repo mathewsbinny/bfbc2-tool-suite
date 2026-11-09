@@ -28,8 +28,12 @@ import time
 from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.dirname(HERE))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit', 'navkit-tools')
 import navcompare  # noqa: E402
 import navdf  # noqa: E402
 import navdiff  # noqa: E402
@@ -82,9 +86,7 @@ def terrain_bounds(root, lv):
     r"""(minX, minZ, maxX, maxZ) of the level's terrain heightfield (work\levels\<lv>\terrain), or None. DICE's console
     path data can reach past it (ONS_MP_002: ground to z -527, the PC terrain ends at -512 - 3,600 m2 and a route
     that do not exist on PC), so the reference is clipped to it: ground and connectivity are measured on PC ground."""
-    core = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'core')
-    if core not in sys.path:
-        sys.path.insert(0, core)
+    suite_paths.use('core')
     from bfbc2core import terrain
     d = os.path.join(root, 'work', 'levels', lv, 'terrain')
     for r, _dirs, files in os.walk(d):
@@ -105,9 +107,9 @@ def stale_nodes(root, lv, reference, clip=None):
     and raised terrain (85 nodes; 99.8 % of its nodes are on PC ground) - and a route there is no route on PC, so
     connectivity leaves those nodes out, as it leaves out ground past the terrain (terrain_bounds). Empty without
     0.8 m samples."""
-    import numpy as np
     import hpdtool
     import navsample
+    import numpy as np
     sp = next((p for p in (os.path.join(root, 'work', 'navsample', f'{lv}_navkit.bin'),
                            os.path.join(root, 'work', 'navsample', f'{lv}_full.bin')) if os.path.isfile(p)), None)
     if sp is None:
@@ -138,11 +140,9 @@ def stale_nodes(root, lv, reference, clip=None):
 def ladder_ground(reference, candidate, reference_cells):
     """Ground reached only through ladder links (navdata: ladder edges, ladder areas): its share of the reference's
     ground, and how many of its cells the reference lacks (kept out of 'extra ground')."""
-    core = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'core')
-    if core not in sys.path:
-        sys.path.insert(0, core)
-    from bfbc2core import navdata
+    suite_paths.use('core')
     import numpy as np
+    from bfbc2core import navdata
     cn, rn = navdata.load(candidate), navdata.load(reference)
     if not len(cn.cell_area) or not any(a.ladder for a in cn.areas):
         return {'percent': 0.0, 'extra_cells': 0, 'cells': 0}
@@ -317,7 +317,7 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('navparity', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

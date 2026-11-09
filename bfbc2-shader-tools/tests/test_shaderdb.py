@@ -29,29 +29,36 @@ import struct
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, ROOT)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('shader-tools')
 import shaderdb as sd  # noqa: E402
 
 
 class Checks:
-    def __init__(self):
+    def __init__(self) -> None:
         self.failed = 0
 
-    def check(self, ok, what, detail=''):
+    def check(self, ok: object, what: str, detail: str = '') -> None:
         self.failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''), flush=True)
 
 
 # ------------------------------------------------------------------------------------------------ built databases
 
-def guid(rng):
+def guid(rng: random.Random) -> bytes:
     return bytes(rng.randrange(256) for _ in range(16))
 
 
-def build(dx, entries, seed, shared=b'', big_endian=False):
+def build(dx: int, entries: list[tuple[str, int]], seed: int, shared: bytes = b'',
+          big_endian: bool = False) -> sd.ShaderDb:
     """A consistent database. entries: [(name, programs)]; each program gets its own shaders and parameter block,
     plus one parameter block, binding table and register table every file shares (shared: extra bytes in them, so two
     files can share or not). big_endian: an Xbox 360 one (Xenon vertex elements, GUIDs with big-endian fields)."""
@@ -89,7 +96,7 @@ def build(dx, entries, seed, shared=b'', big_endian=False):
     progs.sort(key=lambda t: db.pc_guid(t[0][:16]))
     db.programs = [p for p, _ in progs]
     db.keys = [k for _, k in progs]
-    groups = {}
+    groups: dict[bytes, list[int]] = {}
     for i, k in enumerate(db.keys):
         groups.setdefault(k[:16], []).append(i)
     db.groups = sorted(groups.items(), key=lambda t: db.pc_guid(t[0]))
@@ -97,7 +104,8 @@ def build(dx, entries, seed, shared=b'', big_endian=False):
     return db
 
 
-def param_block(e, textures, constants=()):
+def param_block(e: str, textures: list[tuple[int, str]],
+                constants: Sequence[tuple[str, int, int, tuple[float, ...]]] = ()) -> bytes:
     """A parameter block as DICE's are laid out (FORMAT.md section 2, 'Section 1'): textures [(sampler, name)],
     constants [(name, register, components, 4 values)], one sampler-state record."""
     tex = b''.join(bytes([s, 0, 0, 0]) + name.encode().ljust(0x80, b'\0') + bytes(8) for s, name in textures)
@@ -112,7 +120,7 @@ def param_block(e, textures, constants=()):
     return head + tex + con + samplers
 
 
-def with_textures(db, per_entry):
+def with_textures(db: sd.ShaderDb, per_entry: dict[str, list[tuple[int, str]]]) -> sd.ShaderDb:
     """Gives each program of an entry a second parameter block naming the entry's textures (per_entry: {entry
     name: [(sampler, texture name)]})."""
     groups = db.entry_programs()
@@ -126,14 +134,14 @@ def with_textures(db, per_entry):
     return db
 
 
-def reparse(db):
+def reparse(db: sd.ShaderDb) -> tuple[sd.ShaderDb, bytes]:
     data = db.to_bytes()
     again = sd.ShaderDb.parse(data, 9 if db.dx == 9 else 10)
     again.dx, again.label = db.dx, getattr(db, 'label', '')
     return again, data
 
 
-def quick(c, tmp):
+def quick(c: Checks, tmp: str) -> None:
     for dx in (9, 10, 11):
         db = build(dx, [('Objects/A/A_Mesh/Objects/A/Shaders/Metal', 3), ('Objects/B/B_Mesh/Objects/B/Shaders/Wood', 2)], 1)
         again, data = reparse(db)
@@ -217,29 +225,29 @@ def quick(c, tmp):
         sd.MAX_PROGRAMS = old
 
     # ---- the command line
-    paths = {}
+    paths: dict[str, str] = {}
     for label, db in (('base', build(9, [(A, 3)], 20)), ('donor', build(9, [(A, 1), (B, 2)], 21))):
         paths[label] = os.path.join(tmp, label, 'Dx9_Single.res')
         os.makedirs(os.path.dirname(paths[label]))
         open(paths[label], 'wb').write(db.to_bytes())
     needf = os.path.join(tmp, 'need.txt')
     open(needf, 'w').write('# needed\nObjects/B/B_Mesh\n')
-    out = os.path.join(tmp, 'out', 'Dx9_Single.res')
+    out_res = os.path.join(tmp, 'out_res', 'Dx9_Single.res')
     env = {**os.environ, 'LOCALAPPDATA': tmp}
 
-    def run(*args):
+    def run(*args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run([sys.executable, os.path.join(ROOT, 'shaderdb.py'), *args], capture_output=True,
                               text=True, errors='replace', env=env)
-    r = run('merge', paths['base'], paths['donor'], '--need', needf, '-o', out)
-    c.check(r.returncode == 0 and os.path.isfile(out) and os.path.isfile(out + '.merge.txt'),
+    r = run('merge', paths['base'], paths['donor'], '--need', needf, '-o', out_res)
+    c.check(r.returncode == 0 and os.path.isfile(out_res) and os.path.isfile(out_res + '.merge.txt'),
             'command line: merge writes the file and its report', r.stdout + r.stderr)
-    r = run('info', out)
+    r = run('info', out_res)
     c.check(r.returncode == 0 and 'identical bytes' in r.stdout and 'consistent' in r.stdout,
             'command line: info on the merged file (identical bytes, consistent)', r.stdout + r.stderr)
-    r = run('list', out, 'b_mesh')
+    r = run('list', out_res, 'b_mesh')
     c.check(r.returncode == 0 and 'Objects/B/B_Mesh  |  Objects/B/Shaders/Wood' in r.stdout,
             'command line: list shows the added entry as mesh | shader', r.stdout + r.stderr)
-    r = run('roundtrip', paths['base'], paths['donor'], out)
+    r = run('roundtrip', paths['base'], paths['donor'], out_res)
     c.check(r.returncode == 0 and r.stdout.count('ok  ') == 3, 'command line: roundtrip', r.stdout + r.stderr)
     junk = os.path.join(tmp, 'junk.res')
     open(junk, 'wb').write(b'this is not a shader database')
@@ -257,10 +265,10 @@ def quick(c, tmp):
         again = sd.ShaderDb.parse(data)
         c.check(again.big_endian == big and again.to_bytes() == data and again.check() == [],
                 f'{kind}: built database parses, writes the same bytes and passes the checks', '; '.join(again.check()))
-        got = sd.entry_textures(again)
-        c.check(got == {A: [(1, 0, 'Textures/A/Metal_Nm'), (2, 0, 'Textures/A/Metal_C')],
-                        B: [(1, 0, 'Textures/B/Wood_Df')]},
-                f'{kind}: entry_textures gives each entry its textures and samplers', str(got))
+        named = sd.entry_textures(again)
+        c.check(named == {A: [(1, 0, 'Textures/A/Metal_Nm'), (2, 0, 'Textures/A/Metal_C')],
+                          B: [(1, 0, 'Textures/B/Wood_Df')]},
+                f'{kind}: entry_textures gives each entry its textures and samplers', str(named))
         k = again.program_refs(again.entry_programs()[again.entries[0][1]][0])[3]
         consts = sd.block_constants(again.params[k], again.e)
         c.check(consts == [('DirtColor', 8, 3, (0.5, 0.25, 1.0, 0.0))], f'{kind}: block_constants reads a constant',
@@ -268,10 +276,10 @@ def quick(c, tmp):
         if big:
             c.check(again.entries[0][1] == sd.swap_guid(hashlib.md5(A.encode()).digest()),
                     'Xbox 360: entry GUIDs are MD5(name) with big-endian fields')
-            bad = build(9, [(A, 12)], 31, big_endian=True)
-            bad.programs.sort(key=lambda p: p[:16])         # the file's own byte order: not DICE's
-            c.check(bad.programs != sorted(bad.programs, key=lambda p: bad.pc_guid(p[:16]))
-                    and any('sorted' in p for p in bad.check()),
+            wrong = build(9, [(A, 12)], 31, big_endian=True)
+            wrong.programs.sort(key=lambda p: p[:16])         # the file's own byte order: not DICE's
+            c.check(wrong.programs != sorted(wrong.programs, key=lambda p: wrong.pc_guid(p[:16]))
+                    and any('sorted' in p for p in wrong.check()),
                     'Xbox 360: programs must be sorted by the PC byte order of their GUIDs')
             try:
                 sd.merge(build(9, [(A, 1)], 1), [(db, 'xbox')], ['objects/b/b_mesh'])
@@ -292,7 +300,7 @@ def quick(c, tmp):
 
 # ------------------------------------------------------------------------------------------------ the game copy
 
-def game(c, tmp):
+def game(c: Checks, tmp: str) -> None:
     try:
         sd.find_opfor()
     except sd.ShaderDbError as e:
@@ -324,12 +332,13 @@ def game(c, tmp):
 TWINS = ('mp_002', 'mp_005', 'mp_008')
 
 
-def _elements(body):
+def _elements(body: bytes) -> list[tuple[int, int]]:
     """A layout record body's elements as (usage, stream): the formats differ between Xbox and PC (packed normals)."""
     return [(body[4 * i + 1], body[4 * i + 3]) for i in range(body[64])]
 
 
-def xbox(c):
+def xbox(c: Checks) -> None:
+    opfor: str | None
     try:
         opfor = sd.find_opfor()
     except sd.ShaderDbError as e:
@@ -341,7 +350,8 @@ def xbox(c):
     elif opfor:
         bundles = {lv.lower(): os.path.join(levels, lv, 'level-00.fbrb') for lv in sorted(os.listdir(levels))
                    if os.path.isfile(os.path.join(levels, lv, 'level-00.fbrb'))}
-        n, bad = 0, []
+        n = 0
+        bad: list[str] = []
         for lv, path in bundles.items():
             if not sd.bundle_databases(path):
                 continue                                    # mp_common, sp_common: no database
@@ -379,7 +389,7 @@ def xbox(c):
     wake(c)
 
 
-def wake(c):
+def wake(c: Checks) -> None:
     xenon = os.environ.get('BF1943_XENON') or os.path.join(ROOT, '..', '..', 'operation-rising-sun', 'work',
                                                            'extracted', 'dist', 'xenon')
     lvl = os.path.join(xenon, 'levels', 'wake_island_s', 'reduced-level-00.fbrb')
@@ -407,9 +417,8 @@ def wake(c):
         print(f'     {n}')
         for s, _, t in tex[n]:
             print(f'         s{s}  {t}  {sd.texture_kind(t)}')
-    cc = os.path.join(ROOT, '..', 'bfbc2-console-convert')
     try:
-        sys.path.insert(0, cc)
+        suite_paths.use('console-convert')
         import mesh
     except ImportError as e:
         print(f'SKIP BF1943 Wake layouts vs console_layouts: {e}')
@@ -421,7 +430,7 @@ def wake(c):
             f'(part_layouts: {len(mine)}, with the standalone names)')
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     c = Checks()
     with tempfile.TemporaryDirectory(prefix='shaderdb_') as tmp:
         quick(c, tmp)

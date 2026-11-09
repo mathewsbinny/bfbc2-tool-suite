@@ -240,13 +240,12 @@ are at narrow crossings of sector seams, in navbuild's graph joining, not missin
 sp_004_b / sp_03 (ground DICE seeds from something other than spawns and splines); DICE's area division; the sector
 set of a new map (every seeded sector).
 
-**Integration plan (not done - navbuild / navkit.py were being changed by another worker):**
-1. `navbuild.stage`: accept a ready grid - `stage(..., grid=(samples, keep, gx, gz))` skipping `navsample.load` and
-   `navwalk.walkable` - and a `profile` dict for the settings `navvehicle.vehicle_settings` now swaps in (PITCH,
-   TILE 50, RESOLUTION, RADIUS, DIST_EDGE_MAX, Y_OFFSET, AREA_Y_MIN / MAX, NODE_COVER, ORDER_NODES off, DETAIL_STEP);
-   `set_pitch(1.0)` must give TILE 50 (today `round(40 / p)` = 40). Then `navvehicle.stage_on_grid` calls it directly
-   instead of substituting the two module references.
-2. `navbuild.write_file(graphs, out, log, t0, dist_edge_max=...)` (it reads the global today).
+**Integration plan (1 and 2 done, the rest not yet):**
+1. Done: `navbuild.stage(..., cfg=navvehicle.vehicle_settings(), grid=(samples, keep, gx, gz, stair))` takes the
+   ready grid (no `navsample.load` / `navwalk.walkable`) and the vehicle settings as a `navbuild.BuildSettings` value
+   (pitch 1 with 50-sample tiles, resolution, radius, DistEdgeMax, node height, area height range, no node cover or
+   order nodes, the vehicle D step); `navvehicle.stage_on_grid` calls it directly.
+2. Done: `navbuild.write_file(graphs, out, log, t0, cfg)` (DistEdgeMax from the settings).
 3. `navkit.py build <level> --vehicle` (and `all`): after the infantry build, `navvehicle.build_level(root, lv,
    <work>\navkit\<lv>\vehicle\pathdata.hpd, sectors='all' or 'reference')`; `install` / `restore` to copy it to
    `ai\levels\<lv>\vehicle\pathdata.hpd` keeping DICE's original as `pathdata.hpd.opfor-orig` (as infantry), and the
@@ -313,10 +312,10 @@ cells along the line); a cell with **both sides along x (or z) broken** is an **
 form polygons stored twice, -axis then +axis, each corner's height from the cells on that side. These sides are not
 outline. The runtime's straight-move test reads them (spec §4.5); route edges in DICE's files never cross a D line.
 
-- **`navbuild.DETAIL_FEATURES`** (on; `navkit.py build --no-detail` / `navbuild.py --no-detail` for the output
-  before): `tools\navdetail.py` per area, called by `navbuild.detail_pass` before the outline is emitted; broken sides
-  leave the outline only in pairs (every boundary stays closed - `hpdcheck.py` also checks D / F structure now).
-  `DETAIL_STEP` 0.6 m at pitch 0.8, 0.3 m (NavKit's own link step) at pitch 0.2.
+- **`navbuild.DETAIL_FEATURES`** (on - `BuildSettings.detail_features`; `navkit.py build --no-detail` /
+  `navbuild.py --no-detail` for the output before): `tools\navdetail.py` per area, called by `navbuild.detail_pass`
+  before the outline is emitted; broken sides leave the outline only in pairs (every boundary stays closed -
+  `hpdcheck.py` also checks D / F structure now). `DETAIL_STEP` 0.6 m at pitch 0.8, 0.3 m (NavKit's own link step) at pitch 0.2.
 - **`navbuild.DETAIL_BLOCKS_EDGES`** (on): route edges do not step across a D side (straight or diagonal), as in DICE's
   graph; F cells may be crossed (DICE's edges cross F polygon sides on 0.4-0.6 %).
 - **Parity** (`tools\navdf.py`; its measures are in every `navparity` / `navregress` row as `df_*`): see the table

@@ -18,16 +18,18 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from .checks import Point
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
-for p in (os.path.join(SUITE, 'core'), NAVKIT, os.path.join(NAVKIT, 'tools')):
-    if p not in sys.path:
-        sys.path.insert(0, p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools', 'navkit', 'core')
 
 PLACEHOLDER = 'objects/soldiers/templates/defaultsoldier'     # "FAIL No Template": aims, never fires (MP log, test A')
 KINDS = ('Infantry', 'Vehicle')
@@ -37,33 +39,33 @@ KINDS = ('Infantry', 'Vehicle')
 class Spawner:
     guid: str
     name: str
-    team: Optional[int]
+    team: int | None
     ai: bool
     enabled: bool
-    template: Optional[str]          # partition path of the Template ref (lower case), or None for null
-    kit: Optional[str]               # partition path of the SoldierKit ref
+    template: str | None          # partition path of the Template ref (lower case), or None for null
+    kit: str | None               # partition path of the SoldierKit ref
 
 
 @dataclass
 class LevelInfo:
     lv: str
     name: str = ''
-    sources: List[Point] = field(default_factory=list)       # soldier spawns
-    targets: List[Point] = field(default_factory=list)       # AreaOrders, M-COMs, capture points, mission objectives
-    orders: List[Point] = field(default_factory=list)        # AI orders and patrol waypoints (ordercheck)
-    has_ai: Optional[bool] = None
-    spawners: List[Spawner] = field(default_factory=list)
+    sources: list[Point] = field(default_factory=list)       # soldier spawns
+    targets: list[Point] = field(default_factory=list)       # AreaOrders, M-COMs, capture points, mission objectives
+    orders: list[Point] = field(default_factory=list)        # AI orders and patrol waypoints (ordercheck)
+    has_ai: bool | None = None
+    spawners: list[Spawner] = field(default_factory=list)
     area_orders: int = 0
-    load_set: List[tuple] = field(default_factory=list)      # (target as package.mft writes it, path, exists)
+    load_set: list[tuple] = field(default_factory=list)      # (target as package.mft writes it, path, exists)
     entries: dict = field(default_factory=dict)              # bundle path -> set of lower-case entry names
     assets: dict = field(default_factory=dict)               # 'Infantry' / 'Vehicle' -> (x, z), None (absent), 'unread'
     template_refs: dict = field(default_factory=dict)        # template partition -> [partitions it refers to]
-    installed: Optional[str] = None                          # the path data the game loads (infantry), or None
-    notes: List[str] = field(default_factory=list)
+    installed: str | None = None                          # the path data the game loads (infantry), or None
+    notes: list[str] = field(default_factory=list)
     level_source: str = ''                                   # bundle the AI layer was read from
-    level_partition_sha1: Optional[str] = None
-    heightfield: Optional[object] = None                     # terrain.Heightfield, for the ground classes
-    water: Optional[object] = None                           # water.Water
+    level_partition_sha1: str | None = None
+    heightfield: object | None = None                     # terrain.Heightfield, for the ground classes
+    water: object | None = None                           # water.Water
 
     def in_load_set(self, partition):
         """The first load-set bundle holding <partition>.dbx (lower-case match), or None."""
@@ -97,7 +99,7 @@ def bundle_read(path, wanted, cache_dir):
     """{name: bytes} of entries (names as the bundle writes them), cached per bundle state and entry."""
     from bfbc2core import fbrb
     out, need = {}, []
-    key = _stat_key(path) if cache_dir else None
+    key = _stat_key(path) if cache_dir else ''          # used only with a cache folder
     for n in wanted:
         cp = os.path.join(cache_dir, 'bundles', key, n.replace('/', '__')) if cache_dir else None
         if cp and os.path.isfile(cp):
@@ -160,7 +162,7 @@ def ai_layer(info, data):
     """HasAI, AI spawners and AreaOrder count from the level partition's bytes (binary DBX)."""
     from bfbc2core import dbx
     f = dbx.parse(data)
-    teams = {'Team1': 1, 'Team2': 2, 'TeamNeutral': 0}
+    teams: dict[str | None, int] = {'Team1': 1, 'Team2': 2, 'TeamNeutral': 0}
     for el in f.instances:
         t = (el.attr('type') or '').rsplit('.', 1)[-1]
         if t == 'LevelData':
@@ -208,7 +210,10 @@ def game_level(root, lv, info, cache_dir, log):
         try:
             real = next(n for n in _real_names(holder, cache_dir) if n.lower() == name)
             el = dbx.parse(bundle_read(holder, [real], cache_dir)[real]).instances[0]
-            info.assets[kind] = (int(dbx.value(el.child('XOffset'))), int(dbx.value(el.child('ZOffset'))))
+            x, z = el.child('XOffset'), el.child('ZOffset')
+            if x is None or z is None:
+                raise ValueError('no XOffset / ZOffset field')
+            info.assets[kind] = (int(dbx.value(x)), int(dbx.value(z)))
         except Exception as e:                           # present but not readable as expected
             info.assets[kind] = 'unread'
             info.notes.append(f'{kind} SectorOffsets asset not read: {e}')
@@ -257,9 +262,10 @@ def level_xml(root, lv):
 
 def points(root, lv, info, log):
     """Spawns, AI targets and orders from the prepared level (core level.load, geometry off)."""
-    from bfbc2core import level
-    from . import classify
     import ordercheck
+    from bfbc2core import level
+
+    from . import classify
     try:
         lvl = level.load(lv, root, log=log, geometry=False)
     except Exception as ex:

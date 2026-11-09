@@ -16,7 +16,12 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('model-tools')
 import decimate  # noqa: E402
 
 
@@ -36,10 +41,10 @@ def sphere(rings=32, segs=32, r=1.0, at=(0, 0, 0)):
                 tris.append([a, b, c])                     # no slivers at the poles
             if i < rings - 1:
                 tris.append([b, d, c])
-    pos = np.array(pos)
-    pos[np.abs(pos) < 1e-12] = 0.0
+    pts = np.array(pos)
+    pts[np.abs(pts) < 1e-12] = 0.0
     # pole rows: every column is the same point; keep them as wedges of one point
-    return pos + at, pos / r, np.array(uv), np.array(tris)
+    return pts + at, pts / r, np.array(uv), np.array(tris)
 
 
 def main():
@@ -51,7 +56,7 @@ def main():
     if not 250 <= len(t) <= 500:
         fails.append(f'{len(t)} triangles for a target of 500')
     key = np.unique(np.round(p, 6), axis=0, return_inverse=True)[1].ravel()
-    edges = {}
+    edges: dict[tuple[int, int], int] = {}
     for a, b_, c in key[t]:
         for e in ((a, b_), (b_, c), (c, a)):
             k = (min(e), max(e))

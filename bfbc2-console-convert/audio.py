@@ -89,6 +89,7 @@ import os
 import shutil
 import struct
 import subprocess
+from typing import Any
 
 import numpy as np
 
@@ -136,7 +137,7 @@ def read_wave(b, source):
             raise AudioError(f'Wave: {len(b)} bytes, shorter than a BFBC2 header')
         fid, total, intro, ch, outro, w14 = struct.unpack_from(e + '6I', b, 0)
         o = 24
-    segs = []
+    segs: list[tuple[bytes, bytes] | None] = []
     for i in range(3):
         if o + 4 > len(b):
             raise AudioError(f'Wave: segment {i} at {o:#x} runs past the end ({len(b)} bytes)')
@@ -497,7 +498,7 @@ def convert(b, source, streams=None, word14=0):
     if source not in ('bfbc2-xbox', 'bf1943'):
         raise AudioError(f'convert: source {source!r} (bfbc2 or bf1943)')
     w = read_wave(b, source)
-    segs = []
+    segs: list[tuple[Any, bytes] | None] = []
     for i in range(3):
         if w.segments[i] is None:
             segs.append(None)

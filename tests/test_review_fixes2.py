@@ -23,9 +23,12 @@ import tempfile
 import types
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools', 'navkit', 'core')
 
 
 class Checks:
@@ -38,7 +41,7 @@ class Checks:
 
 
 def harness_missing(c, work):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness'))
+    suite_paths.use('harness')
     import harness
     from testharness import checks, levelchecks, levelinfo
     fake = types.SimpleNamespace(name='LV', notes=[], sources=[], targets=[], orders=[],
@@ -61,7 +64,7 @@ def harness_missing(c, work):
 
 
 def harness_baseline_case(c, work):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness'))
+    suite_paths.use('harness')
     import harness
     root = os.path.join(work, 'opfor')
     os.makedirs(os.path.join(root, 'game'))
@@ -161,9 +164,9 @@ def navkit_restore_deleted(c, work):
 
 
 def stockmp_case(c, work):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-stockmp-ai'))
-    import stockmp
+    suite_paths.use('stockmp')
     import pipeline
+    import stockmp
     game = os.path.join(work, 'game')
     paths = pipeline.Paths('mp_test', opfor=work, work=os.path.join(work, 'stockmp'), game=game)
     out = os.path.join(paths.root, 'out', 'game')

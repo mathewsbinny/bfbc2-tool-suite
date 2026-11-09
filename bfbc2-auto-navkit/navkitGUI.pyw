@@ -2,6 +2,7 @@
 
 Every button runs the matching navkit.py step for the chosen level and shows its output; see QUICKSTART.md.
 """
+import contextlib
 import json
 import os
 import queue
@@ -12,10 +13,14 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(HERE, '..', 'core'))
-from bfbc2core import errors  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit')
 import navkit  # noqa: E402
+from bfbc2core import errors  # noqa: E402
 
 PYTHON = os.path.join(os.path.dirname(sys.executable), 'python.exe')   # console python for the steps
 if not os.path.isfile(PYTHON):
@@ -34,10 +39,8 @@ def kill_tree(proc):
                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if r.returncode == 0:
             return
-    try:
+    with contextlib.suppress(OSError):    # already gone
         proc.kill()
-    except OSError:                       # already gone
-        pass
 
 
 class App:
@@ -49,10 +52,8 @@ class App:
         self.cancelled = False            # set and read on the Tk thread only
         root.title('BC2 NavKit')
         root.minsize(760, 520)
-        try:
+        with contextlib.suppress(tk.TclError):
             ttk.Style().theme_use('vista')
-        except tk.TclError:
-            pass
         try:
             self.pr = navkit.Project()
         except navkit.NavKitError as e:

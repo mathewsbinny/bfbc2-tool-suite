@@ -13,6 +13,11 @@ import subprocess
 import sys
 import tempfile
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 LD = os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe')
@@ -148,7 +153,7 @@ def main(argv):
         c.check(r.returncode == 2 and 'usage' in (r.stdout + r.stderr), 'one file only: exit 2 with the usage line')
 
         if '--game' in argv:
-            sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+            suite_paths.use('navkit')
             import navkit
             lv = os.path.join(navkit.find_opfor(None), 'work', 'levels', 'mp_005')
             dist, pkg = os.path.join(lv, 'dist', 'levels', 'MP_005.dbx'), os.path.join(lv, 'pkg', 'levels', 'MP_005.dbx')

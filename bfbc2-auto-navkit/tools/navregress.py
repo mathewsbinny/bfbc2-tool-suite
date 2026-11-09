@@ -23,6 +23,7 @@ The run is saved as "regression_last". After an intended improvement, make it th
 Default levels: the 13 campaign levels and the Onslaught maps with DICE path data (ONS_MP_002 / 004, when imported) -
 about 5 hours with detailed zones; --levels for a subset.
 """
+import contextlib
 import glob
 import json
 import os
@@ -31,12 +32,15 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _p in (HERE, os.path.abspath(os.path.join(HERE, '..', '..', 'core'))):   # once, at import
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools')
+import hpdcheck  # noqa: E402
 import navbuild  # noqa: E402
 import navparity  # noqa: E402
-import hpdcheck  # noqa: E402
 
 HIGHER = ['ground', 'areas_same', 'portals', 'outline', 'borders', 'costs', 'nodes_same', 'nodes_near', 'edges_same',
           'connectivity', 'ai_coverage', 'ai_pairwise',
@@ -66,8 +70,10 @@ def inputs(root, lv):
         if not so:
             raise RuntimeError(f'{lv}: no navkit.json and no SectorOffsets.xml (run navkit.py prepare {lv})')
         t = open(so[0], encoding='utf-8').read()
-        xoff = int(re.search(r'name="XOffset">(-?\d+)<', t).group(1))
-        zoff = int(re.search(r'name="ZOffset">(-?\d+)<', t).group(1))
+        mx, mz = re.search(r'name="XOffset">(-?\d+)<', t), re.search(r'name="ZOffset">(-?\d+)<', t)
+        if mx is None or mz is None:
+            raise RuntimeError(f'{so[0]}: no XOffset / ZOffset value (re-run navkit.py prepare {lv})')
+        xoff, zoff = int(mx.group(1)), int(mz.group(1))
     files = {k: os.path.join(L, k) for k in ('forbid_tris.npy', 'dynamic_tris.npy', 'stair_tris.npy', 'soldier_spawns.json')}
     missing = [k for k, p in files.items() if not os.path.isfile(p)]
     if missing:
@@ -175,10 +181,8 @@ def estimates(root, levels, *runs):
                 known[lv] = row['seconds']
     size = {}
     for lv in set(levels) | set(known):
-        try:
+        with contextlib.suppress(Exception):
             size[lv] = os.path.getsize(inputs(root, lv)[0]) / 1e6
-        except Exception:
-            pass
     rates = sorted(known[lv] / size[lv] for lv in known if size.get(lv))
     rate = rates[len(rates) // 2] if rates else None
     return {lv: known.get(lv) or (rate * size[lv] if rate and lv in size else DEFAULT_SECONDS) for lv in levels}
@@ -289,10 +293,8 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    try:
+    with contextlib.suppress(AttributeError):        # stdout replaced by something without it
         sys.stdout.reconfigure(line_buffering=True)   # type: ignore[union-attr]  # progress shows at once when the output goes to a file
-    except AttributeError:                            # stdout replaced by something without it
-        pass
     from bfbc2core import errors
     errors.setup('navregress', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

@@ -9,14 +9,20 @@ import os
 import sys
 import tempfile
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools')
+import kymesh  # noqa: E402
 import navbuild  # noqa: E402
 import navregress  # noqa: E402
-import kymesh  # noqa: E402
 
 
 def main(argv):
@@ -30,7 +36,8 @@ def main(argv):
     # 5 x 3 columns at 0.8 m from (0, 0); column (2, 1) has two floors
     nx, nz = 5, 3
     counts = [2 if (i, j) == (2, 1) else 1 for j in range(nz) for i in range(nx)]
-    s = SimpleNamespace(nx=nx, nz=nz, pitch=0.8, min_x=0.0, min_z=0.0, start=np.concatenate([[0], np.cumsum(counts)]))
+    s: Any = SimpleNamespace(nx=nx, nz=nz, pitch=0.8, min_x=0.0, min_z=0.0,       # a navsample.Samples stand-in
+                             start=np.concatenate([[0], np.cumsum(counts)]))
     out = navbuild.outside_bounds(s, (0.8, 0.8, 2.4, 0.8))      # keeps x 0.8..2.4, z 0.8: columns i 1..3, j 1
     col = np.repeat(np.arange(nx * nz), counts)
     kept = sorted({(c % nx, c // nx) for c in col[~out].tolist()})
@@ -50,8 +57,10 @@ def main(argv):
     real_parse, real_mesh = hpdtool.parse, kymesh.parse_mesh
     try:
         navregress.navparity.reference_of = lambda root, lv: fake if lv == 'with' else os.path.join(tmp, 'none.hpd')
-        hpdtool.parse = lambda data: SimpleNamespace(sectors=[SimpleNamespace(mesh=b'')])  # type: ignore[return-value]
-        kymesh.parse_mesh = lambda mesh: SimpleNamespace(areas=[area, detailed])  # type: ignore[return-value]
+        hp: Any = hpdtool                   # (Any: the stand-ins are not typed as the real functions)
+        km: Any = kymesh
+        hp.parse = lambda data: SimpleNamespace(sectors=[SimpleNamespace(mesh=b'')])
+        km.parse_mesh = lambda mesh: SimpleNamespace(areas=[area, detailed])
         b = navregress.reference_bounds(tmp, 'with')
         none = navregress.reference_bounds(tmp, 'without')
     finally:

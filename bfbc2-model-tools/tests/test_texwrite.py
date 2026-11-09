@@ -20,8 +20,12 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(HERE, '..', '..', 'bfbc2-console-convert'),
-                os.path.join(HERE, '..', '..', 'bfbc2-mesh-viewer')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('model-tools', 'console-convert', 'mesh-viewer')
 import texture  # noqa: E402
 import texwrite  # noqa: E402
 
@@ -112,10 +116,10 @@ def main():
             w, h = struct.unpack_from('<2I', b, 16)
             src = texture.decode(b[texwrite.HEADER:], w, h, 0)[:, :, :3].astype(np.uint8)
             ours = decode(texwrite.texture(src))
-            e = float(np.abs(ours.astype(float) - src).mean())
-            print(f'{name}: DICE\'s picture encoded again, mean error {e:.2f} of 255')
-            if e > 4:
-                fails.append(f'{name}: mean error {e:.2f}')
+            err = float(np.abs(ours.astype(float) - src).mean())
+            print(f'{name}: DICE\'s picture encoded again, mean error {err:.2f} of 255')
+            if err > 4:
+                fails.append(f'{name}: mean error {err:.2f}')
         # DICE's award image (DXT5, one level, wrapped): decoded and encoded again - the same wrapper and header
         name = 'awards/images/weapons/size2/m1garand.res'
         b = ix.read(name)
@@ -130,11 +134,11 @@ def main():
             same_head = again[:64 + texwrite.HEADER] == b[:64 + texwrite.HEADER]
             ours = np.dstack([texture.decode(again[64 + texwrite.HEADER:], w, h, 2)[:, :, :3],
                               texwrite.alpha5(again[64 + texwrite.HEADER:], w, h)]).astype(float)
-            e = np.abs(ours - src).mean(axis=(0, 1))
+            err = np.abs(ours - src).mean(axis=(0, 1))
             print(f'{name}: wrapper and header {"identical" if same_head else "DIFFERENT"}; encoded again, mean '
-                  f'error per channel {np.round(e, 2)}')
-            if not same_head or e.max() > 4:
-                fails.append(f'{name}: header same {same_head}, error {e}')
+                  f'error per channel {np.round(err, 2)}')
+            if not same_head or err.max() > 4:
+                fails.append(f'{name}: header same {same_head}, error {err}')
     for f in fails:
         print('FAIL', f)
     return 1 if fails else 0

@@ -53,13 +53,17 @@ import os
 import struct
 import sys
 import time
+from typing import cast
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(HERE, '..'))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit', 'navkit-tools')
 import hkpack  # noqa: E402
 import navsample  # noqa: E402
 
@@ -918,10 +922,7 @@ def sample_grid(grid, geom, hf, log=print, bottoms=(0.28, 0.6)):
         cc, cy, ct, cen = cc[up], cy[up], ct[up], cen[up]
     solid = (np.concatenate(sc), np.concatenate(slo), np.concatenate(shi))
     log(f'  hits: {len(mc):,} mesh, {len(cc):,} convex ({time.time() - t0:.0f} s)')
-    if grid.mask is not None:
-        all_cols = np.nonzero(grid.mask.ravel())[0]
-    else:
-        all_cols = np.arange(grid.ncols)
+    all_cols = np.nonzero(grid.mask.ravel())[0] if grid.mask is not None else np.arange(grid.ncols)
     ty = np.full(grid.ncols, np.nan)
     if hf is not None:
         for s in range(0, len(all_cols), 2_000_000):
@@ -955,7 +956,9 @@ def sample_grid(grid, geom, hf, log=print, bottoms=(0.28, 0.6)):
     hit[:, 1] = RAY_SHAPE_VTABLE
     nq = (np.clip(np.rint(N * 127), -127, 127) / 127.0).astype(np.float32)
     for b in bottoms:
-        out[b] = navsample.Samples(np.float32(grid.pitch), np.float32(grid.min_x), np.float32(grid.min_z), grid.nx,
+        # the file's float32 header values (Samples declares float)
+        out[b] = navsample.Samples(cast(float, np.float32(grid.pitch)), cast(float, np.float32(grid.min_x)),
+                                   cast(float, np.float32(grid.min_z)), grid.nx,
                                    grid.nz, grid.y_top, grid.y_bottom, RADIUS, b, HEIGHT, RAY_RADIUS, start,
                                    Y.astype(np.float32), nq, blocked[b].astype(np.uint8), hit)
     log(f'  sampled {grid.nx} x {grid.nz} columns at {grid.pitch:g} m: {len(Y):,} surfaces, '
@@ -1380,6 +1383,7 @@ def build_level(root, lv, out=None, log=print, samples_dir=None):
 def check_level(root, lv, path, log=print):
     """hpdcheck, byte-exact roundtrip / meshtrip, and ordercheck (self-check without DICE data) of a build."""
     import subprocess
+
     import navkit
     pr = navkit.Project(root)
     s = navkit.ensure_settings(pr, lv)

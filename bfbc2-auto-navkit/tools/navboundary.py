@@ -30,8 +30,12 @@ from collections import Counter
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools')
 
 TOLERANCES = (0, 1, 2)
 OFF = 2 ** 20
@@ -194,15 +198,15 @@ def render(path, cells, edges, portals, only, region, title):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    from matplotlib.collections import LineCollection
     from bfbc2core import navdata
+    from matplotlib.collections import LineCollection
     G = navdata.GRID
     x0, z0, x1, z1 = region
     span = max(x1 - x0, z1 - z0)
     fig, ax = plt.subplots(figsize=(12, 12), dpi=110 if span > 400 else 150)
     ij = cells['ij']
     X, Z = ij[:, 0] * G, ij[:, 1] * G
-    inr = (X >= x0) & (X <= x1) & (Z >= z0) & (Z <= z1)
+    inr = (x0 <= X) & (x1 >= X) & (z0 <= Z) & (z1 >= Z)
     ms = max(0.2, (72 * 12 / (span / G)) ** 2 * 0.9)
     if cells['slope'] is not None:
         sc = ax.scatter(X[inr], Z[inr], c=cells['slope'][inr], cmap='Greys', vmin=0, vmax=50, s=ms, marker='s', linewidths=0)
@@ -297,7 +301,8 @@ def main(argv):
         print(__doc__)
         return 2
     import navparity
-    from bfbc2core import navdata, level as levelmod
+    from bfbc2core import level as levelmod
+    from bfbc2core import navdata
     lv = pos[0].lower()
     root = navparity.opfor_root(opt('--opfor'))
     cand_path = pos[1] if len(pos) > 1 else os.path.join(root, 'work', 'navkit', 'regress', f'{lv}.hpd')

@@ -12,12 +12,17 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('menu-tools')
 import bc2loc  # noqa: E402
 import menucommon as mc  # noqa: E402
 
 
-def main():
+def main() -> int:
     try:
         root = mc.find_opfor()
         langs = bc2loc.languages(root)

@@ -13,6 +13,13 @@ import subprocess
 import sys
 import tempfile
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import contextlib
+
+import suite_paths  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
 TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
@@ -29,7 +36,7 @@ def build(entries, zipped=True):
             types[typ] = len(strings)
             strings += typ.encode('ascii') + b'\0'
     payload, table = bytearray(), bytearray()
-    for (name, typ, flags, data), off in zip(entries, names):
+    for (_name, typ, flags, data), off in zip(entries, names):
         table += struct.pack('>6I', off, flags, len(payload), len(data), len(data), types[typ])
         payload += data
     header = struct.pack('>2I', 2, len(strings)) + strings + struct.pack('>I', len(entries)) + table
@@ -43,10 +50,8 @@ def parts(path):
     d = open(path, 'rb').read()
     cut = struct.unpack('>I', d[4:8])[0]
     header, rest = gzip.decompress(d[8:8 + cut]), d[8 + cut:]
-    try:
+    with contextlib.suppress(OSError):
         rest = gzip.decompress(rest)
-    except OSError:
-        pass
     return header, rest
 
 
@@ -109,7 +114,7 @@ def main(argv):
                 failed += 1
                 print('FAIL empty non-marker entry was not written')
         if '--game' in argv:
-            sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+            suite_paths.use('navkit')
             import navkit
             game = os.path.join(navkit.find_opfor(None), 'game')
             k = argv.index('--game')

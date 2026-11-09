@@ -14,6 +14,7 @@ Cells come from navdiff.area_cells (samples inside an area's boundary, height fr
 where a cell lies on terrain, the terrain height field's height is used instead. That step is slow for a
 whole level (10-40 s), so it is cached per file (size and date) when cache_dir is given.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -21,12 +22,17 @@ import pickle
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import List
+from typing import Any
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'bfbc2-auto-navkit', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools')
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import navdiff  # noqa: E402
@@ -44,20 +50,20 @@ LADDER_SLOPE = 1.5                          # ... and more than this many metres
 class NavArea:
     sector: int
     index: int                              # within its sector
-    tile: tuple
+    tile: tuple[int, int]
     layer: int
     pitch: float
     min_y: float
     max_y: float
-    outline: List[np.ndarray] = field(default_factory=list)      # polylines (ground + 0.95 m)
-    portals: List[tuple] = field(default_factory=list)           # (p0, p1, target area index in the sector)
-    borders: List[tuple] = field(default_factory=list)           # (p0, p1)
+    outline: list[np.ndarray] = field(default_factory=list)      # polylines (ground + 0.95 m)
+    portals: list[tuple] = field(default_factory=list)           # (p0, p1, target area index in the sector)
+    borders: list[tuple] = field(default_factory=list)           # (p0, p1)
     island: int = -1                                             # index into NavData.islands
     cells: int = 0
     ladder: bool = False                                         # ground reached only through a ladder link
 
     @property
-    def detailed(self):
+    def detailed(self) -> bool:
         return self.pitch < DETAILED
 
 
@@ -72,7 +78,7 @@ class Island:
 @dataclass
 class NavData:
     path: str
-    areas: List[NavArea]
+    areas: list[NavArea]
     cell_xz: np.ndarray                     # (n, 2) cell centres
     cell_y: np.ndarray                      # (n,) ground height
     cell_area: np.ndarray                   # (n,) index into areas
@@ -81,15 +87,15 @@ class NavData:
     edges: np.ndarray                       # (k, 2) node indices, source -> destination
     edge_cost: np.ndarray                   # (k,) metres, as stored (the tag's floor(distance * 16) / 16)
     node_island: np.ndarray                 # (m,) index into islands
-    islands: List[Island]
-    ladder_edge: np.ndarray = None          # (k,) bool: the edge is a ladder link (LADDER_DY / LADDER_SLOPE)
+    islands: list[Island]
+    ladder_edge: np.ndarray | None = None   # (k,) bool: the edge is a ladder link (LADDER_DY / LADDER_SLOPE)
 
     @property
-    def sectors(self):
+    def sectors(self) -> list[int]:
         return sorted({a.sector for a in self.areas})
 
 
-def _terrain_id(heightfield):
+def _terrain_id(heightfield: Any) -> str:
     """A fingerprint of a height field's content (its bounds and samples), kept on the object."""
     if heightfield is None:
         return 'est'
@@ -98,20 +104,18 @@ def _terrain_id(heightfield):
         h = hashlib.sha1(np.asarray(heightfield.min, np.float64).tobytes() + np.asarray(heightfield.max, np.float64).tobytes())
         h.update(np.ascontiguousarray(heightfield.raw).tobytes())
         fp = 'hf-' + h.hexdigest()[:16]
-        try:
+        with contextlib.suppress(AttributeError):
             heightfield._navdata_id = fp
-        except AttributeError:
-            pass
     return fp
 
 
-def _key(path, heightfield=None):
+def _key(path: str, heightfield: Any = None) -> str:
     st = os.stat(path)
     hf = _terrain_id(heightfield)
     return hashlib.sha1(f'{CACHE_VERSION}|{os.path.abspath(path).lower()}|{st.st_size}|{st.st_mtime_ns}|{hf}'.encode()).hexdigest()[:20]
 
 
-def _ground(xz, est, heightfield):
+def _ground(xz: np.ndarray, est: np.ndarray, heightfield: Any) -> np.ndarray:
     """Cell heights: the terrain height field's where the cell lies on terrain (within 1.5 m of navdiff's
     estimate), else the estimate."""
     if heightfield is None or not len(xz):
@@ -120,7 +124,9 @@ def _ground(xz, est, heightfield):
     return np.where(np.abs(t - est) < 1.5, t, est)
 
 
-def _cells(f, heightfield, cache_dir, path):
+def _cells(f: Any, heightfield: Any, cache_dir: str | None,
+           path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    xz: Any                                     # cached cell centres, or a list of arrays joined into one
     if cache_dir:
         cp = os.path.join(cache_dir, _key(path) + '.npz')
         if os.path.isfile(cp):
@@ -130,6 +136,8 @@ def _cells(f, heightfield, cache_dir, path):
                 return xz, _ground(xz, est, heightfield), area, est
             except Exception:
                 pass                                             # a damaged cache entry is rebuilt
+    ys: list[np.ndarray]
+    area_of: list[np.ndarray]
     xz, ys, area_of = [], [], []
     k = 0
     for s in f.sectors:
@@ -148,13 +156,14 @@ def _cells(f, heightfield, cache_dir, path):
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
         cp = os.path.join(cache_dir, _key(path) + '.npz')
-        with open(cp + '.tmp', 'wb') as fh:                      # a file object: numpy adds no .npz of its own
+        tmp = f'{cp}.{os.getpid()}.tmp'                         # per process: two tools writing at once do not collide
+        with open(tmp, 'wb') as fh:                      # a file object: numpy adds no .npz of its own
             np.savez(fh, xz=xz, y=y, area=area, est=est)
-        os.replace(cp + '.tmp', cp)                              # an interrupted write leaves no half file
+        os.replace(tmp, cp)                              # an interrupted write leaves no half file
     return xz, y, area, est
 
 
-def load(path, heightfield=None, cache_dir=None):
+def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> NavData:
     """The file as NavData. With cache_dir, the whole result is kept there per file (and per height source), so
     opening a level again takes about a second."""
     if cache_dir:
@@ -167,28 +176,34 @@ def load(path, heightfield=None, cache_dir=None):
                 pass                                         # an unreadable cache entry is rebuilt
         nav = _load(path, heightfield, cache_dir)
         os.makedirs(cache_dir, exist_ok=True)
-        with open(pk + '.tmp', 'wb') as fh:
+        tmp = f'{pk}.{os.getpid()}.tmp'
+        with open(tmp, 'wb') as fh:
             pickle.dump(nav, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        os.replace(pk + '.tmp', pk)
+        os.replace(tmp, pk)
         return nav
     return _load(path, heightfield, None)
 
 
-def _load(path, heightfield, cache_dir):
+def _load(path: str, heightfield: Any, cache_dir: str | None) -> NavData:
     f = hpdtool.parse(open(path, 'rb').read())
-    areas = []
+    areas: list[NavArea] = []
     for s in f.sectors:
-        for n, a in enumerate(kymesh.parse_mesh(s.mesh).areas):
-            areas.append(NavArea(s.id, n, (a.tile_x, a.tile_z), a.layer, a.pitch, a.min_y, a.max_y,
-                                 [np.asarray(l, dtype=np.float32) for l in a.outline if len(l) >= 2],
-                                 [(np.asarray(p.p0), np.asarray(p.p1), p.target) for p in a.portals],
-                                 [(np.asarray(b.p0), np.asarray(b.p1)) for b in a.border_portals]))
+        for n, ma in enumerate(kymesh.parse_mesh(s.mesh).areas):
+            areas.append(NavArea(s.id, n, (ma.tile_x, ma.tile_z), ma.layer, ma.pitch, ma.min_y, ma.max_y,
+                                 [np.asarray(l, dtype=np.float32) for l in ma.outline if len(l) >= 2],
+                                 [(np.asarray(p.p0), np.asarray(p.p1), p.target) for p in ma.portals],
+                                 [(np.asarray(b.p0), np.asarray(b.p1)) for b in ma.border_portals]))
     xz, y, cell_area, _ = _cells(f, heightfield, cache_dir, path)
     counts = np.bincount(cell_area, minlength=len(areas)) if len(cell_area) else np.zeros(len(areas), int)
-    for a, n in zip(areas, counts):
-        a.cells = int(n)
+    for a, cnt in zip(areas, counts):
+        a.cells = int(cnt)
 
     # route graph: border nodes repeat in both sectors with the same id - one node per id
+    index: dict[int, int]
+    pos: Any                                    # a list of positions, then an array
+    sec: list[int]
+    edges: Any                                  # a list of index pairs, then an array
+    costs: list[float]
     index, pos, sec, edges, costs = {}, [], [], [], []
     for s in f.sectors:
         local = []
@@ -205,7 +220,7 @@ def _load(path, heightfield, cache_dir):
     edges = np.array(edges, dtype=np.int64).reshape(-1, 2)
     parent = np.arange(len(pos))
 
-    def find(a):
+    def find(a: Any) -> Any:
         while parent[a] != a:
             parent[a] = parent[parent[a]]
             a = parent[a]
@@ -225,7 +240,7 @@ def _load(path, heightfield, cache_dir):
         ladder_edge = np.zeros(0, bool)
     walk = np.arange(len(pos))
 
-    def wfind(a):
+    def wfind(a: Any) -> Any:
         while walk[a] != a:
             walk[a] = walk[walk[a]]
             a = walk[a]
@@ -236,7 +251,7 @@ def _load(path, heightfield, cache_dir):
             if ra != rb:
                 walk[ra] = rb
     walk_root = np.array([wfind(k) for k in range(len(pos))], dtype=np.int64)
-    base = {}
+    base: dict[Any, Any] = {}
     if ladder_edge.any():
         wsize = Counter(walk_root.tolist())
         for k in range(len(pos)):
@@ -250,9 +265,9 @@ def _load(path, heightfield, cache_dir):
 
     # each area's island: the graph node of its sector nearest to the area's cells (an area has its own node,
     # near its centre; tiny areas without one take their neighbour's)
-    sec_nodes = {}
-    for k, s in enumerate(sec):
-        sec_nodes.setdefault(s, []).append(k)
+    sec_nodes: dict[int, Any] = {}
+    for k, sid in enumerate(sec):
+        sec_nodes.setdefault(sid, []).append(k)
     sec_nodes = {s: np.array(v) for s, v in sec_nodes.items()}
     centre = np.zeros((len(areas), 3))
     if len(cell_area):
@@ -268,7 +283,7 @@ def _load(path, heightfield, cache_dir):
         kn = cand[int(np.argmin(d))]
         a.island = int(node_island[kn])
         a.ladder = bool(base) and walk_root[kn] != base[roots[kn]]
-    island_cells = Counter()
+    island_cells: Counter[int] = Counter()
     for a in areas:
         island_cells[a.island] += a.cells
     islands = []
@@ -279,17 +294,17 @@ def _load(path, heightfield, cache_dir):
                    node_island, islands, ladder_edge)
 
 
-def compare_cells(cand, ref):
+def compare_cells(cand: NavData, ref: NavData) -> tuple[np.ndarray, np.ndarray]:
     """Per cell of each file: True where the other file has the same ground (navdiff's rule: the same 0.8 m
     cell; one floor on each side is the same ground, stacked floors pair by height within 4 m)."""
-    def keyed(nav):
+    def keyed(nav: NavData) -> np.ndarray:
         ij = np.round(nav.cell_xz / GRID).astype(np.int64)
         return (ij[:, 0] + 50_000) * 100_000 + (ij[:, 1] + 50_000)
 
     kc, kr = keyed(cand), keyed(ref)
     yc, yr = np.asarray(cand.cell_y, np.float64), np.asarray(ref.cell_y, np.float64)
 
-    def same(keys, y, okeys, oy):
+    def same(keys: np.ndarray, y: np.ndarray, okeys: np.ndarray, oy: np.ndarray) -> np.ndarray:
         """For each (key, y): does the other file have the key, and (one floor each) or a floor within STACK_TOL?"""
         uk, counts = np.unique(keys, return_counts=True)
         mine_n = counts[np.searchsorted(uk, keys)]
@@ -312,7 +327,7 @@ def compare_cells(cand, ref):
     return same(kc, yc, kr, yr), same(kr, yr, kc, yc)
 
 
-def summary(nav):
+def summary(nav: NavData) -> dict[str, int]:
     return {'areas': len(nav.areas), 'detailed areas': sum(a.detailed for a in nav.areas), 'cells': int(len(nav.cell_xz)),
             'nodes': int(len(nav.node_pos)), 'edges': int(len(nav.edges)), 'islands': len(nav.islands),
             'large islands (25+ nodes)': sum(i.nodes >= 25 for i in nav.islands), 'sectors': len(nav.sectors),

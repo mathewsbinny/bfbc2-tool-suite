@@ -6,9 +6,16 @@ or `python studio.py` alone): the levels of Project OPFOR BFBC2's game copy, dou
 import os
 import sys
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import contextlib
 
-def levels():
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'bfbc2-auto-navkit'))
+import suite_paths  # noqa: E402
+
+
+def levels() -> list[tuple[str, str]]:
+    suite_paths.use('navkit')
     import navkit
     pr = navkit.Project()
     out = []
@@ -19,7 +26,7 @@ def levels():
     return out
 
 
-def pick_level(title):
+def pick_level(title: str) -> str | None:
     import tkinter as tk
     from tkinter import messagebox, ttk
     try:
@@ -30,10 +37,8 @@ def pick_level(title):
     root = tk.Tk()
     root.title(title)
     root.minsize(460, 420)
-    try:
+    with contextlib.suppress(tk.TclError):
         ttk.Style().theme_use('vista')
-    except tk.TclError:
-        pass
     try:
         items = levels()
     except Exception as e:
@@ -41,7 +46,7 @@ def pick_level(title):
                                     f'or set OPFOR_ROOT.')
         root.destroy()
         return None
-    chosen = []
+    chosen: list[str] = []
     ttk.Label(root, text='Choose a level to open:', padding=(10, 10, 10, 4)).pack(anchor='w')
     tree = ttk.Treeview(root, columns=('state',), selectmode='browse', height=16)
     tree.heading('#0', text='Level')
@@ -52,7 +57,7 @@ def pick_level(title):
         tree.insert('', 'end', iid=lv, text=lv, values=(state,))
     tree.pack(fill='both', expand=True, padx=10)
 
-    def ok(*_):
+    def ok(*_: object) -> None:
         sel = tree.selection()
         if sel:
             chosen.append(sel[0])

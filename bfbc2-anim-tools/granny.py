@@ -50,6 +50,12 @@ import os
 import struct
 import sys
 import zlib
+from typing import Any
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
 
 MAGIC = bytes.fromhex('29DE6CC0BAA4532B25F5B7A5F666E2EE')
 MAGIC_BE = bytes.fromhex('B595110E4BB5A56A502828EB04B37825')     # the same format, 32-bit big-endian
@@ -603,7 +609,7 @@ def _marshal(g, out, b, tref, at):
 def load(arg, opfor=None):
     if os.path.isfile(arg):
         return open(arg, 'rb').read(), arg
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'bfbc2-mesh-viewer'))
+    suite_paths.use('mesh-viewer')
     import meshview
     import shaderdb
     ix = meshview.Index(shaderdb.find_opfor(opfor))
@@ -643,6 +649,8 @@ def animations(g):
 
 
 def main(argv):
+    args: list[str]
+    opts: dict[str, Any]                       # --ramp: True; other options: their value (None when it is missing)
     args, opts = [], {}
     it = iter(argv[1:])
     for a in it:

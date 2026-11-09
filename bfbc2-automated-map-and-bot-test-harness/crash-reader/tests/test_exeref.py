@@ -19,19 +19,24 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, TOOL)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('crash-reader')
 
 
 class Checks:
-    def __init__(self):
+    def __init__(self) -> None:
         self.failed = 0
 
-    def check(self, ok, what, detail=''):
+    def check(self, ok: object, what: str, detail: str = '') -> None:
         self.failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''), flush=True)
 
 
-def pe32(sections, base=0x400000):
+def pe32(sections: list[tuple[str, int, bytes, int]], base: int = 0x400000) -> bytes:
     """A minimal valid PE32 image: [(name, rva, data, characteristics)]."""
     falign, salign, head = 0x200, 0x1000, 0x400
     raw, pos = [], head
@@ -55,7 +60,7 @@ def pe32(sections, base=0x400000):
     return bytes(out)
 
 
-def build():
+def build() -> tuple[bytes, dict[str, int]]:
     """Code: 16 int3, f1 at 0x401010 (push ebp; mov ebp, esp; push "Server.TestSetting"; call f2; add esp, 4; pop ebp;
     ret), int3 padding, f2 at 0x401030 (mov eax, table; ret). Data: the string, and a table holding its address."""
     base = 0x400000
@@ -76,13 +81,13 @@ def build():
     return exe, dict(s_va=s_va, table_va=table_va, f1=f1, f2=f2, push=f1 + 3, call=call_at)
 
 
-def run(*args):
+def run(*args: str) -> tuple[int, str]:
     r = subprocess.run([sys.executable, os.path.join(TOOL, 'exeref.py'), *args], capture_output=True, text=True,
                        encoding='utf-8', errors='replace')
     return r.returncode, r.stdout + r.stderr
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     c = Checks()
     try:
         import capstone  # noqa: F401

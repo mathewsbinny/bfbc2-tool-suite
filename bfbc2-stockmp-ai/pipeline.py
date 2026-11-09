@@ -35,7 +35,12 @@ SUITE = os.path.dirname(HERE)
 FBRB = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 DBX = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
-sys.path[:0] = [NAVKIT, os.path.join(NAVKIT, 'tools')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit', 'navkit-tools')
 
 DONOR_LEVEL = 'SP_004_B'
 MIN_AGREEMENT = 0.75          # as apply_sector_offsets.py

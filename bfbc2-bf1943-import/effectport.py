@@ -24,12 +24,16 @@ How it is ported:
 import os
 import re
 import sys
+from typing import cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-for p in ('core', 'bfbc2-console-convert'):
-    sys.path.insert(0, os.path.join(SUITE, p))
-sys.path.insert(0, HERE)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('bf1943-import', 'console-convert', 'core')
 import dbxport  # noqa: E402
 from bfbc2core import dbx  # noqa: E402
 
@@ -113,10 +117,10 @@ def templates(ix, types):
 def check_defaults(data, report):
     f = dbx.parse(data)
     for inst in f.instances:
-        t = inst.attr('type').split('.')[-1]
+        t = cast(str, inst.attr('type')).split('.')[-1]
         for (tt, fld), want in DEFAULTS.items():
             if t == tt and inst.child(fld) is not None:
-                got = dbx.value(inst.child(fld))
+                got = dbx.value(cast(dbx.Element, inst.child(fld)))
                 if got != want:
                     report.append(f'DEFAULT {t}.{fld} = {got}, DICE usually {want}')
 
@@ -127,7 +131,7 @@ def port_many(src, ix, effects, level, log=print):
     plans = {e: walk(src, ix, e, level) for e in effects}
     types = set()
     for plan in plans.values():
-        for name, key, kind in plan:
+        for _name, key, kind in plan:
             if kind == 'port':
                 types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
     shared = templates(ix, types)
@@ -144,7 +148,7 @@ def port(src, ix, effect, level, shared=None, plan=None):
     import texture
     plan = plan or walk(src, ix, effect, level)
     types = set()
-    for name, key, kind in plan:
+    for _name, key, kind in plan:
         if kind == 'port':
             types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
     T, pool, missing = shared or templates(ix, types)
@@ -154,7 +158,7 @@ def port(src, ix, effect, level, shared=None, plan=None):
               f'{sum(k == "texture" for _, _, k in plan)} textures, {sum(k == "bfbc2" for _, _, k in plan)} kept as '
               f'BFBC2\'s, {sum(k == "missing" for _, _, k in plan)} missing; templates {pool}']
     if missing:
-        report.append(f'types no BFBC2 template holds (kept as BF1943 has them): {sorted(missing)}')
+        report.append(f'types no BFBC2 template holds (kept as BF1943 has them): {sorted(cast('set[str]', missing))}')
     ours = {n for n, _, k in plan if k in ('port', 'texture', 'sound')}     # 'sound': the caller ports it
     bc2 = {n[:-4] for n in ix.where if n.endswith('.dbx')}
     resolve = lambda q: q.lower() in ours or q.lower() in bc2 or q.lower() == 'textures/effects/emittersystem/defaultnormalmap'  # noqa: E731

@@ -126,13 +126,17 @@ import os
 import re
 import struct
 import sys
-from typing import Any
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any, Literal, cast, overload
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
-for _p in (os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-console-readers', 'apt')):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('apt', 'core')
 
 import apt  # noqa: E402  (the suite's APT reader: opcode names, the dump used to check written movies)
 
@@ -149,6 +153,10 @@ ONE_BYTE = {0x8D, 0xA2, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3, 0xB5, 0xB9}
 POOL_BYTE = {0xA2, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3}
 OPS = {v: k for k, v in apt.NAMES.items()}
 
+type AnyNode = Raw | Str | Words | Code      # a node of the model
+type Members = list[tuple[str, bytes]]      # a movie's BIGF members, [(name, bytes)] in index order
+type Resolver = Callable[[Any], int | None]     # node -> its written offset
+
 
 class AptError(Exception):
     """A movie this tool cannot read or write as asked (explained in words by errors.guard)."""
@@ -158,55 +166,61 @@ class AptError(Exception):
 
 class Ref:
     __slots__ = ('node',)
+    node: Any           # Words, Str or Code: which one the pointer's place in the format decides, not its type
 
-    def __init__(self, node):
+    def __init__(self, node: Any) -> None:
         self.node = node
 
 
 class Node:
     __slots__ = ('file', 'at', 'size0', 'tag', 'new_at')
+    file: str                               # 'apt', 'const' or 'geo'
+    at: int | None                          # where it was read (None: new)
+    size0: int | None                       # its size as read
+    tag: str
+    new_at: int | None                      # where it is written (set by Movie._layout)
 
-    def __init__(self, file, at, tag):
+    def __init__(self, file: str, at: int | None, tag: str) -> None:
         self.file, self.at, self.tag, self.new_at = file, at, tag, None
         self.size0 = None
 
-    def refs(self):
+    def refs(self) -> list[AnyNode]:
         return []
 
 
 class Raw(Node):
     __slots__ = ('data',)
 
-    def __init__(self, file, at, data, tag='raw'):
+    def __init__(self, file: str, at: int | None, data: bytes, tag: str = 'raw') -> None:
         super().__init__(file, at, tag)
         self.data = bytes(data)
 
-    def size(self, phase=0):
+    def size(self, phase: int = 0) -> int:
         return len(self.data)
 
 
 class Str(Node):
     __slots__ = ('text',)
 
-    def __init__(self, file, at, text, tag='str'):
+    def __init__(self, file: str, at: int | None, text: bytes, tag: str = 'str') -> None:
         super().__init__(file, at, tag)
         self.text = bytes(text)
 
-    def size(self, phase=0):
+    def size(self, phase: int = 0) -> int:
         return len(self.text) + 1
 
 
 class Words(Node):
     __slots__ = ('vals',)
 
-    def __init__(self, file, at, vals, tag):
+    def __init__(self, file: str, at: int | None, vals: Iterable[Any], tag: str) -> None:
         super().__init__(file, at, tag)
         self.vals = list(vals)
 
-    def size(self, phase=0):
+    def size(self, phase: int = 0) -> int:
         return 4 * len(self.vals)
 
-    def refs(self):
+    def refs(self) -> list[AnyNode]:
         return [v.node for v in self.vals if isinstance(v, Ref)]
 
 
@@ -215,28 +229,29 @@ class Ins:
     stream or the stream's list itself, meaning its end), body (a function definition's instructions)."""
     __slots__ = ('op', 'args', 'body', 'at', 'target')
 
-    def __init__(self, op, args=(), body=None, target=None, at=None):
+    def __init__(self, op: int, args: Iterable[Any] = (), body: 'list[Ins] | None' = None, target: Any = None,
+                 at: int | None = None) -> None:
         self.op, self.args, self.body, self.target, self.at = op, list(args), body, target, at
 
     @property
-    def name(self):
+    def name(self) -> str:
         return apt.NAMES.get(self.op, f'op_{self.op:02X}')
 
 
 class Code(Node):
     __slots__ = ('ins',)
 
-    def __init__(self, file, at, ins, tag='code'):
+    def __init__(self, file: str, at: int | None, ins: list[Ins], tag: str = 'code') -> None:
         super().__init__(file, at, tag)
         self.ins = ins
 
-    def size(self, phase=0):
+    def size(self, phase: int = 0) -> int:
         return len(assemble(self.ins, phase, '<', None))
 
-    def refs(self):
-        out: list[Node] = []
+    def refs(self) -> list[AnyNode]:
+        out: list[AnyNode] = []
 
-        def walk(lst):
+        def walk(lst: list[Ins]) -> None:
             for i in lst:
                 out.extend(a.node for a in i.args if isinstance(a, Ref))
                 if i.body is not None:
@@ -245,7 +260,7 @@ class Code(Node):
         return out
 
 
-def walk_ins(lst):
+def walk_ins(lst: list[Ins]) -> Iterator[Ins]:
     """Every instruction of a stream, function bodies included (depth first)."""
     for i in lst:
         yield i
@@ -255,11 +270,11 @@ def walk_ins(lst):
 
 # ------------------------------------------------------------------------------------------------ assembler
 
-def _al(p):
+def _al(p: int) -> int:
     return (p + 3) & ~3
 
 
-def assemble(stream, pos, e, resolve):
+def assemble(stream: list[Ins], pos: int, e: str, resolve: Resolver | None) -> bytes:
     """Bytes of an instruction stream that starts at file offset pos (alignment depends on it). resolve(node) -> its
     offset, or None to size only (pointers written as 0)."""
     posmap: dict[int, int] = {}
@@ -269,7 +284,7 @@ def assemble(stream, pos, e, resolve):
     return bytes(out)
 
 
-def _ins_len(i, p, posmap):
+def _ins_len(i: Ins, p: int, posmap: dict[int, int]) -> int:
     """The position after instruction i at p (records function bodies' instruction positions in posmap)."""
     op = i.op
     p += 1
@@ -285,13 +300,14 @@ def _ins_len(i, p, posmap):
         return p + 2
     if op in (0x9B, 0x8E):
         body = _al(p) + (24 if op == 0x9B else 28)
+        assert i.body is not None               # a function definition always has its body (_stream, Grafter.stream)
         return _place(i.body, body, posmap)
     if op >= 0x80 and op not in apt.NAMES:
         raise AptError(f'opcode {op:#04x} has an argument this tool does not know')
     return p
 
 
-def _place(stream, pos, posmap):
+def _place(stream: list[Ins], pos: int, posmap: dict[int, int]) -> int:
     for i in stream:
         posmap[id(i)] = pos
         pos = _ins_len(i, pos, posmap)
@@ -299,13 +315,13 @@ def _place(stream, pos, posmap):
     return pos
 
 
-def _emit(stream, pos, e, R, posmap, out):
-    def ptr(v):
+def _emit(stream: list[Ins], pos: int, e: str, R: Resolver | None, posmap: dict[int, int], out: bytearray) -> int:
+    def ptr(v: Any) -> Any:
         if isinstance(v, Ref):
             return R(v.node) if R else 0
         return v
 
-    def pad(p):
+    def pad(p: int) -> int:
         out.extend(b'\0' * (_al(p) - p))
         return _al(p)
 
@@ -339,6 +355,7 @@ def _emit(stream, pos, e, R, posmap, out):
             out += struct.pack(e + 'H', a[0] & 0xFFFF); p += 2
         elif op in (0x9B, 0x8E):
             p = pad(p)
+            assert i.body is not None           # a function definition always has its body (_stream, Grafter.stream)
             body = p + (24 if op == 0x9B else 28)
             size = posmap[id(i.body)] - body
             if op == 0x9B:              # name, nparams, params, size, magic x2
@@ -354,7 +371,7 @@ def _emit(stream, pos, e, R, posmap, out):
 
 # ------------------------------------------------------------------------------------------------ BIGF
 
-def read_bigf_bytes(b, where='file'):
+def read_bigf_bytes(b: bytes, where: str = 'file') -> Members:
     """[(name, bytes)] in index order."""
     if b[:4] != b'BIGF':
         raise AptError(f'{where} is not a menu movie (.res, a BIGF archive)')
@@ -368,7 +385,7 @@ def read_bigf_bytes(b, where='file'):
     return out
 
 
-def write_bigf(members):
+def write_bigf(members: Members) -> bytes:
     """BIGF bytes of [(name, bytes)]: header, big-endian index, members 4-byte aligned in order."""
     index = sum(8 + len(n) + 1 for n, _ in members)
     pos, offs = 16 + index, []
@@ -395,7 +412,7 @@ class Movie:
     """A parsed movie. Movie(members=[(name, bytes)]) or Movie.load(spec)."""
     _cidx: dict[Any, int]                     # const_index(): {constant: index}, built on first use
 
-    def __init__(self, members, label='movie'):
+    def __init__(self, members: Members, label: str = 'movie') -> None:
         self.label = label
         self.order = [n for n, _ in members]
         mem = dict(members)
@@ -417,31 +434,31 @@ class Movie:
             raise AptError(f'{label}: not an APT constant file')
         a = self.data['apt']
         le, be = struct.unpack_from('<I', c, 20)[0], struct.unpack_from('>I', c, 20)[0]
-        def is_movie(o, e):                  # both values can lie inside the file: the movie's signature decides
+        def is_movie(o: int, e: str) -> bool:                  # both values can lie inside the file: the movie's signature decides
             return 0 < o <= len(a) - 8 and struct.unpack_from(e + 'I', a, o + 4)[0] == SIG
         self.big = not is_movie(le, '<') and is_movie(be, '>')
         self.e = '>' if self.big else '<'
-        self.cache = {}
-        self.roots = {}
+        self.cache: dict[tuple[str, int, str], Any] = {}    # (file, offset, kind) -> Words / Str / Code by kind
+        self.roots: dict[str, list[AnyNode]] = {}
         self._parse()
 
     @classmethod
-    def load(cls, spec):
+    def load(cls, spec: str) -> 'Movie':
         label, members = load_members(spec)
         return cls(members, label)
 
     # --- reading -------------------------------------------------------------------------------------------
-    def _u(self, f, o):
+    def _u(self, f: str, o: int) -> int:
         return struct.unpack_from(self.e + 'I', self.data[f], o)[0]
 
-    def _mk(self, key, make):
+    def _mk[T: Node](self, key: tuple[str, int, str], make: Callable[[], T]) -> T:
         n = self.cache.get(key)
         if n is None:
             n = make()
             self.cache[key] = n
         return n
 
-    def words(self, f, at, count, tag):
+    def words(self, f: str, at: int, count: int, tag: str) -> Words:
         """The Words node of count fields at at (shared when two pointers meet)."""
         key = (f, at, 'w' if count else 'empty')
         n = self.cache.get(key)
@@ -457,8 +474,8 @@ class Movie:
         self.cache[key] = n
         return n
 
-    def string(self, f, at):
-        def make():
+    def string(self, f: str, at: int) -> Str:
+        def make() -> Str:
             b = self.data[f]
             if not 0 < at < len(b):
                 raise AptError(f'{self.label}: string pointer {at:#x} outside {f}')
@@ -470,10 +487,10 @@ class Movie:
             return n
         return self._mk((f, at, 's'), make)
 
-    def sref(self, f, p):
+    def sref(self, f: str, p: int) -> Ref | int:
         return Ref(self.string(f, p)) if p else 0
 
-    def wref(self, f, p, count, tag, fill=None):
+    def wref(self, f: str, p: int, count: int, tag: str, fill: Callable[[Words], None] | None = None) -> Ref | int:
         """A Ref to the Words node at p (0 when p is 0); fill(node) runs once, the first time it is read."""
         if not p:
             return 0
@@ -483,7 +500,7 @@ class Movie:
             fill(n)
         return Ref(n)
 
-    def _parse(self):
+    def _parse(self) -> None:
         a = self.data['apt']
         end = a.find(b'\x1a')
         if not a.startswith(b'Apt Data') or end < 0:
@@ -513,16 +530,16 @@ class Movie:
             gh.vals[1] = self.wref('geo', gh.vals[1], 3 * gh.vals[0], 'geo.table', self._fill_geo)
             self.roots['geo'] = [self.geo_magic, self.geo_head]
 
-    def _fill_consts(self, n):
+    def _fill_consts(self, n: Words) -> None:
         for k in range(0, len(n.vals), 2):
             if n.vals[k] == 1:
                 n.vals[k + 1] = self.sref('const', n.vals[k + 1])
 
-    def _fill_geo(self, t):
+    def _fill_geo(self, t: Words) -> None:
         for k in range(0, len(t.vals), 3):
             t.vals[k + 2] = self.wref('geo', t.vals[k + 2], t.vals[k + 1], 'geo.parts', self._fill_parts)
 
-    def _fill_parts(self, n):
+    def _fill_parts(self, n: Words) -> None:
         for k, p in enumerate(n.vals):
             if not p:
                 continue
@@ -540,7 +557,7 @@ class Movie:
             n.vals[k] = Ref(part)
 
     # characters
-    def character(self, p):
+    def character(self, p: int) -> Words:
         a = self.data['apt']
         if p + 8 > len(a) or self._u('apt', p + 4) != SIG:
             raise AptError(f'{self.label}: no character at .apt {p:#x}')
@@ -569,32 +586,32 @@ class Movie:
             v[13] = self.wref('apt', v[13], 14 * v[12], 'stext.records', self._fill_records)
         return n
 
-    def _fill_chartable(self, n):
+    def _fill_chartable(self, n: Words) -> None:
         for k, p in enumerate(n.vals):
             n.vals[k] = Ref(self.character(p)) if p else 0
 
-    def _fill_imports(self, n):
+    def _fill_imports(self, n: Words) -> None:
         for k in range(0, len(n.vals), 4):
             n.vals[k] = self.sref('apt', n.vals[k])
             n.vals[k + 1] = self.sref('apt', n.vals[k + 1])
 
-    def _fill_exports(self, n):
+    def _fill_exports(self, n: Words) -> None:
         for k in range(0, len(n.vals), 2):
             n.vals[k] = self.sref('apt', n.vals[k])
 
-    def _fill_records(self, n):
+    def _fill_records(self, n: Words) -> None:
         for k in range(0, len(n.vals), 14):
             n.vals[k + 13] = self.wref('apt', n.vals[k + 13], n.vals[k + 12], 'glyphs')
 
-    def _fill_frames(self, n):
+    def _fill_frames(self, n: Words) -> None:
         for k in range(0, len(n.vals), 2):
             n.vals[k + 1] = self.wref('apt', n.vals[k + 1], n.vals[k], 'items', self._fill_items)
 
-    def _fill_items(self, n):
+    def _fill_items(self, n: Words) -> None:
         for k, p in enumerate(n.vals):
             n.vals[k] = Ref(self.item(p))
 
-    def item(self, p):
+    def item(self, p: int) -> Words:
         t = self._u('apt', p)
         size = {1: 2, 2: 4, 3: 16, 4: 2, 5: 2, 8: 3}.get(t)
         if size is None:
@@ -617,23 +634,23 @@ class Movie:
             v[15] = self.wref('apt', v[15], 2, 'clipactions', self._fill_clip)
         return n
 
-    def _fill_clip(self, n):
+    def _fill_clip(self, n: Words) -> None:
         n.vals[1] = self.wref('apt', n.vals[1], 3 * n.vals[0], 'clipevents', self._fill_events)
 
-    def _fill_events(self, n):
+    def _fill_events(self, n: Words) -> None:
         for k in range(0, len(n.vals), 3):
             n.vals[k + 2] = Ref(self.code(n.vals[k + 2]))
 
     # code
-    def code(self, p):
-        def make():
+    def code(self, p: int) -> Code:
+        def make() -> Code:
             stream, end = self._stream(p, None)
             n = Code('apt', p, stream)
             n.size0 = end - p
             return n
         return self._mk(('apt', p, 'c'), make)
 
-    def _stream(self, p, end):
+    def _stream(self, p: int, end: int | None) -> tuple[list[Ins], int]:
         """Instructions from p: to the top-level End (end None) or to end exactly. -> (list, end)."""
         a, u, e = self.data['apt'], (lambda o: self._u('apt', o)), self.e
         out: list[Ins]
@@ -706,43 +723,43 @@ class Movie:
                                    'stream')
         return out, p
 
-    def _fill_f1(self, n):
+    def _fill_f1(self, n: Words) -> None:
         n.vals = [self.sref('apt', v) for v in n.vals]
 
-    def _fill_f2(self, n):
+    def _fill_f2(self, n: Words) -> None:
         for k in range(1, len(n.vals), 2):
             n.vals[k] = self.sref('apt', n.vals[k])
 
     # --- structure access -------------------------------------------------------------------------------------
     @property
-    def chartable(self):
+    def chartable(self) -> Words:
         return self.movie.vals[6].node
 
-    def char(self, cid):
+    def char(self, cid: int) -> Any:
         v = self.chartable.vals[cid] if 0 <= cid < len(self.chartable.vals) else 0
         return v.node if isinstance(v, Ref) else None
 
-    def char_type(self, cid):
+    def char_type(self, cid: int) -> int | None:
         n = self.char(cid)
         return n.vals[0] if n else None
 
-    def add_char(self, node):
+    def add_char(self, node: AnyNode | None) -> int:
         """Appends a character (a node, or None for an import's slot): its new id."""
         t = self.chartable
         t.vals.append(Ref(node) if node is not None else 0)
         self.movie.vals[5] = len(t.vals)
         return len(t.vals) - 1
 
-    def imports(self):
+    def imports(self) -> list[tuple[Any, Any, int]]:
         """[(movie, name, character)]."""
         v = self.movie.vals[11].node.vals if isinstance(self.movie.vals[11], Ref) else []
         return [(text(v[k]), text(v[k + 1]), v[k + 2]) for k in range(0, len(v), 4)]
 
-    def exports(self):
+    def exports(self) -> list[tuple[str | None, int]]:
         v = self.movie.vals[13].node.vals if isinstance(self.movie.vals[13], Ref) else []
         return [(text(v[k]), v[k + 1]) for k in range(0, len(v), 2)]
 
-    def add_import(self, movie, name):
+    def add_import(self, movie: str, name: str) -> int:
         cid = self.add_char(None)
         if not isinstance(self.movie.vals[11], Ref):
             self.movie.vals[11] = Ref(Words('apt', None, [], 'imports'))
@@ -752,11 +769,11 @@ class Movie:
         self.movie.vals[10] = len(node.vals) // 4
         return cid
 
-    def font_name(self, cid):
+    def font_name(self, cid: int) -> str | None:
         n = self.char(cid)
         return text(n.vals[2]) if n is not None and n.vals[0] == 3 else None
 
-    def frames(self, owner=None, create=False):
+    def frames(self, owner: Words | None = None, create: bool = False) -> Words:
         """The frames node (2 fields per frame) of the movie or of a sprite node. A sprite without frames (frames
         pointer 0) gets one only when create: reading must not attach an empty node - written, its pointer is not 0
         but an address shared with the next node, and the engine's movie unload (0x1304690) reads a first frame there
@@ -768,7 +785,7 @@ class Movie:
             owner.vals[3] = Ref(Words('apt', None, [], 'frames'))
         return owner.vals[3].node
 
-    def items(self, frame, owner=None, create=False):
+    def items(self, frame: int, owner: Words | None = None, create: bool = False) -> Words | None:
         """The item list node of a frame (created, when create, for a frame without one; an empty list read from
         the file is replaced, never appended to: several empty frames can share one)."""
         fr = self.frames(owner, create=create)
@@ -786,16 +803,17 @@ class Movie:
             return node
         return v.node
 
-    def add_item(self, frame, item, owner=None, index=None):
+    def add_item(self, frame: int, item: Words, owner: Words | None = None, index: int | None = None) -> None:
         lst = self.items(frame, owner, create=True)
+        assert lst is not None                  # items() returns None only when not create
         lst.vals.insert(len(lst.vals) if index is None else index, Ref(item))
         self.frames(owner).vals[2 * frame] = len(lst.vals)
 
-    def frame_items(self, frame, owner=None):
+    def frame_items(self, frame: int, owner: Words | None = None) -> list[Words]:
         lst = self.items(frame, owner)
         return [v.node for v in lst.vals] if lst else []
 
-    def timeline_depths(self, owner=None):
+    def timeline_depths(self, owner: Words | None = None) -> set[int]:
         """Every depth a timeline places or removes."""
         out = set()
         fr = self.frames(owner)
@@ -805,7 +823,7 @@ class Movie:
                     out.add(signed(it.vals[2] if it.tag == 'place' else it.vals[1]))
         return out
 
-    def label_frame(self, label, owner=None):
+    def label_frame(self, label: str, owner: Words | None = None) -> int:
         fr = self.frames(owner)
         for f in range(len(fr.vals) // 2):
             for it in self.frame_items(f, owner):
@@ -815,15 +833,20 @@ class Movie:
 
     # constants
     @property
-    def const_entries(self):
+    def const_entries(self) -> Words:
         return self.const_head.vals[2].node
 
-    def constant(self, k):
+    def constant(self, k: int) -> tuple[Any, Any]:
         v = self.const_entries.vals
         t, x = v[2 * k], v[2 * k + 1]
         return ('s', x.node.text) if t == 1 and isinstance(x, Ref) else (t, x)
 
-    def const_index(self, key, add=True):
+    @overload
+    def const_index(self, key: tuple[Any, Any], add: Literal[True] = True) -> int: ...
+    @overload
+    def const_index(self, key: tuple[Any, Any], add: bool) -> int | None: ...
+
+    def const_index(self, key: tuple[Any, Any], add: bool = True) -> int | None:
         """The index of constant key (('s', bytes) a string, (4, n) a register), added at the end when missing."""
         idx = getattr(self, '_cidx', None)
         if idx is None:
@@ -844,12 +867,12 @@ class Movie:
         idx[key] = k
         return k
 
-    def const_text(self, k):
+    def const_text(self, k: int) -> str:
         c = self.constant(k)
         return c[1].decode('latin1') if c[0] == 's' else f'reg{c[1]}' if c[0] == 4 else f'type{c[0]}:{c[1]}'
 
     # geometry
-    def geo_entry(self, gid):
+    def geo_entry(self, gid: int) -> tuple[Words, int] | None:
         """(table node, field index) of geometry gid, or None."""
         if 'geo' not in self.roots:
             return None
@@ -862,7 +885,7 @@ class Movie:
                 return t.node, k
         return None
 
-    def add_geometry(self, gid, parts_node):
+    def add_geometry(self, gid: int, parts_node: Words) -> None:
         if 'geo' not in self.roots:
             raise AptError(f'{self.label}: no .geo member to add geometry to')
         gh = self.geo_head
@@ -873,10 +896,10 @@ class Movie:
         gh.vals[0] = len(t.vals) // 3
 
     # --- writing ---------------------------------------------------------------------------------------------
-    def reachable(self):
+    def reachable(self) -> dict[str, list[AnyNode]]:
         """{file: [nodes]} reachable from the roots, each once."""
         seen: set[int]
-        out: dict[str, list[Node]]
+        out: dict[str, list[AnyNode]]
         seen, out = set(), {f: [] for f in self.roots}
         stack = [n for f in self.roots for n in self.roots[f]]
         while stack:
@@ -888,21 +911,22 @@ class Movie:
             stack.extend(n.refs())
         return out
 
-    def write(self, order=None, layout='keep', gap=0, dead=True):
+    def write(self, order: str | None = None, layout: str | dict[str, str] = 'keep', gap: int = 0,
+              dead: bool = True) -> Members:
         """[(member name, bytes)] in the original member order. order '<' / '>' (default: the movie's own);
         layout 'keep' or 'pack' (module doc), or {member: layout} ('apt' / 'const' / 'geo'; default keep); gap: bytes added after each header (pack only, for tests); dead: in
         the keep layout and the movie's own byte order, bytes no structure points at are kept (else zero)."""
         e = order or self.e
         nodes = self.reachable()
-        size = {}
+        size: dict[str, int] = {}
 
-        def lay(f):
+        def lay(f: str) -> str:
             return layout.get(f, 'keep') if isinstance(layout, dict) else layout
         for f in ('apt', 'const', 'geo'):
             if f in nodes:
                 size[f] = self._layout(nodes[f], f, lay(f), gap)
         resolve = (lambda n: n.new_at)
-        data = {}
+        data: dict[str, bytes] = {}
         for f in size:
             buf = bytearray(size[f])
             if dead and lay(f) == 'keep' and e == self.e:
@@ -914,8 +938,10 @@ class Movie:
                         buf[n.at:n.at + n.size0] = bytes(n.size0)
                 for n in (self.apt_head, self.const_magic, getattr(self, 'geo_magic', None)):
                     if n is not None and n.file == f:
+                        assert n.at is not None and n.size0 is not None     # headers: read at 0, size0 set (_parse)
                         buf[n.at:n.at + n.size0] = bytes(n.size0)
             for n in nodes[f]:
+                assert n.new_at is not None         # _layout placed every reachable node of the member
                 if isinstance(n, Raw):
                     b = n.data
                 elif isinstance(n, Str):
@@ -933,7 +959,7 @@ class Movie:
             out.append((name, data[fk] if fk else dict(self.extra)[name]))
         return out
 
-    def _layout(self, nodes, f, layout, gap):
+    def _layout(self, nodes: list[AnyNode], f: str, layout: str, gap: int) -> int:
         """Sets new_at for every node of member f; returns the member's size."""
         old = sorted((n for n in nodes if n.at is not None), key=lambda n: (n.at, n.size0 != 0))
         new = [n for n in nodes if n.at is None]
@@ -941,6 +967,7 @@ class Movie:
         if layout == 'keep':
             moved = []
             for n in old:
+                assert n.at is not None             # old: the nodes read from the file
                 if n.size(n.at % 4) == n.size0:
                     n.new_at = n.at
                 else:
@@ -952,6 +979,7 @@ class Movie:
         shift, prev_end = 0, 0
         fixed = ('header', 'const.header', 'geo.header')       # at fixed offsets: the gap goes after them
         for k, n in enumerate(old):
+            assert n.at is not None                 # old: the nodes read from the file
             if n.tag in fixed:
                 n.new_at = n.at
             else:
@@ -969,7 +997,7 @@ class Movie:
         return end
 
     @staticmethod
-    def _append(n, end):
+    def _append(n: AnyNode, end: int) -> int:
         if isinstance(n, Str):
             n.new_at = end
             return end + n.size()
@@ -979,11 +1007,11 @@ class Movie:
         n.new_at = at
         return at + n.size(at % 4)
 
-    def to_res(self, order=None, layout='keep', gap=0):
+    def to_res(self, order: str | None = None, layout: str | dict[str, str] = 'keep', gap: int = 0) -> bytes:
         return write_bigf(self.write(order, layout, gap))
 
     # --- checks -----------------------------------------------------------------------------------------------
-    def leftovers(self):
+    def leftovers(self) -> list[tuple[str, str]]:
         """Bytes of the members no node accounts for that are not zero, and overlapping nodes: [(file, text)]."""
         out = []
         nodes = self.reachable()
@@ -1002,19 +1030,19 @@ class Movie:
         return out
 
 
-def text(v):
+def text(v: Any) -> Any:
     return v.node.text.decode('latin1') if isinstance(v, Ref) else None
 
 
-def signed(v):
+def signed(v: int) -> int:
     return v - (1 << 32) if v & 0x80000000 else v
 
 
-def f32(x):
+def f32(x: float) -> int:
     return struct.unpack('<I', struct.pack('<f', x))[0]
 
 
-def load_members(spec):
+def load_members(spec: str) -> tuple[str, Members]:
     """(label, [(name, bytes)]) of a movie spec: a .res, a .apt (with .const / .geo beside it), <bundle.fbrb>:<name>."""
     if os.path.isfile(spec):
         if spec.lower().endswith('.apt'):
@@ -1040,7 +1068,7 @@ def load_members(spec):
     raise FileNotFoundError(spec)
 
 
-def movie_files(paths):
+def movie_files(paths: list[str]) -> list[str]:
     """Every movie under the paths: files as given; in folders, the SwfMovie entries their fbrb.manifest files name,
     else every .res that is a BIGF archive with a .apt member."""
     out = []
@@ -1076,15 +1104,17 @@ def movie_files(paths):
 class Grafter:
     """Copies characters, items and code from src into dst (both Movie). cmap: src character id -> dst id."""
 
-    def __init__(self, src, dst):
+    def __init__(self, src: Movie, dst: Movie) -> None:
         self.src, self.dst = src, dst
+        self.cmap: dict[int, int]
+        self.memo: dict[int, Any]                   # id(src node) -> its copy
         self.cmap, self.memo = {}, {}
-        self.notes = []                 # what the copy needs that it could not bring (texture atlas entries)
-        self.added = []                 # (dst id, kind, src id)
-        self.cmap_const = {}
+        self.notes: list[str] = []      # what the copy needs that it could not bring (texture atlas entries)
+        self.added: list[tuple[int, str, int]] = []     # (dst id, kind, src id)
+        self.cmap_const: dict[int, int] = {}
 
     # constants
-    def const(self, k):
+    def const(self, k: int) -> int:
         if k not in self.cmap_const:
             if k >= len(self.src.const_entries.vals) // 2:
                 raise AptError(f'{self.src.label}: constant index {k} past the constant table')
@@ -1092,7 +1122,7 @@ class Grafter:
         return self.cmap_const[k]
 
     # characters
-    def char(self, cid):
+    def char(self, cid: int) -> int:
         """The dst id of src character cid, copying it (and what it uses) the first time."""
         cid = signed(cid)
         if cid in self.cmap:
@@ -1137,7 +1167,7 @@ class Grafter:
             self.notes.append(f'font "{text(node.vals[2])}" (char {cid}) is not in the target; copied as char {new}')
         return new
 
-    def node(self, n):
+    def node(self, n: Any) -> Any:
         """A copy of src node n for dst (memoised; character ids, constants and fonts re-mapped by tag)."""
         if id(n) in self.memo:
             return self.memo[id(n)]
@@ -1149,7 +1179,7 @@ class Grafter:
         elif isinstance(n, Raw):
             c = Raw(n.file, None, n.data, n.tag)
         elif isinstance(n, Code):
-            c = Code(n.file, None, None, n.tag)
+            c = Code(n.file, None, cast(list[Ins], None), n.tag)    # its instructions set below, once memoised
             self.memo[id(n)] = c
             c.ins = self.stream(n.ins)
             return c
@@ -1162,7 +1192,7 @@ class Grafter:
         self.memo[id(n)] = c
         return c
 
-    def _fix(self, c):
+    def _fix(self, c: Words) -> None:
         v, t = c.vals, c.tag
         if t == 'place' and v[1] & 0x02:
             v[3] = self.char(v[3])
@@ -1178,7 +1208,7 @@ class Grafter:
         elif t in ('geo.part4', 'geo.part5'):
             v[20] = self.char(v[20])
 
-    def stream(self, lst, imap=None):
+    def stream(self, lst: list[Ins], imap: dict[int, Any] | None = None) -> list[Ins]:
         """A copy of an instruction list (function bodies too), Refs copied, branch targets kept inside."""
         imap = {} if imap is None else imap
         out: list[Ins] = []
@@ -1195,13 +1225,13 @@ class Grafter:
                 j.target = imap[id(j.target)]
         return out
 
-    def code_range(self, code, first, end):
+    def code_range(self, code: Code, first: int, end: int) -> Code:
         """A new Code node for dst: the top-level instructions of src Code node `code` from offset first up to (not
         including) offset end, after a ConstantPool of the pool constants they use, then End. Branches must stay
         inside the range; the range must not change the constant pool."""
         top = code.ins
         idx = {i.at: k for k, i in enumerate(top)}
-        if first not in idx or (end not in idx and end != top[-1].at + 1):
+        if first not in idx or (end not in idx and end != cast(int, top[-1].at) + 1):
             raise AptError(f'{first:#x} / {end:#x} are not instruction offsets of the stream at {code.at:#x}')
         a, b = idx[first], idx.get(end, len(top))
         pool = None
@@ -1228,7 +1258,9 @@ class Grafter:
         for i in walk_ins(body):
             if i.op in POOL_BYTE or i.op == 0xA3:
                 i.args[0] = remap[i.args[0]]
-        head = Ins(0x88, [len(used), Ref(Words('apt', None, [self.const(pool[k]) for k in used], 'poollist'))])
+        # pool is set whenever used is not empty (checked above)
+        head = Ins(0x88, [len(used), Ref(Words('apt', None, [self.const(cast(list[Any], pool)[k]) for k in used],
+                                               'poollist'))])
         if len(used) > 255 and any(i.op in POOL_BYTE for i in walk_ins(body)):
             raise AptError('more than 255 pool constants')
         return Code('apt', None, [head] + body + [Ins(0)])
@@ -1238,19 +1270,23 @@ class Builder:
     """Writes a new action stream for a movie: b = Builder(movie); b.pool('a', 'b'); b.op('EA_PushConstant', 'a') ...;
     labels with b.label(name) / b.op('BranchIfTrue', name); b.code() -> Code node (End added)."""
 
-    def __init__(self, movie):
+    def __init__(self, movie: Movie) -> None:
         self.m = movie
+        self.ins: list[Ins]
+        self.labels: dict[str, int]                 # label -> index of the instruction it names
+        self.pending: list[tuple[Ins, str]]         # (branch, label)
+        self.names: list[str]
         self.ins, self.labels, self.pending, self.names = [], {}, [], []
 
-    def pool(self, *names):
+    def pool(self, *names: str) -> None:
         self.names = list(names)
         idx = [self.m.const_index(('s', n.encode('latin1'))) for n in names]
         self.ins.append(Ins(0x88, [len(idx), Ref(Words('apt', None, idx, 'poollist'))]))
 
-    def label(self, name):
+    def label(self, name: str) -> None:
         self.labels[name] = len(self.ins)
 
-    def op(self, name, *args):
+    def op(self, name: str | int, *args: Any) -> 'Builder':
         op = OPS[name] if isinstance(name, str) else name
         i = Ins(op)
         if op in POOL_BYTE:
@@ -1266,14 +1302,15 @@ class Builder:
         self.ins.append(i)
         return self
 
-    def code(self):
+    def code(self) -> Code:
         self.ins.append(Ins(0))
         for i, name in self.pending:
             i.target = self.ins[self.labels[name]]
         return Code('apt', None, self.ins)
 
 
-def place_item(movie, depth, cid, name, x, y, flags=0x26, src_item=None):
+def place_item(movie: Movie, depth: int, cid: int, name: str | None, x: float, y: float, flags: int = 0x26,
+               src_item: Words | None = None) -> Words:
     """A new PlaceObject node (identity matrix unless copied from src_item, a dst place node)."""
     if src_item is not None:
         v = list(src_item.vals)
@@ -1287,7 +1324,7 @@ def place_item(movie, depth, cid, name, x, y, flags=0x26, src_item=None):
     return Words('apt', None, v, 'place')
 
 
-def free_depths(movie, count, start=2):
+def free_depths(movie: Movie, count: int, start: int = 2) -> list[int]:
     used = movie.timeline_depths()
     out: list[int]
     out, d = [], start
@@ -1313,7 +1350,7 @@ CON_SNIPPETS = {                                     # stream offset -> [(first,
 }
 
 
-def find_place(movie, frame, name=None, depth=None):
+def find_place(movie: Movie, frame: int, name: str | None = None, depth: int | None = None) -> Words:
     for it in movie.frame_items(frame):
         if it.tag == 'place' and (name is None or text(it.vals[13]) == name) and \
                 (depth is None or signed(it.vals[2]) == depth):
@@ -1321,16 +1358,16 @@ def find_place(movie, frame, name=None, depth=None):
     raise AptError(f'{movie.label}: no placement {name or depth} in frame {frame}')
 
 
-def extern_reads(movie, code):
+def extern_reads(movie: Movie, code: Code) -> list[tuple[list[Ins], int, str]]:
     """The extern.<name> reads of a Code node: [(instruction list, index of the push before, name)] for
     <push _global (EA_PushGlobalVar, or PushData of one register)> GetNamedMember "extern" GetNamedMember <name>."""
-    out = []
+    out: list[tuple[list[Ins], int, str]] = []
 
-    def walk(lst, pool):
+    def walk(lst: list[Ins], pool: list[str]) -> None:
         for k, i in enumerate(lst):
             if i.op == 0x88:
                 pool = [movie.const_text(x) for x in i.args[1].node.vals] if isinstance(i.args[1], Ref) else []
-            if i.op == 0xAF and 0 < k and k + 1 < len(lst) and lst[k + 1].op == 0xAF and i.args[0] < len(pool) \
+            if i.op == 0xAF and k > 0 and k + 1 < len(lst) and lst[k + 1].op == 0xAF and i.args[0] < len(pool) \
                     and pool[i.args[0]] == 'extern' and lst[k + 1].args[0] < len(pool):
                 out.append((lst, k - 1, pool[lst[k + 1].args[0]]))
             if i.body is not None:
@@ -1339,13 +1376,13 @@ def extern_reads(movie, code):
     return out
 
 
-def extern_mentions(movie, code):
+def extern_mentions(movie: Movie, code: Code) -> int:
     """How many instructions of a Code node name "extern" through the constant pool, in any form (PushConstant,
     PushValueOfVar, GetNamedMember, GetStringMember ...): more than extern_reads finds means reads of a shape it
     does not know."""
     n = 0
 
-    def walk(lst, pool):
+    def walk(lst: list[Ins], pool: list[str]) -> None:
         nonlocal n
         for i in lst:
             if i.op == 0x88:
@@ -1359,7 +1396,7 @@ def extern_mentions(movie, code):
     return n
 
 
-def replace_extern(lst, k, new):
+def replace_extern(lst: list[Ins], k: int, new: Ins) -> None:
     """Replaces the three instructions of an extern read (from extern_reads) with instruction new; branches to the
     read land on new."""
     first = lst[k]
@@ -1383,7 +1420,7 @@ EXTERN_FIX = {
 }
 
 
-def code_nodes(movie, new_only=False):
+def code_nodes(movie: Movie, new_only: bool = False) -> list[Code]:
     return [n for n in movie.reachable()['apt'] if isinstance(n, Code) and (n.at is None or not new_only)]
 
 
@@ -1403,7 +1440,7 @@ PC_FIT = {
 PC_LABEL = 'BEST'                               # no PC text says BEST / BEST TIME alone (bc2loc search "best")
 
 
-def place_named(movie, owner, name):
+def place_named(movie: Movie, owner: Words | None, name: str) -> Words:
     for f in range(len(movie.frames(owner).vals) // 2):
         for it in movie.frame_items(f, owner):
             if it.tag == 'place' and text(it.vals[13]) == name:
@@ -1411,7 +1448,7 @@ def place_named(movie, owner, name):
     raise AptError(f'no placement "{name}" in the character')
 
 
-def set_clip_props(item, **props):
+def set_clip_props(item: Words, **props: str | bool) -> None:
     """Changes the TextManager properties a placement's clip event sets: propText="..." (a string) or
     propLocalized=False (a boolean pushed with EA_PushTrue / EA_PushFalse)."""
     if not isinstance(item.vals[15], Ref):
@@ -1430,7 +1467,7 @@ def set_clip_props(item, **props):
                     raise AptError(f'unexpected code setting {text(i.args[0])}')
 
 
-def set_scale(item, sx=None, sy=None, x=None):
+def set_scale(item: Words, sx: float | None = None, sy: float | None = None, x: float | None = None) -> None:
     if sx is not None:
         item.vals[4] = f32(sx)
     if sy is not None:
@@ -1439,7 +1476,7 @@ def set_scale(item, sx=None, sy=None, x=None):
         item.vals[8] = f32(x)
 
 
-def add_mode_case(movie, func, mode, key, fallback='Missing DESC tag!! '):
+def add_mode_case(movie: Movie, func: str, mode: str, key: str, fallback: str = 'Missing DESC tag!! ') -> int:
     """Adds `if (<mode variable> == mode) result = key` ahead of the fallback of function func, a mode switch of
     the form: ... <fallback> PushConstant fallback; PushValueOfVar <mode var>; Add2; SetRegister r; Pop;
     BranchAlways <end>. Every function of that name in the movie is patched; returns their number."""
@@ -1453,6 +1490,7 @@ def add_mode_case(movie, func, mode, key, fallback='Missing DESC tag!! '):
                 continue
             names = [movie.const_text(k) for k in pool.vals]
             body = top.body
+            assert body is not None             # 0x8E, a function definition: it has its body
             if any(i.op == 0x88 for i in walk_ins(body)):
                 # the patch reads and extends the enclosing stream's pool; a body with its own would need that one
                 raise AptError(f'{func}: the function sets its own constant pool (not supported)')
@@ -1464,7 +1502,7 @@ def add_mode_case(movie, func, mode, key, fallback='Missing DESC tag!! '):
             if (var.op, add.op, setr.op, pop.op, br.op) != (0xAE, 0x47, 0x87, 0x17, 0x99):
                 raise AptError(f'{func}: the fallback is not the expected shape')
 
-            def pc(t, names=names, pool=pool):
+            def pc(t: str, names: list[str] = names, pool: Words = pool) -> Ins:
                 if t not in names:
                     pool.vals.append(movie.const_index(('s', t.encode('latin1'))))
                     names.append(t)
@@ -1486,7 +1524,7 @@ def add_mode_case(movie, func, mode, key, fallback='Missing DESC tag!! '):
     return done
 
 
-def add_label_alias(movie, like, alias):
+def add_label_alias(movie: Movie, like: str, alias: str) -> int:
     """In every timeline (the movie's own and each sprite's) that has the frame label `like`, a label `alias` on the
     same frame with like's flags: a name the movie looks up with gotoAndStop / gotoAndPlay lands on like's frame (the
     HUD's vehicle and kill-feed icons are frames labelled with the vehicle's name: weaponicon's vhIcons, VEHICLES).
@@ -1514,7 +1552,7 @@ def add_label_alias(movie, like, alias):
     return added
 
 
-def add_icon_frame(movie, like, label, size):
+def add_icon_frame(movie: Movie, like: str, label: str, size: tuple[float, float]) -> tuple[int, int]:
     """A new icon of its own for the frames labelled `like` (the HUD's vehicle and kill-feed icons: weaponicon's
     WeaponIcon timeline places, on each vehicle's labelled frame, a shape drawing a bitmap of the movie's texture
     atlas). Adds an image character (its texture id = its character id: the atlas entry's TextureFile to give it),
@@ -1523,7 +1561,7 @@ def add_icon_frame(movie, like, label, size):
     `label` that places the new shape as `like`'s frame places its own (depth, flags, matrix, name). Timelines
     whose `like` frame places no shape (it shows an earlier frame's) are left: give them a label-alias. Returns
     (image character id, timelines given a frame)."""
-    def frame_of(lbl, owner):
+    def frame_of(lbl: str, owner: Words | None) -> int | None:
         try:
             return movie.label_frame(lbl, owner)
         except AptError:
@@ -1584,7 +1622,7 @@ def add_icon_frame(movie, like, label, size):
     return image, len(found)
 
 
-def add_mode_alias(movie, mode, like, funcs=None):
+def add_mode_alias(movie: Movie, mode: str, like: str, funcs: list[str] | None = None) -> int:
     """Makes mode take the branch of mode like in mode switches of the form <push the mode value: PushData of one
     register or PushValueOfVar>; PushConstant like; StrictEquals (or Equals2); BranchIfTrue X - a copy of the four
     with mode is put ahead of them. The first compare of a switch reads <value>; SetRegister r; PushConstant like ...:
@@ -1592,10 +1630,10 @@ def add_mode_alias(movie, mode, like, funcs=None):
     function, named or not, with such a switch). Returns the number of switches patched."""
     done = seen = 0
 
-    def patch(body, names, pool):
+    def patch(body: list[Ins], names: list[str], pool: Words) -> None:
         nonlocal done, seen
 
-        def pc(t):
+        def pc(t: str) -> Ins:
             if t not in names:
                 pool.vals.append(movie.const_index(('s', t.encode('latin1'))))
                 names.append(t)
@@ -1634,7 +1672,7 @@ def add_mode_alias(movie, mode, like, funcs=None):
             else:
                 j += 1
 
-    def walk(lst, pool, names):
+    def walk(lst: list[Ins], pool: Words | None, names: list[str] | None) -> None:
         for i in lst:
             if i.op == 0x88:
                 pool = i.args[1].node
@@ -1646,6 +1684,7 @@ def add_mode_alias(movie, mode, like, funcs=None):
                     bnames = [movie.const_text(k) for k in bpool.vals]
                 name = text(i.args[0]) if i.op == 0x8E else ''
                 if bpool is not None and (funcs is None or name in funcs):
+                    assert bnames is not None   # set together with bpool
                     patch(i.body, bnames, bpool)
                 walk(i.body, bpool, bnames)
 
@@ -1656,7 +1695,8 @@ def add_mode_alias(movie, mode, like, funcs=None):
     return done
 
 
-def onslaught_timer(pc, con, lms=True, log=print, place=True):
+def onslaught_timer(pc: Movie, con: Movie, lms: bool = True, log: Callable[..., None] = print,
+                    place: bool = True) -> tuple[list[str], Grafter]:
     """Grafts the console's Onslaught stopwatch (and the last-man-standing banner) into pc (a Movie, changed in
     place). place=False: the characters, events and visibility code only, nothing placed (a diagnostic variant).
     Returns (report lines, Grafter)."""
@@ -1674,9 +1714,9 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
             raise AptError(f'{con.label}: no action stream at {stream:#x} - not the expected console movie')
     names = {text(i.vals[13]) for f in range(len(pc.frames().vals) // 2) for i in pc.frame_items(f)
              if i.tag == 'place'}
-    for n in ('onslaught_timer', 'lastManStanding'):
-        if n in names:
-            raise AptError(f'{pc.label} already has an instance "{n}"')
+    for inst in ('onslaught_timer', 'lastManStanding'):
+        if inst in names:
+            raise AptError(f'{pc.label} already has an instance "{inst}"')
     g = Grafter(con, pc)
     report = []
     labels = {}
@@ -1688,11 +1728,11 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
     d_play, d_kill, d_lms = free_depths(pc, 3, start=94)
     report.append(f'depths on the PC timeline: timer {d_play} (playing), {d_kill} (killed), banner {d_lms}')
 
-    def snippet(key):
+    def snippet(key: str) -> Code:
         stream, first, end = CON_SNIPPETS[key]
         return g.code_range(con.code(stream), first, end)
 
-    def action(code):
+    def action(code: Code) -> Words:
         return Words('apt', None, [1, Ref(code)], 'action')
 
     # the characters
@@ -1776,14 +1816,14 @@ def onslaught_timer(pc, con, lms=True, log=print, place=True):
 
 # ------------------------------------------------------------------------------------------------ dependencies
 
-def deps(movie, cid):
+def deps(movie: Movie, cid: int) -> dict[str, Any]:
     """What character cid uses: {'chars': {id: type}, 'imports': [...], 'fonts': [...], 'images': [...],
     'geometry': [...], 'constants': [...], 'strings': n}."""
     out: dict[str, Any] = {'chars': {}, 'imports': [], 'fonts': [], 'images': [], 'geometry': [], 'constants': set()}
     imps = {c: (m, n) for m, n, c in movie.imports()}
     seen = set()
 
-    def visit_char(c):
+    def visit_char(c: int) -> None:
         c = signed(c)
         if c in out['chars'] or c in [i[2] for i in out['imports']]:
             return
@@ -1805,7 +1845,7 @@ def deps(movie, cid):
                 visit(ent[0].vals[ent[1] + 2].node)
         visit(node)
 
-    def visit(n):
+    def visit(n: AnyNode) -> None:
         if id(n) in seen:
             return
         seen.add(id(n))
@@ -1833,7 +1873,7 @@ def deps(movie, cid):
 
 # ------------------------------------------------------------------------------------------------ checks
 
-def dump_text(members):
+def dump_text(members: Members) -> list[str]:
     """apt.py's dump of a written movie, with offsets taken out (for comparing layouts)."""
     d = dict(members)
     aptname = next(n for n in d if n.lower().endswith('.apt'))
@@ -1844,7 +1884,7 @@ def dump_text(members):
     return [strip.sub('', ln.strip()) for ln in lines]
 
 
-def roundtrip(spec, pack=False):
+def roundtrip(spec: str, pack: bool = False) -> tuple[list[str], list[str]]:
     """(problems, notes) for one movie: no problems = it round-trips. Notes: data no structure points at (left by
     in-place patches; written back as it was)."""
     label, members = load_members(spec)
@@ -1881,7 +1921,7 @@ def roundtrip(spec, pack=False):
 
 # ------------------------------------------------------------------------------------------------ command line
 
-def take(args, flag, default=None, conv=str):
+def take(args: list[str], flag: str, default: Any = None, conv: Callable[[str], Any] = str) -> Any:
     if flag in args:
         i = args.index(flag)
         if i + 1 >= len(args):
@@ -1892,14 +1932,14 @@ def take(args, flag, default=None, conv=str):
     return default
 
 
-def take_flag(args, flag):
+def take_flag(args: list[str], flag: str) -> bool:
     if flag in args:
         args.remove(flag)
         return True
     return False
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     args = argv[1:]
     if not args or args[0] not in ('roundtrip', 'convert', 'deps', 'graft', 'onslaught-timer', 'mode-case', 'mode-alias', 'label-alias'):
         print(__doc__)
@@ -1974,8 +2014,8 @@ def main(argv):
         print(f'{args[3]}: character {args[2]} -> {cid}, placed in frame {frame} at depth {depth}')
         for n, k, s in g.added:
             print(f'  added {n}: {k} (source {s})')
-        for n in g.notes:
-            print(f'  needs: {n}')
+        for note in g.notes:
+            print(f'  needs: {note}')
         return 0
     if cmd == 'mode-case':
         func, mode, key = take(args, '--function'), take(args, '--mode'), take(args, '--key')

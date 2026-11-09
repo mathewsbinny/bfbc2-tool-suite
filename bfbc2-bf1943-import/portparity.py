@@ -24,14 +24,18 @@ import argparse
 import json
 import os
 import sys
+from typing import Any
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-for p in ('core', 'bfbc2-console-convert', 'bfbc2-anim-tools', 'bfbc2-mesh-viewer', 'bfbc2-model-tools'):
-    sys.path.insert(0, os.path.join(SUITE, p))
-sys.path.insert(0, HERE)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('bf1943-import', 'model-tools', 'mesh-viewer', 'anim-tools', 'console-convert', 'core')
 import mesh  # noqa: E402
 import meshset  # noqa: E402
 import texture  # noqa: E402
@@ -62,6 +66,8 @@ def compare_part(ours, dice, po, pd, layout):
     b = np.frombuffer(dice[0], np.uint8, n * st, dice[1] + pd['vertex_offset']).reshape(n, st)
     if np.array_equal(a, b):
         return 'identical', []
+    notes: list[str]
+    beyond: list[str]
     notes, beyond = [], []
     for fmt, usage, off, stream in mesh.elements(layout)[0]:
         if stream != 0 or fmt not in DTYPE or np.array_equal(a[:, off:off + 1], b[:, off:off + 1]) and \
@@ -117,7 +123,7 @@ def compare_mesh(port, ix, name):
             out['meshset'].append(f'not compared ({e})')
     for lod, ours in enumerate(r['lods']):
         dice = ix.read(f'{low}_lod{lod}_data.res')
-        row = {'lod': lod, 'parts': {}}
+        row: dict[str, Any] = {'lod': lod, 'parts': {}}
         out['lods'].append(row)
         if dice is None:
             row['note'] = 'DICE has no such LOD'
@@ -193,7 +199,7 @@ def shared_meshes(src, ix):
 
 def summary(rows):
     import collections
-    parts = collections.Counter()
+    parts: collections.Counter[str] = collections.Counter()
     for r in rows:
         for L in r.get('lods', []):
             if L.get('identical'):
@@ -207,7 +213,7 @@ def summary(rows):
 def main(argv=None):
     import bf1943import
     import meshport
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-shader-tools'))
+    suite_paths.use('shader-tools')
     import meshview
     import shaderdb
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])

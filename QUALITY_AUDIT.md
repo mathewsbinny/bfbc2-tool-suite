@@ -1,11 +1,12 @@
 # Code quality audit, 2026-11-08 / 09
 
 Branch `quality/audit-2026-11-08` (worktree `C:\Programming\Projects\bfbc2-tool-suite-quality`), from `main` at 4218381.
-Not pushed. Two rounds:
+Rounds 1-2 were merged into main (198f488); round 3 is on `quality/round3-2026-11-09`. Not pushed. Three rounds:
 
 - **Round 1 (2026-11-08):** audit, configuration, the first eight bugs.
 - **Round 2 (2026-11-09):** every remaining finding fixed or decided, the ruff findings cleared, implicit state
   reduced, types added, tests added, rescan and scores.
+- **Round 3 (2026-11-09):** the whole suite, including the six folders excluded before. See "Round 3" at the end.
 
 ## Scope
 
@@ -288,7 +289,7 @@ where a folder imports core.
 | mypy usage | 0 |
 | ruff usage | 0 (configured at the root, not yet enforced there) |
 
-## Plan for the rest
+## Plan for the rest (as written after round 2; carried out in round 3, below)
 
 1. **navbuild settings object.** Replace `set_pitch` / module globals with a `BuildSettings` value passed through
    `build` / `stage` / `merge_detailed`. navvehicle's override becomes a value, and `saved_settings` can go.
@@ -305,3 +306,276 @@ where a folder imports core.
    review, and the same tests-first fixes. Extend `test_lint.py` / `test_types.py` to cover them.
 6. **Ruff rule families** I, UP and SIM, folder by folder. Long-line wrapping, if wanted, one file at a time and never
    as a mass reformat.
+
+## Round 3 (2026-11-09): the whole suite
+
+Branch `quality/round3-2026-11-09`, from `main` at 198f488 (round 2 merged). Not pushed. All six steps of the plan
+were carried out. The six folders excluded before (core, bf1943-import, console-convert, shader-tools, anim-tools,
+model-tools) are now in scope.
+
+Two rules applied throughout: nothing was written to or installed into the game copy, and the game was not started
+(a playtest ran during part of the round).
+
+### Converter output: identical before and after
+
+Before any edit, the converters were run on a fixed sample from a checkout of 198f488 (`bfbc2-tool-suite-r3base`,
+next to the suite so that the BF1943 workspace resolves). The same run was repeated on the final branch. Timings,
+temporary paths and dates were normalised.
+
+**What was run:**
+- **Core:** FbrbTool on 12 game bundles; the level loader snapshot; water on every level; terrain against the
+  in-game samples; navdata; navtune; errors.
+- **BF1943 import:** the pipeline's game check; meshport, dbxport and havokport against DICE's own files;
+  `portparity.py` (every model both games have); `dbxparity.py` (every partition both games have, 27 min).
+- **A fixed import:** `bf1943import.py import garand` into a scratch folder. Its 77 output files were hashed with
+  SHA-256.
+- **Console converter:** havok, texture, mesh decode, terrain, soot, audio, and tree mesh sets (game tier).
+- **Shader databases:** quick tier and Xbox 360.
+- **Granny:** read / shift, Xbox to PC, aim animations.
+- **Model tools:** models, texwrite, decimate.
+
+**Result:**
+- All 30 runs exit 0 before and after.
+- The portparity report, its JSON and the dbxparity JSON are byte-identical.
+- The 77 imported files have identical hashes.
+- Every test's output is identical but one line: the mesh viewer's "indexing the game copy" note, which appears once
+  per fresh index cache.
+
+**Typing edits to the converters** were checked a second way as well: the code, with annotations, typing-only imports
+and `cast()` stripped, is identical to the original apart from three local renames.
+
+**The fixes below that could touch converter output do not change it on these inputs:**
+- havok's arrays of pointers: test_havok's converted files and its report are unchanged.
+- dbxport's local references: the read-only scan of the WW2 work folders found no dangling local reference, and the
+  dbxport outputs are unchanged.
+
+### NavKit output: one intended difference, proven
+
+The NavKit regression was run on sp_004_b and sp_009 before (198f488) and after, and the `pathdata.hpd` files were
+compared with the sectors' date / time stamps set aside.
+
+- **sp_009:** identical.
+- **sp_004_b:** the same 40 sectors, 16,131 nodes and 47,466 edges, but 496 bytes more mesh data in 7 sectors. These
+  are the normal sectors next to its 27 detailed (pitch 0.2) sectors, and the extra bytes are neighbour links.
+
+**The cause is a bug of the old module-global settings.** After the detailed pass, `merge_detailed` re-links stage a's
+normal sectors across the mixed seams, and it did so while the globals were still set for pitch 0.2. So
+`Level.connected` judged 0.8 m cells with the 0.2 m pitch and its 0.3 m link step instead of 0.6, and found fewer
+neighbour links. With `BuildSettings`, each stage's `Level` carries its own settings, and the re-link uses 0.8 m / 0.6.
+
+**Proof:** a one-line experiment gave stage a's `Level` the detailed settings for the re-link (the old behaviour), and
+the build was again identical to 198f488's. That one line explains the whole difference.
+
+**Kept, as a fix:**
+- The parity measures are unchanged (ground 98.49, extra 7.23, nodes 0.38, connectivity 100, over-connection 18.21,
+  AI 99.4).
+- Every other sector is identical.
+- To restore the old links, give `a['level']` the detailed settings before the re-link loop in `merge_detailed`.
+
+### Bugs found and fixed in round 3
+
+**Core and the converters** (line-by-line review of all six folders; findings confirmed by reading both caller and
+callee):
+
+| # | Where | What went wrong | Test |
+|---|---|---|---|
+| 21 | core\bfbc2core\terrain.py `find`, water.py `read` | A level name not in lower case found nothing | test_core_edges (fails on 198f488) |
+| 22 | core\bfbc2core\errors.py `_window` | A GUI tool's error in a worker thread opened a Tk window from that thread; Tk is not thread-safe and could hang or abort the tool | test_core_edges (fails on 198f488) |
+| 23 | core\bfbc2core\navdata.py caches | Two processes writing the same cache entry collided on the fixed `.tmp` name | per-process names; reviewed, no test |
+| 24 | core\bfbc2core\dbx.py `_number_text` | A number field of an unusual size printed as one big integer, not as to_xml and DbxEdit show it; no game file has such a size | test_converter_edges (fails on 198f488) |
+| 25 | bf1943-import\dbxport.py `_align` | A substituted template value kept the template's own instance references, which dangle in the ported partition. The array and nested paths already removed them; this one did not | test_converter_edges (fails on 198f488) |
+| 26 | console-convert\havok.py `_member` | Objects reached only through an array of pointers were never converted (they stayed big-endian); virtual objects were unaffected | test_havok, unchanged output |
+| 27 | console-convert\texture.py `check` | Formats without a block decoder (RGBA16F) raised IndexError in verify-texture | test_converter_edges (fails on 198f488) |
+| 28 | console-convert\convert.py verify-texture | Exited 0 when a texture failed to convert, against its own usage text | reviewed; needs the game |
+| 29 | shader-tools\pcbuild.py | An unused `FORMATS` table with one wrong entry | removed |
+
+**The rest of the suite:**
+
+| # | Where | What went wrong | Test |
+|---|---|---|---|
+| 30 | navkit\navkit.py `prepare` | With `--box` and `--y` given, it still sized a box from the level's objects, so it failed on a new map with nothing placed | test_navkit_offline (FileNotFoundError on 198f488) |
+| 31 | navkit\navkit.py, tools\navregress.py | A SectorOffsets file without its values raised AttributeError; it is now a NavKitError (navregress: RuntimeError) naming the file | typed; message only |
+| 32 | stockmp-ai\validate.py `check_assets` | A missing template partition raised TypeError instead of the check's "not packed" | test_validate (TypeError on 198f488) |
+| 33 | navkit\tools\navbuild.py `merge_detailed` | The re-link at mixed seams used the detailed settings for normal sectors (see above) | NavKit regression, plus the experiment |
+
+**Decided, not changed:**
+- **core\navpath.py.** The A* heuristic can exceed the remaining cost by 1/16 m per edge, because stored edge costs
+  are rounded down. A route can therefore be up to a few centimetres above the cheapest. The docstring now says so.
+  The algorithm was kept, because the harness's saved route measures depend on it.
+- **shader-tools:**
+  - `program_block` raises with more than 255 registers where `own_block` clamps. Raising is the safer behaviour.
+  - A donor GUID collision in `merge` is refused by `check()` before its report. It is refused either way.
+- **console-convert\mesh.py.** `decode` and `convert` would treat a layout holding both 0x0C and 0x0D elements
+  differently. No such mesh is known; noted.
+- **The read-only review also noted:**
+  - havokport's dropped deactivators keep global fixups (4.6.1's deactivator holds no pointers);
+  - subparts with near-unit translations are left unswapped;
+  - template choice depends on file order;
+  - meshport records the first LOD's layout per part name.
+
+  These are latent or order-dependent risks, not bugs on the current inputs.
+
+### Implicit state
+
+| Item | Round 2 | Now |
+|---|---|---|
+| navbuild settings | Module globals, `set_pitch`, `saved_settings`; navvehicle patched ~20 globals and swapped navsample / navwalk for shims | A frozen `BuildSettings` value passed through `build` / `stage` / `merge_detailed` (`cfg.detailed()` for the 0.2 pass). navvehicle builds a value, and `stage(grid=...)` takes a ready grid, so the shims are gone. `--no-detail` passes a value. Setting an upper-case navbuild global no longer affects a build (nothing in the suite or OPFOR did). |
+| sys.path | 236 manipulation lines in 138 files; some grew per call | `suite_paths.py`, one bootstrap: each file locates the root from its own path and calls `suite_paths.use(...)`, and each folder is added once. In a regression run sys.path stays at 11 entries (it was 25, then 33). Every module still imports with only its own folder on sys.path (checked for all 182 files on both trees; no new failure). 45 entry points give the same exit code and first line from their own folder and from the root. Six lines naming sibling projects (bf1943-tool-suite) stay. |
+| Tk from worker threads | core errors could open a window from any thread | Main thread only |
+| Cache files | navdata's fixed `.tmp` names | Per-process names |
+| Name case | terrain / water needed lower case | Any case |
+
+**Left:**
+- The per-build counters (`ORDER_IDS`, `ORDER_STATS`, `LADDER_STATS`, `DETAIL_STATS`) are still module-level,
+  cleared by `reset_stats()`.
+- `errors._state` is module-level by design (one tool per process).
+- `level.heightfield_of` reuses an unpacked terrain folder after a game patch.
+- `effectport` / `dbxport` template choice depends on file order.
+
+### Typing, mypy, ruff
+
+**mypy:**
+- `check_untyped_defs = true` for the whole suite.
+- The fully annotated modules are checked strictly (`disallow_untyped_defs`, `disallow_incomplete_defs`):
+  - every bfbc2core module;
+  - hpdtool, kymesh, navsample, navbuild, navwalk, navkit;
+  - menucommon, aptgraft, culltree;
+  - apt, stfs, xiso;
+  - dbxbin, pipeline, stockmp;
+  - shaderdb, xenos, xenos_hlsl, pcbuild;
+  - the harness's runs / ingame / levelchecks;
+  - 14 test modules.
+- mypy reports 0 errors in every folder, default and with check_untyped_defs. Both are enforced by
+  `tests\test_types.py` in the quick tier.
+
+**Fully annotated functions:**
+
+| Group | Before round 1 | After round 2 | Now |
+|---|---|---|---|
+| Six folders | 0 of 695 | 0 of 697 | 316 of 702 (45 %) |
+| The rest | 6 of 1,457 | 249 of 1,487 | 573 of 1,586 (36 %) |
+| Suite | 6 of 2,152 | 249 of 2,184 (11 %) | 889 of 2,288 (39 %) |
+
+**`--check-untyped-defs` errors:**
+- Six folders: 385 at the start of round 3 (core 90, shader-tools 206, console-convert 38, bf1943-import 26,
+  anim 10, model 15) → 0.
+- The rest: 52 → 0.
+- Default mypy, six folders: 4 → 0.
+
+**ruff:**
+- Rules F, E, W, B, I, UP and SIM. Left off, with their reasons in pyproject.toml:
+  - SIM115: `open(...).read()` is the house idiom.
+  - UP031: %-formatting of the Xenos disassembly, which a rewrite could change.
+- Findings with the round-3 rules: 231 at 198f488 (93 in the six folders) → 0.
+- Enforced over every folder by `tests\test_lint.py`.
+- Import sorting surfaced two hidden order dependencies. The menu-tools tests and core's terrain test imported `apt`
+  / `navkit` only because an earlier import had put them on sys.path. They now name their folders.
+
+### Tests and coverage
+
+**New quick tests (48 → 54):**
+- core edges and converter edges, as above.
+- **NavKit's orchestration** on a stand-in OPFOR folder (`test_navkit_offline`): a guard records any write outside the
+  temporary folder; there were none.
+- **Studio and Map Inspector logic** without a window (`test_studio_offline`, `test_inspector_offline`; panels drawn
+  in a windowless ImGui frame).
+- **Stock-MP AI validation** on synthetic builds (`test_validate`).
+
+**Quick-tier line coverage:**
+
+| File or group | Round 2 end (198f488) | Now |
+|---|---|---|
+| navkit.py | 25 % | 98 % |
+| studio.py | 11 % | 93 % |
+| inspector.py | 0 % | 90 % |
+| validate.py | 0 % | 100 % |
+| The rest | 57.7 % | 67.0 % |
+| Six folders | 21.4 % | 24.4 % |
+| Suite | 46.2 % | 53.5 % |
+
+The six folders are mostly tested on game data.
+
+**Game-tier coverage, measured once** (the quick tier plus every game-data test that only reads the game):
+71.7 % of the suite's lines (the rest 76.7 %, the six folders 60.9 %). Least covered: the Xenos shader translator and pcbuild (xenos, xenos_hlsl, pcbuild: 0 % - no test exercises them; the WW2 port's scripts use them), portparity (run separately, not under coverage), core's viewer (34 %, needs a window), navkitGUI (19 %), levelobjects, navsample and navregress (35-39 %: their game paths run in NavKit's prepare and sample steps, which start the game). Under coverage the Navigation Studio edit-mode test ran out of its 15-minute wait for the background build; it passes on its own (464 s).
+
+### Tests run at the end
+
+- **Quick tier:** 54 of 54.
+- **Converter comparison:** 30 of 30 runs identical, as above.
+- **NavKit regression on sp_004_b and sp_009:** passed, within tolerance of the saved reference. Output is identical
+  but for the documented re-link.
+- **Game-data tests that only read the game:** all passed in the comparison and coverage runs.
+  - core: level, water, terrain, navdata, FbrbTool;
+  - every converter test;
+  - NavKit's vehicle, links and boat tests;
+  - the harness on sp_009 and sp_004_b, the crash reader and exeref;
+  - the console readers, the menu tools and the mesh viewer;
+  - stock-MP AI Atacama;
+  - the Navigation Studio edit mode.
+- **Not run:**
+  - tests that install into the game copy: test_traversal, test_apply, bc2loc set;
+  - the full tier (the DbxEdit corpus and all bundles, about 90 minutes plus 5 hours of NavKit regression).
+
+### Commits (round 3, oldest first)
+
+```
+2c28336 core: case-free terrain / water names, no Tk from worker threads, per-process cache temp names, dbx number text, navpath docstring; ruff / mypy clean; test_core_edges
+2736e59 Converters: dbxport local refs, havok pointer arrays, texture.check, verify-texture exit code, pcbuild FORMATS; ruff / mypy clean
+90fab45 tests: lint and types cover every folder; converter and core edge tests in the quick tier
+ffc1a7e navkit: BuildSettings value through build / stage / merge_detailed; navvehicle without shims
+7877bc7 Types: core fully annotated, the converters and the shader tools typed (output unchanged)
+200eb03 navkit: navbuild, navwalk, navkit.py fully annotated; SectorOffsets error; prepare with --box/--y; test_navkit_offline
+439846e Types: aptgraft and the rest; validate.py missing template; test_validate
+43596d9 navigation-studio, map-inspector: logic split from drawing; offline tests
+f5f6963 pyproject.toml: check_untyped_defs everywhere; strict list extended
+1df4f64 suite_paths.py: the one sys.path bootstrap
+d2d6b3d ruff I: imports sorted; two hidden import-order dependencies fixed
+15a5a21 ruff UP and SIM; pyproject.toml selects I, UP, SIM
+(+ this report)
+```
+
+### Scores, round 3
+
+Each category is scored 0-10 at three points: before round 1, after round 2, and now. For the whole suite, the earlier
+scores are weighted by size: about 70 % covered in rounds 1 and 2, 30 % the six folders. The six folders' earlier
+scores are the provisional read-only ones.
+
+**Whole suite:**
+
+| Category | Before R1 | After R2 | Now | Evidence now | What would raise it most |
+|---|---|---|---|---|---|
+| Code errors / correctness | 6 | 7.5 | 8.5 | Every folder reviewed line by line; 33 bugs fixed over three rounds, 24 with regression tests that fail on the old code (two more proven by the NavKit regression and test_havok). The converters' outputs are identical on a 30-run sample (portparity, dbxparity, a 77-file import). Quick, game-data and regression runs pass. | Run the full tier (DbxEdit corpus, all bundles, NavKit on every level) under the new code |
+| Implicit state | 4 | 5.5 | 7.5 | BuildSettings value; one sys.path bootstrap; no Tk from threads; caches keyed and named safely. | Move the per-build counters into a result object returned by build |
+| Typing | 1 | 3.5 | 8 | 39 % fully annotated (889 of 2,288); 0 mypy errors with check_untyped_defs everywhere; ~45 strict modules. | Annotate the remaining large modules (navsample_offline, navwater_mesh, navdomains, studio, the harness's checks / levelinfo) and grow the strict list |
+| Overall code quality | 6 | 7 | 8 | All of the above, plus offline tests for the GUIs' logic. | Split the largest modules (aptgraft ~2,000 lines, navbuild ~1,900) |
+| Readability | 7 | 7 | 7.5 | Sorted imports, modern annotations that document the types; long lines unchanged. | Wrap the ~900 over-long lines, file by file with the owner's consent |
+| Test coverage | 5 | 5.5 | 7 | Quick tier 46 → 54 %; the rest 67 %; the GUIs' logic 90-98 %; game tier see above. | Quick tests with small synthetic inputs for the converters (they are tested mainly on game data) |
+| Conformance to coding standards | 5 | 7 | 8.5 | F/E/W/B/I/UP/SIM clean everywhere, enforced. | Enforce line length per folder once wrapped |
+| mypy usage | 0 | 5 | 9 | Every folder, check_untyped_defs, a strict list, quick-tier enforcement. | `disallow_untyped_defs` globally once the remaining 61 % are annotated |
+| ruff usage | 0 | 6 | 9 | Seven rule families, every folder, enforced. | Add PL (pylint subset) or RUF and fix folder by folder |
+
+**The six folders:**
+
+| Category | Before (provisional) | After R2 (unchanged) | Now | Evidence now | What would raise it most |
+|---|---|---|---|---|---|
+| Code errors / correctness | 6 | 6 | 8.5 | Line-by-line review: 9 confirmed bugs fixed, none of them changing output on the sample; output identical on every comparison run. | The full-tier DbxEdit corpus check of the Python DBX reader under the new code |
+| Implicit state | 5 | 5 | 7 | No Tk from threads, per-process cache names, case-free lookups, the bootstrap. | Refresh the terrain unpack when the bundle changes; fix template choice to a sorted order |
+| Typing | 1 | 1 | 8.5 | 45 % fully annotated; every bfbc2core module and the four shader-tools modules strict; 0 check_untyped_defs errors. | Annotate the converters' remaining functions (dbxport, havokport, mesh, texture, audio) and add them to the strict list |
+| Overall code quality | 6.5 | 6.5 | 8 | — | Quick synthetic tests for each converter |
+| Readability | 7 | 7 | 7.5 | — | Shorter functions in havokport / audio |
+| Test coverage | 5 | 5 | 6 | Quick tier 21 → 24 %; game tier see above. | Quick synthetic round-trip tests (no game data) for mesh, meshset, texture, havok and dbxport |
+| Conformance to coding standards | 6 | 6 | 8.5 | ruff clean (93 → 0 findings with the round-3 rules). | As above |
+| mypy usage | 0 | 0 | 9 | 0 errors with check_untyped_defs; core and shader tools strict. | Converters on the strict list |
+| ruff usage | 0 | 0 | 9 | Enforced in the quick tier. | As above |
+
+## Plan for the rest (after round 3)
+
+1. **Run the full tier** under the new code: the DbxEdit corpus and fingerprints, the Python DBX reader against
+   DbxEdit, all 1,055 bundles, and the NavKit regression on every level with DICE path data.
+2. **Quick synthetic tests for the converters** (mesh, meshset, texture, havok, dbxport, granny), so they are tested
+   without the game.
+3. **A build result object.** Return the per-build counters from `navbuild.build` instead of keeping them in module
+   globals.
+4. **Annotate the converters' remaining functions** and the large NavKit tools; grow the strict list. Then consider
+   `disallow_untyped_defs` globally.
+5. **Long lines, per file, with the owner's consent.** Then enforce E501 at 120 characters, folder by folder.

@@ -23,7 +23,12 @@ import sys
 from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('crash-reader')
 import crashreader  # noqa: E402
 
 MAX_WINDOW = 0x100
@@ -278,7 +283,7 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('exeref', gui=False)            # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

@@ -19,7 +19,12 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('console-convert')
 import texture  # noqa: E402
 
 OPFOR = os.environ.get('OPFOR_ROOT') or os.path.abspath(os.path.join(HERE, '..', '..', '..', 'project-opfor-bfbc2'))
@@ -38,7 +43,7 @@ def pc_folder(root):
 
 
 def index(kind, console):
-    out = {}
+    out: dict[str, str] = {}
     for root, _, files in os.walk(WORK):
         if 'fbrb.manifest' not in files or not (console_folder(root) if console else pc_folder(root)):
             continue
@@ -59,11 +64,11 @@ TWINS_5_13 = ['terrains/_textures/_general/mudmask_01_rgbm.res', 'terrains/mp_00
 def formats_5_13(fails):
     """Console 5 -> PC 9 within the RGB565 rounding (red / blue 8, green 4) on the twins of the same size; console 13
     (RGBA16F cube) untiled: its level 0 equals the PC's level 1 (the PC copy is twice the size) on every face."""
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
-    from bfbc2core import fbrb
+    suite_paths.use('core')
     import numpy as np
+    from bfbc2core import fbrb
     want = set(TWINS_5_13)
-    found = {'x': {}, 'p': {}}
+    found: dict[str, dict[str, tuple[str, str]]] = {'x': {}, 'p': {}}
     for tag, pat in (('x', os.path.join(WORK, 'xbox', '**', '*.fbrb')), ('p', os.path.join(OPFOR, 'game', '**', '*.fbrb'))):
         for path in glob.glob(pat, recursive=True):
             try:
@@ -81,7 +86,8 @@ def formats_5_13(fails):
         x = fbrb.read(found['x'][n][0], [found['x'][n][1]])[found['x'][n][1]]
         p = fbrb.read(found['p'][n][0], [found['p'][n][1]])[found['p'][n][1]]
         out = texture.convert(x)
-        fmt, w, h = struct.unpack_from('<I', out, 8)[0], *struct.unpack_from('<2I', out, 16)
+        fmt = struct.unpack_from('<I', out, 8)[0]
+        w, h = struct.unpack_from('<2I', out, 16)
         if fmt == texture.BGRA8:
             a = np.frombuffer(out, np.uint8, w * h * 4, texture.HEADER).reshape(-1, 4).astype(int)
             b = np.frombuffer(p, np.uint8, w * h * 4, texture.HEADER).reshape(-1, 4).astype(int)
@@ -102,7 +108,7 @@ def formats_5_13(fails):
 
 
 def main():
-    fails5 = []
+    fails5: list[str] = []
     formats_5_13(fails5)
     for f in fails5:
         print('FAIL', f)
@@ -112,7 +118,7 @@ def main():
     fails = []
     con = index('XenonTexture', True)
     pc = index('ITexture', False)
-    done = collections.Counter()
+    done: collections.Counter[str] = collections.Counter()
     for rel, p in con.items():
         b = open(p, 'rb').read()
         fmt = struct.unpack_from('>I', b, 8)[0]
@@ -133,7 +139,7 @@ def main():
             done['converted'] += 1
         except texture.ConvertError as e:
             fails.append(f'{rel}: {e}')
-    checked = collections.Counter()
+    checked: collections.Counter[str] = collections.Counter()
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()
         cf = struct.unpack_from('>I', c, 8)[0]

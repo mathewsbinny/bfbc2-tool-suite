@@ -26,7 +26,7 @@ Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: overrid
          --pitch 0.8 / 0.2 (sample: that pass only; 0.2 = a detailed-zone run over the level's detailed sectors;
          writes <level>_navkit_p02.bin / _hi_p02.bin, the level's settings and its 0.8 m samples untouched),
          --opfor <Project OPFOR BFBC2 folder> (default: OPFOR_ROOT, else "project-opfor-bfbc2" next to the suite),
-         --no-detail (build / apply / all: no D lines or F cells - navbuild.DETAIL_FEATURES off).
+         --no-detail (build / apply / all: no D lines or F cells - navbuild.BuildSettings detail_features off).
 
 NavKit works on Project OPFOR BFBC2's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
 toolkit (..\\bfbc2-fbrb-tool, ..\\bfbc2-dbx-tools, built with their build.bat) or from OPFOR's tools\\ folder.
@@ -45,12 +45,22 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import navbuild
+
+type Log = Callable[[str], object]
 
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)   # no console flashes when run from the GUI
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _p in (os.path.join(HERE, 'tools'), os.path.abspath(os.path.join(HERE, '..', 'core'))):   # once, at import
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools')
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
                            # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at
@@ -61,7 +71,7 @@ BACKUP_SUFFIX = '.opfor-orig'
 NEW_SUFFIX = '.opfor-new'       # where NavKit installed onto a level that had no path data to back up
 
 
-def _sha256(path):
+def _sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, 'rb') as f:
         for b in iter(lambda: f.read(1 << 20), b''):
@@ -73,7 +83,7 @@ class NavKitError(Exception):
     pass
 
 
-def find_opfor(given=None):
+def find_opfor(given: str | None = None) -> str:
     """The Project OPFOR BFBC2 folder: --opfor, else OPFOR_ROOT, else a "project-opfor-bfbc2" folder next to one of the folders
     this tool sits in (e.g. next to the suite)."""
     up = []
@@ -89,7 +99,7 @@ def find_opfor(given=None):
                       f'(looked for a game\\ folder in: {", ".join(c for c in candidates if c)})')
 
 
-def find_tool(opfor, exe, toolkit_dir):
+def find_tool(opfor: str, exe: str, toolkit_dir: str) -> str:
     """A toolkit tool: built in the toolkit (..\\<toolkit_dir>\\<exe>), else OPFOR's tools\\ folder."""
     for p in (os.path.join(os.path.dirname(HERE), toolkit_dir, exe), os.path.join(opfor, 'tools', exe)):
         if os.path.isfile(p):
@@ -98,7 +108,7 @@ def find_tool(opfor, exe, toolkit_dir):
 
 
 class Project:
-    def __init__(self, root=None):
+    def __init__(self, root: str | None = None) -> None:
         self.root = find_opfor(root)
         self.game = os.path.join(self.root, 'game')
         self.work = os.path.join(self.root, 'work')
@@ -110,16 +120,16 @@ class Project:
         self.dbxedit = find_tool(self.root, 'DbxEdit.exe', 'bfbc2-dbx-tools')
 
     # --- levels --------------------------------------------------------------------------------------
-    def level_dirs(self):
+    def level_dirs(self) -> dict[str, str]:
         base = os.path.join(self.game, 'Dist', 'win32', 'levels')
         return {d.lower(): os.path.join(base, d) for d in sorted(os.listdir(base))
                 if os.path.isfile(os.path.join(base, d, 'level-00.fbrb')) and not d.lower().endswith('_common')
                 and not d.lower().startswith('opfor_')}   # opfor_*: OPFOR's data-fill bundles, not levels
 
-    def pathdata(self, lv):
+    def pathdata(self, lv: str) -> str:
         return os.path.join(self.game, 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
 
-    def dice_pathdata(self, lv):
+    def dice_pathdata(self, lv: str) -> str | None:
         """The level's original path data (the backup if NavKit's file is installed), or None - also where NavKit
         was installed onto a level that had none (NEW_SUFFIX): that file is NavKit's own."""
         p = self.pathdata(lv)
@@ -129,34 +139,34 @@ class Project:
             return p
         return None
 
-    def level(self, name):
+    def level(self, name: str) -> str:
         lv = name.replace('\\', '/').split('/')[-1].lower()
         dirs = self.level_dirs()
         if lv not in dirs:
             raise NavKitError(f'unknown level {name!r} (see: navkit.py levels)')
         return lv
 
-    def level_work(self, lv):
+    def level_work(self, lv: str) -> str:
         return os.path.join(self.work, 'levels', lv)
 
-    def out_dir(self, lv):
+    def out_dir(self, lv: str) -> str:
         d = os.path.join(self.work, 'navkit', lv)
         os.makedirs(d, exist_ok=True)
         return d
 
-    def settings_path(self, lv):
+    def settings_path(self, lv: str) -> str:
         return os.path.join(self.out_dir(lv), 'navkit.json')
 
-    def settings(self, lv):
+    def settings(self, lv: str) -> dict[str, Any]:
         p = self.settings_path(lv)
         if not os.path.isfile(p):
             raise NavKitError(f'{lv}: not prepared yet (navkit.py prepare {lv.upper()})')
         return json.load(open(p))
 
-    def samples(self, lv, suffix=''):
+    def samples(self, lv: str, suffix: str = '') -> str:
         return os.path.join(self.work, 'navsample', f'{lv}_navkit{suffix}.bin')
 
-    def samples08(self, lv):
+    def samples08(self, lv: str) -> str | None:
         """The level's 0.8 m samples: <lv>_navkit.bin (navkit.py sample) or <lv>_full.bin (older campaign runs)."""
         for name in (f'{lv}_navkit', f'{lv}_full'):
             q = os.path.join(self.work, 'navsample', name + '.bin')
@@ -164,14 +174,14 @@ class Project:
                 return q
         return None
 
-    def run(self, args, log):
+    def run(self, args: list[str], log: Log) -> list[str]:
         r = subprocess.run(args, capture_output=True, text=True, errors='replace', creationflags=NO_WINDOW)
         out = (r.stdout + r.stderr).strip().splitlines()
         if r.returncode != 0:
             raise NavKitError(f'{os.path.basename(args[0])} failed: ' + ' | '.join(out[-3:]))
         return out
 
-    def unpack(self, bundle, dest, log):
+    def unpack(self, bundle: str, dest: str, log: Log) -> None:
         stamp = os.path.join(dest, '.source.sha256')
         source_hash = _sha256(bundle)
         if os.path.isfile(os.path.join(dest, 'fbrb.manifest')) and os.path.isfile(stamp) \
@@ -188,7 +198,7 @@ class Project:
 
 
 # --- steps -----------------------------------------------------------------------------------------------
-def levels(pr, log=print):
+def levels(pr: Project, log: Log = print) -> None:
     log('level        AI path data   NavKit')
     for lv, _d in pr.level_dirs().items():
         ai = 'yes (samplable)' if pr.dice_pathdata(lv) else 'no'
@@ -202,12 +212,13 @@ def levels(pr, log=print):
         log(f'{lv:12s} {ai:14s} {", ".join(done)}')
 
 
-def level_names(pr):
+def level_names(pr: Project) -> list[tuple[str, bool]]:
     """[(level, samplable)] for the GUI."""
     return [(lv, pr.dice_pathdata(lv) is not None) for lv in pr.level_dirs()]
 
 
-def prepare(pr, lv, log=print, box=None, y=None):
+def prepare(pr: Project, lv: str, log: Log = print, box: list[float] | None = None,
+            y: list[float] | None = None) -> None:
     import levelobjects
     log(f'== prepare {lv}')
     common = []
@@ -233,11 +244,10 @@ def prepare(pr, lv, log=print, box=None, y=None):
     xoff = zoff = None
     so = glob.glob(os.path.join(L, 'dist', 'levels', lv, 'Precomputed', 'Infantry', 'SectorOffsets.xml'))
     if so:
-        t = open(so[0], encoding='utf-8').read()
-        xoff = int(re.search(r'name="XOffset">(-?\d+)<', t).group(1))
-        zoff = int(re.search(r'name="ZOffset">(-?\d+)<', t).group(1))
-    auto_box, auto_y, source = sampling_box(pr, lv, L)
-    s = {'level': LV, 'box': box or auto_box, 'y': y or auto_y, 'box_source': 'given' if box else source}
+        xoff, zoff = sector_offsets_of(so[0])
+    # the objects decide the box only where --box / --y do not (a new map with nothing placed has no objects)
+    auto_box, auto_y, source = sampling_box(pr, lv, L) if box is None or y is None else (None, None, 'given')
+    s: dict[str, Any] = {'level': LV, 'box': box or auto_box, 'y': y or auto_y, 'box_source': 'given' if box else source}
     if xoff is None:
         # No SectorOffsets asset (Onslaught and other MP levels): DICE's rule, one sector below the path data's
         # lowest extent, so the first sector id is 1,1 - it holds for all 15 shipped SectorOffsets (13 campaign,
@@ -257,7 +267,7 @@ def prepare(pr, lv, log=print, box=None, y=None):
     log(f'  settings: {os.path.relpath(pr.settings_path(lv), pr.root)}')
 
 
-def level_partition_name(L, lv):
+def level_partition_name(L: str, lv: str) -> str:
     for f in glob.glob(os.path.join(L, 'dist', 'levels', '*.xml')):
         b = os.path.splitext(os.path.basename(f))[0]
         if b.lower() == lv:
@@ -265,7 +275,7 @@ def level_partition_name(L, lv):
     raise NavKitError(f'{lv}: level partition levels/{lv}.xml not found in the bundle')
 
 
-def sampling_box(pr, lv, L):
+def sampling_box(pr: Project, lv: str, L: str) -> tuple[list[int], list[int], str]:
     """Box (minX, minZ, maxX, maxZ) and y (bottom, top): the original path data's extent plus 20 m if the
     level has path data, else the extent of its placed objects and spawn points plus 50 m."""
     pts: list[tuple[float, ...]] = []
@@ -294,19 +304,21 @@ def sampling_box(pr, lv, L):
     return box, yr, source
 
 
-def fmt(v):
+def fmt(v: Iterable[float]) -> str:
     return ','.join(f'{a:g}' for a in v)
 
 
-def game_running():
+def game_running() -> bool:
     r = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq BFBC2Game.exe', '/NH'], capture_output=True, text=True,
                        creationflags=NO_WINDOW)
     return 'BFBC2Game.exe' in r.stdout
 
 
-def ini_set(text, section, key, value):
+def ini_set(text: str, section: str, key: str, value: str) -> str:
     """Sets key=value in [section] of an ini text (adds the key if missing)."""
     lines = text.split('\n')
+    sec: str | None
+    start: int | None
     sec, start, end = None, None, len(lines)
     for i, l in enumerate(lines):
         m = re.match(r'\s*\[([^\]]+)\]', l)
@@ -328,11 +340,11 @@ def ini_set(text, section, key, value):
     return '\n'.join(lines)
 
 
-def ini_backup(pr):
+def ini_backup(pr: Project) -> str:
     return os.path.join(pr.work, 'navkit', 'opfor.ini.backup')
 
 
-def recover_ini(pr, log=print):
+def recover_ini(pr: Project, log: Log = print) -> None:
     """A sampling run that was killed leaves opfor.ini changed: put the saved copy back."""
     b = ini_backup(pr)
     if os.path.isfile(b):
@@ -341,7 +353,7 @@ def recover_ini(pr, log=print):
         log('  restored opfor.ini from the copy an interrupted sampling run left behind')
 
 
-def ensure_settings(pr, lv):
+def ensure_settings(pr: Project, lv: str) -> dict[str, Any]:
     """The level's settings (navkit.json); a level sampled before navkit.json existed gets one from what is there: its
     name (the converted level partition), box and heights (its 0.8 m samples), sector offsets (its SectorOffsets)."""
     if os.path.isfile(pr.settings_path(lv)):
@@ -352,19 +364,28 @@ def ensure_settings(pr, lv):
     so = glob.glob(os.path.join(L, 'dist', 'levels', '*', 'Precomputed', 'Infantry', 'SectorOffsets.xml'))
     if not sp or not so:
         raise NavKitError(f'{lv}: not prepared yet (navkit.py prepare {lv.upper()})')
-    t = open(so[0], encoding='utf-8').read()
+    xoff, zoff = sector_offsets_of(so[0])
     s, _ = navsample.load(sp)
     name = level_partition_name(L, lv)
     st = {'level': name, 'box': [round(s.min_x, 3), round(s.min_z, 3), round(s.min_x + (s.nx - 1) * s.pitch, 3),
                                  round(s.min_z + (s.nz - 1) * s.pitch, 3)],
           'y': [round(s.y_bottom, 3), round(s.y_top, 3)], 'box_source': 'its 0.8 m samples',
-          'offsets_source': 'its SectorOffsets', 'xoff': int(re.search(r'name="XOffset">(-?\d+)<', t).group(1)),
-          'zoff': int(re.search(r'name="ZOffset">(-?\d+)<', t).group(1))}
+          'offsets_source': 'its SectorOffsets', 'xoff': xoff, 'zoff': zoff}
     json.dump(st, open(pr.settings_path(lv), 'w'), indent=1)
     return st
 
 
-def detailed_sectors(pr, lv):
+def sector_offsets_of(xml_path: str) -> tuple[int, int]:
+    """(XOffset, ZOffset) of a level's SectorOffsets.xml (DbxEdit's XML of the asset)."""
+    t = open(xml_path, encoding='utf-8').read()
+    x = re.search(r'name="XOffset">(-?\d+)<', t)
+    z = re.search(r'name="ZOffset">(-?\d+)<', t)
+    if x is None or z is None:                  # a damaged or foreign file: said, rather than an AttributeError
+        raise NavKitError(f'{xml_path}: no XOffset / ZOffset value (re-run navkit.py prepare)')
+    return int(x.group(1)), int(z.group(1))
+
+
+def detailed_sectors(pr: Project, lv: str) -> list[tuple[int, ...]]:
     """The sectors to build as detailed zones (pitch 0.2), as (grid x, grid z) - chosen from the level alone
     (tools\\detailed.py: flagged objects, stacked floors in the 0.8 m samples); cached in work\\navkit\\<lv>\\
     detailed.json while the samples are the same."""
@@ -384,14 +405,14 @@ def detailed_sectors(pr, lv):
     return [tuple(x) for x in chosen]       # as the cached answer gives them
 
 
-def detailed_rects(pr, lv, margin=1.0):
+def detailed_rects(pr: Project, lv: str, margin: float = 1.0) -> list[list[float]]:
     """The detailed sectors' squares plus a margin (the sampling window's overlap), for navsample_rects."""
     s = ensure_settings(pr, lv)
     return [[(i + s['xoff']) * 100 - margin, (j + s['zoff']) * 100 - margin, (i + s['xoff']) * 100 + 100 + margin,
              (j + s['zoff']) * 100 + 100 + margin] for i, j in detailed_sectors(pr, lv)]
 
 
-def dice_detailed_sectors(pr, lv):
+def dice_detailed_sectors(pr: Project, lv: str) -> list[tuple[int, int]]:
     """The sectors DICE's path data builds as detailed zones (pitch 0.2), as (grid x, grid z) ids; empty without it.
     For scoring detailed_sectors only - NavKit does not choose from it."""
     import hpdtool
@@ -403,7 +424,7 @@ def dice_detailed_sectors(pr, lv):
                   if abs(kymesh.parse_mesh(sec.mesh).pitch - 0.2) < 1e-3)
 
 
-def detailed_box(pr, lv, margin=1.0):
+def detailed_box(pr: Project, lv: str, margin: float = 1.0) -> list[float]:
     """The box around the detailed sectors (their 100 m squares plus a margin), for a pitch-0.2 sampling run."""
     s = ensure_settings(pr, lv)
     ids = detailed_sectors(pr, lv)
@@ -413,12 +434,14 @@ def detailed_box(pr, lv, margin=1.0):
     return [min(xs) - margin, min(zs) - margin, max(xs) + 100 + margin, max(zs) + 100 + margin]
 
 
-def pitch_suffix(pitch):
+def pitch_suffix(pitch: float) -> str:
     """Sample-file suffix of a pitch: '' for the normal 0.8, '_p02' for 0.2."""
     return '' if abs(pitch - 0.8) < 1e-6 else f'_p{int(round(pitch * 10)):02d}'
 
 
-def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitch=0.8, budget_ms=None):
+def sample(pr: Project, lv: str, log: Log = print, confirm: Callable[[str], bool] | None = None,
+           box: list[float] | None = None, y: list[float] | None = None, timeout: float = 3600, pitch: float = 0.8,
+           budget_ms: int | None = None) -> bool:
     s = ensure_settings(pr, lv)
     if abs(pitch - 0.8) > 1e-6:
         # a detailed-zone run: its own box (the detailed sectors by default) and only their squares sampled
@@ -456,7 +479,8 @@ def sample(pr, lv, log=print, confirm=None, box=None, y=None, timeout=3600, pitc
     return True
 
 
-def sample_level(pr, lv, log=print, confirm=None, box=None, y=None):
+def sample_level(pr: Project, lv: str, log: Log = print, confirm: Callable[[str], bool] | None = None,
+                 box: list[float] | None = None, y: list[float] | None = None) -> bool:
     """The level's sampling: the normal and high-capsule runs at 0.8 m, then - when the level has detailed sectors
     (detailed.py: flagged objects, stacked floors in the 0.8 m samples) - the same two at 0.2 m over those sectors.
     One confirmation for all game launches."""
@@ -475,7 +499,8 @@ def sample_level(pr, lv, log=print, confirm=None, box=None, y=None):
     return sample(pr, lv, log=log, pitch=0.2)
 
 
-def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
+def sample_run(pr: Project, s: dict[str, Any], agent: str, name: str, log: Log, timeout: float, pitch: float = 0.8,
+               budget_ms: int | None = None) -> str:
     orig = open(pr.ini, 'rb').read()
     shutil.copyfile(pr.ini, ini_backup(pr))
     log_start = os.path.getsize(pr.log_path) if os.path.isfile(pr.log_path) else 0
@@ -529,13 +554,13 @@ def sample_run(pr, s, agent, name, log, timeout, pitch=0.8, budget_ms=None):
     return result
 
 
-def read_log(pr, start):
+def read_log(pr: Project, start: int) -> list[str]:
     with open(pr.log_path, 'rb') as f:
         f.seek(start)
         return f.read().decode('utf-8', errors='replace').splitlines()
 
 
-def close_game():
+def close_game() -> None:
     if not game_running():
         return
     subprocess.run(['taskkill', '/IM', 'BFBC2Game.exe'], capture_output=True, creationflags=NO_WINDOW)
@@ -547,7 +572,7 @@ def close_game():
     time.sleep(2)
 
 
-def build_inputs(pr, lv, log=print):
+def build_inputs(pr: Project, lv: str, log: Log = print) -> tuple[str, str, int, int, dict[str, Any]]:
     """(samples, forbid, xoff, zoff, keyword arguments) of navbuild.build for a level: one place, so that build and
     apply (a build with walkability edits) always pass the same inputs - detailed zones and ladders included."""
     import navregress
@@ -556,7 +581,7 @@ def build_inputs(pr, lv, log=print):
     s08 = pr.samples08(lv)                      # <lv>_navkit.bin, or <lv>_full.bin of older campaign runs
     if not s08 or not os.path.isfile(s08[:-4] + '_hi.bin'):
         raise NavKitError(f'{lv}: samples missing ({os.path.basename(pr.samples(lv))} and its _hi run) - run sample first')
-    detailed = None
+    detailed: dict[str, Any] | None = None
     if os.path.isfile(pr.samples(lv, '_p02')):
         # the detailed-zone pass: DICE's pitch-0.2 sectors built from the level's pitch-0.2 samples (sample --pitch 0.2)
         hi02 = pr.samples(lv, '_hi_p02')
@@ -575,7 +600,8 @@ def build_inputs(pr, lv, log=print):
     return s08, os.path.join(L, 'forbid_tris.npy'), s['xoff'], s['zoff'], kw
 
 
-def build(pr, lv, log=print):
+def build(pr: Project, lv: str, log: Log = print, cfg: 'navbuild.BuildSettings | None' = None) -> None:
+    """cfg: navbuild.BuildSettings for the build (None: navbuild's defaults)."""
     import navbuild
     out = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     log(f'== build {lv} -> {os.path.relpath(out, pr.root)}')
@@ -584,11 +610,11 @@ def build(pr, lv, log=print):
     trav = traversal_path(os.path.dirname(out), lv)
     if os.path.isfile(trav):
         os.remove(trav)                          # annotations of the previous file: its node ids no longer hold
-    navbuild.build(samples, forbid, xoff, zoff, out, **kw)
+    navbuild.build(samples, forbid, xoff, zoff, out, **kw, cfg=cfg or navbuild.DEFAULTS)
     log(f'  built in {time.time() - t0:.0f} s ({os.path.getsize(out) / 1e6:.1f} MB)')
 
 
-def check(pr, lv, log=print):
+def check(pr: Project, lv: str, log: Log = print) -> None:
     s = pr.settings(lv)
     ours = os.path.join(pr.out_dir(lv), 'pathdata.hpd')
     if not os.path.isfile(ours):
@@ -610,7 +636,7 @@ def check(pr, lv, log=print):
     log(f'  full report: {os.path.relpath(report, pr.root)}')
 
 
-def compare(pr, lv, log=print, reference=None, candidate=None):
+def compare(pr: Project, lv: str, log: Log = print, reference: str | None = None, candidate: str | None = None) -> None:
     """Two path-data files of a level on its AI positions (default: the original against NavKit's build)."""
     import navcompare
     s = pr.settings(lv)
@@ -625,12 +651,12 @@ def compare(pr, lv, log=print, reference=None, candidate=None):
     navcompare.report(navcompare.compare(xml, reference, candidate), lambda m: log('  ' + m))
 
 
-def traversal_path(folder, lv):
+def traversal_path(folder: str, lv: str) -> str:
     """The traversal annotations written next to a level's path data (navtraversal.py)."""
     return os.path.join(folder, f'{lv}.traversal.json')
 
 
-def install(pr, lv, log=print, src=None):
+def install(pr: Project, lv: str, log: Log = print, src: str | None = None) -> None:
     """Copies a built file into the game (DICE's original is kept once, as <file>.opfor-orig), with the level's
     traversal annotations when it has them (next to the installed path data, for OPFOR's bot layer)."""
     ours = src or os.path.join(pr.out_dir(lv), 'pathdata.hpd')
@@ -665,7 +691,7 @@ def install(pr, lv, log=print, src=None):
             os.remove(trav_dest)                 # none with this file: no stale annotations from an earlier one
 
 
-def restore(pr, lv, log=print):
+def restore(pr: Project, lv: str, log: Log = print) -> None:
     dest = pr.pathdata(lv)
     if not os.path.isfile(dest + BACKUP_SUFFIX) and not os.path.isfile(dest + NEW_SUFFIX):
         log(f'{lv}: nothing to restore (no NavKit file installed)')
@@ -687,20 +713,22 @@ def restore(pr, lv, log=print):
         os.remove(trav)
 
 
-def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
+def apply(pr: Project, lv: str, navtune_path: str | None = None, out: str | None = None, log: Log = print,
+          install_after: bool = False, cfg: 'navbuild.BuildSettings | None' = None) -> str:
     """Builds the level with the edits of its navigation side file (DESIGN.md sections 5.1-5.2): walkability
     edits (regions, seeds, unseeds) go into the build, then links and route edges into its route graph
     (navlinks.py); on a DICE base only the graph edits, on a copy of DICE's file. Traversal annotations go to
     <level>.traversal.json next to it (navtraversal.py). The result is read back to check it, the whole log is
-    kept as <output>.report.txt, and with install_after the result is installed. Returns the output path."""
-    lines = []
-    target = {'out': out}               # the output path, as soon as _apply knows it (its default depends on the base)
+    kept as <output>.report.txt, and with install_after the result is installed. cfg: navbuild.BuildSettings for a
+    NavKit-base build (None: navbuild's defaults). Returns the output path."""
+    lines: list[str] = []
+    target: dict[str, str | None] = {'out': out}               # the output path, as soon as _apply knows it (its default depends on the base)
 
-    def say(msg):
+    def say(msg: str) -> None:
         lines.append(msg)
         log(msg)
     try:
-        out = _apply(pr, lv, navtune_path, out, say, target)
+        out = _apply(pr, lv, navtune_path, out, say, target, cfg)
     except Exception as e:              # any failure: the report of what was done, and the error (then re-raised)
         if target['out']:
             open(target['out'] + '.report.txt', 'w', encoding='utf-8').write('\n'.join(lines + [f'error: {e}']) + '\n')
@@ -711,11 +739,12 @@ def apply(pr, lv, navtune_path=None, out=None, log=print, install_after=False):
     return out
 
 
-def _apply(pr, lv, navtune_path, out, log, target=None):
+def _apply(pr: Project, lv: str, navtune_path: str | None, out: str | None, log: Log,
+           target: dict[str, str | None] | None = None, cfg: 'navbuild.BuildSettings | None' = None) -> str:
     target = target if target is not None else {}
-    from bfbc2core import navtune
-    import navbuild
     import hpdtool
+    import navbuild
+    from bfbc2core import navtune
     navtune_path = navtune_path or navtune.default_path(pr.root, lv)
     if not os.path.isfile(navtune_path):
         raise NavKitError(f'{lv}: no side file {navtune_path} (make edits in the Navigation Studio first)')
@@ -734,7 +763,7 @@ def _apply(pr, lv, navtune_path, out, log, target=None):
             f'-> {os.path.relpath(out, pr.root)}')
         # the same inputs as build (detailed zones, ladders ...), plus the edits
         samples, forbid, xoff, zoff, kw = build_inputs(pr, lv, log)
-        navbuild.build(samples, forbid, xoff, zoff, out, edits=walk, **kw)
+        navbuild.build(samples, forbid, xoff, zoff, out, edits=walk, **kw, cfg=cfg or navbuild.DEFAULTS)
         log(f'  built in {time.time() - t0:.0f} s; {len(walk)} walkability edit(s) applied')
     else:
         # a DICE base: no rebuild - the graph edits go into a copy of DICE's file, for this PC only (never
@@ -775,7 +804,7 @@ def _apply(pr, lv, navtune_path, out, log, target=None):
     return out
 
 
-def status(pr, lv, log=print):
+def status(pr: Project, lv: str, log: Log = print) -> None:
     log(f'{lv}:')
     L = pr.level_work(lv)
     log(f'  original path data : {pr.dice_pathdata(lv) or "none"}')
@@ -792,13 +821,13 @@ def status(pr, lv, log=print):
     del L
 
 
-def ask(question):
+def ask(question: str) -> bool:
     return input(question + ' [y/N] ').strip().lower() in ('y', 'yes')
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     args = [a for a in argv[1:]]
-    opts = {}
+    opts: dict[str, str] = {}
     for k in ('--box', '--y', '--opfor', '--root', '--reference', '--candidate', '--navtune', '--out', '--from',
               '--pitch'):   # --root: older name of --opfor
         if k in args:
@@ -807,9 +836,12 @@ def main(argv):
             del args[i:i + 2]
     yes = '--yes' in args
     install_flag = '--install' in args
+    cfg: 'navbuild.BuildSettings | None' = None   # noqa: UP037 - navbuild is imported below, only when needed
     if '--no-detail' in args:              # build / apply / all: no D lines or F cells (the output before 2026-10-26)
+        import dataclasses
+
         import navbuild
-        navbuild.DETAIL_FEATURES = False
+        cfg = dataclasses.replace(navbuild.DEFAULTS, detail_features=False)
     args = [a for a in args if a not in ('--yes', '--install', '--no-detail')]
     if not args or args[0] in ('-h', '--help', 'help'):
         print(__doc__)
@@ -834,13 +866,13 @@ def main(argv):
             else:
                 sample_level(pr, lv, confirm=confirm, box=box, y=y)
         elif cmd == 'build':
-            build(pr, lv)
+            build(pr, lv, cfg=cfg)
         elif cmd == 'compare':
             compare(pr, lv, reference=opts.get('--reference'), candidate=opts.get('--candidate'))
         elif cmd == 'check':
             check(pr, lv)
         elif cmd == 'apply':
-            apply(pr, lv, opts.get('--navtune'), opts.get('--out'), install_after=install_flag)
+            apply(pr, lv, opts.get('--navtune'), opts.get('--out'), install_after=install_flag, cfg=cfg)
         elif cmd == 'install':
             install(pr, lv, src=opts.get('--from'))
         elif cmd == 'restore':
@@ -850,7 +882,7 @@ def main(argv):
         elif cmd == 'all':
             prepare(pr, lv, box=box, y=y)
             if sample_level(pr, lv, confirm=confirm):
-                build(pr, lv)
+                build(pr, lv, cfg=cfg)
                 check(pr, lv)
         else:
             raise NavKitError(f'unknown command {cmd!r}')

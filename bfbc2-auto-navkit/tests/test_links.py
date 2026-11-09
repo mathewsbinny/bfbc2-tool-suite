@@ -11,18 +11,22 @@ import os
 import shutil
 import sys
 import tempfile
-
+from typing import Any, cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NAVKIT = os.path.abspath(os.path.join(HERE, '..'))
 SUITE = os.path.abspath(os.path.join(NAVKIT, '..'))
-sys.path.insert(0, NAVKIT)
-sys.path.insert(0, os.path.join(NAVKIT, 'tools'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
-import navkit  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools', 'navkit')
 import hpdtool  # noqa: E402
+import navkit  # noqa: E402
 import navlinks  # noqa: E402
-from bfbc2core import navdata, navpath, navtune as nt  # noqa: E402
+from bfbc2core import navdata, navpath  # noqa: E402
+from bfbc2core import navtune as nt
 
 
 def first_edge_rule(f):
@@ -71,6 +75,7 @@ def main(argv):
                 best = gap if best is None or gap[2] < best[2] else best
         check(best is not None, 'an island within 12 m of the main network, in the same sector')
         g = navpath.ground_nodes(nav)
+        assert best is not None
         a, b = g[best[0]], g[best[1]]
         r0 = navpath.route(nav, a, b)
         check(not r0.found, f'before the link: no route ({r0.reason})')
@@ -119,7 +124,8 @@ def main(argv):
         open(nav3_path, 'wb').write(hpdtool.write(f3))
         check(not navpath.route(navdata.load(nav3_path), a, b).found, 'removing the edge (both ways) cuts the link again')
         f4 = hpdtool.parse(raw)
-        navlinks.apply(f4, [nt.op('route-edge', a=a, b=b, action='add', **{'two-way': False})], log=lambda *x: None)
+        navlinks.apply(f4, [nt.op('route-edge', a=a, b=b, action='add', **cast(dict[str, Any], {'two-way': False}))],
+                       log=lambda *x: None)
         p4 = os.path.join(tmp, 'oneway.hpd')
         open(p4, 'wb').write(hpdtool.write(f4))
         nav4 = navdata.load(p4)

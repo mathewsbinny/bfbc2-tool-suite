@@ -11,12 +11,16 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
-from bfbc2core import level as levelmod  # noqa: E402  (also puts NavKit's tools on the path)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
 
+suite_paths.use('core', 'navkit', 'navkit-tools')
 import navkit  # noqa: E402
 import navsample  # noqa: E402
 import navwalk  # noqa: E402
+from bfbc2core import level as levelmod  # noqa: E402
 
 LIMIT = 0.1          # percent of samples allowed more than 0.1 m off (measured: at most 0.03 %)
 
@@ -40,7 +44,7 @@ def check(root, lv, samples):
 
 def main(argv):
     root = navkit.find_opfor(None)
-    found = {}
+    found: dict[str, str] = {}
     for f in sorted(glob.glob(os.path.join(root, 'work', 'navsample', '*.bin'))):
         name = os.path.basename(f)
         for suffix in ('_navkit.bin', '_full.bin'):

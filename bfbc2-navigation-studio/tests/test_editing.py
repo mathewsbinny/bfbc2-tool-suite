@@ -9,16 +9,23 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import cast
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STUDIO = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, STUDIO)
-sys.path.insert(0, os.path.join(STUDIO, '..', 'core'))
-import studio  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navigation-studio')
 import editing  # noqa: E402
-from bfbc2core import level as levelmod, navdata, navpath, navtune as nt  # noqa: E402
+import studio  # noqa: E402
+from bfbc2core import level as levelmod  # noqa: E402
+from bfbc2core import navdata, navpath
+from bfbc2core import navtune as nt
 
 
 class FakeViewer:
@@ -120,7 +127,8 @@ def main(argv):
 
         dice = editing.Editor(st, lvl.opfor, lvl.lv, f'Levels/{lvl.name}')
         dice.target = 'DICE'
-        dice.tune = nt.NavTune.new(f'Levels/{lvl.name}', files['DICE'].path, kind='dice') if 'DICE' in files else None
+        dice.tune = cast(nt.NavTune, nt.NavTune.new(f'Levels/{lvl.name}', files['DICE'].path, kind='dice')
+                         if 'DICE' in files else None)
         if dice.tune is not None:
             dice.open, dice.tool = True, 'seed'
             dice.click(v, pts[0])

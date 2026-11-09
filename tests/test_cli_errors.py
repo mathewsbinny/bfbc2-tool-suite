@@ -17,10 +17,10 @@ SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 PY = sys.executable
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     failed = 0
 
-    def check(ok, what):
+    def check(ok: bool, what: str) -> None:
         nonlocal failed
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}', flush=True)

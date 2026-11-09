@@ -16,17 +16,22 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import Any, cast
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NAVKIT = os.path.abspath(os.path.join(HERE, '..'))
 SUITE = os.path.abspath(os.path.join(NAVKIT, '..'))
-sys.path.insert(0, NAVKIT)
-sys.path.insert(0, os.path.join(NAVKIT, 'tools'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools', 'navkit')
 import navkit  # noqa: E402
-from bfbc2core import navdata, navpath, navtune as nt  # noqa: E402
+from bfbc2core import navdata, navpath  # noqa: E402
+from bfbc2core import navtune as nt
 
 
 def main(argv):
@@ -38,7 +43,7 @@ def main(argv):
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}', flush=True)
 
-    pr = navkit.Project(None)
+    pr: Any = navkit.Project(None)          # (Any: two of its methods are replaced below)
     dice = pr.dice_pathdata(lv)
     if not dice:
         print(f'FAIL {lv} has no DICE path data')
@@ -51,8 +56,9 @@ def main(argv):
         other_n = np.nonzero(nav.node_island == 1)[0]
         bottom, top = g[main_n[0]], g[other_n[0]]
         t = nt.NavTune.new(f'Levels/{lv}', dice, kind='dice')
-        t.add(nt.op('traversal', kind='ladder', bottom=bottom, top=top, **{'two-way': True}))
-        t.add(nt.op('traversal', kind='drop', bottom=g[main_n[1]], top=g[main_n[1]] + [0, 3, 0], **{'two-way': False}))
+        t.add(nt.op('traversal', kind='ladder', bottom=bottom, top=top, **cast(dict[str, Any], {'two-way': True})))
+        t.add(nt.op('traversal', kind='drop', bottom=g[main_n[1]], top=g[main_n[1]] + [0, 3, 0],
+                     **cast(dict[str, Any], {'two-way': False})))
         t.add(nt.op('traversal', kind='jump', bottom=g[main_n[0]] + [5000, 0, 5000], top=g[main_n[0]] + [5003, 0, 5000]))
         t.add(nt.op('note', at=bottom, text='checked'))
         p = os.path.join(tmp, f'{lv}.navtune.json')

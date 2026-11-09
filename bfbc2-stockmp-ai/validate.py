@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
+from typing import cast
 
 import config as cfgmod
 import dbxbin
@@ -33,7 +34,12 @@ import pipeline
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core')
 from bfbc2core import dbx as coredbx  # noqa: E402
 
 ORDER_NODE = 15.0
@@ -229,12 +235,12 @@ def check_assets(build_dir, rep, c, lv_upper):
             continue
         f = coredbx.read(p)
         e = f.instances[0]
-        name = coredbx.value(e.child('Name'))
+        name = coredbx.value(cast(coredbx.Element, e.child('Name')))
         if name != f'Levels/{lv_upper}/Precomputed/{kind}/SectorOffsets':
             bad.append(f'{kind}: Name {name}')
         want = rep['sector_offsets_values'][kind]
         for fld, v in (('XOffset', want[0]), ('ZOffset', want[1])):
-            size, vals = coredbx.numbers(e.child(fld))
+            size, vals = coredbx.numbers(cast(coredbx.Element, e.child(fld)))
             if size != 4 or struct.unpack('>i', vals[0])[0] != v:
                 bad.append(f'{kind} {fld} is not the integer {v}')
     for p in rep.get('template_pack', []):
@@ -244,7 +250,7 @@ def check_assets(build_dir, rep, c, lv_upper):
     if rep.get('template_pack'):
         t = pipeline.find_entry(build_dir, rep['template_pack'][0])
         g = c['template'].rsplit('/', 1)[1].lower()
-        if g not in {(e.attr('guid') or '').lower() for e in coredbx.read(t).instances}:
+        if t is not None and g not in {(e.attr('guid') or '').lower() for e in coredbx.read(t).instances}:   # (not packed: said above)
             bad.append('the template instance is not in the packed template partition')
     return not bad, ('SectorOffsets ' + ', '.join(f'{k} {v[0]},{v[1]}' for k, v in rep['sector_offsets_values'].items())
                      + f' as 4-byte integers; {len(rep.get("template_pack", []))} template partitions packed; added entries at the tail'

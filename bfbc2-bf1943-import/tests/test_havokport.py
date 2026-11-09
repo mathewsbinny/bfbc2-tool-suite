@@ -18,8 +18,12 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(SUITE, 'bfbc2-mesh-viewer'), os.path.join(SUITE, 'bfbc2-shader-tools'),
-                os.path.join(SUITE, 'bfbc2-console-convert')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools', 'console-convert')
 import bf1943import as bi  # noqa: E402
 import havok  # noqa: E402
 import havokport  # noqa: E402
@@ -105,7 +109,7 @@ def compare(hp, L, out, ref):
             ta, tb = po.ptr.get(A), pb.ptr.get(B)
             if ta in oo and tb in ob:
                 todo.append((ta, tb))
-    bad = collections.Counter()
+    bad: collections.Counter[str] = collections.Counter()
     for (a, b), cls in pairs.items():
         for name, off, size in L.fields(cls):
             if any(r in name for r in RUNTIME):

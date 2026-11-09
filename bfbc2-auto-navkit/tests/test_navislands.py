@@ -11,7 +11,12 @@ import sys
 from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools')
 import navbuild  # noqa: E402
 import navislands  # noqa: E402
 
@@ -97,7 +102,7 @@ def main(argv):
     navislands.TERRAIN_IDS.clear()
     navislands.note_nodes(lvl, [(601, (0, 0, 0), 1, 0, 0), (602, (0, 0, 0), 2, 0, 0), (603, (0, 0, 0), 3, 0, 0),
                                 (101, (0, 0, 0), 0, 0, 0), (102, (0, 0, 0), None, 0, 0)])
-    check(navislands.TERRAIN_IDS == {601, 602, 603}, 'note_nodes: nodes on terrain surfaces recorded, object / unknown not')
+    check({601, 602, 603} == navislands.TERRAIN_IDS, 'note_nodes: nodes on terrain surfaces recorded, object / unknown not')
     gt = [sector([main_, speck, tpocket])]
     navislands.SHADOW_OBJECTS_ONLY = True
     k = kept_ids(navislands.prune(gt))

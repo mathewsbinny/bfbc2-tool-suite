@@ -29,12 +29,16 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-sys.path[:0] = [os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-shader-tools'),
-                os.path.join(SUITE, 'bfbc2-console-convert')]
-from bfbc2core import dbx, fbrb  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'shader-tools', 'console-convert')
 import mesh as meshdata  # noqa: E402
 import shaderdb  # noqa: E402
 import texture  # noqa: E402
+from bfbc2core import dbx, fbrb  # noqa: E402
 
 SIZE = dict(meshdata.SIZE)
 COLOUR = re.compile(r'(?i)_(d|dm|cm|c|col|color|colour|diff|diffuse|alb)$')

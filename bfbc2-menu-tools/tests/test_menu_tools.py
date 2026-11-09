@@ -25,12 +25,17 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, ROOT)
-import menucommon as mc  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('menu-tools', 'apt')
+import apt  # noqa: E402
 import aptcheck  # noqa: E402
 import aptrefs  # noqa: E402
 import bc2loc  # noqa: E402
-import apt  # noqa: E402  (menucommon put the reader on the path)
+import menucommon as mc  # noqa: E402
 
 
 class Checks:

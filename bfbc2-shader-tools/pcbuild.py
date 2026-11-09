@@ -7,8 +7,13 @@ Binding table (shader database section 2), as decoded from BFBC2's files:
     u8 array count}
 Dx9: register = c<N>; Dx10/11: register = byte offset in cbuffer $Globals / 16.
 """
+from __future__ import annotations
+
 import ctypes
 import struct
+from collections.abc import Container, Iterable, Mapping, Sequence
+
+Consts = list[tuple[str, int, int]]         # [(name, register, register count)]
 
 ENGINE = {   # engine parameter name -> id (from every BFBC2 Dx9 database's binding tables against the constant tables)
     'viewMatrix': 0, 'viewProjMatrix': 2, 'worldViewProjMatrix': 6, 'worldMatrix': 8, 'viewportZMinMax': 22,
@@ -22,7 +27,7 @@ ENGINE = {   # engine parameter name -> id (from every BFBC2 Dx9 database's bind
 INDEXED = {'pointLightPos', 'pointLightColor', 'pointLightRadius', 'outdoorLightShadowTransform'}
 
 
-def engine_param(name):
+def engine_param(name: str) -> tuple[int, int] | None:
     """(id, index) of an engine constant name, or None (a material constant)."""
     if name in ENGINE and name not in INDEXED:
         return ENGINE[name], 0xff
@@ -34,17 +39,17 @@ def engine_param(name):
 
 # ------------------------------------------------------------------------------------------------ d3dcompiler
 
-_d3d = None
+_d3d: ctypes.WinDLL | None = None
 
 
-def _lib():
+def _lib() -> ctypes.WinDLL:
     global _d3d
     if _d3d is None:
         _d3d = ctypes.WinDLL('d3dcompiler_47.dll')
     return _d3d
 
 
-def _blob(p):
+def _blob(p: int | None) -> bytes:
     if not p:
         return b''
     vt = ctypes.cast(ctypes.cast(p, ctypes.POINTER(ctypes.c_void_p))[0], ctypes.POINTER(ctypes.c_void_p))
@@ -60,10 +65,11 @@ class CompileError(Exception):
     pass
 
 
-def compile_hlsl(src, entry, profile, defines=None, name='translated.hlsl'):
+def compile_hlsl(src: str, entry: str, profile: str, defines: Mapping[str, object] | None = None,
+                 name: str = 'translated.hlsl') -> bytes:
     """D3DCompile -> bytecode (D3D9 tokens for vs/ps_3_0; DXBC for 4_0 / 5_0)."""
     d = _lib()
-    macros = None
+    macros: ctypes.Array[ctypes.c_char_p] | None = None
     if defines:
         arr = (ctypes.c_char_p * (2 * len(defines) + 2))()
         for i, (k, v) in enumerate(defines.items()):
@@ -80,7 +86,7 @@ def compile_hlsl(src, entry, profile, defines=None, name='translated.hlsl'):
     return _blob(code.value)
 
 
-def input_signature(dxbc):
+def input_signature(dxbc: bytes) -> bytes:
     out = ctypes.c_void_p()
     hr = _lib().D3DGetInputSignatureBlob(dxbc, len(dxbc), ctypes.byref(out))
     if hr != 0:
@@ -88,7 +94,7 @@ def input_signature(dxbc):
     return _blob(out.value)
 
 
-def disassemble(code):
+def disassemble(code: bytes) -> str:
     out = ctypes.c_void_p()
     hr = _lib().D3DDisassemble(code, len(code), 0, None, ctypes.byref(out))
     return _blob(out.value).decode('latin-1') if hr == 0 else ''
@@ -96,7 +102,7 @@ def disassemble(code):
 
 # ------------------------------------------------------------------------------------------------ reflection
 
-def ctab9(code):
+def ctab9(code: bytes) -> list[tuple[str, str, int, int]]:
     """D3D9 bytecode -> [(name, regset 'bool'|'int4'|'float4'|'sampler', register, count)]"""
     o = 4
     while o + 4 <= len(code):
@@ -117,7 +123,7 @@ def ctab9(code):
     return []
 
 
-def _chunks(dxbc):
+def _chunks(dxbc: bytes) -> dict[bytes, bytes]:
     n = struct.unpack_from('<I', dxbc, 28)[0]
     out = {}
     for i in range(n):
@@ -126,11 +132,11 @@ def _chunks(dxbc):
     return out
 
 
-def _cstr(b, o):
+def _cstr(b: bytes, o: int) -> str:
     return b[o:b.index(b'\0', o)].decode()
 
 
-def rdef(dxbc):
+def rdef(dxbc: bytes) -> tuple[dict[str, list[tuple[str, int, int, bool]]], list[tuple[str, int, int, int]]]:
     """DXBC -> ({cbuffer name: [(var, offset, size, used)]}, [(resource name, type, bind point, count)])"""
     r = _chunks(dxbc)[b'RDEF']
     ncb, cbo, nb, bo, _, _, _ = struct.unpack_from('<7I', r, 0)
@@ -153,7 +159,7 @@ def rdef(dxbc):
 
 # ------------------------------------------------------------------------------------------------ binding tables
 
-def binding_table(consts, first, bone_div=1):
+def binding_table(consts: Iterable[tuple[str, int, int]], first: int, bone_div: int = 1) -> bytes:
     """consts: [(name, register, register count)] the shader declares. -> binding table bytes (section 2)."""
     recs = []
     for name, reg, cnt in consts:
@@ -166,16 +172,16 @@ def binding_table(consts, first, bone_div=1):
     return struct.pack('<HH', len(recs), first) + b''.join(recs)
 
 
-def consts_dx9(code):
+def consts_dx9(code: bytes) -> Consts:
     return [(n, r, c) for n, rs, r, c in ctab9(code) if rs == 'float4']
 
 
-def consts_dxbc(code):
+def consts_dxbc(code: bytes) -> Consts:
     cbs, _ = rdef(code)
     return [(n, off // 16, (size + 15) // 16) for n, off, size, used in cbs.get('$Globals', [])]
 
 
-def first_material_register(consts, material):
+def first_material_register(consts: Iterable[tuple[str, int, int]], material: Container[str]) -> int:
     """The register the material constants start at: every engine constant below it (BFBC2's layout puts the
     material's 'constants' array after the engine's)."""
     m = [r for n, r, c in consts if n in material]
@@ -186,23 +192,14 @@ def first_material_register(consts, material):
 
 # ------------------------------------------------------------------------------------------------ vertex input
 
-# BFBC2 layout element formats (section 7 / mesh.elements) -> (D3DDECLTYPE, DXGI_FORMAT, byte size)
-FORMATS = {2: (2, 6, 12),      # float3      D3DDECLTYPE_FLOAT3 / R32G32B32_FLOAT
-           3: (2, 6, 12),
-           8: (16, 10, 8),     # half4       FLOAT16_4 / R16G16B16A16_FLOAT
-           6: (15, 34, 4),     # half2       FLOAT16_2 / R16G16_FLOAT
-           12: (5, 30, 4),     # ubyte4      UBYTE4 / R8G8B8A8_UINT
-           }
-
-
-def dx9_decl(elements):
+def dx9_decl(elements: Iterable[tuple[int, int, int, int]]) -> bytes:
     """[(stream, offset, D3DDECLTYPE, usage index)] -> section 4 Dx9 tail (u32 k + D3DVERTEXELEMENT9s, END last)."""
     out = [struct.pack('<HHBBBB', s, o, t, 0, 5, ui) for s, o, t, ui in elements]
     out.append(struct.pack('<HHBBBB', 0xff, 0, 17, 0, 0, 0))
     return struct.pack('<I', len(out)) + b''.join(out)
 
 
-def dx11_layout(dxbc, elements):
+def dx11_layout(dxbc: bytes, elements: Sequence[tuple[int, int, int, int, object]]) -> bytes:
     """[(stream, offset, DXGI format, usage index, per-instance)] -> section 4 Dx10/11 tail."""
     sig = input_signature(dxbc)
     out = struct.pack('<I', len(sig)) + sig + struct.pack('<I', len(elements))
@@ -223,7 +220,7 @@ DXGI = {1: 41, 2: 16, 3: 6, 4: 2, 5: 54, 6: 34, 7: 10, 8: 10, 12: 30, 15: 38, 19
 INT_FORMATS = {30: 'uint4', 38: 'int4'}
 
 
-def block_texture_list(block, e='<'):
+def block_texture_list(block: bytes, e: str = '<') -> list[tuple[int, int, str]]:
     """[(sampler register, cube flag, texture name)] of a parameter block (e '>' for an Xbox database's)."""
     out = []
     for k in range(block[0x1b]):
@@ -232,7 +229,7 @@ def block_texture_list(block, e='<'):
     return out
 
 
-def program_block(donor, textures, nregs):
+def program_block(donor: bytes, textures: Sequence[tuple[int, int, str]], nregs: int) -> bytes:
     """A PC program parameter block: the donor's sampler states, these textures, no constants; bytes 0x18/0x19 the
     shader's $Globals size in registers."""
     _, _, _, _, _, ee = struct.unpack_from('<6I', donor)
@@ -251,14 +248,14 @@ def program_block(donor, textures, nregs):
     return out + bytes(total - len(out))
 
 
-def own_block(donor, nregs):
+def own_block(donor: bytes, nregs: int) -> bytes:
     """A shader's own parameter block: the donor's, its $Globals size set."""
     b = bytearray(donor)
     b[0x18] = b[0x19] = min(nregs, 255)
     return bytes(b)
 
 
-def globals_registers(dxbc):
+def globals_registers(dxbc: bytes) -> int:
     """$Globals size in float4 registers of a DXBC shader."""
     cbs, _ = rdef(dxbc)
     return max([(off + size + 15) // 16 for _, off, size, _ in cbs.get('$Globals', [])] or [0])

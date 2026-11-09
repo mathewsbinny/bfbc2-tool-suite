@@ -15,13 +15,16 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-mesh-viewer'),
-                os.path.join(SUITE, 'bfbc2-shader-tools'), os.path.join(SUITE, 'bfbc2-bf1943-import'),
-                os.path.join(SUITE, 'bfbc2-anim-tools')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('console-convert', 'core', 'mesh-viewer', 'shader-tools', 'bf1943-import', 'anim-tools')
 import mesh  # noqa: E402
 import meshset  # noqa: E402
 
-failures = []
+failures: list[str] = []
 
 
 def check(ok, what):
@@ -41,8 +44,8 @@ def quick():
 
 
 def game():
-    import numpy as np
     import meshview
+    import numpy as np
     import shaderdb
     from bfbc2core import fbrb
     opfor = shaderdb.find_opfor(None)

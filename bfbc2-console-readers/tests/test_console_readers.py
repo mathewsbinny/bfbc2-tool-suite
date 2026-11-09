@@ -26,8 +26,12 @@ from typing import Any
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
 SUITE = os.path.abspath(os.path.join(ROOT, '..'))
-sys.path.insert(0, os.path.join(ROOT, 'stfs'))
-sys.path.insert(0, os.path.join(ROOT, 'xiso'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('xiso', 'stfs')
 import stfs  # noqa: E402
 import xiso  # noqa: E402
 
@@ -209,7 +213,7 @@ def build_apt(big):
 
 
 def apt_checks(c, work):
-    sys.path.insert(0, os.path.join(ROOT, 'apt'))
+    suite_paths.use('apt')
     import apt
     dumps = {}
     for big in (False, True):
@@ -247,7 +251,7 @@ def console_menu_checks(c, u3, work):
     bundle = os.path.join(work, 'mainmenu-00.fbrb')
     open(bundle, 'wb').write(u3.read(e))
     subprocess.run([fbrb, 'unpack', bundle, os.path.join(work, 'menu')], check=True, stdout=subprocess.DEVNULL)
-    sys.path.insert(0, os.path.join(ROOT, 'apt'))
+    suite_paths.use('apt')
     import apt
     mv = apt.Movie(os.path.join(work, 'menu', 'Menu', 'main_nav.res'))
     c.check(mv.big, 'console main_nav: big-endian')
@@ -319,11 +323,11 @@ def game_checks(c, xbox):
         if len(got) == 2:
             c.check(os.path.getsize(got['3']) == 1872532, 'Nelson Bay infantry path data: 1,872,532 bytes, as documented')
             c.check(sha(got['2']) == sha(got['3']), 'Update #2 and #3 give the same Nelson Bay path data')
-            sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools'))
+            suite_paths.use('navkit-tools')
             import hpdtool
             data = open(got['3'], 'rb').read()
             c.check(hpdtool.write(hpdtool.parse(data)) == data, 'it is valid path data (hpdtool reads and writes it back exactly)')
-        sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+        suite_paths.use('navkit')
         import navkit
         game = os.path.join(navkit.find_opfor(None), 'game', 'Output', 'win32', 'ai', 'levels')
         compared = 0

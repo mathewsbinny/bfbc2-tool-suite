@@ -1,6 +1,4 @@
-r"""Lint (quick tier): ruff's checks from pyproject.toml (pyflakes, pycodestyle errors and warnings, bugbear) find
-nothing in the tool folders it covers. The folders under heavy work in November 2026 (core, bf1943-import,
-console-convert, shader-tools, anim-tools, model-tools) are not covered yet: QUALITY_AUDIT.md lists their findings.
+r"""Lint (quick tier): ruff's checks from pyproject.toml find nothing in any of the suite's Python folders.
 
   python tests\test_lint.py
 """
@@ -12,10 +10,12 @@ SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 COVERED = ['bfbc2-auto-navkit', 'bfbc2-automated-map-and-bot-test-harness', 'bfbc2-console-readers', 'bfbc2-culltree',
            'bfbc2-diff-workbench', 'bfbc2-map-inspector', 'bfbc2-menu-tools', 'bfbc2-mesh-viewer',
            'bfbc2-navigation-studio', 'bfbc2-stockmp-ai', 'tests', 'run_tests.py', 'BFBC2 Tool Suite.pyw',
+           'core', 'bfbc2-bf1943-import', 'bfbc2-console-convert', 'bfbc2-shader-tools', 'bfbc2-anim-tools',
+           'bfbc2-model-tools',
            os.path.join('bfbc2-auto-navkit', 'navkitGUI.pyw')]
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         r = subprocess.run([sys.executable, '-m', 'ruff', 'check', '--output-format', 'concise', *COVERED],
                            capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=SUITE)

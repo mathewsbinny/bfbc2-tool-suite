@@ -24,13 +24,16 @@ import sys
 import time
 
 SUITE = os.path.dirname(os.path.abspath(__file__))
+if SUITE not in sys.path:
+    sys.path.insert(0, SUITE)
+import suite_paths  # noqa: E402
+
 PY = sys.executable
 TIERS = ['quick', 'game', 'full']
 
 
 def opfor():
-    if os.path.join(SUITE, 'bfbc2-auto-navkit') not in sys.path:
-        sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
+    suite_paths.use('navkit')
     import navkit
     return navkit.find_opfor(None)
 
@@ -59,8 +62,10 @@ def tests():
     """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
     t = [
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
-        ('lint (ruff check, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
-        ('types (mypy, the covered folders)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
+        ('lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
+        ('types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
+        ('core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),
+        ('converter edges (dbx numbers, dbxport references, texture check)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_edges.py')]),
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
@@ -93,6 +98,9 @@ def tests():
         ('NavKit offline sampler (navsample_offline)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navsample_offline.py')]),
         ('NavKit tool edges (ordercheck, detailed cache, navdiff pictures)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_tool_edges.py')]),
         ('Navigation Studio edit mode, no game (editing, overlay usage)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_editing_offline.py')]),
+        ('NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navkit_offline.py')]),
+        ('Navigation Studio logic, no window (studio.py)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_studio_offline.py')]),
+        ('Map Inspector logic, no window (inspector.py)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-map-inspector', 'tests', 'test_inspector_offline.py')]),
         ('mesh viewer index and cache, stand-in bundles', 'quick', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview_index.py')]),
         ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),
         ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
@@ -104,6 +112,7 @@ def tests():
         ('exe string / address references (exeref), built exe', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_exeref.py')]),
         ('test harness, built data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'tests', 'test_harness.py')]),
         ('stock-MP AI layer, synthetic levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_stockmp.py')]),
+        ('stock-MP AI validation checks, synthetic builds (validate.py)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_validate.py')]),
         ('shader databases (shaderdb), built files', 'quick', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb.py')]),
         ('shader databases: Xbox 360 (BFBC2 twins, BF1943 Wake)', 'game', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb.py'), '--xbox']),
         ('Granny Xbox 360 -> PC: DICE bone tables', 'quick', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_port.py')]),
@@ -194,7 +203,7 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('run-tests', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

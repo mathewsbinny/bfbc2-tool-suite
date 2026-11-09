@@ -15,8 +15,12 @@ import tempfile
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools')
 import navsample  # noqa: E402
 import navsample_offline as no  # noqa: E402
 from bfbc2core import terrain  # noqa: E402
@@ -48,15 +52,15 @@ def slab(x0, z0, x1, z1, y0, y1):
 
 def geometry(pieces):
     """pieces: [(triangles, kind)] -> navsample_offline.Geometry (one solid id per convex piece)."""
-    T, K, S = [], [], []
+    Tl, Kl, Sl = [], [], []
     for k, (t, kind) in enumerate(pieces):
-        T.append(t)
-        K.append(np.full(len(t), kind, np.uint8))
-        S.append(np.full(len(t), k if kind == no.KIND_CONVEX else -1, np.int32))
-    if not T:
+        Tl.append(t)
+        Kl.append(np.full(len(t), kind, np.uint8))
+        Sl.append(np.full(len(t), k if kind == no.KIND_CONVEX else -1, np.int32))
+    if not Tl:
         return no.Geometry(np.zeros((0, 3, 3)), np.zeros(0, np.uint8), np.zeros(0, np.int32), np.zeros(0, np.uint8),
                            np.zeros(0, np.int32), [])
-    T, K, S = np.concatenate(T), np.concatenate(K), np.concatenate(S)
+    T, K, S = np.concatenate(Tl), np.concatenate(Kl), np.concatenate(Sl)
     return no.Geometry(T, K, S, np.full(len(T), ord('h'), np.uint8), np.zeros(len(T), np.int32), ['test'])
 
 
@@ -173,6 +177,7 @@ def main(argv):
         p = os.path.join(tmp, 'x_navkit_hi.bin')
         no.write(p, s)
         b, cols = navsample.load(p)
+        assert b.hit is not None
         check(cols == grid.ncols and np.array_equal(b.start, s.start) and np.allclose(b.y, s.y) and
               np.array_equal(b.flags, s.flags) and np.array_equal(b.hit, s.hit) and abs(b.cap_bottom - 0.6) < 1e-6,
               'file written and read back (version 3)')

@@ -24,10 +24,15 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'core'))
-from bfbc2core import errors  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core')
 import havok  # noqa: E402
 import texture  # noqa: E402
+from bfbc2core import errors  # noqa: E402
 
 
 def default_exe():
@@ -76,12 +81,12 @@ def cmd_havok(a):
 def cmd_verify_havok(a):
     k = havok.classes(a.exe or default_exe())
     pc = manifest(a.pc, 'HavokPhysicsData')
-    con = {}
+    con: dict[str, str] = {}
     for f in a.console:
         for rel, p in manifest(f, 'HavokPhysicsData').items():
             con.setdefault(rel, p)
-    total = collections.Counter()
-    reasons = collections.Counter()
+    total: collections.Counter[str] = collections.Counter()
+    reasons: collections.Counter[str] = collections.Counter()
     lines = []
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()
@@ -123,10 +128,12 @@ def cmd_texture(a):
 
 def cmd_verify_texture(a):
     pc = manifest(a.pc, 'ITexture')
-    con = {}
+    con: dict[str, str] = {}
     for f in a.console:
         for rel, p in manifest(f, 'XenonTexture').items():
             con.setdefault(rel, p)
+    total: collections.Counter[str]
+    lines: list[str]
     total, lines = collections.Counter(), []
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()
@@ -156,7 +163,7 @@ def cmd_verify_texture(a):
         print(l)
     if a.report:
         open(a.report, 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
-    return 1 if total['broken mip chain'] else 0
+    return 1 if total['broken mip chain'] or total['not converted'] else 0     # as the usage says
 
 
 def main(argv):

@@ -6,6 +6,7 @@ Tabs: Levels (open a level in the Map Inspector or the Navigation Studio), Bundl
 (DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane at the bottom.
 The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
 """
+import contextlib
 import json
 import os
 import queue
@@ -16,8 +17,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 SUITE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+if SUITE not in sys.path:
+    sys.path.insert(0, SUITE)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit')
 from bfbc2core import errors  # noqa: E402
 
 # library -> what needs it (checked when the window opens)
@@ -66,10 +70,8 @@ class Hub:
         self.proc = None                       # the tab's running tool (one at a time)
         root.title('BFBC2 Tool Suite')
         root.minsize(900, 640)
-        try:
+        with contextlib.suppress(tk.TclError):
             ttk.Style().theme_use('vista')
-        except tk.TclError:
-            pass
         self.pr = None
         try:
             import navkit
@@ -182,10 +184,8 @@ class Hub:
                     break
                 time.sleep(0.2)
         self.lines.put(('done', label, proc.returncode, False))
-        try:
+        with contextlib.suppress(OSError):
             os.remove(path)
-        except OSError:
-            pass
 
     def reader(self, proc, label, main):
         for line in proc.stdout:

@@ -41,8 +41,12 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.abspath(os.path.join(HERE, '..'))
 SUITE = os.path.abspath(os.path.join(TOOL, '..'))
-for p in (TOOL, os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-auto-navkit'), os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools')):
-    sys.path.insert(0, p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools', 'navkit', 'core', 'harness')
 from bfbc2core import fbrb, navdata  # noqa: E402
 from testharness import checks, classify, ingame, levelchecks, levelinfo, runs  # noqa: E402
 from testharness.checks import Point  # noqa: E402

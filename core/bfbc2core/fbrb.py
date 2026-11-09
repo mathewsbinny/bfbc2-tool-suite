@@ -12,7 +12,10 @@ u32 payload length; then the payload (gzip when zipped). Changing a bundle stays
 import gzip
 import struct
 import zlib
+from collections.abc import Iterable
 from dataclasses import dataclass
+from os import PathLike
+from typing import BinaryIO
 
 DELETED = '*deleted*'
 
@@ -27,16 +30,16 @@ class Entry:
     size2: int
 
     @property
-    def deleted(self):
+    def deleted(self) -> bool:
         return self.type == DELETED and self.size == 0
 
 
-def _cstring(b, o):
+def _cstring(b: bytes, o: int) -> str:
     e = b.index(b'\0', o)
     return b[o:e].decode('ascii', errors='replace')
 
 
-def _header(fh):
+def _header(fh: BinaryIO) -> tuple[list[Entry], bool, int]:
     head = fh.read(8)
     if len(head) < 8 or head[:4] != b'FbRB':
         raise ValueError(f'{getattr(fh, "name", "file")} is not an FbRB bundle')
@@ -53,21 +56,21 @@ def _header(fh):
     return out, zipped, 8 + cut
 
 
-def entries(path):
+def entries(path: str | PathLike[str]) -> list[Entry]:
     with open(path, 'rb') as fh:
         return _header(fh)[0]
 
 
-def names(path):
+def names(path: str | PathLike[str]) -> dict[str, Entry]:
     return {e.name.lower(): e for e in entries(path) if not e.deleted}
 
 
-def read(path, wanted):
+def read(path: str | PathLike[str], wanted: Iterable[str]) -> dict[str, bytes]:
     """{name: bytes} for the entry names given (matched without regard to case; keys as given)."""
     with open(path, 'rb') as fh:
         ents, zipped, start = _header(fh)
         by = {e.name.lower(): e for e in ents if not e.deleted}
-        want = {}
+        want: dict[str, Entry] = {}
         for n in wanted:
             if n.lower() not in by:
                 raise KeyError(f'{n} is not an entry of {path}')
@@ -94,11 +97,12 @@ def read(path, wanted):
         return {n: bytes(b) for n, b in out.items()}
 
 
-def build(items, zipped=True):
+def build(items: list[tuple[str, str, bytes]], zipped: bool = True) -> bytes:
     """A bundle from [(name, type, data)] (flags 0x00010000, size2 = size) - for tests; FbrbTool packs real ones."""
+    offs: dict[str, int]
     strings, offs = bytearray(), {}
 
-    def s(t):
+    def s(t: str) -> int:
         if t not in offs:
             offs[t] = len(strings)
             strings.extend(t.encode('ascii') + b'\0')

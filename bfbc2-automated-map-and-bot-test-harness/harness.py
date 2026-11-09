@@ -31,6 +31,7 @@ Saved as <OPFOR>\work\harness\runs\<name>.json (default name "last"); with --ref
 Exit code: 0 nothing failed (and no regression), 1 a test failed, something got worse, or a run was not
 found (run --reference with an unknown run: 2).
 """
+import contextlib
 import os
 import sys
 import time
@@ -39,9 +40,12 @@ from typing import Any
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
-for _p in (HERE, os.path.join(SUITE, 'core'), NAVKIT, os.path.join(NAVKIT, 'tools')):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools', 'navkit', 'core', 'harness')
 
 from testharness import checks, classify, ingame, levelchecks, runs  # noqa: E402
 
@@ -78,6 +82,7 @@ def parity_row(root, lv, path, cache):
     """navparity's row for the file: from a saved navparity run that measured this file (and the file is not newer
     than that run), else from the harness cache (by both files' sha1), else measured now (navparity.run_level)."""
     import json
+
     import navparity
     from testharness import levelinfo
     mtime = os.path.getmtime(path)
@@ -109,6 +114,7 @@ def parity_row(root, lv, path, cache):
 
 def parity(root, lv, path, cache):
     import json
+
     import navparity
     import navregress
     row, source = parity_row(root, lv, path, cache)
@@ -405,10 +411,8 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    try:
+    with contextlib.suppress(AttributeError):        # stdout replaced by something without it
         sys.stdout.reconfigure(line_buffering=True)   # type: ignore[union-attr]  # progress shows at once when the output goes to a file
-    except AttributeError:                            # stdout replaced by something without it
-        pass
     from bfbc2core import errors
     errors.setup('harness', gui=False)        # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

@@ -15,9 +15,14 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
-import havok  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('console-convert')
 import convert  # noqa: E402
+import havok  # noqa: E402
 
 OPFOR = os.environ.get('OPFOR_ROOT') or os.path.abspath(os.path.join(HERE, '..', '..', '..', 'project-opfor-bfbc2'))
 EXE = os.path.join(OPFOR, 'game', 'BFBC2Game.exe')
@@ -45,7 +50,7 @@ def main():
     if (mopp['child'].offset, mopp['child'].type, mopp['childSize'].offset, mopp['childSize'].type) != \
             (0x30, havok.STRUCT, 0x38, havok.INT32):
         fails.append(f'hkpMoppBvTreeShape members read wrongly: {mopp}')
-    con = {}
+    con: dict[str, str] = {}
     for f in CONSOLE:
         for rel, p in convert.manifest(f, 'HavokPhysicsData').items():
             con.setdefault(rel, p)

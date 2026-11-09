@@ -19,7 +19,6 @@ ON HOLD - needs playtest (designed, not run by the harness):
 """
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from .checks import Result
 
@@ -44,12 +43,12 @@ TELEMETRY_TESTS = [('bot-traversal', 'bots reach given points within a time'),
 class Session:
     pid: str
     start: str = ''
-    level: Optional[str] = None
-    states: List[int] = field(default_factory=list)
-    events: List[str] = field(default_factory=list)
-    offset_loads: List[tuple] = field(default_factory=list)
-    override: Optional[tuple] = None
-    pathfinders: List[int] = field(default_factory=list)
+    level: str | None = None
+    states: list[int] = field(default_factory=list)
+    events: list[str] = field(default_factory=list)
+    offset_loads: list[tuple] = field(default_factory=list)
+    override: tuple | None = None
+    pathfinders: list[int] = field(default_factory=list)
     crashed: bool = False
     exited: bool = False
     lines: int = 0

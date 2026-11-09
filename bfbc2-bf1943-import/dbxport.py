@@ -13,12 +13,17 @@ omission and type BFBC2 has no template for is reported. The result is written w
 """
 import copy
 import glob
-import struct
 import os
+import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core')
 from bfbc2core import dbx  # noqa: E402
 
 
@@ -27,8 +32,8 @@ class Templates:
     carries all its fields, so one is enough). Folders of unpacked bundles, .dbx files, or (name, bytes) pairs."""
 
     def __init__(self, sources):
-        self.by_type = {}
-        self.where = {}
+        self.by_type: dict[str, dbx.Element] = {}
+        self.where: dict[str, str] = {}
         for s in sources:
             items = []
             if isinstance(s, tuple):
@@ -233,7 +238,7 @@ def _align(e, t, path, report, resolve=None, prune=False):
         if lost:
             report.append(f'substituted {path} (refers to {lost[0]}{" and more" if len(lost) > 1 else ""}): the '
                           f'template\'s value')
-            return copy.deepcopy(t)
+            return _without_local_refs(copy.deepcopy(t), path, report)   # the template's own instances: not here
     if e.kind != dbx.CONTAINER or t.kind != dbx.CONTAINER:
         if e.kind != t.kind and e.kind != dbx.CONTAINER and t.kind != dbx.CONTAINER:
             conv = _converted_kind(e, t, path, report)

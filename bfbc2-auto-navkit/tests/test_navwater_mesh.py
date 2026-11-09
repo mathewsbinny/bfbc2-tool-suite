@@ -16,8 +16,12 @@ import tempfile
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools')
 import navwater_mesh as nm  # noqa: E402
 
 
@@ -102,7 +106,7 @@ def main(argv):
     for width, joined in ((8.0, True), (4.0, False)):
         dam = np.zeros(surface.shape, bool)
         X, Z = grid.centres()
-        dam |= (np.abs(X - 100) < 6) & ~((np.abs(Z - 50) < width / 2))
+        dam |= (np.abs(X - 100) < 6) & ~(np.abs(Z - 50) < width / 2)
         wm2 = nm.build(surface, np.where((X >= 96) & (X <= 104), 6.0, terrain), grid, prof, dam)
         a, b = wm2.region[grid.cell_of(50, 50)[::-1]], wm2.region[grid.cell_of(150, 50)[::-1]]
         check((a == b) == joined, f'a {width:.0f} m channel {"joins" if joined else "does not join"} the basins (hull 7 m wide)')

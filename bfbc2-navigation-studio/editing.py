@@ -8,11 +8,19 @@ jump, vault, drop: bottom then top), note. Enter finishes an outline, Esc cancel
 Ctrl+Z / Ctrl+Y undo and redo.
 """
 import os
+import sys
+from typing import Any
 
 import numpy as np
 from imgui_bundle import imgui
 
-from bfbc2core import navtune as nt
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core')
+from bfbc2core import navtune as nt  # noqa: E402
 
 TOOLS = [('walkable', 'walkable region'), ('unwalkable', 'unwalkable region'), ('seed', 'seed'), ('unseed', 'unseed'),
          ('link-areas', 'link two areas'), ('route-edge add', 'add a route edge'), ('route-edge remove', 'remove a route edge'),
@@ -93,7 +101,7 @@ class Editor:
         self.y_margin = [2.0, 4.0]              # region height range around the clicked points: below, above
         self.trav_kind, self.two_way, self.note_text = 0, True, ''
         self.by = nt.author()
-        self.job = None                         # the running `navkit.py apply`
+        self.job: Any = None                    # the running `navkit.py apply`
         self.job_log = []
         self.job_out = os.path.join(root, 'work', 'navkit', lv, 'pathdata.hpd')
         self.install_msg = ''
@@ -136,6 +144,7 @@ class Editor:
         """A new studio window on the built file (the scene is uploaded once, so the window is replaced)."""
         import subprocess
         import sys
+
         from imgui_bundle import hello_imgui
         studio_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studio.py')
         subprocess.Popen([sys.executable, studio_py, self.lv, '--candidate', self.job_out, '--navtune', self.path, '--edit'])
@@ -159,24 +168,27 @@ class Editor:
             self.commit(nt.op(name, at=p, by=self.by, **({'text': self.note_text.strip()} if name == 'note' else {})))
         elif name in ('link-areas', 'route-edge add', 'route-edge remove', 'traversal') and len(self.clicks) == 2:
             a, b = self.clicks
+            two_way: dict[str, Any] = {'two-way': self.two_way}
             if name == 'traversal':
-                o = nt.op('traversal', kind=nt.TRAVERSALS[self.trav_kind], bottom=a, top=b, by=self.by, **{'two-way': self.two_way})
+                o = nt.op('traversal', kind=nt.TRAVERSALS[self.trav_kind], bottom=a, top=b, by=self.by, **two_way)
             elif name == 'link-areas':
                 o = nt.op('link-areas', a=a, b=b, by=self.by)
             else:
-                o = nt.op('route-edge', a=a, b=b, action=name.split()[1], by=self.by, **{'two-way': self.two_way})
+                o = nt.op('route-edge', a=a, b=b, action=name.split()[1], by=self.by, **two_way)
             self.commit(o)
         elif name in ('walkable', 'unwalkable') and self.shape == 'box' and len(self.clicks) == 2:
             a, b = self.clicks
             lo, hi = min(a[1], b[1]) - self.y_margin[0], max(a[1], b[1]) + self.y_margin[1]
-            self.commit(nt.op(name, region=nt.box(a[0], lo, a[2], b[0], hi, b[2]), by=self.by, **({'value': True} if name == 'walkable' else {})))
+            value: dict[str, Any] = {'value': True} if name == 'walkable' else {}
+            self.commit(nt.op(name, region=nt.box(a[0], lo, a[2], b[0], hi, b[2]), by=self.by, **value))
         self.refresh(v)
 
     def finish_polygon(self, v):
         if self.tool in ('walkable', 'unwalkable') and self.shape == 'polygon' and len(self.clicks) >= 3:
             ys = [c[1] for c in self.clicks]
             region = nt.polygon([(c[0], c[2]) for c in self.clicks], min(ys) - self.y_margin[0], max(ys) + self.y_margin[1])
-            self.commit(nt.op(self.tool, region=region, by=self.by, **({'value': True} if self.tool == 'walkable' else {})))
+            value: dict[str, Any] = {'value': True} if self.tool == 'walkable' else {}
+            self.commit(nt.op(self.tool, region=region, by=self.by, **value))
             self.refresh(v)
 
     def commit(self, o):

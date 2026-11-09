@@ -19,12 +19,16 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 NAVKIT = os.path.abspath(os.path.join(HERE, '..'))
 SUITE = os.path.abspath(os.path.join(NAVKIT, '..'))
-sys.path.insert(0, NAVKIT)
-sys.path.insert(0, os.path.join(NAVKIT, 'tools'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
-import navkit  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools', 'navkit')
 import hpdtool  # noqa: E402
-from bfbc2core import navdata, navpath, navtune as nt  # noqa: E402
+import navkit  # noqa: E402
+from bfbc2core import navdata, navpath  # noqa: E402
+from bfbc2core import navtune as nt
 
 
 def cells_in(nav, region, inset=0.0):
@@ -45,9 +49,9 @@ def walkable_box(root, lv, nav, g, main_nodes, half=5.0):
     """A box on the edge of the main network (some walkable ground in it already) with the most sampled surfaces
     that are not walkable ground in the build (ground blocked by objects, steep spots): forcing it walkable must
     add ground."""
+    import navedits
     import navregress
     import navsample
-    import navedits
     samples = navregress.inputs(root, lv)[0]
     s, _ = navsample.load(samples)
     sx, sz, sy = navedits.surface_positions(s)
@@ -62,6 +66,7 @@ def walkable_box(root, lv, nav, g, main_nodes, half=5.0):
             continue
         if best is None or gain > best[0]:
             best = (gain, p)
+    assert best is not None
     p = best[1]
     return nt.box(p[0] - half, p[1] - 1.0, p[2] - half, p[0] + half, p[1] + 1.0, p[2] + half), p
 

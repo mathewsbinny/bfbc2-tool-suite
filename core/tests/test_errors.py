@@ -17,7 +17,12 @@ import threading
 import warnings
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core')
 
 
 def main(argv):
@@ -37,8 +42,8 @@ def main(argv):
         except ModuleNotFoundError as e:
             cause, fix = errors.explain(e)
             check('not installed' in cause and fix == 'Install it: pip install not_a_real_library_xyz', 'a missing library: cause and pip line')
-        e = ModuleNotFoundError("No module named 'imgui_bundle'", name='imgui_bundle')
-        check(errors.explain(e)[1] == 'Install it: pip install imgui-bundle', 'pip names differ from module names (imgui-bundle)')
+        mnf = ModuleNotFoundError("No module named 'imgui_bundle'", name='imgui_bundle')
+        check(errors.explain(mnf)[1] == 'Install it: pip install imgui-bundle', 'pip names differ from module names (imgui-bundle)')
         check('could not be written or read' in errors.explain(PermissionError(13, 'denied', 'C:/x.hpd'))[0], 'a file in use or read-only')
         check('missing' in errors.explain(FileNotFoundError(2, 'no', 'C:/y.dbx'))[0], 'a missing file')
         check('out of memory' in errors.explain(MemoryError())[0], 'out of memory')
@@ -50,12 +55,13 @@ def main(argv):
         path = errors._state['path']
         check(os.path.isfile(path) and os.path.dirname(path) == os.path.join(tmp, 'bfbc2-tool-suite', 'logs'),
               'the log file is in %LOCALAPPDATA%\\bfbc2-tool-suite\\logs')
+        empty: dict[str, int] = {}
         try:
-            {}['missing key']
+            empty['missing key']
         except KeyError as ex:
             errors.report(ex, where='a test')
         errors.warn('something to look at')
-        warnings.warn('a Python warning')
+        warnings.warn('a Python warning', stacklevel=1)
         t = threading.Thread(target=lambda: 1 / 0, name='worker')
         t.start()
         t.join()

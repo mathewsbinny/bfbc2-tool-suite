@@ -13,7 +13,12 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('mesh-viewer')
 import meshview  # noqa: E402
 import shaderdb  # noqa: E402
 
@@ -21,7 +26,7 @@ GARAND = {'jntWpn_1_M1Garand_Main': 2005, 'jntWpn_1_Metal': 3825, 'jntWpn_6_US_L
           'jntWpn_7_M1Garand_rgl_M1Garand_Main': 2, 'jntWpn_7_Grenade': 8}
 
 
-def main():
+def main() -> int:
     try:
         ix = meshview.Index(shaderdb.find_opfor(None))
     except shaderdb.ShaderDbError:

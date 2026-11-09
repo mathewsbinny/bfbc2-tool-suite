@@ -19,16 +19,22 @@ import re
 import struct
 import sys
 import zlib
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('anim-tools')
 import granny  # noqa: E402
 
 ANIMS = re.compile(r'animations/weapons/handheld/(m1garand|m1garand_rgl|beach/jap_type5|beach/jap_type5_rgl)/.*\.res$')
 
 
 def index():
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'bfbc2-mesh-viewer'))
+    suite_paths.use('mesh-viewer')
     import meshview
     import shaderdb
     try:
@@ -102,7 +108,7 @@ def main():
         fails.append(f'weapon bones bind at {len(roots)} places, expected one')
 
     files = sorted(n for n in ix.where if ANIMS.search(n))
-    parsed = formats = 0
+    parsed = 0
     seen = set()
     for n in files:
         b = ix.read(n)
@@ -134,17 +140,17 @@ def main():
                             break
         if not crc_ok(b, g):
             fails.append(f'{n}: the stored Granny CRC does not match (reader assumption)')
-    formats = len(seen)
     print(f'{parsed} of {len(files)} animations parsed; curve formats seen: {sorted(s.replace("CurveDataHeader_", "") for s in seen if s)}')
     aim = sum('generatedaimanimation' in n for n in files)
     if parsed != len(files) - aim or parsed < 50:
         fails.append(f'{parsed} animations parsed of {len(files) - aim} (and at least 50 expected)')
 
-    for name, bone, kw, check in (
+    cases: tuple[tuple[str, str, dict[str, Any], str], ...] = (
             ('animations/weapons/handheld/m1garand_rgl/1p/1p_lower.res', 'jntWpn_7', {'by': '0,0,0.1336'}, 'all'),
             ('animations/weapons/handheld/m1garand_rgl/1p/1p_fire.res', 'jntWpn_7', {'by': '0,0,0.1336'}, 'all'),
             ('animations/weapons/handheld/beach/jap_type5_rgl/1p/1p_reload.res', 'jntWpn_7',
-             {'rest': '0,0.0973,1.2826', 'ramp': True}, 'ends')):
+             {'rest': '0,0.0973,1.2826', 'ramp': True}, 'ends'))
+    for name, bone, kw, check in cases:
         b = ix.read(name)
         g0 = granny.Granny(b, name)
         before = tracks(g0)

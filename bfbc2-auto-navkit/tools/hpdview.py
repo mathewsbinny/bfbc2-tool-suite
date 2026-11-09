@@ -12,13 +12,18 @@ import os
 import struct
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools')
 
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
+matplotlib.use('Agg')
 import hpdtool
+import matplotlib.pyplot as plt
 
 u32 = lambda m, o: struct.unpack_from('<I', m, o)[0]
 f32 = lambda m, o: struct.unpack_from('<f', m, o)[0]
@@ -42,10 +47,7 @@ def segs_from_lists(m, o, count_off, table_off):
 def main():
     path, which, out = sys.argv[1], sys.argv[2], sys.argv[3]
     f = hpdtool.parse(open(path, 'rb').read())
-    if which.startswith('0x'):
-        s = next(x for x in f.sectors if x.id == int(which, 16))
-    else:
-        s = f.sectors[int(which)]
+    s = next(x for x in f.sectors if x.id == int(which, 16)) if which.startswith('0x') else f.sectors[int(which)]
     m = s.mesh
     _, tiles, objects, _, _ = hpdtool.mesh_layout(m)
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -100,7 +102,7 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('hpdview', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

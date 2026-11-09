@@ -23,7 +23,12 @@ from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
-sys.path.insert(0, ROOT)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('culltree')
 import culltree as ct  # noqa: E402
 
 
@@ -179,6 +184,7 @@ def make_tree(objs, enum_offset):
 
 
 def run(args):
+    assert TMP is not None                          # main() sets it before running anything
     return subprocess.run([sys.executable, os.path.join(ROOT, 'culltree.py')] + args, capture_output=True, text=True,
                           errors='replace', env={**os.environ, 'LOCALAPPDATA': TMP})
 
@@ -289,14 +295,17 @@ def main(argv):
                 f'{t2.leaves} {t2.used} {t2.spare}')
         c.check(all(ok for ok, _ in ct.check_structure(t2)), 'structure checks pass after add (Right offsets, Max, leaves)')
         want = world_leaves('objects/test/hut/hut', rot_y(237, (30, 7, 90)))[0][0]
-        got = t2.leaf_node[9].sphere
+        new_hut, new_lamp = t2.leaf_node[9], t2.leaf_node[11]
+        assert new_hut is not None and new_lamp is not None     # linked: the structure checks above passed
+        got = new_hut.sphere
         c.check(ct._dist(got.c, want.c) < 0.1 and got.contains(want), 'the new hut\'s sphere moved and rotated with the object',
                 f'{got.c} {want.c}')
         lw = world_leaves('objects/test/lamp/lamp', rot_y(45, (35, 7, 95)))[0][0]
-        c.check(ct._dist(t2.leaf_node[11].sphere.c, lw.c) < 0.1, 'the lamp\'s shape taken from the --ref level')
+        c.check(ct._dist(new_lamp.sphere.c, lw.c) < 0.1, 'the lamp\'s shape taken from the --ref level')
         miss = [m for _, m, _ in ct.containment(t2, [9, 10, 11, 12])]
         c.check(miss == [0, 0, 0, 0], 'every ancestor of the new leaves contains their spheres')
-        c.check(all(t2.leaf_node[i].data == t.leaf_node[i].data for i in range(1, 9)), 'old leaves unchanged')
+        pairs = [(t.leaf_node[i], t2.leaf_node[i]) for i in range(1, 9)]
+        c.check(all(o is not None and n is not None and o.data == n.data for o, n in pairs), 'old leaves unchanged')
         a, b = open(level_p, 'rb').read(), open(ol, 'rb').read()
         c.check(len(a) == len(b) and sum(x != y for x, y in zip(a, b)) <= 4, 'the level changed only in the two Enumeration values')
         r = run(['verify', ot, ol, '--ref-dir', os.path.join(TMP, 'ref'), '--added',
@@ -324,7 +333,7 @@ def main(argv):
     return 1 if c.failed else 0
 
 
-TMP = None
+TMP: str | None = None
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))

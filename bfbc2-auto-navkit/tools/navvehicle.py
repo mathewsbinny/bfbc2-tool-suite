@@ -31,9 +31,8 @@ Usage:
                                                        build + compare on every level with DICE vehicle data and samples
 
 Output goes to OPFOR's work\navvehicle\<level>\pathdata.hpd (never into the game folder).
-Integration into navkit.py / navbuild (planned, see README "Vehicle path data"): navbuild.stage taking a ready
-walkability grid (surfaces, keep, gradients) instead of loading samples and running navwalk.walkable; until then
-`stage_on_grid` here substitutes those two calls for the duration of one build.
+Integration into navkit.py (planned, see README "Vehicle path data"). navbuild.stage takes the ready walkability grid
+(surfaces, keep, gradients) and the vehicle settings (vehicle_settings: a navbuild.BuildSettings) - stage_on_grid.
 """
 import contextlib
 import json
@@ -43,13 +42,17 @@ import re
 import sys
 import time
 from collections import Counter, deque
+from dataclasses import replace
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _p in (HERE, os.path.abspath(os.path.join(HERE, '..', '..', 'core'))):   # once, at import
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools')
 import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 import navsample  # noqa: E402
@@ -92,7 +95,7 @@ FLOOD = 'sector'             # 'sector': each sector flooded inside its own wind
                              # as DICE's files show); 'level': one flood over the whole level
 SEED_REACH = 3.0             # a seed takes the walkable surface nearest its point within this (m, horizontally)
 SEED_DY = (-3.0, 3.0)        # ... from this far below to this far above the point
-DETAIL = False               # D lines / F cells as navbuild builds them (navbuild.DETAIL_FEATURES, when present) - off:
+DETAIL = False               # D lines / F cells as navbuild builds them (BuildSettings.detail_features) - off:
                              # DICE's vehicle files do not follow the infantry rule (D lines mostly single, 27 % of their
                              # segments diagonal, facing pairs 163 of 7,949 lines; F directions include diagonals, no
                              # -axis / +axis twins) and their route edges cross D lines on 0.58 % (245 of 42,307), so
@@ -433,7 +436,7 @@ def road_points(level_xml, step=ROAD_STEP):
         p = re.search(r'<complex name="Position">([^<]*)</complex>', body)
         if p:
             pos[g.lower()] = [float(a) for a in p.group(1).split('/')[:3]]
-    out = []
+    out: list[tuple[float, ...]] = []
     for _t, _g, body in xmlinst.instances(level_xml, 'Terrain.TerrainSplineData'):
         if '<array name="Points">' not in body:
             continue
@@ -553,65 +556,37 @@ def in_sectors(s, sectors, xoff, zoff):
 
 
 # ---------------------------------------------------------------------------------------------- the mesh / graph build
-@contextlib.contextmanager
 def vehicle_settings(detail=None):
-    """navbuild's module settings for a vehicle build (restored afterwards)."""
+    """navbuild's settings for a vehicle build (a navbuild.BuildSettings): pitch 1 with 50-sample tiles, the vehicle
+    radius, node height, area height range and DistEdgeMax; no node cover, order nodes, reference clip or 20 m tiles;
+    D lines / F cells per detail (DETAIL if None) at the vehicle link step, not keeping route edges off them."""
     import navbuild
-    names = ['PITCH', 'SECTOR_SAMPLES', 'WINDOW', 'TILE', 'TILES', 'RESOLUTION', 'LINK_STEP', 'RADIUS',
-             'DIST_EDGE_MAX', 'Y_OFFSET', 'AREA_Y_MIN', 'AREA_Y_MAX', 'BORDER_NODE_SPACING', 'NODE_COVER',
-             'ORDER_NODES', 'CLIP_TO_REFERENCE', 'DETAIL_FEATURES', 'DETAIL_STEP', 'DETAIL_BLOCKS_EDGES',
-             'TILE_20M_SECTORS']
-    with navbuild.saved_settings(names):
-        navbuild.set_pitch(PITCH)
-        navbuild.TILE, navbuild.TILES = TILE, TILES
-        navbuild.RESOLUTION, navbuild.LINK_STEP, navbuild.RADIUS = RESOLUTION, LINK_STEP, RADIUS
-        navbuild.DIST_EDGE_MAX, navbuild.Y_OFFSET = DIST_EDGE_MAX, Y_OFFSET
-        navbuild.AREA_Y_MIN, navbuild.AREA_Y_MAX = AREA_Y_MIN, AREA_Y_MAX
-        navbuild.BORDER_NODE_SPACING = BORDER_NODE_SPACING
-        navbuild.NODE_COVER = {'detailed': None, 'normal': None}
-        navbuild.ORDER_NODES = False
-        navbuild.CLIP_TO_REFERENCE = False
-        navbuild.TILE_20M_SECTORS = None
-        if hasattr(navbuild, 'DETAIL_FEATURES'):
-            navbuild.DETAIL_FEATURES = DETAIL if detail is None else detail
-        if hasattr(navbuild, 'DETAIL_STEP'):
-            navbuild.DETAIL_STEP = dict(navbuild.DETAIL_STEP, normal=LINK_STEP)
-        if hasattr(navbuild, 'DETAIL_BLOCKS_EDGES'):
-            navbuild.DETAIL_BLOCKS_EDGES = False   # DICE's vehicle edges cross D lines (0.58 %; infantry 0.004 %)
-        yield navbuild
-
-
-class _Shim:
-    """A stand-in for a module inside navbuild for one call: the given attributes, the rest from the real module."""
-    def __init__(self, real, **over):
-        self._real, self._over = real, over
-
-    def __getattr__(self, name):
-        return self._over[name] if name in self._over else getattr(self._real, name)
+    base = navbuild.DEFAULTS.at_pitch(PITCH)
+    return replace(base, tile=TILE, tiles=TILES, resolution=RESOLUTION, link_step=LINK_STEP, radius=RADIUS,
+                   dist_edge_max=DIST_EDGE_MAX, y_offset=Y_OFFSET, area_y_min=AREA_Y_MIN, area_y_max=AREA_Y_MAX,
+                   border_node_spacing=BORDER_NODE_SPACING, node_cover={'detailed': None, 'normal': None},
+                   order_nodes=False, clip_to_reference=False, tile_20m_sectors=None,
+                   detail_features=DETAIL if detail is None else detail,
+                   detail_step=dict(base.detail_step, normal=LINK_STEP),
+                   detail_blocks_edges=False)     # DICE's vehicle edges cross D lines (0.58 %; infantry 0.004 %)
 
 
 def stage_on_grid(s, keep, xoff, zoff, log=print, detail=None):
-    """navbuild.stage on a ready walkability grid: the surfaces `s` (Samples at PITCH) and the kept ones. The stage's
-    sample loading and infantry walkability (navsample.load, navwalk.walkable) are replaced for this call only.
+    """navbuild.stage on a ready walkability grid: the surfaces `s` (Samples at PITCH) and the kept ones, with the
+    vehicle settings - no sample loading or infantry walkability (navsample.load, navwalk.walkable).
     Returns navbuild.stage's result ('graphs' ready for navbuild.write_file)."""
+    import navbuild
     gx, gz = gradients(s)
-    with vehicle_settings(detail) as nb:
-        real_ns, real_nw = nb.navsample, nb.navwalk
-        nb.navsample = _Shim(real_ns, load=lambda _p: (s, s.nx * s.nz))
-        nb.navwalk = _Shim(real_nw, walkable=lambda *_a, **_k: (keep, gx, gz, np.zeros(len(s.y), bool)),
-                           ROOF_PRUNE=False, OBJECTIVE_FLOOR=False)
-        try:
-            nb.ORDER_IDS.clear()
-            nb.LADDER_STATS.clear()
-            return nb.stage('<vehicle grid>', None, xoff, zoff, step=STEP_MAX, log=log)
-        finally:
-            nb.navsample, nb.navwalk = real_ns, real_nw
+    navbuild.ORDER_IDS.clear()
+    navbuild.LADDER_STATS.clear()
+    return navbuild.stage(None, None, xoff, zoff, step=STEP_MAX, log=log, cfg=vehicle_settings(detail),
+                          grid=(s, keep, gx, gz, np.zeros(len(s.y), bool)))
 
 
 def write(result, out_path, log=print, t0=None):
-    with vehicle_settings() as nb:
-        nb.ORDER_IDS.clear()
-        nb.write_file(result['graphs'], out_path, log, t0 or time.time())
+    import navbuild
+    navbuild.ORDER_IDS.clear()
+    navbuild.write_file(result['graphs'], out_path, log, t0 or time.time(), vehicle_settings())
 
 
 # ---------------------------------------------------------------------------------------------- level inputs
@@ -910,7 +885,7 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(HERE, '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('navvehicle', gui=False)
     with errors.guard():

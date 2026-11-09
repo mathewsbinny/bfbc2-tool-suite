@@ -12,7 +12,12 @@ from types import SimpleNamespace
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools')
 import navwalk  # noqa: E402
 
 
@@ -25,7 +30,9 @@ def grid():
         if i == 2:
             col += [(1.5, 0, navwalk.CHARACTER_SHAPE_VTABLE), (-5.0, 1, 0x1483B38)]
         for y, f, h in col:
-            ys.append(y), flags.append(f), hit.append((h, 0, 0))
+            ys.append(y)
+            flags.append(f)
+            hit.append((h, 0, 0))
         start.append(len(ys))
     n = len(ys)
     return SimpleNamespace(nx=5, nz=1, pitch=0.8, min_x=0.0, min_z=0.0, start=np.array(start), y=np.array(ys, np.float32),

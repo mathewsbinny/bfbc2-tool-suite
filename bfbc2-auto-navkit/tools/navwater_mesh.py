@@ -44,13 +44,20 @@ import zlib
 from collections import deque
 from dataclasses import dataclass, field
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import contextlib
+
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'navkit-tools')
 
 FORMAT, VERSION = 'opfor-watermesh', 1
 WATERMESH_FORMAT = """JSON object:
@@ -127,7 +134,7 @@ def surface_heights(grid, vertices, triangles):
     """The water surface over each cell centre ((nz, nx), NaN where none); the highest where pieces overlap.
     navbuild.water_tops on a column grid with the cells' layout."""
     import navbuild
-    s = SimpleNamespace(nx=grid.nx, nz=grid.nz, pitch=grid.pitch, min_x=grid.x0, min_z=grid.z0)
+    s: Any = SimpleNamespace(nx=grid.nx, nz=grid.nz, pitch=grid.pitch, min_x=grid.x0, min_z=grid.z0)   # the Samples fields read
     top = navbuild.water_tops(s, vertices, triangles).reshape(grid.nz, grid.nx)
     return np.where(np.isfinite(top), top, np.nan)
 
@@ -142,7 +149,7 @@ def terrain_heights(grid, heightfield):
     for dx, dz in ((-h, 0), (h, 0), (0, -h), (0, h)):
         out = np.maximum(out, heightfield.height(X + dx, Z + dz))
     lo, hi = heightfield.min, heightfield.max
-    outside = (X < lo[0]) | (X > hi[0]) | (Z < lo[2]) | (Z > hi[2])
+    outside = (lo[0] > X) | (hi[0] < X) | (lo[2] > Z) | (hi[2] < Z)
     return np.where(outside, -np.inf, out)
 
 
@@ -853,9 +860,10 @@ def sha1(path):
 
 def level_run(root, lv, profile, pitch=2.0, box=None, infantry=None, out_dir=None, use_objects=True,
               use_samples=True, log=print):
-    from bfbc2core import level as levelmod, navdata
     import navparity
     import navsample
+    from bfbc2core import level as levelmod
+    from bfbc2core import navdata
     t0 = time.time()
     out_dir = out_dir or os.path.join(root, 'work', 'navwater', lv)
     os.makedirs(out_dir, exist_ok=True)
@@ -921,10 +929,8 @@ def level_run(root, lv, profile, pitch=2.0, box=None, infantry=None, out_dir=Non
     else:
         log(f'{lv}: no infantry path data - no shore links')
     xml = None
-    try:
+    with contextlib.suppress(FileNotFoundError, OSError):
         xml = open(navparity.level_xml(root, lv), encoding='utf-8', errors='replace').read()
-    except (FileNotFoundError, OSError):
-        pass
     attach(wm, links, sea_spawns(xml) if xml else [])
     wm.stats['spawns'] = {'sea_spawns': len(wm.spawns), 'in_box': int(sum(bool(wm.grid.inside(*wm.grid.cell_of(s['pos'][0], s['pos'][2]))) for s in wm.spawns)),
                           'attached': sum(s['node'] is not None for s in wm.spawns),

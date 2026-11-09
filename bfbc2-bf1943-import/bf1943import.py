@@ -31,21 +31,24 @@ data), sounds.
 
 The game copy and the source are never written; <out> may not lie inside either.
 """
+import contextlib
 import hashlib
 import json
 import os
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(SUITE, 'core'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-anim-tools'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-console-convert'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-mesh-viewer'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-shader-tools'))
-from bfbc2core import errors  # noqa: E402
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('shader-tools', 'mesh-viewer', 'console-convert', 'anim-tools', 'core')
 import aimanim  # noqa: E402
 import granny  # noqa: E402
+from bfbc2core import errors  # noqa: E402
 
 SOLDIER = 'characters/skeletons/ske01.res'
 ANIMATIONS = ('GrannyAnimation', 'DeltaAnimation')
@@ -91,6 +94,8 @@ class Source:
             raise Bf1943ImportError(f'no BF1943 source folder at {folder} (pass --source: the extracted dist\\xenon folder)')
         self.folder = os.path.abspath(folder)
         fb = fbrb1943()
+        self.bundles: dict[str, Any]
+        self.entries: dict[str, tuple[str, dict[str, Any]]]
         self.bundles, self.entries = {}, {}
         for dp, _, fs in os.walk(self.folder):
             for f in sorted(fs):
@@ -215,10 +220,8 @@ def run_import(source, filters, out_dir, opfor=None, log=print):
     if not keys:
         raise Bf1943ImportError(f'no BF1943 resource name contains {" and ".join(filters)} (list shows the names)')
     game = None
-    try:
+    with contextlib.suppress(Exception):                    # no game copy: only the source is guarded
         game = os.path.join(shaderdb.find_opfor(opfor), 'game')
-    except Exception:                                       # noqa: BLE001 - no game copy: only the source is guarded
-        pass
     for guarded in (source.folder, game):
         if guarded and _inside(out_dir, guarded):
             raise Bf1943ImportError(f'{out_dir}: the output folder may not lie inside {guarded}')
@@ -263,8 +266,10 @@ def check(source, opfor=None, log=print):
     imp = Importer(source, opfor)
     bones, names = imp.soldier_map()
     pc_names = None
+    fails: list[str]
+    counts: dict[str, int]
     fails, counts = [], {}
-    for k, (rel, e) in sorted(source.entries.items()):
+    for k, (_rel, e) in sorted(source.entries.items()):
         if e['type'] not in ANIMATIONS + ('GrannyModel',):
             continue
         try:

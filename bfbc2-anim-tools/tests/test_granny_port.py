@@ -24,8 +24,12 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-sys.path.insert(0, os.path.join(HERE, '..'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core', 'anim-tools')
 import granny  # noqa: E402
 
 KINDS = ('GrannyAnimation', 'DeltaAnimation', 'GrannyModel')
@@ -95,6 +99,8 @@ def xbox_corpus(check, root):
         pc_names = fbrb.names(bundles[0])
         common = sorted(k for k in xb if k in pc_names)
         pcs = fbrb.read(bundles[0], common)
+        counts: dict[str, int]
+        fails: list[str]
         counts, fails, skipped = {}, [], 0
         for k in common:
             x = open(os.path.join(xdir, *xb[k][0].split('/')), 'rb').read()
@@ -131,8 +137,7 @@ def bf1943(check, root):
         print('SKIP Battlefield 1943: no extracted copy (Rising Sun workspace) or no BF1943 bundle reader')
         return
     sys.path.insert(0, fb)
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-mesh-viewer'))
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-shader-tools'))
+    suite_paths.use('shader-tools', 'mesh-viewer')
     import fbrb1943
     import meshview
     import shaderdb

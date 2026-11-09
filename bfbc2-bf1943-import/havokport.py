@@ -25,7 +25,12 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'bfbc2-console-convert'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('console-convert')
 import havok  # noqa: E402
 
 MAGIC = havok.MAGIC
@@ -169,7 +174,7 @@ def restructure(b, template, classes, table=None):
         nxt = [s for s in starts if s > o]
         return (nxt[0] if nxt else loc) - o
 
-    for o, n in dropped:                            # their own pointers go with them
+    for o, _n in dropped:                            # their own pointers go with them
         for s in [s for s in local if o <= s < o + span(o)]:
             del local[s]
     slot_map = {}                                   # old slot -> new slot (None: dropped), in rewritten objects
@@ -249,7 +254,7 @@ def restructure(b, template, classes, table=None):
             raise PortError(f'a global fixup into section {tags[sec]}')
     new_virt = [(o, 0, at[_rename(n, classes)]) for o, n in kept]
 
-    def table(rows, size):
+    def pack_table(rows, size):
         out = bytearray()
         for r in rows:
             out += struct.pack('>%dI' % (size // 4), *r)
@@ -257,9 +262,9 @@ def restructure(b, template, classes, table=None):
             out += b'\xff'
         return out
 
-    lt = table(sorted(new_local.items()), 8)
-    gt = table(sorted(new_glob), 12)
-    vt = table(sorted(new_virt), 12)
+    lt = pack_table(sorted(new_local.items()), 8)
+    gt = pack_table(sorted(new_glob), 12)
+    vt = pack_table(sorted(new_virt), 12)
     d_loc = len(content)
     d_glob = d_loc + len(lt)
     d_virt = d_glob + len(gt)

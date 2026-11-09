@@ -15,11 +15,17 @@ import struct
 import subprocess
 import sys
 import tempfile
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.dirname(HERE)
 SUITE = os.path.dirname(TOOL)
-sys.path[:0] = [TOOL, os.path.join(SUITE, 'core')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('stockmp', 'core')
 
 import author  # noqa: E402
 import config as cfgmod  # noqa: E402
@@ -218,7 +224,7 @@ def quick(tmp):
     d = dbxbin.parse(lvl)
     rep = author.Author(d, dbxbin.parse(donor), c, levelmodel.Model(d)).build()
     data = dbxbin.write(d)
-    f = coredbx.parse(data)
+    f: Any = coredbx.parse(data)        # parsed files navigated loosely: a missing field fails with an exception
     inst = {e.attr('guid').upper(): e for e in f.instances}
     lv = inst[G(99)]
     objs = [i.attr('ref').upper() for i in lv.child('Objects').children]
@@ -268,7 +274,7 @@ def quick(tmp):
     cm = cfgmod.generate(m, 'test_01', KITS, {}, layer='minimal', stock_spawners='keep')
     d4 = dbxbin.parse(lvl)
     author.Author(d4, dbxbin.parse(donor), cm, levelmodel.Model(d4)).build()
-    f4 = coredbx.parse(dbxbin.write(d4))
+    f4: Any = coredbx.parse(dbxbin.write(d4))
     check(len(f4.instances) == len(coredbx.parse(lvl).instances)
           and coredbx.value(f4.instances[0].child('HasAI')) == 'true'
           and coredbx.value({e.attr('guid').upper(): e for e in f4.instances}[G(1)].child('PlayerType')) == 'SSAiPlayer',
@@ -285,13 +291,14 @@ def quick(tmp):
           'generator, Rush: spawners per stage and one stage switch')
     dr = dbxbin.parse(rl)
     author.Author(dr, dbxbin.parse(donor), cr, levelmodel.Model(dr)).build()
-    fr = coredbx.parse(dbxbin.write(dr))
+    fr: Any = coredbx.parse(dbxbin.write(dr))
     ir = {e.attr('guid').upper(): e for e in fr.instances}
     later = [s for s in cr['spawners'] if s['stage'] == 1]
     check(all(coredbx.value(ir[dbxbin.new_guid(author.NS, 'test_01', 'spawner', s['id'])].child('Enabled')) == 'false' for s in later),
           'Rush: later-stage spawners start disabled')
     lvr = next(e for e in fr.instances if e.attr('type').endswith('LevelData'))
-    stock = {e.attr('guid').upper() for e in coredbx.parse(rl).instances}
+    stock_file: Any = coredbx.parse(rl)
+    stock = {e.attr('guid').upper() for e in stock_file.instances}
     sw = [(c_.child('Source').attr('ref').upper(), coredbx.value(c_.child('TargetEvent').child('Name')))
           for c_ in lvr.child('EventConnections').children if c_.child('Target').attr('ref').upper() not in stock]
     from collections import Counter
@@ -319,7 +326,7 @@ def quick(tmp):
     ref = os.path.join(tmp, 'so.dbx')
     open(ref, 'wb').write(b.done(G(801), [so]))
     raw, pg, ig = pipeline.sector_asset(ref, 'TEST_01', 'Infantry', 'test_01', (-9, -4))
-    e = coredbx.parse(raw).instances[0]
+    e: Any = coredbx.parse(raw).instances[0]
     check(coredbx.value(e.child('Name')) == 'Levels/TEST_01/Precomputed/Infantry/SectorOffsets'
           and struct.unpack('>i', coredbx.numbers(e.child('XOffset'))[1][0])[0] == -9
           and struct.unpack('>i', coredbx.numbers(e.child('ZOffset'))[1][0])[0] == -4 and e.attr('guid') == ig,
@@ -349,9 +356,9 @@ def quick(tmp):
     cp = pipeline.Paths('mp_test', opfor=tmp, work=os.path.join(tmp, 'stockmp_c'), game=os.path.join(tmp, 'game_c'))
     shared = os.path.join(cp.common, 'mp_common')
     bundle = os.path.join(cp.game, 'Dist', 'win32', 'levels', 'mp_common', 'level-00.fbrb')
-    for f, data in ((os.path.join(shared, 'fbrb.manifest'), b'x'), (bundle, b'bundle')):
-        os.makedirs(os.path.dirname(f), exist_ok=True)
-        open(f, 'wb').write(data)
+    for fp, data in ((os.path.join(shared, 'fbrb.manifest'), b'x'), (bundle, b'bundle')):
+        os.makedirs(os.path.dirname(fp), exist_ok=True)
+        open(fp, 'wb').write(data)
     os.utime(bundle, (1_700_000_000, 1_700_000_000))
     os.utime(os.path.join(shared, 'fbrb.manifest'), (1_700_000_100, 1_700_000_100))
     calls = []

@@ -22,6 +22,7 @@ Layout (all little-endian; checked against the in-game terrain samples of 13 cam
 import os
 import struct
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -37,10 +38,10 @@ class Heightfield:
     heights: np.ndarray    # (size, size) float32 metres
 
     @property
-    def cell(self):
+    def cell(self) -> tuple[float, float]:
         return (self.max[0] - self.min[0]) / self.size, (self.max[2] - self.min[2]) / self.size
 
-    def height(self, x, z):
+    def height(self, x: Any, z: Any) -> np.ndarray:
         """Heights at world (x, z), each grid square split along its (i, j)-(i+1, j+1) diagonal."""
         cx, cz = self.cell
         u = (np.asarray(x, float) - self.min[0]) / cx
@@ -53,7 +54,7 @@ class Heightfield:
         a, b, c, d = H[j, i], H[j, i + 1], H[j + 1, i], H[j + 1, i + 1]
         return np.where(fu > fw, a + (b - a) * fu + (d - b) * fw, a + (c - a) * fw + (d - c) * fu)
 
-    def mesh(self, stride=2):
+    def mesh(self, stride: int = 2) -> tuple[np.ndarray, np.ndarray]:
         """(vertices (n, 3) float32, triangles (m, 3) uint32) on every <stride>-th sample."""
         cx, cz = self.cell
         idx = np.arange(0, self.size, stride)
@@ -67,7 +68,7 @@ class Heightfield:
         return verts, tris
 
 
-def read(path):
+def read(path: str) -> Heightfield:
     data = open(path, 'rb').read()
     f = HEADER.unpack_from(data, 0)
     lo, hi, size = np.array(f[0:3]), np.array(f[3:6]), f[6]
@@ -78,10 +79,11 @@ def read(path):
     return Heightfield(lo, hi, size, raw, heights)
 
 
-def find(folder, lv):
+def find(folder: str, lv: str) -> str | None:
     """The level's .Heightfield-000.res under an unpacked terrain-00.fbrb, or None."""
+    want = f'{lv}.heightfield-000.res'.lower()       # any case of the level name
     for root, _, files in os.walk(folder):
         for name in files:
-            if name.lower() == f'{lv}.heightfield-000.res':
+            if name.lower() == want:
                 return os.path.join(root, name)
     return None

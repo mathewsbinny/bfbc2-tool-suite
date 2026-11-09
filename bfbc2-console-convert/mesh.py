@@ -11,6 +11,7 @@ converted from the console's encoding to the PC's in order, by the elements' for
     pc_bytes = mesh.convert(console_bytes, [(console_layout, pc_layout), ...])     # one pair per part
 """
 import struct
+from typing import Any, cast
 
 import numpy as np
 
@@ -121,7 +122,7 @@ def console_layouts(db):
         start, end = m.start(), m.end()                      # end: just past the NUL
         anchored = prev is not None and start <= prev + 16 < end
         if anchored:                                         # it follows a record: its name begins after that guid
-            start = prev + 16
+            start = cast(int, prev) + 16
         raw.append((db[start:end - 1].decode('latin-1').lower(), db[end:end + 16], anchored))
         prev = end
     # the first name of a run has no record before it: a printable guid byte there shows as a stray first letter,
@@ -168,7 +169,7 @@ def decode(b, layout, part, big_endian=True):
     n = (int(idx.max()) - lo + 1) if len(idx) else 0
     base = m['data'] + p['vertex_offset'] + lo * stride
     raw = np.frombuffer(b, np.uint8, n * stride, base).reshape(n, stride) if n else np.zeros((0, stride), np.uint8)
-    out = {'indices': (idx - lo).reshape(-1, 3)}
+    out: dict[str, np.ndarray] = {'indices': (idx - lo).reshape(-1, 3)}
     for f, usage, off, stream in els:
         if stream != 0 or usage not in USAGES or USAGES[usage] in out:
             continue
@@ -192,7 +193,7 @@ def _pair_by_kind(ec, ep, leftovers=False):
     """Console element index for each PC element when the two layouts hold the same elements in another order:
     the k-th PC element of a kind (format, usage, stream) takes the k-th console element of that kind. With
     leftovers, console elements beyond the PC layout's (the last of a kind) are left out."""
-    pools = {}
+    pools: dict[tuple[int, int, int], list[int]] = {}
     for i, (f, u, _, s) in enumerate(ec):
         pools.setdefault((PC_FORMAT.get(f, f), u, s), []).append(i)
     out = []
@@ -219,10 +220,10 @@ def index_count(p):
 def strip_to_list(s):
     """A triangle strip's indices -> a triangle list's (degenerate triangles left out, each triangle's winding the
     strip's: triangle i is (s[i], s[i+1], s[i+2]) for even i, (s[i+1], s[i], s[i+2]) for odd i)."""
-    out = []
+    out: list[tuple[int, int, int]] = []
     for i in range(len(s) - 2):
         a, b_, c = s[i], s[i + 1], s[i + 2]
-        if a == b_ or b_ == c or a == c:
+        if a in (b_, c) or b_ == c:
             continue
         out += (a, b_, c) if i % 2 == 0 else (b_, a, c)
     return out
@@ -254,6 +255,7 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     for n, (p, (lc, lp)) in enumerate(zip(m['parts'], layouts)):
         ec, sc = elements(lc)
         ep, sp = elements(lp)
+        keep: list[int] | None                       # None: the layouts do not pair up (raised below)
         keep = [i for i in range(len(ec)) if not (drop and i in drop[n])]
         if reorder:
             order = _pair_by_kind([ec[i] for i in keep], ep, leftovers=reorder == 'drop')
@@ -272,7 +274,7 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
             raise ConvertError(f'part {p["name"]!r}: stride {p["stride"]}, its console layout says {sc}')
         key = (p['vertex_offset'], bytes(lp), tuple(keep))
         plans.append((pairs, sc, sp, any(e[0] == 0x0D for e in ec), key))
-    layouts_at = {}
+    layouts_at: dict[int, set[tuple[Any, ...]]] = {}
     for p, plan in zip(m['parts'], plans):
         layouts_at.setdefault(p['vertex_offset'], set()).add(plan[4][1:])
 
@@ -293,8 +295,10 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     # count) in its own layout - or the copy of a larger window in the same layout - and a vertex offset that puts
     # its first index on the window (offset + index x stride), so indices stay as they are and depth-only parts that
     # draw several parts' triangles still find theirs
+    shared: dict[tuple[Any, ...], int]
+    windows: dict[tuple[Any, ...], list[tuple[int, int, int]]]
     shared, windows = {}, {}
-    new_offset = [None] * len(m['parts'])
+    new_offset: list[Any] = [None] * len(m['parts'])          # each part's PC vertex offset, filled in below
     single = [i for i, p in enumerate(m['parts']) if len(layouts_at[p['vertex_offset']]) == 1]
     order = single + sorted((i for i in range(len(m['parts'])) if i not in single),     # the console's order;
                             key=lambda i: -m['parts'][i]['vertices'])                   # windows: largest first

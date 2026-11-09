@@ -23,12 +23,12 @@ ATTRIBUTION = re.compile(r'co-authored-by|generated with \[?claude|noreply@anthr
 TRACKED_NEVER = re.compile(r'(\.exe|\.pyc|\.dll|\.pdb)$|(^|/)__pycache__/', re.I)
 
 
-def git(*args):
+def git(*args: str) -> str:
     return subprocess.run(['git', '-C', SUITE, *args], capture_output=True, text=True, encoding='utf-8',
                           errors='replace', check=True).stdout
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     results = []
 
     blobs = git('rev-list', '--objects', '--all').splitlines()

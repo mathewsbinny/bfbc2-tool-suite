@@ -9,7 +9,12 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(os.path.dirname(HERE))
-sys.path[:0] = [os.path.dirname(HERE), os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-bf1943-import')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('console-convert', 'core', 'bf1943-import')
 import soot  # noqa: E402
 from bfbc2core import fbrb  # noqa: E402
 
@@ -17,7 +22,7 @@ OPFOR = os.path.join(SUITE, '..', 'project-opfor-bfbc2')
 
 
 def soot_entries(pattern):
-    out = {}
+    out: dict[str, tuple[str, str]] = {}
     for p in glob.glob(pattern, recursive=True):
         try:
             entries = fbrb.entries(p)

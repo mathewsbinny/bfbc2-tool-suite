@@ -15,11 +15,15 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import Any
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path.insert(0, os.path.join(SUITE, 'core'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit'))
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools', 'navkit', 'core')
 
 
 class Checks:
@@ -36,8 +40,8 @@ class Stop(Exception):
 
 
 def navkit_apply(c, work):
-    import navkit
     import navbuild
+    import navkit
     from bfbc2core import navtune
     seen = {}
 
@@ -54,13 +58,16 @@ def navkit_apply(c, work):
     def fake_inputs(pr, lv, log=print):
         return 's.bin', 'forbid.npy', 1, 2, dict(detailed={'sectors': {1}}, ladders=[{'a': 1}], seeds=[], log=log)
 
+    def fake_load(path: str) -> Any:                 # navtune.load's stand-in: a Tune, not a NavTune
+        return Tune()
+
     def fake_build(*a, **kw):
         seen.update(kw)
         raise Stop
     side = os.path.join(work, 'lv.navtune.json')
     open(side, 'w').write('{}')
     saved = navkit.build_inputs, navbuild.build, navtune.load
-    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, fake_build, lambda p: Tune()
+    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, fake_build, fake_load
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             navkit._apply(Pr(), 'lv', side, None, lambda *a: None)
@@ -74,7 +81,7 @@ def navkit_apply(c, work):
     # a failed apply without --out still keeps its report beside the default output
     def failing_build(*a, **kw):
         raise navkit.NavKitError('the build failed here')
-    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, failing_build, lambda p: Tune()
+    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, failing_build, fake_load
     report = os.path.join(work, 'pathdata.hpd.report.txt')
     try:
         with contextlib.redirect_stdout(io.StringIO()):
@@ -88,9 +95,9 @@ def navkit_apply(c, work):
 
 
 def stockmp_install(c, work):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-stockmp-ai'))
-    import stockmp
+    suite_paths.use('stockmp')
     import pipeline
+    import stockmp
     game = os.path.join(work, 'game')
     paths = pipeline.Paths('mp_test', opfor=work, work=os.path.join(work, 'stockmp'), game=game)
     out = os.path.join(paths.root, 'out', 'game', 'Levels')
@@ -119,7 +126,7 @@ def stockmp_install(c, work):
 
 
 def studio_args(c):
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-navigation-studio'))
+    suite_paths.use('navigation-studio')
     try:
         import studio
     except ImportError as e:

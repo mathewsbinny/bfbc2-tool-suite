@@ -15,11 +15,16 @@ from the structured model (areas, portals, outlines, cells, neighbour links).
 import os
 import struct
 import sys
-from dataclasses import dataclass, field
 from collections.abc import Iterable, Iterator
-from typing import Any, List, Tuple
+from dataclasses import dataclass, field
+from typing import Any
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools')
 
 MAGIC = b'Kynogon HPD\0'
 HEADER_WORDS = 36           # u32 words after the magic (0x0C..0x9B)
@@ -34,7 +39,7 @@ MESH_MARKER = b'KynogonRuntimeMesh'
 class Node:
     id: int                  # node id; high bit = border node shared with a neighbouring sector
                              # (same id and position appear in that sector too)
-    pos: Tuple[float, float, float]  # world position, Y up
+    pos: tuple[float, float, float]  # world position, Y up
     flags: int               # always 0x80000000
     value: float             # DistEdgeMax on the first node of a sector (infantry 15, vehicle 50), else 0
     a: int                   # index of this node's first outgoing edge + 1 (edges are sorted by source)
@@ -52,19 +57,19 @@ class Edge:
 @dataclass
 class Sector:
     id: int                  # grid coordinates, 0xXXYY
-    bounds: Tuple[float, ...]  # minX, maxX, minY, maxY, minZ, maxZ
+    bounds: tuple[float, ...]  # minX, maxX, minY, maxY, minZ, maxZ
     reserved: int            # always 0 so far
     date: int                # build date YYMMDD, zero-based month (100007 = 2010-01-07)
     time: int                # build time HHMMSScc
-    nodes: List[Node] = field(default_factory=list)
-    edges: List[Edge] = field(default_factory=list)
+    nodes: list[Node] = field(default_factory=list)
+    edges: list[Edge] = field(default_factory=list)
     mesh: bytes = b''        # runtime mesh record (starts with "KynogonRuntimeMesh"), raw for now
 
 
 @dataclass
 class HpdFile:
-    header: Tuple[int, ...]  # the 36 header words (word 2 = sector count, rewritten on save)
-    sectors: List[Sector]
+    header: tuple[int, ...]  # the 36 header words (word 2 = sector count, rewritten on save)
+    sectors: list[Sector]
 
 
 def parse(data: bytes) -> HpdFile:
@@ -315,7 +320,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == '__main__':
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'core'))
+    suite_paths.use('core')
     from bfbc2core import errors
     errors.setup('hpdtool', gui=False)       # a log; an unexpected error explained in words (exit code 1)
     with errors.guard():

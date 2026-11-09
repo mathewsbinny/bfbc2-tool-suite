@@ -13,15 +13,20 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'core'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core')
 if __name__ == '__main__':                      # the log and error reports start before the heavy imports,
-    from bfbc2core import errors                 # so a missing library is reported too
+    from bfbc2core import errors  # so a missing library is reported too
     errors.setup('map-inspector', gui='--screenshot' not in sys.argv)
 
 import numpy as np  # noqa: E402
+from bfbc2core import dbx, viewer  # noqa: E402
+from bfbc2core import level as levelmod
 from imgui_bundle import imgui  # noqa: E402
-
-from bfbc2core import dbx, level as levelmod, viewer  # noqa: E402
 
 TERRAIN_ID = 0xFFFFFE
 WATER_ID = 0xFFFF00          # + the index of the triangle's shader in Inspector.water_shaders
@@ -52,6 +57,45 @@ LAYERS = [
 HIDDEN_AT_START = {'area point', 'other', 'effect'}
 TEAM_NAME = {1: 'team 1', 2: 'team 2', 0: 'neutral', None: 'no team'}
 REF_TO, REF_FROM, MEASURE = (1.0, 0.9, 0.2), (0.3, 0.95, 1.0), (1.0, 1.0, 1.0)
+
+
+def parse_args(argv: list[str]) -> tuple[dict[str, str], list[str]]:
+    """(options, positional arguments): '--name value' pairs; anything else (a trailing option too) is positional."""
+    opts: dict[str, str] = {}
+    args: list[str] = []
+    k = 1
+    while k < len(argv):
+        if argv[k].startswith('--') and k + 1 < len(argv):
+            opts[argv[k]] = argv[k + 1]
+            k += 2
+        else:
+            args.append(argv[k])
+            k += 1
+    return opts, args
+
+
+def search_results(entities: list[levelmod.Entity], query: str, type_filter: str = '', limit: int = 500) -> list[levelmod.Entity]:
+    """The search panel's list: entities of the type filter (any type when empty) whose GUID, type, id, name or
+    blueprint contains the query (2 characters or more; ignoring case). A shorter query lists the filtered type, or
+    nothing without a filter."""
+    q = query.lower().strip()
+    pool = [e for e in entities if not type_filter or e.short_type == type_filter]
+    if len(q) >= 2:
+        pool = [e for e in pool if q in ' '.join((e.guid, e.type, e.id or '', e.name or '', e.blueprint or '')).lower()]
+    elif not type_filter:
+        pool = []
+    return pool[:limit]
+
+
+def measure_figures(pts: list[np.ndarray]) -> dict[str, float] | None:
+    """The measure panel's figures of the last segment (metres, degrees) and the whole path, or None under 2 points."""
+    if len(pts) < 2:
+        return None
+    d = pts[-1] - pts[-2]
+    flat = float(np.hypot(d[0], d[2]))
+    return {'segment': float(np.linalg.norm(d)), 'horizontal': flat, 'height': float(d[1]),
+            'slope': float(np.degrees(np.arctan2(d[1], max(flat, 1e-9)))),
+            'total': sum(float(np.linalg.norm(b - a)) for a, b in zip(pts, pts[1:]))}
 
 
 def layer_name(e):
@@ -220,13 +264,7 @@ class Inspector:
                     self.type_filter, changed_t = t, True
             imgui.end_combo()
         if changed_q or changed_t:
-            q = self.search.lower().strip()
-            pool = [e for e in self.lvl.entities if not self.type_filter or e.short_type == self.type_filter]
-            if len(q) >= 2:
-                pool = [e for e in pool if q in ' '.join((e.guid, e.type, e.id or '', e.name or '', e.blueprint or '')).lower()]
-            elif not self.type_filter:
-                pool = []
-            self.results = pool[:500]
+            self.results = search_results(self.lvl.entities, self.search, self.type_filter)
         imgui.text_disabled(f'{len(self.results)} shown - GUID, type, id, name or blueprint')
         imgui.begin_child('results', (0, 0))
         for e in self.results:
@@ -329,16 +367,14 @@ class Inspector:
             depth = self.water_above(p)
             if depth is not None:
                 imgui.text(f'water surface above it: {depth:+.2f} m')
-            if len(pts) >= 2:
-                d = pts[-1] - pts[-2]
-                flat = float(np.hypot(d[0], d[2]))
-                imgui.text(f'last segment: {np.linalg.norm(d):.2f} m')
-                imgui.text(f'  horizontal {flat:.2f} m, height {d[1]:+.2f} m, '
-                           f'slope {np.degrees(np.arctan2(d[1], max(flat, 1e-9))):+.1f} deg')
-                imgui.text(f'path total: {sum(float(np.linalg.norm(b - a)) for a, b in zip(pts, pts[1:])):.2f} m')
+            f = measure_figures(pts)
+            if f is not None:
+                imgui.text(f'last segment: {f["segment"]:.2f} m')
+                imgui.text(f'  horizontal {f["horizontal"]:.2f} m, height {f["height"]:+.2f} m, slope {f["slope"]:+.1f} deg')
+                imgui.text(f'path total: {f["total"]:.2f} m')
         imgui.end()
 
-    def water_above(self, p):
+    def water_above(self, p: np.ndarray) -> float | None:
         """Height of the water surface over point p minus p's height, or None where there is no water."""
         w = self.lvl.water
         if w is None or not len(w):
@@ -389,14 +425,7 @@ class Inspector:
 
 
 def main(argv):
-    opts, args, k = {}, [], 1
-    while k < len(argv):
-        if argv[k].startswith('--') and k + 1 < len(argv):
-            opts[argv[k]] = argv[k + 1]
-            k += 2
-        else:
-            args.append(argv[k])
-            k += 1
+    opts, args = parse_args(argv)
     if not args:                                            # started without a level: ask for one
         from bfbc2core import pick
         lv = pick.pick_level('BFBC2 Map Inspector')

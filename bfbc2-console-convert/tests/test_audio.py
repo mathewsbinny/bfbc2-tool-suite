@@ -14,7 +14,12 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(os.path.dirname(HERE))
-sys.path[:0] = [os.path.dirname(HERE), os.path.join(SUITE, 'core'), os.path.join(SUITE, 'bfbc2-bf1943-import')]
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('console-convert', 'core', 'bf1943-import')
 import audio  # noqa: E402
 from bfbc2core import fbrb  # noqa: E402
 
@@ -32,7 +37,7 @@ SFX = ['sound/beach_sfx/weapons/', 'sound/beach_sfx/vehicles/', 'sound/explosion
 
 def waves(pattern):
     """{lower-case name: bytes} of every Wave resource in the bundles (one read per bundle)."""
-    where = {}
+    where: dict[str, tuple[str, str]] = {}
     for p in glob.glob(pattern, recursive=True):
         try:
             entries = fbrb.entries(p)
@@ -180,8 +185,8 @@ def main():
                     xas_eq += np.array_equal(mine, b)
                     cs.append(corr(a, b))
                     ss.append(snr(b, a))
-                    e = audio.decode_xas(audio.encode_xas(a, sx.rate))
-                    enc.append((snr(a, e), k, i, a))
+                    rt = audio.decode_xas(audio.encode_xas(a, sx.rate))
+                    enc.append((snr(a, rt), k, i, a))
                 pc = audio.convert(X[k], 'bfbc2')
                 wc = audio.read_wave(pc, 'bfbc2-pc')
                 same_struct = wc.words() == wp[k].words() and all(
@@ -220,12 +225,13 @@ def main():
         print(f'SKIP Battlefield 1943: {e}')
         return 1 if fails else 0
     ks = sorted(k for k, (_, e) in src.entries.items() if e.get('type') == 'Wave')
+    stats: collections.Counter[tuple[int, int, bool, int] | str]
     ws, bad, stats = {}, [], collections.Counter()
     for k in ks:
         try:
             b = src.data(k)
             w = ws[k] = audio.read_wave(b, 'bf1943')
-            for i, s in enumerate(w.segments):
+            for s in w.segments:
                 if s:
                     h = audio._ea_header(*struct.unpack_from('>II', s[0], 0))
                     stats[(h['version'], h['codec'], h['rate'] == int(w.rate), w.word04)] += 1
@@ -263,11 +269,11 @@ def main():
         good &= w.intro == segs[0] and w.outro == segs[2]
         d = np.vstack([audio.ffmpeg_decode_xas(st) for st in sts])
         s = snr(a, d)
-        bound = f', the format\'s bound {best_xas_snr(a):.1f} dB' if s < 30 else ''
+        bound_note = f', the format\'s bound {best_xas_snr(a):.1f} dB' if s < 30 else ''
         check(good and len(d) == len(a) and s > 20 and corr(a, d) > 0.99,
               f'Battlefield 1943 {k.split("/")[-1]}: {w.channels} ch {rate} Hz, {len(a)} samples '
               f'{"(streamed) " if streams else ""}{"segments " + str(segs) + " " if segs[0] or segs[2] else ""}-> PC '
-              f'Wave {len(pc)} bytes; ffmpeg\'s adpcm_ea_xas vs the XMA decode: SNR {s:.1f} dB{bound}, correlation '
+              f'Wave {len(pc)} bytes; ffmpeg\'s adpcm_ea_xas vs the XMA decode: SNR {s:.1f} dB{bound_note}, correlation '
               f'{corr(a, d):.5f}')
     return 1 if fails else 0
 

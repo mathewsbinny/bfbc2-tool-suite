@@ -15,9 +15,8 @@ DICE and NavKit file follows.
 """
 import math
 
-import numpy as np
-
 import hpdtool
+import numpy as np
 
 JOIN_XZ, JOIN_Y, Y_OFFSET = 15.0, 4.0, 0.95
 GRAPH_OPS = ('link-areas', 'route-edge')

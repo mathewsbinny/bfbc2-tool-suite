@@ -28,9 +28,12 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-for p in ('core', 'bfbc2-shader-tools'):
-    sys.path.insert(0, os.path.join(SUITE, p))
-sys.path.insert(0, HERE)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('bf1943-import', 'shader-tools', 'core')
 from bfbc2core import dbx  # noqa: E402
 
 NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*$')
@@ -62,16 +65,18 @@ def instances(data):
     f = dbx.parse(data)
     out = {}
     for inst in f.instances:
-        fields = {}
+        fields: dict[str, tuple[int | str, str]] = {}
         flatten(inst, '', fields)
         out[(inst.attr('guid') or '').upper()] = (inst.attr('type'), fields)
     return out
 
 
 def compare(src, ix, names, log=print):
-    stats = collections.defaultdict(collections.Counter)            # (type, field) -> class counts
-    examples = collections.defaultdict(list)
-    enums = collections.defaultdict(collections.Counter)            # (type, field) -> (number, name) counts
+    stats: collections.defaultdict[tuple[str, str], collections.Counter[str]] = \
+        collections.defaultdict(collections.Counter)                # (type, field) -> class counts
+    examples: collections.defaultdict[tuple[str, str], list[str]] = collections.defaultdict(list)
+    enums: collections.defaultdict[tuple[str, str], collections.Counter[tuple[str, str]]] = \
+        collections.defaultdict(collections.Counter)                # (type, field) -> (number, name) counts
     partitions = matched = 0
     for k in names:
         try:
@@ -107,12 +112,12 @@ def compare(src, ix, names, log=print):
                     if len(examples[key]) < 3:
                         examples[key].append(f'{k}: {va[:30]} / DICE {vb[:30]}')
             dice_values = collections.defaultdict(list)
-            for p, (kb, vb) in only_b.items():
+            for p, (_kb, vb) in only_b.items():
                 dice_values[vb].append(p)
             deeper = collections.defaultdict(list)                  # field name -> DICE-only paths ending in it
             for p in only_b:
                 deeper[p.rsplit('.', 1)[-1]].append(p)
-            for p, (ka, va) in only_a.items():
+            for p, (_ka, va) in only_a.items():
                 key = (tshort, re.sub(r'\[\d+\]', '[]', p))
                 head, _, leaf = p.rpartition('.')
                 nest = [q for q in deeper.get(leaf, []) if q.startswith(head + '.') and q.count('.') > p.count('.')]
@@ -136,7 +141,7 @@ def compare(src, ix, names, log=print):
 
 def main(argv=None):
     import bf1943import
-    sys.path.insert(0, os.path.join(SUITE, 'bfbc2-mesh-viewer'))
+    suite_paths.use('mesh-viewer')
     import meshview
     import shaderdb
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
@@ -148,7 +153,7 @@ def main(argv=None):
     both = sorted(k for k in src.entries if k.endswith('.dbx') and k in ix.where and
                   (not a.names or any(x.lower() in k for x in a.names)))
     partitions, matched, stats, examples, enums = compare(src, ix, both)
-    classes = collections.Counter()
+    classes: collections.Counter[str] = collections.Counter()
     for c in stats.values():
         classes.update(c)
     with open(a.o, 'w', encoding='utf-8') as f:

@@ -28,7 +28,12 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools'))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('navkit-tools')
 
 FORMAT, VERSION = 'bfbc2-stockmp-ai', 1
 KIT_NAMES = ('assault', 'demolition', 'support', 'recon')     # the multiplayer classes (internal names)
