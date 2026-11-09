@@ -350,6 +350,17 @@ def main(argv):
         open(blank, 'wb').write(b'\0' * (40 * SECTOR))
         r = xiso_cli('list', blank)
         c.check(r.returncode != 0 and 'no XDVDFS volume' in (r.stdout + r.stderr), 'xiso: an image without a volume is refused')
+        cut = os.path.join(work, 'cut.iso')                  # ends inside level-00.fbrb (5000 bytes from sector 42)
+        build_xiso(cut, 0)
+        with open(cut, 'r+b') as f:
+            f.truncate(43 * SECTOR)
+        what = 'xiso: extract from a truncated image stops with an error (it used to loop forever)'
+        try:
+            r = subprocess.run([sys.executable, os.path.join(ROOT, 'xiso', 'xiso.py'), 'extract', cut,
+                                os.path.join(work, 'cut')], capture_output=True, text=True, timeout=60)
+            c.check(r.returncode != 0 and 'image ends' in (r.stdout + r.stderr), what, (r.stdout + r.stderr)[-300:])
+        except subprocess.TimeoutExpired:
+            c.check(False, what)
 
         for read_only in (True, False):
             label = 'read-only package' if read_only else 'package with two hash tables'

@@ -69,7 +69,10 @@ def main():
                 with open(dst, 'wb') as o:
                     left = sz
                     while left:
-                        chunk = f.read(min(left, 1 << 22)); o.write(chunk); left -= len(chunk)
+                        chunk = f.read(min(left, 1 << 22))
+                        if not chunk:           # the image ends inside the file (truncated, or a corrupt entry)
+                            raise SystemExit(f'{path}: the image ends {left:,} bytes before the end of the file')
+                        o.write(chunk); left -= len(chunk)
                 n += 1
             print(f'extracted {n} files to {out}')
 
