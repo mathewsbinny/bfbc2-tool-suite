@@ -290,7 +290,7 @@ def main(argv):
 
 if __name__ == '__main__':
     try:
-        sys.stdout.reconfigure(line_buffering=True)   # progress shows at once when the output goes to a file
+        sys.stdout.reconfigure(line_buffering=True)   # type: ignore[union-attr]  # progress shows at once when the output goes to a file
     except AttributeError:                            # stdout replaced by something without it
         pass
     from bfbc2core import errors
