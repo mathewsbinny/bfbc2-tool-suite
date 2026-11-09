@@ -2,6 +2,8 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
 
 - havokport: a model group's shape subparts get translation.w 1.0 and the shape's aabbCenter.w / aabbHalfExtents.w
   as DICE's exporter writes them (values from two of DICE's own levels: mp_006's rigid group, sp_008's static grid);
+- mesh.texcoord_element: the texture coordinates are the first half2 / float2 usage-0 element (soldiers, trees),
+  else the first other float one (material-mask meshes), never a colour byte element; decode reads that one;
 
   python tests\test_converter_units.py
 """
@@ -17,6 +19,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'bf1943-import', 'console-convert')
 import havokport  # noqa: E402
+import mesh  # noqa: E402
 
 FAILED = [0]
 
@@ -94,8 +97,43 @@ def havok_model_group() -> None:
           == 1.0, 'havokport: a child without a known local box leaves the shape\'s w lanes alone')
 
 
+def texcoords() -> None:
+    import numpy as np
+    soldier = [(7, 1, 0, 0), (5, 7, 6, 0), (12, 2, 8, 0), (12, 3, 12, 0), (8, 0, 16, 0), (8, 4, 24, 0), (8, 5, 32, 0),
+               (6, 0, 40, 0), (6, 0, 44, 0), (6, 0, 48, 0)]
+    tree = [(7, 1, 0, 0), (5, 7, 6, 0), (8, 0, 8, 0), (8, 4, 16, 0), (8, 5, 24, 0), (6, 0, 32, 0), (4, 0, 36, 0)]
+    matmask = [(7, 1, 0, 0), (5, 7, 6, 0), (12, 2, 8, 0), (12, 0, 12, 0), (12, 3, 16, 0), (12, 0, 20, 0),
+               (8, 4, 24, 0), (8, 0, 32, 0), (8, 0, 40, 0)]
+    plain = [(3, 1, 0, 0), (6, 0, 12, 0), (8, 0, 16, 0)]
+    got = [mesh.texcoord_element(e) for e in (soldier, tree, matmask, plain, [(3, 1, 0, 0)])]
+    check(got == [7, 5, 7, 1, None], 'mesh.texcoord_element: soldier half2 at 40, tree half2 at 32, material mask '
+          'half4 at 32, plain first half2, none', str(got))
+    # decode on a little-endian part: position float3, a grey half4 (usage 0), the half2 coordinates
+    layout = bytearray(0x49)
+    els = [(3, 1, 0, 0), (8, 0, 12, 0), (6, 0, 20, 0)]
+    for i, e in enumerate(els):
+        layout[4 * i:4 * i + 4] = bytes(e)
+    layout[64], layout[69] = len(els), 24
+    verts = b''.join(struct.pack('<3f', i, 0, 0) + np.array([0.5, 0.5, 0.5, 1], '<f2').tobytes()
+                     + np.array([i / 4, 1 - i / 4], '<f2').tobytes() for i in range(3))
+    name = b'p'
+    part = name + bytes(1) + struct.pack('<4I', 1, 3, 0, 0) + bytes([24, 3, 0, 0]) + struct.pack('<H', 0)
+    head = struct.pack('<I', 0) + bytes(2) + bytes([1])
+    lists = struct.pack('<I', 0) * 4
+    idx = struct.pack('<3H', 0, 1, 2)
+    b = head + part + lists + struct.pack('<3I', len(verts), len(idx), 0) + verts + idx
+    try:
+        d = mesh.decode(b, bytes(layout), 0, big_endian=False)
+        ok = np.allclose(d['uvs'], np.array([[0, 1], [0.25, 0.75], [0.5, 0.5]]))
+        detail = str(d['uvs'].tolist())
+    except Exception as ex:                                       # noqa: BLE001
+        ok, detail = False, repr(ex)
+    check(ok, 'mesh.decode: uvs from the half2, not the half4 before it', detail)
+
+
 def main() -> int:
     havok_model_group()
+    texcoords()
     print('all passed' if not FAILED[0] else f'{FAILED[0]} check(s) failed')
     return 1 if FAILED[0] else 0
 

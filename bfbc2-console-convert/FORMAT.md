@@ -162,10 +162,12 @@ part's index range may cover several parts' triangles; a part uses the vertices 
 
 **Vertex layouts are not in the file:** the level's shader database names each part (`<mesh>_lod<N>/<part>/<technique>`)
 with a layout (the suite's `bfbc2-shader-tools\FORMAT.md`: 73-byte records, 16 x (format, usage, offset, stream),
-the element count at byte 64, the stride at 69). Element formats: 0x03 float3, 0x04 float4, 0x05 half, 0x06 half2,
+the element count at byte 64, the stride at 69). Element formats: 0x02 float2, 0x03 float3, 0x04 float4, 0x05 half, 0x06 half2,
 0x07 half3, 0x08 half4, 0x0C ubyte4 (bone indices, weights), console-only 0x2B (signed normalized 11:11:10 ->
 PC half4 x, y, z, 1) and 0x0D (unsigned normalized bytes w, z, y, x -> PC half4). Usage: 0 texture coordinate (the
-n-th in element order), 1 position, 2 bone indices, 3 bone weights, 4 normal, 5 tangent, 6 binormal, 7 position w.
+n-th in element order; the texture's own is the first half2 / float2 one - soldiers start with a grey half4,
+trees with a half4 of zeros - else the first other float one: `mesh.texcoord_element`), 1 position, 2 bone
+indices, 3 bone weights, 4 normal, 5 tangent, 6 binormal, 7 position w.
 PC weapons: one bone per vertex (all four indices equal, weights 255, 0, 0, 0), normal / tangent / binormal w = 1,
 binormal = -(normal x tangent) or + where the texture is mirrored.
 

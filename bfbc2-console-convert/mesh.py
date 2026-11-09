@@ -16,8 +16,8 @@ from typing import Any, cast
 import numpy as np
 
 # vertex element formats (layout records): size in bytes and how a console value becomes a PC one
-SIZE = {0x03: 12, 0x04: 16, 0x05: 2, 0x06: 4, 0x07: 6, 0x08: 8, 0x0C: 4, 0x0D: 4, 0x2B: 4}
-SWAP = {0x03: 4, 0x04: 4, 0x05: 2, 0x06: 2, 0x07: 2, 0x08: 2, 0x0C: 1}   # same format: values byte-swapped by width
+SIZE = {0x02: 8, 0x03: 12, 0x04: 16, 0x05: 2, 0x06: 4, 0x07: 6, 0x08: 8, 0x0C: 4, 0x0D: 4, 0x2B: 4}
+SWAP = {0x02: 4, 0x03: 4, 0x04: 4, 0x05: 2, 0x06: 2, 0x07: 2, 0x08: 2, 0x0C: 1}   # same format: values byte-swapped by width
 PC_FORMAT = {0x2B: 0x08, 0x0D: 0x08}                                    # console-only packed formats -> 4 halves
 
 
@@ -144,13 +144,35 @@ def console_layouts(db):
     return {n: found[g] for n, g in out.items() if g in found}
 
 
+TEXCOORD_PAIRS = (0x06, 0x02)          # two-component texture coordinates: half2, float2
+TEXCOORD_FLOATS = (0x06, 0x02, 0x07, 0x08, 0x03, 0x04)
+
+
+def texcoord_element(els):
+    """Index into els of the element holding a part's texture coordinates (stream 0, usage 0), or None. Usage 0 is
+    every texture-coordinate-like element, and the first is not always the texture's: BFBC2's soldiers start with a
+    half4 (a grey value, its w 1) at offset 16 and keep the coordinates in the half2 at 40; trees start with a half4
+    of zeros before the bark's half2. So: the first two-component one (half2 / float2); failing that, the first other
+    float one (a material-mask mesh's half4, its x / y the coordinates) - never a byte one (its colour). Found over
+    every layout of the game's shader databases (FORMAT.md section 3)."""
+    zero = [(i, f) for i, (f, usage, _, stream) in enumerate(els) if usage == 0 and stream == 0]
+    for i, f in zero:
+        if f in TEXCOORD_PAIRS:
+            return i
+    for i, f in zero:
+        if f in TEXCOORD_FLOATS:
+            return i
+    return None
+
+
 USAGES = {0: 'uvs', 1: 'positions', 2: 'blend_indices', 3: 'weights', 4: 'normals', 5: 'tangents', 6: 'binormals'}
-_PC_DTYPE = {0x03: ('<f4', 3), 0x04: ('<f4', 4), 0x05: ('<f2', 1), 0x06: ('<f2', 2), 0x07: ('<f2', 3),
+_PC_DTYPE = {0x02: ('<f4', 2), 0x03: ('<f4', 3), 0x04: ('<f4', 4), 0x05: ('<f2', 1), 0x06: ('<f2', 2), 0x07: ('<f2', 3),
              0x08: ('<f2', 4), 0x0C: ('u1', 4)}
 
 
 def decode(b, layout, part, big_endian=True):
-    """One part of a MeshData file as arrays: {positions, normals, tangents, binormals, uvs, weights (0..1),
+    """One part of a MeshData file as arrays: {positions, normals, tangents, binormals, uvs (the texture coordinates:
+    texcoord_element), weights (0..1),
     blend_indices (into the part's bone palette), bones (skeleton indices: the palette applied), indices (m, 3; into
     these arrays)} - each element present in the layout record body (console: the source game's shader database; PC:
     BFBC2's). Only the vertices the part's triangles use (its window) are read; stream 0."""
@@ -170,8 +192,9 @@ def decode(b, layout, part, big_endian=True):
     base = m['data'] + p['vertex_offset'] + lo * stride
     raw = np.frombuffer(b, np.uint8, n * stride, base).reshape(n, stride) if n else np.zeros((0, stride), np.uint8)
     out: dict[str, np.ndarray] = {'indices': (idx - lo).reshape(-1, 3)}
-    for f, usage, off, stream in els:
-        if stream != 0 or usage not in USAGES or USAGES[usage] in out:
+    uv = texcoord_element(els)
+    for i, (f, usage, off, stream) in enumerate(els):
+        if stream != 0 or usage not in USAGES or USAGES[usage] in out or (usage == 0 and i != uv):
             continue
         fp = PC_FORMAT.get(f, f) if big_endian else f
         if fp not in _PC_DTYPE:
