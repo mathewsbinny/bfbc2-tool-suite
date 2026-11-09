@@ -24,6 +24,12 @@ import os
 import socket
 import subprocess
 import time
+from collections.abc import Callable, Iterator
+from typing import Any
+
+Run = dict[str, Any]                 # a saved run (the JSON above)
+Result = dict[str, Any]              # RESULT
+Log = Callable[[str], object]
 
 FORMAT, VERSION = 'bfbc2-harness-run', 1
 LABEL = {'pass': 'ok  ', 'info': 'info', 'warn': 'warn', 'fail': 'FAIL', 'skip': 'skip', 'hold': 'hold', 'error': 'ERR '}
@@ -40,7 +46,7 @@ except Exception:                                  # quick tests without NavKit 
     PARITY_TOL = 0.05
 
 
-def spec(test, metric):
+def spec(test: str, metric: str) -> tuple[str, float]:
     """(direction, tolerance) of a metric: 'higher' / 'lower' is better, 'one' (closer to 1.0 is better), or 'count'
     (listed when it changes, never a regression)."""
     base = metric.split('.')[-1]
@@ -73,7 +79,7 @@ def spec(test, metric):
     return 'count', 0
 
 
-def suite_version(suite):
+def suite_version(suite: str) -> dict[str, Any]:
     try:
         c = subprocess.run(['git', '-C', suite, 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True, timeout=20)
         d = subprocess.run(['git', '-C', suite, 'status', '--porcelain'], capture_output=True, text=True, timeout=20)
@@ -82,19 +88,19 @@ def suite_version(suite):
         return {'commit': None, 'changed': None}
 
 
-def new_run(name, options, suite):
+def new_run(name: str, options: dict[str, Any], suite: str) -> Run:
     return {'format': FORMAT, 'version': VERSION, 'name': name, 'date': time.strftime('%Y-%m-%d %H:%M'),
             'host': os.environ.get('COMPUTERNAME') or socket.gethostname(), 'suite': suite_version(suite),
             'options': options, 'levels': {}, 'seconds': 0}
 
 
-def runs_dir(root, given=None):
+def runs_dir(root: str, given: str | None = None) -> str:
     d = given or os.path.join(root, 'work', 'harness', 'runs')
     os.makedirs(d, exist_ok=True)
     return d
 
 
-def shown(path, root):
+def shown(path: str, root: str) -> str:
     """A file's path for the log: relative to the OPFOR folder, or as given where it cannot be (another drive -
     os.path.relpath raises ValueError on Windows)."""
     try:
@@ -103,14 +109,14 @@ def shown(path, root):
         return path
 
 
-def path_of(name_or_path, folder):
+def path_of(name_or_path: str, folder: str) -> str:
     """A run's file: a path to a .json as given, else <folder>\\<name>.json."""
     if name_or_path.lower().endswith('.json') or os.path.sep in name_or_path or '/' in name_or_path:
         return name_or_path
     return os.path.join(folder, name_or_path.replace(' ', '_') + '.json')
 
 
-def save(run, path):
+def save(run: Run, path: str) -> str:
     tmp = path + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as fh:
         json.dump(run, fh, indent=1)
@@ -118,7 +124,7 @@ def save(run, path):
     return path
 
 
-def load(path):
+def load(path: str) -> Run:
     with open(path, encoding='utf-8') as fh:
         run = json.load(fh)
     if run.get('format') != FORMAT:
@@ -128,7 +134,7 @@ def load(path):
     return run
 
 
-def listing(folder):
+def listing(folder: str) -> list[tuple[str, str, int, dict[str, int]]]:
     out = []
     for f in sorted(os.listdir(folder)) if os.path.isdir(folder) else ():
         if f.endswith('.json'):
@@ -140,7 +146,7 @@ def listing(folder):
     return out
 
 
-def results(run):
+def results(run: Run) -> Iterator[tuple[str, str, str, Result]]:
     """(level, scope, test, result) of every result: scope is a file key, 'level' or 'ingame'."""
     for lv, L in run['levels'].items():
         for key, F in L.get('files', {}).items():
@@ -151,20 +157,20 @@ def results(run):
                 yield lv, scope, test, r
 
 
-def counts(run):
-    c = {}
+def counts(run: Run) -> dict[str, int]:
+    c: dict[str, int] = {}
     for *_x, r in results(run):
         c[r['status']] = c.get(r['status'], 0) + 1
     return c
 
 
-def counts_text(c):
+def counts_text(c: dict[str, int]) -> str:
     order = ['pass', 'info', 'warn', 'fail', 'error', 'skip', 'hold']
     words = {'pass': 'ok', 'info': 'info', 'warn': 'warn', 'fail': 'FAIL', 'error': 'error', 'skip': 'skipped', 'hold': 'on hold'}
     return ', '.join(f'{c[k]} {words[k]}' for k in order if c.get(k))
 
 
-def report(run, log=print, details=3):
+def report(run: Run, log: Log = print, details: int = 3) -> None:
     """The run as text: per level, per file, one line per test (and its first detail lines)."""
     s = run.get('suite') or {}
     log(f"harness run '{run['name']}' ({run['date']}, {run.get('host', '?')}; suite "
@@ -193,18 +199,18 @@ def report(run, log=print, details=3):
     log(f"\nsummary: {counts_text(counts(run))} ({run.get('seconds', 0):.0f} s)")
 
 
-def _line(log, test, r, details):
+def _line(log: Log, test: str, r: Result, details: int) -> None:
     log(f"    {LABEL.get(r['status'], r['status'])} {test:16s} {r.get('summary', '')}")
     if r['status'] in ('fail', 'warn', 'error'):
         for d in r.get('details', [])[:details]:
             log(f'           {d}')
 
 
-def compare(base, new, scale=1.0):
+def compare(base: Run, new: Run, scale: float = 1.0) -> list[tuple[Any, ...]]:
     """[(kind, level, scope, test, metric, before, after)]: kind 'worse', 'better', 'changed' (counts), 'missing'
     (in base, not in new), 'new' (in new only), 'status' (a test now failing: worse), 'fixed' (no longer failing),
     'pairs' (battery pairs routed before and not now, with the same points)."""
-    out = []
+    out: list[tuple[Any, ...]] = []
     a = {(lv, sc, t): r for lv, sc, t, r in results(base)}
     b = {(lv, sc, t): r for lv, sc, t, r in results(new)}
     for k in a.keys() - b.keys():
@@ -253,7 +259,7 @@ def compare(base, new, scale=1.0):
 REGRESSION = {'worse', 'status'}
 
 
-def compare_report(base, new, found, log=print):
+def compare_report(base: Run, new: Run, found: list[tuple[Any, ...]], log: Log = print) -> int:
     log(f"run '{new['name']}' ({new['date']}) against '{base['name']}' ({base['date']})")
     files_a = {(lv, key): F.get('sha1') for lv, L in base['levels'].items() for key, F in L.get('files', {}).items()}
     for lv, L in new['levels'].items():

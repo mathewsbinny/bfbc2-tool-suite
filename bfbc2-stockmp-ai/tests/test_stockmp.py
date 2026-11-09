@@ -28,7 +28,7 @@ import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
 from bfbc2core import dbx as coredbx  # noqa: E402
 
-FAILED = []
+FAILED: list[str] = []
 
 
 def check(ok, what):

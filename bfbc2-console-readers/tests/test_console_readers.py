@@ -279,8 +279,8 @@ def game_checks(c, xbox):
     for f in sorted(os.listdir(folder)):
         try:
             p = stfs.Package(os.path.join(folder, f))
-        except Exception as e:
-            c.check(False, f'package {f} opens', str(e))
+        except Exception as ex:
+            c.check(False, f'package {f} opens', str(ex))
             continue
         pkgs[p.name] = p
     c.check(all(p.magic == b'LIVE' for p in pkgs.values()) and len(pkgs) == 3, f'three LIVE packages: {sorted(pkgs)}')

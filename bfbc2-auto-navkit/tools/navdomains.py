@@ -148,7 +148,7 @@ class Transition:
     b: tuple                 # (domain, node) reached
     cost: float              # seconds
     tag: str = ''            # spawn name, shore link id ...
-    pos: tuple = None        # where it happens (x, y, z)
+    pos: tuple | None = None # where it happens (x, y, z)
 
 
 def dismount_points(land, infantry, reach=DISMOUNT_REACH, spacing=DISMOUNT_SPACING):

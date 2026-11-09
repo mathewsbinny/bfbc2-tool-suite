@@ -74,7 +74,7 @@ ROOF_RAISE = 2.0
 ROOF_SHARE = 0.5
 ROOF_NEAR = 2.0
 ROOF_NEAR_DY = 2.5
-ROOF_STATS = {}
+ROOF_STATS: dict[str, int] = {}
 DYNAMIC_ABSENT_HEADROOM = True     # dynamic props do not count as a ceiling for HEADROOM_BAND (they are absent for path
                                     # data - a closed gate's leaves made the floor beside it 'low headroom')
 DYNAMIC_FLOOR = 0.3                # a surface on a dynamic prop within this of walkable floor in a neighbouring column
@@ -88,9 +88,9 @@ OBJECTIVE_FLOOR = True             # an AI order position on a ForbidPathfinding
                                     # (mpobjective) are ForbidPathfinding; the order positions where bots arm them stood
                                     # in its hole - 14 of 15 Onslaught M-COM targets were on no area (2026-10-23)
 OBJECTIVE_REACH = 1.5
-OBJECTIVE_STATS = {}
+OBJECTIVE_STATS: dict[str, int] = {}
 STEEP_TERRAIN_SPAN = 0.8
-STEEP_STATS = {}
+STEEP_STATS: dict[str, int] = {}
 OUTLINE_Y_OFFSET = 0.95            # outline heights in pathdata.hpd = ground + EntityHeight / 2
 PITCH = 0.8
 SECTOR = 100.0

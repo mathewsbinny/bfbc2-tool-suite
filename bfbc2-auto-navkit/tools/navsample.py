@@ -42,7 +42,7 @@ class Samples:
     y: np.ndarray        # per surface
     normal: np.ndarray   # per surface, (n, 3) floats
     flags: np.ndarray    # per surface
-    hit: np.ndarray = None   # per surface (version 2): shape vtable, shape word +0x0C, collidable word +0x1C
+    hit: np.ndarray | None = None   # per surface (version 2): shape vtable, shape word +0x0C, collidable word +0x1C
 
     def centre(self, i, j):
         return self.min_x + i * self.pitch, self.min_z + j * self.pitch

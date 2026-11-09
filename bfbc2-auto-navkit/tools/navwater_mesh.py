@@ -585,7 +585,7 @@ class WaterMesh:
     shore: list = field(default_factory=list)
     spawns: list = field(default_factory=list)
     stats: dict = field(default_factory=dict)
-    infantry: dict = None
+    infantry: dict | None = None
 
     def node_pos(self, k):
         i, j = self.nodes[k]

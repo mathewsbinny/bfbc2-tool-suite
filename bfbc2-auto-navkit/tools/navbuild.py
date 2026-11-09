@@ -36,6 +36,7 @@ import os
 import sys
 import time
 from collections import defaultdict, deque
+from typing import Any
 
 import numpy as np
 
@@ -112,8 +113,8 @@ ORDER_NODES = True              # a route node at AI order positions far from an
                                 # order_points.json from levelobjects.py) - sp_004_b play test 2026-10-20: 0 failures. Was off until
                                 # the sp_004_b play test confirms it (2026-10-20)
 ORDER_NODE_MIN = 3.0            # ... when the nearest node on the same floor is farther than this (m)
-ORDER_STATS = {}                # nodes added, and those removed by prune_order_nodes (for reports)
-ORDER_IDS = set()               # ids of the order nodes of the current build
+ORDER_STATS: dict[str, Any] = {}                # nodes added, and those removed by prune_order_nodes (for reports)
+ORDER_IDS: set[int] = set()               # ids of the order nodes of the current build
 ORDER_MIN_ISLAND = 25           # an order node in a route island with fewer nodes is dropped (prune_order_nodes): such
                                 # pockets took the nearest-node matches next to the main networks (sp_009: connectivity
                                 # 66.99 without order nodes, 62.58 with all, 67.45 with this rule; sp_004_b keeps its
@@ -127,8 +128,8 @@ DETOUR_TRIGGER = 3.0            # repair node pairs within DIST_EDGE_MAX whose r
 DETOUR_MAX = 1.3                # ... to a walk of at most this x straight (DICE at the failing spot: 1.02-1.11)
 DETOUR_LINK_ALL = False         # also link new waypoints to all walkable neighbours within DIST_EDGE_MAX (4x the edges)
 DETOUR_PASSES = 2               # pass A, then pass B on the repaired graph
-REPAIR_STATS = {}               # nodes added per pass (summed over sectors; for reports)
-LADDER_STATS = {}               # ladder links made, and ladders whose ends lie in two sectors (not linked yet)
+REPAIR_STATS: dict[Any, int] = {}               # nodes added per pass (summed over sectors; for reports)
+LADDER_STATS: dict[str, int] = {}               # ladder links made, and ladders whose ends lie in two sectors (not linked yet)
 BORDER_NODE_SPACING = 10.0
 BRIDGE_UNION = True             # 45-degree bridges: outline from the exact union (bridge_union) - False: clip_bridges
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
@@ -163,7 +164,7 @@ DETAIL_BLOCKS_EDGES = True      # route edges do not cross a D line: line_walkab
                                 # 24,514, sp_01 11 of 82,602) - its graph builder uses the same straight-move test; F cell
                                 # sides they do cross (0.4-0.6 %), as NavKit's do. NavKit's edges crossed D lines on 1.7 %
                                 # (sp_004_b) without it: the slope rule links some sides the 0.6 m step breaks (2026-10-26)
-DETAIL_STATS = {}               # D lines, F cells and outline sides moved to D / F (for reports)
+DETAIL_STATS: dict[str, int] = {}               # D lines, F cells and outline sides moved to D / F (for reports)
 
 
 def water_tops(s, vertices, triangles):

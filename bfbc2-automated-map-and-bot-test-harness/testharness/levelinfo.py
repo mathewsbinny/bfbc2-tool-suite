@@ -262,12 +262,12 @@ def points(root, lv, info, log):
     import ordercheck
     try:
         lvl = level.load(lv, root, log=log, geometry=False)
-    except Exception as e:
+    except Exception as ex:
         # NavKit's prepare stops on a level whose partition is only in its Package bundle (ONS_MP_005GR: its Dist
         # bundle holds MP_005's partitions); it has unpacked both bundles by then, so the loader reads them
         if not os.path.isdir(os.path.join(root, 'work', 'levels', lv, 'dist')):
             raise
-        info.notes.append(f'NavKit\'s prepare stopped ({e}); the level was read from its unpacked bundles')
+        info.notes.append(f'NavKit\'s prepare stopped ({ex}); the level was read from its unpacked bundles')
         lvl = level.load(lv, root, log=log, geometry=False)
     info.name = info.name or lvl.name
     seen = set()

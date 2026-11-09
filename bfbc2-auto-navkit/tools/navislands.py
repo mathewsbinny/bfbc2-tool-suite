@@ -37,8 +37,8 @@ ANCHOR_XZ = 2.0                 # an anchor point keeps the island of a node thi
 ANCHOR_DY = 1.0                 # ... whose ground (node height - Y_OFFSET) is this close to the point's height
 SHADOW_OBJECTS_ONLY = True
 Y_OFFSET = 0.95
-STATS = {}
-TERRAIN_IDS = set()             # ids of route nodes standing on terrain (note_nodes; navbuild.build clears it)
+STATS: dict[str, int] = {}
+TERRAIN_IDS: set[int] = set()             # ids of route nodes standing on terrain (note_nodes; navbuild.build clears it)
 
 
 def note_nodes(level, pts):

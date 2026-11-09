@@ -115,7 +115,7 @@ def parse_mesh(m: bytes) -> Mesh:
     tile_offs = [_u32(m, tile_tab + i * 4) for i in range(ntiles + 1)]
 
     area_index = {}           # object offset -> index
-    area_offsets = []
+    area_offsets: List[int] = []
     tiles_raw = []
     for t in range(ntiles):
         to = tile_offs[t]
@@ -137,11 +137,11 @@ def parse_mesh(m: bytes) -> Mesh:
         area = Area(hdr[0], hdr[1], hdr[2], hdr[3], hdr[4], hdr[5], hdr[6], hdr[7], null_offsets=null_offsets)
         if cnt[0x20]:
             raise ValueError('A records present (never seen before)')
-        pos = o + offs[0x28] if cnt[0x28] else None
+        pos = o + offs[0x28]                   # read only when the count is not 0
         for k in range(cnt[0x28]):
             r = pos + k * 0x20
             area.portals.append(Portal(_v3(m, r), _v3(m, r + 12), _u32(m, r + 0x18)))   # target resolved below
-        pos = o + offs[0x30] if cnt[0x30] else None
+        pos = o + offs[0x30]
         for k in range(cnt[0x30]):
             r = pos + k * 0x2C
             area.border_portals.append(BorderPortal(_v3(m, r), _v3(m, r + 12), _v3(m, r + 0x20),
@@ -275,12 +275,12 @@ def _area_body(a: Area):
         tab = hdr_size + len(blob)
         off[0x48] = tab
         q = tab + (len(a.cells) + 1) * 16
-        for c in a.cells:
-            blob += struct.pack('<I3f', q, *c.direction)
-            q += len(c.points) * 12
+        for cell in a.cells:
+            blob += struct.pack('<I3f', q, *cell.direction)
+            q += len(cell.points) * 12
         blob += struct.pack('<I3f', q, *a.end_row)
-        for c in a.cells:
-            for pt in c.points:
+        for cell in a.cells:
+            for pt in cell.points:
                 blob += struct.pack('<3f', *pt)
     else:
         off[0x48] = a.null_offsets.get(0x48, NULL)
