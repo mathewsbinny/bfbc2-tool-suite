@@ -62,6 +62,12 @@ varying ones take DICE's usual value (`DEFAULTS`: SpawnProbability 1, no post ef
 Used for the Bofors' flak burst (effect_aa_detonationblast: 3 emitters, 6 textures) and the Sherman's shell
 detonation (effect_detonation_l_01).
 
+`effectport.port_many(src, ix, effects, level)` ports several at once with one template search (the search reads
+BFBC2's 18,343 emitter documents when a type is rare: ~35 min; once per call, not per effect) - Wake's 44 impact
+effects. A BF1943 sound an effect reaches (BFBC2 lacking it) is not ported here: aligned on effect templates its
+Audio.* types stayed unaligned and its waves were left out. It is listed (`SOUND` report lines, `sounds_of(report)`)
+for the caller's sound porter, and the effect's reference to it is kept.
+
 ## Models (`meshport.py`)
 
 `meshport.Porter(source, meshview_index).port(mesh_name, donors=[...])` ports a BF1943 model: every LOD's MeshData

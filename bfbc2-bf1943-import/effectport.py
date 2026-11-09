@@ -17,6 +17,8 @@ How it is ported:
   the 70 effect partitions both games have: no enum, kind, nested or renamed field; of the 26 fields BFBC2 added, the
   ones whose values vary take their usual value (SpawnProbability 1, TriggerPostEffect false, post-effect offsets 0) -
   DEFAULTS checks the templates give exactly those);
+- a BF1943 sound BFBC2 lacks is not ported here (no sound templates, no wave conversion): port() reports it
+  (SOUND lines, sounds_of()) for the caller's sound porter (OPFOR wake_level.port_sounds);
 - a reference that will resolve to nothing is reported (dbxport substitutes the template's value).
 """
 import os
@@ -47,7 +49,8 @@ def refs(data):
 
 def walk(src, ix, effect, level):
     """[(partition name, source key, kind)] the effect reaches: kind 'port' (BF1943's, BFBC2 lacks it), 'texture',
-    'bfbc2' (kept as a reference), 'missing'."""
+    'bfbc2' (kept as a reference), 'sound' (BF1943's, BFBC2 lacks it: not ported here - port() lists it for the
+    caller's sound porter), 'missing'."""
     out, seen, todo = [], set(), [effect.lower()]
     while todo:
         name = todo.pop(0)
@@ -69,6 +72,11 @@ def walk(src, ix, effect, level):
             continue
         if name + '.dbx' in ix.where and not name.startswith(('effects/', 'emitters/')):
             out.append((name, None, 'bfbc2'))                  # sounds and the like: BFBC2's own
+            continue
+        if name.startswith('sound/') and name + '.dbx' in src.entries:
+            # a BF1943 sound BFBC2 lacks: the caller's sound porter (its sound templates, its waves converted) -
+            # aligning it on effect / emitter templates would leave its Audio.* types unaligned and its waves out
+            out.append((name, name + '.dbx', 'sound'))
             continue
         key = name + '.dbx'
         if key not in src.entries and name.startswith('emitters/'):
@@ -113,20 +121,41 @@ def check_defaults(data, report):
                     report.append(f'DEFAULT {t}.{fld} = {got}, DICE usually {want}')
 
 
-def port(src, ix, effect, level):
+def port_many(src, ix, effects, level, log=print):
+    """{file: bytes}, report for several effects - the templates found once for all of them (each effect's own
+    search scans BFBC2's emitter documents: slow for dozens)."""
+    plans = {e: walk(src, ix, e, level) for e in effects}
+    types = set()
+    for plan in plans.values():
+        for name, key, kind in plan:
+            if kind == 'port':
+                types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
+    shared = templates(ix, types)
+    files, report = {}, []
+    for n, e in enumerate(effects):
+        f, r = port(src, ix, e, level, shared=shared, plan=plans[e])
+        files.update(f)
+        report += r
+        log(f'  effect {n + 1}/{len(effects)} {e.rsplit("/", 1)[-1]}: {len(f)} files')
+    return files, report
+
+
+def port(src, ix, effect, level, shared=None, plan=None):
     import texture
-    plan = walk(src, ix, effect, level)
+    plan = plan or walk(src, ix, effect, level)
     types = set()
     for name, key, kind in plan:
         if kind == 'port':
             types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
-    T, pool, missing = templates(ix, types)
+    T, pool, missing = shared or templates(ix, types)
+    missing = set(types) - set(T.by_type)
     report = [f'{effect}: {sum(k == "port" for _, _, k in plan)} partitions to port, '
+              f'{sum(k == "sound" for _, _, k in plan)} sounds for the sound porter, '
               f'{sum(k == "texture" for _, _, k in plan)} textures, {sum(k == "bfbc2" for _, _, k in plan)} kept as '
               f'BFBC2\'s, {sum(k == "missing" for _, _, k in plan)} missing; templates {pool}']
     if missing:
         report.append(f'types no BFBC2 template holds (kept as BF1943 has them): {sorted(missing)}')
-    ours = {n for n, _, k in plan if k in ('port', 'texture')}
+    ours = {n for n, _, k in plan if k in ('port', 'texture', 'sound')}     # 'sound': the caller ports it
     bc2 = {n[:-4] for n in ix.where if n.endswith('.dbx')}
     resolve = lambda q: q.lower() in ours or q.lower() in bc2 or q.lower() == 'textures/effects/emittersystem/defaultnormalmap'  # noqa: E731
     files = {}
@@ -139,6 +168,13 @@ def port(src, ix, effect, level):
         elif kind == 'texture':
             e = src.entries[name + '.res'][1]
             files[e['name']] = texture.convert(src.data(name + '.res'))
+        elif kind == 'sound':
+            report.append(f'SOUND {name}: BF1943\'s, for the sound porter')
         elif kind == 'missing':
             report.append(f'  MISSING {name}: neither BF1943 nor BFBC2 has it')
     return files, report
+
+
+def sounds_of(report):
+    """The BF1943 sound partitions port() / port_many() left for a sound porter (their SOUND report lines)."""
+    return sorted({r.split(' ', 2)[1][:-1] for r in report if r.startswith('SOUND ')})
