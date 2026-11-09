@@ -118,6 +118,20 @@ class Image:
     def disasm(self, start, stop):
         return list(self.md.disasm(self.bytes_at(start, stop - start + 16), start))
 
+    def around(self, eip, after=0x10):
+        """(function start, instructions up to eip + after, index of the one at eip or None): decoded from the
+        function start when it is near (instructions on real boundaries, as exeref.window does), else from the
+        nearest point up to 0x60 bytes before eip whose decode lands on eip."""
+        start = self.function_start(eip)
+        tries = ([start] if start is not None and eip - start <= 0x2000 else []) + list(range(max(eip - 0x60, self.base), eip + 1))
+        ins: list = []
+        for s in tries:
+            ins = [x for x in self.disasm(s, eip + after) if x.address <= eip + after]
+            if any(x.address == eip for x in ins):
+                break
+        at = next((k for k, x in enumerate(ins) if x.address == eip), None)
+        return (start if start is not None else eip - 0x40), ins, at
+
     def call_before(self, ret):
         """The call instruction that ends exactly at a return address, if any."""
         for length in (5, 6, 2, 3, 7, 4):
@@ -233,9 +247,7 @@ def main(argv):
     print('  registers: ' + '  '.join(f'{k} {regs[k]:08X}' + (' (null)' if regs[k] == 0 else '') for k in REGISTERS if k in regs))
 
     if image and eip and image.is_code(eip):
-        start = image.function_start(eip) or eip - 0x40
-        ins = [x for x in image.disasm(max(start, eip - 0x60), eip + 0x10) if x.address <= eip + 0x10]
-        at = next((k for k, x in enumerate(ins) if x.address == eip), None)
+        start, ins, at = image.around(eip)
         print(f'\nCode (function starts near 0x{start:08X}):')
         window = ins[max(0, (at or 0) - 10):(at or 0) + 4] if at is not None else ins[-14:]
         for x in window:

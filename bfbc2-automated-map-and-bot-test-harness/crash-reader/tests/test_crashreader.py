@@ -100,6 +100,23 @@ def main(argv):
                 'log: none without a crash line or a file')
         c.check('Last log lines before the crash' in run([path, '--no-code', '--log', log])[1], '--log shows the lines before the crash')
 
+        # the code view decodes from the function start: a crash 200 bytes into a function of 5-byte instructions
+        # (mov eax, 0xB8B8B8B8) that never resynchronise when decoding starts mid-instruction (eip - 0x60)
+        try:
+            import capstone
+            img = crashreader.Image.__new__(crashreader.Image)
+            img.base, img.data = 0x1000, bytes([0xCC] * 16) + bytes([0xB8] * 5 * 80)
+            img.end, img.code = img.base + len(img.data), [(img.base, img.base + len(img.data))]
+            img.md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+            eip = 0x1010 + 5 * 40
+            start, ins, at = img.around(eip)
+            c.check(start == 0x1010 and at is not None and ins[at].address == eip and ins[at].mnemonic == 'mov',
+                    'code view: decoded from the function start, the faulting instruction found (eip - 0x60 lands mid-instruction)')
+        except ImportError:
+            print('skip code view decode check (pip install capstone)')
+        except AttributeError as e:
+            c.check(False, f'code view: decoded from the function start ({e})')
+
         if '--game' in argv:
             exe = crashreader.find_exe()
             try:
