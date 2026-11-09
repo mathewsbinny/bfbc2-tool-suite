@@ -549,7 +549,7 @@ def _shape(e: dbx.Element) -> str:
     if e.kind == dbx.NUMBERS:
         size, vals = dbx.numbers(e)
         return f'num{size}x{len(vals)}'
-    return 'byte'
+    return f'k{e.kind}'                      # a bool (6) / byte value, as the catalogue names it
 
 
 class _Port:
@@ -877,9 +877,15 @@ class _Port:
             proto = self.item_proto(itype, tpath, t)
         keep: list[dbx.Element] = []
         pruned = 0
+        tref = bool(titems) and titems[0].attr('ref') is not None and not titems[0].children
         for i, c in enumerate(items):
             ipath = f'{path}[{i}]'
             r = c.attr('ref')
+            if titems and (r is not None and not c.children) != tref:
+                # items of another kind than BFBC2's (references where BFBC2 holds structs inline, or the reverse)
+                self.schema(ipath, c, titems[0])
+                keep.append(c)
+                continue
             if r is not None and not c.children:
                 if self.ref_ok(r):
                     keep.append(c)

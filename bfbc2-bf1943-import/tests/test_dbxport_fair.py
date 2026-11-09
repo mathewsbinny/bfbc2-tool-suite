@@ -5,7 +5,10 @@ from BF1943's copy with dbxport on a template pool that does NOT hold DICE's sam
 pools: objects, vehicles, weapons; the catalogue's class defaults for the rest, never the partition's own), with the
 catalogue, BFBC2's soldier skeleton and DICE's conventions. Asserted:
 
-  - the port succeeds (no SchemaError: every shape difference has a converter);
+  - the port succeeds (no SchemaError: every shape difference has a converter), but for NOT_PORTABLE (what BFBC2
+    changed beyond a converter: anim trees' aim tables, achievements held inline) - those must fail with a
+    SchemaError; partitions with a type only DICE's same-named partition holds (no fair template: menus, awards,
+    localization) are counted and left out;
   - no 'kind' or 'schema' differences from DICE's version: each instance both have holds DICE's fields, each leaf
     DICE's kind (text, reference, number size, bool);
   - primaryInstance names an instance of the partition; no empty array is written as a CONTAINER;
@@ -41,6 +44,10 @@ QUICK = ['objects/weapons/handheld/beach/thompson/thompson.dbx', 'objects/weapon
          'objects/vehicles/beach/jap_zero_fighter/zero_firing.dbx', 'objects/vehicles/beach/kurogane/kurogane.dbx',
          'objects/vehicles/beach/stationary_aa_bofors/aa_bofors.dbx']
 AIMER = 'objects/soldiers/common/beach/defaulthaloaimer'
+# partitions dbxport refuses, rightly: BFBC2's shape is not BF1943's and no converter can make it (anim trees are
+# not ported by design - BFBC2 ships them compiled; its AimDirections tables hold 104 numbers, BF1943's 40; BFBC2
+# holds the achievements inline, BF1943 as references)
+NOT_PORTABLE = re.compile(r'^characters/animtree/|^awards/mp_achievements\.dbx$')
 
 
 def cat_of(k: str) -> str:
@@ -157,14 +164,26 @@ def main(argv: list[str]) -> int:
             q = p.lower()
             return q in ported or q in bc2 or '/shaders/' in q or '/shader/' in q
         pool = dbxparity.fair_pool(k)
+        fc = dbxparity.fair_catalogue(cat, name)
+        T0 = templates(pool, name)
+        lone = sorted({t for i in dbx.parse(src.data(k)).instances for t in [i.attr('type') or '']
+                       if t not in T0 and t not in fc.defaults and t in cat.defaults and
+                       t not in dbxport.NOT_IN_BFBC2})
+        if lone:
+            note('no fair template', f'{k}: {lone[:3]}')
+            continue
         kw: dict[str, Any] = dict(drop_types=dbxport.NOT_IN_BFBC2, drop_untemplated=True, bones=bones, name=name,
                                   ours=ours)
         try:
-            data, rep = dbxport.port(src.data(k), templates(pool, name), resolve,
-                                     catalogue=dbxparity.fair_catalogue(cat, name), **kw)
+            data, rep = dbxport.port(src.data(k), T0, resolve, catalogue=fc, **kw)
+        except dbxport.SchemaError as e:
+            note('refused (not portable)' if NOT_PORTABLE.search(k) else 'port failed', f'{k}: {e}'[:300])
+            continue
         except dbxport.PortError as e:
             note('port failed', f'{k}: {e}'[:300])
             continue
+        if NOT_PORTABLE.search(k):
+            note('port failed', f'{k}: ported, but BFBC2\'s shape cannot be BF1943\'s')
         n_done += 1
         f, d, bf = dbx.parse(data), dbx.parse(ix.read(k)), dbx.parse(src.data(k))
         guids = {(i.attr('guid') or '').lower() for i in f.instances}
@@ -210,7 +229,8 @@ def main(argv: list[str]) -> int:
             for e in examples.get(cls or '', [])[:12]:
                 print(f'       {e}')
 
-    print(f'{n_done} of {len(both)} partitions ported ({time.time() - t0:.0f} s)')
+    print(f'{n_done} of {len(both)} partitions ported ({time.time() - t0:.0f} s); {stats["no fair template"]} with a '
+          f'type only DICE\'s same partition holds (not tested); {stats["refused (not portable)"]} refused as expected')
     check(not stats['port failed'], f'every port succeeds ({stats["port failed"]} failed)', 'port failed')
     check(not stats['kind'], f'no kind differences from DICE ({stats["kind"]})', 'kind')
     check(not stats['schema'], f'no schema differences from DICE ({stats["schema"]})', 'schema')
