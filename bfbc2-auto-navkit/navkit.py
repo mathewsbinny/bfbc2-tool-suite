@@ -61,6 +61,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
+from bfbc2core import paths  # noqa: E402
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
                            # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at
@@ -85,36 +86,29 @@ class NavKitError(Exception):
 
 def find_opfor(given: str | None = None) -> str:
     """The Project OPFOR BFBC2 folder: --opfor, else OPFOR_ROOT, else a "project-opfor-bfbc2" folder next to one of the folders
-    this tool sits in (e.g. next to the suite)."""
-    up = []
-    d = HERE
-    while os.path.dirname(d) != d:
-        d = os.path.dirname(d)
-        up.append(os.path.join(d, 'project-opfor-bfbc2'))
-    candidates = [given, os.environ.get('OPFOR_ROOT')] + up
-    for c in candidates:
-        if c and os.path.isdir(os.path.join(c, 'game')):
-            return os.path.abspath(c)
-    raise NavKitError('Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT '
-                      f'(looked for a game\\ folder in: {", ".join(c for c in candidates if c)})')
+    this tool sits in (e.g. next to the suite). bfbc2core.paths.find_opfor, walking up from the suite."""
+    try:
+        return paths.find_opfor(given, start=os.path.dirname(HERE))
+    except paths.GameCopyNotFound as e:
+        raise NavKitError(str(e)) from None
 
 
 def find_tool(opfor: str, exe: str, toolkit_dir: str) -> str:
     """A toolkit tool: built in the toolkit (..\\<toolkit_dir>\\<exe>), else OPFOR's tools\\ folder."""
-    for p in (os.path.join(os.path.dirname(HERE), toolkit_dir, exe), os.path.join(opfor, 'tools', exe)):
-        if os.path.isfile(p):
-            return p
-    raise NavKitError(f'{exe} not found - run build.bat in the toolkit\'s {toolkit_dir} folder')
+    try:
+        return paths.find_tool(opfor, exe, toolkit_dir, suite=os.path.dirname(HERE))
+    except paths.ToolNotFound as e:
+        raise NavKitError(str(e)) from None
 
 
 class Project:
     def __init__(self, root: str | None = None) -> None:
         self.root = find_opfor(root)
-        self.game = os.path.join(self.root, 'game')
+        self.game = paths.game_dir(self.root)
         self.work = os.path.join(self.root, 'work')
         self.ini = os.path.join(self.game, 'opfor.ini')
         self.log_path = os.path.join(self.game, 'logs', 'opfor.log')
-        if not os.path.isfile(os.path.join(self.game, 'BFBC2Game.exe')):
+        if not os.path.isfile(paths.game_exe(self.root)):
             raise NavKitError(f'no game copy in {self.game} (run OPFOR\'s setup_game.bat first)')
         self.fbrbtool = find_tool(self.root, 'FbrbTool.exe', 'bfbc2-fbrb-tool')
         self.dbxedit = find_tool(self.root, 'DbxEdit.exe', 'bfbc2-dbx-tools')

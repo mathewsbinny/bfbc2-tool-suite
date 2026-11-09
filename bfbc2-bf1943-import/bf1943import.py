@@ -48,7 +48,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('shader-tools', 'mesh-viewer', 'console-convert', 'anim-tools', 'core')
 import aimanim  # noqa: E402
 import granny  # noqa: E402
-from bfbc2core import errors  # noqa: E402
+from bfbc2core import errors, paths  # noqa: E402
 
 SOLDIER = 'characters/skeletons/ske01.res'
 ANIMATIONS = ('GrannyAnimation', 'DeltaAnimation')
@@ -69,19 +69,20 @@ class Bf1943ImportError(Exception):
 
 
 def default_source():
-    env = os.environ.get('BF1943_XENON')
-    if env:
-        return env
-    return os.path.join(os.path.dirname(SUITE), 'operation-rising-sun', 'work', 'extracted', 'dist', 'xenon')
+    """BF1943's extracted Xbox 360 bundles: BF1943_XENON when set (unchecked), else Project Rising Sun's workspace
+    beside the suite (operation-rising-sun\\work\\extracted\\dist\\xenon)."""
+    return paths.sibling(paths.BF1943_WORKSPACE, 'work', 'extracted', 'dist', 'xenon', env='BF1943_XENON', suite=SUITE)
 
 
 def fbrb1943():
-    for p in (os.path.join(os.path.dirname(SUITE), 'bf1943-tool-suite', 'bf1943-fbrb-tool'),
-              os.environ.get('BF1943_SUITE_FBRB', '')):
-        if p and os.path.isfile(os.path.join(p, 'fbrb1943.py')):
-            sys.path.insert(0, p)
-            import fbrb1943 as m
-            return m
+    """The BF1943 tool suite's bundle reader: bf1943-tool-suite\\bf1943-fbrb-tool beside the suite FIRST, then
+    BF1943_SUITE_FBRB (the opposite order to default_source's). Put on sys.path once."""
+    p = paths.find_sibling(paths.BF1943_SUITE, 'bf1943-fbrb-tool', marker='fbrb1943.py', env='BF1943_SUITE_FBRB',
+                           suite=SUITE)
+    if p:
+        paths.use_folder(p)
+        import fbrb1943 as m
+        return m
     raise Bf1943ImportError('the BF1943 tool suite (bf1943-tool-suite\\bf1943-fbrb-tool\\fbrb1943.py) was not found next to '
                        'this suite: its bundle reader reads the Xbox 360 bundles')
 

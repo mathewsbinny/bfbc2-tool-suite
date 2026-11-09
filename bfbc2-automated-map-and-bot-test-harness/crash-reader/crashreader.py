@@ -42,17 +42,15 @@ def find_reports():
 
 
 def find_exe():
-    candidates = []
-    if os.environ.get('OPFOR_ROOT'):
-        candidates.append(os.path.join(os.environ['OPFOR_ROOT'], 'game', 'BFBC2Game.exe'))
-    d = HERE   # a "project-opfor-bfbc2" folder next to one of the folders this tool sits in
-    while os.path.dirname(d) != d:
-        d = os.path.dirname(d)
-        candidates.append(os.path.join(d, 'project-opfor-bfbc2', 'game', 'BFBC2Game.exe'))
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    return None
+    """OPFOR_ROOT's game\\BFBC2Game.exe, else that of a "project-opfor-bfbc2" folder next to one of the folders this
+    tool sits in (bfbc2core.paths.find_game_exe, walking up from the harness folder), or None."""
+    suite = os.path.dirname(os.path.dirname(HERE))       # core only when needed: importing this module adds nothing
+    if suite not in sys.path:
+        sys.path.insert(0, suite)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import paths
+    return paths.find_game_exe(start=os.path.dirname(HERE))
 
 
 def read_report(path):

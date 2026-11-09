@@ -25,6 +25,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('apt', 'core')
 
 import apt  # noqa: E402  (the suite's APT reader)
+from bfbc2core import paths  # noqa: E402
 
 MENU_BUNDLE = 'menu/main/mainmenu-00.fbrb'
 # bundles with menu movies: (label, path under Dist\win32 and Package); Package entries win over Dist's
@@ -43,16 +44,11 @@ class MenuToolError(Exception):
 
 def find_opfor(given: str | None = None) -> str:
     """The Project OPFOR BFBC2 folder: given, else OPFOR_ROOT, else a "project-opfor-bfbc2" folder next to one of the folders
-    this tool sits in."""
-    candidates = [given, os.environ.get('OPFOR_ROOT')]
-    d = HERE
-    while os.path.dirname(d) != d:
-        d = os.path.dirname(d)
-        candidates.append(os.path.join(d, 'project-opfor-bfbc2'))
-    for c in candidates:
-        if c and os.path.isdir(os.path.join(c, 'game')):
-            return os.path.abspath(c)
-    raise MenuToolError('Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT')
+    this tool sits in. bfbc2core.paths.find_opfor, walking up from the suite; the message does not list the folders."""
+    try:
+        return paths.find_opfor(given, start=SUITE)
+    except paths.GameCopyNotFound:
+        raise MenuToolError('Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT') from None
 
 
 def out_dir(root: str) -> str:
@@ -385,7 +381,7 @@ def find_exe(root: str | None = None, given: str | None = None) -> str:
             raise FileNotFoundError(given)
         return given
     root = root or find_opfor()
-    p = os.path.join(root, 'game', 'BFBC2Game.exe')
+    p = paths.game_exe(root)
     if not os.path.isfile(p):
         raise MenuToolError(f'no BFBC2Game.exe in {os.path.dirname(p)} - pass --exe <path>')
     return p

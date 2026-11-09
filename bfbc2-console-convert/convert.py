@@ -32,13 +32,15 @@ import suite_paths  # noqa: E402
 suite_paths.use('core')
 import havok  # noqa: E402
 import texture  # noqa: E402
-from bfbc2core import errors  # noqa: E402
+from bfbc2core import errors, paths  # noqa: E402
 
 
 def default_exe():
-    for root in (os.environ.get('OPFOR_ROOT'), os.path.join(HERE, '..', '..', 'project-opfor-bfbc2')):
-        if root and os.path.isfile(os.path.join(root, 'game', 'BFBC2Game.exe')):
-            return os.path.join(root, 'game', 'BFBC2Game.exe')
+    """The game copy's BFBC2Game.exe: OPFOR_ROOT's, else that of the project-opfor-bfbc2 folder beside the suite (only
+    there: bfbc2core.paths.find_game_exe with walk=False)."""
+    exe = paths.find_game_exe(walk=False, suite=os.path.dirname(HERE))
+    if exe:
+        return exe
     raise FileNotFoundError('no game copy (Project OPFOR BFBC2) found for BFBC2Game.exe: pass --exe')
 
 
