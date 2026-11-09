@@ -8,7 +8,6 @@ a vertex window (a depth-only part drawing the main part's vertices) go on shari
 after them. A part whose window another part shares can only be replaced together with that part.
 """
 import os
-import struct
 import sys
 
 import numpy as np

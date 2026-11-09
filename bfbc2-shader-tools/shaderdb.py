@@ -162,7 +162,7 @@ class ShaderDb:
             try:
                 return cls._parse(data, dx or 9, where, True)
             except ShaderDbError as e:
-                raise ShaderDbError(f'{where} is not a shader database this tool reads (as Xbox 360: {e})')
+                raise ShaderDbError(f'{where} is not a shader database this tool reads (as Xbox 360: {e})') from e
         layouts = [dx] if dx else [9, 10]
         errors = []
         for d in layouts:
@@ -1162,7 +1162,7 @@ def cmd_roundtrip(a):
     bad = 0
     specs = list(a.res)
     if a.levels:
-        for lv, path in sorted(level_bundles(find_opfor(a.opfor)).items()):
+        for _lv, path in sorted(level_bundles(find_opfor(a.opfor)).items()):
             specs += [(f'{path}:{name}', int(typ[2:-14])) for name, typ in bundle_databases(path)]
     if not specs:
         raise ShaderDbError('roundtrip needs databases: files, bundles, level:<name>, or --levels')
@@ -1288,7 +1288,7 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    sys.stdout.reconfigure(errors='replace')
+    sys.stdout.reconfigure(errors='replace')  # type: ignore[union-attr]
     from bfbc2core import errors
     errors.setup('shaderdb', gui=False)
     with errors.guard():

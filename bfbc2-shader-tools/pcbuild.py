@@ -186,15 +186,6 @@ def first_material_register(consts, material):
 
 # ------------------------------------------------------------------------------------------------ vertex input
 
-# BFBC2 layout element formats (section 7 / mesh.elements) -> (D3DDECLTYPE, DXGI_FORMAT, byte size)
-FORMATS = {2: (2, 6, 12),      # float3      D3DDECLTYPE_FLOAT3 / R32G32B32_FLOAT
-           3: (2, 6, 12),
-           8: (16, 10, 8),     # half4       FLOAT16_4 / R16G16B16A16_FLOAT
-           6: (15, 34, 4),     # half2       FLOAT16_2 / R16G16_FLOAT
-           12: (5, 30, 4),     # ubyte4      UBYTE4 / R8G8B8A8_UINT
-           }
-
-
 def dx9_decl(elements):
     """[(stream, offset, D3DDECLTYPE, usage index)] -> section 4 Dx9 tail (u32 k + D3DVERTEXELEMENT9s, END last)."""
     out = [struct.pack('<HHBBBB', s, o, t, 0, 5, ui) for s, o, t, ui in elements]

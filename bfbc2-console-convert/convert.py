@@ -156,7 +156,7 @@ def cmd_verify_texture(a):
         print(l)
     if a.report:
         open(a.report, 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
-    return 1 if total['broken mip chain'] else 0
+    return 1 if total['broken mip chain'] or total['not converted'] else 0     # as the usage says
 
 
 def main(argv):

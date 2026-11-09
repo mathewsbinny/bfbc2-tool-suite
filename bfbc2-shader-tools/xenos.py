@@ -275,14 +275,14 @@ def _parse_header(r, off, is_pixel, vsize):
         o = off + 36
         h.field18_words = [r.u32(o + 4 * k) for k in range(h.field18)]   # always [0x290]: UNKNOWN
         o += 4 * h.field18
-        for k in range(h.vertex_element_count):
+        for _k in range(h.vertex_element_count):
             v = r.u32(o)
             # bits 20-23: UNKNOWN (0..3 seen; not stream, format or swizzle)
             h.vertex_elements.append(Obj(
                 raw=v, fetch_address=_bits(v, 0, 12), usage=DECL_USAGE[_bits(v, 12, 4)],
                 usage_index=_bits(v, 16, 4), unknown_hi=v >> 20))
             o += 4
-    for k in range(n_interp):
+    for _k in range(n_interp):
         v = r.u32(o)
         # bits 12-15: always 0xf (probably a component mask - UNCERTAIN);
         # bits 16+: VS only, index of this interpolator's first entry in
@@ -296,7 +296,7 @@ def _parse_header(r, off, is_pixel, vsize):
         # field20 words: instruction slot (bits 0-11) of every ALU instruction
         # that exports an interpolator; bit 12 set on the last one of each
         # interpolator. Presumably what D3D patches when linking VS/PS.
-        for k in range(h.field20):
+        for _k in range(h.field20):
             v = r.u32(o)
             h.export_slots.append(Obj(raw=v, address=_bits(v, 0, 12), last=_bits(v, 12, 1),
                                       unknown_hi=v >> 13))
@@ -884,7 +884,7 @@ def disasm(sh, show_raw=False, show_header=True):
         else:
             for ve in h.vertex_elements:
                 out.append('    dcl_%s%d  (vfetch at slot %d)' % (ve.usage.lower(), ve.usage_index, ve.fetch_address))
-            for k, it in enumerate(h.interpolators):
+            for it in h.interpolators:
                 out.append('    dcl_%s%d o%d  (exported at slots %s)' % (
                     it.usage.lower(), it.usage_index, it.reg, ','.join(map(str, it.export_addresses))))
     labels = set()

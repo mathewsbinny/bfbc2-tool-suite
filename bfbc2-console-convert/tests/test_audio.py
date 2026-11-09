@@ -180,8 +180,8 @@ def main():
                     xas_eq += np.array_equal(mine, b)
                     cs.append(corr(a, b))
                     ss.append(snr(b, a))
-                    e = audio.decode_xas(audio.encode_xas(a, sx.rate))
-                    enc.append((snr(a, e), k, i, a))
+                    rt = audio.decode_xas(audio.encode_xas(a, sx.rate))
+                    enc.append((snr(a, rt), k, i, a))
                 pc = audio.convert(X[k], 'bfbc2')
                 wc = audio.read_wave(pc, 'bfbc2-pc')
                 same_struct = wc.words() == wp[k].words() and all(
@@ -225,7 +225,7 @@ def main():
         try:
             b = src.data(k)
             w = ws[k] = audio.read_wave(b, 'bf1943')
-            for i, s in enumerate(w.segments):
+            for s in w.segments:
                 if s:
                     h = audio._ea_header(*struct.unpack_from('>II', s[0], 0))
                     stats[(h['version'], h['codec'], h['rate'] == int(w.rate), w.word04)] += 1

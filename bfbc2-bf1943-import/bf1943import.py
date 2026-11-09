@@ -264,7 +264,7 @@ def check(source, opfor=None, log=print):
     bones, names = imp.soldier_map()
     pc_names = None
     fails, counts = [], {}
-    for k, (rel, e) in sorted(source.entries.items()):
+    for k, (_rel, e) in sorted(source.entries.items()):
         if e['type'] not in ANIMATIONS + ('GrannyModel',):
             continue
         try:

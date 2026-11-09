@@ -107,12 +107,12 @@ def compare(src, ix, names, log=print):
                     if len(examples[key]) < 3:
                         examples[key].append(f'{k}: {va[:30]} / DICE {vb[:30]}')
             dice_values = collections.defaultdict(list)
-            for p, (kb, vb) in only_b.items():
+            for p, (_kb, vb) in only_b.items():
                 dice_values[vb].append(p)
             deeper = collections.defaultdict(list)                  # field name -> DICE-only paths ending in it
             for p in only_b:
                 deeper[p.rsplit('.', 1)[-1]].append(p)
-            for p, (ka, va) in only_a.items():
+            for p, (_ka, va) in only_a.items():
                 key = (tshort, re.sub(r'\[\d+\]', '[]', p))
                 head, _, leaf = p.rpartition('.')
                 nest = [q for q in deeper.get(leaf, []) if q.startswith(head + '.') and q.count('.') > p.count('.')]

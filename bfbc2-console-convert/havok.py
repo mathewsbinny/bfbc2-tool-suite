@@ -51,7 +51,7 @@ class _PE:
         return None
 
     def va(self, off):
-        for s, size, raw, rsize in self.secs:
+        for s, _size, raw, rsize in self.secs:
             if raw <= off < raw + rsize:
                 return s + off - raw
         return None
@@ -349,8 +349,9 @@ class Packfile:
                     raise ConvertError(f'{ctx}: an array of {count} without a fixup')
                 es = self._size(m.subtype, m.cls)
                 self.arrays.append((self.cur, m.name, self.base + t, count, es, self.base + a))
+                sub = STRUCT if m.subtype == POINTER else VOID      # an array of pointers: their objects too
                 for e in range(count):
-                    self._value(m.subtype, VOID, m.cls, t + e * es, ctx)
+                    self._value(m.subtype, sub, m.cls, t + e * es, ctx)
             return
         if m.type in (HOMOGENEOUSARRAY, INPLACEARRAY):
             raise ConvertError(f'{ctx}: member type {m.type} not handled')
@@ -376,7 +377,7 @@ def ignorable(pf, out, pc, i):
     triangleOffset)."""
     cls, mem = pf.owner.get(i, (None, None))
     if cls == 'hkpStorageExtendedMeshShapeMeshSubpartStorage' and mem == 'indices16':
-        for c, m, st, n, es, _ in pf.arrays:
+        for _c, m, st, n, _es, _ in pf.arrays:
             if m == 'indices16' and st <= i < st + 2 * n:
                 return 'triangle padding index' if (i - st) // 2 % 4 == 3 else None
     if cls == 'hkpCollidableBoundingVolumeData':
@@ -390,7 +391,7 @@ def ignorable(pf, out, pc, i):
     if cls == 'hkpExtendedMeshShapeTrianglesSubpart' and mem == 'triangleOffset':
         return 'triangle offset (computed at load)'
     if cls in ('hkpMaxSizeMotion', 'hkpKeyframedRigidMotion', 'hkpMotion') and mem == 'savedQualityTypeIndex':
-        for off, name in pf.seen:
+        for off, _name in pf.seen:
             A = pf.base + off
             if A + 0x11C <= i < A + 0x11E and (off + 0x118) not in pf.local and (off + 0x118) not in pf.glob:
                 return 'saved quality type without a saved motion'

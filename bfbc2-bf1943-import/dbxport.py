@@ -233,7 +233,7 @@ def _align(e, t, path, report, resolve=None, prune=False):
         if lost:
             report.append(f'substituted {path} (refers to {lost[0]}{" and more" if len(lost) > 1 else ""}): the '
                           f'template\'s value')
-            return copy.deepcopy(t)
+            return _without_local_refs(copy.deepcopy(t), path, report)   # the template's own instances: not here
     if e.kind != dbx.CONTAINER or t.kind != dbx.CONTAINER:
         if e.kind != t.kind and e.kind != dbx.CONTAINER and t.kind != dbx.CONTAINER:
             conv = _converted_kind(e, t, path, report)

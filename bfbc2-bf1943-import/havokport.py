@@ -169,7 +169,7 @@ def restructure(b, template, classes, table=None):
         nxt = [s for s in starts if s > o]
         return (nxt[0] if nxt else loc) - o
 
-    for o, n in dropped:                            # their own pointers go with them
+    for o, _n in dropped:                            # their own pointers go with them
         for s in [s for s in local if o <= s < o + span(o)]:
             del local[s]
     slot_map = {}                                   # old slot -> new slot (None: dropped), in rewritten objects

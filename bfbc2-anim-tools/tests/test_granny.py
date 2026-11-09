@@ -102,7 +102,7 @@ def main():
         fails.append(f'weapon bones bind at {len(roots)} places, expected one')
 
     files = sorted(n for n in ix.where if ANIMS.search(n))
-    parsed = formats = 0
+    parsed = 0
     seen = set()
     for n in files:
         b = ix.read(n)
@@ -134,7 +134,6 @@ def main():
                             break
         if not crc_ok(b, g):
             fails.append(f'{n}: the stored Granny CRC does not match (reader assumption)')
-    formats = len(seen)
     print(f'{parsed} of {len(files)} animations parsed; curve formats seen: {sorted(s.replace("CurveDataHeader_", "") for s in seen if s)}')
     aim = sum('generatedaimanimation' in n for n in files)
     if parsed != len(files) - aim or parsed < 50:

@@ -7,9 +7,7 @@ translate(sh, iface) -> HLSL source with entry point 'main'. iface (Interface) t
 provides: the vertex inputs (VS), the interpolators shared by the VS and PS, material constant values, and per-sampler
 fix-ups. Engine constants keep their names (pcbuild binds them by name).
 """
-import struct
 
-from xenos import VECTOR_OPS
 
 FLT_MAX = '3.402823466e+38'
 

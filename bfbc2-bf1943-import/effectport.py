@@ -127,7 +127,7 @@ def port_many(src, ix, effects, level, log=print):
     plans = {e: walk(src, ix, e, level) for e in effects}
     types = set()
     for plan in plans.values():
-        for name, key, kind in plan:
+        for _name, key, kind in plan:
             if kind == 'port':
                 types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
     shared = templates(ix, types)
@@ -144,7 +144,7 @@ def port(src, ix, effect, level, shared=None, plan=None):
     import texture
     plan = plan or walk(src, ix, effect, level)
     types = set()
-    for name, key, kind in plan:
+    for _name, key, kind in plan:
         if kind == 'port':
             types |= {i.attr('type') for i in dbx.parse(src.data(key)).instances}
     T, pool, missing = shared or templates(ix, types)

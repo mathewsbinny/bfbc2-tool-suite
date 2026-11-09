@@ -21,6 +21,9 @@ FORMATS = {0: (8, 4, 'DXT1'), 18: (8, 4, 'DXT1 (normal map)'), 1: (16, 4, 'DXT3'
 OTHER = {9: '9 (32-bit)', 10: '10 (8-bit)'}
 
 
+DECODED = {0, 18, 1, 2, 19, 20}         # the block formats decode() reads (DXT1, DXT3, DXT5, BC5)
+
+
 class ConvertError(Exception):
     pass
 
@@ -280,9 +283,11 @@ def check(pc, reference=None):
     same where it is the same art."""
     import numpy as np
     fmt = struct.unpack_from('<I', pc, 8)[0]
+    if fmt not in DECODED:                # RGBA16F, the 8- and 32-bit PC formats: no block decoder - nothing measured
+        return 0.0, None, None, None
     lv = levels(pc)
     worst = 0.0
-    for (s, m, w, h, d), (s2, m2, w2, h2, d2) in zip(lv, lv[1:]):
+    for (s, _m, w, h, d), (s2, _m2, w2, h2, d2) in zip(lv, lv[1:]):
         if s != s2 or w < 8 or h < 8:
             continue
         a, b = decode(d, w, h, fmt), decode(d2, w2, h2, fmt)

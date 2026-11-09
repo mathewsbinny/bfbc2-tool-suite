@@ -21,7 +21,7 @@ sys.path[:0] = [os.path.join(HERE, '..'), os.path.join(SUITE, 'core'), os.path.j
 import mesh  # noqa: E402
 import meshset  # noqa: E402
 
-failures = []
+failures: list[str] = []
 
 
 def check(ok, what):

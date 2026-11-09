@@ -81,7 +81,8 @@ def formats_5_13(fails):
         x = fbrb.read(found['x'][n][0], [found['x'][n][1]])[found['x'][n][1]]
         p = fbrb.read(found['p'][n][0], [found['p'][n][1]])[found['p'][n][1]]
         out = texture.convert(x)
-        fmt, w, h = struct.unpack_from('<I', out, 8)[0], *struct.unpack_from('<2I', out, 16)
+        fmt = struct.unpack_from('<I', out, 8)[0]
+        w, h = struct.unpack_from('<2I', out, 16)
         if fmt == texture.BGRA8:
             a = np.frombuffer(out, np.uint8, w * h * 4, texture.HEADER).reshape(-1, 4).astype(int)
             b = np.frombuffer(p, np.uint8, w * h * 4, texture.HEADER).reshape(-1, 4).astype(int)
