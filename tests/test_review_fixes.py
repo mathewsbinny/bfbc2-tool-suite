@@ -15,6 +15,7 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import Any
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 sys.path.insert(0, os.path.join(SUITE, 'core'))
@@ -54,13 +55,16 @@ def navkit_apply(c, work):
     def fake_inputs(pr, lv, log=print):
         return 's.bin', 'forbid.npy', 1, 2, dict(detailed={'sectors': {1}}, ladders=[{'a': 1}], seeds=[], log=log)
 
+    def fake_load(path: str) -> Any:                 # navtune.load's stand-in: a Tune, not a NavTune
+        return Tune()
+
     def fake_build(*a, **kw):
         seen.update(kw)
         raise Stop
     side = os.path.join(work, 'lv.navtune.json')
     open(side, 'w').write('{}')
     saved = navkit.build_inputs, navbuild.build, navtune.load
-    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, fake_build, lambda p: Tune()
+    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, fake_build, fake_load
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             navkit._apply(Pr(), 'lv', side, None, lambda *a: None)
@@ -74,7 +78,7 @@ def navkit_apply(c, work):
     # a failed apply without --out still keeps its report beside the default output
     def failing_build(*a, **kw):
         raise navkit.NavKitError('the build failed here')
-    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, failing_build, lambda p: Tune()
+    navkit.build_inputs, navbuild.build, navtune.load = fake_inputs, failing_build, fake_load
     report = os.path.join(work, 'pathdata.hpd.report.txt')
     try:
         with contextlib.redirect_stdout(io.StringIO()):

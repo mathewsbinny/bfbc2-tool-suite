@@ -17,7 +17,7 @@ import bc2loc  # noqa: E402
 import menucommon as mc  # noqa: E402
 
 
-def main():
+def main() -> int:
     try:
         root = mc.find_opfor()
         langs = bc2loc.languages(root)

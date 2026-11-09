@@ -15,7 +15,7 @@ FOLDERS = ['bfbc2-auto-navkit', 'bfbc2-automated-map-and-bot-test-harness', 'bfb
            'bfbc2-console-convert', 'bfbc2-shader-tools', 'bfbc2-anim-tools', 'bfbc2-model-tools']
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     failed = 0
     for d in FOLDERS:
         r = subprocess.run([sys.executable, '-m', 'mypy', d], capture_output=True, text=True, encoding='utf-8',

@@ -97,7 +97,7 @@ def bundle_read(path, wanted, cache_dir):
     """{name: bytes} of entries (names as the bundle writes them), cached per bundle state and entry."""
     from bfbc2core import fbrb
     out, need = {}, []
-    key = _stat_key(path) if cache_dir else None
+    key = _stat_key(path) if cache_dir else ''          # used only with a cache folder
     for n in wanted:
         cp = os.path.join(cache_dir, 'bundles', key, n.replace('/', '__')) if cache_dir else None
         if cp and os.path.isfile(cp):
@@ -160,7 +160,7 @@ def ai_layer(info, data):
     """HasAI, AI spawners and AreaOrder count from the level partition's bytes (binary DBX)."""
     from bfbc2core import dbx
     f = dbx.parse(data)
-    teams = {'Team1': 1, 'Team2': 2, 'TeamNeutral': 0}
+    teams: dict[str | None, int] = {'Team1': 1, 'Team2': 2, 'TeamNeutral': 0}
     for el in f.instances:
         t = (el.attr('type') or '').rsplit('.', 1)[-1]
         if t == 'LevelData':
@@ -208,7 +208,10 @@ def game_level(root, lv, info, cache_dir, log):
         try:
             real = next(n for n in _real_names(holder, cache_dir) if n.lower() == name)
             el = dbx.parse(bundle_read(holder, [real], cache_dir)[real]).instances[0]
-            info.assets[kind] = (int(dbx.value(el.child('XOffset'))), int(dbx.value(el.child('ZOffset'))))
+            x, z = el.child('XOffset'), el.child('ZOffset')
+            if x is None or z is None:
+                raise ValueError('no XOffset / ZOffset field')
+            info.assets[kind] = (int(dbx.value(x)), int(dbx.value(z)))
         except Exception as e:                           # present but not readable as expected
             info.assets[kind] = 'unread'
             info.notes.append(f'{kind} SectorOffsets asset not read: {e}')

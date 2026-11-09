@@ -21,10 +21,10 @@ import dbxport  # noqa: E402
 import texture  # noqa: E402
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     failed = 0
 
-    def check(ok, what, detail=''):
+    def check(ok: bool, what: str, detail: str = '') -> None:
         nonlocal failed
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''))
@@ -37,7 +37,7 @@ def main(argv):
     # BF1943's field refers to an instance that will not resolve; the template's value names its own instance
     e = dbx.Element('field', dbx.TEXT, [('name', 'HudData'), ('ref', 'bf1943-guid-0001')])
     t = dbx.Element('field', dbx.TEXT, [('name', 'HudData'), ('ref', 'template-local-guid')])
-    report = []
+    report: list[str] = []
     out = dbxport._align(e, t, 'Seat.HudData', report, resolve=lambda target: False)
     check(out.attr('ref') == 'null' and any(r.startswith('nulled') for r in report),
           'dbxport: a substituted template value does not keep the template\'s own instance', f'{out.attr("ref")} {report}')

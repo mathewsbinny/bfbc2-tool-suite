@@ -10,12 +10,13 @@ import os
 import sys
 import tempfile
 import time
+import types
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 sys.path.insert(0, os.path.join(SUITE, 'core'))
 
 
-def load_hub():
+def load_hub() -> types.ModuleType:
     spec = importlib.util.spec_from_file_location('suite_hub', os.path.join(SUITE, 'BFBC2 Tool Suite.pyw'))
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
@@ -23,12 +24,12 @@ def load_hub():
     return mod
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     import tkinter as tk
     hubmod = load_hub()
     failed = 0
 
-    def check(ok, what):
+    def check(ok: object, what: str) -> None:
         nonlocal failed
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}', flush=True)
@@ -39,7 +40,7 @@ def main(argv):
     hub = hubmod.Hub(root)
     root.update()
 
-    def wait(timeout=300):
+    def wait(timeout: float = 300) -> None:
         t0 = time.time()
         while time.time() - t0 < timeout:
             root.update()
@@ -50,7 +51,7 @@ def main(argv):
                 return
             time.sleep(0.05)
 
-    def output():
+    def output() -> str:
         return hub.text.get('1.0', 'end')
 
     tabs = [hub.tabs.tab(t, 'text') for t in hub.tabs.tabs()]

@@ -17,7 +17,7 @@ RUNS = [
 ]
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     import numpy as np
     import matplotlib.image as mpimg
     lv = argv[1] if len(argv) > 1 else 'sp_004_b'

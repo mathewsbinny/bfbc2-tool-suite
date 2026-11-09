@@ -20,6 +20,7 @@ import json
 import os
 import shutil
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -39,11 +40,11 @@ BACKUP = '.opfor-stockmp-orig'
 APPLIED = '.opfor-stockmp-applied'
 
 
-def opt(argv, name, default=None):
+def opt(argv: list[str], name: str, default: Any = None) -> Any:
     return argv[argv.index(name) + 1] if name in argv and argv.index(name) + 1 < len(argv) else default
 
 
-def pathdata_for(paths, folder=None):
+def pathdata_for(paths: pipeline.Paths, folder: str | None = None) -> dict[str, str]:
     base = os.path.join(paths.game, 'Output', 'win32', 'ai', 'levels')
     for f in [folder] if folder else [paths.lv, SAME_WORLD.get(paths.lv)]:
         if f and os.path.isfile(os.path.join(base, f, 'infantry', 'pathdata.hpd')):
@@ -54,7 +55,7 @@ def pathdata_for(paths, folder=None):
                      f'{SAME_WORLD.get(paths.lv)}); build one with NavKit and pass --pathdata')
 
 
-def summary(paths):
+def summary(paths: pipeline.Paths) -> None:
     v, b = paths.bundles()[-1]
     d = pipeline.unpacked(b, paths.src(v))
     entry = pipeline.level_entry(d, pipeline._level_name(d, paths.lv))
@@ -74,7 +75,7 @@ def summary(paths):
         print(f'  stage {st.index}: {st.trigger_name}, M-COMs {[tuple(round(x) for x in p) for _g, p in st.mcoms]}')
 
 
-def installed_files(game, lv):
+def installed_files(game: str, lv: str) -> list[str]:
     """Rel paths of the files --apply installed for <lv>, from the *.opfor-stockmp-applied markers under the game
     folder - the installation record, independent of what is still in the build output."""
     rels = []
@@ -87,7 +88,7 @@ def installed_files(game, lv):
     return rels
 
 
-def install(paths, argv):
+def install(paths: pipeline.Paths, argv: list[str]) -> None:
     game = opt(argv, '--game', paths.game)
     out = os.path.join(paths.root, 'out', 'game')
     mode = '--apply' if '--apply' in argv else '--revert' if '--revert' in argv else '--plan'
@@ -158,7 +159,7 @@ def install(paths, argv):
         print(f'(plan only: `install {paths.lv}{var} --apply` copies these into {game}, keeping *{BACKUP} backups)')
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     if len(argv) < 3 or argv[1] not in ('summary', 'generate', 'build', 'validate', 'all', 'install'):
         print(__doc__)
         return 1

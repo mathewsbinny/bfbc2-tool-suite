@@ -15,7 +15,7 @@ COVERED = ['bfbc2-auto-navkit', 'bfbc2-automated-map-and-bot-test-harness', 'bfb
            os.path.join('bfbc2-auto-navkit', 'navkitGUI.pyw')]
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     try:
         r = subprocess.run([sys.executable, '-m', 'ruff', 'check', '--output-format', 'concise', *COVERED],
                            capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=SUITE)

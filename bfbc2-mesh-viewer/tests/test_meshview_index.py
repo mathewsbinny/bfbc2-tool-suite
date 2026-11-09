@@ -18,16 +18,16 @@ sys.path.insert(0, os.path.join(HERE, '..'))
 import meshview  # noqa: E402
 
 
-def touch(path, data=b'not a bundle'):
+def touch(path: str, data: bytes = b'not a bundle') -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as f:
         f.write(data)
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     failed = 0
 
-    def check(ok, what, detail=''):
+    def check(ok: object, what: str, detail: str = '') -> None:
         nonlocal failed
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''))
@@ -46,12 +46,13 @@ def main(argv):
               'levels left out', str(got))
         check(meshview._bundles(root)[1][1].startswith(os.path.join(g, 'Package')), 'Package before Dist')
 
-        def build():
+        def build() -> tuple[meshview.Index, bool]:
             err = io.StringIO()
             with contextlib.redirect_stderr(err):
                 ix = meshview.Index(root)
             return ix, 'indexing the game copy' in err.getvalue()
         cache = os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
+        rebuilt: bool | str                         # or the error a cache read raised
         ix, rebuilt = build()
         check(rebuilt and os.path.isfile(cache) and ix.where == {} and ix.parts == {} and ix.entries == {},
               'first run: the index is built (unreadable bundles skipped) and cached')

@@ -25,7 +25,7 @@ import crashreader  # noqa: E402
 MD5_SITE, MD5_FUNCTION = 0x006EFF8A, 0x006EFBC0      # Md5Buffer object-list crash, inside its function
 
 
-def report(eip, regs, stack, build='795745'):
+def report(eip: int, regs: dict[str, int], stack: list[int], build: str = '795745') -> str:
     reg_text = ', '.join(f'{k} {v:08x}' for k, v in regs.items())
     return ('<?xml version="1.0" encoding="UTF-8"?><report><version>2</version><sessionid>0123456789abcdef</sessionid>'
             '<type>crash</type><sku>ea.dice.RomePC.Cl</sku><createtime>2026-10-16 12:00:00</createtime>'
@@ -35,22 +35,22 @@ def report(eip, regs, stack, build='795745'):
 
 
 class Checks:
-    def __init__(self):
+    def __init__(self) -> None:
         self.failed = 0
 
-    def check(self, ok, what, detail=''):
+    def check(self, ok: object, what: str, detail: str = '') -> None:
         self.failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''))
 
 
-def run(argv):
+def run(argv: list[str]) -> tuple[int, str]:
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         code = crashreader.main(['crashreader.py'] + argv)
     return code, buf.getvalue()
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     c = Checks()
     work = tempfile.mkdtemp(prefix='crashreader_test_')
     try:
