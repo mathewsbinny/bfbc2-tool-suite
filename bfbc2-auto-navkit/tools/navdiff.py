@@ -318,7 +318,7 @@ def pngs(rows, R, C, out_dir, top):
     os.makedirs(out_dir, exist_ok=True)
     for r in sorted(rows, key=lambda r: -(len(r['only_ref']) + len(r['only_cand'])))[:top]:
         sid = r['id']
-        pitch = R[sid].mesh.pitch
+        pitch = GRID                    # cells() indexes the comparison grid, not the area's own pitch (0.2 in detailed zones)
         fig, ax = plt.subplots(figsize=(8, 8))
         same = [ij for cells in R[sid].cells() for ij in cells]
         if same:
