@@ -16,9 +16,12 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('console-convert', 'core', 'bf1943-import')
 import soot  # noqa: E402
-from bfbc2core import fbrb  # noqa: E402
+from bfbc2core import (
+    fbrb,  # noqa: E402
+    paths,  # noqa: E402
+)
 
-OPFOR = os.path.join(SUITE, '..', 'project-opfor-bfbc2')
+OPFOR = paths.sibling(paths.OPFOR_DIR, suite=SUITE)      # beside the suite; OPFOR_ROOT not read
 
 
 def soot_entries(pattern):

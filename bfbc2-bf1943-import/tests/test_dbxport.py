@@ -27,7 +27,10 @@ import suite_paths  # noqa: E402
 suite_paths.use('bf1943-import', 'core')
 import bf1943import as bi  # noqa: E402
 import dbxport  # noqa: E402
-from bfbc2core import dbx  # noqa: E402
+from bfbc2core import (
+    dbx,  # noqa: E402
+    paths,  # noqa: E402
+)
 
 MESH = 'objects/weapons/handheld/beach/us_springfield1903/springfield_mesh.dbx'
 M24 = 'objects/weapons/handheld/us_sni_m24/us_sni_m24_mesh.dbx'
@@ -46,7 +49,7 @@ def main():
         if not ok:
             fails.append(what)
 
-    opfor = os.path.join(SUITE, '..', 'project-opfor-bfbc2')
+    opfor = paths.sibling(paths.OPFOR_DIR, suite=SUITE)
     files = glob.glob(os.path.join(opfor, 'work', 'audit', 'mp_common', '**', '*.dbx'), recursive=True)
     if files:
         random.seed(7)

@@ -23,10 +23,11 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools', 'console-convert')
+suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools', 'console-convert', 'core')
 import bf1943import as bi  # noqa: E402
 import havok  # noqa: E402
 import havokport  # noqa: E402
+from bfbc2core import paths  # noqa: E402
 from havok import ARRAY, ENUM, FLAGS, PLAIN, POINTER, SIMPLEARRAY, STRUCT, VARIANT, ZERO  # noqa: E402
 
 V = 'objects/vehicles/beach/'
@@ -45,7 +46,7 @@ RUNTIME = ('boundingVolumeData', 'deactivationIntegrateCounter', 'deactivationNu
 
 
 def hkpack():
-    sys.path.insert(0, os.path.join(SUITE, '..', 'bf1943-tool-suite', 'bf1943-auto-navkit-common', 'tools'))
+    paths.use_folder(paths.sibling(paths.BF1943_SUITE, 'bf1943-auto-navkit-common', 'tools', suite=SUITE))
     import hkpack as m
     return m
 

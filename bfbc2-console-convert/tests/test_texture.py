@@ -24,10 +24,11 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('console-convert')
+suite_paths.use('console-convert', 'core')
 import texture  # noqa: E402
+from bfbc2core import paths  # noqa: E402
 
-OPFOR = os.environ.get('OPFOR_ROOT') or os.path.abspath(os.path.join(HERE, '..', '..', '..', 'project-opfor-bfbc2'))
+OPFOR = paths.sibling(paths.OPFOR_DIR, env=paths.OPFOR_ENV, suite=os.path.dirname(os.path.dirname(HERE)))
 WORK = os.path.join(OPFOR, 'work')
 
 
