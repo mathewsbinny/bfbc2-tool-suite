@@ -267,7 +267,7 @@ def game_checks(c, xbox):
             files = list(xiso.walk(f, base, root_sec, root_size))
         c.check(base == 0xFD90000, 'disc image: the XGD2 game partition at 0xFD90000')
         names = {p.lower() for p, _, _ in files}
-        c.check(len(files) == 693 and 'default.xex' in names, f'disc image: all 693 files listed, default.xex among them',
+        c.check(len(files) == 693 and 'default.xex' in names, 'disc image: all 693 files listed, default.xex among them',
                 f'{len(files)} files')
     else:
         print(f'skip disc image (not found: {iso})')

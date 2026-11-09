@@ -47,7 +47,6 @@ and capsule see bodies named BODIES (default 'h' and 'c'); 'e' bodies are anothe
 Clean room: only the level's data files are read (Havok packfiles through hkpack.py, the height field through
 core's terrain.py); no game code runs.
 """
-import glob
 import json
 import math
 import os
@@ -1269,7 +1268,6 @@ def parity(root, levels, name='offline', log=print):
     """For levels with in-game samples (and DICE path data): offline samples on the in-game files' grids, NavKit
     built from each, and the measures: navdiff of the offline build against the in-game build (same code, only the
     samples differ), and navparity of both against DICE's file. Saved as work\\navkit_offline\\parity_<name>.json."""
-    import shutil
     import navdiff
     import navparity
     import navregress

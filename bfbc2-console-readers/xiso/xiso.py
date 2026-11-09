@@ -9,7 +9,9 @@ root directory sector (u32) and size (u32). Directory entries form a binary tree
 u16 left, u16 right (offsets in dwords), u32 sector, u32 size, u8 attributes, u8 name length, name;
 entries are 4-byte aligned and never cross a sector (0xFF padding). All little-endian.
 """
-import os, struct, sys
+import os
+import struct
+import sys
 
 SECTOR = 2048
 MAGIC = b'MICROSOFT*XBOX*MEDIA'

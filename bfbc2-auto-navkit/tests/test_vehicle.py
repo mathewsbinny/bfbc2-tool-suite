@@ -11,7 +11,6 @@ no ground within the vehicle radius of the block, hpdcheck's structural checks, 
 
   python test_vehicle.py
 """
-import math
 import os
 import sys
 import tempfile

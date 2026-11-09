@@ -22,7 +22,7 @@ import struct
 from collections import Counter, defaultdict
 
 import dbxbin
-from levelmodel import local, text
+from levelmodel import text
 
 NS = 'opfor:stockmp'
 PATHFINDING = ['ai/pathfinding/infantry/3096da77-3146-479c-ae35-c822273a54a7',

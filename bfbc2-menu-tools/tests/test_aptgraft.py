@@ -177,7 +177,7 @@ def quick(c, work):
     kinds = sorted(k for _, k, _ in g.added)
     c.check(new == 3 and kinds == ['shape', 'sprite'] and g.cmap[imp] == 2,
             'graft: renumbered after the target\'s characters, the import mapped to the target\'s', str(g.added))
-    c.check(f'PlaceObject depth=7 char={new}' in d2 and f'PlaceObject depth=3 char=2 flags=0xa6 name="label"' in d2,
+    c.check(f'PlaceObject depth=7 char={new}' in d2 and 'PlaceObject depth=3 char=2 flags=0xa6 name="label"' in d2,
             'graft: placed, and the import placement points at the target\'s TextManager')
     ent = res2.geo_entry(g.cmap[sid])
     c.check(ent is not None and res2.char(g.cmap[sid]).vals[6] == g.cmap[sid],

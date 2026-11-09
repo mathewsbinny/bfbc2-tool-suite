@@ -7,7 +7,7 @@ out again and recomputes every offset.
 """
 import struct
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 NULL = 0xFFFFFFFF
 MARKER = b'KynogonRuntimeMesh\0\0'

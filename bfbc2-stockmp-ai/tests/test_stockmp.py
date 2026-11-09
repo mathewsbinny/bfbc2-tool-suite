@@ -8,7 +8,6 @@ r"""Tests of the stock-MP AI authoring tool.
                                          level bundles, then generate / build / validate Atacama Conquest (MP_005)
                                          in a temporary work folder, twice (the builds must be identical)
 """
-import hashlib
 import json
 import os
 import shutil

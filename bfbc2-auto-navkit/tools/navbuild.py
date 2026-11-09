@@ -33,7 +33,6 @@ Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd>
 import heapq
 import math
 import os
-import struct
 import sys
 import time
 from collections import defaultdict, deque
