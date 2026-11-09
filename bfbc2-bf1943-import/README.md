@@ -96,6 +96,26 @@ take the template's value, BF1943-only fields are left out, every change reporte
 `bfbc2core.dbx.write` (new in the core: a binary DBX writer; 300 BFBC2 partitions parse back to the same tree, and
 DbxEdit reads its output and writes it back unchanged).
 
+**Checked against DICE (`dbxparity.py`, 2026-11-08).** BFBC2 ships many BF1943 partitions under the same names with
+the same instance GUIDs; `python dbxparity.py [name part ...] [-o report.txt]` compares every field of every instance
+both games have and classifies the differences (enum: a number where DICE has a name; kind; nested: a field DICE keeps
+one level deeper; renamed: a BF1943-only field whose value DICE holds under another name; value; bf1943-only;
+dice-only). What it found is now in dbxport:
+- `RENAMED` splits / renames: `AngularMomentumDamping` -> `AngularMomentumDampingAcc` + `...Deacc`,
+  `CollectiveInputScale` -> `CollectiveThrottleInputScale` + `CollectiveBrakeInputScale`, `UpsideDownAngel` ->
+  `UpsideDownAngle` (DICE fixed the typo).
+- `ENUM_NUMBERS`: BF1943 stores some enums as numbers (`ChildRotationBodyData.RotationInput`,
+  `ChildMovingBodyData.InputAction`); BFBC2 by name. The pairs are DICE's own (4 EiaYaw, 5 EiaPitch, 6 EiaRoll, 7
+  EiaFire, ...); BFBC2's EntryInputActionEnum (its type table: EiaThrottle 0 .. EiaUndefined 49) agrees with BF1943's
+  only up to 6, so unpaired numbers are reported `UNMAPPED` and take the template's value. Kept as numbers, BFBC2 read
+  no input: the ported steering wheels and gun mounts did not turn.
+- Kinds: a BF1943 bool where BFBC2 has a number (the sound emitters' `HFDamping*`) becomes 1.0 / 0.0.
+- Nested: a BFBC2 struct whose fields BF1943 keeps one level up is built from them - BF1943's recoil
+  (`FireLogic.Max/MinRecoilAngleX/Y/Z`, `Max/MinRecoilFov`, `RecoilFollowsDispersion`) is BFBC2's
+  `FireLogic.Recoil.*`; before, every ported weapon fired with its template's recoil.
+- Not portable: BF1943's `BulletEntityData.VehicleDetonationTargets` (the Bofors' proximity fuse by vehicle type) -
+  BFBC2 has only the radius.
+
 Values BF1943 writes otherwise are translated (`hint_value`, reported as `value ...`): the vehicle seat hints'
 input actions (BF1943's enum spelling `EIAChangeEntry` / `EIUndefined` -> BFBC2's `EiaChangeEntry` /
 `EiaUndefined`: the engine resolves enums by name, so BF1943's named no key; the countermeasure action BFBC2 lacks ->

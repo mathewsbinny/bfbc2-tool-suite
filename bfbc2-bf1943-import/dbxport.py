@@ -13,6 +13,7 @@ omission and type BFBC2 has no template for is reported. The result is written w
 """
 import copy
 import glob
+import struct
 import os
 import sys
 
@@ -55,7 +56,60 @@ class Templates:
 ONE_TO_ARRAY = {'Meshes1p': 'Mesh1p', 'Meshes3p': 'Mesh3p'}
 # BFBC2 field: the BF1943 field it was renamed from, aligned as the same field (a physics asset's part table: BF1943's
 # {Name, MaterialName} items, BFBC2's with HashName, MaterialIndex, Aabb, Translation - all 0 in DICE's files)
-RENAMED = {'PartInfoDatas': 'PartMaterialDatas'}
+RENAMED = {'PartInfoDatas': 'PartMaterialDatas',
+           # found by dbxparity.py on the instances both games have (same GUID and type), 2026-11-08: DICE split
+           # BF1943's single damping / collective input scale into two fields and fixed a typo; aligned without these,
+           # the fields took the template's values (the Willys' steering wheel damped 0.5 instead of BF1943's 0.1)
+           'AngularMomentumDampingAcc': 'AngularMomentumDamping', 'AngularMomentumDampingDeacc': 'AngularMomentumDamping',
+           'CollectiveThrottleInputScale': 'CollectiveInputScale', 'CollectiveBrakeInputScale': 'CollectiveInputScale',
+           'UpsideDownAngle': 'UpsideDownAngel'}
+# Enum fields BF1943 stores as numbers (NUMBERS) where BFBC2 stores the name (TEXT): (type, field) -> {number: name}.
+# The pairs are DICE's own, from the instances both games have (dbxparity.py: the Kurogane, Chi-Ha, Bofors, .30 cal,
+# KORD, Zero, Corsair); BFBC2's EntryInputActionEnum is EiaThrottle 0 .. EiaUndefined 49 (its type table, 0x1180C58),
+# BF1943's agrees up to 6 (Roll) and differs after (its 7 is DICE's EiaFire, BFBC2's 7 EiaSwitchPrimaryWeapon), so
+# only paired numbers are mapped. A number not in its map is reported (UNMAPPED) and takes the template's value.
+# Kept as numbers, BFBC2 read no input: the ported steering wheels and gun mounts did not turn (playtest 2026-11-08).
+ENUM_NUMBERS = {
+    ('ChildRotationBodyData', 'RotationInput'): {0: 'EiaThrottle', 4: 'EiaYaw', 5: 'EiaPitch', 6: 'EiaRoll',
+                                                 7: 'EiaFire', 16: 'EiaPitch'},
+    ('ChildMovingBodyData', 'InputAction'): {0: 'EiaFire', 7: 'EiaFire'},
+}
+
+
+def _converted_kind(e, t, path, report):
+    """A leaf field whose stored kind differs from the template's, in BFBC2's kind; None when not converted."""
+    n = e.attr('name')
+    owner = path.rsplit('.', 1)[0].rsplit('.', 1)[-1]            # 'Namespace.Type.Field' -> 'Type'
+    if e.kind == dbx.NUMBERS and t.kind == dbx.TEXT:
+        size, vals = dbx.numbers(e)
+        if len(vals) != 1:
+            return None
+        num = int.from_bytes(vals[0], 'big', signed=True)
+        table = ENUM_NUMBERS.get((owner, n))
+        if table is None:
+            return None
+        name = table.get(num)
+        if name is None:
+            report.append(f'UNMAPPED {path}: BF1943 number {num} has no known BFBC2 name - the template\'s value')
+            return copy.deepcopy(t)
+        out = copy.deepcopy(t)
+        out.text = name
+        report.append(f'value {path}: {num} -> {name}')
+        return out
+    if t.kind == dbx.NUMBERS and len(e.raw) == 2 and e.kind != dbx.TEXT:
+        # a BF1943 bool where BFBC2 has a number (the sound emitters' HFDamping*: true -> 1.0)
+        size, vals = dbx.numbers(t)
+        if len(vals) != 1:
+            return None
+        v = float(e.raw[1])
+        packed = struct.pack('>f', v) if size == 4 else struct.pack('>d', v) if size == 8 else None
+        if packed is None:
+            return None
+        out = copy.deepcopy(t)
+        out.raw = t.raw[:len(t.raw) - size] + packed
+        report.append(f'value {path}: {"true" if v else "false"} -> {v:g}')
+        return out
+    return None
 
 
 # Field values BF1943 writes otherwise than BFBC2. The vehicle seat hints (HintLine1 / 2 + HintAction1 / 2: the text
@@ -178,6 +232,11 @@ def _align(e, t, path, report, resolve=None, prune=False):
                           f'template\'s value')
             return copy.deepcopy(t)
     if e.kind != dbx.CONTAINER or t.kind != dbx.CONTAINER:
+        if e.kind != t.kind and e.kind != dbx.CONTAINER and t.kind != dbx.CONTAINER:
+            conv = _converted_kind(e, t, path, report)
+            if conv is not None:
+                conv.attributes = [(k, e.attr('name') if k == 'name' else v) for k, v in conv.attributes]
+                return conv
         return e
     if e.tag == 'array':
         items = [c for c in (e.children or ())]
@@ -189,7 +248,7 @@ def _align(e, t, path, report, resolve=None, prune=False):
         return dbx.Element(e.tag, e.kind, list(e.attributes), e.text, e.raw, new)
     mine = _named(e.children)
     theirs = _named(t.children)
-    new = []
+    new, hoisted = [], set()
     for c in t.children or ():
         n = c.attr('name')
         if n is None:
@@ -212,12 +271,28 @@ def _align(e, t, path, report, resolve=None, prune=False):
             continue
         if n in mine:
             new.append(_align(mine[n], c, f'{path}.{n}', report, resolve, prune))
+        elif c.tag == 'complex' and any(k.attr('name') in mine for k in c.children or ()):
+            # a BFBC2 struct whose fields BF1943 keeps one level up (FiringFunctionData.FireLogic: BF1943's
+            # Max/MinRecoilAngleX/Y/Z, Max/MinRecoilFov, RecoilFollowsDispersion are BFBC2's FireLogic.Recoil.*):
+            # built from BF1943's fields, the template's where BF1943 has none (dbxparity.py, 2026-11-08 - before,
+            # every ported weapon fired with its template's recoil)
+            kids, moved = [], []
+            for k in c.children or ():
+                kn = k.attr('name')
+                if kn in mine:
+                    kids.append(_align(mine[kn], k, f'{path}.{n}.{kn}', report, resolve, prune))
+                    moved.append(kn)
+                else:
+                    kids.append(_without_local_refs(copy.deepcopy(k), f'{path}.{n}.{kn}', report))
+            new.append(dbx.Element(c.tag, c.kind, list(c.attributes), c.text, c.raw, kids))
+            hoisted.update(moved)
+            report.append(f'nested {path}.{{{", ".join(moved)}}} -> {path}.{n}')
         else:
             new.append(_without_local_refs(copy.deepcopy(c), f'{path}.{n}', report))
             report.append(f'added {path}.{n} (BFBC2\'s value)')
     converted = {ONE_TO_ARRAY[n] for n in theirs if n in ONE_TO_ARRAY} | {RENAMED[n] for n in theirs if n in RENAMED}
     for n in mine:
-        if n not in theirs and n not in converted:
+        if n not in theirs and n not in converted and n not in hoisted:
             report.append(f'left out {path}.{n} (BF1943 only)')
     # unnamed children BFBC2's template has none of (rare): kept as they are
     new += [c for c in (e.children or ()) if c.attr('name') is None and e.tag != 'array']
