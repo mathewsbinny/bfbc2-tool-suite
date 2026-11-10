@@ -26,7 +26,8 @@
 // "count 1" (until "count 0") also measures each draw, depth test off: the samples its pixel shader writes and the
 // samples its triangles cover (no pixel shader); printed as "count <draw> <shaded> <covered>" - a pixel shader that
 // discards everything (an alpha test reading the wrong channel) shows as shaded 0 of covered N.
-// Defaults per draw (a "vs" line starts a draw): the shadow map (t0) is a 1x1 depth of 1 (lit); s0 a comparison
+// Defaults per draw (a "vs" line starts a draw): the shadow map (t0) is a 1x1 depth of 1 (lit) unless the draw binds
+// its own with "tex 0" (the translator's differential test, xdiff.py); s0 a comparison
 // sampler, s1 trilinear anisotropic wrap, other samplers unbound (D3D11's default: linear, clamp).
 // Exit codes: 1 usage, 2 unreadable file, 3 a Direct3D call failed, 4 the device was lost (retry with -warp).
 #include <d3d11.h>
@@ -314,9 +315,9 @@ int main(int argc, char **argv) {
             ID3D11SamplerState *ss[16] = {samp[0], samp[1]};
             for (auto &kv : samps) if (kv.first >= 0 && kv.first < 16) ss[kv.first] = kv.second;
             ctx->PSSetSamplers(0, 16, ss); ctx->VSSetSamplers(0, 16, ss);
-            ID3D11ShaderResourceView *srv[16] = {shadow};
-            for (auto &kv : texs) if (kv.first > 0 && kv.first < 16) srv[kv.first] = kv.second;
-            ctx->PSSetShaderResources(0, 16, srv);
+            ID3D11ShaderResourceView *srv[32] = {shadow};
+            for (auto &kv : texs) if (kv.first >= 0 && kv.first < 32) srv[kv.first] = kv.second;   // tex 0 replaces the shadow map
+            ctx->PSSetShaderResources(0, 32, srv);
             if (counting) {
                 ID3D11Query *q[2];
                 check(dev->CreateQuery(&qd, &q[0]), "CreateQuery");
