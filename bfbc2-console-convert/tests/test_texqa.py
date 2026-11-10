@@ -182,6 +182,10 @@ def test_checks() -> None:
     check('normal' not in row, 'a merged emitter atlas (a composite): no normal-map statistics')
     row = texqa.analyse('objects/x/x_nm.res', ours, dice_res=ours)
     check(row['dice'].get('identical') and not errors_of(row), "BC5 equal to DICE's copy")
+    stock = texwrite.texture(img[::-1].copy())
+    row = texqa.analyse('objects/x/x_d.res', stock, xb, dice_res=stock)
+    check(not errors_of(row) and any(f['code'] == 'stock copy: orientation' and f['cause'] == 'dice' for f in row['flags']),
+          "DICE's own copy unlike the console source: DICE's difference, no error")
     # DICE's copy twice the size with flags bit 1
     big = bytearray(texwrite.texture(picture(128, 128)))
     big[12:16] = struct.pack('<I', 3)

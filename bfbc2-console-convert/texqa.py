@@ -664,6 +664,10 @@ def analyse(name: str, ours_res: bytes, source_res: bytes | None = None, dice_re
         for f in row['flags']:                    # the converter's output (.orig) is the source: the repaint did it
             if f['cause'] == 'converter':
                 f['cause'] = 'repaint'
+    if (row.get('dice') or {}).get('identical'):
+        for f in row['flags']:                    # DICE's own PC copy, byte for byte (a stock file a build took):
+            f['cause'], f['severity'] = 'dice', INFO   # what differs from the console source is DICE's doing
+            f['code'] = 'stock copy: ' + f['code']
     row['score'] = score(row)
     return row
 
@@ -731,6 +735,7 @@ def _vs_dice(row: dict[str, Any], ours_res: bytes, ours: Tex, dice: Tex, dice_ra
     row['dice'] = {'format': dice.fmt, 'flags': dice.flags, 'size': [dice.w, dice.h], 'mips': dice.mips}
     if unwrap(ours_res) == dice_raw:
         row['dice']['identical'] = True
+        row['psnr_dice'] = float('inf')
         return
     known = []
     if (dice.w, dice.h) == (ours.w * 2, ours.h * 2):
@@ -996,9 +1001,13 @@ def run(roots: list[str], *, sources: Sequence[Any] = (), dice: Dice | None = No
     rows = []
     todo_dice: dict[str, str] = {}
     plan = []
+    shas = {it.path: _sha1(open(it.path, 'rb').read()) for it in items}
+    origs = {shas[it.path]: it.orig for it in items if it.orig}
     for it in items:
         data = open(it.path, 'rb').read()
-        osha = _sha1(data)
+        osha = shas[it.path]
+        if it.orig is None and osha in origs:     # a copy of a repainted texture (an install staging's): its .orig
+            it.orig = origs[osha]
         src_key, src_obj = None, None
         for s in sources if not COMPOSITE.search(it.name.lower()) else ():
             k = lookup(it.name, s.entries)
@@ -1050,8 +1059,12 @@ class PcSource(LooseSource):
 # ------------------------------------------------------------------------------------------------ reports
 
 def key_of(row: dict[str, Any]) -> str:
-    """The baseline key: the folder given's last name and the texture's name (stable across runs and machines)."""
-    return f'{os.path.basename(row.get("root", "").rstrip(os.sep))}/{row["name"]}'.lower()
+    """The baseline key: the folder given's last name and the file's path under it (stable across runs and machines;
+    two unpacked bundles under one folder may hold the same name with other contents - the install's level and
+    terrain stages)."""
+    root = row.get('root', '').rstrip('\\/')
+    rel = os.path.relpath(row['path'], root).replace(os.sep, '/') if row.get('path') and root else row['name']
+    return f'{os.path.basename(root)}/{rel}'.lower()
 
 
 def baseline_of(rows: list[dict[str, Any]]) -> dict[str, Any]:
