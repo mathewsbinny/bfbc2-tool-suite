@@ -492,3 +492,264 @@ def convert(b, template, classes, table=None):
     groups' shape subparts get 5.5.0's field order (shape_subparts_to_550)."""
     pc = _run_table_to_pc(havok.convert(restructure(b, template, classes, table), classes))
     return shape_subparts_to_550(pc)[0]
+
+
+# ------------------------------------------------------------------------------------------------ physics materials
+# Where a PC physics resource keeps its materials (Project OPFOR research\MATERIAL_SLOTS_RE.md, the exe's readers):
+#   part materials  the wrapper's byte run after the boxes: u16 0 (no material table: BF1943's files may carry one,
+#                   DICE's never do), u8 the number of distinct materials the parts use, u8 the highest index, then one
+#                   byte per part - an index into the material list - left out when every part uses the same one (that
+#                   index is then the u8 before). All 991 object HavokAssets BFBC2 ships follow it, their part bytes
+#                   naming PartInfoDatas[].MaterialName through MaterialMappings (test_havokport). The game reads a
+#                   part's material for its damage (vtable+0xE0, per health state 0x6D84D0).
+#   material list   the tail before the packfile: 1, k, k u32 hashes (the material grid's MaterialData.Hash), in the
+#                   order of the dbx MaterialMappings
+#   face materials  a storage mesh's hkpStorageExtendedMeshShapeMeshSubpartStorage.materials (u32 indices into the
+#                   packfile's HavokMaterials list): its subpart's first hkpMeshMaterial, which the game reads as the
+#                   hit material of a static model group member (0xAAEEE0 / 0xAADE10: the bullet's impact effect,
+#                   sound, decal and penetration)
+
+class MaterialError(ValueError):
+    """A physics resource whose material slots are not the shape this module reads and writes."""
+
+
+def _wrapper(b):
+    """(parts n, the part run's start, the material list's start (its "1, k"), the list's hashes, the packfile's
+    start) of a PC physics resource."""
+    o = b.find(MAGIC)
+    if o < 0 or len(b) < 8:
+        raise MaterialError('no Havok packfile')
+    n, n2 = struct.unpack_from('<2I', b, 0)
+    if n != n2:
+        raise MaterialError('not a part-list wrapper (its counts differ)')
+    p = 8 + 4 * n
+    p += 2 + 12 * struct.unpack_from('<H', b, p)[0]
+    p += 2 + 24 * struct.unpack_from('<H', b, p)[0]
+    for k in range(0, (o - p) // 4):
+        q = o - 4 * k - 8
+        if q < p:
+            break
+        one, kk = struct.unpack_from('<2I', b, q)
+        if one == 1 and kk == k:
+            return n, p, q, list(struct.unpack_from(f'<{k}I', b, q + 8)), o
+    raise MaterialError('no material list (1, k, k hashes) before the packfile')
+
+
+def part_materials(b):
+    """(the material list's hashes, each part's index into it) of a PC physics resource."""
+    n, p, q, hashes, _ = _wrapper(b)
+    run = b[p:q]
+    if n == 0:
+        return hashes, []
+    if len(run) < 4 or run[:2] != b'\0\0':
+        raise MaterialError(f'the part run opens with a material table ({run[:4].hex(" ")}): not read here')
+    distinct, top = run[2], run[3]
+    idx = [top] * n if distinct == 1 else list(run[4:4 + n])
+    if len(run) != (4 if distinct == 1 else 4 + n) or len(set(idx)) != distinct or max(idx) != top or \
+            top >= len(hashes):
+        raise MaterialError(f'the part run {run.hex(" ")} is not {n} parts\' indices into {len(hashes)} materials')
+    return hashes, idx
+
+
+def part_run(indices):
+    """The part run of these per-part material indices (the format part_materials reads)."""
+    if not indices:
+        raise MaterialError('no parts')
+    if max(indices) > 255 or min(indices) < 0:
+        raise MaterialError('an index outside 0 - 255')
+    distinct = len(set(indices))
+    head = b'\0\0' + bytes([distinct, max(indices)])
+    return head if distinct == 1 else head + bytes(indices)
+
+
+def with_part_materials(b, indices, hashes):
+    """b with part i on material hashes[indices[i]]; hashes is the new material list: the old one, new hashes only
+    appended (the packfile's face indices keep their meaning)."""
+    n, p, _, old, o = _wrapper(b)
+    part_materials(b)                                         # the run is the shape this writes
+    if len(indices) != n:
+        raise MaterialError(f'{len(indices)} part materials for {n} parts')
+    if list(hashes[:len(old)]) != old:
+        raise MaterialError('the material list may only grow at its end')
+    if max(indices) >= len(hashes):
+        raise MaterialError('a part index past the material list')
+    tail = struct.pack('<2I', 1, len(hashes)) + struct.pack(f'<{len(hashes)}I', *hashes)
+    return b[:p] + part_run(list(indices)) + tail + b[o:]
+
+
+def _data(b):
+    """(the __data__ section's start, its local fixups {from: to}, global fixups {from: to}, objects {offset: class})
+    of a PC packfile; offsets from the data section's start."""
+    p = b.find(MAGIC)
+    secs = {}
+    for i in range(struct.unpack_from('<I', b, p + 20)[0]):
+        h = p + 64 + 48 * i
+        secs[b[h:h + 19].split(b'\0')[0].decode('latin-1')] = struct.unpack_from('<7I', b, h + 20)
+    cstart, cloc = secs['__classnames__'][:2]
+    names, o = {}, p + cstart
+    while o + 5 < p + cstart + cloc and struct.unpack_from('<I', b, o)[0] != 0xFFFFFFFF:
+        q = b.index(0, o + 5)
+        names[o + 5 - (p + cstart)] = b[o + 5:q].decode('latin-1')
+        o = q + 1
+    start, loc, glob, virt, exp = secs['__data__'][:5]
+    base = p + start
+    local, glob_ = {}, {}
+    for o in range(base + loc, base + glob - 7, 8):
+        s, d = struct.unpack_from('<2I', b, o)
+        if s != 0xFFFFFFFF:
+            local[s] = d
+    for o in range(base + glob, base + virt - 11, 12):
+        s, _, d = struct.unpack_from('<3I', b, o)
+        if s != 0xFFFFFFFF:
+            glob_[s] = d
+    kinds = {}
+    for o in range(base + virt, base + exp - 11, 12):
+        off, _, cn = struct.unpack_from('<3I', b, o)
+        if off != 0xFFFFFFFF:
+            kinds[off] = names.get(cn, '')
+    return base, local, glob_, kinds
+
+
+def _cstr(b, at):
+    return b[at:b.index(0, at)].decode('latin-1')
+
+
+def havok_materials(b):
+    """The packfile's HavokMaterials list: the material names the face indices count in, in order."""
+    base, local, glob_, kinds = _data(b)
+    lists = sorted(o for o, c in kinds.items() if c == 'HavokMaterials')
+    if not lists:
+        return []
+    arr, cnt = local.get(lists[0]), struct.unpack_from('<I', b, base + lists[0] + 4)[0]
+    return [_cstr(b, base + local[glob_[cast(int, arr) + 4 * i]]) for i in range(cnt)]   # HavokMaterial.name at 0
+
+
+def _fixups(b, start, end, size):
+    out, o = [], start
+    while o + size <= end:
+        e = struct.unpack_from(f'<{size // 4}I', b, o)
+        if e[0] != 0xFFFFFFFF:
+            out.append(e)
+        o += size
+    return out
+
+
+def _table_bytes(rows, size):
+    t = b''.join(struct.pack(f'<{size // 4}I', *r) for r in rows)
+    return t + b'\xff' * (-len(t) % 16)
+
+
+def with_havok_materials(b, names):
+    """b with the packfile's HavokMaterials list grown to names (the old list first; new HavokMaterial objects, name
+    0, as DICE's exporter lays them out: the list's objects end the data section - a 16-byte object, its name at the
+    next 16 bytes, padded to 16). DICE keeps this list equal to the material list (MaterialMappings, the wrapper's
+    hashes) in every file it ships."""
+    p = b.find(MAGIC)
+    old = havok_materials(b)
+    if [n.lower() for n in names[:len(old)]] != [n.lower() for n in old]:
+        raise MaterialError('the HavokMaterials list may only grow at its end')
+    if len(names) == len(old):
+        return b
+    base, local, glob_, kinds = _data(b)
+    lists = [o for o, c in kinds.items() if c == 'HavokMaterials']
+    if len(lists) != 1:
+        raise MaterialError(f'{len(lists)} HavokMaterials lists')
+    hm = lists[0]
+    arr = local[hm]
+    if any(o > hm and c != 'HavokMaterial' for o, c in kinds.items()) or arr <= hm:
+        raise MaterialError('the HavokMaterials list does not end the data section: not written here')
+    h = p + 64 + 48 * 2
+    if b[h:h + 8] != b'__data__':
+        raise MaterialError('the data section is not the third')
+    start, loc, glob, virt, exp, imp, end = struct.unpack_from('<7I', b, h + 20)
+    if base + end != len(b) or not (exp == imp == end):
+        raise MaterialError('the data section does not end the file, or has exports / imports')
+    lo = _fixups(b, base + loc, base + glob, 8)
+    gl = _fixups(b, base + glob, base + virt, 12)
+    vi = _fixups(b, base + virt, base + exp, 12)
+    mats = sorted(o for o, c in kinds.items() if c == 'HavokMaterial')
+    sec = next(r[1] for r in gl if r[0] == arr)
+    vrow = next(r for r in vi if r[0] == mats[0])
+    # the region from the pointer array on, rebuilt: the array, then each material (the old ones' 16 bytes kept)
+    old_objs = [b[base + o:base + o + 16] for o in (glob_[arr + 4 * i] for i in range(len(old)))]
+    region, objs, strs = bytearray(), [], []
+    n = len(names)
+    region += bytes(4 * n) + bytes(-4 * n % 16)
+    for i, name in enumerate(names):
+        o = arr + len(region)
+        region += old_objs[i] if i < len(old) else bytes(16)
+        s = arr + len(region)
+        raw = name.encode('latin-1') + b'\0'
+        region += raw + bytes(-len(raw) % 16)
+        objs.append(o)
+        strs.append(s)
+    data = bytearray(b[base:base + arr]) + region
+    struct.pack_into('<I', data, hm + 4, n)                      # the array's size
+    lo = [r for r in lo if r[0] < arr] + [(o, s) for o, s in zip(objs, strs)]
+    gl = [r for r in gl if r[0] < arr] + [(arr + 4 * i, sec, o) for i, o in enumerate(objs)]
+    vi = [r for r in vi if r[0] < arr] + [(o, vrow[1], vrow[2]) for o in objs]
+    tl, tg, tv = _table_bytes(lo, 8), _table_bytes(gl, 12), _table_bytes(vi, 12)     # the old rows in their order
+    loc2 = len(data)
+    glob2, virt2 = loc2 + len(tl), loc2 + len(tl) + len(tg)
+    end2 = virt2 + len(tv)
+    head = bytearray(b[:base])
+    struct.pack_into('<7I', head, h + 20, start, loc2, glob2, virt2, end2, end2, end2)
+    return bytes(head) + bytes(data) + tl + tg + tv
+
+
+STORAGE_MATERIALS_AT = 56                # hkpStorageExtendedMeshShapeMeshSubpartStorage::materials (u32 array)
+BODY_NAME_AT, BODY_SHAPE_AT = 112, 16     # hkpWorldObject::name, collidable.shape
+MOPP_CHILD_AT, MESH_STORAGE_AT = 52, 192  # hkpMoppBvTreeShape child.childShape, hkpStorageExtendedMeshShape::meshstorage
+
+
+def _storages(b, base, local, glob_, kinds, body):
+    """[(the materials array's offset, count)] of a rigid body's storage mesh (None: its shape is no storage mesh)."""
+    shape = glob_.get(body + BODY_SHAPE_AT)
+    if shape is not None and kinds.get(shape) == 'hkpMoppBvTreeShape':
+        shape = glob_.get(shape + MOPP_CHILD_AT)
+    if shape is None or kinds.get(shape) != 'hkpStorageExtendedMeshShape':
+        return None
+    arr, cnt = local.get(shape + MESH_STORAGE_AT), struct.unpack_from('<I', b, base + shape + MESH_STORAGE_AT + 4)[0]
+    out = []
+    for i in range(cnt):
+        st = glob_[cast(int, arr) + 4 * i]
+        k = struct.unpack_from('<I', b, base + st + STORAGE_MATERIALS_AT + 4)[0]
+        out.append((local.get(st + STORAGE_MATERIALS_AT), k))
+    return out
+
+
+def bodies(b):
+    """[(name, [the face materials of each subpart storage: indices into havok_materials] or None)] of the
+    packfile's rigid bodies in data order (None: the body's shape is no storage mesh, e.g. a model group's
+    collision body of convex children)."""
+    base, local, glob_, kinds = _data(b)
+    out = []
+    for o in sorted(k for k, c in kinds.items() if c == 'hkpRigidBody'):
+        name = _cstr(b, base + local[o + BODY_NAME_AT]) if o + BODY_NAME_AT in local else ''
+        st = _storages(b, base, local, glob_, kinds, o)
+        out.append((name, None if st is None else
+                    [list(struct.unpack_from(f'<{k}I', b, base + m)) if k else [] for m, k in st]))
+    return out
+
+
+def with_face_materials(b, changes):
+    """b with face materials rewritten in place: changes {body index (bodies' order): [per subpart storage: its
+    indices into havok_materials]} - the counts as bodies() lists them; only values change."""
+    base, local, glob_, kinds = _data(b)
+    out = bytearray(b)
+    n = len(havok_materials(b))
+    order = sorted(k for k, c in kinds.items() if c == 'hkpRigidBody')
+    for bi, new in changes.items():
+        st = _storages(b, base, local, glob_, kinds, order[bi])
+        if st is None:
+            raise MaterialError(f'body {bi}: not a storage mesh')
+        if len(new) != len(st):
+            raise MaterialError(f'body {bi}: {len(new)} subpart lists for {len(st)} subpart storages')
+        for i, ((m, k), vals) in enumerate(zip(st, new)):
+            if len(vals) != k:
+                raise MaterialError(f'body {bi} subpart {i}: {len(vals)} materials for {k}')
+            if any(not 0 <= x < n for x in vals):
+                raise MaterialError(f'body {bi} subpart {i}: an index past the {n} HavokMaterials')
+            if k:
+                struct.pack_into(f'<{k}I', out, base + m, *vals)
+    return bytes(out)
