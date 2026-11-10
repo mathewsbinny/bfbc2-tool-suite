@@ -10,6 +10,8 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
   settings, shader set and shader names renamed and listed, its bytes otherwise the same;
 - mesh.texcoord_element: the texture coordinates are the first half2 / float2 usage-0 element (soldiers, trees),
   else the first other float one (material-mask meshes), never a colour byte element; decode reads that one;
+- mesh.relayout: a PC MeshData into another layout - elements paired by kind (usage, stream, component count) in
+  any order, a missing one filled by the caller's edit, the palette extended, offsets and strides rewritten;
 
   python tests\test_converter_units.py
 """
@@ -238,12 +240,55 @@ def mopp_vm() -> None:
     check(refused, 'mopp: an unknown opcode is refused')
 
 
+def _layout(els, stride):
+    """A 0x49-byte layout record body: elements (format, usage, offset, stream), their count at 64, stride at 69."""
+    b = bytearray(0x49)
+    for i, e in enumerate(els):
+        b[4 * i:4 * i + 4] = bytes(e)
+    b[64], b[69] = len(els), stride
+    return bytes(b)
+
+
+def mesh_relayout() -> None:
+    import numpy as np
+    # one part of 3 vertices: position half3 @0, blend indices @6, weights @10, half2 uv @14, half4 grey @18 (stride 26)
+    old = _layout([(7, 1, 0, 0), (12, 2, 6, 0), (12, 3, 10, 0), (6, 0, 14, 0), (8, 0, 18, 0)], 26)
+    # DICE's soldier order: position, indices, weights, the half4 @14, two half2 @22 / @26 (stride 30)
+    new = _layout([(7, 1, 0, 0), (12, 2, 6, 0), (12, 3, 10, 0), (8, 0, 14, 0), (6, 0, 22, 0), (6, 0, 26, 0)], 30)
+    pos = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8]], '<f2')
+    uv = np.array([[0.25, 0.5], [0.75, 1], [0, 0.125]], '<f2')
+    grey = np.array([[0.5, 0.5, 0.5, 1]] * 3, '<f2')
+    rows = b''.join(pos[i].tobytes() + bytes([1, 0, 0, 0, 255, 0, 0, 0]) + uv[i].tobytes() + grey[i].tobytes()
+                    for i in range(3))
+    m = {'h0': 0, 'h1': b'\0\0', 'lists': [[0], [], [], []],
+         'parts': [{'name': b'p', 'triangles': 1, 'vertices': 3, 'first_index': 0, 'vertex_offset': 0, 'stride': 26,
+                    'k': 3, 'fa': 0, 'fb': 0, 'bones': [7, 9]}]}
+    b = mesh.write(m, rows, struct.pack('<3H', 0, 1, 2))
+
+    def edit(parts, cols):
+        cols[5][:] = cols[4] * 2                                # the second coordinate: the first one scaled
+        parts[0]['bones'] = parts[0]['bones'] + [11]
+    out = mesh.relayout(b, [old], [new], edit)
+    d = mesh.decode(out, new, 0, False)
+    q = mesh.parse(out, False)
+    raw = np.frombuffer(out, np.uint8, 90, q['data']).reshape(3, 30)
+    second = np.frombuffer(raw[:, 26:30].tobytes(), '<f2').reshape(3, 2)
+    half4 = np.frombuffer(raw[:, 14:22].tobytes(), '<f2').reshape(3, 4)
+    p = q['parts'][0]
+    check(np.array_equal(d['positions'][:, :3], pos.astype(np.float32)) and np.array_equal(d['uvs'], uv.astype(np.float32))
+          and np.array_equal(half4, grey) and np.array_equal(second, uv * 2) and p['stride'] == 30
+          and p['bones'] == [7, 9, 11] and d['bones'][:, 0].tolist() == [9, 9, 9],
+          'mesh.relayout: elements paired by kind (a half4 with a half4, whatever the order), the missing one '
+          'filled by the edit, palette extended, stride 26 -> 30', f'{d["uvs"]} {half4} {second} {p}')
+
+
 def main() -> int:
     havok_model_group()
     mopp_vm()
     textures()
     mesh_rename()
     texcoords()
+    mesh_relayout()
     print('all passed' if not FAILED[0] else f'{FAILED[0]} check(s) failed')
     return 1 if FAILED[0] else 0
 

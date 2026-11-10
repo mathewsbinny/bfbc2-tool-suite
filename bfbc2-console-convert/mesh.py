@@ -369,3 +369,96 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     ib = struct.pack('<%dH' % len(ind), *ind)
     m['wide_indices'] = 0
     return write(m, bytes(vb), bytes(ib))
+
+
+def _pc_column(raw, f, off):
+    """One element of PC vertex rows (n, stride) as a numeric array: floats for the float / half formats, uint8 for
+    UBYTE4."""
+    dt, k = _PC_DTYPE[f]
+    c = np.ascontiguousarray(raw[:, off:off + SIZE[f]])
+    v = np.frombuffer(c.tobytes(), dt).reshape(len(raw), k)
+    return v.astype(np.float32) if dt != 'u1' else v.copy()
+
+
+def relayout(b, old, new, edit=None):
+    """A PC MeshData's vertices re-laid into other PC vertex layouts (each part: old[i] -> new[i], layout record
+    bodies). A PC element takes the old element of its kind (usage, stream; the k-th of a kind the k-th), its value
+    carried across formats of the same family (half / float, as many components as both have, the rest 0); an element
+    the old layout lacks is 0. edit(parts, cols) may then change the values: parts the header dicts of the parts
+    drawing from one block of vertices (their palettes may be extended), cols {new element index: array (n, k)} -
+    float32 for float / half formats, uint8 for UBYTE4. Index data is kept; vertex offsets and strides follow. A kind
+    is (usage, stream, component count): a half4 texture coordinate pairs with a half4, a half2 with a half2, whatever
+    order the two layouts list them in; positions pass between half3 and float3.
+
+    A block is the vertices parts draw (from each part's vertex offset to its highest index), overlapping ones
+    merged; every part of a block must have the same old and the same new layout. Returns the PC bytes."""
+    m = parse(b, False)
+    if len(old) != len(m['parts']) or len(new) != len(m['parts']):
+        raise ConvertError(f'{len(m["parts"])} parts, {len(old)} / {len(new)} layouts')
+    isz = 4 if m['wide_indices'] else 2
+    spans = []
+    for i, p in enumerate(m['parts']):
+        if not p['triangles']:
+            continue
+        idx = np.frombuffer(b, '<u4' if isz == 4 else '<u2', index_count(p), m['data'] + m['vertex_bytes'] + p['first_index'] * isz)
+        hi = int(idx.max()) + 1 if len(idx) else 0
+        spans.append([p['vertex_offset'], p['vertex_offset'] + hi * p['stride'], [i]])
+    spans.sort()
+    blocks: list[list[Any]] = []
+    for s in spans:
+        if blocks and s[0] < blocks[-1][1]:
+            blocks[-1][1] = max(blocks[-1][1], s[1])
+            blocks[-1][2] += s[2]
+        else:
+            blocks.append(s)
+    vb = bytearray()
+    new_off = {}
+    for start, end, members in blocks:
+        lo_ = {bytes(old[i]) for i in members}
+        ln_ = {bytes(new[i]) for i in members}
+        if len(lo_) != 1 or len(ln_) != 1:
+            raise ConvertError(f'parts {[m["parts"][i]["name"] for i in members]} share vertices in different layouts')
+        eo, so = elements(old[members[0]])
+        en, sn = elements(new[members[0]])
+        if (end - start) % so or any((m['parts'][i]['vertex_offset'] - start) % so for i in members):
+            raise ConvertError(f'parts {[m["parts"][i]["name"] for i in members]}: vertices not aligned on {so} bytes')
+        n = (end - start) // so
+        raw = np.frombuffer(b, np.uint8, n * so, m['data'] + start).reshape(n, so)
+        pools: dict[tuple[int, int, int], list[int]] = {}
+        for k, (f, u, _, s) in enumerate(eo):
+            pools.setdefault((u, s, _PC_DTYPE[f][1]), []).append(k)
+        cols = {}
+        for k, (f, u, _off, s) in enumerate(en):
+            dt, comps = _PC_DTYPE[f]
+            pool = pools.get((u, s, comps))
+            src = pool.pop(0) if pool else None
+            out = np.zeros((n, comps), np.uint8 if dt == 'u1' else np.float32)
+            if src is not None:
+                fo, _, oo, _ = eo[src]
+                v = _pc_column(raw, fo, oo)
+                if (v.dtype == np.uint8) != (out.dtype == np.uint8):
+                    raise ConvertError(f'element {en[k]}: its old format {fo:#04x} is not carried to {f:#04x}')
+                c = min(comps, v.shape[1])
+                out[:, :c] = v[:, :c]
+            cols[k] = out
+        if edit is not None:
+            edit([m['parts'][i] for i in members], cols)
+        rows = np.zeros((n, sn), np.uint8)
+        for k, (f, _u, off, _s) in enumerate(en):
+            dt, _comps = _PC_DTYPE[f]
+            rows[:, off:off + SIZE[f]] = np.frombuffer(np.ascontiguousarray(cols[k].astype(dt)).tobytes(), np.uint8).reshape(n, -1)
+        base = len(vb)
+        vb.extend(rows.tobytes())
+        for i in members:
+            new_off[i] = base + (m['parts'][i]['vertex_offset'] - start) // so * sn
+            m['parts'][i]['stride'] = sn
+    for i, p in enumerate(m['parts']):
+        if i in new_off:
+            p['vertex_offset'] = new_off[i]
+        else:                                                    # a part with no triangles: no vertices
+            p['vertex_offset'], p['stride'] = len(vb), elements(new[i])[1]
+    ib = b[m['data'] + m['vertex_bytes']:m['data'] + m['vertex_bytes'] + m['index_bytes']]
+    res = bytearray(write(m, bytes(vb), ib))
+    if m['wide_indices']:                                        # write() states 16-bit indices
+        struct.pack_into('<I', res, len(res) - len(vb) - len(ib) - 4, 1)
+    return bytes(res)
