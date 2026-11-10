@@ -12,8 +12,9 @@ to 1 x 1, a level never under one block).
                                    # type name zero-padded to 56 bytes, the payload size twice (u32), the payload
 
 The encoder: per 4 x 4 block, the colours' principal axis (power iteration) gives the two end colours (the
-extremes of the block projected on it, rounded to 5:6:5), four-colour mode always (colour 0 > colour 1), each texel
-the nearest of the four; DXT5's alpha half: the block's highest and lowest alpha as the end values (eight-value
+extremes of the block projected on it, rounded to 5:6:5), four-colour mode (colour 0 > colour 1), each texel
+the nearest of the four - but a DXT1 block with a transparent texel (a colour picture given with 1-bit alpha) in
+three-colour mode (colour 0 <= colour 1: the two ends, their midpoint, index 3 transparent); DXT5's alpha half: the block's highest and lowest alpha as the end values (eight-value
 mode), each texel the nearest of the eight. Mip levels: 2 x 2 box filter; normal maps renormalised after each step.
 """
 import struct
@@ -47,8 +48,27 @@ def _blocks(img, channels):
 
 
 def dxt1(rgb):
-    """(h, w, 3) uint8 -> DXT1 blocks (rows of blocks), sides multiples of 4 or under 4 (padded by edge copies)."""
-    return _color_blocks(_blocks(np.asarray(rgb)[..., :3], 3)).tobytes()
+    """(h, w, 3) uint8 -> DXT1 blocks (rows of blocks), sides multiples of 4 or under 4 (padded by edge copies).
+    (h, w, 4): the fourth channel is 1-bit alpha (under 128: transparent) - a block with a transparent texel is written
+    in three-colour mode (colour 0 <= colour 1, index 3 transparent), the others as without alpha."""
+    img = np.asarray(rgb)
+    if img.ndim == 3 and img.shape[2] == 4:
+        blk = _blocks(img, 4)
+        return _color_blocks(blk[:, :, :3], blk[:, :, 3] < 128).tobytes()
+    return _color_blocks(_blocks(img[..., :3], 3)).tobytes()
+
+
+def alpha1(level, w, h):
+    """The 1-bit alpha of a DXT1 level (PC block order) -> (h, w) int array, 0 (transparent: a three-colour block's
+    index 3) or 255 - what the console converter's decode, colour only, leaves out."""
+    bw, bh = max((w + 3) // 4, 1), max((h + 3) // 4, 1)
+    blk = np.frombuffer(level[:bw * bh * 8], np.uint8).reshape(-1, 8)
+    c0 = blk[:, 0].astype(np.int64) | (blk[:, 1].astype(np.int64) << 8)
+    c1 = blk[:, 2].astype(np.int64) | (blk[:, 3].astype(np.int64) << 8)
+    bits = np.ascontiguousarray(blk[:, 4:8]).view('<u4')[:, 0].astype(np.uint64)
+    idx = np.stack([(bits >> np.uint64(2 * k)) & np.uint64(3) for k in range(16)], 1).astype(np.int64)
+    a = np.where((c0 <= c1)[:, None] & (idx == 3), 0, 255)
+    return a.reshape(bh, bw, 4, 4).transpose(0, 2, 1, 3).reshape(bh * 4, bw * 4)[:h, :w]
 
 
 def _alpha_blocks(a):
@@ -95,8 +115,40 @@ def alpha5(level, w, h):
     return a[:h, :w]
 
 
-def _color_blocks(blk):
-    """(n, 16, 3) float -> (n, 8) uint8 DXT1 colour blocks."""
+def _color_blocks(blk, transparent=None):
+    """(n, 16, 3) float -> (n, 8) uint8 DXT1 colour blocks. transparent: (n, 16) bool, the texels written as
+    transparent (the blocks holding one in three-colour mode)."""
+    if transparent is not None and transparent.any():
+        clear = transparent.any(1)
+        opaque = ~transparent
+        cnt = opaque.sum(1, keepdims=True)
+        fill = (blk * opaque[..., None]).sum(1) / np.maximum(cnt, 1)                # the opaque texels' mean
+        blk = np.where(transparent[..., None], fill[:, None, :], blk)               # no pull on the end colours
+        out = _color_blocks(blk)
+        sub = blk[clear]
+        mean = sub.mean(1, keepdims=True)
+        d = sub - mean
+        cov = np.einsum('nki,nkj->nij', d, d)
+        axis = np.ones((len(sub), 3)) / np.sqrt(3)
+        for _ in range(8):
+            axis = np.einsum('nij,nj->ni', cov, axis)
+            axis /= np.maximum(np.linalg.norm(axis, axis=1, keepdims=True), 1e-9)
+        t = np.einsum('nki,ni->nk', d, axis)
+        c0, p0 = _565(np.clip(mean[:, 0] + axis * t.min(1, keepdims=True), 0, 255))
+        c1, p1 = _565(np.clip(mean[:, 0] + axis * t.max(1, keepdims=True), 0, 255))
+        swap = c0 > c1                                                             # three-colour: colour 0 <= 1
+        c0, c1 = np.where(swap, c1, c0), np.where(swap, c0, c1)
+        p0, p1 = np.where(swap[:, None], p1, p0), np.where(swap[:, None], p0, p1)
+        pal = np.stack([p0, p1, (p0 + p1) / 2], 1)                                 # (n, 3, 3); index 3 transparent
+        idx = ((sub[:, :, None, :] - pal[:, None, :, :]) ** 2).sum(-1).argmin(-1).astype(np.uint32)
+        idx[transparent[clear]] = 3
+        bits = (idx << (2 * np.arange(16, dtype=np.uint32))).sum(1).astype(np.uint32)
+        o = np.zeros((len(sub), 8), np.uint8)
+        o[:, 0:2] = c0.astype('<u2').view(np.uint8).reshape(-1, 2)
+        o[:, 2:4] = c1.astype('<u2').view(np.uint8).reshape(-1, 2)
+        o[:, 4:8] = bits.astype('<u4').view(np.uint8).reshape(-1, 4)
+        out[clear] = o
+        return out
     mean = blk.mean(1, keepdims=True)
     d = blk - mean
     cov = np.einsum('nki,nkj->nij', d, d)
@@ -148,7 +200,9 @@ def levels(img, normal=False, channels=3):
 
 def texture(img, kind='color', mips=True):
     """A PC ITexture resource. kind: 'color' (DXT1, format 0), 'normal' (DXT1, format 18) or 'dxt5' (RGBA, format
-    2: colour with alpha); mips: every level down to 1 x 1, else level 0 only (DICE's award images have one)."""
+    2: colour with alpha); mips: every level down to 1 x 1, else level 0 only (DICE's award images have one).
+    'color' from an (h, w, 4) picture keeps DXT1's 1-bit alpha (fourth channel under 128: transparent; each mip level's
+    alpha the 2 x 2 mean, cut at 128 again)."""
     img = np.asarray(img)
     h, w = img.shape[:2]
     if h & (h - 1) or w & (w - 1) or not h or not w:
@@ -156,7 +210,8 @@ def texture(img, kind='color', mips=True):
     normal = kind == 'normal'
     if kind == 'dxt5' and (img.ndim != 3 or img.shape[2] != 4):
         raise TexWriteError('dxt5 takes an (h, w, 4) picture')
-    lv = levels(img, normal, 4 if kind == 'dxt5' else 3)
+    punch = kind == 'color' and img.ndim == 3 and img.shape[2] == 4    # DXT1 with 1-bit alpha (dxt1)
+    lv = levels(img, normal, 4 if kind == 'dxt5' or punch else 3)
     if not mips:
         lv = lv[:1]
     if len(lv) > 15:

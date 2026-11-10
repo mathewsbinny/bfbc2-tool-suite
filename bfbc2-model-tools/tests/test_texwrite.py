@@ -94,6 +94,25 @@ def main():
     print(f'dxt5: colour mean error {ec:.2f}, alpha worst error {ea:.0f} of 255')
     if ec > 10 or ea > 10:
         fails.append(f'dxt5: colour error {ec:.2f}, alpha error {ea}')
+    # DXT1 with 1-bit alpha (punch-through): transparent texels stay transparent (alpha1), the opaque ones keep their
+    # colour, no all-zero block where the picture has opaque texels; a picture without transparency is unchanged
+    cut = np.dstack([smooth, np.where((xx // 24 + yy // 24) % 3 == 0, 0, 255).astype(np.uint8)])
+    pres = texwrite.texture(cut)
+    if struct.unpack_from('<8I', pres, 0) != (3, 0, 0, 1, 512, 512, 0, 10):
+        fails.append(f'dxt1 alpha: header {struct.unpack_from("<8I", pres, 0)}')
+    a1 = texwrite.alpha1(pres[texwrite.HEADER:], 512, 512)
+    opaque = cut[..., 3] >= 128
+    pc = decode(pres).astype(float)
+    ep = np.abs(pc[opaque] - smooth[opaque]).mean()
+    blocks = np.frombuffer(pres[texwrite.HEADER:texwrite.HEADER + 131072], np.uint8).reshape(-1, 8)
+    zero = int((~blocks.any(1)).sum())
+    print(f'dxt1 alpha: {int((a1 == 0).sum())} transparent texels of {int((~opaque).sum())}, alpha mismatches '
+          f'{int(((a1 == 255) != opaque).sum())}, opaque colour mean error {ep:.2f}, all-zero blocks {zero}')
+    if ((a1 == 255) != opaque).any() or ep > 10 or zero:
+        fails.append(f'dxt1 alpha: mismatches {int(((a1 == 255) != opaque).sum())}, error {ep:.2f}, zero blocks {zero}')
+    if (texwrite.alpha1(res[texwrite.HEADER:], 512, 512) != 255).any() or \
+            texwrite.texture(np.dstack([smooth, np.full(smooth.shape[:2], 255, np.uint8)])) != res:
+        fails.append('dxt1 alpha: an opaque picture is not as without alpha')
     wr = texwrite.wrapped(res5)
     if wr[:12] != b'RES\x02ITexture' or any(wr[12:56]) or struct.unpack_from('<2I', wr, 56) != (len(res5),) * 2 or \
             wr[64:] != res5:
