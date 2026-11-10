@@ -226,16 +226,19 @@ Guessed or simplified:
   (key kind 9, `boneMatrices[i].x > 0` shows part i) show every part;
 - world matrix identity (the mesh at the origin), no back-face culling, no blend states (every draw opaque), time 0;
 - vertex constants that no parameter block fills are 0. The engine sets some of them: tree fronds and wind read
-  `constants[...]` in the vertex shader, so a tree's fronds collapse here (its trunk draws). Shaders that sample a
-  level-wide map at the world position (sp_005's rocks: `snowocc` at world XZ / 2048) read the level's centre.
+  `constants[...]` in the vertex shader. The fir tree's and acacia's fronds discard every pixel here (the trunk
+  draws) and show as `alpha-discards-all` on DICE's own entries. Shaders that sample a level-wide map at the world
+  position (sp_005's rocks: `snowocc` at world XZ / 2048) read the level's centre.
 
 ### Validation
 
 `validate` on 16 stock meshes (crates, sandbags, containers, palm and fir trees, a destructible house, the Humvee,
-M1A2, M16 3p, a MEC soldier, rocks, the M1A2 wreck): 13 draw as in the game. Three are dark or incomplete, for the
-reasons in the list above: the fir tree's fronds (engine-set vertex constants), the sp_005 rock formation (level
-occlusion map) and the M1A2 wreck (DICE's charred material is near black). The mesh viewer's picture is a weak
-reference: it ignores composite part transforms and often picks a mask atlas as the colour map.
+M1A2, M16 3p, a MEC soldier, rocks, the M1A2 wreck), each with its own level's database: 15 draw as in the game
+(the desert Humvee, the camouflaged M1A2, textured rocks). Only the fir tree's fronds are missing, because of the
+engine-set vertex constants above. Where the mesh viewer picks the right colour map, the mean colour's hue agrees
+with it (0.94 - 1.0: palm, house, soldier, rocks, wreck). Elsewhere the mesh viewer is a weak reference: it ignores
+composite part transforms and often takes a mask atlas for the colour map. An earlier run with the key light from
+the weather's theta / phi drew the rock formation and the M1A2 wreck black: they were lit from below.
 
 `shaderview.exe` is built by `renderqa.py` into the suite's `build\` folder (gitignored) the first time it is needed.
 It needs the Visual Studio C++ tools. It uses the GPU, and falls back to WARP (the software rasterizer) when the GPU

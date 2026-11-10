@@ -809,6 +809,9 @@ def compare_images(a: Rendered, b: Rendered) -> dict[str, Any]:
             mse = float((diff ** 2).mean())
             psnr = 99.0 if mse == 0 else float(10 * math.log10(1.0 / mse))
             ca, cb = da.mean(0), db_.mean(0)
+        elif not union.any():                               # neither drew anything: equal
+            mae, psnr = 0.0, 99.0
+            ca = cb = np.zeros(3)
         else:
             mae, psnr = 1.0, 0.0
             ca = a.views[view][ma].mean(0) if ma.any() else np.zeros(3)
