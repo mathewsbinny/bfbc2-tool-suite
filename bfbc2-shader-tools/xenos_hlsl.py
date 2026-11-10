@@ -50,7 +50,8 @@ class TranslateError(Exception):
 class Interface:
     def __init__(self, interpolators: Sequence[int], vs_inputs: dict[int, str] | None = None,
                  material: dict[str, Any] | None = None, sampler_fix: dict[int, str] | None = None,
-                 colour_scale: float = 1.0, instanced: bool = False, bones_as_world: bool = False) -> None:
+                 colour_scale: float = 1.0, instanced: bool = False, bones_as_world: bool = False,
+                 material_regs: dict[int, Sequence[float]] | None = None) -> None:
         self.bones_as_world = bones_as_world        # BFBC2 composite (kind 9): parts drawn with the world transform
         self.trace_nan = False                      # debug: output the first instruction whose result is NaN / inf
         self.probe: list[str] | None = None         # debug: [constant expressions] drawn as bit bars (PROBE_*)
@@ -58,6 +59,11 @@ class Interface:
         self.interpolators = interpolators          # [usage index] the VS writes (TEXCOORDn), shared VS -> PS
         self.vs_inputs = vs_inputs or {}            # VS: usage index -> HLSL type of the PC element ('float4')
         self.material = material or {}              # name -> (x, y, z, w)
+        # register -> (x, y, z, w): a parameter block's constants by the register they set. A block names each value
+        # (sunDir, TrackOffset, fadeFactor ...), the compiled shader declares one array, 'constants', over those
+        # registers: every block constant of BF1943's Wake database lies inside the vertex or pixel shader's
+        # 'constants' array and none matches a constant table name, so only the register finds the value
+        self.material_regs = material_regs or {}
         self.sampler_fix = sampler_fix or {}        # sampler register -> swizzle applied to fetched values ('xxxw'), or
         #                                             a wrapping expression with {} ('xsrgb({})': an sRGB view's value re-encoded)
         self.colour_scale = colour_scale
@@ -119,6 +125,14 @@ class _Emitter:
                 vals = self.iface.material.get(c.name)
                 if vals is None and c.name == 'colorScale':
                     vals = [(self.iface.colour_scale,) * 4]
+                regs = self.iface.material_regs
+                if vals is None and c.name == 'constants' and any(c.reg + k in regs for k in range(c.count)):
+                    # the block's values by register inside the array; registers no block value sets stay 0 (the
+                    # engine's own: a tree's wind and fade)
+                    vals = [tuple(regs.get(c.reg + k, (0.0, 0.0, 0.0, 0.0))) for k in range(c.count)]
+                    unset = [k for k in range(c.count) if c.reg + k not in regs]
+                    if unset:
+                        self.statics.append(f'// material constant {c.name}: no value given for {unset}, 0')
                 if vals is None:
                     vals = [(0.0, 0.0, 0.0, 0.0)] * c.count
                     self.statics.append(f'// material constant {c.name}: no value given, 0')
