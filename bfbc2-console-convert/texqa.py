@@ -922,10 +922,17 @@ class Dice:
     """DICE's PC textures by lower name from the game copy's stock bundles (meshview's bundle list: Package before
     Dist, OPFOR's own levels left out); the index cached in the cache folder (never in OPFOR's work folder)."""
 
-    def __init__(self, opfor: str, cache: str | None):
+    def __init__(self, opfor: str, cache: str | None, originals: Sequence[str] = ()):
+        """originals: backup suffixes an installer keeps of the stock bundles it patches ('.opfor-wake-orig'): where
+        <bundle><suffix> exists, DICE's textures are read from it, not from the patched bundle - the WW2 award
+        pictures added to ondemand_awards-00.fbrb passed as 'DICE's copy' of themselves, so a changed picture read
+        as a regression (2026-11-10)."""
         suite_paths.use('mesh-viewer')
         import meshview
-        bundles = [b for _, b in meshview._bundles(opfor)]
+        bundles = []
+        for _, b in meshview._bundles(opfor):
+            orig = next((b + s for s in originals if os.path.isfile(b + s)), None)
+            bundles.append(orig or b)
         sig = [(b, os.path.getsize(b), int(os.path.getmtime(b))) for b in bundles]
         self.sig = _sha1(json.dumps(sig).encode())[:16]
         path = os.path.join(cache, f'dice_textures_{self.sig}.json') if cache else None
