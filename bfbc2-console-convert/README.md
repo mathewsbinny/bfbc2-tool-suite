@@ -58,6 +58,32 @@ files on 6), the normals / tangents 91% exact and within 1 / 511 elsewhere (the 
 Battlefield 1943's visual terrain and visual water (Wake Island, Iwo Jima, Guadalcanal, Coral Sea) convert and read
 back as BFBC2's PC formats. The grammars are in terrain.py's docstring.
 
+## Texture QA (texqa.py)
+
+```
+python texqa.py <build folder or .res>... [-o <out>] [--cache <folder>] [--bf1943 <dist\xenon> | --no-bf1943]
+                [--console <unpacked console bundles>] [--opfor <folder> | --no-dice] [--worst N] [--skip <dir>]
+                [--baseline <json>] [--write-baseline <json>] [--threshold <dB>]
+```
+
+Checks every PC texture a build wrote (loose `.res` files recognised by their header; in unpacked bundles the
+manifest's ITexture entries): it decodes ours and its Xbox 360 source (Battlefield 1943's, or console BFBC2 files)
+with all their levels to RGBA and compares them level by level (PSNR, an SSIM on luminance, the largest error,
+per-channel means), and with DICE's PC copy of the same name where BFBC2 ships one. Flags, each with a severity and a
+cause (converter, source, a known DICE difference, an intentional repaint, unknown): degenerate pictures (all black,
+white, transparent, constant, NaN), flips / mirrors / rotations and channel swizzles (a permutation or orientation
+matching the source or DICE's copy better than as-is), another aspect, lost alpha, the sRGB bit against the source,
+DICE's copy and the role, the format against DICE's formats for the role (normal / colour / specular / mask / UI,
+measured on 1,135 stock textures), each level against its box-filtered parent, normal maps (z in blue for DXT1; x / y
+inside the unit disc for BC5, z rebuilt as sqrt(1 - x^2 - y^2)), level sizes. DICE's known differences (its copy twice
+the console's size with flags bit 1, bit 1 on a same-size re-export, its own repaints) are reported as such.
+
+Outputs: `texqa.json`, `texqa.txt` (flagged textures, worst first) and `sheets\worst_NN.png` (source | ours | DICE's |
+difference x 4 | alpha). `--cache` skips unchanged textures (sha1 of ours, the source's and DICE's identities);
+`--write-baseline` / `--baseline` turn it into a regression check (a new error flag or a PSNR drop over the
+threshold: exit code 1). The Xbox decoder untiles every block of a level at once (texture.layout / texture.tiled on
+arrays): `tests\test_texqa.py` proves it against `texture.convert` on synthetic textures (quick tier).
+
 ## Sounds (audio.py)
 
 `audio.convert(xbox_bytes, 'bfbc2' | 'bf1943', streams=None)`: an Xbox 360 Wave resource (EA-XMA audio) as BFBC2's
