@@ -132,7 +132,9 @@ picture (`texture.check`, `convert.py verify-texture`, `tests/test_texture.py`, 
 - the 2 x 2 and 1 x 1 levels of BC5 textures differ from the PC's (DICE's PC compressor encodes those blocks
   differently; the console's blocks are not in the PC files at all).
 
-### 2.4 Not converted
+### 2.4 The other formats (not converted at first; converted since 2026-11-05 / 11-09)
+
+Still refused: a console texture in format 9 (32-bit), which `texture.py` lists in `OTHER`. The four below convert.
 
 **Console 5 is RGB565** (2026-11-05): 16 bits a texel (red in the top 5 bits, blue in the low 5), tiled; the PC keeps
 it as 32-bit format 9 (bytes blue, green, red, alpha 255). `convert` expands it; on BFBC2's twins of the same size

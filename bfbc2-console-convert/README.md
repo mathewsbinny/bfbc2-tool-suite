@@ -14,20 +14,44 @@ python convert.py verify-texture <pc folder> <console folder>... [--report <file
 | Resource | Status | Checked by |
 |---|---|---|
 | HavokPhysicsData (physics) | done | all 400 shared console / PC files equivalent (FORMAT.md 1.3) |
-| textures (XenonTexture -> ITexture) | DXT1 / DXT3 / DXT5 / BC5, 2D and cube maps | 251 shared console / PC textures: byte-identical or the same picture (FORMAT.md 2.3) |
-| meshes (MeshData) and mesh sets (rigid, composite, skinned) | done (`mesh.py`, `meshset.py`; used by OPFOR's `console_markv.py`) | Mark V converted and loading on PC; every console MeshData and mesh set of the Onslaught builds parses (FORMAT.md 3-4) |
+| textures (XenonTexture -> ITexture) | DXT1 / DXT3 / DXT5 / BC5, 2D and cube maps; console 3 (DXT5A) -> PC 10, 5 (RGB565) -> PC 9, 10 (L8, 8-bit) -> PC 10, 13 (RGBA16F, untiled); the header flags kept as the console's | 251 shared console / PC textures: byte-identical or the same picture (FORMAT.md 2.3); L8: BFBC2's 19 twins (2.4) |
+| meshes (MeshData) and mesh sets (rigid, composite, skinned, tree) | done (`mesh.py`, `meshset.py`; used by OPFOR's `console_markv.py`); triangle strips (part record k = 5) unrolled into lists | Mark V converted and loading on PC; every console MeshData and mesh set of the Onslaught builds parses (FORMAT.md 3-4); all 92 BFBC2 PC tree sets round-trip byte-identical |
+| soot meshes (scorch overlays) | done (`soot.py`) | 30 of 30 BFBC2 twins byte for byte; BF1943's 404 of 406 (the warehouse's 16-byte vertices refused) |
 | a mesh part as arrays (`mesh.decode`), console layouts (`mesh.console_layouts`) | done (used by OPFOR's WW2 `attachments.py` for Battlefield 1943's rifle parts) | 103 BFBC2 mesh parts decode alike from the Xbox and PC copies; every BF1943 rifle part decodes in range |
 | sounds (Wave: EA-XMA -> EA-XAS) | done (`audio.py`, below; needs ffmpeg for decoding) | 35,811 BFBC2 twins' wrappers; converted Xbox files match their PC twins' structure; Battlefield 1943's sounds convert |
 
 `mesh.decode(meshdata, layout, part, big_endian)` gives one part's positions, normals, tangents, binormals, UVs,
 weights and bones (the part's palette applied) and its triangles, for its own vertex window - from a console mesh
-with the source game's layout, or a PC one with BFBC2's. `mesh.console_layouts(shader_db)` reads a console shader
+with the source game's layout, or a PC one with BFBC2's. **The UVs** (2026-11-09, `mesh.texcoord_element`; the mesh
+viewer uses the same rule) are the first half2 / float2 element of usage 0, else the first other float one - not
+simply the first usage-0 element. The rule was found over every layout of the game's shader databases:
+- BFBC2's soldiers start with a grey half4 at offset 16 and keep the coordinates in the half2 at 40;
+- trees have a half4 of zeros before the bark's half2;
+- material-mask meshes have colour bytes before their half4.
+
+float2 (0x02) is decoded too (FORMAT.md 3). `mesh.console_layouts(shader_db)` reads a console shader
 database's part names and layout records (BFBC2's Xbox levels, Battlefield 1943's): names are stored as name, NUL,
 layout guid, and walked in runs so a printable guid byte is not read as a name's first letter.
 
+**Texture header flag bit 1** (2026-11-09, FORMAT.md 2.1): DICE's build halves the texture for the console.
+- All 539 BFBC2 textures whose Xbox copy is smaller have the bit on the PC, and 11 of the other 929 do; no Xbox copy
+  has it.
+- DICE's PC copies of BF1943's textures have it exactly where they are twice BF1943's console size.
+
+So a converted texture keeps the console's flags. Console 3 (DXT5A) -> PC 10 no longer writes flags 2 (Wake's
+mask-tile atlas now 0, as DICE's), and it pads its rows as L8 does.
+
+**Format 10 (L8, 8-bit)** is tiled like the block formats with 1-byte elements; its texels are not byte-swapped, and
+each PC row is padded to 4 bytes. Of BFBC2's 19 twins, the 11 of the same size are byte-identical (one font is other
+art). Where the PC copy is twice the console's, each console level is within 0.3 of 255 of the PC level of its size,
+and the smallest are equal.
+
 Folders are unpacked bundles (FbrbTool). Format notes and the checks: [FORMAT.md](FORMAT.md). Tests:
-`tests\test_havok.py`, `tests\test_texture.py`, `tests\test_mesh_decode.py` (game tier: your game copy and console
-files, and Battlefield 1943 in the Rising Sun workspace; skipped without them).
+`tests\test_havok.py`, `tests\test_texture.py`, `tests\test_mesh_decode.py`, `tests\test_terrain.py`,
+`tests\test_soot.py`, `tests\test_audio.py` (game tier: your game copy and console files, and Battlefield 1943 in the
+Rising Sun workspace; skipped without them); the suite's `tests\test_converter_units.py` (quick: L8 untiling, padding
+and flags, the texture-coordinate rule). `tests\test_trees.py [--game]` (triangle strips, tree mesh sets) is run by
+hand: `run_tests.py` does not list it yet.
 The texture check needs `numpy`.
 
 Developed for Project OPFOR BFBC2. Havok is a trademark of Microsoft; Xbox is a trademark of Microsoft;
