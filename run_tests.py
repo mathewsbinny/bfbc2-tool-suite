@@ -126,6 +126,8 @@ def tests():
         ('dbxport fair ports, 7 partitions against DICE (skipped without game data)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_dbxport_fair.py'), '--quick']),
         ('emitter atlases merged, emitters re-pointed (synthetic)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_emitteratlas.py')]),
+        ('texture QA: decoding, Xbox untiling, flips / swizzles / degenerate, baseline (synthetic)', 'quick',
+         [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_texqa.py')]),
         ('path locators: the same answers as a reference checkout (main)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_locators.py')]),
         ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),
