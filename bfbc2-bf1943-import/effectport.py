@@ -52,10 +52,38 @@ def refs(data):
     return sorted({r.lower() for r in REF.findall(dbx.to_xml(data))})
 
 
-def walk(src, ix, effect, level):
+def levels_of(src):
+    """BF1943's level folders (levels/<name>) that hold level copies of emitter documents, sorted."""
+    return sorted({'/'.join(k.split('/')[:2]) for k in src.entries if k.startswith('levels/') and k.count('/') >= 2})
+
+
+def level_copy(src, name, level, fallback=True):
+    """The source key of a level copy of an emitter document (BF1943 keeps them per level, under emitters/... and under
+    the fx/ folders' emitter_<size>/ folders alike: fx/vehicles/exhaust/large/emitter_l/em_exhaust_smokez_l_planestart
+    is in levels/<level>/fx/...): the given level's, else (fallback) the first other level's that has one - BF1943's
+    Wake lacks the tree destruction's three emitters, which Guadalcanal, Iwo Jima and Coral Sea have. None: none."""
+    k = f'{level}/{name}.dbx'
+    if k in src.entries:
+        return k
+    if fallback:
+        for lv in levels_of(src):
+            if lv != level and f'{lv}/{name}.dbx' in src.entries:
+                return f'{lv}/{name}.dbx'
+    return None
+
+
+def _effect_with_emitters(data):
+    """Whether a partition is an effect that draws particles (an EffectAsset with an EmitterEntityData): a projectile's
+    sound and tracer in one (BF1943's bsfx_we_gen75mm_projectilefx under sound/) - ported as an effect, its sounds
+    handed over; a plain sound wrapper is the sound porter's."""
+    return b'Entity.EffectAsset' in data and b'Emitter.EmitterEntityData' in data
+
+
+def walk(src, ix, effect, level, fallback=True):
     """[(partition name, source key, kind)] the effect reaches: kind 'port' (BF1943's, BFBC2 lacks it), 'texture',
     'bfbc2' (kept as a reference), 'sound' (BF1943's, BFBC2 lacks it: not ported here - port() lists it for the
-    caller's sound porter), 'missing'."""
+    caller's sound porter), 'missing'. An emitter document is the level's copy (level_copy: another level's when
+    the level has none and fallback is set - the source key says which)."""
     out, seen, todo = [], set(), [effect.lower()]
     while todo:
         name = todo.pop(0)
@@ -78,14 +106,15 @@ def walk(src, ix, effect, level):
         if name + '.dbx' in ix.where and not name.startswith(('effects/', 'emitters/')):
             out.append((name, None, 'bfbc2'))                  # sounds and the like: BFBC2's own
             continue
-        if name.startswith('sound/') and name + '.dbx' in src.entries:
+        if name.startswith('sound/') and name + '.dbx' in src.entries and \
+                not _effect_with_emitters(src.data(name + '.dbx')):
             # a BF1943 sound BFBC2 lacks: the caller's sound porter (its sound templates, its waves converted) -
             # aligning it on effect / emitter templates would leave its Audio.* types unaligned and its waves out
             out.append((name, name + '.dbx', 'sound'))
             continue
         key = name + '.dbx'
-        if key not in src.entries and name.startswith('emitters/'):
-            key = f'{level}/{name}.dbx'                        # BF1943 keeps emitter documents per level
+        if key not in src.entries:
+            key = level_copy(src, name, level, fallback) or key     # BF1943 keeps emitter documents per level
         if key not in src.entries:
             out.append((name, None, 'bfbc2' if name + '.dbx' in ix.where else 'missing'))
             continue
@@ -213,6 +242,10 @@ def port(src, ix, effect, level, shared=None, plan=None, catalogue=None, schema=
     if missing:
         say(effect, 'types', 'types no BFBC2 template holds (the catalogue\'s class defaults, or kept as BF1943 has '
             f'them): {sorted(cast("set[str]", missing))}')
+    for name, key, kind in plan:
+        if kind == 'port' and key and key.startswith('levels/') and not key.startswith(level.lower() + '/'):
+            say(name, 'level', f'  LEVEL {name}: {level} has no copy - {key.split("/")[1]}\'s (level_copy)',
+                source=key[:-4])
     ours = {n for n, _, k in plan if k in ('port', 'texture', 'sound')}     # 'sound': the caller ports it
     bc2 = {n[:-4] for n in ix.where if n.endswith('.dbx')}
     resolve = lambda q: q.lower() in ours or q.lower() in bc2 or q.lower() == 'textures/effects/emittersystem/defaultnormalmap'  # noqa: E731

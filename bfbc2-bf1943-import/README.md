@@ -62,6 +62,13 @@ varying ones take DICE's usual value (`DEFAULTS`: SpawnProbability 1, no post ef
 Used for the Bofors' flak burst (effect_aa_detonationblast: 3 emitters, 6 textures) and the Sherman's shell
 detonation (effect_detonation_l_01).
 
+Emitter documents are BF1943's level copies (`level_copy`): `levels/<level>/emitters/...` and the fx folders'
+`levels/<level>/fx/.../emitter_<size>/em_...` alike (only the first were looked for: the plane-start exhaust's and the
+LCVP's spray emitters were "missing"); where the level has none, the first other BF1943 level's (a `level` record:
+BF1943 Wake lacks the tree destruction's three emitters, which Guadalcanal, Iwo Jima and Coral Sea have). A partition
+under `sound/` that draws particles (an EffectAsset with an EmitterEntityData: the Sherman's shell in flight, its
+sound and tracer in one) is ported as an effect, its sounds handed over; plain sound wrappers stay the sound porter's.
+
 `effectport.port_many(src, ix, effects, level)` ports several at once with one template search - Wake's 44 impact
 effects. The search over BFBC2's 18,343 emitter documents reads them a bundle at a time and parses only those whose
 bytes name a type still needed (it read and parsed them one by one: ~35 min). A BF1943 sound an effect reaches (BFBC2
@@ -146,7 +153,13 @@ in short:
 - Every field's shape is checked against the template and the catalogue (container / leaf, number count and kind, enum
   names the executable has); a mismatch is a `SchemaError` unless a converter handles it (`ENUM_NUMBERS`, with or
   without a template; a bool into the target's own number type; `ONE_TO_ARRAY` with empty or null; the explicit
-  `NESTED` map; an empty curve). An empty template array takes its item from another instance of the type.
+  `NESTED` map; an empty curve; `COUNT_CONVERTERS`). An empty template array takes its item from another instance of
+  the type.
+- `COUNT_CONVERTERS`: the emitters' sampled gradient (`SampleTextureData.GradientData`, `gradient_rows`, 2026-11-09).
+  DICE's is one row of 512 texels, RGBA interleaved (2,048 floats: all 15 in BFBC2 correlate 0.98 with their
+  gradient texture's rows read so, 0.08 read as planes); BF1943's level copies hold that row twice (4,096: the halves
+  equal bit for bit in all 16, and equal to BF1943's own template emitter of the same instance guid, which has 2,048).
+  The first row is written; rows that differ stay a schema error.
 - Value passes: EIA -> Eia in every field (`EIAFireCountermeasure` is BFBC2's `EiaFireCountermeasure`), bone indices
   on BFBC2's skeleton (`BoneTables`: BoneId by its BoneName, SoldierIKData / SkeletonAsset indices), and DICE's
   conventions for the BF1943 weapons it brought over (`DICE_CONVENTIONS`: gravity, 600 m/s, finite ammo and pickups,
