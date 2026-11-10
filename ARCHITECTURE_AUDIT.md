@@ -4,6 +4,17 @@ Read-only audit of the suite at `main` a482659 (just after quality round 3) and 
 `src\tools\ww2`. Nothing in either repository was changed apart from this file. The game copy was not touched, and the
 game was not started.
 
+**Status (2026-11-10).**
+- **M1 is done** (merge e0a2b7c, 2026-11-09): `core/bfbc2core/paths.py`, with the locators as wrappers. What was
+  kept and what is left: QUALITY_AUDIT.md, "Architecture step M1".
+- **M6 and M8 are done for dbxport / effectport**, by the Stage 1 dbxport rewrite (d9fcc5c, 18a27d5):
+  - `port` returns a `Report` whose `records` the text lines are built from, and effectport's report is one too;
+  - `Templates` reads folders sorted and ranks its candidates instead of taking the first of a type.
+
+  M6's other parts (meshport's `donor_mesh`, navkit calling the checks in-process) are open.
+- The other steps are open.
+- The quick tier (G1) has 59 tests now.
+
 **Method.**
 - **Import graph:** static analysis with `ast` of all 184 suite `.py` / `.pyw` files and the 45 OPFOR ww2 scripts.
   Each import is resolved the way the code resolves it: the file's own folder, then the folders it names in
@@ -553,7 +564,7 @@ OPFOR change is *required* unless stated.
 
 | Step | What moves or merges | Fixes | Risk | OPFOR |
 |---|---|---|---|---|
-| **M1** | Add `core/bfbc2core/paths.py`: `find_opfor`, `find_tool`, `game_exe`, `sibling(name, env)`, `GameCopyNotFound`. The 9 implementations in 4.4 become one-line wrappers that keep their names and error subclasses. Remove the hard-coded path in `detailed.py:105`. `bf1943import.fbrb1943` guards its `sys.path.insert`. `errors.CAUSES` matches `GameCopyNotFound` by type, keeping the text tests as a fallback. | Edges 1 (partly), 3 (partly) and 8; navparity / navvehicle `opfor_root`; per-call `sys.path` growth; message-text coupling | Low. shaderdb's narrower search widens to walk-up; the found folder could differ only where two `project-opfor-bfbc2` folders exist on different ancestors. | `shaderdb.find_opfor` (25 files) keeps its name and behaviour. None. |
+| **M1** (**done** 2026-11-09, e0a2b7c) | Add `core/bfbc2core/paths.py`: `find_opfor`, `find_tool`, `game_exe`, `sibling(name, env)`, `GameCopyNotFound`. The 9 implementations in 4.4 become one-line wrappers that keep their names and error subclasses. Remove the hard-coded path in `detailed.py:105`. `bf1943import.fbrb1943` guards its `sys.path.insert`. `errors.CAUSES` matches `GameCopyNotFound` by type, keeping the text tests as a fallback. | Edges 1 (partly), 3 (partly) and 8; navparity / navvehicle `opfor_root`; per-call `sys.path` growth; message-text coupling | Low. shaderdb's narrower search widens to walk-up; the found folder could differ only where two `project-opfor-bfbc2` folders exist on different ancestors. | `shaderdb.find_opfor` (25 files) keeps its name and behaviour. None. |
 | **M2** | Additive public API in core: `dbx.primary_instance`, `dbx.refs` (structured), `dbx.put_varint` (keep `_put_varint` as an alias), `dbx.set_numbers`, `dbx.new_guid(namespace, *parts)` (from dbxbin, which re-exports it); `errors.log_path()`; `navpath.adjacency` (keep the alias); `meshview.layout` / `surfaces` public (keep `_layout` / `_surfaces`); `mesh.pair_by_kind`; console-convert `terrain.Walk`. | All 5 GUI / harness private accesses and all 14 OPFOR private accesses get a public name | None: additive. G2 is unchanged by construction. | Nothing required. OPFOR can switch from privates later. |
 | **M3** | Move `meshview.Index` and `_bundles` to `bfbc2-shader-tools/gameindex.py` (L1: it needs `shaderdb.load` for `parts` / `entries`; the pickle path and `CACHE_VERSION` stay the same). `meshview` re-exports `Index`. granny, bf1943import, dbxparity and portparity import `gameindex` instead of `meshview`. OPFOR's skip rules (`levels/ons_`, `opfor_`, `opfor-*-installed.json`) become an argument with today's defaults. | Edges 4-7; the bf1943-import → mesh-viewer and anim-tools → mesh-viewer folder edges; the implicit `granny.py:614` edge | Low to medium: a pickle written by the old module path must still unpickle (it stores plain dicts, so it does). | **OPFOR:** `meshview.Index` still works through the re-export, and meshview still puts shader-tools on the path, so `attachments.py`'s implicit shaderdb edge still resolves. Recommended OPFOR follow-up: add `bfbc2-shader-tools` to attachments' path list explicitly. |
 | **M4** | Split NavKit's library out of `navkit.py`: `tools/navproject.py` (`Project`, `ensure_settings`, `prepare`, `detailed_sectors/rects`, `bin`; `find_opfor` / `find_tool` from M1). `tools/navinputs.py` takes navparity's and navregress's level-input helpers (`reference_of`, `level_xml`, `need_reference`, `terrain_bounds`, `area_orders_of`, `order_points_of`, `level_water`, `reference_bounds`). navkit.py, navparity and navregress re-export them. | Edges 1, 3, 8 and 10-16; the module cycle `level ↔ navkit ↔ navregress ↔ navparity ↔ navdf`; the core ↔ navkit folder cycle (with M5) | Medium: navkit.py has 98 % quick coverage, and the tests monkeypatch module attributes (3.3). Patches on `navkit.X` must move to `navproject.X`, or the re-export breaks the patch. | None: OPFOR ww2 does not import navkit (OPFOR onslaught / testrun: not audited). |
