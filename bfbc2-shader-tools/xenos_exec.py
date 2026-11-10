@@ -209,9 +209,8 @@ class _Machine:
 
     @staticmethod
     def _cube(s0: np.ndarray, s1: np.ndarray) -> np.ndarray:
-        # cube r, src.zzxy, src.yxzz: the direction is (s1.y, s1.x... ) per Xenia: x = src0.z? - use the source
-        # direction as the canonical (x, y, z) = (s1.y, s0.z?...) - Xenia: "Expects src0.zzxy and src1.yxzz", so
-        # src0 = (z, z, x, y) and src1 = (y, x, z, z) of the direction: x = src0.z, y = src0.w, z = src0.x
+        # Xenia (ucode.h kCube): "Expects src0.zzxy and src1.yxzz swizzles" of the direction, so src0 = (z, z, x, y):
+        # x = src0.z, y = src0.w, z = src0.x; the AMD formula gives (tc, sc, 2 x major axis, face)
         x, y, z = s0[:, 2], s0[:, 3], s0[:, 0]
         ax, ay, az = np.abs(x), np.abs(y), np.abs(z)
         zmaj = (az >= ax) & (az >= ay)
