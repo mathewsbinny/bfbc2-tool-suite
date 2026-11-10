@@ -81,11 +81,13 @@ class Index:
     parts: dict[str, bytes]                    # part name -> vertex layout record (after its GUID)
     entries: dict[str, list[str]]              # shader database entry name -> texture names
 
-    def __init__(self, root):
+    def __init__(self, root, cache=None):
+        """cache: the index file (default work\\tools_out\\meshview_index.pkl in the OPFOR folder; renderqa.py keeps
+        its own, so that it writes nothing into the project it checks)."""
         self.root = root
         bundles = _bundles(root)
         sig = [(b, os.path.getsize(b), int(os.path.getmtime(b))) for _, b in bundles]
-        path = os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
+        path = cache or os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
         try:
             with open(path, 'rb') as fh:
                 c = pickle.load(fh)

@@ -7,3 +7,6 @@ BFBC2_*.ini
 # built locally (bfbc2-shader-tools/native/build.bat)
 *.exe
 *.obj
+
+# built by renderqa.py (bfbc2-shader-tools/native/build.bat build)
+build/

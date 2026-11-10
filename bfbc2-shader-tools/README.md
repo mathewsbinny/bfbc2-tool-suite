@@ -141,6 +141,13 @@ three kinds. `--xbox` (also run by `--game`; each part skipped when its files ar
 level database (`work\xbox\dist\xenon\levels`), compares the Xbox and PC Dx9 databases of mp_002, mp_005 and mp_008
 (entries, mesh parts and layouts, each entry's textures) and reads Battlefield 1943's Wake Island database.
 
+`tests\test_renderqa.py` (quick): a Dx11 database, mesh and texture built by the test (shaders compiled with
+d3dcompiler_47) are drawn by shaderview. It checks the texel colour times the material constant, coverage, sample
+counts, every preparation flag, a pixel shader that discards everything, the picture checks, the comparison, texture
+header checks, sampler states, the light, the camera, constant placement and the command line. `--game` (game tier)
+draws three stock meshes with their own level's database (no flag) and checks that drawing one twice gives the same
+picture.
+
 ## Xbox 360 shaders on PC (xenos.py, xenos_hlsl.py, pcbuild.py)
 
 For console content brought to PC (Battlefield 1943's), the Xbox shaders themselves can be used:
@@ -158,3 +165,74 @@ For console content brought to PC (Battlefield 1943's), the Xbox shaders themsel
   the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks.
 
 Project OPFOR's `wake_translate.py` puts them together for Wake Island.
+
+## Render harness (renderqa.py)
+
+Checks that shaders and textures draw the right picture, without starting the game. A mesh's LOD 0 is drawn off
+screen with Direct3D 11 (`native\shaderview.exe`), using the database's own compiled programs, the mesh's own vertex
+and index data and the textures as the game stores them. Each mesh is drawn from three views (three-quarter, front,
+top) and the pictures are checked.
+
+```
+python renderqa.py render  <mesh>... --db <db> [--stage <folder>]... [-o <folder>]
+python renderqa.py compare <mesh>... --db <db> [--truth <db> | --truth auto] [--stage <folder>]... [-o <folder>]
+python renderqa.py validate <mesh>... [-o <folder>]
+python renderqa.py wake [--only <text>] [--limit N] [-o <folder>]
+```
+
+| Command | Does |
+|---|---|
+| `render` | draws each mesh with `--db`, flags what its pictures show, and writes a contact sheet with the worst first |
+| `compare` | draws each mesh twice: DICE's entry (`--truth`, or with `auto` the first stock level whose Dx11 database draws the mesh, read from BFBC2's own files) and the `--db` entry (staged files first). It measures coverage overlap (IoU), mean difference, PSNR and luminance ratio, and draws a diff picture |
+| `validate` | draws stock meshes with their own level's database beside the mesh viewer's texture-only render |
+| `wake` | Project OPFOR: every mesh `wake_audit.drawn_meshes()` lists, drawn with the installed Wake Dx11 database (`work\ww2\install`). Meshes a stock level also draws are compared with DICE's entry; the others are only rendered and flagged |
+
+`<db>` is what `shaderdb.py` takes (a `Dx11_Single.res` / `Dx10_Single.res`, `level:<name>`, `<bundle>:<entry>`).
+`--stage` adds a folder of FbrbTool-unpacked bundles, each with its `fbrb.manifest`; these are read before the game
+copy. `--list <file>` reads mesh names from a file; `--find` treats the arguments as parts of names. Output goes to
+`-o`: `results.json`, `summary.txt`, `sheet_NN.png` (14 meshes a sheet, worst first) and one PNG per mesh.
+
+### Flags
+
+| Flag | Means |
+|---|---|
+| `no-mesh`, `no-layout`, `no-entry`, `no-program` | the mesh set or LOD data is missing; a part has no vertex layout, its shader has no entry, or the entry has no main-pass program |
+| `layout-fallback` | the entry has no program for the part's own vertex layout (the engine silently draws it with another program) |
+| `bound-empty` | the pixel shader samples a `texture_Texture*` slot that no texture record fills (in DICE's data every such slot is filled; the shadow map and `outdoorLightReflectionEnvmap` are bound by the engine) |
+| `missing-texture`, `bad-texture`, `dimension` | a texture named by the entry is not in the files, cannot be uploaded as stored, or is 2D where the shader reads a cube (or the other way round) |
+| `nothing-drawn`, `black`, `magenta`, `flat`, `blown-out`, `nan` | the pictures: no pixel covered; mean luminance < 0.03; > 5 % magenta; luminance spread < 0.012 (one constant colour); mean luminance > 0.85 (chrome); NaN or infinite pixels (the game shows them white with bloom) |
+| `alpha-discards-all` | a part whose pixel shader keeps < 2 % of the samples its triangles cover. This is measured per draw with occlusion queries, with and without the pixel shader (an alpha test reading the wrong channel) |
+
+In `compare`, flags DICE's own entry also has are not counted against the tested one.
+
+### What is the game's and what is guessed
+
+From the game data: the vertex and index buffers, the vertex layout and the program the engine picks for the part
+(main pass, not instanced, no point light, the part's layout), the compiled shaders and their input layout, the
+textures in their own block formats with their own mips and an sRGB view when header flag bit 0 is set, the pixel
+shader's own sampler states (60-byte records: `u32` register + `D3D11_SAMPLER_DESC`), the material constants of the
+program's second parameter block (placed by register, only inside each shader's own `constants` array), the light
+colours and sun direction of a weather state (default: mp_005's active state, Sunny; `--weather <folder>`), and the
+state's exposure, filmic curve, saturation, contrast and brightness.
+
+Guessed or simplified:
+- no shadows (the shadow map is a 1x1 depth of 1, so everything is lit), no point lights, fog, bloom or lens flare;
+- the cube the engine binds as `outdoorLightReflectionEnvmap` is `Textures/Sky/Sky_Beach_Generic_RGBA16f` (`--envmap`);
+- bones are at rest. Composite vehicles get their parts' transforms from the mesh set; destructible composites
+  (key kind 9, `boneMatrices[i].x > 0` shows part i) show every part;
+- world matrix identity (the mesh at the origin), no back-face culling, no blend states (every draw opaque), time 0;
+- vertex constants that no parameter block fills are 0. The engine sets some of them: tree fronds and wind read
+  `constants[...]` in the vertex shader, so a tree's fronds collapse here (its trunk draws). Shaders that sample a
+  level-wide map at the world position (sp_005's rocks: `snowocc` at world XZ / 2048) read the level's centre.
+
+### Validation
+
+`validate` on 16 stock meshes (crates, sandbags, containers, palm and fir trees, a destructible house, the Humvee,
+M1A2, M16 3p, a MEC soldier, rocks, the M1A2 wreck): 13 draw as in the game. Three are dark or incomplete, for the
+reasons in the list above: the fir tree's fronds (engine-set vertex constants), the sp_005 rock formation (level
+occlusion map) and the M1A2 wreck (DICE's charred material is near black). The mesh viewer's picture is a weak
+reference: it ignores composite part transforms and often picks a mask atlas as the colour map.
+
+`shaderview.exe` is built by `renderqa.py` into the suite's `build\` folder (gitignored) the first time it is needed.
+It needs the Visual Studio C++ tools. It uses the GPU, and falls back to WARP (the software rasterizer) when the GPU
+device fails; `--warp` forces WARP. The harness runs at below-normal priority.
