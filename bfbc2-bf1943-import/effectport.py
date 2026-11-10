@@ -171,7 +171,8 @@ def port_many(src, ix, effects, level, log=print, catalogue=None, schema='error'
     for n, e in enumerate(effects):
         f, r = port(src, ix, e, level, shared=shared, plan=plans[e], catalogue=catalogue, schema=schema)
         files.update(f)
-        report.extend_from(r)
+        report.records += r.records                            # all records; the effect's own lines as it chose them
+        report.extend(r)
         log(f'  effect {n + 1}/{len(effects)} {e.rsplit("/", 1)[-1]}: {len(f)} files')
     return files, report
 
