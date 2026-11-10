@@ -70,6 +70,25 @@ out. It is listed (a `sound` record, `sounds_of(report)`) for the caller's sound
 it is kept. The report is a `dbxport.Report`: its records hold every partition's dbxport records (their `partition`
 set), its lines the summary and the notable ones as before.
 
+## Emitter atlases (`emitteratlas.py`)
+
+A level draws every particle from its two emitter atlases (`Levels/<level>/emittertexturealpha.res`: 8-bit, format
+10; `emittertexturenormals.res`: BC5), and each emitter document stores where its image sits in them (its
+TextureInfo: origin, frame step, frame count and columns, the same for the normal map). DICE wrote those fields per
+level against that level's atlas, so a level made of other levels' emitters and of BF1943 ports draws most of them
+from the wrong image when it ships any one atlas. `emitteratlas.build(emitters, sources, alpha_like, normals_like)`
+takes each emitter with the key of the atlas it was authored against and gives one alpha and one normals atlas
+holding every image (deduplicated: the same image in two levels' atlases is kept once), and each emitter re-pointed
+into them - only its texture fields change. `prove()` reads every image back through the new fields and compares it
+with its source's. The module docstring has what was measured (the fields, the frames drawn, DICE's slots, 3-texel
+inset and mip rule) and the method. `tests\test_emitteratlas.py` (quick tier) builds one from synthetic atlases.
+
+First use (OPFOR's `emitter_atlas.py`, 2026-11-09): Wake's 607 emitters from 12 BFBC2 levels' atlases and BF1943
+Wake's - alpha 2048 x 2048 (mp_005's size, 82 % used), normals 1024 x 1024 (nam_mp_006's size; mp_005's 1024 x 512
+cannot hold nam_mp_002cq's water spray, whose 2 x 2 normal frames span that level's whole normal atlas); all 1,581
+images equal their sources at levels 0-1 (alpha texel for texel; normals block for block, or correlating 0.9999
+where two levels' encoders differ).
+
 ## Models (`meshport.py`)
 
 `meshport.Porter(source, meshview_index).port(mesh_name, donors=[...])` ports a BF1943 model: every LOD's MeshData

@@ -168,6 +168,46 @@ def texture(img, kind='color', mips=True):
     return head + struct.pack('<15I', *sizes) + b''.join(data)
 
 
+L8, BC5 = 10, 20
+
+
+def resource(fmt, flags, w, h, data):
+    """A PC ITexture resource from its levels as they are (bytes each, largest first): the 92-byte header (version 3,
+    type 0, depth 0) and the levels after it - for textures composed level by level (emitteratlas.py's atlases)."""
+    if len(data) > 15:
+        raise TexWriteError(f'{w} x {h}: more than 15 levels')
+    sizes = [len(d) for d in data] + [0] * (15 - len(data))
+    return struct.pack('<8I', 3, 0, fmt, flags, w, h, 0, len(data)) + struct.pack('<15I', *sizes) + b''.join(data)
+
+
+def l8_down(level):
+    """The next level of an 8-bit texture (format 10) as DICE builds its emitter atlases: each texel the rounded mean
+    of its 2 x 2 block, (a + b + c + d + 2) // 4 (every level of mp_005's and bc1_harvest_day_cq's atlases is exactly
+    this of the one above)."""
+    a = np.asarray(level).astype(np.int32)
+    return ((a[0::2, 0::2] + a[1::2, 0::2] + a[0::2, 1::2] + a[1::2, 1::2] + 2) // 4).astype(np.uint8)
+
+
+def l8_bytes(level):
+    """An 8-bit level's bytes as DICE stores them: rows padded to 4 bytes (mp_005's 2 x 2 level is 8 bytes)."""
+    a = np.asarray(level, np.uint8)
+    h, w = a.shape
+    if w >= 4:
+        return a.tobytes()
+    out = np.zeros((h, 4), np.uint8)
+    out[:, :w] = a
+    return out.tobytes()
+
+
+def atlas_levels(shorter):
+    """DICE's level count for an emitter atlas whose shorter side is `shorter` texels: down to a shorter side of 2
+    (2048 x 2048: 11 levels, 2048 x 1024: 10, the 1024 x 512 normals: 9)."""
+    n = 0
+    while (1 << n) < shorter:
+        n += 1
+    return n
+
+
 def wrapped(res, kind='ITexture'):
     """A resource in the on-demand bundles' form (every entry of async\\ondemand_awards-00.fbrb has it): 'RES\\x02',
     the type name zero-padded to 56 bytes in all, the payload's size twice (u32), the payload."""
