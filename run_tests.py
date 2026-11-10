@@ -119,6 +119,8 @@ def tests():
         ('shader databases: Xbox 360 (BFBC2 twins, BF1943 Wake)', 'game', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb.py'), '--xbox']),
         ('render harness (renderqa): built mesh, shaders and texture drawn and checked', 'quick', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_renderqa.py')]),
         ('render harness (renderqa): stock meshes with their own level\'s shaders', 'game', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_renderqa.py'), '--game']),
+        ('shader translator differential test: Xenos interpreter semantics, cube fetch direction', 'quick', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_xdiff.py')]),
+        ('shader translator differential test: BF1943 shaders behind each translator fix exact', 'game', [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_xdiff.py'), '--game']),
         ('Granny Xbox 360 -> PC: DICE bone tables', 'quick', [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_port.py')]),
         ('BF1943 import pipeline, no data', 'quick', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_bf1943import.py')]),
         ('dbxport rules: the 19 edge cases, templates, references, schema, value passes', 'quick',

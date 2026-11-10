@@ -159,10 +159,33 @@ For console content brought to PC (Battlefield 1943's), the Xbox shaders themsel
   every shader of Battlefield 1943's Wake Island decodes.
 - `xenos_hlsl.py` translates a decoded shader to HLSL for shader model 4 / 5 (BFBC2's Dx10 / Dx11 renderers):
   engine constants keep their names, material constants and literals become constants, the shadow map is read as
-  depth, cube-map fetches keep their direction, instanced draws rebuild the world matrix from the instance rows.
-  Not handled yet: the screen-position input (vPos), loop-relative addressing, Dx9.
+  depth, point taps are texel loads clamped to the texture (the Xbox's clamp addressing; Load alone reads 0 outside
+  it), each cube-map fetch samples the direction its own (s, t, face) names, instanced draws rebuild the world
+  matrix from the instance rows. Not handled yet: loop-relative addressing, Dx9; the Xbox-only engine constants
+  `xenonTilingScaleAndOffsetNormalized` (35 BF1943 post / water pixel shaders) and
+  `xenonInstancingIndexCountAndStart` (10 vertex shaders) are given no value (none of Wake's drawn entries uses them).
 - `pcbuild.py` compiles with the system's `d3dcompiler_47.dll` and builds what a PC database stores beside the code:
   the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks.
+
+### The translator's differential test (xdiff.py, xenos_exec.py)
+
+```
+python xdiff.py [--ps N ...] [--n 1024] [--seed 1] [-o <folder>]      every BF1943 Wake pixel shader by default
+python xdiff.py --ps N --bisect                                       the first instruction where the two sides differ
+```
+
+Every BF1943 pixel shader runs twice on the same random inputs (engine and material constants by name, interpolants,
+the screen position, point-sampled ramp textures with clamped addressing): its original microcode in `xenos_exec.py`,
+a reference interpreter written from Xenia's documentation of the instruction set (ucode.h; Xenia's DXBC translator
+for the details, e.g. ps holds the unsaturated result), and xenos_hlsl's translation compiled for Direct3D 11 and
+drawn by shaderview (WARP) on one-pixel triangles. Outputs and discarded pixels are compared. `--bisect` records a
+register after each instruction on both sides (the HLSL inside the instruction's predicate block) and reports the
+first that differs on the pixels that ran it.
+
+Result on Battlefield 1943's Wake database (2026-11-10): 815 of 815 pixel shaders exact (from 424 before the point
+taps were clamped and cube fetches given their own direction). What it does not cover: the decoder (both sides
+read the instructions through xenos.py - Xenia trace replay is the check for that), vertex shaders (not yet), texture
+formats, gamma and sampler states (texqa, renderqa), and the values the engine feeds in.
 
 Project OPFOR's `wake_translate.py` puts them together for Wake Island.
 

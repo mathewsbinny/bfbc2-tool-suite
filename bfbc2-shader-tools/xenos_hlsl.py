@@ -412,11 +412,20 @@ class _Emitter:
         if not op.startswith('tfetch'):
             raise TranslateError(f'fetch op {op}')
         if typ == 'TextureCube':
-            coord = 'cubeDir' if self.cube_dir_set else src
-            e = f'{tex}.Sample(sampler1, {coord})'
+            # the fetch's own (s, t, face) turned back into a direction (xcubefetch): a shader with two cube ops, or
+            # one that moves the coordinates between the cube op and the fetch, sampled the last cube op's direction
+            # (cubeDir) - the second of two reflection fetches read the first's texel (xdiff.py: 4 of 815 shaders)
+            coord = f'xcubefetch({self.reg(ins.src)}.{ins.src_swizzle})' if self.cube_dir_set else src
+            if ins.use_register_lod:
+                e = f'{tex}.SampleLevel(sampler1, {coord}, texLod)'
+            else:
+                e = f'{tex}.Sample(sampler1, {coord})'
         elif name == SHADOW or (ins.mag_filter == 'point' and ins.min_filter == 'point'):
-            # point taps: exact texel loads (the shadow map is a depth texture: raw depth)
-            e = f'{tex}.Load(int3(floor({src} * tdim({tex}) + float2({_f(off[0])}, {_f(off[1])})), 0))'
+            # point taps: exact texel loads (the shadow map is a depth texture: raw depth), the texel clamped to the
+            # texture as the Xbox's clamp addressing does - Load reads 0 outside it, which drew a shadow-map edge
+            # fully shadowed (the differential test, xdiff.py: 330 of 815 pixel shaders differed only there)
+            e = (f'{tex}.Load(int3(clamp(floor({src} * tdim({tex}) + float2({_f(off[0])}, {_f(off[1])})), '
+                 f'0.0, tdim({tex}) - 1.0), 0))')
         else:
             coord = src
             if off != (0.0, 0.0):
@@ -617,6 +626,18 @@ float xrsq(float a) { return a == 1.0 ? 1.0 : rsqrt(a); }
 float xrsqc(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -3.402823466e+38 : 3.402823466e+38) : t; }
 float xrsqf(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -0.0 : 0.0) : t; }
 float2 tdim(Texture2D t) { uint w, h; t.GetDimensions(w, h); return float2(w, h); }
+float3 xcubefetch(float3 c) {
+    // tfetchCube's (s, t, face) - s, t in 1..2 from the cube op's sequence - as a direction (Direct3D's face
+    // conventions, which the cube op follows: Xenia ucode.h kCube)
+    float sc = (c.x - 1.5) * 2.0, tc = (c.y - 1.5) * 2.0;
+    int f = (int)round(c.z);
+    if (f == 0) return float3(1.0, -tc, -sc);
+    if (f == 1) return float3(-1.0, -tc, sc);
+    if (f == 2) return float3(sc, 1.0, tc);
+    if (f == 3) return float3(sc, -1.0, -tc);
+    if (f == 4) return float3(sc, -tc, 1.0);
+    return float3(-sc, -tc, -1.0);
+}
 float4 xsrgb(float4 c) { float3 l = saturate(c.rgb); return float4(l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1.0 / 2.4) - 0.055, c.a); }
 '''.strip('\n').split('\n')
 
