@@ -26,10 +26,13 @@ References (one resolver over (partition, guid)), in this order:
   1. local: an instance of this partition that is kept;
   2. another partition's instance that will exist (ours: the partitions the build writes, with their guids; the
      catalogue: BFBC2's; resolve(partition): the caller's partition-level answer);
-  3. relocated: the guid is in another BFBC2 partition (DICE moved objects/soldiers/common/beach/defaulthaloaimer to
-     objects/soldiers/common/defaulthaloaimer, keeping the guids): the reference is rewritten;
-  4. stand-in: the caller's STAND_INS entry (field, target) -> a reference, a partition, None or TEMPLATE (the
-     template's value), or the counterpart's own reference (the template is DICE's version of the instance);
+  3. relocated: the guid is in exactly one other BFBC2 partition (DICE moved objects/soldiers/common/beach/
+     defaulthaloaimer to objects/soldiers/common/defaulthaloaimer, keeping the guids): the reference is rewritten
+     (a guid in several - a material's, in every level's grid - is the caller's to place);
+  4. stand-in: the caller's STAND_INS entry for the target ((field, target) or target) -> 'partition/guid', a
+     partition (its primary instance), 'partition/*' (the same guid there), None or TEMPLATE (the template's value);
+     then the counterpart's own reference (the template is DICE's version of the instance); then a (field, '*')
+     stand-in;
   5. otherwise null, reported. A template's value is never substituted for another role's (the Sherman's cannon
      no longer fires with the Humvee's horn); ROLE_GUARDS refuse what a template adds into the wrong role.
 Arrays of references lose the items that will not resolve; with prune, arrays of structs lose the items one of

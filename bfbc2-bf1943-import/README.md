@@ -117,7 +117,7 @@ in short:
   is kept, folders are globbed sorted, a pool partition the game copy lacks fails (`MissingTemplate`), and each
   instance's choice is a `template` record.
 - References are resolved over (partition, guid) - `dbxcatalogue.py` indexes BFBC2's 606,896 instances: a guid DICE
-  moved is rewritten (`relocated`: BF1943's beach halo aimers), and a reference that will not resolve is null unless
+  moved is rewritten when it is in exactly one partition (`relocated`: BF1943's beach halo aimers), and a reference that will not resolve is null unless
   the counterpart or the caller's `stand_ins` give one. A template's value is never substituted for another role's
   (the Sherman's cannon fired with the Humvee's horn); `ROLE_GUARDS` refuse a horn as a weapon sound, a vehicle's death
   explosion as a weapon's detonation, a soldier clip on an object. The same rules cover what a template adds and
