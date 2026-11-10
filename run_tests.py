@@ -67,7 +67,7 @@ def tests():
         ('core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),
         ('paths: OPFOR, game copy, tools and sibling projects on a stand-in tree', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_paths.py')]),
         ('converter edges (dbx numbers, dbxport references, texture check)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_edges.py')]),
-        ('converter units (havok w lanes, MOPP byte code, L8 textures and flags, mesh rename, texcoords)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_units.py')]),
+        ('converter units (havok w lanes, MOPP byte code, L8 textures and flags, mesh rename, texcoords, mesh relayout)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_units.py')]),
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
         ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
