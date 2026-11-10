@@ -10,8 +10,9 @@ builder. They share one core: level loading, a 3D view, picking and the game's d
 
 This document fixes what each tool does, what they share, the file formats they write, and the order
 they are built in. It is a draft for review, and it changes as the tools are built (last revised
-2026-10-26: the test harness, sections 4.5 and 5.5; the two tools added outside the original eight, section 1;
-statuses in sections 3.1, 4.2 and 7).
+2026-11-10: one path finder and one sys.path bootstrap, section 3.5; the BF1943 import's DBX port, section 4.10;
+before that 2026-10-26: the test harness, sections 4.5 and 5.5; the two tools added outside the original eight,
+section 1; statuses in sections 3.1, 4.2 and 7).
 
 ## 1. The tools
 
@@ -44,7 +45,7 @@ Added since (2026-10-27 to 10-31, for the console Onslaught ports and the WW2 si
 | **bfbc2-mesh-viewer** | any BC2 modder | Any model of the game with its textures, as a browser page and a picture. Takes the "render meshes" part of 4.6 below. |
 | **bfbc2-model-tools** | any BC2 modder | Edit skinned meshes (replace or add a part's geometry) and build simple solids on texture atlases. |
 | **bfbc2-anim-tools** | any BC2 modder | Granny skeletons and animations: decode tracks and curves, move a bone's position track; convert Xbox 360 resources to the PC's format, renumbering DICE's bone table onto another skeleton. |
-| **bfbc2-bf1943-import** | any BC2 modder with BF1943 | The user's Battlefield 1943 (Xbox 360) resources into BFBC2's PC formats - animations, skeletons, textures so far - with a record per resource; reads the BF1943 suite's bundles, writes only to OPFOR's work folder. |
+| **bfbc2-bf1943-import** | any BC2 modder with BF1943 | The user's Battlefield 1943 (Xbox 360) resources into BFBC2's PC formats - animations, skeletons, textures, models, physics, DBX partitions, effects and emitter atlases - each checked against DICE's own conversions where BFBC2 ships one; reads the BF1943 suite's bundles, writes only to OPFOR's work folder (section 4.10). |
 
 ## 2. Rules
 
@@ -132,6 +133,30 @@ can always say where something comes from.
 NavKit's Python code (reader, writer, sector build, checks) is used directly. That is the main reason for
 Python: "force walkable, then rebuild the affected sectors" runs in-process, with no port of the
 generator. Every library is under a permissive licence (MIT, zlib, BSD).
+
+The suite as a whole needs Python 3.12+: `pyproject.toml` targets it, and its ruff and mypy settings are checked by
+the quick tier.
+
+### 3.5 Paths and imports (2026-11-09)
+
+- **One sys.path bootstrap: `suite_paths.py`** (quality round 3). Every tool, module and test finds the suite
+  root from its own file and names the folders it imports from (`suite_paths.use('core', 'navkit-tools')`). Each
+  folder is added once, so `sys.path` no longer grows per call. Each folder stays importable on its own, as Project
+  OPFOR BFBC2's scripts use them.
+- **One path finder: `core/bfbc2core/paths.py`** (architecture step M1, `ARCHITECTURE_AUDIT.md` 4.4 and 8.3). It
+  finds Project OPFOR BFBC2 (`find_opfor`: the given folder, `OPFOR_ROOT`, then `project-opfor-bfbc2` inside,
+  beside or above the suite), its game copy and exe, the suite's built tools (`find_tool`) and the sibling projects
+  (`sibling`: bf1943-tool-suite, operation-rising-sun, with their environment variables). It raises
+  `GameCopyNotFound` / `ToolNotFound`.
+  - The nine older locators (`navkit.find_opfor`, `menucommon.find_opfor`, `shaderdb.find_opfor`,
+    `convert.default_exe`, `crashreader.find_exe`, `detailed.opfor_root`, the bf1943import ones, `pipeline.Paths` /
+    `level.load`) are thin wrappers over it. Each keeps its own search order, signature, exception type and message.
+    The differences found in M1 were kept on purpose; the module docstring lists them.
+  - No path is hard-coded any more (detailed.py's went).
+  - `paths.py` imports only `os` and `sys`, so OPFOR's scripts can use it with nothing but `core` on `sys.path`.
+    OPFOR's own `opforcore.paths` delegates to it.
+- **Still to do** (`ARCHITECTURE_AUDIT.md` 8.3): `meshview.Index` to the shader tools (M3), NavKit's library split
+  out of `navkit.py` (M4), core's NavKit model (M5), the shared helpers (M7) and the later steps.
 
 ## 4. Tool scopes
 
@@ -306,6 +331,54 @@ generator. Every library is under a permissive licence (MIT, zlib, BSD).
 - **It absorbs** the import scripts (`import_onslaught.bat` and its manifest, startup and campaign-fill
   helpers), the Nelson Bay Onslaught import step that is still to be written, and the bundle manager
   (OPFOR backlog item 8). The installer builds on it.
+
+### 4.10 bfbc2-bf1943-import: the DBX port (rewritten 2026-11-09)
+
+A BF1943 partition is ported onto BFBC2's schema by `dbxport.py`, with BFBC2's own data as the ground truth. The
+rewrite (Project OPFOR's `research\DBXPORT_DEEP_AUDIT.md`) replaced first-of-type templates and silent fallbacks with
+the pieces below. Each piece is a rule written down in the module docstring and tested in
+`tests/test_dbxport_rules.py`.
+
+- **The catalogue (`dbxcatalogue.py`).** One pass over every stock partition (84,733) gives:
+  - the classes BFBC2 has, with the executable's names;
+  - each type's fields in DICE's order and the shapes DICE writes per field path;
+  - enum values, and whole-number or float evidence per 4-byte field;
+  - array item prototypes and a class default per type;
+  - guid -> partition for all 606,896 instances.
+
+  It is cached beside meshview's index and rebuilt when a bundle or the exe changes.
+- **Ranked templates.** `Templates` (`from_index` by partition name; folders are read sorted, and a missing partition
+  is `MissingTemplate`) keeps every candidate. `choose` ranks them, and each choice is a `template` record:
+  1. DICE's counterpart by guid;
+  2. the caller's paired donors;
+  3. the pool's instance by role (input actions, slot, position among its type);
+  4. the catalogue's class default.
+- **One reference resolver** over (partition, guid), in order:
+  1. local;
+  2. a partition that will exist (`ours=` with its guids, the catalogue, the caller's `resolve`);
+  3. relocated, only when the guid is in exactly one BFBC2 partition;
+  4. the caller's stand-in for the target (`'partition/guid'`, a partition, `'partition/*'`, None, `TEMPLATE`), then
+     the counterpart's own reference, then a field-wide stand-in;
+  5. otherwise null, recorded.
+
+  A template's value is never substituted for another role's, and `ROLE_GUARDS` refuse what a template adds into the
+  wrong role.
+- **The schema gate.** Every field's shape is checked against the template and the catalogue. A shape no converter
+  handles (`ENUM_NUMBERS`, bool -> the target's number type, `ONE_TO_ARRAY`, `RENAMED`, `NESTED`, `INLINE`, an empty
+  curve) is a `SchemaError`, or a `schema` record with `schema='report'`. Partitions BFBC2 cannot hold, such as the
+  3p soldier anim trees' aim tables and the achievements, fail instead of porting wrong.
+- **Value passes** after the alignment:
+  - EIA spellings;
+  - seat-hint texts;
+  - bone indices on BFBC2's skeleton (`BoneTables`);
+  - DICE's conventions for the soldiers' weapons (`objects/weapons/` only), scored by `dbxparity.py --predict`.
+- **Structured reports.** `port` returns `(bytes, Report)`. The Report is the old text lines (callers that read lines
+  keep working) built from `records` (`Record(path, action, old, new, source, step, note, partition)`); callers read
+  those instead of parsing text. effectport's report is a `Report` too, holding every partition's records. This is
+  architecture step M6 for dbxport and effectport, and M8 (sorted folders) came with it.
+- **Proof against DICE.** `tests/test_dbxport_fair.py` ports every partition both games ship on a fair pool (never
+  the partition's own instances) and checks it against DICE's version. It runs in the game tier; `--quick` runs 7
+  partitions in the quick tier.
 
 ## 5. File formats
 
