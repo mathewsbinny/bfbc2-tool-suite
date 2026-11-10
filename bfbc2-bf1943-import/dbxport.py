@@ -593,12 +593,23 @@ class _Port:
         return False
 
     def relocation(self, p: str, g: str) -> str | None:
+        """The one BFBC2 partition holding the guid (DICE moved the instance there); None when there is none or several
+        (a material's guid is in all 74 level grids: which one is the caller's choice - a stand-in, 'partition/*')."""
         if self.cat is None:
             return None
-        w = [x for x in self.cat.where(g) if x != p.lower()]
         if self.ours is not None and p.lower() in self.ours:
             return None
-        return w[0] if w else None
+        w = [x for x in self.cat.where(g) if x != p.lower()]
+        return w[0] if len(w) == 1 else None
+
+    def stand_in_ref(self, si: str, target_ref: str) -> str:
+        """A stand-in's reference: 'partition/guid' as it is, 'partition/*' keeping the reference's own guid (a copy
+        of the instance under another partition: the level's own material grid), a partition its primary instance."""
+        if si.endswith('/*'):
+            return f'{si[:-2].lower()}/{target_ref.rsplit("/", 1)[-1]}'
+        if re.search(r'/[0-9a-fA-F-]{36}$', si):
+            return si
+        return self.primary_ref(si)
 
     def ref_ok(self, r: str) -> bool:
         """Whether a reference will resolve as it is (no rewriting)."""
@@ -621,7 +632,7 @@ class _Port:
                 return self.stand_ins[k]
         return KeyError
 
-    def use_stand_in(self, si: Any, path: str, target: str, t: dbx.Element | None, step: str) -> str:
+    def use_stand_in(self, si: Any, path: str, target: str, t: dbx.Element | None, step: str, ref: str = '') -> str:
         if si is None:
             self.add(path, 'substituted', old=target, new='null', note='stand-in: null')
             return 'null'
@@ -631,7 +642,7 @@ class _Port:
                 self.add(path, 'nulled', old=target, note='stand-in TEMPLATE: the template has no value')
                 return 'null'
             return self.template_ref(tr, path, t, step, why='stand-in: the template\'s', target=target)
-        new = si if '/' in si and re.search(r'/[0-9a-fA-F-]{36}$', si) else self.primary_ref(si)
+        new = self.stand_in_ref(si, ref or target)
         self.add(path, 'substituted', old=target, new=new, source=new.rsplit('/', 1)[0], note='stand-in')
         return new
 
@@ -668,14 +679,14 @@ class _Port:
             return 'null', 'null'
         si = self.stand_in(field, target, wildcard=False)          # the caller's stand-in for this very target
         if si is not KeyError:
-            return self.use_stand_in(si, path, target, t, step), 'stand-in'
+            return self.use_stand_in(si, path, target, t, step, r), 'stand-in'
         if step == 'counterpart' and t is not None and t.attr('ref') is not None:
             new = self.template_ref(t.attr('ref') or 'null', path, t, step, why='the counterpart\'s', guard=False,
                                     target=target)
             return new, 'counterpart'
         si = self.stand_in(field, target)                           # the caller's stand-in for the field
         if si is not KeyError:
-            return self.use_stand_in(si, path, target, t, step), 'stand-in'
+            return self.use_stand_in(si, path, target, t, step, r), 'stand-in'
         self.add(path, 'nulled', old=target, note='no BFBC2 value: nothing stands in for it')
         self.fail(f'{path}: refers to {target}, which will not exist (no stand-in)')
         return 'null', 'null'
@@ -907,7 +918,7 @@ class _Port:
                 target = '#' + r.lower() if '/' not in r else r.rsplit('/', 1)[0].lower()
                 si = self.stand_in(path.rsplit('.', 1)[-1].split('[', 1)[0], target)
                 if isinstance(si, str):
-                    new = si if re.search(r'/[0-9a-fA-F-]{36}$', si) else self.primary_ref(si)
+                    new = self.stand_in_ref(si, r)
                     self.add(ipath, 'substituted', old=target, new=new, source=new.rsplit('/', 1)[0], note='stand-in')
                     keep.append(_with_ref(c, new))
                     continue

@@ -225,6 +225,18 @@ def main() -> int:
     check(field(parsed(data).instances[0], 'HaloAimer').attr('ref') == f'objects/common/aimer/{G1}' and
           rep.of('relocated'), '12 a guid DICE moved: the reference rewritten to its BFBC2 partition')
 
+    # ... a guid in several BFBC2 partitions is not relocated (which one is the caller's: 'partition/*' keeps the guid)
+    cat = catalogue(guids={G1: ('levels/a/materials', 'levels/b/materials')}, primary={'levels/a/materials': H1})
+    bf = part(A + '1', [inst(A + '1', 'X.W', [ref('Material', f'materials/materials/{G1}')])])
+    t = tmpl(inst(B + '1', 'X.W', [ref('Material', 'null')]))
+    data, rep = dbxport.port(bf, t, lambda p: False, catalogue=cat)
+    check(field(parsed(data).instances[0], 'Material').attr('ref') == 'null' and not rep.of('relocated'),
+          '12b a guid in several partitions: not relocated (null without a stand-in)')
+    data, rep = dbxport.port(bf, t, lambda p: False, catalogue=cat,
+                             stand_ins={'materials/materials': 'levels/wake/materials/*'})
+    check(field(parsed(data).instances[0], 'Material').attr('ref') == f'levels/wake/materials/{G1}',
+          '12c a \'partition/*\' stand-in keeps the reference\'s guid')
+
     # 13. an added field's cross-partition reference is resolved: one to a partition that will not exist is nulled
     t = tmpl(inst(B + '1', 'X.Skel', [txt('Name', 'tpl'), ref('LODSettings', f'characters/skeletons/ske01_lodsettings/{H1}')]))
     bf = part(A + '1', [inst(A + '1', 'X.Skel', [txt('Name', 'bf')])])
