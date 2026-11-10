@@ -157,7 +157,7 @@ def check_defaults(data, report):
                     report.append(line)
 
 
-def port_many(src, ix, effects, level, log=print, catalogue=None):
+def port_many(src, ix, effects, level, log=print, catalogue=None, schema='error'):
     """{file: bytes}, report for several effects - the templates found once for all of them (each effect's own
     search scans BFBC2's emitter documents: slow for dozens)."""
     plans = {e: walk(src, ix, e, level) for e in effects}
@@ -169,7 +169,7 @@ def port_many(src, ix, effects, level, log=print, catalogue=None):
     shared = templates(ix, types, catalogue)
     files, report = {}, dbxport.Report()
     for n, e in enumerate(effects):
-        f, r = port(src, ix, e, level, shared=shared, plan=plans[e], catalogue=catalogue)
+        f, r = port(src, ix, e, level, shared=shared, plan=plans[e], catalogue=catalogue, schema=schema)
         files.update(f)
         report.extend_from(r)
         log(f'  effect {n + 1}/{len(effects)} {e.rsplit("/", 1)[-1]}: {len(f)} files')
@@ -187,10 +187,11 @@ def _shown(name):
     return line
 
 
-def port(src, ix, effect, level, shared=None, plan=None, catalogue=None):
+def port(src, ix, effect, level, shared=None, plan=None, catalogue=None, schema='error'):
     """({file: bytes}, dbxport.Report) of one effect. The report's records: the effect's summary ('summary'), each
     partition's dbxport records (their partition set), 'sound' (a BF1943 sound for the caller's sound porter: its
-    path), 'missing', 'default'; its lines as before (the dbxport lines of SHOWN, indented under the partition)."""
+    path), 'missing', 'default'; its lines as before (the dbxport lines of SHOWN, indented under the partition).
+    schema: dbxport's ('report': a shape no converter handles is kept as BF1943's and reported, 'schema' records)."""
     import texture
     plan = plan or walk(src, ix, effect, level)
     types = set()
@@ -217,7 +218,7 @@ def port(src, ix, effect, level, shared=None, plan=None, catalogue=None):
     files = {}
     for name, key, kind in plan:
         if kind == 'port':
-            data, rep = dbxport.port(src.data(key), T, resolve, catalogue=catalogue, name=name)
+            data, rep = dbxport.port(src.data(key), T, resolve, catalogue=catalogue, name=name, schema=schema)
             files[name + '.dbx'] = data
             check_defaults(data, report)
             report.extend_from(rep, name, _shown(name))
