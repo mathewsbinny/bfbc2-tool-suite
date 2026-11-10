@@ -12,7 +12,9 @@ the game copy).
   barrier and a harbour piece every triangle's own box reaches its terminal, and rays cast through the tree hit what
   brute force over every triangle hits - in BF1943's converted code and in DICE's own;
 - the WW2 side project's physics convert: Willys (and wreck), Sherman, LCVP and its shell, B-25, Ki-21, the air-raid
-  bunker, the machine-gun mounts - every byte accounted for by a 5.5.0 field (the console converter's check).
+  bunker, the machine-gun mounts - every byte accounted for by a 5.5.0 field (the console converter's check);
+- material slots: on every object HavokAsset BFBC2 ships the part run names PartInfoDatas' materials and writes back
+  byte for byte, HavokMaterials equals MaterialMappings; the Zero's list grown by with_havok_materials.
 
   python test_havokport.py
 """
@@ -248,6 +250,57 @@ def model_group_w(hp, K, ix, check):
     check(files > 0 and same == files, f'model groups mp_004 / mp_005: {same} of {files} files byte for byte as DICE\'s')
 
 
+def material_slots(ix, check):
+    """The part run and material lists on every object HavokAsset BFBC2 ships: part_materials reads each part's
+    material as its PartInfoDatas[].MaterialName through MaterialMappings, part_run writes the run back byte for
+    byte, and the packfile's HavokMaterials equals MaterialMappings (what with_havok_materials keeps when it grows the
+    list). Then the Zero's list grown by two: everything before the list's objects unchanged, the list read back."""
+    from bfbc2core import dbx
+    names = sorted(n for n in ix.where if n.startswith('objects/') and n.endswith('_havok.res') and
+                   n[:-4] + '.dbx' in ix.where)
+    files = parts_ok = runs_ok = lists_ok = 0
+    bad = []
+    for n in names:
+        b = ix.read(n)
+        try:
+            inst = dbx.parse(ix.read(n[:-4] + '.dbx')).instances[0]
+        except Exception:                                       # noqa: BLE001 - not a HavokAsset partition
+            continue
+        if inst.attr('type') != 'Physics.HavokAsset' or inst.child('PartInfoDatas') is None:
+            continue
+        files += 1
+        mm, pid = inst.child('MaterialMappings'), inst.child('PartInfoDatas')
+        maps = [c.text.lower() for c in ((mm.children if mm is not None else None) or ())]
+        parts = [(c.child('MaterialName') or dbx.Element('field', dbx.TEXT)).text.lower()
+                 for c in ((pid.children if pid is not None else None) or ())]
+        try:
+            hashes, idx = havokport.part_materials(b)
+        except havokport.MaterialError as e:
+            bad.append(f'{n}: {e}')
+            continue
+        parts_ok += len(maps) == len(hashes) and [maps[i] for i in idx] == parts
+        _, p, q, _, _ = havokport._wrapper(b)
+        runs_ok += not idx or b[p:q] == havokport.part_run(idx)
+        lists_ok += [m.lower() for m in havokport.havok_materials(b)] == maps
+    check(files > 900 and parts_ok == runs_ok == lists_ok == files and not bad,
+          f'material slots: {files} object HavokAssets - part bytes name PartInfoDatas through MaterialMappings in '
+          f'{parts_ok}, the run written back byte for byte in {runs_ok}, HavokMaterials == MaterialMappings in '
+          f'{lists_ok}', '; '.join(bad[:3]))
+    zero = ix.read(REEXPORTED[0])
+    old = havokport.havok_materials(zero)
+    out = havokport.with_havok_materials(zero, old + ['aircraft_airframe', 'invisible_material'])
+    b1, l1, g1, k1 = havokport._data(zero)
+    b2, l2, g2, k2 = havokport._data(out)
+    hm = next(o for o, c in k1.items() if c == 'HavokMaterials')
+    arr = l1[hm]
+    keep = bytearray(out[b2:b2 + arr])
+    keep[hm + 4:hm + 8] = zero[b1 + hm + 4:b1 + hm + 8]
+    check(havokport.havok_materials(out) == old + ['aircraft_airframe', 'invisible_material'] and
+          bytes(keep) == zero[b1:b1 + arr] and all(l2.get(a) == v for a, v in l1.items() if a < arr) and
+          all(g2.get(a) == v for a, v in g1.items() if a < arr) and all(k2.get(a) == v for a, v in k1.items() if a < arr),
+          'with_havok_materials: the Zero\'s list grown by two, every object before it and its fixups unchanged')
+
+
 def main():
     fails = []
 
@@ -287,6 +340,7 @@ def main():
         except Exception as e:                                   # noqa: BLE001
             check(False, 'antenna banger (velocity limit 10)', str(e))
     model_group_w(hp, K, ix, check)
+    material_slots(ix, check)
     mopp_check(hp, K, src, ix, template, table, check)
     for name in REEXPORTED:
         out = havokport.convert(src.data(name), template, K)
