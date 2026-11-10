@@ -206,11 +206,12 @@ def mopp_check(hp, K, src, ix, template, table, check):
 def model_group_w(hp, K, ix, check):
     """DICE's model-group physics of mp_004 and mp_005 with every w lane shape_subparts_to_550 writes zeroed (as
     BF1943's 4.6.1 files have them): it writes translation.w back on every subpart as DICE's, and aabbCenter.w /
-    aabbHalfExtents.w within 0.01 (5 of the 7 shapes exactly)."""
+    aabbHalfExtents.w bit-identical to DICE's on all 7 shapes - each file comes back byte for byte (all 299
+    model-group shapes of BFBC2's levels do, 2026-11-09)."""
     given = {n: {'size': k.size, 'parent': k.parent, 'members': [
         {'name': m.name, 'class': ('given', m.cls) if m.cls else None, 'type': m.type, 'subtype': m.subtype,
          'carray': m.carray, 'offset': m.offset} for m in k.members]} for n, k in K.items()}
-    shapes = exact = subparts = 0
+    shapes = exact = subparts = files = same = 0
     worst = 0.0
     for lvl in ('mp_004', 'mp_005'):
         for name in sorted(n for n in ix.where if n.startswith(f'levels/{lvl}/') and n.endswith('_havokasset.res')):
@@ -228,20 +229,23 @@ def model_group_w(hp, K, ix, check):
                 for k in range(len(s['shapesSubparts'])):
                     struct.pack_into('<f', z, p.ptr[o + havokport.SUBPARTS_AT] + havokport.SUBPART_SIZE * k + 60, 0.0)
             out = havokport.shape_subparts_to_550(bytes(z))[0]
+            files += 1
+            same += out == b
             q = hp.Packfile(out, out.find(hp.MAGIC), classes=given)
             for o, s in ref.items():
                 t = q.read_object(o, 'hkpExtendedMeshShape')
                 e = max(abs(t['aabbCenter'][3] - s['aabbCenter'][3]),
                         abs(t['aabbHalfExtents'][3] - s['aabbHalfExtents'][3]))
                 shapes += 1
-                exact += e < 1e-4
+                exact += e == 0
                 worst = max(worst, e)
                 subparts += sum(x['translation'][3] != y['translation'][3]
                                 for x, y in zip(t['shapesSubparts'], s['shapesSubparts']))
     check(shapes == 7 and subparts == 0, f'model groups mp_004 / mp_005: translation.w written as DICE\'s on every '
           f'subpart of {shapes} shapes', f'{subparts} differ')
-    check(shapes == 7 and exact >= 5 and worst < 0.01, f'model groups mp_004 / mp_005: aabb w lanes as DICE\'s '
-          f'({exact} of {shapes} exactly, the others within {worst:.4f})')
+    check(shapes == 7 and exact == shapes and worst == 0, f'model groups mp_004 / mp_005: aabb w lanes as DICE\'s '
+          f'({exact} of {shapes} bit-identical)', f'worst {worst:.6g}')
+    check(files > 0 and same == files, f'model groups mp_004 / mp_005: {same} of {files} files byte for byte as DICE\'s')
 
 
 def main():

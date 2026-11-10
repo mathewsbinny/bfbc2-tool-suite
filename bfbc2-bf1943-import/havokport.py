@@ -353,37 +353,45 @@ CONVEX_RADIUS_AT = 16                    # hkpConvexShape::radius
 
 def subpart_w_lanes(q):
     """The w lanes of the three rotation columns BFBC2's exporter builds from a shape subpart's quaternion (x, y, z,
-    w), float32: (2(xw - yz), 2(yw + xz), 0). Not part of the rotation (Havok ignores the w lanes); they are what
-    DICE's model groups' bounding boxes carry in w (aabb_w). Decoded from DICE's own files: with them the w of every
-    shape subpart's transformed child box reproduces aabbCenter.w and aabbHalfExtents.w exactly in 146 of the 299
-    model-group shapes of all BFBC2 levels, among them mp_004's three, and within 0.001 in half of them, 0.1 in 90 %,
-    1.66 at worst - the rest is not decoded (DICE's placements of those groups' objects, e.g. scaled ones, are not in
-    the file)."""
+    w), float32: (2(yz - xw), 2(yw + xz), 0) - column 0's w is column 2's y (R12), column 1's w column 2's x (R02).
+    Not part of the rotation (Havok ignores the w lanes); they are what DICE's model groups' bounding boxes carry in w
+    (aabb_w). Decoded from DICE's own files: with these lanes and aabb_w's subpart-by-subpart merge, aabbCenter.w and
+    aabbHalfExtents.w are bit-identical to DICE's in all 299 model-group shapes of all BFBC2 levels (2026-11-09; the
+    earlier sign of lane 0, 2(xw - yz), matched 146 - its error shows only on tilted placements of tall children)."""
     import numpy as np
     x, y, z, w = (np.float32(v) for v in q)
     two = np.float32(2)
-    return np.array([two * (x * w - y * z), two * (y * w + x * z), np.float32(0)], np.float32)
+    return np.array([two * (y * z - x * w), two * (y * w + x * z), np.float32(0)], np.float32)
 
 
 def aabb_w(parts):
-    """(aabbCenter.w, aabbHalfExtents.w) of an extended mesh shape built of shape subparts, as Havok's
-    hkAabbUtil::calcAabb gives them in BFBC2's files: per child, its box centre turned into the subpart's frame plus
-    the translation's w (1.0), and its half extents turned with the absolute w lanes of the rotation columns
-    (subpart_w_lanes) plus the convex radius; the min / max over all children; centre = (max + min) / 2,
-    half = (max - min) / 2. parts: [(quaternion, [(centre xyz, half extents xyz, radius)])]; None when no child."""
+    """(aabbCenter.w, aabbHalfExtents.w) of an extended mesh shape built of shape subparts, as
+    hkpExtendedMeshShape::addShapesSubpart leaves them in BFBC2's files: subpart by subpart in file order, the
+    subpart's own box (each child's box centre turned into the subpart's frame plus the translation's w 1.0, its half
+    extents turned with the absolute w lanes of the rotation columns (subpart_w_lanes) plus the convex radius; the
+    min / max over its children) is merged into the box the stored centre / half extents give back (centre -+ half),
+    and centre / half extents are stored again as (max + min) / 2, (max - min) / 2 in float32 - bit-identical to
+    DICE's in all 299 model-group shapes (merging child by child: 296; one box over all children: rounding off).
+    parts: [(quaternion, [(centre xyz, half extents xyz, radius)])]; None when no subpart has a child."""
     import numpy as np
-    lo: Any = None
-    hi: Any = None
+    cen: Any = None
+    half: Any = None
+    one, h5 = np.float32(1), np.float32(0.5)
     for q, children in parts:
+        if not children:
+            continue
         cw = subpart_w_lanes(q)
+        lo: Any = None
+        hi: Any = None
         for c, h, r in children:
-            cen = np.float32(1) + np.float32(np.dot(cw, np.asarray(c, np.float32)))
+            cc = one + np.float32(np.dot(cw, np.asarray(c, np.float32)))
             he = np.float32(np.abs(cw * np.asarray(h, np.float32)).sum()) + np.float32(r)
-            lo = cen - he if lo is None else min(lo, cen - he)
-            hi = cen + he if hi is None else max(hi, cen + he)
-    if lo is None:
-        return None
-    return float((hi + lo) * np.float32(0.5)), float((hi - lo) * np.float32(0.5))
+            lo = cc - he if lo is None else min(lo, cc - he)
+            hi = cc + he if hi is None else max(hi, cc + he)
+        if cen is not None:
+            lo, hi = min(cen - half, lo), max(cen + half, hi)
+        cen, half = (hi + lo) * h5, (hi - lo) * h5
+    return None if cen is None else (float(cen), float(half))
 
 
 def shape_subparts_to_550(pc):
