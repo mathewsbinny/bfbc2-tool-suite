@@ -75,6 +75,7 @@ NATIVE = os.path.join(HERE, 'native')
 VIEWS = (('threequarter', 45.0, 28.0), ('front', 0.0, 8.0), ('top', 0.0, 89.0))      # (name, azimuth, elevation)
 ENVMAP = 'Textures/Sky/Sky_Beach_Generic_RGBA16f'
 WEATHER = 'weather/r_mp005'          # the default light: BFBC2's Arica Harbor, its active weather state
+NOON_DIR = (0.35, 0.8, 0.5)          # towards the key light: about 53 degrees up, over the three-quarter camera's side
 BACKGROUND = (0.32, 0.36, 0.42)      # behind the mesh in the pictures (not drawn by the shaders, not measured)
 TEX_FORMATS = {0: 8, 18: 8, 1: 16, 2: 16, 19: 16, 20: 16, 13: 0, 9: 0, 10: 0}        # format -> block bytes (0: texels)
 BELOW_NORMAL = 0x4000                # Windows process priority: the game may be running a playtest
@@ -248,13 +249,19 @@ def read_weather(files: Files, folder: str = WEATHER) -> tuple[dict[str, dict[st
     return out, states[active]
 
 
-def light(weather: dict[str, dict[str, list[float]]]) -> tuple[dict[str, Any], dict[str, Any]]:
+def light(weather: dict[str, dict[str, list[float]]], sun_from: str = 'noon') -> tuple[dict[str, Any], dict[str, Any]]:
     """(engine light constants, post-process settings) as BFBC2 derives them from a weather state: colours times
-    their intensities, the sun's direction from its theta and phi (both checked in the game by Project OPFOR's
-    wake_probe.py)."""
+    their intensities (checked in the game by Project OPFOR's wake_probe.py). The key light's direction (towards the
+    light: the shaders take saturate(dot(normal, outdoorLightDir))): 'noon' - a fixed high sun, NOON_DIR (default);
+    'weather' - from the state's sun theta / phi, by the formula measured on Wake Island (for mp_005's Sunny state,
+    phi 53, it points below the horizon: the measurement does not carry over)."""
     ol, sun, pp = weather['outdoorlight'], weather['sun'], weather['postprocess']
-    th, ph = math.radians(sun['Theta'][0]), math.radians(sun['Phi'][0])
-    d = (-math.cos(th) * math.sin(ph), -math.cos(ph), -math.sin(th) * math.sin(ph), 0.0)
+    if sun_from == 'weather':
+        th, ph = math.radians(sun['Theta'][0]), math.radians(sun['Phi'][0])
+        d = (-math.cos(th) * math.sin(ph), -math.cos(ph), -math.sin(th) * math.sin(ph), 0.0)
+    else:
+        n = np.array(NOON_DIR) / np.linalg.norm(NOON_DIR)
+        d = (float(n[0]), float(n[1]), float(n[2]), 0.0)
     key = [c * ol['KeyColorIntensity'][0] for c in ol['KeyColor'][:3]]
     values = dict(FIXED,
                   outdoorLightDir=d,
@@ -507,7 +514,7 @@ def prepare(files: Files, db: S.ShaderDb, mesh: str, envmap: str = ENVMAP) -> Pr
             _flag(flags, notes, 'no-program', f'{pn}: entry {shaders[i]} has no main-pass program')
             continue
         if not keyed:
-            if pn.lower().endswith('_zonly'):
+            if '_zonly' in pn.lower():                   # (..._ZOnly, ..._ZOnly_split1 ...)
                 continue                                   # depth-only part: drawn in the depth passes only
             _flag(flags, notes, 'layout-fallback', f'{pn}: no program for its vertex layout in {shaders[i]} '
                   '(the engine draws it with something else)')
@@ -947,6 +954,7 @@ class Settings:
     envmap: str = ENVMAP
     weather: str = WEATHER
     log: Callable[[str], None] = print
+    sun: str = 'noon'
 
 
 def _light(files: Files, s: Settings) -> tuple[dict[str, Any], dict[str, Any], str]:
@@ -955,8 +963,8 @@ def _light(files: Files, s: Settings) -> tuple[dict[str, Any], dict[str, Any], s
     except (RenderQaError, OSError) as e:
         s.log(f'weather: {e}; mp_005 Sunny values built in')
         w, label = MP005_SUNNY, 'built-in mp_005 Sunny'
-    values, post = light(w)
-    return values, post, label
+    values, post = light(w, s.sun)
+    return values, post, f'{label}, sun {s.sun}'
 
 
 def render_one(files: Files, db: S.ShaderDb, mesh: str, s: Settings, values: dict[str, Any], post: dict[str, Any],
@@ -1004,6 +1012,13 @@ def _write(s: Settings, kind: str, records: list[dict[str, Any]], rows: list[tup
         p = os.path.join(s.out, f'sheet_{n // per + 1:02d}.png')
         sheet(page, p, header=header)
         sheets.append(p)
+    # the same, only meshes drawn with translated shaders (BF1943's Xbox shaders compiled for PC)
+    tr = [i for i in order if records[i].get('origin') == 'translated']
+    if tr and len(tr) < len(order):
+        for n in range(0, len(tr), per):
+            p = os.path.join(s.out, f'translated_{n // per + 1:02d}.png')
+            sheet([(rows[i][1], rows[i][2]) for i in tr[n:n + per]], p, header=header)
+            sheets.append(p)
     lines = [f'renderqa {kind}: {len(records)} meshes', *(f'{k}: {v}' for k, v in meta.items()), '']
     counts: dict[str, int] = {}
     for r in records:
@@ -1057,6 +1072,8 @@ def run_compare(files: Files, db: S.ShaderDb, meshes: Sequence[str], s: Settings
             rec['truth'] = None
             records.append(rec)
             tiles = [r.views[v] for v, _, _ in VIEWS] if r else [_blank(s.size)] * 3
+            if r:
+                _tile(np.concatenate(tiles, 1)).save(os.path.join(s.out, _safe(m) + '.png'))
             rows.append((rec['severity'], f'{_short(m)}  [{rec["origin"]}] (no truth)\n{" ".join(rec["flags"]) or "ok"}',
                          [_blank(s.size)] * 3 + tiles))
             continue
@@ -1150,9 +1167,9 @@ def wake_meshes(root: str, files: Files, log: Callable[[str], None] = print) -> 
     import meshview  # noqa: F401
     import texture  # noqa: F401
     saved = list(sys.path)
-    sys.path.append(tools)
+    sys.path.append(tools)                              # (its imports put another suite checkout first on sys.path)
     try:
-        import wake_audit                               # (its imports put another suite checkout first on sys.path)
+        import wake_audit
         import wake_preview
     finally:
         sys.path[:] = saved
@@ -1195,6 +1212,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument('--limit', type=int, default=0, help='at most this many meshes')
     ap.add_argument('--size', type=int, default=256)
     ap.add_argument('--weather', default=WEATHER, help=f'weather folder of the light (default {WEATHER})')
+    ap.add_argument('--sun', choices=('noon', 'weather'), default='noon',
+                    help="key light direction: a fixed high sun (default) or the weather state's theta / phi")
     ap.add_argument('--envmap', default=ENVMAP, help='the cube the engine binds as outdoorLightReflectionEnvmap')
     ap.add_argument('--warp', action='store_true', help='the software rasterizer instead of the GPU')
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (the game copy)')
@@ -1210,7 +1229,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     files = Files(root, a.stage)
     out = a.out or os.path.join(tempfile.gettempdir(), 'renderqa', a.command)
     os.makedirs(out, exist_ok=True)
-    s = Settings(out, a.size, a.warp, a.envmap, a.weather)
+    s = Settings(out, a.size, a.warp, a.envmap, a.weather, sun=a.sun)
     meshes = list(a.meshes)
     if a.list:
         meshes += [x.strip() for x in open(a.list, encoding='utf-8') if x.strip() and not x.startswith('#')]

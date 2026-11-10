@@ -305,11 +305,15 @@ def checks(c: Checks) -> None:
     # sampler states, light, camera, constants, bones
     blk = block(samplers=[(0, sampler_desc(3)), (2, sampler_desc())])
     c.check(R.sampler_states(blk) == [(0, sampler_desc(3)), (2, sampler_desc())], 'sampler-state records read')
+    wv, _ = R.light(R.MP005_SUNNY, 'weather')
+    d = np.array(wv['outdoorLightDir'][:3])
+    th, ph = math.radians(63.666), math.radians(53.248)
+    c.check(abs(np.linalg.norm(d) - 1) < 1e-6 and abs(d[0] + math.cos(th) * math.sin(ph)) < 1e-9
+            and abs(d[1] + math.cos(ph)) < 1e-9, 'light: the sun direction from theta / phi (the Wake formula)', str(d))
     values, post = R.light(R.MP005_SUNNY)
     d = np.array(values['outdoorLightDir'][:3])
-    th, ph = math.radians(63.666), math.radians(53.248)
-    c.check(abs(np.linalg.norm(d) - 1) < 1e-6 and d[1] < 0 and abs(d[0] + math.cos(th) * math.sin(ph)) < 1e-9,
-            'light: the sun direction from theta / phi (unit, pointing down)', str(d))
+    c.check(abs(np.linalg.norm(d) - 1) < 1e-6 and d[1] > 0.7, 'light: noon - a unit direction towards a high sun',
+            str(d))
     c.check(np.allclose(values['outdoorLightKeyColor'][:3], np.array([1.0, 0.971, 0.914]) * 1.576),
             'light: key colour times its intensity')
     ldr, exposure = R.tonemap(np.full((4, 4, 3), 0.18, np.float32), np.ones((4, 4), bool), post)

@@ -212,10 +212,14 @@ From the game data: the vertex and index buffers, the vertex layout and the prog
 textures in their own block formats with their own mips and an sRGB view when header flag bit 0 is set, the pixel
 shader's own sampler states (60-byte records: `u32` register + `D3D11_SAMPLER_DESC`), the material constants of the
 program's second parameter block (placed by register, only inside each shader's own `constants` array), the light
-colours and sun direction of a weather state (default: mp_005's active state, Sunny; `--weather <folder>`), and the
+colours and intensities of a weather state (default: mp_005's active state, Sunny; `--weather <folder>`), and the
 state's exposure, filmic curve, saturation, contrast and brightness.
 
 Guessed or simplified:
+- the key light's direction is a fixed high sun (`NOON_DIR`, about 53 degrees up, on the three-quarter camera's side).
+  The shaders take `saturate(dot(normal, outdoorLightDir))`, so the vector points towards the light. `--sun weather`
+  uses the state's theta / phi with the formula Project OPFOR measured on Wake Island. For mp_005's Sunny state
+  (phi 53) that formula points below the horizon (y = -0.6), so it does not carry over to stock levels;
 - no shadows (the shadow map is a 1x1 depth of 1, so everything is lit), no point lights, fog, bloom or lens flare;
 - the cube the engine binds as `outdoorLightReflectionEnvmap` is `Textures/Sky/Sky_Beach_Generic_RGBA16f` (`--envmap`);
 - bones are at rest. Composite vehicles get their parts' transforms from the mesh set; destructible composites
