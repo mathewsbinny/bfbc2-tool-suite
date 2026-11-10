@@ -12,7 +12,12 @@ Build and edit Battlefield: Bad Company 2 skinned meshes (weapons) on the PC.
 - `texwrite.py` - PC textures (`ITexture` .res) from pictures: DXT1 colour maps (format 0), DXT1 normal maps
   (format 18) and DXT5 pictures with alpha (format 2; one level, as DICE's award images), laid out as DICE's
   textures are; `wrapped()` gives the on-demand bundles' form (`RES\x02` + type name, sizes, payload: every entry of
-  `async\ondemand_awards-00.fbrb`); `alpha5()` decodes a DXT5 level's alpha. For textures composed level by level
+  `async\ondemand_awards-00.fbrb`); `alpha5()` decodes a DXT5 level's alpha. **DXT1 with 1-bit alpha**
+  (2026-11-09): `texture(rgba, 'color')` writes each block holding a transparent texel (alpha under 128) in
+  three-colour mode (colour 0 <= colour 1, the ends' midpoint, index 3 transparent; the end colours from the opaque
+  texels only), and the others as before, so an opaque picture comes out byte-identical. `alpha1()` reads a DXT1
+  level's punch-through alpha, which the console converter's `texture.decode` leaves out. OPFOR's grime pass
+  decoded and re-encoded DXT1 without it, and every transparent texel came out solid black. For textures composed level by level
   (the emitter atlases, `bfbc2-bf1943-import\emitteratlas.py`): `resource()` (the header over given levels),
   `l8_down()` / `l8_bytes()` (an 8-bit level as DICE's emitter atlases have it: the rounded 2 x 2 mean, rows padded to
   4 bytes), `atlas_levels()` (their level count).
@@ -26,8 +31,8 @@ uses these to model the WW2 rifles' bayonets and rifle grenades onto DICE's surv
 
 Test: `tests\test_models.py` (game tier: every Garand / Type 5 LOD and mesh set written back byte-identical, a part
 replaced and read back); `tests\test_texwrite.py` (DICE's level layout, round trips through the console converter's
-decoder, unit-length normal mips, DXT5 colour and alpha; with the game, two of DICE's weapon textures and an award
-image encoded again); `tests\test_decimate.py`
+decoder, unit-length normal mips, DXT5 colour and alpha, a cut-out picture keeping every transparent texel in DXT1;
+with the game, two of DICE's weapon textures and an award image encoded again); `tests\test_decimate.py`
 (a seamed sphere stays closed and round, two bones stay apart).
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

@@ -11,6 +11,16 @@ python granny.py shift <animation> --bone <name> (--rest x,y,z | --by x,y,z) [--
 python granny.py topc <xbox resource> --out <file> [--from-skeleton <s> --to-skeleton <s>]
 ```
 
+From Python, two more writers (PC files):
+- `set_orientations(g, curve, quats)` writes quaternions into quantized orientation curves (D4nK16uC15u /
+  D4nK8uC7u: selector 0, the largest component dropped; knots and knot scale kept).
+- `add_tracks(pc, tracks, donor)` (2026-11-09) adds transform tracks to an animation. The objects are appended to
+  the sections so nothing moves; there is a new name-ordered TransformTracks array; the curve objects and type
+  definitions are copied from a donor animation, the strings added, the sections laid out again and the CRC
+  recomputed. `bfbc2-bf1943-import` uses it for the tracks DICE adds to the third-person undeploys (the 19 weapon
+  parts and 6 thumbs each held at the deploy's last frame, or with `thumb_donors` the thumbs copied from a BFBC2
+  undeploy; its README).
+
 `<resource>` is a file or a resource name in the game copy, e.g. `characters/skeletons/ske01` or
 `animations/weapons/handheld/m1garand_rgl/1p/1p_fire`. The format (a string table, then a 32-bit Granny 2 file whose
 names are indices into that table) and the curve formats are described in `granny.py`'s docstring.
@@ -39,7 +49,8 @@ of BFBC2's own Xbox `mp_common` / `sp_common` with a PC twin of the same size co
 strings byte for byte, every value of the object tree, Granny's unused Padding aside; the console's section layout is
 kept); 31 BF1943 animations convert to exactly BFBC2's copy. The pipeline that uses it: `bfbc2-bf1943-import`.
 
-Tests: `tests\test_granny.py` (game tier; also a big-endian header, the write refusal, and - when extracted into
+Tests: `tests\test_granny.py` (game tier; also a big-endian header, the write refusal, `add_tracks` onto the
+M1911's undeploy, and - when extracted into
 OPFOR's `work\bf1943\skeleton` - BF1943's skeleton against the PC one) and `tests\test_granny_port.py` (quick: the
 bone tables; `--game`: the Xbox corpus and BF1943).
 
