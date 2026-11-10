@@ -665,3 +665,30 @@ Branch `arch/m1-paths-2026-11-09`, from `main` at a482659. This is step M1 of th
 - **Not unified:** the differing search orders, on purpose. Unify them only as a deliberate change. shaderdb
   widening to the walk-up was the audit's suggestion.
 - **Not touched:** the implicit `shaderdb` edge in OPFOR's attachments.py (M3).
+
+## After round 3 (note of 2026-11-10)
+
+The following landed on `main` after round 3 and M1, on 2026-11-09. It was not re-audited.
+- **The dbxport rewrite (Stage 1, d9fcc5c) and `dbxcatalogue.py` (06c2ea9).** Two quick-tier tests came with them:
+  - `test_dbxport_rules` covers the deep analysis' 19 edge cases and a test per rule;
+  - `test_dbxport_fair --quick` ports 7 partitions against DICE's (skipped without game data).
+
+  The rewrite also covers architecture steps M6 / M8 for dbxport and effectport (ARCHITECTURE_AUDIT.md, status).
+- **The converters (merge 2f166dd):**
+  - havokport's w lanes (299 of 299 shapes bit-identical, 364c206);
+  - `mopp.py`;
+  - console texture format 10 and flag bit 1;
+  - the texture-coordinate element;
+  - meshport's `rename=`;
+  - `granny.add_tracks` and the undeploy tracks.
+
+  `tests/test_converter_units.py` is new in the quick tier. It answers part of item 2 of the plan above (quick
+  synthetic tests for havok, texture, mesh and meshport); dbxport is covered by the rules test.
+- **`emitteratlas.py`** (merge 98310fe), with `test_emitteratlas` in the quick tier.
+- **texwrite's DXT1 1-bit alpha** (43e95d7) and the Importer's `thumb_donors` hook (19219e9, off by default).
+
+The quick tier went from 55 to 59 tests. The rest of the plan above is unchanged. On branches, not merged:
+- `texqa` (qa/textures);
+- `renderqa` (qa/render);
+- the emitter-gradient converter (tonight/s2fx);
+- `mesh.relayout` (tonight/s4).
