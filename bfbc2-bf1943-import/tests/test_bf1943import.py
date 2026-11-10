@@ -17,7 +17,8 @@ With --game (game tier; skipped without the Rising Sun workspace and the BF1943 
 - 3p undeploys: the 22 BFBC2 shipped get DICE's 25 added tracks (88 in all, as DICE's) without a track of theirs
   changing; the 19 weapon parts reproduce DICE's exactly in at least 12 of the 22 and 380 of the 418 tracks (the
   rest DICE re-animated: M18, expack, detonator, the Shin Gunto standing, the crouching Garand's clip), the thumbs
-  within 15 degrees on average (DICE's are animated); the 14 BF1943-only undeploys get their 25.
+  within 15 degrees on average (DICE's are animated); the 14 BF1943-only undeploys get their 25; thumb_donors: the
+  Garand's thumbs from Vietnam's Garand undeploys are DICE's, the K98's from the M24's still give 88 tracks.
 
   python test_bf1943import.py [--game]
 """
@@ -181,6 +182,31 @@ def undeploys(check):
     counts = [len(tracks(imp.convert(k)[0])[1]) for k in own]
     check(len(own) >= 10 and set(counts) == {88}, f'undeploys: the {len(own)} BF1943-only ones get 88 tracks',
           str(counts))
+    # thumb_donors: the Garand's thumbs copied from Vietnam's Garand undeploys (the same animation DICE shipped twice)
+    # come out as DICE's (0 degrees), its other tracks as without a donor; the K98's from the M24's: still 88 tracks
+    H = 'animations/weapons/handheld/'
+    don = bi.Importer(source, thumb_donors={H + 'm1garand': H + 'vietnam/nam_rif_m1garand',
+                                            H + 'beach/k98': H + 'us_sni_m24'})
+    don._ix, don._bones = ix, imp._bones
+    worst, same = 0.0, True
+    for st in ('stand', 'crouch'):
+        k = f'{H}m1garand/3p/{st}undeploy.res'
+        dur, d = tracks(ix.read(k))
+        out, rec = don.convert(k)
+        _, o = tracks(out)
+        _, plain = tracks(imp.convert(k)[0])
+        same &= 'thumb tracks copied' in rec['done'] and set(o) == set(d)
+        for n in d:
+            if 'Thumb' in n:
+                for f in (0, 0.25, 0.5, 0.75, 1):
+                    worst = max(worst, angle(at(d[n], 'OrientationCurve', dur * f, (0, 0, 0, 1)),
+                                             at(o[n], 'OrientationCurve', dur * f, (0, 0, 0, 1))))
+            elif n in plain:
+                same &= all(granny.curve_keys(o[n][c]['CurveData']) == granny.curve_keys(plain[n][c]['CurveData'])
+                            for c in ('PositionCurve', 'OrientationCurve'))
+    k98 = len(tracks(don.convert(H + 'beach/k98/3p/standundeploy.res')[0])[1])
+    check(same and worst < 0.1 and k98 == 88, f'undeploys: thumbs from a donor undeploy - the Garand\'s from Vietnam\'s '
+          f'within {worst:.2f} degrees of DICE\'s, its other tracks unchanged; the K98\'s from the M24\'s: {k98} tracks')
 
 
 def main(argv):

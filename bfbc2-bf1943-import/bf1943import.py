@@ -143,10 +143,15 @@ def plan(kind):
 
 
 class Importer:
-    def __init__(self, source, opfor=None):
+    def __init__(self, source, opfor=None, thumb_donors=None):
+        """thumb_donors: {BF1943 weapon animation folder (lower case, e.g. animations/weapons/handheld/beach/k98):
+        a BFBC2 weapon animation folder of the same base set (e.g. animations/weapons/handheld/us_sni_m24)} - the 3p
+        undeploys under the first take their thumb tracks from the second's same-stance undeploy (DICE's animated
+        curves, copied) instead of the deploy's last frame (undeploy_tracks)."""
         self.src = source
         self._bones = None
         self._opfor = opfor
+        self.thumb_donors = {k.lower().rstrip('/'): v.lower().rstrip('/') for k, v in (thumb_donors or {}).items()}
         src_ske = source.entries.get(SOLDIER)
         self.src_soldier = source.data(SOLDIER) if src_ske else None
 
@@ -180,7 +185,13 @@ class Importer:
         for the weapon parts; DICE's thumbs are animated, which no BF1943 file has - the deploy's last frame is 13 deg
         from them on average, the bind pose 20), but a weapon part the deploy has parked 0.5 m or more from the
         weapon's HandsIkPose takes that pose (the crouching Garand's clip parts). Curve formats from DICE's own
-        Garand undeploy (DaIdentity, D3 / D4Constant32f). Measured on the 22: tests\\test_bf1943import.py."""
+        Garand undeploy (DaIdentity, D3 / D4Constant32f). Measured on the 22: tests\\test_bf1943import.py.
+        With a thumb donor (thumb_donors) the 6 thumbs are that BFBC2 undeploy's curves, copied. Measured leave-one-out
+        on the 22 (2026-11-09): exact where the donor is the same animation (Vietnam's Garand, Thompson, M1911, TNT -
+        DICE shipped them twice), but another weapon of the same base set does not beat the deploy's last frame
+        (thumbs vs DICE's, median / mean degrees, all 22: deploy's last frame 8.0 / 13.4, nearest-kind donors 6.9 /
+        13.7 and 8.7 / 12.7; the Garand from the M24 9.1 / 15.1 standing, 21.0 / 22.9 crouching, against 0.1 / 7.3
+        and 4.8 / 9.0)."""
         m = UNDEPLOY.search(key)
         if not m:
             return out, None
@@ -214,8 +225,30 @@ class Importer:
         donor = self.index().read(TRACK_FORMATS)
         if donor is None:
             raise Bf1943ImportError(f'the game copy has no {TRACK_FORMATS} (the curve formats for the added tracks)')
-        return granny.add_tracks(out, add, donor, key), f'{len(add)} tracks added from {dep.rsplit("/", 1)[-1]} ' \
-            f'(the bones its deploy animates, held at its last frame)'
+        # the thumbs from a same-base-set BFBC2 undeploy (thumb_donors): its curves copied as they are
+        thumb_key = None
+        folder = self.thumb_donors.get(key[:m.start()])
+        if folder:
+            thumb_key = f'{folder}/3p/{m.group(1)}undeploy.res'
+            tb = self.index().read(thumb_key)
+            if tb is None:
+                raise Bf1943ImportError(f'{key}: thumb donor {thumb_key} is not in the game copy')
+            tt = {t['Name']: t for t in granny.animations(granny.Granny(tb, thumb_key))[0]['TrackGroups'][0]
+                  ['TransformTracks']}
+            thumbs = [a['name'] for a in add if 'Thumb' in a['name']]
+            missing = [n for n in thumbs if n not in tt]
+            if missing:
+                raise Bf1943ImportError(f'{key}: thumb donor {thumb_key} has no {missing}')
+            add = [a for a in add if a['name'] not in thumbs]
+            copied = [{'name': n, 'position': ('copy', tt[n]['PositionCurve']['CurveData']),
+                       'orientation': ('copy', tt[n]['OrientationCurve']['CurveData'])} for n in thumbs]
+        out = granny.add_tracks(out, add, donor, key) if add else out
+        note = f'{len(add)} tracks added from {dep.rsplit("/", 1)[-1]} (the bones its deploy animates, held at its ' \
+            f'last frame)'
+        if thumb_key:
+            out = granny.add_tracks(out, copied, tb, key)
+            note += f'; {len(copied)} thumb tracks copied from {thumb_key}'
+        return out, note
 
     def convert(self, key, extra_tracks=True):
         """(output bytes or None, record) for one resource; extra_tracks: a 3p undeploy gets DICE's added tracks
