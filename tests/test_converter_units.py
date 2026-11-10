@@ -2,6 +2,9 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
 
 - havokport: a model group's shape subparts get translation.w 1.0 and the shape's aabbCenter.w / aabbHalfExtents.w
   as DICE's exporter writes them (values from two of DICE's own levels: mp_006's rigid group, sp_008's static grid);
+- havokport part materials: the wrapper's part run (u16 0, distinct count, highest index, a byte a part unless one
+  material serves all) read and written in both shapes, the material list grown at its end only; a wrong part
+  count, a reordered list, an index past it, a run that does not match its header and a material table refused;
 - mopp: a hand-made byte code (bounds, a split, a one-value split, a 16-bit split, a rescale, terminal offsets, a
   jump) answers box queries cell by cell; the ray cast on it equals brute force; an unknown opcode is refused;
 - texture: console format 10 (L8) untiled byte for byte, not byte-swapped, each PC row padded to 4 bytes, the
@@ -10,6 +13,8 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
   settings, shader set and shader names renamed and listed, its bytes otherwise the same;
 - mesh.texcoord_element: the texture coordinates are the first half2 / float2 usage-0 element (soldiers, trees),
   else the first other float one (material-mask meshes), never a colour byte element; decode reads that one;
+- mesh.relayout: a PC MeshData into another layout - elements paired by kind (usage, stream, component count) in
+  any order, a missing one filled by the caller's edit, the palette extended, offsets and strides rewritten;
 
   python tests\test_converter_units.py
 """
@@ -238,12 +243,91 @@ def mopp_vm() -> None:
     check(refused, 'mopp: an unknown opcode is refused')
 
 
+def _layout(els, stride):
+    """A 0x49-byte layout record body: elements (format, usage, offset, stream), their count at 64, stride at 69."""
+    b = bytearray(0x49)
+    for i, e in enumerate(els):
+        b[4 * i:4 * i + 4] = bytes(e)
+    b[64], b[69] = len(els), stride
+    return bytes(b)
+
+
+def mesh_relayout() -> None:
+    import numpy as np
+    # one part of 3 vertices: position half3 @0, blend indices @6, weights @10, half2 uv @14, half4 grey @18 (stride 26)
+    old = _layout([(7, 1, 0, 0), (12, 2, 6, 0), (12, 3, 10, 0), (6, 0, 14, 0), (8, 0, 18, 0)], 26)
+    # DICE's soldier order: position, indices, weights, the half4 @14, two half2 @22 / @26 (stride 30)
+    new = _layout([(7, 1, 0, 0), (12, 2, 6, 0), (12, 3, 10, 0), (8, 0, 14, 0), (6, 0, 22, 0), (6, 0, 26, 0)], 30)
+    pos = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8]], '<f2')
+    uv = np.array([[0.25, 0.5], [0.75, 1], [0, 0.125]], '<f2')
+    grey = np.array([[0.5, 0.5, 0.5, 1]] * 3, '<f2')
+    rows = b''.join(pos[i].tobytes() + bytes([1, 0, 0, 0, 255, 0, 0, 0]) + uv[i].tobytes() + grey[i].tobytes()
+                    for i in range(3))
+    m = {'h0': 0, 'h1': b'\0\0', 'lists': [[0], [], [], []],
+         'parts': [{'name': b'p', 'triangles': 1, 'vertices': 3, 'first_index': 0, 'vertex_offset': 0, 'stride': 26,
+                    'k': 3, 'fa': 0, 'fb': 0, 'bones': [7, 9]}]}
+    b = mesh.write(m, rows, struct.pack('<3H', 0, 1, 2))
+
+    def edit(parts, cols):
+        cols[5][:] = cols[4] * 2                                # the second coordinate: the first one scaled
+        parts[0]['bones'] = parts[0]['bones'] + [11]
+    out = mesh.relayout(b, [old], [new], edit)
+    d = mesh.decode(out, new, 0, False)
+    q = mesh.parse(out, False)
+    raw = np.frombuffer(out, np.uint8, 90, q['data']).reshape(3, 30)
+    second = np.frombuffer(raw[:, 26:30].tobytes(), '<f2').reshape(3, 2)
+    half4 = np.frombuffer(raw[:, 14:22].tobytes(), '<f2').reshape(3, 4)
+    p = q['parts'][0]
+    check(np.array_equal(d['positions'][:, :3], pos.astype(np.float32)) and np.array_equal(d['uvs'], uv.astype(np.float32))
+          and np.array_equal(half4, grey) and np.array_equal(second, uv * 2) and p['stride'] == 30
+          and p['bones'] == [7, 9, 11] and d['bones'][:, 0].tolist() == [9, 9, 9],
+          'mesh.relayout: elements paired by kind (a half4 with a half4, whatever the order), the missing one '
+          'filled by the edit, palette extended, stride 26 -> 30', f'{d["uvs"]} {half4} {second} {p}')
+
+
+def physics_wrapper(n, run, hashes):
+    """A PC physics resource's wrapper: n parts, no vectors or boxes, the part run, the material list, a packfile
+    magic and padding."""
+    return (struct.pack('<2I', n, n) + struct.pack(f'<{n}I', *range(n)) + struct.pack('<2H', 0, 0) + run +
+            struct.pack('<2I', 1, len(hashes)) + struct.pack(f'<{len(hashes)}I', *hashes) + havokport.MAGIC + bytes(56))
+
+
+def part_materials() -> None:
+    # DICE's two shapes: the Zero (one material for all 20 parts: no per-part bytes), a cobra-like mix
+    zero = physics_wrapper(20, bytes([0, 0, 1, 2]), [11, 22, 33])
+    check(havokport.part_materials(zero) == ([11, 22, 33], [2] * 20), 'havokport.part_materials: one shared index')
+    mix = physics_wrapper(4, bytes([0, 0, 3, 3, 1, 3, 1, 2]), [5, 6, 7, 8])
+    check(havokport.part_materials(mix) == ([5, 6, 7, 8], [1, 3, 1, 2]), 'havokport.part_materials: one byte a part')
+    check(havokport.part_run([2] * 20) == bytes([0, 0, 1, 2]) and havokport.part_run([1, 3, 1, 2]) ==
+          bytes([0, 0, 3, 3, 1, 3, 1, 2]), 'havokport.part_run: the format part_materials reads, both shapes')
+    want = [3] * 9 + [4] * 2 + [3] * 7 + [1] * 2
+    out = havokport.with_part_materials(zero, want, [11, 22, 33, 44, 55])
+    check(havokport.part_materials(out) == ([11, 22, 33, 44, 55], want) and
+          out.endswith(havokport.MAGIC + bytes(56)) and out[:88] == zero[:88],
+          'havokport.with_part_materials: per-part bytes and the grown list written, the rest kept')
+    for bad, why in ((lambda: havokport.with_part_materials(zero, [0] * 19, [11, 22, 33]), 'a part count'),
+                     (lambda: havokport.with_part_materials(zero, [0] * 20, [22, 11, 33]), 'a reordered list'),
+                     (lambda: havokport.with_part_materials(zero, [3] * 20, [11, 22, 33]), 'an index past the list'),
+                     (lambda: havokport.part_materials(physics_wrapper(2, bytes([0, 0, 2, 9, 0, 1]), [1, 2])),
+                      'a run that does not match its header'),
+                     (lambda: havokport.part_materials(physics_wrapper(1, bytes([1, 0, 1, 0]), [1])),
+                      'a material table')):
+        try:
+            bad()
+            refused = False
+        except havokport.MaterialError:
+            refused = True
+        check(refused, f'havokport part materials: {why} refused')
+
+
 def main() -> int:
     havok_model_group()
+    part_materials()
     mopp_vm()
     textures()
     mesh_rename()
     texcoords()
+    mesh_relayout()
     print('all passed' if not FAILED[0] else f'{FAILED[0]} check(s) failed')
     return 1 if FAILED[0] else 0
 

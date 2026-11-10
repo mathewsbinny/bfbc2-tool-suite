@@ -474,6 +474,38 @@ def main() -> int:
           dbx.value(field(ff, 'Shot', 'InitialSpeed')) == '0/0/400/0',
           'conventions=False: BF1943\'s values (the nested recoil moved, as before)')
 
+    # ---------------------------------------------------------------- the emitter gradient converter
+    # BF1943's level copies hold the 512-texel RGBA row twice (4,096 floats); DICE's one row (2,048): the first row
+    row = [(i % 512) / 511.0 for i in range(2048)]
+    t = tmpl(inst(B + '1', 'Emitter.SampleTextureData', [num('GradientData', [0.0] * 2048, tag='array')]))
+    bf = part(A + '1', [inst(A + '1', 'Emitter.SampleTextureData', [num('GradientData', row + row, tag='array')])])
+    data, rep = dbxport.port(bf, t)
+    grad = dbx.numbers(field(parsed(data).instances[0], 'GradientData'))[1]
+    packed = [struct.pack('>f', v) for v in row]
+    check(grad == packed and rep.of('converted'),
+          'GradientData: two equal rows (BF1943\'s level copies) -> the one row DICE writes', len(grad))
+    bf = part(A + '1', [inst(A + '1', 'Emitter.SampleTextureData',
+                             [num('GradientData', row + [0.5] * 2048, tag='array')])])
+    fixed = catalogue(shapes={('Emitter.SampleTextureData', '.GradientData'): {'num4x2048': 15}})
+    check(raises(lambda: dbxport.port(bf, t, catalogue=fixed), dbxport.SchemaError),
+          'GradientData: rows that differ are no case the converter knows - a schema error')
+
+    # ---------------------------------------------------------------- effectport: level copies, particle sounds
+    import effectport
+
+    class Src:
+        entries: dict[str, tuple[None, dict]] = {k: (None, {}) for k in ('levels/wake_island_s/emitters/a.dbx', 'levels/guadal_canal/emitters/b.dbx',
+                                          'levels/iwo_jima_s/emitters/b.dbx', 'levels/wake_island_s/fx/x/emitter_m/em_c.dbx')}
+    w = 'levels/wake_island_s'
+    got = [effectport.level_copy(Src, 'emitters/a', w), effectport.level_copy(Src, 'emitters/b', w),
+           effectport.level_copy(Src, 'emitters/b', w, fallback=False), effectport.level_copy(Src, 'fx/x/emitter_m/em_c', w)]
+    check(got == ['levels/wake_island_s/emitters/a.dbx', 'levels/guadal_canal/emitters/b.dbx', None,
+                  'levels/wake_island_s/fx/x/emitter_m/em_c.dbx'],
+          "effectport.level_copy: the level's copy, else the first other level's; fx/ emitter folders too", got)
+    check(effectport._effect_with_emitters(b'..Entity.EffectAsset..Emitter.EmitterEntityData..') and
+          not effectport._effect_with_emitters(b'..Entity.EffectAsset..Audio.SoundEntityData..'),
+          "effectport: a sound/ effect drawing particles is an effect; a plain sound wrapper the sound porter's")
+
     # ---------------------------------------------------------------- reports
     t = tmpl(inst(B + '1', 'X.R', [txt('Name', 'tpl'), num('New', [1.0])]))
     bf = part(A + '1', [inst(A + '1', 'X.R', [txt('Name', 'bf'), txt('Old', 'o')])])

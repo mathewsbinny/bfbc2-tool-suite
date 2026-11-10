@@ -364,6 +364,26 @@ ENUM_NUMBERS = {
                                                  7: 'EiaFire', 16: 'EiaUndefined'},
     ('ChildMovingBodyData', 'InputAction'): {0: 'EiaFire', 7: 'EiaFire'},
 }
+
+
+def gradient_rows(vals: list[bytes], want: int) -> list[bytes] | None:
+    """An emitter's sampled gradient (Emitter.SampleTextureData.GradientData) in DICE's layout, or None.
+
+    Decoded 2026-11-09 (Stage 2): DICE's is one row of 512 texels, each RGBA interleaved (2,048 floats; all 15 of
+    BFBC2's - the flare emitters' gradient_05_c - correlate 0.98 with their texture's rows read so, 0.08 read as
+    planes). BF1943's level copies of an emitter hold 4,096: the same row twice - in all 16 of them the halves are
+    equal bit for bit, and each half equals BF1943's own template emitter (emittertemplate_impact_hitflash_01, the
+    same instance guid) whose 2,048 are already DICE's layout. So the first row is BFBC2's; a gradient whose rows
+    differ (none known) is no case this handles: None, a schema error."""
+    if want <= 0 or len(vals) <= want or len(vals) % want:
+        return None
+    rows = [vals[i:i + want] for i in range(0, len(vals), want)]
+    return rows[0] if all(r == rows[0] for r in rows[1:]) else None
+
+
+# Number fields whose count BF1943 writes otherwise, by a converter: (type, field) -> f(values, DICE's count) ->
+# DICE's values or None (no conversion: a schema error)
+COUNT_CONVERTERS = {('SampleTextureData', 'GradientData'): gradient_rows}
 # a placement needs its object: port(required=REQUIRED) leaves out one whose object no partition will supply
 REQUIRED = {'Entity.ReferenceObjectData': 'ReferencedObject'}
 # BF1943 classes BFBC2 lacks whose instances become a BFBC2 class (aligned on its template; the BF1943-only fields
@@ -842,6 +862,14 @@ class _Port:
                 self.add(path, 'value', old='(empty)', new=dbx.value(out),
                          note='an empty number list where BFBC2 has values: the template\'s')
                 return out
+            conv = COUNT_CONVERTERS.get((owner, n))
+            if conv is not None and se == st and ve and vt:
+                got = conv(list(ve), len(vt))
+                if got is not None:
+                    out = copy.deepcopy(e)
+                    _set_numbers(out, got, se)
+                    self.add(path, 'converted', note=f'{len(ve)} numbers -> {len(got)} ({conv.__name__})')
+                    return out
         return None
 
     def enum_number(self, e: dbx.Element, t: dbx.Element | None, path: str, owner: str, n: str) -> dbx.Element | None:
