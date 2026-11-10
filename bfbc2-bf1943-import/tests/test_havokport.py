@@ -6,6 +6,11 @@ the game copy).
   the values the game rebuilds at load (a collidable's cached bounding volume, a motion's deactivation counters and
   saved quality type, a triangle subpart's offset) and MOPP code lengths DICE rebuilt by a byte or two;
 - the Zero and Corsair, which DICE re-exported for BFBC2, convert and pair all but the subparts DICE merged;
+- model groups (mp_004, mp_005: DICE's files with the w lanes zeroed): translation.w and the shapes' aabb w lanes
+  written back as DICE's (havokport.aabb_w);
+- MOPP (mopp.py): the converted files keep BF1943's 4.6.1-built MOPP code; on the Kurogane, the boat house, a sandbag
+  barrier and a harbour piece every triangle's own box reaches its terminal, and rays cast through the tree hit what
+  brute force over every triangle hits - in BF1943's converted code and in DICE's own;
 - the WW2 side project's physics convert: Willys (and wreck), Sherman, LCVP and its shell, B-25, Ki-21, the air-raid
   bunker, the machine-gun mounts - every byte accounted for by a 5.5.0 field (the console converter's check).
 
@@ -27,6 +32,7 @@ suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools', 'console-convert
 import bf1943import as bi  # noqa: E402
 import havok  # noqa: E402
 import havokport  # noqa: E402
+import mopp  # noqa: E402
 from bfbc2core import paths  # noqa: E402
 from havok import ARRAY, ENUM, FLAGS, PLAIN, POINTER, SIMPLEARRAY, STRUCT, VARIANT, ZERO  # noqa: E402
 
@@ -127,6 +133,117 @@ def compare(hp, L, out, ref):
     return pairs, len(po.objects), len(pb.objects), bad
 
 
+MOPP_FILES = [KUROGANE, 'objects/objects/boat_house/boat_house_havok.res',
+              'objects/beach_objects/barriersandbag_1/barriersandbag_1_havok.res']
+
+
+def mopp_meshes(hp, given, b):
+    """[(code, info, {shape key: triangle})] of every MOPP tree over a storage extended mesh in the PC file b."""
+    import numpy as np
+    p = hp.Packfile(b, b.find(hp.MAGIC), classes=given)
+    out = []
+    for o in p.objects_of('hkpMoppBvTreeShape'):
+        t = p.read_object(o, 'hkpMoppBvTreeShape')
+        ch = t['child']['childShape']
+        if ch[2] != 'hkpStorageExtendedMeshShape':
+            continue
+        code = p.read_object(t['code'][1], 'hkpMoppCode')
+        info = code['info']['offset'] if isinstance(code['info'], dict) else code['info']
+        s = p.read_object(ch[1], ch[2])
+        bits = 32 - s['numBitsForSubpartIndex']
+        tris = {}
+        for si, ms in enumerate(s['meshstorage']):
+            m = p.read_object(ms[1], ms[2])
+            v = np.array(m['vertices'])[:, :3]
+            idx = m['indices16'] or m['indices32']
+            sub = s['trianglesSubparts'][si]
+            stride = sub['indexStriding'] // (2 if m['indices16'] else 4)
+            for ti in range(sub['numTriangleShapes']):
+                tris[(si << bits) | ti] = v[list(idx[ti * stride:ti * stride + 3])]
+        out.append((bytes(code['data']), info, tris))
+    return out
+
+
+def mopp_check(hp, K, src, ix, template, table, check):
+    import random
+
+    import numpy as np
+    given = {n: {'size': k.size, 'parent': k.parent, 'members': [
+        {'name': m.name, 'class': ('given', m.cls) if m.cls else None, 'type': m.type, 'subtype': m.subtype,
+         'carray': m.carray, 'offset': m.offset} for m in k.members]} for n, k in K.items()}
+    rnd = random.Random(1)
+    for side in ('BF1943 converted', 'DICE'):
+        codes = tris_n = missed = rays = differ = 0
+        for name in MOPP_FILES:
+            if name not in src.entries or name not in ix.where:
+                continue
+            b = havokport.convert(src.data(name), template, K, table) if side != 'DICE' else ix.read(name)
+            for code, info, tris in mopp_meshes(hp, given, b):
+                codes += 1
+                tris_n += len(tris)
+                missed += len(mopp.complete(code, info, {k: (t.min(0), t.max(0)) for k, t in tris.items()})[0])
+                tl = {k: t.tolist() for k, t in tris.items()}
+                allv = np.concatenate(list(tris.values()))
+                lo, hi = allv.min(0) - 0.5, allv.max(0) + 0.5
+                for _ in range(20):
+                    target = rnd.choice(list(tris.values()))
+                    w = np.array([rnd.random() for _ in range(3)])
+                    point = (w[:, None] * target).sum(0) / w.sum()
+                    origin = np.array([rnd.uniform(lo[i], hi[i]) for i in range(3)])
+                    d = point - origin
+                    length = float(np.linalg.norm(d))
+                    if length < 1e-6:
+                        continue
+                    d = (d / length).tolist()
+                    a = mopp.ray_cast(code, info, tl, origin.tolist(), d, length * 1.5)
+                    r = mopp.ray_cast_brute(tl, origin.tolist(), d, length * 1.5)
+                    rays += 1
+                    differ += (a is None) != (r is None) or bool(a and r and abs(a[0] - r[0]) > 1e-6)
+        check(codes >= 10 and not missed and not differ, f'MOPP, {side}: {codes} codes over {tris_n} triangles, every '
+              f'triangle reaches its terminal, {rays} rays as brute force', f'{missed} missed, {differ} rays differ')
+
+
+def model_group_w(hp, K, ix, check):
+    """DICE's model-group physics of mp_004 and mp_005 with every w lane shape_subparts_to_550 writes zeroed (as
+    BF1943's 4.6.1 files have them): it writes translation.w back on every subpart as DICE's, and aabbCenter.w /
+    aabbHalfExtents.w within 0.01 (5 of the 7 shapes exactly)."""
+    given = {n: {'size': k.size, 'parent': k.parent, 'members': [
+        {'name': m.name, 'class': ('given', m.cls) if m.cls else None, 'type': m.type, 'subtype': m.subtype,
+         'carray': m.carray, 'offset': m.offset} for m in k.members]} for n, k in K.items()}
+    shapes = exact = subparts = 0
+    worst = 0.0
+    for lvl in ('mp_004', 'mp_005'):
+        for name in sorted(n for n in ix.where if n.startswith(f'levels/{lvl}/') and n.endswith('_havokasset.res')):
+            b = ix.read(name)
+            p = hp.Packfile(b, b.find(hp.MAGIC), classes=given)
+            z = bytearray(b)
+            ref = {}
+            for o in p.objects_of('hkpExtendedMeshShape'):
+                s = p.read_object(o, 'hkpExtendedMeshShape')
+                if not s['shapesSubparts']:
+                    continue
+                ref[o] = s
+                struct.pack_into('<f', z, o + havokport.HALF_EXTENTS_AT + 12, 0.0)
+                struct.pack_into('<f', z, o + havokport.CENTER_AT + 12, 0.0)
+                for k in range(len(s['shapesSubparts'])):
+                    struct.pack_into('<f', z, p.ptr[o + havokport.SUBPARTS_AT] + havokport.SUBPART_SIZE * k + 60, 0.0)
+            out = havokport.shape_subparts_to_550(bytes(z))[0]
+            q = hp.Packfile(out, out.find(hp.MAGIC), classes=given)
+            for o, s in ref.items():
+                t = q.read_object(o, 'hkpExtendedMeshShape')
+                e = max(abs(t['aabbCenter'][3] - s['aabbCenter'][3]),
+                        abs(t['aabbHalfExtents'][3] - s['aabbHalfExtents'][3]))
+                shapes += 1
+                exact += e < 1e-4
+                worst = max(worst, e)
+                subparts += sum(x['translation'][3] != y['translation'][3]
+                                for x, y in zip(t['shapesSubparts'], s['shapesSubparts']))
+    check(shapes == 7 and subparts == 0, f'model groups mp_004 / mp_005: translation.w written as DICE\'s on every '
+          f'subpart of {shapes} shapes', f'{subparts} differ')
+    check(shapes == 7 and exact >= 5 and worst < 0.01, f'model groups mp_004 / mp_005: aabb w lanes as DICE\'s '
+          f'({exact} of {shapes} exactly, the others within {worst:.4f})')
+
+
 def main():
     fails = []
 
@@ -165,6 +282,8 @@ def main():
             check(b'hkpRigidBody' in a, 'antenna banger (velocity limit 10): converted with the table')
         except Exception as e:                                   # noqa: BLE001
             check(False, 'antenna banger (velocity limit 10)', str(e))
+    model_group_w(hp, K, ix, check)
+    mopp_check(hp, K, src, ix, template, table, check)
     for name in REEXPORTED:
         out = havokport.convert(src.data(name), template, K)
         pairs, n_out, n_ref, bad = compare(hp, L, out, ix.read(name))

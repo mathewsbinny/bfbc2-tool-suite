@@ -37,6 +37,11 @@ data - as an index into the string table instead of a pointer. Member types: 1 i
 variant array (type, count, pointer), 8 string, 9 transform (flags, position 3, orientation 4, scale/shear 9 floats),
 10 real32, 11-14 8-bit, 15-18 16-bit, 19-20 32-bit integers, 21 real16, 22 empty reference.
 
+Adding tracks (add_tracks, PC files): new objects are appended to the sections, so no pointer or marshalling entry
+moves; the track group gets a new, name-ordered TransformTracks array; curve objects and type definitions the file
+lacks are copied from a donor PC animation (strings into the string table); the sections are laid out again and the
+CRC recomputed. Used for the tracks DICE adds to BF1943's third-person undeploys (bfbc2-bf1943-import).
+
 Curves (TransformTrack: OrientationCurve, PositionCurve, ScaleShearCurve; each a CurveData variant whose type name
 says its format): DaIdentity, D3/D4Constant32f, DaK32fC32f (float knots and controls), D3K16uC16u / D3K8uC8u
 (quantized knots and controls: value = control * scale + offset, time = knot / OneOverKnotScale, the scale given as
@@ -602,6 +607,298 @@ def _marshal(g, out, b, tref, at):
             sz = SIZES.get(t, 0) * n
             out[at:at + sz] = b[at:at + sz]
             at += sz
+
+
+# ------------------------------------------------------------------------------------------------ adding tracks
+
+class _Graft:
+    """A PC resource being grown: new objects appended to its sections, objects and types copied from another PC
+    resource (the donor) with their pointers, strings and type definitions. Existing bytes never move, so every
+    pointer and marshalling entry of the file stays valid; to_bytes() lays the sections out again."""
+
+    def __init__(self, g):
+        if g.e != '<':
+            raise GrannyError(f'{g.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
+        self.g = g
+        self.sec = [bytearray(s) for s in g.sections]
+        self.reloc = dict(g.reloc)
+        self.strings = list(g.strings)
+        self.index = {s: i for i, s in reversed(list(enumerate(self.strings)))}
+        self.types: dict[Any, Any] = {}                    # signature -> type ref in this file
+        self._memo: dict[Any, Any] = {}
+        self.type_sec = g.root_type[0]
+        todo = self._types_in_use()
+        while todo:
+            ref = todo.pop()
+            sig = self.signature(g, ref)
+            if sig not in self.types:
+                self.types[sig] = ref
+                todo += [c for _, _, c, _ in g.members(ref) if c is not None]
+
+    def _types_in_use(self):
+        seen, out = set(), []
+
+        def walk(v):
+            if isinstance(v, dict):
+                t = v.get('__tref__')
+                if t is not None and t not in seen:
+                    seen.add(t)
+                    out.append(t)
+                for k, x in v.items():
+                    if not k.startswith('__'):
+                        walk(x)
+            elif isinstance(v, list):
+                for x in v:
+                    walk(x)
+        walk(self.g.root(limit=64))
+        return out
+
+    def signature(self, g, ref, depth=0):
+        """A type's structure, names included: equal signatures are the same type in either file."""
+        key = ('sig', id(g), ref)
+        if key not in self._memo:
+            self._memo[key] = None                            # a type that refers to itself
+            self._memo[key] = tuple((t, nm, self.signature(g, child, depth + 1) if child and depth < 32 else None, arr)
+                                    for t, nm, child, arr in g.members(ref))
+        return self._memo[key]
+
+    def string(self, s):
+        if s not in self.index:
+            self.index[s] = len(self.strings)
+            self.strings.append(s)
+        return self.index[s]
+
+    def alloc(self, sec, size, align=4):
+        s = self.sec[sec]
+        while len(s) % align:
+            s.append(0)
+        at = len(s)
+        s.extend(bytes(size))
+        return at
+
+    def type_from(self, d, ref):
+        """The type ref of donor d's type `ref` in this file: an equal type already here, else copied (member
+        definitions: type, name, child type, array size, 4 more words; ended by a zero type)."""
+        if ref is None:
+            return None
+        sig = self.signature(d, ref)
+        if sig in self.types:
+            return self.types[sig]
+        sec, off = ref
+        n = len(d.members(ref))
+        at = self.alloc(self.type_sec, 32 * (n + 1))
+        self.types[sig] = (self.type_sec, at)
+        dst = self.sec[self.type_sec]
+        for i in range(n + 1):
+            words = list(struct.unpack_from('<8I', d.sections[sec], off + 32 * i))
+            if i < n:
+                words[1] = self.string(d.name(words[1]))
+                child = d.reloc.get((sec, off + 32 * i + 8))
+                if child is not None:
+                    self.reloc[(self.type_sec, at + 32 * i + 8)] = self.type_from(d, child)
+            struct.pack_into('<8I', dst, at + 32 * i, *words)
+        return self.types[sig]
+
+    def object_from(self, d, tref, oref, sec=0):
+        """A copy of donor d's object (type tref at oref) in section sec of this file, with everything it points to;
+        its ref."""
+        size = d.size(tref)
+        at = self.alloc(sec, size)
+        self.sec[sec][at:at + size] = d.sections[oref[0]][oref[1]:oref[1] + size]
+        self._fix(d, tref, oref, (sec, at), sec)
+        return sec, at
+
+    def _array_from(self, d, child, p, n, sec):
+        size = d.size(child)
+        at = self.alloc(sec, size * n)
+        self.sec[sec][at:at + size * n] = d.sections[p[0]][p[1]:p[1] + size * n]
+        for k in range(n):
+            self._fix(d, child, (p[0], p[1] + k * size), (sec, at + k * size), sec)
+        return sec, at
+
+    def _fix(self, d, tref, src, dst, sec):
+        """The pointers and string indices of an object copied from src (donor) to dst (here)."""
+        so, do = src[1], dst[1]
+        for t, _nm, child, arr in d.members(tref):
+            n = max(arr, 1)
+            one = d.size(child) if t == 1 else SIZES.get(t, 0)
+            for k in range(n):
+                s, o = (src[0], so + k * one), (dst[0], do + k * one)
+                if t == 1:
+                    self._fix(d, child, s, o, sec)
+                elif t == 2:
+                    p = d.reloc.get(s)
+                    if p is not None:
+                        self.reloc[o] = self.object_from(d, child, p, sec)
+                elif t in (3, 4, 7):
+                    head = 4 if t == 7 else 0
+                    cnt = struct.unpack_from('<I', d.sections[s[0]], s[1] + head)[0]
+                    p = d.reloc.get((s[0], s[1] + head + 4))
+                    tp = d.reloc.get(s) if t == 7 else child
+                    if t == 7:
+                        self.reloc[o] = self.type_from(d, tp)
+                    if p is None or cnt == 0:
+                        continue
+                    if t == 4:
+                        at = self.alloc(sec, 4 * cnt)
+                        for i in range(cnt):
+                            q = d.reloc.get((p[0], p[1] + 4 * i))
+                            if q is not None:
+                                self.reloc[(sec, at + 4 * i)] = self.object_from(d, child, q, sec)
+                        self.reloc[(o[0], o[1] + 4)] = (sec, at)
+                    else:
+                        self.reloc[(o[0], o[1] + head + 4)] = self._array_from(d, tp, p, cnt, sec)
+                elif t == 5:
+                    tp, p = d.reloc.get(s), d.reloc.get((s[0], s[1] + 4))
+                    if tp is not None:
+                        self.reloc[o] = self.type_from(d, tp)
+                    if tp is not None and p is not None:
+                        self.reloc[(o[0], o[1] + 4)] = self.object_from(d, tp, p, sec)
+                elif t == 8:
+                    p = d.reloc.get(s)
+                    if p is not None:                       # a C string
+                        text = d.sections[p[0]][p[1]:d.sections[p[0]].index(b'\0', p[1]) + 1]
+                        at = self.alloc(sec, len(text))
+                        self.sec[sec][at:at + len(text)] = text
+                        self.reloc[o] = (sec, at)
+                    else:
+                        i = struct.unpack_from('<I', d.sections[s[0]], s[1])[0]
+                        struct.pack_into('<I', self.sec[o[0]], o[1], self.string(d.name(i)))
+            so, do = so + one * n, do + one * n
+
+    def to_bytes(self):
+        """The resource with the grown sections, relocations and strings: DICE's table as it was, the string table,
+        then the Granny file (header and section table as they were but for the sizes and offsets, each section's
+        data, then each section's relocations, then each section's marshalling list as it was); CRC recomputed."""
+        g, b = self.g, bytes(self.g.data)
+        G = g.gr2
+        rev, total, _, soff, count = struct.unpack_from('<5I', b, G + 32)
+        rows = [list(struct.unpack_from('<11I', b, G + 32 + soff + 44 * k)) for k in range(count)]
+        head = bytearray(b[G:G + min([r[1] for r in rows] + [total])])
+        pos = len(head)
+        body = bytearray()
+        for k in range(count):
+            rows[k][1] = pos + len(body)
+            rows[k][2] = rows[k][3] = len(self.sec[k])
+            if k == self.type_sec and rows[k][5] == rows[k][6] == len(g.sections[k]):
+                rows[k][5] = rows[k][6] = len(self.sec[k])      # the type section stays all 32-bit
+            body += self.sec[k]
+        by_sec: dict[int, list] = {k: [] for k in range(count)}
+        for (s, o), (ts, to) in self.reloc.items():
+            by_sec[s].append((o, ts, to))
+        for k in range(count):
+            rows[k][7] = pos + len(body)
+            rows[k][8] = len(by_sec[k])
+            for o, ts, to in sorted(by_sec[k]):
+                body += struct.pack('<3I', o, ts, to)
+        for k in range(count):
+            old_at, n = rows[k][9], rows[k][10]
+            rows[k][9] = pos + len(body)
+            body += b[G + old_at:G + old_at + 16 * n]
+        for k in range(count):
+            struct.pack_into('<11I', head, 32 + soff + 44 * k, *rows[k])
+        gr = head + body
+        struct.pack_into('<I', gr, 36, len(gr))
+        struct.pack_into('<I', gr, 40, zlib.crc32(bytes(gr[32 + soff:])) & 0xFFFFFFFF)
+        strings = struct.pack('<I', len(self.strings))
+        for s in self.strings:
+            e = s.encode('latin-1')
+            strings += struct.pack('<H', len(e)) + e
+        return bytes(b[:g.strings_from]) + strings + struct.pack('<I', len(gr)) + bytes(gr)
+
+
+def _curve_templates(d):
+    """{format name: curve data dict} of the first curve of each format in donor d (a PC animation)."""
+    out: dict[str, Any] = {}
+    for an in animations(d):
+        for tg in an['TrackGroups']:
+            for tr in tg['TransformTracks']:
+                for c in ('PositionCurve', 'OrientationCurve', 'ScaleShearCurve'):
+                    cd = tr[c]['CurveData']
+                    if cd:
+                        out.setdefault(cd['__type__'].replace('CurveDataHeader_', ''), cd)
+    return out
+
+
+def _member_at(g, tref, name):
+    off = 0
+    for t, nm, child, arr in g.members(tref):
+        if nm == name:
+            return off
+        off += (g.size(child) if t == 1 else SIZES.get(t, 0)) * max(arr, 1)
+    raise GrannyError(f'{g.where}: no member {name}')
+
+
+def add_tracks(pc, tracks, donor, where='resource'):
+    """A PC animation with transform tracks added to its (first) track group, kept in name order as Granny files
+    have them. tracks: [{'name', 'position', 'orientation'}], each curve None (identity), ('constant', values: 3
+    floats for a position, a quaternion x, y, z, w) or ('copy', curve data dict read from donor). donor: a PC
+    animation (bytes) holding the curve formats used - D3Constant32f, D4Constant32f, DaIdentity, and those copied -
+    whose type definitions are copied when the file lacks them. Scale / shear: identity. A track the file has already
+    is an error."""
+    g = Granny(pc, where)
+    d = Granny(donor, 'donor')
+    w = _Graft(g)
+    an = animations(g)
+    if not an or not an[0]['TrackGroups']:
+        raise GrannyError(f'{where}: no track group')
+    tg = an[0]['TrackGroups'][0]
+    old = tg['TransformTracks']
+    have = {t['Name'] for t in old}
+    if any(t['name'] in have for t in tracks):
+        raise GrannyError(f'{where}: it has {sorted(have & {t["name"] for t in tracks})} already')
+    if len(tg.get('TransformLODErrors') or []) not in (0, len(old)):
+        raise GrannyError(f'{where}: TransformLODErrors does not follow the tracks')
+    tmpl = _curve_templates(d)
+    for need in ('DaIdentity', 'D3Constant32f', 'D4Constant32f'):
+        if need not in tmpl:
+            raise GrannyError(f'donor: no {need} curve to copy the format from')
+    ttype = old[0]['__tref__']
+    tsize = g.size(ttype)
+    at_name = _member_at(g, ttype, 'Name')
+    at_flags = _member_at(g, ttype, 'Flags')
+    at_curve = {c: _member_at(g, ttype, c) for c in ('OrientationCurve', 'PositionCurve', 'ScaleShearCurve')}
+
+    def curve(spec, dim):
+        if spec is None:
+            cd = tmpl['DaIdentity']
+        elif spec[0] == 'copy':
+            cd = spec[1]
+        else:
+            cd = tmpl['D3Constant32f' if dim == 3 else 'D4Constant32f']
+        ref = w.object_from(d, cd['__tref__'], cd['__at__'])
+        if spec is None:
+            struct.pack_into('<h', w.sec[ref[0]], ref[1] + _member_at(d, cd['__tref__'], 'Dimension'), dim)
+        elif spec[0] == 'constant':
+            if len(spec[1]) != dim:
+                raise GrannyError(f'a constant of {len(spec[1])} values for a {dim}-value curve')
+            ctl = (ref[0], ref[1] + _member_at(d, cd['__tref__'], 'Controls'))
+            struct.pack_into(f'<{dim}f', w.sec[ctl[0]], ctl[1], *spec[1])
+        return w.type_from(d, cd['__tref__']), ref
+
+    rows = [(t['Name'], ('old', t)) for t in old] + [(t['name'], ('new', t)) for t in tracks]
+    rows.sort(key=lambda r: r[0])
+    arr = w.alloc(0, tsize * len(rows))
+    for i, (name, (kind, t)) in enumerate(rows):
+        at = arr + i * tsize
+        if kind == 'old':
+            sec, off = t['__at__']
+            w.sec[0][at:at + tsize] = g.sections[sec][off:off + tsize]
+            for k in range(0, tsize, 4):
+                if (sec, off + k) in g.reloc:
+                    w.reloc[(0, at + k)] = g.reloc[(sec, off + k)]
+            continue
+        struct.pack_into('<I', w.sec[0], at + at_name, w.string(name))
+        struct.pack_into('<I', w.sec[0], at + at_flags, 0)
+        for c, spec, dim in (('OrientationCurve', t.get('orientation'), 4), ('PositionCurve', t.get('position'), 3),
+                             ('ScaleShearCurve', None, 9)):
+            tp, ref = curve(spec, dim)
+            w.reloc[(0, at + at_curve[c])] = tp
+            w.reloc[(0, at + at_curve[c] + 4)] = ref
+    sec, off = g.field(tg, 'TransformTracks')
+    struct.pack_into('<I', w.sec[sec], off, len(rows))
+    w.reloc[(sec, off + 4)] = (0, arr)
+    return w.to_bytes()
 
 
 # ------------------------------------------------------------------------------------------------ game copy

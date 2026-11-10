@@ -16,9 +16,9 @@ CUBE = 1
 FORMATS = {0: (8, 4, 'DXT1'), 18: (8, 4, 'DXT1 (normal map)'), 1: (16, 4, 'DXT3'), 2: (16, 4, 'DXT5'),
            19: (16, 4, 'BC5 / DXN'), 20: (16, 4, 'BC5 / DXN (20)'), 3: (8, 4, 'DXT5A (console only: decoded to PC 10)'),
            13: (8, 1, 'RGBA16F (half floats; untiled as they are)'),
-           5: (2, 1, 'RGB565 (console only: decoded to PC 9, B8G8R8A8)')}
+           5: (2, 1, 'RGB565 (console only: decoded to PC 9, B8G8R8A8)'), 10: (1, 1, 'L8 (8-bit, one channel)')}
 # console codes whose PC counterpart is another format (not converted: FORMAT.md 2.4)
-OTHER = {9: '9 (32-bit)', 10: '10 (8-bit)'}
+OTHER = {9: '9 (32-bit)'}
 
 
 DECODED = {0, 18, 1, 2, 19, 20}         # the block formats decode() reads (DXT1, DXT3, DXT5, BC5)
@@ -102,7 +102,17 @@ def layout(w, h, mips, fmt, slices=1):
     return where, pos
 
 
-DXT5A, L8, L8_FLAGS = 3, 10, 2
+DXT5A, L8 = 3, 10
+HALVED_ON_CONSOLE = 2       # header flag bit 1: DICE's build halves the texture for the console (FORMAT.md 2.1)
+
+
+def _rows4(level, w, h):
+    """An 8-bit level (h rows of w bytes) as the PC keeps it: each row padded with zeros to a multiple of 4 bytes
+    (DICE's 2 x 2 level is 8 bytes, its 1 x 1 level 4; wider levels are unchanged)."""
+    pitch = (w + 3) // 4 * 4
+    if pitch == w:
+        return bytes(level)
+    return b''.join(bytes(level[y * w:(y + 1) * w]).ljust(pitch, bytes(1)) for y in range(h))
 
 
 def _dxt5a_block(block):
@@ -117,11 +127,13 @@ def _dxt5a_block(block):
     return np.array([pal[(bits >> (3 * i)) & 7] for i in range(16)], np.uint8).reshape(4, 4)
 
 
-def _convert_dxt5a(b, ver, typ, w, h, mips):
+def _convert_dxt5a(b, ver, typ, flags, w, h, mips):
     """Console 3 (DXT5A, 4 bits per texel: the Xenos GPU's single-channel block format) -> the PC's 8-bit format 10,
     decoded level by level. Proven on BFBC2's twins, whose console copies are half the PC's size: the console's
     level 0 decoded equals the PC's level 1 within the format's error (correlation 0.995-0.9998, mean difference
-    1-2 of 255; tests\\test_texture.py). The result keeps the console's size."""
+    1-2 of 255; tests\\test_texture.py). The result keeps the console's size, and so its flags: those twins' PC copies
+    have bit 1 (HALVED_ON_CONSOLE) because they are twice the console's - a converted one is not (it gave Wake's
+    mask-tile atlas flags 2 where DICE's atlases have 0)."""
     import numpy as np
     if typ != 0:
         raise ConvertError(f'texture type {typ} in console format 3 is not converted (2D only)')
@@ -141,9 +153,10 @@ def _convert_dxt5a(b, ver, typ, w, h, mips):
             for x in range(bw):
                 s = start + tiled(x + ox, y + oy, pitch, 3) * 8
                 img[y * 4:y * 4 + 4, x * 4:x * 4 + 4] = _dxt5a_block(data[s:s + 8])
-        levels.append(img[:lh, :lw].tobytes())
+        levels.append(_rows4(img[:lh, :lw].tobytes(), lw, lh))
     sizes = [len(lv) for lv in levels] + [0] * (15 - mips)
-    return struct.pack('<8I', ver, typ, L8, L8_FLAGS, w, h, 0, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
+    return (struct.pack('<8I', ver, typ, L8, flags & ~HALVED_ON_CONSOLE, w, h, 0, mips) + struct.pack('<15I', *sizes)
+            + b''.join(levels))
 
 
 RGB565, BGRA8 = 5, 9
@@ -184,7 +197,7 @@ def convert(b):
         raise ConvertError('shorter than a texture header')
     ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('>8I', b, 0)
     if fmt == DXT5A:
-        return _convert_dxt5a(b, ver, typ, w, h, mips)
+        return _convert_dxt5a(b, ver, typ, flags, w, h, mips)
     if fmt == RGB565:
         return _convert_565(b, ver, typ, flags, w, h, mips)
     if fmt not in FORMATS:
@@ -192,14 +205,14 @@ def convert(b):
     if typ not in (0, CUBE) or depth not in (0, 1):
         raise ConvertError(f'texture type {typ} / depth {depth} is not converted (2D and cube maps only)')
     bpb, edge, _ = FORMATS[fmt]
-    log_bpp = {8: 3, 16: 4}[bpb]
+    log_bpp = {1: 0, 8: 3, 16: 4}[bpb]
     slices = 6 if typ == CUBE else 1
     where, size = layout(w, h, mips, fmt, slices)
     data = bytearray(b[HEADER:])
     if len(data) < size:
         raise ConvertError(f'{len(data)} bytes of texture data, the layout needs {size}')
-    for i in range(0, len(data) - 1, 2):                  # 16-bit words are byte-swapped on the console
-        data[i], data[i + 1] = data[i + 1], data[i]
+    for i in range(0, len(data) - 1, 2) if bpb > 1 else ():   # 16-bit words are byte-swapped on the console; 8-bit
+        data[i], data[i + 1] = data[i + 1], data[i]            # texels are not (L8: kept as they are)
     levels = []
     for s in range(slices):
         for m in range(mips):
@@ -210,7 +223,7 @@ def convert(b):
                 for x in range(lbw):
                     src = start + tiled(x + ox, y + oy, pitch, log_bpp) * bpb
                     lev[(y * lbw + x) * bpb:(y * lbw + x + 1) * bpb] = data[src:src + bpb]
-            levels.append(bytes(lev))
+            levels.append(_rows4(lev, lbw, lbh) if bpb == 1 else bytes(lev))
     sizes = [len(l) for l in levels[:mips]] + [0] * (15 - mips)
     return struct.pack('<8I', ver, typ, fmt, flags, w, h, depth, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
 

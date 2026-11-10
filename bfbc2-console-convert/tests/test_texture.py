@@ -7,6 +7,9 @@ r"""texture.py on the game's files (game tier; skipped without them):
   console-derived files; console: the Onslaught builds' con_* folders) converts to a file that is byte-identical, or
   the same picture re-encoded (correlation of level 0 over 0.9) with a mip chain no worse than the PC file's own
   (+3 or +25 %); at least 180 such pairs, at least one cube map among them;
+- console 10 (L8, 8-bit): BFBC2's twins of the same size convert byte-identical; where the PC copy is twice the
+  console's, each console level matches the PC level of its size within 1 of 255;
+  Battlefield 1943's US_Head_Spec converts and is the picture of DICE's copy;
 - formats the converter does not know are refused with a ConvertError.
 
   python test_texture.py
@@ -61,14 +64,19 @@ def index(kind, console):
 TWINS_5_13 = ['terrains/_textures/_general/mudmask_01_rgbm.res', 'terrains/mp_003/textures/mp03_mudmask.res',
               'terrains/mp_004/textures/mp04_mudmask.res', 'textures/sky/sky_beach_generic_rgba16f.res']
 
+# BFBC2 twins in console format 10 (L8, 8-bit): the same size on both platforms (fonts, system noise, a brush), and
+# PC copies twice the console's (the PC header's flag bit 1 set: FORMAT.md 2.1)
+TWINS_10_SAME = ['fonts/us/font5_texture.res', 'fonts/us/font3_texture_glow.res', 'systems/terrain/noisetexture2d.res',
+                 'systems/postprocess/filmgrainnoise.res', 'textures/terrainquadbrushes/blob.res']
+TWINS_10_HALF = ['terrains/mp_007/textures/mp007_occlusion.res', 'textures/water/waterfoamtile_t02_c.res',
+                 'textures/testeyeenvmap.res']
 
-def formats_5_13(fails):
-    """Console 5 -> PC 9 within the RGB565 rounding (red / blue 8, green 4) on the twins of the same size; console 13
-    (RGBA16F cube) untiled: its level 0 equals the PC's level 1 (the PC copy is twice the size) on every face."""
+
+def twins(want):
+    """{'x': {name: (bundle, entry)}, 'p': ...}: where BFBC2's Xbox bundles (OPFOR's work folder, xbox) and the game copy
+    hold the wanted resources."""
     suite_paths.use('core')
-    import numpy as np
     from bfbc2core import fbrb
-    want = set(TWINS_5_13)
     found: dict[str, dict[str, tuple[str, str]]] = {'x': {}, 'p': {}}
     for tag, pat in (('x', os.path.join(WORK, 'xbox', '**', '*.fbrb')), ('p', os.path.join(OPFOR, 'game', '**', '*.fbrb'))):
         for path in glob.glob(pat, recursive=True):
@@ -78,6 +86,14 @@ def formats_5_13(fails):
                         found[tag].setdefault(e.name.lower(), (path, e.name))
             except Exception:                                    # noqa: BLE001 - not a bundle this reader takes
                 continue
+    return found
+
+
+def formats_5_13(fails, found):
+    """Console 5 -> PC 9 within the RGB565 rounding (red / blue 8, green 4) on the twins of the same size; console 13
+    (RGBA16F cube) untiled: its level 0 equals the PC's level 1 (the PC copy is twice the size) on every face."""
+    import numpy as np
+    from bfbc2core import fbrb
     pairs = [n for n in TWINS_5_13 if n in found['x'] and n in found['p']]
     if not pairs:
         print('SKIP console 5 / 13: no BFBC2 twins')
@@ -108,9 +124,90 @@ def formats_5_13(fails):
         fails.append('console 5 / 13: a twin out of bounds')
 
 
+def format_10(fails, found):
+    """Console 10 (L8) untiled with 8-bit texels as they are (no byte swap) and each PC row padded to 4 bytes: the
+    twins of the same size byte-identical; where the PC copy is twice the console's, every console level within 1 of
+    255 (mean) of the PC level of its size, the smallest ones equal; the console's flags kept."""
+    import numpy as np
+    from bfbc2core import fbrb
+    same = half = 0
+    bad = []
+    for n in TWINS_10_SAME + TWINS_10_HALF:
+        if n not in found['x'] or n not in found['p']:
+            continue
+        x = fbrb.read(found['x'][n][0], [found['x'][n][1]])[found['x'][n][1]]
+        p = fbrb.read(found['p'][n][0], [found['p'][n][1]])[found['p'][n][1]]
+        out = texture.convert(x)
+        if n in TWINS_10_SAME:
+            same += out == p
+            if out != p:
+                bad.append(n)
+            continue
+        lp = {(s_, w, h): d for s_, _, w, h, d in texture.levels(p)}
+        diffs = []
+        for s_, _, w, h, d in texture.levels(out):
+            q = lp.get((s_, w, h))
+            if q is None or len(q) != len(d):
+                diffs.append(255.0)
+                continue
+            diffs.append(float(np.abs(np.frombuffer(d, np.uint8).astype(int) - np.frombuffer(q, np.uint8)).mean()))
+        ok = max(diffs) <= 1 and diffs[-1] == 0 and struct.unpack_from('<I', out, 12)[0] == struct.unpack_from('>I', x, 12)[0]
+        half += ok
+        if not ok:
+            bad.append(f'{n} {[round(v, 2) for v in diffs]}')
+    total = len([n for n in TWINS_10_SAME + TWINS_10_HALF if n in found['x'] and n in found['p']])
+    print(f'console 10 (L8): {same} of the same-size twins byte-identical, {half} twice-size twins level for level '
+          f'within 1 ({total} pairs)')
+    if not total:
+        print('SKIP console 10: no BFBC2 twins')
+    elif bad:
+        fails.append(f'console 10: {bad}')
+    bf1943_head_spec(fails)
+
+
+def bf1943_head_spec(fails):
+    """Battlefield 1943's US_Head_Spec (console 10): converts at its size, each level within 1 of 255 of the one above
+    scaled down (a misplaced texel would break the chain), and is the picture of DICE's own copy (a DXT1 DICE
+    repainted in places: correlation 0.72)."""
+    import numpy as np
+    try:
+        suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools')
+        import bf1943import
+        import meshview
+        import shaderdb
+        src = bf1943import.Source(bf1943import.default_source())
+        name = 'characters/beach/3p/us_shared/us_head_spec.res'
+        key = next(k for k, (_, e) in src.entries.items() if e['name'].lower() == name)
+        dice = meshview.Index(shaderdb.find_opfor(None)).read(name)
+    except Exception as e:                                       # noqa: BLE001
+        print(f'SKIP Battlefield 1943 US_Head_Spec: {e}')
+        return
+    out = texture.convert(src.data(key))
+    lv = texture.levels(out)
+    chain = []
+    for (_, _, w, h, d), (_, _, w2, h2, d2) in zip(lv, lv[1:5]):
+        a = np.frombuffer(d, np.uint8).reshape(h, w).astype(float)
+        b = np.frombuffer(d2, np.uint8).reshape(h2, w2).astype(float)
+        chain.append(float(np.abs(a.reshape(h2, 2, w2, 2).mean((1, 3)) - b).mean()))
+    _, _, w, h, d = lv[0]
+    _, _, dw, dh, dd = texture.levels(dice)[0]
+    corr = 0.0
+    if (dw, dh) == (w, h):
+        ours = np.frombuffer(d, np.uint8).astype(float)
+        theirs = texture.decode(dd, dw, dh, struct.unpack_from('<I', dice, 8)[0])[:, :, 0].ravel().astype(float)
+        corr = float(np.corrcoef(ours, theirs)[0, 1])
+    ok = struct.unpack_from('<I', out, 8)[0] == texture.L8 and max(chain) <= 1 and corr > 0.6
+    print(f'{"ok  " if ok else "FAIL"} Battlefield 1943 US_Head_Spec (console 10): {w} x {h}, mip chain within '
+          f'{max(chain):.2f}, correlation with DICE\'s copy {corr:.3f}')
+    if not ok:
+        fails.append('Battlefield 1943 US_Head_Spec')
+
+
 def main():
     fails5: list[str] = []
-    formats_5_13(fails5)
+    found = twins(set(TWINS_5_13 + TWINS_10_SAME + TWINS_10_HALF))
+    formats_5_13(fails5, found)
+    format_10(fails5, found)
     for f in fails5:
         print('FAIL', f)
     if not glob.glob(os.path.join(WORK, 'onslaught', 'build_*', 'con_*')):

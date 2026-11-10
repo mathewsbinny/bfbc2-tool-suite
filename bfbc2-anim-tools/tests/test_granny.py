@@ -8,6 +8,9 @@ r"""granny.py on the game's files (game tier; skipped without them):
 - shift: a constant track (1p_lower), a quantized one moved by its offsets (1p_fire) and a re-quantized ramp
   (Type 5 1p_reload) - the bone's keys land where asked, every other track of the file reads exactly as before,
   the file keeps its size and its Granny CRC is right (it is recomputed and checked against zlib);
+- add_tracks: the M1911's 3p undeploy (88 tracks) with five more - three of the Garand's undeploy's curves copied
+  under new names, a constant and an identity: every track of the base reads as before, the copies as the Garand's,
+  the constant as written, the tracks in name order; the file's sizes and Granny CRC right;
 - big-endian (Xbox 360): a minimal resource is read and refused for writing; Battlefield 1943's skeleton, when
   extracted into OPFOR's work\bf1943\skeleton, has the PC skeleton's bones and parents.
 
@@ -89,12 +92,58 @@ def big_endian(ix, pc_bones):
     return fails
 
 
+def add_tracks(ix):
+    """add_tracks onto another file (M1911's undeploy) of the Garand's tracks it lacks; [failures]."""
+    dice = ix.read('animations/weapons/handheld/m1garand/3p/standundeploy.res')
+    base = ix.read('animations/weapons/handheld/m1911a1/3p/standundeploy.res')
+    gd, gb = granny.Granny(dice), granny.Granny(base)
+    bt = {t['Name']: t for t in granny.animations(gb)[0]['TrackGroups'][0]['TransformTracks']}
+    dt = {t['Name']: t for t in granny.animations(gd)[0]['TrackGroups'][0]['TransformTracks']}
+    # the M1911's undeploy has every name the Garand's has: the copies go in under new names
+    spec: list[dict[str, Any]] = [{'name': f'zz_copy_{n}', 'position': ('copy', dt[n]['PositionCurve']['CurveData']),
+             'orientation': ('copy', dt[n]['OrientationCurve']['CurveData'])} for n in ('jntWpn_2', 'jntWpn_10', 'Head')]
+    spec += [{'name': 'aa_const', 'position': ('constant', (1.0, 2.0, 3.0)), 'orientation': ('constant', (0.0, 0.0, 0.6, 0.8))},
+             {'name': 'mm_identity', 'position': None, 'orientation': None}]
+    try:
+        out = granny.add_tracks(base, spec, dice)
+        g = granny.Granny(out)
+    except granny.GrannyError as e:
+        return [f'add_tracks: {e}']
+    fails = []
+    G = g.gr2
+    if zlib.crc32(out[G + g.crc_from:G + g.total]) & 0xFFFFFFFF != struct.unpack_from('<I', out, G + 40)[0] or \
+            g.total != len(out) - G:
+        fails.append('add_tracks: the Granny size or CRC is wrong')
+    tr = granny.animations(g)[0]['TrackGroups'][0]['TransformTracks']
+    names = [t['Name'] for t in tr]
+    o = {t['Name']: t for t in tr}
+    k = lambda t, c: granny.curve_keys(t[c]['CurveData'])            # noqa: E731
+    if names != sorted(names) or len(names) != len(bt) + len(spec):
+        fails.append('add_tracks: tracks not in name order or not all there')
+    if any(k(o[n], c) != k(bt[n], c) for n in bt for c in ('PositionCurve', 'OrientationCurve')):
+        fails.append('add_tracks: a track of the base changed')
+    for s in spec[:3]:
+        n = s['name'][8:]
+        if k(o[s['name']], 'PositionCurve') != k(dt[n], 'PositionCurve') or \
+                k(o[s['name']], 'OrientationCurve') != k(dt[n], 'OrientationCurve'):
+            fails.append(f'add_tracks: the copy of {n} reads otherwise')
+    c = o['aa_const']
+    if k(c, 'PositionCurve') != [(0.0, (1.0, 2.0, 3.0))] or \
+            [round(x, 6) for x in k(c, 'OrientationCurve')[0][1]] != [0.0, 0.0, 0.6, 0.8] or \
+            k(o['mm_identity'], 'PositionCurve') or o['mm_identity']['PositionCurve']['CurveData'].get('Dimension') != 3:
+        fails.append('add_tracks: the constant / identity tracks read otherwise')
+    print(f'add_tracks: {len(spec)} tracks onto {len(bt)}, {len(base)} -> {len(out)} bytes: '
+          f'{"ok" if not fails else "FAILED"}')
+    return fails
+
+
 def main():
     ix = index()
     if ix is None:
         print('SKIP: no Project OPFOR BFBC2 game copy')
         return 0
     fails = []
+    fails += add_tracks(ix)
     sk = granny.Granny(ix.read('characters/skeletons/ske01.res'), 'ske01').root()['Skeletons'][0]['Bones']
     names = [b['Name'] for b in sk]
     if len(sk) != 147:

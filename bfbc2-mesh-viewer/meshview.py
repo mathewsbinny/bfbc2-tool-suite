@@ -216,8 +216,9 @@ def load_mesh(ix, name, lod=0):
         start = vbase + p['vertex_offset'] + lo * stride
         block = np.frombuffer(b, np.uint8, n * stride, start).reshape(n, stride)
         attr = {}
-        for f, usage, off, stream in els:
-            if stream != 0 or f not in SIZE:
+        uv = meshdata.texcoord_element(els)                 # not simply the first usage-0 element (soldiers)
+        for i, (f, usage, off, stream) in enumerate(els):
+            if stream != 0 or f not in SIZE or (usage == 0 and i != uv):
                 continue
             raw = np.ascontiguousarray(block[:, off:off + SIZE[f]]).tobytes()
             v = _values(raw, f, n)

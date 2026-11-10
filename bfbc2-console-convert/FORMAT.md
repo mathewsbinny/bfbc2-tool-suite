@@ -80,6 +80,16 @@ HavokPhysicsData resources of the four console Onslaught levels convert without 
 depth, mip count, then 15 mip sizes. The PC lists each level's size (one face's, for a cube); the console one size,
 the whole layout. Format, flags, size and mip count carry over unchanged.
 
+Flags: bit 0 sRGB. **Bit 1 marks a texture DICE's build halves for the console** (2026-11-09): of BFBC2's 1,468
+textures with an Xbox and a PC copy, all 539 whose Xbox copy is smaller than the PC's (538 of them half) have it on
+the PC, and 11 of the other 929 (minimap textures, white.res); the Xbox copies never have it (the console build
+applies the halving and clears the bit). It follows neither the format, the mip count, alpha nor the kind of
+texture. Of BF1943's textures DICE shipped, DICE's PC copies have it on all 53 that are twice BF1943's console copy,
+and on 27 of the 79 of the same size (soldier, decal and sky textures DICE re-exported, which DICE's own build
+would halve for the console). A converted
+texture is at the console's size, so it keeps the console's flags, bit 1 clear - also when a format is decoded to
+another (console 3 -> PC 10: those twins' PC copies have flags 2 because they are twice the console's).
+
 | Code | Format | Bytes per 4x4 block |
 |---|---|---|
 | 0 | DXT1 | 8 |
@@ -87,6 +97,7 @@ the whole layout. Format, flags, size and mip count carry over unchanged.
 | 1 | DXT3 | 16 |
 | 2 | DXT5 | 16 |
 | 19, 20 | BC5 / DXN (two channels) | 16 |
+| 10 | L8 (8 bits, one channel; a texel, not a block) | 1 |
 
 ### 2.2 Data
 
@@ -131,10 +142,17 @@ the result is within the 5 / 6-bit rounding of the PC's values (red and blue 8, 
 BFBC2's sky_beach_generic_rgba16f cube the console's level 0 equals the PC's level 1 (the PC copy is twice the size)
 on every face, byte for byte.
 
+**Console 10 is L8** (2026-11-09), the PC's own format 10: one byte a texel, tiled like the block formats with
+1-byte elements (XGAddress2DTiledOffset with log2(bytes) 0), its bytes **not** swapped (the 16-bit swap is for the
+wider formats); the PC pads each row to 4 bytes (a 2 x 2 level is 8 bytes, a 1 x 1 level 4). On BFBC2's 19 twins:
+the 11 of the same size (fonts, the terrain noise, the film grain, a brush) convert byte-identical, one font is other
+art; where the PC copy is twice the console's (bit 1), each console level is within 0.3 of 255 (mean) of the PC level
+of its size and the smallest levels equal. Battlefield 1943's `US_Head_Spec` is one.
+
 **Console 3 is DXT5A** (2026-11-05): the Xenos GPU's single-channel block format - DXT5's alpha half, 8 bytes per
 4 x 4 block, tiled like DXT1 - which the PC keeps as 8-bit format 10 (flags 2). The console copies are half the PC's
 size (128 x 128 against 256 x 256): its 32,768 bytes are four 4 KB-aligned 8,192-byte slots (three levels, then the
-packed tail). `convert` decodes it level by level to format 10 at the console's size; the decoded level 0 equals the
+packed tail). `convert` decodes it level by level to format 10 at the console's size (rows padded as L8's, the console's flags); the decoded level 0 equals the
 PC's level 1 within the format's error (correlation 0.995-0.9998, mean difference 1-2 of 255).
 
 ## 3. MeshData (a mesh LOD's parts, vertices and indices)
@@ -162,10 +180,12 @@ part's index range may cover several parts' triangles; a part uses the vertices 
 
 **Vertex layouts are not in the file:** the level's shader database names each part (`<mesh>_lod<N>/<part>/<technique>`)
 with a layout (the suite's `bfbc2-shader-tools\FORMAT.md`: 73-byte records, 16 x (format, usage, offset, stream),
-the element count at byte 64, the stride at 69). Element formats: 0x03 float3, 0x04 float4, 0x05 half, 0x06 half2,
+the element count at byte 64, the stride at 69). Element formats: 0x02 float2, 0x03 float3, 0x04 float4, 0x05 half, 0x06 half2,
 0x07 half3, 0x08 half4, 0x0C ubyte4 (bone indices, weights), console-only 0x2B (signed normalized 11:11:10 ->
 PC half4 x, y, z, 1) and 0x0D (unsigned normalized bytes w, z, y, x -> PC half4). Usage: 0 texture coordinate (the
-n-th in element order), 1 position, 2 bone indices, 3 bone weights, 4 normal, 5 tangent, 6 binormal, 7 position w.
+n-th in element order; the texture's own is the first half2 / float2 one - soldiers start with a grey half4,
+trees with a half4 of zeros - else the first other float one: `mesh.texcoord_element`), 1 position, 2 bone
+indices, 3 bone weights, 4 normal, 5 tangent, 6 binormal, 7 position w.
 PC weapons: one bone per vertex (all four indices equal, weights 255, 0, 0, 0), normal / tangent / binormal w = 1,
 binormal = -(normal x tangent) or + where the texture is mirrored.
 

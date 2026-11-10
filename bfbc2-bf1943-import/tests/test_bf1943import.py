@@ -13,7 +13,11 @@ With --game (game tier; skipped without the Rising Sun workspace and the BF1943 
 - import of the Garand bayonet's resources into a temporary folder: the animations land under their names and read
   as little-endian with the bayonet bone (jntWpn_6) at the muzzle in the 1P thrust; import.json records each
   resource (converted or why not); a second import with another filter adds to the records instead of replacing
-  them; the source bundles are unchanged.
+  them; the source bundles are unchanged;
+- 3p undeploys: the 22 BFBC2 shipped get DICE's 25 added tracks (88 in all, as DICE's) without a track of theirs
+  changing; the 19 weapon parts reproduce DICE's exactly in at least 12 of the 22 and 380 of the 418 tracks (the
+  rest DICE re-animated: M18, expack, detonator, the Shin Gunto standing, the crouching Garand's clip), the thumbs
+  within 15 degrees on average (DICE's are animated); the 14 BF1943-only undeploys get their 25.
 
   python test_bf1943import.py [--game]
 """
@@ -119,6 +123,66 @@ def game(check):
     check(before == after, 'the source bundles are unchanged')
 
 
+def undeploys(check):
+    """The added undeploy tracks against DICE's (bf1943import.Importer.undeploy_tracks)."""
+    import math
+    granny = bi.granny
+    try:
+        source = bi.Source(bi.default_source())
+        imp = bi.Importer(source)
+        ix = imp.index()
+    except Exception as e:                                       # noqa: BLE001
+        print(f'SKIP undeploys: {e}')
+        return
+
+    def tracks(b):
+        a = granny.animations(granny.Granny(b))[0]
+        return a['Duration'], {t['Name']: t for t in a['TrackGroups'][0]['TransformTracks']}
+
+    def at(t, curve, time, default):
+        return granny.sample(granny.curve_keys(t[curve]['CurveData']), time, default)
+
+    def angle(a, b):
+        return math.degrees(2 * math.acos(min(1.0, abs(sum(x * y for x, y in zip(a, b))))))
+    keys = sorted(k for k, (_, e) in source.entries.items() if bi.UNDEPLOY.search(k) and e['type'] == 'GrannyAnimation')
+    shared = [k for k in keys if k in ix.where]
+    exact = tracks_ok = total = 0
+    thumbs, bad = [], []
+    for k in shared:
+        out, _ = imp.convert(k)
+        dur, d = tracks(ix.read(k))
+        _, o = tracks(out)
+        _, p = tracks(imp.convert(k, extra_tracks=False)[0])
+        if len(o) != len(d) or any(granny.curve_keys(o[n][c]['CurveData']) != granny.curve_keys(p[n][c]['CurveData'])
+                                   for n in p for c in ('PositionCurve', 'OrientationCurve')):
+            bad.append(k)
+        ok = n_w = 0
+        for n in set(d) - set(p):
+            ep = er = 0.0
+            for f in (0, 0.25, 0.5, 0.75, 1):
+                ep = max(ep, math.dist(at(d[n], 'PositionCurve', dur * f, (0.0, 0.0, 0.0)),
+                                       at(o[n], 'PositionCurve', dur * f, (0.0, 0.0, 0.0))))
+                q = angle(at(d[n], 'OrientationCurve', dur * f, (0, 0, 0, 1)), at(o[n], 'OrientationCurve', dur * f, (0, 0, 0, 1)))
+                er = max(er, q)
+                if 'Thumb' in n:
+                    thumbs.append(q)
+            if 'Thumb' not in n:
+                n_w += 1
+                ok += ep < 2e-3 and er < 0.2
+        exact += ok == n_w
+        tracks_ok += ok
+        total += n_w
+    mean = sum(thumbs) / max(len(thumbs), 1)
+    check(len(shared) == 22 and not bad, f'undeploys: the {len(shared)} BFBC2 shipped get DICE\'s tracks, their own kept',
+          str(bad[:3]))
+    check(exact >= 12 and tracks_ok >= 380 and mean <= 15, f'undeploys: weapon parts as DICE\'s in {exact} of 22 '
+          f'({tracks_ok} of {total} tracks), thumbs {mean:.1f} degrees from DICE\'s on average')
+    own = [k for k in keys if k not in ix.where]
+    counts = [len(tracks(imp.convert(k)[0])[1]) for k in own]
+    check(len(own) >= 10 and set(counts) == {88}, f'undeploys: the {len(own)} BF1943-only ones get 88 tracks',
+          str(counts))
+
+
 def main(argv):
     fails = []
 
@@ -130,6 +194,7 @@ def main(argv):
     units(check)
     if '--game' in argv:
         game(check)
+        undeploys(check)
     return 1 if fails else 0
 
 

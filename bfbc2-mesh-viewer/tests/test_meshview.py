@@ -3,7 +3,9 @@ r"""meshview.py on the game's files (game tier; skipped without them):
 - the M1 Garand's first-person mesh reads as DICE's parts (2005 + 3825 triangles for the rifle; the bayonet, launcher
   and rifle grenade parts are stubs of 1, 2 and 8), with its colour textures decoded;
 - a weapon from an async bundle (the Vietnam M1 Garand) and a rigid projectile are found and read;
-- the page embeds every part, and the picture shows the model (a few thousand coloured pixels).
+- the page embeds every part, and the picture shows the model (a few thousand coloured pixels);
+- a soldier's texture coordinates are its half2 (offset 40), not the grey half4 at 16 that comes first among the
+  usage-0 elements (US body: every part with coordinates; most span the texture; mesh.decode reads the same).
 
   python test_meshview.py
 """
@@ -46,6 +48,29 @@ def main() -> int:
                 fails.append(f'{name}: no parts')
         except meshview.ViewError as e:
             fails.append(str(e))
+    soldier = 'characters/us/us_models/us_02_body_mesh'
+    body = meshview.load_mesh(ix, soldier)
+    rec = {p['name']: ix.parts[f'{soldier}_lod0/{p["name"]}/standard'.lower()] for p in body}
+    b = ix.read(f'{soldier}_lod0_data.res')
+    bad, seen, inside = [], 0, 0
+    for p in body:
+        uv = p['uvs']
+        els, _ = meshview.meshdata.elements(rec[p['name']])
+        k = meshview.meshdata.texcoord_element(els)
+        if k is None:                                     # depth-only splits: positions and skinning only
+            continue
+        seen += 1
+        dec = meshview.meshdata.decode(b, rec[p['name']], p['name'], big_endian=False)['uvs']
+        first = next(e for e in els if e[1] == 0)
+        if (uv is None or tuple(els[k]) != (0x06, 0, 40, 0) or tuple(first) != (0x08, 0, 16, 0)
+                or not np.array_equal(dec, uv)):
+            bad.append(p['name'])
+        elif uv.min() >= -0.01 and uv.max() <= 1.01 and uv.std(0).min() > 0.05:
+            inside += 1
+    if seen < 16 or bad or inside < 10:
+        fails.append(f'soldier texture coordinates: {len(bad)} of {seen} parts wrong {bad[:3]}')
+    print(f'soldier: {seen} parts with texture coordinates, all from the half2 at 40 (not the half4 at 16), '
+          f'{inside} spanning the texture')
     laid = meshview._layout([('garand', parts)])
     html = meshview.page(laid, 'test')
     if html.count('"tris"') != len(parts):
