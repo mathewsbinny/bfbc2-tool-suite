@@ -187,7 +187,7 @@ def fake(img: np.ndarray, counts: Sequence[tuple[str, int, int]] = ()) -> R.Rend
 # ------------------------------------------------------------------------------------------------ tests
 
 def built(c: Checks) -> None:
-    tmp = tempfile.mkdtemp(prefix='renderqa_test_')
+    tmp = tempfile.mkdtemp(prefix='renderqa test ')
     try:
         _built(c, tmp)
     finally:

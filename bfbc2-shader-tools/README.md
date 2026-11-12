@@ -167,6 +167,13 @@ For console content brought to PC (Battlefield 1943's), the Xbox shaders themsel
 - `pcbuild.py` compiles with the system's `d3dcompiler_47.dll` and builds what a PC database stores beside the code:
   the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks.
 
+Texture-fetch fidelity: 2D texel coordinates marked unnormalized are normalized before sampling or computing
+filter weights. Explicit LOD includes the instruction's bias; disabled computed LOD and vertex-stage fetches use
+`SampleLevel`. Explicit point fetches use the selected mip's dimensions and clamp the mip to the available chain.
+Cube fetches also retain their instruction's LOD bias. Explicit gradients and unnormalized cube coordinates are
+refused rather than silently translated with different semantics. General sampler overrides and implicit point-fetch
+mip selection remain limited by the existing sampler/point-load policy.
+
 ### The translator's differential test (xdiff.py, xenos_exec.py)
 
 ```
@@ -263,6 +270,16 @@ with it (0.94 - 1.0: palm, house, soldier, rocks, wreck). Elsewhere the mesh vie
 composite part transforms and often takes a mask atlas for the colour map. An earlier run with the key light from
 the weather's theta / phi drew the rock formation and the M1A2 wreck black: they were lit from below.
 
-`shaderview.exe` is built by `renderqa.py` into the suite's `build\` folder (gitignored) the first time it is needed.
+`shaderview.exe` is built by `renderqa.py` into the suite's `build\` folder (gitignored) the first time it is needed. Texture resources are bound to both vertex and pixel shader stages.
 It needs the Visual Studio C++ tools. It uses the GPU, and falls back to WARP (the software rasterizer) when the GPU
 device fails; `--warp` forces WARP. The harness runs at below-normal priority.
+
+
+BFBC2 PC shadow compatibility: `xenos_hlsl.Interface(pc_shadow_atlas=True)`
+adapts BF1943 shadow lookups to the native PC three-cascade atlas. The raw
+third fetch component carries the normalized cascade centre (1/6, 1/2,
+5/6); PC object shaders place these cascades in the top-left, top-right,
+and bottom-left quadrants, with a 255/256 guard scale. The same transformed
+coordinates feed depth taps and interpolation weights. The option defaults
+to false so console microcode differential tests retain their reference
+behavior; Wake's production converter enables it.

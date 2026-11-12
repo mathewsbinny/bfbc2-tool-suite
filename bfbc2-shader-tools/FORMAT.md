@@ -103,6 +103,17 @@ the compiler dropped it from the shader; `pcbuild.binding_table` builds a table 
 
 `u32 n`, then n x { `u32 k`, `4k` bytes }. Kept whole (3 in every file seen). Referenced by index from shaders.
 
+For the PC object shaders, each 4-byte record binds an engine texture:
+`u8 engine id, u8 kind, u8 texture slot, u8 index`.
+Observed records are id 38 (outdoorLightShadowmapTexture), kind 0x40 (2D),
+and id 39 (outdoorLightReflectionEnvmap), kind 0x42 (cube); index is 0xff.
+Slots must follow the compiled shader's RDEF resource binding, not its donor.
+Copying a donor table can overwrite a material texture or leave an engine
+texture unbound. Native tables sometimes retain unused bindings; these are
+harmless when no live material occupies that slot. `pcbuild.resource_table_dxbc`
+generates the table for translated DX10/11 object shaders.
+
+
 ### Section 4: vertex shaders
 
 `u32 n`, then n x:
@@ -236,8 +247,7 @@ the result draws with exactly what it drew with in its source file.
 
 ## 7. Not known
 
-- The meaning of program +0x10 / +0x14, the register tables (Dx10/11: the samplers the engine binds - s0 the
-  shadow-map comparison sampler, s1 the default one), most permutation bytes of a key and the 0x49 bytes of a
+- The meaning of program +0x10 / +0x14, most permutation bytes of a key and the 0x49 bytes of a
   layout (all copied as they are).
 - Whether the engine has limits other than the u16 program index (for example on the number of shaders), and what
   it does with an entry whose textures (named in its parameter blocks) are not in the level: neither was traced and

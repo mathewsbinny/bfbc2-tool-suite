@@ -172,6 +172,27 @@ def binding_table(consts: Iterable[tuple[str, int, int]], first: int, bone_div: 
     return struct.pack('<HH', len(recs), first) + b''.join(recs)
 
 
+def resource_table_dxbc(code: bytes) -> bytes:
+    """Section 3 engine textures, using this shader's compiled resource slots.
+
+    A donor's table can overwrite a material texture with its shadow/reflection
+    resource, or omit a reflection used by the translated shader. Native PC
+    records encode engine id, texture kind (0x40 2D / 0x42 cube), slot, index.
+    Unused resources are absent from RDEF and need no engine binding.
+    """
+    engine = {'texture_outdoorLightShadowmapTexture': (38, 0x40),
+              'texture_outdoorLightReflectionEnvmap': (39, 0x42)}
+    records = []
+    for name, typ, slot, count in rdef(code)[1]:
+        if typ != 2 or name not in engine:
+            continue
+        if count != 1 or not 0 <= slot <= 255:
+            raise ValueError(f'unsupported engine texture binding: {name} t{slot}[{count}]')
+        pid, kind = engine[name]
+        records.append(bytes((pid, kind, slot, 0xff)))
+    return struct.pack('<I', len(records)) + b''.join(records)
+
+
 def consts_dx9(code: bytes) -> Consts:
     return [(n, r, c) for n, rs, r, c in ctab9(code) if rs == 'float4']
 

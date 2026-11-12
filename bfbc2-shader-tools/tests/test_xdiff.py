@@ -34,7 +34,7 @@ import xenos_exec as XE  # noqa: E402
 import xenos_hlsl as X  # noqa: E402
 
 F = np.float32
-fails = []
+fails: list[str] = []
 
 
 def check(cond, what):
@@ -43,17 +43,17 @@ def check(cond, what):
         fails.append(what)
 
 
-class O:
+class Stub:
     def __init__(self, **k):
         self.__dict__.update(k)
 
 
 def operand(file, index, swz='xyzw', neg=False, ab=False):
-    return O(file=file, index=index, swizzle=swz, negate=neg, abs=ab, rel=None, components=swz[3] + swz[0])
+    return Stub(file=file, index=index, swizzle=swz, negate=neg, abs=ab, rel=None, components=swz[3] + swz[0])
 
 
 def machine(n=4):
-    sh = O(is_pixel=True, header=O(program_cntl=(15 << 8)), literals={})
+    sh = Stub(is_pixel=True, header=Stub(program_cntl=(15 << 8)), literals={})
     return XE._Machine(sh, n, {}, {})
 
 
@@ -61,13 +61,13 @@ def alu_semantics():
     m = machine(3)
     m.r[0] = np.array([[0, 1, 2, 3], [0, 0, 0, 0], [1, 1, 1, 1]], F)
     m.r[1] = np.array([[np.inf, np.nan, 2, -1], [np.inf, np.inf, np.inf, np.inf], [np.nan, 0, 1, 2]], F)
-    ins = O(vector_op='mul', vector_operands=[operand('temp', 0), operand('temp', 1)])
+    ins = Stub(vector_op='mul', vector_operands=[operand('temp', 0), operand('temp', 1)])
     r, _ = m.vector(ins, np.ones(3, bool))
     check(r[0, 0] == 0 and r[1].tolist() == [0, 0, 0, 0] and r[2, 1] == 0, 'mul: 0 * inf and 0 * NaN are 0')
-    ins = O(vector_op='max', vector_operands=[operand('temp', 1), operand('temp', 0)])
+    ins = Stub(vector_op='max', vector_operands=[operand('temp', 1), operand('temp', 0)])
     r, _ = m.vector(ins, np.ones(3, bool))
     check(r[2, 0] == 1 and r[0, 1] == 1, 'max: a NaN first operand gives the second (a >= b ? a : b)')
-    ins = O(vector_op='dp3', vector_operands=[operand('temp', 0), operand('temp', 1)])
+    ins = Stub(vector_op='dp3', vector_operands=[operand('temp', 0), operand('temp', 1)])
     r, _ = m.vector(ins, np.ones(3, bool))
     check(r[1, 0] == 0, 'dp3: zero times inf contributes 0')
     # the cube op on the six faces: src0 = d.zzxy, src1 = d.yxzz
@@ -80,8 +80,8 @@ def alu_semantics():
     # saturate on the stored value, ps keeps the raw result
     m = machine(1)
     m.r[2] = np.array([[3, 0, 0, 5]], F)
-    ins = O(predicated=False, vector_nop=True, scalar_nop=False, scalar_op='adds',
-            scalar_operands=[operand('temp', 2, 'xxxw')], scalar_dest=O(file='temp', index=3, write='x___',
+    ins = Stub(predicated=False, vector_nop=True, scalar_nop=False, scalar_op='adds',
+            scalar_operands=[operand('temp', 2, 'xxxw')], scalar_dest=Stub(file='temp', index=3, write='x___',
                                                                             saturate=True, rel=None))
     m.alu(ins, np.ones(1, bool))
     check(m.r[3][0, 0] == 1 and m.ps[0] == 8, 'adds_sat: register saturated, ps unsaturated (Xenia StoreResult)')
@@ -110,23 +110,26 @@ def cubefetch_in_shaderview():
         T[f, :, :, 1] = np.arange(16)[None, :]
         T[f, :, :, 2] = np.arange(16)[:, None]
         T[f, :, :, 3] = 1
-    work = tempfile.mkdtemp(prefix='xdiff_test_')
+    work = tempfile.mkdtemp(prefix='xdiff test ')
     verts = np.zeros((n, 3, 2, 4), F)
     for j, (dx, dy) in enumerate(((0.1, 0.1), (1.4, 0.1), (0.1, 1.4))):
         verts[:, j, 0, 0] = np.arange(n) + dx
         verts[:, j, 0, 1] = dy
         verts[:, j, 1, :2] = st
         verts[:, j, 1, 2] = face
-    files = {}
 
     def put(name, data):
         p = os.path.join(work, name)
         open(p, 'wb').write(data)
         return p
-    job = [f'frame {put("o.raw", b"")} {n} 1 -1 -1 -1 -1', f'vs {put("vs", P.compile_hlsl(vs, "main", "vs_5_0"))}',
-           f'ps {put("ps", P.compile_hlsl(ps, "main", "ps_5_0"))}', 'el 0 2 0 0 0', 'el 1 2 0 16 0',
-           f'vb {put("vb", verts.tobytes())} 0 32', f'ib {put("ib", np.arange(3 * n, dtype=np.uint32).tobytes())} 0 32 {3 * n} 0',
-           f'tex 2 cube {put("t", struct.pack("<III", 16, 16, 6) + T.tobytes())}',
+
+    def asset(name, data):
+        return RQ.job_path(put(name, data))
+
+    job = [f'frame {asset("o.raw", b"")} {n} 1 -1 -1 -1 -1', f'vs {asset("vs", P.compile_hlsl(vs, "main", "vs_5_0"))}',
+           f'ps {asset("ps", P.compile_hlsl(ps, "main", "ps_5_0"))}', 'el 0 2 0 0 0', 'el 1 2 0 16 0',
+           f'vb {asset("vb", verts.tobytes())} 0 32', f'ib {asset("ib", np.arange(3 * n, dtype=np.uint32).tobytes())} 0 32 {3 * n} 0',
+           f'tex 2 cube {asset("t", struct.pack("<III", 16, 16, 6) + T.tobytes())}',
            'samp 1 ' + struct.pack('<IIIIfII4fff', 0, 3, 3, 3, 0.0, 1, 1, 0, 0, 0, 0, 0.0, 0.0).hex(), 'draw', 'end']
     RQ.run_job(put('job.txt', '\n'.join(job).encode()), warp=True)
     got = np.fromfile(os.path.join(work, 'o.raw'), F).reshape(-1, 4)
@@ -146,10 +149,43 @@ def probe_placement():
           'probe: recorded inside the predicate block, after the instruction\'s last statement')
 
 
+def hlsl_job_paths():
+    import subprocess
+
+    import xdiff
+    with tempfile.TemporaryDirectory(prefix='xdiff job paths ') as work:
+        sh = Stub(header=Stub(interpolators=[]))
+        got, _ = xdiff.run_hlsl(sh, {'inputs': {}, 'engine': {}, 'textures': {}}, 3, work,
+                               'float4 main() : SV_Target0 { return float4(0.25, 0.5, 0.75, 1); }')
+        check(np.all(got == np.array([0.25, 0.5, 0.75, 1], F)),
+              'run_hlsl: shader and buffer paths containing spaces render correctly')
+        # Legacy jobs use unquoted path fields. A relative output avoids assumptions about TEMP's path.
+        job = os.path.join(work, 'legacy job.txt')
+        with open(job, 'w') as fh:
+            fh.write('frame legacy.raw 2 2 0.25 0.5 0.75 1\nend\n')
+        result = subprocess.run([RQ.shaderview(), job, '-warp'], cwd=work, capture_output=True)
+        check(result.returncode == 0, 'shaderview: legacy unquoted path fields still accepted')
+        if result.returncode == 0:
+            check(np.all(np.fromfile(os.path.join(work, 'legacy.raw'), F).reshape(-1, 4) ==
+                         np.array([0.25, 0.5, 0.75, 1], F)), 'shaderview: legacy job renders expected output')
+
+
+def compare_nonfinite():
+    import xdiff
+    for a, b, exact in [(np.inf, 1, False), (1, np.inf, False), (np.inf, -np.inf, False),
+                        (np.inf, np.inf, True), (-np.inf, -np.inf, True),
+                        (np.nan, np.nan, True), (np.nan, 1, False), (1, np.nan, False),
+                        (1, 1 + xdiff.ATOL / 2, True), (1, 2, False)]:
+        ref = XE.Result({0: np.full((1, 4), a, F)}, np.ones(1, bool))
+        result = xdiff.compare(ref, np.full((1, 4), b, F))
+        check((result['status'] == 'exact') == exact, f'compare: {a} vs {b} exact={exact}')
+
+
 def game():
     import xdiff
     out = os.path.join(tempfile.gettempdir(), 'xdiff_test_game')
     rc = xdiff.main(['--ps', '317', '36', '120', '202', '476', '--n', '512', '-o', out])
+    check(rc == 0, 'game differential command succeeds')
     import json
     r = json.load(open(os.path.join(out, 'results.json')))
     for p in ('317', '36', '120', '202', '476'):
@@ -158,6 +194,8 @@ def game():
 
 if __name__ == '__main__':
     alu_semantics()
+    compare_nonfinite()
+    hlsl_job_paths()
     probe_placement()
     cubefetch_in_shaderview()
     if '--game' in sys.argv:

@@ -24,7 +24,6 @@ Semantics notes (ucode.h):
 """
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -299,9 +298,9 @@ class _Machine:
                 fx['p0'] = c
                 r = np.where(c, zero, a)
             elif op.startswith('kills_'):
-                cmp = {'eq': lambda v: v == 0, 'gt': lambda v: v > 0, 'ge': lambda v: v >= 0,
+                kill_cmp = {'eq': lambda v: v == 0, 'gt': lambda v: v > 0, 'ge': lambda v: v >= 0,
                        'ne': lambda v: v != 0, 'one': lambda v: v == 1}[op[6:]]
-                k = cmp(a)
+                k = kill_cmp(a)
                 fx['kill'] = k
                 r = k.astype(F)
             elif op == 'sqrt':
@@ -335,10 +334,7 @@ class _Machine:
             if ch == '_':
                 continue
             v = F(0) if ch == '0' else F(1) if ch == '1' else None
-            if v is None:
-                col = val[:, k]
-            else:
-                col = np.full(self.n, v, F)
+            col = val[:, k] if v is None else np.full(self.n, v, F)
             tgt[mask, k] = col[mask]
 
     def alu(self, ins: Any, mask: np.ndarray) -> None:
@@ -381,6 +377,10 @@ class _Machine:
             raise ExecError(f'no texture for tf{ins.const_index}')
         src = self.r[ins.src][:, [XYZW.index(ch) for ch in ins.src_swizzle]]
         w, h = t.size
+        if getattr(ins, 'unnormalized', False):
+            if t.cube:
+                raise ExecError('unnormalized cube sampling is not supported')
+            src = src / np.array([w, h], F)
         off = np.array([ins.offset_x, ins.offset_y], F)
         if op.startswith('getWeights'):
             fr = src[:, :2] * np.array([w, h], F) - 0.5 + off
@@ -464,9 +464,8 @@ class _Machine:
                 m = here.copy()
                 if op.startswith('cond_exec_pred'):
                     m &= self.p0 == bool(c.condition)
-                elif op.startswith('cond_exec'):
-                    if not self._bool_const(c):
-                        m[:] = False
+                elif op.startswith('cond_exec') and not self._bool_const(c):
+                    m[:] = False
                 for ins in c.instructions or []:
                     if ins.kind == 'alu':
                         self.alu(ins, m)

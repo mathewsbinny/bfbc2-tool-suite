@@ -161,18 +161,24 @@ def run_hlsl(sh: Any, cs: dict[str, Any], n: int, work: str, hlsl: str | None = 
             f.write(data)
         files[name] = p
         return p
-    job = [f'frame {put("out.raw", b"")} {W} {h} {SENTINEL} {SENTINEL} {SENTINEL} {SENTINEL}',
-           f'vs {put("vs.dxbc", vs)}', f'ps {put("ps.dxbc", ps)}']
+
+    def asset(name: str, data: bytes) -> str:
+        return RQ.job_path(put(name, data))
+
+    job = [f'frame {asset("out.raw", b"")} {W} {h} {SENTINEL} {SENTINEL} {SENTINEL} {SENTINEL}',
+           f'vs {asset("vs.dxbc", vs)}', f'ps {asset("ps.dxbc", ps)}']
     job += [f'el {k} 2 0 {16 * k} 0' for k in range(1 + len(inter))]
-    job.append(f'vb {put("vb.bin", verts.tobytes())} 0 {stride}')
+    job.append(f'vb {asset("vb.bin", verts.tobytes())} 0 {stride}')
     ib = np.arange(3 * n, dtype=np.uint32)
-    job.append(f'ib {put("ib.bin", ib.tobytes())} 0 32 {3 * n} 0')
-    job.append(f'cb ps {put("cb.bin", RQ.cbuffer(ps, cs["engine"], []))}')
+    job.append(f'ib {asset("ib.bin", ib.tobytes())} 0 32 {3 * n} 0')
+    job.append(f'cb ps {asset("cb.bin", RQ.cbuffer(ps, cs["engine"], []))}')
     for reg, t in cs['textures'].items():
         tx = t.texels
         hdr = struct.pack('<III', tx.shape[2], tx.shape[1], tx.shape[0])
-        job.append(f'tex {reg} {"cube" if t.cube else "2d"} {put(f"t{reg}.bin", hdr + tx.tobytes())}')
+        job.append(f'tex {reg} {"cube" if t.cube else "2d"} {asset(f"t{reg}.bin", hdr + tx.tobytes())}')
     job.append(f'samp 1 {sampler_desc()}')
+    for slot, desc in cs.get('samplers', {}).items():
+        job.append(f'samp {slot} {desc.hex()}')
     job += ['draw', 'end']
     jp = put('job.txt', '\n'.join(job).encode())
     RQ.run_job(jp, warp=True)
@@ -192,11 +198,12 @@ def compare(ref: XE.Result, got: np.ndarray) -> dict[str, Any]:
     ok &= ~kill_mismatch
     a, b = r0[both], got[both]
     finite = np.isfinite(a) & np.isfinite(b)
-    close = np.where(finite, np.abs(a - b) <= ATOL + RTOL * np.abs(a), np.isnan(a) == np.isnan(b))
+    with np.errstate(invalid='ignore'):
+        close = np.isclose(b, a, rtol=RTOL, atol=ATOL, equal_nan=True)
     okb = close.all(1)
     ok[np.where(both)[0]] = okb
     bad = np.where(~ok)[0]
-    res = {'status': 'exact' if not len(bad) else 'differs', 'pixels': int(len(got)),
+    res: dict[str, Any] = {'status': 'exact' if not len(bad) else 'differs', 'pixels': int(len(got)),
            'bad': int(len(bad)), 'killed_ref': int((~alive).sum()), 'kill_mismatch': int(kill_mismatch.sum())}
     if len(bad):
         i = int(bad[0])
@@ -215,6 +222,7 @@ def bisect(sh: Any, cs: dict[str, Any], n: int, work: str, pos: np.ndarray) -> s
     for c in sh.cf:
         for ins in getattr(c, 'instructions', None) or []:
             dis[ins.address] = ' | '.join(xenos.disasm_instruction(ins))
+    assert ref.snaps is not None
     for addr, (regs, alive, ran) in ref.snaps.items():
         ins = next(i for c in sh.cf for i in (getattr(c, 'instructions', None) or []) if i.address == addr)
         dests = []

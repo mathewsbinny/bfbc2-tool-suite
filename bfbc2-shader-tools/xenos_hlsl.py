@@ -51,7 +51,10 @@ class Interface:
     def __init__(self, interpolators: Sequence[int], vs_inputs: dict[int, str] | None = None,
                  material: dict[str, Any] | None = None, sampler_fix: dict[int, str] | None = None,
                  colour_scale: float = 1.0, instanced: bool = False, bones_as_world: bool = False,
-                 material_regs: dict[int, Sequence[float]] | None = None) -> None:
+                 material_regs: dict[int, Sequence[float]] | None = None, pc_shadow_atlas: bool = False,
+                 sampler_registers: dict[int, int] | None = None) -> None:
+        self.sampler_registers = sampler_registers or {}
+        self.pc_shadow_atlas = pc_shadow_atlas       # BFBC2 PC packs the three shadow cascades into atlas quadrants
         self.bones_as_world = bones_as_world        # BFBC2 composite (kind 9): parts drawn with the world transform
         self.trace_nan = False                      # debug: output the first instruction whose result is NaN / inf
         self.probe: list[str] | None = None         # debug: [constant expressions] drawn as bit bars (PROBE_*)
@@ -165,9 +168,11 @@ class _Emitter:
                 raise TranslateError(f'loop-relative constant addressing (c[{idx}+{rel}])')
             for c in (self.sh.ctab.constants if self.sh.ctab else []):
                 if c.regset == 'float4' and c.reg <= idx < c.reg + c.count and c.name in ENGINE_SIZE:
-                    if self.iface.bones_as_world and c.name in ('boneMatrices', 'boneVectors') and idx - c.reg < 3:
-                        # BF1943 composite meshes place each part with its own 4x3 matrix; BFBC2's draw their parts
-                        # with the object's world transform (boneMatrices only flags a part's visibility there)
+                    if self.iface.bones_as_world and c.name in ('boneMatrices', 'boneVectors') and \
+                            c.type.cls in ('matrix_rows', 'matrix_columns') and idx - c.reg < 3:
+                        # Adapt matrix-typed composite transforms only. Some kind-9 shaders instead declare
+                        # a vector palette: boneMatrices[part].x gates visibility while positions use worldMatrix
+                        # separately. Replacing that flag with worldMatrix[0].x hides parts at certain rotations.
                         self.need_world = True
                         return f'{"instW" if self.iface.instanced else "worldMatrix"}[{idx - c.reg}]'
                     return f'{c.name}[a0 + {idx - c.reg}]'
@@ -403,7 +408,25 @@ class _Emitter:
         if reg not in self.samplers:
             raise TranslateError(f'fetch from tf{reg}: no sampler s{reg} in the constant table')
         tex, typ, name = self.samplers[reg]
+        sampler = f'sampler{self.iface.sampler_registers.get(reg, 1)}'
         src = f'{self.reg(ins.src)}.{ins.src_swizzle}'
+        if typ not in ('Texture2D', 'TextureCube'):
+            raise TranslateError(f'{typ} sampling is not supported')
+        if getattr(ins, 'use_register_gradients', False):
+            raise TranslateError('texture fetch with explicit gradients is not supported')
+        if getattr(ins, 'unnormalized', False):
+            if typ != 'Texture2D':
+                raise TranslateError('unnormalized cube sampling is not supported')
+            src = f'({src} / tdim({tex}))'
+        explicit_lod = ins.use_register_lod or not getattr(ins, 'use_computed_lod', True) or not self.ps
+        lod = f'(texLod + {_f(ins.lod_bias)})' if ins.use_register_lod else _f(ins.lod_bias)
+        if name == SHADOW and self.iface.pc_shadow_atlas:
+            if getattr(ins, 'unnormalized', False):
+                raise TranslateError('PC shadow atlas requires normalized console coordinates')
+            # BF1943 computes a normalized cascade centre in the third source
+            # component (1/6, 1/2, 5/6). Preserve it even on the 2D fetch.
+            swizzle = ''.join('xyzw'[(ins.src_swizzle_raw >> (2 * k)) & 3] for k in range(3))
+            src = f'xshadowuv({self.reg(ins.src)}.{swizzle})'
         off = (ins.offset_x, ins.offset_y)
         if op.startswith('getWeights'):
             self.w(f'float4 f{ins.address} = float4(frac({src} * tdim({tex}) - 0.5 + float2({_f(off[0])}, {_f(off[1])})), 0.0, 0.0);')
@@ -416,26 +439,34 @@ class _Emitter:
             # one that moves the coordinates between the cube op and the fetch, sampled the last cube op's direction
             # (cubeDir) - the second of two reflection fetches read the first's texel (xdiff.py: 4 of 815 shaders)
             coord = f'xcubefetch({self.reg(ins.src)}.{ins.src_swizzle})' if self.cube_dir_set else src
-            if ins.use_register_lod:
-                e = f'{tex}.SampleLevel(sampler1, {coord}, texLod)'
+            if explicit_lod:
+                e = f'{tex}.SampleLevel({sampler}, {coord}, {lod})'
+            elif ins.lod_bias:
+                e = f'{tex}.SampleBias({sampler}, {coord}, {_f(ins.lod_bias)})'
             else:
-                e = f'{tex}.Sample(sampler1, {coord})'
+                e = f'{tex}.Sample({sampler}, {coord})'
         elif name == SHADOW or (ins.mag_filter == 'point' and ins.min_filter == 'point'):
             # point taps: exact texel loads (the shadow map is a depth texture: raw depth), the texel clamped to the
             # texture as the Xbox's clamp addressing does - Load reads 0 outside it, which drew a shadow-map edge
             # fully shadowed (the differential test, xdiff.py: 330 of 815 pixel shaders differed only there)
-            e = (f'{tex}.Load(int3(clamp(floor({src} * tdim({tex}) + float2({_f(off[0])}, {_f(off[1])})), '
-                 f'0.0, tdim({tex}) - 1.0), 0))')
+            if explicit_lod:
+                dim = f'fetchDim{ins.address}'
+                self.w(f'float3 {dim} = tsizeLod({tex}, {lod});')
+                e = (f'{tex}.Load(int3(clamp(floor({src} * {dim}.xy + float2({_f(off[0])}, {_f(off[1])})), '
+                     f'0.0, {dim}.xy - 1.0), {dim}.z))')
+            else:
+                e = (f'{tex}.Load(int3(clamp(floor({src} * tdim({tex}) + float2({_f(off[0])}, {_f(off[1])})), '
+                     f'0.0, tdim({tex}) - 1.0), 0))')
         else:
             coord = src
             if off != (0.0, 0.0):
                 coord = f'({src} + float2({_f(off[0])}, {_f(off[1])}) / tdim({tex}))'
-            if ins.use_register_lod:
-                e = f'{tex}.SampleLevel(sampler1, {coord}, texLod)'
+            if explicit_lod:
+                e = f'{tex}.SampleLevel({sampler}, {coord}, {lod})'
             elif ins.lod_bias:
-                e = f'{tex}.SampleBias(sampler1, {coord}, {_f(ins.lod_bias)})'
+                e = f'{tex}.SampleBias({sampler}, {coord}, {_f(ins.lod_bias)})'
             else:
-                e = f'{tex}.Sample(sampler1, {coord})'
+                e = f'{tex}.Sample({sampler}, {coord})'
         fix = self.iface.sampler_fix.get(reg)
         if fix and '{}' in fix:                    # a wrapping expression, e.g. 'xsrgb({})'
             e = fix.format(e)
@@ -542,7 +573,10 @@ class _Emitter:
                     self.globals_.append(f'float4 {need}[4];')
         out += self.globals_
         out += self.statics + self.textures
-        out.append('SamplerState sampler1 : register(s1);')
+        for slot in sorted({1} | set(self.iface.sampler_registers.values())):
+            if not 0 <= slot < 16:
+                raise TranslateError('Sampler register outside the PC range')
+            out.append(f'SamplerState sampler{slot} : register(s{slot});')
         inter = iface.interpolators
         out.append('struct V2P {')
         out.append('    float4 pos : SV_Position;')
@@ -606,6 +640,14 @@ class _Emitter:
 
 
 HELPERS = r'''
+float3 tsizeLod(Texture2D t, float lod) {
+    uint w, h, n;
+    t.GetDimensions(0, w, h, n);
+    uint m = (uint)clamp(floor(lod + 0.5), 0.0, float(n - 1));
+    t.GetDimensions(m, w, h, n);
+    return float3(w, h, m);
+}
+
 float4 xcube(float3 d) {
     float3 a = abs(d);
     if (a.z >= a.x && a.z >= a.y) return float4(-d.y, d.z < 0.0 ? -d.x : d.x, 2.0 * d.z, d.z < 0.0 ? 5.0 : 4.0);
@@ -625,6 +667,14 @@ float xrcpf(float a) { float t = xrcp(a); return isinf(t) ? (t < 0.0 ? -0.0 : 0.
 float xrsq(float a) { return a == 1.0 ? 1.0 : rsqrt(a); }
 float xrsqc(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -3.402823466e+38 : 3.402823466e+38) : t; }
 float xrsqf(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -0.0 : 0.0) : t; }
+// Native BFBC2 PC object shaders pack near/middle/far cascades into top-left,
+// top-right and bottom-left quadrants, with a 255/256 guard scale.
+float2 xshadowuv(float3 consoleCoord) {
+    float cascade = clamp(floor(consoleCoord.z * 3.0), 0.0, 2.0);
+    float2 tile = cascade < 0.5 ? float2(0.0, 0.0) :
+                  (cascade < 1.5 ? float2(0.5, 0.0) : float2(0.0, 0.5));
+    return (consoleCoord.xy - 0.5) * (0.5 * (255.0 / 256.0)) + 0.25 + tile;
+}
 float2 tdim(Texture2D t) { uint w, h; t.GetDimensions(w, h); return float2(w, h); }
 float3 xcubefetch(float3 c) {
     // tfetchCube's (s, t, face) - s, t in 1..2 from the cube op's sequence - as a direction (Direct3D's face

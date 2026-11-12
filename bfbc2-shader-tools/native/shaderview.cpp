@@ -36,6 +36,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <string>
 #include <vector>
 #include <map>
@@ -254,7 +255,7 @@ int main(int argc, char **argv) {
         if (cmd.empty() || cmd[0] == '#') continue;
         if (cmd == "frame") {
             float c[4] = {0, 0, 0, 1};
-            s >> out >> W >> H >> c[0] >> c[1] >> c[2];
+            s >> std::quoted(out) >> W >> H >> c[0] >> c[1] >> c[2];
             if (!(s >> c[3])) c[3] = 1;
             D3D11_TEXTURE2D_DESC td = {W, H, 1, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, {1, 0}, D3D11_USAGE_DEFAULT,
                                        D3D11_BIND_RENDER_TARGET};
@@ -269,20 +270,20 @@ int main(int argc, char **argv) {
         } else if (cmd == "blend") { int on = 0; s >> on; blending = on != 0; }
         else if (cmd == "count") { int on = 0; s >> on; counting = on != 0; }
         else if (cmd == "depth") { int on = 0; s >> on; wantDepth = on != 0; }
-        else if (cmd == "vs") { std::string p; s >> p; vsc = load(p); els.clear(); texs.clear(); samps.clear(); }
-        else if (cmd == "ps") { std::string p; s >> p; psc = load(p); }
+        else if (cmd == "vs") { std::string p; s >> std::quoted(p); vsc = load(p); els.clear(); texs.clear(); samps.clear(); }
+        else if (cmd == "ps") { std::string p; s >> std::quoted(p); psc = load(p); }
         else if (cmd == "el") {
             UINT si, fmt, slot, off, inst; s >> si >> fmt >> slot >> off >> inst;
             els.push_back({"TEXCOORD", si, (DXGI_FORMAT)fmt, slot, off,
                            inst ? D3D11_INPUT_PER_INSTANCE_DATA : D3D11_INPUT_PER_VERTEX_DATA, inst});
-        } else if (cmd == "vb") { std::string p; s >> p >> vbOff >> stride; vbd = load(p); }
-        else if (cmd == "ib") { std::string p; s >> p >> ibOff >> ibBits >> count >> first; ibd = load(p); }
-        else if (cmd == "cb") { std::string w, p; s >> w >> p; (w == "vs" ? cbv : cbp) = load(p); }
+        } else if (cmd == "vb") { std::string p; s >> std::quoted(p) >> vbOff >> stride; vbd = load(p); }
+        else if (cmd == "ib") { std::string p; s >> std::quoted(p) >> ibOff >> ibBits >> count >> first; ibd = load(p); }
+        else if (cmd == "cb") { std::string w, p; s >> w >> std::quoted(p); (w == "vs" ? cbv : cbp) = load(p); }
         else if (cmd == "tex" || cmd == "texres") {
             int slot; std::string kind, p;
             s >> slot;
             if (cmd == "tex") s >> kind;
-            s >> p;
+            s >> std::quoted(p);
             std::string key = cmd + kind + p;
             if (!texCache.count(key)) texCache[key] = cmd == "tex" ? texture(p, kind == "cube") : texture_res(p);
             texs[slot] = texCache[key];
@@ -317,6 +318,7 @@ int main(int argc, char **argv) {
             ctx->PSSetSamplers(0, 16, ss); ctx->VSSetSamplers(0, 16, ss);
             ID3D11ShaderResourceView *srv[32] = {shadow};
             for (auto &kv : texs) if (kv.first >= 0 && kv.first < 32) srv[kv.first] = kv.second;   // tex 0 replaces the shadow map
+            ctx->VSSetShaderResources(0, 32, srv);
             ctx->PSSetShaderResources(0, 32, srv);
             if (counting) {
                 ID3D11Query *q[2];

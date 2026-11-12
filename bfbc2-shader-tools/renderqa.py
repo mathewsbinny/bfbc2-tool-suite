@@ -653,6 +653,11 @@ def shaderview(build: bool = True) -> str:
     raise RenderQaError('shaderview.exe not built: run bfbc2-shader-tools\\native\\build.bat')
 
 
+def job_path(path: str) -> str:
+    """Quote a path for shaderview's std::quoted parser (including Windows backslashes)."""
+    return '"' + path.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
 def run_job(job: str, warp: bool = False) -> tuple[list[str], bool]:
     """Run a shaderview job at below-normal priority: (its output lines, whether WARP was used). The GPU first;
     the software rasterizer when the GPU device fails (a busy or lost device)."""
@@ -718,18 +723,18 @@ def _render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: 
                     cameraPos=(*eye, 0.0), invScreenSize=(1 / size, 1 / size, 0.0, 0.0))
         out = os.path.join(tmp, f'{view}.raw')
         outs[view] = out
-        lines += [f'frame {out} {size} {size} 0 0 0 0', 'depth 1', f'count {1 if vi == 0 else 0}']
+        lines += [f'frame {job_path(out)} {size} {size} 0 0 0 0', 'depth 1', f'count {1 if vi == 0 else 0}']
         for k, d in enumerate(prep.draws):
             vals = dict(base, **bone_values(d))
             cv, cp = os.path.join(tmp, f'cv{k}_{vi}.bin'), os.path.join(tmp, f'cp{k}_{vi}.bin')
             open(cv, 'wb').write(cbuffer(d.vs, vals, d.material))
             open(cp, 'wb').write(cbuffer(d.ps, vals, d.material))
-            lines += [f'vs {os.path.join(tmp, f"v{k}.dxbc")}', f'ps {os.path.join(tmp, f"p{k}.dxbc")}']
+            lines += [f'vs {job_path(os.path.join(tmp, f"v{k}.dxbc"))}', f'ps {job_path(os.path.join(tmp, f"p{k}.dxbc"))}']
             lines += [f'el {si} {fmt} {slot} {off} {inst}' for si, fmt, slot, off, inst in d.elements]
-            lines += [f'vb {vb} {d.vertex_offset} {d.stride}',
-                      f'ib {ib} 0 {32 if prep.wide else 16} {d.indices} {d.first}', f'cb vs {cv}', f'cb ps {cp}']
+            lines += [f'vb {job_path(vb)} {d.vertex_offset} {d.stride}',
+                      f'ib {job_path(ib)} 0 {32 if prep.wide else 16} {d.indices} {d.first}', f'cb vs {job_path(cv)}', f'cb ps {job_path(cp)}']
             lines += [f'samp {reg} {desc.hex()}' for reg, desc in d.samplers if reg < 16]
-            lines += [f'texres {slot} {texfiles[tn]}' for slot, tn in d.textures if tn in texfiles]
+            lines += [f'texres {slot} {job_path(texfiles[tn])}' for slot, tn in d.textures if tn in texfiles]
             lines.append('draw')
         lines.append('end')
     job = os.path.join(tmp, 'job.txt')
