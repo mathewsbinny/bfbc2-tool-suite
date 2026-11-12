@@ -55,8 +55,13 @@ class Interface:
                  colour_scale: float = 1.0, instanced: bool = False, bones_as_world: bool = False,
                  material_regs: dict[int, Sequence[float]] | None = None, pc_shadow_atlas: bool = False,
                  sampler_registers: dict[int, int] | None = None, named_vs: dict[int, str] | None = None,
-                 named_ps: dict[int, str] | None = None) -> None:
+                 named_ps: dict[int, str] | None = None, fetch_registers: dict[int, int] | None = None) -> None:
         self.sampler_registers = sampler_registers or {}
+        # texture fetch constant -> the constant table's sampler register, where they differ: a vertex shader's
+        # samplers are fetched from other fetch constants than its table's s<n> (BF1943's terrain patch vertex shaders
+        # fetch the height map, the table's sampler_heightmap s0, from tf22 - the register its block's engine texture
+        # record names)
+        self.fetch_registers = fetch_registers or {}
         # register -> name of a block constant the engine writes at draw time (pcbuild.ENGINE_NAMED: the terrain's
         # heightmapScaleAndOffsetXZ, dynamicMaskAtlasParams ...), per stage (each shader has its own 'constants'
         # array): declared in $Globals under its name, after the engine's own constants, instead of baked in as the
@@ -424,7 +429,7 @@ class _Emitter:
             return
         if not ins.has_dest:
             return
-        reg = ins.const_index
+        reg = self.iface.fetch_registers.get(ins.const_index, ins.const_index)
         if reg not in self.samplers:
             raise TranslateError(f'fetch from tf{reg}: no sampler s{reg} in the constant table')
         tex, typ, name = self.samplers[reg]

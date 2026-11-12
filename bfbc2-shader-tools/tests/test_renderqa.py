@@ -467,6 +467,145 @@ def strips(c: Checks) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ------------------------------------------------------------------------------------------------ terrain patches
+
+# DICE's patch vertex shaders, cut down: the grid point (int2) placed by posScale / posOffset / heightmapTexCoord-
+# ScaleAndOffset read inside 'constants' at the registers its own block's records name, the height map read at the grid
+# point; NAMED: a translated one reading them by name (where its block has no records for them, it reads 0)
+PATCH_VS = """
+float4x4 viewProjMatrix;
+#ifdef NAMED
+float4 posScale; float4 posOffset; float4 heightmapTexCoordScaleAndOffset;
+#define PS_ posScale
+#define PO_ posOffset
+#define HT_ heightmapTexCoordScaleAndOffset
+#else
+float4 constants[3];
+#define PS_ constants[0]
+#define PO_ constants[1]
+#define HT_ constants[2]
+#endif
+SamplerState sampler0 : register(s0);
+Texture2D texture_heightmap : register(t0);
+struct VI { int2 grid : TEXCOORD0; float4 mask : TEXCOORD1; };
+struct VO { float4 pos : SV_Position; float4 mask : TEXCOORD0; };
+VO main(VI i) {
+    VO o;
+    float3 g = float3(i.grid.x, 0.0, i.grid.y);
+    g.y = texture_heightmap.SampleLevel(sampler0, g.xz * HT_.xy + HT_.zw, 0).x;
+    float3 p = g * PS_.xyz + PO_.xyz;
+    o.pos = mul(float4(p, 1), viewProjMatrix); o.mask = i.mask; return o;
+}
+"""
+PATCH_PS = """
+SamplerState sampler1 : register(s1);
+Texture2D texture_Texture : register(t1);
+Texture2D texture_maskTileMap : register(t2);
+float4 main(float4 pos : SV_Position, float4 mask : TEXCOORD0) : SV_Target {
+    return texture_Texture.Sample(sampler1, mask.xy) * (0.5 + texture_maskTileMap.Sample(sampler1, mask.zw).x);
+}
+"""
+PATCH_NAMES = ('posScale', 'posOffset', 'heightmapTexCoordScaleAndOffset')
+
+
+def patch_db(variants: dict[str, dict[str, Any]]) -> S.ShaderDb:
+    """A Dx11 database: an entry per variant ('Terrains/Test/Test/PatchMaskShaders/<variant>') with one main-pass
+    program for the patch layout (R.PATCH_LAYOUT; 'layout': another one); its vertex shader's own block names the
+    patch constants (at DICE's 'constants' registers, or for 'named' at the compiled ones - none when 'unrecorded')
+    and the height map, the program block the variant's 'texture' and the mask atlas."""
+    db = S.ShaderDb(11)
+    db.version, db.flag = 120, 0
+    els = [(0, 0, 38, 0, False), (1, 0, 13, 1, False)]
+    db.params = [block(samplers=[(1, sampler_desc())], nregs=1)]
+    db.bindings = [struct.pack('<HH', 0, 0)]
+    db.regs = [struct.pack('<I', 0)]
+    ps = P.compile_hlsl(PATCH_PS, 'main', 'ps_5_0')
+    db.ps = [S.Shader(hashlib.md5(b'patch ps').digest(), ps, 0, 0, 0)]
+    db.layouts = [R.PATCH_LAYOUT + layout_body(), hashlib.md5(b'other').digest() + layout_body()]
+    point =struct.pack('<4IfII4f2f', 0, 3, 3, 1, 0.0, 1, 1, 0, 0, 0, 0, 0.0, 3.4e38)
+    for i, (name, v) in enumerate(sorted(variants.items())):
+        named = v.get('named') or v.get('unrecorded')
+        vs = P.compile_hlsl(PATCH_VS, 'main', 'vs_5_0', {'NAMED': 1} if named else None)
+        if v.get('unrecorded'):
+            recs = []
+        elif named:
+            recs = P.named_registers(vs, {n: (4, (0.0,) * 4) for n in PATCH_NAMES})
+        else:
+            recs = [(n, 4 + k, 4, (0.0,) * 4) for k, n in enumerate(PATCH_NAMES)]
+        db.params.append(P.param_block([], recs, [('heightmap', 0)], struct.pack('<I', 0) + point + bytes(4), 1, 7, 4))
+        db.vs.append(S.Shader(hashlib.md5(b'vs' + name.encode()).digest(), vs, len(db.params) - 1, 0, 0,
+                              P.dx11_layout(vs, els)))
+        db.params.append(P.param_block([(1, 0, v['texture'])], [], [('maskTileMap', 2)], b'', 0, 0, 0))
+        entry = f'Terrains/Test/Test/PatchMaskShaders/{name}'
+        g = db.name_guid(entry)
+        db.entries.append((entry, g))
+        prog = hashlib.md5(b'program' + name.encode()).digest()
+        db.programs.append(prog + bytes(16) + struct.pack('<4I', i, 0, 0, len(db.params) - 1))
+        lg = hashlib.md5(b'other').digest() if v.get('layout') else R.PATCH_LAYOUT
+        db.keys.append(g + bytes(16) + lg + bytes(0x28))
+        db.groups.append((g, [i]))
+    order = sorted(range(len(db.programs)), key=lambda k: db.programs[k])
+    db.programs = [db.programs[k] for k in order]
+    db.keys = [db.keys[k] for k in order]
+    db.groups = sorted([(g, [order.index(ix[0])]) for g, ix in db.groups])
+    return S.ShaderDb.parse(db.to_bytes(), 10)
+
+
+def patches(c: Checks) -> None:
+    vb, ib = R.patch_grid(4)
+    v = np.frombuffer(vb, '<i2').reshape(5, 5, 10)
+    c.check(len(vb) == 25 * R.PATCH_STRIDE and len(ib) == 16 * 6 * 4 and tuple(v[4, 2, :2]) == (2, 4)
+            and v[4, 4, 2] == 32767 and v[4, 4, 9] == 32767 and v[0, 0, 5] == 0,
+            'patch grid: int16 grid points, two sets of snorm16 atlas coordinates, 2 triangles per cell')
+    vs = P.compile_hlsl(PATCH_VS, 'main', 'vs_5_0', {'NAMED': 1})
+    vals = {'posScale': (2, 1, 2, 0), 'viewProjMatrix': np.eye(4)}
+    rec = P.named_registers(vs, {'posScale': (4, (0.0,) * 4)})
+    cb = np.frombuffer(R.patch_cbuffer(vs, vals, rec), np.float32)
+    cb0 = np.frombuffer(R.patch_cbuffer(vs, vals, []), np.float32)
+    r = rec[0][1]
+    c.check(np.allclose(cb[r * 4:r * 4 + 4], (2, 1, 2, 0)) and not cb0[r * 4:r * 4 + 4].any(),
+            'patch constants: written where a record names them, never by name alone (as the engine)')
+    c.check(R._unrecorded(vs, ['posScale']) == ['heightmapTexCoordScaleAndOffset', 'posOffset'],
+            'patch constants: those a shader reads by name with no record are found')
+    blk = P.own_block(block(samplers=[(0, sampler_desc(3))]), 5, [], 2, engine_textures=[('heightmap', 0)])
+    c.check(S.block_engine_textures(blk) == [('heightmap', 0)] and R.sampler_states(blk)[0][0] == 0
+            and blk[0x18:0x1a] == b'\x05\x02', 'own block: engine textures recorded, the donor\'s sampler kept')
+    try:
+        R.shaderview()
+    except R.RenderQaError as e:
+        print(f'skip: drawing patches (shaderview.exe: {e})')
+        return
+    tmp = tempfile.mkdtemp(prefix='renderqa patches ')
+    try:
+        fs = mesh_files('x')
+        files = R.Files(None, [stage(os.path.join(tmp, 'stage'), {
+            'Terrains/Test/Textures/Ground_C.res': fs[TEX + '.res'],
+            'Terrains/Other/Textures/Ground_C.res': fs[TEX + '.res']})])
+        db = patch_db({'Dice': {'texture': 'Terrains/Test/Textures/Ground_C'},
+                       'Named': {'texture': 'Terrains/Test/Textures/Ground_C', 'named': True},
+                       'Unrecorded': {'texture': 'Terrains/Test/Textures/Ground_C', 'unrecorded': True},
+                       'Foreign': {'texture': 'Terrains/Other/Textures/Ground_C'},
+                       'Layout': {'texture': 'Terrains/Test/Textures/Ground_C', 'layout': True}})
+        c.check(not db.check(), 'patch database passes shaderdb\'s checks', '; '.join(db.check()))
+        s = R.Settings(os.path.join(tmp, 'out'), 64, log=lambda x: None)
+        recs = {r['entry'].rsplit('/', 1)[1]: r for r in R.run_patches(files, db, s, 'built')}
+        for n in ('Dice', 'Named'):
+            good = recs[n]
+            c.check(not good['fail'] and good.get('pixels', {}).get('top', 0) > 100 and max(good['excess']['top']) < 0.1,
+                    f'patches: {n} - the grid placed by its block\'s records, drawn on the patch: passes',
+                    str(good.get('notes')))
+        bad = set(recs['Unrecorded']['fail'])
+        c.check('engine-unrecorded' in bad and bad & {'out-of-bounds', 'nothing-drawn'},
+                'patches: constants read by name with no record (read 0: the grid at the origin) fail',
+                str(recs['Unrecorded'].get('notes')))
+        c.check(recs['Foreign']['fail'] == ['foreign-texture'], 'patches: another level\'s texture: foreign-texture',
+                str(recs['Foreign'].get('notes')))
+        c.check(recs['Layout']['fail'] == ['no-program'], 'patches: no program for the patch layout: no-program',
+                str(recs['Layout'].get('notes')))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def cli(c: Checks) -> None:
     tmp = tempfile.mkdtemp(prefix='renderqa_cli_')
     try:
@@ -513,6 +652,7 @@ def main(argv: list[str]) -> int:
     checks(c)
     built(c)
     strips(c)
+    patches(c)
     cli(c)
     if '--game' in argv:
         game(c)
