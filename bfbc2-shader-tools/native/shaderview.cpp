@@ -20,6 +20,9 @@
 //                                         header's type is 1)
 //   samp <slot> <104 hex digits>         (a D3D11_SAMPLER_DESC, 52 bytes, for sampler register s<slot> - a shader
 //                                         parameter block's sampler-state record after its u32 register)
+//   vtex <slot> <2d|cube> <file> | vsamp <slot> <hex>   (the vertex shader's own texture / sampler at that slot; a
+//                                         slot not given one sees the pixel shader's: a terrain patch's vertex shader
+//                                         reads the height map from t0 / s0, where its pixel shader has the shadow map)
 //   draw
 // "blend 1" draws the next draws alpha blended (source alpha, inverse source alpha; depth tested, not written) until
 // "blend 0" (a frame starts opaque).
@@ -244,8 +247,8 @@ int main(int argc, char **argv) {
     std::vector<D3D11_INPUT_ELEMENT_DESC> els;
     UINT vbOff = 0, stride = 0, ibOff = 0, ibBits = 16, count = 0, first = 0;
     std::vector<char> cbv, cbp;
-    std::map<int, ID3D11ShaderResourceView *> texs;
-    std::map<int, ID3D11SamplerState *> samps;
+    std::map<int, ID3D11ShaderResourceView *> texs, vtexs;      // vtex / vsamp: the vertex shader's own (else as ps)
+    std::map<int, ID3D11SamplerState *> samps, vsamps;
     std::map<std::string, ID3D11ShaderResourceView *> texCache;
     std::map<std::string, ID3D11SamplerState *> sampCache;
     int draws = 0;
@@ -270,7 +273,10 @@ int main(int argc, char **argv) {
         } else if (cmd == "blend") { int on = 0; s >> on; blending = on != 0; }
         else if (cmd == "count") { int on = 0; s >> on; counting = on != 0; }
         else if (cmd == "depth") { int on = 0; s >> on; wantDepth = on != 0; }
-        else if (cmd == "vs") { std::string p; s >> std::quoted(p); vsc = load(p); els.clear(); texs.clear(); samps.clear(); }
+        else if (cmd == "vs") {
+            std::string p; s >> std::quoted(p); vsc = load(p);
+            els.clear(); texs.clear(); samps.clear(); vtexs.clear(); vsamps.clear();
+        }
         else if (cmd == "ps") { std::string p; s >> std::quoted(p); psc = load(p); }
         else if (cmd == "el") {
             UINT si, fmt, slot, off, inst; s >> si >> fmt >> slot >> off >> inst;
@@ -279,22 +285,22 @@ int main(int argc, char **argv) {
         } else if (cmd == "vb") { std::string p; s >> std::quoted(p) >> vbOff >> stride; vbd = load(p); }
         else if (cmd == "ib") { std::string p; s >> std::quoted(p) >> ibOff >> ibBits >> count >> first; ibd = load(p); }
         else if (cmd == "cb") { std::string w, p; s >> w >> std::quoted(p); (w == "vs" ? cbv : cbp) = load(p); }
-        else if (cmd == "tex" || cmd == "texres") {
+        else if (cmd == "tex" || cmd == "texres" || cmd == "vtex") {
             int slot; std::string kind, p;
             s >> slot;
-            if (cmd == "tex") s >> kind;
+            if (cmd != "texres") s >> kind;
             s >> std::quoted(p);
-            std::string key = cmd + kind + p;
-            if (!texCache.count(key)) texCache[key] = cmd == "tex" ? texture(p, kind == "cube") : texture_res(p);
-            texs[slot] = texCache[key];
-        } else if (cmd == "samp") {
+            std::string key = (cmd == "texres" ? cmd : std::string("tex")) + kind + p;
+            if (!texCache.count(key)) texCache[key] = cmd != "texres" ? texture(p, kind == "cube") : texture_res(p);
+            (cmd == "vtex" ? vtexs : texs)[slot] = texCache[key];
+        } else if (cmd == "samp" || cmd == "vsamp") {
             int slot; std::string hex; s >> slot >> hex;
             if (!sampCache.count(hex)) {
                 D3D11_SAMPLER_DESC desc;
                 if (!hexdesc(hex, desc)) { fprintf(stderr, "samp: bad sampler state %s\n", hex.c_str()); return 1; }
                 check(dev->CreateSamplerState(&desc, &sampCache[hex]), "CreateSamplerState");
             }
-            samps[slot] = sampCache[hex];
+            (cmd == "vsamp" ? vsamps : samps)[slot] = sampCache[hex];
         } else if (cmd == "draw") {
             ID3D11VertexShader *vs; ID3D11PixelShader *ps; ID3D11InputLayout *il;
             check(dev->CreateVertexShader(vsc.data(), vsc.size(), nullptr, &vs), "CreateVertexShader");
@@ -315,10 +321,16 @@ int main(int argc, char **argv) {
             ctx->VSSetConstantBuffers(0, 1, &cv); ctx->PSSetConstantBuffers(0, 1, &cp);
             ID3D11SamplerState *ss[16] = {samp[0], samp[1]};
             for (auto &kv : samps) if (kv.first >= 0 && kv.first < 16) ss[kv.first] = kv.second;
-            ctx->PSSetSamplers(0, 16, ss); ctx->VSSetSamplers(0, 16, ss);
+            ID3D11SamplerState *vss[16];
+            for (int k = 0; k < 16; k++) vss[k] = ss[k];
+            for (auto &kv : vsamps) if (kv.first >= 0 && kv.first < 16) vss[kv.first] = kv.second;
+            ctx->PSSetSamplers(0, 16, ss); ctx->VSSetSamplers(0, 16, vss);
             ID3D11ShaderResourceView *srv[32] = {shadow};
             for (auto &kv : texs) if (kv.first >= 0 && kv.first < 32) srv[kv.first] = kv.second;   // tex 0 replaces the shadow map
-            ctx->VSSetShaderResources(0, 32, srv);
+            ID3D11ShaderResourceView *vsrv[32];
+            for (int k = 0; k < 32; k++) vsrv[k] = srv[k];
+            for (auto &kv : vtexs) if (kv.first >= 0 && kv.first < 32) vsrv[kv.first] = kv.second;
+            ctx->VSSetShaderResources(0, 32, vsrv);
             ctx->PSSetShaderResources(0, 32, srv);
             if (counting) {
                 ID3D11Query *q[2];

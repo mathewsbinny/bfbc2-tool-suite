@@ -32,11 +32,15 @@ INDEXED = {'pointLightPos', 'pointLightColor', 'pointLightRadius', 'outdoorLight
 # program's second block: heightmapScaleAndOffsetXZ, heightmapPixelSizeAndAspect, dynamicMaskAtlasOffset /
 # AtlasParams / TileBorderParams). A translated shader must read them from its constant buffer at a register its own
 # block names: baked in as the Xbox block's placeholder they were 0 (every strip vertex at the decal offset 0, the
-# dynamic mask and height lookups at the map's corner)
+# dynamic mask and height lookups at the map's corner). The terrain patches' vertex shaders (their own block: posScale,
+# posOffset, heightmapTexCoordScaleAndOffset - DICE's and BF1943's alike, placeholders 0) place each patch's grid in
+# the world with them: baked as 0 every patch vertex lay at the origin. The other names beside them in BFBC2Game.exe's
+# terrain renderer (posScaleAndOffsetXZ, heightmapWorldOffsetXZ / ScaleXZ) are taken by name too, where a block has them
 ENGINE_NAMED = frozenset({
     'heightmapScaleAndOffsetXZ', 'heightmapDecalOffsetY', 'heightmapPixelSizeAndAspect',
-    'heightmapTexCoordScaleAndOffset', 'heightmapWorldScaleY',
+    'heightmapTexCoordScaleAndOffset', 'heightmapWorldScaleY', 'heightmapWorldOffsetXZ', 'heightmapWorldScaleXZ',
     'dynamicMaskAtlasOffset', 'dynamicMaskAtlasParams', 'dynamicMaskTileBorderParams',
+    'posScale', 'posOffset', 'posScaleAndOffsetXZ',
 })
 # Engine textures a parameter block names by parameter (no texture name; FORMAT.md section 1 'engine textures'): the
 # terrain's height map and dynamic (destruction) mask atlas
@@ -327,12 +331,15 @@ def program_block(donor: bytes, textures: Sequence[tuple[int, int, str]], nregs:
     return param_block(textures, constants, engine_textures, samp, nsamp, nregs, first)
 
 
-def own_block(donor: bytes, nregs: int, constants: Sequence[Named] | None = None, first: int | None = None) -> bytes:
+def own_block(donor: bytes, nregs: int, constants: Sequence[Named] | None = None, first: int | None = None,
+              engine_textures: Sequence[tuple[str, int]] = ()) -> bytes:
     """A shader's own parameter block: the donor's, its $Globals size set. constants (the shader's engine-named
     constants at its own registers): the block rebuilt with them in place of the donor's constant records (a DICE
     strip vertex shader's own block names heightmapScaleAndOffsetXZ / heightmapDecalOffsetY at the donor's registers,
-    not the translation's)."""
-    if constants is None:
+    not the translation's), and with engine_textures (parameter, the shader's texture slot) in place of the donor's
+    engine texture records (a terrain patch vertex shader reads the height map: DICE's block names it at the donor's
+    slot)."""
+    if constants is None and not engine_textures:
         b = bytearray(donor)
         b[0x18] = b[0x19] = min(nregs, 255)
         if first is not None:
@@ -341,7 +348,7 @@ def own_block(donor: bytes, nregs: int, constants: Sequence[Named] | None = None
     samp, nsamp = _samplers(donor)
     import shaderdb
     textures = shaderdb.block_textures(donor)
-    return param_block(textures, constants, [], samp, nsamp, nregs, first)
+    return param_block(textures, constants or [], engine_textures, samp, nsamp, nregs, first)
 
 
 def named_registers(code: bytes, wanted: Mapping[str, tuple[int, Sequence[float]]]) -> list[Named]:

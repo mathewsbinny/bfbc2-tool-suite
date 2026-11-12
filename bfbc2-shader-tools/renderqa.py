@@ -20,6 +20,14 @@ off screen) and check the pictures: a shader or texture conversion that is wrong
         vertex layout draws), no program for the layout, nothing drawn, NaN, another level's texture flagged; exit
         code 1 when a strip fails. --terrain defaults to terrains/<name>/<name>.visual.res for a level:<name> db -
         DICE's own strips with their own level's database are the harness's check (they pass)
+  python renderqa.py patches --db <db> [--stage <folder>]... [--only <text>]... [-o <folder>]
+        every terrain patch entry (PatchMaskShaders) drawn on a 16 x 16-cell patch the way the engine draws one (the
+        grid stream, the mask atlas stream; posScale / posOffset / heightmapTexCoordScaleAndOffset and the height map
+        through the vertex shader's own block records, a flat height map, every mask tile half covered), in each patch
+        layout the entry has a program for (PATCH_LAYOUT always, PATCH_LAYOUT_NO_TILES where DICE compiles it); out of
+        the patch's box, nothing drawn, black, NaN, no program, another level's texture, an engine constant or texture
+        the shader reads that no record of its block names: exit code 1. DICE's own patches with their own level's
+        database are the harness's check (they pass)
   python renderqa.py wake [-o <folder>] [--limit N] [--only <text>]
         Project OPFOR's Wake Island: every mesh wake_audit.drawn_meshes() lists (OPFOR's src\tools\ww2, imported
         read-only), drawn with the installed Wake database (work\ww2\install); meshes a BFBC2 level also draws are
@@ -1465,6 +1473,333 @@ def find_terrain(files: Files, spec: str | None, db_spec: str) -> tuple[str, byt
     return name, b
 
 
+# ------------------------------------------------------------------------------------------------ terrain patches
+
+# A terrain patch is a grid the engine makes itself, drawn with its PatchMaskShaders entry's program for one of BFBC2's
+# two patch layouts: PATCH_LAYOUT - stream 0 the grid point (R16G16_SINT), streams 1 and 2 the patch's mask atlas
+# coordinates (R16G16B16A16_SNORM; the second read by DICE's patches of five or more tiled layers) - and
+# PATCH_LAYOUT_NO_TILES, the grid point alone, which DICE compiles beside it for the patches whose layers are all drawn
+# by rule (no mask tile). The vertex shader reads the height map at each grid point and
+# places it with posScale / posOffset / heightmapTexCoordScaleAndOffset (pcbuild.ENGINE_NAMED, named in its own block
+# with the height map's engine texture record); the pixel shader reads the mask atlas (maskTileMap), the dynamic
+# (destruction) mask and the height map by the engine texture records of the program's block.
+PATCH_LAYOUT = bytes.fromhex('3d4fc700fbe098965fbf737fc00cbfac')
+PATCH_LAYOUT_NO_TILES = bytes.fromhex('52dc29a19ca95d0c5fb972227e2f7bf7')
+PATCH_LAYOUTS = (PATCH_LAYOUT, PATCH_LAYOUT_NO_TILES)
+PATCH_FORMATS = {0: 38, 1: 13, 2: 13}  # semantic index -> DXGI format of BFBC2's patch streams (DICE's vertex shaders)
+PATCH_OFFSETS = {0: 0, 1: 4, 2: 12}    # ... and its offset in the drawn grid's one interleaved 20-byte vertex
+PATCH_STRIDE = 20
+PATCH_CELLS = 16                       # the drawn patch: 16 x 16 cells of PATCH_CELL metres at PATCH_ORIGIN
+PATCH_CELL = 2.0
+PATCH_ORIGIN = (100.0, 50.0, 200.0)
+# the engine textures as flat float textures: the height map at PATCH_HEIGHT (the grid's world height is
+# PATCH_HEIGHT * posScale.y + posOffset.y), nothing destroyed, every mask tile half covered (each tiled layer drawn)
+PATCH_HEIGHT = 0.5
+PATCH_TEXTURES = {'heightmap': PATCH_HEIGHT, 'dynamicMaskTileMap': 0.0, 'dynamicMaskIndirectionMap': 0.0,
+                  'maskTileMap': 0.5}
+# a patch with one of these fails (exit 1): the strips' failures, an unlit (black) picture, an engine constant or
+# texture the shader reads that its block does not name (the engine writes only what a record names: the shader would
+# read 0 or nothing bound), a vertex input BFBC2's patch streams do not have
+PATCH_FAIL = STRIP_FAIL | {'black', 'engine-unrecorded', 'layout'}
+PATCH_SHADERS = '/patchmaskshaders/'
+
+
+def patch_entries(db: S.ShaderDb) -> list[str]:
+    """The terrain patch entries of a database (Terrains/<level>/<level>/PatchMaskShaders/<layers>), sorted."""
+    return sorted(n for n, _ in db.entries if PATCH_SHADERS in n.lower())
+
+
+def patch_values(height: float | None = None) -> dict[str, tuple[float, ...]]:
+    """The terrain renderer's named constants for the drawn patch: the grid point (x, z) to the world through posScale /
+    posOffset, to the height map through heightmapTexCoordScaleAndOffset (the patch is the whole map), the world back
+    to the height map through heightmapScaleAndOffsetXZ; the dynamic mask as for the strips (strip_values). height:
+    the patch's world height (default PATCH_ORIGIN's + PATCH_HEIGHT) - sea-floor layers shade by height (BF1943's Wake:
+    dark below its water at 215 m, DICE's Isla Inocentes below about 65 m)."""
+    x0, y0, z0 = _origin(height)
+    size = PATCH_CELLS * PATCH_CELL
+    v = strip_values((x0, z0, x0 + size, z0 + size))
+    # one height scale for both shaders, as the engine's: the vertex shader's height map sample times posScale.y and
+    # the pixel shader's times heightmapWorldScaleY (BF1943's sea floor shades by the latter: at 1 every sea-floor
+    # patch drew black, its ground at 0.5 m), the patch's world height either way
+    scale = (y0 + PATCH_HEIGHT) / PATCH_HEIGHT
+    v.update({'posScale': (PATCH_CELL, scale, PATCH_CELL, 0.0), 'posOffset': (x0, 0.0, z0, 0.0),
+              'heightmapWorldScaleY': (scale, 0.0, 0.0, 0.0),
+              'heightmapTexCoordScaleAndOffset': (1.0 / PATCH_CELLS, 1.0 / PATCH_CELLS, 0.0, 0.0)})
+    return v
+
+
+def _origin(height: float | None) -> tuple[float, float, float]:
+    x0, y0, z0 = PATCH_ORIGIN
+    return (x0, y0 if height is None else height - PATCH_HEIGHT, z0)
+
+
+def patch_bounds(height: float | None = None) -> tuple[np.ndarray, np.ndarray]:
+    x0, y0, z0 = _origin(height)
+    size = PATCH_CELLS * PATCH_CELL
+    y = y0 + PATCH_HEIGHT
+    return np.array([x0, y, z0]), np.array([x0 + size, y, z0 + size])
+
+
+def patch_grid(n: int = PATCH_CELLS) -> tuple[bytes, bytes]:
+    """(vertices, 32-bit indices) of an n x n patch, the three streams interleaved in one 20-byte vertex: the grid point
+    (two int16) at 0, the mask atlas coordinates (u, v, u, v as four snorm16, 0..1 across the patch) at 4 and 12."""
+    k = np.arange(n + 1)
+    zz, xx = np.meshgrid(k, k, indexing='ij')
+    v = np.zeros((n + 1, n + 1, PATCH_STRIDE // 2), '<i2')
+    v[..., 0], v[..., 1] = xx, zz
+    u, w = np.round(xx / n * 32767), np.round(zz / n * 32767)
+    for at in (2, 6):
+        v[..., at], v[..., at + 1], v[..., at + 2], v[..., at + 3] = u, w, u, w
+    i = (zz[:-1, :-1] * (n + 1) + xx[:-1, :-1]).ravel()
+    tri = np.stack([i, i + 1, i + n + 1, i + 1, i + n + 2, i + n + 1], 1).astype('<u4')
+    return v.tobytes(), tri.tobytes()
+
+
+def patch_cbuffer(code: bytes, values: dict[str, Any], records: Sequence[tuple[str, int, int, tuple[float, ...]]]) \
+        -> bytes:
+    """A patch shader's $Globals as the engine fills it: its engine constants by name, the block's material constants,
+    and the named terrain constants (pcbuild.ENGINE_NAMED) only where a record of its block names them - the engine
+    writes nothing else (a translated shader declaring posScale with no record naming it reads 0, as in the game)."""
+    plain = {k: v for k, v in values.items() if k not in P.ENGINE_NAMED}
+    return strip_cbuffer(code, dict(plain, **{n: values[n] for n, _, _, _ in records if n in values}), records)
+
+
+def _unrecorded(code: bytes, names: Iterable[str]) -> list[str]:
+    """The engine-named constants (pcbuild.ENGINE_NAMED) a compiled shader declares by name in $Globals that no record
+    of its blocks names (DICE's read them inside 'constants', so never by name)."""
+    have = set(names)
+    return sorted(n for n, _, _, _ in P.rdef(code)[0].get('$Globals', []) if n in P.ENGINE_NAMED and n not in have)
+
+
+def prepare_patch(files: Files, db: S.ShaderDb, entry: str, layout: bytes, own: str | None, envmap: str = ENVMAP) \
+        -> tuple[Draw | None, list[str], list[str], dict[str, Any]]:
+    """(the draw, flags, notes, extra) of one patch entry in one patch layout: its main-pass program (no point light),
+    the vertex inputs on the drawn grid, the textures the program block binds, the engine textures and samplers of
+    both shaders; extra: 'vs_named' / 'ps_named' records, 'engine' / 'vengine' (slot -> engine texture), 'vsamplers'."""
+    flags: list[str] = []
+    notes: list[str] = []
+    extra: dict[str, Any] = {'engine': {}, 'vengine': {}, 'vs_named': [], 'ps_named': [], 'textures': [],
+                             'vsamplers': []}
+    g = {n.lower(): gg for n, gg in db.entries}.get(entry.lower())
+    if g is None:
+        _flag(flags, notes, 'no-entry', f'{entry}: not in the database')
+        return None, flags, notes, extra
+    progs = [k for k in db.entry_programs().get(g, []) if db.keys[k][0x30] == 0 and db.keys[k][0x34] == 0
+             and bytes(db.keys[k][0x20:0x30]) == layout]
+    progs = [k for k in progs if db.keys[k][0x38] == 0] or progs
+    if not progs:
+        _flag(flags, notes, 'no-program', f'no main-pass program for the patch layout {layout.hex()[:8]}')
+        return None, flags, notes, extra
+    k = progs[0]
+    v, p, _, b2 = db.program_refs(k)
+    vs_s, ps_s = db.vs[v], db.ps[p]
+    vblk, blk = db.params[vs_s.param], db.params[b2]
+    extra['vs_named'] = S.block_constants(vblk)
+    extra['ps_named'] = S.block_constants(blk) + S.block_constants(db.params[ps_s.param])
+    for code, recs, stage in ((vs_s.code, extra['vs_named'], 'vs'), (ps_s.code, extra['ps_named'], 'ps')):
+        miss = _unrecorded(code, [r[0] for r in recs])
+        if miss:
+            _flag(flags, notes, 'engine-unrecorded', f'{stage} reads {", ".join(miss)}: no record of its block names them')
+    elements = []
+    for si, fmt, _slot, _off, inst in vs_elements(vs_s.tail):
+        if si not in PATCH_FORMATS or fmt != PATCH_FORMATS[si] or inst:
+            _flag(flags, notes, 'layout', f'vertex input TEXCOORD{si} (DXGI {fmt}{" per instance" if inst else ""}): '
+                                          'not one of the patch streams')
+            continue
+        elements.append((si, fmt, 0, PATCH_OFFSETS[si], 0))
+    nidx = PATCH_CELLS * PATCH_CELLS * 6
+    d = Draw(entry, entry, k, origin(vs_s, ps_s), vs_s.code, ps_s.code, elements, 0, PATCH_STRIDE, nidx, 0, 0, None,
+             extra['ps_named'], [], sampler_states(db.params[ps_s.param]))
+    extra['vsamplers'] = sampler_states(vblk)
+    vengine = {s_: n for n, s_ in S.block_engine_textures(vblk)}
+    for name, typ, bp, _dim in resources(vs_s.code):
+        if typ != 2:
+            continue
+        if bp in vengine:
+            extra['vengine'][bp] = vengine[bp]
+        elif name.startswith('texture_') and name[len('texture_'):] in P.ENGINE_TEXTURES:
+            _flag(flags, notes, 'engine-unrecorded', f'vs t{bp} ({name}): no engine texture record of its block')
+        else:
+            _flag(flags, notes, 'bound-empty', f'vs t{bp} ({name}) has no texture')
+    records = {s_: (c, n) for s_, c, n in P.block_texture_list(blk)}
+    engine = {s_: n for n, s_ in S.block_engine_textures(blk)}
+    for name, typ, bp, dim in resources(ps_s.code):
+        if typ != 2:
+            continue
+        if bp in records:
+            tn = records[bp][1]
+        elif name == 'texture_outdoorLightReflectionEnvmap':
+            tn = envmap
+        elif bp in engine:
+            extra['engine'][bp] = engine[bp]
+            continue
+        elif name.startswith('texture_') and name[len('texture_'):] in P.ENGINE_TEXTURES:
+            _flag(flags, notes, 'engine-unrecorded', f'ps t{bp} ({name}): no engine texture record of its block')
+            continue
+        else:
+            if name.startswith('texture_Texture'):
+                _flag(flags, notes, 'bound-empty', f't{bp} ({name}) has no texture')
+            continue
+        extra['textures'].append(tn)
+        folder = terrain_folder(tn)
+        if own and folder and folder != own:
+            _flag(flags, notes, 'foreign-texture', f't{bp} {tn}: another level\'s texture')
+        b = files.read(tn + '.res')
+        why = texture_problem(b) if b is not None else 'not found'
+        if why or b is None:
+            if tn != envmap:
+                _flag(flags, notes, 'missing-texture' if b is None else 'bad-texture', f't{bp} {tn}: {why}')
+            continue
+        cube = struct.unpack_from('<I', b, 4)[0] == 1
+        if cube != (dim == 9):
+            _flag(flags, notes, 'dimension', f't{bp} {name}: {tn} {"is" if cube else "is not"} a cube')
+            continue
+        d.textures.append((bp, tn))
+    return d, flags, notes, extra
+
+
+def run_patches(files: Files, db: S.ShaderDb, s: Settings, label: str, only: Sequence[str] = (),
+                limit: int = 0, height: float | None = None) -> list[dict[str, Any]]:
+    """Every terrain patch entry of a database drawn on a 16 x 16-cell patch (patch_grid, patch_values) in each patch
+    layout it has a program for, from above and at three-quarters; each covered pixel's depth taken back to the world
+    and held against the patch's own box (a vertex shader reading posScale / posOffset / the height map where its block
+    does not name them draws the grid at the origin: 'out-of-bounds' or 'nothing-drawn'). No program for PATCH_LAYOUT,
+    an unlit picture, another level's texture, an engine input no record names are failures too. height: the patch's
+    world height (patch_values)."""
+    values, post, wl = _light(files, s)
+    values = dict(values, **patch_values(height))
+    entries = [e for e in patch_entries(db) if not only or any(o.lower() in e.lower() for o in only)]
+    if limit:
+        entries = entries[:limit]
+    lo, hi = patch_bounds(height)
+    progs = db.entry_programs()
+    ents = {n: g for n, g in db.entries}
+    os.makedirs(s.out, exist_ok=True)
+    tmp = tempfile.mkdtemp(prefix='renderqa_patches_', dir=s.out)
+    records, rows = [], []
+    try:
+        engine_files = {n: _flat_texture(os.path.join(tmp, f'e_{n}.bin'), v) for n, v in PATCH_TEXTURES.items()}
+        vbf, ibf = os.path.join(tmp, 'patch.vb'), os.path.join(tmp, 'patch.ib')
+        vb, ib = patch_grid()
+        open(vbf, 'wb').write(vb)
+        open(ibf, 'wb').write(ib)
+        todo = []
+        for e in entries:
+            have = {bytes(db.keys[k][0x20:0x30]) for k in progs.get(ents[e], [])}
+            own = terrain_folder(e)
+            for lg in PATCH_LAYOUTS:
+                if lg == PATCH_LAYOUT or lg in have:
+                    todo.append((e, lg, own))
+        texfiles: dict[str, str] = {}
+        lines: list[str] = []
+        jobs = []
+        for n, (e, lg, own) in enumerate(todo):
+            tag = 'tiles' if lg == PATCH_LAYOUT else 'no tiles'
+            rec: dict[str, Any] = {'mesh': f'{e} [{tag}]', 'entry': e, 'layout': lg.hex(), 'flags': [], 'notes': [],
+                                   'bounds': [list(map(float, lo)), list(map(float, hi))]}
+            records.append(rec)
+            d, fl, nt, extra = prepare_patch(files, db, e, lg, own, s.envmap)
+            rec['flags'] += fl
+            rec['notes'] += nt
+            rec['textures'] = extra['textures']
+            if d is None or 'layout' in rec['flags']:          # (an input the grid lacks: no input layout to draw)
+                continue
+            rec['origin'] = d.origin
+            rec['program'] = d.program
+            for _, tn in d.textures:
+                if tn not in texfiles:
+                    texfiles[tn] = os.path.join(tmp, f't{len(texfiles)}.res')
+                    open(texfiles[tn], 'wb').write(files.read(tn + '.res') or b'')
+            vf, pf = os.path.join(tmp, f'p{n}v.dxbc'), os.path.join(tmp, f'p{n}p.dxbc')
+            open(vf, 'wb').write(d.vs)
+            open(pf, 'wb').write(d.ps)
+            for vi, (view, az, el) in enumerate(STRIP_VIEWS):
+                eye, vmat, vp = camera(lo, hi, az, el)
+                vals = dict(values, viewProjMatrix=vp, worldViewProjMatrix=vp, worldMatrix=np.eye(4), viewMatrix=vmat,
+                            cameraPos=(*eye, 0.0), invScreenSize=(1 / s.size, 1 / s.size, 0.0, 0.0))
+                out = os.path.join(tmp, f's{n}_{vi}.raw')
+                cv, cp = os.path.join(tmp, f'cv{n}_{vi}.bin'), os.path.join(tmp, f'cp{n}_{vi}.bin')
+                open(cv, 'wb').write(patch_cbuffer(d.vs, vals, extra['vs_named']))
+                open(cp, 'wb').write(patch_cbuffer(d.ps, vals, extra['ps_named']))
+                lines += [f'frame {job_path(out)} {s.size} {s.size} 0 0 0 0', 'depth 1', f'count {1 if vi == 0 else 0}',
+                          f'vs {job_path(vf)}', f'ps {job_path(pf)}']
+                lines += [f'el {si} {fmt} {slot} {off} {inst}' for si, fmt, slot, off, inst in d.elements]
+                lines += [f'vb {job_path(vbf)} 0 {PATCH_STRIDE}', f'ib {job_path(ibf)} 0 32 {d.indices} 0',
+                          f'cb vs {job_path(cv)}', f'cb ps {job_path(cp)}']
+                lines += [f'samp {reg} {desc.hex()}' for reg, desc in d.samplers if reg < 16]
+                lines += [f'vsamp {reg} {desc.hex()}' for reg, desc in extra['vsamplers'] if reg < 16]
+                lines += [f'texres {slot} {job_path(texfiles[tn])}' for slot, tn in d.textures]
+                lines += [f'tex {slot} 2d {job_path(engine_files.get(nm, engine_files["heightmap"]))}'
+                          for slot, nm in extra['engine'].items()]
+                lines += [f'vtex {slot} 2d {job_path(engine_files.get(nm, engine_files["heightmap"]))}'
+                          for slot, nm in extra['vengine'].items()]
+                lines += ['draw', 'end']
+                jobs.append((n, view, out, vp))
+        output: list[str] = []
+        if lines:
+            job = os.path.join(tmp, 'job.txt')
+            open(job, 'w').write('\n'.join(lines) + '\n')
+            try:
+                output, _ = run_job(job, s.warp)
+            except RenderQaError as e:
+                for rec in records:
+                    if 'origin' in rec:
+                        _flag(rec['flags'], rec['notes'], 'render-failed', str(e))
+        counts = [tuple(int(x) for x in ln.split()[2:]) for ln in output if ln.startswith('count ')]
+        drawn = [n for n in range(len(todo)) if 'origin' in records[n]]
+        for n, c in zip(drawn, counts):
+            records[n]['coverage'] = {'shaded': c[0], 'covered': c[1]}
+            if c[1] and not c[0]:
+                _flag(records[n]['flags'], records[n]['notes'], 'alpha-discards-all', 'every pixel discarded')
+        views: dict[int, dict[str, np.ndarray]] = {}
+        tol = 0.5 + 0.02 * float(np.max(hi - lo))
+        for n, view, out, vp in jobs:
+            rec = records[n]
+            if not os.path.isfile(out):
+                continue
+            raw = np.fromfile(out, '<f4').reshape(s.size, s.size, 4)
+            depth = np.fromfile(out + '.depth', '<f4').reshape(s.size, s.size)
+            mask = depth < 1.0
+            hdr = raw[..., :3]
+            if (~np.isfinite(hdr[mask])).any():
+                _flag(rec['flags'], rec['notes'], 'nan', f'{view}: NaN / inf output')
+            ldr, _ = tonemap(np.nan_to_num(hdr), mask, post)
+            views.setdefault(n, {})[view] = np.where(mask[..., None], ldr, np.array(BACKGROUND, np.float32))
+            if not mask.any():
+                continue
+            if view == 'top':
+                rec['mean_rgb'] = [float(x) for x in np.nan_to_num(hdr[mask]).mean(0)]
+            if float(np.nan_to_num(hdr[mask]).max()) <= 1e-4:
+                _flag(rec['flags'], rec['notes'], 'black', f'{view}: every covered pixel black')
+            yy, xx = np.nonzero(mask)
+            ndc = np.stack([(xx + 0.5) / s.size * 2 - 1, 1 - (yy + 0.5) / s.size * 2, depth[mask],
+                            np.ones(len(xx))], 1)
+            world = ndc @ np.linalg.inv(vp).T
+            world = world[:, :3] / world[:, 3:4]
+            excess = np.maximum(np.maximum(lo - world, world - hi), 0.0).max(0)
+            rec.setdefault('excess', {})[view] = [float(x) for x in excess]
+            rec.setdefault('pixels', {})[view] = int(mask.sum())
+            if excess.max() > tol:
+                _flag(rec['flags'], rec['notes'], 'out-of-bounds',
+                      f'{view}: drawn up to {excess.max():.1f} m outside the patch (y {excess[1]:.1f} m; '
+                      f'tolerance {tol:.1f} m)')
+        for n, rec in enumerate(records):
+            if 'origin' in rec and not rec.get('pixels') and 'render-failed' not in rec['flags']:
+                _flag(rec['flags'], rec['notes'], 'nothing-drawn', 'no pixel covered in any view')
+            rec['severity'] = severity(rec['flags'])
+            rec['fail'] = sorted(set(rec['flags']) & PATCH_FAIL)
+            tiles = [views.get(n, {}).get(v, _blank(s.size)) for v, _, _ in STRIP_VIEWS]
+            rows.append((rec['severity'], f'{rec["mesh"].rsplit("/", 1)[-1]} [{rec.get("origin", "")}]\n'
+                         f'{" ".join(rec["flags"]) or "ok"}', tiles))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    _write(s, 'patches', records, rows, [v for v, _, _ in STRIP_VIEWS],
+           {'database': label, 'weather': wl, 'patch': {'cells': PATCH_CELLS, 'cell': PATCH_CELL,
+                                                        'origin': list(_origin(height)), 'height': float(lo[1])},
+            'failing': sum(bool(r['fail']) for r in records)})
+    return records
+
+
 # ------------------------------------------------------------------------------------------------ Project OPFOR: Wake
 
 WAKE_DB =os.path.join('work', 'ww2', 'install', 'level', 'Levels', 'WAKE_ISLAND_S', 'Shaders', 'Dx11_Single.res')
@@ -1514,7 +1849,7 @@ def _priority() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or '').split('\n')[0])
-    ap.add_argument('command', choices=('render', 'compare', 'validate', 'wake', 'strips'))
+    ap.add_argument('command', choices=('render', 'compare', 'validate', 'wake', 'strips', 'patches'))
     ap.add_argument('meshes', nargs='*', help='mesh names (or with --find, parts of names)')
     ap.add_argument('--db', help='the database to draw with (render, compare)')
     ap.add_argument('--truth', help="compare: DICE's database (default auto: a BFBC2 level that draws the mesh)")
@@ -1522,9 +1857,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument('--list', help='a file of mesh names, one per line')
     ap.add_argument('--find', action='store_true', help='the mesh arguments are parts of names')
     ap.add_argument('--only', action='append', default=[],
-                    help='wake: only meshes whose name contains this; strips: only strips whose shader does (repeatable)')
+                    help='wake: only meshes whose name contains this; strips: only strips whose shader does; patches: '
+                         'only patch entries whose name does (repeatable)')
     ap.add_argument('--terrain', help='strips: the VisualTerrain (a file or a resource name; default for level:<name>'
                                       ' terrains/<name>/<name>.visual.res)')
+    ap.add_argument('--height', type=float, help='patches: the drawn patch\'s world height in metres (default '
+                                                  f'{PATCH_ORIGIN[1] + PATCH_HEIGHT}; sea-floor layers shade by height)')
     ap.add_argument('--limit', type=int, default=0, help='at most this many meshes')
     ap.add_argument('--size', type=int, default=256)
     ap.add_argument('--weather', default=WEATHER, help=f'weather folder of the light (default {WEATHER})')
@@ -1563,6 +1901,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         db = dbs.get(os.path.join(root, WAKE_DB))
         run_compare(files, db, meshes, s, os.path.join(root, WAKE_DB), None, dbs, truth_index(root))
         return 0
+    if a.command == 'patches':
+        if not a.db:
+            raise RenderQaError('patches: --db is needed')
+        records = run_patches(files, dbs.get(a.db), s, a.db, a.only, a.limit, a.height)
+        bad = [r for r in records if r['fail']]
+        print(f'patches: {len(records)} drawn, {len(bad)} failing'
+              + ''.join(f'\n  {r["mesh"]}: {" ".join(r["fail"])}' for r in bad[:30]))
+        return 1 if bad else 0
     if a.command == 'strips':
         if not a.db:
             raise RenderQaError('strips: --db is needed')
