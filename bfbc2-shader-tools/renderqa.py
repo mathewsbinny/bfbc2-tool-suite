@@ -1658,6 +1658,13 @@ def prepare_patch(files: Files, db: S.ShaderDb, entry: str, layout: bytes, own: 
     return d, flags, notes, extra
 
 
+def underwater_patch(entry: str, textures: Any = None) -> bool:
+    """A patch made for under the water: a sea-floor layer in its combination (BF1943's '..._SeaFloor' patches), or
+    the texture-less deep-ocean floor (Wake_Grey). BF1943's patch shader gates these layers by height."""
+    leaf = entry.rsplit('/', 1)[-1].lower()
+    return 'seafloor' in leaf or (leaf.endswith('_grey') and not textures)
+
+
 def run_patches(files: Files, db: S.ShaderDb, s: Settings, label: str, only: Sequence[str] = (),
                 limit: int = 0, height: float | None = None) -> list[dict[str, Any]]:
     """Every terrain patch entry of a database drawn on a 16 x 16-cell patch (patch_grid, patch_values) in each patch
@@ -1770,7 +1777,13 @@ def run_patches(files: Files, db: S.ShaderDb, s: Settings, label: str, only: Seq
             if view == 'top':
                 rec['mean_rgb'] = [float(x) for x in np.nan_to_num(hdr[mask]).mean(0)]
             if float(np.nan_to_num(hdr[mask]).max()) <= 1e-4:
-                _flag(rec['flags'], rec['notes'], 'black', f'{view}: every covered pixel black')
+                if underwater_patch(rec['entry'], rec.get('textures')):
+                    # a sea-floor / deep-ocean patch: BF1943's own shader gates its layers by height and draws black
+                    # above the water line (the harness's patch height) - expected, not a failure (user, 2026-11-12)
+                    _flag(rec['flags'], rec['notes'], 'black-underwater',
+                          f'{view}: black above the water, as BF1943\'s height gate draws a sea-floor patch')
+                else:
+                    _flag(rec['flags'], rec['notes'], 'black', f'{view}: every covered pixel black')
             yy, xx = np.nonzero(mask)
             ndc = np.stack([(xx + 0.5) / s.size * 2 - 1, 1 - (yy + 0.5) / s.size * 2, depth[mask],
                             np.ones(len(xx))], 1)
