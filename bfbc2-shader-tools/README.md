@@ -208,6 +208,7 @@ python renderqa.py render  <mesh>... --db <db> [--stage <folder>]... [-o <folder
 python renderqa.py compare <mesh>... --db <db> [--truth <db> | --truth auto] [--stage <folder>]... [-o <folder>]
 python renderqa.py validate <mesh>... [-o <folder>]
 python renderqa.py wake [--only <text>] [--limit N] [-o <folder>]
+python renderqa.py strips --db <db> [--terrain <VisualTerrain>] [--stage <folder>]... [--only <text>]... [-o <folder>]
 ```
 
 | Command | Does |
@@ -216,6 +217,7 @@ python renderqa.py wake [--only <text>] [--limit N] [-o <folder>]
 | `compare` | draws each mesh twice: DICE's entry (`--truth`, or with `auto` the first stock level whose Dx11 database draws the mesh, read from BFBC2's own files) and the `--db` entry (staged files first). It measures coverage overlap (IoU), mean difference, PSNR and luminance ratio, and draws a diff picture |
 | `validate` | draws stock meshes with their own level's database beside the mesh viewer's texture-only render |
 | `wake` | Project OPFOR: every mesh `wake_audit.drawn_meshes()` lists, drawn with the installed Wake Dx11 database (`work\ww2\install`). Meshes a stock level also draws are compared with DICE's entry; the others are only rendered and flagged |
+| `strips` | a VisualTerrain's baked road and decal strips (`terrain.road_strips`; `--terrain` a file or resource, default `terrains/<name>/<name>.visual.res` for `level:<name>`), each drawn alone with its entry's program for the strip layout, from above and at three-quarters, with estimated terrain constants (`strip_values`: a flat height map, an empty dynamic mask). Each covered pixel's depth is taken back to the world: a strip drawn more than 0.5 m + 2 % of its size outside its own vertices' box is `out-of-bounds` (the sheets across the sky of a shader built for another vertex layout); also `no-program`, `nothing-drawn`, `nan`, `foreign-texture` (a `Terrains/<other level>/` texture). Exit code 1 when a strip fails. DICE's own strips with their level's database pass (mp_006 QuadDecal, sp_01 Oil_puddle, mp_005 RoadTracks: within 2 mm) |
 
 `<db>` is what `shaderdb.py` takes (a `Dx11_Single.res` / `Dx10_Single.res`, `level:<name>`, `<bundle>:<entry>`).
 `--stage` adds a folder of FbrbTool-unpacked bundles, each with its `fbrb.manifest`; these are read before the game

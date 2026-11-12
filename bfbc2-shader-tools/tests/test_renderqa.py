@@ -335,6 +335,138 @@ def checks(c: Checks) -> None:
     c.check(np.allclose(R.bone_values(dd)['boneMatrices'][:3], np.eye(4)[:3]), 'other kinds: rest-pose bones')
 
 
+# ------------------------------------------------------------------------------------------------ terrain strips
+
+STRIP_VS = """
+float4x4 viewProjMatrix;
+float4 constants[1];
+struct VI { float3 pos : TEXCOORD0; float2 uv : TEXCOORD1; };
+struct VO { float4 pos : SV_Position; float2 uv : TEXCOORD0; };
+VO main(VI i) {
+    VO o;
+    float3 p = i.pos;
+#ifdef SHEET
+    p.y += 500.0 * i.uv.x;              // a shader of another layout: the strip stretched across the sky
+#endif
+    p.y += constants[0].x;              // heightmapDecalOffsetY, as DICE's strip shaders read it
+    o.pos = mul(float4(p, 1), viewProjMatrix); o.uv = i.uv; return o;
+}
+"""
+STRIP_PS = """
+SamplerState sampler1 : register(s1);
+Texture2D texture_Texture : register(t1);
+Texture2D texture_heightmap : register(t2);
+float4 heightmapScaleAndOffsetXZ;
+float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target {
+    return texture_Texture.Sample(sampler1, uv) + texture_heightmap.Sample(sampler1, uv) + heightmapScaleAndOffsetXZ * 0.001;
+}
+"""
+
+
+def strip_db(variants: dict[str, dict[str, Any]]) -> S.ShaderDb:
+    """A Dx11 database: an entry per variant ('Terrains/Test/Shaders/<variant>') with one main-pass program for the
+    strip layout (R.STRIP_LAYOUT); its vertex shader's own block names heightmapDecalOffsetY in its 'constants', the
+    program block a texture (the variant's 'texture') and the height map as an engine texture."""
+    db = S.ShaderDb(11)
+    db.version, db.flag = 120, 0
+    els = [(0, 0, 6, 0, False), (0, 12, 16, 1, False)]
+    db.params = [block(), block(samplers=[(1, sampler_desc())], nregs=1)]
+    db.bindings = [struct.pack('<HH', 0, 0)]
+    db.regs = [struct.pack('<I', 0)]
+    ps = P.compile_hlsl(STRIP_PS, 'main', 'ps_5_0')
+    db.ps = [S.Shader(hashlib.md5(b'strip ps').digest(), ps, 1, 0, 0)]
+    db.layouts = [R.STRIP_LAYOUT + layout_body()]
+    for i, (name, v) in enumerate(sorted(variants.items())):
+        vs = P.compile_hlsl(STRIP_VS, 'main', 'vs_5_0', v.get('defines'))
+        db.params.append(P.param_block([], [('heightmapDecalOffsetY', 4, 1, (0.0, 0.0, 0.0, 0.0))], [], b'', 0, 5, 4))
+        db.vs.append(S.Shader(hashlib.md5(b'vs' + name.encode()).digest(), vs, len(db.params) - 1, 0, 0,
+                              P.dx11_layout(vs, els)))
+        db.params.append(P.param_block([(1, 0, v['texture'])], [('heightmapScaleAndOffsetXZ', 0, 4, (0.0,) * 4)],
+                                       [('heightmap', 2)], b'', 0, 1, 0))
+        entry = f'Terrains/Test/Shaders/{name}'
+        g = db.name_guid(entry)
+        db.entries.append((entry, g))
+        prog = hashlib.md5(b'program' + name.encode()).digest()
+        db.programs.append(prog + bytes(16) + struct.pack('<4I', i, 0, 0, len(db.params) - 1))
+        db.keys.append(g + bytes(16) + R.STRIP_LAYOUT + bytes(0x28))
+        db.groups.append((g, [i]))
+    order = sorted(range(len(db.programs)), key=lambda k: db.programs[k])
+    db.programs = [db.programs[k] for k in order]
+    db.keys = [db.keys[k] for k in order]
+    db.groups = sorted([(g, [order.index(ix[0])]) for g, ix in db.groups])
+    return S.ShaderDb.parse(db.to_bytes(), 10)
+
+
+def visual_terrain(strips: Sequence[tuple[str, tuple[float, float, float]]]) -> bytes:
+    """A PC VisualTerrain's road part (terrain.road_strips reads no further): one terrain block, its full-detail road
+    block holding a 4 x 4 m quad per strip (shader, corner) with UVs 0..1, the low-detail one empty."""
+    verts, idx, recs = b'', [], b''
+    for k, (shader, (x, y, z)) in enumerate(strips):
+        for dx, dz, u, v in ((0, 0, 0, 0), (4, 0, 1, 0), (4, 4, 1, 1), (0, 4, 0, 1)):
+            verts += struct.pack('<5f4H', x + dx, y, z + dz, u, v, 0, 0, 0, 0)
+        idx += [4 * k + j for j in (0, 1, 2, 0, 2, 3)]
+        recs += shader.encode() + b'\0' + b'\0' + b'NullUgMask\0' + struct.pack('<2I6fI', 6 * k, 2, x, y, z, x + 4, y,
+                                                                                  z + 4, 0)
+    road = struct.pack('<I', len(strips)) + recs + struct.pack('<3I', len(verts) // 28, len(verts), len(idx))
+    road += verts + struct.pack(f'<{len(idx)}I', *idx)
+    return struct.pack('<I', 1) + road + struct.pack('<4I', 0, 0, 0, 0)
+
+
+def strips(c: Checks) -> None:
+    import terrain
+    vt = visual_terrain([('Terrains/Test/Shaders/Good', (10.0, 5.0, 10.0)), ('Terrains/Test/Shaders/Sheet', (30.0, 5.0, 10.0)),
+                         ('Terrains/Test/Shaders/Foreign', (50.0, 5.0, 10.0)), ('Terrains/Test/Shaders/Gone', (70.0, 5.0, 10.0))])
+    blocks = terrain.road_strips(vt)
+    c.check(len(blocks) == 2 and len(blocks[0]['strips']) == 4 and not blocks[1]['strips']
+            and blocks[0]['strips'][1]['first'] == 6 and blocks[0]['strips'][0]['mask'] == 'NullUgMask'
+            and np.allclose(terrain.road_positions(blocks[0]['vertices'])[5], (34.0, 5.0, 10.0)),
+            'terrain.road_strips: strips, index ranges, positions')
+    # the named constants: a DICE strip shader reads them in its 'constants' array, a translated one by name
+    ps = P.compile_hlsl(STRIP_PS, 'main', 'ps_5_0')
+    vs = P.compile_hlsl(STRIP_VS, 'main', 'vs_5_0')
+    vals = {'heightmapScaleAndOffsetXZ': (1, 2, 3, 4), 'heightmapDecalOffsetY': (7, 0, 0, 0)}
+    cbp = np.frombuffer(R.strip_cbuffer(ps, vals, []), np.float32)
+    cbv = np.frombuffer(R.strip_cbuffer(vs, vals, [('heightmapDecalOffsetY', 4, 1, (0.0, 0, 0, 0))]), np.float32)
+    c.check(np.allclose(cbp[:4], (1, 2, 3, 4)) and np.allclose(cbv[16:20], (7, 0, 0, 0)),
+            'strip constants: by name, and a block record\'s register inside constants', f'{cbp} {cbv[16:]}')
+    blk = P.param_block([(1, 0, 'A/B')], [('heightmapScaleAndOffsetXZ', 3, 4, (1.0, 2, 3, 4))], [('heightmap', 2)],
+                        b'', 0, 6, 3)
+    c.check(S.block_textures(blk) == [(1, 0, 'A/B')] and S.block_constants(blk) == [('heightmapScaleAndOffsetXZ', 3, 4,
+            (1.0, 2.0, 3.0, 4.0))] and S.block_engine_textures(blk) == [('heightmap', 2)] and blk[0x18:0x1a] == b'\x06\x03'
+            and struct.unpack_from('<I', blk, 0x20 + 0x8c + 0x20)[0] == 0x85b00a6c,
+            'parameter block: texture, named constant (its hash) and engine texture records; size and first register')
+    old = block([(1, TEX)], samplers=[(1, sampler_desc())])
+    new = P.program_block(old, [(1, 0, TEX)], 0)
+    c.check(new == old, 'program block without constants: as before (textures, the donor\'s sampler states)')
+    try:
+        R.shaderview()
+    except R.RenderQaError as e:
+        print(f'skip: drawing strips (shaderview.exe: {e})')
+        return
+    tmp = tempfile.mkdtemp(prefix='renderqa strips ')
+    try:
+        fs = mesh_files('x')
+        files = R.Files(None, [stage(os.path.join(tmp, 'stage'), {
+            'Terrains/Test/Textures/Quad_C.res': fs[TEX + '.res'], 'Terrains/Other/Textures/Quad_C.res': fs[TEX + '.res']})])
+        db = strip_db({'Good': {'texture': 'Terrains/Test/Textures/Quad_C'},
+                       'Sheet': {'texture': 'Terrains/Test/Textures/Quad_C', 'defines': {'SHEET': 1}},
+                       'Foreign': {'texture': 'Terrains/Other/Textures/Quad_C'}})
+        c.check(not db.check(), 'strip database passes shaderdb\'s checks', '; '.join(db.check()))
+        s = R.Settings(os.path.join(tmp, 'out'), 64, log=lambda x: None)
+        recs = {r['shader'].rsplit('/', 1)[1]: r for r in R.run_strips(files, db, 'terrains/test/test.visual.res', vt, s, 'built')}
+        good = recs['Good']
+        c.check(not good['fail'] and good.get('pixels', {}).get('top', 0) > 100 and max(good['excess']['top']) < 0.1,
+                'strips: a strip drawn on its own vertices passes', str(good.get('notes')))
+        c.check('out-of-bounds' in recs['Sheet']['fail'], 'strips: one drawn hundreds of metres above its vertices: '
+                'out-of-bounds', str(recs['Sheet'].get('notes')))
+        c.check(recs['Foreign']['fail'] == ['foreign-texture'], 'strips: another level\'s texture: foreign-texture',
+                str(recs['Foreign'].get('notes')))
+        c.check(recs['Gone']['fail'] == ['no-entry'], 'strips: a shader with no entry: no-entry')
+        c.check(os.path.isfile(os.path.join(s.out, 'results.json')), 'strips: results written')
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def cli(c: Checks) -> None:
     tmp = tempfile.mkdtemp(prefix='renderqa_cli_')
     try:
@@ -380,6 +512,7 @@ def main(argv: list[str]) -> int:
     c = Checks()
     checks(c)
     built(c)
+    strips(c)
     cli(c)
     if '--game' in argv:
         game(c)

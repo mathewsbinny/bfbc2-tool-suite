@@ -80,8 +80,25 @@ V2P main(VIn i) {
 """
 
 
-def case(sh: Any, rng: np.random.Generator, n: int) -> dict[str, Any]:
-    """Random inputs for one shader: engine values, material values, interpolants, textures."""
+def engine_named(w: S.ShaderDb) -> dict[int, dict[int, str]]:
+    """{pixel shader: {register: name}} of the block constants the engine writes by name (pcbuild.ENGINE_NAMED: the
+    terrain strips' heightmapScaleAndOffsetXZ, dynamicMaskAtlasParams ...) in the programs' second blocks and the
+    shader's own block - translated as $Globals variables (xenos_hlsl Interface.named_ps), as the build does."""
+    out: dict[int, dict[int, str]] = {}
+    for rec in w.programs:
+        _, ps, _, b2 = struct.unpack_from(w.e + '4I', rec, 0x20)
+        for b in (b2, w.ps[ps].param):
+            for name, reg, _, _ in S.block_constants(w.params[b], w.e):
+                if name in P.ENGINE_NAMED:
+                    have = out.setdefault(ps, {})
+                    if have.setdefault(reg, name) != name:
+                        raise ValueError(f'ps{ps}: c{reg} named {have[reg]} and {name}')
+    return out
+
+
+def case(sh: Any, rng: np.random.Generator, n: int, named: dict[int, str] | None = None) -> dict[str, Any]:
+    """Random inputs for one shader: engine values, material values, interpolants, textures. named: the registers
+    the engine writes by name (engine_named) - the same random values, given to the translation under their names."""
     ct = sh.ctab.constants if sh.ctab else []
     engine, material, consts = {}, {}, {}
     for c in ct:
@@ -104,12 +121,16 @@ def case(sh: Any, rng: np.random.Generator, n: int) -> dict[str, Any]:
             cube = c.type.type == 'samplerCube'
             textures[c.reg] = XE.Texture(ramp_texture(rng, 6 if cube else 1), cube,
                                          'zero' if (SHADOW_ZERO and c.name == X.SHADOW) else 'clamp', True)
-    return {'engine': engine, 'material': material, 'consts': consts, 'inputs': inputs, 'textures': textures}
+    named = {r: nm for r, nm in (named or {}).items() if r in consts}
+    for r, nm in named.items():
+        engine[nm] = consts[r]
+    return {'engine': engine, 'material': material, 'consts': consts, 'inputs': inputs, 'textures': textures,
+            'named': named}
 
 
 def translated(sh: Any, cs: dict[str, Any]) -> str:
     inter = sorted(it.usage_index for it in sh.header.interpolators)
-    return X.translate(sh, X.Interface(inter, material=cs['material']))
+    return X.translate(sh, X.Interface(inter, material=cs['material'], named_ps=cs.get('named')))
 
 
 PROBE_MISS = -23456.0                   # a probe's colour where the instruction did not run
@@ -271,10 +292,11 @@ def main(argv: list[str] | None = None) -> int:
     if a.limit:
         todo = todo[:a.limit]
     os.makedirs(a.o, exist_ok=True)
+    named = engine_named(w)
     if a.bisect:
         p = todo[0]
         sh = xenos.parse_shader(w.ps[p].code, True)
-        cs = case(sh, np.random.default_rng(a.seed * 100003 + p), a.n)
+        cs = case(sh, np.random.default_rng(a.seed * 100003 + p), a.n, named.get(p))
         work = os.path.join(a.o, f'ps{p}')
         os.makedirs(work, exist_ok=True)
         pos = np.stack([np.arange(a.n) % W, np.arange(a.n) // W], 1).astype(np.float32)
@@ -288,7 +310,7 @@ def main(argv: list[str] | None = None) -> int:
         os.makedirs(work, exist_ok=True)
         try:
             sh = xenos.parse_shader(w.ps[p].code, True)
-            cs = case(sh, rng, a.n)
+            cs = case(sh, rng, a.n, named.get(p))
             ref = XE.run(sh, cs['inputs'], cs['consts'], cs['textures'], a.n,
                          pos=np.stack([np.arange(a.n) % W, np.arange(a.n) // W], 1).astype(np.float32),
                          front=np.ones(a.n, bool))
