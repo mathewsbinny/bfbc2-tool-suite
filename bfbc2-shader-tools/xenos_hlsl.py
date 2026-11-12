@@ -5,7 +5,9 @@ keep the direction the cube instruction was given, as XenosRecomp does (MIT).
 
 translate(sh, iface) -> HLSL source with entry point 'main'. iface (Interface) tells the translator what the PC side
 provides: the vertex inputs (VS), the interpolators shared by the VS and PS, material constant values, and per-sampler
-fix-ups. Engine constants keep their names (pcbuild binds them by name).
+fix-ups. Engine constants keep their names (pcbuild binds them by name); block constants the engine writes by name
+(Interface.named_vs / named_ps: the terrain's heightmap and dynamic mask parameters) are $Globals variables under their
+names, which the build records in the PC parameter blocks at the registers the compiler gives them.
 """
 from __future__ import annotations
 
@@ -52,8 +54,15 @@ class Interface:
                  material: dict[str, Any] | None = None, sampler_fix: dict[int, str] | None = None,
                  colour_scale: float = 1.0, instanced: bool = False, bones_as_world: bool = False,
                  material_regs: dict[int, Sequence[float]] | None = None, pc_shadow_atlas: bool = False,
-                 sampler_registers: dict[int, int] | None = None) -> None:
+                 sampler_registers: dict[int, int] | None = None, named_vs: dict[int, str] | None = None,
+                 named_ps: dict[int, str] | None = None) -> None:
         self.sampler_registers = sampler_registers or {}
+        # register -> name of a block constant the engine writes at draw time (pcbuild.ENGINE_NAMED: the terrain's
+        # heightmapScaleAndOffsetXZ, dynamicMaskAtlasParams ...), per stage (each shader has its own 'constants'
+        # array): declared in $Globals under its name, after the engine's own constants, instead of baked in as the
+        # block's placeholder value - the build names it in the PC block at the register the compiler gives it
+        self.named_vs = named_vs or {}
+        self.named_ps = named_ps or {}
         self.pc_shadow_atlas = pc_shadow_atlas       # BFBC2 PC packs the three shadow cascades into atlas quadrants
         self.bones_as_world = bones_as_world        # BFBC2 composite (kind 9): parts drawn with the world transform
         self.trace_nan = False                      # debug: output the first instruction whose result is NaN / inf
@@ -97,6 +106,7 @@ class _Emitter:
         self.cube_dir = None
         self.cmap: dict[int, str] = {}  # const register -> expression of a float4
         self.globals_: list[str] = []   # cbuffer declarations
+        self.named: list[str] = []      # engine-named block constants (Interface.named_vs / named_ps), declared last
         self.statics: list[str] = []
         self.textures: list[str] = []
         self.used_regs: set[int] = set()
@@ -141,7 +151,17 @@ class _Emitter:
                     self.statics.append(f'// material constant {c.name}: no value given, 0')
                 if isinstance(vals[0], (int, float)):
                     vals = [tuple(vals)]
+                named = self.iface.named_ps if self.ps else self.iface.named_vs
                 for k in range(c.count):
+                    nm_ = named.get(c.reg + k)
+                    if nm_ is not None:
+                        if not nm_.isidentifier() or nm_ in ENGINE_SIZE:
+                            raise TranslateError(f'engine-named constant {nm_!r}: not a usable name')
+                        decl = f'float4 {nm_};'
+                        if decl not in self.named:
+                            self.named.append(decl)
+                        self.cmap[c.reg + k] = nm_
+                        continue
                     v = vals[k] if k < len(vals) else (0.0,) * 4
                     nm = f'm_{c.name}_{k}'
                     self.statics.append(f'static const float4 {nm} = float4({", ".join(_f(x) for x in v)});')
@@ -572,6 +592,7 @@ class _Emitter:
                 if not any(g.startswith(f'float4 {need}[') for g in self.globals_):
                     self.globals_.append(f'float4 {need}[4];')
         out += self.globals_
+        out += self.named
         out += self.statics + self.textures
         for slot in sorted({1} | set(self.iface.sampler_registers.values())):
             if not 0 <= slot < 16:

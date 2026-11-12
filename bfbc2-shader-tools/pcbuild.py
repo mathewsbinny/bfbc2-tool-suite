@@ -25,6 +25,30 @@ ENGINE = {   # engine parameter name -> id (from every BFBC2 Dx9 database's bind
     'transparentStartAndEndAndClamp': 45,
 }
 INDEXED = {'pointLightPos', 'pointLightColor', 'pointLightRadius', 'outdoorLightShadowTransform'}
+# Named block constants the engine writes itself, by name, at draw time: a parameter block's constant record (FORMAT.md
+# section 1) names them at a register of the shader's 'constants' array, the block's value a placeholder (DICE's: 0).
+# The terrain renderer's (the baked road / decal strips, the terrain patches) - each name in BFBC2Game.exe and in
+# DICE's own PC strip programs (the vertex shader's own block: heightmapScaleAndOffsetXZ, heightmapDecalOffsetY; the
+# program's second block: heightmapScaleAndOffsetXZ, heightmapPixelSizeAndAspect, dynamicMaskAtlasOffset /
+# AtlasParams / TileBorderParams). A translated shader must read them from its constant buffer at a register its own
+# block names: baked in as the Xbox block's placeholder they were 0 (every strip vertex at the decal offset 0, the
+# dynamic mask and height lookups at the map's corner)
+ENGINE_NAMED = frozenset({
+    'heightmapScaleAndOffsetXZ', 'heightmapDecalOffsetY', 'heightmapPixelSizeAndAspect',
+    'heightmapTexCoordScaleAndOffset', 'heightmapWorldScaleY',
+    'dynamicMaskAtlasOffset', 'dynamicMaskAtlasParams', 'dynamicMaskTileBorderParams',
+})
+# Engine textures a parameter block names by parameter (no texture name; FORMAT.md section 1 'engine textures'): the
+# terrain's height map and dynamic (destruction) mask atlas
+ENGINE_TEXTURES = frozenset({'heightmap', 'dynamicMaskTileMap', 'dynamicMaskIndirectionMap', 'maskTileMap'})
+
+
+def name_hash(name: str) -> int:
+    """The u32 a parameter block stores beside a constant's or engine texture's name: Adler-32 of the name in lower
+    case (every record of BFBC2's PC and BF1943's Xbox databases read: 'z' 0x007b007b, 'heightmap' 0x127303b8,
+    'heightmapScaleAndOffsetXZ' 0x85b00a6c)."""
+    import zlib
+    return zlib.adler32(name.lower().encode('latin-1'))
 
 
 def engine_param(name: str) -> tuple[int, int] | None:
@@ -250,30 +274,93 @@ def block_texture_list(block: bytes, e: str = '<') -> list[tuple[int, int, str]]
     return out
 
 
-def program_block(donor: bytes, textures: Sequence[tuple[int, int, str]], nregs: int) -> bytes:
-    """A PC program parameter block: the donor's sampler states, these textures, no constants; bytes 0x18/0x19 the
-    shader's $Globals size in registers."""
-    _, _, _, _, _, ee = struct.unpack_from('<6I', donor)
-    nsamp = donor[0x1e]
-    samp = donor[ee:ee + SAMPLER_STATE * nsamp]
+Named = tuple[str, int, int, tuple[float, ...]]          # (constant name, register, components used, value)
+
+
+def param_block(textures: Sequence[tuple[int, int, str]], constants: Sequence[Named],
+                engine_textures: Sequence[tuple[str, int]], samplers: bytes, nsamp: int, nregs: int,
+                first: int | None = None) -> bytes:
+    """A PC parameter block (FORMAT.md section 1): texture records (sampler, cube, name), named constant records
+    (name, register, components, value; their Adler-32 hash), engine texture records (parameter name, texture slot),
+    the sampler-state records as given; 0x18 the shader's $Globals size, 0x19 its first material register (DICE's:
+    where the block's named constants start; the size when it has none)."""
     body = b''
     for reg, cube, name in textures:
         nm = name.encode('latin-1')[:0x7f]
         body += bytes((reg, cube, 0, 0)) + nm + bytes(0x80 - len(nm)) + bytes(8)
-    end = 0x20 + len(body)
-    total = end + len(samp)
+    tex_end = 0x20 + len(body)
+    for name, reg, comps, vals in constants:
+        nm = name.encode('latin-1')
+        if len(nm) >= 0x20 or not 0 <= reg <= 255 or not 1 <= comps <= 4:
+            raise ValueError(f'constant record {name} c{reg} ({comps}) does not fit')
+        body += nm + bytes(0x20 - len(nm)) + struct.pack('<IBBxx4f', name_hash(name), reg, comps, *vals)
+    const_end = 0x20 + len(body)
+    for name, slot in engine_textures:
+        nm = name.encode('latin-1')
+        if len(nm) >= 0x20:
+            raise ValueError(f'engine texture record {name} does not fit')
+        body += nm + bytes(0x20 - len(nm)) + struct.pack('<IHxx', name_hash(name), slot)
+    eng_end = 0x20 + len(body)
+    total = eng_end + len(samplers)
     total += (-total) % 16
-    hdr = struct.pack('<6I', total, 0x20, 0x20, end, end, end)
-    hdr += bytes((nregs, nregs, 0, len(textures), 0, 0, nsamp, 0))
-    out = hdr + body + samp
+    hdr = struct.pack('<6I', total, 0x20, 0x20, tex_end, const_end, eng_end)
+    n = min(nregs, 255)
+    hdr += bytes((n, n if first is None else min(first, n), 0, len(textures), len(constants), len(engine_textures),
+                  nsamp, 0))
+    out = hdr + body + samplers
     return out + bytes(total - len(out))
 
 
-def own_block(donor: bytes, nregs: int) -> bytes:
-    """A shader's own parameter block: the donor's, its $Globals size set."""
-    b = bytearray(donor)
-    b[0x18] = b[0x19] = min(nregs, 255)
-    return bytes(b)
+def _samplers(donor: bytes) -> tuple[bytes, int]:
+    _, _, _, _, _, ee = struct.unpack_from('<6I', donor)
+    nsamp = donor[0x1e]
+    return donor[ee:ee + SAMPLER_STATE * nsamp], nsamp
+
+
+def program_block(donor: bytes, textures: Sequence[tuple[int, int, str]], nregs: int,
+                  constants: Sequence[Named] = (), engine_textures: Sequence[tuple[str, int]] = (),
+                  first: int | None = None) -> bytes:
+    """A PC program parameter block: the donor's sampler states, these textures, the named constants and engine
+    textures given (none: as before - textures only); bytes 0x18/0x19 the shader's $Globals size in registers and its
+    first named register."""
+    samp, nsamp = _samplers(donor)
+    return param_block(textures, constants, engine_textures, samp, nsamp, nregs, first)
+
+
+def own_block(donor: bytes, nregs: int, constants: Sequence[Named] | None = None, first: int | None = None) -> bytes:
+    """A shader's own parameter block: the donor's, its $Globals size set. constants (the shader's engine-named
+    constants at its own registers): the block rebuilt with them in place of the donor's constant records (a DICE
+    strip vertex shader's own block names heightmapScaleAndOffsetXZ / heightmapDecalOffsetY at the donor's registers,
+    not the translation's)."""
+    if constants is None:
+        b = bytearray(donor)
+        b[0x18] = b[0x19] = min(nregs, 255)
+        if first is not None:
+            b[0x19] = min(first, b[0x18])
+        return bytes(b)
+    samp, nsamp = _samplers(donor)
+    import shaderdb
+    textures = shaderdb.block_textures(donor)
+    return param_block(textures, constants, [], samp, nsamp, nregs, first)
+
+
+def named_registers(code: bytes, wanted: Mapping[str, tuple[int, Sequence[float]]]) -> list[Named]:
+    """[(name, register, components, value)] of the engine-named constants (wanted: {name: (components, value)}) a
+    compiled DXBC shader declares in $Globals, at the registers the compiler gave them."""
+    out = []
+    for name, off, _size, _ in rdef(code)[0].get('$Globals', []):
+        if name in wanted:
+            comps, vals = wanted[name]
+            out.append((name, off // 16, comps, tuple(float(v) for v in vals)))
+    return sorted(out, key=lambda r: r[1])
+
+
+def engine_texture_slots(code: bytes, names: Iterable[str]) -> list[tuple[str, int]]:
+    """[(engine texture parameter, texture slot)] of a compiled DXBC shader: its texture_<name> resources (unused ones
+    are absent from RDEF and need no record)."""
+    want = set(names)
+    return sorted(((n[len('texture_'):], bp) for n, typ, bp, c in rdef(code)[1]
+                   if typ == 2 and n.startswith('texture_') and n[len('texture_'):] in want), key=lambda r: r[1])
 
 
 def globals_registers(dxbc: bytes) -> int:

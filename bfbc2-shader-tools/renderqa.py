@@ -12,6 +12,14 @@ off screen) and check the pictures: a shader or texture conversion that is wrong
   python renderqa.py validate <mesh>... [-o <folder>]
         stock meshes with their own level's database beside the mesh viewer's plain texture render (meshview.py):
         the harness itself is checked - the pictures must look like the game
+  python renderqa.py strips --db <db> [--terrain <VisualTerrain>] [--stage <folder>]... [--only <text>]... [-o <folder>]
+        a VisualTerrain's baked road and decal strips (terrain.road_strips), each drawn alone with its entry's program
+        for the strip layout from above and at three-quarters, the terrain's named engine constants estimated
+        (strip_values: a flat height map, an empty dynamic mask); each covered pixel's depth taken back to the world
+        and held against the strip's own vertices (out-of-bounds: the sheets across the sky a shader of another
+        vertex layout draws), no program for the layout, nothing drawn, NaN, another level's texture flagged; exit
+        code 1 when a strip fails. --terrain defaults to terrains/<name>/<name>.visual.res for a level:<name> db -
+        DICE's own strips with their own level's database are the harness's check (they pass)
   python renderqa.py wake [-o <folder>] [--limit N] [--only <text>]
         Project OPFOR's Wake Island: every mesh wake_audit.drawn_meshes() lists (OPFOR's src\tools\ww2, imported
         read-only), drawn with the installed Wake database (work\ww2\install); meshes a BFBC2 level also draws are
@@ -1160,9 +1168,306 @@ def run_validate(files: Files, meshes: Sequence[str], s: Settings, dbs: Database
     return records
 
 
+# ------------------------------------------------------------------------------------------------ terrain strips
+
+# A VisualTerrain's road blocks (terrain.road_strips): roads and quad decals baked into strips of 28-byte vertices
+# (world position, texture coordinate, 4 halves), each drawn with its shader entry's program for BFBC2's strip layout.
+STRIP_LAYOUT = bytes.fromhex('bcd37755dfa1714a6f0d126aed6ad4ed')
+STRIP_VIEWS = (('top', 0.0, 89.0), ('threequarter', 45.0, 35.0))
+# a strip with one of these is wrong (the command exits 1): nothing to draw it with, nothing drawn, NaN, drawn outside
+# its own vertices' box (the "sheets across the sky" of a shader built for another vertex layout), a texture another
+# level owns (Terrains/<other level>/...) or none found, every pixel discarded
+STRIP_FAIL = frozenset({'no-entry', 'no-program', 'nothing-drawn', 'nan', 'out-of-bounds', 'foreign-texture',
+                        'missing-texture', 'bad-texture', 'dimension', 'alpha-discards-all', 'render-failed'})
+
+
+def strip_values(extent: tuple[float, float, float, float]) -> dict[str, tuple[float, ...]]:
+    """The terrain renderer's named block constants (pcbuild.ENGINE_NAMED) as estimated for an offline draw - not the
+    game's: the height map read through the terrain's extent (x0, z0, x1, z1) (heightmapScaleAndOffsetXZ: world x, z
+    to 0..1), flat (STRIP_TEXTURES: height 0, so the shaders' height-map normal points up), no decal lift, the
+    dynamic (destruction) mask empty (its atlas parameters a 1:1 tile; its maps 0: nothing destroyed)."""
+    x0, z0, x1, z1 = extent
+    sx, sz = 1.0 / max(x1 - x0, 1e-3), 1.0 / max(z1 - z0, 1e-3)
+    return {'heightmapScaleAndOffsetXZ': (sx, sz, -x0 * sx, -z0 * sz),
+            'heightmapDecalOffsetY': (0.0, 0.0, 0.0, 0.0),
+            'heightmapPixelSizeAndAspect': (1.0 / 1024, 1.0, 1.0, 0.0),
+            'heightmapTexCoordScaleAndOffset': (1.0, 1.0, 0.0, 0.0),
+            'heightmapWorldScaleY': (1.0, 0.0, 0.0, 0.0),
+            'dynamicMaskAtlasOffset': (0.0, 0.0, 0.0, 0.0),
+            'dynamicMaskAtlasParams': (1.0, 1.0, 1.0, 1.0),
+            'dynamicMaskTileBorderParams': (1.0, 0.0, 0.0, 0.0)}
+
+
+# the engine textures a strip's block names, bound as flat float textures: the height map at height 0, the dynamic
+# mask's tile map and indirection map 0
+STRIP_TEXTURES = {'heightmap': 0.0, 'dynamicMaskTileMap': 0.0, 'dynamicMaskIndirectionMap': 0.0, 'maskTileMap': 0.0}
+
+
+def strip_cbuffer(code: bytes, values: dict[str, Any], records: Sequence[tuple[str, int, int, tuple[float, ...]]]) \
+        -> bytes:
+    """A strip shader's $Globals: cbuffer's (engine values by name, the block's material constants by register inside
+    'constants'), then each named block constant the engine writes (records naming a key of values) at its register -
+    DICE's strip shaders read them inside their 'constants' array, the translated ones as named variables."""
+    buf = np.frombuffer(cbuffer(code, values, records), np.float32).copy()
+    for name, reg, _, _ in records:
+        v = values.get(name)
+        if v is not None and reg * 4 + 4 <= len(buf):
+            buf[reg * 4:reg * 4 + 4] = np.asarray(v, np.float32).ravel()[:4]
+    return buf.tobytes()
+
+
+def _flat_texture(path: str, value: float) -> str:
+    texels = np.full((4, 4, 4), value, np.float32)
+    with open(path, 'wb') as f:
+        f.write(struct.pack('<III', 4, 4, 1) + texels.tobytes())
+    return path
+
+
+def terrain_folder(name: str) -> str | None:
+    """The level folder a resource name (or a file of an unpacked bundle) lies in (terrains/<folder>/...), lower
+    case, or None (also for DICE's shared terrain library, Terrains/_Textures/...)."""
+    hits = re.findall(r'(?:^|/)terrains/([^/_][^/]*)/', name.lower().replace('\\', '/'))
+    return hits[-1] if hits else None
+
+
+def prepare_strip(files: Files, db: S.ShaderDb, strip: dict[str, Any], own: str | None, envmap: str = ENVMAP) \
+        -> tuple[Draw | None, list[str], list[str], dict[str, Any]]:
+    """(the draw, flags, notes, extra) of one strip: its entry's main-pass program for the strip layout (no point
+    light), the textures its program block binds, the engine textures it names; extra: the VS / PS named-constant
+    records ('vs_named', 'ps_named') and the engine textures by slot ('engine')."""
+    flags: list[str] = []
+    notes: list[str] = []
+    extra: dict[str, Any] = {'engine': {}, 'vs_named': [], 'ps_named': [], 'textures': []}
+    ents = {n.lower(): g for n, g in db.entries}
+    g = ents.get(strip['shader'].lower())
+    if g is None:
+        _flag(flags, notes, 'no-entry', f'{strip["shader"]}: not in the database')
+        return None, flags, notes, extra
+    progs = [k for k in db.entry_programs().get(g, []) if db.keys[k][0x30] == 0 and db.keys[k][0x34] == 0
+             and db.keys[k][0x20:0x30] == STRIP_LAYOUT]
+    progs = [k for k in progs if db.keys[k][0x38] == 0] or progs
+    if not progs:
+        _flag(flags, notes, 'no-program', f'{strip["shader"]}: no main-pass program for the strip layout')
+        return None, flags, notes, extra
+    k = progs[0]
+    v, p, _, b2 = db.program_refs(k)
+    vs_s, ps_s = db.vs[v], db.ps[p]
+    blk = db.params[b2]
+    extra['vs_named'] = S.block_constants(db.params[vs_s.param])
+    extra['ps_named'] = S.block_constants(blk) + S.block_constants(db.params[ps_s.param])
+    d = Draw(strip['shader'], strip['shader'], k, origin(vs_s, ps_s), vs_s.code, ps_s.code,
+             [e for e in vs_elements(vs_s.tail) if e[2] == 0], 0, 28, strip['triangles'] * 3, strip['first'],
+             0, None, extra['ps_named'], [], sampler_states(db.params[ps_s.param]))
+    records = {s_: (c, n) for s_, c, n in P.block_texture_list(blk)}
+    engine = {s_: n for n, s_ in S.block_engine_textures(blk)}
+    for name, typ, bp, dim in resources(ps_s.code):
+        if typ != 2:
+            continue
+        if bp in records:
+            tn = records[bp][1]
+        elif name == 'texture_outdoorLightReflectionEnvmap':
+            tn = envmap
+        elif bp in engine or name[len('texture_'):] in STRIP_TEXTURES:
+            extra['engine'][bp] = engine.get(bp, name[len('texture_'):])
+            continue
+        else:
+            if name.startswith('texture_Texture'):
+                _flag(flags, notes, 'bound-empty', f't{bp} ({name}) has no texture')
+            continue
+        extra['textures'].append(tn)
+        folder = terrain_folder(tn)
+        if own and folder and folder != own:
+            _flag(flags, notes, 'foreign-texture', f't{bp} {tn}: another level\'s texture')
+        b = files.read(tn + '.res')
+        why = texture_problem(b) if b is not None else 'not found'
+        if why or b is None:
+            if tn != envmap:
+                _flag(flags, notes, 'missing-texture' if b is None else 'bad-texture', f't{bp} {tn}: {why}')
+            continue
+        cube = struct.unpack_from('<I', b, 4)[0] == 1
+        if cube != (dim == 9):
+            _flag(flags, notes, 'dimension', f't{bp} {name}: {tn} {"is" if cube else "is not"} a cube')
+            continue
+        d.textures.append((bp, tn))
+    return d, flags, notes, extra
+
+
+def _strip_bounds(block: dict[str, Any], strip: dict[str, Any]) -> tuple[np.ndarray, np.ndarray] | None:
+    import terrain
+    idx = block['indices'][strip['first']:strip['first'] + 3 * strip['triangles']]
+    if not len(idx) or idx.max() * 28 + 28 > len(block['vertices']):
+        return None
+    pos = terrain.road_positions(block['vertices'])[np.unique(idx)].astype(np.float64)
+    pos = pos[np.isfinite(pos).all(1)]
+    return (pos.min(0), pos.max(0)) if len(pos) else None
+
+
+def run_strips(files: Files, db: S.ShaderDb, terrain_name: str, pc: bytes, s: Settings, label: str,
+               only: Sequence[str] = (), limit: int = 0) -> list[dict[str, Any]]:
+    """Every strip of a VisualTerrain drawn alone with its entry's program (estimated engine values, strip_values),
+    from above and at three-quarters; each covered pixel's depth taken back to the world and held against the strip's
+    own vertices' box. A strip drawn outside it (by more than 0.5 m + 2 % of its size) is 'out-of-bounds'."""
+    import terrain
+    values, post, wl = _light(files, s)
+    blocks = terrain.road_strips(pc)
+    parts = [terrain.road_positions(b['vertices']) for b in blocks if b['vertices']]
+    allpos = np.concatenate(parts) if parts else np.zeros((1, 3), np.float32)
+    lo_all, hi_all = allpos.min(0), allpos.max(0)
+    pad = 0.05 * (hi_all - lo_all)
+    extent = (float(lo_all[0] - pad[0]), float(lo_all[2] - pad[2]), float(hi_all[0] + pad[0]), float(hi_all[2] + pad[2]))
+    values = dict(values, **strip_values(extent))
+    own = terrain_folder(terrain_name)
+    todo = [(b, k, st) for b in blocks for k, st in enumerate(b['strips'])
+            if not only or any(o.lower() in st['shader'].lower() for o in only)]
+    if limit:
+        todo = todo[:limit]
+    os.makedirs(s.out, exist_ok=True)
+    tmp = tempfile.mkdtemp(prefix='renderqa_strips_', dir=s.out)
+    records, rows = [], []
+    try:
+        engine_files = {n: _flat_texture(os.path.join(tmp, f'e_{n}.bin'), v) for n, v in STRIP_TEXTURES.items()}
+        vbs, ibs = {}, {}
+        for b in blocks:
+            if b['vertices']:
+                vbs[b['block']] = os.path.join(tmp, f'b{b["block"]}.vb')
+                ibs[b['block']] = os.path.join(tmp, f'b{b["block"]}.ib')
+                open(vbs[b['block']], 'wb').write(b['vertices'])
+                open(ibs[b['block']], 'wb').write(b['indices'].astype('<u4').tobytes())
+        texfiles: dict[str, str] = {}
+        lines: list[str] = []
+        jobs = []
+        for n, (b, k, st) in enumerate(todo):
+            rec: dict[str, Any] = {'mesh': f'block {b["block"]} strip {k}: {st["shader"]}', 'block': b['block'],
+                                   'strip': k, 'shader': st['shader'], 'second': st['second'],
+                                   'triangles': st['triangles'], 'flags': [], 'notes': []}
+            records.append(rec)
+            if st['triangles'] == 0:
+                rec['notes'].append('no triangles (switched off)')
+                continue
+            bounds = _strip_bounds(b, st)
+            if bounds is None:
+                _flag(rec['flags'], rec['notes'], 'nothing-drawn', 'its indices reach no vertex')
+                continue
+            d, fl, nt, extra = prepare_strip(files, db, st, own, s.envmap)
+            rec['flags'] += fl
+            rec['notes'] += nt
+            rec['textures'] = extra['textures']
+            if d is None:
+                continue
+            rec['origin'] = d.origin
+            rec['program'] = d.program
+            rec['bounds'] = [list(map(float, bounds[0])), list(map(float, bounds[1]))]
+            for _, tn in d.textures:
+                if tn not in texfiles:
+                    texfiles[tn] = os.path.join(tmp, f't{len(texfiles)}.res')
+                    open(texfiles[tn], 'wb').write(files.read(tn + '.res') or b'')
+            vf, pf = os.path.join(tmp, f'v{n}.dxbc'), os.path.join(tmp, f'p{n}.dxbc')
+            open(vf, 'wb').write(d.vs)
+            open(pf, 'wb').write(d.ps)
+            lo, hi = bounds
+            for vi, (view, az, el) in enumerate(STRIP_VIEWS):
+                eye, vmat, vp = camera(lo, hi, az, el)
+                vals = dict(values, viewProjMatrix=vp, worldViewProjMatrix=vp, worldMatrix=np.eye(4), viewMatrix=vmat,
+                            cameraPos=(*eye, 0.0), invScreenSize=(1 / s.size, 1 / s.size, 0.0, 0.0))
+                out = os.path.join(tmp, f's{n}_{view}.raw')
+                cv, cp = os.path.join(tmp, f'cv{n}_{vi}.bin'), os.path.join(tmp, f'cp{n}_{vi}.bin')
+                open(cv, 'wb').write(strip_cbuffer(d.vs, vals, extra['vs_named']))
+                open(cp, 'wb').write(strip_cbuffer(d.ps, vals, extra['ps_named']))
+                lines += [f'frame {job_path(out)} {s.size} {s.size} 0 0 0 0', 'depth 1', f'count {1 if vi == 0 else 0}',
+                          f'vs {job_path(vf)}', f'ps {job_path(pf)}']
+                lines += [f'el {si} {fmt} {slot} {off} {inst}' for si, fmt, slot, off, inst in d.elements]
+                lines += [f'vb {job_path(vbs[b["block"]])} 0 28',
+                          f'ib {job_path(ibs[b["block"]])} 0 32 {d.indices} {d.first}',
+                          f'cb vs {job_path(cv)}', f'cb ps {job_path(cp)}']
+                lines += [f'samp {reg} {desc.hex()}' for reg, desc in d.samplers if reg < 16]
+                lines += [f'texres {slot} {job_path(texfiles[tn])}' for slot, tn in d.textures]
+                lines += [f'tex {slot} 2d {job_path(engine_files.get(nm, engine_files["heightmap"]))}'
+                          for slot, nm in extra['engine'].items()]
+                lines += ['draw', 'end']
+                jobs.append((n, view, out, vp))
+        output: list[str] = []
+        if lines:
+            job = os.path.join(tmp, 'job.txt')
+            open(job, 'w').write('\n'.join(lines) + '\n')
+            try:
+                output, _ = run_job(job, s.warp)
+            except RenderQaError as e:
+                for rec in records:
+                    if 'origin' in rec:
+                        _flag(rec['flags'], rec['notes'], 'render-failed', str(e))
+        counts = [tuple(int(x) for x in ln.split()[2:]) for ln in output if ln.startswith('count ')]
+        drawn = [n for n, (b, k, st) in enumerate(todo) if 'origin' in records[n]]
+        for n, c in zip(drawn, counts):
+            records[n]['coverage'] = {'shaded': c[0], 'covered': c[1]}
+            if c[1] and not c[0]:
+                _flag(records[n]['flags'], records[n]['notes'], 'alpha-discards-all', 'every pixel discarded')
+        views: dict[int, dict[str, np.ndarray]] = {}
+        for n, view, out, vp in jobs:
+            rec = records[n]
+            if not os.path.isfile(out):
+                continue
+            raw = np.fromfile(out, '<f4').reshape(s.size, s.size, 4)
+            depth = np.fromfile(out + '.depth', '<f4').reshape(s.size, s.size)
+            mask = depth < 1.0
+            hdr = raw[..., :3]
+            if (~np.isfinite(hdr[mask])).any():
+                _flag(rec['flags'], rec['notes'], 'nan', f'{view}: NaN / inf output')
+            ldr, _ = tonemap(np.nan_to_num(hdr), mask, post)
+            views.setdefault(n, {})[view] = np.where(mask[..., None], ldr, np.array(BACKGROUND, np.float32))
+            if not mask.any():
+                continue
+            yy, xx = np.nonzero(mask)
+            ndc = np.stack([(xx + 0.5) / s.size * 2 - 1, 1 - (yy + 0.5) / s.size * 2, depth[mask],
+                            np.ones(len(xx))], 1)
+            world = ndc @ np.linalg.inv(vp).T
+            world = world[:, :3] / world[:, 3:4]
+            lo, hi = (np.array(x) for x in rec['bounds'])
+            excess = np.maximum(np.maximum(lo - world, world - hi), 0.0).max(0)
+            tol = 0.5 + 0.02 * float(np.max(hi - lo))
+            rec.setdefault('excess', {})[view] = [float(x) for x in excess]
+            rec.setdefault('pixels', {})[view] = int(mask.sum())
+            if excess.max() > tol:
+                _flag(rec['flags'], rec['notes'], 'out-of-bounds',
+                      f'{view}: drawn up to {excess.max():.1f} m outside its vertices (y {excess[1]:.1f} m; '
+                      f'tolerance {tol:.1f} m)')
+        for n, rec in enumerate(records):
+            if 'origin' in rec and not rec.get('pixels') and 'render-failed' not in rec['flags']:
+                _flag(rec['flags'], rec['notes'], 'nothing-drawn', 'no pixel covered in any view')
+            rec['severity'] = severity(rec['flags'])
+            rec['fail'] = sorted(set(rec['flags']) & STRIP_FAIL)
+            tiles = [views.get(n, {}).get(v, _blank(s.size)) for v, _, _ in STRIP_VIEWS]
+            rows.append((rec['severity'], f'{rec["mesh"].rsplit("/", 1)[-1]} [{rec.get("origin", "")}]\n'
+                         f'{" ".join(rec["flags"]) or "ok"}', tiles))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    _write(s, 'strips', records, rows, [v for v, _, _ in STRIP_VIEWS],
+           {'database': label, 'terrain': terrain_name, 'weather': wl, 'extent': extent,
+            'failing': sum(bool(r['fail']) for r in records)})
+    return records
+
+
+def find_terrain(files: Files, spec: str | None, db_spec: str) -> tuple[str, bytes]:
+    """(name, bytes) of the VisualTerrain to draw: --terrain (a file, or a resource name staged or in the game copy),
+    else for a level:<name> database terrains/<name>/<name>.visual.res."""
+    if spec and os.path.isfile(spec):
+        return spec.replace('\\', '/'), open(spec, 'rb').read()
+    name = spec
+    if name is None:
+        m = re.match(r'level:(.+)$', db_spec, re.I)
+        if not m:
+            raise RenderQaError('strips: give --terrain (the VisualTerrain to draw)')
+        name = f'terrains/{m.group(1).lower()}/{m.group(1).lower()}.visual.res'
+    if not name.lower().endswith('.res'):
+        name += '.res'
+    b = files.read(name)
+    if b is None:
+        raise RenderQaError(f'strips: no VisualTerrain {name}')
+    return name, b
+
+
 # ------------------------------------------------------------------------------------------------ Project OPFOR: Wake
 
-WAKE_DB = os.path.join('work', 'ww2', 'install', 'level', 'Levels', 'WAKE_ISLAND_S', 'Shaders', 'Dx11_Single.res')
+WAKE_DB =os.path.join('work', 'ww2', 'install', 'level', 'Levels', 'WAKE_ISLAND_S', 'Shaders', 'Dx11_Single.res')
 
 
 def wake_meshes(root: str, files: Files, log: Callable[[str], None] = print) -> list[str]:
@@ -1209,14 +1514,17 @@ def _priority() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or '').split('\n')[0])
-    ap.add_argument('command', choices=('render', 'compare', 'validate', 'wake'))
+    ap.add_argument('command', choices=('render', 'compare', 'validate', 'wake', 'strips'))
     ap.add_argument('meshes', nargs='*', help='mesh names (or with --find, parts of names)')
     ap.add_argument('--db', help='the database to draw with (render, compare)')
     ap.add_argument('--truth', help="compare: DICE's database (default auto: a BFBC2 level that draws the mesh)")
     ap.add_argument('--stage', action='append', default=[], help='unpacked bundles read before the game copy')
     ap.add_argument('--list', help='a file of mesh names, one per line')
     ap.add_argument('--find', action='store_true', help='the mesh arguments are parts of names')
-    ap.add_argument('--only', help='wake: only meshes whose name contains this')
+    ap.add_argument('--only', action='append', default=[],
+                    help='wake: only meshes whose name contains this; strips: only strips whose shader does (repeatable)')
+    ap.add_argument('--terrain', help='strips: the VisualTerrain (a file or a resource name; default for level:<name>'
+                                      ' terrains/<name>/<name>.visual.res)')
     ap.add_argument('--limit', type=int, default=0, help='at most this many meshes')
     ap.add_argument('--size', type=int, default=256)
     ap.add_argument('--weather', default=WEATHER, help=f'weather folder of the light (default {WEATHER})')
@@ -1249,12 +1557,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         files.add_stage(os.path.join(root, 'work', 'ww2', 'install'))
         meshes = meshes or wake_meshes(root, files)
         if a.only:
-            meshes = [m for m in meshes if a.only.lower() in m.lower()]
+            meshes = [m for m in meshes if any(o.lower() in m.lower() for o in a.only)]
         if a.limit:
             meshes = meshes[:a.limit]
         db = dbs.get(os.path.join(root, WAKE_DB))
         run_compare(files, db, meshes, s, os.path.join(root, WAKE_DB), None, dbs, truth_index(root))
         return 0
+    if a.command == 'strips':
+        if not a.db:
+            raise RenderQaError('strips: --db is needed')
+        name, pc = find_terrain(files, a.terrain, a.db)
+        records = run_strips(files, dbs.get(a.db), name, pc, s, a.db, a.only, a.limit)
+        bad = [r for r in records if r['fail']]
+        print(f'strips: {len(records)} drawn, {len(bad)} failing'
+              + ''.join(f'\n  {r["mesh"]}: {" ".join(r["fail"])}' for r in bad[:30]))
+        return 1 if bad else 0
     if a.limit:
         meshes = meshes[:a.limit]
     if not meshes:

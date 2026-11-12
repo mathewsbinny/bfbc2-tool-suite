@@ -181,15 +181,57 @@ def compare_nonfinite():
         check((result['status'] == 'exact') == exact, f'compare: {a} vs {b} exact={exact}')
 
 
+def engine_named_constants():
+    """A block constant the engine writes by name (the terrain strips' heightmapScaleAndOffsetXZ ...): declared in
+    $Globals under its name after the engine's constants, the rest of the 'constants' array still baked in; the
+    build finds its register (pcbuild.named_registers) and writes the PC block's records with the names' Adler-32
+    (lower case) hashes, which every stock record has."""
+    const = Stub(regset='float4', name='constants', reg=4, count=2, type=Stub(type='float4', cls='vector'))
+    eng = Stub(regset='float4', name='viewProjMatrix', reg=0, count=4, type=Stub(type='float4', cls='matrix_rows'))
+    head = Stub(vertex_elements=[], interpolators=[], num_temp_regs=1, outputs=1,
+                context_misc_fields=Stub(sc_output_screen_xy=False))
+    sh = Stub(is_pixel=True, ctab=Stub(constants=[eng, const]), literals={}, instructions=[], cf=[], header=head)
+    iface = X.Interface([], material_regs={4: (9.0, 9.0, 9.0, 9.0), 5: (1.0, 2.0, 3.0, 4.0)},
+                        named_ps={4: 'heightmapScaleAndOffsetXZ'})
+    src = X.translate(sh, iface)  # type: ignore[arg-type]
+    lines = src.split('\n')
+    check('float4 heightmapScaleAndOffsetXZ;' in lines and 'm_constants_0' not in src
+          and 'static const float4 m_constants_1 = float4(1.0, 2.0, 3.0, 4.0);' in lines,
+          'named constant: a $Globals variable, its placeholder not baked; the unnamed register baked')
+    check(lines.index('float4 viewProjMatrix[4];') < lines.index('float4 heightmapScaleAndOffsetXZ;'),
+          'named constant: declared after the engine constants')
+    # (the stub has no instructions: a read added, else the compiler drops $Globals altogether)
+    code = P.compile_hlsl(src.replace('    return po;', '    po.c0 = heightmapScaleAndOffsetXZ; return po;'),
+                          'main', 'ps_5_0')
+    recs = P.named_registers(code, {'heightmapScaleAndOffsetXZ': (4, (0.0, 0.0, 0.0, 0.0))})
+    check(recs == [('heightmapScaleAndOffsetXZ', 4, 4, (0.0, 0.0, 0.0, 0.0))],
+          f'named constant: its register after viewProjMatrix ({recs})')
+    check(P.name_hash('z') == 0x7b007b and P.name_hash('heightmap') == 0x127303b8
+          and P.name_hash('heightmapScaleAndOffsetXZ') == 0x85b00a6c, 'block record hash: Adler-32 of the lower-case name')
+    vs_iface = X.Interface([], named_vs={4: 'heightmapDecalOffsetY'})
+    check(vs_iface.named_ps == {} and 'heightmapDecalOffsetY' not in X.translate(sh, vs_iface),  # type: ignore[arg-type]
+          'named constant: per stage (a vertex shader\'s name not used by a pixel shader)')
+    try:
+        X.translate(sh, X.Interface([], named_ps={4: 'viewProjMatrix'}))  # type: ignore[arg-type]
+        check(False, 'named constant: an engine constant\'s name refused')
+    except X.TranslateError:
+        check(True, 'named constant: an engine constant\'s name refused')
+
+
 def game():
     import xdiff
     out = os.path.join(tempfile.gettempdir(), 'xdiff_test_game')
-    rc = xdiff.main(['--ps', '317', '36', '120', '202', '476', '--n', '512', '-o', out])
+    # 745 / 502: terrain strips (Quad_TireTracks, Wake_DirtRoad) - engine-named constants from their blocks
+    ids = ('317', '36', '120', '202', '476', '745', '502')
+    rc = xdiff.main(['--ps', *ids, '--n', '512', '-o', out])
     check(rc == 0, 'game differential command succeeds')
     import json
     r = json.load(open(os.path.join(out, 'results.json')))
-    for p in ('317', '36', '120', '202', '476'):
+    for p in ids:
         check(r[p]['status'] == 'exact', f'ps{p}: the translation exact against the interpreter ({r[p]["status"]})')
+    hlsl = open(os.path.join(out, 'ps745', 'ps.hlsl')).read()
+    check('float4 dynamicMaskAtlasParams;' in hlsl, 'ps745 (a terrain strip): its block\'s engine-named constants '
+          'translated as $Globals variables')
 
 
 if __name__ == '__main__':
@@ -197,6 +239,7 @@ if __name__ == '__main__':
     compare_nonfinite()
     hlsl_job_paths()
     probe_placement()
+    engine_named_constants()
     cubefetch_in_shaderview()
     if '--game' in sys.argv:
         game()

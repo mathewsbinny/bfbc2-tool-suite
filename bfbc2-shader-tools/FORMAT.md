@@ -69,11 +69,21 @@ Inside a block (read from the data; true for every block of the PC and Xbox data
                  4 floats (the value)
       engine textures: 0x20-byte parameter name (heightmap, maskTileMap, DepthBuffer, BaseTexture1 ...), u32 (hash),
                  u16 sampler register, 2 zero - textures the engine binds itself; no texture name
+      the hash: Adler-32 of the name in lower case (all 16,062 records of mp_005, mp_006, sp_01 Dx9 / Dx10 and BF1943's
+                 Wake: 'heightmap' 0x127303b8; pcbuild.name_hash)
       sampler states: 60 bytes each (sampler register first; not interpreted)
 ```
 
+Some named constants are the engine's, written by name at draw time over the block's placeholder (DICE's: 0): the
+terrain renderer's `heightmapScaleAndOffsetXZ`, `heightmapDecalOffsetY` (a strip vertex shader's own block),
+`heightmapPixelSizeAndAspect`, `dynamicMaskAtlasOffset` / `AtlasParams` / `TileBorderParams` (a strip program's second
+block, beside the engine textures `heightmap`, `dynamicMaskTileMap`, `dynamicMaskIndirectionMap`) - every one in
+BFBC2Game.exe (pcbuild.ENGINE_NAMED). A shader reads them in its `constants` array at the record's register (Dx10/11:
+the $Globals offset / 16); the header's 0x19 is then the first of them.
+
 Programs (section 6) have two blocks: the first one holds no textures in any file seen; the textures an entry uses
-are in its programs' second blocks. The shaders' own blocks (section 4, 5) hold sampler states only. **Nothing names
+are in its programs' second blocks. The shaders' own blocks (section 4, 5) hold sampler states only (and a strip
+vertex shader's, its engine-named constants). **Nothing names
 what a texture is for**: the record gives only the sampler register, and the shaders' constant tables call the
 samplers `sampler_Texture`, `sampler_Texture2` ... The texture names follow DICE's suffixes (`_C`/`_Df` color, `_Nm`/
 `_N` normal, `_Sp` specular, `_Gm` gloss mask, `_Occlusion` occlusion), which is what `texture_kind` goes by. The

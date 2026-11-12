@@ -231,6 +231,45 @@ def visual_terrain(x):
     return _visual_terrain(x, '>').done()
 
 
+ROAD_STRIDE = 28
+
+
+def road_strips(pc):
+    """A PC VisualTerrain's road blocks (each terrain block's full-detail roads, then each one's low-detail ones):
+    [{'block': i, 'strips': [{'shader', 'second', 'mask', 'first', 'triangles', 'bounds', 'layer'}], 'vertices':
+    bytes (V x 28: world position float3, texture coordinate float2, 4 x f16), 'indices': uint32 array}] - the baked
+    road and decal strips, each drawn with its shader entry ('second': a second pass, e.g. "..._Zonly"); 'first' /
+    'triangles' a range of the block's indices, 'bounds' 6 floats as stored."""
+    w = _Walk(pc, 'visual terrain', '<')
+    n = w.u32()
+    if not 1 <= n <= 256:
+        raise TerrainError(f'visual terrain: {n} terrain blocks - not a VisualTerrain?')
+    out = []
+    for i in range(2 * n):
+        strips = []
+        for _ in range(w.u32()):
+            shader, second, mask = w.string(), w.string(), w.string()
+            first, tri = (int(v) for v in w.arr('u4', 2))
+            bounds = tuple(float(v) for v in w.arr('f4', 6))
+            layer = int(w.arr('u4', 1)[0])
+            strips.append(dict(shader=shader, second=second, mask=mask, first=first, triangles=tri, bounds=bounds,
+                               layer=layer))
+        V, B, I = (w.u32() for _ in range(3))
+        if B != ROAD_STRIDE * V:
+            raise TerrainError(f'visual terrain: road vertices of {B} bytes for {V} (not 28 each)')
+        at = w.o
+        w.arr(ROAD_VERTEX, V)
+        verts = pc[at:w.o]
+        idx = np.array(w.arr('u4', I), np.uint32)
+        out.append(dict(block=i, strips=strips, vertices=verts, indices=idx))
+    return out
+
+
+def road_positions(vertices):
+    """(V, 3) float32 world positions of a road block's vertices."""
+    return np.frombuffer(vertices, '<f4').reshape(-1, ROAD_STRIDE // 4)[:, :3].copy()
+
+
 def visual_terrain_parts(pc):
     """A PC VisualTerrain's parts: [(name, bytes)] ('blocks', 'roads 0' ..., 'patch shaders', 'patch map 0', 'patch
     map 0 cells', 'patch map 0 names', ...)."""
