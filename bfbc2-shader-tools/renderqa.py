@@ -1231,6 +1231,36 @@ def _flat_texture(path: str, value: float) -> str:
     return path
 
 
+_AUTHORED: set[str] | None = None
+
+
+def bf1943_authored(name: str) -> bool:
+    """Whether a texture is one Battlefield 1943 itself ships outside its levels' own folders (its name among the
+    source's resources, its folder no BF1943 level's): a translated BF1943 shader names its own textures, some under another level's folder (Iwo Jima's
+    Decal_HaggardWasHere samples Terrains/SP_01_GreenAcres/Textures/HaggardWasHere_A) - that is the source's own
+    texture, not one a BFBC2 donor brought from another level. False when no BF1943 source is there."""
+    global _AUTHORED
+    if _AUTHORED is None:
+        try:
+            suite_paths.use('bf1943-import')
+            import bf1943import
+            src = bf1943import.Source(bf1943import.default_source())
+            levels = {k.split('/')[1] for k in src.entries if k.startswith('levels/') and k.count('/') == 1}
+            levels = {lv[:-4] for lv in levels if lv.endswith('.dbx')}
+            # not another BF1943 level's own folder (Wake's ground on Iwo Jima is still another level's texture)
+            _AUTHORED = {k[:-4] for k, (_, e) in src.entries.items() if k.endswith('.res') and
+                         e.get('type') == 'XenonTexture' and terrain_folder(k) not in levels}
+        except Exception:                                   # noqa: BLE001 - no source: nothing counts as authored
+            _AUTHORED = set()
+    return name.lower().replace('\\', '/') in _AUTHORED
+
+
+def foreign_texture(name: str, own: str | None) -> bool:
+    """A texture of another level's folder than own - and not one BF1943 itself ships (bf1943_authored)."""
+    folder = terrain_folder(name)
+    return bool(own and folder and folder != own and not bf1943_authored(name))
+
+
 def terrain_folder(name: str) -> str | None:
     """The level folder a resource name (or a file of an unpacked bundle) lies in (terrains/<folder>/...), lower
     case, or None (also for DICE's shared terrain library, Terrains/_Textures/...)."""
@@ -1284,7 +1314,7 @@ def prepare_strip(files: Files, db: S.ShaderDb, strip: dict[str, Any], own: str 
             continue
         extra['textures'].append(tn)
         folder = terrain_folder(tn)
-        if own and folder and folder != own:
+        if foreign_texture(tn, own):
             _flag(flags, notes, 'foreign-texture', f't{bp} {tn}: another level\'s texture')
         b = files.read(tn + '.res')
         why = texture_problem(b) if b is not None else 'not found'
@@ -1642,7 +1672,7 @@ def prepare_patch(files: Files, db: S.ShaderDb, entry: str, layout: bytes, own: 
             continue
         extra['textures'].append(tn)
         folder = terrain_folder(tn)
-        if own and folder and folder != own:
+        if foreign_texture(tn, own):
             _flag(flags, notes, 'foreign-texture', f't{bp} {tn}: another level\'s texture')
         b = files.read(tn + '.res')
         why = texture_problem(b) if b is not None else 'not found'

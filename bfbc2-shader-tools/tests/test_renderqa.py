@@ -647,6 +647,26 @@ def game(c: Checks) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def authored(c: Checks) -> None:
+    """The foreign-texture rule: another level's folder is foreign - unless the texture is one BF1943 ships outside
+    its levels' folders (bf1943_authored; the source's names stood in here, no BF1943 copy needed)."""
+    saved = R._AUTHORED
+    try:
+        R._AUTHORED = {'terrains/sp_01_greenacres/textures/haggardwashere_a'}
+        c.check(not R.foreign_texture('Terrains/SP_01_GreenAcres/Textures/HaggardWasHere_A', 'iwo_jima_s'),
+                "foreign texture: a BF1943-authored texture outside its levels is the source's own, not foreign")
+        c.check(R.foreign_texture('Terrains/MP_003/Textures/mp03_sky_01', 'wake_island_s'),
+                "foreign texture: another (BFBC2) level's texture is still foreign")
+        c.check(not R.foreign_texture('Terrains/Iwo_Jima_s/Textures/IJ_sand_white_01_C', 'iwo_jima_s')
+                and not R.foreign_texture('Textures/Terrain/Mud/mudslide_01_RGBM', 'iwo_jima_s'),
+                "foreign texture: the level's own and shared textures are not foreign")
+        R._AUTHORED = set()
+        c.check(R.foreign_texture('Terrains/SP_01_GreenAcres/Textures/HaggardWasHere_A', 'iwo_jima_s'),
+                'foreign texture: without a BF1943 source nothing is exempt')
+    finally:
+        R._AUTHORED = saved
+
+
 def main(argv: list[str]) -> int:
     c = Checks()
     checks(c)
@@ -654,6 +674,7 @@ def main(argv: list[str]) -> int:
     strips(c)
     patches(c)
     cli(c)
+    authored(c)
     if '--game' in argv:
         game(c)
     print(f'{c.failed} failed' if c.failed else 'all passed')
