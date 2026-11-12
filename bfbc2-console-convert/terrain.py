@@ -25,6 +25,11 @@ TerrainHeightfield (PC, little-endian):
                     2048; its last block 4,098 values in BFBC2's mp_005 and BF1943's Wake Island alike)
 Battlefield 1943's header has no A (heights at 0x2D) and other values at 0x28 (707 on Wake Island) and 0x2C (0x40):
 A is computed from the tail, those two written as BFBC2 has them.
+A sub-terrain's heightfield (the ring around the main block: Heightfield-001 ... -012 of BFBC2's mp_002 and BF1943's
+Guadalcanal and Iwo Jima; 128 samples on the Xbox, 64 in DICE's PC copies) has neither offsets nor sections: its
+header 3 x u32 is (n, log2(n) - 3, 0), 0x24 - 0x2D are 0 (A = 0), and after the heights comes a min / max quadtree of
+16-sample cells - u16 pairs, 1 + 4 + ... + (n / 16)^2 nodes (85 at 128: 340 bytes on BFBC2's Xbox mp_002 and BF1943's
+levels alike; 21 at 64 on DICE's PC mp_002). SUB_SIZES: the sizes read this way.
 
 WaterMesh: 4-byte values throughout (all levels).
 
@@ -66,6 +71,31 @@ import struct
 import numpy as np
 
 FIXED = {1024: 62474, 2048: 256012}         # the tail's second part, by size
+SUB_SIZES = (64, 128)                       # sub-terrain heightfields: a min / max quadtree after the heights
+
+
+def quadtree_nodes(n):
+    """The nodes of a sub-terrain heightfield's min / max quadtree: 16-sample cells, every level up to one node."""
+    return sum(4 ** k for k in range((n // 16).bit_length()))
+
+
+def sub_heightfield(x, n, source):
+    """A sub-terrain heightfield (module docstring) as BFBC2's PC file: the header's values, the heights and the
+    quadtree's u16 pairs byte-swapped, A = 0."""
+    head = 0x31 if source == 'bfbc2' else 0x2D
+    t = head + 2 * n * n
+    q = 4 * quadtree_nodes(n)
+    if len(x) - t != q:
+        raise TerrainError(f'sub-terrain heightfield {n}: a tail of {len(x) - t} bytes, not the {q} of its quadtree')
+    out = bytearray(0x31 + 2 * n * n + q)
+    _swap(x, out, 'f4', 6, 0)
+    _swap(x, out, 'u4', 3, 0x18)
+    _swap(x, out, 'u2', 2, 0x24)
+    if struct.unpack_from('<3I', out, 0x18)[1:] != (n.bit_length() - 4, 0):
+        raise TerrainError(f'sub-terrain heightfield {n}: header {struct.unpack_from("<3I", out, 0x18)}')
+    _swap(x, out, 'u2', n * n, head, 0x31)
+    _swap(x, out, 'u2', q // 2, t, 0x31 + 2 * n * n)
+    return bytes(out)
 
 
 class TerrainError(Exception):
@@ -81,6 +111,8 @@ def _swap(x, out, dt, count, at, to=None):
 def heightfield(x, source='bfbc2'):
     """An Xbox TerrainHeightfield (BFBC2's, or source='bf1943': Battlefield 1943's) as BFBC2's PC file."""
     n = struct.unpack_from('>I', x, 0x18)[0]
+    if n in SUB_SIZES:
+        return sub_heightfield(x, n, source)
     if n not in FIXED:
         raise TerrainError(f'heightfield size {n}: only {sorted(FIXED)} are known')
     head = 0x31 if source == 'bfbc2' else 0x2D
