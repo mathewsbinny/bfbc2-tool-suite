@@ -67,6 +67,8 @@ class Hub:
     def __init__(self, root):
         self.root = root
         self.lines = queue.Queue()
+        self.stopped_procs = set()
+        self.ok_codes = {}
         self.proc = None                       # the tab's running tool (one at a time)
         root.title('BFBC2 Tool Suite')
         root.minsize(900, 640)
@@ -131,7 +133,6 @@ class Hub:
     def run(self, args, label, cwd=None, ok=(0,)):
         """One tool in the background (the tab's), its output streamed to the pane. ok: the exit codes that are
         not failures (LevelDiff: 1 = the files differ, a result)."""
-        self.ok_codes[label] = tuple(ok)
         if self.proc is not None and self.proc.poll() is None:
             messagebox.showinfo('BFBC2 Tool Suite', 'A tool is still running - wait for it or press Stop.')
             return
@@ -144,6 +145,7 @@ class Hub:
         except OSError as e:
             errors.report(e, where=f'starting {label}')
             return
+        self.ok_codes[self.proc] = tuple(ok)
         self.status.set(f'Running: {label}')
         self.stop_btn.configure(state='normal')
         threading.Thread(target=self.reader, args=(self.proc, label, True), daemon=True).start()
@@ -183,7 +185,7 @@ class Hub:
                         self.lines.put(rest)
                     break
                 time.sleep(0.2)
-        self.lines.put(('done', label, proc.returncode, False))
+        self.lines.put(('done', label, proc.returncode, False, proc))
         with contextlib.suppress(OSError):
             os.remove(path)
 
@@ -194,32 +196,30 @@ class Hub:
             tail.append(line.rstrip())
             del tail[:-12]
         code = proc.wait()
-        self.lines.put(('done', label, code, main))
+        self.lines.put(('done', label, code, main, proc))
 
     def pump(self):
         try:
             while True:
                 item = self.lines.get_nowait()
                 if isinstance(item, tuple):
-                    _, label, code, main = item
+                    _, label, code, main, proc = item
                     self.write(f'{"done" if code == 0 else f"finished with exit code {code}"}: {label}\n')
                     errors.logger().info(f'exit {code}: {label}')
-                    if main:
+                    if main and proc is self.proc:
                         self.status.set('Ready.')
                         self.stop_btn.configure(state='disabled')
                         if label.startswith('Levels'):
                             self.fill_levels()
-                    if code not in (None,) + self.ok_codes.get(label, (0,)) and not self.stopped:
+                    stopped = proc in self.stopped_procs
+                    self.stopped_procs.discard(proc)
+                    if code not in (None,) + self.ok_codes.pop(proc, (0,)) and not stopped:
                         self.failed(label, code, main)
-                    self.stopped = False
                 else:
                     self.write(item)
         except queue.Empty:
             pass
         self.root.after(100, self.pump)
-
-    stopped = False
-    ok_codes = {}
 
     def failed(self, label, code, main):
         """A tool ended with an error: logged, and the user told what it said last. The 3D tools and other
@@ -235,7 +235,7 @@ class Hub:
 
     def stop(self):
         if self.proc is not None and self.proc.poll() is None:
-            self.stopped = True
+            self.stopped_procs.add(self.proc)
             if os.name == 'nt':
                 # the whole tree: a tool's own children (run_tests.py's tests) would run on after terminate()
                 subprocess.run(['taskkill', '/T', '/F', '/PID', str(self.proc.pid)], capture_output=True,

@@ -213,6 +213,9 @@ def grid(info: Info, spawn: bool) -> tuple[int, int]:
 def drawn(info: Info, channel: str) -> bool:
     """False for the fields of no image: origin (0, 0) with step (0, 0) or (1, 1) - the whole atlas; the alpha ones
     with a null texture (33 of Wake's: blood chunks, tracer bounces), the normal ones with a null normal map."""
+    reference = info.texture if channel == 'alpha' else info.normalmap
+    if reference is not None and reference.lower() in ('', 'null'):
+        return False
     o_u, o_v, s_u, s_v = (info.values[k] for k in CHANNELS[channel])
     return not (o_u == 0 and o_v == 0 and (s_u, s_v) in ((0, 0), (1, 1)))
 

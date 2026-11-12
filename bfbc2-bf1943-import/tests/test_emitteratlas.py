@@ -68,7 +68,8 @@ def ref(name, r):
 def emitter(guid, uv, nm, frames=1, cols=1, animated=False, spawn=False):
     """An emitter partition: an UpdateTextureCoordsData with one TextureInfo1 (and a SpawnAnimationFrameData)."""
     info = dbx.Element('complex', dbx.CONTAINER, [('name', 'TextureInfo1')], children=[
-        ref('Texture', 'textures/x/a/00000000-0000-0000-0000-000000000001'), ref('Normalmap', 'null'),
+        ref('Texture', 'textures/x/a/00000000-0000-0000-0000-000000000001'), ref('Normalmap', 'textures/x/n/00000000-0000-0000-0000-000000000002'
+            if nm not in ((0.0, 0.0, 0.0, 0.0), (0.0, 0.0, 1.0, 1.0)) else 'null'),
         field('AnimationFrameCount', float(frames)), field('AnimationFrameColumnCount', float(cols))] +
         [field(k, v) for k, v in zip(ea.UV + ea.NM, uv + nm)] + [flag('EnableAnimation', animated)])
     inst = [dbx.Element('instance', dbx.CONTAINER, [('guid', guid + '-0000-0000-0000-000000000001'),

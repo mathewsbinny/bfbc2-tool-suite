@@ -38,29 +38,40 @@ def opfor():
     return navkit.find_opfor(None)
 
 
+HPD_BACKUPS = ('pathdata.hpd.opfor-orig', 'pathdata.hpd.opfor-stockmp-orig')
+HPD_FILES = ('pathdata.hpd',) + HPD_BACKUPS
+
+
 def dice_pathdata_files(root):
-    """DICE's path-data files in the game copy: pathdata.hpd, or its kept original where NavKit's is installed."""
+    """Original DICE data, preferring kept originals and excluding installs with no original."""
     out = []
     for dp, _, fs in os.walk(os.path.join(root, 'game', 'Output', 'win32', 'ai')):
-        if 'pathdata.hpd' in [f.lower() for f in fs]:
-            orig = [f for f in fs if f.lower().startswith('pathdata.hpd.')]
-            out.append(os.path.join(dp, orig[0] if orig else 'pathdata.hpd'))
+        names = {f.lower(): f for f in fs}
+        original = next((names[n] for n in HPD_BACKUPS if n in names), None)
+        if original is not None:
+            out.append(os.path.join(dp, original))
+        elif 'pathdata.hpd' in names and not any(n in names for n in
+                ('pathdata.hpd.opfor-new', 'pathdata.hpd.opfor-stockmp-applied')):
+            out.append(os.path.join(dp, names['pathdata.hpd']))
     return sorted(out)
 
 
 def pathdata_files(root):
-    """Every path-data file: the game copy's (with DICE's originals kept as pathdata.hpd.<suffix> where NavKit's
-    is installed) and OPFOR's work folder's (Xbox Onslaught copies, NavKit's own builds)."""
+    """Every HPD and kept original in the game and work folders, excluding markers and reports."""
     out = []
     for top in (os.path.join(root, 'game', 'Output', 'win32', 'ai'), os.path.join(root, 'work')):
         for dp, _, fs in os.walk(top):
-            out += [os.path.join(dp, f) for f in fs if f.lower().startswith('pathdata.hpd')]
+            out += [os.path.join(dp, f) for f in fs if f.lower() in HPD_FILES]
     return sorted(out)
 
 
 def tests():
     """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
     t = [
+        ('review regressions: HPD selection, launcher completion, mypy failures', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_review_regressions.py')]),
+        ('BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_asset_accuracy.py')]),
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
         ('lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
         ('types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),

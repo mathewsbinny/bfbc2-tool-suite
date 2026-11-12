@@ -506,6 +506,44 @@ def main() -> int:
           not effectport._effect_with_emitters(b'..Entity.EffectAsset..Audio.SoundEntityData..'),
           "effectport: a sound/ effect drawing particles is an effect; a plain sound wrapper the sound porter's")
 
+    # ---------------------------------------------------------------- console audio buffers -> PC directed audio edges
+    def audio_fixture(prefix, pc=False):
+        ids = [f'{prefix}-2222-2222-2222-{i:012d}' for i in range(1, 11)]
+        graph, sampler, output, src_port, dst_a, dst_b, unused, edge_a, edge_b, control = ids
+        port = lambda g, typ, idx: inst(g, 'Audio.SoundNodePort',
+                                       [num('WireIndex', [idx], '>i'), txt('PortType', typ),
+                                        num('UnconnectedValue', [0.0])])
+        kids = [arr('Nodes', [item(sampler), item(output)]), num('WireCount', [5], '>i')]
+        if pc:
+            # This unrelated donor buffer wiring must never survive on BF1943's nodes.
+            kids.insert(0, arr('AudioConnections', [cx('', [num('SourceId', [99], '>i'),
+                                                           num('TargetId', [100], '>i')])]))
+        return [inst(graph, 'Audio.SoundTemplate', kids),
+                inst(sampler, 'Audio.SamplerNode', [ref('Output', src_port), ref('Trigger', control)]),
+                inst(output, 'Audio.OutputNode', [arr('Inputs', [item(dst_a), item(dst_b)]),
+                                                 ref('Unused', unused)]),
+                port(src_port, 'SgptAudio', 3), port(dst_a, 'SgptAudio', 3), port(dst_b, 'SgptAudio', 3),
+                port(unused, 'SgptAudio', -1),
+                inst(edge_a, 'Audio.SoundNodeConnection', [ref('SourcePort', src_port), ref('TargetPort', dst_a)]),
+                inst(edge_b, 'Audio.SoundNodeConnection', [ref('SourcePort', src_port), ref('TargetPort', dst_b)]),
+                port(control, 'SgptEvent', 4)]
+
+    source_audio = audio_fixture('aaaaaaaa')
+    donor_audio = audio_fixture('bbbbbbbb', pc=True)
+    data, rep = dbxport.port(part(source_audio[0].attr('guid'), source_audio), tmpl(*donor_audio))
+    af = parsed(data)
+    graph, *rest = af.instances
+    edges = [[_int(c.child('SourceId')), _int(c.child('TargetId'))]
+             for c in graph.child('AudioConnections').children]
+    ports = [i for i in af.instances if i.attr('type') == 'Audio.SoundNodePort']
+    check(edges == [[6, 7], [6, 8]] and [_int(p.child('WireIndex')) for p in ports] == [6, 7, 8, -1, 4],
+          'audio graph: source fan-out becomes PC directed buffers; control and unused ports unchanged', edges)
+    before = dbx.write(af)
+    check(dbxport.rebuild_audio_connections(af.instances) == [] and dbx.write(af) == before,
+          'audio graph: valid native-style buffers are preserved byte-for-byte on another pass')
+    check(any(r.action == 'converted' and 'AudioConnections' in (r.note or '') for r in rep.records),
+          'audio graph: schema conversion reports regenerated buffer routing')
+
     # ---------------------------------------------------------------- reports
     t = tmpl(inst(B + '1', 'X.R', [txt('Name', 'tpl'), num('New', [1.0])]))
     bf = part(A + '1', [inst(A + '1', 'X.R', [txt('Name', 'bf'), txt('Old', 'o')])])

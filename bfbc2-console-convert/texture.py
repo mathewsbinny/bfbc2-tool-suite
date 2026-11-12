@@ -196,6 +196,12 @@ def convert(b):
     if len(b) < HEADER:
         raise ConvertError('shorter than a texture header')
     ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('>8I', b, 0)
+    if not (0 < w <= 16384 and 0 < h <= 16384 and 1 <= mips <= 15):
+        raise ConvertError(f'invalid texture dimensions {w} x {h} / {mips} mip levels')
+    if mips > max(w, h).bit_length():
+        raise ConvertError(f'{mips} mip levels exceed the {w} x {h} chain')
+    if typ not in (0, CUBE) or depth not in (0, 1):
+        raise ConvertError(f'texture type {typ} / depth {depth} is not converted (2D and cube maps only)')
     if fmt == DXT5A:
         return _convert_dxt5a(b, ver, typ, flags, w, h, mips)
     if fmt == RGB565:

@@ -11,11 +11,12 @@ to 1 x 1, a level never under one block).
     texwrite.wrapped(res)          # the on-demand bundles' form (async\\ondemand_awards-00.fbrb): 'RES\\x02' + the
                                    # type name zero-padded to 56 bytes, the payload size twice (u32), the payload
 
-The encoder: per 4 x 4 block, the colours' principal axis (power iteration) gives the two end colours (the
+The encoder: per 4 x 4 block, the colours' principal axis (symmetric eigensolve) gives the two end colours (the
 extremes of the block projected on it, rounded to 5:6:5), four-colour mode (colour 0 > colour 1), each texel
 the nearest of the four - but a DXT1 block with a transparent texel (a colour picture given with 1-bit alpha) in
-three-colour mode (colour 0 <= colour 1: the two ends, their midpoint, index 3 transparent); DXT5's alpha half: the block's highest and lowest alpha as the end values (eight-value
-mode), each texel the nearest of the eight. Mip levels: 2 x 2 box filter; normal maps renormalised after each step.
+three-colour mode (colour 0 <= colour 1: the two ends, their midpoint, index 3 transparent); DXT5's alpha half
+chooses the lower-error eight-value or six-value palette (the latter reserves exact 0 and 255).
+The principal axis is solved from the symmetric covariance matrix, preserving opposing channel variations. Mip levels: 2 x 2 box filter; normal maps renormalised after each step.
 """
 import struct
 
@@ -72,12 +73,27 @@ def alpha1(level, w, h):
 
 
 def _alpha_blocks(a):
-    """(n, 16) alpha 0-255 -> (n, 8) DXT5 alpha blocks: eight-value mode (alpha 0 > alpha 1)."""
+    """(n, 16) alpha 0-255 -> (n, 8) DXT5 alpha blocks: the lower-error six- or eight-value palette."""
     hi = np.round(a.max(1)).astype(np.int64)
     lo = np.round(a.min(1)).astype(np.int64)
     pal = np.stack([hi, lo] + [((7 - k) * hi + k * lo) // 7 for k in range(1, 7)], 1)           # (n, 8)
     idx = np.abs(a[:, :, None] - pal[:, None, :]).argmin(-1).astype(np.uint64)
     idx[hi == lo] = 0
+    # Six-value mode reserves exact 0/255; fit its endpoints to the interior samples.
+    # Keep eight-value mode unless the alternative reduces the decoded squared error.
+    interior = (a > 0) & (a < 255)
+    a0 = np.where(interior, a, 255).min(1).astype(np.int64)
+    a1 = np.where(interior, a, 0).max(1).astype(np.int64)
+    a0 = np.where(interior.any(1), a0, 0)
+    a1 = np.where(interior.any(1), a1, 255)
+    pal6 = np.stack([a0, a1] + [((5 - k) * a0 + k * a1) // 5 for k in range(1, 5)] +
+                    [np.zeros_like(a0), np.full_like(a0, 255)], 1)
+    idx6 = np.abs(a[:, :, None] - pal6[:, None, :]).argmin(-1).astype(np.uint64)
+    err8 = ((a - np.take_along_axis(pal, idx.astype(np.int64), 1)) ** 2).sum(1)
+    err6 = ((a - np.take_along_axis(pal6, idx6.astype(np.int64), 1)) ** 2).sum(1)
+    six = err6 < err8
+    hi, lo = np.where(six, a0, hi), np.where(six, a1, lo)
+    idx = np.where(six[:, None], idx6, idx)
     bits = (idx << (3 * np.arange(16, dtype=np.uint64))).sum(1).astype(np.uint64)
     out = np.zeros((len(a), 8), np.uint8)
     out[:, 0], out[:, 1] = hi, lo
@@ -129,10 +145,7 @@ def _color_blocks(blk, transparent=None):
         mean = sub.mean(1, keepdims=True)
         d = sub - mean
         cov = np.einsum('nki,nkj->nij', d, d)
-        axis = np.ones((len(sub), 3)) / np.sqrt(3)
-        for _ in range(8):
-            axis = np.einsum('nij,nj->ni', cov, axis)
-            axis /= np.maximum(np.linalg.norm(axis, axis=1, keepdims=True), 1e-9)
+        axis = np.linalg.eigh(cov)[1][:, :, -1]
         t = np.einsum('nki,ni->nk', d, axis)
         c0, p0 = _565(np.clip(mean[:, 0] + axis * t.min(1, keepdims=True), 0, 255))
         c1, p1 = _565(np.clip(mean[:, 0] + axis * t.max(1, keepdims=True), 0, 255))
@@ -152,10 +165,7 @@ def _color_blocks(blk, transparent=None):
     mean = blk.mean(1, keepdims=True)
     d = blk - mean
     cov = np.einsum('nki,nkj->nij', d, d)
-    axis = np.ones((len(blk), 3)) / np.sqrt(3)
-    for _ in range(8):
-        axis = np.einsum('nij,nj->ni', cov, axis)
-        axis /= np.maximum(np.linalg.norm(axis, axis=1, keepdims=True), 1e-9)
+    axis = np.linalg.eigh(cov)[1][:, :, -1]
     t = np.einsum('nki,ni->nk', d, axis)
     hi = mean[:, 0] + axis * t.max(1, keepdims=True)
     lo = mean[:, 0] + axis * t.min(1, keepdims=True)

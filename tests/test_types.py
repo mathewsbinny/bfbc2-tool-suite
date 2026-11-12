@@ -25,8 +25,10 @@ def main(argv: list[str]) -> int:
             print('FAIL mypy is not installed: python -m pip install --user mypy')
             return 1
         mine = [l for l in out.splitlines() if ': error:' in l]
-        failed += bool(mine)
-        print(f'{"ok  " if not mine else "FAIL"} mypy {d}' + ('' if not mine else ':\n  ' + '\n  '.join(mine[:20])))
+        bad = r.returncode != 0 or bool(mine)
+        failed += bad
+        details = mine or ([out.strip() or f'mypy exited with code {r.returncode}'] if bad else [])
+        print(f'{"FAIL" if bad else "ok  "} mypy {d}' + ('' if not details else ':\n  ' + '\n  '.join(details[:20])))
     print('all passed' if not failed else f'{failed} folder(s) with type errors')
     return 1 if failed else 0
 

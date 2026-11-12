@@ -1304,6 +1304,9 @@ def port(data: bytes, templates: Templates, resolve: Callable[[str], bool] | Non
             _conventions(inst, by, P)
         if bones is not None:
             _bones(inst, bones, P)
+    for graph in rebuild_audio_connections(new):
+        P.add(f'Audio.SoundTemplate ({graph})', 'converted',
+              note='PC audio buffer ids and AudioConnections rebuilt from this graph, not its donor')
     _gate(new, P, schema)
     attrs = list(part.attributes)
     prim = (part.attr('primaryInstance') or '').lower()
@@ -1314,6 +1317,101 @@ def port(data: bytes, templates: Templates, resolve: Callable[[str], bool] | Non
     new = [_text_empty_arrays(i) for i in new]
     written = dbx.DbxFile(f.strings, [dbx.Element(part.tag, part.kind, attrs, part.text, part.raw, new)] + f.roots[1:])
     return dbx.write(written), report
+
+
+def rebuild_audio_connections(instances: list[dbx.Element]) -> list[str]:
+    """Repair PC sound buffer wiring after BF1943 schema alignment, preserving recordings.
+
+    BF1943 connects audio ports through shared WireIndex values, alongside control
+    wires. PC gives connected audio ports distinct buffer ids above WireCount and
+    stores their directed edges in SoundTemplate.AudioConnections. Copying the
+    donor's array leaves those ids unrelated to the imported graph and silences it.
+    Valid native graphs retain their ids and array byte-for-byte.
+    """
+    by = {(i.attr('guid') or '').lower(): i for i in instances}
+    changed = []
+    repaired_ports: set[str] = set()
+
+    def integer(e: dbx.Element | None) -> int:
+        if e is None or e.kind != dbx.NUMBERS:
+            raise PortError('sound graph has a missing/non-numeric buffer id')
+        vals = _ints(e)
+        if len(vals) != 1:
+            raise PortError('sound graph buffer id is not a scalar')
+        return vals[0]
+
+    def audio(e: dbx.Element) -> bool:
+        typ = _field(e, 'PortType')
+        return e.attr('type') == 'Audio.SoundNodePort' and typ is not None and typ.text == 'SgptAudio'
+
+    def number(name: str, value: int) -> dbx.Element:
+        out = dbx.Element('field', dbx.NUMBERS, [('name', name)])
+        _set_numbers(out, [struct.pack('>i', value)], 4)
+        return out
+
+    def local_refs(e: dbx.Element) -> set[str]:
+        refs = set()
+        ref = e.attr('ref')
+        if ref and '/' not in ref and ref.lower() in by:
+            refs.add(ref.lower())
+        for child in e.children or ():
+            refs.update(local_refs(child))
+        return refs
+
+    for graph in (i for i in instances if i.attr('type') == 'Audio.SoundTemplate'):
+        guid = (graph.attr('guid') or '').lower()
+        wires = _field(graph, 'WireCount')
+        connections = _field(graph, 'AudioConnections')
+        if connections is None:
+            continue  # No PC schema was available; the ordinary schema/untemplated gate reports this.
+        reachable, todo = set(), [guid]
+        while todo:
+            g = todo.pop()
+            if g in reachable:
+                continue
+            reachable.add(g)
+            todo.extend(local_refs(by[g]) - reachable)
+        ports = {g: by[g] for g in reachable if audio(by[g])}
+        edges: list[tuple[str, str]] = []
+        for conn in instances:
+            if conn.attr('type') != 'Audio.SoundNodeConnection':
+                continue
+            source, target = _field(conn, 'SourcePort'), _field(conn, 'TargetPort')
+            a = (source.attr('ref') or '').lower() if source is not None else ''
+            b = (target.attr('ref') or '').lower() if target is not None else ''
+            if a not in ports and b not in ports:
+                continue
+            if a not in ports or b not in ports:
+                raise PortError(f'sound graph {guid} has an audio connection with an invalid endpoint')
+            edges.append((a, b))
+        connected = {g for edge in edges for g in edge}
+        wire_count = integer(wires)
+        indices = {g: integer(_field(ports[g], 'WireIndex')) for g in connected}
+        expected = [(indices[a], indices[b]) for a, b in edges]
+        actual = [(integer(_field(c, 'SourceId')), integer(_field(c, 'TargetId')))
+                  for c in connections.children or ()]
+        if actual == expected and len(set(indices.values())) == len(indices) and \
+                all(v > wire_count for v in indices.values()):
+            continue
+        if connected & repaired_ports:
+            raise PortError(f'sound graph {guid} shares repaired audio ports with another template')
+        repaired_ports.update(connected)
+        # First-use order preserves fan-out: the same output port always has one id.
+        assigned: dict[str, int] = {}
+        rows = []
+        for a, b in edges:
+            for g in (a, b):
+                if g not in assigned:
+                    assigned[g] = wire_count + 1 + len(assigned)
+                    port_index = _field(ports[g], 'WireIndex')
+                    assert port_index is not None
+                    _set_numbers(port_index, [struct.pack('>i', assigned[g])], 4)
+            rows.append(dbx.Element('complex', dbx.CONTAINER, children=[number('SourceId', assigned[a]),
+                                                                      number('TargetId', assigned[b])]))
+        connections.kind, connections.text, connections.raw = dbx.CONTAINER, '', b''
+        connections.children = rows
+        changed.append(guid)
+    return changed
 
 
 def _text_empty_arrays(e: dbx.Element) -> dbx.Element:

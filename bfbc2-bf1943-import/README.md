@@ -280,6 +280,17 @@ In short:
 ship. It uses fair pools (`FAIR_POOLS`), and the catalogue's class defaults never come from the partition's own
 instances. For each value it gives the baseline, the prediction and DICE's counterpart. That is how the conventions
 were scoped to the soldiers' weapons: before, 9 of 18 gravity values were right and the Zero's four were wrong.
+**Sound graphs.** BF1943 shares `WireIndex` values across connected audio ports,
+while BFBC2 assigns each connected audio port its own buffer id and records the
+routing in `SoundTemplate.AudioConnections`. `port` rebuilds these edges from the
+source graph's `SoundNodeConnection.SourcePort` / `TargetPort` references; copying
+a donor's array can silence otherwise valid imported recordings. Control/event
+wires and unused audio ports retain their values. Valid native PC routing is
+preserved. `rebuild_audio_connections(dbx.parse(data).instances)` exposes the same
+idempotent migration for previously converted DBX data; write the modified file
+with `dbx.write` only when the returned template-guid list is nonempty. Wave
+resources, sampler groups, and wave references are not changed.
+
 `tests\test_dbxport_rules.py` (quick) holds the deep analysis' 19 edge cases and a
 test per rule; `tests\test_dbxport_fair.py` ports every partition both games ship on a fair pool and checks it against
 DICE's (`--quick`: 7 partitions, in the quick tier when the game data is there).
@@ -345,3 +356,8 @@ converters' own: `bfbc2-anim-tools\tests\test_granny_port.py`, `bfbc2-console-co
 
 Developed for Project OPFOR BFBC2. Battlefield 1943 and Battlefield: Bad Company 2 are © Electronic Arts / DICE;
 Granny is a trademark of Epic Games (RAD Game Tools).
+
+Conversion accuracy regressions: `tests/test_asset_accuracy.py` at the suite root checks opposing texture-channel
+variation, exact alpha-mask values, null emitter-atlas references, shader texel coordinates and LOD selection,
+and real Direct3D WARP renders including vertex-stage texture sampling. Atlas packing now leaves null Texture /
+Normalmap references unchanged, even when their unused UV fields contain nonzero values.
