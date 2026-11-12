@@ -61,6 +61,16 @@ def main():
         n_unedited = sum(lv in UNEDITED for lv, _, _ in pairs)
         check(exact == n_unedited and exact > 0, f'heightfield: {exact} unedited levels converted byte for byte')
         check(same_shape == len(pairs), f'heightfield: {same_shape} of {len(pairs)} levels - the PC header and size')
+    subs = list(twins('.heightfield-001.res'))
+    if subs:
+        # mp_002's sub-terrains: DICE resampled them for the PC (Xbox 128, PC 64 samples) - the layout is checked:
+        # header and tail as the PC's, at each one's size
+        def layout(b):
+            n = struct.unpack_from('<I', b, 0x18)[0]
+            return (struct.unpack_from('<2I', b, 0x1C) == (n.bit_length() - 4, 0) and b[0x24:0x31] == bytes(13)
+                    and len(b) == 0x31 + 2 * n * n + 4 * terrain.quadtree_nodes(n))
+        good = sum(layout(terrain.heightfield(x)) and layout(p) for _, x, p in subs)
+        check(good == len(subs), f'sub-terrain heightfields: {good} of {len(subs)} levels in the PC layout (quadtree tail)')
     waters = list(twins('.water.mesh.res'))
     if waters:
         ok = sum(terrain.water_mesh(x) == p for _, x, p in waters)
