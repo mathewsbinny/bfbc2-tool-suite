@@ -170,6 +170,35 @@ class SkinnedLod:
         p.changed = True
         return p
 
+    def add_part(self, name, layout, geo, like, draw_list=0, at=None):
+        """A new part `name`: geo written in vertex layout `layout` (a 73-byte layout record), its header (skinning
+        kind and the rest) as part `like`'s, its bones the skeleton bones geo uses; listed in the LOD's part list
+        `draw_list` (0: the parts drawn - where BFBC2's scoped rifles list their lens, the M40's jntWpn_1_Glass; 3: the
+        depth-only parts). Its programs are its material's: the layout must be one they are compiled for.
+        at: its index among the parts (None: last) - the part lists are renumbered; a mesh set's shader list, one
+        material per part, must take the new part's material at the same index."""
+        if any(p.name.lower() == name.lower() for p in self.parts):
+            raise EditError(f'{self.where}: there is a part {name} already')
+        tmpl = self.part(like)
+        palette = list(dict.fromkeys(int(b) for b in geo.bone))
+        if len(palette) > 255:
+            raise EditError('too many bones for one part')
+        info = dict(tmpl.info)
+        info['name'] = name.encode('latin-1')
+        info['bones'] = palette
+        p = Part(info, layout, np.zeros((0, meshdata.elements(layout)[1]), np.uint8), np.zeros((0, 3), np.int64))
+        p.rows = self._encode(p, geo, palette)
+        p.idx = self._tris(geo)
+        p.changed = True
+        at = len(self.parts) if at is None else at
+        if not 0 <= at <= len(self.parts):
+            raise EditError(f'{self.where}: no part index {at}')
+        self.parts.insert(at, p)
+        lists = [[i + (i >= at) for i in x] for x in self.m['lists']]
+        lists[draw_list].append(at)
+        self.m = dict(self.m, lists=lists)
+        return p
+
     def to_bytes(self):
         """The file: its vertex and index buffers as they were (unchanged parts point where they did), each changed
         part's vertices and indices after them."""

@@ -93,6 +93,38 @@ def main():
         if skinmesh.lod_size(out) != m['vertex_bytes'] + m['index_bytes'] + 12:
             fails.append(f'{name}: lod size')
         print(f'replace in {name.split("/")[-1]}: {len(g.tris)} triangles, position error {err:.2g}')
+
+    # add_part: a lens part inserted before the depth-only part (as the M40's jntWpn_1_Glass) - the lists renumbered,
+    # the old parts' data unchanged, the new part read back in its layout
+    name = 'Objects/Weapons/Handheld/Beach/M1Garand/M1Garand_Mesh'
+    b, s = lod(ix, name, 0)
+    before = {p.name: (p.rows.tobytes(), p.idx.tobytes()) for p in s.parts}
+    old_lists = [list(x) for x in s.m['lists']]
+    z = len(s.parts) - 1                                       # the ZOnly part
+    main_layout = ix.parts[f'{name}_lod0/jntwpn_1_m1garand_main/standard'.lower()]
+    s.add_part('jntWpn_1_Glass', main_layout, g, 'jntWpn_1_M1Garand_Main', at=z)
+    try:
+        s.add_part('jntWpn_1_Glass', main_layout, g, 'jntWpn_1_M1Garand_Main')
+        fails.append('add_part: a second part of the same name accepted')
+    except skinmesh.EditError:
+        pass
+    out = s.to_bytes()
+    m = skinmesh.meshdata.parse(out, False)
+    names = [p['name'].decode() for p in m['parts']]
+    want_lists = [[i + (i >= z) for i in x] for x in old_lists]
+    want_lists[0].append(z)
+    if names[z] != 'jntWpn_1_Glass' or m['lists'] != want_lists:
+        fails.append(f'add_part: parts {names}, lists {m["lists"]} (want {want_lists})')
+    lay = {n: (main_layout if n == 'jntWpn_1_Glass' else ix.parts[f'{name}_lod0/{n}/standard'.lower()]) for n in names}
+    s2 = skinmesh.SkinnedLod(out, lay, 'written')
+    p2 = s2.part('jntWpn_1_Glass')
+    err = np.abs(s2.decode(p2, skinmesh.POS)[:, :3] - g.pos).max()
+    if len(p2.idx) != len(g.tris) or p2.info['bones'] != [10] or err > 1e-6:
+        fails.append(f'add_part: {len(p2.idx)} triangles, bones {p2.info["bones"]}, position error {err}')
+    for p in s2.parts:
+        if p.name in before and (p.rows.tobytes(), p.idx.tobytes()) != before[p.name]:
+            fails.append(f'add_part: part {p.name} changed')
+    print(f'add_part in {name.split("/")[-1]}: part {z} of {len(names)}, lists {m["lists"]}')
     for f in fails[:20]:
         print('FAIL', f)
     return 1 if fails else 0
