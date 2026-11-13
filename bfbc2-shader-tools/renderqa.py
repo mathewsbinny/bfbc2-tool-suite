@@ -1313,7 +1313,6 @@ def prepare_strip(files: Files, db: S.ShaderDb, strip: dict[str, Any], own: str 
                 _flag(flags, notes, 'bound-empty', f't{bp} ({name}) has no texture')
             continue
         extra['textures'].append(tn)
-        folder = terrain_folder(tn)
         if foreign_texture(tn, own):
             _flag(flags, notes, 'foreign-texture', f't{bp} {tn}: another level\'s texture')
         b = files.read(tn + '.res')
@@ -1671,7 +1670,6 @@ def prepare_patch(files: Files, db: S.ShaderDb, entry: str, layout: bytes, own: 
                 _flag(flags, notes, 'bound-empty', f't{bp} ({name}) has no texture')
             continue
         extra['textures'].append(tn)
-        folder = terrain_folder(tn)
         if foreign_texture(tn, own):
             _flag(flags, notes, 'foreign-texture', f't{bp} {tn}: another level\'s texture')
         b = files.read(tn + '.res')
