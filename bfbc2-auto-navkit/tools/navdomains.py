@@ -411,10 +411,12 @@ def level_world(root, lv, watermesh=None, infantry=None, vehicle=None, log=print
     import navparity
     inf_path = infantry or navparity.need_reference(root, lv)
     domains = [kynapse_domain('infantry', inf_path, INFANTRY_SPEED)]
-    veh_path = vehicle or os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'vehicle', 'pathdata.hpd')
-    if os.path.isfile(veh_path + '.opfor-orig'):
-        veh_path += '.opfor-orig'
-    land = kynapse_domain('land', veh_path, LAND_SPEED * SPEED_FACTOR) if os.path.isfile(veh_path) else None
+    if vehicle:
+        veh_path = vehicle
+    else:
+        import navvehicle
+        veh_path = navvehicle.reference_of(root, lv)
+    land = kynapse_domain('land', veh_path, LAND_SPEED * SPEED_FACTOR) if veh_path and os.path.isfile(veh_path) else None
     if land:
         domains.append(land)
     meshes = {}
@@ -482,7 +484,7 @@ def to_json(W, lv, tables):
         if 'file' in src:
             src['file'] = os.path.basename(os.path.dirname(os.path.dirname(src['file']))) + '/' + \
                 os.path.basename(os.path.dirname(src['file'])) + '/' + os.path.basename(src['file']) \
-                if src['file'].lower().endswith(('.hpd', '.opfor-orig')) else os.path.basename(src['file'])
+                if src['file'].lower().endswith(('.hpd', '-orig')) else os.path.basename(src['file'])
         doms[name] = {'nodes': d.n, 'speed_mps': round(d.speed, 2), **src}
     return {'format': FORMAT, 'version': VERSION, 'level': lv, 'domains': doms,
             'costs': {'infantry_speed': INFANTRY_SPEED, 'speed_factor': SPEED_FACTOR, 'enter_s': ENTER_S, 'exit_s': EXIT_S,

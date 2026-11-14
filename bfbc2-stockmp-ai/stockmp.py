@@ -40,8 +40,8 @@ import pipeline  # noqa: E402
 SAME_WORLD = {'mp_005': 'ons_mp_005gr', 'mp_005gr': 'ons_mp_005gr', 'mp_005sr': 'ons_mp_005gr',
               'mp_002': 'ons_mp_002', 'mp_002sr': 'ons_mp_002', 'mp_004': 'ons_mp_004', 'mp_004sdm': 'ons_mp_004',
               'mp_008': 'ons_mp_008', 'mp_008cq': 'ons_mp_008', 'mp_008sdm': 'ons_mp_008'}
-BACKUP = '.opfor-stockmp-orig'
-APPLIED = '.opfor-stockmp-applied'
+BACKUP = pipeline.BACKUP           # '.opfor-stockmp-orig'
+APPLIED = pipeline.APPLIED         # '.opfor-stockmp-applied'
 
 
 def opt(argv: list[str], name: str, default: Any = None) -> Any:
@@ -51,10 +51,12 @@ def opt(argv: list[str], name: str, default: Any = None) -> Any:
 def pathdata_for(paths: pipeline.Paths, folder: str | None = None) -> dict[str, str]:
     base = os.path.join(paths.game, 'Output', 'win32', 'ai', 'levels')
     for f in [folder] if folder else [paths.lv, SAME_WORLD.get(paths.lv)]:
-        if f and os.path.isfile(os.path.join(base, f, 'infantry', 'pathdata.hpd')):
+        # as before this tool's install: its kept original, never the copy it installed where the level had none
+        inf = pipeline.stock_file(os.path.join(base, f, 'infantry', 'pathdata.hpd')) if f else None
+        if f and inf:
+            veh = os.path.join(base, f, 'vehicle', 'pathdata.hpd')
             src = 'the level\'s own path data' if f == paths.lv else f'path data of {f} (the same world)'
-            return {'infantry': os.path.join(base, f, 'infantry', 'pathdata.hpd'),
-                    'vehicle': os.path.join(base, f, 'vehicle', 'pathdata.hpd'), 'source': src}
+            return {'infantry': inf, 'vehicle': pipeline.stock_file(veh) or veh, 'source': src}
     raise SystemExit(f'{paths.lv}: no path data found (looked in {base} for {folder or paths.lv} / '
                      f'{SAME_WORLD.get(paths.lv)}); build one with NavKit and pass --pathdata')
 
@@ -107,6 +109,12 @@ def install(paths: pipeline.Paths, argv: list[str]) -> None:
         files = [os.path.relpath(os.path.join(dp, f), out) for dp, _d, fs in os.walk(out) for f in fs]
         if not files:
             raise SystemExit(f'nothing built in {out} (run build first)')
+        problems = pipeline.check_report(paths)
+        if problems:                    # out\game must be one complete build, as its report lists it
+            msg = f'{out} is not one complete build: ' + '; '.join(problems[:6])
+            if mode == '--apply':
+                raise SystemExit(msg + ' - nothing installed')
+            print('warning: ' + msg)
     if mode in ('--apply', '--revert'):
         # every file checked before any is written: a refusal half-way would leave Dist and Package (and the path
         # data) from different builds

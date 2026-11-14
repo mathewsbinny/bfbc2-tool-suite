@@ -54,12 +54,15 @@ def opfor_root(given=None):
 
 
 def reference_of(root, lv):
-    """DICE's infantry path data of a level (the kept original where NavKit's is installed), or None: no file, or
-    only NavKit's (installed where the level had none, marked .opfor-new)."""
-    p = os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
-    if os.path.isfile(p + '.opfor-orig'):
-        return p + '.opfor-orig'
-    return p if os.path.isfile(p) and not os.path.isfile(p + '.opfor-new') else None
+    """DICE's infantry path data of a level (the earliest kept original where an OPFOR stage - NavKit, stock-MP AI -
+    installed its own), or None: no file, or only OPFOR's (installed where the level had none; navkit.original_file)."""
+    import navkit
+    return navkit.original_file(pathdata_of(root, lv))
+
+
+def pathdata_of(root, lv):
+    """The infantry path data installed in the game copy (whoever wrote it)."""
+    return os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
 
 
 def _sha1(path):
@@ -70,7 +73,9 @@ def _sha1(path):
 def need_reference(root, lv):
     ref = reference_of(root, lv)
     if ref is None:
-        raise RuntimeError(f'{lv}: no DICE path data to compare with (none in the game copy, or only NavKit\'s)')
+        import navkit
+        raise RuntimeError(f'{lv}: no DICE path data to compare with (none in the game copy, or only OPFOR\'s)'
+                           + navkit.opfor_write_note(pathdata_of(root, lv)))
     return ref
 
 

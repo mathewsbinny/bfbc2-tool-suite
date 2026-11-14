@@ -596,17 +596,11 @@ def opfor_root(given=None):
 
 
 def reference_of(root, lv):
-    """DICE's vehicle file of a level in the game copy (the original where something else is installed), or None."""
-    d = os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'vehicle')
-    if not os.path.isdir(d):
-        return None
-    fs = os.listdir(d)
-    if any(f.lower() == 'pathdata.hpd.opfor-new' for f in fs):
-        return None                         # NavKit's file installed where the level had none: no DICE file
-    orig = [f for f in fs if f.lower().startswith('pathdata.hpd.') and f.lower() != 'pathdata.hpd.opfor-new']
-    if orig:
-        return os.path.join(d, orig[0])
-    return os.path.join(d, 'pathdata.hpd') if 'pathdata.hpd' in [f.lower() for f in fs] else None
+    """DICE's vehicle file of a level in the game copy (the earliest OPFOR backup where an OPFOR stage installed its
+    own: navkit.original_file), or None."""
+    import navkit
+    return navkit.original_file(os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'vehicle',
+                                             'pathdata.hpd'))
 
 
 def file_offsets(path):

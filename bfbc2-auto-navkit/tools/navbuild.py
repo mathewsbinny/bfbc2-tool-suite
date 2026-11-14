@@ -380,6 +380,22 @@ def sector_origin_index(level: Level, X: int, Y: int, xoff: int, zoff: int,
     return int(round((ox - s.min_x) / cfg.pitch)), int(round((oz - s.min_z) / cfg.pitch)), ox, oz
 
 
+def column_sectors(s: Any, cols: Any, xoff: int, zoff: int, pitch: float) -> tuple[Any, Any]:
+    """The sector (X, Y, offsets applied) of each sample column in cols, as DICE's path data places it: floor(x / 100)
+    of the column's position x = min + index * pitch, with the grid minimum as stored (float32, pitch-aligned).
+
+    A column on a sector line belongs to the sector below when the float32 minimum puts it a hair under the line,
+    and that is DICE's layout, not an error: SP_008's grid starts at -910.4 (stored -910.4000244), its x = -900
+    column comes out -900.0000244, and DICE's file has the six sectors X = -10 (ids 257-262) holding only that
+    column and its margin (outlines at local x 99.6 .. 101.2). Assigning line columns to the sector above
+    (sector_origin_index's local 0) loses those six sectors (navregress 2026-11-14: sectors_missing 0 -> 6, ground
+    97.63 -> 97.30); on every other level the two rules give the same sectors."""
+    cols = np.asarray(cols, dtype=np.int64)
+    x = float(s.min_x) + (cols % s.nx) * pitch
+    z = float(s.min_z) + (cols // s.nx) * pitch
+    return np.floor(x / 100.0).astype(np.int64) - xoff, np.floor(z / 100.0).astype(np.int64) - zoff
+
+
 def tiling(sid: int, cfg: BuildSettings = DEFAULTS) -> tuple[int, int]:
     """(samples per tile, tiles per axis) of a sector."""
     return (25, 6) if cfg.tile_20m_sectors and sid in cfg.tile_20m_sectors else (cfg.tile, cfg.tiles)
@@ -972,11 +988,8 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
             ladder_pairs.append((int(f_), int(t_)))
 
     # Sectors that contain kept surfaces.
-    found = set()
-    for k in np.nonzero(keep)[0]:
-        c = level.col_of[k]
-        x, z = s.min_x + (c % s.nx) * cfg.pitch, s.min_z + (c // s.nx) * cfg.pitch
-        found.add((int(math.floor(x / 100.0)) - xoff, int(math.floor(z / 100.0)) - zoff))
+    secx, secz = column_sectors(s, np.unique(level.col_of[np.nonzero(keep)[0]]), xoff, zoff, cfg.pitch)
+    found = set(zip(secx.tolist(), secz.tolist()))
     if sector_filter is not None:
         found &= set(sector_filter)
     sectors = sorted(found)
@@ -1256,10 +1269,12 @@ def merge_detailed(a: dict[str, Any], detailed: dict[str, Any], xoff: int, zoff:
     sa = alv.s
     # seeds: a's kept ground in the detailed sectors
     pts = []
-    for k in np.nonzero(alv.keep)[0]:
-        c = alv.col_of[k]
-        x, z = sa.min_x + (c % sa.nx) * sa.pitch, sa.min_z + (c // sa.nx) * sa.pitch
-        if (int(math.floor(x / 100.0)) - xoff, int(math.floor(z / 100.0)) - zoff) in dset:
+    kept = np.nonzero(alv.keep)[0]
+    secx, secz = column_sectors(sa, alv.col_of[kept], xoff, zoff, sa.pitch)
+    for k, X, Y in zip(kept.tolist(), secx.tolist(), secz.tolist()):
+        if (X, Y) in dset:
+            c = alv.col_of[k]
+            x, z = sa.min_x + (c % sa.nx) * sa.pitch, sa.min_z + (c // sa.nx) * sa.pitch
             pts.append((x, float(alv.y[k]), z))
     # a's shared nodes on the seams between a detailed and a normal sector, per detailed sector
     owners = defaultdict(set)

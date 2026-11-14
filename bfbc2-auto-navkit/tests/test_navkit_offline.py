@@ -42,9 +42,11 @@ import navbuild  # noqa: E402
 import navcompare  # noqa: E402
 import navkit  # noqa: E402
 import navlinks  # noqa: E402,F401  (imported by apply; loaded before the write guard)
+import navparity  # noqa: E402
 import navregress  # noqa: E402
 import navsample  # noqa: E402
 import navtraversal  # noqa: E402,F401
+import navvehicle  # noqa: E402
 from bfbc2core import navtune  # noqa: E402
 
 hpdtool_write = hpdtool.write
@@ -228,6 +230,41 @@ def main(argv):
             write(pd + navkit.BACKUP_SUFFIX, b'dice')
             check(pr.dice_pathdata('mp_005') == pd + navkit.BACKUP_SUFFIX, 'dice_pathdata: the kept original once NavKit\'s is installed')
             os.remove(pd + navkit.BACKUP_SUFFIX)
+            # stock-MP AI's install (its own backup and marker) - and NavKit's on top of it
+            write(pd + '.opfor-stockmp-orig', b'dice')
+            write(pd + '.opfor-stockmp-applied', b'sha')
+            check(pr.dice_pathdata('mp_005') == pd + '.opfor-stockmp-orig'
+                  and navparity.reference_of(root, 'mp_005') == pd + '.opfor-stockmp-orig',
+                  'dice_pathdata / reference_of: stock-MP AI\'s kept original, not its installed file')
+            write(pd + navkit.BACKUP_SUFFIX, b'stockmp')        # NavKit installed after stock-MP: backs up stock-MP's
+            os.utime(pd + '.opfor-stockmp-orig', (1_000_000, 1_000_000))
+            os.utime(pd + navkit.BACKUP_SUFFIX, (2_000_000, 2_000_000))
+            check(pr.dice_pathdata('mp_005') == pd + '.opfor-stockmp-orig'
+                  and navparity.reference_of(root, 'mp_005') == pd + '.opfor-stockmp-orig',
+                  'dice_pathdata / reference_of: the earliest backup of any OPFOR stage')
+            os.utime(pd + navkit.BACKUP_SUFFIX, (500_000, 500_000))    # NavKit first, stock-MP over it
+            check(pr.dice_pathdata('mp_005') == pd + navkit.BACKUP_SUFFIX, 'dice_pathdata: NavKit\'s backup when it is older')
+            for f in (navkit.BACKUP_SUFFIX, '.opfor-stockmp-orig'):
+                os.remove(pd + f)
+            check(pr.dice_pathdata('mp_005') is None and navparity.reference_of(root, 'mp_005') is None,
+                  'dice_pathdata / reference_of: stock-MP AI installed where the level had none - not DICE\'s')
+            try:
+                navparity.need_reference(root, 'mp_005')
+                msg = None
+            except RuntimeError as e:
+                msg = str(e)
+            check(msg is not None and 'OPFOR write' in msg and '.opfor-stockmp-applied' in msg,
+                  'need_reference: names the OPFOR write it refuses', str(msg))
+            os.remove(pd + '.opfor-stockmp-applied')
+            vd = os.path.join(os.path.dirname(os.path.dirname(pd)), 'vehicle', 'pathdata.hpd')
+            write(vd, b'stockmp')
+            write(vd + '.opfor-stockmp-applied', b'sha')
+            check(navvehicle.reference_of(root, 'mp_005') is None, 'navvehicle.reference_of: never a marker file, nor OPFOR\'s write')
+            write(vd + '.opfor-stockmp-orig', b'dice')
+            check(navvehicle.reference_of(root, 'mp_005') == vd + '.opfor-stockmp-orig', 'navvehicle.reference_of: stock-MP AI\'s kept original')
+            for f in ('', '.opfor-stockmp-applied', '.opfor-stockmp-orig'):
+                os.remove(vd + f)
+            os.rmdir(os.path.dirname(vd))
             msg = raises(pr.settings, 'sp_01')
             check(msg is not None and 'not prepared yet' in msg and 'prepare SP_01' in msg, 'settings: not prepared - says which command', str(msg))
             check(pr.samples08('sp_01') is None, 'samples08: none')
@@ -348,6 +385,10 @@ def main(argv):
             L5 = pr.level_work('mp_005')
             write(os.path.join(L5, 'dist', 'levels', 'MP_005.xml'), '<partition/>')
             unpacked.clear()
+            for given, missing in ((dict(box=[-250.0, 120.0, 300.0, 400.0]), '--y'), (dict(y=[0.0, 90.0]), '--box')):
+                msg = raises(navkit.prepare, pr, 'mp_005', log=plog.append, **given)
+                check(msg is not None and f'pass {missing} as well' in msg and '--box and --y' not in msg,
+                      f'prepare: only {"--box" if missing == "--y" else "--y"} on a level without objects - says only {missing} is missing', str(msg))
             try:                                    # no objects yet (a new map): a given box and y need none
                 navkit.prepare(pr, 'mp_005', log=plog.append, box=[-250.0, 120.0, 300.0, 400.0], y=[0.0, 90.0])
             except navkit.NavKitError as ex:
@@ -401,11 +442,25 @@ def main(argv):
                   and kw['high_path'] == pr.samples('sp_01', '_hi') and kw['seeds'] == [[50.0, 0.0, 0.0]]
                   and kw['ladders'] == [{'bottom': [0, 0, 0], 'top': [0, 5, 0]}] and kw['order_points'] == [[1, 2, 3]],
                   'build_inputs: samples, forbidden triangles, offsets, spawns as seeds, ladders; no 0.2 m samples - no detailed zones')
-            write(pr.samples('sp_01', '_p02'), b's')
+
+            def head(pitch, mn_x, mn_z, n):     # a navsample file's header (only it is read here)
+                return navsample.HEADER.pack(b'ONS1', 3, pitch, mn_x, mn_z, n, n, 0, 0, 0, 0, 0, 0, 0)
+            # sector (4, 1) with offsets -3, 7: x 100..200, z 800..900 - the detailed run's box is 1 m wider
+            write(pr.samples('sp_01', '_p02'), head(0.2, 150.0, 798.8, 512))
+            msg = raises(navkit.build_inputs, pr, 'sp_01')
+            check(msg is not None and 'does not cover 1 detailed sector' in msg and 'sample SP_01 --pitch 0.2' in msg,
+                  'build_inputs: 0.2 m samples from another box (stale after re-sampling) - refused', str(msg))
+            write(pr.samples('sp_01', '_p02'), head(0.8, 99.0, 799.0, 512))
+            msg = raises(navkit.build_inputs, pr, 'sp_01')
+            check(msg is not None and 'not 0.2' in msg, 'build_inputs: a _p02 file at another pitch - refused', str(msg))
+            write(pr.samples('sp_01', '_p02'), head(0.2, 99.0, 799.0, 511))
             kw = navkit.build_inputs(pr, 'sp_01', blog.append)[4]
             check(kw['detailed'] == {'samples': pr.samples('sp_01', '_p02'), 'high': None, 'sectors': {(4, 1)}}
                   and 'no high-capsule run at 0.2' in blog[-1], 'build_inputs: 0.2 m samples without their high-capsule run - said', str(blog[-1:]))
-            write(pr.samples('sp_01', '_hi_p02'), b's')
+            write(pr.samples('sp_01', '_hi_p02'), head(0.2, 98.8, 799.0, 511))
+            msg = raises(navkit.build_inputs, pr, 'sp_01')
+            check(msg is not None and 'different grids' in msg, 'build_inputs: a high-capsule 0.2 m run on another grid - refused', str(msg))
+            write(pr.samples('sp_01', '_hi_p02'), head(0.2, 99.0, 799.0, 511))
             kw = navkit.build_inputs(pr, 'sp_01', blog.append)[4]
             kw['log']('a', 1)
             check(kw['detailed']['high'] == pr.samples('sp_01', '_hi_p02') and blog[-1] == '  a 1'

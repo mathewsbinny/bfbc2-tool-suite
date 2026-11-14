@@ -97,6 +97,9 @@ def check_structure(orig, authored, c):
     f, inst = _core_instances(authored)
     _fo, oinst = _core_instances(orig)
     problems = []
+    twice = [g for g, n in Counter((e.attr('guid') or '').upper() for e in f.instances).items() if n > 1]
+    if twice:                                  # the GUID-keyed dict below would keep only the last of each
+        problems.append(f'{len(twice)} GUIDs used by more than one instance (e.g. {twice[0]}) - authored twice?')
     for g, e in inst.items():
         for _c, r in _refs(e):
             if '/' not in r and r.upper() not in inst:
@@ -374,10 +377,13 @@ def validate(paths, c, log=print):
             results.append(('navigation', ok, detail))
             log(f'{"ok  " if ok else "FAIL"} navigation: {detail}')
         for kind, folder in pipeline.KINDS:
-            xz, _agree = pipeline.sector_offsets(paths.out_pathdata(folder))
-            ok = tuple(xz) == tuple(so[kind])
-            results.append((f'staged {folder} path data', ok, f'sector offsets {xz}'))
-            log(f'{"ok  " if ok else "FAIL"} staged {folder} path data: offsets {xz} (asset {so[kind]})')
+            try:
+                xz, _agree = pipeline.sector_offsets(paths.out_pathdata(folder))
+                ok, detail = tuple(xz) == tuple(so[kind]), f'sector offsets {xz} (asset {so[kind]})'
+            except Exception as e:                           # a check that cannot run is a failed check
+                ok, detail = False, f'{type(e).__name__}: {e}'
+            results.append((f'staged {folder} path data', ok, detail))
+            log(f'{"ok  " if ok else "FAIL"} staged {folder} path data: {detail}')
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     out = {'passed': all(ok for _n, ok, _d in results), 'results': [{'check': n, 'ok': ok, 'detail': d} for n, ok, d in results]}

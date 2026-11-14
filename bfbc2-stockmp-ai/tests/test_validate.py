@@ -183,6 +183,14 @@ def main(argv):
         check(not ok and 'listed twice' in detail and 'local reference' in detail and 'not in Objects' in detail and 'event Source' in detail,
               'structure: a double Objects entry, a dangling reference, an unlisted instance and an event from nothing are named', detail)
 
+        def twice(d, b):                       # an instance whose GUID another one has too (a level authored twice)
+            sp = inst_of(d, dbxbin.new_guid(author.NS, LV, 'spawner', 't1_00'))
+            d.partition.children.append(d.clone(sp, d))
+        dup_p = save(os.path.join(tmp, 'dup_guid.dbx'), edit(auth, twice))
+        ok, detail = validate.check_structure(orig_p, dup_p, c)
+        check(not ok and '1 GUIDs used by more than one instance' in detail,
+              'structure: a GUID used by two instances is named (the GUID-keyed reading would hide it)', detail)
+
         # --- only intended changes ------------------------------------------------------------------------
         ok, detail = validate.check_changes(orig_p, auth_p, c, tmp)
         check(ok and "'PlayerType': 1" in detail and "'HasAI': 1" in detail,
@@ -362,6 +370,17 @@ def main(argv):
                   and bad['dist: packed assets'] == 'ZeroDivisionError: division by zero' and 'navigation' not in [r['check'] for r in res['results']],
                   'validate: a check that raises is a failed check; staged offsets other than the asset\'s fail; minimal: no navigation check',
                   str(bad))
+
+            def offsets_or_fail(hpd):
+                if os.path.basename(os.path.dirname(hpd)) == 'vehicle':
+                    raise pipeline.BuildError('no sectors in the path data')
+                return staged['infantry'], (1.0, 1.0)
+            patch(pipeline, 'sector_offsets', offsets_or_fail)
+            res = validate.validate(paths, dict(c, layer='minimal'), log=lambda m: None)
+            bad = {r['check']: r['detail'] for r in res['results'] if not r['ok']}
+            check(not res['passed'] and 'no sectors' in bad.get('staged vehicle path data', '')
+                  and 'staged infantry path data' not in bad,
+                  'validate: staged path data whose offsets cannot be read is a failed check, not a crash', str(bad))
     finally:
         for obj, name, value in reversed(saved):
             setattr(obj, name, value)

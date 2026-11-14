@@ -70,6 +70,45 @@ AGENTS = [('normal', '0.4,0.28,1.9', ''), ('high capsule', '0.4,0.6,1.9', '_hi')
 SAMPLE_DONE = re.compile(r'navsample: (done|no physics|cannot create|empty box|needs \[debug\])')
 BACKUP_SUFFIX = '.opfor-orig'
 NEW_SUFFIX = '.opfor-new'       # where NavKit installed onto a level that had no path data to back up
+# other OPFOR stages that install game files keep <file>.opfor-<stage>-orig and mark their writes
+# <file>.opfor-<stage>-applied (stock-MP AI: .opfor-stockmp-orig / .opfor-stockmp-applied)
+
+
+def original_file(p: str) -> str | None:
+    """DICE's original of game file p, or None. The earliest backup any OPFOR stage kept (<file>.opfor-orig or
+    <file>.opfor-<stage>-orig, the oldest first - a later stage backs up an earlier one's write), else p itself
+    unless an OPFOR stage wrote it where there was no original (NavKit's .opfor-new marker, or a
+    .opfor-<stage>-applied marker with no backup of that stage): then the file there is OPFOR's, not DICE's."""
+    d, base = os.path.split(p)
+    try:
+        names = {f.lower(): f for f in os.listdir(d or '.')}
+    except OSError:
+        return None
+    pre = base.lower() + '.opfor-'
+    ours = [f for f in names if f.startswith(pre)]
+    if pre + NEW_SUFFIX[len('.opfor-'):] in ours:
+        # NavKit installed onto nothing: only its own backup (a stale marker next to it) can be DICE's
+        own = pre + BACKUP_SUFFIX[len('.opfor-'):]
+        return os.path.join(d, names[own]) if own in ours else None
+    if any(f.endswith('-applied') and f[:-len('-applied')] + '-orig' not in ours for f in ours):
+        return None                    # another stage installed it onto nothing
+    backups = [os.path.join(d, names[f]) for f in ours if f.endswith('-orig')]
+    backups = [b for b in backups if os.path.isfile(b)]
+    if backups:
+        return min(backups, key=lambda b: (os.path.getmtime(b), not b.lower().endswith(BACKUP_SUFFIX)))
+    return p if os.path.isfile(p) else None
+
+
+def opfor_write_note(p: str) -> str:
+    """Why original_file(p) is None while p exists: the stage markers next to it (for error messages)."""
+    d, base = os.path.split(p)
+    try:
+        marks = sorted(f for f in os.listdir(d or '.') if f.lower().startswith(base.lower() + '.opfor-'))
+    except OSError:
+        marks = []
+    if os.path.isfile(p) and marks:
+        return f" (the installed {base} is an OPFOR write, not DICE's: {', '.join(marks)})"
+    return ''
 
 
 def _sha256(path: str) -> str:
@@ -124,14 +163,9 @@ class Project:
         return os.path.join(self.game, 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
 
     def dice_pathdata(self, lv: str) -> str | None:
-        """The level's original path data (the backup if NavKit's file is installed), or None - also where NavKit
-        was installed onto a level that had none (NEW_SUFFIX): that file is NavKit's own."""
-        p = self.pathdata(lv)
-        if os.path.isfile(p + BACKUP_SUFFIX):
-            return p + BACKUP_SUFFIX
-        if os.path.isfile(p) and not os.path.isfile(p + NEW_SUFFIX):     # NEW_SUFFIX: the file there is NavKit's
-            return p
-        return None
+        """The level's original path data (the earliest OPFOR backup if an OPFOR file is installed - NavKit's or
+        stock-MP AI's), or None - also where an OPFOR stage installed onto a level that had none (original_file)."""
+        return original_file(self.pathdata(lv))
 
     def level(self, name: str) -> str:
         lv = name.replace('\\', '/').split('/')[-1].lower()
@@ -240,7 +274,14 @@ def prepare(pr: Project, lv: str, log: Log = print, box: list[float] | None = No
     if so:
         xoff, zoff = sector_offsets_of(so[0])
     # the objects decide the box only where --box / --y do not (a new map with nothing placed has no objects)
-    auto_box, auto_y, source = sampling_box(pr, lv, L) if box is None or y is None else (None, None, 'given')
+    try:
+        auto_box, auto_y, source = sampling_box(pr, lv, L) if box is None or y is None else (None, None, 'given')
+    except (NavKitError, OSError) as e:
+        if (box is None) == (y is None):
+            raise
+        # one of the two given: name only the one missing
+        raise NavKitError(f'{lv}: no objects to size the sampling ' + ('height range - pass --y as well' if y is None
+                          else 'box - pass --box as well')) from e
     s: dict[str, Any] = {'level': LV, 'box': box or auto_box, 'y': y or auto_y, 'box_source': 'given' if box else source}
     if xoff is None:
         # No SectorOffsets asset (Onslaught and other MP levels): DICE's rule, one sector below the path data's
@@ -566,6 +607,42 @@ def close_game() -> None:
     time.sleep(2)
 
 
+def sample_grid(path: str) -> tuple[float, float, float, int, int]:
+    """(pitch, min_x, min_z, nx, nz) from a navsample file's header."""
+    import navsample
+    with open(path, 'rb') as f:
+        head = f.read(navsample.HEADER.size)
+    if len(head) < navsample.HEADER.size:
+        raise NavKitError(f'{os.path.basename(path)}: not a navsample file (too short)')
+    magic, _v, pitch, min_x, min_z, nx, nz = navsample.HEADER.unpack_from(head, 0)[:7]
+    if magic != b'ONS1':
+        raise NavKitError(f'{os.path.basename(path)}: not a navsample file')
+    return pitch, min_x, min_z, nx, nz
+
+
+def stale_detailed_samples(pr: Project, lv: str, p02: str, hi02: str | None, sectors: Iterable[tuple[int, int]],
+                           s: dict[str, Any]) -> None:
+    """Refuses pitch-0.2 samples that do not fit the build: not at pitch 0.2, a high-capsule run on another grid
+    than the normal one, or a grid that does not cover every detailed sector's square (left from a sampling run
+    before the box, the sector offsets or the detailed sectors changed)."""
+    redo = f' - sample them again (navkit.py sample {lv.upper()} --pitch 0.2)'
+    g = sample_grid(p02)
+    if abs(g[0] - 0.2) > 1e-4:
+        raise NavKitError(f'{lv}: {os.path.basename(p02)} is at pitch {g[0]:g}, not 0.2{redo}')
+    if hi02 and sample_grid(hi02) != g:
+        raise NavKitError(f'{lv}: {os.path.basename(hi02)} and {os.path.basename(p02)} are on different grids '
+                          f'(one is from an older box){redo}')
+    pitch, min_x, min_z, nx, nz = g
+    max_x, max_z = min_x + (nx - 1) * pitch, min_z + (nz - 1) * pitch
+    out = [(i, j) for i, j in sectors
+           if (i + s['xoff']) * 100 < min_x - 1e-3 or (i + s['xoff']) * 100 + 100 > max_x + 1e-3
+           or (j + s['zoff']) * 100 < min_z - 1e-3 or (j + s['zoff']) * 100 + 100 > max_z + 1e-3]
+    if out:
+        raise NavKitError(f'{lv}: {os.path.basename(p02)} (x {min_x:.1f}..{max_x:.1f}, z {min_z:.1f}..{max_z:.1f}) '
+                          f'does not cover {len(out)} detailed sector(s), e.g. {out[0]} - made for another box or '
+                          f'other sector offsets{redo}')
+
+
 def build_inputs(pr: Project, lv: str, log: Log = print) -> tuple[str, str, int, int, dict[str, Any]]:
     """(samples, forbid, xoff, zoff, keyword arguments) of navbuild.build for a level: one place, so that build and
     apply (a build with walkability edits) always pass the same inputs - detailed zones and ladders included."""
@@ -581,6 +658,7 @@ def build_inputs(pr: Project, lv: str, log: Log = print) -> tuple[str, str, int,
         hi02 = pr.samples(lv, '_hi_p02')
         detailed = dict(samples=pr.samples(lv, '_p02'), high=hi02 if os.path.isfile(hi02) else None,
                         sectors=set(detailed_sectors(pr, lv)))
+        stale_detailed_samples(pr, lv, detailed['samples'], detailed['high'], detailed['sectors'], s)
         log(f'  detailed zones: {len(detailed["sectors"])} sectors at pitch 0.2'
             + ('' if detailed['high'] else ' (no high-capsule run at 0.2 - stairs use the normal capsule there)'))
     kw = dict(detailed=detailed,

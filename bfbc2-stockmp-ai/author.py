@@ -107,6 +107,8 @@ class Author:
         return dbxbin.new_guid(NS, self.lv, *parts)
 
     def instance(self, proto, src, guid):
+        if self.d.instance(guid) is not None:
+            raise AuthorError(f'instance {guid} is already in the level (authored twice?)')
         e = self.d.clone(proto, src)
         self.d.set_attr(e, 'guid', guid)
         e.attrs = [(k, v) for k, v in e.attrs if self.d.strings[k] in ('guid', 'type')]
@@ -165,9 +167,32 @@ class Author:
         self.events.append((src, src_event, tgt, tgt_event))
 
     # ------------------------------------------------------------------ the layer
+    def authored_already(self):
+        """Signs that this partition already carries a stock-MP AI layer (a game file installed by `install --apply`
+        read back as the stock level): instances with the GUIDs this configuration makes, or the order areas and
+        triggers this tool names. Returns a description, or None."""
+        have = {(e.attr('guid') or '').upper() for e in self.d.instances()}
+        ours = []
+        for s in self.cfg.get('spawners') or ():
+            ours.append(self.guid('spawner', s['id']))
+        for o in self.cfg.get('orders') or ():
+            ours += [self.guid('order', o['id']), self.guid('area', o['id']), self.guid('trigger', o['id'])]
+        dup = [g for g in ours if g in have]
+        if dup:
+            return f"{len(dup)} of its instances have this tool's GUIDs (e.g. {dup[0]})"
+        named = [n for n in (text(e, 'Name') for e in self.d.instances())
+                 if isinstance(n, str) and n.startswith(('OPFOR area ', 'OPFOR trigger '))]
+        if named:
+            return f'{len(named)} instances are named as this tool names them (e.g. {named[0]!r})'
+        return None
+
     def build(self):
         cfg = self.cfg
         d = self.d
+        why = self.authored_already()
+        if why:
+            raise AuthorError(f'the level already has a stock-MP AI layer ({why}) - author the stock level (the '
+                              "game file's .opfor-stockmp-orig backup, or revert the install first)")
         self.set(self.level, 'HasAI', True)
         pt = self.field(self.level, 'PathfindingTypes')
         have = [i.attr('ref') for i in pt.children or ()]

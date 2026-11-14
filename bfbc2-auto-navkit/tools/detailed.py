@@ -117,10 +117,8 @@ def main(argv):
     chosen, why = choose(L, common, opts.get('--samples'), xoff, zoff)
     print(f'{lv}: {len(chosen)} detailed sectors ({why})')
     if '--score' in argv:
-        p = os.path.join(root, 'game', 'Output', 'win32', 'ai', 'levels', lv, 'infantry', 'pathdata.hpd')
-        if os.path.isfile(p + '.opfor-orig'):
-            p += '.opfor-orig'
-        f, d, x = score(chosen, p)
+        import navparity
+        f, d, x = score(chosen, navparity.need_reference(root, lv))
         print(f'  against DICE: {f} of its {d} detailed sectors, {x} more')
     return 0
 

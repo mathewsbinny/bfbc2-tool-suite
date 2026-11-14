@@ -13,6 +13,11 @@ Output, only under <OPFOR>\\work\\stockmp\\<lv>\\:
         Dist\\win32\\levels\\<lv>\\level-00.fbrb, Package\\levels\\<lv>\\level-00.fbrb,
         Output\\win32\\ai\\levels\\<lv>\\infantry|vehicle\\pathdata.hpd
     build_report.json                   hashes of every input and output, counts, the SectorOffsets values
+                                        (written last: a build that stopped part-way has none, and out\\game is
+                                        swapped in whole from out.partial\\ only when everything was made)
+
+The stock inputs are read as they were before `install --apply`: a game file it replaced is read from its
+<file>.opfor-stockmp-orig backup (stock_file), never the installed, already-authored copy.
 """
 import hashlib
 import json
@@ -48,6 +53,8 @@ DONOR_LEVEL = 'SP_004_B'
 MIN_AGREEMENT = 0.75          # as apply_sector_offsets.py
 SECTOR_NS = 'opfor:sectoroffsets'
 KINDS = (('Infantry', 'infantry'), ('Vehicle', 'vehicle'))
+BACKUP = '.opfor-stockmp-orig'         # install --apply: the game file it replaced
+APPLIED = '.opfor-stockmp-applied'     # install --apply: the sha256 of the file it wrote
 
 
 class BuildError(Exception):
@@ -67,6 +74,19 @@ def sha(path: str) -> str:
         for b in iter(lambda: f.read(1 << 20), b''):
             h.update(b)
     return h.hexdigest()
+
+
+def stock_file(p: str) -> str | None:
+    """Game file p as it was before stock-MP AI's install: its backup where `install --apply` replaced it, None where
+    the install added it (the level had none; a file changed since the install - its marker's hash no longer
+    matches - is someone else's and taken as it is), else p (None if missing)."""
+    if os.path.isfile(p + BACKUP):
+        return p + BACKUP
+    if not os.path.isfile(p):
+        return None
+    if os.path.isfile(p + APPLIED) and open(p + APPLIED).read().strip() == sha(p):
+        return None
+    return p
 
 
 class Paths:
@@ -90,20 +110,26 @@ class Paths:
         return os.path.join(self.work, self.lv, 'src', variant)
 
     def bundles(self) -> list[tuple[str, str]]:
-        """(variant, game bundle path) of the level's level-00 bundles that exist."""
+        """(variant, stock bundle path) of the level's level-00 bundles that exist - the stock-MP backup where
+        `install --apply` replaced the game's bundle (stock_file): the installed one is already authored."""
         out: list[tuple[str, str]] = []
         for v, p in (('dist', os.path.join(self.game, 'Dist', 'win32', 'levels', self.lv, 'level-00.fbrb')),
                      ('pkg', os.path.join(self.game, 'Package', 'levels', self.lv, 'level-00.fbrb'))):
-            if os.path.isfile(p):
-                out.append((v, p))
+            s = stock_file(p)
+            if s:
+                out.append((v, s))
         return out
 
-    def out_bundle(self, variant: str) -> str:
+    def out_bundle(self, variant: str, out: str = 'out') -> str:
+        """out: the output folder's name ('out'; 'out.partial' while a build makes it)."""
         rel = (['Dist', 'win32', 'levels', self.lv] if variant == 'dist' else ['Package', 'levels', self.lv])
-        return os.path.join(self.root, 'out', 'game', *rel, 'level-00.fbrb')
+        return os.path.join(self.root, out, 'game', *rel, 'level-00.fbrb')
 
-    def out_pathdata(self, kind: str) -> str:
-        return os.path.join(self.root, 'out', 'game', 'Output', 'win32', 'ai', 'levels', self.lv, kind, 'pathdata.hpd')
+    def out_pathdata(self, kind: str, out: str = 'out') -> str:
+        return os.path.join(self.root, out, 'game', 'Output', 'win32', 'ai', 'levels', self.lv, kind, 'pathdata.hpd')
+
+    def report(self) -> str:
+        return os.path.join(self.root, 'build_report.json')
 
     def config(self) -> str:
         return os.path.join(self.root, 'config.json')
@@ -142,15 +168,21 @@ def donor(paths: Paths) -> tuple[str, str]:
     for base in (os.path.join(paths.opfor, 'work', 'levels', 'sp_004_b', v) for v in ('pkg', 'dist')):
         lvl = os.path.join(base, 'levels', 'SP_004_B.dbx')
         inf = os.path.join(base, 'levels', 'sp_004_b', 'Precomputed', 'Infantry', 'SectorOffsets.dbx')
-        if os.path.isfile(lvl) and os.path.isfile(inf):
+        if os.path.isfile(lvl) and os.path.isfile(inf) and os.path.isfile(donor_sector_asset(inf, 'Vehicle')):
             return lvl, inf
     d = unpacked(os.path.join(paths.game, 'Dist', 'win32', 'levels', 'sp_004_B', 'level-00.fbrb'),
                  os.path.join(paths.cache, 'sp_004_b'))
     lvl_e = find_entry(d, 'Levels/SP_004_B.dbx')
     inf_e = find_entry(d, 'Levels/SP_004_B/Precomputed/Infantry/SectorOffsets.dbx')
-    if not (lvl_e and inf_e):
-        raise BuildError('the donor level SP_004_B or its SectorOffsets asset was not found')
+    veh_e = find_entry(d, 'Levels/SP_004_B/Precomputed/Vehicle/SectorOffsets.dbx')
+    if not (lvl_e and inf_e and veh_e):
+        raise BuildError('the donor level SP_004_B or one of its SectorOffsets assets (Infantry, Vehicle) was not found')
     return lvl_e, inf_e
+
+
+def donor_sector_asset(donor_so: str, kind: str) -> str:
+    """The donor's SectorOffsets asset of a kind (Infantry, Vehicle), next to its Infantry one."""
+    return os.path.join(os.path.dirname(os.path.dirname(donor_so)), kind, 'SectorOffsets.dbx')
 
 
 def common(paths: Paths, name: str) -> str:
@@ -273,6 +305,10 @@ def generate(paths: Paths, **kw: Any) -> dict[str, Any]:
     pd = kw.pop('pathdata')
     c = cfgmod.generate(m, paths.lv, kit_refs(paths), pd, **kw)
     cfgmod.save(c, paths.config())
+    problems = cfgmod.check(c)
+    if problems:                    # said now, not first at build (Rush stage gaps, flag labels used twice, ...)
+        raise BuildError(f'{paths.config()}: the generated configuration has problems - edit it before building: '
+                         + '; '.join(problems))
     return c
 
 
@@ -291,6 +327,15 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         raise BuildError('configuration: ' + '; '.join(cfgmod.check(c)))
     rep: dict[str, Any] = {'lv': paths.lv, 'level': c['level'], 'layer': c.get('layer', 'full'), 'inputs': {},
                            'outputs': {}, 'variants': {}, 'sector_offsets': {}}
+    if not paths.bundles():
+        raise BuildError(f'{paths.lv}: no level-00 bundle in {paths.game}')
+    # a build that stops part-way leaves no half-updated out\game: the report goes first (validate and install need
+    # it - none until this build is complete), the outputs are made in out.partial\ and swapped in at the end
+    os.makedirs(paths.root, exist_ok=True)
+    if os.path.isfile(paths.report()):
+        os.remove(paths.report())
+    stage = 'out.partial'
+    shutil.rmtree(os.path.join(paths.root, stage), ignore_errors=True)
     donor_lvl, donor_so = donor(paths)
     rep['inputs']['donor'] = {'path': donor_lvl, 'sha256': sha(donor_lvl)}
     pd = c.get('pathdata') or {}
@@ -303,10 +348,10 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         so[kind] = xz
         rep['sector_offsets'][kind] = {'x': xz[0], 'z': xz[1], 'agree': [round(a, 3) for a in agree]}
         rep['inputs'][f'pathdata_{folder}'] = {'path': src, 'sha256': sha(src)}
-        dst = paths.out_pathdata(folder)
+        dst = paths.out_pathdata(folder, stage)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copyfile(src, dst)
-        rep['outputs'][os.path.relpath(dst, paths.root)] = sha(dst)
+        rep['outputs'][os.path.relpath(paths.out_pathdata(folder), paths.root)] = sha(dst)
     pack = not loads_sp_common(paths)
     parts = template_parts(paths, c.get('template_parts') or cfgmod.TEMPLATE_PARTS) if pack and c.get('layer', 'full') != 'minimal' else []
     rep['template_pack'] = [p for p, _f, _l in parts]
@@ -334,7 +379,7 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         shutil.copyfile(lvl_file, os.path.join(paths.root, 'build', f'{lv_upper}_{v}.authored.dbx'))
         added: list[tuple[str, str, str]] = []
         for kind, _folder in KINDS:
-            ref = os.path.join(os.path.dirname(os.path.dirname(donor_so)), kind, 'SectorOffsets.dbx')
+            ref = donor_sector_asset(donor_so, kind)
             raw, pg, ig = sector_asset(ref, lv_upper, kind, paths.lv, so[kind])
             name = f'Levels/{lv_upper}/Precomputed/{kind}/SectorOffsets.dbx'
             f = os.path.join(paths.root, 'build', f'SectorOffsets_{kind}.dbx')
@@ -343,18 +388,54 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         for p, f, line in parts:
             added.append((p, f, line))
         _add_entries(dst, added)
-        out = paths.out_bundle(v)
+        out = paths.out_bundle(v, stage)
         os.makedirs(os.path.dirname(out), exist_ok=True)
         run(FBRB, 'pack', dst, out)
         rep['variants'][v] = {'entry': entry, 'authored': counts, 'added_entries': [n for n, _f, _l in added],
                               'level_sha256_before': hashlib.sha256(original).hexdigest(),
                               'level_sha256_after': hashlib.sha256(data).hexdigest()}
-        rep['outputs'][os.path.relpath(out, paths.root)] = sha(out)
-        log(f'{v}: {counts}; packed {os.path.relpath(out, paths.opfor)}')
+        rep['outputs'][os.path.relpath(paths.out_bundle(v), paths.root)] = sha(out)
+        log(f'{v}: {counts}; packed {os.path.relpath(paths.out_bundle(v), paths.opfor)}')
     rep['guids'] = {'note': 'deterministic: UUIDv5(NAMESPACE_URL, "opfor:stockmp:<lv>:<role>:<id>")'}
-    with open(os.path.join(paths.root, 'build_report.json'), 'w', encoding='utf-8') as fh:
+    swap_in(paths, stage)
+    tmp = paths.report() + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as fh:
         json.dump(rep, fh, indent=1)
+    os.replace(tmp, paths.report())
     return rep
+
+
+def swap_in(paths: Paths, stage: str) -> None:
+    """The finished outputs (<root>\\<stage>) become <root>\\out, the previous ones removed."""
+    final, old = os.path.join(paths.root, 'out'), os.path.join(paths.root, 'out.old')
+    shutil.rmtree(old, ignore_errors=True)
+    if os.path.isdir(final):
+        os.replace(final, old)
+    os.replace(os.path.join(paths.root, stage), final)
+    shutil.rmtree(old, ignore_errors=True)
+
+
+def check_report(paths: Paths) -> list[str]:
+    """Problems of the build in out\\game against its build_report.json (what install --apply copies must be one
+    complete build): no report (the build never finished), a file the report does not list, a listed file missing
+    or with another hash. Empty: out\\game is the reported build."""
+    try:
+        rep = json.load(open(paths.report(), encoding='utf-8'))
+    except FileNotFoundError:
+        return [f'no {os.path.basename(paths.report())} (the last build did not finish) - run build']
+    except (OSError, ValueError) as e:
+        return [f'{paths.report()} unreadable ({e}) - run build']
+    listed = {os.path.normcase(os.path.normpath(k)): v for k, v in (rep.get('outputs') or {}).items()}
+    out = os.path.join(paths.root, 'out', 'game')
+    have = {os.path.normcase(os.path.relpath(os.path.join(dp, f), paths.root))
+            for dp, _d, fs in os.walk(out) for f in fs}
+    problems = [f'{k}: not in the build report' for k in sorted(have - set(listed))]
+    for k, h in sorted(listed.items()):
+        if k not in have:
+            problems.append(f'{k}: in the build report, missing')
+        elif sha(os.path.join(paths.root, k)) != h:
+            problems.append(f'{k}: differs from the build report')
+    return problems
 
 
 def _add_entries(d: str, added: list[tuple[str, str, str]]) -> None:

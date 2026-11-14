@@ -255,6 +255,23 @@ def quick(tmp):
     d3 = dbxbin.parse(lvl)
     author.Author(d3, dbxbin.parse(donor), c, levelmodel.Model(d3)).build()
     check(dbxbin.write(d3) == data, 'authoring is deterministic (same configuration, same bytes)')
+    # an already-authored level (an installed build read back as the stock level) is refused, not authored twice
+    for what, cfg_ in (('the same configuration', c), ('another configuration', cfgmod.generate(m, 'test_01', KITS, {}, bots_per_team=2))):
+        if what == 'another configuration':
+            cfg_ = json.loads(json.dumps(cfg_))
+            for s in cfg_['spawners']:
+                s['id'] = 'x' + s['id']
+            for o in cfg_['orders']:
+                o['id'] = 'x' + o['id']
+                o['soldiers'] = ['x' + x for x in o['soldiers']]
+        d5 = dbxbin.parse(data)
+        try:
+            author.Author(d5, dbxbin.parse(donor), cfg_, levelmodel.Model(d5)).build()
+            said = 'no error'
+        except author.AuthorError as e:
+            said = str(e)
+        check('already has a stock-MP AI layer' in said and dbxbin.write(d5) == data,
+              f'authoring an authored level with {what}: refused, nothing changed ({said[:90]})')
     p_l, p_o = os.path.join(tmp, 'TEST_01.dbx'), os.path.join(tmp, 'orig.dbx')
     open(p_l, 'wb').write(data)
     open(p_o, 'wb').write(lvl)
@@ -345,12 +362,95 @@ def quick(tmp):
     open(tgt, 'wb').write(b'stock bundle')
     stockmp.install(paths, ['--plan'])
     check(open(tgt, 'rb').read() == b'stock bundle', 'install --plan changes nothing')
+
+    def refused(argv):
+        try:
+            stockmp.install(paths, argv)
+        except SystemExit as e:
+            return str(e)
+        return None
+    said = refused(['--apply'])
+    check(said is not None and 'no build_report.json' in said and open(tgt, 'rb').read() == b'stock bundle'
+          and not os.path.exists(tgt + stockmp.BACKUP),
+          f'install --apply: no build report (a build that did not finish) - nothing installed ({said})')
+    rel = os.path.relpath(outf, paths.root)
+    report = {'outputs': {rel: pipeline.sha(outf)}}
+    open(paths.report(), 'w').write(json.dumps(report))
+    open(outf, 'wb').write(b'other bundle')
+    said = refused(['--apply'])
+    check(said is not None and 'differs from the build report' in said and open(tgt, 'rb').read() == b'stock bundle',
+          f'install --apply: out\\game is not the reported build - nothing installed ({said})')
+    open(outf, 'wb').write(b'new bundle')
+    extra = os.path.join(paths.root, 'out', 'game', 'Package', 'levels', 'test_01', 'stray.txt')
+    open(extra, 'wb').write(b'x')
+    said = refused(['--apply'])
+    check(said is not None and 'not in the build report' in said and open(tgt, 'rb').read() == b'stock bundle',
+          f'install --apply: a file the build report does not list - nothing installed ({said})')
+    os.remove(extra)
     stockmp.install(paths, ['--apply'])
     check(open(tgt, 'rb').read() == b'new bundle' and open(tgt + stockmp.BACKUP, 'rb').read() == b'stock bundle',
           'install --apply copies the build and keeps the original')
+    check(paths.bundles() == [('pkg', tgt + stockmp.BACKUP)],
+          'after install --apply the stock input is the kept original, not the installed (authored) bundle')
+    pdg = os.path.join(game, 'Output', 'win32', 'ai', 'levels', 'test_01', 'infantry', 'pathdata.hpd')
+    os.makedirs(os.path.dirname(pdg))
+    open(pdg, 'wb').write(b'copied path data')
+    open(pdg + stockmp.APPLIED, 'w').write(pipeline.sha(pdg))
+    check(pipeline.stock_file(pdg) is None, 'stock_file: a file the install added where the level had none is not stock')
+    open(pdg, 'wb').write(b'changed since')
+    check(pipeline.stock_file(pdg) == pdg, 'stock_file: a file changed since the install is taken as it is')
+    shutil.rmtree(os.path.join(game, 'Output'))
+
+    # a build that stops part-way: out\game kept as it was, and no report - install refuses it
+    real_donor = pipeline.donor
+    pipeline.donor = lambda p: (outf, outf)       # type: ignore[assignment]
+    try:
+        try:
+            pipeline.build(paths, dict(c, pathdata={'infantry': os.path.join(tmp, 'missing.hpd')}), log=lambda *_a: None)
+            said = 'no error'
+        except pipeline.BuildError as e:
+            said = str(e)
+    finally:
+        pipeline.donor = real_donor
+    check('not found' in said and open(outf, 'rb').read() == b'new bundle' and not os.path.exists(paths.report())
+          and not os.path.isdir(os.path.join(paths.root, 'out.partial', 'game', 'Package')),
+          f'build stopped part-way: out\\game unchanged, the report removed ({said})')
+    check('no build_report.json' in (refused(['--apply']) or ''), 'install --apply after a failed build: refused')
+    os.makedirs(os.path.join(paths.root, 'out.partial', 'game'))
+    open(os.path.join(paths.root, 'out.partial', 'game', 'f'), 'wb').write(b'n')
+    pipeline.swap_in(paths, 'out.partial')
+    check(os.listdir(os.path.join(paths.root, 'out', 'game')) == ['f'] and not os.path.exists(os.path.join(paths.root, 'out.partial'))
+          and not os.path.exists(os.path.join(paths.root, 'out.old')), 'swap_in: the finished outputs replace out whole')
     stockmp.install(paths, ['--revert'])
     check(open(tgt, 'rb').read() == b'stock bundle' and not os.path.exists(tgt + stockmp.BACKUP)
           and not os.path.exists(tgt + stockmp.APPLIED), 'install --revert restores the original')
+
+    # generate: the configuration checks run at once (not first at build)
+    gp = pipeline.Paths('test_01', opfor=tmp, work=os.path.join(tmp, 'stockmp_g'), game=os.path.join(tmp, 'game_g'))
+    gb = os.path.join(gp.game, 'Dist', 'win32', 'levels', 'test_01', 'level-00.fbrb')
+    os.makedirs(os.path.dirname(gb))
+    open(gb, 'wb').write(b'bundle')
+    gsrc = os.path.join(tmp, 'gsrc')
+    os.makedirs(os.path.join(gsrc, 'Levels'))
+    open(os.path.join(gsrc, 'Levels', 'TEST_01.dbx'), 'wb').write(lvl)
+    open(os.path.join(gsrc, 'fbrb.manifest'), 'w').write(f'Levels/TEST_01.dbx|<non-resource>|00010000|{len(lvl)}\n')
+    real = (pipeline.unpacked, pipeline.kit_refs, cfgmod.generate)
+
+    def bad_generate(*a, **k):
+        g = real[2](*a, **k)
+        g['orders'][0]['soldiers'] = ['t2_00']
+        return g
+    pipeline.unpacked, pipeline.kit_refs, cfgmod.generate = (lambda b, d: gsrc), (lambda p: KITS), bad_generate  # type: ignore[assignment]
+    try:
+        try:
+            pipeline.generate(gp, pathdata={'infantry': None, 'vehicle': None}, bots_per_team=3)
+            said = 'no error'
+        except pipeline.BuildError as e:
+            said = str(e)
+    finally:
+        pipeline.unpacked, pipeline.kit_refs, cfgmod.generate = real  # type: ignore[assignment]
+    check('another team' in said and 'edit it before building' in said and os.path.isfile(gp.config()),
+          f'generate: a configuration with problems is said at once (saved for editing) ({said[:120]})')
 
     # common bundles: NavKit's shared unpack while it is not older than the game's bundle, else the own stamped cache
     cp = pipeline.Paths('mp_test', opfor=tmp, work=os.path.join(tmp, 'stockmp_c'), game=os.path.join(tmp, 'game_c'))
