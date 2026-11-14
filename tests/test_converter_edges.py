@@ -73,7 +73,21 @@ def main(argv: list[str]) -> int:
         res = texture.check(pc)
     except IndexError as ex:
         res = f'IndexError {ex}'
-    check(res == (0.0, None, None, None), 'texture check: RGBA16F is not measured (it raised IndexError)', str(res))
+    check(res == (None, None, None, None), 'texture check: RGBA16F is not compared - None, not a 0.0 pass (it raised '
+          'IndexError)', str(res))
+    bgra = struct.pack('<8I', 0, 0, 9, 0, 16, 16, 1, 1) + struct.pack('<15I', 16 * 16 * 4, *([0] * 14))
+    res = texture.check(bgra.ljust(texture.HEADER, b'\0') + bytes(16 * 16 * 4))
+    check(res == (None, None, None, None), 'texture check: B8G8R8A8 is not compared (None)', str(res))
+    # L8, which decode() reads, is compared: a good chain passes, a level that is not its parent's mip does not
+    import numpy as np
+    big = (np.arange(16 * 16).reshape(16, 16) % 251).astype(np.uint8)
+    small = big.reshape(8, 2, 8, 2).astype(float).mean((1, 3)).round().astype(np.uint8)
+    l8 = lambda lv1: (struct.pack('<8I', 0, 0, texture.L8, 0, 16, 16, 1, 2) +              # noqa: E731
+                      struct.pack('<15I', 256, 64, *([0] * 13))).ljust(texture.HEADER, b'\0') + big.tobytes() + lv1
+    good, bad = texture.check(l8(small.tobytes()), l8(small.tobytes())), texture.check(l8(bytes(64)))
+    check(None not in good and good[0] < 1 and abs(good[1] - 1) < 1e-9 and good[2:] == (320, 320)
+          and bad[0] is not None and bad[0] > 20,
+          'texture check: L8 compared (mip chain and the reference), not passed unmeasured', f'{good} {bad}')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 

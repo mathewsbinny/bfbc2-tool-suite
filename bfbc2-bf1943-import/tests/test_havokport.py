@@ -309,17 +309,27 @@ def main():
         if not ok:
             fails.append(what)
 
-    try:
-        src = bi.Source(bi.default_source())
-        hp = hkpack()
-        import meshview
-        import shaderdb
+    # the modules under test import outside the skip: a broken import is a failure, not a SKIP
+    import meshview
+    import shaderdb
+    hk_tools = paths.sibling(paths.BF1943_SUITE, 'bf1943-auto-navkit-common', 'tools', suite=SUITE)
+    try:                                                         # only missing game data / sibling tools skip
         root = shaderdb.find_opfor(None)
-        ix = meshview.Index(root)
-        K = havok.classes(os.path.join(root, 'game', 'BFBC2Game.exe'))
-    except Exception as e:                                       # noqa: BLE001
+        exe = os.path.join(root, 'game', 'BFBC2Game.exe')
+        folder = bi.default_source()
+        if not folder or not os.path.isdir(folder):
+            raise bi.Bf1943ImportError(f'no BF1943 source folder at {folder}')
+        if not os.path.isfile(exe):
+            raise FileNotFoundError(f'no {exe}')
+        if not os.path.isfile(os.path.join(hk_tools, 'hkpack.py')):
+            raise FileNotFoundError(f'no BF1943 hkpack.py in {hk_tools}')
+        src = bi.Source(folder)
+    except (shaderdb.ShaderDbError, bi.Bf1943ImportError, FileNotFoundError) as e:
         print(f'SKIP: {e}')
         return 0
+    hp = hkpack()
+    ix = meshview.Index(root)
+    K = havok.classes(exe)
     L = Layouts(K)
     template = ix.read(KUROGANE)
     out = havokport.convert(src.data(KUROGANE), template, K)

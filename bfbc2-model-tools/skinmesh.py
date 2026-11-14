@@ -186,6 +186,8 @@ class SkinnedLod:
         info = dict(tmpl.info)
         info['name'] = name.encode('latin-1')
         info['bones'] = palette
+        # its own vertices (to_bytes places them): not the template's, which replace() would read as shared
+        info['vertex_offset'] = info['first_index'] = None
         p = Part(info, layout, np.zeros((0, meshdata.elements(layout)[1]), np.uint8), np.zeros((0, 3), np.int64))
         p.rows = self._encode(p, geo, palette)
         p.idx = self._tris(geo)

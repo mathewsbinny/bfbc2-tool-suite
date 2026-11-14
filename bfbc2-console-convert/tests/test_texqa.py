@@ -230,7 +230,8 @@ def test_inputs_cache_baseline() -> None:
               'the source found by name (the build folder dropped), identical')
         logs.clear()
         texqa.run([build], sources=[src], cache=cache, log=logs.append)
-        check(any('0 analysed' in x for x in logs), f'the second run analyses nothing ({logs})')
+        check(any(x.endswith(' textures: 0 analysed, 1 unchanged (cache)') for x in logs),
+              f'the second run analyses nothing ({logs})')
         rows_w = texqa.run([os.path.join(tmp, 'stage')], cache=None, log=logs.append)
         check(len(rows_w) == 1 and not errors_of(rows_w[0]), 'a wrapped on-demand texture reads')
         base = json.loads(json.dumps(texqa._num(texqa.baseline_of(rows))))
@@ -247,11 +248,52 @@ def test_inputs_cache_baseline() -> None:
         check(len(sh) == 1 and os.path.getsize(sh[0]) > 1000, 'a contact sheet of the worst')
 
 
+def test_bad_entries() -> None:
+    """One bad manifest ITexture entry is its own 'unreadable' row, not the run's end; a bundle DICE's index cannot
+    read is reported and the incomplete index is not cached."""
+    pc = texwrite.texture(picture())
+    with tempfile.TemporaryDirectory() as tmp:
+        stage = os.path.join(tmp, 'b')
+        os.makedirs(os.path.join(stage, 'img'))
+        open(os.path.join(stage, 'fbrb.manifest'), 'w').write('img/a.res|ITexture|00010000|1\nimg/b.res|ITexture|00010000|1\n')
+        open(os.path.join(stage, 'img', 'a.res'), 'wb').write(struct.pack('<8I', 3, 0, 0, 1, 4, 4, 0, 0) + bytes(60))
+        open(os.path.join(stage, 'img', 'b.res'), 'wb').write(pc)
+        try:
+            rows = {r['name']: r for r in texqa.run([tmp], cache=None, log=lambda m: None)}
+            ok = 'unreadable' in errors_of(rows['img/a.res']) and not errors_of(rows['img/b.res'])
+            got = str(list(rows))
+        except Exception as e:                              # noqa: BLE001 - the defect: the run aborted
+            ok, got = False, f'aborted: {type(e).__name__}: {e}'
+        check(ok, f'a texture with no mip levels: its row unreadable, the next one still analysed ({got})')
+
+        bad = os.path.join(tmp, 'locked.fbrb')
+        open(bad, 'wb').write(b'not a bundle')
+        cache = os.path.join(tmp, 'cache')
+        fake = type(sys)('meshview')
+        fake._bundles = lambda opfor: [('x', bad)]          # type: ignore[attr-defined]
+        real = sys.modules.get('meshview')
+        sys.modules['meshview'] = fake
+        try:
+            dice = texqa.Dice(tmp, cache)
+        finally:
+            if real is not None:
+                sys.modules['meshview'] = real
+            else:
+                del sys.modules['meshview']
+        cached = os.path.isdir(cache) and any(n.startswith('dice_textures_') for n in os.listdir(cache))
+        check(len(dice.problems) == 1 and not cached, f'DICE\'s index: an unreadable bundle recorded, the index not '
+              f'cached ({dice.problems}, cached {cached})')
+        logs: list[str] = []
+        texqa.run([stage], dice=dice, cache=None, log=logs.append)
+        check(any('unreadable' in x for x in logs), 'the run reports DICE\'s unreadable bundles')
+
+
 def main() -> int:
     test_decode()
     test_xbox()
     test_checks()
     test_inputs_cache_baseline()
+    test_bad_entries()
     print('all passed' if not FAILED else f'{len(FAILED)} check(s) failed')
     return 1 if FAILED else 0
 

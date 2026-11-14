@@ -108,6 +108,10 @@ def main():
         fails.append('add_part: a second part of the same name accepted')
     except skinmesh.EditError:
         pass
+    try:                                                       # the new part has its own vertices, not its template's
+        s.replace('jntWpn_1_Glass', g)
+    except skinmesh.EditError as e:
+        fails.append(f'add_part: the new part cannot be replaced ({e})')
     out = s.to_bytes()
     m = skinmesh.meshdata.parse(out, False)
     names = [p['name'].decode() for p in m['parts']]

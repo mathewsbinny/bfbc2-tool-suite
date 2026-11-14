@@ -784,7 +784,11 @@ class Merger:
         old id: a program id must not repeat), their keys naming the new entry, and copies of their parameter blocks
         with texture names replaced (textures: {old name: new name}; the names sit in zero-padded fields, FORMAT.md
         section 1, so a new name may be as long as the old one plus its padding). The shaders, tables, fragments and
-        vertex layouts are shared as add_donor shares them. Returns the number of programs."""
+        vertex layouts are shared as add_donor shares them. Returns the number of programs.
+
+        Atomic: everything that can refuse the clone (the entry, its programs' indices and new ids, the texture
+        renames, its fragments' names, its vertex layouts) is checked before anything is added - a ShaderDbError
+        leaves the merger as it was, so a caller that goes on after one writes no half-cloned entry."""
         self._same_kind(donor, label)
         if new_name in self.entry_names:
             raise ShaderDbError(f'{new_name}: the database has this entry already')
@@ -794,14 +798,40 @@ class Merger:
             raise ShaderDbError(f'{label} has no entry {entry}')
         o = self.out
         new_guid = o.name_guid(new_name)
+        if new_guid in self.groups:
+            raise ShaderDbError(f'{new_name}: the database has an entry group with this name\'s id already')
         frag_names = {g: n for n, g in donor.fragments}
         layouts = {r[:16]: r for r in donor.layouts}
-        renames = {k.encode('latin-1'): v.encode('latin-1') for k, v in (textures or {}).items()}
+        try:
+            renames = {k.encode('latin-1'): v.encode('latin-1') for k, v in (textures or {}).items()}
+        except UnicodeEncodeError as ex:
+            raise ShaderDbError(f'{new_name}: a texture name is not latin-1 ({ex})') from None
         # every texture to rename must be one the entry uses (else the clone silently keeps the donor's - a case
-        # mismatch alone does it): checked before anything is added
+        # mismatch alone does it), and every program must be whole: checked before anything is added
         seen: dict[bytes, int] = {}
+        ids: set[bytes] = set()
         for pi in groups.get(guid_old, []):
-            _, _, a, b = donor.program_refs(pi)
+            where = f'{new_name}: {label}:{entry} program {pi}'
+            if not 0 <= pi < min(len(donor.programs), len(donor.keys)):
+                raise ShaderDbError(f'{where}: not in the file')
+            if len(donor.programs[pi]) < 0x30 or len(donor.keys[pi]) < 48:
+                raise ShaderDbError(f'{where}: a short program or key record')
+            v, f, a, b = donor.program_refs(pi)
+            if v >= len(donor.vs) or f >= len(donor.ps) or a >= len(donor.params) or b >= len(donor.params):
+                raise ShaderDbError(f'{where}: a shader or parameter block index past its table')
+            for s in (donor.vs[v], donor.ps[f]):
+                if s.param >= len(donor.params) or s.binding >= len(donor.bindings) or s.regs >= len(donor.regs):
+                    raise ShaderDbError(f'{where}: a shader\'s table index past its table')
+            pg = hashlib.md5(new_name.encode('latin-1') + donor.programs[pi][:16]).digest()
+            if pg in self.prog_ix or pg in ids:
+                raise ShaderDbError(f'{new_name}: program id {pg.hex()} exists')
+            ids.add(pg)
+            key = donor.keys[pi]
+            fg, lg = key[16:32], key[32:48]
+            if fg != ZERO_GUID and fg not in self.frag_g and fg not in frag_names:
+                raise ShaderDbError(f'{where}: names a fragment the file has no name for')
+            if lg not in self.lay_g and lg not in layouts:
+                raise ShaderDbError(f'{label}: a vertex layout it uses is not in the file ({where})')
             _retexture(donor.params[a], renames, new_name, seen)
             _retexture(donor.params[b], renames, new_name, seen)
         unused = [k.decode('latin-1') for k in renames if not seen.get(k)]
@@ -813,8 +843,6 @@ class Merger:
         for pi in groups.get(guid_old, []):
             prog, key = donor.programs[pi], donor.keys[pi]
             pg = hashlib.md5(new_name.encode('latin-1') + prog[:16]).digest()
-            if pg in self.prog_ix:
-                raise ShaderDbError(f'{new_name}: program id {pg.hex()} exists')
             v, f, a, b = donor.program_refs(pi)
             nv = self._shader(donor, donor.vs[v], o.vs, self.vs_ix)
             nf = self._shader(donor, donor.ps[f], o.ps, self.ps_ix)
@@ -879,28 +907,35 @@ TEXTURE_FIELD = 0x80                    # a texture name's zero-padded field in 
 def _retexture(block: bytes, textures: dict[bytes, bytes], where: str, hits: dict[bytes, int] | None = None) -> bytes:
     """A parameter block with texture names replaced in place: each old name - a whole field's text, starting the
     field, NUL-terminated - becomes the new one, padded with zeros to the same span (the old name, its terminator
-    and the zeros after it, within the field's 0x80 bytes). hits: {old: count} is added to."""
+    and the zeros after it, within the field's 0x80 bytes). The renames are simultaneous: every field is matched
+    against the block's original names ({A: B, B: A} swaps them; {A: B, B: C} turns A into B, not C). hits: {old:
+    count} is added to (only once every rename fits: a refused block adds nothing)."""
     if not textures:
         return block
-    out = bytearray(block)
-    for old, new in textures.items():
+    found: list[tuple[int, int, bytes]] = []
+    for old in textures:
         at = 0
         while True:
-            i = out.find(old + b'\0', at)
+            i = block.find(old + b'\0', at)
             if i < 0:
                 break
-            if i > 0 and out[i - 1] != 0:            # the tail of a longer name: not this texture
-                at = i + 1
+            at = i + 1
+            if i > 0 and block[i - 1] != 0:          # the tail of a longer name: not this texture
                 continue
             end = i + len(old)
-            while end < len(out) and end < i + TEXTURE_FIELD and out[end] == 0:
+            while end < len(block) and end < i + TEXTURE_FIELD and block[end] == 0:
                 end += 1
+            new = textures[old]
             if len(new) + 1 > end - i:
                 raise ShaderDbError(f'{where}: texture name {new.decode()} longer than the field of {old.decode()}')
-            out[i:end] = new + b'\0' * (end - i - len(new))
-            at = i + len(new)
-            if hits is not None:
-                hits[old] = hits.get(old, 0) + 1
+            found.append((i, end, old))
+    out = bytearray(block)
+    for i, end, old in found:
+        new = textures[old]
+        out[i:end] = new + b'\0' * (end - i - len(new))
+    if hits is not None:
+        for _i, _end, old in found:
+            hits[old] = hits.get(old, 0) + 1
     return bytes(out)
 
 

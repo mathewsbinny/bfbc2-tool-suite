@@ -153,7 +153,10 @@ def cmd_verify_texture(a):
             continue
         ours, corr, same, n = texture.check(out, p)
         theirs = texture.check(p)[0]
-        if ours > max(theirs + 3, theirs * 1.25):
+        if ours is None or theirs is None:                  # a format check() has no decoder for: not a pass
+            total['not compared (format)'] += 1
+            lines.append(f'NOT COMPARED  {rel}: format {int.from_bytes(p[8:12], "little")} (no decoder)')
+        elif ours > max(theirs + 3, theirs * 1.25):
             total['broken mip chain'] += 1
             lines.append(f'BROKEN  {rel}: mip chain error {ours:.1f} (the PC file {theirs:.1f})')
         elif corr is not None and corr < 0.9:

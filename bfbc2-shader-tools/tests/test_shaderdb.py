@@ -12,6 +12,9 @@ r"""shaderdb.py on databases built here (quick), and with --game on Project OPFO
 - built Xbox 360 (big-endian) databases: recognised from their first bytes, parse and write the same bytes, pass the
   checks (GUIDs with big-endian fields, sorted by their PC byte order); parameter blocks' textures and constants read
   in both byte orders; an Xbox donor for a PC base is refused;
+- texture renames in a parameter block are simultaneous (a swap swaps, a chain moves each name one step); clone_entry
+  adds the entry under its new name with new program ids and the renamed textures, and every refusal (a fragment or
+  vertex layout the file lacks, a texture the entry lacks, a name it has) is a ShaderDbError that adds nothing;
 - with --game: the three databases of mp_008cq and ons_mp_008 read from the bundles round trip; ONS_MP_008 merged
   with mp_008cq's flags and flagpole (all three kinds): the flags covered, the base unchanged entry by entry;
 - with --game or --xbox (each part skipped when its files are missing): every BFBC2 Xbox level database
@@ -29,7 +32,7 @@ import struct
 import subprocess
 import sys
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..'))
@@ -297,6 +300,102 @@ def quick(c: Checks, tmp: str) -> None:
                     'command line: info on an Xbox 360 file', r.stdout + r.stderr)
     c.check([sd.texture_kind(n) for n in ('A_Nm', 'A_C', 'A_Df', 'A_Sp', 'A_Gm', 'A_Occlusion', 'A_RGBM')]
             == ['normal', 'color', 'color', 'specular', 'gloss', 'occlusion', ''], 'texture_kind from name suffixes')
+    retexture(c)
+    clone(c)
+
+
+def retexture(c: Checks) -> None:
+    """_retexture: the renames are simultaneous (a swap swaps, a chain moves each name one step), whole names only."""
+    block = sd._retexture
+    b = param_block('<', [(1, 'Tex/A'), (2, 'Tex/B'), (3, 'Tex/C'), (4, 'Big/Tex/A')])
+    names = lambda blk: [n for _s, _c, n in sd.block_textures(blk)]    # noqa: E731
+    hits: dict[bytes, int] = {}
+    got = names(block(b, {b'Tex/A': b'Tex/B', b'Tex/B': b'Tex/A'}, 'swap', hits))
+    c.check(got == ['Tex/B', 'Tex/A', 'Tex/C', 'Big/Tex/A'] and hits == {b'Tex/A': 1, b'Tex/B': 1},
+            '_retexture: {A: B, B: A} swaps the two (not A twice); a longer name ending in A kept', f'{got} {hits}')
+    got = names(block(b, {b'Tex/A': b'Tex/B', b'Tex/B': b'Tex/C'}, 'chain'))
+    c.check(got == ['Tex/B', 'Tex/C', 'Tex/C', 'Big/Tex/A'], '_retexture: {A: B, B: C} turns A into B (not C), B into C',
+            str(got))
+    hits = {}
+    try:
+        block(b, {b'Tex/A': b'Tex/Z', b'Tex/B': b'X' * 0x80}, 'long', hits)
+        c.check(False, '_retexture: a new name longer than the field is refused')
+    except sd.ShaderDbError:
+        c.check(hits == {}, '_retexture: a new name longer than the field is refused, no hits counted', str(hits))
+
+
+def clone(c: Checks) -> None:
+    """Merger.clone_entry: a donor entry again under a new name, with new program ids and renamed textures; every
+    refusal (a texture the entry lacks, a fragment or vertex layout the file lacks, an existing name) is a
+    ShaderDbError that leaves the merger as it was."""
+    A = 'Objects/A/A_Mesh/Objects/A/Shaders/Metal'
+    B = 'Objects/B/B_Mesh/Objects/B/Shaders/Wood'
+    N = 'Objects/N/N_Mesh/Objects/N/Shaders/WoodClone'
+    wood = [(1, 'Textures/B/Wood_Df'), (2, 'Textures/B/Wood_Nm')]
+
+    def fresh() -> tuple[sd.ShaderDb, sd.ShaderDb]:
+        base = with_textures(build(9, [(A, 2)], 40), {A: [(1, 'Textures/A/Metal_C')]})
+        donor = with_textures(build(9, [(B, 3)], 41), {B: wood})
+        return base, donor
+
+    def state(m: sd.Merger) -> tuple:
+        o = m.out
+        return (len(o.vs), len(o.ps), len(o.params), len(o.bindings), len(o.regs), len(o.fragments), len(o.layouts),
+                len(o.entries), len(o.parts), len(m.new_programs), len(m.prog_ix), len(m.groups), len(m.added),
+                len(m.entry_names), len(m.frag_g), len(m.lay_g))
+
+    base, donor = fresh()
+    base_c, donor_c = sd.entry_contents(base), sd.entry_contents(donor)
+    m = sd.Merger(base, [])
+    n = m.clone_entry(donor, B, N, {'Textures/B/Wood_Df': 'Textures/B/Wood_Nm', 'Textures/B/Wood_Nm': 'Textures/B/Wood_Df'})
+    out, data = reparse(m.finish())
+    tex = sd.entry_textures(out)
+    old_ids = {donor.programs[i][:16] for i in donor.entry_programs()[donor.name_guid(B)]}
+    new_ids = {out.programs[i][:16] for i in out.entry_programs()[out.name_guid(N)]}
+    c.check(n == 3 and [e for e, _ in out.entries] == [A, N] and out.check() == [],
+            'clone_entry: the entry added under the new name, its 3 programs, the result passes the checks',
+            f'{n} {[e for e, _ in out.entries]} {out.check()}')
+    c.check(tex[N] == [(1, 0, 'Textures/B/Wood_Nm'), (2, 0, 'Textures/B/Wood_Df')] and tex[A] == [(1, 0, 'Textures/A/Metal_C')],
+            'clone_entry: textures {Df: Nm, Nm: Df} swapped in the clone; the base\'s entry untouched', str(tex))
+    c.check(new_ids == {hashlib.md5(N.encode() + g).digest() for g in old_ids} and not new_ids & old_ids,
+            'clone_entry: program ids MD5(new name + old id): none repeats the donor\'s')
+    c.check(sd.entry_contents(out)[A] == base_c[A] and sd.entry_textures(donor)[B] == [(1, 0, 'Textures/B/Wood_Df'),
+            (2, 0, 'Textures/B/Wood_Nm')] and sd.entry_contents(donor) == donor_c,
+            'clone_entry: the base entry draws as before; the donor is not changed')
+    c.check(sd.ShaderDb.parse(data, 9).to_bytes() == data, 'clone_entry: the result re-parses to the same bytes')
+
+    def refused(what: str, setup: Callable[[sd.Merger, sd.ShaderDb], tuple]) -> None:
+        base, donor = fresh()
+        m = sd.Merger(base, [])
+        args = setup(m, donor)
+        before = state(m)
+        try:
+            m.clone_entry(donor, *args)
+            c.check(False, f'clone_entry: {what} is refused')
+        except sd.ShaderDbError:
+            c.check(state(m) == before and m.finish().check() == [],
+                    f'clone_entry: {what} is refused (ShaderDbError) and nothing is added', f'{before} {state(m)}')
+        except Exception as ex:                              # noqa: BLE001 - the defect: another error, part-way
+            c.check(False, f'clone_entry: {what} is refused (ShaderDbError) and nothing is added',
+                    f'{type(ex).__name__}: {ex}; {before} -> {state(m)}')
+
+    def no_fragment(m: sd.Merger, donor: sd.ShaderDb) -> tuple:
+        g = donor.name_guid(B)
+        for i in donor.entry_programs()[g][1:]:              # the first program fine, a later one naming no fragment
+            donor.keys[i] = donor.keys[i][:16] + b'Z' * 16 + donor.keys[i][32:]
+        return B, N
+    def no_layout(m: sd.Merger, donor: sd.ShaderDb) -> tuple:
+        g = donor.name_guid(B)
+        last = donor.entry_programs()[g][-1]
+        donor.keys[last] = donor.keys[last][:32] + b'Q' * 16 + donor.keys[last][48:]
+        return B, N
+    refused('a program naming a fragment the file has no name for', no_fragment)
+    refused('a program on a vertex layout the file lacks', no_layout)
+    refused('a texture the entry does not use', lambda m, d: (B, N, {'Textures/B/Wood_Nm': 'x', 'Textures/B/wood_df': 'y'}))
+    refused('a new name longer than the texture field', lambda m, d: (B, N, {'Textures/B/Wood_Df': 'X' * 0x80}))
+    refused('an entry the donor lacks', lambda m, d: ('Objects/Q/Q_Mesh/Objects/Q/Shaders/None', N))
+    refused('a name the database has', lambda m, d: (B, A))
+    refused('a second clone under the same name', lambda m, d: (m.clone_entry(d, B, N), (B, N))[1])
 
 
 # ------------------------------------------------------------------------------------------------ the game copy

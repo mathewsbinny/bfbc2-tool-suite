@@ -170,18 +170,27 @@ def bf1943_head_spec(fails):
     scaled down (a misplaced texel would break the chain), and is the picture of DICE's own copy (a DXT1 DICE
     repainted in places: correlation 0.72)."""
     import numpy as np
+    # the modules import outside the skip (a broken import is a failure); only missing game data skips
+    suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools')
+    import bf1943import
+    import meshview
+    import shaderdb
     try:
-        suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools')
-        import bf1943import
-        import meshview
-        import shaderdb
-        src = bf1943import.Source(bf1943import.default_source())
-        name = 'characters/beach/3p/us_shared/us_head_spec.res'
-        key = next(k for k, (_, e) in src.entries.items() if e['name'].lower() == name)
-        dice = meshview.Index(shaderdb.find_opfor(None)).read(name)
-    except Exception as e:                                       # noqa: BLE001
+        root = shaderdb.find_opfor(None)
+        folder = bf1943import.default_source()
+        if not folder or not os.path.isdir(folder):
+            raise bf1943import.Bf1943ImportError(f'no BF1943 source folder at {folder}')
+        src = bf1943import.Source(folder)
+    except (shaderdb.ShaderDbError, bf1943import.Bf1943ImportError) as e:
         print(f'SKIP Battlefield 1943 US_Head_Spec: {e}')
         return
+    name = 'characters/beach/3p/us_shared/us_head_spec.res'
+    key = next((k for k, (_, e) in src.entries.items() if e['name'].lower() == name), None)
+    if key is None:
+        print(f'FAIL Battlefield 1943 US_Head_Spec: {name} is not in the BF1943 source')
+        fails.append('Battlefield 1943 US_Head_Spec')
+        return
+    dice = meshview.Index(root).read(name)
     out = texture.convert(src.data(key))
     lv = texture.levels(out)
     chain = []
@@ -252,7 +261,9 @@ def main():
             continue
         ours, corr, _, _ = texture.check(out, p)
         theirs = texture.check(p)[0]
-        if ours > max(theirs + 3, theirs * 1.25):
+        if ours is None or theirs is None:
+            checked['not compared (format)'] += 1
+        elif ours > max(theirs + 3, theirs * 1.25):
             fails.append(f'{rel}: mip chain error {ours:.1f}, the PC file {theirs:.1f}')
         elif corr is not None and corr < 0.9:
             checked['different art'] += 1

@@ -387,8 +387,10 @@ def relayout(b, old, new, edit=None):
     the old layout lacks is 0. edit(parts, cols) may then change the values: parts the header dicts of the parts
     drawing from one block of vertices (their palettes may be extended), cols {new element index: array (n, k)} -
     float32 for float / half formats, uint8 for UBYTE4. Index data is kept; vertex offsets and strides follow. A kind
-    is (usage, stream, component count): a half4 texture coordinate pairs with a half4, a half2 with a half2, whatever
-    order the two layouts list them in; positions pass between half3 and float3.
+    is (usage, stream, component count) first: a half4 texture coordinate pairs with a half4, a half2 with a half2,
+    whatever order the two layouts list them in; a new element no old one of its count matches then takes the next
+    unpaired old element of its usage and stream (a half4 position into a float3: x, y, z; a half2 into a float4:
+    the rest 0).
 
     A block is the vertices parts draw (from each part's vertex offset to its highest index), overlapping ones
     merged; every part of a block must have the same old and the same new layout. Returns the PC bytes."""
@@ -424,14 +426,23 @@ def relayout(b, old, new, edit=None):
             raise ConvertError(f'parts {[m["parts"][i]["name"] for i in members]}: vertices not aligned on {so} bytes')
         n = (end - start) // so
         raw = np.frombuffer(b, np.uint8, n * so, m['data'] + start).reshape(n, so)
-        pools: dict[tuple[int, int, int], list[int]] = {}
-        for k, (f, u, _, s) in enumerate(eo):
-            pools.setdefault((u, s, _PC_DTYPE[f][1]), []).append(k)
+        # pair each new element with an old one: the same (usage, stream, component count) first, then any left of
+        # the same (usage, stream) - a half4 position into a float3 one
+        left = list(range(len(eo)))
+        pair: dict[int, int] = {}
+        for exact in (True, False):
+            for k, (f, u, _off, s) in enumerate(en):
+                if k in pair:
+                    continue
+                src = next((j for j in left if eo[j][1] == u and eo[j][3] == s and
+                            (not exact or _PC_DTYPE[eo[j][0]][1] == _PC_DTYPE[f][1])), None)
+                if src is not None:
+                    pair[k] = src
+                    left.remove(src)
         cols = {}
-        for k, (f, u, _off, s) in enumerate(en):
+        for k, (f, _u, _off, _s) in enumerate(en):
             dt, comps = _PC_DTYPE[f]
-            pool = pools.get((u, s, comps))
-            src = pool.pop(0) if pool else None
+            src = pair.get(k)
             out = np.zeros((n, comps), np.uint8 if dt == 'u1' else np.float32)
             if src is not None:
                 fo, _, oo, _ = eo[src]

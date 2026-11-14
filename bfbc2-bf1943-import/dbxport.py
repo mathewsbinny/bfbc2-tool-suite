@@ -41,8 +41,9 @@ whose references will not resolve (any depth). primaryInstance is re-pointed whe
 Schema: every field's shape is checked against the template (and the catalogue): a container where BFBC2 has a value,
 another number count or kind, an enum name the executable lacks, is an error (SchemaError) unless a converter
 handles it: ENUM_NUMBERS (BF1943's numbers for BFBC2's enum names, with or without a template), a bool into a number
-(the target's own number type: no float bits into an integer), ONE_TO_ARRAY, RENAMED, NESTED (an explicit map),
-an empty number list where BFBC2 has a curve (the template's).
+(the target's own number type, from the field's evidence - the catalogue's, the templates' nonzero values: no float
+bits into an integer; a field DICE writes only as 0 is an error, the type unknown), ONE_TO_ARRAY, RENAMED, NESTED
+(an explicit map), an empty number list where BFBC2 has a curve (the template's).
 
 Value passes after the alignment: BF1943's EntryInputAction spellings (EIAFire, EIUndefined) as BFBC2's (EiaFire,
 EiaUndefined) in every field; the seat-hint texts; bone indices on BFBC2's skeleton (bones=BoneTables: BoneId by its
@@ -71,6 +72,10 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core')
 from bfbc2core import dbx  # noqa: E402
+
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import dbxcatalogue  # noqa: E402
 
 
 class PortError(ValueError):
@@ -823,6 +828,24 @@ class _Port:
         seen = self.cat.shapes.get((itype, tpath)) or {}
         return len({s for s in seen if s.startswith(f'num{size}x')}) == 1
 
+    def whole_field(self, itype: str, tpath: str, t: dbx.Element) -> bool | None:
+        """Whether a 4-byte number field holds integers (True) or floats (False), from the field's own evidence:
+        the catalogue's (every DICE instance of the type), else the nonzero values the templates of the type and
+        this template hold there; None when none of them is nonzero (0 reads the same both ways)."""
+        if self.cat is not None:
+            w = self.cat.is_whole(itype, tpath)
+            if w is not None:
+                return w
+            if self.cat.numeric.get((itype, tpath)):
+                return None                                     # DICE writes both there: no single type
+        seen: set[bool] = set()
+        for el in [t] + [_at_path(c.element, tpath) for c in self.T.candidates.get(itype, [])]:
+            if el is not None and el.kind == dbx.NUMBERS:
+                size, vals = dbx.numbers(el)
+                if size == 4:
+                    seen |= {w for w in (dbxcatalogue.looks_whole(v) for v in vals) if w is not None}
+        return seen.pop() if len(seen) == 1 else None
+
     def schema(self, path: str, e: dbx.Element, t: dbx.Element) -> None:
         self.errors.append(f'{path}: BF1943 {_shape(e)}, BFBC2 {_shape(t)}')
 
@@ -838,10 +861,13 @@ class _Port:
                 return None
             v = e.raw[1]
             if size == 4:
-                whole = self.cat.is_whole(itype, tpath) if self.cat is not None else None
+                whole = self.whole_field(itype, tpath, t)
                 if whole is None:
-                    w = int.from_bytes(vals[0], 'big', signed=True)
-                    whole = w != 0 and (w >> 24) in (0, -1)
+                    # DICE only ever writes 0 there: integer and float are the same bits, and no schema says which.
+                    # Guessing writes float bits into an integer (1065353216) or an integer into a float (~0)
+                    self.errors.append(f'{path}: a bool into a 4-byte number field DICE writes only as 0 '
+                                       '(integer or float unknown: no evidence in the catalogue or the templates)')
+                    return e
                 packed = struct.pack('>i', v) if whole else struct.pack('>f', float(v))
             elif size == 8:
                 packed = struct.pack('>d', float(v))

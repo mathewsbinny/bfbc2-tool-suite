@@ -249,10 +249,14 @@ def port(src, ix, effect, level, shared=None, plan=None, catalogue=None, schema=
     ours = {n for n, _, k in plan if k in ('port', 'texture', 'sound')}     # 'sound': the caller ports it
     bc2 = {n[:-4] for n in ix.where if n.endswith('.dbx')}
     resolve = lambda q: q.lower() in ours or q.lower() in bc2 or q.lower() == 'textures/effects/emittersystem/defaultnormalmap'  # noqa: E731
+    # the partitions ported here with their BF1943 guids: a reference into one is checked against what is written,
+    # not against BFBC2's same-named partition (which the port replaces, and which may lack the guid)
+    written = {n.lower(): dbxport.guids_of(src.data(k)) for n, k, kind in plan if kind == 'port'}
     files = {}
     for name, key, kind in plan:
         if kind == 'port':
-            data, rep = dbxport.port(src.data(key), T, resolve, catalogue=catalogue, name=name, schema=schema)
+            data, rep = dbxport.port(src.data(key), T, resolve, catalogue=catalogue, ours=written, name=name,
+                                     schema=schema)
             files[name + '.dbx'] = data
             check_defaults(data, report)
             report.extend_from(rep, name, _shown(name))

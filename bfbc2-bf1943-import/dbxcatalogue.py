@@ -94,6 +94,7 @@ class Catalogue:
         self.others: dict[str, tuple[str, dbx.Element]] = {}     # a second one, from another partition
         self.exe_names: frozenset[str] = frozenset()
         self.partitions = 0
+        self.problems: list[str] = []               # bundles / partitions that could not be read: an incomplete one
 
     # ---- questions
     def has_class(self, t: str) -> bool:
@@ -217,12 +218,16 @@ def build(ix: Any, exe: str | None, log: Any = None) -> Catalogue:
         for j in range(0, len(ns), 400):
             try:
                 got = fbrb.read(b, ns[j:j + 400])
-            except Exception:                                   # noqa: BLE001 - an unreadable bundle is skipped
+            except Exception as ex:                             # noqa: BLE001 - a locked or damaged bundle: recorded
+                cat.problems.append(f'{b}: {len(ns[j:j + 400])} partitions not read ({type(ex).__name__}: {ex})')
                 continue
             for n, d in sorted(got.items()):
                 try:
                     f = dbx.parse(d)
-                except Exception:                               # noqa: BLE001 - a deleted marker or a broken file
+                except dbx.DeletedEntry:                        # a *deleted* marker: nothing to read
+                    continue
+                except Exception as ex:                         # noqa: BLE001 - a broken file: recorded
+                    cat.problems.append(f'{b}: {n} not parsed ({type(ex).__name__}: {ex})')
                     continue
                 cat.add_partition(n[:-4] if n.lower().endswith('.dbx') else n, f, seen)
         if log and i % 50 == 0:
@@ -248,7 +253,17 @@ def load(ix: Any, exe: str | None = None, log: Any = None) -> Catalogue:
         except Exception:                                       # noqa: BLE001 - missing, old or corrupt: rebuilt
             pass
     print('cataloguing BFBC2\'s partitions (once; cached) ...', file=sys.stderr)
-    cat = build(ix, exe, log or (lambda m: print(m, file=sys.stderr)))
+    say = log or (lambda m: print(m, file=sys.stderr))
+    cat = build(ix, exe, say)
+    if cat.problems:
+        # an incomplete catalogue (a bundle locked by the running game, say) is used but not cached: a cache keyed
+        # on the bundles' size and time would keep it after the cause is gone
+        say(f'catalogue: {len(cat.problems)} read problem(s) - this catalogue is incomplete and NOT cached:')
+        for p in cat.problems[:20]:
+            say(f'  {p}')
+        if len(cat.problems) > 20:
+            say(f'  ... {len(cat.problems) - 20} more')
+        return cat
     if path:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + '.tmp'

@@ -14,7 +14,8 @@ r"""Unit tests of the converters' Stage 3 fixes, without game data (quick tier):
 - mesh.texcoord_element: the texture coordinates are the first half2 / float2 usage-0 element (soldiers, trees),
   else the first other float one (material-mask meshes), never a colour byte element; decode reads that one;
 - mesh.relayout: a PC MeshData into another layout - elements paired by kind (usage, stream, component count) in
-  any order, a missing one filled by the caller's edit, the palette extended, offsets and strides rewritten;
+  any order, a missing one filled by the caller's edit, the palette extended, offsets and strides rewritten; an
+  element of another component count (a half4 position into float3) by usage and stream, min(counts) copied;
 
   python tests\test_converter_units.py
 """
@@ -283,6 +284,25 @@ def mesh_relayout() -> None:
           and p['bones'] == [7, 9, 11] and d['bones'][:, 0].tolist() == [9, 9, 9],
           'mesh.relayout: elements paired by kind (a half4 with a half4, whatever the order), the missing one '
           'filled by the edit, palette extended, stride 26 -> 30', f'{d["uvs"]} {half4} {second} {p}')
+
+    # a position of another component count: half4 -> float3 (x, y, z), half2 uv -> float4 (u, v, 0, 0)
+    old = _layout([(8, 1, 0, 0), (6, 0, 8, 0)], 12)
+    new = _layout([(3, 1, 0, 0), (4, 0, 12, 0)], 28)
+    pos4 = np.array([[1, 2, 3, 1], [4, 5, 6, 1], [7, 8, 9, 1]], '<f2')
+    rows = b''.join(pos4[i].tobytes() + uv[i].tobytes() for i in range(3))
+    m4 = {'h0': 0, 'h1': b'\0\0', 'lists': [[0], [], [], []],
+          'parts': [{'name': b'p', 'triangles': 1, 'vertices': 3, 'first_index': 0, 'vertex_offset': 0, 'stride': 12,
+                     'k': 3, 'fa': 0, 'fb': 0, 'bones': [0]}]}
+    b = mesh.write(m4, rows, struct.pack('<3H', 0, 1, 2))
+    out = mesh.relayout(b, [old], [new])
+    q = mesh.parse(out, False)
+    raw = np.frombuffer(out, np.uint8, 84, q['data']).reshape(3, 28)
+    got_pos = np.frombuffer(raw[:, 0:12].tobytes(), '<f4').reshape(3, 3)
+    got_uv = np.frombuffer(raw[:, 12:28].tobytes(), '<f4').reshape(3, 4)
+    check(np.array_equal(got_pos, pos4[:, :3].astype(np.float32)) and
+          np.array_equal(got_uv[:, :2], uv.astype(np.float32)) and not got_uv[:, 2:].any(),
+          'mesh.relayout: a half4 position into float3 keeps x, y, z; a half2 uv into a float4 its two (the rest 0)',
+          f'{got_pos.tolist()} {got_uv.tolist()}')
 
 
 def physics_wrapper(n, run, hashes):

@@ -117,17 +117,22 @@ def main(argv: list[str]) -> int:
     quick = '--quick' in argv
     cats = [a for a in argv[1:] if not a.startswith('--')] or ['objects', 'vehicles', 'weapons', 'effects', 'sounds',
                                                                'other']
-    try:
-        import bf1943import
-        suite_paths.use('mesh-viewer', 'shader-tools')
-        import dbxcatalogue
-        import meshview
-        import shaderdb
-        ix = meshview.Index(shaderdb.find_opfor(None))
-        src = bf1943import.Source(bf1943import.default_source())
-    except Exception as e:                                      # noqa: BLE001 - no game data: nothing to test
+    # the modules under test and their helpers import outside the skip: a broken import is a failure, not a SKIP
+    import bf1943import
+    suite_paths.use('mesh-viewer', 'shader-tools')
+    import dbxcatalogue
+    import meshview
+    import shaderdb
+    try:                                                        # only missing game data skips
+        root = shaderdb.find_opfor(None)
+        folder = bf1943import.default_source()
+        if not folder or not os.path.isdir(folder):
+            raise bf1943import.Bf1943ImportError(f'no BF1943 source folder at {folder}')
+        src = bf1943import.Source(folder)
+    except (shaderdb.ShaderDbError, bf1943import.Bf1943ImportError) as e:
         print(f'SKIP no game data ({type(e).__name__}: {e})')
         return 0
+    ix = meshview.Index(root)
     t0 = time.time()
     cat = dbxcatalogue.load(ix)
     bones = dbxport.BoneTables.ske01(src, ix)

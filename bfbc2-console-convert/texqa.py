@@ -570,7 +570,8 @@ def analyse(name: str, ours_res: bytes, source_res: bytes | None = None, dice_re
     row['ours'] = {'format': ours.fmt, 'flags': ours.flags, 'type': ours.typ, 'size': [ours.w, ours.h],
                    'mips': ours.mips, 'channels': ours.channels}
     a0 = ours.level(0)
-    assert a0 is not None
+    if a0 is None:
+        raise TexQaError(f'{name}: no level 0 to read ({ours.mips} mip levels)')
     row['ours']['stats'] = stats(a0, ours.channels)
     for e in ours.size_errors:
         _flag(row, 'level size', ERROR, 'converter', e)
@@ -937,6 +938,7 @@ class Dice:
         self.sig = _sha1(json.dumps(sig).encode())[:16]
         path = os.path.join(cache, f'dice_textures_{self.sig}.json') if cache else None
         self.stamp = {b: f'{s}|{t}' for b, s, t in sig}
+        self.problems: list[str] = []          # bundles that could not be read (a locked one): DICE's index incomplete
         if path and os.path.isfile(path):
             self.where = {k: tuple(v) for k, v in json.load(open(path)).items()}
         else:
@@ -944,12 +946,13 @@ class Dice:
             for b in bundles:
                 try:
                     ents = fbrb.entries(b)
-                except Exception:                                   # noqa: BLE001 - an unreadable bundle is skipped
+                except Exception as ex:                             # noqa: BLE001 - recorded: the index is incomplete
+                    self.problems.append(f'{b}: not read ({type(ex).__name__}: {ex})')
                     continue
                 for e in ents:
                     if not e.deleted and e.type == 'ITexture':
                         self.where.setdefault(e.name.lower(), (b, e.name))
-            if path:
+            if path and not self.problems:          # an incomplete index is not cached (size / time keyed: kept)
                 _write_json(path, self.where)
         self.entries = set(self.where)
 
@@ -997,6 +1000,11 @@ def run(roots: list[str], *, sources: Sequence[Any] = (), dice: Dice | None = No
         def log(msg: str) -> None:
             print(msg, flush=True)
     items = find(roots, skip)
+    if dice is not None and dice.problems:
+        log(f'DICE\'s textures: {len(dice.problems)} bundle(s) unreadable - their textures are not compared '
+            '(the index is not cached):')
+        for p in dice.problems:
+            log(f'  {p}')
     cache_path = os.path.join(cache, f'rows_v{VERSION}.json') if cache else None
     old: dict[str, Any] = {}
     if cache_path and os.path.isfile(cache_path):
@@ -1040,7 +1048,7 @@ def run(roots: list[str], *, sources: Sequence[Any] = (), dice: Dice | None = No
                               dice_bytes.get(dkey) if dkey else None,
                               open(it.orig, 'rb').read() if it.orig else None,
                               'xbox' if not isinstance(src_obj, PcSource) else 'pc')
-            except (TexQaError, ValueError, KeyError, struct.error) as e:
+            except Exception as e:                      # noqa: BLE001 - one bad entry is its row, not the run's end
                 row = {'name': it.name, 'flags': [{'code': 'unreadable', 'severity': ERROR, 'cause': 'unknown',
                                                     'detail': f'{type(e).__name__}: {e}'}], 'score': 1000.0}
             row['source_name'] = src_key

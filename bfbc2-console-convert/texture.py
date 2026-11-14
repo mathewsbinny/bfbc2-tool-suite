@@ -21,7 +21,7 @@ FORMATS = {0: (8, 4, 'DXT1'), 18: (8, 4, 'DXT1 (normal map)'), 1: (16, 4, 'DXT3'
 OTHER = {9: '9 (32-bit)'}
 
 
-DECODED = {0, 18, 1, 2, 19, 20}         # the block formats decode() reads (DXT1, DXT3, DXT5, BC5)
+DECODED = {0, 18, 1, 2, 19, 20, 10}     # the formats decode() reads (DXT1, DXT3, DXT5, BC5; L8): check() compares
 
 
 class ConvertError(Exception):
@@ -305,11 +305,13 @@ def levels(pc):
 def check(pc, reference=None):
     """(worst mip-chain error, correlation with reference's level 0 or None, blocks identical, blocks): each level
     should be about its larger neighbour scaled down; a reference (the PC's own file of the asset) should look the
-    same where it is the same art."""
+    same where it is the same art. Every format decode() reads is compared (DECODED: the block formats and L8); for
+    any other (RGBA16F, B8G8R8A8, ...) nothing is measured and the result is (None, None, None, None) - not
+    compared, which a caller must not read as a pass."""
     import numpy as np
     fmt = struct.unpack_from('<I', pc, 8)[0]
-    if fmt not in DECODED:                # RGBA16F, the 8- and 32-bit PC formats: no block decoder - nothing measured
-        return 0.0, None, None, None
+    if fmt not in DECODED:
+        return None, None, None, None
     lv = levels(pc)
     worst = 0.0
     for (s, _m, w, h, d), (s2, _m2, w2, h2, d2) in zip(lv, lv[1:]):
@@ -326,6 +328,11 @@ def check(pc, reference=None):
         corr = float(np.corrcoef(a, b)[0, 1]) if a.std() and b.std() else 1.0
         bpb = FORMATS[fmt][0]
         total = len(pc[HEADER:]) // bpb
-        same = sum(pc[HEADER + i * bpb:HEADER + (i + 1) * bpb] == reference[HEADER + i * bpb:HEADER + (i + 1) * bpb]
-                   for i in range(total))
+        if len(reference) >= HEADER + total * bpb:
+            x = np.frombuffer(pc, np.uint8, total * bpb, HEADER).reshape(total, bpb)
+            y = np.frombuffer(reference, np.uint8, total * bpb, HEADER).reshape(total, bpb)
+            same = int((x == y).all(1).sum())
+        else:
+            same = sum(pc[HEADER + i * bpb:HEADER + (i + 1) * bpb] == reference[HEADER + i * bpb:HEADER + (i + 1) * bpb]
+                       for i in range(total))
     return worst, corr, same, total

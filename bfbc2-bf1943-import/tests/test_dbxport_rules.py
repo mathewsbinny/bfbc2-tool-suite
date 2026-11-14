@@ -188,14 +188,32 @@ def main() -> int:
     bf = part(A + '1', [inst(A + '1', 'X.Cfg', [boolf('MaxCount', True)])])
     v = dbx.numbers(parsed(dbxport.port(bf, t)[0]).instances[0].children[0])[1][0]
     check(struct.unpack('>i', v)[0] == 1, '9 bool -> integer field: 1', v.hex())
-    # ... and into a float: 1.0; the catalogue's evidence decides when the template's value is 0
+    # ... and into a float: 1.0; the field's evidence decides when the template's value is 0 (the same bits either way)
     t = tmpl(inst(B + '1', 'X.Cfg', [num('Damp', [0.0])]))
     bf = part(A + '1', [inst(A + '1', 'X.Cfg', [boolf('Damp', True)])])
-    v = dbx.numbers(parsed(dbxport.port(bf, t)[0]).instances[0].children[0])[1][0]
-    check(struct.unpack('>f', v)[0] == 1.0, '9b bool -> float field (template 0): 1.0', v.hex())
+    cat = catalogue(numeric={('X.Cfg', '.Damp'): {'float': 3}})
+    v = dbx.numbers(parsed(dbxport.port(bf, t, catalogue=cat)[0]).instances[0].children[0])[1][0]
+    check(struct.unpack('>f', v)[0] == 1.0, '9b bool -> float field (template 0, the catalogue: floats): 1.0', v.hex())
     cat = catalogue(numeric={('X.Cfg', '.Damp'): {'whole': 3}})
     v = dbx.numbers(parsed(dbxport.port(bf, t, catalogue=cat)[0]).instances[0].children[0])[1][0]
     check(struct.unpack('>i', v)[0] == 1, '9c ... the catalogue says DICE writes whole numbers there: 1', v.hex())
+    # 9d. an integer field whose template value is 0, no catalogue: another template of the type says integer -> 1,
+    # never the float's bits (3f800000 = 1065353216)
+    bf = part(A + '1', [inst(A + '1', 'X.V', [boolf('Count', 1)])])
+    t = tmpl(inst(B + '1', 'X.V', [num('Count', [0], '>i')]), inst(B + '2', 'X.V', [num('Count', [7], '>i')]))
+    v = dbx.numbers(parsed(dbxport.port(bf, t)[0]).instances[0].child('Count'))[1][0]
+    check(struct.unpack('>i', v)[0] == 1, '9d bool -> integer field (template 0, another template 7): 1', v.hex())
+    t = tmpl(inst(B + '1', 'X.V', [num('Count', [0], '>i')]), inst(B + '2', 'X.V', [num('Count', [7], '>i')]),
+             inst(B + '3', 'X.V', [num('Count', [0.25])]))
+    check(raises(lambda: dbxport.port(bf, t), dbxport.SchemaError),
+          '9e ... templates disagreeing (integer and float): a schema error, not a guess')
+    # 9f. nothing says which (template 0, no other evidence): a schema error, not float bits into a possible integer
+    t = tmpl(inst(B + '1', 'X.V', [num('Count', [0], '>i')]))
+    check(raises(lambda: dbxport.port(bf, t), dbxport.SchemaError),
+          '9f bool -> 4-byte field DICE writes only as 0, no evidence: a schema error')
+    data, rep = dbxport.port(bf, t, schema='report')
+    check(any('integer or float unknown' in r.line() for r in rep.of('schema')),
+          "9g ... with schema='report': reported", [r.line() for r in rep.records])
 
     # 10. a byte 3 into a float: 3.0, reported as 3 (not 'true')
     t = tmpl(inst(B + '1', 'X.Cfg', [num('Level', [0.5])]))
@@ -505,6 +523,51 @@ def main() -> int:
     check(effectport._effect_with_emitters(b'..Entity.EffectAsset..Emitter.EmitterEntityData..') and
           not effectport._effect_with_emitters(b'..Entity.EffectAsset..Audio.SoundEntityData..'),
           "effectport: a sound/ effect drawing particles is an effect; a plain sound wrapper the sound porter's")
+
+    # dbxcatalogue: a bundle it cannot read (locked by the running game, say) is reported and the catalogue not cached
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        bad = os.path.join(tmp, 'locked.fbrb')
+        open(bad, 'wb').write(b'not a bundle')
+
+        class BadIx:
+            root = tmp
+            where = {'objects/a.dbx': (bad, 'objects/a.dbx')}
+        said: list[str] = []
+        got_cat = dbxcatalogue.load(BadIx, exe='', log=said.append)
+        pkl = os.path.join(tmp, 'work', 'tools_out', 'dbx_catalogue.pkl')
+        check(got_cat.problems and not os.path.exists(pkl) and any('NOT cached' in x for x in said),
+              'dbxcatalogue: an unreadable bundle is reported and the incomplete catalogue is not cached',
+              (got_cat.problems, said, os.path.exists(pkl)))
+
+    # effectport: a reference into an emitter partition the effect ports is checked against BF1943's guids it writes,
+    # not BFBC2's same-named partition (which the port replaces, and which lacks the guid): it is kept, not nulled
+    emitter = part(G1, [inst(G1, 'X.Emitter', [txt('Name', 'smoke')])])
+    effect = part(A + '1', [inst(A + '1', 'X.Fx', [ref('Emitter', f'emitters/smoke/{G1}')])])
+
+    class FxSrc:
+        entries: dict[str, tuple[None, dict]] = {'effects/fx.dbx': (None, {}), 'emitters/smoke.dbx': (None, {})}
+
+        @staticmethod
+        def data(k: str) -> bytes:
+            return {'effects/fx.dbx': effect, 'emitters/smoke.dbx': emitter}[k]
+
+    class FxIx:
+        where = {'emitters/smoke.dbx': ('bundle', 'emitters/smoke.dbx')}
+    shared: tuple[dbxport.Templates, str, set[str]] = (tmpl(inst(B + '1', 'X.Fx', [ref('Emitter', 'null')]), inst(B + '2', 'X.Emitter', [txt('Name', '')])),
+              'tpl', set())
+    cat = catalogue(guids={H1: 'emitters/smoke'}, primary={'emitters/smoke': H1})
+    plan = [('effects/fx', 'effects/fx.dbx', 'port'), ('emitters/smoke', 'emitters/smoke.dbx', 'port')]
+    files, rep = effectport.port(FxSrc, FxIx, 'effects/fx', 'levels/x', shared=shared, plan=plan, catalogue=cat)
+    got = parsed(files['effects/fx.dbx']).instances[0].child('Emitter').attr('ref')
+    check(got == f'emitters/smoke/{G1}' and not rep.of('nulled'),
+          'effectport: a reference into a ported emitter BFBC2 has under the same name (without the guid) is kept',
+          (got, [r.line() for r in rep.of('nulled')]))
+    # ... while a guid the ported partition lacks still does not resolve
+    effect = part(A + '1', [inst(A + '1', 'X.Fx', [ref('Emitter', f'emitters/smoke/{A}9')])])
+    files, rep = effectport.port(FxSrc, FxIx, 'effects/fx', 'levels/x', shared=shared, plan=plan, catalogue=cat)
+    got = parsed(files['effects/fx.dbx']).instances[0].child('Emitter').attr('ref')
+    check(got == 'null', 'effectport: ... a guid neither the ported partition nor BFBC2 has is nulled', got)
 
     # ---------------------------------------------------------------- console audio buffers -> PC directed audio edges
     def audio_fixture(prefix, pc=False):
