@@ -32,6 +32,18 @@ PY = sys.executable
 TIERS = ['quick', 'game', 'full']
 
 
+def stale_build(folder, exes, sources):
+    """A build step that runs folder's build.bat only when its .exe files are older than their sources
+    (tests\\build_if_stale.py): rebuilding every run gave the tools new bytes and times (QA 2026-11-15)."""
+    d = os.path.join(SUITE, folder)
+    return [PY, os.path.join(SUITE, 'tests', 'build_if_stale.py'), os.path.join(d, 'build.bat'),
+            *[os.path.join(d, e) for e in exes], '--', *[os.path.join(SUITE, s) for s in sources]]
+
+
+DBX_BUILD = stale_build('bfbc2-dbx-tools', ['DbxEdit.exe', 'DbxEditGUI.exe'],
+                        [os.path.join('bfbc2-dbx-tools', 'DbxEdit.cs'), os.path.join('bfbc2-dbx-tools', 'DbxEditGUI.cs')])
+
+
 def opfor():
     suite_paths.use('navkit')
     import navkit
@@ -79,8 +91,10 @@ def tests():
         ('paths: OPFOR, game copy, tools and sibling projects on a stand-in tree', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_paths.py')]),
         ('converter edges (dbx numbers, dbxport references, texture check)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_edges.py')]),
         ('converter units (havok w lanes, MOPP byte code, L8 textures and flags, mesh rename, texcoords, mesh relayout)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_converter_units.py')]),
+        ('DbxEdit build (when stale)', 'quick', DBX_BUILD),
         ('DbxEdit unit tests', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat')]),
-        ('FbrbTool build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')]),
+        ('FbrbTool build (when stale)', 'quick', stale_build('bfbc2-fbrb-tool', ['FbrbTool.exe'],
+                                                             [os.path.join('bfbc2-fbrb-tool', 'FbrbTool.cs')])),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
         ('error handling and logs', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_errors.py')]),
         ('every command-line tool reports errors', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_cli_errors.py')]),
@@ -115,7 +129,9 @@ def tests():
         ('Navigation Studio logic, no window (studio.py)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_studio_offline.py')]),
         ('Map Inspector logic, no window (inspector.py)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-map-inspector', 'tests', 'test_inspector_offline.py')]),
         ('mesh viewer index and cache, stand-in bundles', 'quick', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview_index.py')]),
-        ('LevelDiff build', 'quick', ['cmd', '/c', os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')]),
+        ('LevelDiff build (when stale)', 'quick', stale_build(os.path.join('bfbc2-diff-workbench', 'level-diff'), ['LevelDiff.exe'],
+                                                              [os.path.join('bfbc2-diff-workbench', 'level-diff', 'LevelDiff.cs'),
+                                                               os.path.join('bfbc2-dbx-tools', 'DbxEdit.cs')])),
         ('LevelDiff, built levels', 'quick', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py')]),
         ('crash reader, built reports', 'quick', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py')]),
         ('console readers, built images', 'quick', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'tests', 'test_console_readers.py')]),
@@ -210,6 +226,7 @@ def main(argv):
     root = opfor() if any(callable(a) or t != 'quick' for _, t, a in chosen) else None
     print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else ''))
     failures, start = [], time.time()
+    os.environ['DBX_SKIP_BUILD'] = '1'          # run_tests.bat: DbxEdit is the 'DbxEdit build (when stale)' step's
     for name, _t, args in chosen:
         if callable(args):
             args = args(root)

@@ -343,10 +343,10 @@ def quick(tmp):
     ref = os.path.join(tmp, 'so.dbx')
     open(ref, 'wb').write(b.done(G(801), [so]))
     raw, pg, ig = pipeline.sector_asset(ref, 'TEST_01', 'Infantry', 'test_01', (-9, -4))
-    e: Any = coredbx.parse(raw).instances[0]
-    check(coredbx.value(e.child('Name')) == 'Levels/TEST_01/Precomputed/Infantry/SectorOffsets'
-          and struct.unpack('>i', coredbx.numbers(e.child('XOffset'))[1][0])[0] == -9
-          and struct.unpack('>i', coredbx.numbers(e.child('ZOffset'))[1][0])[0] == -4 and e.attr('guid') == ig,
+    sector: Any = coredbx.parse(raw).instances[0]
+    check(coredbx.value(sector.child('Name')) == 'Levels/TEST_01/Precomputed/Infantry/SectorOffsets'
+          and struct.unpack('>i', coredbx.numbers(sector.child('XOffset'))[1][0])[0] == -9
+          and struct.unpack('>i', coredbx.numbers(sector.child('ZOffset'))[1][0])[0] == -4 and sector.attr('guid') == ig,
           'SectorOffsets asset: name, offsets as 4-byte integers, OPFOR\'s guids')
 
     # install / revert on a fake game folder
@@ -448,7 +448,7 @@ def quick(tmp):
         except pipeline.BuildError as e:
             said = str(e)
     finally:
-        pipeline.unpacked, pipeline.kit_refs, cfgmod.generate = real  # type: ignore[assignment]
+        pipeline.unpacked, pipeline.kit_refs, cfgmod.generate = real
     check('another team' in said and 'edit it before building' in said and os.path.isfile(gp.config()),
           f'generate: a configuration with problems is said at once (saved for editing) ({said[:120]})')
 

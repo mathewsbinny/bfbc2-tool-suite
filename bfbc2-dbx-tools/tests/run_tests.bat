@@ -7,7 +7,11 @@ rem Set DBX_TESTS_ARGS for more options (e.g. --edit-every 5, --no-gui).
 setlocal
 set HERE=%~dp0
 set CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe
+rem DBX_SKIP_BUILD (set by the suite's run_tests.py, which builds DbxEdit only when its sources changed): the built
+rem DbxEdit as it is, unless there is none
+if defined DBX_SKIP_BUILD if exist "%HERE%..\DbxEdit.exe" goto built
 call "%HERE%..\build.bat" >nul || (echo build failed & exit /b 1)
+:built
 "%CSC%" -nologo -optimize -main:DbxTests -out:"%HERE%DbxTests.exe" -r:System.Windows.Forms.dll -r:System.Drawing.dll ^
     "%HERE%DbxTests.cs" "%HERE%..\DbxEdit.cs" "%HERE%..\DbxEditGUI.cs" || (echo test build failed & exit /b 1)
 copy /y "%HERE%..\DbxEdit.exe" "%HERE%DbxEdit.exe" >nul

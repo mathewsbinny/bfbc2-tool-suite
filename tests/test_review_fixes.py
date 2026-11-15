@@ -94,6 +94,19 @@ def navkit_apply(c, work):
             'navkit apply: a failure without --out still writes <output>.report.txt with the error')
 
 
+
+
+def write_build_report(pipeline, paths):
+    """The build_report.json a finished build writes: every file of out\\game with its sha256 (pipeline.check_report
+    refuses a build without one - the 2026-11-14 QA fix)."""
+    import json
+    out = os.path.join(paths.root, 'out', 'game')
+    outputs = {os.path.relpath(os.path.join(dp, f), paths.root): pipeline.sha(os.path.join(dp, f))
+               for dp, _d, fs in os.walk(out) for f in fs}
+    with open(paths.report(), 'w', encoding='utf-8') as fh:
+        json.dump({'outputs': outputs}, fh)
+
+
 def stockmp_install(c, work):
     suite_paths.use('stockmp')
     import pipeline
@@ -107,9 +120,11 @@ def stockmp_install(c, work):
     open(dst, 'wb').write(b'original')
     run = (lambda: stockmp.install(paths, ['stockmp.py', 'install', 'mp_test', '--apply']))
     open(built, 'wb').write(b'build 1')
+    write_build_report(pipeline, paths)
     with contextlib.redirect_stdout(io.StringIO()):
         run()
     open(built, 'wb').write(b'build 2')
+    write_build_report(pipeline, paths)
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         run()

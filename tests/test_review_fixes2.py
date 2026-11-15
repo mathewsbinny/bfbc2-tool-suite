@@ -163,6 +163,19 @@ def navkit_restore_deleted(c, work):
         navkit.game_running = saved_gr
 
 
+
+
+def write_build_report(pipeline, paths):
+    """The build_report.json a finished build writes: every file of out\\game with its sha256 (pipeline.check_report
+    refuses a build without one - the 2026-11-14 QA fix)."""
+    import json
+    out = os.path.join(paths.root, 'out', 'game')
+    outputs = {os.path.relpath(os.path.join(dp, f), paths.root): pipeline.sha(os.path.join(dp, f))
+               for dp, _d, fs in os.walk(out) for f in fs}
+    with open(paths.report(), 'w', encoding='utf-8') as fh:
+        json.dump({'outputs': outputs}, fh)
+
+
 def stockmp_case(c, work):
     suite_paths.use('stockmp')
     import pipeline
@@ -173,6 +186,7 @@ def stockmp_case(c, work):
     rel = 'Output/win32/ai/levels/MP_TEST/infantry/pathdata.hpd'      # uppercase level directory
     os.makedirs(os.path.dirname(os.path.join(out, rel)), exist_ok=True)
     open(os.path.join(out, rel), 'wb').write(b'built')
+    write_build_report(pipeline, paths)
     os.makedirs(os.path.dirname(os.path.join(game, rel)), exist_ok=True)
     dst = os.path.join(game, rel)
     open(dst, 'wb').write(b'original')
