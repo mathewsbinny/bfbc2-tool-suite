@@ -100,6 +100,7 @@ class _Emitter:
     vfetch_element: dict[int, int]              # vfetch slot -> TEXCOORD usage index
     block_pred: bool | None
     pred_written: bool
+    pending_a0: str | None                      # the address register write of the current ALU instruction (alu)
     cube_dir_set: bool
     need_world: bool
 
@@ -273,7 +274,7 @@ class _Emitter:
         if op == 'dst':
             return f'float4(1.0, ({a[0]}).y * ({a[1]}).y, ({a[0]}).z, ({a[1]}).w)'
         if op == 'maxa':
-            self.w(f'a0 = (int)clamp(floor(({a[0]}).w + 0.5), -256.0, 255.0);')
+            self.pending_a0 = f'a0 = (int)clamp(floor(({a[0]}).w + 0.5), -256.0, 255.0);'
             return f'max({a[0]}, {a[1]})'
         raise TranslateError(f'vector op {op}')
 
@@ -329,7 +330,7 @@ class _Emitter:
             return f'xrsq{op[3:]}({a})'
         if op in ('maxas', 'maxasf'):
             rnd = ' + 0.5' if op == 'maxas' else ''
-            self.w(f'a0 = (int)clamp(floor({a}{rnd}), -256.0, 255.0);')
+            self.pending_a0 = f'a0 = (int)clamp(floor({a}{rnd}), -256.0, 255.0);'
             return f'max({a}, {b})'
         if op in ('subs', 'subsc'):
             return f'({a} - {b})'
@@ -395,6 +396,7 @@ class _Emitter:
 
     def alu(self, ins: Obj) -> None:
         self.pred_written = False
+        self.pending_a0 = None
         k = ins.address
         vec = None if ins.vector_nop else self.vector(ins)
         sca = None if ins.scalar_nop else self.scalar(ins)
@@ -406,6 +408,11 @@ class _Emitter:
             self.w(f'float s{k} = {sca};')
             if self.iface.trace_nan:
                 self.w(f'if (firstNan < 0.0 && (isnan(s{k}) || isinf(s{k}))) firstNan = {k}.5;')
+        if self.pending_a0:
+            # MAXA / MAXAS set the address register for the NEXT instruction: the co-issued half of this one still
+            # reads the old a0 (written before the vector op, a soldier's bone 1 row 0 was read from bone 2 - the
+            # arms drew as shards in game, 2026-11-15)
+            self.w(self.pending_a0)
         if vec is not None:
             self.write(ins.vector_dest, f'v{k}', None, True)
         if sca is not None:
