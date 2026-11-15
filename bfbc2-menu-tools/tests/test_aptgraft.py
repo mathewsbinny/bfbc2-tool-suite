@@ -9,7 +9,11 @@ OPFOR BFBC2's game copy:
   constants re-indexed (the copied code decodes to the same text), geometry copied, placed on the timeline; a code
   range taken with a ConstantPool of its own; code built with Builder; old data left where it was (keep layout);
 - dead data (bytes nothing points at) kept by the keep layout and reported; overlapping structures refused;
-- the command line (roundtrip, convert, deps, graft).
+- the command line (roundtrip, convert, deps, graft, crosshair-add);
+- crosshair-add on built hud_crosshair-like movies (a big-endian source into a little-endian target with other
+  preload flags): the crossHairs entry after the target's last, its register new, the source's colour register
+  replaced by its constant; the frame on the first free frame, removed on the next; a textured quad split onto tiles
+  of the target's image; refusals (an id the target has, no free frame).
 With --game: every SwfMovie of the game copy's bundles (Dist and Package) round-trips byte for byte and packed; with
 OPFOR's copy of the Xbox 360 HUD (work\xbox_dlc\hud\con_ingame, skipped when absent), the Onslaught timer graft
 into the PC hudlayer_shared the game loads: aptcheck finds nothing, apt.py's dump only gains lines; label-alias on
@@ -285,6 +289,126 @@ def quick(c, work):
     c.check(code_ == 1 and 'neither defined nor imported' in outp, 'command line: a missing character explained')
 
 
+def crosshair_movie(name, entries, flags, empty=2, image=False):
+    """A little-endian hud_crosshair-like movie: frame 0's action defines init() (preload flags `flags`; register 5
+    set to the colour 65280) building crossHairs[id] = new dice.CrossHair(this, id, "hud") with setProperties
+    {glowColor: register 5}; frame 1 "none" places the hit marker (depth 50, kept); each id a frame placing its own
+    shape as "hud" at depth 1 (with image, the first a textured quad, 40 x 20, of an image character) removed on the
+    next frame; then `empty` empty frames."""
+    m = ag.Movie(blank(name))
+
+    def shape(w, h, img=None):
+        s = Words('apt', None, [1, SIG, ag.f32(-w / 2), ag.f32(-h / 2), ag.f32(w / 2), ag.f32(h / 2), 0], 'shape')
+        sid = m.add_char(s)
+        s.vals[6] = sid
+        vs = [-w / 2, h / 2, -w / 2, -h / 2, w / 2, -h / 2, w / 2, -h / 2, w / 2, h / 2, -w / 2, h / 2]
+        verts = Words('geo', None, [ag.f32(v) for v in vs], 'geo.vertices')
+        if img is None:
+            part = Words('geo', None, [1, 2, Ref(verts), 0xFFFFFFFF], 'geo.part1')
+        else:
+            mat = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, w / 2, h / 2, 0, 1]
+            part = Words('geo', None, [5, 2, Ref(verts), 0xFFFFFFFF] + [ag.f32(x) for x in mat] + [img, 0],
+                         'geo.part5')
+        m.add_geometry(sid, Words('geo', None, [Ref(part)], 'geo.parts'))
+        return sid
+    names = ['crossHairs', 'Object', 'hud', 'dice', 'CrossHair', 'glowColor', 'setProperties'] + list(entries)
+    pool = Words('apt', None, [m.const_index(('s', t.encode())) for t in names], 'poollist')
+
+    def pc(t):
+        return Ins(0xA2, [names.index(t)])
+
+    def reg(r):
+        return Ins(0x96, [1, Ref(Words('apt', None, [m.const_index((4, r))], 'pushlist'))])
+    body = [Ins(0xB7, [65280]), Ins(0x87, [5]), Ins(0x17),
+            reg(1), pc('crossHairs'), Ins(0x59), pc('Object'), Ins(0x40), Ins(0x4F)]
+    for k, cid in enumerate(entries):
+        r = 6 + k
+        body += [pc('hud'), pc(cid), reg(1), Ins(0xB5, [3]), Ins(0xAE, [names.index('dice')]), pc('CrossHair'),
+                 Ins(0x53), Ins(0x87, [r]), Ins(0x17),
+                 pc('glowColor'), reg(5), Ins(0xB5, [1]), Ins(0x43), Ins(0x5A), reg(r),
+                 Ins(0xB2, [names.index('setProperties')]),
+                 reg(1), Ins(0xAF, [names.index('crossHairs')]), pc(cid), reg(r), Ins(0x4F)]
+    fn = Ins(0x8E, [S('init'), 0, (6 + len(entries)) | (flags << 16), Ref(Words('apt', None, [], 'f2params')),
+                    *ag.FN_MAGIC], body=body)
+    m.add_item(0, Words('apt', None, [1, Ref(Code('apt', None, [Ins(0x88, [len(names), Ref(pool)]), fn, Ins(0)]))],
+                        'action'))
+    m.add_item(1, Words('apt', None, [2, S('none'), 0x70000, 1], 'label'))
+    m.add_item(1, ag.place_item(m, 50, shape(4, 4), 'hit', 640, 360))
+    img = None
+    if image:
+        img = m.add_char(Words('apt', None, [7, SIG, 0], 'image'))
+        m.char(img).vals[2] = img
+    for k, cid in enumerate(entries):
+        f = 2 + 2 * k
+        m.add_item(f, Words('apt', None, [2, S(cid), 0x70000, f], 'label'))
+        m.add_item(f, ag.place_item(m, 1, shape(40, 20, img if k == 0 else None), 'hud', 640, 360))
+        m.add_item(f + 1, Words('apt', None, [4, 1], 'remove'))
+    for f in range(2 + 2 * len(entries), 2 + 2 * len(entries) + empty):
+        m.items(f, create=True)
+    return ag.Movie(m.write(), name)
+
+
+def crosshairs(c, work):
+    src = crosshair_movie('src', ['Tank_cannon', 'rifle'], 0x29, image=True)
+    be = ag.Movie(src.write(order='>'), 'src (big-endian)')
+    c.check(list(ag.crosshair_table(be)) == ['Tank_cannon', 'rifle']
+            and ag.crosshair_table(be)['Tank_cannon']['label'] == 'Tank_cannon',
+            'crosshair_table: the ids, labels and entry code of init()')
+    dst = crosshair_movie('dst', ['rifle'], 0x129)
+    img_dst = dst.add_char(Words('apt', None, [7, SIG, 0], 'image'))
+    dst.char(img_dst).vals[2] = img_dst
+    simg = next(k for k in range(len(be.chartable.vals)) if be.char_type(k) == 7)
+    tiles = [(-1, -1, 21, 22, img_dst, 3, 5), (20, -1, 21, 22, img_dst, 30, 5)]
+    r = ag.add_crosshair(dst, be, 'Tank_cannon', images={simg: tiles})
+    out = dst.write(layout=ag.GRAFT_LAYOUT)
+    back = reread(out, 'with Tank_cannon')
+    d = '\n'.join(apt_movie(out).dump())
+    fn, _ = ag.named_function(back, 'init')
+    table = ag.crosshair_table(back)
+    c.check(list(table) == ['rifle', 'Tank_cannon'] and table['Tank_cannon']['label'] == 'Tank_cannon'
+            and table['Tank_cannon']['reg'] == 7 and fn.args[2] == 8 | (0x129 << 16),
+            'crosshair-add: the entry after the last one, its register a new one (count raised, flags kept)',
+            str((list(table), fn.args[2])))
+    blk = (fn.body or [])[table['Tank_cannon']['start']:table['Tank_cannon']['end']]
+    c.check(any(i.op == 0xB7 and i.args == [65280] for i in blk) and r['values'] == {5: 'EA_PushLong'}
+            and not any(ag._push_regs(back, i) == [5] for i in blk),
+            'crosshair-add: the source\'s colour register replaced by its constant (EA_PushLong 65280)')
+    c.check(r['frame'] == 4 and 'FrameLabel "Tank_cannon" frame 4' in d
+            and [it.tag for it in back.frame_items(5)] == ['remove'] and back.frame_items(4)[1].vals[2] == 1,
+            'crosshair-add: label and placement on the first free frame (4), removed on the next', str(r['frame']))
+    sid = back.frame_items(4)[1].vals[3]
+    tab, k = back.geo_entry(sid)
+    parts = [p.node.vals for p in tab.vals[k + 2].node.vals]
+
+    def fl(v):
+        return round(struct.unpack('<f', struct.pack('<I', v))[0], 3)
+    xs = [sorted({fl(x) for x in p[2].node.vals[0::2]}) for p in parts]
+    c.check(tab.vals[k + 1] == 2 and [p[20] for p in parts] == [img_dst, img_dst] and xs == [[-20.0, 0.0], [0.0, 20.0]]
+            and [fl(p[16]) for p in parts] == [24.0, 30.0] and [fl(p[17]) for p in parts] == [16.0, 16.0],
+            'crosshair-add: the textured quad split onto two tiles of the target\'s image (vertices, matrix moved)',
+            str((xs, [(fl(p[16]), fl(p[17])) for p in parts])))
+    c.check(not r['notes'] and sum(1 for k2 in range(len(back.chartable.vals)) if back.char_type(k2) == 7) == 1,
+            'crosshair-add: no image character added when the images are mapped')
+    c.check(not aptcheck.Code(apt_movie(out)).findings() and not back.leftovers()
+            and back.write(layout=ag.GRAFT_LAYOUT) == out, 'crosshair-add: aptcheck finds nothing, the result reads back')
+    for what, call in (('an id the target has', lambda: ag.add_crosshair(back, be, 'rifle')),
+                       ('a second copy', lambda: ag.add_crosshair(back, be, 'Tank_cannon')),
+                       ('no free frame', lambda: ag.add_crosshair(crosshair_movie('full', ['rifle'], 0x129, empty=1),
+                                                                  be, 'Tank_cannon'))):
+        try:
+            call()
+            c.check(False, f'crosshair-add: {what} refused')
+        except ag.AptError:
+            c.check(True, f'crosshair-add: {what} refused')
+    # the command line: a new image character, reported
+    sres, tres, ores = (os.path.join(work, n) for n in ('ch_src.res', 'ch_dst.res', 'ch_out.res'))
+    open(sres, 'wb').write(ag.write_bigf(be.write()))
+    open(tres, 'wb').write(ag.write_bigf(crosshair_movie('dst', ['rifle'], 0x129).write()))
+    code_, outp = run('crosshair-add', tres, sres, ores, '--id', 'Tank_cannon')
+    c.check(code_ == 0 and 'crossHairs["Tank_cannon"] -> frame 4' in outp and 'needs: image' in outp
+            and 'Tank_cannon' in ag.crosshair_table(ag.Movie.load(ores)), 'command line: crosshair-add', outp[-300:])
+
+
 def game(c):
     root = mc.find_opfor()
     from bfbc2core import fbrb
@@ -434,6 +558,7 @@ def main(argv):
     work = tempfile.mkdtemp(prefix='aptgraft_')
     try:
         quick(c, work)
+        crosshairs(c, work)
         if '--game' in argv:
             game(c)
     finally:

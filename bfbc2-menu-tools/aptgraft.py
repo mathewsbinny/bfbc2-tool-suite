@@ -9,6 +9,7 @@ character with everything it uses from one movie into another.
   python aptgraft.py mode-case <movie> <out.res> --function F --mode M --key K [--fallback TEXT]
   python aptgraft.py mode-alias <movie> <out.res> --mode M --like L [--function F[,F...]]
   python aptgraft.py label-alias <movie> <out.res> --like L --alias A[,A...]
+  python aptgraft.py crosshair-add <target> <source> <out.res> --id ID[,ID...] [--frame N]
 
 <movie>, <target>, <source>: a menu .res (a BIGF archive of <name>.apt, .const, .geo), a .apt with its .const / .geo
 beside it, or <bundle.fbrb>:<name> (read straight from a bundle). A folder: every SwfMovie of its unpacked bundles
@@ -40,6 +41,17 @@ add_icon_frame (a function, no command): an icon of its own - an image character
            movie's texture atlas, TextureFile = the image's id), a textured-quad shape of a given size drawing it, and
            a frame labelled with the new name, placing it as the like frame places its shape, in each timeline whose
            like frame places one (OPFOR src\tools\ww2\type95_icon.py: the Type 95 boat's silhouette).
+crosshair-add  copies crosshair ID of <source>'s hud_crosshair (its crossHairs table: init() builds
+           crossHairs["ID"] = new dice.CrossHair(this, "<frame label>", "<clip>"); changeWeapon(extern.chId) looks
+           the id up there, an id without an entry leaves the last crosshair frozen) into <target>'s: the characters
+           its frame shows beyond the "none" frame, grafted and placed on a free frame of the target's main timeline
+           (an empty frame followed by an empty one, showing what "none" shows; --frame N) under the frame label,
+           removed on the next frame; and the entry's code put into the target's init() after its last entry
+           (constants re-indexed, the registers it sets new ones, the source's registers holding one constant -
+           colours, alphas - replaced by the constant). Images become new image characters needing atlas entries
+           (reported); add_crosshair(images=...) instead re-points the source's textured parts at pixels of the
+           target's own images (tiles: OPFOR src\tools\ww2\ww2_crosshairs.py, BF1943's Corsair / Zero / Sherman
+           gunsights in BFBC2's movie on reclaimed atlas boxes).
 Nothing is ever written into the game folder; outputs go where you say.
 
 THE MODEL. Every structure of the three members is a node: Raw (a header), Str (a C string), Words (32-bit fields; a
@@ -1695,6 +1707,352 @@ def add_mode_alias(movie: Movie, mode: str, like: str, funcs: list[str] | None =
     return done
 
 
+# ------------------------------------------------------------------------------------------------ crosshairs
+
+# Menu/hud_crosshair (BFBC2 PC, BF1943 Xbox 360): init() builds the table
+#   crossHairs["<id>"] = new dice.CrossHair(this, "<frame label>", "<clip name>") (+ setProperties, useDot, refresh
+# actions on the new object, held in a register); changeWeapon(extern.chId) looks the id up there and CrossHair.init()
+# sends the main timeline to the label's frame. Each entry's code, at the top level of init's body:
+#   <push clip> PushConstant <label> PushData <this> EA_PushByte 3 EA_PushValueOfVar "dice" PushConstant "CrossHair"
+#   NewMethod SetRegister r Pop ... PushData <this> EA_GetNamedMember "crossHairs" PushConstant <id> PushData r SetMember
+CH_FUNCTION, CH_TABLE = 'init', 'crossHairs'
+VALUE_PUSH = {0xA1, 0xA2, 0xA3, 0xB4, 0xB5, 0xB6, 0xB7, 0x59, 0x5A, 0x5B, 0x5C, 0x73, 0x74, 0x75, 0x76}
+PRELOAD = (0x01, 0x04, 0x10, 0x40, 0x80, 0x100)       # DefineFunction2 flags that preload registers 1, 2 ... in order
+
+type Tile = tuple[int, int, int, int, int, int, int]  # (x, y, w, h of a source image, target image, its x, y)
+
+
+def named_function(movie: Movie, name: str) -> tuple[Ins, Words | None]:
+    """The DefineFunction2 named name (one in the movie) and the constant-pool node its body reads."""
+    found: list[tuple[Ins, Words | None]] = []
+
+    def walk(lst: list[Ins], pool: Words | None) -> None:
+        for i in lst:
+            if i.op == 0x88:
+                pool = i.args[1].node if isinstance(i.args[1], Ref) else None
+            if i.body is not None:
+                bpool = pool
+                if i.body and i.body[0].op == 0x88 and isinstance(i.body[0].args[1], Ref):
+                    bpool = i.body[0].args[1].node
+                if i.op == 0x8E and text(i.args[0]) == name:
+                    found.append((i, bpool))
+                walk(i.body, bpool)
+    for n in code_nodes(movie):
+        walk(n.ins, None)
+    if len(found) != 1:
+        raise AptError(f'{movie.label}: {len(found)} functions named {name} (one expected)')
+    return found[0]
+
+
+def _pool_name(movie: Movie, pool: Words | None, i: Ins) -> str | None:
+    """The constant-pool string an instruction names (EA_PushConstant, EA_GetNamedMember ...), or None."""
+    if pool is None or not (i.op in POOL_BYTE or i.op == 0xA3) or i.args[0] >= len(pool.vals):
+        return None
+    return movie.const_text(pool.vals[i.args[0]])
+
+
+def _push_regs(movie: Movie, i: Ins) -> list[int] | None:
+    """The registers of a PushData that pushes registers only (None for anything else)."""
+    if i.op != 0x96 or not isinstance(i.args[1], Ref):
+        return None
+    cs = [movie.constant(k) for k in i.args[1].node.vals]
+    return [c[1] for c in cs] if cs and all(c[0] == 4 for c in cs) else None
+
+
+def crosshair_table(movie: Movie) -> dict[str, dict[str, Any]]:
+    """The crossHairs table init() builds: {id: {'label': frame label, 'clip': clip name, 'start': index of the entry's
+    first instruction in init's body (None: an entry of another shape, not copyable), 'end': index after its
+    SetMember, 'reg': the register holding the object}} in table order."""
+    fn, pool = named_function(movie, CH_FUNCTION)
+    body = cast(list[Ins], fn.body)
+    out: dict[str, dict[str, Any]] = {}
+    last_end = 0
+    for j in range(len(body) - 4):
+        a, b, c, d, e = body[j:j + 5]
+        rd = _push_regs(movie, d)
+        if not (_push_regs(movie, a) and _pool_name(movie, pool, b) == CH_TABLE and b.op == 0xAF
+                and c.op in (0xA2, 0xA3) and rd and len(rd) == 1 and e.op == 0x4F):
+            continue
+        key = cast(str, _pool_name(movie, pool, c))
+        ent: dict[str, Any] = {'label': None, 'clip': None, 'start': None, 'end': j + 5, 'reg': rd[0]}
+        for k in range(j - 8, last_end - 1, -1):
+            w = body[k:k + 9]
+            if len(w) == 9 and w[1].op in (0xA2, 0xA3) and _push_regs(movie, w[2]) and w[3].op == 0xB5 \
+                    and w[3].args[0] == 3 and _pool_name(movie, pool, w[4]) == 'dice' and w[4].op == 0xAE \
+                    and _pool_name(movie, pool, w[5]) == 'CrossHair' and w[6].op == 0x53 and w[7].op == 0x87 \
+                    and w[7].args[0] == rd[0] and w[8].op == 0x17 and w[0].op in VALUE_PUSH:
+                ent.update(label=_pool_name(movie, pool, w[1]), clip=_pool_name(movie, pool, w[0]), start=k)
+                break
+        out.setdefault(key, ent)
+        last_end = j + 5
+    return out
+
+
+def timeline_display(movie: Movie, owner: Words | None = None) -> list[dict[int, Words]]:
+    """The display list of each frame of a timeline played from frame 0: [{depth: the place item showing it}]."""
+    out: list[dict[int, Words]] = []
+    disp: dict[int, Words] = {}
+    for f in range(len(movie.frames(owner).vals) // 2):
+        for it in movie.frame_items(f, owner):
+            if it.tag == 'remove':
+                disp.pop(signed(it.vals[1]), None)
+            elif it.tag == 'place' and it.vals[1] & 0x03:
+                disp[signed(it.vals[2])] = it
+        out.append(dict(disp))
+    return out
+
+
+def _same_display(a: dict[int, Words], b: dict[int, Words]) -> bool:
+    return a.keys() == b.keys() and all(a[k] is b[k] for k in a)
+
+
+def crosshair_objects(movie: Movie, label: str, baseline: str = 'none') -> list[tuple[int, Words]]:
+    """[(depth, place item)] a crosshair's frame shows beyond the frame labelled baseline (the HUD's own objects:
+    the hit marker, the dot ...): what the crosshair is."""
+    disp = timeline_display(movie)
+    f, b = movie.label_frame(label), movie.label_frame(baseline)
+    objs = [(d, it) for d, it in sorted(disp[f].items()) if disp[b].get(d) is not it]
+    if not objs or any(not it.vals[1] & 0x02 for _, it in objs):
+        raise AptError(f'{movie.label}: frame "{label}" shows no character of its own (or only moves one)')
+    return objs
+
+
+def _fl(v: int) -> float:
+    return cast(float, struct.unpack('<f', struct.pack('<I', v & 0xFFFFFFFF))[0])
+
+
+def split_image_part(part: Words, tiles: list[Tile]) -> list[Words]:
+    """A textured part (geo.part4 / 5: two triangles of an axis-aligned rectangle in the image's pixels) re-pointed at
+    tiles of its image: one part per tile it overlaps, each the rectangle's piece inside the tile, its texture matrix
+    moved onto the tile's place in the tile's image. The parts' texture matrix maps a vertex (x, y) to the image's
+    pixel (a x + c y + tx, b x + d y + ty) (fields 0, 1, 4, 5, 12, 13). Pieces outside every tile are left out (the
+    caller drops tiles that are transparent with their 1-pixel ring)."""
+    v = part.vals
+    verts = [_fl(x) for x in cast(Words, v[2].node).vals]
+    a, b, c, d, tx, ty = (_fl(v[4 + k]) for k in (0, 1, 4, 5, 12, 13))
+    det = a * d - b * c
+    if v[1] != 2 or len(verts) != 12 or abs(det) < 1e-9 or abs(a * b) + abs(c * d) > 1e-6:
+        raise AptError('a textured part that is not one axis-aligned rectangle cannot be split into tiles')
+    px = [(a * verts[k] + c * verts[k + 1] + tx, b * verts[k] + d * verts[k + 1] + ty) for k in range(0, 12, 2)]
+    x0, x1 = min(p[0] for p in px), max(p[0] for p in px)
+    y0, y1 = min(p[1] for p in px), max(p[1] for p in px)
+    eps = 1e-3 * max(1.0, x1 - x0, y1 - y0)
+    corner = []
+    for p in px:
+        cx = 0 if abs(p[0] - x0) < eps else 1 if abs(p[0] - x1) < eps else None
+        cy = 0 if abs(p[1] - y0) < eps else 1 if abs(p[1] - y1) < eps else None
+        if cx is None or cy is None:
+            raise AptError('a textured part whose triangles are not a rectangle in its image cannot be split')
+        corner.append((cx, cy))
+    out = []
+    for sx, sy, w, h, img, dx, dy in tiles:
+        r = (max(x0, sx), max(y0, sy), min(x1, sx + w), min(y1, sy + h))
+        if r[2] - r[0] <= eps or r[3] - r[1] <= eps:
+            continue
+        nv = []
+        for cx, cy in corner:
+            qx, qy = r[2] if cx else r[0], r[3] if cy else r[1]
+            qx, qy = qx - tx, qy - ty                     # pixel -> vertex: the inverse of the 2 x 2 matrix
+            nv += [f32((d * qx - c * qy) / det), f32((-b * qx + a * qy) / det)]
+        m = list(v[4:20])
+        m[12], m[13] = f32(tx + dx - sx), f32(ty + dy - sy)
+        out.append(Words('geo', None, [v[0], 2, Ref(Words('geo', None, nv, 'geo.vertices')), v[3]] + m + [img, 0],
+                         part.tag))
+    return out
+
+
+def _value_registers(movie: Movie, pool: Words | None, body: list[Ins]) -> dict[int, Ins]:
+    """{register: the push} of the registers a function body sets once, at its top level, to one constant
+    (<push> SetRegister r Pop): the entry's colours and alphas."""
+    sets: dict[int, list[int]] = {}
+    for k, i in enumerate(body):
+        if i.op == 0x87:
+            sets.setdefault(i.args[0], []).append(k)
+    out = {}
+    for r, ks in sets.items():
+        k = ks[0]
+        if len(ks) == 1 and 0 < k < len(body) - 1 and body[k - 1].op in VALUE_PUSH and body[k + 1].op == 0x17:
+            out[r] = body[k - 1]
+    return out
+
+
+def add_crosshair(dst: Movie, src: Movie, cid: str, frame: int | None = None, images: dict[int, list[Tile]] | None = None,
+                  baseline: str = 'none') -> dict[str, Any]:
+    """Copies crosshair cid of src's crossHairs table (another hud_crosshair, either byte order) into dst, a movie
+    without it (changed in place):
+      - its frame: a label of src's name on frame `frame` of dst's main timeline (default: the first frame that has
+        no items, is followed by one that has none, and shows what dst's baseline frame shows), placing the
+        characters src's frame shows beyond src's baseline frame (grafted, at src's depths where dst's frame has
+        nothing; the next frame removes them, so every later frame shows what it showed before);
+      - its table entry: src's entry code put into dst's init() after the last entry - constants re-indexed into
+        dst's pool, the registers it sets given new registers of dst's init (the count raised), src's registers
+        holding one constant (colours, alphas) replaced by that constant, the preloaded ones (this ...) kept;
+      - images: {src image: [(x, y, w, h, dst image, dx, dy)]} - pixels (x, y, w, h) of src's image drawn from dst's
+        image at (dx, dy): src's textured parts are split onto the tiles (split_image_part), no image character is
+        added. An image not listed is copied as a new image character (it needs an entry in dst's texture atlas:
+        reported in 'notes').
+    Returns {'id', 'label', 'frame', 'depths': {src depth: dst depth}, 'added': [(dst id, kind, src id)], 'registers':
+    {src: dst}, 'values': {register: instruction name}, 'notes': [...]}."""
+    images = images or {}
+    table = crosshair_table(src)
+    if cid not in table or table[cid]['start'] is None:
+        raise AptError(f'{src.label}: no crossHairs entry "{cid}" of the usual shape')
+    ent = table[cid]
+    if cid in crosshair_table(dst):
+        raise AptError(f'{dst.label}: crossHairs has "{cid}" already')
+    label = cast(str, ent['label'])
+    count = len(dst.frames().vals) // 2
+    if any(it.tag == 'label' and text(it.vals[1]) == label for f in range(count) for it in dst.frame_items(f)):
+        raise AptError(f'{dst.label}: the main timeline has a frame "{label}" already')
+    objs = crosshair_objects(src, label, baseline)
+
+    # the frame
+    disp = timeline_display(dst)
+    base = disp[dst.label_frame(baseline)]
+
+    def free(f: int) -> bool:
+        return 0 <= f < count - 1 and not dst.frame_items(f) and not dst.frame_items(f + 1) \
+            and _same_display(disp[f], base)
+    if frame is None:
+        frame = next((f for f in range(count - 1) if free(f)), None)
+        if frame is None:
+            raise AptError(f'{dst.label}: no empty frame (followed by an empty one) showing the baseline frame')
+    elif not free(frame):
+        raise AptError(f'{dst.label}: frame {frame} is not empty, its next frame is not, or it shows more than the '
+                       f'"{baseline}" frame')
+
+    # the characters
+    g = Grafter(src, dst)
+    for img, tiles in images.items():
+        if not tiles:
+            raise AptError(f'image {img}: no tiles')
+        g.cmap[img] = tiles[0][4]
+    depths: dict[int, int] = {}
+    taken = set(base)
+    places = []
+    for d, it in objs:
+        nd = d
+        while nd in taken:
+            nd += 1
+        taken.add(nd)
+        depths[d] = nd
+        copy = cast(Words, g.node(it))
+        copy.vals[2] = nd
+        places.append(copy)
+    for scid, dcid in list(g.cmap.items()):
+        if src.char_type(scid) != 1:
+            continue
+        sent = src.geo_entry(scid)
+        dent = dst.geo_entry(dcid)
+        if sent is None or dent is None:
+            continue
+        sparts = sent[0].vals[sent[1] + 2].node
+        dparts = dent[0].vals[dent[1] + 2].node
+        new_parts: list[Any] = []
+        for p in sparts.vals:
+            pn = p.node
+            if pn.tag in ('geo.part4', 'geo.part5') and pn.vals[20] in images:
+                new_parts += [Ref(q) for q in split_image_part(g.memo[id(pn)], images[pn.vals[20]])]
+            else:
+                new_parts.append(Ref(g.memo[id(pn)]))
+        dparts.vals = new_parts
+        dent[0].vals[dent[1] + 1] = len(new_parts)
+
+    # the table entry
+    sfn, spool = named_function(src, CH_FUNCTION)
+    dfn, dpool = named_function(dst, CH_FUNCTION)
+    if dpool is None:
+        raise AptError(f'{dst.label}: {CH_FUNCTION} reads no constant pool')
+    sflags, dflags = sfn.args[2] >> 16, dfn.args[2] >> 16
+    # preloaded registers by what they hold (this, arguments, super, _root, _parent, _global: 1, 2 ... in that order
+    # among those the flags preload; BF1943's init preloads this and _root, BFBC2's also _global)
+    sroles = {n + 1: f for n, f in enumerate(f for f in PRELOAD if sflags & f)}
+    droles = {f: n + 1 for n, f in enumerate(f for f in PRELOAD if dflags & f)}
+    sbody, dbody = cast(list[Ins], sfn.body), cast(list[Ins], dfn.body)
+    values = _value_registers(src, spool, sbody)
+    dnames = [dst.const_text(k) for k in dpool.vals]
+
+    def pool_index(name: str, op: int) -> Ins:
+        if name not in dnames:
+            dpool.vals.append(dst.const_index(('s', name.encode('latin1'))))
+            dnames.append(name)
+        k = dnames.index(name)
+        if op in (0xA2, 0xA3):
+            return Ins(0xA2 if k < 256 else 0xA3, [k])
+        if k >= 256:
+            raise AptError('the constant pool is too long for a byte index')
+        return Ins(op, [k])
+
+    nregs = dfn.args[2] & 0xFFFF
+    fresh: dict[int, int] = {}
+    used_values: dict[int, str] = {}
+
+    def copy_ins(i: Ins) -> Ins:
+        name = _pool_name(src, spool, i)
+        if name is not None:
+            return pool_index(name, i.op)
+        if i.op in ONE_STR or i.op == 0x83:
+            return Ins(i.op, [Ref(Str('apt', None, a.node.text)) if isinstance(a, Ref) else a for a in i.args])
+        if i.op in BRANCH or i.op in (0x8E, 0x9B, 0x88):
+            raise AptError(f'{cid}: the entry\'s code has a {i.name} (not copied)')
+        return Ins(i.op, list(i.args))
+
+    def read(r: int) -> int | Ins:
+        if r in fresh:
+            return fresh[r]
+        if r in sroles:
+            if sroles[r] not in droles:
+                raise AptError(f'{cid}: register {r} holds what {dst.label}\'s {CH_FUNCTION} does not preload '
+                               f'(flag {sroles[r]:#x})')
+            return droles[sroles[r]]
+        if r in values:
+            used_values[r] = values[r].name
+            return copy_ins(values[r])
+        raise AptError(f'{cid}: register {r} is read before the entry sets it and holds no constant')
+
+    block: list[Ins] = []
+    for i in sbody[ent['start']:ent['end']]:
+        if i.op == 0x87:
+            if i.args[0] not in fresh:
+                fresh[i.args[0]] = nregs
+                nregs += 1
+            block.append(Ins(0x87, [fresh[i.args[0]]]))
+        elif i.op == 0xB9:
+            rv = read(i.args[0])
+            block.append(rv if isinstance(rv, Ins) else Ins(0xB9, [rv]))
+        elif i.op == 0x96 and isinstance(i.args[1], Ref):
+            run: list[int] = []
+            for k in i.args[1].node.vals:
+                c = src.constant(k)
+                r = read(c[1]) if c[0] == 4 else None
+                if isinstance(r, Ins):
+                    if run:
+                        block.append(Ins(0x96, [len(run), Ref(Words('apt', None, run, 'pushlist'))]))
+                        run = []
+                    block.append(r)
+                else:
+                    run.append(dst.const_index((4, r)) if r is not None else dst.const_index(c))
+            if run:
+                block.append(Ins(0x96, [len(run), Ref(Words('apt', None, run, 'pushlist'))]))
+        else:
+            block.append(copy_ins(i))
+    if nregs > 255:
+        raise AptError(f'{CH_FUNCTION}: more than 255 registers')
+    dfn.args[2] = nregs | dflags << 16
+    after = max(e['end'] for e in crosshair_table(dst).values())
+    dbody[after:after] = block
+
+    # the frame's items: the label (dst's baseline label flags), the placements; the next frame removes them
+    flags = next(it for it in dst.frame_items(dst.label_frame(baseline)) if it.tag == 'label').vals[2]
+    dst.add_item(frame, Words('apt', None, [2, Ref(Str('apt', None, label.encode('latin1'))), flags, frame], 'label'))
+    for p in places:
+        dst.add_item(frame, p)
+    for nd in sorted(depths.values()):
+        dst.add_item(frame + 1, Words('apt', None, [4, nd], 'remove'))
+    return {'id': cid, 'label': label, 'frame': frame, 'depths': depths, 'added': g.added, 'registers': fresh,
+            'values': used_values, 'notes': g.notes}
+
+
 def onslaught_timer(pc: Movie, con: Movie, lms: bool = True, log: Callable[..., None] = print,
                     place: bool = True) -> tuple[list[str], Grafter]:
     """Grafts the console's Onslaught stopwatch (and the last-man-standing banner) into pc (a Movie, changed in
@@ -1941,7 +2299,8 @@ def take_flag(args: list[str], flag: str) -> bool:
 
 def main(argv: list[str]) -> int:
     args = argv[1:]
-    if not args or args[0] not in ('roundtrip', 'convert', 'deps', 'graft', 'onslaught-timer', 'mode-case', 'mode-alias', 'label-alias'):
+    if not args or args[0] not in ('roundtrip', 'convert', 'deps', 'graft', 'onslaught-timer', 'mode-case', 'mode-alias',
+                                   'label-alias', 'crosshair-add'):
         print(__doc__)
         return 1
     cmd = args.pop(0)
@@ -2044,6 +2403,19 @@ def main(argv: list[str]) -> int:
         n = sum(add_label_alias(m, like, a) for a in aliases.split(','))
         open(args[1], 'wb').write(m.to_res(layout=GRAFT_LAYOUT))
         print(f'{args[1]}: {n} frame label(s) added on "{like}"\'s frames: {aliases}')
+        return 0
+    if cmd == 'crosshair-add':
+        ids, frame = take(args, '--id'), take(args, '--frame', None, int)
+        if len(args) != 3 or not ids or (frame is not None and ',' in ids):
+            raise AptError('crosshair-add <target> <source> <out.res> --id ID[,ID...] [--frame N (one id)]')
+        dst, src = Movie.load(args[0]), Movie.load(args[1])
+        reports = [add_crosshair(dst, src, cid, frame) for cid in ids.split(',')]
+        open(args[2], 'wb').write(dst.to_res(layout=GRAFT_LAYOUT))
+        for r in reports:
+            print(f'{args[2]}: crossHairs["{r["id"]}"] -> frame {r["frame"]} "{r["label"]}", depths {r["depths"]}, '
+                  f'{len(r["added"])} characters, registers {r["registers"]}, constants for {r["values"]}')
+            for note in r['notes']:
+                print(f'  needs: {note}')
         return 0
     if cmd == 'onslaught-timer':
         lms = not take_flag(args, '--no-lms')

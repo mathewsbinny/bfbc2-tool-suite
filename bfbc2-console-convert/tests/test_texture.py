@@ -306,3 +306,23 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+
+
+def test_argb8_console_texels_become_pc_bgra():
+    """Console format 9 (BF1943's loading pictures): big-endian A8R8G8B8 texels in Xenos tiled order, no 16-bit swap
+    -> PC format 9, B8G8R8A8 in rows."""
+    w, h = 64, 32
+    where, size = texture.layout(w, h, 1, 9)
+    start, pitch, _, _ = where[0][0]
+    data = bytearray(size)
+    want = bytearray()
+    for y in range(h):
+        for x in range(w):
+            a, r, g, b = 255 - x, x * 3, y * 5, (x ^ y) & 255
+            o = start + texture.tiled(x, y, pitch, 2) * 4
+            data[o:o + 4] = bytes((a, r, g, b))
+            want += bytes((b, g, r, a))
+    console = struct.pack('>8I', 3, 0, 9, 0, w, h, 0, 1) + struct.pack('>15I', size, *[0] * 14) + bytes(data)
+    pc = texture.convert(console)
+    assert struct.unpack_from('<8I', pc, 0) == (3, 0, 9, 0, w, h, 0, 1)
+    assert pc[92:] == bytes(want)
