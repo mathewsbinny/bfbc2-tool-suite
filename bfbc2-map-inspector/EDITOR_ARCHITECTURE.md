@@ -12,7 +12,9 @@ pipeline (2026-11-16). Items marked *(inferred)* were not checked in code.
 - **Audience: public modders too.** A guided GUI with validation and plain-language errors, in line with the
   suite's beginner QUICKSTART and GUI plans. A power user can still drive every step from the command line.
 - **Home: the Map Inspector gets an edit mode,** as the Navigation Studio did, on the shared core. It is not a
-  separate application.
+  separate tool. Under the performance ruling (3.8), the Map Inspector itself moves onto the Rust core and
+  application, and the edit mode is part of it there.
+- **Very fast, with parallelism:** a hybrid Rust core (3.8).
 - **WW2 mode.** The editor makes Pacific War maps under an explicit WW2 content profile. WW2 kits, ww2_common and
   Package-only levels are used there, and modern kits are never placed on a WW2 map. This is the same rule as the
   planned WW2 mode of the AI tools.
@@ -183,6 +185,35 @@ These warnings show while editing, before an apply:
 - a flag with no spawn;
 - the WW2 profile's kit and asset rules.
 
+### 3.8 Performance: a hybrid Rust core (the user, 2026-11-16)
+
+The editor must be very fast and use parallelism. The user chose a **hybrid Rust core**:
+
+- **In Rust:**
+  - the editor application: window, 3D view, gizmos, panels;
+  - a shared core library: the formats (DBX read and write, FBRB read and pack, terrain, water, shader databases,
+    cull trees), the scene, `levelwrite`, and the multithreaded build steps.
+  - Candidate stack *(to confirm when E1 starts)*: `wgpu` for rendering, `egui` for the interface, `rayon` for data
+    parallelism, background worker threads for loading and builds.
+- **Exposed to Python through PyO3.** The existing Python tools call the same Rust core, so every format has one
+  implementation and Python gets its speed. This covers the WW2 converters, NavKit, stockmp-ai, the harness and the
+  Map Inspector's Python side while it remains.
+- **The converter pipeline stays in Python** for now. Its hot spots are ported to the core one at a time, where a
+  profile shows the time goes. These include DBX parsing, bundle packing, texture encoding, the shader database
+  merge and level builds (a WW2 level build takes about 28 minutes today).
+- **Parallelism:**
+  - Loading: partitions, meshes and textures load in parallel; the window is usable while a level streams in.
+  - Building: the apply steps run as a dependency graph, independent steps at once: per-level builds, per-texture
+    encoding, shader entries, cull tree, bundle packing.
+  - The interface never waits on a build: builds run on workers and report progress.
+- **Correctness first:** a Rust format replaces the Python one only when it passes the same test corpora. These
+  include the DBX XML being identical to DbxEdit's on 31,404 files, the FBRB round trips, terrain against the
+  in-game samples, and the level loader against its snapshot. The Python implementation stays as the reference
+  until then.
+- **Measured, not assumed:** each milestone records load and build times before and after.
+- **Toolchain:** Rust is not installed yet; E1 starts by adding a Cargo workspace to the suite with CI-like tests
+  beside `run_tests.py`.
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
@@ -209,7 +240,8 @@ These warnings show while editing, before an apply:
 
 | Step | Delivers |
 |---|---|
-| E1 | Core: dynamic scene, gizmo, selection, command log; `levelwrite.py` with tests (round trip against DbxEdit) |
+| E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings |
+| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit) |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
 | E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |
