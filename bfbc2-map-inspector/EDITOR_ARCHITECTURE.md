@@ -49,6 +49,7 @@ pipeline (2026-11-16). Items marked *(inferred)* were not checked in code.
 ### 3.1 The map project and its operation log
 
 A map project is a folder holding `<name>.mapedit.json`. Game files and stock bundles are never edited in place.
+The project is data only and shareable (section 6, ruling 2): it names game assets and never copies them.
 The log follows `navtune.json`'s proven pattern:
 
 - **The base:** the level it edits, the base's sha1, and the content profile (BFBC2, Vietnam, WW2).
@@ -95,7 +96,8 @@ as safe to place:
 This covers editing flags and capture points, spawn points, vehicle spawners, objectives (M-COMs), combat-area
 and team-area polygons, ceilings, spectator cameras and markers. The WW2 pipeline already authors these in code
 (`wake_level.py`); the editor moves that authoring into `levelwrite.py` and gives each a panel. Per mode, the editor
-shows what the mode needs (Conquest flags, Rush stages, Air Superiority).
+shows what the mode needs (Conquest flags, Rush stages, Air Superiority). The needs come from data-driven mode
+definitions, so custom modes work the same way as built-in ones (section 6, ruling 4).
 
 ### 3.5 Apply: build, validate, stage
 
@@ -115,8 +117,8 @@ as the Navigation Studio does with `navkit apply`. The steps:
 8. **Stage** into a work folder. Nothing in the game copy changes yet.
 
 The step needing the most refactoring is the reusable level installer. `wake_install.py` proves the steps but is
-WW2-specific: the editor needs them as a library shared by OPFOR's WW2 install, stockmp-ai and the editor. Its hard
-rules carry over:
+WW2-specific: the editor needs them as a library **in the suite** (section 6, ruling 3), shared by OPFOR's WW2
+install, stockmp-ai and the editor. Its hard rules carry over:
 
 - registration (`package.mft` + `bundleManifest`) is written **last** and undone first;
 - backups never hold an earlier install's content;
@@ -126,9 +128,9 @@ The suite architecture audit (2026-11-09) should be read before this split.
 
 ### 3.6 Install, play-test, revert
 
-The install and revert buttons follow `navkit install` / `restore`. A new map needs a new level name, registration
-and a description; an edited stock map is installed either over the stock level (revertable) or as a new name.
-Which of these is the default is an open question (section 6).
+The install and revert buttons follow `navkit install` / `restore`. Every install gets a new level name, its own
+registration and a description. A stock map (BFBC2, Vietnam, WW2) is never overwritten. A custom map may be
+replaced by a later build of its own project (section 6).
 
 **Play-test** builds, installs and starts the level offline: OPFOR's `opfor.ini [dev] level`, then the crash reader
 on a crash. The GUI asks first, because the game starts.
@@ -173,27 +175,48 @@ These warnings show while editing, before an apply:
 | E1 | Core: dynamic scene, gizmo, selection, command log; `levelwrite.py` with tests (round trip against DbxEdit) |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
-| E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas) |
-| E5 | NavKit and AI regenerated on apply; play-test button; content profiles incl. WW2 |
+| E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |
+| E5 | NavKit and AI regenerated on apply; play-test button; content profiles incl. WW2; custom game modes from mode definitions; export of a built map |
 | E6 | Modder polish: QUICKSTART, guided first map, plain-language errors, a sample project |
 | S2 | New maps: terrain import / generation, terrain writer, new-level shell, scatter |
 | S3 | Custom models: collision and cull-shape generation |
 
-## 6. Open questions
+## 6. Rulings on the open questions (the user, 2026-11-16)
 
-1. **An edited stock map:** installed over the stock level (revertable) or always as a new name? A new name is
-   safer for online play and keeps the stock map playable. Overwriting is simpler for the user.
-2. **Sharing:** should a map project be shareable as a small file (the log plus a base name) that rebuilds on
-   another machine from that person's own game copy? This fits the rule that EA content is never redistributed.
-3. **Where the level installer lives:** in the suite (shared by every tool) or in OPFOR (beside the asset builder,
-   DESIGN.md 4.9)?
-4. **Multiplayer and modes:** which game modes the first version supports per map (Conquest, Rush, Squad modes,
-   Onslaught, Air Superiority), and whether one project can carry several mode layouts, as DICE's mode-specific
-   levels do (MP_005GR, MP_005SR).
-5. **The WW2 AI mode's timing:** WW2 bots are still being planned (OPFOR
+1. **Stock maps are never overwritten.** An edited map whose base is one of OPFOR's stock maps (BFBC2, Vietnam or
+   WW2/Pacific War) is always installed under a new name, with its own registration and description. The editor
+   refuses to install over a stock level. A **custom** map (one the editor made and installed) may be overwritten
+   by a later build of its own project. The install records which levels are custom, so the overwrite check knows
+   a custom level from a stock one.
+2. **A project is data-driven and shareable without content.** Until a map is built and installed or exported, a
+   project holds only data: the base level's name, the content profile, the operation log, generator settings and
+   seeds, and references to game assets by name. It holds no EA content, no copied partitions, meshes or textures.
+   It stays small (kilobytes) and rebuilds on another machine from that person's own game copy. Anything the editor
+   needs from the game is derived again at build time, in a cache outside the project. The built or exported map is
+   the only output that holds game content.
+3. **The level installer lives in the suite,** shared by every tool: the editor, stockmp-ai, and OPFOR's WW2 install,
+   which would call it rather than keep its own copy.
+4. **Every game mode, including Air Superiority and custom modes.** The editor authors maps for Conquest, Rush, Squad
+   Rush, Squad Deathmatch, Onslaught and Pacific War's Air Superiority, and for **custom game modes**. A mode is data
+   to the editor: a mode definition says which gameplay entities it needs and their rules (flags, stages, M-COMs,
+   capture areas in the air, ticket rules, spawn rules), its GameModeData (ModeID, HUD layers, matchmaking id and
+   bundles, as OPFOR's AirSuperiority is built), and the validation that applies. Built-in modes and custom modes
+   use the same definition format, so a modder can add a mode without changing the editor. One project can carry
+   several mode layouts, as DICE's mode-specific levels do (MP_005GR, MP_005SR).
+
+   Two lessons from Air Superiority (2026-11-14 to 16) carry over:
+   - a custom mode that shares a matchmaking key with another mode must not break the menus (the blank browser
+     rows, fixed in OPFOR's DLL);
+   - its description's GameMode must resolve at load, or the level crashes (0x74EAB3).
+
+## 7. Still open
+
+1. **The WW2 AI mode's timing:** WW2 bots are still being planned (OPFOR
    `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). Until then, WW2 maps from the editor have no bots.
+2. **Custom modes needing engine work:** some mode rules may need OPFOR's DLL (as Air Superiority's mode tests did).
+   The mode definition format needs a way to say so, and the editor a way to report it.
 
-## 7. Known risks (from OPFOR's records)
+## 8. Known risks (from OPFOR's records)
 
 The validation gate checks each of these, or the design avoids it.
 
