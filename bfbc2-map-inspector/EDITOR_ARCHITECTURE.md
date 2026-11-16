@@ -99,6 +99,43 @@ and team-area polygons, ceilings, spectator cameras and markers. The WW2 pipelin
 shows what the mode needs (Conquest flags, Rush stages, Air Superiority). The needs come from data-driven mode
 definitions, so custom modes work the same way as built-in ones (section 6, ruling 4).
 
+### 3.4a The AI workspace (the user, 2026-11-16)
+
+The editor has a switchable **AI workspace** for the bot side of a map. It works on any map, whether being built
+or only viewed: stock, Vietnam, WW2 and custom. It brings the Navigation Studio's editing and the stockmp-ai layer
+into the editor's own project, undo and apply, rather than being a separate tool:
+
+- **AI spawners and orders:** place, move and delete AI spawners and AI orders (area, patrol, defend, objective),
+  and edit their event wiring, teams, squads, kits and HasAI / PathfindingTypes / SectorOffsets. The stockmp-ai
+  layer is proposed from the map's objectives and spawns as a starting point.
+- **Routes and connections:** patrol routes and waypoints, and links between areas: jump, climb and door
+  traversals, and hand-made links. The cross-domain routes are edited here too, from NavKit's
+  `CROSS_DOMAIN_ROUTES.md`:
+  - boat legs and shore links;
+  - vehicle enter and exit points and seat claims;
+  - for WW2, carrier spawns, LCVP boarding and the drop, and beach exits (OPFOR
+    `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`).
+- **Navmesh coverage:** the navigation layers with their islands, sectors and coverage gaps, drawn over the map.
+  Coverage can be edited with walkable and unwalkable regions and seeds, NavKit regenerated from the editor, and the
+  result compared with DICE's data where a stock map has it. Navigation Studio's anomaly overlay and path test
+  are available in the workspace.
+- **Checks in the workspace:** spawns with no path to an objective, islands off the main network, orders outside
+  the path data, routes crossing unwalkable ground, and a vehicle spawn with no route for its domain.
+
+These edits go in the same operation log as object edits, so one project carries the map and its bot side. On
+apply, AI steps run after the level steps (3.5, step 6). Navigation edits stay stored by position, as in
+`navtune.json`, so they survive a regenerated base.
+
+**WW2 maps are fully editable,** both their objects and their bot side. The WW2 content profile and the WW2 AI mode
+keep modern kits off them. The workspace's WW2 tools follow the WW2 bot planning:
+- carrier decks as walkable ground;
+- choosing among spawns;
+- LCVP boarding and beach exits;
+- for planes (single seaters, no transport), a damaged-plane bail-out or a return to the repair pad, then the pilot
+  continues as infantry.
+
+Building them follows that planning, not ahead of it.
+
 ### 3.5 Apply: build, validate, stage
 
 `mapedit apply <project>` is the same command from the GUI and the CLI. The editor then streams its log and report,
@@ -177,6 +214,7 @@ These warnings show while editing, before an apply:
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
 | E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |
 | E5 | NavKit and AI regenerated on apply; play-test button; content profiles incl. WW2; custom game modes from mode definitions; export of a built map |
+| E5a | The AI workspace (3.4a): spawners and orders, routes and connections, navmesh coverage and its regions, the workspace checks; Navigation Studio's editing and stockmp-ai brought into the editor's project. WW2's bot tools (carriers, LCVPs, spawn choice) when the WW2 bot planning becomes a build |
 | E6 | Modder polish: QUICKSTART, guided first map, plain-language errors, a sample project |
 | S2 | New maps: terrain import / generation, terrain writer, new-level shell, scatter |
 | S3 | Custom models: collision and cull-shape generation |
@@ -212,7 +250,8 @@ These warnings show while editing, before an apply:
 ## 7. Still open
 
 1. **The WW2 AI mode's timing:** WW2 bots are still being planned (OPFOR
-   `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). Until then, WW2 maps from the editor have no bots.
+   `research/WW2_BOT_ROUTES_PLANNING_2026-11-16.md`). WW2 maps are fully editable, including their bot side (3.4a),
+   so the editor is where that work will be done. Bots play on them once the WW2 bot runtime (the DLL side) exists.
 2. **Custom modes needing engine work:** some mode rules may need OPFOR's DLL (as Air Superiority's mode tests did).
    The mode definition format needs a way to say so, and the editor a way to report it.
 
