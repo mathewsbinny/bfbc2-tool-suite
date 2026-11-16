@@ -508,6 +508,28 @@ def main() -> int:
     check(raises(lambda: dbxport.port(bf, t, catalogue=fixed), dbxport.SchemaError),
           'GradientData: rows that differ are no case the converter knows - a schema error')
 
+    # ---------------------------------------------------------------- numbers -> struct items (a kit's WeaponSlots)
+    # BF1943's kit death pickup lists its slots as numbers (0/1/2/3); BFBC2's holds {WeaponSlot, AltWeaponSlot,
+    # LinkedToWeaponSlot} items, the other two -1 in all of DICE's (test_dbxport_fair: 4 kits refused before)
+    pick = 'GameSharedResources.DynamicWeaponPickupEntityData'
+    slot = lambda n: cx('', [num('WeaponSlot', [n], '>i'), num('AltWeaponSlot', [-1], '>i'),  # noqa: E731
+                             num('LinkedToWeaponSlot', [-1], '>i')])
+    bf = part(A + '1', [inst(A + '1', pick, [num('WeaponSlots', [0, 1, 2, 3], '>i', tag='array')])])
+    for label, t in (('the template\'s item', tmpl(inst(B + '1', pick, [arr('WeaponSlots', [slot(7), slot(8)])]))),
+                     ('the catalogue\'s item (the template\'s array empty)',
+                      tmpl(inst(B + '1', pick, [arr('WeaponSlots', [])]),
+                           catalogue=catalogue(protos={(pick, '.WeaponSlots[]'): slot(5)})))):
+        data, rep = dbxport.port(bf, t)
+        ws = field(parsed(data).instances[0], 'WeaponSlots')
+        slots = [[(c.attr('name'), dbx.numbers(c)[0], _int(c)) for c in it.children] for it in ws.children or ()]
+        want = [[('WeaponSlot', 4, n), ('AltWeaponSlot', 4, -1), ('LinkedToWeaponSlot', 4, -1)] for n in range(4)]
+        check(ws.kind == C and slots == want and rep.of('converted'),
+              f'WeaponSlots: BF1943\'s slot numbers -> BFBC2\'s items, Alt / Linked -1 ({label})', slots)
+    odd = tmpl(inst(B + '1', pick, [arr('WeaponSlots', [cx('', [num('WeaponSlot', [0], '>i'),
+                                                               num('Other', [0], '>i')])])]))
+    check(raises(lambda: dbxport.port(bf, odd), dbxport.SchemaError),
+          'WeaponSlots: an item with a field the map does not name is no conversion - a schema error')
+
     # ---------------------------------------------------------------- effectport: level copies, particle sounds
     import effectport
 
@@ -599,13 +621,80 @@ def main() -> int:
     edges = [[_int(c.child('SourceId')), _int(c.child('TargetId'))]
              for c in graph.child('AudioConnections').children]
     ports = [i for i in af.instances if i.attr('type') == 'Audio.SoundNodePort']
-    check(edges == [[6, 7], [6, 8]] and [_int(p.child('WireIndex')) for p in ports] == [6, 7, 8, -1, 4],
-          'audio graph: source fan-out becomes PC directed buffers; control and unused ports unchanged', edges)
+    # DICE's numbering: the control wire (the event port's 4) is 0, WireCount 1, the audio ids from WireCount + 1
+    check(edges == [[2, 3], [2, 4]] and [_int(p.child('WireIndex')) for p in ports] == [2, 3, 4, -1, 0] and
+          _int(graph.child('WireCount')) == 1,
+          'audio graph: source fan-out becomes PC directed buffers; control wires renumbered from 0, unused -1 kept',
+          (edges, [_int(p.child('WireIndex')) for p in ports]))
+    sizes = {(x.attr('name'), dbx.numbers(x)[0]) for c in graph.child('AudioConnections').children for x in c.children}
+    check(sizes == {('SourceId', 2), ('TargetId', 2)} and
+          {dbx.numbers(p.child('WireIndex'))[0] for p in ports} == {4},
+          'audio graph: rebuilt SourceId / TargetId are 2-byte numbers as DICE writes them (WireIndex stays 4-byte)',
+          sizes)
     before = dbx.write(af)
     check(dbxport.rebuild_audio_connections(af.instances) == [] and dbx.write(af) == before,
           'audio graph: valid native-style buffers are preserved byte-for-byte on another pass')
+    wide = parsed(before)
+    for c in wide.instances[0].child('AudioConnections').children:
+        for x in c.children:
+            x.raw = num('x', [_int(x)], '>i').raw              # the right ids, 4-byte (dbxport before 2026-11-16)
+    again = dbxport.rebuild_audio_connections(wide.instances)
+    check(again == [source_audio[0].attr('guid')] and dbx.write(wide) == before,
+          'audio graph: the migration rewrites right ids written 4-byte as DICE\'s 2-byte ones (nothing else changes)',
+          again)
     check(any(r.action == 'converted' and 'AudioConnections' in (r.note or '') for r in rep.records),
           'audio graph: schema conversion reports regenerated buffer routing')
+
+    # fire_rumble (sound/ambients/local_ambients), BF1943's graph and DICE's numbering of it: events 0 / 1, event
+    # ports 2 and 3, the audio wire 4 (sampler -> output), parameter ports 5; WireCount 6. DICE: the audio wire's
+    # index dropped, the parameter 5 -> 4, WireCount 5, the audio ids 6 / 7 (WireCount + 1 on)
+    def rumble(wc, idx, audio, rows=None, size='>h'):
+        g = [f'cccccccc-3333-3333-3333-{i:012d}' for i in range(1, 15)]
+        port = lambda n, typ, v: inst(g[n], 'Audio.SoundNodePort', [num('WireIndex', [v], '>i'),  # noqa: E731
+                                                                     txt('PortType', typ)])
+        kids = [arr('AudioConnections', [cx('', [num('SourceId', [a], size), num('TargetId', [b], size)])
+                                         for a, b in rows or []]),
+                arr('Nodes', [item(g[1]), item(g[2]), item(g[3])]), arr('PublicEvents', [item(g[4]), item(g[5])]),
+                num('WireCount', [wc], '>i')]
+        return [inst(g[0], 'Audio.SoundTemplate', kids),
+                inst(g[1], 'Audio.ReceiveEntry', [ref('Out', g[6]), ref('Source', g[4])]),
+                inst(g[2], 'Audio.SamplerNode', [ref('Trigger', g[7]), ref('Stop', g[8]), ref('Output', g[9]),
+                                                 ref('Pitch', g[10])]),
+                inst(g[3], 'Audio.OutputNode', [ref('In', g[11]), ref('Gain', g[12])]),
+                inst(g[4], 'Audio.SoundGraphEvent', [num('WireIndex', [idx[0]], '>i')]),
+                inst(g[5], 'Audio.SoundGraphEvent', [num('WireIndex', [idx[1]], '>i')]),
+                port(6, 'SgptEvent', idx[2]), port(7, 'SgptEvent', idx[2]), port(8, 'SgptEvent', idx[3]),
+                port(9, 'SgptAudio', audio[0]), port(10, 'SgptParam', idx[4]), port(11, 'SgptAudio', audio[1]),
+                port(12, 'SgptParam', idx[4]),
+                inst(g[13], 'Audio.SoundNodeConnection', [ref('SourcePort', g[9]), ref('TargetPort', g[11])])]
+
+    def numbering(insts):
+        conns = insts[0].child('AudioConnections').children or ()
+        return ([_int(i.child('WireIndex')) for i in insts if i.child('WireIndex') is not None],
+                _int(insts[0].child('WireCount')), [(_int(c.child('SourceId')), _int(c.child('TargetId'))) for c in conns])
+    dice_rumble = rumble(5, [0, 1, 2, 3, 4], [6, 7], [(6, 7)])
+    want = numbering(dice_rumble)
+    donor = tmpl(*rumble(5, [0, 1, 2, 3, 4], [6, 7], [(9, 9)]))
+    data, rep = dbxport.port(part(A + '1', rumble(6, [0, 1, 2, 3, 5], [4, 4])), donor)
+    got = parsed(data).instances
+    check(numbering(got) == want,
+          "audio graph: fire_rumble numbered as DICE's (WireCount 5, parameter 5 -> 4, ids 6 / 7)",
+          (numbering(got), want))
+    native = parsed(part(A + '1', dice_rumble))
+    before = dbx.write(native)
+    check(dbxport.rebuild_audio_connections(native.instances) == [] and dbx.write(native) == before,
+          "audio graph: DICE's own fire_rumble numbering is left byte-for-byte")
+    old = parsed(part(A + '1', rumble(6, [0, 1, 2, 3, 5], [7, 8], [(7, 8)], '>i')))   # dbxport before 2026-11-16
+    redone = dbxport.rebuild_audio_connections(old.instances)
+    check(bool(redone) and numbering(old.instances) == want and
+          {dbx.numbers(x)[0] for c in old.instances[0].child('AudioConnections').children for x in c.children} == {2},
+          "audio graph: the migration renumbers an earlier rebuild (WireCount 6, ids 7 / 8, 4-byte) as DICE's",
+          numbering(old.instances))
+    gap = parsed(part(A + '1', rumble(7, [0, 1, 3, 4, 6], [5, 5])))                  # melee_impact_hard: 2 unused
+    dbxport.rebuild_audio_connections(gap.instances)
+    check(numbering(gap.instances) == want,
+          'audio graph: an index nothing uses is dropped as the audio wire is (melee_impact_hard: WireCount 5 -> 3)',
+          numbering(gap.instances))
 
     # ---------------------------------------------------------------- reports
     t = tmpl(inst(B + '1', 'X.R', [txt('Name', 'tpl'), num('New', [1.0])]))
@@ -620,7 +709,7 @@ def main() -> int:
 
 
 def _int(e: Any) -> int:
-    return struct.unpack('>i', dbx.numbers(e)[1][0])[0]
+    return int.from_bytes(dbx.numbers(e)[1][0], 'big', signed=True)          # any size (audio ids are 2-byte)
 
 
 if __name__ == '__main__':

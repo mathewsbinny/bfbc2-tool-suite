@@ -12,7 +12,10 @@ catalogue, BFBC2's soldier skeleton and DICE's conventions. Asserted:
   - no 'kind' or 'schema' differences from DICE's version: each instance both have holds DICE's fields, each leaf
     DICE's kind (text, reference, number size, bool);
   - primaryInstance names an instance of the partition; no empty array is written as a CONTAINER;
-  - BoneFakePhysicsData.BoneId equals DICE's (24 of 24: BFBC2's skeleton reordered the bones);
+  - BoneFakePhysicsData.BoneId equals DICE's (20 of 20: BFBC2's skeleton reordered the bones), but on the entries
+    DICE wired in or out (named in one partition, not the other: us/assault's four kit joints) - not compared;
+  - every sound graph's wiring equals DICE's by value (WireCount, every WireIndex, AudioConnections: the numbering
+    the runtime reads), but on the graphs DICE changed (wire holders or connections added or removed) - not compared;
   - the halo aimer: a reference into BF1943's objects/soldiers/common/beach/defaulthaloaimer keeps its guid, in the
     partition DICE moved it to;
   - recoil (FireLogic.Recoil, the 27 firings both games have) equals DICE's with DICE's version of the instance in the
@@ -98,9 +101,61 @@ def compare(o: dbx.Element, d: dbx.Element, path: str, note: Any) -> None:
             compare(c, d.child(n) or c, f'{path}.{n}', note)
 
 
+def local_refs(f: dbx.DbxFile) -> set[str]:
+    """The guids a partition's instances name inside it (references without a partition path)."""
+    out: set[str] = set()
+
+    def walk(e: dbx.Element) -> None:
+        r = e.attr('ref')
+        if r and '/' not in r:
+            out.add(r.lower())
+        for c in e.children or ():
+            walk(c)
+    for i in f.instances:
+        walk(i)
+    return out
+
+
 def empty_containers(e: dbx.Element) -> int:
     n = int(e.tag == 'array' and e.kind == dbx.CONTAINER and not e.children)
     return n + sum(empty_containers(c) for c in e.children or ())
+
+
+def wiring(f: dbx.DbxFile) -> dict[str, tuple]:
+    """Each sound graph's wiring by its guid: (its wire holders and connections - the graph's shape -, WireCount,
+    every holder's WireIndex, AudioConnections). Values, not kinds: the numbering DICE's runtime reads."""
+    by = {(i.attr('guid') or '').lower(): i for i in f.instances}
+
+    def refs(e: dbx.Element) -> set[str]:
+        r = (e.attr('ref') or '').lower()
+        out = {r} if r in by else set()
+        for c in e.children or ():
+            out |= refs(c)
+        return out
+
+    def num(e: dbx.Element | None) -> int | None:
+        return int.from_bytes(dbx.numbers(e)[1][0], 'big', signed=True) if e is not None and \
+            e.kind == dbx.NUMBERS and dbx.numbers(e)[1] else None
+    links = [((c.child('SourcePort') or c).attr('ref') or '', (c.child('TargetPort') or c).attr('ref') or '')
+             for c in f.instances if c.attr('type') == 'Audio.SoundNodeConnection']
+    out = {}
+    for g in f.instances:
+        if g.attr('type') != 'Audio.SoundTemplate':
+            continue
+        reach: set[str] = set()
+        todo = [(g.attr('guid') or '').lower()]
+        while todo:
+            x = todo.pop()
+            if x not in reach:
+                reach.add(x)
+                todo += refs(by[x]) - reach
+        wires = {x: num(by[x].child('WireIndex')) for x in reach if by[x].child('WireIndex') is not None}
+        conns = sorted((a.lower(), b.lower()) for a, b in links if a.lower() in wires or b.lower() in wires)
+        ac = g.child('AudioConnections')
+        rows = [(num(c.child('SourceId')), num(c.child('TargetId'))) for c in ac.children or ()] \
+            if ac is not None and ac.kind == dbx.CONTAINER else []
+        out[(g.attr('guid') or '').lower()] = ((frozenset(wires), tuple(conns)), num(g.child('WireCount')), wires, rows)
+    return out
 
 
 def recoil(f: dbx.DbxFile) -> dict[str, str]:
@@ -155,7 +210,8 @@ def main(argv: list[str]) -> int:
             tcache[key] = dbxport.Templates.from_index(ix, key)
         return tcache[key]
 
-    bone_ok = bone_all = aim_ok = aim_all = rec_ok = rec_all = rec_fair = 0
+    wire_ok = wire_all = wire_authored = 0
+    bone_ok = bone_all = bone_authored = aim_ok = aim_all = rec_ok = rec_all = rec_fair = 0
     n_done = 0
     for k in both:
         name = k[:-4]
@@ -197,6 +253,7 @@ def main(argv: list[str]) -> int:
         if n:
             note('empty CONTAINER array', f'{k}: {n}')
         dice = {(i.attr('guid') or '').lower(): i for i in d.instances}
+        used_bf, used_d = local_refs(bf), local_refs(d)
         for i in f.instances:
             di = dice.get((i.attr('guid') or '').lower())
             if di is None or di.attr('type') != i.attr('type'):
@@ -204,8 +261,31 @@ def main(argv: list[str]) -> int:
             compare(i, di, f'{k.rsplit("/", 1)[-1]}:{(i.attr("type") or "").rsplit(".", 1)[-1]}',
                     lambda cls, w: note(cls, w))
             if (i.attr('type') or '').endswith('BoneFakePhysicsData'):
+                g = (i.attr('guid') or '').lower()
+                if (g in used_bf) != (g in used_d):
+                    # DICE wired the entry in (or out): an authoring change no conversion of BF1943's data makes.
+                    # BF1943's us/assault holds four kit-joint entries nothing names, BoneId 0; DICE's kit names
+                    # them and set their BoneIds, while the grenades' unnamed 0 entries DICE kept 0
+                    bone_authored += 1
+                    continue
                 bone_all += 1
                 bone_ok += dbx.value(i.child('BoneId') or i) == dbx.value(di.child('BoneId') or di)
+        if b'SoundTemplate' in data:
+            dw = wiring(d)
+            for g, (shape, wc, wires, rows) in wiring(f).items():
+                if g not in dw:
+                    continue
+                if dw[g][0] != shape:
+                    # DICE changed the graph itself (nodes, ports or connections added or removed): its numbering
+                    # follows from a graph BF1943 does not have
+                    wire_authored += 1
+                    continue
+                wire_all += 1
+                if (wc, wires, rows) == dw[g][1:]:
+                    wire_ok += 1
+                else:
+                    note('wiring', f'{k}: {g} WireCount {wc} vs DICE {dw[g][1]}, AudioConnections {rows[:3]} vs '
+                         f'{dw[g][3][:3]}, {sum(wires[x] != dw[g][2][x] for x in wires)} WireIndex differ')
         x = dbx.to_xml(src.data(k))
         if AIMER in x:
             for g in re.findall(AIMER + r'/([0-9a-fA-F-]{36})', x):
@@ -240,8 +320,11 @@ def main(argv: list[str]) -> int:
     check(not stats['schema'], f'no schema differences from DICE ({stats["schema"]})', 'schema')
     check(not stats['primaryInstance missing'], 'primaryInstance present', 'primaryInstance missing')
     check(not stats['empty CONTAINER array'], 'no empty CONTAINER arrays', 'empty CONTAINER array')
-    check(bone_ok == bone_all, f'BoneId as DICE\'s: {bone_ok} of {bone_all}')
-    check(aim_ok == aim_all, f'halo aimer guid kept, relocated: {aim_ok} of {aim_all}')
+    check(bone_ok == bone_all, f'BoneId as DICE\'s: {bone_ok} of {bone_all} ({bone_authored} DICE wired in or out: '
+          'not compared)')
+    check(wire_ok == wire_all, f'sound graph wiring as DICE\'s (WireCount, every WireIndex, AudioConnections): '
+          f'{wire_ok} of {wire_all} graphs ({wire_authored} DICE changed: not compared)', 'wiring')
+    check(aim_ok == aim_all,f'halo aimer guid kept, relocated: {aim_ok} of {aim_all}')
     check(rec_ok == rec_all, f'recoil as DICE\'s (counterpart in the pool): {rec_ok} of {rec_all} firings; '
           f'the fair donor\'s: {rec_fair} of {rec_all}')
     print('all passed' if not fails else f'{len(fails)} check(s) failed')

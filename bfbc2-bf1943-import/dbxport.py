@@ -43,7 +43,8 @@ another number count or kind, an enum name the executable lacks, is an error (Sc
 handles it: ENUM_NUMBERS (BF1943's numbers for BFBC2's enum names, with or without a template), a bool into a number
 (the target's own number type, from the field's evidence - the catalogue's, the templates' nonzero values: no float
 bits into an integer; a field DICE writes only as 0 is an error, the type unknown), ONE_TO_ARRAY, RENAMED, NESTED
-(an explicit map), an empty number list where BFBC2 has a curve (the template's).
+(an explicit map), NUMBERS_TO_ITEMS (an array of numbers as BFBC2's array of structs: a kit's WeaponSlots), an
+empty number list where BFBC2 has a curve (the template's).
 
 Value passes after the alignment: BF1943's EntryInputAction spellings (EIAFire, EIUndefined) as BFBC2's (EiaFire,
 EiaUndefined) in every field; the seat-hint texts; bone indices on BFBC2's skeleton (bones=BoneTables: BoneId by its
@@ -395,6 +396,14 @@ def gradient_rows(vals: list[bytes], want: int) -> list[bytes] | None:
     return rows[0] if all(r == rows[0] for r in rows[1:]) else None
 
 
+# BF1943 arrays of numbers BFBC2 holds as arrays of structs: (type, field) -> (the item field each number goes to,
+# {the item's other fields: DICE's value}). A kit's death pickup (objects/soldiers/us|ru/assault|support): BF1943's
+# WeaponSlots is the slot numbers (num4, 0/1/2/3), BFBC2's one {WeaponSlot, AltWeaponSlot, LinkedToWeaponSlot} per
+# slot - in all 24 of DICE's DynamicWeaponPickupEntityData (216 items, its conversions of these four partitions
+# among them) AltWeaponSlot and LinkedToWeaponSlot are -1 (none), WeaponSlot the slot (2026-11-16). The item's layout
+# (field order, number size) is the template's or the catalogue's item; a field the map does not name: no conversion
+NUMBERS_TO_ITEMS = {('DynamicWeaponPickupEntityData', 'WeaponSlots'):
+                    ('WeaponSlot', {'AltWeaponSlot': -1, 'LinkedToWeaponSlot': -1})}
 # Number fields whose count BF1943 writes otherwise, by a converter: (type, field) -> f(values, DICE's count) ->
 # DICE's values or None (no conversion: a schema error)
 COUNT_CONVERTERS = {('SampleTextureData', 'GradientData'): gradient_rows}
@@ -803,6 +812,10 @@ class _Port:
         # a leaf value
         if t is None:
             return self.convert_untemplated(e, path, tpath, itype)
+        if e.kind == dbx.NUMBERS and e.tag == 'array' and t.tag == 'array' and t.attr('ref') is None:
+            items = self.numbers_to_items(e, t, path, tpath, itype)
+            if items is not None:
+                return items
         if t.kind == dbx.CONTAINER or t.attr('ref') is not None:
             self.schema(path, e, t)
             return e
@@ -906,6 +919,41 @@ class _Port:
                     self.add(path, 'converted', note=f'{len(ve)} numbers -> {len(got)} ({conv.__name__})')
                     return out
         return None
+
+    def numbers_to_items(self, e: dbx.Element, t: dbx.Element, path: str, tpath: str,
+                         itype: str) -> dbx.Element | None:
+        """NUMBERS_TO_ITEMS: BF1943's array of numbers as BFBC2's array of structs, one item per number in DICE's
+        item layout (the template's first item, else another template's or the catalogue's); None: no conversion."""
+        n = e.attr('name') or ''
+        owner = path.rsplit('.', 1)[0].rsplit('.', 1)[-1].split('[', 1)[0]
+        rule = NUMBERS_TO_ITEMS.get((owner, n))
+        if rule is None:
+            return None
+        key, others = rule
+        proto = t.children[0] if t.kind == dbx.CONTAINER and t.children else self.item_proto(itype, tpath, t)
+        if proto is None or proto.kind != dbx.CONTAINER:
+            return None
+        fields = [c.attr('name') for c in proto.children or ()]
+        if sorted(f or '' for f in fields) != sorted([key, *others]) or \
+                any(c.kind != dbx.NUMBERS or len(dbx.numbers(c)[1]) != 1 for c in proto.children or ()):
+            return None                                 # not the item the map was decoded on
+        size, vals = dbx.numbers(e)
+        width = {c.attr('name'): dbx.numbers(c)[0] for c in proto.children or ()}
+        if size != width[key]:
+            return None
+        items = []
+        for v in vals:
+            item = copy.deepcopy(proto)
+            for c in item.children or ():
+                f = c.attr('name') or ''
+                _set_numbers(c, [v if f == key else others[f].to_bytes(width[f], 'big', signed=True)], width[f])
+            items.append(item)
+        rest = ', '.join(f'{f} {v}' for f, v in others.items())
+        self.add(path, 'converted', note=f'{len(vals)} numbers -> {{{", ".join(f or "" for f in fields)}}} items '
+                 f'({key} the number; {rest}: DICE\'s)')
+        if not items:
+            return _empty_array(e)
+        return dbx.Element(e.tag, dbx.CONTAINER, list(e.attributes), '', b'', items)
 
     def enum_number(self, e: dbx.Element, t: dbx.Element | None, path: str, owner: str, n: str) -> dbx.Element | None:
         size, vals = dbx.numbers(e)
@@ -1358,14 +1406,28 @@ def port(data: bytes, templates: Templates, resolve: Callable[[str], bool] | Non
     return dbx.write(written), report
 
 
+AUDIO_ID_SIZE = 2                   # SoundTemplate.AudioConnections[].SourceId / TargetId: DICE's number size
+
+
+def _wired(e: dbx.Element) -> bool:
+    """Whether an instance holds a sound graph wire (a numeric WireIndex: ports, graph events and parameters)."""
+    w = _field(e, 'WireIndex')
+    return w is not None and w.kind == dbx.NUMBERS
+
+
 def rebuild_audio_connections(instances: list[dbx.Element]) -> list[str]:
     """Repair PC sound buffer wiring after BF1943 schema alignment, preserving recordings.
 
     BF1943 connects audio ports through shared WireIndex values, alongside control
-    wires. PC gives connected audio ports distinct buffer ids above WireCount and
-    stores their directed edges in SoundTemplate.AudioConnections. Copying the
-    donor's array leaves those ids unrelated to the imported graph and silences it.
-    Valid native graphs retain their ids and array byte-for-byte.
+    wires. PC numbers the control wires 0 .. WireCount - 1 (BF1943's audio wires and
+    unused indices dropped), gives connected audio ports distinct buffer ids from
+    WireCount + 1 and stores their directed edges in SoundTemplate.AudioConnections
+    (DICE's numbering, below). Copying the donor's array leaves those ids unrelated to
+    the imported graph and silences it. Graphs already numbered so (all of DICE's)
+    are left byte-for-byte. The ids are written AUDIO_ID_SIZE bytes wide, as DICE
+    writes them. Graphs this function rebuilt before 2026-11-16 (control wires kept
+    at BF1943's indices, WireCount BF1943's, ids 4-byte) are renumbered as DICE's, so
+    the migration corrects them.
     """
     by = {(i.attr('guid') or '').lower(): i for i in instances}
     changed = []
@@ -1384,8 +1446,12 @@ def rebuild_audio_connections(instances: list[dbx.Element]) -> list[str]:
         return e.attr('type') == 'Audio.SoundNodePort' and typ is not None and typ.text == 'SgptAudio'
 
     def number(name: str, value: int) -> dbx.Element:
+        # DICE writes AudioConnections' SourceId / TargetId as 2-byte numbers (all 315 in the 1,081 sound partitions
+        # both games ship; WireIndex and WireCount 4-byte): a 4-byte id is another field size than BFBC2's
+        if not 0 <= value < 1 << 15:
+            raise PortError(f'sound graph {guid}: audio buffer id {value} does not fit DICE\'s 2-byte field')
         out = dbx.Element('field', dbx.NUMBERS, [('name', name)])
-        _set_numbers(out, [struct.pack('>i', value)], 4)
+        _set_numbers(out, [struct.pack('>h', value)], AUDIO_ID_SIZE)
         return out
 
     def local_refs(e: dbx.Element) -> set[str]:
@@ -1424,31 +1490,52 @@ def rebuild_audio_connections(instances: list[dbx.Element]) -> list[str]:
                 raise PortError(f'sound graph {guid} has an audio connection with an invalid endpoint')
             edges.append((a, b))
         connected = {g for edge in edges for g in edge}
-        wire_count = integer(wires)
-        indices = {g: integer(_field(ports[g], 'WireIndex')) for g in connected}
-        expected = [(indices[a], indices[b]) for a, b in edges]
-        actual = [(integer(_field(c, 'SourceId')), integer(_field(c, 'TargetId')))
-                  for c in connections.children or ()]
-        if actual == expected and len(set(indices.values())) == len(indices) and \
-                all(v > wire_count for v in indices.values()):
-            continue
-        if connected & repaired_ports:
-            raise PortError(f'sound graph {guid} shares repaired audio ports with another template')
-        repaired_ports.update(connected)
-        # First-use order preserves fan-out: the same output port always has one id.
+        # DICE's numbering (decoded 2026-11-16 on the 119 graphs of the 1,081 sound partitions both games ship; all
+        # 119 of DICE's follow it): the control wires (every WireIndex holder but the connected audio ports: graph
+        # events and parameters, event / parameter ports, unconnected ports) are numbered 0 .. WireCount - 1 in
+        # BF1943's order, the indices nothing uses dropped (BF1943's audio wires among them); WireCount is their
+        # number; the connected audio ports take WireCount + 1 on, in the first use of the edges (the
+        # SoundNodeConnection instances' order: a fanned-out source keeps one id); AudioConnections lists the edges
+        # in that order. -1 (unwired) stays
+        holders = {g: by[g] for g in reachable if g not in connected and _wired(by[g])}
+        control = {g: integer(_field(e, 'WireIndex')) for g, e in holders.items()}
+        rank = {v: n for n, v in enumerate(sorted({v for v in control.values() if v >= 0}))}
+        wire_count = len(rank)
         assigned: dict[str, int] = {}
-        rows = []
         for a, b in edges:
             for g in (a, b):
                 if g not in assigned:
                     assigned[g] = wire_count + 1 + len(assigned)
-                    port_index = _field(ports[g], 'WireIndex')
-                    assert port_index is not None
-                    _set_numbers(port_index, [struct.pack('>i', assigned[g])], 4)
-            rows.append(dbx.Element('complex', dbx.CONTAINER, children=[number('SourceId', assigned[a]),
-                                                                      number('TargetId', assigned[b])]))
-        connections.kind, connections.text, connections.raw = dbx.CONTAINER, '', b''
-        connections.children = rows
+        actual = [(integer(_field(c, 'SourceId')), integer(_field(c, 'TargetId')))
+                  for c in connections.children or ()]
+        sized = all(dbx.numbers(x)[0] == AUDIO_ID_SIZE for c in connections.children or ()
+                    for x in (_field(c, 'SourceId'), _field(c, 'TargetId')) if x is not None)
+        if integer(wires) == wire_count and all(v < 0 or rank[v] == v for v in control.values()) and \
+                all(integer(_field(ports[g], 'WireIndex')) == v for g, v in assigned.items()) and sized and \
+                actual == [(assigned[a], assigned[b]) for a, b in edges]:
+            continue                                    # DICE's numbering already (a native graph: untouched)
+        touched = set(holders) | connected
+        if touched & repaired_ports:
+            raise PortError(f'sound graph {guid} shares wired ports with another template')
+        repaired_ports.update(touched)
+        assert wires is not None                        # (integer(wires) raised otherwise)
+        _set_numbers(wires, [struct.pack('>i', wire_count)], 4)
+        for g, v in control.items():
+            if v >= 0 and rank[v] != v:
+                index = _field(holders[g], 'WireIndex')
+                assert index is not None
+                _set_numbers(index, [struct.pack('>i', rank[v])], 4)
+        for g, v in assigned.items():
+            index = _field(ports[g], 'WireIndex')
+            assert index is not None
+            _set_numbers(index, [struct.pack('>i', v)], 4)
+        rows = [dbx.Element('complex', dbx.CONTAINER, children=[number('SourceId', assigned[a]),
+                                                               number('TargetId', assigned[b])]) for a, b in edges]
+        if rows:
+            connections.kind, connections.text, connections.raw = dbx.CONTAINER, '', b''
+            connections.children = rows
+        else:                                           # an empty array as DICE writes it (TEXT)
+            connections.kind, connections.text, connections.raw, connections.children = dbx.TEXT, '', b'', None
         changed.append(guid)
     return changed
 

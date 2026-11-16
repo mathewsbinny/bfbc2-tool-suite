@@ -259,6 +259,12 @@ In short:
     their gradient texture's rows read so, 0.08 read as planes); BF1943's level copies hold that row twice (4,096: the
     halves equal bit for bit in all 16, and equal to BF1943's own template emitter of the same instance guid, which
     has 2,048). The first row is written; rows that differ stay a schema error.
+  - `NUMBERS_TO_ITEMS`: an array of numbers where BFBC2 holds an array of structs (2026-11-16). A kit's death pickup
+    (`DynamicWeaponPickupEntityData.WeaponSlots`): BF1943 lists the slot numbers (0/1/2/3), BFBC2 holds one
+    `{WeaponSlot, AltWeaponSlot, LinkedToWeaponSlot}` per slot, the other two -1 in all 216 items of DICE's 24. The item
+    layout is the template's, another template's or the catalogue's; an item with a field the map does not name stays
+    a schema error. DICE's own conversions of the four kits list slots 0 to 8 (BFBC2's slot count); the port keeps
+    BF1943's slots.
 
   `schema='report'` keeps such a field as BF1943's and records it (`schema`) instead. An empty template array takes
   its item from another instance of the type. Not portable, and refused: the five 3p soldier anim trees (their aim
@@ -284,9 +290,22 @@ were scoped to the soldiers' weapons: before, 9 of 18 gravity values were right 
 while BFBC2 assigns each connected audio port its own buffer id and records the
 routing in `SoundTemplate.AudioConnections`. `port` rebuilds these edges from the
 source graph's `SoundNodeConnection.SourcePort` / `TargetPort` references; copying
-a donor's array can silence otherwise valid imported recordings. Control/event
-wires and unused audio ports retain their values. Valid native PC routing is
-preserved. `rebuild_audio_connections(dbx.parse(data).instances)` exposes the same
+a donor's array can silence otherwise valid imported recordings. The numbering is
+DICE's (decoded 2026-11-16; all 119 of DICE's graphs in the 1,081 sound partitions
+both games ship follow it): the control wires (graph events and parameters,
+event / parameter ports, unconnected ports) take 0 .. WireCount - 1 in BF1943's
+order, with BF1943's audio wires and any index nothing uses dropped; `WireCount`
+is their number; the connected audio ports take `WireCount + 1` on, in the first
+use of the edges (the `SoundNodeConnection` order; a fanned-out source keeps one
+id), and `AudioConnections` lists the edges in that order. -1 (unwired) stays.
+Graphs already numbered so (DICE's own) are left byte-for-byte. The ids are
+2-byte numbers, as DICE writes all of its `SourceId` / `TargetId` (`WireIndex`
+and `WireCount` stay 4-byte). Graphs rebuilt before 2026-11-16 (BF1943's control
+indices and WireCount kept, ids 4-byte) are renumbered by the migration.
+`tests\test_dbxport_fair.py` compares every shared graph's wiring with DICE's by
+value; a graph DICE itself changed (holders or connections added or removed) is
+counted and not compared.
+`rebuild_audio_connections(dbx.parse(data).instances)` exposes the same
 idempotent migration for previously converted DBX data; write the modified file
 with `dbx.write` only when the returned template-guid list is nonempty. Wave
 resources, sampler groups, and wave references are not changed.
