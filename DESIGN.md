@@ -173,6 +173,10 @@ the quick tier.
   references you can follow to other entities.
 - **Search, filter by type, measure** distances and heights.
 
+**Map editor (planned, 2026-11-16).** The Map Inspector gets an edit mode: first editing existing maps (BFBC2,
+Vietnam, WW2), then new maps from imported or randomized terrain populated with existing assets, for public
+modders too. The architecture plan is `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` (milestones E1-E6, S2, S3).
+
 ### 4.2 bfbc2-navigation-studio
 
 - **Generate:** run NavKit on a level, with its sampling settings, from the studio. Sampling starts the
@@ -484,6 +488,7 @@ on the same points compare pair by pair. A newer version is refused by older rea
 | M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19; the harness, 2026-10-26: `bfbc2-automated-map-and-bot-test-harness/harness.py` - structure, reachability, batteries, orders, sector offsets, parity, AI readiness from the game copy's bundles, saved runs and their comparison, `import-log` for in-game sessions; running `testrun.bat` per level on hold until play-tested) | the harness's level checks for stock-MP bot maps (`STOCK_MP_AI_PLAN.md` 6.3) |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
+| E1-E6, S2, S3 | Map editor in the Map Inspector (planning: `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md`): edit existing maps, then new maps from imported or randomized terrain, then custom models | |
 | alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |
 | with Goal 3 | the bot decision library (engine-independent) and the AI behaviour simulator; bfbc2-asset-builder with the installer | |
 
