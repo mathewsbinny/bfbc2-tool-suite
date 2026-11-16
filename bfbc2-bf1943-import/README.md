@@ -290,11 +290,21 @@ were scoped to the soldiers' weapons: before, 9 of 18 gravity values were right 
 while BFBC2 assigns each connected audio port its own buffer id and records the
 routing in `SoundTemplate.AudioConnections`. `port` rebuilds these edges from the
 source graph's `SoundNodeConnection.SourcePort` / `TargetPort` references; copying
-a donor's array can silence otherwise valid imported recordings. Control/event
-wires and unused audio ports retain their values. Valid native PC routing is
-preserved. The ids are 2-byte numbers, as DICE writes all of its `SourceId` /
-`TargetId` (`WireIndex` and `WireCount` stay 4-byte); graphs rebuilt before
-2026-11-16 hold them 4-byte, and the migration rewrites them.
+a donor's array can silence otherwise valid imported recordings. The numbering is
+DICE's (decoded 2026-11-16; all 119 of DICE's graphs in the 1,081 sound partitions
+both games ship follow it): the control wires (graph events and parameters,
+event / parameter ports, unconnected ports) take 0 .. WireCount - 1 in BF1943's
+order, with BF1943's audio wires and any index nothing uses dropped; `WireCount`
+is their number; the connected audio ports take `WireCount + 1` on, in the first
+use of the edges (the `SoundNodeConnection` order; a fanned-out source keeps one
+id), and `AudioConnections` lists the edges in that order. -1 (unwired) stays.
+Graphs already numbered so (DICE's own) are left byte-for-byte. The ids are
+2-byte numbers, as DICE writes all of its `SourceId` / `TargetId` (`WireIndex`
+and `WireCount` stay 4-byte). Graphs rebuilt before 2026-11-16 (BF1943's control
+indices and WireCount kept, ids 4-byte) are renumbered by the migration.
+`tests\test_dbxport_fair.py` compares every shared graph's wiring with DICE's by
+value; a graph DICE itself changed (holders or connections added or removed) is
+counted and not compared.
 `rebuild_audio_connections(dbx.parse(data).instances)` exposes the same
 idempotent migration for previously converted DBX data; write the modified file
 with `dbx.write` only when the returned template-guid list is nonempty. Wave
