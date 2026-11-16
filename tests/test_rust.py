@@ -50,7 +50,8 @@ def main(argv: list[str]) -> int:
             if 'files (' in l:
                 print('       ' + l)
         if not ok:
-            print('\n'.join(out.splitlines()[-40:]))
+            tail = '\n'.join(out.splitlines()[-40:])
+            print(tail.encode('ascii', errors='backslashreplace').decode('ascii'))     # prints on any console
     print('all passed' if not failed else f'{failed} step(s) failed')
     return 1 if failed else 0
 

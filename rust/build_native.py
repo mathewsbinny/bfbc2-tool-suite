@@ -75,9 +75,16 @@ def install(new: str) -> None:
 
 def build(env: dict[str, str]) -> int:
     with tempfile.TemporaryDirectory() as out:
-        r = subprocess.run([sys.executable, '-m', 'maturin', 'build', '--release', '--interpreter', sys.executable,
-                            '--manifest-path', os.path.join(RUST, 'bc2-py', 'Cargo.toml'), '--out', out], env=env)
+        # quiet and plain: maturin's messages carry emoji a cp1252 console cannot print; its output (cargo's errors
+        # on a failure) is shown only on a failure, escaped to ASCII
+        r = subprocess.run([sys.executable, '-m', 'maturin', 'build', '--release', '--quiet', '--color', 'never',
+                            '--interpreter', sys.executable,
+                            '--manifest-path', os.path.join(RUST, 'bc2-py', 'Cargo.toml'), '--out', out], env=env,
+                           capture_output=True)
         if r.returncode:
+            text = (r.stdout + r.stderr).decode('utf-8', errors='replace')
+            print(text.encode('ascii', errors='backslashreplace').decode('ascii'))
+            print(f'build_native: maturin failed (exit code {r.returncode})')
             return r.returncode
         wheels = glob.glob(os.path.join(out, '*.whl'))
         if len(wheels) != 1:

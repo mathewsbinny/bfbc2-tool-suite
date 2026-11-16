@@ -20,6 +20,7 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
 
 Run `quick` before every commit and `game` before every push; `full` after changes to a format reader.
 """
+import contextlib
 import os
 import subprocess
 import sys
@@ -94,6 +95,7 @@ def tests():
         ('BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_asset_accuracy.py')]),
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
+        ('test runner: a failure printed on any console encoding', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_runner_output.py')]),
         ('lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
         ('types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
         ('core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),
@@ -229,7 +231,18 @@ def tests():
     return t
 
 
+def safe_console():
+    """Any child's output prints on any console: characters the console's code page lacks (maturin's emoji on a
+    cp1252 console) are written as escapes instead of crashing the runner and hiding the failure (2026-11-16)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, 'reconfigure', None)     # a TextIOWrapper's; a replaced stream may lack it
+        if reconfigure is not None:
+            with contextlib.suppress(ValueError):
+                reconfigure(errors='backslashreplace')
+
+
 def main(argv):
+    safe_console()
     tier = next((a for a in argv[1:] if a in TIERS), 'quick')
     only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
     chosen = [x for x in tests() if TIERS.index(x[1]) <= TIERS.index(tier) and (only is None or only in x[0].lower())]
