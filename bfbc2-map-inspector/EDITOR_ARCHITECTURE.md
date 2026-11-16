@@ -214,6 +214,20 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
 - **Toolchain** (E0, 2026-11-16): Rust 1.100.0 (pinned in `rust/rust-toolchain.toml`), the Cargo workspace `rust/`
   (`bc2-formats`, `bc2-py`), maturin for the Python module; `run_tests.py` runs `cargo fmt`, clippy and the tests
   (quick) and the corpus checks (game), and skips them on a machine without Rust (README.md, "The Rust core").
+- **Two DBX trees** (E0b, 2026-11-16; measured in `rust/BENCHMARKS.md`):
+  - `dbx::DbxTree<'a>` (`parse_tree`), **read-only**: every element of a file in one vector in file order (each
+    knows where its subtree ends), every attribute in another, strings and values borrowed from the file's bytes.
+    A few allocations per file however large; what a reader of many files keeps (loading a level, the corpus
+    checks, the Python bindings, which build their Python trees from it).
+  - `dbx::DbxFile` / `Element` (`parse`), **owned and editable**: what `dbx::write` takes and what E1's editing
+    path (the scene's changes, `levelwrite`) builds on. `parse` is `parse_tree` then `DbxTree::to_file`: one
+    reader, so the two cannot drift apart; `Node::to_element` copies one subtree out.
+  - Trade-offs for E1: a `DbxTree` borrows its file's bytes, so whatever holds trees must hold the bytes too, and
+    longer (Rust does not let one struct hold the bytes and a tree borrowing them, so the scene keeps the bytes in
+    its own store and the trees beside it, or re-parses). It cannot be edited: an edit converts the partitions it
+    touches to `DbxFile` (about the old parse's cost per partition) and writes those; untouched partitions stay
+    compact and can be written back as their original bytes. Positions are 32-bit (files under 4 GiB;
+    `DbxError::TooLarge` beyond).
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 

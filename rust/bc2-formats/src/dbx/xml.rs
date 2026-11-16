@@ -54,7 +54,7 @@ fn indent(out: &mut String, depth: usize) {
 pub fn to_xml(data: &[u8]) -> Result<String> {
     let (strings, body) = read_table(data, true)?;
     let count = strings.len();
-    let s = |i: u64| -> Result<&str> { Ok(strings.get(string_id(i, count)? as usize).map_or("", String::as_str)) };
+    let s = |i: u64| -> Result<&str> { Ok(strings.get(string_id(i, count)? as usize).map_or("", |c| c.as_ref())) };
     let mut out = String::with_capacity(data.len().saturating_mul(3));
     out.push_str("<?xml version=\"1.0\"?>\r\n");
     let mut open: Vec<&str> = Vec::new();

@@ -2,10 +2,9 @@
 
 use std::path::Path;
 
-use super::cursor::Cursor;
 use super::error::{DbxError, Result};
-use super::model::{Body, CONTAINER, DbxFile, Element, NUMBERS, StrId, TEXT};
-use super::strings::{is_binary, read_table};
+use super::model::{DbxFile, StrId};
+use super::tree::parse_tree;
 
 /// A string index read from the file, checked against the table.
 pub(crate) fn string_id(index: u64, count: usize) -> Result<StrId> {
@@ -16,7 +15,8 @@ pub(crate) fn string_id(index: u64, count: usize) -> Result<StrId> {
         .ok_or(DbxError::StringIndex { index, count })
 }
 
-/// A binary `.dbx` file as an element tree, as `dbx.parse`.
+/// A binary `.dbx` file as an owned element tree, as `dbx.parse`: [`parse_tree`] and
+/// [`DbxTree::to_file`](super::DbxTree::to_file). To read without editing, [`parse_tree`] alone allocates far less.
 ///
 /// # Errors
 /// [`DbxError::Deleted`] for an empty file, [`DbxError::NotBinary`] without the `{binary}` header, and another
@@ -29,96 +29,7 @@ pub(crate) fn string_id(index: u64, count: usize) -> Result<StrId> {
 /// assert_eq!(dbx::parse(b"<?xml version=\"1.0\"?>"), Err(DbxError::NotBinary));
 /// ```
 pub fn parse(data: &[u8]) -> Result<DbxFile> {
-    if data.is_empty() {
-        return Err(DbxError::Deleted);
-    }
-    if !is_binary(data) {
-        return Err(DbxError::NotBinary);
-    }
-    let (strings, body) = read_table(data, false)?;
-    let count = strings.len();
-    let n = data.len();
-    let mut c = Cursor::new(data, body);
-    let mut roots: Vec<Element> = Vec::new();
-    // open containers, innermost last; a container joins its parent when it closes
-    let mut stack: Vec<Element> = Vec::new();
-    while !c.at_end() {
-        let tag = c.varint()?;
-        if tag == 0 {
-            let Some(done) = stack.pop() else { break };
-            match stack.last_mut() {
-                Some(Element {
-                    body: Body::Container(children),
-                    ..
-                }) => children.push(done),
-                _ => roots.push(done),
-            }
-            continue;
-        }
-        let tag = string_id(tag, count)?;
-        let head = c.byte()?;
-        let kind = head >> 4;
-        let mut attributes = Vec::with_capacity(usize::from(head & 0xF));
-        for _ in 0..(head & 0xF) {
-            let k = string_id(c.varint()?, count)?;
-            let v = string_id(c.varint()?, count)?;
-            attributes.push((k, v));
-        }
-        let body = match kind {
-            CONTAINER => {
-                c.skip(1);
-                stack.push(Element {
-                    tag,
-                    kind,
-                    attributes,
-                    body: Body::Container(Vec::new()),
-                });
-                continue;
-            }
-            TEXT => Body::Text(string_id(c.varint()?, count)?),
-            NUMBERS => {
-                let start = c.pos();
-                let num = c.varint()?;
-                let size = c.varint()?;
-                let end = num
-                    .checked_mul(size)
-                    .and_then(|len| usize::try_from(len).ok())
-                    .and_then(|len| c.pos().checked_add(len))
-                    .filter(|&end| end <= n)
-                    .ok_or(DbxError::NumbersPastEnd { count: num, size })?;
-                let raw = data
-                    .get(start..end)
-                    .ok_or(DbxError::NumbersPastEnd { count: num, size })?;
-                c.skip(end - c.pos());
-                Body::Numbers(raw.to_vec())
-            }
-            _ => {
-                let raw = [c.peek_at(0), c.peek_at(1)];
-                let [Ok(a), Ok(b)] = raw else {
-                    return Err(DbxError::ValueCutShort);
-                };
-                c.skip(2);
-                Body::Scalar([a, b])
-            }
-        };
-        let e = Element {
-            tag,
-            kind,
-            attributes,
-            body,
-        };
-        match stack.last_mut() {
-            Some(Element {
-                body: Body::Container(children),
-                ..
-            }) => children.push(e),
-            _ => roots.push(e),
-        }
-    }
-    if !stack.is_empty() {
-        return Err(DbxError::Unclosed);
-    }
-    Ok(DbxFile { strings, roots })
+    Ok(parse_tree(data)?.to_file())
 }
 
 /// A `.dbx` file read from disk and parsed, as `dbx.read`.
@@ -145,6 +56,7 @@ pub enum ReadError {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::dbx::Body;
     use crate::dbx::strings::MAGIC;
 
     /// A file of `strings` and body bytes, the header as the format has it.

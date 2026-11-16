@@ -80,6 +80,9 @@ pub enum DbxError {
         /// Its number of attributes.
         count: usize,
     },
+    /// A file of 4 GiB or more: the compact tree ([`super::DbxTree`]) keeps positions in 32 bits.
+    #[error("a .dbx file of 4 GiB or more")]
+    TooLarge,
     /// The writer was given an element whose kind does not fit the format's 4 bits, or a string table too large.
     #[error("cannot write: {0}")]
     Unwritable(String),

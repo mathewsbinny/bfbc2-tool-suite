@@ -149,6 +149,19 @@ proptest! {
         let _ = dbx::to_xml(&data);
         let _ = dbx::parse(&body);
         let _ = dbx::to_xml(&body);
+        // the compact tree reads every element the owned tree has, through its own accessors
+        if let Ok(tree) = dbx::parse_tree(&data) {
+            let owned = tree.to_file();
+            let mut stack: Vec<_> = tree.roots().collect();
+            let mut seen = 0;
+            while let Some(n) = stack.pop() {
+                seen += 1;
+                let _ = (n.value(), n.floats(), n.text(), n.raw(), n.attributes().count(), n.to_element());
+                stack.extend(n.children());
+            }
+            prop_assert_eq!(seen, tree.len());
+            prop_assert_eq!(Ok(owned), dbx::parse(&data));
+        }
     }
 
     #[test]

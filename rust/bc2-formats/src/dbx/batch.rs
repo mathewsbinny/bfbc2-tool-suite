@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use super::error::Result;
 use super::model::DbxFile;
 use super::reader::parse;
+use super::tree::{DbxTree, parse_tree};
 use super::xml::to_xml;
 
 /// [`parse`] of each input, in parallel.
@@ -17,6 +18,12 @@ use super::xml::to_xml;
 #[must_use]
 pub fn parse_all<T: AsRef<[u8]> + Sync>(inputs: &[T]) -> Vec<Result<DbxFile>> {
     inputs.par_iter().map(|d| parse(d.as_ref())).collect()
+}
+
+/// [`parse_tree`] of each input, in parallel: the compact trees borrow the inputs.
+#[must_use]
+pub fn parse_tree_all<T: AsRef<[u8]> + Sync>(inputs: &[T]) -> Vec<Result<DbxTree<'_>>> {
+    inputs.par_iter().map(|d| parse_tree(d.as_ref())).collect()
 }
 
 /// [`to_xml`] of each input, in parallel.
@@ -42,6 +49,10 @@ mod tests {
             .collect();
         let xml = to_xml_all(&files);
         let parsed = parse_all(&files);
+        let trees = parse_tree_all(&files);
+        for (t, p) in trees.iter().zip(&parsed) {
+            assert_eq!(t.as_ref().map(DbxTree::to_file).ok(), p.clone().ok());
+        }
         for (i, (x, p)) in xml.iter().zip(&parsed).enumerate() {
             assert_eq!(
                 x.as_deref().ok(),

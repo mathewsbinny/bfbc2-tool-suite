@@ -103,7 +103,7 @@ tool runs on the Python readers as before.
 
 | Crate | What |
 |---|---|
-| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer). Later: terrain, shader databases |
+| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer). Later: terrain, shader databases |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
 
 **Build** (once, and after changing anything in `rust/`; the quick test tier rebuilds it when it is stale):

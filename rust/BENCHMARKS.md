@@ -63,7 +63,44 @@ read from disk, parsed, written as XML and hashed against DbxEdit's fingerprints
 - **Keeping a whole corpus of Rust trees at once is memory-bound:** 48,000 trees at once ran slower on 16 threads
   (18.5 s) than on one (10.7 s) while the PC paged; `--stream` (each tree dropped at once) is the corpus case.
   An arena or a borrowed tree (strings and values pointing into the file's bytes) would cut the allocations; a
-  candidate for E1, measured first.
+  candidate for E1, measured first. *Done in E0b: see "Leaner DBX trees" below (the corpus held at once in 0.3 s
+  and 0.7 GB).*
+
+## Leaner DBX trees (2026-11-16, branch `rust-e0b`)
+
+`dbx::DbxTree` (`parse_tree`, `parse_tree_all`): a read-only tree in four allocations per file - every element in
+one vector in file order (28 bytes each, with the index where its subtree ends), every attribute in another, the
+string table borrowed from the file's bytes (`Cow`: copied only when a byte is not UTF-8) and every numbers or
+two-byte value a range of the file's bytes. `parse` (the owned, editable `DbxFile`) is now `parse_tree` then
+`DbxTree::to_file`, and the Python bindings build their Python trees from the compact tree. Measured with
+`cargo run --release -p bc2-formats --example dbx_mem -- [--distinct] [--threads N] <folders>` (a counting
+allocator: allocations, and the bytes still held once every tree is built; the files themselves not counted).
+PC busy with other work: times ±20 %, the allocation counts exact.
+
+| every tree held at once | before: owned `DbxFile` | after: owned `DbxFile` (via the tree) | after: `DbxTree` |
+|---|---:|---:|---:|
+| MP_005 (2,567 binary files, 31.4 MB): allocations | 2,750,906 | 2,761,174 | **10,269** |
+| MP_005: memory held | 273 MB (8.7x the files) | 238 MB | **35 MB (1.1x)** |
+| MP_005: parse, 1 thread | 0.18 s | 0.21 s | **0.057 s** |
+| MP_005: parse, 16 threads | 0.072 s | 0.073 s | **0.011 s** |
+| corpus (48,119 distinct binary files, 579 MB): allocations | 53.9 million | 54.1 million | **192,477** |
+| corpus: memory held | 5.33 GB (9.2x) | 4.68 GB (8.1x) | **0.69 GB (1.2x)** |
+| corpus: parse, 1 thread | 4.5 s | 5.4 s | **1.3 s** |
+| corpus: parse, 16 threads | 1.3 s | 3.2 s (paging) | **0.31 s** |
+| corpus: drop every tree | 3.4 s | 3.5 s | **0.4 s** |
+
+Through Python (`rust\bench_dbx.py`, MP_005, the module before and after): `parse_many` 1.25 -> 1.12 s,
+`parse` one by one 3.30 -> 3.17 s, `to_xml_many` 0.14 -> 0.13 s. The Python objects, not the reading, are the
+cost there.
+
+- **The compact tree is 270x fewer allocations and 7.7x less memory**: the whole corpus fits in 0.7 GB beside its
+  579 MB of files, where the owned trees took 5.3 GB and paged on this 16 GB PC; parsing is 3-3.5x faster on one
+  thread and 4-6.5x on all cores, and dropping 48,000 trees takes 0.4 s instead of 3.4 s.
+- **The owned tree costs about the same as before** (one reader for both: the owned parse is now the compact parse
+  plus a copy, 0-20 % slower on one thread; it holds less, as the strings are copied once from the borrowed table).
+  It stays the shape to edit and write (EDITOR_ARCHITECTURE.md 3.8, "Two DBX trees").
+- During a parse the element and attribute vectors are sized from the file (one element per 6 bytes) and trimmed
+  afterwards: 2.0 GB allocated in passing for the corpus, 0.7 GB kept.
 
 ## The level loader on `parse_many` (2026-11-16, branch `rust-e0b`)
 

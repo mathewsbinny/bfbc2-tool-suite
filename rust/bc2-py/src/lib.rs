@@ -12,7 +12,7 @@
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
 //! function's bundles run with the interpreter released.
 
-use bc2_formats::dbx::{self, Body, DbxError, DbxFile, Element};
+use bc2_formats::dbx::{self, DbxError, DbxTree};
 use bc2_formats::fbrb::{self, FbrbError};
 use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::prelude::*;
@@ -29,7 +29,9 @@ fn byte_slices<'a>(items: &'a [Bound<'_, PyBytes>]) -> Vec<&'a [u8]> {
 }
 
 /// Builds the Python tree of a parsed file through the caller's `Element` and `DbxFile` classes, so the result is
-/// exactly what `dbx.parse` returns (dataclass instances, mutable, deep-copyable).
+/// exactly what `dbx.parse` returns (dataclass instances, mutable, deep-copyable). It reads the compact
+/// [`DbxTree`] (no owned Rust tree in between) and walks it in file order without recursion: each container's
+/// children list is made with it and filled as the walk passes its subtree.
 struct Builder<'py> {
     py: Python<'py>,
     element: Bound<'py, PyAny>,
@@ -39,11 +41,11 @@ struct Builder<'py> {
 }
 
 impl<'py> Builder<'py> {
-    fn new(py: Python<'py>, element: &Bound<'py, PyAny>, file: &DbxFile) -> Self {
+    fn new(py: Python<'py>, element: &Bound<'py, PyAny>, tree: &DbxTree<'_>) -> Self {
         Self {
             py,
             element: element.clone(),
-            strings: file.strings.iter().map(|s| PyString::new(py, s)).collect(),
+            strings: tree.strings().iter().map(|s| PyString::new(py, s)).collect(),
             empty_str: PyString::new(py, ""),
             empty_bytes: PyBytes::new(py, b""),
         }
@@ -53,33 +55,34 @@ impl<'py> Builder<'py> {
         self.strings.get(id as usize).unwrap_or(&self.empty_str).clone()
     }
 
-    fn element(&self, e: &Element) -> PyResult<Bound<'py, PyAny>> {
-        let attributes = PyList::empty(self.py);
-        for (k, v) in &e.attributes {
-            attributes.append(PyTuple::new(self.py, [self.s(*k), self.s(*v)])?)?;
-        }
-        let none = || self.py.None().into_bound(self.py);
-        let (text, raw, children) = match &e.body {
-            Body::Container(kids) => {
-                let list = PyList::empty(self.py);
-                for k in kids {
-                    list.append(self.element(k)?)?;
-                }
-                (self.empty_str.clone(), self.empty_bytes.clone(), list.into_any())
-            }
-            Body::Text(t) => (self.s(*t), self.empty_bytes.clone(), none()),
-            Body::Numbers(r) => (self.empty_str.clone(), PyBytes::new(self.py, r), none()),
-            Body::Scalar(r) => (self.empty_str.clone(), PyBytes::new(self.py, r), none()),
-        };
-        self.element
-            .call1((self.s(e.tag), e.kind, attributes, text, raw, children))
-    }
-
-    fn file(&self, file_cls: &Bound<'py, PyAny>, f: &DbxFile) -> PyResult<Bound<'py, PyAny>> {
+    fn file(&self, file_cls: &Bound<'py, PyAny>, tree: &DbxTree<'_>) -> PyResult<Bound<'py, PyAny>> {
         let strings = PyList::new(self.py, &self.strings)?;
         let roots = PyList::empty(self.py);
-        for r in &f.roots {
-            roots.append(self.element(r)?)?;
+        // the levels being walked, innermost last: their remaining elements and the list they go to
+        let mut stack = vec![(tree.roots(), roots.clone())];
+        while let Some((level, list)) = stack.last_mut() {
+            let Some(n) = level.next() else {
+                stack.pop();
+                continue;
+            };
+            let attributes = PyList::empty(self.py);
+            for (k, v) in n.attribute_ids() {
+                attributes.append(PyTuple::new(self.py, [self.s(k), self.s(v)])?)?;
+            }
+            let none = || self.py.None().into_bound(self.py);
+            let children = n.is_container().then(|| PyList::empty(self.py));
+            let (text, raw, kids) = match (&children, n.text_id()) {
+                (Some(c), _) => (self.empty_str.clone(), self.empty_bytes.clone(), c.clone().into_any()),
+                (None, Some(t)) => (self.s(t), self.empty_bytes.clone(), none()),
+                (None, None) => (self.empty_str.clone(), PyBytes::new(self.py, n.raw()), none()),
+            };
+            list.append(
+                self.element
+                    .call1((self.s(n.tag_id()), n.kind(), attributes, text, raw, kids))?,
+            )?;
+            if let Some(c) = children {
+                stack.push((n.children(), c));
+            }
         }
         file_cls.call1((strings, roots))
     }
@@ -95,8 +98,8 @@ fn dbx_parse<'py>(
     file_cls: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let bytes = data.as_bytes();
-    let f = py.detach(|| dbx::parse(bytes)).map_err(|e| value_error(&e))?;
-    Builder::new(py, element_cls, &f).file(file_cls, &f)
+    let tree = py.detach(|| dbx::parse_tree(bytes)).map_err(|e| value_error(&e))?;
+    Builder::new(py, element_cls, &tree).file(file_cls, &tree)
 }
 
 /// `dbx.to_xml(data)` through Rust.
@@ -120,11 +123,11 @@ fn dbx_parse_many<'py>(
     file_cls: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyList>> {
     let slices = byte_slices(&items);
-    let parsed = py.detach(|| dbx::parse_all(&slices));
+    let parsed = py.detach(|| dbx::parse_tree_all(&slices));
     let out = PyList::empty(py);
     for r in parsed {
         match r {
-            Ok(f) => out.append(Builder::new(py, element_cls, &f).file(file_cls, &f)?)?,
+            Ok(t) => out.append(Builder::new(py, element_cls, &t).file(file_cls, &t)?)?,
             Err(e) => out.append(value_error(&e).into_value(py))?,
         }
     }

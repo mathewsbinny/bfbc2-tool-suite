@@ -1,6 +1,8 @@
 //! The header and string table (FORMAT.md 1): `{binary}`, four big-endian words (the body offset, a value, the
 //! string area's size, the number of strings), the strings' offsets, then the zero-terminated strings.
 
+use std::borrow::Cow;
+
 use super::error::{DbxError, Result};
 
 /// The magic bytes every binary `.dbx` starts with.
@@ -25,8 +27,8 @@ fn be_u32(data: &[u8], at: usize) -> Result<u32> {
 ///
 /// `tolerant` reads a last string without its zero byte up to the end of the file (as the XML export does);
 /// otherwise that is [`DbxError::StringWithoutEnd`]. Strings are UTF-8 with invalid bytes replaced by U+FFFD, as
-/// Python's `decode('utf-8', errors='replace')`.
-pub(crate) fn read_table(data: &[u8], tolerant: bool) -> Result<(Vec<String>, usize)> {
+/// Python's `decode('utf-8', errors='replace')`: borrowed from `data`, copied only when a byte had to be replaced.
+pub(crate) fn read_table(data: &[u8], tolerant: bool) -> Result<(Vec<Cow<'_, str>>, usize)> {
     let area = be_u32(data, 16)?;
     let count = be_u32(data, 20)?;
     let count_usize = count as usize;
@@ -47,7 +49,7 @@ pub(crate) fn read_table(data: &[u8], tolerant: bool) -> Result<(Vec<String>, us
             None if tolerant => tail,
             None => return Err(DbxError::StringWithoutEnd),
         };
-        out.push(String::from_utf8_lossy(bytes).into_owned());
+        out.push(String::from_utf8_lossy(bytes));
     }
     Ok((out, 24 + area as usize))
 }
