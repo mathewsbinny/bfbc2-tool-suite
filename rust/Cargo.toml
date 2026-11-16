@@ -1,0 +1,59 @@
+# The suite's Rust core (EDITOR_ARCHITECTURE.md 3.8): pure-Rust format libraries, and their Python bindings.
+#
+#   cargo test                                   every crate's unit, integration and doc tests
+#   cargo clippy --all-targets -- -D warnings
+#   cargo fmt --check
+#   python build_native.py                       the Python module (bc2_native) into core\ (README.md)
+#
+# Crates: bc2-formats (the game's file formats, no Python types), bc2-py (PyO3 bindings, module bc2_native).
+# Later crates (scene, levelwrite, the editor application) join `members` and take their dependencies from
+# [workspace.dependencies].
+
+[workspace]
+resolver = "3"
+members = ["bc2-formats", "bc2-py"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT"
+publish = false
+repository = "https://github.com/mathewsbinny/bfbc2-tool-suite"
+
+# Exact versions: a format reader's output must not change under a dependency update nobody chose.
+[workspace.dependencies]
+bc2-formats = { path = "bc2-formats" }
+thiserror = "=2.0.21"
+rayon = "=1.12.0"
+pyo3 = { version = "=0.30.1", default-features = false, features = ["macros", "abi3-py312"] }
+proptest = { version = "=1.12.0", default-features = false, features = ["std"] }
+sha1_smol = "=1.0.1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+# Pedantic, minus the lints that fight a binary-format reader: offsets and counts are cast between usize / u32 /
+# i32 on purpose and every narrowing cast is checked where the value comes from the file.
+pedantic = { level = "warn", priority = -1 }
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+module_name_repetitions = "allow"
+# Robustness: input data must never panic the reader.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"

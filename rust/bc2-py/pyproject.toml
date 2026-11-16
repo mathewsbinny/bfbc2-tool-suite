@@ -1,0 +1,15 @@
+# The Python module bc2_native (the suite's Rust core). rust/build_native.py builds it into core/bfbc2core/;
+# `pip install rust/bc2-py` or `maturin develop` install it into an environment instead (README.md, "The Rust core").
+[build-system]
+requires = ["maturin>=1.16,<2"]
+build-backend = "maturin"
+
+[project]
+name = "bc2-native"
+requires-python = ">=3.12"
+description = "BFBC2 Tool Suite: Rust core bindings (DBX)"
+license = "MIT"
+dynamic = ["version"]
+
+[tool.maturin]
+module-name = "bc2_native"

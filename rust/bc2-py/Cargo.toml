@@ -1,0 +1,20 @@
+[package]
+name = "bc2-py"
+description = "Python bindings (module bc2_native) for the BFBC2 Tool Suite's Rust core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lib]
+name = "bc2_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bc2-formats.workspace = true
+pyo3.workspace = true
+
+[lints]
+workspace = true

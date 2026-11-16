@@ -1,0 +1,5 @@
+# The toolchain the workspace is built and tested with (rust/BENCHMARKS.md's timings, the corpus parity run).
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

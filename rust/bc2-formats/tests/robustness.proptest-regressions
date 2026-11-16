@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5231af2b5001c0ba924631e54b5bbaaacab4cfe367db53c9644a9a9a4c38e9ef # shrinks to nodes = [Container("field", [], [Scalar("name", 0, [], [0, 0]), Container("field", [("Id", "日éaAaa")], [Scalar("field", 0, [("field", "éAé\""), ("field", "Id"), ("field", "日\"\"0a&>00")], [0, 0])]), Container("AAaA", [], [Scalar("a00a", 0, [("field", "0é<<a"), ("field", "Id"), ("field", "Id")], [0, 0]), Scalar("field", 0, [("name", "Id")], [0, 0])])]), Scalar("field", 0, [("field", "Aa00aA\"aA\"A"), ("field", "aA>")], [0, 1]), Container("field", [("field", "Id"), ("field", "Id")], [Numbers("field", [("field", "Id"), ("A", " V' ")], 4, [0, 0, 0, 0, 0, 0, 0, 0]), Text("Transform", [("Id", "'.é日j日Aé日"), ("Id", "a'x&<&TUc2O"), ("Transform", "u>>é&2日gigG")], "Id"), Scalar("R2donn", 3, [("Transform", "Id"), ("Id", "RC"), ("field", "'")], [248, 169]), Numbers("Id", [("field", "<'\"<日a/<>Dg"), ("field", "\"<<"), ("Transform", "</H9ég")], 4, [78, 201, 151, 49, 21, 7, 181, 249, 60, 193, 197, 17, 217, 158, 125, 45, 207, 171, 183, 223])])], cut = Index(6841568337670496062), at = Index(2579948538002992952), byte = 14

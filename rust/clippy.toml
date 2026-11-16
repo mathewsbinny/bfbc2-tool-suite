@@ -1,0 +1,2 @@
+# The suite's tool names read as words in the docs.
+doc-valid-idents = ["DbxEdit", "FbrbTool", "PyO3", "LevelDiff", ".."]
