@@ -89,9 +89,33 @@ A level load reads only its own partitions and the blueprints it places (a few h
 part of it: the whole load is collision meshes, the height field and water (Python and NumPy). The batch helps the
 DBX part by about a quarter with the Rust core; the rest of the load is where E1's Rust scene will save time.
 
+## FBRB bundles (2026-11-16, branch `rust-e0b`)
+
+`bc2_formats::fbrb`, ported from `core/bfbc2core/fbrb.py`: the same entries and the same bytes as the Python reader
+on every bundle of the game copy and `work\ww2` (1,123 bundles, 833,461 entries, 28.6 GB of entry data;
+`core/tests/test_fbrb_native.py --game`, 3 minutes on 6 processes). Bundles read from the system cache.
+
+| | Python | Rust via Python, 1 by 1 | Rust via Python, `read_many` | Rust alone, 1 thread | Rust alone, 16 threads |
+|---|---:|---:|---:|---:|---:|
+| every entry of MP_005's 8 bundles (Dist and Package, 92.8 MB on disk, 309 MB of entry data) | 1.56 s | 0.58 s | **0.36 s** | 0.52 s | **0.29 s** |
+| the entry list of every bundle of the game copy (1,086 bundles, 8.9 GB, 740,662 entries) | 1.96 s | 0.86 s | | 0.31 s | **0.04 s** |
+
+- `python rust\bench_fbrb.py --extract | --entries <folders>`; `cargo run --release -p bc2-formats --example
+  fbrb_bench -- [--headers-only] <folders>`.
+- **Decompression is the cost, and a bundle is one gzip stream**, so one bundle cannot be split across cores:
+  parallel reading is one bundle per core, and a level's load is bound by its largest bundle (MP_005's level-00,
+  48 MB). The Rust inflater (zlib-rs) is about 2.7x faster than Python's zlib loop with its per-entry copies.
+- **The entry lists through Python** are bound by building 740,000 Python `Entry` objects; Rust alone reads every
+  header of the game in 0.04 s.
+- The gzip reader is `flate2` on **zlib-rs**, a Rust port of zlib: `miniz_oxide` (flate2's default) does not refuse
+  a back-reference before the start of the data ("invalid distance too far back"), so a damaged bundle zlib refuses
+  read without an error (found by the damaged-bundle test, kept as a unit test).
+
 ## Not ported yet
 
 - The DBX **writer** is in Rust (`dbx::write`, tested by round trips) but Python's `dbx.write` still writes the
   files the suite produces: the Python tools build Python trees, and converting them to Rust to write would cost
   more than it saves today. E1's `levelwrite` (Rust trees) is where the Rust writer takes over.
-- **FBRB** (the other E0 format) is not ported yet.
+- **FBRB packing** stays with FbrbTool (`pack`, with DICE's padded layouts, `fbrb.manifest` and size2 rules):
+  the Rust reader has only a small test writer (`fbrb::build`, as `fbrb.build`). E1's `levelwrite` is where packing
+  moves to Rust.

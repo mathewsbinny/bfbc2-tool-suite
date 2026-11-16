@@ -26,6 +26,8 @@ repository = "https://github.com/mathewsbinny/bfbc2-tool-suite"
 bc2-formats = { path = "bc2-formats" }
 thiserror = "=2.0.21"
 rayon = "=1.12.0"
+# gzip of FBRB bundles: raw deflate (the gzip framing is read in bc2-formats, by the reference's rules) and CRC-32
+flate2 = { version = "=1.1.11", default-features = false, features = ["zlib-rs"] }
 pyo3 = { version = "=0.30.1", default-features = false, features = ["macros", "abi3-py312"] }
 proptest = { version = "=1.12.0", default-features = false, features = ["std"] }
 sha1_smol = "=1.0.1"

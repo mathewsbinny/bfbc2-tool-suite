@@ -6,6 +6,7 @@
 //!
 //! - [`dbx`]: binary `.dbx` partitions (`bfbc2-dbx-tools/FORMAT.md` sections 1-3), a port of
 //!   `core/bfbc2core/dbx.py`: the element tree, the readable XML (identical to `DbxEdit xml`), values and a writer.
+//! - [`fbrb`]: `.fbrb` bundles, a port of `core/bfbc2core/fbrb.py`: the header's entries and any entry's data.
 //!
 //! ```
 //! use bc2_formats::dbx::{self, DbxFile, Element};
@@ -21,8 +22,9 @@
 #![deny(unsafe_code)]
 
 pub mod dbx;
+pub mod fbrb;
 
-/// The number of worker threads the batch functions ([`dbx::parse_all`], [`dbx::to_xml_all`]) use: rayon's
+/// The number of worker threads the batch functions ([`dbx::parse_all`], [`dbx::to_xml_all`], [`fbrb::read_many`]) use: rayon's
 /// global pool, `RAYON_NUM_THREADS` or else one per logical core.
 #[must_use]
 pub fn threads() -> usize {

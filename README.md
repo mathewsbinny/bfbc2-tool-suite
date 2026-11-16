@@ -96,13 +96,14 @@ the GeForce RTX 4060, at 144 frames a second.
 ## The Rust core (optional, faster)
 
 `rust/` is a Cargo workspace: the start of the shared Rust core the map editor is built on
-(`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8). Today it holds the binary DBX reader, ported from
-`core/bfbc2core/dbx.py` and proven identical to it on every corpus file. **Nothing needs it**: without it, every
+(`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8). Today it holds the binary DBX reader and the FBRB bundle
+reader, ported from `core/bfbc2core/dbx.py` and `fbrb.py` and proven identical to them on every corpus file and
+every bundle of the game copy. **Nothing needs it**: without it, every
 tool runs on the Python readers as before.
 
 | Crate | What |
 |---|---|
-| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_all` / `to_xml_all` on all cores). Later: FBRB, terrain, shader databases |
+| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer). Later: terrain, shader databases |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
 
 **Build** (once, and after changing anything in `rust/`; the quick test tier rebuilds it when it is stale):
@@ -120,7 +121,9 @@ functions run the Python reader, with the same results and the same errors (`Val
 `BFBC2_PURE_PYTHON=1` forces the Python reader (for comparisons, or to rule the Rust core out of a problem);
 `dbx.use_native(False)` does the same in code and `dbx.backend()` says which one runs. The Python reader stays the
 reference: `core/tests/test_dbx.py` always tests it. A tool that loads many files at once should call
-`dbx.parse_many` (all cores, and the cycle collector paused while the trees are built).
+`dbx.parse_many` (all cores, and the cycle collector paused while the trees are built). `bfbc2core.fbrb` works the
+same way (`entries`, `names`, `read` and the new `read_many`, one bundle per core; `fbrb.use_native`,
+`fbrb.backend()`; a damaged bundle raises `ValueError` in both readers, a missing entry `KeyError`).
 
 **Develop:** in `rust\`, `cargo test` (unit, property and doc tests), `cargo clippy --all-targets -- -D warnings`,
 `cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats` (after
@@ -135,15 +138,16 @@ python run_tests.py full       after changing a format reader: every unpacked fi
 python run_tests.py --list     what each tier runs;   --only <name> runs the tests whose name contains it
 ```
 
-The quick tier has 69 tests (2026-11-16). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
+The quick tier has 71 tests (2026-11-16). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
 `tests/test_types.py`; settings in `pyproject.toml`), the path finder on a stand-in tree, the converter units, the
 dbxport rules and the emitter atlas. A test that needs game data the machine lacks is skipped and says so. The table
 lists a selection; `--list` gives every test.
 
 | Test | Tier | Checks |
 |---|---|---|
-| `tests/test_rust.py` | quick, game | the Rust core: `cargo fmt --check`, clippy with warnings as errors, every crate's unit, property and doc tests; with `--corpus` (game) every unpacked `.dbx` read in Rust and its XML against DbxEdit's 31,404 fingerprints; skipped without Rust |
+| `tests/test_rust.py` | quick, game | the Rust core: `cargo fmt --check`, clippy with warnings as errors, every crate's unit, property and doc tests; with `--corpus` (game) every unpacked `.dbx` read in Rust and its XML against DbxEdit's 31,404 fingerprints, and every bundle of the game copy extracted; skipped without Rust |
 | `core/tests/test_dbx_native.py` | quick, game | the Rust DBX reader against the Python reader: the same XML, trees and refusals on built files, thousands of damaged and random ones, and 200 corpus files (quick) or every corpus file (game: 48,120 distinct, levels, NavKit's common data and the WW2 work); the dispatcher, the batch functions and `BFBC2_PURE_PYTHON`; skipped when the module is not built |
+| `core/tests/test_fbrb_native.py` | quick, game | the Rust FBRB reader against the Python reader: the same entries, bytes and refusals on built and hand-made bundles (gzip header fields, members, junk), about 1,700 damaged and 600 random ones, 8 game bundles (quick) or every bundle of the game copy and `work\ww2` (game); FbrbTool's unpack against the Rust reader; the dispatcher, `read_many` and `BFBC2_PURE_PYTHON`; skipped when the module is not built |
 | `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles |
 | `tests/test_review_fixes.py` | quick | four defects from a code review (2026-10-26): NavKit's apply builds with the normal build's inputs (detailed zones, ladders); the stock-MP installer reinstalls a rebuilt file and keeps the original as its backup; the Navigation Studio's `--edit` is a flag; the navigation cache key follows the terrain's content |
 | `tests/test_review_fixes2.py` | quick | defects from the follow-up review (2026-10-27): the harness records a missing path-data file per file key, refuses to overwrite its reference through a casing alias; NavKit's restore after a second install on a map without an original; the stock-MP installer's markers found case-insensitively; FbrbTool refuses an older manifest whose size2 differs |

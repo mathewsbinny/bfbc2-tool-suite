@@ -1,8 +1,9 @@
 r"""The Rust core's own checks (rust\): formatting, clippy with warnings as errors, and every crate's tests.
 
   python tests\test_rust.py            quick: cargo fmt --check, cargo clippy --all-targets -D warnings, cargo test
-  python tests\test_rust.py --corpus   game: the corpus test (every unpacked .dbx of the game copy against
-                                       DbxEdit's fingerprints, in Rust, release build)
+  python tests\test_rust.py --corpus   game: the corpus tests in Rust, release build (every unpacked .dbx of the
+                                       game copy against DbxEdit's fingerprints; every bundle of the game copy and
+                                       work\ww2 extracted)
 
 Skipped (exit 0) when Rust is not installed: the suite then runs on the Python readers.
 """
@@ -28,8 +29,10 @@ def main(argv: list[str]) -> int:
         print('skipped: Rust (cargo) is not installed - the suite runs on the Python readers')
         return 0
     if '--corpus' in argv:
-        steps = [('corpus test (release)', ['cargo', 'test', '--release', '-p', 'bc2-formats', '--test', 'corpus', '--',
-                                            '--ignored', '--nocapture'])]
+        steps = [('DBX corpus test (release)', ['cargo', 'test', '--release', '-p', 'bc2-formats', '--test', 'corpus', '--',
+                                                '--ignored', '--nocapture']),
+                 ('FBRB corpus test (release)', ['cargo', 'test', '--release', '-p', 'bc2-formats', '--test', 'fbrb_corpus',
+                                                 '--', '--ignored', '--nocapture'])]
     else:
         steps = [('cargo fmt --check', ['cargo', 'fmt', '--all', '--check']),
                  ('cargo clippy --all-targets -D warnings', ['cargo', 'clippy', '--all-targets', '--', '-D', 'warnings']),
@@ -42,12 +45,12 @@ def main(argv: list[str]) -> int:
         out = (r.stdout + r.stderr).strip()
         ok = r.returncode == 0
         failed += not ok
-        summary = [l for l in out.splitlines() if l.startswith('test result:') or (l[:1].isdigit() and 'files (' in l)]
+        summary = [l for l in out.splitlines() if l.startswith('test result:') or (l[:1].isdigit() and ('files (' in l or ' bundles, ' in l))]
         passed = sum(int(l.split(' passed')[0].rsplit(' ', 1)[-1]) for l in summary if ' passed' in l)
         detail = f'{passed} tests passed' if summary and ok else ''
         print(f'{"ok  " if ok else "FAIL"} {name}' + (f': {detail}' if detail else ''))
         for l in summary:
-            if 'files (' in l:
+            if 'files (' in l or ' bundles, ' in l:
                 print('       ' + l)
         if not ok:
             tail = '\n'.join(out.splitlines()[-40:])

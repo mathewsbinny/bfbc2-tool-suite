@@ -1,6 +1,6 @@
 [package]
 name = "bc2-formats"
-description = "Battlefield: Bad Company 2 file formats (binary DBX, later FBRB and more), pure Rust"
+description = "Battlefield: Bad Company 2 file formats (binary DBX, FBRB bundles), pure Rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 thiserror.workspace = true
 rayon.workspace = true
+flate2.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

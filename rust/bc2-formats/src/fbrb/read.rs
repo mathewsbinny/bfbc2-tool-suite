@@ -1,0 +1,339 @@
+//! Entry data: the payload read as `fbrb.read` streams it, and whole bundles.
+
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::Path;
+
+use rayon::prelude::*;
+
+use super::error::{FbrbError, Result};
+use super::gzip::Member;
+use super::header::{Entry, Header, read_header};
+
+/// The payload is read (and, zipped, decompressed) this many bytes at a time, as the reference does: a damaged
+/// stream is noticed at the same point.
+const CHUNK: usize = 1 << 20;
+
+/// Fills `buf` from `r` as far as it can (Python's buffered `read(n)`: short only at the end of the file).
+fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
+    let mut n = 0;
+    while n < buf.len() {
+        let Some(rest) = buf.get_mut(n..) else { break };
+        match r.read(rest) {
+            Ok(0) => break,
+            Ok(k) => n += k,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(n)
+}
+
+/// Collects the bytes of some entries from the payload as it streams past.
+struct Collector<'e> {
+    /// The entries, sorted by offset, each with the index of its output.
+    order: Vec<(&'e Entry, usize)>,
+    out: Vec<Vec<u8>>,
+    /// Every entry before this one has all of its bytes (with overlapping entries a later one may finish first).
+    first_open: usize,
+    pos: u64,
+}
+
+impl<'e> Collector<'e> {
+    fn new(entries: &[&'e Entry]) -> Self {
+        let mut order: Vec<(&Entry, usize)> = entries.iter().copied().zip(0..).collect();
+        order.sort_by_key(|(e, _)| e.offset);
+        Self {
+            order,
+            out: entries.iter().map(|e| Vec::with_capacity(e.size as usize)).collect(),
+            first_open: 0,
+            pos: 0,
+        }
+    }
+
+    /// The bytes of the payload at the current position.
+    fn take(&mut self, data: &[u8]) {
+        let (lo, hi) = (self.pos, self.pos + data.len() as u64);
+        while self.order.get(self.first_open).is_some_and(|(e, _)| e.end() <= lo) {
+            self.first_open += 1;
+        }
+        for (e, i) in self.order.iter().skip(self.first_open) {
+            if u64::from(e.offset) >= hi {
+                break;
+            }
+            let (a, b) = (u64::from(e.offset).max(lo), e.end().min(hi));
+            if a < b
+                && let (Some(src), Some(dst)) = (data.get((a - lo) as usize..(b - lo) as usize), self.out.get_mut(*i))
+            {
+                dst.extend_from_slice(src);
+            }
+        }
+        self.pos = hi;
+    }
+
+    fn finish(self) -> Result<Vec<Vec<u8>>> {
+        let complete = self
+            .order
+            .iter()
+            .all(|(e, i)| self.out.get(*i).is_some_and(|o| o.len() as u64 == u64::from(e.size)));
+        if complete {
+            Ok(self.out)
+        } else {
+            Err(FbrbError::PayloadEnds)
+        }
+    }
+}
+
+/// The data of `entries` from the payload of the bundle `r` holds (`header` read from it). The payload is read up
+/// to the last byte any of them needs, 1 MiB at a time, as the reference does.
+///
+/// # Errors
+/// [`FbrbError::PayloadEnds`] when the payload ends before an entry's data, a gzip error for a damaged zipped
+/// payload, [`FbrbError::Io`].
+pub fn read_payload<R: Read + Seek>(r: &mut R, header: &Header, entries: &[&Entry]) -> Result<Vec<Vec<u8>>> {
+    let end = entries.iter().map(|e| e.end()).max().unwrap_or(0);
+    let mut c = Collector::new(entries);
+    if end == 0 {
+        return c.finish();
+    }
+    r.seek(SeekFrom::Start(header.payload_start))?;
+    let mut member = header.zipped.then(Member::new);
+    let mut buf = vec![0; CHUNK];
+    while c.pos < end {
+        let n = read_full(r, &mut buf)?;
+        let chunk = buf.get(..n).unwrap_or_default();
+        if n == 0 {
+            break;
+        }
+        match member.as_mut() {
+            Some(m) => {
+                m.feed(chunk, &mut |d: &[u8]| c.take(d))?;
+                if m.done() {
+                    break; // what follows the member is never read
+                }
+            }
+            None => c.take(chunk),
+        }
+    }
+    c.finish()
+}
+
+/// The data of the entries named `names` (any case; *deleted* markers are not entries), in the order given
+/// (`fbrb.read`). A name listed twice in the bundle reads its later entry.
+///
+/// ```
+/// use bc2_formats::fbrb;
+/// let bundle = fbrb::build(&[("Levels/A.dbx", "<non-resource>", b"abc"), ("B.res", "Mesh", b"de")], true);
+/// let data = fbrb::read(&mut std::io::Cursor::new(&bundle), &["b.RES", "levels/a.dbx"])?;
+/// assert_eq!(data, vec![b"de".to_vec(), b"abc".to_vec()]);
+/// # Ok::<(), fbrb::FbrbError>(())
+/// ```
+///
+/// # Errors
+/// [`FbrbError::MissingEntry`] for the first name that is not an entry (before any data is read), and the
+/// errors of [`read_header`] and [`read_payload`].
+pub fn read<R: Read + Seek, S: AsRef<str>>(r: &mut R, names: &[S]) -> Result<Vec<Vec<u8>>> {
+    let header = read_header(r)?;
+    let by = header.names();
+    let wanted = names
+        .iter()
+        .enumerate()
+        .map(|(index, n)| {
+            by.get(&n.as_ref().to_ascii_lowercase())
+                .copied()
+                .ok_or(FbrbError::MissingEntry { index })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    read_payload(r, &header, &wanted)
+}
+
+/// Every entry of a bundle with its data, in archive order (a *deleted* marker's data is empty): an unpack in
+/// memory.
+///
+/// # Errors
+/// The errors of [`read_header`] and [`read_payload`].
+pub fn extract<R: Read + Seek>(r: &mut R) -> Result<(Header, Vec<Vec<u8>>)> {
+    let header = read_header(r)?;
+    let live: Vec<&Entry> = header.entries.iter().filter(|e| !e.is_deleted()).collect();
+    let mut data = read_payload(r, &header, &live)?.into_iter();
+    let all = header
+        .entries
+        .iter()
+        .map(|e| {
+            if e.is_deleted() {
+                Vec::new()
+            } else {
+                data.next().unwrap_or_default()
+            }
+        })
+        .collect();
+    Ok((header, all))
+}
+
+/// [`read_header`] of the file at `path` (only the header is read: fast).
+///
+/// # Errors
+/// As [`read_header`].
+pub fn entries_path(path: impl AsRef<Path>) -> Result<Header> {
+    read_header(&mut File::open(path)?)
+}
+
+/// [`read`] from the file at `path`.
+///
+/// # Errors
+/// As [`read`].
+pub fn read_path<S: AsRef<str>>(path: impl AsRef<Path>, names: &[S]) -> Result<Vec<Vec<u8>>> {
+    read(&mut File::open(path)?, names)
+}
+
+/// [`extract`] of the file at `path`.
+///
+/// # Errors
+/// As [`extract`].
+pub fn extract_path(path: impl AsRef<Path>) -> Result<(Header, Vec<Vec<u8>>)> {
+    extract(&mut File::open(path)?)
+}
+
+/// [`read_path`] of each `(bundle, names)`, in parallel (one bundle per task: a payload is one gzip stream).
+/// Results keep the input order.
+#[must_use]
+pub fn read_many<P: AsRef<Path> + Sync, S: AsRef<str> + Sync>(items: &[(P, Vec<S>)]) -> Vec<Result<Vec<Vec<u8>>>> {
+    items.par_iter().map(|(p, n)| read_path(p, n)).collect()
+}
+
+/// [`extract_path`] of each bundle, in parallel. Results keep the input order.
+#[must_use]
+pub fn extract_many<P: AsRef<Path> + Sync>(paths: &[P]) -> Vec<Result<(Header, Vec<Vec<u8>>)>> {
+    paths.par_iter().map(extract_path).collect()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+    use crate::fbrb::build;
+
+    fn items() -> Vec<(&'static str, &'static str, Vec<u8>)> {
+        vec![
+            ("Levels/Test.dbx", "<non-resource>", b"level".repeat(100)),
+            ("Gone.dbx", "*deleted*", vec![]),
+            ("Big.res", "Mesh", (0..3_000_000u32).map(|i| (i % 253) as u8).collect()),
+            ("Empty.txt", "Text", vec![]),
+        ]
+    }
+
+    fn bundle(zipped: bool) -> Vec<u8> {
+        let it = items();
+        let refs: Vec<(&str, &str, &[u8])> = it.iter().map(|(n, t, d)| (*n, *t, d.as_slice())).collect();
+        build(&refs, zipped)
+    }
+
+    #[test]
+    fn reads_entries_both_layouts() {
+        for zipped in [true, false] {
+            let b = bundle(zipped);
+            let data = read(&mut Cursor::new(&b), &["big.res", "LEVELS/test.dbx", "empty.txt"]).unwrap();
+            let it = items();
+            assert_eq!(data, vec![it[2].2.clone(), it[0].2.clone(), vec![]]);
+            assert_eq!(
+                read(&mut Cursor::new(&b), &[] as &[&str]).unwrap(),
+                Vec::<Vec<u8>>::new()
+            );
+            assert!(matches!(
+                read(&mut Cursor::new(&b), &["levels/test.dbx", "gone.dbx"]),
+                Err(FbrbError::MissingEntry { index: 1 })
+            ));
+            let (h, all) = extract(&mut Cursor::new(&b)).unwrap();
+            assert_eq!(h.zipped, zipped);
+            assert_eq!(all.len(), 4);
+            for ((_, _, d), got) in it.iter().zip(&all) {
+                assert_eq!(d, got);
+            }
+        }
+    }
+
+    #[test]
+    fn short_payload_is_refused() {
+        for zipped in [true, false] {
+            let b = bundle(zipped);
+            let cut = &b[..b.len() - 20];
+            assert!(read(&mut Cursor::new(cut), &["big.res"]).is_err());
+            // an entry before the cut still reads
+            assert!(read(&mut Cursor::new(cut), &["levels/test.dbx"]).is_ok());
+        }
+    }
+
+    #[test]
+    fn overlapping_entries() {
+        let e = |offset, size| Entry {
+            name: String::new(),
+            type_name: String::new(),
+            flags: 0,
+            offset,
+            size,
+            size2: size,
+        };
+        let (a, b, c) = (e(0, 10), e(2, 3), e(9, 1));
+        let mut col = Collector::new(&[&a, &b, &c]);
+        for chunk in (0u8..10).collect::<Vec<_>>().chunks(3) {
+            col.take(chunk);
+        }
+        assert_eq!(
+            col.finish().unwrap(),
+            vec![(0..10).collect::<Vec<u8>>(), vec![2, 3, 4], vec![9]]
+        );
+    }
+
+    #[test]
+    fn files_and_batches() {
+        let dir = std::env::temp_dir().join(format!("bc2_fbrb_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("t.fbrb");
+        std::fs::write(&p, bundle(true)).unwrap();
+        assert_eq!(entries_path(&p).unwrap().entries.len(), 4);
+        assert_eq!(read_path(&p, &["empty.txt"]).unwrap(), vec![Vec::<u8>::new()]);
+        assert_eq!(extract_path(&p).unwrap().1.len(), 4);
+        let missing = dir.join("missing.fbrb");
+        let many = read_many(&[(p.clone(), vec!["levels/test.dbx"]), (missing.clone(), vec!["x"])]);
+        assert!(many[0].is_ok() && matches!(many[1], Err(FbrbError::Io(_))));
+        let ex = extract_many(&[&p, &missing]);
+        assert!(ex[0].is_ok() && ex[1].is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A reader that always fails.
+    struct Broken;
+
+    impl Read for Broken {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("broken"))
+        }
+    }
+
+    /// A reader that returns a few bytes at a time and is interrupted once.
+    struct Trickle<'a>(&'a [u8], bool);
+
+    impl Read for Trickle<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if !self.1 {
+                self.1 = true;
+                return Err(std::io::Error::from(std::io::ErrorKind::Interrupted));
+            }
+            let n = buf.len().min(self.0.len()).min(7);
+            buf[..n].copy_from_slice(&self.0[..n]);
+            self.0 = &self.0[n..];
+            Ok(n)
+        }
+    }
+
+    #[test]
+    fn short_reads_fill_chunks() {
+        let data: Vec<u8> = (0..100u8).collect();
+        let mut buf = [0u8; 64];
+        assert_eq!(read_full(&mut Trickle(&data, false), &mut buf).unwrap(), 64);
+        assert_eq!(&buf[..], &data[..64]);
+        assert!(matches!(read_full(&mut Broken, &mut buf), Err(FbrbError::Io(_))));
+    }
+}

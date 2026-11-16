@@ -5,11 +5,16 @@
 //! it is importable and falls back to its own Python reader otherwise (`BFBC2_PURE_PYTHON=1` forces the
 //! fallback). The work runs with the interpreter released, the batch functions on all cores.
 //!
-//! Errors are `ValueError`s with `bc2-formats`' message, as the Python reader raises them. The binding is tested
-//! from Python (`core/tests/test_dbx_native.py`), where an interpreter exists.
+//! Errors are `ValueError`s with `bc2-formats`' message, as the Python reader raises them (and, for bundles,
+//! `KeyError` for an entry that is not there and `OSError` for a file that cannot be read). The binding is tested
+//! from Python (`core/tests/test_dbx_native.py`, `core/tests/test_fbrb_native.py`), where an interpreter exists.
+//!
+//! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
+//! function's bundles run with the interpreter released.
 
 use bc2_formats::dbx::{self, Body, DbxError, DbxFile, Element};
-use pyo3::exceptions::PyValueError;
+use bc2_formats::fbrb::{self, FbrbError};
+use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods, PyList, PyString, PyTuple};
 
@@ -145,17 +150,101 @@ fn dbx_to_xml_many<'py>(py: Python<'py>, items: Vec<Bound<'py, PyBytes>>) -> PyR
     Ok(out)
 }
 
+/// `bc2-formats`' bundle error as `fbrb.py` raises it: `KeyError` for a missing entry (named as `keys` gives it),
+/// `OSError` for a file that cannot be read, else `ValueError`, each naming the bundle as the Python reader does.
+fn fbrb_error(e: FbrbError, path: &str, keys: &[String]) -> PyErr {
+    match e {
+        FbrbError::Io(io) => io.into(),
+        FbrbError::NotBundle => PyValueError::new_err(format!("{path} is not an FbRB bundle")),
+        FbrbError::MissingEntry { index } => {
+            let name = keys.get(index).map_or("?", String::as_str);
+            PyKeyError::new_err(format!("{name} is not an entry of {path}"))
+        }
+        FbrbError::PayloadEnds => {
+            PyValueError::new_err(format!("{path}: the payload ends before entry data (damaged bundle)"))
+        }
+        other => PyValueError::new_err(format!("{path}: {other}")),
+    }
+}
+
+/// `fbrb._header(path)` through Rust: `([entry_cls(name, type, flags, offset, size, size2), ...], zipped, payload
+/// start)`. Only the header is read.
+#[pyfunction]
+fn fbrb_header<'py>(
+    py: Python<'py>,
+    path: &str,
+    entry_cls: &Bound<'py, PyAny>,
+) -> PyResult<(Bound<'py, PyList>, bool, u64)> {
+    let h = py
+        .detach(|| fbrb::entries_path(path))
+        .map_err(|e| fbrb_error(e, path, &[]))?;
+    let out = PyList::empty(py);
+    for e in &h.entries {
+        out.append(entry_cls.call1((&e.name, &e.type_name, e.flags, e.offset, e.size, e.size2))?)?;
+    }
+    Ok((out, h.zipped, h.payload_start))
+}
+
+fn bytes_list<'py>(py: Python<'py>, data: &[Vec<u8>]) -> PyResult<Bound<'py, PyList>> {
+    PyList::new(py, data.iter().map(|d| PyBytes::new(py, d)))
+}
+
+/// `fbrb.read(path, keys)` through Rust: the data of each entry, in the order of `keys` (`lowered`: each key's
+/// `str.lower()`, which entry names are matched against).
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+fn fbrb_read<'py>(
+    py: Python<'py>,
+    path: &str,
+    keys: Vec<String>,
+    lowered: Vec<String>,
+) -> PyResult<Bound<'py, PyList>> {
+    let data = py
+        .detach(|| fbrb::read_path(path, &lowered))
+        .map_err(|e| fbrb_error(e, path, &keys))?;
+    bytes_list(py, &data)
+}
+
+/// `fbrb_read` of many `(path, keys, lowered)` items, one bundle per core. Each result is the list of the entries'
+/// data or the exception it raised (returned, not raised).
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+fn fbrb_read_many(py: Python<'_>, items: Vec<(String, Vec<String>, Vec<String>)>) -> PyResult<Bound<'_, PyList>> {
+    let jobs: Vec<(&str, Vec<&str>)> = items
+        .iter()
+        .map(|(p, _, low)| (p.as_str(), low.iter().map(String::as_str).collect()))
+        .collect();
+    let results = py.detach(|| fbrb::read_many(&jobs));
+    let out = PyList::empty(py);
+    for (r, (path, keys, _)) in results.into_iter().zip(&items) {
+        match r {
+            Ok(data) => out.append(bytes_list(py, &data)?)?,
+            Err(e) => out.append(fbrb_error(e, path, keys).into_value(py))?,
+        }
+    }
+    Ok(out)
+}
+
 /// The number of worker threads the batch functions use (`RAYON_NUM_THREADS`, else every core).
 #[pyfunction]
 fn threads() -> usize {
     bc2_formats::threads()
 }
 
-/// The suite's Rust core (`rust/`): binary DBX parsing and XML, used by `bfbc2core.dbx` when built.
+/// The suite's Rust core (`rust/`): binary DBX parsing and XML, used by `bfbc2core.dbx` when built, and bundle
+/// reading, used by `bfbc2core.fbrb`.
 #[pymodule]
 mod bc2_native {
     #[pymodule_export]
-    use super::{dbx_parse, dbx_parse_many, dbx_to_xml, dbx_to_xml_many, threads};
+    use super::{
+        dbx_parse, dbx_parse_many, dbx_to_xml, dbx_to_xml_many, fbrb_header, fbrb_read, fbrb_read_many, threads,
+    };
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]
