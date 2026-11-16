@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
-from . import dbx, paths, terrain, water
+from . import atomicio, dbx, paths, terrain, water
 
 if TYPE_CHECKING:
     from .terrain import Heightfield
@@ -408,22 +408,36 @@ def heightfield_of(root: str, lv: str, log: Callable[[str], Any] = print,
         name = terrain_name(dbx.read(part).instances) if part else None
     name = name or lv
     dest = os.path.join(root, 'work', 'levels', lv, 'terrain')
+    bundle = None
+    # Dist first; a level whose terrain bundle is only in Package (ONS_MP_005GR) takes that one
+    for top in (os.path.join(root, 'game', 'Dist', 'win32', 'levels'), os.path.join(root, 'game', 'Package', 'levels')):
+        for d in glob.glob(os.path.join(top, '*')):
+            if bundle is None and os.path.basename(d).lower() == lv and os.path.isfile(os.path.join(d, 'terrain-00.fbrb')):
+                bundle = os.path.join(d, 'terrain-00.fbrb')
     path = terrain.find(dest, name) if os.path.isdir(dest) else None
-    if path is None:
-        bundle = None
-        # Dist first; a level whose terrain bundle is only in Package (ONS_MP_005GR) takes that one
-        for top in (os.path.join(root, 'game', 'Dist', 'win32', 'levels'), os.path.join(root, 'game', 'Package', 'levels')):
-            for d in glob.glob(os.path.join(top, '*')):
-                if bundle is None and os.path.basename(d).lower() == lv and os.path.isfile(os.path.join(d, 'terrain-00.fbrb')):
-                    bundle = os.path.join(d, 'terrain-00.fbrb')
-        if bundle is None:
-            return None
+    if bundle is None:
+        return terrain.read(path) if path else None          # no game copy: the unpack as it is, if there is one
+    # the unpack is reused only while it is complete and from this bundle (suite deep scan 2026-11-15, C4: any unpack
+    # was reused - a patched or re-imported terrain kept the old height field, and an unpack cut short was taken as
+    # whole): its stamp, the bundle's size and modification time, is written after the unpack finishes
+    stamp = os.path.join(dest, '.source.stamp')
+    st = os.stat(bundle)
+    want = f'{st.st_size} {st.st_mtime_ns}'
+    have = None
+    if path is not None and os.path.isfile(stamp):
+        with open(stamp, encoding='ascii') as fh:
+            have = fh.read().strip()
+    if have != want:
+        import shutil
         log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')
         tool = paths.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool', suite=SUITE)   # as navkit.find_tool (ToolNotFound)
+        if os.path.isdir(dest):
+            shutil.rmtree(dest)
         subprocess.run([tool, 'unpack', bundle, dest], check=True, capture_output=True)
+        atomicio.write_text(stamp, want)
         path = terrain.find(dest, name)
-        if path is None:
-            return None
+    if path is None:
+        return None
     return terrain.read(path)
 
 

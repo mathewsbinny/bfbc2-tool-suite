@@ -55,16 +55,19 @@ HPD_FILES = ('pathdata.hpd',) + HPD_BACKUPS
 
 
 def dice_pathdata_files(root):
-    """Original DICE data, preferring kept originals and excluding installs with no original."""
+    """Original DICE data: navkit.original_file's answer for each folder's pathdata.hpd - the oldest kept backup
+    of any OPFOR stage, else the file unless a stage installed it onto nothing (suite deep scan 2026-11-15, C5: this
+    took .opfor-orig first, which is stock-MP's file when stock-MP installed before NavKit)."""
+    suite_paths.use('navkit')
+    import navkit
     out = []
     for dp, _, fs in os.walk(os.path.join(root, 'game', 'Output', 'win32', 'ai')):
         names = {f.lower(): f for f in fs}
-        original = next((names[n] for n in HPD_BACKUPS if n in names), None)
+        if not any(n in names for n in HPD_FILES):
+            continue
+        original = navkit.original_file(os.path.join(dp, names.get('pathdata.hpd', 'pathdata.hpd')))
         if original is not None:
-            out.append(os.path.join(dp, original))
-        elif 'pathdata.hpd' in names and not any(n in names for n in
-                ('pathdata.hpd.opfor-new', 'pathdata.hpd.opfor-stockmp-applied')):
-            out.append(os.path.join(dp, names['pathdata.hpd']))
+            out.append(original)
     return sorted(out)
 
 
@@ -101,6 +104,8 @@ def tests():
         ('review fixes: apply inputs, stock-MP reinstall, studio flags, cache key', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_review_fixes.py')]),
         ('review fixes 2: harness missing files, navkit no-original reinstall, old fbrb manifests', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_review_fixes2.py')]),
+        ('deep scan fixes: atomic installs and writes, honest caches, damaged files said', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_deep_scan_fixes.py')]),
         ('navigation side files (navtune)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_navtune.py')]),
         ('NavKit water rule (ground too deep under water)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_water_rule.py')]),
         ('NavKit walkability edits (navedits)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navedits.py')]),

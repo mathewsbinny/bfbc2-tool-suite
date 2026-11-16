@@ -211,7 +211,8 @@ def kit_refs(paths: Paths) -> dict[str, str]:
             if len(asset) != 1:
                 raise BuildError(f'{p}: expected one SoldierAsset')
             guid = asset[0].attr('guid')
-            assert guid is not None
+            if guid is None:
+                raise BuildError(f'{p}: its SoldierAsset has no guid')
             out[f'{fac.lower()}/{kit}'] = f'objects/soldiers/{fac.lower()}/{kit}/{guid.lower()}'
     return out
 
@@ -249,11 +250,13 @@ def sector_asset(ref_path: str, level_upper: str, kind: str, lv: str, xz: tuple[
     d.set_attr(d.partition, 'primaryInstance', inst_g)
     d.set_attr(e, 'guid', inst_g)
     name = e.child('Name')
-    assert name is not None
+    if name is None:
+        raise BuildError('the SectorOffsets template has no Name field')
     d.set_text(name, f'Levels/{level_upper}/Precomputed/{kind}/SectorOffsets')
     for f, v in (('XOffset', xz[0]), ('ZOffset', xz[1])):
         c = e.child(f)
-        assert c is not None
+        if c is None:
+            raise BuildError(f'the SectorOffsets template has no {f} field')
         size, old = c.numbers()
         if size != 4 or len(old) != 1:
             raise BuildError(f'{ref_path}: {f} is not one 4-byte number')
@@ -298,9 +301,11 @@ def generate(paths: Paths, **kw: Any) -> dict[str, Any]:
     v, b = variants[-1]                            # the Package copy when there is one (the game loads it first)
     d = unpacked(b, paths.src(v))
     entry = level_entry(d, _level_name(d, paths.lv))
-    assert entry is not None
+    if entry is None:
+        raise BuildError(f'{paths.lv}: no level partition in {d}')
     lvl = find_entry(d, entry)
-    assert lvl is not None
+    if lvl is None:
+        raise BuildError(f'{paths.lv}: the level partition {entry} is not in {d}')
     m = levelmodel.Model(dbxbin.read(lvl))
     pd = kw.pop('pathdata')
     c = cfgmod.generate(m, paths.lv, kit_refs(paths), pd, **kw)
@@ -364,9 +369,11 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         log(f'{v}: copying the unpacked bundle to {os.path.relpath(dst, paths.opfor)}')
         shutil.rmtree(dst, ignore_errors=True)
         shutil.copytree(src, dst, ignore=shutil.ignore_patterns('.source.sha256'))
-        assert entry is not None
+        if entry is None:
+            raise BuildError(f'{paths.lv}: no level partition in {src}')
         lvl_file = find_entry(dst, entry)
-        assert lvl_file is not None
+        if lvl_file is None:
+            raise BuildError(f'{paths.lv}: the level partition {entry} is not in {dst}')
         original = open(lvl_file, 'rb').read()
         d = dbxbin.parse(original)
         if dbxbin.write(d) != original:

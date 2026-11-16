@@ -212,7 +212,7 @@ def decode(b, layout, part, big_endian=True):
     return out
 
 
-def _pair_by_kind(ec, ep, leftovers=False):
+def pair_by_kind(ec, ep, leftovers=False):
     """Console element index for each PC element when the two layouts hold the same elements in another order:
     the k-th PC element of a kind (format, usage, stream) takes the k-th console element of that kind. With
     leftovers, console elements beyond the PC layout's (the last of a kind) are left out."""
@@ -226,6 +226,9 @@ def _pair_by_kind(ec, ep, leftovers=False):
             return None
         out.append(pool.pop(0))
     return out if leftovers or not any(pools.values()) else None
+
+
+_pair_by_kind = pair_by_kind  # the earlier private name, kept for callers that still use it
 
 
 # A part's primitive type (its record's k): 3 a triangle list, 5 a triangle strip (triangles + 2 indices; consecutive
@@ -281,7 +284,7 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
         keep: list[int] | None                       # None: the layouts do not pair up (raised below)
         keep = [i for i in range(len(ec)) if not (drop and i in drop[n])]
         if reorder:
-            order = _pair_by_kind([ec[i] for i in keep], ep, leftovers=reorder == 'drop')
+            order = pair_by_kind([ec[i] for i in keep], ep, leftovers=reorder == 'drop')
             keep = None if order is None else [keep[j] for j in order]
             if keep is None:
                 raise ConvertError(f'part {p["name"]!r}: the console and PC layouts do not hold the same elements')

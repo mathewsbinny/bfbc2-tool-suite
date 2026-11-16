@@ -61,7 +61,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
-from bfbc2core import paths  # noqa: E402
+from bfbc2core import atomicio, paths  # noqa: E402
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
                            # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at
@@ -189,7 +189,11 @@ class Project:
         p = self.settings_path(lv)
         if not os.path.isfile(p):
             raise NavKitError(f'{lv}: not prepared yet (navkit.py prepare {lv.upper()})')
-        return json.load(open(p))
+        try:
+            with open(p, encoding='utf-8') as f:
+                return json.load(f)
+        except ValueError:          # a damaged file: said, rather than a JSON traceback in every later step
+            raise NavKitError(f'{lv}: {p} is damaged - prepare the level again (navkit.py prepare {lv.upper()})') from None
 
     def samples(self, lv: str, suffix: str = '') -> str:
         return os.path.join(self.work, 'navsample', f'{lv}_navkit{suffix}.bin')
@@ -266,7 +270,7 @@ def prepare(pr: Project, lv: str, log: Log = print, box: list[float] | None = No
     levelobjects.main(['levelobjects.py', L, LV] + common)
     import ladders
     lad = ladders.extract(L, common)
-    json.dump(lad, open(os.path.join(L, 'ladders.json'), 'w'), indent=1)
+    atomicio.write_json(os.path.join(L, 'ladders.json'), lad, indent=1)
     log(f'  ladders: {len(lad)} (ladder links: their far ends seeded and linked in the build)')
 
     xoff = zoff = None
@@ -295,7 +299,7 @@ def prepare(pr: Project, lv: str, log: Log = print, box: list[float] | None = No
     else:
         s['offsets_source'] = 'SectorOffsets'
     s['xoff'], s['zoff'] = xoff, zoff
-    json.dump(s, open(pr.settings_path(lv), 'w'), indent=1)
+    atomicio.write_json(pr.settings_path(lv), s, indent=1)
     cols = (s['box'][2] - s['box'][0]) / 0.8 * (s['box'][3] - s['box'][1]) / 0.8
     log(f'  box {fmt(s["box"])} ({s["box_source"]}), y {fmt(s["y"])}, sector offsets {s["xoff"]}, {s["zoff"]} '
         f'({s["offsets_source"]}); {cols / 1e6:.1f} M columns per sampling run')
@@ -383,7 +387,7 @@ def recover_ini(pr: Project, log: Log = print) -> None:
     """A sampling run that was killed leaves opfor.ini changed: put the saved copy back."""
     b = ini_backup(pr)
     if os.path.isfile(b):
-        shutil.copyfile(b, pr.ini)
+        atomicio.copy_file(b, pr.ini)
         os.remove(b)
         log('  restored opfor.ini from the copy an interrupted sampling run left behind')
 
@@ -406,7 +410,7 @@ def ensure_settings(pr: Project, lv: str) -> dict[str, Any]:
                                  round(s.min_z + (s.nz - 1) * s.pitch, 3)],
           'y': [round(s.y_bottom, 3), round(s.y_top, 3)], 'box_source': 'its 0.8 m samples',
           'offsets_source': 'its SectorOffsets', 'xoff': xoff, 'zoff': zoff}
-    json.dump(st, open(pr.settings_path(lv), 'w'), indent=1)
+    atomicio.write_json(pr.settings_path(lv), st, indent=1)
     return st
 
 
@@ -420,6 +424,17 @@ def sector_offsets_of(xml_path: str) -> tuple[int, int]:
     return int(x.group(1)), int(z.group(1))
 
 
+def source_stamps(folder: str) -> str:
+    """A digest of every .source.sha256 stamp under folder (Project.unpack writes one per unpacked bundle): it changes
+    whenever any bundle the folder was unpacked from changes."""
+    h = hashlib.sha1()
+    for dp, _d, fs in sorted(os.walk(folder)):
+        if '.source.sha256' in fs:
+            with open(os.path.join(dp, '.source.sha256'), encoding='utf-8') as f:
+                h.update(os.path.relpath(dp, folder).encode('utf-8') + b'=' + f.read().strip().encode('ascii') + b';')
+    return h.hexdigest()
+
+
 def detailed_sectors(pr: Project, lv: str) -> list[tuple[int, ...]]:
     """The sectors to build as detailed zones (pitch 0.2), as (grid x, grid z) - chosen from the level alone
     (tools\\detailed.py: flagged objects, stacked floors in the 0.8 m samples); cached in work\\navkit\\<lv>\\
@@ -428,15 +443,17 @@ def detailed_sectors(pr: Project, lv: str) -> list[tuple[int, ...]]:
     s = ensure_settings(pr, lv)
     sp = pr.samples08(lv)
     cache = os.path.join(pr.out_dir(lv), 'detailed.json')
+    # the sector ids are relative to the offsets (a new --box changes them); the level's objects come from its unpack,
+    # so its source stamps are part of the key (suite deep scan 2026-11-15, C7: a level prepared again from a changed
+    # bundle kept the detailed sectors of the old one)
     key = (f'{os.path.basename(sp) if sp else None}|{os.path.getmtime(sp) if sp else 0}|{detailed.MARGIN}|{detailed.STACKED_MIN}'
-           f'|{s["xoff"]}|{s["zoff"]}')     # the sector ids are relative to the offsets: a new --box changes them
-    if os.path.isfile(cache):
-        c = json.load(open(cache))
-        if c.get('key') == key:
-            return [tuple(x) for x in c['sectors']]
+           f'|{s["xoff"]}|{s["zoff"]}|{source_stamps(pr.level_work(lv))}')
+    c = atomicio.read_json(cache, {})           # a damaged cache is a miss (C6)
+    if isinstance(c, dict) and c.get('key') == key and isinstance(c.get('sectors'), list):
+        return [tuple(x) for x in c['sectors']]
     common = [os.path.join(pr.work, 'navkit', 'common', c) for c in ('mp_common', 'sp_common')]
     chosen, why = detailed.choose(pr.level_work(lv), common, sp, s['xoff'], s['zoff'])
-    json.dump({'key': key, 'sectors': chosen, 'why': why}, open(cache, 'w'))
+    atomicio.write_json(cache, {'key': key, 'sectors': chosen, 'why': why})
     return [tuple(x) for x in chosen]       # as the cached answer gives them
 
 
@@ -489,7 +506,7 @@ def sample(pr: Project, lv: str, log: Log = print, confirm: Callable[[str], bool
             # lowest sector would get grid positions below 0 (prepare does the same)
             s['xoff'], s['zoff'] = int(math.floor(box[0] / 100.0)) - 1, int(math.floor(box[1] / 100.0)) - 1
             log(f'  sector offsets follow the box: {s["xoff"]}, {s["zoff"]}')
-        json.dump(s, open(pr.settings_path(lv), 'w'), indent=1)
+        atomicio.write_json(pr.settings_path(lv), s, indent=1)
     log(f'== sample {lv}: box {fmt(s["box"])}, y {fmt(s["y"])}, pitch {pitch}')
     if not pr.dice_pathdata(lv):
         log('  warning: this level has no AI path data, so its AI (and the sampler) may not start - see QUICKSTART.md')
@@ -537,7 +554,7 @@ def sample_level(pr: Project, lv: str, log: Log = print, confirm: Callable[[str]
 def sample_run(pr: Project, s: dict[str, Any], agent: str, name: str, log: Log, timeout: float, pitch: float = 0.8,
                budget_ms: int | None = None) -> str:
     orig = open(pr.ini, 'rb').read()
-    shutil.copyfile(pr.ini, ini_backup(pr))
+    atomicio.copy_file(pr.ini, ini_backup(pr))
     log_start = os.path.getsize(pr.log_path) if os.path.isfile(pr.log_path) else 0
     t = orig.decode('utf-8', errors='replace')
     for sec, k, v in (('dev', 'level', 'Levels/' + s['level']), ('dev', 'autostart', '1'), ('dev', 'navsample', '1'),
@@ -554,7 +571,7 @@ def sample_run(pr: Project, s: dict[str, Any], agent: str, name: str, log: Log, 
         t = ini_set(t, sec, k, v)
     result = ''
     try:
-        open(pr.ini, 'wb').write(t.encode('utf-8'))
+        atomicio.write_bytes(pr.ini, t.encode('utf-8'))      # the user's ini: never half written (C2)
         subprocess.Popen([os.path.join(pr.root, 'OPFOR BFBC2.exe')], cwd=pr.root)
         t0 = time.time()
         last = ''
@@ -584,7 +601,7 @@ def sample_run(pr: Project, s: dict[str, Any], agent: str, name: str, log: Log, 
             result = 'timed out'
     finally:
         close_game()
-        open(pr.ini, 'wb').write(orig)
+        atomicio.write_bytes(pr.ini, orig)
         os.remove(ini_backup(pr))
     return result
 
@@ -740,12 +757,14 @@ def install(pr: Project, lv: str, log: Log = print, src: str | None = None) -> N
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     if not os.path.isfile(dest + NEW_SUFFIX) and not os.path.isfile(dest + BACKUP_SUFFIX):
         if os.path.isfile(dest):
-            shutil.copyfile(dest, dest + BACKUP_SUFFIX)
+            atomicio.copy_file(dest, dest + BACKUP_SUFFIX)
             log(f'  original kept as {os.path.basename(dest)}{BACKUP_SUFFIX}')
         else:
             open(dest + NEW_SUFFIX, 'w').close()  # no original: record that, so restore can remove the file
             log(f'  noting {os.path.basename(dest)} had no original (restore will remove it)')
-    shutil.copyfile(ours, dest)
+    # into the game copy whole or not at all (suite deep scan 2026-11-15, C2: a copy cut short left a truncated
+    # pathdata.hpd that the game's AI loader reads)
+    atomicio.copy_file(ours, dest)
     log(f'== installed {os.path.relpath(ours, pr.root)} as {os.path.relpath(dest, pr.root)}')
     trav, trav_dest = traversal_path(os.path.dirname(ours), lv), traversal_path(os.path.dirname(dest), lv)
     sha = hashlib.sha1(open(ours, 'rb').read()).hexdigest()
@@ -754,7 +773,7 @@ def install(pr: Project, lv: str, log: Log = print, src: str | None = None) -> N
     except (OSError, ValueError):
         made_for = None
     if made_for == sha:
-        shutil.copyfile(trav, trav_dest)
+        atomicio.copy_file(trav, trav_dest)
         log(f'  traversal annotations installed as {os.path.relpath(trav_dest, pr.root)}')
     else:
         if os.path.isfile(trav):                 # written for another build of the file (its node ids differ)

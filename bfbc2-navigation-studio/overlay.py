@@ -34,7 +34,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
 
-from bfbc2core import navdata, xmlinst  # noqa: E402
+from bfbc2core import atomicio, navdata, xmlinst  # noqa: E402
 
 R_GATHER = 15.0          # the runtime's node gather radius (DistEdgeMax)
 SAME_FLOOR = 2.5         # a node / point pair is on the same floor within this height (node y - 0.95 m)
@@ -300,7 +300,7 @@ def main(argv):
                                             f'{target}_anomalies.json' if '--anomalies' in opts else
                                             f'{target}_vs_{re.sub(r"[^a-z0-9_]+", "_", opts["--reference"].lower())}.json')
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)      # (a bare file name: the current folder)
-    json.dump(rep, open(out, 'w'), indent=1)
+    atomicio.write_json(out, rep, indent=1)
     print(json.dumps(rep.get('summary') or rep.get('counts')), '->', out)
     return 0
 

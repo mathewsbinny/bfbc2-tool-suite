@@ -10,6 +10,7 @@ Elements keep their kind and raw value bytes, so numbers can be read exactly (nu
 """
 import math
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from os import PathLike
@@ -104,6 +105,21 @@ class DeletedEntry(ValueError):
     """The file is a bundle's zero-byte *deleted* marker: there is nothing to read (it is not a broken file)."""
 
 
+def _damaged[T](fn: Callable[[bytes], T]) -> Callable[[bytes], T]:
+    """A damaged file read by fn raises ValueError (what callers catch for a file that is not a .dbx), never an
+    IndexError or struct.error from an index past its table or a read past the end (suite deep scan 2026-11-15, S4)."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(data: bytes) -> T:
+        try:
+            return fn(data)
+        except (IndexError, struct.error) as e:
+            raise ValueError(f'damaged .dbx file ({type(e).__name__}: {e})') from e
+    return wrapper
+
+
+@_damaged
 def parse(data: bytes) -> DbxFile:
     """A binary .dbx file as an element tree (FORMAT.md sections 1-2)."""
     if not data:
@@ -162,7 +178,7 @@ def read(path: str | PathLike[str]) -> DbxFile:
         return parse(f.read())
 
 
-def _put_varint(out: bytearray, v: int) -> None:
+def put_varint(out: bytearray, v: int) -> None:
     while True:
         b = v & 0x7F
         v >>= 7
@@ -171,6 +187,9 @@ def _put_varint(out: bytearray, v: int) -> None:
         else:
             out.append(b)
             return
+
+
+_put_varint = put_varint  # the earlier private name, kept for callers that still use it
 
 
 def write(f: DbxFile) -> bytes:
@@ -192,18 +211,18 @@ def write(f: DbxFile) -> bytes:
     def emit(e: Element) -> None:
         if len(e.attributes) > 15:
             raise ValueError(f'{e.tag}: {len(e.attributes)} attributes (15 at most)')
-        _put_varint(body, sid(e.tag))
+        put_varint(body, sid(e.tag))
         body.append((e.kind << 4) | len(e.attributes))
         for k, v in e.attributes:
-            _put_varint(body, sid(k))
-            _put_varint(body, sid(v))
+            put_varint(body, sid(k))
+            put_varint(body, sid(v))
         if e.kind == CONTAINER:
             body.append(0)
             for c in e.children or ():
                 emit(c)
             body.append(0)
         elif e.kind == TEXT:
-            _put_varint(body, sid(e.text))
+            put_varint(body, sid(e.text))
         else:
             body.extend(e.raw)
 
@@ -315,6 +334,7 @@ def _escape(s: str) -> str:
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
 
+@_damaged
 def to_xml(data: bytes) -> str:
     """FORMAT.md section 3: the readable XML, identical to `DbxEdit xml` (string reading tolerant to a missing
     terminator at the end, as the export is)."""

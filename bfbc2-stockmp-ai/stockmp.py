@@ -16,9 +16,9 @@ by `install --apply`, which is for the user to run (never run by the build).
 the same world known for it: mp_005 -> ons_mp_005gr). The output keeps the game's own paths, so an install is a plain
 copy of out\game over the game folder.
 """
+import contextlib
 import json
 import os
-import shutil
 import sys
 from typing import Any
 
@@ -34,6 +34,7 @@ import config as cfgmod  # noqa: E402
 import dbxbin  # noqa: E402
 import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
+from bfbc2core import atomicio  # noqa: E402
 
 # worlds whose path data the user's install has under another level's name (DICE's console Onslaught files, which
 # Napisal's ports install): stock level -> path-data folder
@@ -65,9 +66,11 @@ def summary(paths: pipeline.Paths) -> None:
     v, b = paths.bundles()[-1]
     d = pipeline.unpacked(b, paths.src(v))
     entry = pipeline.level_entry(d, pipeline._level_name(d, paths.lv))
-    assert entry is not None
+    if entry is None:
+        raise SystemExit(f'{paths.lv}: no level partition in {d}')
     lvl = pipeline.find_entry(d, entry)
-    assert lvl is not None
+    if lvl is None:
+        raise SystemExit(f'{paths.lv}: the level partition {entry} is not in {d}')
     m = levelmodel.Model(dbxbin.read(lvl))
     print(f'{m.name}: mode {m.mode}, factions {m.factions}, attacker {m.attacker}, HasAI {m.has_ai}')
     for cp in m.capture_points:
@@ -92,6 +95,87 @@ def installed_files(game: str, lv: str) -> list[str]:
                 if lv.lower() in {c.lower() for c in rel.replace(os.sep, '/').split('/')}:
                     rels.append(rel)
     return rels
+
+
+STAGED = '.opfor-stockmp-new'      # a built file copied next to its target, before any target changes
+PREV = '.opfor-stockmp-prev'        # the target as it was, kept until every file of the install is in
+
+
+def apply_files(game: str, out: str, rels: list[str]) -> None:
+    """--apply as one transaction (suite deep scan 2026-11-15, C1: the files were copied over the game's one by one,
+    so a locked file or a full disk part way left Dist and Package from different builds, and a copy cut short a
+    truncated bundle without a marker that made --apply and --revert both refuse):
+      1. decide every file (nothing written): already installed, or to install, and whether the original needs its
+         backup;
+      2. stage: every built file copied whole next to its target (*.opfor-stockmp-new) - a failure removes the staged
+         copies, and the game copy is unchanged;
+      3. commit: per file the original's backup (once, atomic), the target moved aside (*.opfor-stockmp-prev), the
+         staged file renamed in, its marker written atomically - a failure puts back every target already replaced
+         (and its marker) before it re-raises; the moved-aside targets are deleted only once every file is in."""
+    todo = []
+    for rel in rels:
+        dst, src = os.path.join(game, rel), os.path.join(out, rel)
+        marker = dst + APPLIED
+        installed = False
+        if os.path.isfile(marker) and os.path.isfile(dst):
+            installed = open(marker).read().strip() == pipeline.sha(dst)
+            if not installed:
+                raise SystemExit(f'{rel} changed after the install - not overwriting it '
+                                 f'(revert it first, or delete {marker})')
+        if installed and pipeline.sha(dst) == pipeline.sha(src):
+            print(f'already   {rel}')
+            continue
+        # the original only - never an earlier build of ours; a target deleted after the install is installed again
+        todo.append((rel, dst, src, os.path.isfile(dst) and not os.path.isfile(dst + BACKUP) and not installed))
+    staged: list[str] = []
+    try:
+        for rel, dst, src, _ in todo:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            atomicio.copy_file(src, dst + STAGED)
+            staged.append(dst + STAGED)
+            if pipeline.sha(dst + STAGED) != pipeline.sha(src):
+                raise OSError(f'{rel}: the staged copy differs from the build')
+    except BaseException:
+        for s in staged:
+            with contextlib.suppress(OSError):
+                os.remove(s)
+        raise
+    done: list[tuple[str, bool, str | None]] = []       # (dst, had a target, its marker text before)
+    try:
+        for _rel, dst, _src, backup in todo:
+            if backup:
+                atomicio.copy_file(dst, dst + BACKUP)
+            had = os.path.isfile(dst)
+            old_marker = open(dst + APPLIED).read() if os.path.isfile(dst + APPLIED) else None
+            if had:
+                os.replace(dst, dst + PREV)
+            done.append((dst, had, old_marker))
+            os.replace(dst + STAGED, dst)
+            atomicio.write_text(dst + APPLIED, pipeline.sha(dst))
+    except BaseException:
+        for dst, had, old_marker in reversed(done):
+            try:
+                if had:
+                    os.replace(dst + PREV, dst)
+                elif os.path.isfile(dst):
+                    os.remove(dst)
+                if old_marker is None:
+                    if os.path.isfile(dst + APPLIED):
+                        os.remove(dst + APPLIED)
+                else:
+                    atomicio.write_text(dst + APPLIED, old_marker)
+            except OSError as e:
+                print(f'ROLLBACK FAILED for {dst}: {e} (its earlier file is {dst + PREV})')
+        for _, dst, _, _ in todo:
+            if os.path.isfile(dst + STAGED):
+                os.remove(dst + STAGED)
+        print('nothing installed: every file put back as it was')
+        raise
+    for dst, had, _ in done:
+        if had and os.path.isfile(dst + PREV):
+            os.remove(dst + PREV)
+    for rel, *_ in todo:
+        print(f'installed {rel}')
 
 
 def install(paths: pipeline.Paths, argv: list[str]) -> None:
@@ -127,32 +211,14 @@ def install(paths: pipeline.Paths, argv: list[str]) -> None:
         if changed:
             raise SystemExit(f'changed after the install (by something else) - nothing {"installed" if mode == "--apply" else "reverted"}: '
                              + ', '.join(changed) + f' (delete their {APPLIED} markers to take them as they are now)')
+    if mode == '--apply':
+        apply_files(game, out, sorted(files))
+        return
     for rel in sorted(files):
         dst = os.path.join(game, rel)
-        src = os.path.join(out, rel)
         if mode == '--plan':
             state = 'replace' if os.path.isfile(dst) else 'new'
             print(f'{state:8s} {rel}')
-        elif mode == '--apply':
-            marker = dst + APPLIED
-            installed = False
-            if os.path.isfile(marker):
-                if not os.path.isfile(dst):
-                    installed = False          # deleted after the install: install the new build again
-                else:
-                    installed = open(marker).read().strip() == pipeline.sha(dst)
-                    if not installed:
-                        raise SystemExit(f'{rel} changed after the install - not overwriting it '
-                                         f'(revert it first, or delete {marker})')
-            if installed and pipeline.sha(dst) == pipeline.sha(src):
-                print(f'already   {rel}')
-                continue
-            if os.path.isfile(dst) and not os.path.isfile(dst + BACKUP) and not installed:
-                shutil.copyfile(dst, dst + BACKUP)      # the original only - never an earlier build of ours
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copyfile(src, dst)
-            open(dst + APPLIED, 'w').write(pipeline.sha(dst))
-            print(f'installed {rel}')
         else:
             if os.path.isfile(dst) and os.path.isfile(dst + APPLIED) and \
                     open(dst + APPLIED).read().strip() != pipeline.sha(dst):

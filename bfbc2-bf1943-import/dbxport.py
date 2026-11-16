@@ -256,6 +256,11 @@ class Templates:
         self.by_guid: dict[str, Candidate] = {}
         self.partitions: list[str] = []
         self.catalogue = catalogue
+        # template partitions that would not parse: left out of the ranking, and said in the first port's report
+        # (suite deep scan 2026-11-15, C10: they were skipped without a word, so a damaged one changed which template
+        # a port took)
+        self.skipped: list[str] = []
+        self.skipped_reported = False
         for s in sources:
             items: list[tuple[str, bytes | None]] = []
             if isinstance(s, tuple):
@@ -270,8 +275,12 @@ class Templates:
                 raise MissingTemplate(f'template source {s}: no such file or folder')
             for name, data in items:
                 try:
-                    f = dbx.parse(data if data is not None else open(name, 'rb').read())
-                except (ValueError, IndexError):
+                    if data is None:
+                        with open(name, 'rb') as fh:
+                            data = fh.read()
+                    f = dbx.parse(data)
+                except (ValueError, IndexError) as e:
+                    self.skipped.append(f'{name} ({type(e).__name__}: {e})')
                     continue
                 self.add(name, f)
 
@@ -1235,6 +1244,10 @@ def port(data: bytes, templates: Templates, resolve: Callable[[str], bool] | Non
                                           prune=prune, conventions=conventions, name=name))
     cat = P.cat
     report = P.report
+    if templates.skipped and not templates.skipped_reported:
+        templates.skipped_reported = True
+        report.append(f'templates: {len(templates.skipped)} partition(s) unreadable, left out of the template '
+                      f'ranking: ' + '; '.join(templates.skipped[:5]))
     part = f.partition
     drop_types = set(drop_types)
     if drop_untemplated and cat is None:

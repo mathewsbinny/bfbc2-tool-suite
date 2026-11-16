@@ -29,6 +29,31 @@ using System.Text;
 namespace Bfbc2Dbx
 {
     // Varints: 7 bits per byte, low group first, high bit = more bytes follow.
+    // Whole-file writes that never leave a half-written output (suite deep scan 2026-11-15, C9: an edit with the
+    // output the input, cut short or out of disk, left the only copy truncated): written beside the target, then
+    // moved over it.
+    static class AtomicFile
+    {
+        public static void WriteAllBytes(string path, byte[] data)
+        {
+            string tmp = path + ".tmp-" + System.Diagnostics.Process.GetCurrentProcess().Id;
+            try
+            {
+                using (var f = new FileStream(tmp, FileMode.Create, FileAccess.Write))
+                {
+                    f.Write(data, 0, data.Length);
+                    f.Flush(true);
+                }
+                if (File.Exists(path)) File.Replace(tmp, path, null);
+                else File.Move(tmp, path);
+            }
+            finally
+            {
+                if (File.Exists(tmp)) File.Delete(tmp);
+            }
+        }
+    }
+
     static class Varint
     {
         public static int Read(byte[] data, ref int pos)
@@ -223,6 +248,10 @@ namespace Bfbc2Dbx
         static void WriteElement(List<byte> output, Element e)
         {
             Varint.Write(output, e.Tag);
+            // the count shares its byte with the kind: 15 at most, as the Python writer refuses (deep scan S3: more
+            // ran into the kind nibble and wrote a corrupt element without a word)
+            if (e.Attributes.Count > 15)
+                throw new InvalidDataException("an element with " + e.Attributes.Count + " attributes (15 at most fit)");
             output.Add((byte)(e.Kind << 4 | e.Attributes.Count));
             foreach (var a in e.Attributes)
             {
@@ -1499,7 +1528,7 @@ namespace Bfbc2Dbx
                 var typeFiles = typePaths.SelectMany(DbxFiles).Select(p => new DbxFile(p)).Where(d => d.IsBinary).ToList();
                 XmlImport report;
                 var result = XmlImport.Import(xml, reference, typeFiles, out report);
-                File.WriteAllBytes(output, result.Serialize());
+                AtomicFile.WriteAllBytes(output, result.Serialize());
                 Console.WriteLine("import " + xml + " -> " + output + (like != null ? " (types from " + like + ")" : "") + ": "
                                   + report.Kept + " unchanged, " + report.Changed + " changed, " + report.Added + " new, "
                                   + report.Removed + " removed"
@@ -1549,7 +1578,7 @@ namespace Bfbc2Dbx
             Console.WriteLine("fixslots: " + r.Changed + " slot(s) changed; matched by guid " + r.ByGuid + ", by blueprint and position "
                               + r.ByPosition + ", nearest within 50 m " + r.ByNearest + ", no counterpart (slot 0) " + r.NoCounterpart);
             foreach (string u in r.Unmatched.Take(30)) Console.WriteLine("  no counterpart: " + u);
-            File.WriteAllBytes(args[2], f.Serialize());
+            AtomicFile.WriteAllBytes(args[2], f.Serialize());
             return 0;
         }
 
@@ -1669,7 +1698,7 @@ namespace Bfbc2Dbx
                 }
             }
             if (fieldsSet > 0) Console.WriteLine("setfield: " + fieldsSet + " field(s)");
-            File.WriteAllBytes(args[2], file.Serialize());
+            AtomicFile.WriteAllBytes(args[2], file.Serialize());
             return 0;
         }
     }

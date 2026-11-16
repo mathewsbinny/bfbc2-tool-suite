@@ -590,8 +590,12 @@ def level_meshes(folder: str) -> LevelMeshes:
         rel = os.path.relpath(path, folder).replace(os.sep, '/')[:-4]
         try:
             f = dbx.read(path)
-        except Exception:
-            continue
+        except dbx.DeletedEntry:
+            continue                    # a deleted bundle entry (older FbrbTool unpacks wrote them as empty files)
+        except (OSError, ValueError, IndexError) as e:
+            # a damaged or locked partition is an error, not a mesh left out of the merge's needs (suite deep scan
+            # 2026-11-15, C8: every failure was skipped, and the merged database then lacked the mesh's entries)
+            raise ShaderDbError(f'{path}: cannot read ({type(e).__name__}: {e})') from e
         insts = f.instances
         kind, name = (insts[0].attr('type') if insts else None), rel
         if kind in MESH_TYPES:
@@ -832,8 +836,8 @@ class Merger:
                 raise ShaderDbError(f'{where}: names a fragment the file has no name for')
             if lg not in self.lay_g and lg not in layouts:
                 raise ShaderDbError(f'{label}: a vertex layout it uses is not in the file ({where})')
-            _retexture(donor.params[a], renames, new_name, seen)
-            _retexture(donor.params[b], renames, new_name, seen)
+            retexture(donor.params[a], renames, new_name, seen)
+            retexture(donor.params[b], renames, new_name, seen)
         unused = [k.decode('latin-1') for k in renames if not seen.get(k)]
         if unused:
             raise ShaderDbError(f'{new_name}: {label}:{entry} uses no texture named {", ".join(unused)} '
@@ -846,8 +850,8 @@ class Merger:
             v, f, a, b = donor.program_refs(pi)
             nv = self._shader(donor, donor.vs[v], o.vs, self.vs_ix)
             nf = self._shader(donor, donor.ps[f], o.ps, self.ps_ix)
-            na = self._table(_retexture(donor.params[a], renames, new_name, hits), o.params, self.param_ix)
-            nb = self._table(_retexture(donor.params[b], renames, new_name, hits), o.params, self.param_ix)
+            na = self._table(retexture(donor.params[a], renames, new_name, hits), o.params, self.param_ix)
+            nb = self._table(retexture(donor.params[b], renames, new_name, hits), o.params, self.param_ix)
             new = pg + prog[16:0x20] + struct.pack(o.e + '4I', nv, nf, na, nb)
             nkey = new_guid + key[16:]
             self.prog_ix[pg] = ('new', len(self.new_programs))
@@ -904,7 +908,7 @@ class Merger:
 TEXTURE_FIELD = 0x80                    # a texture name's zero-padded field in a parameter block
 
 
-def _retexture(block: bytes, textures: dict[bytes, bytes], where: str, hits: dict[bytes, int] | None = None) -> bytes:
+def retexture(block: bytes, textures: dict[bytes, bytes], where: str, hits: dict[bytes, int] | None = None) -> bytes:
     """A parameter block with texture names replaced in place: each old name - a whole field's text, starting the
     field, NUL-terminated - becomes the new one, padded with zeros to the same span (the old name, its terminator
     and the zeros after it, within the field's 0x80 bytes). The renames are simultaneous: every field is matched
@@ -937,6 +941,9 @@ def _retexture(block: bytes, textures: dict[bytes, bytes], where: str, hits: dic
         for _i, _end, old in found:
             hits[old] = hits.get(old, 0) + 1
     return bytes(out)
+
+
+_retexture = retexture  # the earlier private name, kept for callers that still use it
 
 
 # ------------------------------------------------------------------------------------------------ parameter blocks

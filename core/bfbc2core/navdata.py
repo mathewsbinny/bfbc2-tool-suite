@@ -109,10 +109,37 @@ def _terrain_id(heightfield: Any) -> str:
     return fp
 
 
+_CODE_ID: str | None = None
+
+
+def _code_id() -> str:
+    """A digest of the code that makes the cached objects: this module and the navigation tools it builds them with
+    (navdiff, kymesh; found, not imported, so the digest is the same before and after they load) - a change to any of
+    them is a new key even when CACHE_VERSION was not raised (suite deep scan 2026-11-15, S2)."""
+    global _CODE_ID
+    if _CODE_ID is None:
+        import importlib.util
+        h = hashlib.sha1()
+        files: list[str | None] = [__file__]
+        for m in ('navdiff', 'kymesh'):
+            try:
+                spec = importlib.util.find_spec(m)
+            except (ImportError, ValueError):
+                spec = None
+            files.append(spec.origin if spec else None)
+        for f in files:
+            if f and os.path.isfile(f):
+                with open(f, 'rb') as fh:
+                    h.update(fh.read())
+        _CODE_ID = h.hexdigest()[:12]
+    return _CODE_ID
+
+
 def _key(path: str, heightfield: Any = None) -> str:
     st = os.stat(path)
     hf = _terrain_id(heightfield)
-    return hashlib.sha1(f'{CACHE_VERSION}|{os.path.abspath(path).lower()}|{st.st_size}|{st.st_mtime_ns}|{hf}'.encode()).hexdigest()[:20]
+    return hashlib.sha1(f'{CACHE_VERSION}|{_code_id()}|{os.path.abspath(path).lower()}|{st.st_size}|{st.st_mtime_ns}|{hf}'
+                        .encode()).hexdigest()[:20]
 
 
 def _ground(xz: np.ndarray, est: np.ndarray, heightfield: Any) -> np.ndarray:

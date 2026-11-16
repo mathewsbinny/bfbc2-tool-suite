@@ -32,19 +32,26 @@ class ReviewRegressions(unittest.TestCase):
                 'stockmp_new': ['pathdata.hpd', 'pathdata.hpd.opfor-stockmp-applied'],
                 'backup_only': ['pathdata.hpd.opfor-orig'],
             }
+            # stock-MP installed first, then NavKit: NavKit's .opfor-orig holds stock-MP's file, the older
+            # .opfor-stockmp-orig DICE's (suite deep scan 2026-11-15, C5)
+            fixtures['both'] = ['pathdata.hpd', 'pathdata.hpd.opfor-stockmp-orig', 'pathdata.hpd.opfor-stockmp-applied',
+                                'pathdata.hpd.opfor-orig']
             for folder, files in fixtures.items():
                 (ai / folder).mkdir(parents=True)
                 for name in files:
                     (ai / folder / name).touch()
+            import os
+            os.utime(ai / 'both' / 'pathdata.hpd.opfor-stockmp-orig', (1_000_000_000, 1_000_000_000))
             work = root / 'work'
             work.mkdir()
             (work / 'pathdata.hpd').touch()
             (work / 'pathdata.hpd.report.txt').touch()
             expected = [ai / 'stock' / 'PathData.HPD', ai / 'navkit' / 'pathdata.hpd.opfor-orig',
-                        ai / 'stockmp' / 'pathdata.hpd.opfor-stockmp-orig', ai / 'backup_only' / 'pathdata.hpd.opfor-orig']
+                        ai / 'stockmp' / 'pathdata.hpd.opfor-stockmp-orig', ai / 'backup_only' / 'pathdata.hpd.opfor-orig',
+                        ai / 'both' / 'pathdata.hpd.opfor-stockmp-orig']
             self.assertEqual(run_tests.dice_pathdata_files(tmp), sorted(map(str, expected)))
             all_files = run_tests.pathdata_files(tmp)
-            self.assertEqual(len(all_files), 9)
+            self.assertEqual(len(all_files), 12)
             self.assertIn(str(work / 'pathdata.hpd'), all_files)
             self.assertTrue(all(Path(f).name.lower() in run_tests.HPD_FILES for f in all_files))
 

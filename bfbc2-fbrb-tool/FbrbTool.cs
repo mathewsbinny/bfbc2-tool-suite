@@ -274,12 +274,25 @@ static class FbrbTool
             Array.Resize(ref part1, part1.Length + pad);
         }
         byte[] part2 = zipped ? Gzip(payload.ToArray()) : payload.ToArray();
-        using (var f = File.Create(fbrb))
+        // written beside the bundle, then moved over it: a pack cut short (or out of disk) never leaves a truncated
+        // bundle where the old one was (suite deep scan 2026-11-15, C9)
+        string tmp = fbrb + ".tmp-" + System.Diagnostics.Process.GetCurrentProcess().Id;
+        try
         {
-            f.Write(Encoding.ASCII.GetBytes("FbRB"), 0, 4);
-            WriteBE(f, (uint)part1.Length);
-            f.Write(part1, 0, part1.Length);
-            f.Write(part2, 0, part2.Length);
+            using (var f = new FileStream(tmp, FileMode.Create, FileAccess.Write))
+            {
+                f.Write(Encoding.ASCII.GetBytes("FbRB"), 0, 4);
+                WriteBE(f, (uint)part1.Length);
+                f.Write(part1, 0, part1.Length);
+                f.Write(part2, 0, part2.Length);
+                f.Flush(true);
+            }
+            if (File.Exists(fbrb)) File.Replace(tmp, fbrb, null);
+            else File.Move(tmp, fbrb);
+        }
+        finally
+        {
+            if (File.Exists(tmp)) File.Delete(tmp);
         }
         Console.WriteLine("packed " + entries.Count + " entries (" + payload.Length + " bytes) into " + fbrb);
         return 0;

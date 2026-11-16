@@ -1,15 +1,18 @@
 r"""meshview.py's game-copy index without the game (quick tier): the bundles it indexes (stock levels and async
 bundles, Package before Dist; Onslaught, OPFOR's and installed levels left out), the cache reused while every
 bundle is unchanged, rebuilt when a bundle changes, and a corrupt or foreign cache file rebuilt rather than a crash.
-Bundles here are stand-in files: unreadable bundles are skipped, so the index is empty but its cache is real.
+Bundles here are empty bundles made by the test, so the index is empty but its cache is real; an unreadable bundle
+is said and its index not cached (suite deep scan 2026-11-15, C3).
 
   python test_meshview_index.py
 """
 import contextlib
+import gzip
 import io
 import os
 import pickle
 import shutil
+import struct
 import sys
 import tempfile
 
@@ -23,7 +26,23 @@ suite_paths.use('mesh-viewer')
 import meshview  # noqa: E402
 
 
-def touch(path: str, data: bytes = b'not a bundle') -> None:
+def bundle(n: int = 0) -> bytes:
+    """A readable bundle with n one-byte text entries (FbrbTool's layout)."""
+    strings, table = bytearray(), bytearray()
+    for i in range(n):
+        off = len(strings)
+        strings += f'e{i}.txt'.encode('ascii') + b'\0'
+        table += struct.pack('>6I', off, 0, i, 1, 1, len(strings))
+        strings += b'Text\0'
+    header = struct.pack('>2I', 2, len(strings)) + strings + struct.pack('>I', n) + table + b'\x01' + struct.pack('>I', n)
+    part1 = gzip.compress(bytes(header))
+    return b'FbRB' + struct.pack('>I', len(part1)) + part1 + gzip.compress(b'x' * n)
+
+
+EMPTY = bundle()
+
+
+def touch(path: str, data: bytes = EMPTY) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as f:
         f.write(data)
@@ -60,12 +79,20 @@ def main(argv: list[str]) -> int:
         rebuilt: bool | str                         # or the error a cache read raised
         ix, rebuilt = build()
         check(rebuilt and os.path.isfile(cache) and ix.where == {} and ix.parts == {} and ix.entries == {},
-              'first run: the index is built (unreadable bundles skipped) and cached')
+              'first run: the index is built and cached')
         ix, rebuilt = build()
         check(not rebuilt, 'second run: the cache is used')
-        touch(os.path.join(g, 'Package', 'async', 'weapons.fbrb'), b'a changed bundle, of another size')
+        touch(os.path.join(g, 'Package', 'async', 'weapons.fbrb'), bundle(1))
         ix, rebuilt = build()
-        check(rebuilt, 'a changed bundle: the index is rebuilt')
+        check(rebuilt and 'e0.txt' in ix.where, 'a changed bundle: the index is rebuilt')
+        os.remove(cache)
+        touch(os.path.join(g, 'Package', 'async', 'weapons.fbrb'), b'not a bundle')
+        ix, rebuilt = build()
+        check(rebuilt and not os.path.isfile(cache), 'an unreadable bundle: the index is built without it, not cached')
+        ix, rebuilt = build()
+        check(rebuilt, 'an unreadable bundle: the next run indexes again')
+        touch(os.path.join(g, 'Package', 'async', 'weapons.fbrb'), bundle(1))
+        ix, rebuilt = build()
         with open(cache, 'wb') as f:
             pickle.dump(['a foreign', 'pickle'], f)
         try:

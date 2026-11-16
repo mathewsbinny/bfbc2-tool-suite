@@ -682,12 +682,11 @@ def hidden_at_start(opts: dict[str, Any]) -> set[str]:
 
 def save_json(opfor: str, name: str, data: Any) -> str:
     """An export into work\\navstudio; returns the path."""
-    import json
+    from bfbc2core import atomicio
     d = os.path.join(opfor, 'work', 'navstudio')
     os.makedirs(d, exist_ok=True)
     p = os.path.join(d, name)
-    with open(p, 'w') as fh:
-        json.dump(data, fh, indent=1, default=lambda o: o.tolist() if hasattr(o, 'tolist') else str(o))
+    atomicio.write_json(p, data, indent=1, default=lambda o: o.tolist() if hasattr(o, 'tolist') else str(o))
     return p
 
 

@@ -38,7 +38,7 @@ suite_paths.use('core', 'shader-tools', 'console-convert')
 import mesh as meshdata  # noqa: E402
 import shaderdb  # noqa: E402
 import texture  # noqa: E402
-from bfbc2core import dbx, fbrb  # noqa: E402
+from bfbc2core import atomicio, dbx, fbrb  # noqa: E402
 
 SIZE = dict(meshdata.SIZE)
 COLOUR = re.compile(r'(?i)_(d|dm|cm|c|col|color|colour|diff|diffuse|alb)$')
@@ -86,7 +86,8 @@ class Index:
         its own, so that it writes nothing into the project it checks)."""
         self.root = root
         bundles = _bundles(root)
-        sig = [(b, os.path.getsize(b), int(os.path.getmtime(b))) for _, b in bundles]
+        # the full modification time (deep scan S5: whole seconds missed a same-size rewrite within the second)
+        sig = [(b, os.stat(b).st_size, os.stat(b).st_mtime_ns) for _, b in bundles]
         path = cache or os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
         try:
             with open(path, 'rb') as fh:
@@ -98,41 +99,55 @@ class Index:
             pass
         print('indexing the game copy (once; cached) ...', file=sys.stderr)
         self.where, self.parts, self.entries = {}, {}, {}
+        skipped: list[str] = []
         for _lv, b in bundles:
             try:
                 ents = fbrb.entries(b)
-            except Exception:                                   # noqa: BLE001 - an unreadable bundle is skipped
+            except Exception as ex:                             # noqa: BLE001 - an unreadable bundle is skipped
+                skipped.append(f'{b} ({type(ex).__name__}: {ex})')
                 continue
             for e in ents:
                 if not e.deleted:
                     self.where.setdefault(e.name.lower(), (b, e.name))
-            if not any(e.type.lower() == 'dx9shaderdatabase' for e in ents):
-                continue
-            try:
-                db, _ = shaderdb.load(b, 9)
-            except Exception:                                   # noqa: BLE001 - a database it cannot read
-                continue
-            layouts = {r[:16]: r[16:] for r in db.layouts}
-            for n, g in db.parts:
-                if g in layouts:
-                    self.parts.setdefault(n.lower(), layouts[g])
-            groups = db.entry_programs()
-            for n, g in db.entries:
-                if n.lower() in self.entries:
+            # every Dx9 database of the bundle, each by its name (startup-00 holds two: the UI's and the menu
+            # background's - asked for the bundle alone, shaderdb.load refuses to pick, and that bundle was skipped)
+            for dbname in [e.name for e in ents if e.type.lower() == 'dx9shaderdatabase' and not e.deleted]:
+                try:
+                    db, _ = shaderdb.load(f'{b}:{dbname}', 9)
+                except Exception as ex:                         # noqa: BLE001 - a database it cannot read
+                    skipped.append(f'{b}:{dbname} ({type(ex).__name__}: {ex})')
                     continue
-                tex = []
-                for pi in groups.get(g, []):
-                    _, _, a, c = db.program_refs(pi)
-                    for blk in (db.params[a], db.params[c]):
-                        for s in re.findall(rb'[A-Za-z0-9_/\.\- ]{6,}', blk):
-                            s = s.decode()
-                            if '/' in s and s not in tex:
-                                tex.append(s)
-                self.entries[n.lower()] = tex
+                self._add_database(db)
+        if skipped:
+            # an incomplete index is not cached (suite deep scan 2026-11-15, C3: a bundle locked for a moment was
+            # left out of a cache every later run trusted until some bundle changed) - it is said and built again
+            print(f'index: {len(skipped)} unreadable, left out of this run\'s index and not cached:\n  '
+                  + '\n  '.join(skipped), file=sys.stderr)
+            return
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'wb') as fh:
-            pickle.dump({'version': CACHE_VERSION, 'sig': sig,
-                         'data': {'where': self.where, 'parts': self.parts, 'entries': self.entries}}, fh)
+        atomicio.write_bytes(path, pickle.dumps({'version': CACHE_VERSION, 'sig': sig,
+                                                 'data': {'where': self.where, 'parts': self.parts,
+                                                          'entries': self.entries}}))
+
+    def _add_database(self, db):
+        """A Dx9 database's facts, the first bundle's where names repeat."""
+        layouts = {r[:16]: r[16:] for r in db.layouts}
+        for n, g in db.parts:
+            if g in layouts:
+                self.parts.setdefault(n.lower(), layouts[g])
+        groups = db.entry_programs()
+        for n, g in db.entries:
+            if n.lower() in self.entries:
+                continue
+            tex = []
+            for pi in groups.get(g, []):
+                _, _, a, c = db.program_refs(pi)
+                for blk in (db.params[a], db.params[c]):
+                    for s in re.findall(rb'[A-Za-z0-9_/\.\- ]{6,}', blk):
+                        s = s.decode()
+                        if '/' in s and s not in tex:
+                            tex.append(s)
+            self.entries[n.lower()] = tex
 
     def read(self, name):
         hit = self.where.get(name.lower())
@@ -143,7 +158,7 @@ class Index:
 
 # ------------------------------------------------------------------------------------------------ reading a mesh
 
-def _surfaces(ix, name):
+def mesh_surfaces(ix, name):
     """{surface name (lower): shader asset path} from the mesh blueprint."""
     out = {}
     b = ix.read(name + '.dbx')
@@ -157,6 +172,9 @@ def _surfaces(ix, name):
             if e.startswith(pre):
                 out[e[len(pre):].rsplit('/', 1)[-1]] = e[len(pre):]
     return out
+
+
+_surfaces = mesh_surfaces  # the earlier private name, kept for callers that still use it
 
 
 def _texture(ix, mesh_name, shader):
@@ -197,7 +215,7 @@ def load_mesh(ix, name, lod=0):
     if b is None:
         raise ViewError(f'{data_name}: in no stock bundle (meshview.py find <text> lists mesh names)')
     m = meshdata.parse(b, False)
-    surfaces = _surfaces(ix, name)
+    surfaces = mesh_surfaces(ix, name)
     vbase = m['data']
     ibase = vbase + m['vertex_bytes']
     wide = m['wide_indices'] or False
@@ -252,7 +270,7 @@ def _long_axis(laid):
     return 0 if np.ptp(pts[:, 0]) >= np.ptp(pts[:, 2]) else 2
 
 
-def _layout(models):
+def stack_models(models):
     """The models one above the other (y), each centred on its own bounds: [(model name, parts, offset)]."""
     out, y = [], 0.0
     for name, parts in models:
@@ -263,6 +281,9 @@ def _layout(models):
         out.append((name, parts, off.astype(np.float32)))
         y -= (hi[1] - lo[1]) + max(0.02, 0.15 * float(np.max(hi - lo)))
     return out
+
+
+_layout = stack_models  # the earlier private name, kept for callers that still use it
 
 
 def render(laid, size=1200, view='side'):
@@ -451,7 +472,7 @@ def main(argv):
         for p in parts:
             print(f'{name.split("/")[-1]}: {p["name"]:45s} {len(p["indices"]):6d} tris  '
                   f'{(p["texture"] or "(no colour texture)").split("/")[-1]}')
-    laid = _layout(models)
+    laid = stack_models(models)
     out = opts.get('--out') or os.path.join(root, 'work', 'tools_out', 'meshview')
     os.makedirs(out, exist_ok=True)
     stem = '+'.join(n.split('/')[-1] for n, _ in models)[:120]
