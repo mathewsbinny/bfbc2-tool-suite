@@ -508,6 +508,28 @@ def main() -> int:
     check(raises(lambda: dbxport.port(bf, t, catalogue=fixed), dbxport.SchemaError),
           'GradientData: rows that differ are no case the converter knows - a schema error')
 
+    # ---------------------------------------------------------------- numbers -> struct items (a kit's WeaponSlots)
+    # BF1943's kit death pickup lists its slots as numbers (0/1/2/3); BFBC2's holds {WeaponSlot, AltWeaponSlot,
+    # LinkedToWeaponSlot} items, the other two -1 in all of DICE's (test_dbxport_fair: 4 kits refused before)
+    pick = 'GameSharedResources.DynamicWeaponPickupEntityData'
+    slot = lambda n: cx('', [num('WeaponSlot', [n], '>i'), num('AltWeaponSlot', [-1], '>i'),  # noqa: E731
+                             num('LinkedToWeaponSlot', [-1], '>i')])
+    bf = part(A + '1', [inst(A + '1', pick, [num('WeaponSlots', [0, 1, 2, 3], '>i', tag='array')])])
+    for label, t in (('the template\'s item', tmpl(inst(B + '1', pick, [arr('WeaponSlots', [slot(7), slot(8)])]))),
+                     ('the catalogue\'s item (the template\'s array empty)',
+                      tmpl(inst(B + '1', pick, [arr('WeaponSlots', [])]),
+                           catalogue=catalogue(protos={(pick, '.WeaponSlots[]'): slot(5)})))):
+        data, rep = dbxport.port(bf, t)
+        ws = field(parsed(data).instances[0], 'WeaponSlots')
+        slots = [[(c.attr('name'), dbx.numbers(c)[0], _int(c)) for c in it.children] for it in ws.children or ()]
+        want = [[('WeaponSlot', 4, n), ('AltWeaponSlot', 4, -1), ('LinkedToWeaponSlot', 4, -1)] for n in range(4)]
+        check(ws.kind == C and slots == want and rep.of('converted'),
+              f'WeaponSlots: BF1943\'s slot numbers -> BFBC2\'s items, Alt / Linked -1 ({label})', slots)
+    odd = tmpl(inst(B + '1', pick, [arr('WeaponSlots', [cx('', [num('WeaponSlot', [0], '>i'),
+                                                               num('Other', [0], '>i')])])]))
+    check(raises(lambda: dbxport.port(bf, odd), dbxport.SchemaError),
+          'WeaponSlots: an item with a field the map does not name is no conversion - a schema error')
+
     # ---------------------------------------------------------------- effectport: level copies, particle sounds
     import effectport
 
@@ -601,9 +623,22 @@ def main() -> int:
     ports = [i for i in af.instances if i.attr('type') == 'Audio.SoundNodePort']
     check(edges == [[6, 7], [6, 8]] and [_int(p.child('WireIndex')) for p in ports] == [6, 7, 8, -1, 4],
           'audio graph: source fan-out becomes PC directed buffers; control and unused ports unchanged', edges)
+    sizes = {(x.attr('name'), dbx.numbers(x)[0]) for c in graph.child('AudioConnections').children for x in c.children}
+    check(sizes == {('SourceId', 2), ('TargetId', 2)} and
+          {dbx.numbers(p.child('WireIndex'))[0] for p in ports} == {4},
+          'audio graph: rebuilt SourceId / TargetId are 2-byte numbers as DICE writes them (WireIndex stays 4-byte)',
+          sizes)
     before = dbx.write(af)
     check(dbxport.rebuild_audio_connections(af.instances) == [] and dbx.write(af) == before,
           'audio graph: valid native-style buffers are preserved byte-for-byte on another pass')
+    wide = parsed(before)
+    for c in wide.instances[0].child('AudioConnections').children:
+        for x in c.children:
+            x.raw = num('x', [_int(x)], '>i').raw              # the right ids, 4-byte (dbxport before 2026-11-16)
+    again = dbxport.rebuild_audio_connections(wide.instances)
+    check(again == [source_audio[0].attr('guid')] and dbx.write(wide) == before,
+          'audio graph: the migration rewrites right ids written 4-byte as DICE\'s 2-byte ones (nothing else changes)',
+          again)
     check(any(r.action == 'converted' and 'AudioConnections' in (r.note or '') for r in rep.records),
           'audio graph: schema conversion reports regenerated buffer routing')
 
@@ -620,7 +655,7 @@ def main() -> int:
 
 
 def _int(e: Any) -> int:
-    return struct.unpack('>i', dbx.numbers(e)[1][0])[0]
+    return int.from_bytes(dbx.numbers(e)[1][0], 'big', signed=True)          # any size (audio ids are 2-byte)
 
 
 if __name__ == '__main__':

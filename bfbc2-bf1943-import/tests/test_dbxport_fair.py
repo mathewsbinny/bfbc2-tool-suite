@@ -12,7 +12,8 @@ catalogue, BFBC2's soldier skeleton and DICE's conventions. Asserted:
   - no 'kind' or 'schema' differences from DICE's version: each instance both have holds DICE's fields, each leaf
     DICE's kind (text, reference, number size, bool);
   - primaryInstance names an instance of the partition; no empty array is written as a CONTAINER;
-  - BoneFakePhysicsData.BoneId equals DICE's (24 of 24: BFBC2's skeleton reordered the bones);
+  - BoneFakePhysicsData.BoneId equals DICE's (20 of 20: BFBC2's skeleton reordered the bones), but on the entries
+    DICE wired in or out (named in one partition, not the other: us/assault's four kit joints) - not compared;
   - the halo aimer: a reference into BF1943's objects/soldiers/common/beach/defaulthaloaimer keeps its guid, in the
     partition DICE moved it to;
   - recoil (FireLogic.Recoil, the 27 firings both games have) equals DICE's with DICE's version of the instance in the
@@ -98,6 +99,21 @@ def compare(o: dbx.Element, d: dbx.Element, path: str, note: Any) -> None:
             compare(c, d.child(n) or c, f'{path}.{n}', note)
 
 
+def local_refs(f: dbx.DbxFile) -> set[str]:
+    """The guids a partition's instances name inside it (references without a partition path)."""
+    out: set[str] = set()
+
+    def walk(e: dbx.Element) -> None:
+        r = e.attr('ref')
+        if r and '/' not in r:
+            out.add(r.lower())
+        for c in e.children or ():
+            walk(c)
+    for i in f.instances:
+        walk(i)
+    return out
+
+
 def empty_containers(e: dbx.Element) -> int:
     n = int(e.tag == 'array' and e.kind == dbx.CONTAINER and not e.children)
     return n + sum(empty_containers(c) for c in e.children or ())
@@ -155,7 +171,7 @@ def main(argv: list[str]) -> int:
             tcache[key] = dbxport.Templates.from_index(ix, key)
         return tcache[key]
 
-    bone_ok = bone_all = aim_ok = aim_all = rec_ok = rec_all = rec_fair = 0
+    bone_ok = bone_all = bone_authored = aim_ok = aim_all = rec_ok = rec_all = rec_fair = 0
     n_done = 0
     for k in both:
         name = k[:-4]
@@ -197,6 +213,7 @@ def main(argv: list[str]) -> int:
         if n:
             note('empty CONTAINER array', f'{k}: {n}')
         dice = {(i.attr('guid') or '').lower(): i for i in d.instances}
+        used_bf, used_d = local_refs(bf), local_refs(d)
         for i in f.instances:
             di = dice.get((i.attr('guid') or '').lower())
             if di is None or di.attr('type') != i.attr('type'):
@@ -204,6 +221,13 @@ def main(argv: list[str]) -> int:
             compare(i, di, f'{k.rsplit("/", 1)[-1]}:{(i.attr("type") or "").rsplit(".", 1)[-1]}',
                     lambda cls, w: note(cls, w))
             if (i.attr('type') or '').endswith('BoneFakePhysicsData'):
+                g = (i.attr('guid') or '').lower()
+                if (g in used_bf) != (g in used_d):
+                    # DICE wired the entry in (or out): an authoring change no conversion of BF1943's data makes.
+                    # BF1943's us/assault holds four kit-joint entries nothing names, BoneId 0; DICE's kit names
+                    # them and set their BoneIds, while the grenades' unnamed 0 entries DICE kept 0
+                    bone_authored += 1
+                    continue
                 bone_all += 1
                 bone_ok += dbx.value(i.child('BoneId') or i) == dbx.value(di.child('BoneId') or di)
         x = dbx.to_xml(src.data(k))
@@ -240,7 +264,8 @@ def main(argv: list[str]) -> int:
     check(not stats['schema'], f'no schema differences from DICE ({stats["schema"]})', 'schema')
     check(not stats['primaryInstance missing'], 'primaryInstance present', 'primaryInstance missing')
     check(not stats['empty CONTAINER array'], 'no empty CONTAINER arrays', 'empty CONTAINER array')
-    check(bone_ok == bone_all, f'BoneId as DICE\'s: {bone_ok} of {bone_all}')
+    check(bone_ok == bone_all, f'BoneId as DICE\'s: {bone_ok} of {bone_all} ({bone_authored} DICE wired in or out: '
+          'not compared)')
     check(aim_ok == aim_all, f'halo aimer guid kept, relocated: {aim_ok} of {aim_all}')
     check(rec_ok == rec_all, f'recoil as DICE\'s (counterpart in the pool): {rec_ok} of {rec_all} firings; '
           f'the fair donor\'s: {rec_fair} of {rec_all}')

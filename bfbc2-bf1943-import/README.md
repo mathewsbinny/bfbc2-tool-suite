@@ -259,6 +259,12 @@ In short:
     their gradient texture's rows read so, 0.08 read as planes); BF1943's level copies hold that row twice (4,096: the
     halves equal bit for bit in all 16, and equal to BF1943's own template emitter of the same instance guid, which
     has 2,048). The first row is written; rows that differ stay a schema error.
+  - `NUMBERS_TO_ITEMS`: an array of numbers where BFBC2 holds an array of structs (2026-11-16). A kit's death pickup
+    (`DynamicWeaponPickupEntityData.WeaponSlots`): BF1943 lists the slot numbers (0/1/2/3), BFBC2 holds one
+    `{WeaponSlot, AltWeaponSlot, LinkedToWeaponSlot}` per slot, the other two -1 in all 216 items of DICE's 24. The item
+    layout is the template's, another template's or the catalogue's; an item with a field the map does not name stays
+    a schema error. DICE's own conversions of the four kits list slots 0 to 8 (BFBC2's slot count); the port keeps
+    BF1943's slots.
 
   `schema='report'` keeps such a field as BF1943's and records it (`schema`) instead. An empty template array takes
   its item from another instance of the type. Not portable, and refused: the five 3p soldier anim trees (their aim
@@ -286,7 +292,10 @@ routing in `SoundTemplate.AudioConnections`. `port` rebuilds these edges from th
 source graph's `SoundNodeConnection.SourcePort` / `TargetPort` references; copying
 a donor's array can silence otherwise valid imported recordings. Control/event
 wires and unused audio ports retain their values. Valid native PC routing is
-preserved. `rebuild_audio_connections(dbx.parse(data).instances)` exposes the same
+preserved. The ids are 2-byte numbers, as DICE writes all of its `SourceId` /
+`TargetId` (`WireIndex` and `WireCount` stay 4-byte); graphs rebuilt before
+2026-11-16 hold them 4-byte, and the migration rewrites them.
+`rebuild_audio_connections(dbx.parse(data).instances)` exposes the same
 idempotent migration for previously converted DBX data; write the modified file
 with `dbx.write` only when the returned template-guid list is nonempty. Wave
 resources, sampler groups, and wave references are not changed.
