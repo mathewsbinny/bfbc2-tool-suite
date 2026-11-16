@@ -60,13 +60,26 @@ float4 constants[1];
 SamplerState sampler1 : register(s1);
 Texture2D texture_Texture : register(t1);
 Texture2D texture_Texture2 : register(t2);
+Texture2D texture_Texture3 : register(t0);
 float4 main(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target {
     float4 c = texture_Texture.Sample(sampler1, uv) * constants[0];
+#ifdef T0
+    c = texture_Texture3.Sample(sampler1, uv) * constants[0];
+#endif
 #ifdef SECOND
     c += texture_Texture2.Sample(sampler1, uv) * 0.001;
 #endif
 #ifdef DISCARD
     clip(-1);
+#endif
+#ifdef ALPHA
+    c.a = ALPHA;
+#endif
+#ifdef TEXALPHA
+    c.a = texture_Texture.Sample(sampler1, uv).a * uv.x;
+#endif
+#ifdef ATEST
+    if (!(c.a > 0.5)) discard;
 #endif
     return c;
 }
@@ -132,12 +145,13 @@ def build_db(variants: dict[str, dict[str, Any]], layout: bytes) -> S.ShaderDb:
     for i, (name, v) in enumerate(sorted(variants.items())):
         ps = P.compile_hlsl(PS, 'main', 'ps_5_0', v.get('defines'))
         db.ps.append(S.Shader(hashlib.md5(name.encode()).digest(), ps, 1, 0, 0))
-        db.params.append(block([(1, TEX)], [('Tint', 1, TINT)]))
+        db.params.append(block([(v.get('slot', 1), TEX)], [('Tint', 1, TINT)]))
         entry = f'{MESH}/Test/Shaders/{name}'
         g = db.name_guid(entry)
         db.entries.append((entry, g))
         prog = hashlib.md5(b'program' + name.encode()).digest()
-        db.programs.append(prog + bytes(16) + struct.pack('<4I', 0, i, 2, len(db.params) - 1))
+        db.programs.append(prog + struct.pack('<2I', *v.get('state', (0, 0))) + bytes(8)
+                           + struct.pack('<4I', 0, i, 2, len(db.params) - 1))
         db.keys.append(g + bytes(16) + (other if v.get('layout') else layout) + bytes(0x28))
         db.groups.append((g, [i]))
     order = sorted(range(len(db.programs)), key=lambda k: db.programs[k])
@@ -265,6 +279,121 @@ def _built(c: Checks, tmp: str) -> None:
     recs = R.run_render(plain, db, [MESH], s, 'built')
     c.check(len(recs) == 1 and os.path.isfile(os.path.join(out, 'sheet_01.png'))
             and os.path.isfile(os.path.join(out, 'results.json')), 'render run: results, summary and sheet written')
+    built_states(c, tmp, layout, files_for)
+
+
+def built_states(c: Checks, tmp: str, layout: bytes, files_for: Any) -> None:
+    """Draws with their programs' render states (shaderview's blendstate / depthstate / raster / stencil)."""
+    db = build_db({'Opaque': {'state': (0x180, 0x7F)}, 'Back': {'state': (0x180, 0x7F)},
+                   'Glass': {'state': (0x581, 0x7F), 'defines': {'ALPHA': 0.25}},
+                   'Unbaked': {'state': (0x190, 0x7F), 'defines': {'TEXALPHA': 1}},
+                   'Baked': {'state': (0x190, 0x7F), 'defines': {'TEXALPHA': 1, 'ATEST': 1}},
+                   'T0': {'state': (0x180, 0x7F), 'slot': 0, 'defines': {'T0': 1}}}, layout)
+    values, post = R.light(R.MP005_SUNNY)
+    want = np.array(COLOUR, np.float32) / 255 * np.array(TINT[:3], np.float32)
+    prep = R.prepare(files_for('Test/Shaders/Opaque'), db, MESH)
+    a = R.render(prep, values, post, 64, work=tmp)
+    c.check(a is not None and a.masks['front'].mean() > 0.2 and np.allclose(a.hdr['front'][32, 32], want, atol=0.01)
+            and int(a.classes['front'][32, 32]) == R.OPAQUE, 'state 0x180: the quad drawn front on (front faces '
+            'counter-clockwise, as the game culls), class opaque', str(a and a.masks['front'].mean()))
+    saved = R.VIEWS
+    try:
+        R.VIEWS = (('back', 180.0, 8.0),)  # type: ignore[assignment]
+        rb = R.render(prep, values, post, 64, work=tmp)
+        prep.draws[0].state = (0x1C0, 0x7F)
+        r2 = R.render(prep, values, post, 64, work=tmp)
+    finally:
+        R.VIEWS = saved
+    c.check(rb is not None and rb.masks['back'].mean() == 0 and r2 is not None and r2.masks['back'].mean() > 0.2,
+            'seen from behind: culled (0x180), drawn when two-sided (0x1c0)',
+            f'{rb and rb.masks["back"].mean()} {r2 and r2.masks["back"].mean()}')
+    pg = R.prepare(files_for('Test/Shaders/Glass'), db, MESH)
+    g = R.render(pg, values, post, 64, work=tmp)
+    c.check(g is not None and g.masks['front'].mean() > 0.2 and int(g.classes['front'][32, 32]) == R.BLENDED
+            and np.allclose(g.hdr['front'][32, 32], want, atol=0.01) and abs(float(g.alpha['front'][32, 32]) - 0.25)
+            < 0.01, 'state 0x581: blended over the clear (ONE, INV_SRC_ALPHA: colour kept, alpha 0.25), covered by '
+            'the stencil without writing depth', str(g and (g.hdr['front'][32, 32], g.alpha['front'][32, 32])))
+    go = R.render(pg, values, post, 64, work=tmp, opaque=True)
+    c.check(go is not None and not go.classes and go.masks['front'].mean() > 0.2, 'opaque=True: drawn the old way '
+            '(depth mask, no stencil)')
+    pu = R.prepare(files_for('Test/Shaders/Unbaked'), db, MESH)
+    pk = R.prepare(files_for('Test/Shaders/Baked'), db, MESH)
+    c.check('alpha-test-unbaked' in pu.flags and 'alpha-test-unbaked' not in pk.flags,
+            'state 0x190 with a pixel shader that cannot discard: alpha-test-unbaked (one that can: not)',
+            f'{pu.notes} / {pk.notes}')
+    rk = R.render(pk, values, post, 64, work=tmp)
+    c.check(rk is not None and int(rk.classes['front'][32, 10]) == 0 and int(rk.classes['front'][32, 54]) ==
+            R.TESTED, "the pixel shader's own alpha test cuts the quad where alpha <= 0.5 (class alpha-tested)",
+            str(rk and (rk.classes['front'][32, 10], rk.classes['front'][32, 54])))
+    p0 = R.prepare(files_for('Test/Shaders/T0'), db, MESH)
+    c.check(bool(p0.draws) and p0.draws[0].textures == [(0, TEX)], "a texture record on t0 is bound when the "
+            "shader's t0 is not the shadow map (translated dirt overlays read their mask there)",
+            str(p0.draws and p0.draws[0].textures))
+    r0 = R.render(p0, values, post, 64, work=tmp)
+    c.check(r0 is not None and np.allclose(r0.hdr['front'][32, 32], want, atol=0.01), 'the t0 texture drawn',
+            str(r0 and r0.hdr['front'][32, 32]))
+    cov = R.coverage_tiles(g) if g else []
+    c.check(len(cov) == 6 and np.allclose(cov[1][32, 32], np.array(R.CLASS_COLOURS[R.BLENDED]) * (0.35 + 0.65 * 0.25),
+                                          atol=0.01), 'coverage diagnostic: blended pixels blue, dimmed by alpha')
+    both = R.combine([R.prepare(files_for('Test/Shaders/Opaque'), db, MESH), pg])
+    c.check(len(both.draws) == 2 and both.draws[1].vertex_offset == len(both.vertices) // 2
+            and both.draws[1].first == 6 and len(both.indices) == 24, "combine: the second mesh's vertices and "
+            "indices follow the first's", f'{[d.vertex_offset for d in both.draws]} {[d.first for d in both.draws]}')
+    rc = R.render(both, values, post, 64, work=tmp)
+    c.check(rc is not None and int(rc.classes['front'][32, 32]) == R.BLENDED, 'combine: drawn together, the blended '
+            'quad over the opaque one (same depth: less-equal passes)')
+
+
+def render_states(c: Checks) -> None:
+    """The state words decoded as BFBC2Game.exe's Dx11 renderer applies them (FORMAT.md section 6, Render state)."""
+    st = R.render_state(0x180, 0x7F)
+    c.check(st is not None and not st.blend and st.depth_test and st.depth_write and st.cull() == R.CULL_BACK
+            and st.blend_desc() == (0, 0, 2, 1, 1, 2, 1, 1, 15) and st.depth_desc() == (1, 1, 4),
+            'state 0x180: opaque, depth tested (less-equal) and written, back faces culled', str(st))
+    st = R.render_state(0x190, 0x72)
+    c.check(st is not None and st.alpha_test and st.alpha_ref == 0x72 and not st.blend and st.depth_write,
+            'state 0x190 / 0x72: alpha test > 114/255, opaque otherwise (the prison fence)', str(st))
+    st = R.render_state(0x1D0, 0x4C)
+    c.check(st is not None and st.two_sided and st.cull() == R.CULL_NONE and st.alpha_test,
+            'state 0x1d0: two-sided alpha-tested leaves', str(st))
+    st = R.render_state(0x581, 0x7F)
+    c.check(st is not None and st.colour_mode == 1 and st.alpha_mode == 0 and not st.depth_write
+            and st.blend_desc() == (0, 1, 2, 6, 1, 2, 1, 1, 15), 'state 0x581: glass - premultiplied lerp '
+            '(ONE, INV_SRC_ALPHA), no depth write', str(st and st.blend_desc()))
+    st = R.render_state(0x4183, 0x7F)
+    c.check(st is not None and st.blend_desc()[1:5] == (1, 9, 1, 1) and not st.depth_write,
+            "state 0x4183: BF1943's dirt overlay - multiply (DEST_COLOR, ZERO)", str(st and st.blend_desc()))
+    st = R.render_state(0x981, 0x7F)
+    c.check(st is not None and st.blend_desc()[2:5] == (2, 2, 1), 'state 0x981: additive (ONE, ONE)', str(st))
+    st = R.render_state(0x20181, 0x7F)
+    c.check(st is not None and st.colour_mode == 0 and st.alpha_mode == 1 and st.blend
+            and st.blend_desc()[2:8] == (2, 1, 1, 2, 6, 1), 'state 0x20181: only alpha blends, colour overwrites',
+            str(st))
+    st = R.render_state(0x5C5, 0x7F)
+    c.check(st is not None and st.transparent and st.depth_write and st.two_sided, 'state 0x5c5: transparent but '
+            'depth written (0x4 forces it)', str(st))
+    st = R.render_state(0x204181, 0x7F)
+    c.check(st is not None and st.blend_desc()[5:8] == (7, 1, 1), 'alpha multiply: DEST_ALPHA, ZERO', str(st))
+    st = R.render_state(0x1F0, 0x99)
+    c.check(st is not None and st.alpha_to_coverage and st.alpha_test, 'state 0x1f0: alpha to coverage (hair)')
+    st = R.render_state(0x50, 0)
+    c.check(st is not None and not st.depth_test and not st.depth_write,
+            'state 0x50: no depth test (environment cube)')
+    c.check(R.render_state(0, 0) is None, 'no state recorded (0, 0): None, drawn as before')
+
+    def dr(state: tuple[int, int], centre: tuple[float, float, float]) -> R.Draw:
+        return R.Draw('p', 'e', 0, 'dice', b'', b'', [], 0, 0, 0, 0, 0, None, [], [], [], state=state,
+                      centre=np.array(centre))
+    saved = R.discards
+    try:
+        R.discards = lambda ps: False
+        draws = [dr((0x581, 0x7F), (0, 0, 1)), dr((0x180, 0x7F), (0, 0, 0)), dr((0x581, 0x7F), (0, 0, -5)),
+                 dr((0x190, 0x7F), (0, 0, 0))]
+        order = R.draw_order(draws, np.array([0.0, 0, 10]))
+        c.check(order == [1, 3, 2, 0], 'draw order: opaque, alpha-tested, blended back to front', str(order))
+        c.check(R.draw_order(draws, np.zeros(3), opaque=True) == [0, 1, 2, 3], "draw order --opaque: the mesh's")
+    finally:
+        R.discards = saved
 
 
 def checks(c: Checks) -> None:
@@ -670,6 +799,7 @@ def authored(c: Checks) -> None:
 def main(argv: list[str]) -> int:
     c = Checks()
     checks(c)
+    render_states(c)
     built(c)
     strips(c)
     patches(c)

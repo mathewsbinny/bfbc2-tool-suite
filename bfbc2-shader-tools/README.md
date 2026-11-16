@@ -144,7 +144,11 @@ level database (`work\xbox\dist\xenon\levels`), compares the Xbox and PC Dx9 dat
 `tests\test_renderqa.py` (quick): a Dx11 database, mesh and texture built by the test (shaders compiled with
 d3dcompiler_47) are drawn by shaderview. It checks the texel colour times the material constant, coverage, sample
 counts, every preparation flag, a pixel shader that discards everything, the picture checks, the comparison, texture
-header checks, sampler states, the light, the camera, constant placement and the command line. `--game` (game tier)
+header checks, sampler states, the light, the camera, constant placement and the command line; render states: the
+state words decoded (opaque, alpha-tested, two-sided, glass, multiply, additive, alpha-only blend, forced depth write,
+alpha to coverage, no depth test), the draw order, back faces culled and two-sided drawn, a blended quad (colour,
+alpha, stencil coverage), a pixel shader's own alpha test cutting a ramp, `alpha-test-unbaked`, a texture on t0, the
+coverage picture, `combine` and `--opaque`. `--game` (game tier)
 draws three stock meshes with their own level's database (no flag) and checks that drawing one twice gives the same
 picture.
 
@@ -226,6 +230,20 @@ python renderqa.py patches --db <db> [--stage <folder>]... [--only <text>]... [-
 copy. `--list <file>` reads mesh names from a file; `--find` treats the arguments as parts of names. Output goes to
 `-o`: `results.json`, `summary.txt`, `sheet_NN.png` (14 meshes a sheet, worst first) and one PNG per mesh.
 
+Each draw is made with its program's own render state (FORMAT.md section 6, "Render state"): blending, depth test and
+writes, back-face culling, alpha to coverage, as BFBC2's Dx11 renderer sets them; opaque draws first, then alpha-tested
+ones, then blended ones back to front (by each part's mean vertex position). `results.json` gives each part's state
+words and what they mean (`state`, `draw`).
+
+| Option | Does |
+|---|---|
+| `--opaque` | draws every part opaque, with no culling, in the mesh's order: the harness before render states were decoded |
+| `--coverage` | also writes `<mesh>.coverage.png` (compare: `<mesh>.dice.coverage.png` too): per view, which kind of draw was last to cover each pixel - grey opaque, green alpha-tested (its holes are where the pixel shader discarded), blue blended (brighter where more alpha was kept), near black nothing - over the render target's alpha per view (black 0, white 1) |
+| `--together` | render: the meshes named drawn into one picture, each at the origin (a building and the mesh laid over it) |
+
+Blended draws do not write depth, so a picture's coverage (the mask the checks use) comes from a stencil each draw
+writes where it keeps a sample, not from the depth buffer.
+
 ### Flags
 
 | Flag | Means |
@@ -236,6 +254,7 @@ copy. `--list <file>` reads mesh names from a file; `--find` treats the argument
 | `missing-texture`, `bad-texture`, `dimension` | a texture named by the entry is not in the files, cannot be uploaded as stored, or is 2D where the shader reads a cube (or the other way round) |
 | `nothing-drawn`, `black`, `magenta`, `flat`, `blown-out`, `nan` | the pictures: no pixel covered; mean luminance < 0.03; > 5 % magenta; luminance spread < 0.012 (one constant colour); mean luminance > 0.85 (chrome); NaN or infinite pixels (the game shows them white with bloom) |
 | `alpha-discards-all` | a part whose pixel shader keeps < 2 % of the samples its triangles cover. This is measured per draw with occlusion queries, with and without the pixel shader (an alpha test reading the wrong channel) |
+| `alpha-test-unbaked` | the program's state asks for an alpha test (0x10) but its pixel shader has no `discard`, and it does not blend. BFBC2's Dx10 / Dx11 renderers make no alpha test of their own (FORMAT.md section 6): the test has to be compiled into the shader, as DICE's are, or the part draws whole. A few DICE programs have it too (their alpha is constant) |
 
 In `compare`, flags DICE's own entry also has are not counted against the tested one.
 
@@ -258,7 +277,10 @@ Guessed or simplified:
 - the cube the engine binds as `outdoorLightReflectionEnvmap` is `Textures/Sky/Sky_Beach_Generic_RGBA16f` (`--envmap`);
 - bones are at rest. Composite vehicles get their parts' transforms from the mesh set; destructible composites
   (key kind 9, `boneMatrices[i].x > 0` shows part i) show every part;
-- world matrix identity (the mesh at the origin), no back-face culling, no blend states (every draw opaque), time 0;
+- world matrix identity (the mesh at the origin), time 0;
+- render states are those of a normal main-pass view: depth test and writes allowed, colour writes on, culling not
+  inverted (the renderer's global switches); blended parts are sorted per part, not per object; with `--opaque`, no
+  culling and no blending at all (as before);
 - vertex constants that no parameter block fills are 0. The engine sets some of them: tree fronds and wind read
   `constants[...]` in the vertex shader. The fir tree's and acacia's fronds discard every pixel here (the trunk
   draws) and show as `alpha-discards-all` on DICE's own entries. Shaders that sample a level-wide map at the world
@@ -275,6 +297,8 @@ composite part transforms and often takes a mask atlas for the colour map. An ea
 the weather's theta / phi drew the rock formation and the M1A2 wreck black: they were lit from below.
 
 `shaderview.exe` is built by `renderqa.py` into the suite's `build\` folder (gitignored) the first time it is needed. Texture resources are bound to both vertex and pixel shader stages.
+Its job commands for render states (`blendstate`, `depthstate`, `raster`, `stencil`, `class`; the old `blend 1` still
+works) are listed at the top of `native\shaderview.cpp`; jobs without them draw as before.
 It needs the Visual Studio C++ tools. It uses the GPU, and falls back to WARP (the software rasterizer) when the GPU
 device fails; `--warp` forces WARP. The harness runs at below-normal priority.
 

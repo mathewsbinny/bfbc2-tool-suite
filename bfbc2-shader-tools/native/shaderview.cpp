@@ -26,6 +26,16 @@
 //   draw
 // "blend 1" draws the next draws alpha blended (source alpha, inverse source alpha; depth tested, not written) until
 // "blend 0" (a frame starts opaque).
+// The game's own per-program render state (renderqa.render_state decodes a program's state word into these; each
+// holds for the next draws until the next frame, and replaces what "blend" chose):
+//   blendstate <alpha to coverage> <enable> <src> <dst> <op> <src alpha> <dst alpha> <op alpha> <write mask>
+//                                        (D3D11_BLEND / D3D11_BLEND_OP numbers, as BFBC2's Dx11 renderer fills them)
+//   depthstate <enable> <write> <func>   (D3D11_COMPARISON number)
+//   raster <cull> <front counter-clockwise>   (D3D11_CULL_MODE number: 1 none, 2 front, 3 back)
+// "stencil 1" in a frame (before its draws): every draw also writes "class <n>" (0-255, set before the draw; default
+// 1) into a stencil buffer where it covers a pixel and its pixel shader keeps the sample, and "end" writes
+// <out.raw>.stencil (one byte per pixel, 0 = nothing drawn) - the coverage of draws that do not write depth
+// (blended), and which kind of draw was last to cover each pixel.
 // "count 1" (until "count 0") also measures each draw, depth test off: the samples its pixel shader writes and the
 // samples its triangles cover (no pixel shader); printed as "count <draw> <shaded> <covered>" - a pixel shader that
 // discards everything (an alpha test reading the wrong channel) shows as shaded 0 of covered N.
@@ -169,6 +179,23 @@ static void dump(ID3D11Texture2D *src, const std::string &out, UINT W, UINT H, U
     ctx->Unmap(st, 0); st->Release();
 }
 
+// depth (32-bit float) and stencil (8 bits) of a D32_FLOAT_S8X24 buffer: <out>.depth and <out>.stencil
+static void dump_depth_stencil(ID3D11Texture2D *src, const std::string &out, UINT W, UINT H) {
+    D3D11_TEXTURE2D_DESC td; src->GetDesc(&td);
+    td.Usage = D3D11_USAGE_STAGING; td.BindFlags = 0; td.CPUAccessFlags = D3D11_CPU_ACCESS_READ; td.MiscFlags = 0;
+    ID3D11Texture2D *st; check(dev->CreateTexture2D(&td, nullptr, &st), "staging (depth stencil)");
+    ctx->CopyResource(st, src);
+    D3D11_MAPPED_SUBRESOURCE m; check(ctx->Map(st, 0, D3D11_MAP_READ, 0, &m), "Map (depth stencil)");
+    FILE *fd = fopen((out + ".depth").c_str(), "wb"), *fs = fopen((out + ".stencil").c_str(), "wb");
+    if (!fd || !fs) { fprintf(stderr, "cannot write %s.depth / .stencil\n", out.c_str()); exit(2); }
+    for (UINT y = 0; y < H; y++) {
+        const char *row = (const char *)m.pData + y * m.RowPitch;
+        for (UINT x = 0; x < W; x++) { fwrite(row + 8 * x, 4, 1, fd); fwrite(row + 8 * x + 4, 1, 1, fs); }
+    }
+    fclose(fd); fclose(fs);
+    ctx->Unmap(st, 0); st->Release();
+}
+
 static uint64_t occlusion(ID3D11Query *q) {
     UINT64 n = 0;
     HRESULT hr;
@@ -236,6 +263,31 @@ int main(int argc, char **argv) {
     ID3D11BlendState *noWrite; check(dev->CreateBlendState(&nodesc, &noWrite), "blend state (count)");
     D3D11_QUERY_DESC qd = {D3D11_QUERY_OCCLUSION, 0};
     bool blending = false, counting = false, wantDepth = false;
+    // the game's per-program states (blendstate / depthstate / raster), cached by their numbers; null: as "blend"
+    std::map<std::string, ID3D11BlendState *> blendCache;
+    std::map<std::string, ID3D11DepthStencilState *> depthCache;
+    std::map<std::string, ID3D11RasterizerState *> rasterCache;
+    ID3D11BlendState *gameBlend = nullptr; bool haveGameBlend = false;
+    UINT depthEnable = 1, depthWrite = 1, depthFunc = D3D11_COMPARISON_LESS; bool haveGameDepth = false;
+    ID3D11RasterizerState *gameRaster = nullptr;
+    bool stencilFrame = false; UINT drawClass = 1;
+    // a depth state: the game's numbers, or "blend"'s; with the coverage stencil in a stencil frame
+    auto depthState = [&](UINT en, UINT wr, UINT fn, bool st) {
+        std::ostringstream k; k << en << ' ' << wr << ' ' << fn << ' ' << st;
+        auto it = depthCache.find(k.str());
+        if (it != depthCache.end()) return it->second;
+        D3D11_DEPTH_STENCIL_DESC d = {};
+        d.DepthEnable = en; d.DepthWriteMask = wr ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
+        d.DepthFunc = (D3D11_COMPARISON_FUNC)fn;
+        if (st) {
+            d.StencilEnable = TRUE; d.StencilReadMask = 0xff; d.StencilWriteMask = 0xff;
+            d.FrontFace.StencilFailOp = d.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+            d.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE; d.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+            d.BackFace = d.FrontFace;
+        }
+        ID3D11DepthStencilState *p; check(dev->CreateDepthStencilState(&d, &p), "depth state (game)");
+        return depthCache[k.str()] = p;
+    };
 
     std::ifstream job(argv[1]);
     if (!job) { fprintf(stderr, "cannot read %s\n", argv[1]); return 2; }
@@ -243,6 +295,15 @@ int main(int argc, char **argv) {
     UINT W = 0, H = 0;
     ID3D11Texture2D *rt = nullptr, *depth = nullptr;
     ID3D11RenderTargetView *rtv = nullptr; ID3D11DepthStencilView *dsv = nullptr;
+    // the frame's depth buffer (with a stencil in a "stencil 1" frame), cleared when made
+    auto makeDepth = [&]() {
+        if (depth) return;
+        D3D11_TEXTURE2D_DESC td = {W, H, 1, 1, stencilFrame ? DXGI_FORMAT_D32_FLOAT_S8X24_UINT : DXGI_FORMAT_D32_FLOAT,
+                                   {1, 0}, D3D11_USAGE_DEFAULT, D3D11_BIND_DEPTH_STENCIL};
+        check(dev->CreateTexture2D(&td, nullptr, &depth), "depth");
+        check(dev->CreateDepthStencilView(depth, nullptr, &dsv), "dsv");
+        ctx->ClearDepthStencilView(dsv, D3D11_CLEAR_DEPTH | (stencilFrame ? D3D11_CLEAR_STENCIL : 0), 1.0f, 0);
+    };
     std::vector<char> vsc, psc, vbd, ibd;
     std::vector<D3D11_INPUT_ELEMENT_DESC> els;
     UINT vbOff = 0, stride = 0, ibOff = 0, ibBits = 16, count = 0, first = 0;
@@ -264,13 +325,41 @@ int main(int argc, char **argv) {
                                        D3D11_BIND_RENDER_TARGET};
             check(dev->CreateTexture2D(&td, nullptr, &rt), "render target");
             check(dev->CreateRenderTargetView(rt, nullptr, &rtv), "rtv");
-            td.Format = DXGI_FORMAT_D32_FLOAT; td.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-            check(dev->CreateTexture2D(&td, nullptr, &depth), "depth");
-            check(dev->CreateDepthStencilView(depth, nullptr, &dsv), "dsv");
             ctx->ClearRenderTargetView(rtv, c);
-            ctx->ClearDepthStencilView(dsv, D3D11_CLEAR_DEPTH, 1.0f, 0);
-            blending = false; wantDepth = false;
-        } else if (cmd == "blend") { int on = 0; s >> on; blending = on != 0; }
+            blending = false; wantDepth = false; stencilFrame = false; drawClass = 1;
+            gameBlend = nullptr; haveGameBlend = false; haveGameDepth = false; gameRaster = nullptr;
+            depth = nullptr; dsv = nullptr;              // made at the frame's first draw (or "stencil" / "end")
+        } else if (cmd == "stencil") { int on = 0; s >> on; stencilFrame = on != 0; }
+        else if (cmd == "class") { s >> drawClass; drawClass &= 0xff; }
+        else if (cmd == "blendstate") {
+            UINT v[9]; for (auto &x : v) s >> x;
+            if (!s) { fprintf(stderr, "blendstate: 9 numbers\n"); return 1; }
+            std::ostringstream k; for (auto x : v) k << x << ' ';
+            if (!blendCache.count(k.str())) {
+                D3D11_BLEND_DESC b = {};
+                b.AlphaToCoverageEnable = v[0]; auto &t = b.RenderTarget[0];
+                t.BlendEnable = v[1]; t.SrcBlend = (D3D11_BLEND)v[2]; t.DestBlend = (D3D11_BLEND)v[3];
+                t.BlendOp = (D3D11_BLEND_OP)v[4]; t.SrcBlendAlpha = (D3D11_BLEND)v[5]; t.DestBlendAlpha = (D3D11_BLEND)v[6];
+                t.BlendOpAlpha = (D3D11_BLEND_OP)v[7]; t.RenderTargetWriteMask = (UINT8)v[8];
+                check(dev->CreateBlendState(&b, &blendCache[k.str()]), "blend state (game)");
+            }
+            gameBlend = blendCache[k.str()]; haveGameBlend = true;
+        } else if (cmd == "depthstate") {
+            s >> depthEnable >> depthWrite >> depthFunc;
+            if (!s) { fprintf(stderr, "depthstate: 3 numbers\n"); return 1; }
+            haveGameDepth = true;
+        } else if (cmd == "raster") {
+            UINT cull = 1, ccw = 0; s >> cull >> ccw;
+            if (!s) { fprintf(stderr, "raster: 2 numbers\n"); return 1; }
+            std::ostringstream k; k << cull << ' ' << ccw;
+            if (!rasterCache.count(k.str())) {
+                D3D11_RASTERIZER_DESC r = {}; r.FillMode = D3D11_FILL_SOLID; r.CullMode = (D3D11_CULL_MODE)cull;
+                r.FrontCounterClockwise = ccw; r.DepthClipEnable = TRUE;
+                check(dev->CreateRasterizerState(&r, &rasterCache[k.str()]), "rasterizer (game)");
+            }
+            gameRaster = rasterCache[k.str()];
+        }
+        else if (cmd == "blend") { int on = 0; s >> on; blending = on != 0; }
         else if (cmd == "count") { int on = 0; s >> on; counting = on != 0; }
         else if (cmd == "depth") { int on = 0; s >> on; wantDepth = on != 0; }
         else if (cmd == "vs") {
@@ -302,6 +391,7 @@ int main(int argc, char **argv) {
             }
             (cmd == "vsamp" ? vsamps : samps)[slot] = sampCache[hex];
         } else if (cmd == "draw") {
+            makeDepth();
             ID3D11VertexShader *vs; ID3D11PixelShader *ps; ID3D11InputLayout *il;
             check(dev->CreateVertexShader(vsc.data(), vsc.size(), nullptr, &vs), "CreateVertexShader");
             check(dev->CreatePixelShader(psc.data(), psc.size(), nullptr, &ps), "CreatePixelShader");
@@ -312,7 +402,7 @@ int main(int argc, char **argv) {
             ID3D11Buffer *cp = cbp.empty() ? nullptr : buffer(cbp.data(), cbp.size(), D3D11_BIND_CONSTANT_BUFFER);
             ctx->OMSetRenderTargets(1, &rtv, dsv);
             D3D11_VIEWPORT vp = {0, 0, (float)W, (float)H, 0, 1};
-            ctx->RSSetViewports(1, &vp); ctx->RSSetState(rs);
+            ctx->RSSetViewports(1, &vp); ctx->RSSetState(gameRaster ? gameRaster : rs);
             ctx->IASetInputLayout(il);
             ctx->IASetVertexBuffers(0, 1, &vb, &stride, &vbOff);
             ctx->IASetIndexBuffer(ib, ibBits == 32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT, ibOff);
@@ -346,16 +436,24 @@ int main(int argc, char **argv) {
                        (unsigned long long)occlusion(q[1]));
                 q[0]->Release(); q[1]->Release();
             }
-            ctx->OMSetDepthStencilState(blending ? dsNoWrite : ds, 0);
-            ctx->OMSetBlendState(blending ? alphaBlend : nullptr, nullptr, 0xffffffff);
+            if (haveGameDepth || stencilFrame) {
+                UINT en = 1, wr = blending ? 0 : 1, fn = D3D11_COMPARISON_LESS;
+                if (haveGameDepth) { en = depthEnable; wr = depthWrite; fn = depthFunc; }
+                ctx->OMSetDepthStencilState(depthState(en, wr, fn, stencilFrame), drawClass);
+            } else
+                ctx->OMSetDepthStencilState(blending ? dsNoWrite : ds, 0);
+            if (haveGameBlend) ctx->OMSetBlendState(gameBlend, nullptr, 0xffffffff);
+            else ctx->OMSetBlendState(blending ? alphaBlend : nullptr, nullptr, 0xffffffff);
             ctx->DrawIndexed(count, first, 0);
             draws++;
             vs->Release(); ps->Release(); il->Release(); vb->Release(); ib->Release();
             if (cv) cv->Release();
             if (cp) cp->Release();
         } else if (cmd == "end") {
+            makeDepth();
             dump(rt, out, W, H, 16);
-            if (wantDepth) dump(depth, out + ".depth", W, H, 4);
+            if (stencilFrame) dump_depth_stencil(depth, out, W, H);
+            else if (wantDepth) dump(depth, out + ".depth", W, H, 4);
             rtv->Release(); rt->Release(); dsv->Release(); depth->Release();
             printf("%s: %d draws\n", out.c_str(), draws);
             fflush(stdout);

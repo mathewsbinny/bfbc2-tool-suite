@@ -156,7 +156,7 @@ register table }.
 | offset | |
 |---|---|
 | 0x00 | guid: program id. Programs are sorted by it (byte order) in every file; the loader inserts them into a sorted vector map (`FUN_009cc520`), so an id must not repeat (a repeat would be dropped) |
-| 0x10, 0x14 | u32, u32 (not interpreted) |
+| 0x10, 0x14 | u32, u32: the render state - the state word and the alpha-test reference ("Render state" below) |
 | 0x18 | u32: overwritten while loading with a checksum of the program's key (the stored value does not matter) |
 | 0x1c | u32 (0) |
 | 0x20 | u32 vertex shader (section 4 index) |
@@ -173,6 +173,47 @@ Then `u32 n` again (the same count) and n x 0x58-byte program keys, key i belong
 | 0x30 | 40 bytes: the permutation. Byte 0: the pass (0 main, 5 depth only); byte 3: the mesh kind (0 rigid, 1 bone-transformed - vehicles, weapons -, 4 skinned character, 9 destructible composite, whose `boneMatrices` hold one visibility register per part, not transforms); byte 4: 1 = instanced (stream 1 carries the instance's three world rows); byte 8 (and 14): a point light. The renderer looks a program up by the mesh part's layout and the permutation: an entry with no program for them draws with something else, silently |
 
 The keys are read into a temporary buffer, checksummed into the programs' +0x18 and freed.
+
+#### Render state (program +0x10, +0x14)
+
+Read from `BFBC2Game.exe` (capstone, short targeted disassembly) and checked on DICE's databases. The Dx11 renderer's
+draw setup (`0x9BC230`) builds its state objects from the program record: blend `0x98C6D0` (Dx10: `0x98C220`),
+depth-stencil `0x99FF00`, rasterizer `0x99FD80`. +0x14's low byte is the alpha-test reference.
+
+| bit(s) of +0x10 | meaning (Dx10 / Dx11) |
+|---|---|
+| 0x1 | transparent: no depth write (unless 0x4) |
+| 0x2 | set on decal / overlay layers (weapon and tank decals, `Dirt_t0N`, terrain quads, buckles); not read by the Dx10/11 state builders |
+| 0x4 | depth write even when transparent (water, glasses, eyelashes) |
+| 0x10 | alpha test: discard unless alpha > (+0x14 & 0xFF) / 255. **Not a render state on Dx10/11**: the Dx10 state device's alpha-test call (vtable `0x1449898` + 0x20) is an empty `ret 8`, and no Dx11 builder reads 0x10 or +0x14. DICE's compiler bakes the test into the pixel shader: of the stock levels' unblended main-pass Dx11 programs with 0x10 (67 levels), 75,718 have `lt r, l(ref), alpha` + `discard_nz` whose literal is exactly +0x14 / 255 rounded down (0x7f = 0.5, 0x4c = 0.3, 0x33 = 0.2), 432 discard in another form, 17,348 have no discard - their alpha output is the literal 1 (bark, backdrops) |
+| 0x20 | alpha to coverage (`AlphaToCoverageEnable`; hair, nets, antennas, fir branches) |
+| 0x40 | two-sided: `D3D11_CULL_NONE`; otherwise `CULL_BACK` (`CULL_FRONT` only when the renderer inverts culling, e.g. mirrored views). Every rasterizer state is `FrontCounterClockwise = TRUE` |
+| 0x80 | depth test, `D3D11_COMPARISON_LESS_EQUAL` (the only function); off only on environment-cube programs (0x50) |
+| 0x100 | depth write (`DepthWriteMask ALL`), when not transparent; the renderer's global depth-write switch must also be on |
+| 0x400 ... 0x10000 | colour blend mode: the lowest set bit gives 1 ... 7 (the exe's test chain) |
+| 0x20000 ... 0x800000 | alpha blend mode, the same way |
+
+`BlendEnable` = either mode non-zero. The modes are the shader graph's `BlendMode` (`BmNone`, `BmLerp`, `BmAdditive`,
+`BmSubtractive`, `BmRevSubtractive`, `BmMultiply`, `BmMin`, `BmMax`); the factor tables `0x1445C28` (colour) and
+`0x1445C98` (alpha; Dx10: `0x1445B48`, `0x1445BB8`) give (src, dst, op) as D3D11 numbers:
+
+| mode | colour | alpha |
+|---|---|---|
+| 0 none | ONE, ZERO, ADD | ONE, ZERO, ADD |
+| 1 lerp (0x400 / 0x20000) | ONE, INV_SRC_ALPHA, ADD (premultiplied) | same |
+| 2 additive (0x800 / 0x40000) | ONE, ONE, ADD | same |
+| 3 subtractive | ONE, ONE, SUBTRACT | same |
+| 4 reverse subtractive | ONE, ONE, REV_SUBTRACT | same |
+| 5 multiply (0x4000 / 0x200000) | DEST_COLOR, ZERO, ADD | DEST_ALPHA, ZERO, ADD |
+| 6 min, 7 max | ONE, ONE, MIN / MAX | same |
+
+Write mask: all four channels (the renderer's own switch). Examples from DICE's files: 0x180 opaque (the most common
+by far), 0x190 / 0x1d0 alpha-tested (fences, barbed wire, grass; leaves two-sided), 0x581 glass (lerp, transparent),
+0x583 decals (lerp), 0x981 light cones / mist (additive), 0x4181 / 0x41c3 scope crosshairs and tyre tracks
+(multiply), 0x20583 material-mask decals (colour and alpha lerp). 0x20181 (sp_005's `ChickenRun ... /Wire`, the
+binoculars' glass) blends only alpha: its colour overwrites. In the stock levels' databases (Dx10 and Dx11, 1,940,372
+programs) there are 57 different state words; Xbox databases use the same encoding (BF1943's dirt overlays 0x4183,
+waves 0x981). `renderqa.render_state` decodes them.
 
 ### Section 7: vertex layouts
 
@@ -257,8 +298,9 @@ the result draws with exactly what it drew with in its source file.
 
 ## 7. Not known
 
-- The meaning of program +0x10 / +0x14, most permutation bytes of a key and the 0x49 bytes of a
-  layout (all copied as they are).
+- Program +0x10's bit 0x2 (decal layers; the Dx10/11 state builders do not read it), most permutation bytes of a key
+  and the 0x49 bytes of a layout (all copied as they are). How the Dx9 renderer applies the state word (fixed-function
+  alpha test from 0x10 and +0x14 presumably) was not traced.
 - Whether the engine has limits other than the u16 program index (for example on the number of shaders), and what
   it does with an entry whose textures (named in its parameter blocks) are not in the level: neither was traced and
   no merged file has been loaded in the game.

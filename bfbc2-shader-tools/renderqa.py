@@ -38,6 +38,10 @@ A <db> is what shaderdb.py takes: a Dx11_Single.res / Dx10_Single.res file, leve
 before the game copy. Meshes are named as the game names them (Objects/Vehicles/Land/Humvee/Humvee_mesh; any case).
 
 Output: <folder>\results.json (every number), summary.txt, sheet_<n>.png (worst first) and one PNG per mesh.
+Draws are made with their programs' render states (blending, depth test / writes, culling, alpha to coverage; FORMAT.md
+section 6), opaque first, then alpha-tested, then blended back to front. --opaque: every draw opaque, no culling, in
+the mesh's order (as before); --coverage: also <mesh>.coverage.png (the kind of draw covering each pixel, and alpha);
+--together (render): the meshes named drawn into one picture.
 
 What is the game's and what is guessed (README.md, "renderqa"):
   - the game's: vertex and index data, the vertex layout and the program the engine picks for it (main pass, not
@@ -48,7 +52,8 @@ What is the game's and what is guessed (README.md, "renderqa"):
   - guessed / simplified: no shadows (the shadow map reads fully lit), no point lights, no fog, no bloom or flare;
     the reflection cube the engine binds itself (outdoorLightReflectionEnvmap) is Sky_Beach_Generic; bone matrices
     are the rest pose (composite vehicles: their parts' transforms; destructible composites: every part shown);
-    world matrix identity; no back-face culling; opaque draws (no blend states); time 0.
+    world matrix identity; time 0; a normal main-pass view's global switches (depth on, colour writes on, culling
+    not inverted).
 Needs numpy and Pillow, and shaderview.exe (native\build.bat; built into the suite's build\ folder on first use
 when the Visual Studio C++ tools are installed). Writes only into the output folder and the suite's build\ folder.
 """
@@ -121,7 +126,8 @@ FIXED: dict[str, Any] = {
 # flags and how much they weigh when sorting worst first
 WEIGHT = {'no-mesh': 10, 'nothing-drawn': 10, 'nan': 8, 'black': 8, 'magenta': 8, 'no-entry': 6, 'no-program': 6,
           'alpha-discards-all': 6, 'bound-empty': 5, 'missing-texture': 5, 'dimension': 5, 'blown-out': 5,
-          'layout-fallback': 4, 'flat': 4, 'bad-texture': 3, 'no-layout': 3, 'render-failed': 10}
+          'layout-fallback': 4, 'flat': 4, 'bad-texture': 3, 'no-layout': 3, 'render-failed': 10,
+          'alpha-test-unbaked': 2}
 
 
 class RenderQaError(Exception):
@@ -388,6 +394,136 @@ def texture_problem(pc: bytes) -> str:
     return ''
 
 
+# ------------------------------------------------------------------------------------------------ render state
+
+# A program record's two state words (FORMAT.md section 6, "Render state"): what BFBC2Game.exe's Dx10 / Dx11
+# renderers make of them (blend 0x98C220 / 0x98C6D0, depth 0x99FF00, rasterizer 0x99FD80; Dx11 called from
+# 0x9BC230). Blend modes in DICE's order (the shader graph's BlendMode: BmNone, BmLerp, BmAdditive, BmSubtractive,
+# BmRevSubtractive, BmMultiply, BmMin, BmMax); colour mode = the lowest set bit of 0x400..0x10000, alpha mode of
+# 0x20000..0x800000. The factor tables are the exe's (0x1445C28 colour, 0x1445C98 alpha): (src, dst, op) as
+# D3D11_BLEND / D3D11_BLEND_OP numbers.
+BLEND_MODES = ('none', 'lerp', 'additive', 'subtractive', 'revsubtractive', 'multiply', 'min', 'max')
+BLEND_COLOUR = ((2, 1, 1), (2, 6, 1), (2, 2, 1), (2, 2, 2), (2, 2, 3), (9, 1, 1), (2, 2, 4), (2, 2, 5))
+BLEND_ALPHA = ((2, 1, 1), (2, 6, 1), (2, 2, 1), (2, 2, 2), (2, 2, 3), (7, 1, 1), (2, 2, 4), (2, 2, 5))
+DEPTH_FUNC = 4                     # D3D11_COMPARISON_LESS_EQUAL: the Dx11 renderer's only depth function
+CULL_NONE, CULL_BACK = 1, 3        # D3D11_CULL_MODE; the renderer's rasterizer states are front counter-clockwise
+OPAQUE, TESTED, BLENDED = 1, 2, 3  # draw classes: drawn in this order (blended back to front), the coverage stencil
+
+
+def _mode(word: int, first: int) -> int:
+    """Index of the lowest set bit of the 7 bits from 'first' (1-7), 0 when none (the exe's test chain)."""
+    for k in range(7):
+        if word & (first << k):
+            return k + 1
+    return 0
+
+
+@dataclass(frozen=True)
+class RenderState:
+    """A program's state words decoded as the Dx11 renderer applies them (main pass, normal view: depth on, depth
+    writes allowed, colour writes on, culling not inverted)."""
+    word: int                     # program record +0x10
+    alpha_ref: int                # program record +0x14 (low byte): the alpha test's reference x 255, rounded down
+    colour_mode: int
+    alpha_mode: int
+    alpha_to_coverage: bool       # 0x20
+    depth_test: bool              # 0x80
+    depth_write: bool             # 0x100, off when transparent (0x1) unless forced (0x4)
+    two_sided: bool               # 0x40 (cull none; else cull back, front faces counter-clockwise)
+    alpha_test: bool              # 0x10: compiled into the pixel shader (discard unless alpha > ref / 255) on Dx10/11
+    transparent: bool             # 0x1
+
+    @property
+    def blend(self) -> bool:
+        return bool(self.colour_mode or self.alpha_mode)
+
+    def blend_desc(self) -> tuple[int, ...]:
+        """shaderview's 'blendstate' numbers: alpha to coverage, enable, src, dst, op, src alpha, dst alpha,
+        op alpha, write mask (as 0x98C6D0 fills D3D11_BLEND_DESC's first target)."""
+        c, a = BLEND_COLOUR[self.colour_mode], BLEND_ALPHA[self.alpha_mode]
+        return (int(self.alpha_to_coverage), int(self.blend), *c, *a, 0xF)
+
+    def depth_desc(self) -> tuple[int, int, int]:
+        return int(self.depth_test), int(self.depth_write), DEPTH_FUNC
+
+    def cull(self) -> int:
+        return CULL_NONE if self.two_sided else CULL_BACK
+
+    def describe(self) -> str:
+        parts = []
+        if self.blend:
+            parts.append(f'blend {BLEND_MODES[self.colour_mode]}'
+                         + (f'/{BLEND_MODES[self.alpha_mode]}' if self.alpha_mode != self.colour_mode else ''))
+        if self.alpha_test:
+            parts.append(f'alpha test > {self.alpha_ref}/255')
+        if self.alpha_to_coverage:
+            parts.append('alpha to coverage')
+        if self.transparent:
+            parts.append('transparent')
+        if not self.depth_write:
+            parts.append('no depth write')
+        if not self.depth_test:
+            parts.append('no depth test')
+        if self.two_sided:
+            parts.append('two-sided')
+        return ', '.join(parts) or 'opaque'
+
+
+def render_state(word: int, ref: int = 0x7F) -> RenderState | None:
+    """The render state of a program's state words; None for (0, 0) - no state recorded (DICE's programs always
+    have one: depth test 0x80 is set on all but the environment cube programs), drawn as before (opaque)."""
+    if word == 0 and ref == 0:
+        return None
+    transparent = bool(word & 1)
+    depth_write = bool(word & 4) or (not transparent and bool(word & 0x100))
+    return RenderState(word, ref & 0xFF, _mode(word, 0x400), _mode(word, 0x20000), bool(word & 0x20),
+                       bool(word & 0x80), depth_write, bool(word & 0x40), bool(word & 0x10), transparent)
+
+
+def program_state(db: S.ShaderDb, k: int) -> tuple[int, int]:
+    """A program record's state words (+0x10, +0x14) in the database's byte order."""
+    return struct.unpack_from(db.e + 'II', db.programs[k], 16)
+
+
+_DISCARDS: dict[bytes, bool] = {}
+
+
+_ALPHA_OUT: dict[bytes, bool] = {}
+
+
+def _disassembly(ps: bytes) -> str:
+    try:
+        return P.disassemble(ps)
+    except Exception:                                        # noqa: BLE001 - no compiler: go by the state alone
+        return ''
+
+
+def discards(ps: bytes) -> bool:
+    """Whether a compiled pixel shader can discard (its own alpha test / clip)."""
+    if ps not in _DISCARDS:
+        _DISCARDS[ps] = bool(re.search(r'^\s*discard', _disassembly(ps), re.M))
+    return _DISCARDS[ps]
+
+
+def varying_alpha(ps: bytes) -> bool:
+    """Whether the alpha a pixel shader writes to its first target can vary (its last write of o0.w is not a
+    literal; DICE's alpha-tested programs without a discard write a constant 1)."""
+    if ps not in _ALPHA_OUT:
+        writes = [ln.strip() for ln in _disassembly(ps).splitlines() if re.match(r'\s*\w+ o0\.\w*w', ln)]
+        _ALPHA_OUT[ps] = bool(writes) and not re.match(r'mov(_sat)? o0\.\w*, l\(', writes[-1])
+    return _ALPHA_OUT[ps]
+
+
+def draw_class(state: RenderState | None, ps: bytes) -> int:
+    """OPAQUE, TESTED (alpha test, alpha to coverage or a pixel shader that discards) or BLENDED (blends or is
+    transparent: drawn after the rest, back to front, without depth writes unless forced)."""
+    if state is not None and (state.blend or state.transparent):
+        return BLENDED
+    if (state is not None and (state.alpha_test or state.alpha_to_coverage)) or discards(ps):
+        return TESTED
+    return OPAQUE
+
+
 # ------------------------------------------------------------------------------------------------ preparing draws
 
 @dataclass
@@ -409,6 +545,16 @@ class Draw:
     textures: list[tuple[int, str]]                   # (t slot, texture name) bound
     samplers: list[tuple[int, bytes]]
     flags: list[str] = field(default_factory=list)
+    state: tuple[int, int] = (0, 0)                   # the program's state words (+0x10, +0x14)
+    centre: np.ndarray | None = None                  # the part's mean vertex position (blended draws' order)
+
+    @property
+    def render_state(self) -> RenderState | None:
+        return render_state(*self.state)
+
+    @property
+    def draw_class(self) -> int:
+        return draw_class(self.render_state, self.ps)
 
 
 @dataclass
@@ -542,13 +688,18 @@ def prepare(files: Files, db: S.ShaderDb, mesh: str, envmap: str = ENVMAP) -> Pr
         d = Draw(pn, entry, k, origin(vs_s, ps_s), vs_s.code, ps_s.code,
                  [e for e in vs_elements(vs_s.tail) if e[2] == 0], p['vertex_offset'], p['stride'],
                  p['triangles'] * 3, p['first_index'], db.keys[k][0x33], part_bones(ms, p),
-                 S.block_constants(db.params[b2]), [], [])
+                 S.block_constants(db.params[b2]), [], [], state=program_state(db, k))
+        if pos is not None:
+            fin = pos[np.isfinite(pos).all(1)]
+            d.centre = fin.mean(0) if len(fin) else None
         d.samplers = sampler_states(db.params[ps_s.param])
         records = {s: (c, n) for s, c, n in P.block_texture_list(db.params[b2])}
         engine = {s for _, s in S.block_engine_textures(db.params[b2])}
         for name, typ, bp, dim in resources(ps_s.code):
-            if typ != 2 or bp == 0:
-                continue
+            if typ != 2 or (bp == 0 and 'shadowmap' in name.lower()):
+                continue                                   # t0 is the shadow map only when the shader says so: a
+                #                                            translated dirt overlay reads its mask there (shaderview
+                #                                            binds its 1x1 lit shadow map unless a texture is given)
             if name == 'texture_outdoorLightReflectionEnvmap' and bp not in records:
                 tn = envmap
             elif bp in records:
@@ -579,6 +730,13 @@ def prepare(files: Files, db: S.ShaderDb, mesh: str, envmap: str = ENVMAP) -> Pr
                       f'{tn} is {"a cube" if cube else "2D"}')
                 continue
             d.textures.append((bp, tn))
+        st = d.render_state
+        if st is not None and st.alpha_test and not st.blend and not discards(d.ps) and varying_alpha(d.ps):
+            # BFBC2's Dx10 / Dx11 renderers do no alpha test of their own (the Dx10 state device's alpha-test call
+            # is an empty 'ret 8'): the test must be compiled into the pixel shader, as DICE's are
+            d.flags.append('alpha-test-unbaked')
+            _flag(flags, notes, 'alpha-test-unbaked', f'{pn}: state {st.word:#x} asks for an alpha test '
+                  f'(> {st.alpha_ref}/255) its pixel shader cannot make (no discard)')
         out.draws.append(d)
     if pts:
         allp = np.concatenate(pts)
@@ -587,6 +745,39 @@ def prepare(files: Files, db: S.ShaderDb, mesh: str, envmap: str = ENVMAP) -> Pr
             out.lo, out.hi = allp.min(0), allp.max(0)
     if not out.draws and not flags:
         _flag(flags, notes, 'no-entry', 'no part to draw')
+    return out
+
+
+TOGETHER = ' + '                  # joins the names of meshes drawn together (render --together)
+
+
+def combine(preps: Sequence[Prepared]) -> Prepared:
+    """Several prepared meshes as one, drawn into the same pictures (render --together): a building with the
+    material-mask mesh DICE lays over it, each mesh at the origin as the game places them together. Vertex data
+    follows each other (draw offsets moved), indices widened to 32 bits when any mesh has them."""
+    if len(preps) == 1:
+        return preps[0]
+    wide = any(p.wide for p in preps)
+    out = Prepared(TOGETHER.join(p.mesh for p in preps), [], [], [], wide=wide)
+    verts, idx = bytearray(), bytearray()
+    for p in preps:
+        out.flags += [f for f in p.flags if f not in out.flags]
+        out.notes += [f'{_short(p.mesh)}: {n}' for n in p.notes]
+        n_idx = len(idx) // (4 if wide else 2)
+        for d in p.draws:
+            out.draws.append(Draw(**{**d.__dict__, 'vertex_offset': d.vertex_offset + len(verts),
+                                     'first': d.first + n_idx, 'flags': list(d.flags)}))
+        verts += p.vertices
+        ib = p.indices
+        if wide and not p.wide:
+            ib = np.frombuffer(ib[:len(ib) // 2 * 2], '<u2').astype('<u4').tobytes()
+        idx += ib
+        out.textures.update(p.textures)
+        if p.lo is not None and p.hi is not None:
+            out.lo = p.lo if out.lo is None else np.minimum(out.lo, p.lo)
+            out.hi = p.hi if out.hi is None else np.maximum(out.hi, p.hi)
+    out.vertices, out.indices = bytes(verts), bytes(idx)
+    out.shader_set = TOGETHER.join(p.shader_set for p in preps)
     return out
 
 
@@ -698,12 +889,19 @@ class Rendered:
     counts: list[tuple[str, int, int]]               # per draw (part, shaded samples, covered samples)
     exposure: float
     warp: bool
+    classes: dict[str, np.ndarray] = field(default_factory=dict)   # per view: the class of the last draw to cover
+    #                                                                 each pixel (0 none, OPAQUE, TESTED, BLENDED)
+    alpha: dict[str, np.ndarray] = field(default_factory=dict)     # per view: the render target's alpha
+    opaque: bool = False                             # drawn the old way (every draw opaque, no culling)
 
 
 def render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: int = 256,
            bounds: tuple[np.ndarray, np.ndarray] | None = None, work: str | None = None,
-           warp: bool = False) -> Rendered | None:
-    """Draw a prepared mesh in every view (shaderview); None when it has nothing to draw."""
+           warp: bool = False, opaque: bool = False) -> Rendered | None:
+    """Draw a prepared mesh in every view (shaderview); None when it has nothing to draw. Each draw with its
+    program's render state (blending, depth test and writes, culling), opaque draws first, then alpha-tested ones,
+    then blended ones back to front, as BFBC2's Dx11 renderer draws them. opaque=True: every draw opaque in the
+    mesh's order with no culling (the harness before render states were decoded)."""
     if not prep.draws:
         return None
     lo, hi = bounds or (prep.lo, prep.hi)
@@ -713,13 +911,37 @@ def render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: i
         os.makedirs(work, exist_ok=True)
     tmp = tempfile.mkdtemp(prefix='renderqa_', dir=work)
     try:
-        return _render(prep, values, post, size, lo, hi, tmp, warp)
+        return _render(prep, values, post, size, lo, hi, tmp, warp, opaque)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def draw_order(draws: Sequence[Draw], eye: np.ndarray, opaque: bool = False) -> list[int]:
+    """The order the draws are made in: the mesh's own order when opaque; else opaque draws, alpha-tested draws,
+    then blended ones farthest first (by their part's mean vertex position; the mesh's order among equals)."""
+    if opaque:
+        return list(range(len(draws)))
+
+    def key(i: int) -> tuple[int, float, int]:
+        d = draws[i]
+        cls = d.draw_class
+        far = float(np.linalg.norm(d.centre - eye)) if cls == BLENDED and d.centre is not None else 0.0
+        return cls, -far, i
+    return sorted(range(len(draws)), key=key)
+
+
+def state_lines(d: Draw) -> list[str]:
+    """shaderview commands for a draw's own render state ('class': its kind, for the coverage stencil)."""
+    st = d.render_state
+    lines = [f'class {d.draw_class}']
+    if st is None:                                   # no state recorded: opaque, no culling, as before
+        return lines + ['blendstate 0 0 2 1 1 2 1 1 15', 'depthstate 1 1 2', 'raster 1 0']
+    return lines + ['blendstate ' + ' '.join(map(str, st.blend_desc())),
+                    'depthstate ' + ' '.join(map(str, st.depth_desc())), f'raster {st.cull()} 1']
+
+
 def _render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: int, lo: np.ndarray,
-            hi: np.ndarray, tmp: str, warp: bool) -> Rendered:
+            hi: np.ndarray, tmp: str, warp: bool, opaque: bool = False) -> Rendered:
     vb, ib = os.path.join(tmp, 'm.vb'), os.path.join(tmp, 'm.ib')
     open(vb, 'wb').write(prep.vertices)
     open(ib, 'wb').write(prep.indices)
@@ -733,6 +955,7 @@ def _render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: 
         open(os.path.join(tmp, f'v{k}.dxbc'), 'wb').write(d.vs)
         open(os.path.join(tmp, f'p{k}.dxbc'), 'wb').write(d.ps)
     outs = {}
+    first_order: list[int] = []
     for vi, (view, az, el) in enumerate(VIEWS):
         eye, vmat, vp = camera(lo, hi, az, el)
         base = dict(values, viewProjMatrix=vp, worldViewProjMatrix=vp, worldMatrix=np.eye(4), viewMatrix=vmat,
@@ -740,7 +963,13 @@ def _render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: 
         out = os.path.join(tmp, f'{view}.raw')
         outs[view] = out
         lines += [f'frame {job_path(out)} {size} {size} 0 0 0 0', 'depth 1', f'count {1 if vi == 0 else 0}']
-        for k, d in enumerate(prep.draws):
+        if not opaque:
+            lines.append('stencil 1')
+        order = draw_order(prep.draws, eye, opaque)
+        if vi == 0:
+            first_order = order
+        for k in order:
+            d = prep.draws[k]
             vals = dict(base, **bone_values(d))
             cv, cp = os.path.join(tmp, f'cv{k}_{vi}.bin'), os.path.join(tmp, f'cp{k}_{vi}.bin')
             open(cv, 'wb').write(cbuffer(d.vs, vals, d.material))
@@ -751,6 +980,8 @@ def _render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: 
                       f'ib {job_path(ib)} 0 {32 if prep.wide else 16} {d.indices} {d.first}', f'cb vs {job_path(cv)}', f'cb ps {job_path(cp)}']
             lines += [f'samp {reg} {desc.hex()}' for reg, desc in d.samplers if reg < 16]
             lines += [f'texres {slot} {job_path(texfiles[tn])}' for slot, tn in d.textures if tn in texfiles]
+            if not opaque:
+                lines += state_lines(d)
             lines.append('draw')
         lines.append('end')
     job = os.path.join(tmp, 'job.txt')
@@ -760,20 +991,51 @@ def _render(prep: Prepared, values: dict[str, Any], post: dict[str, Any], size: 
     for line in output:
         if line.startswith('count '):
             _, n, shaded, covered = line.split()
-            counts.append((prep.draws[int(n)].part, int(shaded), int(covered)))
-    views, masks, hdrs = {}, {}, {}
+            counts.append((prep.draws[first_order[int(n)]].part, int(shaded), int(covered)))
+    views, masks, hdrs, classes, alphas = {}, {}, {}, {}, {}
     exposure = 1.0
     for view, _, _ in VIEWS:
         raw = np.fromfile(outs[view], '<f4').reshape(size, size, 4)
         depth = np.fromfile(outs[view] + '.depth', '<f4').reshape(size, size)
-        mask = depth < 1.0
+        if opaque:
+            mask = depth < 1.0
+        else:
+            classes[view] = np.fromfile(outs[view] + '.stencil', np.uint8).reshape(size, size)
+            mask = classes[view] > 0                 # blended draws cover pixels without writing depth
+        alphas[view] = raw[..., 3].astype(np.float32)
         hdr = raw[..., :3].astype(np.float32)
         bad = ~np.isfinite(hdr).all(-1)
         hdr = np.where(bad[..., None], 100.0, np.nan_to_num(hdr))     # NaN / inf: the game shows these white
         ldr, exposure = tonemap(hdr, mask & ~bad, post)
         ldr = np.where(mask[..., None], ldr, np.array(BACKGROUND, np.float32))
         views[view], masks[view], hdrs[view] = ldr, mask, np.where(bad[..., None], np.nan, hdr)
-    return Rendered(prep.mesh, views, masks, hdrs, counts, exposure, used_warp)
+    return Rendered(prep.mesh, views, masks, hdrs, counts, exposure, used_warp, classes, alphas, opaque)
+
+
+CLASS_COLOURS = {0: (0.08, 0.08, 0.1), OPAQUE: (0.55, 0.55, 0.55), TESTED: (0.2, 0.8, 0.25),
+                 BLENDED: (0.25, 0.45, 1.0)}
+
+
+def coverage_tiles(r: Rendered) -> list[np.ndarray]:
+    """The alpha / coverage diagnostic, six tiles: per view, the kind of draw last to cover each pixel (grey opaque,
+    green alpha-tested - its holes are where the pixel shader discarded -, blue blended, brighter where the render
+    target kept more alpha; near black nothing), then per view the render target's alpha (black 0, white 1)."""
+    out = []
+    for view, _, _ in VIEWS:
+        cls = r.classes.get(view)
+        if cls is None:
+            cls = r.masks[view].astype(np.uint8)
+        img = np.zeros(cls.shape + (3,), np.float32)
+        for k, c in CLASS_COLOURS.items():
+            img[cls == k] = c
+        a = np.clip(np.nan_to_num(r.alpha.get(view, np.ones(cls.shape, np.float32))), 0, 1)
+        blended = cls == BLENDED
+        img[blended] *= (0.35 + 0.65 * a[blended])[:, None]
+        out.append(img)
+    for view, _, _ in VIEWS:
+        a = np.clip(np.nan_to_num(r.alpha.get(view, np.zeros(r.masks[view].shape, np.float32))), 0, 1)
+        out.append(np.repeat(a[..., None], 3, -1))
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ checks
@@ -979,6 +1241,9 @@ class Settings:
     weather: str = WEATHER
     log: Callable[[str], None] = print
     sun: str = 'noon'
+    opaque: bool = False          # every draw opaque, no culling (the harness before render states were decoded)
+    coverage: bool = False        # also write <mesh>.coverage.png (coverage_tiles: draw kinds and alpha per view)
+    together: bool = False        # render: the meshes named drawn into one picture (combine)
 
 
 def _light(files: Files, s: Settings) -> tuple[dict[str, Any], dict[str, Any], str]:
@@ -993,17 +1258,18 @@ def _light(files: Files, s: Settings) -> tuple[dict[str, Any], dict[str, Any], s
 
 def render_one(files: Files, db: S.ShaderDb, mesh: str, s: Settings, values: dict[str, Any], post: dict[str, Any],
                bounds: tuple[np.ndarray, np.ndarray] | None = None) -> tuple[Prepared, Rendered | None, dict[str, Any]]:
-    prep = prepare(files, db, mesh, s.envmap)
+    prep = combine([prepare(files, db, m, s.envmap) for m in mesh.split(TOGETHER)])
     rec: dict[str, Any] = {'mesh': mesh, 'flags': list(prep.flags), 'notes': list(prep.notes),
                            'shader_set': prep.shader_set,
                            'parts': [{'part': d.part, 'entry': d.entry, 'program': d.program, 'origin': d.origin,
                                       'kind': d.kind, 'textures': [f't{a} {b}' for a, b in d.textures],
-                                      'flags': d.flags} for d in prep.draws]}
+                                      'flags': d.flags, 'state': f'{d.state[0]:#x}/{d.state[1]:#x}',
+                                      'draw': _state_text(d)} for d in prep.draws]}
     rec['origin'] = 'translated' if any(d.origin == 'translated' for d in prep.draws) else \
         ('dice' if prep.draws else '')
     r = None
     try:
-        r = render(prep, values, post, s.size, bounds, s.out, s.warp)
+        r = render(prep, values, post, s.size, bounds, s.out, s.warp, s.opaque)
     except RenderQaError as e:
         _flag(rec['flags'], rec['notes'], 'render-failed', str(e))
     if r is not None:
@@ -1017,6 +1283,21 @@ def render_one(files: Files, db: S.ShaderDb, mesh: str, s: Settings, values: dic
     elif prep.draws and 'render-failed' not in rec['flags']:
         _flag(rec['flags'], rec['notes'], 'nothing-drawn', 'no bounds')
     return prep, r, rec
+
+
+def _state_text(d: Draw) -> str:
+    st = d.render_state
+    return (st.describe() if st is not None else 'no state recorded (opaque)') + \
+        f'; drawn {("", "opaque", "alpha-tested", "blended")[d.draw_class]}'
+
+
+def save_coverage(s: Settings, mesh: str, r: Rendered | None, suffix: str = '') -> None:
+    """<mesh><suffix>.coverage.png when asked for (--coverage): coverage_tiles, views across, kinds over alpha."""
+    if s.coverage and r is not None:
+        t = coverage_tiles(r)
+        n = len(VIEWS)
+        _tile(np.concatenate([np.concatenate(t[:n], 1), np.concatenate(t[n:], 1)], 0)).save(
+            os.path.join(s.out, _safe(mesh) + suffix + '.coverage.png'))
 
 
 def _blank(size: int) -> np.ndarray:
@@ -1062,9 +1343,15 @@ def _write(s: Settings, kind: str, records: list[dict[str, Any]], rows: list[tup
     s.log(f'{len(records)} meshes -> {os.path.join(s.out, "summary.txt")}, {len(sheets)} sheets')
 
 
+def _draws_meta(s: Settings) -> str:
+    return 'all opaque, no culling (--opaque)' if s.opaque else 'with their programs\' render states'
+
+
 def run_render(files: Files, db: S.ShaderDb, meshes: Sequence[str], s: Settings, label: str) -> list[dict[str, Any]]:
     values, post, wl = _light(files, s)
     records, rows = [], []
+    if s.together:
+        meshes = [TOGETHER.join(meshes)]
     for i, m in enumerate(meshes):
         s.log(f'[{i + 1}/{len(meshes)}] {m}')
         _, r, rec = render_one(files, db, m, s, values, post)
@@ -1072,9 +1359,11 @@ def run_render(files: Files, db: S.ShaderDb, meshes: Sequence[str], s: Settings,
         tiles = [r.views[v] for v, _, _ in VIEWS] if r else [_blank(s.size)] * 3
         if r:
             _tile(np.concatenate(tiles, 1)).save(os.path.join(s.out, _safe(m) + '.png'))
+        save_coverage(s, m, r)
         records.append(rec)
         rows.append((rec['severity'], f'{_short(m)}  [{rec["origin"]}]\n{" ".join(rec["flags"]) or "ok"}', tiles))
-    _write(s, 'render', records, rows, [v for v, _, _ in VIEWS], {'database': label, 'weather': wl})
+    _write(s, 'render', records, rows, [v for v, _, _ in VIEWS], {'database': label, 'weather': wl,
+                                                                  'draws': _draws_meta(s)})
     return records
 
 
@@ -1104,6 +1393,8 @@ def run_compare(files: Files, db: S.ShaderDb, meshes: Sequence[str], s: Settings
         tprep, tr, trec = render_one(stock, dbs.get(spec), m, s, values, post)
         bounds = (tprep.lo, tprep.hi) if tprep.lo is not None and tprep.hi is not None else None
         _, r, rec = render_one(files, db, m, s, values, post, bounds)
+        save_coverage(s, m, tr, '.dice')
+        save_coverage(s, m, r)
         rec['truth'] = {'database': spec, 'flags': trec['flags'], 'notes': trec['notes'], 'image': trec.get('image'),
                         'shader_set': trec['shader_set']}
         rec['staged_mesh'] = files.staged(m.lower() + '_lod0_data.res')
@@ -1123,7 +1414,7 @@ def run_compare(files: Files, db: S.ShaderDb, meshes: Sequence[str], s: Settings
         rows.append((rec['severity'], f'{_short(m)}  [{rec["origin"]}{", staged mesh" if rec["staged_mesh"] else ""}] '
                      f'vs {spec}  {stat}\n{" ".join(own) or "ok"}', [ts[0], ws[0], ds[0], ts[1], ws[1], ds[1]]))
     _write(s, 'compare', records, rows, ['DICE 3/4', 'tested 3/4', 'diff 3/4', 'DICE front', 'tested front',
-                                         'diff front'], {'database': label, 'weather': wl})
+                                         'diff front'], {'database': label, 'weather': wl, 'draws': _draws_meta(s)})
     return records
 
 
@@ -1911,6 +2202,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     help="key light direction: a fixed high sun (default) or the weather state's theta / phi")
     ap.add_argument('--envmap', default=ENVMAP, help='the cube the engine binds as outdoorLightReflectionEnvmap')
     ap.add_argument('--warp', action='store_true', help='the software rasterizer instead of the GPU')
+    ap.add_argument('--opaque', action='store_true',
+                    help='draw every part opaque with no culling, in the mesh\'s order (as before render states)')
+    ap.add_argument('--together', action='store_true',
+                    help='render: draw the meshes named into one picture (a building and its material-mask mesh)')
+    ap.add_argument('--coverage', action='store_true',
+                    help='render / compare / wake: also write <mesh>.coverage.png - per view the kind of draw last to '
+                         'cover each pixel (opaque, alpha-tested, blended) and the render target\'s alpha')
     ap.add_argument('--opfor', help='Project OPFOR BFBC2 folder (the game copy)')
     ap.add_argument('-o', '--out', help='output folder')
     a = ap.parse_args(argv)
@@ -1924,7 +2222,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     files = Files(root, a.stage)
     out = a.out or os.path.join(tempfile.gettempdir(), 'renderqa', a.command)
     os.makedirs(out, exist_ok=True)
-    s = Settings(out, a.size, a.warp, a.envmap, a.weather, sun=a.sun)
+    s = Settings(out, a.size, a.warp, a.envmap, a.weather, sun=a.sun, opaque=a.opaque, coverage=a.coverage,
+                 together=a.together)
     meshes = list(a.meshes)
     if a.list:
         meshes += [x.strip() for x in open(a.list, encoding='utf-8') if x.strip() and not x.startswith('#')]
