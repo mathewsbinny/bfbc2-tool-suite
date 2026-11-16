@@ -65,6 +65,30 @@ read from disk, parsed, written as XML and hashed against DbxEdit's fingerprints
   An arena or a borrowed tree (strings and values pointing into the file's bytes) would cut the allocations; a
   candidate for E1, measured first.
 
+## The level loader on `parse_many` (2026-11-16, branch `rust-e0b`)
+
+`core/bfbc2core/level.py` read its partitions one `dbx.read` at a time. It now reads them in batches through
+`dbx.parse_many` (`level.read_many`): the level partition with its static-group files, then every blueprint partition
+the placed objects name, then the partitions their objects live in. The results are identical, checked entity by
+entity (guid, type, category, transform, blueprint, blueprint type, destructible, team, AI, the whole element tree),
+mesh by mesh, shape by shape, terrain and notes, against main's loader on SP_01, MP_005, MP_009GR and ONS_MP_004, with
+and without geometry and with either backend; the snapshot test passes in both.
+
+`level.load`, median of three alternating runs per loader, files in the system cache (PC busy with other work: ±20 %):
+
+| | before | after |
+|---|---:|---:|
+| MP_005, `geometry=False` (116 partitions), Rust core | 0.27 s | **0.20 s** |
+| SP_01, `geometry=False` (170 partitions), Rust core | 1.02 s | **0.79 s** |
+| MP_005, `geometry=False`, Python reader | 0.32 s | 0.31 s |
+| SP_01, `geometry=False`, Python reader | 1.24 s | 1.14 s |
+| MP_005, whole load (collision, terrain, water), Rust core | 12.1 s | 11.5 s |
+| SP_01, whole load, Rust core | 12.6 s | 12.2 s |
+
+A level load reads only its own partitions and the blueprints it places (a few hundred files), so DBX is a small
+part of it: the whole load is collision meshes, the height field and water (Python and NumPy). The batch helps the
+DBX part by about a quarter with the Rust core; the rest of the load is where E1's Rust scene will save time.
+
 ## Not ported yet
 
 - The DBX **writer** is in Rust (`dbx::write`, tested by round trips) but Python's `dbx.write` still writes the

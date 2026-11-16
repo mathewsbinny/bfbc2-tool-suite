@@ -16,7 +16,7 @@ import glob
 import os
 import re
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
@@ -184,7 +184,14 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
     LV = os.path.splitext(os.path.basename(part))[0]
     lvl = Level(LV, lv, root)
     log(f'{LV}: reading {os.path.relpath(part, root)}')
-    f = dbx.read(part)
+    # static model groups: one entity per member placement. Each group file once: the Package copy wins over
+    # Dist, as in the game (and levels\ / Levels\ are the same folder on Windows)
+    group_files: dict[str, str] = {}
+    for b in (bases[:2] if geometry else ()):
+        for gf in glob.glob(os.path.join(b, 'levels', lv, '*_HavokAsset.dbx')):
+            group_files.setdefault(os.path.basename(gf).lower(), gf)
+    # the partition and the group files in one batch (all cores with the Rust core); errors raise as dbx.read's would
+    f, *groups = _strict(read_many([part, *group_files.values()]))
     pname = 'levels/' + LV
     for el in f.instances:
         t = el.attr('type') or ''
@@ -193,14 +200,7 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
                                     if el.child('Name') is not None and cast(dbx.Element, el.child('Name')).kind == dbx.TEXT
                                     else None),
                                    pname, transform_of(el), blueprint_of(el), el))
-    # static model groups: one entity per member placement. Each group file once: the Package copy wins over
-    # Dist, as in the game (and levels\ / Levels\ are the same folder on Windows)
-    group_files: dict[str, str] = {}
-    for b in (bases[:2] if geometry else ()):
-        for gf in glob.glob(os.path.join(b, 'levels', lv, '*_HavokAsset.dbx')):
-            group_files.setdefault(os.path.basename(gf).lower(), gf)
-    for gf in group_files.values():
-            g = dbx.read(gf)
+    for gf, g in zip(group_files.values(), groups):
             for el in g.instances:
                 tr, assets = el.child('Transforms'), el.child('Assets')
                 if tr is None or assets is None or tr.kind != dbx.NUMBERS or not assets.children:
@@ -262,20 +262,81 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
     return lvl
 
 
+def read_many(files: Sequence[str]) -> list[dbx.DbxFile | Exception]:
+    """dbx.read of each file, in order, through dbx.parse_many: on all cores with the Rust core, and with the cycle
+    collector paused while the trees are built (a level keeps thousands of them: rust/BENCHMARKS.md). A file that
+    cannot be read or parsed gives its exception (OSError, ValueError, dbx.DeletedEntry) in its place."""
+    out: list[dbx.DbxFile | Exception | None] = [None] * len(files)
+    todo: list[int] = []
+    data: list[bytes] = []
+    for i, p in enumerate(files):
+        try:
+            with open(p, 'rb') as fh:
+                data.append(fh.read())
+            todo.append(i)
+        except OSError as e:
+            out[i] = e
+    for i, r in zip(todo, dbx.parse_many(data)):
+        out[i] = r
+    return cast('list[dbx.DbxFile | Exception]', out)
+
+
+def _strict(results: list[dbx.DbxFile | Exception]) -> list[dbx.DbxFile]:
+    """read_many's results, the first error raised (as reading the files one by one with dbx.read would)."""
+    for r in results:
+        if isinstance(r, Exception):
+            raise r
+    return cast('list[dbx.DbxFile]', results)
+
+
 def resolve_blueprints(lvl: Level, bases: list[str]) -> None:
     """Placed objects: the blueprint's object type and whether it is destructible; categories from them."""
     files: dict[str, dict[str, dbx.Element]] = {}
 
+    def locate(path: str) -> str | None:
+        """The blueprint partition's file: the first base that has it (Package over Dist over the shared data)."""
+        for b in bases:
+            p = os.path.join(b, path + '.dbx')
+            if os.path.isfile(p):
+                return p
+        return None
+
+    def preload(wanted: Iterable[str]) -> None:
+        """The partitions not read yet, in one read_many batch; one that cannot be read has no instances."""
+        todo: list[tuple[str, str]] = []
+        for path in dict.fromkeys(wanted):
+            if path in files:
+                continue
+            files[path] = {}
+            p = locate(path)
+            if p is not None:
+                todo.append((path, p))
+        for (path, _), r in zip(todo, read_many([p for _, p in todo])):
+            if not isinstance(r, Exception):
+                with contextlib.suppress(Exception):
+                    files[path] = {(i.attr('guid') or '').lower(): i for i in r.instances}
+
     def instances(path: str) -> dict[str, dbx.Element]:
         if path not in files:
-            files[path] = {}
-            for b in bases:
-                p = os.path.join(b, path + '.dbx')
-                if os.path.isfile(p):
-                    with contextlib.suppress(Exception):
-                        files[path] = {(i.attr('guid') or '').lower(): i for i in dbx.read(p).instances}
-                    break
+            preload([path])
         return files[path]
+
+    def ref_of(el: dbx.Element | None, name: str) -> str | None:
+        c = el.child(name) if el is not None else None
+        return c.attr('ref') if c is not None else None
+
+    # every blueprint partition the placed objects name, then every partition their blueprints' objects live in:
+    # two read_many batches instead of one read per partition (the loop below finds them all read)
+    refs = [x for e in lvl.entities if e.short_type == 'ReferenceObjectData'
+            for x in (ref_of(e.element, 'ReferencedObject'),) if x and '/' in x]
+    preload(x.rsplit('/', 1)[0] for x in refs)
+    second = []
+    for x in refs:
+        path, guid = x.rsplit('/', 1)
+        oref = ref_of(files[path].get(guid.lower()), 'Object')
+        if oref and oref != 'null' and '/' in oref:
+            second.append(oref.rsplit('/', 1)[0])
+    preload(second)
 
     def broken_up(insts: dict[str, dbx.Element]) -> bool:
         """Health states or breakable part links anywhere in the blueprint (destructible buildings)."""
