@@ -28,3 +28,11 @@ pub mod dbx;
 pub fn threads() -> usize {
     rayon::current_num_threads()
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn at_least_one_thread() {
+        assert!(super::threads() >= 1);
+    }
+}

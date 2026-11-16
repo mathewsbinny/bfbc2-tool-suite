@@ -1,4 +1,5 @@
-"""Checks the core's Python DBX reader against DbxEdit: the XML must be identical, file for file.
+"""Checks the core's Python DBX reader (always, even when the Rust core is built) against DbxEdit: the XML must be
+identical, file for file.
 
   python core\\tests\\test_dbx.py <folder or list.txt> [...]
 
@@ -19,6 +20,8 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core')
 from bfbc2core import dbx  # noqa: E402
+
+dbx.use_native(False)   # this test proves the Python reader, the reference (the Rust one: test_dbx_native.py, test_rust.py)
 
 
 def files(roots):

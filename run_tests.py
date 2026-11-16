@@ -2,10 +2,12 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
 
   python run_tests.py [quick | game | full] [--only <name>] [--list]
 
-  quick   no game data, about a minute: repository rules, DbxEdit unit tests, and on files built by the
+  quick   no game data, about a minute: the Rust core (built when stale, its cargo checks, its DBX reader against
+          the Python one; skipped without Rust), repository rules, DbxEdit unit tests, and on files built by the
           tests: FbrbTool, LevelDiff, the crash reader and exeref, the console readers, the menu tools, the test
           harness (needs Windows for the C# tools)
-  game    + Project OPFOR BFBC2's game copy, about 10 minutes: FbrbTool on 12 game bundles, water on every level,
+  game    + Project OPFOR BFBC2's game copy, about 13 minutes: the Rust DBX reader against the Python reader and
+          DbxEdit on every unpacked .dbx, FbrbTool on 12 game bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
           round trips, LevelDiff on MP_005, the crash reader's code view and exeref on BFBC2Game.exe, the menu
           tools on the game's movies and OPFOR's menu patches, the console
@@ -83,6 +85,10 @@ def pathdata_files(root):
 def tests():
     """(name, tier, argv). Game paths are only looked up for the tiers that need them."""
     t = [
+        ('Rust core build (when stale; skipped without Rust)', 'quick', [PY, os.path.join(SUITE, 'rust', 'build_native.py'), '--if-stale']),
+        ('Rust core: cargo fmt, clippy, tests (skipped without Rust)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_rust.py')]),
+        ('Rust DBX reader against the Python reader (built, damaged, 200 corpus files)', 'quick',
+         [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_native.py')]),
         ('review regressions: HPD selection, launcher completion, mypy failures', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_review_regressions.py')]),
         ('BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches', 'quick',
@@ -162,6 +168,9 @@ def tests():
         ('emitter atlases merged, emitters re-pointed (synthetic)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_emitteratlas.py')]),
         ('texture QA: decoding, Xbox untiling, flips / swizzles / degenerate, baseline (synthetic)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_texqa.py')]),
+        ('Rust DBX reader against the Python reader, every corpus file', 'game',
+         [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_native.py'), '--game']),
+        ('Rust DBX reader against DbxEdit, every fingerprinted file (cargo)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_rust.py'), '--corpus']),
         ('path locators: the same answers as a reference checkout (main)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_locators.py')]),
         ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),

@@ -1,10 +1,18 @@
 //! Times the Rust DBX reader on folders of `.dbx` files, the files read into memory first (rust/BENCHMARKS.md):
 //!
-//!   cargo run --release -p bc2-formats --example dbx_bench -- [--distinct] <folder> [<folder> ...]
+//! ```text
+//! cargo run --release -p bc2-formats --example dbx_bench -- [--distinct] <folder> [<folder> ...]
+//! ```
 //!
-//! Prints the best of three runs for parse and to_xml, on one thread and on every core. `--distinct` keeps one
+//! Prints the best of three runs for `parse` and `to_xml`, on one thread and on every core. `--distinct` keeps one
 //! copy of files with the same bytes (the corpus has each shared partition once per level).
-#![allow(clippy::print_stdout, clippy::unwrap_used, clippy::expect_used, missing_docs)]
+#![allow(
+    clippy::print_stdout,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::cast_precision_loss,
+    missing_docs
+)]
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -49,7 +57,12 @@ fn main() {
         .filter(|d| !distinct || seen.insert(d.clone()))
         .collect();
     let bytes: usize = data.iter().map(Vec::len).sum();
-    println!("{} files, {:.1} MB, {} threads", data.len(), bytes as f64 / 1e6, bc2_formats::threads());
+    println!(
+        "{} files, {:.1} MB, {} threads",
+        data.len(),
+        bytes as f64 / 1e6,
+        bc2_formats::threads()
+    );
     let one = rayon::ThreadPoolBuilder::new().num_threads(1).build().expect("a pool");
     let count_ok = |r: &[dbx::Result<dbx::DbxFile>]| r.iter().filter(|x| x.is_ok()).count();
     let (t, n) = best(|| one.install(|| count_ok(&dbx::parse_all(&data))));

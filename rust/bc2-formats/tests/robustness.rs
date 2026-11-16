@@ -1,6 +1,12 @@
 //! Property tests: any bytes give a tree or an error, never a panic; any tree survives a write and read back; the
 //! XML agrees with the tree's values.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, missing_docs)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::many_single_char_names,
+    missing_docs
+)]
 
 use bc2_formats::dbx::{self, Body, CONTAINER, DbxFile, Element, NUMBERS, TEXT};
 use proptest::prelude::*;

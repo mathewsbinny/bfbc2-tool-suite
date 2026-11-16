@@ -20,7 +20,10 @@ pub const WHOLE_NUMBER_FIELDS: [&str; 7] = [
 /// The digits and decimal exponent of Rust's scientific formatting (`"1.25e-5"` -> `(b"125", -5)`).
 fn sci_digits(s: &str) -> (Vec<u8>, i32) {
     let (mantissa, exp) = s.split_once('e').unwrap_or((s, "0"));
-    (mantissa.bytes().filter(u8::is_ascii_digit).collect(), exp.parse().unwrap_or(0))
+    (
+        mantissa.bytes().filter(u8::is_ascii_digit).collect(),
+        exp.parse().unwrap_or(0),
+    )
 }
 
 /// Whether `a` (finite, positive) lies exactly halfway between two `precision`-digit decimals, given `exp10`, the
@@ -30,7 +33,11 @@ fn is_tie(a: f64, exp10: i32, precision: usize) -> bool {
     let bits = a.to_bits();
     let exp_bits = ((bits >> 52) & 0x7FF) as i32;
     let frac = bits & ((1u64 << 52) - 1);
-    let (m, e2) = if exp_bits == 0 { (frac, -1074) } else { (frac | (1u64 << 52), exp_bits - 1075) };
+    let (m, e2) = if exp_bits == 0 {
+        (frac, -1074)
+    } else {
+        (frac | (1u64 << 52), exp_bits - 1075)
+    };
     if m == 0 {
         return false;
     }

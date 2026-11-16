@@ -41,6 +41,7 @@ FOLDERS = {
     'navigation-studio': 'bfbc2-navigation-studio',
     'shader-tools': 'bfbc2-shader-tools',
     'stockmp': 'bfbc2-stockmp-ai',
+    'rust': 'rust',                    # the Rust core's scripts: build_native.py, bench_dbx.py
 }
 
 

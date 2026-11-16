@@ -10,3 +10,9 @@ BFBC2_*.ini
 
 # built by renderqa.py (bfbc2-shader-tools/native/build.bat build)
 build/
+
+# the Rust core: cargo's build folder, and the Python module rust/build_native.py builds into core/bfbc2core
+rust/target/
+*.pyd
+core/bfbc2core/bc2_native*.so
+core/bfbc2core/bc2_native.pyd.*

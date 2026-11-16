@@ -7,17 +7,27 @@
     to_xml(data)                             # FORMAT.md section 3, identical to `DbxEdit xml`
 
 Elements keep their kind and raw value bytes, so numbers can be read exactly (numbers(element)).
+
+parse and to_xml run in the suite's Rust core (rust/, module bc2_native) when it is built, else in Python here; both
+give the same trees, text and errors (core/tests/test_dbx_native.py: every corpus file). BFBC2_PURE_PYTHON=1 (or
+use_native(False)) forces the Python reader; backend() says which one runs. parse_many / to_xml_many take many files
+at once (on all cores with the Rust core).
 """
+import contextlib
+import gc
 import math
+import os
 import struct
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from os import PathLike
+from types import ModuleType
 from typing import cast
 
 CONTAINER, TEXT, NUMBERS = 0xA, 2, 7
 MAGIC = b'{binary}'
+Bytes = bytes | bytearray | memoryview      # what parse / to_xml take (bytes is passed on without a copy)
 WHOLE_NUMBER_FIELDS = {'OriginalHashedWaveName', 'HashedName', 'HashedWaveName', 'OnRoadMaterialNameHashes', 'Hash', 'Id',
                        'CompositeMeshPartNames'}
 
@@ -70,7 +80,7 @@ class DbxFile:
         return e.attr(name)
 
 
-def is_binary(data: bytes) -> bool:
+def is_binary(data: Bytes) -> bool:
     return len(data) > 24 and data[:8] == MAGIC
 
 
@@ -119,13 +129,136 @@ def _damaged[T](fn: Callable[[bytes], T]) -> Callable[[bytes], T]:
     return wrapper
 
 
-@_damaged
-def parse(data: bytes) -> DbxFile:
-    """A binary .dbx file as an element tree (FORMAT.md sections 1-2)."""
+# ------------------------------------------------------------------------------------------------ backend
+
+PURE_PYTHON_ENV = 'BFBC2_PURE_PYTHON'      # set (not '' or '0'): the Python reader even when the Rust core is built
+
+
+def _import_native() -> ModuleType | None:
+    """The Rust core: bc2_native built into this folder by rust/build_native.py, or an installed one; None when
+    neither is there."""
+    try:
+        from . import bc2_native  # type: ignore[attr-defined]
+        return cast(ModuleType, bc2_native)
+    except ImportError:
+        pass
+    try:
+        import bc2_native
+        return bc2_native
+    except ImportError:
+        return None
+
+
+def _load_native() -> ModuleType | None:
+    """The Rust core unless BFBC2_PURE_PYTHON is set."""
+    if os.environ.get(PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    return _import_native()
+
+
+_native = _load_native()
+
+
+def backend() -> str:
+    """'rust' when parse and to_xml run in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend()."""
+    global _native
+    _native = _import_native() if on else None
+    return backend()
+
+
+def _bytes(data: Bytes) -> bytes:
+    return data if type(data) is bytes else bytes(data)
+
+
+def _check(data: Bytes) -> bytes:
     if not data:
         raise DeletedEntry('empty file: a *deleted* bundle entry (older FbrbTool unpacks wrote them as files)')
     if not is_binary(data):
         raise ValueError('not a binary .dbx file')
+    return _bytes(data)
+
+
+def parse(data: Bytes) -> DbxFile:
+    """A binary .dbx file as an element tree (FORMAT.md sections 1-2). Raises DeletedEntry for an empty file and
+    ValueError for one that is not a binary .dbx or is damaged."""
+    data = _check(data)
+    if _native is not None:
+        return cast(DbxFile, _native.dbx_parse(data, Element, DbxFile))
+    return _py_parse(data)
+
+
+def to_xml(data: Bytes) -> str:
+    """FORMAT.md section 3: the readable XML, identical to `DbxEdit xml` (string reading tolerant to a missing
+    terminator at the end, as the export is). Raises ValueError for a damaged file."""
+    data = _bytes(data)
+    if _native is not None:
+        return cast(str, _native.dbx_to_xml(data))
+    return _py_to_xml(data)
+
+
+def parse_many(items: Sequence[Bytes]) -> list[DbxFile | ValueError]:
+    """parse() of each file, in order; a file that does not parse gives its ValueError (DeletedEntry for an empty
+    one) in its place. On all cores with the Rust core."""
+    out: list[DbxFile | ValueError | None] = [None] * len(items)
+    todo: list[tuple[int, bytes]] = []
+    for i, d in enumerate(items):
+        try:
+            todo.append((i, _check(d)))
+        except ValueError as e:
+            out[i] = e
+    with _no_gc():
+        if _native is not None:
+            for (i, _), r in zip(todo, _native.dbx_parse_many([d for _, d in todo], Element, DbxFile)):
+                out[i] = r
+        else:
+            for i, d in todo:
+                try:
+                    out[i] = _py_parse(d)
+                except ValueError as e:
+                    out[i] = e
+    return cast('list[DbxFile | ValueError]', out)
+
+
+@contextlib.contextmanager
+def _no_gc() -> Iterator[None]:
+    """The cycle collector paused while many trees are built: they hold no cycles, and its passes over the new
+    objects (and, as they are kept, over every earlier tree) took longer than building them (rust/BENCHMARKS.md).
+    Pausing it per parse() call does not help: the deferred passes run after it."""
+    was = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was:
+            gc.enable()
+
+
+def to_xml_many(items: Sequence[Bytes]) -> list[str | ValueError]:
+    """to_xml() of each file, in order; a damaged file gives its ValueError in its place. On all cores with the
+    Rust core."""
+    if _native is not None:
+        return cast('list[str | ValueError]', _native.dbx_to_xml_many([_bytes(d) for d in items]))
+    out: list[str | ValueError] = []
+    for d in items:
+        try:
+            out.append(_py_to_xml(_bytes(d)))
+        except ValueError as e:
+            out.append(e)
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ the Python reader
+
+@_damaged
+def _py_parse(data: bytes) -> DbxFile:
+    """parse() in Python: the reference the Rust core is checked against."""
+    data = _check(data)
     strings, pos = _strings(data, tolerant=False)
     roots: list[Element] = []
     stack: list[Element] = []
@@ -335,9 +468,8 @@ def _escape(s: str) -> str:
 
 
 @_damaged
-def to_xml(data: bytes) -> str:
-    """FORMAT.md section 3: the readable XML, identical to `DbxEdit xml` (string reading tolerant to a missing
-    terminator at the end, as the export is)."""
+def _py_to_xml(data: bytes) -> str:
+    """to_xml() in Python: the reference the Rust core is checked against."""
     strings, pos = _strings(data, tolerant=True)
     out = ['<?xml version="1.0"?>\r\n']
     open_tags: list[str] = []
