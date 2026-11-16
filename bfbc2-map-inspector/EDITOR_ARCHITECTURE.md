@@ -214,6 +214,85 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
 - **Toolchain:** Rust is not installed yet; E1 starts by adding a Cargo workspace to the suite with CI-like tests
   beside `run_tests.py`.
 
+### 3.9 UX and workflow (draft, 2026-11-16)
+
+The editor is for a modder who has never opened a DBX file. Every step is visible, safe to try, and undoable.
+Everything the GUI does is an operation in the project log, so the CLI does it the same way.
+
+**Start screen**
+- **New map from an existing map.** Pick a stock, Vietnam, WW2 or custom map, then give the new map its name. For a
+  stock base this happens at once, because stock maps are never overwritten (6.1). The content profile follows the
+  base (WW2 for a Pacific War map).
+- **Open a project, recent projects, open a shared project.** For a shared project, the editor checks that this
+  game copy has its base map and assets, and names anything missing in plain words. It never asks for game files from
+  another person.
+- **View a map:** open any map read-only, in the Map Inspector as today. "Edit a copy" turns it into a new project.
+- **Later (S2):** new map from terrain (import or generate).
+
+**Main window.** The panels are dockable (the user, 2026-11-16). A default layout ships as described below, and
+the user can drag, dock, tab, float and reset panels. The layout is saved per user, and tutorials say "Reset layout"
+first.
+- **Centre:** the 3D view. Orbit, fly (WASD) and focus (F) as today, plus camera bookmarks and a top-down map view
+  drawn like the in-game map.
+- **Top bar:**
+  - the workspace switcher: Objects, Gameplay, AI, and later Terrain;
+  - the mode layout (Conquest, Rush, Air Superiority, a custom mode ...) the Gameplay and AI workspaces show;
+  - the content profile badge (BFBC2, Vietnam, WW2);
+  - Build, Install and Play-test.
+- **Left:**
+  - the outliner: the map's contents by kind (gameplay, objects, vehicles, AI, areas), searchable, with hide and
+    isolate;
+  - the asset browser tab.
+- **Right:** properties of the selection. Fields are typed from the schema; references are links; several selected
+  objects can be edited at once.
+- **Bottom:**
+  - Problems: live validation, each with what is wrong, why it matters, how to fix it, a button to jump to the object,
+    and a quick fix where one is safe ("snap to the ground", "add a spawn for this flag");
+  - the build log;
+  - History: the operation log with names, times and undo/redo to any point.
+
+**Workspaces**
+- **Objects:**
+  - select (click, box, polygon);
+  - move and rotate with the gizmo (snap to ground, surface normal, grid, angle);
+  - scale only where proven safe (the user, 2026-11-16). An object type is allowed to scale only once tests and a
+    play-test show the engine handles it: collision, destruction and cull data. The list starts empty, so move and
+    rotate are the only transforms at first;
+  - duplicate, delete, and place from the asset browser by dragging into the view.
+  - Unsafe assets (3.3) are greyed out, with the reason shown.
+- **Gameplay:** the active mode layout's entities: flags, spawns, vehicles, objectives, combat and team areas
+  (polygons with vertex handles), ceilings. A checklist from the mode's definition shows what the mode still needs
+  ("Conquest: 2 bases, at least 1 flag, a spawn per base").
+- **AI (3.4a):**
+  - overlays: the navmesh, coverage, islands, routes and links;
+  - tools: spawners, orders, routes, links, walkable/unwalkable regions;
+  - a path test (click A, then B);
+  - "Regenerate navigation", which runs in the background and shows progress.
+
+**Build, install, play-test**
+- **Build** runs apply (3.5) in the background. The step graph shows as progress: which steps run in parallel, which
+  are done, and which failed. Errors stop the build and land in Problems with a jump button. Warnings do not stop it.
+- **Install** is a separate button. It installs the built map under its own name and keeps the revert. The game must
+  be closed, and the editor says so instead of failing.
+- **Play-test** builds if needed, installs and starts the map offline in the chosen mode layout, with bots where the
+  map has AI. It asks first, because the game starts. A crash comes back into the editor as the crash reader's
+  summary, with the objects it names linked.
+- **Export** (the user, 2026-11-16):
+  - "Share project" writes the small data-only file (6.2). It is the only way a map is shared: the other person
+    builds it from their own game copy.
+  - "Export built map" packs the built map **for this machine only**. A built map holds EA content, so the editor
+    offers no shareable built package.
+
+**Guard rails**
+- The base map is read-only; there is no "save over the original".
+- The WW2 profile hides modern kits and assets that need a licence.
+- An unsaved project is kept in an autosave log.
+- Long work never freezes the window.
+
+**Getting started**
+- A guided first map: copy Valparaiso as a new name, move a flag, add a vehicle, build, play-test.
+- A QUICKSTART, tooltips on every tool, and a sample project.
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
