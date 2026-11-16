@@ -116,7 +116,9 @@ def main(argv):
         ed.start_apply()
         import time
         t0 = time.time()
-        while ed.job_state() == 'running' and time.time() - t0 < 900:
+        # 30 min: the apply takes ~8 min alone, and twice that or more while the PC is busy (2026-11-16: it timed
+        # out at 15 min with two NavKit builds beside it)
+        while ed.job_state() == 'running' and time.time() - t0 < 1800:
             time.sleep(2)
         state = ed.job_state()
         check(state == 'done' and os.path.isfile(ed.job_out) and any('read back' in l for l in ed.job_log),
