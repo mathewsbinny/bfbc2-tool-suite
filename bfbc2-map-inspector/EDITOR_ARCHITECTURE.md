@@ -211,8 +211,9 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   in-game samples, and the level loader against its snapshot. The Python implementation stays as the reference
   until then.
 - **Measured, not assumed:** each milestone records load and build times before and after.
-- **Toolchain:** Rust is not installed yet; E1 starts by adding a Cargo workspace to the suite with CI-like tests
-  beside `run_tests.py`.
+- **Toolchain** (E0, 2026-11-16): Rust 1.100.0 (pinned in `rust/rust-toolchain.toml`), the Cargo workspace `rust/`
+  (`bc2-formats`, `bc2-py`), maturin for the Python module; `run_tests.py` runs `cargo fmt`, clippy and the tests
+  (quick) and the corpus checks (game), and skips them on a machine without Rust (README.md, "The Rust core").
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 
@@ -319,7 +320,7 @@ first.
 
 | Step | Delivers |
 |---|---|
-| E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings |
+| E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **To do:** FBRB |
 | E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit) |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |

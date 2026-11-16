@@ -5,7 +5,8 @@
 //! ```
 //!
 //! Prints the best of three runs for `parse` and `to_xml`, on one thread and on every core. `--distinct` keeps one
-//! copy of files with the same bytes (the corpus has each shared partition once per level).
+//! copy of files with the same bytes (the corpus has each shared partition once per level); `--stream` drops each
+//! result at once instead of keeping them all (a corpus check: every tree of the corpus at once is several GB).
 #![allow(
     clippy::print_stdout,
     clippy::unwrap_used,
@@ -19,6 +20,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use bc2_formats::dbx;
+use rayon::prelude::*;
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
@@ -46,6 +48,7 @@ fn best<F: FnMut() -> usize>(mut f: F) -> (f64, usize) {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let distinct = args.iter().any(|a| a == "--distinct");
+    let stream = args.iter().any(|a| a == "--stream");
     let mut files = Vec::new();
     for a in args.iter().filter(|a| !a.starts_with("--")) {
         walk(Path::new(a), &mut files);
@@ -64,13 +67,26 @@ fn main() {
         bc2_formats::threads()
     );
     let one = rayon::ThreadPoolBuilder::new().num_threads(1).build().expect("a pool");
-    let count_ok = |r: &[dbx::Result<dbx::DbxFile>]| r.iter().filter(|x| x.is_ok()).count();
-    let (t, n) = best(|| one.install(|| count_ok(&dbx::parse_all(&data))));
+    let parse = || {
+        if stream {
+            data.par_iter().filter(|d| dbx::parse(d).is_ok()).count()
+        } else {
+            dbx::parse_all(&data).iter().filter(|x| x.is_ok()).count()
+        }
+    };
+    let xml = || {
+        if stream {
+            data.par_iter().filter(|d| dbx::to_xml(d).is_ok()).count()
+        } else {
+            dbx::to_xml_all(&data).iter().filter(|x| x.is_ok()).count()
+        }
+    };
+    let (t, n) = best(|| one.install(parse));
     println!("parse   1 thread : {t:7.3} s  ({n} parsed)");
-    let (t, n) = best(|| count_ok(&dbx::parse_all(&data)));
+    let (t, n) = best(parse);
     println!("parse   parallel : {t:7.3} s  ({n} parsed)");
-    let (t, n) = best(|| one.install(|| dbx::to_xml_all(&data).iter().filter(|x| x.is_ok()).count()));
+    let (t, n) = best(|| one.install(xml));
     println!("to_xml  1 thread : {t:7.3} s  ({n} written)");
-    let (t, n) = best(|| dbx::to_xml_all(&data).iter().filter(|x| x.is_ok()).count());
+    let (t, n) = best(xml);
     println!("to_xml  parallel : {t:7.3} s  ({n} written)");
 }

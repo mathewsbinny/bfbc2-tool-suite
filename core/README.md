@@ -6,7 +6,7 @@ that the 3D tools are built on. Python 3.10+ with `numpy`; the view also needs `
 
 | Module | What it does | Checked by |
 |---|---|---|
-| `dbx.py` | reads binary `.dbx` files into an element tree and writes DbxEdit's XML, from `bfbc2-dbx-tools/FORMAT.md` | `tests/test_dbx.py`: XML identical to DbxEdit's on all 31,404 fingerprinted files |
+| `dbx.py` | reads binary `.dbx` files into an element tree and writes DbxEdit's XML, from `bfbc2-dbx-tools/FORMAT.md`; `parse_many` / `to_xml_many` for many files. Runs in the Rust core (`bc2_native`, `../rust`) when it is built, else in Python (`BFBC2_PURE_PYTHON=1` forces Python; `backend()`) | `tests/test_dbx.py`: the Python reader's XML identical to DbxEdit's on all 31,404 fingerprinted files; `tests/test_dbx_native.py`: the Rust reader identical to the Python one on every corpus file |
 | `terrain.py` | terrain height fields (`.Heightfield-000.res`): heights, exact height at any point, a mesh | `tests/test_terrain.py`: within 4.5 cm of the in-game terrain for 99.9 % of 40 million samples (13 levels) |
 | `water.py` | water meshes (`.Water.Mesh.res`) and each triangle's shader (from `.Water.res`) | `tests/test_water.py`: all 36 levels |
 | `xmlinst.py` | the `<instance>` elements of a converted level partition (type, guid, body) and a field's reference (`field_ref`), whatever the attribute order (DICE writes `guid` / `ref` first, Napisal `type` / `name` first); used by NavKit's `levelobjects.py` and `ordercheck.py` | output identical to the old readers on the 13 campaign levels and ONS_MP_004 (2026-10-20) |
