@@ -31,11 +31,14 @@ def check(ok, what, detail=''):
     print(f'{"ok  " if ok else "FAIL"} {what}' + (f'\n     {detail}' if not ok and detail else ''))
 
 
-# a stand-in test: logs its start and end (wall clock) to the log file, sleeps, prints its summary, exits with code
+# a stand-in test: logs its start and end (wall clock) to its own log file (<log>.<name>: appends from several
+# processes to one file are not atomic on Windows - two stand-ins ending together could lose a line under load, a flaky
+# 'every stand-in test ran once'), sleeps, prints its summary, exits with code
 STAND_IN = ('import sys, time; log, name, secs, code = sys.argv[1], sys.argv[2], float(sys.argv[3]), int(sys.argv[4]); '
-            'open(log, "a").write(f"{name} start {time.time()}\\n"); time.sleep(secs); '
+            'mine = f"{log}.{name}"; '
+            'open(mine, "a").write(f"{name} start {time.time()}\\n"); time.sleep(secs); '
             'print(f"detail of {name}"); print(f"summary of {name}"); '
-            'open(log, "a").write(f"{name} end {time.time()}\\n"); sys.exit(code)')
+            'open(mine, "a").write(f"{name} end {time.time()}\\n"); sys.exit(code)')
 
 # (name, seconds, exit code, needs or None)
 STANDS = [
@@ -72,10 +75,12 @@ def run(tmp, args):
     r = subprocess.run([sys.executable, '-c', CHILD.format(suite=SUITE, spec=spec)], capture_output=True, text=True,
                        encoding='utf-8', errors='replace', cwd=SUITE)
     spans: dict = {}
-    if os.path.isfile(log):
-        for line in open(log, encoding='utf-8'):
-            name, what, t = line.rstrip('\n').rsplit(' ', 2)
-            spans.setdefault(name, {})[what] = float(t)
+    for stand, *_ in STANDS:
+        mine = f'{log}.{stand}'
+        if os.path.isfile(mine):
+            for line in open(mine, encoding='utf-8'):
+                name, what, t = line.rstrip('\n').rsplit(' ', 2)
+                spans.setdefault(name, {})[what] = float(t)
     return r, {n: (v['start'], v['end']) for n, v in spans.items() if 'start' in v and 'end' in v}
 
 
