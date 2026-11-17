@@ -6,6 +6,8 @@
 //!
 //! - [`dbx`]: binary `.dbx` partitions (`bfbc2-dbx-tools/FORMAT.md` sections 1-3), a port of
 //!   `core/bfbc2core/dbx.py`: the element tree, the readable XML (identical to `DbxEdit xml`), values and a writer.
+//! - [`dbxedit`]: DbxEdit's commands in process (`xml`, `edit`, `import`, `check`, `roundtrip`, `fixslots`), a
+//!   port of `bfbc2-dbx-tools/DbxEdit.cs` giving its files, messages and exit codes.
 //! - [`fbrb`]: `.fbrb` bundles, a port of `core/bfbc2core/fbrb.py`: the header's entries and any entry's data.
 //! - [`terrain`]: terrain height fields, a port of `core/bfbc2core/terrain.py` (heights, exact height at a point,
 //!   a mesh) with the tail's known layout.
@@ -33,6 +35,7 @@
 pub mod atomic;
 pub mod culltree;
 pub mod dbx;
+pub mod dbxedit;
 pub mod fbrb;
 pub mod havok;
 pub mod shaderdb;

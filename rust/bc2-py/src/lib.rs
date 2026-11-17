@@ -14,11 +14,14 @@
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
 //! function's bundles run with the interpreter released.
 //!
+//! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`.
+//!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
 
 mod convert;
 mod culltree;
+mod dbxedit;
 mod geometry;
 mod navbuild;
 mod scene;
@@ -271,6 +274,9 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::scene::scene_load;
+
+    #[pymodule_export]
+    use super::dbxedit::{dbxedit_run, dbxedit_run_many};
 
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, zlib_deflate};
