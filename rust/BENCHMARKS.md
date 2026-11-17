@@ -536,6 +536,21 @@ backends, on random runs (pitch 0.2 and 0.8, float32 and float64 normals, every 
 on (stair, dynamic, exclude, footprint and forbidden objects), `build_areas` with and without bisection, and the
 cell picking: 263,863 calls, no difference. Rust line coverage of `bc2-navbuild`: 99.5 %.
 
-**Not run yet** (a full test tier had the PC): the whole-level parity and the timings on sp_009, sp_004_b, sp_008_b
-and ons_mp_004, as E1d took them (`tests\test_navbuild_native.py --game --levels ...`), and the profile after the port
-(`rust\bench_navkit.py --profile`).
+**Whole levels** (2026-11-17, a quiet PC; `tests\test_navbuild_native.py --game --levels
+sp_009,sp_004_b,sp_008_b,ons_mp_004`, the build clock fixed for both backends): every level's path data byte for
+byte the same. "E1d" is the table above (E1's Rust, the rules still Python, a busier PC):
+
+| level | Python | E1d | Rust (E2a) | vs Python | path data |
+|---|---:|---:|---:|---:|---|
+| sp_009 | 85 s | 19 s | **9 s** | 9x | identical, 406,216 bytes |
+| sp_004_b | 478 s | 186 s | **58 s** | 8x | identical, 8,235,888 bytes |
+| sp_008_b | 542 s | 201 s | **46 s** | 12x | identical, 8,477,720 bytes |
+| ons_mp_004 | 342 s | 90 s | **37 s** | 9x | identical, 7,623,072 bytes |
+
+`rust\bench_navkit.py` alone, one build each: sp_009 8.1 s (Python 81.9 s), sp_004_b 47.2 s (Python 456.5 s).
+
+Profiled again (sp_004_b, cProfile: 60 s with the profiler's overhead): `merge_detailed` 51 s of it, mostly
+`trace_edges`' own loop 12 s (15 s with what it calls), the graph search 6 s (Rust), `trace_emit` 3.5 s,
+`roof_islands` 5 s, `add_cover_nodes` 3.6 s, `walkable`'s Python around the rules 2.3 s, the samples' load 4 s,
+`build_areas` 1.6 s and the cell picking 0.8 s (both Rust now); 21 million `dict.get` and 13 million `list.append`.
+`trace_edges` / `trace_emit` are the next port if NavKit builds need to be faster still.
