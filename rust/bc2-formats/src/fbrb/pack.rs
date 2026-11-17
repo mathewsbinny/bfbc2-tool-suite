@@ -606,7 +606,7 @@ pub fn pack_path(dir: impl AsRef<Path>, out: impl AsRef<Path>) -> PackResult<Pac
     let mut tmp = out.as_os_str().to_owned();
     tmp.push(format!(".tmp-{}", std::process::id()));
     let tmp = PathBuf::from(tmp);
-    let written = fs::write(&tmp, &bytes).and_then(|()| fs::rename(&tmp, out));
+    let written = fs::write(&tmp, &bytes).and_then(|()| crate::atomic::replace(&tmp, out));
     if written.is_err() {
         let _ = fs::remove_file(&tmp);
     }

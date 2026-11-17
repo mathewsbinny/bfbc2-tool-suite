@@ -26,6 +26,8 @@ from typing import Any
 
 import numpy as np
 
+from . import atomicio
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
@@ -186,7 +188,7 @@ def _cells(f: Any, heightfield: Any, cache_dir: str | None,
         tmp = f'{cp}.{os.getpid()}.tmp'                         # per process: two tools writing at once do not collide
         with open(tmp, 'wb') as fh:                      # a file object: numpy adds no .npz of its own
             np.savez(fh, xz=xz, y=y, area=area, est=est)
-        os.replace(tmp, cp)                              # an interrupted write leaves no half file
+        atomicio.replace(tmp, cp)                        # an interrupted write leaves no half file
     return xz, y, area, est
 
 
@@ -206,7 +208,7 @@ def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> Na
         tmp = f'{pk}.{os.getpid()}.tmp'
         with open(tmp, 'wb') as fh:
             pickle.dump(nav, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        os.replace(tmp, pk)
+        atomicio.replace(tmp, pk)
         return nav
     return _load(path, heightfield, None)
 

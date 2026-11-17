@@ -44,12 +44,35 @@ namespace Bfbc2Dbx
                     f.Write(data, 0, data.Length);
                     f.Flush(true);
                 }
-                if (File.Exists(path)) File.Replace(tmp, path, null);
-                else File.Move(tmp, path);
+                MoveOver(tmp, path);
             }
             finally
             {
                 if (File.Exists(tmp)) File.Delete(tmp);
+            }
+        }
+
+        // tmp moved over path. On Windows the move fails while another process has path open without delete
+        // sharing - for a moment, typically the virus scanner or the search indexer reading a file just written; that
+        // stopped a whole WW2 rebuild once (2026-11-17, "Unable to remove the file to be replaced"). Tried again for
+        // up to about 2.75 s (waits growing by 50 ms), as bc2-formats' atomic::replace and bfbc2core.atomicio do.
+        public static void MoveOver(string tmp, string path)
+        {
+            for (int n = 1; ; n++)
+            {
+                try
+                {
+                    if (File.Exists(path)) File.Replace(tmp, path, null);
+                    else File.Move(tmp, path);
+                    return;
+                }
+                catch (Exception e)
+                {
+                    bool transient = (e is IOException || e is UnauthorizedAccessException)
+                                     && !(e is FileNotFoundException || e is DirectoryNotFoundException);
+                    if (n >= 11 || !transient) throw;
+                    System.Threading.Thread.Sleep(50 * n);
+                }
             }
         }
     }

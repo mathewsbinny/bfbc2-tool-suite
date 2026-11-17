@@ -55,6 +55,31 @@ def atomic_writes(c, work):
     c.check(open(p + '.copy').read() == open(p).read(), 'atomicio: copy_file copies')
     open(p, 'w').write('{broken')
     c.check(atomicio.read_json(p, 'miss') == 'miss', 'atomicio: an unreadable JSON is the default (a cache miss)')
+    # a moment's lock on the target (the virus scanner reading a file just written) is waited out; a lasting one and
+    # any other error are raised (2026-11-17: a WW2 rebuild stopped on one)
+    calls = []
+
+    def flaky(a, b, fails, err):
+        calls.append(1)
+        if len(calls) <= fails:
+            raise err
+    real = atomicio.os.replace
+    try:
+        for fails, err, want_ok, want_calls in ((2, PermissionError(13, 'locked'), True, 3),
+                                                (99, PermissionError(13, 'locked'), False, atomicio.TRIES),
+                                                (99, FileNotFoundError(2, 'gone'), False, 1)):
+            calls.clear()
+            atomicio.os.replace = lambda a, b, f=fails, e=err: flaky(a, b, f, e)
+            try:
+                atomicio.replace('x', 'y')
+                ok = True
+            except OSError:
+                ok = False
+            c.check(ok == want_ok and len(calls) == want_calls,
+                    f'atomicio.replace: {fails} failure(s) of {type(err).__name__} -> '
+                    f'{"replaced" if want_ok else "raised"} after {want_calls} tries', f'{ok}, {len(calls)} tries')
+    finally:
+        atomicio.os.replace = real
 
 
 def stockmp_rollback(c, work):

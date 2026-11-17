@@ -175,7 +175,7 @@ pub(crate) fn store(dir: &Path, base: &Path, entries: &[(&str, &Entry)]) -> io::
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
     let tmp = target.with_extension(format!("{}-{nanos}.tmp", std::process::id()));
-    let written = fs::write(&tmp, encode(base, entries)).and_then(|()| fs::rename(&tmp, &target));
+    let written = fs::write(&tmp, encode(base, entries)).and_then(|()| bc2_formats::atomic::replace(&tmp, &target));
     if written.is_err() {
         let _ = fs::remove_file(&tmp);
     }

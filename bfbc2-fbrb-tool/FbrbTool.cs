@@ -287,8 +287,7 @@ static class FbrbTool
                 f.Write(part2, 0, part2.Length);
                 f.Flush(true);
             }
-            if (File.Exists(fbrb)) File.Replace(tmp, fbrb, null);
-            else File.Move(tmp, fbrb);
+            MoveOver(tmp, fbrb);
         }
         finally
         {
@@ -296,6 +295,29 @@ static class FbrbTool
         }
         Console.WriteLine("packed " + entries.Count + " entries (" + payload.Length + " bytes) into " + fbrb);
         return 0;
+    }
+
+    // tmp moved over path, tried again while another process has path open for a moment (the virus scanner or the
+    // search indexer reading a file just written): up to about 2.75 s, as DbxEdit's AtomicFile.MoveOver,
+    // bc2-formats' atomic::replace and bfbc2core.atomicio do (a rebuild stopped on one such lock, 2026-11-17)
+    static void MoveOver(string tmp, string path)
+    {
+        for (int n = 1; ; n++)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Replace(tmp, path, null);
+                else File.Move(tmp, path);
+                return;
+            }
+            catch (Exception e)
+            {
+                bool transient = (e is IOException || e is UnauthorizedAccessException)
+                                 && !(e is FileNotFoundException || e is DirectoryNotFoundException);
+                if (n >= 11 || !transient) throw;
+                System.Threading.Thread.Sleep(50 * n);
+            }
+        }
     }
 
     static int List(string fbrb)
