@@ -189,6 +189,19 @@ These warnings show while editing, before an apply:
 
 The editor must be very fast and use parallelism. The user chose a **hybrid Rust core**:
 
+**Rust is the preferred language** (the user, 2026-11-17; this widens the hybrid plan below):
+- New code in the suite and in Project OPFOR's pipeline (`src\tools`: the WW2 and Onslaught converters and
+  installers) is written in Rust. Existing code is ported wherever Rust is measurably faster, however slightly, not
+  only the hot spots; profiles set the order, the largest gain first.
+- The gate is unchanged: a port is used only once it is proven identical to the code it replaces on real data (for
+  OPFOR, the staged bundles and installs byte for byte), with timings before and after.
+- Python twins: the Python **format** readers and writers stay for good, as the independent reference the Rust is
+  proven against; ported **logic** (NavKit's rules, the converters, OPFOR's scripts) is retired once its Rust passes
+  a full test tier.
+- The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
+  (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
+  Each Python GUI stays until its replacement works.
+
 - **In Rust:**
   - the editor application: window, 3D view, gizmos, panels;
   - a shared core library: the formats (DBX read and write, FBRB read and pack, terrain, water, shader databases,
