@@ -882,3 +882,89 @@ errors and repeats, `prefetch` joins, the disk cache written whole, damaged / cu
 rewritten, keys apart for every input, `BFBC2_HLSL_CACHE`; `--game`: Wake's 815 translated pixel shaders, 815 of 815
 the same bytes, peak 1.6 GB) and `bfbc2-bf1943-import/tests/test_dbxport_ranking.py` (quick: the random rankings and
 `Templates.choose`; `--game [--part K/N]`: the four level ports, slice 0/3 in the game tier, peak 1.5 GB).
+
+## E3b: DbxEdit's commands in process (2026-11-17, branch `rust-e3b`)
+
+Every call of DbxEdit started .NET and parsed its file afresh: one WW2 day (`dbxedit-2026-11-17.log`, up to 13:05)
+logged 1,979 launches - 1,089 `edit`, 313 `import`, 263 `xml`, 185 `check`, 129 `roundtrip` - and its `File.Replace`
+over a file just written stopped two rebuilds. `bc2_formats::dbxedit` is a port of `bfbc2-dbx-tools/DbxEdit.cs`'s
+commands, run in process through `bfbc2core.dbxedit` (README.md, "DbxEdit in process"):
+
+| DbxEdit.cs | port |
+|---|---|
+| `Program`: `xml` (files and folders), `roundtrip`, `edit` (`replace`, `replaceprefix`, `drop`, `dropfield`, `partguid`, `set`, `setfield`, `additem`, `copyfield`, `graft`; `@file`), `import` (`--like`, `<xml>.dbx` beside it, `--types`; exit code 3 for guesses), `check` (`--slots-from`, `--bundle`), `fixslots`; the usage and option errors; `ToolLog.Fail` | `dbxedit::run` / `run_many`: stdout, stderr, exit code, log lines |
+| `DbxFile` (the string area kept as stored until a string changes, the header word, container flag bytes, trailing bytes), `Varint` (32-bit, wrapping shifts), `AtomicFile` | `EditFile`, `read_varint` / `write_varint`, `write_atomic` (`atomic::replace`) |
+| `XmlExport.Convert` / `ValueText` / `Number` (the walk; the "R" formatting is `dbx`'s, proven on the corpus in E0) | `convert`, `value_text`, `number` |
+| `XmlImport` (its own XML reader, `Align`, `KindOf`, `Encode`, `FourBytes`) and `TypeBook` | `parse_xml`, `import`, `TypeBook` |
+| `Editor`, `LevelCheck`, `SlotFixer`, `PlacedObject` | `editor`, `level_check`, `fix_slots` |
+| .NET Framework 4: `float` / `double` / `int` / `byte` parsing, `OrdinalIgnoreCase`, `ToUpper/LowerInvariant`, `Path.ChangeExtension` / `GetFileName`, `File.ReadAllText` / `ReadAllLines`' byte order marks, `Directory.GetFiles`' order and its `*.dbx` matching, the exceptions and `ToolLog.Explain`'s words | `dbxedit::net`, `Fault` |
+
+**Proof** (`core/tests/test_dbxedit.py`; DbxEdit.exe built from this branch's `DbxEdit.cs` is the reference):
+
+- **DbxEdit's unit tests' cases** (`DbxTests.cs`: format, XML export and import, the XML reader, every edit command,
+  graft / copyfield, level check, cull slots, command line) as 82 command lines on the same built files, plus usage,
+  option, missing-file and damaged-file cases (each file cut at 4 places through `roundtrip`, `xml`, `edit`,
+  `check`): each run both ways in two copies of a folder - **82 of 82 identical**: exit code, stdout, stderr (the
+  unexpected-error lines too: cause, what to do, log path; only the temporary file's `<pid>-<n>` suffix differs)
+  and every file written. Quick tier, 5.5 s.
+- **DbxEdit's edit fingerprints** (`fingerprints_795745.txt`: 160 edit batteries on 20 level partitions, each the
+  output file's SHA-1, exit code and the SHA-1 of the printed text): **160 of 160** in process.
+- **The corpus** (`--game`; a seeded sample of `work\levels`, `work\navkit\common`, `work\ww2`): 2,990 files (10
+  deleted by the WW2 rebuild running beside the test), **20,252 command runs** both ways - `xml`, `roundtrip`,
+  `import --like` (the XML back), `import` without a reference (guesses, exit code 3), `import` of an edited XML
+  (DbxTests' `Mutate`: decimals halved, text suffixed, bools flipped, an instance removed and another copied under a
+  new guid), `check`, and on every 4th file DbxTests' edit battery (`drop`, `replace`, `replaceprefix`,
+  `dropfield`, `partguid`, `set`, `setfield`, `additem`) - **0 differences** in exit code, stdout, stderr or bytes.
+  An earlier run of 2,000 files (13,560 runs) before the import optimisations below: also 0. 439 s for 3,000.
+- **The day's invocations replayed** (`python rust\bench_dbxedit.py replay <log> --before 13:05:00`): of the 1,979,
+  the 253 whose inputs still existed (815 used temp folders since deleted; most WW2 steps work on scratch files
+  such as `_work\src.dbx` / `cmd.txt` that each step overwrites or deletes) - 160 `edit`, 90 `xml`, 3 `roundtrip`
+  - run both ways with outputs redirected to a temp folder (inputs only read; an `xml` input copied first): **253
+  of 253 identical**. The day's imports could not be replayed: their XML inputs are deleted after use.
+- `cargo test -p bc2-formats`: unit tests of each part; `tests/dbxedit_robustness.rs`: any bytes, damaged built
+  files and any text through every command give a result or a fault, never a panic; built files round-trip and
+  import back byte for byte, their XML `dbx::to_xml`'s.
+- The corpus's string tables: 113,778 binary files, none with invalid UTF-8 (where .NET Framework's replacement of
+  bad bytes and Rust's could differ once a table is rewritten).
+
+**Time** (`python rust\bench_dbxedit.py commands`; the PC busy with a WW2 rebuild, best / median of 15; the exe's
+time includes its start):
+
+| command | file | DbxEdit.exe | in process | faster (median) |
+|---|---|---:|---:|---:|
+| xml | 18 KB (`TOW2.dbx`) | 38.3 / 40.5 ms | 2.11 / 2.63 ms | 15x |
+| edit (setfield) | 18 KB | 56.9 / 60.6 ms | 1.70 / 1.94 ms | 31x |
+| import --like | 18 KB | 65.7 / 71.2 ms | 3.07 / 3.42 ms | 21x |
+| check | 18 KB | 43.7 / 45.1 ms | 0.70 / 0.91 ms | 49x |
+| roundtrip | 18 KB | 36.6 / 39.1 ms | 0.64 / 0.74 ms | 53x |
+| xml | 1,282 KB (`MP_005.dbx`) | 81.5 / 85.0 ms | 47.2 / 48.9 ms | 2x |
+| edit (setfield) | 1,282 KB | 84.4 / 91.4 ms | 26.8 / 30.1 ms | 3x |
+| import --like | 1,282 KB | 538 / 594 ms | 238 / 283 ms | 2x |
+| check | 1,282 KB | 125 / 142 ms | 51.6 / 67.2 ms | 2x |
+| roundtrip | 1,282 KB | 80.8 / 87.5 ms | 19.6 / 21.8 ms | 4x |
+
+**The day's replay** (253 invocations): DbxEdit.exe one by one 26.8 s, in process one by one 7.3 s (4x), in
+process as one batch (`dbxedit.run_many`, all cores) **1.12 s (24x)**, the batch's files the one-by-one run's on
+253 of 253. Most of a WW2 step's DbxEdit time was .NET starting (35-55 ms a call): the files are small. Batching
+needs callers that hand over many command lines at once (the 1P animation steps apply one `cmd.txt` to one
+`src.dbx` for each of dozens of outputs: one `run_many`).
+
+Where a large import's time goes (`cargo run --release -p bc2-formats --example dbxedit_bench -- MP_005.dbx`, before
+-> after this round's optimisations): 259 -> 157 ms, of which reading the 4.5 MB of XML 33 ms, the types learned
+9 ms, the reference copied 8 ms, every value's text (DbxEdit compares the XML's text with the old value's) 34 ms.
+The optimisations: a message's element path is made only for a message (it was a string per element), XML and
+attribute text normalised without copies when it has no line breaks or tabs, the type book's keys built in one
+buffer, and `Align`'s queues made only when the reference child after the last match is not the XML child's (true
+for an unedited file: no queue at all) - each exact (argued in `import.rs`; the 20,252 corpus runs were made after).
+
+**Callers switched.** In the suite: NavKit's unpack (`xml` of the unpacked folder), `bfbc2-stockmp-ai`'s
+validation (`check`, `roundtrip`, `xml`, `import --like`) and its tests run in process through `dbxedit.run_cmd`.
+`BFBC2_DBXEDIT_EXE=1` (or no Rust core) runs the exe. OPFOR's callers are not switched (another repository); each is
+a one-line change of the same kind (the report of round E3b lists them).
+
+**Known limits.** .NET Framework's `NumberToDouble` (what DbxEdit's float and double parsing uses) can be one unit
+off in the last place on numbers of more than 15 significant digits, and it keeps 50 digits at most; the port parses
+correctly rounded (and keeps 50 digits). None of the corpus's runs met a difference. A damaged file fails at the
+step DbxEdit's fails, with its exit code; the message names the same .NET exception, but a few of .NET's own
+details (an `IOException`'s wording other than file-not-found / access / sharing) are worded by Rust. Nesting past
+256 levels is refused (DbxEdit's recursion would end the process). The exe stays the reference this round.

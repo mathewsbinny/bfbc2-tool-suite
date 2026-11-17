@@ -22,7 +22,6 @@ import os
 import re
 import shutil
 import struct
-import subprocess
 import sys
 import tempfile
 from collections import Counter
@@ -41,6 +40,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core')
 from bfbc2core import dbx as coredbx  # noqa: E402
+from bfbc2core import dbxedit  # noqa: E402
 
 ORDER_NODE = 15.0
 SPAWN_NODE = cfgmod.SNAP_RADIUS + 0.5
@@ -48,7 +48,8 @@ ALLOWED_CHANGED = ('HasAI', 'PlayerType')
 
 
 def _dbxedit(*args):
-    r = subprocess.run([pipeline.DBX, *map(str, args)], capture_output=True, text=True, errors='replace')
+    # in process through the Rust core (bfbc2core.dbxedit; BFBC2_DBXEDIT_EXE=1 runs DbxEdit.exe)
+    r = dbxedit.run_cmd([pipeline.DBX, *map(str, args)], capture_output=True, text=True, errors='replace')
     return r.returncode, r.stdout + r.stderr
 
 

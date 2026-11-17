@@ -12,7 +12,6 @@ import json
 import os
 import shutil
 import struct
-import subprocess
 import sys
 import tempfile
 from typing import Any
@@ -33,6 +32,7 @@ import dbxbin  # noqa: E402
 import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
 from bfbc2core import dbx as coredbx  # noqa: E402
+from bfbc2core import dbxedit as coredbxedit  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -187,9 +187,9 @@ KITS = {f'{f}/{k}': f'objects/soldiers/{f}/{k}/{G(700 + i).lower()}' for i, (f, 
 
 def dbxedit(*args):
     exe = pipeline.DBX
-    if not os.path.isfile(exe):
+    if coredbxedit.use_exe() and not os.path.isfile(exe):
         return None
-    r = subprocess.run([exe, *map(str, args)], capture_output=True, text=True, errors='replace')
+    r = coredbxedit.run_cmd([exe, *map(str, args)], capture_output=True, text=True, errors='replace')
     return r.returncode, r.stdout + r.stderr
 
 

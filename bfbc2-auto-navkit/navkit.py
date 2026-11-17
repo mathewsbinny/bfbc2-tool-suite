@@ -61,7 +61,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
-from bfbc2core import atomicio, paths  # noqa: E402
+from bfbc2core import atomicio, dbxedit, paths  # noqa: E402
 
 DETAILED_BUDGET_MS = 400   # pitch-0.2 runs: ms of sampling per frame - 10x the columns of a normal run, so it must finish
                            # in less game time than a round or a campaign level allows an idle player (150: ONS_MP_002 at
@@ -150,7 +150,14 @@ class Project:
         if not os.path.isfile(paths.game_exe(self.root)):
             raise NavKitError(f'no game copy in {self.game} (run OPFOR\'s setup_game.bat first)')
         self.fbrbtool = find_tool(self.root, 'FbrbTool.exe', 'bfbc2-fbrb-tool')
-        self.dbxedit = find_tool(self.root, 'DbxEdit.exe', 'bfbc2-dbx-tools')
+        # DbxEdit runs in process (bfbc2core.dbxedit.run_cmd takes the exe's command line); the exe itself is needed
+        # only with BFBC2_DBXEDIT_EXE=1 or without the Rust core
+        try:
+            self.dbxedit = find_tool(self.root, 'DbxEdit.exe', 'bfbc2-dbx-tools')
+        except NavKitError:
+            if dbxedit.use_exe():
+                raise
+            self.dbxedit = 'DbxEdit.exe'
 
     # --- levels --------------------------------------------------------------------------------------
     def level_dirs(self) -> dict[str, str]:
@@ -207,7 +214,7 @@ class Project:
         return None
 
     def run(self, args: list[str], log: Log) -> list[str]:
-        r = subprocess.run(args, capture_output=True, text=True, errors='replace', creationflags=NO_WINDOW)
+        r = dbxedit.run_cmd(args, capture_output=True, text=True, errors='replace', creationflags=NO_WINDOW)
         out = (r.stdout + r.stderr).strip().splitlines()
         if r.returncode != 0:
             raise NavKitError(f'{os.path.basename(args[0])} failed: ' + ' | '.join(out[-3:]))
