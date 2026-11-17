@@ -8,8 +8,10 @@ navbuild_golden.json beside this file: a SHA-1 of every walk's answers on seeded
 path data (the build clock fixed). They are the oracle now; navregress (DICE's own path data) stays the independent
 check of what NavKit builds.
 
-The walkability rules, build_areas and build_graph's cell picking (round E2a) keep their Python twin: they are
-still compared with it, call by call.
+The walkability rules, build_areas and build_graph's cell picking (round E2a), and the tracing, the roof rule, the
+cover nodes, Gabriel pruning, build_graph's route edges and group joining, near_characters, walkable's seed picks and
+the sample files' records (round E3c) keep their Python twin: they are still compared with it, call by call (E3c's
+with the Rust side strict: no fallback).
 
   python test_navbuild_native.py            quick: the grid walks on 24 + 16 seeded random multi-layer levels
                                             (float32 and float64 gradients, stairs, terrain, every link rule, D
@@ -30,11 +32,14 @@ The module is required (bfbc2core.native): without it this test fails with the e
 """
 import hashlib
 import json
+import math
 import os
 import random
+import struct
 import sys
 import tempfile
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -241,6 +246,9 @@ def quick(golden: dict[str, Any], record: bool) -> None:
     others(rng)
     calls = float_ops(rng) + rules(rng) + areas_and_picks(rng)
     print(f'E2a: {calls} calls compared with their Python twin: {len(FAILS)} differences')
+    before = len(FAILS)
+    calls = e3c(rng)
+    print(f'E3c: {calls} calls compared with their Python twin: {len(FAILS) - before} differences')
 
 
 def others(rng: random.Random) -> None:
@@ -286,8 +294,9 @@ def same(a: Any, b: Any) -> bool:
 
 
 def float_ops(rng: random.Random) -> int:
-    """CPython's math.hypot, x ** 2 and degrees(atan(hypot)) as the port computes them, on gradients like the rules'
-    (height differences over a pitch) and on values over the whole float range."""
+    """CPython's math.hypot, x ** 2 and degrees(atan(hypot)), and NumPy's np.hypot (E3c's coverage nodes), as the port
+    computes them, on gradients like the rules' (height differences over a pitch) and on values over the whole float
+    range."""
     import math
     xs, zs = [], []
     for n in range(150_000):
@@ -302,21 +311,26 @@ def float_ops(rng: random.Random) -> int:
             zs.append(rng.choice([0.0, -0.0, xs[-1], -xs[-1], rng.uniform(-1e-300, 1e-300)]))
     xs += [0.0, -0.0, math.inf, -math.inf, math.nan, 1e308, 5e-324]
     zs += [0.0, 3.0, math.nan, 1.0, math.inf, 1e308, 5e-324]
-    h, s, d = (np.frombuffer(b, '<f8') for b in navwalk.require_native().navkit_float_ops(
+    h, s, d, ch = (np.frombuffer(b, '<f8') for b in navwalk.require_native().navkit_float_ops(
         np.array(xs, '<f8').tobytes(), np.array(zs, '<f8').tobytes()))
+    np_hyp = np.hypot(np.array(xs, np.float64), np.array(zs, np.float64))     # NumPy's: the C library's hypot
     bad = 0
     for k, (x, z) in enumerate(zip(xs, zs)):
         try:
             sq = x ** 2
         except OverflowError:                                   # CPython raises where pow overflows
             sq = math.inf
-        want = (math.hypot(x, z), sq, math.degrees(math.atan(math.hypot(x, z))))
-        got = (float(h[k]), float(s[k]), float(d[k]))
+        want = (math.hypot(x, z), sq, math.degrees(math.atan(math.hypot(x, z))), float(np_hyp[k]))
+        got = (float(h[k]), float(s[k]), float(d[k]), float(ch[k]))
         if any(not (a == b or (a != a and b != b)) for a, b in zip(want, got)):
             bad += 1
             if bad <= 5:
                 check(False, f'float ops ({x!r}, {z!r}): {got} != {want}')
     check(bad == 0, f'float ops: {bad} of {len(xs)} differ')
+    # gabriel_prune's port squares array differences as x * x: an array's ** 2 is NumPy's square, a multiply
+    a = np.array(xs, np.float64)
+    with np.errstate(over='ignore', invalid='ignore'):
+        check((a ** 2).tobytes() == (a * a).tobytes(), "float ops: an array's ** 2 is not x * x")
     return len(xs)
 
 
@@ -461,6 +475,305 @@ def areas_and_picks(rng: random.Random) -> int:
           'a float32 origin: no native picking')
     check(nb._centre_cells([{'cells': [(0.0, 0, 0)] * 4}]) is None, 'float cells: no native picking')
     check(nb._centre_cells([{'cells': []}]) is None, 'an area without cells: the reference raises, Python runs')
+    return calls
+
+
+# ------------------------------------------------------------------------------------------------ round E3c
+
+def ordered(v: Any) -> Any:
+    """v as plain values, dicts as their items in order (insertion order is the order runs come out in), floats by
+    repr (exact; a float64 scalar as the float it is), the mesh's portal objects as tuples."""
+    if isinstance(v, np.ndarray):
+        return ['ndarray', v.dtype.str, list(v.shape), v.tobytes().hex()]
+    if isinstance(v, (bool, np.bool_)):
+        return bool(v)
+    if isinstance(v, (int, np.integer)):
+        return int(v)
+    if isinstance(v, (float, np.floating)):
+        return ['f', repr(float(v))]
+    if v is None or isinstance(v, str):
+        return v
+    if isinstance(v, dict):
+        return ['dict', [[ordered(k), ordered(x)] for k, x in v.items()]]
+    if isinstance(v, (list, tuple)):
+        return [ordered(x) for x in v]
+    if isinstance(v, (set, frozenset)):
+        return ['set', sorted((ordered(x) for x in v), key=repr)]
+    if hasattr(v, '__dataclass_fields__'):
+        return [type(v).__name__] + [ordered(getattr(v, f)) for f in v.__dataclass_fields__]
+    raise TypeError(f'ordered: {type(v).__name__}')
+
+
+def ramps(rng: random.Random, nx: int, nz: int, pitch: float) -> nb.Level:
+    """A random level for the tracing: ground on ramps (steps up to 0.95 m a cell, normals to match, so the slope rule
+    links cells the detail step breaks), holes, thin second layers (one-way candidates) and decks 2.5 m over part of
+    it."""
+    ax, az = rng.uniform(-0.95, 0.95), rng.uniform(-0.4, 0.4)
+    deck = (rng.randint(0, nx), rng.randint(0, nz), rng.randint(1, nx), rng.randint(1, nz))
+    start, ys, nrm, hit = [0], [], [], []
+    for j in range(nz):
+        for i in range(nx):
+            gx, gz = (ax if (i // 3) % 2 else 0.1 * ax), az        # rise per cell
+            col = []
+            if rng.random() > 0.08:
+                col.append((gx * i + gz * j + rng.choice([0.0, 0.0, 0.05, 0.3]), gx / pitch, gz / pitch))
+                if rng.random() < 0.12:                         # a thin second layer (a stair edge, a split-off sheet)
+                    col.append((col[0][0] + rng.choice([0.15, 0.3, 0.45]), gx / pitch, gz / pitch))
+            if deck[0] <= i < deck[0] + deck[2] and deck[1] <= j < deck[1] + deck[3] and rng.random() > 0.1:
+                col.append((gx * i + gz * j + 2.5, 0.0, 0.0))
+            for y, gxm, gzm in sorted(col):
+                ys.append(y)
+                n = np.array([-gxm, 1.0, -gzm])
+                nrm.append(n / np.linalg.norm(n))
+                hit.append((navwalk.TERRAIN_SHAPE_VTABLE if rng.random() < 0.8 else 1, 0, 0))
+            start.append(len(ys))
+    count = len(ys)
+    s: Any = SimpleNamespace(nx=nx, nz=nz, pitch=pitch, min_x=0.0, min_z=0.0, start=np.array(start, np.int64),
+                             y=np.array(ys, np.float32), normal=np.array(nrm, np.float32).reshape(-1, 3),
+                             hit=np.array(hit, np.uint32).reshape(-1, 3), flags=np.zeros(count, np.uint8))
+    return nb.Level(s, np.array([rng.random() < 0.95 for _ in range(count)], bool), 0.28,
+                    stair=np.array([rng.random() < 0.03 for _ in range(count)], bool), cfg=nb.DEFAULTS.at_pitch(pitch))
+
+
+def windowed(rng: random.Random, lv: nb.Level) -> nb.BuildSettings:
+    """lv's settings with a window over part of its grid (border portals where it ends)."""
+    s = lv.s
+    return replace(lv.cfg, window=range(-1, rng.randint(2, max(3, min(s.nx, s.nz) + 1))))
+
+
+def trace_chain(lv: nb.Level, cfg: nb.BuildSettings, gi0: int, gj0: int, ox: float, oz: float, keep: set[int],
+                many: bool, tiling: tuple[tuple[int, int], int, int]) -> Any:
+    """stage's tracing of one sector: areas (tiling: start, samples per tile, tiles), trace_edges (or
+    _trace_edges_many), drop_one_way, detail_pass, trace_emit - on whichever backend is switched on."""
+    start, tile, tiles = tiling
+    areas = nb.build_areas(lv, gi0, gj0, start, tile, tiles, cfg=cfg)
+    areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(lv.y[c[2]] for c in a['cells'])))
+    area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
+    if many:
+        got = nb._trace_edges_many(lv, [((0, 0), {'areas': areas, 'origin': (gi0, gj0, ox, oz)})], cfg)
+        check(got is not None, 'trace_edges_many: native')
+        per_area, one_way = got[(0, 0)] if got else nb.trace_edges(lv, areas, area_of, gi0, gj0, cfg)
+    else:
+        per_area, one_way = nb.trace_edges(lv, areas, area_of, gi0, gj0, cfg)
+    traced = ordered((per_area, one_way))
+    nb.drop_one_way(per_area, one_way, {n for n in range(len(one_way)) if n in keep})
+    lv.blocked = set()
+    details = nb.detail_pass(lv, areas, per_area, ox, oz, gi0, gj0, cfg)
+    before = ordered(per_area)
+    emitted = nb.trace_emit(lv, areas, per_area, gi0, gj0, ox, oz, cfg)
+    return traced, before, ordered(details), sorted(lv.blocked), ordered(emitted)
+
+
+def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tiling: Any, rng_seed: int) -> Any:
+    """stage's graph of one sector on whichever backend is switched on: areas, tracing, the D sides, border nodes on
+    the window's edge columns, build_graph (cover nodes, pairs, Gabriel, groups joined, order nodes)."""
+    rng = random.Random(rng_seed)
+    start, tile, tiles = tiling
+    areas = nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=cfg)
+    areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(lv.y[c[2]] for c in a['cells'])))
+    for n, a in enumerate(areas):
+        a['layer'] = n
+    area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
+    per_area, one_way = nb.trace_edges(lv, areas, area_of, 0, 0, cfg)
+    nb.drop_one_way(per_area, one_way, set())
+    lv.blocked = set()
+    nb.detail_pass(lv, areas, per_area, ox, oz, 0, 0, cfg)
+    traced = nb.trace_emit(lv, areas, per_area, 0, 0, ox, oz, cfg)
+    cells = [c for a in areas for c in a['cells']]
+    borders = []
+    for n in range(rng.randint(0, 6) if cells else 0):
+        i, j, k = rng.choice(cells)
+        borders.append((0x80000000 | (900 + n), (ox + i * cfg.pitch, float(lv.y[k]) + cfg.y_offset, oz + j * cfg.pitch),
+                        k))
+    orders = [(ox + i * cfg.pitch, float(lv.y[k]), oz + j * cfg.pitch) for i, j, k in rng.sample(cells, min(3, len(cells)))]
+    ids = [0]
+
+    def new_id() -> int:
+        ids[0] += 1
+        return ids[0]
+    pts, pairs = nb.build_graph(lv, areas, area_of, traced, borders, 0, 0, ox, oz, new_id, orders, (), cfg)
+    return ordered(pts), ordered(pairs)
+
+
+def strict(fn: Any, *a: Any, **k: Any) -> Any:
+    """fn on the Rust core with no fallback: a refusal (which would run the Python silently) raises here."""
+    mods: list[Any] = [nb, navwalk]
+    saved = [m._NATIVE_ERRORS for m in mods]
+    for m in mods:
+        m._NATIVE_ERRORS = ()
+    try:
+        return fn(*a, **k)
+    finally:
+        for m, v in zip(mods, saved):
+            m._NATIVE_ERRORS = v
+
+
+def e3c(rng: random.Random) -> int:
+    """Round E3c's pieces against their Python twin on random levels: trace_edges (one sector and the parallel
+    batch), trace_emit after drop_one_way and the detail pass, roof_islands, add_cover_nodes, gabriel_prune. The Rust
+    side runs strict (no fallback)."""
+    calls = 0
+    seen = dict(portals=0, borders=0, outline=0, one_way=0, details=0)
+    for case in range(60):
+        pitch = 0.8 if case % 3 else 0.2
+        n1, n2 = rng.randint(4, 16), rng.randint(4, 16)
+        lv = ramps(rng, n1, n2, pitch) if case % 2 else grid(rng, n1, n2, case % 4 == 0, pitch)
+        cfg = windowed(rng, lv) if case % 4 else lv.cfg
+        gi0, gj0 = rng.choice([0, 0, 1, 2]), rng.choice([0, 0, 1])
+        ox, oz = rng.choice([0.0, -300.0, 1200.0, -910.4000244140625]), rng.choice([0.0, 500.0, -100.0, 12.8])
+        keep = {n for n in range(64) if rng.random() < 0.5}
+        tiling = rng.choice([((-1, -1), cfg.tile, cfg.tiles), ((-1, -1), 3, 6), ((0, 0), 4, 4), ((-1, 0), 2, 9)])
+        a = strict(trace_chain, lv, cfg, gi0, gj0, ox, oz, keep, case % 3 == 1, tiling)
+        b = py(trace_chain, lv, cfg, gi0, gj0, ox, oz, keep, False, tiling)
+        seen['one_way'] += len(a[0][1])
+        seen['details'] += sum(len(x[0]) + len(x[1]) for x in a[2])
+        for kind, n in (('portals', 0), ('borders', 1), ('outline', 2)):
+            seen[kind] += sum(len(x[n]) for x in a[4])
+        for name, x, y in zip(('trace_edges', 'drop / detail', 'detail_pass', 'blocked', 'trace_emit'), a, b):
+            check(x == y, f'{name} case {case} (pitch {pitch}, window {cfg.window})')
+        calls += 3
+    check(all(seen.values()), f'the random levels make every kind of edge: {seen}')
+    print(f'E3c tracing: {seen}')
+    # whole route graphs (cover nodes on the detailed pitch, Gabriel there, the groups joined, order nodes)
+    joined = 0
+    for case in range(36):
+        pitch = 0.2 if case % 2 else 0.8
+        n1, n2 = rng.randint(6, 26), rng.randint(6, 26)
+        lv = ramps(rng, n1, n2, pitch) if case % 3 else grid(rng, n1, n2, case % 4 == 0, pitch)
+        cfg = windowed(rng, lv) if case % 4 == 1 else lv.cfg
+        if case % 5 == 2:
+            cfg = replace(cfg, dist_edge_max=rng.choice([3.0, 1.6]))         # shorter edges: more groups to join
+        ox, oz = rng.choice([0.0, -910.4000244140625, 300.0]), rng.choice([0.0, 12.8, -100.0])
+        tiling = rng.choice([((-1, -1), cfg.tile, cfg.tiles), ((-1, -1), 4, 6), ((0, 0), 7, 4)])
+        seed = rng.randrange(1 << 30)
+        a = strict(sector_graph, lv, cfg, ox, oz, tiling, seed)
+        b = py(sector_graph, lv, cfg, ox, oz, tiling, seed)
+        check(a == b, f'build_graph case {case} (pitch {pitch}, {len(a[0])} nodes, {len(a[1])} pairs)')
+        joined += sum(1 for p in a[0] if p[0] < 900)
+        calls += 4
+    print(f'E3c route graphs: {joined} nodes')
+    # build_areas for a stage's sectors at once (with each area's lowest and highest ground) against build_areas
+    for case in range(16):
+        lv = ramps(rng, rng.randint(6, 20), rng.randint(6, 20), 0.8 if case % 2 else 0.2) if case % 3 else             grid(rng, rng.randint(6, 20), rng.randint(6, 20), case % 2 == 0)
+        specs = [(gi, gj, 0.0, 0.0, rng.choice([(-1, -1), (0, 0), (0, -1)]), rng.choice([3, 4, 50]),
+                  rng.choice([1, 3, 6])) for gi, gj in ((0, 0), (2, 1), (-1, 3), (5, 0))]
+        many = strict(nb._build_areas_many, lv, specs, lv.cfg)
+        want = []
+        for gi0, gj0, _ox, _oz, start, tile, tiles in specs:
+            areas = py(nb.build_areas, lv, gi0, gj0, start, tile, tiles, cfg=lv.cfg)
+            want.append((areas, [(min(lv.y[c[2]] for c in a['cells']), max(lv.y[c[2]] for c in a['cells']))
+                                 for a in areas]))
+        check(ordered(many) == ordered(want), f'build_areas_many case {case}')
+        calls += 1
+    # soldiers' surroundings (near_characters): random characters, reaches and height bands
+    for case in range(16):
+        s = runs(rng, rng.randint(3, 12), rng.randint(3, 12), 0.2 if case % 2 else 0.8)
+        char = np.array([rng.random() < 0.08 for _ in range(len(s.y))], bool)
+        grow, below, above = rng.choice([0.9, 0.5, 1.7, 0.8]), rng.choice([2.2, 0.5]), rng.choice([0.3, 1.0])
+        check(same(strict(navwalk.near_characters, s, char, grow, below, above),
+                   py(navwalk.near_characters, s, char, grow, below, above)), f'near_characters case {case}')
+        calls += 1
+    # the sample files' records (versions 1 and 2; a run cut off between columns, a record cut short)
+    import navsample
+    with tempfile.TemporaryDirectory() as tmp:
+        for case in range(12):
+            version = 1 + case % 2
+            nx, nz = rng.randint(1, 9), rng.randint(1, 9)
+            body = bytearray()
+            for _c in range(nx * nz if case % 4 else rng.randint(0, nx * nz)):
+                n = rng.choice([0, 1, 1, 2, 3, 5])
+                body.append(n)
+                for _ in range(n):
+                    body += struct.pack('<f3bB', rng.uniform(-50, 50), *(rng.randint(-128, 127) for _ in range(3)),
+                                        rng.randrange(256))
+                    if version == 2:
+                        body += struct.pack('<3I', *(rng.randrange(1 << 32) for _ in range(3)))
+            if case == 11:
+                body = body[:-3]                                   # a record cut short: struct.error either way
+            head = navsample.HEADER.pack(b'ONS1', version, 0.8, -12.0, 4.0, nx, nz, 50.0, -50.0, 0.4, 0.6, 1.8,
+                                         0.05, 0)
+            path = os.path.join(tmp, f'run{case}.bin')
+            with open(path, 'wb') as f:
+                f.write(head + bytes(body))
+
+            def load(path: str = path) -> Any:
+                try:
+                    smp, c = navsample.load(path)
+                except struct.error as e:
+                    return ('struct.error', str(e))
+                # (and whether the arrays came from the Rust core's bytearrays)
+                return (ordered((smp.start, smp.y, smp.normal, smp.flags, smp.hit, c, smp.pitch, smp.nx, smp.nz)),
+                        isinstance(smp.y.base, memoryview))
+            a, b = strict(load), py(load)
+            check(a[0] == b[0] if case != 11 else a == b, f'navsample.load case {case} (version {version})')
+            check(case == 11 or (a[1] and not b[1]), f'navsample.load case {case}: the backends were not the asked ones')
+            calls += 1
+    # roof islands: random keep and anchors, the rule's settings varied
+    saved = (navwalk.ROOF_RAISE, navwalk.ROOF_SHARE, navwalk.ROOF_NEAR, navwalk.ROOF_NEAR_DY)
+    try:
+        for case in range(24):
+            lv = grid(rng, rng.randint(4, 14), rng.randint(4, 14), case % 2 == 0, 0.8 if case % 3 else 0.2)
+            s = lv.s
+            navwalk.ROOF_RAISE, navwalk.ROOF_SHARE, navwalk.ROOF_NEAR, navwalk.ROOF_NEAR_DY = (
+                rng.choice([2.0, 0.5, 0.1]), rng.choice([0.5, 0.0, 0.2, 1.0]), rng.choice([2.0, 0.8, 5.0, 1]),
+                rng.choice([2.5, 0.3]))
+            kmask = np.array([rng.random() < 0.7 for _ in range(len(s.y))], bool)
+            kept = np.nonzero(kmask)[0].tolist()
+            anchors = set(rng.sample(kept, min(len(kept), rng.randint(0, 3))))
+            terrain = lv.terrain
+            navwalk.ROOF_STATS.clear()
+            x = strict(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
+            xs = dict(navwalk.ROOF_STATS)
+            navwalk.ROOF_STATS.clear()
+            y = py(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
+            check(same(x, y) and xs == navwalk.ROOF_STATS, f'roof_islands case {case}: {xs} {navwalk.ROOF_STATS}')
+            calls += 1
+    finally:
+        navwalk.ROOF_RAISE, navwalk.ROOF_SHARE, navwalk.ROOF_NEAR, navwalk.ROOF_NEAR_DY = saved
+        navwalk.ROOF_STATS.clear()
+    # coverage nodes: build_graph's add (one node per surface and rounded position) on random areas and nodes
+    for case in range(24):
+        pitch = 0.8 if case % 2 else 0.2
+        lv = grid(rng, rng.randint(5, 16), rng.randint(5, 16), case % 3 == 0, pitch)
+        areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
+        ox, oz = rng.choice([0.0, -910.4000244140625, 300.0]), rng.choice([0.0, 12.8])
+        cells = [c for x in areas for c in x['cells']]
+        first: list[Any] = []
+        for n in range(rng.randint(0, 8)):
+            ci, cj, ck = rng.choice(cells) if cells else (0, 0, 0)
+            first.append((n + 1, (ox + ci * pitch + rng.choice([0.0, 0.4]), float(lv.y[ck]) + 0.95, oz + cj * pitch),
+                          ck, ci, cj))
+        cover = rng.choice([4.0, 1.0, 0.5, 2.3, 3])
+
+        def run(cover: float = cover, first: list[Any] = first, lv: nb.Level = lv, areas: list[Any] = areas,
+                ox: float = ox, oz: float = oz) -> Any:
+            pts = list(first)
+            taken = {p[2] for p in pts}
+            taken_pos = {tuple(round(v, 3) for v in p[1]) for p in pts}
+
+            def add(i: int, j: int, k: int) -> None:
+                pos = (ox + i * lv.cfg.pitch, float(lv.y[k]) + lv.cfg.y_offset, oz + j * lv.cfg.pitch)
+                key = tuple(round(v, 3) for v in pos)
+                if k in taken or key in taken_pos:
+                    return
+                taken.add(k)
+                taken_pos.add(key)
+                pts.append((1000 + len(pts), pos, k, i, j))
+            nb.add_cover_nodes(lv, areas, pts, add, ox, oz, cover, lv.cfg)
+            return ordered(pts)
+        check(strict(run) == py(run), f'add_cover_nodes case {case} (cover {cover})')
+        calls += 1
+    # Gabriel pruning: nodes on a few floors (some at one spot), pairs within 15 m, some lengths equal
+    for case in range(40):
+        n = rng.randint(0, 60)
+        pts = [(q, (rng.choice([rng.uniform(0, 30), float(rng.randint(0, 30))]), rng.choice([0.95, 3.45, 5.0]),
+                    rng.choice([rng.uniform(0, 30), float(rng.randint(0, 30))])), q, 0, 0) for q in range(n)]
+        if n > 3:
+            pts[1] = pts[0]
+        pairs = [(a_, b_, math.dist(pts[a_][1], pts[b_][1])) for a_ in range(n) for b_ in range(a_ + 1, n)
+                 if math.dist(pts[a_][1], pts[b_][1]) <= 15.0 and rng.random() < 0.6]
+        check(strict(nb.gabriel_prune, pts, pairs) == py(nb.gabriel_prune, pts, iter(pairs)), f'gabriel_prune case {case}')
+        calls += 1
     return calls
 
 

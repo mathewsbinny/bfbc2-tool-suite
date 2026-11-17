@@ -46,6 +46,114 @@ pub struct LipTests<'a> {
 }
 
 impl Grid {
+    /// `navwalk.near_characters`: the surfaces within `grow` metres (plan: whole cells whose
+    /// `math.hypot(di, dj) * pitch` is within `grow + 1e-9`) of a `character` surface, from `below` under to `above`
+    /// over its height.
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] for a mask of another length or a reach that is not a number.
+    pub fn near_characters(
+        &self,
+        character: &[bool],
+        grow: f64,
+        below: f64,
+        above: f64,
+    ) -> Result<Vec<bool>, NavError> {
+        if character.len() != self.y.len() {
+            return Err(NavError::Shape(format!(
+                "{} flags for {} surfaces",
+                character.len(),
+                self.y.len()
+            )));
+        }
+        let r = (grow / self.pitch + 1e-9).floor();
+        if !r.is_finite() || r.abs() > 1e6 {
+            return Err(NavError::Shape("near_characters: a reach that is not a number".into()));
+        }
+        let r = r as i64;
+        let mut out = vec![false; self.y.len()];
+        let (nx, nz) = (self.nx as i64, self.nz as i64);
+        for (k, _) in character.iter().enumerate().filter(|&(_, &c)| c) {
+            let c = self.col_of.get(k).copied().unwrap_or(0);
+            let (i, j) = ((c % self.nx.max(1)) as i64, (c / self.nx.max(1)) as i64);
+            let yk = self.y.get(k).copied().unwrap_or(f64::NAN);
+            for dj in -r..=r {
+                for di in -r..=r {
+                    let (a, b) = (i + di, j + dj);
+                    if !(0 <= a && a < nx && 0 <= b && b < nz)
+                        || pymath::hypot(di as f64, dj as f64) * self.pitch > grow + 1e-9
+                    {
+                        continue;
+                    }
+                    let cc = (b * nx + a) as usize;
+                    let (Some(&s0), Some(&s1)) = (self.start.get(cc), self.start.get(cc + 1)) else {
+                        continue;
+                    };
+                    for q in s0..s1 {
+                        let yq = self.y.get(q).copied().unwrap_or(f64::NAN);
+                        if yk - below <= yq
+                            && yq <= yk + above
+                            && let Some(o) = out.get_mut(q)
+                        {
+                            *o = true;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// `walkable`'s pick of the surface at a point (its seeds, anchors, unseeds): the column nearest (x, z)
+    /// (`int(round((x - min_x) / pitch))`, half to even), and in it, among the surfaces `mask` marks whose height minus
+    /// y lies in [lo, hi], the one nearest y in height (the first of equals). `Ok(None)` outside the grid or with no
+    /// such surface; an error where Python's `round` fails (a NaN or infinite index).
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] for a point whose column index is NaN or infinite, or a mask of another length.
+    pub fn column_pick(&self, p: (f64, f64, f64), mask: &[bool], lo: f64, hi: f64) -> Result<Option<usize>, NavError> {
+        if mask.len() != self.y.len() {
+            return Err(NavError::Shape(format!(
+                "{} flags for {} surfaces",
+                mask.len(),
+                self.y.len()
+            )));
+        }
+        let index = |v: f64| {
+            let r = v.round_ties_even();
+            if r.is_finite() && r.abs() < 9.0e18 {
+                Ok(r as i64)
+            } else {
+                Err(NavError::Shape("a point whose column index is not a number".into()))
+            }
+        };
+        let (i, j) = (
+            index((p.0 - self.min_x) / self.pitch)?,
+            index((p.2 - self.min_z) / self.pitch)?,
+        );
+        let (Ok(i), Ok(j)) = (usize::try_from(i), usize::try_from(j)) else {
+            return Ok(None);
+        };
+        if i >= self.nx || j >= self.nz {
+            return Ok(None);
+        }
+        let c = j * self.nx + i;
+        let (Some(&a), Some(&b)) = (self.start.get(c), self.start.get(c + 1)) else {
+            return Ok(None);
+        };
+        let mut best: Option<(usize, f64)> = None;
+        for n in a..b {
+            let (Some(&yn), Some(&m)) = (self.y.get(n), mask.get(n)) else {
+                continue;
+            };
+            let d = yn - p.1;
+            if m && lo <= d && d <= hi && best.is_none_or(|(_, bd)| d.abs() < bd) {
+                best = Some((n, d.abs()));
+            }
+        }
+        Ok(best.map(|b| b.0))
+    }
+
     /// The grid of `nx` x `nz` columns with column starts `start` (`nx * nz + 1`, from 0 to the surfaces, ascending).
     ///
     /// # Errors

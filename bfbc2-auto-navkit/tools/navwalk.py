@@ -19,7 +19,7 @@ import os
 import sys
 from collections import defaultdict, deque
 from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -122,6 +122,17 @@ def native_samples(s: navsample.Samples) -> Any:
 def _grid_of(s: navsample.Samples, grid: Any) -> Any:
     """grid (a NavGrid walkable made once for all its rules) or one made for s now; None: Python runs."""
     return grid if grid is not None else native_samples(s)
+
+
+def _column_picks(grid: Any, points: list[Any], mask: np.ndarray, lo: float, hi: float) -> list[int] | None:
+    """walkable's surface at each point (seeds, anchors): in the point's column, the surface mask marks with height - y
+    in [lo, hi] nearest y, or -1 - from the Rust core (round E3c); None: the caller's loop (the reference) runs."""
+    if grid is None or not hasattr(grid, 'column_picks') or not points:
+        return None
+    try:
+        return cast(list[int], grid.column_picks(points, _flags(mask), lo, hi))
+    except _NATIVE_ERRORS:
+        return None
 
 
 def _flags(a: Any) -> bytes:
@@ -271,9 +282,17 @@ def on_objects(s: navsample.Samples, tris: np.ndarray | None, tol: float = 0.2, 
 
 
 def near_characters(s: navsample.Samples, character: np.ndarray, grow: float = 0.9, below: float = 2.2,
-                    above: float = 0.3) -> np.ndarray:
+                    above: float = 0.3, grid: Any = None) -> np.ndarray:
     """Surfaces a capsule test would see blocked by a soldier: within `grow` metres (horizontally) of a character hit
-    (CHARACTER_SHAPE_VTABLE) and from `below` metres under to `above` metres over it."""
+    (CHARACTER_SHAPE_VTABLE) and from `below` metres under to `above` metres over it. In the Rust core when it is there
+    (round E3c; grid: native_samples(s); the Python below is its reference and fallback)."""
+    g = _grid_of(s, grid)
+    if g is not None and hasattr(g, 'near_characters') and _num(grow, below, above):
+        try:
+            return np.frombuffer(g.near_characters(_flags(character), float(grow), float(below), float(above)),
+                                 np.bool_).copy()
+        except _NATIVE_ERRORS:
+            pass
     out = np.zeros(len(s.y), bool)
     y = s.y.astype(float)
     col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
@@ -622,7 +641,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
     clear = (s.flags & 3) == 0
     character = (s.hit[:, 0] == CHARACTER_SHAPE_VTABLE) if (s.hit is not None and CHARACTERS_ABSENT) else np.zeros(len(y), bool)
     if character.any():
-        clear |= near_characters(s, character) & ((s.flags & 2) == 0)
+        clear |= near_characters(s, character, grid=nat) & ((s.flags & 2) == 0)
     if soldier_points is not None and len(soldier_points) and CHARACTERS_ABSENT:
         # soldiers stood at their spawn points while the level was sampled; a downward ray only sees one where it hits
         # the top of his body (sp_006: Haggard's was missed, his spawn cell still blocked) - so the floor at every
@@ -786,7 +805,13 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
         if c % s.nx in per_i or c // s.nx in per_j:
             keep[k] = True
             q.append(k)
-    for (sx, sy, sz) in (extra_seeds or ()):
+    seed_list = list(extra_seeds or ())
+    picks = _column_picks(nat, seed_list, ok, -1.5, 0.5)       # in the Rust core (E3c), or None: the loop below
+    for n in (picks or ()):
+        if n >= 0 and not keep[n]:
+            keep[n] = True
+            q.append(n)
+    for (sx, sy, sz) in (seed_list if picks is None else ()):
         # level seed points (soldier spawns): the walkable surface at or just below the point
         i, j = int(round((sx - s.min_x) / s.pitch)), int(round((sz - s.min_z) / s.pitch))
         if not (0 <= i < s.nx and 0 <= j < s.nz):
@@ -864,8 +889,11 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
                             q.append(n)
         keep[list(drop)] = False
     if ROOF_PRUNE:
-        anchor_k = set()
-        for (sx, sy, sz) in (anchors or ()):
+        anchor_k: set[int] = set()
+        anchor_list = list(anchors or ())
+        picks = _column_picks(nat, anchor_list, keep, -2.5, 2.5)
+        anchor_k.update(n for n in (picks or ()) if n >= 0)
+        for (sx, sy, sz) in (anchor_list if picks is None else ()):
             i, j = int(round((sx - s.min_x) / s.pitch)), int(round((sz - s.min_z) / s.pitch))
             if 0 <= i < s.nx and 0 <= j < s.nz:
                 c = j * s.nx + i
@@ -893,9 +921,27 @@ def islands_of(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.nd
 
 def roof_islands(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.ndarray, stair: np.ndarray, step: float,
                  terrain: np.ndarray, anchor_k: set[int]) -> np.ndarray:
-    """The kept surfaces ROOF_PRUNE drops (bool per surface)."""
+    """The kept surfaces ROOF_PRUNE drops (bool per surface). After the islands (Rust), the rule runs in the Rust core
+    when it is there (round E3c; this Python is its reference and fallback: BFBC2_PURE_PYTHON, use_native(False))."""
     y = s.y.astype(float)
     comp, n = islands_of(s, keep, gx, gz, stair, step)
+    rule = (ROOF_RAISE, ROOF_SHARE, ROOF_NEAR, ROOF_NEAR_DY)
+    if _native is not None and hasattr(_native, 'navkit_roof_drop') and _num(s.pitch, s.min_x, s.min_z, *rule):
+        try:
+            got, stats = _native.navkit_roof_drop(
+                int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
+                np.ascontiguousarray(y, '<f8').tobytes(), _flags(keep), _flags(terrain),
+                np.ascontiguousarray(comp, '<i8').tobytes(), int(n), [int(k) for k in anchor_k],
+                (float(s.min_x), float(s.min_z), float(s.pitch)), tuple(float(v) for v in rule))
+        except _NATIVE_ERRORS:
+            pass
+        else:
+            if stats is not None:
+                ROOF_STATS['islands'] = ROOF_STATS.get('islands', 0) + stats[0]
+                if stats[1] is not None:
+                    ROOF_STATS['dropped'] = ROOF_STATS.get('dropped', 0) + stats[1][0]
+                    ROOF_STATS['surfaces'] = ROOF_STATS.get('surfaces', 0) + stats[1][1]
+            return np.frombuffer(got, np.bool_).copy()
     out = np.zeros(len(y), bool)
     if n < 2:
         return out

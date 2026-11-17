@@ -15,6 +15,7 @@ import sys
 from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -29,6 +30,39 @@ import kymesh  # noqa: E402
 
 HEADER = struct.Struct('<4sI3f2i6fI')
 BLOCKED, FAULT = 1, 2
+
+
+def _load_native() -> Any:
+    """The Rust core for load's version 1 / 2 records (round E3c), or None: not built, or BFBC2_PURE_PYTHON set (the
+    Python loop below runs; it stays the reference)."""
+    try:
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:
+        return None
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'navkit_navsample_parse') else None
+
+
+_native = _load_native()
+
+
+def use_native(on: bool) -> str:
+    """load's records in the Rust core (when built, whatever BFBC2_PURE_PYTHON says) or in Python; 'rust' or
+    'python'."""
+    global _native
+    if on:
+        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+        try:
+            _native = _load_native()
+        finally:
+            if saved is not None:
+                os.environ['BFBC2_PURE_PYTHON'] = saved
+    else:
+        _native = None
+    return 'rust' if _native is not None else 'python'
 
 
 @dataclass
@@ -79,6 +113,16 @@ def load(path: str) -> tuple[Samples, int]:
                        rec['f'].astype(np.uint8), rec['h'].astype(np.uint32)), nx * nz
     pos = HEADER.size
     cols = nx * nz
+    if _native is not None:
+        # the records in the Rust core (round E3c: 4.5 s of sp_004_b's build in this loop); the loop is its reference
+        try:
+            st, ya, na, fa, ha, c = _native.navkit_navsample_parse(data, pos, cols, version)
+        except ValueError:
+            pass                                 # a record cut short: the loop below raises struct.error
+        else:
+            return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r,
+                           np.frombuffer(st, '<i8'), np.frombuffer(ya, '<f4'), np.frombuffer(na, '<f4').reshape(-1, 3),
+                           np.frombuffer(fa, np.uint8), np.frombuffer(ha, '<u4').reshape(-1, 3)), c
     start = np.zeros(cols + 1, dtype=np.int64)
     ys: list[float] = []
     normals: list[tuple[float, float, float]] = []
