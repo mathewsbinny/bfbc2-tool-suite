@@ -12,6 +12,8 @@
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
 //! function's bundles run with the interpreter released.
 
+mod geometry;
+
 use bc2_formats::dbx::{self, DbxError, DbxTree};
 use bc2_formats::fbrb::{self, FbrbError};
 use pyo3::exceptions::{PyKeyError, PyValueError};
@@ -240,13 +242,20 @@ fn threads() -> usize {
     bc2_formats::threads()
 }
 
-/// The suite's Rust core (`rust/`): binary DBX parsing and XML, used by `bfbc2core.dbx` when built, and bundle
-/// reading, used by `bfbc2core.fbrb`.
+/// The suite's Rust core (`rust/`): binary DBX parsing and XML, used by `bfbc2core.dbx` when built; bundle
+/// reading, used by `bfbc2core.fbrb`; terrain, water and collision, used by `bfbc2core.terrain`, `water` and
+/// `collision`.
 #[pymodule]
 mod bc2_native {
     #[pymodule_export]
     use super::{
         dbx_parse, dbx_parse_many, dbx_to_xml, dbx_to_xml_many, fbrb_header, fbrb_read, fbrb_read_many, threads,
+    };
+
+    #[pymodule_export]
+    use super::geometry::{
+        collision_index, havok_triangles, havok_triangles_files, terrain_heights, terrain_tail, water_mesh,
+        water_shaders, water_visual,
     };
 
     /// The crate version, to tell builds apart.

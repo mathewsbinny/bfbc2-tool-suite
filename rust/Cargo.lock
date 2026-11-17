@@ -25,7 +25,19 @@ name = "bc2-py"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-scene",
  "pyo3",
+ "rayon",
+]
+
+[[package]]
+name = "bc2-scene"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "proptest",
+ "rayon",
+ "thiserror",
 ]
 
 [[package]]

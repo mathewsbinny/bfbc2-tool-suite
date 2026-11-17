@@ -7,6 +7,11 @@
 //! - [`dbx`]: binary `.dbx` partitions (`bfbc2-dbx-tools/FORMAT.md` sections 1-3), a port of
 //!   `core/bfbc2core/dbx.py`: the element tree, the readable XML (identical to `DbxEdit xml`), values and a writer.
 //! - [`fbrb`]: `.fbrb` bundles, a port of `core/bfbc2core/fbrb.py`: the header's entries and any entry's data.
+//! - [`terrain`]: terrain height fields, a port of `core/bfbc2core/terrain.py` (heights, exact height at a point,
+//!   a mesh) with the tail's known layout.
+//! - [`water`]: water meshes and the shader of each triangle, a port of `core/bfbc2core/water.py`.
+//! - [`havok`]: Havok packfiles and a blueprint's collision triangles, a port of NavKit's `hkpack.py` and
+//!   `levelobjects.triangles`.
 //!
 //! ```
 //! use bc2_formats::dbx::{self, DbxFile, Element};
@@ -23,6 +28,11 @@
 
 pub mod dbx;
 pub mod fbrb;
+pub mod havok;
+pub mod terrain;
+pub mod water;
+
+mod bytes;
 
 /// The number of worker threads the batch functions ([`dbx::parse_all`], [`dbx::to_xml_all`], [`fbrb::read_many`]) use: rayon's
 /// global pool, `RAYON_NUM_THREADS` or else one per logical core.

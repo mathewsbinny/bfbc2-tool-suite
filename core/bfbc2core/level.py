@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
-from . import atomicio, dbx, paths, terrain, water
+from . import atomicio, collision, dbx, paths, terrain, water
 
 if TYPE_CHECKING:
     from .terrain import Heightfield
@@ -162,7 +162,6 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
          geometry: bool = True) -> Level:
     """geometry=False: the level partition's entities, teams and shapes only - no static-group members, collision,
     terrain or water (a second or two; the test harness's reachability and level checks)."""
-    import levelobjects
     import navkit
     root = paths.find_opfor(opfor, start=SUITE)          # NavKit's search and message (GameCopyNotFound)
     lv = level.replace('\\', '/').split('/')[-1].lower()
@@ -219,27 +218,29 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
     if not geometry:
         log(f'{LV}: {len(lvl.entities)} entities (no geometry)')
         return lvl
-    # collision
-    havok = levelobjects.havok_index(bases)
-    try:
-        for bp, target in levelobjects.mesh_aliases(bases).items():
+    # collision: NavKit's packfile index and mesh aliases, and each blueprint's triangles (collision.py: one walk and
+    # all cores with the Rust core)
+    havok, aliases = collision.index(bases)
+    if isinstance(aliases, Exception):        # needs the converted XML NavKit's prepare writes
+        lvl.notes.append(f'blueprint mesh aliases not read: {aliases}')
+    else:
+        for bp, target in aliases.items():
             if bp not in havok and target in havok:
                 havok[bp] = havok[target]
-    except Exception as ex:                   # needs the converted XML NavKit's prepare writes
-        lvl.notes.append(f'blueprint mesh aliases not read: {ex}')
-    cache: dict[str, Any]
-    missing: set[str]
-    cache, missing = {}, set()
-    for e in lvl.entities:
-        if e.blueprint is None or e.matrix is None:
-            continue
-        if e.blueprint not in cache:
-            cache[e.blueprint] = levelobjects.triangles(havok[e.blueprint]) if e.blueprint in havok else None
-        t = cache[e.blueprint]
+    placed = [e for e in lvl.entities if e.blueprint is not None and e.matrix is not None]
+    wanted = [bp for bp in dict.fromkeys(cast(str, e.blueprint) for e in placed) if bp in havok]
+    cache: dict[str, Any] = dict.fromkeys(dict.fromkeys(cast(str, e.blueprint) for e in placed))
+    for bp, r in zip(wanted, collision.triangles_many([havok[bp] for bp in wanted])):
+        if isinstance(r, Exception):          # the first damaged packfile in entity order, as one by one
+            raise r
+        cache[bp] = r
+    missing: set[str] = set()
+    for e in placed:
+        t = cache[cast(str, e.blueprint)]
         if t is None:
-            missing.add(e.blueprint)
+            missing.add(cast(str, e.blueprint))
             continue
-        m = e.matrix
+        m = cast(np.ndarray, e.matrix)
         lvl.meshes.append(Mesh(e.index, (t @ m[:3, :3] + m[3, :3]).astype(np.float32)))
     lvl.missing_collision = sorted(missing)
     source = 'none'
