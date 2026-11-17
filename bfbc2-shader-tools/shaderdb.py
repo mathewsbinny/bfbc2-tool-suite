@@ -51,7 +51,8 @@ import os
 import re
 import struct
 import sys
-from collections.abc import Collection, Container, Iterable, Sequence
+from collections.abc import Callable, Collection, Container, Iterable, Iterator, Sequence
+from types import ModuleType
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -65,6 +66,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
+from bfbc2core import dbx as _dbx  # noqa: E402
 from bfbc2core import paths  # noqa: E402
 
 PROGRAM_SIZE = 0x30        # section 6a record
@@ -90,6 +92,39 @@ def swap_guid(g: bytes) -> bytes:
 
 class ShaderDbError(Exception):
     """A problem with the input the user can fix (explained in words by errors.guard)."""
+
+
+# ------------------------------------------------------------------------------------------------ backend
+# ShaderDb._parse and ShaderDb.to_bytes run in the suite's Rust core (rust/, module bc2_native:
+# bc2_formats::shaderdb) when it is built, else in Python here; both give the same objects, bytes and messages
+# (tests/test_shaderdb_native.py; the game tier: every database of the game copy and OPFOR's work folders).
+# BFBC2_PURE_PYTHON=1 (or use_native(False)) forces Python; backend() says which one runs.
+
+def _with_shaderdb(m: ModuleType | None) -> ModuleType | None:
+    """m when it has the shader database reader (a module built before it was added does not)."""
+    return m if m is not None and hasattr(m, 'shaderdb_parse') else None
+
+
+def _load_native() -> ModuleType | None:
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    return _with_shaderdb(_dbx._import_native())
+
+
+_native = _load_native()
+
+
+def backend() -> str:
+    """'rust' when databases are read and written in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend()."""
+    global _native
+    _native = _with_shaderdb(_dbx._import_native()) if on else None
+    return backend()
 
 
 # ------------------------------------------------------------------------------------------------ the file model
@@ -205,6 +240,15 @@ class ShaderDb:
     @classmethod
     def _parse(cls, data: bytes, dx: int, where: str, big_endian: bool = False) -> ShaderDb:
         db = cls(dx, big_endian)
+        if _native is not None and type(data) is bytes:          # (other buffers: Python, records keep their type)
+            try:
+                got = _native.shaderdb_parse(data, dx, big_endian, Shader)
+            except ValueError as e:
+                raise ShaderDbError(f'{where}: {e}') from None
+            (db.version, db.flag, db.params, db.bindings, db.regs, db.vs, db.ps, db.programs, db.keys, db.layouts,
+             db.entries, db.fragments, db.parts, db.groups) = got
+            db.key_size = KEY_SIZES.get(db.version, KEY_SIZE)
+            return db
         r = _Reader(data, where, db.e)
         db.version = r.u32()
         db.flag = r.u8()
@@ -278,6 +322,13 @@ class ShaderDb:
 
     def to_bytes(self) -> bytes:
         e = self.e
+        if _native is not None:
+            # None: an item only the Python writer takes (not bytes, a name not latin-1, a number out of range)
+            got = _native.shaderdb_write(self.version, self.flag, e == '>', self.params, self.bindings, self.regs,
+                                         self.vs, self.ps, self.programs, self.keys, self.layouts, self.entries,
+                                         self.fragments, self.parts, self.groups)
+            if got is not None:
+                return cast(bytes, got)
         out = bytearray()
         out += struct.pack(e + 'IB', self.version, self.flag)
         for lst in (self.params, self.bindings, self.regs):
@@ -534,6 +585,64 @@ def load(spec: str, dx: int | None = None, opfor: str | None = None) -> tuple[Sh
     return db, data
 
 
+LevelDbs = dict[int, 'ShaderDb | ShaderDbError']
+
+
+def load_levels(levels: Iterable[str], dxs: Sequence[int] = (9, 10, 11), opfor: str | None = None,
+                chunk: int = 8) -> Iterator[tuple[str, LevelDbs]]:
+    """(level, {dx: ShaderDb, or the ShaderDbError load raised}) for each level, in order: what
+    load(f'level:{level}', dx, opfor) gives for each dx, with each level's databases read from its bundle in one pass
+    (an fbrb.read decompresses the payload up to the entries it reads: one call per Dx decompressed it once per Dx) and
+    `chunk` bundles at a time on all cores (fbrb.read_many). A bundle that cannot be read raises as load does. Only
+    `chunk` levels' file bytes are held at once; the databases are made one level at a time, as the caller takes
+    them (a caller that keeps every Dx of every level holds three times what a per-Dx loop held)."""
+    from bfbc2core import fbrb
+    levels = list(levels)
+    bundles = level_bundles(find_opfor(opfor)) if levels else {}
+    step = max(1, chunk)
+    for i in range(0, len(levels), step):
+        plans: list[tuple[str, str | None, LevelDbs, dict[int, str]]] = []
+        for lv in levels[i:i + step]:
+            out: LevelDbs = {}
+            names: dict[int, str] = {}
+            bundle = bundles.get(lv.lower())
+            for dx in dxs:
+                if bundle is None:
+                    out[dx] = ShaderDbError(f'unknown level {lv}: the game copy has no levels\\{lv}\\level-00.fbrb')
+                    continue
+                try:
+                    names[dx] = pick_database(bundle, dx)
+                except ShaderDbError as e:
+                    out[dx] = e
+            plans.append((lv, bundle, out, names))
+        jobs: list[tuple[str, list[str]]] = [(b, sorted(set(names.values()))) for _, b, _, names in plans
+                                             if b is not None and names]
+        read = fbrb.read_many(jobs)
+        k = 0
+        for lv, bundle, out, names in plans:
+            if bundle is not None and names:
+                data, read[k] = read[k], {}         # each level's bytes let go once its databases are made
+                k += 1
+                if isinstance(data, Exception):
+                    raise data
+                for dx, name in names.items():
+                    label = f'{bundle}:{name}'
+                    try:
+                        db = ShaderDb.parse(data[name], 10 if dx == 11 else dx, where=label)
+                    except ShaderDbError as e:
+                        out[dx] = e
+                        continue
+                    db.dx, db.label = dx, label
+                    out[dx] = db
+                data = {}
+            yield lv, {dx: out[dx] for dx in dxs}
+
+
+def load_level(level: str, dxs: Sequence[int] = (9, 10, 11), opfor: str | None = None) -> LevelDbs:
+    """load_levels for one level: {dx: ShaderDb or ShaderDbError}, its databases read in one pass."""
+    return next(load_levels([level], dxs, opfor))[1]
+
+
 # ------------------------------------------------------------------------------------------------ names
 
 def split_name(name: str, meshes: Container[str]) -> tuple[str, str]:
@@ -662,6 +771,26 @@ def needed(name: str, need: Iterable[str]) -> bool:
     return any(low == n or low.startswith(n + '/') for n in need)
 
 
+def needed_test(need: Iterable[str]) -> Callable[[str], bool]:
+    """needed(name, need) for many names against one list: each name's whole-path prefixes (up to each '/', and the
+    whole name) looked up in a set of the needed paths. The same answers; the merge's donor scan tested every donor
+    entry and mesh-part name against every needed path (2026-11-16 profile: 7.5 of a level's 40 s of shader merging,
+    5 million calls of needed)."""
+    want = set(need)
+
+    def test(name: str) -> bool:
+        low = name.lower()
+        if low in want:
+            return True
+        i = low.find('/')
+        while i >= 0:
+            if low[:i] in want:
+                return True
+            i = low.find('/', i + 1)
+        return False
+    return test
+
+
 # ------------------------------------------------------------------------------------------------ merging
 
 class Merger:
@@ -729,9 +858,9 @@ class Merger:
         frag_names = {g: n for n, g in donor.fragments}
         layouts = {r[:16]: r for r in donor.layouts}
         took = 0
-        mine = [n for n in self.need if self.all_names or n not in self.in_base]   # needed names it may add to
+        mine = needed_test(n for n in self.need if self.all_names or n not in self.in_base)  # names it may add to
         for name, guid in donor.entries:
-            if name in self.entry_names or not any(needed(name, [n]) for n in mine):
+            if name in self.entry_names or not mine(name):
                 continue
             progs: list[ProgRef] = []
             for pi in groups.get(guid, []):
@@ -770,7 +899,7 @@ class Merger:
         parts = 0
         for name, lg in donor.parts:
             pm = part_mesh(name)
-            if pm is None or not any(needed(pm, [n]) for n in mine):
+            if pm is None or not mine(pm):
                 continue
             if name in self.part_names:
                 if self.part_names[name] != lg:

@@ -15,8 +15,10 @@
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
 
+mod culltree;
 mod geometry;
 mod scene;
+mod shaders;
 mod writers;
 
 use bc2_formats::dbx::{self, DbxError, DbxTree};
@@ -268,6 +270,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, zlib_deflate};
+
+    #[pymodule_export]
+    use super::shaders::{shaderdb_parse, shaderdb_write};
+
+    #[pymodule_export]
+    use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

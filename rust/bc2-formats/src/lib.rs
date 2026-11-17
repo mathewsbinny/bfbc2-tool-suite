@@ -12,6 +12,10 @@
 //! - [`water`]: water meshes and the shader of each triangle, a port of `core/bfbc2core/water.py`.
 //! - [`havok`]: Havok packfiles and a blueprint's collision triangles, a port of NavKit's `hkpack.py` and
 //!   `levelobjects.triangles`.
+//! - [`shaderdb`]: per-level shader databases (PC Dx9 / Dx10 / Dx11, Xbox 360), a port of the reader and writer of
+//!   `bfbc2-shader-tools/shaderdb.py`.
+//! - [`culltree`]: static cull trees' and level partitions' element streams and the reference levels' discovery, a
+//!   port of the hot parts of `bfbc2-culltree/culltree.py`.
 //!
 //! ```
 //! use bc2_formats::dbx::{self, DbxFile, Element};
@@ -26,9 +30,11 @@
 //! ```
 #![deny(unsafe_code)]
 
+pub mod culltree;
 pub mod dbx;
 pub mod fbrb;
 pub mod havok;
+pub mod shaderdb;
 pub mod terrain;
 pub mod water;
 pub mod zlib;

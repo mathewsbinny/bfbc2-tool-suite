@@ -67,6 +67,48 @@ class CullTreeError(Exception):
     pass
 
 
+# ------------------------------------------------------------------------------------------------ backend
+# Doc's element reader and ref_pairs' search for level partitions run in the suite's Rust core (rust/, module
+# bc2_native: bc2_formats::culltree) when it is built, else in Python here: the same elements, the same files
+# (tests/test_culltree_native.py; the game tier: every tree and level partition of OPFOR's work folders). A file the
+# Rust reader refuses is read by the Python reader, which raises what it raises. BFBC2_PURE_PYTHON=1 (or
+# use_native(False)) forces Python; backend() says which one runs.
+
+def _import_native() -> Any:
+    try:
+        if SUITE not in sys.path:
+            sys.path.insert(0, SUITE)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:                       # the tool copied out of the suite: Python only
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'culltree_elements') else None
+
+
+def _load_native() -> Any:
+    if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0'):
+        return None
+    return _import_native()
+
+
+_native = _load_native()
+
+
+def backend() -> str:
+    """'rust' when the Rust core reads the element streams and searches the reference levels, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend()."""
+    global _native
+    _native = _import_native() if on else None
+    return backend()
+
+
 # ------------------------------------------------------------------------------------------------ binary DBX
 # A minimal codec (bfbc2-dbx-tools/FORMAT.md sections 1, 2 and 4) that keeps every byte, so an unchanged file is
 # written back exactly and a changed one differs only where values or array items were changed.
@@ -171,6 +213,11 @@ class Doc:
         pos = 24 + size
         self.roots: list[El]
         stack: list[El]
+        got = _native.culltree_elements(data, pos, self, El) if _native is not None and type(data) is bytes else None
+        if got is not None:
+            self.roots, end = got
+            self.trailer = data[end:]
+            return
         self.roots, stack = [], []
         while pos < len(data):
             tag, p = _varint(data, pos)
@@ -733,6 +780,29 @@ def _consensus(group: Sequence[Instance], k: int, tol: float) -> list[Instance]:
     return good if len(good) * 2 > len(group) else []
 
 
+LEVEL_MARK = b'ExclusiveStaticCullTree'
+
+
+def level_partitions(folder: str) -> list[str]:
+    """The level partitions under a folder: every .dbx below it (glob's '**/*.dbx', sorted) that is not a tree or a
+    description and holds ExclusiveStaticCullTree. With the Rust core the folder is listed and the files searched on
+    all cores (2026-11-16: --ref-dir over work\\levels' 37 levels read 109,660 files, 136 of a 200 s add run)."""
+    rels = _native.culltree_dbx_files(folder) if _native is not None else None
+    files = sorted(os.path.join(folder, r) for r in rels) if rels is not None else \
+        sorted(glob.glob(os.path.join(folder, '**', '*.dbx'), recursive=True))
+    cands = [p for p in files if 'staticculltree' not in os.path.basename(p).lower()
+             and '_description' not in os.path.basename(p).lower()]
+    hits = _native.culltree_contains(cands, LEVEL_MARK) if _native is not None else [None] * len(cands)
+    out = []
+    for p, hit in zip(cands, hits):
+        if hit is None:                             # Python: and a file that cannot be read raises here
+            with open(p, 'rb') as f:
+                hit = LEVEL_MARK in f.read()
+        if hit:
+            out.append(p)
+    return out
+
+
 def ref_pairs(refs: Sequence[str], ref_dirs: Iterable[str], log: Log,
               target: tuple[str, str] | None = None) -> list[Pair]:
     """(tree, level, label) for each --ref level and every level under each --ref-dir that has its tree. target: the
@@ -740,14 +810,8 @@ def ref_pairs(refs: Sequence[str], ref_dirs: Iterable[str], log: Log,
     it a second time, and its instances confirmed themselves)."""
     paths = list(refs)
     for d in ref_dirs:
-        for p in sorted(glob.glob(os.path.join(d, '**', '*.dbx'), recursive=True)):
-            b = os.path.basename(p).lower()
-            if 'staticculltree' in b or '_description' in b:
-                continue
-            with open(p, 'rb') as f:
-                if b'ExclusiveStaticCullTree' not in f.read():      # not a level partition
-                    continue
-            paths.append(p)
+        paths += level_partitions(d)
+
     def same(a: str) -> str:
         return os.path.normcase(os.path.abspath(a))
     out: list[Pair]

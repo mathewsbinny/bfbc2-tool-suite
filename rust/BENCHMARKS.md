@@ -335,6 +335,66 @@ Contended: other agents were building and testing on the same 16-thread PC throu
   game's own files: 62 identical, 919 identical but for the gzip headers (DICE: xfl 0 / os 0x0b; .NET: xfl 4 /
   os 0), 105 also but for the payload of marker-only zipped bundles (DICE writes an empty 20-byte gzip stream,
   .NET's `GZipStream` none). Every deflate stream DICE wrote is zlib level 6.
+## Shader databases and cull trees (2026-11-16, branch `rust-e1c`)
+
+Profiled first (PC busy with other work: figures ±30 %). Tools: `cProfile` and stage timers on the two places the
+suite spends time on these formats: the WW2 level build's shaders step (`wake_shaders.main`: base mp_005, every stock
+level a donor, Dx9 / 10 / 11, replayed into a temp folder with Guadalcanal's needs list) and `culltree.py add --auto
+--misplaced 2 --ref-dir <each work\levels folder>` (console_cull's run on Onslaught MP_005). Per-file timings:
+`cargo run --release -p bc2-formats --example shaderdb_bench -- <file.res>...` (Rust alone).
+
+**Shader databases: where the time was.** Reading and writing a database was never slow in Python: the records are
+byte slices (35-80 ms to parse, 35-100 ms to write a 20-50 MB file). The whole game copy (276 databases, 6.1 GB):
+read from the bundles 23 s, parse 9.7 s, write 13.1 s; OPFOR's work files (304, 7.4 GB): parse 10.8 s, write 21.2 s.
+
+| one level's shaders-step merge (Guadalcanal, Dx9 / 10 / 11) | Python | Rust core |
+|---|---:|---:|
+| reading the 74 databases out of the level bundles (`fbrb.read`, already Rust) | 22.1 s | 20.6 s |
+| parsing them | 8.6 s | 2.9 s |
+| the merge (`Merger.add_donor`) | 7.5 s | **0.6 s** (`needed_test`, Python) |
+| writing the three results | 0.36 s | 0.08 s |
+| **total** | **40.5 s** | **25.9 s** |
+
+| one database (mp_005 Dx10, 33 MB, 20,366 programs) | Python | Rust through Python | Rust alone |
+|---|---:|---:|---:|
+| parse | 52-67 ms | 20-24 ms | 1.5-2.3 ms (borrowed) |
+| write | 62-104 ms | 13-20 ms | 4-13 ms |
+
+- **The merge's time was an algorithm, not the format:** `add_donor` tested every donor entry and mesh-part name
+  against every needed path (5 million calls of `needed` per level). `needed_test` looks each name's path prefixes
+  up in a set: the same answers (tested on 3,006 names x 200 lists, and on the four WW2 merges), 12x faster, in
+  Python. The merge itself was not ported: what remains of it is 0.6 s.
+- **Through Python the parse is bound by the objects:** Rust reads a database in 2 ms; building its ~70,000 Python
+  `bytes`, `str` and `Shader` objects takes the other 20. The writer writes straight into the new `bytes` object.
+- **What was left was the bundle reads** (20 of 26 s): `wake_shaders` loaded each level's Dx9, Dx10 and Dx11
+  databases with three `fbrb.read` calls, each decompressing the bundle's payload up to its entry.
+  `shaderdb.load_levels(levels, dxs)` reads a level's databases in one call, several bundles at a time on all cores
+  (`fbrb.read_many`), and gives what `load` gives per Dx (or its `ShaderDbError`). On it (OPFOR branch `rust-e1c`:
+  `wake_shaders.merge_stock` / `add_bfbc2`, `wake_install.index_templates` and its Dx9 donor scan), with identical
+  results: the merge **21-22 s -> 8-9 s per level** (all four WW2 levels, Dx9 / 10 / 11), the donor scan 6.9 ->
+  3.3 s, the template index 13 -> 12 s (one database per bundle: only the parallel reads help). The price: a merge
+  holds its three Dx at once, peak commit 1.2 -> 2.0 GB. `renderqa.truth_index` uses it too.
+- **A WW2 level build** (16-22 min) spends about 40 s of its shaders step here; the rest of the step (2-3 min) is
+  `wake_shaders.meshes` (DBX reads of BFBC2's partitions), and the clone / translate steps are HLSL compilation and
+  Python logic, not database I/O. The install's "indexing the stock shader templates" reads every stock Dx9
+  database once (cached): about 13 s in Python, of it 3 s parsing.
+
+**Cull trees: where the time was.** The WW2 pipeline does not run `culltree.py` (BF1943's own trees are converted as
+DBX); console_cull does, once per Onslaught level. Its `add` run took 200-220 s:
+
+| `add --auto --misplaced 2`, 37 reference folders (Onslaught MP_005) | Python | Rust core |
+|---|---:|---:|
+| finding the reference levels: listing (glob) and reading 109,660 `.dbx` for `ExclusiveStaticCullTree` | 28 + 108 s | 12 s |
+| one level partition: `Doc` / `Level` / `CullTree` (77,335 elements) | 213 / 537 / 349 ms | 100 / 218 / 179 ms |
+| **the whole run** (subprocess, end to end; 87 reference levels and trees) | **190 s** | **61 s** |
+
+- Ported: the reference search (`level_partitions`: the folder listing as glob gives it and the files searched on all
+  cores) and `Doc`'s element reader (the same `El` objects, built from Rust). Not ported: the tree builder (`build`,
+  `flatten`, `insert`, `encode`: 2-3 s of a run) and the writer (`CullTree.write`, `Doc.tobytes`: one tree and one
+  level per run, under a second); the shape statistics (`misplaced`, `shape_for`, about 8 s) are Python geometry
+  over the collected instances.
+- `Doc` is 2x faster, not more: each of a level's 77,000 elements is a Python object with seven attributes set from
+  Rust; Rust reads the stream in a few milliseconds.
 
 ## Not ported yet
 

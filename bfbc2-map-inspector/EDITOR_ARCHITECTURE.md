@@ -268,6 +268,18 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   FbrbTool's bytes on all 1,086 bundles of the game copy, unpacked and packed again). FbrbTool's gzip is .NET's
   `GZipStream`, which is zlib at level 6, so `bc2_formats::zlib` is a byte-exact port of zlib's lazy deflate (the
   Rust deflaters choose other matches). `levelwrite` builds on both; unpacking stays with FbrbTool.
+- **Shader databases and cull trees** (E1c, 2026-11-16; measured in `rust/BENCHMARKS.md`):
+  - `bc2_formats::shaderdb` reads and writes every database the suite reads (PC Dx9 / Dx10 / Dx11, Xbox 360 v120
+    and BF1943's v117), records as slices of the file; `shaderdb.py`'s `ShaderDb.parse` / `to_bytes` use it with the
+    Python code as the fallback. Identical on all 745 databases of the game copy, OPFOR's Xbox and BF1943 levels and
+    work folders, and on the four WW2 levels' merges.
+  - The profile put the merge's time in an algorithm (every name against every needed path), fixed in Python
+    (`needed_test`); the merge stays Python, as the WW2 tools drive `Merger` directly. A level's shaders-step merge:
+    40 -> 26 s, of which 20 s is now reading the databases out of the bundles (three reads per level where one would
+    do: a caller change).
+  - `bc2_formats::culltree` reads the element stream `culltree.py`'s `Doc` reads and finds the `--ref-dir` levels on
+    all cores (an add run 190 -> 61 s). The tree builder and writer stay Python (seconds per run). For the editor,
+    cull trees are DBX partitions: E1's `levelwrite` writes them with the other partitions.
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 
@@ -376,6 +388,7 @@ first.
 |---|---|
 | E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **E0b (branch `rust-e0b`):** the FBRB reader ported (`bc2_formats::fbrb`; `bfbc2core.fbrb` on it with the Python fallback), the same entries and bytes as the Python reader on every bundle of the game copy and `work\ww2`, and FbrbTool's unpack on the built and sampled bundles; level loading through `dbx.parse_many`. Bundle packing stays with FbrbTool (E1 / `levelwrite`). E0 done. |
 | E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). **E1e (branch `rust-e1e`):** the mesh alias table read from the binary partitions and cached by the files' sizes and times (identical on all 37 prepared levels; MP_005's index 0.36 -> 0.11 s warm), NavKit's `detailed`, `ladders`, `navsample_offline` and `navwater_mesh` on the Rust collision readers (their output byte for byte the same), a WW2 level (Guadalcanal) loaded and timed from a temp prepare. Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene |
+| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). **E1c (branch `rust-e1c`):** shader databases (reader / writer, all 745 corpus databases identical) and the cull tree tool's element reader and level search in `bc2-formats` (3.8). Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
 | E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |
