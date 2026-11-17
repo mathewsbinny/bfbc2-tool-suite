@@ -633,6 +633,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
     (require_native, checked first)."""
     require_native()
     y = s.y.astype(float)
+    col_of_w = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))     # each surface's column
     nat = native_samples(s)                  # the run in the Rust core for the rules below (None: Python)
     ny = np.maximum(s.normal[:, 1], 0.05)
     gx_all, gz_all = -s.normal[:, 0] / ny, -s.normal[:, 2] / ny
@@ -699,7 +700,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
         # landings: object surfaces within two samples of a stair surface on the same level also take the
         # high-capsule clearance (the normal capsule touches the top steps / rail ends there)
         landing = np.zeros(len(y), bool)
-        col_of_l = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+        col_of_l = col_of_w
         stair_left = np.nonzero(stair)[0]
         if nat is not None:
             try:
@@ -724,7 +725,6 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
         gz_all = np.where(stair, hgz, gz_all)
     onf = on_objects(s, forbid_tris, tol=forbid_tol, grid=nat)
     slope_ok = s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01
-    col_of_w = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
 
     def same_layer(i: int, j: int, yref: float, tol: float = 0.7) -> list[int]:
         if not (0 <= i < s.nx and 0 <= j < s.nz):
@@ -795,16 +795,18 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
         ok |= force_walkable
     if force_unwalkable is not None:
         ok &= ~force_unwalkable
-    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
+    col_of = col_of_w
     per_i = {i for i in range(s.nx) if round((s.min_x + i * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     per_j = {j for j in range(s.nz) if round((s.min_z + j * s.pitch) % SECTOR, 1) in (1.6, 98.4)}
     keep = np.zeros(len(y), bool)
-    q: deque[int] = deque()
-    for k in np.nonzero(ok & terrain if terrain_seeds_only else ok)[0]:
-        c = col_of[k]
-        if c % s.nx in per_i or c // s.nx in per_j:
-            keep[k] = True
-            q.append(k)
+    # the seeds on the sector-edge sample lines: every ok surface of a column on one, in surface order (NumPy: a loop
+    # over every ok surface took a second on sp_004_b - round E3h)
+    edge_col = np.zeros((s.nz, s.nx), bool)
+    edge_col[:, sorted(per_i)] = True
+    edge_col[sorted(per_j), :] = True
+    edge_seeds = np.nonzero((ok & terrain if terrain_seeds_only else ok) & edge_col.reshape(-1)[col_of])[0]
+    keep[edge_seeds] = True
+    q: deque[int] = deque(edge_seeds.tolist())
     seed_list = list(extra_seeds or ())
     picks = _column_picks(nat, seed_list, ok, -1.5, 0.5)       # in the Rust core (E3c), or None: the loop below
     for n in (picks or ()):
@@ -827,11 +829,15 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
 
     def flood() -> None:
         """keep grown from the queued surfaces over ok surfaces by the step rule (8 neighbours, step_fits), in the
-        Rust core; the queue emptied."""
-        if not grid_nat:
+        Rust core; the queue emptied. Again (the ladders' floods): from the kept flags the core holds - keep changes
+        between the floods only by the queued surfaces (round E3h: sending all flags each time cost more than the
+        floods)."""
+        if grid_nat:
+            keep[np.asarray(grid_nat[0].flood_more([int(k) for k in q]), np.int64)] = True
+        else:
             grid_nat.append(native_grid(s, ok, gx_all, gz_all, stair, step))
-        keep[:] = np.frombuffer(grid_nat[0].flood(np.ascontiguousarray(keep, bool).tobytes(), [int(k) for k in q]),
-                                bool)
+            keep[:] = np.frombuffer(grid_nat[0].flood(np.ascontiguousarray(keep, bool).tobytes(),
+                                                      [int(k) for k in q]), bool)
         q.clear()
     flood()
     if ladders:

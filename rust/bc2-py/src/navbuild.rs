@@ -364,6 +364,8 @@ fn triangles(b: &[u8]) -> PyResult<Vec<Tri>> {
 pub struct NavLevel {
     level: Level,
     blocked: std::sync::RwLock<HashSet<(usize, usize)>>,
+    /// The kept flags the last `flood` / `flood_more` left (`flood_more` continues from them).
+    flooded: std::sync::Mutex<Option<Vec<bool>>>,
 }
 
 /// A surface index, or a `ValueError` for one outside the level.
@@ -437,6 +439,7 @@ impl NavLevel {
         Ok(NavLevel {
             level: Level::new(data).map_err(value_error)?,
             blocked: std::sync::RwLock::default(),
+            flooded: std::sync::Mutex::default(),
         })
     }
 
@@ -950,8 +953,28 @@ impl NavLevel {
             .map(|&k| surface(&self.level, k))
             .collect::<PyResult<_>>()?;
         py.detach(|| self.level.flood(&mut out, q));
-        let bytes: Vec<u8> = out.into_iter().map(u8::from).collect();
+        let bytes: Vec<u8> = out.iter().map(|&v| u8::from(v)).collect();
+        *self.flooded.lock().map_err(value_error)? = Some(out);
         Ok(PyBytes::new(py, &bytes))
+    }
+
+    /// The flood again from more surfaces `queue` (kept now: the caller has kept them), over the kept flags the last
+    /// `flood` / `flood_more` left in the core (round E3h: walkable's ladder loop floods again and again; sending
+    /// the level's flags each time cost more than the floods). Returns the surfaces it kept besides `queue`, in no
+    /// particular order; a `ValueError` when no flood ran on this level.
+    fn flood_more(&self, py: Python<'_>, queue: Vec<i64>) -> PyResult<Vec<usize>> {
+        let q: Vec<usize> = queue
+            .iter()
+            .map(|&k| surface(&self.level, k))
+            .collect::<PyResult<_>>()?;
+        let mut g = self.flooded.lock().map_err(value_error)?;
+        let kept = g.as_mut().ok_or_else(|| value_error("no flood ran on this level"))?;
+        for &k in &q {
+            if let Some(v) = kept.get_mut(k) {
+                *v = true;
+            }
+        }
+        Ok(py.detach(|| self.level.flood_bfs(kept, q)))
     }
 
     /// `navwalk.islands_of` over the surfaces this level keeps: the island ids (int64, little-endian bytes) and the
