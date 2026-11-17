@@ -16,7 +16,9 @@
 //! | `Entry`, `Entry.deleted`, `DELETED` | [`Entry`], [`Entry::is_deleted`], [`DELETED`] |
 //! | `ValueError` / `KeyError` / `OSError` | [`FbrbError`] |
 //!
-//! New here: [`extract`] / [`extract_path`] / [`extract_many`], every entry's data at once.
+//! New here: [`extract`] / [`extract_path`] / [`extract_many`], every entry's data at once; the bundle cache
+//! ([`cache`], round E3e): the path functions keep headers and decompressed payloads, in the process and on disk, so a
+//! bundle read again is not decompressed again ([`read_path_uncached`] / [`extract_path_uncached`] read without it).
 //!
 //! The two gzip streams are read by the rules of the reference's two standard-library readers (`gzip.decompress`
 //! for the header, `zlib.decompressobj` fed 1 MiB at a time for the payload: see the `gzip` module), so the same
@@ -36,6 +38,7 @@
 //! ```
 
 mod build;
+pub mod cache;
 mod error;
 mod gzip;
 mod header;
@@ -49,4 +52,7 @@ pub use pack::{
     Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, decode_text, entry_path, pack,
     pack_dir, pack_many, pack_path, parse_manifest,
 };
-pub use read::{entries_path, extract, extract_many, extract_path, read, read_many, read_path, read_payload};
+pub use read::{
+    entries_path, extract, extract_many, extract_path, extract_path_uncached, read, read_many, read_path,
+    read_path_uncached, read_payload, stream_payload,
+};
