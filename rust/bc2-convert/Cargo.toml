@@ -1,6 +1,6 @@
 [package]
 name = "bc2-convert"
-description = "The converter pipeline's hot spots (console textures to PC), pure Rust"
+description = "The converter pipeline's hot spots (console textures to PC, EA-XAS audio), pure Rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

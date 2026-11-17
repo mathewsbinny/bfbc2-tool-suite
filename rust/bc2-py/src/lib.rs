@@ -16,6 +16,9 @@
 //!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
+//!
+//! The converter's (`convert.rs`): `texture_convert` / `texture_convert_many`, and the EA-XAS audio codec
+//! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` uses when it can.
 
 mod convert;
 mod culltree;
@@ -282,7 +285,7 @@ mod bc2_native {
     use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
 
     #[pymodule_export]
-    use super::convert::{texture_convert, texture_convert_many};
+    use super::convert::{texture_convert, texture_convert_many, xas_decode_frames, xas_encode, xas_encode_many};
 
     #[pymodule_export]
     use super::navbuild::{

@@ -8,6 +8,9 @@
 //!
 //! - [`texture`]: Xbox 360 textures to the PC's (`bfbc2-console-convert/texture.py`'s `convert`): the Xenos
 //!   untiling, the byte swap and the three decoded console formats.
+//! - [`audio`]: EA-XAS v1 audio (`bfbc2-console-convert/audio.py`'s `xas_encode_frames` / `xas_decode_frames`):
+//!   the PC's in-memory sound codec, encoded group by group on all cores.
 #![deny(unsafe_code)]
 
+pub mod audio;
 pub mod texture;
