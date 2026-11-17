@@ -262,6 +262,8 @@ class Templates:
         # a port took)
         self.skipped: list[str] = []
         self.skipped_reported = False
+        # choose()'s ranking indexes (_Ranking), by type or (type, donors); add() clears them
+        self._rankings: dict[Any, _Ranking] = {}
         for s in sources:
             items: list[tuple[str, bytes | None]] = []
             if isinstance(s, tuple):
@@ -289,6 +291,7 @@ class Templates:
         part = name[:-4] if name.lower().endswith('.dbx') else name
         part = part.replace('\\', '/').lower()
         self.partitions.append(part)
+        self._rankings.clear()
         roles = _roles(f.instances)
         for inst in f.instances:
             t = inst.attr('type')
@@ -321,12 +324,27 @@ class Templates:
             return 'counterpart', c
         cands = self.candidates.get(t, [])
         donors = [d.lower() for d in donors]
+        reference = REFERENCE_RANKING
         if donors:
-            paired = [c for d in donors for c in cands if c.partition == d]
-            if paired:
-                return 'donor', _best(paired, role)[1]
+            if reference:
+                paired = [c for d in donors for c in cands if c.partition == d]
+                if paired:
+                    return 'donor', _best(paired, role)[1]
+            else:
+                key = (t, tuple(donors))
+                r = self._rankings.get(key)
+                if r is None:
+                    r = self._rankings[key] = _Ranking([c for d in donors for c in cands if c.partition == d])
+                if r.cands:
+                    return 'donor', r.best(role)[1]
         if cands:
-            score, best = _best(cands, role)
+            if reference:
+                score, best = _best(cands, role)
+            else:
+                r = self._rankings.get(t)
+                if r is None:
+                    r = self._rankings[t] = _Ranking(cands)
+                score, best = r.best(role)
             return ('role' if score > 0 and len(cands) > 1 else 'pool'), best
         cat = catalogue if catalogue is not None else self.catalogue
         if cat is not None and t in getattr(cat, 'defaults', {}):
@@ -336,6 +354,9 @@ class Templates:
 
 
 def _best(cands: list[Candidate], role: tuple) -> tuple[int, Candidate]:
+    """The reference ranking: (score, the first candidate with the top score) - 4 per shared input-action field
+    value, 2 for the same reference-array slot, 1 for the same ordinal. _Ranking.best makes the same choice from an
+    index; this scan stays as its reference (REFERENCE_RANKING, BFBC2_DBXPORT_REFERENCE=1) and the tests' oracle."""
     ordinal, slot, inputs = role
     best, top = cands[0], -1
     for c in cands:
@@ -343,6 +364,55 @@ def _best(cands: list[Candidate], role: tuple) -> tuple[int, Candidate]:
         if s > top:
             best, top = c, s
     return top, best
+
+
+# choose() ranks with the reference scan (_best) instead of the index: parity runs (round E3d)
+REFERENCE_RANKING = os.environ.get('BFBC2_DBXPORT_REFERENCE', '') not in ('', '0')
+
+
+class _Ranking:
+    """_best's choice over one candidate list from an index (round E3d: a level port ranks ~3,500 instances against
+    BFBC2's 157 level partitions, up to tens of thousands of candidates of a type, and _best scanned them all - 76 s
+    of a WW2 level build). Only candidates sharing an input value or the slot can score 2 or more; every other one
+    scores at most 1 (its ordinal). So: the scores of the input / slot hits from posting lists; the top of them,
+    the earliest on a tie, if any (2 or more beats any ordinal-only 1); else the first candidate of the role's
+    ordinal (1); else the first candidate (0) - _best's choice and score exactly."""
+
+    __slots__ = ('cands', 'by_input', 'by_slot', 'first_of_ordinal')
+
+    def __init__(self, cands: list[Candidate]) -> None:
+        self.cands = cands
+        self.by_input: dict[tuple[str, str], list[int]] = {}
+        self.by_slot: dict[tuple[str, int], list[int]] = {}
+        self.first_of_ordinal: dict[int, int] = {}
+        for i, c in enumerate(cands):
+            for p in set(c.inputs):
+                self.by_input.setdefault(p, []).append(i)
+            if c.slot is not None:
+                self.by_slot.setdefault(c.slot, []).append(i)
+            self.first_of_ordinal.setdefault(c.ordinal, i)
+
+    def best(self, role: tuple) -> tuple[int, Candidate]:
+        ordinal, slot, inputs = role
+        cands = self.cands
+        scores: dict[int, int] = {}
+        for p in set(inputs):
+            for i in self.by_input.get(p, ()):
+                scores[i] = scores.get(i, 0) + 4
+        if slot is not None:
+            for i in self.by_slot.get(slot, ()):
+                scores[i] = scores.get(i, 0) + 2
+        if scores:
+            top, win = -1, -1
+            for i, s in scores.items():
+                s += cands[i].ordinal == ordinal
+                if s > top or (s == top and i < win):
+                    top, win = s, i
+            return top, cands[win]
+        first = self.first_of_ordinal.get(ordinal)
+        if first is not None:
+            return 1, cands[first]
+        return 0, cands[0]
 
 
 # ------------------------------------------------------------------------------------------------ the tables

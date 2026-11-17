@@ -154,16 +154,25 @@ def probe(hlsl: str, addr: int, reg: int) -> str:
     return '\n'.join(lines)
 
 
-def run_hlsl(sh: Any, cs: dict[str, Any], n: int, work: str, hlsl: str | None = None) -> tuple[np.ndarray, str]:
-    """oC0 of the translated shader (or of the given HLSL) for every pixel ((n, 4); SENTINEL where discarded)."""
+def compile_jobs(sh: Any, n: int, hlsl: str) -> tuple[P.CompileJob, P.CompileJob]:
+    """(pixel, vertex) shader compiles of a run: the translation, and the vertex shader feeding its interpolants."""
     inter = sorted(it.usage_index for it in sh.header.interpolators)
-    hlsl = hlsl if hlsl is not None else translated(sh, cs)
-    ps = P.compile_hlsl(hlsl, 'main', 'ps_5_0')
     h = (n + W - 1) // W
     vin = ' '.join(f'float4 i{k} : TEXCOORD{k + 1};' for k in range(len(inter)))
     vout = ' '.join(f'float4 t{u} : TEXCOORD{u};' for u in inter)
     copy = ' '.join(f'o.t{u} = i.i{k};' for k, u in enumerate(inter))
-    vs = P.compile_hlsl(VS_SRC % {'vin': vin, 'vout': vout, 'copy': copy, 'w': W, 'h': h}, 'main', 'vs_5_0')
+    return (P.CompileJob(hlsl, 'main', 'ps_5_0'),
+            P.CompileJob(VS_SRC % {'vin': vin, 'vout': vout, 'copy': copy, 'w': W, 'h': h}, 'main', 'vs_5_0'))
+
+
+def run_hlsl(sh: Any, cs: dict[str, Any], n: int, work: str, hlsl: str | None = None) -> tuple[np.ndarray, str]:
+    """oC0 of the translated shader (or of the given HLSL) for every pixel ((n, 4); SENTINEL where discarded)."""
+    inter = sorted(it.usage_index for it in sh.header.interpolators)
+    hlsl = hlsl if hlsl is not None else translated(sh, cs)
+    ps_job, vs_job = compile_jobs(sh, n, hlsl)
+    ps = P.compile_hlsl(*ps_job)
+    h = (n + W - 1) // W
+    vs = P.compile_hlsl(*vs_job)
     by_usage = {it.usage_index: it.reg for it in sh.header.interpolators}
     stride = 16 * (1 + len(inter))
     verts = np.zeros((n, 3, 1 + len(inter), 4), np.float32)
@@ -302,6 +311,19 @@ def main(argv: list[str] | None = None) -> int:
         pos = np.stack([np.arange(a.n) % W, np.arange(a.n) // W], 1).astype(np.float32)
         print(bisect(sh, cs, a.n, work, pos))
         return 0
+    if len(todo) > 1:
+        # every translation first, its compiles started on all cores (pcbuild.prefetch): the loop's compile_hlsl
+        # takes them, or waits for one under way, while the interpreter runs (round E3d). The same seeds: the same
+        # cases and translations as the loop's
+        jobs: list[P.CompileJob] = []
+        for p in todo:
+            try:
+                sh = xenos.parse_shader(w.ps[p].code, True)
+                cs = case(sh, np.random.default_rng(a.seed * 100003 + p), a.n, named.get(p))
+                jobs += compile_jobs(sh, a.n, translated(sh, cs))
+            except Exception:                                   # noqa: BLE001 - the loop reports it
+                pass
+        P.prefetch(jobs)
     results = {}
     counts: dict[str, int] = {}
     for p in todo:

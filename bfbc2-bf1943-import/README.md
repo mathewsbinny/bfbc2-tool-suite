@@ -226,7 +226,11 @@ In short:
   the pool's instance whose role matches (input actions; slot - the array of local references naming it, so zoom
   level n takes zoom level n; position among its type - the seat), then the catalogue's class default. Every candidate
   is kept, folders are globbed sorted, a pool partition the game copy lacks fails (`MissingTemplate`), and each
-  instance's choice is a `template` record.
+  instance's choice is a `template` record. The ranking runs from an index built once per type (and per donor list):
+  posting lists of input values and slots, the first candidate of each position (`_Ranking`, round E3d; a WW2 level
+  port ranks against all 157 of BFBC2's level partitions). It makes the full scan's choice, ties to the earliest
+  candidate; the scan (`_best`) stays as its reference (`BFBC2_DBXPORT_REFERENCE=1` ranks with it;
+  `tests/test_dbxport_ranking.py`).
 - References are resolved over (partition, guid), in this order:
   1. local;
   2. a partition that will exist (`ours=` with its guids, the catalogue, the caller's `resolve`);
