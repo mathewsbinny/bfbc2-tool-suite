@@ -50,6 +50,8 @@ components of 15 / 7 bits, the dropped one recomputed; which one and the sign in
 from a 16-entry table chosen by ScaleOffsetTableEntries). Curves are evaluated at knots (degree 0 / 1 sampled
 linearly between knots; higher degrees are read the same way, which is exact at the knots).
 """
+import contextlib
+import gc
 import math
 import os
 import struct
@@ -74,11 +76,92 @@ class GrannyError(Exception):
     pass
 
 
+# ------------------------------------------------------------------------------------------------ backend
+# Reading (Granny's tables, root()) and the Xbox 360 -> PC conversion (to_pc) run in the suite's Rust core (rust/,
+# module bc2_native: bc2_formats::granny, bc2_convert::granny) when it is built, else in Python here: the same
+# values, the same bytes (tests/test_granny_native.py; the game tier: every Granny resource of the Xbox copy and
+# Battlefield 1943). An input the Rust core refuses is handled by the Python code, which raises what it raises.
+# A Granny written to (put, to_bytes) reads in Python from then on. BFBC2_PURE_PYTHON=1 (or use_native(False))
+# forces Python; backend() says which one runs.
+
+def _import_native() -> Any:
+    try:
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:                       # the tool copied out of the suite: Python only
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'granny_root') else None
+
+
+def _load_native() -> Any:
+    if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0'):
+        return None
+    return _import_native()
+
+
+_native = _load_native()
+
+
+@contextlib.contextmanager
+def _gc_paused():
+    """The cycle collector paused while a tree is built: an animation's tree is ~10,000 dicts, lists and tuples,
+    and each collection the allocations trigger walks every container still alive (2.5x the build's time on 600
+    of the Xbox files; none of the tree's objects form cycles)."""
+    if not gc.isenabled():
+        yield
+        return
+    gc.disable()
+    try:
+        yield
+    finally:
+        gc.enable()
+
+
+def backend() -> str:
+    """'rust' when the Rust core reads and converts Granny resources, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend()."""
+    global _native
+    _native = _import_native() if on else None
+    return backend()
+
+
 class Granny:
     """A parsed resource: strings, sections, relocations; root() reads the object tree into dicts and lists."""
 
     def __init__(self, b, where='file'):
         self.where = where
+        self._raw = None                                    # the bytes the Rust core reads root() from
+        self._types = {}
+        self._sizes = {}
+        if _native is not None and isinstance(b, (bytes, bytearray)):
+            raw = bytes(b)
+            try:
+                big, self.strings_from, self.strings, self.gr2, self.root_type, self.root_obj, self.total, \
+                    self.crc_from = _native.granny_header(raw)
+            except ValueError:                              # the Python reader below says why (or reads it)
+                pass
+            else:
+                self.e = '>' if big else '<'
+                self.data = bytearray(raw)
+                self._raw = raw
+                return                                      # sections, section_at, reloc: made on first use
+        self._python_init(b, where)
+
+    def __getattr__(self, name):
+        """sections, section_at and reloc of a resource the Rust core read: made on first use."""
+        if name in ('sections', 'section_at', 'reloc') and self.__dict__.get('_header_raw', self.__dict__.get('_raw')) is not None:
+            raw = self.__dict__.get('_header_raw', self.__dict__.get('_raw'))
+            self.sections, self.section_at, self.reloc = _native.granny_index(raw)
+            return self.__dict__[name]
+        raise AttributeError(name)
+
+    def _python_init(self, b, where):
         if len(b) < 4 or 10 not in struct.unpack_from('<I', b, 0) + struct.unpack_from('>I', b, 0):
             raise GrannyError(f'{where}: not a Granny resource of this game (version {struct.unpack_from("<I", b, 0)[0]})')
         # PC resources are little-endian; Xbox 360 ones (BFBC2's console copy, Battlefield 1943) big-endian throughout
@@ -122,7 +205,6 @@ class Granny:
             for r in range(rcount):
                 o, ts, to = struct.unpack_from(self.e + '3I', g, roff + 12 * r)
                 self.reloc[(k, o)] = (ts, to)
-        self._types = {}
 
     def _strings_at(self, b, p):
         try:
@@ -155,10 +237,13 @@ class Granny:
         return ms[0][1] if ms and ms[0][1].startswith('CurveDataHeader') else '/'.join(m[1] for m in ms)
 
     def size(self, ref):
+        if ref in self._sizes:                              # a type's size: computed once (members are cached too)
+            return self._sizes[ref]
         s = 0
         for t, _, child, arr in self.members(ref):
             one = self.size(child) if t == 1 else SIZES.get(t, 0)
             s += one * max(arr, 1)
+        self._sizes[ref] = s
         return s
 
     def read(self, tref, oref, depth=0, limit=64):
@@ -229,7 +314,13 @@ class Granny:
         return None
 
     def root(self, limit=64):
-        return self.read(self.root_type, self.root_obj, 0, limit)
+        with _gc_paused():
+            if self._raw is not None and _native is not None:
+                try:
+                    return _native.granny_root(self._raw, limit)
+                except (ValueError, OverflowError):        # the Python reader raises its own exception (or reads it)
+                    pass
+            return self.read(self.root_type, self.root_obj, 0, limit)
 
     # ---- writing (values patched in place: the file keeps its size and layout)
 
@@ -247,8 +338,17 @@ class Granny:
             raise GrannyError(f'{self.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
         sec, off = at
         pos = self.section_at[sec] + off
+        self._written()
         struct.pack_into(fmt, self.data, pos, *values)
         struct.pack_into(fmt, self.sections[sec], off, *values)
+
+    def _written(self):
+        """The data is about to change: the sections are made now (from the bytes as they were, as the Python reader
+        has them) and root() reads in Python from now on."""
+        if self._raw is not None:
+            self._header_raw = self._raw
+            self.sections                                   # noqa: B018 - made by __getattr__
+            self._raw = None
 
     def array_at(self, obj, name):
         """(section, offset) of the elements of a reference-to-array member."""
@@ -264,6 +364,7 @@ class Granny:
         if self.e != '<':
             raise GrannyError(f'{self.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
         g0 = self.gr2
+        self._written()
         crc = zlib.crc32(bytes(self.data[g0 + self.crc_from:g0 + self.total])) & 0xFFFFFFFF
         struct.pack_into('<I', self.data, g0 + 40, crc)
         return bytes(self.data)
@@ -541,6 +642,64 @@ def _swap(dst, src, at, size, count):
 
 
 def to_pc(b, bones=None, where='resource'):
+    """An Xbox 360 (big-endian) Granny resource as the PC's little-endian one (_to_pc_python), in the Rust core when
+    it is built (the same bytes); what it refuses, the Python code converts or raises about."""
+    if _native is not None and isinstance(b, (bytes, bytearray)):
+        try:
+            return _native.granny_to_pc(bytes(b), bones)
+        except (ValueError, TypeError, OverflowError):
+            pass
+    return _to_pc_python(b, bones, where)
+
+
+def to_pc_many(items, errors='raise'):
+    """to_pc of many resources, in order: items are (bytes, bones or None, where) - or (bytes, bones), or bytes.
+    With the Rust core they are converted on all cores (the interpreter released). errors='raise' raises the first
+    failure's exception as to_pc would; errors='return' puts the exception in its place."""
+    jobs = []
+    for it in items:
+        it = (it,) if isinstance(it, (bytes, bytearray)) else tuple(it)
+        jobs.append((it[0], it[1] if len(it) > 1 else None, it[2] if len(it) > 2 else 'resource'))
+    got = None
+    if _native is not None and all(isinstance(b, (bytes, bytearray)) for b, _, _ in jobs):
+        try:
+            got = _native.granny_to_pc_many([(bytes(b), bones) for b, bones, _ in jobs])
+        except (TypeError, OverflowError):                  # a bone map the Rust core does not take: one by one
+            got = None
+    out = []
+    for k, (b, bones, where) in enumerate(jobs):
+        r = got[k] if got is not None else None
+        if r is None or isinstance(r, Exception):
+            try:
+                r = _to_pc_python(b, bones, where)
+            except Exception as e:                          # noqa: BLE001 - raised or returned below
+                if errors != 'return':
+                    raise
+                r = e
+        out.append(r)
+    return out
+
+
+def roots(blobs, limit=64, where='resource'):
+    """Granny(b, where).root(limit) of many resources, in order; with the Rust core read on all cores (then made
+    into Python objects one by one). A resource that does not read raises as Granny / root would."""
+    blobs = list(blobs)
+    got = None
+    if _native is not None and all(isinstance(b, (bytes, bytearray)) for b in blobs):
+        with _gc_paused():
+            got = _native.granny_roots_many([bytes(b) for b in blobs], limit)
+    out = []
+    for k, b in enumerate(blobs):
+        r = got[k] if got is not None else None
+        if r is None or isinstance(r, Exception):
+            g = Granny(b, where)
+            g._written()                                    # the Rust core did not read it: Python
+            r = g.root(limit)
+        out.append(r)
+    return out
+
+
+def _to_pc_python(b, bones=None, where='resource'):
     """An Xbox 360 (big-endian) Granny resource as the PC's little-endian one. DICE's table and string table are
     swapped field by field; the Granny file as Granny reverses a file: each section's 32-bit part (up to First16Bit)
     as u32, its 16-bit part (to First8Bit) as u16, the rest kept; then every object of the section's mixed-marshalling

@@ -54,6 +54,16 @@ M1911's undeploy, and - when extracted into
 OPFOR's `work\bf1943\skeleton` - BF1943's skeleton against the PC one) and `tests\test_granny_port.py` (quick: the
 bone tables; `--game`: the Xbox corpus and BF1943).
 
+**The Rust core** (round E3i, `rust/BENCHMARKS.md`). With the suite's Rust core built, `Granny(b)` reads its tables,
+`root()` its object tree and `to_pc` converts in Rust (`bc2_formats::granny`, `bc2_convert::granny`): the same
+trees (every value and type, every dict's key order) and the same bytes as the Python code here, which stays the
+fallback and the reference (`use_native(False)`, `BFBC2_PURE_PYTHON=1`; `backend()`). A Granny written to (`put`,
+`to_bytes`: `shift`, `set_orientations`) reads in Python from then on; a resource the Rust core refuses goes to the
+Python code, which raises what it raises. For many files: `to_pc_many(items, errors='raise' | 'return')` and
+`roots(blobs)` (all cores). `tests\test_granny_native.py` compares the two (quick: built resources of every member
+type in both byte orders and 2,500 damaged copies; `--game`: every Granny resource of your Xbox files, the game copy
+and BF1943's bundles).
+
 Generated aim poses (`*_generatedaimanimation`, AimAnimation: a third-person weapon's upper body and weapon bones over
 a 5 x 5 grid of aim directions) are another format, read and written by `aimanim.py` (layout in its docstring:
 header, a (bone, kind) table, then per bone a fixed transform, one position and 25 rotations, or 25 transforms).

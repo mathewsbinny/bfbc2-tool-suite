@@ -10,7 +10,10 @@
 //!   untiling, the byte swap and the three decoded console formats.
 //! - [`audio`]: EA-XAS v1 audio (`bfbc2-console-convert/audio.py`'s `xas_encode_frames` / `xas_decode_frames`):
 //!   the PC's in-memory sound codec, encoded group by group on all cores.
+//! - [`granny`]: Xbox 360 Granny resources to the PC's (`bfbc2-anim-tools/granny.py`'s `to_pc`), DICE's bone
+//!   table renumbered onto another skeleton; many on all cores.
 #![deny(unsafe_code)]
 
 pub mod audio;
+pub mod granny;
 pub mod texture;
