@@ -120,6 +120,8 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-culltree', 'tests', 'test_culltree_native.py')]),
         ('Rust texture converter against its recorded results (built, damaged, batch)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_texture_native.py')]),
+        ("Rust EA-XAS audio encoder / decoder against audio.py (shift rule, seeded PCM of every shape, random frames, DICE's blocks)", 'quick',
+         [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_audio_native.py')]),
         ('Rust NavKit grid walks against their recorded results, E2a rules against their Python (random levels)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navbuild_native.py')]),
         ('Rust core required: no module, a stale one, the source fingerprint', 'quick',
@@ -241,6 +243,8 @@ def tests():
         ('console terrain conversion (Xbox vs PC, BF1943 Wake)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_terrain.py')]),
         ('console soot meshes (Xbox vs PC, BF1943)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_soot.py')]),
         ('console sounds: EA-XMA -> EA-XAS (Xbox vs PC, BF1943)', 'game', [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_audio.py')]),
+        ('Rust EA-XAS audio encoder: every 10th BF1943 Wave and in-memory BFBC2 Xbox Wave converted both ways, byte for byte', 'game',
+         [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_audio_native.py'), '--game', '--every', '10']),
         ('mesh viewer on the game\'s models', 'game', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview.py')]),
         ('model tools: skinned meshes, mesh sets, shapes', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_models.py')]),
         ('model tools: PC textures from pictures (DXT1)', 'game', [PY, os.path.join(SUITE, 'bfbc2-model-tools', 'tests', 'test_texwrite.py')]),
@@ -288,6 +292,8 @@ def tests():
         ('Python DBX reader against DbxEdit', 'full', lambda root: [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx.py'),
                                                                    os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
         ('FbrbTool round trip, every game bundle', 'full', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py'), '--game', '0']),
+        ('Rust EA-XAS audio encoder: every BF1943 Wave and in-memory BFBC2 Xbox Wave converted both ways, byte for byte', 'full',
+         [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_audio_native.py'), '--game']),
     ]
     return t
 
@@ -323,6 +329,7 @@ NEEDS = {
     'Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)': need(cpu=4, mem=1),
     'Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)': need(cpu=2),
     'Rust texture converter against its recorded results (built, damaged, batch)': need(cpu=2),
+    "Rust EA-XAS audio encoder / decoder against audio.py (shift rule, seeded PCM of every shape, random frames, DICE's blocks)": need(cpu=2, mem=1),
     'Rust NavKit grid walks against their recorded results, E2a rules against their Python (random levels)': need(),
     'Rust core required: no module, a stale one, the source fingerprint': need(),
     'review regressions: HPD selection, launcher completion, mypy failures': need(),
@@ -419,6 +426,7 @@ NEEDS = {
     'console terrain conversion (Xbox vs PC, BF1943 Wake)': need(mem=1.5),
     'console soot meshes (Xbox vs PC, BF1943)': need(mem=1.5),
     'console sounds: EA-XMA -> EA-XAS (Xbox vs PC, BF1943)': need(cpu=2, mem=3),
+    'Rust EA-XAS audio encoder: every 10th BF1943 Wave and in-memory BFBC2 Xbox Wave converted both ways, byte for byte': need(cpu=4, mem=2),
     'mesh viewer on the game\'s models': need(mem=1.5),
     'model tools: skinned meshes, mesh sets, shapes': need(mem=1),
     'model tools: PC textures from pictures (DXT1)': need(mem=1),
@@ -459,6 +467,7 @@ NEEDS = {
     'DbxEdit corpus and fingerprints': need(mem=1, display='w', dbxtests='w'),
     'Python DBX reader against DbxEdit': need(mem=1),
     'FbrbTool round trip, every game bundle': need(mem=2),
+    'Rust EA-XAS audio encoder: every BF1943 Wave and in-memory BFBC2 Xbox Wave converted both ways, byte for byte': need(cpu=4, mem=2.5),
 }
 
 

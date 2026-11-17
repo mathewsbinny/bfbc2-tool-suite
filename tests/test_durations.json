@@ -135,5 +135,8 @@
  "test harness on sp_009 and sp_004_b": 34.5,
  "stock-MP AI layer, Atacama Conquest built": 53.1,
  "Rust NavKit grid walks: sp_009 and sp_004_b path data as recorded": 90.0,
- "NavKit regression, 2 small levels": 120.0
+ "NavKit regression, 2 small levels": 120.0,
+ "Rust EA-XAS audio encoder / decoder against audio.py (shift rule, seeded PCM of every shape, random frames, DICE's blocks)": 9.0,
+ "Rust EA-XAS audio encoder: every 10th BF1943 Wave and in-memory BFBC2 Xbox Wave converted both ways, byte for byte": 68.3,
+ "Rust EA-XAS audio encoder: every BF1943 Wave and in-memory BFBC2 Xbox Wave converted both ways, byte for byte": 500.0
 }

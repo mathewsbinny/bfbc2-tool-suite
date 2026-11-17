@@ -604,3 +604,107 @@ picking and `pymath` (quick and game tiers only so far), and every format reader
 
 `tests/test_native_required.py` checks the required module (missing, stale, matching) and the download on a copy of
 the suite; navregress stays the independent check against DICE's path data.
+
+## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
+
+**Provisional timings:** OPFOR's WW2 rebuild (`rebuild_all.py`, a `ww2_level_build.py` under it) ran the whole
+time, and every figure below was taken at below-normal priority beside it on the 16-thread PC. The ratios hold
+within a run; the absolute seconds will be lower on a quiet PC.
+
+**What moved.** `bfbc2-console-convert/audio.py`'s EA-XAS v1 codec, the top cost of OPFOR's `bf1943_fx` step in the
+round 0 profile (`audio.encode_xas`: 158 s of 262 s; 16 s of a level build): `xas_encode_frames` and
+`xas_decode_frames` into `bc2_convert::audio` (`encode`, `encode_all`, `decode_frames`), bound as `xas_encode`,
+`xas_encode_many` and `xas_decode_frames`. `encode_xas`, `decode_xas` and `xas_encode_frames` / `xas_decode_frames`
+dispatch to it (`use_native`, `backend()`, `BFBC2_PURE_PYTHON`); the NumPy code stays as `xas_encode_frames_python` /
+`xas_decode_frames_python`, the fallback and the reference. A pcm the port does not take (not 2-D, not integer, or
+beyond int16) goes to the reference. The block framing (DICE's blocks, the SPS writer) stays in Python: slicing
+bytes, nothing to gain. New: `encode_xas_many` (every sound's frames in one call, on all cores) and
+`convert_many` (whole Waves side by side: ffmpeg's EA-XMA decodes in threads, the encoder outside the interpreter).
+
+**Float parity.** The reference is NumPy on int64 with three float steps; each is exact in integers:
+
+- the shift: `ceil(log2(max(r, 1) / 7.0))` of an integer residual is the least `m` with `r <= 7 * 2^m`. Measured, not
+  assumed: NumPy's formula equals the integer rule for every `r` below 2^26 (the encoder's are below 2^25), 67
+  million values (`test_audio_native.py`, quick tier). The reason it can hold: `r / 7` is never within float64
+  rounding of a power of two unless it is one, and `log2` of a power of two is exact.
+- the nibble: `rint((target - pred) / step)` divides an integer below 2^53 by a power of two, an exact quotient;
+  NumPy's `rint` rounds half to even, so the port shifts and rounds half to even in integers (`rint_shift`; a Rust
+  test compares it with `round_ties_even` on 200,000 pairs).
+- the error: summed in float64, but of integers (30 squares below 2^32): exact, a `u64` here. `np.clip` and `>>`
+  (floor) are the integer clamp and arithmetic shift; nothing overflows int64.
+
+**Algorithm.** Every group of 32 samples is encoded on its own (its first two samples stored, its prediction chain
+within it), so the reference's search can be done group by group, and its choice reproduced with less work. The
+reference tries 12 candidates (4 coefficient sets x the shift the set's residual needs and the next finer / coarser)
+to the end and keeps the least squared error, the first in its order on a tie. The port tries the same candidates:
+
+- a candidate whose shift equals the one before it (the shift clipped at 0 or 15) is the same candidate again,
+  later in the reference's order: never chosen, skipped;
+- the likely winner first: on the BF1943 sample below, 93 % of groups take the set with the least residual (rank 0:
+  1,711,011 of 1,847,084), 69 % at its own shift and 31 % the finer one, 22 groups a coarser one. So: the
+  least-residual set (its shift, then finer), the other sets by residual, every coarser shift last;
+- a candidate stops at the sample where its running error passes the best so far, or equals it while coming later
+  in the reference's order (errors only grow).
+
+The tie rule makes the order free: proptests compare the search with a transliteration of the reference (every
+candidate to the end, NumPy's float steps) on 9,000 random, smooth and near-constant (tie-heavy) groups.
+
+| BF1943 sample, encode only, Rust on one thread (`examples/xas_bench.rs`) | s |
+|---|---:|
+| the reference's search, every candidate to the end | 3.19 |
+| skipping duplicates, stopping at the best error, the reference's order | 1.93 |
+| **+ the likely winner first** (the library) | **1.34** |
+
+**Threads.** A sound's frames (one per channel and 128 samples) are split over rayon's pool (64 frames at least per
+task, so short sounds stay on one thread); `encode_all` runs many sounds at once as well. The Python binding releases
+the interpreter (`py.detach`) for all of it.
+
+**Timings** (the sample: every 10th Wave of Battlefield 1943's source, 275 sounds, 279 segments, 59.1 million samples,
+mostly 48 kHz mono; decoded once to PCM, then encoded from memory; best of three, the Python once):
+
+| encode (`encode_xas`, through Python) | s | vs Python |
+|---|---:|---:|
+| Python (NumPy) | 20.45 | |
+| Rust, one thread (`RAYON_NUM_THREADS=1`) | 1.52 | 13x |
+| Rust, all threads, one sound at a time | 0.318 | 64x |
+| Rust, `encode_xas_many` (all at once) | **0.236** | **87x** |
+
+| decode (`decode_xas` of the same 279 streams) | s |
+|---|---:|
+| Python | 1.20 |
+| Rust | 0.140 (9x) |
+
+**The whole conversion** (`audio.convert` of the same 275 Waves: read, ffmpeg's EA-XMA decode, encode, write; the
+same bytes each way):
+
+| | s |
+|---|---:|
+| Python encoder, one by one | 34.4 |
+| Rust encoder, one by one | 13.4 |
+| `convert_many`, 4 threads | 4.8 |
+| `convert_many`, 8 threads | **3.4** (10x) |
+
+Now ffmpeg is the cost: one process per XMA stream, about 45 ms each with its encode. In the full parity run below, the encoder's
+share of all of Battlefield 1943's 2,750 Waves fell from 336 s (Python) to 4.4 s (Rust, one sound at a time).
+OPFOR's `bf1943_fx` (158 s of encoding in the round 0 profile) should lose about 155 s, and a level build its 16 s;
+OPFOR's callers (`wake_level.port_sounds`, `wake_vo.waves`) convert one Wave at a time and would gain `convert_many`'s
+factor of 3 - 4 more on the decodes if they batched (not changed here: OPFOR is read only to this round).
+
+**Parity** (`bfbc2-console-convert/tests/test_audio_native.py`):
+
+- quick (no game data, 9 s): the shift rule (67 million residuals); 768 seeded signals (silence, full-scale noise,
+  clipping extremes, constant +32767 / -32768, tones, clipped tones, tone and noise, quiet noise, square, impulses,
+  random walk) at 16 lengths (0, 1, 2, 31, 32, 33, 127, 128, 129, 255, 256, 257, 1,000, 4,096, 4,113, 20,000) and 1,
+  2, 3 and 6 channels, 4.4 million samples: every frame byte the same, their decodes the same; other integer dtypes
+  and Fortran order; 5,000 random frames decoded (every coefficient-set field, including the 12 no encoder writes,
+  and every shift); 108 `encode_xas` streams at 6 rates against the reference's framing (lengths at, around and
+  between DICE's block sizes); `encode_xas_many`; the dispatcher.
+- the whole corpus, once, 2026-11-17 (`--game`, the reference whole on every sound): **all 2,750 Battlefield 1943
+  Waves** (in memory and streamed with their `waveDataSns` entries, 823 million samples) and **all 1,680 in-memory
+  BFBC2 Xbox Waves** (216 million samples) converted by `audio.convert` with each backend: **4,430 of 4,430 PC Waves
+  byte for byte the same**; `convert_many` = `convert` on 81 of them. Peak memory 4.1 GB: the reference's int64
+  arrays on the longest music (about 70 bytes a sample).
+- the game tier (`--game --every 10`, 68 s, peak 1.5 GB): every 10th of each, 275 + 168 Waves; the reference takes a
+  sound longer than 2^20 samples a channel in pieces of whole frames (the same frames: the groups are independent;
+  the quick tier checks it), so the full tier (`--game`, every Wave, ~8 minutes) fits in 2.5 GB.
+- Rust: 11 unit and property tests in `bc2-convert` (`audio_tests.rs`).
