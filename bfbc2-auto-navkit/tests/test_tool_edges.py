@@ -202,8 +202,14 @@ def main(argv):
         gui.kill_tree(parent)
         parent.wait(10)
         import time
-        time.sleep(0.5)
-        alive = subprocess.run(['tasklist', '/FI', f'PID eq {child}'], capture_output=True, text=True).stdout if os.name == 'nt' else ''
+        # the child's end is waited for (up to 15 s), not assumed after half a second: on a busy PC (tests side by
+        # side, run_tests.py -j) it can take longer to go (2026-11-17)
+        alive = ''
+        for _ in range(60):
+            time.sleep(0.25)
+            alive = subprocess.run(['tasklist', '/FI', f'PID eq {child}'], capture_output=True, text=True).stdout if os.name == 'nt' else ''
+            if str(child) not in alive:
+                break
         check(parent.poll() is not None and str(child) not in alive, 'GUI Cancel: the step and the processes it started end')
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

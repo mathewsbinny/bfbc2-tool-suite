@@ -15,6 +15,7 @@ ps476 (a texture in fetch constant 16).
   python test_xdiff.py [--game]
 """
 import os
+import shutil
 import struct
 import sys
 import tempfile
@@ -220,7 +221,16 @@ def engine_named_constants():
 
 def game():
     import xdiff
-    out = os.path.join(tempfile.gettempdir(), 'xdiff_test_game')
+    # a folder of its own (was %TEMP%\xdiff_test_game: two runs side by side wrote over each other's results.json,
+    # and a stale one from an earlier run could be read back; 2026-11-17)
+    out = tempfile.mkdtemp(prefix='xdiff_test_game_')
+    try:
+        _game(xdiff, out)
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
+
+
+def _game(xdiff, out):
     # 745 / 502: terrain strips (Quad_TireTracks, Wake_DirtRoad) - engine-named constants from their blocks
     ids = ('317', '36', '120', '202', '476', '745', '502')
     rc = xdiff.main(['--ps', *ids, '--n', '512', '-o', out])

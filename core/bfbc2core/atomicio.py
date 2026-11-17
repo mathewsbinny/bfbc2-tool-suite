@@ -11,7 +11,44 @@ import contextlib
 import json
 import os
 import shutil
+import sys
+import time
+from collections.abc import Iterator
 from typing import Any
+
+
+@contextlib.contextmanager
+def locked(path: str, poll: float = 0.2) -> Iterator[None]:
+    """Holds a lock between processes on the lock file path (created when missing, kept afterwards) while the block
+    runs; a second process waits. The operating system drops the lock when its process ends, so a killed holder
+    never leaves it stuck. For work two processes must not do at once - unpacking a level's terrain over the folder
+    another reads, building a shared cache twice (run_tests.py runs tests side by side; 2026-11-17)."""
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o666)
+    try:
+        if sys.platform == 'win32':
+            import msvcrt
+            while True:
+                os.lseek(fd, 0, os.SEEK_SET)
+                try:
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    time.sleep(poll)
+            try:
+                yield
+            finally:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 def _tmp(path: str) -> str:

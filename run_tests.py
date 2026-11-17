@@ -1,6 +1,6 @@
 r"""Runs the suite's tests: one line per test, the failures' output at the end, exit code 1 if any failed.
 
-  python run_tests.py [quick | game | full] [--only <name>] [--list]
+  python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] [--mem GB] [--plan] [--times F]
 
   quick   no game data, about a minute: the Rust core (built when stale, its cargo checks, its DBX reader against
           the Python one; skipped without Rust), repository rules, DbxEdit unit tests, and on files built by the
@@ -19,8 +19,28 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
           Onslaught maps (about 5 hours)
 
 Run `quick` before every commit and `game` before every push; `full` after changes to a format reader.
+
+Side by side (2026-11-17). Tests run N at a time (-j N; default half the CPU threads, at most 8); -j 1 runs them one
+after another in the listed order, exactly as before. Each test declares what it needs in NEEDS (below tests()):
+  cpu     the CPU threads it keeps busy (1; its process pool's size; 'all' for Rust batch work and cargo)
+  mem     its peak memory in GB (an estimate; the runner measures every test's peak and keeps it, see --plan)
+  res     shared things it reads ('r') or writes ('w'): a writer never runs beside a reader or another writer of the
+          same thing (OPFOR's work\navkit\regress, the Navigation Studio cache, renderqa's build\ folder, a display ...),
+          and they keep their listed order, so each sees the thing as it did one at a time
+  setup   a build step: the build steps run first, one at a time, before any test (tests load what they build)
+  alone   nothing else runs beside it; every test missing from NEEDS runs alone, so a new entry is safe before it is
+          declared (and the runner names it)
+The runner starts a test when a slot is free, the CPU threads (--cpus, default all) and memory (--mem, default 3/4 of
+the PC's) it declares are free, and nothing it conflicts with is running; the longest tests go first, and a test
+held back for room is not overtaken by shorter ones that would delay it. Output is the same: one line per test as it
+finishes, the failures' output at the end (in list order), the total, exit code 1 if any failed.
+
+  --plan       prints the schedule and the expected wall-clock without running anything, from the durations kept
+               after each run (%LOCALAPPDATA%\bfbc2-tool-suite\test_times.json), else tests\test_durations.json
+  --times F    durations from F instead: a run_tests.py log or a JSON of name -> seconds
 """
 import contextlib
+import json
 import os
 import subprocess
 import sys
@@ -108,6 +128,8 @@ def tests():
          [PY, os.path.join(SUITE, 'tests', 'test_asset_accuracy.py')]),
         ('repository rules', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_repo.py')]),
         ('test runner: a failure printed on any console encoding', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_runner_output.py')]),
+        ('test runner: tests side by side (resources, failures, exit code, output per test)', 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_runner_parallel.py')]),
         ('lint (ruff check, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_lint.py')]),
         ('types (mypy, every folder)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_types.py')]),
         ('core edges (terrain / water names, errors in threads)', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_core_edges.py')]),
@@ -268,6 +290,175 @@ def tests():
     return t
 
 
+def need(cpu: int | str = 1, mem: float = 0.5, setup: bool = False, alone: bool = False, **res: str) -> dict:
+    """A test's needs (see the docstring): need(cpu='all', mem=4, regress='r')."""
+    return {'cpu': cpu, 'mem': mem, 'setup': setup, 'alone': alone, 'res': res}
+
+
+# What each test needs to run beside others, by its name in tests(). Shared things (res):
+#   regress     OPFOR work\navkit\regress\<lv>.hpd and work\navkit\parity\regression_last.json: navregress rewrites
+#               them in place; the apply, links, Studio, viewer and harness tests read them
+#   work_hpd    every pathdata.hpd under OPFOR's work\ (hpdtool walks them all): test_vehicle_level rewrites one
+#   navstudio   OPFOR work\navstudio\cache (navdata's cache files, replaced while another process may read them)
+#   sp_004_b    OPFOR work\navkit\sp_004_b\detailed.json (NavKit apply writes it)
+#   shaderview  the suite's build\ folder: shaderview.exe built on first use, renderqa's index and truth pickles
+#   display     a window on the desktop (Tk, OpenGL, WinForms)
+#   dbxtests    bfbc2-dbx-tools\tests\DbxTests.exe, compiled by every run of run_tests.bat
+#   cargo       rust\target (cargo's lock; mypy walks it)
+# Tests that share a thing also keep their listed order between them, so each finds it as a run one at a time did.
+# Not resources, because the code takes care of them (2026-11-17): a level's terrain unpack and the meshview / dbx
+# catalogue caches in work\tools_out are built under a lock between processes (atomicio.locked); the collision cache
+# in %LOCALAPPDATA% is written atomically under a per-process name. Every other test writes only its own temp folder.
+# mem is an estimate in GB from what the test loads (pools x bundles, whole BF1943 bundles ~0.6 GB); a run records
+# each test's measured peak beside its duration.
+NEEDS = {
+    # quick
+    'Rust core build (when stale; skipped without Rust)': need(setup=True),
+    'Rust core: cargo fmt, clippy, tests (skipped without Rust)': need(cpu='all', mem=2, cargo='w'),
+    'Rust DBX reader against the Python reader (built, damaged, 200 corpus files)': need(cpu=2, mem=1),
+    'Rust FBRB reader against the Python reader and FbrbTool (built, damaged, 8 game bundles)': need(cpu=6, mem=1.5),
+    'Rust terrain, water and collision readers against the Python readers (built, damaged, dispatch, aliases from binary partitions)': need(),
+    'Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)': need(cpu=4, mem=1),
+    'Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)': need(cpu=2),
+    'Rust texture converter against texture.py (built, damaged, dispatch)': need(cpu=2),
+    'Rust NavKit grid walks against navbuild / navwalk (random levels, dispatch)': need(),
+    'review regressions: HPD selection, launcher completion, mypy failures': need(),
+    'BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches': need(cpu=2, shaderview='w'),
+    'repository rules': need(cpu=2),
+    'test runner: a failure printed on any console encoding': need(),
+    'test runner: tests side by side (resources, failures, exit code, output per test)': need(cpu=2),
+    'lint (ruff check, every folder)': need(cpu=2),
+    'types (mypy, every folder)': need(mem=1, cargo='r'),
+    'core edges (terrain / water names, errors in threads)': need(),
+    'paths: OPFOR, game copy, tools and sibling projects on a stand-in tree': need(),
+    'converter edges (dbx numbers, dbxport references, texture check)': need(),
+    'converter units (havok w lanes, MOPP byte code, L8 textures and flags, mesh rename, texcoords, mesh relayout)': need(),
+    'DbxEdit build (when stale)': need(setup=True),
+    'DbxEdit unit tests': need(display='w', dbxtests='w'),
+    'FbrbTool build (when stale)': need(setup=True),
+    'FbrbTool round trip, built bundle': need(),
+    'Rust DBX writer against the Python writer (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)': need(cpu=2, mem=1),
+    'Rust FBRB packer against FbrbTool, zlib against Python\'s (built folders in every layout, 8 game bundles)': need(cpu=4, mem=1),
+    'error handling and logs': need(),
+    'every command-line tool reports errors': need(),
+    'review fixes: apply inputs, stock-MP reinstall, studio flags, cache key': need(),
+    'review fixes 2: harness missing files, navkit no-original reinstall, old fbrb manifests': need(),
+    'deep scan fixes: atomic installs and writes, honest caches, damaged files said': need(),
+    'navigation side files (navtune)': need(),
+    'NavKit water rule (ground too deep under water)': need(),
+    'NavKit walkability edits (navedits)': need(),
+    'NavKit area link rule': need(),
+    'NavKit regression progress estimates': need(),
+    'NavKit boundary diagnostic (navboundary)': need(),
+    'NavKit portal symmetry': need(),
+    'NavKit reference extent clip': need(),
+    'NavKit soldiers absent from path data': need(),
+    'NavKit headroom band': need(),
+    'NavKit narrow lips and door sills': need(),
+    'NavKit dynamic props (floor under a prop, door leaves)': need(),
+    'NavKit roof pruning': need(),
+    'NavKit objective floors (M-COM)': need(),
+    'NavKit 45-degree bridges: closed outlines': need(),
+    'NavKit D lines and F cells': need(),
+    'NavKit collision index (Havok packfile names)': need(),
+    'NavKit boat mesh (navwater_mesh)': need(),
+    'NavKit routes across domains (navdomains)': need(),
+    'NavKit vehicle path data (navvehicle)': need(),
+    'NavKit shadow islands (navislands)': need(),
+    'NavKit offline sampler (navsample_offline)': need(),
+    'NavKit tool edges (ordercheck, detailed cache, navdiff pictures)': need(),
+    'Navigation Studio edit mode, no game (editing, overlay usage)': need(),
+    'NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)': need(),
+    'Navigation Studio logic, no window (studio.py)': need(),
+    'Map Inspector logic, no window (inspector.py)': need(),
+    'mesh viewer index and cache, stand-in bundles': need(),
+    'LevelDiff build (when stale)': need(setup=True),
+    'LevelDiff, built levels': need(),
+    'crash reader, built reports': need(),
+    'console readers, built images': need(),
+    'menu tools (aptcheck, aptrefs, bc2loc), built data': need(),
+    'APT writer and grafter (aptgraft), built movies': need(),
+    'static cull trees (culltree), built data': need(),
+    'exe string / address references (exeref), built exe': need(),
+    'test harness, built data': need(),
+    'stock-MP AI layer, synthetic levels': need(),
+    'stock-MP AI validation checks, synthetic builds (validate.py)': need(cpu=2),
+    'shader databases (shaderdb), built files': need(),
+    'render harness (renderqa): built mesh, shaders and texture drawn and checked': need(cpu=2, shaderview='w'),
+    'shader translator differential test: Xenos interpreter semantics, cube fetch direction': need(cpu=2, shaderview='w'),
+    'Granny Xbox 360 -> PC: DICE bone tables': need(),
+    'BF1943 import pipeline, no data': need(),
+    'dbxport rules: the 19 edge cases, templates, references, schema, value passes': need(),
+    'dbxport fair ports, 7 partitions against DICE (skipped without game data)': need(mem=2),
+    'emitter atlases merged, emitters re-pointed (synthetic)': need(),
+    'texture QA: decoding, Xbox untiling, flips / swizzles / degenerate, baseline (synthetic)': need(),
+    # game
+    'shader databases: Xbox 360 (BFBC2 twins, BF1943 Wake)': need(mem=1),
+    'render harness (renderqa): stock meshes with their own level\'s shaders': need(cpu=4, mem=2, shaderview='w'),
+    'shader translator differential test: BF1943 shaders behind each translator fix exact': need(cpu=4, mem=1.5, shaderview='w'),
+    'Rust DBX reader against the Python reader, every corpus file': need(cpu='all', mem=4),
+    'Rust DBX reader against DbxEdit, every fingerprinted file; every bundle extracted (cargo)': need(cpu='all', mem=3, cargo='w'),
+    'Rust FBRB reader against the Python reader, every bundle': need(cpu=6, mem=5),
+    'Rust DBX writer against the Python writer, every corpus file written back and edited': need(cpu='all', mem=4),
+    'Rust FBRB packer against FbrbTool, every bundle of the game copy unpacked and packed again': need(cpu=8, mem=8),
+    'Rust terrain, water and Havok readers on every bundle of the game copy, the collision index of every prepared level': need(cpu=8, mem=4),
+    'Rust shader databases on every database of the game copy, the Xbox and BF1943 levels and work; the WW2 merges': need(cpu=8, mem=3),
+    'Rust cull trees on every tree and level partition of the game copy and work; listings; an add run both ways': need(cpu=8, mem=3),
+    'Rust scene against the Python loader, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)': need(cpu=8, mem=3),
+    "NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core and in Python (SP_009, SP_004_B)": need(cpu=4, mem=2),
+    'path locators: the same answers as a reference checkout (main)': need(),
+    'LevelDiff on MP_005': need(),
+    'crash reader code view (BFBC2Game.exe)': need(),
+    'console resource converter: physics (havok)': need(mem=1),
+    'console resource converter: textures': need(mem=2),
+    'Rust texture converter: every BF1943 and Onslaught console texture identical to texture.py': need(cpu='all', mem=3),
+    'console mesh decoding (Xbox vs PC, BF1943)': need(mem=1.5),
+    'console terrain conversion (Xbox vs PC, BF1943 Wake)': need(mem=1.5),
+    'console soot meshes (Xbox vs PC, BF1943)': need(mem=1.5),
+    'console sounds: EA-XMA -> EA-XAS (Xbox vs PC, BF1943)': need(cpu=2, mem=3),
+    'mesh viewer on the game\'s models': need(mem=1.5),
+    'model tools: skinned meshes, mesh sets, shapes': need(mem=1),
+    'model tools: PC textures from pictures (DXT1)': need(mem=1),
+    'model tools: mesh decimation (seams closed, bones apart)': need(),
+    'Granny skeletons and animations (read, shift)': need(mem=1),
+    'Granny Xbox 360 -> PC on your Xbox files and BF1943': need(mem=1.5),
+    'BF1943 import pipeline on your BF1943 copy': need(mem=2.5),
+    'BF1943 model port (meshport)': need(mem=1.5),
+    'DBX writer and BF1943 partition port (dbxport)': need(mem=2),
+    'dbxport fair ports: every partition both games ship, against DICE': need(mem=2.5),
+    'BF1943 physics port, Havok 4.6.1 -> 5.5.0 (havokport)': need(mem=1.5),
+    'localization files written (bc2loc set)': need(),
+    'console readers on your Xbox files': need(),
+    'menu tools on the game copy and OPFOR\'s patches': need(),
+    'exeref on BFBC2Game.exe': need(),
+    'FbrbTool round trip, 12 game bundles': need(mem=1),
+    'water, every level': need(),
+    'level loader snapshot': need(cpu=4, mem=1.5),
+    'terrain against in-game samples': need(mem=1),
+    'path data round trip (hpdtool)': need(work_hpd='r'),
+    'navigation mesh round trip (kymesh)': need(work_hpd='r'),
+    'navigation data and the path test': need(),
+    "path data structure, DICE's files (hpdcheck)": need(),
+    'NavKit boat mesh and routes on ONS_MP_004': need(mem=1),
+    'NavKit vehicle path data on ONS_MP_002': need(mem=1.5, work_hpd='w'),
+    'NavKit links and route edges': need(regress='r'),
+    'traversals, the apply report, installing': need(),
+    'navkit apply with walkability edits': need(mem=3, regress='r', sp_004_b='w'),
+    'Navigation Studio edit mode': need(cpu=4, mem=4, regress='r', navstudio='w', sp_004_b='w'),
+    'the suite window (hub) and the level picker': need(display='w'),
+    '3D tools open and draw (Map Inspector, Navigation Studio)': need(cpu=4, mem=3, display='w', navstudio='w', regress='r'),
+    'test harness on sp_009 and sp_004_b': need(mem=1.5, regress='r'),
+    'stock-MP AI layer, Atacama Conquest built': need(cpu=2, mem=1.5),
+    'Rust NavKit grid walks: sp_009 and sp_004_b built with each backend, identical files': need(mem=3),
+    'NavKit regression, 2 small levels': need(mem=3, regress='w'),
+    # full
+    'NavKit regression, all levels with DICE path data': need(mem=3, regress='w'),
+    'DbxEdit corpus and fingerprints': need(mem=1, display='w', dbxtests='w'),
+    'Python DBX reader against DbxEdit': need(mem=1),
+    'FbrbTool round trip, every game bundle': need(mem=2),
+}
+
+
 def safe_console():
     """Any child's output prints on any console: characters the console's code page lacks (maturin's emoji on a
     cp1252 console) are written as escapes instead of crashing the runner and hiding the failure (2026-11-16)."""
@@ -276,6 +467,331 @@ def safe_console():
         if reconfigure is not None:
             with contextlib.suppress(ValueError):
                 reconfigure(errors='backslashreplace')
+
+
+# --- running a test --------------------------------------------------------------------------------------------
+
+class _ProcessGroup:
+    """A Windows job object around a test's process: its peak memory, all its children included (process pools,
+    FbrbTool, cargo), and a way to end them all. Does nothing elsewhere or when the job cannot be made."""
+
+    def __init__(self):
+        self.handle = None
+        if sys.platform != 'win32':
+            return
+        import ctypes
+        self.k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        self.k32.CreateJobObjectW.restype = ctypes.c_void_p
+        self.k32.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        self.k32.QueryInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong,
+                                                       ctypes.c_void_p]
+        self.k32.TerminateJobObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        self.k32.CloseHandle.argtypes = [ctypes.c_void_p]
+        self.handle = self.k32.CreateJobObjectW(None, None)
+
+    def add(self, proc):
+        if self.handle and not self.k32.AssignProcessToJobObject(self.handle, int(proc._handle)):
+            self.close()                    # a job the runner's own job forbids: no measure, the test runs as ever
+
+    def peak_mb(self):
+        if not self.handle:
+            return None
+        import ctypes
+        from ctypes import wintypes
+
+        class Basic(ctypes.Structure):
+            _fields_ = [('a', ctypes.c_int64), ('b', ctypes.c_int64), ('flags', wintypes.DWORD),
+                        ('wmin', ctypes.c_size_t), ('wmax', ctypes.c_size_t), ('procs', wintypes.DWORD),
+                        ('affinity', ctypes.c_size_t), ('prio', wintypes.DWORD), ('sched', wintypes.DWORD)]
+
+        class Extended(ctypes.Structure):
+            _fields_ = [('basic', Basic), ('io', ctypes.c_uint64 * 6), ('proc_limit', ctypes.c_size_t),
+                        ('job_limit', ctypes.c_size_t), ('peak_proc', ctypes.c_size_t), ('peak_job', ctypes.c_size_t)]
+
+        info = Extended()
+        if not self.k32.QueryInformationJobObject(self.handle, 9, ctypes.byref(info), ctypes.sizeof(info), None):
+            return None
+        return round(info.peak_job / 2**20)
+
+    def kill(self):
+        if self.handle:
+            self.k32.TerminateJobObject(self.handle, 1)
+
+    def close(self):
+        if self.handle:
+            self.k32.CloseHandle(self.handle)
+            self.handle = None
+
+
+RUNNING: dict = {}                   # test name -> its _ProcessGroup, so that Ctrl+C ends every test's processes
+
+
+def run_one(name, args):
+    """Runs one test: (ok, its whole output, its summary line, seconds, peak memory in MB or None)."""
+    t0 = time.time()
+    group = _ProcessGroup()
+    try:
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8',
+                             errors='replace', cwd=SUITE)
+        group.add(p)
+        RUNNING[name] = group
+        try:
+            stdout, stderr = p.communicate()
+        except BaseException:                       # Ctrl+C: the test ends with the runner (as subprocess.run did)
+            group.kill()
+            p.kill()
+            raise
+        peak = group.peak_mb()
+    finally:
+        RUNNING.pop(name, None)
+        group.close()
+    out = (stdout + stderr).strip()
+    main_out = stdout.strip() or out            # the summary line is the test's own last line, not a warning it printed
+    last = main_out.splitlines()[-1] if main_out else ''
+    return p.returncode == 0, out, last, time.time() - t0, peak
+
+
+def result_line(ok, name, secs, last):
+    return f'{"ok  " if ok else "FAIL"} {name:42s} {secs:6.1f} s   {last[:90]}'
+
+
+# --- durations ---------------------------------------------------------------------------------------------------
+
+TIMES_FILE = os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'bfbc2-tool-suite', 'test_times.json')
+SEED_FILE = os.path.join(SUITE, 'tests', 'test_durations.json')
+GUESS = {'quick': 2.0, 'game': 30.0, 'full': 600.0}     # seconds, for a test no run has timed yet
+
+
+def durations_from_log(path, names):
+    """name -> seconds from a run_tests.py log: each result line is 'ok   <name padded> <seconds> s   <summary>'."""
+    import re
+    out = {}
+    by_length = sorted(names, key=len, reverse=True)       # a name that starts another is tried after the longer one
+    with open(path, encoding='utf-8', errors='replace') as f:
+        for line in f:
+            if not line.startswith(('ok   ', 'FAIL ')):
+                continue
+            rest = line[5:]
+            for n in by_length:
+                m = re.match(r'\s+(\d+(?:\.\d+)?) s(?:\s|$)', rest[len(n):]) if rest.startswith(n) else None
+                if m:
+                    out[n] = float(m.group(1))
+                    break
+    return out
+
+
+def load_json(path):
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def known_times(names, times_file=None):
+    """(name -> (seconds, peak MB or None), where they came from): --times F, else this PC's kept durations, else
+    the suite's seed (tests\\test_durations.json)."""
+    if times_file:
+        if times_file.lower().endswith('.json'):
+            got = {n: v for n, v in load_json(times_file).items() if n in names}
+            return {n: (v['s'], v.get('peak_mb')) if isinstance(v, dict) else (float(v), None)
+                    for n, v in got.items()}, times_file
+        return {n: (s, None) for n, s in durations_from_log(times_file, names).items()}, times_file
+    out = {n: (float(s), None) for n, s in load_json(SEED_FILE).items() if n in names}
+    for n, v in load_json(TIMES_FILE).items():
+        if n in names and isinstance(v, dict) and 's' in v:
+            out[n] = (v['s'], v.get('peak_mb'))
+    return out, f'{TIMES_FILE} (else {SEED_FILE})'
+
+
+def keep_times(results):
+    """Keeps each passed test's duration and peak memory for the next run's order and --plan."""
+    if not results:
+        return
+    kept = load_json(TIMES_FILE)
+    day = time.strftime('%Y-%m-%d')
+    for name, secs, peak in results:
+        kept[name] = {'s': round(secs, 1), 'peak_mb': peak, 'when': day}
+    with contextlib.suppress(OSError):
+        os.makedirs(os.path.dirname(TIMES_FILE), exist_ok=True)
+        tmp = f'{TIMES_FILE}.tmp-{os.getpid()}'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(kept, f, indent=1, ensure_ascii=False, sort_keys=True)
+        os.replace(tmp, TIMES_FILE)
+
+
+# --- the schedule --------------------------------------------------------------------------------------------------
+
+class Job:
+    def __init__(self, idx, name, tier, args, needs, est):
+        self.idx, self.name, self.tier, self.args, self.est = idx, name, tier, args, est
+        self.declared = needs is not None
+        needs = needs if needs is not None else need(alone=True)
+        self.cpu, self.mem, self.res = needs['cpu'], needs['mem'], needs['res']
+        self.setup, self.alone = needs['setup'], needs['alone']
+
+    def __repr__(self):
+        return f'Job({self.name!r})'
+
+
+class Scheduler:
+    """Which tests start now. Build steps first, one at a time, in list order; then the longest chain first (a test's
+    own time plus the longest chain of later tests that must wait for it), while a slot, the CPU threads and the
+    memory they declare are free and no running test holds what they write or read. The first test held back for
+    room gets a reservation: a shorter one starts before it only if it is expected to end by then or fits in what
+    that test leaves over (backfilling), so a long or heavy test is never starved."""
+
+    def __init__(self, jobs, slots, cpus, mem_gb):
+        self.slots, self.cpus, self.mem = max(1, slots), max(1, cpus), max(0.5, mem_gb)
+        self.setup = [j for j in jobs if j.setup]
+        rest = sorted((j for j in jobs if not j.setup), key=lambda j: j.idx)
+        chain: dict = {}
+        for i in range(len(rest) - 1, -1, -1):
+            j = rest[i]
+            chain[j] = j.est + max((chain[k] for k in rest[i + 1:] if self.conflicts(j, k)), default=0.0)
+        self.pending = sorted(rest, key=lambda j: (-chain[j], j.idx))
+        self.running: dict = {}                             # job -> expected end
+
+    def cpu_of(self, j):
+        return self.cpus if j.cpu == 'all' else min(j.cpu, self.cpus)      # more than the PC has: fits when alone
+
+    def mem_of(self, j):
+        return min(j.mem, self.mem)
+
+    def conflicts(self, a, b):
+        return any(m == 'w' or b.res[r] == 'w' for r, m in a.res.items() if r in b.res)
+
+    def fits(self, j, running):
+        if any(r.alone for r in running):
+            return False
+        if j.alone:
+            return not running
+        return (len(running) < self.slots
+                and sum(self.cpu_of(r) for r in running) + self.cpu_of(j) <= self.cpus
+                and sum(self.mem_of(r) for r in running) + self.mem_of(j) <= self.mem + 1e-9)
+
+    def reserve(self, j, now):
+        """When j will fit as running tests end (their expected ends), and the room it leaves over then."""
+        left = set(self.running)
+        when = now
+        for r, end in sorted(self.running.items(), key=lambda kv: (kv[1], kv[0].idx)):
+            if self.fits(j, left):
+                break
+            left.discard(r)
+            when = max(end, now)
+        if j.alone or any(r.alone for r in left):
+            return {'when': when, 'slots': 0, 'cpu': -1, 'mem': -1}
+        return {'when': when, 'slots': self.slots - len(left) - 1,
+                'cpu': self.cpus - sum(self.cpu_of(r) for r in left) - self.cpu_of(j),
+                'mem': self.mem - sum(self.mem_of(r) for r in left) - self.mem_of(j)}
+
+    def backfills(self, j, now, res):
+        if now + j.est <= res['when']:
+            return True
+        if not j.alone and res['slots'] >= 1 and self.cpu_of(j) <= res['cpu'] and self.mem_of(j) <= res['mem'] + 1e-9:
+            res['slots'] -= 1
+            res['cpu'] -= self.cpu_of(j)
+            res['mem'] -= self.mem_of(j)
+            return True
+        return False
+
+    def start(self, now):
+        """The tests to start now (marked running)."""
+        out = []
+        if self.setup:
+            if not self.running:
+                j = self.setup.pop(0)
+                self.running[j] = now + j.est
+                out.append(j)
+            return out
+        held = None
+        for j in list(self.pending):
+            # tests sharing a thing run in their listed order, as one at a time: each sees that thing as it did
+            # before (test_apply reads the regress file the regression test, listed after it, rewrites)
+            if (any(self.conflicts(j, r) for r in self.running)
+                    or any(p.idx < j.idx and self.conflicts(j, p) for p in self.pending)):
+                continue
+            if self.fits(j, self.running):
+                if held is not None and not self.backfills(j, now, held):
+                    continue
+                self.pending.remove(j)
+                self.running[j] = now + j.est
+                out.append(j)
+            elif held is None:
+                held = self.reserve(j, now)
+        return out
+
+    def finish(self, j):
+        del self.running[j]
+
+    def busy(self):
+        return bool(self.setup or self.pending or self.running)
+
+
+def simulate(sched):
+    """The schedule as it would run if every test took its expected time: [(start, end, job)] in start order."""
+    now, out = 0.0, []
+    while sched.busy():
+        for j in sched.start(now):
+            out.append((now, now + j.est, j))
+        if not sched.running:
+            raise RuntimeError('scheduler stalled')         # cannot happen: an idle PC fits any test
+        j, end = min(sched.running.items(), key=lambda kv: (kv[1], kv[0].idx))
+        now = end
+        sched.finish(j)
+    return out
+
+
+# --- the command line ----------------------------------------------------------------------------------------------
+
+def physical_memory_gb():
+    try:
+        import ctypes
+
+        class Status(ctypes.Structure):
+            _fields_ = [('len', ctypes.c_ulong), ('load', ctypes.c_ulong), ('total', ctypes.c_uint64),
+                        ('avail', ctypes.c_uint64), ('a', ctypes.c_uint64), ('b', ctypes.c_uint64),
+                        ('c', ctypes.c_uint64), ('d', ctypes.c_uint64), ('e', ctypes.c_uint64)]
+        s = Status()
+        s.len = ctypes.sizeof(s)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(s)):
+            return s.total / 2**30
+    except (AttributeError, OSError):
+        pass
+    return 16.0
+
+
+def option(argv, names, convert, default):
+    for n in names:
+        if n in argv[:-1]:
+            return convert(argv[argv.index(n) + 1])
+    return default
+
+
+def make_jobs(chosen, times):
+    tier_of = {name: t for name, t, _ in chosen}
+    return [Job(i, name, t, args, NEEDS.get(name), times.get(name, (GUESS[tier_of[name]], None))[0])
+            for i, (name, t, args) in enumerate(chosen)]
+
+
+def print_plan(tier, jobs, slots, cpus, mem, source, known):
+    sched = Scheduler(jobs, slots, cpus, mem)
+    timeline = simulate(sched)
+    total = max((e for _, e, _ in timeline), default=0.0)
+    serial = sum(j.est for j in jobs)
+    print(f'Plan: {tier}, {len(jobs)} test(s), {slots} at a time, {cpus} CPU threads, {mem:.1f} GB')
+    print(f'durations: {known} of {len(jobs)} from {source}; the others guessed ({", ".join(f"{t} {s:.0f} s" for t, s in GUESS.items())})')
+    print(f'{"start":>7s} {"end":>7s} {"cpu":>4s} {"GB":>4s}  test')
+    for s, e, j in timeline:
+        cpu = 'all' if j.cpu == 'all' else str(j.cpu)
+        flags = ''.join([' [build step]' if j.setup else '', ' [alone: not in NEEDS]' if not j.declared else
+                         ' [alone]' if j.alone else '',
+                         ''.join(f' {r}:{m}' for r, m in sorted(j.res.items()))])
+        print(f'{s:7.0f} {e:7.0f} {cpu:>4s} {j.mem:4.1f}  {j.name[:90]}{flags}')
+    longest = max(jobs, key=lambda j: j.est) if jobs else None
+    print(f'\nexpected wall-clock: {total:.0f} s ({total / 60:.1f} min); one at a time: {serial:.0f} s '
+          f'({serial / 60:.1f} min)' + (f'; longest test: {longest.est:.0f} s' if longest else ''))
+    print('(from durations measured one at a time: tests side by side run somewhat slower than this)')
 
 
 def main(argv):
@@ -287,27 +803,83 @@ def main(argv):
         for name, t, _ in chosen:
             print(f'{t:6s} {name}')
         return 0
+    threads = os.cpu_count() or 2
+    slots = option(argv, ('-j', '--jobs'), int, max(1, min(8, threads // 2)))
+    cpus = option(argv, ('--cpus',), int, threads)
+    mem = option(argv, ('--mem',), float, round(physical_memory_gb() * 0.75, 1))
+    names = {name for name, _, _ in chosen}
+    times, source = known_times(names, option(argv, ('--times',), str, None))
+    if '--plan' in argv:
+        print_plan(tier, make_jobs(chosen, times), slots, cpus, mem, source, len(times))
+        return 0
     root = opfor() if any(callable(a) or t != 'quick' for _, t, a in chosen) else None
-    print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else ''))
-    failures, start = [], time.time()
+    print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else '')
+          + (f', {slots} at a time' if slots > 1 else ''))
     os.environ['DBX_SKIP_BUILD'] = '1'          # run_tests.bat: DbxEdit is the 'DbxEdit build (when stale)' step's
-    for name, _t, args in chosen:
-        if callable(args):
-            args = args(root)
-        t0 = time.time()
-        r = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=SUITE)
-        out = (r.stdout + r.stderr).strip()
-        main_out = r.stdout.strip() or out            # the summary line is the test's own last line, not a warning it printed
-        last = main_out.splitlines()[-1] if main_out else ''
-        ok = r.returncode == 0
-        print(f'{"ok  " if ok else "FAIL"} {name:42s} {time.time() - t0:6.1f} s   {last[:90]}', flush=True)
-        if not ok:
-            failures.append((name, out))
+    if slots <= 1:
+        return run_in_turn(chosen, root)
+    return run_side_by_side(make_jobs(chosen, times), root, slots, cpus, mem)
+
+
+def report(chosen_names, failures, start, passed_times):
+    keep_times(passed_times)
     for name, out in failures:
         print(f'\n--- {name} (last 25 lines) ---')
         print('\n'.join(out.splitlines()[-25:]))
-    print(f'\n{len(chosen) - len(failures)} of {len(chosen)} passed in {time.time() - start:.0f} s')
+    print(f'\n{len(chosen_names) - len(failures)} of {len(chosen_names)} passed in {time.time() - start:.0f} s')
     return 1 if failures else 0
+
+
+def run_in_turn(chosen, root):
+    """-j 1: one test after another in the listed order (the runner as it was before 2026-11-17)."""
+    failures, passed, start = [], [], time.time()
+    for name, _t, args in chosen:
+        if callable(args):
+            args = args(root)
+        ok, out, last, secs, peak = run_one(name, args)
+        print(result_line(ok, name, secs, last), flush=True)
+        if ok:
+            passed.append((name, secs, peak))
+        else:
+            failures.append((name, out))
+    return report([c[0] for c in chosen], failures, start, passed)
+
+
+def run_side_by_side(jobs, root, slots, cpus, mem):
+    import queue
+    import threading
+    import traceback
+    undeclared = [j.name for j in jobs if not j.declared]
+    if undeclared:
+        print(f'{len(undeclared)} test(s) not in NEEDS run alone: ' + '; '.join(undeclared), flush=True)
+    sched = Scheduler(jobs, slots, cpus, mem)
+    done: queue.Queue = queue.Queue()
+
+    def work(j):
+        try:
+            args = j.args(root) if callable(j.args) else j.args
+            done.put((j, *run_one(j.name, args)))
+        except BaseException:                       # noqa: BLE001 - said as this test's failure, not lost in a thread
+            done.put((j, False, traceback.format_exc(), 'the runner could not start it', 0.0, None))
+
+    results, passed, start = {}, [], time.time()
+    try:
+        while sched.busy():
+            for j in sched.start(time.time() - start):
+                threading.Thread(target=work, args=(j,), daemon=True).start()
+            j, ok, out, last, secs, peak = done.get()
+            sched.finish(j)
+            print(result_line(ok, j.name, secs, last), flush=True)
+            results[j.name] = (ok, out)
+            if ok:
+                passed.append((j.name, secs, peak))
+    except KeyboardInterrupt:
+        for group in list(RUNNING.values()):
+            group.kill()
+        raise
+    ordered = sorted(jobs, key=lambda j: j.idx)
+    failures = [(j.name, results[j.name][1]) for j in ordered if not results[j.name][0]]
+    return report([j.name for j in ordered], failures, start, passed)
 
 
 if __name__ == '__main__':
