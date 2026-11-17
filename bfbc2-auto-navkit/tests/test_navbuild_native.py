@@ -866,6 +866,23 @@ def e3h(rng: random.Random) -> int:
         y = py(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
         check(x == y, f'build_graph with ladders case {case}')
         calls += 1
+    # walkable's unseeds (hand edits dropping the island a point is on): the island from the flood's NavLevel
+    dropped = 0
+    for case in range(16):
+        s = runs(rng, rng.randint(6, 18), rng.randint(6, 18), 0.2 if case % 2 else 0.8)
+        cols = [c for c in range(s.nx * s.nz) if s.start[c + 1] > s.start[c]]
+        seeds = []
+        for c in rng.sample(cols, min(len(cols), 6)):
+            k = rng.randrange(int(s.start[c]), int(s.start[c + 1]))
+            seeds.append((float(s.min_x + (c % s.nx) * s.pitch), float(s.y[k]), float(s.min_z + (c // s.nx) * s.pitch)))
+        kw = dict(extra_seeds=seeds[:3], unseeds=seeds[3:] + seeds[:1], return_gradients=True)
+        x = strict(navwalk.walkable, s, **kw)
+        whole = navwalk.walkable(s, extra_seeds=seeds[:3])
+        dropped += int(whole.sum() - x[0].sum())
+        check(same(x, py(navwalk.walkable, s, **kw)), f'walkable with unseeds case {case}')
+        calls += 1
+    check(dropped > 0, 'the unseeds drop ground')
+    print(f'E3h unseeds: {dropped} kept surfaces dropped')
     # round(v, 3): random values, exact ties (multiples of 1/16), negative zero, the build's positions
     vals = [rng.uniform(-2000, 2000) for _ in range(60000)] + [k / 16 for k in range(-40000, 40000)]
     vals += [rng.randint(-2500, 2500) * 0.2 + rng.choice([0.0, 0.95, -0.05]) for _ in range(40000)]

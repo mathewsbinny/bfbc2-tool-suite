@@ -875,6 +875,18 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
         if not cand:
             continue
         first = min(cand, key=lambda n: abs(y[n] - sy))
+        if _native is not None and grid_nat:
+            # the island in the Rust core (round E3h): the flood from first over the kept surfaces, on the floods'
+            # NavLevel with keep as its walk (the same samples, gradients and stairs); the loop below is the reference
+            try:
+                one = np.zeros(len(keep), bool)
+                one[first] = True
+                island = grid_nat[0].with_walk(_flags(keep)).flood(one.tobytes(), [int(first)])
+            except _NATIVE_ERRORS:
+                pass
+            else:
+                keep[np.frombuffer(island, bool)] = False
+                continue
         drop = {first}
         q = deque([first])
         while q:
