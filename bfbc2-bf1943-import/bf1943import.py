@@ -323,6 +323,9 @@ def run_import(source, filters, out_dir, opfor=None, log=print):
     for guarded in (source.folder, game):
         if guarded and _inside(out_dir, guarded):
             raise Bf1943ImportError(f'{out_dir}: the output folder may not lie inside {guarded}')
+    if any(source.entries[k][1]['type'] == 'XenonTexture' for k in keys):
+        import texture
+        texture.require()                   # textures convert in the Rust core: say so before converting anything
     imp = Importer(source, opfor)
     records = []
     for k in keys:

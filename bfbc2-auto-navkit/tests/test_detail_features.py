@@ -14,6 +14,7 @@ import random
 import sys
 from collections import Counter
 from types import SimpleNamespace
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -219,15 +220,13 @@ def main(argv):
     out_d = navbuild.detail_pass(level, [cells_area], per_area_d, 0.0, 0.0, cfg=navbuild.DEFAULTS.detailed())
     check(out_d == [([], [])] and per_area_d[0][E('x', 0.5, 1)] == [(1, 0.95)],
           'detail_pass with the detailed settings (pitch 0.2): no D / F there (DETAIL_IN_DETAILED off), outline untouched')
-    # route edges and D sides (DETAIL_BLOCKS_EDGES): a flat 3 x 3 grid, surface k = j * 3 + i
-    class Grid:
-        y = [0.0] * 9
-        blocked = set()
-
-        def neighbour(self, k, gi, gj, di, dj, prefer=None, rule=None):
-            i, j = gi + di, gj + dj
-            return j * 3 + i if 0 <= i < 3 and 0 <= j < 3 else None
-    g = Grid()
+    # route edges and D sides (DETAIL_BLOCKS_EDGES): a flat 3 x 3 grid, surface k = j * 3 + i (line_walkable runs in
+    # the Rust core: a real Level)
+    import numpy as np
+    plane: Any = SimpleNamespace(nx=3, nz=3, pitch=P, min_x=0.0, min_z=0.0, start=np.arange(10, dtype=np.int64),
+                                 y=np.zeros(9, np.float32), hit=None, flags=np.zeros(9, np.uint8),
+                                 normal=np.tile(np.array([0.0, 1.0, 0.0], np.float32), (9, 1)))
+    g = navbuild.Level(plane, np.ones(9, bool), 0.28)
     free = navbuild.line_walkable(g, 0, (0, 0), (2, 1), 0, 0, 5)
     g.blocked = {(1, 4), (4, 1)}                      # D side between (1, 0) and (1, 1): on the line
     on_line = navbuild.line_walkable(g, 0, (0, 0), (2, 1), 0, 0, 5)

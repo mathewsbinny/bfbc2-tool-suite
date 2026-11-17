@@ -16,8 +16,11 @@
 //!
 //! Every byte is the reference's: the work is integer only. Where the reference would read past the end of the
 //! data (a layout that points outside it, which no texture of either game does), the port stops with
-//! [`TextureError::OutOfRange`] rather than imitate Python's short slices; the Python binding then runs the
-//! reference, so what a caller gets is the reference's answer in every case.
+//! [`TextureError::OutOfRange`] rather than imitate Python's short slices. Measured before the Python was retired
+//! (2026-11-17): of 596,804 built textures (every format, sizes 1..69 and up to 16,384, every mip count, 2D and
+//! cube), 448 read past their data; the reference raised on 224 and "converted" the other 224 - all RGBA16F (13),
+//! 1..16 x 513 and 513 x 1..16 with 4 or more levels - into textures whose levels have the wrong sizes. They are
+//! refused here.
 //!
 //! ```
 //! use bc2_convert::texture;
@@ -55,8 +58,11 @@ pub enum TextureError {
     /// The reference's `ConvertError`, with its message.
     #[error("{0}")]
     Refused(String),
-    /// The layout reads past the end of the data (the reference reads short slices there; see the module docs).
-    #[error("the layout reads past the end of the texture data")]
+    /// The layout reads past the end of the data (the reference read short slices there and wrote a damaged
+    /// texture; see the module docs).
+    #[error(
+        "the layout reads past the end of the texture data (a level outside the console storage: a shape no texture of either game has)"
+    )]
     OutOfRange,
 }
 

@@ -8,10 +8,13 @@ draws.
     import texture
     pc_bytes = texture.convert(console_bytes)
 
-convert runs in the suite's Rust core (rust/bc2-convert, through bfbc2core's bc2_native) when it is built, with this
-module's code as the fallback and the reference: the same bytes on every texture of BF1943's source
-(tests/test_texture_native.py). BFBC2_PURE_PYTHON=1 (or use_native(False)) runs the Python code; a texture the
-port refuses is converted here again, so its error is this module's.
+convert runs in the suite's Rust core (rust/bc2-convert, through bfbc2core's bc2_native), which it needs: without
+the module (or with one built from other sources) it raises bfbc2core.native.NativeMissing saying how to get it
+(README.md, "The Rust core"); BFBC2_PURE_PYTHON does not change that. The Python converter that was its reference
+was retired on 2026-11-17, after the port had given the same bytes on every texture of BF1943's source and the
+Onslaught builds and passed the full test tier; its results are recorded in tests/texture_golden.json, which
+tests/test_texture_native.py checks. The layout functions below (tiled, packed, layout) stay: they describe the
+console's format, and texqa.py's independent decoder and the tests build console textures with them.
 """
 import os
 import struct
@@ -110,212 +113,40 @@ def layout(w, h, mips, fmt, slices=1):
     return where, pos
 
 
+# the console-only formats convert decodes (FORMAT.md 2): DXT5A (3) to the PC's 8-bit L8 (10), level by level, flag bit
+# 1 cleared; RGB565 (5) and big-endian A8R8G8B8 (9) to B8G8R8A8 (9)
 DXT5A, L8 = 3, 10
+RGB565, BGRA8 = 5, 9
 HALVED_ON_CONSOLE = 2       # header flag bit 1: DICE's build halves the texture for the console (FORMAT.md 2.1)
 
 
-def _rows4(level, w, h):
-    """An 8-bit level (h rows of w bytes) as the PC keeps it: each row padded with zeros to a multiple of 4 bytes
-    (DICE's 2 x 2 level is 8 bytes, its 1 x 1 level 4; wider levels are unchanged)."""
-    pitch = (w + 3) // 4 * 4
-    if pitch == w:
-        return bytes(level)
-    return b''.join(bytes(level[y * w:(y + 1) * w]).ljust(pitch, bytes(1)) for y in range(h))
-
-
-def _dxt5a_block(block):
-    """One 8-byte single-channel block (DXT5's alpha half: two end values, 16 x 3-bit indices) -> 4 x 4 bytes."""
-    import numpy as np
-    a0, a1 = block[0], block[1]
-    bits = int.from_bytes(bytes(block[2:8]), 'little')
-    if a0 > a1:
-        pal = [a0, a1] + [((7 - i) * a0 + i * a1) // 7 for i in range(1, 7)]
-    else:
-        pal = [a0, a1] + [((5 - i) * a0 + i * a1) // 5 for i in range(1, 5)] + [0, 255]
-    return np.array([pal[(bits >> (3 * i)) & 7] for i in range(16)], np.uint8).reshape(4, 4)
-
-
-def _convert_dxt5a(b, ver, typ, flags, w, h, mips):
-    """Console 3 (DXT5A, 4 bits per texel: the Xenos GPU's single-channel block format) -> the PC's 8-bit format 10,
-    decoded level by level. Proven on BFBC2's twins, whose console copies are half the PC's size: the console's
-    level 0 decoded equals the PC's level 1 within the format's error (correlation 0.995-0.9998, mean difference
-    1-2 of 255; tests\\test_texture.py). The result keeps the console's size, and so its flags: those twins' PC copies
-    have bit 1 (HALVED_ON_CONSOLE) because they are twice the console's - a converted one is not (it gave Wake's
-    mask-tile atlas flags 2 where DICE's atlases have 0)."""
-    import numpy as np
-    if typ != 0:
-        raise ConvertError(f'texture type {typ} in console format 3 is not converted (2D only)')
-    where, size = layout(w, h, mips, DXT5A, 1)
-    data = bytearray(b[HEADER:])
-    if len(data) < size:
-        raise ConvertError(f'{len(data)} bytes of texture data, the layout needs {size}')
-    for i in range(0, len(data) - 1, 2):                  # 16-bit words are byte-swapped on the console
-        data[i], data[i + 1] = data[i + 1], data[i]
-    levels = []
-    for m in range(mips):
-        start, pitch, ox, oy = where[0][m]
-        lw, lh = max(w >> m, 1), max(h >> m, 1)
-        bw, bh = max((lw + 3) // 4, 1), max((lh + 3) // 4, 1)
-        img = np.zeros((bh * 4, bw * 4), np.uint8)
-        for y in range(bh):
-            for x in range(bw):
-                s = start + tiled(x + ox, y + oy, pitch, 3) * 8
-                img[y * 4:y * 4 + 4, x * 4:x * 4 + 4] = _dxt5a_block(data[s:s + 8])
-        levels.append(_rows4(img[:lh, :lw].tobytes(), lw, lh))
-    sizes = [len(lv) for lv in levels] + [0] * (15 - mips)
-    return (struct.pack('<8I', ver, typ, L8, flags & ~HALVED_ON_CONSOLE, w, h, 0, mips) + struct.pack('<15I', *sizes)
-            + b''.join(levels))
-
-
-RGB565, BGRA8 = 5, 9
-
-
-def _convert_565(b, ver, typ, flags, w, h, mips):
-    """Console 5 (16-bit RGB565: red in the top 5 bits, blue in the low 5) -> the PC's 32-bit format 9, its bytes
-    blue, green, red, alpha 255. Proven on BFBC2's twins of the same size: within the 5 / 6-bit rounding of the
-    PC's 8-bit values (tests\\test_texture.py)."""
-    import numpy as np
-    if typ != 0:
-        raise ConvertError(f'texture type {typ} in console format 5 is not converted (2D only)')
-    where, size = layout(w, h, mips, RGB565, 1)
-    data = bytearray(b[HEADER:])
-    if len(data) < size:
-        raise ConvertError(f'{len(data)} bytes of texture data, the layout needs {size}')
-    for i in range(0, len(data) - 1, 2):                  # 16-bit words are byte-swapped on the console
-        data[i], data[i + 1] = data[i + 1], data[i]
-    levels = []
-    for m in range(mips):
-        start, pitch, ox, oy = where[0][m]
-        lw, lh = max(w >> m, 1), max(h >> m, 1)
-        v = np.zeros(lw * lh, np.int64)
-        for y in range(lh):
-            for x in range(lw):
-                s = start + tiled(x + ox, y + oy, pitch, 1) * 2
-                v[y * lw + x] = data[s] | data[s + 1] << 8
-        r5, g6, b5 = (v >> 11) & 31, (v >> 5) & 63, v & 31
-        px = np.stack([(b5 << 3) | (b5 >> 2), (g6 << 2) | (g6 >> 4), (r5 << 3) | (r5 >> 2), np.full_like(v, 255)], 1)
-        levels.append(px.astype(np.uint8).tobytes())
-    sizes = [len(lv) for lv in levels] + [0] * (15 - mips)
-    return struct.pack('<8I', ver, typ, BGRA8, flags, w, h, 0, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
-
-
-def _convert_argb8(b, ver, typ, flags, w, h, mips):
-    """Console 9 (32-bit texels, each a big-endian A8R8G8B8 word, untiled as texels: no 16-bit swap) -> the PC's
-    format 9, its bytes blue, green, red, alpha. Found on BF1943's loading pictures (levels/*/ui/load_image_*,
-    1024 x 512): decoded this way they are the clean renders BF1943 shows, alpha 255 throughout."""
-    import numpy as np
-    if typ != 0:
-        raise ConvertError(f'texture type {typ} in console format 9 is not converted (2D only)')
-    where, size = layout(w, h, mips, BGRA8, 1)
-    data = np.frombuffer(b[HEADER:HEADER + size], np.uint8)
-    if len(data) < size:
-        raise ConvertError(f'{len(b) - HEADER} bytes of texture data, the layout needs {size}')
-    levels = []
-    for m in range(mips):
-        start, pitch, ox, oy = where[0][m]
-        lw, lh = max(w >> m, 1), max(h >> m, 1)
-        ys, xs = np.mgrid[0:lh, 0:lw]
-        idx = np.vectorize(tiled)(xs + ox, ys + oy, pitch, 2).astype(np.int64)
-        px = data[(start + idx * 4)[..., None] + np.arange(4)]          # A, R, G, B
-        levels.append(px[..., [3, 2, 1, 0]].astype(np.uint8).tobytes())
-    sizes = [len(lv) for lv in levels] + [0] * (15 - mips)
-    return struct.pack('<8I', ver, typ, BGRA8, flags, w, h, 0, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
-
-
-def _load_native():
-    """The Rust core's texture_convert (found as bfbc2core.dbx finds the module), or None: not built, or
-    BFBC2_PURE_PYTHON set."""
-    try:
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        import suite_paths
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'texture_convert') else None
-
-
-_native = _load_native()
-
-
-def backend():
-    """'rust' when convert runs in the Rust core, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on):
-    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
-    global _native
-    if on:
-        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-        try:
-            _native = _load_native()
-        finally:
-            if saved is not None:
-                os.environ['BFBC2_PURE_PYTHON'] = saved
-    else:
-        _native = None
-    return backend()
+def require():
+    """The Rust core, which converts (bfbc2core.native.require): NativeMissing, saying how to get it, when it is not
+    built or downloaded or was built from other sources. A tool that converts calls this when it starts, so it
+    stops before doing other work."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('Texture conversion (bfbc2-console-convert/texture.py)', 'texture_convert')
 
 
 def convert(b):
-    """A console XenonTexture resource -> the PC ITexture resource."""
-    if _native is not None:
-        try:
-            return _native.texture_convert(bytes(b))
-        except ValueError:
-            pass                                # refused or out of range: the reference says why (or converts)
-    return convert_python(b)
+    """A console XenonTexture resource -> the PC ITexture resource; ConvertError (with the reason) for a texture
+    that is not converted."""
+    try:
+        return require().texture_convert(bytes(b))
+    except ValueError as e:
+        raise ConvertError(str(e)) from None
 
 
-def convert_python(b):
-    """convert in Python: the reference the Rust core is checked against."""
-    if len(b) < HEADER:
-        raise ConvertError('shorter than a texture header')
-    ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('>8I', b, 0)
-    if not (0 < w <= 16384 and 0 < h <= 16384 and 1 <= mips <= 15):
-        raise ConvertError(f'invalid texture dimensions {w} x {h} / {mips} mip levels')
-    if mips > max(w, h).bit_length():
-        raise ConvertError(f'{mips} mip levels exceed the {w} x {h} chain')
-    if typ not in (0, CUBE) or depth not in (0, 1):
-        raise ConvertError(f'texture type {typ} / depth {depth} is not converted (2D and cube maps only)')
-    if fmt == DXT5A:
-        return _convert_dxt5a(b, ver, typ, flags, w, h, mips)
-    if fmt == RGB565:
-        return _convert_565(b, ver, typ, flags, w, h, mips)
-    if fmt == BGRA8:
-        return _convert_argb8(b, ver, typ, flags, w, h, mips)
-    if fmt not in FORMATS:
-        raise ConvertError(f'texture format {OTHER.get(fmt, fmt)} is not converted (FORMAT.md 2.4)')
-    if typ not in (0, CUBE) or depth not in (0, 1):
-        raise ConvertError(f'texture type {typ} / depth {depth} is not converted (2D and cube maps only)')
-    bpb, edge, _ = FORMATS[fmt]
-    log_bpp = {1: 0, 8: 3, 16: 4}[bpb]
-    slices = 6 if typ == CUBE else 1
-    where, size = layout(w, h, mips, fmt, slices)
-    data = bytearray(b[HEADER:])
-    if len(data) < size:
-        raise ConvertError(f'{len(data)} bytes of texture data, the layout needs {size}')
-    for i in range(0, len(data) - 1, 2) if bpb > 1 else ():   # 16-bit words are byte-swapped on the console; 8-bit
-        data[i], data[i + 1] = data[i + 1], data[i]            # texels are not (L8: kept as they are)
-    levels = []
-    for s in range(slices):
-        for m in range(mips):
-            start, pitch, ox, oy = where[s][m]
-            lbw, lbh = max((max(w >> m, 1) + edge - 1) // edge, 1), max((max(h >> m, 1) + edge - 1) // edge, 1)
-            lev = bytearray(lbw * lbh * bpb)
-            for y in range(lbh):
-                for x in range(lbw):
-                    src = start + tiled(x + ox, y + oy, pitch, log_bpp) * bpb
-                    lev[(y * lbw + x) * bpb:(y * lbw + x + 1) * bpb] = data[src:src + bpb]
-            levels.append(_rows4(lev, lbw, lbh) if bpb == 1 else bytes(lev))
-    sizes = [len(l) for l in levels[:mips]] + [0] * (15 - mips)
-    return struct.pack('<8I', ver, typ, fmt, flags, w, h, depth, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
+def convert_many(items):
+    """convert of many textures on all cores, in order: each result the PC bytes or the ConvertError (returned, not
+    raised)."""
+    return [ConvertError(str(r)) if isinstance(r, ValueError) else r
+            for r in require().texture_convert_many([bytes(b) for b in items])]
 
 
 # ---------------------------------------------------------------- checking (numpy)

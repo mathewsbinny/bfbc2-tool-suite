@@ -140,18 +140,11 @@ PURE_PYTHON_ENV = 'BFBC2_PURE_PYTHON'      # set (not '' or '0'): the Python rea
 
 
 def _import_native() -> ModuleType | None:
-    """The Rust core: bc2_native built into this folder by rust/build_native.py, or an installed one; None when
-    neither is there."""
-    try:
-        from . import bc2_native  # type: ignore[attr-defined]
-        return cast(ModuleType, bc2_native)
-    except ImportError:
-        pass
-    try:
-        import bc2_native
-        return bc2_native
-    except ImportError:
-        return None
+    """The Rust core: bc2_native built into this folder by rust/build_native.py (or downloaded), or an installed one;
+    None when neither is there or it was built from other Rust sources than this checkout's (native.load: then it
+    warns once)."""
+    from . import native
+    return native.load()
 
 
 def _load_native() -> ModuleType | None:

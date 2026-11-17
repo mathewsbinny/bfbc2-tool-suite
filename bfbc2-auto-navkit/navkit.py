@@ -949,6 +949,9 @@ def main(argv: list[str]) -> int:
         if len(args) < 2:
             raise NavKitError(f'{cmd}: which level? (e.g. navkit.py {cmd} SP_01)')
         lv = pr.level(args[1])
+        if cmd in ('build', 'apply', 'all'):
+            import navbuild
+            navbuild.require_native()      # its grid walks run in the Rust core: say so before preparing or sampling
         if cmd == 'prepare':
             prepare(pr, lv, box=box, y=y)
         elif cmd == 'sample':

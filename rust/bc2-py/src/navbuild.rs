@@ -1,5 +1,7 @@
 //! Bindings for `bc2-navbuild`: `navbuild.Level` builds a `NavLevel` from its arrays and calls it for its grid
-//! walks (`bfbc2-auto-navkit/tools/navbuild.py`); any `ValueError` here makes it run its own Python code instead.
+//! walks (`bfbc2-auto-navkit/tools/navbuild.py`; their Python was retired on 2026-11-17, so a `ValueError` here
+//! reaches the caller); `NavGrid` and the cell picking serve the walkability rules and `build_areas`, whose Python
+//! still runs instead on a `ValueError`.
 
 use std::collections::HashSet;
 
@@ -292,7 +294,7 @@ pub struct NavLevel {
     blocked: std::sync::RwLock<HashSet<(usize, usize)>>,
 }
 
-/// A surface index or an error the caller turns into its fallback.
+/// A surface index, or a `ValueError` for one outside the level.
 fn surface(l: &Level, k: i64) -> PyResult<usize> {
     l.surface(k).map_err(value_error)
 }

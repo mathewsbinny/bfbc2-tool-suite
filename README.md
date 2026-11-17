@@ -9,9 +9,14 @@ share one core: level loading, a 3D view, picking and the game's data formats.
    libraries the tools use:
    `pip install numpy matplotlib moderngl glfw imgui-bundle pillow` (and `pefile capstone` for the crash
    reader's code view).
-2. Put this folder next to your `project-opfor-bfbc2` folder (or set `OPFOR_ROOT` to it): the tools read the game
+2. Get the suite's Rust core (one file, `core\bfbc2core\bc2_native.pyd`; texture conversion and NavKit's builds need
+   it): in a command prompt in this folder, `python rust\build_native.py --download`. It fetches the prebuilt module
+   made for this checkout's Rust sources, checks it and puts it in place; run it again after you update the suite
+   (a tool that needs a newer one says so). No download for your checkout (local Rust changes, or not Windows):
+   build it instead ("The Rust core" below).
+3. Put this folder next to your `project-opfor-bfbc2` folder (or set `OPFOR_ROOT` to it): the tools read the game
    copy there.
-3. Double-click **`BFBC2 Tool Suite.pyw`**. One window has every tool:
+4. Double-click **`BFBC2 Tool Suite.pyw`**. One window has every tool:
    - **Levels:** choose a level, then **Open in Map Inspector** or **Open in Navigation Studio** (or
      double-click the level). A level is unpacked the first time (offline, about 20 s); the tool's progress
      shows at the bottom and its 3D window opens when the level is loaded.
@@ -93,33 +98,60 @@ one: set `python.exe` to "High performance" in Settings > System > Display > Gra
 PC that took the Navigation Studio on SP_01 (10.4 million triangles) from the AMD Radeon integrated GPU to
 the GeForce RTX 4060, at 144 frames a second.
 
-## The Rust core (optional, faster)
+## The Rust core (required for texture conversion and NavKit's builds)
 
 `rust/` is a Cargo workspace: the start of the shared Rust core the map editor is built on
 (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8). Today it holds the binary DBX reader, the FBRB bundle
 reader, the terrain, water and Havok collision readers, the shader database reader / writer, the cull tree tool's element reader and level search, and the level loader (a Rust scene), ported from
 `core/bfbc2core/dbx.py`, `fbrb.py`, `terrain.py`, `water.py`, `level.py` and NavKit's `levelobjects.py` / `hkpack.py`
 and proven identical to them on every corpus file, every bundle of the game copy and, entity by entity, on 18
-levels. **Nothing needs it**: without it, every tool runs on the Python readers as before.
+levels; and two pieces of ported logic whose Python was retired: texture conversion and NavKit's grid walks.
+
+**What needs it** (since 2026-11-17): **texture conversion** (`bfbc2-console-convert/texture.py`'s `convert`: the
+console converter, the BF1943 importer's textures, meshes and effects, OPFOR's WW2 and Onslaught pipelines) and
+**NavKit's grid walks** (`navbuild.py` / `navwalk.py`: every NavKit build, apply and the Navigation Studio's
+rebuilds). Their Python twins were retired after the full test tier had passed on the Rust (140 of 140,
+2026-11-17), as `EDITOR_ARCHITECTURE.md` 3.8 rules for ported logic; without the module these stop at once with
+an error saying how to get it. Everything else runs without it, on the Python readers (the format readers and
+writers keep their Python for good: it is the reference the Rust is proven against).
+
+**Get it** - either way puts `bc2_native.pyd` and `bc2_native.json` in `core\bfbc2core\`:
+
+- **Download** (no Rust needed): `python rust\build_native.py --download` fetches the module made for this
+  checkout's Rust sources from the suite's GitHub Releases (64-bit Windows, Python 3.12 or later), checks its
+  SHA-256 and its fingerprint, and puts it in place. Each push to `main` that changes `rust\` publishes one
+  (`.github/workflows/native.yml`: built with the pinned toolchain, the Rust checks and the Python tests without
+  game data run first, release `native-<12 hex digits of the fingerprint>`). A checkout with Rust changes of its
+  own has no download: build it.
+- **Build** (once, and after changing anything in `rust/`; the quick test tier rebuilds it when it is stale):
+  1. Install Rust from rustup.rs (stable, MSVC; `rust/rust-toolchain.toml` pins 1.100.0 and rustup fetches it) and
+     Visual Studio's C++ build tools.
+  2. `pip install maturin`
+  3. `python rust\build_native.py` builds `bc2-py` (release) with maturin and puts the module in
+     `core\bfbc2core\`. `--if-stale` builds only when the module is missing or was made from other sources (and,
+     without Rust, downloads it instead); `--remove` deletes it; `--fingerprint` prints the checkout's fingerprint.
+     A module installed into Python instead (`pip install rust\bc2-py`, `maturin develop`) is used only when it was
+     built with `BC2_SOURCE_HASH` set to that fingerprint.
+
+**Which module is used.** The module carries the fingerprint of the Rust sources it was built from
+(`bc2_native.__source_hash__`, next to `__version__`): a SHA-256 over the workspace and crate manifests, the lock and
+toolchain files and every crate's `build.rs` and `src\**\*.rs`, each as its path, length and bytes with line endings
+made LF (`core/bfbc2core/native.py`), so every checkout of a commit, with or without autocrlf, has the same one.
+`bfbc2core.native` compares it with the checkout's on the first use in a process; `bc2_native.json` keeps the
+checkout's fingerprint with each source file's size and time, so it is hashed again only after a file changed (a
+few milliseconds). A module from other sources is never used silently: the pieces that need it raise
+`bfbc2core.native.NativeMissing` naming the mismatch and the fix, the others warn once and run in Python.
+`tests\test_native_required.py` (quick) checks all three cases on a copy of the suite.
 
 | Crate | What |
 |---|---|
 | `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; packing, byte for byte as FbrbTool's `pack`: `pack_path` / `pack_dir` / `pack_many`, `pack` from entries in memory); `zlib` (zlib's deflate, levels 4-9, ported byte for byte: what FbrbTool's gzip streams hold); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer). `shaderdb` (shader databases, PC Dx9 / Dx10 / Dx11 and Xbox 360: every section as slices of the file, a writer); `culltree` (the element streams of cull trees and level partitions as `culltree.py` reads them; the reference levels' search on all cores) |
 | `rust/bc2-scene` | a level as the tools see it: `collision` (which packfile each blueprint uses: NavKit's index and mesh aliases in one parallel walk, each alias read from the binary partition - `dbx::field_ref`, the XML's answer without the text - and the converted XML only where the binary cannot answer; `index_cached` keeps each answer in a cache keyed by the files' sizes and times, so an unchanged level is indexed without opening its partitions), `scene` (`level.load`'s entities, blueprints, teams, outlines, collision, terrain and water on all cores; editable entities for the map editor) |
-| `rust/bc2-convert` | the converter pipeline's hot spots: `texture` (console textures to the PC's: the Xenos untiling, the byte swap, DXT5A / RGB565 / A8R8G8B8 decoded; `bfbc2-console-convert/texture.py`'s `convert`, byte-identical on every BF1943 and Onslaught console texture) |
-| `rust/bc2-navbuild` | NavKit's generator walks: `Level` (which kept surface of a neighbouring column links to a surface), areas (`components`), traced sides, walkable lines, the route-group search, `walkable`'s flood and `islands_of`, `walkable`'s rules (`headroom`, `stair_slope`, `narrow_lips`, landings, `near_objects` / `on_objects`), `build_areas` and `build_graph`'s cell picking (`navbuild.py` / `navwalk.py`; the same path data byte for byte) |
+| `rust/bc2-convert` | the converter pipeline's hot spots: `texture` (console textures to the PC's: the Xenos untiling, the byte swap, DXT5A / RGB565 / A8R8G8B8 decoded; `bfbc2-console-convert/texture.py`'s `convert`, byte-identical on every BF1943 and Onslaught console texture; the Python converter retired 2026-11-17) |
+| `rust/bc2-navbuild` | NavKit's generator walks: `Level` (which kept surface of a neighbouring column links to a surface), areas (`components`), traced sides, walkable lines, the route-group search, `walkable`'s flood and `islands_of`, `walkable`'s rules (`headroom`, `stair_slope`, `narrow_lips`, landings, `near_objects` / `on_objects`), `build_areas` and `build_graph`'s cell picking (`navbuild.py` / `navwalk.py`; the same path data byte for byte). The walks' Python (E1d: everything before the rules, plus `matched_flags`) retired 2026-11-17; the rules, `build_areas` and the cell picking (E2a) keep theirs |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
 
-**Build** (once, and after changing anything in `rust/`; the quick test tier rebuilds it when it is stale):
-
-1. Install Rust from rustup.rs (stable, MSVC; `rust/rust-toolchain.toml` pins 1.100.0 and rustup fetches it) and
-   Visual Studio's C++ build tools.
-2. `pip install maturin`
-3. `python rust\build_native.py` builds `bc2-py` (release) with maturin and puts `bc2_native.pyd` in
-   `core\bfbc2core\`. `--if-stale` builds only when a Rust source is newer; `--remove` deletes it. Instead,
-   `pip install rust\bc2-py` (or `maturin develop` in a virtual environment) installs it into Python.
-
-**How the fallback works:** `bfbc2core.dbx` imports `bc2_native` (from `core\bfbc2core\`, else an installed one).
+**How the fallback works** (the pieces with a Python twin): `bfbc2core.dbx` imports `bc2_native` (from `core\bfbc2core\`, else an installed one).
 When it is there, `dbx.parse`, `to_xml`, `parse_many` and `to_xml_many` run in Rust; when it is not, the same
 functions run the Python reader, with the same results and the same errors (`ValueError`, `DeletedEntry`).
 `BFBC2_PURE_PYTHON=1` forces the Python reader (for comparisons, or to rule the Rust core out of a problem);
@@ -143,9 +175,17 @@ writer, so the result is always the Python writer's), and the new `fbrb.pack(fol
 an unpacked folder as FbrbTool's `pack` does, the same bytes on every bundle of the game copy, with FbrbTool.exe as
 the fallback (`bfbc2-stockmp-ai` packs through it). Unpacking stays with FbrbTool.
 Outside `core`, `bfbc2-shader-tools/shaderdb.py` (`ShaderDb.parse` and `to_bytes`; a record of a kind only Python writes, such as a `bytearray`, falls back to the Python writer) and `bfbc2-culltree/culltree.py` (the element reader of `Doc`; `level_partitions`, the `--ref-dir` search) work the same way, each with `use_native` and `backend()`.
-The converters and NavKit use it the same way
-(E1d): `texture.convert` (console textures; `texture.use_native`), NavKit's `navbuild.Level` and `navwalk.walkable`
-/ `islands_of` (`navbuild.use_native`, which turns both off), each with its Python code as the fallback and reference.
+NavKit's walkability rules (`headroom`, `stair_slope`, `narrow_lips`, landings, `near_objects` / `on_objects`),
+`build_areas` and `build_graph`'s cell picking (round E2a) work the same way too (`navbuild.use_native`, which turns
+navwalk's rules off as well): their Python stays until they pass a full test tier.
+**Without a fallback** (round E1d, Python retired 2026-11-17): `texture.convert` / `convert_many` and NavKit's grid
+walks (`navbuild.Level`'s neighbour linking, `components`, `trace_edges`' side neighbours, `line_walkable`,
+`build_graph`'s route-group search; `navwalk.walkable`'s flood, `islands_of`, `matched_flags`) always run in Rust:
+`BFBC2_PURE_PYTHON` and `use_native` do not turn them off, and the tools call `texture.require()` /
+`navbuild.require_native()` before they start work. Their tests check them against results recorded from the
+Python before it was deleted (`bfbc2-console-convert/tests/texture_golden.json`,
+`bfbc2-auto-navkit/tests/navbuild_golden.json`); NavKit's regression (`navregress`) stays the independent check
+against DICE's path data.
 
 **Develop:** in `rust\`, `cargo test` (unit, property and doc tests), `cargo clippy --all-targets -- -D warnings`,
 `cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene -p bc2-convert -p bc2-navbuild` (after
@@ -185,7 +225,7 @@ its processes, measured with a Windows job object) in `%LOCALAPPDATA%\bfbc2-tool
 run starts the longest first, and `--plan` uses them (`--times <log or json>` for others; `tests\test_durations.json`
 seeds a PC that has none). `tests/test_runner_parallel.py` (quick) checks the scheduler itself.
 
-The quick tier has 79 tests (2026-11-17). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
+The quick tier has 80 tests (2026-11-17). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
 `tests/test_types.py`; settings in `pyproject.toml`), the path finder on a stand-in tree, the converter units, the
 dbxport rules and the emitter atlas. A test that needs game data the machine lacks is skipped and says so. The table
 lists a selection; `--list` gives every test.
@@ -194,8 +234,9 @@ lists a selection; `--list` gives every test.
 |---|---|---|
 | `tests/test_rust.py` | quick, game | the Rust core: `cargo fmt --check`, clippy with warnings as errors, every crate's unit, property and doc tests; with `--corpus` (game) every unpacked `.dbx` read in Rust and its XML against DbxEdit's 31,404 fingerprints, and every bundle of the game copy extracted; skipped without Rust |
 | `core/tests/test_dbx_native.py` | quick, game | the Rust DBX reader against the Python reader: the same XML, trees and refusals on built files, thousands of damaged and random ones, and 200 corpus files (quick) or every corpus file (game: 48,120 distinct, levels, NavKit's common data and the WW2 work); the dispatcher, the batch functions and `BFBC2_PURE_PYTHON`; skipped when the module is not built |
-| `bfbc2-console-convert/tests/test_texture_native.py` | quick, game | the Rust texture converter against `texture.py`: the same bytes or both refusing on 1,362 built and damaged textures (every format, 2D and cube, packed tails, every mip count), the dispatcher and fallback (quick); every XenonTexture of BF1943's source and OPFOR's Onslaught builds (game); skipped when the module is not built |
-| `bfbc2-auto-navkit/tests/test_navbuild_native.py` | quick, game | NavKit's grid walks in Rust against `navbuild.py` / `navwalk.py`: every walk, call by call, on 40 random multi-layer levels (float32 and float64 gradients, stairs, terrain, D sides, every link rule), `walkable` and `islands_of`, the dispatcher (quick); sp_009 and sp_004_b built with each backend, the files byte-identical (game; `--levels` for others); skipped when the module is not built |
+| `bfbc2-console-convert/tests/test_texture_native.py` | quick, game | the texture converter (Rust; its Python retired 2026-11-17) against the results recorded from the Python (`texture_golden.json`): 1,362 seeded built and damaged textures (every format, 2D and cube, packed tails, every mip count; the output's SHA-1 or the refusal's message), the batch function (quick); every XenonTexture of BF1943's source and OPFOR's Onslaught builds, input and output SHA-1 (game); needs the module; `--record` rewrites the recording |
+| `bfbc2-auto-navkit/tests/test_navbuild_native.py` | quick, game | NavKit's grid walks (Rust; their Python retired 2026-11-17) against the answers recorded from the Python (`navbuild_golden.json`): every walk on 40 seeded random multi-layer levels (float32 and float64 gradients, stairs, terrain, D sides, every link rule), `walkable`, `islands_of`, `matched_flags`, arrays of other types cast; E2a's rules, `build_areas` and cell picking still call by call against their Python (quick); sp_009 and sp_004_b built, the path data's SHA-1 as recorded with the build clock fixed, the inputs' SHA-1 checked first (game; `--levels` for others: sp_008_b and ons_mp_004 are recorded too); needs the module; `--record` rewrites the recording |
+| `tests/test_native_required.py` | quick | on a copy of the suite: with no module and with a stale one, texture conversion and NavKit's builds stop at once with `NativeMissing` saying how to get it (the DBX reader falls back to Python, warning once when stale); the matching module runs them under `BFBC2_PURE_PYTHON=1`; the source fingerprint ignores line endings and follows every source and crate |
 | `core/tests/test_fbrb_native.py` | quick, game | the Rust FBRB reader against the Python reader: the same entries, bytes and refusals on built and hand-made bundles (gzip header fields, members, junk), about 1,700 damaged and 600 random ones, 8 game bundles (quick) or every bundle of the game copy and `work\ww2` (game); FbrbTool's unpack against the Rust reader; the dispatcher, `read_many` and `BFBC2_PURE_PYTHON`; skipped when the module is not built |
 | `tests/test_runner_parallel.py` | quick | the test runner side by side: stand-in tests run through `run_tests.main` with `-j 4` and `-j 1` - a writer of a shared thing never overlaps its readers and they keep their listed order, an undeclared or all-core test runs beside nothing, a failure gives exit code 1 and its own output, one result line per test with its own summary; the scheduler's reservation for a held-back heavy test; the log reader; `atomicio.locked` across three processes |
 | `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles |

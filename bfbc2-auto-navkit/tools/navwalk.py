@@ -31,10 +31,20 @@ import suite_paths  # noqa: E402
 suite_paths.use('navkit-tools')
 import navsample  # noqa: E402
 
+# The Rust core (rust/bc2-navbuild through bc2_native; navbuild.py's notes): walkable's flood, islands_of and
+# matched_flags always run in it (their Python was retired on 2026-11-17: require_native); the walkability rules
+# (headroom, stair_slope, narrow_lips, landings, near_objects / on_objects: round E2a) run in it when it is there,
+# with their Python here as the reference and the fallback (BFBC2_PURE_PYTHON=1, use_native(False)).
+
+def require_native() -> Any:
+    """The Rust core for the floods, or bfbc2core.native.NativeMissing saying how to get it."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require("NavKit's grid walks (navbuild.py / navwalk.py)", 'NavLevel')
+
 
 def _load_native() -> Any:
-    """The Rust core's NavLevel (rust/bc2-navbuild through bc2_native), or None: not built, or BFBC2_PURE_PYTHON
-    set. walkable's flood and islands_of run in it; the Python code here stays the reference and the fallback."""
+    """The Rust core for the walkability rules (NavGrid), or None: not built, or BFBC2_PURE_PYTHON set."""
     try:
         suite_paths.use('core')
         from bfbc2core import dbx as _dbx
@@ -47,11 +57,12 @@ def _load_native() -> Any:
 
 
 _native = _load_native()
-_NATIVE_ERRORS = (ValueError, TypeError, OverflowError)   # the Rust core refused: the Python code runs instead
+_NATIVE_ERRORS = (ValueError, TypeError, OverflowError)   # the rules: the Rust core refused, the Python code runs
 
 
 def use_native(on: bool) -> str:
-    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; 'rust' or 'python'."""
+    """The walkability rules in the Rust core (when built, whatever BFBC2_PURE_PYTHON says) or in Python for this
+    process; 'rust' or 'python'. The floods are not switched: they have no Python."""
     global _native
     if on:
         saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
@@ -65,22 +76,27 @@ def use_native(on: bool) -> str:
     return 'rust' if _native is not None else 'python'
 
 
+def grid_arrays(walk: np.ndarray, gx: np.ndarray, gz: np.ndarray,
+                stair: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """walk, gx, gz and stair as the Rust core takes them: the flags as one byte each (a value's truth, as the step
+    rule tests them), the gradients little-endian float32 or float64 as they are (step_fits computes in their type);
+    gradients of any other type are widened to float64 (no build makes them: they come from float32 normals or
+    float64 stair slopes)."""
+    def grad(a: np.ndarray) -> np.ndarray:
+        a = np.asarray(a)
+        return np.ascontiguousarray(a, a.dtype.newbyteorder('<') if a.dtype in (np.float32, np.float64) else '<f8')
+    return np.ascontiguousarray(walk, bool), grad(gx), grad(gz), np.ascontiguousarray(stair, bool)
+
+
 def native_grid(s: navsample.Samples, walk: np.ndarray, gx: np.ndarray, gz: np.ndarray, stair: np.ndarray,
                 step: float) -> Any:
     """The samples in the Rust core for the step-rule floods (NavLevel: walk the surfaces it may enter, the
-    gradients and stair flags step_fits reads, s.pitch, step), or None: the core is not there or the arrays are of a
-    kind it does not take."""
-    if _native is None or walk.dtype != bool or stair.dtype != bool or \
-            any(a.dtype not in (np.float32, np.float64) for a in (gx, gz)):
-        return None
-    try:
-        return _native.NavLevel(int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(), walk.tobytes(),
-                                np.ascontiguousarray(s.y, '<f8').tobytes(),
-                                np.ascontiguousarray(gx, gx.dtype.newbyteorder('<')).tobytes(), gx.dtype == np.float32,
-                                np.ascontiguousarray(gz, gz.dtype.newbyteorder('<')).tobytes(), gz.dtype == np.float32,
-                                stair.tobytes(), bytes(len(walk)), float(s.pitch), float(step), 0.6)
-    except _NATIVE_ERRORS:
-        return None
+    gradients and stair flags step_fits reads, s.pitch, step; grid_arrays)."""
+    walk, gx, gz, stair = grid_arrays(walk, gx, gz, stair)
+    return require_native().NavLevel(
+        int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(), walk.tobytes(),
+        np.ascontiguousarray(s.y, '<f8').tobytes(), gx.tobytes(), gx.dtype == np.float32, gz.tobytes(),
+        gz.dtype == np.float32, stair.tobytes(), bytes(len(walk)), float(s.pitch), float(step), 0.6)
 
 
 def _num(*vals: Any) -> bool:
@@ -473,27 +489,16 @@ def narrow_lips(s: navsample.Samples, base: np.ndarray, cand: np.ndarray, slope:
 
 
 def matched_flags(s: navsample.Samples, other: navsample.Samples | None) -> np.ndarray:
-    """Capsule flags of a second run over the same grid (e.g. a higher capsule), matched per column by height."""
-    out = np.full(len(s.y), 1, dtype=np.uint8)
+    """Capsule flags of a second run over the same grid (e.g. a higher capsule), matched per column by height: each
+    surface takes the flags of the first surface of its column in the other run within 0.05 m of its height, else
+    1 (uint8 per surface); in the Rust core. The flags go in as uint8 (a run's flags are; others are cast)."""
     if other is None:
-        return out
-    if hasattr(_native, 'navkit_matched_flags') and other.flags.dtype == np.uint8:
-        try:
-            got = _native.navkit_matched_flags(
-                s.nx * s.nz, np.ascontiguousarray(s.start, '<i8').tobytes(), np.asarray(s.y, '<f8').tobytes(),
-                np.ascontiguousarray(other.start, '<i8').tobytes(), np.asarray(other.y, '<f8').tobytes(),
-                other.flags.tobytes())
-            return np.frombuffer(got, np.uint8).copy()
-        except _NATIVE_ERRORS:
-            pass
-    for c in range(s.nx * s.nz):
-        oth = range(other.start[c], other.start[c + 1])
-        for k in range(s.start[c], s.start[c + 1]):
-            for n in oth:
-                if abs(float(other.y[n]) - float(s.y[k])) < 0.05:
-                    out[k] = other.flags[n]
-                    break
-    return out
+        return np.full(len(s.y), 1, dtype=np.uint8)
+    got = require_native().navkit_matched_flags(
+        s.nx * s.nz, np.ascontiguousarray(s.start, '<i8').tobytes(), np.asarray(s.y, '<f8').tobytes(),
+        np.ascontiguousarray(other.start, '<i8').tobytes(), np.asarray(other.y, '<f8').tobytes(),
+        np.ascontiguousarray(other.flags, np.uint8).tobytes())
+    return np.frombuffer(got, np.uint8).copy()
 
 
 def step_fits(dy: float, gk: Sequence[float], gn: Sequence[float], sk: bool, sn: bool, di: int, dj: int, pitch: float,
@@ -605,7 +610,9 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
       stairs: object surfaces whose slope over neighbouring samples is 12..40 deg count as walkable, with the
       clearance of the high_capsule run (capsule from 0.6 m) instead of the normal one.
     Hand edits (navedits.py): force_walkable / force_unwalkable (bool per surface) override the rules before
-    seeding; unseeds (points) drop the island each lies on after seeding."""
+    seeding; unseeds (points) drop the island each lies on after seeding. The floods need the Rust core
+    (require_native, checked first)."""
+    require_native()
     y = s.y.astype(float)
     nat = native_samples(s)                  # the run in the Rust core for the rules below (None: Python)
     ny = np.maximum(s.normal[:, 1], 0.05)
@@ -794,32 +801,13 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
     grid_nat: list[Any] = []                 # the samples in the Rust core, made at the first flood
 
     def flood() -> None:
+        """keep grown from the queued surfaces over ok surfaces by the step rule (8 neighbours, step_fits), in the
+        Rust core; the queue emptied."""
         if not grid_nat:
             grid_nat.append(native_grid(s, ok, gx_all, gz_all, stair, step))
-        if grid_nat[0] is not None:
-            try:
-                keep[:] = np.frombuffer(grid_nat[0].flood(keep.tobytes(), [int(k) for k in q]), bool)
-                q.clear()
-                return
-            except _NATIVE_ERRORS:
-                pass
-        while q:
-            k = q.popleft()
-            c = col_of[k]
-            i, j = c % s.nx, c // s.nx
-            for dj in (-1, 0, 1):
-                for di in (-1, 0, 1):
-                    a, b = i + di, j + dj
-                    if not (di or dj) or not (0 <= a < s.nx and 0 <= b < s.nz):
-                        continue
-                    cc = b * s.nx + a
-                    for n in range(s.start[cc], s.start[cc + 1]):
-                        if keep[n] or not ok[n]:
-                            continue
-                        if step_fits(y[n] - y[k], (gx_all[k], gz_all[k]), (gx_all[n], gz_all[n]), stair[k], stair[n],
-                                     di, dj, s.pitch, step):
-                            keep[n] = True
-                            q.append(n)
+        keep[:] = np.frombuffer(grid_nat[0].flood(np.ascontiguousarray(keep, bool).tobytes(), [int(k) for k in q]),
+                                bool)
+        q.clear()
     flood()
     if ladders:
         # ladder links: a ladder whose one end stands on kept ground seeds the walkable surface at its other end (a roof
@@ -897,42 +885,10 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
 
 def islands_of(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.ndarray, stair: np.ndarray,
                step: float) -> tuple[np.ndarray, int]:
-    """Island id per kept surface (-1 elsewhere): surfaces joined by the step rule, as walkable's flood joins them."""
-    nat = native_grid(s, keep, gx, gz, stair, step)
-    if nat is not None:
-        try:
-            ids, count = nat.islands()
-            return np.frombuffer(ids, '<i8').astype(np.int64), int(count)
-        except _NATIVE_ERRORS:
-            pass
-    y = s.y.astype(float)
-    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
-    comp = np.full(len(y), -1, np.int64)
-    cid = 0
-    for k0 in np.nonzero(keep)[0]:
-        if comp[k0] >= 0:
-            continue
-        comp[k0] = cid
-        q = deque([k0])
-        while q:
-            k = q.popleft()
-            c = col_of[k]
-            i, j = c % s.nx, c // s.nx
-            for dj in (-1, 0, 1):
-                for di in (-1, 0, 1):
-                    a, b = i + di, j + dj
-                    if not (di or dj) or not (0 <= a < s.nx and 0 <= b < s.nz):
-                        continue
-                    cc = b * s.nx + a
-                    for n in range(s.start[cc], s.start[cc + 1]):
-                        if comp[n] >= 0 or not keep[n]:
-                            continue
-                        if step_fits(y[n] - y[k], (gx[k], gz[k]), (gx[n], gz[n]), stair[k], stair[n], di, dj, s.pitch,
-                                     step):
-                            comp[n] = cid
-                            q.append(n)
-        cid += 1
-    return comp, cid
+    """(island id per kept surface, -1 elsewhere; the number of islands): surfaces joined by the step rule, as
+    walkable's flood joins them, numbered from 0 in the order of their lowest surface; in the Rust core."""
+    ids, count = native_grid(s, keep, gx, gz, stair, step).islands()
+    return np.frombuffer(ids, '<i8').astype(np.int64), int(count)
 
 
 def roof_islands(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.ndarray, stair: np.ndarray, step: float,

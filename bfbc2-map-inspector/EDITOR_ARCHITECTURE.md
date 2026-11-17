@@ -197,7 +197,10 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   OPFOR, the staged bundles and installs byte for byte), with timings before and after.
 - Python twins: the Python **format** readers and writers stay for good, as the independent reference the Rust is
   proven against; ported **logic** (NavKit's rules, the converters, OPFOR's scripts) is retired once its Rust passes
-  a full test tier.
+  a full test tier. A retired piece's tests check it against results recorded from its Python before the Python
+  was deleted, and the Python module is required for it: people get it prebuilt (`rust\build_native.py --download`,
+  from a release per Rust fingerprint) or build it. First retired (2026-11-17, after the full tier's 140 of 140):
+  texture conversion and NavKit's grid walks (README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python").
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
   Each Python GUI stays until its replacement works.

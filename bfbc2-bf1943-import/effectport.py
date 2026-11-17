@@ -224,6 +224,8 @@ def port(src, ix, effect, level, shared=None, plan=None, catalogue=None, schema=
     schema: dbxport's ('report': a shape no converter handles is kept as BF1943's and reported, 'schema' records)."""
     import texture
     plan = plan or walk(src, ix, effect, level)
+    if any(kind == 'texture' for _n, _k, kind in plan):
+        texture.require()                   # textures convert in the Rust core: say so before porting anything
     types = set()
     for _name, key, kind in plan:
         if kind == 'port':

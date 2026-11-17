@@ -129,6 +129,7 @@ def cmd_texture(a):
 
 
 def cmd_verify_texture(a):
+    texture.require()                       # the conversion runs in the Rust core: say so before reading anything
     pc = manifest(a.pc, 'ITexture')
     con: dict[str, str] = {}
     for f in a.console:
