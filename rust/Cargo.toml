@@ -11,7 +11,7 @@
 
 [workspace]
 resolver = "3"
-members = ["bc2-formats", "bc2-scene", "bc2-py"]
+members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert"]
 
 [workspace.package]
 version = "0.1.0"
@@ -25,6 +25,7 @@ repository = "https://github.com/mathewsbinny/bfbc2-tool-suite"
 [workspace.dependencies]
 bc2-formats = { path = "bc2-formats" }
 bc2-scene = { path = "bc2-scene" }
+bc2-convert = { path = "bc2-convert" }
 thiserror = "=2.0.21"
 rayon = "=1.12.0"
 # gzip of FBRB bundles: raw deflate (the gzip framing is read in bc2-formats, by the reference's rules) and CRC-32

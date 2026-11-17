@@ -12,6 +12,7 @@
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
 //! function's bundles run with the interpreter released.
 
+mod convert;
 mod geometry;
 mod scene;
 
@@ -261,6 +262,9 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::scene::scene_load;
+
+    #[pymodule_export]
+    use super::convert::{texture_convert, texture_convert_many};
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

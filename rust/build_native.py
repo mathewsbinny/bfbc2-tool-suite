@@ -25,7 +25,8 @@ TARGET = os.path.join(SUITE, 'core', 'bfbc2core', 'bc2_native.pyd' if os.name ==
 def sources() -> list[str]:
     """Every file whose change makes a new module: the Rust sources and the workspace / crate manifests."""
     out = [os.path.join(RUST, n) for n in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml')]
-    for crate in ('bc2-formats', 'bc2-scene', 'bc2-py'):
+    # every crate of the workspace (a folder of rust\ with a Cargo.toml): a new crate needs no entry here
+    for crate in sorted(d for d in os.listdir(RUST) if os.path.isfile(os.path.join(RUST, d, 'Cargo.toml'))):
         out += [os.path.join(RUST, crate, 'Cargo.toml')]
         out += glob.glob(os.path.join(RUST, crate, 'src', '**', '*.rs'), recursive=True)
     return [p for p in out if os.path.isfile(p)]
