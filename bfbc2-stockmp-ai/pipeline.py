@@ -43,6 +43,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit', 'navkit-tools', 'core')
+from bfbc2core import fbrb as corefbrb  # noqa: E402
 from bfbc2core import paths as corepaths  # noqa: E402  (not `paths`: the functions below name their Paths that)
 
 FBRB = corepaths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe', SUITE)
@@ -66,6 +67,15 @@ def run(*args: object, ok: tuple[int, ...] = (0,)) -> str:
     if r.returncode not in ok:
         raise BuildError(f'failed: {" ".join(map(str, args))}\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}')
     return r.stdout
+
+
+def pack_bundle(folder: str, out: str) -> None:
+    """FbrbTool's pack of folder into out: in the Rust core when it is built, else by FbrbTool.exe (the same bytes,
+    bfbc2core.fbrb.pack); a folder that cannot be packed stops the build."""
+    try:
+        corefbrb.pack(folder, out)
+    except (ValueError, OSError) as e:
+        raise BuildError(f'failed: pack {folder} -> {out}: {e}') from e
 
 
 def sha(path: str) -> str:
@@ -397,7 +407,7 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         _add_entries(dst, added)
         out = paths.out_bundle(v, stage)
         os.makedirs(os.path.dirname(out), exist_ok=True)
-        run(FBRB, 'pack', dst, out)
+        pack_bundle(dst, out)
         rep['variants'][v] = {'entry': entry, 'authored': counts, 'added_entries': [n for n, _f, _l in added],
                               'level_sha256_before': hashlib.sha256(original).hexdigest(),
                               'level_sha256_after': hashlib.sha256(data).hexdigest()}

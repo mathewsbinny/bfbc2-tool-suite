@@ -13,7 +13,18 @@ a file that cannot be read OSError.
 
 Layout: "FbRB", u32 big-endian header length, the header (gzip): u32, u32 string-table length, the strings, u32 entry
 count, per entry six u32 (name offset, flags, payload offset, size, size2, type offset), one byte (payload zipped),
-u32 payload length; then the payload (gzip when zipped). Changing a bundle stays with FbrbTool (unpack / pack).
+u32 payload length; then the payload (gzip when zipped). Unpacking stays with FbrbTool (unpack); packing:
+
+    pack(folder, out)                FbrbTool's `pack <folder> <out>`: the bundle of an unpacked folder (its files and
+                                     fbrb.manifest), the same bytes; returns (entries, payload bytes)
+    pack_many([(folder, out), ...])  pack() of many folders (on all cores with the Rust core): each result is the
+                                     tuple, or the exception pack() raised
+
+pack runs in the Rust core (bc2_formats::fbrb::pack_path: zlib's deflate ported byte for byte, DICE's padded
+layouts, the size2 rules) when it is built, else it runs FbrbTool.exe (the suite's build); both write the same
+bytes (core/tests/test_fbrb_pack_native.py: every bundle of the game copy). A folder that cannot be packed raises
+ValueError (a malformed manifest, an unsafe entry name, an old manifest whose size2 cannot be kept) or OSError (a
+missing or unreadable file, a bundle that cannot be written).
 
 entries / names / read / read_many run in the suite's Rust core (rust/, module bc2_native: bc2_formats::fbrb) when it
 is built, else in Python here; both give the same entries and bytes and refuse the same bundles
@@ -189,6 +200,63 @@ def _py_read(path: Path, wanted: Iterable[str]) -> dict[str, bytes]:
         if any(len(out[n]) != e.size for n, e in want.items()):
             raise ValueError(f'{path}: the payload ends before entry data (damaged bundle)')
         return {n: bytes(b) for n, b in out.items()}
+
+
+# ------------------------------------------------------------------------------------------------ packing
+
+def _native_pack() -> ModuleType | None:
+    """The Rust core when it is on and has the packer (a module built before it was added does not)."""
+    return _native if _native is not None and hasattr(_native, 'fbrb_pack') else None
+
+
+def fbrbtool() -> str:
+    """FbrbTool.exe where the suite's build puts it (bfbc2-fbrb-tool), whether it is built or not."""
+    from . import paths
+    return paths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe')
+
+
+def _tool_pack(folder: Path, out: Path) -> tuple[int, int]:
+    """pack() by FbrbTool.exe: its 'packed N entries (X bytes) into ...' line read back."""
+    import re
+    import subprocess
+    tool = fbrbtool()
+    if not os.path.isfile(tool):
+        raise OSError(f'{tool} is not built (run bfbc2-fbrb-tool\\build.bat) and the Rust core is not built either')
+    r = subprocess.run([tool, 'pack', os.fspath(folder), os.fspath(out)], capture_output=True, text=True,
+                       errors='replace')
+    m = re.search(r'packed (\d+) entries \((\d+) bytes\)', r.stdout)
+    if r.returncode != 0 or m is None:
+        text = (r.stderr.strip() or r.stdout.strip())[-2000:]
+        io = any(k in text for k in ('is missing', 'could not be written or read', 'in use', 'out of memory'))
+        raise (OSError if io else ValueError)(f'FbrbTool pack {os.fspath(folder)}: {text}')
+    return int(m.group(1)), int(m.group(2))
+
+
+def pack(folder: Path, out: Path) -> tuple[int, int]:
+    """FbrbTool's pack: the bundle of folder (unpacked by FbrbTool: its files and fbrb.manifest) written to out
+    (through a temporary file beside it, so a pack cut short leaves the old bundle). Returns (entries, payload
+    bytes). In the Rust core when it is built, else by FbrbTool.exe."""
+    native = _native_pack()
+    if native is not None:
+        n, size = native.fbrb_pack(os.fspath(folder), os.fspath(out))
+        return int(n), int(size)
+    return _tool_pack(folder, out)
+
+
+def pack_many(items: Sequence[tuple[Path, Path]]) -> list[tuple[int, int] | Exception]:
+    """pack() of each (folder, out), in order; a folder that cannot be packed gives the exception pack() raises
+    (ValueError, OSError) in its place, returned. With the Rust core the bundles are packed on all cores."""
+    native = _native_pack()
+    if native is not None:
+        got = native.fbrb_pack_many([(os.fspath(f), os.fspath(o)) for f, o in items])
+        return [r if isinstance(r, Exception) else (int(r[0]), int(r[1])) for r in got]
+    out: list[tuple[int, int] | Exception] = []
+    for f, o in items:
+        try:
+            out.append(_tool_pack(f, o))
+        except (ValueError, OSError) as e:
+            out.append(e)
+    return out
 
 
 def build(items: list[tuple[str, str, bytes]], zipped: bool = True) -> bytes:

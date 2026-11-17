@@ -247,6 +247,12 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   - **Still open for E1:** new / deleted entities and field edits (with `levelwrite`), undo, the shared data's
     XML-based alias table (reading the binary partitions instead, or a cache keyed by the files' sizes and times,
     would remove the scene's largest remaining cost: 0.3 s of 0.32 s on MP_005, all of it reading XML).
+- **The writers** (E1b, 2026-11-16; measured in `rust/BENCHMARKS.md`): `dbx.write` runs in Rust
+  (`dbx::Writer`, element by element, driven straight from the Python tree: the Python writer's bytes on every
+  corpus file, as read and edited) and bundles are packed in Rust (`fbrb::pack_path`, `bfbc2core.fbrb.pack`:
+  FbrbTool's bytes on all 1,086 bundles of the game copy, unpacked and packed again). FbrbTool's gzip is .NET's
+  `GZipStream`, which is zlib at level 6, so `bc2_formats::zlib` is a byte-exact port of zlib's lazy deflate (the
+  Rust deflaters choose other matches). `levelwrite` builds on both; unpacking stays with FbrbTool.
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 
