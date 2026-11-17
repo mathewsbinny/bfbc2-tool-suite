@@ -11,6 +11,7 @@ use bc2_navbuild::trace::{self, TraceCfg};
 use bc2_navbuild::{Cell, CellMap, Floats, Level, LevelData, NavError, Rule, pick, pymath};
 use rayon::prelude::*;
 
+use crate::navgraph::{self, NavAreas};
 use crate::navtrace;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -556,13 +557,15 @@ impl NavLevel {
         clippy::needless_pass_by_value,
         reason = "PyO3 extracts a list argument as an owned Vec"
     )]
+    #[pyo3(signature = (sectors, max_area, rule_name, store=false))]
     fn build_areas_many<'py>(
         &self,
         py: Python<'py>,
         sectors: Vec<(i64, i64, (i64, i64), (i64, i64), i64, i64)>,
         max_area: Option<i64>,
         rule_name: &str,
-    ) -> PyResult<Bound<'py, PyList>> {
+        store: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let rule = rule(rule_name)?;
         let level = &self.level;
         let got = py
@@ -576,8 +579,10 @@ impl NavLevel {
             })
             .map_err(value_error)?;
         let out = PyList::empty(py);
+        let mut kept: Vec<Vec<Vec<Cell>>> = Vec::new();
         for areas in got {
             let sector = PyList::empty(py);
+            let mut sector_cells = Vec::new();
             for (t, cells) in areas {
                 // min / max over the cells' heights in order, as Python's builtins compare (`<`, `>`)
                 let mut ys = cells.iter().map(|c| level.y(c.2));
@@ -585,15 +590,84 @@ impl NavLevel {
                 let (lo, hi) = ys.fold((first, first), |(lo, hi), v| {
                     (if v < lo { v } else { lo }, if v > hi { v } else { hi })
                 });
-                let cells: Vec<Bound<'py, PyTuple>> = cells
-                    .into_iter()
-                    .map(|cell| cell.into_pyobject(py))
+                let items: Vec<Bound<'py, PyTuple>> = cells
+                    .iter()
+                    .map(|&cell| cell.into_pyobject(py))
                     .collect::<PyResult<_>>()?;
-                sector.append((t, PyList::new(py, cells)?, lo, hi))?;
+                sector.append((t, PyList::new(py, items)?, lo, hi))?;
+                if store {
+                    sector_cells.push(cells);
+                }
             }
             out.append(sector)?;
+            if store {
+                kept.push(sector_cells);
+            }
         }
-        Ok(out)
+        if store {
+            return Ok((out, NavAreas::new(kept)).into_pyobject(py)?.into_any());
+        }
+        Ok(out.into_any())
+    }
+
+    /// A stage's areas in the core from the Python's cells (`[[[(i, j, k)]]]`: sectors, areas, cells; the surfaces
+    /// checked), for `trace_edges_stored`, `trace_emit_many` and `graph_many`.
+    fn areas_from(&self, sectors: Vec<Vec<Vec<(i64, i64, i64)>>>) -> PyResult<NavAreas> {
+        navgraph::areas_from(&self.level, &sectors)
+    }
+
+    /// `trace_edges` for every sector of `store` at once, in parallel: `origins` their (gi0, gj0) in its order;
+    /// the answers as `trace_edges_many` gives them.
+    #[expect(clippy::too_many_arguments, reason = "the stage's settings")]
+    fn trace_edges_stored<'py>(
+        &self,
+        py: Python<'py>,
+        store: &NavAreas,
+        origins: Vec<(i64, i64)>,
+        window: (i64, i64),
+        y_offset: f64,
+        rule_name: &str,
+        symmetric: bool,
+    ) -> PyResult<Bound<'py, PyList>> {
+        navgraph::trace_edges_stored(py, &self.level, store, &origins, window, y_offset, rule_name, symmetric)
+    }
+
+    /// `trace_emit` for several sectors of `store` at once, in parallel: `jobs` = `[(sector, per_area, gi0, gj0,
+    /// (ox, oz))]`; per job what `trace_emit` gives.
+    fn trace_emit_many<'py>(
+        &self,
+        py: Python<'py>,
+        store: &NavAreas,
+        jobs: &Bound<'py, PyList>,
+        pitch: f64,
+        y_offset: f64,
+        rule_name: &str,
+    ) -> PyResult<Bound<'py, PyList>> {
+        navgraph::trace_emit_many(py, &self.level, store, jobs, pitch, y_offset, rule_name)
+    }
+
+    /// `build_graph` for several sectors of `store` at once, in parallel (`bc2_navbuild::sector`): per job (nodes
+    /// `[(border index or -1, pos, k, i, j)]`, pairs, order-node indices); see `navgraph::graph_many`.
+    #[expect(clippy::type_complexity, reason = "the build's settings as a tuple")]
+    fn graph_many<'py>(
+        &self,
+        py: Python<'py>,
+        store: &NavAreas,
+        jobs: &Bound<'py, PyList>,
+        cfg: (
+            f64,
+            f64,
+            (i64, i64),
+            f64,
+            String,
+            Option<f64>,
+            bool,
+            bool,
+            f64,
+            (f64, f64),
+        ),
+    ) -> PyResult<Bound<'py, PyList>> {
+        navgraph::graph_many(py, &self.level, store, jobs, cfg)
     }
 
     /// `navbuild.build_areas(level, gi0, gj0, start, tile, tiles)` over the sector window `window` (start, stop;

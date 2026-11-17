@@ -41,6 +41,7 @@ pub mod pick;
 pub mod pymath;
 pub mod route;
 pub mod rules;
+pub mod sector;
 pub mod trace;
 pub mod window;
 

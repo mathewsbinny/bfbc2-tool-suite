@@ -27,6 +27,7 @@ mod culltree;
 mod dbxedit;
 mod geometry;
 mod navbuild;
+mod navgraph;
 mod navtrace;
 mod scene;
 mod shaders;
@@ -298,6 +299,9 @@ mod bc2_native {
     use super::navbuild::{
         NavGrid, NavLevel, navkit_centre_cells, navkit_float_ops, navkit_matched_flags, navkit_nearest_cells,
     };
+
+    #[pymodule_export]
+    use super::navgraph::NavAreas;
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
