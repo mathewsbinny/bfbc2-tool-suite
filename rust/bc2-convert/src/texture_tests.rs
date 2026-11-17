@@ -148,8 +148,25 @@ fn refusals_carry_the_reference_messages() {
     assert_eq!(msg(&short), "100 bytes of texture data, the layout needs 4096");
     assert_eq!(
         TextureError::OutOfRange.to_string(),
-        "the layout reads past the end of the texture data"
+        "the layout reads past the end of the texture data (a level outside the console storage: a shape no texture \
+         of either game has)"
     );
+    // the shapes the Python reference "converted" by reading short slices (its levels the wrong sizes): RGBA16F,
+    // 1..16 x 513 and 513 x 1..16 with 4 or more levels
+    for w in [1, 2, 7, 16] {
+        for mips in [4, 7, 10] {
+            assert_eq!(
+                convert(&built(13, w, 513, mips, 0)),
+                Err(TextureError::OutOfRange),
+                "{w} x 513 / {mips}"
+            );
+            assert_eq!(
+                convert(&built(13, 513, w, mips, 0)),
+                Err(TextureError::OutOfRange),
+                "513 x {w} / {mips}"
+            );
+        }
+    }
     assert!(format(42).is_none());
 }
 

@@ -3,7 +3,9 @@
 //!
 //! The bindings only convert: every format lives in `bc2-formats`. `core/bfbc2core/dbx.py` calls this module when
 //! it is importable and falls back to its own Python reader otherwise (`BFBC2_PURE_PYTHON=1` forces the
-//! fallback). The work runs with the interpreter released, the batch functions on all cores.
+//! fallback). Texture conversion and NavKit's grid walks have no Python twin since 2026-11-17: they need the module,
+//! and `bfbc2core.native` uses it only when its `__source_hash__` matches the checkout's sources. The work runs with
+//! the interpreter released, the batch functions on all cores.
 //!
 //! Errors are `ValueError`s with `bc2-formats`' message, as the Python reader raises them (and, for bundles,
 //! `KeyError` for an entry that is not there and `OSError` for a file that cannot be read). The binding is tested
@@ -290,4 +292,15 @@ mod bc2_native {
     /// The crate version, to tell builds apart.
     #[pymodule_export]
     const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    use pyo3::prelude::*;
+
+    /// `__version__` (the crates' version) and `__source_hash__`: the fingerprint of the Rust sources the module was
+    /// built from (`bfbc2core.native.fingerprint`, passed by `rust/build_native.py` as `BC2_SOURCE_HASH`; empty for
+    /// a build without it), which `bfbc2core.native` compares with the checkout's before using the module.
+    #[pymodule_init]
+    fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+        m.add("__source_hash__", option_env!("BC2_SOURCE_HASH").unwrap_or(""))
+    }
 }

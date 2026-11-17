@@ -1,0 +1,123 @@
+# The Rust core's prebuilt Python module (README.md, "The Rust core").
+#
+# For each push to main that changes the Rust sources (and on demand), on Windows: build bc2_native.pyd with the
+# pinned toolchain (rust/rust-toolchain.toml) and maturin through rust/build_native.py, which bakes in the sources'
+# fingerprint; run the Rust checks and the Python tests that need no game data; publish the module and its SHA-256
+# as the assets of a release tagged native-<the fingerprint's first 12 hex digits>. `python rust\build_native.py
+# --download` fetches the release of its checkout's fingerprint. A fingerprint already published is not built again.
+name: native
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rust/**'
+      - 'core/bfbc2core/native.py'
+      - '.github/workflows/native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write                          # the release and its assets (GITHUB_TOKEN)
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: false                # a later push waits: each fingerprint is published once
+
+jobs:
+  module:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1   # v6.3.0
+        with:
+          python-version: '3.12'           # the oldest the module serves (abi3-py312): it loads in 3.12 and later
+
+      - name: Fingerprint and release tag
+        id: fp
+        run: |
+          $fp = (python rust/build_native.py --fingerprint).Trim()
+          if ($fp -notmatch '^[0-9a-f]{64}$') { throw "no fingerprint: $fp" }
+          $tag = "native-$($fp.Substring(0, 12))"
+          "hash=$fp" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name' > assets.txt 2>$null
+          $published = (Test-Path assets.txt) -and ((Get-Content assets.txt) -contains 'bc2_native.pyd')
+          "published=$($published.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          Write-Output "sources $fp -> $tag (published already: $published)"
+          $global:LASTEXITCODE = 0
+
+      - name: Rust toolchain (rust/rust-toolchain.toml)
+        if: steps.fp.outputs.published != 'true'
+        working-directory: rust
+        run: |
+          $channel = (Select-String -Path rust-toolchain.toml -Pattern '^channel = "(.+)"').Matches[0].Groups[1].Value
+          rustup toolchain install $channel --profile minimal --component rustfmt --component clippy
+          cargo --version
+          rustc --version
+
+      - name: Python packages
+        if: steps.fp.outputs.published != 'true'
+        run: python -m pip install "maturin>=1.16,<2" numpy
+
+      - name: Build the module
+        if: steps.fp.outputs.published != 'true'
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          python rust/build_native.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Get-Content core/bfbc2core/bc2_native.json -TotalCount 3
+
+      - name: Rust checks (fmt, clippy, tests)
+        if: steps.fp.outputs.published != 'true'
+        run: |
+          python tests/test_rust.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Python tests without game data
+        if: steps.fp.outputs.published != 'true'
+        run: |
+          foreach ($t in 'tests/test_native_required.py', 'bfbc2-console-convert/tests/test_texture_native.py',
+                         'bfbc2-auto-navkit/tests/test_navbuild_native.py', 'bfbc2-auto-navkit/tests/test_area_link.py',
+                         'bfbc2-auto-navkit/tests/test_detail_features.py') {
+            Write-Output "== $t"
+            python $t
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+
+      - name: Publish the release
+        if: steps.fp.outputs.published != 'true'
+        env:
+          TAG: ${{ steps.fp.outputs.tag }}
+          HASH: ${{ steps.fp.outputs.hash }}
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item core/bfbc2core/bc2_native.pyd dist/bc2_native.pyd
+          $sha = (Get-FileHash -Algorithm SHA256 dist/bc2_native.pyd).Hash.ToLower()
+          [IO.File]::WriteAllText("$PWD/dist/bc2_native.pyd.sha256", "$sha  bc2_native.pyd`n")
+          Copy-Item core/bfbc2core/bc2_native.json dist/bc2_native.json
+          $notes = @"
+          The suite's Rust core (bc2_native) for 64-bit Windows and Python 3.12 or later, built from the Rust
+          sources with fingerprint $env:HASH (commit $env:GITHUB_SHA). Get it with ``python rust\build_native.py --download``
+          (README.md, "The Rust core"). SHA-256 of bc2_native.pyd: $sha.
+          "@
+          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE) {
+            gh release create $env:TAG --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
+              --title "Rust core $($env:HASH.Substring(0, 12))" --notes $notes --latest=false `
+              dist/bc2_native.pyd dist/bc2_native.pyd.sha256 dist/bc2_native.json
+          } else {
+            gh release upload $env:TAG --repo $env:GITHUB_REPOSITORY --clobber `
+              dist/bc2_native.pyd dist/bc2_native.pyd.sha256 dist/bc2_native.json
+          }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

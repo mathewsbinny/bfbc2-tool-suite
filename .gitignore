@@ -16,3 +16,5 @@ rust/target/
 *.pyd
 core/bfbc2core/bc2_native*.so
 core/bfbc2core/bc2_native.pyd.*
+core/bfbc2core/bc2_native.json
+core/bfbc2core/bc2_native.json.tmp

@@ -7,10 +7,11 @@ in-game samples (Project OPFOR BFBC2's, read only), on one backend, into a tempo
 
   rust     navbuild / navwalk on the Rust core (bc2_navbuild): Level's grid walks, the floods, walkable's rules,
            build_areas and build_graph's cell picking
-  python   the Python reference (navbuild.use_native(False))
+  python   walkable's rules, build_areas and the cell picking on their Python reference (navbuild.use_native(False));
+           the grid walks and floods run in Rust either way (their Python was retired on 2026-11-17)
 
 Prints the time and the sha1 of the path data. The files carry each sector's build time, so two builds' sha1 differ;
-tests\test_navbuild_native.py --game compares the two backends' files byte for byte (the clock fixed for both).
+tests\test_navbuild_native.py --game compares a build's file with the recorded one (the clock fixed).
 """
 import cProfile
 import hashlib

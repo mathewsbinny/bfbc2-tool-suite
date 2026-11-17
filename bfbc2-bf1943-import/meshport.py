@@ -181,6 +181,7 @@ class Porter:
     def port(self, name, donors=(), rename=None):
         """The mesh's PC files (module docstring); rename: under another name / namespace (renamer)."""
         R = renamer(rename)
+        texture.require()                   # its textures convert in the Rust core: say so before porting anything
         kind = self.kind(name)
         soldier = self.skinned_to_soldier(name)
         bones: Any = self.bones() if soldier else None          # a soldier's bone map, used only for soldiers

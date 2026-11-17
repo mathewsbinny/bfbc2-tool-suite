@@ -37,7 +37,7 @@ import math
 import os
 import sys
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
 from collections.abc import Callable, Container, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
@@ -190,10 +190,26 @@ DETAIL_STATS: dict[str, int] = {}               # D lines, F cells and outline s
 
 # ------------------------------------------------------------------------------------------------ the Rust core
 
+# Two kinds of pieces run in the Rust core (rust/bc2-navbuild through bc2_native):
+#  - the grid walks (round E1d): Level.neighbour's linking, components, trace_edges' side neighbours,
+#    line_walkable, build_graph's route-group search, and navwalk's flood, islands_of and matched_flags. Their Python
+#    was retired on 2026-11-17 after the full test tier; the module is required for them (require_native, which a
+#    build calls first) and BFBC2_PURE_PYTHON does not change that. Their results are recorded in
+#    tests/navbuild_golden.json (tests/test_navbuild_native.py); navregress stays the independent check against
+#    DICE's path data.
+#  - the walkability rules, build_areas and build_graph's cell picking (round E2a): their Python stays the reference
+#    and the fallback until they pass a full test tier; BFBC2_PURE_PYTHON=1 or use_native(False) runs it.
+
+def require_native() -> Any:
+    """The Rust core for the grid walks, or bfbc2core.native.NativeMissing saying how to get it."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require("NavKit's grid walks (navbuild.py / navwalk.py)", 'NavLevel')
+
+
 def _load_native() -> Any:
-    """The Rust core's NavLevel (rust/bc2-navbuild through bc2_native, found as bfbc2core.dbx finds the module), or
-    None: not built, or BFBC2_PURE_PYTHON set. Level's grid walks run in it (Level.native); this module's code stays
-    the reference and the fallback: the same path data bit for bit (tests/test_navbuild_native.py)."""
+    """The Rust core for E2a's pieces (build_areas, the cell picking; navwalk's rules), or None: not built, or
+    BFBC2_PURE_PYTHON set (their Python runs)."""
     try:
         suite_paths.use('core')
         from bfbc2core import dbx as _dbx
@@ -206,16 +222,17 @@ def _load_native() -> Any:
 
 
 _native = _load_native()
-_NATIVE_ERRORS = (ValueError, TypeError, OverflowError)   # the Rust core refused: the Python code runs instead
+_NATIVE_ERRORS = (ValueError, TypeError, OverflowError)   # E2a's pieces: the Rust core refused, the Python code runs
 
 
 def backend() -> str:
-    """'rust' when Level's grid walks run in the Rust core, else 'python'."""
+    """'rust' when E2a's pieces run in the Rust core, else 'python' (the grid walks always run in it)."""
     return 'rust' if _native is not None else 'python'
 
 
 def use_native(on: bool) -> str:
-    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
+    """E2a's pieces in the Rust core (when built, whatever BFBC2_PURE_PYTHON says) or in Python for this process,
+    navwalk's rules too; returns backend(). The grid walks are not switched: they have no Python."""
     global _native
     if on:
         saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
@@ -226,7 +243,7 @@ def use_native(on: bool) -> str:
                 os.environ['BFBC2_PURE_PYTHON'] = saved
     else:
         _native = None
-    navwalk.use_native(on)                   # its floods too
+    navwalk.use_native(on)                   # its rules too
     return backend()
 
 
@@ -374,26 +391,15 @@ class Level:
         self.blocked: set[tuple[int, int]] = set()       # (surface, surface) pairs line_walkable does not step across (D sides; DETAIL_BLOCKS_EDGES)
 
     def native(self) -> Any:
-        """This level in the Rust core (made on first use), or None: the core is not built or is off (use_native),
-        or the arrays are of a kind it does not take."""
-        if _native is None:
-            return None
-        nat = self.__dict__.get('_native', False)
-        if nat is False:
-            nat = None
-            g = (self.gx, self.gz)
-            if (self.keep.dtype == bool and self.stair.dtype == bool and self.terrain.dtype == bool
-                    and all(a.dtype in (np.float32, np.float64) for a in g)):
-                le = [np.ascontiguousarray(a, a.dtype.newbyteorder('<')).tobytes() for a in g]
-                try:
-                    nat = _native.NavLevel(
-                        int(self.s.nx), int(self.s.nz), np.ascontiguousarray(self.s.start, '<i8').tobytes(),
-                        self.keep.tobytes(), np.ascontiguousarray(self.y, '<f8').tobytes(),
-                        le[0], self.gx.dtype == np.float32, le[1], self.gz.dtype == np.float32,
-                        self.stair.tobytes(), self.terrain.tobytes(), float(self.cfg.pitch), float(self.step),
-                        float(self.cfg.link_step))
-                except _NATIVE_ERRORS:
-                    nat = None
+        """This level in the Rust core (made on first use; the arrays as it takes them: navwalk.grid_arrays)."""
+        nat = self.__dict__.get('_native')
+        if nat is None:
+            walk, gx, gz, stair = navwalk.grid_arrays(self.keep, self.gx, self.gz, self.stair)
+            nat = require_native().NavLevel(
+                int(self.s.nx), int(self.s.nz), np.ascontiguousarray(self.s.start, '<i8').tobytes(), walk.tobytes(),
+                np.ascontiguousarray(self.y, '<f8').tobytes(), gx.tobytes(), gx.dtype == np.float32, gz.tobytes(),
+                gz.dtype == np.float32, stair.tobytes(), np.ascontiguousarray(self.terrain, bool).tobytes(),
+                float(self.cfg.pitch), float(self.step), float(self.cfg.link_step))
             self._native = nat
         return nat
 
@@ -430,26 +436,10 @@ class Level:
                         return True
         return False
 
-    def neighbour(self, k: int, gi: int, gj: int, di: int, dj: int, prefer: Container[int] | None = None,
-                  rule: str | None = None) -> int | None:
-        """The kept surface in column (gi+di, gj+dj) connected to surface k, or None. With prefer (a set of
-        surfaces, e.g. those of k's own area), a connected surface in that set is returned first."""
-        if prefer is None:
-            nat = self.native()
-            if nat is not None:
-                try:
-                    return cast(int | None, nat.neighbour(k, gi, gj, di, dj, rule or LINK_RULE))
-                except _NATIVE_ERRORS:
-                    pass
-        best, bd = None, 9e9
-        for n in self.surfaces(gi + di, gj + dj):
-            if self.connected(k, n, di, dj, rule):
-                if prefer is not None and n in prefer:
-                    return n
-                d = abs(self.y[n] - self.y[k])
-                if d < bd:
-                    best, bd = n, d
-        return best
+    def neighbour(self, k: int, gi: int, gj: int, di: int, dj: int, rule: str | None = None) -> int | None:
+        """The kept surface in column (gi+di, gj+dj) connected to surface k (connected's rule; the nearest in
+        height, the first of equals), or None; in the Rust core. ValueError for a surface outside the level."""
+        return cast(int | None, self.native().neighbour(int(k), int(gi), int(gj), int(di), int(dj), rule or LINK_RULE))
 
 
 def sector_origin_index(level: Level, X: int, Y: int, xoff: int, zoff: int,
@@ -488,14 +478,14 @@ def build_areas(level: Level, gi0: int, gj0: int, start: Sequence[int] = (-1, -1
     tiles: samples per tile and tiles per axis (cfg's if None)."""
     tile = cfg.tile if tile is None else tile
     tiles = cfg.tiles if tiles is None else tiles
-    nat = level.native()
     w = cfg.window
-    if (nat is not None and w.step == 1 and len(start) == 2 and all(type(v) is int for v in (*start, tile, tiles))
+    if (_native is not None and w.step == 1 and len(start) == 2 and all(type(v) is int for v in (*start, tile, tiles))
             and type(MAX_AREA) is int):
-        # in the Rust core: the tiles, their components and the bisection in one call
+        # in the Rust core: the tiles, their components and the bisection in one call (E2a: the Python below is
+        # its reference)
         try:
-            got = nat.build_areas(gi0, gj0, (w.start, w.stop), (start[0], start[1]), tile, tiles,
-                                  MAX_AREA if BISECT_AREAS else None, AREA_LINK)
+            got = level.native().build_areas(gi0, gj0, (w.start, w.stop), (start[0], start[1]), tile, tiles,
+                                             MAX_AREA if BISECT_AREAS else None, AREA_LINK)
             return [{'tile': t, 'cells': c} for t, c in got]
         except _NATIVE_ERRORS:
             pass
@@ -517,34 +507,11 @@ def build_areas(level: Level, gi0: int, gj0: int, start: Sequence[int] = (-1, -1
 
 def components(level: Level, members: dict[int, tuple[int, int]], gi0: int, gj0: int) -> list[list[Cell]]:
     """8-connected components (AREA_LINK rule) of the given surfaces {k: (i, j)}. An area is single-layer in plan: a
-    surface whose column the component already holds (a second floor reached round a corner) starts its own."""
-    nat = level.native()
-    if nat is not None:
-        try:
-            return cast(list[list[Cell]], nat.components([(k, i, j) for k, (i, j) in members.items()], gi0, gj0,
-                                                         AREA_LINK))
-        except _NATIVE_ERRORS:
-            pass
-    seen, out = set(), []
-    for k0 in members:
-        if k0 in seen:
-            continue
-        comp, q = [], deque([k0])
-        seen.add(k0)
-        cols = {members[k0]}
-        while q:
-            k = q.popleft()
-            i, j = members[k]
-            comp.append((i, j, k))
-            for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
-                n = level.neighbour(k, gi0 + i, gj0 + j, di, dj, rule=AREA_LINK)
-                if n is not None and n in members and n not in seen and members[n] == (i + di, j + dj) \
-                        and members[n] not in cols:
-                    seen.add(n)
-                    cols.add(members[n])
-                    q.append(n)
-        out.append(comp)
-    return out
+    surface whose column the component already holds (a second floor reached round a corner) starts its own.
+    Breadth first from each surface in members' order, the 8 directions +x, -x, +z, -z, then the diagonals; in the
+    Rust core."""
+    return cast(list[list[Cell]], level.native().components(
+        [(int(k), int(i), int(j)) for k, (i, j) in members.items()], int(gi0), int(gj0), AREA_LINK))
 
 
 def bisect(level: Level, comp: list[Cell], gi0: int, gj0: int) -> list[list[Cell]]:
@@ -695,23 +662,16 @@ def trace_edges(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int]
         edges: EdgeRows = defaultdict(list)    # (kind, target, axis, line, dir) -> [(along, y0, y1)]
         sides: dict[tuple[Any, ...], tuple[str, Any]] = {}
         target: Any
-        own = {c[2] for c in area['cells']}
-        # the neighbour across each side (+x, -x, +z, -z) of each cell, all at once in the Rust core when it is there
-        sides_n = None
-        nat = level.native()
-        if nat is not None:
-            try:
-                sides_n = nat.side_neighbours(area['cells'], gi0, gj0, LINK_RULE)
-            except _NATIVE_ERRORS:
-                sides_n = None
+        # the neighbour across each side (+x, -x, +z, -z) of each cell, all at once in the Rust core: neighbour's, but
+        # a connected surface of this area itself first
+        sides_n = level.native().side_neighbours(area['cells'], gi0, gj0, LINK_RULE)
         for ci_, (i, j, k) in enumerate(area['cells']):
             yk = level.y[k] + cfg.y_offset
             for d_, (di, dj) in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
                 side = ('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)
                 # a side is interior when any connected surface across it is in this area (two connected
                 # surfaces in one column - stair edge, split-off layer - must not leave a stray portal inside)
-                n = (sides_n[4 * ci_ + d_] if sides_n is not None
-                     else level.neighbour(k, gi0 + i, gj0 + j, di, dj, prefer=own))
+                n = sides_n[4 * ci_ + d_]
                 ni, nj = i + di, j + dj
                 if n is not None and ni in cfg.window and nj in cfg.window:
                     t = area_of.get(n)
@@ -989,6 +949,7 @@ def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_pa
     (merge_detailed). Without it the build is the normal one, unchanged.
     cfg: the build's settings (BuildSettings; the normal infantry build by default - the detailed pass uses
     cfg.detailed())."""
+    require_native()                        # the grid walks need the Rust core: say so before reading anything
     t0 = time.time()
     common: dict[str, Any] = dict(tris_path=tris_path, step=step, log=log, dynamic_path=dynamic_path, narrow_path=narrow_path,
                   stairs_path=stairs_path, exclude_path=exclude_path, exclude_foot_path=exclude_foot_path,
@@ -1031,6 +992,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     (surfaces at cfg.pitch, keep, gx, gz, stair) used as it is - samples_path, high_path and the walkability inputs
     (tris_path ... exclude_foot_path, edits, water, bounds, seeds) are not read (navvehicle.stage_on_grid).
     Returns {'level', 'info', 'graphs', 'border_nodes', 'next_id', 'dropped', 'pitch', 'meshes'}."""
+    require_native()                        # the grid walks need the Rust core: say so before reading anything
     t0 = t0 or time.time()
     if grid is not None:
         s, keep, gx, gz, stair = grid
@@ -1451,91 +1413,15 @@ def write_file(graphs: Sequence[Graph], out_path: str, log: Log, t0: float, cfg:
         f'{sum(len(x.edges) for x in hpd_sectors)} edges, {len(data)} bytes ({time.time() - t0:.0f} s)')
 
 
-def _crosses_d(level: Any, blocked: Container[tuple[int, int]], k: int, nk: int, gi: int, gj: int, di: int, dj: int,
-               xfirst: bool | None = None) -> bool:
-    """A step from surface k (column gi, gj) to nk crosses a D side: a straight step across one; a diagonal step when
-    the straight line passes through the side column it leaves first (xfirst: True = (di, 0), False = (0, dj), None =
-    exactly through the corner - then either way) and one of that way's two sides is a D side."""
-    if not (di and dj):
-        return (k, nk) in blocked
-    ways = [(di, 0)] if xfirst else [(0, dj)] if xfirst is False else [(di, 0), (0, dj)]
-    for a, b in ways:
-        s_ = level.neighbour(k, gi, gj, a, b)
-        if s_ is not None and ((k, s_) in blocked or (s_, nk) in blocked):
-            return True
-    return False
-
-
-def line_walkable(level: Any, k0: int, a: tuple[int, int], b: tuple[int, int], gi0: int, gj0: int, k1: int) -> bool:
-    """Straight line from local sample a to b (i, j) over connected kept surfaces, starting on k0, ending on k1."""
-    nat = level.native() if isinstance(level, Level) else None
-    if nat is not None:
-        try:
-            level.sync_blocked(nat)
-            return cast(bool, nat.line_walkable(k0, a, b, gi0, gj0, k1, LINK_RULE))
-        except _NATIVE_ERRORS:
-            pass
-    (i0, j0), (i1, j1) = a, b
-    n = max(abs(i1 - i0), abs(j1 - j0))
-    k, ci, cj = k0, i0, j0
-    for t in range(1, n + 1):
-        ti = i0 + round((i1 - i0) * t / n)
-        tj = j0 + round((j1 - j0) * t / n)
-        di, dj = ti - ci, tj - cj
-        if di or dj:
-            nk = level.neighbour(k, gi0 + ci, gj0 + cj, di, dj)
-        else:
-            continue
-        if nk is None:
-            return False
-        blocked = getattr(level, 'blocked', ())
-        xfirst = None
-        if blocked and di and dj:
-            # where the straight line crosses the column line between ci and ci + di: still in row cj -> x first
-            zc = j0 + (j1 - j0) * (ci + di * 0.5 - i0) / (i1 - i0)
-            off = abs(zc - cj)
-            xfirst = None if abs(off - 0.5) < 1e-9 else off < 0.5
-        if blocked and _crosses_d(level, blocked, k, nk, gi0 + ci, gj0 + cj, di, dj, xfirst):
-            return False                 # a D line between them (DETAIL_BLOCKS_EDGES)
-        k, ci, cj = nk, ti, tj
-    return k == k1 or abs(level.y[k] - level.y[k1]) <= 0.6
-
-
-def _search(level: Level, pts: Sequence[RouteNode], members: Sequence[int], root: int, node_at: dict[int, int],
-            find: Callable[[int], int], cell_ij: dict[int, tuple[int, int]], gi0: int, gj0: int,
-            cfg: BuildSettings) -> list[int] | None:
-    """build_graph's search from one group of route nodes (members) to another group's node: breadth first
-    from the members' surfaces over neighbouring kept surfaces of the sector window, entering each surface
-    reached into cell_ij; the path of surfaces from a member's to the target's, or None (the reference of the
-    Rust core's NavLevel.search)."""
-    prev: dict[int, Any] = {pts[m][2]: None for m in members}
-    queue = deque(pts[m][2] for m in members)
-    target = None
-    while queue and target is None:
-        k = queue.popleft()
-        i, j = cell_ij[k]
-        for di in (-1, 0, 1):
-            for dj in (-1, 0, 1):
-                if not (di or dj) or (i + di) not in cfg.window or (j + dj) not in cfg.window:
-                    continue
-                n = level.neighbour(k, gi0 + i, gj0 + j, di, dj)
-                if n is None or n in prev:
-                    continue
-                prev[n] = k
-                cell_ij.setdefault(n, (i + di, j + dj))
-                if n in node_at and find(node_at[n]) != root:
-                    target = n
-                    break
-                queue.append(n)
-            if target is not None:
-                break
-    if target is None:
-        return None
-    path = [target]
-    while prev[path[-1]] is not None:
-        path.append(prev[path[-1]])
-    path.reverse()                       # from a member's surface to the target's surface
-    return path
+def line_walkable(level: Level, k0: int, a: tuple[int, int], b: tuple[int, int], gi0: int, gj0: int, k1: int) -> bool:
+    """Straight line from local sample a to b (i, j) over connected kept surfaces, starting on k0, ending on k1 (or a
+    surface within 0.6 m of k1's height), never stepping across one of level.blocked's D sides (DETAIL_BLOCKS_EDGES:
+    a straight step across one; a diagonal step through the side column the line passes, either of them when it
+    passes exactly through the corner); in the Rust core."""
+    nat = level.native()
+    level.sync_blocked(nat)
+    return cast(bool, nat.line_walkable(int(k0), (int(a[0]), int(a[1])), (int(b[0]), int(b[1])), int(gi0), int(gj0),
+                                        int(k1), LINK_RULE))
 
 
 def _int_cells(areas: Iterable[AreaInfo]) -> bool:
@@ -1689,20 +1575,14 @@ def build_graph(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int]
         for root, members in sorted(groups.items(), key=lambda g: len(g[1])):
             if find(members[0]) != root:
                 continue
-            path = None
-            nat = level.native()
-            if nat is not None and cfg.window.step == 1:
-                # in the Rust core: the surfaces of the other groups' nodes are the targets
-                other = {k for k, at in node_at.items() if find(at) != root}
-                try:
-                    path = nat.search([pts[m][2] for m in members], other, cell_ij,
-                                      (cfg.window.start, cfg.window.stop), gi0, gj0, LINK_RULE)
-                    if path is None:
-                        continue
-                except _NATIVE_ERRORS:
-                    path = None
-            if path is None:
-                path = _search(level, pts, members, root, node_at, find, cell_ij, gi0, gj0, cfg)
+            # the search, in the Rust core: breadth first from the members' surfaces over neighbouring kept surfaces
+            # of the sector window (each surface reached entered into cell_ij) to the first surface of another
+            # group's node; the path of surfaces from a member's to it, or None
+            if cfg.window.step != 1:
+                raise ValueError(f'a sector window of step {cfg.window.step}: the search walks whole windows')
+            other = {k for k, at in node_at.items() if find(at) != root}
+            path = level.native().search([pts[m][2] for m in members], other, cell_ij,
+                                         (cfg.window.start, cfg.window.stop), gi0, gj0, LINK_RULE)
             if path is None:
                 continue
             # string pulling

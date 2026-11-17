@@ -1,14 +1,14 @@
-//! Bindings for `bc2-convert`, the converter pipeline's hot spots: `bfbc2-console-convert/texture.py` calls
-//! `texture_convert` when the module has it and runs its own code otherwise, or when the port reports an error (the
-//! reference then raises its own exception, so a caller sees the same error either way).
+//! Bindings for `bc2-convert`, the converter pipeline's hot spots: `bfbc2-console-convert/texture.py`'s `convert`
+//! and `convert_many` are `texture_convert` and `texture_convert_many`, a `ValueError` becoming its `ConvertError`
+//! with the same message (its Python converter was retired on 2026-11-17).
 
 use bc2_convert::texture;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods, PyList};
 
-/// `texture.convert` through Rust: the PC texture's bytes, or `ValueError` with the reason (`ConvertError`'s
-/// message, or that the layout reads past the data).
+/// `texture.convert`: the PC texture's bytes, or `ValueError` with the reason (the retired reference's
+/// `ConvertError` message, or that the layout reads past the data).
 #[pyfunction]
 pub fn texture_convert<'py>(py: Python<'py>, data: &Bound<'py, PyBytes>) -> PyResult<Bound<'py, PyBytes>> {
     let bytes = data.as_bytes();

@@ -554,3 +554,53 @@ Profiled again (sp_004_b, cProfile: 60 s with the profiler's overhead): `merge_d
 `roof_islands` 5 s, `add_cover_nodes` 3.6 s, `walkable`'s Python around the rules 2.3 s, the samples' load 4 s,
 `build_areas` 1.6 s and the cell picking 0.8 s (both Rust now); 21 million `dict.get` and 13 million `list.append`.
 `trace_edges` / `trace_emit` are the next port if NavKit builds need to be faster still.
+
+## Retired Python (2026-11-17, branch `retire-e1`)
+
+The full test tier passed on round E1 (140 of 140, 2026-11-17), which under `EDITOR_ARCHITECTURE.md` 3.8 retires the
+Python of the ported **logic** of round E1d. Retired (deleted; the module is now required for them, README.md "The
+Rust core"):
+
+| piece | Python removed | Rust |
+|---|---|---|
+| texture conversion | `texture.py`: `convert_python`, `_convert_dxt5a`, `_convert_565`, `_convert_argb8`, `_dxt5a_block`, `_rows4`, the backend switch (`use_native`, `backend`); 422 -> 253 lines. `tiled`, `packed`, `layout` stay: format knowledge `texqa.py`'s independent decoder and the tests use | `bc2_convert::texture` (`texture.convert`, `convert_many`) |
+| NavKit's grid walks | `navbuild.py`: `neighbour`'s Python search (and its `prefer`), `components`' flood, `trace_edges`' per-side fallback, `line_walkable`'s walk and `_crosses_d`, `_search`, the dtype declines; `navwalk.py`: `walkable`'s flood, `islands_of`, `matched_flags`' loop, `native_grid`'s declines; 2,054 -> 1,934 and 1,062 -> 1,018 lines. `Level.connected` and `surfaces` stay (the stage code calls them), as do `step_fits` and `unseeds`' island drop (not ported) | `bc2_navbuild` (`NavLevel`, `navkit_matched_flags`) |
+
+Kept, with their live Python-vs-Rust comparison: E2a's walkability rules, `build_areas` (and `bisect`), the cell
+picking and `pymath` (quick and game tiers only so far), and every format reader and writer (for good).
+
+**Before deleting, what the tools really feed the Rust** (no input may leave the Rust path for the Python one):
+
+- Textures: every XenonTexture of BF1943's source (704) and of OPFOR's Onslaught builds (451) converted by Rust, 0
+  refused, 0 fallbacks. Over 596,804 built textures (11 formats, every size 1..69 and the powers of two to 16,384
+  plus odd ones, every mip count, 2D and cube; data exactly the layout's size), Rust reads past the data on 448: the
+  Python raised on 224 and "converted" 224 - all RGBA16F (13), 1..16 x 513 or 513 x 1..16, 4 or more levels - into
+  textures whose levels have the wrong sizes (short slices). Not ported: they are refused with a clearer
+  `ConvertError` ("the layout reads past the end of the texture data (a level outside the console storage ...)";
+  a Rust test covers them). The 1,362 quick-tier textures: Rust's bytes or messages equal the Python's on all.
+- NavKit (every `NavLevel` method, `Level.native` / `native_grid` declines, `matched_flags`' dtype decline, the Python
+  search and `prefer` neighbour, `line_walkable` on a non-`Level`, counted by wrapping them): sp_009 (32,623
+  `line_walkable`, 249 searches, 626 side-neighbour calls ...) and sp_004_b (525,019 `line_walkable`, 37,385
+  `neighbour`, 3,142 searches, 7,752 side-neighbour calls, 28 floods) - 0 declines, 0 errors, 0 Python paths. The
+  quick tier's random levels: the only declines were the test's own (float16 gradients: 2; a surface outside the
+  level: 1 error). The call sites now cast instead (flags to bool / uint8, gradients of another type to float64) and a
+  surface outside the level raises `ValueError`; `test_detail_features.py`'s stand-in grid became a real `Level`.
+
+**The new oracle: results recorded from the Python before it was deleted.**
+
+- `bfbc2-console-convert/tests/texture_golden.json` (214 KB, one case per line): recorded by running the new test's
+  cases through `texture.convert_python` itself - the 1,362 seeded quick-tier textures (output SHA-1 or the
+  `ConvertError` message: 639 converted, 723 refused) and every BF1943 (704) and Onslaught (451) texture (input and
+  output SHA-1); Rust's results equal the recording on all 2,517.
+- `bfbc2-auto-navkit/tests/navbuild_golden.json` (17 KB): the SHA-1 of every walk's answers on 24 + 16 seeded random
+  levels (neighbour on every surface, direction and rule; `build_areas`, `components`, `trace_edges`, 120
+  `line_walkable` per level with and without D sides, the searches; `matched_flags`, `walkable`, `islands_of`), and
+  of four levels' path data with the build clock fixed (2026-11-17 12:00): sp_009 406,216 bytes, sp_004_b 8,235,888,
+  sp_008_b 8,477,720, ons_mp_004 7,623,072 (the sizes of the E2a table above), with the SHA-1 of each level's input
+  files. Proven against the original code (`abe6cc7`, extracted aside): its all-Python walks give the recorded
+  digests on all 40 random levels, as does its Rust; its Rust builds give the recorded path data on all four levels.
+  Its all-Python builds (the retired reference itself, the same clock) give the recorded path data on sp_009 (189 s)
+  and sp_004_b (954 s, a busy PC); sp_008_b and ons_mp_004 were proven Python = Rust in the E2a table above.
+
+`tests/test_native_required.py` checks the required module (missing, stale, matching) and the download on a copy of
+the suite; navregress stays the independent check against DICE's path data.
