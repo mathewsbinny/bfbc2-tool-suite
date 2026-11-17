@@ -604,3 +604,78 @@ picking and `pymath` (quick and game tiers only so far), and every format reader
 
 `tests/test_native_required.py` checks the required module (missing, stale, matching) and the download on a copy of
 the suite; navregress stays the independent check against DICE's path data.
+
+## The rest of NavKit's generator (2026-11-17, branch `rust-e3c`)
+
+What E2a's profile left (sp_004_b, cProfile: 60 s, `merge_detailed` 51 s of it), moved to `bc2_navbuild` in the order
+of its cost; each keeps its Python as the reference and the fallback (`BFBC2_PURE_PYTHON=1`, `navbuild.use_native`,
+which also switches `navsample`):
+
+| Python | Rust | binding |
+|---|---|---|
+| `navbuild.trace_edges` (whole: kinds, sides, the symmetric portals, one-way candidates) | `trace::trace_edges` | `NavLevel.trace_edges`; `trace_edges_many` (every sector of a stage, in parallel) |
+| `trace_emit` with `bridge_union` (runs, 45-degree bridges) | `trace::trace_emit` | `NavLevel.trace_emit` |
+| `navwalk.roof_islands` after its islands | `graph::roof_drop` | `navkit_roof_drop` |
+| `add_cover_nodes` (`add` still called back: one node per surface) | `graph::cover_nodes` | `NavLevel.cover_nodes` |
+| `gabriel_prune` (pairs tested in parallel, a spatial grid) | `graph::gabriel_prune` | `navkit_gabriel` |
+| `build_graph`'s walkable pairs (`edge_pairs`, nodes in parallel) | `route::edge_pairs` | `NavLevel.route_edges` |
+| `build_graph`'s group joining (`connect_groups`: search, string pulling, waypoints) | `route::connect_groups`, `window::WindowSearch` | `NavLevel.connect_groups` |
+| `stage`'s `build_areas` per sector, the areas' lowest / highest ground | `Level::build_areas` in parallel | `NavLevel.build_areas_many` |
+| `walkable`'s seed and anchor picks (1 million `round` calls on sp_004_b) | `rules::Grid::column_pick` | `NavGrid.column_picks` |
+| `navwalk.near_characters` | `rules::Grid::near_characters` | `NavGrid.near_characters` |
+| `navsample.load`'s version 1 / 2 records (sp_004_b's normal runs) | `navsample::parse_runs` | `navkit_navsample_parse` |
+
+Two Python-only changes in `stage` / `merge_detailed`, the same values: `np.unique` of the kept surfaces' columns
+became `sorted_unique` (the column array is sorted already: 2 s of hashing), and the detailed pass's seed points are
+picked with NumPy instead of a loop over every kept surface.
+
+**More float parity.** `math.dist` is CPython's `vector_norm` too (`pymath::dist3`, `dist2` on cells); float `//`
+(`build_graph`'s 15 m buckets) is CPython's `float_floor_div`, not `floor(x / w)` (`pymath::floordiv`; `1.0 // 0.1`
+is 9); `np.hypot` is the C library's (Rust's `f64::hypot`: checked on 150,000 values, `navkit_float_ops`); an
+array's `** 2` is NumPy's square, a multiply (checked); `f64::midpoint` is not `(a + b) / 2` near the float range's
+ends, so the reference's expression is kept.
+
+**The group joining.** Ported as it was, it ran slower than the Python loop around the Rust search (3.6 s against
+1.8 s on sp_009): (1) a root walk without path halving let union chains grow within a pass - the reference's
+halving `find` is used everywhere now; (2) a memo of neighbours in a hash map cost more than computing them. What
+made it fast, the answers unchanged: the window's surfaces get dense local numbers (row by row they are contiguous
+ranges of the level's), so the walks' visited marks, back links and the cell map are arrays; every kept surface's
+neighbours on its own column are found once, in parallel, as local numbers; a target is looked up as the walk
+reaches it instead of building the set of other groups' surfaces for each group; and a group whose walk found nothing
+is not walked again while its members are the same and no other group's node stands on a surface that walk reached
+(the same walk would enter no new cells). sp_009: 0.27 s, its Python twin 1.7 s; sp_004_b: 1.6 s (the search alone
+was 7.3 s in E2a's profile).
+
+**Parity.** `tests\test_navbuild_native.py` (quick): the E3c pieces against their Python twin with the Rust side
+**strict** (the fallback switched off, so a refusal fails the test instead of running the Python): 60 tracing chains
+(`trace_edges` alone and batched, `drop_one_way`, the detail pass, `trace_emit`; random and ramped levels with thin
+second layers and decks, cut windows, small tiles: 870 portals, 130 border portals, 6,395 outline runs, 81 one-way
+candidates, 40 detail features), 36 whole `build_graph`s (cover nodes, Gabriel, groups joined: hundreds of waypoint
+nodes, order nodes), 24 `roof_islands` (the rule's settings varied, its counts too), 24 `add_cover_nodes`, 40
+`gabriel_prune`, 16 `build_areas_many`, 16 `near_characters`, 12 sample files (versions 1 and 2, cut-off runs, a
+record cut short): 456 calls, 0 differences; the recorded grid walks (which include `trace_edges` and the roof rule)
+unchanged. Rust: `e3c_tests.rs` (34 tests in the crate; a property test runs the window search against the generic
+one, twice, cells compared). Whole levels, the build clock fixed, against `navbuild_golden.json`: **sp_009, sp_004_b,
+sp_008_b and ons_mp_004 byte for byte as recorded** on the Rust backend, and sp_009 and sp_004_b also on the Python
+backend (E2a's and E3c's Python reference, driven through the test's `game()` with `use_native(False)`).
+
+**Whole levels** (a rebuild of OPFOR's running beside: provisional; below-normal priority):
+
+| level | E2a | E3c | | path data |
+|---|---:|---:|---:|---|
+| sp_009 | 9 s | **3 s** | 3x | as recorded, 406,216 bytes |
+| sp_004_b | 58 s | **17 s** | 3.4x | as recorded, 8,235,888 bytes |
+| sp_008_b | 46 s | **20 s** | 2.3x | as recorded, 8,477,720 bytes |
+| ons_mp_004 | 37 s | **14 s** | 2.6x | as recorded, 7,623,072 bytes |
+
+`rust\bench_navkit.py` alone: sp_009 3.3 s (Python backend 14.9 s; E2a 8.1 s), sp_004_b 15.3 / 15.9 s (Python backend
+88.8 s; E2a 47.2 s).
+
+Profiled again (sp_004_b, cProfile: 17.5 s, E2a 60 s): `connect_groups` 1.6 s (Rust), `walkable`'s own NumPy over 7.7
+million surfaces 1.4 s, `stage`'s own glue 0.9 s (the per-sector dicts of every cell: `area_of`, `build_graph`'s
+surface -> cell map), `build_graph`'s own 0.9 s, the cover nodes 0.9 s (Rust; sequential: each area's nodes join the
+next area's), `trace_edges_many` 0.8 s (mostly making its Python dicts), the islands and floods 1.4 s (E1d's Rust),
+`build_areas_many` 0.5 s, the cell picking 0.6 s, `trace_emit` 0.4 s, the roof rule 0.4 s, `navdetail` 0.9 s
+(Python), the mesh writer's `_area_body` 0.3 s. Not ported, by size: `walkable`'s NumPy glue, `navdetail`'s
+`broken_sides` / `detail_features`, `stage`'s dicts (a Rust `info` per sector would remove most of them and the
+conversions of cells between Python and Rust), `add_order_nodes`, `ladder_ends`, `kymesh`'s writer.

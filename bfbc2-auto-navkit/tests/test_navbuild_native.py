@@ -8,8 +8,10 @@ navbuild_golden.json beside this file: a SHA-1 of every walk's answers on seeded
 path data (the build clock fixed). They are the oracle now; navregress (DICE's own path data) stays the independent
 check of what NavKit builds.
 
-The walkability rules, build_areas and build_graph's cell picking (round E2a) keep their Python twin: they are
-still compared with it, call by call.
+The walkability rules, build_areas and build_graph's cell picking (round E2a), and the tracing, the roof rule, the
+cover nodes, Gabriel pruning, build_graph's route edges and group joining, near_characters, walkable's seed picks and
+the sample files' records (round E3c) keep their Python twin: they are still compared with it, call by call (E3c's
+with the Rust side strict: no fallback).
 
   python test_navbuild_native.py            quick: the grid walks on 24 + 16 seeded random multi-layer levels
                                             (float32 and float64 gradients, stairs, terrain, every link rule, D
