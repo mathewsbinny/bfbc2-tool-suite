@@ -327,15 +327,15 @@ def level_geometry(level_dir, extra_bases=(), log=print, box=None):
     """The collision of a prepared level (work\\levels\\<level>: objects.json, group_instances.json from
     levelobjects.py, the unpacked bundles for the blueprints' *_Havok.res). box (minX, minZ, maxX, maxZ): only
     pieces reaching into it (plus 2 m)."""
-    import levelobjects
+    from bfbc2core import collision
     bases = [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + list(extra_bases)
-    havok = levelobjects.havok_index(bases)
-    try:
-        for bp, target in levelobjects.mesh_aliases(bases).items():
-            if bp not in havok and target in havok:
-                havok[bp] = havok[target]
-    except OSError:
-        pass
+    # NavKit's levelobjects index and mesh aliases (the Rust core when built); aliases not read: the index alone
+    havok, aliases = collision.index(bases)
+    if isinstance(aliases, Exception) and not isinstance(aliases, OSError):
+        raise aliases
+    for bp, target in ({} if isinstance(aliases, Exception) else aliases).items():
+        if bp not in havok and target in havok:
+            havok[bp] = havok[target]
     objs = json.load(open(os.path.join(level_dir, 'objects.json')))
     groups = json.load(open(os.path.join(level_dir, 'group_instances.json')))
     cache = {}

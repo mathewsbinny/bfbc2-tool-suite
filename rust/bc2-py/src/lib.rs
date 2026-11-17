@@ -11,6 +11,17 @@
 //!
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
 //! function's bundles run with the interpreter released.
+//!
+//! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
+//! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
+
+mod convert;
+mod culltree;
+mod geometry;
+mod navbuild;
+mod scene;
+mod shaders;
+mod writers;
 
 use bc2_formats::dbx::{self, DbxError, DbxTree};
 use bc2_formats::fbrb::{self, FbrbError};
@@ -240,14 +251,39 @@ fn threads() -> usize {
     bc2_formats::threads()
 }
 
-/// The suite's Rust core (`rust/`): binary DBX parsing and XML, used by `bfbc2core.dbx` when built, and bundle
-/// reading, used by `bfbc2core.fbrb`.
+/// The suite's Rust core (`rust/`): binary DBX parsing, XML and writing, used by `bfbc2core.dbx` when built; bundle
+/// reading and packing, used by `bfbc2core.fbrb`; terrain, water and collision, used by `bfbc2core.terrain`, `water`
+/// and `collision`.
 #[pymodule]
 mod bc2_native {
     #[pymodule_export]
     use super::{
         dbx_parse, dbx_parse_many, dbx_to_xml, dbx_to_xml_many, fbrb_header, fbrb_read, fbrb_read_many, threads,
     };
+
+    #[pymodule_export]
+    use super::geometry::{
+        collision_index, havok_index, havok_triangles, havok_triangles_files, terrain_heights, terrain_tail,
+        water_mesh, water_shaders, water_visual,
+    };
+
+    #[pymodule_export]
+    use super::scene::scene_load;
+
+    #[pymodule_export]
+    use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, zlib_deflate};
+
+    #[pymodule_export]
+    use super::shaders::{shaderdb_parse, shaderdb_write};
+
+    #[pymodule_export]
+    use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
+
+    #[pymodule_export]
+    use super::convert::{texture_convert, texture_convert_many};
+
+    #[pymodule_export]
+    use super::navbuild::{NavLevel, navkit_matched_flags};
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

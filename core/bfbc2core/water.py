@@ -3,6 +3,7 @@ level's terrain-00.fbrb.
 
     w = read(folder_or_mesh_path, name)    # Water: vertices, triangles, per-triangle shader (or None)
     w.vertices (n, 3) float32, w.triangles (m, 3) uint32, w.shader[k] -> shader path of triangle k
+    parse_mesh(data), parse_visual(data)   # the two files' bytes
 
 WaterMesh (little-endian; read on all 36 levels with a terrain bundle, each file consumed exactly):
 
@@ -19,12 +20,20 @@ VisualWater (the drawing copy; only the parts used here):
     u32 slot count (4) and the slots' shader paths (0-terminated, each followed by one 0 byte, then
     Systems/Water/WaterOceanFragment), u32 range count and per range (u32 slot, u32 triangle count,
     u32 first index, u32 index count), then u32 0 and the byte 0x46.
+
+parse_mesh / parse_visual / read run in the suite's Rust core (rust/, module bc2_native: bc2_formats::water) when it
+is built, else in Python here; both give identical vertices, triangles and shaders and refuse the same files with
+ValueError (core/tests/test_geometry_native.py: every water file of the game copy). BFBC2_PURE_PYTHON=1 (or
+use_native(False)) forces Python; backend() says which one runs.
 """
 import os
 import struct
 from dataclasses import dataclass
+from types import ModuleType
 
 import numpy as np
+
+from . import dbx as _dbx
 
 
 @dataclass
@@ -38,9 +47,56 @@ class Water:
         return len(self.triangles)
 
 
-def read_mesh(path: str) -> tuple[np.ndarray, np.ndarray]:
-    """(vertices, triangles) of every body in a .Water.Mesh.res, bodies joined."""
-    d = open(path, 'rb').read()
+# ------------------------------------------------------------------------------------------------ backend
+
+def _with_water(m: ModuleType | None) -> ModuleType | None:
+    """m when it has the water reader (a module built before it was added does not)."""
+    return m if m is not None and hasattr(m, 'water_mesh') else None
+
+
+def _load_native() -> ModuleType | None:
+    """The Rust core (found as dbx finds it) unless BFBC2_PURE_PYTHON is set."""
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    return _with_water(_dbx._import_native())
+
+
+_native = _load_native()
+
+
+def backend() -> str:
+    """'rust' when water is read in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend()."""
+    global _native
+    _native = _with_water(_dbx._import_native()) if on else None
+    return backend()
+
+
+# ------------------------------------------------------------------------------------------------ the API
+
+def _bytes(data: bytes) -> bytes:
+    return data if type(data) is bytes else bytes(data)
+
+
+def parse_mesh(data: bytes) -> tuple[np.ndarray, np.ndarray]:
+    """(vertices, triangles) of every body of a WaterMesh's bytes, bodies joined. ValueError when the file ends
+    early, a body's indices are not whole triangles or bytes are left over."""
+    data = _bytes(data)
+    if _native is not None:
+        v, t = _native.water_mesh(data)
+        return np.frombuffer(v, '<f4').reshape(-1, 3), np.frombuffer(t, '<u4').reshape(-1, 3)
+    try:
+        return _py_parse_mesh(data)
+    except struct.error as e:
+        raise ValueError(f'damaged WaterMesh ({e})') from e
+
+
+def _py_parse_mesh(d: bytes) -> tuple[np.ndarray, np.ndarray]:
     bodies = struct.unpack_from('<I', d, 0)[0]
     verts: list[np.ndarray]
     tris: list[np.ndarray]
@@ -57,14 +113,25 @@ def read_mesh(path: str) -> tuple[np.ndarray, np.ndarray]:
         tris.append(i.astype(np.uint32) + base)
         base += n
     if o != len(d):
-        raise ValueError(f'{path}: {len(d) - o} unread bytes - not the WaterMesh layout')
+        raise ValueError(f'{len(d) - o} unread bytes - not the WaterMesh layout')
     return (np.concatenate(verts).astype(np.float32) if verts else np.zeros((0, 3), np.float32),
             np.concatenate(tris) if tris else np.zeros((0, 3), np.uint32))
 
 
-def read_visual(path: str) -> tuple[np.ndarray, list[str], list[tuple[int, ...]]]:
-    """(indices, slot shader paths, ranges [(slot, triangles, first index, index count)]) of a .Water.res."""
-    d = open(path, 'rb').read()
+def parse_visual(data: bytes) -> tuple[np.ndarray, list[str], list[tuple[int, ...]]]:
+    """(indices, slot shader paths, ranges [(slot, triangles, first index, index count)]) of a VisualWater's bytes.
+    ValueError when the file ends early or a name has no end."""
+    data = _bytes(data)
+    if _native is not None:
+        idx, slots, ranges = _native.water_visual(data)
+        return np.frombuffer(idx, '<u4'), slots, ranges
+    try:
+        return _py_parse_visual(data)
+    except struct.error as e:
+        raise ValueError(f'damaged VisualWater ({e})') from e
+
+
+def _py_parse_visual(d: bytes) -> tuple[np.ndarray, list[str], list[tuple[int, ...]]]:
     _, stride, size = struct.unpack_from('<3I', d, 0)
     o = 12 + size
     ib = struct.unpack_from('<I', d, o)[0]
@@ -84,8 +151,46 @@ def read_visual(path: str) -> tuple[np.ndarray, list[str], list[tuple[int, ...]]
     return indices, names[:slots], ranges
 
 
-def read(folder: str, name: str) -> Water | None:
-    """The water of terrain <name> under an unpacked terrain-00.fbrb (None if it has no water files)."""
+def _read_file(path: str) -> bytes:
+    with open(path, 'rb') as fh:
+        return fh.read()
+
+
+def read_mesh(path: str) -> tuple[np.ndarray, np.ndarray]:
+    """(vertices, triangles) of every body in a .Water.Mesh.res, bodies joined."""
+    try:
+        return parse_mesh(_read_file(path))
+    except ValueError as e:
+        raise ValueError(f'{path}: {e}') from None
+
+
+def read_visual(path: str) -> tuple[np.ndarray, list[str], list[tuple[int, ...]]]:
+    """(indices, slot shader paths, ranges [(slot, triangles, first index, index count)]) of a .Water.res."""
+    return parse_visual(_read_file(path))
+
+
+def shaders_of(mesh: bytes, visual: bytes, triangles: np.ndarray) -> tuple[list[str], list[str]] | None:
+    """(the shader of each triangle, the slots) from a VisualWater's ranges, or None when it cannot be read or its
+    indices are not the mesh's (triangles: the mesh's, from parse_mesh)."""
+    if _native is not None:
+        r = _native.water_shaders(_bytes(mesh), _bytes(visual))
+        return None if r is None else (r[0], r[1])
+    try:
+        indices, slots, ranges = parse_visual(visual)
+    except (struct.error, ValueError, IndexError):
+        return None
+    if not np.array_equal(indices, triangles.ravel()):
+        return None
+    shader = [''] * len(triangles)
+    for slot, ntri, first, _nidx in ranges:
+        for k in range(first // 3, min(first // 3 + ntri, len(shader))):
+            shader[k] = slots[slot] if slot < len(slots) else f'slot {slot}'
+    return shader, slots
+
+
+def find_files(folder: str, name: str) -> tuple[str | None, str | None]:
+    """The .Water.Mesh.res and .Water.res of terrain <name> under an unpacked terrain-00.fbrb (the last of each in
+    walk order), None for one that is not there."""
     mesh: str | None
     visual: str | None
     mesh = visual = None
@@ -97,20 +202,22 @@ def read(folder: str, name: str) -> Water | None:
                 mesh = os.path.join(root, f)
             elif low == f'{name}.water.res':
                 visual = os.path.join(root, f)
+    return mesh, visual
+
+
+def read(folder: str, name: str) -> Water | None:
+    """The water of terrain <name> under an unpacked terrain-00.fbrb (None if it has no water files)."""
+    mesh, visual = find_files(folder, name)
     if mesh is None:
         return None
-    v, t = read_mesh(mesh)
+    mesh_data = _read_file(mesh)
+    try:
+        v, t = parse_mesh(mesh_data)
+    except ValueError as e:
+        raise ValueError(f'{mesh}: {e}') from None
     w = Water(v, t)
     if visual is not None and len(t):
-        try:
-            indices, slots, ranges = read_visual(visual)
-            if np.array_equal(indices, t.ravel()):
-                shader = [''] * len(t)
-                for slot, ntri, first, _nidx in ranges:
-                    for k in range(first // 3, first // 3 + ntri):
-                        if k < len(shader):
-                            shader[k] = slots[slot] if slot < len(slots) else f'slot {slot}'
-                w.shader, w.shaders = shader, slots
-        except (struct.error, ValueError, IndexError):
-            pass
+        r = shaders_of(mesh_data, _read_file(visual), t)
+        if r is not None:
+            w.shader, w.shaders = r
     return w

@@ -148,11 +148,358 @@ on every bundle of the game copy and `work\ww2` (1,123 bundles, 833,461 entries,
   a back-reference before the start of the data ("invalid distance too far back"), so a damaged bundle zlib refuses
   read without an error (found by the damaged-bundle test, kept as a unit test).
 
+## The level loader in Rust (2026-11-16, branch `rust-e1a`)
+
+**Contended:** every figure below was taken while an OPFOR rebuild / WW2 install ran on the PC (it loads all cores),
+so absolute times are noisy (±30 % or more); the ratios and the stage shares are what to read. Files in the system
+cache; `level.load` medians of 3 runs, the scene alone best of 3.
+
+- `python rust\bench_level.py [--runs N] <levels>`: `level.load` and each stage it calls, in three modes:
+  **python** (everything in Python), **main** (main before E1a: the Rust DBX / FBRB readers, the rest in Python),
+  **rust** (the Rust scene and readers: today's `level.load`).
+- `cargo run --release -p bc2-scene --example scene_bench -- <OPFOR folder> <level> [runs]` (`RAYON_NUM_THREADS=1`
+  for one thread): the scene alone, its walk and XML reads, and each reader.
+
+### The profile (main, before the port)
+
+| `level.load`, whole load | MP_005 | SP_01 |
+|---|---:|---:|
+| **total** | **6.08 s** | **6.35 s** |
+| collision index (NavKit's `havok_index` + `mesh_aliases`: two globs and 17,500-18,200 XML files regex-scanned) | 5.54 s | 5.42 s |
+| DBX partitions (`read_many`) | 0.095 s | 0.178 s |
+| blueprints (`resolve_blueprints`) | 0.064 s | 0.055 s |
+| terrain mesh | 0.056 s | 0.066 s |
+| collision triangles (Havok packfiles) | 0.040 s | 0.046 s |
+| teams, shapes | 0.044 s | 0.095 s |
+| terrain read, water, the unpack check | 0.02 s | 0.02 s |
+
+The collision index was 85-95 % of every load measured (MP_005 7.45 s, of which 5.69 s `mesh_aliases` and 1.08 s
+`havok_index`, in the first, cProfile run); the terrain, water and Havok readers the plan named were 0.1-0.2 s
+together. Port order: the index, then the Havok triangles, the terrain and the water, then the scene.
+
+### Before and after
+
+| `level.load` | python | main (before) | **rust (after)** | after vs before |
+|---|---:|---:|---:|---:|
+| MP_005, whole load | 9.97 s | 6.08 s | **0.59 s** | 10.3x |
+| SP_01, whole load | 6.69 s | 6.35 s | **1.04 s** | 6.1x |
+| MP_005, entities only (`geometry=False`) | 0.32 s | 0.23 s | **0.10 s** | 2.3x |
+| SP_01, entities only | 0.71 s | 0.47 s | **0.30 s** | 1.6x |
+
+In rust mode the whole load is the scene call (MP_005 0.36 s, SP_01 0.44 s), Python's own trees of the partition and
+static groups for `Entity.element` (0.05 / 0.16 s), and building the `Entity` objects and the NumPy world-space meshes
+(the rest, about 0.2-0.4 s). On the 18 levels of `core/tests/test_scene_native.py` the whole load went from 6-16 s
+(the Python loader) to 0.5-1.5 s.
+
+### The scene alone (Rust, no Python objects)
+
+| | MP_005, 16 threads | MP_005, 1 thread | SP_01, 16 threads | SP_01, 1 thread |
+|---|---:|---:|---:|---:|
+| whole load | **0.30 s** | 1.42 s | **0.33 s** | 1.51 s |
+| collision index (walk + XML) | 0.30 s | 1.39 s | 0.32 s | 1.39 s |
+| of it: the walk (both file kinds, one pass) | 0.07 s | 0.29 s | 0.07 s | 0.30 s |
+| of it: reading the XML (205 / 196 MB) | 0.23 s | 0.79 s | 0.25 s | 0.81 s |
+| entities only (partition, blueprints, teams, shapes) | 0.017 s | 0.026 s | 0.034 s | 0.045 s |
+| Havok triangles (136 / 172 packfiles, from memory, 1 thread) | 0.002 s | | 0.003 s | |
+| terrain: parse / mesh (2048², stride 2) | 0.002 / 0.014 s | | 0.001 / 0.011 s | |
+| water mesh | < 0.001 s | | < 0.001 s | |
+
+- **The index is now the scene's whole cost, and it is I/O:** 17,589 XML files (205 MB) are read for the mesh
+  aliases, of which only about 7 % have a `Mesh` field (measured on 4,000 of `mp_common`'s), so stopping early in each
+  file would save little. Reading the aliases from the binary partitions, or caching the table by the files' sizes and
+  times, would take it to the walk's 0.07 s (E1e below: the binary alone did not, the cache did).
+- **The readers are cheap in Rust:** Havok 15-20x, the terrain mesh 4-5x faster than NumPy on one thread; neither
+  mattered for the load.
+- Parity, not timing, set the design of the Python side: the world-space meshes stay NumPy's
+  `t @ m[:3, :3] + m[3, :3]` (BLAS may fuse multiply-adds, so a Rust product could differ in the last bit).
+
+## The alias table, NavKit's collision readers, a WW2 level (2026-11-16, branch `rust-e1e`)
+
+**Contended:** an OPFOR rebuild and sibling branches' builds ran during these runs (`bench_level.py` said so); ratios
+and stage shares are what to read. Files in the system cache.
+
+### The alias table
+
+The E1a index read every converted XML file for the mesh aliases. Two ways out were measured (`scene_bench`, MP_005,
+best of 5; SP_01 the same within 10 %):
+
+| MP_005, collision index | 16 threads | 1 thread |
+|---|---:|---:|
+| the walk alone (packfiles, XML, `.dbx`) | 0.073-0.080 s | 0.40 s |
+| reading the 17,589 XML files (205 MB) | 0.25-0.29 s | 2.8 s |
+| reading the 19,575 `.dbx` files (87 MB) | 0.27-0.28 s | 5.7 s |
+| index, E1a (XML) | 0.28-0.36 s | 1.8 s |
+| index from the binary partitions (`dbx::field_ref`) | 0.31-0.36 s | 1.8 s |
+| **index, cache warm** | **0.11 s** | **0.39 s** |
+| index, cache cold (reads and writes it) | 0.36-0.42 s | 1.8 s |
+| `havok_index` alone (no aliases) | 0.062-0.07 s | 0.37 s |
+
+- **Reading the binary is not faster:** the cost is opening 17,600 files (about 0.2 ms each, the virus scanner
+  included), not their bytes, so 87 MB instead of 205 MB changed nothing. It is kept for what it removes (the text of
+  the converted XML is no longer read where a partition is binary) and because it gives the same table.
+- **The cache is what makes it fast:** keyed by each XML file's and `.dbx`'s size and modification time, which the
+  walk gets from the folder listing without opening a file, so a warm index is the walk plus four cache files
+  (`aliases-<hash>.bin`). Any changed, new or removed file is read again; a damaged, foreign or other-version cache
+  file is ignored and replaced; writes are atomic (a temp file renamed over the old one).
+- **Parity:** the Python reference (NavKit's `mesh_aliases` on the XML), the Rust index without a cache, cold and
+  warm: the same packfile index and the same alias table, same order, on all 37 prepared levels (`havok_index` alone
+  too). One trap was found: MP_005's `emitter_sw_meshparticle_tow_01` is an empty *deleted* marker whose XML was left
+  over with a `Mesh`; the index reads the XML wherever the binary cannot answer, as the reference does.
+
+| `level.load` (rust mode, median of 3) | cache off | cache warm |
+|---|---:|---:|
+| MP_005, whole load (of it the scene) | 0.64 s (0.33) | **0.41 s** (0.16) |
+| SP_01, whole load (of it the scene) | 0.98 s (0.35) | **0.84 s** (0.19) |
+
+### NavKit's collision readers on the Rust core
+
+`detailed`, `ladders`, `navsample_offline.level_geometry` and `navwater_mesh.object_triangles` read through
+`bfbc2core.collision` (`havok_index`, `index`, `blueprint_triangles`). SP_009, run one after the other, e1a (NavKit's
+Python collision) against e1e:
+
+| SP_009 | before | after |
+|---|---:|---:|
+| `detailed.flagged_sectors` | 1.75 s | 0.07 s |
+| `detailed.choose` | 1.01 s | 0.08 s |
+| `ladders.extract` | 1.02 s | 0.07 s |
+| `navsample_offline.level_geometry` | 9.62 s | 0.58 s |
+| `navwater_mesh.object_triangles` | 1.71 s | 0.15 s |
+| whole build (`navregress.build_level`, detailed zones included) | 97 s | 93 s |
+
+The build itself is NavKit's own compute (the detailed sectors were about 1 s of it). Parity: every intermediate
+(the four tools' results, pickled) and `pathdata.hpd` byte for byte the same before and after on SP_009, SP_004_B
+(78 ladders), ONS_MP_004 and SP_008_B; the `.hpd` compared with each sector's build stamp (date and time, written
+from the clock) set to zero, the only field that differs between two builds.
+
+### A WW2 level: Guadalcanal
+
+WW2 levels are Package-only bundles, which NavKit's prepare does not list, so it was prepared by hand into a temp
+OPFOR-like folder (nothing under OPFOR's `work\`): FbrbTool `unpack` of the Package `guadal_canal\level-00.fbrb`
+into `work\levels\guadal_canal\dist` and DbxEdit `xml` on it, `terrain-00.fbrb` into `terrain\`, an empty `pkg\` and
+`game\`, NavKit's common data joined in by junctions; then `bench_level.py --opfor <temp folder> guadal_canal`.
+
+| Guadalcanal (7,144 entities, 5,228 meshes) | python | main | rust, cache off | rust, cache warm |
+|---|---:|---:|---:|---:|
+| whole load | 14.47 s | 14.81 s | 0.91 s | **0.45 s** |
+| entities only | 0.28 s | 0.20 s | 0.09 s | 0.08 s |
+
+The Rust scene and the Python loader gave the same level entity by entity (`test_scene_native.compare`), and the
+same collision index (592 packfiles, 953 aliases).
+## The writers in Rust (2026-11-16, branch `rust-e1b`)
+
+Contended: other agents were building and testing on the same 16-thread PC throughout, so every number is noisy
+(the same run twice differed by up to 20 %). Best of 3 for the DBX writer, best of 2 for packing.
+
+### The profile (before the port)
+
+- **DBX writing is a small share of the pipelines.** The dbxport fair ports (`test_dbxport_fair.py`, all
+  categories, under cProfile): 1,345 s, of which `dbx.write` 1.9 s in 2,353 calls (0.1 %), `dbx.parse` 15.8 s. The
+  OPFOR WW2 installer (`wake_install.py`, not run: it writes into `game\`) calls `dbx.write` in nine places on the
+  partitions it edits, a few thousand files at most: about 1 ms per file in Python (below).
+- **Packing is the larger cost, and it is deflate.** The WW2 install packs each level's `level`, `terrain`,
+  `ingame`, `loader` and `vo/en` bundles, `ww2_common`'s three and the shared bundles it patches, one FbrbTool
+  process after another. A level bundle (186-341 MB) takes 17-25 s in FbrbTool, nearly all of it zlib on the
+  payload; FbrbTool on all 1,086 bundles of the game copy took 2,281 s of process time.
+
+### Before and after
+
+| | before | after | |
+|---|---|---|---|
+| `dbx.write`, MP_005 (2,567 files, 31.4 MB) | 1.38 s (Python) | 0.30 s (Rust) | 4.6x |
+| `dbx.write`, Guadalcanal (`work\ww2\guadal_canal`, 77 files, 3.3 MB) | 0.17 s | 0.03 s | 5.0x |
+| `dbx.write`, all of `work\ww2` (15,179 files, 147 MB) | 7.22 s | 1.46 s | 5.0x |
+| pack, the WW2 install's 19 bundles (4 levels x 4 + `ww2_common` x 3), one after another | 124.8 s (FbrbTool) | 107.7 s (Rust) | 1.16x |
+| of it: a level bundle (Wake `level-00`, 340 MB zipped, 4,963 entries) | 24.9 s | 20.9 s | |
+| of it: `ww2_common` `level-00` (302 MB, 17,426 entries) | 25.5 s | 22.9 s | |
+| pack, a stored bundle (`streaming_sounds-00`, 592 MB, 4,744 entries) | 6.2-9.2 s | 7.7-8.7 s | (I/O) |
+| pack, all 1,086 bundles of the game copy (process time, 6 at once) | 2,281 s | 2,476 s* | |
+
+\* measured before the match comparison was made 8 bytes at a time (deflate 1.12 -> 0.85 s on `BFBC2Game.exe`,
+19 MB; Python's C zlib takes 1.13 s on the same file).
+
+- **The DBX writer is 4.6-5x faster**, and every byte the Python writer's. What is left is reading the Python
+  tree: walking it (one `getattr` per field) costs about as much as the writing; the string table keeps each string
+  object's id by its address, so a parsed tree's shared strings are read and hashed once.
+- **Packing is bound by deflate, and deflate cannot be split.** The bundle must be FbrbTool's bytes, so the payload
+  is one zlib stream compressed on one thread: the port is as fast as C zlib, about 15 % faster than FbrbTool
+  overall (no process start, files read on all cores). The large gain is across bundles: `fbrb.pack_many` packs
+  each on its own core, so the WW2 install's 19 bundles would take about the longest one's time (about 25 s)
+  instead of the sum (about 2 minutes), once its scripts call `pack_many` instead of FbrbTool one at a time.
+
+### Parity
+
+- DBX: all 48,119 distinct binary corpus files (29.6 million elements), written back and after random edits:
+  the Rust writer's bytes are the Python writer's; 41 edge trees (shapes, kinds, strings, nesting) give the Python
+  writer's bytes or exception through `dbx.write`; DbxEdit's roundtrip leaves 3,000 Rust-written files unchanged.
+- Packing: all 1,086 bundles of the game copy unpacked by FbrbTool and packed by both: byte-identical. Against the
+  game's own files: 62 identical, 919 identical but for the gzip headers (DICE: xfl 0 / os 0x0b; .NET: xfl 4 /
+  os 0), 105 also but for the payload of marker-only zipped bundles (DICE writes an empty 20-byte gzip stream,
+  .NET's `GZipStream` none). Every deflate stream DICE wrote is zlib level 6.
+## Shader databases and cull trees (2026-11-16, branch `rust-e1c`)
+
+Profiled first (PC busy with other work: figures ±30 %). Tools: `cProfile` and stage timers on the two places the
+suite spends time on these formats: the WW2 level build's shaders step (`wake_shaders.main`: base mp_005, every stock
+level a donor, Dx9 / 10 / 11, replayed into a temp folder with Guadalcanal's needs list) and `culltree.py add --auto
+--misplaced 2 --ref-dir <each work\levels folder>` (console_cull's run on Onslaught MP_005). Per-file timings:
+`cargo run --release -p bc2-formats --example shaderdb_bench -- <file.res>...` (Rust alone).
+
+**Shader databases: where the time was.** Reading and writing a database was never slow in Python: the records are
+byte slices (35-80 ms to parse, 35-100 ms to write a 20-50 MB file). The whole game copy (276 databases, 6.1 GB):
+read from the bundles 23 s, parse 9.7 s, write 13.1 s; OPFOR's work files (304, 7.4 GB): parse 10.8 s, write 21.2 s.
+
+| one level's shaders-step merge (Guadalcanal, Dx9 / 10 / 11) | Python | Rust core |
+|---|---:|---:|
+| reading the 74 databases out of the level bundles (`fbrb.read`, already Rust) | 22.1 s | 20.6 s |
+| parsing them | 8.6 s | 2.9 s |
+| the merge (`Merger.add_donor`) | 7.5 s | **0.6 s** (`needed_test`, Python) |
+| writing the three results | 0.36 s | 0.08 s |
+| **total** | **40.5 s** | **25.9 s** |
+
+| one database (mp_005 Dx10, 33 MB, 20,366 programs) | Python | Rust through Python | Rust alone |
+|---|---:|---:|---:|
+| parse | 52-67 ms | 20-24 ms | 1.5-2.3 ms (borrowed) |
+| write | 62-104 ms | 13-20 ms | 4-13 ms |
+
+- **The merge's time was an algorithm, not the format:** `add_donor` tested every donor entry and mesh-part name
+  against every needed path (5 million calls of `needed` per level). `needed_test` looks each name's path prefixes
+  up in a set: the same answers (tested on 3,006 names x 200 lists, and on the four WW2 merges), 12x faster, in
+  Python. The merge itself was not ported: what remains of it is 0.6 s.
+- **Through Python the parse is bound by the objects:** Rust reads a database in 2 ms; building its ~70,000 Python
+  `bytes`, `str` and `Shader` objects takes the other 20. The writer writes straight into the new `bytes` object.
+- **What was left was the bundle reads** (20 of 26 s): `wake_shaders` loaded each level's Dx9, Dx10 and Dx11
+  databases with three `fbrb.read` calls, each decompressing the bundle's payload up to its entry.
+  `shaderdb.load_levels(levels, dxs)` reads a level's databases in one call, several bundles at a time on all cores
+  (`fbrb.read_many`), and gives what `load` gives per Dx (or its `ShaderDbError`). On it (OPFOR branch `rust-e1c`:
+  `wake_shaders.merge_stock` / `add_bfbc2`, `wake_install.index_templates` and its Dx9 donor scan), with identical
+  results: the merge **21-22 s -> 8-9 s per level** (all four WW2 levels, Dx9 / 10 / 11), the donor scan 6.9 ->
+  3.3 s, the template index 13 -> 12 s (one database per bundle: only the parallel reads help). The price: a merge
+  holds its three Dx at once, peak commit 1.2 -> 2.0 GB. `renderqa.truth_index` uses it too.
+- **A WW2 level build** (16-22 min) spends about 40 s of its shaders step here; the rest of the step (2-3 min) is
+  `wake_shaders.meshes` (DBX reads of BFBC2's partitions), and the clone / translate steps are HLSL compilation and
+  Python logic, not database I/O. The install's "indexing the stock shader templates" reads every stock Dx9
+  database once (cached): about 13 s in Python, of it 3 s parsing.
+
+**Cull trees: where the time was.** The WW2 pipeline does not run `culltree.py` (BF1943's own trees are converted as
+DBX); console_cull does, once per Onslaught level. Its `add` run took 200-220 s:
+
+| `add --auto --misplaced 2`, 37 reference folders (Onslaught MP_005) | Python | Rust core |
+|---|---:|---:|
+| finding the reference levels: listing (glob) and reading 109,660 `.dbx` for `ExclusiveStaticCullTree` | 28 + 108 s | 12 s |
+| one level partition: `Doc` / `Level` / `CullTree` (77,335 elements) | 213 / 537 / 349 ms | 100 / 218 / 179 ms |
+| **the whole run** (subprocess, end to end; 87 reference levels and trees) | **190 s** | **61 s** |
+
+- Ported: the reference search (`level_partitions`: the folder listing as glob gives it and the files searched on all
+  cores) and `Doc`'s element reader (the same `El` objects, built from Rust). Not ported: the tree builder (`build`,
+  `flatten`, `insert`, `encode`: 2-3 s of a run) and the writer (`CullTree.write`, `Doc.tobytes`: one tree and one
+  level per run, under a second); the shape statistics (`misplaced`, `shape_for`, about 8 s) are Python geometry
+  over the collected instances.
+- `Doc` is 2x faster, not more: each of a level's 77,000 elements is a Python object with seven attributes set from
+  Rust; Rust reads the stream in a few milliseconds.
+
 ## Not ported yet
 
+- **Unpacking** stays with FbrbTool (`unpack`, writing the folder and `fbrb.manifest`); the Rust reader extracts
+  every entry in memory (`fbrb::extract`), but writing FbrbTool's folders and manifests is not ported.
+- **OPFOR's scripts** (`wake_install.py`, `ww2_level_install.py`, the onslaught tools) still run FbrbTool.exe for
+  `pack`; switching them to `bfbc2core.fbrb.pack` / `pack_many` is a change in the OPFOR repository.
+- zlib's fast levels 1-3 (`deflate_fast`) are not ported: nothing the suite writes uses them.
 - The DBX **writer** is in Rust (`dbx::write`, tested by round trips) but Python's `dbx.write` still writes the
   files the suite produces: the Python tools build Python trees, and converting them to Rust to write would cost
   more than it saves today. E1's `levelwrite` (Rust trees) is where the Rust writer takes over.
 - **FBRB packing** stays with FbrbTool (`pack`, with DICE's padded layouts, `fbrb.manifest` and size2 rules):
   the Rust reader has only a small test writer (`fbrb::build`, as `fbrb.build`). E1's `levelwrite` is where packing
   moves to Rust.
+
+## The converter pipeline and NavKit (2026-11-16, branch `rust-e1d`)
+
+**Contended:** the PC ran other builds the whole time (sibling ports' tests, OPFOR tools), so single figures vary by
+30 % or more; the before / after pairs of one table were taken under the same load where possible. cProfile adds
+about 1.5-2x to pure-Python code and nothing to native calls, so a profile's shares lean towards the Python parts.
+
+### The profiles (before the port)
+
+**A WW2 level build:** `ww2_level_build.py coral_sea` (OPFOR's, on the suite's main: the Rust DBX / FBRB readers),
+under cProfile: 1,982 s (unprofiled, the last rebuild: 1,293 s). This run also rebuilt the DBX catalogue cache once
+(a game-copy change had made it stale), which a normal build does not.
+
+| rank | where the time went | s | share |
+|---:|---|---:|---:|
+| 1 | `fbrb.read` (in Rust: inflating bundles), of which **`meshview.Index.read` 790 s**: 2,070 BFBC2 partitions read one at a time (dbxport's templates 377 s, the sound porter's donors 314 s, the shader step 86 s); shader databases 74 s; the catalogue rebuild 53 s | 991 | 50 % |
+| 2 | `dbx.parse` (Rust reader, Python trees): 90,952 partitions | 208 | 10 % |
+| 3 | `dbxcatalogue.build` (the one-off cache rebuild) | 187 | 9 % |
+| 4 | `pcbuild.compile_hlsl`: 2,444 HLSL compiles of the shader translation (the compiler's time) | 176 | 9 % |
+| 5 | `wake_shaders.role_score` (OPFOR's donor scoring, 1.16 million calls) | 169 | 9 % |
+| 6 | `shaderdb._parse` (shader databases) | 100 | 5 % |
+| 7 | `dbxport._best` (template choice) | 46 | 2 % |
+| 8 | `audio.encode_xas` (22 sounds) | 15 | 0.8 % |
+| | texture, mesh and Havok conversion together (11 textures, 2 meshes, 11 packfiles) | < 4 | 0.2 % |
+
+By step: fx 208 s (190 of it the catalogue), objects 11, level 186, shaders 144, clone 318, billboards 26,
+translate 249, grid 816 (618 of it the sound porter, mostly its reads).
+
+**A NavKit build:** `navregress.build_level` on sp_004_b (both pitches: 13 normal and 27 detailed sectors, 7.7
+million surfaces at 0.2 m), main, under cProfile: 1,064 s.
+
+| rank | where the time went | s | share |
+|---:|---|---:|---:|
+| 1 | `Level.neighbour` (with `connected`, `navwalk.step_fits`, `surfaces`): 142 million calls - from `build_graph`'s search between route-node groups 392 s, `components` 136 s, `trace_edges` 75 s, `line_walkable` 53 s | 656 | 62 % |
+| 2 | `build_graph`'s own loops (the search's queue and dicts) | 80 | 8 % |
+| 3 | `navwalk.walkable`'s step-rule floods: `roof_islands` / `islands_of` 61 s, `flood` 45 s | 106 | 10 % |
+| 4 | `trace_edges`, `components` own time | 48 | 4 % |
+| 5 | `narrow_lips`, `matched_flags`, `stair_slope`, `headroom` | 41 | 4 % |
+| 6 | the collision index (`havok_index` glob: E1e's) | 5 | 0.5 % |
+
+### What moved, and what it gave
+
+**Textures** (`bc2_convert::texture`, `texture.convert`): every XenonTexture of BF1943's source (704, 193 MB):
+
+| | Python | Rust via Python, one by one | Rust via Python, `texture_convert_many` |
+|---|---:|---:|---:|
+| convert all 704 | 48.1 s | **0.37 s** | **0.12 s** |
+
+A level build converts few textures (0.7 s on coral_sea); Wake's steps convert the 704 several times over.
+
+**The partition reads** (`meshview.Partitions`: a bundle's partitions read in one pass and kept, by path, size and
+time, 768 MB at most): one partition of mp_common's level bundle cost 0.94 s, all 8,446 of them (36 MB) 2.42 s.
+`ww2_level_build.py coral_sea` on main with the cache patched in (`meshview.Index.read` replaced at run time by the
+branch's code, OPFOR's outputs compared and restored), against the last rebuild's log:
+
+| step | before (rebuild log) | after | |
+|---|---:|---:|---|
+| fx | 24 s | 49 s | load (no reads to save) |
+| objects | 11 s | 11 s | |
+| level | 155 s | 122 s | |
+| shaders | 82 s | 42 s | |
+| clone | 93 s | 121 s | load |
+| billboards | 2 s | 12 s | load |
+| translate | 149 s | 199 s | load (HLSL compiles) |
+| **grid** | **777 s** | **101 s** | the sound porter's reads |
+| **whole build** | **1,293 s** | **667 s** | 1.9x |
+
+The outputs are the same files (506 of them, sha1 before and after); `install_dbnames.pkl` and, in one run,
+`terrain_rules.json` differ between any two runs of the build, with or without the cache (a pickled set and a JSON
+dict whose order follows Python's string hashing: OPFOR's, reported) - both were put back as they were. Guadalcanal
+and Iwo Jima's grid steps (800 s each in the last rebuild) do the same reads.
+
+**NavKit** (`bc2_navbuild`, through `navbuild.Level.native()` and `navwalk.native_grid()`):
+`test_navbuild_native.py --game` builds each level twice in one process, Python then Rust, the path data compared
+byte for byte (the build clock fixed for both: every sector stores its build time):
+
+| level | Python | Rust | | path data |
+|---|---:|---:|---:|---|
+| sp_009 (9 sectors) | 153 s | **19 s** | 8.1x | identical, 406,216 bytes |
+| sp_004_b (40 sectors, 27 detailed) | 566 s | **186 s** | 3.0x | identical, 8,235,888 bytes |
+| sp_008_b | 618 s | **201 s** | 3.1x | identical, 8,477,720 bytes |
+| ons_mp_004 | 346 s | **90 s** | 3.8x | identical, 7,623,072 bytes |
+
+Profiled again after the ports (sp_004_b, cProfile): 166 s instead of 1,064 s. What is left is Python around the
+Rust calls and the walkability rules not ported: `walkable` 59 s (`narrow_lips` 15, `stair_slope` 14, `headroom`
+7), `build_graph` 43 s (its nearest-cell `min` over an area's cells for each portal node: 28 s), `trace_edges`' own
+loop 17 s, `build_areas` 16 s, the collision index's glob 2 s (E1e's). The graph search itself is 12 s in Rust.
+
+The four levels are the quick / game tiers' two (sp_009, sp_004_b) and two more; NavKit's output is unchanged, so its
+DICE-parity measures (`navregress`) are too.
+
+**Not worth porting, measured:** mesh and Havok conversion (under 4 s of a level build); the HLSL compiles are the
+compiler's time (running them on several threads is the gain there, in the shader translation); OPFOR's
+`role_score` is OPFOR's Python.

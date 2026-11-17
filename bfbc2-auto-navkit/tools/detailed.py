@@ -26,9 +26,8 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools', 'core')
-import levelobjects  # noqa: E402
 import navsample  # noqa: E402
-from bfbc2core import paths  # noqa: E402
+from bfbc2core import collision, paths  # noqa: E402
 
 MARGIN = 5.0           # m around a flagged object's collision box
 STACKED_MIN = 100      # stacked-floor columns (0.8 m samples) that make a sector detailed
@@ -37,16 +36,15 @@ SLOPE_MAX = 40.0
 
 
 def flagged_sectors(level_dir, common, xoff, zoff, margin=MARGIN):
-    """Sectors (X, Z) within margin of a NeedsDetailedPathfinding object's collision box (objects.json)."""
+    """Sectors (X, Z) within margin of a NeedsDetailedPathfinding object's collision box (objects.json). Collision
+    through bfbc2core.collision (NavKit's levelobjects index and triangles; the Rust core when built)."""
     bases = [b for b in [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + list(common) if os.path.isdir(b)]
-    hv = levelobjects.havok_index(bases)
-    out, cache = set(), {}
-    for o in json.load(open(os.path.join(level_dir, 'objects.json'))):
-        if not (o.get('flags') and o['flags'][0]):
-            continue
+    hv = collision.havok_index(bases)
+    flagged = [o for o in json.load(open(os.path.join(level_dir, 'objects.json'))) if o.get('flags') and o['flags'][0]]
+    cache = collision.blueprint_triangles([o['bp'].lower() for o in flagged], hv)
+    out = set()
+    for o in flagged:
         bp = o['bp'].lower()
-        if bp not in cache:
-            cache[bp] = levelobjects.triangles(hv[bp]) if bp in hv else None
         t = np.array(o['m'][12:15])
         tris = cache[bp]
         if tris is None:

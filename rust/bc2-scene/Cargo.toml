@@ -1,0 +1,20 @@
+[package]
+name = "bc2-scene"
+description = "A Battlefield: Bad Company 2 level as the suite's tools see it (entities, collision, terrain, water), pure Rust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+bc2-formats.workspace = true
+thiserror.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true
