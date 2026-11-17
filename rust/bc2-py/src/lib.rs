@@ -255,8 +255,8 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::geometry::{
-        collision_index, havok_triangles, havok_triangles_files, terrain_heights, terrain_tail, water_mesh,
-        water_shaders, water_visual,
+        collision_index, havok_index, havok_triangles, havok_triangles_files, terrain_heights, terrain_tail,
+        water_mesh, water_shaders, water_visual,
     };
 
     #[pymodule_export]

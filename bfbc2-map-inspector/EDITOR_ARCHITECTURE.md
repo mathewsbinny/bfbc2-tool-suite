@@ -244,9 +244,24 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
     needs (a move changes one matrix, no triangles are copied); the partitions' bytes are kept (`file`, `tree`), so
     the trees are re-read on demand rather than held (the "Two DBX trees" trade-off: no self-borrowing struct), and
     a partition that is edited converts to `DbxFile` for `levelwrite`.
-  - **Still open for E1:** new / deleted entities and field edits (with `levelwrite`), undo, the shared data's
-    XML-based alias table (reading the binary partitions instead, or a cache keyed by the files' sizes and times,
-    would remove the scene's largest remaining cost: 0.3 s of 0.32 s on MP_005, all of it reading XML).
+  - **The alias table** (E1e, 2026-11-16): each blueprint's `Mesh` is read from its binary `.dbx`
+    (`dbx::field_ref`: what `xmlinst.field_ref` finds in the XML, without building the text), the converted XML only
+    where the binary cannot answer (an empty *deleted* marker whose XML was left over - MP_005 has one with a
+    `Mesh` -, a text or damaged file). The XML files still decide which partitions count and in which order, as
+    NavKit's reference does, so both backends give the same table (all 37 prepared levels). Measured, the binary
+    alone did not make the index faster: opening 17,600 files costs about the same whatever their size
+    (`rust/BENCHMARKS.md`, "The alias table"). So each answer is also **cached** per data folder, keyed by the size
+    and modification time of the XML file and of its `.dbx` (from the folder listing the index makes anyway): an
+    unchanged level is indexed without opening a partition (MP_005 0.36 -> 0.11 s), a changed file is read again,
+    a damaged or foreign cache file is ignored and replaced, a write is a temporary file renamed over the old one,
+    and an error writing is ignored. The cache lives outside the game data (`%LOCALAPPDATA%\bfbc2-tool-suite\cache\
+    collision`, or `BFBC2_COLLISION_CACHE`; `0` turns it off); the index is the same with or without it.
+  - **NavKit's own collision readers** (`detailed`, `ladders`, `navsample_offline`, `navwater_mesh`) read through
+    `bfbc2core.collision` (`havok_index`, `index`, `blueprint_triangles`), so they run on the Rust core too, with
+    their output unchanged (byte for byte on four levels, `rust/BENCHMARKS.md`). `levelobjects.py` (NavKit's
+    prepare step and the Python reference) is unchanged.
+  - **Still open for E1:** new / deleted entities and field edits (with `levelwrite`), undo; a level that is not
+    prepared still needs NavKit's prepare (unpack and DbxEdit's XML) before it loads.
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 
@@ -354,7 +369,7 @@ first.
 | Step | Delivers |
 |---|---|
 | E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **E0b (branch `rust-e0b`):** the FBRB reader ported (`bc2_formats::fbrb`; `bfbc2core.fbrb` on it with the Python fallback), the same entries and bytes as the Python reader on every bundle of the game copy and `work\ww2`, and FbrbTool's unpack on the built and sampled bundles; level loading through `dbx.parse_many`. Bundle packing stays with FbrbTool (E1 / `levelwrite`). E0 done. |
-| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene |
+| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). **E1e (branch `rust-e1e`):** the mesh alias table read from the binary partitions and cached by the files' sizes and times (identical on all 37 prepared levels; MP_005's index 0.36 -> 0.11 s warm), NavKit's `detailed`, `ladders`, `navsample_offline` and `navwater_mesh` on the Rust collision readers (their output byte for byte the same), a WW2 level (Guadalcanal) loaded and timed from a temp prepare. Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
 | E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |

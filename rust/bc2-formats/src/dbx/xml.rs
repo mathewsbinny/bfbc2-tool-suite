@@ -9,7 +9,7 @@ use super::reader::string_id;
 use super::strings::read_table;
 
 /// `s` with `&`, `<`, `>` and `"` escaped, appended to `out`.
-fn push_escaped(out: &mut String, s: &str) {
+pub(crate) fn push_escaped(out: &mut String, s: &str) {
     let mut rest = s;
     while let Some(i) = rest.find(['&', '<', '>', '"']) {
         let (plain, tail) = rest.split_at(i);

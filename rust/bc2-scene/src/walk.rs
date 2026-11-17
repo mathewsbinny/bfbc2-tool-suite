@@ -8,16 +8,41 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use rayon::prelude::*;
 
-/// A file found: its path relative to the base folder (`/`-separated, lower case) and its full path.
+/// A file found: its path relative to the base folder (`/`-separated, lower case), its full path and its size and
+/// modification time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
     /// The path relative to the base folder, `/`-separated and lower-case.
     pub rel: String,
     /// The full path (the base joined with the entry names, as `os.path.join` makes it).
     pub path: PathBuf,
+    /// Its size and modification time, from the listing (no extra call on Windows); `None` when the system gave none.
+    pub stamp: Option<Stamp>,
+}
+
+/// A file's size and modification time (nanoseconds since 1970), what the alias cache is keyed by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Stamp {
+    /// The size in bytes.
+    pub size: u64,
+    /// The modification time in nanoseconds since 1970-01-01.
+    pub modified: u128,
+}
+
+impl Stamp {
+    /// The stamp of a file's metadata (`None` without a modification time, or one before 1970).
+    #[must_use]
+    pub fn of(m: &fs::Metadata) -> Option<Self> {
+        let modified = m.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_nanos();
+        Some(Self {
+            size: m.len(),
+            modified,
+        })
+    }
 }
 
 /// Every entry under `base` whose lower-case name ends with one of `suffixes` (lower case), per suffix in walk
@@ -51,6 +76,7 @@ fn walk(dir: &Path, rel: &str, suffixes: &[&str], out: &mut [Vec<Found>]) {
                 list.push(Found {
                     rel: child_rel.clone(),
                     path: path.clone(),
+                    stamp: entry.metadata().ok().as_ref().and_then(Stamp::of),
                 });
             }
         }
@@ -106,6 +132,7 @@ mod tests {
         assert_eq!(rels, vec!["x_havok.res", "a/y_havok.res", "b/c/z_havok.res"]);
         assert_eq!(found[1][0].rel, "b/w.xml");
         assert_eq!(found[1][0].path, root.join("b").join("w.xml"));
+        assert_eq!(found[1][0].stamp.unwrap().size, 0);
         assert_eq!(find(&root.join("missing"), &[".xml"])[0].len(), 0);
         fs::remove_dir_all(&root).unwrap();
     }

@@ -105,7 +105,7 @@ levels. **Nothing needs it**: without it, every tool runs on the Python readers 
 | Crate | What |
 |---|---|
 | `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer). Later: shader databases |
-| `rust/bc2-scene` | a level as the tools see it: `collision` (which packfile each blueprint uses: NavKit's index and mesh aliases in one parallel walk), `scene` (`level.load`'s entities, blueprints, teams, outlines, collision, terrain and water on all cores; editable entities for the map editor) |
+| `rust/bc2-scene` | a level as the tools see it: `collision` (which packfile each blueprint uses: NavKit's index and mesh aliases in one parallel walk, each alias read from the binary partition - `dbx::field_ref`, the XML's answer without the text - and the converted XML only where the binary cannot answer; `index_cached` keeps each answer in a cache keyed by the files' sizes and times, so an unchanged level is indexed without opening its partitions), `scene` (`level.load`'s entities, blueprints, teams, outlines, collision, terrain and water on all cores; editable entities for the map editor) |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
 
 **Build** (once, and after changing anything in `rust/`; the quick test tier rebuilds it when it is stale):
@@ -127,9 +127,14 @@ reference: `core/tests/test_dbx.py` always tests it. A tool that loads many file
 same way (`entries`, `names`, `read` and the new `read_many`, one bundle per core; `fbrb.use_native`,
 `fbrb.backend()`; a damaged bundle raises `ValueError` in both readers, a missing entry `KeyError`). So do
 `bfbc2core.terrain` (`parse`, `read`), `bfbc2core.water` (`parse_mesh`, `parse_visual`, `read`), the new
-`bfbc2core.collision` (`index`, `triangles`, `triangles_many`; NavKit's Python functions as the fallback) and
+`bfbc2core.collision` (`index`, `havok_index`, `triangles`, `triangles_many`, `blueprint_triangles`; NavKit's
+Python functions as the fallback; NavKit's `detailed`, `ladders`, `navsample_offline` and `navwater_mesh` read their
+collision through it) and
 `bfbc2core.level` (`load` through the Rust scene; the Python loader as the fallback): each has `use_native` and
-`backend()`, and `BFBC2_PURE_PYTHON=1` turns them all to Python.
+`backend()`, and `BFBC2_PURE_PYTHON=1` turns them all to Python. The Rust collision index (and so `level.load`)
+keeps its mesh-alias cache in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\collision` (`collision.use_cache`, or the
+`BFBC2_COLLISION_CACHE` folder; `0` turns it off): it never changes a result, only skips partitions whose files
+have the size and time they had when they were read.
 
 **Develop:** in `rust\`, `cargo test` (unit, property and doc tests), `cargo clippy --all-targets -- -D warnings`,
 `cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene` (after

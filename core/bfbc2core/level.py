@@ -318,7 +318,8 @@ def _load_scene(lvl: Level, part: str, group_paths: list[str], bases: list[str],
         except Exception as e:                # no terrain bundle, FbrbTool missing, unexpected layout
             terrain_note = f'terrain height field not read: {e}'
         water_files = water.find_files(os.path.join(root, 'work', 'levels', lv, 'terrain'), name or lv)
-    s = cast(ModuleType, _native).scene_load(LV, part, group_paths, bases, geometry, hpath, terrain_stride, *water_files)
+    s = cast(ModuleType, _native).scene_load(LV, part, group_paths, bases, geometry, hpath, terrain_stride, *water_files,
+                                             alias_cache=collision.cache_folder())   # the mesh-alias cache
     instances = [f.instances] + [g.instances for g in groups]
     for (index, guid, t, short, category, eid, ename, pname, matrix, bp, group, bp_type, destructible, team, ai,
          (file, inst, item)) in s['entities']:

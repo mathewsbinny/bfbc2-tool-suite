@@ -207,11 +207,84 @@ static groups for `Entity.element` (0.05 / 0.16 s), and building the `Entity` ob
 - **The index is now the scene's whole cost, and it is I/O:** 17,589 XML files (205 MB) are read for the mesh
   aliases, of which only about 7 % have a `Mesh` field (measured on 4,000 of `mp_common`'s), so stopping early in each
   file would save little. Reading the aliases from the binary partitions, or caching the table by the files' sizes and
-  times, would take it to the walk's 0.07 s (EDITOR_ARCHITECTURE.md 3.8, "The scene": open).
+  times, would take it to the walk's 0.07 s (E1e below: the binary alone did not, the cache did).
 - **The readers are cheap in Rust:** Havok 15-20x, the terrain mesh 4-5x faster than NumPy on one thread; neither
   mattered for the load.
 - Parity, not timing, set the design of the Python side: the world-space meshes stay NumPy's
   `t @ m[:3, :3] + m[3, :3]` (BLAS may fuse multiply-adds, so a Rust product could differ in the last bit).
+
+## The alias table, NavKit's collision readers, a WW2 level (2026-11-16, branch `rust-e1e`)
+
+**Contended:** an OPFOR rebuild and sibling branches' builds ran during these runs (`bench_level.py` said so); ratios
+and stage shares are what to read. Files in the system cache.
+
+### The alias table
+
+The E1a index read every converted XML file for the mesh aliases. Two ways out were measured (`scene_bench`, MP_005,
+best of 5; SP_01 the same within 10 %):
+
+| MP_005, collision index | 16 threads | 1 thread |
+|---|---:|---:|
+| the walk alone (packfiles, XML, `.dbx`) | 0.073-0.080 s | 0.40 s |
+| reading the 17,589 XML files (205 MB) | 0.25-0.29 s | 2.8 s |
+| reading the 19,575 `.dbx` files (87 MB) | 0.27-0.28 s | 5.7 s |
+| index, E1a (XML) | 0.28-0.36 s | 1.8 s |
+| index from the binary partitions (`dbx::field_ref`) | 0.31-0.36 s | 1.8 s |
+| **index, cache warm** | **0.11 s** | **0.39 s** |
+| index, cache cold (reads and writes it) | 0.36-0.42 s | 1.8 s |
+| `havok_index` alone (no aliases) | 0.062-0.07 s | 0.37 s |
+
+- **Reading the binary is not faster:** the cost is opening 17,600 files (about 0.2 ms each, the virus scanner
+  included), not their bytes, so 87 MB instead of 205 MB changed nothing. It is kept for what it removes (the text of
+  the converted XML is no longer read where a partition is binary) and because it gives the same table.
+- **The cache is what makes it fast:** keyed by each XML file's and `.dbx`'s size and modification time, which the
+  walk gets from the folder listing without opening a file, so a warm index is the walk plus four cache files
+  (`aliases-<hash>.bin`). Any changed, new or removed file is read again; a damaged, foreign or other-version cache
+  file is ignored and replaced; writes are atomic (a temp file renamed over the old one).
+- **Parity:** the Python reference (NavKit's `mesh_aliases` on the XML), the Rust index without a cache, cold and
+  warm: the same packfile index and the same alias table, same order, on all 37 prepared levels (`havok_index` alone
+  too). One trap was found: MP_005's `emitter_sw_meshparticle_tow_01` is an empty *deleted* marker whose XML was left
+  over with a `Mesh`; the index reads the XML wherever the binary cannot answer, as the reference does.
+
+| `level.load` (rust mode, median of 3) | cache off | cache warm |
+|---|---:|---:|
+| MP_005, whole load (of it the scene) | 0.64 s (0.33) | **0.41 s** (0.16) |
+| SP_01, whole load (of it the scene) | 0.98 s (0.35) | **0.84 s** (0.19) |
+
+### NavKit's collision readers on the Rust core
+
+`detailed`, `ladders`, `navsample_offline.level_geometry` and `navwater_mesh.object_triangles` read through
+`bfbc2core.collision` (`havok_index`, `index`, `blueprint_triangles`). SP_009, run one after the other, e1a (NavKit's
+Python collision) against e1e:
+
+| SP_009 | before | after |
+|---|---:|---:|
+| `detailed.flagged_sectors` | 1.75 s | 0.07 s |
+| `detailed.choose` | 1.01 s | 0.08 s |
+| `ladders.extract` | 1.02 s | 0.07 s |
+| `navsample_offline.level_geometry` | 9.62 s | 0.58 s |
+| `navwater_mesh.object_triangles` | 1.71 s | 0.15 s |
+| whole build (`navregress.build_level`, detailed zones included) | 97 s | 93 s |
+
+The build itself is NavKit's own compute (the detailed sectors were about 1 s of it). Parity: every intermediate
+(the four tools' results, pickled) and `pathdata.hpd` byte for byte the same before and after on SP_009, SP_004_B
+(78 ladders), ONS_MP_004 and SP_008_B; the `.hpd` compared with each sector's build stamp (date and time, written
+from the clock) set to zero, the only field that differs between two builds.
+
+### A WW2 level: Guadalcanal
+
+WW2 levels are Package-only bundles, which NavKit's prepare does not list, so it was prepared by hand into a temp
+OPFOR-like folder (nothing under OPFOR's `work\`): FbrbTool `unpack` of the Package `guadal_canal\level-00.fbrb`
+into `work\levels\guadal_canal\dist` and DbxEdit `xml` on it, `terrain-00.fbrb` into `terrain\`, an empty `pkg\` and
+`game\`, NavKit's common data joined in by junctions; then `bench_level.py --opfor <temp folder> guadal_canal`.
+
+| Guadalcanal (7,144 entities, 5,228 meshes) | python | main | rust, cache off | rust, cache warm |
+|---|---:|---:|---:|---:|
+| whole load | 14.47 s | 14.81 s | 0.91 s | **0.45 s** |
+| entities only | 0.28 s | 0.20 s | 0.09 s | 0.08 s |
+
+The Rust scene and the Python loader gave the same level entity by entity (`test_scene_native.compare`), and the
+same collision index (592 packfiles, 953 aliases).
 
 ## Not ported yet
 

@@ -188,18 +188,17 @@ def object_triangles(root, lv, log=print, cache=None):
     (objects.json / group_instances.json from levelobjects.py; each blueprint's <name>_Havok.res). Cached in cache."""
     if cache and os.path.isfile(cache):
         return np.load(cache)
-    import levelobjects
+    from bfbc2core import collision
     L = os.path.join(root, 'work', 'levels', lv)
     objs = json.load(open(os.path.join(L, 'objects.json'))) if os.path.isfile(os.path.join(L, 'objects.json')) else []
     groups = json.load(open(os.path.join(L, 'group_instances.json'))) if os.path.isfile(os.path.join(L, 'group_instances.json')) else []
     bases = [os.path.join(L, 'pkg'), os.path.join(L, 'dist')] + \
         [os.path.join(root, 'work', 'navkit', 'common', c) for c in ('sp_common', 'mp_common')]
-    havok = levelobjects.havok_index([b for b in bases if os.path.isdir(b)])
-    local, world, missing = {}, [], set()
+    havok = collision.havok_index([b for b in bases if os.path.isdir(b)])   # NavKit's levelobjects index (Rust when built)
+    local = collision.blueprint_triangles([o['bp'] for o in objs + groups], havok)
+    world, missing = [], set()
     for o in objs + groups:
         bp = o['bp']
-        if bp not in local:
-            local[bp] = levelobjects.triangles(havok[bp]) if bp in havok else None
         t = local[bp]
         if t is None:
             missing.add(bp)

@@ -22,21 +22,21 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('navkit-tools')
-import levelobjects  # noqa: E402
+suite_paths.use('navkit-tools', 'core')
+from bfbc2core import collision  # noqa: E402
 
 
 def extract(level_dir, extra_bases=()):
     """[{'bp', 'lo': [x, y, z], 'hi': [x, y, z]}] - world boxes of the level's placed ladders."""
     bases = [b for b in [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + list(extra_bases)
              if os.path.isdir(b)]
-    hv = levelobjects.havok_index(bases)
+    hv = collision.havok_index(bases)      # NavKit's levelobjects index (the Rust core when built)
+    objs = [o for o in json.load(open(os.path.join(level_dir, 'objects.json')))
+            if 'ladder' in o['bp'].lower().rsplit('/', 1)[-1] and o['bp'].lower() in hv]
+    local = collision.blueprint_triangles([o['bp'].lower() for o in objs], hv)
     out = []
-    for o in json.load(open(os.path.join(level_dir, 'objects.json'))):
-        bp = o['bp'].lower()
-        if 'ladder' not in bp.rsplit('/', 1)[-1] or bp not in hv:
-            continue
-        tris = levelobjects.triangles(hv[bp])
+    for o in objs:
+        tris = local[o['bp'].lower()]
         if tris is None:
             continue
         m = o['m']

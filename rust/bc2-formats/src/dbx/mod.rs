@@ -4,6 +4,7 @@
 //! |---|---|
 //! | `parse(data)`, `read(path)` | [`parse`], [`read`] |
 //! | `to_xml(data)` | [`to_xml`] (identical text: `core/tests/test_dbx_native.py` checks every corpus file) |
+//! | `xmlinst.field_ref(text, name)`, on the text or on `to_xml(data)` | [`field_ref_text`], [`field_ref`] (no text built) |
 //! | `write(f)`, `put_varint` | [`write`], [`put_varint`] |
 //! | `value(e)`, `numbers(e)`, `floats(e)`, `_number_text` | [`value`], [`numbers`], [`floats`], [`number_text`] |
 //! | `Element`, `DbxFile` | [`Element`] (strings are [`StrId`]s into [`DbxFile::strings`]), [`DbxFile`] |
@@ -24,6 +25,7 @@
 mod batch;
 mod cursor;
 mod error;
+mod fieldref;
 mod model;
 mod number;
 mod reader;
@@ -34,6 +36,7 @@ mod xml;
 
 pub use batch::{parse_all, parse_tree_all, to_xml_all};
 pub use error::{DbxError, Result};
+pub use fieldref::{field_ref, field_ref_text};
 pub use model::{Body, CONTAINER, DbxFile, Element, NUMBERS, StrId, TEXT};
 pub use number::{WHOLE_NUMBER_FIELDS, floats, net_g, net_r_double, net_r_single, number_text, numbers, value};
 pub use reader::{ReadError, parse, read};

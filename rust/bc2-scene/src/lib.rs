@@ -10,6 +10,7 @@
 //! - [`walk`]: finding files as Python's recursive `glob` finds them, in its order.
 #![deny(unsafe_code)]
 
+mod alias_cache;
 pub mod collision;
 pub mod scene;
 pub mod walk;

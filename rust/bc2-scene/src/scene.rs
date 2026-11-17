@@ -257,6 +257,8 @@ pub struct LoadOptions {
     pub terrain_stride: usize,
     /// The water's `.Water.Mesh.res` and `.Water.res`, when there is a mesh.
     pub water: Option<(PathBuf, Option<PathBuf>)>,
+    /// The folder of the mesh-alias cache ([`collision::index_cached`]); `None`: every partition is read.
+    pub alias_cache: Option<PathBuf>,
 }
 
 impl LoadOptions {
@@ -271,6 +273,7 @@ impl LoadOptions {
             heightfield: None,
             terrain_stride: 2,
             water: None,
+            alias_cache: None,
         }
     }
 }
@@ -903,7 +906,7 @@ pub fn load(options: &LoadOptions) -> Result<Scene> {
             let ((index, terrain), water) = rayon::join(
                 || {
                     rayon::join(
-                        || collision::index(&options.bases),
+                        || collision::index_cached(&options.bases, options.alias_cache.as_deref()),
                         || {
                             options
                                 .heightfield
