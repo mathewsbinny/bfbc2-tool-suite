@@ -488,6 +488,17 @@ def build_areas(level: Level, gi0: int, gj0: int, start: Sequence[int] = (-1, -1
     tiles: samples per tile and tiles per axis (cfg's if None)."""
     tile = cfg.tile if tile is None else tile
     tiles = cfg.tiles if tiles is None else tiles
+    nat = level.native()
+    w = cfg.window
+    if (nat is not None and w.step == 1 and len(start) == 2 and all(type(v) is int for v in (*start, tile, tiles))
+            and type(MAX_AREA) is int):
+        # in the Rust core: the tiles, their components and the bisection in one call
+        try:
+            got = nat.build_areas(gi0, gj0, (w.start, w.stop), (start[0], start[1]), tile, tiles,
+                                  MAX_AREA if BISECT_AREAS else None, AREA_LINK)
+            return [{'tile': t, 'cells': c} for t, c in got]
+        except _NATIVE_ERRORS:
+            pass
     cells_by_tile: defaultdict[tuple[int, int], list[Cell]] = defaultdict(list)
     for j in cfg.window:
         for i in cfg.window:
@@ -1527,6 +1538,42 @@ def _search(level: Level, pts: Sequence[RouteNode], members: Sequence[int], root
     return path
 
 
+def _int_cells(areas: Iterable[AreaInfo]) -> bool:
+    """Every area's cells hold Python ints (as build_areas makes them): the Rust core's cell picking computes with them
+    as the reference does."""
+    return all(isinstance(v, (int, np.integer)) and not isinstance(v, bool) for a in areas for c in a['cells'][:1]
+               for v in c[:2])
+
+
+def _centre_cells(areas: Sequence[AreaInfo]) -> list[int] | None:
+    """For each area, the index of build_graph's centre cell (the cell nearest the cells' mean) from the Rust core;
+    None: build_graph picks them itself."""
+    if _native is None or not hasattr(_native, 'navkit_centre_cells') or not _int_cells(areas):
+        return None
+    try:
+        return cast(list[int], _native.navkit_centre_cells([a['cells'] for a in areas]))
+    except _NATIVE_ERRORS:
+        return None
+
+
+def _nearest_cells(areas: Sequence[AreaInfo], ends: Sequence[tuple[int, list[tuple[float, float]]]], ox: float,
+                   oz: float, pitch: float) -> list[list[int]] | None:
+    """For each (area index, [portal middle (x, z)]), the index in the area's cells of the cell nearest each middle,
+    from the Rust core; None: build_graph picks them itself (also when a number is not a float: a float32 would make
+    the reference's key compute in float32; a float64 scalar's ** 2 is the same C pow as a Python float's)."""
+    if _native is None or not hasattr(_native, 'navkit_nearest_cells'):
+        return None
+    if not (isinstance(ox, float) and isinstance(oz, float) and isinstance(pitch, float)
+            and all(isinstance(v, float) for _ai, mids in ends for m in mids for v in m)
+            and _int_cells(areas[ai] for ai, mids in ends if mids)):
+        return None
+    try:
+        return cast(list[list[int]], _native.navkit_nearest_cells(
+            [(areas[ai]['cells'] if mids else [], mids) for ai, mids in ends], ox, oz, pitch))
+    except _NATIVE_ERRORS:
+        return None
+
+
 def build_graph(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int], traced: Sequence[Traced],
                 borders: Sequence[tuple[int, Vec3, int]], gi0: int, gj0: int, ox: float, oz: float,
                 new_id: Callable[[], int], orders: Points = (), ladders: Sequence[tuple[int, int]] = (),
@@ -1552,22 +1599,29 @@ def build_graph(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int]
             taken.add(k)
             taken_pos.add(key)
         pts.append((new_id(), pos, k, i, j))
-    for a in areas:
-        if len(a['cells']) < 4:
-            continue
-        ci = sum(c[0] for c in a['cells']) / len(a['cells'])
-        cj = sum(c[1] for c in a['cells']) / len(a['cells'])
-        i, j, k = min(a['cells'], key=lambda c: (c[0] - ci) ** 2 + (c[1] - cj) ** 2)
+    big = [a for a in areas if len(a['cells']) >= 4]
+    centres = _centre_cells(big)
+    for n, a in enumerate(big):
+        if centres is not None:
+            i, j, k = a['cells'][centres[n]]
+        else:
+            ci = sum(c[0] for c in a['cells']) / len(a['cells'])
+            cj = sum(c[1] for c in a['cells']) / len(a['cells'])
+            i, j, k = min(a['cells'], key=lambda c: (c[0] - ci) ** 2 + (c[1] - cj) ** 2)
         add(i, j, k)
     cell_of = {c[2]: (c[0], c[1]) for a in areas for c in a['cells']}
     p: Any                                  # a portal here, a route node below
-    for ai, (portals, _b, _o) in enumerate(traced):
-        for p in portals:
-            if p.target < ai:
-                continue          # one node per portal pair
-            mx, mz = (p.p0[0] + p.p1[0]) / 2, (p.p0[2] + p.p1[2]) / 2
-            best = min(areas[ai]['cells'], key=lambda c: (ox + c[0] * cfg.pitch - mx) ** 2 + (oz + c[1] * cfg.pitch - mz) ** 2)
-            i, j, k = best
+    # one node per portal pair, on the area's cell nearest the portal's middle
+    portal_ends = [(ai, [((p.p0[0] + p.p1[0]) / 2, (p.p0[2] + p.p1[2]) / 2) for p in portals if not p.target < ai])
+            for ai, (portals, _b, _o) in enumerate(traced)]
+    picks = _nearest_cells(areas, portal_ends, ox, oz, cfg.pitch)
+    for n, (ai, mids) in enumerate(portal_ends):
+        for m, (mx, mz) in enumerate(mids):
+            if picks is not None:
+                i, j, k = areas[ai]['cells'][picks[n][m]]
+            else:
+                i, j, k = min(areas[ai]['cells'],
+                              key=lambda c: (ox + c[0] * cfg.pitch - mx) ** 2 + (oz + c[1] * cfg.pitch - mz) ** 2)
             add(i, j, k)
     for nid, pos, k in borders:
         # the node's own surface cell (a node carried from another pitch's build sits up to CARRY_RADIUS from it;

@@ -283,7 +283,9 @@ mod bc2_native {
     use super::convert::{texture_convert, texture_convert_many};
 
     #[pymodule_export]
-    use super::navbuild::{NavLevel, navkit_matched_flags};
+    use super::navbuild::{
+        NavGrid, NavLevel, navkit_centre_cells, navkit_float_ops, navkit_matched_flags, navkit_nearest_cells,
+    };
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

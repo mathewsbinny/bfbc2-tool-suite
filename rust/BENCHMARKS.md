@@ -503,3 +503,39 @@ DICE-parity measures (`navregress`) are too.
 **Not worth porting, measured:** mesh and Havok conversion (under 4 s of a level build); the HLSL compiles are the
 compiler's time (running them on several threads is the gain there, in the shader translation); OPFOR's
 `role_score` is OPFOR's Python.
+
+## NavKit's walkability rules, areas and cell picking (2026-11-17, branch `rust-e2a`)
+
+What E1d's profile left (above: `walkable` 59 s, `build_graph` 43 s, `build_areas` 16 s of sp_004_b's 166 s), moved
+to `bc2_navbuild`; the Python stays the reference and the fallback (`BFBC2_PURE_PYTHON=1`, `navbuild.use_native`):
+
+| Python | Rust | binding |
+|---|---|---|
+| `navwalk.headroom` (and so `low_headroom`) | `rules::Grid::headroom` | `NavGrid.headroom` |
+| `navwalk.stair_slope` | `rules::Grid::stair_slope` | `NavGrid.stair_slope` |
+| `navwalk.narrow_lips` | `rules::Grid::narrow_lips` | `NavGrid.narrow_lips` |
+| `walkable`'s stair landings | `rules::Grid::landing` | `NavGrid.landing` |
+| `navwalk.near_objects`, `on_objects` (after its NumPy box filter) | `rules::Grid::near_objects`, `on_objects` | `NavGrid.near_objects`, `on_objects` |
+| `navbuild.build_areas` with `components` and `bisect` | `Level::build_areas` | `NavLevel.build_areas` |
+| `build_graph`'s centre and portal cells (its `min` over an area's cells) | `pick::centre_cell`, `pick::nearest_cells` | `navkit_centre_cells`, `navkit_nearest_cells` |
+
+`walkable` makes the run's `NavGrid` once (`navwalk.native_samples`) and hands it to every rule.
+
+**Float parity.** E1d's rules (NumPy 2's promotion, `round` half to even) and three more, each found by measuring:
+
+- `math.hypot` is CPython's own `vector_norm`, not the C library's `hypot`: ported (`pymath::hypot`; Dekker's exact
+  product and the fused one gave the same answers on 300,000 pairs on this CPython 3.13).
+- `x ** 2` on a Python float is the C library's `pow(|x|, 2.0)`, which differs from `x * x` on 1 value in 2,000
+  (2 million random values): `pymath::sq` calls the same `pow`, kept from being folded into a multiply. A NumPy
+  `float64`'s `** 2` is the same `pow` (300,000 values), so a float64 origin is taken as a Python float is.
+- `float32 < python float` compares in `float32` under NumPy 2 (the Python float is cast): `narrow_lips`' flat test
+  on the normals does so.
+
+`tests\test_navbuild_native.py` (quick) checks those three on 150,000 values against `math`, then every rule, both
+backends, on random runs (pitch 0.2 and 0.8, float32 and float64 normals, every option), `walkable` with every rule
+on (stair, dynamic, exclude, footprint and forbidden objects), `build_areas` with and without bisection, and the
+cell picking: 263,863 calls, no difference. Rust line coverage of `bc2-navbuild`: 99.5 %.
+
+**Not run yet** (a full test tier had the PC): the whole-level parity and the timings on sp_009, sp_004_b, sp_008_b
+and ons_mp_004, as E1d took them (`tests\test_navbuild_native.py --game --levels ...`), and the profile after the port
+(`rust\bench_navkit.py --profile`).

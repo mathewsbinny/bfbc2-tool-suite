@@ -1,10 +1,14 @@
 r"""navbuild's grid walks in the Rust core (rust/bc2-navbuild through bc2_native: Level.neighbour, components,
-trace_edges' side neighbours, line_walkable, build_graph's search) against the Python reference in the same module:
-the same answers, call by call, and the same path data, byte for byte.
+trace_edges' side neighbours, line_walkable, build_graph's search and cell picking, build_areas; navwalk's floods and
+walkability rules) against the Python reference in the same modules: the same answers, call by call, and the same
+path data, byte for byte.
 
   python test_navbuild_native.py                     quick: random multi-layer sample grids (float32 and float64
                                                      gradients, stairs, terrain, every link rule, D sides), every
-                                                     walk on both backends; the dispatcher and the fallback
+                                                     walk on both backends; walkable's rules (headroom, stair_slope,
+                                                     narrow_lips, landings, near / on objects), build_areas and
+                                                     build_graph's cell picking, and CPython's float functions they
+                                                     need (math.hypot, x ** 2); the dispatcher and the fallback
   python test_navbuild_native.py --game [--levels sp_009,sp_004_b]
                                                      + whole builds (navregress.build_level, Project OPFOR BFBC2's
                                                      in-game samples, read only) with each backend into a temporary
@@ -183,8 +187,195 @@ def quick() -> int:
         calls += 3
     check(nb.use_native(False) == 'python' and navwalk._native is None, 'use_native(False) turns the floods off too')
     nb.use_native(True)
-    print(f'{calls} calls compared on 40 random levels: {len(FAILS)} differences')
+    calls += float_ops(rng) + rules(rng) + areas_and_picks(rng)
+    print(f'{calls} calls compared on 40 random levels and the rules\' runs: {len(FAILS)} differences')
     return 0
+
+
+def same(a: Any, b: Any) -> bool:
+    """The same array bit for bit (dtype, shape, bytes), or the same tuple of such arrays."""
+    if isinstance(a, tuple):
+        return isinstance(b, tuple) and len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
+    return a.dtype == b.dtype and a.shape == b.shape and a.tobytes() == b.tobytes()
+
+
+def float_ops(rng: random.Random) -> int:
+    """CPython's math.hypot, x ** 2 and degrees(atan(hypot)) as the port computes them, on gradients like the rules'
+    (height differences over a pitch) and on values over the whole float range."""
+    import math
+    xs, zs = [], []
+    for n in range(150_000):
+        if n % 3 == 0:
+            xs.append(rng.randint(-60, 60) * 0.05 / rng.choice([0.2, 0.4, 0.8, 1.6]))
+            zs.append(rng.uniform(-3, 3) / rng.choice([0.2, 0.4]))
+        elif n % 3 == 1:
+            xs.append(rng.uniform(-1, 1) * 2.0 ** rng.randint(-1074, 1023))
+            zs.append(rng.uniform(-1, 1) * 2.0 ** rng.randint(-1074, 1023))
+        else:
+            xs.append(float(np.float32(rng.uniform(-500, 500))) - rng.uniform(-500, 500))
+            zs.append(rng.choice([0.0, -0.0, xs[-1], -xs[-1], rng.uniform(-1e-300, 1e-300)]))
+    xs += [0.0, -0.0, math.inf, -math.inf, math.nan, 1e308, 5e-324]
+    zs += [0.0, 3.0, math.nan, 1.0, math.inf, 1e308, 5e-324]
+    h, s, d = (np.frombuffer(b, '<f8') for b in navwalk._native.navkit_float_ops(
+        np.array(xs, '<f8').tobytes(), np.array(zs, '<f8').tobytes()))
+    bad = 0
+    for k, (x, z) in enumerate(zip(xs, zs)):
+        try:
+            sq = x ** 2
+        except OverflowError:                                   # CPython raises where pow overflows
+            sq = math.inf
+        want = (math.hypot(x, z), sq, math.degrees(math.atan(math.hypot(x, z))))
+        got = (float(h[k]), float(s[k]), float(d[k]))
+        if any(not (a == b or (a != a and b != b)) for a, b in zip(want, got)):
+            bad += 1
+            if bad <= 5:
+                check(False, f'float ops ({x!r}, {z!r}): {got} != {want}')
+    check(bad == 0, f'float ops: {bad} of {len(xs)} differ')
+    return len(xs)
+
+
+def runs(rng: random.Random, nx: int, nz: int, pitch: float, f64_normals: bool = False) -> Any:
+    """A random sample run: 0-3 surfaces per column on a few floors with steps and steep pieces."""
+    lv = grid(rng, nx, nz, True, pitch)
+    s: Any = lv.s
+    if f64_normals:
+        s.normal = s.normal.astype(np.float64)
+    # steeper normals on a third of the surfaces (lips, steep terrain), a few exactly at the lip cosines
+    for k in range(len(s.y)):
+        if rng.random() < 0.33:
+            a = rng.uniform(0.3, 1.2)
+            n = np.array([a * rng.choice([-1, 1]), 1.0, rng.uniform(-0.3, 0.3)])
+            s.normal[k] = n / np.linalg.norm(n)
+        if rng.random() < 0.03:
+            s.normal[k, 1] = rng.choice([np.cos(np.radians(15.0)), np.float32(np.cos(np.radians(15.0)))])
+    return s
+
+
+def tris_near(rng: random.Random, s: Any, count: int) -> np.ndarray:
+    """Random triangles over (and around) the run's extent, at its floors' heights; some degenerate."""
+    out = []
+    w, d = s.nx * s.pitch, s.nz * s.pitch
+    for _ in range(count):
+        x, z, y = rng.uniform(-1, w + 1), rng.uniform(-1, d + 1), rng.choice([0.0, 2.5, 5.0]) + rng.uniform(-0.3, 0.6)
+        t = [[x + rng.uniform(-1.5, 1.5), y + rng.uniform(-0.4, 0.4), z + rng.uniform(-1.5, 1.5)] for _ in range(3)]
+        if rng.random() < 0.1:
+            t[2] = t[1]                                         # a degenerate one
+        out.append(t)
+    return np.array(out, np.float32)
+
+
+def rules(rng: random.Random) -> int:
+    """navwalk's rules (headroom, stair_slope, narrow_lips, near_objects, on_objects) and walkable with every rule
+    switched on (pitch 0.2: the lips; stair, dynamic, exclude and forbidden objects), both backends."""
+    calls = 0
+    for case in range(14):
+        pitch = 0.2 if case % 2 == 0 else 0.8
+        s = runs(rng, rng.randint(4, 11), rng.randint(4, 11), pitch, f64_normals=case % 4 == 3)
+        n = len(s.y)
+        check(navwalk.native_samples(s) is not None, f'rules case {case}: a native grid')
+        def mask(p: float, n: int = n) -> np.ndarray:
+            return np.array([rng.random() < p for _ in range(n)], bool)
+        for ign in (None, mask(0.2), mask(0.0)):
+            check(same(navwalk.headroom(s, ign), py(navwalk.headroom, s, ign)), f'headroom case {case}')
+            calls += 1
+        for r, tol in ((1, 0.7), (2, 1.1), (4, 0.7), (1, 0.25)):
+            m = mask(0.5)
+            check(same(navwalk.stair_slope(s, m, r=r, tol=tol), py(navwalk.stair_slope, s, m, r=r, tol=tol)),
+                  f'stair_slope case {case} r {r} tol {tol}')
+            calls += 1
+        for rise, flat, width, slope in ((None, None, 2, 40.0), (0.3, None, 2, 40.0), (0.3, 15.0, 2, 40.0),
+                                         (None, 15.0, 3, 30.0), (0.05, None, 1, 45.0)):
+            base, cand = mask(0.6), mask(0.4)
+            a = navwalk.narrow_lips(s, base, cand, slope, width, rise=rise, flat=flat)
+            b = py(navwalk.narrow_lips, s, base, cand, slope, width, rise=rise, flat=flat)
+            check(same(a, b), f'narrow_lips case {case} rise {rise} flat {flat} width {width}')
+            calls += 1
+        tris = tris_near(rng, s, 30)
+        for grow, below, above in ((0.5, 2.2, 0.3), (0.4, 0.6, 0.6), (0.1, -0.05, 0.0), (1, 1, 0)):
+            check(same(navwalk.near_objects(s, tris, grow, below, above),
+                       py(navwalk.near_objects, s, tris, grow, below, above)), f'near_objects case {case}')
+            calls += 1
+        for tol in (0.2, 0.08, 0.5):
+            check(same(navwalk.on_objects(s, tris, tol), py(navwalk.on_objects, s, tris, tol)), f'on_objects case {case}')
+            calls += 1
+        seeds = [(rng.uniform(0, s.nx * s.pitch), rng.uniform(0, 3), rng.uniform(0, s.nz * s.pitch)) for _ in range(3)]
+        kw: dict[str, Any] = dict(return_gradients=True, return_stairs=True, extra_seeds=seeds, anchors=seeds[:1],
+                                  dynamic_tris=tris_near(rng, s, 6), stair_tris=tris_near(rng, s, 6),
+                                  exclude_tris=tris_near(rng, s, 4), exclude_footprint_tris=tris_near(rng, s, 3),
+                                  forbid_tris=tris_near(rng, s, 5))
+        a, b = navwalk.walkable(s, **kw), py(navwalk.walkable, s, **kw)
+        check(same(a, b), f'walkable (every rule) case {case}')
+        calls += 1
+    # the run's numbers of a kind the port does not take: Python runs, the same answers
+    s = runs(rng, 5, 5, 0.2)
+    s.pitch = np.float32(0.2)
+    check(navwalk.native_samples(s) is None, 'a float32 pitch: no native grid')
+    s = runs(rng, 5, 5, 0.2)
+    check(navwalk._tris_f64(np.zeros((2, 9))) is None, 'triangles not n x 3 x 3: Python runs')
+    zero = np.zeros((2, 3, 3), np.float32)                                     # two triangles in one point
+    check(same(navwalk.near_objects(s, zero), py(navwalk.near_objects, s, zero)), 'near_objects on point triangles')
+    nan_tris = tris_near(rng, s, 3)
+    nan_tris[1, 0, 0] = np.nan                                                 # the port refuses, the reference raises
+    try:
+        navwalk.near_objects(s, nan_tris)
+        check(False, 'near_objects with a NaN x: the reference raises')
+    except ValueError:
+        pass
+    check(same(navwalk.on_objects(s, nan_tris), py(navwalk.on_objects, s, nan_tris)), 'on_objects with a NaN x')
+    check(same(navwalk.stair_slope(s, np.ones(len(s.y), bool), r=cast(Any, np.int64(1))),
+               py(navwalk.stair_slope, s, np.ones(len(s.y), bool), r=1)), 'stair_slope with a NumPy r: Python, the same')
+    return calls
+
+
+def areas_and_picks(rng: random.Random) -> int:
+    """build_areas (tiles, components, bisection) and build_graph's centre and portal cells, both backends."""
+    calls = 0
+    saved = (nb.BISECT_AREAS, nb.MAX_AREA)
+    try:
+        for case in range(12):
+            lv = grid(rng, rng.randint(5, 14), rng.randint(5, 14), case % 2 == 0, 0.8 if case % 3 else 0.2)
+            nb.BISECT_AREAS, nb.MAX_AREA = case % 3 != 0, rng.choice([1, 2, 3, 5, 25])
+            for start, tile, tiles in (((-1, -1), 3, 3), ((0, 0), 4, 2), ((2, -1), 1, 6), ((0, 3), 100, 1)):
+                a = nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=lv.cfg)
+                b = py(nb.build_areas, lv, 0, 0, start, tile, tiles, cfg=lv.cfg)
+                check(a == b, f'build_areas case {case} start {start} tile {tile} bisect {nb.BISECT_AREAS}')
+                calls += 1
+            areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
+            big = [x for x in areas if len(x['cells']) >= 4]
+            got = nb._centre_cells(big)
+            want: list[int] = []
+            for x in big:
+                ci = sum(c[0] for c in x['cells']) / len(x['cells'])
+                cj = sum(c[1] for c in x['cells']) / len(x['cells'])
+                keys = [(c[0] - ci) ** 2 + (c[1] - cj) ** 2 for c in x['cells']]
+                want.append(keys.index(min(keys)))
+            check(got == want, f'centre cells case {case}')
+            ox, oz = rng.choice([0.0, -300.0, 1200.0, -910.4000244140625]), rng.choice([0.0, 500.0, -100.0])
+            ends: list[tuple[int, list[tuple[float, float]]]] = []
+            for ai, x in enumerate(areas):
+                i0, j0 = min(c[0] for c in x['cells']), min(c[1] for c in x['cells'])
+                mids = [(ox + (i0 + rng.choice([-0.5, 0.5, 1.5, 3.0])) * lv.cfg.pitch,
+                         oz + (j0 + rng.choice([-0.5, 0.0, 2.5])) * lv.cfg.pitch) for _ in range(rng.randint(0, 3))]
+                ends.append((ai, mids))
+            got2 = nb._nearest_cells(areas, ends, ox, oz, lv.cfg.pitch)
+            want2: list[list[int]] = []
+            for ai, mids in ends:
+                want2.append([])
+                for mx, mz in mids:
+                    keys = [(ox + c[0] * lv.cfg.pitch - mx) ** 2 + (oz + c[1] * lv.cfg.pitch - mz) ** 2
+                            for c in areas[ai]['cells']]
+                    want2[-1].append(keys.index(min(keys)))
+            check(got2 == want2, f'portal cells case {case}')
+            calls += 2
+    finally:
+        nb.BISECT_AREAS, nb.MAX_AREA = saved
+    # numbers of a kind the port does not take: build_graph picks them itself
+    check(nb._nearest_cells([{'cells': [(0, 0, 0)]}], [(0, [(0.5, 0.5)])], cast(Any, np.float32(0.0)), 0.0,
+                            0.8) is None,
+          'a float32 origin: no native picking')
+    check(nb._centre_cells([{'cells': [(0.0, 0, 0)] * 4}]) is None, 'float cells: no native picking')
+    check(nb._centre_cells([{'cells': []}]) is None, 'an area without cells: the reference raises, Python runs')
+    return calls
 
 
 def game(levels: list[str]) -> None:
