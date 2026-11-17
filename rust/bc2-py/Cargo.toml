@@ -16,6 +16,7 @@ crate-type = ["cdylib", "rlib"]
 bc2-formats.workspace = true
 bc2-scene.workspace = true
 bc2-convert.workspace = true
+bc2-navbuild.workspace = true
 pyo3.workspace = true
 rayon.workspace = true
 

@@ -31,11 +31,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "bc2-navbuild"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "thiserror",
+]
+
+[[package]]
 name = "bc2-py"
 version = "0.1.0"
 dependencies = [
  "bc2-convert",
  "bc2-formats",
+ "bc2-navbuild",
  "bc2-scene",
  "pyo3",
  "rayon",

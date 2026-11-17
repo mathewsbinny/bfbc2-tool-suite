@@ -70,10 +70,13 @@ fn layouts_as_the_reference() {
     assert!(layout(4, 4, 1, 77, 1).is_none());
 }
 
+/// (format, width, height, mips, type) of a built texture.
+type Args = (u32, usize, usize, usize, u32);
+
 #[test]
 fn conversions_as_the_reference() {
     // (format, width, height, mips, type) -> (length, sha1) of texture.convert_python on the same bytes
-    let cases: [((u32, usize, usize, usize, u32), usize, &str); 10] = [
+    let cases: [(Args, usize, &str); 10] = [
         ((0, 64, 64, 7, 0), 2836, "7317e323fb88d6e754e415e66bc1fe3fcf38b103"),
         ((3, 32, 16, 6, 0), 780, "673292209fd7462534e4f5650de1b20378f35d25"),
         ((3, 6, 10, 4, 0), 204, "65d01ad502298238550177c57a8dad18e51d1a0c"),

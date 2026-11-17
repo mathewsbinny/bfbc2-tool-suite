@@ -12,7 +12,9 @@ use pyo3::types::{PyBytes, PyBytesMethods, PyList};
 #[pyfunction]
 pub fn texture_convert<'py>(py: Python<'py>, data: &Bound<'py, PyBytes>) -> PyResult<Bound<'py, PyBytes>> {
     let bytes = data.as_bytes();
-    let out = py.detach(|| texture::convert(bytes)).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let out = py
+        .detach(|| texture::convert(bytes))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(PyBytes::new(py, &out))
 }
 

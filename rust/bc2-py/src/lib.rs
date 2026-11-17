@@ -14,6 +14,7 @@
 
 mod convert;
 mod geometry;
+mod navbuild;
 mod scene;
 
 use bc2_formats::dbx::{self, DbxError, DbxTree};
@@ -265,6 +266,9 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::convert::{texture_convert, texture_convert_many};
+
+    #[pymodule_export]
+    use super::navbuild::NavLevel;
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]
