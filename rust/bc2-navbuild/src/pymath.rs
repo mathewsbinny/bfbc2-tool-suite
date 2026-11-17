@@ -1,8 +1,9 @@
 //! CPython's float functions where they are not the C library's, bit for bit: the walkability rules and the graph's
 //! cell picking compute with them, and a last-bit difference can flip a threshold.
 //!
-//! - `math.hypot(x, y)` is CPython's own `vector_norm` (3.8+: scaled, compensated, a differential correction), not
-//!   the C library's `hypot`: [`hypot`].
+//! - `math.hypot(x, y)` and `math.dist(p, q)` are CPython's own `vector_norm` (3.8+: scaled, compensated, a
+//!   differential correction), not the C library's `hypot`: [`hypot`], [`dist3`], [`dist2`].
+//! - `x // w` on floats is CPython's `float_floor_div` (fmod, then the quotient rounded): [`floordiv`].
 //! - `x ** 2` on a Python float calls the C library's `pow(|x|, 2.0)`, which is not always `x * x` (1 in 2,000 here):
 //!   [`sq`] calls the same `pow`, kept from being folded into a multiply.
 //! - `math.atan` is the C library's (`f64::atan` calls the same function); `math.degrees` multiplies by
@@ -82,13 +83,11 @@ fn vector_norm(vec: &[f64], max: f64) -> f64 {
     h / scale
 }
 
-/// `math.hypot(x, y)`.
-#[must_use]
-pub fn hypot(x: f64, y: f64) -> f64 {
-    let v = [x.abs(), y.abs()];
+/// CPython's `math.hypot` / `math.dist` over the absolute values `v` (its `vector_norm` with the checks before it).
+fn norm(v: &[f64]) -> f64 {
     let mut max = 0.0f64;
     let mut nan = false;
-    for &a in &v {
+    for &a in v {
         nan |= a.is_nan();
         if a > max {
             max = a;
@@ -100,10 +99,48 @@ pub fn hypot(x: f64, y: f64) -> f64 {
     if nan {
         return f64::NAN;
     }
-    if max == 0.0 {
+    if max == 0.0 || v.len() <= 1 {
         return max;
     }
-    vector_norm(&v, max)
+    vector_norm(v, max)
+}
+
+/// `math.hypot(x, y)`.
+#[must_use]
+pub fn hypot(x: f64, y: f64) -> f64 {
+    norm(&[x.abs(), y.abs()])
+}
+
+/// `math.dist(p, q)` for two points of three coordinates.
+#[must_use]
+pub fn dist3(p: (f64, f64, f64), q: (f64, f64, f64)) -> f64 {
+    norm(&[(p.0 - q.0).abs(), (p.1 - q.1).abs(), (p.2 - q.2).abs()])
+}
+
+/// `math.dist(p, q)` for two points of two coordinates.
+#[must_use]
+pub fn dist2(p: (f64, f64), q: (f64, f64)) -> f64 {
+    norm(&[(p.0 - q.0).abs(), (p.1 - q.1).abs()])
+}
+
+/// `x // w` on Python floats (CPython's `float_floor_div`, NumPy's `floor_divide` the same): `None` for w = 0
+/// (`ZeroDivisionError`).
+#[must_use]
+pub fn floordiv(x: f64, w: f64) -> Option<f64> {
+    if w == 0.0 {
+        return None;
+    }
+    let m = x % w; // fmod
+    let mut div = (x - m) / w;
+    if m != 0.0 && (w < 0.0) != (m < 0.0) {
+        div -= 1.0;
+    }
+    Some(if div == 0.0 {
+        0.0f64.copysign(x / w)
+    } else {
+        let f = div.floor();
+        if div - f > 0.5 { f + 1.0 } else { f }
+    })
 }
 
 /// `x ** 2` on a Python float: the C library's `pow(|x|, 2.0)` (CPython's `float_pow` takes the sign off for an
@@ -150,6 +187,23 @@ mod tests {
         assert_eq!(frexp_exp(tiny), -1073);
         assert_eq!(pow2(-1074), tiny);
         assert_eq!(pow2(1023), 2f64.powi(1023));
+    }
+
+    #[test]
+    fn dists_and_floordiv() {
+        assert_eq!(dist3((0.0, 0.0, 0.0), (1.0, 2.0, 2.0)), 3.0);
+        assert_eq!(dist3((1.0, 1.0, 1.0), (1.0, 1.0, 1.0)), 0.0);
+        assert!(dist3((f64::NAN, 0.0, 0.0), (0.0, 0.0, 0.0)).is_nan());
+        assert_eq!(dist2((0.0, 0.0), (3.0, -4.0)), 5.0);
+        assert_eq!(floordiv(7.0, 2.0), Some(3.0));
+        assert_eq!(floordiv(-7.0, 2.0), Some(-4.0));
+        assert_eq!(floordiv(7.0, -2.0), Some(-4.0));
+        assert_eq!(floordiv(-0.5, 15.0), Some(-1.0));
+        assert_eq!(floordiv(0.0, 15.0).map(f64::to_bits), Some(0.0f64.to_bits()));
+        assert_eq!(floordiv(-0.0, 15.0).map(f64::to_bits), Some((-0.0f64).to_bits()));
+        assert_eq!(floordiv(1.0, 0.0), None);
+        // (x - fmod) / w is not always integral: CPython rounds it to the nearer integer
+        assert_eq!(floordiv(1.0, 0.1), Some(9.0));
     }
 
     #[test]

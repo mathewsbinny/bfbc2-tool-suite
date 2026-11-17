@@ -21,6 +21,7 @@ mod convert;
 mod culltree;
 mod geometry;
 mod navbuild;
+mod navtrace;
 mod scene;
 mod shaders;
 mod writers;
@@ -288,6 +289,9 @@ mod bc2_native {
     use super::navbuild::{
         NavGrid, NavLevel, navkit_centre_cells, navkit_float_ops, navkit_matched_flags, navkit_nearest_cells,
     };
+
+    #[pymodule_export]
+    use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

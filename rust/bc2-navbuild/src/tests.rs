@@ -132,7 +132,7 @@ fn prefer_and_nearest() {
     };
     let l = Level::new(d).unwrap();
     assert_eq!(l.neighbour(0, 0, 0, 1, 0, None, Rule::Raw), Some(2));
-    let p: HashSet<usize> = [3, 1].into();
+    let p: FastSet<usize> = [3, 1].into_iter().collect();
     assert_eq!(
         l.neighbour(0, 0, 0, 1, 0, Some(&p), Rule::Raw),
         Some(1),

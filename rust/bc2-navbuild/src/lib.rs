@@ -31,12 +31,73 @@
 #![allow(clippy::cast_precision_loss)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::{BuildHasherDefault, Hasher};
 
 use thiserror::Error;
 
+pub mod graph;
+pub mod navsample;
 pub mod pick;
 pub mod pymath;
+pub mod route;
 pub mod rules;
+pub mod trace;
+pub mod window;
+
+/// A fast hasher for the integer keys of the walks' maps (`FxHash`'s rotate, xor and multiply): no map whose iteration
+/// order reaches an answer uses it - they are looked up only.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FxHasher {
+    hash: u64,
+}
+
+impl FxHasher {
+    fn add(&mut self, w: u64) {
+        self.hash = (self.hash.rotate_left(5) ^ w).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+}
+
+impl Hasher for FxHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        let (words, rest) = bytes.as_chunks::<8>();
+        for w in words {
+            self.add(u64::from_le_bytes(*w));
+        }
+        for &b in rest {
+            self.add(u64::from(b));
+        }
+    }
+
+    fn write_u8(&mut self, v: u8) {
+        self.add(u64::from(v));
+    }
+
+    fn write_u32(&mut self, v: u32) {
+        self.add(u64::from(v));
+    }
+
+    fn write_u64(&mut self, v: u64) {
+        self.add(v);
+    }
+
+    fn write_usize(&mut self, v: usize) {
+        self.add(v as u64);
+    }
+
+    fn write_i64(&mut self, v: i64) {
+        self.add(v as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+}
+
+/// A `HashMap` with [`FxHasher`].
+pub type FastMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
+
+/// A `HashSet` with [`FxHasher`].
+pub type FastSet<T> = HashSet<T, BuildHasherDefault<FxHasher>>;
 
 /// Why a call is refused (the Python reference would raise; the binding then runs it).
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -287,7 +348,9 @@ impl Level {
             .ok_or(NavError::Surface(k))
     }
 
-    fn y(&self, k: usize) -> f64 {
+    /// The height of surface k (`Level.y[k]`; 0 outside the level).
+    #[must_use]
+    pub fn y(&self, k: usize) -> f64 {
         self.y.get(k).copied().unwrap_or(0.0)
     }
 
@@ -369,7 +432,7 @@ impl Level {
         gj: i64,
         di: i64,
         dj: i64,
-        prefer: Option<&HashSet<usize>>,
+        prefer: Option<&FastSet<usize>>,
         rule: Rule,
     ) -> Option<usize> {
         let mut best = None;
@@ -396,14 +459,16 @@ impl Level {
     #[must_use]
     pub fn components(&self, members: &[(usize, i64, i64)], gi0: i64, gj0: i64, rule: Rule) -> Vec<Vec<Cell>> {
         // a dict: a surface given twice keeps its first place and its last cell
-        let mut at: HashMap<usize, (i64, i64)> = HashMap::with_capacity(members.len());
+        let mut at: FastMap<usize, (i64, i64)> = FastMap::default();
+        at.reserve(members.len());
         let mut order = Vec::with_capacity(members.len());
         for &(k, i, j) in members {
             if at.insert(k, (i, j)).is_none() {
                 order.push(k);
             }
         }
-        let mut seen: HashSet<usize> = HashSet::with_capacity(order.len());
+        let mut seen: FastSet<usize> = FastSet::default();
+        seen.reserve(order.len());
         let mut out = Vec::new();
         for k0 in order {
             if !seen.insert(k0) {
@@ -411,7 +476,7 @@ impl Level {
             }
             let mut comp = Vec::new();
             let mut q = VecDeque::from([k0]);
-            let mut cols: HashSet<(i64, i64)> = HashSet::new();
+            let mut cols: FastSet<(i64, i64)> = FastSet::default();
             if let Some(&c) = at.get(&k0) {
                 cols.insert(c);
             }
@@ -518,7 +583,7 @@ impl Level {
     /// `rule`, preferring the area's own surfaces (`trace_edges`' calls).
     #[must_use]
     pub fn side_neighbours(&self, cells: &[Cell], gi0: i64, gj0: i64, rule: Rule) -> Vec<Option<usize>> {
-        let own: HashSet<usize> = cells.iter().map(|c| c.2).collect();
+        let own: FastSet<usize> = cells.iter().map(|c| c.2).collect();
         let mut out = Vec::with_capacity(cells.len() * 4);
         for &(i, j, k) in cells {
             for (di, dj) in DIRS4 {
@@ -532,9 +597,9 @@ impl Level {
     /// across one; a diagonal step when the straight line passes through the side column it leaves first
     /// (`xfirst`: `Some(true)` = (di, 0), `Some(false)` = (0, dj), `None` = through the corner, either way).
     #[expect(clippy::too_many_arguments, reason = "the reference's arguments")]
-    fn crosses_d(
+    fn crosses_d<S: std::hash::BuildHasher>(
         &self,
-        blocked: &HashSet<(usize, usize)>,
+        blocked: &HashSet<(usize, usize), S>,
         k: usize,
         nk: usize,
         gi: i64,
@@ -562,7 +627,7 @@ impl Level {
     /// on k1 or within 0.6 m of its height; it does not step across a D side in `blocked` (`line_walkable`).
     #[must_use]
     #[expect(clippy::too_many_arguments, reason = "the reference's arguments")]
-    pub fn line_walkable(
+    pub fn line_walkable<S: std::hash::BuildHasher>(
         &self,
         k0: usize,
         a: (i64, i64),
@@ -570,7 +635,7 @@ impl Level {
         gi0: i64,
         gj0: i64,
         k1: usize,
-        blocked: &HashSet<(usize, usize)>,
+        blocked: &HashSet<(usize, usize), S>,
         rule: Rule,
     ) -> bool {
         let ((i0, j0), (i1, j1)) = (a, b);
@@ -628,7 +693,7 @@ impl Level {
         gj0: i64,
         rule: Rule,
     ) -> Result<Option<Vec<usize>>, NavError> {
-        let mut prev: HashMap<usize, Option<usize>> = starts.iter().map(|&k| (k, None)).collect();
+        let mut prev: FastMap<usize, Option<usize>> = starts.iter().map(|&k| (k, None)).collect();
         let mut queue: VecDeque<usize> = starts.iter().copied().collect();
         let inside = |v: i64| window.0 <= v && v < window.1;
         while let Some(k) = queue.pop_front() {

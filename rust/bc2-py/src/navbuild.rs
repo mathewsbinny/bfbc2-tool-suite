@@ -5,11 +5,16 @@
 
 use std::collections::HashSet;
 
+use bc2_navbuild::route::{self, RouteCfg};
 use bc2_navbuild::rules::{Grid, LipTests, Tri};
-use bc2_navbuild::{CellMap, Floats, Level, LevelData, NavError, Rule, pick, pymath};
+use bc2_navbuild::trace::{self, TraceCfg};
+use bc2_navbuild::{Cell, CellMap, Floats, Level, LevelData, NavError, Rule, pick, pymath};
+use rayon::prelude::*;
+
+use crate::navtrace;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyBytesMethods, PyDict, PyList, PySet, PyTuple};
+use pyo3::types::{PyAny, PyBool, PyBytes, PyBytesMethods, PyDict, PyFloat, PyInt, PyList, PySet, PyTuple};
 
 fn value_error(e: impl std::fmt::Display) -> PyErr {
     PyValueError::new_err(e.to_string())
@@ -80,7 +85,7 @@ pub fn navkit_matched_flags<'py>(
 pub fn navkit_centre_cells(py: Python<'_>, areas: Vec<Vec<(i64, i64, i64)>>) -> PyResult<Vec<usize>> {
     py.detach(|| {
         areas
-            .iter()
+            .par_iter()
             .map(|cells| {
                 let ij: Vec<(i64, i64)> = cells.iter().map(|c| (c.0, c.1)).collect();
                 pick::centre_cell(&ij)
@@ -107,7 +112,7 @@ pub fn navkit_nearest_cells(
 ) -> PyResult<Vec<Vec<usize>>> {
     py.detach(|| {
         groups
-            .iter()
+            .par_iter()
             .map(|(cells, points)| {
                 let ij: Vec<(i64, i64)> = cells.iter().map(|c| (c.0, c.1)).collect();
                 pick::nearest_cells(&ij, ox, oz, pitch, points)
@@ -117,14 +122,21 @@ pub fn navkit_nearest_cells(
     .ok_or_else(|| value_error("an area without cells, or cells a float cannot hold"))
 }
 
-/// CPython's float functions as the port computes them, for the parity tests: for float64 bytes `a`, `b` (as many
-/// values each), `math.hypot(a, b)`, `a ** 2` and `math.degrees(math.atan(math.hypot(a, b)))`, float64 bytes each.
+/// CPython's and NumPy's float functions as the port computes them, for the parity tests: for float64 bytes `a`, `b`
+/// (as many values each), `math.hypot(a, b)`, `a ** 2`, `math.degrees(math.atan(math.hypot(a, b)))` and
+/// `np.hypot(a, b)` (the C library's), float64 bytes each.
 #[pyfunction]
+#[expect(clippy::type_complexity, reason = "four arrays of bytes")]
 pub fn navkit_float_ops<'py>(
     py: Python<'py>,
     a: &Bound<'py, PyBytes>,
     b: &Bound<'py, PyBytes>,
-) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+) -> PyResult<(
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+)> {
     let (xs, zs) = (heights(a.as_bytes())?, heights(b.as_bytes())?);
     if xs.len() != zs.len() {
         return Err(value_error("a and b differ in length"));
@@ -132,7 +144,13 @@ pub fn navkit_float_ops<'py>(
     let hyp: Vec<f64> = xs.iter().zip(&zs).map(|(&x, &z)| pymath::hypot(x, z)).collect();
     let sqs: Vec<f64> = xs.iter().map(|&x| pymath::sq(x)).collect();
     let deg: Vec<f64> = xs.iter().zip(&zs).map(|(&x, &z)| pymath::slope_deg(x, z)).collect();
-    Ok((f64_bytes(py, &hyp), f64_bytes(py, &sqs), f64_bytes(py, &deg)))
+    let chyp: Vec<f64> = xs.iter().zip(&zs).map(|(&x, &z)| x.hypot(z)).collect();
+    Ok((
+        f64_bytes(py, &hyp),
+        f64_bytes(py, &sqs),
+        f64_bytes(py, &deg),
+        f64_bytes(py, &chyp),
+    ))
 }
 
 fn flags(b: &[u8]) -> Vec<bool> {
@@ -260,6 +278,59 @@ impl NavGrid {
             .detach(|| self.grid.near_objects(&t, grow, below, above))
             .map_err(value_error)?;
         Ok(bool_bytes(py, &out))
+    }
+
+    /// `navwalk.near_characters(s, character, grow, below, above)`: one byte per surface.
+    fn near_characters<'py>(
+        &self,
+        py: Python<'py>,
+        character: &Bound<'py, PyBytes>,
+        grow: f64,
+        below: f64,
+        above: f64,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        let c = flags(character.as_bytes());
+        let out = py
+            .detach(|| self.grid.near_characters(&c, grow, below, above))
+            .map_err(value_error)?;
+        Ok(bool_bytes(py, &out))
+    }
+
+    /// `walkable`'s picks of the surfaces at points (`[(x, y, z)]`: three Python floats or ints each): per point
+    /// the surface `Grid::column_pick` gives among those `mask` marks (one byte per surface) with height - y in
+    /// [lo, hi], or -1.
+    fn column_picks(
+        &self,
+        py: Python<'_>,
+        points: &Bound<'_, PyList>,
+        mask: &Bound<'_, PyBytes>,
+        lo: f64,
+        hi: f64,
+    ) -> PyResult<Vec<i64>> {
+        let num = |v: &Bound<'_, PyAny>| -> PyResult<f64> {
+            if v.is_instance_of::<PyFloat>() || (v.is_instance_of::<PyInt>() && !v.is_instance_of::<PyBool>()) {
+                v.extract::<f64>()
+            } else {
+                Err(value_error("a point coordinate that is not a Python number"))
+            }
+        };
+        let pts = points
+            .iter()
+            .map(|p| {
+                let v = p.try_iter()?.collect::<PyResult<Vec<Bound<'_, PyAny>>>>()?;
+                let [x, y, z] = v.as_slice() else {
+                    return Err(value_error("a point that is not (x, y, z)"));
+                };
+                Ok((num(x)?, num(y)?, num(z)?))
+            })
+            .collect::<PyResult<Vec<(f64, f64, f64)>>>()?;
+        let m = flags(mask.as_bytes());
+        py.detach(|| {
+            pts.iter()
+                .map(|&p| self.grid.column_pick(p, &m, lo, hi).map(|n| n.map_or(-1, |n| n as i64)))
+                .collect::<Result<Vec<i64>, NavError>>()
+        })
+        .map_err(value_error)
     }
 
     /// `navwalk.on_objects(s, tris, tol)` for the triangles its bounding-box filter keeps (float64 bytes).
@@ -477,6 +548,54 @@ impl NavLevel {
             .map_err(|e: NavError| value_error(e))
     }
 
+    /// `build_areas` for every sector of a stage at once, in parallel: `sectors` = `[(gi0, gj0, window, start, tile,
+    /// tiles)]`; per sector its areas as `(tile, cells, lowest y, highest y)` - the heights as Python's `min` / `max`
+    /// over the cells' `level.y` take them (the first of equals).
+    #[expect(clippy::type_complexity, reason = "PyO3 extracts the lists as they are")]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts a list argument as an owned Vec"
+    )]
+    fn build_areas_many<'py>(
+        &self,
+        py: Python<'py>,
+        sectors: Vec<(i64, i64, (i64, i64), (i64, i64), i64, i64)>,
+        max_area: Option<i64>,
+        rule_name: &str,
+    ) -> PyResult<Bound<'py, PyList>> {
+        let rule = rule(rule_name)?;
+        let level = &self.level;
+        let got = py
+            .detach(|| {
+                sectors
+                    .par_iter()
+                    .map(|&(gi0, gj0, window, start, tile, tiles)| {
+                        level.build_areas(gi0, gj0, window, start, tile, tiles, max_area, rule)
+                    })
+                    .collect::<Result<Vec<_>, NavError>>()
+            })
+            .map_err(value_error)?;
+        let out = PyList::empty(py);
+        for areas in got {
+            let sector = PyList::empty(py);
+            for (t, cells) in areas {
+                // min / max over the cells' heights in order, as Python's builtins compare (`<`, `>`)
+                let mut ys = cells.iter().map(|c| level.y(c.2));
+                let first = ys.next().unwrap_or(f64::NAN);
+                let (lo, hi) = ys.fold((first, first), |(lo, hi), v| {
+                    (if v < lo { v } else { lo }, if v > hi { v } else { hi })
+                });
+                let cells: Vec<Bound<'py, PyTuple>> = cells
+                    .into_iter()
+                    .map(|cell| cell.into_pyobject(py))
+                    .collect::<PyResult<_>>()?;
+                sector.append((t, PyList::new(py, cells)?, lo, hi))?;
+            }
+            out.append(sector)?;
+        }
+        Ok(out)
+    }
+
     /// `navbuild.build_areas(level, gi0, gj0, start, tile, tiles)` over the sector window `window` (start, stop;
     /// step 1), bisected at `max_area` (`MAX_AREA` when `BISECT_AREAS`, else `None`): the areas as `(tile, cells)`.
     #[expect(clippy::too_many_arguments, reason = "the reference's arguments")]
@@ -508,6 +627,232 @@ impl NavLevel {
             out.append((t, PyList::new(py, cells)?))?;
         }
         Ok(out)
+    }
+
+    /// `navbuild.trace_edges(level, areas, area_of, gi0, gj0)` with the areas' cells `[[(i, j, k)]]`, `area_of` (None:
+    /// each cell's surface to its area, as the build makes it), the sector window (start, stop), `cfg.y_offset`,
+    /// `LINK_RULE` and `SYMMETRIC_PORTALS`: (per area a `defaultdict(list)` of `(along, y)` rows, one-way candidates).
+    #[expect(clippy::too_many_arguments, reason = "the reference's arguments and settings")]
+    #[pyo3(signature = (areas, area_of, gi0, gj0, window, y_offset, rule_name, symmetric))]
+    fn trace_edges<'py>(
+        &self,
+        py: Python<'py>,
+        areas: Vec<Vec<(i64, i64, i64)>>,
+        area_of: Option<&Bound<'py, PyDict>>,
+        gi0: i64,
+        gj0: i64,
+        window: (i64, i64),
+        y_offset: f64,
+        rule_name: &str,
+        symmetric: bool,
+    ) -> PyResult<(Bound<'py, PyList>, Bound<'py, PyList>)> {
+        let cfg = TraceCfg {
+            gi0,
+            gj0,
+            window,
+            y_offset,
+            rule: rule(rule_name)?,
+        };
+        let cells = areas
+            .iter()
+            .map(|a| navtrace::cells_of(&self.level, a))
+            .collect::<PyResult<Vec<Vec<Cell>>>>()?;
+        let aof = match area_of {
+            Some(d) => navtrace::area_of_dict(&self.level, d)?,
+            None => trace::area_of(&cells),
+        };
+        let (per_area, one_way) = py
+            .detach(|| trace::trace_edges(&self.level, &cells, &aof, cfg, symmetric))
+            .map_err(value_error)?;
+        navtrace::edges_to_py(py, &per_area, &one_way)
+    }
+
+    /// `trace_edges` for several sectors at once, in parallel: `sectors` = `[(areas' cells, gi0, gj0)]`, each with the
+    /// build's `area_of`; the answers `[(per_area, one_way)]` in the sectors' order.
+    #[expect(clippy::type_complexity, reason = "PyO3 extracts the lists as they are")]
+    fn trace_edges_many<'py>(
+        &self,
+        py: Python<'py>,
+        sectors: Vec<(Vec<Vec<(i64, i64, i64)>>, i64, i64)>,
+        window: (i64, i64),
+        y_offset: f64,
+        rule_name: &str,
+        symmetric: bool,
+    ) -> PyResult<Bound<'py, PyList>> {
+        let rule = rule(rule_name)?;
+        let prepared = sectors
+            .iter()
+            .map(|(areas, gi0, gj0)| {
+                let cells = areas
+                    .iter()
+                    .map(|a| navtrace::cells_of(&self.level, a))
+                    .collect::<PyResult<Vec<Vec<Cell>>>>()?;
+                Ok((cells, *gi0, *gj0))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let level = &self.level;
+        let got = py
+            .detach(|| {
+                prepared
+                    .par_iter()
+                    .map(|(cells, gi0, gj0)| {
+                        let cfg = TraceCfg {
+                            gi0: *gi0,
+                            gj0: *gj0,
+                            window,
+                            y_offset,
+                            rule,
+                        };
+                        trace::trace_edges(level, cells, &trace::area_of(cells), cfg, symmetric)
+                    })
+                    .collect::<Result<Vec<_>, NavError>>()
+            })
+            .map_err(value_error)?;
+        let out = PyList::empty(py);
+        for (per_area, one_way) in &got {
+            out.append(navtrace::edges_to_py(py, per_area, one_way)?)?;
+        }
+        Ok(out)
+    }
+
+    /// `navbuild.trace_emit(level, areas, per_area, gi0, gj0, ox, oz)` with `BRIDGE_UNION`, the areas' cells and their
+    /// edge rows (`per_area`, as `trace_edges` made them and the build changed them; left as they are): per area
+    /// (portals `[(p0, p1, target)]`, borders `[(p0, p1, direction, first, last, line)]`, outline `[[p0, p1]]`).
+    #[expect(clippy::too_many_arguments, reason = "the reference's arguments and settings")]
+    fn trace_emit<'py>(
+        &self,
+        py: Python<'py>,
+        areas: Vec<Vec<(i64, i64, i64)>>,
+        per_area: &Bound<'py, PyList>,
+        gi0: i64,
+        gj0: i64,
+        origin: (f64, f64),
+        pitch: f64,
+        y_offset: f64,
+        rule_name: &str,
+    ) -> PyResult<Bound<'py, PyList>> {
+        let cfg = TraceCfg {
+            gi0,
+            gj0,
+            window: (0, 0),
+            y_offset,
+            rule: rule(rule_name)?,
+        };
+        if per_area.len() < areas.len() {
+            return Err(value_error("fewer edge sets than areas"));
+        }
+        let cells = areas
+            .iter()
+            .map(|a| navtrace::cells_of(&self.level, a))
+            .collect::<PyResult<Vec<Vec<Cell>>>>()?;
+        let mut rows = navtrace::edges_from_py(per_area)?;
+        rows.truncate(cells.len());
+        let em = py.detach(|| trace::trace_emit(&self.level, &cells, rows, cfg, origin.0, origin.1, pitch));
+        navtrace::emitted_to_py(py, &em)
+    }
+
+    /// `navbuild.add_cover_nodes(level, areas, pts, add, ox, oz, cover)` with the areas' cells: `add` is called for
+    /// each node to place (it may append to `pts`).
+    #[expect(clippy::too_many_arguments, reason = "the reference's arguments")]
+    fn cover_nodes(
+        &self,
+        py: Python<'_>,
+        areas: Vec<Vec<(i64, i64, i64)>>,
+        pts: &Bound<'_, PyList>,
+        add: &Bound<'_, PyAny>,
+        origin: (f64, f64),
+        pitch: f64,
+        y_offset: f64,
+        cover: f64,
+    ) -> PyResult<()> {
+        navtrace::cover_nodes(py, &self.level, &areas, pts, add, origin, pitch, y_offset, cover)
+    }
+
+    /// `build_graph`'s walkable pairs over the route nodes `pts` (`[(id, pos, k, i, j)]`) and the D sides given to
+    /// `set_blocked`: `[(node, node, distance)]` in the reference's order (the nodes tested in parallel).
+    #[expect(clippy::too_many_arguments, reason = "the sector's values")]
+    fn route_edges(
+        &self,
+        py: Python<'_>,
+        pts: &Bound<'_, PyList>,
+        gi0: i64,
+        gj0: i64,
+        window: (i64, i64),
+        dist_edge_max: f64,
+        rule_name: &str,
+    ) -> PyResult<Vec<(usize, usize, f64)>> {
+        let cfg = RouteCfg {
+            gi0,
+            gj0,
+            window,
+            dist_edge_max,
+            rule: rule(rule_name)?,
+        };
+        let nodes = navtrace::nodes_of(&self.level, pts)?;
+        let blocked = self.blocked.read().map_err(value_error)?.clone();
+        py.detach(|| route::edge_pairs(&self.level, &nodes, cfg, &blocked))
+            .map_err(value_error)
+    }
+
+    /// `build_graph`'s joining of the node groups: the route nodes `pts`, the `pairs` so far (`[(a, b, d)]`), the
+    /// areas' cells (`[[(i, j, k)]]`), the sector origin (ox, oz), pitch and `y_offset`, and the D sides given to
+    /// `set_blocked`. Returns (new nodes `[(k, i, j, pos)]` in creation order, new pairs `[(a, b, d)]`); nothing is
+    /// changed.
+    #[expect(clippy::too_many_arguments, reason = "the reference's state")]
+    #[expect(clippy::type_complexity, reason = "the reference's tuples")]
+    fn connect_groups(
+        &self,
+        py: Python<'_>,
+        pts: &Bound<'_, PyList>,
+        pairs: &Bound<'_, PyList>,
+        areas: Vec<Vec<(i64, i64, i64)>>,
+        origin: (f64, f64),
+        pitch: f64,
+        y_offset: f64,
+        sector: (i64, i64, (i64, i64), f64),
+        rule_name: &str,
+    ) -> PyResult<(Vec<(usize, i64, i64, (f64, f64, f64))>, Vec<(usize, usize, f64)>)> {
+        let (gi0, gj0, window, dist_edge_max) = sector;
+        let cfg = RouteCfg {
+            gi0,
+            gj0,
+            window,
+            dist_edge_max,
+            rule: rule(rule_name)?,
+        };
+        let nodes = navtrace::nodes_of(&self.level, pts)?;
+        let mut links = Vec::with_capacity(pairs.len());
+        for p in pairs.iter() {
+            let (a, b) = (p.get_item(0)?.extract::<i64>()?, p.get_item(1)?.extract::<i64>()?);
+            match (usize::try_from(a), usize::try_from(b)) {
+                (Ok(a), Ok(b)) => links.push((a, b)),
+                _ => return Err(value_error("a negative node index")),
+            }
+        }
+        let mut cells = Vec::new();
+        for a in &areas {
+            cells.extend(navtrace::cells_of(&self.level, a)?);
+        }
+        let blocked = self.blocked.read().map_err(value_error)?.clone();
+        let got = py
+            .detach(|| {
+                route::connect_groups(
+                    &self.level,
+                    &nodes,
+                    &links,
+                    &cells,
+                    origin,
+                    pitch,
+                    y_offset,
+                    cfg,
+                    &blocked,
+                )
+            })
+            .map_err(value_error)?;
+        Ok((
+            got.nodes.iter().map(|n| (n.k, n.cell.0, n.cell.1, n.pos)).collect(),
+            got.pairs,
+        ))
     }
 
     /// `navwalk.walkable`'s flood: `kept` (one byte per surface) extended from the surfaces `queue` over the
