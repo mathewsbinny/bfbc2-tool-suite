@@ -104,12 +104,12 @@ def area_cells(area):
     pts = np.concatenate([a, b])
     sel_i, sel_j = ii[inside], jj[inside]
     sx, sz = sel_i * pitch, sel_j * pitch
-    out = {}
+    out: dict[tuple[int, int], float] = {}
     for k in range(0, len(sel_i), 2048):
         d = (sx[k:k + 2048, None] - pts[None, :, 0]) ** 2 + (sz[k:k + 2048, None] - pts[None, :, 2]) ** 2
         near = pts[np.argmin(d, axis=1), 1] - Y_OFFSET
-        for n in range(len(near)):
-            out[(int(sel_i[k + n]), int(sel_j[k + n]))] = float(near[n])
+        # the dict made from lists (Python ints and floats, as int() / float() give them; round E3h)
+        out.update(zip(zip(sel_i[k:k + 2048].tolist(), sel_j[k:k + 2048].tolist()), near.tolist()))
     return out
 
 
@@ -148,7 +148,32 @@ def match_cells(ref_cells, cand_cells):
 
 
 def pieces(segs, pitch):
-    """Segments as a set of grid-sized pieces in half-pitch units (xz only), direction-free."""
+    """Segments as a set of grid-sized pieces in half-pitch units (xz only), direction-free. With NumPy (round
+    E3h): the same arithmetic as pieces_reference, element by element (np.rint rounds half to even as round does)."""
+    segs = list(segs)
+    if not segs:
+        return set()
+    half = pitch / 2.0
+    q = np.array([(p0[0], p0[2], p1[0], p1[2]) for p0, p1 in segs], dtype=np.float64) / half
+    if not np.isfinite(q).all():
+        return pieces_reference(segs, pitch)
+    x0, z0, x1, z1 = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
+    steps = np.maximum(np.rint(np.maximum(np.abs(x1 - x0), np.abs(z1 - z0))).astype(np.int64), 1)
+    r = np.repeat(np.arange(len(segs)), steps)
+    k = np.arange(len(r)) - np.repeat(np.cumsum(steps) - steps, steps)
+    dx, dz, n = (x1 - x0)[r], (z1 - z0)[r], steps[r].astype(np.float64)
+    ax = np.rint(x0[r] + dx * k / n).astype(np.int64)
+    az = np.rint(z0[r] + dz * k / n).astype(np.int64)
+    bx = np.rint(x0[r] + dx * (k + 1) / n).astype(np.int64)
+    bz = np.rint(z0[r] + dz * (k + 1) / n).astype(np.int64)
+    swap = (ax > bx) | ((ax == bx) & (az > bz))
+    ax, bx = np.where(swap, bx, ax), np.where(swap, ax, bx)
+    az, bz = np.where(swap, bz, az), np.where(swap, az, bz)
+    return set(zip(zip(ax.tolist(), az.tolist()), zip(bx.tolist(), bz.tolist())))
+
+
+def pieces_reference(segs, pitch):
+    """pieces, one piece at a time (the reference)."""
     half = pitch / 2.0
     out = set()
     for p0, p1 in segs:
