@@ -148,6 +148,71 @@ on every bundle of the game copy and `work\ww2` (1,123 bundles, 833,461 entries,
   a back-reference before the start of the data ("invalid distance too far back"), so a damaged bundle zlib refuses
   read without an error (found by the damaged-bundle test, kept as a unit test).
 
+## The level loader in Rust (2026-11-16, branch `rust-e1a`)
+
+**Contended:** every figure below was taken while an OPFOR rebuild / WW2 install ran on the PC (it loads all cores),
+so absolute times are noisy (±30 % or more); the ratios and the stage shares are what to read. Files in the system
+cache; `level.load` medians of 3 runs, the scene alone best of 3.
+
+- `python rust\bench_level.py [--runs N] <levels>`: `level.load` and each stage it calls, in three modes:
+  **python** (everything in Python), **main** (main before E1a: the Rust DBX / FBRB readers, the rest in Python),
+  **rust** (the Rust scene and readers: today's `level.load`).
+- `cargo run --release -p bc2-scene --example scene_bench -- <OPFOR folder> <level> [runs]` (`RAYON_NUM_THREADS=1`
+  for one thread): the scene alone, its walk and XML reads, and each reader.
+
+### The profile (main, before the port)
+
+| `level.load`, whole load | MP_005 | SP_01 |
+|---|---:|---:|
+| **total** | **6.08 s** | **6.35 s** |
+| collision index (NavKit's `havok_index` + `mesh_aliases`: two globs and 17,500-18,200 XML files regex-scanned) | 5.54 s | 5.42 s |
+| DBX partitions (`read_many`) | 0.095 s | 0.178 s |
+| blueprints (`resolve_blueprints`) | 0.064 s | 0.055 s |
+| terrain mesh | 0.056 s | 0.066 s |
+| collision triangles (Havok packfiles) | 0.040 s | 0.046 s |
+| teams, shapes | 0.044 s | 0.095 s |
+| terrain read, water, the unpack check | 0.02 s | 0.02 s |
+
+The collision index was 85-95 % of every load measured (MP_005 7.45 s, of which 5.69 s `mesh_aliases` and 1.08 s
+`havok_index`, in the first, cProfile run); the terrain, water and Havok readers the plan named were 0.1-0.2 s
+together. Port order: the index, then the Havok triangles, the terrain and the water, then the scene.
+
+### Before and after
+
+| `level.load` | python | main (before) | **rust (after)** | after vs before |
+|---|---:|---:|---:|---:|
+| MP_005, whole load | 9.97 s | 6.08 s | **0.59 s** | 10.3x |
+| SP_01, whole load | 6.69 s | 6.35 s | **1.04 s** | 6.1x |
+| MP_005, entities only (`geometry=False`) | 0.32 s | 0.23 s | **0.10 s** | 2.3x |
+| SP_01, entities only | 0.71 s | 0.47 s | **0.30 s** | 1.6x |
+
+In rust mode the whole load is the scene call (MP_005 0.36 s, SP_01 0.44 s), Python's own trees of the partition and
+static groups for `Entity.element` (0.05 / 0.16 s), and building the `Entity` objects and the NumPy world-space meshes
+(the rest, about 0.2-0.4 s). On the 18 levels of `core/tests/test_scene_native.py` the whole load went from 6-16 s
+(the Python loader) to 0.5-1.5 s.
+
+### The scene alone (Rust, no Python objects)
+
+| | MP_005, 16 threads | MP_005, 1 thread | SP_01, 16 threads | SP_01, 1 thread |
+|---|---:|---:|---:|---:|
+| whole load | **0.30 s** | 1.42 s | **0.33 s** | 1.51 s |
+| collision index (walk + XML) | 0.30 s | 1.39 s | 0.32 s | 1.39 s |
+| of it: the walk (both file kinds, one pass) | 0.07 s | 0.29 s | 0.07 s | 0.30 s |
+| of it: reading the XML (205 / 196 MB) | 0.23 s | 0.79 s | 0.25 s | 0.81 s |
+| entities only (partition, blueprints, teams, shapes) | 0.017 s | 0.026 s | 0.034 s | 0.045 s |
+| Havok triangles (136 / 172 packfiles, from memory, 1 thread) | 0.002 s | | 0.003 s | |
+| terrain: parse / mesh (2048², stride 2) | 0.002 / 0.014 s | | 0.001 / 0.011 s | |
+| water mesh | < 0.001 s | | < 0.001 s | |
+
+- **The index is now the scene's whole cost, and it is I/O:** 17,589 XML files (205 MB) are read for the mesh
+  aliases, of which only about 7 % have a `Mesh` field (measured on 4,000 of `mp_common`'s), so stopping early in each
+  file would save little. Reading the aliases from the binary partitions, or caching the table by the files' sizes and
+  times, would take it to the walk's 0.07 s (EDITOR_ARCHITECTURE.md 3.8, "The scene": open).
+- **The readers are cheap in Rust:** Havok 15-20x, the terrain mesh 4-5x faster than NumPy on one thread; neither
+  mattered for the load.
+- Parity, not timing, set the design of the Python side: the world-space meshes stay NumPy's
+  `t @ m[:3, :3] + m[3, :3]` (BLAS may fuse multiply-adds, so a Rust product could differ in the last bit).
+
 ## Not ported yet
 
 - The DBX **writer** is in Rust (`dbx::write`, tested by round trips) but Python's `dbx.write` still writes the

@@ -27,9 +27,8 @@ sys.path.insert(0, os.path.join(SUITE, 'core', 'tests'))
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit', 'navkit-tools')
-from test_scene_native import READERS, ready  # noqa: E402
-
 from bfbc2core import collision, level, paths, terrain, water  # noqa: E402
+from test_scene_native import READERS, ready  # noqa: E402
 
 STAGES: dict[str, float] = collections.defaultdict(float)
 
