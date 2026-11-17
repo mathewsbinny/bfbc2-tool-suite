@@ -12,8 +12,10 @@
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
 //! function's bundles run with the interpreter released.
 
+mod culltree;
 mod geometry;
 mod scene;
+mod shaders;
 
 use bc2_formats::dbx::{self, DbxError, DbxTree};
 use bc2_formats::fbrb::{self, FbrbError};
@@ -261,6 +263,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::scene::scene_load;
+
+    #[pymodule_export]
+    use super::shaders::{shaderdb_parse, shaderdb_write};
+
+    #[pymodule_export]
+    use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

@@ -51,7 +51,8 @@ import os
 import re
 import struct
 import sys
-from collections.abc import Collection, Container, Iterable, Sequence
+from collections.abc import Callable, Collection, Container, Iterable, Sequence
+from types import ModuleType
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -65,6 +66,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
+from bfbc2core import dbx as _dbx  # noqa: E402
 from bfbc2core import paths  # noqa: E402
 
 PROGRAM_SIZE = 0x30        # section 6a record
@@ -90,6 +92,39 @@ def swap_guid(g: bytes) -> bytes:
 
 class ShaderDbError(Exception):
     """A problem with the input the user can fix (explained in words by errors.guard)."""
+
+
+# ------------------------------------------------------------------------------------------------ backend
+# ShaderDb._parse and ShaderDb.to_bytes run in the suite's Rust core (rust/, module bc2_native:
+# bc2_formats::shaderdb) when it is built, else in Python here; both give the same objects, bytes and messages
+# (tests/test_shaderdb_native.py; the game tier: every database of the game copy and OPFOR's work folders).
+# BFBC2_PURE_PYTHON=1 (or use_native(False)) forces Python; backend() says which one runs.
+
+def _with_shaderdb(m: ModuleType | None) -> ModuleType | None:
+    """m when it has the shader database reader (a module built before it was added does not)."""
+    return m if m is not None and hasattr(m, 'shaderdb_parse') else None
+
+
+def _load_native() -> ModuleType | None:
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    return _with_shaderdb(_dbx._import_native())
+
+
+_native = _load_native()
+
+
+def backend() -> str:
+    """'rust' when databases are read and written in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend()."""
+    global _native
+    _native = _with_shaderdb(_dbx._import_native()) if on else None
+    return backend()
 
 
 # ------------------------------------------------------------------------------------------------ the file model
@@ -205,6 +240,15 @@ class ShaderDb:
     @classmethod
     def _parse(cls, data: bytes, dx: int, where: str, big_endian: bool = False) -> ShaderDb:
         db = cls(dx, big_endian)
+        if _native is not None and type(data) is bytes:          # (other buffers: Python, records keep their type)
+            try:
+                got = _native.shaderdb_parse(data, dx, big_endian, Shader)
+            except ValueError as e:
+                raise ShaderDbError(f'{where}: {e}') from None
+            (db.version, db.flag, db.params, db.bindings, db.regs, db.vs, db.ps, db.programs, db.keys, db.layouts,
+             db.entries, db.fragments, db.parts, db.groups) = got
+            db.key_size = KEY_SIZES.get(db.version, KEY_SIZE)
+            return db
         r = _Reader(data, where, db.e)
         db.version = r.u32()
         db.flag = r.u8()
@@ -278,6 +322,13 @@ class ShaderDb:
 
     def to_bytes(self) -> bytes:
         e = self.e
+        if _native is not None:
+            # None: an item only the Python writer takes (not bytes, a name not latin-1, a number out of range)
+            got = _native.shaderdb_write(self.version, self.flag, e == '>', self.params, self.bindings, self.regs,
+                                         self.vs, self.ps, self.programs, self.keys, self.layouts, self.entries,
+                                         self.fragments, self.parts, self.groups)
+            if got is not None:
+                return cast(bytes, got)
         out = bytearray()
         out += struct.pack(e + 'IB', self.version, self.flag)
         for lst in (self.params, self.bindings, self.regs):
@@ -662,6 +713,26 @@ def needed(name: str, need: Iterable[str]) -> bool:
     return any(low == n or low.startswith(n + '/') for n in need)
 
 
+def needed_test(need: Iterable[str]) -> Callable[[str], bool]:
+    """needed(name, need) for many names against one list: each name's whole-path prefixes (up to each '/', and the
+    whole name) looked up in a set of the needed paths. The same answers; the merge's donor scan tested every donor
+    entry and mesh-part name against every needed path (2026-11-16 profile: 7.5 of a level's 40 s of shader merging,
+    5 million calls of needed)."""
+    want = set(need)
+
+    def test(name: str) -> bool:
+        low = name.lower()
+        if low in want:
+            return True
+        i = low.find('/')
+        while i >= 0:
+            if low[:i] in want:
+                return True
+            i = low.find('/', i + 1)
+        return False
+    return test
+
+
 # ------------------------------------------------------------------------------------------------ merging
 
 class Merger:
@@ -729,9 +800,9 @@ class Merger:
         frag_names = {g: n for n, g in donor.fragments}
         layouts = {r[:16]: r for r in donor.layouts}
         took = 0
-        mine = [n for n in self.need if self.all_names or n not in self.in_base]   # needed names it may add to
+        mine = needed_test(n for n in self.need if self.all_names or n not in self.in_base)  # names it may add to
         for name, guid in donor.entries:
-            if name in self.entry_names or not any(needed(name, [n]) for n in mine):
+            if name in self.entry_names or not mine(name):
                 continue
             progs: list[ProgRef] = []
             for pi in groups.get(guid, []):
@@ -770,7 +841,7 @@ class Merger:
         parts = 0
         for name, lg in donor.parts:
             pm = part_mesh(name)
-            if pm is None or not any(needed(pm, [n]) for n in mine):
+            if pm is None or not mine(pm):
                 continue
             if name in self.part_names:
                 if self.part_names[name] != lg:
