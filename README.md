@@ -106,6 +106,8 @@ levels. **Nothing needs it**: without it, every tool runs on the Python readers 
 |---|---|
 | `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer). Later: shader databases |
 | `rust/bc2-scene` | a level as the tools see it: `collision` (which packfile each blueprint uses: NavKit's index and mesh aliases in one parallel walk), `scene` (`level.load`'s entities, blueprints, teams, outlines, collision, terrain and water on all cores; editable entities for the map editor) |
+| `rust/bc2-convert` | the converter pipeline's hot spots: `texture` (console textures to the PC's: the Xenos untiling, the byte swap, DXT5A / RGB565 / A8R8G8B8 decoded; `bfbc2-console-convert/texture.py`'s `convert`, byte-identical on every BF1943 and Onslaught console texture) |
+| `rust/bc2-navbuild` | NavKit's generator walks: `Level` (which kept surface of a neighbouring column links to a surface), areas (`components`), traced sides, walkable lines, the route-group search, `walkable`'s flood and `islands_of` (`navbuild.py` / `navwalk.py`; the same path data byte for byte) |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
 
 **Build** (once, and after changing anything in `rust/`; the quick test tier rebuilds it when it is stale):
@@ -129,10 +131,12 @@ same way (`entries`, `names`, `read` and the new `read_many`, one bundle per cor
 `bfbc2core.terrain` (`parse`, `read`), `bfbc2core.water` (`parse_mesh`, `parse_visual`, `read`), the new
 `bfbc2core.collision` (`index`, `triangles`, `triangles_many`; NavKit's Python functions as the fallback) and
 `bfbc2core.level` (`load` through the Rust scene; the Python loader as the fallback): each has `use_native` and
-`backend()`, and `BFBC2_PURE_PYTHON=1` turns them all to Python.
+`backend()`, and `BFBC2_PURE_PYTHON=1` turns them all to Python. The converters and NavKit use it the same way
+(E1d): `texture.convert` (console textures; `texture.use_native`), NavKit's `navbuild.Level` and `navwalk.walkable`
+/ `islands_of` (`navbuild.use_native`, which turns both off), each with its Python code as the fallback and reference.
 
 **Develop:** in `rust\`, `cargo test` (unit, property and doc tests), `cargo clippy --all-targets -- -D warnings`,
-`cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene` (after
+`cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene -p bc2-convert -p bc2-navbuild` (after
 `cargo install cargo-llvm-cov` and `rustup component add llvm-tools-preview`). Timings: `rust\BENCHMARKS.md`.
 
 ## Tests
@@ -144,7 +148,7 @@ python run_tests.py full       after changing a format reader: every unpacked fi
 python run_tests.py --list     what each tier runs;   --only <name> runs the tests whose name contains it
 ```
 
-The quick tier has 71 tests (2026-11-16). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
+The quick tier has 74 tests (2026-11-16). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
 `tests/test_types.py`; settings in `pyproject.toml`), the path finder on a stand-in tree, the converter units, the
 dbxport rules and the emitter atlas. A test that needs game data the machine lacks is skipped and says so. The table
 lists a selection; `--list` gives every test.
@@ -153,6 +157,8 @@ lists a selection; `--list` gives every test.
 |---|---|---|
 | `tests/test_rust.py` | quick, game | the Rust core: `cargo fmt --check`, clippy with warnings as errors, every crate's unit, property and doc tests; with `--corpus` (game) every unpacked `.dbx` read in Rust and its XML against DbxEdit's 31,404 fingerprints, and every bundle of the game copy extracted; skipped without Rust |
 | `core/tests/test_dbx_native.py` | quick, game | the Rust DBX reader against the Python reader: the same XML, trees and refusals on built files, thousands of damaged and random ones, and 200 corpus files (quick) or every corpus file (game: 48,120 distinct, levels, NavKit's common data and the WW2 work); the dispatcher, the batch functions and `BFBC2_PURE_PYTHON`; skipped when the module is not built |
+| `bfbc2-console-convert/tests/test_texture_native.py` | quick, game | the Rust texture converter against `texture.py`: the same bytes or both refusing on 1,362 built and damaged textures (every format, 2D and cube, packed tails, every mip count), the dispatcher and fallback (quick); every XenonTexture of BF1943's source and OPFOR's Onslaught builds (game); skipped when the module is not built |
+| `bfbc2-auto-navkit/tests/test_navbuild_native.py` | quick, game | NavKit's grid walks in Rust against `navbuild.py` / `navwalk.py`: every walk, call by call, on 40 random multi-layer levels (float32 and float64 gradients, stairs, terrain, D sides, every link rule), `walkable` and `islands_of`, the dispatcher (quick); sp_009 and sp_004_b built with each backend, the files byte-identical (game; `--levels` for others); skipped when the module is not built |
 | `core/tests/test_fbrb_native.py` | quick, game | the Rust FBRB reader against the Python reader: the same entries, bytes and refusals on built and hand-made bundles (gzip header fields, members, junk), about 1,700 damaged and 600 random ones, 8 game bundles (quick) or every bundle of the game copy and `work\ww2` (game); FbrbTool's unpack against the Rust reader; the dispatcher, `read_many` and `BFBC2_PURE_PYTHON`; skipped when the module is not built |
 | `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles |
 | `tests/test_review_fixes.py` | quick | four defects from a code review (2026-10-26): NavKit's apply builds with the normal build's inputs (detailed zones, ladders); the stock-MP installer reinstalls a rebuilt file and keeps the original as its backup; the Navigation Studio's `--edit` is a flag; the navigation cache key follows the terrain's content |

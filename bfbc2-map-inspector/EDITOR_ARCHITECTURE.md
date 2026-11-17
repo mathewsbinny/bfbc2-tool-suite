@@ -247,6 +247,23 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   - **Still open for E1:** new / deleted entities and field edits (with `levelwrite`), undo, the shared data's
     XML-based alias table (reading the binary partitions instead, or a cache keyed by the files' sizes and times,
     would remove the scene's largest remaining cost: 0.3 s of 0.32 s on MP_005, all of it reading XML).
+- **The converter pipeline and NavKit** (E1d, 2026-11-16; `rust/BENCHMARKS.md`, "The converter pipeline and
+  NavKit"):
+  - **Profiled first.** A WW2 level build (coral_sea) spent half its time in `fbrb.read`: the converters read
+    BFBC2's partitions one at a time through `meshview.Index.read`, and a bundle is one gzip stream, so each read
+    decompressed its bundle up to the entry. Not a format to port but a read pattern: `meshview.Partitions` reads a
+    bundle's partitions in one pass and keeps them (coral_sea's grid step 777 -> 101 s, the build 1,293 -> 667 s).
+    Texture, mesh and Havok conversion were under 4 s of a level build; texture conversion is ported anyway
+    (`bc2-convert`), as Wake's steps convert all 704 BF1943 textures (48 s -> 0.4 s).
+  - **NavKit:** 62 % of a build was one question asked 142 million times (which kept surface of a neighbouring column
+    links to this one); the four walks that ask it, and the floods of the walkability rules, are ported whole
+    (`bc2-navbuild`), so the calls stay in Rust. The floats are computed as the reference computes them (NumPy 2's
+    float32 / float64 promotion, Python's rounding), so the path data is byte-identical.
+  - **Still in Python, by the profile:** the HLSL compiles of the shader translation (9 % of a level build; the
+    compiler, not Python, takes the time - running compiles on several threads is the open gain), the DBX trees
+    Python builds (10 %), the shader-database parsing (the shader databases are E1c's), OPFOR's own donor scoring
+    (`wake_shaders.role_score`, 8 %), NavKit's remaining walkability rules (`stair_slope`, `narrow_lips`,
+    `headroom`: 1-5 % each).
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 
@@ -354,7 +371,7 @@ first.
 | Step | Delivers |
 |---|---|
 | E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **E0b (branch `rust-e0b`):** the FBRB reader ported (`bc2_formats::fbrb`; `bfbc2core.fbrb` on it with the Python fallback), the same entries and bytes as the Python reader on every bundle of the game copy and `work\ww2`, and FbrbTool's unpack on the built and sampled bundles; level loading through `dbx.parse_many`. Bundle packing stays with FbrbTool (E1 / `levelwrite`). E0 done. |
-| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene |
+| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene. **E1d (branch `rust-e1d`, 2026-11-16):** a WW2 level build and a NavKit build profiled; console textures (`bc2-convert`) and NavKit's grid walks and floods (`bc2-navbuild`) in Rust, byte-identical to the Python code on every BF1943 / Onslaught texture and on whole NavKit builds; the converters' partition reads one pass per bundle (`meshview.Partitions`): coral_sea's build 1,293 -> 667 s, a NavKit build of sp_004_b 566 -> 186 s (sp_009 153 -> 19 s) |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
 | E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |

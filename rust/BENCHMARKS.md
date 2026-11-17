@@ -221,3 +221,97 @@ static groups for `Entity.element` (0.05 / 0.16 s), and building the `Entity` ob
 - **FBRB packing** stays with FbrbTool (`pack`, with DICE's padded layouts, `fbrb.manifest` and size2 rules):
   the Rust reader has only a small test writer (`fbrb::build`, as `fbrb.build`). E1's `levelwrite` is where packing
   moves to Rust.
+
+## The converter pipeline and NavKit (2026-11-16, branch `rust-e1d`)
+
+**Contended:** the PC ran other builds the whole time (sibling ports' tests, OPFOR tools), so single figures vary by
+30 % or more; the before / after pairs of one table were taken under the same load where possible. cProfile adds
+about 1.5-2x to pure-Python code and nothing to native calls, so a profile's shares lean towards the Python parts.
+
+### The profiles (before the port)
+
+**A WW2 level build:** `ww2_level_build.py coral_sea` (OPFOR's, on the suite's main: the Rust DBX / FBRB readers),
+under cProfile: 1,982 s (unprofiled, the last rebuild: 1,293 s). This run also rebuilt the DBX catalogue cache once
+(a game-copy change had made it stale), which a normal build does not.
+
+| rank | where the time went | s | share |
+|---:|---|---:|---:|
+| 1 | `fbrb.read` (in Rust: inflating bundles), of which **`meshview.Index.read` 790 s**: 2,070 BFBC2 partitions read one at a time (dbxport's templates 377 s, the sound porter's donors 314 s, the shader step 86 s); shader databases 74 s; the catalogue rebuild 53 s | 991 | 50 % |
+| 2 | `dbx.parse` (Rust reader, Python trees): 90,952 partitions | 208 | 10 % |
+| 3 | `dbxcatalogue.build` (the one-off cache rebuild) | 187 | 9 % |
+| 4 | `pcbuild.compile_hlsl`: 2,444 HLSL compiles of the shader translation (the compiler's time) | 176 | 9 % |
+| 5 | `wake_shaders.role_score` (OPFOR's donor scoring, 1.16 million calls) | 169 | 9 % |
+| 6 | `shaderdb._parse` (shader databases) | 100 | 5 % |
+| 7 | `dbxport._best` (template choice) | 46 | 2 % |
+| 8 | `audio.encode_xas` (22 sounds) | 15 | 0.8 % |
+| | texture, mesh and Havok conversion together (11 textures, 2 meshes, 11 packfiles) | < 4 | 0.2 % |
+
+By step: fx 208 s (190 of it the catalogue), objects 11, level 186, shaders 144, clone 318, billboards 26,
+translate 249, grid 816 (618 of it the sound porter, mostly its reads).
+
+**A NavKit build:** `navregress.build_level` on sp_004_b (both pitches: 13 normal and 27 detailed sectors, 7.7
+million surfaces at 0.2 m), main, under cProfile: 1,064 s.
+
+| rank | where the time went | s | share |
+|---:|---|---:|---:|
+| 1 | `Level.neighbour` (with `connected`, `navwalk.step_fits`, `surfaces`): 142 million calls - from `build_graph`'s search between route-node groups 392 s, `components` 136 s, `trace_edges` 75 s, `line_walkable` 53 s | 656 | 62 % |
+| 2 | `build_graph`'s own loops (the search's queue and dicts) | 80 | 8 % |
+| 3 | `navwalk.walkable`'s step-rule floods: `roof_islands` / `islands_of` 61 s, `flood` 45 s | 106 | 10 % |
+| 4 | `trace_edges`, `components` own time | 48 | 4 % |
+| 5 | `narrow_lips`, `matched_flags`, `stair_slope`, `headroom` | 41 | 4 % |
+| 6 | the collision index (`havok_index` glob: E1e's) | 5 | 0.5 % |
+
+### What moved, and what it gave
+
+**Textures** (`bc2_convert::texture`, `texture.convert`): every XenonTexture of BF1943's source (704, 193 MB):
+
+| | Python | Rust via Python, one by one | Rust via Python, `texture_convert_many` |
+|---|---:|---:|---:|
+| convert all 704 | 48.1 s | **0.37 s** | **0.12 s** |
+
+A level build converts few textures (0.7 s on coral_sea); Wake's steps convert the 704 several times over.
+
+**The partition reads** (`meshview.Partitions`: a bundle's partitions read in one pass and kept, by path, size and
+time, 768 MB at most): one partition of mp_common's level bundle cost 0.94 s, all 8,446 of them (36 MB) 2.42 s.
+`ww2_level_build.py coral_sea` on main with the cache patched in (`meshview.Index.read` replaced at run time by the
+branch's code, OPFOR's outputs compared and restored), against the last rebuild's log:
+
+| step | before (rebuild log) | after | |
+|---|---:|---:|---|
+| fx | 24 s | 49 s | load (no reads to save) |
+| objects | 11 s | 11 s | |
+| level | 155 s | 122 s | |
+| shaders | 82 s | 42 s | |
+| clone | 93 s | 121 s | load |
+| billboards | 2 s | 12 s | load |
+| translate | 149 s | 199 s | load (HLSL compiles) |
+| **grid** | **777 s** | **101 s** | the sound porter's reads |
+| **whole build** | **1,293 s** | **667 s** | 1.9x |
+
+The outputs are the same files (506 of them, sha1 before and after); `install_dbnames.pkl` and, in one run,
+`terrain_rules.json` differ between any two runs of the build, with or without the cache (a pickled set and a JSON
+dict whose order follows Python's string hashing: OPFOR's, reported) - both were put back as they were. Guadalcanal
+and Iwo Jima's grid steps (800 s each in the last rebuild) do the same reads.
+
+**NavKit** (`bc2_navbuild`, through `navbuild.Level.native()` and `navwalk.native_grid()`):
+`test_navbuild_native.py --game` builds each level twice in one process, Python then Rust, the path data compared
+byte for byte (the build clock fixed for both: every sector stores its build time):
+
+| level | Python | Rust | | path data |
+|---|---:|---:|---:|---|
+| sp_009 (9 sectors) | 153 s | **19 s** | 8.1x | identical, 406,216 bytes |
+| sp_004_b (40 sectors, 27 detailed) | 566 s | **186 s** | 3.0x | identical, 8,235,888 bytes |
+| sp_008_b | 618 s | **201 s** | 3.1x | identical, 8,477,720 bytes |
+| ons_mp_004 | 346 s | **90 s** | 3.8x | identical, 7,623,072 bytes |
+
+Profiled again after the ports (sp_004_b, cProfile): 166 s instead of 1,064 s. What is left is Python around the
+Rust calls and the walkability rules not ported: `walkable` 59 s (`narrow_lips` 15, `stair_slope` 14, `headroom`
+7), `build_graph` 43 s (its nearest-cell `min` over an area's cells for each portal node: 28 s), `trace_edges`' own
+loop 17 s, `build_areas` 16 s, the collision index's glob 2 s (E1e's). The graph search itself is 12 s in Rust.
+
+The four levels are the quick / game tiers' two (sp_009, sp_004_b) and two more; NavKit's output is unchanged, so its
+DICE-parity measures (`navregress`) are too.
+
+**Not worth porting, measured:** mesh and Havok conversion (under 4 s of a level build); the HLSL compiles are the
+compiler's time (running them on several threads is the gain there, in the shader translation); OPFOR's
+`role_score` is OPFOR's Python.
