@@ -13,6 +13,7 @@
 //! function's bundles run with the interpreter released.
 
 mod geometry;
+mod scene;
 
 use bc2_formats::dbx::{self, DbxError, DbxTree};
 use bc2_formats::fbrb::{self, FbrbError};
@@ -257,6 +258,9 @@ mod bc2_native {
         collision_index, havok_triangles, havok_triangles_files, terrain_heights, terrain_tail, water_mesh,
         water_shaders, water_visual,
     };
+
+    #[pymodule_export]
+    use super::scene::scene_load;
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

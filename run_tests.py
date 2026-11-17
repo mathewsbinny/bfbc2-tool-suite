@@ -182,6 +182,8 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_native.py'), '--game']),
         ('Rust terrain, water and Havok readers on every bundle of the game copy, the collision index of every prepared level', 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py'), '--game']),
+        ('Rust scene against the Python loader, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)', 'game',
+         [PY, os.path.join(SUITE, 'core', 'tests', 'test_scene_native.py')]),
         ('path locators: the same answers as a reference checkout (main)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_locators.py')]),
         ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
         ('crash reader code view (BFBC2Game.exe)', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'tests', 'test_crashreader.py'), '--game']),

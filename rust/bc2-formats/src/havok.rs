@@ -12,6 +12,7 @@
 //! | `hkpack.Packfile(data)` / `hkpack.load(path)` | [`Packfile::parse`] |
 //! | `Packfile.deref(slot)`, `.objects`, `.objects_of(name)`, `.classes` | [`Packfile::deref`], [`Packfile::objects`], [`Packfile::objects_of`], [`Packfile::classes`] |
 //! | `levelobjects.triangles(path)` | [`triangles`] |
+//! | | [`build`]: a small test writer |
 //!
 //! The reference's outcomes map to this module's as follows: a file `hkpack.load` refuses with a `ValueError`
 //! (no packfile, a name that is not UTF-8 or has no end) is [`HavokError::NotPackfile`] / [`HavokError::Refused`],
@@ -501,6 +502,71 @@ pub fn triangles(data: &[u8]) -> Result<Option<Vec<Triangle>>> {
         }
     }
     Ok((!tris.is_empty()).then_some(tris))
+}
+
+/// A small packfile with one storage extended mesh subpart holding `vertices` and `triangles` (a test writer, as
+/// [`fbrb::build`](crate::fbrb::build): the game's packfiles come from Havok's tools). [`triangles`] reads them back.
+///
+/// ```
+/// use bc2_formats::havok;
+///
+/// let file = havok::build(&[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]], &[[0, 1, 2]]);
+/// let t = havok::triangles(&file)?.unwrap_or_default();
+/// assert_eq!(t, vec![[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]]);
+/// # Ok::<(), havok::HavokError>(())
+/// ```
+#[must_use]
+pub fn build(vertices: &[[f32; 3]], triangles: &[[u16; 3]]) -> Vec<u8> {
+    let pad16 = |v: &mut Vec<u8>| v.resize(v.len().next_multiple_of(16), 0);
+    // section 1 (__data__): the vertices (x, y, z, 1), the index groups (a, b, c, 0), the subpart object
+    let mut data: Vec<u8> = vertices
+        .iter()
+        .flat_map(|v| [v[0], v[1], v[2], 1.0])
+        .flat_map(f32::to_le_bytes)
+        .collect();
+    pad16(&mut data);
+    let idx = data.len() as u32;
+    data.extend(
+        triangles
+            .iter()
+            .flat_map(|t| [t[0], t[1], t[2], 0])
+            .flat_map(u16::to_le_bytes),
+    );
+    pad16(&mut data);
+    let sub = data.len() as u32;
+    let words = [0u32, 0, 0, vertices.len() as u32, 0, 0, 4 * triangles.len() as u32, 0];
+    data.extend(words.iter().flat_map(|w| w.to_le_bytes()));
+    let local = data.len() as u32;
+    for (slot, target) in [(sub + 8, 0), (sub + 0x14, idx)] {
+        data.extend(slot.to_le_bytes());
+        data.extend(target.to_le_bytes());
+    }
+    let virt = data.len() as u32;
+    data.extend([sub, 0, 0].iter().flat_map(|w| w.to_le_bytes()));
+    let exports = data.len() as u32;
+    let names = format!("{MESH_SUBPART}\0");
+    let mut out = MAGIC.to_vec();
+    for w in [0u32, 4, 0x0101_0004, 2, 1, 0, 0, 0] {
+        out.extend(w.to_le_bytes());
+    }
+    out.extend(b"Havok-6.5.0-r1\0\0");
+    let s0 = 0x40 + 2 * 0x30;
+    let s1 = (s0 + names.len()).next_multiple_of(16);
+    let n0 = names.len() as u32;
+    let section = |name: &str, start: usize, w: [u32; 6]| {
+        let mut h = name.as_bytes().to_vec();
+        h.resize(20, 0);
+        h.extend((start as u32).to_le_bytes());
+        h.extend(w.iter().flat_map(|x| x.to_le_bytes()));
+        h
+    };
+    out.resize(0x40, 0);
+    out.extend(section("__classnames__", s0, [n0; 6]));
+    out.extend(section("__data__", s1, [local, virt, virt, exports, exports, exports]));
+    out.extend(names.as_bytes());
+    out.resize(s1, 0);
+    out.extend(data);
+    out
 }
 
 #[cfg(test)]

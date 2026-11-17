@@ -188,8 +188,9 @@ def shaders_of(mesh: bytes, visual: bytes, triangles: np.ndarray) -> tuple[list[
     return shader, slots
 
 
-def read(folder: str, name: str) -> Water | None:
-    """The water of terrain <name> under an unpacked terrain-00.fbrb (None if it has no water files)."""
+def find_files(folder: str, name: str) -> tuple[str | None, str | None]:
+    """The .Water.Mesh.res and .Water.res of terrain <name> under an unpacked terrain-00.fbrb (the last of each in
+    walk order), None for one that is not there."""
     mesh: str | None
     visual: str | None
     mesh = visual = None
@@ -201,6 +202,12 @@ def read(folder: str, name: str) -> Water | None:
                 mesh = os.path.join(root, f)
             elif low == f'{name}.water.res':
                 visual = os.path.join(root, f)
+    return mesh, visual
+
+
+def read(folder: str, name: str) -> Water | None:
+    """The water of terrain <name> under an unpacked terrain-00.fbrb (None if it has no water files)."""
+    mesh, visual = find_files(folder, name)
     if mesh is None:
         return None
     mesh_data = _read_file(mesh)

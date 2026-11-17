@@ -6,8 +6,10 @@
 //!
 //! - [`collision`]: which packfile each blueprint's collision comes from (NavKit's `havok_index` and
 //!   `mesh_aliases`).
+//! - [`scene`]: the level: entities, outlines, collision, terrain and water, loaded on all cores; editable.
 //! - [`walk`]: finding files as Python's recursive `glob` finds them, in its order.
 #![deny(unsafe_code)]
 
 pub mod collision;
+pub mod scene;
 pub mod walk;
