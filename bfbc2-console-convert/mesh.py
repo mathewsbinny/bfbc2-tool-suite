@@ -9,8 +9,15 @@ converted from the console's encoding to the PC's in order, by the elements' for
     import mesh
     m = mesh.parse(console_bytes, big_endian=True)
     pc_bytes = mesh.convert(console_bytes, [(console_layout, pc_layout), ...])     # one pair per part
+
+convert's vertex loop (each element of each vertex, element()) runs in the suite's Rust core when it is built
+(bc2_native.mesh_vertices, round E3g: the same bytes on every BF1943 mesh, tests\\test_mesh_native.py); where the
+Rust would not convert (a format element() refuses, a read past the data) the loop below runs, so its result or its
+error is this module's. BFBC2_PURE_PYTHON=1 (or use_native(False)) runs the loop below; backend() says which runs.
 """
+import os
 import struct
+import sys
 from typing import Any, cast
 
 import numpy as np
@@ -23,6 +30,47 @@ PC_FORMAT = {0x2B: 0x08, 0x0D: 0x08}                                    # consol
 
 class ConvertError(Exception):
     pass
+
+
+def _load_native():
+    """The Rust core with the mesh vertex loop, or None: not built, built from other sources, or
+    BFBC2_PURE_PYTHON set (as audio.py finds it)."""
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:
+        return None
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'mesh_vertices') else None
+
+
+_native = _load_native()
+
+
+def backend():
+    """'rust' when convert's vertex loop runs in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on):
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
+    global _native
+    if on:
+        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+        try:
+            _native = _load_native()
+        finally:
+            if saved is not None:
+                os.environ['BFBC2_PURE_PYTHON'] = saved
+    else:
+        _native = None
+    return backend()
 
 
 class _Reader:
@@ -307,6 +355,12 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     def emit(pairs, sc, sp, colour, src, first, count):
         """Converted vertices first .. first + count - 1 of the console region at src, appended; their start."""
         start = len(vb)
+        if _native is not None and isinstance(b, bytes):
+            got = _native.mesh_vertices(b, src, sc, sp, first, count,
+                                        [(fc, oc, fp, op) for (fc, _, oc, _), (fp, _, op, _) in pairs], colour)
+            if got is not None:
+                vb.extend(got)
+                return start
         for v in range(first, first + count):
             row = bytearray(sp)
             base = src + v * sc

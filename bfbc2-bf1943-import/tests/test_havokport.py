@@ -260,10 +260,12 @@ def material_slots(ix, check):
                    n[:-4] + '.dbx' in ix.where)
     files = parts_ok = runs_ok = lists_ok = 0
     bad = []
+    # each bundle read once (ix.read of a resource reads its bundle up to it: 369 s for these one at a time)
+    data = ix.read_many(names + [n[:-4] + '.dbx' for n in names])
     for n in names:
-        b = ix.read(n)
+        b = data[n]
         try:
-            inst = dbx.parse(ix.read(n[:-4] + '.dbx')).instances[0]
+            inst = dbx.parse(data[n[:-4] + '.dbx']).instances[0]
         except Exception:                                       # noqa: BLE001 - not a HavokAsset partition
             continue
         if inst.attr('type') != 'Physics.HavokAsset' or inst.child('PartInfoDatas') is None:

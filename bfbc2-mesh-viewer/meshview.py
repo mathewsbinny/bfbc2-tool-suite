@@ -220,6 +220,26 @@ class Index:
                 return b
         return fbrb.read(hit[0], [hit[1]])[hit[1]]
 
+    def read_many(self, names):
+        """{name: bytes} of many entries, each as read(name) gives it (a name the index lacks is left out): grouped
+        by bundle, each bundle read once, the bundles on all cores (fbrb.read_many). read() of a resource reads its
+        bundle up to it - 0.36 s each for 991 physics files of mp_common-sized bundles (round E3g: test_havokport's
+        material slots, 369 of its 381 s); this reads them in a few seconds. A bundle that cannot be read raises as
+        read() does."""
+        by: dict[str, list[tuple[str, str]]] = {}
+        for n in names:
+            hit = self.where.get(n.lower())
+            if hit:
+                by.setdefault(hit[0], []).append((n, hit[1]))
+        items = list(by.items())
+        out = {}
+        for (_, pairs), got in zip(items, fbrb.read_many([(b, [e for _, e in pairs]) for b, pairs in items])):
+            if isinstance(got, Exception):
+                raise got
+            for n, e in pairs:
+                out[n] = got[e]
+        return out
+
     def _partitions_of(self, bundle):
         """The .dbx entry names the index finds in bundle (Partitions reads them in one pass)."""
         by = self.__dict__.get('_by_bundle')

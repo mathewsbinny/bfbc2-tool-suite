@@ -22,7 +22,8 @@
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
 //!
 //! The converter's (`convert.rs`): `texture_convert` / `texture_convert_many`, and the EA-XAS audio codec
-//! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` uses when it can.
+//! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` uses when it can;
+//! `mesh_vertices` and `havok_convert_packfile` / `HavokClasses` (round E3g) for `mesh.py` and `havok.py`.
 
 mod convert;
 mod culltree;
@@ -177,6 +178,52 @@ fn dbx_to_xml_many<'py>(py: Python<'py>, items: Vec<Bound<'py, PyBytes>>) -> PyR
     Ok(out)
 }
 
+/// Each file's instance types (`[i.attr('type') for i in dbx.parse(d).instances]`, `None` for an instance without
+/// one) with, for each, whether its UTF-8 bytes occur in the file - parsed on all cores, no Python tree built
+/// (effectport's emitter index, round E3g). Each item is `(types, present)` or the `ValueError` (returned; a file
+/// with no partition is one too: the Python tree has no `roots[0]`).
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+fn dbx_instance_types_many<'py>(py: Python<'py>, items: Vec<Bound<'py, PyBytes>>) -> PyResult<Bound<'py, PyList>> {
+    use rayon::prelude::*;
+    type Types = (Vec<Option<String>>, Vec<bool>);
+    let slices = byte_slices(&items);
+    let found: Vec<Result<Types, String>> = py.detach(|| {
+        slices
+            .par_iter()
+            .map(|d| {
+                if d.is_empty() || !dbx::is_binary(d) {
+                    return Err("not a binary .dbx file".to_owned()); // dbx.parse's _check
+                }
+                let tree = dbx::parse_tree(d).map_err(|e| e.to_string())?;
+                if tree.partition().is_none() {
+                    return Err("no partition".to_owned());
+                }
+                let types: Vec<Option<String>> = tree.instances().map(|n| n.attr("type").map(str::to_owned)).collect();
+                let present = types
+                    .iter()
+                    .map(|t| {
+                        t.as_ref()
+                            .is_some_and(|t| t.is_empty() || d.windows(t.len()).any(|w| w == t.as_bytes()))
+                    })
+                    .collect();
+                Ok((types, present))
+            })
+            .collect()
+    });
+    let out = PyList::empty(py);
+    for r in found {
+        match r {
+            Ok(t) => out.append(t)?,
+            Err(e) => out.append(PyValueError::new_err(e).into_value(py))?,
+        }
+    }
+    Ok(out)
+}
+
 /// `bc2-formats`' bundle error as `fbrb.py` raises it: `KeyError` for a missing entry (named as `keys` gives it),
 /// `OSError` for a file that cannot be read, else `ValueError`, each naming the bundle as the Python reader does.
 pub(crate) fn fbrb_error(e: FbrbError, path: &str, keys: &[String]) -> PyErr {
@@ -271,7 +318,8 @@ fn threads() -> usize {
 mod bc2_native {
     #[pymodule_export]
     use super::{
-        dbx_parse, dbx_parse_many, dbx_to_xml, dbx_to_xml_many, fbrb_header, fbrb_read, fbrb_read_many, threads,
+        dbx_instance_types_many, dbx_parse, dbx_parse_many, dbx_to_xml, dbx_to_xml_many, fbrb_header, fbrb_read,
+        fbrb_read_many, threads,
     };
 
     #[pymodule_export]
@@ -300,7 +348,10 @@ mod bc2_native {
     use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
 
     #[pymodule_export]
-    use super::convert::{texture_convert, texture_convert_many, xas_decode_frames, xas_encode, xas_encode_many};
+    use super::convert::{
+        HavokClasses, havok_convert_packfile, mesh_vertices, texture_convert, texture_convert_many, xas_decode_frames,
+        xas_encode, xas_encode_many,
+    };
 
     #[pymodule_export]
     use super::navbuild::{
