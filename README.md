@@ -182,6 +182,11 @@ So does `bfbc2-console-convert/audio.py`'s EA-XAS codec (round E3a: `xas_encode_
 `encode_xas` and the new `encode_xas_many`, all its sounds encoded at once; `audio.use_native`, `audio.backend()`;
 `xas_encode_frames_python` / `xas_decode_frames_python` are the reference). The new `audio.convert_many` converts
 many Waves side by side (ffmpeg's EA-XMA decodes in threads, the encoder without the interpreter).
+Round E3d's two targets stayed in Python, by measurement (`rust/BENCHMARKS.md`, "E3d"): `pcbuild.compile_hlsl`
+keeps what it compiled (in memory and in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\hlsl`, keyed by the compiler DLL's
+hash; `BFBC2_HLSL_CACHE` another folder or `0`) and `compile_many` / `prefetch` compile on all cores - ctypes
+already releases the interpreter around Microsoft's compiler, so Rust could not make it faster; dbxport's template
+ranking runs from an index (`_Ranking`, with the full scan `_best` as its reference, `BFBC2_DBXPORT_REFERENCE=1`).
 **Without a fallback** (round E1d, Python retired 2026-11-17): `texture.convert` / `convert_many` and NavKit's grid
 walks (`navbuild.Level`'s neighbour linking, `components`, `trace_edges`' side neighbours, `line_walkable`,
 `build_graph`'s route-group search; `navwalk.walkable`'s flood, `islands_of`, `matched_flags`) always run in Rust:
@@ -229,7 +234,7 @@ its processes, measured with a Windows job object) in `%LOCALAPPDATA%\bfbc2-tool
 run starts the longest first, and `--plan` uses them (`--times <log or json>` for others; `tests\test_durations.json`
 seeds a PC that has none). `tests/test_runner_parallel.py` (quick) checks the scheduler itself.
 
-The quick tier has 80 tests (2026-11-17). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
+The quick tier has 83 tests (2026-11-17). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
 `tests/test_types.py`; settings in `pyproject.toml`), the path finder on a stand-in tree, the converter units, the
 dbxport rules and the emitter atlas. A test that needs game data the machine lacks is skipped and says so. The table
 lists a selection; `--list` gives every test.
@@ -263,5 +268,7 @@ lists a selection; `--list` gives every test.
 | `tests/test_converter_units.py` | quick | havokport's w lanes, the MOPP byte code, L8 textures and flag bit 1, meshport's rename, the texture-coordinate element |
 | `bfbc2-bf1943-import/tests/test_dbxport_rules.py` | quick | the 19 edge cases of the dbxport deep analysis and a test per rule: templates, references, schema, value passes |
 | `bfbc2-bf1943-import/tests/test_dbxport_fair.py` | quick (`--quick`: 7 partitions), game | every partition both games ship ported on a fair pool and checked against DICE's; skipped without game data |
+| `bfbc2-bf1943-import/tests/test_dbxport_ranking.py` | quick, game | the template ranking's index against the full scan: 20,000 random rankings and `Templates.choose`; `--game`: the four WW2 level ports against a third of BFBC2's level partitions, every choice and the bytes |
+| `bfbc2-shader-tools/tests/test_pcbuild_batch.py` | quick, game | `pcbuild`'s compile cache, `compile_many` and `prefetch` against plain compiles (the disk cache's damaged entries, keys); `--game`: Wake's 815 translated pixel shaders compiled both ways |
 | `bfbc2-bf1943-import/tests/test_emitteratlas.py` | quick | a merged emitter atlas from synthetic atlases, the emitters re-pointed, the proof |
 | `bfbc2-bf1943-import/tests/test_havokport.py` | game | the Kurogane oracle, the re-exported Zero and Corsair, the WW2 physics; model-group w lanes bit-identical on mp_004 / mp_005; MOPP codes complete and rays as brute force |

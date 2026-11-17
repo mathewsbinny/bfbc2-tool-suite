@@ -783,3 +783,102 @@ next area's), `trace_edges_many` 0.8 s (mostly making its Python dicts), the isl
 (Python), the mesh writer's `_area_body` 0.3 s. Not ported, by size: `walkable`'s NumPy glue, `navdetail`'s
 `broken_sides` / `detail_features`, `stage`'s dicts (a Rust `info` per sector would remove most of them and the
 conversions of cells between Python and Rust), `add_order_nodes`, `ladder_ends`, `kymesh`'s writer.
+
+## E3d: HLSL compiles on all cores, dbxport's ranking from an index (2026-11-17, branch `rust-e3d`)
+
+**Provisional timings:** OPFOR's WW2 builds (`ww2_level_build.py coral_sea`, `ww2_level_install.py`) and other
+agents' tests ran beside every figure below, at below-normal priority on the 16-thread PC. Ratios hold within a run.
+
+The two targets of OPFOR's round 0 profile (`project-opfor-bfbc2\research\RUST_PORT_PLAN.md`): `pcbuild.compile_hlsl`
+(2,444 compiles, 147 s in a WW2 level build; 3,652, 365 s in `wake_translate`) and `dbxport._best` (3,510 calls,
+76 s in a level build). **Neither moved to Rust, by measurement:** the compiles are Microsoft's compiler's time, and
+ctypes already lets go of the interpreter for each `D3DCompile` call, so plain Python threads run it on every core (a
+Rust driver could not compile faster); and `_best`'s cost was an algorithm, a full scan per call, which an index
+takes down to under a second per level port - nothing left worth a port.
+
+### HLSL: a compile cache and batches (`bfbc2-shader-tools/pcbuild.py`)
+
+**What was measured.** The compiler is `d3dcompiler_47.dll` through ctypes, one `D3DCompile` per call in the process
+(no fxc processes). It is deterministic and thread-safe: every shader below compiled the same bytes twice in a row and
+on 2 - 16 threads. The corpus: the 2,810 shaders `wake_translate.py --hlsl` last wrote (OPFOR's
+`work\ww2\wake\shaders_hlsl`, copied out; vs_5_0 / ps_5_0) - only **790 distinct sources**: 72 % of what the step
+compiled was a repeat, which a cache answers without the compiler.
+
+| 2,810 wake_translate shaders (790 distinct) | s | vs before |
+|---|---:|---:|
+| `compile_hlsl` one at a time, every job compiled (before) | 192.1 | |
+| `compile_hlsl` one at a time, the memory cache (the drop-in: repeats not compiled) | 61.5 | 3.1x |
+| `compile_many`, 16 threads, cold (no disk cache) | **7.4** | **26x** |
+| `compile_hlsl` one at a time, warm disk cache (a rebuild: nothing compiled) | **6.0** | **32x** |
+
+Threads alone, on 120 distinct shaders: 6.0 s one at a time; 2 threads 3.6 s, 4 threads 1.7 s, 8 threads 1.1 s,
+16 threads 0.8 s (7.5x), every result the same bytes. Wake's 815 translated pixel shaders (`--game` below): 73.3 s
+one at a time, 8.5 s by `compile_many`.
+
+**What changed.** `compile_hlsl` (same signature) keys each compile by SHA-256 over the source, entry, profile,
+defines (in order, as the strings `D3DCompile` sees), name, flags and the compiler DLL's own SHA-256, and looks in
+memory (the process; 256 MB at most), then for a compile of the same job under way (it waits for it), then in the disk
+cache `%LOCALAPPDATA%\bfbc2-tool-suite\cache\hlsl\<compiler>\` (`BFBC2_HLSL_CACHE`: a folder, or `0`;
+`pcbuild.use_cache`). An entry holds a version tag, its key and its code's SHA-256; anything else is a miss, compiled
+and written again; entries are written to a per-process, per-thread temporary file and renamed. New:
+`compile_many(jobs, errors='raise' | 'return')` (all cores, input order, a repeated job compiled once),
+`prefetch(jobs)` (start them, return at once), `compile_hlsl_uncached` (the plain compile), `CompileJob`,
+`stats`, `workers()` (`BFBC2_HLSL_WORKERS`). The suite's only compile loop, `xdiff.py`'s, translates every shader
+first and prefetches their compiles, so they run on all cores beside its interpreter.
+
+**For OPFOR** (read only to this round): nothing to change for the cache. Every OPFOR compile goes through
+`P.compile_hlsl` (`wake_translate.translate_db` line 991 - also behind `wake_sky` and
+`ww2_char_shaders` -, `wake_water.py` 164, `minimap_edges.py` 71), so repeats inside a process stop being
+compiled (the measurement above: 192 -> 62 s) and a rebuild with unchanged sources compiles nothing (-> 6 s), across
+processes too. For all cores on a cold run, `translate_db` needs one change: its loop computes `vsrc` / `psrc` and
+uses the compiled code on the next line (registers, binding tables, database appends in order), so the compiles must
+be started before the loop - a first pass over the same programs that stops after building `vsrc` / `psrc` (the code
+up to line 990, without the `--hlsl` file writes) and calls `P.prefetch([(vsrc, 'main', vs_prof), (psrc, 'main',
+ps_prof), ...])`; the unchanged loop's `compile_hlsl` calls then take the results or wait for them. Expected: the
+cold `wake_translate` close to the 26x row above (its other work, ~15 s translating plus ~29 s of bundle reads, then
+dominates).
+
+### dbxport: the template ranking from an index (`bfbc2-bf1943-import/dbxport.py`)
+
+**The cost.** `Templates.choose` ranked each BF1943 instance against every BFBC2 candidate of its type (`_best`: a
+score per candidate - 4 per shared input-action value, 2 for the same reference-array slot, 1 for the same ordinal -
+the first top score wins). OPFOR's level port (`wake_level`) ranks a level's ~2,600 - 3,200 instances against all
+157 BFBC2 level partitions: 320,948 candidates, 139,586 of the largest type, and the calls of a type scan them all.
+In the fair-port corpus the pools are small (152 calls, under 0.01 s in `--quick`).
+
+**The index** (`_Ranking`, built once per type and per donor list; `add()` drops them): posting lists from each input
+value and each slot to the candidates holding it, and the first candidate of each ordinal. Only a candidate sharing
+an input value or the slot can score 2 or more; any other scores at most 1. So the scores of the posting-list hits,
+the top one (earliest on a tie) if any; else the first candidate of the role's ordinal (score 1); else the first
+candidate (0) - the scan's choice and score. The donor list (`donors=`) is also built once instead of per call.
+`_best` stays as the reference (`BFBC2_DBXPORT_REFERENCE=1` ranks with it).
+
+| BF1943 level partition ported against a third of BFBC2's levels (53 partitions, 108,240 candidates; `--part 0/3`) | calls | the scan's ranking, s | whole port with the index, s |
+|---|---:|---:|---:|
+| Wake Island | 2,623 | 27.9 | 0.6 |
+| Coral Sea | 980 | 8.2 | 0.3 |
+| Guadalcanal | 3,214 | 25.2 | 0.8 |
+| Iwo Jima | 2,357 | 25.4 | 0.6 |
+
+With all 157 (OPFOR's pool) the scan's share is about three times these - the profile's 76 s per level build; the
+index's whole port stays around a second. No Rust: what remains is the port itself.
+
+**Parity.** Every ranking checked against `_best` (the same candidate object and score):
+
+- the WW2 level ports, every slice of BFBC2's 157 level partitions (`--part 0/3`, then `1/6`, `2/6`, `4/6`, `5/6`:
+  each partition in one pool; all 157 at once take 3.5 GB): **45,758 of 45,758 calls** the reference's, and each of
+  the 20 ports byte for byte the same as the port with the scan;
+- the fair-port corpus (`test_dbxport_fair.py`, every partition both games ship): 2,324 of 2,353
+  partitions ported, all its checks passed, **1,835 of 1,835 rankings** the reference's (the rest of its choices are
+  counterparts and defaults, which rank nothing);
+- quick: 20,000 seeded random rankings (lists of 1 - 300 candidates from few input values, slots and ordinals: ties
+  everywhere, every score 0 - 14 reached), and `Templates.choose` with and without donors, before and after `add()`,
+  against `REFERENCE_RANKING`.
+
+### Tests
+
+`bfbc2-shader-tools/tests/test_pcbuild_batch.py` (quick: 48 made-up shaders - determinism, `compile_many` order,
+errors and repeats, `prefetch` joins, the disk cache written whole, damaged / cut / foreign entries missed and
+rewritten, keys apart for every input, `BFBC2_HLSL_CACHE`; `--game`: Wake's 815 translated pixel shaders, 815 of 815
+the same bytes, peak 1.6 GB) and `bfbc2-bf1943-import/tests/test_dbxport_ranking.py` (quick: the random rankings and
+`Templates.choose`; `--game [--part K/N]`: the four level ports, slice 0/3 in the game tier, peak 1.5 GB).

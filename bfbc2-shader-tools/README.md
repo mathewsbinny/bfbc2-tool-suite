@@ -169,7 +169,14 @@ For console content brought to PC (Battlefield 1943's), the Xbox shaders themsel
   `xenonTilingScaleAndOffsetNormalized` (35 BF1943 post / water pixel shaders) and
   `xenonInstancingIndexCountAndStart` (10 vertex shaders) are given no value (none of Wake's drawn entries uses them).
 - `pcbuild.py` compiles with the system's `d3dcompiler_47.dll` and builds what a PC database stores beside the code:
-  the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks.
+  the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks. `compile_hlsl` does not
+  compile what it compiled before (round E3d): a source, entry, profile, defines and name already compiled come from
+  memory, or from the disk cache in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\hlsl` (one folder per compiler DLL, by
+  its SHA-256; `BFBC2_HLSL_CACHE` names another folder, `0` turns it off; `pcbuild.use_cache`); the compiler is
+  deterministic, so a cached result is the compile's bytes. `compile_many(jobs)` compiles a batch on all CPU threads
+  (`BFBC2_HLSL_WORKERS`), results in input order; `prefetch(jobs)` starts one and returns, and a later
+  `compile_hlsl` of a job takes its result or waits for it. `compile_hlsl_uncached` always compiles.
+  `tests/test_pcbuild_batch.py`.
 
 Texture-fetch fidelity: 2D texel coordinates marked unnormalized are normalized before sampling or computing
 filter weights. Explicit LOD includes the instruction's bias; disabled computed LOD and vertex-stage fetches use
