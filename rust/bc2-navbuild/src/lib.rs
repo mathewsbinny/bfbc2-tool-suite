@@ -228,10 +228,8 @@ impl Level {
             }
         }
         let mut col_of = Vec::with_capacity(n);
-        for (c, w) in d.start.windows(2).enumerate() {
-            if let [a, b] = *w {
-                col_of.extend(std::iter::repeat_n(c, b - a));
-            }
+        for (c, (a, b)) in d.start.iter().zip(d.start.iter().skip(1)).enumerate() {
+            col_of.extend(std::iter::repeat_n(c, b - a));
         }
         Ok(Level {
             nx: d.nx,

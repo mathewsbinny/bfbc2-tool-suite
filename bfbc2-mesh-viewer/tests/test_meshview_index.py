@@ -15,6 +15,8 @@ import shutil
 import struct
 import sys
 import tempfile
+from collections.abc import Callable
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -46,6 +48,55 @@ def touch(path: str, data: bytes = EMPTY) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as f:
         f.write(data)
+
+
+def partitions(root: str, check: Callable[..., None]) -> None:
+    """Index.read's partition cache (meshview.Partitions): the same bytes as reading each entry alone, one bundle
+    pass for all its partitions, a rewritten bundle read again, the least recently used dropped beyond the budget,
+    an unreadable bundle read the old way."""
+    from bfbc2core import fbrb
+    g = os.path.join(root, 'game', 'Package', 'levels')
+    items = {lv: [(f'levels/{lv}/p{i}.dbx', 'dbx', os.urandom(50 + i)) for i in range(20)]
+             + [(f'levels/{lv}/t.res', 'ITexture', b'texture')] for lv in ('mp_001', 'mp_002')}
+    for lv, its in items.items():
+        touch(os.path.join(g, lv, 'level-00.fbrb'), fbrb.build(its))
+    with contextlib.redirect_stderr(io.StringIO()):
+        ix = meshview.Index(root, cache=os.path.join(root, 'ix2.pkl'))
+    reads: list[int] = []
+    real = fbrb.read
+
+    def counting(path: Any, wanted: Any) -> dict[str, bytes]:
+        keys = list(wanted)
+        reads.append(len(keys))
+        return real(path, keys)
+    meshview.fbrb.read = counting
+    meshview.PARTITIONS = meshview.Partitions()
+    try:
+        names = [n for its in items.values() for n, _t, _b in its]
+        got = {n: ix.read(n) for n in names}
+        want = {n: b for its in items.values() for n, _t, b in its}
+        check(got == want, 'cached reads: the same bytes as each entry alone')
+        check(sorted(reads) == [1, 1, 20, 20], 'one pass per bundle for its partitions, .res entries alone', str(reads))
+        reads.clear()
+        check(ix.read('levels/mp_001/p3.dbx') == want['levels/mp_001/p3.dbx'] and reads == [], 'a second read: no pass')
+        new = [(n, t, b[::-1]) for n, t, b in items['mp_001']]
+        p = os.path.join(g, 'mp_001', 'level-00.fbrb')
+        touch(p, fbrb.build(new))
+        os.utime(p, ns=(os.stat(p).st_atime_ns, os.stat(p).st_mtime_ns + 10 ** 9))
+        check(ix.read('levels/mp_001/p3.dbx') == new[3][2], 'a rewritten bundle is read again')
+        meshview.PARTITIONS = meshview.Partitions(budget=1)
+        ix.read('levels/mp_001/p1.dbx')
+        ix.read('levels/mp_002/p1.dbx')
+        check(len(meshview.PARTITIONS.bundles) == 1, 'beyond the budget the least recently used bundle is dropped')
+        touch(p, b'not a bundle')
+        try:
+            ix.read('levels/mp_001/p1.dbx')
+            check(False, 'an unreadable bundle: read alone, its error raised')
+        except ValueError:
+            check(True, 'an unreadable bundle: read alone, its error raised')
+    finally:
+        meshview.fbrb.read = real
+        meshview.PARTITIONS = meshview.Partitions()
 
 
 def main(argv: list[str]) -> int:
@@ -107,6 +158,7 @@ def main(argv: list[str]) -> int:
         except Exception as e:                          # noqa: BLE001
             rebuilt = f'{type(e).__name__}: {e}'
         check(rebuilt is True, 'a corrupt cache file: rebuilt', str(rebuilt))
+        partitions(root, check)
     finally:
         shutil.rmtree(root, ignore_errors=True)
     print('all passed' if not failed else f'{failed} check(s) failed')

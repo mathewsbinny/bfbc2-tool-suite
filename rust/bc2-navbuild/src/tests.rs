@@ -185,6 +185,28 @@ fn lines_and_d_sides() {
         !l.line_walkable(0, (0, 0), (1, 1), 0, 0, 6, &b, Rule::Raw),
         "the second leg"
     );
+    // a diagonal step the line crosses nearer one side column: (0, 0) -> (3, 2) leaves through x first, so only
+    // the x side's D sides block it; (0, 0) -> (2, 1) steps straight, then diagonally through z first
+    let b: HashSet<(usize, usize)> = [(0, 1)].into();
+    assert!(
+        !l.line_walkable(0, (0, 0), (3, 2), 0, 0, 13, &b, Rule::Raw),
+        "x first: blocked by the x side"
+    );
+    let b: HashSet<(usize, usize)> = [(0, 5)].into();
+    assert!(
+        l.line_walkable(0, (0, 0), (3, 2), 0, 0, 13, &b, Rule::Raw),
+        "x first: the z side does not count"
+    );
+    let b: HashSet<(usize, usize)> = [(1, 6)].into();
+    assert!(
+        !l.line_walkable(0, (0, 0), (2, 1), 0, 0, 7, &b, Rule::Raw),
+        "z first: blocked by the z side"
+    );
+    let b: HashSet<(usize, usize)> = [(1, 2)].into();
+    assert!(
+        l.line_walkable(0, (0, 0), (2, 1), 0, 0, 7, &b, Rule::Raw),
+        "z first: the x side does not count"
+    );
     let b: HashSet<(usize, usize)> = [(9, 9)].into();
     assert!(l.line_walkable(0, (0, 0), (1, 1), 0, 0, 6, &b, Rule::Raw));
     // the end: k1 or within 0.6 m
