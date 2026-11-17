@@ -158,9 +158,34 @@ python run_tests.py quick      before every commit: no game data, about a minute
 python run_tests.py game       before every push: uses Project OPFOR BFBC2's game copy, about 10 minutes
 python run_tests.py full       after changing a format reader: every unpacked file and NavKit's regression on all 15 levels, about 8 hours
 python run_tests.py --list     what each tier runs;   --only <name> runs the tests whose name contains it
+python run_tests.py game -j 8  tests side by side, 8 at a time (the default: half the CPU threads, at most 8)
+python run_tests.py game -j 1  one after another in the listed order, as before 2026-11-17
+python run_tests.py game --plan   the schedule and expected wall-clock, from the last run's durations; runs nothing
 ```
 
-The quick tier has 74 tests (2026-11-16). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
+**Side by side.** Tests run several at a time (`-j N`). Each test declares what it needs in `run_tests.py`'s `NEEDS`
+table: the CPU threads it keeps busy (`cpu`: 1, its process pool's size, or `'all'` for Rust batch work and cargo),
+an estimate of its peak memory in GB (`mem`), and the shared things it reads or writes (`res`, `'r'` or `'w'`):
+OPFOR's `work\navkit\regress` (the regression test rewrites it; the apply, links, Studio, viewer and harness tests
+read it), every `pathdata.hpd` under `work\` (hpdtool reads them, the vehicle test rewrites one), the Navigation
+Studio cache, `work\navkit\sp_004_b`, the suite's `build\` folder (shaderview.exe, renderqa's pickles), a window on
+the desktop, `DbxTests.exe` and `rust\target`. A writer never runs beside a reader or another writer of the same
+thing, and tests that share a thing keep their listed order, so each sees it as a one-at-a-time run did. The build
+steps (Rust core, DbxEdit, FbrbTool, LevelDiff) run first, alone, before any test, since nearly every test loads
+what they build. The runner starts a test while a slot, the CPU threads (`--cpus`, default all) and the memory
+(`--mem`, default three quarters of the PC's) it declares are free; the longest chains go first, and a test held
+back for room keeps its place (shorter tests fill in only while they end in time). A test missing from `NEEDS` runs
+alone, and the runner names it, so a new test is safe before it is declared. A level's terrain unpack and the
+`work\tools_out` caches (meshview index, dbx catalogue) are built under a lock between processes, so tests and tools
+side by side never build them twice or remove each other's files.
+
+The output is the same in both modes: one line per test as it finishes, the failures' output at the end (in list
+order), the total and exit code 1 if any failed. Every run keeps each passed test's duration and peak memory (all
+its processes, measured with a Windows job object) in `%LOCALAPPDATA%\bfbc2-tool-suite\test_times.json`; the next
+run starts the longest first, and `--plan` uses them (`--times <log or json>` for others; `tests\test_durations.json`
+seeds a PC that has none). `tests/test_runner_parallel.py` (quick) checks the scheduler itself.
+
+The quick tier has 79 tests (2026-11-17). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
 `tests/test_types.py`; settings in `pyproject.toml`), the path finder on a stand-in tree, the converter units, the
 dbxport rules and the emitter atlas. A test that needs game data the machine lacks is skipped and says so. The table
 lists a selection; `--list` gives every test.
@@ -172,6 +197,7 @@ lists a selection; `--list` gives every test.
 | `bfbc2-console-convert/tests/test_texture_native.py` | quick, game | the Rust texture converter against `texture.py`: the same bytes or both refusing on 1,362 built and damaged textures (every format, 2D and cube, packed tails, every mip count), the dispatcher and fallback (quick); every XenonTexture of BF1943's source and OPFOR's Onslaught builds (game); skipped when the module is not built |
 | `bfbc2-auto-navkit/tests/test_navbuild_native.py` | quick, game | NavKit's grid walks in Rust against `navbuild.py` / `navwalk.py`: every walk, call by call, on 40 random multi-layer levels (float32 and float64 gradients, stairs, terrain, D sides, every link rule), `walkable` and `islands_of`, the dispatcher (quick); sp_009 and sp_004_b built with each backend, the files byte-identical (game; `--levels` for others); skipped when the module is not built |
 | `core/tests/test_fbrb_native.py` | quick, game | the Rust FBRB reader against the Python reader: the same entries, bytes and refusals on built and hand-made bundles (gzip header fields, members, junk), about 1,700 damaged and 600 random ones, 8 game bundles (quick) or every bundle of the game copy and `work\ww2` (game); FbrbTool's unpack against the Rust reader; the dispatcher, `read_many` and `BFBC2_PURE_PYTHON`; skipped when the module is not built |
+| `tests/test_runner_parallel.py` | quick | the test runner side by side: stand-in tests run through `run_tests.main` with `-j 4` and `-j 1` - a writer of a shared thing never overlaps its readers and they keep their listed order, an undeclared or all-core test runs beside nothing, a failure gives exit code 1 and its own output, one result line per test with its own summary; the scheduler's reservation for a held-back heavy test; the log reader; `atomicio.locked` across three processes |
 | `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles |
 | `tests/test_review_fixes.py` | quick | four defects from a code review (2026-10-26): NavKit's apply builds with the normal build's inputs (detailed zones, ladders); the stock-MP installer reinstalls a rebuilt file and keeps the original as its backup; the Navigation Studio's `--edit` is a flag; the navigation cache key follows the terrain's content |
 | `tests/test_review_fixes2.py` | quick | defects from the follow-up review (2026-10-27): the harness records a missing path-data file per file key, refuses to overwrite its reference through a casing alias; NavKit's restore after a second install on a map without an original; the stock-MP installer's markers found case-insensitively; FbrbTool refuses an older manifest whose size2 differs |

@@ -594,19 +594,27 @@ def _terrain_file(root: str, lv: str, log: Callable[[str], Any] = print, name: s
     stamp = os.path.join(dest, '.source.stamp')
     st = os.stat(bundle)
     want = f'{st.st_size} {st.st_mtime_ns}'
-    have = None
-    if path is not None and os.path.isfile(stamp):
+
+    def current() -> bool:
+        if path is None or not os.path.isfile(stamp):
+            return False
         with open(stamp, encoding='ascii') as fh:
-            have = fh.read().strip()
-    if have != want:
+            return fh.read().strip() == want
+
+    if not current():
         import shutil
-        log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')
-        tool = paths.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool', suite=SUITE)   # as navkit.find_tool (ToolNotFound)
-        if os.path.isdir(dest):
-            shutil.rmtree(dest)
-        subprocess.run([tool, 'unpack', bundle, dest], check=True, capture_output=True)
-        atomicio.write_text(stamp, want)
-        path = terrain.find(dest, name)
+        # one process unpacks at a time; one that waited takes the unpack the other just finished (two tools or tests
+        # side by side removed each other's folder mid-read; run_tests.py -j, 2026-11-17)
+        with atomicio.locked(os.path.join(root, 'work', 'levels', lv, '.terrain.lock')):
+            path = terrain.find(dest, name) if os.path.isdir(dest) else None
+            if not current():
+                log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')
+                tool = paths.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool', suite=SUITE)   # as navkit.find_tool (ToolNotFound)
+                if os.path.isdir(dest):
+                    shutil.rmtree(dest)
+                subprocess.run([tool, 'unpack', bundle, dest], check=True, capture_output=True)
+                atomicio.write_text(stamp, want)
+                path = terrain.find(dest, name)
     return path
 
 

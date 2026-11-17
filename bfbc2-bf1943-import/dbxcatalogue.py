@@ -43,7 +43,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx  # noqa: E402
+from bfbc2core import atomicio, dbx  # noqa: E402
 
 CACHE_VERSION = 3
 PER_TYPE = 200                      # instances of a type walked for shapes / texts (all of them for the guid index)
@@ -243,15 +243,32 @@ def load(ix: Any, exe: str | None = None, log: Any = None) -> Catalogue:
         exe = os.path.join(root, 'game', 'BFBC2Game.exe')
     sig = _signature(ix, exe or '')
     path = os.path.join(root, 'work', 'tools_out', 'dbx_catalogue.pkl') if root else None
-    if path:
-        try:
-            with open(path, 'rb') as fh:
-                c = pickle.load(fh)
-            if c['version'] == CACHE_VERSION and c['sig'] == sig:
-                cat: Catalogue = c['catalogue']
-                return cat
-        except Exception:                                       # noqa: BLE001 - missing, old or corrupt: rebuilt
-            pass
+    if not path:
+        return _build_and_cache(ix, exe, log, sig, None)
+    cached = _cached(path, sig)
+    if cached is not None:
+        return cached
+    # one process builds a missing catalogue at a time; one that waited reads what the other wrote (tools or tests
+    # side by side: each built it for minutes, both through the same .tmp file; 2026-11-17)
+    with atomicio.locked(path + '.lock'):
+        cached = _cached(path, sig)
+        return cached if cached is not None else _build_and_cache(ix, exe, log, sig, path)
+
+
+def _cached(path: str, sig: Any) -> Catalogue | None:
+    """The cached Catalogue when the cache file is this game copy's; None when missing, old or damaged."""
+    try:
+        with open(path, 'rb') as fh:
+            c = pickle.load(fh)
+        if c['version'] == CACHE_VERSION and c['sig'] == sig:
+            cat: Catalogue = c['catalogue']
+            return cat
+    except Exception:                                           # noqa: BLE001 - missing, old or corrupt: rebuilt
+        pass
+    return None
+
+
+def _build_and_cache(ix: Any, exe: str | None, log: Any, sig: Any, path: str | None) -> Catalogue:
     print('cataloguing BFBC2\'s partitions (once; cached) ...', file=sys.stderr)
     say = log or (lambda m: print(m, file=sys.stderr))
     cat = build(ix, exe, say)
@@ -266,10 +283,11 @@ def load(ix: Any, exe: str | None = None, log: Any = None) -> Catalogue:
         return cat
     if path:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp = path + '.tmp'
-        with open(tmp, 'wb') as fh:
-            pickle.dump({'version': CACHE_VERSION, 'sig': sig, 'catalogue': cat}, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        os.replace(tmp, path)
+        data = pickle.dumps({'version': CACHE_VERSION, 'sig': sig, 'catalogue': cat}, protocol=pickle.HIGHEST_PROTOCOL)
+        try:
+            atomicio.write_bytes(path, data)                    # its own .tmp-<pid>, replaced whole
+        except PermissionError as ex:                           # Windows: another process is reading the old file
+            say(f'catalogue: built but not cached this time ({ex})')
     return cat
 
 

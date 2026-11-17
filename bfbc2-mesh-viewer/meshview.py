@@ -131,14 +131,27 @@ class Index:
         # the full modification time (deep scan S5: whole seconds missed a same-size rewrite within the second)
         sig = [(b, os.stat(b).st_size, os.stat(b).st_mtime_ns) for _, b in bundles]
         path = cache or os.path.join(root, 'work', 'tools_out', 'meshview_index.pkl')
+        if self._cached(path, sig):
+            return
+        # one process builds a missing index at a time; one that waited reads what the other wrote (tools or tests
+        # side by side: each built it for minutes, and a write over a file another was reading failed; 2026-11-17)
+        with atomicio.locked(path + '.lock'):
+            if not self._cached(path, sig):
+                self._build(bundles, sig, path)
+
+    def _cached(self, path, sig):
+        """Takes the index from the cache file when it is this game copy's; False when missing, old or damaged."""
         try:
             with open(path, 'rb') as fh:
                 c = pickle.load(fh)
             if c['version'] == CACHE_VERSION and c['sig'] == sig:
                 self.__dict__.update(c['data'])
-                return
+                return True
         except Exception:                                       # noqa: BLE001 - missing, old, corrupt or foreign: rebuilt
             pass
+        return False
+
+    def _build(self, bundles, sig, path):
         print('indexing the game copy (once; cached) ...', file=sys.stderr)
         self.where, self.parts, self.entries = {}, {}, {}
         skipped: list[str] = []
@@ -167,6 +180,12 @@ class Index:
                   + '\n  '.join(skipped), file=sys.stderr)
             return
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            self._write(path, sig)
+        except PermissionError as ex:                           # Windows: another process is reading the old file
+            print(f'index: built but not cached this time ({ex})', file=sys.stderr)
+
+    def _write(self, path, sig):
         atomicio.write_bytes(path, pickle.dumps({'version': CACHE_VERSION, 'sig': sig,
                                                  'data': {'where': self.where, 'parts': self.parts,
                                                           'entries': self.entries}}))
