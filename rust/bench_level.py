@@ -1,6 +1,8 @@
 r"""Times level.load (rust/BENCHMARKS.md, "The level loader in Rust"): the whole load and each stage, in three modes.
 
-  python rust\bench_level.py [--runs N] [level ...]       default: mp_005 sp_01, 3 runs (median), files cached
+  python rust\bench_level.py [--runs N] [--opfor <folder>] [level ...]
+                                     default: mp_005 sp_01, 3 runs (median), files cached; --opfor: another
+                                     OPFOR-like folder (e.g. a temp prepare of a WW2 level: BENCHMARKS.md)
 
   rust     the Rust scene (bc2_native.scene_load) and every Rust reader: today's level.load
   main     the Python loader on the Rust DBX / FBRB readers, collision, terrain and water in Python: main before E1a
@@ -65,8 +67,9 @@ def setup(mode: str) -> None:
 
 def main(argv: list[str]) -> int:
     runs = int(argv[argv.index('--runs') + 1]) if '--runs' in argv else 3
-    levels = [a for a in argv[1:] if not a.startswith('--') and not a.isdigit()] or ['mp_005', 'sp_01']
-    root = paths.find_opfor(None, start=SUITE)
+    opfor = argv[argv.index('--opfor') + 1] if '--opfor' in argv else None
+    levels = [a for a in argv[1:] if not a.startswith('--') and not a.isdigit() and a != opfor] or ['mp_005', 'sp_01']
+    root = paths.find_opfor(opfor, start=SUITE)
     timed(level, 'read_many', 'DBX partitions (read_many)')
     timed(level, 'resolve_blueprints', 'blueprints')
     timed(level, 'assign_teams', 'teams')

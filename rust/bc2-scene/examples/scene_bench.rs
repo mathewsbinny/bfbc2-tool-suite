@@ -93,26 +93,42 @@ fn main() {
     let (t, found) = best(runs, || {
         bases
             .iter()
-            .map(|b| walk::find(b, &["_havok.res", ".xml"]))
+            .map(|b| walk::find(b, &["_havok.res", ".xml", ".dbx"]))
             .collect::<Vec<_>>()
     });
     let xml: Vec<&walk::Found> = found.iter().flat_map(|f| &f[1]).collect();
+    let dbx: Vec<&walk::Found> = found.iter().flat_map(|f| &f[2]).collect();
     println!(
-        "  the walk alone                     {t:7.3} s  {} XML files",
-        xml.len()
+        "  the walk alone                     {t:7.3} s  {} XML files, {} .dbx",
+        xml.len(),
+        dbx.len()
     );
-    let (t, bytes) = best(runs, || {
-        use rayon::prelude::*;
-        xml.par_iter()
-            .map(|f| fs::read(&f.path).map_or(0, |d| d.len()))
-            .sum::<usize>()
-    });
-    println!("  reading the XML files              {t:7.3} s  {} MB", bytes >> 20);
+    for (what, files) in [("XML files", &xml), (".dbx files", &dbx)] {
+        let (t, bytes) = best(runs, || {
+            use rayon::prelude::*;
+            files
+                .par_iter()
+                .map(|f| fs::read(&f.path).map_or(0, |d| d.len()))
+                .sum::<usize>()
+        });
+        println!("  reading the {what:<22} {t:7.3} s  {} MB", bytes >> 20);
+    }
+    let (t, hv) = best(runs, || collision::havok_index(&bases));
+    println!("  havok_index alone (no aliases)     {t:7.3} s  {} packfiles", hv.len());
     let (t, idx) = best(runs, || collision::index(&bases));
     println!(
         "  collision index (walk + aliases)   {t:7.3} s  {} packfiles",
         idx.havok.len()
     );
+    // the mesh-alias cache: built once (cold), then reused (warm), in a temp folder removed after
+    let cache = std::env::temp_dir().join(format!("bc2_scene_bench_cache_{}", std::process::id()));
+    let _ = fs::remove_dir_all(&cache);
+    let t = Instant::now();
+    let _ = collision::index_cached(&bases, Some(&cache));
+    let cold = t.elapsed().as_secs_f64();
+    let (warm, _) = best(runs, || collision::index_cached(&bases, Some(&cache)));
+    println!("  collision index, cache cold / warm {cold:7.3} s / {warm:.3} s");
+    let _ = fs::remove_dir_all(&cache);
     let light = scene::LoadOptions {
         geometry: false,
         ..options.clone()
@@ -135,7 +151,7 @@ fn main() {
             let havok = idx.resolved().unwrap();
             c.blueprints
                 .keys()
-                .map(|bp| fs::read(havok.get(bp).unwrap()).unwrap())
+                .filter_map(|bp| havok.get(bp).map(|p| fs::read(p).unwrap()))
                 .collect()
         })
         .unwrap_or_default();
