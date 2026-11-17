@@ -135,11 +135,13 @@ def is_dbxedit(program: str) -> bool:
     return name in ('dbxedit.exe', 'dbxedit')
 
 
-def run_cmd(cmd: Sequence[Any], *, capture_output: bool = True, text: bool = False, check: bool = False,
+def run_cmd(cmd: Sequence[Any], *, capture_output: bool = False, text: bool = False, check: bool = False,
             encoding: str | None = None, errors: str | None = None, universal_newlines: bool | None = None,
             **_ignored: Any) -> Result:
     """subprocess.run(cmd, ...) for a command line starting with DbxEdit.exe's path: the command runs in process
-    (unless use_exe(): then that exe). Other programs run with subprocess.run as given."""
+    (unless use_exe(): then that exe). Other programs run with subprocess.run as given.
+    capture_output defaults to False, as subprocess.run's does (True made a forced exe's stdout=DEVNULL call raise
+    ValueError, and changed uncaptured callers: OPFOR's switch, 2026-11-17)."""
     cmd = [os.fspath(c) for c in cmd]
     as_text = bool(text or universal_newlines or encoding or errors)
     if not cmd or not is_dbxedit(cmd[0]) or use_exe():

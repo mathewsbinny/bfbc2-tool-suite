@@ -520,7 +520,7 @@ def api(check: Any, root: str) -> None:
     r = dbxedit.run_cmd([EXE, 'xml', a], capture_output=True, text=True)
     check(r.returncode == 0 and r.stdout == 'converted 1 file(s)\n' and os.path.isfile(a[:-4] + '.xml'),
           'dbxedit.run_cmd: a DbxEdit.exe command line runs in process', repr(r))
-    r = dbxedit.run_cmd([EXE, 'xml', a])
+    r = dbxedit.run_cmd([EXE, 'xml', a], capture_output=True)
     check(r.stdout == b'converted 1 file(s)\r\n', 'dbxedit.run_cmd without text: bytes with \\r\\n, as the exe prints', repr(r))
     try:
         dbxedit.run(['edit', a, os.path.join(d, 'c.dbx'), 'nonsense'], check=True)
