@@ -224,36 +224,59 @@ def run_listing(root: str, check: Any) -> None:
           f'level_partitions in both backends on {len(sample)} of them: the same {found} partitions', '; '.join(bad[:3]))
 
 
+CULL_SOURCE = ('Levels/ONS_MP_005/staticculltree_exclusive.dbx', 'Levels/ONS_MP_005.dbx')   # console_cull's
+
+
 def run_add(root: str, check: Any) -> None:
-    pkg = os.path.join(root, 'work', 'console_cull', 'ons_mp_005', 'pkg')
-    tree = os.path.join(pkg, 'Levels', 'MP_005', 'staticculltree_exclusive.dbx')
-    level = os.path.join(pkg, 'Levels', 'MP_005.dbx')
+    """console_cull's add on Onslaught MP_005, both backends. The input: the level bundle as it was before
+    console_cull's stage (the game copy's level-00.fbrb.opfor-cull-orig, read only; its tree and level partition
+    written to the temp folder), else console_cull's own unpack in work (already patched: one object left to add)."""
     levels = os.path.join(root, 'work', 'levels')
-    if not (os.path.isfile(tree) and os.path.isfile(level) and os.path.isdir(levels)):
-        print('skipped: the add run (no work\\console_cull\\ons_mp_005 or work\\levels)')
-        return
+    orig = os.path.join(root, 'game', 'Package', 'levels', 'ons_mp_005', 'level-00.fbrb.opfor-cull-orig')
+    pkg = os.path.join(root, 'work', 'console_cull', 'ons_mp_005', 'pkg')
+    with tempfile.TemporaryDirectory(prefix='culltree_add_') as tmp:
+        if os.path.isfile(orig):
+            source = 'the bundle before the cull stage (fresh)'
+            data = fbrb.read(orig, list(CULL_SOURCE))
+            for name in CULL_SOURCE:
+                p = os.path.join(tmp, 'in', *name.split('/'))
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                with open(p, 'wb') as fh:
+                    fh.write(data[name])
+            tree, level = (os.path.join(tmp, 'in', *n.split('/')) for n in CULL_SOURCE)
+        else:
+            source = 'work\\console_cull\'s unpack (already patched)'
+            tree, level = (os.path.join(pkg, *n.split('/')) for n in CULL_SOURCE)
+        if not (os.path.isfile(tree) and os.path.isfile(level) and os.path.isdir(levels)):
+            print('skipped: the add run (no Onslaught MP_005 source or work\\levels)')
+            return
+        run_add_on(tree, level, levels, source, tmp, check)
+
+
+def run_add_on(tree: str, level: str, levels: str, source: str, tmp: str, check: Any) -> None:
     refs = []
     for d in sorted(os.listdir(levels)):
         if os.path.isdir(os.path.join(levels, d)):
             refs += ['--ref-dir', os.path.join(levels, d)]
     out, times = [], []
-    with tempfile.TemporaryDirectory(prefix='culltree_add_') as tmp:
-        for side, env in (('python', {'BFBC2_PURE_PYTHON': '1'}), ('rust', {'BFBC2_PURE_PYTHON': ''})):
-            o = os.path.join(tmp, side)
-            os.makedirs(o)
-            t = time.time()
-            r = subprocess.run([sys.executable, os.path.join(ROOT, 'culltree.py'), 'add', tree, level, '--auto',
-                                '--misplaced', '2.0', *refs, '--out-tree', os.path.join(o, 'tree.dbx'),
-                                '--out-level', os.path.join(o, 'level.dbx')],
-                               capture_output=True, text=True, errors='replace', env={**os.environ, **env})
-            times.append(time.time() - t)
-            files = [open(os.path.join(o, f), 'rb').read() if os.path.isfile(os.path.join(o, f)) else None
-                     for f in ('tree.dbx', 'level.dbx')]
-            out.append((r.returncode, r.stdout.replace(o, '<out>'), files))     # the report names its output files
+    for side, env in (('python', {'BFBC2_PURE_PYTHON': '1'}), ('rust', {'BFBC2_PURE_PYTHON': ''})):
+        o = os.path.join(tmp, side)
+        os.makedirs(o)
+        t = time.time()
+        r = subprocess.run([sys.executable, os.path.join(ROOT, 'culltree.py'), 'add', tree, level, '--auto',
+                            '--misplaced', '2.0', *refs, '--out-tree', os.path.join(o, 'tree.dbx'),
+                            '--out-level', os.path.join(o, 'level.dbx')],
+                           capture_output=True, text=True, errors='replace', env={**os.environ, **env})
+        times.append(time.time() - t)
+        files = [open(os.path.join(o, f), 'rb').read() if os.path.isfile(os.path.join(o, f)) else None
+                 for f in ('tree.dbx', 'level.dbx')]
+        out.append((r.returncode, r.stdout.replace(o, '<out>'), files))     # the report names its output files
     lines = out[0][1].strip().splitlines()
+    added = sum(1 for x in lines if ': slot ' in x and ' leaves (shape from ' in x)
     check(out[0] == out[1] and out[0][0] == 0 and out[0][2][0] is not None,
-          f'add --auto --misplaced 2 on Onslaught MP_005 against every work\\levels folder: the same tree, level and '
-          f'report both ways ({len(lines)} report lines, "{lines[-1] if lines else ""}"; Python {times[0]:.0f} s, '
+          f'add --auto --misplaced 2 on Onslaught MP_005 ({source}) against every work\\levels folder: the same tree, '
+          f'level and report both ways ({added} objects added, {len(lines)} report lines, "{lines[-1] if lines else ""}"; '
+          f'Python {times[0]:.0f} s, '
           f'Rust core {times[1]:.0f} s)', f'exit {out[0][0]} / {out[1][0]}')
 
 

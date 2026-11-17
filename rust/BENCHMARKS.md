@@ -244,10 +244,14 @@ read from the bundles 23 s, parse 9.7 s, write 13.1 s; OPFOR's work files (304, 
   Python. The merge itself was not ported: what remains of it is 0.6 s.
 - **Through Python the parse is bound by the objects:** Rust reads a database in 2 ms; building its ~70,000 Python
   `bytes`, `str` and `Shader` objects takes the other 20. The writer writes straight into the new `bytes` object.
-- **What is left is the bundle reads** (20 of 26 s): `wake_shaders` (and `wake_install.level_db`, the template index)
-  load each level's Dx9, Dx10 and Dx11 databases with three `fbrb.read` calls, and each decompresses the bundle's
-  payload up to its entry. Reading the three in one call would cut that to about a third: a caller change (OPFOR),
-  not a format port.
+- **What was left was the bundle reads** (20 of 26 s): `wake_shaders` loaded each level's Dx9, Dx10 and Dx11
+  databases with three `fbrb.read` calls, each decompressing the bundle's payload up to its entry.
+  `shaderdb.load_levels(levels, dxs)` reads a level's databases in one call, several bundles at a time on all cores
+  (`fbrb.read_many`), and gives what `load` gives per Dx (or its `ShaderDbError`). On it (OPFOR branch `rust-e1c`:
+  `wake_shaders.merge_stock` / `add_bfbc2`, `wake_install.index_templates` and its Dx9 donor scan), with identical
+  results: the merge **21-22 s -> 8-9 s per level** (all four WW2 levels, Dx9 / 10 / 11), the donor scan 6.9 ->
+  3.3 s, the template index 13 -> 12 s (one database per bundle: only the parallel reads help). The price: a merge
+  holds its three Dx at once, peak commit 1.2 -> 2.0 GB. `renderqa.truth_index` uses it too.
 - **A WW2 level build** (16-22 min) spends about 40 s of its shaders step here; the rest of the step (2-3 min) is
   `wake_shaders.meshes` (DBX reads of BFBC2's partitions), and the clone / translate steps are HLSL compilation and
   Python logic, not database I/O. The install's "indexing the stock shader templates" reads every stock Dx9

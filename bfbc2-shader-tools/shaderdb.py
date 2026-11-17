@@ -51,7 +51,7 @@ import os
 import re
 import struct
 import sys
-from collections.abc import Callable, Collection, Container, Iterable, Sequence
+from collections.abc import Callable, Collection, Container, Iterable, Iterator, Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, cast
 
@@ -583,6 +583,64 @@ def load(spec: str, dx: int | None = None, opfor: str | None = None) -> tuple[Sh
         db.dx = dx
     db.label = label
     return db, data
+
+
+LevelDbs = dict[int, 'ShaderDb | ShaderDbError']
+
+
+def load_levels(levels: Iterable[str], dxs: Sequence[int] = (9, 10, 11), opfor: str | None = None,
+                chunk: int = 8) -> Iterator[tuple[str, LevelDbs]]:
+    """(level, {dx: ShaderDb, or the ShaderDbError load raised}) for each level, in order: what
+    load(f'level:{level}', dx, opfor) gives for each dx, with each level's databases read from its bundle in one pass
+    (an fbrb.read decompresses the payload up to the entries it reads: one call per Dx decompressed it once per Dx) and
+    `chunk` bundles at a time on all cores (fbrb.read_many). A bundle that cannot be read raises as load does. Only
+    `chunk` levels' file bytes are held at once; the databases are made one level at a time, as the caller takes
+    them (a caller that keeps every Dx of every level holds three times what a per-Dx loop held)."""
+    from bfbc2core import fbrb
+    levels = list(levels)
+    bundles = level_bundles(find_opfor(opfor)) if levels else {}
+    step = max(1, chunk)
+    for i in range(0, len(levels), step):
+        plans: list[tuple[str, str | None, LevelDbs, dict[int, str]]] = []
+        for lv in levels[i:i + step]:
+            out: LevelDbs = {}
+            names: dict[int, str] = {}
+            bundle = bundles.get(lv.lower())
+            for dx in dxs:
+                if bundle is None:
+                    out[dx] = ShaderDbError(f'unknown level {lv}: the game copy has no levels\\{lv}\\level-00.fbrb')
+                    continue
+                try:
+                    names[dx] = pick_database(bundle, dx)
+                except ShaderDbError as e:
+                    out[dx] = e
+            plans.append((lv, bundle, out, names))
+        jobs: list[tuple[str, list[str]]] = [(b, sorted(set(names.values()))) for _, b, _, names in plans
+                                             if b is not None and names]
+        read = fbrb.read_many(jobs)
+        k = 0
+        for lv, bundle, out, names in plans:
+            if bundle is not None and names:
+                data, read[k] = read[k], {}         # each level's bytes let go once its databases are made
+                k += 1
+                if isinstance(data, Exception):
+                    raise data
+                for dx, name in names.items():
+                    label = f'{bundle}:{name}'
+                    try:
+                        db = ShaderDb.parse(data[name], 10 if dx == 11 else dx, where=label)
+                    except ShaderDbError as e:
+                        out[dx] = e
+                        continue
+                    db.dx, db.label = dx, label
+                    out[dx] = db
+                data = {}
+            yield lv, {dx: out[dx] for dx in dxs}
+
+
+def load_level(level: str, dxs: Sequence[int] = (9, 10, 11), opfor: str | None = None) -> LevelDbs:
+    """load_levels for one level: {dx: ShaderDb or ShaderDbError}, its databases read in one pass."""
+    return next(load_levels([level], dxs, opfor))[1]
 
 
 # ------------------------------------------------------------------------------------------------ names

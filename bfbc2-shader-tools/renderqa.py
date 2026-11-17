@@ -1201,13 +1201,21 @@ def truth_index(root: str, cache: str | None = None) -> dict[str, list[str]]:
         pass
     print('indexing the levels\' Dx11 shader databases (once; cached) ...', file=sys.stderr)
     index: dict[str, list[str]] = {}
-    for lv in sorted(bundles):
-        try:
-            db, _ = S.load(f'level:{lv}', 11, root)
-        except Exception:                                   # noqa: BLE001 - a level without a Dx11 database
-            continue
-        for m in db.mesh_names():
-            index.setdefault(m, []).append(lv)
+    try:                                                    # the bundles read on all cores (shaderdb.load_levels)
+        for lv, got in S.load_levels(sorted(bundles), [11], root):
+            db = got[11]
+            if isinstance(db, S.ShaderDb):                  # (a level without a Dx11 database: an error, skipped)
+                for m in db.mesh_names():
+                    index.setdefault(m, []).append(lv)
+    except Exception:                                       # noqa: BLE001 - a bundle that does not read: one by one
+        index = {}
+        for lv in sorted(bundles):
+            try:
+                db, _ = S.load(f'level:{lv}', 11, root)
+            except Exception:                               # noqa: BLE001 - a level without a Dx11 database
+                continue
+            for m in db.mesh_names():
+                index.setdefault(m, []).append(lv)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as fh:
         pickle.dump({'sig': sig, 'index': index}, fh)

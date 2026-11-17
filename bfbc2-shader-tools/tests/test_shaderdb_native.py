@@ -271,6 +271,33 @@ def merge_level(need_path: str, out: str, rust: bool) -> list[str]:
         sd.use_native(True)
 
 
+def check_load_levels(check: Any) -> None:
+    """load_levels against load for each level and Dx: the same databases (bytes, label, dx) or the same error."""
+    levels = ['mp_008cq', 'ONS_MP_008', 'mp_common', 'no_such_level', 'mp_002']
+    t = time.time()
+    got = list(sd.load_levels(levels, (9, 10, 11), chunk=2))
+    t1 = time.time()
+    bad = []
+    for lv, dbs in got:
+        for dx in (9, 10, 11):
+            try:
+                ref: Any = sd.load(f'level:{lv}', dx)[0]
+            except sd.ShaderDbError as e:
+                ref = e
+            new = dbs[dx]
+            if isinstance(ref, sd.ShaderDbError):
+                ok = isinstance(new, sd.ShaderDbError) and str(new) == str(ref)
+            else:
+                ok = isinstance(new, sd.ShaderDb) and (new.to_bytes(), new.label, new.dx) == (ref.to_bytes(), ref.label, ref.dx)
+            if not ok:
+                bad.append(f'{lv} Dx{dx}')
+    t2 = time.time()
+    check([lv for lv, _ in got] == levels and not bad,
+          f'load_levels: {len(levels)} levels x Dx9 / 10 / 11 (a level with no database, an unknown one, other case): '
+          f'what load gives, or its error ({t1 - t:.1f} s; load one by one {t2 - t1:.1f} s, parsing included)',
+          ', '.join(bad))
+
+
 def run_merges(root: str, work: str, check: Any) -> None:
     needs = []
     for lv in WW2:
@@ -436,6 +463,8 @@ def main(argv: list[str]) -> int:
                 bad_g.append(f'{label}: {d}')
         check(not bad_g, 'mp_008cq\'s three databases: the same objects and bytes in both backends, written back as '
               'they were', '; '.join(bad_g))
+    if root is not None:
+        check_load_levels(check)
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 
