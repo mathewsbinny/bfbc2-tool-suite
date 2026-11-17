@@ -327,7 +327,7 @@ def main(argv):
             check(not ok, 'DbxEdit check: a broken authored file fails', detail)
             out = os.path.join(tmp, 'out', 'level-00.fbrb')
             os.makedirs(os.path.dirname(out))
-            pipeline.run(pipeline.FBRB, 'pack', bdir, out)
+            pipeline.pack_bundle(bdir, out)                          # the pipeline's pack (Rust, else FbrbTool)
             ok, detail = validate.check_packed(out, bdir, tmp)
             check(ok and detail == f'{len(added) + 1} files unpack identical', 'packed bundle: unpacks to the built files', detail)
             save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth + b'changed')

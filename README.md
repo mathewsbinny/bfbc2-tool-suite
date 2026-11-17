@@ -104,7 +104,7 @@ levels. **Nothing needs it**: without it, every tool runs on the Python readers 
 
 | Crate | What |
 |---|---|
-| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer). Later: shader databases |
+| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; packing, byte for byte as FbrbTool's `pack`: `pack_path` / `pack_dir` / `pack_many`, `pack` from entries in memory); `zlib` (zlib's deflate, levels 4-9, ported byte for byte: what FbrbTool's gzip streams hold); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer). Later: shader databases |
 | `rust/bc2-scene` | a level as the tools see it: `collision` (which packfile each blueprint uses: NavKit's index and mesh aliases in one parallel walk, each alias read from the binary partition - `dbx::field_ref`, the XML's answer without the text - and the converted XML only where the binary cannot answer; `index_cached` keeps each answer in a cache keyed by the files' sizes and times, so an unchanged level is indexed without opening its partitions), `scene` (`level.load`'s entities, blueprints, teams, outlines, collision, terrain and water on all cores; editable entities for the map editor) |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
 
@@ -135,6 +135,11 @@ collision through it) and
 keeps its mesh-alias cache in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\collision` (`collision.use_cache`, or the
 `BFBC2_COLLISION_CACHE` folder; `0` turns it off): it never changes a result, only skips partitions whose files
 have the size and time they had when they were read.
+The writers too: `dbx.write` runs in Rust (the
+Python writer's bytes; a tree the Rust writer does not take, such as one with an empty tag, goes to the Python
+writer, so the result is always the Python writer's), and the new `fbrb.pack(folder, out)` / `fbrb.pack_many` pack
+an unpacked folder as FbrbTool's `pack` does, the same bytes on every bundle of the game copy, with FbrbTool.exe as
+the fallback (`bfbc2-stockmp-ai` packs through it). Unpacking stays with FbrbTool.
 
 **Develop:** in `rust\`, `cargo test` (unit, property and doc tests), `cargo clippy --all-targets -- -D warnings`,
 `cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene` (after

@@ -11,7 +11,8 @@
 //! | `entries(path)` | [`entries_path`] ([`read_header`] on any reader) |
 //! | `names(path)` | [`Header::names`] |
 //! | `read(path, names)` | [`read_path`] ([`read`] on any reader), [`read_many`] for many bundles on all cores |
-//! | `build(items, zipped)` | [`build`] (a test writer: FbrbTool packs real bundles) |
+//! | `build(items, zipped)` | [`build`] (a test writer) |
+//! | `pack(folder, out)` (FbrbTool's `pack`) | [`pack_path`], [`pack_dir`], [`pack_many`]; [`pack`] from entries in memory |
 //! | `Entry`, `Entry.deleted`, `DELETED` | [`Entry`], [`Entry::is_deleted`], [`DELETED`] |
 //! | `ValueError` / `KeyError` / `OSError` | [`FbrbError`] |
 //!
@@ -38,9 +39,14 @@ mod build;
 mod error;
 mod gzip;
 mod header;
+mod pack;
 mod read;
 
 pub use build::build;
 pub use error::{FbrbError, Result};
 pub use header::{DELETED, Entry, Header, MAGIC, parse_header_fields, read_header};
+pub use pack::{
+    Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, decode_text, entry_path, pack,
+    pack_dir, pack_many, pack_path, parse_manifest,
+};
 pub use read::{entries_path, extract, extract_many, extract_path, read, read_many, read_path, read_payload};

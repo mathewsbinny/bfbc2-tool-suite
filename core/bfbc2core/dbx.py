@@ -12,6 +12,11 @@ parse and to_xml run in the suite's Rust core (rust/, module bc2_native) when it
 give the same trees, text and errors (core/tests/test_dbx_native.py: every corpus file). BFBC2_PURE_PYTHON=1 (or
 use_native(False)) forces the Python reader; backend() says which one runs. parse_many / to_xml_many take many files
 at once (on all cores with the Rust core).
+
+write runs in the Rust core too (bc2_native.dbx_write walks the Python tree): the Python writer's bytes, proven on
+every corpus file and on edited trees (core/tests/test_dbx_write_native.py); a tree the Rust writer leaves to the
+Python one (a shape or value the Python writer writes differently or refuses) is written by _py_write, so the
+result is always the Python writer's.
 """
 import contextlib
 import gc
@@ -329,7 +334,18 @@ def write(f: DbxFile) -> bytes:
     """A DbxFile (element tree) as a binary .dbx (FORMAT.md sections 1-2): a fresh string table - the empty string
     first, then each string in the order the tree first uses it -, container bytes 0, header value 0. Not
     byte-identical to a game file (DbxEdit keeps a file's own string order), but the same tree: parse(write(f))
-    gives f back."""
+    gives f back. In the Rust core when it is built (the same bytes; module doc), else _py_write."""
+    native = _native
+    if native is not None and hasattr(native, 'dbx_write'):
+        try:
+            return cast(bytes, native.dbx_write(f))
+        except Exception:
+            pass                       # a tree the Rust writer leaves to the Python one: its bytes or its error
+    return _py_write(f)
+
+
+def _py_write(f: DbxFile) -> bytes:
+    """write() in Python: the reference the Rust writer is checked against."""
     index = {'': 0}
     order = ['']
 

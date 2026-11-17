@@ -285,12 +285,61 @@ into `work\levels\guadal_canal\dist` and DbxEdit `xml` on it, `terrain-00.fbrb` 
 
 The Rust scene and the Python loader gave the same level entity by entity (`test_scene_native.compare`), and the
 same collision index (592 packfiles, 953 aliases).
+## The writers in Rust (2026-11-16, branch `rust-e1b`)
+
+Contended: other agents were building and testing on the same 16-thread PC throughout, so every number is noisy
+(the same run twice differed by up to 20 %). Best of 3 for the DBX writer, best of 2 for packing.
+
+### The profile (before the port)
+
+- **DBX writing is a small share of the pipelines.** The dbxport fair ports (`test_dbxport_fair.py`, all
+  categories, under cProfile): 1,345 s, of which `dbx.write` 1.9 s in 2,353 calls (0.1 %), `dbx.parse` 15.8 s. The
+  OPFOR WW2 installer (`wake_install.py`, not run: it writes into `game\`) calls `dbx.write` in nine places on the
+  partitions it edits, a few thousand files at most: about 1 ms per file in Python (below).
+- **Packing is the larger cost, and it is deflate.** The WW2 install packs each level's `level`, `terrain`,
+  `ingame`, `loader` and `vo/en` bundles, `ww2_common`'s three and the shared bundles it patches, one FbrbTool
+  process after another. A level bundle (186-341 MB) takes 17-25 s in FbrbTool, nearly all of it zlib on the
+  payload; FbrbTool on all 1,086 bundles of the game copy took 2,281 s of process time.
+
+### Before and after
+
+| | before | after | |
+|---|---|---|---|
+| `dbx.write`, MP_005 (2,567 files, 31.4 MB) | 1.38 s (Python) | 0.30 s (Rust) | 4.6x |
+| `dbx.write`, Guadalcanal (`work\ww2\guadal_canal`, 77 files, 3.3 MB) | 0.17 s | 0.03 s | 5.0x |
+| `dbx.write`, all of `work\ww2` (15,179 files, 147 MB) | 7.22 s | 1.46 s | 5.0x |
+| pack, the WW2 install's 19 bundles (4 levels x 4 + `ww2_common` x 3), one after another | 124.8 s (FbrbTool) | 107.7 s (Rust) | 1.16x |
+| of it: a level bundle (Wake `level-00`, 340 MB zipped, 4,963 entries) | 24.9 s | 20.9 s | |
+| of it: `ww2_common` `level-00` (302 MB, 17,426 entries) | 25.5 s | 22.9 s | |
+| pack, a stored bundle (`streaming_sounds-00`, 592 MB, 4,744 entries) | 6.2-9.2 s | 7.7-8.7 s | (I/O) |
+| pack, all 1,086 bundles of the game copy (process time, 6 at once) | 2,281 s | 2,476 s* | |
+
+\* measured before the match comparison was made 8 bytes at a time (deflate 1.12 -> 0.85 s on `BFBC2Game.exe`,
+19 MB; Python's C zlib takes 1.13 s on the same file).
+
+- **The DBX writer is 4.6-5x faster**, and every byte the Python writer's. What is left is reading the Python
+  tree: walking it (one `getattr` per field) costs about as much as the writing; the string table keeps each string
+  object's id by its address, so a parsed tree's shared strings are read and hashed once.
+- **Packing is bound by deflate, and deflate cannot be split.** The bundle must be FbrbTool's bytes, so the payload
+  is one zlib stream compressed on one thread: the port is as fast as C zlib, about 15 % faster than FbrbTool
+  overall (no process start, files read on all cores). The large gain is across bundles: `fbrb.pack_many` packs
+  each on its own core, so the WW2 install's 19 bundles would take about the longest one's time (about 25 s)
+  instead of the sum (about 2 minutes), once its scripts call `pack_many` instead of FbrbTool one at a time.
+
+### Parity
+
+- DBX: all 48,119 distinct binary corpus files (29.6 million elements), written back and after random edits:
+  the Rust writer's bytes are the Python writer's; 41 edge trees (shapes, kinds, strings, nesting) give the Python
+  writer's bytes or exception through `dbx.write`; DbxEdit's roundtrip leaves 3,000 Rust-written files unchanged.
+- Packing: all 1,086 bundles of the game copy unpacked by FbrbTool and packed by both: byte-identical. Against the
+  game's own files: 62 identical, 919 identical but for the gzip headers (DICE: xfl 0 / os 0x0b; .NET: xfl 4 /
+  os 0), 105 also but for the payload of marker-only zipped bundles (DICE writes an empty 20-byte gzip stream,
+  .NET's `GZipStream` none). Every deflate stream DICE wrote is zlib level 6.
 
 ## Not ported yet
 
-- The DBX **writer** is in Rust (`dbx::write`, tested by round trips) but Python's `dbx.write` still writes the
-  files the suite produces: the Python tools build Python trees, and converting them to Rust to write would cost
-  more than it saves today. E1's `levelwrite` (Rust trees) is where the Rust writer takes over.
-- **FBRB packing** stays with FbrbTool (`pack`, with DICE's padded layouts, `fbrb.manifest` and size2 rules):
-  the Rust reader has only a small test writer (`fbrb::build`, as `fbrb.build`). E1's `levelwrite` is where packing
-  moves to Rust.
+- **Unpacking** stays with FbrbTool (`unpack`, writing the folder and `fbrb.manifest`); the Rust reader extracts
+  every entry in memory (`fbrb::extract`), but writing FbrbTool's folders and manifests is not ported.
+- **OPFOR's scripts** (`wake_install.py`, `ww2_level_install.py`, the onslaught tools) still run FbrbTool.exe for
+  `pack`; switching them to `bfbc2core.fbrb.pack` / `pack_many` is a change in the OPFOR repository.
+- zlib's fast levels 1-3 (`deflate_fast`) are not ported: nothing the suite writes uses them.
