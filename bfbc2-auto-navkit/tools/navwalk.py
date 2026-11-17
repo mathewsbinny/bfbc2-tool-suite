@@ -396,6 +396,15 @@ def matched_flags(s: navsample.Samples, other: navsample.Samples | None) -> np.n
     out = np.full(len(s.y), 1, dtype=np.uint8)
     if other is None:
         return out
+    if hasattr(_native, 'navkit_matched_flags') and other.flags.dtype == np.uint8:
+        try:
+            got = _native.navkit_matched_flags(
+                s.nx * s.nz, np.ascontiguousarray(s.start, '<i8').tobytes(), np.asarray(s.y, '<f8').tobytes(),
+                np.ascontiguousarray(other.start, '<i8').tobytes(), np.asarray(other.y, '<f8').tobytes(),
+                other.flags.tobytes())
+            return np.frombuffer(got, np.uint8).copy()
+        except _NATIVE_ERRORS:
+            pass
     for c in range(s.nx * s.nz):
         oth = range(other.start[c], other.start[c + 1])
         for k in range(s.start[c], s.start[c + 1]):

@@ -32,6 +32,42 @@ fn floats(b: &[u8], f32_: bool, what: &str) -> PyResult<Floats> {
     })
 }
 
+fn starts(b: &[u8]) -> PyResult<Vec<usize>> {
+    chunks::<8>(b, "start")?
+        .into_iter()
+        .map(|b| usize::try_from(i64::from_le_bytes(b)).map_err(|_| value_error("a negative column start")))
+        .collect()
+}
+
+fn heights(b: &[u8]) -> PyResult<Vec<f64>> {
+    Ok(chunks::<8>(b, "y")?.into_iter().map(f64::from_le_bytes).collect())
+}
+
+/// `navwalk.matched_flags(s, other)` from the arrays' bytes (column starts int64, heights float64, flags uint8):
+/// the matched flags, one byte per surface of s.
+#[pyfunction]
+pub fn navkit_matched_flags<'py>(
+    py: Python<'py>,
+    cols: usize,
+    start: &Bound<'py, PyBytes>,
+    y: &Bound<'py, PyBytes>,
+    other_start: &Bound<'py, PyBytes>,
+    other_y: &Bound<'py, PyBytes>,
+    other_flags: &Bound<'py, PyBytes>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let (s, ys, os, oy) = (
+        starts(start.as_bytes())?,
+        heights(y.as_bytes())?,
+        starts(other_start.as_bytes())?,
+        heights(other_y.as_bytes())?,
+    );
+    let flags = other_flags.as_bytes();
+    let out = py
+        .detach(|| bc2_navbuild::matched_flags(cols, &s, &ys, &os, &oy, flags))
+        .map_err(value_error)?;
+    Ok(PyBytes::new(py, &out))
+}
+
 /// `navbuild.Level` in Rust: made from its arrays' bytes (little-endian; `start` int64, `keep` / `stair` /
 /// `terrain` one byte each, `y` float64, `gx` / `gz` float32 or float64 as their flags say).
 #[pyclass(frozen)]

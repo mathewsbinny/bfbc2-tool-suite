@@ -645,6 +645,43 @@ impl Level {
     }
 }
 
+/// `navwalk.matched_flags`: per surface of a sample run (`start` per column, heights `y`), the capsule flags of the
+/// first surface of a second run over the same grid (`other_start`, `other_y`, `other_flags`) in the same column within
+/// 0.05 m of its height; 1 where there is none. `cols` columns.
+///
+/// # Errors
+/// [`NavError::Shape`] when a column start or a surface lies outside the arrays given.
+pub fn matched_flags(
+    cols: usize,
+    start: &[usize],
+    y: &[f64],
+    other_start: &[usize],
+    other_y: &[f64],
+    other_flags: &[u8],
+) -> Result<Vec<u8>, NavError> {
+    let shape = || NavError::Shape("a column outside the sample arrays".into());
+    let mut out = vec![1u8; y.len()];
+    for c in 0..cols {
+        let (a, b) = (*start.get(c).ok_or_else(shape)?, *start.get(c + 1).ok_or_else(shape)?);
+        let (oa, ob) = (
+            *other_start.get(c).ok_or_else(shape)?,
+            *other_start.get(c + 1).ok_or_else(shape)?,
+        );
+        let (ys, oys, ofl) = (
+            y.get(a..b).ok_or_else(shape)?,
+            other_y.get(oa..ob).ok_or_else(shape)?,
+            other_flags.get(oa..ob).ok_or_else(shape)?,
+        );
+        let dst = out.get_mut(a..b).ok_or_else(shape)?;
+        for (o, &yk) in dst.iter_mut().zip(ys) {
+            if let Some((_, &f)) = oys.iter().zip(ofl).find(|&(&yn, _)| (yn - yk).abs() < 0.05) {
+                *o = f;
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// The surface -> local cell map [`Level::search`] reads and extends (the build's `cell_ij`).
 pub trait CellMap {
     /// The cell of surface k, if known.

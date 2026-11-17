@@ -252,6 +252,39 @@ fn searches() {
 }
 
 #[test]
+fn matched_flags_by_height() {
+    // two columns: [0.0, 3.0] and [1.0]; the other run: [0.04, 2.0] (flags 2, 3) and [1.06] (flag 3)
+    let got = matched_flags(
+        2,
+        &[0, 2, 3],
+        &[0.0, 3.0, 1.0],
+        &[0, 2, 3],
+        &[0.04, 2.0, 1.06],
+        &[2, 3, 3],
+    )
+    .unwrap();
+    assert_eq!(got, [2, 1, 1]);
+    // the first match in the column wins
+    assert_eq!(
+        matched_flags(1, &[0, 1], &[0.0], &[0, 2], &[0.01, -0.01], &[5, 6]).unwrap(),
+        [5]
+    );
+    // arrays that do not cover the columns
+    for (s, o, f) in [
+        (&[0usize][..], &[0usize, 1][..], &[1u8][..]),
+        (&[0, 1], &[0], &[1]),
+        (&[0, 9], &[0, 1], &[1]),
+        (&[0, 1], &[0, 9], &[1]),
+        (&[0, 1], &[0, 1], &[]),
+    ] {
+        assert!(matches!(
+            matched_flags(1, s, &[0.0], o, &[0.0], f),
+            Err(NavError::Shape(_))
+        ));
+    }
+}
+
+#[test]
 fn floods_and_islands() {
     // heights along x: 0, 0.1, 2 (a step the slope rule refuses), 2.1; z rows the same
     let mut d = flat(4, 2, |i, _| [0.0, 0.1, 2.0, 2.1][i]);

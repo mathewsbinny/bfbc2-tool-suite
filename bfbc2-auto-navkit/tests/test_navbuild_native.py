@@ -164,8 +164,16 @@ def quick() -> int:
         lv = grid(rng, rng.randint(4, 12), rng.randint(4, 12), case % 2 == 0)
         s = lv.s
         seeds = [(rng.uniform(0, s.nx * s.pitch), rng.uniform(0, 3), rng.uniform(0, s.nz * s.pitch)) for _ in range(3)]
-        a = navwalk.walkable(s, return_gradients=True, return_stairs=True, extra_seeds=seeds, anchors=seeds[:1])
-        b = py(navwalk.walkable, s, return_gradients=True, return_stairs=True, extra_seeds=seeds, anchors=seeds[:1])
+        # a second (high-capsule) run over the same grid: the same surfaces, heights moved by up to 0.08 m, its flags
+        hi: Any = SimpleNamespace(**s.__dict__)
+        hi.y = (s.y + np.array([rng.choice([0.0, 0.02, -0.049, 0.06, 0.08]) for _ in s.y], np.float32)).astype(np.float32)
+        hi.flags = np.array([rng.randrange(4) for _ in s.y], np.uint8)
+        fa, fb = navwalk.matched_flags(s, hi), py(navwalk.matched_flags, s, hi)
+        check(np.array_equal(fa, fb) and fa.dtype == fb.dtype, f'matched_flags case {case}')
+        a = navwalk.walkable(s, return_gradients=True, return_stairs=True, extra_seeds=seeds, anchors=seeds[:1],
+                             high_capsule=hi)
+        b = py(navwalk.walkable, s, return_gradients=True, return_stairs=True, extra_seeds=seeds, anchors=seeds[:1],
+               high_capsule=hi)
         check(all(np.array_equal(x, y_) and x.dtype == y_.dtype for x, y_ in zip(a, b)), f'walkable case {case}')
         for keep in (lv.keep, a[0]):
             ia = navwalk.islands_of(s, keep, lv.gx, lv.gz, lv.stair, 0.28)
