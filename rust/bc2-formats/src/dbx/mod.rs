@@ -4,7 +4,7 @@
 //! |---|---|
 //! | `parse(data)`, `read(path)` | [`parse`], [`read`] |
 //! | `to_xml(data)` | [`to_xml`] (identical text: `core/tests/test_dbx_native.py` checks every corpus file) |
-//! | `write(f)`, `put_varint` | [`write`], [`put_varint`] |
+//! | `write(f)`, `put_varint` | [`write`] ([`Writer`] for any tree, e.g. the Python one), [`put_varint`] |
 //! | `value(e)`, `numbers(e)`, `floats(e)`, `_number_text` | [`value`], [`numbers`], [`floats`], [`number_text`] |
 //! | `Element`, `DbxFile` | [`Element`] (strings are [`StrId`]s into [`DbxFile::strings`]), [`DbxFile`] |
 //! | (read-only, no Python equivalent) | [`parse_tree`]: a [`DbxTree`] of [`Node`]s borrowing the file |
@@ -39,5 +39,5 @@ pub use number::{WHOLE_NUMBER_FIELDS, floats, net_g, net_r_double, net_r_single,
 pub use reader::{ReadError, parse, read};
 pub use strings::{MAGIC, is_binary};
 pub use tree::{DbxTree, Node, Siblings, parse_tree};
-pub use writer::{put_varint, write};
+pub use writer::{Writer, put_varint, write};
 pub use xml::to_xml;

@@ -31,6 +31,7 @@ pub mod fbrb;
 pub mod havok;
 pub mod terrain;
 pub mod water;
+pub mod zlib;
 
 mod bytes;
 
