@@ -30,6 +30,7 @@
 //! ```
 #![deny(unsafe_code)]
 
+pub mod atomic;
 pub mod culltree;
 pub mod dbx;
 pub mod fbrb;

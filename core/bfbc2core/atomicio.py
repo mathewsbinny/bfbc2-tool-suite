@@ -55,9 +55,32 @@ def _tmp(path: str) -> str:
     return f'{path}.tmp-{os.getpid()}'
 
 
+TRIES = 11      # replace's tries; the waits between them grow by 50 ms (about 2.75 s in all)
+
+
+def _transient(e: OSError) -> bool:
+    """A moment's lock by another process (Windows: access denied, sharing or lock violation)."""
+    return isinstance(e, PermissionError) or getattr(e, 'winerror', None) in (5, 32, 33)
+
+
+def replace(tmp: str, path: str) -> None:
+    """os.replace(tmp, path), tried again while another process has path open for a moment. On Windows the move fails
+    while a process holds the target without delete sharing - typically the virus scanner or the search indexer
+    reading a file just written (a WW2 rebuild stopped on one in DbxEdit, 2026-11-17). Up to TRIES tries, as
+    bc2-formats' atomic::replace and DbxEdit / FbrbTool's MoveOver."""
+    for n in range(1, TRIES + 1):
+        try:
+            os.replace(tmp, path)
+            return
+        except OSError as e:
+            if n == TRIES or not _transient(e):
+                raise
+            time.sleep(0.05 * n)
+
+
 def _finish(tmp: str, path: str) -> None:
     try:
-        os.replace(tmp, path)
+        replace(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.remove(tmp)

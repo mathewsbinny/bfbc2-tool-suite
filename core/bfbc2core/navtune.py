@@ -19,6 +19,8 @@ import socket
 from collections.abc import Iterable, Sequence
 from typing import Any
 
+from . import atomicio
+
 FORMAT, VERSION = 'bfbc2-navtune', 1
 KINDS = ('navkit', 'dice')
 TRAVERSALS = ('ladder', 'jump', 'vault', 'drop')
@@ -183,7 +185,7 @@ class NavTune:
         with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
             json.dump(self.to_json(), f, indent=1, ensure_ascii=False)
             f.write('\n')
-        os.replace(tmp, path)                  # never a half-written side file
+        atomicio.replace(tmp, path)            # never a half-written side file
         self.dirty = False
 
     def summary(self, k: int) -> str:
