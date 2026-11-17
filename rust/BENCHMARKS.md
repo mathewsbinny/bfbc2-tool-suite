@@ -882,3 +882,106 @@ errors and repeats, `prefetch` joins, the disk cache written whole, damaged / cu
 rewritten, keys apart for every input, `BFBC2_HLSL_CACHE`; `--game`: Wake's 815 translated pixel shaders, 815 of 815
 the same bytes, peak 1.6 GB) and `bfbc2-bf1943-import/tests/test_dbxport_ranking.py` (quick: the random rankings and
 `Templates.choose`; `--game [--part K/N]`: the four level ports, slice 0/3 in the game tier, peak 1.5 GB).
+
+
+## E3f: the Xbox 360 shader translator in Rust (2026-11-17, branch `rust-e3f`)
+
+**Provisional timings:** OPFOR's WW2 rebuild and other agents' builds and tests ran beside every figure below (the
+benchmarks at below-normal priority on the 16-thread PC; the same run's rows vary by up to 1.5x between runs). Ratios
+hold within a run.
+
+**The profile.** OPFOR's round 0 profile gave the translator ~15 s of `wake_translate` (xenos `_decode_alu` 7.4 s
+cumulative, `_alu_operand` 3.3 s, 4.8 M `_bits` calls), then hidden behind 365 s of HLSL compiles; E3d took the
+compiles to ~7 s cold / ~6 s warm, so the translator became one of the step's largest costs. Measured on Wake
+Island's 1,550 programs (the plain interface: each program's own interpolators and inputs), the Python spends
+**80 % decoding** (`parse_shader`: 1.8 - 2.3 ms a program; mostly building ~600 attribute objects per program, 4.8 M
+`_bits` calls per Wake build) and 20 % emitting HLSL (`translate`: 0.44 ms).
+
+**The crate** (`rust/bc2-shader`; a crate of its own rather than a `bc2-convert` module: a decoder, an IR and an
+emitter that the queued Dx9 port and the BF1943 weapons' and soldiers' translations build on, with no file format of
+`bc2-formats`' and no tie to the texture / audio converters):
+
+- `xenos::parse(blob, is_pixel) -> Shader`: every field `xenos.py` decodes under its Python name and type (an integer
+  where Python keeps `_bits`' integer, a `bool` where it makes one, dict insertion order kept for the literals); it
+  fails where `xenos.py` raises (`XenosError::Format` with the same message, `Malformed` where Python's own
+  `struct.error` / `IndexError` / `ValueError` would end it) and never panics.
+- `hlsl::translate(&Shader, &Interface) -> String`: `xenos_hlsl._Emitter` statement for statement;
+  `TranslateError::Translate` with the Python's message, `Unsupported` where the Python would stop on another
+  exception (an empty material value, a sampler fix with other format fields than `{}`, a non-ASCII name).
+  `translate_all` and `translate_blobs` (decode and translate) run many on all cores. `pyrepr::float_repr` is
+  CPython's `repr(float)`, which the text writes every number with.
+- `bc2-py` (`xenos.rs`): `xenos_parse` / `xenos_parse_many` give a `XenosProgram` (the decoded program, kept in Rust)
+  and the tree without its microcode, every record made through the caller's `Obj` class (`object.__new__` and its
+  `__dict__`, no Python call per record); `xenos_microcode` the rest; `xenos_translate` / `xenos_translate_many`
+  (interpreter released) read the `Interface` attributes and hand anything of another type than the Python reads
+  back (status 2: the Python runs).
+- `xenos.py`: `parse_shader` returns a `_NativeShader` (an `Obj` subclass; its private fields in `__slots__`, so its
+  `__dict__`, `repr` and `to_dict` are the Python tree's): the container, tables and header at once, the microcode's
+  attributes (`cf`, `instructions`, `cf_slots`, `unused_slots`, `unused_nonzero_slots`, `code_words`) built on their
+  first read - a build's translation never builds them. `xenos_hlsl.translate` translates in Rust while the microcode
+  is unread (a tree whose microcode was read may have been edited: it goes to the Python), else in Python; hand-made
+  `Obj` trees (the tests') always in Python. Copies and pickles are plain `Obj` trees. New: `parse_many`,
+  `translate_many` (`errors='raise' | 'return'`), `parse_shader_python` / `translate_python` (the reference),
+  `use_native`, `backend()`. `xenos_exec.py` (the differential test's interpreter) stays Python: numpy already
+  vectorises it over the pixels, and it runs only in tests.
+
+**The float trap.** The first parity run differed in 7 of 4,431 translations: numbers of 17 significant digits.
+Rust's shortest `{:e}` breaks an exact tie upwards, CPython's repr (David Gay's shortest mode) to the even digit -
+and an `f32` widened to `f64` often ends in exactly such a tie (15.2146759033203125: Python `15.214675903320312`,
+Rust `...313`). `float_repr` takes the length from `{:e}` and the digits from `{:.Ne}` (exact, ties to even) when they
+read back as the value: 86,366 doubles (random bits, random `f32`s, every power of two and both neighbours) all
+Python's repr.
+
+**Parity** (`bfbc2-shader-tools/tests/test_xenos_native.py`):
+
+| Corpus | Programs | Result |
+|---|---:|---|
+| BF1943 Xbox shader databases (the 5 levels', the UI's, the menu scene's) | 7,296 | |
+| BF1943 post-process / system shader containers (raw blobs) | 106 | |
+| BFBC2 Xbox level databases (OPFOR's `work\xbox`, 20 levels) | 55,903 | |
+| **all, distinct** | **8,320** (63,305 with copies) | **8,320 trees identical** (every attribute, value, type and attribute order; the CFs' lists hold the very instruction objects); each under 3 interfaces (the plain one, two seeded random ones: material values of every shape and special float, register values, engine-named constants good and bad, sampler fixes including the `{{}}` escapes, sampler / fetch registers, instancing, bones as world, the shadow atlas, NaN tracing, probes): **22,863 HLSL texts byte-identical, 2,097 `TranslateError`s with the same message** |
+| quick: built programs (seeded: pixel / vertex, constant tables, literals, every ALU and fetch opcode, exports, predication, jumps) | 1,500 | 1,476 trees identical, 24 refused alike; 1,473 translations identical, 2,955 errors alike |
+| quick: damaged blobs (bit flips, overwritten container words, cuts, junk) | 3,000 | decoded alike or the same exception and message (733 decoded; `XenosError`, `ValueError`, `struct.error`) |
+| quick: whole microcode of random words | 1,000 | 220 decoded and translated alike, 780 refused alike |
+
+The differential test (`test_xdiff.py --game`: ps317, 36, 120, 202, 476, 745, 502 against the interpreter) passes on
+both backends; `xdiff.py` now translates before its interpreter reads the microcode, so with the Rust core it
+measures the Rust translation (the one the builds use). It reads its one database from its level's bundles now, not
+through `bf1943import.Source` (all 550 MB of BF1943's bundles: the test went past 1 GB).
+
+**Timings** (`rust/bench_xenos.py`, Wake Island's 1,550 programs, 200 at a time, best of 3; ms per program):
+
+| | s | ms each | vs Python |
+|---|---:|---:|---:|
+| decode: Python (`parse_shader_python`) | 2.721 | 1.755 | |
+| decode: Rust tree, microcode on first read (`parse_shader`) | 0.178 | 0.115 | 15.3x |
+| decode: `parse_many` (all cores) | 0.084 | 0.054 | 32.5x |
+| decode: Rust tree with its microcode built (`sh.instructions` read) | 0.541 | 0.349 | 5.0x |
+| translate: Python (`translate_python`) | 0.720 | 0.465 | |
+| translate: Rust, one at a time (`translate`) | 0.280 | 0.181 | 2.6x |
+| translate: `translate_many` (all cores) | 0.065 | 0.042 | 11.1x |
+| **decode + translate: Python** | 2.901 | 1.871 | |
+| **decode + translate: Rust, one at a time** (what callers get unchanged) | 0.464 | 0.299 | **6.3x** |
+| **decode + translate: `parse_many` + `translate_many`** | 0.200 | 0.129 | **14.5x** |
+
+Without Python (`cargo run --release -p bc2-shader --example xenos_bench -- <corpus>`, the same programs): decoding
+65 us, translating 134 us a program on one thread (20.5 MB of HLSL for 1,543 programs); all cores 0.055 s and
+0.035 s for the 1,550. A first version wrote the text as a list of lines joined at the end (184 us); one growing string
+took a quarter off. What is left of a translation's time is the text itself (13 KB a program, a `format!` a line);
+the Python side's is building the header and constant table (~50 us of the 115 us tree).
+
+**For OPFOR** (read only to this round): nothing has to change for the speed-up of the rows "one at a time" -
+`wake_translate.translate_db`, `wake_water`, `wake_terrain` and `ww2_char_shaders` call `xenos.parse_shader` and
+`X.translate` as before, read only the header and constant table of the trees, and `copy.copy` their `Interface`
+(read attribute by attribute, so a copy with other fetch registers works). From the round 0 profile's ~15 s of
+translator in `wake_translate`, expect ~2.5 s. For all cores, `translate_db` needs the first pass E3d's report
+asked for: walk the same programs up to the `X.translate` line (line ~969), collecting `(vsh, viface)` and
+`(ps, iface)` jobs and the `ck` keys instead of translating, then
+`texts = X.translate_many(jobs, errors='return')` (a `TranslateError` in its job's place, as the loop's `except`
+expects), apply the same text fix-ups (`pc_patch_position`, `pc_strip_position`, the wheel decals, the cutout and
+debug replacements) and `P.prefetch` the compiles; the unchanged loop then takes `vsrc` / `psrc` from a dict by `ck`
+and its `compile_hlsl` calls find the compiles done. `xenos.parse_many` can decode a database's programs at once for
+`vs_parsed` (`[(w.vs[i].code, False) ...]`). Expected: the translator ~1 s, the compiles as E3d measured.
+
+**What remains:** `disasm` (xdiff and the tools' text dumps; no build reads it), `xenos_exec.py` (tests only), and
+the text writing itself, if a later profile shows it.

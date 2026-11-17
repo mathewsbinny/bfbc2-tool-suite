@@ -1,0 +1,19 @@
+[package]
+name = "bc2-shader"
+description = "The Xbox 360 (Xenos) shader translator: microcode decoding and HLSL for BFBC2's Dx10 / Dx11, pure Rust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

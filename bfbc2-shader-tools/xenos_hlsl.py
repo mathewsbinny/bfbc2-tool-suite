@@ -8,11 +8,24 @@ provides: the vertex inputs (VS), the interpolators shared by the VS and PS, mat
 fix-ups. Engine constants keep their names (pcbuild binds them by name); block constants the engine writes by name
 (Interface.named_vs / named_ps: the terrain's heightmap and dynamic mask parameters) are $Globals variables under their
 names, which the build records in the PC parameter blocks at the registers the compiler gives them.
+
+translate runs in the suite's Rust core (rust/bc2-shader; round E3f) for a tree xenos.parse_shader decoded there,
+else here (translate_python, the reference); the same text byte for byte and the same TranslateError messages
+(tests/test_xenos_native.py: every program of BF1943's and BFBC2's Xbox shader databases, under varied
+interfaces). translate_many translates many programs at once on all cores. BFBC2_PURE_PYTHON=1 or
+xenos.use_native(False) forces Python.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+import os
+import sys
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:                           # xenos.py beside this file (the Rust core's programs)
+    sys.path.insert(0, _HERE)
+import xenos  # noqa: E402
 
 if TYPE_CHECKING:
     from xenos import Obj
@@ -726,4 +739,45 @@ float4 xsrgb(float4 c) { float3 l = saturate(c.rgb); return float4(l <= 0.003130
 
 
 def translate(sh: Obj, iface: Interface) -> str:
+    """The program as HLSL (entry point 'main'): in the Rust core for a tree xenos.parse_shader decoded there (and
+    whose microcode no caller has read), else here; the same text and the same TranslateError either way."""
+    program = xenos.native_program(sh)
+    if program is not None:
+        status, text = xenos._native.xenos_translate(program, iface)
+        if status == 0:
+            return text
+        if status == 1:
+            raise TranslateError(text)
+    return translate_python(sh, iface)
+
+
+def translate_python(sh: Obj, iface: Interface) -> str:
+    """translate in Python: the reference of the Rust translator, and its fallback (any tree, any interface)."""
     return _Emitter(sh, iface).run()
+
+
+def backend() -> str:
+    """'rust' when parse_shader's trees are translated in the Rust core (xenos.backend), else 'python'."""
+    return xenos.backend()
+
+
+def translate_many(jobs: Iterable[tuple[Obj, Interface]], errors: str = 'raise') -> list[Any]:
+    """translate of each (shader, iface), in order: the Rust core's programs on all cores at once (the interpreter
+    released), the others here. errors='raise' raises the first failure (in input order), 'return' puts each
+    TranslateError in its place (other exceptions still raise)."""
+    jobs = list(jobs)
+    out: list[Any] = [None] * len(jobs)
+    native = [(k, p) for k, p in enumerate(xenos.native_program(sh) for sh, _ in jobs) if p is not None]
+    if native:
+        got = xenos._native.xenos_translate_many([(p, jobs[k][1]) for k, p in native])
+        for (k, _), (status, text) in zip(native, got):
+            out[k] = text if status == 0 else TranslateError(text) if status == 1 else None
+    for k, (sh, iface) in enumerate(jobs):
+        if out[k] is None:
+            try:
+                out[k] = translate_python(sh, iface)
+            except TranslateError as e:
+                out[k] = e
+        if errors != 'return' and isinstance(out[k], TranslateError):
+            raise out[k]
+    return out
