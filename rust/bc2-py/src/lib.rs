@@ -12,7 +12,9 @@
 //! from Python (`core/tests/test_dbx_native.py`, `core/tests/test_fbrb_native.py`), where an interpreter exists.
 //!
 //! `core/bfbc2core/fbrb.py` calls the `fbrb_*` functions the same way: the reading, decompression and the batch
-//! function's bundles run with the interpreter released.
+//! function's bundles run with the interpreter released. `fbrb_read` / `fbrb_read_many` go through the bundle
+//! cache (round E3e, `fbrb_cache.rs`: `fbrb_cache_config`, `fbrb_cache_configure`, `fbrb_cache_stats`,
+//! `fbrb_cache_clear`, and `fbrb_read_uncached`, the read without it).
 //!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
@@ -22,6 +24,7 @@
 
 mod convert;
 mod culltree;
+mod fbrb_cache;
 mod geometry;
 mod navbuild;
 mod scene;
@@ -171,7 +174,7 @@ fn dbx_to_xml_many<'py>(py: Python<'py>, items: Vec<Bound<'py, PyBytes>>) -> PyR
 
 /// `bc2-formats`' bundle error as `fbrb.py` raises it: `KeyError` for a missing entry (named as `keys` gives it),
 /// `OSError` for a file that cannot be read, else `ValueError`, each naming the bundle as the Python reader does.
-fn fbrb_error(e: FbrbError, path: &str, keys: &[String]) -> PyErr {
+pub(crate) fn fbrb_error(e: FbrbError, path: &str, keys: &[String]) -> PyErr {
     match e {
         FbrbError::Io(io) => io.into(),
         FbrbError::NotBundle => PyValueError::new_err(format!("{path} is not an FbRB bundle")),
@@ -204,7 +207,7 @@ fn fbrb_header<'py>(
     Ok((out, h.zipped, h.payload_start))
 }
 
-fn bytes_list<'py>(py: Python<'py>, data: &[Vec<u8>]) -> PyResult<Bound<'py, PyList>> {
+pub(crate) fn bytes_list<'py>(py: Python<'py>, data: &[Vec<u8>]) -> PyResult<Bound<'py, PyList>> {
     PyList::new(py, data.iter().map(|d| PyBytes::new(py, d)))
 }
 
@@ -274,6 +277,11 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::scene::scene_load;
+
+    #[pymodule_export]
+    use super::fbrb_cache::{
+        fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,
+    };
 
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, zlib_deflate};

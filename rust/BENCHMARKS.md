@@ -708,3 +708,114 @@ factor of 3 - 4 more on the decodes if they batched (not changed here: OPFOR is 
   sound longer than 2^20 samples a channel in pieces of whole frames (the same frames: the groups are independent;
   the quick tier checks it), so the full tier (`--game`, every Wave, ~8 minutes) fits in 2.5 GB.
 - Rust: 11 unit and property tests in `bc2-convert` (`audio_tests.rs`).
+
+## E3e: the bundle cache (2026-11-17, branch `rust-e3e`)
+
+**Provisional timings:** other agents' builds and tests ran on the PC throughout (a WW2 level build among them);
+every run below was at below-normal priority, the before and after runs close together in time.
+
+**The cost.** Project OPFOR's round 0 profile of a WW2 level build: `fbrb_read` 726 times, 132 s, mostly the same
+stock bundles (`shaderdb.resolve` 415 reads, `meshview` 104, `effectport` 111, `material_grid` 59; `wake_translate`
+another 30 at about 1 s each). A zipped payload is one gzip stream, and `read_payload` decompressed it from its start
+up to the last byte the entries asked for need, on every call.
+
+**Measured first.** The game copy: 1,086 bundles, 1,075 zipped (7.4 GB on disk, 21.7 GB decompressed; 95 payloads of
+64 - 256 MiB, 10 larger, up to 688 MiB), 11 stored (1.5 GB). Two of the profile's callers were logged read only
+(OPFOR's `material_grid.wake_names`, and `detail_layers.index_levels` for Dx9, 10 and 11: `fbrb.read` wrapped, every
+write refused):
+
+| | reads | distinct bundles | decompressed by the reads | each bundle once, whole | reads ending past half the payload |
+|---|---:|---:|---:|---:|---:|
+| `material_grid.wake_names` | 71 | 23 | 11.0 GiB | 3.35 GiB | 48 (68 %) |
+| `index_levels` x 3 (the shader databases of 74 levels) | 222 | 74 | 10.5 GiB | 5.53 GiB | 146 (66 %) |
+
+The reads go deep (the shader databases sit near the ends of the level bundles; mp_common is read 9 times, to 490
+MiB of 561), so decompressing a re-read bundle once in full costs little more than one read; and a prefix kept in
+memory cannot hold them: the payloads are 80 - 560 MiB each.
+
+**The replay** (`rust\bench_fbrb_replay.json`; `python rust\bench_fbrb_cache.py`): the level build's reads rebuilt in
+one process to the profile's counts - the two captures (the 222 shader database reads cycled to 415; the grid's 71),
+104 single resources and 111 batches of 1 - 12 partitions chosen (seeded) from the bundles the grid reads - then
+`wake_translate`'s 30 texture headers: 731 reads of 87 bundles, 68.5 GiB decompressed by the reader before E3e (8.1
+GiB distinct). Its "before" (146 s of reading) is close to the profile's 132 s. Each run is a new process; every
+run gives the same 731 per-read SHA-1s.
+
+Two runs, each before and after back to back: run A with an in-process budget of 256 MiB, run B with the final
+default of 128 MiB (the layer does nothing on this pattern; the difference between the runs is the PC's load).
+
+| replay (731 reads) | reading, A | reading, B | whole run, B | decompressed | disk cache | peak, B |
+|---|---:|---:|---:|---:|---:|---:|
+| before (`fbrb.read_uncached`: the reader before E3e) | 146.1 s | 156.5 s | 160.6 s | 68.4 GiB | | 123 MB |
+| memory only (the disk cache off) | 150.6 s (whole run) | | | 68.4 GiB | | |
+| **cold**: one process, an empty disk cache | **51.9 s** (2.8x) | **58.3 s** (2.7x) | 62.3 s | 12.6 - 12.9 GiB | 8.09 GiB written | 338 MB |
+| **warm**: a new process, the cache cold left | **5.6 s** (26x) | **7.8 s** (20x) | 11.9 s | 0.01 GiB | 716 of 731 reads from it | 189 MB |
+| 6 processes in turn (a rebuild's steps), before | 143.6 s | | | | | |
+| 6 processes in turn, cold | 51.7 s | | | 12.8 GiB | 8.09 GiB written | |
+| 6 processes in turn, warm | 5.9 s | | | 0.03 GiB | | |
+
+("whole run" adds the benchmark's own SHA-1 of the 8.6 GB of entry data, about 4 s in every run; run A's cold peak
+was 492 MB with the larger budget. Warm is what a rebuild sees once the cache holds its bundles: the cold cost is paid
+once per bundle while it stays unchanged. The warm reads are now mostly copying: 8.6 GB of entry bytes from the
+cache files, through the system cache, into Python.)
+
+One read of mp_common's last entry (561 MiB payload): 1.30 s before, every time. With the cache: 1.31 s the first
+time (a marker is left), 1.65 s the second (the whole payload decompressed and written, 588 MB, flushed to disk), 16
+ms the third, then under 1 ms; in a new process 9 ms (its header), then under 1 ms. A stored bundle
+(streaming_sounds, 565 MiB): its last entry 70 ms before (streamed from the start out of the system cache; 291 ms
+cold), 3 ms after.
+
+**Design, by the numbers above.**
+
+- **Stored payloads** are read where each entry is (a seek; an entry past the end of the file is refused before its
+  room is taken) instead of streamed from the start.
+- **Headers**: the last 64 bundles' are kept (mp_common's: 9 ms to read and parse, 15,861 entries).
+- **In the process** (`BFBC2_FBRB_MEMORY_MB`, default 128): the payload decompressed so far with its inflater
+  (`Session`): a later read inside it is a copy, one past it continues. It serves small bundles and repeated shallow
+  reads; on the profile's pattern it does nothing (150.6 s: the payloads are larger than any sane budget), which is
+  why the disk cache exists.
+- **On disk, for every process** (`%LOCALAPPDATA%\bfbc2-tool-suite\cache\fbrb`; `BFBC2_FBRB_CACHE` names another folder
+  or `0`; `BFBC2_FBRB_CACHE_GB` the cap, default 16; `BFBC2_FBRB_CACHE_MIN_MB` the least compressed payload, default
+  8): a bundle's first read leaves a marker; its second read, by any process, decompresses the whole payload once,
+  writes it beside its final name and moves it there (`atomic::replace`), and every read after that is a seek into
+  it. One-off reads (a viewer opening one entry, a sweep of the game copy) pay nothing; a re-read bundle costs one
+  extra decompression, once while it stays unchanged (cold above: 12.6 GiB decompressed for 8.1 GiB of bundles). A
+  process that finds another writer's fresh temporary file for the bundle reads it without writing (4 processes at
+  once on 3 bundles: 5 - 9 writes, was 12). Beyond the cap the least recently used payloads go; temporary files of
+  dead writers after an hour, markers after 30 days.
+- **Not done:** an index of inflate restart points (zran: a 32 KiB window every few MiB, about 1 % of the payload on
+  disk, any entry a seek plus a few MiB of inflating) needs zlib's `inflatePrime` to start inside a byte; neither
+  flate2 nor zlib-rs's safe API has it, and the workspace denies `unsafe`. Worth it if the disk use (8 GB for the
+  replay's bundles) ever matters. A memory map of the cache files (one copy less) would need `unsafe` too.
+
+**The same results.** Every layer is keyed by the bundle's canonical path, length, modification and creation times,
+taken from the open file the read uses; a cache file repeats the key in its header and is used only when the key and
+its length check. The reference's errors come from reading 1 MiB of compressed payload at a time: a `Session` feeds
+the same chunks, keeps only what whole chunks gave, and remembers a gzip error with the bytes before its chunk, so a
+read that would reach that chunk gets the error and one that would not gets its bytes. Only a stream read to its end
+with its checksum and length checked is written to disk: every read of it is then a copy (or `PayloadEnds`). A
+stream that fails or ends early is never written; its reads go through the session.
+
+**Parity:**
+
+- Rust (`fbrb/cache_tests.rs`, 11 tests; `read.rs` `stored_reads_seek`): a bundle of several 1 MiB chunks, 12 read
+  patterns (single entries early to late and back, the empty entry, a deleted marker, a missing name, everything
+  forwards and backwards) twice in order through memory sessions (unbounded, 1 MiB, none) and the disk cache (with
+  and without memory), a second cache as another process, reads side by side on 16 threads, `extract`; 27 damaged
+  bundles (deflate data changed at 7 places x 3 masks, the trailer's checksum and length, cut at 5 places including
+  chunk ends, junk after the member) through 4 setups, every result the uncached reader's, more than 50 of them
+  errors; a bundle rewritten in place (same length, new time); damaged and foreign cache files ignored; the cap;
+  stored reads against `stream_payload` for overlapping, unordered and empty entries in a file cut 5 ways.
+- Python, quick (`core/tests/test_fbrb_cache.py`, 18 s): built bundles (4 chunks zipped; stored) through 5 setups
+  against `read_uncached` and the Python reader; 25 damaged bundles (147 of 300 reads refused, the same errors); a
+  bundle rewritten in place; 4 processes at once on one disk cache (the same bytes, one payload per bundle, no
+  temporary file left); `read_many` with 36 reads of one bundle side by side; 3 game bundles.
+- Python, game (`--game`, 73 s): every 3rd zipped bundle of the game copy by size, **324 bundles, 61,796 entries
+  (5.12 GB) in 20,850 reads** of one to five entries in a random order (each bundle through the disk cache, or
+  every other one under 200 MiB through memory only: 11,668 disk hits, 8,658 memory hits, 142 payloads written),
+  every entry's SHA-1 the reader's without the cache (read in offset order); **all 11 stored bundles, 2,044
+  entries** a few at a time in a random order, the Python reader's bytes.
+- `core/tests/test_fbrb_native.py` (quick and game) compares the cached reader with the Python reader as before.
+- The replay: the same 731 SHA-1s in all runs above.
+
+**The test runner** sets `BFBC2_FBRB_CACHE=0` for its tests unless it is set (the game tier sweeps every bundle and
+would fill the user's cache); the cache's own tests use folders of their own.

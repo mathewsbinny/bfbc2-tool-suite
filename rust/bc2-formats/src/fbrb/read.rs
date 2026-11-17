@@ -12,10 +12,10 @@ use super::header::{Entry, Header, read_header};
 
 /// The payload is read (and, zipped, decompressed) this many bytes at a time, as the reference does: a damaged
 /// stream is noticed at the same point.
-const CHUNK: usize = 1 << 20;
+pub(crate) const CHUNK: usize = 1 << 20;
 
 /// Fills `buf` from `r` as far as it can (Python's buffered `read(n)`: short only at the end of the file).
-fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
+pub(crate) fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
     let mut n = 0;
     while n < buf.len() {
         let Some(rest) = buf.get_mut(n..) else { break };
@@ -30,7 +30,7 @@ fn read_full<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
 }
 
 /// Collects the bytes of some entries from the payload as it streams past.
-struct Collector<'e> {
+pub(crate) struct Collector<'e> {
     /// The entries, sorted by offset, each with the index of its output.
     order: Vec<(&'e Entry, usize)>,
     out: Vec<Vec<u8>>,
@@ -40,7 +40,7 @@ struct Collector<'e> {
 }
 
 impl<'e> Collector<'e> {
-    fn new(entries: &[&'e Entry]) -> Self {
+    pub(crate) fn new(entries: &[&'e Entry]) -> Self {
         let mut order: Vec<(&Entry, usize)> = entries.iter().copied().zip(0..).collect();
         order.sort_by_key(|(e, _)| e.offset);
         Self {
@@ -52,7 +52,7 @@ impl<'e> Collector<'e> {
     }
 
     /// The bytes of the payload at the current position.
-    fn take(&mut self, data: &[u8]) {
+    pub(crate) fn take(&mut self, data: &[u8]) {
         let (lo, hi) = (self.pos, self.pos + data.len() as u64);
         while self.order.get(self.first_open).is_some_and(|(e, _)| e.end() <= lo) {
             self.first_open += 1;
@@ -71,7 +71,7 @@ impl<'e> Collector<'e> {
         self.pos = hi;
     }
 
-    fn finish(self) -> Result<Vec<Vec<u8>>> {
+    pub(crate) fn finish(self) -> Result<Vec<Vec<u8>>> {
         let complete = self
             .order
             .iter()
@@ -84,13 +84,63 @@ impl<'e> Collector<'e> {
     }
 }
 
-/// The data of `entries` from the payload of the bundle `r` holds (`header` read from it). The payload is read up
-/// to the last byte any of them needs, 1 MiB at a time, as the reference does.
+/// The data of `entries` from a stored (unzipped) payload: each entry read where it is, in payload order (the
+/// reference streams the payload from its start; the bytes, and [`FbrbError::PayloadEnds`] for an entry the file
+/// ends before, are the same).
+fn read_stored<R: Read + Seek>(r: &mut R, header: &Header, entries: &[&Entry]) -> Result<Vec<Vec<u8>>> {
+    let mut order: Vec<(&Entry, usize)> = entries.iter().copied().zip(0..).collect();
+    order.sort_by_key(|(e, _)| e.offset);
+    let mut out: Vec<Vec<u8>> = vec![Vec::new(); entries.len()];
+    // an entry past the end of the file is refused before its room is taken (a damaged size may say 4 GB)
+    let file_end = r.seek(SeekFrom::End(0))?;
+    let mut at = None;
+    let mut short = false;
+    for (e, i) in order {
+        if e.size == 0 {
+            continue; // an empty entry is whole wherever it is
+        }
+        let start = header.payload_start + u64::from(e.offset);
+        if start + u64::from(e.size) > file_end {
+            short = true;
+            continue;
+        }
+        if at != Some(start) {
+            r.seek(SeekFrom::Start(start))?;
+        }
+        let mut b = vec![0; e.size as usize];
+        let n = read_full(r, &mut b)?;
+        at = Some(start + n as u64);
+        short |= n < b.len();
+        if let Some(o) = out.get_mut(i) {
+            *o = b;
+        }
+    }
+    if short { Err(FbrbError::PayloadEnds) } else { Ok(out) }
+}
+
+/// The data of `entries` from the payload of the bundle `r` holds (`header` read from it). A zipped payload is
+/// decompressed up to the last byte any of them needs, 1 MiB of compressed bytes at a time, as the reference does
+/// (so a damaged stream is refused at the same point); a stored one is read entry by entry where they are (round
+/// E3e; [`stream_payload`] reads it from the start as the reference does, the same bytes).
 ///
 /// # Errors
 /// [`FbrbError::PayloadEnds`] when the payload ends before an entry's data, a gzip error for a damaged zipped
 /// payload, [`FbrbError::Io`].
 pub fn read_payload<R: Read + Seek>(r: &mut R, header: &Header, entries: &[&Entry]) -> Result<Vec<Vec<u8>>> {
+    let end = entries.iter().map(|e| e.end()).max().unwrap_or(0);
+    if header.zipped || end == 0 {
+        stream_payload(r, header, entries)
+    } else {
+        read_stored(r, header, entries)
+    }
+}
+
+/// [`read_payload`] exactly as the reference reads: the payload streamed from its start, zipped or stored, up to
+/// the last byte the entries need, 1 MiB at a time (kept as the stored path's reference).
+///
+/// # Errors
+/// As [`read_payload`].
+pub fn stream_payload<R: Read + Seek>(r: &mut R, header: &Header, entries: &[&Entry]) -> Result<Vec<Vec<u8>>> {
     let end = entries.iter().map(|e| e.end()).max().unwrap_or(0);
     let mut c = Collector::new(entries);
     if end == 0 {
@@ -178,19 +228,37 @@ pub fn entries_path(path: impl AsRef<Path>) -> Result<Header> {
     read_header(&mut File::open(path)?)
 }
 
-/// [`read`] from the file at `path`.
+/// [`read`] from the file at `path`, through the bundle cache ([`super::cache`]: the header kept, the payload
+/// decompressed once per process or, for a large bundle read again, once for every process): the same bytes and
+/// errors as [`read_path_uncached`].
 ///
 /// # Errors
 /// As [`read`].
 pub fn read_path<S: AsRef<str>>(path: impl AsRef<Path>, names: &[S]) -> Result<Vec<Vec<u8>>> {
+    super::cache::read_path(path.as_ref(), names)
+}
+
+/// [`read`] from the file at `path`, without the cache: the payload decompressed from its start every time.
+///
+/// # Errors
+/// As [`read`].
+pub fn read_path_uncached<S: AsRef<str>>(path: impl AsRef<Path>, names: &[S]) -> Result<Vec<Vec<u8>>> {
     read(&mut File::open(path)?, names)
 }
 
-/// [`extract`] of the file at `path`.
+/// [`extract`] of the file at `path`, through the bundle cache (as [`read_path`]).
 ///
 /// # Errors
 /// As [`extract`].
 pub fn extract_path(path: impl AsRef<Path>) -> Result<(Header, Vec<Vec<u8>>)> {
+    super::cache::extract_path(path.as_ref())
+}
+
+/// [`extract`] of the file at `path`, without the cache.
+///
+/// # Errors
+/// As [`extract`].
+pub fn extract_path_uncached(path: impl AsRef<Path>) -> Result<(Header, Vec<Vec<u8>>)> {
     extract(&mut File::open(path)?)
 }
 
@@ -301,6 +369,54 @@ mod tests {
         let ex = extract_many(&[&p, &missing]);
         assert!(ex[0].is_ok() && ex[1].is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Stored payloads are read where each entry is: the same bytes and errors as streaming them from the start, for
+    /// overlapping and out-of-order entries and a file cut anywhere.
+    #[test]
+    #[allow(clippy::many_single_char_names)]
+    fn stored_reads_seek() {
+        let e = |offset, size| Entry {
+            name: String::new(),
+            type_name: String::new(),
+            flags: 0,
+            offset,
+            size,
+            size2: size,
+        };
+        let b = bundle(false);
+        let h = read_header(&mut b.as_slice()).unwrap();
+        let payload = b.len() as u32 - h.payload_start as u32;
+        let ents = [
+            e(0, 10),
+            e(5, 20),
+            e(500, 0),
+            e(3_000_400, 100),
+            e(payload - 7, 7),
+            e(payload - 7, 8),
+            e(payload + 9, 0),
+            e(100, 3_000_000),
+        ];
+        let picks: [&[usize]; 7] = [&[0], &[1, 0], &[3, 2, 1], &[4], &[5], &[6, 0], &[7, 1, 4, 0, 2]];
+        for cut in [
+            b.len(),
+            b.len() - 1,
+            b.len() - 8,
+            h.payload_start as usize + 12,
+            h.payload_start as usize,
+        ] {
+            let file = &b[..cut];
+            for pick in picks {
+                let want: Vec<&Entry> = pick.iter().map(|&i| &ents[i]).collect();
+                let a = read_payload(&mut Cursor::new(file), &h, &want);
+                let s = stream_payload(&mut Cursor::new(file), &h, &want);
+                match (a, s) {
+                    (Ok(x), Ok(y)) => assert_eq!(x, y),
+                    (Err(FbrbError::PayloadEnds), Err(FbrbError::PayloadEnds)) => {}
+                    (x, y) => unreachable!("cut {cut}, {pick:?}: {x:?} != {y:?}"),
+                }
+            }
+        }
     }
 
     /// A reader that always fails.

@@ -30,6 +30,21 @@ entries / names / read / read_many run in the suite's Rust core (rust/, module b
 is built, else in Python here; both give the same entries and bytes and refuse the same bundles
 (core/tests/test_fbrb_native.py: every bundle of the game copy). BFBC2_PURE_PYTHON=1 (or use_native(False)) forces
 the Python reader; backend() says which one runs.
+
+The bundle cache (round E3e, the Rust core only; bc2_formats::fbrb::cache): a zipped payload is one gzip stream, so
+an entry costs decompressing the payload up to it, and a tool that reads entries one call at a time decompressed the
+same bundle again and again. With the Rust core, read / read_many keep each bundle's header and the payload
+decompressed so far in the process (BFBC2_FBRB_MEMORY_MB, default 128), and the whole decompressed payload of a large
+bundle (BFBC2_FBRB_CACHE_MIN_MB of compressed payload, default 8) read a second time - by this process or any other -
+on disk, in %LOCALAPPDATA%\\bfbc2-tool-suite\\cache\\fbrb (BFBC2_FBRB_CACHE names another folder, 0 turns it off;
+BFBC2_FBRB_CACHE_GB caps it, default 16, the least recently used deleted first). Everything is keyed by the bundle's
+path, size and times, so a changed bundle is never answered from the cache; the results and errors are read()'s
+(core/tests/test_fbrb_cache.py). Stored payloads are read where each entry is.
+
+    read_uncached(path, [name, ...]) read() without the cache (the Rust core's reader as before E3e)
+    cache_config() / cache_configure(memory=, folder=, disk_cap=, disk_min=, no_disk=, env=)
+    cache_stats(reset=False)         what the cache did in this process
+    cache_clear()                    forget what the process keeps in memory
 """
 import contextlib
 import gzip
@@ -128,6 +143,53 @@ def read_many(items: Sequence[tuple[Path, Iterable[str]]]) -> list[dict[str, byt
         except (KeyError, ValueError, OSError) as e:
             out.append(e)
     return out
+
+
+# ------------------------------------------------------------------------------------------------ the bundle cache
+
+def _cache_native() -> ModuleType | None:
+    """The Rust core when it is on and has the bundle cache's controls (a module built before E3e does not)."""
+    return _native if _native is not None and hasattr(_native, 'fbrb_cache_stats') else None
+
+
+def read_uncached(path: Path, wanted: Iterable[str]) -> dict[str, bytes]:
+    """read() without the bundle cache: the payload decompressed from its start (the Python reader without the Rust
+    core, which has no cache)."""
+    keys = list(dict.fromkeys(wanted))
+    native = _cache_native()
+    if native is not None:
+        return dict(zip(keys, native.fbrb_read_uncached(os.fspath(path), keys, [k.lower() for k in keys])))
+    return _py_read(path, keys)
+
+
+def cache_config() -> dict[str, object] | None:
+    """{'memory', 'folder', 'disk_cap', 'disk_min'} of the bundle cache (bytes; folder None: no disk cache), or None
+    without the Rust core."""
+    native = _cache_native()
+    return dict(native.fbrb_cache_config()) if native is not None else None
+
+
+def cache_configure(**kw: object) -> None:
+    """Changes the bundle cache's configuration (memory, folder, disk_cap, disk_min in bytes; no_disk=True turns the
+    disk cache off; env=True starts from the environment's) and forgets what the process kept. Nothing without the
+    Rust core."""
+    native = _cache_native()
+    if native is not None:
+        native.fbrb_cache_configure(**kw)
+
+
+def cache_stats(reset: bool = False) -> dict[str, int]:
+    """What the bundle cache did in this process (reads, disk_hits, memory_hits, decompressed_reads,
+    decompressed_bytes, written, written_bytes, header_hits); empty without the Rust core."""
+    native = _cache_native()
+    return dict(native.fbrb_cache_stats(reset)) if native is not None else {}
+
+
+def cache_clear() -> None:
+    """Forgets the headers and payloads the process keeps in memory (the disk cache stays)."""
+    native = _cache_native()
+    if native is not None:
+        native.fbrb_cache_clear()
 
 
 # ------------------------------------------------------------------------------------------------ the Python reader

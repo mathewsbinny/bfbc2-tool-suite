@@ -112,6 +112,8 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_native.py')]),
         ('Rust FBRB reader against the Python reader and FbrbTool (built, damaged, 8 game bundles)', 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_native.py')]),
+        ('Rust FBRB bundle cache against the reader without it (built, damaged, changed, 4 processes, 3 game bundles)', 'quick',
+         [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_cache.py')]),
         ('Rust terrain, water and collision readers against the Python readers (built, damaged, dispatch, aliases from binary partitions)', 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py')]),
         ('Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)', 'quick',
@@ -218,6 +220,8 @@ def tests():
          [PY, os.path.join(SUITE, 'tests', 'test_rust.py'), '--corpus']),
         ('Rust FBRB reader against the Python reader, every bundle', 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_native.py'), '--game']),
+        ('Rust FBRB bundle cache: every 3rd game bundle read in a random order, the stored bundles', 'game',
+         [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_cache.py'), '--game']),
         ('Rust DBX writer against the Python writer, every corpus file written back and edited', 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_write_native.py'), '--game']),
         ('Rust FBRB packer against FbrbTool, every bundle of the game copy unpacked and packed again', 'game',
@@ -325,6 +329,7 @@ NEEDS = {
     'Rust core: cargo fmt, clippy, tests (skipped without Rust)': need(cpu='all', mem=2, cargo='w'),
     'Rust DBX reader against the Python reader (built, damaged, 200 corpus files)': need(cpu=2, mem=1),
     'Rust FBRB reader against the Python reader and FbrbTool (built, damaged, 8 game bundles)': need(cpu=6, mem=4.5),   # measured 4.6 GB
+    'Rust FBRB bundle cache against the reader without it (built, damaged, changed, 4 processes, 3 game bundles)': need(cpu=4, mem=1),
     'Rust terrain, water and collision readers against the Python readers (built, damaged, dispatch, aliases from binary partitions)': need(),
     'Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)': need(cpu=4, mem=1),
     'Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)': need(cpu=2),
@@ -409,6 +414,7 @@ NEEDS = {
     'Rust DBX reader against the Python reader, every corpus file': need(cpu='all', mem=4),
     'Rust DBX reader against DbxEdit, every fingerprinted file; every bundle extracted (cargo)': need(cpu='all', mem=3, cargo='w'),
     'Rust FBRB reader against the Python reader, every bundle': need(cpu=6, mem=8),    # its quick run: 4.6 GB
+    'Rust FBRB bundle cache: every 3rd game bundle read in a random order, the stored bundles': need(cpu=2, mem=1.5),
     'Rust DBX writer against the Python writer, every corpus file written back and edited': need(cpu='all', mem=4),
     'Rust FBRB packer against FbrbTool, every bundle of the game copy unpacked and packed again': need(cpu=8, mem=8),
     'Rust terrain, water and Havok readers on every bundle of the game copy, the collision index of every prepared level': need(cpu=8, mem=4),
@@ -828,6 +834,9 @@ def main(argv):
     print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else '')
           + (f', {slots} at a time' if slots > 1 else ''))
     os.environ['DBX_SKIP_BUILD'] = '1'          # run_tests.bat: DbxEdit is the 'DbxEdit build (when stale)' step's
+    # the tests read bundles without the bundle cache's disk files (round E3e): a sweep of the game copy would fill
+    # the user's cache with every bundle; the cache's own tests give theirs a folder of their own
+    os.environ.setdefault('BFBC2_FBRB_CACHE', '0')
     if slots <= 1:
         return run_in_turn(chosen, root)
     return run_side_by_side(make_jobs(chosen, times), root, slots, cpus, mem)

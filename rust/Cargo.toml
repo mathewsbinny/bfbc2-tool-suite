@@ -64,3 +64,7 @@ codegen-units = 1
 
 [profile.bench]
 inherits = "release"
+
+# The inflater optimised in test builds too: the bundle tests decompress megabytes many times over (round E3e).
+[profile.dev.package.zlib-rs]
+opt-level = 3
