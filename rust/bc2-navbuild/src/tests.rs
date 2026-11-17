@@ -158,6 +158,42 @@ fn components_split_layers_and_steps() {
 }
 
 #[test]
+#[allow(clippy::many_single_char_names)]
+fn areas_by_tile_and_bisected() {
+    // 6 x 2, flat but a wall at x = 4 (row 0 only); tiles of 3 samples from local 0, 2 per axis
+    let l = Level::new(flat(6, 2, |i, j| if i == 4 && j == 0 { 5.0 } else { 0.0 })).unwrap();
+    let a = l.build_areas(0, 0, (0, 6), (0, 0), 3, 2, None, Rule::Raw).unwrap();
+    let tiles: Vec<(i64, i64)> = a.iter().map(|x| x.0).collect();
+    assert_eq!(tiles, [(0, 0), (1, 0), (1, 0)]);
+    assert_eq!(
+        a[0].1,
+        [(0, 0, 0), (1, 0, 1), (0, 1, 6), (1, 1, 7), (2, 0, 2), (2, 1, 8)]
+    );
+    // the wall's surface is 5 m from every neighbour: an area of its own, after the rest of its tile
+    assert_eq!(a[1].1.len(), 5);
+    assert_eq!(a[2].1, [(4, 0, 4)]);
+    // samples before `start` fold into the first tile; the last tile takes the rest
+    let b = l.build_areas(0, 0, (0, 6), (2, 5), 1, 3, None, Rule::Raw).unwrap();
+    assert_eq!(
+        b.iter().map(|x| x.0).collect::<Vec<_>>(),
+        [(0, 0), (1, 0), (2, 0), (2, 0)]
+    );
+    // the window reaches past the grid and the sector offset moves it
+    let c = l.build_areas(3, 0, (-1, 4), (0, 0), 100, 1, None, Rule::Raw).unwrap();
+    let cells: usize = c.iter().map(|x| x.1.len()).sum();
+    assert_eq!(cells, 8, "columns 2 .. 5 of both rows");
+    // bisected: at most 2 samples across, the longer axis cut at the middle first
+    let f = Level::new(flat(5, 2, |_, _| 0.0)).unwrap();
+    let d = f.build_areas(0, 0, (0, 5), (0, 0), 10, 1, Some(2), Rule::Raw).unwrap();
+    let pieces: Vec<Vec<usize>> = d.iter().map(|x| x.1.iter().map(|c| c.2).collect()).collect();
+    assert_eq!(pieces, [vec![0, 1, 5, 6], vec![2, 7], vec![3, 4, 8, 9]]);
+    let e = f.build_areas(0, 0, (0, 2), (0, 0), 10, 1, Some(1), Rule::Raw).unwrap();
+    assert_eq!(e.len(), 4, "cut along z too");
+    assert!(f.build_areas(0, 0, (0, 5), (0, 0), 0, 1, None, Rule::Raw).is_err());
+    assert!(f.build_areas(0, 0, (0, 5), (0, 0), 1, 1, Some(0), Rule::Raw).is_err());
+}
+
+#[test]
 fn lines_and_d_sides() {
     let l = Level::new(flat(5, 5, |_, _| 0.0)).unwrap();
     let none = HashSet::new();

@@ -12,6 +12,12 @@
 //! | `line_walkable` with `_crosses_d` | [`Level::line_walkable`] |
 //! | `build_graph`'s search from one route-node group to another's nearest node | [`Level::search`] |
 //! | `trace_edges`' neighbour of each side of an area's cells | [`Level::side_neighbours`] |
+//! | `build_areas` with `bisect` (a sector's areas) | [`Level::build_areas`] |
+//! | `build_graph`'s centre and portal cells (its `min` over an area's cells) | [`pick::centre_cell`], [`pick::nearest_cells`] |
+//!
+//! `navwalk.walkable`'s per-surface rules (`headroom`, `stair_slope`, `narrow_lips`, the stair landings,
+//! `near_objects`, `on_objects`) are in [`rules`], on a sample run ([`rules::Grid`]); CPython's own float functions
+//! they need (`math.hypot`, `x ** 2`) in [`pymath`].
 //!
 //! **Bit for bit.** The answers are integers (surfaces, cells), but they come from float comparisons, so the floats
 //! are computed as the reference computes them: the heights in `f64`, the gradients in the dtype the build gives
@@ -27,6 +33,10 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use thiserror::Error;
+
+pub mod pick;
+pub mod pymath;
+pub mod rules;
 
 /// Why a call is refused (the Python reference would raise; the binding then runs it).
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -194,6 +204,12 @@ pub struct LevelData {
 
 /// One cell of an area: (local i, local j, surface).
 pub type Cell = (i64, i64, usize);
+
+/// One area of a sector: its tile (tx, tz) and its cells ([`Level::build_areas`]).
+pub type Area = ((i64, i64), Vec<Cell>);
+
+/// A surface given to [`Level::components`]: (surface, local i, local j).
+pub type Member = (usize, i64, i64);
 
 const DIRS8: [(i64, i64); 8] = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)];
 const DIRS4: [(i64, i64); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
@@ -420,6 +436,82 @@ impl Level {
             out.push(comp);
         }
         out
+    }
+
+    /// `navbuild.build_areas`: the areas of one sector, each `(tile, cells)`, in the reference's order. The kept
+    /// surfaces of the window's columns (`window` = start .. stop, step 1; z rows outer) are put in tiles of `tile`
+    /// samples (`tiles` per axis) counted from `start`; each tile's surfaces are split into 8-connected components
+    /// under `rule` (tiles in sorted order), and with `max_area` each component is bisected until it spans at most
+    /// that many samples per axis (`bisect`).
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] when `tile` or `max_area` is under 1 (the reference fails or does not end).
+    #[expect(clippy::too_many_arguments, reason = "the reference's arguments")]
+    pub fn build_areas(
+        &self,
+        gi0: i64,
+        gj0: i64,
+        window: (i64, i64),
+        start: (i64, i64),
+        tile: i64,
+        tiles: i64,
+        max_area: Option<i64>,
+        rule: Rule,
+    ) -> Result<Vec<Area>, NavError> {
+        if tile < 1 || max_area.is_some_and(|m| m < 1) {
+            return Err(NavError::Shape(format!("tile {tile}, max area {max_area:?}")));
+        }
+        let mut by_tile: std::collections::BTreeMap<(i64, i64), Vec<Member>> = std::collections::BTreeMap::new();
+        for j in window.0..window.1 {
+            for i in window.0..window.1 {
+                for k in self.surfaces(gi0 + i, gj0 + j) {
+                    let tx = ((i - start.0).max(0) / tile).min(tiles - 1);
+                    let tz = ((j - start.1).max(0) / tile).min(tiles - 1);
+                    by_tile.entry((tx, tz)).or_default().push((k, i, j));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for (tkey, members) in by_tile {
+            for comp in self.components(&members, gi0, gj0, rule) {
+                let mut pieces = Vec::new();
+                match max_area {
+                    Some(m) => self.bisect(comp, gi0, gj0, m, rule, &mut pieces),
+                    None => pieces.push(comp),
+                }
+                out.extend(pieces.into_iter().map(|p| (tkey, p)));
+            }
+        }
+        Ok(out)
+    }
+
+    /// `navbuild.bisect`: a component spanning more than `max_area` samples on an axis is cut at the middle of its
+    /// longer extent, each half split into components again, recursively.
+    fn bisect(&self, comp: Vec<Cell>, gi0: i64, gj0: i64, max_area: i64, rule: Rule, out: &mut Vec<Vec<Cell>>) {
+        let ext = |f: fn(&Cell) -> i64| {
+            let it = comp.iter().map(f);
+            (it.clone().min().unwrap_or(0), it.max().unwrap_or(0))
+        };
+        let ((i0, i1), (j0, j1)) = (ext(|c| c.0), ext(|c| c.1));
+        if i1 - i0 < max_area && j1 - j0 < max_area {
+            out.push(comp);
+            return;
+        }
+        let (on_i, mid) = if i1 - i0 >= j1 - j0 {
+            (true, (i0 + i1 + 1).div_euclid(2))
+        } else {
+            (false, (j0 + j1 + 1).div_euclid(2))
+        };
+        let below = |c: &Cell| if on_i { c.0 < mid } else { c.1 < mid };
+        let halves: [Vec<(usize, i64, i64)>; 2] = [
+            comp.iter().filter(|c| below(c)).map(|&(i, j, k)| (k, i, j)).collect(),
+            comp.iter().filter(|c| !below(c)).map(|&(i, j, k)| (k, i, j)).collect(),
+        ];
+        for h in halves {
+            for sub in self.components(&h, gi0, gj0, rule) {
+                self.bisect(sub, gi0, gj0, max_area, rule, out);
+            }
+        }
     }
 
     /// For each cell of an area and each side (+x, -x, +z, -z, in that order), the neighbour across it under
