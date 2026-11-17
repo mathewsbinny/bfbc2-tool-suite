@@ -7,7 +7,7 @@
  "Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)": 3.7,
  "Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)": 5.0,
  "Rust texture converter against its recorded results (built, damaged, batch)": 5.5,
- "Rust NavKit grid walks against their recorded results, E2a rules against their Python (random levels)": 4.1,
+ "Rust NavKit grid walks against their recorded results, E2a / E3c pieces against their Python (random levels)": 4.1,
  "Rust core required: no module, a stale one, the source fingerprint": 12.0,
  "review regressions: HPD selection, launcher completion, mypy failures": 0.2,
  "BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches": 1.4,
@@ -134,6 +134,6 @@
  "3D tools open and draw (Map Inspector, Navigation Studio)": 17.5,
  "test harness on sp_009 and sp_004_b": 34.5,
  "stock-MP AI layer, Atacama Conquest built": 53.1,
- "Rust NavKit grid walks: sp_009 and sp_004_b path data as recorded": 90.0,
+ "Rust NavKit builds: sp_009 and sp_004_b path data as recorded": 90.0,
  "NavKit regression, 2 small levels": 120.0
 }

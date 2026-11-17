@@ -11,6 +11,8 @@
 
 use std::collections::VecDeque;
 
+use rayon::prelude::*;
+
 use crate::{CellMap, Level, NavError, Rule};
 
 /// Directions in the search's order (di outer, dj inner, the centre left out) and their slot.
@@ -37,6 +39,8 @@ pub struct WindowSearch<'a> {
     /// Per local surface: the surface it was reached from (`usize::MAX`: a start).
     prev: Vec<usize>,
     stamp: u32,
+    /// The memo was filled for every kept surface (on the first search).
+    filled: bool,
 }
 
 impl<'a> WindowSearch<'a> {
@@ -75,6 +79,7 @@ impl<'a> WindowSearch<'a> {
             seen: vec![0; n],
             prev: vec![usize::MAX; n],
             stamp: 0,
+            filled: false,
         })
     }
 
@@ -128,6 +133,33 @@ impl<'a> WindowSearch<'a> {
         }
     }
 
+    /// Every kept surface's neighbours on its own column, all directions, found at once in parallel (what the
+    /// searches would find one by one: the first searches of a sector walk most of it, the failed ones whole).
+    fn prefill(&mut self) {
+        self.filled = true;
+        let mut ks = vec![usize::MAX; self.seen.len()];
+        for &(first, end, base) in &self.rows {
+            for k in first..end {
+                if let Some(v) = ks.get_mut(base + k - first) {
+                    *v = k;
+                }
+            }
+        }
+        let (level, rule) = (self.level, self.rule);
+        let nx = level.nx.max(1);
+        self.memo.par_chunks_mut(8).zip(ks.par_iter()).for_each(|(slots, &k)| {
+            if !level.keep.get(k).copied().unwrap_or(false) {
+                return;
+            }
+            let c = level.col_of.get(k).copied().unwrap_or(0);
+            let (gi, gj) = ((c % nx) as i64, (c / nx) as i64);
+            for (slot, &(di, dj)) in slots.iter_mut().zip(&DIRS) {
+                let n = level.neighbour(k, gi, gj, di, dj, None, rule);
+                *slot = n.map_or(NONE, |n| n as u32 + 2);
+            }
+        });
+    }
+
     /// [`Level::search`] over this window from `starts` to the first surface `targets` accepts, entering the
     /// surfaces reached into `cells` (and, with `reached`, their local numbers, starts not counted). `Ok(None)` also when a start lies outside the window: the caller then runs
     /// [`Level::search`] (for starts in the window, `Err` / `Ok(Some(..))` / `Ok(None)` is its answer).
@@ -147,6 +179,9 @@ impl<'a> WindowSearch<'a> {
                 Some(l) => local.push(l),
                 None => return Ok(Err(())),
             }
+        }
+        if !self.filled {
+            self.prefill();
         }
         self.stamp = self.stamp.wrapping_add(1);
         if self.stamp == 0 {

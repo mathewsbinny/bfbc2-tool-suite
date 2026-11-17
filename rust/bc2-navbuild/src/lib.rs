@@ -860,3 +860,7 @@ impl<S: std::hash::BuildHasher> CellMap for HashMap<usize, (i64, i64), S> {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "e3c_tests.rs"]
+mod e3c_tests;
