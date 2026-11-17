@@ -18,6 +18,7 @@ shader, and the database entry '<mesh>/<shader>' names the shader's textures (th
 the parts' rest positions (skinned meshes: the pose they were modelled in). Nothing in the game copy is written.
 """
 import base64
+import collections
 import io
 import os
 import pickle
@@ -71,6 +72,47 @@ def _bundles(root):
                 if f.lower().endswith('.fbrb'):
                     out.append((rel, os.path.join(dp, f)))
     return out
+
+
+class Partitions:
+    """The .dbx partitions of the bundles read last, each bundle's read in one pass (Index.read). A bundle is one
+    gzip stream, so one entry costs decompressing the bundle up to it (about 1 s in mp_common's 588 MB); all 8,446
+    partitions of mp_common are 36 MB and come in one pass of 2.4 s. A converter that reads hundreds of partitions
+    one by one (the WW2 sound porter's templates: half of a WW2 level build, 2026-11-16) reads each bundle once.
+    Bundles are kept by their path, size and modification time, the least recently used dropped beyond budget
+    bytes; the bytes are fbrb.read's, so the results are the same as reading one at a time."""
+
+    def __init__(self, budget: int = 768 << 20) -> None:
+        self.budget = budget
+        self.size = 0
+        self.bundles: collections.OrderedDict[tuple[str, int, int], dict[str, bytes]] = collections.OrderedDict()
+
+    def get(self, path: str, name: str, names) -> bytes | None:
+        """Entry name of bundle path from the cache, the bundle's partitions (names(path): the entry names to read)
+        read on a miss; None when the bundle cannot be read that way (the caller reads the entry alone)."""
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        key = (os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns)
+        got = self.bundles.get(key)
+        if got is None:
+            wanted = names(path)
+            try:
+                got = fbrb.read(path, wanted)
+            except (KeyError, ValueError, OSError):
+                return None
+            self.bundles[key] = got
+            self.size += sum(map(len, got.values()))
+            while self.size > self.budget and len(self.bundles) > 1:
+                _, old = self.bundles.popitem(last=False)
+                self.size -= sum(map(len, old.values()))
+        else:
+            self.bundles.move_to_end(key)
+        return got.get(name)
+
+
+PARTITIONS = Partitions()
 
 
 class Index:
@@ -153,7 +195,22 @@ class Index:
         hit = self.where.get(name.lower())
         if not hit:
             return None
+        if hit[1].lower().endswith('.dbx'):
+            b = PARTITIONS.get(hit[0], hit[1], self._partitions_of)
+            if b is not None:
+                return b
         return fbrb.read(hit[0], [hit[1]])[hit[1]]
+
+    def _partitions_of(self, bundle):
+        """The .dbx entry names the index finds in bundle (Partitions reads them in one pass)."""
+        by = self.__dict__.get('_by_bundle')
+        if by is None:
+            by = {}
+            for b, n in self.where.values():
+                if n.lower().endswith('.dbx'):
+                    by.setdefault(b, []).append(n)
+            self._by_bundle = by
+        return by.get(bundle, [])
 
 
 # ------------------------------------------------------------------------------------------------ reading a mesh

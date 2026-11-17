@@ -7,8 +7,15 @@ draws.
 
     import texture
     pc_bytes = texture.convert(console_bytes)
+
+convert runs in the suite's Rust core (rust/bc2-convert, through bfbc2core's bc2_native) when it is built, with this
+module's code as the fallback and the reference: the same bytes on every texture of BF1943's source
+(tests/test_texture_native.py). BFBC2_PURE_PYTHON=1 (or use_native(False)) runs the Python code; a texture the
+port refuses is converted here again, so its error is this module's.
 """
+import os
 import struct
+import sys
 
 HEADER = 92                    # 8 u32 (version, type, format, flags, width, height, depth, mip count) + 15 mip sizes
 CUBE = 1
@@ -215,8 +222,59 @@ def _convert_argb8(b, ver, typ, flags, w, h, mips):
     return struct.pack('<8I', ver, typ, BGRA8, flags, w, h, 0, mips) + struct.pack('<15I', *sizes) + b''.join(levels)
 
 
+def _load_native():
+    """The Rust core's texture_convert (found as bfbc2core.dbx finds the module), or None: not built, or
+    BFBC2_PURE_PYTHON set."""
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:
+        return None
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'texture_convert') else None
+
+
+_native = _load_native()
+
+
+def backend():
+    """'rust' when convert runs in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on):
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
+    global _native
+    if on:
+        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+        try:
+            _native = _load_native()
+        finally:
+            if saved is not None:
+                os.environ['BFBC2_PURE_PYTHON'] = saved
+    else:
+        _native = None
+    return backend()
+
+
 def convert(b):
     """A console XenonTexture resource -> the PC ITexture resource."""
+    if _native is not None:
+        try:
+            return _native.texture_convert(bytes(b))
+        except ValueError:
+            pass                                # refused or out of range: the reference says why (or converts)
+    return convert_python(b)
+
+
+def convert_python(b):
+    """convert in Python: the reference the Rust core is checked against."""
     if len(b) < HEADER:
         raise ConvertError('shorter than a texture header')
     ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('>8I', b, 0)

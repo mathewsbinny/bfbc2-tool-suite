@@ -15,8 +15,10 @@
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
 
+mod convert;
 mod culltree;
 mod geometry;
+mod navbuild;
 mod scene;
 mod shaders;
 mod writers;
@@ -276,6 +278,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
+
+    #[pymodule_export]
+    use super::convert::{texture_convert, texture_convert_many};
+
+    #[pymodule_export]
+    use super::navbuild::{NavLevel, navkit_matched_flags};
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]
