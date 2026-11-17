@@ -284,6 +284,27 @@ def bisect(sh: Any, cs: dict[str, Any], n: int, work: str, pos: np.ndarray) -> s
     return 'no register differs (the difference is in the outputs / kills)'
 
 
+def bf1943_entry(key: str) -> bytes:
+    """A BF1943 resource by name from the bundles of its own folder (levels/<level>/), one bundle in memory at a time:
+    bf1943import.Source holds all 550 MB of BF1943's bundles, which took this test past 1 GB."""
+    import bf1943import
+    root = bf1943import.default_source()
+    fb = bf1943import.fbrb1943()
+    folder = os.path.join(root, *key.split('/')[:2])
+    for d, dirs, names in os.walk(folder if os.path.isdir(folder) else root):
+        dirs.sort()
+        for f in sorted(names):
+            if f.endswith('.fbrb'):
+                try:
+                    bd = fb.Bundle(open(os.path.join(d, f), 'rb').read())
+                except ValueError:
+                    continue
+                for e in bd.entries:
+                    if e['name'].lower() == key:
+                        return bytes(bd.data(e['name']))
+    raise KeyError(key)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--db', default='wake')
@@ -294,9 +315,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--bisect', action='store_true', help='find the first differing instruction (one --ps)')
     ap.add_argument('-o', default=os.path.join(tempfile.gettempdir(), 'xdiff'))
     a = ap.parse_args(argv)
-    import bf1943import
-    src = bf1943import.Source(bf1943import.default_source())
-    w = S.ShaderDb.parse(src.data(DBS[a.db]), where=a.db)
+    w = S.ShaderDb.parse(bf1943_entry(DBS[a.db]), where=a.db)
     todo = a.ps if a.ps else list(range(len(w.ps)))
     if a.limit:
         todo = todo[:a.limit]
@@ -333,6 +352,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             sh = xenos.parse_shader(w.ps[p].code, True)
             cs = case(sh, rng, a.n, named.get(p))
+            # translated before the interpreter reads the microcode: with the Rust core, its translation (a tree
+            # whose microcode was read goes to the Python translator) - the one the builds use
+            hlsl: str | Exception
+            try:
+                hlsl = translated(sh, cs)
+            except X.TranslateError as e:
+                hlsl = e
             ref = XE.run(sh, cs['inputs'], cs['consts'], cs['textures'], a.n,
                          pos=np.stack([np.arange(a.n) % W, np.arange(a.n) // W], 1).astype(np.float32),
                          front=np.ones(a.n, bool))
@@ -342,7 +368,9 @@ def main(argv: list[str] | None = None) -> int:
             res = {'status': 'error', 'why': f'{type(e).__name__}: {e}'[:300]}
         else:
             try:
-                got, hlsl = run_hlsl(sh, cs, a.n, work)
+                if isinstance(hlsl, Exception):
+                    raise hlsl
+                got, hlsl = run_hlsl(sh, cs, a.n, work, hlsl)
                 with open(os.path.join(work, 'ps.hlsl'), 'w') as f:
                     f.write(hlsl)
                 with open(os.path.join(work, 'ps.xenos.txt'), 'w') as f:

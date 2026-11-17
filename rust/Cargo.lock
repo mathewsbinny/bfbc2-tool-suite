@@ -47,6 +47,7 @@ dependencies = [
  "bc2-formats",
  "bc2-navbuild",
  "bc2-scene",
+ "bc2-shader",
  "pyo3",
  "rayon",
 ]
@@ -56,6 +57,15 @@ name = "bc2-scene"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "proptest",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "bc2-shader"
+version = "0.1.0"
+dependencies = [
  "proptest",
  "rayon",
  "thiserror",

@@ -34,6 +34,7 @@ mod navtrace;
 mod scene;
 mod shaders;
 mod writers;
+mod xenos;
 
 use bc2_formats::dbx::{self, DbxError, DbxTree};
 use bc2_formats::fbrb::{self, FbrbError};
@@ -304,6 +305,12 @@ mod bc2_native {
     #[pymodule_export]
     use super::navbuild::{
         NavGrid, NavLevel, navkit_centre_cells, navkit_float_ops, navkit_matched_flags, navkit_nearest_cells,
+    };
+
+    #[pymodule_export]
+    use super::xenos::{
+        XenosProgram, xenos_float_repr, xenos_microcode, xenos_parse, xenos_parse_many, xenos_translate,
+        xenos_translate_many,
     };
 
     #[pymodule_export]

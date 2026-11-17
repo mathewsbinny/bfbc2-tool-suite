@@ -19,14 +19,28 @@ See XENOS.md for the spec as implemented and the open uncertainties.
 API:
     sh = parse_shader(blob, is_pixel=None)   # None: taken from the magic
     print(disasm(sh))
+    shs = parse_many([(blob, is_pixel), ...])   # many at once (decoded on all cores in the Rust core)
+
+The decoder runs in the suite's Rust core (rust/bc2-shader, module bc2_native; round E3f) when it is built, else
+here; both give the same tree (the same attributes, values, types and attribute order) and raise the same errors:
+bfbc2-shader-tools/tests/test_xenos_native.py, every program of BF1943's and BFBC2's Xbox shader databases and
+seeded random microcode. The Rust tree's microcode attributes (cf, instructions, cf_slots, unused_slots,
+unused_nonzero_slots, code_words) are made on their first read; until then xenos_hlsl.translate translates the
+program in Rust (a tree whose microcode was read, which a caller may have edited, is translated in Python).
+parse_shader_python is the reference. BFBC2_PURE_PYTHON=1 (or use_native(False)) forces Python; backend() says
+which one runs.
 """
 from __future__ import annotations
 
+import os
 import struct
+import sys
+from collections.abc import Callable, Iterable
+from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-__all__ = ['parse_shader', 'disasm', 'XenosError', 'VECTOR_OPS', 'SCALAR_OPS',
-           'CF_OPS', 'FETCH_OPS']
+__all__ = ['parse_shader', 'parse_many', 'disasm', 'XenosError', 'VECTOR_OPS', 'SCALAR_OPS',
+           'CF_OPS', 'FETCH_OPS', 'backend', 'use_native']
 
 
 class XenosError(Exception):
@@ -67,6 +81,114 @@ class Obj:
                 return {k: conv(x) for k, x in v.items()}
             return v
         return {k: conv(v) for k, v in self.__dict__.items()}
+
+
+# --------------------------------------------------------------------------
+# The Rust core (round E3f)
+# --------------------------------------------------------------------------
+
+def _load_native() -> ModuleType | None:
+    """bc2_native with the translator (found as bfbc2core.dbx finds it), or None: not built, built before round E3f
+    or from other sources, or BFBC2_PURE_PYTHON set."""
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:
+        return None
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'xenos_parse') else None
+
+
+_native: Any = _load_native()          # the module (its functions untyped), or None
+
+
+def backend() -> str:
+    """'rust' when shaders are decoded (and xenos_hlsl translates them) in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process, for xenos and
+    xenos_hlsl; returns backend()."""
+    global _native
+    if on:
+        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+        try:
+            _native = _load_native()
+        finally:
+            if saved is not None:
+                os.environ['BFBC2_PURE_PYTHON'] = saved
+    else:
+        _native = None
+    return backend()
+
+
+_MICROCODE = frozenset(('cf', 'instructions', 'cf_slots', 'unused_slots', 'unused_nonzero_slots', 'code_words'))
+
+
+def _plain(d: dict[str, Any]) -> Obj:
+    o = Obj.__new__(Obj)
+    o.__dict__.update(d)
+    return o
+
+
+class _NativeShader(Obj):
+    """parse_shader's tree decoded in the Rust core: the attributes of parse_shader_python's, in its order; the
+    microcode's (_MICROCODE) made on their first read (or by repr, to_dict, copy and pickle, which give a plain Obj).
+    Until then the program is translated in Rust (native_program)."""
+
+    __slots__ = ('_xenos_program', '_xenos_microcode', '_xenos_done')
+    _xenos_program: Any                     # bc2_native.XenosProgram
+    _xenos_microcode: Callable[[Any, type], dict[str, Any]]
+    _xenos_done: bool
+
+    def _materialize(self) -> None:
+        if not self._xenos_done:
+            self._xenos_done = True
+            for k, v in self._xenos_microcode(self._xenos_program, Obj).items():
+                self.__dict__.setdefault(k, v)
+
+    def __getattr__(self, name: str) -> Any:
+        if name in _MICROCODE and not self._xenos_done:
+            self._materialize()
+            return self.__dict__[name]
+        raise AttributeError(name)
+
+    def __repr__(self) -> str:
+        self._materialize()
+        return super().__repr__()
+
+    def to_dict(self) -> dict[str, Any]:
+        self._materialize()
+        return super().to_dict()
+
+    def __reduce_ex__(self, protocol: Any) -> tuple[Callable[[dict[str, Any]], Obj], tuple[dict[str, Any]]]:
+        self._materialize()
+        return _plain, (dict(self.__dict__),)
+
+
+def _native_tree(got: tuple[Any, dict[str, Any]], is_pixel: Any) -> Obj:
+    program, d = got
+    sh = _NativeShader.__new__(_NativeShader)
+    if is_pixel is not None and type(is_pixel) is not bool:
+        d['is_pixel'] = is_pixel                    # as parse_shader_python keeps it
+    sh.__dict__.update(d)
+    sh._xenos_program, sh._xenos_microcode, sh._xenos_done = program, _native.xenos_microcode, False
+    return sh
+
+
+def native_program(sh: Any) -> Any:
+    """The Rust core's decoded program behind a tree of parse_shader, or None: a Python tree, a tree whose
+    microcode was read (it may have been edited since), or the Rust core off."""
+    if _native is None or type(sh) is not _NativeShader or sh._xenos_done:
+        return None
+    return sh._xenos_program
 
 
 # --------------------------------------------------------------------------
@@ -658,6 +780,41 @@ def _decode_microcode(r: _Reader, code_off: int, size: int, is_pixel: bool) -> O
 # --------------------------------------------------------------------------
 
 def parse_shader(blob: bytes | bytearray | memoryview, is_pixel: bool | None = None) -> Obj:
+    """The shader's tree: the container, its tables, the header and the decoded microcode (the Rust core's when it
+    is built; a blob it refuses is decoded here, which raises the Python's exception)."""
+    if _native is not None:
+        data = bytes(blob)
+        got = _native.xenos_parse(data, None if is_pixel is None else bool(is_pixel), Obj)
+        if got is not None:
+            return _native_tree(got, is_pixel)
+        blob = data
+    return parse_shader_python(blob, is_pixel)
+
+
+def parse_many(items: Iterable[tuple[bytes | bytearray | memoryview, bool | None]],
+               errors: str = 'raise') -> list[Any]:
+    """parse_shader of each (blob, is_pixel), in order; decoded on all cores in the Rust core. errors='raise' raises
+    the first failure (in input order), 'return' puts the exception in its place."""
+    items = [(bytes(b), p) for b, p in items]
+    got: list[Any] = [None] * len(items)
+    if _native is not None:
+        got = list(_native.xenos_parse_many([(b, None if p is None else bool(p)) for b, p in items], Obj))
+    out: list[Any] = []
+    for (b, p), g in zip(items, got):
+        if g is not None:
+            out.append(_native_tree(g, p))
+            continue
+        try:
+            out.append(parse_shader_python(b, p))
+        except Exception as e:                      # noqa: BLE001 - reported as parse_shader would
+            if errors != 'return':
+                raise
+            out.append(e)
+    return out
+
+
+def parse_shader_python(blob: bytes | bytearray | memoryview, is_pixel: bool | None = None) -> Obj:
+    """parse_shader in Python: the reference of the Rust decoder, and its fallback."""
     blob = bytes(blob)
     r = _Reader(blob)
     magic = r.u32(0)
