@@ -16,6 +16,7 @@ import os
 import re
 import sys
 from collections import Counter
+from typing import Any
 
 import numpy as np
 
@@ -90,21 +91,10 @@ class PathData:
         reference's ground beyond the level's terrain, which the game on PC does not have; navparity). drop: node ids
         left out the same way (a reference's nodes on ground PC does not have; navparity.stale_nodes)."""
         f = hpdtool.parse(open(path, 'rb').read())
+        self._file = f
+        self._areas: list[Any] | None = None
         drop = drop or set()
         in_box = (lambda p: clip[0] <= p[0] <= clip[2] and clip[1] <= p[2] <= clip[3]) if clip else (lambda p: True)
-        self.areas = []      # (minx, maxx, minz, maxz, miny, maxy, segs)
-        for s in f.sectors:
-            m = kymesh.parse_mesh(s.mesh)
-            for a in m.areas:
-                segs = [(l[k], l[k + 1]) for l in a.outline for k in range(len(l) - 1)]
-                segs += [(b.p0, b.p1) for b in a.portals] + [(c.p0, c.p1) for c in a.border_portals]
-                segs = drop_cracks(segs)
-                if not segs:
-                    continue
-                xs = [p[0] for sg in segs for p in sg]
-                zs = [p[2] for sg in segs for p in sg]
-                ys = [p[1] for sg in segs for p in sg]
-                self.areas.append((min(xs), max(xs), min(zs), max(zs), min(ys) - Y_OFFSET, max(ys) - Y_OFFSET, segs))
         # graph groups (shared border node ids join sectors)
         parent: dict[int, int] = {}
 
@@ -128,6 +118,31 @@ class PathData:
         self.group_size = sizes
         self.pos = np.array([p for _, p in self.nodes])
         self.ids = [nid for nid, _ in self.nodes]
+
+    @property
+    def areas(self) -> list[Any]:
+        """(minx, maxx, minz, maxz, miny, maxy, segs) per area with a boundary; made at the first use (round E3h:
+        navparity's islands read only the route graph, and the meshes' parsing and crack test were half its time)."""
+        if self._areas is None:
+            self._areas = []
+            for s in self._file.sectors:
+                m = kymesh.parse_mesh(s.mesh)
+                for a in m.areas:
+                    segs = [(l[k], l[k + 1]) for l in a.outline for k in range(len(l) - 1)]
+                    segs += [(b.p0, b.p1) for b in a.portals] + [(c.p0, c.p1) for c in a.border_portals]
+                    segs = drop_cracks(segs)
+                    if not segs:
+                        continue
+                    xs = [p[0] for sg in segs for p in sg]
+                    zs = [p[2] for sg in segs for p in sg]
+                    ys = [p[1] for sg in segs for p in sg]
+                    self._areas.append((min(xs), max(xs), min(zs), max(zs), min(ys) - Y_OFFSET, max(ys) - Y_OFFSET,
+                                        segs))
+        return self._areas
+
+    @areas.setter
+    def areas(self, value: list[Any]) -> None:
+        self._areas = value
 
     def on_area(self, p, ytol=2.5):
         x, y, z = p

@@ -518,3 +518,51 @@ pub fn navkit_round3<'py>(
         .collect();
     Ok(pyo3::types::PyBytes::new(py, &out))
 }
+
+/// `navdiff.area_cells` for many areas at once, in parallel (`bc2_navbuild::parity`): per area its boundary
+/// segments as float64 bytes (x0, y0, z0, x1, y1, z1 per segment); per area (cells' i and j as int64 bytes, heights as
+/// float64 bytes), in the reference's order.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn navkit_area_cells(
+    py: Python<'_>,
+    areas: Vec<Vec<u8>>,
+    pitch: f64,
+    y_offset: f64,
+) -> PyResult<Vec<(Bound<'_, pyo3::types::PyBytes>, Bound<'_, pyo3::types::PyBytes>)>> {
+    let segs = areas
+        .iter()
+        .map(|b| {
+            if b.len() % 48 != 0 {
+                return Err(value_error("six float64 per segment"));
+            }
+            Ok(b.as_chunks::<48>()
+                .0
+                .iter()
+                .map(|c| {
+                    let v: Vec<f64> = c.as_chunks::<8>().0.iter().map(|w| f64::from_le_bytes(*w)).collect();
+                    let f = |k: usize| v.get(k).copied().unwrap_or(f64::NAN);
+                    ((f(0), f(1), f(2)), (f(3), f(4), f(5)))
+                })
+                .collect::<Vec<_>>())
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let got: Vec<Vec<((i64, i64), f64)>> = py.detach(|| {
+        segs.par_iter()
+            .map(|s| bc2_navbuild::parity::area_cells(s, pitch, y_offset))
+            .collect()
+    });
+    got.iter()
+        .map(|cells| {
+            let ij: Vec<u8> = cells
+                .iter()
+                .flat_map(|c| [c.0.0.to_le_bytes(), c.0.1.to_le_bytes()].concat())
+                .collect();
+            let ys: Vec<u8> = cells.iter().flat_map(|c| c.1.to_le_bytes()).collect();
+            Ok((pyo3::types::PyBytes::new(py, &ij), pyo3::types::PyBytes::new(py, &ys)))
+        })
+        .collect()
+}
