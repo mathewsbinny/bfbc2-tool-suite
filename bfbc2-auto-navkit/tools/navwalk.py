@@ -622,7 +622,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
              force_walkable: np.ndarray | None = None, force_unwalkable: np.ndarray | None = None,
              unseeds: Iterable[Sequence[float]] | None = None, soldier_points: Sequence[Sequence[float]] | None = None,
              ladders: Sequence[dict[str, Any]] | None = None, anchors: Iterable[Sequence[float]] | None = None,
-             objective_points: Sequence[Sequence[float]] | None = None) -> Any:
+             objective_points: Sequence[Sequence[float]] | None = None, grid_out: list[Any] | None = None) -> Any:
     """Kept walkable surfaces (bool per surface) by rules 1-4, plus the structure rules:
       dynamic props (dynamic_tris) are absent for path data - their tops are not floor, and the ground under and
       right beside them is not blocked by them;
@@ -630,7 +630,8 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
       clearance of the high_capsule run (capsule from 0.6 m) instead of the normal one.
     Hand edits (navedits.py): force_walkable / force_unwalkable (bool per surface) override the rules before
     seeding; unseeds (points) drop the island each lies on after seeding. The floods need the Rust core
-    (require_native, checked first)."""
+    (require_native, checked first). grid_out: a list the floods' NavLevel is appended to (the samples, gradients and
+    stairs in the core: navbuild.stage makes its Level's from it - NavLevel.with_walk - instead of sending them again)."""
     require_native()
     y = s.y.astype(float)
     col_of_w = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))     # each surface's column
@@ -910,27 +911,34 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
             for e in ladder_ends(s, ok, keep, lad):
                 if e is not None and keep[e]:
                     anchor_k.add(int(e))
-        roof_drop = roof_islands(s, keep, gx_all, gz_all, stair, step, terrain, anchor_k)
+        # the islands on the flood's NavLevel (the same samples, gradients and stairs: none changed since)
+        roof_drop = roof_islands(s, keep, gx_all, gz_all, stair, step, terrain, anchor_k,
+                                 grid_nat[0] if grid_nat else None)
         keep &= ~roof_drop
+    if grid_out is not None and grid_nat:
+        grid_out.append(grid_nat[0])
     if return_gradients:
         return (keep, gx_all, gz_all, stair) if return_stairs else (keep, gx_all, gz_all)
     return keep
 
 
 def islands_of(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.ndarray, stair: np.ndarray,
-               step: float) -> tuple[np.ndarray, int]:
+               step: float, grid: Any = None) -> tuple[np.ndarray, int]:
     """(island id per kept surface, -1 elsewhere; the number of islands): surfaces joined by the step rule, as
-    walkable's flood joins them, numbered from 0 in the order of their lowest surface; in the Rust core."""
-    ids, count = native_grid(s, keep, gx, gz, stair, step).islands()
+    walkable's flood joins them, numbered from 0 in the order of their lowest surface; in the Rust core. grid: a
+    NavLevel of the same samples, gradients, stairs and step (walkable's flood's), whose arrays are reused."""
+    nat = grid.with_walk(_flags(keep)) if grid is not None else native_grid(s, keep, gx, gz, stair, step)
+    ids, count = nat.islands()
     return np.frombuffer(ids, '<i8').astype(np.int64), int(count)
 
 
 def roof_islands(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.ndarray, stair: np.ndarray, step: float,
-                 terrain: np.ndarray, anchor_k: set[int]) -> np.ndarray:
+                 terrain: np.ndarray, anchor_k: set[int], grid: Any = None) -> np.ndarray:
     """The kept surfaces ROOF_PRUNE drops (bool per surface). After the islands (Rust), the rule runs in the Rust core
-    when it is there (round E3c; this Python is its reference and fallback: BFBC2_PURE_PYTHON, use_native(False))."""
+    when it is there (round E3c; this Python is its reference and fallback: BFBC2_PURE_PYTHON, use_native(False)).
+    grid: see islands_of."""
     y = s.y.astype(float)
-    comp, n = islands_of(s, keep, gx, gz, stair, step)
+    comp, n = islands_of(s, keep, gx, gz, stair, step, grid)
     rule = (ROOF_RAISE, ROOF_SHARE, ROOF_NEAR, ROOF_NEAR_DY)
     if _native is not None and hasattr(_native, 'navkit_roof_drop') and _num(s.pitch, s.min_x, s.min_z, *rule):
         try:

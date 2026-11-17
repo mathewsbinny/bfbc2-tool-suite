@@ -109,7 +109,7 @@ fn roots_are_the_lowest_surface() {
         assert!(r <= k);
         if ids[k] >= 0 {
             assert_eq!(ids[r], ids[k]);
-            assert!(ids.iter().position(|&c| c == ids[k]) == Some(r));
+            assert_eq!(ids.iter().position(|&c| c == ids[k]), Some(r));
         } else {
             assert_eq!(r, k);
         }
@@ -213,7 +213,7 @@ fn sector_graph_dedups_and_covers() {
     c.cover = Some(2.0);
     c.gabriel = true;
     let g = sector::build_graph(&l, &[cells], &job, &c).unwrap();
-    assert!(g.nodes.iter().filter(|n| n.node.k == 0).count() == 1); // two portal middles, one node
+    assert_eq!(g.nodes.iter().filter(|n| n.node.k == 0).count(), 1); // two portal middles, one node
     assert!(
         !g.nodes
             .iter()

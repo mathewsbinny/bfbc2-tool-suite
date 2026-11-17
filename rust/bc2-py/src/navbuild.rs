@@ -996,6 +996,33 @@ impl NavLevel {
         Ok(py.detach(|| self.level.flood_bfs(kept, q)))
     }
 
+    /// This level with the surfaces `walk` (one byte per surface) kept instead, its other arrays shared (round E3h:
+    /// `navwalk.walkable`'s islands over its kept ground, without sending the samples again).
+    /// With `terrain` (bytes), `pitch` and `link_step` also given, those replace this level's (`navbuild.Level.native`
+    /// on `walkable`'s level).
+    #[pyo3(signature = (walk, terrain=None, pitch=0.0, link_step=0.0))]
+    fn with_walk(
+        &self,
+        walk: &Bound<'_, PyBytes>,
+        terrain: Option<&Bound<'_, PyBytes>>,
+        pitch: f64,
+        link_step: f64,
+    ) -> PyResult<NavLevel> {
+        let keep: Vec<bool> = walk.as_bytes().iter().map(|&v| v != 0).collect();
+        let level = match terrain {
+            Some(t) => {
+                self.level
+                    .with_keep_terrain(keep, t.as_bytes().iter().map(|&v| v != 0).collect(), pitch, link_step)
+            }
+            None => self.level.with_keep(keep),
+        };
+        Ok(NavLevel {
+            level: level.map_err(value_error)?,
+            blocked: std::sync::RwLock::default(),
+            flooded: std::sync::Mutex::default(),
+        })
+    }
+
     /// `navwalk.islands_of` over the surfaces this level keeps: the island ids (int64, little-endian bytes) and the
     /// number of islands.
     fn islands<'py>(&self, py: Python<'py>) -> (Bound<'py, PyBytes>, usize) {

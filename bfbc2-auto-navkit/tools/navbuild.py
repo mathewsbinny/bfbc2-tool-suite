@@ -32,6 +32,7 @@ Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd>
                    [--stairs stair_tris.npy] [--exclude exclude_tris.npy] [--exclude-foot exclude_footprint_tris.npy]
                    [--no-detail]   (no D lines / F cells: BuildSettings.detail_features off)
 """
+import contextlib
 import heapq
 import math
 import os
@@ -1178,6 +1179,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     Returns {'level', 'info', 'graphs', 'border_nodes', 'next_id', 'dropped', 'pitch', 'meshes'}."""
     require_native()                        # the grid walks need the Rust core: say so before reading anything
     t0 = t0 or time.time()
+    walk_grid: list[Any] = []                # walkable's NavLevel (its floods'), for the Level's
     if grid is not None:
         s, keep, gx, gz, stair = grid
     else:
@@ -1224,8 +1226,14 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
                                         # roof pruning anchors: soldier spawns, AI order positions, and (stage b) the ground
                                         # the normal build kept - stage b drops only roofs that build did not have
                                         anchors=list(seeds or []) + list(order_points or []) + list(seed_points or []),
-                                        objective_points=area_orders)
+                                        objective_points=area_orders, grid_out=walk_grid)
     level = Level(s, keep, step, gx, gz, stair, cfg)
+    if walk_grid:
+        # the level in the Rust core from walkable's (the same samples, gradients and stairs; round E3h); on a
+        # refusal Level.native makes it from the arrays
+        with contextlib.suppress(*_NATIVE_ERRORS):
+            level._native = walk_grid[0].with_walk(navwalk._flags(keep), navwalk._flags(level.terrain),
+                                                   float(cfg.pitch), float(cfg.link_step))
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)'
         + (f'; roof islands dropped {navwalk.ROOF_STATS.get("dropped", 0)} ({navwalk.ROOF_STATS.get("surfaces", 0)} surfaces)'
            if navwalk.ROOF_PRUNE and grid is None else '')

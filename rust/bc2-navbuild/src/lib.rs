@@ -32,6 +32,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{BuildHasherDefault, Hasher};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
@@ -220,19 +221,20 @@ impl Rule {
 }
 
 /// The level's kept surfaces on the sample grid (`navbuild.Level`): per column the range of its surfaces, per
-/// surface its height, gradients, flags.
+/// surface its height, gradients, flags. The arrays other than `keep` are shared between the levels
+/// [`Level::with_keep`] makes.
 #[derive(Debug, Clone)]
 pub struct Level {
     nx: usize,
     nz: usize,
-    start: Vec<usize>,
+    start: Arc<[usize]>,
     keep: Vec<bool>,
-    y: Vec<f64>,
-    gx: Floats,
-    gz: Floats,
-    stair: Vec<bool>,
-    terrain: Vec<bool>,
-    col_of: Vec<usize>,
+    y: Arc<[f64]>,
+    gx: Arc<Floats>,
+    gz: Arc<Floats>,
+    stair: Arc<[bool]>,
+    terrain: Arc<[bool]>,
+    col_of: Arc<[usize]>,
     pitch: f64,
     step: f64,
     link_step: f64,
@@ -315,18 +317,84 @@ impl Level {
         Ok(Level {
             nx: d.nx,
             nz: d.nz,
-            start: d.start,
+            start: d.start.into(),
             keep: d.keep,
-            y: d.y,
-            gx: d.gx,
-            gz: d.gz,
-            stair: d.stair,
-            terrain: d.terrain,
-            col_of,
+            y: d.y.into(),
+            gx: Arc::new(d.gx),
+            gz: Arc::new(d.gz),
+            stair: d.stair.into(),
+            terrain: d.terrain.into(),
+            col_of: col_of.into(),
             pitch: d.pitch,
             step: d.step,
             link_step: d.link_step,
         })
+    }
+
+    /// This level with other surfaces kept (`keep`, one flag per surface; the walk of another flood or the islands
+    /// over the kept ground), its other arrays shared, not copied (round E3h: `navwalk.walkable` made the same
+    /// level from Python's arrays again for each).
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] when `keep` does not have a flag per surface.
+    pub fn with_keep(&self, keep: Vec<bool>) -> Result<Level, NavError> {
+        if keep.len() != self.len() {
+            return Err(NavError::Shape(format!(
+                "keep: {} values for {} surfaces",
+                keep.len(),
+                self.len()
+            )));
+        }
+        Ok(Level {
+            keep,
+            ..self.clone_shared()
+        })
+    }
+
+    /// [`Level::with_keep`] with other terrain flags and settings too (`navbuild.Level` on `walkable`'s level: its
+    /// terrain, the build's pitch and link step).
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] when `keep` or `terrain` does not have a flag per surface.
+    pub fn with_keep_terrain(
+        &self,
+        keep: Vec<bool>,
+        terrain: Vec<bool>,
+        pitch: f64,
+        link_step: f64,
+    ) -> Result<Level, NavError> {
+        if terrain.len() != self.len() {
+            return Err(NavError::Shape(format!(
+                "terrain: {} values for {} surfaces",
+                terrain.len(),
+                self.len()
+            )));
+        }
+        Ok(Level {
+            terrain: terrain.into(),
+            pitch,
+            link_step,
+            ..self.with_keep(keep)?
+        })
+    }
+
+    /// A copy whose arrays are shared (`keep` empty: the caller sets it).
+    fn clone_shared(&self) -> Level {
+        Level {
+            nx: self.nx,
+            nz: self.nz,
+            start: Arc::clone(&self.start),
+            keep: Vec::new(),
+            y: Arc::clone(&self.y),
+            gx: Arc::clone(&self.gx),
+            gz: Arc::clone(&self.gz),
+            stair: Arc::clone(&self.stair),
+            terrain: Arc::clone(&self.terrain),
+            col_of: Arc::clone(&self.col_of),
+            pitch: self.pitch,
+            step: self.step,
+            link_step: self.link_step,
+        }
     }
 
     /// The number of surfaces.
