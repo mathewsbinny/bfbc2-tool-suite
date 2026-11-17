@@ -169,16 +169,34 @@ enum PyErrKind {
     Havok(havok::HavokError),
 }
 
-/// NavKit's `havok_index` and `mesh_aliases` of `bases` in one walk: `(havok, aliases)`, each a list of
-/// `(blueprint, value)` in the reference's order; `aliases` is the `OSError` that stopped the reference instead,
-/// when an XML file could not be read.
+/// NavKit's `havok_index` of `bases` alone (no mesh aliases): `[(blueprint, packfile path)]` in the reference's
+/// order.
 #[pyfunction]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "PyO3 extracts a list argument as an owned Vec"
 )]
-pub fn collision_index(py: Python<'_>, bases: Vec<PathBuf>) -> PyResult<Index<'_>> {
-    let index = py.detach(|| collision::index(&bases));
+pub fn havok_index(py: Python<'_>, bases: Vec<PathBuf>) -> Vec<(String, String)> {
+    py.detach(|| collision::havok_index(&bases))
+        .entries()
+        .iter()
+        .map(|(k, p)| (k.clone(), p.to_string_lossy().into_owned()))
+        .collect()
+}
+
+/// NavKit's `havok_index` and `mesh_aliases` of `bases` in one walk: `(havok, aliases)`, each a list of
+/// `(blueprint, value)` in the reference's order; `aliases` is the `OSError` that stopped the reference instead,
+/// when an XML file could not be read. Each blueprint's `Mesh` comes from its binary `.dbx` where that reads
+/// (`bc2_scene::collision`); with `cache` (a folder) each reference is reused while its files' sizes and times are
+/// unchanged (`index_cached`).
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+#[pyo3(signature = (bases, cache=None))]
+pub fn collision_index(py: Python<'_>, bases: Vec<PathBuf>, cache: Option<PathBuf>) -> PyResult<Index<'_>> {
+    let index = py.detach(|| collision::index_cached(&bases, cache.as_deref()));
     let havok = index
         .havok
         .entries()

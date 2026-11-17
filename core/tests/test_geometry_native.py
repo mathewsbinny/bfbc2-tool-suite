@@ -192,6 +192,68 @@ def index_outcome(bases: list[str], native: bool) -> Any:
     return list(havok.items()), (type(aliases).__name__ if isinstance(aliases, Exception) else list(aliases.items()))
 
 
+def built_index_parity(tmp: str) -> bool:
+    """Both backends' index, havok_index and blueprint_triangles on two folders built under tmp: partitions with and
+    without a Mesh, a deleted marker whose XML is left over (MP_005's emitter_sw_meshparticle_tow_01), a text
+    partition, a damaged one, a partition with no XML (not counted), packfiles in both folders."""
+    def mesh_file(ref: str | None, extra: int = 0) -> bytes:
+        kids = [dbx.Element('field', dbx.TEXT, [('name', 'Other'), ('ref', 'objects/o/o_mesh/1')])]
+        kids += [dbx.Element('field', dbx.TEXT, [('name', f'F{k}')], text=f'v{k}') for k in range(extra)]
+        if ref is not None:
+            kids.append(dbx.Element('field', dbx.TEXT, [('ref', ref), ('name', 'Mesh')]))
+        inst = dbx.Element('instance', dbx.CONTAINER, [('guid', '1'), ('type', 'Physics.X')], children=kids)
+        return dbx.write(dbx.DbxFile([], [dbx.Element('partition', dbx.CONTAINER, [('guid', '0')], children=[inst])]))
+
+    def put(path: str, data: bytes) -> None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'wb') as f:
+            f.write(data)
+
+    a, b = os.path.join(tmp, 'pkg'), os.path.join(tmp, 'dist')
+    files = {
+        'objects/wall/wall': mesh_file('Objects/InvisibleWall/InvWall_Mesh/12'),
+        'objects/crate/Crate_02': mesh_file('Objects/Crate/Crate_Mesh/1', 3),
+        'objects/crate/crate': mesh_file(None),
+        'objects/null/n': mesh_file('null'),
+        'objects/Mixed/Case': mesh_file('Objects/Mixed/MIXED_mesh/3'),
+    }
+    for base in (a, b):
+        for rel, data in files.items():
+            put(os.path.join(base, rel + '.dbx'), data)
+            put(os.path.join(base, rel + '.xml'), dbx.to_xml(data).encode('utf-8'))
+    put(os.path.join(a, 'objects', 'crate', 'Crate_Havok.res'), b'not a packfile')
+    put(os.path.join(b, 'objects', 'invisiblewall', 'invwall_Havok.res'), b'')
+    put(os.path.join(b, 'objects', 'door', 'door_Havok_Havok.res'), b'')
+    put(os.path.join(b, 'fx', 'tow.dbx'), b'')                                             # deleted marker
+    put(os.path.join(b, 'fx', 'tow.xml'), dbx.to_xml(mesh_file('Objects/Tow/Tow_Mesh/1')).encode('utf-8'))
+    put(os.path.join(b, 'fx', 'text.dbx'), b'<partition/>')
+    put(os.path.join(b, 'fx', 'text.xml'), dbx.to_xml(mesh_file('Objects/Text/Text_Mesh/1')).encode('utf-8'))
+    damaged = bytearray(mesh_file('Objects/Bad/Bad_Mesh/1'))
+    damaged[20:24] = b'\xff\xff\xff\xff'
+    put(os.path.join(b, 'fx', 'damaged.dbx'), bytes(damaged))
+    put(os.path.join(b, 'fx', 'damaged.xml'), dbx.to_xml(mesh_file('Objects/Kept/Kept_Mesh/1')).encode('utf-8'))
+    put(os.path.join(b, 'fx', 'unconverted.dbx'), mesh_file('Objects/None/None_Mesh/1'))
+    outcomes = []
+    saved = collision.cache_folder()
+    cache = os.path.join(tmp, 'cache')
+    for native, folder in ((False, None), (True, None), (True, cache), (True, cache)):
+        collision.use_native(native)
+        collision.use_cache(folder)          # Rust: no cache, then the mesh-alias cache cold and warm
+        havok, aliases = collision.index([a, b])
+        alone = collision.havok_index([a, b])
+        tris = collision.blueprint_triangles(['objects/crate/crate', 'objects/wall/wall', 'objects/x'], havok)
+        outcomes.append((list(havok.items()), list(alone.items()),
+                         list(aliases.items()) if isinstance(aliases, dict) else type(aliases).__name__,
+                         [(k, _bits(v)) for k, v in tris.items()]))
+    collision.use_native(True)
+    collision.use_cache(saved)
+    py, rs, cold, warm = outcomes
+    aliases = dict(rs[2]) if isinstance(rs[2], list) else {}
+    return (py == rs == cold == warm and len(os.listdir(cache)) == 2 and rs[0] == rs[1] and aliases.get('fx/tow') == 'objects/tow/tow'
+            and aliases.get('fx/damaged') == 'objects/kept/kept' and 'fx/unconverted' not in aliases
+            and aliases.get('objects/mixed/case') == 'objects/mixed/mixed')
+
+
 def level_bases(root: str, lv: str) -> list[str]:
     """The folders level.load reads a level from."""
     base = os.path.join(root, 'work', 'levels', lv)
@@ -258,6 +320,13 @@ def main(argv: list[str]) -> int:
                         'print(terrain.backend(), water.backend(), collision.backend())', os.path.join(_ROOT, 'core')],
                        env=env, capture_output=True, text=True)
     check(r.stdout.split() == ['python'] * 3, 'BFBC2_PURE_PYTHON=1 forces the Python readers', r.stdout + r.stderr)
+
+    # the collision index on folders built here: the Rust core reads each Mesh from the binary .dbx next to the XML
+    # (the XML where the binary cannot answer), NavKit's Python reads the XML: the same tables when the XML is the
+    # binary's (DbxEdit's), and a deleted marker's leftover XML still read
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        check(built_index_parity(tmp), 'collision index on built folders: binary partitions and XML, the same tables')
 
     try:
         root = paths.find_opfor(None, start=_ROOT)

@@ -26,9 +26,9 @@ fn scene_error(e: scene::SceneError) -> PyErr {
 /// field), `collision` (None, or (triangles by blueprint as `f32` x 9 bytes or None, meshes (entity, blueprint),
 /// missing)), `terrain` (None, or (min, max, size, raw `u16` bytes, heights `f32` bytes, vertices `f32` x 3 bytes,
 /// triangles `u32` x 3 bytes)), `water` (None, or (vertices, triangles, shader per triangle or None, slots or None))
-/// and `notes` ((kind, text): `aliases`, `terrain`, `water`).
+/// and `notes` ((kind, text): `aliases`, `terrain`, `water`). `alias_cache`: the mesh-alias cache's folder, or `None`.
 #[pyfunction]
-#[pyo3(signature = (name, partition, groups, bases, geometry, heightfield, terrain_stride, water_mesh, water_visual))]
+#[pyo3(signature = (name, partition, groups, bases, geometry, heightfield, terrain_stride, water_mesh, water_visual, alias_cache=None))]
 #[expect(clippy::too_many_arguments, reason = "level.load's inputs, one per argument")]
 pub fn scene_load<'py>(
     py: Python<'py>,
@@ -41,6 +41,7 @@ pub fn scene_load<'py>(
     terrain_stride: usize,
     water_mesh: Option<PathBuf>,
     water_visual: Option<PathBuf>,
+    alias_cache: Option<PathBuf>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let options = LoadOptions {
         name,
@@ -51,6 +52,7 @@ pub fn scene_load<'py>(
         heightfield,
         terrain_stride,
         water: water_mesh.map(|m| (m, water_visual)),
+        alias_cache,
     };
     let s = py.detach(|| scene::load(&options)).map_err(scene_error)?;
     let out = PyDict::new(py);
