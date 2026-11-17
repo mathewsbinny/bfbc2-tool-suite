@@ -96,14 +96,16 @@ the GeForce RTX 4060, at 144 frames a second.
 ## The Rust core (optional, faster)
 
 `rust/` is a Cargo workspace: the start of the shared Rust core the map editor is built on
-(`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8). Today it holds the binary DBX reader and the FBRB bundle
-reader, ported from `core/bfbc2core/dbx.py` and `fbrb.py` and proven identical to them on every corpus file and
-every bundle of the game copy. **Nothing needs it**: without it, every
-tool runs on the Python readers as before.
+(`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8). Today it holds the binary DBX reader, the FBRB bundle
+reader, the terrain, water and Havok collision readers, and the level loader (a Rust scene), ported from
+`core/bfbc2core/dbx.py`, `fbrb.py`, `terrain.py`, `water.py`, `level.py` and NavKit's `levelobjects.py` / `hkpack.py`
+and proven identical to them on every corpus file, every bundle of the game copy and, entity by entity, on 18
+levels. **Nothing needs it**: without it, every tool runs on the Python readers as before.
 
 | Crate | What |
 |---|---|
-| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer). Later: terrain, shader databases |
+| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; a small test writer); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer). Later: shader databases |
+| `rust/bc2-scene` | a level as the tools see it: `collision` (which packfile each blueprint uses: NavKit's index and mesh aliases in one parallel walk), `scene` (`level.load`'s entities, blueprints, teams, outlines, collision, terrain and water on all cores; editable entities for the map editor) |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
 
 **Build** (once, and after changing anything in `rust/`; the quick test tier rebuilds it when it is stale):
@@ -123,10 +125,14 @@ functions run the Python reader, with the same results and the same errors (`Val
 reference: `core/tests/test_dbx.py` always tests it. A tool that loads many files at once should call
 `dbx.parse_many` (all cores, and the cycle collector paused while the trees are built). `bfbc2core.fbrb` works the
 same way (`entries`, `names`, `read` and the new `read_many`, one bundle per core; `fbrb.use_native`,
-`fbrb.backend()`; a damaged bundle raises `ValueError` in both readers, a missing entry `KeyError`).
+`fbrb.backend()`; a damaged bundle raises `ValueError` in both readers, a missing entry `KeyError`). So do
+`bfbc2core.terrain` (`parse`, `read`), `bfbc2core.water` (`parse_mesh`, `parse_visual`, `read`), the new
+`bfbc2core.collision` (`index`, `triangles`, `triangles_many`; NavKit's Python functions as the fallback) and
+`bfbc2core.level` (`load` through the Rust scene; the Python loader as the fallback): each has `use_native` and
+`backend()`, and `BFBC2_PURE_PYTHON=1` turns them all to Python.
 
 **Develop:** in `rust\`, `cargo test` (unit, property and doc tests), `cargo clippy --all-targets -- -D warnings`,
-`cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats` (after
+`cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene` (after
 `cargo install cargo-llvm-cov` and `rustup component add llvm-tools-preview`). Timings: `rust\BENCHMARKS.md`.
 
 ## Tests

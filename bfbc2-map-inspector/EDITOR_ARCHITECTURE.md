@@ -228,6 +228,25 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
     touches to `DbxFile` (about the old parse's cost per partition) and writes those; untouched partitions stay
     compact and can be written back as their original bytes. Positions are 32-bit (files under 4 GiB;
     `DbxError::TooLarge` beyond).
+- **The scene** (E1a, 2026-11-16; `rust/bc2-scene`, measured in `rust/BENCHMARKS.md`):
+  - **What a level load costs was measured first.** With the Rust DBX reader a whole `level.load` took 6-15 s, of
+    which 85-95 % was NavKit's collision index: `mesh_aliases` reads and regex-scans every converted XML file of the
+    level and the shared data (17,589 files, 205 MB on MP_005) and `havok_index` globs the same folders again. The
+    height field, water and Havok triangles were 0.1-0.2 s together. So the port order was the index, then the
+    readers; the index is one walk per folder with the subfolders and files on all cores.
+  - **`bc2_scene::scene::load`** builds what `level.py` builds (entities, blueprint types, categories, teams,
+    outlines, collision, terrain, water) on the compact `DbxTree`, the entity pipeline and the geometry at once.
+    The caller finds the files and prepares / unpacks (those run tools and write); `LoadOptions` names them. Python's
+    `level.load` keeps its own element trees for `Entity.element` (the scene's `Source` says where each entity's
+    element is) and does the world-space transform in NumPy, so its results stay bit for bit the Python loader's.
+  - **Editing:** entities are owned and mutable (`set_transform`, `changed`); collision is kept once per blueprint
+    in local space and placed by each entity's transform (`world_triangles`), the instancing the editor's view
+    needs (a move changes one matrix, no triangles are copied); the partitions' bytes are kept (`file`, `tree`), so
+    the trees are re-read on demand rather than held (the "Two DBX trees" trade-off: no self-borrowing struct), and
+    a partition that is edited converts to `DbxFile` for `levelwrite`.
+  - **Still open for E1:** new / deleted entities and field edits (with `levelwrite`), undo, the shared data's
+    XML-based alias table (reading the binary partitions instead, or a cache keyed by the files' sizes and times,
+    would remove the scene's largest remaining cost: 0.3 s of 0.32 s on MP_005, all of it reading XML).
 
 ### 3.9 UX and workflow (draft, 2026-11-16)
 
@@ -335,7 +354,7 @@ first.
 | Step | Delivers |
 |---|---|
 | E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **E0b (branch `rust-e0b`):** the FBRB reader ported (`bc2_formats::fbrb`; `bfbc2core.fbrb` on it with the Python fallback), the same entries and bytes as the Python reader on every bundle of the game copy and `work\ww2`, and FbrbTool's unpack on the built and sampled bundles; level loading through `dbx.parse_many`. Bundle packing stays with FbrbTool (E1 / `levelwrite`). E0 done. |
-| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit) |
+| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
 | E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |
