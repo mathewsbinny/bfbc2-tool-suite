@@ -316,7 +316,7 @@ NEEDS = {
     'Rust core build (when stale; skipped without Rust)': need(setup=True),
     'Rust core: cargo fmt, clippy, tests (skipped without Rust)': need(cpu='all', mem=2, cargo='w'),
     'Rust DBX reader against the Python reader (built, damaged, 200 corpus files)': need(cpu=2, mem=1),
-    'Rust FBRB reader against the Python reader and FbrbTool (built, damaged, 8 game bundles)': need(cpu=6, mem=1.5),
+    'Rust FBRB reader against the Python reader and FbrbTool (built, damaged, 8 game bundles)': need(cpu=6, mem=4.5),   # measured 4.6 GB
     'Rust terrain, water and collision readers against the Python readers (built, damaged, dispatch, aliases from binary partitions)': need(),
     'Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)': need(cpu=4, mem=1),
     'Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)': need(cpu=2),
@@ -384,7 +384,7 @@ NEEDS = {
     'stock-MP AI layer, synthetic levels': need(),
     'stock-MP AI validation checks, synthetic builds (validate.py)': need(cpu=2),
     'shader databases (shaderdb), built files': need(),
-    'render harness (renderqa): built mesh, shaders and texture drawn and checked': need(cpu=2, shaderview='w'),
+    'render harness (renderqa): built mesh, shaders and texture drawn and checked': need(cpu=2, mem=2, shaderview='w'),
     'shader translator differential test: Xenos interpreter semantics, cube fetch direction': need(cpu=2, shaderview='w'),
     'Granny Xbox 360 -> PC: DICE bone tables': need(),
     'BF1943 import pipeline, no data': need(),
@@ -398,7 +398,7 @@ NEEDS = {
     'shader translator differential test: BF1943 shaders behind each translator fix exact': need(cpu=4, mem=1.5, shaderview='w'),
     'Rust DBX reader against the Python reader, every corpus file': need(cpu='all', mem=4),
     'Rust DBX reader against DbxEdit, every fingerprinted file; every bundle extracted (cargo)': need(cpu='all', mem=3, cargo='w'),
-    'Rust FBRB reader against the Python reader, every bundle': need(cpu=6, mem=5),
+    'Rust FBRB reader against the Python reader, every bundle': need(cpu=6, mem=8),    # its quick run: 4.6 GB
     'Rust DBX writer against the Python writer, every corpus file written back and edited': need(cpu='all', mem=4),
     'Rust FBRB packer against FbrbTool, every bundle of the game copy unpacked and packed again': need(cpu=8, mem=8),
     'Rust terrain, water and Havok readers on every bundle of the game copy, the collision index of every prepared level': need(cpu=8, mem=4),
