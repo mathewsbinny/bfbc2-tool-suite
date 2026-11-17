@@ -883,6 +883,36 @@ def e3h(rng: random.Random) -> int:
         calls += 1
     check(dropped > 0, 'the unseeds drop ground')
     print(f'E3h unseeds: {dropped} kept surfaces dropped')
+    # navdiff.area_cells (the parity measures' cells): random closed outlines on the half-pitch lines and off them,
+    # 45-degree bridges, stray segments, portals as kymesh objects - the Rust core against the NumPy reference
+    import kymesh
+    import navdiff
+    areas_ = []
+    for case in range(60):
+        n = rng.randint(3, 14)
+        cx, cz = rng.uniform(-900, 900), rng.uniform(-900, 900)
+        step = rng.choice([0.4, 0.1, 0.25, 0.37])
+        ring = []
+        for q in range(n):
+            ang = 2 * math.pi * q / n
+            r = rng.uniform(1, 12)
+            x, z = cx + r * math.cos(ang), cz + r * math.sin(ang)
+            if case % 2:
+                x, z = round(x / step) * step, round(z / step) * step
+            ring.append((x, rng.choice([0.95, 3.2, rng.uniform(0, 40)]), z))
+        outline = [ring + [ring[0]]]
+        if case % 3 == 0:
+            outline.append([(cx, 1.0, cz), (cx + rng.uniform(-3, 3), 2.0, cz + rng.uniform(-3, 3))])
+        portals = [kymesh.Portal(ring[0], ring[1], 0)] if case % 4 == 0 else []
+        areas_.append(SimpleNamespace(outline=outline, portals=portals, border_portals=[]))
+    areas_.append(SimpleNamespace(outline=[], portals=[], border_portals=[]))
+    got_c = navdiff.area_cells_many(areas_)
+    want_c = [navdiff.area_cells_reference(a) for a in areas_]
+    same_c = all([(k, struct.pack('<d', v)) for k, v in x.items()] == [(k, struct.pack('<d', v)) for k, v in y.items()]
+                 for x, y in zip(got_c, want_c))
+    check(navdiff._native() is not None and same_c, 'navdiff.area_cells: the Rust core as the NumPy reference')
+    print(f'E3h area cells: {len(areas_)} areas, {sum(len(c) for c in want_c)} cells')
+    calls += 1
     # round(v, 3): random values, exact ties (multiples of 1/16), negative zero, the build's positions
     vals = [rng.uniform(-2000, 2000) for _ in range(60000)] + [k / 16 for k in range(-40000, 40000)]
     vals += [rng.randint(-2500, 2500) * 0.2 + rng.choice([0.0, 0.95, -0.05]) for _ in range(40000)]
