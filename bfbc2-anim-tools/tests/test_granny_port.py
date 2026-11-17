@@ -145,14 +145,14 @@ def bf1943(check, root):
     ix = meshview.Index(shaderdb.find_opfor(root))
     bones = granny.bone_map(bd.data('Characters/Skeletons/ske01.res'), ix.read('characters/skeletons/ske01.res'))
     same = tried = 0
-    for e in bd.entries:
-        if e['type'] not in ('GrannyAnimation', 'DeltaAnimation'):
-            continue
-        pc = ix.read(e['name'].lower())
+    anims = [e for e in bd.entries if e['type'] in ('GrannyAnimation', 'DeltaAnimation')]
+    pcs = ix.read_many([e['name'].lower() for e in anims])      # each bundle read once, not once per animation
+    for e in anims:
+        pc = pcs[e['name'].lower()]
         if pc is None:
             continue
         tried += 1
-        cv = granny.to_pc(bd.data(e['name']), bones, e['name'])
+        cv = granny.to_pc(bd.payload[e['offset']:e['offset'] + e['size']], bones, e['name'])
         gc, gp = granny.Granny(cv), granny.Granny(pc)
         same += cv[:gc.gr2] == pc[:gp.gr2] and clean(gc.root()) == clean(gp.root())
     check(same >= SAME_AS_BFBC2_AT_LEAST, f'Battlefield 1943: {same} of {tried} animations that BFBC2 also has, '

@@ -111,8 +111,8 @@
  "model tools: skinned meshes, mesh sets, shapes": 2.6,
  "model tools: PC textures from pictures (DXT1)": 2.5,
  "model tools: mesh decimation (seams closed, bones apart)": 0.9,
- "Granny skeletons and animations (read, shift)": 6.1,
- "Granny Xbox 360 -> PC on your Xbox files and BF1943": 98.8,
+ "Granny skeletons and animations (read, shift)": 7.1,
+ "Granny Xbox 360 -> PC on your Xbox files and BF1943": 19.2,
  "BF1943 import pipeline on your BF1943 copy": 38.0,
  "BF1943 model port (meshport)": 41.4,
  "DBX writer and BF1943 partition port (dbxport)": 9.2,
@@ -150,5 +150,7 @@
  "HLSL batches (pcbuild): every Wake pixel shader translated, compile_many against one at a time": 95.0,
  "dbxport ranking: the four WW2 level ports against a third of BFBC2's 157 levels, every choice and the bytes": 240.0,
  "BF1943 ports E3g: Rust mesh vertices and Havok walk, layout and emitter indexes against their references (built inputs)": 8.0,
- "BF1943 ports E3g: every BF1943 mesh set, physics file and effect, the Onslaught console meshes and physics, both ways": 124.0
+ "BF1943 ports E3g: every BF1943 mesh set, physics file and effect, the Onslaught console meshes and physics, both ways": 124.0,
+ "Rust Granny reader and Xbox 360 -> PC conversion against granny.py (built, damaged, batch, writes)": 2.5,
+ "Rust Granny reader and conversion on every Granny resource of your Xbox files, the game copy and BF1943": 229.5
 }

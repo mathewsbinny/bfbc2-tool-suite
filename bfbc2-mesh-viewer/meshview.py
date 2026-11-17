@@ -221,24 +221,26 @@ class Index:
         return fbrb.read(hit[0], [hit[1]])[hit[1]]
 
     def read_many(self, names):
-        """{name: bytes} of many entries, each as read(name) gives it (a name the index lacks is left out): grouped
-        by bundle, each bundle read once, the bundles on all cores (fbrb.read_many). read() of a resource reads its
-        bundle up to it - 0.36 s each for 991 physics files of mp_common-sized bundles (round E3g: test_havokport's
-        material slots, 369 of its 381 s); this reads them in a few seconds. A bundle that cannot be read raises as
-        read() does."""
+        """{name: bytes or None} of read() for many names (None: a name the index lacks, as read() gives): each
+        bundle read once for all of its names - a bundle is one gzip stream, so read() of each name decompresses it
+        from the start again (round E3g: test_havokport's 991 physics files, 0.36 s each one at a time, 369 of its 381
+        s; round E3i: the Granny port test) - the bundles on all cores with the Rust core; partitions (.dbx) through
+        their own cache, as read(). A bundle that cannot be read raises as read() does."""
+        out: dict[str, bytes | None] = {}
         by: dict[str, list[tuple[str, str]]] = {}
         for n in names:
             hit = self.where.get(n.lower())
-            if hit:
+            if not hit or hit[1].lower().endswith('.dbx'):
+                out[n] = self.read(n)                       # partitions: their own cache
+            else:
                 by.setdefault(hit[0], []).append((n, hit[1]))
-        items = list(by.items())
-        out = {}
-        for (_, pairs), got in zip(items, fbrb.read_many([(b, [e for _, e in pairs]) for b, pairs in items])):
+        bundles = list(by)
+        for bundle, got in zip(bundles, fbrb.read_many([(b, [e for _, e in by[b]]) for b in bundles])):
             if isinstance(got, Exception):
                 raise got
-            for n, e in pairs:
+            for n, e in by[bundle]:
                 out[n] = got[e]
-        return out
+        return {n: out[n] for n in names}
 
     def _partitions_of(self, bundle):
         """The .dbx entry names the index finds in bundle (Partitions reads them in one pass)."""

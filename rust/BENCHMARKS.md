@@ -1292,3 +1292,107 @@ Peak working set of a bench run: 1.6 - 1.9 GB, nearly all of it BF1943's source 
 `bfbc2-bf1943-import/tests/test_ports_native.py` (quick, 2 s of work: the built inputs above; `--game`, 124 s: the
 bulk ports both ways, the index rows, the Onslaught corpus), `rust/bc2-convert` unit tests (`mesh_tests.rs`,
 `havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests	est_durations.json`.
+
+## E3i: Granny skeletons and animations (2026-11-17, branch `rust-e3i`)
+
+**Provisional timings:** other agents' work (an OPFOR WW2 rebuild part of the time) ran beside every figure below,
+at below-normal priority on the 16-thread PC. Ratios hold within a run.
+
+### The profile (main, before)
+
+The slowest Granny test, `test_granny_port.py --game` (2,654 Xbox resources converted and compared with their PC
+twins, then BF1943's 395 soldier animations against BFBC2's copies), under cProfile: 253 s, of which
+
+| where | calls | s (profiled) |
+|---|---:|---:|
+| `meshview.Index.read` -> `fbrb.read` of one entry (the BF1943 part: one call per animation, each decompressing its bundle's gzip stream from the start) | 522 / 398 | 130 (zlib 112) |
+| `Granny.root` -> `read` / `_value` (the object trees: 6.3 M `read`, 16.5 M `_value`, 8.5 M `size` calls - a type's size recomputed for every member of every object) | 5,380 | 55 |
+| the test's `clean` (dropping `__` keys and Padding before comparing) | 54 M | 42 |
+| `to_pc` (`_swap` 1.6 M, `_marshal` 0.7 M) | 3,049 | 11 |
+| `Granny.__init__` (the relocation dict) | 9,149 | 4.7 |
+
+That profile ran before the Rust core was built in this worktree, so `fbrb.read` was Python's; with it the same
+test took 98.8 s in the last full tier and 119.6 s here. The corpora: 2,660 Xbox, 4,534 PC and 756 BF1943 Granny
+resources, typically 30 KB; a tree is ~10,000 values (13.8 M in mp_common's 1,409).
+
+### What changed, and why
+
+- **Algorithms first.** The BF1943 part read each animation's PC copy with its own bundle read: a bundle is one
+  gzip stream, so each read decompressed it from the start. `meshview.Index.read_many(names)` reads each bundle
+  once for all its names (`fbrb.read_many`, bundles on all cores); the test uses it. `Granny.size` keeps each
+  type's size (it was recomputed per member per object; members were already cached), and `root()` builds its tree
+  with the cycle collector paused (`_gc_paused`: the collections the tree's own allocations trigger; a tree has no
+  cycles).
+- **Rust** (`bc2_formats::granny`, `bc2_convert::granny`, bindings `bc2-py/src/granny.rs`): the reader
+  (`Granny::parse`: DICE's table, the strings, the sections and relocations; `members`, `size`, `type_name`;
+  `root`: a `Value` tree - objects with `__at__` / `__tref__` / members in order / `__type__`, lists, integer and
+  float lists, transforms, strings), DICE's `bone_table` / `renumber`, and `to_pc` (the swaps and marshalling, the
+  CRC, a bone map renumbering the table), `to_pc_all` on all cores. The binding builds `root()`'s dicts directly
+  (each table string and each type's `__tref__` tuple made once, number arrays as one list). `granny.py`:
+  `Granny(b)` takes its tables from `granny_header` (sections, section offsets and relocations made on first use by
+  `granny_index`), `root()` from `granny_root`, `to_pc` from `granny_to_pc`; new `to_pc_many` and `roots` (all
+  cores, the interpreter released). Anything the Rust core refuses runs the Python code, which raises what it
+  raises; a Granny written to (`put`, `to_bytes`) reads in Python from then on. `use_native` / `backend()` /
+  `BFBC2_PURE_PYTHON` as for the other ports.
+- Not ported: `add_tracks` (`_Graft`), `shift_position`, `set_orientations`, `curve_keys`, `sample` - one file at a
+  time on trees already read, milliseconds each.
+
+### Before and after
+
+`python rust\bench_granny.py --runs 2 --reference <main's granny.py>`: the 2,660 Xbox Granny resources of
+mp_common / sp_common (76.8 MB) in memory; the Python column is main's `granny.py`:
+
+| | main (Python) s | Rust core s | x |
+|---|---:|---:|---:|
+| `Granny(b)` (the tables) | 0.78 | 0.094 | 8.3 |
+| `Granny(b).root()`, each tree dropped before the next | 7.86 | 2.51 | 3.1 |
+| `Granny(b).root()`, all 2,660 trees kept | 13.20 | 10.10 | 1.3 |
+| `Granny(b).root()` of the converted PC files, all kept | 14.14 | 10.28 | 1.4 |
+| `roots(blobs)` (Rust: read on all cores, built with the collector paused) | 13.96 | 6.98 | 2.0 |
+| `to_pc(b)` one at a time | 6.89 | 0.145 | 47 |
+| `to_pc_many(blobs)` | 7.24 | 0.045 | 161 |
+
+Reading is bounded by making the Python objects: the Rust reader alone (`cargo run --release -p bc2-formats
+--example granny_bench -- <work\xbox\mp_common>`) parses mp_common's 1,409 resources in 0.033 s and reads their
+trees (13.8 M values) in 0.63 s; turning a tree into dicts, lists, tuples, ints and floats is the rest. With every
+tree kept alive the cycle collector's passes between calls walk all of them (2.3 M tracked containers here), in
+either column: callers that read many files should drop each tree when done, or use `roots`.
+
+The tests (one at a time, wall clock with Python's start):
+
+| test | before | after |
+|---|---:|---:|
+| `test_granny_port.py --game` ("Granny Xbox 360 -> PC on your Xbox files and BF1943") | 119.6 s | **19.2 s** (6.2x) |
+| `test_granny.py` ("Granny skeletons and animations (read, shift)") | 9.2 s | 7.1 s |
+
+### Parity
+
+`bfbc2-anim-tools/tests/test_granny_native.py`: each resource read with the Rust core and with the Python code -
+the tables (byte order, string table, sections, section offsets, relocations in order), `root()` (every value, its
+Python type, every dict's key order, floats bit for bit) and `to_pc`'s bytes, or the same exception:
+
+- **quick:** resources built in both byte orders with every member type (inline structs and their arrays,
+  references, arrays of references, variants and variant arrays, strings by index, past the table and by pointer,
+  transforms, 8 / 16 / 32-bit, real16 and real32, scalar arrays); the big-endian build's `to_pc` is the
+  little-endian build byte for byte; with and without a bone map, and a map missing a bone; **2,184 damaged
+  copies** (bytes changed, cut short; 316 whose damaged counts would keep the Python code looping for minutes
+  skipped) the same both ways; `to_pc_many` / `roots` against one-by-one calls; a Granny written to (`put`) reads
+  and writes as Python's.
+- **game** (229 s, peak 0.7 GB): **2,660 of 2,660** Xbox resources of mp_common / sp_common (read, converted, the
+  PC result read again), **4,534 of 4,534** PC Granny resources of the game copy (read), and **756 of 756** Granny
+  resources of Battlefield 1943's 85 bundles (read; **1,495** conversions: each, and each soldier animation also
+  with the bone map onto BFBC2's soldier) - the same both ways. Time inside that run (trees compared, so kept a
+  moment): reads 16.8 + 18.9 + 6.2 s in Python against 7.7 + 11.5 + 2.5 s; conversions 5.9 + 3.2 s against 0.3 +
+  0.1 s.
+- `test_granny_port.py --game` and `test_granny.py` pass on the Rust core as before (2,654 Xbox -> PC equal to the
+  PC twins; 31 of 395 BF1943 animations equal to BFBC2's copies; the shifts and `add_tracks`).
+- `cargo test`: `granny`'s tables and halves; `to_pc` of a built resource; DICE's bone tables.
+
+### For OPFOR (read only this round)
+
+Every OPFOR caller gets the Rust core through `granny.Granny`, `root()` (`animations`, `bone_map`) and `to_pc`
+without a change. Batch candidates: `wake_install.py`'s port loop (line ~799: `granny.to_pc` per BF1943 resource,
+mixed with mesh ports) could collect its Granny resources and call `granny.to_pc_many` once; `soldiers.py` (465),
+`wake_flags.py` (78, 97) and `bf1943import.Importer.convert` convert one file each, where `to_pc` now takes
+~0.05 ms - a batch saves little there. Readers of several trees at once (`soldiers.py` 202-231, `weapons.py`,
+`scopes.py`, `type38.py`, `winchester1897.py`, `weapon_preview.py`) can use `granny.roots`.

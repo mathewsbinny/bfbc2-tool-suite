@@ -21,6 +21,9 @@
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
 //!
+//! Granny resources (`granny.rs`): `granny_header`, `granny_index`, `granny_root` / `granny_roots_many` and
+//! `granny_to_pc` / `granny_to_pc_many`, for `bfbc2-anim-tools/granny.py`.
+//!
 //! The converter's (`convert.rs`): `texture_convert` / `texture_convert_many`, and the EA-XAS audio codec
 //! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` uses when it can;
 //! `mesh_vertices` and `havok_convert_packfile` / `HavokClasses` (round E3g) for `mesh.py` and `havok.py`.
@@ -30,6 +33,7 @@ mod culltree;
 mod dbxedit;
 mod fbrb_cache;
 mod geometry;
+mod granny;
 mod navbuild;
 mod navtrace;
 mod scene;
@@ -352,6 +356,9 @@ mod bc2_native {
         HavokClasses, havok_convert_packfile, mesh_vertices, texture_convert, texture_convert_many, xas_decode_frames,
         xas_encode, xas_encode_many,
     };
+
+    #[pymodule_export]
+    use super::granny::{granny_header, granny_index, granny_root, granny_roots_many, granny_to_pc, granny_to_pc_many};
 
     #[pymodule_export]
     use super::navbuild::{

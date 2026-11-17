@@ -14,9 +14,12 @@
 //!   element by element, the packed normals and colours decoded to halves (round E3g).
 //! - [`havok`]: Xbox 360 Havok 5.5.0 packfiles to the PC's (`bfbc2-console-convert/havok.py`'s
 //!   `Packfile.convert`): the field walk over the game's class layouts (round E3g).
+//! - [`granny`]: Xbox 360 Granny resources to the PC's (`bfbc2-anim-tools/granny.py`'s `to_pc`), DICE's bone
+//!   table renumbered onto another skeleton; many on all cores.
 #![deny(unsafe_code)]
 
 pub mod audio;
+pub mod granny;
 pub mod havok;
 pub mod mesh;
 pub mod texture;
