@@ -9,9 +9,17 @@ field keeps its offset and only its bytes are reversed by the field's width.
     import havok
     classes = havok.classes(r'...\BFBC2Game.exe')
     pc_bytes = havok.convert(console_bytes, classes)
+
+convert's packfile walk (Packfile.convert) runs in the suite's Rust core when it is built (bc2_native.
+havok_convert_packfile, round E3g: the same bytes on every BF1943 physics file and BFBC2 Xbox one,
+tests\\test_havok_native.py); where the Rust stops (a ConvertError, a read past the data) Packfile runs, so the
+result or the error is this module's. Packfile stays the reference and verify's walk. BFBC2_PURE_PYTHON=1 (or
+use_native(False)) runs Packfile only; backend() says which runs.
 """
 import collections
+import os
 import struct
+import sys
 
 MAGIC = bytes.fromhex('57e0e05710c0c010')        # the same bytes on both platforms
 
@@ -364,11 +372,78 @@ class Packfile:
             self._value(m.type, m.subtype, m.cls, at + k * size, ctx)
 
 
+def _load_native():
+    """The Rust core with the packfile walk, or None: not built, built from other sources, or BFBC2_PURE_PYTHON
+    set (as audio.py finds it)."""
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:
+        return None
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'havok_convert_packfile') else None
+
+
+_native = _load_native()
+_native_classes: list = [None, None]          # [the classes dict last handed to the Rust core, its HavokClasses]
+
+
+def backend():
+    """'rust' when convert's packfile walk runs in the Rust core, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on):
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
+    global _native
+    if on:
+        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+        try:
+            _native = _load_native()
+        finally:
+            if saved is not None:
+                os.environ['BFBC2_PURE_PYTHON'] = saved
+    else:
+        _native = None
+    return backend()
+
+
+def _rust_classes(klasses):
+    """The class layouts as the Rust core's HavokClasses, converted once per dict (the dict is kept with it, so the
+    identity check cannot meet another dict at the same address)."""
+    if _native_classes[0] is not klasses:
+        rows = [(name, k.parent, k.size, [(m.name, m.cls, m.type, m.subtype, m.carray, m.offset) for m in k.members])
+                for name, k in klasses.items()]
+        _native_classes[:] = [klasses, _native.HavokClasses(rows)]
+    return _native_classes[1]
+
+
+def convert_packfile(b, o, klasses):
+    """Packfile(b, o, klasses).convert(): in the Rust core when it is built, else (and wherever the Rust stops) by
+    Packfile - the same bytes, the same errors."""
+    if _native is not None and isinstance(b, bytes):
+        try:
+            rk = _rust_classes(klasses)
+        except (TypeError, ValueError, OverflowError, AttributeError):  # layouts the Rust rows cannot hold
+            rk = None
+        if rk is not None:
+            out = _native.havok_convert_packfile(b, o, rk)
+            if out is not None:
+                return out
+    return Packfile(b, o, klasses).convert()
+
+
 def convert(b, klasses):
     """A console HavokPhysicsData resource -> the PC one (same size)."""
     o = wrapper_end(b)
     w = convert_wrapper(b, o)
-    out = Packfile(b, o, klasses).convert()
+    out = convert_packfile(b, o, klasses)
     return w + out[o:]
 
 

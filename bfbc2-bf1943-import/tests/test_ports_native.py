@@ -1,0 +1,605 @@
+r"""Round E3g (rust/BENCHMARKS.md, "E3g"): the BF1943 model / physics / effect ports' faster paths against their
+references - each run both ways, the bytes (or the exception) compared.
+
+  - mesh.convert's vertex loop in Rust (bc2_native.mesh_vertices) against its Python loop (mesh.use_native);
+  - havok.convert's packfile walk in Rust (bc2_native.havok_convert_packfile) against havok.Packfile;
+  - meshport.Porter.pc_layout (cached signatures, donor lists, fallback choices) against pc_layout_reference;
+  - effectport.templates (EmitterIndex, its disk cache) against templates_reference.
+
+  python test_ports_native.py           quick: built inputs only - 400 seeded console meshes (strips, shared and
+                                        windowed regions, re-ordered and dropped elements, damaged ones), every value
+                                        of the two packed formats; 600 seeded packfiles of random class layouts, each
+                                        also cut at random lengths and with random bytes changed; 3,000 layout
+                                        searches over a made-up part index; the emitter template search on built
+                                        bundles (cold, from disk, after a bundle changed, a damaged document)
+  python test_ports_native.py --game    + every mesh set (273) and HavokPhysicsData (202) of the user's BF1943 copy
+                                        ported as Project OPFOR ports them, every effect (157) through
+                                        effectport.port_many, every console MeshData / HavokPhysicsData of OPFOR's
+                                        Onslaught builds (work\onslaught\build_*\con_*, read only), and EmitterIndex's
+                                        rows against dbx.parse on all of BFBC2's emitter documents
+
+The module is required: without it (or built from other sources) this test fails, saying how to build it.
+"""
+import hashlib
+import json
+import os
+import random
+import struct
+import sys
+import tempfile
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
+if SUITE not in sys.path:
+    sys.path.insert(0, SUITE)
+import suite_paths  # noqa: E402
+
+suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools', 'console-convert', 'anim-tools', 'core')
+import effectport  # noqa: E402
+import havok  # noqa: E402
+import mesh  # noqa: E402
+import meshport  # noqa: E402
+from bfbc2core import dbx, fbrb  # noqa: E402
+
+FAILS: list[str] = []
+
+
+def check(ok, what, detail=''):
+    print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''), flush=True)
+    if not ok:
+        FAILS.append(what)
+
+
+def outcome(f, *a, **kw):
+    """f's bytes, or its exception as (type name, message)."""
+    try:
+        return f(*a, **kw)
+    except Exception as e:                                       # noqa: BLE001 - compared, not handled
+        return (type(e).__name__, str(e))
+
+
+def both(module, f, *a, **kw):
+    """f run with module's Rust core off (the reference), then on: (reference, rust)."""
+    module.use_native(False)
+    ref = outcome(f, *a, **kw)
+    module.use_native(True)
+    return ref, outcome(f, *a, **kw)
+
+
+# ------------------------------------------------------------------------------------------------ console meshes
+
+CONSOLE_FORMATS = [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0C, 0x0D, 0x2B]
+
+
+def layout(elements, stride):
+    """A 0x49-byte layout record body: (format, usage, offset, stream) elements, their count at 64, stride at 69."""
+    b = bytearray(0x49)
+    for i, e in enumerate(elements):
+        b[4 * i:4 * i + 4] = bytes(e)
+    b[64], b[69] = len(elements), stride
+    return bytes(b)
+
+
+def console_mesh(parts, vertices, indices, wide):
+    """Big-endian MeshData: parts [(name, triangles, vertices, first_index, vertex_offset, stride, k, bones)]."""
+    out = bytearray(struct.pack('>I', 7) + b'\x01\x02' + bytes([len(parts)]))
+    for name, tri, nv, fi, vo, stride, k, bones in parts:
+        out += name + b'\0' + struct.pack('>4I', tri, nv, fi, vo) + bytes([stride, k, 0, 0])
+        out += struct.pack('>H%dH' % len(bones), len(bones), *bones)
+    for n in range(4):
+        out += struct.pack('>I', n) + bytes(range(n))
+    ib = struct.pack('>%d%s' % (len(indices), 'I' if wide else 'H'), *indices)
+    out += struct.pack('>3I', len(vertices), len(ib), int(wide))
+    return bytes(out) + vertices + ib
+
+
+def random_mesh(rnd):
+    """(console bytes, layout pairs, reorder) of a random mesh: 1 - 3 regions, each with a console layout and 1 - 3
+    parts drawing it (one or two PC layouts: the converter's shared and windowed regions), some strips; a few with
+    a format the converter refuses."""
+    regions, vb = rnd.randint(1, 3), bytearray()
+    parts: list = []
+    pairs: list = []
+    idx: list[int] = []
+    reorder = rnd.choice([False, True, 'drop'])
+    for _ in range(regions):
+        els, off = [], 0
+        for _ in range(rnd.randint(1, 6)):
+            f = rnd.choice(CONSOLE_FORMATS + ([0x01] if rnd.random() < 0.02 else []))
+            els.append((f, rnd.randint(0, 6), off, 0 if rnd.random() < 0.9 else 1))
+            off += mesh.SIZE.get(f, 4)
+        sc = off + rnd.choice([0, 0, 4])
+        n = rnd.randint(1, 40)
+        start = len(vb)
+        vb += bytes(rnd.getrandbits(8) for _ in range(n * sc))
+        lc = layout(els, sc)
+
+        def pc_layout(els=els):
+            keep = list(els)
+            if reorder == 'drop' and len(keep) > 1 and rnd.random() < 0.5:
+                keep.pop(rnd.randrange(len(keep)))
+            if reorder:
+                rnd.shuffle(keep)
+            pe, o = [], 0
+            for f, u, _, s in keep:
+                fp = mesh.PC_FORMAT.get(f, f)
+                pe.append((fp, u, o, s))
+                o += mesh.SIZE.get(fp, 4)
+            return layout(pe, o + rnd.choice([0, 0, 8]))
+        lps = [pc_layout() for _ in range(rnd.randint(1, 2))]
+        for _ in range(rnd.randint(1, 3)):
+            lo = rnd.randrange(n)
+            nv = rnd.randint(1, n - lo)
+            k = 5 if rnd.random() < 0.25 else 3
+            tri = rnd.randint(1, 6)
+            first = len(idx)
+            idx += [lo + rnd.randrange(nv) for _ in range(tri + 2 if k == 5 else 3 * tri)]
+            parts.append((b'part%d' % len(parts), tri, nv, first, start, sc, k, [rnd.randrange(60) for _ in range(3)]))
+            pairs.append((lc, rnd.choice(lps)))
+    return console_mesh(parts, bytes(vb), idx, rnd.random() < 0.2), pairs, reorder
+
+
+def packed_values():
+    """A mesh whose vertices hold every value of the two packed formats: the 11:11:10 normal's x, y (2,048 each)
+    and z (1,024), and the four colour bytes (256)."""
+    els = [(0x2B, 4, 0, 0), (0x0D, 0, 4, 0)]
+    vb = bytearray()
+    for i in range(2048):
+        v = i | (((i * 7) % 2048) << 11) | ((i % 1024) << 22)
+        vb += struct.pack('>I', v) + bytes([i % 256, (i + 85) % 256, (i * 3) % 256, 255 - i % 256])
+    pe = [(0x08, 4, 0, 0), (0x08, 0, 8, 0)]
+    b = console_mesh([(b'all', 1, 2048, 0, 0, 8, 3, [])], bytes(vb), [0, 1, 2047], False)
+    return b, [(layout(els, 8), layout(pe, 16))]
+
+
+def quick_mesh():
+    rnd = random.Random(31)
+    same = rust = n = 0
+    errors = 0
+    for _ in range(400):
+        b, pairs, reorder = random_mesh(rnd)
+        ref, got = both(mesh, mesh.convert, b, pairs, reorder=reorder)
+        n += 1
+        same += ref == got
+        errors += isinstance(ref, tuple)
+    check(same == n, f'console meshes: {same} of {n} the same bytes or error both ways ({errors} refused by both)')
+    b, pairs = packed_values()
+    ref, got = both(mesh, mesh.convert, b, pairs)
+    check(isinstance(ref, bytes) and ref == got, 'every value of the packed normal (11:11:10) and colour bytes: the '
+          'same halves as NumPy')
+    # the Rust loop is the one that ran: called directly it converts the packed mesh
+    mesh.use_native(True)
+    m = mesh.parse(b, True)
+    direct = mesh._native.mesh_vertices(b, m['data'], 8, 16, 0, 2048, [(0x2B, 0, 0x08, 0), (0x0D, 4, 0x08, 8)], False)
+    rust += direct is not None and direct in (ref if isinstance(ref, bytes) else b'')
+    check(rust == 1, 'mesh_vertices converts the packed mesh itself (not left to the reference)')
+
+
+# ------------------------------------------------------------------------------------------------ packfiles
+
+UINT8, INT16, UINT16, INT32, UINT32, REAL, VECTOR4, MATRIX3 = 4, 5, 6, 7, 8, 11, 12, 14
+PLAIN_TYPES = [havok.BOOL, UINT8, INT16, UINT16, INT32, UINT32, REAL, havok.INT64, VECTOR4, MATRIX3, havok.HALF,
+               havok.CSTRING, havok.ULONG]
+
+
+def pad16(b, v):
+    while len(b) % 16:
+        b.append(v)
+
+
+def packfile(classnames, content, local, glob, objects):
+    """A big-endian Havok 5.5.0 packfile (the Xbox 360's layout rules) behind a 16-byte stand-in wrapper offset."""
+    cn, at = bytearray(), {}
+    for c in classnames:
+        cn += struct.pack('>I', 0x1234_5678) + b'\x09'
+        at[c] = len(cn)
+        cn += c.encode('latin-1') + b'\0'
+    pad16(cn, 0xFF)
+    data = bytearray(content)
+    pad16(data, 0)
+    loc = len(data)
+    for s, t in local:
+        data += struct.pack('>2I', s, t)
+    pad16(data, 0xFF)
+    gl = len(data)
+    for s, sec, t in glob:
+        data += struct.pack('>3I', s, sec, t)
+    pad16(data, 0xFF)
+    virt = len(data)
+    for o, c in objects:
+        data += struct.pack('>3I', o, 0, at[c])
+    pad16(data, 0xFF)
+    end = len(data)
+    head = bytearray(havok.MAGIC + struct.pack('>2I', 0, 5) + b'\x04\x00\x00\x01' + struct.pack('>5I', 3, 2, 0, 0, 0))
+    head += b'Havok-5.5.0-r1\0\xff' + bytes(8)
+    cs, ds = 64 + 48 * 3, 64 + 48 * 3 + len(cn)
+    for tag, rel in ((b'__classnames__', (cs, len(cn), len(cn), len(cn), len(cn), len(cn), len(cn))),
+                     (b'__types__', (ds, 0, 0, 0, 0, 0, 0)), (b'__data__', (ds, loc, gl, virt, end, end, end))):
+        head += tag + bytes(19 - len(tag)) + b'\xff' + struct.pack('>7I', *rel)
+    return bytes(head + cn + data)
+
+
+def random_classes(rnd):
+    """A dict of random class layouts (havok.Klass): plain members, enums, structs, pointers, arrays, C arrays,
+    variants, a parent; now and then a member type the converter refuses or a class the dict lacks."""
+    names = [f'hkC{i}' for i in range(rnd.randint(2, 6))]
+    out = {}
+    for i, n in enumerate(names):
+        mem, off = [], 0
+        for j in range(rnd.randint(0, 5)):
+            r = rnd.random()
+            cls, sub, ca = None, 0, 0
+            if r < 0.45:
+                ty = rnd.choice(PLAIN_TYPES)
+                size = havok.PLAIN[ty][0]
+                ca = rnd.choice([0, 0, 0, 2, 3])
+                size *= max(ca, 1)
+            elif r < 0.55:
+                ty, sub = rnd.choice([havok.ENUM, havok.FLAGS]), rnd.choice([UINT8, UINT16, UINT32])
+                size = havok.PLAIN[sub][0]
+            elif r < 0.65 and i + 1 < len(names):
+                ty, cls = havok.STRUCT, rnd.choice(names[i + 1:])
+                size = 64
+            elif r < 0.8:
+                ty, sub, cls = havok.POINTER, havok.STRUCT, rnd.choice(names + ['hkMissing'] * (rnd.random() < 0.05))
+                size = 4
+            elif r < 0.95:
+                ty = rnd.choice([havok.ARRAY, havok.SIMPLEARRAY])
+                sub = rnd.choice([UINT16, REAL, VECTOR4, havok.POINTER, havok.STRUCT, havok.VOID])
+                cls = rnd.choice(names[i + 1:] or names) if sub in (havok.POINTER, havok.STRUCT) else None
+                size = 12 if ty == havok.ARRAY else 8
+            else:
+                ty = rnd.choice([havok.VARIANT, havok.ZERO, havok.HOMOGENEOUSARRAY, 99])
+                sub = UINT32 if ty == havok.ZERO else 0
+                size = 8
+            off = (off + 3) // 4 * 4
+            mem.append(havok.Member(f'm{j}', cls, ty, sub, ca, 0, off))
+            off += size
+        parent = rnd.choice(names[i + 1:]) if i + 1 < len(names) and rnd.random() < 0.3 else None
+        out[n] = havok.Klass(n, parent, max(64, (off + 15) // 16 * 16), mem)
+    return out
+
+
+def random_packfile(rnd, classes):
+    """A packfile of 1 - 4 objects of the classes, with array data and pointer fixups into the objects."""
+    names = list(classes)
+    objs, at = [], 0
+    for _ in range(rnd.randint(1, 4)):
+        c = rnd.choice(names + (['hkUnknown'] if rnd.random() < 0.03 else []))
+        objs.append((at, c))
+        at += classes[c].size if c in classes else 64
+    data_at = at
+    # words below 0xF10: a count read from anywhere stays small (the reference walks an array of 2^32 elements past
+    # the data without an error - for hours)
+    content = bytearray(b''.join(struct.pack('>I', rnd.randrange(16) << (8 * rnd.choice([0, 0, 0, 1])))
+                                 for _ in range((at + 256) // 4)))
+    local = []
+    for o, c in objs:
+        k = classes.get(c)
+        while k is not None:
+            for m in k.members:
+                a = o + m.offset
+                if m.type in (havok.ARRAY, havok.SIMPLEARRAY):
+                    count = rnd.choice([0, 1, 2, 3])
+                    struct.pack_into('>I', content, a + 4, count)
+                    if count and rnd.random() < 0.95:
+                        local.append((a, data_at if m.subtype != havok.STRUCT else rnd.choice(objs)[0]))
+                elif m.type == havok.POINTER and rnd.random() < 0.8:
+                    local.append((a, rnd.choice(objs)[0]))
+            k = classes.get(k.parent) if k.parent else None
+    for i in range(0, 64, 4):                                     # array pointers: into the objects
+        if rnd.random() < 0.5:
+            local.append((data_at + i, rnd.choice(objs)[0]))
+    local = list(dict(local).items())
+    names_used = sorted({c for _, c in objs})
+    glob = [(s, 2, t) for s, t in local[:1]] if local and rnd.random() < 0.3 else []
+    return packfile(names_used, content, local[len(glob):], glob, objs)
+
+
+def quick_havok():
+    rnd = random.Random(7)
+    n = same = converted = errors = native_hits = past = 0
+    for _ in range(600):
+        k = random_classes(rnd)
+        b = bytes(16) + random_packfile(rnd, k)
+        variants = [b]
+        variants += [b[:rnd.randrange(16, len(b))] for _ in range(2)]
+        for _ in range(3):
+            m = bytearray(b)
+            for _ in range(rnd.randint(1, 4)):                   # the low half of a word (counts stay < 65,536)
+                i = rnd.randrange(16, len(m))
+                m[i | 2 if i % 4 < 2 else i] = rnd.getrandbits(8)
+            variants.append(bytes(m))
+        for v in variants:
+            ref, got = both(havok, havok.convert_packfile, v, 16, k)
+            n += 1
+            same += ref == got
+            if isinstance(ref, bytes):
+                converted += 1
+                havok.use_native(True)
+                hit = havok._native.havok_convert_packfile(v, 16, havok._rust_classes(k)) is not None
+                native_hits += hit
+                if not hit:                 # left to the reference: only where it "converts" values past the data
+                    pf = havok.Packfile(v, 16, k)
+                    pf.convert()
+                    past += max(pf.claim, default=0) >= len(v)
+            else:
+                errors += 1
+    check(same == n, f'packfiles: {same} of {n} the same bytes or the same error both ways ({converted} converted, '
+          f'{errors} refused - built, cut short, bytes changed)')
+    check(native_hits + past == converted and converted > 500, f'the Rust walk converted {native_hits} of the '
+          f'{converted} the reference converts; the other {past} read values past the data (the reference\'s short slices: '
+          'left to the reference, as designed)')
+
+
+# ------------------------------------------------------------------------------------------------ meshport layouts
+
+class _Ix:
+    def __init__(self, parts):
+        self.parts = parts
+
+
+def quick_layouts():
+    rnd = random.Random(5)
+    pool = []
+    for _ in range(14):                                          # element sets, few enough to collide
+        els, off = [], 0
+        for _ in range(rnd.randint(1, 5)):
+            f = rnd.choice([0x03, 0x06, 0x08, 0x0C, 0x2B])
+            els.append((f, rnd.choice([0, 0, 1, 1, 4, 5, 2, 3]), off, 0))
+            off += mesh.SIZE[f]
+        pool.append(layout(els, off))
+    meshes = [f'objects/m{i}/m{i}_mesh' for i in range(30)]
+    parts = {}
+    for m in meshes:
+        for lod in range(rnd.randint(1, 3)):
+            for p in range(rnd.randint(1, 4)):
+                kind = rnd.choice(['Glass', 'Body', 'Metal', 'x'])
+                tech = 'standard' if rnd.random() < 0.85 else 'zonly'
+                parts[f'{m}_lod{lod}/part{p}_{kind}/{tech}'.lower()] = rnd.choice(pool[:10])
+    ix = _Ix(parts)
+    fast, ref = meshport.Porter(None, ix), meshport.Porter(None, ix)
+    same = n = errs = 0
+    for _ in range(3000):
+        m = rnd.choice(meshes + ['objects/new/new_mesh'])
+        lod, part = rnd.randint(0, 3), f'part{rnd.randint(0, 4)}_{rnd.choice(["Glass", "Body", "Metal", "x", "y"])}'
+        bf = rnd.choice(pool)
+        donors = rnd.sample(meshes + ['objects/none/none_mesh'], rnd.randint(0, 3))
+        meshport.REFERENCE = True
+        a = outcome(ref.pc_layout, m, lod, part, bf, donors)
+        meshport.REFERENCE = False
+        b = outcome(fast.pc_layout, m, lod, part, bf, donors)
+        n += 1
+        same += a == b
+        errs += isinstance(a, tuple) and a[0] == 'PortError'
+    check(same == n, f'pc_layout: {same} of {n} searches as the reference ({errs} PortErrors)')
+
+
+# ------------------------------------------------------------------------------------------------ emitter templates
+
+def _doc(guid, types):
+    inst = [dbx.Element('instance', dbx.CONTAINER, [('guid', f'{guid}-0000-0000-0000-00000000000{i + 1}'), ('type', t)],
+                        children=[dbx.Element('field', 6, [('name', 'Enable')], raw=bytes([1, 1]))])
+            for i, t in enumerate(types)]
+    part = dbx.Element('partition', dbx.CONTAINER, [('guid', f'{guid}-0000-0000-0000-000000000000'),
+                                                    ('primaryInstance', inst[0].attributes[0][1]), ('exportMode', 'All')],
+                       children=inst)
+    return dbx.write(dbx.DbxFile([''], [part]))
+
+
+class _BundleIx:
+    """A stand-in meshview.Index over bundles in a folder: where, read, read_many."""
+
+    def __init__(self, folder, bundles):
+        self.where = {}
+        for bname, items in bundles.items():
+            path = os.path.join(folder, bname)
+            with open(path, 'wb') as fh:
+                fh.write(fbrb.build([(n, 'dbx', d) for n, d in items]))
+            for n, _ in items:
+                self.where[n.lower()] = (path, n)
+
+    def read(self, name):
+        hit = self.where.get(name.lower())
+        return None if hit is None else fbrb.read(hit[0], [hit[1]])[hit[1]]
+
+
+def quick_templates():
+    rnd = random.Random(3)
+    types = [f'Emitter.T{i}Data' for i in range(40)]
+    with tempfile.TemporaryDirectory() as tmp:
+        os.environ['BFBC2_EFFECTPORT_CACHE'] = os.path.join(tmp, 'cache')
+        old_batch = effectport.EMITTER_BATCH
+        effectport.EMITTER_BATCH = 50                            # several batches from a few hundred documents
+        try:
+            bundles = {'b0.fbrb': [(effectport.TEMPLATES[0] + '.dbx', _doc('10000000', ['Emitter.EmitterEntityData',
+                                                                                    'Entity.EffectEntityData']))]}
+            for b in range(1, 6):
+                bundles[f'b{b}.fbrb'] = [(f'fx/emitters/e{b}_{i:03d}.dbx', _doc(f'{b}{i:07d}', rnd.sample(types[:39], rnd.randint(1, 3))))
+                                         for i in range(60)]
+            # a damaged document naming a type: the reference tests its bytes, then parse raises
+            bundles['b6.fbrb'] = [('fx/emitters/zz_damaged.dbx', b'not a dbx ' + types[39].encode())]
+            ix = _BundleIx(tmp, bundles)
+            n = same = 0
+            for k in range(60):
+                need = set(rnd.sample(types[:39], rnd.randint(1, 8))) | ({'Emitter.EmitterEntityData'} if k % 5 == 0 else set())                     | ({'Emitter.NoDocumentData'} if k % 7 == 0 else set())     # a full scan: the index written
+                for attempt in range(2):                         # cold (or from memory), then from disk (a new index)
+                    effectport.EmitterIndex._of[:] = [None, None]
+                    if attempt == 0 and k == 0:
+                        assert not os.path.isdir(os.environ['BFBC2_EFFECTPORT_CACHE'])
+                    a = outcome(lambda need=need: effectport.templates_reference(ix, need)[1:])
+                    b = outcome(lambda need=need: effectport.templates(ix, need)[1:])
+                    n += 1
+                    same += a == b
+            check(same == n, f'emitter templates: {same} of {n} searches as the reference (cold, then from disk)')
+            idx = effectport.EmitterIndex.of_index(ix)
+            check(idx.stats['from_disk'] and len(idx.rows) == 301, f'the index read back from disk '
+                  f'({len(idx.rows)} rows)')
+            damaged = {types[39]}
+            a = outcome(lambda: effectport.templates_reference(ix, damaged)[1:])
+            b = outcome(lambda: effectport.templates(ix, damaged)[1:])
+            check(a == b and isinstance(a, tuple), f'a damaged document naming a needed type: the same error ({a})')
+            # a bundle changed: its key changes, the index is read again
+            with open(os.path.join(tmp, 'b3.fbrb'), 'wb') as fh:
+                fh.write(fbrb.build([(n2, 'dbx', _doc('99999999', [types[0]])) for n2, _ in bundles['b3.fbrb']]))
+            ix.where = dict(ix.where)
+            effectport.EmitterIndex._of[:] = [None, None]
+            need = {types[0], types[5]}
+            a = outcome(lambda: effectport.templates_reference(ix, need)[1:])
+            b = outcome(lambda: effectport.templates(ix, need)[1:])
+            check(a == b and not effectport.EmitterIndex.of_index(ix).stats['from_disk'],
+                  'a changed bundle: the index read again, the search as the reference')
+        finally:
+            effectport.EMITTER_BATCH = old_batch
+            effectport.EmitterIndex._of[:] = [None, None]
+            del os.environ['BFBC2_EFFECTPORT_CACHE']
+
+
+# ------------------------------------------------------------------------------------------------ game data
+
+def game():
+    import bf1943import as bi
+    import meshview
+    import shaderdb
+    try:
+        root = shaderdb.find_opfor(None)
+        src = bi.Source(bi.default_source())
+        ix = meshview.Index(root)
+    except Exception as e:                                       # noqa: BLE001 - only missing game data skips
+        print(f'SKIP game part: {e}')
+        return
+    sys.path.insert(0, os.path.join(SUITE, 'rust'))
+    import bench_ports as bp
+    exe = os.path.join(root, 'game', 'BFBC2Game.exe')
+    runs = {}
+    for side in ('reference', 'rust'):
+        native = side == 'rust'
+        mesh.use_native(native)
+        havok.use_native(native)
+        meshport.REFERENCE = effectport.REFERENCE = not native
+        effectport.EmitterIndex._of[:] = [None, None]
+        out: dict[str, str] = {}
+        t = time.perf_counter()
+        bp.run_mesh(src, ix, bp.mesh_names(src), out)
+        bp.run_havok(src, ix, bp.havok_names(src), out, exe)
+        bp.run_effects(src, ix, bp.effect_names(src), out)
+        runs[side] = out
+        print(f'     {side}: {len(out)} outputs in {time.perf_counter() - t:.1f} s', flush=True)
+    a, b = runs['reference'], runs['rust']
+    for kind in ('mesh', 'havok', 'effect'):
+        keys = sorted(k for k in set(a) | set(b) if k.startswith(kind + ':'))
+        same = sum(a.get(k) == b.get(k) for k in keys)
+        bad = [k for k in keys if a.get(k) != b.get(k)]
+        errs = sum(1 for k in keys if str(a.get(k)).startswith('error'))
+        check(same == len(keys) and len(keys) > 100, f'BF1943 {kind} ports: {same} of {len(keys)} outputs identical '
+              f'({errs} errors on both sides)', ', '.join(bad[:3]))
+    # EmitterIndex's rows against dbx.parse on every BFBC2 emitter document
+    idx = effectport.EmitterIndex(ix)
+    for i in range(0, len(idx.cands), effectport.EMITTER_BATCH):
+        idx.batch(i)
+    data_rows = good = 0
+    for i in range(0, len(idx.cands), effectport.EMITTER_BATCH):
+        names = idx.cands[i:i + effectport.EMITTER_BATCH]
+        data = effectport._read_many(ix, names)
+        for n in names:
+            if n not in data:
+                good += n not in idx.rows
+                continue
+            data_rows += 1
+            try:
+                types = {x.attr('type') for x in dbx.parse(data[n]).instances}
+            except ValueError:
+                good += idx.rows.get(n) == 'error'
+                continue
+            row = idx.rows.get(n)
+            good += row != 'error' and row is not None and set(row[0]) == types and \
+                set(row[1]) == {t for t in types if isinstance(t, str) and t.encode() in data[n]}
+    check(good == len(idx.cands) and data_rows > 10000, f'emitter index: {good} of {len(idx.cands)} BFBC2 emitter '
+          'documents\' rows as dbx.parse reads them')
+    onslaught(exe)
+
+
+def onslaught(exe):
+    """Every console MeshData (each part in its console layout, the PC layout made of the same elements) and
+    HavokPhysicsData of OPFOR's Onslaught builds, converted both ways."""
+    import glob
+
+    import convert
+    from bfbc2core import paths
+    opfor = paths.sibling(paths.OPFOR_DIR, env=paths.OPFOR_ENV, suite=SUITE)
+    folders = sorted(os.path.join(opfor, 'work', 'onslaught', d, c) for d in os.listdir(os.path.join(opfor, 'work', 'onslaught'))
+                     if d.startswith('build_') for c in os.listdir(os.path.join(opfor, 'work', 'onslaught', d))
+                     if c.startswith('con_')) if os.path.isdir(os.path.join(opfor, 'work', 'onslaught')) else []
+    if not folders:
+        print('SKIP Onslaught part: no console builds in OPFOR\'s work\\onslaught')
+        return
+    layouts: dict[str, bytes] = {}
+    meshes: dict[str, str] = {}
+    physics: dict[str, str] = {}
+    for f in folders:
+        for p in sorted(glob.glob(os.path.join(f, 'levels', '*', 'shaders', 'single.res'))):
+            for n, rec in mesh.console_layouts(open(p, 'rb').read()).items():
+                layouts.setdefault(n, rec)
+        for rel, p in convert.manifest(f, 'MeshData').items():
+            meshes.setdefault(rel, p)
+        for rel, p in convert.manifest(f, 'HavokPhysicsData').items():
+            physics.setdefault(rel, p)
+    k = havok.classes(exe)
+    n = same = conv = 0
+    for _, p in sorted(physics.items()):
+        ref, got = both(havok, havok.convert, open(p, 'rb').read(), k)
+        n += 1
+        same += ref == got
+        conv += isinstance(ref, bytes)
+    check(same == n and n > 300, f'Onslaught console physics: {same} of {n} the same bytes ({conv} converted)')
+
+    def pc_of(lc):
+        els, _ = mesh.elements(lc)
+        pe, o = [], 0
+        for f, u, _, s in els:
+            fp = mesh.PC_FORMAT.get(f, f)
+            pe.append((fp, u, o, s))
+            o += mesh.SIZE.get(fp, 4)
+        return layout(pe, o)
+    n = same = conv = skipped = 0
+    digest = hashlib.sha256()
+    for rel, p in sorted(meshes.items()):
+        b = open(p, 'rb').read()
+        try:
+            m = mesh.parse(b, True)
+        except mesh.ConvertError:
+            skipped += 1
+            continue
+        name = rel[:-len('_data.res')] if rel.endswith('_data.res') else rel[:-4]
+        lcs = [layouts.get(f'{name}/{q["name"].decode("latin-1")}/standard'.lower()) for q in m['parts']]
+        if any(x is None for x in lcs):
+            skipped += 1
+            continue
+        pairs = [(lc, pc_of(lc)) for lc in lcs]
+        ref, got = both(mesh, mesh.convert, b, pairs)
+        n += 1
+        same += ref == got
+        conv += isinstance(ref, bytes)
+        digest.update(json.dumps(ref if isinstance(ref, tuple) else hashlib.sha256(ref).hexdigest()).encode())
+    check(same == n and conv > 100, f'Onslaught console meshes: {same} of {n} the same bytes ({conv} converted, '
+          f'{skipped} without layouts in the console databases)')
+
+
+def main(argv):
+    if mesh.backend() != 'rust' or havok.backend() != 'rust':
+        check(False, 'the Rust core with mesh_vertices and havok_convert_packfile is built (python rust\\build_native.py)')
+        return 1
+    t = time.perf_counter()
+    quick_mesh()
+    quick_havok()
+    quick_layouts()
+    quick_templates()
+    print(f'     quick part: {time.perf_counter() - t:.1f} s')
+    if '--game' in argv:
+        game()
+    return 1 if FAILS else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

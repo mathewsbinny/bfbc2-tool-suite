@@ -27,6 +27,7 @@ Proven on the BF1943 weapon models BFBC2 shipped: ported, the Type 100, Nambu pi
 Shin Gunto equal BFBC2's own (every position, normals within the PC format's precision, palettes, index buffer); the
 Thompson differs in 1.8 % of its vertices, which DICE moved for BFBC2.
 """
+import bisect
 import os
 import re
 import sys
@@ -103,12 +104,23 @@ def rename_meshset(s, rename):
     return done
 
 
+# pc_layout's reference: every call scans BFBC2's mesh parts (sorted, each part's signature computed again) - kept as
+# the reference the cached search (Porter's part signatures, donor lists and fallback choices, round E3g) is proven
+# against; BFBC2_MESHPORT_REFERENCE=1 (or REFERENCE = True) ports with it
+REFERENCE = os.environ.get('BFBC2_MESHPORT_REFERENCE', '') not in ('', '0')
+
+
 class Porter:
     def __init__(self, source, ix):
         self.src, self.ix = source, ix
         self._layouts = None
         self._bones = None
         self._by_sig = None
+        self._keys = None                     # BFBC2's part names, sorted
+        self._entry_keys = None               # the BF1943 source's entry names, sorted
+        self._sigs = None                     # {part name: signature}
+        self._donor_parts = {}                # donor -> [(part name, signature)] of its LODs' standard parts, sorted
+        self._fallback = {}                   # (signature, donors) -> pc_layout's last choice (or None)
 
     def layouts(self):
         """BF1943's mesh part layouts, from every level's shader database."""
@@ -128,9 +140,43 @@ class Porter:
     def by_signature(self):
         if self._by_sig is None:
             self._by_sig = {}
-            for k in sorted(self.ix.parts):
-                self._by_sig.setdefault(signature(self.ix.parts[k]), k)
+            sigs = self.signatures()
+            for k in self.part_names():
+                self._by_sig.setdefault(sigs[k], k)
         return self._by_sig
+
+    def entries_under(self, folder):
+        """The BF1943 source's entry names starting with folder, in name order (the sorted names kept, the folder's
+        run found by bisection)."""
+        if self._entry_keys is None:
+            self._entry_keys = sorted(self.src.entries)
+        keys = self._entry_keys
+        i = bisect.bisect_left(keys, folder)
+        out = []
+        while i < len(keys) and keys[i].startswith(folder):
+            out.append(keys[i])
+            i += 1
+        return out
+
+    def part_names(self):
+        """BFBC2's mesh part names (the index's layouts), sorted - once."""
+        if self._keys is None:
+            self._keys = sorted(self.ix.parts)
+        return self._keys
+
+    def signatures(self):
+        """{BFBC2 part name: signature of its layout} - once."""
+        if self._sigs is None:
+            self._sigs = {k: signature(v) for k, v in self.ix.parts.items()}
+        return self._sigs
+
+    def donor_parts(self, d):
+        """[(part name, signature)] of a donor mesh's standard parts (every LOD), in name order - once a donor."""
+        if d not in self._donor_parts:
+            pre, sigs = f'{d}_lod'.lower(), self.signatures()
+            self._donor_parts[d] = [(k, sigs[k]) for k in self.part_names() if k.startswith(pre) and
+                                    k.endswith('/standard')]
+        return self._donor_parts[d]
 
     def kind(self, name):
         rel, e = self.src.entries.get(f'{name}.res'.lower(), (None, None))
@@ -143,7 +189,50 @@ class Porter:
         return f'{SOLDIER}/' in x.lower()
 
     def pc_layout(self, name, lod, part, bf_layout, donors):
-        """(PC layout body, how it was chosen, donor (mesh, part) or None)."""
+        """(PC layout body, how it was chosen, donor (mesh, part) or None): BFBC2's own part with the same elements;
+        else a donor's part of the same material kind (the part name's last word), else the donor's first with the
+        same elements; else the first BFBC2 part with them; else the layout keeping the most of them (pc_layout_reference
+        says it in full - this is the same search on the parts' signatures, donor lists and choices kept)."""
+        if REFERENCE:
+            return self.pc_layout_reference(name, lod, part, bf_layout, donors)
+        parts = self.ix.parts
+        own = f'{name}_lod{lod}/{part}/standard'.lower()
+        sig = signature(bf_layout)
+        if own in parts and self.signatures()[own] == sig:
+            return parts[own], 'BFBC2 has this part', None
+        kind = part.rsplit('_', 1)[-1].lower() if '_' in part else ''
+        for d in donors:
+            hits = [k for k, s in self.donor_parts(d) if s == sig]
+            same = [k for k in hits if k.split('/')[-2].rsplit('_', 1)[-1] == kind]
+            if hits:
+                k = (same or hits)[0]
+                return parts[k], 'donor', (d, k.split('/')[-2])
+        k = self.by_signature().get(sig)
+        if k is not None:
+            return parts[k], f'layout of {k}', None
+        key = (sig, tuple(donors))
+        if key not in self._fallback:
+            sigs, best = self.signatures(), None
+            for d in [None] + list(donors):
+                pre = None if d is None else f'{d}_lod'.lower()
+                for k2 in self.part_names():
+                    if pre is not None and not k2.startswith(pre):
+                        continue
+                    s2 = sigs[k2]
+                    if _subset(s2, sig) and any(u == 1 for _, u, _ in s2) and (best is None or len(s2) > best[0] or
+                                                                             (len(s2) == best[0] and d and not best[2])):
+                        best = (len(s2), k2, d)
+            self._fallback[key] = best
+        best = self._fallback[key]
+        if best is None:
+            raise PortError(f'{name} LOD {lod} {part}: no BFBC2 layout holds a part of its elements {sig}')
+        dropped = len(sig) - best[0]
+        return parts[best[1]], f'layout of {best[1]} ({dropped} element(s) left out)', \
+            ((best[2], best[1].split('/')[-2]) if best[2] else None)
+
+    def pc_layout_reference(self, name, lod, part, bf_layout, donors):
+        """pc_layout as it was written first: every call scans BFBC2's parts, each signature computed again (the
+        reference; REFERENCE)."""
         own = f'{name}_lod{lod}/{part}/standard'.lower()
         if own in self.ix.parts and signature(self.ix.parts[own]) == signature(bf_layout):
             return self.ix.parts[own], 'BFBC2 has this part', None
@@ -216,9 +305,8 @@ class Porter:
         plan['materials'] = sorted({sh.decode('latin-1') for L in s['lods'] for _, shs in L['sets'] for sh in shs})
         folder = name.rsplit('/', 1)[0].lower() + '/'
         textures, poses = {}, {}
-        for k, (_, e) in sorted(self.src.entries.items()):
-            if not k.startswith(folder):
-                continue
+        for k in self.entries_under(folder):
+            e = self.src.entries[k][1]
             if e['type'] == 'XenonTexture':
                 try:
                     textures[R(e['name'])] = texture.convert(self.src.data(k))
