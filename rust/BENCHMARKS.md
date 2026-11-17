@@ -882,3 +882,113 @@ errors and repeats, `prefetch` joins, the disk cache written whole, damaged / cu
 rewritten, keys apart for every input, `BFBC2_HLSL_CACHE`; `--game`: Wake's 815 translated pixel shaders, 815 of 815
 the same bytes, peak 1.6 GB) and `bfbc2-bf1943-import/tests/test_dbxport_ranking.py` (quick: the random rankings and
 `Templates.choose`; `--game [--part K/N]`: the four level ports, slice 0/3 in the game tier, peak 1.5 GB).
+
+## E3g: the BF1943 model, physics and effect ports (2026-11-17, branch `rust-e3g`)
+
+**Provisional timings:** OPFOR's WW2 rebuilds and other agents' tests ran beside every figure below (below-normal
+priority, 16-thread PC, the machine near its memory limit). Ratios hold within a run.
+
+`rust\bench_ports.py` ports, as Project OPFOR's WW2 steps port them, **every** mesh set (273: Rigid / Composite /
+Skinned / Tree; `bf1943_objects`' three mesh donors), **every** HavokPhysicsData (202; its two Havok templates and the
+hkUFloat8 table) and **every** effect (157 EffectAssets through `effectport.port_many` on Wake's emitter copies) of
+BF1943's source, each output's SHA-256 recorded - the bulk a new WW2 map ports (round E1's "under 4 s of a level build"
+was one level's handful of objects).
+
+### The profiles (before)
+
+| bulk port | s (cProfile) | where the time went |
+|---|---:|---|
+| 273 mesh sets | 74.2 | `meshport.Porter.pc_layout` 46.9 s cumulative for 1,578 calls: each call sorted BFBC2's 26,846 part names again per donor and recomputed every part's signature (1.3 M `signature` calls, 81 M `str.lower`, 85 M `startswith`); `mesh.convert`'s vertex loop 20.8 s (9.4 M `element` calls, 2.5 M one-value NumPy arrays for the packed normals) |
+| 202 physics files | 15.3 | `havok.Packfile`'s field walk 12.7 s: 5.0 M `swap` calls (8.4 s own time), 4.9 M `_value`; `havokport`'s own restructure / subparts 1.1 s |
+| 157 effects | 35.9 | `effectport.templates`' scan of BFBC2's 18,343 emitter documents 17.2 s (`fbrb_read`, one bundle after another); `port()` rebuilding BFBC2's partition-name set per effect 5.7 s (26 M `endswith`); `dbxport.port` 5.3 s; parsing the same partitions' types again 2.8 s |
+| `test_havokport.py` (game tier, seed 348 s) | 381.6 | `material_slots`: `meshview.Index.read` of 991 object physics files one at a time, 1,039 `fbrb_read` calls of 0.36 s each = **370.9 s** (a resource's read inflates its bundle up to it); the conversions themselves 1.2 s, MOPP checks 4.7 s |
+
+### What changed
+
+- **`meshport.Porter.pc_layout`** (algorithm): BFBC2's part names sorted once, every part's signature computed once,
+  each donor's standard parts listed once, and the last resort (the layout keeping the most elements) remembered per
+  (signature, donors); the texture loop takes the mesh folder's run of the sorted source names by bisection instead
+  of sorting all 14,027 per port. `pc_layout_reference` keeps the old scan (`REFERENCE`, `BFBC2_MESHPORT_REFERENCE=1`).
+- **`mesh.convert`'s vertex loop in Rust** (`bc2-convert::mesh::convert_vertices`, `bc2_native.mesh_vertices`): the
+  same byte swaps by value width; the 11:11:10 normal and the colour bytes decoded to halves with one rounding from the
+  double, ties to even (`f64_to_f16`, NumPy's `npy_double_to_half`). Those formats hold only 2,048 + 1,024 + 256
+  distinct values: the quick test checks every one. Any vertex the reference would not convert (an unknown format, a
+  read past the data, an element past the PC vertex) returns `None` and the Python loop runs.
+- **`havok.Packfile.convert` in Rust** (`bc2-convert::havok::convert_packfile`, `bc2_native.havok_convert_packfile` on a
+  `HavokClasses` made once per class dict): the reference's walk step for step, with its per-byte record of widths and
+  owners (a value converted twice the same way is converted once; two widths are refused with the same message).
+  Where the reference would read past the data (its short slices "convert" bytes that are not there), meet a missing
+  table entry, or nest deeper than its recursion allows, the Rust stops and `Packfile` runs - `verify` stays Python.
+- **`effectport.templates`** (algorithm + all cores + disk cache): `EmitterIndex` holds, per emitter document, its
+  instance types and which of them its bytes name (the old scan's pre-test), read in the scan's own batches as far as a
+  search goes, the bundles on all cores (`fbrb.read_many`) and the types by a new `bc2_native.dbx_instance_types_many`
+  (no Python tree); a complete index goes to `%LOCALAPPDATA%\bfbc2-tool-suite\cache\effectport` keyed by the game
+  copy's bundles (path, size, time) and the documents' places (`BFBC2_EFFECTPORT_CACHE`: a folder or `0`). The greedy
+  choice is decided from the rows; a document whose row cannot decide (it does not parse, or holds a needed type its
+  bytes do not name) is tested on its bytes as the scan tests it. `templates_reference` keeps the scan
+  (`REFERENCE`, `BFBC2_EFFECTPORT_REFERENCE=1`). `port()` takes BFBC2's partition names once per index
+  (`bc2_partitions`), `port_many` parses each partition's types once for all its effects.
+- **`meshview.Index.read_many`**: many entries, each bundle read once, the bundles on all cores; `test_havokport`'s
+  material slots read through it.
+
+Not ported, by measurement: `havokport.restructure` / `shape_subparts_to_550` (0.5 + 0.6 s over all 202 files),
+`mesh.console_layouts` (0.7 s, once per Porter), `dbxport.port` inside the effect port (5 s for 1,410 partitions: the
+port's own rules, the size of dbxport - 1,865 lines - against a few seconds a level), BF1943's bundle reader
+(`fbrb1943.Bundle.data`, another suite's).
+
+### Before and after
+
+| bulk port (all of BF1943's) | reference, s | E3g, s | |
+|---|---:|---:|---:|
+| 273 mesh sets (`meshport`) | 30.6 | **4.2** | 7.3x |
+| 202 physics files (`havokport`) | 8.3 | **1.0** | 8.3x |
+| 157 effects (`effectport.port_many`), cold: no index on disk | 28.3 | **11.1** | 2.5x |
+| 157 effects, the index from disk | 28.3 | **6.7** | 4.2x |
+| `test_havokport.py` (game tier) | 348 (seed) | **11** | 32x |
+| `test_ports_native.py --game`: everything above both ways, the index rows, Onslaught | | 124 (reference 62, E3g 13) | |
+
+What is left in the mesh run is mostly reading (the donors' partitions, BF1943's bundles); in the effect run
+`dbxport.port` (5 s) and reading the chosen template partitions' bundles (2 s).
+
+### Parity
+
+Every output both ways, byte for byte (`bench_ports.py --record` on the reference before any change, `--compare` after;
+`test_ports_native.py --game` runs both in one process):
+
+- **273 of 273** mesh ports (every LOD's MeshData, the mesh set, textures, skeleton poses, the plan and notes; 3 refused
+  the same way by both), **202 of 202** physics ports (11 refused by both with the same message), **713 of 713** effect
+  outputs (the 712 files and the report);
+- Project OPFOR's Onslaught console builds (`work\onslaught\build_*\con_*`, read only): **594 of 594** console physics files through
+  `havok.convert` and **239 of 239** console MeshData (each part in its console database layout, the PC layout made of
+  the same elements in PC formats; 300 more have no layout in the builds' databases) the same bytes both ways;
+- EmitterIndex's rows against `dbx.parse` on all of BFBC2's emitter documents: **18,343 of 18,343** documents' types and pre-test as `dbx.parse` and `bytes.__contains__` give them;
+- quick (`test_ports_native.py`, built inputs, 3 s): 400 seeded console meshes (strips, shared and windowed regions,
+  re-ordered and dropped elements; 112 refused by both) and every value of the packed formats; 3,600 packfiles of random
+  class layouts - built, cut short, bytes changed - the same bytes or the same error in all (800 converted: 793 by the
+  Rust walk, the other 7 are reads past the data the reference "converts", left to it); 3,000 layout searches against
+  `pc_layout_reference` (838 PortErrors); the emitter search on built bundles cold, from disk, after a bundle changed and
+  with a damaged document, against `templates_reference`. `cargo test -p bc2-convert`: halves, packed values, swaps,
+  refusals; packfiles with parents, pointers reached twice, arrays, a byte claimed as two widths.
+
+### For Project OPFOR (read only to this round)
+
+Nothing has to change for the gains: `bf1943_objects`, `bf1943_vehicles`, `bf1943_weapons`, `kitbags`, `soldiers`,
+`wake_install` port meshes through `Porter.port`, and `bf1943_objects` / `bf1943_vehicles` / `wake_level.resources`
+physics through `havokport.convert`. Batch APIs that would help:
+
+- `bf1943_vehicles` calls `effectport.port` once per vehicle effect without `shared=`: each call searched the
+  emitter templates again (17 s each before; now the in-process index answers after the first). `effectport.port_many`
+  over the vehicles' effects would also parse shared partitions once.
+- `wake_level.resources` reads a HavokAsset donor's physics resource with `ix.read` per pair (0.36 s each from a large
+  bundle): `ix.read_many` over the pairs' templates first.
+- `bf1943_fx`, `material_grid` and `ww2_level_build` each call `port_many` in their own process: the disk index makes
+  the template search ~0.4 s in each after the first.
+
+Peak working set of a bench run: 1.6 - 1.9 GB, nearly all of it BF1943's source (552 MB of bundles held whole by
+`bf1943import.Source`), the game index and the dbx catalogue; the ports add little.
+
+### Tests
+
+`bfbc2-bf1943-import/tests/test_ports_native.py` (quick, 2 s of work: the built inputs above; `--game`, 124 s: the
+bulk ports both ways, the index rows, the Onslaught corpus), `rust/bc2-convert` unit tests (`mesh_tests.rs`,
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests	est_durations.json`.
