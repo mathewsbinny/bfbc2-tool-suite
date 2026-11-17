@@ -543,7 +543,8 @@ def trace_chain(lv: nb.Level, cfg: nb.BuildSettings, gi0: int, gj0: int, ox: flo
                 many: bool, tiling: tuple[tuple[int, int], int, int]) -> Any:
     """stage's tracing of one sector: areas (tiling: start, samples per tile, tiles), trace_edges (or
     _trace_edges_many), drop_one_way, detail_pass, trace_emit - on whichever backend is switched on."""
-    areas = nb.build_areas(lv, gi0, gj0, *tiling, cfg=cfg)
+    start, tile, tiles = tiling
+    areas = nb.build_areas(lv, gi0, gj0, start, tile, tiles, cfg=cfg)
     areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(lv.y[c[2]] for c in a['cells'])))
     area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
     if many:
@@ -565,7 +566,8 @@ def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tili
     """stage's graph of one sector on whichever backend is switched on: areas, tracing, the D sides, border nodes on
     the window's edge columns, build_graph (cover nodes, pairs, Gabriel, groups joined, order nodes)."""
     rng = random.Random(rng_seed)
-    areas = nb.build_areas(lv, 0, 0, *tiling, cfg=cfg)
+    start, tile, tiles = tiling
+    areas = nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=cfg)
     areas.sort(key=lambda a: (a['tile'][0], a['tile'][1], min(lv.y[c[2]] for c in a['cells'])))
     for n, a in enumerate(areas):
         a['layer'] = n
@@ -593,12 +595,15 @@ def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tili
 
 def strict(fn: Any, *a: Any, **k: Any) -> Any:
     """fn on the Rust core with no fallback: a refusal (which would run the Python silently) raises here."""
-    saved = (nb._NATIVE_ERRORS, navwalk._NATIVE_ERRORS)
-    nb._NATIVE_ERRORS = navwalk._NATIVE_ERRORS = ()
+    mods: list[Any] = [nb, navwalk]
+    saved = [m._NATIVE_ERRORS for m in mods]
+    for m in mods:
+        m._NATIVE_ERRORS = ()
     try:
         return fn(*a, **k)
     finally:
-        nb._NATIVE_ERRORS, navwalk._NATIVE_ERRORS = saved
+        for m, v in zip(mods, saved):
+            m._NATIVE_ERRORS = v
 
 
 def e3c(rng: random.Random) -> int:
@@ -710,15 +715,15 @@ def e3c(rng: random.Random) -> int:
             navwalk.ROOF_RAISE, navwalk.ROOF_SHARE, navwalk.ROOF_NEAR, navwalk.ROOF_NEAR_DY = (
                 rng.choice([2.0, 0.5, 0.1]), rng.choice([0.5, 0.0, 0.2, 1.0]), rng.choice([2.0, 0.8, 5.0, 1]),
                 rng.choice([2.5, 0.3]))
-            keep = np.array([rng.random() < 0.7 for _ in range(len(s.y))], bool)
-            kept = np.nonzero(keep)[0].tolist()
+            kmask = np.array([rng.random() < 0.7 for _ in range(len(s.y))], bool)
+            kept = np.nonzero(kmask)[0].tolist()
             anchors = set(rng.sample(kept, min(len(kept), rng.randint(0, 3))))
             terrain = lv.terrain
             navwalk.ROOF_STATS.clear()
-            x = strict(navwalk.roof_islands, s, keep, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
+            x = strict(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
             xs = dict(navwalk.ROOF_STATS)
             navwalk.ROOF_STATS.clear()
-            y = py(navwalk.roof_islands, s, keep, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
+            y = py(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
             check(same(x, y) and xs == navwalk.ROOF_STATS, f'roof_islands case {case}: {xs} {navwalk.ROOF_STATS}')
             calls += 1
     finally:
@@ -731,16 +736,16 @@ def e3c(rng: random.Random) -> int:
         areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
         ox, oz = rng.choice([0.0, -910.4000244140625, 300.0]), rng.choice([0.0, 12.8])
         cells = [c for x in areas for c in x['cells']]
-        start = []
+        first: list[Any] = []
         for n in range(rng.randint(0, 8)):
-            i, j, k = rng.choice(cells) if cells else (0, 0, 0)
-            start.append((n + 1, (ox + i * pitch + rng.choice([0.0, 0.4]), float(lv.y[k]) + 0.95, oz + j * pitch), k,
-                          i, j))
+            ci, cj, ck = rng.choice(cells) if cells else (0, 0, 0)
+            first.append((n + 1, (ox + ci * pitch + rng.choice([0.0, 0.4]), float(lv.y[ck]) + 0.95, oz + cj * pitch),
+                          ck, ci, cj))
         cover = rng.choice([4.0, 1.0, 0.5, 2.3, 3])
 
-        def run(cover: float = cover, start: list[Any] = start, lv: nb.Level = lv, areas: list[Any] = areas,
+        def run(cover: float = cover, first: list[Any] = first, lv: nb.Level = lv, areas: list[Any] = areas,
                 ox: float = ox, oz: float = oz) -> Any:
-            pts = list(start)
+            pts = list(first)
             taken = {p[2] for p in pts}
             taken_pos = {tuple(round(v, 3) for v in p[1]) for p in pts}
 

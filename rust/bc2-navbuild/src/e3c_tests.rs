@@ -15,7 +15,7 @@ use crate::graph::{self, RoofCfg, RoofGrid};
 use crate::route::{self, Node, RouteCfg};
 use crate::trace::{self, EdgeKey, Kind, Ordered, TraceCfg};
 use crate::window::WindowSearch;
-use crate::{Cell, FastMap, FastSet, Floats, Level, LevelData, Rule};
+use crate::{Cell, CellMap, FastMap, FastSet, Floats, Level, LevelData, Rule};
 
 /// `nx` x `nz` columns, one kept terrain surface each at height `h(i, j)` (None: an empty column).
 fn level(nx: usize, nz: usize, h: impl Fn(usize, usize) -> Option<f64>) -> Level {
@@ -355,18 +355,21 @@ proptest! {
         let targets: FastSet<usize> = [t].into_iter().collect();
         let is_target = |n: usize| targets.contains(&n);
         let mut a: FastMap<usize, (i64, i64)> = [(s, col(s))].into_iter().collect();
-        let mut b = a.clone();
         let want = l.search(&[s], &is_target, &mut a, (w0, w1), 0, 0, Rule::Slope);
         let mut w = WindowSearch::new(&l, (0, 0), (w0, w1), Rule::Slope).unwrap();
+        w.insert(s, col(s));
         // twice: the second answer comes from the memo
         for _ in 0..2 {
-            let got = w.search(&[s], &is_target, &mut b, None).unwrap();
+            let got = w.search(&[s], &is_target, None).unwrap();
             match got {
                 Ok(p) => prop_assert_eq!(Ok(p), want.clone()),
                 Err(()) => prop_assert!(w.local(s).is_none()),
             }
             if w.local(s).is_some() {
-                prop_assert_eq!(&a, &b);
+                // the same cells entered, no others
+                for k in 0..l.len() {
+                    prop_assert_eq!(CellMap::get(&w, k), a.get(&k).copied());
+                }
             }
         }
     }

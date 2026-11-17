@@ -889,7 +889,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
                             q.append(n)
         keep[list(drop)] = False
     if ROOF_PRUNE:
-        anchor_k = set()
+        anchor_k: set[int] = set()
         anchor_list = list(anchors or ())
         picks = _column_picks(nat, anchor_list, keep, -2.5, 2.5)
         anchor_k.update(n for n in (picks or ()) if n >= 0)

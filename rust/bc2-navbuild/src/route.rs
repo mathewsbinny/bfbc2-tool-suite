@@ -12,7 +12,7 @@ use rayon::prelude::*;
 
 use crate::trace::P3;
 use crate::window::WindowSearch;
-use crate::{FastMap, FastSet, Level, NavError, Rule, pymath};
+use crate::{CellMap, FastMap, Level, NavError, Rule, pymath};
 
 /// A route node: its surface, its local cell and its position.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -173,20 +173,21 @@ pub fn connect_groups(
     for (idx, p) in pts.iter().enumerate() {
         node_at.entry(p.k).or_insert(idx);
     }
-    let mut cells: FastMap<usize, (i64, i64)> = FastMap::default();
-    cells.reserve(area_cells.len() + pts.len());
-    // the window's surfaces numbered once for all the searches (None: too many - the generic search runs)
-    let mut dense = WindowSearch::new(level, (cfg.gi0, cfg.gj0), cfg.window, cfg.rule);
-    // members of groups whose search found nothing -> the surfaces that search reached (a bit per local surface)
-    let mut failed: FastMap<Vec<usize>, Vec<u64>> = FastMap::default();
+    // the cell map: the window's (its surfaces numbered once for all the searches), or a map when the window holds
+    // too many surfaces to number (the generic search runs then)
+    let mut store = match WindowSearch::new(level, (cfg.gi0, cfg.gj0), cfg.window, cfg.rule) {
+        Some(w) => Store::Window(Box::new(w)),
+        None => Store::Map(FastMap::default()),
+    };
     for &(i, j, k) in area_cells {
-        cells.insert(k, (i, j));
+        store.insert(k, (i, j));
     }
     for p in &pts {
-        cells.entry(p.k).or_insert(p.cell);
+        store.cells().set_default(p.k, p.cell);
     }
+    // members of groups whose search found nothing -> the surfaces that search reached (a bit per local surface)
+    let mut failed: FastMap<Vec<usize>, Vec<u64>> = FastMap::default();
     let mut out = Joined::default();
-    let n0 = pts.len();
     loop {
         // the groups of this pass: root -> members, roots in the order of their first member
         let mut order: Vec<usize> = Vec::new();
@@ -213,36 +214,41 @@ pub fn connect_groups(
             if find(&mut parent, first) != root {
                 continue;
             }
-            // (find halves the paths as the reference's does: unions in a pass make long chains otherwise)
-            let mut other: FastSet<usize> = FastSet::default();
-            for (&k, &at) in &node_at {
-                if find(&mut parent, at) != root {
-                    other.insert(k);
-                }
-            }
             let starts: Vec<usize> = members.iter().filter_map(|&m| pts.get(m).map(|p| p.k)).collect();
-            let is_target = |n: usize| other.contains(&n);
             // a group whose search found nothing before, with the same members, finds nothing again (the same walk
             // from the same starts: the same surfaces, the cells it enters already there) unless a node of another
             // group now stands on a surface that walk reached
-            if let (Some(w), Some(region)) = (dense.as_ref(), failed.get(members))
-                && !other.iter().any(|&k| w.local(k).is_some_and(|l| bit(region, l)))
+            if let (Store::Window(w), Some(region)) = (&store, failed.get(members))
+                && !node_at
+                    .iter()
+                    .any(|(&k, &at)| w.local(k).is_some_and(|l| bit(region, l)) && find(&mut parent, at) != root)
             {
                 continue;
             }
-            let mut reached = Vec::new();
-            let dense_answer = match dense.as_mut() {
-                Some(w) => w.search(&starts, &is_target, &mut cells, Some(&mut reached))?.ok(),
-                None => None,
+            // the reference's targets: the surfaces of the nodes outside this group (node_at's first node on each),
+            // looked up as the walk reaches them; find halves the paths as the reference's does
+            let roots = std::cell::RefCell::new(&mut parent);
+            let is_target = |n: usize| {
+                node_at
+                    .get(&n)
+                    .is_some_and(|&at| find(&mut roots.borrow_mut(), at) != root)
             };
-            let walked = dense_answer.is_some(); // the dense search ran (its region is in `reached`)
-            let found = if let Some(f) = dense_answer {
-                f
-            } else {
-                level.search(&starts, &is_target, &mut cells, cfg.window, cfg.gi0, cfg.gj0, cfg.rule)?
+            let mut reached = Vec::new();
+            let (found, walked) = match &mut store {
+                Store::Window(w) => match w.search(&starts, &is_target, Some(&mut reached))? {
+                    Ok(f) => (f, true),
+                    Err(()) => (
+                        level.search(&starts, &is_target, &mut **w, cfg.window, cfg.gi0, cfg.gj0, cfg.rule)?,
+                        false,
+                    ),
+                },
+                Store::Map(m) => (
+                    level.search(&starts, &is_target, m, cfg.window, cfg.gi0, cfg.gj0, cfg.rule)?,
+                    false,
+                ),
             };
             let Some(path) = found else {
-                if let (true, Some(w)) = (walked, dense.as_ref()) {
+                if let (true, Store::Window(w)) = (walked, &store) {
                     let mut region = vec![0u64; w.len().div_ceil(64)];
                     for l in reached {
                         if let Some(b) = region.get_mut(l / 64) {
@@ -254,7 +260,8 @@ pub fn connect_groups(
                 continue;
             };
             // string pulling
-            let cell_of = |k: usize| cells.get(&k).copied().ok_or(NavError::Cell(k as i64));
+            let cells = store.cells();
+            let cell_of = |k: usize| cells.get(k).ok_or(NavError::Cell(k as i64));
             let mut way = vec![*path.first().ok_or(NavError::Cell(-1))?];
             let mut a = 0usize;
             while a + 1 < path.len() {
@@ -314,6 +321,29 @@ pub fn connect_groups(
             break;
         }
     }
-    debug_assert_eq!(pts.len(), n0 + out.nodes.len());
     Ok(out)
+}
+
+/// `connect_groups`' cell map: the window's arrays, or a map.
+enum Store<'a> {
+    Window(Box<WindowSearch<'a>>),
+    Map(FastMap<usize, (i64, i64)>),
+}
+
+impl Store<'_> {
+    fn cells(&mut self) -> &mut dyn CellMap {
+        match self {
+            Store::Window(w) => &mut **w,
+            Store::Map(m) => m,
+        }
+    }
+
+    fn insert(&mut self, k: usize, cell: (i64, i64)) {
+        match self {
+            Store::Window(w) => w.insert(k, cell),
+            Store::Map(m) => {
+                m.insert(k, cell);
+            }
+        }
+    }
 }

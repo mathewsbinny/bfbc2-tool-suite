@@ -1155,11 +1155,11 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
         specs.append((gi0, gj0, ox, oz, start, *tiling(((X & 0xFF) << 8) | (Y & 0xFF), cfg)))
     many = _build_areas_many(level, specs, cfg)     # every sector at once (Rust, in parallel), or None: one by one
     for n, (X, Y) in enumerate(sectors):
-        gi0, gj0, ox, oz, start, tile, tiles = specs[n]
+        gi0, gj0, ox, oz, start, tile_n, tiles_n = specs[n]
         if many is not None:
             areas, ylims = many[n]
         else:
-            areas = build_areas(level, gi0, gj0, start, tile, tiles, cfg=cfg)
+            areas = build_areas(level, gi0, gj0, start, tile_n, tiles_n, cfg=cfg)
             ylims = [(min(level.y[c[2]] for c in a['cells']), max(level.y[c[2]] for c in a['cells'])) for a in areas]
         # order: tiles column-major, then layer = index within tile (the lowest ground's height; a stable sort)
         order = sorted(range(len(areas)), key=lambda q: (areas[q]['tile'][0], areas[q]['tile'][1], ylims[q][0]))
@@ -1623,7 +1623,6 @@ def build_graph(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int]
             i, j, k = min(a['cells'], key=lambda c: (c[0] - ci) ** 2 + (c[1] - cj) ** 2)
         add(i, j, k)
     cell_of = {c[2]: (c[0], c[1]) for a in areas for c in a['cells']}
-    p: Any                                  # a portal here, a route node below
     # one node per portal pair, on the area's cell nearest the portal's middle
     portal_ends = [(ai, [((p.p0[0] + p.p1[0]) / 2, (p.p0[2] + p.p1[2]) / 2) for p in portals if not p.target < ai])
             for ai, (portals, _b, _o) in enumerate(traced)]
