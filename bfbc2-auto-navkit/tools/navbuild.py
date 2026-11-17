@@ -444,6 +444,40 @@ class Level:
         return cast(int | None, self.native().neighbour(int(k), int(gi), int(gj), int(di), int(dj), rule or LINK_RULE))
 
 
+class _AreaOf(Mapping[int, int]):
+    """A stage sector's area_of (each cell's surface -> its area index, the last area holding it, as the dict
+    {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}) answered by the Rust core's copy of the areas
+    (NavAreas.area_at); the dict itself is made only when something iterates it."""
+
+    def __init__(self, store: Any, n: int, areas: Sequence[AreaInfo]) -> None:
+        self._store, self._n, self._areas = store, n, areas
+        self._dict: dict[int, int] | None = None
+
+    def _full(self) -> dict[int, int]:
+        if self._dict is None:
+            self._dict = {c[2]: ai for ai, a in enumerate(self._areas) for c in a['cells']}
+        return self._dict
+
+    def __getitem__(self, k: int) -> int:
+        if self._dict is not None:
+            return self._dict[k]
+        got = self._store.area_at(self._n, int(k)) if isinstance(k, (int, np.integer)) else None
+        if got is None:
+            raise KeyError(k)
+        return cast(int, got)
+
+    def __contains__(self, k: object) -> bool:
+        if self._dict is not None:
+            return k in self._dict
+        return isinstance(k, (int, np.integer)) and self._store.area_at(self._n, int(k)) is not None
+
+    def __iter__(self) -> Any:
+        return iter(self._full())
+
+    def __len__(self) -> int:
+        return len(self._full())
+
+
 def sorted_unique(a: np.ndarray) -> np.ndarray:
     """np.unique of an array already sorted ascending (a surface's column grows with the surface): the first of each
     run of equal values - the same array, without np.unique's hashing (2 s of sp_004_b's build)."""
@@ -1253,14 +1287,22 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
         for a in areas:
             a['layer'] = per_tile[a['tile']]
             per_tile[a['tile']] += 1
-        area_of = {c[2]: ai for ai, a in enumerate(areas) for c in a['cells']}
-        info[(X, Y)] = {'areas': areas, 'area_of': area_of, 'origin': (gi0, gj0, ox, oz), 'start': start,
+        info[(X, Y)] = {'areas': areas, 'area_of': None, 'origin': (gi0, gj0, ox, oz), 'start': start,
                         'ylims': ylims}
     if store is not None:
         try:
             store.reorder(orders_of)                 # the core's copy in the same order
         except _NATIVE_ERRORS:
             store = None
+    for n, inf in enumerate(info.values()):
+        # each surface -> its area: answered by the core when it holds the areas (round E3h: the dict of every cell
+        # cost half a second on sp_004_b; it is made only if something iterates it), else a dict
+        if store is not None:
+            inf['area_of'] = _AreaOf(store, n, inf['areas'])
+            for ai, a in enumerate(inf['areas']):
+                a['_at'] = (store, n, ai)            # border_cell's lookups
+        else:
+            inf['area_of'] = {c[2]: ai for ai, a in enumerate(inf['areas']) for c in a['cells']}
     at_of = {sec: n for n, sec in enumerate(sectors)}    # a sector's index in store (info is in the same order)
     log(f'{sum(len(v["areas"]) for v in info.values())} areas ({time.time() - t0:.0f} s)')
 
@@ -1503,7 +1545,11 @@ def border_cell(a: AreaInfo, b: tuple[Any, ...]) -> tuple[int, int, int | None, 
     di, dj = int(bp.direction[0]), int(bp.direction[2])
     tmid = (t0_ + t1_) // 2
     i, j = (int(line + 0.5 * di), tmid) if di else (tmid, int(line + 0.5 * dj))
-    k = next((c[2] for c in a['cells'] if (c[0], c[1]) == (i - di, j - dj)), None)
+    at = a.get('_at')
+    if at is not None:                               # the area in the Rust core (stage, round E3h)
+        k = at[0].first_cell(at[1], at[2], i - di, j - dj)
+    else:
+        k = next((c[2] for c in a['cells'] if (c[0], c[1]) == (i - di, j - dj)), None)
     return i - di, j - dj, k, di, dj
 
 

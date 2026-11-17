@@ -808,7 +808,7 @@ def whole_stage(lv: nb.Level, cfg: nb.BuildSettings, orders: list[Any]) -> Any:
                  grid=(lv.s, lv.keep, lv.gx, lv.gz, lv.stair))
     import kymesh
     meshes = {sec: hashlib.sha1(kymesh.write_mesh(m)).hexdigest() for sec, m in a["meshes"].items()}
-    info = {sec: ([(x['tile'], x['layer'], x['cells']) for x in inf['areas']], inf['area_of'], inf['origin'])
+    info = {sec: ([(x['tile'], x['layer'], x['cells']) for x in inf['areas']], dict(inf['area_of']), inf['origin'])
             for sec, inf in a['info'].items()}
     graphs = [(sid, b, pts, pairs, o) for sid, b, _m, pts, pairs, o in a['graphs']]
     return ordered((meshes, info, graphs, dict(a['border_nodes']), a['next_id'], a['dropped'], sorted(nb.ORDER_IDS),

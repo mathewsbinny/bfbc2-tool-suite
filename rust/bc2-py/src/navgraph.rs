@@ -32,6 +32,9 @@ pub struct NavAreas {
     sectors: RwLock<Vec<Vec<Vec<Cell>>>>,
     /// Per sector its areas' edge rows and one-way candidates, once `trace_edges_stored` kept them.
     edges: RwLock<Vec<(Vec<EdgeRows>, Vec<OneWay>)>>,
+    /// Per sector each cell's surface -> its area (the last area holding it, as the stage's `area_of` dict), made
+    /// at the first `area_at`.
+    area_of: RwLock<Option<Vec<FastMap<usize, usize>>>>,
 }
 
 impl NavAreas {
@@ -40,6 +43,7 @@ impl NavAreas {
         NavAreas {
             sectors: RwLock::new(sectors),
             edges: RwLock::default(),
+            area_of: RwLock::default(),
         }
     }
 
@@ -100,6 +104,7 @@ impl NavAreas {
             {
                 return Err(value_error("an order that is not a permutation of the sector's areas"));
             }
+            *self.area_of.write().map_err(value_error)? = None;
             let mut old = std::mem::take(areas);
             *areas = order
                 .iter()
@@ -111,6 +116,29 @@ impl NavAreas {
 
     fn __len__(&self) -> PyResult<usize> {
         Ok(self.read()?.len())
+    }
+
+    /// Sector s's `area_of[k]`: the area holding surface k (the last of them), or `None`.
+    fn area_at(&self, py: Python<'_>, s: usize, k: i64) -> PyResult<Option<usize>> {
+        let Ok(k) = usize::try_from(k) else { return Ok(None) };
+        if self.area_of.read().map_err(value_error)?.is_none() {
+            let sectors = self.read()?;
+            let maps: Vec<FastMap<usize, usize>> =
+                py.detach(|| sectors.par_iter().map(|a| trace::area_of(a)).collect());
+            *self.area_of.write().map_err(value_error)? = Some(maps);
+        }
+        let g = self.area_of.read().map_err(value_error)?;
+        Ok(g.as_ref().and_then(|m| m.get(s)).and_then(|m| m.get(&k)).copied())
+    }
+
+    /// Sector s's area a: the surface of its first cell at (i, j), or `None` (`border_cell`'s `next(...)`).
+    fn first_cell(&self, s: usize, a: usize, i: i64, j: i64) -> PyResult<Option<usize>> {
+        let held = self.read()?;
+        let cells = held
+            .get(s)
+            .and_then(|x| x.get(a))
+            .ok_or_else(|| value_error("an area the store does not hold"))?;
+        Ok(cells.iter().find(|c| c.0 == i && c.1 == j).map(|c| c.2))
     }
 
     /// `drop_one_way` on the kept edge rows of every sector: `keeps[s]` the indices of sector s's candidates kept.
