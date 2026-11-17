@@ -249,6 +249,9 @@ def quick(golden: dict[str, Any], record: bool) -> None:
     before = len(FAILS)
     calls = e3c(rng)
     print(f'E3c: {calls} calls compared with their Python twin: {len(FAILS) - before} differences')
+    before = len(FAILS)
+    calls = e3h(random.Random(7731))
+    print(f'E3h: {calls} calls compared with their Python twin: {len(FAILS) - before} differences')
 
 
 def others(rng: random.Random) -> None:
@@ -564,7 +567,8 @@ def trace_chain(lv: nb.Level, cfg: nb.BuildSettings, gi0: int, gj0: int, ox: flo
     return traced, before, ordered(details), sorted(lv.blocked), ordered(emitted)
 
 
-def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tiling: Any, rng_seed: int) -> Any:
+def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tiling: Any, rng_seed: int,
+                 ladders: int = 0) -> Any:
     """stage's graph of one sector on whichever backend is switched on: areas, tracing, the D sides, border nodes on
     the window's edge columns, build_graph (cover nodes, pairs, Gabriel, groups joined, order nodes)."""
     rng = random.Random(rng_seed)
@@ -591,7 +595,8 @@ def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tili
     def new_id() -> int:
         ids[0] += 1
         return ids[0]
-    pts, pairs = nb.build_graph(lv, areas, area_of, traced, borders, 0, 0, ox, oz, new_id, orders, (), cfg)
+    lads = [(rng.choice(cells)[2], rng.choice(cells)[2]) for _ in range(ladders if cells else 0)]
+    pts, pairs = nb.build_graph(lv, areas, area_of, traced, borders, 0, 0, ox, oz, new_id, orders, lads, cfg)
     return ordered(pts), ordered(pairs)
 
 
@@ -775,6 +780,100 @@ def e3c(rng: random.Random) -> int:
         check(strict(nb.gabriel_prune, pts, pairs) == py(nb.gabriel_prune, pts, iter(pairs)), f'gabriel_prune case {case}')
         calls += 1
     return calls
+
+
+class _Counting:
+    """A NavLevel whose E3h calls are counted (the strict runs must take the Rust paths, not a silent Python one)."""
+    seen: dict[str, int] = {}
+
+    def __init__(self, nat: Any) -> None:
+        self._nat = nat
+
+    def __getattr__(self, name: str) -> Any:
+        f = getattr(self._nat, name)
+        if name in ('graph_many', 'trace_edges_stored', 'trace_emit_many', 'detail_candidates', 'build_areas_many'):
+            def counted(*a: Any, **k: Any) -> Any:
+                _Counting.seen[name] = _Counting.seen.get(name, 0) + 1
+                return f(*a, **k)
+            return counted
+        return f
+
+
+def whole_stage(lv: nb.Level, cfg: nb.BuildSettings, orders: list[Any]) -> Any:
+    """navbuild.stage on lv's grid (its keep, gradients and stairs as the walkability grid) on whichever backend is
+    switched on: every sector's areas, border nodes, meshes (written), route graph, and the build's counters."""
+    for d in (nb.ORDER_IDS, nb.ORDER_STATS, nb.LADDER_STATS, nb.DETAIL_STATS):
+        d.clear()
+    a = nb.stage(None, None, 0, 0, log=lambda *_a, **_k: None, cfg=cfg, order_points=orders,
+                 grid=(lv.s, lv.keep, lv.gx, lv.gz, lv.stair))
+    import kymesh
+    meshes = {sec: hashlib.sha1(kymesh.write_mesh(m)).hexdigest() for sec, m in a["meshes"].items()}
+    info = {sec: ([(x['tile'], x['layer'], x['cells']) for x in inf['areas']], inf['area_of'], inf['origin'])
+            for sec, inf in a['info'].items()}
+    graphs = [(sid, b, pts, pairs, o) for sid, b, _m, pts, pairs, o in a['graphs']]
+    return ordered((meshes, info, graphs, dict(a['border_nodes']), a['next_id'], a['dropped'], sorted(nb.ORDER_IDS),
+                    dict(nb.ORDER_STATS), dict(nb.DETAIL_STATS), sorted(a['level'].blocked)))
+
+
+def e3h(rng: random.Random) -> int:
+    """Round E3h's pieces against their Python twin: whole stages (the areas and edge rows kept in the Rust core,
+    drop_one_way and the detail filter there, trace_emit and every sector's route graph in parallel) on random levels
+    over the corner of four sectors, at the normal and the detailed pitch; sector graphs with ladders; round(v, 3).
+    The Rust side runs strict (no fallback), its E3h calls counted."""
+    calls = 0
+    real_native = nb.Level.native
+
+    def counting_native(self: nb.Level) -> Any:
+        nat = real_native(self)
+        return nat if isinstance(nat, _Counting) else _Counting(nat)
+    _Counting.seen.clear()
+    sizes = dict(sectors=0, areas=0, nodes=0, details=0)
+    nb.Level.native = counting_native         # type: ignore[method-assign]
+    try:
+        for case in range(10):
+            pitch = 0.2 if case % 2 else 0.8
+            n = rng.randint(14, 40)
+            lv = ramps(rng, n, n, pitch) if case % 3 else grid(rng, n, n, case % 4 == 0, pitch)
+            # the grid straddles the corner of four sectors (x, z = 100 m)
+            lv.s.min_x = 100.0 - rng.randint(3, n - 3) * pitch
+            lv.s.min_z = 100.0 - rng.randint(3, n - 3) * pitch
+            cfg = nb.DEFAULTS.at_pitch(pitch)
+            kept = np.nonzero(lv.keep)[0]
+            orders = []
+            for k in rng.sample(kept.tolist(), min(4, len(kept))):
+                c = int(lv.col_of[k])
+                orders.append((lv.s.min_x + (c % lv.s.nx) * pitch, float(lv.y[k]), lv.s.min_z + (c // lv.s.nx) * pitch))
+            a = strict(whole_stage, lv, cfg, orders)
+            sizes['details'] += nb.DETAIL_STATS.get('d', 0) + nb.DETAIL_STATS.get('f', 0)
+            b = py(whole_stage, lv, cfg, orders)
+            check(a == b, f'stage case {case} (pitch {pitch}, {n} x {n})')
+            sizes['sectors'] += len(a[0][1])
+            sizes['areas'] += sum(len(v[0]) for _k, v in a[1][1])
+            sizes['nodes'] += sum(len(g[2]) for g in a[2])
+            calls += 1
+    finally:
+        nb.Level.native = real_native         # type: ignore[method-assign]
+    want = ('build_areas_many', 'trace_edges_stored', 'detail_candidates', 'trace_emit_many', 'graph_many')
+    check(all(_Counting.seen.get(m, 0) >= 5 for m in want), f'stage: the E3h paths ran: {_Counting.seen}')
+    print(f'E3h stages: {sizes}, calls {_Counting.seen}')
+    # sector graphs with ladder links (and their new nodes)
+    for case in range(12):
+        pitch = 0.2 if case % 2 else 0.8
+        lv = ramps(rng, rng.randint(6, 20), rng.randint(6, 20), pitch)
+        cfg = lv.cfg
+        seed = rng.randrange(1 << 30)
+        x = strict(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
+        y = py(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
+        check(x == y, f'build_graph with ladders case {case}')
+        calls += 1
+    # round(v, 3): random values, exact ties (multiples of 1/16), negative zero, the build's positions
+    vals = [rng.uniform(-2000, 2000) for _ in range(60000)] + [k / 16 for k in range(-40000, 40000)]
+    vals += [rng.randint(-2500, 2500) * 0.2 + rng.choice([0.0, 0.95, -0.05]) for _ in range(40000)]
+    vals += [-0.0, 0.0, 0.0004, -0.0004, 1e-300, 5e-324, 2.675, 1.0005]
+    got = np.frombuffer(nb._native.navkit_round3(np.array(vals, '<f8').tobytes()), '<f8')
+    want_r = np.array([round(v, 3) for v in vals], '<f8')
+    check(np.array_equal(got.view('<u8'), want_r.view('<u8')), 'round(v, 3): bit for bit as CPython')
+    return calls + 1
 
 
 # ------------------------------------------------------------------------------------------------ whole levels

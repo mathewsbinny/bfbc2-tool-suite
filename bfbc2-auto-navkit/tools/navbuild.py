@@ -786,6 +786,40 @@ def _trace_edges_many(level: Level, sectors: Sequence[tuple[tuple[int, int], dic
     return {sec: (per_area, one_way) for (sec, _inf), (per_area, one_way) in zip(sectors, got)}
 
 
+def _trace_edges_kept(level: Level, store: Any, sectors: Sequence[tuple[tuple[int, int], dict[str, Any]]],
+                      cfg: BuildSettings) -> list[list[OneWay]] | None:
+    """trace_edges for every sector of a stage at once, in parallel in the Rust core, the rows kept there (round E3h:
+    store.drop_one_way, edges_of / set_edges, trace_emit_many read them); per sector its one-way candidates, or None:
+    the rows are made as Python dicts (_trace_edges_many; also ONE_WAY_PORTALS 'restore', which reads them all)."""
+    if (store is None or _native is None or cfg.window.step != 1 or not isinstance(cfg.y_offset, float)
+            or cfg.one_way_portals == 'restore'):
+        return None
+    try:
+        return cast(list[list[OneWay]], level.native().trace_edges_stored(
+            store, [(inf['origin'][0], inf['origin'][1]) for _sec, inf in sectors],
+            (cfg.window.start, cfg.window.stop), cfg.y_offset, LINK_RULE, bool(SYMMETRIC_PORTALS), keep_edges=True))
+    except _NATIVE_ERRORS:
+        return None
+
+
+def _edges_from_store(store: Any, sectors: Sequence[tuple[tuple[int, int], dict[str, Any]]],
+                      one_ways: Sequence[list[OneWay]] | None) -> dict[tuple[int, int], tuple[list[EdgeRows], list[OneWay]]]:
+    """The edge rows the Rust core keeps, as trace_edges' dicts (for the Python code when the core refuses a step)."""
+    return {sec: (store.edges_of(n, list(range(len(inf['areas'])))), list(one_ways[n]) if one_ways else [])
+            for n, (sec, inf) in enumerate(sectors)}
+
+
+def _detail_candidates(level: Level, store: Any, cfg: BuildSettings) -> list[list[int]] | None:
+    """Per sector of store, the areas detail_pass may find broken sides in (two cells side by side more than the
+    detail step apart: Rust, in parallel), or None: all of them (half cells on, a step not a number, a refusal)."""
+    if (not cfg.detail_features or DETAIL_HALF_CELLS or not _number(cfg.detail_step.get(cfg.kind))):
+        return None
+    try:
+        return cast(list[list[int]], level.native().detail_candidates(store, float(cfg.detail_step[cfg.kind])))
+    except _NATIVE_ERRORS:
+        return None
+
+
 def drop_one_way(per_area: Sequence[EdgeRows], one_way: Sequence[OneWay], keep: Container[int]) -> None:
     """One-way candidates (trace_edges) not in keep (indices) become outline on their source area."""
     for n, (src, _t, key, along) in enumerate(one_way):
@@ -871,18 +905,26 @@ def half_cells(level: Level, area: AreaInfo, gi0: int,
 
 
 def detail_pass(level: Any, areas: Sequence[AreaInfo], per_area: Sequence[EdgeRows], ox: float, oz: float,
-                gi0: int | None = None, gj0: int | None = None, cfg: BuildSettings = DEFAULTS) -> list[tuple[list[Any], list[Any]]]:
+                gi0: int | None = None, gj0: int | None = None, cfg: BuildSettings = DEFAULTS,
+                only: Container[int] | None = None) -> list[tuple[list[Any], list[Any]]]:
     """DETAIL_FEATURES: per area (D polylines, F cells) from navdetail, and the broken sides taken out of the area's
     outline edges (per_area, from trace_edges; before trace_emit). A side holding a portal or border portal stays one.
-    gi0, gj0: the sector's sample origin - with them, the bridges' half cells take part (DETAIL_HALF_CELLS)."""
+    gi0, gj0: the sector's sample origin - with them, the bridges' half cells take part (DETAIL_HALF_CELLS).
+    only: the areas that can have broken sides (cells side by side more than the step apart: stage's Rust filter),
+    or None: all; the others get no features (as navdetail gives them: no broken side), per_area[ai] not read."""
     import navdetail
     kind = cfg.kind
     if kind == 'detailed' and not DETAIL_IN_DETAILED:
         return [([], [])] * len(areas)
     step = cfg.detail_step[kind]
     terrain = getattr(level, 'terrain', None)
-    out = []
+    out: list[tuple[list[Any], list[Any]]] = []
     for ai, area in enumerate(areas):
+        if only is not None and ai not in only:
+            DETAIL_STATS['d'] = DETAIL_STATS.get('d', 0)
+            DETAIL_STATS['f'] = DETAIL_STATS.get('f', 0)
+            out.append(([], []))
+            continue
         edges = per_area[ai]
         cells = {(i, j): float(level.y[k]) for i, j, k in area['cells']}
         ks = {(i, j): k for i, j, k in area['cells']}
@@ -938,17 +980,19 @@ def _emitted(got: Any) -> list[Traced]:
              outline) for portals, borders, outline in got]
 
 
-def _trace_emit_many(level: Level, store: Any, jobs: Sequence[tuple[int, Sequence[EdgeRows], int, int, float, float]],
+def _trace_emit_many(level: Level, store: Any,
+                     jobs: Sequence[tuple[int, Sequence[EdgeRows] | None, int, int, float, float]],
                      cfg: BuildSettings) -> list[list[Traced]] | None:
     """trace_emit for several sectors of a stage at once, in parallel in the Rust core (round E3h): jobs = [(the
-    sector's index in store, per_area, gi0, gj0, ox, oz)]; None: the caller runs trace_emit sector by sector."""
+    sector's index in store, per_area or None - the rows store keeps -, gi0, gj0, ox, oz)]; None: the caller runs
+    trace_emit sector by sector."""
     if (store is None or _native is None or not BRIDGE_UNION or not isinstance(level, Level)
             or not all(isinstance(v, float) for v in (cfg.pitch, cfg.y_offset))
             or not all(isinstance(v, float) for j in jobs for v in j[4:6])):
         return None
     try:
         got = level.native().trace_emit_many(
-            store, [(n, pa if isinstance(pa, list) else list(pa), gi0, gj0, (ox, oz))
+            store, [(n, pa if pa is None or isinstance(pa, list) else list(pa), gi0, gj0, (ox, oz))
                     for n, pa, gi0, gj0, ox, oz in jobs], cfg.pitch, cfg.y_offset, LINK_RULE)
     except _NATIVE_ERRORS:
         return None
@@ -1306,37 +1350,66 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
             k = min(cand)[2]
             border_nodes[sec].append((nid, pos, k))
 
-    # boundary edges of every sector, then the one-way portal pieces decided level-wide
-    edge_sets = _trace_edges_many(level, sorted(info.items()), cfg, store)   # all sectors at once (Rust), or one by one
-    if edge_sets is None:
-        edge_sets = {}
-        for (X, Y), inf in sorted(info.items()):
-            gi0, gj0, ox, oz = inf['origin']
-            edge_sets[(X, Y)] = trace_edges(level, inf['areas'], inf['area_of'], gi0, gj0, cfg)
-    n_cand = sum(len(v[1]) for v in edge_sets.values())
-    if cfg.one_way_portals == 'restore':
-        owners = defaultdict(list)
-        for sec, inf in info.items():
-            for k, ai in inf['area_of'].items():
-                owners[k].append((sec, ai))
-        shared = [(o[0], x) for o in owners.values() if len(o) > 1 for x in o[1:]]
-        keep = restore_one_way(edge_sets, shared)
+    # boundary edges of every sector, then the one-way portal pieces decided level-wide. The edge rows stay in the
+    # Rust core when it holds the areas (round E3h: edge_sets None; drop_one_way runs there, the detail pass fetches
+    # the areas it may change), else they are Python dicts (edge_sets)
+    edge_sets: dict[tuple[int, int], tuple[list[EdgeRows], list[OneWay]]] | None = None
+    one_ways = _trace_edges_kept(level, store, sorted(info.items()), cfg)
+    if one_ways is not None:
+        n_cand = sum(len(o) for o in one_ways)
+        keep = {sec: set(range(len(o))) if cfg.one_way_portals == 'keep' else set()
+                for sec, o in zip(sorted(info), one_ways)}
+        try:
+            store.drop_one_way([sorted(keep[sec]) for sec in sorted(info)])
+        except _NATIVE_ERRORS:                   # refused before changing anything: the rows to Python
+            edge_sets = _edges_from_store(store, sorted(info.items()), one_ways)
+            for sec, (per_area, one_way) in edge_sets.items():
+                drop_one_way(per_area, one_way, keep.get(sec, set()))
     else:
-        keep = {sec: set(range(len(v[1]))) if cfg.one_way_portals == 'keep' else set() for sec, v in edge_sets.items()}
-    for sec, (per_area, one_way) in edge_sets.items():
-        drop_one_way(per_area, one_way, keep.get(sec, set()))
+        edge_sets = _trace_edges_many(level, sorted(info.items()), cfg, store)   # all sectors at once (Rust), or one by one
+        if edge_sets is None:
+            edge_sets = {}
+            for (X, Y), inf in sorted(info.items()):
+                gi0, gj0, ox, oz = inf['origin']
+                edge_sets[(X, Y)] = trace_edges(level, inf['areas'], inf['area_of'], gi0, gj0, cfg)
+        n_cand = sum(len(v[1]) for v in edge_sets.values())
+        if cfg.one_way_portals == 'restore':
+            owners = defaultdict(list)
+            for sec, inf in info.items():
+                for k, ai in inf['area_of'].items():
+                    owners[k].append((sec, ai))
+            shared = [(o[0], x) for o in owners.values() if len(o) > 1 for x in o[1:]]
+            keep = restore_one_way(edge_sets, shared)
+        else:
+            keep = {sec: set(range(len(v[1]))) if cfg.one_way_portals == 'keep' else set()
+                    for sec, v in edge_sets.items()}
+        for sec, (per_area, one_way) in edge_sets.items():
+            drop_one_way(per_area, one_way, keep.get(sec, set()))
     log(f'one-way portal pieces: {n_cand}, kept one-way {sum(len(v) for v in keep.values())} ({cfg.one_way_portals})')
     # the detail features of every sector (their D sides: each sector's own blocked set), then the outlines of all
-    # sectors at once (Rust, in parallel) or one by one
-    details_of, blocked_of = {}, {}
-    for (X, Y), inf in sorted(info.items()):
+    # sectors at once (Rust, in parallel) or one by one. With the rows in the core only the areas with cells side by
+    # side more than the detail step apart can have broken sides: the others get no features without being looked at
+    details_of: dict[tuple[int, int], list[tuple[list[Any], list[Any]]]] = {}
+    blocked_of: dict[tuple[int, int], set[tuple[int, int]]] = {}
+    cands = _detail_candidates(level, store, cfg) if edge_sets is None else None
+    for n_sec, ((X, Y), inf) in enumerate(sorted(info.items())):
         gi0, gj0, ox, oz = inf['origin']
         level.blocked = set()            # D sides of this sector only (another sector may hold the cells in two areas)
-        details_of[(X, Y)] = (detail_pass(level, inf['areas'], edge_sets[(X, Y)][0], ox, oz, gi0, gj0, cfg)
-                              if cfg.detail_features else [([], [])] * len(inf['areas']))
+        if not cfg.detail_features:
+            details_of[(X, Y)] = [([], [])] * len(inf['areas'])
+        elif edge_sets is not None:
+            details_of[(X, Y)] = detail_pass(level, inf['areas'], edge_sets[(X, Y)][0], ox, oz, gi0, gj0, cfg)
+        else:
+            only = cands[n_sec] if cands is not None else list(range(len(inf['areas'])))
+            per = dict(zip(only, store.edges_of(at_of[(X, Y)], only))) if only else {}
+            details_of[(X, Y)] = detail_pass(level, inf['areas'], cast(Any, per), ox, oz, gi0, gj0, cfg, only=set(only))
+            if only:
+                store.set_edges(at_of[(X, Y)], only, [per[a] for a in only])
         blocked_of[(X, Y)] = level.blocked
-    emitted = _trace_emit_many(level, store, [(at_of[sec], edge_sets[sec][0], *inf['origin'])
-                                              for sec, inf in sorted(info.items())], cfg)
+    emitted = _trace_emit_many(level, store, [(at_of[sec], None if edge_sets is None else edge_sets[sec][0],
+                                               *inf['origin']) for sec, inf in sorted(info.items())], cfg)
+    if emitted is None and edge_sets is None:            # the core refused: its rows to Python, trace_emit there
+        edge_sets = _edges_from_store(store, sorted(info.items()), None)
     graphs, meshes, jobs = [], {}, []
     for n_sec, ((X, Y), inf) in enumerate(sorted(info.items())):
         gi0, gj0, ox, oz = inf['origin']
@@ -1344,7 +1417,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
         level.blocked = blocked_of[(X, Y)]
         details = details_of[(X, Y)]
         traced = (emitted[n_sec] if emitted is not None
-                  else trace_emit(level, areas, edge_sets[(X, Y)][0], gi0, gj0, ox, oz, cfg))
+                  else trace_emit(level, areas, cast(Any, edge_sets)[(X, Y)][0], gi0, gj0, ox, oz, cfg))
         sid = ((X & 0xFF) << 8) | (Y & 0xFF)
         mesh_areas = []
         ntiles = tiling(sid, cfg)[1]
@@ -1376,7 +1449,8 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     # the route graphs: every sector at once (Rust, in parallel; round E3h), or sector by sector (build_graph); the
     # node ids are given in the sectors' order either way
     gcfg = _graph_cfg(level, cfg) if store is not None else None
-    raw = [_graph_job(at_of[sec], traced, border_nodes[sec], *info[sec]['origin'], orders, lads, blocked_of[sec])
+    raw = [_graph_job(at_of[sec], traced, border_nodes[sec], info[sec]['origin'][0], info[sec]['origin'][1],
+                      info[sec]['origin'][2], info[sec]['origin'][3], orders, lads, blocked_of[sec])
            for sec, traced, orders, lads, *_rest in jobs] if gcfg else []
     got = None
     if gcfg and raw and all(j is not None for j in raw):
@@ -1667,7 +1741,7 @@ def _graph_cfg(level: Level, cfg: BuildSettings) -> tuple[Any, ...] | None:
     """The build's settings as the Rust core's sector graph takes them (round E3h), or None: build_graph runs its
     pieces (the switches it does not port: DEDUP_GRAPH_NODES off, DETOUR_REPAIR on; numbers not Python floats)."""
     cover = cfg.node_cover.get('detailed' if abs(cfg.pitch - DETAILED_PITCH) < 1e-6 else 'normal')
-    s = getattr(level, 's', None)
+    s: Any = getattr(level, 's', None)
     if (_native is None or not isinstance(level, Level) or not DEDUP_GRAPH_NODES or DETOUR_REPAIR
             or cfg.window.step != 1 or (cover and not _number(cover)) or not _number(ORDER_NODE_MIN)
             or not all(type(v) is float for v in (cfg.pitch, cfg.y_offset, cfg.dist_edge_max))

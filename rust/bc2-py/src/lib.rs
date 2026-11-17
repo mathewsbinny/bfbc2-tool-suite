@@ -301,7 +301,7 @@ mod bc2_native {
     };
 
     #[pymodule_export]
-    use super::navgraph::NavAreas;
+    use super::navgraph::{NavAreas, navkit_round3};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

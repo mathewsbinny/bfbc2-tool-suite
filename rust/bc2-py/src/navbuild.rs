@@ -620,8 +620,10 @@ impl NavLevel {
     }
 
     /// `trace_edges` for every sector of `store` at once, in parallel: `origins` their (gi0, gj0) in its order;
-    /// the answers as `trace_edges_many` gives them.
+    /// the answers as `trace_edges_many` gives them - or (`keep_edges`) kept in `store`, each sector's one-way
+    /// candidates returned.
     #[expect(clippy::too_many_arguments, reason = "the stage's settings")]
+    #[pyo3(signature = (store, origins, window, y_offset, rule_name, symmetric, keep_edges=false))]
     fn trace_edges_stored<'py>(
         &self,
         py: Python<'py>,
@@ -631,8 +633,25 @@ impl NavLevel {
         y_offset: f64,
         rule_name: &str,
         symmetric: bool,
+        keep_edges: bool,
     ) -> PyResult<Bound<'py, PyList>> {
-        navgraph::trace_edges_stored(py, &self.level, store, &origins, window, y_offset, rule_name, symmetric)
+        navgraph::trace_edges_stored(
+            py,
+            &self.level,
+            store,
+            &origins,
+            window,
+            y_offset,
+            rule_name,
+            symmetric,
+            keep_edges,
+        )
+    }
+
+    /// The areas of each sector of `store` the detail pass may find broken sides in (two side-by-side cells more
+    /// than `step` apart in height): `[[area index]]`.
+    fn detail_candidates(&self, py: Python<'_>, store: &NavAreas, step: f64) -> PyResult<Vec<Vec<usize>>> {
+        navgraph::detail_candidates(py, &self.level, store, step)
     }
 
     /// `trace_emit` for several sectors of `store` at once, in parallel: `jobs` = `[(sector, per_area, gi0, gj0,
