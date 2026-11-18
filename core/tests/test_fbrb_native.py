@@ -1,6 +1,7 @@
 r"""The bundle reader (rust/bc2-formats fbrb, through the bc2_native module) against what the retired Python reader
 (core/bfbc2core/fbrb.py's _header / _py_read, round F1a 2026-11-18) answered, recorded before it was deleted
-(fbrb_golden.json), and against FbrbTool: the same entries, the same bytes, the same bundles refused.
+(fbrb_golden.json), and against FbrbTool's unpack (in process; its files the ones FbrbTool.exe wrote, recorded before
+it was retired: csharp_golden.py): the same entries, the same bytes, the same bundles refused.
 
   python core\tests\test_fbrb_native.py            quick: built and hand-made bundles, damaged and random ones, the
                                                     messages, read_many, FbrbTool's unpack of the built bundles;
@@ -16,7 +17,6 @@ import hashlib
 import os
 import random
 import struct
-import subprocess
 import sys
 import tempfile
 import time
@@ -35,10 +35,10 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core')
 sys.path.insert(0, HERE)
+import csharp_golden as cg  # noqa: E402
 import goldens  # noqa: E402
-from bfbc2core import fbrb, native, paths  # noqa: E402
+from bfbc2core import fbrb, fbrbtool, native, paths  # noqa: E402
 
-TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 GOLDEN = os.path.join(HERE, 'fbrb_golden.json')
 GROUP = 256_000_000        # a large bundle's entries are read in groups of about this many bytes (memory)
 
@@ -267,12 +267,17 @@ def run_game(files: list[str], root: str, check: Any, label: str, golden: dict[s
           f'the recording or not in it)  ({time.time() - t:.0f} s)', f'{len(differ)} differ: {differ[:3]}')
 
 
-def fbrbtool_agrees(path: str, work: str) -> str | None:
-    """FbrbTool's unpack of path against the reader: the manifest's entries and every file's bytes."""
+def fbrbtool_agrees(path: str, work: str, want: str | None) -> str | None:
+    """FbrbTool's unpack of path (in process; its files the ones FbrbTool.exe wrote: want, the folder's recorded
+    digest) against the reader: the manifest's entries and every file's bytes."""
     out = os.path.join(work, 'u')
-    r = subprocess.run([TOOL, 'unpack', path, out], capture_output=True, text=True)
+    r = fbrbtool.run(['unpack', path, out])
     if r.returncode != 0:
         return f'FbrbTool unpack failed: {(r.stdout + r.stderr).strip()[-200:]}'
+    if want is None:
+        return 'FbrbTool.exe\'s unpack of it was not recorded'
+    if cg.tree_digest(out) != want:
+        return 'the unpacked files differ from FbrbTool.exe\'s'
     lines = [l.rstrip('\r\n') for l in open(os.path.join(out, 'fbrb.manifest'), encoding='ascii', errors='replace')
              if l.strip() and l[0] != '#']
     ents = fbrb.entries(path)
@@ -336,14 +341,17 @@ def main(argv: list[str]) -> int:
         root: str | None = paths.find_opfor()
     except paths.PathsError:
         root = None
-    if os.path.isfile(TOOL):
-        probs = [f'b{i}: {why}' for i in range(2) if (why := fbrbtool_agrees(os.path.join(work, f'b{i}.fbrb'), work))]
-        sample = sorted(game_bundles(root), key=os.path.getsize)[100:108] if root else []
-        probs += [f'{os.path.basename(s)}: {why}' for s in sample if (why := fbrbtool_agrees(s, work))]
-        check(not probs, f'FbrbTool unpack agrees with the reader: the built bundles and {len(sample)} game bundles '
-              '(entries, types, flags, sizes; every file\'s bytes)', '; '.join(probs[:3]))
-    else:
-        print(f'skipped: FbrbTool unpack comparison ({TOOL} not built)')
+    golden = cg.load('fbrbtool_golden.json').get('reader_built', {})
+    recorded = cg.load('fbrbtool_golden_game.json').get('bundles', {})
+    labels = [label for label, _ in built_bundles()[:2]]
+    probs = [f'b{i}: {why}' for i in range(2)
+             if (why := fbrbtool_agrees(os.path.join(work, f'b{i}.fbrb'), work, golden.get(labels[i])))]
+    sample = sorted(game_bundles(root), key=os.path.getsize)[100:108] if root else []
+    probs += [f'{os.path.basename(s)}: {why}' for s in sample
+              if (why := fbrbtool_agrees(s, work, recorded.get(cg.sha1_file(s), {}).get('unpack', [None] * 4)[3]))]
+    check(not probs, f'FbrbTool\'s unpack (the files FbrbTool.exe wrote: fbrbtool_golden*.json) agrees with the '
+          f'reader: the built bundles and {len(sample)} game bundles (entries, types, flags, sizes; every file\'s '
+          'bytes)', '; '.join(probs[:3]))
     if root is None:
         print('skipped: the game runs (no Project OPFOR BFBC2 game copy)')
     else:

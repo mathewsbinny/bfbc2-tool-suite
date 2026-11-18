@@ -56,7 +56,7 @@ def compare(level_xml, reference, candidate):
                     connected += 1
     files = {}
     for name, path in (('reference', reference), ('candidate', candidate)):
-        f = hpdtool.parse(open(path, 'rb').read())
+        f = hpdtool.read(path)
         files[name] = {'file': path, 'sectors': len(f.sectors), 'nodes': sum(len(s.nodes) for s in f.sectors),
                        'edges': sum(len(s.edges) for s in f.sectors)}
     return {

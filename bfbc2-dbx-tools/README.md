@@ -17,10 +17,21 @@ same on PC and Xbox 360.
 Anything DbxEdit doesn't change is written back byte for byte. [FORMAT.md](FORMAT.md) describes the format
 and everything DbxEdit does; the code is written from it.
 
-## Build
+## Run
 
-Run `build.bat`. It compiles `DbxEdit.exe` and `DbxEditGUI.exe` into this folder with the C# compiler
-that ships with Windows (.NET Framework 4) and needs no install.
+**The commands** run in the suite's Rust core (`bfbc2core.dbxedit`, `rust/bc2-formats/src/dbxedit`): get it with
+`python rust\build_native.py --download` (or build it: the suite's README, "The Rust core"). `DbxEdit <command>`
+below is `python dbxedit.py <command>` from this folder; Python tools call `bfbc2core.dbxedit.run([...])`, or
+`run_cmd(['DbxEdit', ...], ...)` as a drop-in for `subprocess.run` (README.md, "DbxEdit in process").
+
+**DbxEdit.exe was retired** (round R4, 2026-11-18): the C# command line was the reference its port was proven
+against (the same files, messages and exit codes); its answers are recorded in `core/tests/dbxedit_golden*.json` and
+`tests/fingerprints_795745.txt`, and the tests check the port against them. `DbxEdit.cs` stays as the DBX classes the
+window and LevelDiff are built on.
+
+**The window:** run `build.bat`. It compiles `DbxEditGUI.exe` (DbxEditGUI.cs and DbxEdit.cs) into this folder with
+the C# compiler that ships with Windows (.NET Framework 4) and needs no install. It stays until the map editor
+replaces it (bfbc2-map-inspector's EDITOR_ARCHITECTURE.md).
 
 ## The window
 
@@ -137,8 +148,8 @@ now-unused strings stay in the file.
 
 ## Errors and logs
 
-DbxEdit, DbxEditGUI and LevelDiff (which builds on `DbxEdit.cs`) keep a log in
-`%LOCALAPPDATA%\bfbc2-tool-suite\logs\` (`ToolLog` in `DbxEdit.cs`), as all the suite's tools do. An unexpected
+DbxEdit (in process: `dbxedit-<date>.log`), DbxEditGUI and LevelDiff (which builds on `DbxEdit.cs`: `ToolLog`)
+keep a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\`, as all the suite's tools do. An unexpected
 error is explained - the likely cause (a file in use, read-only, missing, not a binary .dbx or damaged, out of
 memory) and what to do - with the log's path: on the command line with exit code 1, in DbxEditGUI in a window
 (the window keeps running). Files skipped in a folder conversion are logged as warnings.
@@ -146,13 +157,15 @@ memory) and what to do - with the log's path: on the command line with exit code
 ## Tests
 
 ```
-tests\run_tests.bat                          unit tests: small files built in memory, no game data needed
-tests\run_tests.bat <unpacked folder> [...]  + every binary .dbx in the folders, and the fingerprints
+tests\run_tests.bat                          DbxEditGUI and its DBX classes: small files built in memory
+tests\run_tests.bat <unpacked folder> [...]  + every binary .dbx in the folders
+python ..\core\tests\test_dbxedit.py [--game] the commands (Rust core) against DbxEdit.exe's recorded answers
 ```
 
-- **Unit tests** cover the format, the XML export and import (including the XML reader's handling of
-  duplicate attributes, entities, CDATA and line breaks), every edit command, the level check, the slot
-  fixer, the command line (messages and exit codes) and the window.
+- **Unit tests** (DbxTests.cs, of the C# classes the window uses) cover the format, the XML export and import
+  (including the XML reader's handling of duplicate attributes, entities, CDATA and line breaks), every edit
+  command, the level check, the slot fixer and the window. The command line's cases (messages and exit codes) are
+  `core\tests\test_dbxedit.py`'s, against the retired exe's recorded answers.
 - **With game folders** (FbrbTool-unpacked bundles), every binary file must:
   - round-trip byte for byte;
   - come back exactly through `xml`, then `import`;
@@ -161,7 +174,8 @@ tests\run_tests.bat <unpacked folder> [...]  + every binary .dbx in the folders,
 - **Fingerprints:** `tests\fingerprints_795745.txt` holds SHA-1s of the XML output and of edit-command
   results (output file, messages, exit code) for the PC game's files. They were recorded with the version
   proven identical to the earlier tools, so any later change in behaviour shows up. The file holds only
-  hashes, no game data. Files you don't have are skipped.
+  hashes, no game data. Files you don't have are skipped. `core\tests\test_dbxedit.py --game` checks every edit
+  fingerprint in process; `core\tests\test_dbx.py` and `tests\test_rust.py --corpus` check the XML ones.
 
 ## Tested
 

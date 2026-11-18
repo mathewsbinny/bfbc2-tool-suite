@@ -61,10 +61,28 @@ def area_orders(level_xml):
     return pts
 
 
-def blueprint_flags(bases):
+def scan(bases):
+    """The Rust core's one walk over the bases (round E4e: navkit.py prepare spent 327 of sp_009's 887 s in
+    blueprint_flags reading every XML file of the level and the common bundles one at a time): per base, the .xml
+    files with flags or a Mesh reference and the *_havok.res files, in glob's order, each file read once on all cores
+    (blueprint_flags reads its flags from them; the havok index and the mesh aliases are bfbc2core.collision's since
+    round F1a). None: the core not in use (navnative), or a file it could not read - blueprint_flags then reads as
+    before (its Python is the reference)."""
+    import navnative
+    m = navnative.core('navkit_level_scan')
+    return m.navkit_level_scan([os.fspath(b) for b in bases]) if m is not None else None
+
+
+def blueprint_flags(bases, scanned=None):
     """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic,
-    DisablePathfinding value - e.g. PdtNever / PdtWhenAlive)."""
+    DisablePathfinding value - e.g. PdtNever / PdtWhenAlive). scanned: scan(bases)'s records."""
     flags: dict[str, tuple[bool, bool, bool, bool, str]] = {}
+    if scanned is not None:
+        for (records, _havok) in scanned:
+            for rel, fl, _mesh in records:
+                if fl is not None:
+                    flags.setdefault(rel.replace(SEP, '/').lower()[:-4], tuple(fl))
+        return flags
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
             t = open(f, encoding='utf-8', errors='replace').read()
@@ -111,7 +129,8 @@ def main(argv):
         return 1
     level_dir, level = argv[1], argv[2]
     bases = [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + argv[3:]
-    flags = blueprint_flags(bases)
+    scanned = scan(bases)
+    flags = blueprint_flags(bases, scanned)
     x = open(os.path.join(level_dir, 'dist', 'levels', level + '.xml'), encoding='utf-8', errors='replace').read()
     objs = []
     for _typ, _guid, body in xmlinst.instances(x, 'Entity.ReferenceObjectData'):

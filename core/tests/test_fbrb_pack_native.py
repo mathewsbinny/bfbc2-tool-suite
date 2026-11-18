@@ -1,26 +1,28 @@
-r"""The Rust bundle packer (rust/bc2-formats fbrb::pack and zlib, through the bc2_native module) against FbrbTool's
-pack, which it replaces: the same bytes from the same unpacked folder.
+r"""The Rust bundle packer (rust/bc2-formats fbrb::pack and zlib, through the bc2_native module) against what
+FbrbTool's pack wrote before FbrbTool.exe was retired (round R4, 2026-11-18: csharp_golden.py): the same bytes from the
+same unpacked folder.
 
   python core\tests\test_fbrb_pack_native.py            quick: zlib's deflate against Python's zlib (levels 4-9,
                                                          built and random data), built folders in every layout
                                                          FbrbTool knows (zipped, align4096 / gap64, hdr, plen=size2,
                                                          size2=minus64, edited entries, old manifests, markers with
-                                                         and without files, CR LF / BOM manifests), the refusals,
-                                                         bfbc2core.fbrb.pack / pack_many;
-                                                         8 small game bundles when the game copy is there
+                                                         and without files, CR LF / BOM manifests) and the refusals,
+                                                         as recorded (fbrbtool_golden.json); bfbc2core.fbrb.pack /
+                                                         pack_many; 8 small game bundles when the game copy is there
   python core\tests\test_fbrb_pack_native.py --game     + every bundle of the game copy (Project OPFOR BFBC2's game\,
-                                                         read only): unpacked by FbrbTool into a temporary folder,
-                                                         packed by FbrbTool and by Rust, the two bundles compared
+                                                         read only): unpacked in Rust into a temporary folder, packed
+                                                         by Rust, the bundle against the one FbrbTool.exe packed
+                                                         (fbrbtool_golden_game.json, by the game bundle's SHA-1)
 
 Each game bundle is also compared with the game's own file: identical, or (for a zipped bundle DICE packed)
 identical but for the two 10-byte gzip headers (DICE's xfl 0 / os 0x0b, FbrbTool's xfl 4 / os 0): the deflate
-streams are zlib level 6 in all three. Needs the module; skipped (exit 0) when FbrbTool.exe is not built.
+streams are zlib level 6 in all three. Skipped (exit 0) when the module is not built.
 """
+import hashlib
 import os
 import random
 import shutil
 import struct
-import subprocess
 import sys
 import tempfile
 import time
@@ -39,14 +41,14 @@ import suite_paths  # noqa: E402
 suite_paths.use('core')
 from bfbc2core import fbrb, native, paths  # noqa: E402
 
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import csharp_golden as cg  # noqa: E402
+
 NATIVE: Any = native.load()
-TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 SMALL = 8
 EMPTY = 'identical but gzip headers and the empty payload stream DICE writes (FbrbTool writes none)'
-
-
-def tool(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([TOOL, *args], capture_output=True, text=True, errors='replace')
+NOT_RECORDED = 'not recorded (bytes the recording has not seen, or over 300 MiB)'
 
 
 def write(path: str, data: bytes | str) -> None:
@@ -55,20 +57,16 @@ def write(path: str, data: bytes | str) -> None:
         f.write(data.encode('utf-8') if isinstance(data, str) else data)
 
 
-def both(folder: str, scratch: str) -> tuple[bytes | str, bytes | str]:
-    """(FbrbTool's bundle or its failure, Rust's bundle or its failure) of folder."""
-    a, b = os.path.join(scratch, 'tool.fbrb'), os.path.join(scratch, 'rust.fbrb')
-    for p in (a, b):
-        if os.path.exists(p):
-            os.remove(p)
-    r = tool('pack', folder, a)
-    ta: bytes | str = open(a, 'rb').read() if r.returncode == 0 else 'error'
+def rust_pack(folder: str, scratch: str) -> str:
+    """The SHA-1 of Rust's bundle of folder, or 'error' (ValueError / OSError) - as pack_built records FbrbTool's."""
+    b = os.path.join(scratch, 'rust.fbrb')
+    if os.path.exists(b):
+        os.remove(b)
     try:
         NATIVE.fbrb_pack(folder, b)
-        tb: bytes | str = open(b, 'rb').read()
     except (ValueError, OSError):
-        tb = 'error'
-    return ta, tb
+        return 'error'
+    return cg.sha1_file(b)
 
 
 # ------------------------------------------------------------------------------------------------ zlib
@@ -197,20 +195,22 @@ def check_built(check: Any) -> None:
         scratch = os.path.join(root, 'out')
         os.makedirs(scratch)
         folders = built_folders(root, rng)
+        want = cg.load('fbrbtool_golden.json').get('pack_built', {})
         bad = []
         for label, d in folders:
-            a, b = both(d, scratch)
-            if not isinstance(a, bytes) or a != b:
-                bad.append(f'{label}: {"FbrbTool failed" if not isinstance(a, bytes) else "differs"}')
+            got = rust_pack(d, scratch)
+            if want.get(label) in (None, 'error') or got != want[label]:
+                bad.append(f'{label}: {"not recorded" if label not in want else "FbrbTool refused" if want[label] == "error" else "differs"}')
         check(not bad, f'{len(folders)} built folders: Rust\'s bundle byte-identical to FbrbTool\'s (zipped, stored, '
-              'padded layouts, size2 rules, markers, old manifests)', '; '.join(bad[:4]))
+              'padded layouts, size2 rules, markers, old manifests; fbrbtool_golden.json)', '; '.join(bad[:4]))
         refused = refused_folders(root)
         bad = []
         for label, d in refused:
-            a, b = both(d, scratch)
-            if a != 'error' or b != 'error':
-                bad.append(f'{label}: FbrbTool {"refused" if a == "error" else "packed"}, Rust {"refused" if b == "error" else "packed"}')
-        check(not bad, f'{len(refused)} folders FbrbTool refuses: Rust refuses them too (ValueError / OSError)',
+            got = rust_pack(d, scratch)
+            if want.get(label) != 'error' or got != 'error':
+                bad.append(f'{label}: FbrbTool {"refused" if want.get(label) == "error" else "packed"}, Rust '
+                           f'{"refused" if got == "error" else "packed"}')
+        check(not bad, f'{len(refused)} folders FbrbTool refused: Rust refuses them too (ValueError / OSError)',
               '; '.join(bad))
         kinds = []
         for _label, d in refused:
@@ -223,22 +223,21 @@ def check_built(check: Any) -> None:
         check(kinds == ['OSError', 'ValueError', 'ValueError', 'ValueError', 'ValueError', 'ValueError', 'OSError'],
               'fbrb.pack raises OSError for a missing file, ValueError for a manifest or name it cannot use', str(kinds))
 
-        # fbrb.pack and pack_many (the Rust core: FbrbTool.exe is no fallback since round F1a)
+        # the dispatcher and pack_many
         d = folders[0][1]
-        tool('pack', d, os.path.join(scratch, 'want.fbrb'))
-        want = open(os.path.join(scratch, 'want.fbrb'), 'rb').read()
+        first = want.get(folders[0][0])
         target = os.path.join(scratch, 'over.fbrb')
         write(target, b'an older bundle')
-        got = fbrb.pack(d, target)
+        counts = fbrb.pack(d, target)
         e = fbrb.entries(target)
-        check(got == (len(e), sum(x.size for x in e)) and open(target, 'rb').read() == want
+        check(counts == (len(e), sum(x.size for x in e)) and cg.sha1_file(target) == first
               and not [n for n in os.listdir(scratch) if '.tmp-' in n],
               'fbrb.pack runs in Rust: FbrbTool\'s bytes over an older bundle, (entries, payload bytes), no temporary '
               'file left')
         many = fbrb.pack_many([(f, os.path.join(scratch, f'm{i}.fbrb')) for i, (_, f) in enumerate(folders[:4])]
                               + [(refused[0][1], os.path.join(scratch, 'bad.fbrb'))])
         check(all(isinstance(m, tuple) for m in many[:4]) and isinstance(many[4], OSError)
-              and open(os.path.join(scratch, 'm0.fbrb'), 'rb').read() == want,
+              and cg.sha1_file(os.path.join(scratch, 'm0.fbrb')) == first,
               'fbrb.pack_many: in order, a folder that cannot be packed gives its exception in its place')
     finally:
         shutil.rmtree(root, ignore_errors=True)
@@ -267,40 +266,52 @@ def same_but_gzip_headers(a: bytes, b: bytes) -> bool:
 
 
 def repack_one(bundle: str) -> tuple[str, str, int, float, float]:
-    """(bundle, outcome, size, FbrbTool pack seconds, Rust pack seconds): outcome 'identical', 'identical but gzip
-    headers' (compared with the game's file), or what differs."""
+    """(bundle, outcome, size, Rust unpack seconds, Rust pack seconds): outcome 'identical', 'identical but gzip
+    headers' (compared with the game's file), NOT_RECORDED, or what differs from the bundle FbrbTool.exe packed."""
     root = tempfile.mkdtemp(prefix='fp')
     try:
+        want = (RECORDED or {}).get(cg.sha1_file(bundle), {}).get('pack')
+        if want is None:
+            return bundle, NOT_RECORDED, 0, 0, 0
         d = os.path.join(root, 'u')
-        r = tool('unpack', bundle, d)
-        if r.returncode != 0:
-            return bundle, f'FbrbTool unpack failed: {r.stderr.strip()[-200:]}', 0, 0, 0
-        a, b = os.path.join(root, 'tool.fbrb'), os.path.join(root, 'rust.fbrb')
         t = time.perf_counter()
-        r = tool('pack', d, a)
-        t_tool = time.perf_counter() - t
-        if r.returncode != 0:
-            return bundle, f'FbrbTool pack failed: {r.stderr.strip()[-200:]}', 0, 0, 0
+        try:
+            NATIVE.fbrb_unpack(bundle, d)
+        except (ValueError, OSError) as e:
+            return bundle, f'Rust unpack failed where FbrbTool unpacked it: {e}', 0, 0, 0
+        t_unpack = time.perf_counter() - t
+        b = os.path.join(root, 'rust.fbrb')
         t = time.perf_counter()
         try:
             NATIVE.fbrb_pack(d, b)
         except (ValueError, OSError) as e:
             return bundle, f'Rust pack failed: {e}', 0, 0, 0
         t_rust = time.perf_counter() - t
-        ta, tb = open(a, 'rb').read(), open(b, 'rb').read()
-        if ta != tb:
-            k = next((i for i in range(min(len(ta), len(tb))) if ta[i] != tb[i]), min(len(ta), len(tb)))
-            return bundle, f'differs from FbrbTool (sizes {len(ta)} / {len(tb)}, first difference at byte {k})', 0, 0, 0
-        orig = open(bundle, 'rb').read()
+        shutil.rmtree(d, ignore_errors=True)
+        with open(b, 'rb') as fh:
+            tb = fh.read()
+        if hashlib.sha1(tb).hexdigest() != want[3]:
+            return bundle, f'differs from the bundle FbrbTool packed ({want[3][:12]} / {hashlib.sha1(tb).hexdigest()[:12]})', 0, 0, 0
+        with open(bundle, 'rb') as fh:
+            orig = fh.read()
         # a zipped bundle of markers only: DICE's payload is an empty 20-byte gzip stream, FbrbTool's (.NET) none
         empty = len(orig) == len(tb) + 20 and orig[len(tb):len(tb) + 2] == b'\x1f\x8b' \
             and zlib.decompressobj(-15).decompress(orig[len(tb) + 10:]) == b''
         outcome = 'identical' if orig == tb else 'identical but gzip headers' if same_but_gzip_headers(orig, tb) \
             else EMPTY if empty and same_but_gzip_headers(orig[:len(tb)], tb) \
             else 'identical to FbrbTool; the game\'s file differs beyond the gzip headers'
-        return bundle, outcome, len(tb), t_tool, t_rust
+        return bundle, outcome, len(tb), t_unpack, t_rust
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+RECORDED: dict[str, Any] | None = None
+
+
+def _load_recorded() -> None:
+    """The game recording in each process of the pool (a module global: the workers import this file)."""
+    global RECORDED
+    RECORDED = cg.load('fbrbtool_golden_game.json').get('bundles', {})
 
 
 def game_bundles(root: str) -> list[str]:
@@ -312,37 +323,39 @@ def game_bundles(root: str) -> list[str]:
 
 def run_bundles(bundles: list[str], check: Any, label: str) -> None:
     t = time.time()
-    workers = max(1, min(6, (os.cpu_count() or 2) // 2))
+    # BFBC2_PACK_TEST_WORKERS: fewer processes on a PC with little memory (each holds a bundle being packed)
+    workers = int(os.environ.get('BFBC2_PACK_TEST_WORKERS') or max(1, min(4, (os.cpu_count() or 2) // 2)))
     outcomes: Counter[str] = Counter()
     examples: dict[str, str] = {}
     total = 0
-    t_tool = t_rust = 0.0
+    t_unpack = t_rust = 0.0
     order = sorted(bundles, key=lambda p: -os.path.getsize(p))      # the largest first: they set the wall time
-    with ProcessPoolExecutor(workers) as pool:
+    with ProcessPoolExecutor(workers, initializer=_load_recorded) as pool:
         for bundle, outcome, size, a, b in pool.map(repack_one, order):
             outcomes[outcome] += 1
             examples.setdefault(outcome, bundle)
             total += size
-            t_tool += a
+            t_unpack += a
             t_rust += b
     good = ('identical', 'identical but gzip headers', EMPTY,
-            "identical to FbrbTool; the game's file differs beyond the gzip headers")
+            "identical to FbrbTool; the game's file differs beyond the gzip headers", NOT_RECORDED)
     for k, n in outcomes.items():
         print(f'       {n} x {k}' + ('' if k in good[:3] else f', e.g. {examples[k]}'))
     bad = sum(n for k, n in outcomes.items() if k not in good)
-    check(not bad, f'{label}: {len(bundles)} bundles ({total / 1e9:.2f} GB) unpacked by FbrbTool and packed again: '
-          f'Rust\'s bundle byte-identical to FbrbTool\'s for {len(bundles) - bad}; the same as the game\'s file '
-          f'{outcomes["identical"]}, but for the gzip headers {outcomes["identical but gzip headers"]}  '
-          f'(pack time FbrbTool {t_tool:.0f} s, Rust {t_rust:.0f} s; {time.time() - t:.0f} s wall, {workers} processes)')
+    compared = len(bundles) - outcomes[NOT_RECORDED]
+    check(not bad and compared >= len(bundles) // 2,
+          f'{label}: {compared} of {len(bundles)} bundles ({total / 1e9:.2f} GB) unpacked and packed again in Rust: '
+          f'byte-identical to the bundle FbrbTool.exe packed for {compared - bad} (fbrbtool_golden_game.json); the '
+          f'same as the game\'s file {outcomes["identical"]}, but for the gzip headers '
+          f'{outcomes["identical but gzip headers"]}  (Rust unpack {t_unpack:.0f} s, pack {t_rust:.0f} s; '
+          f'{time.time() - t:.0f} s wall, {workers} processes)',
+          f'{bad} differ' if bad else 'fewer than half of the bundles were recorded')
 
 
 # ------------------------------------------------------------------------------------------------ main
 
 def main(argv: list[str]) -> int:
     native.require('the bundle packer', 'fbrb_pack')
-    if not os.path.isfile(TOOL):
-        print('skipped: FbrbTool.exe is not built (bfbc2-fbrb-tool\\build.bat): nothing to compare the packer with')
-        return 0
     failed = 0
 
     def check(ok: bool, what: str, detail: str = '') -> None:

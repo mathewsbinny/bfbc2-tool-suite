@@ -6,7 +6,6 @@ the two files' indices agree (all levels with water but SP_04). SP_006 and SP_00
 """
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 
@@ -21,9 +20,8 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit', 'core')
 import navkit  # noqa: E402
-from bfbc2core import water  # noqa: E402
+from bfbc2core import fbrbtool, water  # noqa: E402
 
-TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 NO_WATER = {'sp_006', 'sp_009'}
 SHADERS_DIFFER = {'sp_04'}           # its VisualWater has 4,818 vertices for the mesh's 18
 
@@ -39,7 +37,7 @@ def main(argv):
             if not os.path.isfile(bundle):
                 continue
             out = os.path.join(work, lv)
-            subprocess.run([TOOL, 'unpack', bundle, out], check=True, capture_output=True)
+            fbrbtool.run(['unpack', bundle, out], check=True)          # in process (the Rust core)
             terrains = os.path.join(out, 'Terrains')
             name = os.listdir(terrains)[0].lower() if os.path.isdir(terrains) else lv.lower()
             problems = []

@@ -12,7 +12,6 @@ their names, arguments, return values, exceptions and messages, as thin wrappers
     bf1943import.default_source         BF1943_XENON first, else beside the suite        (no check)
     bf1943import.fbrb1943               beside the suite FIRST, then BF1943_SUITE_FBRB    Bf1943ImportError
     pipeline.Paths, level.load          as navkit.find_opfor                             GameCopyNotFound
-    level.heightfield_of (FbrbTool)     as navkit.find_tool                              ToolNotFound
     navparity / navvehicle.opfor_root, harness.opfor, run_tests.opfor: wrappers over navkit.find_opfor (NavKitError)
 
     import os, sys; sys.path.insert(0, r'<suite>\core')
@@ -73,7 +72,7 @@ class GameCopyNotFound(PathsError):
 
 
 class ToolNotFound(PathsError):
-    """A tool the suite builds (FbrbTool.exe, DbxEdit.exe, ...) is neither built nor in OPFOR's tools\\ folder."""
+    """A tool the suite builds (DbxEditGUI.exe, LevelDiff.exe) is neither built nor in OPFOR's tools\\ folder."""
 
 
 def suite_root() -> str:

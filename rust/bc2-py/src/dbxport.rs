@@ -8,6 +8,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, PoisonError, RwLock};
 
+use bc2_convert::dbxport::rules::Rules;
 use bc2_convert::dbxport::{
     self, Arena, Bones, CatView, Catalogue, Fail, Id, Node, Options, Ours, SiKey, SiVal, Templates,
 };
@@ -21,6 +22,77 @@ use rayon::prelude::*;
 #[expect(clippy::needless_pass_by_value, reason = "map_err passes the error by value")]
 fn poisoned<T>(e: PoisonError<T>) -> PyErr {
     PyValueError::new_err(format!("dbxport: a lock poisoned ({e})"))
+}
+
+/// `dbxport.py`'s data tables as the caller's process has them (`ONE_TO_ARRAY`, `RENAMED`, `NESTED`,
+/// `ENUM_NUMBERS`, `NUMBERS_TO_ITEMS`, `TYPE_AS`, `DICE_MOVED_CLASSES`, `HINT_ACTIONS`, `HINT_TEXTS`): the port reads
+/// these, not built-in copies (a caller changes them: Project OPFOR's planes' gear input).
+#[pyclass(frozen)]
+pub struct DbxRules {
+    rules: Rules,
+}
+
+/// A table keyed by (type, field), as rows.
+type FieldRows<V> = Vec<(String, String, V)>;
+
+fn by_field<V>(rows: FieldRows<V>) -> dbxport::rules::ByField<V> {
+    let mut m: dbxport::rules::ByField<V> = HashMap::new();
+    for (t, n, v) in rows {
+        m.entry(t).or_default().insert(n, v);
+    }
+    m
+}
+
+#[pymethods]
+impl DbxRules {
+    /// The tables, from `dbxport._rules_args()` (keyed tables as `(type, field, value)` rows; `NUMBERS_TO_ITEMS`'
+    /// others in their order).
+    #[new]
+    #[expect(clippy::too_many_arguments, reason = "one argument per table")]
+    fn new(
+        one_to_array: HashMap<String, String>,
+        renamed: HashMap<String, String>,
+        nested: FieldRows<Vec<String>>,
+        enum_numbers: FieldRows<Vec<(i64, String)>>,
+        numbers_to_items: FieldRows<(String, Vec<(String, i64)>)>,
+        type_as: HashMap<String, String>,
+        dice_moved: HashSet<String>,
+        hint_actions: HashMap<String, String>,
+        hint_texts: HashMap<String, String>,
+    ) -> Self {
+        let enum_numbers = enum_numbers
+            .into_iter()
+            .map(|(t, n, m)| (t, n, m.into_iter().map(|(k, v)| (i128::from(k), v)).collect()))
+            .collect();
+        let numbers_to_items = numbers_to_items
+            .into_iter()
+            .map(|(t, n, (key, others))| {
+                (
+                    t,
+                    n,
+                    (key, others.into_iter().map(|(f, v)| (f, i128::from(v))).collect()),
+                )
+            })
+            .collect();
+        Self {
+            rules: Rules {
+                one_to_array,
+                renamed,
+                nested: by_field(nested),
+                enum_numbers: by_field(enum_numbers),
+                numbers_to_items: by_field(numbers_to_items),
+                type_as,
+                dice_moved,
+                hint_actions,
+                hint_texts,
+            },
+        }
+    }
+
+    /// Whether these are `dbxport.py`'s own tables, as it defines them.
+    fn is_default(&self) -> bool {
+        self.rules == Rules::default()
+    }
 }
 
 /// BFBC2's template partitions (`dbxport.Templates`' instances), kept on the Rust side.
@@ -49,6 +121,7 @@ impl DbxTemplates {
         &self,
         py: Python<'py>,
         items: Vec<(String, Bound<'py, PyBytes>)>,
+        rules: &DbxRules,
     ) -> PyResult<Bound<'py, PyList>> {
         let slices: Vec<&[u8]> = items.iter().map(|(_, b)| b.as_bytes()).collect();
         let parsed: Vec<Result<Arena, String>> = py.detach(|| {
@@ -65,7 +138,7 @@ impl DbxTemplates {
         let mut t = self.inner.write().map_err(poisoned)?;
         for ((key, _), r) in items.iter().zip(parsed) {
             match r {
-                Ok(arena) => match t.add(key.clone(), arena) {
+                Ok(arena) => match t.add(key.clone(), arena, &rules.rules) {
                     Ok(()) => out.append(py.None())?,
                     Err(e) => out.append(("unsupported", e.to_string()))?,
                 },
@@ -320,7 +393,7 @@ fn record_tuple<'py>(py: Python<'py>, r: &dbxport::Record) -> PyResult<Bound<'py
 /// `('schema', [problems])` (`SchemaError`) or `('unsupported', why)` (port in Python). An exception `resolve`
 /// raised is raised.
 #[pyfunction]
-#[pyo3(signature = (data, templates, catalogue, defaults, resolve, ours, stand_ins, template_marker, bones,
+#[pyo3(signature = (data, templates, rules, catalogue, defaults, resolve, ours, stand_ins, template_marker, bones,
                     drop_untemplated, drop_types, prune, required, donors, strict, schema_error, conventions, name))]
 #[expect(
     clippy::too_many_arguments,
@@ -332,6 +405,7 @@ pub fn dbxport_port<'py>(
     py: Python<'py>,
     data: &Bound<'py, PyBytes>,
     templates: &DbxTemplates,
+    rules: &DbxRules,
     catalogue: Option<&DbxCatalogue>,
     defaults: Option<&Bound<'py, PyDict>>,
     resolve: Option<Py<PyAny>>,
@@ -374,7 +448,7 @@ pub fn dbxport_port<'py>(
             if let Ok(tree) = dbx::parse_tree(data.as_bytes()) {
                 for t in tree.instances().map(|n| n.attr("type").unwrap_or("")) {
                     types.insert(t.to_owned());
-                    if let Some(a) = dbxport::rules::type_as(t) {
+                    if let Some(a) = rules.rules.type_as(t) {
                         types.insert(a.to_owned());
                     }
                 }
@@ -419,6 +493,7 @@ pub fn dbxport_port<'py>(
         conventions,
         bones: bones.as_ref(),
         name,
+        rules: &rules.rules,
         resolve: resolve
             .as_ref()
             .map(|_| &call as &(dyn Fn(&str) -> Result<bool, Fail> + Sync)),

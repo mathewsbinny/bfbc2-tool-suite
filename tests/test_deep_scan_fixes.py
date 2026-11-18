@@ -18,7 +18,6 @@ import io
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest.mock
@@ -32,9 +31,6 @@ import suite_paths  # noqa: E402
 suite_paths.use('core', 'navkit', 'navkit-tools', 'stockmp', 'shader-tools', 'bf1943-import', 'mesh-viewer')
 
 from bfbc2core import atomicio, dbx  # noqa: E402
-
-FBRB = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
-DBXEDIT = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
 
 
 class Checks:
@@ -156,15 +152,15 @@ def terrain_stamp(c, work):
     open(bundle, 'wb').write(b'v1')
     unpacks = []
 
-    def fake_run(args, **kw):
-        unpacks.append(args[1])
-        os.makedirs(args[3], exist_ok=True)
-        open(os.path.join(args[3], 'mp_x.heightfield-000.res'), 'wb').write(open(args[2], 'rb').read())
+    def fake_run(args, **kw):                   # fbrbtool.run(['unpack', bundle, folder], check=True)
+        unpacks.append(args[0])
+        os.makedirs(args[2], exist_ok=True)
+        open(os.path.join(args[2], 'mp_x.heightfield-000.res'), 'wb').write(open(args[1], 'rb').read())
     def fake_find(d, n):
         p = os.path.join(d, 'mp_x.heightfield-000.res')
         return p if os.path.isfile(p) else None
-    stand_ins = [(level.paths, 'find_tool', lambda *a, **k: 'FbrbTool.exe'), (fbrbtool, 'run_cmd', fake_run),
-                 (terrain, 'find', fake_find), (terrain, 'read', lambda p: open(p, 'rb').read())]
+    stand_ins = [(fbrbtool, 'run', fake_run), (terrain, 'find', fake_find),
+                 (terrain, 'read', lambda p: open(p, 'rb').read())]
     saved = [(m, n, getattr(m, n)) for m, n, _ in stand_ins]
     for m, n, f in stand_ins:
         setattr(m, n, f)
@@ -250,16 +246,15 @@ def dbx_damaged(c):
 
 
 def tools(c, work):
-    if not (os.path.isfile(FBRB) and os.path.isfile(DBXEDIT)):
-        print('skip the C# tools (not built)')
-        return
+    """FbrbTool's pack and DbxEdit's import (in process since the exes were retired, 2026-11-18)."""
+    from bfbc2core import dbxedit, fbrbtool
     src = os.path.join(work, 'packsrc')
     os.makedirs(src)
     open(os.path.join(src, 'a.txt'), 'wb').write(b'hello')
     open(os.path.join(src, 'fbrb.manifest'), 'w').write('a.txt|Text|0|0|0\n')
     out = os.path.join(work, 'out.fbrb')
-    r1 = subprocess.run([FBRB, 'pack', src, out], capture_output=True, text=True)
-    r2 = subprocess.run([FBRB, 'pack', src, out], capture_output=True, text=True)          # over the existing bundle
+    r1 = fbrbtool.run(['pack', src, out])
+    r2 = fbrbtool.run(['pack', src, out])          # over the existing bundle
     left = [f for f in os.listdir(work) if '.tmp-' in f]
     c.check(r1.returncode == 0 and r2.returncode == 0 and os.path.getsize(out) > 8 and not left,
             'FbrbTool pack: writes a new bundle and replaces an existing one, no temporary file left',
@@ -270,7 +265,7 @@ def tools(c, work):
                                          'primaryInstance="00000000-0000-0000-0000-000000000002" exportMode="All">\n'
                                          f'\t<instance guid="00000000-0000-0000-0000-000000000002" type="X.Y">\n'
                                          f'\t\t<field name="Name" {attrs}>x</field>\n\t</instance>\n</partition>\n')
-    r = subprocess.run([DBXEDIT, 'import', x, os.path.join(work, 'many.dbx')], capture_output=True, text=True)
+    r = dbxedit.run(['import', x, os.path.join(work, 'many.dbx')])
     c.check(r.returncode not in (0, 3) or not os.path.isfile(os.path.join(work, 'many.dbx')),
             'DbxEdit: an element with 16 attributes is refused, not written with a corrupt kind', (r.stdout + r.stderr)[-200:])
 

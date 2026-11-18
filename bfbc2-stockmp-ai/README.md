@@ -77,9 +77,9 @@ start disabled and their switch sources exist.
 | `tests/test_validate.py` | quick: every check on good and broken synthetic builds, each with the Rust core and without |
 | `tests/test_native_levels.py` | game: the Rust core against the Python on every multiplayer level partition of the game copy |
 
-Needs Python 3.10+ and `numpy`; the suite's Rust core (`python rust\build_native.py`), else FbrbTool and DbxEdit built
-(`build.bat` in their folders); NavKit's tools are imported for the path data (`hpdtool`, `ordercheck`). With the
-Rust core no program is started: bundles are unpacked and packed in process (`bfbc2core.fbrb.unpack` / `pack_many`, the
+Needs Python 3.10+ and `numpy`; the suite's Rust core (`python rust\build_native.py`; FbrbTool.exe and DbxEdit.exe,
+the fallback, were retired 2026-11-18); NavKit's tools are imported for the path data (`hpdtool`, `ordercheck`).
+No program is started: bundles are unpacked and packed in process (`bfbc2core.fbrb.unpack` / `pack_many`, the
 build's variants packed side by side), DbxEdit's checks run in process (`bfbc2core.dbxedit`), and the packed
 bundle is checked against the built files in memory (round E3j, `rust\BENCHMARKS.md`). Round E4a moved the tool's own
 logic there too (`rust\bc2-stockmp`, on `bc2_formats::dbx::edit`, the port of `dbxbin`): the level model, the

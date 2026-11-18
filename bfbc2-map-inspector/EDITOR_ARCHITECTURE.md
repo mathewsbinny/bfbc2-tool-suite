@@ -206,9 +206,13 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   readers and writers - DBX, FBRB, terrain, water, the collision index, the level loader, the cull tree element
   reader (2026-11-18, round F1a) - README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python". The tests themselves move to Rust once every Python tool is
   retired (the user, 2026-11-18).
+  The C# tools whose commands were ported went the same way (round R4, 2026-11-18, after the full tier's 173 of
+  173): DbxEdit.exe and FbrbTool.exe are retired, their answers recorded (`core/tests/*_golden*.json`); DbxEditGUI
+  stays, built on DbxEdit.cs, until this editor replaces it (`rust/BENCHMARKS.md`, "Retired C# tools").
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
-  Each Python GUI stays until its replacement works.
+  Each Python GUI stays until its replacement works. **Status (G1, 2026-11-18):** the editor application's shell and
+  its read-only map view (`rust/bc2-editor`, the "View a map" of 3.9); the Map Inspector stays until it is replaced.
 
 - **In Rust:**
   - the editor application: window, 3D view, gizmos, panels;
@@ -398,6 +402,55 @@ first.
 - A guided first map: copy Valparaiso as a new name, move a flag, add a vehicle, build, play-test.
 - A QUICKSTART, tooltips on every tool, and a sample project.
 
+### 3.10 Parity with modern editors (the user, 2026-11-18)
+
+The editor matches what modders expect from modern engine editors (Unreal, Unity, Frostbite-era tools). Core
+features, beyond 3.1 - 3.9, each in the operation log and undoable like any edit:
+
+1. **Prefabs and groups.** Save a selection as a prefab (a checkpoint, a fortified position) and place it anywhere;
+   edits to the prefab can update its instances; group and ungroup in place.
+2. **Layers and outliner control.** Layers with hide, isolate, lock and a colour; folders in the outliner; hidden
+   objects stay in the build unless excluded.
+3. **Snapping and placement.** To the grid, by angle, to vertices and edges, and **to surfaces**: an object dropped
+   or dragged onto terrain or a mesh sits on it, optionally aligned to the surface normal. **Sinking below the
+   surface** (the user, 2026-11-18): a sink depth (metres, or a fraction of the object's height) pushes the object
+   partly underground along the surface normal or straight down - a rock half buried, a bunker sunk into a hill - and
+   stays with it when it is moved again. Align and distribute tools; a ruler and distance read-out.
+4. **Several viewports.** Top, side and front orthographic views beside the 3D view, each with its own camera.
+5. **Viewport modes.** Lit with the game's own shaders (the shader translator and shaderview), unlit, wireframe,
+   collision, navmesh and cull-tree views.
+6. **Terrain sculpting and painting** as core tools, not only stage 2: raise, lower, smooth and flatten brushes;
+   texture-layer painting under the terrain-patch rules (the mask atlas layout of the donor); a foliage and scatter
+   brush whose objects pass the safe-to-place rules.
+7. **Splines.** Roads, fences, rivers and AI patrol routes edited by control points.
+8. **Search everywhere.** A command palette (Ctrl+Shift+P for actions, Ctrl+P for assets and objects).
+9. **Autosave and crash recovery** of the project and its log.
+10. **Copy and paste** between maps and projects, references kept or reported.
+11. **Performance budgets.** Live counts against the engine's limits (draw calls, entities, memory, cull-tree
+    slots), warnings in the Problems panel as a map nears them.
+12. **Version control.** Project history with diffs between versions and branches, on top of the data-only project
+    format (which is already friendly to `git`).
+
+**Decisions on G1's first version** (the user, 2026-11-18):
+- Team labels name the side's faction per level and content profile (US / RU, US / NVA, US / JP ...), not T1 / T2.
+- The design tokens gain 3D-view variants of the team, neutral and status colours (readable on terrain in both
+  themes) and a `scene-*` group (terrain, water, sky, object greys) where it helps.
+- A third neutral colour for gameplay objects no team owns (objectives, combat areas), distinct from
+  `team-neutral`, the selection orange, the accent and the status colours.
+- Selection outlines show through walls; fly is right-button + WASD; F focuses.
+- A Help menu in the top bar for new users: controls and shortcuts, a getting-started guide, what each workspace is
+  for.
+- Opening a level NavKit has not prepared prepares it from the editor (a Prepare step with progress, or done
+  automatically on open), not by sending the user to another tool.
+- **Live rendering is the goal for the 3D view:** terrain, water and objects drawn as the game draws them - its
+  materials, textures, shaders (the shader translator, shaderview) and lighting - so a level looks in the editor as it
+  does in game. The opaque water and plain terrain of G1 are a first step.
+
+**Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
+hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
+the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
+editor cannot host the game's engine; the fast build / install / launch of 3.6 stands in for it.
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
@@ -425,14 +478,14 @@ first.
 | Step | Delivers |
 |---|---|
 | E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **E0b (branch `rust-e0b`):** the FBRB reader ported (`bc2_formats::fbrb`; `bfbc2core.fbrb` on it with the Python fallback), the same entries and bytes as the Python reader on every bundle of the game copy and `work\ww2`, and FbrbTool's unpack on the built and sampled bundles; level loading through `dbx.parse_many`. Bundle packing stays with FbrbTool (E1 / `levelwrite`). E0 done. |
-| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). **E1b (branch `rust-e1b`):** the writers in Rust: `dbx.write` (the Python writer's bytes on all 48,119 corpus files) and bundle packing (`fbrb.pack` / `pack_many`, FbrbTool's bytes on all 1,086 bundles of the game copy, with a byte-exact port of zlib's deflate). **E1c (branch `rust-e1c`):** shader databases (reader / writer, all 745 corpus databases identical) and the cull tree tool's element reader and level search in `bc2-formats` (3.8). **E1e (branch `rust-e1e`):** the mesh alias table read from the binary partitions and cached by the files' sizes and times (identical on all 37 prepared levels; MP_005's index 0.36 -> 0.11 s warm), NavKit's `detailed`, `ladders`, `navsample_offline` and `navwater_mesh` on the Rust collision readers (their output byte for byte the same), a WW2 level (Guadalcanal) loaded and timed from a temp prepare. **E1d (branch `rust-e1d`, 2026-11-16):** a WW2 level build and a NavKit build profiled; console textures (`bc2-convert`) and NavKit's grid walks and floods (`bc2-navbuild`) in Rust, byte-identical to the Python code on every BF1943 / Onslaught texture and on whole NavKit builds; the converters' partition reads one pass per bundle (`meshview.Partitions`): coral_sea's build 1,293 -> 667 s, a NavKit build of sp_004_b 566 -> 186 s (sp_009 153 -> 19 s). **Integrated** on branch `rust-e1`. Next: entity creation / deletion and field edits with `levelwrite`, the editor's view on the scene |
-| E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save |
+| E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). **E1b (branch `rust-e1b`):** the writers in Rust: `dbx.write` (the Python writer's bytes on all 48,119 corpus files) and bundle packing (`fbrb.pack` / `pack_many`, FbrbTool's bytes on all 1,086 bundles of the game copy, with a byte-exact port of zlib's deflate). **E1c (branch `rust-e1c`):** shader databases (reader / writer, all 745 corpus databases identical) and the cull tree tool's element reader and level search in `bc2-formats` (3.8). **E1e (branch `rust-e1e`):** the mesh alias table read from the binary partitions and cached by the files' sizes and times (identical on all 37 prepared levels; MP_005's index 0.36 -> 0.11 s warm), NavKit's `detailed`, `ladders`, `navsample_offline` and `navwater_mesh` on the Rust collision readers (their output byte for byte the same), a WW2 level (Guadalcanal) loaded and timed from a temp prepare. **E1d (branch `rust-e1d`, 2026-11-16):** a WW2 level build and a NavKit build profiled; console textures (`bc2-convert`) and NavKit's grid walks and floods (`bc2-navbuild`) in Rust, byte-identical to the Python code on every BF1943 / Onslaught texture and on whole NavKit builds; the converters' partition reads one pass per bundle (`meshview.Partitions`): coral_sea's build 1,293 -> 667 s, a NavKit build of sp_004_b 566 -> 186 s (sp_009 153 -> 19 s). **Integrated** on branch `rust-e1`. **G1 (branch `rust-g1`, 2026-11-18): the editor's view on the scene** - the application's shell in `rust/bc2-editor` (binary `bfbc2-editor`, egui 0.36 on wgpu 30 through eframe, docked panels with egui_dock): the theme generated from `design/project/tokens.json` (Dark and Light, IBM Plex), the start screen ("View a map": the game copy's levels, read-only), the 3D view on `bc2-scene` (terrain, water, collision instanced per blueprint, entities as markers in team colours with labels, outlines; orbit / fly / focus, GPU picking, the selection outlined in `selection`, camera bookmarks) plus top / front / side orthographic views with their own cameras, the Outliner / Properties / Problems panels, an action registry shared by the top bar, the shortcuts and a command palette (Ctrl+Shift+P), and a CPU ray-cast on the scene's surfaces (the base of 3.10's surface snapping); the hub starts it. Proven headless: every token reaches the theme in both themes; the outliner equals the Map Inspector's lists on SP_01, MP_005, MP_009GR and ONS_MP_004 entity by entity; offscreen frames, outline, picking and clicks (README.md, "The map editor"). Next: entity creation / deletion and field edits with `levelwrite` |
+| E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save; with 3.10: surface / grid / angle / vertex snapping incl. sinking below the surface, align and distribute, ruler; layers and outliner folders; groups; several viewports and the viewport modes; the command palette; autosave and crash recovery |
 | E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
-| E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority) |
+| E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority); with 3.10: prefabs, copy and paste between maps, performance budgets, splines |
 | E5 | NavKit and AI regenerated on apply; play-test button; content profiles incl. WW2; custom game modes from mode definitions; export of a built map |
 | E5a | The AI workspace (3.4a): spawners and orders, routes and connections, navmesh coverage and its regions, the workspace checks; Navigation Studio's editing and stockmp-ai brought into the editor's project. WW2's bot tools (carriers, LCVPs, spawn choice) when the WW2 bot planning becomes a build |
-| E6 | Modder polish: QUICKSTART, guided first map, plain-language errors, a sample project |
-| S2 | New maps: terrain import / generation, terrain writer, new-level shell, scatter |
+| E6 | Modder polish: QUICKSTART, guided first map, plain-language errors, a sample project; with 3.10: version control (history, diffs, branches) |
+| S2 | New maps: terrain import / generation, terrain writer, new-level shell, scatter; with 3.10: terrain sculpting and painting brushes and the foliage brush (the terrain writer is their prerequisite; they also work on existing maps' terrain) |
 | S3 | Custom models: collision and cull-shape generation |
 
 ## 6. Rulings on the open questions (the user, 2026-11-16)

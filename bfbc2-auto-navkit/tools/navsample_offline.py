@@ -624,7 +624,30 @@ def capsule_axis(bottom, radius=RADIUS, height=HEIGHT):
 
 def terrain_blocks(hf, x, z, y, bottom, radius=RADIUS, chunk=100_000, height=HEIGHT):
     """Capsule (radius, stepMax bottom: capsule_axis) overlaps the height field: the terrain under its lower hemisphere
-    rises above the hemisphere's surface somewhere (sampled on RINGS)."""
+    rises above the hemisphere's surface somewhere (sampled on RINGS). In the Rust core when it is in use (round E4e:
+    half of a 0.2 m run's time; bc2_native.navkit_terrain_blocks, every surface in parallel); terrain_blocks_reference
+    is its NumPy, the reference and the fallback (navnative)."""
+    if hf is None or not len(y):
+        return np.zeros(len(y), bool)
+    import navnative
+    m = navnative.core('navkit_terrain_blocks')
+    heights = getattr(hf, 'heights', None)
+    if m is not None and isinstance(heights, np.ndarray) and heights.dtype == np.float32 and heights.ndim == 2             and heights.shape == (hf.size, hf.size):
+        d = np.hypot(RINGS[:, 0], RINGS[:, 1])
+        lift = capsule_axis(bottom, radius, height)[0] - np.sqrt(np.maximum(radius * radius - d * d, 0))
+        cx, cz = hf.cell
+        f8 = lambda v: np.ascontiguousarray(np.broadcast_to(np.asarray(v, np.float64), (len(y),)), '<f8').tobytes()
+        got = m.navkit_terrain_blocks(np.ascontiguousarray(heights, '<f4').tobytes(), int(hf.size), float(hf.min[0]),
+                                      float(hf.min[2]), float(cx), float(cz), f8(x), f8(z), f8(y),
+                                      [float(v) for v in RINGS[:, 0]], [float(v) for v in RINGS[:, 1]],
+                                      [float(v) for v in lift])
+        if got is not None:
+            return np.frombuffer(got, np.uint8).astype(bool)
+    return terrain_blocks_reference(hf, x, z, y, bottom, radius, chunk, height)
+
+
+def terrain_blocks_reference(hf, x, z, y, bottom, radius=RADIUS, chunk=100_000, height=HEIGHT):
+    """terrain_blocks in NumPy: the reference of the Rust core's."""
     out = np.zeros(len(y), bool)
     if hf is None or not len(y):
         return out
