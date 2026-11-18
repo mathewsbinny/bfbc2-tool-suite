@@ -24,7 +24,6 @@ import json
 import math
 import os
 import shutil
-import subprocess
 import sys
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -44,6 +43,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit', 'navkit-tools', 'core')
 from bfbc2core import fbrb as corefbrb  # noqa: E402
+from bfbc2core import fbrbtool  # noqa: E402
 from bfbc2core import paths as corepaths  # noqa: E402  (not `paths`: the functions below name their Paths that)
 
 FBRB = corepaths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe', SUITE)
@@ -63,7 +63,8 @@ class BuildError(Exception):
 
 
 def run(*args: object, ok: tuple[int, ...] = (0,)) -> str:
-    r = subprocess.run([str(a) for a in args], capture_output=True, text=True, errors='replace')
+    # FbrbTool's command lines run in process (bfbc2core.fbrbtool; BFBC2_FBRBTOOL_EXE=1 runs the exe), others as given
+    r = fbrbtool.run_cmd([str(a) for a in args], capture_output=True, text=True, errors='replace')
     if r.returncode not in ok:
         raise BuildError(f'failed: {" ".join(map(str, args))}\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}')
     return r.stdout

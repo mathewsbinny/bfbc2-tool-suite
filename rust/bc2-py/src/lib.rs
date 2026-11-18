@@ -16,7 +16,8 @@
 //! cache (round E3e, `fbrb_cache.rs`: `fbrb_cache_config`, `fbrb_cache_configure`, `fbrb_cache_stats`,
 //! `fbrb_cache_clear`, and `fbrb_read_uncached`, the read without it).
 //!
-//! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`.
+//! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`; FbrbTool's
+//! (`fbrbtool.rs`): `fbrbtool_run` / `fbrbtool_run_many`, for `core/bfbc2core/fbrbtool.py`.
 //!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
@@ -28,6 +29,7 @@ mod convert;
 mod culltree;
 mod dbxedit;
 mod fbrb_cache;
+mod fbrbtool;
 mod geometry;
 mod navbuild;
 mod navtrace;
@@ -288,6 +290,8 @@ mod bc2_native {
     use super::fbrb_cache::{
         fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,
     };
+    #[pymodule_export]
+    use super::fbrbtool::{fbrbtool_gunzip, fbrbtool_run, fbrbtool_run_many};
 
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, zlib_deflate};

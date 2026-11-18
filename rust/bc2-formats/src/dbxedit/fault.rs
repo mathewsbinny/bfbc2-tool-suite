@@ -34,6 +34,10 @@ pub enum FaultKind {
     Overflow,
     /// `OutOfMemoryException` (a damaged count asking for more than any file has).
     OutOfMemory,
+    /// `PathTooLongException` (a full path of 260 characters or more, a folder of 248 or more).
+    PathTooLong,
+    /// `NotSupportedException` (a path with a colon past its drive).
+    NotSupported,
 }
 
 /// A failure: its kind and the exception's message.
@@ -117,6 +121,8 @@ impl Fault {
             FaultKind::Format => "FormatException",
             FaultKind::Overflow => "OverflowException",
             FaultKind::OutOfMemory => "OutOfMemoryException",
+            FaultKind::PathTooLong => "PathTooLongException",
+            FaultKind::NotSupported => "NotSupportedException",
         }
     }
 
@@ -131,6 +137,7 @@ impl Fault {
                 | FaultKind::DirectoryNotFound
                 | FaultKind::Sharing
                 | FaultKind::Io
+                | FaultKind::PathTooLong
                 | FaultKind::UnauthorizedAccess
         )
     }

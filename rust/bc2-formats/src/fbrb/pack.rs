@@ -142,9 +142,16 @@ fn u32_of(n: usize) -> PackResult<u32> {
     u32::try_from(n).map_err(|_| PackError::TooLarge)
 }
 
-/// `Encoding.ASCII.GetBytes`: each character outside ASCII as `?`.
+/// `Encoding.ASCII.GetBytes`: each UTF-16 unit outside ASCII as `?`.
 fn ascii(s: &str, out: &mut Vec<u8>) {
-    out.extend(s.chars().map(|c| if c.is_ascii() { c as u8 } else { b'?' }));
+    for c in s.chars() {
+        if c.is_ascii() {
+            out.push(c as u8);
+        } else {
+            // one '?' per UTF-16 unit: a character outside the BMP (a surrogate pair) gives two
+            out.extend(std::iter::repeat_n(b'?', c.len_utf16()));
+        }
+    }
 }
 
 /// A payload being laid out: the entries' offsets and DICE's padding.
@@ -362,7 +369,7 @@ fn net_hex(s: &str) -> Option<u32> {
 }
 
 /// The value of `key=` in a line of space-separated tokens (FbrbTool's `Token`).
-fn token<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+pub(crate) fn token<'a>(line: &'a str, key: &str) -> Option<&'a str> {
     line.split(' ')
         .find_map(|t| t.strip_prefix(key).and_then(|r| r.strip_prefix('=')))
 }
@@ -411,7 +418,7 @@ pub fn decode_text(bytes: &[u8]) -> String {
 }
 
 /// Lines as `StreamReader.ReadLine` splits them: at CR LF, LF or CR; no empty line after a final line end.
-fn lines(text: &str) -> Vec<&str> {
+pub(crate) fn lines(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut rest = text;
     while !rest.is_empty() {
@@ -536,29 +543,55 @@ pub fn pack_dir(dir: impl AsRef<Path>) -> PackResult<(Vec<u8>, PackStats)> {
     let mpath = dir.join("fbrb.manifest");
     let manifest = parse_manifest(&decode_text(&fs::read(&mpath).map_err(io_err(&mpath))?))?;
     let layout = manifest.layout;
-    // the layout from the files' sizes, then every file read into its place on all cores
-    let mut p = Payload::new(0);
-    let mut reads: Vec<(PathBuf, usize, usize)> = Vec::new();
+    let mut rows = Vec::with_capacity(manifest.lines.len());
     for l in &manifest.lines {
         let src = entry_path(dir, &l.name)?;
         // a marker has no file since FbrbTool's unpack stopped writing them (an empty one from an older unpack is
         // read as before)
-        let len = if l.type_name == DELETED && !src.is_file() {
-            0
+        let (src, len) = if l.type_name == DELETED && !src.is_file() {
+            (None, 0)
         } else {
             let m = fs::metadata(&src).map_err(io_err(&src))?;
             if !m.is_file() {
                 return Err(io_err(&src)(io::Error::other("not a file")));
             }
-            usize::try_from(m.len()).map_err(|_| PackError::TooLarge)?
+            (Some(src), usize::try_from(m.len()).map_err(|_| PackError::TooLarge)?)
         };
         let size2 = l.size2_for(len, &layout)?;
-        p.pad(layout, is_marker(&l.type_name, len));
+        rows.push(SourceRow { src, len, size2 });
+    }
+    pack_rows(&manifest, &rows)
+}
+
+/// One manifest entry's data as [`pack_rows`] takes it: its file (none for a marker without one), the file's length
+/// and the size2 it is packed with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceRow {
+    /// The entry's file.
+    pub src: Option<PathBuf>,
+    /// The file's length (0 without a file).
+    pub len: usize,
+    /// The entry's size2 in the bundle.
+    pub size2: u32,
+}
+
+/// The bundle of `manifest`'s entries, each `rows[i]` (the files checked and size2 decided by the caller, as
+/// [`pack_dir`] or FbrbTool's command line do), its files read on all cores.
+///
+/// # Errors
+/// [`PackError::Io`] for a file that cannot be read or changed length, [`PackError::TooLarge`].
+pub fn pack_rows(manifest: &Manifest, rows: &[SourceRow]) -> PackResult<(Vec<u8>, PackStats)> {
+    let layout = manifest.layout;
+    // the layout from the files' sizes, then every file read into its place on all cores
+    let mut p = Payload::new(rows.iter().map(|r| r.len).sum());
+    let mut reads: Vec<(&Path, usize, usize)> = Vec::new();
+    for (l, r) in manifest.lines.iter().zip(rows) {
+        p.pad(layout, is_marker(&l.type_name, r.len));
         let offset = p.offset()?;
-        p.rows.push([l.flags, offset, u32_of(len)?, size2]);
-        if len > 0 {
-            reads.push((src, p.data.len(), len));
-            p.data.resize(p.data.len() + len, 0);
+        p.rows.push([l.flags, offset, u32_of(r.len)?, r.size2]);
+        if let (Some(src), true) = (&r.src, r.len > 0) {
+            reads.push((src, p.data.len(), r.len));
+            p.data.resize(p.data.len() + r.len, 0);
         }
     }
     let mut jobs = Vec::with_capacity(reads.len());
@@ -567,7 +600,7 @@ pub fn pack_dir(dir: impl AsRef<Path>) -> PackResult<(Vec<u8>, PackStats)> {
     for (src, offset, len) in &reads {
         let (_, tail) = std::mem::take(&mut rest).split_at_mut(offset - at);
         let (dst, tail) = tail.split_at_mut(*len);
-        jobs.push((src, dst));
+        jobs.push((*src, dst));
         rest = tail;
         at = offset + len;
     }

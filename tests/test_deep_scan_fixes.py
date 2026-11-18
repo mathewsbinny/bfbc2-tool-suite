@@ -148,7 +148,7 @@ def meshview_skip(c, work):
 
 
 def terrain_stamp(c, work):
-    from bfbc2core import level, terrain
+    from bfbc2core import fbrbtool, level, terrain
     root = os.path.join(work, 'opfor2')
     bdir = os.path.join(root, 'game', 'Dist', 'win32', 'levels', 'mp_x')
     os.makedirs(bdir)
@@ -163,7 +163,7 @@ def terrain_stamp(c, work):
     def fake_find(d, n):
         p = os.path.join(d, 'mp_x.heightfield-000.res')
         return p if os.path.isfile(p) else None
-    stand_ins = [(level.paths, 'find_tool', lambda *a, **k: 'FbrbTool.exe'), (subprocess, 'run', fake_run),
+    stand_ins = [(level.paths, 'find_tool', lambda *a, **k: 'FbrbTool.exe'), (fbrbtool, 'run_cmd', fake_run),
                  (terrain, 'find', fake_find), (terrain, 'read', lambda p: open(p, 'rb').read())]
     saved = [(m, n, getattr(m, n)) for m, n, _ in stand_ins]
     for m, n, f in stand_ins:

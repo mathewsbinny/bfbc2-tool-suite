@@ -214,6 +214,21 @@ Each run is logged in DbxEdit's own log (`dbxedit-<date>.log`, "started (in proc
 stays the reference: `core/tests/test_dbxedit.py` runs DbxEdit's unit-test cases both ways (quick) and a corpus
 sample, DbxEdit's edit fingerprints and a replay of a day's invocations (`--game`, `rust/bench_dbxedit.py`); the
 suite's NavKit unpack and `bfbc2-stockmp-ai`'s validation use it.
+**FbrbTool in process** (round E3k, 2026-11-17). `bfbc2core.fbrbtool` does the same for `FbrbTool.exe`'s `unpack`,
+`pack`, `list` and `big` (`rust/bc2-formats/src/fbrb/tool.rs`): `fbrbtool.run(args)`, `run_many`, `unpack`, `pack`,
+`list_entries`, `big`, and `run_cmd(cmd, **kw)` as a drop-in for `subprocess.run([FbrbTool.exe, ...], ...)`
+(`capture_output` defaults to False as `subprocess.run`'s does; `stdout=` / `stderr=` PIPE, DEVNULL, STDOUT or a
+file are honoured; a call with `cwd=` runs the exe). The same files byte for byte, the same messages and exit codes,
+the same failures on damaged bundles: a bundle's gzip streams are read by .NET's own rules (`fbrb::netgzip`, a port of
+.NET Framework's managed inflater and `GZipStream.CopyTo`; zlib reads every stream it takes whole, the port decides
+the rest), entry paths are normalised as .NET's `GetFullPath` does. A zipped payload is decompressed as the file is
+read and a stored one is never loaded (entries are read where they are). Entries, the manifest and packed bundles are
+written beside their name and moved over it (`atomic::replace`). Logged in `fbrbtool-<date>.log` ("started (in
+process)"); `BFBC2_FBRBTOOL_EXE=1` runs the exe, as does a checkout without the Rust core. `FbrbTool.exe` stays the
+reference: `core/tests/test_fbrbtool.py` (quick: 217 command lines both ways, damaged bundles, 500 gzip streams
+against a C# probe of .NET's reader; `--game`: game bundles, a replay of the logged invocations), timings
+`rust/bench_fbrbtool.py`. NavKit's unpack, `level.heightfield_of`'s terrain unpack and `bfbc2-stockmp-ai`'s
+`pipeline.run` use it.
 **Without a fallback** (round E1d, Python retired 2026-11-17): `texture.convert` / `convert_many` and NavKit's grid
 walks (`navbuild.Level`'s neighbour linking, `components`, `trace_edges`' side neighbours, `line_walkable`,
 `build_graph`'s route-group search; `navwalk.walkable`'s flood, `islands_of`, `matched_flags`) always run in Rust:
