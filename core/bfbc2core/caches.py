@@ -6,8 +6,20 @@ least recently used files deleted first, and a command to see and clear them (ro
     python -m bfbc2core.caches --clear [name...]  delete the cached files (every cache when no name is given)
 
 (from the suite's core\ folder; or python core\bfbc2core\caches.py ...). Names: hlsl, fbrb, collision, effectport,
-culltree. Every cache is only a cache: a deleted file is read or computed again on its next use, never an error, so
-clearing or pruning is safe while tools run.
+culltree; the project caches navstudio, harness, navwater; logs. Every cache is only a cache: a deleted file is read
+or computed again on its next use, never an error, so clearing or pruning is safe while tools run.
+
+Project caches (round E3q): caches the suite's tools keep inside Project OPFOR BFBC2's work\ folder by design -
+navdata.load's path-data caches of Navigation Studio (work\navstudio\cache), the test harness (work\harness\cache)
+and navwater_mesh (work\navwater\cache). The project folder is found as the tools find it (paths.find_opfor: --opfor,
+OPFOR_ROOT, else walking up from the suite); navdata.load prunes the folder it wrote to through prune_project_cache.
+--clear without names leaves them (and the logs) alone: name them to clear them.
+
+Logs (round E3q): errors.setup's %LOCALAPPDATA%\bfbc2-tool-suite\logs\<tool>-<date>.log, rolled over within the day
+to <tool>-<date>.1.log, .2.log ... once a file reaches BFBC2_LOG_FILE_MB (default 20; nothing renamed, so a file
+another process holds is never in the way); prune_logs keeps each tool's 20 newest days, then deletes the oldest files
+beyond BFBC2_LOG_TOOL_MB per tool (default 100) and BFBC2_LOGS_MB overall (default 200) - never the current session's
+files (keep) nor, for the size caps, a file written in the last LOG_RECENT seconds (a running tool's).
 
 The helpers the caches use:
 
@@ -30,7 +42,9 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime
 import os
+import re
 import sys
 import time
 from collections.abc import Iterable, Sequence
@@ -38,9 +52,9 @@ from dataclasses import dataclass, field
 
 if __package__ in (None, ''):                       # run as a file: python core\bfbc2core\caches.py
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from bfbc2core import atomicio
+    from bfbc2core import atomicio, paths
 else:
-    from . import atomicio
+    from . import atomicio, paths
 
 MB = 1 << 20
 STALE_TMP = 3600.0              # s: a temporary file not written to for this long is a dead writer's
@@ -62,6 +76,7 @@ class Spec:
     markers: tuple[str, ...] = ()       # small bookkeeping files: deleted by --clear, by the pruning after MARKER_AGE
     marker_age: float = 30 * 86400.0
     off_without_localappdata: bool = False
+    project: tuple[str, ...] = ()       # a project cache: its folder under Project OPFOR BFBC2's folder (env unused)
 
     def default_folder(self) -> str | None:
         base = os.environ.get('LOCALAPPDATA')
@@ -89,26 +104,86 @@ CACHES: dict[str, Spec] = {s.name: s for s in (
          "reference levels' cull tree rows (culltree ref_rows)"),
 )}
 
+# navdata.load's entries: <key>.npz (the cells) and <key>.navdata.pkl (the whole NavData); temporary <entry>.<pid>.tmp
+NAVDATA = ('.navdata.pkl', '.npz')
 
-def folder(name: str) -> str | None:
-    """The cache's folder as its owner resolves it from the environment; None when it is turned off."""
-    s = CACHES[name]
+# Caches in Project OPFOR BFBC2's work\ folder (studio.py, harness.py cache_dir, navwater_mesh.py): kept there, listed
+# and pruned here. A harness run reads every level's entries in turn, so its cap holds a whole run (about 2 GB, 2026-11).
+PROJECT_CACHES: dict[str, Spec] = {s.name: s for s in (
+    Spec('navstudio', '', NAVDATA, 'BFBC2_NAVSTUDIO_CACHE_MB', MB, 2048,
+         "Navigation Studio's path-data loads (navdata.load)", project=('work', 'navstudio', 'cache')),
+    Spec('harness', '', NAVDATA, 'BFBC2_HARNESS_CACHE_MB', MB, 3072,
+         "the test harness's path-data loads (navdata.load; its bundles\\ entries are not pruned)",
+         project=('work', 'harness', 'cache')),
+    Spec('navwater', '', NAVDATA, 'BFBC2_NAVWATER_CACHE_MB', MB, 1024,
+         "navwater_mesh's path-data loads (navdata.load)", project=('work', 'navwater', 'cache')),
+)}
+
+
+def _spec(name: str) -> Spec:
+    return CACHES[name] if name in CACHES else PROJECT_CACHES[name]
+
+
+def project_root(given: str | None = None) -> str | None:
+    """Project OPFOR BFBC2's folder as the tools find it (paths.find_opfor: given, OPFOR_ROOT, walking up from the
+    suite), or None."""
+    try:
+        return paths.find_opfor(given)
+    except paths.PathsError:
+        return None
+
+
+def folder(name: str, opfor: str | None = None) -> str | None:
+    """The cache's folder as its owner resolves it from the environment; None when it is turned off (or, for a
+    project cache, when there is no project folder; opfor: the project folder given)."""
+    s = _spec(name)
+    if s.project:
+        root = project_root(opfor)
+        return os.path.join(root, *s.project) if root else None
     v = os.environ.get(s.env, '')
     if v == '0' or v.lower() == 'off':
         return None
     return v or s.default_folder()
 
 
-def cap(name: str) -> int:
-    """The cache's cap in bytes: its cap variable (a non-negative number of MiB, GiB for fbrb), else the default."""
-    s = CACHES[name]
+def _number(env: str, default: float) -> float:
     try:
-        v = float(os.environ.get(s.cap_env, '').strip())
+        v = float(os.environ.get(env, '').strip())
         if not (v >= 0 and v != float('inf')):
             raise ValueError
     except ValueError:
-        v = s.default_cap
-    return int(v * s.cap_unit)
+        v = default
+    return v
+
+
+def cap(name: str) -> int:
+    """The cache's cap in bytes: its cap variable (a non-negative number of MiB, GiB for fbrb), else the default."""
+    s = _spec(name)
+    return int(_number(s.cap_env, s.default_cap) * s.cap_unit)
+
+
+def project_cache_of(path: str) -> tuple[str, str] | None:
+    """(name, folder) of the project cache path is (or lies in): the folder whose last parts are the cache's
+    work\\<tool>\\cache, wherever the project is; None for any other path."""
+    full = os.path.abspath(path)
+    parts = full.split(os.sep)
+    low = [os.path.normcase(p) for p in parts]
+    for k in range(len(parts), 0, -1):
+        for name, s in PROJECT_CACHES.items():
+            n = len(s.project)
+            if k >= n + 1 and low[k - n:k] == [os.path.normcase(p) for p in s.project]:
+                return name, os.sep.join(parts[:k]) or os.sep
+    return None
+
+
+def prune_project_cache(path: str) -> Result | None:
+    """maybe_prune of the project cache path is in (navdata.load, after it writes an entry); None when path is in
+    none (a temporary folder, a test's) or it did not run. Never raises."""
+    try:
+        hit = project_cache_of(path)
+    except Exception:                               # noqa: BLE001 - pruning never stops the tool using the cache
+        return None
+    return maybe_prune(hit[0], hit[1]) if hit else None
 
 
 def is_temp(file_name: str) -> bool:
@@ -279,7 +354,7 @@ def maybe_prune(name: str, top: str | None = None, every: float = PRUNE_EVERY) -
                 return False
         if recent():
             return None
-        s = CACHES[name]
+        s = _spec(name)
         with atomicio.locked(os.path.join(top, LOCK)):
             if recent():                            # another process pruned it while this one waited
                 return None
@@ -325,8 +400,138 @@ def usage(top: str | None, suffixes: Sequence[str], markers: Sequence[str] = ())
 
 
 def logs_folder() -> str:
-    """errors.py's log folder (listed by the command; not a cache: the 20 newest logs per tool are kept)."""
+    """errors.py's log folder (errors.log_dir, not made here)."""
     return os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'bfbc2-tool-suite', 'logs')
+
+
+# ---- logs (round E3q)
+LOG_KEEP_DAYS = 20              # each tool's newest days kept (errors.py's old rule: its 20 newest files)
+LOG_RECENT = 600.0              # s: a log written this recently may be a running tool's: never deleted to fit a cap
+LOGS_ENV, LOGS_MB = 'BFBC2_LOGS_MB', 200.0                  # all logs together
+LOG_TOOL_ENV, LOG_TOOL_MB = 'BFBC2_LOG_TOOL_MB', 100.0      # one tool's logs
+LOG_FILE_ENV, LOG_FILE_MB = 'BFBC2_LOG_FILE_MB', 20.0       # one file, before the day goes on in the next part
+LOG_NAME = re.compile(r'^(?P<tool>.+)-(?P<date>\d{4}-\d{2}-\d{2})(?:\.(?P<part>\d+))?\.log$', re.IGNORECASE)
+
+
+def log_caps() -> tuple[int, int, int]:
+    """(all logs, one tool's, one file's) caps in bytes: BFBC2_LOGS_MB, BFBC2_LOG_TOOL_MB, BFBC2_LOG_FILE_MB (MiB,
+    fractions allowed), else 200, 100, 20 MiB."""
+    return (int(_number(LOGS_ENV, LOGS_MB) * MB), int(_number(LOG_TOOL_ENV, LOG_TOOL_MB) * MB),
+            int(_number(LOG_FILE_ENV, LOG_FILE_MB) * MB))
+
+
+def log_part(top: str, tool: str, date: str, part: int) -> str:
+    """<top>\\<tool>-<date>.log (part 0), else <tool>-<date>.<part>.log."""
+    return os.path.join(top, f'{tool}-{date}.log' if part == 0 else f'{tool}-{date}.{part}.log')
+
+
+def day_log(top: str, tool: str, date: str | None = None, limit: int | None = None) -> str:
+    """The file a tool appends its day's lines to: the day's last part while it is under limit bytes (the per-file
+    cap by default), else the next part. Never renames or deletes: another process may hold any of them."""
+    date = date or datetime.date.today().isoformat()
+    limit = log_caps()[2] if limit is None else limit
+    last = 0
+    with contextlib.suppress(OSError):
+        for n in os.listdir(top):
+            m = LOG_NAME.match(n)
+            if m and m['tool'] == tool and m['date'] == date:
+                last = max(last, int(m['part'] or 0))
+    p = log_part(top, tool, date, last)
+    try:
+        full = os.path.getsize(p) >= max(limit, 1)
+    except OSError:
+        full = False                                # not there yet: this is the one
+    return log_part(top, tool, date, last + 1) if full else p
+
+
+def _log_files(top: str) -> list[tuple[_File, str, str]]:
+    """(file, tool, date) of every log in top (not below it; links and other files left out)."""
+    out = []
+    with contextlib.suppress(OSError):
+        for e in os.scandir(top):
+            m = LOG_NAME.match(e.name)
+            if not m:
+                continue
+            try:
+                if e.is_symlink() or not e.is_file(follow_symlinks=False):
+                    continue
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            out.append((_File(e.path, st.st_size, st.st_mtime_ns, st.st_mtime), m['tool'], m['date']))
+    return out
+
+
+def prune_logs(top: str | None = None, keep: Iterable[str] = (), *, caps: tuple[int, int, int] | None = None,
+               keep_days: int = LOG_KEEP_DAYS, recent: float = LOG_RECENT) -> Result:
+    """The log folder (logs_folder() by default) to its caps: each tool's files of other than its keep_days newest
+    days deleted, then the oldest files (by modification time) beyond the per-tool cap, then beyond the overall cap.
+    Never a file named in keep (the current session's), never for the caps a file written within `recent` seconds,
+    never one another process has open without delete sharing (busy). Under the folder's lock."""
+    top = top or logs_folder()
+    r = Result()
+    if not os.path.isdir(top):
+        return r
+    total_cap, tool_cap, _ = caps if caps is not None else log_caps()
+    keep_set = {os.path.normcase(os.path.abspath(k)) for k in keep}
+    now = time.time()
+    with atomicio.locked(os.path.join(top, LOCK)):
+        files = _log_files(top)
+        kept = {os.path.normcase(f.path) for f, _t, _d in files if os.path.normcase(os.path.abspath(f.path)) in keep_set}
+        gone: set[str] = set()
+        busy: set[str] = set()
+
+        def drop(f: _File, held: bool) -> bool:
+            """Deletes f unless it is kept (held: also when recent); True when it no longer counts."""
+            if os.path.normcase(f.path) in kept or f.path in busy or held and now - f.mtime_ns / 1e9 < recent:
+                return False
+            done = _delete_if_unchanged(f)
+            if done is False:
+                busy.add(f.path)
+                r.busy = len(busy)
+                return False
+            gone.add(f.path)
+            if done:
+                r.deleted_bytes += f.size
+                r.deleted_files += 1
+            return True
+
+        by_tool: dict[str, list[tuple[_File, str]]] = {}
+        for f, tool, date in files:
+            by_tool.setdefault(tool, []).append((f, date))
+        for items in by_tool.values():
+            days = sorted({d for _f, d in items}, reverse=True)[:keep_days]
+            for f, d in items:
+                if d not in days:
+                    drop(f, held=False)
+            left = sorted((f for f, _d in items if f.path not in gone), key=lambda f: (f.mtime_ns, f.path))
+            size = sum(f.size for f in left)
+            for f in left:
+                if size <= tool_cap:
+                    break
+                if drop(f, held=True):
+                    size -= f.size
+        left = sorted((f for f, _t, _d in files if f.path not in gone), key=lambda f: (f.mtime_ns, f.path))
+        size = sum(f.size for f in left)
+        for f in left:
+            if size <= total_cap:
+                break
+            if drop(f, held=True):
+                size -= f.size
+        r.kept_bytes = size
+        r.kept_files = len(left) - sum(1 for f in left if f.path in gone)
+    return r
+
+
+def clear_logs(top: str | None = None, keep: Iterable[str] = ()) -> Result:
+    """Every log deleted but those written within LOG_RECENT seconds (a running tool's) and those in keep."""
+    return prune_logs(top, keep, caps=(0, 0, 0))
+
+
+def logs_usage(top: str | None = None) -> tuple[int, int]:
+    """(bytes, files) of the logs."""
+    files = _log_files(top or logs_folder())
+    return sum(f.size for f, _t, _d in files), len(files)
 
 
 def _size(n: int) -> str:
@@ -337,56 +542,79 @@ def _size(n: int) -> str:
     return f'{n} B'
 
 
+LOGS = 'logs'
+
+
 def _names(given: Sequence[str]) -> list[str]:
-    bad = [n for n in given if n not in CACHES]
+    known = [*CACHES, *PROJECT_CACHES, LOGS]
+    bad = [n for n in given if n not in known]
     if bad:
-        raise SystemExit(f'unknown cache {", ".join(bad)}; the caches are {", ".join(CACHES)}')
-    return list(given) or list(CACHES)
+        raise SystemExit(f'unknown cache {", ".join(bad)}; the caches are {", ".join(known)}')
+    return list(given) or known
+
+
+def _done(n: str, r: Result) -> str:
+    return (f'{n:<11} deleted {r.deleted_files} file(s), {_size(r.deleted_bytes)}; left {r.kept_files} file(s), '
+            f'{_size(r.kept_bytes)}' + (f'; {r.busy} in use, kept' if r.busy else '')
+            + (f'; {r.stale} stale temporary file(s) or marker(s) deleted' if r.stale else ''))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog='python -m bfbc2core.caches',
-                                 description="The suite's on-disk caches: list them, prune them to their caps, "
+                                 description="The suite's on-disk caches, the project caches in Project OPFOR "
+                                             "BFBC2's work\\ folder and the logs: list them, prune them to their caps, "
                                              'or clear them.')
     g = ap.add_mutually_exclusive_group()
     g.add_argument('--list', action='store_true', help='each cache: folder, size, files, cap (the default)')
-    g.add_argument('--prune', action='store_true', help='delete the least recently used files beyond each cap')
-    g.add_argument('--clear', action='store_true', help='delete the cached files (every cache when no name)')
-    ap.add_argument('names', nargs='*', metavar='name', help=f'caches to act on: {", ".join(CACHES)}')
+    g.add_argument('--prune', action='store_true', help='delete the least recently used files beyond each cap '
+                                                        '(every cache, project cache and the logs when no name)')
+    g.add_argument('--clear', action='store_true', help="delete the cached files (every suite cache when no name; "
+                                                        'project caches and logs only when named)')
+    ap.add_argument('--opfor', metavar='DIR', help='Project OPFOR BFBC2\'s folder (default: as the tools find it)')
+    ap.add_argument('names', nargs='*', metavar='name',
+                    help=f'caches to act on: {", ".join([*CACHES, *PROJECT_CACHES, LOGS])}')
     a = ap.parse_args(argv)
     names = _names(a.names)
+    if a.opfor and not os.path.isdir(os.path.join(a.opfor, paths.GAME_DIR)):
+        raise SystemExit(f'--opfor {a.opfor}: no game\\ folder there (not Project OPFOR BFBC2\'s folder)')
+    if a.clear and not a.names:
+        names = list(CACHES)
     if a.prune or a.clear:
         for n in names:
-            s, top = CACHES[n], folder(n)
+            if n == LOGS:
+                print(_done(n, prune_logs() if a.prune else clear_logs()))
+                continue
+            s, top = _spec(n), folder(n, a.opfor)
             if top is None:
-                print(f'{n:<11} off ({s.env}=0)')
+                print(f'{n:<11} ' + ('no project folder (--opfor, OPFOR_ROOT)' if s.project else f'off ({s.env}=0)'))
                 continue
             if a.prune:
                 r = prune(top, cap(n), s.suffixes, markers=s.markers, marker_age=s.marker_age)
             else:
                 r = clear(top, s.suffixes, s.markers)
-            print(f'{n:<11} deleted {r.deleted_files} file(s), {_size(r.deleted_bytes)}; left {r.kept_files} file(s), '
-                  f'{_size(r.kept_bytes)}' + (f'; {r.busy} in use, kept' if r.busy else '')
-                  + (f'; {r.stale} stale temporary file(s) or marker(s) deleted' if r.stale else ''))
+            print(_done(n, r))
+        if a.clear and not a.names:
+            print(f'(project caches and logs are cleared only by name: {", ".join([*PROJECT_CACHES, LOGS])})')
         return 0
     total = 0
     for n in names:
-        s, top = CACHES[n], folder(n)
+        if n == LOGS:
+            b, files = logs_usage()
+            total += b
+            all_cap, tool_cap, file_cap = log_caps()
+            print(f'{n:<11} {_size(b):>9} in {files:>6} file(s)   cap {_size(all_cap):>9} ({LOGS_ENV}, MB; per tool '
+                  f'{_size(tool_cap)} {LOG_TOOL_ENV}, per file {_size(file_cap)} {LOG_FILE_ENV})   {logs_folder()}')
+            continue
+        s, top = _spec(n), folder(n, a.opfor)
         if top is None:
-            print(f'{n:<11} off ({s.env}=0)')
+            print(f'{n:<11} ' + ('no project folder (--opfor, OPFOR_ROOT)' if s.project else f'off ({s.env}=0)'))
             continue
         b, files, extra = usage(top, s.suffixes, s.markers)
         total += b + extra
         unit = 'GB' if s.cap_unit == 1 << 30 else 'MB'
         print(f'{n:<11} {_size(b + extra):>9} in {files:>6} file(s)   cap {_size(cap(n)):>9} ({s.cap_env}, {unit})   '
-              f'{top}')
+              f'{top}' + ('   (project cache)' if s.project else ''))
     print(f'{"all":<11} {_size(total):>9}')
-    if not a.names:
-        lf = logs_folder()
-        logs = 0
-        with contextlib.suppress(OSError):
-            logs = sum(e.stat().st_size for e in os.scandir(lf) if e.is_file())
-        print(f'(logs, not a cache: {_size(logs)} in {lf}; the 20 newest per tool are kept)')
     return 0
 
 
