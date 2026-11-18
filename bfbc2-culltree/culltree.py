@@ -214,7 +214,10 @@ class Doc:
         pos = 24 + size
         self.roots: list[El]
         stack: list[El]
-        got = _native.culltree_elements(data, pos, self, El) if _native is not None and type(data) is bytes else None
+        got = None
+        if _native is not None and type(data) is bytes:
+            with contextlib.suppress(ValueError):          # a stream the Rust reader refuses: Python says why
+                got = _native.culltree_elements(data, pos, self, El)
         if got is not None:
             self.roots, end = got
             self.trailer = data[end:]

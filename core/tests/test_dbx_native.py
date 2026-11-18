@@ -1,25 +1,29 @@
-r"""The Rust DBX reader (rust/bc2-formats, through the bc2_native module) against the Python reader it was ported
-from: the same XML text, the same element trees, the same files refused.
+r"""The DBX reader (rust/bc2-formats dbx, through the bc2_native module) against what the retired Python reader answered
+(round F1a, 2026-11-18): the same XML text, the same element trees, the same files refused - the Python's answers
+recorded as digests before it was deleted (dbx_golden.json: the built, damaged and random files below;
+dbx_golden_corpus_0.json - _3.json: every distinct .dbx of the corpus, with the Python writer's bytes for each tree as read and
+after seeded random edits).
 
-  python core\tests\test_dbx_native.py            quick: built files, edge cases, fuzzed bytes, the fallback;
+  python core\tests\test_dbx_native.py            quick: built files, edge cases, fuzzed bytes, the batch functions;
                                                    200 corpus files when the game copy is there
   python core\tests\test_dbx_native.py --game     + every .dbx of the corpus (Project OPFOR BFBC2's work\levels,
                                                    work\navkit\common - the 31,404 files DbxEdit's fingerprints
                                                    cover - and work\ww2), on all cores
 
 The corpus run also checks the XML against DbxEdit's fingerprints (bfbc2-dbx-tools\tests\fingerprints_795745.txt)
-for every file they cover. Skipped (exit 0) when the module is not built (python rust\build_native.py).
+for every file they cover. A corpus file whose content the recording does not have (changed since) is counted, not
+compared. Needs the module (python rust\build_native.py).
 """
-import hashlib
+import copy
 import os
 import random
 import struct
-import subprocess
 import sys
 import time
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any
+from typing import Any, NamedTuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -29,57 +33,111 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, paths  # noqa: E402
+sys.path.insert(0, HERE)
+import goldens  # noqa: E402
+from bfbc2core import dbx, native, paths  # noqa: E402
 
-NATIVE: Any = dbx._import_native()
 FINGERPRINTS = os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'fingerprints_795745.txt')
+GOLDEN = os.path.join(HERE, 'dbx_golden.json')
+GOLDEN_CORPUS = [os.path.join(HERE, f'dbx_golden_corpus_{k}.json') for k in range(4)]   # by SHA-1 (under 1 MB each)
 
 
-# ------------------------------------------------------------------------------------------------ one file, both readers
+def corpus_golden() -> dict[str, str]:
+    """The corpus recording's {file SHA-1 (16 digits): digest}, its four shards joined."""
+    out: dict[str, str] = {}
+    for p in GOLDEN_CORPUS:
+        out.update(goldens.load(p)['files'])
+    return out
 
-def _outcome(fn: Any, data: bytes) -> tuple[str, Any]:
+
+class Impl(NamedTuple):
+    """The reader and writer whose answers are digested (the Rust core's; the recording was made with the Python's)."""
+    to_xml: Callable[[bytes], str]
+    parse: Callable[[bytes], dbx.DbxFile]
+    write: Callable[[dbx.DbxFile], bytes]
+
+
+RUST = Impl(dbx.to_xml, dbx.parse, dbx.write)
+
+
+# ------------------------------------------------------------------------------------------------ digests
+
+def xml_outcome(data: bytes, impl: Impl = RUST) -> str:
     try:
-        return 'ok', fn(data)
+        return 'x' + goldens.h(impl.to_xml(data))
+    except dbx.DeletedEntry:
+        return 'deleted'
+    except ValueError:
+        return 'error'
+
+
+def parse_outcome(data: bytes, impl: Impl = RUST) -> tuple[str, dbx.DbxFile | None]:
+    try:
+        f = impl.parse(data)
     except dbx.DeletedEntry:
         return 'deleted', None
     except ValueError:
         return 'error', None
+    return 't' + goldens.rh(f), f
 
 
-def _py_parse(data: bytes) -> dbx.DbxFile:
-    return dbx._py_parse(data)
+def outcome(data: bytes, impl: Impl = RUST) -> str:
+    """The XML and tree of one file (or how each was refused), as one digest."""
+    return goldens.h(f'{xml_outcome(data, impl)}|{parse_outcome(data, impl)[0]}', 10)
 
 
-def _rs_parse(data: bytes) -> dbx.DbxFile:
-    return NATIVE.dbx_parse(dbx._check(data), dbx.Element, dbx.DbxFile)
-
-
-def compare(data: bytes) -> tuple[str | None, str | None]:
-    """(None or the kind of difference, SHA-1 of the XML when both readers wrote it)."""
-    (pk, px), (rk, rx) = _outcome(dbx._py_to_xml, data), _outcome(NATIVE.dbx_to_xml, data)
-    if pk != rk:
-        return f'xml: python {pk}, rust {rk}', None
-    if pk == 'ok' and px != rx:
-        return 'xml text differs', None
-    (pk2, pt), (rk2, rt) = _outcome(_py_parse, data), _outcome(_rs_parse, data)
-    if pk2 != rk2:
-        return f'parse: python {pk2}, rust {rk2}', None
-    if pk2 == 'ok' and pt != rt:
-        return 'parse tree differs', None
-    return None, hashlib.sha1(px.encode('utf-8')).hexdigest() if pk == 'ok' else None
-
-
-def _chunk(files: list[str]) -> list[tuple[str, str, str | None, str | None, int]]:
-    out: list[tuple[str, str, str | None, str | None, int]] = []
-    for f in files:
-        try:
-            data = open(f, 'rb').read()
-        except OSError as e:
-            out.append((f, '', f'unreadable: {e}', None, 0))
-            continue
-        diff, xml_sha = compare(data)
-        out.append((f, hashlib.sha1(data).hexdigest(), diff, xml_sha, len(data)))
+def walk(f: dbx.DbxFile) -> list[dbx.Element]:
+    out, stack = [], list(f.roots)
+    while stack:
+        e = stack.pop()
+        out.append(e)
+        stack.extend(e.children or ())
     return out
+
+
+def edit(f: dbx.DbxFile, rng: random.Random) -> dbx.DbxFile:
+    """A copy of f with random edits of the kinds the suite's converters make: texts and attribute values changed,
+    attributes added, children removed, copied, moved or added, numbers changed."""
+    E, T, N = dbx.Element, dbx.TEXT, dbx.NUMBERS
+    g = copy.deepcopy(f)
+    els = walk(g)
+    for _ in range(rng.randrange(1, 12)):
+        e = rng.choice(els)
+        op = rng.randrange(6)
+        if op == 0 and e.kind == T:
+            e.text = rng.choice([e.text + '_edited', '', 'Levels/WW2/new', 'é' + e.text])
+        elif op == 1 and e.attributes:
+            i = rng.randrange(len(e.attributes))
+            e.attributes[i] = (e.attributes[i][0], e.attributes[i][1] + '2')
+        elif op == 2 and len(e.attributes) < 15:
+            e.attributes.append(('added', str(rng.randrange(1000))))
+        elif op == 3 and e.children:
+            e.children.pop(rng.randrange(len(e.children)))
+        elif op == 4 and e.children:
+            c = rng.choice(e.children)
+            e.children.insert(rng.randrange(len(e.children) + 1), copy.deepcopy(c))
+        elif op == 5 and e.kind == N and len(e.raw) > 2:
+            raw = bytearray(e.raw)
+            raw[-1] ^= 0x5A
+            e.raw = bytes(raw)
+        elif e.children is not None:
+            e.children.append(E('field', T, [('name', 'Added')], text='new'))
+    return g
+
+
+def file_digest(data: bytes, sha: str, impl: Impl = RUST) -> tuple[str, str]:
+    """(the corpus digest of one file, its XML digest): XML, tree, the writer's bytes for the tree as read and after
+    the seeded random edits (seed: the file's SHA-1)."""
+    xml = xml_outcome(data, impl)
+    tree, f = parse_outcome(data, impl)
+    parts = [xml, tree]
+    if f is not None:
+        try:
+            parts.append(goldens.h(impl.write(f)))
+            parts.append(goldens.h(impl.write(edit(f, random.Random(int(sha[:12], 16))))))
+        except Exception as e:  # noqa: BLE001 - recorded as the exception's type
+            parts.append(type(e).__name__)
+    return goldens.h('|'.join(parts), 16), xml
 
 
 # ------------------------------------------------------------------------------------------------ built files
@@ -156,6 +214,16 @@ def mutations(data: bytes, rng: random.Random, n: int) -> list[bytes]:
     return out
 
 
+def quick_cases() -> dict[str, list[bytes]]:
+    """The quick tier's files, in the recording's order: built, damaged (seeded), random bodies (seeded)."""
+    built = built_files()
+    rng = random.Random(1943)
+    damaged = [m for _, d in built if d for m in mutations(d, rng, 400)]
+    noise = [bytes(rng.randrange(256) for _ in range(rng.randrange(80))) for _ in range(500)]
+    noise = [dbx.MAGIC + struct.pack('>4I', 0, 0, 0, rng.randrange(4)) + n for n in noise]
+    return {'built': [d for _, d in built], 'damaged': damaged, 'noise': noise}
+
+
 # ------------------------------------------------------------------------------------------------ corpus
 
 def corpus_files(root: str) -> list[str]:
@@ -166,47 +234,70 @@ def corpus_files(root: str) -> list[str]:
     return sorted(out)
 
 
-def run_corpus(files: list[str], check: Any, label: str) -> None:
-    golden = {}
+def corpus_chunk(job: tuple[list[str], bool]) -> list[tuple[str, str, str, str, int]]:
+    """(file, SHA-1, corpus digest, XML digest, bytes) per file (python=True: the retired Python's, for the
+    recording)."""
+    import hashlib
+    files, python = job
+    impl = python_impl() if python else RUST
+    out: list[tuple[str, str, str, str, int]] = []
+    for f in files:
+        try:
+            data = open(f, 'rb').read()
+        except OSError as e:
+            out.append((f, '', f'unreadable: {e}', '', 0))
+            continue
+        sha = hashlib.sha1(data).hexdigest()
+        digest, xml = file_digest(data, sha, impl)
+        out.append((f, sha, digest, xml, len(data)))
+    return out
+
+
+def python_impl() -> Impl:
+    """The retired Python reader and writer (present only in the recording's commit)."""
+    return Impl(lambda d: dbx._py_to_xml(dbx._bytes(d)), dbx._py_parse, dbx._py_write)  # type: ignore[attr-defined]
+
+
+def run_corpus(files: list[str], check: Any, label: str, golden: dict[str, str]) -> None:
+    fingerprints = {}
     for line in open(FINGERPRINTS):
         p = line.split()
         if len(p) >= 3 and p[0] == 'xml':
-            golden[p[1]] = p[2]
+            fingerprints[p[1]] = p[2]
     t = time.time()
-    workers = max(1, (os.cpu_count() or 2) - 1)
-    chunks = [files[i:i + 200] for i in range(0, len(files), 200)]
+    workers = max(1, min(6, (os.cpu_count() or 2) - 1))
+    chunks = [(files[i:i + 200], False) for i in range(0, len(files), 200)]
     seen: set[str] = set()
-    diffs: Counter[str] = Counter()
-    examples: dict[str, str] = {}
-    fingerprinted = fingerprint_wrong = total_bytes = 0
+    differ: list[str] = []
+    unrecorded = fingerprinted = fingerprint_wrong = total_bytes = 0
     with ProcessPoolExecutor(workers) as pool:
-        for rows in pool.map(_chunk, chunks):
-            for f, h, diff, xml_sha, size in rows:
-                if h in seen:
+        for rows in pool.map(corpus_chunk, chunks):
+            for f, sha, digest, xml, size in rows:
+                if sha in seen:
                     continue
-                seen.add(h)
+                seen.add(sha)
                 total_bytes += size
-                if diff:
-                    diffs[diff] += 1
-                    examples.setdefault(diff, f)
-                if h in golden and xml_sha is not None:
+                want = golden.get(sha[:16])
+                if want is None:
+                    unrecorded += 1
+                elif want != digest:
+                    differ.append(f)
+                if sha in fingerprints and xml.startswith('x'):
                     fingerprinted += 1
-                    fingerprint_wrong += xml_sha != golden[h]
-    for k, n in diffs.items():
-        print(f'       {n} x {k}, e.g. {examples[k]}')
-    check(not diffs, f'{label}: {len(seen)} distinct files ({len(files)} found, {total_bytes / 1e6:.0f} MB): the same XML, '
-          f'trees and refusals in both readers  ({time.time() - t:.0f} s, {workers} processes)')
+                    fingerprint_wrong += xml[1:] != fingerprints[sha][:len(xml) - 1]
+    check(not differ, f'{label}: {len(seen)} distinct files ({len(files)} found, {total_bytes / 1e6:.0f} MB): XML, tree, '
+          f'written bytes as read and edited the recorded Python\'s on {len(seen) - unrecorded - len(differ)} '
+          f'({unrecorded} not in the recording: changed since)  ({time.time() - t:.0f} s, {workers} processes)',
+          f'{len(differ)} differ, e.g. {differ[:3]}')
     if label == 'corpus':
         check(fingerprinted >= 31_000 and not fingerprint_wrong,
-              f'corpus: Rust XML identical to DbxEdit\'s on {fingerprinted} fingerprinted files', f'{fingerprint_wrong} differ')
+              f'corpus: XML identical to DbxEdit\'s on {fingerprinted} fingerprinted files', f'{fingerprint_wrong} differ')
 
 
 # ------------------------------------------------------------------------------------------------ main
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py); the suite runs on the Python reader')
-        return 0
+    native.require('the DBX reader')
     failed = 0
 
     def check(ok: bool, what: str, detail: str = '') -> None:
@@ -214,30 +305,25 @@ def main(argv: list[str]) -> int:
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''))
 
-    built = built_files()
-    bad = [name for name, data in built if compare(data)[0]]
-    check(not bad, f'{len(built)} built and hand-made files: the same XML, trees and refusals', ', '.join(bad))
-    part = built[0][1]
-    xml = NATIVE.dbx_to_xml(part)
+    rec = goldens.load(GOLDEN)['cases']
+    cases = quick_cases()
+    for name, files in cases.items():
+        got = [outcome(d) for d in files]
+        bad = [i for i, (a, b) in enumerate(zip(got, rec[name])) if a != b]
+        kinds = Counter(xml_outcome(d)[0] for d in files)
+        check(len(got) == len(rec[name]) and not bad,
+              f'{len(files)} {name} files: the XML, trees and refusals the Python reader gave ({kinds["x"]} read, '
+              f'{kinds["e"]} refused, {kinds["d"]} deleted markers)', f'{len(got)} / {len(rec[name])} cases, first: {bad[:5]}')
+    part = cases['built'][0]
+    xml = dbx.to_xml(part)
     check('<field name="Transform">1/0.1/-2.5/1E-05/' in xml and '<field name="Empty" />' in xml
           and 'Levels/MP_005 &amp; &lt;&quot;quotes&quot;&gt;' in xml and 'NaN/Infinity/-Infinity/0/0.125' in xml,
           'the XML shows singles, doubles, escapes and empty text as DbxEdit does')
 
-    rng = random.Random(1943)
-    damaged = [m for _, d in built if d for m in mutations(d, rng, 400)]
-    bad_m = [i for i, m in enumerate(damaged) if compare(m)[0]]
-    kinds = Counter(_outcome(NATIVE.dbx_to_xml, m)[0] for m in damaged)
-    check(not bad_m, f'{len(damaged)} damaged files (cut short, bytes changed): both readers agree, no crash '
-          f'({kinds["ok"]} read, {kinds["error"]} refused)', f'first: {bad_m[:5]}')
-    noise = [bytes(rng.randrange(256) for _ in range(rng.randrange(80))) for _ in range(500)]
-    noise = [dbx.MAGIC + struct.pack('>4I', 0, 0, 0, rng.randrange(4)) + n for n in noise]
-    bad_n = [i for i, m in enumerate(noise) if compare(m)[0]]
-    check(not bad_n, f'{len(noise)} random bodies behind a header: both readers agree', f'first: {bad_n[:5]}')
-
-    # errors as the Python reader raises them
+    # errors: ValueError (DeletedEntry for an empty file), never another exception
     errs = []
     for fn in (dbx.parse, dbx.to_xml):
-        for m in damaged[:300]:
+        for m in cases['damaged'][:300]:
             try:
                 fn(m)
             except ValueError:
@@ -251,32 +337,22 @@ def main(argv: list[str]) -> int:
     except dbx.DeletedEntry:
         check(True, 'an empty file raises DeletedEntry')
 
-    # the dispatcher, the batch functions and the fallback
-    check(dbx.use_native(True) == 'rust' and dbx.parse(part) == dbx._py_parse(part)
-          and dbx.parse(bytearray(part)) == dbx._py_parse(part) and dbx.to_xml(memoryview(part)) == dbx._py_to_xml(part),
-          'dbx.parse / to_xml run in Rust when it is built (bytes, bytearray, memoryview)')
-    items = [d for _, d in built]
-    many_rs = dbx.parse_many(items)
-    xml_rs = dbx.to_xml_many(items)
-    check(dbx.use_native(False) == 'python', 'use_native(False): the Python reader')
-    many_py = dbx.parse_many(items)
-    xml_py = dbx.to_xml_many(items)
-    same = all((isinstance(a, ValueError) and isinstance(b, ValueError) and type(a) is type(b)) or a == b
-               for a, b in zip([*many_rs, *xml_rs], [*many_py, *xml_py]))
-    check(same and len(many_rs) == len(items) and isinstance(many_rs[0], dbx.DbxFile)
-          and isinstance(many_rs[items.index(b'')], dbx.DeletedEntry),
-          'parse_many / to_xml_many: in order, a refused file\'s error in its place, the same in both readers')
-    dbx.use_native(True)
-    env = dict(os.environ, **{dbx.PURE_PYTHON_ENV: '1'})
-    code = 'from bfbc2core import dbx; print(dbx.backend())'
-    forced = subprocess.run([sys.executable, '-c', code], env=env, capture_output=True, text=True, cwd=os.path.join(SUITE, 'core'))
-    plain = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
-                           env={k: v for k, v in os.environ.items() if k != dbx.PURE_PYTHON_ENV}, cwd=os.path.join(SUITE, 'core'))
-    check(forced.stdout.strip() == 'python' and plain.stdout.strip() == 'rust',
-          f'{dbx.PURE_PYTHON_ENV}=1 forces the Python reader; without it the Rust core runs',
-          f'{forced.stdout.strip()} / {plain.stdout.strip()} {forced.stderr[-200:]}')
-    check(isinstance(NATIVE.threads(), int) and NATIVE.threads() >= 1 and isinstance(NATIVE.VERSION, str),
-          f'bc2_native {NATIVE.VERSION}: {NATIVE.threads()} worker threads')
+    # the input types and the batch functions
+    check(dbx.parse(bytearray(part)) == dbx.parse(part) and dbx.to_xml(memoryview(part)) == xml,
+          'dbx.parse / to_xml take bytes, bytearray and memoryview')
+    items = cases['built']
+    many = dbx.parse_many(items)
+    xmls = dbx.to_xml_many(items)
+    one = [parse_outcome(d)[0] for d in items]
+    same = all((isinstance(m, dbx.DeletedEntry) and o == 'deleted') or (isinstance(m, ValueError) and o == 'error')
+               or (isinstance(m, dbx.DbxFile) and o == 't' + goldens.rh(m)) for m, o in zip(many, one))
+    same_x = all(xml_outcome(d) == ('error' if isinstance(x, ValueError) else 'x' + goldens.h(x))
+                 for x, d in zip(xmls, items))
+    check(same and same_x and len(many) == len(items) and isinstance(many[items.index(b'')], dbx.DeletedEntry),
+          'parse_many / to_xml_many: in order, a refused file\'s error in its place, as one at a time')
+    core = native.require('the DBX reader')
+    check(isinstance(core.threads(), int) and core.threads() >= 1 and isinstance(core.VERSION, str),
+          f'bc2_native {core.VERSION}: {core.threads()} worker threads')
 
     try:
         root: str | None = paths.find_opfor()
@@ -285,12 +361,13 @@ def main(argv: list[str]) -> int:
     if root is None:
         print('skipped: the corpus runs (no Project OPFOR BFBC2 game copy)')
     else:
-        files = corpus_files(root)
+        paths_ = corpus_files(root)
+        golden = corpus_golden()
         if '--game' in argv:
-            run_corpus(files, check, 'corpus')
+            run_corpus(paths_, check, 'corpus', golden)
         else:
-            sample = random.Random(5).sample(files, min(200, len(files)))
-            run_corpus(sample, check, 'corpus sample')
+            sample = random.Random(5).sample(paths_, min(200, len(paths_)))
+            run_corpus(sample, check, 'corpus sample', golden)
 
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0

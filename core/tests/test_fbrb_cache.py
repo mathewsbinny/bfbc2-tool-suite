@@ -1,6 +1,7 @@
 r"""The bundle cache (round E3e, rust/bc2-formats fbrb::cache through bc2_native) against the reader without it and
-the Python reader: the same bytes and the same errors for every read, in any order, from memory, from a continued
-session and from the disk cache, in one process and in several at once, on whole, damaged and changed bundles.
+what the retired Python reader answered (recorded in fbrb_golden.json, round F1a 2026-11-18): the same bytes and the
+same errors for every read, in any order, from memory, from a continued session and from the disk cache, in one
+process and in several at once, on whole, damaged and changed bundles.
 
   python core\tests\test_fbrb_cache.py          quick: built bundles (zipped, several 1 MiB chunks; stored), damaged
                                                  ones, a changed bundle, 4 processes sharing a disk cache, read_many on
@@ -9,10 +10,10 @@ session and from the disk cache, in one process and in several at once, on whole
   python core\tests\test_fbrb_cache.py --game   + every 3rd bundle of the game copy by size (read only): up to 1,500
                                                  entries each, one to five at a time in a random order, through the
                                                  disk cache or memory, against the reader without the cache; up to
-                                                 300 entries of each stored bundle against the Python reader
+                                                 300 entries of each stored bundle, a few at a time, against the
+                                                 reader without the cache reading them all at once
 
-Every cache here is a folder of its own under the system's temporary folder, deleted afterwards. Skipped (exit 0) when
-the module is not built or predates the cache.
+Every cache here is a folder of its own under the system's temporary folder, deleted afterwards. Needs the module.
 """
 import hashlib
 import os
@@ -31,10 +32,12 @@ if SUITE not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, fbrb, paths  # noqa: E402
+sys.path.insert(0, HERE)
+import goldens  # noqa: E402
+from bfbc2core import fbrb, native, paths  # noqa: E402
 
-NATIVE: Any = fbrb._with_fbrb(dbx._import_native())
 CHUNK = 1 << 20
+GOLDEN = os.path.join(HERE, 'fbrb_golden.json')
 
 
 def noise(n: int, seed: int) -> bytes:
@@ -85,17 +88,20 @@ SETUPS = [('memory', None, 256 << 20), ('memory, small budget', None, 1 << 20), 
           ('disk', 'disk', 0), ('disk and memory', 'disk', 256 << 20)]
 
 
-def compare(path: str, work: str, label: str, python: bool = True) -> list[str]:
-    """Every pattern twice through each setup against read_uncached (and the Python reader): the differences."""
+def recorded(o: tuple[str, Any]) -> str:
+    """An outcome as recorded from the Python reader: the bytes' digests, or the exception's type alone (the readers
+    word their errors differently: zlib's and the Rust core's texts)."""
+    return goldens.rh(o, 10) if o[0] == 'ok' else o[0]
+
+
+def compare(path: str, work: str, label: str, python: list[str] | None = None) -> list[str]:
+    """Every pattern twice through each setup against read_uncached (and the recorded Python reader's answers):
+    the differences."""
     want = [outcome(fbrb.read_uncached, path, p) for p in PATTERNS]
     bad = []
-    if python:
-        fbrb.use_native(False)
-        py = [outcome(fbrb.read, path, p) for p in PATTERNS]
-        fbrb.use_native(True)
-        # the readers word their errors differently (zlib's and the Rust core's texts): the kind must agree
-        bad += [f'{label}: {p}: the Python reader differs ({a[0]} / {b[0]})' for p, a, b in zip(PATTERNS, want, py)
-                if a[0] != b[0] or (a[0] == 'ok' and a != b)]
+    if python is not None:
+        bad += [f'{label}: {p}: the Python reader differs ({a[0]} / {b})' for p, a, b in zip(PATTERNS, want, python)
+                if recorded(a) != b]
     for name, disk, memory in SETUPS:
         folder = os.path.join(work, 'cache') if disk else None
         shutil.rmtree(os.path.join(work, 'cache'), ignore_errors=True)
@@ -204,28 +210,38 @@ def game_sample(files: list[str], work: str, rng: random.Random, per: int, check
 
 def stored_sample(files: list[str], rng: random.Random, check: Any) -> None:
     """Up to 300 entries of each stored bundle, a few at a time in a random order (read where they are), against the
-    Python reader (which streams the payload from its start) reading them all at once."""
+    reader without the cache (which streams the payload from its start; its bytes are the retired Python reader's on
+    every bundle: test_fbrb_native.py --game) reading them all at once."""
     t = time.time()
     bad, n = [], 0
     for path in files:
         names = sorted(e.name for e in fbrb.entries(path) if not e.deleted)
         pick = rng.sample(names, min(300, len(names)))
-        fbrb.use_native(False)
-        want = {k: hashlib.sha1(v).hexdigest() for k, v in fbrb.read(path, pick).items()}
-        fbrb.use_native(True)
+        want = {k: hashlib.sha1(v).hexdigest() for k, v in fbrb.read_uncached(path, pick).items()}
         rng.shuffle(pick)
         for k in range(0, len(pick), 4):
             got = fbrb.read(path, pick[k:k + 4])
             bad += [f'{os.path.basename(path)}: {x}' for x, v in got.items() if hashlib.sha1(v).hexdigest() != want[x]]
         n += len(pick)
-    check(not bad, f'{len(files)} stored bundles, {n} entries read where they are: the Python reader\'s bytes '
-          f'({time.time() - t:.0f} s)', '; '.join(bad[:3]))
+    check(not bad, f'{len(files)} stored bundles, {n} entries read where they are: the bytes of the reader without '
+          f'the cache ({time.time() - t:.0f} s)', '; '.join(bad[:3]))
+
+
+def built_cases() -> tuple[bytes, bytes, list[bytes], random.Random]:
+    """(the built bundle zipped, stored, its damaged copies - cut at and near chunk ends, bits changed -, the seeded
+    generator the game samples continue with)."""
+    rng = random.Random(3)
+    good = fbrb.build(items(), True)
+    cases = [good[:c] for c in (CHUNK, CHUNK + 8 + 17, 2 * CHUNK + 40, len(good) - 9, len(good) - 4)]
+    for at in sorted(rng.sample(range(200, len(good)), 18)) + [len(good) - 6, len(good) - 2]:
+        b = bytearray(good)
+        b[at] ^= 1 << rng.randrange(8)
+        cases.append(bytes(b))
+    return good, fbrb.build(items(), False), cases, rng
 
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None or not hasattr(NATIVE, 'fbrb_cache_stats'):
-        print('skipped: the Rust core is not built, or was built before the bundle cache (python rust\\build_native.py)')
-        return 0
+    native.require('the bundle cache', 'fbrb_cache_stats')
     failed = 0
 
     def check(ok: bool, what: str, detail: str = '') -> None:
@@ -235,31 +251,26 @@ def main(argv: list[str]) -> int:
 
     saved = fbrb.cache_config()
     work = tempfile.mkdtemp(prefix='fbrb_cache_test_')
-    rng = random.Random(3)
+    rec = goldens.load(GOLDEN)['cache']
     try:
         zipped = os.path.join(work, 'zipped.fbrb')
         stored = os.path.join(work, 'stored.fbrb')
-        good = fbrb.build(items(), True)
+        good, stored_data, cases, rng = built_cases()
         open(zipped, 'wb').write(good)
-        open(stored, 'wb').write(fbrb.build(items(), False))
+        open(stored, 'wb').write(stored_data)
         check(len(good) > 3 * CHUNK, f'the built bundle spans {len(good) / CHUNK:.1f} chunks of compressed payload')
-        bad = compare(zipped, work, 'zipped') + compare(stored, work, 'stored')
+        bad = compare(zipped, work, 'zipped', rec['zipped']) + compare(stored, work, 'stored', rec['stored'])
         check(not bad, f'built bundles, zipped and stored: {len(PATTERNS)} read patterns twice through {len(SETUPS)} '
               'setups (memory, a 1 MiB budget, nothing kept, disk, disk and memory): the bytes and errors of the '
-              'reader without the cache and of the Python reader', '; '.join(bad[:3]))
+              'reader without the cache and of the Python reader (recorded)', '; '.join(bad[:3]))
 
         # damaged: chunk boundaries and flips; the cut and changed bundles through every setup
-        cases = [good[:c] for c in (CHUNK, CHUNK + 8 + 17, 2 * CHUNK + 40, len(good) - 9, len(good) - 4)]
-        for at in sorted(rng.sample(range(200, len(good)), 18)) + [len(good) - 6, len(good) - 2]:
-            b = bytearray(good)
-            b[at] ^= 1 << rng.randrange(8)
-            cases.append(bytes(b))
         bad, failures = [], 0
         for i, case in enumerate(cases):
             p = os.path.join(work, f'damaged{i}.fbrb')
             open(p, 'wb').write(case)
             failures += sum(outcome(fbrb.read_uncached, p, x)[0] != 'ok' for x in PATTERNS)
-            bad += compare(p, work, f'damaged {i}', python=i % 4 == 0)
+            bad += compare(p, work, f'damaged {i}', rec['damaged'].get(str(i)))
         check(not bad and failures > 40, f'{len(cases)} damaged bundles (cut at and near chunk ends, bits changed): the '
               f'same bytes and errors through every setup ({failures} of {len(cases) * len(PATTERNS)} reads refused)',
               '; '.join(bad[:3]))
@@ -325,9 +336,9 @@ def main(argv: list[str]) -> int:
                             if n.lower().endswith('.fbrb')), key=os.path.getsize)
             zipped_files: list[str] = []
             stored_files: list[str] = []
+            header = native.require('the bundle reader').fbrb_header
             for f in files:
-                with open(f, 'rb') as fh:
-                    (stored_files, zipped_files)[fbrb._header(fh)[1]].append(f)
+                (stored_files, zipped_files)[bool(header(f, fbrb.Entry)[1])].append(f)
             if '--game' in argv:
                 game_sample(zipped_files[::3], work, rng, 1500, check, 'every 3rd zipped game bundle by size')
                 stored_sample(stored_files, rng, check)

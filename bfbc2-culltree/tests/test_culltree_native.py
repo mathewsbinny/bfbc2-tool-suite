@@ -1,19 +1,21 @@
-r"""culltree.py's Rust core (rust/bc2-formats culltree, through the bc2_native module) against its Python code: Doc's
-element reader (the same elements, trailer and bytes written; a file the Rust reader refuses is read, and refused,
-by Python), and ref_pairs' level search (level_partitions: the folder listing glob gives, the files that hold
-ExclusiveStaticCullTree).
+r"""culltree.py's element reader (rust/bc2-formats culltree, through the bc2_native module) against what its retired
+Python reader (Doc's element loop; round F1a, 2026-11-18) read, recorded before it was deleted (culltree_golden.json):
+the same elements, trailer and bytes written, the same CullTree / Level, the same add run; and ref_pairs' level search
+(level_partitions: the folder listing glob gives, the files that hold ExclusiveStaticCullTree).
 
-  python test_culltree_native.py          quick: built trees and levels, damaged and random streams, a folder with
-                                          hidden files, links and odd names, the dispatcher; 2 trees of OPFOR's work
-                                          folders when they are there
+  python test_culltree_native.py          quick: built trees and levels, damaged and random streams, add on a built
+                                          level, a folder with hidden files, links and odd names; 2 trees of OPFOR's
+                                          work folders when they are there
   python test_culltree_native.py --game   + every cull tree and level partition of the game copy's level bundles (read
-                                          only) and of OPFOR's work\levels / work\ww2 / work\console_cull: both
-                                          readers, the same CullTree / Level, written back as they were; the listing of
-                                          every work\levels folder against glob; and `add --auto --misplaced 2 --ref-dir
-                                          <every work\levels folder>` on Onslaught's MP_005 (console_cull's run), both
-                                          backends into a temp folder: the same tree, level and report
+                                          only) and of OPFOR's work\levels / work\ww2 / work\console_cull: the same
+                                          CullTree / Level, written back as they were; the listing of every work\levels
+                                          folder against glob; and `add --auto --misplaced 2 --ref-dir <every work\levels
+                                          folder>` on Onslaught's MP_005 (console_cull's run) into a temp folder: the
+                                          recorded Python run's tree, level and report
 
-Skipped (exit 0) when the module is not built (python rust\build_native.py).
+Where the Python reader raised IndexError (a stream cut inside an element) the reader now raises CullTreeError saying
+so; where it read a varint past 64 bits as a big integer (no real file has one) it raises CullTreeError too: the
+counts are printed. A file the recording does not have (changed since) is counted, not compared. Needs the module.
 """
 import glob
 import os
@@ -36,14 +38,16 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('culltree', 'core')
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(_ROOT, 'core', 'tests'))
 import culltree as ct  # noqa: E402
+import goldens  # noqa: E402
 import test_culltree as tc  # noqa: E402
-from bfbc2core import fbrb, paths  # noqa: E402
+from bfbc2core import fbrb, native, paths  # noqa: E402
 
-NATIVE: Any = ct._import_native()
+GOLDEN = os.path.join(HERE, 'culltree_golden.json')
 
 
-# ------------------------------------------------------------------------------------------------ both backends
+# ------------------------------------------------------------------------------------------------ one file
 
 def flat(doc: ct.Doc) -> list[tuple[Any, ...]]:
     """Every element as (depth, tag, head, attrs, extra, value, container) in file order."""
@@ -57,24 +61,36 @@ def flat(doc: ct.Doc) -> list[tuple[Any, ...]]:
     return out
 
 
-def outcome(data: bytes, native: bool) -> tuple[str, Any]:
-    ct.use_native(native)
+def outcome(data: bytes) -> tuple[str, str]:
+    """(the digest of what Doc reads - 'ok:' and its header, strings, elements, trailer and bytes written, or 'E:',
+    the exception's type and its message's digest -, the message)."""
     try:
         d = ct.Doc(data, 'f')
-    except Exception as e:  # noqa: BLE001 - every exception is compared
-        return type(e).__name__, str(e)
-    return 'ok', (d.head12, d.string_area, d.strings, flat(d), d.trailer, d.tobytes())
+    except Exception as e:  # noqa: BLE001 - every exception is recorded
+        return f'E:{type(e).__name__}:{goldens.h(str(e), 8)}', str(e)
+    return 'ok:' + goldens.rh((d.head12, d.string_area, d.strings, flat(d), d.trailer, d.tobytes()), 10), ''
 
 
-def compare(data: bytes, roundtrip: bool = True) -> tuple[str | None, str]:
-    py, rs = outcome(data, False), outcome(data, True)
-    ct.use_native(True)
-    if py != rs:
-        return (f'python {py[0]}, rust {rs[0]}' if py[0] != rs[0] else
-                'messages differ' if py[0] != 'ok' else 'elements differ'), rs[0]
-    if roundtrip and py[0] == 'ok' and py[1][5] != data:
-        return 'written bytes are not the file\'s', 'ok'
-    return None, rs[0]
+class Tally:
+    """How the reader's answers compare with the recorded ones."""
+
+    def __init__(self) -> None:
+        self.n: Counter[str] = Counter()
+        self.bad: list[str] = []
+
+    def add(self, label: str, want: str, got: tuple[str, str]) -> None:
+        g, msg = got
+        if g == want:
+            self.n['the same'] += 1
+        elif want.startswith(('E:IndexError', 'E:CullTreeError')) and g.startswith('E:CullTreeError') and 'truncated file' in msg:
+            self.n['cut short: CullTreeError (Python: ' + want.split(':')[1] + ')'] += 1
+        elif want.startswith('ok:') and g.startswith('E:CullTreeError') and 'longer than 64 bits' in msg:
+            self.n['a varint past 64 bits: CullTreeError (Python read it)'] += 1
+        else:
+            self.bad.append(f'{label}: {g} {msg[:60]} / recorded {want}')
+
+    def text(self) -> str:
+        return ', '.join(f'{k}: {v}' for k, v in sorted(self.n.items()))
 
 
 def mutations(data: bytes, rng: random.Random, n: int) -> list[bytes]:
@@ -96,6 +112,33 @@ def mutations(data: bytes, rng: random.Random, n: int) -> list[bytes]:
     return out
 
 
+OBJS = [('00000000-0000-0000-0000-00000000000%d' % i, bp, tc.rot_y(i * 40, (i * 10, 2, -i * 7)), 1)
+        for i, bp in enumerate(['objects/test/hut/hut', 'objects/test/rock/rock', 'objects/test/lamp/lamp'] * 3)]
+
+
+def built_files() -> list[tuple[str, bytes]]:
+    nodes, placed = tc.make_tree(OBJS, 100)
+    made = [('tree', tc.tree_file(nodes, 100)), ('level', tc.level_file(placed))]
+    made.append(('a trailer after the stream', made[0][1] + b'\0\x07trailing'))
+    made.append(('strings that are not UTF-8', made[1][1].replace(b'objects/test/hut', b'objects/t\xe9\xffx/hut')))
+    head = made[1][1][:24 + struct.unpack('>I', made[1][1][16:20])[0]]
+    made.append(('a tag beyond 64 bits (Python read it as a big integer)', head + b'\x80' * 10 + b'\x02\x50\x01\x02'))
+    made.append(('a two-byte value cut by the end', head + b'\x01\x50\x07'))
+    made.append(('a top-level end mark, then bytes', head + b'\x01\x50\x07\x08\x00\x01\x50'))
+    return made
+
+
+def quick_cases() -> list[tuple[str, bytes]]:
+    """(label, data) in the recording's order: built files, damaged copies of the tree and level, random streams."""
+    made = built_files()
+    out = list(made)
+    rng = random.Random(2049)
+    for _, data in made[:2]:
+        out += [('damaged', m) for m in mutations(data, rng, 700)]
+    out += [('noise', ct.MAGIC + bytes(rng.randrange(256) for _ in range(16 + rng.randrange(80)))) for _ in range(500)]
+    return out
+
+
 def tree_state(path: str) -> tuple[Any, ...]:
     t = ct.CullTree(path)
     return (t.enum_offset, t.nodes, t.used, t.spare, sorted(t.leaf_node), t.depth_and_stack())
@@ -106,41 +149,56 @@ def level_state(path: str) -> tuple[Any, ...]:
     return (lv.tree_refs, [(o.guid, o.blueprint, o.m, o.enum) for o in lv.objects])
 
 
-def _compare_file(item: tuple[str, str, str]) -> tuple[str, int, str | None, str]:
-    """(label, bytes, difference, kind) for a tree or level partition: a file, or a bundle entry (copied to a temp
-    file for CullTree / Level, which take paths)."""
+def built_add(tmp: str) -> str:
+    """CullTree, Level, collect and add on a built tree and level (two objects at slot 0): the digest of the states,
+    the objects added, the log and the files written."""
+    tp, lp = os.path.join(tmp, 'Levels', 'test', 'staticculltree_exclusive.dbx'), os.path.join(tmp, 'Levels', 'test.dbx')
+    os.makedirs(os.path.dirname(tp), exist_ok=True)
+    objs0 = [o[:3] + (0,) if i in (2, 5) else o for i, o in enumerate(OBJS)]
+    nodes0, placed0 = tc.make_tree(objs0, 100)
+    with open(tp, 'wb') as fh:
+        fh.write(tc.tree_file(nodes0, 100))
+    with open(lp, 'wb') as fh:
+        fh.write(tc.level_file(placed0))
+    o = os.path.join(tmp, 'out')
+    log: list[str] = []
+    t, lv = ct.CullTree(tp), ct.Level(lp)
+    found = ct.collect([(t, lv, 'level')])
+    done = ct.add(t, lv, ct.auto_objects(lv, found), found, log.append)
+    t.write(os.path.join(o, 'tree.dbx'))
+    lv.doc.write(os.path.join(o, 'level.dbx'))
+    return goldens.rh((tree_state(tp), level_state(lp), len(done), log, open(os.path.join(o, 'tree.dbx'), 'rb').read(),
+                       open(os.path.join(o, 'level.dbx'), 'rb').read()), 16)
+
+
+def file_outcome(item: tuple[str, str, str]) -> tuple[str, str, str, tuple[str, str], int]:
+    """(label, data SHA-1, digest of the CullTree / Level and written bytes or the exception, Doc's outcome, bytes) for
+    a tree or level partition: a file, or a bundle entry (copied to a temp file for CullTree / Level, which take
+    paths)."""
     kind, path, entry = item
     label = path + (f':{entry}' if entry else '')
     data = fbrb.read(path, [entry])[entry] if entry else open(path, 'rb').read()
+    sha = goldens.h(data, 16)
     if not data.startswith(ct.MAGIC):
-        return label, len(data), None, 'text'
-    diff, k = compare(data)
-    if diff or k != 'ok':
-        return label, len(data), diff, k
+        return label, sha, 'text', ('text', ''), len(data)
+    doc = outcome(data)
+    if not doc[0].startswith('ok:'):
+        return label, sha, doc[0], doc, len(data)
     with tempfile.TemporaryDirectory(prefix='ct_native_') as tmp:
         p = os.path.join(tmp, 'f.dbx')
         with open(p, 'wb') as fh:
             fh.write(data)
-        got: list[tuple[str, Any]] = []
-        for on in (False, True):
-            ct.use_native(on)
-            try:
-                if kind == 'tree':
-                    st = tree_state(p)
-                    t = ct.CullTree(p)
-                    t.write(os.path.join(tmp, 'w.dbx'))
-                    st += (open(os.path.join(tmp, 'w.dbx'), 'rb').read() == data,)
-                else:
-                    st = level_state(p)
-                got.append(('ok', st))
-            except Exception as e:  # noqa: BLE001
-                got.append((type(e).__name__, str(e)))
-        ct.use_native(True)
-    if got[0] != got[1]:
-        return label, len(data), f'{kind}s differ ({got[0][0]} / {got[1][0]})', 'ok'
-    if got[0][0] == 'ok' and kind == 'tree' and not got[0][1][-1]:
-        return label, len(data), 'tree written back with other bytes', 'ok'
-    return label, len(data), None, got[0][0] if got[0][0] != 'ok' else 'ok'
+        try:
+            if kind == 'tree':
+                st = tree_state(p)
+                ct.CullTree(p).write(os.path.join(tmp, 'w.dbx'))
+                st += (open(os.path.join(tmp, 'w.dbx'), 'rb').read() == data,)
+            else:
+                st = level_state(p)
+            state = 'ok:' + goldens.rh(st, 16)
+        except Exception as e:  # noqa: BLE001
+            state = f'E:{type(e).__name__}:{goldens.h(str(e), 8)}'
+    return label, sha, f'{doc[0]}|{state}', doc, len(data)
 
 
 # ------------------------------------------------------------------------------------------------ the corpus
@@ -174,29 +232,51 @@ def corpus(root: str) -> list[tuple[str, str, str]]:
     return items
 
 
-def run_corpus(root: str, check: Any) -> None:
+def key(label: str, root: str) -> str:
+    return os.path.relpath(label, root).replace(os.sep, '/')
+
+
+def run_corpus(root: str, check: Any, golden: dict[str, list[str]], items: list[tuple[str, str, str]] | None = None,
+               what: str = '') -> None:
     t = time.time()
-    items = corpus(root)
-    diffs: Counter[str] = Counter()
-    examples: dict[str, str] = {}
+    items = corpus(root) if items is None else items
+    tally = Tally()
     kinds: Counter[tuple[str, str]] = Counter()
-    nbytes = 0
-    workers = max(1, min(6, (os.cpu_count() or 2) - 1))
+    nbytes = changed = 0
+    workers = max(1, min(3, (os.cpu_count() or 2) - 1))
     with ProcessPoolExecutor(workers) as pool:
-        for item, (label, size, diff, kind) in zip(items, pool.map(_compare_file, items, chunksize=4)):
-            kinds[(item[0], kind)] += 1
+        for item, (label, sha, d, doc, size) in zip(items, pool.map(file_outcome, items, chunksize=4)):
+            kinds[(item[0], d.split(':')[0] if '|' not in d else 'ok')] += 1
             nbytes += size
-            if diff:
-                diffs[diff] += 1
-                examples.setdefault(diff, label)
-    for k, n in diffs.items():
-        print(f'       {n} x {k}, e.g. {examples[k]}')
+            want = golden.get(key(label, root))
+            if want is None or want[0] != sha:
+                changed += 1
+            elif want[1] == d:
+                tally.n['the same'] += 1
+            elif doc[0] == want[1].split('|')[0]:
+                tally.bad.append(f'{label}: the same elements, another CullTree / Level or written bytes')
+            else:
+                tally.add(label, want[1].split('|')[0], doc)
     trees = sum(n for (k, _), n in kinds.items() if k == 'tree')
-    check(not diffs and kinds[('tree', 'ok')] > 0,
-          f'{trees} cull trees and {len(items) - trees} level partitions (the game copy\'s level bundles, work\\levels, '
-          f'work\\ww2, work\\console_cull; {nbytes / 1e6:.0f} MB): the same elements, trailers and bytes; the same '
-          f'CullTree (nodes, leaves, spare, depth) and Level (objects, tree references); trees written back as they '
-          f'were ({", ".join(f"{a} {b}: {n}" for (a, b), n in sorted(kinds.items()))})  ({time.time() - t:.0f} s)')
+    check(not tally.bad and kinds[('tree', 'ok')] > 0,
+          f'{what or ""}{trees} cull trees and {len(items) - trees} level partitions ({nbytes / 1e6:.0f} MB): the elements, '
+          f'trailers and bytes, CullTree (nodes, leaves, spare, depth) and Level (objects, tree references) the Python '
+          f'reader gave, trees written back as they were ({tally.text()}; {changed} changed since the recording)  '
+          f'({time.time() - t:.0f} s)', '; '.join(tally.bad[:3]))
+
+
+def level_partitions_glob(folder: str) -> list[str]:
+    """level_partitions as glob and a plain read find them (the test's own oracle)."""
+    files = sorted(glob.glob(os.path.join(folder, '**', '*.dbx'), recursive=True))
+    out = []
+    for p in files:
+        b = os.path.basename(p).lower()
+        if 'staticculltree' in b or '_description' in b:
+            continue
+        with open(p, 'rb') as f:
+            if ct.LEVEL_MARK in f.read():
+                out.append(p)
+    return out
 
 
 def run_listing(root: str, check: Any) -> None:
@@ -204,90 +284,89 @@ def run_listing(root: str, check: Any) -> None:
     dirs = sorted(os.path.join(levels, d) for d in os.listdir(levels) if os.path.isdir(os.path.join(levels, d)))
     t = time.time()
     bad, n, found = [], 0, 0
+    m = native.require('culltree')
     for d in dirs:
         g = sorted(glob.glob(os.path.join(d, '**', '*.dbx'), recursive=True))
-        r = sorted(os.path.join(d, x) for x in NATIVE.culltree_dbx_files(d))
+        r = sorted(os.path.join(d, x) for x in m.culltree_dbx_files(d))
         n += len(g)
         if g != r:
             bad.append(f'{d}: glob {len(g)}, rust {len(r)}')
     t1 = time.time()
     sample = dirs[:3]
     for d in sample:
-        ct.use_native(False)
-        a = ct.level_partitions(d)
-        ct.use_native(True)
+        a = level_partitions_glob(d)
         b = ct.level_partitions(d)
         found += len(b)
         if a != b:
             bad.append(f'{d}: level partitions differ ({len(a)} / {len(b)})')
     check(not bad, f'{len(dirs)} folders of work\\levels ({n:,} .dbx): the Rust listing is glob\'s ({t1 - t:.0f} s); '
-          f'level_partitions in both backends on {len(sample)} of them: the same {found} partitions', '; '.join(bad[:3]))
+          f'level_partitions on {len(sample)} of them: the {found} partitions glob and a read find', '; '.join(bad[:3]))
 
 
 CULL_SOURCE = ('Levels/ONS_MP_005/staticculltree_exclusive.dbx', 'Levels/ONS_MP_005.dbx')   # console_cull's
 
 
-def run_add(root: str, check: Any) -> None:
-    """console_cull's add on Onslaught MP_005, both backends. The input: the level bundle as it was before
-    console_cull's stage (the game copy's level-00.fbrb.opfor-cull-orig, read only; its tree and level partition
-    written to the temp folder), else console_cull's own unpack in work (already patched: one object left to add)."""
+def add_run(root: str, tmp: str, env: dict[str, str]) -> tuple[str, str, Any] | None:
+    """console_cull's add on Onslaught MP_005: (where the input came from, its digest, (exit code, report, the tree and
+    level written)). The input: the level bundle as it was before console_cull's stage (the game copy's
+    level-00.fbrb.opfor-cull-orig, read only; its tree and level partition written to tmp), else console_cull's own
+    unpack in work (already patched: one object left to add)."""
     levels = os.path.join(root, 'work', 'levels')
     orig = os.path.join(root, 'game', 'Package', 'levels', 'ons_mp_005', 'level-00.fbrb.opfor-cull-orig')
     pkg = os.path.join(root, 'work', 'console_cull', 'ons_mp_005', 'pkg')
-    with tempfile.TemporaryDirectory(prefix='culltree_add_') as tmp:
-        if os.path.isfile(orig):
-            source = 'the bundle before the cull stage (fresh)'
-            data = fbrb.read(orig, list(CULL_SOURCE))
-            for name in CULL_SOURCE:
-                p = os.path.join(tmp, 'in', *name.split('/'))
-                os.makedirs(os.path.dirname(p), exist_ok=True)
-                with open(p, 'wb') as fh:
-                    fh.write(data[name])
-            tree, level = (os.path.join(tmp, 'in', *n.split('/')) for n in CULL_SOURCE)
-        else:
-            source = 'work\\console_cull\'s unpack (already patched)'
-            tree, level = (os.path.join(pkg, *n.split('/')) for n in CULL_SOURCE)
-        if not (os.path.isfile(tree) and os.path.isfile(level) and os.path.isdir(levels)):
-            print('skipped: the add run (no Onslaught MP_005 source or work\\levels)')
-            return
-        run_add_on(tree, level, levels, source, tmp, check)
-
-
-def run_add_on(tree: str, level: str, levels: str, source: str, tmp: str, check: Any) -> None:
+    if os.path.isfile(orig):
+        source = 'the bundle before the cull stage (fresh)'
+        data = fbrb.read(orig, list(CULL_SOURCE))
+        for name in CULL_SOURCE:
+            p = os.path.join(tmp, 'in', *name.split('/'))
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, 'wb') as fh:
+                fh.write(data[name])
+        tree, level = (os.path.join(tmp, 'in', *n.split('/')) for n in CULL_SOURCE)
+    else:
+        source = 'work\\console_cull\'s unpack (already patched)'
+        tree, level = (os.path.join(pkg, *n.split('/')) for n in CULL_SOURCE)
+    if not (os.path.isfile(tree) and os.path.isfile(level) and os.path.isdir(levels)):
+        return None
     refs = []
-    for d in sorted(os.listdir(levels)):
-        if os.path.isdir(os.path.join(levels, d)):
-            refs += ['--ref-dir', os.path.join(levels, d)]
-    out, times = [], []
-    # both sides read every reference level (BFBC2_CULLTREE_CACHE=0: no rows from round E3m's cache)
-    for side, env in (('python', {'BFBC2_PURE_PYTHON': '1', 'BFBC2_CULLTREE_CACHE': '0'}),
-                      ('rust', {'BFBC2_PURE_PYTHON': '', 'BFBC2_CULLTREE_CACHE': '0'})):
-        o = os.path.join(tmp, side)
-        os.makedirs(o)
+    dirs = sorted(d for d in os.listdir(levels) if os.path.isdir(os.path.join(levels, d)))
+    for d in dirs:
+        refs += ['--ref-dir', os.path.join(levels, d)]
+    inputs = goldens.rh((goldens.file_sha(tree), goldens.file_sha(level), dirs), 16)
+    o = os.path.join(tmp, 'out')
+    os.makedirs(o, exist_ok=True)
+    r = subprocess.run([sys.executable, os.path.join(ROOT, 'culltree.py'), 'add', tree, level, '--auto',
+                        '--misplaced', '2.0', *refs, '--out-tree', os.path.join(o, 'tree.dbx'),
+                        '--out-level', os.path.join(o, 'level.dbx')],
+                       capture_output=True, text=True, errors='replace', env={**os.environ, **env})
+    files = [goldens.file_sha(os.path.join(o, f)) if os.path.isfile(os.path.join(o, f)) else None
+             for f in ('tree.dbx', 'level.dbx')]
+    return source, inputs, [r.returncode, r.stdout.replace(o, '<out>').replace(tmp, '<tmp>'), files]
+
+
+def run_add(root: str, check: Any, golden: dict[str, Any]) -> None:
+    with tempfile.TemporaryDirectory(prefix='culltree_add_') as tmp:
         t = time.time()
-        r = subprocess.run([sys.executable, os.path.join(ROOT, 'culltree.py'), 'add', tree, level, '--auto',
-                            '--misplaced', '2.0', *refs, '--out-tree', os.path.join(o, 'tree.dbx'),
-                            '--out-level', os.path.join(o, 'level.dbx')],
-                           capture_output=True, text=True, errors='replace', env={**os.environ, **env})
-        times.append(time.time() - t)
-        files = [open(os.path.join(o, f), 'rb').read() if os.path.isfile(os.path.join(o, f)) else None
-                 for f in ('tree.dbx', 'level.dbx')]
-        out.append((r.returncode, r.stdout.replace(o, '<out>'), files))     # the report names its output files
-    lines = out[0][1].strip().splitlines()
+        got = add_run(root, tmp, {'BFBC2_CULLTREE_CACHE': '0'})    # every reference level read (no E3m rows)
+    if got is None:
+        print('skipped: the add run (no Onslaught MP_005 source or work\\levels)')
+        return
+    source, inputs, (code, report, files) = got
+    if golden.get('inputs') != inputs:
+        print(f'skipped: the add run ({source}: its input or the work\\levels folders changed since the recording)')
+        return
+    lines = report.strip().splitlines()
     added = sum(1 for x in lines if ': slot ' in x and ' leaves (shape from ' in x)
-    check(out[0] == out[1] and out[0][0] == 0 and out[0][2][0] is not None,
-          f'add --auto --misplaced 2 on Onslaught MP_005 ({source}) against every work\\levels folder: the same tree, '
-          f'level and report both ways ({added} objects added, {len(lines)} report lines, "{lines[-1] if lines else ""}"; '
-          f'Python {times[0]:.0f} s, '
-          f'Rust core {times[1]:.0f} s)', f'exit {out[0][0]} / {out[1][0]}')
+    check([code, goldens.h(report, 16), files] == golden['result'] and code == 0 and files[0] is not None,
+          f'add --auto --misplaced 2 on Onslaught MP_005 ({source}) against every work\\levels folder: the recorded '
+          f'Python run\'s tree, level and report ({added} objects added, {len(lines)} report lines, '
+          f'"{lines[-1] if lines else ""}"; {time.time() - t:.0f} s)', f'exit {code}')
 
 
 # ------------------------------------------------------------------------------------------------ main
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py); culltree runs on Python')
-        return 0
+    m = native.require('culltree', 'culltree_elements')
     failed = 0
 
     def check(ok: object, what: str, detail: str = '') -> None:
@@ -295,66 +374,29 @@ def main(argv: list[str]) -> int:
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''), flush=True)
 
-    objs = [('00000000-0000-0000-0000-00000000000%d' % i, bp, tc.rot_y(i * 40, (i * 10, 2, -i * 7)), 1)
-            for i, bp in enumerate(['objects/test/hut/hut', 'objects/test/rock/rock', 'objects/test/lamp/lamp'] * 3)]
-    nodes, placed = tc.make_tree(objs, 100)
-    made = [('tree', tc.tree_file(nodes, 100)), ('level', tc.level_file(placed))]
-    made.append(('a trailer after the stream', made[0][1] + b'\0\x07trailing'))
-    made.append(('strings that are not UTF-8', made[1][1].replace(b'objects/test/hut', b'objects/t\xe9\xffx/hut')))
-    head = made[1][1][:24 + struct.unpack('>I', made[1][1][16:20])[0]]
-    made.append(('a tag beyond 64 bits (Python reads it as a big integer)', head + b'\x80' * 10 + b'\x02\x50\x01\x02'))
-    made.append(('a two-byte value cut by the end', head + b'\x01\x50\x07'))
-    made.append(('a top-level end mark, then bytes', head + b'\x01\x50\x07\x08\x00\x01\x50'))
-    bad = [f'{label}: {d}' for label, data in made if (d := compare(data)[0])]
-    check(not bad, f'{len(made)} built files (a tree, a level, a trailer, non-UTF-8 strings, a tag past 64 bits, a cut '
-          'value, an early end): the same elements and bytes in both readers', '; '.join(bad))
+    rec = goldens.load(GOLDEN)
+    cases = quick_cases()
+    tally = Tally()
+    roundtrip = []
+    for i, ((label, data), want) in enumerate(zip(cases, rec['cases'])):
+        got = outcome(data)
+        tally.add(f'{label} #{i}', want, got)
+        if got[0].startswith('ok:') and label not in ('damaged',) and ct.Doc(data, 'f').tobytes() != data:
+            roundtrip.append(label)
+    check(len(cases) == len(rec['cases']) and not tally.bad and not roundtrip,
+          f'{len(cases)} built, damaged and random files (cut short, bytes changed, runs written, bytes cut out, long '
+          f'varints): the elements and bytes the Python reader gave, or an error ({tally.text()}); built files and '
+          'random streams written back as they were', '; '.join(tally.bad[:3] + roundtrip))
+    try:
+        ct.Doc(bytearray(cases[0][1]), 'f')
+        ok_any = True
+    except Exception:  # noqa: BLE001
+        ok_any = False
+    check(ok_any, 'Doc reads bytearray as well as bytes')
 
-    rng = random.Random(2049)
-    kinds: Counter[str] = Counter()
-    bad_m, n = [], 0
-    for _, data in made[:2]:
-        for m in mutations(data, rng, 700):
-            n += 1
-            d, k = compare(m, False)
-            kinds[k] += 1
-            if d:
-                bad_m.append(f'#{n}: {d}')
-    noise = [ct.MAGIC + bytes(rng.randrange(256) for _ in range(16 + rng.randrange(80))) for _ in range(500)]
-    for m in noise:
-        n += 1
-        d, k = compare(m)
-        kinds[k] += 1
-        if d:
-            bad_m.append(f'noise #{n}: {d}')
-    check(not bad_m, f'{n} damaged and random files (cut short, bytes changed, runs written, bytes cut out, long '
-          f'varints): the same elements, or the same exception and message, in both ({dict(kinds)})',
-          '; '.join(bad_m[:3]))
-
-    # the tree and level objects on the built files, and add on them, both ways
     with tempfile.TemporaryDirectory(prefix='culltree_native_') as tmp:
-        tp, lp = os.path.join(tmp, 'Levels', 'test', 'staticculltree_exclusive.dbx'), os.path.join(tmp, 'Levels', 'test.dbx')
-        os.makedirs(os.path.dirname(tp))
-        objs0 = [o[:3] + (0,) if i in (2, 5) else o for i, o in enumerate(objs)]
-        nodes0, placed0 = tc.make_tree(objs0, 100)
-        with open(tp, 'wb') as fh:
-            fh.write(tc.tree_file(nodes0, 100))
-        with open(lp, 'wb') as fh:
-            fh.write(tc.level_file(placed0))
-        res = []
-        for on in (False, True):
-            ct.use_native(on)
-            o = os.path.join(tmp, f'out{on}')
-            log: list[str] = []
-            t, lv = ct.CullTree(tp), ct.Level(lp)
-            found = ct.collect([(t, lv, 'level')])
-            done = ct.add(t, lv, ct.auto_objects(lv, found), found, log.append)
-            t.write(os.path.join(o, 'tree.dbx'))
-            lv.doc.write(os.path.join(o, 'level.dbx'))
-            res.append((tree_state(tp), level_state(lp), len(done), log,
-                        open(os.path.join(o, 'tree.dbx'), 'rb').read(), open(os.path.join(o, 'level.dbx'), 'rb').read()))
-        ct.use_native(True)
-        check(res[0] == res[1] and res[0][2] == 2, 'a built tree and level: the same CullTree, Level, objects added, '
-              'log and files written in both backends', f'{res[0][2]} / {res[1][2]} added')
+        check(built_add(tmp) == rec['built_add'], 'a built tree and level: the CullTree, Level, objects added, log and '
+              'files written the Python reader gave')
 
         # the folder listing and the level search
         lv_dir = os.path.join(tmp, 'refs')
@@ -371,39 +413,21 @@ def main(argv: list[str]) -> int:
         linked = subprocess.run(['cmd', '/c', 'mklink', '/J', link, os.path.join(lv_dir, 'a', 'b')],
                                 capture_output=True).returncode == 0 if os.name == 'nt' else False
         g = sorted(glob.glob(os.path.join(lv_dir, '**', '*.dbx'), recursive=True))
-        r = sorted(os.path.join(lv_dir, x) for x in NATIVE.culltree_dbx_files(lv_dir))
-        ct.use_native(False)
-        a = ct.level_partitions(lv_dir)
-        ct.use_native(True)
-        b = ct.level_partitions(lv_dir)
+        r = sorted(os.path.join(lv_dir, x) for x in m.culltree_dbx_files(lv_dir))
+        a, b = level_partitions_glob(lv_dir), ct.level_partitions(lv_dir)
         check(g == r and a == b and len(a) == 3,
               f'a folder with hidden files and folders, other cases, a non-ASCII folder, an empty file'
-              f'{", a junction" if linked else ""}: the Rust listing is glob\'s ({len(g)} files), the same 3 level '
-              'partitions in both backends', f'{g} / {r}; {a} / {b}')
+              f'{", a junction" if linked else ""}: the Rust listing is glob\'s ({len(g)} files), the 3 level '
+              'partitions glob and a read find', f'{g} / {r}; {a} / {b}')
         if linked:
             os.rmdir(link)                    # the junction itself, never what it points at
         os.makedirs(os.path.join(lv_dir, 'dir.dbx'))
-        errs = []
-        for on in (False, True):
-            ct.use_native(on)
-            try:
-                ct.level_partitions(lv_dir)
-                errs.append('none')
-            except OSError as e:
-                errs.append(type(e).__name__)
-        ct.use_native(True)
-        check(errs[0] == errs[1] != 'none', f'a folder named *.dbx: both backends raise as Python reads it ({errs[0]})')
-
-    check(ct.backend() == 'rust' and ct.use_native(False) == 'python' and ct.use_native(True) == 'rust',
-          'use_native switches the backend')
-    code = 'import culltree; print(culltree.backend())'
-    forced = subprocess.run([sys.executable, '-c', code], env={**os.environ, 'BFBC2_PURE_PYTHON': '1'},
-                            capture_output=True, text=True, cwd=ROOT)
-    plain = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, cwd=ROOT,
-                           env={k: v for k, v in os.environ.items() if k != 'BFBC2_PURE_PYTHON'})
-    check(forced.stdout.strip() == 'python' and plain.stdout.strip() == 'rust',
-          'BFBC2_PURE_PYTHON=1 forces Python; without it the Rust core runs',
-          f'{forced.stdout.strip()} / {plain.stdout.strip()} {forced.stderr[-300:]}')
+        try:
+            ct.level_partitions(lv_dir)
+            err = 'none'
+        except OSError as e:
+            err = type(e).__name__
+        check(err != 'none', f'a folder named *.dbx: level_partitions raises as reading it does ({err})')
 
     try:
         root: str | None = paths.find_opfor()
@@ -412,20 +436,17 @@ def main(argv: list[str]) -> int:
     if root is None:
         print('skipped: the game runs (no Project OPFOR BFBC2 game copy)')
     elif '--game' in argv:
-        run_corpus(root, check)
+        run_corpus(root, check, rec['game'])
         run_listing(root, check)
-        run_add(root, check)
+        run_add(root, check, rec['add'])
     else:
-        sample = [i for i in corpus_work(root) if i[0] == 'tree'][:2]
-        bad_g = [f'{i[1]}: {one[2]}' for i in sample if (one := _compare_file(i))[2]]
-        check(sample and not bad_g, f'{len(sample)} cull trees of OPFOR\'s work folders: the same elements, CullTree '
-              'and bytes in both backends', '; '.join(bad_g))
+        run_corpus(root, check, rec['game'], [i for i in corpus_work(root) if i[0] == 'tree'][:2], 'OPFOR\'s work folders: ')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 
 
 def corpus_work(root: str) -> list[tuple[str, str, str]]:
-    """The trees and levels of work\\ww2 only (quick)."""
+    """The trees and levels of work\\ww2's Coral Sea only (quick)."""
     out = []
     for d, _, names in os.walk(os.path.join(root, 'work', 'ww2', 'coral_sea')):
         out += [('tree', os.path.join(d, n), '') for n in sorted(names) if 'staticculltree' in n.lower()]

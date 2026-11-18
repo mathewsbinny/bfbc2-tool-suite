@@ -1,15 +1,19 @@
-r"""The Rust geometry readers (rust/bc2-formats terrain, water, havok and rust/bc2-scene collision, through the
-bc2_native module) against the Python readers they were ported from (core/bfbc2core/terrain.py, water.py, NavKit's
-levelobjects.py / hkpack.py): the same heights bit for bit, the same vertices, triangles and shaders, the same files
+r"""The geometry readers (rust/bc2-formats terrain, water, havok and rust/bc2-scene collision, through the bc2_native
+module) against what the retired Python readers (core/bfbc2core/terrain.py, water.py, collision.py's Python path
+through NavKit's levelobjects.py / hkpack.py; round F1a, 2026-11-18) answered, recorded before they were deleted
+(geometry_golden.json): the same heights bit for bit, the same vertices, triangles and shaders, the same files
 refused, the same collision index.
 
-  python core\tests\test_geometry_native.py           quick: built and damaged files, the dispatchers and fallback
+  python core\tests\test_geometry_native.py           quick: built and damaged files, the collision index of folders
+                                                       built here; damaged copies of three of MP_005's packfiles when
+                                                       the game copy is there
   python core\tests\test_geometry_native.py --game    + every height field, water file and Havok packfile in every
                                                        bundle of the game copy (Project OPFOR BFBC2's game\, read
                                                        only) and the collision index of every prepared level
                                                        (work\levels, read only)
 
-Skipped (exit 0) when the module is not built (python rust\build_native.py).
+A bundle or level whose input the recording does not have (changed since) is counted, not compared. Needs the module
+(python rust\build_native.py).
 """
 import glob
 import os
@@ -30,85 +34,75 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('core', 'navkit-tools')
-import hkpack  # noqa: E402
-from bfbc2core import collision, dbx, fbrb, paths, terrain, water  # noqa: E402
+suite_paths.use('core')
+sys.path.insert(0, HERE)
+import goldens  # noqa: E402
+from bfbc2core import collision, dbx, fbrb, native, paths, terrain, water  # noqa: E402
 
-NATIVE: Any = collision._with_collision(dbx._import_native())
+GOLDEN = os.path.join(HERE, 'geometry_golden.json')
 TYPES = {'TerrainHeightfield': 'terrain', 'WaterMesh': 'water mesh', 'VisualWater': 'water visual',
          'HavokPhysicsData': 'havok'}
 
 
-# ------------------------------------------------------------------------------------------------ one file, both readers
+# ------------------------------------------------------------------------------------------------ one file
 
 def _bits(a: np.ndarray | None) -> Any:
-    """An array's shape, dtype and bytes (bit for bit: NaN payloads and signed zeros count), or None."""
-    return None if a is None else (a.shape, a.dtype.str, a.tobytes())
+    """An array's shape, dtype and bytes' digest (bit for bit: NaN payloads and signed zeros count), or None."""
+    return None if a is None else (a.shape, a.dtype.str, goldens.h(a.tobytes(), 16))
 
 
-def _outcome(fn: Callable[[], Any]) -> tuple[str, Any]:
+def _outcome(fn: Callable[[], Any]) -> str:
     try:
-        return 'ok', fn()
+        return goldens.rh(('ok', fn()), 10)
     except ValueError:
-        return 'ValueError', None
+        return 'ValueError'
 
 
-def terrain_outcome(data: bytes, native: bool) -> tuple[str, Any]:
-    terrain.use_native(native)
-
+def terrain_outcome(data: bytes) -> str:
     def run() -> Any:
         hf = terrain.parse(data)
         return (hf.min.tolist(), hf.max.tolist(), hf.size, _bits(hf.raw), _bits(hf.heights))
     return _outcome(run)
 
 
-def mesh_outcome(data: bytes, native: bool) -> tuple[str, Any]:
-    water.use_native(native)
+def mesh_outcome(data: bytes) -> str:
     return _outcome(lambda: tuple(_bits(a) for a in water.parse_mesh(data)))
 
 
-def visual_outcome(data: bytes, native: bool) -> tuple[str, Any]:
-    water.use_native(native)
-
+def visual_outcome(data: bytes) -> str:
     def run() -> Any:
         idx, slots, ranges = water.parse_visual(data)
-        return _bits(idx), slots, [tuple(r) for r in ranges]
+        return _bits(idx), list(slots), [tuple(int(x) for x in r) for r in ranges]
     return _outcome(run)
 
 
-def shaders_outcome(mesh: bytes, visual: bytes, native: bool) -> tuple[str, Any]:
-    water.use_native(native)
-
+def shaders_outcome(mesh: bytes, visual: bytes) -> str:
     def run() -> Any:
         _, t = water.parse_mesh(mesh)
-        return water.shaders_of(mesh, visual, t)
+        r = water.shaders_of(mesh, visual, t)
+        return None if r is None else (list(r[0]), list(r[1]))
     return _outcome(run)
 
 
-def havok_outcome(data: bytes, native: bool) -> tuple[str, Any]:
-    """levelobjects.triangles on the bytes (hkpack.load pointed at them) or the Rust reader."""
-    if native:
-        return _outcome(lambda: _bits(collision._array(NATIVE.havok_triangles(data))))
-    load = hkpack.load
-    hkpack.load = lambda _path: hkpack.Packfile(data)
-    try:
-        return _outcome(lambda: _bits(collision._py_triangles('<bytes>')))
-    finally:
-        hkpack.load = load
+def _rust_triangles(data: bytes) -> np.ndarray | None:
+    t = native.require('the Havok reader').havok_triangles(data)
+    return None if t is None else np.frombuffer(t, '<f4').reshape(-1, 3, 3)
 
 
-def compare(kind: str, data: bytes, extra: bytes | None = None) -> str | None:
-    """None when both readers agree on data (a mismatch described otherwise)."""
+TRIANGLES: list[Callable[[bytes], np.ndarray | None]] = [_rust_triangles]   # the recording put the Python's here
+
+
+def havok_outcome(data: bytes) -> str:
+    """levelobjects.triangles' answer for a packfile's bytes."""
+    return _outcome(lambda: _bits(TRIANGLES[0](data)))
+
+
+def outcome(kind: str, data: bytes, extra: bytes | None = None) -> str:
     if kind == 'shaders':
         assert extra is not None
-        a, b = shaders_outcome(data, extra, False), shaders_outcome(data, extra, True)
-    else:
-        f = {'terrain': terrain_outcome, 'water mesh': mesh_outcome, 'water visual': visual_outcome,
-             'havok': havok_outcome}[kind]
-        a, b = f(data, False), f(data, True)
-    if a == b:
-        return None
-    return f'python {a[0]}, rust {b[0]}' if a[0] != b[0] else 'different results'
+        return shaders_outcome(data, extra)
+    return {'terrain': terrain_outcome, 'water mesh': mesh_outcome, 'water visual': visual_outcome,
+            'havok': havok_outcome}[kind](data)
 
 
 # ------------------------------------------------------------------------------------------------ built files
@@ -145,57 +139,49 @@ def mutations(data: bytes, rng: random.Random, n: int) -> list[bytes]:
     return out
 
 
-# ------------------------------------------------------------------------------------------------ the game copy
-
-def corpus(root: str) -> list[str]:
-    """Every bundle of the game copy."""
-    return sorted(glob.glob(os.path.join(root, 'game', '**', '*.fbrb'), recursive=True))
-
-
-def check_bundle(path: str) -> tuple[str, Counter[str], list[str], Counter[str]]:
-    """Both readers on every geometry entry of one bundle: (bundle, files compared by kind, mismatches, tails)."""
-    counts: Counter[str] = Counter()
-    tails: Counter[str] = Counter()
-    bad: list[str] = []
-    try:
-        ents = [e for e in fbrb.entries(path) if not e.deleted and e.type in TYPES]
-        if not ents:
-            return path, counts, bad, tails
-        data = fbrb.read(path, [e.name for e in ents])
-    except (ValueError, KeyError, OSError) as e:
-        return path, counts, [f'{path}: not read ({e})'], tails
-    for ent in ents:
-        kind = TYPES[ent.type]
-        d = data[ent.name]
-        counts[kind] += 1
-        why = compare(kind, d)
-        if why:
-            bad.append(f'{path}: {ent.name}: {why}')
-        if kind == 'terrain' and why is None and NATIVE is not None:
-            try:
-                tails['heightfield ' + str(NATIVE.terrain_tail(d)[0][0])] += 1
-            except ValueError:
-                tails['heightfield refused'] += 1
-        if kind == 'water mesh':
-            visual = ent.name[:-len('.Mesh.res')] + '.res'
-            if visual in data:
-                counts['shaders'] += 1
-                why = compare('shaders', d, data[visual])
-                if why:
-                    bad.append(f'{path}: {ent.name} shaders: {why}')
-    return path, counts, bad, tails
+def quick_cases() -> list[tuple[str, str, bytes, bytes | None]]:
+    """(label, kind, data, extra) of the quick tier, in the recording's order (seeded)."""
+    rng = random.Random(1943)
+    out: list[tuple[str, str, bytes, bytes | None]] = []
+    files = {
+        'terrain 4x4': heightfield(4, list(range(0, 65535, 4096))[:16]),
+        'terrain 1x1': heightfield(1, [123]),
+        'terrain flat': heightfield(2, [0, 65535, 32768, 1], lo=5.0, hi=5.0),
+        'terrain 64 with quadtree': heightfield(64, [rng.randrange(65536) for _ in range(64 * 64)], bytes(4 * 21)),
+        'terrain not a power of two': heightfield(3, [0] * 9),
+        'terrain size 0': heightfield(0, []),
+        'terrain too short': b'\0' * 48,
+    }
+    out += [(name, 'terrain', d, None) for name, d in files.items()]
+    out += [('damaged height field', 'terrain', d, None) for d in mutations(files['terrain 64 with quadtree'], rng, 150)]
+    mesh = water_mesh([([0, 1, 0, 1, 1, 0, 0, 1, 1], [0, 1, 2]), ([2, 1, 2, 3, 1, 2, 2, 1, 3, 9, 9, 9], [0, 1, 2, 1, 2, 3])])
+    for name, v in {'matching': visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(1, 2, 3, 6), (0, 1, 0, 3)]),
+                    'slot past the list, ranges past the end': visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(7, 99, 6, 3)]),
+                    'other indices': visual_water([0, 1, 2], [(0, 1, 0, 3)]),
+                    'non-ASCII slot': visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(0, 3, 0, 9)], (b'W\xe9', b'B')),
+                    'damaged': visual_water([0, 1, 2], [(0, 1, 0, 3)])[:30]}.items():
+        out += [(f'water {name}: shaders', 'shaders', mesh, v), (f'water {name}: visual', 'water visual', v, None)]
+    out.append(('water mesh: two bodies joined', 'water mesh', mesh, None))
+    out += [('damaged water mesh', 'water mesh', d, None) for d in mutations(mesh, rng, 150)]
+    v = visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(1, 2, 3, 6)])
+    for d in mutations(v, rng, 150):
+        out += [('damaged water visual', 'water visual', d, None), ('damaged water visual: shaders', 'shaders', mesh, d)]
+    out += [('havok: not a packfile', 'havok', b'not a packfile', None), ('havok: empty', 'havok', b'', None)]
+    return out
 
 
-def index_outcome(bases: list[str], native: bool) -> Any:
-    collision.use_native(native)
+def index_outcome(bases: list[str], strip: str) -> str:
+    """collision.index's answer (strip: the folder its paths start with, left out)."""
     havok, aliases = collision.index(bases)
-    return list(havok.items()), (type(aliases).__name__ if isinstance(aliases, Exception) else list(aliases.items()))
+    return goldens.rh(([(k, os.path.relpath(v, strip)) for k, v in havok.items()],
+                       type(aliases).__name__ if isinstance(aliases, Exception) else list(aliases.items())), 16)
 
 
-def built_index_parity(tmp: str) -> bool:
-    """Both backends' index, havok_index and blueprint_triangles on two folders built under tmp: partitions with and
-    without a Mesh, a deleted marker whose XML is left over (MP_005's emitter_sw_meshparticle_tow_01), a text
-    partition, a damaged one, a partition with no XML (not counted), packfiles in both folders."""
+def built_index(tmp: str) -> list[str]:
+    """index, havok_index and blueprint_triangles on two folders built under tmp: partitions with and without a Mesh, a
+    deleted marker whose XML is left over (MP_005's emitter_sw_meshparticle_tow_01), a text partition, a damaged one, a
+    partition with no XML (not counted), packfiles in both folders; the Rust core's mesh-alias cache off, cold and
+    warm (each the same answer)."""
     def mesh_file(ref: str | None, extra: int = 0) -> bytes:
         kids = [dbx.Element('field', dbx.TEXT, [('name', 'Other'), ('ref', 'objects/o/o_mesh/1')])]
         kids += [dbx.Element('field', dbx.TEXT, [('name', f'F{k}')], text=f'v{k}') for k in range(extra)]
@@ -235,24 +221,17 @@ def built_index_parity(tmp: str) -> bool:
     put(os.path.join(b, 'fx', 'unconverted.dbx'), mesh_file('Objects/None/None_Mesh/1'))
     outcomes = []
     saved = collision.cache_folder()
-    cache = os.path.join(tmp, 'cache')
-    for native, folder in ((False, None), (True, None), (True, cache), (True, cache)):
-        collision.use_native(native)
-        collision.use_cache(folder)          # Rust: no cache, then the mesh-alias cache cold and warm
+    for folder in (None, os.path.join(tmp, 'cache'), os.path.join(tmp, 'cache')):
+        collision.use_cache(folder)
         havok, aliases = collision.index([a, b])
         alone = collision.havok_index([a, b])
         tris = collision.blueprint_triangles(['objects/crate/crate', 'objects/wall/wall', 'objects/x'], havok)
-        outcomes.append((list(havok.items()), list(alone.items()),
-                         list(aliases.items()) if isinstance(aliases, dict) else type(aliases).__name__,
-                         [(k, _bits(v)) for k, v in tris.items()]))
-    collision.use_native(True)
+        outcomes.append(goldens.rh(([(k, os.path.relpath(v, tmp)) for k, v in havok.items()],
+                                    [(k, os.path.relpath(v, tmp)) for k, v in alone.items()],
+                                    list(aliases.items()) if isinstance(aliases, dict) else type(aliases).__name__,
+                                    [(k, _bits(v)) for k, v in tris.items()]), 16))
     collision.use_cache(saved)
-    py, rs, cold, warm = outcomes
-    aliases = dict(rs[2]) if isinstance(rs[2], list) else {}
-    kept = [f for f in os.listdir(cache) if not f.startswith('.')]   # not caches.py's .pruned / .prune.lock
-    return (py == rs == cold == warm and len(kept) == 2 and rs[0] == rs[1] and aliases.get('fx/tow') == 'objects/tow/tow'
-            and aliases.get('fx/damaged') == 'objects/kept/kept' and 'fx/unconverted' not in aliases
-            and aliases.get('objects/mixed/case') == 'objects/mixed/mixed')
+    return outcomes
 
 
 def level_bases(root: str, lv: str) -> list[str]:
@@ -262,12 +241,91 @@ def level_bases(root: str, lv: str) -> list[str]:
     return bases + [d for d in glob.glob(os.path.join(root, 'work', 'navkit', 'common', '*')) if os.path.isdir(d)]
 
 
+_STAMPS: dict[str, Any] = {}
+
+
+def inputs_stamp(bases: list[str], root: str) -> str:
+    """What the index reads, as counts and sizes per folder (*.xml, *.dbx, *_havok.res): a level re-prepared since the
+    recording has another stamp."""
+    out = []
+    for b in bases:
+        if b not in _STAMPS:
+            c: Counter[str] = Counter()
+            for d, _, names in os.walk(b):
+                for n in names:
+                    low = n.lower()
+                    k = 'havok' if low.endswith('_havok.res') else low.rsplit('.', 1)[-1] if low.endswith(('.xml', '.dbx')) else None
+                    if k:
+                        c[k] += 1
+                        c[k + ' bytes'] += os.path.getsize(os.path.join(d, n))
+            _STAMPS[b] = sorted(c.items())
+        out.append((os.path.relpath(b, root), _STAMPS[b]))
+    return goldens.rh(out, 16)
+
+
+# ------------------------------------------------------------------------------------------------ the game copy
+
+def corpus(root: str) -> list[str]:
+    """Every bundle of the game copy."""
+    return sorted(glob.glob(os.path.join(root, 'game', '**', '*.fbrb'), recursive=True))
+
+
+def bundle_outcome(path: str, root: str) -> tuple[str, str | None, str, dict[str, int]]:
+    """(bundle path relative to root, file SHA-1 or None without geometry, digest of every geometry entry's answer,
+    entries by kind)."""
+    rel = os.path.relpath(path, root).replace(os.sep, '/')
+    counts: Counter[str] = Counter()
+    try:
+        ents = [e for e in fbrb.entries(path) if not e.deleted and e.type in TYPES]
+        if not ents:
+            return rel, None, '', {}
+        sha = goldens.file_sha(path)[:16]
+        data = fbrb.read(path, [e.name for e in ents])
+    except (ValueError, KeyError, OSError) as e:
+        return rel, None, f'not read: {type(e).__name__}', {}
+    rows = []
+    for ent in ents:
+        kind = TYPES[ent.type]
+        d = data[ent.name]
+        counts[kind] += 1
+        rows.append((ent.name, kind, outcome(kind, d)))
+        if kind == 'water mesh':
+            visual = ent.name[:-len('.Mesh.res')] + '.res'
+            if visual in data:
+                counts['shaders'] += 1
+                rows.append((ent.name, 'shaders', outcome('shaders', d, data[visual])))
+    return rel, sha, goldens.rh(rows, 16), dict(counts)
+
+
+def _bundle_job(job: tuple[str, str]) -> tuple[str, str | None, str, dict[str, int]]:
+    return bundle_outcome(*job)
+
+
+def mp005_packfiles(root: str) -> tuple[str, list[bytes]] | None:
+    """(MP_005's level bundle's SHA-1, three of its packfiles), or None without the game copy."""
+    sample = next((b for b in corpus(root) if os.path.basename(os.path.dirname(b)).lower() == 'mp_005'
+                   and b.endswith('level-00.fbrb')), None)
+    if not sample:
+        return None
+    names = [e.name for e in fbrb.entries(sample) if e.type == 'HavokPhysicsData' and not e.deleted][:3]
+    pk = fbrb.read(sample, names)
+    return goldens.file_sha(sample)[:16], [pk[n] for n in names]
+
+
+def damaged_packfiles(packs: list[bytes]) -> list[bytes]:
+    rng = random.Random(1943)
+    return [d for p in packs for d in mutations(p, rng, 60)]
+
+
+def prepared_levels(root: str) -> list[str]:
+    return sorted(d for d in os.listdir(os.path.join(root, 'work', 'levels'))
+                  if os.path.isdir(os.path.join(root, 'work', 'levels', d, 'dist')))
+
+
 # ------------------------------------------------------------------------------------------------ main
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py)')
-        return 0
+    native.require('the geometry readers', 'collision_index')
     failed = 0
 
     def check(ok: bool, what: str, detail: str = '') -> None:
@@ -275,59 +333,26 @@ def main(argv: list[str]) -> int:
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f': {detail}' if detail and not ok else ''))
 
-    rng = random.Random(1943)
-    # height fields: a few sizes, extreme values, a sub-terrain with its quadtree, refused ones, damaged copies
-    files = {
-        'terrain 4x4': heightfield(4, list(range(0, 65535, 4096))[:16]),
-        'terrain 1x1': heightfield(1, [123]),
-        'terrain flat': heightfield(2, [0, 65535, 32768, 1], lo=5.0, hi=5.0),
-        'terrain 64 with quadtree': heightfield(64, [rng.randrange(65536) for _ in range(64 * 64)], bytes(4 * 21)),
-        'terrain not a power of two': heightfield(3, [0] * 9),
-        'terrain size 0': heightfield(0, []),
-        'terrain too short': b'\0' * 48,
-    }
-    for name, d in files.items():
-        why = compare('terrain', d)
-        check(why is None, f'built: {name}', why or '')
-    bad = [why for d in mutations(files['terrain 64 with quadtree'], rng, 150) if (why := compare('terrain', d))]
-    check(not bad, 'damaged height fields: the same refused, the same heights', '; '.join(bad[:3]))
-    terrain.use_native(True)
-    hf = terrain.parse(files['terrain 64 with quadtree'])
-    (kind, *_), words = terrain.tail(files['terrain 64 with quadtree'])
+    rec = goldens.load(GOLDEN)
+    cases = quick_cases()
+    got = [outcome(kind, d, extra) for _, kind, d, extra in cases]
+    bad = [f'{cases[i][0]} #{i}' for i, (a, b) in enumerate(zip(got, rec['cases'])) if a != b]
+    kinds = Counter(f'{k} {"refused" if g == "ValueError" else "read"}' for (_, k, _, _), g in zip(cases, got))
+    check(len(got) == len(rec['cases']) and not bad,
+          f'{len(cases)} built and damaged height fields, water meshes, water visuals and packfiles: the heights, '
+          f'vertices, triangles, shaders and refusals the Python readers gave ({", ".join(f"{n} {k}" for k, n in sorted(kinds.items()))})',
+          '; '.join(bad[:4]))
+    hf = terrain.parse(cases[3][2])
+    (kind, *_), words = terrain.tail(cases[3][2])
     check(kind == 'quadtree' and hf.size == 64 and words[6] == 0, 'height field tail: a sub-terrain quadtree')
-    # water: two bodies, shaders in and out of range, damaged copies
-    mesh = water_mesh([([0, 1, 0, 1, 1, 0, 0, 1, 1], [0, 1, 2]), ([2, 1, 2, 3, 1, 2, 2, 1, 3, 9, 9, 9], [0, 1, 2, 1, 2, 3])])
-    for name, v in {'matching': visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(1, 2, 3, 6), (0, 1, 0, 3)]),
-                    'slot past the list, ranges past the end': visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(7, 99, 6, 3)]),
-                    'other indices': visual_water([0, 1, 2], [(0, 1, 0, 3)]),
-                    'non-ASCII slot': visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(0, 3, 0, 9)], (b'W\xe9', b'B')),
-                    'damaged': visual_water([0, 1, 2], [(0, 1, 0, 3)])[:30]}.items():
-        why = compare('shaders', mesh, v) or compare('water visual', v)
-        check(why is None, f'built water: {name}', why or '')
-    check(compare('water mesh', mesh) is None, 'built water mesh: two bodies joined')
-    bad = [why for d in mutations(mesh, rng, 150) if (why := compare('water mesh', d))]
-    v = visual_water([0, 1, 2, 3, 4, 5, 4, 5, 6], [(1, 2, 3, 6)])
-    bad += [why for d in mutations(v, rng, 150) if (why := compare('water visual', d) or compare('shaders', mesh, d))]
-    check(not bad, 'damaged water files: the same refused, the same results', '; '.join(bad[:3]))
-    # Havok: not a packfile, damaged copies of a game packfile (when the game copy is there)
-    check(compare('havok', b'not a packfile') is None and compare('havok', b'') is None, 'havok: not a packfile')
-    # the dispatchers: backends switch and BFBC2_PURE_PYTHON is honoured by each module
-    for m in (terrain, water, collision):
-        check(m.use_native(False) == 'python' and m.use_native(True) == 'rust', f'{m.__name__}: use_native switches')
-    env = dict(os.environ, BFBC2_PURE_PYTHON='1')
-    import subprocess
-    r = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, sys.argv[1]); '
-                        'from bfbc2core import terrain, water, collision; '
-                        'print(terrain.backend(), water.backend(), collision.backend())', os.path.join(_ROOT, 'core')],
-                       env=env, capture_output=True, text=True)
-    check(r.stdout.split() == ['python'] * 3, 'BFBC2_PURE_PYTHON=1 forces the Python readers', r.stdout + r.stderr)
 
-    # the collision index on folders built here: the Rust core reads each Mesh from the binary .dbx next to the XML
-    # (the XML where the binary cannot answer), NavKit's Python reads the XML: the same tables when the XML is the
-    # binary's (DbxEdit's), and a deleted marker's leftover XML still read
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
-        check(built_index_parity(tmp), 'collision index on built folders: binary partitions and XML, the same tables')
+        outs = built_index(tmp)
+        kept = [f for f in os.listdir(os.path.join(tmp, 'cache')) if not f.startswith('.')] if os.path.isdir(os.path.join(tmp, 'cache')) else []
+        check(outs[0] == rec['index_built'] and len(set(outs)) == 1 and len(kept) == 2,
+              'collision index on built folders (binary partitions and XML; the mesh-alias cache off, cold and warm): '
+              'the Python index\'s tables', f'{outs} / {rec["index_built"]}, {len(kept)} cache files')
 
     try:
         root = paths.find_opfor(None, start=_ROOT)
@@ -336,40 +361,49 @@ def main(argv: list[str]) -> int:
     if root is None or not os.path.isdir(os.path.join(root, 'game')):
         print('game copy not found: the game corpus is skipped')
     else:
-        # damaged copies of one real packfile
-        sample = next((b for b in corpus(root) if os.path.basename(os.path.dirname(b)).lower() == 'mp_005'
-                       and b.endswith('level-00.fbrb')), None)
-        if sample:
-            names = [e.name for e in fbrb.entries(sample) if e.type == 'HavokPhysicsData' and not e.deleted][:3]
-            pk = fbrb.read(sample, names)
-            bad = [why for n in names for d in mutations(pk[n], rng, 60) if (why := compare('havok', d))]
-            check(not bad, f'damaged Havok packfiles ({len(names)} of MP_005): the same refused, the same triangles',
-                  '; '.join(bad[:3]))
+        mp = mp005_packfiles(root)
+        if mp is not None:
+            mp_sha, packs = mp
+            if mp_sha != rec['mp005']['sha']:
+                print('skipped: damaged MP_005 packfiles (its bundle changed since the recording)')
+            else:
+                g = [havok_outcome(d) for d in damaged_packfiles(packs)]
+                bad_at = [i for i, (a, b) in enumerate(zip(g, rec['mp005']['cases'])) if a != b]
+                check(not bad_at and len(g) == len(rec['mp005']['cases']),
+                      f'{len(g)} damaged Havok packfiles (three of MP_005\'s): the triangles and refusals NavKit\'s '
+                      'reader gave', f'first: {bad_at[:5]}')
         if '--game' in argv:
             t0 = time.time()
             bundles = corpus(root)
             counts: Counter[str] = Counter()
-            tails: Counter[str] = Counter()
-            bad = []
-            with ProcessPoolExecutor(max(1, min(8, (os.cpu_count() or 2) // 2))) as ex:
-                for _, c, b, t in ex.map(check_bundle, bundles, chunksize=4):
+            differ: list[str] = []
+            changed = 0
+            with ProcessPoolExecutor(max(1, min(3, (os.cpu_count() or 2) // 2))) as ex:
+                for rel, sha, d, c in ex.map(_bundle_job, [(b, root) for b in bundles], chunksize=4):
+                    if sha is None and not d:
+                        continue
                     counts.update(c)
-                    tails.update(t)
-                    bad += b
+                    want = rec['game'].get(rel)
+                    if want is None or want[0] != sha:
+                        changed += 1
+                    elif want[1] != d:
+                        differ.append(rel)
             detail = ', '.join(f'{v} {k}' for k, v in sorted(counts.items()))
-            check(not bad, f'game copy, {len(bundles)} bundles: {detail} ({time.time() - t0:.0f} s)', '; '.join(bad[:5]))
-            print(f'     tails: {dict(tails)}')
-            # the collision index of every prepared level: both readers, the same dictionaries in the same order
+            check(not differ, f'game copy, {len(bundles)} bundles: {detail} - the Python readers\' answers '
+                  f'({changed} bundles changed since the recording; {time.time() - t0:.0f} s)', '; '.join(differ[:5]))
             t0 = time.time()
-            levels = sorted(d for d in os.listdir(os.path.join(root, 'work', 'levels'))
-                            if os.path.isdir(os.path.join(root, 'work', 'levels', d, 'dist')))
-            bad = []
+            differ, changed = [], 0
+            levels = prepared_levels(root)
             for lv in levels:
                 bases = level_bases(root, lv)
-                if index_outcome(bases, False) != index_outcome(bases, True):
-                    bad.append(lv)
-            collision.use_native(True)
-            check(not bad, f'collision index of {len(levels)} prepared levels ({time.time() - t0:.0f} s)', ', '.join(bad))
+                want = rec['index'].get(lv)
+                if want is None or want[0] != inputs_stamp(bases, root):
+                    changed += 1
+                elif want[1] != index_outcome(bases, root):
+                    differ.append(lv)
+            check(not differ, f'collision index of {len(levels)} prepared levels: the Python index\'s tables, keys and '
+                  f'values in the same order ({changed} re-prepared since the recording; {time.time() - t0:.0f} s)',
+                  ', '.join(differ))
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 

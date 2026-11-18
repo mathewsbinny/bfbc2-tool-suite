@@ -394,5 +394,5 @@ def build(items: list[tuple[str, str, bytes]], zipped: bool = True) -> bytes:
         table += struct.pack('>6I', s(name), 0x00010000, len(payload), len(data), len(data), s(typ))
         payload += data
     h = struct.pack('>II', 2, len(strings)) + bytes(strings) + struct.pack('>I', len(items)) + bytes(table) + bytes([1 if zipped else 0]) + struct.pack('>I', len(payload))
-    hz = gzip.compress(h)
-    return b'FbRB' + struct.pack('>I', len(hz)) + hz + (gzip.compress(bytes(payload)) if zipped else bytes(payload))
+    hz = gzip.compress(h, mtime=0)                     # the same bytes every run (the tests' recorded cases)
+    return b'FbRB' + struct.pack('>I', len(hz)) + hz + (gzip.compress(bytes(payload), mtime=0) if zipped else bytes(payload))
