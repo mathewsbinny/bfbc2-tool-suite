@@ -198,6 +198,19 @@ pub fn fbrb_pack(py: Python<'_>, folder: &str, out: &str) -> PyResult<(usize, u6
         .map_err(|e| pack_error(&e))
 }
 
+/// FbrbTool's `unpack <bundle> <out>` through Rust (`bc2_formats::fbrb::unpack_path`): `(entries, payload bytes,
+/// *deleted* markers)`. A bundle the port leaves to FbrbTool.exe raises `ValueError` (nothing written), a file that
+/// cannot be read or written `OSError`. Runs with the interpreter released.
+#[pyfunction]
+pub fn fbrb_unpack(py: Python<'_>, bundle: &str, out: &str) -> PyResult<(usize, u64, usize)> {
+    py.detach(|| fbrb::unpack_path(Path::new(bundle), Path::new(out)))
+        .map(|s| (s.entries, s.payload_len, s.deleted))
+        .map_err(|e| match e {
+            fbrb::UnpackError::Io { .. } => PyOSError::new_err(e.to_string()),
+            _ => PyValueError::new_err(e.to_string()),
+        })
+}
+
 /// `fbrb_pack` of many `(folder, out)` pairs, one bundle per core. Each result is `(entries, payload bytes)` or the
 /// exception it raised (returned, not raised).
 #[pyfunction]

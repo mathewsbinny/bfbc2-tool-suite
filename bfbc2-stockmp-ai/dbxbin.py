@@ -231,6 +231,11 @@ def _varint_bytes(v: int) -> bytes:
             return bytes(out)
 
 
+# every varint below 2**14 (two bytes at most): string indexes, kinds and counts are nearly always under it
+_VARINT_SMALL = 1 << 14
+_VARINT_BYTES = [_varint_bytes(v) for v in range(_VARINT_SMALL)]
+
+
 def is_binary(data: bytes) -> bool:
     return len(data) > 24 and data[:8] == MAGIC
 
@@ -255,41 +260,66 @@ def parse(data: bytes) -> Dbx:
     pos = 24 + area
     stack: list[list[Element]] = []             # the open containers' child lists
     n = len(data)
+    varint = _varint
+    cur = d.roots                               # stack[-1] if stack else d.roots
+    # a varint's one-byte form (below 0x80) is read inline; longer ones by _varint (the same values)
     while pos < n:
-        tag, pos = _varint(data, pos)
+        tag = data[pos]
+        if tag < 0x80:
+            pos += 1
+        else:
+            tag, pos = varint(data, pos)
         if tag == 0:
             if not stack:
                 d.trailing = data[pos - 1:]
                 pos = n
                 break
             stack.pop()
+            cur = stack[-1] if stack else d.roots
             continue
         head = data[pos]
         pos += 1
-        e = Element(d, tag, head >> 4)
-        for _ in range(head & 0xF):
-            k, pos = _varint(data, pos)
-            v, pos = _varint(data, pos)
-            e.attrs.append((k, v))
-        if e.kind == CONTAINER:
+        kind = head >> 4
+        e = Element(d, tag, kind)
+        if head & 0xF:
+            attrs = e.attrs
+            for _ in range(head & 0xF):
+                k = data[pos]
+                if k < 0x80:
+                    pos += 1
+                else:
+                    k, pos = varint(data, pos)
+                v = data[pos]
+                if v < 0x80:
+                    pos += 1
+                else:
+                    v, pos = varint(data, pos)
+                attrs.append((k, v))
+        if kind == CONTAINER:
             e.cbyte = data[pos]
             pos += 1
             e.children = []
-            (stack[-1] if stack else d.roots).append(e)
+            cur.append(e)
             stack.append(e.children)
+            cur = e.children
             continue
-        if e.kind == TEXT:
-            e.text_i, pos = _varint(data, pos)
-        elif e.kind == NUMBERS:
+        if kind == TEXT:
+            t = data[pos]
+            if t < 0x80:
+                e.text_i = t
+                pos += 1
+            else:
+                e.text_i, pos = varint(data, pos)
+        elif kind == NUMBERS:
             start = pos
-            c, pos = _varint(data, pos)
-            size, pos = _varint(data, pos)
+            c, pos = varint(data, pos)
+            size, pos = varint(data, pos)
             pos += c * size
             e.raw = data[start:pos]
         else:
             e.raw = data[pos:pos + 2]
             pos += 2
-        (stack[-1] if stack else d.roots).append(e)
+        cur.append(e)
     if stack:
         raise ValueError('the element tree is not closed')
     return d
@@ -297,25 +327,32 @@ def parse(data: bytes) -> Dbx:
 
 def write(d: Dbx) -> bytes:
     out = bytearray()
+    table, small = _VARINT_BYTES, _VARINT_SMALL
+    ext, app = out.extend, out.append
 
     def emit(e: Element) -> None:
-        out.extend(_varint_bytes(e.tag_i))
-        if len(e.attrs) > 15:
+        # the varints from the table (the bytes _varint_bytes gives)
+        t = e.tag_i
+        ext(table[t] if 0 <= t < small else _varint_bytes(t))
+        attrs = e.attrs
+        if len(attrs) > 15:
             raise ValueError('more than 15 attributes')
-        out.append((e.kind << 4) | len(e.attrs))
-        for k, v in e.attrs:
-            out.extend(_varint_bytes(k))
-            out.extend(_varint_bytes(v))
-        if e.kind == CONTAINER:
-            out.append(e.cbyte)
+        kind = e.kind
+        app((kind << 4) | len(attrs))
+        for k, v in attrs:
+            ext(table[k] if 0 <= k < small else _varint_bytes(k))
+            ext(table[v] if 0 <= v < small else _varint_bytes(v))
+        if kind == CONTAINER:
+            app(e.cbyte)
             assert e.children is not None
             for c in e.children:
                 emit(c)
-            out.append(0)
-        elif e.kind == TEXT:
-            out.extend(_varint_bytes(e.text_i))
+            app(0)
+        elif kind == TEXT:
+            t = e.text_i
+            ext(table[t] if 0 <= t < small else _varint_bytes(t))
         else:
-            out.extend(e.raw)
+            ext(e.raw)
     for r in d.roots:
         emit(r)
     tree = bytes(out)

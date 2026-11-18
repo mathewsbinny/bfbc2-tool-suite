@@ -486,6 +486,34 @@ def quick(tmp):
         said = f'IndexError {e}'
     check('no sectors' in said, f'sector offsets of path data without sectors: a build error ({said})')
 
+    # round E3j: the build's bundle folder (unpacked in process, else copied from the cached unpack) and the
+    # in-memory check of a packed bundle give what FbrbTool's unpack and the copy gave
+    import validate
+    from bfbc2core import fbrb as corefbrb
+    bundle = os.path.join(tmp, 'e3j', 'level-00.fbrb')
+    os.makedirs(os.path.dirname(bundle))
+    open(bundle, 'wb').write(corefbrb.build([('Levels/TEST_01.dbx', '<non-resource>', lvl), ('Gone', '*deleted*', b''),
+                                             ('Levels/test_01/A.res', 'T', b'abc' * 50)]))
+    src = pipeline.unpacked(bundle, os.path.join(tmp, 'e3j', 'src'))
+
+    def files_of(d):
+        return {os.path.relpath(os.path.join(dp, f), d): open(os.path.join(dp, f), 'rb').read()
+                for dp, _ds, fs in os.walk(d) for f in fs}
+    copied = os.path.join(tmp, 'e3j', 'copied')
+    shutil.copytree(src, copied, ignore=shutil.ignore_patterns('.source.sha256'))
+    for native in (True, False):
+        corefbrb.use_native(native)
+        try:
+            dst = os.path.join(tmp, 'e3j', f'build_{native}')
+            pipeline.build_folder(bundle, src, dst)
+        finally:
+            corefbrb.use_native(True)
+        check(files_of(dst) == files_of(copied) and '.source.sha256' in files_of(src),
+              f'build folder ({"in process" if native else "copied, no Rust core"}): the cached unpack\'s files, '
+              'its stamp left out')
+    ok, detail = validate.check_packed(bundle, copied, tmp)
+    check(ok and detail == '2 files unpack identical', f'packed bundle checked in memory: {detail}')
+
 
 # ------------------------------------------------------------------------------------------ game tests
 
