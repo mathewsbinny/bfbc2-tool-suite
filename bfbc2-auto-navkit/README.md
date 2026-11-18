@@ -396,7 +396,7 @@ areas; before the exact bridge tracing below, 1.7 - 3.1 % of the areas on sp_004
 **M-COM targets:** all 14 Onslaught attack orders on an M-COM are on an area (DICE 14), with the objective floor
 rule below; AI order coverage on both Onslaught maps 100 %.
 
-- **Exact bridge tracing (`navbuild.BRIDGE_UNION`, 2026-10-23):** an area's 45-degree bridges are the exact union of
+- **Exact bridge tracing (2026-10-23; the `BRIDGE_UNION` switch and the old clipping removed 2026-11-18):** an area's 45-degree bridges are the exact union of
   the quarter cells they cut, traced as one outline, in place of clipping each bridge on its own (`clip_bridges`,
   which left gaps where bridges met: open boundaries, and walkable ground in no area). Ground 98.12 -> 98.22 %,
   extra 8.36 -> 8.31; checked by `tests\test_bridge_union.py` (600 random patterns; the old method fails 107) and by
@@ -661,8 +661,9 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
         nearest node within 15 m, and the request failed where that node was 3.6-6.3 m from the order
         point (DICE: 0.2 m). Order positions are the level's `AreaGeometryEntityData` points, written as
         `work\levels\<level>\order_points.json` by `levelobjects.py` (part of `navkit.py prepare`).
-     A detour repair pass (`DETOUR_REPAIR`) is kept but off: shorter routes did not fix the stairs-top
-     failure. How the game uses the file is written up in spec §4.5 and in OPFOR's
+     A detour repair pass (`DETOUR_REPAIR`) was tried and rejected: shorter routes did not fix the stairs-top
+     failure (removed 2026-11-18, with the `DEDUP_GRAPH_NODES` and `BRIDGE_UNION` switches: one node per
+     surface and the exact bridge union are the only builds). How the game uses the file is written up in spec §4.5 and in OPFOR's
      `research\BFBC2_DECOMP_RESEARCH.md` §9.
    - **13-level regression with the four rules - accepted (2026-10-20):** order nodes in route islands under
      25 nodes are dropped (`ORDER_MIN_ISLAND`; it replaced a per-level exception for sp_009); zero-cost edges

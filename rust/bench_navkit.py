@@ -1,17 +1,14 @@
 r"""Times one NavKit build (rust/BENCHMARKS.md, "The converter pipeline and NavKit"): navregress.build_level on a level's
-in-game samples (Project OPFOR BFBC2's, read only), on one backend, into a temporary folder.
+in-game samples (Project OPFOR BFBC2's, read only), into a temporary folder.
 
-  python rust\bench_navkit.py [--backend rust|python] [--profile <out.prof>] [--top N] [level ...]
-                                     default: rust, sp_004_b; --profile: under cProfile, the stats saved and the
-                                     N (default 25) functions with the most time of their own printed
+  python rust\bench_navkit.py [--profile <out.prof>] [--top N] [level ...]
+                                     default: sp_004_b; --profile: under cProfile, the stats saved and the N
+                                     (default 25) functions with the most time of their own printed
 
-  rust     navbuild / navwalk / navsample on the Rust core (bc2_navbuild): Level's grid walks, the floods,
-           walkable's rules, build_areas, build_graph's cell picking (E2a), the tracing, the roof rule, the cover
-           nodes, Gabriel pruning, the route edges and group joining, the sample records (E3c); build_graph whole for
-           every sector at once, a stage's areas and edge rows kept in the core, the floods' union-find, the
-           unseeds (E3h)
-  python   E2a's, E3c's and E3h's pieces on their Python reference (navbuild.use_native(False)); the grid walks and
-           floods run in Rust either way (their Python was retired on 2026-11-17)
+navbuild / navwalk / navsample on the Rust core (bc2_navbuild): Level's grid walks, the floods, walkable's rules,
+build_areas, the tracing, the roof rule, the sample records, build_graph whole for every sector at once, a stage's
+areas and edge rows kept in the core, the floods' union-find, the unseeds. The Python backend (E2a's, E3c's and E3h's
+twins, --backend python) was retired with them on 2026-11-18 (round R1; rust/BENCHMARKS.md "Retired Python").
 
 Prints the time and the sha1 of the path data. The files carry each sector's build time, so two builds' sha1 differ;
 tests\test_navbuild_native.py --game compares a build's file with the recorded one (the clock fixed).
@@ -45,17 +42,14 @@ def main(argv: list[str]) -> int:
         v = args[i + 1]
         del args[i:i + 2]
         return v
-    backend = opt('--backend', 'rust') or 'rust'
     prof = opt('--profile')
     top = int(opt('--top', '25') or 25)
     levels = args or ['sp_004_b']
-    if navbuild.use_native(backend == 'rust') != backend:
-        print(f'the {backend} backend is not available (python rust\\build_native.py)')
-        return 1
+    navbuild.require_native()
     root = navkit.find_opfor(None)
     with tempfile.TemporaryDirectory() as tmp:
         for lv in levels:
-            out = os.path.join(tmp, f'{lv}_{backend}.hpd')
+            out = os.path.join(tmp, f'{lv}.hpd')
             t = time.perf_counter()
             if prof:
                 p = cProfile.Profile()
@@ -65,7 +59,7 @@ def main(argv: list[str]) -> int:
                 navregress.build_level(root, lv, out)
             dt = time.perf_counter() - t
             data = open(out, 'rb').read()
-            print(f'{lv} ({backend}): {dt:.1f} s, {len(data):,} bytes, sha1 {hashlib.sha1(data).hexdigest()}')
+            print(f'{lv}: {dt:.1f} s, {len(data):,} bytes, sha1 {hashlib.sha1(data).hexdigest()}')
             if prof:
                 pstats.Stats(prof).sort_stats('tottime').print_stats(top)
     return 0
