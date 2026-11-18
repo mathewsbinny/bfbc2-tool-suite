@@ -605,6 +605,73 @@ picking and `pymath` (quick and game tiers only so far), and every format reader
 `tests/test_native_required.py` checks the required module (missing, stale, matching) and the download on a copy of
 the suite; navregress stays the independent check against DICE's path data.
 
+### Round R1: the rest of NavKit (2026-11-18, branch `retire-r1`)
+
+The full test tier passed on 2026-11-17 23:54 (173 of 173, `ee25186`), which retires the Python of the logic ported in
+rounds E2a, E3c, E3h and E3o's NavKit part. Retired (deleted; the module is required, `navbuild.require_native`,
+`bfbc2core.native.require`):
+
+| file | Python removed | lines |
+|---|---|---:|
+| `navbuild.py` | the switch (`_load_native`, `_native`, `_NATIVE_ERRORS`, `backend`, `use_native`) and every fallback: `build_areas`' tiles / components loop and `bisect`; `trace_edges`' rows; `trace_emit`'s runs with `bridge_union` and the old `clip_bridges`; `_edges_from_store` and stage's per-sector refusal paths; `build_graph`'s Python (centre / portal picks `_centre_cells` / `_nearest_cells`, `edge_pairs`, `connect_groups`, `add_cover_nodes`' loop, `gabriel_prune`'s loop, `add_order_nodes`, `repair_detours`) | 2,356 -> 1,548 |
+| `navwalk.py` | the switch and the Python of `headroom`, `stair_slope`, `narrow_lips`, the landings, `near_objects`, `on_objects`, `near_characters`, the seed / anchor picks, the unseeds' walk, `roof_islands`' rule | 1,090 -> 759 |
+| `navdiff.py` | `area_cells_reference` and the switch (`pieces`' loop stays: see below) | 431 -> 384 |
+| `core/bfbc2core/navdata.py` | `use_native`, the areas loop over parsed meshes, `_cells_reference`, `_union_roots_reference` | 476 -> 398 |
+| `core/bfbc2core/navpath.py` | `use_native`, `route_reference`, `norm_formula` (the estimate is the fused formula, `NORM = 'fma'`: NumPy's bits on the recording PC, now on every PC) | 262 -> 170 |
+| `rust/parity_e3o_nav.py`, `rust/bench_navkit.py` | `load` (navdata against its reference), `--backend python` | 199 -> 122, 75 -> 69 |
+
+1,695 lines of tool and core code removed (339 written in their place: casts, clear errors, docstrings).
+
+**Kept, and why** (the ruling keeps format readers and writers for good):
+
+- `kymesh.parse_mesh_reference` and `kymesh.use_native`: the runtime mesh record's only Python reader (a format
+  reader); `test_e3o_native.py` still compares it with the Rust reader, and `parity_e3o_nav.py mesh` on any folder.
+- `navsample.load`'s version 1 / 2 record loop and `navsample.use_native`: the sample files' only Python reader (a
+  format reader); `test_navbuild_native.py` still compares it with the core's.
+- `hpdtool` (the path-data container: reader and writer) and `kymesh.write_mesh`: format code, never ported.
+- `navdiff.pieces`' loop (`_pieces_loop`, was `pieces_reference`): not a Rust port's twin - the live path for fewer
+  than 48 segments and for numbers that are not finite (`pieces` in NumPy otherwise; both E3h, both Python).
+- `navbuild.drop_one_way` and `restore_one_way` (dict rows: `ONE_WAY_PORTALS = 'restore'` and `trace` read them),
+  `detail_pass` / `navdetail`, `Level.connected`, `step_fits`, `near_points`, `ladder_ends`, `objective_floor`,
+  `closest_between`: not ported.
+
+**Settings the Rust core has no build for now raise** (`navbuild._unported`, `NotImplementedError` naming the
+commit to port them from) instead of running the deleted Python: `BRIDGE_UNION = False` (the old `clip_bridges`,
+which left open outline ends), `DEDUP_GRAPH_NODES = False`, `DETOUR_REPAIR = True` (`repair_detours`). All three are
+research switches off by default, set by no tool or test. Numbers of another type are cast where the Python's gates
+sent them to the reference (a NumPy integer or float32 pitch, origin, tile, window bound, `r`, `width`; normals of
+another float type for the flat test); triangles that are not n x 3 x 3, a sector window with a step, a mesh the core
+cannot read, a boundary or route graph that is not finite raise `ValueError`.
+
+**What the fallbacks took on real data** (before deleting; expect 0): the whole-level builds below ran with no Python
+left to fall to (a gate would now raise); `navdata.load`, `navdiff.area_cells` on every area and the route graph's
+`PathGraph` on every path-data file of the game copy and of OPFOR's `work\navkit`, `work\navbuild`, `work\navgen`
+(`r1_scan_nav.py`, read only): 264 files, 2,372,253 areas (the 34,050 sectors E3o read): **0** would have taken a fallback (983 s).
+
+**The oracle: results recorded from the Python before it was deleted** (step 1, commit `bce738a`, from the Python
+code itself; the Rust gave the same digests while recording):
+
+- `bfbc2-auto-navkit/tests/navbuild_golden.json`, `retired`: a digest of every E2a / E3c / E3h comparison's
+  answer - 331 + 456 + 39 (the rules on 14 random runs at pitch 0.2 / 0.8, float32 and float64 normals, every option;
+  `walkable` with every rule; `build_areas` with and without bisection; 60 tracing chains, 36 sector graphs,
+  `build_areas_many`, `near_characters`, roof islands with the rule's settings varied and their counters, cover nodes,
+  Gabriel; 10 whole stages over a corner of four sectors; 12 sector graphs with ladders; 16 unseeds; 61 random
+  outlines' area cells). `quick` (the E1d grid walks) and `levels` (sp_009, sp_004_b, sp_008_b, ons_mp_004's path
+  data, the build clock fixed) as before.
+- `tests/navdata_golden.json` (new): `quick` - `navdata.load` of 40 built files (all in Python: the reference mesh
+  reader, the areas loop, `area_cells_reference`, `_union_roots_reference`), 300 union-finds, 10,000 routes on 400
+  seeded graphs (`route_reference`; 25 per graph digested); `game` - every path-data file of the game copy and DICE's
+  file of every prepared level, 35 (the prepared levels' DICE files are the game copy's own; 188,988 areas) files: the NavData, every area's cells (`area_cells_reference`, NumPy) and
+  pieces, keyed by the file's SHA-1 (a changed file is reported, not compared), and bench_sweep's 400 routes on
+  sp_009 / sp_004_b. Recorded in 1,284 s from the step-1 code (the Rust gave the same digests on all 35 while recording), peak commit 2.06 GB (the all-Python NavData of sp_005_b; the Rust check now: 1.19 GB, 415 s).
+
+**Proof** (`retire-r1`): `test_navbuild_native.py` quick - the grid walks and all 826 recorded answers the same, no
+Python left; `--game --levels sp_009,sp_004_b,sp_008_b,ons_mp_004` - sp_009 406,216 bytes 4 s, sp_004_b 8,235,888 bytes 18 s, sp_008_b 8,477,720 bytes 19 s, ons_mp_004 7,623,072 bytes 12 s: all four as recorded; `test_e3o_native.py` quick and the
+recording's game checks (`navdata`, cells, pieces, routes) - all as recorded; every NavKit unit test; navregress on
+two small levels (the game tier's) (sp_004_b ground 98.49, extra 7.23, connect 100.00, AI 99.4; sp_009 99.97 / 2.16 / 100.00 / 100.0: within tolerance of the last regression); `python run_tests.py quick -j 2` - 95 of 96 twice: first mypy (three annotations in the new code, fixed: `test_types.py` all passed), then the DBX writer's `work\ww2` corpus sample, which a WW2 rebuild started beside it was rewriting (it passed on the first run; nothing NavKit); the full tier's all-level regression (about 5 hours) not run this round.
+`test_bridge_union.py` now builds its patterns as levels and checks the core's `trace_emit` outlines (522 of 600 with
+bridges, 337 overlapping: all closed); the old `clip_bridges` comparison went with it.
+
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 
 **Provisional timings:** OPFOR's WW2 rebuild (`rebuild_all.py`, a `ww2_level_build.py` under it) ran the whole

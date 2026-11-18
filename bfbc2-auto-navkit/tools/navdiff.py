@@ -16,7 +16,6 @@ Parity = the share of the reference that the candidate reproduces exactly, per l
 is the goal (navkit-dice-parity: same content, bytes may differ).
 """
 import json
-import math
 import os
 import sys
 from collections import defaultdict
@@ -72,22 +71,11 @@ def segments(area):
     return segs
 
 
-_NATIVE: list[Any] = []
-
-
 def _native() -> Any:
-    """The Rust core for area_cells_many (round E3h), or None: not built, or BFBC2_PURE_PYTHON set."""
-    if not _NATIVE:
-        m = None
-        try:
-            suite_paths.use('core')
-            from bfbc2core import dbx as _dbx
-            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
-                m = _dbx._import_native()
-        except ImportError:
-            m = None
-        _NATIVE.append(m if m is not None and hasattr(m, 'navkit_area_cells') else None)
-    return _NATIVE[0]
+    """The Rust core (area_cells: round E3h), or bfbc2core.native.NativeMissing saying how to get it."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require("navdiff's area cells (NavKit's parity measures, navdata)", 'navkit_area_cells')
 
 
 def area_cells(area):
@@ -97,63 +85,26 @@ def area_cells(area):
 
 
 def area_cells_many(areas):
-    """area_cells of each area: in the Rust core, in parallel, when it is there (round E3h:
-    bc2_navbuild::parity, the same arithmetic value for value); area_cells_reference otherwise and for boundaries
-    that are not all finite numbers (the reference raises on those, or takes them as it does)."""
-    nat = _native()
+    """area_cells of each area, in the Rust core, in parallel (round E3h: bc2_navbuild::parity). Per area {(i, j):
+    height} on the GRID: every sample (offset a hair, 1.37e-3 / 0.71e-3 of the grid, off the 45-degree bridges through
+    cell corners) inside the boundary segments (outline lines, portals, border portals) by the even-odd rule, its height
+    the nearest segment end's minus Y_OFFSET (the first of equals); in the order of i, then j. An area without segments
+    has none; a boundary that is not all finite numbers raises ValueError (DICE's and NavKit's path data have none).
+    Its NumPy twin was retired on 2026-11-18 (round R1; the answers recorded in tests/navdata_golden.json)."""
     segs = [segments(a) for a in areas]
-    if nat is None:
-        return [area_cells_reference(a) for a in areas]
     arrays = [np.array(sg, dtype=np.float64).reshape(-1, 6) for sg in segs]
-    ok = [bool(len(x)) and bool(np.isfinite(x).all()) for x in arrays]
-    got = nat.navkit_area_cells([x.tobytes() if good else b'' for x, good in zip(arrays, ok)], GRID, Y_OFFSET)
-    out = []
-    for a, good, (ij, ys) in zip(areas, ok, got):
-        if not good:
-            out.append(area_cells_reference(a))
+    for k, x in enumerate(arrays):
+        if not np.isfinite(x).all():
+            raise ValueError(f'navdiff.area_cells: area {k} of {len(areas)} has a boundary point that is not a finite '
+                             f'number')
+    got = _native().navkit_area_cells([x.tobytes() for x in arrays], GRID, Y_OFFSET)
+    out: list[dict[tuple[int, int], float]] = []
+    for x, (ij, ys) in zip(arrays, got):
+        if not len(x):
+            out.append({})
             continue
         ij = np.frombuffer(ij, '<i8').reshape(-1, 2)
         out.append(dict(zip(zip(ij[:, 0].tolist(), ij[:, 1].tolist()), np.frombuffer(ys, '<f8').tolist())))
-    return out
-
-
-def area_cells_reference(area):
-    """area_cells in NumPy (the reference)."""
-    segs = segments(area)
-    if not segs:
-        return {}
-    pitch = GRID
-    a = np.array([s[0] for s in segs], dtype=np.float64)
-    b = np.array([s[1] for s in segs], dtype=np.float64)
-    xs = np.concatenate([a[:, 0], b[:, 0]])
-    zs = np.concatenate([a[:, 2], b[:, 2]])
-    i0, i1 = int(math.floor(xs.min() / pitch)) - 1, int(math.ceil(xs.max() / pitch)) + 1
-    j0, j1 = int(math.floor(zs.min() / pitch)) - 1, int(math.ceil(zs.max() / pitch)) + 1
-    gi, gj = np.meshgrid(np.arange(i0, i1 + 1), np.arange(j0, j1 + 1), indexing='ij')
-    ii, jj = gi.ravel(), gj.ravel()
-    # a tiny offset keeps sample points off the 45-degree bridges that pass through cell corners
-    px = ii * pitch + pitch * 1.37e-3
-    pz = jj * pitch + pitch * 0.71e-3
-    inside = np.zeros(len(ii), dtype=bool)
-    ax, az, bx, bz = a[:, 0], a[:, 2], b[:, 0], b[:, 2]
-    for k in range(0, len(ax), 256):
-        sax, saz, sbx, sbz = ax[k:k + 256], az[k:k + 256], bx[k:k + 256], bz[k:k + 256]
-        cond = (saz[None, :] > pz[:, None]) != (sbz[None, :] > pz[:, None])
-        with np.errstate(divide='ignore', invalid='ignore'):
-            xint = sax[None, :] + (pz[:, None] - saz[None, :]) * (sbx - sax)[None, :] / (sbz - saz)[None, :]
-        crosses = cond & (px[:, None] < xint)
-        inside ^= (np.count_nonzero(crosses, axis=1) % 2 == 1)
-    if not inside.any():
-        return {}
-    pts = np.concatenate([a, b])
-    sel_i, sel_j = ii[inside], jj[inside]
-    sx, sz = sel_i * pitch, sel_j * pitch
-    out: dict[tuple[int, int], float] = {}
-    for k in range(0, len(sel_i), 2048):
-        d = (sx[k:k + 2048, None] - pts[None, :, 0]) ** 2 + (sz[k:k + 2048, None] - pts[None, :, 2]) ** 2
-        near = pts[np.argmin(d, axis=1), 1] - Y_OFFSET
-        # the dict made from lists (Python ints and floats, as int() / float() give them; round E3h)
-        out.update(zip(zip(sel_i[k:k + 2048].tolist(), sel_j[k:k + 2048].tolist()), near.tolist()))
     return out
 
 
@@ -193,14 +144,16 @@ def match_cells(ref_cells, cand_cells):
 
 def pieces(segs, pitch):
     """Segments as a set of grid-sized pieces in half-pitch units (xz only), direction-free. With NumPy (round
-    E3h): the same arithmetic as pieces_reference, element by element (np.rint rounds half to even as round does)."""
+    E3h): the same arithmetic as _pieces_loop, element by element (np.rint rounds half to even as round does); the
+    loop for few segments (faster there) and for numbers NumPy's integer conversion cannot take (not finite). Both stay
+    (round R1): neither is a Rust port's twin."""
     segs = list(segs)
     if len(segs) < 48:                       # few segments: the loop is faster than NumPy's set-up (the same answers)
-        return pieces_reference(segs, pitch)
+        return _pieces_loop(segs, pitch)
     half = pitch / 2.0
     q = np.array([(p0[0], p0[2], p1[0], p1[2]) for p0, p1 in segs], dtype=np.float64) / half
     if not np.isfinite(q).all():
-        return pieces_reference(segs, pitch)
+        return _pieces_loop(segs, pitch)
     x0, z0, x1, z1 = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
     steps = np.maximum(np.rint(np.maximum(np.abs(x1 - x0), np.abs(z1 - z0))).astype(np.int64), 1)
     r = np.repeat(np.arange(len(segs)), steps)
@@ -216,8 +169,8 @@ def pieces(segs, pitch):
     return set(zip(zip(ax.tolist(), az.tolist()), zip(bx.tolist(), bz.tolist())))
 
 
-def pieces_reference(segs, pitch):
-    """pieces, one piece at a time (the reference)."""
+def _pieces_loop(segs, pitch):
+    """pieces, one piece at a time."""
     half = pitch / 2.0
     out = set()
     for p0, p1 in segs:

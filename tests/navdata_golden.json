@@ -1,4 +1,333 @@
 {
+ "game": {
+  "files": {
+   "game/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd": {
+    "cells": "82a306d81773f5f9961e3694f098d0c9b11fe0ba",
+    "navdata": [
+     "ok",
+     "04ef8021c07219a50bcb77acbcc0802e440ec314"
+    ],
+    "pieces": "a93c993111c1728ef3b24e20c2b32df423003ed1",
+    "sha1": "27787d221eba0aedcd1c733a25bc81505259187e"
+   },
+   "game/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": {
+    "cells": "22b4cb82bbe7fd07194f3ddf86041176c2fbef33",
+    "navdata": [
+     "ok",
+     "1c1e736eec0722e5f543e6e01295e71b9dc08652"
+    ],
+    "pieces": "6f63187491ebad9f33898d74829de057c626a545",
+    "sha1": "c3e96f73763f3805b47e08b9e83ebf57a68a963d"
+   },
+   "game/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd": {
+    "cells": "7c6335f712fc24943ec1a017e25684bbc77861f1",
+    "navdata": [
+     "ok",
+     "f7cc7c11046aacdb5cec51bac5a4fe0b18b06594"
+    ],
+    "pieces": "3d7096ef6954a82d2e90ead7cc05eb8b3f717ead",
+    "sha1": "22fd2f7b5687f0d12157bcf022b18dd3c8f96c4a"
+   },
+   "game/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd": {
+    "cells": "c5e018890443e25e9b4128e0576d41323253a446",
+    "navdata": [
+     "ok",
+     "fd7cd75e91b75aea7858f6c8293363c4fbbc705f"
+    ],
+    "pieces": "b8b49d1905a40e2c49eba7e3db0cb80efca118b3",
+    "sha1": "d674581955e023a82a87b1c98b7c2b31cc696a71"
+   },
+   "game/Output/win32/ai/levels/ons_mp_005/infantry/pathdata.hpd": {
+    "cells": "8346cdd6c6ba86a796284ad2061d09a5b7e121f8",
+    "navdata": [
+     "ok",
+     "376e0dc294fa4cbe06a8ebf3af6dc85a7d491055"
+    ],
+    "pieces": "e1987591791810b1fe5d556f7418ac55c5a2ada2",
+    "sha1": "3ea133205858e52c7a29b15f7420c41b2a921a93"
+   },
+   "game/Output/win32/ai/levels/ons_mp_005/vehicle/pathdata.hpd": {
+    "cells": "b959345ab32c0cce2188a8564e0f46253f59ea42",
+    "navdata": [
+     "ok",
+     "f4676ed425e1d4061d29cae7ced9bb02ac2741fc"
+    ],
+    "pieces": "aa5b2d99242f5fc367e6b11cc8fa00b4c7d0fc17",
+    "sha1": "cc1ccb9a05de202088e3d16b06945bd4395107b1"
+   },
+   "game/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd": {
+    "cells": "8346cdd6c6ba86a796284ad2061d09a5b7e121f8",
+    "navdata": [
+     "ok",
+     "376e0dc294fa4cbe06a8ebf3af6dc85a7d491055"
+    ],
+    "pieces": "e1987591791810b1fe5d556f7418ac55c5a2ada2",
+    "sha1": "3ea133205858e52c7a29b15f7420c41b2a921a93"
+   },
+   "game/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd": {
+    "cells": "b959345ab32c0cce2188a8564e0f46253f59ea42",
+    "navdata": [
+     "ok",
+     "f4676ed425e1d4061d29cae7ced9bb02ac2741fc"
+    ],
+    "pieces": "aa5b2d99242f5fc367e6b11cc8fa00b4c7d0fc17",
+    "sha1": "cc1ccb9a05de202088e3d16b06945bd4395107b1"
+   },
+   "game/Output/win32/ai/levels/ons_mp_008/infantry/pathdata.hpd": {
+    "cells": "16bd6ae0ebfd91b30687e7561860f84879c2225e",
+    "navdata": [
+     "ok",
+     "f2abfd17f3558bb09b4c0df142d0fe6b2236bce3"
+    ],
+    "pieces": "a60896c6eec31f403cfa6eb468733d44aed3a11e",
+    "sha1": "21c2274f4b17f96bd78270681fbc57d1346e3d3b"
+   },
+   "game/Output/win32/ai/levels/ons_mp_008/vehicle/pathdata.hpd": {
+    "cells": "e5c70042739ce26c7fd4a6795db7af9a359300a5",
+    "navdata": [
+     "ok",
+     "f42578539d0c8b1186e818ac7365ad175dbb0308"
+    ],
+    "pieces": "16a44ea388d4461cf6803f9078e7a2bfc9ca824e",
+    "sha1": "de536eb8c865943ab90829f1308d76e7c456f4e7"
+   },
+   "game/Output/win32/ai/levels/sp_003_b/infantry/pathdata.hpd": {
+    "cells": "60574242c82edf1570406db08ea1523f58bf7613",
+    "navdata": [
+     "ok",
+     "db080cf42baa8a5a66dd1f7f44030e8c27d2ee1d"
+    ],
+    "pieces": "799d419596eda11034d2f4c0782c5f6e186b5d0a",
+    "sha1": "919abe27cfbd25f9e1c484db75bd71ac49375999"
+   },
+   "game/Output/win32/ai/levels/sp_003_b/vehicle/pathdata.hpd": {
+    "cells": "01ce28906c344d4e69ec0ff4b8d4028620e90394",
+    "navdata": [
+     "ok",
+     "e5343fc5202d0c8471c2f3173b6e97c6fcbfc854"
+    ],
+    "pieces": "aee7b8253b51d1e190712169ac1fafa3f6f56906",
+    "sha1": "e61d3dcafbe2a79289c46b7b6f912a61e6ac93e0"
+   },
+   "game/Output/win32/ai/levels/sp_004_b/infantry/pathdata.hpd": {
+    "cells": "8fb683c350848acdd553a479b6d3ce9f1912d6af",
+    "navdata": [
+     "ok",
+     "c1be3d5f6caac65f4b66b5b45c3b97e149e567e8"
+    ],
+    "pieces": "28ad820f75c4a19a36c4b9c2aaca86b199bccad3",
+    "sha1": "09214cc1dc1a4d3159fdd0340cc5f0953211c222"
+   },
+   "game/Output/win32/ai/levels/sp_004_b/vehicle/pathdata.hpd": {
+    "cells": "6fd0cb7ba1d19ec527953fd6343602e64452b937",
+    "navdata": [
+     "ok",
+     "29a0ebf568d5e1cd27ac2c9e81cde827c5fd38f3"
+    ],
+    "pieces": "446091587b196b83230b64d1765f3722d4d1e4ad",
+    "sha1": "875a06db3ae38d08f7ef81f2db4e022a03dd22dd"
+   },
+   "game/Output/win32/ai/levels/sp_005/infantry/pathdata.hpd": {
+    "cells": "eccf1f046a363662a398a77f6b47a8739c74d48b",
+    "navdata": [
+     "ok",
+     "8a89a8cb16a398c131d64a22a9732bb1130c1448"
+    ],
+    "pieces": "afedc129b18e6cb91f9086733f58ece4de82511b",
+    "sha1": "b86f395ff8410c593bb39f78e3fca4ff2a0fa2a5"
+   },
+   "game/Output/win32/ai/levels/sp_005/vehicle/pathdata.hpd": {
+    "cells": "16491f71f757edc5a632d39483badd71fe56160a",
+    "navdata": [
+     "ok",
+     "13f8f2cdc88bf8a8b3e1a7086ba88a2b2aff5047"
+    ],
+    "pieces": "5d4aba5a6fdaa5de0919031406c95b684d4d2cdf",
+    "sha1": "59c8518a4bee1d8650088377db3cd9183a9cfd47"
+   },
+   "game/Output/win32/ai/levels/sp_005_b/infantry/pathdata.hpd": {
+    "cells": "b94ee5d6ebb19c1e28ab24cb0104e2d6fc9ff412",
+    "navdata": [
+     "ok",
+     "b15a13b7abaf1b956d9b64487899d93bf015f8fd"
+    ],
+    "pieces": "f45a6df7471330febb030bcd9765c92784846650",
+    "sha1": "0b3fe6f0760c4c9032272f20edfc48d9dbf3a1d5"
+   },
+   "game/Output/win32/ai/levels/sp_005_b/vehicle/pathdata.hpd": {
+    "cells": "5ee3ea82a5b38a8bac3707a980ecfc4a4d546e02",
+    "navdata": [
+     "ok",
+     "ca29dee485a3281e811813d2aefd187f415503e0"
+    ],
+    "pieces": "9be96183206d2a4dfc43cc46bb6e78cdcd696a03",
+    "sha1": "8ea5969f444450fb4920ab026839dafd95715f27"
+   },
+   "game/Output/win32/ai/levels/sp_006/infantry/pathdata.hpd": {
+    "cells": "4c5544434169d34ae3135f400815a15d3834d4d3",
+    "navdata": [
+     "ok",
+     "d3e5cbdce7664888ed988fa4986bb4b1753a334c"
+    ],
+    "pieces": "2cc6eaad219056ecf22ad0bf2b8aa735ee985e40",
+    "sha1": "fe2ceba0b1405adb29b4737618d8925f5d3628a1"
+   },
+   "game/Output/win32/ai/levels/sp_006/vehicle/pathdata.hpd": {
+    "cells": "73a60426eb09b972e1038f0dfe237ea036a133b7",
+    "navdata": [
+     "ok",
+     "01ef8d9ab110ffd62e137a26c976996b18774665"
+    ],
+    "pieces": "8cca3461017fba845af9baeab7783bc8d7299608",
+    "sha1": "05cd1e845e3eb9283ebc2e5b80dc44e1b7085d06"
+   },
+   "game/Output/win32/ai/levels/sp_007/infantry/pathdata.hpd": {
+    "cells": "f5264a4da2722357826528496ade0634adf1fd10",
+    "navdata": [
+     "ok",
+     "0565963d564e457240cf473c8611543bf8d467ff"
+    ],
+    "pieces": "828991680f26f6a5fc2ee85ec04e7ecde2305002",
+    "sha1": "c2aec7e03a992d95b7c3b1756e81a87b28f25695"
+   },
+   "game/Output/win32/ai/levels/sp_007/vehicle/pathdata.hpd": {
+    "cells": "2a973711d169a5e39ecb42ab9ff759c5c39d2ed7",
+    "navdata": [
+     "ok",
+     "15e4449659fc3f00526e9165ebae1d83ac59fc15"
+    ],
+    "pieces": "893c99ebde8a3d773c963f6873e016c1061a808b",
+    "sha1": "d97ecdacb897abf02f6adb8ff6617941ddd0120f"
+   },
+   "game/Output/win32/ai/levels/sp_008/infantry/pathdata.hpd": {
+    "cells": "3cfdcc2de5a9cd800af0f1442a4315b8e38a954a",
+    "navdata": [
+     "ok",
+     "794106d058d9d4509c9568ff544ca0cd74f6b15e"
+    ],
+    "pieces": "c01723d40073aa0b6c9c317a92b6ce560f9b2b81",
+    "sha1": "40636003631eb53a8694c925d83452bd5920d352"
+   },
+   "game/Output/win32/ai/levels/sp_008/vehicle/pathdata.hpd": {
+    "cells": "5fe43ba528fa4c189ef7a990433561af0ecbfc8d",
+    "navdata": [
+     "ok",
+     "0af7fd264622c0692dd92855b7afe2b553673989"
+    ],
+    "pieces": "bb36b15440d17371ab5603305aaecbefd2403bcc",
+    "sha1": "9ede610a07376f690be7db717b9d8fa464f673b9"
+   },
+   "game/Output/win32/ai/levels/sp_008_b/infantry/pathdata.hpd": {
+    "cells": "183267122e654da00a5fc29dc67fc56f257ff6ed",
+    "navdata": [
+     "ok",
+     "f1883c28131b8f8f165eabcb9254dbc896b5956f"
+    ],
+    "pieces": "476c17fa0687a1fbe88365b5170a0749424686af",
+    "sha1": "28df65438f8b72d0dd8a5be372418c062f9a19e4"
+   },
+   "game/Output/win32/ai/levels/sp_008_b/vehicle/pathdata.hpd": {
+    "cells": "45816a1dc76d9ad5cbf66db121633839ad1c3ed5",
+    "navdata": [
+     "ok",
+     "e004658887d4401909b7d1adae35f4b178b91f2d"
+    ],
+    "pieces": "2325e72567637a1bb3479d5eeb041a09fabbfd7c",
+    "sha1": "108bc8ce5c0d2a8a2c6ea93f74317e2ddff3b481"
+   },
+   "game/Output/win32/ai/levels/sp_009/infantry/pathdata.hpd": {
+    "cells": "e514cc95722c0df0fccb8f7cd7ec9d3cd92598f2",
+    "navdata": [
+     "ok",
+     "c1bd41b5afcdcc8038af7153c80ffc2654c31dbb"
+    ],
+    "pieces": "ec4d88547ac96e5b6613ba403b5a1dbc154797bf",
+    "sha1": "18a1cfed84a4860da2cae09317f8587f763f0e81"
+   },
+   "game/Output/win32/ai/levels/sp_01/infantry/pathdata.hpd": {
+    "cells": "124a0ce8ae352dda25868fe20d8209d95c14edd6",
+    "navdata": [
+     "ok",
+     "4a0043164164629aa5ddc6e173667f6821c35f5f"
+    ],
+    "pieces": "8a8326eb2ec27f09fe9ba3cb052560580607783f",
+    "sha1": "c7361b08a70de3959350b69fc3086a7eaf81572c"
+   },
+   "game/Output/win32/ai/levels/sp_01/vehicle/pathdata.hpd": {
+    "cells": "681013ee6d27e5465acdbb258c9beb3cb6515970",
+    "navdata": [
+     "ok",
+     "aa0a58b1ddbbfe6e414de5681d3fdf1986c1eb8f"
+    ],
+    "pieces": "2e73e6f70cf12e301cfb987df3148e22a0ae1e11",
+    "sha1": "1f6de15d83db908a33ad790f67b31a00fbc0c9bc"
+   },
+   "game/Output/win32/ai/levels/sp_02/infantry/pathdata.hpd": {
+    "cells": "30b3f570fff6b222e1ae9e17eff20f6c2f99204e",
+    "navdata": [
+     "ok",
+     "5069f5bdf30ad2179dbfbe5412fd13fa9c12dcb6"
+    ],
+    "pieces": "dc53f33cd0a7fa5c1918aababbf12eb14a348753",
+    "sha1": "0d6ac26f2e821535dfba3946559b4c36447bd88c"
+   },
+   "game/Output/win32/ai/levels/sp_02/vehicle/pathdata.hpd": {
+    "cells": "1eb25a4467917455b29252d720b9bcc8fcc8f197",
+    "navdata": [
+     "ok",
+     "322d7336ccc6315cbb1dc781f9c6e4e2e3d43e7e"
+    ],
+    "pieces": "73b2d7737a0579ff2c3248a4ba0bb506acbd5f50",
+    "sha1": "b38c6701a0bacc2f8e8830bcf5b486f8e8b300a7"
+   },
+   "game/Output/win32/ai/levels/sp_03/infantry/pathdata.hpd": {
+    "cells": "79a9ec0a3fbbf804395c524c4683e9e1a6261a04",
+    "navdata": [
+     "ok",
+     "58e810c2f3abbb27dc67ae9946683448d81aab69"
+    ],
+    "pieces": "5ebec6a6252eba00f8f3281dfa38b789058eb212",
+    "sha1": "e0c61400427874eb2ca977e312acde34f6175660"
+   },
+   "game/Output/win32/ai/levels/sp_03/vehicle/pathdata.hpd": {
+    "cells": "49ac9f4feb001f4c41a3e2cc7dd7fca77095dade",
+    "navdata": [
+     "ok",
+     "21b9d5545d5ecf49028db93d175e9595852fb989"
+    ],
+    "pieces": "55dc219968422e6b928ed187cf8da050080be5a1",
+    "sha1": "c345515f0f2ab057cc49c2738d8f00909036596e"
+   },
+   "game/Output/win32/ai/levels/sp_04/infantry/pathdata.hpd": {
+    "cells": "4db2db696b9bf5e1c945d997d30dbc0ca537ea42",
+    "navdata": [
+     "ok",
+     "38d95bee754ce58c4ee75d86f9aa038e07004162"
+    ],
+    "pieces": "ca7c8dee258ada9dac9d618d4f027a6140201b62",
+    "sha1": "86619b1532c3ac142ef61b603eaa4ccf8824da28"
+   },
+   "game/Output/win32/ai/levels/sp_04/vehicle/pathdata.hpd": {
+    "cells": "1b7a28d2180369a4f531adaf21d168871cdf0a84",
+    "navdata": [
+     "ok",
+     "d5429c60b893e467af8006d42857cd3632594018"
+    ],
+    "pieces": "21905f3524c6dadc418c76de05ec5951f82edf8b",
+    "sha1": "57fd9fe19a77eb0c60f193bebde619887fb347eb"
+   }
+  },
+  "routes": {
+   "sp_004_b": {
+    "routes": "e116fe73c3a8f90a18726354e4d62540aeedf581",
+    "sha1": "09214cc1dc1a4d3159fdd0340cc5f0953211c222"
+   },
+   "sp_009": {
+    "routes": "b18d779076375394f24248759042ef5f68ad638e",
+    "sha1": "18a1cfed84a4860da2cae09317f8587f763f0e81"
+   }
+  }
+ },
  "quick": {
   "navdata": [
    [

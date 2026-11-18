@@ -33,7 +33,6 @@ Usage: navbuild.py <samples.bin> <forbid_tris.npy> <XOffset> <ZOffset> <out.hpd>
                    [--no-detail]   (no D lines / F cells: BuildSettings.detail_features off)
 """
 import contextlib
-import heapq
 import math
 import os
 import sys
@@ -129,10 +128,11 @@ GABRIEL_EDGES = 'detailed'      # prune the route graph's walkable pairs to the 
                                 # 'detailed' = in pitch-0.2 sectors, 'all', or None. DICE's detailed-sector edges are 71 %
                                 # Gabriel (RNG 50 %), 2.7 edges per node; NavKit's all-visible-pairs rule gave 15.9 per node
                                 # there (174,024 edges against DICE's 24,710; ONS_MP_002, 2026-10-21)
-DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one)
+DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one).
+                                # The Rust core's sector graph has only this rule: False raises (round R1, 2026-11-18)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
-ORDER_NODES = True              # a route node at AI order positions far from any node (add_order_nodes; needs the level's
+ORDER_NODES = True              # a route node at AI order positions far from any node (build_graph; needs the level's
                                 # order_points.json from levelobjects.py) - sp_004_b play test 2026-10-20: 0 failures. Was off until
                                 # the sp_004_b play test confirms it (2026-10-20)
 ORDER_NODE_MIN = 3.0            # ... when the nearest node on the same floor is farther than this (m)
@@ -144,16 +144,15 @@ ORDER_MIN_ISLAND = 25           # an order node in a route island with fewer nod
                                 # stairs-top nodes and gains 0.26 connectivity / 0.6 AI pairwise). A size, not "the main
                                 # network": campaign levels have several large networks (sp_004_b: 2,577 and 1,255
                                 # nodes). Calibrated on campaign levels; to check on MP geometry (2026-10-20)
-DETOUR_REPAIR = False           # add waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it
-                                # adds 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20)
-DETOUR_TRIGGER = 3.0            # repair node pairs within DIST_EDGE_MAX whose route exceeds this x straight - above DICE's
-                                # p90 (3.12; median 1.34, sp_004_b 2026-10-20); the failing go-to routes ran 3.15-6.38x
-DETOUR_MAX = 1.3                # ... to a walk of at most this x straight (DICE at the failing spot: 1.02-1.11)
-DETOUR_LINK_ALL = False         # also link new waypoints to all walkable neighbours within DIST_EDGE_MAX (4x the edges)
-DETOUR_PASSES = 2               # pass A, then pass B on the repaired graph
+DETOUR_REPAIR = False           # waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it added
+                                # 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20). Its
+                                # Python went with build_graph's on 2026-11-18 (round R1; the Rust core's sector graph
+                                # has no detour repair): True raises - to try it again, port repair_detours (ee25186)
 LADDER_STATS: dict[str, int] = {}               # ladder links made, and ladders whose ends lie in two sectors (not linked yet)
 BORDER_NODE_SPACING = 10.0
-BRIDGE_UNION = True             # 45-degree bridges: outline from the exact union (bridge_union) - False: clip_bridges
+BRIDGE_UNION = True             # 45-degree bridges: outline from the exact union of the bridges (the Rust core's
+                                # trace_emit). False was the old clip_bridges, which left open ends (1.7-3.1 % of areas):
+                                # retired with trace_emit's Python on 2026-11-18 (round R1) - False raises
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
 DETAIL_FEATURES = True          # D lines and F cells (navdetail.py): sides between two cells of one area whose heights
@@ -191,63 +190,45 @@ DETAIL_STATS: dict[str, int] = {}               # D lines, F cells and outline s
 
 # ------------------------------------------------------------------------------------------------ the Rust core
 
-# Two kinds of pieces run in the Rust core (rust/bc2-navbuild through bc2_native):
-#  - the grid walks (round E1d): Level.neighbour's linking, components, trace_edges' side neighbours,
-#    line_walkable, build_graph's route-group search, and navwalk's flood, islands_of and matched_flags. Their Python
-#    was retired on 2026-11-17 after the full test tier; the module is required for them (require_native, which a
-#    build calls first) and BFBC2_PURE_PYTHON does not change that. Their results are recorded in
-#    tests/navbuild_golden.json (tests/test_navbuild_native.py); navregress stays the independent check against
-#    DICE's path data.
-#  - the walkability rules, build_areas and build_graph's cell picking (round E2a), and trace_edges, trace_emit,
-#    add_cover_nodes, gabriel_prune and navwalk's roof_islands (round E3c): their Python stays the reference and the
-#    fallback until they pass a full test tier; BFBC2_PURE_PYTHON=1 or use_native(False) runs it.
+# The generator's logic runs in the Rust core (rust/bc2-navbuild through bc2_native): the grid walks (round E1d), the
+# walkability rules, build_areas and the cell picking (E2a), the tracing, the roof rule, the cover nodes, Gabriel
+# pruning, the route edges and group joining (E3c), whole sector graphs, the stage's areas and edge rows, the floods,
+# islands and unseeds (E3h). Their Python twins were retired after the full test tier: E1d's on 2026-11-17, the rest
+# on 2026-11-18 (round R1; rust/BENCHMARKS.md "Retired Python"). The module is required (require_native, which a build
+# calls first); what the twins answered is recorded in tests/navbuild_golden.json (tests/test_navbuild_native.py), and
+# navregress stays the independent check against DICE's path data. Numbers the core takes are cast to them here (a
+# NumPy integer or float to int / float); a setting the core does not have raises (_unported).
 
 def require_native() -> Any:
-    """The Rust core for the grid walks, or bfbc2core.native.NativeMissing saying how to get it."""
+    """The Rust core for the generator, or bfbc2core.native.NativeMissing saying how to get it."""
     suite_paths.use('core')
     from bfbc2core import native
-    return native.require("NavKit's grid walks (navbuild.py / navwalk.py)", 'NavLevel')
+    return native.require("NavKit's generator (navbuild.py / navwalk.py)", 'NavLevel')
 
 
-def _load_native() -> Any:
-    """The Rust core for E2a's pieces (build_areas, the cell picking; navwalk's rules), or None: not built, or
-    BFBC2_PURE_PYTHON set (their Python runs)."""
-    try:
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'NavLevel') else None
+def _window(cfg: 'BuildSettings') -> tuple[int, int]:
+    """The sector window as the Rust core takes it (a plain range of sample indices)."""
+    w = cfg.window
+    if w.step != 1:
+        raise ValueError(f'a sector window of step {w.step}: the Rust core walks whole windows (range(a, b))')
+    return int(w.start), int(w.stop)
 
 
-_native = _load_native()
-_NATIVE_ERRORS = (ValueError, TypeError, OverflowError)   # E2a's pieces: the Rust core refused, the Python code runs
+def _max_area() -> int | None:
+    """build_areas' bisection size (BISECT_AREAS), as the Rust core takes it."""
+    return int(MAX_AREA) if BISECT_AREAS else None
 
 
-def backend() -> str:
-    """'rust' when E2a's pieces run in the Rust core, else 'python' (the grid walks always run in it)."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on: bool) -> str:
-    """E2a's pieces in the Rust core (when built, whatever BFBC2_PURE_PYTHON says) or in Python for this process,
-    navwalk's rules too; returns backend(). The grid walks are not switched: they have no Python."""
-    global _native
-    if on:
-        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-        try:
-            _native = _load_native()
-        finally:
-            if saved is not None:
-                os.environ['BFBC2_PURE_PYTHON'] = saved
-    else:
-        _native = None
-    navwalk.use_native(on)                   # its rules too
-    navsample.use_native(on)                 # and the sample files' records
-    return backend()
+def _unported() -> None:
+    """The settings whose Python went with round R1 (2026-11-18) and that the Rust core does not have: an error
+    naming them, not a silent other build."""
+    off = [name for name, bad in (('BRIDGE_UNION = False (clip_bridges)', not BRIDGE_UNION),
+                                  ('DEDUP_GRAPH_NODES = False', not DEDUP_GRAPH_NODES),
+                                  ('DETOUR_REPAIR = True (repair_detours)', DETOUR_REPAIR)) if bad]
+    if off:
+        raise NotImplementedError(", ".join(off) + ": retired with NavKit's Python twins on 2026-11-18 (round R1, "
+                                  'rust/BENCHMARKS.md "Retired Python"); the Rust core has no such build - port it '
+                                  "from the suite's commit ee25186 to use it again")
 
 
 def water_tops(s: navsample.Samples, vertices: np.ndarray | None, triangles: np.ndarray) -> np.ndarray:
@@ -518,28 +499,20 @@ def tiling(sid: int, cfg: BuildSettings = DEFAULTS) -> tuple[int, int]:
 
 
 def _build_areas_many(level: Level, specs: Sequence[tuple[Any, ...]],
-                      cfg: BuildSettings) -> list[tuple[list[AreaInfo], list[tuple[float, float]]]] | None:
+                      cfg: BuildSettings) -> list[tuple[list[AreaInfo], list[tuple[float, float]]]]:
     """build_areas for every sector of a stage at once, in parallel in the Rust core: specs = [(gi0, gj0, ox, oz,
-    start, tile, tiles)]; per sector (areas, [(lowest, highest) level.y of each area's cells]). None: the caller runs
-    build_areas sector by sector (E2a's Python, or the core refused)."""
+    start, tile, tiles)]; per sector (areas, [(lowest, highest) level.y of each area's cells])."""
     return _build_areas_kept(level, specs, cfg, False)[0]
 
 
 def _build_areas_kept(level: Level, specs: Sequence[tuple[Any, ...]], cfg: BuildSettings, store: bool = True
-                      ) -> tuple[list[tuple[list[AreaInfo], list[tuple[float, float]]]] | None, Any]:
+                      ) -> tuple[list[tuple[list[AreaInfo], list[tuple[float, float]]]], Any]:
     """_build_areas_many, and (store) the areas kept in the Rust core as well (a NavAreas, in the specs' order: the
     stage's tracing and route graphs take their cells from it - round E3h), or None."""
-    w = cfg.window
-    if (_native is None or w.step != 1 or type(MAX_AREA) is not int
-            or not all(len(sp[4]) == 2 and all(type(v) is int for v in (*sp[4], sp[5], sp[6])) for sp in specs)):
-        return None, None
+    got = level.native().build_areas_many(
+        [(int(sp[0]), int(sp[1]), _window(cfg), (int(sp[4][0]), int(sp[4][1])), int(sp[5]), int(sp[6]))
+         for sp in specs], _max_area(), AREA_LINK, store=store)
     kept = None
-    try:
-        got = level.native().build_areas_many(
-            [(sp[0], sp[1], (w.start, w.stop), (sp[4][0], sp[4][1]), sp[5], sp[6]) for sp in specs],
-            MAX_AREA if BISECT_AREAS else None, AREA_LINK, store=store)
-    except _NATIVE_ERRORS:
-        return None, None
     if store:
         got, kept = got
     return [([{'tile': t, 'cells': c} for t, c, _lo, _hi in sector], [(lo, hi) for _t, _c, lo, hi in sector])
@@ -550,34 +523,16 @@ def build_areas(level: Level, gi0: int, gj0: int, start: Sequence[int] = (-1, -1
                 tiles: int | None = None, cfg: BuildSettings = DEFAULTS) -> list[AreaInfo]:
     """Areas of one sector: list of dicts {tile: (tx, tz), cells: [(i, j, k)]} (local i, j). start: the local sample
     index where the tiles begin on x and z (-1, or 0 on a side with no neighbouring sector - EDGE_SECTOR_TILES); tile,
-    tiles: samples per tile and tiles per axis (cfg's if None)."""
+    tiles: samples per tile and tiles per axis (cfg's if None). The surfaces of the window's columns by tile (column-
+    major), each tile's components (AREA_LINK) and, with BISECT_AREAS, their bisection at the middle of their extent
+    over MAX_AREA samples - in the Rust core (round E2a)."""
     tile = cfg.tile if tile is None else tile
     tiles = cfg.tiles if tiles is None else tiles
-    w = cfg.window
-    if (_native is not None and w.step == 1 and len(start) == 2 and all(type(v) is int for v in (*start, tile, tiles))
-            and type(MAX_AREA) is int):
-        # in the Rust core: the tiles, their components and the bisection in one call (E2a: the Python below is
-        # its reference)
-        try:
-            got = level.native().build_areas(gi0, gj0, (w.start, w.stop), (start[0], start[1]), tile, tiles,
-                                             MAX_AREA if BISECT_AREAS else None, AREA_LINK)
-            return [{'tile': t, 'cells': c} for t, c in got]
-        except _NATIVE_ERRORS:
-            pass
-    cells_by_tile: defaultdict[tuple[int, int], list[Cell]] = defaultdict(list)
-    for j in cfg.window:
-        for i in cfg.window:
-            for k in level.surfaces(gi0 + i, gj0 + j):
-                tx = min(max(i - start[0], 0) // tile, tiles - 1)
-                tz = min(max(j - start[1], 0) // tile, tiles - 1)
-                cells_by_tile[(tx, tz)].append((i, j, k))
-    areas = []
-    for tkey in sorted(cells_by_tile):
-        members = {k: (i, j) for i, j, k in cells_by_tile[tkey]}
-        for comp in components(level, members, gi0, gj0):
-            for piece in (bisect(level, comp, gi0, gj0) if BISECT_AREAS else [comp]):
-                areas.append({'tile': tkey, 'cells': piece})
-    return areas
+    if len(start) != 2:
+        raise ValueError(f'build_areas: start is (i, j), not {start!r}')
+    got = level.native().build_areas(int(gi0), int(gj0), _window(cfg), (int(start[0]), int(start[1])), int(tile),
+                                     int(tiles), _max_area(), AREA_LINK)
+    return [{'tile': t, 'cells': c} for t, c in got]
 
 
 def components(level: Level, members: dict[int, tuple[int, int]], gi0: int, gj0: int) -> list[list[Cell]]:
@@ -587,127 +542,6 @@ def components(level: Level, members: dict[int, tuple[int, int]], gi0: int, gj0:
     Rust core."""
     return cast(list[list[Cell]], level.native().components(
         [(int(k), int(i), int(j)) for k, (i, j) in members.items()], int(gi0), int(gj0), AREA_LINK))
-
-
-def bisect(level: Level, comp: list[Cell], gi0: int, gj0: int) -> list[list[Cell]]:
-    i0, i1 = min(c[0] for c in comp), max(c[0] for c in comp)
-    j0, j1 = min(c[1] for c in comp), max(c[1] for c in comp)
-    if i1 - i0 + 1 <= MAX_AREA and j1 - j0 + 1 <= MAX_AREA:
-        return [comp]
-    if i1 - i0 >= j1 - j0:
-        mid = (i0 + i1 + 1) // 2
-        halves = ([c for c in comp if c[0] < mid], [c for c in comp if c[0] >= mid])
-    else:
-        mid = (j0 + j1 + 1) // 2
-        halves = ([c for c in comp if c[1] < mid], [c for c in comp if c[1] >= mid])
-    out = []
-    for h in halves:
-        for sub in components(level, {k: (i, j) for i, j, k in h}, gi0, gj0):
-            out.extend(bisect(level, sub, gi0, gj0))
-    return out
-
-
-def clip_bridges(bsegs: Iterable[tuple[int, Vec3, Vec3]],
-                 bridges: Sequence[tuple[int, int, int, int]]) -> list[tuple[int, Vec3, Vec3]]:
-    """Outline of overlapping 45-degree bridges is the boundary of their union: where edges of two bridges
-    cross (one cell with diagonal-only neighbours on both sides of an empty cell), split them at the crossing
-    and drop the pieces lying inside the other bridge's strip (half-width 1/sqrt 2 sample about the diagonal)."""
-    def inside(px: float, pz: float, b: int) -> bool:
-        i, j, di, dj = bridges[b]
-        rx, rz = px - i, pz - j
-        along = (rx * di + rz * dj) / 2.0                   # 0..1 between the two cell centres
-        perp = abs(rx * dj - rz * di) / math.sqrt(2.0)
-        return 0.0 < along < 1.0 and perp < 1.0 / math.sqrt(2.0) - 1e-6
-
-    out = list(bsegs)
-    changed = True
-    while changed:
-        changed = False
-        for u in range(len(out)):
-            for v in range(u + 1, len(out)):
-                (bu, p0, p1), (bv, q0, q1) = out[u], out[v]
-                if bu == bv:
-                    continue
-                d = (p1[0] - p0[0]) * (q1[1] - q0[1]) - (p1[1] - p0[1]) * (q1[0] - q0[0])
-                if abs(d) < 1e-9:
-                    continue
-                t = ((q0[0] - p0[0]) * (q1[1] - q0[1]) - (q0[1] - p0[1]) * (q1[0] - q0[0])) / d
-                s = ((q0[0] - p0[0]) * (p1[1] - p0[1]) - (q0[1] - p0[1]) * (p1[0] - p0[0])) / d
-                if not (1e-6 < t < 1 - 1e-6 and 1e-6 < s < 1 - 1e-6):
-                    continue
-                pieces = []
-                for (b, a0, a1, f), other in (((bu, p0, p1, t), bv), ((bv, q0, q1, s), bu)):
-                    m = (a0[0] + (a1[0] - a0[0]) * f, a0[1] + (a1[1] - a0[1]) * f, a0[2] + (a1[2] - a0[2]) * f)
-                    for c0, c1 in ((a0, m), (m, a1)):
-                        if not inside((c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2, other):
-                            pieces.append((b, c0, c1))
-                out = [x for w, x in enumerate(out) if w not in (u, v)] + pieces
-                changed = True
-                break
-            if changed:
-                break
-    return out
-
-
-def bridge_union(bridges: Sequence[tuple[int, int, int, int]], cell_k: dict[tuple[int, int], int], level: Level,
-                 cfg: BuildSettings = DEFAULTS) -> tuple[set[tuple[Any, ...]], list[tuple[Vec3, Vec3]]]:
-    """BRIDGE_UNION: the outline of an area's 45-degree bridges as the boundary of their union, exactly. A bridge
-    between diagonal-only cells A (i, j) and B (i + di, j + dj) covers half of each of the two empty cells beside the
-    shared corner - per empty cell, the two quarter triangles (base: a cell side, apex: the centre) whose bases touch
-    that corner. Over the set of covered quarters of the empty cells, a half-diagonal (cell corner to centre) shared
-    by two quarters is interior; the others are the bridges' outline - halves of one diagonal joined. A side of an
-    area cell is covered (no outline there) where the empty cell's quarter on it is. Returns (covered sides in
-    trace_edges' keys, [((ax, az, ya), (bx, bz, yb))] in local sample units). With non-overlapping bridges this is
-    exactly the two diagonals per bridge; overlapping ones (chains, a cell shared by two corners) close where
-    clip_bridges left open ends (1.7-3.1 % of areas on sp_004_b / sp_01, 2026-10-23)."""
-    quarters = {}                                   # (cell i, j, base side (sx, sz)) -> (bridge index, ya, yb)
-    order = []
-    for bi, (i, j, di, dj) in enumerate(bridges):
-        ya = level.y[cell_k[(i, j)]] + cfg.y_offset
-        yb = level.y[cell_k[(i + di, j + dj)]] + cfg.y_offset
-        # empty cell (i, j + dj): its sides towards A (0, -dj) and towards B (di, 0); empty cell (i + di, j): towards
-        # A (-di, 0) and towards B (0, dj) - the order clip_bridges emitted them in
-        for (ei, ej), toward_a, toward_b in (((i, j + dj), (0, -dj), (di, 0)), ((i + di, j), (-di, 0), (0, dj))):
-            for side in (toward_a, toward_b):
-                q = (ei, ej, side)
-                if q not in quarters:
-                    quarters[q] = (bi, ya, yb, toward_a, toward_b)
-                    order.append(q)
-    def corners(ei: int, ej: int, side: tuple[int, int]) -> tuple[tuple[int, int], tuple[int, int]]:                      # the two corners of a quarter's base, in half units
-        sx, sz = side
-        if sx:
-            return ((2 * ei + sx, 2 * ej - 1), (2 * ei + sx, 2 * ej + 1))
-        return ((2 * ei - 1, 2 * ej + sz), (2 * ei + 1, 2 * ej + sz))
-    count: defaultdict[tuple[tuple[int, int], int, int], int] = defaultdict(int)
-    for (ei, ej, side) in quarters:
-        for c in corners(ei, ej, side):
-            count[(c, ei, ej)] += 1                 # half-diagonal from corner c to the centre of (ei, ej)
-    drop = set()
-    for (ei, ej, side) in quarters:
-        sx, sz = side
-        drop.add(('x', ei + sx * 0.5, ej) if sx else ('z', ej + sz * 0.5, ei))
-    emitted: set[tuple[tuple[int, int], int, int]]
-    segs, done, emitted = [], set(), set()
-    for (ei, ej, side) in order:
-        bi, ya, yb, toward_a, toward_b = quarters[(ei, ej, side)]
-        if (ei, ej, bi) in done:
-            continue
-        done.add((ei, ej, bi))
-        # this bridge's diagonal through the cell: from A's outer corner to B's outer corner, through the centre
-        ca = [c for c in corners(ei, ej, toward_a) if count[(c, ei, ej)] == 1 and (ei, ej, toward_a) in quarters
-              and (c, ei, ej) not in emitted]
-        cb = [c for c in corners(ei, ej, toward_b) if count[(c, ei, ej)] == 1 and (ei, ej, toward_b) in quarters
-              and (c, ei, ej) not in emitted]
-        emitted.update((c, ei, ej) for c in ca + cb)
-        ctr = (float(ei), float(ej), (ya + yb) / 2.0)
-        pa = [(c[0] / 2.0, c[1] / 2.0, ya) for c in ca]
-        pb = [(c[0] / 2.0, c[1] / 2.0, yb) for c in cb]
-        if len(pa) == 1 and len(pb) == 1:
-            segs.append((pa[0], pb[0]))
-        else:
-            segs.extend((p, ctr) for p in pa)
-            segs.extend((ctr, p) for p in pb)
-    return drop, segs
 
 
 def trace(level: Level, sector: tuple[int, int], areas: Sequence[AreaInfo], area_of: dict[int, int], gi0: int,
@@ -723,136 +557,52 @@ def trace(level: Level, sector: tuple[int, int], areas: Sequence[AreaInfo], area
 def trace_edges(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int], gi0: int, gj0: int,
                 cfg: BuildSettings = DEFAULTS) -> tuple[list[EdgeRows], list[OneWay]]:
     """Boundary edges of every area: (per area {(kind, target, axis, line, dir): [(along, y)]}, one-way candidates).
-    Portals are symmetric (SYMMETRIC_PORTALS): every portal edge A -> B also stands as B -> A, replacing an outline
-    edge B had there - neighbour() picks the nearest surface in height, so with two surfaces in a column the two
-    sides could disagree and leave a one-way portal (22 % of them on sp_004_b before). Where the target's side is
-    its own interior (a second surface of the target in the source's column) the piece cannot be mirrored: it is a
-    one-way candidate (source area, target area, key, along) for drop_one_way. In the Rust core when it is there (round
-    E3c; the Python below is its reference and fallback)."""
-    if _native is not None and cfg.window.step == 1 and isinstance(cfg.y_offset, float) and isinstance(level, Level):
-        try:
-            got = level.native().trace_edges([a['cells'] for a in areas], area_of, gi0, gj0,
-                                             (cfg.window.start, cfg.window.stop), cfg.y_offset, LINK_RULE,
-                                             bool(SYMMETRIC_PORTALS))
-            return cast(tuple[list[EdgeRows], list[OneWay]], got)
-        except _NATIVE_ERRORS:
-            pass
-    per_area: list[EdgeRows] = []
-    one_way: list[OneWay] = []
-    mirror: defaultdict[Any, dict[tuple[Any, ...], Any]]
-    mirror = defaultdict(dict)       # area -> {(source area, axis, line, dir, along): y of its own cell there}
-    side_kind: list[dict[tuple[Any, ...], tuple[str, Any]]] = []                   # per area: {(axis, line, dir, along): (kind 'I' interior / 'B' / 'C' / 'E', target)}
-    for ai, area in enumerate(areas):
-        edges: EdgeRows = defaultdict(list)    # (kind, target, axis, line, dir) -> [(along, y0, y1)]
-        sides: dict[tuple[Any, ...], tuple[str, Any]] = {}
-        target: Any
-        # the neighbour across each side (+x, -x, +z, -z) of each cell, all at once in the Rust core: neighbour's, but
-        # a connected surface of this area itself first
-        sides_n = level.native().side_neighbours(area['cells'], gi0, gj0, LINK_RULE)
-        for ci_, (i, j, k) in enumerate(area['cells']):
-            yk = level.y[k] + cfg.y_offset
-            for d_, (di, dj) in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
-                side = ('x', i + di * 0.5, di, j) if di else ('z', j + dj * 0.5, dj, i)
-                # a side is interior when any connected surface across it is in this area (two connected
-                # surfaces in one column - stair edge, split-off layer - must not leave a stray portal inside)
-                n = sides_n[4 * ci_ + d_]
-                ni, nj = i + di, j + dj
-                if n is not None and ni in cfg.window and nj in cfg.window:
-                    t = area_of.get(n)
-                    if t == ai:
-                        sides[side] = ('I', None)
-                        continue
-                    kind, target = ('B', t) if t is not None else ('E', None)
-                elif n is not None:
-                    kind, target = 'C', (di, dj)
-                else:
-                    kind, target = 'E', None
-                if di:   # vertical line x = const
-                    key = (kind, target, 'x', i + di * 0.5, di)
-                    edges[key].append((j, yk))
-                else:
-                    key = (kind, target, 'z', j + dj * 0.5, dj)
-                    edges[key].append((i, yk))
-                sides[side] = (kind, target)
-                if kind == 'B':
-                    axis, line, along = ('x', i + di * 0.5, j) if di else ('z', j + dj * 0.5, i)
-                    mirror[target][(ai, axis, line, -(di or dj), along)] = level.y[n] + cfg.y_offset
-        per_area.append(edges)
-        side_kind.append(sides)
-    if SYMMETRIC_PORTALS:
-        # only where the target's side is plain outline: an interior side (the column holds a surface of the target
-        # too) or a side holding another portal stays as it is - a portal there would break the area's outline
-        for t, need in mirror.items():
-            edges = per_area[t]
-            for (src, axis, line, d, along), y in need.items():
-                there = side_kind[t].get((axis, line, d, along), ('E', None))
-                if there == ('B', src):                  # a portal back already
-                    continue
-                if there[0] != 'E':
-                    key = ('B', t, axis, line, -d)
-                    if any(r[0] == along for r in per_area[src].get(key, [])):
-                        one_way.append((src, t, key, along))
-                    continue
-                for key in [k for k in edges if k[0] == 'E' and k[2] == axis and k[3] == line and k[4] == d]:
-                    edges[key] = [r for r in edges[key] if r[0] != along]
-                edges[('B', src, axis, line, d)].append((along, y))
-                side_kind[t][(axis, line, d, along)] = ('B', src)
-    return per_area, one_way
+    Each cell side is interior (a connected surface of the area itself across it), a portal B (another area of the
+    sector), a border C (a connected surface outside the window) or outline E. Portals are symmetric
+    (SYMMETRIC_PORTALS): every portal edge A -> B also stands as B -> A, replacing an outline edge B had there -
+    neighbour() picks the nearest surface in height, so with two surfaces in a column the two sides could disagree
+    and leave a one-way portal (22 % of them on sp_004_b before). Where the target's side is its own interior (a second
+    surface of the target in the source's column) the piece cannot be mirrored: it is a one-way candidate (source
+    area, target area, key, along) for drop_one_way. In the Rust core (round E3c)."""
+    got = level.native().trace_edges([a['cells'] for a in areas], area_of, int(gi0), int(gj0), _window(cfg),
+                                     float(cfg.y_offset), LINK_RULE, bool(SYMMETRIC_PORTALS))
+    return cast(tuple[list[EdgeRows], list[OneWay]], got)
 
 
 def _trace_edges_many(level: Level, sectors: Sequence[tuple[tuple[int, int], dict[str, Any]]], cfg: BuildSettings,
-                      store: Any = None) -> dict[tuple[int, int], tuple[list[EdgeRows], list[OneWay]]] | None:
+                      store: Any = None) -> dict[tuple[int, int], tuple[list[EdgeRows], list[OneWay]]]:
     """trace_edges for every sector of a stage at once, in parallel in the Rust core (each sector's area_of as stage
-    makes it: each cell's surface to its area); None: the caller runs trace_edges sector by sector. store: the
-    sectors' areas kept in the core (_build_areas_kept, in the order of sectors), or None: their cells are sent."""
-    if _native is None or cfg.window.step != 1 or not isinstance(cfg.y_offset, float):
-        return None
-    try:
-        if store is not None:
-            got = level.native().trace_edges_stored(
-                store, [(inf['origin'][0], inf['origin'][1]) for _sec, inf in sectors],
-                (cfg.window.start, cfg.window.stop), cfg.y_offset, LINK_RULE, bool(SYMMETRIC_PORTALS))
-        else:
-            got = level.native().trace_edges_many(
-                [([a['cells'] for a in inf['areas']], inf['origin'][0], inf['origin'][1]) for _sec, inf in sectors],
-                (cfg.window.start, cfg.window.stop), cfg.y_offset, LINK_RULE, bool(SYMMETRIC_PORTALS))
-    except _NATIVE_ERRORS:
-        return None
+    makes it: each cell's surface to its area), as Python dicts. store: the sectors' areas kept in the core
+    (_build_areas_kept, in the order of sectors), or None: their cells are sent."""
+    if store is not None:
+        got = level.native().trace_edges_stored(
+            store, [(int(inf['origin'][0]), int(inf['origin'][1])) for _sec, inf in sectors], _window(cfg),
+            float(cfg.y_offset), LINK_RULE, bool(SYMMETRIC_PORTALS))
+    else:
+        got = level.native().trace_edges_many(
+            [([a['cells'] for a in inf['areas']], int(inf['origin'][0]), int(inf['origin'][1])) for _sec, inf in sectors],
+            _window(cfg), float(cfg.y_offset), LINK_RULE, bool(SYMMETRIC_PORTALS))
     return {sec: (per_area, one_way) for (sec, _inf), (per_area, one_way) in zip(sectors, got)}
 
 
 def _trace_edges_kept(level: Level, store: Any, sectors: Sequence[tuple[tuple[int, int], dict[str, Any]]],
                       cfg: BuildSettings) -> list[list[OneWay]] | None:
     """trace_edges for every sector of a stage at once, in parallel in the Rust core, the rows kept there (round E3h:
-    store.drop_one_way, edges_of / set_edges, trace_emit_many read them); per sector its one-way candidates, or None:
-    the rows are made as Python dicts (_trace_edges_many; also ONE_WAY_PORTALS 'restore', which reads them all)."""
-    if (store is None or _native is None or cfg.window.step != 1 or not isinstance(cfg.y_offset, float)
-            or cfg.one_way_portals == 'restore'):
+    store.drop_one_way, edges_of / set_edges, trace_emit_many read them); per sector its one-way candidates, or None
+    for ONE_WAY_PORTALS 'restore' (it reads every row: _trace_edges_many makes them Python dicts)."""
+    if cfg.one_way_portals == 'restore':
         return None
-    try:
-        return cast(list[list[OneWay]], level.native().trace_edges_stored(
-            store, [(inf['origin'][0], inf['origin'][1]) for _sec, inf in sectors],
-            (cfg.window.start, cfg.window.stop), cfg.y_offset, LINK_RULE, bool(SYMMETRIC_PORTALS), keep_edges=True))
-    except _NATIVE_ERRORS:
-        return None
-
-
-def _edges_from_store(store: Any, sectors: Sequence[tuple[tuple[int, int], dict[str, Any]]],
-                      one_ways: Sequence[list[OneWay]] | None) -> dict[tuple[int, int], tuple[list[EdgeRows], list[OneWay]]]:
-    """The edge rows the Rust core keeps, as trace_edges' dicts (for the Python code when the core refuses a step)."""
-    return {sec: (store.edges_of(n, list(range(len(inf['areas'])))), list(one_ways[n]) if one_ways else [])
-            for n, (sec, inf) in enumerate(sectors)}
+    return cast(list[list[OneWay]], level.native().trace_edges_stored(
+        store, [(int(inf['origin'][0]), int(inf['origin'][1])) for _sec, inf in sectors], _window(cfg),
+        float(cfg.y_offset), LINK_RULE, bool(SYMMETRIC_PORTALS), keep_edges=True))
 
 
 def _detail_candidates(level: Level, store: Any, cfg: BuildSettings) -> list[list[int]] | None:
     """Per sector of store, the areas detail_pass may find broken sides in (two cells side by side more than the
-    detail step apart: Rust, in parallel), or None: all of them (half cells on, a step not a number, a refusal)."""
-    if (not cfg.detail_features or DETAIL_HALF_CELLS or not _number(cfg.detail_step.get(cfg.kind))):
+    detail step apart: Rust, in parallel), or None: all of them (features off, half cells on, a step not a number)."""
+    if not cfg.detail_features or DETAIL_HALF_CELLS or not _number(cfg.detail_step.get(cfg.kind)):
         return None
-    try:
-        return cast(list[list[int]], level.native().detail_candidates(store, float(cfg.detail_step[cfg.kind])))
-    except _NATIVE_ERRORS:
-        return None
+    return cast(list[list[int]], level.native().detail_candidates(store, float(cfg.detail_step[cfg.kind])))
 
 
 def drop_one_way(per_area: Sequence[EdgeRows], one_way: Sequence[OneWay], keep: Container[int]) -> None:
@@ -1017,104 +767,27 @@ def _emitted(got: Any) -> list[Traced]:
 
 def _trace_emit_many(level: Level, store: Any,
                      jobs: Sequence[tuple[int, Sequence[EdgeRows] | None, int, int, float, float]],
-                     cfg: BuildSettings) -> list[list[Traced]] | None:
+                     cfg: BuildSettings) -> list[list[Traced]]:
     """trace_emit for several sectors of a stage at once, in parallel in the Rust core (round E3h): jobs = [(the
-    sector's index in store, per_area or None - the rows store keeps -, gi0, gj0, ox, oz)]; None: the caller runs
-    trace_emit sector by sector."""
-    if (store is None or _native is None or not BRIDGE_UNION or not isinstance(level, Level)
-            or not all(isinstance(v, float) for v in (cfg.pitch, cfg.y_offset))
-            or not all(isinstance(v, float) for j in jobs for v in j[4:6])):
-        return None
-    try:
-        got = level.native().trace_emit_many(
-            store, [(n, pa if pa is None or isinstance(pa, list) else list(pa), gi0, gj0, (ox, oz))
-                    for n, pa, gi0, gj0, ox, oz in jobs], cfg.pitch, cfg.y_offset, LINK_RULE)
-    except _NATIVE_ERRORS:
-        return None
+    sector's index in store, per_area or None - the rows store keeps -, gi0, gj0, ox, oz)]."""
+    _unported()
+    got = level.native().trace_emit_many(
+        store, [(n, pa if pa is None or isinstance(pa, list) else list(pa), int(gi0), int(gj0), (float(ox), float(oz)))
+                for n, pa, gi0, gj0, ox, oz in jobs], float(cfg.pitch), float(cfg.y_offset), LINK_RULE)
     return [_emitted(g) for g in got]
 
 
 def trace_emit(level: Level, areas: Sequence[AreaInfo], per_area: Sequence[EdgeRows], gi0: int, gj0: int, ox: float,
                oz: float, cfg: BuildSettings = DEFAULTS) -> list[Traced]:
-    """Per area (portals, borders, outline) from its boundary edges: runs merged, 45-degree bridges. In the Rust core
-    when it is there (round E3c; the Python below is its reference and fallback - it also sorts per_area's rows and
-    drops the bridged outline sides from them in place, which the Rust leaves as they are: nothing reads them after)."""
-    if (_native is not None and BRIDGE_UNION and isinstance(level, Level)
-            and all(isinstance(v, float) for v in (ox, oz, cfg.pitch, cfg.y_offset))):
-        try:
-            got = level.native().trace_emit([a['cells'] for a in areas], per_area if isinstance(per_area, list)
-                                            else list(per_area), gi0, gj0, (ox, oz), cfg.pitch, cfg.y_offset,
-                                            LINK_RULE)
-        except _NATIVE_ERRORS:
-            pass
-        else:
-            return _emitted(got)
-    result = []
-    for ai, area in enumerate(areas):
-        edges = per_area[ai]
-        # 45-degree bridges between diagonal-only neighbours of this area
-        cellset = {(c[0], c[1]) for c in area['cells']}
-        bridges = []
-        cell_k = {(c[0], c[1]): c[2] for c in area['cells']}
-        for i, j, k in area['cells']:
-            for di, dj in ((1, 1), (1, -1)):
-                if (i + di, j + dj) in cellset and (i + di, j) not in cellset and (i, j + dj) not in cellset:
-                    # only across an open corner: neither cell has a connected surface (another area) beside it
-                    # there - otherwise those sides are portals and the strip would overlap the other area
-                    kd = cell_k[(i + di, j + dj)]
-                    if any(level.neighbour(kk, gi0 + a, gj0 + b, x, z) is not None
-                           for kk, a, b, x, z in ((k, i, j, di, 0), (k, i, j, 0, dj),
-                                                  (kd, i + di, j + dj, -di, 0), (kd, i + di, j + dj, 0, -dj))):
-                        continue
-                    bridges.append((i, j, di, dj))
-        portals, borders, outline = [], [], []
-        if BRIDGE_UNION:
-            drop, dsegs = bridge_union(bridges, cell_k, level, cfg)
-            for (ax, az, ya), (bx, bz, yb) in dsegs:
-                outline.append([(ox + ax * cfg.pitch, ya, oz + az * cfg.pitch),
-                                (ox + bx * cfg.pitch, yb, oz + bz * cfg.pitch)])
-        else:
-            drop = set()
-            for i, j, di, dj in bridges:
-                # unit outline edges around the corner point (i + di/2, j + dj/2)
-                drop.update({('x', i + di * 0.5, j), ('z', j + dj * 0.5, i), ('x', i + di * 0.5, j + dj), ('z', j + dj * 0.5, i + di)})
-            bsegs = []                                      # (bridge, (ax, az, ya), (bx, bz, yb)) local units
-            for bi, (i, j, di, dj) in enumerate(bridges):
-                cx, cz = i + di * 0.5, j + dj * 0.5         # shared corner (local sample units)
-                ya = level.y[cell_k[(i, j)]] + cfg.y_offset
-                yb = level.y[cell_k[(i + di, j + dj)]] + cfg.y_offset
-                for (ax, az), (bx, bz) in (((cx - di, cz), (cx, cz + dj)), ((cx, cz - dj), (cx + di, cz))):
-                    bsegs.append((bi, (ax, az, ya), (bx, bz, yb)))
-            for _bi, (ax, az, ya), (bx, bz, yb) in clip_bridges(bsegs, bridges):
-                outline.append([(ox + ax * cfg.pitch, ya, oz + az * cfg.pitch),
-                                (ox + bx * cfg.pitch, yb, oz + bz * cfg.pitch)])
-        for key in list(edges):
-            if key[0] == 'E':
-                axis, line = key[2], key[3]
-                edges[key] = [r for r in edges[key] if (axis, line, r[0]) not in drop]
-        for (kind, target, axis, line, _d), runs in edges.items():
-            runs.sort()
-            start = 0
-            for r in range(1, len(runs) + 1):
-                if r == len(runs) or runs[r][0] != runs[r - 1][0] + 1:
-                    a, b = runs[start][0] - 0.5, runs[r - 1][0] + 0.5
-                    ya, yb = runs[start][1], runs[r - 1][1]
-                    if axis == 'x':
-                        p0 = (ox + line * cfg.pitch, ya, oz + a * cfg.pitch)
-                        p1 = (ox + line * cfg.pitch, yb, oz + b * cfg.pitch)
-                    else:
-                        p0 = (ox + a * cfg.pitch, ya, oz + line * cfg.pitch)
-                        p1 = (ox + b * cfg.pitch, yb, oz + line * cfg.pitch)
-                    if kind == 'B':
-                        portals.append(kymesh.Portal(p0, p1, target))
-                    elif kind == 'C':
-                        borders.append((kymesh.BorderPortal(p0, p1, (float(target[0]), 0.0, float(target[1]))),
-                                        runs[start][0], runs[r - 1][0], line))
-                    else:
-                        outline.append([p0, p1])
-                    start = r
-        result.append((portals, borders, outline))
-    return result
+    """Per area (portals, borders, outline) from its boundary edges: each row of edges merged into straight runs (a
+    run per stretch of consecutive cells), and the 45-degree bridges between diagonal-only cells of the area (where
+    neither cell has a connected surface beside it there) outlined as the boundary of their union, the area-cell sides
+    they cover left out. In the Rust core (round E3c); per_area is left as it is."""
+    _unported()
+    got = level.native().trace_emit([a['cells'] for a in areas], per_area if isinstance(per_area, list)
+                                    else list(per_area), int(gi0), int(gj0), (float(ox), float(oz)), float(cfg.pitch),
+                                    float(cfg.y_offset), LINK_RULE)
+    return _emitted(got)
 
 
 def build(samples_path: str, tris_path: str | None, xoff: int, zoff: int, out_path: str, step: float = 0.28,
@@ -1230,8 +903,8 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
     level = Level(s, keep, step, gx, gz, stair, cfg)
     if walk_grid:
         # the level in the Rust core from walkable's (the same samples, gradients and stairs; round E3h); on a
-        # refusal Level.native makes it from the arrays
-        with contextlib.suppress(*_NATIVE_ERRORS):
+        # refusal Level.native makes it from the arrays (the Rust core either way)
+        with contextlib.suppress(ValueError, TypeError):
             level._native = walk_grid[0].with_walk(navwalk._flags(keep), navwalk._flags(level.terrain),
                                                    float(cfg.pitch), float(cfg.link_step))
     log(f'{len(s.y)} surfaces, {int(keep.sum())} walkable kept ({time.time() - t0:.0f} s)'
@@ -1277,16 +950,12 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
             edge = ((X - 1, Y) not in have, (X, Y - 1) not in have)
         start = tuple(0 if EDGE_SECTOR_TILES and e else -1 for e in edge)
         specs.append((gi0, gj0, ox, oz, start, *tiling(((X & 0xFF) << 8) | (Y & 0xFF), cfg)))
-    # every sector at once (Rust, in parallel), kept in the core for the tracing and graphs (store), or None: one by one
+    # every sector at once (Rust, in parallel), kept in the core for the tracing and graphs (store)
     many, store = _build_areas_kept(level, specs, cfg)
     orders_of = []
     for n, (X, Y) in enumerate(sectors):
         gi0, gj0, ox, oz, start, tile_n, tiles_n = specs[n]
-        if many is not None:
-            areas, ylims = many[n]
-        else:
-            areas = build_areas(level, gi0, gj0, start, tile_n, tiles_n, cfg=cfg)
-            ylims = [(min(level.y[c[2]] for c in a['cells']), max(level.y[c[2]] for c in a['cells'])) for a in areas]
+        areas, ylims = many[n]
         # order: tiles column-major, then layer = index within tile (the lowest ground's height; a stable sort)
         order = sorted(range(len(areas)), key=lambda q: (areas[q]['tile'][0], areas[q]['tile'][1], ylims[q][0]))
         orders_of.append(order)
@@ -1297,20 +966,13 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
             per_tile[a['tile']] += 1
         info[(X, Y)] = {'areas': areas, 'area_of': None, 'origin': (gi0, gj0, ox, oz), 'start': start,
                         'ylims': ylims}
-    if store is not None:
-        try:
-            store.reorder(orders_of)                 # the core's copy in the same order
-        except _NATIVE_ERRORS:
-            store = None
+    store.reorder(orders_of)                         # the core's copy in the same order
     for n, inf in enumerate(info.values()):
-        # each surface -> its area: answered by the core when it holds the areas (round E3h: the dict of every cell
-        # cost half a second on sp_004_b; it is made only if something iterates it), else a dict
-        if store is not None:
-            inf['area_of'] = _AreaOf(store, n, inf['areas'])
-            for ai, a in enumerate(inf['areas']):
-                a['_at'] = (store, n, ai)            # border_cell's lookups
-        else:
-            inf['area_of'] = {c[2]: ai for ai, a in enumerate(inf['areas']) for c in a['cells']}
+        # each surface -> its area: answered by the core, which holds the areas (round E3h: the dict of every cell
+        # cost half a second on sp_004_b; it is made only if something iterates it)
+        inf['area_of'] = _AreaOf(store, n, inf['areas'])
+        for ai, a in enumerate(inf['areas']):
+            a['_at'] = (store, n, ai)                # border_cell's lookups
     at_of = {sec: n for n, sec in enumerate(sectors)}    # a sector's index in store (info is in the same order)
     log(f'{sum(len(v["areas"]) for v in info.values())} areas ({time.time() - t0:.0f} s)')
 
@@ -1401,27 +1063,17 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
             border_nodes[sec].append((nid, pos, k))
 
     # boundary edges of every sector, then the one-way portal pieces decided level-wide. The edge rows stay in the
-    # Rust core when it holds the areas (round E3h: edge_sets None; drop_one_way runs there, the detail pass fetches
-    # the areas it may change), else they are Python dicts (edge_sets)
+    # Rust core (round E3h: edge_sets None; drop_one_way runs there, the detail pass fetches the areas it may change),
+    # but for ONE_WAY_PORTALS 'restore', which reads them all as Python dicts (edge_sets)
     edge_sets: dict[tuple[int, int], tuple[list[EdgeRows], list[OneWay]]] | None = None
     one_ways = _trace_edges_kept(level, store, sorted(info.items()), cfg)
     if one_ways is not None:
         n_cand = sum(len(o) for o in one_ways)
         keep = {sec: set(range(len(o))) if cfg.one_way_portals == 'keep' else set()
                 for sec, o in zip(sorted(info), one_ways)}
-        try:
-            store.drop_one_way([sorted(keep[sec]) for sec in sorted(info)])
-        except _NATIVE_ERRORS:                   # refused before changing anything: the rows to Python
-            edge_sets = _edges_from_store(store, sorted(info.items()), one_ways)
-            for sec, (per_area, one_way) in edge_sets.items():
-                drop_one_way(per_area, one_way, keep.get(sec, set()))
+        store.drop_one_way([sorted(keep[sec]) for sec in sorted(info)])
     else:
-        edge_sets = _trace_edges_many(level, sorted(info.items()), cfg, store)   # all sectors at once (Rust), or one by one
-        if edge_sets is None:
-            edge_sets = {}
-            for (X, Y), inf in sorted(info.items()):
-                gi0, gj0, ox, oz = inf['origin']
-                edge_sets[(X, Y)] = trace_edges(level, inf['areas'], inf['area_of'], gi0, gj0, cfg)
+        edge_sets = _trace_edges_many(level, sorted(info.items()), cfg, store)   # all sectors at once (Rust)
         n_cand = sum(len(v[1]) for v in edge_sets.values())
         if cfg.one_way_portals == 'restore':
             owners = defaultdict(list)
@@ -1458,16 +1110,13 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
         blocked_of[(X, Y)] = level.blocked
     emitted = _trace_emit_many(level, store, [(at_of[sec], None if edge_sets is None else edge_sets[sec][0],
                                                *inf['origin']) for sec, inf in sorted(info.items())], cfg)
-    if emitted is None and edge_sets is None:            # the core refused: its rows to Python, trace_emit there
-        edge_sets = _edges_from_store(store, sorted(info.items()), None)
     graphs, meshes, jobs = [], {}, []
     for n_sec, ((X, Y), inf) in enumerate(sorted(info.items())):
         gi0, gj0, ox, oz = inf['origin']
         areas, area_of = inf['areas'], inf['area_of']
         level.blocked = blocked_of[(X, Y)]
         details = details_of[(X, Y)]
-        traced = (emitted[n_sec] if emitted is not None
-                  else trace_emit(level, areas, cast(Any, edge_sets)[(X, Y)][0], gi0, gj0, ox, oz, cfg))
+        traced = emitted[n_sec]
         sid = ((X & 0xFF) << 8) | (Y & 0xFF)
         mesh_areas = []
         ntiles = tiling(sid, cfg)[1]
@@ -1496,26 +1145,17 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
         LADDER_STATS['linked'] = LADDER_STATS.get('linked', 0) + len(lads)
         LADDER_STATS['split'] = LADDER_STATS.get('split', 0) + sum(1 for f_, t_ in ladder_pairs if (f_ in area_of) != (t_ in area_of))
         jobs.append(((X, Y), traced, orders, lads, mesh, mesh_areas, rect, sid))
-    # the route graphs: every sector at once (Rust, in parallel; round E3h), or sector by sector (build_graph); the
-    # node ids are given in the sectors' order either way
-    gcfg = _graph_cfg(level, cfg) if store is not None else None
+    # the route graphs: every sector at once (Rust, in parallel; round E3h); the node ids are given in the sectors'
+    # order
+    gcfg = _graph_cfg(level, cfg)
     raw = [_graph_job(at_of[sec], traced, border_nodes[sec], info[sec]['origin'][0], info[sec]['origin'][1],
                       info[sec]['origin'][2], info[sec]['origin'][3], orders, lads, blocked_of[sec])
-           for sec, traced, orders, lads, *_rest in jobs] if gcfg else []
-    got = None
-    if gcfg and raw and all(j is not None for j in raw):
-        try:
-            got = level.native().graph_many(store, raw, gcfg)
-        except _NATIVE_ERRORS:
-            got = None
-    for n_sec, ((X, Y), traced, orders, lads, mesh, mesh_areas, rect, sid) in enumerate(jobs):
+           for sec, traced, orders, lads, *_rest in jobs]
+    got = level.native().graph_many(store, raw, gcfg) if raw else []
+    for n_sec, ((X, Y), _traced, orders, _lads, mesh, mesh_areas, rect, sid) in enumerate(jobs):
         gi0, gj0, ox, oz = info[(X, Y)]['origin']
         level.blocked = blocked_of[(X, Y)]
-        if got is not None:
-            pts, pairs = _graph_finish(got[n_sec], border_nodes[(X, Y)], new_id, orders, cfg)
-        else:
-            pts, pairs = build_graph(level, info[(X, Y)]['areas'], info[(X, Y)]['area_of'], traced,
-                                     border_nodes[(X, Y)], gi0, gj0, ox, oz, new_id, orders, lads, cfg)
+        pts, pairs = _graph_finish(got[n_sec], border_nodes[(X, Y)], new_id, orders, cfg)
         navislands.note_nodes(level, pts)        # which nodes stand on terrain (SHADOW_OBJECTS_ONLY)
         ys = [a.min_y for a in mesh_areas] + [a.max_y for a in mesh_areas]
         bounds_ = (rect[0], rect[1], min(ys), max(ys), rect[2], rect[3])
@@ -1715,118 +1355,37 @@ def _number(v: Any) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
-def _int_cells(areas: Iterable[AreaInfo]) -> bool:
-    """Every area's cells hold Python ints (as build_areas makes them): the Rust core's cell picking computes with them
-    as the reference does."""
-    return all(isinstance(v, (int, np.integer)) and not isinstance(v, bool) for a in areas for c in a['cells'][:1]
-               for v in c[:2])
-
-
-def _centre_cells(areas: Sequence[AreaInfo]) -> list[int] | None:
-    """For each area, the index of build_graph's centre cell (the cell nearest the cells' mean) from the Rust core;
-    None: build_graph picks them itself."""
-    if _native is None or not hasattr(_native, 'navkit_centre_cells') or not _int_cells(areas):
-        return None
-    try:
-        return cast(list[int], _native.navkit_centre_cells([a['cells'] for a in areas]))
-    except _NATIVE_ERRORS:
-        return None
-
-
-def _nearest_cells(areas: Sequence[AreaInfo], ends: Sequence[tuple[int, list[tuple[float, float]]]], ox: float,
-                   oz: float, pitch: float) -> list[list[int]] | None:
-    """For each (area index, [portal middle (x, z)]), the index in the area's cells of the cell nearest each middle,
-    from the Rust core; None: build_graph picks them itself (also when a number is not a float: a float32 would make
-    the reference's key compute in float32; a float64 scalar's ** 2 is the same C pow as a Python float's)."""
-    if _native is None or not hasattr(_native, 'navkit_nearest_cells'):
-        return None
-    if not (isinstance(ox, float) and isinstance(oz, float) and isinstance(pitch, float)
-            and all(isinstance(v, float) for _ai, mids in ends for m in mids for v in m)
-            and _int_cells(areas[ai] for ai, mids in ends if mids)):
-        return None
-    try:
-        return cast(list[list[int]], _native.navkit_nearest_cells(
-            [(areas[ai]['cells'] if mids else [], mids) for ai, mids in ends], ox, oz, pitch))
-    except _NATIVE_ERRORS:
-        return None
-
-
-def _route_native(level: Level, pts: Sequence[RouteNode], ox: Any, oz: Any, cfg: BuildSettings) -> bool:
-    """build_graph's route edges may run in the Rust core: it is there, the window is a plain range and the numbers
-    are the build's (Python floats: float32 positions would make the reference's // compute in float32)."""
-    return (_native is not None and isinstance(level, Level) and cfg.window.step == 1
-            and all(isinstance(v, float) for v in (ox, oz, cfg.pitch, cfg.y_offset, cfg.dist_edge_max))
-            and all(isinstance(v, float) for p in pts for v in p[1]))
-
-
-def edge_pairs(level: Level, pts: Sequence[RouteNode], gi0: int, gj0: int, ox: float, oz: float,
-               cfg: BuildSettings = DEFAULTS) -> list[RoutePair]:
-    """build_graph's walkable pairs: node pairs within DIST_EDGE_MAX (15 m buckets, the 3 x 3 around each node) whose
-    straight line is walkable. In the Rust core when it is there (round E3c, the nodes tested in parallel; the Python
-    below is its reference and fallback)."""
-    if _route_native(level, pts, ox, oz, cfg):
-        nat = level.native()
-        level.sync_blocked(nat)
-        try:
-            return cast(list[RoutePair], nat.route_edges(pts if isinstance(pts, list) else list(pts), gi0, gj0,
-                                                         (cfg.window.start, cfg.window.stop), cfg.dist_edge_max,
-                                                         LINK_RULE))
-        except _NATIVE_ERRORS:
-            pass
-    cell = cfg.dist_edge_max
-    grid = defaultdict(list)
-    for idx, p in enumerate(pts):
-        grid[(int(p[1][0] // cell), int(p[1][2] // cell))].append(idx)
-    pairs = []
-    for idx, p in enumerate(pts):
-        gx, gz = int(p[1][0] // cell), int(p[1][2] // cell)
-        for dx in (-1, 0, 1):
-            for dz in (-1, 0, 1):
-                for q in grid.get((gx + dx, gz + dz), ()):
-                    if q <= idx:
-                        continue
-                    d = math.dist(p[1], pts[q][1])
-                    if d <= cfg.dist_edge_max and line_walkable(level, p[2], (p[3], p[4]), (pts[q][3], pts[q][4]), gi0, gj0, pts[q][2]):
-                        pairs.append((idx, q, d))
-    return pairs
-
-
-def _graph_cfg(level: Level, cfg: BuildSettings) -> tuple[Any, ...] | None:
-    """The build's settings as the Rust core's sector graph takes them (round E3h), or None: build_graph runs its
-    pieces (the switches it does not port: DEDUP_GRAPH_NODES off, DETOUR_REPAIR on; numbers not Python floats)."""
+def _graph_cfg(level: Level, cfg: BuildSettings) -> tuple[Any, ...]:
+    """The build's settings as the Rust core's sector graph takes them (round E3h; numbers cast to Python floats)."""
+    _unported()
     cover = cfg.node_cover.get('detailed' if abs(cfg.pitch - DETAILED_PITCH) < 1e-6 else 'normal')
-    s: Any = getattr(level, 's', None)
-    if (_native is None or not isinstance(level, Level) or not DEDUP_GRAPH_NODES or DETOUR_REPAIR
-            or cfg.window.step != 1 or (cover and not _number(cover)) or not _number(ORDER_NODE_MIN)
-            or not all(type(v) is float for v in (cfg.pitch, cfg.y_offset, cfg.dist_edge_max))
-            or not all(type(v) is float for v in (getattr(s, 'min_x', None), getattr(s, 'min_z', None)))):
-        return None
+    s = level.s
     gabriel = GABRIEL_EDGES == 'all' or (GABRIEL_EDGES == 'detailed' and abs(cfg.pitch - DETAILED_PITCH) < 1e-6)
-    return (cfg.pitch, cfg.y_offset, (cfg.window.start, cfg.window.stop), cfg.dist_edge_max, LINK_RULE,
-            float(cover) if cover else None, gabriel, bool(cfg.order_nodes), float(ORDER_NODE_MIN), (s.min_x, s.min_z))
+    return (float(cfg.pitch), float(cfg.y_offset), _window(cfg), float(cfg.dist_edge_max), LINK_RULE,
+            float(cover) if cover else None, gabriel, bool(cfg.order_nodes), float(ORDER_NODE_MIN),
+            (float(s.min_x), float(s.min_z)))
 
 
 def _graph_job(n: int, traced: Sequence[Traced], borders: Sequence[tuple[int, Vec3, int]], gi0: int, gj0: int,
                ox: float, oz: float, orders: Points, ladders: Sequence[tuple[int, int]],
-               blocked: set[tuple[int, int]]) -> tuple[Any, ...] | None:
-    """One sector's inputs to the Rust core's sector graph (n: its index in the areas sent), or None: its numbers are
-    not the build's own (Python floats: round(v, 3) and // on a NumPy scalar are NumPy's)."""
-    mids = [[((p.p0[0] + p.p1[0]) / 2, (p.p0[2] + p.p1[2]) / 2) for p in portals if not p.target < ai]
+               blocked: set[tuple[int, int]]) -> tuple[Any, ...]:
+    """One sector's inputs to the Rust core's sector graph (n: its index in the areas sent; numbers cast to Python
+    ints and floats)."""
+    mids = [[(float((p.p0[0] + p.p1[0]) / 2), float((p.p0[2] + p.p1[2]) / 2)) for p in portals if not p.target < ai]
             for ai, (portals, _b, _o) in enumerate(traced)]
-    if (type(ox) is not float or type(oz) is not float
-            or not all(type(v) is float for b in borders for v in b[1])
-            or not all(type(v) is float for p in orders for v in p) or not all(len(p) == 3 for p in orders)
-            or not all(type(v) is float for m in mids for xz in m for v in xz)):
-        return None
-    return (n, gi0, gj0, (ox, oz), mids, [(pos, k) for _nid, pos, k in borders], [tuple(p) for p in orders],
-            list(ladders), [(int(a), int(b)) for a, b in blocked])
+    if not all(len(p) == 3 for p in orders):
+        raise ValueError('order points are (x, y, z)')
+    return (n, int(gi0), int(gj0), (float(ox), float(oz)), mids,
+            [(tuple(float(v) for v in pos), int(k)) for _nid, pos, k in borders],
+            [tuple(float(v) for v in p) for p in orders], [(int(a), int(b)) for a, b in ladders],
+            [(int(a), int(b)) for a, b in blocked])
 
 
 def _graph_finish(got: tuple[list[Any], list[RoutePair], list[int]], borders: Sequence[tuple[int, Vec3, int]],
                   new_id: Callable[[], int], orders: Points,
                   cfg: BuildSettings) -> tuple[list[RouteNode], list[RoutePair]]:
     """build_graph's answer from the Rust core's sector graph: the new nodes given their ids in the reference's
-    order, the border nodes their own; the order nodes counted as add_order_nodes counts them."""
+    order, the border nodes their own; the order nodes counted (ORDER_STATS, ORDER_IDS)."""
     nodes, pairs, order_at = got
     pts: list[RouteNode] = [(new_id(), pos, k, i, j) if b < 0 else (borders[b][0], borders[b][1], k, i, j)
                             for b, pos, k, i, j in nodes]
@@ -1841,261 +1400,39 @@ def build_graph(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int]
                 borders: Sequence[tuple[int, Vec3, int]], gi0: int, gj0: int, ox: float, oz: float,
                 new_id: Callable[[], int], orders: Points = (), ladders: Sequence[tuple[int, int]] = (),
                 cfg: BuildSettings = DEFAULTS) -> tuple[list[RouteNode], list[RoutePair]]:
-    """A sector's route graph: (pts, pairs). In the Rust core whole when it is there (round E3h: bc2_navbuild::sector,
-    also run for a stage's sectors at once by stage); the Python below is its reference and fallback (its pieces
-    call the Rust core themselves: E2a's and E3c's)."""
+    """A sector's route graph: (pts, pairs), in the Rust core (round E3h: bc2_navbuild::sector; stage runs a stage's
+    sectors at once). Nodes: one per area of 4+ cells (the cell nearest the cells' mean), one per portal pair (the
+    area's cell nearest the portal's middle), the border nodes, NODE_COVER's coverage nodes - at most one per surface
+    and rounded position (DEDUP_GRAPH_NODES); pairs: nodes within DIST_EDGE_MAX whose straight line is walkable
+    (line_walkable; GABRIEL_EDGES' pruning), the ladder links, then the groups joined (a grid search from one group to
+    the nearest node of another, string-pulled into walkable legs with waypoint nodes), then the order nodes (an AI
+    order position farther than ORDER_NODE_MIN from every node on its floor). area_of: each cell's surface -> its area,
+    as the areas give it (the core reads the areas)."""
+    if area_of.keys() != {c[2] for a in areas for c in a['cells']}:
+        raise ValueError("build_graph: area_of must map exactly the areas' cells (the Rust core reads the areas)")
     gcfg = _graph_cfg(level, cfg)
-    job = _graph_job(0, traced, borders, gi0, gj0, ox, oz, orders, ladders, level.blocked) if gcfg else None
-    if (job is not None and _int_cells(areas)
-            and area_of.keys() == {c[2] for a in areas for c in a['cells']}):     # (stage's area_of always is)
-        try:
-            nat = level.native()
-            got = nat.graph_many(nat.areas_from([[a['cells'] for a in areas]]), [job], gcfg)[0]
-        except _NATIVE_ERRORS:
-            pass
-        else:
-            return _graph_finish(got, borders, new_id, orders, cfg)
-    pts: list[RouteNode] = []    # (id, pos, k, local i, local j)
-    # one node per surface: an area-centre or portal node whose surface already holds a node (another area's or
-    # portal's, or a border node) is not added - DICE's route graphs have no two nodes at one position except a
-    # border node in both of its sectors (sp_004_b: 1,515 shared positions, all border pairs with one id); NavKit
-    # had 377 duplicate pairs joined by zero-length edges (2026-10-20)
-    taken = {k for _nid, _pos, k in borders} if DEDUP_GRAPH_NODES else set()
-    # ... and none at a border node's position: a shared node carried from the other pitch's build is attached to
-    # ground up to CARRY_RADIUS away, so its surface can differ from the one under its own position - an area node
-    # on that one stood on the border node, joined by a zero-length edge (sp_007 sector 0e0b, 2026-10-23)
-    taken_pos = {tuple(round(v, 3) for v in pos) for _nid, pos, _k in borders} if DEDUP_GRAPH_NODES else set()
-    a: Any                                  # an area here, a path index in the string pulling below
-
-    def add(i: int, j: int, k: int) -> None:
-        pos = (ox + i * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + j * cfg.pitch)
-        if DEDUP_GRAPH_NODES:
-            key = tuple(round(v, 3) for v in pos)
-            if k in taken or key in taken_pos:
-                return
-            taken.add(k)
-            taken_pos.add(key)
-        pts.append((new_id(), pos, k, i, j))
-    big = [a for a in areas if len(a['cells']) >= 4]
-    centres = _centre_cells(big)
-    for n, a in enumerate(big):
-        if centres is not None:
-            i, j, k = a['cells'][centres[n]]
-        else:
-            ci = sum(c[0] for c in a['cells']) / len(a['cells'])
-            cj = sum(c[1] for c in a['cells']) / len(a['cells'])
-            i, j, k = min(a['cells'], key=lambda c: (c[0] - ci) ** 2 + (c[1] - cj) ** 2)
-        add(i, j, k)
-    cell_of = {c[2]: (c[0], c[1]) for a in areas for c in a['cells']}
-    # one node per portal pair, on the area's cell nearest the portal's middle
-    portal_ends = [(ai, [((p.p0[0] + p.p1[0]) / 2, (p.p0[2] + p.p1[2]) / 2) for p in portals if not p.target < ai])
-            for ai, (portals, _b, _o) in enumerate(traced)]
-    picks = _nearest_cells(areas, portal_ends, ox, oz, cfg.pitch)
-    for n, (ai, mids) in enumerate(portal_ends):
-        for m, (mx, mz) in enumerate(mids):
-            if picks is not None:
-                i, j, k = areas[ai]['cells'][picks[n][m]]
-            else:
-                i, j, k = min(areas[ai]['cells'],
-                              key=lambda c: (ox + c[0] * cfg.pitch - mx) ** 2 + (oz + c[1] * cfg.pitch - mz) ** 2)
-            add(i, j, k)
-    for nid, pos, k in borders:
-        # the node's own surface cell (a node carried from another pitch's build sits up to CARRY_RADIUS from it;
-        # walkable lines must start on that cell, not on the cell under the position)
-        i, j = cell_of.get(k) or (int(round((pos[0] - ox) / cfg.pitch)), int(round((pos[2] - oz) / cfg.pitch)))
-        pts.append((nid, pos, k, i, j))
-    cover = cfg.node_cover.get('detailed' if abs(cfg.pitch - DETAILED_PITCH) < 1e-6 else 'normal')
-    if cover:
-        add_cover_nodes(level, areas, pts, add, ox, oz, cover, cfg)
-    # edges: pairs within DIST_EDGE_MAX whose straight line is walkable
-    pairs = edge_pairs(level, pts, gi0, gj0, ox, oz, cfg)
-    if GABRIEL_EDGES == 'all' or (GABRIEL_EDGES == 'detailed' and abs(cfg.pitch - DETAILED_PITCH) < 1e-6):
-        pairs = gabriel_prune(pts, pairs)
-    for kf, kt in ladders:
-        # a ladder link: a node on the ground at its foot and at its top, joined directly (the climb is no walkable
-        # line); the runtime's mover walks the bot into the ladder, which takes any soldier who walks into it
-        ends = []
-        for k in (kf, kt):
-            at = next((q for q, p in enumerate(pts) if p[2] == k), None)
-            if at is None:
-                i, j = cell_of[k]
-                pts.append((new_id(), (ox + i * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + j * cfg.pitch), k, i, j))
-                at = len(pts) - 1
-            ends.append(at)
-        pairs.append((ends[0], ends[1], math.dist(pts[ends[0]][1], pts[ends[1]][1])))
-    # Connect remaining groups: grid search (8-connected, step rule) from one group to the nearest node
-    # of another, then string-pull the path into straight walkable legs with waypoint nodes.
-    node_at, cell_ij = connect_groups(level, areas, pts, pairs, gi0, gj0, ox, oz, new_id, cfg)
-    if DETOUR_REPAIR:
-        for _pass in range(DETOUR_PASSES):
-            repair_detours(level, pts, pairs, node_at, cast(dict[int, tuple[int, int]], cell_ij), gi0, gj0, ox, oz,
-                           new_id, cfg)
-    if cfg.order_nodes and orders:
-        ORDER_STATS['added'] = ORDER_STATS.get('added', 0) + add_order_nodes(level, pts, pairs, node_at, area_of, orders,
-                                                                             gi0, gj0, ox, oz, new_id, cfg)
-    return pts, pairs
-
-
-def connect_groups(level: Level, areas: Sequence[AreaInfo], pts: list[RouteNode], pairs: list[RoutePair], gi0: int,
-                   gj0: int, ox: float, oz: float, new_id: Callable[[], int],
-                   cfg: BuildSettings = DEFAULTS) -> tuple[dict[int, int], dict[int, tuple[int, int]] | None]:
-    """build_graph's joining of the node groups its pairs leave apart: a grid search (8-connected, step rule) from one
-    group to the nearest node of another, string-pulled into straight walkable legs with waypoint nodes (appended to
-    pts with new_id, their pairs to pairs), pass after pass until no group is joined. Returns (node_at: surface -> its
-    first node; cell_ij: surface -> cell, or None from the Rust core). In the Rust core when it is there and
-    DETOUR_REPAIR (which reads cell_ij) is off (round E3c; the Python below is its reference and fallback)."""
-    if not DETOUR_REPAIR and _route_native(level, pts, ox, oz, cfg):
-        nat = level.native()
-        level.sync_blocked(nat)
-        try:
-            new_nodes, new_pairs = nat.connect_groups(
-                pts, pairs if isinstance(pairs, list) else list(pairs), [a['cells'] for a in areas], (ox, oz),
-                cfg.pitch, cfg.y_offset, (gi0, gj0, (cfg.window.start, cfg.window.stop), cfg.dist_edge_max), LINK_RULE)
-        except _NATIVE_ERRORS:
-            pass
-        else:
-            for k, i, j, pos in new_nodes:          # ids in creation order, as the reference gives them
-                pts.append((new_id(), pos, k, i, j))
-            pairs.extend(new_pairs)
-            node_at: dict[int, int] = {}
-            for idx, p in enumerate(pts):
-                node_at.setdefault(p[2], idx)
-            return node_at, None
-    parent = list(range(len(pts)))
-
-    def find(x: int) -> int:
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-    for a_, b_, _ in pairs:
-        parent[find(a_)] = find(b_)
-    node_at = {}
-    for idx, p in enumerate(pts):
-        node_at.setdefault(p[2], idx)
-    cell_ij = {c[2]: (c[0], c[1]) for a in areas for c in a['cells']}
-    for p in pts:
-        cell_ij.setdefault(p[2], (p[3], p[4]))
-    changed = True
-    while changed:
-        changed = False
-        groups = defaultdict(list)
-        for idx in range(len(pts)):
-            groups[find(idx)].append(idx)
-        if len(groups) < 2:
-            break
-        for root, members in sorted(groups.items(), key=lambda g: len(g[1])):
-            if find(members[0]) != root:
-                continue
-            # the search, in the Rust core: breadth first from the members' surfaces over neighbouring kept surfaces
-            # of the sector window (each surface reached entered into cell_ij) to the first surface of another
-            # group's node; the path of surfaces from a member's to it, or None
-            if cfg.window.step != 1:
-                raise ValueError(f'a sector window of step {cfg.window.step}: the search walks whole windows')
-            other = {k for k, at in node_at.items() if find(at) != root}
-            path = level.native().search([pts[m][2] for m in members], other, cell_ij,
-                                         (cfg.window.start, cfg.window.stop), gi0, gj0, LINK_RULE)
-            if path is None:
-                continue
-            # string pulling
-            way = [path[0]]
-            a = 0
-            while a < len(path) - 1:
-                b = len(path) - 1
-                while b > a + 1 and not (math.dist(cell_ij[path[a]], cell_ij[path[b]]) * cfg.pitch <= cfg.dist_edge_max and
-                                         line_walkable(level, path[a], cell_ij[path[a]], cell_ij[path[b]], gi0, gj0, path[b])):
-                    b -= 1
-                way.append(path[b])
-                a = b
-            chain = []
-            for k in way:
-                if k in node_at:
-                    chain.append(node_at[k])
-                else:
-                    i, j = cell_ij[k]
-                    pts.append((new_id(), (ox + i * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + j * cfg.pitch), k, i, j))
-                    parent.append(len(pts) - 1)
-                    node_at[k] = len(pts) - 1
-                    chain.append(len(pts) - 1)
-            for u, v in zip(chain, chain[1:]):
-                pairs.append((u, v, math.dist(pts[u][1], pts[v][1])))
-                parent[find(u)] = find(v)
-            changed = True
-    return node_at, cell_ij
+    job = _graph_job(0, traced, borders, gi0, gj0, ox, oz, orders, ladders, level.blocked)
+    nat = level.native()
+    got = nat.graph_many(nat.areas_from([[a['cells'] for a in areas]]), [job], gcfg)[0]
+    return _graph_finish(got, borders, new_id, orders, cfg)
 
 
 def add_cover_nodes(level: Level, areas: Sequence[AreaInfo], pts: list[RouteNode], add: Callable[[int, int, int], None],
                     ox: float, oz: float, cover: float, cfg: BuildSettings = DEFAULTS) -> None:
     """NODE_COVER: in every area of 4+ cells, add route nodes (through add, so one per surface) at the cell farthest from
-    all nodes on the same floor (|dy| < 2.5 m) until no cell is farther than cover metres. In the Rust core when it is
-    there (round E3c; the Python below is its reference and fallback - add is called the same way either way)."""
-    if (_native is not None and isinstance(level, Level) and isinstance(pts, list) and _number(cover)
-            and all(isinstance(v, float) for v in (ox, oz, cfg.pitch, cfg.y_offset))):
-        try:
-            level.native().cover_nodes([a['cells'] for a in areas], pts, add, (ox, oz), cfg.pitch, cfg.y_offset,
-                                       float(cover))
-            return
-        except _NATIVE_ERRORS:
-            pass                                 # refused before add was called: the Python runs
-    for a in areas:
-        if len(a['cells']) < 4:
-            continue
-        C = np.array([(ox + i * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + j * cfg.pitch) for i, j, k in a['cells']])
-        x0, x1, z0, z1 = C[:, 0].min() - cover, C[:, 0].max() + cover, C[:, 2].min() - cover, C[:, 2].max() + cover
-        P = np.array([p[1] for p in pts if x0 <= p[1][0] <= x1 and z0 <= p[1][2] <= z1], float).reshape(-1, 3)
-        d = np.full(len(C), np.inf)
-        for q in P:
-            same = np.abs(C[:, 1] - q[1]) < 2.5
-            d = np.where(same, np.minimum(d, np.hypot(C[:, 0] - q[0], C[:, 2] - q[2])), d)
-        while True:
-            w = int(np.argmax(d))
-            if d[w] <= cover:
-                break
-            i, j, k = a['cells'][w]
-            n = len(pts)
-            add(i, j, k)
-            q = C[w]
-            d[w] = 0.0                               # placed (or the surface already held a node)
-            if len(pts) > n:
-                same = np.abs(C[:, 1] - q[1]) < 2.5
-                d = np.where(same, np.minimum(d, np.hypot(C[:, 0] - q[0], C[:, 2] - q[2])), d)
+    all nodes on the same floor (|dy| < 2.5 m) until no cell is farther than cover metres; in the Rust core (round E3c;
+    build_graph's sector graph runs its own)."""
+    level.native().cover_nodes([a['cells'] for a in areas], pts if isinstance(pts, list) else list(pts), add,
+                               (float(ox), float(oz)), float(cfg.pitch), float(cfg.y_offset), float(cover))
 
 
 def gabriel_prune(pts: Sequence[RouteNode], pairs: Iterable[RoutePair]) -> list[RoutePair]:
     """The pairs that are Gabriel edges of the sector's nodes (no other node within 2.5 m of height inside the circle
     with the pair as diameter), plus the shortest dropped pairs needed to keep every group of nodes the full pair set
-    joins joined (so pruning never splits a route). In the Rust core when it is there (round E3c; the Python below is
-    its reference and fallback)."""
-    pairs = list(pairs)
-    if _native is not None and hasattr(_native, 'navkit_gabriel') and all(type(p[2]) is float for p in pairs):
-        try:
-            return [pairs[n] for n in _native.navkit_gabriel([p[1] for p in pts], pairs)]
-        except _NATIVE_ERRORS:
-            pass
-    P = np.array([p[1] for p in pts], float)
-    keep: list[tuple[int, int, float]]
-    rest: list[tuple[int, int, float]]
-    keep, rest = [], []
-    for a_, b_, d in pairs:
-        m = (P[a_] + P[b_]) / 2
-        r2 = (d / 2) ** 2 - 1e-9
-        near = (np.abs(P[:, 1] - m[1]) < 2.5) & (((P[:, 0] - m[0]) ** 2 + (P[:, 2] - m[2]) ** 2) < r2)
-        near[[a_, b_]] = False
-        (rest if near.any() else keep).append((a_, b_, d))
-    parent = list(range(len(pts)))
-
-    def find(x: int) -> int:
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-    for a_, b_, _d in keep:
-        parent[find(a_)] = find(b_)
-    for a_, b_, d in sorted(rest, key=lambda e: e[2]):
-        if find(a_) != find(b_):
-            parent[find(a_)] = find(b_)
-            keep.append((a_, b_, d))
-    return keep
+    joins joined (so pruning never splits a route); in the Rust core (round E3c; build_graph's sector graph runs its
+    own)."""
+    pairs = [(int(a), int(b), float(d)) for a, b, d in pairs]
+    return [pairs[n] for n in require_native().navkit_gabriel([tuple(float(v) for v in p[1]) for p in pts], pairs)]
 
 
 def prune_order_nodes(graphs: Sequence[Graph]) -> Sequence[Graph]:
@@ -2133,151 +1470,6 @@ def prune_order_nodes(graphs: Sequence[Graph]) -> Sequence[Graph]:
                 ORDER_STATS.setdefault('removed', []).append((p[0], tuple(round(v, 2) for v in p[1]), size[find(p[0])]))
     return [(sid, b, m, pts, [q for q in pairs if pts[q[0]][0] not in drop and pts[q[1]][0] not in drop], o)
             for sid, b, m, pts, pairs, o in graphs]
-
-
-def add_order_nodes(level: Level, pts: list[RouteNode], pairs: list[RoutePair], node_at: dict[int, int],
-                    area_of: dict[int, int], orders: Points, gi0: int, gj0: int, ox: float, oz: float,
-                    new_id: Callable[[], int], cfg: BuildSettings = DEFAULTS) -> int:
-    """A route node at each AI order position (AreaGeometryEntityData) on this sector's walkable ground whose nearest
-    route node on the same floor is farther than ORDER_NODE_MIN, linked to every node within DIST_EDGE_MAX it reaches
-    in a straight walkable line. The runtime resolves a go-to point to the nearest gathered node (R = 15 m, the first
-    candidate accepted; 0x0105ED80) - at sp_004_b's stairs top NavKit's nearest node was 3.6-6.3 m from the order
-    points, DICE's 0.2 m, and those requests failed (2026-10-20). Returns the number of nodes added."""
-    s = level.s
-    added = 0
-    for x, y, z in orders:
-        gi, gj = int(round((x - s.min_x) / cfg.pitch)), int(round((z - s.min_z) / cfg.pitch))
-        cands = [k for k in level.surfaces(gi, gj) if k in area_of and abs(level.y[k] - y) <= 1.0]
-        if not cands:
-            continue
-        k = min(cands, key=lambda q: abs(level.y[q] - y))
-        if k in node_at:
-            continue
-        pos = (ox + (gi - gi0) * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + (gj - gj0) * cfg.pitch)
-        near = [math.hypot(p[1][0] - pos[0], p[1][2] - pos[2]) for p in pts if abs(p[1][1] - pos[1]) < 1.5]
-        if near and min(near) <= ORDER_NODE_MIN:
-            continue
-        u = len(pts)
-        pts.append((new_id(), pos, k, gi - gi0, gj - gj0))
-        ORDER_IDS.add(pts[u][0])
-        node_at[k] = u
-        added += 1
-        for q in range(u):
-            d = math.dist(pos, pts[q][1])
-            if d <= cfg.dist_edge_max and line_walkable(level, k, (gi - gi0, gj - gj0), (pts[q][3], pts[q][4]), gi0, gj0, pts[q][2]):
-                pairs.append((u, q, d))
-    return added
-
-
-def repair_detours(level: Level, pts: list[RouteNode], pairs: list[RoutePair], node_at: dict[int, int],
-                   cell_ij: dict[int, tuple[int, int]], gi0: int, gj0: int, ox: float, oz: float,
-                   new_id: Callable[[], int], cfg: BuildSettings = DEFAULTS) -> int:
-    """Detour repair: for node pairs of the sector within DIST_EDGE_MAX whose graph route is longer than
-    DETOUR_TRIGGER x their straight distance, while a walk over kept surfaces of at most DETOUR_MAX x the straight
-    distance exists, add waypoint nodes along the string-pulled walk, linked along the chain (and to the nodes around
-    them by the edge rule only with DETOUR_LINK_ALL).
-    DICE's routes run 1.02-1.11x the straight distance where NavKit's failed go-to requests ran 3.2-6.3x
-    (sp_004_b stairs top, 2026-10-20). Returns the number of nodes added."""
-    adj: defaultdict[int, dict[int, float]] = defaultdict(dict)
-    for a_, b_, d in pairs:
-        adj[a_][b_] = adj[b_][a_] = min(d, adj[a_].get(b_, 1e18))
-
-    def routes(src: int, limit: float) -> dict[int, float]:
-        best = {src: 0.0}
-        q = [(0.0, src)]
-        while q:
-            d, u = heapq.heappop(q)
-            if d > best[u] or d > limit:
-                continue
-            for v, w in adj[u].items():
-                if d + w < best.get(v, 1e18):
-                    best[v] = d + w
-                    heapq.heappush(q, (d + w, v))
-        return best
-
-    def walk(k0: int, k1: int, limit: float) -> list[int] | None:
-        """Shortest 8-connected walk over kept surfaces (step rule) from k0 to k1, at most limit metres; list of
-        surfaces or None."""
-        best = {k0: 0.0}
-        prev: dict[int, Any] = {k0: None}
-        q = [(0.0, k0)]
-        while q:
-            d, k = heapq.heappop(q)
-            if k == k1:
-                path = [k]
-                while prev[path[-1]] is not None:
-                    path.append(prev[path[-1]])
-                return path[::-1]
-            if d > best[k]:
-                continue
-            i, j = cell_ij[k]
-            for di in (-1, 0, 1):
-                for dj in (-1, 0, 1):
-                    if not (di or dj) or (i + di) not in cfg.window or (j + dj) not in cfg.window:
-                        continue
-                    n = level.neighbour(k, gi0 + i, gj0 + j, di, dj)
-                    if n is None:
-                        continue
-                    nd = d + (1.4142 if di and dj else 1.0) * cfg.pitch
-                    if nd <= limit and nd < best.get(n, 1e18):
-                        best[n], prev[n] = nd, k
-                        cell_ij.setdefault(n, (i + di, j + dj))
-                        heapq.heappush(q, (nd, n))
-        return None
-
-    def link(u: int) -> None:
-        for q_ in range(len(pts)):
-            if q_ == u or q_ in adj[u]:
-                continue
-            d = math.dist(pts[u][1], pts[q_][1])
-            if d <= cfg.dist_edge_max and line_walkable(level, pts[u][2], (pts[u][3], pts[u][4]), (pts[q_][3], pts[q_][4]),
-                                                    gi0, gj0, pts[q_][2]):
-                pairs.append((u, q_, d))
-                adj[u][q_] = adj[q_][u] = d
-
-    added = 0
-    n0 = len(pts)
-    for a in range(n0):
-        best = routes(a, DETOUR_TRIGGER * cfg.dist_edge_max)
-        for b in range(a + 1, n0):
-            straight = math.dist(pts[a][1], pts[b][1])
-            if straight > cfg.dist_edge_max or straight < 1e-3:
-                continue
-            route = best.get(b, 1e18)
-            if route <= DETOUR_TRIGGER * straight:
-                continue
-            path = walk(pts[a][2], pts[b][2], DETOUR_MAX * straight)   # the walk itself within DETOUR_MAX x straight
-            if path is None:
-                continue
-            way, s = [path[0]], 0
-            while s < len(path) - 1:
-                e = len(path) - 1
-                while e > s + 1 and not (math.dist(cell_ij[path[s]], cell_ij[path[e]]) * cfg.pitch <= cfg.dist_edge_max and
-                                         line_walkable(level, path[s], cell_ij[path[s]], cell_ij[path[e]], gi0, gj0, path[e])):
-                    e -= 1
-                way.append(path[e])
-                s = e
-            chain = []
-            for k in way:
-                if k in node_at:
-                    chain.append(node_at[k])
-                else:
-                    i, j = cell_ij[k]
-                    pts.append((new_id(), (ox + i * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + j * cfg.pitch), k, i, j))
-                    node_at[k] = len(pts) - 1
-                    chain.append(len(pts) - 1)
-                    added += 1
-            for u, v in zip(chain, chain[1:]):
-                if v not in adj[u]:
-                    d = math.dist(pts[u][1], pts[v][1])
-                    pairs.append((u, v, d))
-                    adj[u][v] = adj[v][u] = d
-            if DETOUR_LINK_ALL:
-                for u in chain:
-                    if u >= n0:
-                        link(u)
-            best = routes(a, DETOUR_TRIGGER * cfg.dist_edge_max)
-    return added
 
 
 def finalize_graph(pts: Sequence[RouteNode], pairs: Iterable[RoutePair], linked_ids: Container[int],
