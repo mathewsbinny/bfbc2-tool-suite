@@ -28,12 +28,31 @@ pub enum Profile {
 /// The Pacific War levels (OPFOR's WW2 subproject: `game\Package\levels\<name>`, converted from BF1943).
 pub const WW2_LEVELS: [&str; 4] = ["coral_sea", "guadal_canal", "iwo_jima_s", "wake_island_s"];
 
+/// The profiles recognised from the bundles a level loads (round G3: a Package level whose stack loads `ww2_common`
+/// is Pacific War, `nam_common` Vietnam, whatever its name), filled as the levels are listed ([`remember`]).
+static RECOGNISED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, Profile>>> =
+    std::sync::OnceLock::new();
+
+/// Records `profile` as the profile of `lv` (the level listing's recognition from its bundles); [`Profile::of`]
+/// answers it from then on.
+pub fn remember(lv: &str, profile: Profile) {
+    if let Ok(mut m) = RECOGNISED.get_or_init(Default::default).lock() {
+        m.insert(lv.to_lowercase(), profile);
+    }
+}
+
 impl Profile {
-    /// The profile of a level, by its name: `nam_*` is Vietnam; the Pacific War levels (and any `ww2_*` / `pw_*`
-    /// level made for it) are WW2; everything else is BFBC2.
+    /// The profile of a level: as its bundles were recognised ([`remember`]), else by its name: `nam_*` is Vietnam;
+    /// the Pacific War levels (and any `ww2_*` / `pw_*` level made for it) are WW2; everything else is BFBC2.
     #[must_use]
     pub fn of(lv: &str) -> Self {
         let lv = lv.to_lowercase();
+        if let Some(p) = RECOGNISED
+            .get()
+            .and_then(|m| m.lock().ok().and_then(|m| m.get(&lv).copied()))
+        {
+            return p;
+        }
         if lv.starts_with("nam_") {
             Self::Vietnam
         } else if lv.starts_with("ww2_") || lv.starts_with("pw_") || WW2_LEVELS.contains(&lv.as_str()) {

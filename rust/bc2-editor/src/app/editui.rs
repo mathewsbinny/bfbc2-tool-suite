@@ -96,7 +96,9 @@ pub(super) fn start_projects(
                     .color(p.ink_muted),
             );
             ui.add_space(m.space_2);
-            let prepared: Vec<&LevelInfo> = f.levels.iter().filter(|l| l.prepared).collect();
+            // every level: one not prepared yet is prepared first (the choice carries through it), a Package level
+            // (Vietnam, Pacific War) from its bundles (round G3)
+            let prepared: Vec<&LevelInfo> = f.levels.iter().collect();
             egui::Grid::new("new map")
                 .num_columns(2)
                 .spacing([m.space_2, m.space_2])
@@ -107,7 +109,12 @@ pub(super) fn start_projects(
                         .width(200.0)
                         .show_ui(ui, |ui| {
                             for l in &prepared {
-                                ui.selectable_value(f.new_level, Some(l.lv.clone()), l.lv.to_uppercase());
+                                let text = if l.prepared {
+                                    l.lv.to_uppercase()
+                                } else {
+                                    format!("{} (prepared first)", l.lv.to_uppercase())
+                                };
+                                ui.selectable_value(f.new_level, Some(l.lv.clone()), text);
                             }
                         });
                     ui.end_row();

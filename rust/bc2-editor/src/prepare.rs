@@ -13,7 +13,10 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Instant;
 
-use crate::levels;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crate::{levels, package};
 
 /// The environment variable naming the Python to run (default `python`, then `py -3`).
 pub const PYTHON_ENV: &str = "BFBC2_PYTHON";
@@ -27,12 +30,22 @@ pub enum Plan {
     Full,
     /// Prepared, but its terrain unpack is missing or older than its bundle: the terrain step.
     Terrain,
+    /// A level of `game\Package` only whose editor's copy is missing or not current: read from its bundles, in the
+    /// editor ([`crate::package::prepare`], on a thread; round G3).
+    Package,
 }
 
 /// What `lv` needs before the editor opens it.
 #[must_use]
 pub fn plan(opfor: &Path, lv: &str) -> Plan {
     let lv = lv.to_lowercase();
+    if let Some(p) = package::find(opfor, &lv) {
+        return if package::ready(opfor, &p).is_ok() {
+            Plan::Ready
+        } else {
+            Plan::Package
+        };
+    }
     if !opfor.join("work").join("levels").join(&lv).join("dist").is_dir() {
         Plan::Full
     } else if levels::terrain_bundle(opfor, &lv).is_some() && levels::terrain_unpack(opfor, &lv).is_err() {
@@ -148,6 +161,8 @@ pub struct Job {
     /// When it started.
     pub since: Instant,
     child: Option<Child>,
+    /// An in-process preparation (a Package level): set to stop it.
+    stop: Option<Arc<AtomicBool>>,
     rx: Receiver<Msg>,
     error: Option<String>,
     stderr_tail: Option<String>,
@@ -181,7 +196,63 @@ impl Job {
     ///
     /// No Python could be started, in plain words.
     pub fn start(opfor: &Path, lv: &str, plan: Plan) -> Result<Self, String> {
+        if plan == Plan::Package {
+            return Self::start_package(opfor, lv);
+        }
         Self::start_with(&script(), opfor, lv, plan)
+    }
+
+    /// Starts preparing a Package level in the editor ([`package::prepare`] on a thread), its steps and log reported
+    /// as the script's are.
+    ///
+    /// # Errors
+    ///
+    /// It is not an installed Package level.
+    pub fn start_package(opfor: &Path, lv: &str) -> Result<Self, String> {
+        let level = package::find(opfor, lv).ok_or_else(|| {
+            format!(
+                "{} is not an installed level of game\\Package (package.mft names it with every bundle it loads).",
+                lv.to_uppercase()
+            )
+        })?;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let stop = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&stop);
+        let root = opfor.to_path_buf();
+        std::thread::spawn(move || {
+            let send = |l: String| {
+                let _ = tx.send(Msg::Line(l));
+            };
+            let r = package::prepare(
+                &root,
+                &level,
+                &mut |e| match e {
+                    package::Event::Step { n, of, what } => send(format!("@step {n} {of} {what}")),
+                    package::Event::Log(t) => send(format!("@log {t}")),
+                },
+                &flag,
+            );
+            match r {
+                Ok(_) => send("@done".into()),
+                Err(e) => send(format!("@error {}", e.replace(['\r', '\n'], " "))),
+            }
+            // the end, as a child's two readers report it
+            let _ = tx.send(Msg::Exit);
+            let _ = tx.send(Msg::Exit);
+        });
+        Ok(Self {
+            lv: lv.to_lowercase(),
+            progress: Progress::default(),
+            since: Instant::now(),
+            child: None,
+            stop: Some(stop),
+            rx,
+            error: None,
+            stderr_tail: None,
+            exits: 0,
+            done: false,
+            outcome: Outcome::Running,
+        })
     }
 
     /// [`Job::start`] with another script (the tests' stand-in).
@@ -243,6 +314,7 @@ impl Job {
                         progress: Progress::default(),
                         since: Instant::now(),
                         child: Some(child),
+                        stop: None,
                         rx,
                         error: None,
                         stderr_tail: None,
@@ -293,9 +365,12 @@ impl Job {
                 }
                 Ok(Msg::Exit) if self.exits == 0 => self.exits = 1,
                 Ok(Msg::Exit) | Err(TryRecvError::Disconnected) => {
-                    let status = self.child.as_mut().and_then(|c| c.wait().ok());
+                    let ok = match self.child.as_mut() {
+                        Some(c) => c.wait().is_ok_and(|s| s.success()),
+                        None => self.stop.is_some(), // in process: done says it
+                    };
                     self.child = None;
-                    self.outcome = if self.done && status.is_some_and(|s| s.success()) {
+                    self.outcome = if self.done && ok {
                         Outcome::Done
                     } else {
                         Outcome::Failed(self.error.clone().unwrap_or_else(|| {
@@ -316,6 +391,9 @@ impl Job {
 
     /// Stops the child (the level stays unprepared; NavKit's unpacks are redone or reused on the next try).
     pub fn cancel(&mut self) {
+        if let Some(s) = &self.stop {
+            s.store(true, Ordering::Relaxed);
+        }
         if let Some(c) = self.child.as_mut() {
             let _ = c.kill();
             let _ = c.wait();
@@ -343,6 +421,9 @@ impl Job {
 
 impl Drop for Job {
     fn drop(&mut self) {
+        if let Some(s) = &self.stop {
+            s.store(true, Ordering::Relaxed);
+        }
         if let Some(c) = self.child.as_mut() {
             let _ = c.kill();
             let _ = c.wait();

@@ -83,7 +83,12 @@ impl Doc {
             level,
             &format!("levels/{}", scene.name),
             &bytes,
-            Profile::of_level(level),
+            // the editor's recognition (a Package level's bundles: ww2_common, nam_common), else by name
+            match crate::factions::Profile::of(level) {
+                crate::factions::Profile::Vietnam => Profile::Vietnam,
+                crate::factions::Profile::Ww2 => Profile::Ww2,
+                crate::factions::Profile::Bfbc2 => Profile::of_level(level),
+            },
         );
         let path = folder.join(project.file_name());
         if path.exists() {
