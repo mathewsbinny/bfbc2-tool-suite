@@ -490,10 +490,10 @@ NEEDS = {
     'model tools: mesh decimation (seams closed, bones apart)': need(),
     'Granny skeletons and animations (read, shift)': need(mem=1),
     'Granny Xbox 360 -> PC on your Xbox files and BF1943': need(mem=1.5),
-    'BF1943 import pipeline on your BF1943 copy': need(mem=2.5),
+    'BF1943 import pipeline on your BF1943 copy': need(mem=1),      # E3r: the lazy Source (0.86 GB peak; was ~2)
     'BF1943 model port (meshport)': need(mem=1.5),
     'DBX writer and BF1943 partition port (dbxport)': need(mem=2),
-    'dbxport fair ports: every partition both games ship, against DICE': need(mem=2.5),
+    'dbxport fair ports: every partition both games ship, against DICE': need(cpu=4, mem=1.5),  # E3r: DICE's read on all cores
     "dbxport ranking: the four WW2 level ports against a third of BFBC2's 157 levels, every choice and the bytes": need(mem=2.5),
     'BF1943 ports E3g: every BF1943 mesh set, physics file and effect, the Onslaught console meshes and physics, both ways': need(cpu=4, mem=1.5),
     'BF1943 physics port, Havok 4.6.1 -> 5.5.0 (havokport)': need(mem=1.5),
