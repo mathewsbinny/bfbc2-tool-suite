@@ -3208,3 +3208,109 @@ per blueprint and drawn instanced (one instance per placed entity, as `bc2_scene
 later changes one instance. The editor's tests (`tests/test_editor.py`): 14 unit tests, the outliner against the Map
 Inspector on 4 levels, 4 offscreen render / click tests and the 4 levels drawn with their selection outlined, about
 a minute in debug.
+
+## F2a: the console converter's rest, the model tools, Granny's writing side (2026-11-18, branch `rust-f2a`)
+
+Round F2a ports the Python that remained of `bfbc2-console-convert`, `bfbc2-model-tools` and Granny's writer
+(`EDITOR_ARCHITECTURE.md` 3.8: port everything, prove it, then retire the Python). Like F0 it **ports**: each Python
+function stays as its reference and fallback (`*_reference`, the module's `use_native(False)`,
+`BFBC2_PURE_PYTHON=1`) until a later full tier. The bindings (`rust/bc2-py/src/f2a.rs`) answer `None` where the
+reference must run (it raises something other than its module's own error - a `struct.error`, a NumPy buffer too
+small - or meets a value the port does not mirror), `(False, message)` where it raises its own (`TerrainError`,
+`SootError`, `ConvertError`: the same message, a part name's `repr` included), and the value otherwise.
+
+| Python (reference) | Rust (`bc2_convert`) | bound as |
+|---|---|---|
+| `terrain.heightfield` (main and sub-terrain blocks, both sources), `water_mesh`, `material_map`, `visual_terrain`, `visual_water`; `soot.soot_mesh` | `terrain` | `terrain_heightfield`, `terrain_convert(kind, x)` |
+| `terrain.visual_terrain_parts`, `road_strips`, `visual_water_parts`, `material_names` (the PC readers) | `terrain` | `terrain_visual_terrain_parts`, `terrain_road_strips`, `terrain_visual_water_parts`, `terrain_material_names` |
+| `havok.convert_wrapper` | `havok::convert_wrapper` | `havok_convert_wrapper` |
+| `mesh.console_layouts` | `meshconv::console_layouts` (the reference's lazy pattern on the `regex` crate's leftmost-first matcher) | `mesh_console_layouts` |
+| `mesh.decode` | `meshconv::decode` | `mesh_decode` (arrays as dtype, shape, bytes) |
+| `mesh.relayout` (with an `edit`: the blocks and their columns from the core, the callback and the rows in NumPy) | `meshconv::relayout`, `relayout_blocks` | `mesh_relayout`, `mesh_relayout_blocks` |
+| `texture.check` (the mip-chain error and the block counts; the correlation stays `np.corrcoef`) | `texcheck::check` | `texture_check` |
+| `texwrite` `levels` / `_down`, `dxt1`, `dxt5`, `_color_blocks`, `_alpha_blocks`, `alpha1`, `alpha5`, `l8_down` (the axes stay `numpy.linalg.eigh`'s) | `texwrite` (blocks on all cores) | `texwrite_levels`, `TexWriteJob`, `texwrite_alpha`, `texwrite_l8_down` |
+| `SkinnedLod.__init__`'s parts, `decode`, `_winding`, `_encode`, `to_bytes`, `bounds` | `skinmesh` | `skin_cut`, `skin_decode`, `skin_winding`, `skin_encode`, `skin_lay_out`, `skin_bounds` |
+| `Granny.to_bytes` (the CRC), `add_tracks` / `_Graft`, `shift_position`, `set_orientations` | `granny_edit` | `granny_with_crc`, `granny_add_tracks`, `granny_shift_plan`, `granny_orientation_plan` (the values; `Granny.put` writes them) |
+
+### The bits NumPy, LAPACK and CPython set
+
+- **Halves**: NumPy casts a half's NaN to a float or double keeping its payload (`npy_halfbits_to_floatbits`, no
+  quieting) and a float's NaN back the same way; the first port went through Rust's `f32 -> f64` cast (the processor
+  quiets a signalling NaN), and the tests' random vertices caught it (`mesh::f16_to_f32`, `f16_to_f64`, `f32_to_f16`).
+- **NumPy's sums**: a block's mean and covariance are summed texel by texel from the first (a reduction over a middle
+  axis); `einsum('nki,ni->nk', d, axis)` adds `(x*a + y*b) + z*c` with the axis as `eigh` returns it (a strided view;
+  with a contiguous axis NumPy adds `(x*a + z*c) + y*b` - measured, so the port follows the view); three channels'
+  squared errors `(r + g) + b`; `texture.check`'s mean of absolute differences sums quarters exactly, one division.
+- **CPython's `sum`** of floats (3.12+) is Neumaier's compensated sum: Granny's ramp weights compare a key's
+  projection with the first and last keys', which lay 1e-16 apart on one cutscene curve (`sp08_ab3_jumpoverwagon`),
+  so a plain sum re-quantized it differently; `granny_edit::py_sum` is `builtin_sum_impl`'s loop.
+- **The eigensolver** stays NumPy's. A model of `dsyevd` for 3 x 3 (`dsytd2`, `dsteqr`, `dormtr` through OpenBLAS
+  0.3.30's small kernels, the reference LAPACK 3.12 sources) matched the tridiagonal form only with OpenBLAS's `ddot`
+  fused multiply-add, matched `dsteqr` exactly, and did not match `dormtr`'s last bits in any combination of fused /
+  unfused updates: those depend on the kernels OpenBLAS picks for the processor (here Zen 4: the SkylakeX set). The
+  core gives each block's covariance (exact sums of integer texels' products), NumPy solves them all at once (0.06 s
+  for a 1024 x 1024 picture's 87,381 blocks), the core encodes. **`np.corrcoef`** (`texture.check`'s correlation) sums
+  with BLAS too: kept in NumPy on the core's decoded levels.
+
+### Parity (both ways; quick and `--game`)
+
+| area (test) | inputs | result |
+|---|---|---|
+| terrain, soot, the physics wrapper (`bfbc2-console-convert/tests/test_console_f2a_native.py`) | built: 750 heightfields (main and sub-terrain, both sources), 1,200 water meshes, material maps, visual terrains and visual waters, 300 PC visual terrains, 300 soot meshes, 300 wrappers; game: every BF1943 and BFBC2 Xbox (OPFOR `work\xbox`) resource - 935 HavokPhysicsData wrappers, 436 SootMesh, 134 TerrainHeightfield, 14 each of the material maps, visual terrains, visual waters and water meshes - and the game copy's 34 PC material maps, visual terrains and visual waters through the PC readers; damaged: 3,179 built, 2,124 game | all identical (3,900 built and 1,887 game comparisons answered in Rust, none left to the reference); damaged: the same result or error, 22 left to the reference (a NaN float in a wrapper, reads past the end), 1 of them answered by it |
+| `console_layouts`, `decode`, `relayout` | built: 200 shader databases, 600 meshes of 1 - 3 parts, Xbox meshes with the packed formats, relayouts plain and edited; game: BF1943's 7 console shader databases and 1,580 mesh parts decoded with their layouts, the game copy's 4,576 MeshData decoded part by part and 4,121 relaid into their own layouts, plain and with an edit (21,358 comparisons) | all identical, every real input answered in Rust |
+| `texture.check` | 1,200 built (DXT1, normal, DXT5, L8, RGBA16F; with references, damaged); every PC texture of the game copy (4,578) alone and against itself | all identical (worst, correlation, blocks; floats by their bits), all answered in Rust |
+| `texwrite` (`bfbc2-model-tools/tests/test_model_f2a_native.py`) | 4,080 built pictures (smooth, noise, flat, grey, two- and three-colour; 1 x 1 to 256 x 256; every kind with and without mips, 1-bit alpha; odd sizes and 3 / 4 / 5 channels for `dxt1` / `dxt5`; the alpha decoders, `l8_down`); 2,693 DXT1 / normal / DXT5 textures of the game copy decoded and encoded again | all identical, all answered in Rust; damaged and refused: the same result or error (57 left to the reference and answered by it: `l8_down` of an odd height, where NumPy's broadcast makes an empty or one-row level, and a float picture) |
+| `skinmesh` | 300 built skinned LODs (DICE's first- and third-person layouts, depth-only parts sharing windows) read, decoded (every usage), bounded, written, then `add_to`, `replace`, `add_part` with lathes and written again; the game copy's 618 skinned LODs the same | all identical, all answered in Rust; damaged: 3 left to the reference (a NaN position's bounds), the same results |
+| Granny writing (`bfbc2-anim-tools/tests/test_granny_f2a_native.py`) | 300 built CRCs; the WW2 rifles' 57 animations and, `--game`, every GrannyAnimation of the game copy (4,889): every movable position curve shifted (random vectors, with and without ramp, and to a rest), every quantized orientation curve rewritten, `to_bytes`, four tracks added from the Garand's undeploy (copies, a constant, an identity); the refusals (curves `shift_position` does not move, clashing specs); damaged copies (cut short in the game tier) | all identical (each edit's report and the resource's SHA-1 after it); every real input answered in Rust (4,889 edit sequences, 4,889 `add_tracks`); damaged: 9,778 identical (4,615 left to the reference, none of them answered by it); the refusals the same errors |
+
+Found on the way (fixed before commit): `relayout`'s half columns were packed as if they held halves (they hold the
+float32 values the reference keeps), so the core answered `None` for every real mesh with a half element and the
+reference answered - the first tests passed on outcomes alone; they now count what the core answers
+(`tests/f2a_parity.py`'s `watch` / `watched`). The curve binding refused a float format's `KnotsControls`
+(D3I1K32fC32f: 94 curves left to the reference). The NaN payloads and CPython's sum above. And the Granny test kept a
+copy of the resource after every edit and built `str()` of whole outcomes for its labels (27 GB of commit on the
+cutscenes): a SHA-1 now, labels only for a mismatch, the game copy streamed file by file (its peak 850 MB).
+
+### Timings (same process, warm, best of 3; `rust/bench_f2a.py`; other agents' builds beside it)
+
+| workload | Python | Rust | |
+|---|---:|---:|---:|
+| `wake_island_s`: 4 terrain resources converted (heightfield 2048, material map, visual terrain, visual water) | 0.018 s | 0.011 s | 1.6x |
+| `coral_sea`: 3 terrain resources converted | 0.014 s | 0.009 s | 1.5x |
+| `console_layouts` of `levels/wake_island_s/shaders/single.res` (3 MB) | 0.201 s | 0.018 s | 11.4x |
+| `texwrite.texture` 1024 x 1024 colour (3 channels, mips) | 0.404 s | 0.105 s | 3.8x |
+| the same, normal map | 0.485 s | 0.101 s | 4.8x |
+| the same, DXT5 (4 channels) | 0.778 s | 0.136 s | 5.7x |
+| the same, colour with 1-bit alpha (4 channels) | 1.154 s | 0.126 s | 9.2x |
+| `SkinnedLod`: an M1 Garand LOD read, every usage decoded, written | 0.004 s | 0.005 s | 0.8x (the crossings outweigh a few hundred vertices' work) |
+| Granny: every track of the M1911's 3p undeploy shifted (ramp), `to_bytes` | 0.007 s | 0.003 s | 2.2x |
+| `granny.add_tracks`: four tracks onto it | 0.033 s | 0.006 s | 5.7x |
+
+From the `--game` tests (whole corpora, both ways in one process):
+
+| workload | Python | Rust |
+|---|---:|---:|
+| `texwrite.texture` of 2,693 game textures decoded | 692.8 s | **170.5 s** (371 s before the blocks went on all cores; NumPy's `eigh` is about a third of what remains) |
+| `texture.check` with a reference, 4,578 game textures | 291.8 s | 202.5 s (decoding, the Rust core's in both, dominates) |
+| `mesh.decode`, BF1943's 1,580 console mesh parts | 9.83 s | **0.27 s** |
+| `console_layouts`, BF1943's 7 console shader databases | 0.71 s | 0.08 s |
+| `mesh.relayout`, 4,121 game meshes into their own layouts | 3.33 s | 2.08 s |
+| terrain, soot and wrapper conversions, 1,577 console resources | 0.31 s | 0.09 s |
+| `SkinnedLod` read, written, bounded, 618 game LODs | 0.69 s | 0.63 s |
+| Granny `add_tracks` on 4,889 animations (with the reads) | 151.2 s | 25.8 s |
+| Granny edits on 4,889 animations (with the reads; `Granny.put` in Python both ways) | 223.6 s | 175.9 s |
+
+The profile behind the order: texture writing is this round's one workload that costs a WW2 build real time (OPFOR's
+grime, minimap, loading and award pictures, the WW2 weapons' textures); the console decode and `console_layouts` the
+next (the BF1943 importer's mesh ports, Wake's translation); terrain, soot, wrappers, Granny edits and the skinned LODs
+are milliseconds per resource either way.
+
+### What remains of this round's Python
+
+- Kept as the reference and fallback until a full tier: every `*_reference` above.
+- Not ported (glue, or not in this round): `texwrite.resource`, `wrapped`, `l8_bytes`, `atlas_levels` (header
+  packing); `terrain.road_positions`, `quadtree_nodes`; `mesh.element`, `pair_by_kind`, `strip_to_list`,
+  `texcoord_element` (Rust twins exist; Python callers still use them); `shapes.py` (`Geo.tangents`, which `_encode`
+  calls) and `decimate.py`; `granny.curve_keys` / `sample` (the reader's side); `Granny.put` / `field` / `array_at`.
+- Stays NumPy by design: `numpy.linalg.eigh` (texwrite's axes), `np.corrcoef` (`texture.check`), a relayout `edit`
+  callback's arrays and the rows packed from them.
