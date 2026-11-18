@@ -17,7 +17,6 @@ import os
 import random
 import shutil
 import struct
-import subprocess
 import sys
 import tempfile
 import time
@@ -38,7 +37,6 @@ import goldens  # noqa: E402
 import test_dbx_native as tdn  # noqa: E402
 from bfbc2core import dbx, native, paths  # noqa: E402
 
-DBXEDIT = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
 E, C, T, N = dbx.Element, dbx.CONTAINER, dbx.TEXT, dbx.NUMBERS
 # the edges where the writer answers otherwise than the retired Python writer did, and what it answers now
 DELIBERATE = {
@@ -183,16 +181,15 @@ def corpus_files(root: str) -> list[str]:
 
 
 def check_dbxedit(files: list[str], check: Any) -> None:
-    """DbxEdit's roundtrip (read, write with the file's own table) of files the writer wrote: unchanged."""
-    if not os.path.isfile(DBXEDIT):
-        print('skipped: DbxEdit roundtrip (DbxEdit.exe not built)')
-        return
+    """DbxEdit's roundtrip (read, write with the file's own table; in process, bfbc2core.dbxedit) of files the
+    writer wrote: unchanged."""
+    from bfbc2core import dbxedit
     tmp = tempfile.mkdtemp(prefix='dw')
     try:
         for i, p in enumerate(files):
             with open(os.path.join(tmp, f'{i}.dbx'), 'wb') as fh:
                 fh.write(dbx.write(dbx.read(p)))
-        r = subprocess.run([DBXEDIT, 'roundtrip', tmp], capture_output=True, text=True, errors='replace')
+        r = dbxedit.run(['roundtrip', tmp])
         last = (r.stdout.strip().splitlines() or [''])[-1]
         check(r.returncode == 0 and last.startswith(f'roundtrip: {len(files)} identical, 0 different'),
               f'DbxEdit reads {len(files)} written files and writes each back unchanged', last or r.stderr[-200:])

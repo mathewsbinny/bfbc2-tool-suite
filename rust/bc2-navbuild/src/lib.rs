@@ -40,8 +40,12 @@ use rayon::prelude::*;
 use thiserror::Error;
 
 pub mod astar;
+pub mod domains;
 pub mod graph;
+pub mod levelscan;
+pub mod measures;
 pub mod navsample;
+pub mod offline;
 pub mod parity;
 pub mod pick;
 pub mod pymath;
@@ -49,6 +53,7 @@ pub mod route;
 pub mod rules;
 pub mod sector;
 pub mod trace;
+pub mod vehicle;
 pub mod window;
 
 /// A fast hasher for the integer keys of the walks' maps (`FxHash`'s rotate, xor and multiply): no map whose iteration

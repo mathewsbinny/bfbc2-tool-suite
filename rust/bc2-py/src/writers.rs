@@ -247,7 +247,7 @@ pub fn fbrb_pack(py: Python<'_>, folder: &str, out: &str) -> PyResult<(usize, u6
 }
 
 /// FbrbTool's `unpack <bundle> <out>` through Rust (`bc2_formats::fbrb::unpack_path`): `(entries, payload bytes,
-/// *deleted* markers)`. A bundle the port leaves to FbrbTool.exe raises `ValueError` (nothing written), a file that
+/// *deleted* markers)`. A bundle FbrbTool refused raises `ValueError` (with the files it left behind), a file that
 /// cannot be read or written `OSError`. Runs with the interpreter released.
 #[pyfunction]
 pub fn fbrb_unpack(py: Python<'_>, bundle: &str, out: &str) -> PyResult<(usize, u64, usize)> {

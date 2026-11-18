@@ -1,4 +1,4 @@
-"""Read-only access to .fbrb bundles without unpacking them (the layout FbrbTool reads, bfbc2-fbrb-tool/FbrbTool.cs),
+"""Read-only access to .fbrb bundles without unpacking them (the layout FbrbTool reads: rust/bc2-formats/src/fbrb),
 and FbrbTool's unpack and pack, in the suite's Rust core (rust/, module bc2_native: bc2_formats::fbrb).
 
     entries(path)                    [Entry]: name, type, flags, offset, size, size2 - reads only the header (fast)
@@ -24,7 +24,8 @@ u32 payload length; then the payload (gzip when zipped). Unpacking and packing, 
                                      pack() raised
 
 pack is bc2_formats::fbrb::pack_path (zlib's deflate ported byte for byte, DICE's padded layouts, the size2 rules):
-FbrbTool's bytes on every bundle of the game copy (core/tests/test_fbrb_pack_native.py). A folder that cannot be
+FbrbTool's bytes on every bundle of the game copy (core/tests/test_fbrb_pack_native.py, against the bundles
+FbrbTool.exe packed: core/tests/fbrbtool_golden_game.json; the exe was retired 2026-11-18, round R4). A folder that cannot be
 packed raises ValueError (a malformed manifest, an unsafe entry name, an old manifest whose size2 cannot be kept) or
 OSError (a missing or unreadable file, a bundle that cannot be written).
 
@@ -145,12 +146,6 @@ def cache_clear() -> None:
 
 
 # ------------------------------------------------------------------------------------------------ packing
-
-def fbrbtool() -> str:
-    """FbrbTool.exe where the suite's build puts it (bfbc2-fbrb-tool), whether it is built or not."""
-    from . import paths
-    return paths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe')
-
 
 def pack(folder: Path, out: Path) -> tuple[int, int]:
     """FbrbTool's pack: the bundle of folder (unpacked by FbrbTool: its files and fbrb.manifest) written to out

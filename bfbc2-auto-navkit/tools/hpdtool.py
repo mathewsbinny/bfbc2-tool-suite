@@ -17,6 +17,7 @@ objects value for value and the same bytes; where the reference would raise, or 
 the error stays this module's). parse_reference / write_reference are the Python, kept as the reference and the
 fallback; BFBC2_PURE_PYTHON=1 or use_native(False) runs them only.
 """
+import contextlib
 import os
 import struct
 import sys
@@ -135,22 +136,59 @@ def parse_reference(data: bytes) -> HpdFile:
         block = data[start:start + size]
         n_nodes, n_edges = struct.unpack_from('<2I', block, 0)
         pos = 8
-        nodes = []
-        for _ in range(n_nodes):
-            v = NODE.unpack_from(block, pos)
-            nodes.append(Node(v[0], (v[1], v[2], v[3]), v[4], v[5], v[6], v[7], v[8]))
-            pos += NODE.size
-        edges = []
-        for _ in range(n_edges):
-            edges.append(Edge(*EDGE.unpack_from(block, pos)))
-            pos += EDGE.size
+        end = pos + n_nodes * NODE.size
+        if end + n_edges * EDGE.size > len(block):          # cut short: one record at a time, raising as it always did
+            for _ in range(n_nodes):
+                NODE.unpack_from(block, pos)
+                pos += NODE.size
+            for _ in range(n_edges):
+                EDGE.unpack_from(block, pos)
+                pos += EDGE.size
+        # whole runs at once (iter_unpack: the same values as one record at a time; round E4e, the parity measures
+        # parse each file several times)
+        nodes = [Node(v[0], (v[1], v[2], v[3]), v[4], v[5], v[6], v[7], v[8]) for v in NODE.iter_unpack(block[pos:end])]
+        pos = end + n_edges * EDGE.size
+        edges = [Edge(*v) for v in EDGE.iter_unpack(block[end:pos])]
         mesh = block[pos:]
         if not mesh.startswith(MESH_MARKER):
             raise ValueError(f'sector {i} ({sid:#x}): runtime mesh not where expected')
         sectors.append(Sector(sid, bounds, reserved, date, time, nodes, edges, mesh))
-    if blocks + sum(len(_block(s)) for s in sectors) != len(data):
+    # the length _block(s) writes, without writing it (each value was read from the file, so packs back)
+    if blocks + sum(8 + NODE.size * len(s.nodes) + EDGE.size * len(s.edges) + len(s.mesh) for s in sectors) != len(data):
         raise ValueError('sector blocks do not cover the file')
     return HpdFile(header, sectors)
+
+
+_shared: dict[tuple[str, int, int], HpdFile] | None = None
+
+
+@contextlib.contextmanager
+def shared_reads() -> Iterator[None]:
+    """Inside it, read() parses each file once and hands every caller the same HpdFile - for readers that do not change
+    it (round E4e: navparity's measures parsed the same two files ten times). The files are forgotten on leaving."""
+    global _shared
+    outer = _shared is not None
+    if not outer:
+        _shared = {}
+    try:
+        yield
+    finally:
+        if not outer:
+            _shared = None
+
+
+def read(path: str) -> HpdFile:
+    """parse(the file's bytes); inside shared_reads(), parsed once per file (size and time) and shared: read only."""
+    if _shared is None:
+        with open(path, 'rb') as fh:
+            return parse(fh.read())
+    st = os.stat(path)
+    key = (os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns)
+    f = _shared.get(key)
+    if f is None:
+        with open(path, 'rb') as fh:
+            f = _shared[key] = parse(fh.read())
+    return f
 
 
 MESH_OBJECT_HEADER = 0x50

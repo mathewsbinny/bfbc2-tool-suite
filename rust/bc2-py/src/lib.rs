@@ -64,6 +64,7 @@ mod meshdata;
 mod navbuild;
 mod navgraph;
 mod navpath;
+mod navtools;
 mod navtrace;
 mod pathdata;
 mod scene;
@@ -372,7 +373,7 @@ mod bc2_native {
     #[pymodule_export]
     use super::dbxedit::{dbxedit_run, dbxedit_run_many};
     #[pymodule_export]
-    use super::dbxport::{DbxCatalogue, DbxTemplates, dbx_instance_guids, dbxport_port};
+    use super::dbxport::{DbxCatalogue, DbxRules, DbxTemplates, dbx_instance_guids, dbxport_port};
     #[pymodule_export]
     use super::fbrb_cache::{
         fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,
@@ -473,6 +474,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
+
+    #[pymodule_export]
+    use super::navtools::{
+        DomainGraph, OrderAreas, navkit_df, navkit_diff, navkit_domain_graph, navkit_level_scan,
+        navkit_obstacle_distance, navkit_order_areas, navkit_terrain_blocks,
+    };
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

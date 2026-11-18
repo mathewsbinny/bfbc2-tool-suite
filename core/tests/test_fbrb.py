@@ -1,15 +1,14 @@
-r"""FbrbTool: unpack then pack gives back the same bundle (decompressed header and payload identical), *deleted*
-markers are listed in fbrb.manifest but not written as files, and a folder from an older unpack (markers as
-empty files) packs the same.
+r"""FbrbTool's commands (in process, the Rust core: bfbc2core.fbrbtool): unpack then pack gives back the same bundle
+(decompressed header and payload identical), *deleted* markers are listed in fbrb.manifest but not written as
+files, and a folder from an older unpack (markers as empty files) packs the same.
 
   python test_fbrb.py                   a bundle built here (no game data)
-  python test_fbrb.py --game [N]        also N bundles of Project OPFOR BFBC2's game copy (default 12; 0 = all 1,055)
+  python test_fbrb.py --game [N]        also N bundles of Project OPFOR BFBC2's game copy (default 12; 0 = all)
 """
 import gzip
 import os
 import shutil
 import struct
-import subprocess
 import sys
 import tempfile
 
@@ -20,9 +19,9 @@ import contextlib
 
 import suite_paths  # noqa: E402
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-SUITE = os.path.abspath(os.path.join(HERE, '..', '..'))
-TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
+suite_paths.use('core')
+from bfbc2core import fbrbtool, native  # noqa: E402
+
 DELETED = '*deleted*'
 
 
@@ -56,7 +55,7 @@ def parts(path):
 
 
 def run(*args):
-    r = subprocess.run([TOOL, *args], capture_output=True, text=True)
+    r = fbrbtool.run(list(args))
     if r.returncode != 0:
         raise RuntimeError(f'FbrbTool {" ".join(args[:1])} failed: {(r.stdout + r.stderr).strip()[-300:]}')
     return r.stdout
@@ -90,9 +89,9 @@ def roundtrip(bundle, work, old_style=False):
 
 
 def main(argv):
-    if not os.path.isfile(TOOL):
-        print(f'FAIL: {TOOL} not built (run bfbc2-fbrb-tool\\build.bat)')
-        return 1
+    if native.load() is None:
+        print('skipped: the Rust core is not built (python rust\\build_native.py)')
+        return 0
     failed = 0
     work = tempfile.mkdtemp(prefix='fbrb_test_')
     try:

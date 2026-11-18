@@ -67,10 +67,28 @@ class Domain:
     adj: list                               # [[(m, seconds)]]
     speed: float
     source: dict = field(default_factory=dict)
+    core: Any = field(default=None, repr=False, compare=False)   # (adjacency's identity, the Rust core's graph)
 
     @property
     def n(self):
         return len(self.pos)
+
+    def graph(self):
+        """The adjacency kept in the Rust core (round E4e: bc2_native.DomainGraph, made once per adjacency list), or
+        None: the core not in use (navnative), or a graph it refuses (a cost negative or NaN) - dijkstra's Python runs."""
+        import navnative
+        m = navnative.core('navkit_domain_graph')
+        if m is None:
+            return None
+        key = (id(self.adj), len(self.adj), sum(len(a) for a in self.adj))
+        if self.core is not None and self.core[0] == key:
+            return self.core[1]
+        start = np.zeros(len(self.adj) + 1, '<i8')
+        np.cumsum([len(a) for a in self.adj], out=start[1:])
+        nbr = np.fromiter((b for a in self.adj for b, _c in a), '<i8', int(start[-1]))
+        cost = np.fromiter((c for a in self.adj for _b, c in a), '<f8', int(start[-1]))
+        self.core = (key, m.navkit_domain_graph(start.tobytes(), nbr.tobytes(), cost.tobytes()))
+        return self.core[1]
 
 
 def graph_domain(name, pos, edges, speed, costs=None, source=None):
@@ -234,6 +252,11 @@ class World:
 
     def leg_dijkstra(self, domain, src, targets=None):
         d = self.domains[domain]
+        inside = 0 <= src < d.n and all(0 <= t < d.n for t in targets or ())     # else the reference's answer or error
+        g = d.graph() if inside and d.n == len(d.adj) else None
+        got = g.dijkstra(int(src), [int(t) for t in targets] if targets else None) if g is not None else None
+        if got is not None:                      # the Rust core's search: dijkstra's distances, bit for bit
+            return np.frombuffer(got, '<f8').tolist()
         return dijkstra(d.adj, src, d.n, targets)
 
     def tables(self):
@@ -246,6 +269,14 @@ class World:
         for dom, members in points.items():
             nodes = sorted(members)
             out[dom] = {}
+            d = self.domains[dom]
+            g = d.graph() if d.n == len(d.adj) and all(0 <= n < d.n for n in nodes) else None
+            rows = g.tables([int(n) for n in nodes]) if g is not None else None
+            if rows is not None:                 # every transition point's search at once, on all cores
+                for n, row in zip(nodes, rows):
+                    vals = np.frombuffer(row, '<f8').tolist()
+                    out[dom][n] = {m: v for m, v in zip(nodes, vals) if math.isfinite(v)}
+                continue
             for n in nodes:
                 dist = self.leg_dijkstra(dom, n)
                 out[dom][n] = {m: dist[m] for m in nodes if math.isfinite(dist[m])}

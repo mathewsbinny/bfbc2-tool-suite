@@ -90,7 +90,7 @@ class PathData:
         """clip: (minX, minZ, maxX, maxZ) - route nodes outside it, and the edges touching them, are left out (a
         reference's ground beyond the level's terrain, which the game on PC does not have; navparity). drop: node ids
         left out the same way (a reference's nodes on ground PC does not have; navparity.stale_nodes)."""
-        f = hpdtool.parse(open(path, 'rb').read())
+        f = hpdtool.read(path)              # shared inside hpdtool.shared_reads() (read only here)
         self._file = f
         self._areas: list[Any] | None = None
         drop = drop or set()
@@ -106,14 +106,34 @@ class PathData:
         self.nodes = []
         def inside(n):
             return n.id not in drop and in_box(n.pos)
-        for s in f.sectors:
-            for e in s.edges:
-                if inside(s.nodes[e.src]) and inside(s.nodes[e.dst]):
-                    parent[find(s.nodes[e.src].id)] = find(s.nodes[e.dst].id)
-            for n in s.nodes:
-                if inside(n):
-                    self.nodes.append((n.id, n.pos))
-        self.group = {nid: find(nid) for nid, _ in self.nodes}
+        import navnative
+        m = navnative.core('navkit_union_roots')
+        if m is not None:
+            # the same union-find in the Rust core (round E4e: E3o's navkit_union_roots - find(a), find(b), parent[root
+            # of a] = root of b, path halving - on dense numbers given to the node ids as first met: the same roots)
+            index: dict[int, int] = {}
+            pairs: list[int] = []
+            for s in f.sectors:
+                for e in s.edges:
+                    na, nb = s.nodes[e.src], s.nodes[e.dst]
+                    if inside(na) and inside(nb):
+                        pairs += (index.setdefault(na.id, len(index)), index.setdefault(nb.id, len(index)))
+                for n in s.nodes:
+                    if inside(n):
+                        self.nodes.append((n.id, n.pos))
+                        index.setdefault(n.id, len(index))
+            ids = list(index)
+            roots = np.frombuffer(m.navkit_union_roots(len(index), np.array(pairs, '<i8').tobytes(), None), '<i8')
+            self.group = {nid: ids[roots[index[nid]]] for nid, _ in self.nodes}
+        else:
+            for s in f.sectors:
+                for e in s.edges:
+                    if inside(s.nodes[e.src]) and inside(s.nodes[e.dst]):
+                        parent[find(s.nodes[e.src].id)] = find(s.nodes[e.dst].id)
+                for n in s.nodes:
+                    if inside(n):
+                        self.nodes.append((n.id, n.pos))
+            self.group = {nid: find(nid) for nid, _ in self.nodes}
         sizes = Counter(self.group.values())
         self.group_size = sizes
         self.pos = np.array([p for _, p in self.nodes])
@@ -144,8 +164,29 @@ class PathData:
     def areas(self, value: list[Any]) -> None:
         self._areas = value
 
+    def _core_areas(self) -> Any:
+        """The areas in the Rust core (round E4e: bc2_native.OrderAreas - the meshes parsed and the crack rule run
+        there, on all cores), made at the first on_area; None: the core not in use (navnative), a file it refuses, or
+        areas set or made in Python - on_area's Python then runs (the reference)."""
+        core = self.__dict__.get('_core')
+        if core is None:
+            core = False
+            import navnative
+            m = navnative.core('navkit_order_areas')
+            f = self.__dict__.get('_file')
+            if m is not None and f is not None:
+                got = m.navkit_order_areas([s.mesh for s in f.sectors], float(Y_OFFSET))
+                core = got if got is not None else False       # (an empty one is falsy: len 0)
+            self._core = core
+        return core if core is not False else None
+
     def on_area(self, p, ytol=2.5):
         x, y, z = p
+        if self.__dict__.get('_areas') is None and all(type(v) is float or isinstance(v, np.float64)
+                                                      or (type(v) is int and abs(v) < 2 ** 53) for v in (x, y, z, ytol)):
+            core = self._core_areas()          # float32 coordinates compare as float32 in the Python: left to it
+            if core is not None:
+                return core.on_area(float(x), float(y), float(z), float(ytol))
         for x0, x1, z0, z1, y0, y1, segs in self.areas:
             if not (x0 <= x <= x1 and z0 <= z <= z1 and y0 - ytol <= y <= y1 + ytol):
                 continue

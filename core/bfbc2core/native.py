@@ -42,15 +42,20 @@ RUST = os.path.join(SUITE, 'rust')
 STAMP = os.path.join(HERE, 'bc2_native.json')
 BUILD = os.path.join(RUST, 'build_native.py')
 SOURCE_ENV = 'BC2_SOURCE_HASH'           # what build_native.py passes to cargo; bc2-py's build.rs reads it
+# The workspace's applications: crates the module never links (bc2-py does not depend on them), so their sources are
+# not the module's and a change to them does not make a new module (the map editor, round G1, 2026-11-18). The
+# workspace files (Cargo.toml, Cargo.lock) still count, as a dependency they add changes them.
+APPLICATIONS = ('bc2-editor',)
 
 
 def sources(rust: str = RUST) -> list[str]:
     """Every file whose change makes a new module: the workspace's manifests, lock and toolchain files, and each crate
     (a folder of rust\\ with a Cargo.toml: a new crate needs no entry here) with its build.rs, src\\**\\*.rs and the
-    Python package file maturin reads (pyproject.toml)."""
+    Python package file maturin reads (pyproject.toml); not the APPLICATIONS' crates."""
     out = [os.path.join(rust, n) for n in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml')]
     if os.path.isdir(rust):
-        for crate in sorted(d for d in os.listdir(rust) if os.path.isfile(os.path.join(rust, d, 'Cargo.toml'))):
+        for crate in sorted(d for d in os.listdir(rust)
+                            if os.path.isfile(os.path.join(rust, d, 'Cargo.toml')) and d not in APPLICATIONS):
             base = os.path.join(rust, crate)
             out += [os.path.join(base, n) for n in ('Cargo.toml', 'build.rs', 'pyproject.toml')]
             for top, dirs, files in os.walk(os.path.join(base, 'src')):
