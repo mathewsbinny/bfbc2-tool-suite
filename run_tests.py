@@ -134,6 +134,8 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navbuild_native.py')]),
         ("E4e: NavKit's tools in the Rust core against their Python (vehicle obstacle distance, domain searches, level scan, parity measures; built inputs)", 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navtools_native.py')]),
+        ("map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views", 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_editor.py')]),
         ('Rust core required: no module, a stale one, the source fingerprint', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_native_required.py')]),
         ('review regressions: HPD selection, launcher completion, mypy failures', 'quick',
@@ -439,6 +441,8 @@ NEEDS = {
     "Rust EA-XAS audio encoder / decoder against its recorded results (shift rule, seeded PCM of every shape, random frames, DICE's blocks)": need(cpu=2, mem=1),
     'Rust NavKit grid walks against their recorded results, E2a / E3c / E3h pieces against their Python (random levels, whole stages)': need(),
     "E4e: NavKit's tools in the Rust core against their Python (vehicle obstacle distance, domain searches, level scan, parity measures; built inputs)": need(cpu=2),
+    # cargo test of bc2-editor: builds into rust\target (cargo's lock) and draws offscreen on the GPU (no window)
+    "map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views": need(cpu=2, mem=1, cargo='w'),
     'Rust core required: no module, a stale one, the source fingerprint': need(),
     'review regressions: HPD selection, launcher completion, mypy failures': need(),
     'BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches': need(cpu=2, shaderview='w'),

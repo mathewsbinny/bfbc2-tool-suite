@@ -11,6 +11,7 @@
  "cull tree element reader (Rust) against the retired Python reader's recorded answers, level search against glob (built, damaged, listing, 2 work trees)": 5.0,
  "Rust texture converter against its recorded results (built, damaged, batch)": 5.5,
  "Rust NavKit grid walks against their recorded results, E2a / E3c / E3h pieces against their Python (random levels, whole stages)": 7.0,
+ "map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views": 60.0,
  "Rust core required: no module, a stale one, the source fingerprint": 12.0,
  "review regressions: HPD selection, launcher completion, mypy failures": 0.2,
  "BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches": 1.4,

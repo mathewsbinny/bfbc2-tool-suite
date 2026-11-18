@@ -128,7 +128,15 @@ def fingerprints() -> None:
         files['a/src/lib.rs'] = files['a/src/lib.rs'].replace('// changed\n', '')
         os.makedirs(os.path.join(rust, 'b', 'src'))
         files.update({'b/Cargo.toml': '[package]\n', 'b/src/lib.rs': ''})
-        check(write('\n') != lf, 'fingerprint: a new crate changes it')
+        with_b = write('\n')
+        check(with_b != lf, 'fingerprint: a new crate changes it')
+        # an application crate (native.APPLICATIONS: the map editor) is not the module's: it changes nothing
+        app = native.APPLICATIONS[0]
+        os.makedirs(os.path.join(rust, app, 'src'))
+        files.update({f'{app}/Cargo.toml': '[package]\n', f'{app}/src/main.rs': 'fn main() {}\n'})
+        check(write('\n') == with_b, 'fingerprint: an application crate leaves it as it is')
+        files[f'{app}/src/main.rs'] += '// changed\n'
+        check(write('\n') == with_b, 'fingerprint: a change to an application crate leaves it as it is')
 
 
 def download() -> None:

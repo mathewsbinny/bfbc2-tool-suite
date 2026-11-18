@@ -98,6 +98,47 @@ one: set `python.exe` to "High performance" in Settings > System > Display > Gra
 PC that took the Navigation Studio on SP_01 (10.4 million triangles) from the AMD Radeon integrated GPU to
 the GeForce RTX 4060, at 144 frames a second.
 
+## The map editor (preview: view a map read-only)
+
+`rust/bc2-editor` is the map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8 - 3.10), in Rust
+with egui on wgpu (Vulkan, DirectX 12 or a software adapter). Round G1 (2026-11-18) is its shell and the read-only
+map view; the Map Inspector stays until the editor replaces it.
+
+- **Start screen:** "View a map" lists the game copy's levels (found as the suite finds them: `--opfor`, OPFOR_ROOT,
+  or a `project-opfor-bfbc2` folder beside or above the suite). A level NavKit has not prepared yet is listed but
+  opens only after its first opening in the Map Inspector (or `navkit.py prepare <level>`): the editor writes nothing
+  to the game copy or OPFOR's `work\`. A level whose terrain unpack is missing or stale opens without its terrain and
+  says so under Problems.
+- **The window:** docked panels (drag a tab to dock, tab or float it; **Reset layout** puts them back): the Outliner
+  (the map by kind and group, searchable, Hide / Show per group), the views, Properties (the selection's type, GUID,
+  team, blueprint, source partition and element, transform) and Problems. The top bar has the workspace switcher
+  (only View in G1), the level and its content profile badge, and the commands; the theme (Dark or Light) follows
+  the suite's design language (`design/project/tokens.json`, IBM Plex fonts).
+- **The views:** the 3D view and top, front and side views (top bar, or Alt+1 - Alt+4), each with its own camera.
+  3D view: left drag orbits, middle drag pans, the wheel zooms, hold the right button to fly (W A S D, Q / E, Shift
+  faster); the orthographic views pan with the left or middle button. Click selects (the selection is outlined in
+  orange; the status bar shows the surface point under the click), double click also focuses, **F** focuses every
+  view on the selection, **Esc** clears it, **L** shows or hides the labels. Ctrl+1 - Ctrl+9 keep a camera bookmark,
+  1 - 9 recall it (per level and view).
+- **Command palette:** Ctrl+Shift+P lists every command with its shortcut; type to filter, Enter runs.
+
+Run it (Rust as in "The Rust core" below; the first build takes a few minutes):
+
+    cd rust
+    cargo build --release -p bc2-editor
+    target\release\bfbc2-editor.exe [level] [--opfor <folder>] [--theme light]
+
+or from the hub: Levels > "Open in Map Editor (preview)", or More tools > "Open Map Editor". Without a display,
+`bfbc2-editor.exe <level> --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]` draws the window
+offscreen and saves it (`--demo` instead of a level: a small made-up scene). The editor keeps its layout, theme and
+bookmarks in eframe's per-user storage under `%APPDATA%`.
+
+Its tests (`python tests\test_editor.py`, quick tier) prove it headless: the theme generated from every token in both
+themes; the outliner against the Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004 (recorded by
+`rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
+view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
+the command palette opening a top view) and each of the four levels drawn with a flag selected.
+
 ## The Rust core (required for the core formats, the console converters and NavKit's builds)
 
 `rust/` is a Cargo workspace: the start of the shared Rust core the map editor is built on

@@ -3127,3 +3127,24 @@ port now stops at the size (the same bytes) and reads runs of adjacent blocks at
 - `bfbc2-bf1943-import`: `mopp.py`, `havokport.py`, `meshport.py`'s writers, `emitteratlas.py`, `dbxcatalogue.py`.
 - `bfbc2-menu-tools/menucommon.PEImage` (E4f's `bc2-harness::pe` covers the exe for the crash reader / exeref; not
   yet switched here), `core/bfbc2core/xmlinst.py`, `navtune.py` (JSON side files).
+
+
+## G1: the map editor's shell and read-only map view (2026-11-18, branch `rust-g1`)
+
+`rust/bc2-editor` (binary `bfbc2-editor`; README.md, "The map editor"). No Python is replaced (the Map Inspector
+stays), so there is no before to compare with; recorded for later rounds: a whole headless run of the editor (start,
+load the level with geometry through `bc2_scene`, upload it, lay out and draw 30 frames of the window at 1600 x 950,
+save the PNG), **debug build**, the mesh-alias cache warm, on the development PC (GeForce RTX 4060 Laptop, Vulkan):
+
+| level | entities | run | peak working set |
+|---|---:|---:|---:|
+| SP_01 | 13,251 | 4.4 s | 280 MB |
+| MP_005 | 6,979 | 3.1 s | 273 MB |
+| MP_009GR | 10,005 | 2.7 s | 242 MB |
+| ONS_MP_004 | 7,100 | 3.1 s | 273 MB |
+
+MP_005: 3,919,352 triangles drawn; its load alone (the status bar's "loaded in") 0.4 s. Collision is uploaded once
+per blueprint and drawn instanced (one instance per placed entity, as `bc2_scene` keeps it), so moving an object
+later changes one instance. The editor's tests (`tests/test_editor.py`): 14 unit tests, the outliner against the Map
+Inspector on 4 levels, 4 offscreen render / click tests and the 4 levels drawn with their selection outlined, about
+a minute in debug.
