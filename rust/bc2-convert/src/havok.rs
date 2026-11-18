@@ -221,6 +221,8 @@ struct Walk<'a> {
     base: usize,
     secindex: usize,
     depth: usize,
+    /// `Packfile.arrays`' (member name, data start, count), in order, when recorded.
+    arrays: Option<Vec<(Option<String>, usize, usize)>>,
 }
 
 const NO_OWNER: u32 = u32::MAX;
@@ -445,6 +447,9 @@ impl Walk<'_> {
                     return refused(format!("{}: an array of {count} without a fixup", self.ctx(m)));
                 };
                 let es = self.size_of(m.subtype, m.cls)?;
+                if let Some(arrays) = self.arrays.as_mut() {
+                    arrays.push((m.name.clone(), self.base + t, count));
+                }
                 let sub = if m.subtype == POINTER { STRUCT } else { VOID };
                 for e in 0..count {
                     self.value(m.subtype, sub, m, t + e * es)?;
@@ -562,26 +567,150 @@ impl Walk<'_> {
 /// [`HavokError::Refused`] where the reference raises its `ConvertError`; [`HavokError::Reference`] where it would
 /// do something else (the module's docs): run the reference.
 pub fn convert_packfile(data: &[u8], start: usize, classes: &Classes) -> Result<Vec<u8>> {
-    let mut w = Walk {
-        src: data,
-        out: data.to_vec(),
-        p0: start,
-        k: classes,
-        claim: vec![0; data.len()],
-        owner: vec![NO_OWNER; data.len()],
-        seen: HashSet::new(),
-        note: NO_OWNER,
-        extra_notes: HashMap::new(),
-        cur: None,
-        names: None,
-        local: HashMap::new(),
-        glob: HashMap::new(),
-        base: 0,
-        secindex: 0,
-        depth: 0,
-    };
+    let mut w = Walk::new(data, start, classes, false);
     w.convert()?;
     Ok(w.out)
+}
+
+impl<'a> Walk<'a> {
+    fn new(data: &'a [u8], start: usize, classes: &'a Classes, record_arrays: bool) -> Self {
+        Walk {
+            src: data,
+            out: data.to_vec(),
+            p0: start,
+            k: classes,
+            claim: vec![0; data.len()],
+            owner: vec![NO_OWNER; data.len()],
+            seen: HashSet::new(),
+            note: NO_OWNER,
+            extra_notes: HashMap::new(),
+            cur: None,
+            names: None,
+            local: HashMap::new(),
+            glob: HashMap::new(),
+            base: 0,
+            secindex: 0,
+            depth: 0,
+            arrays: record_arrays.then(Vec::new),
+        }
+    }
+}
+
+/// Why a converted byte may differ from DICE's PC file although the conversion is right (`havok.ignorable`'s
+/// reasons; FORMAT.md 1.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Why {
+    /// "triangle padding index"
+    Padding,
+    /// "cached bounding volume marked invalid"
+    Bounds,
+    /// "triangle offset (computed at load)"
+    TriangleOffset,
+    /// "saved quality type without a saved motion"
+    SavedQuality,
+}
+
+impl Why {
+    /// The reference's text.
+    #[must_use]
+    pub const fn text(self) -> &'static str {
+        match self {
+            Self::Padding => "triangle padding index",
+            Self::Bounds => "cached bounding volume marked invalid",
+            Self::TriangleOffset => "triangle offset (computed at load)",
+            Self::SavedQuality => "saved quality type without a saved motion",
+        }
+    }
+}
+
+const MOTIONS: [&str; 3] = ["hkpMaxSizeMotion", "hkpKeyframedRigidMotion", "hkpMotion"];
+const BOUNDS: &str = "hkpCollidableBoundingVolumeData";
+
+/// `havok.verify`'s packfile part: the packfile at `start` of `console` converted, and every byte from `start` to
+/// the end of `pc` that differs from `pc` with its reason (`havok.ignorable`, from the walk's record of each byte's
+/// owner, the arrays and the objects), or `None` for a difference it does not explain - in offset order.
+///
+/// # Errors
+///
+/// As [`convert_packfile`]; and [`HavokError::Reference`] where the reference's answer is not this one's to give:
+/// `pc` longer than `console` (its `IndexError`), a bounding-volume read past the data (its `struct.error`), or a
+/// byte inside two bounding-volume objects whose answers differ (the reference takes the first its set yields).
+pub fn verify_packfile(
+    console: &[u8],
+    start: usize,
+    classes: &Classes,
+    pc: &[u8],
+) -> Result<Vec<(usize, Option<Why>)>> {
+    if pc.len() > console.len() {
+        return Err(HavokError::Reference);
+    }
+    let mut w = Walk::new(console, start, classes, true);
+    w.convert()?;
+    let mut names: Vec<Option<(&str, Option<&str>)>> = vec![None; classes.notes.len() + w.extra_notes.len()];
+    for ((a, b), &n) in classes.notes.iter().chain(w.extra_notes.iter()) {
+        if let Some(slot) = names.get_mut(n as usize) {
+            *slot = Some((a.as_str(), b.as_deref()));
+        }
+    }
+    // the objects by class name, as (absolute start, section offset) in pf.seen
+    let seen: Vec<(usize, &str)> = w
+        .seen
+        .iter()
+        .map(|&(off, c)| (off, classes.names.get(c).map_or("", String::as_str)))
+        .collect();
+    let arrays = w.arrays.as_deref().unwrap_or(&[]);
+    let u32le = |b: &[u8], at: usize| -> Result<u32> {
+        b.get(at..at + 4)
+            .and_then(|x| x.try_into().ok())
+            .map(u32::from_le_bytes)
+            .ok_or(HavokError::Reference)
+    };
+    let mut out = Vec::new();
+    for (i, (&a, &b)) in w.out.iter().zip(pc).enumerate().skip(start) {
+        if a == b {
+            continue;
+        }
+        let owner = w.owner.get(i).and_then(|&n| names.get(n as usize).copied().flatten());
+        let (cls, mem) = owner.unwrap_or(("", None));
+        let mut why = None;
+        if owner.is_some() && cls == "hkpStorageExtendedMeshShapeMeshSubpartStorage" && mem == Some("indices16") {
+            if let Some(&(_, st, _)) = arrays
+                .iter()
+                .find(|(m, st, n)| m.as_deref() == Some("indices16") && *st <= i && i < st + 2 * n)
+            {
+                why = ((i - st) / 2 % 4 == 3).then_some(Why::Padding);
+            }
+        } else if owner.is_some() && cls == BOUNDS {
+            let mut answer: Option<Option<Why>> = None;
+            for &(off, name) in &seen {
+                let base_a = w.base + off;
+                if name == BOUNDS && base_a <= i && i < base_a + 0x20 {
+                    let ours = u32le(&w.out, base_a)? > u32le(&w.out, base_a + 0x10)?;
+                    let theirs = u32le(pc, base_a)? > u32le(pc, base_a + 0x10)?;
+                    let marker = (base_a..base_a + 4).contains(&i) || (base_a + 0x10..base_a + 0x14).contains(&i);
+                    let this = (ours && theirs && !marker).then_some(Why::Bounds);
+                    if answer.is_some_and(|x| x != this) {
+                        return Err(HavokError::Reference);
+                    }
+                    answer = Some(this);
+                }
+            }
+            why = answer.flatten();
+        } else if owner.is_some() && cls == "hkpExtendedMeshShapeTrianglesSubpart" && mem == Some("triangleOffset") {
+            why = Some(Why::TriangleOffset);
+        } else if owner.is_some() && MOTIONS.contains(&cls) && mem == Some("savedQualityTypeIndex") {
+            let hit = seen.iter().any(|&(off, _)| {
+                let base_a = w.base + off;
+                base_a + 0x11C <= i
+                    && i < base_a + 0x11E
+                    && !w.local.contains_key(&(off + 0x118))
+                    && !w.glob.contains_key(&(off + 0x118))
+            });
+            why = hit.then_some(Why::SavedQuality);
+        }
+        out.push((i, why));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

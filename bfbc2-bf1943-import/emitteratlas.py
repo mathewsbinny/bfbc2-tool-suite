@@ -324,10 +324,128 @@ def same_image(a: Tex, b: Tex, m: int, ba: tuple[int, int, int, int], bb: tuple[
     return float(np.corrcoef(da, db)[0, 1]) >= SAME
 
 
+def _probe_at(c0: np.ndarray, qw: int, qh: int) -> tuple[int, int] | None:
+    """dedupe_reference's probe search over every 8 x 8 window at even offsets, at once: (py, px) of the first window
+    of the largest standard deviation, in the scan's order (np.argmax: the first maximum). None when a window would
+    be cut by the core's edge (the scan then runs). Exact: a full window holds 64 (8-bit) or 1,024 (BC5 blocks) values,
+    a power of two, so numpy's mean, the deviations, their squares and every partial sum are dyadic numbers held
+    exactly in a double - the same standard deviation in any summation order, the scan's and this one's."""
+    if qh < GRID or qw < GRID or c0.shape[0] < qh or c0.shape[1] < qw:
+        return None
+    win = np.lib.stride_tricks.sliding_window_view(c0[:qh, :qw], (GRID, GRID), axis=(0, 1))[::2, ::2]
+    if win.shape[0] != (qh - GRID) // 2 + 1 or win.shape[1] != (qw - GRID) // 2 + 1:
+        return None
+    sd = win.std(axis=tuple(range(2, win.ndim)))
+    i = int(np.argmax(sd))
+    return (i // sd.shape[1]) * 2, (i % sd.shape[1]) * 2
+
+
+def _matches(k0: np.ndarray, probe: np.ndarray, kys: np.ndarray, kxs: np.ndarray, need: float) -> np.ndarray | None:
+    """dedupe_reference's pre-test of every grid offset of a kept cell at once: [ny, nx] True where the probe placed
+    at (kys[iy], kxs[ix]) of k0 fits inside it and its share of equal units is at least `need` (the scan's test:
+    float((pk == probe).all(-1).mean()) < need skips). None when the probe is empty (the scan runs)."""
+    ph, pw = probe.shape[0], probe.shape[1]
+    if ph == 0 or pw == 0 or k0.shape[0] < ph or k0.shape[1] < pw:
+        return None
+    vy = (kys >= 0) & (kys + ph <= k0.shape[0])
+    vx = (kxs >= 0) & (kxs + pw <= k0.shape[1])
+    out = np.zeros((len(kys), len(kxs)), bool)
+    if not vy.any() or not vx.any():
+        return out
+    win = np.lib.stride_tricks.sliding_window_view(k0, (ph, pw), axis=(0, 1))     # (y, x, unit..., ph, pw)
+    sub = win[kys[vy]][:, kxs[vx]]
+    pt = np.moveaxis(probe, (0, 1), (-2, -1))                                     # (unit..., ph, pw)
+    eq = (sub == pt)
+    if eq.ndim > 4:
+        eq = eq.all(axis=tuple(range(2, eq.ndim - 2)))
+    share = eq.mean(axis=(-2, -1))
+    out[np.ix_(vy, vx)] = share >= need
+    return out
+
+
 def dedupe(cells: list[Cell], tex: dict[str, Tex]) -> list[Cell]:
     """Kept cells (largest first); each other cell drawn from a kept one: of its own source, around its core; or of
     any source holding its core's levels 0..D exactly at a grid offset (the widened margins of one texture in two
-    atlases hold different neighbours - those copies are the same image)."""
+    atlases hold different neighbours - those copies are the same image).
+
+    dedupe_reference's choices exactly (round E3r: it was 50 of the 53 s of Wake's build - 1.8 million numpy calls on
+    8 x 8 windows): the probe search and the pre-test of every offset of a kept cell are array operations
+    (_probe_at, _matches), and the offsets that pass are checked in the scan's order with same_image as before.
+    REFERENCE (BFBC2_EMITTERATLAS_REFERENCE=1) runs the scan."""
+    if REFERENCE:
+        return dedupe_reference(cells, tex)
+    kept: list[Cell] = []
+    for c in sorted(cells, key=lambda c: (-c.w * c.h, c.source, c.y, c.x)):
+        t = tex[c.source]
+        q = c.core
+        qw, qh = q[2] - q[0], q[3] - q[1]
+        c0 = _box(t, 0, q)
+        at = _probe_at(c0, qw, qh)
+        if at is None:
+            best, py, px = -1.0, 0, 0
+            for yy in range(0, max(qh - GRID, 0) + 1, 2):
+                for xx in range(0, max(qw - GRID, 0) + 1, 2):
+                    v = float(c0[yy:yy + GRID, xx:xx + GRID].std())
+                    if v > best:
+                        best, py, px = v, yy, xx
+        else:
+            py, px = at
+        probe = c0[py:py + GRID, px:px + GRID]
+        need = 1.0 if t.fmt == L8 else 0.9
+        for k in kept:
+            if k.source == c.source and k.x <= q[0] and k.y <= q[1] and q[2] <= k.x + k.w and q[3] <= k.y + k.h:
+                c.into, c.dx, c.dy = k, c.x - k.x, c.y - k.y
+                break
+            if k.w < qw or k.h < qh:
+                continue
+            kt = tex[k.source]
+            k0 = _crop(kt, 0, k.x, k.y, k.w, k.h)
+            hit = None
+            oys = np.arange(-((q[1] - c.y) // GRID) * GRID, k.h - (q[3] - c.y) + 1, GRID)
+            oxs = np.arange(-((q[0] - c.x) // GRID) * GRID, k.w - (q[2] - c.x) + 1, GRID)
+            ok = _matches(k0, probe, oys + (q[1] - c.y + py), oxs + (q[0] - c.x + px), need) \
+                if len(oys) and len(oxs) else np.zeros((0, 0), bool)
+            if ok is None:
+                hit = _offset_scan(c, k, t, kt, k0, q, py, px, probe, need)
+            else:
+                for iy, ix in zip(*np.nonzero(ok)):                  # row-major: the scan's order
+                    oy, ox = int(oys[iy]), int(oxs[ix])
+                    mv = (k.x + ox - c.x, k.y + oy - c.y)
+                    moved = (q[0] + mv[0], q[1] + mv[1], q[2] + mv[0], q[3] + mv[1])
+                    if all(same_image(kt, t, m, moved, q) for m in range(D + 1)):
+                        hit = (ox, oy)
+                        break
+            if hit:
+                c.into, c.dx, c.dy = k, hit[0], hit[1]
+                break
+        else:
+            kept.append(c)
+    return kept
+
+
+def _offset_scan(c: Cell, k: Cell, t: Tex, kt: Tex, k0: np.ndarray, q: tuple[int, int, int, int], py: int, px: int,
+                 probe: np.ndarray, need: float) -> tuple[int, int] | None:
+    """dedupe_reference's offset loop for one kept cell (where _matches cannot answer)."""
+    for oy in range(-((q[1] - c.y) // GRID) * GRID, k.h - (q[3] - c.y) + 1, GRID):
+        for ox in range(-((q[0] - c.x) // GRID) * GRID, k.w - (q[2] - c.x) + 1, GRID):
+            ky, kx = oy + q[1] - c.y + py, ox + q[0] - c.x + px
+            if ky < 0 or kx < 0:
+                continue
+            pk = k0[ky:ky + probe.shape[0], kx:kx + probe.shape[1]]
+            if pk.shape != probe.shape or float((pk == probe).all(-1).mean()) < need:
+                continue
+            mv = (k.x + ox - c.x, k.y + oy - c.y)
+            moved = (q[0] + mv[0], q[1] + mv[1], q[2] + mv[0], q[3] + mv[1])
+            if all(same_image(kt, t, m, moved, q) for m in range(D + 1)):
+                return ox, oy
+    return None
+
+
+REFERENCE = os.environ.get('BFBC2_EMITTERATLAS_REFERENCE', '') not in ('', '0')
+
+
+def dedupe_reference(cells: list[Cell], tex: dict[str, Tex]) -> list[Cell]:
+    """dedupe as it was before round E3r (the scan; the reference dedupe is checked against)."""
     kept: list[Cell] = []
     for c in sorted(cells, key=lambda c: (-c.w * c.h, c.source, c.y, c.x)):
         t = tex[c.source]
@@ -655,9 +773,16 @@ def prove(result: Result, emitters: dict[str, tuple[bytes, str]], sources: dict[
             if c is None:
                 continue
             a, b = c
-            row = {'level': m, 'texels': int(a.shape[0] * a.shape[1]), 'equal': bool(np.array_equal(a, b)),
-                   'equal_share': round(float((a == b).reshape(a.shape[0], a.shape[1], -1).all(-1).mean()), 4),
-                   'correlation': round(correlation(a, b), 4)}
+            if a.shape == b.shape:          # (crops clips both alike) the comparison once for the three numbers
+                eq = a == b
+                equal = bool(eq.all())
+                row = {'level': m, 'texels': int(a.shape[0] * a.shape[1]), 'equal': equal,
+                       'equal_share': round(float(eq.reshape(a.shape[0], a.shape[1], -1).all(-1).mean()), 4),
+                       'correlation': round(1.0 if equal else correlation(a, b), 4)}
+            else:
+                row = {'level': m, 'texels': int(a.shape[0] * a.shape[1]), 'equal': bool(np.array_equal(a, b)),
+                       'equal_share': round(float((a == b).reshape(a.shape[0], a.shape[1], -1).all(-1).mean()), 4),
+                       'correlation': round(correlation(a, b), 4)}
             (near if m <= D else deep).append(row)
         ok = size_ok and bool(near) and all(x['equal'] or x['correlation'] >= PASS for x in near)
         c0 = crops(st, 0, u.rect, move, mt)

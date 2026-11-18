@@ -768,10 +768,26 @@ def game(c: Checks) -> None:
             c.check(r is not None and not rec['flags'], f'{m}: drawn with {lv[0]}\'s database, nothing flagged',
                     str(rec['notes'][:4]))
             if r is not None:
-                _, r2, _ = R.render_one(files, db, m, s, values, post)
+                # the second time one shaderview process for the job (the reference of round E3l's -serve): the
+                # same device type, so the same pictures to the bit
+                saved = os.environ.get('BFBC2_SHADERVIEW_SERVE')
+                os.environ['BFBC2_SHADERVIEW_SERVE'] = '0'
+                try:
+                    _, r2, rec2 = R.render_one(files, db, m, s, values, post)
+                finally:
+                    if saved is None:
+                        os.environ.pop('BFBC2_SHADERVIEW_SERVE', None)
+                    else:
+                        os.environ['BFBC2_SHADERVIEW_SERVE'] = saved
                 cmp = R.compare_images(r, r2) if r2 else None
                 c.check(cmp is not None and cmp['mae'] < 1e-4 and cmp['iou'] == 1, f'{m}: drawn twice, equal',
                         str(cmp and cmp['threequarter']))
+                same = r2 is not None and r.warp == r2.warp and r.counts == r2.counts and all(
+                    np.array_equal(r.hdr[v], r2.hdr[v], equal_nan=True) and (v in r.classes) == (v in r2.classes)
+                    and (v not in r.classes or np.array_equal(r.classes[v], r2.classes[v]))
+                    for v in r.hdr) and rec == rec2
+                c.check(same, f'{m}: served (shaderview -serve) and in a process of its own: the same pictures, '
+                        'counts and record', '')
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

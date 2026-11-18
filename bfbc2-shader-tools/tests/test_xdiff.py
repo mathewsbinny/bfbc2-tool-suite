@@ -10,9 +10,11 @@ Quick (no game data):
 With --game (Battlefield 1943's Wake database from the BF1943 tool suite's source): the shaders that exposed each
 translator fix run through the whole differential test and must be exact - ps317 (the Chi-Ha's track: the shadow
 map's point taps at the edge), ps36 (a depth-buffer tap outside the texture), ps120 / ps202 (two cube fetches),
-ps476 (a texture in fetch constant 16).
+ps476 (a texture in fetch constant 16); and (round E3l) the run served on worker threads (shaderview -serve) gives
+the same printed lines, results.json and files as one shaderview process per shader, one at a time.
+With --game-all: the same comparison on every Wake pixel shader (815), all exact.
 
-  python test_xdiff.py [--game]
+  python test_xdiff.py [--game] [--game-all]
 """
 import os
 import shutil
@@ -242,6 +244,66 @@ def _game(xdiff, out):
     hlsl = open(os.path.join(out, 'ps745', 'ps.hlsl')).read()
     check('float4 dynamicMaskAtlasParams;' in hlsl, 'ps745 (a terrain strip): its block\'s engine-named constants '
           'translated as $Globals variables')
+    served_alike(xdiff, out, list(ids), '--workers', '3')
+
+
+def tree(root):
+    """{relative path: SHA-256} of an xdiff output folder (the job files name their folder: left out)."""
+    import hashlib
+    got = {}
+    for d, _, names in os.walk(root):
+        for n in names:
+            if n != 'job.txt':
+                p = os.path.join(d, n)
+                got[os.path.relpath(p, root)] = hashlib.sha256(open(p, 'rb').read()).hexdigest()
+    return got
+
+
+def served_alike(xdiff, out, ids, *args):
+    """Round E3l: a run served (shaderview -serve, worker threads) against one shaderview process per shader, one
+    shader at a time (BFBC2_SHADERVIEW_SERVE=0, --workers 1): the printed lines, results.json and every file alike."""
+    import contextlib
+    import io
+    ref = out + '_reference'
+    saved = os.environ.get('BFBC2_SHADERVIEW_SERVE')
+    try:
+        runs = []
+        for folder, serve, extra in ((out, '1', list(args)), (ref, '0', ['--workers', '1'])):
+            os.environ['BFBC2_SHADERVIEW_SERVE'] = serve
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                xdiff.main(['--ps', *ids, '--n', '512', '-o', folder] + extra)
+            runs.append((buf.getvalue(), tree(folder)))
+        (a, fa), (b, fb) = runs
+        check(a == b and fa == fb and len(fa) == 4 * len(ids) + 1,
+              f'served on worker threads against one process per shader, one at a time: printed lines alike, '
+              f'{sum(fa[k] == fb.get(k) for k in fa)} of {len(fb)} files alike (results.json; per shader its '
+              'packed inputs, draw, ps.hlsl, disassembly)')
+    finally:
+        RQ.close_servers()
+        if saved is None:
+            os.environ.pop('BFBC2_SHADERVIEW_SERVE', None)
+        else:
+            os.environ['BFBC2_SHADERVIEW_SERVE'] = saved
+        shutil.rmtree(ref, ignore_errors=True)
+
+
+def game_all():
+    """Every Wake pixel shader (815): served on worker threads against one shaderview process per shader, one at a
+    time - the verdicts, printed lines and every file alike (~4 min at below-normal priority, most of it the
+    reference)."""
+    import xdiff
+    out = tempfile.mkdtemp(prefix='xdiff_test_all_')
+    try:
+        db = xdiff.S.ShaderDb.parse(xdiff.bf1943_entry(xdiff.DBS['wake']), where='wake')
+        ids = [str(p) for p in range(len(db.ps))]
+        served_alike(xdiff, out, ids)
+        import json
+        r = json.load(open(os.path.join(out, 'results.json')))
+        exact = sum(v['status'] == 'exact' for v in r.values())
+        check(exact == len(ids), f'every Wake pixel shader exact ({exact} of {len(ids)})')
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
 
 
 if __name__ == '__main__':
@@ -253,5 +315,7 @@ if __name__ == '__main__':
     cubefetch_in_shaderview()
     if '--game' in sys.argv:
         game()
+    if '--game-all' in sys.argv:
+        game_all()
     print('all passed' if not fails else f'{len(fails)} failed')
     sys.exit(1 if fails else 0)

@@ -60,9 +60,11 @@ when the Visual Studio C++ tools are installed). Writes only into the output fol
 from __future__ import annotations
 
 import argparse
+import atexit
 import contextlib
 import ctypes
 import json
+import locale
 import math
 import os
 import pickle
@@ -72,6 +74,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -865,18 +868,121 @@ def job_path(path: str) -> str:
     return '"' + path.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
+MARK = '\x1d'                          # shaderview -serve: a job's "err <line>" and "done <exit code>" lines
+
+
+def serving() -> bool:
+    """Jobs go to shaderview -serve processes (one Direct3D device for many jobs) unless BFBC2_SHADERVIEW_SERVE=0:
+    then one shaderview process per job, as before round E3l (the reference: the same files, lines and errors)."""
+    return os.environ.get('BFBC2_SHADERVIEW_SERVE', '1') != '0'
+
+
+class _Server:
+    """A shaderview -serve process: jobs one at a time (a thread holds it for its job; idle ones wait in _IDLE)."""
+
+    def __init__(self, exe: str, warp: bool) -> None:
+        self.p = subprocess.Popen([exe, '-serve'] + (['-warp'] if warp else []), stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                  creationflags=BELOW_NORMAL if os.name == 'nt' else 0)
+
+    def run(self, job: str) -> tuple[int, list[str], str] | None:
+        """(exit code, output lines, error text) as 'shaderview <job>' alone gives them; None when the process is
+        gone (it could not start, or ended mid-job: the caller runs the job in a process of its own)."""
+        assert self.p.stdin is not None and self.p.stdout is not None
+        try:
+            self.p.stdin.write(job + '\n')
+            self.p.stdin.flush()
+        except (OSError, ValueError):
+            return None
+        out: list[str] = []
+        err: list[str] = []
+        while True:
+            ln = self.p.stdout.readline()
+            if not ln:
+                return None
+            ln = ln[:-1] if ln.endswith('\n') else ln
+            if ln.startswith(MARK + 'done '):
+                return int(ln[len(MARK) + 5:]), out, '\n'.join(err)
+            if ln.startswith(MARK + 'err '):
+                err.append(ln[len(MARK) + 4:])
+            else:
+                out.extend(ln.splitlines() or [''])
+
+    def close(self) -> None:
+        try:
+            if self.p.stdin:
+                self.p.stdin.close()
+            self.p.wait(10)
+        except Exception:                                   # noqa: BLE001 - ending it anyway
+            self.p.kill()
+
+
+_IDLE: dict[tuple[str, bool, str], list[_Server]] = {}
+_NO_SERVE: set[str] = set()                                 # executables whose -serve did not answer
+_LOCK = threading.Lock()
+
+
+def close_servers() -> None:
+    """End the idle shaderview -serve processes (at exit; a later job starts new ones)."""
+    with _LOCK:
+        idle = [s for lst in _IDLE.values() for s in lst]
+        _IDLE.clear()
+    for s in idle:
+        s.close()
+
+
+atexit.register(close_servers)
+
+
+def _run_one(exe: str, job: str, warp: bool) -> tuple[int, list[str], str]:
+    """One job: on an idle (or new) -serve process when serving(), else - or when the server does not answer - in
+    a process of its own. (exit code, output lines, error text)."""
+    died_fresh = False
+    if serving() and exe not in _NO_SERVE:
+        try:
+            job.encode(locale.getpreferredencoding(False))     # the path as a command line would pass it
+        except UnicodeEncodeError:
+            pass
+        else:
+            key = (exe, warp, os.getcwd())                  # a job's relative paths: the caller's folder
+            with _LOCK:
+                idle = _IDLE.get(key)
+                srv = idle.pop() if idle else None
+            fresh = srv is None
+            got = None
+            try:
+                if srv is None:
+                    srv = _Server(exe, warp)
+                got = srv.run(job)
+            except OSError:
+                pass
+            if srv is not None and got is not None and got[0] not in (3, 4):
+                with _LOCK:
+                    _IDLE.setdefault(key, []).append(srv)
+            elif srv is not None:
+                srv.close()                                 # gone, or its device failed: never reused
+            if got is not None:
+                return got
+            died_fresh = fresh
+    r = subprocess.run([exe, job] + (['-warp'] if warp else []), capture_output=True, text=True,
+                       creationflags=BELOW_NORMAL if os.name == 'nt' else 0)
+    if died_fresh and r.returncode in (0, 1, 2, 3, 4):
+        _NO_SERVE.add(exe)          # the job runs alone but a new -serve process did not answer: a shaderview older
+        #                             than -serve (a job that crashes shaderview alone says nothing about -serve)
+    return r.returncode, r.stdout.splitlines(), r.stderr
+
+
 def run_job(job: str, warp: bool = False) -> tuple[list[str], bool]:
     """Run a shaderview job at below-normal priority: (its output lines, whether WARP was used). The GPU first;
-    the software rasterizer when the GPU device fails (a busy or lost device)."""
+    the software rasterizer when the GPU device fails (a busy or lost device). Thread-safe: jobs run at the same
+    time go to as many shaderview processes (serving())."""
     exe = shaderview()
-    flags = BELOW_NORMAL if os.name == 'nt' else 0
     for use_warp in ([True] if warp else [False, True]):
-        r = subprocess.run([exe, job] + (['-warp'] if use_warp else []), capture_output=True, text=True,
-                           creationflags=flags)
-        if r.returncode == 0:
-            return r.stdout.splitlines(), use_warp
-        if r.returncode not in (3, 4) or use_warp:
-            raise RenderQaError(f'shaderview failed ({r.returncode}): {r.stderr.strip()[-400:]}')
+        code, lines, err = _run_one(exe, job, use_warp)
+        if code == 0:
+            return lines, use_warp
+        if code not in (3, 4) or use_warp:
+            raise RenderQaError(f'shaderview failed ({code}): {err.strip()[-400:]}')
     raise RenderQaError('shaderview failed')
 
 

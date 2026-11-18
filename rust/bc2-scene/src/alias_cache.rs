@@ -182,6 +182,15 @@ pub(crate) fn store(dir: &Path, base: &Path, entries: &[(&str, &Entry)]) -> io::
     written
 }
 
+/// Marks `base`'s cache file in `dir` as used now (its modification time): an index that found every answer in it
+/// does not rewrite it, and `bfbc2core.caches` prunes the folder by that time, the least recently used first. A
+/// file that is not there or cannot be touched is left as it is.
+pub(crate) fn touch(dir: &Path, base: &Path) {
+    if let Ok(f) = fs::File::options().write(true).open(file_of(dir, base)) {
+        let _ = f.set_modified(std::time::SystemTime::now());
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
@@ -248,6 +257,21 @@ mod tests {
         assert!(load(&dir, base).is_empty());
         store(&dir, base, &[("x/b.xml", &b)]).unwrap();
         assert_eq!(load(&dir, base).len(), 1);
+        // touch: the file's time made now, its bytes kept; no file, nothing made
+        let path = file_of(&dir, base);
+        let bytes = fs::read(&path).unwrap();
+        let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+        fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        touch(&dir, base);
+        assert!(fs::metadata(&path).unwrap().modified().unwrap() > old);
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        touch(&dir, other);
+        assert!(!file_of(&dir, other).exists());
         // a folder that cannot be made: the error, no file left behind
         let blocked = dir.join("blocked");
         fs::write(&blocked, b"").unwrap();

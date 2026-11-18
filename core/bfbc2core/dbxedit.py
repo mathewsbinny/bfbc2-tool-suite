@@ -32,7 +32,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from typing import Any
 
-from . import native
+from . import caches, native
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(os.path.dirname(HERE))
@@ -61,12 +61,13 @@ _state: dict[str, Any] = {}
 
 
 def log_path() -> str | None:
-    """DbxEdit's log file for today (as DbxEdit's ToolLog names it), or None when the folder cannot be made."""
+    """DbxEdit's log file for today (as DbxEdit's ToolLog names it; once it reaches BFBC2_LOG_FILE_MB, the day's next
+    part: caches.day_log), or None when the folder cannot be made."""
     try:
         base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
         d = os.path.join(base, 'bfbc2-tool-suite', 'logs')
         os.makedirs(d, exist_ok=True)
-        return os.path.join(d, f'dbxedit-{datetime.date.today().isoformat()}.log')
+        return caches.day_log(d, 'dbxedit', datetime.date.today().isoformat())
     except OSError:
         return None
 

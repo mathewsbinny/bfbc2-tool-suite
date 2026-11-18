@@ -58,6 +58,7 @@ The report is a Report: a list of the old text lines (callers that read lines ke
 import copy
 import dataclasses
 import glob
+import hashlib
 import os
 import re
 import struct
@@ -600,8 +601,21 @@ class BoneTables:
 # ------------------------------------------------------------------------------------------------ the port
 
 def guids_of(data: bytes) -> set[str]:
-    """The instance guids of a partition (lower case): for port(ours={partition: guids})."""
-    return {(i.attr('guid') or '').lower() for i in dbx.parse(data).instances}
+    """The instance guids of a partition (lower case): for port(ours={partition: guids}). Each partition's are
+    computed once per process (round E3r: callers build `ours` over a folder's partitions for each partition they
+    port - the fair-port test parsed 2,353 partitions 58,835 times); a new set is returned each time."""
+    key = (len(data), hashlib.blake2b(data, digest_size=20).digest())
+    got = _GUIDS.get(key)
+    if got is None:
+        got = frozenset((i.attr('guid') or '').lower() for i in dbx.parse(data).instances)
+        if len(_GUIDS) >= GUIDS_MEMO:
+            _GUIDS.pop(next(iter(_GUIDS)))
+        _GUIDS[key] = got
+    return set(got)
+
+
+GUIDS_MEMO = 8192                       # partitions whose guids guids_of keeps (a few MB)
+_GUIDS: dict[tuple[int, bytes], frozenset[str]] = {}
 
 
 def _field(e: dbx.Element | None, name: str) -> dbx.Element | None:

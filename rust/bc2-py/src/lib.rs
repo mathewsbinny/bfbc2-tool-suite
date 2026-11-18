@@ -16,6 +16,9 @@
 //! cache (round E3e, `fbrb_cache.rs`: `fbrb_cache_config`, `fbrb_cache_configure`, `fbrb_cache_stats`,
 //! `fbrb_cache_clear`, and `fbrb_read_uncached`, the read without it).
 //!
+//! APT movies (`apt.rs`, round E3n): `apt_constants`, `apt_decode` / `apt_decode_many`, for
+//! `bfbc2-console-readers/apt/apt.py`.
+//!
 //! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`; FbrbTool's
 //! (`fbrbtool.rs`): `fbrbtool_run` / `fbrbtool_run_many`, for `core/bfbc2core/fbrbtool.py`.
 //!
@@ -29,6 +32,7 @@
 //! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` uses when it can;
 //! `mesh_vertices` and `havok_convert_packfile` / `HavokClasses` (round E3g) for `mesh.py` and `havok.py`.
 
+mod apt;
 mod convert;
 mod culltree;
 mod dbxedit;
@@ -36,8 +40,10 @@ mod fbrb_cache;
 mod fbrbtool;
 mod geometry;
 mod granny;
+mod kymesh;
 mod navbuild;
 mod navgraph;
+mod navpath;
 mod navtrace;
 mod scene;
 mod shaders;
@@ -358,9 +364,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::convert::{
-        HavokClasses, havok_convert_packfile, mesh_vertices, texture_convert, texture_convert_many, xas_decode_frames,
-        xas_encode, xas_encode_many,
+        HavokClasses, havok_convert_packfile, havok_verify_packfile, mesh_vertices, texture_convert,
+        texture_convert_many, xas_decode_frames, xas_encode, xas_encode_many,
     };
+
+    #[pymodule_export]
+    use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
 
     #[pymodule_export]
     use super::granny::{granny_header, granny_index, granny_root, granny_roots_many, granny_to_pc, granny_to_pc_many};
@@ -378,6 +387,12 @@ mod bc2_native {
         XenosProgram, xenos_float_repr, xenos_microcode, xenos_parse, xenos_parse_many, xenos_translate,
         xenos_translate_many,
     };
+
+    #[pymodule_export]
+    use super::navpath::PathGraph;
+
+    #[pymodule_export]
+    use super::kymesh::{kymesh_parse, navkit_mesh_cells, navkit_navdata_areas, navkit_union_roots};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

@@ -26,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from . import atomicio
+from . import atomicio, caches
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -153,8 +153,54 @@ def _ground(xz: np.ndarray, est: np.ndarray, heightfield: Any) -> np.ndarray:
     return np.where(np.abs(t - est) < 1.5, t, est)
 
 
-def _cells(f: Any, heightfield: Any, cache_dir: str | None,
-           path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with round E3o's navkit_mesh_cells / navkit_union_roots (navdiff finds it: None when not built
+    or BFBC2_PURE_PYTHON is set), or None."""
+    if not _NATIVE:
+        m = navdiff._native()
+        _NATIVE.append(m if m is not None and hasattr(m, 'navkit_mesh_cells') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """Round E3o's Rust paths (the cells of a whole file, the route graph's union-find, kymesh's reader) on (when
+    built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when they run. Off: the reference."""
+    _NATIVE.clear()
+    navdiff._NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        navdiff._NATIVE.append(None)
+        kymesh.use_native(False)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        kymesh.use_native(True)
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
+def _mesh_cells(f: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """(xz, est, area) of every area of the file in the Rust core (round E3o: the meshes parsed, each area's
+    boundary sampled by navdiff.area_cells' rule, cell after cell, as the reference joins them), or None: not
+    built, or a mesh / boundary the reference must handle (an unreadable record, a value that is not finite)."""
+    nat = _native()
+    if nat is None or not all(type(s.mesh) is bytes for s in f.sectors):
+        return None
+    got = nat.navkit_mesh_cells([s.mesh for s in f.sectors], navdiff.GRID, navdiff.Y_OFFSET)
+    if got is None:
+        return None
+    ij, ys, area = got
+    xz = np.frombuffer(ij, '<i8').reshape(-1, 2).astype(np.float64) * GRID
+    return xz, np.frombuffer(ys, '<f8').astype(np.float64), np.frombuffer(area, '<i4').astype(np.int32)
+
+
+def _cells(f: Any, heightfield: Any, cache_dir: str | None, path: str,
+           meshes: list[Any] | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     xz: Any                                     # cached cell centres, or a list of arrays joined into one
     if cache_dir:
         cp = os.path.join(cache_dir, _key(path) + '.npz')
@@ -162,22 +208,15 @@ def _cells(f: Any, heightfield: Any, cache_dir: str | None,
             try:
                 with np.load(cp) as z:                           # closed again: no lock left on the file
                     xz, area, est = z['xz'], z['area'], z['est']
+                caches.touch(cp)
                 return xz, _ground(xz, est, heightfield), area, est
             except Exception:
                 pass                                             # a damaged cache entry is rebuilt
-    ys: list[np.ndarray]
-    area_of: list[np.ndarray]
-    xz, ys, area_of = [], [], []
-    every = [a for s in f.sectors for a in kymesh.parse_mesh(s.mesh).areas]
-    for k, c in enumerate(navdiff.area_cells_many(every)):   # all at once (in the Rust core, in parallel: round E3h)
-        if c:
-            ij = np.array(list(c.keys()), dtype=np.float64)
-            xz.append(ij * GRID)
-            ys.append(np.array(list(c.values()), dtype=np.float64))
-            area_of.append(np.full(len(c), k, dtype=np.int32))
-    xz = np.concatenate(xz) if xz else np.zeros((0, 2))
-    est = np.concatenate(ys) if ys else np.zeros(0)
-    area = np.concatenate(area_of) if area_of else np.zeros(0, np.int32)
+    got = _mesh_cells(f)
+    if got is not None:
+        xz, est, area = got
+    else:
+        xz, est, area = _cells_reference(f, meshes)
     y = _ground(xz, est, heightfield)
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
@@ -189,6 +228,91 @@ def _cells(f: Any, heightfield: Any, cache_dir: str | None,
     return xz, y, area, est
 
 
+def _areas_native(f: Any) -> list[NavArea] | None:
+    """The file's NavAreas from the Rust core's flat arrays (round E3o: navkit_navdata_areas; the same values,
+    dtypes and shapes as the reference loop over the parsed meshes - each outline line, portal and border end a
+    view of one array of the file), or None: not built, or a mesh the reference reader must read."""
+    nat = _native()
+    if nat is None or not hasattr(nat, 'navkit_navdata_areas') or not all(type(s.mesh) is bytes for s in f.sectors):
+        return None
+    got = nat.navkit_navdata_areas([s.mesh for s in f.sectors])
+    if got is None:
+        return None
+    ints, floats, points, line_start, area_lines, portals, targets, area_portals, borders, area_borders = got
+    head = np.frombuffer(ints, '<i8').reshape(-1, 5).tolist()
+    vals = np.frombuffer(floats, '<f8').reshape(-1, 3).tolist()
+    pts = np.frombuffer(points, '<f4').reshape(-1, 3).astype(np.float32)          # one writable array
+    ls = np.frombuffer(line_start, '<i8').tolist()
+    al = np.frombuffer(area_lines, '<i8').tolist()
+    pp = np.frombuffer(portals, '<f8').reshape(-1, 2, 3).astype(np.float64)
+    tg = np.frombuffer(targets, '<i8').tolist()
+    ap = np.frombuffer(area_portals, '<i8').tolist()
+    bb = np.frombuffer(borders, '<f8').reshape(-1, 2, 3).astype(np.float64)
+    ab = np.frombuffer(area_borders, '<i8').tolist()
+    sid = [s.id for s in f.sectors]
+    out = []
+    for k, ((si, n, tx, tz, layer), (pitch, min_y, max_y)) in enumerate(zip(head, vals)):
+        out.append(NavArea(sid[si], n, (tx, tz), layer, pitch, min_y, max_y,
+                           [pts[ls[j]:ls[j + 1]] for j in range(al[k], al[k + 1])],
+                           [(pp[j, 0], pp[j, 1], tg[j]) for j in range(ap[k], ap[k + 1])],
+                           [(bb[j, 0], bb[j, 1]) for j in range(ab[k], ab[k + 1])]))
+    return out
+
+
+def _cells_reference(f: Any, meshes: list[Any] | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(xz, est, area) by navdiff.area_cells_many over the parsed areas (the reference of _mesh_cells)."""
+    ys: list[np.ndarray]
+    area_of: list[np.ndarray]
+    xz: Any
+    xz, ys, area_of = [], [], []
+    if meshes is None:
+        meshes = [kymesh.parse_mesh(s.mesh) for s in f.sectors]
+    every = [a for m in meshes for a in m.areas]
+    for k, c in enumerate(navdiff.area_cells_many(every)):   # all at once (in the Rust core, in parallel: round E3h)
+        if c:
+            ij = np.array(list(c.keys()), dtype=np.float64)
+            xz.append(ij * GRID)
+            ys.append(np.array(list(c.values()), dtype=np.float64))
+            area_of.append(np.full(len(c), k, dtype=np.int32))
+    xz = np.concatenate(xz) if xz else np.zeros((0, 2))
+    est = np.concatenate(ys) if ys else np.zeros(0)
+    area = np.concatenate(area_of) if area_of else np.zeros(0, np.int32)
+    return xz, est, area
+
+
+def _union_roots(n: int, edges: np.ndarray, skip: np.ndarray | None = None) -> np.ndarray:
+    """Each node's root after joining the ends of every edge (but those marked in skip) in order, by _load's
+    union-find (path halving; parent[root of a] = root of b): in the Rust core when built (round E3o), the same
+    steps; _union_roots_reference otherwise."""
+    nat = _native()
+    if nat is not None and n:
+        e = np.ascontiguousarray(edges, dtype='<i8')
+        sk = None if skip is None else np.ascontiguousarray(skip, dtype=bool).view(np.uint8).tobytes()
+        try:
+            return np.frombuffer(nat.navkit_union_roots(n, e.tobytes(), sk), '<i8').astype(np.int64)
+        except ValueError:
+            pass                                             # a node out of range: the reference's error
+    return _union_roots_reference(n, edges, skip)
+
+
+def _union_roots_reference(n: int, edges: np.ndarray, skip: np.ndarray | None = None) -> np.ndarray:
+    """The union-find in Python (the reference)."""
+    parent = np.arange(n)
+
+    def find(a: Any) -> Any:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for k, (a, b) in enumerate(edges):
+        if skip is not None and skip[k]:
+            continue
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    return np.array([find(k) for k in range(n)], dtype=np.int64)
+
+
 def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> NavData:
     """The file as NavData. With cache_dir, the whole result is kept there per file (and per height source), so
     opening a level again takes about a second."""
@@ -197,7 +321,9 @@ def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> Na
         if os.path.isfile(pk):
             try:
                 with open(pk, 'rb') as fh:
-                    return pickle.load(fh)
+                    got = pickle.load(fh)
+                caches.touch(pk)                             # used: the pruning deletes the least recently used
+                return got
             except Exception:
                 pass                                         # an unreadable cache entry is rebuilt
         nav = _load(path, heightfield, cache_dir)
@@ -206,6 +332,7 @@ def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> Na
         with open(tmp, 'wb') as fh:
             pickle.dump(nav, fh, protocol=pickle.HIGHEST_PROTOCOL)
         atomicio.replace(tmp, pk)
+        caches.prune_project_cache(cache_dir)                # a project cache (work\navstudio\cache, ...) to its cap
         return nav
     return _load(path, heightfield, None)
 
@@ -213,13 +340,19 @@ def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> Na
 def _load(path: str, heightfield: Any, cache_dir: str | None) -> NavData:
     f = hpdtool.parse(open(path, 'rb').read())
     areas: list[NavArea] = []
-    for s in f.sectors:
-        for n, ma in enumerate(kymesh.parse_mesh(s.mesh).areas):
-            areas.append(NavArea(s.id, n, (ma.tile_x, ma.tile_z), ma.layer, ma.pitch, ma.min_y, ma.max_y,
-                                 [np.asarray(l, dtype=np.float32) for l in ma.outline if len(l) >= 2],
-                                 [(np.asarray(p.p0), np.asarray(p.p1), p.target) for p in ma.portals],
-                                 [(np.asarray(b.p0), np.asarray(b.p1)) for b in ma.border_portals]))
-    xz, y, cell_area, _ = _cells(f, heightfield, cache_dir, path)
+    meshes: list[Any] | None = None
+    got = _areas_native(f)
+    if got is not None:
+        areas = got
+    else:
+        meshes = [kymesh.parse_mesh(s.mesh) for s in f.sectors]     # each sector's mesh read once (round E3o)
+        for s, mesh in zip(f.sectors, meshes):
+            for n, ma in enumerate(mesh.areas):
+                areas.append(NavArea(s.id, n, (ma.tile_x, ma.tile_z), ma.layer, ma.pitch, ma.min_y, ma.max_y,
+                                     [np.asarray(l, dtype=np.float32) for l in ma.outline if len(l) >= 2],
+                                     [(np.asarray(p.p0), np.asarray(p.p1), p.target) for p in ma.portals],
+                                     [(np.asarray(b.p0), np.asarray(b.p1)) for b in ma.border_portals]))
+    xz, y, cell_area, _ = _cells(f, heightfield, cache_dir, path, meshes)
     counts = np.bincount(cell_area, minlength=len(areas)) if len(cell_area) else np.zeros(len(areas), int)
     for a, cnt in zip(areas, counts):
         a.cells = int(cnt)
@@ -244,18 +377,7 @@ def _load(path: str, heightfield: Any, cache_dir: str | None) -> NavData:
             costs.append((e.tag & 0x7FFFFFFF) / 16.0)
     pos = np.array(pos, dtype=np.float64).reshape(-1, 3)
     edges = np.array(edges, dtype=np.int64).reshape(-1, 2)
-    parent = np.arange(len(pos))
-
-    def find(a: Any) -> Any:
-        while parent[a] != a:
-            parent[a] = parent[parent[a]]
-            a = parent[a]
-        return a
-    for a, b in edges:
-        ra, rb = find(a), find(b)
-        if ra != rb:
-            parent[ra] = rb
-    roots = np.array([find(k) for k in range(len(pos))], dtype=np.int64)
+    roots = _union_roots(len(pos), edges)
     # ladder links, and the walking parts of each island (its components without them): ground on any walking
     # part but the island's largest is reached through a ladder - ladder ground
     if len(edges):
@@ -264,19 +386,7 @@ def _load(path: str, heightfield: Any, cache_dir: str | None) -> NavData:
         ladder_edge = (dy > LADDER_DY) & (dy > LADDER_SLOPE * h)
     else:
         ladder_edge = np.zeros(0, bool)
-    walk = np.arange(len(pos))
-
-    def wfind(a: Any) -> Any:
-        while walk[a] != a:
-            walk[a] = walk[walk[a]]
-            a = walk[a]
-        return a
-    for (a, b), lad in zip(edges, ladder_edge):
-        if not lad:
-            ra, rb = wfind(a), wfind(b)
-            if ra != rb:
-                walk[ra] = rb
-    walk_root = np.array([wfind(k) for k in range(len(pos))], dtype=np.int64)
+    walk_root = _union_roots(len(pos), edges, ladder_edge)
     base: dict[Any, Any] = {}
     if ladder_edge.any():
         wsize = Counter(walk_root.tolist())

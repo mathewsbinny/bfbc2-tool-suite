@@ -1669,6 +1669,391 @@ unchanged prefix's compressed stream would need the deflater's state at an entry
 `dbxbin` writer check (9.4 s of parse), the in-process unpacks (8.6 s for 8, mostly file creation), DbxEdit's
 `check` against mp_common (5.4 s for 10 runs) and folder deletion (4.4 s).
 
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests\test_durations.json`.
+
+## E3l: the render harness and the differential test (2026-11-17, branch `rust-e3l`)
+
+**Provisional timings:** other agents' builds and tests ran beside every figure below (all runs at below-normal
+priority on the 16-thread PC; the same command varies by up to 1.5x between runs). Ratios hold within a run.
+
+### The profiles (before)
+
+`xdiff.py` (the differential test: BF1943's Wake pixel shaders through `xenos_exec.py` and through the translation
+drawn by `shaderview.exe` on WARP), 60 shaders under cProfile: 15.1 s, of which **13.2 s waiting for 61 shaderview
+processes** (0.22 s each), 0.73 s compiling (E3d's prefetch, on its own threads), 0.34 s reading the database's
+bundle, **0.32 s in the interpreter** (60 runs, 3,616 ALU instructions), 0.04 s translating (Rust, 120 calls),
+0.04 s disassembling. Every Wake shader (815) took **168 s** cold and 173 s with a warm HLSL cache.
+
+`renderqa.py` (GPU): `render` of 16 stock meshes with mp_002's database, 10.1 s under cProfile, **8.07 s in 16
+shaderview processes** (0.50 s each); the game test's `game()` 4.8 s warm, 4.7 s of it in 6 shaderview processes
+(0.78 s each); the first run in a checkout also builds the truth index (4.8 s, `load_levels` / `mesh_names`: cached in
+`build\renderqa_truth.pkl` after). `patches` and `strips` draw a level in one job (one process), so the process cost
+there is once per command.
+
+Where a shaderview process's time goes (60 of xdiff's jobs, `sv_cost`): one process per job 3.3 s on WARP, all 60
+frames in one process 0.66 s; on the GPU 20.4 s against 0.67 s - **creating the Direct3D device is ~55 ms on WARP and
+~340 ms on the GPU, for a job of ~10 ms**. And a second cost: the same 60 jobs on one device took 1.21 s on files a
+minute old but **4.59 s on a fresh copy of them** (0.76 s on the copy's second pass) - each newly written file is
+virus-scanned when another process opens it, ~5 ms a file, and xdiff wrote a dozen inputs per shader.
+
+### What changed
+
+- **`shaderview -serve [-warp]`** (`native\shaderview.cpp`): one device for many jobs. Job file paths come on stdin;
+  each job runs from a cleared context (`ClearState`) with its own state, and everything it made - textures (a
+  leaked texture reference in `texture()` fixed), samplers, render states, its frames - is released when it ends,
+  however it ends. Errors no longer `exit()`: `fail(code, ...)` throws, the one-job mode prints the message and
+  returns the code (the same stderr and exit codes as before), the server prints `\x1d` `err <line>` and `\x1d`
+  `done <code>`. The one-job command line is unchanged (OPFOR's `wake_preview.py` / `weapon_preview.py`).
+- **`pack <file>`**: a job's inputs in one file, any file argument written `*<offset>:<size>` (a slice of it; `*` is
+  in no Windows path). `xdiff.run_hlsl` writes `inputs.bin` (the vertex and pixel shaders, vertex, index and constant
+  buffers and textures, in that order: byte for byte the old separate files, concatenated) beside `job.txt`.
+- **`renderqa.run_job`** (same signature; thread-safe): jobs go to idle `-serve` processes, one per (exe, WARP or
+  GPU, working folder), a new one when none is idle - so threads calling it at once each get their own. A server
+  whose job ends with 3 / 4 (device failed or lost) is closed and the job falls back to WARP as before; a server that
+  dies is closed and its job run alone; a shaderview without `-serve` (a job runs alone but a new server did not
+  answer) is run once per job for the rest of the process. `BFBC2_SHADERVIEW_SERVE=0`: one process per job, the
+  reference. `close_servers()` (also at exit).
+- **`xdiff.py`**: `run_shader` (one shader, thread-safe), run on worker threads (`--workers`, `BFBC2_XDIFF_WORKERS`,
+  default up to 4), results gathered and printed in order.
+- **Not ported, by measurement:** `xenos_exec.py` (the interpreter) is 5.5 s of the 121 s of a one-worker run of all
+  815 shaders (4.5 %; 815 runs) after the changes above, and runs beside the draws on the worker threads; a Rust port
+  would also have to reproduce NumPy's float32 arithmetic op for op. The disassembler: 0.81 s for 815 (60,659
+  `disasm_instruction` calls), 0.7 %.
+
+### Before and after
+
+| | before | after | |
+|---|---:|---:|---:|
+| xdiff, every Wake pixel shader (815), cold HLSL cache | 168.3 s | **21.2 s** | 7.9x |
+| the same, warm HLSL cache | 173.5 s | 24.7 s (8 workers 21.1 s; 1 worker 46.2 s) | 7.0x |
+| (the same with `-serve` and 4 workers, before the pack) | | 44.7 / 41.5 s | |
+| shaderview, 60 xdiff jobs, WARP: one process each / `-serve` | 6.13 s | 0.62 s | 9.9x |
+| shaderview, 60 xdiff jobs, GPU: one process each / `-serve` | 14.90 s | 0.78 s | 19x |
+| renderqa `render`, 16 stock meshes (mp_002), under cProfile | 10.1 s (8.07 s in shaderview) | 7.9 s (4.98 s) | |
+| renderqa `validate`, the same 16 meshes | 16.3 s | 8.9 s | 1.8x |
+| renderqa `compare --truth auto`, the same 16 | 24.4 s | 14.8 s | 1.6x |
+| renderqa `strips`, mp_002 (40 strips) / mp_005 (50) | 7.9 / 6.7 - 8.0 s | 4.3 / 3.5 - 5.0 s | |
+| renderqa `patches`, mp_009cq (33, one job) | 9.9 s | 5.2 s | |
+| `test_renderqa.py --game` (now also each mesh drawn in a process of its own) | 12.7 s | 14.1 s | |
+| `test_xdiff.py --game` (now also served against one process per shader) | 4.4 s | 3.0 s | |
+
+What a one-worker run of the 815 now spends (cProfile, `-serve`, before the pack): waiting for the draws 86 s
+(mostly the scans of fresh inputs, which the pack then cut), Python's file opens 12.8 s (14,286), reading `out.raw`
+8.4 s, the first pass (cases, translations, compile prefetch from the warm cache) 8.8 s, the interpreter 5.5 s.
+renderqa's remaining shaderview time is the draws themselves: real meshes with block-compressed textures on the GPU,
+~0.3 s a mesh (three views), and its texture files are written per mesh (fresh files again; a texture cache across
+meshes is the next step if renderqa's mesh loops grow).
+
+### Parity
+
+- **xdiff, every Wake pixel shader:** before (`main` at 68bec4c, one process per shader, one at a time) against
+  after (`-serve`, 4 workers), cold and warm: **815 of 815 exact** in every run; the printed lines identical; with
+  `-serve` alone 11,032 of 11,032 files identical (every shader's inputs, draw, `ps.hlsl`, `ps.xenos.txt`,
+  `results.json`); with the pack (4, 8 and 1 workers) **2,446 of 2,446** result files (`out.raw`, `ps.hlsl`,
+  `ps.xenos.txt` per shader, `results.json`) identical and **815 of 815 `inputs.bin` the old input files' bytes**.
+  `test_xdiff.py --game-all`: the same run served on threads against one process per shader, one at a time: 3,261 of
+  3,261 files and the printed lines alike.
+- **shaderview:** the 60 jobs through the old executable, the new one alone and `-serve`, WARP and GPU: 60 of 60
+  outputs byte for byte and 60 of 60 stdouts alike each way.
+- **renderqa**, before against after on real data (GPU): `render`, `validate`, `compare` (16 meshes each),
+  `strips` (mp_002, mp_005), `patches` (mp_009cq): every `results.json`, picture, sheet and coverage PNG identical
+  (the only difference: `summary.txt` names its own output folder). The game test draws each stock mesh served and
+  in a process of its own: the HDR pictures, classes, sample counts and records equal to the bit.
+- **quick** (`test_shaderview_serve.py`, WARP): 6 built jobs (2D and cube textures, sampler states, both constant
+  buffers, depth and stencil frames with the game's render states, coverage classes, counting draws, two frames in a
+  job, quoted paths with spaces) served against one process each: 10 of 10 output files, lines and codes alike; jobs
+  with more state followed by jobs with less on one server, each as alone; 6 failures (a missing input, an unknown
+  command, short render-state numbers, a bad sampler state, a non-texture as a texture resource, a missing job) with
+  the reference's exit codes and messages and the next job on the same server alike; 8 threads x 36 jobs alike, a
+  server per thread, all ended by `close_servers`; 400 jobs on one server: 5 -> 6 MB.
+
+### Tests
+
+`bfbc2-shader-tools/tests/test_shaderview_serve.py` (quick, ~17 s, most of it the one-process reference),
+`test_xdiff.py --game` (served on threads against one process per shader), `test_xdiff.py --game-all` (new game
+entry: every Wake pixel shader, ~170 s), `test_renderqa.py --game` (served against a process of its own). Seeds in
+`tests\test_durations.json`; the renderqa game seed was 48.1 s from an older run (the truth index built cold).
+
+## E3n: the menu tools' APT code (2026-11-17, branch `rust-e3n`)
+
+**Provisional timings:** WW2 rebuilds and other agents' builds and tests ran beside every figure (below-normal
+priority); ratios hold within a run, absolute seconds move by up to 2x between runs.
+
+E3m's items 4, 5, 7 and 16: `aptgraft roundtrip --pack` (164 s profiled), `aptrefs xref` (47 s), aptcheck on every
+movie (37 s), bc2loc's movie constants (3.7 s). Algorithm first, then Rust.
+
+### What changed
+
+- **aptgraft's writer** (`bfbc2-menu-tools/aptgraft.py`). Each write recomputed the reachable nodes, sized every
+  code node by assembling it (`Code.size` = `len(assemble(...))`, pointers 0) and then assembled it again to write
+  it, so every instruction was placed twice and emitted twice per write; `roundtrip --pack` makes 6 writes of three
+  models and walks the reachable nodes 8 times per movie. Now:
+  - `Code.size` is the placement alone (`_place`, no bytes made); `Movie.plan(layout, gap)` keeps each code node's
+    placement made while sizing it, and the write emits from it (alignment depends only on the offset modulo 4, which
+    the placement shares with the write; branch offsets and body sizes are relative), so each instruction is placed
+    once and emitted once;
+  - placement, emission and the parser's instruction loop dispatch on one 256-entry operand table (`_KIND`, made from
+    the operand sets in the reference's order) with precompiled `struct` packers; a `Words` node is one `pack` call;
+  - `roundtrip` finds the reachable nodes once per model and shares one `Plan` per layout among the writes of the
+    unchanged model (`write(plan=...)`: the node offsets, the kept dead data and each node's bytes per byte order);
+    `leftovers(nodes)` takes the same nodes;
+  - `Code.refs` walks with an explicit stack (the same order: a body's references right after its definition's).
+  `aptgraft.REFERENCE` (`BFBC2_APTGRAFT_REFERENCE=1`) runs the writer and parser as before (`write_reference`,
+  `assemble_reference`, `_stream_reference`).
+- **apt.py's decoder in Rust** (`bc2_formats::apt`, bound as `bc2_native.apt_constants` / `apt_decode` /
+  `apt_decode_many`; `bfbc2-console-readers/apt/apt.py`): the constants of `Movie.__init__`, `dump()` and
+  `instructions()` with `dump_lines`. The records come back as 15 column lists that `apt.py` zips into
+  `(Ins, start, limit, depth)` in C (`tuple.__new__(Ins, fields)`, the cycle collector paused) - building one tuple
+  per record in Rust cost twice as much; the dump's lines stay in Rust (`AptLines`) until `dump_lines` is read (the
+  tools never read it). `%g` is ported (`format_g`: six significant digits, ties to even, as Python). The Rust
+  refuses whatever the Python would not decode in bounds - a read past the end or at a negative offset (Python reads
+  those from the end, or raises `struct.error` / `IndexError`, which the dump writes into its text for frame items),
+  nesting deeper than 64 - and that movie is decoded by the Python code, so every answer, error included, is the
+  reference's. A Movie with a `sink` always runs in Python. `apt.decoded(movies, chunk)` decodes many movies at once
+  on all cores, a chunk (twice the cores) at a time so only a few movies' records are held; aptrefs' scan and
+  `aptcheck check <several movies>` use it. `apt.use_native`, `apt.backend()`, `BFBC2_PURE_PYTHON=1`;
+  `dump_python` / `instructions_python` are the reference.
+- **bc2loc's movie constants** (E3m item 16): `Movie.__init__`'s constant list in Rust (`apt_constants`, 4x on the
+  133 movies) was enough; no disk cache was added (bc2loc dump 3.0 -> 1.9 s for English + Russian).
+- Not done: aptgraft's parser and model in Rust. The parse builds the Python model (2.7 M `Ins`, 0.7 M `Words`,
+  0.4 M `Str` objects for a roundtrip) that the grafting code edits; a Rust parser would still create every object
+  through the interpreter. It is now the largest cost of `roundtrip` (about a third), with `write`'s per-node loop.
+
+### Before and after (unprofiled)
+
+| workload | before, s | E3n, s | |
+|---|---:|---:|---:|
+| `apt.Movie.instructions()`, the 133 movies (2,913,639 instructions) | 10.9 | 4.7 one by one, **3.6** `decoded()` | 2.3-3x |
+| `apt.Movie.dump()`, the same (3,125,206 lines) | 7.1 | **2.2** | 3.2x |
+| `apt.Movie(...)` (constants), the same | 0.57 | 0.13 | 4.4x |
+| aptrefs xref (every movie set, the exe's table) | 11.8 / 12.8 | **4.3** / 6.5 | 2-2.7x |
+| aptcheck's rules on every movie (128) | 9.1 / 12.6 | **5.0** / 5.3 | 1.8-2.4x |
+| bc2loc dump, English + Russian | 3.0 | 1.9 | 1.6x |
+| `aptgraft roundtrip --pack`, 73 movies (50 distinct) | 48.3 | **26.6** | 1.8x |
+| the 133 movies: every write of the unchanged model (1,999 writes with grafts) | 116.0 | 58.9 | 2.0x |
+| the 133 movies: `roundtrip --pack` | 172.7 | 99.4 | 1.7x |
+
+(The second figures of aptrefs / aptcheck are the game test's, run beside a WW2 rebuild.) The 128 movies' rules
+spend what is left in aptcheck's own Python (`Code.__init__`, `findings`: 3.6 of 5 s), aptrefs in `movie_refs`.
+
+### Parity
+
+- `bfbc2-menu-tools/tests/test_apt_e3n.py` (quick, 8 s; `--game` ~20 min beside a WW2 rebuild): test_aptgraft.py's built movies (little- and big-endian,
+  grafted, crosshair-added) and a movie of 3,000 seeded `EA_PushFloat` values (zeros, infinities, NaNs, denormals,
+  ties) - the constants, dump and records both ways, equal values with equal types, single and batched; 600 damaged
+  copies (truncated, code bytes changed, operands pointed inside / past the file, opcodes made branches, functions,
+  lists, unknown): the same result or the same exception (46 raise in Python; 179 more the Rust refused and Python
+  decoded); every write, `roundtrip --pack`, grafts and crosshair-add against `REFERENCE`, and 200 damaged movies
+  written or refused as the reference.
+- `--game`: the game copy's 128 distinct SwfMovies (Dist and Package), OPFOR's pristine menu bundle and the Xbox HUD
+  copies of `work\xbox_dlc` - 133 distinct movies: 2,913,639 instructions and 3,125,206 dump lines the same both
+  ways; every write of each unchanged model (8 ways), two of its sprites grafted into the next movie of its byte order and written three ways, and `roundtrip --pack` - 1,463 writes - byte-identical to `REFERENCE` (the same bytes, problems and notes; 575.8 s reference, 450.5 s E3n beside a WW2 rebuild, both with grafting's own Python); the parity script of this round (scratch, the same corpus): 1,999 writes and 133 roundtrips, 0 differ; aptrefs xref (text and JSON), aptcheck on the 128 movie-set movies (1,924,750 instructions:
+  the same records, functions and findings) and bc2loc dump (English, Russian) byte-identical with either decoder.
+- Rust: `cargo test -p bc2-formats apt` (the `%g` cases, the dump of a built movie, a read past the end refused) and
+  the module's doc example.
+
+### For OPFOR (not edited this round)
+
+OPFOR's menu callers use aptgraft's model (`Movie.load`, the graft helpers, `to_res` once per movie: the parse and
+one write, now with the faster placement and table) and run `aptcheck.py check <movie>` in a subprocess per movie
+(`src\tools\ww2\menu_install.py`, `wake_ui.py`, `duplicates.py`, `weapon_icons.py`): one `aptcheck.py check a b c`
+(now decoded together on all cores), or `aptcheck.Code` in process over `apt.decoded(movies)`, would save a Python
+start and an import per movie. `qa_checks.py` / `ww2_crosshairs.py` read crosshair tables and `deps` through the
+model (no decoder). bc2loc users (`names.py`, `ww2_awards.py`, `menu_install.py`) gain the faster constants when
+they read movies.
+
+## E3r: the rest of the BF1943 importer (2026-11-17, branch `rust-e3r`)
+
+**Provisional timings:** a WW2 rebuild and other agents' tests ran beside the first half of the work; every figure is
+below-normal priority on the 16-thread PC, with every process kept near 1 GB (`RAYON_NUM_THREADS=2`,
+`BFBC2_FBRB_CACHE=0` as the test runner sets it). Ratios hold within a run.
+
+`rust\bench_bf1943.py` (new) runs the importer's real workloads and records each output's SHA-256: `source` (every
+entry of BF1943's copy), `import` (`Importer.convert` of every animation, delta animation, skeleton and aim
+animation, the thumb-donor undeploys, `check()`), `fair` (`dbxport.port` of every partition both games ship, as
+`test_dbxport_fair.py` ports it, and the 29 firings with DICE's counterpart), `parity` (`dbxparity.compare` and
+`predict`), `atlas` (`emitteratlas.build` / `prove` / `same_but_uv` on the inputs of Project OPFOR's last
+`emitter_atlas` run: 615 emitter partitions, 14 authoring atlases, rebuilt read only from its manifest by `capture` -
+the build gives the atlases that run recorded).
+
+### The profiles (before)
+
+| workload | s | where the time and memory went |
+|---|---:|---|
+| `bf1943import.Source` open | 2.9 | every bundle read and decompressed; **1.24 GB kept** (508 MB raw bundles, 733 MB decompressed payloads; a stored bundle's payload a second copy of its raw bytes) - most of every BF1943 tool's footprint (E3g: 1.6 - 1.9 GB peaks) |
+| Wake's emitter atlas, `build` | 52.7 (profiled; 33 - 36 plain) | `dedupe` 50.5 s: the probe search's `std()` of every 8 x 8 window at even offsets (1.8 million numpy calls, 28 s) and the pre-test of every grid offset of every kept cell (1.8 million `(pk == probe).all(-1).mean()`) |
+| Wake's emitter atlas, `prove` | 9.2 | small numpy calls per image and level (`array_equal`, `corrcoef`, the crops), the source atlases decoded again |
+| `test_dbxport_fair.py` | 74.6 (profiled, an early lazy Source) | the test's own loop: each partition's folder found by scanning all 14,027 names (2,353 times: 33 M `endswith`, 16 s); `guids_of` 58,835 times for 2,353 partitions (10.8 s of parsing); DICE's partitions read a bundle at a time (11 s); **`dbxport.port` 6.9 s** for 2,357 ports |
+| `test_bf1943import.py --game` | 34.4 (profiled) | `check()`'s tree comparison: `clean()` copies of both trees, 13.9 million calls, 12.4 s; DICE's resources read one at a time (TRACK_FORMATS again for every undeploy: 82 reads, 4.2 s; the test's 24 undeploys 4.4 s); the deploys converted again for each stance |
+| `dbxparity` (compare) | 23.0 (profiled) | DICE's partitions read a bundle at a time 11 s; `flatten` / `dbx.value` 6.7 s |
+| `bench_ports.py effects` | 14.9 (profiled) | `dbxport.port` 7.1 s for 1,410 ports (5 ms each: `align` 3.7 s, `_gate` 0.9 s, parse / write); reading 3.5 s |
+
+### What changed
+
+- **`bf1943import.Source`, lazy** (`WholeSource` keeps the old class: the reference, `BF1943_SOURCE_WHOLE=1`). The open
+  checks each bundle with `fbrb1943.Bundle` exactly as before (the same bundles taken, the same entries and order)
+  and keeps only the entries; the verdict per bundle - keyed by its size and modification time and `fbrb1943.py`'s
+  SHA-1 - goes to the new `bf1943source` cache (3.2 MB), so later opens read no payload (0.04 s). A stored payload is
+  read where each entry lies. A compressed payload is one gzip stream: its first read decompresses it once and keeps
+  **restart points** - every 1 MiB of output, the inflater's whole state (`zlib`'s `Decompress.copy()`: window and
+  bit position) and how far into the stream it had read; the bytes between two points are the earlier state, copied,
+  fed the stream up to the later point (the same input into the same state). An entry costs at most 1 MiB of
+  inflating; decoded spans are kept, least recently used dropped, within `BF1943_SOURCE_MEMORY_MB` (default 128).
+  (E3e's Rust cache could not do this: the safe Rust inflaters have no `inflatePrime`; Python's zlib copies the state
+  whole. A stream that is not one plain gzip member is decompressed whole per read, as before.) A bundle changed on
+  disk after the open is refused where a read needs the file. A first version kept whole payloads in a 384 MB LRU:
+  the fair-port test thrashed between levels-common and the level bundles (70 decompressions, 21 s); with restart
+  points 3.5 s.
+- **`emitteratlas.dedupe`** (`dedupe_reference` keeps the scan, `BFBC2_EMITTERATLAS_REFERENCE=1`): the probe search
+  is one `std()` over a sliding-window view (`_probe_at`) - exact, because a full window holds 64 (8-bit) or 1,024
+  (BC5) values, a power of two, so the mean, the deviations, their squares and every partial sum are dyadic numbers a
+  double holds exactly in any summation order, and `argmax` takes the first maximum as the scan's `>` did; the
+  offset pre-test is one comparison over all offsets of a kept cell (`_matches`); the offsets that pass are checked
+  with `same_image` in the scan's order. A core narrower than the grid or an empty probe runs the scan. `prove`
+  compares each crop once for its three numbers.
+- **`bf1943import.check`**: `same_clean(a, b)` answers `clean(a) == clean(b)` without the copies (the plain
+  comparison first, in C: equal trees are equal cleaned; the walk only where it fails); `check(cleaned=)` takes the
+  reference. `Importer.game_read` reads each game resource once; a deploy's and HandsIkPose's tracks are converted once
+  per Importer; the BF1943 soldier's bone names once per `check`.
+- **`dbxport.guids_of`** remembers each partition's guids (by length and BLAKE2b; 8,192 partitions, a new set
+  returned each time) - OPFOR's `bf1943_vehicles` builds `ours` the same way.
+- **`meshview.Index.read_many(names, whole_bundles=False)`** reads only the partitions named, the bundles on all
+  cores (and what `Partitions` already holds); the fair-port test and `dbxparity` read DICE's partitions with it and
+  list each folder's partitions once. `test_bf1943import.py` reads DICE's undeploys at once.
+
+**Not ported, by measurement:** `dbxport.port` - 3 - 5 ms a partition (6.9 s of the fair-port test, 7.1 s of the bulk
+effect port, about 1 s of a WW2 level port since E3d), spread over `align` / `align_struct`'s rules, `_gate`, the
+reference resolver and the reports: 1,865 lines of rules whose every branch would need its own proof, for a few
+seconds a level build. `dbxparity`'s `flatten` / `dbx.value` (a research tool, 6 s). `prove`'s per-image numpy calls
+(7 s once a level). meshport / havokport / effectport: nothing new beyond E3g - their bench is unchanged but for the
+Source.
+
+### Before and after
+
+Before: `main` at 2a59fcd extracted, with the lazy `Source` put in (WholeSource's 1.24 GB would have broken the 1 GB
+limit; its bytes are proven the same below) and its `Importer` / `check` as they were.
+
+| workload | before, s | after, s | peak, before -> after |
+|---|---:|---:|---|
+| `Source` open | 2.9 (every bundle) | **0.04** (the index; 2.9 the first time) | 1.24 GB kept -> the entries + 128 MB of spans at most |
+| emitter atlas `build` (Wake, OPFOR's inputs) | 33.4 | **5.2** (6.4x) | 870 MB both |
+| emitter atlas `prove` | 9.7 | 7.5 | |
+| emitter atlas, all three | 44.0 | **13.4** (3.3x) | |
+| `test_dbxport_fair.py` (game tier) | 37.8 (seed with WholeSource 31.3, mem 2.5 GB) | **26.8** | 1,126 -> 886 MB |
+| bench `fair`: 2,382 ports | 20.8 | **14.9** | |
+| bench `import`: 808 converts and `check()` | 15.7 (`check` 8.9) | **13.9** (`check` 6.4) | |
+| `test_bf1943import.py --game`, profiled, without E3r's new proofs | 34.4 | **16.7** | ~2 GB (WholeSource) -> 690 MB |
+| `test_bf1943import.py --game` with E3r's two proofs | | 23.9 | 856 MB |
+| `dbxparity` compare | 17.1 | **11.3** | 798 -> 444 MB |
+| `dbxparity --predict` | 20.7 | 21.0 | 1.18 GB both |
+| `bench_ports.py` mesh / havok / effects | 8.7 / 1.6 / 7.6 | 9.4 / 1.6 / 7.6 (noise) | 907 MB both |
+
+### Parity
+
+Every output of every workload both ways (`bench_bf1943.py --record` in each checkout, compared):
+
+- **17,219 of 17,219** `bench_bf1943` outputs identical: 14,027 entries, 804 converts (bytes and records) and 4
+  thumb-donor converts, `check()`'s failures, 2,353 fair ports and 29 counterpart ports (bytes and report),
+  `dbxparity`'s compare and predict results;
+- **620 of 620** atlas outputs (both atlases - the ones OPFOR's run recorded -, 615 partitions, the report, the proof,
+  the trees); and in one checkout with `BFBC2_EMITTERATLAS_REFERENCE=1` against without: 620 of 620;
+- **1,188 of 1,188** `bench_ports.py` outputs (273 mesh, 202 physics, 713 effect);
+- `dbxparity.py` and `--predict` reports (and the enums JSON) byte for byte; the fair-port test's every count;
+- `Source` against `WholeSource`'s reading on the user's copy (game tier): the same 82 bundles and 14,027 names,
+  **14,027 of 14,027 entries** the same bytes; in a random order through a 4 MB span budget, 14,027 of 14,027
+  (12,230 span decodes);
+- `check()`: **3,024 of 3,024** tree comparisons answered by `same_clean` as by the reference;
+- quick: 6,000 seeded random tree pairs (`same_clean` against `clean() ==`: NaNs, `__` keys, `Padding`, mixed kinds);
+  `Source` on built bundles (restart points 4 KiB apart, a two-member payload, a stored one, a refused one, the index
+  used and refreshed, a bundle changed after the open refused); `dedupe` against `dedupe_reference` on 48 seeded
+  synthetic atlas sets (8-bit and BC5, copies at grid offsets, flat regions, narrow cores): 48 of 48.
+
+### Tests
+
+`test_bf1943import.py` (quick: the fuzz and the built-bundle Source; `--game`: the Source on the whole copy and the
+dual `check`), `test_emitteratlas.py` (quick: the dedupe cases), `test_dbxport_fair.py` (faster: folders listed once,
+DICE's partitions at once). NEEDS: the import game test `mem=1` (was 2.5), the fair-port test `cpu=4, mem=1.5` (was
+2.5); seeds in `tests\test_durations.json`. No Rust changed: `cargo fmt`, `clippy` and the tests passed in the quick
+tier as they were.
+
+## E3o: navdata, kymesh, navpath, havok.verify, texqa (2026-11-17, branch `rust-e3o`)
+
+E3m's next ranked items, in the order of measured gain. **Provisional timings:** WW2 rebuilds and other agents' work
+ran beside every figure (below-normal priority); before and after were taken in the same session with
+`rust\bench_sweep.py`, unprofiled, "before" on main (e581798).
+
+### The profile (before)
+
+`navdata_load` (DICE's path data of the 17 prepared levels, no cache), cProfile 109.5 s: `kymesh.parse_mesh` 45.7 s
+(5,122 calls: every sector's mesh parsed twice, once for the areas and once for the cells; 17 M `_v3`, 32 M
+`struct.unpack_from`; a neighbour link's owner found by `max(...)` over every area offset), `_load`'s own 15.7 s (each
+area's outline lines and portal ends made with `np.asarray`, 4.1 M calls), `_cells` 50 s (`navdiff.area_cells_many`
+16 s - its per-area `segments` and arrays; the Rust area cells themselves 2.9 s - then each area's cell dict back to
+arrays: 384 k `np.array`, 504 k `tolist`), the route graph's two union-finds 6.4 s (3.7 M `find` / `wfind` calls).
+`navpath_routes` (400 routes): `closest_between` 5.2 s for the 200 failed routes, the A* 2 s with one
+`np.linalg.norm` per pushed node. `havok_verify`: `Packfile`'s Python walk, then the per-byte compare and `ignorable`
+in Python. `texqa_ww2`: 22 textures one after another, 0.47 s of NumPy each.
+
+### What changed
+
+| | Python (kept as the reference and the fallback) | now |
+|---|---|---|
+| `kymesh.parse_mesh` | `parse_mesh_reference` | `bc2_formats::kymesh::parse` (`bc2_native.kymesh_parse`): nested tuples the Python makes its dataclasses from. Where the reference would raise (a short record, A records, an unknown portal target, a link pointer before every area) or a value is a NaN (`struct`'s float conversion of a NaN is the interpreter's to define), `None`, and the reference reads: its error stays the error. `kymesh.use_native` |
+| `navdata._load`'s areas | the loop over the parsed meshes (`np.asarray` per line and portal end) | `navkit_navdata_areas`: the whole file's areas as flat arrays; each outline line, portal end and border end a view of one array (the same dtype, shape and values) |
+| `navdata._cells` | `_cells_reference` (parse, `navdiff.area_cells_many`, dicts to arrays) | `navkit_mesh_cells`: every mesh parsed and every area's boundary (`navdiff.segments` in float64) sampled by `parity::area_cells` in parallel, the cells returned as flat int64 / float64 / int32 arrays in the reference's order; `None` (the reference) for a boundary that is not all finite |
+| the route graph's union-finds | `_union_roots_reference` | `navkit_union_roots`: the same steps (path halving, `parent[root of a] = root of b`, the edges in order, then `find(k)` for every k in order), so the roots - which `Island.root` keeps - are the same |
+| `navpath.route` | `route_reference` | `bc2_navbuild::astar` (`bc2_native.PathGraph`, one per `NavData`): the same pops (Python compares `(f, g, node)` tuples, a total order: the heap's layout cannot matter), relaxations and `expanded`. The estimate is `np.linalg.norm(pos[m] - pos[goal])`, whose last bits are the BLAS's `ddot`: on this PC (NumPy 2.5.4, OpenBLAS) `sqrt(fma(z, z, fma(y, y, x * x)))` - 200,000 random vectors, 0 differences; the plain sum differs on 10.7 % of them. `navpath.norm_formula()` checks the core's formulas against `np.linalg.norm` on 20,000 seeded vectors at the first route and uses the one that matches bit for bit; none: the reference searches. A graph with a NaN or an inconsistency: the reference. `navpath.use_native` |
+| `navpath.closest_between` | `closest_between_reference` | kept per island pair and `NavData` (dropped with it) |
+| `havok.verify` | `verify_reference` (`Packfile`, then `ignorable` per differing byte) | `bc2_convert::havok::verify_packfile` (`havok_verify_packfile`): E3g's walk records the arrays too (member, data start, count); every differing byte's reason from its owner, the arrays, the objects (`seen`), the last section's base and fixups - `ignorable`'s rules. Where the reference's answer is not this one's to give - `pc` longer than the console file (its `IndexError`), a bounding-volume read past the data, a byte inside two bounding-volume objects whose answers differ (the reference takes the first its set yields: hash-seed dependent) - the reference runs |
+| `texqa.run` | one process (`--workers 1`) | `analyse` in worker processes (`--workers N`, `BFBC2_TEXQA_WORKERS`, default every CPU thread; by default at least three textures per worker, a worker taking 1-2 s to start); 2N textures prepared ahead (their sources read just before they are sent, so a large run does not hold every source at once); the rows taken in order; a source that cannot be read is its row in the main process, as before |
+
+### Before and after
+
+| workload | before (main) | E3o | |
+|---|---:|---:|---:|
+| `navdata_load`, 17 levels, 24,052,639 cells, no cache | 82.9 s | **14.1 s** | 5.9x |
+| `navpath_routes`, 400 routes (200 across islands) | 10.4 s | **2.0 s** | 5.2x |
+| `havok_verify` (`test_havok.py`: 400 Onslaught files verified, 594 converted) | 15.4 s | **3.1 s** | 5.0x |
+| `texqa_ww2`, 22 textures, cold | 16.3 s | not re-timed (machine limits: a WW2 rebuild ran) | |
+
+What `navdata_load` spends now (cProfile, before the areas moved to flat arrays): `hpdtool.parse` 5.4 s (every
+sector's nodes and edges in Python), each area's island (a NumPy nearest node per area, 168 k), the NavArea objects.
+
+### Parity
+
+- `kymesh.parse_mesh`: **every sector of 264 path-data files** - the game copy's 35 (infantry and vehicle, every
+  level) and 229 NavKit outputs in OPFOR's `work\navkit`, `work\navbuild`, `work\navgen` (read only): **34,050
+  sectors, 2,372,253 areas, 0 different** (each Mesh hashed with every float's bits, every type and order:
+  `rust\parity_e3o_nav.py mesh`). Quick: 600 seeded meshes written by `kymesh.write_mesh` (portals, border portals,
+  D lines, outlines of 0-9 points, F cells, links; -0.0, denormals, infinities), each also cut short twice, with
+  bytes changed twice, a NaN written and a huge count: 4,200 of 4,200 the same Mesh or the same error; all 600 built
+  ones read by Rust.
+- `navdata.load`: 18 of the game copy's 35 path-data files (through sp_005_b) the same NavData as main's navdata.py (`parity_e3o_nav.py load --main`, 0 different); the rest not run - the comparison went past 1 GB on sp_006 while the machine was limited to 1 GB per process; sp_009 / sp_004_b also against the in-module reference. Quick: 40 built path-data files (1-4 sectors, shared border ids, ladder-steep edges)
+  the same NavData both ways; 300 random graphs the same union-find roots with and without skipped edges.
+- `navpath.route`: bench_sweep's 400 routes on sp_009 / sp_004_b the same Route field for field (nodes, cost,
+  length, `expanded`, the gap, the reason); quick: 400 seeded graphs (grid positions: equal estimates and costs,
+  so ties; one-way edges; islands), 10,000 routes (3,457 found, 6,058 across islands) the same; a NaN cost runs the
+  reference.
+- `havok.verify`: verify-havok's 400 Onslaught files the same (exact, reasons, unexplained offsets) as `verify_reference`, all 400 answered by the record (verify itself 9.9 -> 0.2 s). Quick: 500 seeded packfiles with the classes `ignorable` knows (a storage subpart's
+  `indices16`, bounding volumes alone and inside a collidable, a triangles subpart, two motions with and without a
+  saved motion) and random ones, each against 4 PC copies with 0-40 bytes changed, cut by 3 bytes or longer, and an
+  `indices16` array of 8 with its padding index changed: 2,003 of 2,003 the same (offset, reason) lists, every reason
+  met; all 1,047 the reference answers answered by the record (the rest: reads past the data, the reference's).
+- texqa: the WW2 vehicles' game run (1 worker against all) not run yet (machine limits). Quick: 9 built textures (one unreadable, one flipped, sources for six) give the same rows,
+  report, log and cache file with 3 workers as with one.
+
+### Tests
+
+`tests\test_e3o_native.py` (quick ~10 s; `--game`: every sector of the game copy's path data, navdata.load of the
+17 prepared levels, the 400 routes, verify-havok's Onslaught files and the WW2 vehicles' texqa both ways), in
+`run_tests.py` with NEEDS, seeds in `tests\test_durations.json`; `rust\parity_e3o_nav.py` (`mesh`, `load [--main]`)
+for any folder of path data. Rust: `kymesh.rs` (a built record, refusals), `astar.rs` (routes, norms).
+
+### What remains
+
+`navdata`: `hpdtool.parse` (nodes and edges in Python) and the per-area island loop. `navpath.route` in the harness
+(`route_pairs`: same-island pairs) now runs the Rust search; `harness run` itself was not re-measured this round.
+
 ## E3k: FbrbTool's commands in process (2026-11-17, branch `rust-e3k`)
 
 Every call of FbrbTool started .NET, read the whole bundle and its whole payload into memory: the logs of 16 and 17

@@ -213,11 +213,18 @@ def main(argv: list[str]) -> int:
     wire_ok = wire_all = wire_authored = 0
     bone_ok = bone_all = bone_authored = aim_ok = aim_all = rec_ok = rec_all = rec_fair = 0
     n_done = 0
+    # each folder's partitions, listed once (each partition scanned all 14,027 names: 16 s; round E3r)
+    by_folder: dict[str, set[str]] = collections.defaultdict(set)
+    for entry in src.entries:
+        if entry.endswith('.dbx'):
+            by_folder[entry.rsplit('/', 1)[0]].add(entry[:-4])
+    # DICE's partitions read at once, each bundle once on all cores (meshview.Index.read_many, partitions only)
+    dice_bytes = ix.read_many(both, whole_bundles=False)
     for k in both:
         name = k[:-4]
         ct = cat_of(k)
         folder = name.rsplit('/', 1)[0]
-        ported = {e[:-4] for e in src.entries if e.endswith('.dbx') and e.rsplit('/', 1)[0] == folder}
+        ported = set(by_folder.get(folder, ()))
         ours = {p: dbxport.guids_of(src.data(p + '.dbx')) for p in ported}
 
         def resolve(p: str, ported: set = ported) -> bool:
@@ -245,7 +252,7 @@ def main(argv: list[str]) -> int:
         if NOT_PORTABLE.search(k):
             note('port failed', f'{k}: ported, but BFBC2\'s shape cannot be BF1943\'s')
         n_done += 1
-        f, d, bf = dbx.parse(data), dbx.parse(ix.read(k)), dbx.parse(src.data(k))
+        f, d, bf = dbx.parse(data), dbx.parse(dice_bytes[k]), dbx.parse(src.data(k))
         guids = {(i.attr('guid') or '').lower() for i in f.instances}
         if (f.partition.attr('primaryInstance') or '').lower() not in guids:
             note('primaryInstance missing', k)

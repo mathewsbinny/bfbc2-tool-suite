@@ -249,7 +249,8 @@ def built_index_parity(tmp: str) -> bool:
     collision.use_cache(saved)
     py, rs, cold, warm = outcomes
     aliases = dict(rs[2]) if isinstance(rs[2], list) else {}
-    return (py == rs == cold == warm and len(os.listdir(cache)) == 2 and rs[0] == rs[1] and aliases.get('fx/tow') == 'objects/tow/tow'
+    kept = [f for f in os.listdir(cache) if not f.startswith('.')]   # not caches.py's .pruned / .prune.lock
+    return (py == rs == cold == warm and len(kept) == 2 and rs[0] == rs[1] and aliases.get('fx/tow') == 'objects/tow/tow'
             and aliases.get('fx/damaged') == 'objects/kept/kept' and 'fx/unconverted' not in aliases
             and aliases.get('objects/mixed/case') == 'objects/mixed/mixed')
 
