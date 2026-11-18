@@ -68,7 +68,7 @@ def both_ways(t: Tally, label: str, module: Any, fn: Any, *args: Any) -> Any:
             module.use_native(True)
     a, native = watched(lambda: run(True))
     r = run(False)
-    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error', native)
+    t.add(a == r, label if a == r else f'{label}: {repr(a)[:100]} / {repr(r)[:100]}', r[0] == 'error', native)
     return a
 
 
@@ -249,7 +249,7 @@ def lod_both(t: Tally, label: str, b: bytes, lays: dict[str, bytes], rng: random
     seed = rng.randrange(1 << 30)
     a, native = watched(lambda: run(True, seed))
     r = run(False, seed)
-    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error', native)
+    t.add(a == r, label if a == r else f'{label}: {repr(a)[:100]} / {repr(r)[:100]}', r[0] == 'error', native)
 
 
 def skin_quick(c: Checks, rng: random.Random) -> None:
