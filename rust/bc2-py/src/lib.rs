@@ -420,7 +420,7 @@ mod bc2_native {
     use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
 
     #[pymodule_export]
-    use super::coretext::{xmlinst_field_ref, xmlinst_instances};
+    use super::coretext::{navtune_dumps, navtune_summary, navtune_validate, xmlinst_field_ref, xmlinst_instances};
 
     #[pymodule_export]
     use super::pefile::{pe_raw_find_cstring, pe_raw_find_dword, pe_raw_header, pe_raw_strings};
