@@ -190,6 +190,44 @@ def compare(ref_meshes, cand_meshes, clip=None, cand_ground=None):
     return row
 
 
+def compare_sectors(R, C, clip=None):
+    """compare(ref meshes, candidate meshes, clip, ground_of(C)) for navdiff's sectors (navdiff.load / diff): in the
+    Rust core when it is in use (round E4e: bc2_native.navkit_df - the meshes' D lines and F cells, the matching and
+    the candidate's ground made there from the mesh records, on all cores), else compare's Python (the reference)."""
+    import navdiff
+    import navnative
+    m = navnative.core('navkit_df')
+    got = None
+    if m is not None and all(hasattr(s, 'raw') for s in (*R.values(), *C.values())):
+        got = m.navkit_df([s.raw for s in R.values()], [s.raw for s in C.values()],
+                          tuple(float(v) for v in clip) if clip else None, True, float(navdiff.GRID),
+                          float(navdiff.Y_OFFSET), float(GRID), float(DY))
+    if got is None:
+        return compare([s.mesh for s in R.values()], [s.mesh for s in C.values()], clip, ground_of(C))
+    classes, median, shared, counts = got
+    row = {}
+    for cls, ((nr, nc, hit, near), (fr, fc, fhit)) in zip(('', 'n', 'd'), classes):
+        suf = f'_{cls}' if cls else ''
+        row[f'df_d_precision{suf}'] = pct(hit, nc)
+        row[f'df_d_recall{suf}'] = pct(hit, nr)
+        row[f'df_d_recall_near{suf}'] = pct(near, nr)
+        row[f'df_f_precision{suf}'] = pct(fhit, fc)
+        row[f'df_f_recall{suf}'] = pct(fhit, fr)
+        row[f'df_d_sides_reference{suf}'] = nr
+        row[f'df_d_sides_candidate{suf}'] = nc
+        row[f'df_f_cells_reference{suf}'] = fr
+        row[f'df_f_cells_candidate{suf}'] = fc
+        if not cls:
+            row['df_d_dy'] = round(median, 3) if median is not None else None
+            row['df_d_recall_shared'] = pct(*shared)
+    for side, k in (('reference', counts[0]), ('candidate', counts[1])):
+        row[f'df_d_{side}'] = k[0] + k[1]
+        row[f'df_f_{side}'] = k[2] + k[3]
+        row[f'df_d_{side}_n'], row[f'df_d_{side}_d'] = k[0], k[1]
+        row[f'df_f_{side}_n'], row[f'df_f_{side}_d'] = k[2], k[3]
+    return row
+
+
 def meshes_of(path):
     return [kymesh.parse_mesh(s.mesh) for s in hpdtool.parse(open(path, 'rb').read()).sectors]
 

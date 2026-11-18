@@ -1,0 +1,59 @@
+{
+ "game": {
+  "measures": {
+   "got": {
+    "sp_004_b": {
+     "candidate": "bf711ee42f2f02b20f1a804fc84ebb2621b04924",
+     "connectivity": 100.0,
+     "ground": 98.49,
+     "row": "8364f1b00b553c3d92ad5484b62a27c1b81f2ec2"
+    },
+    "sp_009": {
+     "candidate": "2971a232f861d0900ea92e15ba9a2c24306ea1f6",
+     "connectivity": 100.0,
+     "ground": 99.97,
+     "row": "71dc2ee63d3e993ee59afb3bb41ab2072c6bd850"
+    }
+   },
+   "inputs": {
+    "game/Output/win32/ai/levels/sp_004_b/infantry/pathdata.hpd": "09214cc1dc1a4d3159fdd0340cc5f0953211c222",
+    "game/Output/win32/ai/levels/sp_009/infantry/pathdata.hpd": "18a1cfed84a4860da2cae09317f8587f763f0e81"
+   }
+  },
+  "offline": {
+   "got": {
+    "_hi": "63c1cf6781012ca5e3a1f3c9636cd28ec4014057",
+    "normal": "905ca180d30c7bc5f49f0abcfa4163489e7adc82"
+   },
+   "inputs": {
+    "work/navkit/sp_009/navkit.json": "f95fe179051eaf678de210364f6d72e9b37e4a8c"
+   }
+  },
+  "vehicle": {
+   "got": {
+    "bytes": 291704,
+    "grid": "b67cbf33f95649f75c11f1a9b4e1cac55fa958a4",
+    "pathdata": "a5baa5ed8b714b67c6d0e33d4b5630c1ae74e14e"
+   },
+   "inputs": {
+    "game/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": "c3e96f73763f3805b47e08b9e83ebf57a68a963d",
+    "work/levels/ons_mp_002/dynamic_tris.npy": "a35e5a88e8d0f12aaf96df44fdb7bed4993730a1",
+    "work/levels/ons_mp_002/exclude_tris.npy": "1258ed5ba73398edf7a8af87b848171d98cdb929",
+    "work/levels/ons_mp_002/forbid_tris.npy": "14383f149cb5663ebc93361b55d426fde3e86ce6",
+    "work/navsample/ons_mp_002_navkit.bin": "e8871887cd87e0b987a0ea6b5285796378e0e4ec"
+   }
+  },
+  "water": {
+   "got": {
+    "plans": "99d8431b3d1fef07acc2bcf7c45df156113639d1",
+    "report": "b00e5b5a804737b12d3ba40a9b17c5ab8c8ece4a",
+    "watermesh": "09253c6b451def8ee612ba67b1f184b6a4c8e33c",
+    "world": "aa32564653f186d827fb5b2af9dd81ced7c1da11"
+   },
+   "inputs": {
+    "game/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd": "22fd2f7b5687f0d12157bcf022b18dd3c8f96c4a"
+   }
+  }
+ },
+ "recorded": "2026-11-18"
+}

@@ -54,6 +54,7 @@ mod kymesh;
 mod navbuild;
 mod navgraph;
 mod navpath;
+mod navtools;
 mod navtrace;
 mod scene;
 mod shaderdb_handle;
@@ -431,6 +432,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
+
+    #[pymodule_export]
+    use super::navtools::{
+        DomainGraph, OrderAreas, navkit_df, navkit_diff, navkit_domain_graph, navkit_level_scan,
+        navkit_obstacle_distance, navkit_order_areas, navkit_terrain_blocks,
+    };
 
     /// The crate version, to tell builds apart.
     #[pymodule_export]

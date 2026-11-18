@@ -2919,3 +2919,109 @@ and `BFBC2Game.exe` (build 795745), read only; harness runs to temporary folders
 `navpath.route` - NavKit's and core's, outside this round), `levelinfo` (core's dbx / fbrb / level readers, F1a's),
 `checks.join` and `random_points` (NumPy's generator: the same draws need NumPy), and `runs` (saved-run JSON, the
 comparison and the report: milliseconds). cargo fmt / clippy -D warnings / tests clean; ruff and mypy clean.
+## E4e: NavKit's tools around the build (2026-11-18, branch `rust-e4e`)
+
+NavKit's driver (`navkit.py`) and the tools around the build: what is left after rounds E1d - E3o and R1 moved the
+generator itself. **Provisional timings:** four other agents worked beside every figure (below-normal priority); each
+before / after pair was taken in the same session, unprofiled unless it says so.
+
+### The profile (before)
+
+| workload | time | where it went |
+|---|---:|---|
+| `navvehicle.build_level` ONS_MP_002 (`test_vehicle_level.py`'s build) | 90 s (cProfile) | **`obstacle_distance` 85 s**: NumPy over bands of fixed layers, every offset of the 3.5 m cylinder shifted and compared per layer (24,454 `reduce` calls, 22.8 s of them in `np.any`) |
+| `navkit.py prepare` sp_009, a fresh OPFOR folder (common bundles unpacked too) | 887 s (cProfile) | **`levelobjects.main` 603 s**: `blueprint_flags` 327 s and `mesh_aliases` 255 s each read every `.xml` of the level and of sp_common / mp_common (33,828 opens, 537 s of them `open` - new files are scanned on their first opening); the unpacks 281 s (DbxEdit's `xml` 229 s: 16,872 files converted and flushed one after another) |
+| `navkit.py prepare` sp_004_b, common bundles already unpacked | 478 s (cProfile) | `levelobjects.main` 448 s (33,460 opens: 402 s) |
+| the parity measures (`navparity.run_level`, navregress's second half), sp_004_b | 11.7 s (27 s cProfile) | `navdiff.diff` 5.9 s (`compare_sector`: cells matched in dicts, areas by shape as sets of pieces, nodes by position), `navcompare` 3.6 s (`ordercheck.PathData.areas`: every area's crack rule in Python), `ladder_ground` 1.1 s, `navdf` 0.4 s; `hpdtool.parse` 11 times for two files |
+| `navwater_mesh.level_run` + `navdomains.level_world` ONS_MP_004 | 28 + 9 s (cProfile) | `World.tables`: 463 Python Dijkstras 7.1 s; the boat mesh's picture (matplotlib: 3,677 `plot` calls and its import) about 9 s; the rest spread thin |
+| `navregress.build_level` sp_004_b / sp_009 | 22.6 / 6.4 s (cProfile) | spread thin since E3h: `walkable` 6.6 s, `detail_pass` 2.0 s (`navdetail`), `write_file` 1.4 s, `build_areas_many` / `graph_many` 1.6 s each |
+| `navsample_offline.run_level` sp_009 at 0.8 m | 8.7 s (cProfile; 4.0 s plain) | collision loading 3.6 s, the capsule test 2.4 s, the terrain test 2.1 s |
+| `navkit.py build` / `check` sp_009 (stand-in folder) | 2.9 s / 1.6 s | |
+
+### What moved
+
+| Python (kept: the reference and the fallback this round) | Rust | binding |
+|---|---|---|
+| `navvehicle.obstacle_distance` (`obstacle_distance_reference`) | `vehicle::obstacle_distance`: each candidate surface walks the offsets nearest first and stops at its first hit, columns in parallel; the plane, the rise and the band in `float32` as NumPy 2 computes them | `navkit_obstacle_distance` |
+| `navdomains.dijkstra` behind `World.leg_dijkstra` / `tables` | `domains::Graph` (a domain's adjacency kept in the core, `Domain.graph()`), `dijkstra` (the same pops: `(d, node)` is a total order), `tables` (every transition point at once) | `DomainGraph`, `navkit_domain_graph` |
+| `levelobjects.blueprint_flags` (its glob walk and reads; `mesh_aliases` / `havok_index` were done the same way on this branch, then main's round F1a moved them to `bfbc2core.collision`'s Rust index, which the merge keeps) | `levelscan::scan`: one walk in `glob`'s order, each `.xml` read once on all cores (`xmlinst.field_ref`'s matching, `open(..., errors='replace')`'s text); the dict made in Python from its records (`levelobjects.scan`) | `navkit_level_scan` |
+| `navdiff.compare_sector` and the cells of `diff` | `measures::compare_sector` / `compare_many`: meshes parsed (E3o's reader) and sampled (E3h's `area_cells`) in the core, every sector in parallel; Python's `round` (half to even), `round(x, n)` through the exact integer it rounds to, `x ** 2` as `pymath::sq` | `navkit_diff` |
+| `ordercheck.PathData.areas` / `on_area` (the harness and the stock-MP AI call it too) | `measures::order_areas` (the crack rule), `on_area` | `OrderAreas`, `navkit_order_areas` |
+| `navdf.compare` with `ground_of` | `measures::df_features`, `df_compare`, `ground_of` | `navkit_df` (`navdf.compare_sectors`) |
+| `ordercheck.PathData`'s route groups | E3o's `navkit_union_roots` on the node ids numbered as first met (the same roots) | |
+| `navsample_offline.terrain_blocks` (`terrain_blocks_reference`) | `offline::terrain_blocks`: every surface's ring points on the height field, in parallel; `terrain_at`'s `float32` / `float64` arithmetic | `navkit_terrain_blocks` |
+| DbxEdit's `xml` (a folder's files one at a time) | `dbxedit::cli::xml`: a folder's files on all cores, the messages and counts in the files' order | (in process, `bfbc2core.dbxedit`) |
+
+Python only, the same values: `hpdtool.parse` reads each sector's nodes and edges with `iter_unpack` and checks the
+blocks' length by arithmetic instead of writing every block again (a block cut short still raises from the record
+loop, as before); `hpdtool.read` / `shared_reads()` parse a file once for all of `navparity.run_level`'s readers.
+
+`bfbc2-auto-navkit/tools/navnative.py` is the switch: `BFBC2_NAVTOOLS_PYTHON=1` (these pieces only),
+`BFBC2_PURE_PYTHON=1` or `navnative.use_native(False)` run the Python; where the core refuses an input (arrays that do
+not fit, a cost that is negative or NaN, a value `round` cannot take, a mesh it does not read, a file it cannot read)
+it returns `None` and the Python runs, raising what it raises.
+
+### Before and after
+
+| workload | before | after | |
+|---|---:|---:|---:|
+| ONS_MP_002 vehicle grid (`vehicle_grid`) | 81.8 s | **2.0 s** | 41x |
+| ONS_MP_002 vehicle path data (`build_level`) | 57.6 s | **3.1 s** | 19x |
+| ONS_MP_004 domains world and its tables | 4.9 - 6.9 s | **2.3 - 4.1 s** | |
+| `navkit.py prepare` sp_004_b, fresh folder (common bundles unpacked and converted too) | 549.5 s | **56.7 s** | 9.7x |
+| `navkit.py prepare` sp_009 after it (common bundles there) | 410.5 s | **9.6 s** | 43x |
+| levelobjects' scan alone, sp_004_b's folders (warm) | 14.4 s | **3.8 s** | 3.8x |
+| parity measures, 15 levels (`navparity.run_level` on every regression build) | 581.6 s | **158.7 s** | 3.7x |
+| ... sp_004_b / sp_009 | 10.6 / 1.9 s | **3.2 / 0.4 s** | |
+| ... sp_006 (the largest gain) | 100.4 s | **19.3 s** | 5.2x |
+| `navregress.py --levels sp_004_b,sp_009` (the game tier's): per level, build + structure + measures | 30 / 5 s | **16 / 3 s** | |
+| offline sampler, sp_009's 0.2 m pair over its detailed sectors (geometry loaded) | 29.2 s | **8.9 s** | 3.3x |
+| offline sampler, sp_004_b at 0.8 m (geometry loaded) | 11.1 s | **3.4 s** | 3.3x |
+| `test_vehicle_level.py` (ONS_MP_002's vehicle file and its checks) | 36.5 s (durations seed) | **3 s** | |
+
+(The prepare figures without the parallel DbxEdit `xml`: 285.6 s and 45.6 s.)
+
+### Parity
+
+- **Recorded from the Python before the port** (`bfbc2-auto-navkit/tests/navtools_golden.json`, `test_navtools_native.py
+  --game`, the build clock fixed): ONS_MP_002's vehicle measures (every per-surface array of `vehicle_grid`) and its
+  vehicle path data (291,704 bytes); ONS_MP_004's boat mesh side file and report (less their build time), its domains
+  world (transitions and tables) and 40 plans; navparity's rows for sp_009 and sp_004_b (built with the clock fixed);
+  sp_009's offline samples at 0.8 m (both capsules). All **as recorded** after the port.
+- **The measures on every level**: `navparity.run_level` on the 15 regression builds of OPFOR's `work\navkit\regress`
+  (13 campaign levels, ONS_MP_002 / 004), Rust and Python: **15 of 15 rows identical** (every key, value and order).
+- **`navkit.py prepare`** on a fresh stand-in OPFOR folder (the game copy linked, its own `work`), old code
+  (`BFBC2_NAVTOOLS_PYTHON=1`) against new: sp_004_b then sp_009 - **51,256 files identical** (`work\levels`: 8,091;
+  `work\navkit`: 43,165 - the common bundles' unpacked and converted files, `objects.json`, the triangle `.npy` files,
+  `ladders.json`, `navkit.json`). With the parallel DbxEdit `xml` as well (a third fresh folder): the same 51,256 files
+  identical to the old code's.
+- **levelobjects' scan** on OPFOR's sp_009, ONS_MP_002 and sp_004_b folders (read only): `blueprint_flags`,
+  `mesh_aliases`, `havok_index` the same items in the same order (624 / 910 / 581, 558 / 1,225 / 570, 572 / 853 / 537).
+- **Quick** (`test_navtools_native.py`): 24 random multi-layer runs of `obstacle_distance` (pitch 0.2 / 0.8 / 1, both
+  bands, with and without extra heights) bit for bit; 30 random graphs (equal costs, zero costs, unreachable nodes)
+  tables and searches, 72 more searches with and without targets; a built folder tree (hidden folders, upper-case
+  `.XML`, CRLF, invalid UTF-8, attributes in both orders, `_Havok_Havok.res`) for the scan; 40 random file pairs
+  (areas kept, moved, raised, dropped, nodes moved, edges' costs changed, sectors only one side has; D lines and F
+  cells) for `navdiff.diff`, `navdf.compare_sectors`, the route groups and `on_area` - all the same as the Python.
+- **navregress** on the game tier's two levels: sp_004_b's and sp_009's rows (53 measures each) **identical** to the
+  previous run's (`regression_last.json` of 01:04 this morning, main's code), the build time and the candidate's SHA-1
+  (each sector stores its build time) aside; the builds themselves as recorded (`test_navbuild_native.py --game`).
+- **The offline sampler**: sp_009's 0.2 m pair and sp_004_b's 0.8 m pair, Python's terrain test against the core's:
+  the same files (SHA-1 of both capsules' runs).
+- Game tier, all passing: `test_navtools_native.py --game`, `test_navbuild_native.py --game` (sp_009, sp_004_b),
+  `navregress` (2 levels), `test_apply.py`, `test_vehicle_level.py`, `test_navwater_mesh.py --game`, `test_links.py`,
+  `test_traversal.py`, `test_collision_backends.py`, `core/tests/test_navdata.py`, `tests/test_e3o_native.py --game`.
+- DbxEdit: `core/tests/test_dbxedit.py` against `DbxEdit.exe` passes (its `xml` cases included).
+- Rust: `vehicle`, `domains`, `levelscan` and `measures` unit tests; `cargo clippy --all-targets -D warnings`, `cargo fmt`.
+
+### What remains
+
+- The measures: `hpdtool.parse`'s Python objects (now once per file), `navdata.load` twice for `ladder_ground`,
+  `ordercheck.PathData`'s per-edge loop and `nearest_group` (NumPy per point), `stale_nodes`' per-node loop.
+- The build (sp_004_b ~10 s): `walkable`'s NumPy glue, `navdetail` (D lines, F cells: 1-2 s; its sets' iteration order
+  reaches the output, so a port must reproduce it), `kymesh.write_mesh`, `finalize_graph`.
+- The boat mesh: its picture (matplotlib, about half of `level_run`; the PNG is an output), `validate`'s sight test,
+  `build_graph` and `grid_path` in Python.
+- The offline sampler (`navsample_offline`): the capsule test against the triangles (`_line_tri_interval`, NumPy, now
+  the largest part of a run) and the collision loading.
+- `prepare`: the unpacks themselves (FbrbTool in process) and `levelobjects`' per-blueprint triangles (`hkpack`).
