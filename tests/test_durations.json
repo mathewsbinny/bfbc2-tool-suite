@@ -155,6 +155,8 @@
  "Rust NavKit builds: sp_009 and sp_004_b path data as recorded": 30.0,
  "HLSL compile cache and batches (pcbuild): deterministic compiler, compile_many / prefetch, disk cache": 2.0,
  "dbxport ranking index against the reference scan (20,000 random rankings, Templates.choose)": 1.0,
+ "dbxport in Rust against its Python reference (600 random partitions, pools, catalogues, options)": 3.0,
+ "dbxport in Rust against its Python reference: every fair, counterpart and effect port both ways": 45.0,
  "HLSL batches (pcbuild): every Wake pixel shader translated, compile_many against one at a time": 95.0,
  "dbxport ranking: the four WW2 level ports against a third of BFBC2's 157 levels, every choice and the bytes": 240.0,
  "BF1943 ports E3g: Rust mesh vertices and Havok walk against their recorded results, layout and emitter indexes against their references (built inputs)": 8.0,

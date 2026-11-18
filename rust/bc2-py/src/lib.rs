@@ -37,6 +37,7 @@ mod apt;
 mod convert;
 mod culltree;
 mod dbxedit;
+mod dbxport;
 mod fbrb_cache;
 mod fbrbtool;
 mod geometry;
@@ -347,6 +348,8 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::dbxedit::{dbxedit_run, dbxedit_run_many};
+    #[pymodule_export]
+    use super::dbxport::{DbxCatalogue, DbxTemplates, dbx_instance_guids, dbxport_port};
     #[pymodule_export]
     use super::fbrb_cache::{
         fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,

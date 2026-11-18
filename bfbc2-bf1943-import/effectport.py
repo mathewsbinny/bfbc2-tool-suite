@@ -456,7 +456,7 @@ def port(src, ix, effect, level, shared=None, plan=None, catalogue=None, schema=
         if kind == 'port':
             types |= _types_of(src, key, {} if _seen is None else _seen)
     T, pool, missing = shared or templates(ix, types, catalogue)
-    missing = set(types) - set(T.candidates)
+    missing = set(types) - T.types()
     report = dbxport.Report()
 
     def say(path, action, text, **kw):

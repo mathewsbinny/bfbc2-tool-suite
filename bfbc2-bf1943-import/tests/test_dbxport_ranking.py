@@ -163,17 +163,19 @@ def game(names: list[str], part: tuple[int, int]) -> None:
             dbxport.REFERENCE_RANKING = False
         T._rankings.clear()
         t = time.perf_counter()
-        got = port(name)
+        got = port(name)                                        # the Rust port when the core is built (E4d)
         ti = time.perf_counter() - t
         dbxport._Ranking.best = checked                         # type: ignore[method-assign, assignment]
+        native, dbxport.NATIVE_PORT = dbxport.NATIVE_PORT, False    # the Python port, through the checked index
         try:
             again = port(name)
         finally:
             dbxport._Ranking.best = ranking_best                # type: ignore[method-assign]
+            dbxport.NATIVE_PORT = native
         check(got == ref == again and calls['n'] > 0 and calls['same'] == calls['n'],
               f'{name}: every ranking _best\'s choice ({calls["same"]} of {calls["n"]} calls), the same bytes '
               f'({len(ref):,} B, sha1 {hashlib.sha1(ref).hexdigest()[:12]}); port {tr:.1f} s with the scan '
-              f'({calls["ref_s"]:.1f} s ranking) -> {ti:.1f} s with the index')
+              f'({calls["ref_s"]:.1f} s ranking) -> {ti:.1f} s with the index ({"Rust" if dbxport._native() is not None and dbxport.NATIVE_PORT else "Python"})')
 
 
 if __name__ == '__main__':
