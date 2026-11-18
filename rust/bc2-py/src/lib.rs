@@ -50,6 +50,7 @@ mod fbrbtool;
 mod geometry;
 mod granny;
 mod harness;
+mod importer;
 mod kymesh;
 mod navbuild;
 mod navgraph;
@@ -402,6 +403,15 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
+
+    #[pymodule_export]
+    use super::importer::{
+        PortLayouts, havokport_bodies, havokport_finish, havokport_havok_materials, havokport_part_materials,
+        havokport_part_run, havokport_restructure, havokport_run_table, havokport_run_table_to_pc, havokport_subparts,
+        havokport_ufloat8_table, havokport_with_face_materials, havokport_with_havok_materials,
+        havokport_with_part_materials, havokport_wrapper, mopp_complete, mopp_query, mopp_query_box, mopp_ray_cast,
+        mopp_ray_cast_brute,
+    };
 
     #[pymodule_export]
     use super::aptmodel::{AptModel, apt_check_many, apt_refs_many, apt_roundtrip_many};

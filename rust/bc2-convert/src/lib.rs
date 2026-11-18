@@ -24,5 +24,8 @@ pub mod audio;
 pub mod dbxport;
 pub mod granny;
 pub mod havok;
+pub mod havokport;
 pub mod mesh;
+pub mod mopp;
+pub mod pyfmt;
 pub mod texture;
