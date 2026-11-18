@@ -9,7 +9,7 @@ use bc2_formats::dbx::{CONTAINER, NUMBERS};
 
 use super::arena::{Arena, Id, Tn};
 use super::py::{self, R};
-use super::rules;
+use super::rules::Rules;
 
 /// `(array field, index)`: the local reference array naming an instance, and where.
 pub type Slot = (String, usize);
@@ -168,22 +168,24 @@ fn is_local(r: Option<&str>) -> bool {
 /// `_inputs(inst)`.
 ///
 /// # Errors
-/// As [`rules::eia_value`], and a numbers value the reference reads otherwise.
-pub fn inputs(ar: &Arena, inst: Id) -> R<Inputs> {
+/// As [`Rules::eia_value`], and a numbers value the reference reads otherwise.
+pub fn inputs(ar: &Arena, inst: Id, tables: &Rules) -> R<Inputs> {
     let mut out = Vec::new();
     let t = py::rlast(ar.attr(inst, "type").unwrap_or(""), '.');
     for &c in ar.kids(inst) {
         let n = ar.attr(c, "name").unwrap_or("");
-        if !rules::is_input_field(n) || ar.kind(c) == CONTAINER {
+        if !super::rules::is_input_field(n) || ar.kind(c) == CONTAINER {
             continue;
         }
         let v = if ar.kind(c) == NUMBERS {
-            let (_, vals) = rules::numbers(ar.raw(c))?;
+            let (_, vals) = super::rules::numbers(ar.raw(c))?;
             let [one] = vals.as_slice() else { continue };
             let num = py::int_be(one)?;
-            rules::enum_name(t, n, num).map_or_else(|| num.to_string(), str::to_owned)
+            tables
+                .enum_name(t, n, num)
+                .map_or_else(|| num.to_string(), str::to_owned)
         } else {
-            rules::eia_value(py::strip(ar.text(c)))?
+            tables.eia_value(py::strip(ar.text(c)))?
         };
         out.push((n.to_owned(), v));
     }
@@ -194,7 +196,7 @@ pub fn inputs(ar: &Arena, inst: Id) -> R<Inputs> {
 ///
 /// # Errors
 /// As [`inputs`].
-pub fn roles(ar: &Arena, instances: &[Id]) -> R<HashMap<String, Role>> {
+pub fn roles(ar: &Arena, instances: &[Id], tables: &Rules) -> R<HashMap<String, Role>> {
     // the reference's walk: each child's array items, then the child's own subtree, then the next child
     fn walk(ar: &Arena, e: Id, slots: &mut HashMap<String, Slot>) {
         for &c in ar.kids(e) {
@@ -226,7 +228,7 @@ pub fn roles(ar: &Arena, instances: &[Id]) -> R<HashMap<String, Role>> {
         *n += 1;
         let g = py::lower(ar.attr(inst, "guid").unwrap_or(""));
         let slot = slots.get(&g).cloned();
-        out.insert(g, (ordinal, slot, inputs(ar, inst)?));
+        out.insert(g, (ordinal, slot, inputs(ar, inst, tables)?));
     }
     Ok(out)
 }
@@ -238,11 +240,12 @@ impl Templates {
         Self::default()
     }
 
-    /// `Templates.add`: a partition's instances (its key as the reference makes it).
+    /// `Templates.add`: a partition's instances (its key as the reference makes it), their roles read with the
+    /// tables the caller has when it adds them (the reference computes them then).
     ///
     /// # Errors
     /// As [`roles`] (the partition is not added).
-    pub fn add(&mut self, name: String, mut arena: Arena) -> R<()> {
+    pub fn add(&mut self, name: String, mut arena: Arena, tables: &Rules) -> R<()> {
         arena.freeze();
         // the reference's f.instances raises on a file without a partition holding children
         if arena.roots.first().is_none_or(|&p| arena.kind(p) != CONTAINER) {
@@ -254,7 +257,7 @@ impl Templates {
             ));
         }
         let insts: Vec<Id> = partition_instances(&arena);
-        let roles = roles(&arena, &insts)?;
+        let roles = roles(&arena, &insts, tables)?;
         self.rankings.lock().unwrap_or_else(PoisonError::into_inner).clear();
         let part = self.parts.len();
         for &inst in &insts {

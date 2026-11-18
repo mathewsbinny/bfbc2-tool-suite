@@ -2287,8 +2287,12 @@ port reproduces - its own exceptions other than `PortError` / `SchemaError` (`In
 150 levels (Python's `RecursionError`) or copies past 2 million nodes plus 32 per input node (instances held inline
 in each other many times over) - the Rust side says so and `port_python` ports (`dbxport.STATS`).
 
-Fallbacks also when the caller changed one of the module's tables or functions (checked on every call against the
-tables the port was written for), passes a catalogue that is no `dbxcatalogue.Catalogue`, a duck-typed `BoneTables`,
+The module's data tables (`ONE_TO_ARRAY`, `RENAMED`, `NESTED`, `ENUM_NUMBERS`, `NUMBERS_TO_ITEMS`, `TYPE_AS`,
+`DICE_MOVED_CLASSES`, `HINT_ACTIONS`, `HINT_TEXTS`) are read from the caller's process on every call (`DbxRules`,
+remade only when they changed; see "The fix" below); template roles keep the tables of when their partition was
+added. Fallbacks also when the caller changed one of the rules the port has built in (the converters, `ROLE_GUARDS`,
+the patterns, the constants, the functions: compared on every call with their values at import), passes a catalogue
+that is no `dbxcatalogue.Catalogue`, a duck-typed `BoneTables`,
 or `donors` that is no list or tuple (the reference reads a generator once per instance). `BFBC2_DBXPORT_PYTHON=1`
 ports in Python; `BFBC2_DBXPORT_DUAL=1` runs both on every call and raises `DualMismatch` on any difference in the
 bytes, report lines, records or exception; `BFBC2_DBXPORT_STATS=1` prints the counts at exit.
@@ -2348,6 +2352,35 @@ fair, counterpart and effect port both ways, none left to Python); `test_dbxport
 Rust port with the scan's Python port; `rust/bench_dbxport.py` (new) times the level ports both ways. Rust:
 `cargo fmt`, `clippy --all-targets -D warnings` and `cargo test` (bc2-convert: the arena, Python's string rules, the
 tables, the helpers) clean.
+
+### The fix (2026-11-18, branch `fix-e4d`)
+
+A full WW2 rebuild against the hash oracle found 4 outputs the Rust port gave otherwise: Project OPFOR's
+`bf1943_vehicles` ports the Zero and the Corsair with `ENUM_NUMBERS[('ChildRotationBodyData', 'RotationInput')][16]`
+set to `EiaDynamicGadget2` (the planes' gear on the DLL's gear input, put in place around each port and restored), and
+the Rust port wrote `EiaUndefined`, the table as `dbxport.py` defines it. **Cause:** the Rust side had the tables
+built in, and the check meant to send a changed table to Python never fired: its snapshot was taken at the first port
+and held the tables themselves, so a change made in place compared equal to itself. Every other entry of every
+table was the same as Python's (`DbxRules.is_default`); no table was wrong, the changed one was not read.
+
+**Fixed:** the data tables are a `Rules` value the Python module builds from its live tables (a deep copy compared on
+each call; `DbxRules` remade when they changed) and the port, the template roles and the class-default lookup read
+it; `Templates` records the tables of each partition's addition (the Rust roles are computed then; the lazy Python
+tables are built under them, `_tables_as`), as the reference's eager tables were. The rest of the built-in rules is
+snapshotted at import as values (`_FIXED`: patterns as text, `ROLE_GUARDS` as tuples). Also fixed: `dbxport._native()`
+read `dbx._native`, which the retired Python reader (round F) now sets only on first use - a `Templates` made before
+any parse in a process held no Rust side and ported in Python; it asks `dbx._rust()`.
+
+**Proof:** `test_dbxport_tables.py` (quick): every number of both `ENUM_NUMBERS` tables (mapped and not, with and
+without a template), every `HINT_ACTIONS` / `HINT_TEXTS` spelling, every `ONE_TO_ARRAY`, `RENAMED`, `NESTED`,
+`NUMBERS_TO_ITEMS`, `TYPE_AS` and `DICE_MOVED_CLASSES` entry, both ways; then the same tables changed in place (the
+gear input and back, entries added and removed, a table emptied, new tables), template roles under a change, and a
+changed built-in rule left to Python: 96 ports, all the same. On `main` the gear case gives `DualMismatch`.
+`test_dbxport_opfor.py` (game): Project OPFOR's `bf1943_vehicles`, `bf1943_weapons` and `bf1943_objects --wake`
+builds run against this checkout (a temporary junction as `OPFOR_TOOLKIT`), their outputs in a temporary folder and
+every write under OPFOR refused, every `dbxport.port` call both ways: **62 + 19 + 234 = 315 calls the same**, 0 left to
+Python (about 40 s). With `--rust --out`, the vehicle build's 149 outputs by the Rust port alone are byte for byte the
+ones in OPFOR's `work\ww2\bf1943_vehicles` (its run with `BFBC2_DBXPORT_PYTHON=1`, which matches the hash oracle).
 
 ### What remains
 

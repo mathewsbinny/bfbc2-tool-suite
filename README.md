@@ -331,8 +331,9 @@ Round E4d (`rust/BENCHMARKS.md`, "E4d") ported what E3r left: `dbxport.port` run
 partitions on the Rust side and builds the Python tables (`candidates`, `by_guid`, ...) only when something asks for
 them; the catalogue's tables are copied there once per catalogue; `guids_of` reads guids without a Python tree.
 `dbxport.port_python` is the reference and the fallback: it ports when the Rust core is missing, when
-`BFBC2_DBXPORT_PYTHON=1` (or `dbxport.NATIVE_PORT = False`), when a caller changed one of the module's tables or
-functions, and for a partition the Rust side says it does not reproduce (`dbxport.STATS` counts them; none on the
+`BFBC2_DBXPORT_PYTHON=1` (or `dbxport.NATIVE_PORT = False`), when a caller changed one of the rules the Rust port has
+built in (converters, guards, patterns, constants, functions; its data tables - `ENUM_NUMBERS` and the rest - it reads
+from the caller's process on every port, as Project OPFOR changes them), and for a partition the Rust side says it does not reproduce (`dbxport.STATS` counts them; none on the
 real corpora). `BFBC2_DBXPORT_DUAL=1` runs both on every port and raises `DualMismatch` on any difference;
 `BFBC2_DBXPORT_STATS=1` prints the counts at exit.
 Round E3l (`rust/BENCHMARKS.md`, "E3l"): the shader tools' remaining Python stayed Python, by measurement - the
@@ -596,6 +597,8 @@ lists a selection; `--list` gives every test.
 | `bfbc2-bf1943-import/tests/test_dbxport_fair.py` | quick (`--quick`: 7 partitions), game | every partition both games ship ported on a fair pool and checked against DICE's; skipped without game data |
 | `bfbc2-bf1943-import/tests/test_dbxport_ranking.py` | quick, game | the template ranking's index against the full scan: 20,000 random rankings and `Templates.choose`; `--game`: the four WW2 level ports against a third of BFBC2's level partitions, every choice and the bytes (the Rust port against the Python port with the scan) |
 | `bfbc2-bf1943-import/tests/test_dbxport_native.py` | quick, game | the Rust `dbxport.port` against its Python reference on 600 seeded random partitions, pools, catalogues and options (bytes, report lines, records, exceptions); `--game`: every fair port, counterpart port and effect port of the user's copies both ways |
+| `bfbc2-bf1943-import/tests/test_dbxport_tables.py` | quick | dbxport's conversion tables in the Rust port against the Python reference: every entry of every table, then the tables changed in place as Project OPFOR changes them (the planes' gear input), template roles under a change, a changed built-in rule left to Python |
+| `bfbc2-bf1943-import/tests/test_dbxport_opfor.py` | game | Project OPFOR's BF1943 vehicle, weapon and object builds replayed against this checkout, every `dbxport.port` call both ways; outputs to a temporary folder, every write under OPFOR refused; skipped without OPFOR |
 | `bfbc2-shader-tools/tests/test_pcbuild_batch.py` | quick, game | `pcbuild`'s compile cache, `compile_many` and `prefetch` against plain compiles (the disk cache's damaged entries, keys); `--game`: Wake's 815 translated pixel shaders compiled both ways |
 | `bfbc2-bf1943-import/tests/test_emitteratlas.py` | quick | a merged emitter atlas from synthetic atlases, the emitters re-pointed, the proof |
 | `bfbc2-bf1943-import/tests/test_havokport.py` | game | the Kurogane oracle, the re-exported Zero and Corsair, the WW2 physics; model-group w lanes bit-identical on mp_004 / mp_005; MOPP codes complete and rays as brute force |
