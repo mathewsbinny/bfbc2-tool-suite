@@ -145,7 +145,7 @@ fn view_tokens_reach_the_frame() {
         let s = scene();
         let mut sg = SceneGpu::new(&gpu, &s, &p);
         sg.set_hidden(&gpu, "water", true);
-        sg.set_selection(&gpu, Some(3));
+        sg.set_selection(&gpu, &[3]);
         let view = top_camera().view([f64::from(SIZE[0]), f64::from(SIZE[1])]);
         r.render(&gpu, &sg, &target, &view.matrix(), &p);
         let img = r.read_output(&gpu, &target).unwrap();
@@ -516,7 +516,7 @@ fn prepare_a_level_on_a_stand_in_opfor() {
     }
     let v = app
         .view()
-        .map(|v| (v.scene.entities.len(), v.scene.terrain.is_some(), v.notes.clone()));
+        .map(|v| (v.scene().entities.len(), v.scene().terrain.is_some(), v.notes.clone()));
     cleanup(&root);
     assert!(ok, "{lv} did not open: {err:?}");
     let (n, terrain, notes) = v.unwrap();

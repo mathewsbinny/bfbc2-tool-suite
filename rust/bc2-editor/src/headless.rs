@@ -98,6 +98,39 @@ impl Headless {
         self.frame(app, Vec::new());
     }
 
+    /// A left-button drag from one point to another in `steps` moves, with these modifiers held.
+    pub fn drag(&mut self, app: &mut EditorApp, from: Pos2, to: Pos2, steps: usize, modifiers: egui::Modifiers) {
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers,
+        };
+        self.frame(app, vec![egui::Event::PointerMoved(from)]);
+        self.frame(app, vec![button(from, true)]);
+        let n = steps.max(1);
+        for k in 1..=n {
+            let t = k as f32 / n as f32;
+            self.frame(app, vec![egui::Event::PointerMoved(from + (to - from) * t)]);
+        }
+        self.frame(app, vec![button(to, false)]);
+        self.frame(app, Vec::new());
+    }
+
+    /// A key pressed and released with these modifiers (shortcuts).
+    pub fn key(&mut self, app: &mut EditorApp, key: egui::Key, modifiers: egui::Modifiers) {
+        let ev = |pressed| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers,
+        };
+        self.frame(app, vec![ev(true)]);
+        self.frame(app, vec![ev(false)]);
+        self.frame(app, Vec::new());
+    }
+
     /// The last frame drawn, as RGBA rows.
     #[must_use]
     pub fn image(&mut self) -> Option<Vec<u8>> {

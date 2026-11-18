@@ -305,10 +305,17 @@ fn rows_of(m: &[f64; 16]) -> [[f32; 4]; 4] {
     std::array::from_fn(|r| std::array::from_fn(|c| m.get(r * 4 + c).copied().unwrap_or(0.0) as f32))
 }
 
-/// A scene on the GPU.
+/// A scene on the GPU: meshes uploaded once (the marker cube, terrain, water, one per blueprint), the instances and
+/// lines built again by [`SceneGpu::refresh`] after an edit (cheap: no geometry is uploaded again).
 #[derive(Debug)]
 pub struct SceneGpu {
     meshes: Vec<Mesh>,
+    /// Each blueprint's mesh and radius.
+    blueprint_mesh: HashMap<String, (u32, f64)>,
+    terrain_mesh: Option<u32>,
+    water_mesh: Option<u32>,
+    /// The selected entities (outlined).
+    selection: Vec<usize>,
     instances: Vec<Instance>,
     lines: Vec<LineVertex>,
     /// The visible instances, by mesh: (mesh, range in the instance buffer).
@@ -336,8 +343,43 @@ impl SceneGpu {
     /// Uploads a scene.
     #[must_use]
     pub fn new(gpu: &Gpu, scene: &Scene, palette: &Palette) -> Self {
+        let c = cube();
+        let mut out = Self {
+            meshes: vec![Mesh {
+                vertices: buffer(gpu, "cube", &f32_bytes(&c), wgpu::BufferUsages::VERTEX),
+                indices: None,
+                count: c.len() as u32,
+            }],
+            blueprint_mesh: HashMap::new(),
+            terrain_mesh: None,
+            water_mesh: None,
+            selection: Vec::new(),
+            instances: Vec::new(),
+            lines: Vec::new(),
+            batches: Vec::new(),
+            instance_buf: buffer(gpu, "instances", &[], wgpu::BufferUsages::VERTEX),
+            line_buf: buffer(gpu, "lines", &[], wgpu::BufferUsages::VERTEX),
+            line_count: 0,
+            mask_batches: Vec::new(),
+            mask_instance_buf: None,
+            mask_line_buf: None,
+            mask_line_count: 0,
+            groups: Vec::new(),
+            hidden: Vec::new(),
+            bounds: None,
+            triangles: 0,
+            sizes: Vec::new(),
+        };
+        out.refresh(gpu, scene, palette, &|_| false);
+        out
+    }
+
+    /// Builds the instances and lines again from the scene (after an edit: moved, added or deleted entities, a
+    /// layer hidden), leaving out the entities `skip` says yes to; meshes are uploaded only for blueprints not seen
+    /// before. Hidden groups and the selection stay.
+    pub fn refresh(&mut self, gpu: &Gpu, scene: &Scene, palette: &Palette, skip: &dyn Fn(usize) -> bool) {
         let colors = SceneColors::new(palette);
-        let mut groups: Vec<String> = Vec::new();
+        let groups = &mut self.groups;
         let mut group_of = |name: &str| -> u16 {
             if let Some(k) = groups.iter().position(|g| g == name) {
                 k as u16
@@ -346,14 +388,7 @@ impl SceneGpu {
                 (groups.len() - 1) as u16
             }
         };
-        let mut meshes = vec![{
-            let c = cube();
-            Mesh {
-                vertices: buffer(gpu, "cube", &f32_bytes(&c), wgpu::BufferUsages::VERTEX),
-                indices: None,
-                count: c.len() as u32,
-            }
-        }];
+        let meshes = &mut self.meshes;
         let mut instances = Vec::new();
         let mut lines = Vec::new();
         let mut triangles = 0u64;
@@ -374,7 +409,10 @@ impl SceneGpu {
         if let Some((v, t)) = &scene.terrain
             && !t.is_empty()
         {
-            meshes.push(indexed(gpu, "terrain", v, t));
+            let mesh = *self.terrain_mesh.get_or_insert_with(|| {
+                meshes.push(indexed(gpu, "terrain", v, t));
+                (meshes.len() - 1) as u32
+            });
             triangles += t.len() as u64;
             let step = (v.len() / 4000).max(1);
             sample.extend(v.iter().step_by(step).map(|p| p.map(f64::from)));
@@ -383,28 +421,34 @@ impl SceneGpu {
                 color: rgba(colors.terrain),
                 id: ID_TERRAIN,
                 group: group_of("terrain"),
-                mesh: (meshes.len() - 1) as u32,
+                mesh,
             });
         }
         if let Some(w) = &scene.water
             && !w.mesh.triangles.is_empty()
         {
-            meshes.push(indexed(gpu, "water", &w.mesh.vertices, &w.mesh.triangles));
+            let mesh = *self.water_mesh.get_or_insert_with(|| {
+                meshes.push(indexed(gpu, "water", &w.mesh.vertices, &w.mesh.triangles));
+                (meshes.len() - 1) as u32
+            });
             triangles += w.mesh.triangles.len() as u64;
             instances.push(Instance {
                 rows: ident,
                 color: rgba(colors.water),
                 id: ID_WATER,
                 group: group_of("water"),
-                mesh: (meshes.len() - 1) as u32,
+                mesh,
             });
         }
         // collision: one mesh per blueprint, one instance per placed entity
         let mut sizes = vec![2.0f64; scene.entities.len()];
         let mut with_mesh = vec![false; scene.entities.len()];
-        let mut by_blueprint: HashMap<&str, (u32, f64)> = HashMap::new();
+        let by_blueprint = &mut self.blueprint_mesh;
         if let Some(col) = &scene.collision {
             for (index, bp) in &col.meshes {
+                if skip(*index) {
+                    continue;
+                }
                 let Some(e) = scene.entities.get(*index) else { continue };
                 let Some(m) = e.matrix else { continue };
                 let Some(Some(tris)) = col.blueprints.get(bp) else {
@@ -413,7 +457,7 @@ impl SceneGpu {
                 if tris.is_empty() {
                     continue;
                 }
-                let (mesh, radius) = *by_blueprint.entry(bp.as_str()).or_insert_with(|| {
+                let (mesh, radius) = *by_blueprint.entry(bp.clone()).or_insert_with(|| {
                     let flat: Vec<[f32; 3]> = tris.iter().flat_map(|t| t.iter().copied()).collect();
                     let r = flat
                         .iter()
@@ -445,7 +489,7 @@ impl SceneGpu {
         }
         // markers for the entities without collision, and spawns' facing
         for e in &scene.entities {
-            if with_mesh.get(e.index).copied().unwrap_or(false) {
+            if with_mesh.get(e.index).copied().unwrap_or(false) || skip(e.index) {
                 continue;
             }
             let (Some(m), Some(size)) = (e.matrix, marker_size(&e.category)) else {
@@ -491,6 +535,9 @@ impl SceneGpu {
         }
         // outlines: areas (with their prism) and routes, in their owner's colour, a little above the ground
         for s in &scene.shapes {
+            if skip(s.entity) {
+                continue;
+            }
             let Some(e) = scene.entities.get(s.entity) else {
                 continue;
             };
@@ -536,28 +583,18 @@ impl SceneGpu {
                 }
             }
         }
-        let bounds = percentile_bounds(&mut sample);
-        let hidden = vec![false; groups.len()];
-        let mut out = Self {
-            meshes,
-            instances,
-            lines,
-            batches: Vec::new(),
-            instance_buf: buffer(gpu, "instances", &[], wgpu::BufferUsages::VERTEX),
-            line_buf: buffer(gpu, "lines", &[], wgpu::BufferUsages::VERTEX),
-            line_count: 0,
-            mask_batches: Vec::new(),
-            mask_instance_buf: None,
-            mask_line_buf: None,
-            mask_line_count: 0,
-            groups,
-            hidden,
-            bounds,
-            triangles,
-            sizes,
-        };
-        out.upload(gpu);
-        out
+        if self.bounds.is_none() {
+            self.bounds = percentile_bounds(&mut sample);
+        }
+        let n = self.groups.len();
+        self.hidden.resize(n, false);
+        self.instances = instances;
+        self.lines = lines;
+        self.triangles = triangles;
+        self.sizes = sizes;
+        self.upload(gpu);
+        let sel = std::mem::take(&mut self.selection);
+        self.set_selection(gpu, &sel);
     }
 
     /// The instances and lines of the visible groups, to the GPU.
@@ -608,16 +645,19 @@ impl SceneGpu {
             .unwrap_or(false)
     }
 
-    /// Marks an entity as the selection (its instances and lines go to the mask), or none.
-    pub fn set_selection(&mut self, gpu: &Gpu, entity: Option<usize>) {
+    /// Marks entities as the selection (their instances and lines go to the mask); an empty slice for none.
+    pub fn set_selection(&mut self, gpu: &Gpu, entities: &[usize]) {
         self.mask_batches.clear();
         self.mask_instance_buf = None;
         self.mask_line_buf = None;
         self.mask_line_count = 0;
-        let Some(index) = entity else { return };
-        let id = entity_id(index);
+        self.selection = entities.to_vec();
+        if entities.is_empty() {
+            return;
+        }
+        let ids: std::collections::HashSet<u32> = entities.iter().map(|&k| entity_id(k)).collect();
         let mut bytes = Vec::new();
-        for (k, i) in self.instances.iter().filter(|i| i.id == id).enumerate() {
+        for (k, i) in self.instances.iter().filter(|i| ids.contains(&i.id)).enumerate() {
             i.bytes(&mut bytes);
             let k = k as u32;
             self.mask_batches.push((i.mesh, k..k + 1));
@@ -626,7 +666,7 @@ impl SceneGpu {
             self.mask_instance_buf = Some(buffer(gpu, "selection", &bytes, wgpu::BufferUsages::VERTEX));
         }
         let mut lb = Vec::new();
-        for v in self.lines.iter().filter(|v| v.id == id) {
+        for v in self.lines.iter().filter(|v| ids.contains(&v.id)) {
             v.bytes(&mut lb);
             self.mask_line_count += 1;
         }
