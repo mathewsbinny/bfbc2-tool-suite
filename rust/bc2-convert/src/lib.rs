@@ -31,6 +31,7 @@ pub mod havok;
 pub mod havokport;
 pub mod hkclasses;
 pub mod mesh;
+pub mod meshport;
 pub mod mopp;
 pub mod pyfmt;
 pub mod texcheck;

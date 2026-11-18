@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 use bc2_convert::dbxcatalogue::{self, Key};
 use bc2_convert::emitteratlas::{self, Atlas};
 use bc2_convert::havokport::{self, Layouts, Port};
+use bc2_convert::meshport;
 use bc2_convert::mopp::{self, Mopp, Ray, Tri};
 use bc2_convert::pyfmt::OrderedMap;
 use bc2_formats::dbx::{self, DbxTree};
@@ -827,4 +828,54 @@ pub fn emitteratlas_same_but_uv<'py>(
 ) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let (a, b) = (old.as_bytes(), new.as_bytes());
     answer(py, py.detach(|| emitteratlas::same_but_uv(a, b)).map_err(of_atlas))
+}
+
+// ------------------------------------------------------------------------------------------------ meshport
+
+/// BFBC2's mesh part layouts for `meshport.Porter.pc_layout`'s search (made once per Porter).
+#[pyclass]
+pub struct MeshLayouts {
+    ix: meshport::Index,
+}
+
+#[pymethods]
+impl MeshLayouts {
+    /// `parts`: `[(part name, layout record)]` in `Porter.part_names()` order; `ValueError` when a layout's
+    /// signature cannot be read (the caller then keeps the Python search).
+    #[new]
+    fn new(parts: Vec<(String, Vec<u8>)>) -> PyResult<Self> {
+        meshport::Index::new(parts)
+            .map(|ix| Self { ix })
+            .ok_or_else(|| PyValueError::new_err("a layout record shorter than its elements"))
+    }
+
+    /// `pc_layout`'s choice: `('own', part)`, `('donor', part, donor index, folder)`, `('layout', part)`,
+    /// `('fallback', part, left out, donor index or None, folder or None)`, `('none',)`; `None`: refused.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts a list argument as an owned Vec"
+    )]
+    fn search<'py>(
+        &mut self,
+        py: Python<'py>,
+        name: &str,
+        lod: i64,
+        part: &str,
+        bf_layout: &[u8],
+        donors: Vec<String>,
+    ) -> PyResult<Option<Bound<'py, PyTuple>>> {
+        let Ok(found) = self.ix.search(name, lod, part, bf_layout, &donors) else {
+            return Ok(None);
+        };
+        let names = self.ix.names();
+        let n = |i: usize| names.get(i).cloned().unwrap_or_default();
+        let t = match found {
+            meshport::Found::Own(i) => ("own", n(i)).into_pyobject(py)?,
+            meshport::Found::Donor(i, d, f) => ("donor", n(i), d, f).into_pyobject(py)?,
+            meshport::Found::Layout(i) => ("layout", n(i)).into_pyobject(py)?,
+            meshport::Found::Fallback(i, left, d, f) => ("fallback", n(i), left, d, f).into_pyobject(py)?,
+            meshport::Found::Nothing => ("none",).into_pyobject(py)?,
+        };
+        Ok(Some(t))
+    }
 }
