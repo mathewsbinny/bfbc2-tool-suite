@@ -61,7 +61,7 @@ def canon(c):
 
 def sharing(c):
     """For each prototype, the kept instance it is an element of (None: its own tree)."""
-    ids = {}
+    ids: dict[int, object] = {}
 
     def walk(e, where):
         ids.setdefault(id(e), where)
@@ -127,7 +127,7 @@ def partition(rnd, types, guids, texts):
                 for _ in range(rnd.randint(0, 6))]
         attrs = [('guid', g), ('type', t)] if rnd.random() < 0.95 else [('type', t)]
         insts.append(dbx.Element('instance', dbx.CONTAINER, attrs, children=kids))
-    prim = [('primaryInstance', first)] if rnd.random() < 0.9 else []
+    prim: list[tuple[str, str]] = [('primaryInstance', first or '')] if rnd.random() < 0.9 else []
     root = dbx.Element('partition', dbx.CONTAINER, [('guid', 'P'), ('exportMode', 'All')] + prim, children=insts)
     return dbx.write(dbx.DbxFile([], [root]))
 

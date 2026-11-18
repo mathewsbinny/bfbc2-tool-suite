@@ -44,6 +44,10 @@
 //!
 //! The map and bot test harness and the crash-reader tools (`harness.rs`, round E4f): `harness_sessions` /
 //! `harness_sessions_file`, `crash_log_before`, `harness_pair_bits`, `HarnessCells` and `ExeHandle`.
+//!
+//! Round F2b (`importer.rs`): `mopp_*`, `havokport_*` / `PortLayouts`, `catalogue_build` /
+//! `catalogue_exe_identifiers`, `emitteratlas_*`, `MeshLayouts` for `bfbc2-bf1943-import` (through `importcore.py`);
+//! `pefile.rs`: `pe_raw_*` for `menucommon.PEImage`; `coretext.rs`: `xmlinst_*` and `navtune_*` for `bfbc2core`.
 
 mod apt;
 mod aptmodel;

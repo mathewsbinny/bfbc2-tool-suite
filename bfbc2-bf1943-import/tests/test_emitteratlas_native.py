@@ -18,6 +18,7 @@ import random
 import sys
 import tempfile
 import time
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -62,6 +63,8 @@ def result_view(r):
 def both(emitters, sources, like_a, like_n, label):
     """build / prove / same_but_uv both ways; True when the core built it (not refused)."""
     t0 = time.perf_counter()
+    got: tuple[str, Any]
+    want: tuple[str, Any]
     try:
         got = ('ok', ea._build_rust(emitters, sources, like_a, like_n))
     except ea.EmitterAtlasError as e:
@@ -83,10 +86,11 @@ def both(emitters, sources, like_a, like_n, label):
     bad = [k for k in a if a[k] != b[k]]
     check(not bad, f'{label}: build the same - atlases, {len(a["partitions"])} partitions, {len(a["uses"])} uses, '
           f'cells, report', f'differ: {bad}')
+    res: Any = want[1]
     t3 = time.perf_counter()
-    pg = ea._prove_rust(want[1], emitters, sources)
+    pg = ea._prove_rust(res, emitters, sources)
     t4 = time.perf_counter()
-    pr = ea.prove_reference(want[1], emitters, sources)
+    pr = ea.prove_reference(res, emitters, sources)
     t5 = time.perf_counter()
     if pg is None:
         COUNT['refused'] += 1
@@ -94,8 +98,8 @@ def both(emitters, sources, like_a, like_n, label):
     else:
         check(json.dumps(pg, sort_keys=True) == json.dumps(pr, sort_keys=True),
               f'{label}: prove the same ({len(pr)} rows, {sum(p["ok"] for p in pr)} ok)')
-    tg = [ea.same_but_uv(emitters[n][0], d) for n, d in want[1].partitions.items()]
-    tr = [ea.same_but_uv_reference(emitters[n][0], d) for n, d in want[1].partitions.items()]
+    tg = [ea.same_but_uv(emitters[n][0], d) for n, d in res.partitions.items()]
+    tr = [ea.same_but_uv_reference(emitters[n][0], d) for n, d in res.partitions.items()]
     check(tg == tr, f'{label}: same_but_uv the same ({sum(map(len, tr))} differences)')
     return {'build': (t1 - t0, t2 - t1), 'prove': (t4 - t3, t5 - t4)}
 
@@ -103,7 +107,7 @@ def both(emitters, sources, like_a, like_n, label):
 def quick_level(rnd, i):
     N = rnd.choice([64, 128])
     a = (rnd.random() * 255 * np.ones((N, N))).astype(np.uint8)
-    for k in range(rnd.randint(2, 6)):                         # images on DICE's 8-texel slots
+    for _k in range(rnd.randint(2, 6)):                         # images on DICE's 8-texel slots
         y, x, s = rnd.randrange(0, N - 24, 8), rnd.randrange(0, N - 24, 8), rnd.choice([8, 16, 24])
         a[y:y + s, x:x + s] = np.array([[rnd.randrange(256) for _ in range(s)] for _ in range(s)], np.uint8)
     b = a.copy() if rnd.random() < 0.5 else np.roll(a, 8 * rnd.randint(1, 3), 1)
