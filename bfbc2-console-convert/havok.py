@@ -19,7 +19,8 @@ its class layout (parents first), arrays and pointed-to objects followed, every 
 2026-11-18, after the port had given the same bytes on every BF1943 physics port and Onslaught console physics file
 and the same verify answers on every Onslaught file, and passed the full test tier; its results are recorded in
 bfbc2-bf1943-import\tests\ports_golden.json and tests\havok_verify_golden.json. classes() and the wrapper's
-conversion stay here.
+conversion stay here; classes() scans the executable in the Rust core when it is built (round F0), its Python kept as
+the reference (classes_reference).
 """
 import collections
 import os
@@ -100,7 +101,36 @@ def classes(exe):
     """{class name: Klass} from the hkClass initializers of the game executable: small functions that push the 12
     constructor arguments (name, parent, size, interfaces, count, enums, count, members, count, defaults,
     attributes, flags), load the static hkClass object into ecx and call the constructor. Members are the static
-    24-byte hkClassMember records (name, class, enum, type, subtype, C array size, flags, offset, attributes)."""
+    24-byte hkClassMember records (name, class, enum, type, subtype, C array size, flags, offset, attributes).
+    The executable is scanned in the Rust core when it is built (round F0: bc2_native.havok_classes, the same classes
+    in the same order); where the reference raises, classes_reference runs and raises (BFBC2_PURE_PYTHON=1: the
+    Python only)."""
+    nat = _classes_native() if isinstance(exe, str) else None
+    rows = nat.havok_classes(exe) if nat is not None else None
+    if rows is None:
+        return classes_reference(exe)
+    return {name: Klass(name, parent, size, [Member(*m) for m in members]) for name, parent, size, members in rows}
+
+
+def _classes_native():
+    """The Rust core with havok_classes, or None (not built, another module, BFBC2_PURE_PYTHON set)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:
+        return None
+    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'havok_classes') else None
+
+
+def classes_reference(exe):
+    """The Python scan (the reference)."""
     pe = _PE(exe)
     d = pe.d
     sites: list[tuple[int, int, list[int]]]

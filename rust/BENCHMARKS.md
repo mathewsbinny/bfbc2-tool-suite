@@ -2668,3 +2668,71 @@ the block readers). OPFOR would gain more by calling the new functions:
 the Rust side end to end (OPFOR mutates `base.entries`, `base.groups`, `base.programs` directly between merges);
 `entry_contents` / `verify_merge` (the `merge` command only). A partly made database holds its file and its made lists
 (the file is let go once every record section is made).
+
+## F0: the file formats that had no Rust (2026-11-18, branch `retire-f0`)
+
+The ruling of 2026-11-18 (`EDITOR_ARCHITECTURE.md` 3.8: port everything, prove it, then retire the Python) reaches
+the format readers and writers. This round **ports**; each port keeps its Python as the reference and the fallback
+(`*_reference`, `use_native(False)`, `BFBC2_PURE_PYTHON=1`) until it passes a later full tier. Every port answers
+`None` where the reference raises, a value is a NaN, or a value is not one it reads exactly as `struct` does (a float
+overflowing a 32-bit float, a sequence of another length, a `memoryview`): the Python then runs, so a result is always
+the reference's and every error message stays its own.
+
+| Python (reference) | Rust | bound as |
+|---|---|---|
+| `hpdtool.parse` / `write` (path data) | `bc2_formats::hpd` | `hpd_parse` (builds hpdtool's dataclasses: `__new__` + `__dict__`), `hpd_write` |
+| `kymesh.write_mesh` | `bc2_formats::kymesh::write` | `kymesh_write` |
+| `bc2loc.LocFile` (parse, `decode`, `to_bytes`), `khash` | `bc2_formats::loc` | `loc_parse`, `loc_histogram` / `LocTable`, `loc_decode`, `loc_write`, `loc_khash` |
+| `menucommon.parse_bigf`, `apt.read_bigf` | `bc2_formats::bigf` | `bigf_parse` |
+| `stfs.Package` (header, file table, `read`) | `bc2_formats::stfs` | `stfs_open`, `StfsReader` |
+| `xiso.find_partition` / `walk` | `bc2_formats::xiso` | `xiso_find_partition`, `xiso_walk` (a real file opened by path only) |
+| `audio.read_wave`, `write_wave_pc`, `read_sps`, `read_snr`, `write_sps` | `bc2_formats::wave` | `wave_read`, `wave_write_pc`, `sps_read`, `snr_read`, `sps_write` |
+| `mesh.parse` / `write`, `meshset.parse` / `write` | `bc2_formats::meshdata` | `mesh_parse`, `mesh_write`, `meshset_parse`, `meshset_write` |
+| `texture.tiled` / `packed` / `layout` | `bc2_convert::texture` (the converter's own) | `texture_tiled` (ints; NumPy arrays stay Python), `texture_packed`, `texture_layout` |
+| `texture.levels` / `decode` (NumPy) | `bc2_convert::texcheck` | `texture_levels`, `texture_decode` |
+| `havok.classes` (the exe's hkClass initializers) | `bc2_convert::hkclasses` | `havok_classes` |
+
+### Parity (each both ways; quick and `--game` of the tests named)
+
+| format | corpus | result |
+|---|---|---|
+| path data (`test_pathdata_native.py`) | 144 `pathdata.hpd` + kept originals of the game copy and `work\` (656 MB), 8,858 runtime meshes; 60 built files, 1,932 damaged, 600 changed objects | every object identical (types, attribute order, float bits), every file and mesh written byte for byte as read; 0 cases the reference answered left to it |
+| localization (`test_bc2loc_native.py`) | 25 language files of every overlay layer and the pristine copy (59,177 texts), 200 built files + histograms, 2,750 damaged, 3,010 keys | every attribute, text and written byte identical (also after `set`); all texts decoded in Rust |
+| BIGF | 128 menu / HUD movies, 200 built, 2,000 damaged | the same members or the same error |
+| STFS / XISO (`test_console_readers_native.py`) | the Xbox disc image (693 files), the 3 Update packages (2,533 MB, every entry read), 4 built packages, 4 built discs, 1,500 damaged packages, 300 damaged discs | identical values, entries, bytes, listing order and file positions; damaged: the same values or the same error |
+| Waves (`test_wave_native.py`) | 84,397 game Waves (2,750 BF1943, 35,813 BFBC2 Xbox, 45,834 BFBC2 PC) with every segment's stream: 260,951 comparisons; 253,191 damaged; 1,840 built; 600 changed | all identical; no case the reference answered left to it (outside NaN-rate damage: 3) |
+| mesh headers (`test_meshdata_native.py`) | 11,319 game mesh resources (7,276 MeshData, 2,696 Rigid, 637 Composite, 553 Skinned, 157 Tree): 23,516 comparisons; 24,103 damaged; 2,175 built; 800 changed | all identical |
+| textures (`test_texture_helpers_native.py`) | 4,578 game PC textures, 30,946 levels decoded (DXT1, DXT3, DXT5, BC5, L8); 200,000 tiled offsets, 20,000 packed, 5,000 layouts; 2,000 damaged | every pixel, dtype and shape identical |
+| `havok.classes` (`test_havok_classes_native.py`) | BFBC2Game.exe (297 classes, 1,044 members), 100 built executables, 400 damaged | identical dicts in order, the same errors |
+
+Found by the parity tests on the way: an `__init__` argument shadowed in `bc2loc`'s new path (an error message named
+the file's NAME field instead of the caller's name: fixed before commit); STFS entries damaged to 16.7 M chained
+blocks made the first port allocate 32 GB (the reference builds every block's bytes before cutting at the size). The
+port now stops at the size (the same bytes) and reads runs of adjacent blocks at once.
+
+### Timings (same process, warm; the machine shared with other agents' builds)
+
+| workload | Python | Rust |
+|---|---:|---:|
+| `hpdtool.parse`, 144 files / 656 MB | 150.9 s | **5.5 s** |
+| `hpdtool.write`, the same | 3.3 s | 1.7 s |
+| `kymesh.write_mesh`, 8,858 meshes (the time is reading the Python objects) | 20.6 s | 11.7 s |
+| `LocFile` read + every text decoded + `to_bytes`, 25 files | 0.22 s | 0.05 s |
+| STFS: one 16 MB entry of an Update package (I/O bound) | 0.038 s | 0.024 s (the first port read block by block through a buffered reader: the whole packages took 50.8 s against Python's 6.2 s; now runs of adjacent blocks in one read) |
+| XISO: the disc's 693 files (warm) | 2-6 ms | 1.2 ms |
+| `read_wave` per call (small Waves) | 2.7 us | 1.0-1.3 us; `write_wave_pc` 1.45 -> 1.24 us. The `--game` loop over 84,397 Waves measured 0.79 s Python / 1.06 s Rust: cases the reference raises on run both (a refusal then the Python) |
+| `mesh` / `meshset` parse, 11,319 resources | 0.28 s | 0.19 s |
+| `texture.decode`, 30,946 levels | 126.8 s | **31.8 s** (most of it the comparison arrays' copies) |
+| `havok.classes(BFBC2Game.exe)` | 0.06 s | 0.02 s |
+
+### Not ported yet (what remains of the Python format code)
+
+- `bfbc2-anim-tools/granny.py`: the writing side (`Granny.put`, `to_bytes`, `_Graft` / `add_tracks`,
+  `set_orientations`, `shift_position`, `curve_keys`); the reader is Rust (E3i).
+- `bfbc2-console-convert`: `terrain.py` (console terrain, water, material map, visual terrain / water, roads),
+  `soot.py`, `mesh.relayout` / `decode` / `console_layouts`, `havok.convert_wrapper`, `texture.check` (NumPy
+  statistics over `decode`, which is Rust now).
+- `bfbc2-model-tools`: `skinmesh.py`, `texwrite.py` (DXT1 writer), the decimator.
+- `bfbc2-bf1943-import`: `mopp.py`, `havokport.py`, `meshport.py`'s writers, `emitteratlas.py`, `dbxcatalogue.py`.
+- `bfbc2-menu-tools/menucommon.PEImage` (E4f's `bc2-harness::pe` covers the exe for the crash reader / exeref; not
+  yet switched here), `core/bfbc2core/xmlinst.py`, `navtune.py` (JSON side files).

@@ -16,10 +16,14 @@
 //!   `Packfile.convert`): the field walk over the game's class layouts (round E3g).
 //! - [`granny`]: Xbox 360 Granny resources to the PC's (`bfbc2-anim-tools/granny.py`'s `to_pc`), DICE's bone
 //!   table renumbered onto another skeleton; many on all cores.
+//! - [`texcheck`] (round F0): a PC texture's levels and a level decoded to pixels (`texture.py`'s `levels` /
+//!   `decode`); [`hkclasses`] (round F0): the Havok class layouts of BFBC2Game.exe (`havok.py`'s `classes`).
 #![deny(unsafe_code)]
 
 pub mod audio;
 pub mod granny;
 pub mod havok;
+pub mod hkclasses;
 pub mod mesh;
+pub mod texcheck;
 pub mod texture;

@@ -171,5 +171,19 @@
  "Rust E3o: mesh reader, navdata cells and union-find, route search, texqa workers against their references, havok verify record against its recorded results (built inputs)": 60.0,
  "Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles": 400.0,
  "APT model, aptcheck and aptrefs in Rust against the Python (E4c; built movies, object rules, 300 damaged, grafts, edits, crosshair-add)": 10.0,
- "APT model, aptcheck and aptrefs in Rust against the Python on the 133 movies of E3n: every write, roundtrip --pack, grafts, aliases, crosshair-add (E4c)": 1460.0
+ "APT model, aptcheck and aptrefs in Rust against the Python on the 133 movies of E3n: every write, roundtrip --pack, grafts, aliases, crosshair-add (E4c)": 1460.0,
+ "Rust F0 path data and runtime-mesh writer against hpdtool / kymesh (built files and meshes, 1,500 damaged, 600 changed, 4 game files)": 7.0,
+ "Rust F0 localization files and BIGF archives against bc2loc / menucommon (built, damaged, 3,000 keys, the English file, the menu movies)": 2.0,
+ "Rust F0 console containers against stfs.py / xiso.py (built packages and discs, 60 damaged packages, 30 damaged discs)": 40.0,
+ "Rust F0 Wave resources and EA streams against audio.py (built, 3,000 damaged, 600 changed, 40 BF1943 Waves)": 8.0,
+ "Rust F0 mesh headers and mesh sets against mesh.py / meshset.py (built, 3,000 damaged, 800 changed, 60 BF1943 resources)": 4.0,
+ "Rust F0 havok.classes against its Python (built and damaged executables, BFBC2Game.exe)": 8.0,
+ "Rust F0 localization on every language file of the overlay bundles and the pristine copy, BIGF on every menu / HUD movie, both ways": 12.0,
+ "Rust F0 console containers on your Xbox disc image and Update packages, 1,500 damaged packages, both ways": 290.0,
+ "Rust F0 Wave resources and streams on every BF1943, BFBC2 Xbox and game-copy Wave, both ways": 165.0,
+ "Rust F0 mesh headers and mesh sets on every MeshData and mesh set of BF1943, the Xbox bundles and the game copy, both ways": 50.0,
+ "Rust F0 texture levels and decoding on every PC texture of the game copy, both ways": 800.0,
+ "Rust F0 havok.classes on damaged copies of BFBC2Game.exe": 40.0,
+ "Rust F0 texture.py helpers and PC texture reader against their Python (tiled, packed, layout, levels, decode; built, damaged)": 3.0,
+ "Rust F0 path data on every pathdata.hpd and kept original of the game copy and work: parsed, written and every runtime mesh written both ways": 470.0
 }

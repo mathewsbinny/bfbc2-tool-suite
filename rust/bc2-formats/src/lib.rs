@@ -24,6 +24,10 @@
 //!   `bfbc2-shader-tools/shaderdb.py`.
 //! - [`culltree`]: static cull trees' and level partitions' element streams and the reference levels' discovery, a
 //!   port of the hot parts of `bfbc2-culltree/culltree.py`.
+//! - Round F0, the formats that had no Rust (each beside its Python reference): [`hpd`] (path data, NavKit's
+//!   `hpdtool.py`) and [`kymesh::write`]; [`loc`] (localized texts, `bc2loc.py`) and [`bigf`] (BIGF archives);
+//!   [`stfs`] / [`xiso`] (Xbox 360 content packages and discs); [`wave`] (Wave resources, EA stream framing,
+//!   `audio.py`); [`meshdata`] (the `MeshData` header and the mesh sets, `mesh.py` / `meshset.py`).
 //!
 //! ```
 //! use bc2_formats::dbx::{self, DbxFile, Element};
@@ -42,16 +46,23 @@ pub mod apt;
 pub mod aptmodel;
 pub mod aptscan;
 pub mod atomic;
+pub mod bigf;
 pub mod culltree;
 pub mod dbx;
 pub mod dbxedit;
 pub mod fbrb;
 pub mod granny;
 pub mod havok;
+pub mod hpd;
 pub mod kymesh;
+pub mod loc;
+pub mod meshdata;
 pub mod shaderdb;
+pub mod stfs;
 pub mod terrain;
 pub mod water;
+pub mod wave;
+pub mod xiso;
 pub mod zlib;
 
 mod bytes;

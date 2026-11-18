@@ -175,6 +175,9 @@ def read_bigf(path: str) -> dict[str, bytes]:
     """Members of a BIGF archive (menu SwfMovie resource): {name: bytes}. Index entries are big-endian on every
     platform: u32 offset, u32 size, C string name."""
     b = open(path, 'rb').read()
+    got = _native.bigf_parse(b) if _native is not None and hasattr(_native, 'bigf_parse') else None
+    if got is not None:                                 # the Rust core (round F0: the same members)
+        return cast(dict[str, bytes], got)
     if b[:4] != b'BIGF':
         raise ValueError(f'{path} is not a BIGF archive (a menu .res)')
     n = struct.unpack_from('>I', b, 8)[0]

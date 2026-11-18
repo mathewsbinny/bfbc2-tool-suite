@@ -19,6 +19,7 @@ console's format, and texqa.py's independent decoder and the tests build console
 import os
 import struct
 import sys
+from typing import Any
 
 HEADER = 92                    # 8 u32 (version, type, format, flags, width, height, depth, mip count) + 15 mip sizes
 CUBE = 1
@@ -39,6 +40,48 @@ class ConvertError(Exception):
     pass
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with texture_decode (the layout helpers and the PC reader), or None: not built, or
+    BFBC2_PURE_PYTHON set (convert always runs in the Rust core)."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'texture_decode') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust layout helpers and PC reader on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process;
+    True when they run."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
+def _ints(*vs):
+    return all(type(v) is int for v in vs)
+
+
 def _log2c(v):
     n = 0
     while (1 << n) < v:
@@ -51,7 +94,15 @@ def _align(v, a):
 
 
 def tiled(x, y, pitch, log_bpp):
-    """Xenos 2D tiling (XGAddress2DTiledOffset): block (x, y) of a surface pitch blocks wide -> block index."""
+    """Xenos 2D tiling (XGAddress2DTiledOffset): block (x, y) of a surface pitch blocks wide -> block index. In the
+    Rust core for ints (round F0), else tiled_reference (NumPy arrays too)."""
+    nat = _native() if _ints(x, y, pitch, log_bpp) else None
+    got = nat.texture_tiled(x, y, pitch, log_bpp) if nat is not None else None
+    return got if got is not None else tiled_reference(x, y, pitch, log_bpp)
+
+
+def tiled_reference(x, y, pitch, log_bpp):
+    """The Python tiling (the reference)."""
     aw = (pitch + 31) & ~31
     macro = ((x >> 5) + (y >> 5) * (aw >> 5)) << (log_bpp + 7)
     micro = ((x & 7) + ((y & 6) << 2)) << log_bpp
@@ -62,7 +113,18 @@ def tiled(x, y, pitch, log_bpp):
 
 def packed(w, h, mip, edge):
     """Block offset (x, y) of mip level mip inside the packed tail tile, or None when the level has its own
-    storage. A level is packed once its shorter side is 16 texels or less."""
+    storage. A level is packed once its shorter side is 16 texels or less. In the Rust core for ints (round F0), else
+    packed_reference."""
+    nat = _native() if _ints(w, h, mip, edge) else None
+    if nat is not None:
+        answered, got = nat.texture_packed(w, h, mip, edge)
+        if answered:
+            return got
+    return packed_reference(w, h, mip, edge)
+
+
+def packed_reference(w, h, mip, edge):
+    """The Python rule (the reference)."""
     lw, lh = _log2c(w), _log2c(h)
     ls = min(lw, lh)
     if ls > 4 + mip:
@@ -80,7 +142,17 @@ def packed(w, h, mip, edge):
 
 def layout(w, h, mips, fmt, slices=1):
     """Per slice, per level: (byte start, pitch in blocks, x, y block offset) in the console data; and its size.
-    Level 0 of every slice first, then level by level (each level all slices); every storage 4 KB aligned."""
+    Level 0 of every slice first, then level by level (each level all slices); every storage 4 KB aligned. In the Rust
+    core for ints (round F0), else layout_reference."""
+    nat = _native() if _ints(w, h, mips, fmt, slices) else None
+    got = nat.texture_layout(w, h, mips, fmt, slices) if nat is not None else None
+    if got is not None:
+        return got[0], got[1]
+    return layout_reference(w, h, mips, fmt, slices)
+
+
+def layout_reference(w, h, mips, fmt, slices=1):
+    """The Python layout (the reference)."""
     bpb, edge, _ = FORMATS[fmt]
     blocks = lambda v: max((v + edge - 1) // edge, 1)     # noqa: E731
     bw, bh = blocks(w), blocks(h)
@@ -90,7 +162,7 @@ def layout(w, h, mips, fmt, slices=1):
     pos = base_size * slices
     tail = None                                           # (start, pitch, size)
     for m in range(mips):
-        pk = packed(w, h, m, edge)
+        pk = packed_reference(w, h, m, edge)
         if m == 0:
             if pk is not None:
                 tail = (0, base_pitch, base_size)
@@ -153,7 +225,19 @@ def convert_many(items):
 
 def decode(level, w, h, fmt):
     """One level's blocks (PC order) -> (h, w, 3) int array: DXT1 / DXT3 / DXT5 / BC5 (red, green; blue 0); and the
-    8-bit format 10 (the value in all three; rows as stored: DICE pads a row to 4 bytes, the converter does not)."""
+    8-bit format 10 (the value in all three; rows as stored: DICE pads a row to 4 bytes, the converter does not). In
+    the Rust core when it is built (round F0), else decode_reference."""
+    import numpy as np
+    nat = _native() if type(level) is bytes else None
+    got = nat.texture_decode(level, w, h, fmt) if nat is not None else None
+    if got is not None:
+        rows, cols, px = got
+        return np.frombuffer(px, np.int32).reshape(rows, cols, 3)
+    return decode_reference(level, w, h, fmt)
+
+
+def decode_reference(level, w, h, fmt):
+    """The NumPy decoder (the reference)."""
     import numpy as np
     if fmt == L8:
         w, h = max(w, 1), max(h, 1)
@@ -206,7 +290,15 @@ def decode(level, w, h, fmt):
 
 
 def levels(pc):
-    """[(slice, level, w, h, bytes)] of a PC ITexture resource."""
+    """[(slice, level, w, h, bytes)] of a PC ITexture resource: in the Rust core when it is built (round F0), else
+    levels_reference."""
+    nat = _native() if type(pc) is bytes else None
+    got = nat.texture_levels(pc) if nat is not None else None
+    return got if got is not None else levels_reference(pc)
+
+
+def levels_reference(pc):
+    """The Python reader (the reference)."""
     ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('<8I', pc, 0)
     sizes = struct.unpack_from('<15I', pc, 32)
     out, pos = [], HEADER

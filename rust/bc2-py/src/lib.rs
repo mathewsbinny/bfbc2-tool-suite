@@ -25,6 +25,12 @@
 //!
 //! The stock-MP AI layer (`stockmp.rs`, round E4a): `stockmp_*`, for `bfbc2-stockmp-ai` (`bc2_stockmp`).
 //!
+//! Round F0's formats, each answering `None` where the Python reference must run: `hpd_parse` / `hpd_write` /
+//! `kymesh_write` (`pathdata.rs`), `loc_*`, `LocTable`, `bigf_parse` (`loc.rs`), `stfs_open`, `StfsReader`,
+//! `xiso_*` (`console.rs`), `wave_read` / `wave_write_pc` / `sps_read` / `snr_read` / `sps_write` (`wave.rs`),
+//! `mesh_parse` / `mesh_write` / `meshset_parse` / `meshset_write` (`meshdata.rs`), `texture_tiled` / `_packed` /
+//! `_layout` / `_levels` / `_decode` and `havok_classes` (`texcheck.rs`).
+//!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`), `fbrb_unpack` (FbrbTool's `unpack`, `fbrb.unpack`) and `zlib_deflate`.
 //!
@@ -38,6 +44,7 @@
 
 mod apt;
 mod aptmodel;
+mod console;
 mod convert;
 mod culltree;
 mod dbxedit;
@@ -46,14 +53,19 @@ mod fbrbtool;
 mod geometry;
 mod granny;
 mod kymesh;
+mod loc;
+mod meshdata;
 mod navbuild;
 mod navgraph;
 mod navpath;
 mod navtrace;
+mod pathdata;
 mod scene;
 mod shaderdb_handle;
 mod shaders;
 mod stockmp;
+mod texcheck;
+mod wave;
 mod writers;
 mod xenos;
 
@@ -415,6 +427,26 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::kymesh::{kymesh_parse, navkit_mesh_cells, navkit_navdata_areas, navkit_union_roots};
+
+    #[pymodule_export]
+    use super::console::{StfsReader, stfs_open, stfs_refusal, xiso_find_partition, xiso_walk};
+
+    #[pymodule_export]
+    use super::wave::{snr_read, sps_read, sps_write, wave_read, wave_write_pc};
+
+    #[pymodule_export]
+    use super::meshdata::{mesh_parse, mesh_write, meshset_parse, meshset_write};
+
+    #[pymodule_export]
+    use super::texcheck::{
+        havok_classes, texture_decode, texture_layout, texture_levels, texture_packed, texture_tiled,
+    };
+
+    #[pymodule_export]
+    use super::loc::{LocTable, bigf_parse, loc_decode, loc_histogram, loc_khash, loc_parse, loc_write};
+
+    #[pymodule_export]
+    use super::pathdata::{hpd_parse, hpd_write, kymesh_write};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

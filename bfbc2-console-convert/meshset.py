@@ -8,6 +8,11 @@ billboard shader). Format: FORMAT.md section 4.
 
 A LOD's size field is its MeshData's vertex bytes + index bytes + 12 (all 2,463 console and 619 PC mp_common LODs),
 not the file's length: lod_size().
+
+parse and write run in the suite's Rust core when it is built (round F0: bc2_native.meshset_parse / meshset_write,
+the same dicts and bytes; mesh.use_native switches them with mesh.py's header functions). Where the reference would
+raise, or a value is one the core leaves to it, the Python runs (parse_reference, write_reference: kept as the
+reference and the fallback), so the errors stay this module's.
 """
 import struct
 
@@ -43,10 +48,23 @@ class _Reader:
         return s
 
 
+def _native():
+    import mesh
+    return mesh._native()
+
+
 def parse(b, kind, big_endian, flag=None):
     """{a, z, lod_settings, lods: [{x, sets: [(name, [shader names])], bounds, size, extra, flag, parts, masks}]}.
     flag: whether a rigid set's LODs have the flag byte - BFBC2's do (PC and Xbox), Battlefield 1943's do not (its
-    rigid sets are one byte a LOD shorter); None: BFBC2's rule. A set read without it gets flag 0, written as BFBC2's."""
+    rigid sets are one byte a LOD shorter); None: BFBC2's rule. A set read without it gets flag 0, written as BFBC2's.
+    In the Rust core when it is built (round F0), else parse_reference."""
+    nat = _native() if kind in KINDS and type(b) is bytes else None
+    got = nat.meshset_parse(b, kind, bool(big_endian), flag) if nat is not None else None
+    return got if got is not None else parse_reference(b, kind, big_endian, flag)
+
+
+def parse_reference(b, kind, big_endian, flag=None):
+    """The Python reader (the reference)."""
     if kind not in KINDS:
         raise ConvertError(f'{kind}: only {", ".join(KINDS)} are converted')
     has_flag = kind != 'SkinnedMeshSet' if flag is None else flag
@@ -80,7 +98,14 @@ def parse(b, kind, big_endian, flag=None):
 
 
 def write(s, kind):
-    """PC (little-endian) bytes."""
+    """PC (little-endian) bytes: in the Rust core when it is built (round F0), else write_reference."""
+    nat = _native() if isinstance(kind, str) else None
+    got = nat.meshset_write(s, kind) if nat is not None else None
+    return got if got is not None else write_reference(s, kind)
+
+
+def write_reference(s, kind):
+    """The Python writer (the reference)."""
     out = bytearray(struct.pack('<IB', s['a'], s['z']) + s['lod_settings'] + b'\0')
     out += struct.pack('<I', len(s['lods']))
     for L in s['lods']:
