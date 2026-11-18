@@ -27,7 +27,7 @@ suite_paths.use('core')
 from bfbc2core import dbx as _coredbx  # noqa: E402
 
 ENV = 'BFBC2_IMPORTER_PYTHON'
-ATTR = 'catalogue_build'             # the newest name: an older module lacks it
+ATTR = 'emitteratlas_build'          # the newest name: an older module lacks it
 
 
 def _load() -> ModuleType | None:

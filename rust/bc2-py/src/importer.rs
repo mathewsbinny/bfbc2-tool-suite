@@ -10,6 +10,7 @@
 use std::collections::{HashMap, HashSet};
 
 use bc2_convert::dbxcatalogue::{self, Key};
+use bc2_convert::emitteratlas::{self, Atlas};
 use bc2_convert::havokport::{self, Layouts, Port};
 use bc2_convert::mopp::{self, Mopp, Ray, Tri};
 use bc2_convert::pyfmt::OrderedMap;
@@ -641,4 +642,189 @@ pub fn catalogue_build<'py>(
 pub fn catalogue_exe_identifiers(py: Python<'_>, data: &Bound<'_, PyBytes>) -> Vec<String> {
     let d = data.as_bytes();
     py.detach(|| dbxcatalogue::exe_identifiers(d))
+}
+
+// ------------------------------------------------------------------------------------------------ emitteratlas
+
+fn of_atlas(e: Atlas) -> Option<String> {
+    match e {
+        Atlas::Error(m) => Some(m),
+        Atlas::Refused => None,
+    }
+}
+
+type SourceArg<'py> = (String, Bound<'py, PyBytes>, Option<Bound<'py, PyBytes>>);
+type EmitterArg<'py> = (String, Bound<'py, PyBytes>, usize);
+
+fn sources_of(sources: &[SourceArg<'_>]) -> Vec<(String, emitteratlas::Source)> {
+    sources
+        .iter()
+        .map(|(k, a, n)| {
+            (
+                k.clone(),
+                (a.as_bytes().to_vec(), n.as_ref().map(|n| n.as_bytes().to_vec())),
+            )
+        })
+        .collect()
+}
+
+fn emitters_of(emitters: &[EmitterArg<'_>]) -> Vec<emitteratlas::Emitter> {
+    emitters
+        .iter()
+        .map(|(n, d, s)| (n.clone(), d.as_bytes().to_vec(), *s))
+        .collect()
+}
+
+/// A cell as `(source, x, y, w, h, into, dx, dy, at, core)`.
+type CellRow = (
+    usize,
+    i64,
+    i64,
+    i64,
+    i64,
+    Option<usize>,
+    i64,
+    i64,
+    Option<(i64, i64)>,
+    [i64; 4],
+);
+
+/// `emitteratlas.build(emitters, sources, alpha_like, normals_like)`: `emitters` as `[(name, partition, source
+/// index)]` in the dict's order, `sources` as `[(key, alpha, normals or None)]`; returns `(dict,)` of the result's
+/// parts (`alpha`, `normals`, `partitions` `[(name, bytes)]`, `uses` `[(emitter, instance, info, channel, source,
+/// rect, cell, move, old, new)]`, `cells` per channel `([cell rows], [kept indices])`, `sizes`, `report`, `left`).
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn emitteratlas_build<'py>(
+    py: Python<'py>,
+    emitters: Vec<EmitterArg<'py>>,
+    sources: Vec<SourceArg<'py>>,
+    alpha_like: &Bound<'py, PyBytes>,
+    normals_like: &Bound<'py, PyBytes>,
+) -> PyResult<Option<Bound<'py, PyTuple>>> {
+    let (em, src) = (emitters_of(&emitters), sources_of(&sources));
+    let (al, nl) = (alpha_like.as_bytes(), normals_like.as_bytes());
+    let r = match py.detach(|| emitteratlas::build(&em, &src, al, nl)) {
+        Ok(b) => b,
+        Err(e) => return answer(py, Err::<(), _>(of_atlas(e))),
+    };
+    let out = PyDict::new(py);
+    out.set_item("alpha", PyBytes::new(py, &r.alpha))?;
+    out.set_item("normals", PyBytes::new(py, &r.normals))?;
+    let parts = PyList::empty(py);
+    for (n, d) in &r.partitions {
+        parts.append((n, PyBytes::new(py, d)))?;
+    }
+    out.set_item("partitions", parts)?;
+    let uses = PyList::empty(py);
+    for u in &r.uses {
+        uses.append((
+            &u.emitter,
+            &u.instance,
+            &u.info,
+            u.channel,
+            u.source,
+            u.rect.to_vec(),
+            u.cell,
+            u.mv,
+            u.old.to_vec(),
+            u.new.to_vec(),
+        ))?;
+    }
+    out.set_item("uses", uses)?;
+    let cells = PyList::empty(py);
+    for (cs, kept) in &r.cells {
+        let rows: Vec<CellRow> = cs
+            .iter()
+            .map(|c| (c.source, c.x, c.y, c.w, c.h, c.into, c.dx, c.dy, c.at, c.core))
+            .collect();
+        cells.append((rows, kept))?;
+    }
+    out.set_item("cells", cells)?;
+    out.set_item("sizes", r.sizes.to_vec())?;
+    out.set_item("report", &r.report)?;
+    out.set_item("left", &r.left)?;
+    Ok(Some(PyTuple::new(py, [out])?))
+}
+
+/// `emitteratlas.prove(result, emitters, sources)`: `uses` as `[(emitter, instance, info, channel, source, rect)]`;
+/// returns `([(rect, move, size_kept, near, deep, ok, exact, crop0 bytes or None)],)` with each level row
+/// `(level, texels, equal, equal_share, correlation)`.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn emitteratlas_prove<'py>(
+    py: Python<'py>,
+    alpha: &Bound<'py, PyBytes>,
+    normals: &Bound<'py, PyBytes>,
+    partitions: Vec<(String, Bound<'py, PyBytes>)>,
+    uses: Vec<(String, String, String, usize, usize, [f64; 4])>,
+    emitters: Vec<EmitterArg<'py>>,
+    sources: Vec<SourceArg<'py>>,
+) -> PyResult<Option<Bound<'py, PyTuple>>> {
+    let built = emitteratlas::Built {
+        alpha: alpha.as_bytes().to_vec(),
+        normals: normals.as_bytes().to_vec(),
+        partitions: partitions
+            .iter()
+            .map(|(n, d)| (n.clone(), d.as_bytes().to_vec()))
+            .collect(),
+        uses: uses
+            .iter()
+            .map(|(e, i, n, ch, s, r)| emitteratlas::Use {
+                emitter: e.clone(),
+                instance: i.clone(),
+                info: n.clone(),
+                channel: *ch,
+                source: *s,
+                rect: *r,
+                cell: 0,
+                mv: (0, 0),
+                old: [0.0; 4],
+                new: [0.0; 4],
+            })
+            .collect(),
+        cells: [(Vec::new(), Vec::new()), (Vec::new(), Vec::new())],
+        sizes: [(0, 0); 2],
+        report: Vec::new(),
+        left: Vec::new(),
+    };
+    let (em, src) = (emitters_of(&emitters), sources_of(&sources));
+    let rows = match py.detach(|| emitteratlas::prove(&built, &em, &src)) {
+        Ok(r) => r,
+        Err(e) => return answer(py, Err::<(), _>(of_atlas(e))),
+    };
+    let out = PyList::empty(py);
+    let level = |r: &emitteratlas::Row| (r.level, r.texels, r.equal, r.equal_share, r.correlation);
+    for p in rows {
+        let near: Vec<_> = p.near.iter().map(level).collect();
+        let deep: Vec<_> = p.deep.iter().map(level).collect();
+        out.append((
+            p.rect.to_vec(),
+            p.mv,
+            p.size_kept,
+            near,
+            deep,
+            p.ok,
+            p.exact,
+            p.crop0.map(|c| PyBytes::new(py, &c)),
+        ))?;
+    }
+    Ok(Some(PyTuple::new(py, [out])?))
+}
+
+/// `emitteratlas.same_but_uv(old, new)`: `(diffs,)`.
+#[pyfunction]
+pub fn emitteratlas_same_but_uv<'py>(
+    py: Python<'py>,
+    old: &Bound<'py, PyBytes>,
+    new: &Bound<'py, PyBytes>,
+) -> PyResult<Option<Bound<'py, PyTuple>>> {
+    let (a, b) = (old.as_bytes(), new.as_bytes());
+    answer(py, py.detach(|| emitteratlas::same_but_uv(a, b)).map_err(of_atlas))
 }

@@ -23,6 +23,7 @@
 pub mod audio;
 pub mod dbxcatalogue;
 pub mod dbxport;
+pub mod emitteratlas;
 pub mod granny;
 pub mod havok;
 pub mod havokport;

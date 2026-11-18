@@ -11,8 +11,55 @@ pub fn round_to(x: f64, n: usize) -> f64 {
     if !x.is_finite() {
         return x;
     }
-    let s = format!("{x:.n$}");
-    s.parse::<f64>().unwrap_or(x)
+    fixed(x, n).parse::<f64>().unwrap_or(x)
+}
+
+/// Python's `format(x, f'.{n}f')`: the exact value of `x` rounded to `n` decimals, an exact tie to the even last
+/// digit (Rust's own formatting does not round every tie that way).
+#[must_use]
+#[allow(clippy::many_single_char_names)] // x, n, e, q, s, r: the arithmetic's usual names
+pub fn fixed(x: f64, n: usize) -> String {
+    if !x.is_finite() || x.abs() >= 9.0e15 || n > 18 {
+        // no fraction to round (or not a number): Rust's formatting prints these exactly
+        return format!("{x:.n$}");
+    }
+    let bits = x.to_bits();
+    let neg = bits >> 63 == 1;
+    let exp = ((bits >> 52) & 0x7FF) as i64;
+    let frac = bits & ((1u64 << 52) - 1);
+    let (mant, e) = if exp == 0 {
+        (frac, -1074i64)
+    } else {
+        (frac | (1u64 << 52), exp - 1075)
+    };
+    // x = mant * 2^e; the scaled value mant * 10^n * 2^e, rounded half to even
+    let num = u128::from(mant) * 10u128.pow(n as u32);
+    let q = if e >= 0 {
+        num << e.min(60)
+    } else {
+        let s = (-e) as u32;
+        if s >= 128 {
+            0
+        } else {
+            let q = num >> s;
+            let r = num - (q << s);
+            let half = 1u128 << (s - 1);
+            if r > half || (r == half && q % 2 == 1) {
+                q + 1
+            } else {
+                q
+            }
+        }
+    };
+    let digits = q.to_string();
+    let body = if n == 0 {
+        digits
+    } else {
+        let padded = format!("{digits:0>width$}", width = n + 1);
+        let (int, dec) = padded.split_at(padded.len() - n);
+        format!("{int}.{dec}")
+    };
+    if neg { format!("-{body}") } else { body }
 }
 
 /// Python's `round(x)` of a float: the nearest integer, ties to even (as a float; the caller converts).
@@ -165,6 +212,12 @@ mod tests {
         assert!(round_to(-0.0004, 3).is_sign_negative());
         assert_eq!(round_to(1.0005, 3), 1.0);
         assert_eq!(round_even(2.5), 2.0);
+        assert_eq!(fixed(12.5, 0), "12");
+        assert_eq!(fixed(13.5, 0), "14");
+        assert_eq!(fixed(0.5, 0), "0");
+        assert_eq!(fixed(-0.0004, 3), "-0.000");
+        assert_eq!(fixed(2.675, 2), "2.67");
+        assert_eq!(fixed(1e-300, 2), "0.00");
         assert_eq!(round_even(-1.5), -2.0);
     }
 
