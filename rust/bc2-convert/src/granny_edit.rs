@@ -709,13 +709,24 @@ fn py_min(a: f64, b: f64) -> f64 {
     if b < a { b } else { a }
 }
 
-/// `sum(xs)` from the integer 0, as Python adds.
+/// `sum(xs)` of floats from the integer 0, as CPython 3.12+ adds them: the first added to 0, the rest with
+/// Neumaier's compensation, the compensation added at the end when it is finite and not zero (`builtin_sum_impl`).
 fn py_sum(xs: impl Iterator<Item = f64>) -> f64 {
     let mut it = xs;
     let Some(first) = it.next() else { return 0.0 };
     let mut s = 0.0 + first;
+    let mut c = 0.0f64;
     for x in it {
-        s += x;
+        let t = s + x;
+        if s.abs() >= x.abs() {
+            c += (s - t) + x;
+        } else {
+            c += (x - t) + s;
+        }
+        s = t;
+    }
+    if c != 0.0 && c.is_finite() {
+        s += c;
     }
     s
 }

@@ -752,14 +752,13 @@ fn curve(d: &Bound<'_, PyAny>) -> Option<Curve> {
     if kind.chars().any(|c| u32::from(c) > 255) {
         return None;
     }
+    // integers for the quantized formats, the ones that read them; a float format's (D3I1K32fC32f) are not read
     let ints = match d.get_item("KnotsControls").ok()? {
         None => None,
-        Some(v) => Some(
-            items(&v)?
-                .iter()
-                .map(|x| x.extract::<i64>().ok())
-                .collect::<Option<Vec<_>>>()?,
-        ),
+        Some(v) => items(&v)?
+            .iter()
+            .map(|x| x.extract::<i64>().ok())
+            .collect::<Option<Vec<_>>>(),
     };
     let trunc = match d.get_item("OneOverKnotScaleTrunc").ok()? {
         None => None,
