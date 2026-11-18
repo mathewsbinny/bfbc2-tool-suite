@@ -25,7 +25,7 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('bf1943-import', 'core')
+suite_paths.use('bf1943-import', 'mesh-viewer', 'shader-tools', 'core')
 import dbxcatalogue  # noqa: E402
 import importcore  # noqa: E402
 from bfbc2core import dbx, fbrb  # noqa: E402
