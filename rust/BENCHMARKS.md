@@ -939,8 +939,16 @@ be - and every edit fingerprint), `test_fbrbtool.py` (quick: 228 lines, 100 dama
 exe's), `test_fbrb.py` (round trips in process). A bundle rebuilt since the recording is counted as not recorded and
 the sweeps fail when more than half are.
 
-**Proof** (filled below).
-- The recordings against the Rust before anything was removed: ...
+**Proof** (`retire-r4` merged with main after F1a / E4f, the module rebuilt from it, below-normal priority, one test at
+a time): `python run_tests.py quick -j 2` 99 of 99 (221 s); `test_dbxedit.py --game` (160 of 160 edit fingerprints;
+1,592 of 1,592 recorded corpus files, 12,458 runs as recorded, 75 s); `test_fbrbtool.py --game` (228 lines, 600
+damaged, 3,000 gzip streams, 40 game bundles with 30,177 entries and 40 logged invocations' bundles as recorded);
+`test_fbrb_unpack_native.py --game` (1,075 of 1,075 bundles up to 300 MiB of payload identical to FbrbTool.exe's
+files, 226 s of unpacking); `test_fbrb_pack_native.py --game` (1,081 of 1,086 bundles, 6.94 GB, unpacked and packed
+again in Rust byte-identical to the bundles FbrbTool.exe packed - the game's own file 59, but for the gzip headers 917,
+and the empty payload stream 105; the 5 over 300 MiB not recorded); `test_fbrb.py --game 12`; DbxTests.cs 85 of 85;
+`cargo fmt`, clippy `-D warnings`, 292 cargo tests. OPFOR (callers switched in its own commit): 373 tests, lint and
+types included, and opforcore's 71.
 
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 
