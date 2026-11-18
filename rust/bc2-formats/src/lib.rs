@@ -4,6 +4,8 @@
 //! Each format is a port of the suite's Python reference implementation and replaces it only when it gives the
 //! same answers on the same test corpora. This crate has no Python types: the bindings live in `bc2-py`.
 //!
+//! - [`apt`]: EA APT UI movies (menus, HUDs), a port of the dump and instruction records of
+//!   `bfbc2-console-readers/apt/apt.py`.
 //! - [`dbx`]: binary `.dbx` partitions (`bfbc2-dbx-tools/FORMAT.md` sections 1-3), a port of
 //!   `core/bfbc2core/dbx.py`: the element tree, the readable XML (identical to `DbxEdit xml`), values and a writer.
 //! - [`dbxedit`]: DbxEdit's commands in process (`xml`, `edit`, `import`, `check`, `roundtrip`, `fixslots`), a
@@ -34,6 +36,7 @@
 //! ```
 #![deny(unsafe_code)]
 
+pub mod apt;
 pub mod atomic;
 pub mod culltree;
 pub mod dbx;

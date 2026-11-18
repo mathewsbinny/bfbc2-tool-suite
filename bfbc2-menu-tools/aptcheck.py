@@ -45,6 +45,7 @@ from collections import namedtuple
 from typing import Any
 
 import menucommon as mc
+from menucommon import apt
 
 Finding = namedtuple('Finding', 'kind key text')
 BRANCHES = (0x99, 0x9D, 0xB8)
@@ -373,9 +374,21 @@ def cmd_check(args, opfor):
     if not args:
         raise mc.MenuToolError('check needs a movie')
     errors = 0
+    # every movie read first, then decoded many at once on all cores (apt.decoded; the Rust core when it is built);
+    # a movie that cannot be read raises at its place, after the reports before it, as before
+    got: list = []
     for spec in args:
-        label, members = mc.resolve(spec, opfor)
-        code = Code(mc.movie_from_members(members, label))
+        try:
+            label, members = mc.resolve(spec, opfor)
+            got.append((label, mc.movie_from_members(members, label)))
+        except Exception as e:
+            got.append((None, e))
+            break
+    ready = iter(apt.decoded(m for label, m in got if label is not None))
+    for label, m in got:
+        if label is None:
+            raise m
+        code = Code(next(ready))
         rep = Report(f'check {label}')
         f = code.findings()
         rep.add('info', f'{len(code.by_at)} instructions, {len(code.funcs)} functions, {len(code.m.const)} constants')

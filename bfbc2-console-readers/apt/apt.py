@@ -38,13 +38,15 @@ Apt converts a movie's offsets to pointers once, in place, by walking its struct
 runtime 0x1309880 for bytecode; the character walk and its inverse at 0x1319730) - see OPFOR's DEVELOPMENT_NOTES.md
 for the rules this sets for editing movies.
 """
+import gc
 import io
 import os
 import re
 import struct
 import sys
 from collections import namedtuple
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from itertools import repeat
 from typing import Any, cast
 
 CHAR_TYPES = {1: 'shape', 2: 'text', 3: 'font', 4: 'button', 5: 'sprite', 6: 'sound', 7: 'image', 8: 'morph',
@@ -90,6 +92,85 @@ NAMES = {
 _S = {e + c: struct.Struct(e + c).unpack_from for e in '<>' for c in 'IifhH'}    # Movie's field readers
 
 
+# The dump, the instruction records and the constant list run in the suite's Rust core (rust/, module bc2_native:
+# bc2_formats::apt) when it is built, else in Python here: the same lines, the same records (types, order, values)
+# and the same constants (round E3n: every movie of the game copy, OPFOR's pristine menus and its Xbox 360 HUD
+# copies; bfbc2-menu-tools/tests/test_apt_e3n.py). A movie the Rust core refuses (a read outside the file, deep
+# nesting) is decoded here, which gives what the reference gives. A Movie with a sink set always runs in Python.
+# BFBC2_PURE_PYTHON=1 (or use_native(False)) forces Python; backend() says which one runs.
+
+def _import_native() -> Any:
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import dbx as _dbx
+    except ImportError:                       # the reader copied out of the suite: Python only
+        return None
+    m = _dbx._import_native()
+    return m if m is not None and hasattr(m, 'apt_decode') else None
+
+
+def _load_native() -> Any:
+    if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0'):
+        return None
+    return _import_native()
+
+
+_native = _load_native()
+_new = tuple.__new__
+
+
+def backend() -> str:
+    """'rust' when the Rust core decodes movies, else 'python'."""
+    return 'rust' if _native is not None else 'python'
+
+
+def use_native(on: bool) -> str:
+    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend()."""
+    global _native
+    _native = _import_native() if on else None
+    return backend()
+
+
+def _records(cols: tuple[list[Any], ...]) -> list[tuple[Ins, int, int, int]]:
+    """The Rust core's record columns (the 12 fields of Ins, then start, limit, depth) as instructions() gives
+    them, zipped in C with the cycle collector paused (millions of tuples; none forms a cycle)."""
+    enabled = gc.isenabled()
+    gc.disable()
+    try:
+        return list(zip(map(_new, repeat(Ins), zip(*cols[:12])), *cols[12:]))
+    finally:
+        if enabled:
+            gc.enable()
+
+
+def decoded(movies: Iterable['Movie'], chunk: int = 0) -> Iterator['Movie']:
+    """Yields each movie with its instructions() (and dump_lines) already decoded, many movies at once on all cores
+    with the Rust core (chunk movies at a time: default twice the cores, so the records of only a few movies are
+    held); without it, or for a movie it refuses, instructions() decodes when called."""
+    batch: list[Movie] = []
+    chunk = chunk or 2 * (os.cpu_count() or 4)
+
+    def flush() -> Iterator[Movie]:
+        nat = _native
+        ok = [m for m in batch if m._native_ok()] if nat is not None else []
+        if ok and nat is not None:
+            res = nat.apt_decode_many([(m.name, m.a, m.big, m.movie, m.const) for m in ok], True, Func)
+            for m, r in zip(ok, res):
+                m._pre = r
+        yield from batch
+        batch.clear()
+    for m in movies:
+        batch.append(m)
+        if len(batch) >= chunk:
+            yield from flush()
+    yield from flush()
+
+
 def read_bigf(path: str) -> dict[str, bytes]:
     """Members of a BIGF archive (menu SwfMovie resource): {name: bytes}. Index entries are big-endian on every
     platform: u32 offset, u32 size, C string name."""
@@ -109,7 +190,21 @@ def read_bigf(path: str) -> dict[str, bytes]:
 
 class Movie:
     sink: Sink | None = None  # instructions(): called with each decoded instruction while the dump walks the movie
-    dump_lines: list[str]    # instructions(): the dump's text
+    _lines: Any = None       # instructions(): the dump's text (a list, or the Rust core's lines until read)
+    const: list[str]         # the constants: '"text"', 'regN' or 'typeT:V'
+
+    @property
+    def dump_lines(self) -> list[str]:
+        """instructions(): the dump's text."""
+        if self._lines is None:
+            raise AttributeError('dump_lines: instructions() has not run')
+        if not isinstance(self._lines, list):
+            self._lines = self._lines.list()
+        return cast(list[str], self._lines)
+
+    @dump_lines.setter
+    def dump_lines(self, v: list[str]) -> None:
+        self._lines = v
 
     def __init__(self, path: str | None = None, data: tuple[str, bytes, bytes] | None = None) -> None:
         """path: a menu .res or a .apt with its .const beside it; or data = (name, .apt bytes, .const bytes)."""
@@ -135,8 +230,14 @@ class Movie:
             self.big = True          # both offsets inside the file (Xbox 360 hud_crosshair): the signature decides
         self.e = '>' if self.big else '<'
         self.movie = be if self.big else le
+        self._pre: Any = None                    # decoded(): (dump lines, records) from the Rust core
+        if _native is not None and isinstance(self.c, bytes):
+            cs = _native.apt_constants(self.c, self.big)
+            if cs is not None:
+                self.const = cs
+                return
         count, entries = self.cu(24), self.cu(28)
-        self.const: list[str] = []
+        self.const = []
         for i in range(count):
             t, v = self.cu(entries + 8 * i), self.cu(entries + 8 * i + 4)
             if t == 1:
@@ -288,6 +389,22 @@ class Movie:
         """Every instruction the dump decodes, once each, in dump order: [(Ins, stream start, stream limit, depth)].
         A frame's action stream has depth 0 and limit = the file's end; a function body's instructions have the
         function's depth + 1 and limit = the body's end. The dump's text is kept in self.dump_lines."""
+        pre, self._pre = self._pre, None
+        if pre is None and self._native_ok():
+            assert _native is not None
+            pre = _native.apt_decode(self.name, self.a, self.big, self.movie, self.const, True, Func)
+        if pre is not None:
+            self._lines = pre[0]
+            return _records(pre[1])
+        return self.instructions_python()
+
+    def _native_ok(self) -> bool:
+        """The Rust core can decode this movie: it is built and on, no sink is set, the fields have their types."""
+        return (_native is not None and self.sink is None and isinstance(self.a, bytes) and isinstance(self.name, str)
+                and type(self.movie) is int)
+
+    def instructions_python(self) -> list[tuple[Ins, int, int, int]]:
+        """instructions() in Python (the reference)."""
         seen: set[int]
         recs: list[list[Any]]
         seen, recs = set(), []
@@ -298,7 +415,7 @@ class Movie:
                 recs.append([ins, start, limit, indent])
         self.sink = sink
         try:
-            self.dump_lines = self.dump()
+            self.dump_lines = self.dump_python()
         finally:
             self.sink = None
         depth: dict[int, int] = {}                 # a stream's depth: 0 for the streams that no function contains
@@ -351,6 +468,15 @@ class Movie:
                     out.append(f'{ind}item type {t} @{it:X}')
 
     def dump(self) -> list[str]:
+        if self._native_ok():
+            assert _native is not None
+            lines = _native.apt_decode(self.name, self.a, self.big, self.movie, self.const, False, Func)
+            if lines is not None:
+                return cast(list[str], lines)
+        return self.dump_python()
+
+    def dump_python(self) -> list[str]:
+        """dump() in Python (the reference; with a sink set, the walk that calls it)."""
         out: list[str]
         m, out = self.movie, []
         frames, fptr = self.u(m + 8), self.u(m + 12)
