@@ -15,18 +15,22 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods, PyList, PyString, PyTuple};
 
 /// A latin-1 name as Python's `bytes.decode('latin-1')`.
-fn latin1<'py>(py: Python<'py>, b: &[u8]) -> Bound<'py, PyString> {
+pub(crate) fn latin1<'py>(py: Python<'py>, b: &[u8]) -> Bound<'py, PyString> {
     match std::str::from_utf8(b) {
         Ok(s) if b.is_ascii() => PyString::new(py, s),
         _ => PyString::new(py, &b.iter().map(|&c| char::from(c)).collect::<String>()),
     }
 }
 
-fn records<'py>(py: Python<'py>, list: &[&[u8]]) -> PyResult<Bound<'py, PyList>> {
+pub(crate) fn records<'py>(py: Python<'py>, list: &[&[u8]]) -> PyResult<Bound<'py, PyList>> {
     PyList::new(py, list.iter().map(|r| PyBytes::new(py, r)))
 }
 
-fn shaders<'py>(py: Python<'py>, list: &[Shader<'_>], cls: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
+pub(crate) fn shaders<'py>(
+    py: Python<'py>,
+    list: &[Shader<'_>],
+    cls: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyList>> {
     let out = PyList::empty(py);
     let empty = PyBytes::new(py, b"");
     for s in list {
@@ -47,7 +51,7 @@ fn shaders<'py>(py: Python<'py>, list: &[Shader<'_>], cls: &Bound<'py, PyAny>) -
     Ok(out)
 }
 
-fn names<'py>(py: Python<'py>, list: &[Named<'_>]) -> PyResult<Bound<'py, PyList>> {
+pub(crate) fn names<'py>(py: Python<'py>, list: &[Named<'_>]) -> PyResult<Bound<'py, PyList>> {
     PyList::new(
         py,
         list.iter()
@@ -103,7 +107,7 @@ pub fn shaderdb_parse<'py>(
 }
 
 /// The `bytes` items of a list, or `None` when one is not `bytes`.
-fn bytes_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<Bound<'py, PyBytes>>> {
+pub(crate) fn bytes_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<Bound<'py, PyBytes>>> {
     list.try_iter()
         .ok()?
         .map(|x| x.ok()?.cast_into::<PyBytes>().ok())
@@ -111,7 +115,7 @@ fn bytes_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<Bound<'py, PyBytes>>
 }
 
 /// A shader's fields: `(guid, code, param, binding, regs, tail)`, or `None`.
-type ShaderFields<'py> = (
+pub(crate) type ShaderFields<'py> = (
     Bound<'py, PyBytes>,
     Bound<'py, PyBytes>,
     u32,
@@ -120,7 +124,7 @@ type ShaderFields<'py> = (
     Bound<'py, PyBytes>,
 );
 
-fn shader_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<ShaderFields<'py>>> {
+pub(crate) fn shader_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<ShaderFields<'py>>> {
     let mut out = Vec::new();
     for s in list.try_iter().ok()? {
         let s = s.ok()?;
@@ -138,7 +142,7 @@ fn shader_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<ShaderFields<'py>>>
 }
 
 /// `(name, guid)` items: the name a `str` all of whose characters are latin-1, the GUID `bytes`.
-fn name_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<(Bound<'py, PyString>, Bound<'py, PyBytes>)>> {
+pub(crate) fn name_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<(Bound<'py, PyString>, Bound<'py, PyBytes>)>> {
     let mut out = Vec::new();
     for x in list.try_iter().ok()? {
         let (n, g): (Bound<'py, PyAny>, Bound<'py, PyAny>) = x.ok()?.extract().ok()?;
@@ -147,11 +151,11 @@ fn name_items<'py>(list: &Bound<'py, PyAny>) -> Option<Vec<(Bound<'py, PyString>
     Some(out)
 }
 
-fn slices<'a>(l: &'a [Bound<'_, PyBytes>]) -> Vec<&'a [u8]> {
+pub(crate) fn slices<'a>(l: &'a [Bound<'_, PyBytes>]) -> Vec<&'a [u8]> {
     l.iter().map(PyBytesMethods::as_bytes).collect()
 }
 
-fn shader<'a>(s: &'a ShaderFields<'_>) -> Shader<'a> {
+pub(crate) fn shader<'a>(s: &'a ShaderFields<'_>) -> Shader<'a> {
     Shader {
         guid: s.0.as_bytes(),
         code: s.1.as_bytes(),
@@ -162,7 +166,7 @@ fn shader<'a>(s: &'a ShaderFields<'_>) -> Shader<'a> {
     }
 }
 
-fn named<'a>(l: &'a [(Bound<'_, PyString>, Bound<'_, PyBytes>)], s: &[&'a str]) -> Option<Vec<Named<'a>>> {
+pub(crate) fn named<'a>(l: &'a [(Bound<'_, PyString>, Bound<'_, PyBytes>)], s: &[&'a str]) -> Option<Vec<Named<'a>>> {
     l.iter()
         .zip(s)
         .map(|((_, g), n)| {
@@ -174,7 +178,7 @@ fn named<'a>(l: &'a [(Bound<'_, PyString>, Bound<'_, PyBytes>)], s: &[&'a str]) 
         .collect()
 }
 
-fn latin1_bytes(s: &str) -> Option<Cow<'_, [u8]>> {
+pub(crate) fn latin1_bytes(s: &str) -> Option<Cow<'_, [u8]>> {
     if s.is_ascii() {
         return Some(Cow::Borrowed(s.as_bytes()));
     }

@@ -51,6 +51,7 @@ mod navgraph;
 mod navpath;
 mod navtrace;
 mod scene;
+mod shaderdb_handle;
 mod shaders;
 mod stockmp;
 mod writers;
@@ -362,6 +363,11 @@ mod bc2_native {
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, fbrb_unpack, zlib_deflate};
 
+    #[pymodule_export]
+    use super::shaderdb_handle::{
+        ShaderDbHandle, shaderdb_block_constants, shaderdb_block_engine_textures, shaderdb_block_textures,
+        shaderdb_texture_kind,
+    };
     #[pymodule_export]
     use super::shaders::{shaderdb_parse, shaderdb_write};
 
