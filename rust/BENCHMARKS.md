@@ -1572,3 +1572,81 @@ variants; `--game`: the game log both ways). Seeds in `tests\test_durations.json
 harness's game test (and `harness.py run`) keeps its cache in OPFOR's `work\harness\cache` (`harness.cache_dir`) -
 this round's profile of that test wrote two navdata cache files there (2026-11-17 16:36); `bench_sweep.py`'s harness
 workload redirects it to its temporary folder.
+
+## E3o: navdata, kymesh, navpath, havok.verify, texqa (2026-11-17, branch `rust-e3o`)
+
+E3m's next ranked items, in the order of measured gain. **Provisional timings:** WW2 rebuilds and other agents' work
+ran beside every figure (below-normal priority); before and after were taken in the same session with
+`rust\bench_sweep.py`, unprofiled, "before" on main (e581798).
+
+### The profile (before)
+
+`navdata_load` (DICE's path data of the 17 prepared levels, no cache), cProfile 109.5 s: `kymesh.parse_mesh` 45.7 s
+(5,122 calls: every sector's mesh parsed twice, once for the areas and once for the cells; 17 M `_v3`, 32 M
+`struct.unpack_from`; a neighbour link's owner found by `max(...)` over every area offset), `_load`'s own 15.7 s (each
+area's outline lines and portal ends made with `np.asarray`, 4.1 M calls), `_cells` 50 s (`navdiff.area_cells_many`
+16 s - its per-area `segments` and arrays; the Rust area cells themselves 2.9 s - then each area's cell dict back to
+arrays: 384 k `np.array`, 504 k `tolist`), the route graph's two union-finds 6.4 s (3.7 M `find` / `wfind` calls).
+`navpath_routes` (400 routes): `closest_between` 5.2 s for the 200 failed routes, the A* 2 s with one
+`np.linalg.norm` per pushed node. `havok_verify`: `Packfile`'s Python walk, then the per-byte compare and `ignorable`
+in Python. `texqa_ww2`: 22 textures one after another, 0.47 s of NumPy each.
+
+### What changed
+
+| | Python (kept as the reference and the fallback) | now |
+|---|---|---|
+| `kymesh.parse_mesh` | `parse_mesh_reference` | `bc2_formats::kymesh::parse` (`bc2_native.kymesh_parse`): nested tuples the Python makes its dataclasses from. Where the reference would raise (a short record, A records, an unknown portal target, a link pointer before every area) or a value is a NaN (`struct`'s float conversion of a NaN is the interpreter's to define), `None`, and the reference reads: its error stays the error. `kymesh.use_native` |
+| `navdata._load`'s areas | the loop over the parsed meshes (`np.asarray` per line and portal end) | `navkit_navdata_areas`: the whole file's areas as flat arrays; each outline line, portal end and border end a view of one array (the same dtype, shape and values) |
+| `navdata._cells` | `_cells_reference` (parse, `navdiff.area_cells_many`, dicts to arrays) | `navkit_mesh_cells`: every mesh parsed and every area's boundary (`navdiff.segments` in float64) sampled by `parity::area_cells` in parallel, the cells returned as flat int64 / float64 / int32 arrays in the reference's order; `None` (the reference) for a boundary that is not all finite |
+| the route graph's union-finds | `_union_roots_reference` | `navkit_union_roots`: the same steps (path halving, `parent[root of a] = root of b`, the edges in order, then `find(k)` for every k in order), so the roots - which `Island.root` keeps - are the same |
+| `navpath.route` | `route_reference` | `bc2_navbuild::astar` (`bc2_native.PathGraph`, one per `NavData`): the same pops (Python compares `(f, g, node)` tuples, a total order: the heap's layout cannot matter), relaxations and `expanded`. The estimate is `np.linalg.norm(pos[m] - pos[goal])`, whose last bits are the BLAS's `ddot`: on this PC (NumPy 2.5.4, OpenBLAS) `sqrt(fma(z, z, fma(y, y, x * x)))` - 200,000 random vectors, 0 differences; the plain sum differs on 10.7 % of them. `navpath.norm_formula()` checks the core's formulas against `np.linalg.norm` on 20,000 seeded vectors at the first route and uses the one that matches bit for bit; none: the reference searches. A graph with a NaN or an inconsistency: the reference. `navpath.use_native` |
+| `navpath.closest_between` | `closest_between_reference` | kept per island pair and `NavData` (dropped with it) |
+| `havok.verify` | `verify_reference` (`Packfile`, then `ignorable` per differing byte) | `bc2_convert::havok::verify_packfile` (`havok_verify_packfile`): E3g's walk records the arrays too (member, data start, count); every differing byte's reason from its owner, the arrays, the objects (`seen`), the last section's base and fixups - `ignorable`'s rules. Where the reference's answer is not this one's to give - `pc` longer than the console file (its `IndexError`), a bounding-volume read past the data, a byte inside two bounding-volume objects whose answers differ (the reference takes the first its set yields: hash-seed dependent) - the reference runs |
+| `texqa.run` | one process (`--workers 1`) | `analyse` in worker processes (`--workers N`, `BFBC2_TEXQA_WORKERS`, default every CPU thread; by default at least three textures per worker, a worker taking 1-2 s to start); 2N textures prepared ahead (their sources read just before they are sent, so a large run does not hold every source at once); the rows taken in order; a source that cannot be read is its row in the main process, as before |
+
+### Before and after
+
+| workload | before (main) | E3o | |
+|---|---:|---:|---:|
+| `navdata_load`, 17 levels, 24,052,639 cells, no cache | 82.9 s | **14.1 s** | 5.9x |
+| `navpath_routes`, 400 routes (200 across islands) | 10.4 s | **2.0 s** | 5.2x |
+| `havok_verify` (`test_havok.py`: 400 Onslaught files verified, 594 converted) | 15.4 s | **3.1 s** | 5.0x |
+| `texqa_ww2`, 22 textures, cold | 16.3 s | not re-timed (machine limits: a WW2 rebuild ran) | |
+
+What `navdata_load` spends now (cProfile, before the areas moved to flat arrays): `hpdtool.parse` 5.4 s (every
+sector's nodes and edges in Python), each area's island (a NumPy nearest node per area, 168 k), the NavArea objects.
+
+### Parity
+
+- `kymesh.parse_mesh`: **every sector of 264 path-data files** - the game copy's 35 (infantry and vehicle, every
+  level) and 229 NavKit outputs in OPFOR's `work\navkit`, `work\navbuild`, `work\navgen` (read only): **34,050
+  sectors, 2,372,253 areas, 0 different** (each Mesh hashed with every float's bits, every type and order:
+  `rust\parity_e3o_nav.py mesh`). Quick: 600 seeded meshes written by `kymesh.write_mesh` (portals, border portals,
+  D lines, outlines of 0-9 points, F cells, links; -0.0, denormals, infinities), each also cut short twice, with
+  bytes changed twice, a NaN written and a huge count: 4,200 of 4,200 the same Mesh or the same error; all 600 built
+  ones read by Rust.
+- `navdata.load`: 18 of the game copy's 35 path-data files (through sp_005_b) the same NavData as main's navdata.py (`parity_e3o_nav.py load --main`, 0 different); the rest not run - the comparison went past 1 GB on sp_006 while the machine was limited to 1 GB per process; sp_009 / sp_004_b also against the in-module reference. Quick: 40 built path-data files (1-4 sectors, shared border ids, ladder-steep edges)
+  the same NavData both ways; 300 random graphs the same union-find roots with and without skipped edges.
+- `navpath.route`: bench_sweep's 400 routes on sp_009 / sp_004_b the same Route field for field (nodes, cost,
+  length, `expanded`, the gap, the reason); quick: 400 seeded graphs (grid positions: equal estimates and costs,
+  so ties; one-way edges; islands), 10,000 routes (3,457 found, 6,058 across islands) the same; a NaN cost runs the
+  reference.
+- `havok.verify`: verify-havok's 400 Onslaught files the same (exact, reasons, unexplained offsets) as `verify_reference`, all 400 answered by the record (verify itself 9.9 -> 0.2 s). Quick: 500 seeded packfiles with the classes `ignorable` knows (a storage subpart's
+  `indices16`, bounding volumes alone and inside a collidable, a triangles subpart, two motions with and without a
+  saved motion) and random ones, each against 4 PC copies with 0-40 bytes changed, cut by 3 bytes or longer, and an
+  `indices16` array of 8 with its padding index changed: 2,003 of 2,003 the same (offset, reason) lists, every reason
+  met; all 1,047 the reference answers answered by the record (the rest: reads past the data, the reference's).
+- texqa: the WW2 vehicles' game run (1 worker against all) not run yet (machine limits). Quick: 9 built textures (one unreadable, one flipped, sources for six) give the same rows,
+  report, log and cache file with 3 workers as with one.
+
+### Tests
+
+`tests\test_e3o_native.py` (quick ~10 s; `--game`: every sector of the game copy's path data, navdata.load of the
+17 prepared levels, the 400 routes, verify-havok's Onslaught files and the WW2 vehicles' texqa both ways), in
+`run_tests.py` with NEEDS, seeds in `tests\test_durations.json`; `rust\parity_e3o_nav.py` (`mesh`, `load [--main]`)
+for any folder of path data. Rust: `kymesh.rs` (a built record, refusals), `astar.rs` (routes, norms).
+
+### What remains
+
+`navdata`: `hpdtool.parse` (nodes and edges in Python) and the per-area island loop. `navpath.route` in the harness
+(`route_pairs`: same-island pairs) now runs the Rust search; `harness run` itself was not re-measured this round.
