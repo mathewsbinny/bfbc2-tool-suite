@@ -1744,7 +1744,8 @@ fn level_row(ui: &mut egui::Ui, p: &Palette, m: &Metrics, l: &LevelInfo) -> egui
         "Ready"
     };
     ui.painter().text(
-        Pos2::new(x + 140.0, rect.center().y),
+        // room for the longest names (BC1_HARVEST_DAY_SDM, a Package level: round G3)
+        Pos2::new(x + 180.0, rect.center().y),
         Align2::LEFT_CENTER,
         state,
         FontId::proportional(12.0),

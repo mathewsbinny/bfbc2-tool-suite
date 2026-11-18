@@ -3402,3 +3402,48 @@ The viewport modes (lit with the game's shaders, unlit, wireframe, collision, na
 selection, editing static group members (they live in the `*_HavokAsset` group files), deep duplicates (sub-instances
 an object owns, such as a flag's capture area, are shared by the copy today), several objects' fields edited at once
 ("Mixed"), and levelwrite's proof run over every prepared level rather than three.
+
+## G3: the levels that live only in game\Package (2026-11-18, branch `rust-g3`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Done in round G3"; `rust/bc2-editor/src/package.rs`. No Python replaced: NavKit
+never listed these levels. The editor lists every installed Package-only level (`package.mft` names it, every
+bundle of its level stack is present) - 45 on OPFOR's game copy: Vietnam's 20 (`nam_mp_00{2,3,5,6,7}` x cq / r /
+sdm / sr), the Pacific War's 4 (Wake Island, Coral Sea, Guadalcanal, Iwo Jima) and DICE's other 21 (the 8 Bad
+Company 1 maps and 5 `MP_SP_*` layouts on `mp2_common`, 8 mode layouts on a Dist level such as MP_005GR) - and
+prepares each in Rust from
+its bundles, reading only what the scene opens, into `work\editor\levels\<level>` (not `work\levels`: its corpora
+stay as they are - OPFOR's 37 folders the same before and after; all runs went to a stand-in OPFOR folder in temp
+with the game copy linked read only, the junction removed first).
+
+**Prepare and open** (debug build of the test, `tests/g3.rs` `real_package_levels`, a WW2 rebuild running beside it;
+the editor's process stayed under 150 MB):
+
+| | levels | prepare (s) | open (s) | copy (MB) | entities | collision meshes |
+|---|---:|---:|---:|---:|---:|---:|
+| Vietnam (`nam_*`) | 20 | 2.4 - 4.7 | 0.15 - 0.33 | 7.9 - 9.0 | 4,070 - 6,140 | 2,416 - 4,007 |
+| Pacific War | 4 | 2.7 - 4.0 | 0.24 - 0.29 | 12.6 - 17.6 | 3,539 - 7,144 | 2,847 - 5,230 |
+| Bad Company 1 maps | 8 | 2.9 - 3.7 | 0.28 - 0.34 | 18.1 - 19.9 | 11,158 - 12,679 | 8,969 - 9,217 |
+| other mode layouts (8 on Dist levels, 5 `MP_SP_*`) | 13 | 2.9 - 3.7 | 0.21 - 0.34 | 9.5 - 19.0 | 4,011 - 12,307 | 2,342 - 9,968 |
+| all | 45 | 151 in all | | 585 in all | | |
+
+Each opened with terrain (1024 or 2048 samples a side) and water, team labels from its data (US / NVA on Vietnam's,
+US / JP on the Pacific War's; T1 / T2 on the squad deathmatch layouts that name no faction) and no notes. A whole
+unpack of the same bundles, by comparison, writes 1.3 - 2.0 GB per stack (below). Vietnam's terrain is in
+`nam_common`'s terrain bundle (each level's own terrain bundle holds only `*deleted*` markers of the others' terrains);
+`*deleted*` markers hid 1 name a later bundle had on 9 levels (`nam_mp_006*`, `nam_mp_007*`, MP_009SR), none of them
+read by the scene.
+
+**The independent read** (`tests/package_levels_check.py`): every bundle of each level's stack unpacked whole by the
+suite's FbrbTool and converted by DbxEdit `xml`, as NavKit prepares a Dist level (NavKit's own current unpacks of
+`mp_common` and the Dist base levels read in place), the terrain bundles unpacked too, then loaded by the suite's level
+loader (`bfbc2core.level`'s `scene_load`) and compared with what the editor opened from its copy: the entity GUIDs in
+order, the entities with a blueprint type, every collision mesh (entity and blueprint, in order), the blueprints
+without collision, the collision triangles, the terrain's size and the water's triangles. **45 of 45 levels the
+same** (Vietnam and the others in 41 levels, scratch peak 1.32 GB; the Pacific War's 4, peak 1.97 GB; the scratch
+deleted). Guadalcanal's 7,144 entities are E1e's hand-prepared count.
+
+**Projects on Package levels** ("New map from an existing map"; `BC2_EDITOR_G3_PROJECTS`): on NAM_MP_002CQ, Wake
+Island and Coral Sea a project made through the editor's own flow has its base's profile (Vietnam, WW2), and a move
+plus a delete apply through levelwrite to the partition with nothing else changed (the moved object's `Transform`;
+the deleted instance, its `LevelData.Objects` entry and, on Wake, its `EventConnections`); "Check edits" replays both
+cleanly.

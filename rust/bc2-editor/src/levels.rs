@@ -14,6 +14,9 @@ use std::path::{Path, PathBuf};
 use bc2_scene::scene::{self, LoadOptions};
 use bc2_scene::walk;
 
+use crate::factions::{self, Profile};
+use crate::package;
+
 /// Project OPFOR BFBC2's folder name, beside the suite.
 pub const OPFOR_DIR: &str = "project-opfor-bfbc2";
 /// The environment variable naming Project OPFOR BFBC2's folder.
@@ -78,10 +81,15 @@ pub fn find_opfor(given: Option<&Path>) -> Result<PathBuf, String> {
 pub struct LevelInfo {
     /// The level's name, lower case (`mp_005`).
     pub lv: String,
-    /// NavKit has prepared it (`work\levels\<lv>\dist`): it can be opened.
+    /// It can be opened as it is: NavKit has prepared it (`work\levels\<lv>\dist`), or for a Package level, the
+    /// editor's copy is current (`work\editor\levels\<lv>`, [`crate::package`]).
     pub prepared: bool,
-    /// Its terrain unpack is there and current.
+    /// Its terrain unpack is there and current (a Package level's copy holds its terrain).
     pub terrain_current: bool,
+    /// It lives only in `game\Package` (Vietnam, Pacific War ...): prepared by the editor, not NavKit (round G3).
+    pub package: bool,
+    /// Its content profile (the badge).
+    pub profile: Profile,
 }
 
 /// The entries of `dir` in the order the file system lists them (Python's `os.listdir` / `glob` order).
@@ -94,8 +102,11 @@ fn lower_name(p: &Path) -> String {
         .map_or_else(String::new, |n| n.to_string_lossy().to_lowercase())
 }
 
-/// The levels of the game copy (`navkit.Project.level_dirs`): every folder of `game\Dist\win32\levels` with a
-/// `level-00.fbrb`, except the `_common` folders and OPFOR's `opfor_*` data-fill bundles; sorted by name.
+/// The levels of the game copy: those of `game\Dist\win32\levels` as NavKit lists them (`navkit.Project.level_dirs`:
+/// every folder with a `level-00.fbrb`, except the `_common` folders and OPFOR's `opfor_*` data-fill bundles), and the
+/// installed levels that live only in `game\Package` ([`package::package_levels`]: Vietnam, Pacific War and DICE's
+/// other Package-only levels; one not installed is not listed); sorted by name. Each Package level's profile, as its
+/// bundles say, is remembered for [`Profile::of`].
 #[must_use]
 pub fn list_levels(opfor: &Path) -> Vec<LevelInfo> {
     let base = opfor.join("game").join("Dist").join("win32").join("levels");
@@ -107,9 +118,22 @@ pub fn list_levels(opfor: &Path) -> Vec<LevelInfo> {
         .map(|lv| LevelInfo {
             prepared: opfor.join("work").join("levels").join(&lv).join("dist").is_dir(),
             terrain_current: terrain_unpack(opfor, &lv).is_ok(),
+            package: false,
+            profile: Profile::of(&lv),
             lv,
         })
         .collect();
+    for p in package::package_levels(opfor) {
+        factions::remember(&p.lv, p.profile);
+        let current = package::recorded(opfor, &p).is_ok();
+        out.push(LevelInfo {
+            prepared: current,
+            terrain_current: current,
+            package: true,
+            profile: p.profile,
+            lv: p.lv,
+        });
+    }
     out.sort_by(|a, b| a.lv.cmp(&b.lv));
     out
 }
@@ -217,6 +241,10 @@ pub struct Found {
 /// The level is not prepared, or has no partition.
 pub fn load_options(opfor: &Path, lv: &str) -> Result<Found, String> {
     let lv = lv.to_lowercase();
+    if let Some(p) = package::find(opfor, &lv) {
+        // a level of game\Package only: the editor's own copy (work\editor\levels\<lv>), not NavKit's
+        return package::load_options(opfor, &p);
+    }
     let base = opfor.join("work").join("levels").join(&lv);
     if !base.join("dist").is_dir() {
         return Err(format!(
