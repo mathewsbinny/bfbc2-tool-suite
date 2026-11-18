@@ -154,6 +154,9 @@ import apt  # noqa: E402  (the suite's APT reader: opcode names, the dump used t
 
 SIG = 0x09876543
 GRAFT_LAYOUT = {'apt': 'keep', 'geo': 'keep', 'const': 'pack'}     # how grafted movies are written
+# BFBC2_APTGRAFT_REFERENCE=1: the writer as before round E3n (reachable nodes, layout and code bytes made again on
+# every write; the old assembler) - the reference the faster writer is proven byte-identical against
+REFERENCE = os.environ.get('BFBC2_APTGRAFT_REFERENCE', '') not in ('', '0')
 FN_MAGIC = (0x98765432, 0x12345678)
 CHAR_SIZE = {1: 7, 2: 15, 3: 5, 5: 5, 6: 3, 7: 3, 9: 15, 10: 14}      # characters' sizes in 32-bit words
 
@@ -258,17 +261,26 @@ class Code(Node):
         self.ins = ins
 
     def size(self, phase: int = 0) -> int:
-        return len(assemble(self.ins, phase, '<', None))
+        if REFERENCE:
+            return len(assemble_reference(self.ins, phase, '<', None))
+        return _place(self.ins, phase, {}) - phase      # the placement alone: the bytes' length, none made
 
     def refs(self) -> list[AnyNode]:
         out: list[AnyNode] = []
-
-        def walk(lst: list[Ins]) -> None:
-            for i in lst:
-                out.extend(a.node for a in i.args if isinstance(a, Ref))
+        stack: list[tuple[list[Ins], int]] = [(self.ins, 0)]
+        while stack:                      # depth first, a body's references right after its definition's
+            lst, k = stack.pop()
+            n = len(lst)
+            while k < n:
+                i = lst[k]
+                k += 1
+                for a in i.args:
+                    if isinstance(a, Ref):
+                        out.append(a.node)
                 if i.body is not None:
-                    walk(i.body)
-        walk(self.ins)
+                    stack.append((lst, k))
+                    stack.append((i.body, 0))
+                    break
         return out
 
 
@@ -289,6 +301,8 @@ def _al(p: int) -> int:
 def assemble(stream: list[Ins], pos: int, e: str, resolve: Resolver | None) -> bytes:
     """Bytes of an instruction stream that starts at file offset pos (alignment depends on it). resolve(node) -> its
     offset, or None to size only (pointers written as 0)."""
+    if REFERENCE:
+        return assemble_reference(stream, pos, e, resolve)
     posmap: dict[int, int] = {}
     _place(stream, pos, posmap)
     out = bytearray()
@@ -296,7 +310,147 @@ def assemble(stream: list[Ins], pos: int, e: str, resolve: Resolver | None) -> b
     return bytes(out)
 
 
+def _kinds() -> tuple[int, ...]:
+    """The operand layout of each opcode (round E3n: one table lookup per instruction, decided by the operand sets in
+    _ins_len_reference's order): >= 0 that many operand bytes, unaligned; -1 / -2 one / two 32-bit fields after 4-byte
+    alignment; -3 / -4 DefineFunction / DefineFunction2 (24 / 28 bytes after alignment, then the body); -5 an
+    argument this tool does not know."""
+    out = []
+    for op in range(256):
+        if op in (0xB7, 0xB4):
+            k = 4
+        elif op in ALIGNED_INT or op in BRANCH or op in ONE_STR:
+            k = -1
+        elif op in (0x83, 0x88, 0x96, 0x8A):
+            k = -2
+        elif op in ONE_BYTE:
+            k = 1
+        elif op in (0xA3, 0xB6):
+            k = 2
+        elif op == 0x9B:
+            k = -3
+        elif op == 0x8E:
+            k = -4
+        elif op >= 0x80 and op not in apt.NAMES:
+            k = -5
+        else:
+            k = 0
+        out.append(k)
+    return tuple(out)
+
+
+_KIND = _kinds()
+_UNPACK = {e: (struct.Struct(e + 'I').unpack_from, struct.Struct(e + 'H').unpack_from, struct.Struct(e + 'i').unpack_from)
+           for e in '<>'}
+_ZEROS = (b'', bytes(1), bytes(2), bytes(3))
+_PACK = {e: (struct.Struct(e + 'I').pack, struct.Struct(e + 'i').pack, struct.Struct(e + 'H').pack,
+             struct.Struct(e + 'II').pack, struct.Struct(e + '6I').pack, struct.Struct(e + '2I2H4I').pack)
+         for e in '<>'}
+
+
 def _ins_len(i: Ins, p: int, posmap: dict[int, int]) -> int:
+    """The position after instruction i at p (records function bodies' instruction positions in posmap)."""
+    k = _KIND[i.op]
+    if k >= 0:
+        return p + 1 + k
+    if k == -1:
+        return ((p + 4) & ~3) + 4
+    if k == -2:
+        return ((p + 4) & ~3) + 8
+    if k == -5:
+        raise AptError(f'opcode {i.op:#04x} has an argument this tool does not know')
+    assert i.body is not None               # a function definition always has its body (_stream, Grafter.stream)
+    return _place(i.body, ((p + 4) & ~3) + (24 if k == -3 else 28), posmap)
+
+
+def _place(stream: list[Ins], pos: int, posmap: dict[int, int]) -> int:
+    """Records each instruction's position (and each stream's end, keyed by the list) in posmap; returns the end."""
+    K = _KIND
+    for i in stream:
+        posmap[id(i)] = pos
+        k = K[i.op]
+        if k >= 0:
+            pos += 1 + k
+        elif k == -1:
+            pos = ((pos + 4) & ~3) + 4
+        elif k == -2:
+            pos = ((pos + 4) & ~3) + 8
+        elif k == -5:
+            raise AptError(f'opcode {i.op:#04x} has an argument this tool does not know')
+        else:
+            assert i.body is not None           # a function definition always has its body (_stream, Grafter.stream)
+            pos = _place(i.body, ((pos + 4) & ~3) + (24 if k == -3 else 28), posmap)
+    posmap[id(stream)] = pos
+    return pos
+
+
+def _emit(stream: list[Ins], pos: int, e: str, R: Resolver | None, posmap: dict[int, int], out: bytearray) -> int:
+    pI, pi, pH, p2I, p6I, pf2 = _PACK[e]
+    K = _KIND
+
+    def ptr(v: Any) -> Any:
+        if isinstance(v, Ref):
+            return R(v.node) if R else 0
+        return v
+
+    for i in stream:
+        op, a = i.op, i.args
+        out.append(op)
+        p = pos + 1
+        k = K[op]
+        if k > 0:
+            if k == 4:
+                out += pI(a[0])
+            elif k == 1:
+                out.append(a[0] & 0xFF)
+            else:
+                out += pH(a[0] & 0xFFFF)
+            p += k
+        elif k < 0 and k != -5:
+            q = (p + 3) & ~3
+            out += _ZEROS[q - p]
+            p = q
+            if k == -1:
+                if op in BRANCH:
+                    p += 4
+                    tgt = posmap.get(id(i.target))
+                    if tgt is None:
+                        raise AptError(f'a branch at {i.at} has no target in its stream')
+                    out += pi(tgt - p)
+                else:
+                    out += pI(ptr(a[0]) if op in ONE_STR else a[0])
+                    p += 4
+            elif k == -2:
+                if op in (0x88, 0x96):
+                    out += p2I(len(a[1].node.vals) if isinstance(a[1], Ref) else a[0], ptr(a[1]))
+                else:
+                    out += p2I(ptr(a[0]), ptr(a[1]))
+                p += 8
+            else:
+                assert i.body is not None       # a function definition always has its body (_stream, Grafter.stream)
+                body = p + (24 if k == -3 else 28)
+                size = posmap[id(i.body)] - body
+                if k == -3:             # name, nparams, params, size, magic x2
+                    out += p6I(ptr(a[0]), a[1], ptr(a[2]), size, a[3], a[4])
+                else:                   # name, nparams, u16 registers, u16 flags, params, size, magic x2
+                    out += pf2(ptr(a[0]), a[1], a[2] & 0xFFFF, a[2] >> 16, ptr(a[3]), size, a[4], a[5])
+                _emit(i.body, body, e, R, posmap, out)
+                p = body + size
+        pos = p
+    return pos
+
+
+def assemble_reference(stream: list[Ins], pos: int, e: str, resolve: Resolver | None) -> bytes:
+    """assemble() as before round E3n (the reference, BFBC2_APTGRAFT_REFERENCE=1). Bytes of an instruction stream that starts at file offset pos (alignment depends on it). resolve(node) -> its
+    offset, or None to size only (pointers written as 0)."""
+    posmap: dict[int, int] = {}
+    _place_reference(stream, pos, posmap)
+    out = bytearray()
+    _emit_reference(stream, pos, e, resolve, posmap, out)
+    return bytes(out)
+
+
+def _ins_len_reference(i: Ins, p: int, posmap: dict[int, int]) -> int:
     """The position after instruction i at p (records function bodies' instruction positions in posmap)."""
     op = i.op
     p += 1
@@ -313,21 +467,21 @@ def _ins_len(i: Ins, p: int, posmap: dict[int, int]) -> int:
     if op in (0x9B, 0x8E):
         body = _al(p) + (24 if op == 0x9B else 28)
         assert i.body is not None               # a function definition always has its body (_stream, Grafter.stream)
-        return _place(i.body, body, posmap)
+        return _place_reference(i.body, body, posmap)
     if op >= 0x80 and op not in apt.NAMES:
         raise AptError(f'opcode {op:#04x} has an argument this tool does not know')
     return p
 
 
-def _place(stream: list[Ins], pos: int, posmap: dict[int, int]) -> int:
+def _place_reference(stream: list[Ins], pos: int, posmap: dict[int, int]) -> int:
     for i in stream:
         posmap[id(i)] = pos
-        pos = _ins_len(i, pos, posmap)
+        pos = _ins_len_reference(i, pos, posmap)
     posmap[id(stream)] = pos
     return pos
 
 
-def _emit(stream: list[Ins], pos: int, e: str, R: Resolver | None, posmap: dict[int, int], out: bytearray) -> int:
+def _emit_reference(stream: list[Ins], pos: int, e: str, R: Resolver | None, posmap: dict[int, int], out: bytearray) -> int:
     def ptr(v: Any) -> Any:
         if isinstance(v, Ref):
             return R(v.node) if R else 0
@@ -375,7 +529,7 @@ def _emit(stream: list[Ins], pos: int, e: str, R: Resolver | None, posmap: dict[
             else:                        # name, nparams, u16 registers, u16 flags, params, size, magic x2
                 out += struct.pack(e + '2I2H4I', ptr(a[0]), a[1], a[2] & 0xFFFF, a[2] >> 16, ptr(a[3]), size,
                                    a[4], a[5])
-            _emit(i.body, body, e, R, posmap, out)
+            _emit_reference(i.body, body, e, R, posmap, out)
             p = body + size
         pos = p
     return pos
@@ -420,9 +574,41 @@ def write_bigf(members: Members) -> bytes:
 
 # ------------------------------------------------------------------------------------------------ the movie
 
+def _words_packer(e: str) -> Callable[[int], Callable[..., bytes]]:
+    cache: dict[int, Callable[..., bytes]] = {}
+
+    def get(n: int) -> Callable[..., bytes]:
+        f = cache.get(n)
+        if f is None:
+            f = cache[n] = struct.Struct(f'{e}{n}I').pack
+        return f
+    return get
+
+
+_PACK_WORDS = {e: _words_packer(e) for e in '<>'}     # the packer of n 32-bit fields in a byte order
+
+
+class Plan:
+    """Movie.plan(): the reachable nodes of an unchanged model placed in one layout - the members' sizes, each node's
+    offset, each code node's placement (made while sizing it) - and the bytes made from it per byte order."""
+    __slots__ = ('nodes', 'layout', 'size', 'code', 'placed', 'done', 'base')
+
+    def __init__(self, nodes: dict[str, list[AnyNode]], layout: str | dict[str, str]) -> None:
+        self.nodes, self.layout = nodes, layout
+        self.size: dict[str, int] = {}                          # member -> its size
+        self.code: dict[int, tuple[int, dict[int, int]]] = {}   # id(code node) -> (phase, posmap)
+        self.placed: list[tuple[AnyNode, int | None]] = []      # (node, new_at)
+        self.done: dict[str, dict[int, bytes]] = {}             # byte order -> {id(node): its bytes}
+        self.base: dict[str, bytes] = {}                        # member -> its kept dead data, the rest zero
+
+    def lay(self, f: str) -> str:
+        return self.layout.get(f, 'keep') if isinstance(self.layout, dict) else self.layout
+
+
 class Movie:
     """A parsed movie. Movie(members=[(name, bytes)]) or Movie.load(spec)."""
     _cidx: dict[Any, int]                     # const_index(): {constant: index}, built on first use
+    _memo: dict[int, tuple[int, dict[int, int]]] | None = None     # plan(): code placements of the plan being made
 
     def __init__(self, members: Members, label: str = 'movie') -> None:
         self.label = label
@@ -487,6 +673,10 @@ class Movie:
         return n
 
     def string(self, f: str, at: int) -> Str:
+        n = self.cache.get((f, at, 's'))
+        if n is not None:                             # read before (no closure made: 400 k calls a roundtrip)
+            return cast(Str, n)
+
         def make() -> Str:
             b = self.data[f]
             if not 0 < at < len(b):
@@ -664,6 +854,91 @@ class Movie:
 
     def _stream(self, p: int, end: int | None) -> tuple[list[Ins], int]:
         """Instructions from p: to the top-level End (end None) or to end exactly. -> (list, end)."""
+        if REFERENCE:
+            return self._stream_reference(p, end)
+        a, e = self.data['apt'], self.e
+        uI, uH, ui = _UNPACK[e]
+        K, n_a = _KIND, len(a)
+        out: list[Ins]
+        out, start = [], p
+        app = out.append
+        while True:
+            if end is None and out and out[-1].op == 0:
+                break
+            if end is not None and p >= end:
+                if p != end:
+                    raise AptError(f'{self.label}: a function body ending at {end:#x} does not decode to its end')
+                break
+            if p >= n_a:
+                raise AptError(f'{self.label}: code from {start:#x} runs past the end of the file')
+            op, at = a[p], p
+            p += 1
+            k = K[op]
+            if k == 0:                                   # no operand (every opcode below 0x80, and a few above)
+                app(Ins(op, at=at))
+                continue
+            ins = Ins(op, at=at)
+            if k == 4:
+                ins.args = [uI(a, p)[0]]; p += 4
+            elif k == 1:
+                ins.args = [a[p]]; p += 1
+            elif k == 2:
+                ins.args = [uH(a, p)[0]]; p += 2
+            elif k == -1:
+                p = (p + 3) & ~3
+                if op in BRANCH:
+                    v = ui(a, p)[0]; p += 4
+                    ins.target = p + v                         # resolved below
+                elif op in ONE_STR:
+                    ins.args = [self.sref('apt', uI(a, p)[0])]; p += 4
+                else:
+                    ins.args = [uI(a, p)[0]]; p += 4
+            elif k == -2:
+                p = (p + 3) & ~3
+                if op == 0x83:
+                    ins.args = [self.sref('apt', uI(a, p)[0]), self.sref('apt', uI(a, p + 4)[0])]
+                elif op == 0x8A:
+                    ins.args = [uI(a, p)[0], uI(a, p + 4)[0]]
+                else:
+                    cnt = uI(a, p)[0]
+                    ins.args = [cnt, self.wref('apt', uI(a, p + 4)[0], cnt, 'poollist' if op == 0x88 else 'pushlist')]
+                p += 8
+            elif k == -3:
+                p = (p + 3) & ~3
+                name, npar, params, size, m1, m2 = struct.unpack_from(e + '6I', a, p)
+                ins.args = [self.sref('apt', name), npar,
+                            self.wref('apt', params, npar, 'f1params', self._fill_f1), m1, m2]
+                body = p + 24
+                ins.body, _ = self._stream(body, body + size)
+                p = body + size
+            elif k == -4:
+                p = (p + 3) & ~3
+                name, npar = struct.unpack_from(e + '2I', a, p)
+                nregs, flags = struct.unpack_from(e + '2H', a, p + 8)    # two 16-bit fields, not one 32-bit
+                params, size, m1, m2 = struct.unpack_from(e + '4I', a, p + 12)
+                ins.args = [self.sref('apt', name), npar, nregs | flags << 16,
+                            self.wref('apt', params, 2 * npar, 'f2params', self._fill_f2), m1, m2]
+                body = p + 28
+                ins.body, _ = self._stream(body, body + size)
+                p = body + size
+            else:
+                raise AptError(f'{self.label}: opcode {op:#04x} at {at:#x} has an argument this tool does not know')
+            app(ins)
+        by_at = {i.at: i for i in out}
+        for i in out:
+            if i.op in BRANCH:
+                t = i.target
+                if t == p:
+                    i.target = out
+                elif t in by_at:
+                    i.target = by_at[t]
+                else:
+                    raise AptError(f'{self.label}: the branch at {i.at:#x} does not land on an instruction of its '
+                                   'stream')
+        return out, p
+
+    def _stream_reference(self, p: int, end: int | None) -> tuple[list[Ins], int]:
+        """_stream as before round E3n (BFBC2_APTGRAFT_REFERENCE=1)."""
         a, u, e = self.data['apt'], (lambda o: self._u('apt', o)), self.e
         out: list[Ins]
         out, start = [], p
@@ -707,7 +982,7 @@ class Movie:
                 ins.args = [self.sref('apt', name), npar,
                             self.wref('apt', params, npar, 'f1params', self._fill_f1), m1, m2]
                 body = p + 24
-                ins.body, _ = self._stream(body, body + size)
+                ins.body, _ = self._stream_reference(body, body + size)
                 p = body + size
             elif op == 0x8E:
                 p = _al(p)
@@ -717,7 +992,7 @@ class Movie:
                 ins.args = [self.sref('apt', name), npar, nregs | flags << 16,
                             self.wref('apt', params, 2 * npar, 'f2params', self._fill_f2), m1, m2]
                 body = p + 28
-                ins.body, _ = self._stream(body, body + size)
+                ins.body, _ = self._stream_reference(body, body + size)
                 p = body + size
             elif op >= 0x80 and op not in apt.NAMES:
                 raise AptError(f'{self.label}: opcode {op:#04x} at {at:#x} has an argument this tool does not know')
@@ -924,52 +1199,98 @@ class Movie:
         return out
 
     def write(self, order: str | None = None, layout: str | dict[str, str] = 'keep', gap: int = 0,
-              dead: bool = True) -> Members:
+              dead: bool = True, *, plan: 'Plan | None' = None) -> Members:
         """[(member name, bytes)] in the original member order. order '<' / '>' (default: the movie's own);
         layout 'keep' or 'pack' (module doc), or {member: layout} ('apt' / 'const' / 'geo'; default keep); gap: bytes added after each header (pack only, for tests); dead: in
-        the keep layout and the movie's own byte order, bytes no structure points at are kept (else zero)."""
+        the keep layout and the movie's own byte order, bytes no structure points at are kept (else zero).
+        plan: a Plan of this movie made by plan() (its layout and gap are then the plan's) - writes of an unchanged
+        model in one layout share the reachable nodes, the layout and each node's bytes (roundtrip)."""
+        if REFERENCE:
+            return self.write_reference(order, layout, gap, dead)
         e = order or self.e
-        nodes = self.reachable()
-        size: dict[str, int] = {}
-
-        def lay(f: str) -> str:
-            return layout.get(f, 'keep') if isinstance(layout, dict) else layout
-        for f in ('apt', 'const', 'geo'):
-            if f in nodes:
-                size[f] = self._layout(nodes[f], f, lay(f), gap)
+        if plan is None:
+            plan = self.plan(layout, gap)
+        else:
+            for n, at in plan.placed:                # another write may have placed the nodes elsewhere
+                n.new_at = at
         resolve = (lambda n: n.new_at)
+        done = plan.done.setdefault(e, {})
+        pack_words = _PACK_WORDS[e]
         data: dict[str, bytes] = {}
-        for f in size:
-            buf = bytearray(size[f])
-            if dead and lay(f) == 'keep' and e == self.e:
+        for f, fsize in plan.size.items():
+            if dead and plan.lay(f) == 'keep' and e == self.e:
                 # bytes no structure points at (dead data an in-place patch left behind) stay as they were;
                 # the places of everything read are cleared, then the reachable nodes written
-                buf[:len(self.data[f])] = self.data[f]
-                for n in self.cache.values():
-                    if n.file == f and n.size0:
-                        buf[n.at:n.at + n.size0] = bytes(n.size0)
-                for n in (self.apt_head, self.const_magic, getattr(self, 'geo_magic', None)):
-                    if n is not None and n.file == f:
-                        assert n.at is not None and n.size0 is not None     # headers: read at 0, size0 set (_parse)
-                        buf[n.at:n.at + n.size0] = bytes(n.size0)
-            for n in nodes[f]:
-                assert n.new_at is not None         # _layout placed every reachable node of the member
-                if isinstance(n, Raw):
-                    b = n.data
-                elif isinstance(n, Str):
-                    b = n.text + b'\0'
-                elif isinstance(n, Words):
-                    b = b''.join(struct.pack(e + 'I', resolve(v.node) if isinstance(v, Ref) else v & 0xFFFFFFFF)
-                                 for v in n.vals)
-                else:
-                    b = assemble(n.ins, n.new_at, e, resolve)
-                buf[n.new_at:n.new_at + len(b)] = b
+                base = plan.base.get(f)
+                if base is None:
+                    kept = bytearray(fsize)
+                    kept[:len(self.data[f])] = self.data[f]
+                    for c in self.cache.values():
+                        if c.file == f and c.size0:
+                            kept[c.at:c.at + c.size0] = bytes(c.size0)
+                    for h in (self.apt_head, self.const_magic, getattr(self, 'geo_magic', None)):
+                        if h is not None and h.file == f:
+                            assert h.at is not None and h.size0 is not None     # headers: read at 0, size0 set
+                            kept[h.at:h.at + h.size0] = bytes(h.size0)
+                    plan.base[f] = base = bytes(kept)
+                buf = bytearray(base)
+            else:
+                buf = bytearray(fsize)
+            for n in plan.nodes[f]:
+                at = n.new_at
+                assert at is not None               # _layout placed every reachable node of the member
+                b = done.get(id(n))
+                if b is None:
+                    if isinstance(n, Raw):
+                        b = n.data
+                    elif isinstance(n, Str):
+                        b = n.text + b'\0'
+                    elif isinstance(n, Words):
+                        v = n.vals
+                        b = pack_words(len(v))(*[x.node.new_at if isinstance(x, Ref) else x & 0xFFFFFFFF for x in v])
+                    else:
+                        placed = plan.code.get(id(n))
+                        if placed is not None and placed[0] == at % 4:
+                            # the placement made for its size, at its phase: the same bytes (alignment depends on
+                            # the offset modulo 4 only, branches and body sizes are relative)
+                            code = bytearray()
+                            _emit(n.ins, placed[0], e, resolve, placed[1], code)
+                            b = bytes(code)
+                        else:
+                            b = assemble(n.ins, at, e, resolve)
+                    done[id(n)] = b
+                buf[at:at + len(b)] = b
             data[f] = bytes(buf)
         out = []
         for name in self.order:
             fk = next((k for k, v in self.names.items() if v == name), None)
             out.append((name, data[fk] if fk else dict(self.extra)[name]))
         return out
+
+    def plan(self, layout: str | dict[str, str] = 'keep', gap: int = 0,
+             nodes: dict[str, list[AnyNode]] | None = None) -> 'Plan':
+        """The reachable nodes (nodes: given, from reachable() of this unchanged model) placed in a layout, for
+        write(plan=...): valid while the model is not changed."""
+        plan = Plan(nodes if nodes is not None else self.reachable(), layout)
+        self._memo = plan.code
+        try:
+            for f in ('apt', 'const', 'geo'):
+                if f in plan.nodes:
+                    plan.size[f] = self._layout(plan.nodes[f], f, plan.lay(f), gap)
+        finally:
+            self._memo = None
+        plan.placed = [(n, n.new_at) for lst in plan.nodes.values() for n in lst]
+        return plan
+
+    def _size(self, n: AnyNode, phase: int) -> int:
+        """n.size(phase); a code node's placement is kept in the plan being made (write emits from it)."""
+        memo = self._memo
+        if memo is not None and isinstance(n, Code):
+            posmap: dict[int, int] = {}
+            end = _place(n.ins, phase, posmap)
+            memo[id(n)] = (phase, posmap)
+            return end - phase
+        return n.size(phase)
 
     def _layout(self, nodes: list[AnyNode], f: str, layout: str, gap: int) -> int:
         """Sets new_at for every node of member f; returns the member's size."""
@@ -980,7 +1301,7 @@ class Movie:
             moved = []
             for n in old:
                 assert n.at is not None             # old: the nodes read from the file
-                if n.size(n.at % 4) == n.size0:
+                if self._size(n, n.at % 4) == n.size0:
                     n.new_at = n.at
                 else:
                     moved.append(n)
@@ -1002,14 +1323,13 @@ class Movie:
                 n.new_at = at
             if n.tag in fixed and (k + 1 == len(old) or old[k + 1].tag not in fixed):
                 shift += gap
-            prev_end = max(prev_end, n.new_at + n.size(n.new_at % 4))
+            prev_end = max(prev_end, n.new_at + self._size(n, n.new_at % 4))
         end = max(prev_end, end0 + shift)
         for n in new:
             end = self._append(n, end)
         return end
 
-    @staticmethod
-    def _append(n: AnyNode, end: int) -> int:
+    def _append(self, n: AnyNode, end: int) -> int:
         if isinstance(n, Str):
             n.new_at = end
             return end + n.size()
@@ -1017,16 +1337,63 @@ class Movie:
         if isinstance(n, Code) and n.at is not None:
             at += n.at % 4                           # its operands are aligned for this phase
         n.new_at = at
-        return at + n.size(at % 4)
+        return at + self._size(n, at % 4)
+
+    # write as before round E3n (BFBC2_APTGRAFT_REFERENCE=1): the reachable nodes, the layout and every code
+    # node's bytes (assembled twice: for its size, then written) made again on every write
+    def write_reference(self, order: str | None = None, layout: str | dict[str, str] = 'keep', gap: int = 0,
+                        dead: bool = True) -> Members:
+        e = order or self.e
+        nodes = self.reachable()
+        size: dict[str, int] = {}
+
+        def lay(f: str) -> str:
+            return layout.get(f, 'keep') if isinstance(layout, dict) else layout
+        self._memo = None
+        for f in ('apt', 'const', 'geo'):
+            if f in nodes:
+                size[f] = self._layout(nodes[f], f, lay(f), gap)
+        resolve = (lambda n: n.new_at)
+        data: dict[str, bytes] = {}
+        for f in size:
+            buf = bytearray(size[f])
+            if dead and lay(f) == 'keep' and e == self.e:
+                buf[:len(self.data[f])] = self.data[f]
+                for n in self.cache.values():
+                    if n.file == f and n.size0:
+                        buf[n.at:n.at + n.size0] = bytes(n.size0)
+                for n in (self.apt_head, self.const_magic, getattr(self, 'geo_magic', None)):
+                    if n is not None and n.file == f:
+                        assert n.at is not None and n.size0 is not None     # headers: read at 0, size0 set (_parse)
+                        buf[n.at:n.at + n.size0] = bytes(n.size0)
+            for n in nodes[f]:
+                assert n.new_at is not None         # _layout placed every reachable node of the member
+                if isinstance(n, Raw):
+                    b = n.data
+                elif isinstance(n, Str):
+                    b = n.text + b'\0'
+                elif isinstance(n, Words):
+                    b = b''.join(struct.pack(e + 'I', resolve(v.node) if isinstance(v, Ref) else v & 0xFFFFFFFF)
+                                 for v in n.vals)
+                else:
+                    b = assemble_reference(n.ins, n.new_at, e, resolve)
+                buf[n.new_at:n.new_at + len(b)] = b
+            data[f] = bytes(buf)
+        out = []
+        for name in self.order:
+            fk = next((k for k, v in self.names.items() if v == name), None)
+            out.append((name, data[fk] if fk else dict(self.extra)[name]))
+        return out
 
     def to_res(self, order: str | None = None, layout: str | dict[str, str] = 'keep', gap: int = 0) -> bytes:
         return write_bigf(self.write(order, layout, gap))
 
     # --- checks -----------------------------------------------------------------------------------------------
-    def leftovers(self) -> list[tuple[str, str]]:
-        """Bytes of the members no node accounts for that are not zero, and overlapping nodes: [(file, text)]."""
+    def leftovers(self, nodes: dict[str, list[AnyNode]] | None = None) -> list[tuple[str, str]]:
+        """Bytes of the members no node accounts for that are not zero, and overlapping nodes: [(file, text)].
+        nodes: reachable() of this unchanged model, when the caller has it."""
         out = []
-        nodes = self.reachable()
+        nodes = nodes if nodes is not None else self.reachable()
         for f, lst in nodes.items():
             b = self.data[f]
             spans = sorted((n.at, n.at + n.size0, n) for n in lst if n.at is not None and n.size0)
@@ -2253,26 +2620,30 @@ def roundtrip(spec: str, pack: bool = False) -> tuple[list[str], list[str]]:
         if raw != orig:
             problems.append('the BIGF container is laid out differently from this writer\'s')
     m = Movie(members, label)
-    notes = [f'{f}: {t}' for f, t in m.leftovers()]
+    # round E3n: the model is not changed here, so its reachable nodes are found once and each layout's plan
+    # (offsets, code placements, node bytes) serves every write in it (BFBC2_APTGRAFT_REFERENCE=1: as before)
+    plan = None if REFERENCE else m.plan('keep')
+    notes = [f'{f}: {t}' for f, t in m.leftovers(plan.nodes if plan else None)]
     problems += [n for n in notes if 'overlaps' in n]
-    out = m.write()
+    out = m.write(plan=plan)
     for (n, a), (_, b) in zip(members, out):
         if a != b:
             k = next((i for i in range(min(len(a), len(b))) if a[i] != b[i]), min(len(a), len(b)))
             problems.append(f'{n}: written differently from offset {k:#x} (sizes {len(a)} / {len(b)})')
     if pack and not problems:
-        packed = m.write(layout='pack', gap=16)
+        packed = m.write(layout='pack', gap=16, plan=m.plan('pack', 16, plan.nodes) if plan else None)
         if any(len(b) <= len(a) for (n, a), (_, b) in zip(members, packed)
                if n in m.names.values()):
             problems.append('the packed layout did not move the data')
         if dump_text(packed) != dump_text(members):
             problems.append('packed layout: apt.py reads a different movie')
         m2 = Movie(packed, label + ' (packed)')
-        if m2.leftovers() or m2.write() != packed:
+        plan2 = None if REFERENCE else m2.plan('keep')
+        if m2.leftovers(plan2.nodes if plan2 else None) or m2.write(plan=plan2) != packed:
             problems.append('packed layout: not read back completely')
         other = '<' if m.big else '>'
-        conv = Movie(m.write(order=other), label + ' (other byte order)')
-        if conv.write(order=m.e) != m.write(dead=False):
+        conv = Movie(m.write(order=other, plan=plan), label + ' (other byte order)')
+        if conv.write(order=m.e) != m.write(dead=False, plan=plan):
             problems.append('converting to the other byte order and back changes the movie')
     return problems, notes
 

@@ -159,5 +159,7 @@
  "Rust Granny reader and Xbox 360 -> PC conversion against granny.py (built, damaged, batch, writes)": 2.5,
  "Rust Granny reader and conversion on every Granny resource of your Xbox files, the game copy and BF1943": 229.5,
  "cull tree reference rows cache and shape memo against the reference (E3m; built levels: no cache, cold, warm, changed)": 2.5,
- "cull tree add and verify on Onslaught MP_005 against every work\\levels folder: reference, no cache, cold, warm (E3m)": 520.0
+ "cull tree add and verify on Onslaught MP_005 against every work\\levels folder: reference, no cache, cold, warm (E3m)": 520.0,
+ "APT decoder (Rust) and aptgraft writer against their references (E3n; built movies, 600 damaged, 3,000 floats, grafts)": 8.6,
+ "APT decoder (Rust) and aptgraft writer against their references on every movie of the game copy, the pristine menus and the Xbox HUD copies; aptrefs / aptcheck / bc2loc both ways (E3n)": 1180.0
 }

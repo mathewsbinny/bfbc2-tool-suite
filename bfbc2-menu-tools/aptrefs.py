@@ -31,6 +31,7 @@ import sys
 from typing import Any
 
 import menucommon as mc
+from menucommon import apt
 
 IDENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 STRING_PUSH = (0xA1, 0xA2, 0xA3)                 # EA_PushString, EA_PushConstant, EA_PushWordConstant
@@ -193,9 +194,21 @@ def scan_movies(specs, sets, root):
     import aptcheck
     found = []
     if specs:
+        # read first, then decoded many at once on all cores (apt.decoded); a movie that cannot be read raises at its
+        # place, as before
+        got: list = []
         for spec in specs:
-            label, members = mc.resolve(spec, root)
-            m = mc.movie_from_members(members, label)
+            try:
+                label, members = mc.resolve(spec, root)
+                got.append((label, mc.movie_from_members(members, label)))
+            except Exception as e:
+                got.append((None, e))
+                break
+        ready = iter(apt.decoded(m for label, m in got if label is not None))
+        for label, m in got:
+            if label is None:
+                raise m
+            m = next(ready)
             found.append((label, m.name, movie_refs(aptcheck.Code(m))))
         return found
     root = root or mc.find_opfor()
@@ -212,12 +225,14 @@ def scan_movies(specs, sets, root):
             by_bundle.setdefault(bundle, []).append(entry)
         for bundle, entries in by_bundle.items():
             data = fbrb.read(bundle, entries)
+            read = []
             for entry in sorted(entries):
                 try:
                     members = mc.parse_bigf(data[entry], entry)
-                    m = mc.movie_from_members(members, entry)
+                    read.append(mc.movie_from_members(members, entry))
                 except mc.MenuToolError:
                     continue                       # a .res that is not a movie
+            for m in apt.decoded(read):          # many at once on all cores (the Rust core when it is built)
                 found.append((f'{key}:{m.name}', m.name, movie_refs(aptcheck.Code(m))))
     return found
 

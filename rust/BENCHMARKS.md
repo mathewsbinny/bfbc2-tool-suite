@@ -1773,3 +1773,91 @@ meshes is the next step if renderqa's mesh loops grow).
 `test_xdiff.py --game` (served on threads against one process per shader), `test_xdiff.py --game-all` (new game
 entry: every Wake pixel shader, ~170 s), `test_renderqa.py --game` (served against a process of its own). Seeds in
 `tests\test_durations.json`; the renderqa game seed was 48.1 s from an older run (the truth index built cold).
+
+## E3n: the menu tools' APT code (2026-11-17, branch `rust-e3n`)
+
+**Provisional timings:** WW2 rebuilds and other agents' builds and tests ran beside every figure (below-normal
+priority); ratios hold within a run, absolute seconds move by up to 2x between runs.
+
+E3m's items 4, 5, 7 and 16: `aptgraft roundtrip --pack` (164 s profiled), `aptrefs xref` (47 s), aptcheck on every
+movie (37 s), bc2loc's movie constants (3.7 s). Algorithm first, then Rust.
+
+### What changed
+
+- **aptgraft's writer** (`bfbc2-menu-tools/aptgraft.py`). Each write recomputed the reachable nodes, sized every
+  code node by assembling it (`Code.size` = `len(assemble(...))`, pointers 0) and then assembled it again to write
+  it, so every instruction was placed twice and emitted twice per write; `roundtrip --pack` makes 6 writes of three
+  models and walks the reachable nodes 8 times per movie. Now:
+  - `Code.size` is the placement alone (`_place`, no bytes made); `Movie.plan(layout, gap)` keeps each code node's
+    placement made while sizing it, and the write emits from it (alignment depends only on the offset modulo 4, which
+    the placement shares with the write; branch offsets and body sizes are relative), so each instruction is placed
+    once and emitted once;
+  - placement, emission and the parser's instruction loop dispatch on one 256-entry operand table (`_KIND`, made from
+    the operand sets in the reference's order) with precompiled `struct` packers; a `Words` node is one `pack` call;
+  - `roundtrip` finds the reachable nodes once per model and shares one `Plan` per layout among the writes of the
+    unchanged model (`write(plan=...)`: the node offsets, the kept dead data and each node's bytes per byte order);
+    `leftovers(nodes)` takes the same nodes;
+  - `Code.refs` walks with an explicit stack (the same order: a body's references right after its definition's).
+  `aptgraft.REFERENCE` (`BFBC2_APTGRAFT_REFERENCE=1`) runs the writer and parser as before (`write_reference`,
+  `assemble_reference`, `_stream_reference`).
+- **apt.py's decoder in Rust** (`bc2_formats::apt`, bound as `bc2_native.apt_constants` / `apt_decode` /
+  `apt_decode_many`; `bfbc2-console-readers/apt/apt.py`): the constants of `Movie.__init__`, `dump()` and
+  `instructions()` with `dump_lines`. The records come back as 15 column lists that `apt.py` zips into
+  `(Ins, start, limit, depth)` in C (`tuple.__new__(Ins, fields)`, the cycle collector paused) - building one tuple
+  per record in Rust cost twice as much; the dump's lines stay in Rust (`AptLines`) until `dump_lines` is read (the
+  tools never read it). `%g` is ported (`format_g`: six significant digits, ties to even, as Python). The Rust
+  refuses whatever the Python would not decode in bounds - a read past the end or at a negative offset (Python reads
+  those from the end, or raises `struct.error` / `IndexError`, which the dump writes into its text for frame items),
+  nesting deeper than 64 - and that movie is decoded by the Python code, so every answer, error included, is the
+  reference's. A Movie with a `sink` always runs in Python. `apt.decoded(movies, chunk)` decodes many movies at once
+  on all cores, a chunk (twice the cores) at a time so only a few movies' records are held; aptrefs' scan and
+  `aptcheck check <several movies>` use it. `apt.use_native`, `apt.backend()`, `BFBC2_PURE_PYTHON=1`;
+  `dump_python` / `instructions_python` are the reference.
+- **bc2loc's movie constants** (E3m item 16): `Movie.__init__`'s constant list in Rust (`apt_constants`, 4x on the
+  133 movies) was enough; no disk cache was added (bc2loc dump 3.0 -> 1.9 s for English + Russian).
+- Not done: aptgraft's parser and model in Rust. The parse builds the Python model (2.7 M `Ins`, 0.7 M `Words`,
+  0.4 M `Str` objects for a roundtrip) that the grafting code edits; a Rust parser would still create every object
+  through the interpreter. It is now the largest cost of `roundtrip` (about a third), with `write`'s per-node loop.
+
+### Before and after (unprofiled)
+
+| workload | before, s | E3n, s | |
+|---|---:|---:|---:|
+| `apt.Movie.instructions()`, the 133 movies (2,913,639 instructions) | 10.9 | 4.7 one by one, **3.6** `decoded()` | 2.3-3x |
+| `apt.Movie.dump()`, the same (3,125,206 lines) | 7.1 | **2.2** | 3.2x |
+| `apt.Movie(...)` (constants), the same | 0.57 | 0.13 | 4.4x |
+| aptrefs xref (every movie set, the exe's table) | 11.8 / 12.8 | **4.3** / 6.5 | 2-2.7x |
+| aptcheck's rules on every movie (128) | 9.1 / 12.6 | **5.0** / 5.3 | 1.8-2.4x |
+| bc2loc dump, English + Russian | 3.0 | 1.9 | 1.6x |
+| `aptgraft roundtrip --pack`, 73 movies (50 distinct) | 48.3 | **26.6** | 1.8x |
+| the 133 movies: every write of the unchanged model (1,999 writes with grafts) | 116.0 | 58.9 | 2.0x |
+| the 133 movies: `roundtrip --pack` | 172.7 | 99.4 | 1.7x |
+
+(The second figures of aptrefs / aptcheck are the game test's, run beside a WW2 rebuild.) The 128 movies' rules
+spend what is left in aptcheck's own Python (`Code.__init__`, `findings`: 3.6 of 5 s), aptrefs in `movie_refs`.
+
+### Parity
+
+- `bfbc2-menu-tools/tests/test_apt_e3n.py` (quick, 8 s; `--game` ~20 min beside a WW2 rebuild): test_aptgraft.py's built movies (little- and big-endian,
+  grafted, crosshair-added) and a movie of 3,000 seeded `EA_PushFloat` values (zeros, infinities, NaNs, denormals,
+  ties) - the constants, dump and records both ways, equal values with equal types, single and batched; 600 damaged
+  copies (truncated, code bytes changed, operands pointed inside / past the file, opcodes made branches, functions,
+  lists, unknown): the same result or the same exception (46 raise in Python; 179 more the Rust refused and Python
+  decoded); every write, `roundtrip --pack`, grafts and crosshair-add against `REFERENCE`, and 200 damaged movies
+  written or refused as the reference.
+- `--game`: the game copy's 128 distinct SwfMovies (Dist and Package), OPFOR's pristine menu bundle and the Xbox HUD
+  copies of `work\xbox_dlc` - 133 distinct movies: 2,913,639 instructions and 3,125,206 dump lines the same both
+  ways; every write of each unchanged model (8 ways), two of its sprites grafted into the next movie of its byte order and written three ways, and `roundtrip --pack` - 1,463 writes - byte-identical to `REFERENCE` (the same bytes, problems and notes; 575.8 s reference, 450.5 s E3n beside a WW2 rebuild, both with grafting's own Python); the parity script of this round (scratch, the same corpus): 1,999 writes and 133 roundtrips, 0 differ; aptrefs xref (text and JSON), aptcheck on the 128 movie-set movies (1,924,750 instructions:
+  the same records, functions and findings) and bc2loc dump (English, Russian) byte-identical with either decoder.
+- Rust: `cargo test -p bc2-formats apt` (the `%g` cases, the dump of a built movie, a read past the end refused) and
+  the module's doc example.
+
+### For OPFOR (not edited this round)
+
+OPFOR's menu callers use aptgraft's model (`Movie.load`, the graft helpers, `to_res` once per movie: the parse and
+one write, now with the faster placement and table) and run `aptcheck.py check <movie>` in a subprocess per movie
+(`src\tools\ww2\menu_install.py`, `wake_ui.py`, `duplicates.py`, `weapon_icons.py`): one `aptcheck.py check a b c`
+(now decoded together on all cores), or `aptcheck.Code` in process over `apt.decoded(movies)`, would save a Python
+start and an import per movie. `qa_checks.py` / `ww2_crosshairs.py` read crosshair tables and `deps` through the
+model (no decoder). bc2loc users (`names.py`, `ww2_awards.py`, `menu_install.py`) gain the faster constants when
+they read movies.
