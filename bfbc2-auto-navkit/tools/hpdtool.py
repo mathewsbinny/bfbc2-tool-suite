@@ -11,6 +11,11 @@ Usage:
 
 Sector.mesh holds the raw runtime-mesh record; kymesh.parse_mesh / write_mesh convert it to and
 from the structured model (areas, portals, outlines, cells, neighbour links).
+
+parse and write run in the suite's Rust core when it is built (round F0: bc2_native.hpd_parse / hpd_write, the same
+objects value for value and the same bytes; where the reference would raise, or a value is a NaN, the Python runs, so
+the error stays this module's). parse_reference / write_reference are the Python, kept as the reference and the
+fallback; BFBC2_PURE_PYTHON=1 or use_native(False) runs them only.
 """
 import contextlib
 import os
@@ -18,7 +23,7 @@ import struct
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
@@ -73,7 +78,51 @@ class HpdFile:
     sectors: list[Sector]
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with hpd_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'hpd_parse') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust reader / writer on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when
+    it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
 def parse(data: bytes) -> HpdFile:
+    """The file as an HpdFile: in the Rust core when it is built (round F0), else parse_reference."""
+    nat = _native()
+    if nat is not None and type(data) is bytes:
+        got = nat.hpd_parse(data, Node, Edge, Sector, HpdFile)
+        if got is not None:
+            return cast(HpdFile, got)
+    return parse_reference(data)
+
+
+def parse_reference(data: bytes) -> HpdFile:
+    """The Python reader (the reference)."""
     if data[:12] != MAGIC:
         raise ValueError('not a Kynogon HPD file')
     header = struct.unpack_from(f'<{HEADER_WORDS}I', data, 12)
@@ -238,6 +287,17 @@ def _block(s: Sector) -> bytes:
 
 
 def write(f: HpdFile) -> bytes:
+    """The file's bytes: in the Rust core when it is built (round F0), else write_reference."""
+    nat = _native()
+    if nat is not None:
+        got = nat.hpd_write(f)
+        if got is not None:
+            return cast(bytes, got)
+    return write_reference(f)
+
+
+def write_reference(f: HpdFile) -> bytes:
+    """The Python writer (the reference)."""
     header = list(f.header)
     header[2] = len(f.sectors)
     out = bytearray(MAGIC + struct.pack(f'<{HEADER_WORDS}I', *header))

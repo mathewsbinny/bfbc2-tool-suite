@@ -24,6 +24,12 @@ Format (little-endian; the same layout for _normal, _huge and _numbers):
   two-byte character table[table[c] * 128 + (next byte & 0x7F)] (Japanese).
 Keys are not stored, only their hashes: names come from the strings of BFBC2Game.exe and the constants of the menu
 and HUD movies that hash to an entry. Nothing is written into the game folder.
+
+The file is read, decoded and written in the suite's Rust core when it is built (round F0: bc2_native.loc_parse,
+loc_histogram / LocTable, loc_write, loc_khash; the same entries, texts and bytes). Where the reference would raise,
+or a text holds a character the core leaves to it, the Python runs (khash_reference, LocFile._parse_reference,
+LocFile.decode_reference, LocFile.to_bytes_reference: the reference, kept as the fallback), so the errors stay this
+module's; BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
 """
 import contextlib
 import io
@@ -31,7 +37,7 @@ import os
 import re
 import struct
 import sys
-from typing import cast
+from typing import Any, cast
 
 import menucommon as mc
 
@@ -39,7 +45,55 @@ OVERLAY = 'overlay-00.fbrb'
 PC_PREFIX = 'WIN32_'
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with loc_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'loc_parse') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
 def khash(key, h=0xFFFFFFFF):
+    """A key's hash (see the module's docstring): in the Rust core for a str or bytes key from the usual start."""
+    if h == 0xFFFFFFFF and type(h) is int:
+        nat = _native()
+        if nat is not None:
+            got = nat.loc_khash(key)
+            if got is not None:
+                return got
+    return khash_reference(key, h)
+
+
+def khash_reference(key, h=0xFFFFFFFF):
+    """The Python hash (the reference)."""
     for c in key.encode('latin1', 'replace') if isinstance(key, str) else key:
         h = (h * 33 + c) & 0xFFFFFFFF
     return h
@@ -49,6 +103,29 @@ class LocFile:
     """One language_<lang>_<kind>.bin: {hash: raw bytes}; text(hash) decoded with the histogram."""
 
     def __init__(self, data, histogram=None, name='localization file'):
+        nat = _native()
+        got = nat.loc_parse(data) if nat is not None and type(data) is bytes else None
+        if got is None:
+            self._parse_reference(data, histogram, name)
+            return
+        file_name, order, raw, offsets, start = got
+        self.name = file_name                   # the attributes in the reference's order
+        self.data, self.offsets = data, offsets
+        self.raw, self.order = raw, order
+        self.strings = data[start:]
+        self.changed = {}
+        self.table = None
+        self._table = None                      # the core's copy of self.table (decode checks it is still that)
+        if histogram:
+            hist = nat.loc_histogram(histogram) if type(histogram) is bytes else None
+            if hist is None:
+                self._histogram_reference(histogram, name)
+            else:
+                self.table, self._table = hist
+                self._table_of = self.table
+
+    def _parse_reference(self, data, histogram, name):
+        """The Python reader (the reference)."""
         if len(data) < 36 or struct.unpack_from('<I', data, 0)[0] != 0x39000:
             raise mc.MenuToolError(f'{name} is not a localization text file (language_<lang>_normal.bin)')
         _, size, count, table, strings = struct.unpack_from('<5I', data, 0)
@@ -66,12 +143,39 @@ class LocFile:
         self.strings = data[base:]
         self.changed = {}
         self.table = None
+        self._table = None
         if histogram:
-            if struct.unpack_from('<I', histogram, 0)[0] != 0x39001:
-                raise mc.MenuToolError(f'{name}: its histogram file is not one')
-            self.table = struct.unpack_from(f'<{(len(histogram) - 12) // 2}H', histogram, 12)
+            self._histogram_reference(histogram, name)
+
+    def _histogram_reference(self, histogram, name):
+        if struct.unpack_from('<I', histogram, 0)[0] != 0x39001:
+            raise mc.MenuToolError(f'{name}: its histogram file is not one')
+        self.table = struct.unpack_from(f'<{(len(histogram) - 12) // 2}H', histogram, 12)
+
+    def _native_table(self):
+        """(the core, its copy of the table): the copy while self.table is still the table it was made from, None
+        without a histogram; (None, None) where the Python decodes."""
+        nat = _native()
+        if nat is None:
+            return None, None
+        if self.table is None:
+            return nat, None
+        native_table = getattr(self, '_table', None)
+        if native_table is not None and getattr(self, '_table_of', None) is self.table:
+            return nat, native_table
+        return None, None
 
     def decode(self, raw):
+        """raw decoded with the histogram: in the Rust core when it is built, else decode_reference."""
+        nat, table = self._native_table()
+        if nat is not None and type(raw) is bytes:
+            got = table.decode(raw) if table is not None else nat.loc_decode(raw)
+            if got is not None:
+                return got
+        return self.decode_reference(raw)
+
+    def decode_reference(self, raw):
+        """The Python decoder (the reference)."""
         t, out, i = self.table, [], 0
         while i < len(raw):
             c = raw[i]
@@ -110,7 +214,17 @@ class LocFile:
 
     def to_bytes(self):
         """The file again: the texts it had kept where they were, new or changed ones appended; the entry table
-        sorted by hash. Unchanged, it is the file it was read from."""
+        sorted by hash. Unchanged, it is the file it was read from. In the Rust core when it is built, else
+        to_bytes_reference."""
+        nat = _native()
+        if nat is not None and type(self.data) is bytes and type(self.strings) is bytes:
+            got = nat.loc_write(self.data[20:36], self.strings, self.offsets, self.changed)
+            if got is not None:
+                return got
+        return self.to_bytes_reference()
+
+    def to_bytes_reference(self):
+        """The Python writer (the reference)."""
         strings = bytearray(self.strings)
         offsets = dict(self.offsets)
         for h, b in self.changed.items():

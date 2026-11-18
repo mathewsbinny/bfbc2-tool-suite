@@ -191,5 +191,19 @@
  "Rust scene against the Python loader, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)": 44.2,
  "NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core and in Python (SP_009, SP_004_B)": 19.1,
  "E4e: NavKit's tools in the Rust core against their Python (vehicle obstacle distance, domain searches, level scan, parity measures; built inputs)": 4.0,
- "E4e: NavKit's tools on the game copy as recorded from their Python (ONS_MP_002 vehicle data, ONS_MP_004 boat mesh and domains, sp_009 / sp_004_b parity measures, sp_009 offline samples)": 90.0
+ "E4e: NavKit's tools on the game copy as recorded from their Python (ONS_MP_002 vehicle data, ONS_MP_004 boat mesh and domains, sp_009 / sp_004_b parity measures, sp_009 offline samples)": 90.0,
+ "Rust F0 path data and runtime-mesh writer against hpdtool / kymesh (built files and meshes, 1,500 damaged, 600 changed, 4 game files)": 7.0,
+ "Rust F0 localization files and BIGF archives against bc2loc / menucommon (built, damaged, 3,000 keys, the English file, the menu movies)": 2.0,
+ "Rust F0 console containers against stfs.py / xiso.py (built packages and discs, 60 damaged packages, 30 damaged discs)": 40.0,
+ "Rust F0 Wave resources and EA streams against audio.py (built, 3,000 damaged, 600 changed, 40 BF1943 Waves)": 8.0,
+ "Rust F0 mesh headers and mesh sets against mesh.py / meshset.py (built, 3,000 damaged, 800 changed, 60 BF1943 resources)": 4.0,
+ "Rust F0 havok.classes against its Python (built and damaged executables, BFBC2Game.exe)": 8.0,
+ "Rust F0 localization on every language file of the overlay bundles and the pristine copy, BIGF on every menu / HUD movie, both ways": 12.0,
+ "Rust F0 console containers on your Xbox disc image and Update packages, 1,500 damaged packages, both ways": 290.0,
+ "Rust F0 Wave resources and streams on every BF1943, BFBC2 Xbox and game-copy Wave, both ways": 165.0,
+ "Rust F0 mesh headers and mesh sets on every MeshData and mesh set of BF1943, the Xbox bundles and the game copy, both ways": 50.0,
+ "Rust F0 texture levels and decoding on every PC texture of the game copy, both ways": 800.0,
+ "Rust F0 havok.classes on damaged copies of BFBC2Game.exe": 40.0,
+ "Rust F0 texture.py helpers and PC texture reader against their Python (tiled, packed, layout, levels, decode; built, damaged)": 3.0,
+ "Rust F0 path data on every pathdata.hpd and kept original of the game copy and work: parsed, written and every runtime mesh written both ways": 470.0
 }

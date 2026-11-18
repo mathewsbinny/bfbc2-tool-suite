@@ -411,6 +411,265 @@ pub fn parse(m: &[u8]) -> Result<Mesh> {
     })
 }
 
+/// Why [`write`] leaves a mesh to the reference writer (`kymesh.write_mesh`), which then raises or writes by its own
+/// rules.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WriteError {
+    /// The tiles are not `tiles_x * tiles_z` lists.
+    Tiles,
+    /// An area no tile places, or a tile item / portal / link naming an area that is not there (the reference's
+    /// `KeyError` or `IndexError`).
+    Area,
+    /// An offset, size or count past `u32` (the reference's `struct.error`).
+    TooLarge,
+}
+
+fn word(out: &mut Vec<u8>, v: u32) {
+    out.extend_from_slice(&v.to_le_bytes());
+}
+
+fn float(out: &mut Vec<u8>, v: f32) {
+    out.extend_from_slice(&v.to_le_bytes());
+}
+
+fn vec3(out: &mut Vec<u8>, v: Vec3) {
+    for c in v {
+        float(out, c);
+    }
+}
+
+fn u32_of(v: usize) -> std::result::Result<u32, WriteError> {
+    u32::try_from(v).map_err(|_| WriteError::TooLarge)
+}
+
+fn patch(out: &mut [u8], at: usize, v: u32) -> std::result::Result<(), WriteError> {
+    out.get_mut(at..at + 4)
+        .ok_or(WriteError::TooLarge)?
+        .copy_from_slice(&v.to_le_bytes());
+    Ok(())
+}
+
+/// An area's object with its B targets zeroed (`kymesh._area_body`); its portals start at 0x50.
+fn area_body(a: &Area) -> std::result::Result<Vec<u8>, WriteError> {
+    const HDR: usize = 0x50;
+    let null = |k: u32| {
+        a.null_offsets
+            .iter()
+            .rev()
+            .find(|(key, _)| *key == k)
+            .map_or(NULL_OFFSET, |&(_, v)| v)
+    };
+    let mut blob = Vec::new();
+    let mut off = [0u32; 6];
+    off[1] = if a.portals.is_empty() { null(0x28) } else { HDR as u32 };
+    for p in &a.portals {
+        vec3(&mut blob, p.p0);
+        vec3(&mut blob, p.p1);
+        word(&mut blob, 0);
+        word(&mut blob, 0);
+    }
+    off[2] = if a.border_portals.is_empty() {
+        null(0x30)
+    } else {
+        u32_of(HDR + blob.len())?
+    };
+    for c in &a.border_portals {
+        vec3(&mut blob, c.p0);
+        vec3(&mut blob, c.p1);
+        word(&mut blob, c.runtime.0);
+        word(&mut blob, c.runtime.1);
+        vec3(&mut blob, c.direction);
+    }
+    let (mut d_off, mut e_off) = (0u32, 0u32);
+    for (out_off, key, lists) in [(&mut d_off, 0x38, &a.d_lines), (&mut e_off, 0x40, &a.outline)] {
+        if lists.is_empty() {
+            *out_off = null(key);
+            continue;
+        }
+        let tab = HDR + blob.len();
+        *out_off = u32_of(tab)?;
+        let mut q = tab + (lists.len() + 1) * 4;
+        for pts in lists {
+            word(&mut blob, u32_of(q)?);
+            q += pts.len() * 12;
+        }
+        word(&mut blob, u32_of(q)?);
+        for pts in lists {
+            for &pt in pts {
+                vec3(&mut blob, pt);
+            }
+        }
+    }
+    off[3] = d_off;
+    off[4] = e_off;
+    if a.cells.is_empty() {
+        off[5] = null(0x48);
+    } else {
+        let tab = HDR + blob.len();
+        off[5] = u32_of(tab)?;
+        let mut q = tab + (a.cells.len() + 1) * 16;
+        for cell in &a.cells {
+            word(&mut blob, u32_of(q)?);
+            vec3(&mut blob, cell.direction);
+            q += cell.points.len() * 12;
+        }
+        word(&mut blob, u32_of(q)?);
+        vec3(&mut blob, a.end_row);
+        for cell in &a.cells {
+            for &pt in &cell.points {
+                vec3(&mut blob, pt);
+            }
+        }
+    }
+    off[0] = null(0x20);
+    let counts = [
+        0,
+        a.portals.len(),
+        a.border_portals.len(),
+        a.d_lines.len(),
+        a.outline.len(),
+        a.cells.len(),
+    ];
+    let mut out = Vec::with_capacity(HDR + blob.len());
+    for id in a.ids {
+        word(&mut out, id);
+    }
+    for v in a.values {
+        float(&mut out, v);
+    }
+    for (c, o) in counts.into_iter().zip(off) {
+        word(&mut out, u32_of(c)?);
+        word(&mut out, o);
+    }
+    out.extend_from_slice(&blob);
+    Ok(out)
+}
+
+/// The reference's NULL (an absent table's offset).
+const NULL_OFFSET: u32 = u32::MAX;
+
+/// `kymesh.write_mesh(mesh)`: the record laid out again (each area after the first tile that names it, then the
+/// end slot, the neighbour links and the trailer) with every offset recomputed; `write(&parse(m)?)` is `m` for the
+/// files NavKit and DICE write.
+///
+/// # Errors
+/// Where the reference would raise or lay out a table this does not ([`WriteError`]).
+#[expect(clippy::too_many_lines, reason = "kymesh.write_mesh's passes in one, in its order")]
+pub fn write(mesh: &Mesh) -> std::result::Result<Vec<u8>, WriteError> {
+    let ntiles = (mesh.tiles_x as usize)
+        .checked_mul(mesh.tiles_z as usize)
+        .ok_or(WriteError::Tiles)?;
+    if mesh.tiles.len() != ntiles {
+        return Err(WriteError::Tiles);
+    }
+    let bodies = mesh
+        .areas
+        .iter()
+        .map(area_body)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let mut out = MARKER.to_vec();
+    out.extend_from_slice(&mesh.version.to_le_bytes());
+    out.extend_from_slice(&mesh.flags.to_le_bytes());
+    word(&mut out, mesh.loaded);
+    word(&mut out, mesh.sector_id);
+    float(&mut out, mesh.resolution);
+    float(&mut out, mesh.pitch);
+    for r in mesh.rect {
+        float(&mut out, r);
+    }
+    word(&mut out, mesh.tiles_x);
+    word(&mut out, mesh.tiles_z);
+    float(&mut out, mesh.radius);
+    out.extend_from_slice(&[0; 12]);
+    let tab = out.len();
+    out.resize(tab + (ntiles + 1) * 4, 0);
+    let mut tile_offs = Vec::with_capacity(ntiles + 1);
+    let mut area_off: Vec<Option<usize>> = vec![None; bodies.len()];
+    for items in &mesh.tiles {
+        tile_offs.push(out.len());
+        word(&mut out, u32_of(items.len())?);
+        let item_pos = out.len();
+        out.resize(item_pos + items.len() * 12 + if items.is_empty() { 0 } else { 4 }, 0);
+        for it in items {
+            let slot = area_off.get_mut(it.area).ok_or(WriteError::Area)?;
+            if slot.is_none() {
+                *slot = Some(out.len());
+                out.extend_from_slice(bodies.get(it.area).ok_or(WriteError::Area)?);
+            }
+        }
+        for (k, it) in items.iter().enumerate() {
+            let at = item_pos + k * 12;
+            let place = area_off.get(it.area).copied().flatten().ok_or(WriteError::Area)?;
+            patch(&mut out, at, u32_of(place)?)?;
+            out.get_mut(at + 4..at + 8)
+                .ok_or(WriteError::TooLarge)?
+                .copy_from_slice(&it.a.to_le_bytes());
+            out.get_mut(at + 8..at + 12)
+                .ok_or(WriteError::TooLarge)?
+                .copy_from_slice(&it.b.to_le_bytes());
+        }
+        if !items.is_empty() {
+            let end = u32_of(out.len())?;
+            patch(&mut out, item_pos + items.len() * 12, end)?;
+        }
+    }
+    tile_offs.push(out.len());
+    out.extend_from_slice(&mesh.end_slot);
+    for (i, &to) in tile_offs.iter().enumerate() {
+        patch(&mut out, tab + i * 4, u32_of(to)?)?;
+    }
+    // every area is placed by some tile (the reference's area_off[i] for each area)
+    let placed = area_off
+        .iter()
+        .map(|o| o.ok_or(WriteError::Area))
+        .collect::<std::result::Result<Vec<usize>, _>>()?;
+    for ((area, &base), _) in mesh.areas.iter().zip(&placed).zip(&bodies) {
+        for (k, p) in area.portals.iter().enumerate() {
+            let target = *placed.get(p.target).ok_or(WriteError::Area)?;
+            let size = bodies.get(p.target).ok_or(WriteError::Area)?.len();
+            let at = base + 0x50 + k * 0x20 + 0x18;
+            patch(&mut out, at, u32_of(target)?)?;
+            patch(&mut out, at + 4, u32_of(size)?)?;
+        }
+    }
+    let links_off = if mesh.links.is_empty() {
+        mesh.links_null_offset.unwrap_or(NULL_OFFSET)
+    } else {
+        u32_of(out.len())?
+    };
+    if !mesh.links.is_empty() {
+        let table = out.len();
+        out.resize(table + mesh.links.len() * 12, 0);
+        for (k, link) in mesh.links.iter().enumerate() {
+            let lst = out.len();
+            out.resize(lst + link.objects.len() * 4, 0);
+            patch(&mut out, table + k * 12, link.sector_id)?;
+            patch(&mut out, table + k * 12 + 4, u32_of(link.objects.len())?)?;
+            patch(&mut out, table + k * 12 + 8, u32_of(lst)?)?;
+            for (j, lo) in link.objects.iter().enumerate() {
+                let here = u32_of(out.len())?;
+                patch(&mut out, lst + j * 4, here)?;
+                for h in lo.header {
+                    word(&mut out, h);
+                }
+                word(&mut out, u32_of(lo.refs.len())?);
+                for &(ai, rel) in &lo.refs {
+                    let base = *placed.get(ai).ok_or(WriteError::Area)? as u64;
+                    let ptr = u32::try_from(base + rel).map_err(|_| WriteError::TooLarge)?;
+                    word(&mut out, ptr);
+                }
+            }
+        }
+    }
+    patch(&mut out, 0x44, u32_of(tab)?)?;
+    patch(&mut out, 0x48, u32_of(mesh.links.len())?)?;
+    patch(&mut out, 0x4C, links_off)?;
+    let len = u32_of(out.len())?;
+    word(&mut out, len);
+    word(&mut out, 0);
+    Ok(out)
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -556,5 +815,37 @@ mod tests {
         let mut nan = m.clone();
         nan[0x20..0x24].copy_from_slice(&f32::NAN.to_le_bytes());
         assert_eq!(parse(&nan), Err(Error::Nan));
+    }
+
+    #[test]
+    fn writes_what_it_reads() {
+        let mesh = parse(&record()).unwrap();
+        let bytes = write(&mesh).unwrap();
+        assert_eq!(parse(&bytes).unwrap(), mesh);
+        assert_eq!(write(&parse(&bytes).unwrap()).unwrap(), bytes);
+        // the trailer holds its own offset
+        let n = bytes.len();
+        assert_eq!(&bytes[n - 4..], &[0; 4]);
+        assert_eq!(
+            u32::from_le_bytes(bytes[n - 8..n - 4].try_into().unwrap()) as usize,
+            n - 8
+        );
+    }
+
+    #[test]
+    fn write_refusals() {
+        let mesh = parse(&record()).unwrap();
+        let mut tiles = mesh.clone();
+        tiles.tiles_x = 2;
+        assert_eq!(write(&tiles), Err(WriteError::Tiles));
+        let mut target = mesh.clone();
+        target.areas[1].portals[0].target = 5;
+        assert_eq!(write(&target), Err(WriteError::Area));
+        let mut unplaced = mesh.clone();
+        unplaced.areas.push(unplaced.areas[0].clone());
+        assert_eq!(write(&unplaced), Err(WriteError::Area));
+        let mut item = mesh;
+        item.tiles[0][0].area = 9;
+        assert_eq!(write(&item), Err(WriteError::Area));
     }
 }

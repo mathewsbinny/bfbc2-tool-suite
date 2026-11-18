@@ -8,13 +8,15 @@ out again and recomputes every offset.
 parse_mesh reads the record in the suite's Rust core when it is built (round E3o: bc2_native.kymesh_parse, the same
 Mesh value for value; where the reference would raise, or a value is a NaN, the Python reads it, so the error stays
 this module's). parse_mesh_reference is the Python reader, kept as the reference and the fallback;
-BFBC2_PURE_PYTHON=1 or use_native(False) runs it only.
+BFBC2_PURE_PYTHON=1 or use_native(False) runs it only. write_mesh writes in the Rust core too (round F0:
+bc2_native.kymesh_write, the same bytes; None where the reference would raise or a value is a NaN or not one struct
+packs as the port reads it, and write_mesh_reference, the Python writer, runs).
 """
 import os
 import struct
 import sys
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 NULL = 0xFFFFFFFF
 MARKER = b'KynogonRuntimeMesh\0\0'
@@ -250,6 +252,17 @@ def parse_mesh_reference(m: bytes) -> Mesh:
 
 
 def write_mesh(mesh: Mesh) -> bytes:
+    """The record's bytes: in the Rust core when it is built (round F0), else write_mesh_reference."""
+    nat = _native()
+    if nat is not None and hasattr(nat, 'kymesh_write'):
+        got = nat.kymesh_write(mesh)
+        if got is not None:
+            return cast(bytes, got)
+    return write_mesh_reference(mesh)
+
+
+def write_mesh_reference(mesh: Mesh) -> bytes:
+    """The Python writer (the reference)."""
     # Pass 1: serialise areas without B target fields to learn their sizes; pass 2: lay out and patch.
     bodies = [_area_body(a) for a in mesh.areas]
     out = bytearray(MARKER)
