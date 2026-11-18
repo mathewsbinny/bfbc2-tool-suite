@@ -139,7 +139,27 @@ class Ground:
         return best
 
     def cells(self, x, z):
-        """Heights of the reference's walkable cells within COLUMN_XZ across."""
+        """Heights of the reference's walkable cells within COLUMN_XZ across: from the Rust core's cell index (round
+        E4f: buckets of the cells, the same float64 test, in cell order) when it is built, else cells_python."""
+        n = self.nav
+        if n is None or not len(n.cell_xz):
+            return np.zeros(0)
+        if not getattr(self, '_index_built', False):
+            from . import ingame
+            nat = ingame._native()
+            xz, y = np.asarray(n.cell_xz), np.asarray(n.cell_y)
+            self._index = (nat.HarnessCells(np.ascontiguousarray(xz, '<f8').tobytes(), np.ascontiguousarray(y, '<f8').tobytes())
+                           if nat is not None and xz.dtype == np.float64 and y.dtype == np.float64 and xz.ndim == 2 else None)
+            self._index_built = True
+        idx = self._index
+        if idx is not None:
+            got = idx.cells(float(x), float(z), COLUMN_XZ)
+            if got is not None:
+                return np.frombuffer(got, '<f8').astype(np.float64)
+        return self.cells_python(x, z)
+
+    def cells_python(self, x, z):
+        """cells in Python (the reference): every cell tested."""
         n = self.nav
         if n is None or not len(n.cell_xz):
             return np.zeros(0)
