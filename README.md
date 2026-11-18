@@ -231,7 +231,7 @@ the rest), entry paths are normalised as .NET's `GetFullPath` does. A zipped pay
 read and a stored one is never loaded (entries are read where they are). Entries, the manifest and packed bundles are
 written beside their name and moved over it (`atomic::replace`). Logged in `fbrbtool-<date>.log` ("started (in
 process)"); `BFBC2_FBRBTOOL_EXE=1` runs the exe, as does a checkout without the Rust core. `FbrbTool.exe` stays the
-reference: `core/tests/test_fbrbtool.py` (quick: 217 command lines both ways, damaged bundles, 500 gzip streams
+reference: `core/tests/test_fbrbtool.py` (quick: 228 command lines both ways, damaged bundles, 500 gzip streams
 against a C# probe of .NET's reader; `--game`: game bundles, a replay of the logged invocations), timings
 `rust/bench_fbrbtool.py`. NavKit's unpack, `level.heightfield_of`'s terrain unpack and `bfbc2-stockmp-ai`'s
 `pipeline.run` use it.

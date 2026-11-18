@@ -26,7 +26,7 @@
  "FbrbTool round trip, built bundle": 0.4,
  "Rust DBX writer against the Python writer (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)": 3.4,
  "DbxEdit in process against DbxEdit.exe (the unit tests' 82 cases both ways, the drop-in runner, the batch, the log)": 5.5,
- "FbrbTool in process against FbrbTool.exe (217 command lines and 100 damaged bundles both ways, .NET's gzip reader, the drop-in runner)": 40.0,
+ "FbrbTool in process against FbrbTool.exe (228 command lines and 100 damaged bundles both ways, .NET's gzip reader, the drop-in runner)": 40.0,
  "Rust FBRB packer against FbrbTool, zlib against Python's (built folders in every layout, 8 game bundles)": 5.3,
  "Rust FBRB unpack against FbrbTool (built, odd and damaged bundles, the fallback, 8 game bundles)": 16.7,
  "error handling and logs": 0.5,
