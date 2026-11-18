@@ -24,6 +24,13 @@ python culltree.py add <tree.dbx> <level.dbx> (--objects <guid,... | @file> | --
   level's `ExclusiveStaticCullTree` reference, beside the level's folder) to take a shape from when the target has
   no instance of the blueprint; the target level's own instances come first.
 
+What a reference level gives (its slotted instances' leaves, in the blueprint's own space) is kept in
+`%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`, one file per reference level, used while the level file, its
+tree and `culltree.py` are unchanged (size and modification time): a second `add` or `verify` against the same
+`--ref-dir` folders reads no reference level again (round E3m, `rust/BENCHMARKS.md`). `BFBC2_CULLTREE_CACHE` names
+another folder (`0`: no cache); `BFBC2_CULLTREE_REFERENCE=1` reads every reference level each run, as before: the
+reference the cache is tested against (`tests\test_culltree_e3m.py`).
+
 The test (`tests\test_culltree.py`, in `run_tests.py quick`) builds trees and levels itself and needs no game data.
 
 ## Example: Nelson Bay Onslaught (ONS_MP_008)

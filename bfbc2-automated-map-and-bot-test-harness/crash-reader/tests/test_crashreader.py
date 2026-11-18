@@ -16,6 +16,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.abspath(os.path.join(HERE, '..'))
@@ -53,6 +54,51 @@ def run(argv: list[str]) -> tuple[int, str]:
     with contextlib.redirect_stdout(buf):
         code = crashreader.main(['crashreader.py'] + argv)
     return code, buf.getvalue()
+
+
+def logs_alike(c: Checks, work: str, n: int = 300) -> None:
+    """log_before_crash (the windows around the crash lines, round E3m) against log_before_crash_reference (the whole
+    text) on seeded logs: CR LF, lone CR, Unicode line breaks, bytes that are not UTF-8, timed and untimed crash
+    lines, a crash line first or last, a mark twice on a line, logs shorter and longer than the 400 lines looked at."""
+    import random
+    rng = random.Random(7)
+    pieces = [b'plain line', b'[10:00:%02d.123] event', b'crash: written to crashreport.xml', b'Kynapse error: x',
+              b'per frame spam', b'\xe2\x80\xa8in a U+2028 break', b'bad \xff\xfe bytes', b'\xc2\x85next-line char',
+              b'[12:00:00.000] crashreport.xml crashreport.xml', b'\xe2\x82', b'', b'[23:59:30.0] crashreport.xml',
+              b'[10:00:%02d.5] crash: crashreport.xml']
+    seps = [b'\n', b'\r\n', b'\r', b'\n\n', b'\x0b', b'\x1c']
+    same = 0
+    for _ in range(n):
+        count = rng.choice([0, 1, 5, 30, 399, 400, 401, 402, 900])
+        data = b''.join(rng.choice(pieces).replace(b'%02d', b'%02d' % rng.randrange(60)) + rng.choice(seps)
+                        for _ in range(count))
+        if rng.random() < 0.3:
+            data += rng.choice(pieces)                   # no line end at the end
+        p = os.path.join(work, 'alike.log')
+        with open(p, 'wb') as f:
+            f.write(data)
+        when = rng.choice([None, None, time.mktime((2026, 1, 1, 10, 0, 30, 0, 0, -1)),
+                           time.mktime((2026, 1, 1, 0, 0, 30, 0, 0, -1)), time.mktime((2026, 1, 1, 18, 0, 0, 0, 0, -1))])
+        lines = rng.choice([18, 3, 500])
+        same += crashreader.log_before_crash(p, lines, when) == crashreader.log_before_crash_reference(p, lines, when)
+    c.check(same == n, f'log: the crash-line windows give the whole text\'s lines ({same} of {n} seeded logs)')
+
+
+def game_log(c: Checks) -> None:
+    """Both ways on the game copy's opfor.log (read only): the last crash, one at the log's time, one an hour before."""
+    exe = crashreader.find_exe()
+    log = os.path.join(os.path.dirname(exe), 'logs', 'opfor.log') if exe else None
+    if not log or not os.path.isfile(log):
+        print('skip the game copy\'s opfor.log (none)')
+        return
+    times, out = [], []
+    for fn in (crashreader.log_before_crash, crashreader.log_before_crash_reference):
+        t = time.perf_counter()
+        out.append([fn(log), fn(log, when=os.path.getmtime(log)), fn(log, 40, when=os.path.getmtime(log) - 3600)])
+        times.append(time.perf_counter() - t)
+    c.check(out[0] == out[1], f'log: the game copy\'s opfor.log ({os.path.getsize(log) / 1e6:.0f} MB), three '
+            f'crash lookups as the whole-text reference ({[len(x) for x in out[0]]} lines; {times[0]:.1f} s, the '
+            f'reference {times[1]:.1f} s)')
 
 
 def main(argv: list[str]) -> int:
@@ -104,6 +150,7 @@ def main(argv: list[str]) -> int:
         c.check(crashreader.log_before_crash(os.path.join(work, 'none.log')) == [] and crashreader.log_before_crash(os.path.join(work, 'x.log')) == [],
                 'log: none without a crash line or a file')
         c.check('Last log lines before the crash' in run([path, '--no-code', '--log', log])[1], '--log shows the lines before the crash')
+        logs_alike(c, work)
 
         # the code view decodes from the function start: a crash 200 bytes into a function of 5-byte instructions
         # (mov eax, 0xB8B8B8B8) that never resynchronise when decoding starts mid-instruction (eip - 0x60)
@@ -123,6 +170,7 @@ def main(argv: list[str]) -> int:
             c.check(False, f'code view: decoded from the function start ({e})')
 
         if '--game' in argv:
+            game_log(c)
             exe = crashreader.find_exe()
             try:
                 image = crashreader.Image(exe) if exe else None

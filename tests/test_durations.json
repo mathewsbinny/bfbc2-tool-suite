@@ -63,7 +63,7 @@
  "mesh viewer index and cache, stand-in bundles": 0.3,
  "LevelDiff build (when stale)": 0.1,
  "LevelDiff, built levels": 0.6,
- "crash reader, built reports": 3.3,
+ "crash reader, built reports": 4.5,
  "console readers, built images": 0.9,
  "menu tools (aptcheck, aptrefs, bc2loc), built data": 0.9,
  "APT writer and grafter (aptgraft), built movies": 0.7,
@@ -99,7 +99,7 @@
  "NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core and in Python (SP_009, SP_004_B)": 19.1,
  "path locators: the same answers as a reference checkout (main)": 1.8,
  "LevelDiff on MP_005": 1.2,
- "crash reader code view (BFBC2Game.exe)": 5.8,
+ "crash reader code view (BFBC2Game.exe)": 25.0,
  "console resource converter: physics (havok)": 18.3,
  "console resource converter: textures": 130.5,
  "Rust texture converter: every BF1943 and Onslaught console texture as recorded": 15.0,
@@ -138,7 +138,7 @@
  "Navigation Studio edit mode": 94.7,
  "the suite window (hub) and the level picker": 8.0,
  "3D tools open and draw (Map Inspector, Navigation Studio)": 17.5,
- "test harness on sp_009 and sp_004_b": 34.5,
+ "test harness on sp_009 and sp_004_b": 45.0,
  "stock-MP AI layer, Atacama Conquest built": 53.1,
  "NavKit regression, 2 small levels": 120.0,
  "Rust EA-XAS audio encoder / decoder against audio.py (shift rule, seeded PCM of every shape, random frames, DICE's blocks)": 9.0,
@@ -152,5 +152,7 @@
  "BF1943 ports E3g: Rust mesh vertices and Havok walk, layout and emitter indexes against their references (built inputs)": 8.0,
  "BF1943 ports E3g: every BF1943 mesh set, physics file and effect, the Onslaught console meshes and physics, both ways": 124.0,
  "Rust Granny reader and Xbox 360 -> PC conversion against granny.py (built, damaged, batch, writes)": 2.5,
- "Rust Granny reader and conversion on every Granny resource of your Xbox files, the game copy and BF1943": 229.5
+ "Rust Granny reader and conversion on every Granny resource of your Xbox files, the game copy and BF1943": 229.5,
+ "cull tree reference rows cache and shape memo against the reference (E3m; built levels: no cache, cold, warm, changed)": 2.5,
+ "cull tree add and verify on Onslaught MP_005 against every work\\levels folder: reference, no cache, cold, warm (E3m)": 520.0
 }

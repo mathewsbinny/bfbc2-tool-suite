@@ -35,6 +35,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 import numpy as np
 
@@ -385,6 +386,13 @@ def quick(check, tmp):
 
     # opfor.log sessions
     ss = ingame.sessions(LOG)
+    lines = LOG.splitlines()
+    doubled = '\n'.join(l + ' ' + l if 'AI: ' in l or 'level=' in l else l for l in lines)   # two matches a line
+    for variant in (LOG, LOG.replace('\n', '\r\n'), LOG + '\n\nplain\n', 'before any session\n' + LOG, '', 'x\n',
+                    LOG.rstrip('\n'), '\n\n' + LOG + '\n\n\n', doubled, LOG.replace('\n', ' ', 3),
+                    '\n'.join(lines[::-1]), '\n'.join(lines * 3)):
+        check(ingame.sessions(variant) == ingame.sessions_reference(variant),
+              f'opfor.log: sessions() as sessions_reference() ({len(variant)} characters, {variant[:16]!r}...)')
     check(len(ss) == 3 and ss[1].level == 'Levels/ONS_MP_002' and ss[1].in_game and ss[1].events == ['AI init']
           and ss[1].offset_loads == [(-3, -7), (-3, -7)] and ss[1].pathfinders == [0, 21] and ss[1].exited and not ss[1].crashed,
           'opfor.log: sessions, level, in game, AI init, both SectorOffsets loads, pathfinder counts, exit')
@@ -562,8 +570,15 @@ def game(check, tmp):
         check(False, f'a run on ONS_MP_004 and ONS_MP_005GR (exit {r5.returncode}): {r5.stdout[-500:]}')
     log = os.path.join(root, 'game', 'logs', 'opfor.log')
     if os.path.isfile(log):
-        ss = ingame.sessions(open(log, encoding='utf-8', errors='replace').read())
+        text = open(log, encoding='utf-8', errors='replace').read()
+        t = time.perf_counter()
+        ss = ingame.sessions(text)
+        t1 = time.perf_counter()
+        ref = ingame.sessions_reference(text)
+        t2 = time.perf_counter()
         check(len(ss) > 0, f'the user\'s opfor.log reads: {len(ss)} session(s), {sum(1 for s in ss if s.in_game)} in game (read only)')
+        check(ss == ref, f'opfor.log ({len(text) / 1e6:.0f} MB): sessions() as sessions_reference(), every field of '
+              f'{len(ss)} sessions ({t1 - t:.1f} s, the reference {t2 - t1:.1f} s)')
 
 
 def main(argv):

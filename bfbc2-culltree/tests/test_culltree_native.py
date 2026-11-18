@@ -259,7 +259,9 @@ def run_add_on(tree: str, level: str, levels: str, source: str, tmp: str, check:
         if os.path.isdir(os.path.join(levels, d)):
             refs += ['--ref-dir', os.path.join(levels, d)]
     out, times = [], []
-    for side, env in (('python', {'BFBC2_PURE_PYTHON': '1'}), ('rust', {'BFBC2_PURE_PYTHON': ''})):
+    # both sides read every reference level (BFBC2_CULLTREE_CACHE=0: no rows from round E3m's cache)
+    for side, env in (('python', {'BFBC2_PURE_PYTHON': '1', 'BFBC2_CULLTREE_CACHE': '0'}),
+                      ('rust', {'BFBC2_PURE_PYTHON': '', 'BFBC2_CULLTREE_CACHE': '0'})):
         o = os.path.join(tmp, side)
         os.makedirs(o)
         t = time.time()
