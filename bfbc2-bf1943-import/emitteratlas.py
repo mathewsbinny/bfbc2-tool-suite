@@ -54,6 +54,14 @@ normals'):
    kept (the element tree; dbx.write gives a fresh string table, which DbxEdit's roundtrip reproduces).
 
 prove() is the check: every image read back through the re-pointed fields against its source's.
+
+build, prove and same_but_uv run in the suite's Rust core when it is built (round F2b, rust/bc2-convert/src/
+emitteratlas.rs, through importcore): the same steps on the same integers. NumPy's floats are matched where the
+reference decides on them: the probe search on exact variances (a choice between windows equal or within 1e-9 left to
+the Python), correlations as the exact value of the integer data (a decision within 1e-9 of SAME, PASS or a 4-place
+rounding left to the Python). Where the core refuses - such a choice, an input the reference raises on otherwise, a
+message printing a float - build_reference / prove_reference / same_but_uv_reference run (BFBC2_IMPORTER_PYTHON=1:
+always; BFBC2_EMITTERATLAS_REFERENCE=1 also runs dedupe's scan).
 """
 import hashlib
 import os
@@ -70,6 +78,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('bf1943-import', 'console-convert', 'model-tools', 'core')
+import importcore  # noqa: E402
 import texture  # noqa: E402
 import texwrite  # noqa: E402
 from bfbc2core import dbx  # noqa: E402
@@ -613,10 +622,62 @@ def _like(res: bytes) -> tuple[int, int, int, int]:
     return fmt, flags, w, h
 
 
+def _rust_args(emitters: dict[str, tuple[bytes, str]], sources: dict[str, Source]) -> tuple[Any, ...] | None:
+    """The Rust core's view of the inputs (sources by index), or None when an emitter names no source."""
+    keys = list(sources)
+    pos = {k: i for i, k in enumerate(keys)}
+    if any(s not in pos for _, s in emitters.values()):
+        return None
+    em = [(n, bytes(d), pos[s]) for n, (d, s) in emitters.items()]
+    src = [(k, bytes(s.alpha), None if s.normals is None else bytes(s.normals)) for k, s in sources.items()]
+    return keys, pos, em, src
+
+
 def build(emitters: dict[str, tuple[bytes, str]], sources: dict[str, Source], alpha_like: bytes,
           normals_like: bytes) -> Result:
     """emitters: {name: (partition bytes, source key)}; sources: {key: Source}; *_like: the atlases whose format,
     flags, size and level count the merged ones take (mp_005's for Wake)."""
+    r = None if REFERENCE else _build_rust(emitters, sources, alpha_like, normals_like)
+    return r if r is not None else build_reference(emitters, sources, alpha_like, normals_like)
+
+
+def _build_rust(emitters: dict[str, tuple[bytes, str]], sources: dict[str, Source], alpha_like: bytes,
+                normals_like: bytes) -> Result | None:
+    """build in the Rust core, or None (no core, or refused)."""
+    if importcore.native() is None:
+        return None
+    args = _rust_args(emitters, sources)
+    if args is None:
+        return None
+    keys, _, em, src = args
+    r = importcore.call('emitteratlas_build', em, src, bytes(alpha_like), bytes(normals_like),
+                        error=EmitterAtlasError)
+    if r is None:
+        return None
+    d = r[0]
+    chans = list(CHANNELS)
+    all_cells: dict[str, list[Cell]] = {}
+    kept_all: dict[str, list[Cell]] = {}
+    for ch, (rows, kept) in zip(chans, d['cells']):
+        objs = [Cell(keys[s], x, y, w, h, None, dx, dy, None if at is None else tuple(at), tuple(core))
+                for s, x, y, w, h, _into, dx, dy, at, core in rows]
+        for o, row in zip(objs, rows):
+            if row[5] is not None:
+                o.into = objs[row[5]]
+        all_cells[ch], kept_all[ch] = objs, [objs[i] for i in kept]
+    uses = []
+    for e, inst, info, ch, s, rc, cell, mv, old, new in d['uses']:
+        c = chans[ch]
+        uses.append(Use(e, inst, info, c, keys[s], tuple(rc), all_cells[c][cell], tuple(mv),
+                        dict(zip(CHANNELS[c], old)), dict(zip(CHANNELS[c], new))))
+    sizes = {ch: tuple(wh) for ch, wh in zip(chans, d['sizes'])}
+    return Result(d['alpha'], d['normals'], dict(d['partitions']), uses, kept_all, sizes, d['report'], d['left'],
+                  {'alpha': read_tex(d['alpha']), 'normals': read_tex(d['normals'])})
+
+
+def build_reference(emitters: dict[str, tuple[bytes, str]], sources: dict[str, Source], alpha_like: bytes,
+                    normals_like: bytes) -> Result:
+    """build in Python (the reference)."""
     texs: dict[str, dict[str, Tex]] = {'alpha': {}, 'normals': {}}
     for k, s in sources.items():
         texs['alpha'][k] = read_tex(s.alpha)
@@ -751,6 +812,40 @@ def prove(result: Result, emitters: dict[str, tuple[bytes, str]], sources: dict[
     onto another level's encoding of the image) or correlating PASS - this decides 'ok'. Every deeper level: the
     texels wholly inside the image, the share equal and the correlation (reported: a mip texel at the image's edge
     mixes in the neighbour, which differs by design, and DICE's atlases do the same)."""
+    r = _prove_rust(result, emitters, sources)
+    return r if r is not None else prove_reference(result, emitters, sources)
+
+
+def _prove_rust(result: Result, emitters: dict[str, tuple[bytes, str]],
+                sources: dict[str, Source]) -> list[dict[str, Any]] | None:
+    """prove in the Rust core, or None (no core, or refused)."""
+    if importcore.native() is None:
+        return None
+    args = _rust_args(emitters, sources)
+    if args is None or any(u.source not in args[1] for u in result.uses):
+        return None
+    keys, pos, em, src = args
+    chans = list(CHANNELS)
+    uses = [(u.emitter, u.instance, u.info, chans.index(u.channel), pos[u.source], list(u.rect)) for u in result.uses]
+    r = importcore.call('emitteratlas_prove', bytes(result.alpha), bytes(result.normals),
+                        list(result.partitions.items()), uses, em, src, error=EmitterAtlasError)
+    if r is None:
+        return None
+
+    def level(x: tuple[Any, ...]) -> dict[str, Any]:
+        return {'level': x[0], 'texels': x[1], 'equal': x[2], 'equal_share': x[3], 'correlation': x[4]}
+    out = []
+    for u, (rc, mv, size_ok, near, deep, ok, exact, crop0) in zip(result.uses, r[0]):
+        out.append({'emitter': u.emitter, 'instance': u.instance, 'channel': u.channel, 'source': u.source,
+                    'rect': rc, 'move': list(mv), 'size_kept': size_ok,
+                    'near': [level(x) for x in near], 'deep': [level(x) for x in deep], 'ok': ok, 'exact': exact,
+                    'sha1': hashlib.sha1(crop0).hexdigest()[:12] if crop0 is not None else None})
+    return out
+
+
+def prove_reference(result: Result, emitters: dict[str, tuple[bytes, str]],
+                    sources: dict[str, Source]) -> list[dict[str, Any]]:
+    """prove in Python (the reference)."""
     src_tex: dict[tuple[str, str], Tex] = {}
     merged = {'alpha': read_tex(result.alpha), 'normals': read_tex(result.normals)}
     out = []
@@ -797,6 +892,12 @@ def prove(result: Result, emitters: dict[str, tuple[bytes, str]], sources: dict[
 def same_but_uv(old: bytes, new: bytes) -> list[str]:
     """The differences between two partitions' element trees other than the TextureInfo UV fields (empty: the
     re-pointed partition keeps everything else)."""
+    r = importcore.call('emitteratlas_same_but_uv', bytes(old), bytes(new))
+    return list(r[0]) if r is not None else same_but_uv_reference(old, new)
+
+
+def same_but_uv_reference(old: bytes, new: bytes) -> list[str]:
+    """same_but_uv in Python (the reference)."""
     a, b = dbx.parse(old), dbx.parse(new)
     diffs: list[str] = []
 

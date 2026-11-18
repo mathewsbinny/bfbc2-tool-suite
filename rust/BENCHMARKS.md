@@ -3211,3 +3211,84 @@ per blueprint and drawn instanced (one instance per placed entity, as `bc2_scene
 later changes one instance. The editor's tests (`tests/test_editor.py`): 14 unit tests, the outliner against the Map
 Inspector on 4 levels, 4 offscreen render / click tests and the 4 levels drawn with their selection outlined, about
 a minute in debug.
+
+## F2b: the BF1943 importer's remaining Python, the menu tools' PE reader, xmlinst and navtune (2026-11-18, branch `rust-f2b`)
+
+**Provisional timings:** two WW2 rebuilds ran beside parts of the work (every process under 1 GB then,
+`RAYON_NUM_THREADS=2`); the rest at most 2 GB, 4 threads, below-normal priority on the 16-thread PC. Ratios hold
+within a run.
+
+Each port keeps its Python as the reference and the fallback; a Rust function answers `(result,)`, refuses (`None`:
+the Python runs) where the reference would raise another exception or decide by a rule not reproduced, and raises the
+reference's own error with its message. The importer's switch is `bfbc2-bf1943-import/importcore.py`
+(`BFBC2_IMPORTER_PYTHON=1`); the core modules and the menu tools use the module unless `BFBC2_PURE_PYTHON=1`.
+
+### Inventory and what moved
+
+| Python (lines) | Rust | what the profile said |
+|---|---|---|
+| `mopp.py` (201) | `bc2-convert/src/mopp.rs`: `query_int`, `query`, `complete`, `ray_cast`, `ray_cast_brute` | `test_havokport`'s MOPP checks: `query_int` 4.4 s of 7.6 s (profiled) |
+| `havokport.py` (755; E3g ported the packfile walk) | `havokport.rs`: `restructure`, the material table's swap, `shape_subparts_to_550` / `aabb_w`, `ufloat8_table`, `_wrapper`, `part_materials`, `part_run`, `with_part_materials`, `havok_materials`, `with_havok_materials`, `bodies`, `with_face_materials` | 0.5 + 0.6 s over BF1943's 202 files (E3g) |
+| `meshport.py` (370) | `meshport.rs`: `Porter.pc_layout`'s search (`MeshLayouts`); the MeshData and mesh set writers it calls are F0's | 0.6 s of an 8 s bulk port; the rest is reading BF1943's bundles |
+| `emitteratlas.py` (819) | `emitteratlas.rs`: `build` (read / write of the atlases, infos, cells, merge, dedupe, pack, compose, the re-pointed partitions), `prove`, `same_but_uv` | Wake: build 6.1 s, prove 6.8 s |
+| `dbxcatalogue.py` (302) | `dbxcatalogue.rs`: `build`'s pass and `exe_identifiers` | 173 s: `dbx_parse` into Python trees 74 s, bundle reads 34 s, the walk 46 s |
+| `menucommon.PEImage` (87) | `bc2-harness` `pe::raw`: the header, `strings`, `find_cstring`, `find_dword` | `strings` 0.2 s per run of bc2loc / aptrefs |
+| `bfbc2core/xmlinst.py` (35) | `bc2-formats/src/xmlinst.rs` | NavKit's six scans over OPFOR's 791 level XML files: 40 s |
+| `bfbc2core/navtune.py` (226) | `bc2-navbuild/src/navtune.rs`: `validate`, the side file's text, `summary` | milliseconds (side files are small); ported for the ruling |
+
+Kept Python, not ported: `navtune.load`'s `json.load` (the standard library's C parser; its checks are `validate`'s),
+`emitteratlas`'s dataclasses (built from the Rust result), meshport's `port` orchestration (calls into F0's writers,
+texture and Granny conversion).
+
+How NumPy's floats are matched where the reference decides on them (`emitteratlas.rs`, `havokport.rs`, `mopp.rs`):
+
+- `aabb_w`: float32 arithmetic in the same order; `np.dot` / `.sum()` of the three lanes checked on 200,000 random
+  vectors to be left-to-right float32;
+- the probe search: exact integer variances; full 8 x 8 windows are exact in NumPy too; for a cut window two
+  different windows' variances equal or within 1e-9 are refused;
+- `np.corrcoef` on integer data: the exact rational correlation, refused within 1e-9 of `SAME`, `PASS` or a 4-place
+  rounding boundary;
+- Python's `sum` of floats (3.12's compensated sum) in the MOPP ray test, its `round`, `min` / `max`, floor division
+  and slicing; a ray over NumPy scalars (summed plainly by Python) is refused.
+
+### Parity
+
+| what | inputs | identical | left to the Python |
+|---|---|---:|---:|
+| `test_havokport_native.py` quick | 2,000 MOPP codes x 5 queries, 1,500 4.6.1 packfiles, 1,500 PC resources x 11 functions | 28,675 of 28,675 | 1,334 (damaged inputs) |
+| ... `--game` | 202 HavokPhysicsData x 2 templates x table / none (restructure and convert), 92 finished, 1,290 BFBC2 physics resources x 9 functions, 944 MOPP codes (9,440 boxes, 944 completeness checks, 9,440 rays) | 61,518 of 61,518 | 2,570 (11 restructures: velocity limits without a table; 962 rays over NumPy scalars on purpose; the rest seeded) |
+| `test_dbxcatalogue_native.py --game` / `cmp` | the game copy: 84,739 partitions | every table in order: 631 classes, 9,657 paths, 1,615 text paths, 3,443 number paths, 432 prototypes, 607,100 guids, 84,739 primaries, 631 defaults, 505 seconds, 17,218 exe names; shared elements as the reference's | 0 |
+| ... quick | 6 seeded games of built bundles (chunks past 400 names, PER_TYPE, TEXTS_CAP, deleted markers, problems) | 6 of 6 | 0 |
+| `test_emitteratlas_native.py --game` | OPFOR's four emitter_atlas runs' inputs: Wake (615 emitters, 1,603 uses), Coral Sea (500, 1,298), Guadalcanal (588, 1,524), Iwo Jima (601, 1,576) | atlases, 2,304 partitions, 6,001 uses, cells, reports, 6,001 proof rows, 2,304 tree comparisons | 0 |
+| ... quick | 40 seeded synthetic levels | 40 of 40 (build, prove, same_but_uv) | 0 |
+| `bench_bf1943.py --compare` (source, import, fair, parity, atlas on Wake) | `BFBC2_IMPORTER_PYTHON=1` recorded, then the core | 17,839 of 17,839 | |
+| `bench_ports.py mesh havok --compare` | 273 mesh sets, 202 physics files | 475 of 475 | |
+| `test_ports_native.py` | 3,000 seeded layout searches against `pc_layout_reference` | 3,000 of 3,000 | |
+| `test_pe_native.py` | 400 built executables; the game copy's 11 .exe / .dll (header, strings 1 - 4, 200 C strings, 200 dwords each) | 19,966 of 19,966 | |
+| `test_xmlinst_native.py` | 3,000 seeded texts; OPFOR's 791 converted level XML files | 1,352,550 instances and 3,030,990 references | (the 3 non-ASCII files' word decisions: none needed) |
+| `test_navtune_native.py` | 40,000 seeded checks, 2,000 side files, 5,997 summaries (no real side file exists yet) | all | |
+
+The game tests that use these modules pass unchanged: `test_havokport.py` (23 s), `test_meshport.py`,
+`test_ports_native.py --game`, `test_bf1943import.py --game`, `test_dbxport_fair.py`, `test_menu_tools.py --game`.
+
+### Timings
+
+| workload | Python, s | Rust core, s | |
+|---|---:|---:|---:|
+| `dbxcatalogue.build`, the game copy | 173 | **24** | 7x |
+| emitter atlas, Wake: build / prove / same_but_uv | 6.1 / 6.8 / 0.6 | **1.2 / 3.0 / 0.2** | 3x |
+| emitter atlas build, the WW2 levels (Coral Sea / Guadalcanal / Iwo Jima) | 6.7 / 6.2 / 7.6 | **1.6 / 1.5 / 1.7** | 4x |
+| NavKit's six `xmlinst` scans, 791 level XML files | 40.3 | **1.8** | 22x |
+| `bench_ports.py havok` (202 files) | 1.7 | **1.2** | |
+| `PEImage.strings(2)`, BFBC2Game.exe | 0.21 | **0.17** | |
+| `bench_ports.py mesh` (273 mesh sets) | 7.4 | 7.7 (noise: reading BF1943's bundles) | |
+
+Peak working set: the atlas bench 1.43 GB (1.69 GB with the Python).
+
+### Tests
+
+Quick: `test_havokport_native.py`, `test_dbxcatalogue_native.py`, `test_emitteratlas_native.py`,
+`bfbc2-menu-tools/tests/test_pe_native.py`, `core/tests/test_xmlinst_native.py`, `core/tests/test_navtune_native.py`;
+game: the first five with `--game`. Unit tests in `mopp.rs`, `havokport.rs`, `pyfmt.rs`, `dbxcatalogue.rs`,
+`emitteratlas.rs`, `meshport.rs`, `pe.rs` (`raw`), `xmlinst.rs`, `navtune.rs`. `rust/bench_bf1943.py capture` takes a
+manifest folder (the WW2 levels' runs).
