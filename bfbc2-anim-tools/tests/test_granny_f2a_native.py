@@ -14,6 +14,7 @@ reports, the resource's bytes after every change and to_bytes, add_tracks' files
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
 """
+import hashlib
 import os
 import random
 import re
@@ -43,7 +44,8 @@ MOVABLE = ('D3Constant32f', 'D3K16uC16u', 'D3K8uC8u', 'D3I1K8uC8u', 'D3I1K16uC16
 
 
 def edits(b: bytes, seed: int) -> list[Any]:
-    """Every edit of one animation, in order, with what each gives: the reports, the bytes after each, to_bytes."""
+    """Every edit of one animation, in order, with what each gives: the reports, the bytes after each (a SHA-1),
+    to_bytes."""
     rng = random.Random(seed)
     out: list[Any] = []
     g = granny.Granny(b, 'anim')
@@ -56,13 +58,13 @@ def edits(b: bytes, seed: int) -> list[Any]:
                     if rng.random() < 0.2:
                         delta[rng.randrange(3)] = 0.0
                     out.append(outcome(granny.shift_position, g, cd, delta, rng.random() < 0.5))
-                    out.append(bytes(g.data))
+                    out.append(hashlib.sha1(g.data).hexdigest())
                 oc = tr['OrientationCurve']['CurveData']
                 if oc and oc.get('__type__', '').endswith(('D4nK16uC15u', 'D4nK8uC7u')):
                     n = len(oc['KnotsControls']) // 4
                     quats = [[rng.uniform(-1, 1) for _ in range(4)] for _ in range(n)]
                     out.append(outcome(granny.set_orientations, g, oc, quats))
-                    out.append(bytes(g.data))
+                    out.append(hashlib.sha1(g.data).hexdigest())
     out.append(outcome(g.to_bytes))
     names = [tr['Name'] for an in granny.animations(granny.Granny(b)) for tg in an['TrackGroups'] for tr in tg['TransformTracks']
              if (tr['PositionCurve']['CurveData'] or {}).get('__type__', '').endswith(MOVABLE)]
@@ -161,16 +163,20 @@ def main(argv: list[str]) -> int:
     donor = ix.read(DONOR)
     if game:
         opfor = paths.sibling(paths.OPFOR_DIR, suite=SUITE)
-        items = [(nm, b) for nm, _, b in bundle_entries(os.path.join(opfor, 'game', '**', '*.fbrb'), {'GrannyAnimation'})]
+        items: Any = ((nm, b) for nm, _, b in bundle_entries(os.path.join(opfor, 'game', '**', '*.fbrb'), {'GrannyAnimation'}))
     else:
         names = sorted(n for n in ix.where if ANIMS.search(n))
         items = [(n, ix.read(n)) for n in names]
     te, ta, td, tu = Tally(), Tally(), Tally(), Tally()
     t_edit = [0.0, 0.0]
     t_add = [0.0, 0.0]
+    count = 0
     for k, (nm, b) in enumerate(items):
         if b is None:
             continue
+        count += 1
+        if game and count % 250 == 0:
+            print(f'  {count:,} animations', flush=True)
         te_ = both(te, nm, edits, b, k)
         t_edit[0] += te_[0]
         t_edit[1] += te_[1]
@@ -182,9 +188,9 @@ def main(argv: list[str]) -> int:
         rng = random.Random(k)
         both(td, nm + ' damaged', edits, damaged(b, rng), k)
         both(td, nm + ' damaged base', adds, damaged(b, rng), donor, k)
-    c.check(not te.ndiff, f'{len(items):,} animations: every position curve moved, every quantized orientation curve '
+    c.check(not te.ndiff, f'{count:,} animations: every position curve moved, every quantized orientation curve '
             f'rewritten, to_bytes, both ways: {te.text()}', '; '.join(te.differ))
-    c.check(not ta.ndiff, f'{len(items):,} animations: tracks added from the Garand\'s undeploy both ways: {ta.text()}',
+    c.check(not ta.ndiff, f'{count:,} animations: tracks added from the Garand\'s undeploy both ways: {ta.text()}',
             '; '.join(ta.differ))
     c.check(not td.ndiff, f'damaged animations: {td.text()}', '; '.join(td.differ))
     c.check(not tu.ndiff, f'curves shift_position does not move, track specs add_tracks refuses: {tu.text()}',

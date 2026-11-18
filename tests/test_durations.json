@@ -207,5 +207,11 @@
  "Rust F0 texture levels and decoding on every PC texture of the game copy, both ways": 800.0,
  "Rust F0 havok.classes on damaged copies of BFBC2Game.exe": 40.0,
  "Rust F0 texture.py helpers and PC texture reader against their Python (tiled, packed, layout, levels, decode; built, damaged)": 3.0,
- "Rust F0 path data on every pathdata.hpd and kept original of the game copy and work: parsed, written and every runtime mesh written both ways": 470.0
+ "Rust F0 path data on every pathdata.hpd and kept original of the game copy and work: parsed, written and every runtime mesh written both ways": 470.0,
+ "Rust F2a console converter against terrain.py / soot.py / mesh.py / havok.py / texture.py (built, damaged, edited relayouts, 40 BF1943 resources)": 22.0,
+ "Rust F2a model tools against texwrite.py / skinmesh.py (built pictures and skinned LODs, damaged, the Garand and Type 5 LODs)": 18.0,
+ "Rust F2a Granny writing against granny.py (CRC, shift, orientations, add_tracks on the WW2 rifles' animations, damaged)": 12.0,
+ "Rust F2a console converter on every BF1943 / Xbox terrain, soot, physics, shader database and mesh resource and the game copy (readers, decode, relayout, texture.check), both ways": 1742.8,
+ "Rust F2a model tools on every game-copy DXT texture encoded again and every skinned LOD, both ways": 986.0,
+ "Rust F2a Granny writing on every game-copy animation (shift, orientations, add_tracks), both ways": 1200.0
 }
