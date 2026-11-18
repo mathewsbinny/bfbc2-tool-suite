@@ -1,0 +1,19 @@
+[package]
+name = "bc2-harness"
+description = "The map and bot test harness and the crash-reader tools in Rust: opfor.log sessions, the crash log window, the exe image, capstone-compatible x86 text, exeref's searches and the harness's route-graph checks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+rayon.workspace = true
+iced-x86.workspace = true
+memchr.workspace = true
+aho-corasick.workspace = true
+regex.workspace = true
+
+[lints]
+workspace = true

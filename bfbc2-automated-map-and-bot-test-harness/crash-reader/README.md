@@ -19,6 +19,13 @@ It only reads the report and the exe; nothing is sent anywhere.
 Python 3.8 or newer. For the code view, also run `pip install pefile capstone`. Without them you still get
 the names, the stack and the hints.
 
+With the suite's Rust core built (`python rust\build_native.py`; round E4f, `rust/bc2-harness`) the exe is mapped
+and disassembled there, with capstone's own text: every byte offset of `BFBC2Game.exe`'s code (build 795745) decodes
+exactly as capstone decodes it. An instruction outside that proof (another exe's rare encodings) is handed back to
+pefile + capstone, so the output never differs; with the core and without pefile / capstone the code view still works.
+The log lines before a crash are found there too. `BFBC2_HARNESS_PYTHON=1` runs the Python alone. Test:
+`tests\test_crash_native.py` (seeded x86, built exes; `--game`: the game's exe, both command lines byte for byte).
+
 ## Use
 
 ```

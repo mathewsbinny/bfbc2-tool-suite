@@ -11,7 +11,7 @@
 
 [workspace]
 resolver = "3"
-members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp"]
+members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness"]
 
 [workspace.package]
 version = "0.1.0"
@@ -29,6 +29,7 @@ bc2-convert = { path = "bc2-convert" }
 bc2-navbuild = { path = "bc2-navbuild" }
 bc2-shader = { path = "bc2-shader" }
 bc2-stockmp = { path = "bc2-stockmp" }
+bc2-harness = { path = "bc2-harness" }
 thiserror = "=2.0.21"
 rayon = "=1.12.0"
 # gzip of FBRB bundles: raw deflate (the gzip framing is read in bc2-formats, by the reference's rules) and CRC-32
@@ -38,6 +39,12 @@ proptest = { version = "=1.12.0", default-features = false, features = ["std"] }
 sha1_smol = "=1.0.1"
 # the allocation counts of rust/BENCHMARKS.md (examples/dbx_mem.rs)
 stats_alloc = "=0.1.10"
+# the crash reader's and exeref's x86 decoding (bc2-harness, round E4f: capstone's text and operands rebuilt on it)
+iced-x86 = { version = "=1.21.0", default-features = false, features = ["std", "decoder", "instr_info"] }
+# the opfor.log readers' literal searches and line patterns (bc2-harness)
+memchr = "=2.8.3"
+aho-corasick = "=1.1.5"
+regex = { version = "=1.13.1", default-features = false, features = ["std", "perf", "unicode"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

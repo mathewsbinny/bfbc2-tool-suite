@@ -2846,3 +2846,76 @@ the block readers). OPFOR would gain more by calling the new functions:
 the Rust side end to end (OPFOR mutates `base.entries`, `base.groups`, `base.programs` directly between merges);
 `entry_contents` / `verify_merge` (the `merge` command only). A partly made database holds its file and its made lists
 (the file is let go once every record section is made).
+
+
+## E4f: the map and bot test harness and the crash-reader tools (2026-11-18, branch `rust-e4f`)
+
+`bfbc2-automated-map-and-bot-test-harness` (the harness package, `crash-reader/crashreader.py`, `crash-reader/exeref.py`)
+in a new crate, `rust/bc2-harness`. **Profiled first** (cProfile and wall clocks, the game copy's `opfor.log` (349 MB)
+and `BFBC2Game.exe` (build 795745), read only; harness runs to temporary folders):
+
+| workload (before) | total | where the time went |
+|---|---:|---|
+| `harness.py import-log` on the real log | 4.4 s | 2.4 s `open().read()` (UTF-8 decode of 349 MB), 2.0 s `ingame.sessions` (E3m's literal search, Python lines) |
+| `crashreader.log_before_crash` (3 lookups) | 0.6 s | reading the file; E3m's windows already decode only the crash lines |
+| `exeref.py` str / refs / dis (one command) | 0.4-1.2 s | interpreter + pefile + capstone set-up, the code walk (`on_boundary`'s capstone decode from each function start), numpy's call / jmp scan |
+| `harness.py run` on sp_009 + sp_004_b (Rust core built) | 42 s | 23 s NavKit's `navparity` (not the harness's; cached after the first run), 9 s `ordercheck.on_area` (NavKit's tool), 2.6 s battery (`navpath.route`), 2.5 s hpdcheck, **2.0 s `reach_from` (the harness's BFS)**, **1.9 s `classify.Ground.cells` (a scan of every cell per point)**, 2.5 s level reading |
+
+**What moved** (`rust/bc2-harness`, bindings `rust/bc2-py/src/harness.rs`, Python switch `crash-reader/harnesscore.py`):
+
+- `oplog`: `ingame.sessions` (`harness_sessions`) and the file's (`harness_sessions_file`: read, decoded with Python's
+  `errors='replace'` rule, split as `str.splitlines` splits on all cores, only lines holding a literal read with the
+  reference's patterns); `crashreader.log_before_crash` (`crash_log_before`, the windows of E3m on the bytes).
+- `pe`: the exe mapped as pefile 2024.8.26 maps a well-formed PE32 (refused otherwise: pefile maps it).
+- `x86`: 32-bit decoding with **capstone 5.0's text and operands** on iced-x86 1.21 (pure Rust): capstone's Intel
+  printer rules (`X86IntelInstPrinter.c`: the memory operand, immediates' signs and masks, `X86ImmSize.inc` and its
+  missed F6 /1 entry; `X86_lockrep`: lock / rep / repne / repe / repz / bnd / notrack / xacquire / xrelease from the
+  prefix bytes as capstone's decoder reads them; `checkPrefix`'s lockable list), capstone's names (ljmp / lcall, pushal,
+  fcompi, the compare pseudo-ops, `nop r/m`), the x87 operands it leaves out, its branch-target arithmetic (16-bit
+  displacements unsigned unless 0x67), and its refusals (x87 aliases, the hint-nop / prefetch / MPX / fence families,
+  newer instructions). **Proof: every byte offset of BFBC2Game.exe's code, 16,786,165 starts, decoded identically**
+  (size, mnemonic, op_str, immediates and memory operands; `x86_dump` against a capstone dump). The proved encodings
+  are a table (`x86_verified.rs`: 2,730 instruction keys, 20,466 undecodable keys, from `x86_codes`); an encoding
+  outside it is refused and capstone decodes it, so another exe never gets a different answer. On 3.4 M synthetic
+  probes (every prefix set x opcode x ModRM) the core answered 877 k identically and refused the rest; 0 answered
+  differently.
+- `exe`: `crashreader.Image` (function starts, `around`, `call_before`, `name_of`) and `exeref.Exe` (`cstr`,
+  `find_strings`, `on_boundary`, `refs`, `data_refs`, `window` / `annotate`) whole, over the mapped image kept on the
+  Rust side (`ExeHandle`); each method refuses (`NotImplementedError`) where the reference would raise or an
+  instruction is unproved, and the Python facade (`Image._native_call`) then runs the `*_reference` method.
+- `graph`: the reachability pair bits (`harness_pair_bits`: a BFS per source node, on all cores) and the ground
+  classes' cell columns (`HarnessCells`: a bucket index, the reference's float64 test, cell order).
+
+**Parity** (`crash-reader/tests/test_crash_native.py`; `tests/test_harness.py --game`):
+
+| what | result |
+|---|---|
+| x86, BFBC2Game.exe, every code offset (`x86_dump` vs capstone) | 16,786,165 of 16,786,165 identical, 0 refused |
+| x86, every 61st offset (game tier) | 275,185 of 275,185, 0 refused |
+| x86, 20,000 seeded byte strings (quick tier) | 13,210 answered, all capstone's; 6,790 refused |
+| the mapped image | pefile's, byte for byte (BFBC2Game.exe 26,292,224 bytes; built exes) |
+| built exes (test_exeref's + 2 random-code exes): every method at every code address | 420 + 5,013 + 5,199 answers the reference's |
+| `exeref.py` command line, 24 commands on BFBC2Game.exe | 24 of 24 byte for byte as `BFBC2_HARNESS_PYTHON=1` |
+| crash reader on 40 built reports at sampled code addresses | 40 of 40 byte for byte |
+| opfor.log sessions: the real log | 587 of 587 sessions field for field (as `sessions_python` and `sessions_reference`) |
+| sessions of 400 seeded logs (every line break, bad UTF-8, Unicode digits) | 400 of 400 (320 read by the core, 80 refused to Python) |
+| `log_before_crash`: 300 seeded logs + the real log's 3 lookups | identical |
+| pair bits (60 seeded graphs), cell columns (2,000) | identical |
+| `harness.py run` sp_009 + sp_004_b, core vs `BFBC2_HARNESS_PYTHON=1` | every result and the report byte for byte |
+
+### Before and after (`rust\bench_harness.py`, in process, best of 2; game tests' wall clocks; shared machine)
+
+| workload | Python | E4f | |
+|---|---:|---:|---:|
+| import-log's sessions of opfor.log (349 MB, read included) | 3.17 s | **0.43 s** | x7.4 |
+| crash reader: log lines before a crash (3 lookups) | 0.59 s | 0.47 s | x1.3 (the file read) |
+| exeref: load, 3 string searches, their refs, 3 refs and windows | 1.06 s | **0.19 s** | x5.7 |
+| crash reader: load, code view, call before and name at 60 addresses | 0.42 s | **0.05 s** | x7.7 |
+| `exeref.py`, 24 commands as processes | 11.7 s | 5.5 s | (interpreter start-up included) |
+| crash reader, 40 reports in process | 2.4 s | 1.0 s | |
+| `harness.py run` sp_009 + sp_004_b (structure, reachability, battery, orders, offsets, level; caches warm) | 12 s | 9 s | |
+
+**Not moved:** NavKit's tools the harness calls (`navparity` / `navdiff`, `ordercheck.on_area`, `hpdcheck`,
+`navpath.route` - NavKit's and core's, outside this round), `levelinfo` (core's dbx / fbrb / level readers, F1a's),
+`checks.join` and `random_points` (NumPy's generator: the same draws need NumPy), and `runs` (saved-run JSON, the
+comparison and the report: milliseconds). cargo fmt / clippy -D warnings / tests clean; ruff and mypy clean.
