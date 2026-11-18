@@ -27,6 +27,8 @@
 //! # Ok::<(), shaderdb::ShaderDbError>(())
 //! ```
 
+pub mod query;
+
 use std::borrow::Cow;
 
 use thiserror::Error;

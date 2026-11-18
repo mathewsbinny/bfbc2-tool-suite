@@ -118,6 +118,8 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py')]),
         ('Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_native.py')]),
+        ('Rust shader database handle and queries against shaderdb.py (never made, made, changed lists; blocks, checks, writer, mp_008cq)', 'quick',
+         [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_queries.py')]),
         ('Rust shader translator: decoder against xenos.py, translations against the recorded Python (built programs, damaged blobs, random microcode, dispatch, hand-built trees)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_xenos_native.py')]),
         ('Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)', 'quick',
@@ -264,6 +266,8 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py'), '--game']),
         ('Rust shader databases on every database of the game copy, the Xbox and BF1943 levels and work; the WW2 merges', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_native.py'), '--game']),
+        ('Rust shader database queries on every database of the game copy, the Xbox and BF1943 levels and work', 'game',
+         [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_queries.py'), '--game']),
         ('Rust shader translator on every program of the BF1943 and BFBC2 Xbox shader databases (trees, HLSL, errors)', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_xenos_native.py'), '--game']),
         ('Rust cull trees on every tree and level partition of the game copy and work; listings; an add run both ways', 'game',
@@ -380,6 +384,7 @@ NEEDS = {
     'Rust FBRB bundle cache against the reader without it (built, damaged, changed, 4 processes, 3 game bundles)': need(cpu=4, mem=1),
     'Rust terrain, water and collision readers against the Python readers (built, damaged, dispatch, aliases from binary partitions)': need(),
     'Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)': need(cpu=4, mem=1),
+    'Rust shader database handle and queries against shaderdb.py (never made, made, changed lists; blocks, checks, writer, mp_008cq)': need(mem=0.6),
     'Rust shader translator: decoder against xenos.py, translations against the recorded Python (built programs, damaged blobs, random microcode, dispatch, hand-built trees)': need(mem=0.3),
     'Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)': need(cpu=2),
     'Rust Granny reader and Xbox 360 -> PC conversion against granny.py (built, damaged, batch, writes)': need(),
@@ -486,6 +491,7 @@ NEEDS = {
     'Rust FBRB unpack against FbrbTool, every game bundle with a payload up to 300 MiB unpacked both ways': need(cpu=2, mem=2),
     'Rust terrain, water and Havok readers on every bundle of the game copy, the collision index of every prepared level': need(cpu=8, mem=4),
     'Rust shader databases on every database of the game copy, the Xbox and BF1943 levels and work; the WW2 merges': need(cpu=8, mem=3),
+    'Rust shader database queries on every database of the game copy, the Xbox and BF1943 levels and work': need(cpu=3, mem=1.5),   # 2 workers
     'Rust shader translator on every program of the BF1943 and BFBC2 Xbox shader databases (trees, HLSL, errors)': need(cpu=3, mem=1),          # 2 workers of ~360 MB
     'Rust cull trees on every tree and level partition of the game copy and work; listings; an add run both ways': need(cpu=8, mem=3),
     'Rust Granny reader and conversion on every Granny resource of your Xbox files, the game copy and BF1943': need(mem=1),

@@ -2204,3 +2204,110 @@ messages for I/O errors other than missing / denied / in use / too long are word
 this Windows (device names are plain files on Windows 11; both ways go through the same Win32 calls). A manifest whose
 UTF-8 is invalid is decoded with Rust's replacement rules (.NET's may count replacement characters differently).
 `pack`'s `hdr=` larger than any real value pads in memory as .NET would. The exe stays the reference this round.
+
+## E4b: the shader database logic (2026-11-18, branch `rust-e4b`)
+
+E1c ported `shaderdb.py`'s reader and writer; this round its logic. **Profiled first** (`cProfile`, the game copy's
+databases, the disk bundle cache off; OPFOR's code copied as it is, OPFOR not imported or written):
+
+| workload (before) | total | where the time went |
+|---|---:|---|
+| OPFOR's `wake_install.index_templates` (74 stock Dx9 databases, `wake_shaders.signatures` per entry) | 13.6 s | 4.7 s OPFOR's own loop (`dict(db.entries)[n]` once per entry: quadratic), 3.9 s `signatures` (221,347 `block_textures` 1.25 s, `block_constants` 0.45 s, 1.37 M `program_refs` 0.76 s), 2.4 s bundle reads, 0.9 s parsing |
+| `load_levels` of every level, Dx9 / 10 / 11 (222 databases) | 11.7 s | **4.8 s `shaderdb_parse`: 22 ms a database, nearly all of it making ~70,000 Python objects** (Rust reads one in 2 ms), 4.0 s bundle reads, 1.0 s bundle headers |
+| `wake_shaders.merge_stock` for Guadalcanal (base mp_005, 74 donors scanned) | 24.2 s | 8.3 s bundle reads, **6.3 s parsing, 3.3 s `coverage`** (228 calls, Python string joins), 2.2 s `add_donor` (1.1 s `part_mesh`, 0.7 s the needed-name test), 1.4 s headers |
+| fix_layouts' pattern: `entry_textures(db, {name})` per name | 1.1 ms a call | each call builds `entry_programs()` and walks every entry for one name |
+| `Merger(base)` + `clone_entry` + `finish` | 31 + 0.3 x n + 40 ms | record indexes and the program sort: Python dicts over bytes, small |
+
+**What moved, and why.** The cost was Python objects and per-call rebuilding, not arithmetic, so the database stays on
+the Rust side:
+
+- `bc2_native.ShaderDbHandle` (`rust/bc2-py/src/shaderdb_handle.rs`): `ShaderDb.parse` keeps the file's `bytes` and the
+  place of every record (no copy of the records); a section becomes the Python list `shaderdb_parse` made (the same
+  objects) only when the attribute is first read (`ShaderDb.__getattr__`). Once every record section is made, the name
+  sections are made too and the file is let go (no database held twice).
+- The queries ask the handle: `entry_textures`, `entry_signatures` (new: OPFOR's `wake_shaders.signatures` as a suite
+  function), `entry_layouts` (new), `coverage`, `ShaderDb.mesh_names`, `ShaderDb.check` (with an MD5 of its own),
+  `Merger.add_donor`'s needed entries and mesh-part names (`select_needed`), and the writer. A section never made is
+  read from the file, one made from the caller's list (records live, item by item). The entries' and groups' lookups
+  (name -> entries, GUID -> group) and each parameter block's textures / constant names are kept between calls; each
+  call checks the lists they came from by identity (the list object, its length, every item; a block by its object),
+  so a list changed in place or replaced is read again. The pure logic is `bc2_formats::shaderdb::query`
+  (`block_textures`, `block_constants`, `block_engine_textures`, `program_refs`, `texture_kind`, `part_mesh`, `lower`
+  (Python's `str.lower` on latin-1), `Needed`, `Coverage`, `check`, `md5`, `swap_guid`).
+- `block_textures`, `block_constants`, `block_engine_textures`, `texture_kind` read in Rust per call (a `bytes` block,
+  `'<'` / `'>'`; a latin-1 name).
+- Anything outside the plain case - an item of another type, a name that is not latin-1, an index past its section, a
+  short record, a struct prefix other than `<` / `>` - makes the handle answer `None`, and the Python reference
+  (`entry_textures_reference`, `check_reference`, `coverage_reference`, ...; kept) runs and answers or raises as before.
+
+**Not moved, by measurement:** `Merger`'s record copying, `clone_entry`, `retexture`, `finish` and `entry_contents`
+(the clone workload is 0.77 s both ways; a merge's `add_donor` after the selection is a few hundred records);
+`ShaderDb.entry_programs` and `program_refs` (they hand out the caller's own list objects / are one `struct` call).
+
+### Before and after (`rust\bench_shaderdb.py`: each run its own process, "before" = the module's handle and block
+readers hidden so `shaderdb.py` runs as it did; disk bundle cache off; PC shared with other agents' builds)
+
+| workload | before | E4b | peak commit before / E4b | result |
+|---|---:|---:|---:|---|
+| merge (OPFOR's `merge_stock`, Guadalcanal, Dx9 / 10 / 11 written) | 19.2 s | **9.9 s** | 2,104 / 1,799 MB | the same files and reports |
+| load (every level x Dx9 / 10 / 11 + coverage) | 16.1 s | **7.8 s** | 1,974 / 1,836 MB | same |
+| templates_api (index_templates on `entry_signatures` + `entry_layouts`) | 10.1 s | **7.1 s** | 1,060 / 970 MB | same - **and the same digest as OPFOR's own code below** |
+| templates (OPFOR's `index_templates` as it is) | 21.1 s | 19.5 s | 1,195 / 1,159 MB | same |
+| textures (per-name `entry_textures`, six levels) | 0.95 s | 0.69 s | 314 / 292 MB | same |
+| clone (`Merger` + `clone_entry` + `finish` + write) | 0.77 s | 0.78 s | 384 / 377 MB | same bytes |
+
+One database (mp_005 Dx9: 19 MB, 1,714 entries, 4,230 blocks, 20,366 programs), per call:
+
+| | before | E4b |
+|---|---:|---:|
+| `ShaderDb.parse` | 15-17 ms | **2.2-2.9 ms** (every section made later: 29 ms, as before) |
+| `entry_textures(db, {name})` | 0.161 ms | **0.021 ms** (0.028 ms on the first call after the entries changed) |
+| `entry_textures(db)` (all) | 37 ms | 9.9 ms |
+| `coverage(db, [mesh])` | 3.7 ms | 0.42 ms |
+| `block_textures` + `block_constants` | 5.1 us | 1.7 us |
+| `to_bytes` (sections never made) | 16.7 ms | 7.5 ms |
+| `ShaderDb.check()` (Dx10, 20,366 programs) | 18.7 ms | 8.8 ms |
+
+OPFOR's verbatim template index gains little because its own `dict(db.entries)[n]` per entry is quadratic (4.7 s of
+the profile); on the suite's functions the same table takes 7.1 s instead of 21.1 s.
+
+### Parity
+
+- `bfbc2-shader-tools/tests/test_shaderdb_queries.py` (quick, 22 s): built databases (Dx9, Dx10, Xbox 360 v120 /
+  v117; a repeated entry name, a latin-1 name, an entry without programs) and mp_008cq's three: every query (all
+  entries, sets / frozensets / lists of names, 25-40 names one by one, coverage with a dict and with names not
+  latin-1, `select_needed`, `check`, OPFOR's `signatures` code on the Rust block readers, the writer) against the
+  references on a database read by the Python reader - never made, made, and after 7 kinds of change (an entry
+  appended, a group replaced, a group's program list changed in place, two blocks swapped, the program and key lists
+  replaced, a name not latin-1, a group naming a program past the end): 65,466 answers on mp_008cq, 1,046 on the
+  built files, all the reference's; 18,000 reads of damaged / random blocks (NaN, -0, cut, long names); the handle
+  answers itself (no decline) on fresh, made and changed files and declines on a name that is not latin-1; parsing
+  and the queries make no section; pickles and deep copies hold plain lists.
+- `--game`: **745 databases** (436 in the game copy's and OPFOR's Xbox bundles, 5 BF1943, 304 work files; 17.35 GB):
+  **13,643,145 answers, all the reference's** (715 s, 2 workers).
+- `test_shaderdb_native.py` (quick and `--game`): unchanged and passing on the handle - its corpus compares every
+  section the handle makes with the Python reader's, the written bytes with the file, and the four WW2 merges
+  byte for byte with the Python merge.
+- The bench's digests: every workload's output the same before and after (the merged databases byte for byte).
+
+### For Project OPFOR (not edited)
+
+The suite's changes reach OPFOR without edits (parsing, `entry_textures`, `coverage`, the merge's selection, `check`,
+the block readers). OPFOR would gain more by calling the new functions:
+
+- `wake_shaders.signatures` -> `shaderdb.entry_signatures` (the same table: the bench's two template digests are
+  equal); `wake_shaders.entry_layouts` -> `shaderdb.entry_layouts`.
+- `wake_install.index_templates`: `dict(db.entries)[n]` inside the per-entry loop is quadratic (4.7 of 13.6 s);
+  `entry_signatures` + `entry_layouts` give the table in 7.1 s instead of 21.1 s.
+- `wake_install.fix_layouts` (`dict(base.entries)[n]` in the `bad` comprehension, `d.entry_programs()` rebuilt per
+  candidate), `_fix_layouts_apply` and `graft` (`S.entry_textures(donor, {dn})` twice per entry: now 8x faster per
+  call by itself), `ww2_level_build`'s clone steps and `S.entry_textures(db)` whole.
+- `wake_install.level_db` keeps 7 databases and reloads: a reload's parse is now 2-3 ms instead of 15-20.
+- `type38.donor_db` scans `d.entries` per prefix (makes the entry list; `coverage` would not).
+- In the suite, `renderqa.prepare_strip` / the patch runs rebuild `{n.lower(): g ...}` and `entry_programs()` per
+  strip: small next to `shaderview`, left as they are.
+
+**Remaining:** the `Merger` itself (records, `clone_entry`, `finish`) in Rust would need the merged database kept on
+the Rust side end to end (OPFOR mutates `base.entries`, `base.groups`, `base.programs` directly between merges);
+`entry_contents` / `verify_merge` (the `merge` command only). A partly made database holds its file and its made lists
+(the file is let go once every record section is made).
