@@ -2978,12 +2978,9 @@ port now stops at the size (the same bytes) and reads runs of adjacent blocks at
 
 ### Not ported yet (what remains of the Python format code)
 
-- `bfbc2-anim-tools/granny.py`: the writing side (`Granny.put`, `to_bytes`, `_Graft` / `add_tracks`,
-  `set_orientations`, `shift_position`, `curve_keys`); the reader is Rust (E3i).
-- `bfbc2-console-convert`: `terrain.py` (console terrain, water, material map, visual terrain / water, roads),
-  `soot.py`, `mesh.relayout` / `decode` / `console_layouts`, `havok.convert_wrapper`, `texture.check` (NumPy
-  statistics over `decode`, which is Rust now).
-- `bfbc2-model-tools`: `skinmesh.py`, `texwrite.py` (DXT1 writer), the decimator.
+- ~~`bfbc2-anim-tools/granny.py`'s writing side~~, ~~`bfbc2-console-convert`'s `terrain.py`, `soot.py`,
+  `mesh.relayout` / `decode` / `console_layouts`, `havok.convert_wrapper`, `texture.check`~~ and
+  ~~`bfbc2-model-tools`' `skinmesh.py`, `texwrite.py`~~: round F2a (below; `granny.curve_keys` and the decimator not yet).
 - `bfbc2-bf1943-import`: `mopp.py`, `havokport.py`, `meshport.py`'s writers, `emitteratlas.py`, `dbxcatalogue.py`.
 - `bfbc2-menu-tools/menucommon.PEImage` (E4f's `bc2-harness::pe` covers the exe for the crash reader / exeref; not
   yet switched here), `core/bfbc2core/xmlinst.py`, `navtune.py` (JSON side files).

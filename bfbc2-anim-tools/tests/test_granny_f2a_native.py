@@ -33,11 +33,13 @@ suite_paths.use('anim-tools', 'core', 'mesh-viewer')
 import granny  # noqa: E402
 from bfbc2core import native, paths  # noqa: E402
 from f0_parity import Checks, outcome, stdout_utf8  # noqa: E402
-from f2a_parity import Tally, bundle_entries, damaged  # noqa: E402
+from f2a_parity import Tally, bundle_entries, damaged, watch, watched  # noqa: E402
 
 N = native.require('granny.py writing (round F2a)', 'granny_add_tracks')
 ANIMS = re.compile(r'animations/weapons/handheld/(m1garand|m1garand_rgl|beach/jap_type5|beach/jap_type5_rgl)/.*\.res$')
 DONOR = 'animations/weapons/handheld/m1garand/3p/standundeploy.res'
+# the position formats shift_position moves (the others raise: unsupported - checked by unsupported())
+MOVABLE = ('D3Constant32f', 'D3K16uC16u', 'D3K8uC8u', 'D3I1K8uC8u', 'D3I1K16uC16u', 'D3I1K32fC32f', 'DaK32fC32f')
 
 
 def edits(b: bytes, seed: int) -> list[Any]:
@@ -49,7 +51,7 @@ def edits(b: bytes, seed: int) -> list[Any]:
         for tg in an['TrackGroups']:
             for tr in tg['TransformTracks']:
                 cd = tr['PositionCurve']['CurveData']
-                if cd:
+                if cd and cd.get('__type__', '').endswith(MOVABLE):
                     delta = [rng.uniform(-0.5, 0.5) for _ in range(3)]
                     if rng.random() < 0.2:
                         delta[rng.randrange(3)] = 0.0
@@ -62,13 +64,31 @@ def edits(b: bytes, seed: int) -> list[Any]:
                     out.append(outcome(granny.set_orientations, g, oc, quats))
                     out.append(bytes(g.data))
     out.append(outcome(g.to_bytes))
-    names = [tr['Name'] for an in granny.animations(granny.Granny(b)) for tg in an['TrackGroups'] for tr in tg['TransformTracks']]
+    names = [tr['Name'] for an in granny.animations(granny.Granny(b)) for tg in an['TrackGroups'] for tr in tg['TransformTracks']
+             if (tr['PositionCurve']['CurveData'] or {}).get('__type__', '').endswith(MOVABLE)]
     if names:
         out.append(outcome(granny.shift, granny.Granny(b), rng.choice(names), '0.1,0.2,0.3', None, True))
     return out
 
 
-def adds(b: bytes, donor: bytes, seed: int) -> Any:
+def unsupported(b: bytes) -> list[Any]:
+    """shift_position on every position curve of a format it does not move, set_orientations on every other
+    orientation curve: the same refusals."""
+    out: list[Any] = []
+    g = granny.Granny(b, 'anim')
+    for an in granny.animations(g):
+        for tg in an['TrackGroups']:
+            for tr in tg['TransformTracks']:
+                cd = tr['PositionCurve']['CurveData']
+                if cd and not cd.get('__type__', '').endswith(MOVABLE):
+                    out.append(outcome(granny.shift_position, g, cd, [0.1, 0.2, 0.3], False))
+                oc = tr['OrientationCurve']['CurveData']
+                if oc and not oc.get('__type__', '').endswith(('D4nK16uC15u', 'D4nK8uC7u')):
+                    out.append(outcome(granny.set_orientations, g, oc, []))
+    return out
+
+
+def adds(b: bytes, donor: bytes, seed: int, clash: bool = False) -> Any:
     """add_tracks onto b: copies of three donor tracks, a constant and an identity (and a clash)."""
     rng = random.Random(seed)
     gd = granny.Granny(donor)
@@ -76,23 +96,32 @@ def adds(b: bytes, donor: bytes, seed: int) -> Any:
     pick = rng.sample(dt, min(3, len(dt)))
     spec: list[dict[str, Any]] = [{'name': f'zz_copy_{t["Name"]}', 'position': ('copy', t['PositionCurve']['CurveData']),
                                    'orientation': ('copy', t['OrientationCurve']['CurveData'])} for t in pick]
-    spec += [{'name': 'aa_const', 'position': ('constant', (1.0, 2.0, 3.0)), 'orientation': ('constant', (0.0, 0.0, 0.6, 0.8))},
-             {'name': 'mm_identity', 'position': None, 'orientation': None},
-             {'name': 'mm_other', 'position': ('other',), 'orientation': ('constant', (1.0, 2.0))}][:2 + (seed % 2)]
-    return [outcome(granny.add_tracks, b, spec, donor), outcome(granny.add_tracks, b, spec[-1:] * 2 + [dict(spec[0], name='x')], donor)]
+    extra: list[dict[str, Any]] = [
+        {'name': 'aa_const', 'position': ('constant', (1.0, 2.0, 3.0)), 'orientation': ('constant', (0.0, 0.0, 0.6, 0.8))},
+        {'name': 'mm_identity', 'position': None, 'orientation': None},
+        {'name': 'mm_other', 'position': ('other',), 'orientation': ('constant', (1.0, 2.0))}]
+    spec += extra[:2]
+    if clash:
+        spec = (extra[2:] if seed % 2 else spec[-1:]) * 2 + [dict(spec[0], name='x')]
+    return granny.add_tracks(b, spec, donor)
 
 
 def both(t: Tally, label: str, fn: Any, *args: Any) -> list[float]:
     times, res = [], []
+    native = True
     for on in (True, False):
         granny.use_native(on)
         t0 = time.perf_counter()
         try:
-            res.append(outcome(fn, *args))
+            if on:
+                got, native = watched(lambda: outcome(fn, *args))
+                res.append(got)
+            else:
+                res.append(outcome(fn, *args))
         finally:
             granny.use_native(True)
         times.append(time.perf_counter() - t0)
-    t.add(res[0] == res[1], f'{label}: {str(res[0])[:100]} / {str(res[1])[:100]}', res[1][0] == 'error')
+    t.add(res[0] == res[1], f'{label}: {str(res[0])[:100]} / {str(res[1])[:100]}', res[1][0] == 'error', native)
     return times
 
 
@@ -117,6 +146,7 @@ def main(argv: list[str]) -> int:
     stdout_utf8()
     game = '--game' in argv
     c = Checks()
+    watch(granny, 'shift_position_reference', 'set_orientations_reference', 'add_tracks_reference')
     c.check(granny.use_native(True) == 'rust', 'the Rust core runs granny.py\'s reader and writer')
     tc = Tally()
     built_crc(tc)
@@ -135,18 +165,20 @@ def main(argv: list[str]) -> int:
     else:
         names = sorted(n for n in ix.where if ANIMS.search(n))
         items = [(n, ix.read(n)) for n in names]
-    te, ta, td = Tally(), Tally(), Tally()
+    te, ta, td, tu = Tally(), Tally(), Tally(), Tally()
     t_edit = [0.0, 0.0]
     t_add = [0.0, 0.0]
     for k, (nm, b) in enumerate(items):
         if b is None:
             continue
-        e = both(te, nm, edits, b, k)
-        t_edit[0] += e[0]
-        t_edit[1] += e[1]
+        te_ = both(te, nm, edits, b, k)
+        t_edit[0] += te_[0]
+        t_edit[1] += te_[1]
         a = both(ta, nm, adds, b, donor, k)
         t_add[0] += a[0]
         t_add[1] += a[1]
+        both(tu, nm + ' clash', adds, b, donor, k, True)
+        both(tu, nm + ' unsupported', unsupported, b)
         rng = random.Random(k)
         both(td, nm + ' damaged', edits, damaged(b, rng), k)
         both(td, nm + ' damaged base', adds, damaged(b, rng), donor, k)
@@ -155,6 +187,8 @@ def main(argv: list[str]) -> int:
     c.check(not ta.ndiff, f'{len(items):,} animations: tracks added from the Garand\'s undeploy both ways: {ta.text()}',
             '; '.join(ta.differ))
     c.check(not td.ndiff, f'damaged animations: {td.text()}', '; '.join(td.differ))
+    c.check(not tu.ndiff, f'curves shift_position does not move, track specs add_tracks refuses: {tu.text()}',
+            '; '.join(tu.differ))
     print(f'timing: the edits Python {t_edit[1]:.2f} s, Rust {t_edit[0]:.2f} s; add_tracks Python {t_add[1]:.2f} s, '
           f'Rust {t_add[0]:.2f} s (each with its reads)')
     return c.done()

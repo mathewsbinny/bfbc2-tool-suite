@@ -9,16 +9,46 @@ from typing import Any
 
 from f0_parity import outcome
 
+FALLBACKS = {'n': 0}
+_WATCH = [False]
+
+
+def watch(owner: Any, *names: str) -> None:
+    """Counts the calls of owner's reference functions made while a native run is watched (both, both_ways): each
+    is an answer the Rust core left to the Python."""
+    for n in names:
+        f = getattr(owner, n)
+
+        def wrapper(*a: Any, _f: Any = f, **k: Any) -> Any:
+            if _WATCH[0]:
+                FALLBACKS['n'] += 1
+            return _f(*a, **k)
+        setattr(owner, n, wrapper)
+
+
+def watched(fn: Callable[[], Any]) -> tuple[Any, bool]:
+    """fn()'s result, and whether it ran without a reference function (answered in Rust)."""
+    before = FALLBACKS['n']
+    _WATCH[0] = True
+    try:
+        return fn(), FALLBACKS['n'] == before
+    finally:
+        _WATCH[0] = False
+
 
 class Tally:
-    """Counts of both-ways comparisons; fallback: answers the Rust core left to the reference."""
+    """Counts of both-ways comparisons: identical, the same error, answered in Rust, left to the reference (and of
+    those, how many the reference answered: fallback_ok)."""
 
     def __init__(self) -> None:
-        self.same = self.ndiff = self.errors = 0
+        self.same = self.ndiff = self.errors = self.native = self.fallback = self.fallback_ok = 0
         self.differ: list[str] = []
 
-    def add(self, ok: bool, label: str, error: bool) -> None:
+    def add(self, ok: bool, label: str, error: bool, native: bool = True) -> None:
         self.errors += error
+        self.native += native
+        self.fallback += not native
+        self.fallback_ok += (not native) and not error
         if ok:
             self.same += 1
         else:
@@ -27,7 +57,8 @@ class Tally:
                 self.differ.append(label)
 
     def text(self) -> str:
-        return f'{self.same} identical ({self.errors} of them the same error)'
+        return (f'{self.same} identical ({self.errors} of them the same error; {self.native} answered in Rust, '
+                f'{self.fallback} left to the reference, {self.fallback_ok} of them answered by it)')
 
 
 def both(t: Tally, label: str, fn: Callable[..., Any], ref: Callable[..., Any], *args: Any,
@@ -35,8 +66,9 @@ def both(t: Tally, label: str, fn: Callable[..., Any], ref: Callable[..., Any], 
     """fn(*args) against ref(*args): the same result (by canon when given) or the same error; ref's result or None."""
     def run(f: Callable[..., Any]) -> tuple[Any, ...]:
         return outcome(lambda: canon(f(*args)) if canon else f(*args))
-    a, r = run(fn), run(ref)
-    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error')
+    a, native = watched(lambda: run(fn))
+    r = run(ref)
+    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error', native)
     if r[0] != 'ok':
         return None
     try:

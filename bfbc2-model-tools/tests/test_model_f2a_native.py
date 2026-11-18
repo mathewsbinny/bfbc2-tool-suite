@@ -40,7 +40,7 @@ import texture  # noqa: E402
 import texwrite  # noqa: E402
 from bfbc2core import native, paths  # noqa: E402
 from f0_parity import Checks, outcome, stdout_utf8  # noqa: E402
-from f2a_parity import Tally, bundle_entries, damaged  # noqa: E402
+from f2a_parity import Tally, bundle_entries, damaged, watch, watched  # noqa: E402
 from shapes import Geo, lathe  # noqa: E402
 
 N = native.require('texwrite.py / skinmesh.py (round F2a)', 'TexWriteJob')
@@ -66,8 +66,9 @@ def both_ways(t: Tally, label: str, module: Any, fn: Any, *args: Any) -> Any:
             return outcome(lambda: arrays(fn(*args)))
         finally:
             module.use_native(True)
-    a, r = run(True), run(False)
-    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error')
+    a, native = watched(lambda: run(True))
+    r = run(False)
+    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error', native)
     return a
 
 
@@ -177,7 +178,10 @@ DEPTH = layout([(3, 1, 0, 0), (0x0C, 3, 12, 0), (0x0C, 2, 16, 0)], 20)
 def skinned(rng: random.Random) -> tuple[bytes, dict[str, bytes]]:
     """A PC MeshData of a few parts (a depth-only part drawing the first part's vertices now and then)."""
     lay = rng.choice([SKIN, SKIN3P])
-    parts, verts, idx, lays = [], b'', [], {}
+    parts: list[dict[str, Any]] = []
+    idx: list[int] = []
+    lays: dict[str, bytes] = {}
+    verts = b''
     for k in range(rng.randrange(1, 4)):
         nv, tri = rng.randrange(3, 12), rng.randrange(1, 6)
         first = len(idx)
@@ -243,8 +247,9 @@ def lod_both(t: Tally, label: str, b: bytes, lays: dict[str, bytes], rng: random
         finally:
             skinmesh.use_native(True)
     seed = rng.randrange(1 << 30)
-    a, r = run(True, seed), run(False, seed)
-    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error')
+    a, native = watched(lambda: run(True, seed))
+    r = run(False, seed)
+    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error', native)
 
 
 def skin_quick(c: Checks, rng: random.Random) -> None:
@@ -312,6 +317,9 @@ def main(argv: list[str]) -> int:
     stdout_utf8()
     game = '--game' in argv
     c = Checks()
+    watch(texwrite, 'dxt1_reference', 'dxt5_reference', 'alpha1_reference', 'alpha5_reference', 'l8_down_reference',
+          'levels')
+    watch(skinmesh.SkinnedLod, '_winding_reference', 'decode_reference', 'to_bytes_reference', 'bounds_reference')
     c.check(texwrite.use_native(True) and skinmesh.use_native(True), 'the Rust core runs texwrite.py and skinmesh.py')
     texwrite_quick(c, np.random.default_rng(0xF2A))
     skin_quick(c, random.Random(0xF2A))

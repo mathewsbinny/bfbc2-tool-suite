@@ -41,7 +41,7 @@ import texture  # noqa: E402
 import texwrite  # noqa: E402
 from bfbc2core import native, paths  # noqa: E402
 from f0_parity import Checks, stdout_utf8  # noqa: E402
-from f2a_parity import Tally, bf1943_entries, both, bundle_entries, damaged  # noqa: E402
+from f2a_parity import Tally, bf1943_entries, both, bundle_entries, damaged, watch  # noqa: E402
 
 N = native.require('terrain.py / soot.py / mesh.py / havok.py / texture.py (round F2a)', 'terrain_convert')
 TERRAIN = {'TerrainHeightfield', 'WaterMesh', 'TerrainMaterialMap', 'VisualTerrain', 'VisualWater'}
@@ -175,7 +175,9 @@ LAYOUTS = [layout([(3, 1, 0, 0), (6, 0, 12, 0), (8, 4, 16, 0)], 24),
 
 def mesh_pc(rng: random.Random, lays: list[bytes], big: bool = False) -> bytes:
     """A MeshData of parts in the given layouts, parts sharing a window now and then."""
-    parts, verts, idx = [], b'', []
+    parts: list[dict[str, Any]] = []
+    idx: list[int] = []
+    verts = b''
     for k, lay in enumerate(lays):
         stride = lay[69]
         if parts and rng.random() < 0.3 and lays[k - 1] == lay:
@@ -290,8 +292,12 @@ def editor(rng_seed: int) -> Any:
 
 def relayout_all(t: Tally, label: str, b: bytes, old: list[bytes], new: list[bytes], seed: int) -> None:
     both(t, label, mesh.relayout, mesh.relayout_reference, b, old, new)
-    both(t, label + ' edited', lambda *a: mesh.relayout(*a, editor(seed)),
-         lambda *a: mesh.relayout_reference(*a, editor(seed)), b, old, new)
+    def native_edited(b: bytes, old: list[bytes], new: list[bytes]) -> Any:
+        return mesh.relayout(b, old, new, editor(seed))
+
+    def reference_edited(b: bytes, old: list[bytes], new: list[bytes]) -> Any:
+        return mesh.relayout_reference(b, old, new, editor(seed))
+    both(t, label + ' edited', native_edited, reference_edited, b, old, new)
 
 
 def quick(c: Checks, rng: random.Random) -> None:
@@ -350,6 +356,13 @@ def main(argv: list[str]) -> int:
     stdout_utf8()
     game = '--game' in argv
     c = Checks()
+    watch(terrain, 'heightfield_reference', 'water_mesh_reference', 'material_map_reference', 'visual_terrain_reference',
+          'visual_water_reference', 'road_strips_reference', 'visual_terrain_parts_reference',
+          'visual_water_parts_reference', 'material_names_reference')
+    watch(soot, 'soot_mesh_reference')
+    watch(havok, 'convert_wrapper_reference')
+    watch(mesh, 'console_layouts_reference', 'decode_reference', 'relayout_reference')
+    watch(texture, 'check_reference')
     c.check(terrain.use_native(True) and mesh.use_native(True) and texture.use_native(True)
             and havok.use_native_wrapper(True), 'the Rust core runs the F2a converter functions')
     rng = random.Random(0xF2A)
@@ -442,10 +455,10 @@ def meshes(c: Checks, game: bool, limit: int | None, xbox: str, pcg: str) -> Non
             if lay is None:
                 continue
             parts += 1
-            for k, fn in enumerate((mesh.decode, mesh.decode_reference)):
+            for k, dec in enumerate((mesh.decode, mesh.decode_reference)):
                 t0 = time.perf_counter()
                 with contextlib.suppress(Exception):
-                    fn(b, lay, i, True)
+                    dec(b, lay, i, True)
                 t_dec[k] += time.perf_counter() - t0
             both(tm, f'{nm} part {i}', mesh.decode, mesh.decode_reference, b, lay, i, True, canon=arrays)
     c.check(not tm.ndiff, f'console shader databases ({len(dbs)}) and Battlefield 1943 mesh parts ({parts:,}) decoded '
@@ -472,10 +485,10 @@ def meshes(c: Checks, game: bool, limit: int | None, xbox: str, pcg: str) -> Non
         decode_all(tp, nm, b, lays, False)
         if all(x is not None for x in lays):
             relaid += 1
-            for k, fn in enumerate((mesh.relayout, mesh.relayout_reference)):
+            for k, rel in enumerate((mesh.relayout, mesh.relayout_reference)):
                 t0 = time.perf_counter()
                 with contextlib.suppress(Exception):
-                    fn(b, lays, lays)
+                    rel(b, lays, lays)
                 t_rel[k] += time.perf_counter() - t0
             relayout_all(tp, nm, b, lays, lays, count)
     c.check(not tp.ndiff, f'game meshes: {count:,} decoded, {relaid:,} relaid (plain and edited) both ways: {tp.text()}',

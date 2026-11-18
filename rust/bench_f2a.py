@@ -12,6 +12,7 @@ import os
 import sys
 import time
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -52,13 +53,23 @@ def main() -> int:
     print('| workload | Python | Rust | |\n|---|---:|---:|---:|')
     for lv in ('wake_island_s', 'coral_sea'):
         items = [(k, src.data(k)) for k in sorted(src.entries) if k.startswith(f'terrains/{lv}/')]
-        conv = {'heightfield-000.res': lambda b, r: (terrain.heightfield_reference if r else terrain.heightfield)(b, 'bf1943'),
-                'materialmap.res': lambda b, r: (terrain.material_map_reference if r else terrain.material_map)(b),
-                'visual.res': lambda b, r: (terrain.visual_terrain_reference if r else terrain.visual_terrain)(b),
-                'water.res': lambda b, r: (terrain.visual_water_reference if r else terrain.visual_water)(b)}
+        def hf(b: bytes, r: bool) -> Any:
+            return (terrain.heightfield_reference if r else terrain.heightfield)(b, 'bf1943')
+
+        def mm(b: bytes, r: bool) -> Any:
+            return (terrain.material_map_reference if r else terrain.material_map)(b)
+
+        def vt(b: bytes, r: bool) -> Any:
+            return (terrain.visual_terrain_reference if r else terrain.visual_terrain)(b)
+
+        def vw(b: bytes, r: bool) -> Any:
+            return (terrain.visual_water_reference if r else terrain.visual_water)(b)
+        conv: dict[str, Callable[[bytes, bool], Any]] = {'heightfield-000.res': hf, 'materialmap.res': mm,
+                                                         'visual.res': vt, 'water.res': vw}
         jobs = [(f, b) for k, b in items for s, f in conv.items() if k.endswith(s)]
-        row(f'{lv}: {len(jobs)} terrain resources converted', lambda jobs=jobs: [f(b, False) for f, b in jobs],
-            lambda jobs=jobs: [f(b, True) for f, b in jobs])
+        def run(rf: bool, jobs: list[tuple[Callable[[bytes, bool], Any], bytes]] = jobs) -> Any:
+            return [f(b, rf) for f, b in jobs]
+        row(f'{lv}: {len(jobs)} terrain resources converted', partial(run, False), partial(run, True))
     dbk = next(k for k, (_, e) in sorted(src.entries.items()) if e.get('type') == 'Dx9ShaderDatabase'
                and 'wake' in k.lower())
     db = src.data(dbk)
@@ -72,8 +83,8 @@ def main() -> int:
                 return texwrite.texture(pic, kind)
             finally:
                 texwrite.use_native(True)
-        row(f'texwrite.texture 1024 x 1024 {kind} ({pic.shape[2]} channels, mips)', lambda enc=enc: enc(True),
-            lambda enc=enc: enc(False))
+        row(f'texwrite.texture 1024 x 1024 {kind} ({pic.shape[2]} channels, mips)', partial(enc, True),
+            partial(enc, False))
     ix = meshview.Index(shaderdb.find_opfor(None))
     name = 'Objects/Weapons/Handheld/Beach/M1Garand/M1Garand_Mesh'
     lods = []

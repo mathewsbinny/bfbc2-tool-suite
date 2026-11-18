@@ -640,15 +640,16 @@ pub fn block_rows(n: usize, sn: usize, en: &[Element], packed: &[&[u8]]) -> Opti
     Some(rows)
 }
 
-/// `cols[k].astype(dt)` of an unedited column (float32 values to halves where the element is half).
+/// `cols[k].astype(dt)` of an unedited column: the float32 values (every column but a byte one holds float32s) cast
+/// to the element's halves or kept as floats; bytes as they are.
 fn pack(kind: Kind, f: u8, col: &[u8]) -> Option<Vec<u8>> {
     let (dk, _) = pc_dtype(f)?;
     Some(match (kind, dk) {
-        (Kind::F32, Kind::F16) => col
+        (Kind::U8, _) | (_, Kind::F32 | Kind::U8) => col.to_vec(),
+        (_, Kind::F16) => col
             .chunks_exact(4)
             .flat_map(|c| crate::mesh::f32_to_f16(f32::from_le_bytes([c[0], c[1], c[2], c[3]])).to_le_bytes())
             .collect(),
-        _ => col.to_vec(),
     })
 }
 

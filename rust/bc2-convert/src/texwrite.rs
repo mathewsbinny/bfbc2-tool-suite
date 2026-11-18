@@ -139,27 +139,28 @@ pub fn levels(img: &Image, normal: bool, channels: usize) -> Option<Vec<Image>> 
     Some(out)
 }
 
-/// `_blocks(img, channels)`: 4 x 4 blocks (edge-padded to whole blocks, at least one), texels row by row.
-fn blocks(img: &Image) -> Vec<Vec<[f64; 4]>> {
+/// `_blocks(img, channels)`: 4 x 4 blocks (edge-padded to whole blocks, at least one), texels row by row; the
+/// blocks on all cores.
+fn blocks(img: &Image) -> Vec<[[f64; 4]; 16]> {
+    use rayon::prelude::*;
     let ph = img.h.div_ceil(4).max(1) * 4;
     let pw = img.w.div_ceil(4).max(1) * 4;
-    let mut out = Vec::with_capacity((ph / 4) * (pw / 4));
-    for by in 0..ph / 4 {
-        for bx in 0..pw / 4 {
-            let mut b = Vec::with_capacity(16);
-            for t in 0..16 {
+    let (bw, n) = (pw / 4, (ph / 4) * (pw / 4));
+    (0..n)
+        .into_par_iter()
+        .map(|i| {
+            let (by, bx) = (i / bw, i % bw);
+            std::array::from_fn(|t| {
                 let y = (by * 4 + t / 4).min(img.h.saturating_sub(1));
                 let x = (bx * 4 + t % 4).min(img.w.saturating_sub(1));
                 let mut v = [0f64; 4];
                 for (c, s) in v.iter_mut().enumerate().take(img.ch) {
                     *s = f64::from(img.px[(y * img.w + x) * img.ch + c]);
                 }
-                b.push(v);
-            }
-            out.push(b);
-        }
-    }
-    out
+                v
+            })
+        })
+        .collect()
 }
 
 type Rgb = [[f64; 3]; 16];
@@ -439,21 +440,41 @@ impl Prepared {
     /// Each block's covariance (3 x 3, row-major), what `numpy.linalg.eigh` solves.
     #[must_use]
     pub fn covariances(&self) -> Vec<[f64; 9]> {
-        self.colour.iter().map(|b| covariance(&centred(b, mean(b)))).collect()
+        use rayon::prelude::*;
+        self.colour
+            .par_iter()
+            .map(|b| covariance(&centred(b, mean(b))))
+            .collect()
     }
 
     /// The level's blocks, each block's principal axis given (the eigenvector of its largest eigenvalue).
     #[must_use]
     pub fn finish(&self, axes: &[[f64; 3]]) -> Vec<u8> {
-        let mut out = Vec::with_capacity(self.colour.len() * 16);
-        for (i, (b, &axis)) in self.colour.iter().zip(axes).enumerate() {
-            if self.enc == Encoding::Dxt5 {
-                out.extend_from_slice(&alpha_block(&self.alpha[i]));
-            }
-            match &self.clear {
-                Some(m) if m[i] != 0 => out.extend_from_slice(&three_colour(b, m[i], axis)),
-                _ => out.extend_from_slice(&four_colour(b, axis)),
-            }
+        use rayon::prelude::*;
+        let per: Vec<[u8; 16]> = self
+            .colour
+            .par_iter()
+            .zip(axes)
+            .enumerate()
+            .map(|(i, (b, &axis))| {
+                let mut o = [0u8; 16];
+                let colour = match &self.clear {
+                    Some(m) if m[i] != 0 => three_colour(b, m[i], axis),
+                    _ => four_colour(b, axis),
+                };
+                if self.enc == Encoding::Dxt5 {
+                    o[..8].copy_from_slice(&alpha_block(&self.alpha[i]));
+                    o[8..].copy_from_slice(&colour);
+                } else {
+                    o[..8].copy_from_slice(&colour);
+                }
+                o
+            })
+            .collect();
+        let size = if self.enc == Encoding::Dxt5 { 16 } else { 8 };
+        let mut out = Vec::with_capacity(per.len() * size);
+        for o in &per {
+            out.extend_from_slice(&o[..size]);
         }
         out
     }
