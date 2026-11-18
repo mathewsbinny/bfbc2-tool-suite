@@ -123,7 +123,7 @@ def both(t: Tally, label: str, fn: Any, *args: Any) -> list[float]:
         finally:
             granny.use_native(True)
         times.append(time.perf_counter() - t0)
-    t.add(res[0] == res[1], f'{label}: {str(res[0])[:100]} / {str(res[1])[:100]}', res[1][0] == 'error', native)
+    t.add(res[0] == res[1], label if res[0] == res[1] else f'{label}: {repr(res[0])[:100]} / {repr(res[1])[:100]}', res[1][0] == 'error', native)
     return times
 
 
@@ -186,8 +186,11 @@ def main(argv: list[str]) -> int:
         both(tu, nm + ' clash', adds, b, donor, k, True)
         both(tu, nm + ' unsupported', unsupported, b)
         rng = random.Random(k)
-        both(td, nm + ' damaged', edits, damaged(b, rng), k)
-        both(td, nm + ' damaged base', adds, damaged(b, rng), donor, k)
+        # the game tier cuts copies short only: a changed count makes the Python reader build lists of millions of
+        # numbers (the Rust reader refuses past 2^24 items and hands over), gigabytes over the corpus
+        cuts = [b[:rng.randrange(len(b) + 1)] if game else damaged(b, rng) for _ in range(2)]
+        both(td, nm + ' damaged', edits, cuts[0], k)
+        both(td, nm + ' damaged base', adds, cuts[1], donor, k)
     c.check(not te.ndiff, f'{count:,} animations: every position curve moved, every quantized orientation curve '
             f'rewritten, to_bytes, both ways: {te.text()}', '; '.join(te.differ))
     c.check(not ta.ndiff, f'{count:,} animations: tracks added from the Garand\'s undeploy both ways: {ta.text()}',

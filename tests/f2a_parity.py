@@ -68,7 +68,7 @@ def both(t: Tally, label: str, fn: Callable[..., Any], ref: Callable[..., Any], 
         return outcome(lambda: canon(f(*args)) if canon else f(*args))
     a, native = watched(lambda: run(fn))
     r = run(ref)
-    t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', r[0] == 'error', native)
+    t.add(a == r, label if a == r else f'{label}: {repr(a)[:100]} / {repr(r)[:100]}', r[0] == 'error', native)
     if r[0] != 'ok':
         return None
     try:
