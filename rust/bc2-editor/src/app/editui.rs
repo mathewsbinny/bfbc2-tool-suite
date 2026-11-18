@@ -1,0 +1,1563 @@
+//! The Objects workspace (round E2): what editing adds to the window - the start screen's project forms, the gizmo
+//! and its toolbar (tools, world or local axes, snapping: grid, angle, vertex and edge, surface with a sink depth),
+//! box selection, the ruler, the editing actions (delete, duplicate, align, distribute, groups, layers, snap to
+//! ground, undo and redo), the properties' editable transform, placement and typed fields, and the History, Layers
+//! and outliner folder panels. Every edit goes through [`Doc::commit`] as one operation of the project's log.
+
+#[allow(
+    clippy::wildcard_imports,
+    reason = "a part of app.rs in a file of its own: its types and helpers"
+)]
+use super::*;
+
+use bc2_levelwrite::Operation;
+use bc2_levelwrite::ops::Organisation;
+
+/// The views' corner hint in the Objects workspace.
+pub(super) const EDITING_HINT: &str = "Select: click, Ctrl+click, drag a box   Gizmo: drag a handle   Orbit / pan: \
+                                       Alt+left drag, middle drag   Fly: hold right   Undo: Ctrl+Z   Help: F1";
+
+/// Coordinate `a` (0 X, 1 Y, 2 Z) of a point.
+fn coord(p: V3, a: usize) -> f64 {
+    p.get(a).copied().unwrap_or(0.0)
+}
+
+/// The point with coordinate `a` set.
+fn with_coord(mut p: V3, a: usize, v: f64) -> V3 {
+    if let Some(c) = p.get_mut(a) {
+        *c = v;
+    }
+    p
+}
+
+/// The layer colour after `c` in [`LAYER_COLOURS`].
+fn colour_after(c: [u8; 3], k: usize) -> [u8; 3] {
+    let at = LAYER_COLOURS.iter().position(|x| *x == c).map_or(k, |p| p + 1);
+    LAYER_COLOURS
+        .get(at % LAYER_COLOURS.len())
+        .copied()
+        .unwrap_or([0x90; 3])
+}
+
+/// Whether two transforms differ (bit for bit: an edit that changes nothing is not an operation).
+fn differ(a: &M, b: &M) -> bool {
+    a.iter().zip(b).any(|(x, y)| x.to_bits() != y.to_bits())
+}
+
+// ------------------------------------------------------------------------------------------------- start screen
+
+/// The start screen's project forms.
+pub(super) struct StartForm<'a> {
+    pub(super) levels: &'a [LevelInfo],
+    pub(super) new_level: &'a mut Option<String>,
+    pub(super) new_name: &'a mut String,
+    pub(super) new_folder: &'a mut String,
+    pub(super) open_path: &'a mut String,
+    pub(super) recent: &'a [PathBuf],
+}
+
+/// What the start screen asked for.
+pub(super) enum StartChoice {
+    /// A new project: the base level, the name, the folder.
+    Create(String, String, PathBuf),
+    /// Open a project file.
+    Open(PathBuf),
+}
+
+/// "New map from an existing map" and "Open a project".
+pub(super) fn start_projects(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    m: &Metrics,
+    f: &mut StartForm<'_>,
+) -> Option<StartChoice> {
+    let mut out = None;
+    ui.horizontal_top(|ui| {
+        let card = |ui: &mut egui::Ui, add: &mut dyn FnMut(&mut egui::Ui)| {
+            egui::Frame::new()
+                .fill(p.surface_1)
+                .stroke(Stroke::new(1.0, p.line))
+                .corner_radius(CornerRadius::same(m.radius_md as u8))
+                .inner_margin(Margin::same(m.space_3 as i8))
+                .show(ui, |ui| {
+                    ui.set_width(340.0);
+                    add(ui);
+                });
+        };
+        card(ui, &mut |ui| {
+            ui.label(
+                RichText::new("New map from an existing map")
+                    .text_style(style("title"))
+                    .color(p.ink),
+            );
+            ui.label(
+                RichText::new("The base map is never changed: the new map is a project of your edits on it.")
+                    .text_style(style("small"))
+                    .color(p.ink_muted),
+            );
+            ui.add_space(m.space_2);
+            let prepared: Vec<&LevelInfo> = f.levels.iter().filter(|l| l.prepared).collect();
+            egui::Grid::new("new map")
+                .num_columns(2)
+                .spacing([m.space_2, m.space_2])
+                .show(ui, |ui| {
+                    ui.label(RichText::new("Base map").color(p.ink_muted));
+                    egui::ComboBox::from_id_salt("base map")
+                        .selected_text(f.new_level.as_deref().map_or("Choose a map".into(), str::to_uppercase))
+                        .width(200.0)
+                        .show_ui(ui, |ui| {
+                            for l in &prepared {
+                                ui.selectable_value(f.new_level, Some(l.lv.clone()), l.lv.to_uppercase());
+                            }
+                        });
+                    ui.end_row();
+                    ui.label(RichText::new("Name").color(p.ink_muted));
+                    ui.add(
+                        egui::TextEdit::singleline(f.new_name)
+                            .hint_text(RichText::new("Harvest Day North").color(p.ink_faint))
+                            .desired_width(200.0),
+                    );
+                    ui.end_row();
+                    ui.label(RichText::new("Folder").color(p.ink_muted));
+                    ui.add(egui::TextEdit::singleline(f.new_folder).desired_width(200.0));
+                    ui.end_row();
+                });
+            ui.add_space(m.space_2);
+            let why = if f.new_level.is_none() {
+                Some("Choose the map to start from")
+            } else if f.new_name.trim().is_empty() {
+                Some("Give the new map a name")
+            } else if f.new_folder.trim().is_empty() {
+                Some("Choose a folder for the project")
+            } else {
+                None
+            };
+            let b = ui.add_enabled(
+                why.is_none(),
+                egui::Button::new(RichText::new("Make the map").color(p.on_accent))
+                    .fill(p.accent)
+                    .min_size(Vec2::new(0.0, m.control)),
+            );
+            if let Some(w) = why {
+                b.on_disabled_hover_text(w);
+            } else if b.clicked()
+                && let Some(lv) = f.new_level.clone()
+            {
+                out = Some(StartChoice::Create(
+                    lv,
+                    f.new_name.trim().to_owned(),
+                    PathBuf::from(f.new_folder.trim()),
+                ));
+            }
+        });
+        card(ui, &mut |ui| {
+            ui.label(RichText::new("Open a project").text_style(style("title")).color(p.ink));
+            ui.label(
+                RichText::new("A .mapedit.json file: its base map loads first, then your edits on it.")
+                    .text_style(style("small"))
+                    .color(p.ink_muted),
+            );
+            ui.add_space(m.space_2);
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(f.open_path)
+                        .hint_text(RichText::new("Project file").color(p.ink_faint))
+                        .desired_width(240.0),
+                );
+                if ui
+                    .add_enabled(!f.open_path.trim().is_empty(), egui::Button::new("Open"))
+                    .clicked()
+                {
+                    out = Some(StartChoice::Open(PathBuf::from(f.open_path.trim())));
+                }
+            });
+            if !f.recent.is_empty() {
+                ui.add_space(m.space_2);
+                ui.label(RichText::new("Recent").color(p.ink_muted));
+                for r in f.recent {
+                    let name = r
+                        .file_name()
+                        .map_or_else(|| r.display().to_string(), |n| n.to_string_lossy().into_owned());
+                    if ui
+                        .add(egui::Button::new(RichText::new(name).color(p.accent_text)).frame(false))
+                        .on_hover_text(r.display().to_string())
+                        .clicked()
+                    {
+                        out = Some(StartChoice::Open(r.clone()));
+                    }
+                }
+            }
+        });
+    });
+    out
+}
+
+// --------------------------------------------------------------------------------------------- the edits
+
+fn rows(m: &M) -> bc2_levelwrite::Rows {
+    bc2_levelwrite::rows_of(m)
+}
+
+impl ViewState {
+    /// The views and the outliner again after the project changed (an edit, an undo, a layer hidden).
+    pub(super) fn refresh(&mut self, gpu: &GpuCtx, palette: &Palette) {
+        match &self.doc {
+            Some(d) => {
+                let skip = |k: usize| !d.shown(k);
+                self.gpu_scene.refresh(&gpu.gpu, &d.scene, palette, &skip);
+                self.outliner = Outliner::new_without(&d.scene, &d.deleted);
+                let n = d.scene.entities.len();
+                self.selection.retain(|&k| k < n && d.shown(k));
+            }
+            None => self.gpu_scene.refresh(&gpu.gpu, &self.base, palette, &|_| false),
+        }
+        self.selected = self.selection.last().copied();
+        let sel = self.selection.clone();
+        self.gpu_scene.set_selection(&gpu.gpu, &sel);
+        self.redraw();
+    }
+
+    /// The selected entities that can be edited (all of them when not editing: none).
+    pub(super) fn editable_selection(&self) -> Vec<usize> {
+        let Some(d) = &self.doc else { return Vec::new() };
+        self.selection
+            .iter()
+            .copied()
+            .filter(|&k| d.why_not(k).is_none())
+            .collect()
+    }
+
+    fn matrix(&self, k: usize) -> Option<M> {
+        self.scene().entities.get(k).and_then(|e| e.matrix)
+    }
+
+    /// The placement an object keeps (its last surface placement), else the toolbar's.
+    pub(super) fn placement_for(&self, k: usize) -> Placement {
+        self.doc
+            .as_ref()
+            .and_then(|d| {
+                d.guid(k)
+                    .and_then(|g| d.org.placement.get(&g.to_ascii_uppercase()).copied())
+            })
+            .unwrap_or(self.snap.placement)
+    }
+
+    /// Commits moves or turns: (entity, before, after, placement) per object.
+    fn commit_transforms(
+        &mut self,
+        gpu: &GpuCtx,
+        palette: &Palette,
+        rotate: bool,
+        items: &[(usize, M, M, Option<Placement>)],
+        label: &str,
+    ) {
+        // a per-object sink being typed is now in the log (or was left unused)
+        self.prop_place = None;
+        let Some(d) = self.doc.as_mut() else { return };
+        let moved: Vec<Moved> = items
+            .iter()
+            .filter(|(_, a, b, p)| differ(a, b) || p.is_some())
+            .filter_map(|(k, a, b, p)| {
+                Some(Moved {
+                    guid: d.guid(*k)?.to_owned(),
+                    from: rows(a),
+                    to: rows(b),
+                    placement: *p,
+                })
+            })
+            .collect();
+        if moved.is_empty() {
+            // nothing changed: put the scene back as the log has it
+            d.rebuild();
+        } else {
+            let op = if rotate {
+                Op::Rotate { items: moved }
+            } else {
+                Op::Move { items: moved }
+            };
+            d.commit(op, label);
+            self.message = d.project.operations.last().map_or_else(String::new, Operation::name);
+        }
+        self.refresh(gpu, palette);
+    }
+
+    /// Commits an operation and refreshes the views.
+    pub(super) fn commit(&mut self, gpu: &GpuCtx, palette: &Palette, op: Op, label: &str) {
+        let Some(d) = self.doc.as_mut() else { return };
+        d.commit(op, label);
+        self.message = d.project.operations.last().map_or_else(String::new, Operation::name);
+        self.refresh(gpu, palette);
+    }
+
+    /// The selection put on the surface below each object (terrain or a mesh, passing through the selection),
+    /// each with the placement it keeps or `placement`.
+    pub(super) fn placed_on_surface(
+        &self,
+        ks: &[usize],
+        placement: Option<Placement>,
+    ) -> Vec<(usize, M, M, Option<Placement>)> {
+        let mut out = Vec::new();
+        let scene = self.scene();
+        let skip = |k: usize| ks.contains(&k) || self.doc.as_ref().is_some_and(|d| !d.shown(k));
+        for &k in ks {
+            let Some(m) = self.matrix(k) else { continue };
+            let p = placement.unwrap_or_else(|| self.placement_for(k));
+            let pos = math::row(&m, 3);
+            if let Some(hit) = query::surface_below_except(scene, pos[0], pos[2], &skip) {
+                out.push((k, m, query::place(&m, query::extent(scene, k), &hit, &p), Some(p)));
+            }
+        }
+        out
+    }
+
+    /// The editing actions; `false` for actions that are not editing ones.
+    pub(super) fn edit_action(&mut self, gpu: &GpuCtx, palette: &Palette, action: Action) -> bool {
+        let sel = self.editable_selection();
+        match action {
+            Action::Undo | Action::Redo => {
+                let Some(d) = self.doc.as_mut() else { return true };
+                let name = if action == Action::Undo {
+                    d.project.operations.last().map(Operation::name)
+                } else {
+                    d.project.redo.last().map(Operation::name)
+                };
+                let done = if action == Action::Undo { d.undo() } else { d.redo() };
+                if done {
+                    let verb = if action == Action::Undo { "Undid" } else { "Redid" };
+                    self.message = format!("{verb}: {}", name.unwrap_or_default());
+                }
+                self.drag = None;
+                self.refresh(gpu, palette);
+            }
+            Action::CheckEdits => {
+                if let Some(d) = &self.doc {
+                    self.message = d.check();
+                }
+            }
+            Action::Delete => {
+                let Some(d) = &self.doc else { return true };
+                let guids: Vec<String> = sel.iter().filter_map(|&k| d.guid(k).map(str::to_owned)).collect();
+                self.selection.clear();
+                self.commit(gpu, palette, Op::Delete { guids }, "");
+            }
+            Action::Duplicate => {
+                let Some(d) = &self.doc else { return true };
+                let offset = if self.snap.grid {
+                    self.snap.grid_size.max(1.0)
+                } else {
+                    2.0
+                };
+                let items: Vec<bc2_levelwrite::ops::Duplicated> = sel
+                    .iter()
+                    .filter_map(|&k| {
+                        let g = d.guid(k)?;
+                        let m = self.matrix(k)?;
+                        Some(bc2_levelwrite::ops::Duplicated {
+                            source: g.to_owned(),
+                            guid: d.project.new_guid(g),
+                            transform: rows(&math::translate(&m, [offset, 0.0, 0.0])),
+                        })
+                    })
+                    .collect();
+                let copies: Vec<String> = items.iter().map(|i| i.guid.clone()).collect();
+                self.commit(gpu, palette, Op::Duplicate { items }, "");
+                // the copies are selected, to be moved
+                if let Some(d) = &self.doc {
+                    let ks: Vec<usize> = copies.iter().filter_map(|g| d.index(g)).collect();
+                    self.set_selection(gpu, ks, true);
+                }
+            }
+            Action::UseTool(t) => {
+                self.tool = t;
+                if t != Tool::Ruler {
+                    self.ruler.clear();
+                }
+                self.message = format!("{} tool", t.name());
+            }
+            Action::ToggleSpace => {
+                self.space = match self.space {
+                    Space::World => Space::Local,
+                    Space::Local => Space::World,
+                };
+            }
+            Action::ToggleGridSnap => self.snap.grid = !self.snap.grid,
+            Action::ToggleAngleSnap => self.snap.angle = !self.snap.angle,
+            Action::ToggleVertexSnap => self.snap.vertex = !self.snap.vertex,
+            Action::ToggleSurfaceSnap => self.snap.surface = !self.snap.surface,
+            Action::PlaceOnSurface => {
+                let items = self.placed_on_surface(&sel, None);
+                self.commit_transforms(gpu, palette, false, &items, "Snap to ground");
+            }
+            Action::Align(a) => {
+                let a = usize::from(a);
+                let Some(target) = self
+                    .selected
+                    .and_then(|k| self.matrix(k))
+                    .map(|m| coord(math::row(&m, 3), a))
+                else {
+                    return true;
+                };
+                let items: Vec<_> = sel
+                    .iter()
+                    .filter_map(|&k| {
+                        let m = self.matrix(k)?;
+                        Some((k, m, math::at(&m, with_coord(math::row(&m, 3), a, target)), None))
+                    })
+                    .collect();
+                let label = ["Align on X", "Align on Y", "Align on Z"]
+                    .get(a)
+                    .copied()
+                    .unwrap_or("Align");
+                self.commit_transforms(gpu, palette, false, &items, label);
+            }
+            Action::Distribute(a) => {
+                let a = usize::from(a);
+                let mut at: Vec<(usize, M)> = sel.iter().filter_map(|&k| Some((k, self.matrix(k)?))).collect();
+                at.sort_by(|x, y| coord(math::row(&x.1, 3), a).total_cmp(&coord(math::row(&y.1, 3), a)));
+                let (Some(lo), Some(hi)) = (at.first(), at.last()) else {
+                    return true;
+                };
+                let (lo, hi) = (coord(math::row(&lo.1, 3), a), coord(math::row(&hi.1, 3), a));
+                let n = at.len().saturating_sub(1).max(1) as f64;
+                let items: Vec<_> = at
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (k, m))| {
+                        let p = with_coord(math::row(m, 3), a, lo + (hi - lo) * i as f64 / n);
+                        (*k, *m, math::at(m, p), None)
+                    })
+                    .collect();
+                let label = ["Distribute on X", "Distribute on Y", "Distribute on Z"]
+                    .get(a)
+                    .copied()
+                    .unwrap_or("Distribute");
+                self.commit_transforms(gpu, palette, false, &items, label);
+            }
+            Action::Group => {
+                let Some(d) = &self.doc else { return true };
+                let group = d.org.free_group_name();
+                let guids = sel.iter().filter_map(|&k| d.guid(k).map(str::to_owned)).collect();
+                self.commit(gpu, palette, Op::Group { group, guids }, "");
+            }
+            Action::Ungroup => {
+                let Some(d) = &self.doc else { return true };
+                let group = self
+                    .selection
+                    .iter()
+                    .find_map(|&k| d.guid(k).and_then(|g| d.org.group_of(g)).map(|(n, _)| n.to_owned()));
+                if let Some(group) = group {
+                    self.commit(gpu, palette, Op::Ungroup { group }, "");
+                }
+            }
+            Action::NewLayer => {
+                let Some(d) = &self.doc else { return true };
+                let layer = d.org.free_layer_name();
+                let colour = colour_after([0; 3], d.org.layers.len());
+                let guids: Vec<String> = sel.iter().filter_map(|&k| d.guid(k).map(str::to_owned)).collect();
+                self.commit(
+                    gpu,
+                    palette,
+                    Op::AddLayer {
+                        layer: layer.clone(),
+                        colour,
+                    },
+                    "",
+                );
+                self.commit(gpu, palette, Op::AssignLayer { layer, guids }, "");
+            }
+            Action::ToggleWorkspace => {
+                self.workspace = match self.workspace {
+                    Workspace::View => Workspace::Objects,
+                    Workspace::Objects => Workspace::View,
+                };
+                self.drag = None;
+                self.box_from = None;
+            }
+            _ => return false,
+        }
+        self.redraw();
+        true
+    }
+
+    /// The gizmo's frame: at the primary object, in the chosen axes (none when it cannot be edited).
+    pub(super) fn gizmo_frame(&self) -> Option<Frame> {
+        let k = self.selected?;
+        if self.doc.as_ref()?.why_not(k).is_some() {
+            return None;
+        }
+        if let Some(d) = &self.drag {
+            // while dragging, the frame moves with the primary
+            let now = d.now.iter().find(|(x, _)| *x == k).map(|(_, m)| *m)?;
+            return Some(Frame {
+                origin: math::row(&now, 3),
+                axes: if self.space == Space::Local {
+                    Frame::of(&now, Space::Local).axes
+                } else {
+                    d.frame.axes
+                },
+            });
+        }
+        Some(Frame::of(&self.matrix(k)?, self.space))
+    }
+
+    /// Updates a drag with the pointer at `px` (viewport points).
+    fn drag_to(&mut self, view: &camera::View, px: [f64; 2], shift: bool) {
+        let Some(mut drag) = self.drag.take() else { return };
+        let grid = if self.snap.grid { self.snap.grid_size } else { 0.0 };
+        let angle = if self.snap.angle {
+            self.snap.angle_step.to_radians()
+        } else {
+            0.0
+        };
+        let ks: Vec<usize> = drag.objects.iter().map(|(k, _)| *k).collect();
+        let doc = self.doc.as_ref();
+        let skip = |k: usize| ks.contains(&k) || doc.is_some_and(|d| !d.shown(k));
+        let scene = self.scene();
+        let mut delta = gizmo::delta(view, &drag.frame, drag.handle, drag.start, px, grid, angle);
+        // vertex and edge snapping: the pivot goes to the corner (Shift: the edge) under the pointer
+        if self.snap.vertex
+            && matches!(delta, Some(gizmo::Delta::Move(_)))
+            && let Some(hit) = {
+                let (o, d) = view.ray(px);
+                query::ray_hit_except(scene, o, d, &skip)
+            }
+        {
+            let target = if shift {
+                query::snap_edge(&hit)
+            } else {
+                query::snap_vertex(&hit)
+            };
+            delta = Some(gizmo::Delta::Move(math::sub(target, drag.frame.origin)));
+        }
+        let Some(delta) = delta else {
+            self.drag = Some(drag);
+            return;
+        };
+        let mut now: Vec<(usize, M)> = drag
+            .objects
+            .iter()
+            .map(|(k, m)| (*k, gizmo::apply(m, &drag.frame, delta)))
+            .collect();
+        drag.placed = false;
+        // surface snapping: each object on the surface below it (not for the up arm, which sets the height)
+        if self.snap.surface && matches!(delta, gizmo::Delta::Move(_)) && drag.handle != Handle::Axis(1) {
+            let centre_hit = if drag.handle == Handle::Centre {
+                let (o, d) = view.ray(px);
+                query::ray_hit_except(scene, o, d, &skip)
+            } else {
+                None
+            };
+            for (k, m) in &mut now {
+                let p = self.placement_for(*k);
+                let mut pos = math::row(m, 3);
+                if let Some(h) = centre_hit {
+                    // the centre drags the primary to the point under the pointer; the others keep their offsets
+                    let shift_by = math::sub(h.point, drag.frame.origin);
+                    let start = drag
+                        .objects
+                        .iter()
+                        .find(|(x, _)| x == k)
+                        .map_or(pos, |(_, s)| math::row(s, 3));
+                    pos = math::add(start, shift_by);
+                }
+                if let Some(hit) = query::surface_below_except(scene, pos[0], pos[2], &skip) {
+                    *m = query::place(&math::at(m, pos), query::extent(scene, *k), &hit, &p);
+                    drag.placed = true;
+                }
+            }
+        }
+        if let Some(d) = self.doc.as_mut() {
+            d.preview(&now);
+        }
+        self.message = match delta {
+            gizmo::Delta::Move(v) => format!("Moving {:.2}, {:.2}, {:.2} m", v[0], v[1], v[2]),
+            gizmo::Delta::Turn { angle, .. } => format!("Turning {:.1} deg", angle.to_degrees()),
+        };
+        drag.now = now;
+        self.drag = Some(drag);
+    }
+
+    /// Ends a drag: one operation for every object moved.
+    fn finish_drag(&mut self, gpu: &GpuCtx, palette: &Palette) {
+        let Some(drag) = self.drag.take() else { return };
+        let rotate = matches!(drag.handle, Handle::Ring(_));
+        let items: Vec<_> = drag
+            .objects
+            .iter()
+            .zip(&drag.now)
+            .map(|((k, a), (_, b))| (*k, *a, *b, drag.placed.then(|| self.placement_for(*k))))
+            .collect();
+        self.commit_transforms(gpu, palette, rotate, &items, "");
+    }
+}
+
+// ------------------------------------------------------------------------------------------------ the views
+
+impl Tabs<'_> {
+    fn view_of(rect: Rect, cam: &Camera) -> camera::View {
+        cam.view([f64::from(rect.width()), f64::from(rect.height())])
+    }
+
+    /// Editing input on a viewport; `true` when the left button's drag is the editor's (the gizmo or a box).
+    pub(super) fn edit_input(
+        &mut self,
+        ui: &egui::Ui,
+        resp: &egui::Response,
+        rect: Rect,
+        projection: Projection,
+        vp: &mut Viewport,
+    ) -> bool {
+        let (alt, shift, origin, hover) = ui.input(|i| {
+            (
+                i.modifiers.alt,
+                i.modifiers.shift,
+                i.pointer.press_origin(),
+                i.pointer.hover_pos(),
+            )
+        });
+        let view = Self::view_of(rect, &vp.camera);
+        let local = |p: Pos2| [f64::from(p.x - rect.min.x), f64::from(p.y - rect.min.y)];
+        let gizmo_tool = matches!(self.view.tool, Tool::Move | Tool::Rotate);
+        let frame = self.view.gizmo_frame();
+        if self.view.drag.is_none() {
+            self.view.hover = match (frame, hover) {
+                (Some(f), Some(h)) if gizmo_tool && rect.contains(h) => {
+                    gizmo::pick(&view, &f, self.view.tool, local(h))
+                }
+                _ => None,
+            };
+        }
+        let palette = self.palette;
+        if resp.drag_started_by(PointerButton::Primary) && !alt {
+            let at = origin.unwrap_or_else(|| resp.interact_pointer_pos().unwrap_or(rect.center()));
+            if let Some(f) = frame
+                && gizmo_tool
+                && let Some(h) = gizmo::pick(&view, &f, self.view.tool, local(at))
+                && let Some(start) = gizmo::start(&view, &f, h, local(at))
+            {
+                let objects: Vec<(usize, M)> = self
+                    .view
+                    .editable_selection()
+                    .into_iter()
+                    .filter_map(|k| Some((k, self.view.matrix(k)?)))
+                    .collect();
+                self.view.drag = Some(Drag {
+                    projection,
+                    handle: h,
+                    frame: f,
+                    start,
+                    now: objects.clone(),
+                    objects,
+                    placed: false,
+                });
+            } else if self.view.tool != Tool::Ruler {
+                self.view.box_from = Some((projection, at));
+            }
+            return true;
+        }
+        let mine = self.view.drag.as_ref().is_some_and(|d| d.projection == projection);
+        if mine && resp.dragged_by(PointerButton::Primary) {
+            if let Some(p) = resp.interact_pointer_pos() {
+                self.view.drag_to(&view, local(p), shift);
+                if let Some(d) = self.view.doc.as_ref() {
+                    let skip = |k: usize| !d.shown(k);
+                    self.view.gpu_scene.refresh(&self.gpu.gpu, &d.scene, &palette, &skip);
+                }
+                self.view.redraw();
+                vp.dirty = true;
+            }
+            return true;
+        }
+        let boxing = self.view.box_from.is_some_and(|(p, _)| p == projection);
+        if boxing && resp.dragged_by(PointerButton::Primary) {
+            return true;
+        }
+        if resp.drag_stopped() {
+            if mine {
+                self.view.finish_drag(self.gpu, &palette);
+                vp.dirty = true;
+                return true;
+            }
+            if boxing && let (Some((_, from)), Some(to)) = (self.view.box_from.take(), resp.interact_pointer_pos()) {
+                let add = ui.input(|i| i.modifiers.command || i.modifiers.shift);
+                self.box_select(Rect::from_two_pos(from, to), rect, &vp.camera, add);
+                vp.dirty = true;
+                return true;
+            }
+        }
+        !alt && resp.dragged_by(PointerButton::Primary)
+    }
+
+    /// Selects the editable, shown entities whose position is inside a box drawn on a viewport.
+    fn box_select(&mut self, area: Rect, rect: Rect, cam: &Camera, add: bool) {
+        let view = Self::view_of(rect, cam);
+        let Some(d) = self.view.doc.as_ref() else { return };
+        let mut list = if add { self.view.selection.clone() } else { Vec::new() };
+        for e in &d.scene.entities {
+            if !d.shown(e.index) || d.why_not(e.index).is_some() || list.contains(&e.index) {
+                continue;
+            }
+            let Some(p) = e.position() else { continue };
+            if let Some(s) = view.project(p)
+                && area.contains(rect.min + Vec2::new(s[0] as f32, s[1] as f32))
+            {
+                list.push(e.index);
+            }
+        }
+        self.view.message = format!("{} selected", list.len());
+        self.view.set_selection(self.gpu, list, true);
+    }
+
+    /// A click while editing: select (with its group), Ctrl or Shift adds or removes; the ruler takes the point.
+    pub(super) fn edit_click(&mut self, entity: Option<usize>, add: bool, hit: Option<query::Hit>) {
+        if self.view.tool == Tool::Ruler {
+            if let Some(h) = hit {
+                let p = if self.view.snap.vertex {
+                    query::snap_vertex(&h)
+                } else {
+                    h.point
+                };
+                if self.view.ruler.len() >= 2 {
+                    self.view.ruler.clear();
+                }
+                self.view.ruler.push(p);
+                if let [a, b] = self.view.ruler.as_slice() {
+                    self.view.message = ruler_text(*a, *b);
+                }
+            }
+            return;
+        }
+        let Some(d) = self.view.doc.as_ref() else { return };
+        // objects on a locked layer, and deleted ones, are not selected in the views
+        let entity = entity.filter(|&k| d.shown(k) && d.guid(k).is_some_and(|g| d.org.editable(g)));
+        if add {
+            let Some(k) = entity else { return };
+            let group = d.with_group(k);
+            let mut list = self.view.selection.clone();
+            if list.contains(&k) {
+                list.retain(|x| !group.contains(x));
+            } else {
+                list.retain(|x| !group.contains(x));
+                list.extend(group.iter().filter(|&&x| x != k));
+                list.push(k);
+            }
+            self.view.set_selection(self.gpu, list, true);
+        } else {
+            self.view.select(self.gpu, entity, true);
+        }
+    }
+
+    /// The gizmo, the box, the ruler and the gizmo toolbar over a viewport.
+    pub(super) fn edit_overlay(&mut self, ui: &mut egui::Ui, rect: Rect, projection: Projection, cam: &Camera) {
+        let p = self.palette;
+        let painter = ui.painter().with_clip_rect(rect);
+        let view = Self::view_of(rect, cam);
+        let to_screen = |s: [f64; 2]| rect.min + Vec2::new(s[0] as f32, s[1] as f32);
+        // the gizmo
+        if let Some(f) = self.view.gizmo_frame() {
+            let active = self.view.drag.as_ref().map(|d| d.handle).or(self.view.hover);
+            let axis = |k: usize| [p.axis_x, p.axis_y, p.axis_z].get(k).copied().unwrap_or(p.ink);
+            for (h, pts) in gizmo::handles(&view, &f, self.view.tool) {
+                let hot = active == Some(h);
+                let pts: Vec<Pos2> = pts.into_iter().map(to_screen).collect();
+                match h {
+                    Handle::Axis(k) => {
+                        let c = if hot { p.view_selection } else { axis(k) };
+                        if let [a, b] = pts.as_slice() {
+                            painter.line_segment([*a, *b], Stroke::new(3.0, c));
+                            painter.circle_filled(*b, 5.0, c);
+                        }
+                    }
+                    Handle::Plane(k) => {
+                        let c = if hot { p.view_selection } else { axis(k) };
+                        painter.add(egui::Shape::convex_polygon(
+                            pts.clone(),
+                            c.gamma_multiply(0.35),
+                            Stroke::new(1.0, c),
+                        ));
+                    }
+                    Handle::Centre => {
+                        if let Some(c) = pts.first() {
+                            let col = if hot { p.view_selection } else { p.ink };
+                            painter.rect_stroke(
+                                Rect::from_center_size(*c, Vec2::splat(12.0)),
+                                CornerRadius::same(2),
+                                Stroke::new(2.0, col),
+                                egui::StrokeKind::Middle,
+                            );
+                        }
+                    }
+                    Handle::Ring(k) => {
+                        let c = if hot { p.view_selection } else { axis(k) };
+                        painter.add(egui::Shape::line(pts, Stroke::new(if hot { 3.0 } else { 2.0 }, c)));
+                    }
+                }
+            }
+        }
+        // the selection box
+        if let (Some((pr, from)), Some(to)) = (self.view.box_from, ui.input(|i| i.pointer.hover_pos()))
+            && pr == projection
+        {
+            let r = Rect::from_two_pos(from, to);
+            painter.rect_filled(r, CornerRadius::ZERO, p.view_selection.gamma_multiply(0.12));
+            painter.rect_stroke(
+                r,
+                CornerRadius::ZERO,
+                Stroke::new(1.0, p.view_selection),
+                egui::StrokeKind::Middle,
+            );
+        }
+        // the ruler
+        let pts: Vec<Pos2> = self
+            .view
+            .ruler
+            .iter()
+            .filter_map(|w| view.project(*w))
+            .map(to_screen)
+            .collect();
+        for q in &pts {
+            painter.circle_filled(*q, 4.0, p.view_selection);
+        }
+        if let ([a, b], [wa, wb]) = (pts.as_slice(), self.view.ruler.as_slice()) {
+            painter.line_segment([*a, *b], Stroke::new(2.0, p.view_selection));
+            let label = ruler_text(*wa, *wb);
+            let g = painter.layout_no_wrap(label, FontId::monospace(12.0), p.ink);
+            let mid = Pos2::new(f32::midpoint(a.x, b.x), f32::midpoint(a.y, b.y)) - Vec2::new(0.0, 14.0);
+            let r = Rect::from_center_size(mid, g.size() + Vec2::splat(8.0));
+            painter.rect_filled(r, CornerRadius::same(2), p.scene_label);
+            painter.galley(r.min + Vec2::splat(4.0), g, p.ink);
+        }
+        // the gizmo toolbar, along the top of the view
+        // (it wraps onto a second row in a narrow view)
+        let bar = Rect::from_min_size(rect.min + Vec2::splat(6.0), Vec2::new(rect.width() - 12.0, 64.0));
+        let mut ui2 = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(bar)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        egui::Frame::new()
+            .fill(p.surface_2.gamma_multiply(0.94))
+            .stroke(Stroke::new(1.0, p.line))
+            .corner_radius(CornerRadius::same(4))
+            .inner_margin(Margin::symmetric(6, 2))
+            .show(&mut ui2, |ui| {
+                ui.horizontal_wrapped(|ui| self.toolbar(ui));
+            });
+    }
+
+    /// The gizmo toolbar: the tool, the axes, snapping and the sink depth.
+    fn toolbar(&mut self, ui: &mut egui::Ui) {
+        let p = self.palette;
+        let v = &mut *self.view;
+        ui.spacing_mut().item_spacing.x = 6.0;
+        for (t, key) in [
+            (Tool::Select, "Q"),
+            (Tool::Move, "W"),
+            (Tool::Rotate, "E"),
+            (Tool::Ruler, "R"),
+        ] {
+            if ui
+                .selectable_label(v.tool == t, t.name())
+                .on_hover_text(format!("{} ({key})", t.name()))
+                .clicked()
+            {
+                v.tool = t;
+                if t != Tool::Ruler {
+                    v.ruler.clear();
+                }
+            }
+        }
+        ui.separator();
+        let space = if v.space == Space::World { "World" } else { "Local" };
+        if ui
+            .button(space)
+            .on_hover_text("The gizmo's axes: the map's, or the object's own (X)")
+            .clicked()
+        {
+            v.space = if v.space == Space::World {
+                Space::Local
+            } else {
+                Space::World
+            };
+        }
+        ui.separator();
+        ui.checkbox(&mut v.snap.grid, "Grid")
+            .on_hover_text("Moves go in steps of the grid (G)");
+        ui.add(
+            egui::DragValue::new(&mut v.snap.grid_size)
+                .range(0.05..=100.0)
+                .speed(0.05)
+                .suffix(" m"),
+        );
+        ui.checkbox(&mut v.snap.angle, "Angle")
+            .on_hover_text("Turns go in steps of the angle");
+        ui.add(
+            egui::DragValue::new(&mut v.snap.angle_step)
+                .range(1.0..=90.0)
+                .speed(0.5)
+                .suffix(" deg"),
+        );
+        ui.checkbox(&mut v.snap.vertex, "Vertex")
+            .on_hover_text("Moves snap to the corner under the pointer; hold Shift for the edge (V)");
+        ui.separator();
+        ui.checkbox(&mut v.snap.surface, "Surface")
+            .on_hover_text("Moves put objects on the terrain or mesh below them (B)");
+        ui.label(RichText::new("Sink").color(p.ink_muted));
+        sink_editor(ui, &mut v.snap.placement, "toolbar sink");
+    }
+
+    /// The properties' editing part: the transform as numbers, the surface placement and sink depth, the layer,
+    /// folder and group, and the typed fields.
+    pub(super) fn edit_properties(&mut self, ui: &mut egui::Ui, e: &scene::Entity) {
+        let p = self.palette;
+        let m = self.metrics;
+        let gpu = self.gpu;
+        let k = e.index;
+        let Some(d) = self.view.doc.as_ref() else { return };
+        ui.add_space(m.space_3);
+        let g = ui.painter().layout_job(caption("Edit", p.ink_muted));
+        let (r, _) = ui.allocate_exact_size(g.size(), Sense::hover());
+        ui.painter().galley(r.min, g, p.ink_muted);
+        ui.add_space(m.space_1);
+        if let Some(why) = d.why_not(k) {
+            ui.label(RichText::new(format!("Not editable: {why}.")).color(p.ink_muted));
+            return;
+        }
+        let Some(mat) = e.matrix else { return };
+        // position and yaw as numbers: previewed while dragged, one operation when let go
+        let mut pos = math::row(&mat, 3);
+        let mut yaw = math::yaw_degrees(&mat);
+        let mut changed = None;
+        let mut done = false;
+        egui::Grid::new("edit transform")
+            .num_columns(4)
+            .spacing([m.space_2, m.space_1])
+            .show(ui, |ui| {
+                ui.label(RichText::new("Position").color(p.ink_muted));
+                let mut moved = false;
+                for ((name, c), value) in [("X", p.axis_x), ("Y", p.axis_y), ("Z", p.axis_z)]
+                    .into_iter()
+                    .zip(pos.iter_mut())
+                {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(name).text_style(style("body-strong")).color(c));
+                        let r = ui.add(egui::DragValue::new(value).speed(0.05).max_decimals(3).suffix(" m"));
+                        moved |= r.changed();
+                        done |= r.drag_stopped() || r.lost_focus();
+                    });
+                }
+                if moved {
+                    changed = Some(math::at(&mat, pos));
+                }
+                ui.end_row();
+                ui.label(RichText::new("Yaw").color(p.ink_muted));
+                let r = ui.add(egui::DragValue::new(&mut yaw).speed(0.5).max_decimals(2).suffix(" deg"));
+                if r.changed() {
+                    let now = math::yaw_degrees(&mat);
+                    changed = Some(math::rotate_about(
+                        &mat,
+                        math::row(&mat, 3),
+                        [0.0, 1.0, 0.0],
+                        (yaw - now).to_radians(),
+                    ));
+                }
+                done |= r.drag_stopped() || r.lost_focus();
+                ui.end_row();
+            });
+        if let Some(now) = changed {
+            if self.view.prop_from.is_none_or(|(x, _)| x != k) {
+                self.view.prop_from = Some((k, mat));
+            }
+            if let Some(d) = self.view.doc.as_mut() {
+                d.preview(&[(k, now)]);
+            }
+            self.view.refresh(gpu, &p);
+        }
+        if done && let Some((x, from)) = self.view.prop_from.take() {
+            let to = self.view.matrix(x).unwrap_or(from);
+            // the position as it was: a turn
+            let rotate = {
+                let (a, b) = (math::row(&from, 3), math::row(&to, 3));
+                a.iter().zip(b).all(|(x, y)| x.to_bits() == y.to_bits())
+            };
+            self.view
+                .commit_transforms(gpu, &p, rotate, &[(x, from, to, None)], "Typed");
+        }
+        // the surface placement, kept with the object
+        ui.add_space(m.space_2);
+        let Some(d) = self.view.doc.as_ref() else { return };
+        let stored = d
+            .guid(k)
+            .and_then(|g| d.org.placement.get(&g.to_ascii_uppercase()).copied());
+        ui.label(
+            RichText::new(match stored {
+                Some(s) => format!("On a surface, {}", s.describe()),
+                None => "Not placed on a surface yet".into(),
+            })
+            .color(p.ink_muted),
+        );
+        let mut place = match self.view.prop_place {
+            Some((x, pl)) if x == k => pl,
+            _ => stored.unwrap_or(self.view.snap.placement),
+        };
+        let shown = place;
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Sink").color(p.ink_muted));
+            sink_editor(ui, &mut place, "object sink");
+        });
+        // kept only while the user changes it (else it follows the object's stored placement)
+        if place != shown {
+            self.view.prop_place = Some((k, place));
+        }
+        let place_btn = ui.button("Place on surface").on_hover_text(
+            "Puts this object on the terrain or mesh below it with this sink depth; it keeps the depth when moved",
+        );
+        // layer, folder, group
+        let org: &Organisation = &d.org;
+        let guid = d.guid(k).unwrap_or_default().to_owned();
+        let layer_now = org.layer(&guid).map_or_else(String::new, |l| l.name.clone());
+        let mut layer_pick = layer_now.clone();
+        let names: Vec<String> = org.layers.iter().map(|l| l.name.clone()).collect();
+        let group = org.group_of(&guid).map(|(n, _)| n.to_owned());
+        let folder_now = org
+            .folder_of
+            .get(&guid.to_ascii_uppercase())
+            .cloned()
+            .unwrap_or_default();
+        let mut folder_set = None;
+        ui.add_space(m.space_2);
+        egui::Grid::new("edit organisation")
+            .num_columns(2)
+            .spacing([m.space_2, m.space_1])
+            .show(ui, |ui| {
+                ui.label(RichText::new("Layer").color(p.ink_muted));
+                egui::ComboBox::from_id_salt("object layer")
+                    .selected_text(if layer_pick.is_empty() {
+                        "None".to_owned()
+                    } else {
+                        layer_pick.clone()
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut layer_pick, String::new(), "None");
+                        for n in &names {
+                            ui.selectable_value(&mut layer_pick, n.clone(), n);
+                        }
+                    });
+                ui.end_row();
+                ui.label(RichText::new("Folder").color(p.ink_muted));
+                ui.horizontal(|ui| {
+                    if self.view.folder_input.is_empty() && !folder_now.is_empty() {
+                        self.view.folder_input.clone_from(&folder_now);
+                    }
+                    let r = ui.add(
+                        egui::TextEdit::singleline(&mut self.view.folder_input)
+                            .hint_text(RichText::new("Buildings/North").color(p.ink_faint))
+                            .desired_width(140.0),
+                    );
+                    if (r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) || ui.button("Set").clicked() {
+                        folder_set = Some(self.view.folder_input.trim().to_owned());
+                    }
+                });
+                ui.end_row();
+                ui.label(RichText::new("Group").color(p.ink_muted));
+                ui.label(RichText::new(group.unwrap_or_else(|| "None".into())).color(p.ink));
+                ui.end_row();
+            });
+        if place_btn.clicked() {
+            let items = self.view.placed_on_surface(&[k], Some(place));
+            self.view.commit_transforms(gpu, &p, false, &items, "Place on surface");
+        }
+        let targets: Vec<String> = {
+            let d = self.view.doc.as_ref();
+            self.view
+                .editable_selection()
+                .iter()
+                .filter_map(|&x| d.and_then(|d| d.guid(x)).map(str::to_owned))
+                .collect()
+        };
+        if layer_pick != layer_now {
+            self.view.commit(
+                gpu,
+                &p,
+                Op::AssignLayer {
+                    layer: layer_pick,
+                    guids: targets.clone(),
+                },
+                "",
+            );
+        }
+        if let Some(folder) = folder_set
+            && folder != folder_now
+        {
+            self.view.commit(gpu, &p, Op::SetFolder { folder, guids: targets }, "");
+        }
+        self.fields(ui, k);
+    }
+
+    /// The typed fields of the primary object (the schema's types), each change one operation.
+    fn fields(&mut self, ui: &mut egui::Ui, k: usize) {
+        let p = self.palette;
+        let m = self.metrics;
+        let Some(d) = self.view.doc.as_ref() else { return };
+        let rows = d.fields(k);
+        if rows.is_empty() {
+            return;
+        }
+        let guid = d.guid(k).unwrap_or_default().to_owned();
+        ui.add_space(m.space_3);
+        let g = ui.painter().layout_job(caption("Fields", p.ink_muted));
+        let (r, _) = ui.allocate_exact_size(g.size(), Sense::hover());
+        ui.painter().galley(r.min, g, p.ink_muted);
+        ui.add_space(m.space_1);
+        let mut set: Option<(String, FieldValue, Option<FieldValue>)> = None;
+        egui::Grid::new("fields")
+            .num_columns(2)
+            .spacing([m.space_2, m.space_1])
+            .show(ui, |ui| {
+                for row in &rows {
+                    ui.label(RichText::new(&row.path).color(p.ink_muted))
+                        .on_hover_text(format!("{} ({})", row.path, row.ty.name()));
+                    let editing = self
+                        .view
+                        .field_edit
+                        .as_ref()
+                        .filter(|(x, f, _)| *x == k && *f == row.path)
+                        .map(|(_, _, t)| t.clone());
+                    match (&row.ty, &row.value) {
+                        (FieldType::Bool, Some(FieldValue::Bool(b))) => {
+                            let mut v = *b;
+                            if ui.checkbox(&mut v, "").changed() {
+                                set = Some((row.path.clone(), FieldValue::Bool(v), row.value.clone()));
+                            }
+                        }
+                        (FieldType::Int, Some(FieldValue::Int(i))) => {
+                            let mut v = *i;
+                            let r = ui.add(egui::DragValue::new(&mut v).speed(0.1));
+                            if r.changed() && !r.dragged() || r.drag_stopped() && v != *i {
+                                set = Some((row.path.clone(), FieldValue::Int(v), row.value.clone()));
+                            }
+                        }
+                        (FieldType::Float, Some(FieldValue::Float(f))) => {
+                            let mut v = *f;
+                            let r = ui.add(egui::DragValue::new(&mut v).speed(0.01).max_decimals(4));
+                            if r.changed() && !r.dragged() || r.drag_stopped() && v.to_bits() != f.to_bits() {
+                                set = Some((row.path.clone(), FieldValue::Float(v), row.value.clone()));
+                            }
+                        }
+                        (FieldType::Text | FieldType::Ref, Some(FieldValue::Text(t) | FieldValue::Ref(t))) => {
+                            let mut text = editing.unwrap_or_else(|| t.clone());
+                            ui.horizontal(|ui| {
+                                let r = ui.add(
+                                    egui::TextEdit::singleline(&mut text)
+                                        .desired_width(150.0)
+                                        .font(TextStyle::Monospace),
+                                );
+                                if r.changed() {
+                                    self.view.field_edit = Some((k, row.path.clone(), text.clone()));
+                                }
+                                if r.lost_focus() && text != *t {
+                                    let v = if row.ty == FieldType::Ref {
+                                        FieldValue::Ref(text.clone())
+                                    } else {
+                                        FieldValue::Text(text.clone())
+                                    };
+                                    set = Some((row.path.clone(), v, row.value.clone()));
+                                    self.view.field_edit = None;
+                                }
+                                if !row.choices.is_empty() {
+                                    egui::ComboBox::from_id_salt(("choices", &row.path))
+                                        .selected_text("")
+                                        .width(18.0)
+                                        .show_ui(ui, |ui| {
+                                            for c in row.choices.iter().take(40) {
+                                                if ui.selectable_label(c == t, c).clicked() && c != t {
+                                                    set = Some((
+                                                        row.path.clone(),
+                                                        FieldValue::Text(c.clone()),
+                                                        row.value.clone(),
+                                                    ));
+                                                }
+                                            }
+                                        });
+                                }
+                            });
+                        }
+                        (ty, v) => {
+                            let text = v.as_ref().map_or_else(|| ty.name(), FieldValue::text);
+                            ui.label(RichText::new(text).text_style(style("value")).color(p.ink_faint))
+                                .on_hover_text("Not editable here yet");
+                        }
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some((field, to, from)) = set {
+            let gpu = self.gpu;
+            self.view.commit(
+                gpu,
+                &p,
+                Op::SetField {
+                    items: vec![FieldSet { guid, field, from, to }],
+                },
+                "",
+            );
+        }
+    }
+
+    /// The History panel: every operation with who and when; click one to undo or redo to just after it.
+    pub(super) fn history(&mut self, ui: &mut egui::Ui) {
+        let p = self.palette;
+        let m = self.metrics;
+        let Some(d) = self.view.doc.as_ref() else {
+            self.header(ui, "History", "");
+            ui.label(RichText::new("Open a project to edit; its operations are listed here.").color(p.ink_muted));
+            return;
+        };
+        let applied = d.project.operations.len();
+        self.header(
+            ui,
+            "History",
+            &format!(
+                "{applied} operation(s){}",
+                if d.project.redo.is_empty() {
+                    String::new()
+                } else {
+                    format!(", {} undone", d.project.redo.len())
+                }
+            ),
+        );
+        let mut go = None;
+        let rows: Vec<(String, String, bool)> = std::iter::once((
+            format!("Base: {}", d.project.base.partition),
+            "as loaded".to_owned(),
+            true,
+        ))
+        .chain(
+            d.project
+                .operations
+                .iter()
+                .map(|o| (o.name(), format!("{}  {}", o.by, o.when), true)),
+        )
+        .chain(
+            d.project
+                .redo
+                .iter()
+                .rev()
+                .map(|o| (o.name(), format!("{}  {}  (undone)", o.by, o.when), false)),
+        )
+        .collect();
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .stick_to_bottom(true)
+            .show(ui, |ui| {
+                for (i, (name, when, done)) in rows.iter().enumerate() {
+                    let (rect, resp) =
+                        ui.allocate_exact_size(Vec2::new(ui.available_width(), m.row + 14.0), Sense::click());
+                    let current = i == applied;
+                    if current {
+                        ui.painter()
+                            .rect_filled(rect, CornerRadius::same(m.radius_sm as u8), p.accent_subtle);
+                        ui.painter().rect_filled(
+                            Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height())),
+                            CornerRadius::ZERO,
+                            p.accent,
+                        );
+                    } else if resp.hovered() {
+                        ui.painter().rect_filled(rect, CornerRadius::ZERO, p.surface_2);
+                    }
+                    let ink = if *done { p.ink } else { p.ink_faint };
+                    ui.painter().text(
+                        rect.left_top() + Vec2::new(m.space_2, 2.0),
+                        Align2::LEFT_TOP,
+                        name,
+                        FontId::proportional(13.0),
+                        ink,
+                    );
+                    ui.painter().text(
+                        rect.left_bottom() + Vec2::new(m.space_2, -2.0),
+                        Align2::LEFT_BOTTOM,
+                        when,
+                        FontId::proportional(10.5),
+                        p.ink_muted,
+                    );
+                    if resp
+                        .on_hover_text(if *done {
+                            "Undo to just after this"
+                        } else {
+                            "Redo up to this"
+                        })
+                        .clicked()
+                    {
+                        go = Some(i);
+                    }
+                }
+            });
+        if let Some(i) = go {
+            let palette = self.palette;
+            if let Some(d) = self.view.doc.as_mut() {
+                d.go_to(i);
+                self.view.message = format!("History: {i} operation(s) applied");
+            }
+            self.view.drag = None;
+            self.view.refresh(self.gpu, &palette);
+        }
+    }
+
+    /// The Layers panel: hide, isolate, lock, colour; add the selection; remove.
+    pub(super) fn layers(&mut self, ui: &mut egui::Ui) {
+        let p = self.palette;
+        let m = self.metrics;
+        let Some(d) = self.view.doc.as_ref() else {
+            self.header(ui, "Layers", "");
+            ui.label(RichText::new("Open a project to use layers.").color(p.ink_muted));
+            return;
+        };
+        let layers = d.org.layers.clone();
+        let count = |name: &str| d.org.layer_of.values().filter(|l| *l == name).count();
+        let counts: Vec<usize> = layers.iter().map(|l| count(&l.name)).collect();
+        let sel: Vec<String> = self
+            .view
+            .editable_selection()
+            .iter()
+            .filter_map(|&k| d.guid(k).map(str::to_owned))
+            .collect();
+        self.header(ui, "Layers", &format!("{}", layers.len()));
+        let mut ops: Vec<Op> = Vec::new();
+        let mut new_layer = false;
+        egui::Frame::new()
+            .inner_margin(Margin::same(m.space_2 as i8))
+            .show(ui, |ui| {
+                if ui
+                    .add_enabled(!sel.is_empty(), egui::Button::new("New layer from selection"))
+                    .on_disabled_hover_text("Select objects to put on the new layer")
+                    .clicked()
+                {
+                    new_layer = true;
+                }
+                ui.add_space(m.space_2);
+                if layers.is_empty() {
+                    ui.label(RichText::new("No layers yet. Objects on no layer are always shown.").color(p.ink_muted));
+                }
+                for (l, n) in layers.iter().zip(counts) {
+                    let mut to = l.state.clone();
+                    ui.horizontal(|ui| {
+                        let [r, g, b] = l.state.colour;
+                        let (sw, resp) = ui.allocate_exact_size(Vec2::splat(14.0), Sense::click());
+                        ui.painter()
+                            .rect_filled(sw, CornerRadius::same(2), Color32::from_rgb(r, g, b));
+                        if resp.on_hover_text("Next colour").clicked() {
+                            to.colour = colour_after(l.state.colour, 1);
+                        }
+                        ui.label(RichText::new(&l.name).color(if l.state.hidden { p.ink_faint } else { p.ink }));
+                        let mut state = Vec::new();
+                        if l.state.hidden {
+                            state.push("hidden");
+                        }
+                        if l.state.isolated {
+                            state.push("isolated");
+                        }
+                        if l.state.locked {
+                            state.push("locked");
+                        }
+                        let what = if n == 1 {
+                            "1 object".to_owned()
+                        } else {
+                            format!("{n} objects")
+                        };
+                        let tail = if state.is_empty() {
+                            what
+                        } else {
+                            format!("{what}, {}", state.join(", "))
+                        };
+                        ui.label(RichText::new(tail).text_style(style("small")).color(p.ink_muted));
+                    });
+                    ui.horizontal_wrapped(|ui| {
+                        ui.add_space(18.0);
+                        let toggles = [
+                            (&mut to.hidden, "Show", "Hide", "Hidden objects stay in the build"),
+                            (
+                                &mut to.isolated,
+                                "Stop isolating",
+                                "Isolate",
+                                "Only isolated layers are shown",
+                            ),
+                            (
+                                &mut to.locked,
+                                "Unlock",
+                                "Lock",
+                                "Locked objects cannot be selected in the views",
+                            ),
+                        ];
+                        for (flag, on, off, help) in toggles {
+                            if ui
+                                .small_button(if *flag { on } else { off })
+                                .on_hover_text(help)
+                                .clicked()
+                            {
+                                *flag = !*flag;
+                            }
+                        }
+                        if ui
+                            .add_enabled(!sel.is_empty(), egui::Button::new("Add selection").small())
+                            .on_hover_text("Puts the selection on this layer")
+                            .clicked()
+                        {
+                            ops.push(Op::AssignLayer {
+                                layer: l.name.clone(),
+                                guids: sel.clone(),
+                            });
+                        }
+                        if ui
+                            .small_button("Remove")
+                            .on_hover_text("Its objects go back to no layer")
+                            .clicked()
+                        {
+                            ops.push(Op::RemoveLayer { layer: l.name.clone() });
+                        }
+                    });
+                    if to != l.state {
+                        ops.push(Op::SetLayer {
+                            layer: l.name.clone(),
+                            from: l.state.clone(),
+                            to,
+                        });
+                    }
+                    ui.add_space(m.space_1);
+                }
+            });
+        let gpu = self.gpu;
+        if new_layer {
+            let palette = self.palette;
+            self.view.edit_action(gpu, &palette, Action::NewLayer);
+        }
+        for op in ops {
+            self.view.commit(gpu, &p, op, "");
+        }
+    }
+}
+
+/// The sink depth editor: the depth, its unit (metres or a share of the object's height), along the normal or
+/// straight down, turned to the normal.
+fn sink_editor(ui: &mut egui::Ui, place: &mut Placement, id: &str) {
+    match place.unit {
+        SinkUnit::Metres => {
+            ui.add(
+                egui::DragValue::new(&mut place.sink)
+                    .range(-50.0..=50.0)
+                    .speed(0.05)
+                    .max_decimals(2)
+                    .suffix(" m"),
+            );
+        }
+        SinkUnit::Fraction => {
+            let mut pct = place.sink * 100.0;
+            if ui
+                .add(
+                    egui::DragValue::new(&mut pct)
+                        .range(-100.0..=100.0)
+                        .speed(0.5)
+                        .max_decimals(1)
+                        .suffix(" %"),
+                )
+                .changed()
+            {
+                place.sink = pct / 100.0;
+            }
+        }
+    }
+    egui::ComboBox::from_id_salt(id)
+        .selected_text(match place.unit {
+            SinkUnit::Metres => "metres",
+            SinkUnit::Fraction => "of height",
+        })
+        .width(76.0)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(&mut place.unit, SinkUnit::Metres, "metres");
+            ui.selectable_value(&mut place.unit, SinkUnit::Fraction, "of height");
+        });
+    ui.checkbox(&mut place.along_normal, "Along normal")
+        .on_hover_text("Sink along the surface normal (off: straight down)");
+    ui.checkbox(&mut place.align_to_normal, "Align")
+        .on_hover_text("Turn the object's up axis to the surface normal");
+}
+
+/// The ruler's read-out: total, horizontal and height difference.
+#[must_use]
+pub(super) fn ruler_text(a: V3, b: V3) -> String {
+    let d = math::sub(b, a);
+    format!(
+        "{:.2} m  (horizontal {:.2} m, height {:+.2} m)",
+        math::len(d),
+        d[0].hypot(d[2]),
+        d[1]
+    )
+}
+
+/// The outliner's Folders and Groups (a project's own organisation), above the kinds.
+pub(super) fn folders_section(
+    ui: &mut egui::Ui,
+    v: &ViewState,
+    p: &Palette,
+    m: &Metrics,
+    query: &str,
+    clicked: &mut Option<(usize, bool)>,
+) {
+    let Some(d) = &v.doc else { return };
+    let q = query.trim().to_lowercase();
+    let mut folders: std::collections::BTreeMap<&str, Vec<usize>> = std::collections::BTreeMap::new();
+    for (g, f) in &d.org.folder_of {
+        if let Some(k) = d.index(g) {
+            folders.entry(f.as_str()).or_default().push(k);
+        }
+    }
+    let groups: Vec<(&str, Vec<usize>)> = d
+        .org
+        .groups
+        .iter()
+        .map(|(n, ms)| (n.as_str(), ms.iter().filter_map(|g| d.index(g)).collect()))
+        .collect();
+    if folders.is_empty() && groups.is_empty() {
+        return;
+    }
+    for (title, list) in [("Folders", folders.into_iter().collect::<Vec<_>>()), ("Groups", groups)] {
+        if list.is_empty() {
+            continue;
+        }
+        let g = ui.painter().layout_job(caption(title, p.ink_muted));
+        let (r, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), m.row), Sense::hover());
+        ui.painter().galley(
+            Pos2::new(r.left() + m.space_2, r.center().y - g.size().y / 2.0),
+            g,
+            p.ink_muted,
+        );
+        for (name, mut members) in list {
+            members.sort_unstable();
+            let id = ui.make_persistent_id(("outliner folder", title, name));
+            egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true)
+                .show_header(ui, |ui| {
+                    ui.label(RichText::new(name).color(p.ink));
+                    ui.label(
+                        RichText::new(group_digits(members.len() as u64))
+                            .text_style(style("value"))
+                            .color(p.ink_muted),
+                    );
+                })
+                .body(|ui| {
+                    for k in members {
+                        let Some(e) = d.scene.entities.get(k) else { continue };
+                        let label = model::display_name(e);
+                        if !q.is_empty() && !label.to_lowercase().contains(&q) {
+                            continue;
+                        }
+                        let sel = v.selection.contains(&k);
+                        let resp = ui.selectable_label(sel, RichText::new(label).color(p.ink));
+                        if resp.double_clicked() {
+                            *clicked = Some((k, true));
+                        } else if resp.clicked() {
+                            *clicked = Some((k, false));
+                        }
+                    }
+                });
+        }
+    }
+}

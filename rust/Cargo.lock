@@ -423,6 +423,7 @@ name = "bc2-editor"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-levelwrite",
  "bc2-scene",
  "bytemuck",
  "eframe",
@@ -455,6 +456,19 @@ dependencies = [
  "memchr",
  "rayon",
  "regex",
+]
+
+[[package]]
+name = "bc2-levelwrite"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "bc2-scene",
+ "bc2-stockmp",
+ "serde",
+ "serde_json",
+ "sha1_smol",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

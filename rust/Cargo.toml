@@ -7,12 +7,13 @@
 #
 # Crates: bc2-formats (the game's file formats, no Python types), bc2-scene (a level: entities, collision, terrain,
 # water), bc2-py (PyO3 bindings, module bc2_native), bc2-editor (the map editor application, binary bfbc2-editor; an
-# application, not part of bc2_native: bfbc2core.native.APPLICATIONS). Later crates (levelwrite) join `members` and take
-# their dependencies from [workspace.dependencies].
+# application, not part of bc2_native: bfbc2core.native.APPLICATIONS), bc2-levelwrite (the map project's operation log
+# and its edits on a level partition, round E2). Later crates join `members` and take their dependencies from
+# [workspace.dependencies].
 
 [workspace]
 resolver = "3"
-members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor"]
+members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite"]
 
 [workspace.package]
 version = "0.1.0"
@@ -30,6 +31,7 @@ bc2-convert = { path = "bc2-convert" }
 bc2-navbuild = { path = "bc2-navbuild" }
 bc2-shader = { path = "bc2-shader" }
 bc2-stockmp = { path = "bc2-stockmp" }
+bc2-levelwrite = { path = "bc2-levelwrite" }
 bc2-harness = { path = "bc2-harness" }
 thiserror = "=2.0.21"
 rayon = "=1.12.0"

@@ -147,9 +147,11 @@ pub const WORKSPACES: [Workspace; 4] = [
     },
     Workspace {
         name: "Objects",
-        available: false,
-        what: "Move, rotate, place, duplicate and delete objects, with snapping to the ground, the grid and surfaces.",
-        when: "Comes with editing (round E2).",
+        available: true,
+        what: "Edit a map project (New map from an existing map, or Open a project): move, rotate, duplicate and \
+               delete objects, with snapping to the grid, angles, vertices and surfaces (with a sink depth); align, \
+               distribute, the ruler, layers, folders and groups; every edit undoable in History.",
+        when: "",
     },
     Workspace {
         name: "Gameplay",

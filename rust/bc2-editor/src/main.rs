@@ -1,12 +1,14 @@
-//! `bfbc2-editor`: the BFBC2 Tool Suite's map editor (round G1: the shell and the read-only map view).
+//! `bfbc2-editor`: the BFBC2 Tool Suite's map editor (round G1: the shell and the read-only map view; round E2:
+//! editing a map project).
 //!
 //! ```text
-//! bfbc2-editor [level] [--opfor <folder>] [--theme dark|light]
-//! bfbc2-editor [level | --demo] --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]
+//! bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light]
+//! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
 //! ```
 //!
-//! Without a level the start screen lists the game copy's levels ("View a map"). `--screenshot` draws the window
-//! without showing it (no display needed) and saves it.
+//! Without a level the start screen lists the game copy's levels ("View a map") and the project forms.
+//! `--project` opens a map project on its base level. `--screenshot` draws the window without showing it (no
+//! display needed) and saves it.
 #![deny(unsafe_code)]
 
 use std::path::PathBuf;
@@ -27,6 +29,7 @@ struct Args {
     size: [u32; 2],
     select: Option<String>,
     demo: bool,
+    project: Option<PathBuf>,
 }
 
 fn parse() -> Result<Args, String> {
@@ -38,6 +41,7 @@ fn parse() -> Result<Args, String> {
         size: [1600, 950],
         select: None,
         demo: false,
+        project: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -47,6 +51,7 @@ fn parse() -> Result<Args, String> {
             "--screenshot" => a.screenshot = Some(PathBuf::from(value("a file")?)),
             "--select" => a.select = Some(value("a GUID")?),
             "--demo" => a.demo = true,
+            "--project" => a.project = Some(PathBuf::from(value("a .mapedit.json file")?)),
             "--theme" => {
                 a.theme = Some(match value("dark or light")?.as_str() {
                     "light" => ThemeId::Light,
@@ -63,8 +68,8 @@ fn parse() -> Result<Args, String> {
             }
             "-h" | "--help" => {
                 return Err(
-                    "bfbc2-editor [level] [--opfor <folder>] [--theme dark|light] [--screenshot out.png \
-                            [--size 1600x950] [--select <guid>] [--demo]]"
+                    "bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] \
+                     [--screenshot out.png [--size 1600x950] [--select <guid>] [--demo]]"
                         .into(),
                 );
             }
@@ -78,7 +83,7 @@ fn parse() -> Result<Args, String> {
 fn select_guid(app: &mut EditorApp, gpu: &GpuCtx, guid: &str) {
     let g = guid.to_lowercase();
     let hit = app.view().and_then(|v| {
-        v.scene
+        v.scene()
             .entities
             .iter()
             .find(|e| e.guid.to_lowercase() == g)
@@ -96,6 +101,13 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
     h.settle(&mut app, 2);
     if a.demo {
         app.open_scene(&h.gpu, "demo", bc2_editor::demo::scene());
+    } else if let Some(p) = &a.project {
+        let project = bc2_levelwrite::MapProject::load(p).map_err(|e| format!("{}: {e}", p.display()))?;
+        app.open_level_blocking_then(
+            &h.gpu,
+            &project.base.level,
+            bc2_editor::app::Then::Open(p.clone(), None),
+        )?;
     } else if let Some(lv) = &a.level {
         app.open_level_blocking(&h.gpu, lv)?;
     }
@@ -114,6 +126,7 @@ struct Window {
     app: EditorApp,
     gpu: Option<GpuCtx>,
     open: Option<String>,
+    project: Option<PathBuf>,
 }
 
 impl eframe::App for Window {
@@ -137,6 +150,9 @@ impl eframe::App for Window {
         };
         if let Some(lv) = self.open.take() {
             self.app.open_level(&lv);
+        }
+        if let Some(p) = self.project.take() {
+            self.app.open_project(&p);
         }
         self.app.ui(ui, &gpu);
     }
@@ -175,7 +191,7 @@ fn main() -> ExitCode {
             .with_min_inner_size([900.0, 560.0]),
         ..Default::default()
     };
-    let (opfor, theme, open) = (a.opfor.clone(), a.theme, a.level.clone());
+    let (opfor, theme, open, project) = (a.opfor.clone(), a.theme, a.level.clone(), a.project.clone());
     let r = eframe::run_native(
         "BFBC2 Map Editor",
         options,
@@ -185,7 +201,12 @@ fn main() -> ExitCode {
             if let Some(t) = theme {
                 app.theme = t;
             }
-            Ok(Box::new(Window { app, gpu: None, open }))
+            Ok(Box::new(Window {
+                app,
+                gpu: None,
+                open,
+                project,
+            }))
         }),
     );
     match r {

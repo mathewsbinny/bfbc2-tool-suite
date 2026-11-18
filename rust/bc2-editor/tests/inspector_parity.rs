@@ -134,7 +134,7 @@ fn each_level_draws_with_its_selection_outlined() {
         let pick = {
             let v = app.view().unwrap();
             let by = |c: &str| {
-                v.scene
+                v.scene()
                     .entities
                     .iter()
                     .find(|e| e.category == c && e.position().is_some())

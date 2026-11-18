@@ -3332,3 +3332,73 @@ Overlays are lit evenly (0.88 - 1.0) by the instance colour's alpha in `view.wgs
 test fails if an action lacks a description. Headless screenshots of this round: MP_005 (Dark, Light),
 NAM_MP_002CQ and Iwo Jima (Dark, Light; stand-in OPFOR folders in temp with their Package bundles unpacked), the
 Help window, the preparing view and a failed preparation.
+
+## E2: editing an existing map, first part (2026-11-18, branch `rust-e2edit`)
+
+New crate `rust/bc2-levelwrite` (the map project and levelwrite) and the editor's Objects workspace (README.md, "The
+map editor"). Like G1, nothing in Python is replaced: `author.py` / `dbxbin.py` (the stock-MP AI layer) and DbxEdit
+stay; levelwrite is the editor's one mutation API and is proven against them.
+
+### Proof: levelwrite on real levels (`cargo test -p bc2-levelwrite --test real_levels`)
+
+Each base copied from OPFOR's work folder to a temp folder (OPFOR's files only read); a project log of 9 operations
+(a move, a rotate, a duplicate without and one with event connections, a delete without and one with, a text, a
+whole-number, a decimal and a bool field set) saved, loaded and applied:
+
+| base | instances | apply (debug) | changes in the partition (field-level) | expected exactly |
+|---|---:|---:|---:|---|
+| MP_005 | 4,683 | 0.13 s | 12 | yes |
+| SP_01 | 9,616 | 0.64 s | 71 | yes |
+| Guadalcanal (WW2, `work\ww2`) | 3,292 | 0.12 s | 12 | yes |
+
+"Expected": the moved and turned objects' `Transform`, the copies added, `LevelData.Objects` and
+`EventConnections`, the deleted instances removed and every field elsewhere that referred to them (SP_01's deleted
+gameplay entity is named by many), the four fields set - and nothing else (`diff::diff`, instance by instance,
+values compared as bytes, never through XML). Each edited partition: parses (the DBX reader and `EditDbx`);
+`EditDbx` writes it back byte for byte; `dbx::write` gives the same XML and is a fixed point; `bc2_scene` loads it
+with each moved, turned and copied entity at the log's transform and the deleted ones gone. An untouched partition
+writes back byte for byte.
+
+References, byte for byte on all three levels:
+
+| edit | reference | result |
+|---|---|---|
+| delete (no event connections) | DbxEdit `drop=<guid>` (`dbxedit::editor::drop`) | identical |
+| delete (with event connections) | DbxEdit `drop` | identical but for `EventConnections`: levelwrite removes the deleted object's connections, DbxEdit leaves them pointing at `null` (by design) |
+| set text, whole number, decimal | DbxEdit `setfield=` | identical |
+| move, rotate, duplicate, set text / number / bool | the Python `dbxbin` reference (`tests/dbxbin_reference.py`: `set_transform`; `clone`, `set_attr('guid')`, keep `guid` / `type`, an `Objects` item and the connections cloned and `set_ref`, as `author.py` does) | identical |
+
+No reference exists for a delete in `dbxbin` / `author.py` (DbxEdit is that reference) or for a duplicate in DbxEdit
+(its `graft` copies from another file without a new guid).
+
+Field types come from the level partition's own data by `dbxcatalogue`'s rules (`schema.rs`: shapes, `looks_whole`,
+`is_whole`, texts); a 4-byte number the data does not say is whole or decimal is refused unless 0 (`author.py`'s rule;
+DbxEdit's import guesses a decimal there). The project's tests: the JSON shape, save / load, undo, redo, redo after
+undo, a new operation clearing the redo stack, history "go to", autosave and recovery, the base-changed report
+(operations naming objects a changed base lacks: listed, not dropped), another format or a newer version refused.
+
+### Proof: surface placement and the interface (`cargo test -p bc2-editor`)
+
+- `query.rs` (unit): rays and the sink on the demo's terrain (a known height formula) and on a mesh (the house's
+  roof): placed at sink 0, 0.5 m and 25 % of the object's height, straight down and along the normal, turned to
+  the normal; vertex and edge snapping. `tests/real_level_editing.rs`: the same three sinks at 60 triangle centroids
+  of MP_005's terrain (the object's lowest point the sink below the sample's plane).
+- `gizmo.rs` (unit): handles found under the pointer, an arm drag of 7.3 m (7 m on a 1 m grid), a plane drag, a ring
+  turn of a quarter (80 degrees on 40-degree steps), local axes.
+- `edit.rs` (unit): the log drives the scene (move, duplicate with collision, delete, undo, redo, "go to", save,
+  reopen).
+- `tests/editing.rs` (the demo, headless, as a user): click to select; G; a drag of the X arm by about 5 m gives one
+  `move` of exactly 5 m; Ctrl+Z and Ctrl+Y; E and a ring drag gives one `rotate` of a multiple of 15 degrees; Q and a
+  box over the view selects the 5 objects; Ctrl+D one `duplicate` of 5 with the copies selected; Delete one `delete`
+  of them; End with surface snapping sunk 0.5 m puts the house 0.5 m into the terrain, and a later surface-snapped move
+  keeps 0.5 m; a layer; Ctrl+S removes the autosave; the reopened project gives the same scene. 8 operations.
+- `tests/real_level_editing.rs`: an MP_005 project, a placed object dragged 10 m on a 10 m grid and put on the ground
+  sunk 25 % of its height: the live partition holds the scene's transform, differs from the base only in that
+  `Transform`, and "Check edits" replays the log to the same bytes.
+
+### What remains of E2
+
+The viewport modes (lit with the game's shaders, unlit, wireframe, collision, navmesh, cull tree), polygon
+selection, editing static group members (they live in the `*_HavokAsset` group files), deep duplicates (sub-instances
+an object owns, such as a flag's capture area, are shared by the copy today), several objects' fields edited at once
+("Mixed"), and levelwrite's proof run over every prepared level rather than three.

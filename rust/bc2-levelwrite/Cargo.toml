@@ -1,0 +1,26 @@
+[package]
+name = "bc2-levelwrite"
+description = "The map editor's level writer and map project (round E2): the operation log and its edits on a level partition"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+bc2-formats.workspace = true
+# dbxbin.new_guid's port (UUIDv5 over NAMESPACE_URL, DICE's upper-case form)
+bc2-stockmp.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# the base partition's sha1 (navtune.json's base check)
+sha1_smol.workspace = true
+
+[dev-dependencies]
+# the proofs: an edited partition loaded as a level
+bc2-scene.workspace = true
+
+[lints]
+workspace = true
