@@ -14,6 +14,11 @@
 //! - [`actions`]: the action registry the top bar, the shortcuts and the command palette share.
 //! - [`app`]: the window's contents; [`headless`]: the same without a window (tests, screenshots).
 //! - [`demo`]: a made-up scene for tests without a game copy.
+//!
+//! Round G2 (2026-11-18): [`factions`] (team labels by faction, from the level's own data), the 3D view's own
+//! tokens (`view-*`, `scene-*` and the third neutral `unowned`, in [`theme`]), [`help`] (the Help window, generated
+//! from the registry) and [`prepare`] (an unprepared level is prepared when it is opened, with its progress; the one
+//! write to OPFOR's work folder, through the suite's own NavKit prepare and terrain unpack).
 #![deny(unsafe_code)]
 #![allow(
     clippy::many_single_char_names,
@@ -29,10 +34,13 @@ pub mod actions;
 pub mod app;
 pub mod camera;
 pub mod demo;
+pub mod factions;
 pub mod fonts;
 pub mod headless;
+pub mod help;
 pub mod levels;
 pub mod model;
+pub mod prepare;
 pub mod query;
 pub mod render;
 pub mod theme;

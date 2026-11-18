@@ -41,11 +41,24 @@ No emoji, no exclamation marks, no apologies. Numbers carry their unit: `12 m`, 
 - **Accent.** `accent` as a fill: the primary button (text in `on-accent`), the active tool, the active tab's
   underline, a selected row's marker. `accent-text` where the accent is text: links, references, the content
   profile badge. `accent-subtle` as a selected row's ground with `ink` on it. At most one primary button per panel.
-- **Selection.** `selection` outlines what is selected in the 3D view and colours the gizmo handle being dragged.
-  It is never used in panels; a selected row uses `accent-subtle`.
+- **Selection.** `selection` marks what is selected where it sits on a panel ground (a selected label's frame in
+  the view); in the 3D view itself the outline and the gizmo handle being dragged take its view variant,
+  `view-selection`. A selected row uses `accent-subtle`.
 - **Teams.** `team-1` (a light sky blue, kept apart from the interface blue) and `team-2` for everything a team
-  owns: spawns, bases, held flags, AI orders. Each is always shown with its letter or label (US, RU, JP; A, B, C for
-  flags). `team-neutral` for neutral flags.
+  owns: spawns, bases, held flags, AI orders. Each is always shown with its label: the side's faction as the level's
+  own data says it (`LevelDescription.FactionTeam1` / `FactionTeam2`, read through the content profile - the game's
+  enum has US, RUS and Neutral, and DICE's Vietnam levels and the Pacific War levels use RUS for their second side:
+  US and RU on BFBC2 levels, US and NVA on Vietnam's, US and JP on the Pacific War's), T1 and T2 only where the
+  level names no faction (the campaign, squad deathmatch: the properties panel says so); A, B, C for flags.
+  `team-neutral` (a near-grey) for what the data marks team-neutral: flags no team holds yet, neutral vehicle spawns
+  (label NEU).
+- **Unowned gameplay (the third neutral).** `unowned`, a violet, for gameplay objects whose data has no team at
+  all: objectives (M-COMs), combat areas, AI orders. Chosen by hue distance: violet (250 degrees) sits in the widest
+  gap of the palette's hues, between the blues (`accent`, `team-1`, `status-info`, `axis-z`, `focus`: 199 - 215
+  degrees) and `nav-route`'s orchid (298 degrees). It is 35 - 47 degrees from each of those and 105 - 157 degrees
+  from the selection orange, the reds, the greens and the yellow, in both themes; `team-neutral` is told from it by
+  saturation (0.1 - 0.25 against 0.5 and more). Dark `#a897f2` (6.6:1 on `surface-1`, 5.7:1 on `surface-2`), Light
+  `#4a35ad` (5.2:1 and 7.0:1).
 - **Status.** `status-ok`, `status-warn`, `status-error`, `status-info`, each with its icon (tick, triangle, octagon,
   circle) and, in lists, the word.
 - **Navigation overlays** (AI workspace). `nav-walkable` at 45% over the terrain, `nav-blocked` for unwalkable
@@ -56,7 +69,45 @@ No emoji, no exclamation marks, no apologies. Numbers carry their unit: `12 m`, 
 
 Both themes are designed: Dark is the default, Light follows the system setting or the user's choice. Every text
 pair above meets 4.5:1 in both themes, and control borders (`line-strong`), the accent, the selection, the focus
-ring and the status, team and axis colours meet 3:1 on `surface-1` and `surface-2`.
+ring and the status, team, unowned and axis colours meet 3:1 on `surface-1` and `surface-2` (the editor's tests
+check each pair).
+
+### The 3D view's colours
+
+The colours above are made for panel grounds. The 3D view draws on its terrain, so it has tokens of its own
+(round G2, 2026-11-18):
+
+- `scene-*`: the scene itself, muted so gameplay stands out - `scene-sky` (behind the map), `scene-terrain`,
+  `scene-water`, the object greys by kind (`scene-object`, `scene-object-destructible`, `scene-object-dynamic`,
+  `scene-object-group`, `scene-ladder`, `scene-effect`, `scene-area-point`, `scene-other`) and `scene-label`, the
+  plate behind a label or note drawn over the map (`surface-1` in Dark, `surface-2` in Light, at 85 %; `ink` and the
+  panel team colours on it). The terrain is deliberately dark (luminance 0.06 - 0.07) so that every overlay reads on
+  it; the scene is nearly the same in both themes, the sky follows the chrome.
+- `view-*`: what is drawn on the terrain - `view-team-1`, `view-team-2`, `view-team-neutral`, `view-unowned`,
+  `view-selection` (the outline, through walls) and `view-status-ok`, `-warn`, `-error`, `-info` (problem markers in
+  the view, with their shapes). Same hues as the panel tokens, lighter. The view lights overlays evenly (0.88 - 1.0
+  of the colour, where the terrain and objects take 0.40 - 1.0), so they read from every side.
+
+Each `view-*` colour meets **3.5:1 on the lit terrain** - at its darkest against the terrain at its brightest (flat
+ground) and on slopes - and on the water, in both themes; the editor's tests compute this and also measure it on
+rendered frames (each overlay marker's own pixels against the terrain's around it: 4.0:1 median to median, 3.9:1
+between the marker's darkest tenth and the terrain's brightest tenth).
+
+| token | Dark | Light | on flat lit terrain, Dark / Light | worst case |
+|---|---|---|---|---|
+| `view-team-1` | `#2bb8ff` | `#3bbeff` | 4.6 / 4.6 | 3.6 |
+| `view-team-2` | `#ff8f75` | `#ff9780` | 4.6 / 4.6 | 3.6 |
+| `view-team-neutral` | `#d4ceba` | `#dad4c2` | 6.6 / 6.6 | 5.0 |
+| `view-unowned` | `#b4a1ff` | `#baa8ff` | 4.7 / 4.7 | 3.6 |
+| `view-selection` | `#ff9326` | `#ff9c38` | 4.6 / 4.7 | 3.6 |
+| `view-status-ok` | `#2ac864` | `#2cce67` | 4.7 / 4.7 | 3.6 |
+| `view-status-warn` | `#e0c400` | `#e6cb00` | 5.9 / 6.0 | 4.6 |
+| `view-status-error` | `#ff8c9c` | `#ff94a2` | 4.7 / 4.6 | 3.6 |
+| `view-status-info` | `#85adff` | `#8cb3ff` | 4.6 / 4.6 | 3.6 |
+
+The terrain is `#3f4837` (Dark) and `#434c3b` (Light), the sky `#1c1f23` and `#747d87`. Known closenesses, carried
+by shape and word as everywhere: `view-team-2` and `view-status-error` (both light reds, 19 degrees apart), and
+`view-team-1` and `view-status-info` (20 degrees).
 
 ## Type
 
@@ -110,7 +161,10 @@ setting.
 
 ## How the suite uses this
 
-`tokens.json` is the one source. Each GUI stack gets its theme generated from it rather than hand-copied: the map
+`tokens.json` is the one source. **Since round G2 (2026-11-18) the copy in this repository is the authoritative
+one:** it gained `unowned` and the `view-*` and `scene-*` tokens here, so the design-system artifact it was first
+exported from is behind and needs a sync from this file, not the other way round. Each GUI stack gets its theme
+generated from it rather than hand-copied: the map
 editor's Rust interface (egui), the Python 3D tools (imgui-bundle) and the Tk launcher. A new GUI takes its colours,
 type and sizes from these tokens by name, never as literal values. The component previews here show how the parts
 should look; each stack builds them from its own widgets.

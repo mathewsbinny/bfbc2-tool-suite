@@ -9,6 +9,8 @@
 
 use bc2_scene::scene::{Entity, Scene};
 
+use crate::factions::Teams;
+
 /// The outliner's top level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Kind {
@@ -86,26 +88,6 @@ pub fn inspector_layer(e: &Entity) -> String {
         ("vehicle spawn", Some(2)) => "vehicle spawn, team 2".into(),
         ("vehicle spawn", _) => "vehicle spawn, neutral".into(),
         (c, _) => c.to_owned(),
-    }
-}
-
-/// A team's short label, shown beside its colour (never the colour alone): `T1`, `T2`, `NEU`.
-#[must_use]
-pub fn team_label(team: u8) -> &'static str {
-    match team {
-        1 => "T1",
-        2 => "T2",
-        _ => "NEU",
-    }
-}
-
-/// A team's name in the properties panel.
-#[must_use]
-pub fn team_name(team: u8) -> &'static str {
-    match team {
-        1 => "Team 1",
-        2 => "Team 2",
-        _ => "Neutral",
     }
 }
 
@@ -231,9 +213,10 @@ impl Outliner {
 /// A field of the properties panel: label, value, and whether the value is data (shown in the mono `value` style).
 pub type Field = (&'static str, String, bool);
 
-/// The selected entity's fields, read-only: type, guid, transform, team, source partition ...
+/// The selected entity's fields, read-only: type, guid, transform, team (by faction: [`Teams`]), source
+/// partition ...
 #[must_use]
-pub fn properties(e: &Entity) -> Vec<Field> {
+pub fn properties(e: &Entity, teams: &Teams) -> Vec<Field> {
     let mut f: Vec<Field> = vec![
         ("Name", display_name(e), false),
         ("Type", e.short_type.clone(), true),
@@ -245,7 +228,13 @@ pub fn properties(e: &Entity) -> Vec<Field> {
         f.push(("Id", id.to_owned(), true));
     }
     if let Some(t) = e.team {
-        f.push(("Team", format!("{} ({})", team_name(t), team_label(t)), false));
+        f.push(("Team", teams.describe(t), false));
+        if t == 1 || t == 2 {
+            // where the faction comes from, or that the data names none (the T1 / T2 fallback)
+            f.push(("Team labels", teams.source.clone(), false));
+        }
+    } else if crate::render::GAMEPLAY.contains(&e.category.as_str()) {
+        f.push(("Team", "None: no team owns it".into(), false));
     }
     if let Some(ai) = e.ai {
         f.push((
@@ -322,8 +311,18 @@ mod tests {
         assert_eq!(o.locate(0), Some((4, 0)));
         assert_eq!(inspector_layer(&s.entities[1]), "soldier spawn, team 1");
         assert_eq!(inspector_layer(&s.entities[3]), "vehicle spawn, team 2");
-        let p = properties(&s.entities[1]);
+        let unknown = Teams::unknown("A made-up scene has no level description; teams are shown as T1 and T2.");
+        let p = properties(&s.entities[1], &unknown);
         assert!(p.iter().any(|(k, v, _)| *k == "Team" && v == "Team 1 (T1)"));
+        assert!(p.iter().any(|(k, v, _)| *k == "Team labels" && v.contains("T1 and T2")));
+        let p = properties(&s.entities[2], &unknown);
+        assert!(p.iter().any(|(k, v, _)| *k == "Team" && v == "Neutral"));
+        let us_ru = crate::demo::teams();
+        let p = properties(&s.entities[3], &us_ru);
+        assert!(
+            p.iter().any(|(k, v, _)| *k == "Team" && v == "Russia (RU) - team 2"),
+            "{p:?}"
+        );
         assert_eq!(transform_rows(&s.entities[2])[0].1, [20.0, 0.0, -15.0]);
     }
 }
