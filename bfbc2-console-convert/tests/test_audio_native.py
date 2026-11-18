@@ -1,25 +1,37 @@
-r"""The Rust EA-XAS encoder and decoder (rust/bc2-convert audio, through the bc2_native module) against audio.py's
-NumPy code they were ported from (xas_encode_frames_python, xas_decode_frames_python): the same bytes and samples.
+r"""audio.py's EA-XAS encoder and decoder (the Rust core: rust/bc2-convert audio, through bc2_native) against
+results recorded from the NumPy code they were ported from.
+
+The NumPy encoder and decoder (xas_encode_frames_python, xas_decode_frames_python, encode_xas_python) were the
+reference until 2026-11-18, when the port had passed the full test tier and they were retired (rust/BENCHMARKS.md,
+"Retired Python"). Their results were recorded first, from the NumPy code itself, in audio_golden.json beside this
+file: each case's output SHA-1 (or its exception) under "quick", "bf1943" and "xbox". Where the Rust core now answers
+otherwise on purpose (an input the NumPy code took and the port refuses with a clear error), the new answer is
+under "now", case by case; every other case must give the recorded answer.
 
   python test_audio_native.py          quick, no game data: the integer shift rule against NumPy's float formula for
                                        every residual to 2^26; seeded PCM of every shape (0, 1, 31 ... 20,000 samples
                                        a channel, 1 - 6 channels; silence, full scale, clipping extremes, tones, noise,
-                                       impulses, other integer dtypes) encoded both ways; random frames (every
-                                       coefficient set and shift field) decoded both ways; encode_xas in DICE's blocks
-                                       at every rate; encode_xas_many and the dispatcher
+                                       impulses, other integer dtypes, Fortran order) encoded and the frames decoded;
+                                       random frames (every coefficient set and shift field) decoded; encode_xas in
+                                       DICE's blocks at every rate; encode_xas_many against encode_xas; the inputs
+                                       refused (beyond int16, floats, wrong shapes)
   python test_audio_native.py --game   + every Wave of Battlefield 1943 (in memory, and streamed with its waveDataSns
                                        entries) and every in-memory Wave of BFBC2's unpacked Xbox bundles (OPFOR
-                                       work\xbox): audio.convert with each backend, the PC Wave byte for byte (EA-XMA
-                                       decoded once per sound, by ffmpeg; the reference takes a sound longer than 2^20
-                                       samples a channel in pieces of whole frames, the same frames, to bound its
-                                       memory: reference_xas); convert_many against convert. Skips what is
-                                       missing. Options: --every N (every Nth sound of each source; the game tier
-                                       takes every 10th, the full tier all), --limit N (sounds per source), --workers N
-                                       (ffmpeg side by side)
+                                       work\xbox): audio.convert's PC Wave against the recording (EA-XMA decoded by
+                                       ffmpeg); convert_many against convert. Skips what is missing. Options:
+                                       --every N (every Nth sound of each source; the game tier takes every 10th,
+                                       the full tier all), --limit N (sounds per source), --workers N (ffmpeg side by
+                                       side)
+  python test_audio_native.py --record [--game]
+                                       write the "now" answers from the current code where they differ from the
+                                       recording: only after a deliberate change, proven on the game's sounds
+                                       (tests\test_audio.py) - the recording is the only oracle
 
-Skipped (exit 0) when the module is not built (python rust\build_native.py).
+The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
 """
 import argparse
+import hashlib
+import json
 import os
 import sys
 import time
@@ -36,9 +48,9 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('console-convert', 'core')
 import audio  # noqa: E402
-from bfbc2core import dbx, fbrb, paths  # noqa: E402
+from bfbc2core import fbrb, paths  # noqa: E402
 
-NATIVE: Any = audio._with_xas(dbx._import_native())
+GOLDEN = os.path.join(HERE, 'audio_golden.json')
 FAILS: list[str] = []
 
 
@@ -48,11 +60,100 @@ def check(ok: bool, what: str) -> None:
         print(f'FAIL {what}', flush=True)
 
 
+def sha1(b: bytes) -> str:
+    """The first 16 hex digits of b's SHA-1."""
+    return hashlib.sha1(b).hexdigest()[:16]
+
+
+def outcome(fn: Any, *a: Any) -> list[str]:
+    """['ok', SHA-1 of fn's bytes] or ['error', exception type, message]."""
+    try:
+        r = fn(*a)
+    except Exception as e:                                       # noqa: BLE001 - recorded, compared
+        return ['error', type(e).__name__, str(e)]
+    return ['ok', sha1(r)]
+
+
+# ------------------------------------------------------------------------------------------------ the recording
+
+def load() -> dict[str, Any]:
+    try:
+        with open(GOLDEN, encoding='utf-8') as f:
+            return dict(json.load(f))
+    except FileNotFoundError:
+        return {}
+
+
+def write(golden: dict[str, Any]) -> None:
+    """audio_golden.json, one case per line (a change shows as the lines of the cases it changed)."""
+    lines = ['{']
+    keys = sorted(golden)
+    for i, k in enumerate(keys):
+        v, end = golden[k], (',' if i < len(keys) - 1 else '')
+        if isinstance(v, dict) and v:
+            rows = [f'{json.dumps(n)}: {json.dumps(v[n])}' for n in sorted(v)]
+            lines += [f'{json.dumps(k)}: {{', *[r + ',' for r in rows[:-1]], *rows[-1:], '}' + end]
+        else:
+            lines.append(f'{json.dumps(k)}: {json.dumps(v)}{end}')
+    lines.append('}')
+    with open(GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(lines) + '\n')
+
+
+class Recorded:
+    """Each case's recorded answer ("now" over the reference's) against the current one: counts, the first
+    differences reported; with record, the current answers that differ from the reference's go to "now"."""
+
+    def __init__(self, golden: dict[str, Any], group: str, record: bool):
+        self.ref: dict[str, Any] = golden.get(group, {})
+        self.now: dict[str, Any] = golden.setdefault('now', {})
+        self.group, self.record = group, record
+        self.n = self.same = self.differ = self.missing = self.changed = 0
+
+    def __call__(self, name: str, got: list[str], input_sha: str | None = None) -> None:
+        key = f'{self.group}/{name}'
+        ref = self.ref.get(name)
+        if ref is None:
+            self.missing += 1
+            check(False, f'{key}: not recorded')
+            return
+        if input_sha is not None:
+            if ref[0] != input_sha:
+                self.missing += 1
+                check(False, f'{key}: the input is not the recorded one (check it, then re-record)')
+                return
+            ref = ref[1:]
+        self.n += 1
+        if self.record:
+            if got != ref:
+                self.now[key] = got
+            else:
+                self.now.pop(key, None)
+            return
+        want = self.now.get(key, ref)
+        self.changed += key in self.now
+        if got == want:
+            self.same += 1
+        else:
+            self.differ += 1
+            if self.differ <= 10:
+                check(False, f'{key}: {got} != recorded {want}')
+
+    def report(self, what: str) -> str:
+        if self.record:
+            return f'{what}: {self.n} cases'
+        check(self.differ == 0 and self.missing == 0, f'{what}: {self.differ} of {self.n} differ from the recording, '
+                                                      f'{self.missing} not recorded')
+        return (f'{what}: {self.same} of {self.n} as recorded ({self.changed} of them answered as "now" records, not '
+                'as the NumPy code did)')
+
+
 # ------------------------------------------------------------------------------------------------ quick
 
 def shift_rule() -> None:
     """The port's integer shift (the least m with r <= 7 * 2^m) is NumPy's ceil(log2(max(r, 1) / 7.0)) for every
-    residual r below 2^26 (the encoder's are below 2^25)."""
+    residual r below 2^26 (the encoder's are below 2^25): the float step of the retired encoder the port does in
+    integers."""
     bad, step = 0, 1 << 22
     for lo in range(0, 1 << 26, step):
         r = np.arange(lo, lo + step, dtype=np.int64)
@@ -84,105 +185,85 @@ def signals(rng: np.random.Generator, n: int, ch: int) -> list[tuple[str, np.nda
     return out
 
 
-def same_frames(pcm: np.ndarray) -> tuple[bool, bool]:
-    """(encoded alike, the frames decoded alike) by both backends."""
-    py = audio.xas_encode_frames_python(pcm)
-    rs = audio.xas_encode_frames(pcm)
-    dec = audio.xas_decode_frames_python(py)
-    return py.shape == rs.shape and py.tobytes() == rs.tobytes(), np.array_equal(dec, audio.xas_decode_frames(py))
+def stream_bytes(st: Any) -> bytes:
+    """A Stream as its SPS bytes and its blocks' sample counts and lengths."""
+    return audio.write_sps(st) + repr([(n, len(b)) for n, b in st.blocks]).encode()
 
 
-def quick() -> None:
-    assert audio.use_native(True) == 'rust'
-    shift_rule()
+def quick_cases(codec: Any) -> list[tuple[str, Any, tuple]]:
+    """(name, function, arguments) of the quick tier, always the same (seed 1943, the draws in the order of the
+    Python-vs-Rust test before 2026-11-18). codec: (encode frames, decode frames, encode_xas)."""
+    enc, dec, enc_xas = codec
     rng = np.random.default_rng(1943)
-    lengths = [0, 1, 2, 31, 32, 33, 127, 128, 129, 255, 256, 257, 1000, 4096, 4113, 20000]
-    n_in, n_samples, enc_bad, dec_bad = 0, 0, [], []
+    out: list[tuple[str, Any, tuple]] = []
     for ch in (1, 2, 3, 6):
-        for n in lengths:
+        for n in [0, 1, 2, 31, 32, 33, 127, 128, 129, 255, 256, 257, 1000, 4096, 4113, 20000]:
             for name, pcm in signals(rng, n, ch):
-                e, d = same_frames(pcm)
-                n_in += 1
-                n_samples += pcm.size
-                if not e:
-                    enc_bad.append(f'{name} {n} x {ch}')
-                if not d:
-                    dec_bad.append(f'{name} {n} x {ch}')
-    check(not enc_bad, f'encode: {len(enc_bad)} of {n_in} differ: {enc_bad[:5]}')
-    check(not dec_bad, f'decode of the encoded frames: {len(dec_bad)} of {n_in} differ: {dec_bad[:5]}')
-    print(f'encode: {n_in} seeded signals ({n_samples:,} samples, 0 - 20,000 a channel, 1 - 6 channels) byte for byte '
-          f'the same, their frames decoded alike')
-
-    # other integer dtypes: within int16 the Rust core (the reference widens as it is), beyond it the reference
+                out.append((f'encode {name} {n} x {ch}', lambda p: enc(p).tobytes(), (pcm,)))
+                out.append((f'decode of the frames of {name} {n} x {ch}', lambda p: dec(enc(p)).tobytes(), (pcm,)))
+    # other integer dtypes and Fortran order: within int16, encoded as int16; beyond int16 and floats: refused now
     base = signals(rng, 700, 2)[7][1]
     for dt in (np.int32, np.int64, np.uint8, np.int8, np.uint16):
         x = base.astype(dt) if np.issubdtype(dt, np.signedinteger) else np.abs(base).astype(dt)
-        check(audio.xas_encode_frames(x).tobytes() == audio.xas_encode_frames_python(x).tobytes(), f'dtype {dt}')
-    wide = base.astype(np.int32) * 3
-    check(audio._pcm16(wide) is None, 'beyond int16: not given to the Rust core')
-    check(audio.xas_encode_frames(wide).tobytes() == audio.xas_encode_frames_python(wide).tobytes(), 'beyond int16')
-    check(audio._pcm16(base.astype(np.float32)) is None, 'float pcm: not given to the Rust core')
-    fortran = np.asfortranarray(base)
-    check(audio.xas_encode_frames(fortran).tobytes() == audio.xas_encode_frames_python(fortran).tobytes(), 'F order')
-    for bad in (np.zeros(10, np.int16), np.zeros((2, 2, 2), np.int16)):
-        errs: list[tuple[type, str] | None] = []
-        for fn in (audio.xas_encode_frames, audio.xas_encode_frames_python):
-            try:
-                fn(bad)
-                errs.append(None)
-            except Exception as e:  # noqa: BLE001 - the same error both ways
-                errs.append((type(e), str(e)))
-        check(errs[0] == errs[1] and errs[0] is not None, f'shape {bad.shape}: {errs}')
-    print('encode: int8 - int64 / uint8 / uint16 / Fortran order as the reference; beyond int16 and floats left to it')
-
+        out.append((f'encode dtype {np.dtype(dt).name}', lambda p: enc(p).tobytes(), (x,)))
+    out.append(('encode beyond int16', lambda p: enc(p).tobytes(), (base.astype(np.int32) * 3,)))
+    out.append(('encode float32', lambda p: enc(p).tobytes(), (base.astype(np.float32),)))
+    out.append(('encode Fortran order', lambda p: enc(p).tobytes(), (np.asfortranarray(base),)))
+    out.append(('encode 1-D', lambda p: enc(p).tobytes(), (np.zeros(10, np.int16),)))
+    out.append(('encode 3-D', lambda p: enc(p).tobytes(), (np.zeros((2, 2, 2), np.int16),)))
     # random frames: every header field (coefficient sets 4 - 15 read through the rest of the table, every shift)
     f = rng.integers(0, 256, (5000, 76), dtype=np.uint8)
-    check(np.array_equal(audio.xas_decode_frames(f), audio.xas_decode_frames_python(f)), 'decode: random frames')
-    f3 = f[:4800].reshape(40, 30, 4, 76)
-    check(np.array_equal(audio.xas_decode_frames(f3), audio.xas_decode_frames_python(f3)), 'decode: 4-D frames')
-    check(audio.xas_decode_frames(f[:0]).shape == (0, 128), 'decode: no frames')
-    print('decode: 5,000 random frames (every coefficient set and shift field) sample for sample the same')
-
-    # encode_xas: DICE's blocks at each rate, a block multiple (empty last block) and not; the batch; decode_xas
-    streams = 0
+    out.append(('decode 5,000 random frames', lambda x: dec(x).tobytes(), (f,)))
+    out.append(('decode random frames, 4-D', lambda x: dec(x).tobytes() + repr(dec(x).shape).encode(),
+                (f[:4800].reshape(40, 30, 4, 76),)))
+    out.append(('decode no frames', lambda x: dec(x).tobytes() + repr(dec(x).shape).encode(), (f[:0],)))
+    # encode_xas: DICE's blocks at each rate, a block multiple (empty last block) and not
     for rate in (48000, 44100, 32000, 24000, 22050, 11025):
         per = audio.xas_block_samples(rate)
         for n in (0, 5, per - 1, per, per * 3, per * 3 + 129):
             for ch in (1, 2, 6):
                 pcm = signals(rng, n, ch)[7][1]
-                a, b = audio.encode_xas(pcm, rate), audio.encode_xas_python(pcm, rate)
-                check(a.header() == b.header() and a.blocks == b.blocks, f'encode_xas {rate} {n} x {ch}')
-                check(audio.write_sps(a) == audio.write_sps(b), f'write_sps {rate} {n} x {ch}')
-                check(np.array_equal(audio.decode_xas(a), audio.decode_xas(b)), f'decode_xas {rate} {n} x {ch}')
-                streams += 1
+                out.append((f'encode_xas {rate} {n} x {ch}', lambda p, r: stream_bytes(enc_xas(p, r)), (pcm, rate)))
+    return out
+
+
+def quick(golden: dict[str, Any], record: bool) -> None:
+    audio.require()
+    shift_rule()
+    rec = Recorded(golden, 'quick', record)
+    t = time.perf_counter()
+    cases = quick_cases((audio.xas_encode_frames, audio.xas_decode_frames, audio.encode_xas))
+    for name, fn, args in cases:
+        rec(name, outcome(fn, *args))
+    print(rec.report(f'{len(cases)} seeded encodes, decodes and streams ({time.perf_counter() - t:.1f} s)'))
+
+    # the batch: encode_xas_many as encode_xas one by one
+    rng = np.random.default_rng(7)
     items = [(signals(rng, n, ch)[i][1], rate) for i, n, ch, rate in
              [(1, 1000, 1, 48000), (5, 7777, 2, 44100), (0, 0, 1, 22050), (7, 129, 6, 11025)]]
     many = audio.encode_xas_many(items + [(items[1][0], 24000, 0)])
-    one = [audio.encode_xas_python(p, r) for p, r in items] + [audio.encode_xas_python(items[1][0], 24000, 0)]
+    one = [audio.encode_xas(p, r) for p, r in items] + [audio.encode_xas(items[1][0], 24000, 0)]
     check(all(a.header() == b.header() and a.blocks == b.blocks for a, b in zip(many, one)), 'encode_xas_many')
-    print(f'encode_xas: {streams} streams in DICE\'s blocks at 6 rates as the reference; encode_xas_many as one by one')
-    long = signals(rng, CHUNK + 4321, 2)[7][1]
-    x, y = reference_xas(long, 48000), audio.encode_xas_python(long, 48000)
-    check(x.header() == y.header() and x.blocks == y.blocks, 'the game test\'s reference by pieces = the reference')
-    print('the reference by pieces (the game tier\'s long sounds) = the reference whole')
-
-    # the dispatcher
-    check(audio.use_native(False) == 'python' and audio.backend() == 'python', 'use_native(False)')
-    pcm = signals(rng, 300, 2)[5][1]
-    check(audio.xas_encode_frames(pcm).tobytes() == audio.xas_encode_frames_python(pcm).tobytes(), 'python backend')
-    os.environ['BFBC2_PURE_PYTHON'] = '1'
+    # the refusals say what is wrong
+    for bad, says in ((np.zeros((4, 2), np.float64), 'integer'), (np.full((4, 1), 40000, np.int32), 'int16'),
+                      (np.zeros(4, np.int16), '(samples, channels)')):
+        try:
+            audio.xas_encode_frames(bad)
+            check(False, f'{bad.dtype} {bad.shape}: refused')
+        except ValueError as e:
+            check(says in str(e), f'{bad.dtype} {bad.shape}: the error says {says!r} ({e})')
     try:
-        check(audio._load_native() is None, 'BFBC2_PURE_PYTHON=1: no Rust core')
-        check(audio.use_native(True) == 'rust', 'use_native(True) whatever BFBC2_PURE_PYTHON says')
-    finally:
-        del os.environ['BFBC2_PURE_PYTHON']
-    print('dispatcher: use_native / BFBC2_PURE_PYTHON')
+        audio.xas_decode_frames(np.zeros((3, 75), np.uint8))
+        check(False, 'frames of 75 bytes: refused')
+    except ValueError as e:
+        check('76' in str(e), f'frames of 75 bytes: the error says 76 ({e})')
+    print('encode_xas_many as encode_xas one by one; the refused inputs say why')
 
 
 # ------------------------------------------------------------------------------------------------ game
 
 class Decoded:
-    """audio.decode_xma remembered per stream: one ffmpeg run per sound for both backends."""
+    """audio.decode_xma remembered per stream: decoded in a worker thread (ffmpeg), then encoded on the main one."""
 
     def __init__(self, real: Any) -> None:
         self.real = real
@@ -193,6 +274,9 @@ class Decoded:
         if key not in self.memo:
             self.memo[key] = self.real(st, trim)
         return self.memo[key]
+
+
+DECODE_XMA = audio.decode_xma
 
 
 def prefetch(item: tuple[bytes, str, dict[int, bytes] | None]) -> Decoded:
@@ -207,54 +291,26 @@ def prefetch(item: tuple[bytes, str, dict[int, bytes] | None]) -> Decoded:
                 if st.codec == 3 and st.channels == w.channels:
                     dec(st)
     except audio.AudioError:
-        pass                                          # convert raises it again, with each backend
+        pass                                          # convert raises it again
     return dec
 
 
-DECODE_XMA, ENCODE_XAS = audio.decode_xma, audio.encode_xas
-CHUNK = 1 << 20          # samples a channel: the reference takes a longer sound a piece at a time (its memory)
+def converted(item: tuple[bytes, str, dict[int, bytes] | None], dec: Decoded) -> list[str]:
+    """audio.convert's outcome with the decodes remembered (main thread only: it swaps audio's decode_xma)."""
+    audio.decode_xma = dec
+    try:
+        return outcome(audio.convert, *item)
+    finally:
+        audio.decode_xma = DECODE_XMA
 
 
-def reference_xas(pcm: np.ndarray, rate: int, type_: int = 1) -> Any:
-    """audio.encode_xas_python, a long sound's frames made by the reference CHUNK samples (whole frames) at a time:
-    every group of 32 samples is encoded on its own (the reference works row by row on them), so the frames are the
-    same; its arrays (about 70 bytes a sample) stay below 1 GB."""
-    n, ch = pcm.shape
-    if n <= CHUNK:
-        return audio.encode_xas_python(pcm, rate, type_)
-    frames = np.concatenate([audio.xas_encode_frames_python(pcm[i:i + CHUNK]) for i in range(0, n, CHUNK)])
-    per = audio.xas_block_samples(rate)
-    full, f = n // per, per // 128
-    blocks = [(per, frames[i * f:(i + 1) * f].tobytes()) for i in range(full)]
-    blocks.append((n - full * per, frames[full * f:].tobytes()))
-    return audio.Stream(1, 4, ch, rate, type_, n, blocks)
-
-
-def both(item: tuple[bytes, str, dict[int, bytes] | None], dec: Decoded) -> tuple[Any, Any, float, float, int]:
-    """(Python's result, Rust's, Python encode seconds, Rust encode seconds, samples): audio.convert with each
-    backend (main thread only: it swaps audio's decode_xma for the remembered one and times encode_xas)."""
-    out, secs = [], []
-    for native in (False, True):
-        audio.use_native(native)
-        spent = [0.0]
-
-        def timed(pcm: np.ndarray, rate: int, type_: int = 1, spent: list[float] = spent, native: bool = native) -> Any:
-            t = time.perf_counter()
-            st = ENCODE_XAS(pcm, rate, type_) if native else reference_xas(pcm, rate, type_)
-            spent[0] += time.perf_counter() - t
-            return st
-        audio.decode_xma, audio.encode_xas = dec, timed
-        try:
-            r: Any = audio.convert(*item)
-        except audio.AudioError as e:
-            r = ('error', str(e))
-        finally:
-            audio.decode_xma, audio.encode_xas = DECODE_XMA, ENCODE_XAS
-        out.append(r)
-        secs.append(spent[0])
-    audio.use_native(True)
-    samples = sum(int(v.size) for k, v in dec.memo.items() if k[3])
-    return out[0], out[1], secs[0], secs[1], samples
+def item_sha(item: tuple[bytes, str, dict[int, bytes] | None]) -> str:
+    """The SHA-1 of a sound's input: the Wave and its streamed segments."""
+    b, _, streams = item
+    h = hashlib.sha1(b)
+    for i, s in sorted((streams or {}).items()):
+        h.update(f'|{i}|'.encode() + s)
+    return h.hexdigest()[:16]
 
 
 def bf1943_items(every: int, limit: int | None) -> list[tuple[str, tuple[bytes, str, dict[int, bytes] | None]]]:
@@ -307,34 +363,25 @@ def xbox_items(every: int, limit: int | None) -> list[tuple[str, tuple[bytes, st
     return out[::every][:limit]
 
 
-def game(every: int, limit: int | None, workers: int) -> None:
+def game(golden: dict[str, Any], record: bool, every: int, limit: int | None, workers: int) -> None:
     try:
         audio.ffmpeg_path()
     except audio.AudioError as e:
         print(f'SKIP --game: {e}')
         return
-    for label, get in (('Battlefield 1943', bf1943_items), ('BFBC2 Xbox, in memory', xbox_items)):
+    for group, label, get in (('bf1943', 'Battlefield 1943', bf1943_items), ('xbox', 'BFBC2 Xbox, in memory', xbox_items)):
         items = get(every, limit)
         if not items:
             continue
         t0 = time.perf_counter()
-        same, errs, diff, py_s, rs_s, samples = 0, 0, [], 0.0, 0.0, 0
+        rec = Recorded(golden, group, record)
         with ThreadPoolExecutor(workers) as ex:
             for at in range(0, len(items), 4 * workers):          # a few ahead: decoded audio is not all kept
                 chunk = items[at:at + 4 * workers]
                 for (name, it), dec in zip(chunk, ex.map(prefetch, [it for _, it in chunk])):
-                    a, b, tp, tr, n = both(it, dec)
-                    py_s, rs_s, samples = py_s + tp, rs_s + tr, samples + n
-                    if a == b:
-                        same += 1
-                        errs += isinstance(a, tuple)
-                    else:
-                        diff.append(name)
-        check(not diff, f'{label}: {len(diff)} of {len(items)} PC Waves differ: {diff[:5]}')
-        print(f'{label}: {same} of {len(items)} Waves converted byte for byte the same by both backends ({errs} '
-              f'refused alike; {samples:,} samples encoded); encode Python {py_s:.1f} s, Rust {rs_s:.2f} s '
-              f'(one at a time), {time.perf_counter() - t0:.0f} s in all', flush=True)
-        # the batch: convert_many against convert (Rust), some of them
+                    rec(name, converted(it, dec), item_sha(it))
+        print(rec.report(f'{label}: {len(items)} Waves converted ({time.perf_counter() - t0:.0f} s)'), flush=True)
+        # the batch: convert_many against convert, some of them
         some = [it for _, it in items[:: max(1, len(items) // 40)]]
         many = audio.convert_many(some, workers)
         one = []
@@ -375,17 +422,19 @@ def peak_gb() -> float | None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--game', action='store_true')
+    ap.add_argument('--record', action='store_true')
     ap.add_argument('--every', type=int, default=1)
     ap.add_argument('--limit', type=int, default=None)
     ap.add_argument('--workers', type=int, default=4)
     a = ap.parse_args()
-    if NATIVE is None:
-        print('SKIP: the Rust core (bc2_native) is not built: python rust\\build_native.py')
-        return 0
-    quick()
+    golden = load()
+    quick(golden, a.record)
     if a.game:
-        audio.use_native(True)
-        game(a.every, a.limit, a.workers)
+        game(golden, a.record, a.every, a.limit, a.workers)
+    if a.record and not FAILS:
+        golden['now_recorded'] = time.strftime('%Y-%m-%d')
+        write(golden)
+        print(f'wrote {GOLDEN}')
     peak = peak_gb()
     if peak:
         print(f'peak memory {peak:.2f} GB')

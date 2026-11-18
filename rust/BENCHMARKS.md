@@ -555,7 +555,7 @@ Profiled again (sp_004_b, cProfile: 60 s with the profiler's overhead): `merge_d
 `build_areas` 1.6 s and the cell picking 0.8 s (both Rust now); 21 million `dict.get` and 13 million `list.append`.
 `trace_edges` / `trace_emit` are the next port if NavKit builds need to be faster still.
 
-## Retired Python (2026-11-17, branch `retire-e1`)
+## Retired Python (2026-11-17, branch `retire-e1`; 2026-11-18, branch `retire-r2`)
 
 The full test tier passed on round E1 (140 of 140, 2026-11-17), which under `EDITOR_ARCHITECTURE.md` 3.8 retires the
 Python of the ported **logic** of round E1d. Retired (deleted; the module is now required for them, README.md "The
@@ -658,6 +658,87 @@ and `test_asset_accuracy` (its emitter probes now translate one-instruction tree
 **Speed of the handed-over path** (`bench_xenos.py`, Wake, busy PC, one run): a Python-decoded tree handed over and
 translated 0.75 ms a program, the hand-over alone 0.24 ms; the retired `translate_python` measured 0.76 ms in the
 same conditions, the kept program 0.40 ms. Callers' trees are kept programs (OPFOR: 3,576 of 3,576).
+
+### The converters (2026-11-18, branch `retire-r2`)
+
+The full test tier passed on main `ee25186` (173 of 173, 2026-11-17 23:54), which retires the Python of the
+converters' ported **logic** (rounds E3a, E3g, E3i, E3o). Under the ruling a format reader or writer keeps its Python
+for good; conversion logic with a Rust twin loses it. Retired (deleted; the module is required for them,
+`require()` at the tools' entry points):
+
+| piece | Python removed | kept, and why | Rust |
+|---|---|---|---|
+| EA-XAS codec | `audio.py`: `xas_encode_frames_python`, `xas_decode_frames_python`, `encode_xas_python`, the dispatch (`_with_xas`, `_load_native`, `backend`, `use_native`, `_encode_native`'s fallback, `BFBC2_PURE_PYTHON`); 695 -> 576 lines | the block framing (`_xas_stream`, `xas_block_samples`), the Wave / SPS readers and writers, `COEFS` (the format's table; `test_audio.py`'s own SNR search uses it) - never ported, or format | `bc2_convert::audio` (`xas_encode_many`, `xas_decode_frames`) |
+| mesh vertex loop | `mesh.py`: `convert`'s per-vertex Python loop and its dispatch (`_load_native`, `backend`, `use_native`); 532 -> 514 | `element()` (the per-value rule: format knowledge, and OPFOR's `wake_audit` checks meshes with it), `parse` / `write` / `elements` / `console_layouts` / `decode` (the format), `relayout` and the region / window planning in `convert` (never ported) | `bc2_convert::mesh` (`mesh_vertices`) |
+| Havok walk | `havok.py`: `Packfile` (the walk and its per-byte record of widths and owners), `ignorable`, `verify_reference`, the dispatch (`_load_native`, `backend`, `use_native`) and the fallbacks of `convert_packfile` / `verify`; 526 -> 293 | `classes(exe)` (reads the game's hkClass initializers: the Rust takes its layouts from it), the wrapper's conversion (never ported), the type constants | `bc2_convert::havok` (`havok_convert_packfile`, `havok_verify_packfile`) |
+| Granny conversion | `granny.py`: `_to_pc_python`, `_marshal`, `_swap`, `_WORDS`, `_HALVES`, `to_pc` / `to_pc_many`'s fallbacks; 1,223 -> 1,161 | the reader (`Granny`, `root`, `members`, `size`, ...: the format's reference, still compared with the Rust reader both ways, `use_native` / `backend()` / `BFBC2_PURE_PYTHON` now for the reader only), `bone_table` / `renumber` (DICE's table format; `test_granny_port.py`'s units), `add_tracks`, `shift`, curves (never ported) | `bc2_convert::granny` (`granny_to_pc`, `granny_to_pc_many`) |
+
+Format reader or logic, decided per piece: Granny's reader parses a file format into its object tree - it stays,
+and its Rust twin is still checked against it on every Granny resource of the Xbox copy, the game copy and BF1943.
+`to_pc` (swapping each section and object by its type, the CRC, DICE's table renumbered) is conversion: retired.
+Havok's `Packfile` reads nothing out - it walks the packfile only to reverse each value in place (and to record what
+it touched for `verify`): conversion, retired; `classes(exe)` and the wrapper stay. In mesh.py the readers and
+writers stay and only the per-vertex loop goes; `element()` stays because it is the format's per-value rule in a
+callable form (an OPFOR audit tool uses it). The EA-XAS encoder (a search for the least-error coefficients) and
+decoder are the codec, ported logic: retired; the framing around them never had a Rust twin.
+
+The binding changed with it: `havok_convert_packfile` and `havok_verify_packfile` raise `ValueError` with a refusal's
+message (they returned `None` for refusals too, so the Python walk could say why) and return `None` only where the
+walk stops without one; and the walk's class-name check now refuses a fixup into another section before it looks at
+the class names, as the reference's `or` did (103 seeded refusals had a vaguer message otherwise).
+
+**What the tools feed the Rust** (each dispatcher wrapped and counted on the reference's inputs, before deleting):
+
+- Sounds: every Wave of BF1943's source (2,750, streamed ones with their waveDataSns entries; 2,810 encode calls) and
+  every in-memory Wave of BFBC2's unpacked Xbox bundles (1,680; 1,847 calls): **0 declined**, the PC Wave the same
+  bytes both ways on all 4,430. Quick tier: 2 of 1,652 encode calls declined - the test's own pcm beyond int16 and
+  float32 pcm, which the NumPy encoder took (widened to int64, floats truncated): now a `ValueError` saying what is
+  wrong (and the wrong shapes' unpacking errors became messages naming `(samples, channels)`).
+- Meshes: every BF1943 mesh set port (273: 534 `mesh.convert` calls, 1,570 vertex runs) and every Onslaught console
+  MeshData with layouts (239: 723 runs): **0 declined**, every input already `bytes`. Quick: 8 of the 400 seeded
+  meshes name the unknown format 0x01, where the Python loop raised `KeyError: 1` - now `ConvertError` ("vertex
+  element format 0x01 -> 0x01 is not converted"); no mesh the Python converted is refused.
+- Physics: every BF1943 physics port's walk (191 of 202; havokport refuses 11 before it) and every Onslaught console
+  physics file (594): **0 stops**, the same bytes. Quick: of 3,600 seeded packfiles, **7** the Python "converted" while
+  its walk claimed bytes far past the data (to byte 18,160 - 65,024 of 656 - 992-byte files: its short slices; each
+  checked with the retired code) - now `ConvertError`; 1,216 refusals whose Python exception was not its
+  `ConvertError` (`struct.error` 1,120, `IndexError` 85, `ValueError` 11) are now `ConvertError`s saying the packfile
+  reads past its data, and 40 the Python refused only after reading past the data (a width clash further on) say so
+  too.
+- verify: verify-havok's 400 Onslaught files, all answered by the Rust record, the same (exact, reasons, offsets).
+  Quick: 2,003 seeded comparisons - the record gave `None` only where the reference raised (`ConvertError` 928,
+  `IndexError` 28 on a PC copy longer than the console file): now the walk's own refusal (`verify_packfile` asks
+  `convert_packfile` first, the reference's order), else "the PC file is longer"; 4 the reference refused only after
+  reading past the data say so.
+- Granny: every Xbox Granny resource of mp_common / sp_common (2,660) and BF1943's (1,495 conversions, the soldier
+  animations also with the bone map): 4,155 converted by both, the same bytes, **0 declined**. Quick: 2,193
+  conversions of built and damaged resources - none the Python converted is refused; 965 of the 1,454 refusals now
+  carry the Rust core's message (`where: why` as a `GrannyError`, where the Python raised `struct.error`, `IndexError`,
+  `TypeError` or a `RecursionError`, or the same `GrannyError` worded otherwise).
+
+**The new oracle: results recorded from the Python before it was deleted** (each by the retired code itself through a
+one-off recorder: the tests' own cases with the reference swapped in), each file with a `"now"` section listing,
+case by case, the answers the Rust core gives otherwise on purpose (the refusals above; `--record` rewrites it from
+the current code, which refuses to touch the reference rows):
+
+| file | cases (reference rows) | now |
+|---|---|---|
+| `bfbc2-console-convert/tests/audio_golden.json` | quick 1,657 (encodes, decodes of the encoded frames, random frames, `encode_xas` streams at 6 rates); `bf1943` 2,750 and `xbox` 1,680 Waves (input and output SHA-1) | 4 |
+| `bfbc2-bf1943-import/tests/ports_golden.json` | `mesh-quick` 401, `havok-quick` 3,600; `bf1943-mesh` 273 and `bf1943-havok` 202 ports (bench_ports' output digests); `onslaught-mesh` 239 and `onslaught-havok` 594 (input and output SHA-1) | 8 + 1,263 |
+| `tests/havok_verify_golden.json` | quick 2,003 (the (offset, reason) list's digest); `onslaught` 400 (exact, reasons, offsets) | 32 |
+| `bfbc2-anim-tools/tests/granny_golden.json` | quick 2,193; `xbox` 2,660 and `bf1943` 1,495 conversions (input and output SHA-1) | 965 |
+
+The game rows have no `"now"` entries: on the game's files every answer is the reference's.
+
+**Proof** (2026-11-18, below-normal priority, the module rebuilt from this branch's sources): quick tier
+`python run_tests.py quick -j 2` 95 of 96 (mypy: a loop variable reused in `test_ports_native.py`, renamed; mypy, ruff and that test then pass); `test_audio_native.py --game --every 10` (275 + 168 Waves as recorded,
+convert_many = convert), `--game` all 4,430 in the `--record` run (0 "now" entries from game files);
+`test_granny_native.py --game` (2,660 + 1,495 conversions as recorded, 2,660 + 4,534 + 756 resources read the same
+by both readers) and `test_granny_port.py --game` (2,654 Xbox -> PC equal their PC twins, 31 BF1943 animations equal
+BFBC2's); `test_ports_native.py --game` (every BF1943 mesh, physics and effect port identical with the indexes and the
+reference searches, the mesh / physics outputs as recorded, Onslaught 594 + 239 as recorded, emitter index 18,343);
+`test_havok.py` (400 of 400 shared files equivalent, 594 of 594 converted); `test_e3o_native.py --game` (all passed,
+verify-havok's 400 as recorded); `cargo clippy --all-targets -D warnings`, `cargo test -p bc2-convert`.
 
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 

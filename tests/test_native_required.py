@@ -1,12 +1,14 @@
-r"""The Rust core is required for texture conversion and NavKit's grid walks (their Python retired on 2026-11-17), and a
-module built from other sources is never used silently (core/bfbc2core/native.py; README.md, "The Rust core").
+r"""The Rust core is required for texture conversion and NavKit's grid walks (their Python retired on 2026-11-17) and
+for the sound, mesh, physics and Granny conversions (2026-11-18), and a module built from other sources is never used
+silently (core/bfbc2core/native.py; README.md, "The Rust core").
 
 A copy of the suite's Python and Rust sources in a temporary folder (no game data, no cargo), three ways:
-  - no module: texture.convert, navbuild.build and navwalk.walkable raise NativeMissing at once (before reading
-    any input), saying how to get it (build_native.py --download, or build); the DBX reader runs in Python;
+  - no module: texture.convert, navbuild.build, navwalk.walkable, audio's encoder, mesh.convert,
+    havok.convert_packfile and granny.to_pc raise NativeMissing at once (before reading any input), saying how to get
+    it (build_native.py --download, or build); the DBX reader runs in Python;
   - a stale module (the copy's Rust sources changed after it was built): the same error naming the mismatch; the
     DBX reader falls back to Python with one RuntimeWarning;
-  - the matching module: texture conversion and the grid walks run, BFBC2_PURE_PYTHON=1 does not turn them off.
+  - the matching module: they run, BFBC2_PURE_PYTHON=1 does not turn them off.
 And the source fingerprint: the same with CRLF and LF line endings, different when a source changes or a crate is
 added; build_native.py --download against a stand-in for GitHub (its fetch replaced; nothing goes on the network):
 the release of the checkout's fingerprint, installed with its stamp only when its SHA-256 and its own fingerprint
@@ -33,12 +35,13 @@ PROBE = r'''
 import os, sys, warnings
 sys.path.insert(0, sys.argv[1])
 import suite_paths
-suite_paths.use('core', 'console-convert', 'navkit-tools')
+suite_paths.use('core', 'console-convert', 'navkit-tools', 'anim-tools')
 warnings.simplefilter('always')
 caught = []
 warnings.showwarning = lambda m, *a, **k: caught.append(str(m))
 from bfbc2core import dbx, native
-import navbuild, navwalk, texture
+import audio, granny, havok, mesh, navbuild, navwalk, texture
+import numpy as np
 print('dbx backend:', dbx.backend())
 print('warnings:', len(caught), caught[0][:80] if caught else '')
 def attempt(name, fn):
@@ -54,6 +57,10 @@ tex = struct.pack('>8I', 3, 0, 10, 0, 8, 8, 0, 1) + bytes(60) + bytes(4096)
 attempt('texture', lambda: len(texture.convert(tex)))
 attempt('navbuild', lambda: navbuild.build('no such samples.bin', None, 0, 0, 'out.hpd', log=lambda *a: None))
 attempt('walkable', lambda: navwalk.walkable(None))
+attempt('audio', lambda: audio.xas_encode_frames(np.zeros((128, 1), np.int16)).shape)
+attempt('mesh', lambda: mesh.convert(b'', []))
+attempt('havok', lambda: havok.convert_packfile(bytes(64), 0, {}))
+attempt('granny', lambda: granny.to_pc(bytes(16)))
 '''
 
 
@@ -70,7 +77,7 @@ def copy_suite(dst: str, with_module: bool) -> None:
                                   'tests', 'work', '*.hpd')
     os.makedirs(dst)
     shutil.copy2(os.path.join(SUITE, 'suite_paths.py'), dst)
-    for d in ('core', 'bfbc2-console-convert', os.path.join('bfbc2-auto-navkit', 'tools'), 'rust'):
+    for d in ('core', 'bfbc2-console-convert', os.path.join('bfbc2-auto-navkit', 'tools'), 'bfbc2-anim-tools', 'rust'):
         shutil.copytree(os.path.join(SUITE, d), os.path.join(dst, d), ignore=skip)
     if with_module:
         shutil.copy2(PYD, os.path.join(dst, 'core', 'bfbc2core', os.path.basename(PYD)))
@@ -174,7 +181,7 @@ def main() -> int:
         copy_suite(root, with_module=False)
         r = probe(root)
         check(r.get('dbx backend') == 'python', f'no module: the DBX reader runs in Python ({r.get("dbx backend")})')
-        for k in ('texture', 'navbuild', 'walkable'):
+        for k in ('texture', 'navbuild', 'walkable', 'audio', 'mesh', 'havok', 'granny'):
             v = r.get(k, '')
             check(v.startswith('NativeMissing') and 'not built or downloaded' in v and '--download' in v
                   and 'build_native.py' in v, f'no module: {k} raises NativeMissing saying how to get it ({v[:150]})')
@@ -187,6 +194,10 @@ def main() -> int:
         check(r.get('dbx backend') == 'python', 'matching module: BFBC2_PURE_PYTHON=1 still turns the DBX reader to Python')
         check(r.get('navbuild', '').startswith(('FileNotFoundError', 'OSError')),
               f'matching module: navbuild.build gets past the check to its input ({r.get("navbuild", "")[:80]})')
+        check(r.get('audio') == 'ok (1, 1, 76)', f'matching module: audio encodes under BFBC2_PURE_PYTHON=1 ({r.get("audio")})')
+        for k in ('mesh', 'havok', 'granny'):
+            check(bool(r.get(k)) and not r.get(k, '').startswith('NativeMissing'),
+                  f'matching module: {k} gets past the check to its input ({r.get(k)})')
         r = probe(root)
         check(r.get('dbx backend') == 'rust' and r.get('warnings') == '0 ', f'matching module: used, no warning ({r})')
         # stale: the copy's sources changed after the module was built
@@ -197,7 +208,7 @@ def main() -> int:
         check(r.get('dbx backend') == 'python', f'stale module: the DBX reader falls back to Python ({r.get("dbx backend")})')
         check(r.get('warnings', '').startswith('1 ') and 'other Rust sources' in r.get('warnings', ''),
               f'stale module: one warning ({r.get("warnings")})')
-        for k in ('texture', 'navbuild', 'walkable'):
+        for k in ('texture', 'navbuild', 'walkable', 'audio', 'mesh', 'havok', 'granny'):
             v = r.get(k, '')
             check(v.startswith('NativeMissing') and 'other Rust sources' in v and '--download' in v,
                   f'stale module: {k} raises NativeMissing naming the mismatch ({v[:150]})')

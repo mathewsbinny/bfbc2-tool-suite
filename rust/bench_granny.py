@@ -14,9 +14,10 @@ in memory:
   to_pc(b)             each Xbox resource as the PC's, one call at a time
   to_pc_many(blobs)    all of them in one call (all cores)
 
-The Python column is granny.py with the Rust core off, or --reference: another granny.py (say main's, before this
-round: git show main:bfbc2-anim-tools/granny.py > old.py); one without roots / to_pc_many runs root / to_pc one by
-one there.
+The Python column is granny.py with the Rust core off (its Python reader; to_pc and to_pc_many run in the Rust core
+either way since their Python was retired on 2026-11-18), or --reference: another granny.py (the retired Python
+conversion: git show ee25186:bfbc2-anim-tools/granny.py > old.py); one without roots / to_pc_many runs root / to_pc
+one by one there.
 """
 import os
 import sys

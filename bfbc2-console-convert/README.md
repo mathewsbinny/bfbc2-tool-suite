@@ -122,7 +122,9 @@ python audio.py bfbc2 <xbox_wave.res> <out.res>
 
 Also `audio.read_wave(bytes, 'bfbc2-xbox' | 'bfbc2-pc' | 'bf1943')` (the Frostbite wrapper: header words and
 intro / loop / outro segments), `audio.decode(bytes, source, streams)` (int16 samples and the rate),
-`audio.encode_xas(pcm, rate)` / `audio.decode_xas(stream)` (EA-XAS v1 in numpy, DICE's block layout). EA-XMA is
+`audio.encode_xas(pcm, rate)` / `audio.decode_xas(stream)` (EA-XAS v1 in the suite's Rust core, which they need -
+the NumPy codec was retired on 2026-11-18, its results recorded in `tests\audio_golden.json`; DICE's block layout
+here). EA-XMA is
 decoded by ffmpeg (decoding only, through a pipe: each XMA stream wrapped as an XMA2 RIFF WAVE); ffmpeg is found on
 PATH, in `$FFMPEG` or in the WinGet Gyan.FFmpeg package. The formats are in audio.py's docstring.
 
