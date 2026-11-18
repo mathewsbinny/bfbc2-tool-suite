@@ -51,6 +51,20 @@ SCRIPTS = {
 }
 
 
+EDITOR_BUILD = ['cargo', 'build', '--release', '-p', 'bc2-editor']      # in rust\ (README.md, "The map editor")
+
+
+def editor_exe():
+    """The map editor (rust\\bc2-editor, round G1: read-only map view), release build first, else the debug one."""
+    for profile in ('release', 'debug'):
+        exe = os.path.join(SUITE, 'rust', 'target', profile, 'bfbc2-editor.exe')
+        if os.path.isfile(exe):
+            return exe
+    raise RuntimeError('The map editor is not built yet. Build it once with Rust: in the suite\'s rust folder, run '
+                       f'"{subprocess.list2cmdline(EDITOR_BUILD)}" (a few minutes the first time; README.md, '
+                       '"The map editor").')
+
+
 def tool(name):
     """The tool's exe, built first (with the C# compiler Windows ships) if it is not there yet."""
     exe, bat = TOOLS[name]
@@ -300,6 +314,7 @@ class Hub:
         btns.grid(row=2, column=0, columnspan=3, sticky='w', pady=8)
         ttk.Button(btns, text='Open in Map Inspector', command=lambda: self.open_3d('inspector')).pack(side='left')
         ttk.Button(btns, text='Open in Navigation Studio', command=lambda: self.open_3d('studio')).pack(side='left', padx=6)
+        ttk.Button(btns, text='Open in Map Editor (preview)', command=self.open_editor).pack(side='left', padx=6)
         ttk.Button(btns, text='Prepare level', command=self.prepare).pack(side='left', padx=6)
         ttk.Button(btns, text='Open level folder', command=self.open_level_folder).pack(side='left', padx=6)
         ttk.Button(btns, text='Refresh', command=self.fill_levels).pack(side='left', padx=6)
@@ -347,6 +362,18 @@ class Hub:
             args += ['--candidate', self.nav_file.get().strip()]
         name = 'Map Inspector' if which == 'inspector' else 'Navigation Studio'
         self.launch(args, f'{name}: {lv} (the window opens when the level is loaded)')
+
+    def open_editor(self, lv=None):
+        """The Rust map editor (preview: read-only), on the chosen level, or on its start screen without one. The Map
+        Inspector stays until the editor replaces it (EDITOR_ARCHITECTURE.md 3.8)."""
+        if lv is None and self.tree.selection():
+            lv = self.tree.selection()[0]
+        try:
+            exe = editor_exe()
+        except RuntimeError as e:
+            messagebox.showinfo('BFBC2 Tool Suite', str(e))
+            return
+        self.launch([exe] + ([lv] if lv else []), f'Map Editor{": " + lv if lv else ""}')
 
     def prepare(self):
         lv = self.chosen_level()
@@ -499,7 +526,10 @@ class Hub:
     # --- More tools ---------------------------------------------------------------------------------
     def tab_more(self):
         f = self.form('More tools', 'Tools with windows of their own.')
-        rows = [('DbxEditGUI', 'View, edit, check and repair binary .dbx files; XML export and import.',
+        rows = [('Map Editor', 'Preview of the map editor (Rust): view any prepared map read-only, several views, '
+                               'command palette (Ctrl+Shift+P).',
+                 lambda: self.open_editor('')),
+                ('DbxEditGUI', 'View, edit, check and repair binary .dbx files; XML export and import.',
                  lambda: self.launch([tool('dbxgui')], 'DbxEditGUI')),
                 ('NavKit', 'Generate AI navigation data for a level: prepare, sample in game, build, check, install.',
                  lambda: self.launch([PYTHON, SCRIPTS['navkitgui']], 'NavKit')),
