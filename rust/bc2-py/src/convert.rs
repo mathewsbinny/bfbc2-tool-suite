@@ -194,3 +194,21 @@ pub fn havok_convert_packfile<'py>(
         .ok()?;
     Some(PyBytes::new(py, &out))
 }
+
+/// `havok.verify`'s packfile part (round E3o): the packfile at `start` of `console` converted and compared with
+/// `pc` from `start` on - each differing byte's `(offset, reason)`, the reason `havok.ignorable`'s text or `None`;
+/// `None` where the reference is to run (`bc2_convert::havok::verify_packfile`).
+#[pyfunction]
+pub fn havok_verify_packfile(
+    py: Python<'_>,
+    console: &Bound<'_, PyBytes>,
+    start: usize,
+    classes: &HavokClasses,
+    pc: &Bound<'_, PyBytes>,
+) -> Option<Vec<(usize, Option<&'static str>)>> {
+    let (c, p) = (console.as_bytes(), pc.as_bytes());
+    let got = py
+        .detach(|| havok::verify_packfile(c, start, &classes.classes, p))
+        .ok()?;
+    Some(got.into_iter().map(|(i, w)| (i, w.map(havok::Why::text))).collect())
+}

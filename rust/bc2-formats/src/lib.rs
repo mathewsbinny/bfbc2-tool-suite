@@ -44,6 +44,7 @@ pub mod dbxedit;
 pub mod fbrb;
 pub mod granny;
 pub mod havok;
+pub mod kymesh;
 pub mod shaderdb;
 pub mod terrain;
 pub mod water;

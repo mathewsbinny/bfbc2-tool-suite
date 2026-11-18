@@ -161,5 +161,7 @@
  "cull tree reference rows cache and shape memo against the reference (E3m; built levels: no cache, cold, warm, changed)": 2.5,
  "cull tree add and verify on Onslaught MP_005 against every work\\levels folder: reference, no cache, cold, warm (E3m)": 520.0,
  "APT decoder (Rust) and aptgraft writer against their references (E3n; built movies, 600 damaged, 3,000 floats, grafts)": 8.6,
- "APT decoder (Rust) and aptgraft writer against their references on every movie of the game copy, the pristine menus and the Xbox HUD copies; aptrefs / aptcheck / bc2loc both ways (E3n)": 1180.0
+ "APT decoder (Rust) and aptgraft writer against their references on every movie of the game copy, the pristine menus and the Xbox HUD copies; aptrefs / aptcheck / bc2loc both ways (E3n)": 1180.0,
+ "Rust E3o: mesh reader, navdata cells and union-find, route search, havok verify record, texqa workers against their references (built inputs)": 60.0,
+ "Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles": 400.0
 }
