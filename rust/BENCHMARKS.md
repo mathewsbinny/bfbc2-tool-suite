@@ -2180,6 +2180,106 @@ DICE's partitions at once). NEEDS: the import game test `mem=1` (was 2.5), the f
 2.5); seeds in `tests\test_durations.json`. No Rust changed: `cargo fmt`, `clippy` and the tests passed in the quick
 tier as they were.
 
+## E4d: dbxport's partition port in Rust (2026-11-18, branch `rust-e4d`)
+
+E3r measured `dbxport.port` at 3 - 5 ms a partition and left its 1,865 lines of rules in Python; the newer ruling
+(port as much as possible, data kept on the Rust side, every port proven identical) re-examined it. **Moved:** the
+whole port - `bc2_convert::dbxport` (about 4,300 lines with tests, as rustfmt lays them out; the binding
+`bc2-py/src/dbxport.rs` 470): the template choice (`_roles`, `_inputs`, E3d's
+ranking index), `_Port` (alignment, the reference resolver, stand-ins, guards, the converters: enum numbers, bool
+into number, empty lists, gradient rows, numbers to items, one-to-array, renamed, nested, inline items), the passes
+(`_part_link_names`, `_values`, `_conventions`, `_bones`, `rebuild_audio_connections`, `_gate`), `_text_empty_arrays`
+and the writer. Python keeps a thin layer (`dbxport.port` -> `_port_rust`) with the same signature, `Report` and
+errors; `port_python` is the reference and the fallback.
+
+**Data on the Rust side.** `Templates` parses its partitions there (`bc2_native.DbxTemplates`, on all cores) and
+builds the Python tables only when something asks for them (`candidates`, `by_guid`, `by_type`, `where`: the Python
+port and `choose`; `types()` answers without them - effectport uses it). The catalogue's tables are copied once per
+set of tables (`DbxCatalogue`: a fair test's `fair_catalogue` copies share them; 0.7 s for the real one), its class
+defaults copied when a port first asks for one (only the types the partition holds are looked up: converting the
+whole `defaults` table on every call was half of each port's time). `guids_of` reads guids without a Python tree
+(`dbx_instance_guids`). Per call only `ours`, `stand_ins` and the bone tables cross; `resolve` is called back.
+
+**The model.** An arena of nodes, each standing for a Python `dbx.Element`: where the reference returns the same
+element the port keeps the same node, so in-place passes change it everywhere it is, as Python's do. Python's string
+semantics are reproduced where the rules use them (`str.strip`'s whitespace, `$` before a final newline, `re.I`'s
+folds onto ASCII, `\w`, `int.from_bytes`, `struct.pack`'s overflow). Where Python's answer depends on more than the
+port reproduces - its own exceptions other than `PortError` / `SchemaError` (`IndexError`, `struct.error`, a
+`ValueError` from a malformed bool), a `\w` past ASCII, a NaN packed, a value past 128 bits, alignment nested past
+150 levels (Python's `RecursionError`) or copies past 2 million nodes plus 32 per input node (instances held inline
+in each other many times over) - the Rust side says so and `port_python` ports (`dbxport.STATS`).
+
+Fallbacks also when the caller changed one of the module's tables or functions (checked on every call against the
+tables the port was written for), passes a catalogue that is no `dbxcatalogue.Catalogue`, a duck-typed `BoneTables`,
+or `donors` that is no list or tuple (the reference reads a generator once per instance). `BFBC2_DBXPORT_PYTHON=1`
+ports in Python; `BFBC2_DBXPORT_DUAL=1` runs both on every call and raises `DualMismatch` on any difference in the
+bytes, report lines, records or exception; `BFBC2_DBXPORT_STATS=1` prints the counts at exit.
+
+### Before and after
+
+**Provisional timings** (the machine was shared - the effect bench's baseline alone ran 10.0 s and 18.1 s): below-normal
+priority, `RAYON_NUM_THREADS=4`, `BFBC2_FBRB_CACHE=0`; `main` (0bbafd7, a worktree with `main`'s module) and this
+branch run back to back, twice (round 1 / round 2). `bench_bf1943.py` now times its `fair` workload's parts.
+
+| workload | before, s | after, s |
+|---|---:|---:|
+| `fair`: `dbxport.port`, 2,382 calls | 5.9 / 4.2 | **2.4 / 2.1** |
+| `fair`: `guids_of` (58,835 calls, 2,826 partitions parsed) | 2.0 / 1.6 | **0.4 / 0.4** |
+| `fair`: `Templates` for 58 pools (mostly the bundles read) | 10.2 / 7.5 | 7.4 / 5.0 |
+| `fair` whole | 23.3 / 16.8 | **14.6 / 11.2** |
+| `parity`: `dbxparity.predict` (519 ports) | 12.9 / 13.6 | **8.2 / 7.7** |
+| `bench_ports.py effects` (1,410 ports and the rest of the effect port) | 10.0 / 18.1 | 9.4 / 12.7 |
+| WW2 level ports, `bench_dbxport.py` (53 BFBC2 level partitions, the 4 levels; Python then Rust in one process, each with fresh `Templates` and catalogue copy) | 13.3 / 12.7 (Wake 10.7 / 10.8, Coral 0.35 / 0.23, Guadalcanal 0.98 / 0.67, Iwo 0.84 / 0.49) | **2.5 / 3.8** (Wake 1.7 / 2.6, Coral 0.06 / 0.08, Guadalcanal 0.14 / 0.24, Iwo 0.10 / 0.18) |
+
+The level ports' Python row is this branch's Python port, whose `Templates` builds its Python tables on first use:
+Wake's port carries the parse of the 53 partitions and the ranking indexes; the Rust row's Wake the catalogue copy
+(0.7 s) and its indexes. One port on the fair workload is 0.5 ms in the core (choose and align 0.2, the passes 0.07,
+parse 0.05, write 0.04, the gate 0.03) and 0.2 - 0.3 ms in the binding (`ours`, the class defaults asked, the records
+as tuples, the `Report`), against 2.5 - 4 ms in Python.
+
+Peaks: `fair` 915 -> 1,022 MB (the catalogue's copy: 607,100 guids), `parity` 1,213 -> 1,214, `import` 705 -> 706,
+effects 880 -> 900 MB. `import fair parity` in one process 1,216 -> 1,506 MB: `parity` loads the catalogue again while
+`fair`'s copy is still held - it is let go at the next port once nothing else holds its tables.
+
+### Parity
+
+Every comparison is both ports on the same call (DUAL: bytes, report lines, every record's fields, or exception
+type and message) and, for the benches, every output's SHA-256 against a record made by `main` (0bbafd7):
+
+- `bench_bf1943.py import fair parity` in DUAL: **2,901 of 2,901 ports** the same both ways (2,353 fair ports,
+  29 counterpart ports, `dbxparity.predict`'s 519) and **3,192 of 3,192** outputs as `main` recorded them; 0 left to
+  Python;
+- `bench_ports.py effects` in DUAL: **1,410 of 1,410 effect ports** the same, **713 of 713** outputs as recorded;
+  0 left to Python;
+- `test_dbxport_ranking.py --game`: the four WW2 level ports by the Rust port the same bytes as the Python port with
+  the reference scan (2,623 + 980 + 3,214 + 2,357 rankings, each checked); `bench_dbxport.py`: bytes and reports
+  identical both ways;
+- `test_dbxport.py`, `test_dbxport_fair.py` (game, the Rust port: 2,353 ports, every check as before),
+  `test_dbxport_rules.py` and `test_converter_edges.py` in DUAL (64 crafted ports, the errors among them);
+- `test_dbxport_native.py`: seeded random partitions, pools, catalogues and options (the rules' fields among
+  random ones; schema errors, strict failures): **20,000 of 20,000** the same (10,701 ported, 7,260 `SchemaError`,
+  2,039 `PortError`), 0 left to Python; 600 in the quick tier. Two seeds first found inputs on which the *reference*
+  runs out of memory (a float's bits read as a `MaxMainBoneIndex`, `range(4.6e18)`; exponential inline copies): the
+  generator keeps bone indices small and one inline item per partition, and the guards above leave the second kind
+  to Python within the node budget (checked: 1.2 s, bounded memory).
+
+### Tests
+
+`bfbc2-bf1943-import/tests/test_dbxport_native.py` (quick: 600 random ports both ways and the guards; `--game`: every
+fair, counterpart and effect port both ways, none left to Python); `test_dbxport_ranking.py --game` compares the
+Rust port with the scan's Python port; `rust/bench_dbxport.py` (new) times the level ports both ways. Rust:
+`cargo fmt`, `clippy --all-targets -D warnings` and `cargo test` (bc2-convert: the arena, Python's string rules, the
+tables, the helpers) clean.
+
+### What remains
+
+The port's own time is now 0.5 ms a partition (choose and align 0.2, the passes 0.07, parse and write 0.09; the
+binding's argument conversion 0.1-0.2); the workloads' time is the reading around it (bundles, BF1943's
+decompression). Not done this round: a `port_many` running many partitions on all cores (the callers port one at a
+time with per-partition setup; the core is ready for it - its data is `Sync`, `resolve` would be called back under
+the interpreter); retiring `port_python` (kept as the reference and fallback this round); the catalogue copy keeps
+607,100 guids (about 100 MB of the fair test's 1.0 GB peak, against 915 MB before).
+
 ## E3o: navdata, kymesh, navpath, havok.verify, texqa (2026-11-17, branch `rust-e3o`)
 
 E3m's next ranked items, in the order of measured gain. **Provisional timings:** WW2 rebuilds and other agents' work

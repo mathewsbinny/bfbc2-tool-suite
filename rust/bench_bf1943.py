@@ -111,11 +111,14 @@ def run_fair(src, ix, out, times):
     both = sorted(k for k in src.entries if k.endswith('.dbx') and k in ix.where and
                   'build_overlay' not in ix.where[k][0].lower())
     tcache = {}
+    spent = {'fair: Templates (reads and parses)': 0.0, 'fair: dbxport.port': 0.0, 'fair: guids_of': 0.0}
 
     def templates(key):
         key = tuple(key)
         if key not in tcache:
+            t = time.perf_counter()
             tcache[key] = dbxport.Templates.from_index(ix, key)
+            spent['fair: Templates (reads and parses)'] += time.perf_counter() - t
         return tcache[key]
     by_folder: dict[str, set[str]] = {}
     for e in src.entries:
@@ -124,7 +127,10 @@ def run_fair(src, ix, out, times):
     for k in both:
         name = k[:-4]
         ported = set(by_folder.get(name.rsplit('/', 1)[0], ()))
-        ours = {p: dbxport.guids_of(src.data(p + '.dbx')) for p in ported}
+        datas = {p: src.data(p + '.dbx') for p in ported}
+        t = time.perf_counter()
+        ours = {p: dbxport.guids_of(d) for p, d in datas.items()}
+        spent['fair: guids_of'] += time.perf_counter() - t
 
         def resolve(p, ported=ported):
             q = p.lower()
@@ -135,11 +141,15 @@ def run_fair(src, ix, out, times):
                            ('counterpart', [name] + [p for p in pool if p != name], cat)):
             if what == 'counterpart' and b'FiringFunctionData' not in src.data(k):
                 continue
+            data_in, tpl = src.data(k), templates(T)
+            t = time.perf_counter()
             try:
-                data, rep = dbxport.port(src.data(k), templates(T), resolve, catalogue=c, **kw)
+                data, rep = dbxport.port(data_in, tpl, resolve, catalogue=c, **kw)
                 out[f'{what}:{k}'] = sha(data) + ' ' + sha('\n'.join(rep))
             except dbxport.PortError as e:
                 out[f'{what}:{k}'] = f'error {type(e).__name__}: {e}'
+            spent['fair: dbxport.port'] += time.perf_counter() - t
+    times.update(spent)
 
 
 def run_parity(src, ix, out, times):
