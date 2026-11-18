@@ -53,7 +53,7 @@ class Sector:
     def cells(self):
         """Per area: dict (i, j) -> ground height estimate."""
         if self._cells is None:
-            self._cells = [area_cells(a) for a in self.mesh.areas]
+            self._cells = area_cells_many(self.mesh.areas)
         return self._cells
 
 
@@ -72,9 +72,53 @@ def segments(area):
     return segs
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core for area_cells_many (round E3h), or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'navkit_area_cells') else None)
+    return _NATIVE[0]
+
+
 def area_cells(area):
     """Samples inside the area's boundary (even-odd rule on the xz plane), with a ground height estimate from the
     nearest boundary point."""
+    return area_cells_many([area])[0]
+
+
+def area_cells_many(areas):
+    """area_cells of each area: in the Rust core, in parallel, when it is there (round E3h:
+    bc2_navbuild::parity, the same arithmetic value for value); area_cells_reference otherwise and for boundaries
+    that are not all finite numbers (the reference raises on those, or takes them as it does)."""
+    nat = _native()
+    segs = [segments(a) for a in areas]
+    if nat is None:
+        return [area_cells_reference(a) for a in areas]
+    arrays = [np.array(sg, dtype=np.float64).reshape(-1, 6) for sg in segs]
+    ok = [bool(len(x)) and bool(np.isfinite(x).all()) for x in arrays]
+    got = nat.navkit_area_cells([x.tobytes() if good else b'' for x, good in zip(arrays, ok)], GRID, Y_OFFSET)
+    out = []
+    for a, good, (ij, ys) in zip(areas, ok, got):
+        if not good:
+            out.append(area_cells_reference(a))
+            continue
+        ij = np.frombuffer(ij, '<i8').reshape(-1, 2)
+        out.append(dict(zip(zip(ij[:, 0].tolist(), ij[:, 1].tolist()), np.frombuffer(ys, '<f8').tolist())))
+    return out
+
+
+def area_cells_reference(area):
+    """area_cells in NumPy (the reference)."""
     segs = segments(area)
     if not segs:
         return {}
@@ -104,12 +148,12 @@ def area_cells(area):
     pts = np.concatenate([a, b])
     sel_i, sel_j = ii[inside], jj[inside]
     sx, sz = sel_i * pitch, sel_j * pitch
-    out = {}
+    out: dict[tuple[int, int], float] = {}
     for k in range(0, len(sel_i), 2048):
         d = (sx[k:k + 2048, None] - pts[None, :, 0]) ** 2 + (sz[k:k + 2048, None] - pts[None, :, 2]) ** 2
         near = pts[np.argmin(d, axis=1), 1] - Y_OFFSET
-        for n in range(len(near)):
-            out[(int(sel_i[k + n]), int(sel_j[k + n]))] = float(near[n])
+        # the dict made from lists (Python ints and floats, as int() / float() give them; round E3h)
+        out.update(zip(zip(sel_i[k:k + 2048].tolist(), sel_j[k:k + 2048].tolist()), near.tolist()))
     return out
 
 
@@ -148,7 +192,32 @@ def match_cells(ref_cells, cand_cells):
 
 
 def pieces(segs, pitch):
-    """Segments as a set of grid-sized pieces in half-pitch units (xz only), direction-free."""
+    """Segments as a set of grid-sized pieces in half-pitch units (xz only), direction-free. With NumPy (round
+    E3h): the same arithmetic as pieces_reference, element by element (np.rint rounds half to even as round does)."""
+    segs = list(segs)
+    if len(segs) < 48:                       # few segments: the loop is faster than NumPy's set-up (the same answers)
+        return pieces_reference(segs, pitch)
+    half = pitch / 2.0
+    q = np.array([(p0[0], p0[2], p1[0], p1[2]) for p0, p1 in segs], dtype=np.float64) / half
+    if not np.isfinite(q).all():
+        return pieces_reference(segs, pitch)
+    x0, z0, x1, z1 = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
+    steps = np.maximum(np.rint(np.maximum(np.abs(x1 - x0), np.abs(z1 - z0))).astype(np.int64), 1)
+    r = np.repeat(np.arange(len(segs)), steps)
+    k = np.arange(len(r)) - np.repeat(np.cumsum(steps) - steps, steps)
+    dx, dz, n = (x1 - x0)[r], (z1 - z0)[r], steps[r].astype(np.float64)
+    ax = np.rint(x0[r] + dx * k / n).astype(np.int64)
+    az = np.rint(z0[r] + dz * k / n).astype(np.int64)
+    bx = np.rint(x0[r] + dx * (k + 1) / n).astype(np.int64)
+    bz = np.rint(z0[r] + dz * (k + 1) / n).astype(np.int64)
+    swap = (ax > bx) | ((ax == bx) & (az > bz))
+    ax, bx = np.where(swap, bx, ax), np.where(swap, ax, bx)
+    az, bz = np.where(swap, bz, az), np.where(swap, az, bz)
+    return set(zip(zip(ax.tolist(), az.tolist()), zip(bx.tolist(), bz.tolist())))
+
+
+def pieces_reference(segs, pitch):
+    """pieces, one piece at a time (the reference)."""
     half = pitch / 2.0
     out = set()
     for p0, p1 in segs:

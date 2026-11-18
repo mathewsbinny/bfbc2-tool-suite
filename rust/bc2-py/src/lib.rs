@@ -35,6 +35,7 @@ mod fbrb_cache;
 mod geometry;
 mod granny;
 mod navbuild;
+mod navgraph;
 mod navtrace;
 mod scene;
 mod shaders;
@@ -364,6 +365,9 @@ mod bc2_native {
     use super::navbuild::{
         NavGrid, NavLevel, navkit_centre_cells, navkit_float_ops, navkit_matched_flags, navkit_nearest_cells,
     };
+
+    #[pymodule_export]
+    use super::navgraph::{NavAreas, navkit_area_cells, navkit_round3};
 
     #[pymodule_export]
     use super::xenos::{

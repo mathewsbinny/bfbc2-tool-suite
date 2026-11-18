@@ -9,7 +9,7 @@
  "Rust shader translator against xenos.py / xenos_hlsl.py (built programs, damaged blobs, random microcode, dispatch)": 6.0,
  "Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)": 5.0,
  "Rust texture converter against its recorded results (built, damaged, batch)": 5.5,
- "Rust NavKit grid walks against their recorded results, E2a / E3c pieces against their Python (random levels)": 5.0,
+ "Rust NavKit grid walks against their recorded results, E2a / E3c / E3h pieces against their Python (random levels, whole stages)": 7.0,
  "Rust core required: no module, a stale one, the source fingerprint": 12.0,
  "review regressions: HPD selection, launcher completion, mypy failures": 0.2,
  "BF1943 asset accuracy: texture palettes, masks, emitters, shader fetches": 1.4,

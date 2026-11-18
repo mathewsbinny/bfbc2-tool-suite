@@ -1396,3 +1396,69 @@ mixed with mesh ports) could collect its Granny resources and call `granny.to_pc
 `wake_flags.py` (78, 97) and `bf1943import.Importer.convert` convert one file each, where `to_pc` now takes
 ~0.05 ms - a batch saves little there. Readers of several trees at once (`soldiers.py` 202-231, `weapons.py`,
 `scopes.py`, `type38.py`, `winchester1897.py`, `weapon_preview.py`) can use `granny.roots`.
+
+## E3h: the rest of NavKit (2026-11-17, branch `rust-e3h`)
+
+E3c's profile left sp_004_b at about 17 s, spread thin: the group joining 1.6 s (Rust), `walkable`'s own NumPy 1.4 s,
+`stage` / `build_graph`'s Python glue 0.9 s each, the cover nodes 0.9 s (sequential), `trace_edges_many` 0.8 s
+(mostly its Python dicts), the floods and islands 1.4 s, `navdetail` 0.9 s. Profiled again at the start of the round
+(sp_004_b, 16.8 s; cProfile 18.5 s): the same picture. What moved (each keeps its Python as the reference and the
+fallback, `BFBC2_PURE_PYTHON=1` / `navbuild.use_native(False)`):
+
+| Python | Rust | binding |
+|---|---|---|
+| `build_graph` whole: centre and portal nodes with `add`'s dedup (`round(v, 3)` as CPython: `pymath::round3`), border nodes, cover nodes, walkable pairs, Gabriel, ladder links, group joining, `add_order_nodes` | `sector::build_graph`; every sector of a stage at once, in parallel; the new nodes come back in the reference's order and take their ids in Python (`_graph_finish`) | `NavLevel.graph_many` |
+| a stage's areas (`build_areas_many`'s cells), kept for the stage instead of sent back for each step | `NavAreas` (`build_areas_many(store=True)`, `reorder`) | `trace_edges_stored`, `trace_emit_many`, `graph_many` read it |
+| `trace_edges`' rows as Python dicts for every area; `drop_one_way` | the rows kept in `NavAreas` (`trace_edges_stored(keep_edges=True)`), `drop_one_way` there | `NavAreas.drop_one_way`, `edges_of` / `set_edges` |
+| `detail_pass` on every area (dicts of each area's cells) | only the areas with two side-by-side cells more than the detail step apart can have a broken side: `NavLevel.detail_candidates` (the others get no features, unread; `detail_pass(only=...)`) | |
+| `stage`'s `area_of` dict of every cell, `border_cell`'s scan | answered by the core (`navbuild._AreaOf`: a dict only when iterated) | `NavAreas.area_at`, `first_cell` |
+| `walkable`'s flood, `islands_of` (E1d's breadth-first walks) | a parallel lock-free union-find whose links point to lower surfaces (each component's root is its lowest surface, so the islands keep their numbering; the step rule is symmetric, exactly); a first flood = the components of its seeds; `flood_bfs` / `islands_bfs` stay and are compared in a property test | `NavLevel.flood`, `islands` |
+| the ladders' re-floods (all flags sent each time) | continued from flags kept in the core | `NavLevel.flood_more` |
+| `walkable`'s unseeds (a Python breadth-first walk with `step_fits`) | the island flooded on the floods' level | `NavLevel.with_walk` + `flood` |
+| three `NavLevel`s per stage made from Python's arrays (flood, roof islands, `Level.native`) | one; the others share its arrays (`Level`'s arrays behind `Arc`) | `NavLevel.with_walk` |
+| `walkable`'s sector-edge seeds (a loop over every ok surface) | NumPy | |
+
+Outside the build (navregress's measures, `navdata.load` for the Studio and the apply test): `navdiff.area_cells` in the
+core (`parity::area_cells`, `navkit_area_cells`: a file's areas at once, in parallel; the NumPy kept as
+`area_cells_reference`), `ordercheck.PathData`'s areas made when read (navparity's islands read only the route graph),
+`navdiff.pieces` in NumPy past 48 segments (`pieces_reference` kept), `navparity.ladder_ground` reads DICE's file only
+when there is ladder ground.
+
+**Not taken, measured.** `trace_edges`' side neighbours in parallel within a sector: a detailed sector of 281,000
+cells went 0.22 -> 0.20 s (its time is the rows' maps, which are sequential) - reverted.
+
+**Parity.** `tests	est_navbuild_native.py` (quick), section E3h, the Rust side strict and its calls counted: 10 whole
+`stage()` runs on random levels over the corner of four sectors at pitch 0.8 and 0.2 (40 sectors, 3,903 areas, 3,017
+route nodes, 196 D lines / F cells; meshes, areas, `area_of`, border nodes, graphs, ids, the build's counters) - every
+E3h path ran each time; 12 sector graphs with ladder links; 16 `walkable` runs with unseeds (292 surfaces dropped);
+`navdiff.area_cells` on 61 random outlines; `round(v, 3)` on 180,000 values bit for bit: 40 calls, 0 differences. The
+E3c checks (456 calls) and the recorded grid walks unchanged. Rust: `e3h_tests.rs` (a property test of the union-find
+floods and islands against the breadth-first walks, 160 random multi-layer levels; the sector graph), `parity.rs`;
+40 tests in the crate, `tests	est_rust.py` passes. Whole levels against `navbuild_golden.json` (the build clock
+fixed): **sp_009, sp_004_b, sp_008_b and ons_mp_004 byte for byte as recorded** on the Rust backend, sp_009 also on
+the Python backend (16 s). The measures: `navdiff.area_cells` on every area of every DICE file and two NavKit builds
+(170,422 areas, 23.6 million cells) the same items in order, heights bit for bit (Rust 11.9 s, NumPy 94.1 s);
+`pieces` on 164,393 DICE areas the same sets; navparity's rows for sp_009 and sp_004_b identical to the old code's.
+
+**Timings** (other agents' builds beside it; below-normal priority):
+
+| | E3c | E3h | |
+|---|---:|---:|---:|
+| sp_009 (`bench_navkit.py`) | 3.3 s | **2.3-2.5 s** | |
+| sp_004_b (`bench_navkit.py`; this session's start: 16.8 s) | 15.3-17 s | **11-12 s** | 1.4x |
+| sp_004_b (`test_navbuild_native --game`) | 17 s | **9 s** | |
+| sp_008_b | 20 s | **14 s** | |
+| ons_mp_004 | 14 s | **9 s** | |
+| `test_apply.py` (sp_004_b, two builds with edits) | 178 s | **34 s** | the unseed's island (96,336 cells) was a Python walk |
+| Studio edit mode (`test_editing.py`) | 95 s | **29 s** | the apply in the background 14 s |
+| navparity's measures, sp_004_b (`run_level`) | 23 s | **11.5 s** | |
+
+**The profile now** (sp_004_b, cProfile 12.2 s): `graph_many` 0.78 s, `build_areas_many` 0.58 s, `trace_edges_stored`
+0.56 s (each the largest detailed sector: 281,000 cells - the rows' maps are sequential), `stage`'s own 0.49 s,
+`walkable`'s own 0.46 s, `detail_pass` 1.1 s on the 460 of 2,622 normal areas that have a step (`broken_sides` 0.7 s),
+the roof rule 0.4 s, `stair_slope` 0.32 s, `matched_flags` 0.28 s, the samples' load 0.55 s, the mesh writer
+(`_area_body`) 0.38 s, `finalize_graph` 0.44 s, `ladder_ends` 0.27 s.
+
+**What remains:** `navdetail` (D lines, F cells) in Rust; the sequential per-sector maps of `trace_edges` and the
+largest sector's graph; `walkable`'s NumPy glue and the samples' load; the kymesh writer and `finalize_graph`;
+navparity's `kymesh.parse_mesh` (each file parsed several times, 6 s on sp_004_b) and `match_cells`.
