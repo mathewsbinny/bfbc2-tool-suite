@@ -16,12 +16,15 @@ refused it). A summary line gives the share of exact shaders: the translator's a
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import contextlib
 import json
 import os
 import re
 import struct
 import sys
 import tempfile
+from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
@@ -183,19 +186,19 @@ def run_hlsl(sh: Any, cs: dict[str, Any], n: int, work: str, hlsl: str | None = 
         verts[:, j, 0, 1] = py + dy
         for k, u in enumerate(inter):
             verts[:, j, 1 + k] = cs['inputs'][by_usage[u]]
-    files = {}
-
-    def put(name: str, data: bytes) -> str:
-        p = os.path.join(work, name)
-        with open(p, 'wb') as f:
-            f.write(data)
-        files[name] = p
-        return p
+    # the draw's inputs in one file, inputs.bin (shaderview "pack"; round E3l): every new file is virus-scanned when
+    # shaderview opens it, ~5 ms each - a dozen per shader were most of the run's time
+    pack: list[bytes] = []
+    size = 0
 
     def asset(name: str, data: bytes) -> str:
-        return RQ.job_path(put(name, data))
+        nonlocal size
+        pack.append(data)
+        size += len(data)
+        return f'*{size - len(data)}:{len(data)}'
 
-    job = [f'frame {asset("out.raw", b"")} {W} {h} {SENTINEL} {SENTINEL} {SENTINEL} {SENTINEL}',
+    out_raw = os.path.join(work, 'out.raw')
+    job = [f'frame {RQ.job_path(out_raw)} {W} {h} {SENTINEL} {SENTINEL} {SENTINEL} {SENTINEL}',
            f'vs {asset("vs.dxbc", vs)}', f'ps {asset("ps.dxbc", ps)}']
     job += [f'el {k} 2 0 {16 * k} 0' for k in range(1 + len(inter))]
     job.append(f'vb {asset("vb.bin", verts.tobytes())} 0 {stride}')
@@ -210,9 +213,17 @@ def run_hlsl(sh: Any, cs: dict[str, Any], n: int, work: str, hlsl: str | None = 
     for slot, desc in cs.get('samplers', {}).items():
         job.append(f'samp {slot} {desc.hex()}')
     job += ['draw', 'end']
-    jp = put('job.txt', '\n'.join(job).encode())
+    pack_path = os.path.join(work, 'inputs.bin')
+    with open(pack_path, 'wb') as f:
+        f.write(b''.join(pack))
+    job.insert(0, f'pack {RQ.job_path(pack_path)}')
+    jp = os.path.join(work, 'job.txt')
+    with open(jp, 'wb') as f:
+        f.write('\n'.join(job).encode())
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(out_raw)                                  # (an earlier run's)
     RQ.run_job(jp, warp=True)
-    img = np.fromfile(files['out.raw'], np.float32).reshape(-1, 4)
+    img = np.fromfile(out_raw, np.float32).reshape(-1, 4)
     return img[:n], hlsl
 
 
@@ -305,6 +316,52 @@ def bf1943_entry(key: str) -> bytes:
     raise KeyError(key)
 
 
+def default_workers() -> int:
+    """Shaders run at a time: BFBC2_XDIFF_WORKERS, else up to 4 (each a WARP draw, itself on several cores)."""
+    try:
+        return max(1, int(os.environ.get('BFBC2_XDIFF_WORKERS', '')))
+    except ValueError:
+        return max(1, min(4, os.cpu_count() or 1))
+
+
+def run_shader(code: bytes, p: int, seed: int, n: int, out: str, named: dict[int, str] | None) -> dict[str, Any]:
+    """One pixel shader through both sides: its result record (status, and the comparison or the reason). Writes
+    <out>\\ps<p>\\ (the draw's inputs and output, ps.hlsl, ps.xenos.txt). Thread-safe."""
+    rng = np.random.default_rng(seed * 100003 + p)
+    work = os.path.join(out, f'ps{p}')
+    os.makedirs(work, exist_ok=True)
+    try:
+        sh = xenos.parse_shader(code, True)
+        cs = case(sh, rng, n, named)
+        # translated before the interpreter reads the microcode: with the Rust core, its translation (a tree
+        # whose microcode was read goes to the Python translator) - the one the builds use
+        hlsl: str | Exception
+        try:
+            hlsl = translated(sh, cs)
+        except X.TranslateError as e:
+            hlsl = e
+        ref = XE.run(sh, cs['inputs'], cs['consts'], cs['textures'], n,
+                     pos=np.stack([np.arange(n) % W, np.arange(n) // W], 1).astype(np.float32),
+                     front=np.ones(n, bool))
+    except XE.ExecError as e:
+        return {'status': 'interpreter', 'why': str(e)}
+    except Exception as e:                                      # noqa: BLE001 - reported per shader
+        return {'status': 'error', 'why': f'{type(e).__name__}: {e}'[:300]}
+    try:
+        if isinstance(hlsl, Exception):
+            raise hlsl
+        got, hlsl = run_hlsl(sh, cs, n, work, hlsl)
+        with open(os.path.join(work, 'ps.hlsl'), 'w') as f:
+            f.write(hlsl)
+        with open(os.path.join(work, 'ps.xenos.txt'), 'w') as f:
+            f.write(xenos.disasm(sh))
+        return compare(ref, got)
+    except (X.TranslateError, P.CompileError) as e:
+        return {'status': 'translate', 'why': str(e)[:300]}
+    except Exception as e:                                      # noqa: BLE001
+        return {'status': 'error', 'why': f'{type(e).__name__}: {e}'[:300]}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--db', default='wake')
@@ -314,6 +371,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--limit', type=int)
     ap.add_argument('--bisect', action='store_true', help='find the first differing instruction (one --ps)')
     ap.add_argument('-o', default=os.path.join(tempfile.gettempdir(), 'xdiff'))
+    ap.add_argument('--workers', type=int, help='shaders at a time (default BFBC2_XDIFF_WORKERS, else up to 4)')
     a = ap.parse_args(argv)
     w = S.ShaderDb.parse(bf1943_entry(DBS[a.db]), where=a.db)
     todo = a.ps if a.ps else list(range(len(w.ps)))
@@ -345,41 +403,18 @@ def main(argv: list[str] | None = None) -> int:
         P.prefetch(jobs)
     results = {}
     counts: dict[str, int] = {}
-    for p in todo:
-        rng = np.random.default_rng(a.seed * 100003 + p)
-        work = os.path.join(a.o, f'ps{p}')
-        os.makedirs(work, exist_ok=True)
-        try:
-            sh = xenos.parse_shader(w.ps[p].code, True)
-            cs = case(sh, rng, a.n, named.get(p))
-            # translated before the interpreter reads the microcode: with the Rust core, its translation (a tree
-            # whose microcode was read goes to the Python translator) - the one the builds use
-            hlsl: str | Exception
-            try:
-                hlsl = translated(sh, cs)
-            except X.TranslateError as e:
-                hlsl = e
-            ref = XE.run(sh, cs['inputs'], cs['consts'], cs['textures'], a.n,
-                         pos=np.stack([np.arange(a.n) % W, np.arange(a.n) // W], 1).astype(np.float32),
-                         front=np.ones(a.n, bool))
-        except XE.ExecError as e:
-            res = {'status': 'interpreter', 'why': str(e)}
-        except Exception as e:                                  # noqa: BLE001 - reported per shader
-            res = {'status': 'error', 'why': f'{type(e).__name__}: {e}'[:300]}
-        else:
-            try:
-                if isinstance(hlsl, Exception):
-                    raise hlsl
-                got, hlsl = run_hlsl(sh, cs, a.n, work, hlsl)
-                with open(os.path.join(work, 'ps.hlsl'), 'w') as f:
-                    f.write(hlsl)
-                with open(os.path.join(work, 'ps.xenos.txt'), 'w') as f:
-                    f.write(xenos.disasm(sh))
-                res = compare(ref, got)
-            except (X.TranslateError, P.CompileError) as e:
-                res = {'status': 'translate', 'why': str(e)[:300]}
-            except Exception as e:                              # noqa: BLE001
-                res = {'status': 'error', 'why': f'{type(e).__name__}: {e}'[:300]}
+    workers = max(1, min(a.workers or default_workers(), len(todo)))
+
+    def one(p: int) -> dict[str, Any]:
+        return run_shader(w.ps[p].code, p, a.seed, a.n, a.o, named.get(p))
+    # the shaders on worker threads (round E3l): each one's interpreter (numpy) and its draw (a shaderview -serve
+    # process of its own, renderqa.run_job) overlap the others'; reported in order, every result the one alone
+    if workers > 1:
+        pool = concurrent.futures.ThreadPoolExecutor(workers)
+        done: Iterable[dict[str, Any]] = pool.map(one, todo)
+    else:
+        pool, done = None, map(one, todo)
+    for p, res in zip(todo, done):
         results[p] = res
         counts[res['status']] = counts.get(res['status'], 0) + 1
         line = f'ps{p}: {res["status"]}'
@@ -388,6 +423,8 @@ def main(argv: list[str] | None = None) -> int:
         elif 'why' in res:
             line += f' - {res["why"][:160]}'
         print(line, flush=True)
+    if pool is not None:
+        pool.shutdown()
     with open(os.path.join(a.o, 'results.json'), 'w') as f:
         json.dump(results, f, indent=1)
     total = len(todo)

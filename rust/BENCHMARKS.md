@@ -1291,4 +1291,107 @@ Peak working set of a bench run: 1.6 - 1.9 GB, nearly all of it BF1943's source 
 
 `bfbc2-bf1943-import/tests/test_ports_native.py` (quick, 2 s of work: the built inputs above; `--game`, 124 s: the
 bulk ports both ways, the index rows, the Onslaught corpus), `rust/bc2-convert` unit tests (`mesh_tests.rs`,
-`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests	est_durations.json`.
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests\test_durations.json`.
+
+## E3l: the render harness and the differential test (2026-11-17, branch `rust-e3l`)
+
+**Provisional timings:** other agents' builds and tests ran beside every figure below (all runs at below-normal
+priority on the 16-thread PC; the same command varies by up to 1.5x between runs). Ratios hold within a run.
+
+### The profiles (before)
+
+`xdiff.py` (the differential test: BF1943's Wake pixel shaders through `xenos_exec.py` and through the translation
+drawn by `shaderview.exe` on WARP), 60 shaders under cProfile: 15.1 s, of which **13.2 s waiting for 61 shaderview
+processes** (0.22 s each), 0.73 s compiling (E3d's prefetch, on its own threads), 0.34 s reading the database's
+bundle, **0.32 s in the interpreter** (60 runs, 3,616 ALU instructions), 0.04 s translating (Rust, 120 calls),
+0.04 s disassembling. Every Wake shader (815) took **168 s** cold and 173 s with a warm HLSL cache.
+
+`renderqa.py` (GPU): `render` of 16 stock meshes with mp_002's database, 10.1 s under cProfile, **8.07 s in 16
+shaderview processes** (0.50 s each); the game test's `game()` 4.8 s warm, 4.7 s of it in 6 shaderview processes
+(0.78 s each); the first run in a checkout also builds the truth index (4.8 s, `load_levels` / `mesh_names`: cached in
+`build\renderqa_truth.pkl` after). `patches` and `strips` draw a level in one job (one process), so the process cost
+there is once per command.
+
+Where a shaderview process's time goes (60 of xdiff's jobs, `sv_cost`): one process per job 3.3 s on WARP, all 60
+frames in one process 0.66 s; on the GPU 20.4 s against 0.67 s - **creating the Direct3D device is ~55 ms on WARP and
+~340 ms on the GPU, for a job of ~10 ms**. And a second cost: the same 60 jobs on one device took 1.21 s on files a
+minute old but **4.59 s on a fresh copy of them** (0.76 s on the copy's second pass) - each newly written file is
+virus-scanned when another process opens it, ~5 ms a file, and xdiff wrote a dozen inputs per shader.
+
+### What changed
+
+- **`shaderview -serve [-warp]`** (`native\shaderview.cpp`): one device for many jobs. Job file paths come on stdin;
+  each job runs from a cleared context (`ClearState`) with its own state, and everything it made - textures (a
+  leaked texture reference in `texture()` fixed), samplers, render states, its frames - is released when it ends,
+  however it ends. Errors no longer `exit()`: `fail(code, ...)` throws, the one-job mode prints the message and
+  returns the code (the same stderr and exit codes as before), the server prints `\x1d` `err <line>` and `\x1d`
+  `done <code>`. The one-job command line is unchanged (OPFOR's `wake_preview.py` / `weapon_preview.py`).
+- **`pack <file>`**: a job's inputs in one file, any file argument written `*<offset>:<size>` (a slice of it; `*` is
+  in no Windows path). `xdiff.run_hlsl` writes `inputs.bin` (the vertex and pixel shaders, vertex, index and constant
+  buffers and textures, in that order: byte for byte the old separate files, concatenated) beside `job.txt`.
+- **`renderqa.run_job`** (same signature; thread-safe): jobs go to idle `-serve` processes, one per (exe, WARP or
+  GPU, working folder), a new one when none is idle - so threads calling it at once each get their own. A server
+  whose job ends with 3 / 4 (device failed or lost) is closed and the job falls back to WARP as before; a server that
+  dies is closed and its job run alone; a shaderview without `-serve` (a job runs alone but a new server did not
+  answer) is run once per job for the rest of the process. `BFBC2_SHADERVIEW_SERVE=0`: one process per job, the
+  reference. `close_servers()` (also at exit).
+- **`xdiff.py`**: `run_shader` (one shader, thread-safe), run on worker threads (`--workers`, `BFBC2_XDIFF_WORKERS`,
+  default up to 4), results gathered and printed in order.
+- **Not ported, by measurement:** `xenos_exec.py` (the interpreter) is 5.5 s of the 121 s of a one-worker run of all
+  815 shaders (4.5 %; 815 runs) after the changes above, and runs beside the draws on the worker threads; a Rust port
+  would also have to reproduce NumPy's float32 arithmetic op for op. The disassembler: 0.81 s for 815 (60,659
+  `disasm_instruction` calls), 0.7 %.
+
+### Before and after
+
+| | before | after | |
+|---|---:|---:|---:|
+| xdiff, every Wake pixel shader (815), cold HLSL cache | 168.3 s | **21.2 s** | 7.9x |
+| the same, warm HLSL cache | 173.5 s | 24.7 s (8 workers 21.1 s; 1 worker 46.2 s) | 7.0x |
+| (the same with `-serve` and 4 workers, before the pack) | | 44.7 / 41.5 s | |
+| shaderview, 60 xdiff jobs, WARP: one process each / `-serve` | 6.13 s | 0.62 s | 9.9x |
+| shaderview, 60 xdiff jobs, GPU: one process each / `-serve` | 14.90 s | 0.78 s | 19x |
+| renderqa `render`, 16 stock meshes (mp_002), under cProfile | 10.1 s (8.07 s in shaderview) | 7.9 s (4.98 s) | |
+| renderqa `validate`, the same 16 meshes | 16.3 s | 8.9 s | 1.8x |
+| renderqa `compare --truth auto`, the same 16 | 24.4 s | 14.8 s | 1.6x |
+| renderqa `strips`, mp_002 (40 strips) / mp_005 (50) | 7.9 / 6.7 - 8.0 s | 4.3 / 3.5 - 5.0 s | |
+| renderqa `patches`, mp_009cq (33, one job) | 9.9 s | 5.2 s | |
+| `test_renderqa.py --game` (now also each mesh drawn in a process of its own) | 12.7 s | 14.1 s | |
+| `test_xdiff.py --game` (now also served against one process per shader) | 4.4 s | 3.0 s | |
+
+What a one-worker run of the 815 now spends (cProfile, `-serve`, before the pack): waiting for the draws 86 s
+(mostly the scans of fresh inputs, which the pack then cut), Python's file opens 12.8 s (14,286), reading `out.raw`
+8.4 s, the first pass (cases, translations, compile prefetch from the warm cache) 8.8 s, the interpreter 5.5 s.
+renderqa's remaining shaderview time is the draws themselves: real meshes with block-compressed textures on the GPU,
+~0.3 s a mesh (three views), and its texture files are written per mesh (fresh files again; a texture cache across
+meshes is the next step if renderqa's mesh loops grow).
+
+### Parity
+
+- **xdiff, every Wake pixel shader:** before (`main` at 68bec4c, one process per shader, one at a time) against
+  after (`-serve`, 4 workers), cold and warm: **815 of 815 exact** in every run; the printed lines identical; with
+  `-serve` alone 11,032 of 11,032 files identical (every shader's inputs, draw, `ps.hlsl`, `ps.xenos.txt`,
+  `results.json`); with the pack (4, 8 and 1 workers) **2,446 of 2,446** result files (`out.raw`, `ps.hlsl`,
+  `ps.xenos.txt` per shader, `results.json`) identical and **815 of 815 `inputs.bin` the old input files' bytes**.
+  `test_xdiff.py --game-all`: the same run served on threads against one process per shader, one at a time: 3,261 of
+  3,261 files and the printed lines alike.
+- **shaderview:** the 60 jobs through the old executable, the new one alone and `-serve`, WARP and GPU: 60 of 60
+  outputs byte for byte and 60 of 60 stdouts alike each way.
+- **renderqa**, before against after on real data (GPU): `render`, `validate`, `compare` (16 meshes each),
+  `strips` (mp_002, mp_005), `patches` (mp_009cq): every `results.json`, picture, sheet and coverage PNG identical
+  (the only difference: `summary.txt` names its own output folder). The game test draws each stock mesh served and
+  in a process of its own: the HDR pictures, classes, sample counts and records equal to the bit.
+- **quick** (`test_shaderview_serve.py`, WARP): 6 built jobs (2D and cube textures, sampler states, both constant
+  buffers, depth and stencil frames with the game's render states, coverage classes, counting draws, two frames in a
+  job, quoted paths with spaces) served against one process each: 10 of 10 output files, lines and codes alike; jobs
+  with more state followed by jobs with less on one server, each as alone; 6 failures (a missing input, an unknown
+  command, short render-state numbers, a bad sampler state, a non-texture as a texture resource, a missing job) with
+  the reference's exit codes and messages and the next job on the same server alike; 8 threads x 36 jobs alike, a
+  server per thread, all ended by `close_servers`; 400 jobs on one server: 5 -> 6 MB.
+
+### Tests
+
+`bfbc2-shader-tools/tests/test_shaderview_serve.py` (quick, ~17 s, most of it the one-process reference),
+`test_xdiff.py --game` (served on threads against one process per shader), `test_xdiff.py --game-all` (new game
+entry: every Wake pixel shader, ~170 s), `test_renderqa.py --game` (served against a process of its own). Seeds in
+`tests\test_durations.json`; the renderqa game seed was 48.1 s from an older run (the truth index built cold).
