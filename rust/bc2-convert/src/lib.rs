@@ -20,13 +20,22 @@
 //!   template choice, alignment, reference rules and value passes over trees kept here (round E4d).
 //! - [`texcheck`] (round F0): a PC texture's levels and a level decoded to pixels (`texture.py`'s `levels` /
 //!   `decode`); [`hkclasses`] (round F0): the Havok class layouts of BFBC2Game.exe (`havok.py`'s `classes`).
+//! - Round F2a: [`terrain`] (`terrain.py`'s console terrain, water and visual terrain / water; `soot.py`),
+//!   [`meshconv`] (`mesh.py`'s `console_layouts`, `decode`, `relayout`), `havok::convert_wrapper`,
+//!   `texcheck::check` (`texture.check`'s statistics), [`texwrite`] (`bfbc2-model-tools/texwrite.py`'s encoders),
+//!   [`skinmesh`] (`skinmesh.py`'s vertex work) and [`granny_edit`] (`granny.py`'s writing side).
 #![deny(unsafe_code)]
 
 pub mod audio;
 pub mod dbxport;
 pub mod granny;
+pub mod granny_edit;
 pub mod havok;
 pub mod hkclasses;
 pub mod mesh;
+pub mod meshconv;
+pub mod skinmesh;
+pub mod terrain;
 pub mod texcheck;
 pub mod texture;
+pub mod texwrite;

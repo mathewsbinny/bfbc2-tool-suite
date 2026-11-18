@@ -24,6 +24,11 @@ bc2_native.mesh_parse / mesh_write, meshset_parse / meshset_write, the same dict
 raise, or a value is one the core leaves to it, the Python runs (parse_reference, write_reference: kept as the
 reference and the fallback), so the errors stay this module's; BFBC2_PURE_PYTHON=1 or use_native(False) runs the
 Python only (the vertex loop always runs in the Rust core).
+
+Round F2a: console_layouts, decode and relayout run in the Rust core too (bc2_convert::meshconv: the same dicts,
+arrays and bytes, the same ConvertError messages); with an edit callback, relayout's blocks and columns come from the
+core and the callback and the rows stay here. The Python is kept as the reference and the fallback
+(console_layouts_reference, decode_reference, relayout_reference), on the same switch.
 """
 import os
 import struct
@@ -193,6 +198,14 @@ def element(fc, fp, raw, colour=False):
 
 
 def console_layouts(db):
+    """console_layouts_reference's dict, in the Rust core when it is built (round F2a)."""
+    nat = _native()
+    if nat is not None and isinstance(db, (bytes, bytearray)) and hasattr(nat, 'mesh_console_layouts'):
+        return nat.mesh_console_layouts(bytes(db))
+    return console_layouts_reference(db)
+
+
+def console_layouts_reference(db):
     """{mesh part name (lower case, '<mesh>_lod<N>/<part>/<technique>'): layout record body} of a console shader
     database (Shaders/Single.res: BFBC2's Xbox levels, Battlefield 1943's). Part names are stored as name, NUL, the
     16-byte guid of its layout; a run of them is walked name by name, so a guid byte that happens to be printable is
@@ -252,7 +265,23 @@ _PC_DTYPE = {0x02: ('<f4', 2), 0x03: ('<f4', 3), 0x04: ('<f4', 4), 0x05: ('<f2',
              0x08: ('<f2', 4), 0x0C: ('u1', 4)}
 
 
+def _bytes_like(*vs):
+    return all(isinstance(v, (bytes, bytearray)) for v in vs)
+
+
 def decode(b, layout, part, big_endian=True):
+    """decode_reference's arrays, in the Rust core when it is built (round F2a)."""
+    nat = _native()
+    if nat is not None and _bytes_like(b, layout) and type(part) in (int, str) and hasattr(nat, 'mesh_decode'):
+        got = nat.mesh_decode(bytes(b), bytes(layout), part, bool(big_endian))
+        if got is not None:
+            if not got[0]:
+                raise ConvertError(got[1])
+            return {k: np.frombuffer(data, dt).reshape(rows, cols) for k, dt, rows, cols, data in got[1]}
+    return decode_reference(b, layout, part, big_endian)
+
+
+def decode_reference(b, layout, part, big_endian=True):
     """One part of a MeshData file as arrays: {positions, normals, tangents, binormals, uvs (the texture coordinates:
     texcoord_element), weights (0..1),
     blend_indices (into the part's bone palette), bones (skeleton indices: the palette applied), indices (m, 3; into
@@ -479,6 +508,67 @@ def _pc_column(raw, f, off):
 
 
 def relayout(b, old, new, edit=None):
+    """relayout_reference's bytes, in the Rust core when it is built (round F2a); with edit, the blocks and their
+    columns from the core, the edit and the rows here."""
+    nat = _native()
+    if (nat is not None and type(b) is bytes and isinstance(old, (list, tuple)) and isinstance(new, (list, tuple))
+            and _bytes_like(*old, *new) and hasattr(nat, 'mesh_relayout')):
+        o, n = [bytes(x) for x in old], [bytes(x) for x in new]
+        if edit is None:
+            got = nat.mesh_relayout(b, o, n)
+            if got is not None:
+                if not got[0]:
+                    raise ConvertError(got[1])
+                return got[1]
+        else:
+            got = nat.mesh_relayout_blocks(b, o, n)
+            if got is not None:
+                if not got[0]:
+                    raise ConvertError(got[1])
+                blocks, tail = got[1]
+                return _relayout_edited(b, new, edit, blocks, tail)
+    return relayout_reference(b, old, new, edit)
+
+
+def _relayout_edited(b, new, edit, blocks, tail):
+    """relayout's steps after the core's blocks: each block's edit and rows (the reference's code), then the
+    header."""
+    m = parse(b, False)
+    vb = bytearray()
+    new_off = {}
+    for start, members, n, so, sn, raw in blocks:
+        cols = {k: np.frombuffer(data, dt).reshape(n, comps) for k, (dt, comps, data) in enumerate(raw)}
+        edit([m['parts'][i] for i in members], cols)
+        en, _ = elements(new[members[0]])
+        rows = np.zeros((n, sn), np.uint8)
+        for k, (f, _u, off, _s) in enumerate(en):
+            dt, _comps = _PC_DTYPE[f]
+            rows[:, off:off + SIZE[f]] = np.frombuffer(np.ascontiguousarray(cols[k].astype(dt)).tobytes(), np.uint8).reshape(n, -1)
+        base = len(vb)
+        vb.extend(rows.tobytes())
+        for i in members:
+            new_off[i] = base + (m['parts'][i]['vertex_offset'] - start) // so * sn
+            m['parts'][i]['stride'] = sn
+    if tail is not None:
+        raise ConvertError(tail)
+    return _relayout_write(b, m, new, vb, new_off)
+
+
+def _relayout_write(b, m, new, vb, new_off):
+    """relayout's last step: offsets and strides of the parts, the header written (32-bit indices kept)."""
+    for i, p in enumerate(m['parts']):
+        if i in new_off:
+            p['vertex_offset'] = new_off[i]
+        else:                                                    # a part with no triangles: no vertices
+            p['vertex_offset'], p['stride'] = len(vb), elements(new[i])[1]
+    ib = b[m['data'] + m['vertex_bytes']:m['data'] + m['vertex_bytes'] + m['index_bytes']]
+    res = bytearray(write(m, bytes(vb), ib))
+    if m['wide_indices']:                                        # write() states 16-bit indices
+        struct.pack_into('<I', res, len(res) - len(vb) - len(ib) - 4, 1)
+    return bytes(res)
+
+
+def relayout_reference(b, old, new, edit=None):
     """A PC MeshData's vertices re-laid into other PC vertex layouts (each part: old[i] -> new[i], layout record
     bodies). A PC element takes the old element of its kind (usage, stream; the k-th of a kind the k-th), its value
     carried across formats of the same family (half / float, as many components as both have, the rest 0); an element
@@ -561,13 +651,4 @@ def relayout(b, old, new, edit=None):
         for i in members:
             new_off[i] = base + (m['parts'][i]['vertex_offset'] - start) // so * sn
             m['parts'][i]['stride'] = sn
-    for i, p in enumerate(m['parts']):
-        if i in new_off:
-            p['vertex_offset'] = new_off[i]
-        else:                                                    # a part with no triangles: no vertices
-            p['vertex_offset'], p['stride'] = len(vb), elements(new[i])[1]
-    ib = b[m['data'] + m['vertex_bytes']:m['data'] + m['vertex_bytes'] + m['index_bytes']]
-    res = bytearray(write(m, bytes(vb), ib))
-    if m['wide_indices']:                                        # write() states 16-bit indices
-        struct.pack_into('<I', res, len(res) - len(vb) - len(ib) - 4, 1)
-    return bytes(res)
+    return _relayout_write(b, m, new, vb, new_off)

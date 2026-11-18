@@ -52,6 +52,7 @@ mod convert;
 mod culltree;
 mod dbxedit;
 mod dbxport;
+mod f2a;
 mod fbrb_cache;
 mod fbrbtool;
 mod geometry;
@@ -460,6 +461,15 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::pathdata::{hpd_parse, hpd_write, kymesh_write};
+
+    #[pymodule_export]
+    use super::f2a::{
+        TexWriteJob, granny_add_tracks, granny_orientation_plan, granny_shift_plan, granny_with_crc,
+        havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks, skin_bounds,
+        skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert, terrain_heightfield,
+        terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts, terrain_visual_water_parts,
+        texture_check, texwrite_alpha, texwrite_l8_down, texwrite_levels,
+    };
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

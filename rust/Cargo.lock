@@ -22,8 +22,10 @@ name = "bc2-convert"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "memchr",
  "proptest",
  "rayon",
+ "regex",
  "sha1_smol",
  "thiserror",
 ]
