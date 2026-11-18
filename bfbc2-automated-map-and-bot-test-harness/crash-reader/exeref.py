@@ -39,14 +39,17 @@ class ExeRefError(Exception):
 
 
 class Exe(crashreader.Image):
-    """The crash reader's image (pefile + capstone) with string and reference searches."""
+    """The crash reader's image (the Rust core, else pefile + capstone) with string and reference searches: each
+    search the Rust core's (round E4f) when it takes it, else the reference (*_reference)."""
 
     def __init__(self, path):
         super().__init__(path)
-        import pefile
-        pe = pefile.PE(path, fast_load=True)
-        self.sections = [(s.Name.rstrip(b'\0').decode('latin1'), self.base + s.VirtualAddress, s.Misc_VirtualSize,
-                          s.Characteristics) for s in pe.sections]
+        if self._nat is not None:
+            self.sections = [tuple(s) for s in self._nat.sections()]
+        else:
+            pe = self._pe
+            self.sections = [(s.Name.rstrip(b'\0').decode('latin1'), self.base + s.VirtualAddress, s.Misc_VirtualSize,
+                              s.Characteristics) for s in pe.sections]
 
     def data_ranges(self):
         return [(lo, lo + n) for name, lo, n, ch in self.sections if not ch & 0x20000000 and name not in ('.rsrc', '.reloc')]
@@ -55,6 +58,11 @@ class Exe(crashreader.Image):
         return [(lo, lo + n) for name, lo, n, ch in self.sections if ch & 0x20000000]
 
     def cstr(self, va, limit=120):
+        ok, got = self._native_call('cstr', va, limit)
+        return got if ok else self.cstr_reference(va, limit)
+
+    def cstr_reference(self, va, limit=120):
+        self._load_reference()
         if not (self.base <= va < self.end):
             return None
         o = va - self.base
@@ -66,6 +74,15 @@ class Exe(crashreader.Image):
 
     def find_strings(self, text, exact=False):
         """[(va, string)] of the C strings in the data sections that contain text (any case) or equal it."""
+        raw = text.encode('latin1')         # UnicodeEncodeError as the reference raises it
+        if b'\0' not in raw:
+            ok, got = self._native_call('find_strings', raw, exact)
+            if ok:
+                return [tuple(x) for x in got]
+        return self.find_strings_reference(text, exact)
+
+    def find_strings_reference(self, text, exact=False):
+        self._load_reference()
         out = []
         if exact:
             pat = re.compile(rb'(?<=\x00)' + re.escape(text.encode('latin1')) + rb'(?=\x00)')
@@ -78,6 +95,7 @@ class Exe(crashreader.Image):
 
     def instruction_at(self, start, value):
         """The instruction starting at start if it holds value as an immediate or displacement."""
+        self._load_reference()
         for ins in self.md.disasm(self.bytes_at(start, 16), start):
             for op in ins.operands:
                 if op.type == 2 and (op.imm & 0xFFFFFFFF) == value:           # X86_OP_IMM
@@ -89,7 +107,12 @@ class Exe(crashreader.Image):
 
     def on_boundary(self, va):
         """Whether a linear decode from the function start (int3 padding, as the crash reader finds it) reaches va."""
-        start = self.function_start(va)
+        ok, got = self._native_call('on_boundary', va)
+        return got if ok else self.on_boundary_reference(va)
+
+    def on_boundary_reference(self, va):
+        self._load_reference()
+        start = self.function_start_reference(va)
         if start is None or va - start > 0x8000:
             return True                                 # unknown: keep it
         for ins in self.md.disasm(self.bytes_at(start, va - start + 16), start):
@@ -99,6 +122,14 @@ class Exe(crashreader.Image):
 
     def refs(self, value, limit=200):
         """Code addresses of instructions using value: (va, instruction, kind)."""
+        if 0 <= value < 1 << 32 and limit >= 0:
+            ok, got = self._native_call('refs', value, limit)
+            if ok:
+                return [(va, crashreader.Insn(ins), kind) for va, ins, kind in got]
+        return self.refs_reference(value, limit)
+
+    def refs_reference(self, value, limit=200):
+        self._load_reference()
         import numpy as np
         out: list[tuple[int, Any, str]] = []
         pat = struct.pack('<I', value)
@@ -109,7 +140,7 @@ class Exe(crashreader.Image):
                 for back in range(1, 8):
                     s = self.base + j - back
                     ins = self.instruction_at(s, value)
-                    if ins and ins.address + ins.size >= self.base + j + 4 and self.on_boundary(ins.address):
+                    if ins and ins.address + ins.size >= self.base + j + 4 and self.on_boundary_reference(ins.address):
                         out.append((ins.address, ins, 'operand'))
                         break
                 j = self.data.find(pat, j + 1, end)
@@ -123,7 +154,7 @@ class Exe(crashreader.Image):
                 hit = pos[(lo + pos + 5 + rel) == value]
                 for p in hit[:limit]:
                     va = lo + int(p)
-                    if self.on_boundary(va):
+                    if self.on_boundary_reference(va):
                         ins = next(self.md.disasm(self.bytes_at(va, 5), va), None)
                         if ins is not None:
                             out.append((va, ins, 'call' if opc == 0xE8 else 'jmp'))
@@ -131,6 +162,14 @@ class Exe(crashreader.Image):
 
     def data_refs(self, value, limit=10):
         """Addresses in the data sections that hold value (4-byte aligned): tables of pointers, vtables."""
+        if 0 <= value < 1 << 32 and limit >= 0:
+            ok, got = self._native_call('data_refs', value, limit)
+            if ok:
+                return list(got)
+        return self.data_refs_reference(value, limit)
+
+    def data_refs_reference(self, value, limit=10):
+        self._load_reference()
         out: list[int] = []
         pat = struct.pack('<I', value)
         for lo, hi in self.data_ranges():
@@ -145,9 +184,16 @@ class Exe(crashreader.Image):
 def window(exe, va, before, after, syms):
     """Lines of a short disassembly around va: decoded from the function start when it is near, so the
     instructions before va are on real boundaries."""
+    ok, got = exe._native_call('window', va, before, after, syms)
+    return got if ok else window_reference(exe, va, before, after, syms)
+
+
+def window_reference(exe, va, before, after, syms):
+    """window in Python, on capstone."""
+    exe._load_reference()
     before, after = min(before, MAX_WINDOW), min(after, MAX_WINDOW)
     insns = []
-    start = exe.function_start(va)
+    start = exe.function_start_reference(va)
     if start is not None and va - start <= 0x2000:
         insns = list(exe.md.disasm(exe.bytes_at(start, va - start + after + 16), start))
     if not any(i.address == va for i in insns):

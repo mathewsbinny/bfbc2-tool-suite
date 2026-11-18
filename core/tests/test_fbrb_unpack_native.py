@@ -35,14 +35,13 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, fbrb, paths  # noqa: E402
+from bfbc2core import fbrb, native, paths  # noqa: E402
 
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import csharp_golden as cg  # noqa: E402
 
-NATIVE: Any = dbx._import_native()
-NATIVE = NATIVE if NATIVE is not None and hasattr(NATIVE, 'fbrb_unpack') else None
+NATIVE: Any = native.load()
 SMALL = 8
 LINE0 = '# fbrb.manifest - entry order matters. name|type|flags(hex)|size2|size  zipped='
 
@@ -173,15 +172,11 @@ def check_built(check: Any) -> None:
         check(outcomes['a byte after the payload stream'] == 'identical' and outcomes['two entries on one file (case)']
               == 'identical', 'extra bytes after the payload and two entries on one file: unpacked in process as '
               'FbrbTool unpacked them (round E3k)')
-        # the Python reader on (use_native(False)): unpack still runs in Rust (FbrbTool.exe, its fallback, is retired)
         b = built[0][1]
-        fbrb.use_native(False)
-        try:
-            got = fbrb.unpack(b, os.path.join(root, 'py'))
-        finally:
-            fbrb.use_native(True)
-        check(got == 'rust' and cg.tree_digest(os.path.join(root, 'py')) == want[built[0][0]][2],
-              'use_native(False): bfbc2core.fbrb.unpack still unpacks in Rust, FbrbTool\'s files', got)
+        got = fbrb.unpack(b, os.path.join(root, 'api'))
+        check(got == 'rust' and cg.tree_digest(os.path.join(root, 'api')) == want[built[0][0]][2],
+              'bfbc2core.fbrb.unpack runs in process (FbrbTool.exe, the fallback before, is retired): FbrbTool\'s files',
+              got)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -253,9 +248,7 @@ def run_bundles(bundles: list[str], check: Any, label: str) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py)')
-        return 0
+    native.require('the bundle unpack', 'fbrb_unpack')
     failed = 0
 
     def check(ok: bool, what: str, detail: str = '') -> None:

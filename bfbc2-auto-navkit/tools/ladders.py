@@ -30,7 +30,7 @@ def extract(level_dir, extra_bases=()):
     """[{'bp', 'lo': [x, y, z], 'hi': [x, y, z]}] - world boxes of the level's placed ladders."""
     bases = [b for b in [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + list(extra_bases)
              if os.path.isdir(b)]
-    hv = collision.havok_index(bases)      # NavKit's levelobjects index (the Rust core when built)
+    hv = collision.havok_index(bases)      # NavKit's levelobjects index (the Rust core)
     objs = [o for o in json.load(open(os.path.join(level_dir, 'objects.json')))
             if 'ladder' in o['bp'].lower().rsplit('/', 1)[-1] and o['bp'].lower() in hv]
     local = collision.blueprint_triangles([o['bp'].lower() for o in objs], hv)

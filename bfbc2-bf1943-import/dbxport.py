@@ -55,6 +55,7 @@ Empty arrays are written as TEXT elements, as DICE writes all of them.
 The report is a Report: a list of the old text lines (callers that read lines keep working), built from records
 (report.records) callers read instead of parsing text.
 """
+import collections
 import copy
 import dataclasses
 import glob
@@ -64,7 +65,7 @@ import re
 import struct
 import sys
 from collections.abc import Callable, Iterable
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -246,16 +247,22 @@ def _inputs(inst: dbx.Element) -> tuple[tuple[str, str], ...]:
     return tuple(out)
 
 
+def _part_key(name: str) -> str:
+    """A template partition's key (Candidate.partition): lower case, '/', no '.dbx'."""
+    part = name[:-4] if name.lower().endswith('.dbx') else name
+    return part.replace('\\', '/').lower()
+
+
 class Templates:
     """BFBC2 instances by type: every instance of each type in the given partitions, in the order given (folders:
     their .dbx files sorted). Folders of unpacked bundles, .dbx files, or (name, bytes) pairs - a pair whose bytes
-    are None (a partition the game copy does not have) is an error (MissingTemplate)."""
+    are None (a partition the game copy does not have) is an error (MissingTemplate).
+
+    With the Rust core (round E4d) the partitions are parsed and kept on the Rust side, where port() reads them;
+    the Python tables (candidates, by_guid, by_type, where: the Python port's and choose()'s) are built from the same
+    partitions on first use. Change them only through add(): the Rust side does not see a change made to them."""
 
     def __init__(self, sources: Iterable[Any], catalogue: Any = None) -> None:
-        self.by_type: dict[str, dbx.Element] = {}        # the first of each type (as before)
-        self.where: dict[str, str] = {}
-        self.candidates: dict[str, list[Candidate]] = {}
-        self.by_guid: dict[str, Candidate] = {}
         self.partitions: list[str] = []
         self.catalogue = catalogue
         # template partitions that would not parse: left out of the ranking, and said in the first port's report
@@ -265,6 +272,13 @@ class Templates:
         self.skipped_reported = False
         # choose()'s ranking indexes (_Ranking), by type or (type, donors); add() clears them
         self._rankings: dict[Any, _Ranking] = {}
+        # every partition added, in order: (name, its bytes or None, its tree or None)
+        self._added: list[tuple[str, bytes | None, dbx.DbxFile | None]] = []
+        self._tables: tuple[dict[str, dbx.Element], dict[str, str], dict[str, list[Candidate]],
+                            dict[str, Candidate]] | None = None
+        native = _native()
+        self._native: Any = native.DbxTemplates() if native is not None else None
+        read: list[tuple[str, bytes]] = []
         for s in sources:
             items: list[tuple[str, bytes | None]] = []
             if isinstance(s, tuple):
@@ -278,21 +292,64 @@ class Templates:
             else:
                 raise MissingTemplate(f'template source {s}: no such file or folder')
             for name, data in items:
+                if data is None:
+                    with open(name, 'rb') as fh:
+                        data = fh.read()
+                read.append((name, data))
+        if self._native is None:
+            for name, data in read:
                 try:
-                    if data is None:
-                        with open(name, 'rb') as fh:
-                            data = fh.read()
                     f = dbx.parse(data)
                 except (ValueError, IndexError) as e:
                     self.skipped.append(f'{name} ({type(e).__name__}: {e})')
                     continue
                 self.add(name, f)
+            return
+        # the Rust side parses them on all cores (the same reader dbx.parse runs: the same errors)
+        checked: list[tuple[str, bytes | None, ValueError | None]] = []
+        for name, data in read:
+            try:
+                checked.append((name, dbx._check(data), None))
+            except ValueError as e:
+                checked.append((name, None, e))
+        answers = iter(self._native.add_many([(_part_key(n), d) for n, d, e in checked if e is None]))
+        for name, data, err in checked:
+            if err is not None:
+                self.skipped.append(f'{name} ({type(err).__name__}: {err})')
+                continue
+            got = next(answers)
+            if isinstance(got, str):
+                self.skipped.append(f'{name} (ValueError: {got})')
+                continue
+            self.partitions.append(_part_key(name))
+            self._added.append((name, data, None))
+            if self._tables is not None:
+                self._add_tables(name, dbx.parse(cast(bytes, data)))
+            elif got is not None:
+                # ('unsupported', why): the Rust side cannot hold this pool - the Python tables now, raising here
+                # what the reference raises here (a partition without instances: IndexError)
+                self._native = None
+                self._py_tables()
 
     def add(self, name: str, f: dbx.DbxFile) -> None:
-        part = name[:-4] if name.lower().endswith('.dbx') else name
-        part = part.replace('\\', '/').lower()
+        part = _part_key(name)
         self.partitions.append(part)
         self._rankings.clear()
+        self._added.append((name, None, f))
+        if self._tables is not None:
+            self._add_tables(name, f)
+        if self._native is not None:
+            try:
+                got = self._native.add_many([(part, dbx.write(f))])[0]
+            except Exception:                   # noqa: BLE001 - a tree the writer refuses: the Python port only
+                got = 'unwritable'
+            if got is not None:
+                self._native = None
+                self._py_tables()               # raising here what the reference's add raises
+
+    def _add_tables(self, name: str, f: dbx.DbxFile) -> None:
+        by_type, where, candidates, by_guid = self._py_tables()
+        part = _part_key(name)
         roles = _roles(f.instances)
         for inst in f.instances:
             t = inst.attr('type')
@@ -301,11 +358,46 @@ class Templates:
             g = (inst.attr('guid') or '').lower()
             o, slot, inputs = roles[g]
             c = Candidate(part, inst, o, slot, inputs)
-            self.candidates.setdefault(t, []).append(c)
-            self.by_guid.setdefault(g, c)
-            if t not in self.by_type:
-                self.by_type[t] = inst
-                self.where[t] = name
+            candidates.setdefault(t, []).append(c)
+            by_guid.setdefault(g, c)
+            if t not in by_type:
+                by_type[t] = inst
+                where[t] = name
+
+    def _py_tables(self) -> tuple[dict[str, dbx.Element], dict[str, str], dict[str, list[Candidate]],
+                                  dict[str, Candidate]]:
+        """(by_type, where, candidates, by_guid), built from the partitions on first use."""
+        if self._tables is None:
+            self._tables = ({}, {}, {}, {})
+            for name, data, f in self._added:
+                self._add_tables(name, f if f is not None else dbx.parse(cast(bytes, data)))
+        return self._tables
+
+    @property
+    def by_type(self) -> dict[str, dbx.Element]:
+        """The first instance of each type."""
+        return self._py_tables()[0]
+
+    @property
+    def where(self) -> dict[str, str]:
+        """The partition (as given) of each type's first instance."""
+        return self._py_tables()[1]
+
+    @property
+    def candidates(self) -> dict[str, list[Candidate]]:
+        """Every instance of each type, in the order given."""
+        return self._py_tables()[2]
+
+    @property
+    def by_guid(self) -> dict[str, Candidate]:
+        """The first instance of each guid (lower case)."""
+        return self._py_tables()[3]
+
+    def types(self) -> set[str]:
+        """The instance types the partitions hold (without building the Python tables)."""
+        if self._tables is None and self._native is not None:
+            return set(self._native.types())
+        return set(self.candidates)
 
     @classmethod
     def from_index(cls, ix: Any, names: Iterable[str], catalogue: Any = None) -> 'Templates':
@@ -313,6 +405,8 @@ class Templates:
         return cls([(n, ix.read(n + '.dbx')) for n in names], catalogue)
 
     def __contains__(self, t: object) -> bool:
+        if self._tables is None and self._native is not None:
+            return isinstance(t, str) and bool(self._native.has(t))
         return t in self.candidates
 
     def choose(self, inst: dbx.Element, role: tuple, donors: Iterable[str] = (),
@@ -607,7 +701,12 @@ def guids_of(data: bytes) -> set[str]:
     key = (len(data), hashlib.blake2b(data, digest_size=20).digest())
     got = _GUIDS.get(key)
     if got is None:
-        got = frozenset((i.attr('guid') or '').lower() for i in dbx.parse(data).instances)
+        native = _native()
+        raw = native.dbx_instance_guids(dbx._check(data)) if native is not None else None
+        if raw is not None:                     # round E4d: read on the Rust side, no Python tree
+            got = frozenset((g or '').lower() for g in raw)
+        else:
+            got = frozenset((i.attr('guid') or '').lower() for i in dbx.parse(data).instances)
         if len(_GUIDS) >= GUIDS_MEMO:
             _GUIDS.pop(next(iter(_GUIDS)))
         _GUIDS[key] = got
@@ -1347,12 +1446,219 @@ def _at_path(e: dbx.Element, tpath: str) -> dbx.Element | None:
     return cur
 
 
+# ------------------------------------------------------------------------------------------------ the Rust port
+
+# round E4d: port() runs in the Rust core (bc2_convert::dbxport) when it is built and the arguments are ones it takes;
+# port_python is the reference and the fallback. BFBC2_DBXPORT_PYTHON=1 (or NATIVE_PORT = False) ports in Python;
+# BFBC2_DBXPORT_DUAL=1 (or DUAL = True) runs both and raises DualMismatch where they differ (parity runs).
+NATIVE_PORT = os.environ.get('BFBC2_DBXPORT_PYTHON', '') in ('', '0')
+DUAL = os.environ.get('BFBC2_DBXPORT_DUAL', '') not in ('', '0')
+# how ports ran: 'rust', 'python' (asked for, or arguments the Rust port does not take), 'fallback' (the Rust port
+# left the partition to Python: why -> count in 'why'), 'dual' (compared)
+STATS: dict[str, Any] = {'rust': 0, 'python': 0, 'fallback': 0, 'dual': 0, 'why': collections.Counter()}
+
+
+def _say_stats() -> None:
+    print(f'dbxport ports: {STATS["rust"]} Rust, {STATS["dual"]} both (compared), {STATS["python"]} Python, '
+          f'{STATS["fallback"]} left to Python {dict(STATS["why"])}', file=sys.stderr)
+
+
+if os.environ.get('BFBC2_DBXPORT_STATS', '') not in ('', '0'):
+    import atexit
+    atexit.register(_say_stats)
+
+
+class DualMismatch(AssertionError):
+    """BFBC2_DBXPORT_DUAL: the Rust port and the Python reference gave different results."""
+
+
+def _native() -> Any:
+    """The Rust core when dbx reads with it and it has the port (round E4d), else None."""
+    native = dbx._native
+    return native if native is not None and hasattr(native, 'dbxport_port') else None
+
+
+def _rules() -> tuple:
+    return (ONE_TO_ARRAY, RENAMED, NESTED, ENUM_NUMBERS, NUMBERS_TO_ITEMS, COUNT_CONVERTERS, TYPE_AS,
+            DICE_MOVED_CLASSES, HINT_ACTIONS, HINT_TEXTS, ROLE_GUARDS, FIREARM_SPEED, WEAPON_PARTITION.pattern,
+            WEAPON_PARTITION.flags, INPUT_FIELDS.pattern, AUDIO_ID_SIZE, gradient_rows, eia_value, _Port, _values,
+            _conventions, _bones, _gate, _part_link_names, rebuild_audio_connections, _text_empty_arrays, _best,
+            _Ranking, _roles, _inputs, Templates.choose, dbxcatalogue.looks_whole, dbxcatalogue.Catalogue)
+
+
+# the Rust port is these rules: a caller that changes a table or function here (a test, a tool) ports in Python
+_RULES: tuple = ()
+# the Rust copies of catalogues: (the tables copied, their sizes, the copy). The tables are held so their ids stay
+# theirs; an entry whose tables nothing else holds any more (its catalogue and every copy of it dropped) is let go,
+# so a dropped catalogue's Python tables and Rust copy (~300 MB together) are not kept
+_NATIVE_CATS: list[tuple[tuple, tuple[int, ...], Any]] = []
+_CAT_TABLES = ('classes', 'exe_names', 'order', 'shapes', 'texts', 'numeric', 'protos', 'guids', 'primary', 'others')
+
+
+def _native_catalogue(native: Any, cat: Any) -> Any:
+    """The Rust side's copy of a catalogue's tables, made once per set of tables (a fair test's copies,
+    dbxparity.fair_catalogue, share their catalogue's: one copy serves them all)."""
+    # an orphan's guids table is held by the entry alone: its count is a probe's held so (the count's own references
+    # differ between Python versions, so they are measured, not assumed)
+    probe: list[tuple[tuple, tuple[int, ...], Any]] = [((None,) * 7 + ({},), (), None)]
+    orphan = [sys.getrefcount(e[0][7]) for e in probe][0]
+    _NATIVE_CATS[:] = [e for e in _NATIVE_CATS if sys.getrefcount(e[0][7]) > orphan]
+    tables = tuple(getattr(cat, n) for n in _CAT_TABLES)
+    sizes = tuple(len(t) for t in tables)
+    for held, sz, handle in _NATIVE_CATS:
+        if sz == sizes and all(a is b for a, b in zip(held, tables)):
+            return handle
+    handle = native.DbxCatalogue(cat)
+    _NATIVE_CATS.append((tables, sizes, handle))
+    if len(_NATIVE_CATS) > 2:
+        _NATIVE_CATS.pop(0)
+    return handle
+
+
+def _port_rust(data: Any, templates: Templates, resolve: Callable[[str], bool] | None, drop_untemplated: bool,
+               drop_types: Iterable[str], prune: bool, required: dict[str, str] | None, catalogue: Any,
+               ours: dict[str, set[str]] | None, stand_ins: dict | None, donors: Iterable[str], strict: bool,
+               schema: str, conventions: bool, bones: BoneTables | None,
+               name: str | None) -> tuple[bytes, Report] | str:
+    """port() in the Rust core, or why not (a string: port_python ports)."""
+    global _RULES
+    native = _native()
+    if native is None:
+        return 'no Rust core'
+    if not NATIVE_PORT or REFERENCE_RANKING:
+        return 'the Python port asked for'
+    if type(templates) is not Templates or templates._native is None:
+        return 'templates the Rust side does not hold'
+    if not _RULES:
+        _RULES = _rules()
+    if _rules() != _RULES:
+        return 'dbxport\'s tables or functions changed'
+    cat = catalogue or templates.catalogue
+    nc = defaults = None
+    if cat is not None:
+        if type(cat) is not dbxcatalogue.Catalogue or type(cat.defaults) is not dict:
+            return 'a catalogue that is no dbxcatalogue.Catalogue'
+        nc, defaults = _native_catalogue(native, cat), cat.defaults
+    if resolve is not None and not callable(resolve):
+        return 'resolve is not callable'
+    try:
+        dt = [t for t in set(drop_types) if isinstance(t, str)]
+    except TypeError:
+        return 'drop_types'
+    req = required or {}
+    if type(req) is not dict or not all(isinstance(k, str) and isinstance(v, str) for k, v in req.items()):
+        return 'required'
+    if type(donors) not in (list, tuple) or not all(isinstance(d, str) for d in donors):
+        return 'donors'
+    if (ours is not None and type(ours) is not dict) or (stand_ins is not None and type(stand_ins) is not dict):
+        return 'ours / stand_ins'
+    if name and not isinstance(name, str):
+        return 'name'
+    bt = None
+    if bones is not None:
+        if type(bones) is not BoneTables or not all(type(v) is int for v in bones.at.values()):
+            return 'bones'
+        bt = (list(bones.source), len(bones.target), bones.at, bones.skeleton)
+    got = native.dbxport_port(dbx._check(data), templates._native, nc, defaults, resolve, ours, stand_ins, TEMPLATE,
+                              bt, bool(drop_untemplated), dt, bool(prune), req, [d.lower() for d in donors],
+                              bool(strict), schema == 'error', bool(conventions), (name or '').lower())
+    kind = got[0]
+    if kind == 'unsupported':
+        return f'the Rust port: {got[1]}'
+    if kind == 'parse':
+        raise ValueError(got[1])
+    report = Report()
+    if templates.skipped and not templates.skipped_reported:
+        templates.skipped_reported = True
+        report.append(f'templates: {len(templates.skipped)} partition(s) unreadable, left out of the template '
+                      f'ranking: ' + '; '.join(templates.skipped[:5]))
+    if kind == 'port':
+        raise PortError(got[1])
+    if kind == 'schema':
+        raise SchemaError(got[1])
+    for p, a, o, n, s, st, nt in got[2]:
+        report.add(p, a, old=o, new=n, source=s, step=st, note=nt)
+    return got[1], report
+
+
 def port(data: bytes, templates: Templates, resolve: Callable[[str], bool] | None = None, drop_untemplated: bool = False,
          drop_types: Iterable[str] = (), prune: bool = False, required: dict[str, str] | None = None, *,
          catalogue: Any = None, ours: dict[str, set[str]] | None = None, stand_ins: dict | None = None,
          donors: Iterable[str] = (), strict: bool = False, schema: str = 'error', conventions: bool = True,
          bones: BoneTables | None = None, name: str | None = None) -> tuple[bytes, Report]:
-    """(BFBC2 .dbx bytes, Report) for a BF1943 partition.
+    """(BFBC2 .dbx bytes, Report) for a BF1943 partition: port_python's result, by the Rust core where it can (round
+    E4d; see port_python for the arguments)."""
+    args = (data, templates, resolve, drop_untemplated, drop_types, prune, required)
+    kw = dict(catalogue=catalogue, ours=ours, stand_ins=stand_ins, donors=donors, strict=strict, schema=schema,
+              conventions=conventions, bones=bones, name=name)
+    if not DUAL:
+        got = _port_rust(*args, catalogue, ours, stand_ins, donors, strict, schema, conventions, bones, name)
+        if isinstance(got, str):
+            STATS['python' if got in ('no Rust core', 'the Python port asked for') else 'fallback'] += 1
+            STATS['why'][got] += 1
+            return port_python(*args, **kw)
+        STATS['rust'] += 1
+        return got
+    return _port_dual(args, kw)
+
+
+class _Left(Exception):
+    """The Rust port left the partition to Python (DUAL)."""
+
+
+def _outcome(fn: Callable[[], tuple[bytes, Report]]) -> tuple[Any, Any]:
+    """(what to compare, the result or the exception)."""
+    try:
+        data, rep = fn()
+        return ('ok', data, list(rep), [dataclasses.astuple(r) for r in rep.records]), (data, rep)
+    except Exception as e:                      # noqa: BLE001 - compared, then raised again
+        return ('error', type(e), str(e)), e
+
+
+def _port_dual(args: tuple, kw: dict) -> tuple[bytes, Report]:
+    """Both ports, compared: their bytes, report lines and records, or their exceptions' types and messages. The
+    Python port's result is the answer."""
+    templates = args[1]
+    flag = templates.skipped_reported
+    kw_rust = [kw[k] for k in ('catalogue', 'ours', 'stand_ins', 'donors', 'strict', 'schema', 'conventions',
+                               'bones', 'name')]
+
+    def run_rust() -> tuple[bytes, Report]:
+        got = _port_rust(*args, *kw_rust)
+        if isinstance(got, str):
+            raise _Left(got)
+        return got
+    a, _ = _outcome(run_rust)
+    after = templates.skipped_reported
+    templates.skipped_reported = flag
+    b, result = _outcome(lambda: port_python(*args, **kw))
+    templates.skipped_reported = after or templates.skipped_reported
+    if a[0] == 'error' and a[1] is _Left:
+        STATS['fallback'] += 1
+        STATS['why'][a[2]] += 1
+    else:
+        STATS['dual'] += 1
+        if a != b:
+            raise DualMismatch(f'{kw.get("name")}: Rust {_brief(a)} / Python {_brief(b)}')
+    if isinstance(result, Exception):
+        raise result
+    return cast('tuple[bytes, Report]', result)
+
+
+def _brief(o: tuple) -> str:
+    if o[0] == 'error':
+        return f'{o[1].__name__}: {o[2][:300]}'
+    _, data, lines, _ = o
+    return f'{len(data)} bytes {hashlib.sha256(data).hexdigest()[:12]}, {len(lines)} lines'
+
+
+def port_python(data: bytes, templates: Templates, resolve: Callable[[str], bool] | None = None,
+                drop_untemplated: bool = False, drop_types: Iterable[str] = (), prune: bool = False,
+                required: dict[str, str] | None = None, *, catalogue: Any = None,
+                ours: dict[str, set[str]] | None = None, stand_ins: dict | None = None, donors: Iterable[str] = (),
+                strict: bool = False, schema: str = 'error', conventions: bool = True, bones: BoneTables | None = None,
+                name: str | None = None) -> tuple[bytes, Report]:
+    """(BFBC2 .dbx bytes, Report) for a BF1943 partition (the Python reference of port(); round E4d).
 
     resolve(partition): whether a referenced partition will exist (the caller's partition-level answer: shader folders,
       the partitions it ports); None, with no ours: references into other partitions are kept as they are.

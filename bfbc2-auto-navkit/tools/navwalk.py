@@ -17,7 +17,7 @@ Usage:
 import math
 import os
 import sys
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import Iterable, Sequence
 from typing import Any, cast
 
@@ -32,48 +32,16 @@ suite_paths.use('navkit-tools')
 import navsample  # noqa: E402
 
 # The Rust core (rust/bc2-navbuild through bc2_native; navbuild.py's notes): walkable's flood, islands_of and
-# matched_flags always run in it (their Python was retired on 2026-11-17: require_native); the walkability rules
-# (headroom, stair_slope, narrow_lips, landings, near_objects / on_objects: round E2a) run in it when it is there,
-# with their Python here as the reference and the fallback (BFBC2_PURE_PYTHON=1, use_native(False)).
+# matched_flags (round E1d), the walkability rules - headroom, stair_slope, narrow_lips, the stair landings,
+# near_objects / on_objects (E2a), near_characters, the seed picks, the roof rule (E3c) and the unseeds (E3h) - run in
+# it. Their Python was retired after the full test tier (2026-11-17 and 2026-11-18, round R1: rust/BENCHMARKS.md
+# "Retired Python"; the answers recorded in tests/navbuild_golden.json); the module is required (require_native).
 
 def require_native() -> Any:
-    """The Rust core for the floods, or bfbc2core.native.NativeMissing saying how to get it."""
+    """The Rust core for the walkability rules and floods, or bfbc2core.native.NativeMissing saying how to get it."""
     suite_paths.use('core')
     from bfbc2core import native
-    return native.require("NavKit's grid walks (navbuild.py / navwalk.py)", 'NavLevel')
-
-
-def _load_native() -> Any:
-    """The Rust core for the walkability rules (NavGrid), or None: not built, or BFBC2_PURE_PYTHON set."""
-    try:
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'NavLevel') else None
-
-
-_native = _load_native()
-_NATIVE_ERRORS = (ValueError, TypeError, OverflowError)   # the rules: the Rust core refused, the Python code runs
-
-
-def use_native(on: bool) -> str:
-    """The walkability rules in the Rust core (when built, whatever BFBC2_PURE_PYTHON says) or in Python for this
-    process; 'rust' or 'python'. The floods are not switched: they have no Python."""
-    global _native
-    if on:
-        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-        try:
-            _native = _load_native()
-        finally:
-            if saved is not None:
-                os.environ['BFBC2_PURE_PYTHON'] = saved
-    else:
-        _native = None
-    return 'rust' if _native is not None else 'python'
+    return native.require("NavKit's walkability rules (navwalk.py)", 'NavGrid')
 
 
 def grid_arrays(walk: np.ndarray, gx: np.ndarray, gz: np.ndarray,
@@ -99,53 +67,41 @@ def native_grid(s: navsample.Samples, walk: np.ndarray, gx: np.ndarray, gz: np.n
         gz.dtype == np.float32, stair.tobytes(), bytes(len(walk)), float(s.pitch), float(step), 0.6)
 
 
-def _num(*vals: Any) -> bool:
-    """Python numbers (int, float or a float64 scalar): the port computes with them as the reference does. A float32
-    pitch or origin would make the reference compute in float32 in places: the Python code runs then."""
-    return all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals)
-
-
 def native_samples(s: navsample.Samples) -> Any:
     """The samples in the Rust core for walkable's rules (NavGrid: headroom, stair_slope, narrow_lips, the stair
-    landings, near_objects, on_objects), or None: the core is not there or the run's numbers are of a kind the port
-    does not take. Heights go in as s.y.astype(float), as the rules read them."""
-    if _native is None or not hasattr(_native, 'NavGrid') or not _num(s.pitch, s.min_x, s.min_z):
-        return None
-    try:
-        return _native.NavGrid(int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
-                               np.ascontiguousarray(s.y, '<f8').tobytes(), False, float(s.pitch), float(s.min_x),
-                               float(s.min_z))
-    except _NATIVE_ERRORS:
-        return None
+    landings, near_objects, on_objects, near_characters, the seed picks). Heights go in as s.y.astype(float), as the
+    rules read them; the pitch and origin as Python floats."""
+    return require_native().NavGrid(int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
+                                    np.ascontiguousarray(s.y, '<f8').tobytes(), False, float(s.pitch),
+                                    float(s.min_x), float(s.min_z))
 
 
 def _grid_of(s: navsample.Samples, grid: Any) -> Any:
-    """grid (a NavGrid walkable made once for all its rules) or one made for s now; None: Python runs."""
+    """grid (a NavGrid walkable made once for all its rules) or one made for s now."""
     return grid if grid is not None else native_samples(s)
 
 
-def _column_picks(grid: Any, points: list[Any], mask: np.ndarray, lo: float, hi: float) -> list[int] | None:
-    """walkable's surface at each point (seeds, anchors): in the point's column, the surface mask marks with height - y
-    in [lo, hi] nearest y, or -1 - from the Rust core (round E3c); None: the caller's loop (the reference) runs."""
-    if grid is None or not hasattr(grid, 'column_picks') or not points:
-        return None
-    try:
-        return cast(list[int], grid.column_picks(points, _flags(mask), lo, hi))
-    except _NATIVE_ERRORS:
-        return None
+def _column_picks(grid: Any, points: list[Any], mask: np.ndarray, lo: float, hi: float) -> list[int]:
+    """walkable's surface at each point (seeds, anchors): in the point's column (the nearest sample), the surface mask
+    marks with height - y in [lo, hi] nearest y (the first of equals), or -1; in the Rust core (round E3c)."""
+    if not points:
+        return []
+    return cast(list[int], grid.column_picks([tuple(float(v) for v in p) for p in points], _flags(mask), float(lo),
+                                             float(hi)))
 
 
 def _flags(a: Any) -> bytes:
-    """A per-surface truth array as one byte each (the reference tests each value's truth)."""
+    """A per-surface truth array as one byte each (each value's truth)."""
     return np.ascontiguousarray(a, bool).tobytes()
 
 
-def _tris_f64(tris: Any) -> bytes | None:
-    """Triangles (n x 3 x 3) as float64 bytes, as tris.astype(float) holds them; None for another shape."""
+def _tris_f64(tris: Any) -> bytes:
+    """Triangles (n x 3 x 3) as float64 bytes, as tris.astype(float) holds them."""
     t = np.asarray(tris)
     if t.ndim != 3 or t.shape[1:] != (3, 3):
-        return None
+        raise ValueError(f'triangles are n x 3 x 3 (corners x, y, z), not {t.shape}')
     return np.ascontiguousarray(t, '<f8').tobytes()
+
 
 TERRAIN_SHAPE_VTABLE = 0x1454D14   # shape class of terrain hits (navsample version 2 hit info), build 795745
 CHARACTER_SHAPE_VTABLE = 0x1483378  # shape class of soldiers standing in the level while it is sampled (their spawns):
@@ -249,93 +205,26 @@ def on_objects(s: navsample.Samples, tris: np.ndarray | None, tol: float = 0.2, 
     z0, z1 = s.min_z - 2, s.min_z + s.nz * s.pitch + 2
     t = tris[(tris[:, :, 0].max(1) >= x0) & (tris[:, :, 0].min(1) <= x1) &
              (tris[:, :, 2].max(1) >= z0) & (tris[:, :, 2].min(1) <= z1)].astype(float)
-    g = _grid_of(s, grid) if _num(tol) else None
-    t64 = _tris_f64(t) if g is not None and len(t) else None
-    if g is not None and t64 is not None:
-        try:
-            return np.frombuffer(g.on_objects(t64, float(tol)), np.bool_).copy()
-        except _NATIVE_ERRORS:
-            pass
-    y = s.y.astype(float)
-    for (ax, ay, az), (bx, by, bz), (cx, cy, cz) in t:
-        det = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz)
-        if abs(det) < 1e-9:
-            continue
-        i0 = max(0, math.ceil((min(ax, bx, cx) - s.min_x) / s.pitch))
-        i1 = min(s.nx - 1, math.floor((max(ax, bx, cx) - s.min_x) / s.pitch))
-        j0 = max(0, math.ceil((min(az, bz, cz) - s.min_z) / s.pitch))
-        j1 = min(s.nz - 1, math.floor((max(az, bz, cz) - s.min_z) / s.pitch))
-        for j in range(j0, j1 + 1):
-            pz = s.min_z + j * s.pitch
-            for i in range(i0, i1 + 1):
-                px = s.min_x + i * s.pitch
-                l1 = ((bz - cz) * (px - cx) + (cx - bx) * (pz - cz)) / det
-                l2 = ((cz - az) * (px - cx) + (ax - cx) * (pz - cz)) / det
-                if l1 < -1e-6 or l2 < -1e-6 or 1 - l1 - l2 < -1e-6:
-                    continue
-                yt = l1 * ay + l2 * by + (1 - l1 - l2) * cy
-                c = j * s.nx + i
-                for k in range(s.start[c], s.start[c + 1]):
-                    if abs(y[k] - yt) <= tol:
-                        out[k] = True
-    return out
+    if not len(t):
+        return out
+    return np.frombuffer(_grid_of(s, grid).on_objects(_tris_f64(t), float(tol)), np.bool_).copy()
 
 
 def near_characters(s: navsample.Samples, character: np.ndarray, grow: float = 0.9, below: float = 2.2,
                     above: float = 0.3, grid: Any = None) -> np.ndarray:
     """Surfaces a capsule test would see blocked by a soldier: within `grow` metres (horizontally) of a character hit
     (CHARACTER_SHAPE_VTABLE) and from `below` metres under to `above` metres over it. In the Rust core when it is there
-    (round E3c; grid: native_samples(s); the Python below is its reference and fallback)."""
-    g = _grid_of(s, grid)
-    if g is not None and hasattr(g, 'near_characters') and _num(grow, below, above):
-        try:
-            return np.frombuffer(g.near_characters(_flags(character), float(grow), float(below), float(above)),
-                                 np.bool_).copy()
-        except _NATIVE_ERRORS:
-            pass
-    out = np.zeros(len(s.y), bool)
-    y = s.y.astype(float)
-    col = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start[:s.nx * s.nz + 1]))
-    r = int(math.floor(grow / s.pitch + 1e-9))
-    for k in np.nonzero(character)[0]:
-        c = col[k]
-        i, j = c % s.nx, c // s.nx
-        for dj in range(-r, r + 1):
-            for di in range(-r, r + 1):
-                a, b = i + di, j + dj
-                if 0 <= a < s.nx and 0 <= b < s.nz and math.hypot(di, dj) * s.pitch <= grow + 1e-9:
-                    cc = b * s.nx + a
-                    for q in range(s.start[cc], s.start[cc + 1]):
-                        if y[k] - below <= y[q] <= y[k] + above:
-                            out[q] = True
-    return out
+    (round E3c: in the Rust core; grid: native_samples(s))."""
+    return np.frombuffer(_grid_of(s, grid).near_characters(_flags(character), float(grow), float(below), float(above)),
+                         np.bool_).copy()
 
 
 def headroom(s: navsample.Samples, ignore: np.ndarray | None = None, grid: Any = None) -> np.ndarray:
     """Per surface: the gap to the next sampled surface above it in its column (inf when none); surfaces flagged in
-    `ignore` (soldiers) do not count as above. grid: native_samples(s), made once by the caller (else here)."""
-    g = _grid_of(s, grid)
-    if g is not None:
-        try:
-            return np.frombuffer(g.headroom(None if ignore is None else _flags(ignore)), '<f8').astype(np.float64)
-        except _NATIVE_ERRORS:
-            pass
-    y = s.y.astype(float)
-    out = np.full(len(y), np.inf)
-    ign = ignore if ignore is not None else np.zeros(len(y), bool)
-    for c in range(s.nx * s.nz):
-        a, b = s.start[c], s.start[c + 1]
-        if b - a < 2:
-            continue
-        ks = [k for k in range(a, b) if not ign[k]]
-        if len(ks) < 2:
-            continue
-        ys = np.sort(y[ks])
-        for k in ks:
-            higher = ys[ys > y[k] + 0.05]
-            if len(higher):
-                out[k] = higher[0] - y[k]
-    return out
+    `ignore` (soldiers) do not count as above (a surface counts as above when it is over 0.05 m higher). In the Rust
+    core; grid: native_samples(s), made once by the caller (else here)."""
+    got = _grid_of(s, grid).headroom(None if ignore is None else _flags(ignore))
+    return np.frombuffer(got, '<f8').astype(np.float64)
 
 
 def low_headroom(s: navsample.Samples, ignore: np.ndarray | None, lo: float, hi: float,
@@ -374,27 +263,8 @@ def near_objects(s: navsample.Samples, tris: np.ndarray | None, grow: float = 0.
     out = np.zeros(len(s.y), bool)
     if tris is None or not len(tris):
         return out
-    g = _grid_of(s, grid) if _num(grow, below, above) else None
-    t64 = _tris_f64(tris) if g is not None else None
-    if g is not None and t64 is not None:
-        try:
-            return np.frombuffer(g.near_objects(t64, float(grow), float(below), float(above)), np.bool_).copy()
-        except _NATIVE_ERRORS:
-            pass
-    y = s.y.astype(float)
-    for t in tris.astype(float):
-        x0, x1 = t[:, 0].min() - grow, t[:, 0].max() + grow
-        z0, z1 = t[:, 2].min() - grow, t[:, 2].max() + grow
-        i0 = max(0, math.ceil((x0 - s.min_x) / s.pitch)); i1 = min(s.nx - 1, math.floor((x1 - s.min_x) / s.pitch))
-        j0 = max(0, math.ceil((z0 - s.min_z) / s.pitch)); j1 = min(s.nz - 1, math.floor((z1 - s.min_z) / s.pitch))
-        y0, y1 = t[:, 1].min() - below, t[:, 1].max() + above
-        for j in range(j0, j1 + 1):
-            for i in range(i0, i1 + 1):
-                c = j * s.nx + i
-                for k in range(s.start[c], s.start[c + 1]):
-                    if y0 <= y[k] <= y1:
-                        out[k] = True
-    return out
+    got = _grid_of(s, grid).near_objects(_tris_f64(tris), float(grow), float(below), float(above))
+    return np.frombuffer(got, np.bool_).copy()
 
 
 def stair_slope(s: navsample.Samples, mask: np.ndarray, r: int = 1, tol: float = 0.7,
@@ -402,47 +272,12 @@ def stair_slope(s: navsample.Samples, mask: np.ndarray, r: int = 1, tol: float =
     """Slope (degrees) from neighbouring sample heights on the same layer (central differences, +-1 sample),
     for the surfaces in mask; 90 where a neighbour is missing. (Measured over +-0.8 m at pitch 0.2 it recognised far
     more stairs, but with a 0.5 m step on them it joined decks and ledges to streets - over-connection 2.2 -> 35.3 % on
-    ONS_MP_002; not adopted, 2026-10-21.)"""
-    g = _grid_of(s, grid) if isinstance(r, int) and not isinstance(r, bool) and _num(tol) else None
-    if g is not None:
-        try:
-            got = g.stair_slope(_flags(mask), r, float(tol))
-            return tuple(np.frombuffer(b, '<f8').astype(np.float64) for b in got)    # type: ignore[return-value]
-        except _NATIVE_ERRORS:
-            pass
-    y = s.y.astype(float)
-    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
-    out = np.full(len(y), 90.0)
-    gxo = np.zeros(len(y)); gzo = np.zeros(len(y))
-
-    def layer(i: int, j: int, yref: float) -> float | None:
-        if not (0 <= i < s.nx and 0 <= j < s.nz):
-            return None
-        c = j * s.nx + i
-        best = None
-        for k in range(s.start[c], s.start[c + 1]):
-            if abs(y[k] - yref) <= tol and (best is None or abs(y[k] - yref) < abs(best - yref)):
-                best = y[k]
-        return best
-    for k in np.nonzero(mask)[0]:
-        c = col_of[k]
-        i, j = c % s.nx, c // s.nx
-        a, b, cc, d = layer(i + r, j, y[k]), layer(i - r, j, y[k]), layer(i, j + r, y[k]), layer(i, j - r, y[k])
-        if a is None and b is None and cc is None and d is None:
-            continue
-
-        def diff(p: float | None, m: float | None, k: int = k) -> float:   # central difference, or one-sided where a neighbour is missing (narrow stairs)
-            if p is not None and m is not None:
-                return (p - m) / (2 * r * s.pitch)
-            if p is not None:
-                return (p - y[k]) / (r * s.pitch)
-            if m is not None:
-                return (y[k] - m) / (r * s.pitch)
-            return 0.0
-        gxo[k] = diff(a, b)
-        gzo[k] = diff(cc, d)
-        out[k] = math.degrees(math.atan(math.hypot(gxo[k], gzo[k])))
-    return out, gxo, gzo
+    ONS_MP_002; not adopted, 2026-10-21.) The neighbour on the same layer: the surface of its column nearest the
+    height within tol; one-sided differences where one is missing. Returns (slope, gx, gz); in the Rust core."""
+    if int(r) != r:
+        raise ValueError(f'stair_slope: r is a whole number of samples, not {r!r}')
+    got = _grid_of(s, grid).stair_slope(_flags(mask), int(r), float(tol))
+    return tuple(np.frombuffer(b, '<f8').astype(np.float64) for b in got)    # type: ignore[return-value]
 
 
 def narrow_lips(s: navsample.Samples, base: np.ndarray, cand: np.ndarray, slope: float, width: int, rise: float | None = None,
@@ -450,61 +285,18 @@ def narrow_lips(s: navsample.Samples, base: np.ndarray, cand: np.ndarray, slope:
     """The cand surfaces (steep terrain) with a base surface (walkable) within width samples on both opposite sides
     along an axis or a diagonal - same layer, each step within 0.7 m - and a slope within the limit between those two
     (LIP_WIDTH). rise: the candidate also within this height of both of those (LIP_OBJECT_RISE); flat: both of those
-    within this many degrees of level."""
-    ny = s.normal[:, 1]
-    ok = (isinstance(width, int) and not isinstance(width, bool) and _num(slope)
-          and (rise is None or _num(rise)) and (flat is None or (_num(flat) and ny.dtype in (np.float32, np.float64))))
-    g = _grid_of(s, grid) if ok else None
-    if g is not None:
-        try:
-            fl = None
-            if flat is not None:
-                f32 = ny.dtype == np.float32
-                fl = (np.ascontiguousarray(ny, '<f4' if f32 else '<f8').tobytes(), f32, math.cos(math.radians(flat)))
-            got = g.narrow_lips(_flags(base), _flags(cand), math.tan(math.radians(slope)), width,
-                                None if rise is None else float(rise), fl)
-            return np.frombuffer(got, np.bool_).copy()
-        except _NATIVE_ERRORS:
-            pass
-    y = s.y.astype(float)
-    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
-    lim = math.tan(math.radians(slope))
-    out = np.zeros(len(y), bool)
-
-    def side(i: int, j: int, yref: float, di: int, dj: int) -> tuple[int, int] | None:
-        for t in range(1, width + 1):
-            a, b = i + di * t, j + dj * t
-            if not (0 <= a < s.nx and 0 <= b < s.nz):
-                return None
-            c = b * s.nx + a
-            best = None
-            for n in range(s.start[c], s.start[c + 1]):
-                if abs(y[n] - yref) <= 0.7 * t and (best is None or abs(y[n] - yref) < abs(y[best] - yref)):
-                    best = n
-            if best is None:
-                return None
-            if base[best]:
-                return best, t
-        return None
-    for k in np.nonzero(cand)[0]:
-        c = col_of[k]
-        i, j = c % s.nx, c // s.nx
-        for di, dj in ((1, 0), (0, 1), (1, 1), (1, -1)):
-            p = side(i, j, y[k], di, dj)
-            if p is None:
-                continue
-            m = side(i, j, y[k], -di, -dj)
-            if m is None:
-                continue
-            d = (p[1] + m[1]) * s.pitch * (math.sqrt(2) if di and dj else 1)
-            if rise is not None and (abs(y[k] - y[p[0]]) > rise or abs(y[k] - y[m[0]]) > rise):
-                continue
-            if flat is not None and min(s.normal[p[0], 1], s.normal[m[0], 1]) < math.cos(math.radians(flat)):
-                continue
-            if abs(y[p[0]] - y[m[0]]) / d <= lim:
-                out[k] = True
-                break
-    return out
+    within this many degrees of level. In the Rust core; normals of another type than float32 / float64 are widened to
+    float64 for the flat test."""
+    if int(width) != width:
+        raise ValueError(f'narrow_lips: width is a whole number of samples, not {width!r}')
+    fl = None
+    if flat is not None:
+        ny = np.asarray(s.normal[:, 1])
+        f32 = ny.dtype == np.float32
+        fl = (np.ascontiguousarray(ny, '<f4' if f32 else '<f8').tobytes(), f32, math.cos(math.radians(flat)))
+    got = _grid_of(s, grid).narrow_lips(_flags(base), _flags(cand), math.tan(math.radians(slope)), int(width),
+                                        None if rise is None else float(rise), fl)
+    return np.frombuffer(got, np.bool_).copy()
 
 
 def matched_flags(s: navsample.Samples, other: navsample.Samples | None) -> np.ndarray:
@@ -635,7 +427,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
     require_native()
     y = s.y.astype(float)
     col_of_w = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))     # each surface's column
-    nat = native_samples(s)                  # the run in the Rust core for the rules below (None: Python)
+    nat = native_samples(s)                  # the run in the Rust core for the rules below
     ny = np.maximum(s.normal[:, 1], 0.05)
     gx_all, gz_all = -s.normal[:, 0] / ny, -s.normal[:, 2] / ny
     stair = np.zeros(len(y), bool)
@@ -700,26 +492,7 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
         hi = matched_flags(s, high_capsule) if high_capsule is not None else s.flags
         # landings: object surfaces within two samples of a stair surface on the same level also take the
         # high-capsule clearance (the normal capsule touches the top steps / rail ends there)
-        landing = np.zeros(len(y), bool)
-        col_of_l = col_of_w
-        stair_left = np.nonzero(stair)[0]
-        if nat is not None:
-            try:
-                landing = np.frombuffer(nat.landing(_flags(stair), _flags(cand)), np.bool_).copy()
-                stair_left = stair_left[:0]
-            except _NATIVE_ERRORS:
-                pass
-        for k in stair_left:
-            c = col_of_l[k]
-            i, j = c % s.nx, c // s.nx
-            for dj in range(-2, 3):
-                for di in range(-2, 3):
-                    a, b = i + di, j + dj
-                    if 0 <= a < s.nx and 0 <= b < s.nz:
-                        cc = b * s.nx + a
-                        for n in range(s.start[cc], s.start[cc + 1]):
-                            if cand[n] and abs(y[n] - y[k]) <= 0.9:
-                                landing[n] = True
+        landing = np.frombuffer(nat.landing(_flags(stair), _flags(cand)), np.bool_).copy()
         ok |= (stair | (landing & (s.normal[:, 1] >= math.cos(math.radians(slope)) - 0.01))) & ((hi & 3) == 0)
         # on stairs the treads are flat: take the incline from the neighbour heights, not the tread normals
         gx_all = np.where(stair, hgx, gx_all)
@@ -809,23 +582,10 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
     keep[edge_seeds] = True
     q: deque[int] = deque(edge_seeds.tolist())
     seed_list = list(extra_seeds or ())
-    picks = _column_picks(nat, seed_list, ok, -1.5, 0.5)       # in the Rust core (E3c), or None: the loop below
-    for n in (picks or ()):
+    for n in _column_picks(nat, seed_list, ok, -1.5, 0.5):     # in the Rust core (E3c)
         if n >= 0 and not keep[n]:
             keep[n] = True
             q.append(n)
-    for (sx, sy, sz) in (seed_list if picks is None else ()):
-        # level seed points (soldier spawns): the walkable surface at or just below the point
-        i, j = int(round((sx - s.min_x) / s.pitch)), int(round((sz - s.min_z) / s.pitch))
-        if not (0 <= i < s.nx and 0 <= j < s.nz):
-            continue
-        c = j * s.nx + i
-        cand = [n for n in range(s.start[c], s.start[c + 1]) if ok[n] and -1.5 <= y[n] - sy <= 0.5]
-        if cand:
-            n = min(cand, key=lambda n: abs(y[n] - sy))
-            if not keep[n]:
-                keep[n] = True
-                q.append(n)
     grid_nat: list[Any] = []                 # the samples in the Rust core, made at the first flood
 
     def flood() -> None:
@@ -875,50 +635,16 @@ def walkable(s: navsample.Samples, forbid_tris: np.ndarray | None = None, slope:
         if not cand:
             continue
         first = min(cand, key=lambda n: abs(y[n] - sy))
-        if _native is not None and grid_nat:
-            # the island in the Rust core (round E3h): the flood from first over the kept surfaces, on the floods'
-            # NavLevel with keep as its walk (the same samples, gradients and stairs); the loop below is the reference
-            try:
-                one = np.zeros(len(keep), bool)
-                one[first] = True
-                island = grid_nat[0].with_walk(_flags(keep)).flood(one.tobytes(), [int(first)])
-            except _NATIVE_ERRORS:
-                pass
-            else:
-                keep[np.frombuffer(island, bool)] = False
-                continue
-        drop = {first}
-        q = deque([first])
-        while q:
-            k = q.popleft()
-            c = col_of[k]
-            i, j = c % s.nx, c // s.nx
-            for dj in (-1, 0, 1):
-                for di in (-1, 0, 1):
-                    a, b = i + di, j + dj
-                    if not (di or dj) or not (0 <= a < s.nx and 0 <= b < s.nz):
-                        continue
-                    cc = b * s.nx + a
-                    for n in range(s.start[cc], s.start[cc + 1]):
-                        if n in drop or not keep[n]:
-                            continue
-                        if step_fits(y[n] - y[k], (gx_all[k], gz_all[k]), (gx_all[n], gz_all[n]), stair[k], stair[n],
-                                     di, dj, s.pitch, step):
-                            drop.add(n)
-                            q.append(n)
-        keep[list(drop)] = False
+        # the island in the Rust core (round E3h): the flood from first over the kept surfaces, on the floods'
+        # NavLevel with keep as its walk (the same samples, gradients and stairs)
+        one = np.zeros(len(keep), bool)
+        one[first] = True
+        island = grid_nat[0].with_walk(_flags(keep)).flood(one.tobytes(), [int(first)])
+        keep[np.frombuffer(island, bool)] = False
     if ROOF_PRUNE:
         anchor_k: set[int] = set()
         anchor_list = list(anchors or ())
-        picks = _column_picks(nat, anchor_list, keep, -2.5, 2.5)
-        anchor_k.update(n for n in (picks or ()) if n >= 0)
-        for (sx, sy, sz) in (anchor_list if picks is None else ()):
-            i, j = int(round((sx - s.min_x) / s.pitch)), int(round((sz - s.min_z) / s.pitch))
-            if 0 <= i < s.nx and 0 <= j < s.nz:
-                c = j * s.nx + i
-                cand = [n for n in range(s.start[c], s.start[c + 1]) if keep[n] and -2.5 <= y[n] - sy <= 2.5]
-                if cand:
-                    anchor_k.add(min(cand, key=lambda n: abs(y[n] - sy)))
+        anchor_k.update(n for n in _column_picks(nat, anchor_list, keep, -2.5, 2.5) if n >= 0)
         for lad in (ladders or ()):
             for e in ladder_ends(s, ok, keep, lad):
                 if e is not None and keep[e]:
@@ -947,79 +673,22 @@ def islands_of(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.nd
 def roof_islands(s: navsample.Samples, keep: np.ndarray, gx: np.ndarray, gz: np.ndarray, stair: np.ndarray, step: float,
                  terrain: np.ndarray, anchor_k: set[int], grid: Any = None) -> np.ndarray:
     """The kept surfaces ROOF_PRUNE drops (bool per surface). After the islands (Rust), the rule runs in the Rust core
-    when it is there (round E3c; this Python is its reference and fallback: BFBC2_PURE_PYTHON, use_native(False)).
-    grid: see islands_of."""
-    y = s.y.astype(float)
+    (round E3c): an island (islands_of) is dropped when it holds no anchor, is not the largest, has ROOF_SHARE of its
+    surfaces on objects ROOF_RAISE m or more over their column's lowest surface, and has no anchored ground within
+    ROOF_NEAR m (ROOF_NEAR_DY in height) of its surfaces on the 0.8 m grid. grid: see islands_of."""
     comp, n = islands_of(s, keep, gx, gz, stair, step, grid)
     rule = (ROOF_RAISE, ROOF_SHARE, ROOF_NEAR, ROOF_NEAR_DY)
-    if _native is not None and hasattr(_native, 'navkit_roof_drop') and _num(s.pitch, s.min_x, s.min_z, *rule):
-        try:
-            got, stats = _native.navkit_roof_drop(
-                int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
-                np.ascontiguousarray(y, '<f8').tobytes(), _flags(keep), _flags(terrain),
-                np.ascontiguousarray(comp, '<i8').tobytes(), int(n), [int(k) for k in anchor_k],
-                (float(s.min_x), float(s.min_z), float(s.pitch)), tuple(float(v) for v in rule))
-        except _NATIVE_ERRORS:
-            pass
-        else:
-            if stats is not None:
-                ROOF_STATS['islands'] = ROOF_STATS.get('islands', 0) + stats[0]
-                if stats[1] is not None:
-                    ROOF_STATS['dropped'] = ROOF_STATS.get('dropped', 0) + stats[1][0]
-                    ROOF_STATS['surfaces'] = ROOF_STATS.get('surfaces', 0) + stats[1][1]
-            return np.frombuffer(got, np.bool_).copy()
-    out = np.zeros(len(y), bool)
-    if n < 2:
-        return out
-    col_of = np.repeat(np.arange(s.nx * s.nz), np.diff(s.start))
-    lowest = np.minimum.reduceat(y, s.start[:-1].clip(max=len(y) - 1)) if len(y) else y
-    lowest = lowest[col_of]
-    raised = keep & ~terrain & (y - lowest >= ROOF_RAISE)
-    kc = comp[keep]
-    size = np.bincount(kc, minlength=n)
-    rshare = np.bincount(comp[raised], minlength=n) / np.maximum(size, 1)
-    anchored = np.zeros(n, bool)
-    anchored[[comp[k] for k in anchor_k if comp[k] >= 0]] = True
-    anchored[int(np.argmax(size))] = True
-    cand = ~anchored & (rshare >= ROOF_SHARE)
-    if not cand.any():
-        ROOF_STATS['islands'] = ROOF_STATS.get('islands', 0) + n
-        return out
-    # anchored ground near each candidate at its own height: buckets of ROOF_NEAR m; candidate surfaces every ~0.8 m
-    ak = np.nonzero(keep & anchored[np.maximum(comp, 0)] & (comp >= 0))[0]
-    ax = s.min_x + (col_of[ak] % s.nx) * s.pitch
-    az = s.min_z + (col_of[ak] // s.nx) * s.pitch
-    buck: defaultdict[tuple[int, int], list[tuple[float, float, float]]] = defaultdict(list)
-    for x_, z_, y_ in zip(ax.tolist(), az.tolist(), y[ak].tolist()):
-        buck[(int(math.floor(x_ / ROOF_NEAR)), int(math.floor(z_ / ROOF_NEAR)))].append((x_, z_, y_))
-    every = max(1, int(round(0.8 / s.pitch)))
-    near = np.zeros(n, bool)
-    for k in np.nonzero(keep & cand[np.maximum(comp, 0)] & (comp >= 0))[0]:
-        ci = comp[k]
-        if near[ci]:
-            continue
-        c = col_of[k]
-        i, j = c % s.nx, c // s.nx
-        if i % every or j % every:
-            continue
-        x_, z_ = s.min_x + i * s.pitch, s.min_z + j * s.pitch
-        bx, bz = int(math.floor(x_ / ROOF_NEAR)), int(math.floor(z_ / ROOF_NEAR))
-        for dx in (-1, 0, 1):
-            for dz in (-1, 0, 1):
-                for (px, pz, py) in buck.get((bx + dx, bz + dz), ()):
-                    if abs(py - y[k]) <= ROOF_NEAR_DY and math.hypot(px - x_, pz - z_) <= ROOF_NEAR:
-                        near[ci] = True
-                        break
-                if near[ci]:
-                    break
-            if near[ci]:
-                break
-    drop_c = cand & ~near
-    out = keep & (comp >= 0) & drop_c[np.maximum(comp, 0)]
-    ROOF_STATS['islands'] = ROOF_STATS.get('islands', 0) + n
-    ROOF_STATS['dropped'] = ROOF_STATS.get('dropped', 0) + int(drop_c.sum())
-    ROOF_STATS['surfaces'] = ROOF_STATS.get('surfaces', 0) + int(out.sum())
-    return out
+    got, stats = require_native().navkit_roof_drop(
+        int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
+        np.ascontiguousarray(s.y.astype(float), '<f8').tobytes(), _flags(keep), _flags(terrain),
+        np.ascontiguousarray(comp, '<i8').tobytes(), int(n), [int(k) for k in anchor_k],
+        (float(s.min_x), float(s.min_z), float(s.pitch)), tuple(float(v) for v in rule))
+    if stats is not None:
+        ROOF_STATS['islands'] = ROOF_STATS.get('islands', 0) + stats[0]
+        if stats[1] is not None:
+            ROOF_STATS['dropped'] = ROOF_STATS.get('dropped', 0) + stats[1][0]
+            ROOF_STATS['surfaces'] = ROOF_STATS.get('surfaces', 0) + stats[1][1]
+    return np.frombuffer(got, np.bool_).copy()
 
 
 def score(s: navsample.Samples, keep: np.ndarray, hpd: str, tol: float = 0.6) -> dict[str, float]:

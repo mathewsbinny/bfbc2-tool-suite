@@ -567,6 +567,43 @@ def game(check, tmp):
               f'ONS_MP_005GR: its level partition read from the Package bundle ({b["points"]})')
     else:
         check(False, f'a run on ONS_MP_004 and ONS_MP_005GR (exit {r5.returncode}): {r5.stdout[-500:]}')
+    # the Rust core (round E4f: the pair bits, the ground cells, the sessions) against the Python reference: the same
+    # run with BFBC2_HARNESS_PYTHON=1, field for field and as text (times and dates aside)
+    def bare(x):
+        if isinstance(x, dict):
+            return {k: bare(v) for k, v in x.items() if k not in ('seconds', 'date')}
+        if isinstance(x, list):
+            return [bare(v) for v in x]
+        return x
+    texts = {}
+    for name, py in (('nat', ''), ('ref', '1')):
+        env_k = {**env, 'BFBC2_HARNESS_PYTHON': py}
+        t0 = time.perf_counter()
+        subprocess.run([PY, HARNESS, 'run', name, '--levels', 'sp_009,sp_004_b', '--pairs', '100', '--level-pairs', '50',
+                        '--tests', 'structure,reachability,battery,orders,offsets,level', '--runs', runs_dir],
+                       capture_output=True, text=True, env=env_k, timeout=3600)
+        dt = time.perf_counter() - t0
+        p = os.path.join(runs_dir, f'{name}.json')
+        if os.path.isfile(p):
+            r = runs.load(p)
+            r['seconds'], r['date'], r['name'] = 0, '', 'x'
+            for L in r['levels'].values():
+                for F in L.get('files', {}).values():
+                    for t in F.get('tests', {}).values():
+                        t['seconds'] = 0
+                for scope in ('level', 'ingame'):
+                    for t in L.get(scope, {}).values():
+                        t['seconds'] = 0
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                runs.report(r)
+            texts[name] = (bare(r), buf.getvalue(), dt)
+    if len(texts) == 2:
+        check(texts['nat'][0] == texts['ref'][0] and texts['nat'][1] == texts['ref'][1],
+              f'sp_009 and sp_004_b: the run with the Rust core as with BFBC2_HARNESS_PYTHON=1, every result and the report '
+              f'byte for byte ({texts["nat"][2]:.0f} s, the Python {texts["ref"][2]:.0f} s)')
+    else:
+        check(False, 'the runs with and without the Rust core are saved')
     log = os.path.join(root, 'game', 'logs', 'opfor.log')
     if os.path.isfile(log):
         text = open(log, encoding='utf-8', errors='replace').read()

@@ -60,8 +60,8 @@ class BuildError(Exception):
 
 
 def pack_bundle(folder: str, out: str) -> None:
-    """FbrbTool's pack of folder into out, in the Rust core (bfbc2core.fbrb.pack); a folder that cannot be packed
-    stops the build."""
+    """FbrbTool's pack of folder into out, in the Rust core (the same bytes, bfbc2core.fbrb.pack); a folder that
+    cannot be packed stops the build."""
     try:
         corefbrb.pack(folder, out)
     except (ValueError, OSError) as e:
@@ -88,8 +88,8 @@ def build_folder(bundle: str, src: str, dst: str) -> None:
 
 
 def unpack_bundle(bundle: str, d: str) -> None:
-    """FbrbTool's unpack of bundle into d, in the Rust core (bfbc2core.fbrb.unpack); a bundle that cannot be
-    unpacked stops the build."""
+    """FbrbTool's unpack of bundle into d, in the Rust core (the same files and manifest, bfbc2core.fbrb.unpack); a
+    bundle that cannot be unpacked stops the build."""
     try:
         corefbrb.unpack(bundle, d)
     except (ValueError, OSError) as e:

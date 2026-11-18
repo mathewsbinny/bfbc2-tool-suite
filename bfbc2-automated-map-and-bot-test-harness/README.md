@@ -173,6 +173,14 @@ numbers (the game-tier test checks that).
 
 Both test tiers are part of the suite's runner (`python ..\run_tests.py quick | game`).
 
+**The Rust core** (round E4f, `rust/bc2-harness`, used when `python rust\build_native.py` has built it): opfor.log
+sessions are read there - `import-log` reads, decodes and splits the log on all cores (a 349 MB log: 0.6 s, the
+Python 4.4 s with its read); the reachability pair bits (one search per spawn node, on all cores) and the ground
+classes' cell columns (a bucket index instead of a scan of every cell) too. The Python stays the reference and the
+fallback (`crash-reader/harnesscore.py`; `BFBC2_HARNESS_PYTHON=1` runs it alone): a log line with a digit outside
+ASCII, for example, is left to it. `crash-reader/tests/test_crash_native.py` compares both; the game tier also runs
+sp_009 and sp_004_b both ways and finds every result and the report the same.
+
 ## In-game tests: ON HOLD - needs playtest
 
 The harness never starts the game. The in-game parts are designed and plug in as follows (`testharness/ingame.py`):
@@ -204,6 +212,8 @@ The harness never starts the game. The in-game parts are designed and plug in as
 | `testharness/ingame.py` | opfor.log sessions and the in-game criteria; the plan for testrun and telemetry |
 | `testharness/runs.py` | the saved-run format, the comparison and the text report |
 | `tests/test_harness.py` | the harness's own tests |
+| `crash-reader/harnesscore.py` | the Rust core's switch (round E4f) for the harness and the crash-reader tools |
+| `crash-reader/tests/test_crash_native.py` | the Rust core against the Python reference |
 
 Errors are logged like the suite's other tools (`%LOCALAPPDATA%\bfbc2-tool-suite\logs\harness-<date>.log`): on an
 error it prints the cause, what to do and the log's path (exit code 1).

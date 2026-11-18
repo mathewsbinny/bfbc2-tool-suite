@@ -64,7 +64,7 @@ def peak_mb() -> float:
 def worker(game: str, mode: str, first: int, last: int) -> None:
     """Replays reads first..last-1 and prints {'s', 'sha1', 'stats', 'peak_mb'} as JSON."""
     replay = json.load(open(REPLAY))[first:last]
-    if fbrb.backend() != 'rust' or not fbrb.cache_stats():
+    if not fbrb.cache_stats():
         raise SystemExit('the Rust core with the bundle cache is not in use (python rust\\build_native.py)')
     read = fbrb.read_uncached if mode == 'before' else fbrb.read
     sums = []

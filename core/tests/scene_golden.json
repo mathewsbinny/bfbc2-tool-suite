@@ -1,0 +1,105 @@
+{
+ "note": "Recorded 2026-11-18 (round F1a) from the retired Python code itself, before it was deleted; rust/BENCHMARKS.md \"Retired Python\". Digests: tests/goldens.py.",
+ "levels": {
+  "sp_01": {
+   "inputs": "b27fb74bb56326bb",
+   "entities only": {
+    "entities": "364adfc916514eed",
+    "elements": "bdfb8aca4a5e8cd4",
+    "shapes": "255806844177f39b",
+    "meshes": "97d170e1550eee4a",
+    "missing": "97d170e1550eee4a",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "6eef6648406c333a",
+    "terrain": "6eef6648406c333a",
+    "water": "6eef6648406c333a"
+   },
+   "whole": {
+    "entities": "19f43c6819b6266a",
+    "elements": "f25cdf576637ccc3",
+    "shapes": "255806844177f39b",
+    "meshes": "cbd583c2a67465b7",
+    "missing": "e8a0cef053339dc5",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "78cd2b7caca8b7cf",
+    "terrain": "439c340fe4f8883d",
+    "water": "20d9e0f6fcd0a68b"
+   }
+  },
+  "mp_005": {
+   "inputs": "87fc247f75b16648",
+   "entities only": {
+    "entities": "898eda8a2cffda1f",
+    "elements": "ed5677bcdec38266",
+    "shapes": "49492f0584ae2e91",
+    "meshes": "97d170e1550eee4a",
+    "missing": "97d170e1550eee4a",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "6eef6648406c333a",
+    "terrain": "6eef6648406c333a",
+    "water": "6eef6648406c333a"
+   },
+   "whole": {
+    "entities": "b2f4c3803ae07cd1",
+    "elements": "07b7d113115cdb57",
+    "shapes": "49492f0584ae2e91",
+    "meshes": "93125eacbdd982ad",
+    "missing": "842b718dea6ba14f",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "e54365f71169ff12",
+    "terrain": "2ad19802cd26b87a",
+    "water": "dd5aeef6f5c64444"
+   }
+  },
+  "mp_009gr": {
+   "inputs": "5990d002deefe0b6",
+   "entities only": {
+    "entities": "fe9198cb93ff8447",
+    "elements": "203432d74294165f",
+    "shapes": "277de3152a9a0338",
+    "meshes": "97d170e1550eee4a",
+    "missing": "97d170e1550eee4a",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "6eef6648406c333a",
+    "terrain": "6eef6648406c333a",
+    "water": "6eef6648406c333a"
+   },
+   "whole": {
+    "entities": "c441f7ca48a815d9",
+    "elements": "f1ad907c488e18c1",
+    "shapes": "277de3152a9a0338",
+    "meshes": "2c32113de328c11d",
+    "missing": "075ea75945647358",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "8b52a4d8ba52b2bb",
+    "terrain": "ef1a9d881a461223",
+    "water": "c90a249c0491820d"
+   }
+  },
+  "ons_mp_004": {
+   "inputs": "e73ec01edc543af5",
+   "entities only": {
+    "entities": "391f9cb29f1bb33b",
+    "elements": "022459c9d7c34488",
+    "shapes": "224e2d737255d502",
+    "meshes": "97d170e1550eee4a",
+    "missing": "97d170e1550eee4a",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "6eef6648406c333a",
+    "terrain": "6eef6648406c333a",
+    "water": "6eef6648406c333a"
+   },
+   "whole": {
+    "entities": "d9856d29807578eb",
+    "elements": "49264bcc0734b514",
+    "shapes": "224e2d737255d502",
+    "meshes": "61a5cfcd7c874222",
+    "missing": "606b4905ce063bda",
+    "notes": "97d170e1550eee4a",
+    "heightfield": "7604896b744980af",
+    "terrain": "e55901d0cd818c8e",
+    "water": "3b52b59ca719268a"
+   }
+  }
+ }
+}
