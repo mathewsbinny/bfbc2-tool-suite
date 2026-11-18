@@ -244,7 +244,8 @@ def cases() -> list[tuple[str, dict[str, Any], list[str]]]:
                 'a*b', 'a"b', 'a|b', 'a\x01b', 'a:b.res', 'a/' + 'n' * 300, 'q/' + 'n' * 240 + '/f.res', ' ', '.',
                 'a/..../b.res', 'a/. ./b.res', 'a/ /b.res', 'a/b /c.res', 'x/.. /y.res', 'x/ ../y.res', '...',
                 'a/... /b.res', ' a/b.res', 'a/  x  /b.res', 'a//b.res', 'a/.', 'a/b/...', 'a/b/. .', '..x/b.res',
-                'a/b ', 'z/' + 'n' * 236 + '/f', 'z/' + 'n' * 200 + '/' + 'm' * 40):
+                'a/b ', 'z/' + 'n' * 236 + '/f', 'z/' + 'n' * 200 + '/' + 'm' * 40,
+                'con', 'con.dbx', 'NUL.txt', 'com1.res', 'lpt1', 'a/aux/b.res', 'conin$', 'con .res'):
         add(f'unpack: entry name {bad[:20]!r}', {'x.fbrb': bundle([('ok.res', 'T', 1, b'1'), (bad, 'T', 1, b'2')])},
             'unpack', '{d}\\x.fbrb', '{d}\\u')
     add('unpack: an empty entry name', {'x.fbrb': bundle([('ok.res', 'T', 1, b'1'), ('', 'T', 1, b'2')])},
