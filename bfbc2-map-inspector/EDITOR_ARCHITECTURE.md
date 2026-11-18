@@ -211,8 +211,10 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   stays, built on DbxEdit.cs, until this editor replaces it (`rust/BENCHMARKS.md`, "Retired C# tools").
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
-  Each Python GUI stays until its replacement works. **Status (G1, 2026-11-18):** the editor application's shell and
-  its read-only map view (`rust/bc2-editor`, the "View a map" of 3.9); the Map Inspector stays until it is replaced.
+  Each Python GUI stays until its replacement works. **Status (G2, 2026-11-18):** the editor application's shell and
+  its read-only map view (`rust/bc2-editor`, the "View a map" of 3.9; round G1), with 3.10's decisions on it (round
+  G2): faction team labels, the 3D view's own tokens and the third neutral, the Help menu, and levels prepared from
+  the editor; the Map Inspector stays until it is replaced.
 
 - **In Rust:**
   - the editor application: window, 3D view, gizmos, panels;
@@ -445,6 +447,12 @@ features, beyond 3.1 - 3.9, each in the operation log and undoable like any edit
 - **Live rendering is the goal for the 3D view:** terrain, water and objects drawn as the game draws them - its
   materials, textures, shaders (the shader translator, shaderview) and lighting - so a level looks in the editor as it
   does in game. The opaque water and plain terrain of G1 are a first step.
+
+*Done in round G2 (2026-11-18; `rust/BENCHMARKS.md` "G2"):* the labels by faction (`LevelDescription`'s
+`FactionTeam1` / `FactionTeam2` read through the content profile: `FactionRUS` is RU, NVA or JP; T1 / T2 where the
+level names none, said in Properties); `view-*` and `scene-*` tokens and the third neutral `unowned` (violet; the
+design README's Colour section); the Help menu (generated from the action registry); opening an unprepared level
+prepares it in the editor with its progress (NavKit's prepare and the terrain unpack, run as the suite's Python).
 
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to

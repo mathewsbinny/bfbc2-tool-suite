@@ -102,18 +102,32 @@ the GeForce RTX 4060, at 144 frames a second.
 
 `rust/bc2-editor` is the map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8 - 3.10), in Rust
 with egui on wgpu (Vulkan, DirectX 12 or a software adapter). Round G1 (2026-11-18) is its shell and the read-only
-map view; the Map Inspector stays until the editor replaces it.
+map view, round G2 (2026-11-18) the user's decisions on it (below); the Map Inspector stays until the editor
+replaces it.
 
 - **Start screen:** "View a map" lists the game copy's levels (found as the suite finds them: `--opfor`, OPFOR_ROOT,
-  or a `project-opfor-bfbc2` folder beside or above the suite). A level NavKit has not prepared yet is listed but
-  opens only after its first opening in the Map Inspector (or `navkit.py prepare <level>`): the editor writes nothing
-  to the game copy or OPFOR's `work\`. A level whose terrain unpack is missing or stale opens without its terrain and
-  says so under Problems.
+  or a `project-opfor-bfbc2` folder beside or above the suite). Click one to open it. A level NavKit has not
+  prepared yet, or whose terrain unpack is missing or older than its bundle, is **prepared first, in the editor**:
+  "Preparing MP_005 - Step 2 of 4: Unpacking the level", a progress bar, the tools' last line and Cancel, then the
+  map opens. The steps are the suite's own, run by `rust\bc2-editor\prepare_level.py` with Python
+  (`BFBC2_PYTHON`, else `python`, else `py -3`): NavKit's prepare (the shared bundles, the level's bundles, its
+  objects, collision and spawn points; 10 - 60 s since round E4e) and the Map Inspector's terrain unpack. They write
+  only OPFOR's `work\levels\<level>` and `work\navkit`, never the game copy; a failure is said in plain words on the
+  start screen.
+- **Teams by faction:** labels, the outliner and Properties name each side's faction as the level's data says it
+  (`LevelDescription.FactionTeam1` / `FactionTeam2`, through the content profile): US / RU on BFBC2 levels (RU / US
+  where the Russians are team 1, as on MP_012GR), US / NVA on Vietnam's, US / JP on the Pacific War's; T1 / T2 where
+  the level names no faction (the campaign, squad deathmatch), and Properties says so. Gameplay no team owns
+  (objectives, combat areas) is violet (`unowned`), team-neutral flags light grey with NEU.
+- **Help** (the top bar's Help menu, or F1): controls and shortcuts, a getting-started guide, what each workspace is
+  for; searchable. It is generated from the action registry and the views' control list, so it cannot go stale.
 - **The window:** docked panels (drag a tab to dock, tab or float it; **Reset layout** puts them back): the Outliner
   (the map by kind and group, searchable, Hide / Show per group), the views, Properties (the selection's type, GUID,
   team, blueprint, source partition and element, transform) and Problems. The top bar has the workspace switcher
   (only View in G1), the level and its content profile badge, and the commands; the theme (Dark or Light) follows
-  the suite's design language (`design/project/tokens.json`, IBM Plex fonts).
+  the suite's design language (`design/project/tokens.json`, IBM Plex fonts). The 3D view draws with its own tokens
+  (`scene-*` for the sky, terrain, water and object greys; `view-*` for team, unowned, selection and status colours,
+  each at least 3.5:1 on the lit terrain in both themes).
 - **The views:** the 3D view and top, front and side views (top bar, or Alt+1 - Alt+4), each with its own camera.
   3D view: left drag orbits, middle drag pans, the wheel zooms, hold the right button to fly (W A S D, Q / E, Shift
   faster); the orthographic views pan with the left or middle button. Click selects (the selection is outlined in
@@ -137,7 +151,12 @@ Its tests (`python tests\test_editor.py`, quick tier) prove it headless: the the
 themes; the outliner against the Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004 (recorded by
 `rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
 view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
-the command palette opening a top view) and each of the four levels drawn with a flag selected.
+the command palette opening a top view) and each of the four levels drawn with a flag selected. Round G2's
+(`tests\g2.rs`, `tests\factions.rs`): every `view-*` / `scene-*` token found in a rendered frame, the overlays'
+contrast measured on the frame's own pixels, panel contrast and the third neutral's hue distance, the faction labels
+on BFBC2, Vietnam and WW2 levels (read only), Help generated from the registry (an action without a description
+fails), and opening a level that needs preparing (a stand-in script: its steps, then the level; a failure in words).
+`BC2_EDITOR_PREPARE=<level>` also runs the real preparation on a stand-in OPFOR folder in temp.
 
 ## The Rust core (required for the core formats, the console converters and NavKit's builds)
 

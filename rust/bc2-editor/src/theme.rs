@@ -427,6 +427,7 @@ pub struct Palette {
     pub team_1: Color32,
     pub team_2: Color32,
     pub team_neutral: Color32,
+    pub unowned: Color32,
     pub status_ok: Color32,
     pub status_warn: Color32,
     pub status_error: Color32,
@@ -437,6 +438,27 @@ pub struct Palette {
     pub axis_x: Color32,
     pub axis_y: Color32,
     pub axis_z: Color32,
+    pub view_team_1: Color32,
+    pub view_team_2: Color32,
+    pub view_team_neutral: Color32,
+    pub view_unowned: Color32,
+    pub view_selection: Color32,
+    pub view_status_ok: Color32,
+    pub view_status_warn: Color32,
+    pub view_status_error: Color32,
+    pub view_status_info: Color32,
+    pub scene_sky: Color32,
+    pub scene_terrain: Color32,
+    pub scene_water: Color32,
+    pub scene_object: Color32,
+    pub scene_object_destructible: Color32,
+    pub scene_object_dynamic: Color32,
+    pub scene_object_group: Color32,
+    pub scene_ladder: Color32,
+    pub scene_effect: Color32,
+    pub scene_area_point: Color32,
+    pub scene_other: Color32,
+    pub scene_label: Color32,
 }
 
 impl Palette {
@@ -462,6 +484,7 @@ impl Palette {
             team_1: c("team-1"),
             team_2: c("team-2"),
             team_neutral: c("team-neutral"),
+            unowned: c("unowned"),
             status_ok: c("status-ok"),
             status_warn: c("status-warn"),
             status_error: c("status-error"),
@@ -472,6 +495,66 @@ impl Palette {
             axis_x: c("axis-x"),
             axis_y: c("axis-y"),
             axis_z: c("axis-z"),
+            view_team_1: c("view-team-1"),
+            view_team_2: c("view-team-2"),
+            view_team_neutral: c("view-team-neutral"),
+            view_unowned: c("view-unowned"),
+            view_selection: c("view-selection"),
+            view_status_ok: c("view-status-ok"),
+            view_status_warn: c("view-status-warn"),
+            view_status_error: c("view-status-error"),
+            view_status_info: c("view-status-info"),
+            scene_sky: c("scene-sky"),
+            scene_terrain: c("scene-terrain"),
+            scene_water: c("scene-water"),
+            scene_object: c("scene-object"),
+            scene_object_destructible: c("scene-object-destructible"),
+            scene_object_dynamic: c("scene-object-dynamic"),
+            scene_object_group: c("scene-object-group"),
+            scene_ladder: c("scene-ladder"),
+            scene_effect: c("scene-effect"),
+            scene_area_point: c("scene-area-point"),
+            scene_other: c("scene-other"),
+            scene_label: c("scene-label"),
+        }
+    }
+
+    /// The 3D view's colours (the `view-*` and `scene-*` tokens) with their names: what the renderer and the
+    /// view's overlays draw with.
+    #[must_use]
+    pub fn view_entries(&self) -> Vec<(&'static str, Color32)> {
+        vec![
+            ("view-team-1", self.view_team_1),
+            ("view-team-2", self.view_team_2),
+            ("view-team-neutral", self.view_team_neutral),
+            ("view-unowned", self.view_unowned),
+            ("view-selection", self.view_selection),
+            ("view-status-ok", self.view_status_ok),
+            ("view-status-warn", self.view_status_warn),
+            ("view-status-error", self.view_status_error),
+            ("view-status-info", self.view_status_info),
+            ("scene-sky", self.scene_sky),
+            ("scene-terrain", self.scene_terrain),
+            ("scene-water", self.scene_water),
+            ("scene-object", self.scene_object),
+            ("scene-object-destructible", self.scene_object_destructible),
+            ("scene-object-dynamic", self.scene_object_dynamic),
+            ("scene-object-group", self.scene_object_group),
+            ("scene-ladder", self.scene_ladder),
+            ("scene-effect", self.scene_effect),
+            ("scene-area-point", self.scene_area_point),
+            ("scene-other", self.scene_other),
+            ("scene-label", self.scene_label),
+        ]
+    }
+
+    /// A team's colour in the 3D view, on the terrain: 1, 2, or team-neutral (0 and anything else).
+    #[must_use]
+    pub fn view_team(&self, team: u8) -> Color32 {
+        match team {
+            1 => self.view_team_1,
+            2 => self.view_team_2,
+            _ => self.view_team_neutral,
         }
     }
 
@@ -496,6 +579,7 @@ impl Palette {
             ("team-1", self.team_1),
             ("team-2", self.team_2),
             ("team-neutral", self.team_neutral),
+            ("unowned", self.unowned),
             ("status-ok", self.status_ok),
             ("status-warn", self.status_warn),
             ("status-error", self.status_error),
@@ -507,6 +591,9 @@ impl Palette {
             ("axis-y", self.axis_y),
             ("axis-z", self.axis_z),
         ]
+        .into_iter()
+        .chain(self.view_entries())
+        .collect()
     }
 
     /// A team's colour: 1, 2, or neutral (0 and anything else).
@@ -518,6 +605,63 @@ impl Palette {
             _ => self.team_neutral,
         }
     }
+}
+
+/// A colour's relative luminance (WCAG 2): sRGB channels to linear light, weighted.
+#[must_use]
+pub fn luminance(c: Color32) -> f64 {
+    let lin = |v: u8| {
+        let s = f64::from(v) / 255.0;
+        if s <= 0.040_45 {
+            s / 12.92
+        } else {
+            ((s + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+}
+
+/// The WCAG 2 contrast ratio of two colours (1 to 21).
+#[must_use]
+pub fn contrast(a: Color32, b: Color32) -> f64 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// A colour with each channel scaled by `k`, as the view's shader lights it (`view.wgsl`: the colour times the
+/// shade, in the stored gamma values).
+#[must_use]
+pub fn shaded(c: Color32, k: f64) -> Color32 {
+    let s = |v: u8| (f64::from(v) * k).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(s(c.r()), s(c.g()), s(c.b()))
+}
+
+/// A colour's hue in degrees (0 - 360) and its saturation (HSL, 0 - 1).
+#[must_use]
+pub fn hue_saturation(c: Color32) -> (f64, f64) {
+    let [r, g, b] = [c.r(), c.g(), c.b()].map(|v| f64::from(v) / 255.0);
+    let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+    let d = max - min;
+    if d <= f64::EPSILON {
+        return (0.0, 0.0);
+    }
+    let l = f64::midpoint(max, min);
+    let s = d / (1.0 - (2.0 * l - 1.0).abs());
+    let h = if (max - r).abs() <= f64::EPSILON {
+        ((g - b) / d).rem_euclid(6.0)
+    } else if (max - g).abs() <= f64::EPSILON {
+        (b - r) / d + 2.0
+    } else {
+        (r - g) / d + 4.0
+    };
+    (h * 60.0, s)
+}
+
+/// The distance between two hues, in degrees (0 - 180).
+#[must_use]
+pub fn hue_distance(a: Color32, b: Color32) -> f64 {
+    let d = (hue_saturation(a).0 - hue_saturation(b).0).abs() % 360.0;
+    d.min(360.0 - d)
 }
 
 /// The sizes the editor lays out with (the size tokens, in points).
@@ -685,7 +829,7 @@ mod tests {
         let t = tokens();
         let raw: Value = serde_json::from_str(TOKENS_JSON).unwrap();
         assert_eq!(t.colors.len(), raw["color"]["tokens"].as_array().unwrap().len());
-        assert_eq!(t.colors.len(), 28);
+        assert_eq!(t.colors.len(), 50);
         let styles: usize = raw["type"]["groups"]
             .as_array()
             .unwrap()
@@ -828,6 +972,158 @@ mod tests {
         assert_ne!(
             t.shadow(ThemeId::Dark, "shadow-popover"),
             t.shadow(ThemeId::Light, "shadow-popover")
+        );
+    }
+
+    /// The README's promise, checked: text pairs 4.5:1; borders, the accent, the selection, the focus ring and the
+    /// status, team, unowned and axis colours 3:1 on surface-1 and surface-2; in both themes.
+    #[test]
+    fn panel_contrast() {
+        let t = tokens();
+        for theme in ThemeId::ALL {
+            let c = |n: &str| t.color(theme, n);
+            for ink in ["ink", "ink-muted"] {
+                for ground in ["ground", "surface-1", "surface-2", "surface-3"] {
+                    let r = contrast(c(ink), c(ground));
+                    assert!(r >= 4.5, "{theme:?}: {ink} on {ground} {r:.2}");
+                }
+            }
+            for n in [
+                "line-strong",
+                "accent",
+                "selection",
+                "focus",
+                "team-1",
+                "team-2",
+                "team-neutral",
+                "unowned",
+                "status-ok",
+                "status-warn",
+                "status-error",
+                "status-info",
+                "axis-x",
+                "axis-y",
+                "axis-z",
+            ] {
+                for ground in ["surface-1", "surface-2"] {
+                    let r = contrast(c(n), c(ground));
+                    assert!(r >= 3.0, "{theme:?}: {n} on {ground} {r:.2}");
+                }
+            }
+        }
+    }
+
+    /// The third neutral (`unowned`) is its own colour: a violet at least 30 degrees of hue from every coloured token
+    /// it could be confused with, and a saturated colour where team-neutral is a near-grey; in panels and in the
+    /// view, both themes.
+    #[test]
+    fn unowned_is_distinct() {
+        let t = tokens();
+        for theme in ThemeId::ALL {
+            let c = |n: &str| t.color(theme, n);
+            for (own, others, neutral) in [
+                (
+                    "unowned",
+                    [
+                        "accent",
+                        "selection",
+                        "team-1",
+                        "team-2",
+                        "status-ok",
+                        "status-warn",
+                        "status-error",
+                        "status-info",
+                        "nav-route",
+                    ],
+                    "team-neutral",
+                ),
+                (
+                    "view-unowned",
+                    [
+                        "accent",
+                        "view-selection",
+                        "view-team-1",
+                        "view-team-2",
+                        "view-status-ok",
+                        "view-status-warn",
+                        "view-status-error",
+                        "view-status-info",
+                        "nav-route",
+                    ],
+                    "view-team-neutral",
+                ),
+            ] {
+                for o in others {
+                    let d = hue_distance(c(own), c(o));
+                    assert!(d >= 30.0, "{theme:?}: {own} is {d:.0} degrees from {o}");
+                }
+                let (_, s_own) = hue_saturation(c(own));
+                let (_, s_neu) = hue_saturation(c(neutral));
+                assert!(
+                    s_own >= 0.5 && s_neu <= 0.35,
+                    "{theme:?}: {own} {s_own:.2} / {neutral} {s_neu:.2}"
+                );
+            }
+        }
+    }
+
+    /// The view variants read on the terrain as the view lights it: the overlay colours at their darkest shade
+    /// (0.88, `view.wgsl`'s overlay shading) against the terrain at its brightest (0.93, flat ground) and on
+    /// slopes, at least 3.5:1; and the selection outline on the sky too. (`tests/render.rs` measures the same in
+    /// rendered frames.)
+    #[test]
+    fn view_colours_read_on_the_terrain() {
+        let t = tokens();
+        for theme in ThemeId::ALL {
+            let p = Palette::new(t, theme);
+            for (name, colour) in [
+                ("view-team-1", p.view_team_1),
+                ("view-team-2", p.view_team_2),
+                ("view-team-neutral", p.view_team_neutral),
+                ("view-unowned", p.view_unowned),
+                ("view-selection", p.view_selection),
+                ("view-status-ok", p.view_status_ok),
+                ("view-status-warn", p.view_status_warn),
+                ("view-status-error", p.view_status_error),
+                ("view-status-info", p.view_status_info),
+            ] {
+                for k_mark in [1.0, 0.88] {
+                    for k_ground in [0.93, 0.75, 0.6] {
+                        let r = contrast(shaded(colour, k_mark), shaded(p.scene_terrain, k_ground));
+                        assert!(
+                            r >= 3.5,
+                            "{theme:?}: {name} on the terrain {r:.2} ({k_mark} / {k_ground})"
+                        );
+                    }
+                }
+                let w = contrast(colour, shaded(p.scene_water, 0.93));
+                assert!(w >= 3.5, "{theme:?}: {name} on the water {w:.2}");
+            }
+            let s = contrast(p.view_selection, p.scene_sky);
+            assert!(s >= 1.8, "{theme:?}: the selection on the sky {s:.2}");
+            // the label plate is the panel ground it says, at 85 %
+            let plate = if theme == ThemeId::Dark {
+                p.surface_1
+            } else {
+                p.surface_2
+            };
+            assert_eq!(
+                p.scene_label,
+                Color32::from_rgba_unmultiplied(plate.r(), plate.g(), plate.b(), 0xd9)
+            );
+        }
+    }
+
+    #[test]
+    fn colour_maths() {
+        assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 1e-9);
+        assert!((contrast(Color32::WHITE, Color32::WHITE) - 1.0).abs() < 1e-9);
+        assert!((hue_saturation(Color32::from_rgb(255, 0, 0)).0).abs() < 1e-9);
+        assert!((hue_saturation(Color32::from_rgb(0, 0, 255)).0 - 240.0).abs() < 1e-9);
+        assert!((hue_distance(Color32::from_rgb(255, 0, 10), Color32::from_rgb(255, 10, 0)) - 4.7).abs() < 0.1);
+        assert_eq!(
+            shaded(Color32::from_rgb(200, 100, 0), 0.5),
+            Color32::from_rgb(100, 50, 0)
         );
     }
 

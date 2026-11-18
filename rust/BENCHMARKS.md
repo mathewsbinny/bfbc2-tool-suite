@@ -3292,3 +3292,43 @@ Quick: `test_havokport_native.py`, `test_dbxcatalogue_native.py`, `test_emittera
 game: the first five with `--game`. Unit tests in `mopp.rs`, `havokport.rs`, `pyfmt.rs`, `dbxcatalogue.rs`,
 `emitteratlas.rs`, `meshport.rs`, `pe.rs` (`raw`), `xmlinst.rs`, `navtune.rs`. `rust/bench_bf1943.py capture` takes a
 manifest folder (the WW2 levels' runs).
+
+
+## G2: the user's decisions on G1 (2026-11-18, branch `rust-g2`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Decisions on G1's first version". No Python replaced; what was measured and proved:
+
+**Preparing a level from the editor.** Opening a level NavKit has not prepared runs `rust/bc2-editor/prepare_level.py`
+(NavKit's `prepare` and `bfbc2core.level.heightfield_of`, the Map Inspector's terrain unpack) as a child process; the
+editor shows "Preparing MP_005 - Step n of 4" with a bar, the time and the tools' last line, then opens the map.
+MP_005 on a **fresh stand-in OPFOR folder** in temp (the game copy linked read only by a junction, its own `work\`;
+`tests/g2.rs` with `BC2_EDITOR_PREPARE=mp_005`), debug build, four other agents beside it:
+
+| step | from | took |
+|---|---:|---:|
+| 1. the shared bundles (sp_common, mp_common: unpacked and converted, once per OPFOR folder) | 1.3 s | 143.6 s |
+| 2. the level's bundles | 144.9 s | 9.1 s |
+| 3. objects, collision and spawn points (`levelobjects`, ladders, the sampling box) | 154.0 s | 59.8 s |
+| 4. the terrain unpack | 213.8 s | ~6 s |
+| loaded and shown (6,979 entities, terrain, no notes) | | **225.1 s in all** |
+
+A second level on the same folder skips step 1's work (E4e: sp_009 after sp_004_b, 9.6 s). The junction was removed
+before the stand-in folder; nothing was written to the game copy or the real OPFOR `work\`.
+
+**Faction labels** (`factions.rs`, `tests/factions.rs`, read only): MP_005 US / RU, MP_012GR and ONS_MP_005GR RU / US
+(the Russians are team 1 there), MP_004SDM and SP_01 T1 / T2 (`FactionNeutral`: said in Properties),
+NAM_MP_002CQ and NAM_MP_005R US / NVA (Vietnam's team 2 kits are DICE's `vietnam/vc_*` art), Wake Island, Coral Sea,
+Guadalcanal and Iwo Jima US / JP - 11 of 11; the Package-only levels' partitions are read from their
+`level-00.fbrb` in memory (`bc2_formats::fbrb::read`; the whole test, 11 levels, 7.2 s).
+
+**The 3D view's tokens** (`design/project/README.md`, Colour): 22 new colour tokens (`unowned`, 9 `view-*`, 12
+`scene-*`; 50 in all), each reaching the style, the dock or the palette in both themes. On rendered frames
+(`tests/g2.rs`, both themes): every `view-*` and `scene-*` colour found where it is drawn; overlay markers against the
+terrain around them, median to median / darkest tenth to brightest tenth: team-1 4.00 / 3.95, team-2 4.01 / 3.95,
+team-neutral 5.63 / 5.54, unowned 4.02 / 3.97 (Dark); 3.97 / 3.92, 3.99 / 3.92, 5.69 / 5.52, 4.10 / 3.99 (Light).
+Overlays are lit evenly (0.88 - 1.0) by the instance colour's alpha in `view.wgsl`; no cost measurable.
+
+**Help** is generated from the action registry (13 actions, Help on F1 new), the views' 9 controls and the 4 workspaces; a
+test fails if an action lacks a description. Headless screenshots of this round: MP_005 (Dark, Light),
+NAM_MP_002CQ and Iwo Jima (Dark, Light; stand-in OPFOR folders in temp with their Package bundles unpacked), the
+Help window, the preparing view and a failed preparation.
