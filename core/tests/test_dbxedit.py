@@ -1,18 +1,18 @@
-r"""DbxEdit's commands in process (bfbc2core.dbxedit, rust\bc2-formats\src\dbxedit) against DbxEdit.exe: the same
-files written, byte for byte, the same messages and exit codes.
+r"""DbxEdit's commands in process (bfbc2core.dbxedit, rust\bc2-formats\src\dbxedit) against what DbxEdit.exe
+answered before it was retired (round R4, 2026-11-18: csharp_golden.py): the same files written, byte for byte, the
+same messages and exit codes.
 
-  python core\tests\test_dbxedit.py           quick: the cases of DbxEdit's unit tests (bfbc2-dbx-tools\tests\
-                                              DbxTests.cs) on the same built files, each command run both ways; the
-                                              usage, option and damaged-file errors; the drop-in runner, the batch,
-                                              the BFBC2_DBXEDIT_EXE switch, the log
+  python core\tests\test_dbxedit.py           quick: the cases of DbxEdit's unit tests (DbxTests.cs) on the same
+                                              built files, each command as DbxEdit.exe answered it
+                                              (dbxedit_golden.json) and as DbxTests.cs expects; the usage, option and
+                                              damaged-file errors; the drop-in runner, the batch, the log
   python core\tests\test_dbxedit.py --game    + the corpus (Project OPFOR BFBC2's work\levels, work\navkit\common and
-                                              work\ww2): a sample of files through xml, roundtrip, import (--like, no
-                                              reference, edited), the edit battery of DbxEdit's fingerprints, check;
-                                              every edit fingerprint of fingerprints_795745.txt in process
-     --sample N   files in the game sample (default 2000)
+                                              work\ww2): every edit fingerprint of fingerprints_795745.txt, and the
+                                              recorded sample (dbxedit_golden_game_0.json / _1.json: 2,000 files through xml,
+                                              roundtrip, import --like / no reference / edited, check and the edit
+                                              battery on every 4th) whose files are still there unchanged
 
-Both ways need DbxEdit.exe (bfbc2-dbx-tools\build.bat); without it the in-process results are checked against what
-DbxTests.cs expects. Skipped (exit 0) when the Rust core is not built (python rust\build_native.py).
+Skipped (exit 0) when the Rust core is not built (python rust\build_native.py).
 """
 import hashlib
 import os
@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -37,11 +38,16 @@ import suite_paths  # noqa: E402
 suite_paths.use('core')
 from bfbc2core import dbxedit, native, paths  # noqa: E402
 
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import csharp_golden as cg  # noqa: E402
+
 NATIVE: Any = native.load()
 NATIVE = NATIVE if NATIVE is not None and hasattr(NATIVE, 'dbxedit_run') else None
-EXE = dbxedit.EXE
-HAVE_EXE = os.path.isfile(EXE)
 FINGERPRINTS = os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'fingerprints_795745.txt')
+GOLDEN = 'dbxedit_golden.json'
+GOLDEN_GAME = 'dbxedit_golden_game_*.json'      # two shards (the repository keeps every file under 1 MB)
+EXE = os.path.join('X:\\', 'retired', 'DbxEdit.exe')    # a command line naming DbxEdit: no file needs to be there
 
 G1, G2, G3, G4 = ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222',
                   '33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444')
@@ -194,28 +200,14 @@ def level_sample() -> Builder:
     return b
 
 
-# ------------------------------------------------------------------------------------------- both ways
+# ------------------------------------------------------------------------------------------- running a case
 
-def norm(s: str | bytes) -> str:
-    """Output as text with '\\n' line ends (DbxEdit prints '\\r\\n'), and the temp folders' names taken out."""
-    if isinstance(s, bytes):
-        s = s.decode('utf-8', 'replace')
-    return s.replace('\r\n', '\n')
-
-
-def run_exe(args: list[str]) -> tuple[int, str, str]:
-    r = subprocess.run([EXE, *args], capture_output=True)
-    return r.returncode, norm(r.stdout.decode('utf-8', 'replace')), norm(r.stderr.decode('utf-8', 'replace'))
+Runner = Callable[[list[str]], tuple[int, str | bytes, str | bytes]]
 
 
 def run_native(args: list[str]) -> tuple[int, str, str]:
     code, out, err, _ = NATIVE.dbxedit_run(args, dbxedit.log_path())
     return code, out, err
-
-
-def tmp_names(s: str) -> str:
-    """Temporary files' names without their process and counter numbers (<out>.tmp-<pid>[-<n>])."""
-    return re.sub(r'\.tmp-\d+(-\d+)?', '.tmp-N', s)
 
 
 def snapshot(folder: str) -> dict[str, bytes]:
@@ -228,28 +220,16 @@ def snapshot(folder: str) -> dict[str, bytes]:
     return out
 
 
-def both_ways(setup: Any, args_of: Any, root: str) -> tuple[Any, Any]:
-    """Runs a command both ways on two copies of the same folder: (exe, native), each (code, stdout, stderr, files)."""
-    results = []
-    for way, fn in (('exe', run_exe), ('rust', run_native)):
-        d = os.path.join(root, way)
-        shutil.rmtree(d, ignore_errors=True)
-        os.makedirs(d)
-        setup(d)
-        code, out, err = fn(args_of(d))
-        results.append((code, out.replace(d, '<dir>'), err.replace(d, '<dir>'), snapshot(d)))
-    return results[0], results[1]
-
-
-def same(a: Any, b: Any) -> tuple[bool, str]:
-    if a[0] != b[0]:
-        return False, f'exit code {a[0]} / {b[0]}'
-    if a[1] != b[1]:
-        return False, f'stdout {a[1]!r} / {b[1]!r}'
-    if tmp_names(a[2]) != tmp_names(b[2]):
-        return False, f'stderr {a[2]!r} / {b[2]!r}'
-    if a[3] != b[3]:
-        diff = sorted(k for k in set(a[3]) | set(b[3]) if a[3].get(k) != b[3].get(k))
+def same(want: list[Any], got: list[Any]) -> tuple[bool, str]:
+    """want and got as [exit code, stdout, stderr, files]: what differs."""
+    if want[0] != got[0]:
+        return False, f'exit code {want[0]} / {got[0]}'
+    if want[1] != got[1]:
+        return False, f'stdout {want[1]!r} / {got[1]!r}'
+    if want[2] != got[2]:
+        return False, f'stderr {want[2]!r} / {got[2]!r}'
+    if want[3] != got[3]:
+        diff = sorted(k for k in set(want[3]) | set(got[3]) if want[3].get(k) != got[3].get(k))
         return False, f'files differ: {diff[:4]}'
     return True, ''
 
@@ -468,43 +448,36 @@ def cases() -> list[tuple[str, dict[str, Any], list[str], Any]]:
     return out
 
 
-def run_case(root: str, files: dict[str, Any], args: list[str]) -> tuple[Any, Any]:
-    def setup(d: str) -> None:
-        for name, data in files.items():
-            p = os.path.join(d, name)
-            os.makedirs(os.path.dirname(p), exist_ok=True)
-            write(p, data)
-    return both_ways(setup, lambda d: [a.replace('{d}', d) for a in args], root)
+def run_case(d: str, files: dict[str, Any], args: list[str], run: Runner) -> tuple[list[Any], tuple[Any, ...]]:
+    """One command line in a fresh folder d holding files: ([exit code, stdout, stderr, {file: SHA-1}] as recorded,
+    (exit code, stdout, stderr, {file: bytes}) for DbxTests.cs' expectations)."""
+    cg.fresh(d)
+    for name, data in files.items():
+        p = os.path.join(d, name)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        write(p, data)
+    code, out, err = run([a.replace('{d}', d) for a in args])
+    out_t, err_t = cg.text(out, (d, '<dir>')), cg.text(err, (d, '<dir>'))
+    return [code, out_t, err_t, cg.snapshot(d)], (code, out_t, err_t, snapshot(d))
 
 
 def quick(check: Any, root: str) -> None:
     rows = cases()
-    bad_parity, bad_expect = [], []
+    golden = cg.load(GOLDEN).get('cases', {})
+    bad_golden, bad_expect, missing = [], [], []
     for name, files, args, expect in rows:
-        if HAVE_EXE:
-            a, b = run_case(root, files, args)
-            ok, why = same(a, b)
-            if not ok:
-                bad_parity.append(f'{name}: {why}')
+        got, b = run_case(os.path.join(root, 'dbx'), files, args, run_native)
+        if name not in golden:
+            missing.append(name)
         else:
-            def setup(d: str, files: dict[str, Any] = files) -> None:
-                for n, data in files.items():
-                    p = os.path.join(d, n)
-                    os.makedirs(os.path.dirname(p), exist_ok=True)
-                    write(p, data)
-            d = os.path.join(root, 'rust')
-            shutil.rmtree(d, ignore_errors=True)
-            os.makedirs(d)
-            setup(d)
-            code, out, err = run_native([x.replace('{d}', d) for x in args])
-            b = (code, out, err, snapshot(d))
+            ok, why = same(golden[name], got)
+            if not ok:
+                bad_golden.append(f'{name}: {why}')
         if expect is not None and not expect(b):
             bad_expect.append(f'{name}: {b[:3]}')
-    if HAVE_EXE:
-        check(not bad_parity, f'{len(rows)} cases of DbxEdit\'s unit tests as command lines: the same files, messages and '
-              'exit codes in process as DbxEdit.exe', '; '.join(bad_parity[:3]))
-    else:
-        print('     (DbxEdit.exe not built: the parity half skipped)')
+    check(not bad_golden and not missing and len(golden) == len(rows),
+          f'{len(rows)} cases of DbxEdit\'s unit tests as command lines: the files, messages and exit codes '
+          f'DbxEdit.exe gave ({GOLDEN})', '; '.join(bad_golden[:3] + [f'not recorded: {m}' for m in missing[:3]]))
     check(not bad_expect, f'{len(rows)} cases: what DbxTests.cs expects of each', '; '.join(bad_expect[:3]))
 
 
@@ -519,8 +492,8 @@ def api(check: Any, root: str) -> None:
           'dbxedit.edit: messages and exit code (text, \\n line ends)', repr(r))
     r = dbxedit.run_cmd([EXE, 'xml', a], capture_output=True, text=True)
     check(r.returncode == 0 and r.stdout == 'converted 1 file(s)\n' and os.path.isfile(a[:-4] + '.xml'),
-          'dbxedit.run_cmd: a DbxEdit.exe command line runs in process', repr(r))
-    r = dbxedit.run_cmd([EXE, 'xml', a], capture_output=True)
+          'dbxedit.run_cmd: a command line naming DbxEdit (DbxEdit.exe by any path) runs in process', repr(r))
+    r = dbxedit.run_cmd(['DbxEdit', 'xml', a], capture_output=True)
     check(r.stdout == b'converted 1 file(s)\r\n', 'dbxedit.run_cmd without text: bytes with \\r\\n, as the exe prints', repr(r))
     try:
         dbxedit.run(['edit', a, os.path.join(d, 'c.dbx'), 'nonsense'], check=True)
@@ -553,14 +526,17 @@ def api(check: Any, root: str) -> None:
             os.environ.pop('LOCALAPPDATA', None)
         else:
             os.environ['LOCALAPPDATA'] = old
-    if HAVE_EXE:
-        os.environ[dbxedit.EXE_ENV] = '1'
-        try:
-            r = dbxedit.run(['roundtrip', a])
-            check(r.returncode == 0 and '1 identical' in r.stdout and dbxedit.use_exe(),
-                  'BFBC2_DBXEDIT_EXE=1 runs DbxEdit.exe')
-        finally:
-            del os.environ[dbxedit.EXE_ENV]
+    old_env = os.environ.get('BFBC2_DBXEDIT_EXE')
+    os.environ['BFBC2_DBXEDIT_EXE'] = '1'        # the retired switch: nothing reads it any more
+    try:
+        r = dbxedit.run(['roundtrip', a])
+        check(r.returncode == 0 and '1 identical' in r.stdout and not hasattr(dbxedit, 'use_exe'),
+              'BFBC2_DBXEDIT_EXE (retired) changes nothing: the commands run in process')
+    finally:
+        if old_env is None:
+            os.environ.pop('BFBC2_DBXEDIT_EXE', None)
+        else:
+            os.environ['BFBC2_DBXEDIT_EXE'] = old_env
     r = dbxedit.run_cmd([sys.executable, '-c', 'print(5)'], capture_output=True, text=True)
     check(r.stdout.strip() == '5', 'dbxedit.run_cmd runs other programs as subprocess.run')
 
@@ -662,27 +638,20 @@ def mutate(xml: str, rnd: random.Random) -> str:
     return '\r\n'.join(lines)
 
 
-def compare_file(src: str, work: str, rnd: random.Random, do_battery: bool) -> dict[str, Any]:
-    """Every command both ways on one file (copied into work\\exe and work\\rust): counts of runs and differences."""
-    stats: dict[str, Any] = {'runs': 0, 'diff': [], 'gone': 0}
-    try:
-        with open(src, 'rb') as fh:
-            data = fh.read()          # read once: a build running beside the test may replace or delete the file
-    except OSError:
-        stats['gone'] = 1
-        return stats
+def corpus_runs(data: bytes, h: str, d: str, run: Runner) -> list[list[Any]]:
+    """Every command on one corpus file (its bytes data, SHA-1 h) in the folder d: [label, exit code, stdout digest,
+    stderr digest, the folder's digest] per run - as dbxedit_golden_game_0.json / _1.json recorded DbxEdit.exe's. The edited
+    import's edits and whether the edit battery runs (every 4th file) come from the file's SHA-1."""
+    rnd = random.Random(int(h[:8], 16))
     name = 'f.dbx'
+    out: list[list[Any]] = []
 
-    def one(label: str, files: dict[str, Any], args: list[str]) -> tuple[Any, Any]:
-        a, b = run_case(work, files, args)
-        ok, why = same(a, b)
-        stats['runs'] += 1
-        if not ok:
-            stats['diff'].append(f'{label} {src}: {why}')
-        return a, b
-    a, _ = one('xml', {name: data}, ['xml', '{d}\\' + name])
+    def one(label: str, files: dict[str, Any], args: list[str]) -> dict[str, bytes]:
+        got, b = run_case(d, files, args, run)
+        out.append([label, got[0], cg.digest(got[1]), cg.digest(got[2]), cg.tree_digest(d)])
+        return dict(b[3])
+    xml = one('xml', {name: data}, ['xml', '{d}\\' + name]).get('f.xml')
     one('roundtrip', {name: data}, ['roundtrip', '{d}\\' + name])
-    xml = a[3].get('f.xml')
     if xml is not None:
         one('import --like', {name: data, 'x.xml': xml}, ['import', '{d}\\x.xml', '{d}\\o.dbx', '--like', '{d}\\' + name])
         one('import (no reference)', {'x.xml': xml}, ['import', '{d}\\x.xml', '{d}\\o.dbx'])
@@ -690,27 +659,30 @@ def compare_file(src: str, work: str, rnd: random.Random, do_battery: bool) -> d
         one('import (edited)', {name: data, 'x.xml': edited}, ['import', '{d}\\x.xml', '{d}\\o.dbx', '--like', '{d}\\' + name])
         one('check', {name: data}, ['check', '{d}\\' + name])
         try:
-            commands = battery(data) if do_battery else []
+            commands = battery(data) if int(h[:2], 16) % 4 == 0 else []
         except ValueError:
             commands = []           # a file the suite's reader refuses: no battery (DbxEdit's own runs above)
         for c in commands:
-            one('edit ' + c.split('=')[0], {name: data}, ['edit', '{d}\\' + name, '{d}\\o.dbx', c])
-    return stats
+            one('edit ' + c, {name: data}, ['edit', '{d}\\' + name, '{d}\\o.dbx', c])
+    return out
 
 
-def golden_edits(check: Any, files: list[str], root: str) -> None:
-    """Every edit fingerprint of fingerprints_795745.txt (DbxEdit's output file, exit code and printed text), in
-    process."""
-    by_hash: dict[str, str] = {}
-    lines = [ln.split(' ', 5) for ln in open(FINGERPRINTS, encoding='utf-8') if ln.startswith('edit ')]
-    wanted = {p[1] for p in lines}
+def by_sha1(files: list[str]) -> dict[str, str]:
+    """{SHA-1: the first file with those bytes}."""
+    out: dict[str, str] = {}
     for f in files:
         try:
-            h = sha1(open(f, 'rb').read())
+            with open(f, 'rb') as fh:
+                out.setdefault(sha1(fh.read()), f)
         except OSError:
             continue
-        if h in wanted:
-            by_hash.setdefault(h, f)
+    return out
+
+
+def golden_edits(check: Any, by_hash: dict[str, str], root: str) -> None:
+    """Every edit fingerprint of fingerprints_795745.txt (DbxEdit's output file, exit code and printed text), in
+    process."""
+    lines = [ln.split(' ', 5) for ln in open(FINGERPRINTS, encoding='utf-8') if ln.startswith('edit ')]
     checked = bad = 0
     out = os.path.join(root, 'g.dbx')
     for p in lines:
@@ -733,7 +705,7 @@ def golden_edits(check: Any, files: list[str], root: str) -> None:
           'output file, exit code and printed text', f'{bad} differ')
 
 
-def game(check: Any, root: str, n: int) -> None:
+def game(check: Any, root: str) -> None:
     try:
         opfor: str | None = paths.find_opfor()
     except paths.PathsError:
@@ -741,39 +713,45 @@ def game(check: Any, root: str, n: int) -> None:
     if not opfor:
         print('     (no Project OPFOR BFBC2 copy: the corpus half skipped)')
         return
-    files = corpus_files(opfor)
-    golden_edits(check, files, root)
-    if not HAVE_EXE:
-        print('     (DbxEdit.exe not built: the corpus comparison skipped)')
-        return
-    rnd = random.Random(7)
-    pick = rnd.sample(files, min(n, len(files)))
+    by_hash = by_sha1(corpus_files(opfor))
+    golden_edits(check, by_hash, root)
+    recorded = {k: v for shard in (0, 1) for k, v in cg.load(GOLDEN_GAME.replace('*', str(shard))).get('files', {}).items()}
+    here = [(h, by_hash[h]) for h in sorted(recorded) if h in by_hash]
     t = time.time()
     workers = 4
+    chunks = [here[i::workers] for i in range(workers)]
+
+    def worker(k: int) -> tuple[int, list[str]]:
+        runs, bad = 0, []
+        for h, f in chunks[k]:
+            try:
+                with open(f, 'rb') as fh:
+                    data = fh.read()          # read once: a build beside the test may replace the file
+            except OSError:
+                continue
+            if sha1(data) != h:
+                continue
+            want = recorded[h][1]
+            got = corpus_runs(data, h, os.path.join(root, f'w{k}'), run_native)
+            runs += len(got)
+            if got != want:
+                diff = next((f'{w[0]}: {w[1:]} / {g[1:]}' for w, g in zip(want, got) if w != g),
+                            f'{len(want)} runs recorded, {len(got)} now')
+                bad.append(f'{f}: {diff}')
+        return runs, bad
     total, diffs = 0, []
-    chunks = [pick[i::workers] for i in range(workers)]
-
-    gone = 0
-
-    def worker(k: int) -> tuple[int, list[str], int]:
-        r = random.Random(k)
-        runs, bad, missing = 0, [], 0
-        for j, f in enumerate(chunks[k]):
-            s = compare_file(f, os.path.join(root, f'w{k}'), r, do_battery=j % 4 == 0)
-            runs += s['runs']
-            bad += s['diff']
-            missing += s['gone']
-        return runs, bad, missing
     with ThreadPoolExecutor(workers) as pool:
-        for runs, bad, missing in pool.map(worker, range(workers)):
+        for runs, bad in pool.map(worker, range(workers)):
             total += runs
             diffs += bad
-            gone += missing
     for d in diffs[:10]:
         print('       ' + d)
-    check(not diffs, f'{len(pick) - gone} corpus files ({gone} gone while the test ran), {total} command runs both ways (xml, roundtrip, import --like / none / '
-          f'edited, check, the edit battery on every 4th): the same files, messages and exit codes  '
-          f'({time.time() - t:.0f} s)', f'{len(diffs)} differ')
+    # the corpus is OPFOR's work folders: files rebuilt with other bytes since the recording are not there by SHA-1
+    check(not diffs and len(here) >= len(recorded) // 4,
+          f'{len(here)} of the {len(recorded)} recorded corpus files still there unchanged, {total} command runs (xml, '
+          f'roundtrip, import --like / none / edited, check, the edit battery on every 4th): the files, messages '
+          f'and exit codes DbxEdit.exe gave ({GOLDEN_GAME})  ({time.time() - t:.0f} s)',
+          f'{len(diffs)} differ' if diffs else 'fewer than a quarter of the recorded files are still there')
 
 
 def main(argv: list[str]) -> int:
@@ -787,13 +765,12 @@ def main(argv: list[str]) -> int:
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''), flush=True)
 
-    n = int(argv[argv.index('--sample') + 1]) if '--sample' in argv else 2000
     root = tempfile.mkdtemp(prefix='dbxedit_test_')
     try:
         quick(check, root)
         api(check, root)
         if '--game' in argv:
-            game(check, root, n)
+            game(check, root)
     finally:
         shutil.rmtree(root, ignore_errors=True)
     print(f'\n{"ALL PASSED" if not failed else f"{failed} FAILED"}')

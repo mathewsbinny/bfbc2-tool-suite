@@ -1,5 +1,5 @@
 //! FbrbTool's `unpack` in process: every entry written under a folder by its archive name, and the `fbrb.manifest`
-//! FbrbTool writes (`bfbc2-fbrb-tool/FbrbTool.cs`, `Unpack` and `LayoutTokens`), the same bytes.
+//! FbrbTool writes (FbrbTool.cs's `Unpack` and `LayoutTokens`; retired in round R4), the same bytes.
 //!
 //! Round E3j added it for the bundles every reader agrees on and left any other bundle to FbrbTool.exe; round E3k
 //! ported the rest of FbrbTool (its gzip reader, path rules, errors: [`super::tool`]), so every bundle is unpacked
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn unusual_bundles_as_fbrbtool_unpacks_them() {
-        // what FbrbTool.exe does with each (core/tests/test_fbrbtool.py runs the cases both ways)
+        // what FbrbTool.exe did with each (core/tests/test_fbrbtool.py checks the cases against its recorded answers)
         let d = temp("odd");
         let b = build(
             &[
