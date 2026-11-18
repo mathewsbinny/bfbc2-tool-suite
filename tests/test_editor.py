@@ -8,7 +8,11 @@ r"""The map editor's headless proof (rust\bc2-editor, round G1): its own tests, 
     (entities, order, categories and layers, teams, positions; the level found and loaded by the editor itself);
   - the 3D view drawn offscreen: not blank, the selection outlined in the `selection` colour and only there, picking,
     a click in the running editor selecting the entity under it, the command palette opening a top view, and each
-    of the four levels drawn with a flag selected and outlined.
+    of the four levels drawn with a flag selected and outlined;
+  - round G2: the view-* and scene-* tokens found in rendered frames and the overlays' contrast measured on them,
+    the panel contrast and the third neutral's hue distance, team labels by faction on BFBC2, Vietnam and WW2 levels
+    (read only), Help generated from the action registry, and opening a level that needs preparing (a stand-in
+    script; the real preparation only with BC2_EDITOR_PREPARE=<level>, on a stand-in OPFOR folder in temp).
 
 Read only. The game-data parts are skipped (with a note) without the game copy, the GPU parts without any graphics
 adapter; the whole is skipped (exit 0) without Rust. BC2_EDITOR_SHOTS=<folder> saves the screenshots there.
@@ -38,7 +42,8 @@ def main() -> int:
     r = subprocess.run([cargo, 'test', '-p', 'bc2-editor', '--', '--nocapture', '--test-threads', '1'], cwd=RUST, env=env,
                        capture_output=True, text=True, encoding='utf-8', errors='replace')
     out = (r.stdout + r.stderr).splitlines()
-    keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared')
+    keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared',
+            'levels in this game copy', 'median')
     for line in out:
         if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))

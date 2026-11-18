@@ -40,6 +40,27 @@ fn entity(index: usize, ty: &str, category: &str, team: Option<u8>, name: Option
     }
 }
 
+/// The demo scene's teams, as a BFBC2 level's description would say them (US / RU; made up like the scene).
+#[must_use]
+pub fn teams() -> crate::factions::Teams {
+    use crate::factions::{Profile, Side, Teams, faction_side};
+    let side = |f: &str| {
+        let (label, name) = faction_side(Profile::Bfbc2, f).unwrap_or(("?", "?"));
+        Side {
+            label: label.into(),
+            name: name.into(),
+            faction: Some(f.into()),
+        }
+    };
+    Teams {
+        team1: side("FactionUS"),
+        team2: side("FactionRUS"),
+        attacker: None,
+        source: "The demo scene's made-up level description: FactionTeam1 FactionUS, FactionTeam2 FactionRUS.".into(),
+        from_data: true,
+    }
+}
+
 /// The demo scene's entities: 0 the house (with collision), 1 a team-1 soldier spawn, 2 a neutral flag, 3 a team-2
 /// vehicle spawn, 4 an area point.
 #[must_use]

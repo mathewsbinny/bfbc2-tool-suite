@@ -31,6 +31,8 @@ pub enum Action {
     ToggleTheme,
     /// Back to the start screen.
     CloseMap,
+    /// Opens the Help window (controls and shortcuts, getting started, the workspaces).
+    Help,
 }
 
 /// An action's entry in the registry.
@@ -119,6 +121,12 @@ pub fn registry() -> Vec<Entry> {
             name: "Close map",
             shortcut: None,
             help: "Back to the start screen",
+        },
+        Entry {
+            action: Action::Help,
+            name: "Help",
+            shortcut: key(Modifiers::NONE, Key::F1),
+            help: "Controls and shortcuts, a getting-started guide, and what each workspace is for",
         },
     ]);
     out

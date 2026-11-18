@@ -67,7 +67,7 @@ fn renders_the_scene_and_outlines_the_selection() {
         let r = Renderer::new(&gpu);
         let target = r.target(&gpu, SIZE);
         let view = camera().view([f64::from(SIZE[0]), f64::from(SIZE[1])]);
-        let sel = palette.selection;
+        let sel = palette.view_selection;
         let sel = [sel.r(), sel.g(), sel.b()];
         // nothing selected: no selection colour anywhere
         r.render(&gpu, &sg, &target, &view.matrix(), &palette);
@@ -86,8 +86,9 @@ fn renders_the_scene_and_outlines_the_selection() {
                 colours.insert(pixel(&plain, x, y));
             }
         }
-        assert!(colours.len() > 20, "{theme:?}: only {} colours", colours.len());
-        let bg = palette.ground;
+        // (the darker G2 terrain gives fewer shades than G1's: 19 in Dark at this size)
+        assert!(colours.len() > 12, "{theme:?}: only {} colours", colours.len());
+        let bg = palette.scene_sky;
         assert_eq!(
             pixel(&plain, 2, 2),
             [bg.r(), bg.g(), bg.b()],
