@@ -1,4 +1,4 @@
-//! Bundle packing, byte for byte as FbrbTool's `pack` (`bfbc2-fbrb-tool/FbrbTool.cs`, `Pack`): a folder FbrbTool
+//! Bundle packing, byte for byte as FbrbTool's `pack` (FbrbTool.cs's `Pack`, retired in round R4): a folder FbrbTool
 //! unpacked (its files and `fbrb.manifest`) back into a bundle.
 //!
 //! The manifest's first line holds `zipped=1` for a gzip payload and, for DICE's padded uncompressed bundles, the

@@ -43,11 +43,8 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit', 'navkit-tools', 'core')
 from bfbc2core import fbrb as corefbrb  # noqa: E402
-from bfbc2core import fbrbtool  # noqa: E402
 from bfbc2core import paths as corepaths  # noqa: E402  (not `paths`: the functions below name their Paths that)
 
-FBRB = corepaths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe', SUITE)
-DBX = corepaths.suite_tool('bfbc2-dbx-tools', 'DbxEdit.exe', SUITE)
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
 
 DONOR_LEVEL = 'SP_004_B'
@@ -60,14 +57,6 @@ APPLIED = '.opfor-stockmp-applied'     # install --apply: the sha256 of the file
 
 class BuildError(Exception):
     pass
-
-
-def run(*args: object, ok: tuple[int, ...] = (0,)) -> str:
-    # FbrbTool's command lines run in process (bfbc2core.fbrbtool; BFBC2_FBRBTOOL_EXE=1 runs the exe), others as given
-    r = fbrbtool.run_cmd([str(a) for a in args], capture_output=True, text=True, errors='replace')
-    if r.returncode not in ok:
-        raise BuildError(f'failed: {" ".join(map(str, args))}\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}')
-    return r.stdout
 
 
 def pack_bundle(folder: str, out: str) -> None:
@@ -89,9 +78,9 @@ def pack_bundles(items: list[tuple[str, str]]) -> None:
 
 def build_folder(bundle: str, src: str, dst: str) -> None:
     """dst: the bundle's folder to author in - what shutil.copytree of its cached unpack src gives (src less its
-    .source.sha256 stamp). Unpacked afresh in the Rust core when it takes the bundle (the same files, proven against
-    FbrbTool: 1.4 s for Atacama's 2,359 files where the copy takes 4 s - creating the files is the cost, and the core
-    writes them on all cores), else copied from src."""
+    .source.sha256 stamp). Unpacked afresh in the Rust core when it takes the bundle (FbrbTool's files: 1.4 s for
+    Atacama's 2,359 files where the copy takes 4 s - creating the files is the cost, and the core writes them on all
+    cores), else copied from src."""
     if corefbrb.unpack_in_process(bundle, dst):
         return
     shutil.rmtree(dst, ignore_errors=True)

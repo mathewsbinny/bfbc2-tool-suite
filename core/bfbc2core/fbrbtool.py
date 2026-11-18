@@ -1,25 +1,27 @@
-r"""FbrbTool's commands in process: bfbc2-fbrb-tool\FbrbTool.exe's unpack, pack, list and big run by the suite's Rust
-core (rust\bc2-formats\src\fbrb\tool.rs, a port of FbrbTool.cs), without starting .NET for each call. The same files
-are written, byte for byte, with the same messages and exit codes (rust\BENCHMARKS.md, "E3k").
+r"""FbrbTool's commands: unpack, pack, list and big, run in process by the suite's Rust core
+(rust\bc2-formats\src\fbrb\tool.rs, a port of FbrbTool.cs), without starting .NET for each call. The same files are
+written, byte for byte, with the same messages and exit codes FbrbTool.exe gave (rust\BENCHMARKS.md, "E3k"; the exe was
+retired 2026-11-18, round R4: core\tests\test_fbrbtool.py checks against its recorded answers).
 
     from bfbc2core import fbrbtool
     r = fbrbtool.run(['unpack', bundle, folder])               # a CompletedProcess: returncode, stdout, stderr
     r = fbrbtool.unpack(bundle, folder)                         # the same, by command
     r = fbrbtool.pack(folder, bundle);  fbrbtool.list_entries(bundle);  fbrbtool.big(big_file, folder)
     rs = fbrbtool.run_many([[...], [...]])                      # many command lines on all cores
-    r = fbrbtool.run_cmd([FBRBTOOL_EXE, 'unpack', b, d], check=True, capture_output=True)   # drop-in for subprocess.run
+    r = fbrbtool.run_cmd(['FbrbTool', 'unpack', b, d], check=True, capture_output=True)   # drop-in for subprocess.run
 
-run_cmd takes a command line that starts with FbrbTool.exe's path (as callers build them for subprocess.run) and the
-keyword arguments those callers pass (capture_output, text, check, stdout=..., ...): switching a caller is one line.
-Output is text with '\n' line ends (as subprocess.run(..., text=True) gives FbrbTool's), or bytes with '\r\n' when text
-is false. A call with cwd= runs the exe (its relative paths are the exe's to resolve).
+    python bfbc2-fbrb-tool\fbrbtool.py <command> ...           # the command line FbrbTool.exe had (main())
 
-BFBC2_FBRBTOOL_EXE=1 runs FbrbTool.exe instead (for comparison; FbrbTool.exe must be built: bfbc2-fbrb-tool\build.bat).
-Without the Rust core (bfbc2core.native: not built, or built from other sources) the exe is used as well, with a
-warning once - the exe stays the reference this round.
+run_cmd takes a command line whose program is FbrbTool ('FbrbTool', or FbrbTool.exe by any path: no file needs to be
+there, as callers built them for subprocess.run) and the keyword arguments those callers pass (capture_output, text,
+check, stdout=..., ...). Output is text with '\n' line ends (as subprocess.run(..., text=True) gave FbrbTool's), or bytes
+with '\r\n' when text is false. With cwd=, the command's relative paths are taken from that folder.
 
-Each in-process run is logged as FbrbTool logs itself (%LOCALAPPDATA%\bfbc2-tool-suite\logs\fbrbtool-<date>.log), its
-start line marked "(in process)".
+The Rust core is required (bfbc2core.native.require: NativeMissing says how to get it); BFBC2_FBRBTOOL_EXE, the switch
+that ran FbrbTool.exe instead, is gone with the exe.
+
+Each run is logged as FbrbTool logged itself (%LOCALAPPDATA%\bfbc2-tool-suite\logs\fbrbtool-<date>.log), its start
+line marked "(in process)".
 """
 from __future__ import annotations
 
@@ -27,34 +29,15 @@ import datetime
 import os
 import subprocess
 import sys
-import warnings
 from collections.abc import Iterable, Sequence
 from typing import Any
 
 from . import caches, native
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-SUITE = os.path.dirname(os.path.dirname(HERE))
-EXE = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
-EXE_ENV = 'BFBC2_FBRBTOOL_EXE'
 NATIVE_ATTR = 'fbrbtool_run'
+WHAT = 'FbrbTool\'s commands'
 
 Result = subprocess.CompletedProcess
-_state: dict[str, Any] = {}
-
-
-def use_exe() -> bool:
-    """Whether FbrbTool.exe runs instead of the Rust core: BFBC2_FBRBTOOL_EXE=1, or no usable Rust core."""
-    if os.environ.get(EXE_ENV, '') not in ('', '0'):
-        return True
-    m = native.load()
-    if m is None or not hasattr(m, NATIVE_ATTR):
-        if not _state.get('warned'):
-            _state['warned'] = True
-            warnings.warn('bfbc2core.fbrbtool: the Rust core is not available, FbrbTool.exe runs instead',
-                          RuntimeWarning, stacklevel=3)
-        return True
-    return False
 
 
 def log_path() -> str | None:
@@ -91,35 +74,29 @@ def _result(args: Sequence[str], code: int, out: str, err: str, text: bool, cmd:
                                        err.replace('\n', '\r\n').encode('utf-8'))
 
 
-def _exe(args: Sequence[str], exe: str | None, text: bool) -> Result:
-    return subprocess.run([exe or EXE, *args], capture_output=True, text=text)
-
-
 def _native_run(args: Sequence[str]) -> tuple[int, str, str]:
     path = log_path()
-    code, out, err, lines = native.require('FbrbTool in process', NATIVE_ATTR).fbrbtool_run(list(args), path)
+    code, out, err, lines = native.require(WHAT, NATIVE_ATTR).fbrbtool_run(list(args), path)
     _log(path, args, lines)
     return code, out, err
 
 
-def run(args: Sequence[str], *, text: bool = True, check: bool = False, exe: str | None = None) -> Result:
-    """One FbrbTool command line (without the program name), in process unless use_exe(). check: raise
-    subprocess.CalledProcessError on a non-zero exit code, as subprocess.run(check=True)."""
+def run(args: Sequence[str], *, text: bool = True, check: bool = False) -> Result:
+    """One FbrbTool command line (without the program name), in process. check: raise subprocess.CalledProcessError
+    on a non-zero exit code, as subprocess.run(check=True)."""
     args = [os.fspath(a) for a in args]
-    r = _exe(args, exe, text) if use_exe() else _result(args, *_native_run(args), text)
+    r = _result(args, *_native_run(args), text)
     if check:
         r.check_returncode()
     return r
 
 
 def run_many(runs: Sequence[Sequence[str]], *, text: bool = True) -> list[Result]:
-    """Many command lines at once: in process on all cores (none may write a file or folder another reads or
-    writes), else FbrbTool.exe one after another. Results in order."""
+    """Many command lines at once, in process on all cores (none may write a file or folder another reads or
+    writes). Results in order."""
     runs = [[os.fspath(a) for a in r] for r in runs]
-    if use_exe():
-        return [_exe(r, None, text) for r in runs]
     path = log_path()
-    outs = native.require('FbrbTool in process', NATIVE_ATTR).fbrbtool_run_many(runs, path)
+    outs = native.require(WHAT, NATIVE_ATTR).fbrbtool_run_many(runs, path)
     results = []
     for args, (code, out, err, lines) in zip(runs, outs):
         _log(path, args, lines)
@@ -136,15 +113,18 @@ def is_fbrbtool(program: str) -> bool:
 def run_cmd(cmd: Sequence[Any], *, capture_output: bool = False, text: bool = False, check: bool = False,
             encoding: str | None = None, errors: str | None = None, universal_newlines: bool | None = None,
             **kwargs: Any) -> Result:
-    """subprocess.run(cmd, ...) for a command line starting with FbrbTool.exe's path: the command runs in process
-    (unless use_exe() or cwd= is given: then that exe). Other programs run with subprocess.run as given.
-    capture_output defaults to False, as subprocess.run's does; stdout= / stderr= (PIPE, DEVNULL, STDOUT, a file) are
-    honoured as subprocess.run honours them."""
+    """subprocess.run(cmd, ...) for a command line whose program is FbrbTool: the command runs in process (with cwd=,
+    its relative paths taken from that folder). Other programs run with subprocess.run as given. capture_output
+    defaults to False, as subprocess.run's does; stdout= / stderr= (PIPE, DEVNULL, STDOUT, a file) are honoured as
+    subprocess.run honours them."""
     cmd = [os.fspath(c) for c in cmd]
     as_text = bool(text or universal_newlines or encoding or errors)
-    if not cmd or not is_fbrbtool(cmd[0]) or use_exe() or kwargs.get('cwd') is not None:
+    if not cmd or not is_fbrbtool(cmd[0]):
         return subprocess.run(cmd, capture_output=capture_output, text=bool(text or universal_newlines), check=check,
                               encoding=encoding, errors=errors, **kwargs)
+    cwd = kwargs.get('cwd')
+    if cwd is not None:
+        cmd = cmd[:2] + [a if not a or os.path.isabs(a) else os.path.join(os.fspath(cwd), a) for a in cmd[2:]]
     code, out, err = _native_run(cmd[1:])
     r = _result(cmd[1:], code, out, err, as_text, cmd)
     if not capture_output:
@@ -195,3 +175,18 @@ def list_entries(bundle: str, **kw: Any) -> Result:
 def big(path: str, folder: str, **kw: Any) -> Result:
     """FbrbTool big: every file of a BIGF / BIG4 archive (a SwfMovie resource) under folder."""
     return run(['big', path, folder], **kw)
+
+
+def main(argv: Sequence[str]) -> int:
+    """The command line FbrbTool.exe had (bfbc2-fbrb-tool\\fbrbtool.py): its output printed, its exit code returned.
+    Without arguments, the usage."""
+    try:
+        r = run(list(argv))
+    except native.NativeMissing as e:
+        print(f'error: {e}', file=sys.stderr)
+        return 1
+    if r.stdout:
+        sys.stdout.write(r.stdout)
+    if r.stderr:
+        sys.stderr.write(r.stderr)
+    return int(r.returncode)

@@ -1,10 +1,11 @@
-// DbxEdit test suite. Built and run by tests\run_tests.bat; compiled together with DbxEdit.cs and DbxEditGUI.cs.
+// Tests of DbxEditGUI and the DBX classes it is built on (DbxEdit.cs). Built and run by tests\run_tests.bat;
+// compiled together with DbxEdit.cs and DbxEditGUI.cs. DbxEdit's command line (DbxEdit.exe) was retired 2026-11-18:
+// its commands run in the suite's Rust core, tested by core\tests\test_dbxedit.py against the exe's recorded answers
+// (which include this file's command-line cases and fingerprints_795745.txt's edit fingerprints).
 //
 //   DbxTests                                   unit tests: small files built in memory (no game data needed)
 //   DbxTests --corpus <folder> [...]           + every binary .dbx under the folders: round trip, XML import
 //                                              identity, edited imports, imports without a reference
-//   DbxTests --corpus ... --golden <file>      + fingerprints: outputs must match recorded SHA-1s
-//   DbxTests --corpus ... --make-golden <file> record fingerprints (do this only with a version known to be right)
 //   --edit-every <n>   edited-import test on every n-th corpus file (default 25)
 //   --no-gui           skip the window test
 // Exit code 0 = all passed.
@@ -36,14 +37,11 @@ static class DbxTests
     static int Main(string[] args)
     {
         var corpus = new List<string>();
-        string golden = null, makeGolden = null;
         int editEvery = 25;
         bool gui = true;
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--corpus") { while (i + 1 < args.Length && !args[i + 1].StartsWith("--")) corpus.Add(args[++i]); }
-            else if (args[i] == "--golden") golden = args[++i];
-            else if (args[i] == "--make-golden") makeGolden = args[++i];
             else if (args[i] == "--edit-every") editEvery = int.Parse(args[++i]);
             else if (args[i] == "--no-gui") gui = false;
             else { Console.Error.WriteLine("unknown option " + args[i]); return 2; }
@@ -62,13 +60,10 @@ static class DbxTests
                 new KeyValuePair<string, Action>("graft and copyfield", GraftCopy),
                 new KeyValuePair<string, Action>("level check", LevelChecks),
                 new KeyValuePair<string, Action>("cull-slot fixer", Slots),
-                new KeyValuePair<string, Action>("command line", CommandLine),
             };
             if (gui) groups.Add(new KeyValuePair<string, Action>("window", Window));
             foreach (var g in groups) Run(g.Key, g.Value);
-            if (corpus.Count > 0 && makeGolden == null) Run("corpus", () => Corpus(corpus, editEvery));
-            if (makeGolden != null) Run("make fingerprints", () => MakeGolden(corpus, makeGolden));
-            if (golden != null) Run("fingerprints", () => Golden(corpus, golden));
+            if (corpus.Count > 0) Run("corpus", () => Corpus(corpus, editEvery));
         }
         finally
         {
@@ -465,42 +460,6 @@ static class DbxTests
         Check(res.ByGuid == 1 && res.ByPosition == 1 && res.ByNearest == 1 && res.NoCounterpart == 1 && res.Changed == 4, "fixslots counts");
     }
 
-    static string Exe { get { return Path.GetFullPath(Path.Combine(Here, "..", "DbxEdit.exe")); } }
-
-    static string RunExe(string args, out int code)
-    {
-        var p = new Process { StartInfo = new ProcessStartInfo(Exe, args) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true } };
-        p.Start();
-        string o = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
-        p.WaitForExit();
-        code = p.ExitCode;
-        return o;
-    }
-
-    static void CommandLine()
-    {
-        if (!File.Exists(Exe)) { Check(false, "DbxEdit.exe not built next to the tests"); return; }
-        string a = Path.Combine(temp, "cli.dbx"), b = Path.Combine(temp, "cli_out.dbx");
-        File.WriteAllBytes(a, Sample().Bytes());
-        int code;
-        string o = RunExe("edit \"" + a + "\" \"" + b + "\" setfield=" + G1 + "|Count|9 drop=" + G3, out code);
-        Check(code == 0 && o.Contains("drop " + G3 + ": 1 instance(s)") && o.Contains("setfield: 1 field(s)"), "edit: messages and exit code");
-        Check(Value(new DbxFile(b), G1, "Count") == "9", "edit: result written");
-        o = RunExe("edit \"" + a + "\" \"" + b + "\" drop=00000000-0000-0000-0000-000000000000", out code);
-        Check(code == 1 && o.Contains("no instance"), "edit: error exit code 1");
-        o = RunExe("edit \"" + a + "\" \"" + b + "\" nonsense", out code);
-        Check(code == 2 && o.Contains("unknown command"), "edit: unknown command exit code 2");
-        o = RunExe("xml \"" + a + "\"", out code);
-        Check(code == 0 && File.Exists(Path.ChangeExtension(a, ".xml")) && o.Contains("converted 1 file(s)"), "xml");
-        o = RunExe("import \"" + Path.ChangeExtension(a, ".xml") + "\" \"" + b + "\"", out code);
-        Check(code == 0 && File.ReadAllBytes(b).SequenceEqual(File.ReadAllBytes(a)), "import (original next to the XML) gives the original back");
-        o = RunExe("roundtrip \"" + a + "\"", out code);
-        Check(code == 0 && o.Contains("1 identical"), "roundtrip");
-        File.WriteAllBytes(a, LevelSample().Bytes());
-        o = RunExe("check \"" + a + "\"", out code);
-        Check(code == 0 && o.Contains("0 error(s)"), "check: clean level exit code 0");
-    }
-
     static object Field(object o, string name) { return o.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(o); }
     static void Call(object o, string name, params object[] a) { o.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(o, a); }
 
@@ -683,113 +642,10 @@ static class DbxTests
         return ok;
     }
 
-    // ------------------------------------------------------------------------------------------- fingerprints
+    // ------------------------------------------------------------------------------------------- hashes
 
     static string Sha1(byte[] b)
     {
         using (var h = SHA1.Create()) return BitConverter.ToString(h.ComputeHash(b)).Replace("-", "").ToLowerInvariant();
-    }
-
-    // Command batteries for one level file, from its own content (deterministic).
-    static List<string> Battery(DbxFile f)
-    {
-        var cmds = new List<string>();
-        var instances = f.Instances().ToList();
-        var guids = new HashSet<string>(instances.Select(i => f.Get(i, "guid") ?? ""), StringComparer.OrdinalIgnoreCase);
-        var referenced = new List<string>();
-        Action<Element> walk = null;
-        walk = e => { string r = f.Get(e, "ref"); if (r != null && guids.Contains(r) && !referenced.Contains(r)) referenced.Add(r); if (e.IsContainer) foreach (var c in e.Children) walk(c); };
-        foreach (var e in f.TopLevel) walk(e);
-        if (referenced.Count > 0) cmds.Add("drop=" + referenced[referenced.Count / 2]);
-        string name = instances.SelectMany(i => i.Children).Where(c => f.Get(c, "name") == "Name" && c.Kind == Element.Text).Select(c => XmlExport.ValueText(f, c)).FirstOrDefault(v => v.Length > 0 && v.IndexOf('|') < 0);
-        if (name != null) { cmds.Add("replace=" + name + "|" + name + "_X"); cmds.Add("replaceprefix=" + name.Split('/')[0] + "|OPFOR_TEST|" + name.Split('/')[0] + "/zz"); }
-        cmds.Add("dropfield=Enumeration");
-        cmds.Add("partguid=11111111-2222-3333-4444-555555555555");
-        var b = instances.SelectMany(i => i.Children).FirstOrDefault(c => c.Kind == 6 && f.Get(c, "name") != null);
-        if (b != null) cmds.Add("set=" + f.Get(b, "name") + "|true");
-        foreach (var i in instances)
-        {
-            var n4 = i.Children.FirstOrDefault(c => c.Kind == Element.Numbers && c.Payload.Length == 6 && f.Get(c, "name") != null);
-            if (n4 != null) { cmds.Add("setfield=" + f.Get(i, "guid") + "|" + f.Get(n4, "name") + "|42"); break; }
-        }
-        foreach (var i in instances)
-        {
-            var arr = i.Children.FirstOrDefault(c => f.TagOf(c) == "array" && c.IsContainer && c.Children.Count > 0 && f.TagOf(c.Children[0]) == "item" && f.Get(c, "name") != null);
-            if (arr != null) { cmds.Add("additem=" + f.Get(i, "guid") + "|" + f.Get(arr, "name") + "|aaaaaaaa-0000-0000-0000-000000000000"); break; }
-        }
-        return cmds;
-    }
-
-    static bool IsLevelPartition(string path)
-    {
-        return Regex.IsMatch(path, @"[\\/]levels[\\/][^\\/]+\.dbx$", RegexOptions.IgnoreCase) && new FileInfo(path).Length > 20000;
-    }
-
-    static void MakeGolden(List<string> roots, string path)
-    {
-        if (!File.Exists(Exe)) { Check(false, "DbxEdit.exe not built"); return; }
-        var lines = new List<string> { "# DbxEdit fingerprints: <test> <input sha1> <output sha1> [commands] - made " + DateTime.Now.ToString("yyyy-MM-dd") };
-        var seen = new HashSet<string>();
-        int levels = 0;
-        foreach (string f in CorpusFiles(roots))
-        {
-            byte[] data = File.ReadAllBytes(f);
-            var d = new DbxFile(data);
-            if (!d.IsBinary) continue;
-            string h = Sha1(data);
-            if (!seen.Add(h)) continue;
-            lines.Add("xml " + h + " " + Sha1(new UTF8Encoding(false).GetBytes(XmlExport.Convert(data))));
-            if (IsLevelPartition(f) && levels < 20)
-            {
-                levels++;
-                foreach (string c in Battery(d))
-                {
-                    int code;
-                    string outPath = Path.Combine(temp, "g.dbx");
-                    if (File.Exists(outPath)) File.Delete(outPath);
-                    string o = RunExe("edit \"" + f + "\" \"" + outPath + "\" " + Quote(c), out code);
-                    string result = File.Exists(outPath) ? Sha1(File.ReadAllBytes(outPath)) : "none";
-                    lines.Add("edit " + h + " " + result + " " + code + " " + Sha1(Encoding.UTF8.GetBytes(o)) + " " + c);
-                }
-            }
-        }
-        File.WriteAllLines(path, lines);
-        Console.WriteLine("  wrote " + (lines.Count - 1) + " fingerprints to " + path);
-        Check(lines.Count > 1, "fingerprints recorded");
-    }
-
-    static string Quote(string c) { return "\"" + c + "\""; }
-
-    static void Golden(List<string> roots, string path)
-    {
-        var byHash = new Dictionary<string, string>();
-        foreach (string f in CorpusFiles(roots))
-        {
-            try { string h = Sha1(File.ReadAllBytes(f)); if (!byHash.ContainsKey(h)) byHash[h] = f; } catch (IOException) { }
-        }
-        int checkedN = 0, missing = 0, bad = 0;
-        foreach (string line in File.ReadAllLines(path))
-        {
-            if (line.StartsWith("#") || line.Trim().Length == 0) continue;
-            var p = line.Split(new[] { ' ' }, 6);
-            string file;
-            if (!byHash.TryGetValue(p[1], out file)) { missing++; continue; }
-            checkedN++;
-            bool ok;
-            if (p[0] == "xml") ok = Sha1(new UTF8Encoding(false).GetBytes(XmlExport.Convert(File.ReadAllBytes(file)))) == p[2];
-            else
-            {
-                int code;
-                string outPath = Path.Combine(temp, "g.dbx");
-                if (File.Exists(outPath)) File.Delete(outPath);
-                string o = RunExe("edit \"" + file + "\" \"" + outPath + "\" " + Quote(p[5]), out code);
-                string result = File.Exists(outPath) ? Sha1(File.ReadAllBytes(outPath)) : "none";
-                ok = result == p[2] && code.ToString() == p[3] && Sha1(Encoding.UTF8.GetBytes(o)) == p[4];
-            }
-            if (!ok) { bad++; if (bad <= 10) Console.WriteLine("  FAIL  fingerprint differs: " + line.Substring(0, Math.Min(140, line.Length)) + "  (" + file + ")"); }
-        }
-        Console.WriteLine("  fingerprints: " + checkedN + " checked, " + bad + " different, " + missing + " without their input file here");
-        Check(checkedN > 0, "some fingerprints could be checked");
-        Check(bad == 0, "every fingerprint matches");
     }
 }
