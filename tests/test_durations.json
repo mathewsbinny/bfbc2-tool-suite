@@ -29,6 +29,7 @@
  "DbxEdit in process against DbxEdit.exe (the unit tests' 82 cases both ways, the drop-in runner, the batch, the log)": 5.5,
  "Rust FBRB packer against FbrbTool, zlib against Python's (built folders in every layout, 8 game bundles)": 5.3,
  "error handling and logs": 0.5,
+ "cache caps and pruning (bfbc2core.caches): least recently used first, writers and readers beside it, the command": 2.2,
  "every command-line tool reports errors": 2.2,
  "review fixes: apply inputs, stock-MP reinstall, studio flags, cache key": 0.5,
  "review fixes 2: harness missing files, navkit no-original reinstall, old fbrb manifests": 0.4,

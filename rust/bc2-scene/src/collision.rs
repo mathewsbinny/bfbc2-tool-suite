@@ -265,7 +265,9 @@ fn store_caches<P: AsRef<Path>>(
         let old = cached.get(b);
         let unchanged =
             old.is_some_and(|old| old.len() == entries.len() && entries.iter().all(|(k, e)| old.get(*k) == Some(*e)));
-        if !unchanged {
+        if unchanged {
+            alias_cache::touch(dir, base.as_ref()); // used: its time is the cache's least-recently-used clock
+        } else {
             let _ = alias_cache::store(dir, base.as_ref(), &entries);
         }
     }
