@@ -18,10 +18,18 @@ ON HOLD - needs playtest (designed, not run by the harness):
                  stream exists.
 """
 import bisect
+import os
 import re
+import sys
 from dataclasses import dataclass, field
+from types import ModuleType
 
 from .checks import Result
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
 
 START = re.compile(r'---- opfor\.dll loaded into PID (\d+) ----')
 STAMP = re.compile(r'^\[(\d\d:\d\d:\d\d)\.\d+\]')
@@ -69,7 +77,46 @@ class Session:
         return IN_GAME in self.states
 
 
+def _native() -> 'ModuleType | None':
+    """bc2_native with the harness functions (crash-reader\\harnesscore.py), or None."""
+    suite_paths.use('crash-reader')
+    import harnesscore
+    return harnesscore.native()
+
+
+def _from_tuples(rows: list) -> list[Session]:
+    return [Session(pid, start, level, list(states), list(events), [tuple(o) for o in loads],
+                    tuple(override) if override is not None else None, list(pf), crashed, exited, lines)
+            for pid, start, level, states, events, loads, override, pf, crashed, exited, lines in rows]
+
+
 def sessions(text: str) -> list[Session]:
+    """The sessions of an opfor.log's text: the Rust core's (round E4f, rust\\bc2-harness: the text split and searched
+    on all cores) when it is built and takes the text, else sessions_python."""
+    nat = _native()
+    if nat is not None:
+        rows = nat.harness_sessions(text)
+        if rows is not None:
+            return _from_tuples(rows)
+    return sessions_python(text)
+
+
+def sessions_of_file(path: str) -> list[Session]:
+    """sessions(open(path, encoding='utf-8', errors='replace').read()): with the Rust core the file is read and decoded
+    there (no Python text of the whole log: 2.4 s of a 349 MB log)."""
+    nat = _native()
+    if nat is not None:
+        try:
+            rows = nat.harness_sessions_file(path)
+        except OSError:
+            rows = None                 # the file not readable: Python's open raises the error, in its words
+        if rows is not None:
+            return _from_tuples(rows)
+    with open(path, encoding='utf-8', errors='replace') as fh:
+        return sessions_python(fh.read())
+
+
+def sessions_python(text: str) -> list[Session]:
     """The sessions of an opfor.log's text. Only the lines ANY finds are read by sessions_reference's rules, one
     by one; between them the lines are counted (the same Sessions: tests/test_harness.py). A text without a
     carriage return (a log read in text mode) is searched whole: its line breaks are single characters, newlines

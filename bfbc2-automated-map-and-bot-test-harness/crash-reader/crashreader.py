@@ -84,13 +84,58 @@ def read_symbols(paths):
 
 # --------------------------------------------------------------------------------------------------- the exe
 
+class Insn:
+    """An instruction from the Rust core (capstone's text and operands, rust\\bc2-harness's x86): address, size,
+    mnemonic, op_str, and operands as ('imm', value, '', '', 0) / ('mem', 0, base, index, disp) - what the tools read
+    of a capstone instruction."""
+    __slots__ = ('address', 'size', 'mnemonic', 'op_str', 'ops')
+
+    def __init__(self, t):
+        self.address, self.size, self.mnemonic, self.op_str, self.ops = t
+
+    def __repr__(self):
+        return f'<Insn 0x{self.address:x}: {self.mnemonic} {self.op_str}>'
+
+
+def _native():
+    import harnesscore
+    return harnesscore.native()
+
+
+def _capstone_installed():
+    import importlib.util
+    return importlib.util.find_spec('capstone') is not None and importlib.util.find_spec('pefile') is not None
+
+
 class Image:
-    """The exe's code, for disassembly (pefile + capstone)."""
+    """The exe's code, for disassembly: the Rust core's exe handle (round E4f, rust\\bc2-harness: pefile's mapping,
+    capstone's text, proved on every byte offset of BFBC2Game.exe's code) when it is built and maps the file, else
+    pefile + capstone (the reference, also where the core refuses: an instruction outside its proof)."""
 
     def __init__(self, path):
+        self.path = path
+        self._nat = None
+        nat = _native()
+        if nat is not None:
+            try:
+                # strict where capstone can take what the core refuses; without capstone the core answers alone
+                self._nat = nat.ExeHandle.open(path, _capstone_installed())
+            except NotImplementedError:
+                self._nat = None
+        if self._nat is None:
+            self._load_reference()
+        else:
+            self.base, self.end = self._nat.base, self._nat.end
+            self.code = [tuple(r) for r in self._nat.code_ranges()]
+
+    def _load_reference(self):
+        """pefile + capstone (ImportError without them)."""
+        if getattr(self, 'md', None) is not None:
+            return
         import capstone
         import pefile
-        pe = pefile.PE(path, fast_load=True)
+        pe = pefile.PE(self.path, fast_load=True)
+        self._pe = pe
         self.base = pe.OPTIONAL_HEADER.ImageBase
         self.data = pe.get_memory_mapped_image()
         self.end = self.base + len(self.data)
@@ -99,15 +144,34 @@ class Image:
         self.md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
         self.md.detail = True
 
+    def _native_call(self, name, *args):
+        """(True, the Rust core's answer) or (False, None) where it refuses (or is not in use): the reference then."""
+        nat = getattr(self, '_nat', None)
+        if nat is None:
+            return False, None
+        try:
+            return True, getattr(nat, name)(*args)
+        except NotImplementedError:
+            self._load_reference()
+            return False, None
+
     def is_code(self, a):
         return any(lo <= a < hi for lo, hi in self.code)
 
     def bytes_at(self, a, n):
+        nat = getattr(self, '_nat', None)
+        if nat is not None and getattr(self, 'md', None) is None:
+            self.data = nat.data()
         o = a - self.base
         return self.data[o:o + n]
 
     def function_start(self, a, limit=0x4000):
         """Heuristic: MSVC pads functions with int3 (0xCC); the function starts after the last pad before a."""
+        ok, got = self._native_call('function_start', a, limit)
+        return got if ok else self.function_start_reference(a, limit)
+
+    def function_start_reference(self, a, limit=0x4000):
+        self._load_reference()
         for p in range(a, max(a - limit, self.base), -1):
             o = p - self.base
             if self.data[o - 1] == 0xCC and self.data[o] != 0xCC and (p % 16 == 0 or self.data[o - 2] == 0xCC):
@@ -115,17 +179,30 @@ class Image:
         return None
 
     def disasm(self, start, stop):
+        ok, got = self._native_call('disasm', start, stop)
+        return [Insn(t) for t in got] if ok else self.disasm_reference(start, stop)
+
+    def disasm_reference(self, start, stop):
+        self._load_reference()
         return list(self.md.disasm(self.bytes_at(start, stop - start + 16), start))
 
     def around(self, eip, after=0x10):
         """(function start, instructions up to eip + after, index of the one at eip or None): decoded from the
         function start when it is near (instructions on real boundaries, as exeref.window does), else from the
         nearest point up to 0x60 bytes before eip whose decode lands on eip."""
-        start = self.function_start(eip)
+        ok, got = self._native_call('around', eip, after)
+        if ok:
+            start, ins, at = got
+            return start, [Insn(t) for t in ins], at
+        return self.around_reference(eip, after)
+
+    def around_reference(self, eip, after=0x10):
+        self._load_reference()
+        start = self.function_start_reference(eip)
         tries = ([start] if start is not None and eip - start <= 0x2000 else []) + list(range(max(eip - 0x60, self.base), eip + 1))
         ins: list = []
         for s in tries:
-            ins = [x for x in self.disasm(s, eip + after) if x.address <= eip + after]
+            ins = [x for x in self.disasm_reference(s, eip + after) if x.address <= eip + after]
             if any(x.address == eip for x in ins):
                 break
         at = next((k for k, x in enumerate(ins) if x.address == eip), None)
@@ -133,6 +210,13 @@ class Image:
 
     def call_before(self, ret):
         """The call instruction that ends exactly at a return address, if any."""
+        ok, got = self._native_call('call_before', ret)
+        if ok:
+            return Insn(got) if got is not None else None
+        return self.call_before_reference(ret)
+
+    def call_before_reference(self, ret):
+        self._load_reference()
         for length in (5, 6, 2, 3, 7, 4):
             for ins in self.md.disasm(self.bytes_at(ret - length, length), ret - length):
                 if ins.address + ins.size == ret and ins.mnemonic == 'call':
@@ -143,6 +227,19 @@ class Image:
 
 def null_operands(ins, regs):
     """Registers a memory operand of the instruction reads through that hold a null (or tiny) pointer."""
+    if isinstance(ins, Insn):
+        bad = []
+        for kind, _imm, base, index, disp in ins.ops:
+            if kind != 'mem':
+                continue
+            for r in (base, index):
+                if not r:
+                    continue
+                name = r.capitalize()
+                v = regs.get(name)
+                if v is not None and v < 0x10000:
+                    bad.append((name, v, disp))
+        return bad
     import capstone.x86 as x86
     bad = []
     for op in ins.operands:
@@ -207,6 +304,21 @@ def log_before_crash(path, lines=18, when=None):
     (log_before_crash_reference reads the whole text; tests/test_crashreader.py compares them)."""
     if REFERENCE:
         return log_before_crash_reference(path, lines, when)
+    nat = _native()
+    if nat is not None:
+        want = None
+        if when is not None:
+            import time
+            t = time.localtime(when)
+            want = t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
+        got = nat.crash_log_before(path, lines, want)       # the Rust core (round E4f); None: it refuses
+        if got is not None:
+            return got
+    return log_before_crash_python(path, lines, when)
+
+
+def log_before_crash_python(path, lines=18, when=None):
+    """log_before_crash in Python (round E3m's windows)."""
     try:
         with open(path, 'rb') as f:
             data = f.read()

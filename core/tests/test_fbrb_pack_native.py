@@ -39,14 +39,13 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, fbrb, paths  # noqa: E402
+from bfbc2core import fbrb, native, paths  # noqa: E402
 
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import csharp_golden as cg  # noqa: E402
 
-NATIVE: Any = dbx._import_native()
-NATIVE = NATIVE if NATIVE is not None and hasattr(NATIVE, 'fbrb_pack') else None
+NATIVE: Any = native.load()
 SMALL = 8
 EMPTY = 'identical but gzip headers and the empty payload stream DICE writes (FbrbTool writes none)'
 NOT_RECORDED = 'not recorded (bytes the recording has not seen, or over 300 MiB)'
@@ -231,7 +230,7 @@ def check_built(check: Any) -> None:
         write(target, b'an older bundle')
         counts = fbrb.pack(d, target)
         e = fbrb.entries(target)
-        check(fbrb.backend() == 'rust' and counts == (len(e), sum(x.size for x in e)) and cg.sha1_file(target) == first
+        check(counts == (len(e), sum(x.size for x in e)) and cg.sha1_file(target) == first
               and not [n for n in os.listdir(scratch) if '.tmp-' in n],
               'fbrb.pack runs in Rust: FbrbTool\'s bytes over an older bundle, (entries, payload bytes), no temporary '
               'file left')
@@ -240,18 +239,6 @@ def check_built(check: Any) -> None:
         check(all(isinstance(m, tuple) for m in many[:4]) and isinstance(many[4], OSError)
               and cg.sha1_file(os.path.join(scratch, 'm0.fbrb')) == first,
               'fbrb.pack_many: in order, a folder that cannot be packed gives its exception in its place')
-        fbrb.use_native(False)
-        try:
-            os.remove(target)
-            got_py = fbrb.pack(d, target)
-            many_py = fbrb.pack_many([(folders[1][1], os.path.join(scratch, 't1.fbrb')),
-                                      (refused[3][1], os.path.join(scratch, 'bad.fbrb'))])
-            check(fbrb.backend() == 'python' and got_py == counts and cg.sha1_file(target) == first
-                  and isinstance(many_py[0], tuple) and isinstance(many_py[1], ValueError),
-                  'use_native(False) (the Python reader) leaves pack in the Rust core: the same bundle and counts, '
-                  'its errors as ValueError / OSError (FbrbTool.exe, the fallback before, is retired)')
-        finally:
-            fbrb.use_native(True)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -368,9 +355,7 @@ def run_bundles(bundles: list[str], check: Any, label: str) -> None:
 # ------------------------------------------------------------------------------------------------ main
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py)')
-        return 0
+    native.require('the bundle packer', 'fbrb_pack')
     failed = 0
 
     def check(ok: bool, what: str, detail: str = '') -> None:

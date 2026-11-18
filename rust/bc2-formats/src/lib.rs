@@ -6,6 +6,8 @@
 //!
 //! - [`apt`]: EA APT UI movies (menus, HUDs), a port of the dump and instruction records of
 //!   `bfbc2-console-readers/apt/apt.py`.
+//! - [`aptmodel`]: the menu tools' movie model (`bfbc2-menu-tools/aptgraft.py`: parse, layouts, writes in either
+//!   byte order, leftovers, roundtrip); [`aptscan`]: `aptcheck`'s rules and `aptrefs`' scan over the decoded records.
 //! - [`dbx`]: binary `.dbx` partitions (`bfbc2-dbx-tools/FORMAT.md` sections 1-3), a port of
 //!   `core/bfbc2core/dbx.py`: the element tree, the readable XML (identical to `DbxEdit xml`), values and a writer.
 //! - [`dbxedit`]: DbxEdit's commands in process (`xml`, `edit`, `import`, `check`, `roundtrip`, `fixslots`), a
@@ -37,6 +39,8 @@
 #![deny(unsafe_code)]
 
 pub mod apt;
+pub mod aptmodel;
+pub mod aptscan;
 pub mod atomic;
 pub mod culltree;
 pub mod dbx;

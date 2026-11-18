@@ -573,7 +573,7 @@ by that many u32 offsets at +0x10.
   1.02-1.11x. The ground and the walkable line exist in NavKit's 0.8 m samples; NavKit's graph lacks nodes along
   the crossings. Level-wide, DICE's graph is not that straight: over node pairs within 15 m its route /
   straight ratio has median 1.34x and p90 3.12x (measured 2026-10-20; NavKit before repair 1.33x / 3.69x). The four
-  failing routes (3.15-6.38x) sit above DICE's p90, so the detour repair (navbuild DETOUR_*) targets only that
+  failing routes (3.15-6.38x) sit above DICE's p90, so the detour repair (navbuild DETOUR_*, rejected and removed 2026-11-18) targeted only that
   tail: pairs over 3.0x are given a walk of at most 1.3x. A first version repairing every pair over 1.3x was
   wrong as a policy - it made NavKit's graph far straighter than DICE's (median 1.08x, +65 % nodes, 4x edges).
   Unresolved: if DICE accepts 3x routes, the ratio alone may not be what makes the search fail; to be re-examined

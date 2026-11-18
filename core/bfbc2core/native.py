@@ -22,7 +22,9 @@ copied somewhere) has no fingerprint and any module is taken as it is.
 A module whose fingerprint differs (or has none: built before 2026-11-17, or by cargo / pip without
 BC2_SOURCE_HASH) is never used silently: load() returns None and warns once (the pieces with a Python twin run in
 Python), require() raises NativeMissing. BFBC2_PURE_PYTHON=1 turns off only the optional pieces (their use_native);
-the pieces whose Python was retired (texture conversion, NavKit's grid walks: 2026-11-17) always need the module.
+the pieces whose Python was retired (texture conversion, NavKit's grid walks: 2026-11-17; the conversions, the rest
+of NavKit, and the core formats - dbx, fbrb, terrain, water, collision, level, culltree's reader -: 2026-11-18)
+always need the module.
 """
 import hashlib
 import importlib

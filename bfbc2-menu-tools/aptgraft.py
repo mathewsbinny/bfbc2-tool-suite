@@ -138,7 +138,7 @@ import os
 import re
 import struct
 import sys
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, MutableMapping
 from typing import Any, Literal, cast, overload
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -168,6 +168,32 @@ ONE_BYTE = {0x8D, 0xA2, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3, 0xB5, 0xB9}
 POOL_BYTE = {0xA2, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3}
 OPS = {v: k for k, v in apt.NAMES.items()}
 
+# Round E4c: the model in the suite's Rust core (bc2_formats::aptmodel, bound as bc2_native.AptModel): Movie(...)
+# parses into a Rust handle and keeps no Python objects for the data until they are asked for (NativeMovie, below);
+# writes, plans, leftovers and roundtrip run there. BFBC2_PURE_PYTHON=1, use_native(False) or REFERENCE: this
+# module's Python model (the reference).
+
+
+def _import_native() -> Any:
+    n = apt._import_native()
+    return n if n is not None and hasattr(n, 'AptModel') else None
+
+
+_native = None if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0') else _import_native()
+
+
+def use_native(on: bool) -> str:
+    """The Rust model on (when the core is built) or off for this process; returns backend()."""
+    global _native
+    _native = _import_native() if on else None
+    return backend()
+
+
+def backend() -> str:
+    """'rust' when Movie(...) parses into the Rust model, else 'python'."""
+    return 'rust' if _native is not None and not REFERENCE else 'python'
+
+
 type AnyNode = Raw | Str | Words | Code      # a node of the model
 type Members = list[tuple[str, bytes]]      # a movie's BIGF members, [(name, bytes)] in index order
 type Resolver = Callable[[Any], int | None]     # node -> its written offset
@@ -188,7 +214,7 @@ class Ref:
 
 
 class Node:
-    __slots__ = ('file', 'at', 'size0', 'tag', 'new_at')
+    __slots__ = ('file', 'at', 'size0', 'tag', 'new_at', '_mv', '_rid')     # _mv, _rid: a NativeMovie's node
     file: str                               # 'apt', 'const' or 'geo'
     at: int | None                          # where it was read (None: new)
     size0: int | None                       # its size as read
@@ -606,9 +632,15 @@ class Plan:
 
 
 class Movie:
-    """A parsed movie. Movie(members=[(name, bytes)]) or Movie.load(spec)."""
+    """A parsed movie. Movie(members=[(name, bytes)]) or Movie.load(spec). With the Rust core (round E4c) the
+    object is a NativeMovie: the same API, the data held in Rust until asked for."""
     _cidx: dict[Any, int]                     # const_index(): {constant: index}, built on first use
     _memo: dict[int, tuple[int, dict[int, int]]] | None = None     # plan(): code placements of the plan being made
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> 'Movie':
+        if cls is Movie and _native is not None and not REFERENCE:
+            cls = NativeMovie
+        return object.__new__(cls)
 
     def __init__(self, members: Members, label: str = 'movie') -> None:
         self.label = label
@@ -636,8 +668,6 @@ class Movie:
             return 0 < o <= len(a) - 8 and struct.unpack_from(e + 'I', a, o + 4)[0] == SIG
         self.big = not is_movie(le, '<') and is_movie(be, '>')
         self.e = '>' if self.big else '<'
-        self.cache: dict[tuple[str, int, str], Any] = {}    # (file, offset, kind) -> Words / Str / Code by kind
-        self.roots: dict[str, list[AnyNode]] = {}
         self._parse()
 
     @classmethod
@@ -703,6 +733,8 @@ class Movie:
         return Ref(n)
 
     def _parse(self) -> None:
+        self.cache: MutableMapping[tuple[str, int, str], Any] = {}    # (file, offset, kind) -> Words / Str / Code
+        self.roots: dict[str, list[AnyNode]] = {}
         a = self.data['apt']
         end = a.find(b'\x1a')
         if not a.startswith(b'Apt Data') or end < 0:
@@ -1407,6 +1439,407 @@ class Movie:
             if any(b[pos:]):
                 out.append((f, f'unread bytes at the end {pos:#x}-{len(b):#x}'))
         return out
+
+
+# ------------------------------------------------------------------------------------------------ the Rust model
+#
+# NativeMovie (round E4c): Movie(...) with the Rust core parses into a bc2_native.AptModel (bc2_formats::aptmodel)
+# and creates no Python object for the data. A node object is made when something reaches it (a root, a Ref's node,
+# reachable(), the cache): first an empty shell of the right class (_WordsShell ...), filled from Rust - its fields,
+# and its Refs as further shells - the first time one of its attributes is read or set, which turns it into the
+# plain class (Words ...). Every filled node, and every new node a filled one reaches, is Python's from then on:
+# before a write (and reachable(), leftovers()) their state is sent to Rust (_sync), which then lays out and writes
+# everything. Wherever the Rust refuses (a movie the parse would raise on, a value a write cannot pack), the movie
+# is turned into the Python model in place (_python(): every node filled, the class switched to Movie) and the
+# Python code runs - so every answer and every error is the reference's.
+
+_FILES = ('apt', 'const', 'geo')
+_FILE_IX = {'apt': 0, 'const': 1, 'geo': 2}
+_CKINDS = ('w', 'empty', 's', 'c')
+_CKIND_IX = {k: i for i, k in enumerate(_CKINDS)}
+_M32 = 0xFFFFFFFF
+_I64 = 1 << 63
+_set = object.__setattr__
+_get = object.__getattribute__
+
+
+class _Fallback(Exception):
+    """The Rust model cannot take this state: the Python model runs."""
+
+
+def _shell_getattr(self: Any, name: str) -> Any:
+    if name in ('_mv', '_rid'):
+        raise AttributeError(name)
+    _get(self, '_mv')._fill(self)
+    return getattr(self, name)
+
+
+def _shell_setattr(self: Any, name: str, value: Any) -> None:
+    if name not in ('_mv', '_rid'):
+        _get(self, '_mv')._fill(self)
+    _set(self, name, value)
+
+
+class _RawShell(Raw):
+    __slots__ = ()
+    __getattr__ = _shell_getattr
+    __setattr__ = _shell_setattr
+
+
+class _StrShell(Str):
+    __slots__ = ()
+    __getattr__ = _shell_getattr
+    __setattr__ = _shell_setattr
+
+
+class _WordsShell(Words):
+    __slots__ = ()
+    __getattr__ = _shell_getattr
+    __setattr__ = _shell_setattr
+
+
+class _CodeShell(Code):
+    __slots__ = ()
+    __getattr__ = _shell_getattr
+    __setattr__ = _shell_setattr
+
+
+_SHELLS: tuple[type, ...] = (_RawShell, _StrShell, _WordsShell, _CodeShell)
+_REAL: dict[type, type] = {_RawShell: Raw, _StrShell: Str, _WordsShell: Words, _CodeShell: Code}
+_KIND_OF: dict[type, int] = {Raw: 0, Str: 1, Words: 2, Code: 3}
+
+
+class _CacheView(MutableMapping[tuple[str, int, str], Any]):
+    """NativeMovie.cache: Movie.cache's keys and nodes, read from Rust (a change turns the movie into Python's)."""
+
+    def __init__(self, m: 'NativeMovie') -> None:
+        self.m = m
+
+    def __getitem__(self, key: Any) -> Any:
+        c = None
+        if isinstance(key, tuple) and len(key) == 3 and key[0] in _FILE_IX and type(key[1]) is int \
+                and -_I64 <= key[1] < _I64 and key[2] in _CKIND_IX:
+            c = self.m._h.cache_get(_FILE_IX[key[0]], key[1], _CKIND_IX[key[2]])
+        if c is None:
+            raise KeyError(key)
+        return self.m._node(c)
+
+    def __contains__(self, key: object) -> bool:
+        try:
+            self[key]
+        except (KeyError, TypeError):
+            return False
+        return True
+
+    def __iter__(self) -> Iterator[tuple[str, int, str]]:
+        return iter([(_FILES[f], at, _CKINDS[k]) for f, at, k, _c in self.m._h.cache_items()])
+
+    def __len__(self) -> int:
+        return int(self.m._h.cache_len())
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        self.m._python().cache[key] = value
+
+    def __delitem__(self, key: Any) -> None:
+        del self.m._python().cache[key]
+
+
+class _NativePlan:
+    """NativeMovie.plan(): the layout to write in (the Rust write lays the nodes out each time; it is fast)."""
+    __slots__ = ('m', 'layout', 'gap')
+
+    def __init__(self, m: 'NativeMovie', layout: str | dict[str, str], gap: int) -> None:
+        self.m, self.layout, self.gap = m, layout, gap
+
+    @property
+    def nodes(self) -> dict[str, list[AnyNode]]:
+        return self.m.reachable()
+
+
+class NativeMovie(Movie):
+    """Movie with its data in the Rust core (module text above); made by Movie(...) - never directly."""
+    _h: Any                                      # bc2_native.AptModel
+    _nodes: dict[int, Any]                       # rid -> its node object (shell or filled)
+    _live: dict[int, Any]                        # rid -> the filled and new nodes (Python's: sent before a write)
+    _adopt: dict[int, tuple[Any, int]]           # id(another movie's node put into this one) -> (node, rid)
+
+    def _parse(self) -> None:
+        d = self.data
+        nat = _native
+        h = None
+        if nat is not None and all(type(b) is bytes for b in d.values()):
+            h = nat.AptModel.parse(d['apt'], d['const'], d.get('geo'), self.big)
+        if h is None:                            # refused: the Python model (which raises where Rust refused)
+            self.__class__ = Movie               # type: ignore[assignment]
+            Movie._parse(self)
+            return
+        self._h, self._nodes, self._live, self._adopt = h, {}, {}, {}
+        ah, cm, ch, mv, gm, gh = h.heads()
+        self.cache = _CacheView(self)
+        self.apt_head, self.const_magic = self._node(ah), self._node(cm)
+        self.const_head, self.movie = self._node(ch), self._node(mv)
+        self.roots = {'apt': [self.apt_head, self.movie], 'const': [self.const_magic, self.const_head]}
+        if gm is not None:
+            self.geo_magic, self.geo_head = self._node(gm), self._node(gh)
+            self.roots['geo'] = [self.geo_magic, self.geo_head]
+
+    # --- node objects ---------------------------------------------------------------------------------------
+    def _node(self, code: int) -> Any:
+        """The object of a node code (rid * 4 + kind): the one made before, or a new shell."""
+        rid = code >> 2
+        n = self._nodes.get(rid)
+        if n is None:
+            n = object.__new__(_SHELLS[code & 3])
+            _set(n, '_mv', self)
+            _set(n, '_rid', rid)
+            self._nodes[rid] = n
+        return n
+
+    def _fill(self, n: Any) -> None:
+        """A shell filled from Rust and turned into its plain class."""
+        cls = _REAL.get(type(n))
+        if cls is None:
+            return
+        rid = _get(n, '_rid')
+        f, at, size0, tag, payload = self._h.node(rid)
+        node = self._node
+        _set(n, 'file', _FILES[f])
+        _set(n, 'at', at)
+        _set(n, 'size0', size0)
+        _set(n, 'tag', tag)
+        _set(n, 'new_at', self._h.new_ats([rid])[0])     # where the last write put it (None before one)
+        if cls is Words:
+            _set(n, 'vals', [x if x >= 0 else Ref(node(~x)) for x in payload])
+        elif cls is Str:
+            _set(n, 'text', payload)
+        elif cls is Raw:
+            _set(n, 'data', payload)
+        else:
+            _set(n, 'ins', self._stream_of(payload))
+        _set(n, '__class__', cls)
+        self._live[rid] = n
+
+    def _stream_of(self, payload: Any) -> list[Ins]:
+        ops, ats, args, bodies, targets, streams = payload
+        node = self._node
+        objs = [Ins(op, [x if x >= 0 else Ref(node(~x)) for x in a] if a else (), at=at)
+                for op, at, a in zip(ops, ats, args)]
+        lists = [[objs[k] for k in s] for s in streams]
+        for k, b in enumerate(bodies):
+            if b >= 0:
+                objs[k].body = lists[b]
+        for k, t in enumerate(targets):
+            if t >= 0:
+                objs[k].target = objs[t]
+            elif t <= -3:
+                objs[k].target = lists[-t - 3]
+        return lists[0]
+
+    # --- sending Python's nodes to Rust ----------------------------------------------------------------------
+    def _sync(self) -> None:
+        """Every filled and new node's state into Rust; _Fallback where the Rust model cannot hold it."""
+        h = self._h
+        pending: list[tuple[Any, int]] = [(n, r) for r, n in self._live.items()]
+        pending += list(self._adopt.values())
+        if not pending:
+            return
+        done: set[int] = set()
+        out: list[tuple[Any, ...]] = []
+
+        def rid_of(n: Any) -> int:
+            if getattr(n, '_mv', None) is self:
+                return int(_get(n, '_rid'))
+            a = self._adopt.get(id(n))
+            if a is not None:
+                return a[1]
+            if not isinstance(n, Node):
+                raise _Fallback('a Ref to something that is not a node')
+            rid = int(h.new_nodes(1))
+            if getattr(n, '_mv', None) is None and type(n) in _KIND_OF:     # a new node: this movie's from now on
+                _set(n, '_mv', self)
+                _set(n, '_rid', rid)
+                self._nodes[rid] = n
+                self._live[rid] = n
+            else:                                # another movie's node, shared as Python shares it
+                self._adopt[id(n)] = (n, rid)
+            pending.append((n, rid))
+            return rid
+
+        try:
+            while pending:
+                n, rid = pending.pop()
+                if rid in done:
+                    continue
+                done.add(rid)
+                out.append(self._encode(n, rid, rid_of))
+        except (TypeError, ValueError, AttributeError, RecursionError) as e:
+            raise _Fallback(str(e)) from e
+        if not h.set_nodes(out):
+            raise _Fallback('a node the Rust model refused')
+
+    def _encode(self, n: Any, rid: int, rid_of: Callable[[Any], int]) -> tuple[Any, ...]:
+        kind = _KIND_OF.get(_REAL.get(type(n), type(n)))
+        file = n.file
+        f = _FILE_IX.get(file) if isinstance(file, str) else None
+        at, size0, tag = n.at, n.size0, n.tag
+        if kind is None or f is None or not isinstance(tag, str) or \
+                not all(v is None or (type(v) is int and -_I64 <= v < _I64) for v in (at, size0)):
+            raise _Fallback('a node of a shape the Rust model does not hold')
+        payload: Any
+        if kind == 2:
+            vals = []
+            for x in n.vals:
+                if type(x) is int:
+                    vals.append(x & _M32)
+                elif isinstance(x, Ref):
+                    vals.append(~rid_of(x.node))
+                else:
+                    raise _Fallback('a field that is neither an int nor a Ref')
+            payload = vals
+        elif kind == 1:
+            payload = bytes(n.text)
+        elif kind == 0:
+            payload = bytes(n.data)
+        else:
+            payload = self._encode_code(n.ins, rid_of)
+        return rid, f, at, size0, tag, kind, payload
+
+    def _encode_code(self, top: list[Ins], rid_of: Callable[[Any], int]) -> tuple[Any, ...]:
+        ops: list[int] = []
+        ats: list[Any] = []
+        args: list[list[Any]] = []
+        bodies: list[int] = []
+        objs: list[Ins] = []
+        streams: list[list[int]] = []
+        lists: list[Any] = []
+
+        def arg(x: Any) -> Any:
+            if type(x) is int:
+                return x if -_I64 <= x < _I64 else None
+            return (rid_of(x.node),) if isinstance(x, Ref) else None
+
+        def walk(lst: list[Ins]) -> int:        # every stream (references reach any instruction's body)
+            s = len(streams)
+            streams.append([])
+            lists.append(lst)
+            idx = []
+            for i in lst:
+                op, at = i.op, i.at
+                if type(op) is not int or not 0 <= op < 256 or not (at is None or (type(at) is int and -_I64 <= at < _I64)):
+                    raise _Fallback('an instruction the Rust model does not hold')
+                k = len(ops)
+                idx.append(k)
+                objs.append(i)
+                ops.append(op)
+                ats.append(at)
+                args.append([arg(x) for x in i.args] if i.args else [])
+                bodies.append(-1)
+                if i.body is not None:
+                    bodies[k] = walk(i.body)
+            streams[s] = idx
+            return s
+        walk(top)
+        # branch targets: where _place records them (instructions in placement order, a stream's end after it)
+        pm: dict[int, int] = {}
+
+        def place(s: int) -> None:
+            for k in streams[s]:
+                pm[id(objs[k])] = k
+                if _KIND[ops[k]] in (-3, -4) and bodies[k] >= 0:
+                    place(bodies[k])
+            pm[id(lists[s])] = -(s + 3)
+        place(0)
+        targets = [pm.get(id(i.target), -2) if op in BRANCH else -1 for i, op in zip(objs, ops)]
+        return ops, ats, args, bodies, targets, streams
+
+    # --- the Python model, where the Rust one refuses ----------------------------------------------------------
+    def _python(self) -> Movie:
+        """This movie as the Python model, in place (every node filled; the class switched to Movie)."""
+        cache = {(_FILES[f], at, _CKINDS[k]): self._node(c) for f, at, k, c in self._h.cache_items()}
+        for n in list(self._nodes.values()):
+            self._fill(n)
+        self.__class__ = Movie                   # type: ignore[assignment]
+        self.cache = cache
+        return self
+
+    # --- reads that parse more of the file: in Python ----------------------------------------------------------
+    def code(self, p: int) -> Code:
+        c = self._h.cache_get(0, p, 3) if type(p) is int and -_I64 <= p < _I64 else None
+        if c is not None:
+            return cast(Code, self._node(c))
+        return self._python().code(p)
+
+    def words(self, f: str, at: int, count: int, tag: str) -> Words:
+        return self._python().words(f, at, count, tag)
+
+    def string(self, f: str, at: int) -> Str:
+        return self._python().string(f, at)
+
+    def character(self, p: int) -> Words:
+        return self._python().character(p)
+
+    def item(self, p: int) -> Words:
+        return self._python().item(p)
+
+    # --- writing ---------------------------------------------------------------------------------------------
+    def reachable(self) -> dict[str, list[AnyNode]]:
+        try:
+            self._sync()
+        except _Fallback:
+            return self._python().reachable()
+        node = self._node
+        return {_FILES[f]: [node(c) for c in codes] for f, codes in self._h.reachable()}
+
+    def plan(self, layout: str | dict[str, str] = 'keep', gap: int = 0,
+             nodes: dict[str, list[AnyNode]] | None = None) -> Any:
+        return _NativePlan(self, layout, gap)
+
+    def write(self, order: str | None = None, layout: str | dict[str, str] = 'keep', gap: int = 0,
+              dead: bool = True, *, plan: Any = None) -> Members:
+        if plan is not None:
+            if not isinstance(plan, _NativePlan):
+                return self._python().write(order, layout, gap, dead, plan=plan)
+            layout, gap = plan.layout, plan.gap
+        e = order or self.e
+        res = None
+        if e in ('<', '>') and type(gap) is int and -_I64 <= gap < _I64:
+            def lay(f: str) -> int:
+                v = layout.get(f, 'keep') if isinstance(layout, dict) else layout
+                return 0 if v == 'keep' else 1
+            try:
+                self._sync()
+                res = self._h.write(e == '>', (lay('apt'), lay('const'), lay('geo')), gap, bool(dead))
+            except _Fallback:
+                res = None
+        if res is None:
+            return self._python().write(order, layout, gap, dead)
+        live = [(r, n) for r, n in self._live.items()] + [(r, n) for n, r in self._adopt.values()]
+        if live:                                 # Node.new_at, as the Python write leaves it
+            for (_r, n), v in zip(live, self._h.new_ats([r for r, _ in live])):
+                _set(n, 'new_at', v)
+        data = {f: b for f, b in zip(_FILES, res) if b is not None}
+        out = []
+        for name in self.order:
+            fk = next((k for k, v in self.names.items() if v == name), None)
+            out.append((name, data[fk] if fk else dict(self.extra)[name]))
+        return out
+
+    def leftovers(self, nodes: dict[str, list[AnyNode]] | None = None) -> list[tuple[str, str]]:
+        try:
+            self._sync()
+            got = self._h.leftovers()
+        except _Fallback:
+            got = None
+        if got is None:
+            return self._python().leftovers()
+        return [(_FILES[f], t) for f, t in got]
+
+
+def _py_movie(members: Members, label: str = 'movie') -> Movie:
+    """Movie(members, label) in the Python model, whatever use_native says (the reference)."""
+    m = object.__new__(Movie)
+    Movie.__init__(m, members, label)
+    return m
 
 
 def text(v: Any) -> Any:
@@ -2611,7 +3044,48 @@ def dump_text(members: Members) -> list[str]:
 
 def roundtrip(spec: str, pack: bool = False) -> tuple[list[str], list[str]]:
     """(problems, notes) for one movie: no problems = it round-trips. Notes: data no structure points at (left by
-    in-place patches; written back as it was)."""
+    in-place patches; written back as it was). With the Rust core: entirely in Rust (roundtrip_many)."""
+    return next(roundtrip_many([spec], pack))
+
+
+def roundtrip_many(specs: Iterable[str], pack: bool = False, chunk: int = 0) -> Iterator[tuple[list[str], list[str]]]:
+    """roundtrip() of each spec, in order; with the Rust core a chunk of movies at a time on all cores (default:
+    twice the cores; only their members are held). A movie the Rust core refuses runs roundtrip_python, so the
+    answer - or the exception, raised at that movie's place - is the reference's."""
+    nat = _native
+    if nat is None or REFERENCE:
+        for spec in specs:
+            yield roundtrip_python(spec, pack)
+        return
+    chunk = chunk or 2 * (os.cpu_count() or 4)
+    batch: list[str] = []
+
+    def flush() -> Iterator[tuple[list[str], list[str]]]:
+        jobs: list[Any] = []
+        for spec in batch:
+            try:
+                _label, members = load_members(spec)
+                raw = open(spec, 'rb').read() if os.path.isfile(spec) and not spec.lower().endswith('.apt') else None
+                ok = all(type(n) is str and type(b) is bytes for n, b in members)
+                jobs.append((members, raw) if ok else None)
+            except Exception:                    # raised again by roundtrip_python, at its place
+                jobs.append(None)
+        todo = [j for j in jobs if j is not None]
+        res = iter(nat.apt_roundtrip_many(todo, pack) if todo else [])
+        for spec, job in zip(batch, jobs):
+            r = next(res) if job is not None else None
+            yield (list(r[0]), list(r[1])) if r is not None else roundtrip_python(spec, pack)
+        batch.clear()
+    for spec in specs:
+        batch.append(spec)
+        if len(batch) >= chunk:
+            yield from flush()
+    yield from flush()
+
+
+def roundtrip_python(spec: str, pack: bool = False) -> tuple[list[str], list[str]]:
+    """roundtrip() with the Python model (the reference)."""
+    Movie = _py_movie                            # noqa: N806  (the Python model, whatever use_native says)
     label, members = load_members(spec)
     orig = write_bigf(members)
     problems = []
@@ -2683,15 +3157,20 @@ def main(argv: list[str]) -> int:
         bad = dead = 0
         import hashlib
         seen = {}
+        todo = []
         for f in files:
             key = hashlib.md5(open(f, 'rb').read()).hexdigest() if os.path.isfile(f) else f
             if key in seen:
                 continue
             seen[key] = f
+            todo.append(f)
+        results = roundtrip_many(todo, pack)     # with the Rust core: many movies at once on all cores
+        for f in todo:
             try:
-                probs, notes = roundtrip(f, pack)
+                probs, notes = next(results)
             except AptError as e:
                 probs, notes = [str(e)], []
+                results = roundtrip_many(todo[todo.index(f) + 1:], pack)
             dead += bool(notes)
             bad += bool(probs)
             if probs or not quiet:

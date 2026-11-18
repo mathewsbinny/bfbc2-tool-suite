@@ -1,10 +1,12 @@
-r"""Round E3o (rust/BENCHMARKS.md, "E3o"): each faster path against the code it replaced, run both ways and the
-results compared exactly (every float by its bits, every array by dtype, shape and bytes; or the same exception).
+r"""Round E3o (rust/BENCHMARKS.md, "E3o"): each faster path against the code it replaced, compared exactly (every float
+by its bits, every array by dtype, shape and bytes; or the same exception).
 
-  - kymesh.parse_mesh in Rust (bc2_native.kymesh_parse) against kymesh.parse_mesh_reference;
-  - navdata.load's cells of a whole file (navkit_mesh_cells) and its union-find (navkit_union_roots) against
-    _cells_reference / _union_roots_reference (with the reference mesh reader);
-  - navpath.route's A* in Rust (PathGraph) and closest_between kept per island pair, against route_reference;
+  - kymesh.parse_mesh in Rust (bc2_native.kymesh_parse) against kymesh.parse_mesh_reference (the format's Python
+    reader: kept for good), run both ways;
+  - navdata.load (the Rust core's areas, cells and union-finds), navdiff.area_cells and navpath.route's A* against
+    the answers recorded from their retired Python (round R1, 2026-11-18: tests/navdata_golden.json - navdata.load of
+    40 built files, 300 union-finds, 10,000 routes; on the game data every path-data file's NavData, area cells and
+    pieces, and 400 routes);
   - havok.verify's packfile part from the Rust walk's record (havok.verify_packfile) against results recorded
     from Packfile + ignorable, retired on 2026-11-18 (havok_verify_golden.json beside this file: each case's digest
     or exception; "now" holds the cases the Rust core answers otherwise on purpose: a ConvertError where the
@@ -13,14 +15,19 @@ results compared exactly (every float by its bits, every array by dtype, shape a
   - texqa's analysis in worker processes against one process.
 
   python test_e3o_native.py           quick: built inputs - 600 seeded runtime meshes (each also cut short, with
-                                      bytes changed and a NaN written), 40 built path-data files loaded both ways,
+                                      bytes changed and a NaN written), 40 built path-data files, 300 union-finds,
                                       400 seeded route graphs (ties, one-way edges, islands; 25 routes each), 500
                                       seeded packfiles with the classes verify knows (each against 4 changed PC
                                       copies), 9 built textures with 1 and 3 workers
   python test_e3o_native.py --game    + every sector of the game copy's path data (rust\parity_e3o_nav.py mesh),
-                                      navdata.load of DICE's infantry path data of every prepared level, 400 routes on
-                                      sp_009 / sp_004_b (bench_sweep's), verify-havok's Onslaught files as recorded, the
-                                      WW2 vehicles' textures (texqa, cold, 1 worker and all)
+                                      every path-data file of the game copy and DICE's of every prepared level
+                                      against the recording, 400 routes on sp_009 / sp_004_b (bench_sweep's),
+                                      verify-havok's Onslaught files as recorded, the WW2 vehicles' textures (texqa,
+                                      cold, 1 worker and all)
+  python test_e3o_native.py --record [--game]
+                                      write navdata_golden.json's answers from the current code (only after a
+                                      deliberate change to navdata / navdiff / navpath) and
+                                      havok_verify_golden.json's "now" section
 
 The module is required: without it (or built from other sources) this test fails, saying how to build it.
 """
@@ -48,9 +55,43 @@ from bfbc2core import native, navdata, navpath  # noqa: E402
 
 FAILS: list[str] = []
 NULL = kymesh.NULL
-GOLDEN = os.path.join(HERE, 'havok_verify_golden.json')
-GOLD: dict = {}
-RECORD = [False]
+NAV_GOLDEN = os.path.join(HERE, 'navdata_golden.json')
+NAV_GOLD: dict = {}                     # navdata_golden.json: the retired Python's answers (round R1)
+NAV_RECORD = {'on': False}
+
+
+def load_nav_golden() -> None:
+    try:
+        with open(NAV_GOLDEN, encoding='utf-8') as fh:
+            NAV_GOLD.update(json.load(fh))
+    except FileNotFoundError:
+        pass
+
+
+def save_nav_golden() -> None:
+    NAV_GOLD['recorded'] = time.strftime('%Y-%m-%d')
+    with open(NAV_GOLDEN, 'w', encoding='utf-8', newline='\n') as fh:
+        json.dump(NAV_GOLD, fh, indent=1, sort_keys=True)
+        fh.write('\n')
+    print(f'wrote {NAV_GOLDEN}')
+
+
+def nav_digest(nav) -> str:
+    """A NavData's exact value (parity_e3o_nav.digest), without its path (a temporary or another checkout's)."""
+    d = dict(nav.__dict__)
+    d.pop('_adj', None)
+    d.pop('path', None)
+    return parity_e3o_nav.digest((type(nav).__name__, d))
+
+
+def nav_outcome(load, p: str) -> list:
+    try:
+        return ['ok', nav_digest(load(p))]
+    except Exception as e:                                       # noqa: BLE001 - compared, not handled
+        return ['error', type(e).__name__, str(e).replace(p, '<path>')]
+HAVOK_GOLDEN = os.path.join(HERE, 'havok_verify_golden.json')
+HAVOK_GOLD: dict = {}
+HAVOK_RECORD = [False]
 
 
 def check(ok: bool, what: str, detail: str = '') -> None:
@@ -205,30 +246,38 @@ def random_hpd(rnd: random.Random, path: str) -> None:
 
 def quick_navdata() -> None:
     rnd = random.Random(2026)
-    ref = parity_e3o_nav._Reference()
     n = same = cells = 0
+    rec = NAV_GOLD.setdefault('quick', {})
+    want = rec.get('navdata', [])
+    got_all = []
     with tempfile.TemporaryDirectory() as tmp:
         for k in range(40):
             p = os.path.join(tmp, f'{k}.hpd')
             random_hpd(rnd, p)
-            a = outcome(lambda p=p: parity_e3o_nav._fields(navdata.load(p)))
-            b = outcome(lambda p=p: parity_e3o_nav._fields(ref.load(p)))
+            a = nav_outcome(navdata.load, p)
+            got_all.append(a)
             n += 1
-            same += a == b
+            same += k < len(want) and want[k] == a
             cells += len(navdata.load(p).cell_area) if a[0] == 'ok' else 0
-    check(same == n and cells > 1000, f'built path data: {same} of {n} files load to the same NavData both ways '
-          f'({cells:,} cells)')
+    if NAV_RECORD['on']:
+        rec['navdata'] = got_all
+        same = n
+    check(same == n and cells > 1000, f'built path data: {same} of {n} files load to the NavData recorded from the '
+          f'retired Python ({cells:,} cells)')
     rnd = random.Random(5)
     n = same = 0
     for _ in range(300):
         m = rnd.randint(1, 400)
         e = np.array([(rnd.randrange(m), rnd.randrange(m)) for _ in range(rnd.randint(0, 2 * m))], dtype=np.int64).reshape(-1, 2)
         skip = np.array([rnd.random() < 0.2 for _ in range(len(e))], dtype=bool) if rnd.random() < 0.5 else None
-        a = navdata._union_roots(m, e, skip)
-        b = navdata._union_roots_reference(m, e, skip)
+        a = parity_e3o_nav.digest(navdata._union_roots(m, e, skip))
+        if NAV_RECORD['on']:
+            rec.setdefault('union_roots', [])[n:] = [a]
+        want_u = rec.get('union_roots', [])
+        same += n < len(want_u) and want_u[n] == a
         n += 1
-        same += a.dtype == b.dtype and a.tobytes() == b.tobytes()
-    check(same == n, f'union-find: {same} of {n} random graphs the same roots (with and without skipped edges)')
+    check(same == n, f'union-find: {same} of {n} random graphs the roots recorded from the retired Python (with and '
+          f'without skipped edges)')
 
 
 # ------------------------------------------------------------------------------------------------ navpath
@@ -252,7 +301,7 @@ def random_nav(rnd: random.Random) -> navdata.NavData:
                     pairs.append((b, a, int(d * 16) / 16.0))
     edges = np.array([(a, b) for a, b, _ in pairs], dtype=np.int64).reshape(-1, 2)
     cost = np.array([c for _, _, c in pairs], dtype=np.float64)
-    roots = navdata._union_roots_reference(m, edges)
+    roots = navdata._union_roots(m, edges)
     order = {r: k for k, (r, _) in enumerate(sorted(((int(r), int((roots == r).sum())) for r in set(roots.tolist())),
                                                      key=lambda t: -t[1]))}
     island = np.array([order[int(r)] for r in roots], dtype=np.int32)
@@ -263,34 +312,41 @@ def random_nav(rnd: random.Random) -> navdata.NavData:
 def quick_navpath() -> None:
     rnd = random.Random(99)
     n = same = found = gaps = 0
-    m, formula = navpath._native()
-    check(m is not None and formula is not None, f'the Rust search runs here: np.linalg.norm matched by {formula!r}')
-    for _ in range(400):
+    v = np.random.default_rng(20261117).normal(size=(20000, 3))
+    fused = np.frombuffer(navpath._native().PathGraph.norms(np.ascontiguousarray(v, '<f8').tobytes(), navpath.NORM),
+                          '<f8')
+    here = fused.tobytes() == np.array([np.linalg.norm(x) for x in v]).tobytes()
+    print(f"     (the estimate {navpath.NORM!r}: np.linalg.norm's bits here too: {here} - the routes do not depend on it)")
+    rec = NAV_GOLD.setdefault('quick', {})
+    want_r = rec.get('routes', [])
+    for q in range(400):
         nav = random_nav(rnd)
         g = navpath.ground_nodes(nav)
+        r1 = []
         for _ in range(25):
             a, b = g[rnd.randrange(len(g))], g[rnd.randrange(len(g))]
             if rnd.random() < 0.1:
                 b = b + np.array([rnd.uniform(-20, 20), 0, rnd.uniform(-20, 20)])
-            r1 = outcome(navpath.route, nav, a, b)
-            r0 = outcome(navpath.route_reference, nav, a, b)
-            n += 1
-            same += r1 == r0
+            r1.append(outcome(navpath.route, nav, a, b))
             r = navpath.route(nav, a, b)
+            n += 1
             found += r.found
             gaps += r.gap is not None
-    check(same == n, f'routes: {same} of {n} the same Route (nodes, cost, length, expanded, gap, reason) as the '
-          f'reference ({found} found, {gaps} across islands)')
+        d1 = parity_e3o_nav.digest(r1)
+        if NAV_RECORD['on']:
+            rec.setdefault('routes', [])[q:] = [d1]
+            want_r = rec['routes']
+        same += 25 * (q < len(want_r) and want_r[q] == d1)
+    check(same == n, f'routes: {same} of {n} the Route recorded from the retired Python (nodes, cost, length, '
+          f'expanded, gap, reason; 25 per graph, digested; {found} found, {gaps} across islands)')
     nav = random_nav(random.Random(3))
     nav.edge_cost = nav.edge_cost.copy()
     if len(nav.edge_cost):
         nav.edge_cost[0] = float('nan')
     g = navpath.ground_nodes(nav)
-    check(outcome(navpath.route, nav, g[0], g[-1]) == outcome(navpath.route_reference, nav, g[0], g[-1]),
-          'a NaN cost: the reference searches (the same Route)')
-    navpath.use_native(False)
-    check(navpath._path_graph(nav) is None, 'use_native(False): the reference searches')
-    navpath.use_native(True)
+    got = outcome(navpath.route, nav, g[0], g[-1])
+    check(got[0] == 'error' and got[1] == 'ValueError', 'a NaN cost: a ValueError saying the graph cannot be '
+          'searched (the retired Python searched it)', str(got))
 
 
 # ------------------------------------------------------------------------------------------------ havok.verify
@@ -339,15 +395,15 @@ def verify_whole(c: bytes, p: bytes, k: dict):
     return havok.verify(c, p, k)
 
 
-def load_golden() -> dict:
+def load_havok_golden() -> dict:
     try:
-        with open(GOLDEN, encoding='utf-8') as f:
+        with open(HAVOK_GOLDEN, encoding='utf-8') as f:
             return dict(json.load(f))
     except FileNotFoundError:
         return {}
 
 
-def write_golden(golden: dict) -> None:
+def write_havok_golden(golden: dict) -> None:
     """havok_verify_golden.json, one case per line."""
     lines = ['{']
     keys = sorted(golden)
@@ -359,7 +415,7 @@ def write_golden(golden: dict) -> None:
         else:
             lines.append(f'{json.dumps(key)}: {json.dumps(v)}{end}')
     lines.append('}')
-    with open(GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
+    with open(HAVOK_GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
         f.write('\n'.join(lines) + '\n')
 
 
@@ -368,8 +424,8 @@ class Recorded:
     answers that differ from the reference's go to "now"."""
 
     def __init__(self, group: str):
-        self.ref: dict = GOLD.get(group, {})
-        self.now: dict = GOLD.setdefault('now', {})
+        self.ref: dict = HAVOK_GOLD.get(group, {})
+        self.now: dict = HAVOK_GOLD.setdefault('now', {})
         self.group = group
         self.n = self.same = self.changed = 0
         self.diffs: list[str] = []
@@ -383,7 +439,7 @@ class Recorded:
             return
         ref = ref[1:] if input_sha is not None else ref
         self.n += 1
-        if RECORD[0]:
+        if HAVOK_RECORD[0]:
             if got != ref:
                 self.now[key] = got
             else:
@@ -397,7 +453,7 @@ class Recorded:
             self.diffs.append(f'{key}: {got} != recorded {want}')
 
     def report(self, what: str, at_least: int = 0) -> None:
-        if RECORD[0]:
+        if HAVOK_RECORD[0]:
             print(f'     {what}: {self.n} cases recorded')
             return
         check(not self.diffs and self.n >= at_least, f'{what}: {self.same} of {self.n} as recorded ({self.changed} '
@@ -462,7 +518,7 @@ def quick_havok() -> None:
         rec(f'triangle padding {flip}', list(outcome(lambda g=got: g)))
         seen_reasons |= {r for _, r in got if r}
     rec.report(f'packfile verification ((offset, reason) lists; {reasons:,} ignorable bytes)', 2000)
-    if not RECORD[0]:
+    if not HAVOK_RECORD[0]:
         check(len(seen_reasons) == 4, f'every reason met: {sorted(seen_reasons)}')
 
 
@@ -509,25 +565,91 @@ def game() -> None:
     t = time.perf_counter()
     check(parity_e3o_nav.mesh(parity_e3o_nav.files([levels])) == 0,
           f'every sector of the game copy\'s path data: the same Mesh both ways ({time.perf_counter() - t:.0f} s)')
+    game_nav(root, levels)
+    game_havok(root)
+    game_texqa(root)
+
+
+def file_sha1(p: str) -> str:
+    import hashlib
+    h = hashlib.sha1()
+    with open(p, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 22), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def cells_and_pieces(p: str) -> tuple[str, str, int]:
+    """(digest of navdiff.area_cells of every area of every sector, in order; digest of navdiff.pieces of every
+    area's boundary, sorted; areas)."""
+    import hashlib
+
+    import navdiff
+    hc, hp = hashlib.sha1(), hashlib.sha1()
+    areas = 0
+    for sec in hpdtool.parse(open(p, 'rb').read()).sectors:
+        mesh = kymesh.parse_mesh(sec.mesh)
+        cells = navdiff.area_cells_many(mesh.areas)
+        for a, c in zip(mesh.areas, cells):
+            parity_e3o_nav.canon(list(c.items()), hc)
+            segs = navdiff.segments(a)
+            parity_e3o_nav.canon(sorted(navdiff.pieces(segs, a.pitch)), hp)
+        areas += len(mesh.areas)
+    return hc.hexdigest(), hp.hexdigest(), areas
+
+
+def game_nav(root: str, levels: str) -> None:
+    """Every path-data file of the game copy and DICE's infantry file of every prepared level: navdata.load (the
+    NavData), navdiff.area_cells of every area and navdiff.pieces of every boundary, against the digests recorded
+    from the retired Python (navdata_golden.json, 'game'; a file whose SHA-1 is not the recorded one is reported, not
+    compared); bench_sweep's 400 routes on sp_009 / sp_004_b against the recorded Routes."""
     suite_paths.use('navigation-studio')
     import navparity
     refs = [r for lv in sorted(os.listdir(os.path.join(root, 'work', 'levels')))
             if (r := navparity.reference_of(root, lv)) and os.path.isfile(r)]
+    paths: dict[str, str] = {}
+    for p in parity_e3o_nav.files([levels]) + refs:
+        paths.setdefault(os.path.normcase(os.path.realpath(p)), p)
+    rec = NAV_GOLD.setdefault('game', {})
+    files = rec.setdefault('files', {})
+    n = same = changed = areas = 0
     t = time.perf_counter()
-    check(parity_e3o_nav.load(refs) == 0, f'navdata.load of DICE\'s path data of {len(refs)} prepared levels: the '
-          f'same NavData both ways ({time.perf_counter() - t:.0f} s)')
+    for p in sorted(paths.values()):
+        key = os.path.relpath(p, root).replace(os.sep, '/')
+        sha = file_sha1(p)
+        got: dict = {'sha1': sha, 'navdata': nav_outcome(navdata.load, p)}
+        got['cells'], got['pieces'], na = cells_and_pieces(p)
+        areas += na
+        if NAV_RECORD['on']:
+            files[key] = got
+        rec_f = files.get(key)
+        n += 1
+        if rec_f is None or rec_f['sha1'] != sha:
+            changed += 1
+            print(f'  {key}: {"not recorded" if rec_f is None else "changed since the recording"}: not compared')
+            continue
+        ok = got == rec_f
+        same += ok
+        print(f'  {"same" if ok else "DIFFERENT"} {key} ({na:,} areas)', flush=True)
+    check(same == n - changed and n >= 35 and not changed,
+          f'path data of the game copy and DICE\'s prepared levels: {same} of {n} files the NavData, area cells and '
+          f'pieces recorded from the retired Python ({areas:,} areas; {changed} not compared; '
+          f'{time.perf_counter() - t:.0f} s)')
+    routes = rec.setdefault('routes', {})
     n = same = 0
     for lv in ('sp_009', 'sp_004_b'):
-        nav = navdata.load(navparity.reference_of(root, lv))
+        p = navparity.reference_of(root, lv)
+        nav = navdata.load(p)
         g = navpath.ground_nodes(nav)
         rnd = random.Random(1)
-        for _ in range(200):
-            a, b = nav.node_pos[rnd.randrange(len(g))], nav.node_pos[rnd.randrange(len(g))]
-            n += 1
-            same += outcome(navpath.route, nav, a, b) == outcome(navpath.route_reference, nav, a, b)
-    check(same == n == 400, f'bench_sweep\'s 400 routes on sp_009 / sp_004_b: {same} the same Route both ways')
-    game_havok(root)
-    game_texqa(root)
+        pairs = [(nav.node_pos[rnd.randrange(len(g))], nav.node_pos[rnd.randrange(len(g))]) for _ in range(200)]
+        d = parity_e3o_nav.digest([outcome(navpath.route, nav, a, b) for a, b in pairs])
+        if NAV_RECORD['on']:
+            routes[lv] = {'sha1': file_sha1(p), 'routes': d}
+        n += 200
+        same += 200 * (routes.get(lv, {}).get('routes') == d)
+    check(same == n == 400, f'bench_sweep\'s 400 routes on sp_009 / sp_004_b: {same} the Routes recorded from the '
+          f'retired Python')
 
 
 def game_havok(root: str) -> None:
@@ -587,8 +709,10 @@ def main(argv: list[str]) -> int:
     except Exception as e:                                      # noqa: BLE001 - NativeMissing, with how to get it
         print(f'FAIL the Rust core: {e}')
         return 1
-    GOLD.update(load_golden())
-    RECORD[0] = '--record' in argv
+    NAV_RECORD['on'] = '--record' in argv
+    load_nav_golden()
+    HAVOK_GOLD.update(load_havok_golden())
+    HAVOK_RECORD[0] = '--record' in argv
     quick_kymesh()
     quick_navdata()
     quick_navpath()
@@ -596,10 +720,12 @@ def main(argv: list[str]) -> int:
     quick_texqa()
     if '--game' in argv:
         game()
-    if RECORD[0] and not FAILS:
-        GOLD['now_recorded'] = time.strftime('%Y-%m-%d')
-        write_golden(GOLD)
-        print(f'wrote {GOLDEN}')
+    if NAV_RECORD['on'] and not FAILS:
+        save_nav_golden()
+    if HAVOK_RECORD[0] and not FAILS:
+        HAVOK_GOLD['now_recorded'] = time.strftime('%Y-%m-%d')
+        write_havok_golden(HAVOK_GOLD)
+        print(f'wrote {HAVOK_GOLDEN}')
     print('all passed' if not FAILS else f'{len(FAILS)} check(s) failed')
     return 1 if FAILS else 0
 

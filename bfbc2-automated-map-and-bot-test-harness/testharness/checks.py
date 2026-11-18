@@ -116,6 +116,39 @@ def reach_from(nav, node, adj=None):
     return seen
 
 
+def _native():
+    from . import ingame
+    return ingame._native()
+
+
+def pair_bits(nav, adj, src_nodes, tgt_nodes):
+    """The pair bits of reachability: per (source node, target node), source major, '1' reached along the edges, '0'
+    not, '-' a point without a node. The Rust core's (round E4f: one search per source node, on all cores) when it is
+    built, else pair_bits_python."""
+    nat = _native()
+    if nat is not None:
+        start, nbr = adj
+        return nat.harness_pair_bits(np.asarray(start, '<i8').tobytes(), np.asarray(nbr, '<i8').tobytes(),
+                                     [None if n is None else int(n) for n in src_nodes],
+                                     [None if n is None else int(n) for n in tgt_nodes])
+    return pair_bits_python(nav, adj, src_nodes, tgt_nodes)
+
+
+def pair_bits_python(nav, adj, src_nodes, tgt_nodes):
+    """pair_bits in Python (the reference): reach_from per source node."""
+    cache = {}
+    marks: list[str] = []
+    for ns in src_nodes:
+        if ns is not None and ns not in cache:
+            cache[ns] = reach_from(nav, ns, adj)
+        for nt in tgt_nodes:
+            if ns is None or nt is None:
+                marks.append('-')
+            else:
+                marks.append('1' if nt in cache[ns] else '0')
+    return ''.join(marks)
+
+
 STAND_XZ, STAND_DY = 1.2, 2.5          # a point stands on a walkable cell this close (m across / in height)
 
 
@@ -187,17 +220,7 @@ def reachability(nav, sources, targets, reference=None, max_parity_loss=5.0, bas
     major: '1' reached, '0' not, '-' a point without a route node near it."""
     adj = adjacency(nav)
     js, jt = joins(nav, sources), joins(nav, targets)
-    cache = {}
-    marks: list[str] = []
-    for (ns, _), _s in zip(js, sources):
-        if ns is not None and ns not in cache:
-            cache[ns] = reach_from(nav, ns, adj)
-        for nt, _ in jt:
-            if ns is None or nt is None:
-                marks.append('-')
-            else:
-                marks.append('1' if nt in cache[ns] else '0')
-    bits = ''.join(marks)
+    bits = pair_bits(nav, adj, [n for n, _ in js], [n for n, _ in jt])
     S, T = len(sources), len(targets)
     joined_s = sum(n is not None for n, _ in js)
     joined_t = sum(n is not None for n, _ in jt)

@@ -2,12 +2,13 @@
 //!
 //! `dbx_write` walks the Python tree `dbx.write` is given (its `Element` objects, duck-typed: `tag`, `kind`,
 //! `attributes`, `text`, `raw`, `children`) straight into [`dbx::Writer`], with no Rust tree in between, reading
-//! each element's fields in the order the Python writer reads them. It accepts only what the Python writer writes
-//! the same way: strings that are `str`, attributes as a list or tuple of 2-tuples (or 2-lists) of `str`, children
-//! as a list, tuple or `None`, a value's bytes as `bytes` or `bytearray`, a nesting depth up to [`MAX_DEPTH`].
-//! Anything else (and every tree the Python writer refuses or writes differently: an empty tag, more than 15
-//! attributes, a kind outside 0-15) raises here, and `dbx.write` then runs the Python writer, which gives its own
-//! bytes or error: the result is the Python writer's in every case.
+//! each element's fields in the order the retired Python writer read them, and writes the bytes it wrote (round F1a,
+//! 2026-11-18: `dbx.write` has no other writer). It takes strings that are `str` (or a subclass), attributes as a
+//! list or tuple of 2-tuples (or 2-lists) of `str`, children as a list, a tuple, `None` or any other iterable, a
+//! value's bytes as anything `bytearray.extend` takes (`bytes`, `bytearray`, a buffer, an iterable of ints), and any
+//! nesting depth (the walk keeps its own stack). What cannot be written raises with the reason: an empty tag (string
+//! 0 reads back as the end of a container; the Python writer wrote it), more than 15 attributes, a kind outside
+//! 0-15, an attribute that is not a (name, value) pair, a tag, attribute or text that is not a `str`.
 //!
 //! A parsed tree shares one `str` object per string of its file, so each string object's id is kept by the
 //! object's address (the object held for the call, so the address cannot be reused): its text is read and hashed
@@ -23,10 +24,6 @@ use pyo3::exceptions::{PyOSError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyList, PyString, PyTuple};
-
-/// The deepest nesting `dbx_write` walks; past it the Python writer decides (its recursion limit, 1,000 frames by
-/// default, is the same order; game files nest about 10 deep).
-pub const MAX_DEPTH: usize = 500;
 
 /// A hash of an object's address: a multiply, its high half folded down (addresses are 16-byte aligned).
 #[derive(Default, Clone, Copy)]
@@ -57,15 +54,18 @@ struct Out<'py> {
 }
 
 impl<'py> Out<'py> {
-    /// The id of a `str` object (a `TypeError` for anything else, left to the Python writer).
-    fn id(&mut self, o: Bound<'py, PyAny>) -> PyResult<u32> {
+    /// The id of a `str` object (`what` names it in the `TypeError` for anything else).
+    fn id(&mut self, o: Bound<'py, PyAny>, what: &str) -> PyResult<u32> {
         let key = o.as_ptr() as usize;
         if let Some(&i) = self.ids.get(&key) {
             return Ok(i);
         }
         let s = o
             .cast::<PyString>()
-            .map_err(|_| PyTypeError::new_err("not a str"))?
+            .map_err(|_| {
+                let t = o.get_type().name().map_or_else(|_| "?".to_owned(), |n| n.to_string());
+                PyTypeError::new_err(format!("a DBX element's {what} must be a str, not {t}"))
+            })?
             .to_str()?;
         let i = self.w.id(s);
         self.ids.insert(key, i);
@@ -74,27 +74,43 @@ impl<'py> Out<'py> {
     }
 }
 
-/// A list or tuple (the shapes the Python writer's loops see the same way), without copying its items.
+/// A list or tuple without copying its items, or the items of any other iterable (a generator, a string: what the
+/// Python writer's `for` loops took).
 enum Seq<'py> {
     List(Bound<'py, PyList>),
     Tuple(Bound<'py, PyTuple>),
+    Items(Vec<Bound<'py, PyAny>>),
 }
 
 impl<'py> Seq<'py> {
-    fn of(o: Bound<'py, PyAny>) -> PyResult<Self> {
+    /// A list or tuple only (`what` names it in the `TypeError` for anything else).
+    fn of(o: Bound<'py, PyAny>, what: &str) -> PyResult<Self> {
         match o.cast_into::<PyList>() {
             Ok(l) => Ok(Self::List(l)),
             Err(e) => match e.into_inner().cast_into::<PyTuple>() {
                 Ok(t) => Ok(Self::Tuple(t)),
-                Err(_) => Err(PyTypeError::new_err("not a list or tuple")),
+                Err(e) => {
+                    let o = e.into_inner();
+                    let t = o.get_type().name().map_or_else(|_| "?".to_owned(), |n| n.to_string());
+                    Err(PyTypeError::new_err(format!("{what} must be a list or tuple, not {t}")))
+                }
             },
         }
+    }
+
+    /// A list or tuple as it is, any other iterable's items (its error when it is not iterable).
+    fn iterable(o: Bound<'py, PyAny>) -> PyResult<Self> {
+        if o.is_instance_of::<PyList>() || o.is_instance_of::<PyTuple>() {
+            return Self::of(o, "");
+        }
+        Ok(Self::Items(o.try_iter()?.collect::<PyResult<Vec<_>>>()?))
     }
 
     fn len(&self) -> usize {
         match self {
             Self::List(l) => l.len(),
             Self::Tuple(t) => t.len(),
+            Self::Items(v) => v.len(),
         }
     }
 
@@ -102,49 +118,57 @@ impl<'py> Seq<'py> {
         match self {
             Self::List(l) => l.get_item(i),
             Self::Tuple(t) => t.get_item(i),
+            Self::Items(v) => v
+                .get(i)
+                .cloned()
+                .ok_or_else(|| PyValueError::new_err("children changed while being written")),
         }
     }
 }
 
-fn emit<'py>(out: &mut Out<'py>, e: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
-    if depth > MAX_DEPTH {
-        return Err(PyValueError::new_err("nested too deep for the Rust writer"));
-    }
+/// An element's head, attributes and value; for a container, its children (`None`: no children) after the open
+/// byte, which the caller walks and closes.
+fn emit_one<'py>(out: &mut Out<'py>, e: &Bound<'py, PyAny>) -> PyResult<Option<Seq<'py>>> {
     let py = e.py();
-    let attrs = Seq::of(e.getattr(intern!(py, "attributes"))?)?;
+    let attrs = Seq::of(e.getattr(intern!(py, "attributes"))?, "a DBX element's attributes")?;
     let n = attrs.len();
     // as the Python writer: the attribute count, then the tag's string, then the kind
     if n > 15 {
-        return Err(PyValueError::new_err("more than 15 attributes"));
+        return Err(PyValueError::new_err(format!("{n} attributes (15 at most)")));
     }
-    let tag = out.id(e.getattr(intern!(py, "tag"))?)?;
-    let kind: u8 = e.getattr(intern!(py, "kind"))?.extract()?;
+    let tag = out.id(e.getattr(intern!(py, "tag"))?, "tag")?;
+    let kind_value = e.getattr(intern!(py, "kind"))?;
+    let kind = match kind_value.extract::<i64>()? {
+        k @ 0..=15 => u8::try_from(k).unwrap_or_default(),
+        k => return Err(PyValueError::new_err(format!("kind {k} does not fit 4 bits (0-15)"))),
+    };
     out.w
         .element_id(tag, kind, n)
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
     for i in 0..n {
-        let pair = Seq::of(attrs.get(i)?)?;
+        let pair = Seq::of(attrs.get(i)?, "an attribute")?;
         if pair.len() != 2 {
-            return Err(PyTypeError::new_err("an attribute that is not a pair"));
+            return Err(PyValueError::new_err(format!(
+                "an attribute must be a (name, value) pair, not {} items",
+                pair.len()
+            )));
         }
-        let k = out.id(pair.get(0)?)?;
-        let v = out.id(pair.get(1)?)?;
+        let k = out.id(pair.get(0)?, "attribute name")?;
+        let v = out.id(pair.get(1)?, "attribute value")?;
         out.w.attribute_ids(k, v);
     }
     match kind {
         CONTAINER => {
             out.w.open();
             let children = e.getattr(intern!(py, "children"))?;
-            if !children.is_none() {
-                let c = Seq::of(children)?;
-                for i in 0..c.len() {
-                    emit(out, &c.get(i)?, depth + 1)?;
-                }
-            }
-            out.w.close();
+            return if children.is_none() {
+                Ok(Some(Seq::Items(Vec::new())))
+            } else {
+                Seq::iterable(children).map(Some)
+            };
         }
         TEXT => {
-            let t = out.id(e.getattr(intern!(py, "text"))?)?;
+            let t = out.id(e.getattr(intern!(py, "text"))?, "text")?;
             out.w.text_id(t);
         }
         _ => {
@@ -154,15 +178,39 @@ fn emit<'py>(out: &mut Out<'py>, e: &Bound<'py, PyAny>, depth: usize) -> PyResul
             } else if let Ok(b) = raw.cast::<PyByteArray>() {
                 out.w.raw(&b.to_vec());
             } else {
-                return Err(PyTypeError::new_err("a value that is not bytes"));
+                // what bytearray.extend takes (a buffer, an iterable of ints), with its error otherwise
+                let b = PyByteArray::new(py, &[]);
+                b.call_method1(intern!(py, "extend"), (raw,))?;
+                out.w.raw(&b.to_vec());
             }
+        }
+    }
+    Ok(None)
+}
+
+/// An element and everything below it, depth first, with the walk's own stack (any nesting depth).
+fn emit<'py>(out: &mut Out<'py>, root: &Bound<'py, PyAny>) -> PyResult<()> {
+    let mut stack: Vec<(Seq<'py>, usize)> = Vec::new();
+    if let Some(kids) = emit_one(out, root)? {
+        stack.push((kids, 0));
+    }
+    while let Some((kids, i)) = stack.last_mut() {
+        if *i < kids.len() {
+            let c = kids.get(*i)?;
+            *i += 1;
+            if let Some(k) = emit_one(out, &c)? {
+                stack.push((k, 0));
+            }
+        } else {
+            out.w.close();
+            stack.pop();
         }
     }
     Ok(())
 }
 
-/// `dbx.write(f)` through Rust: the bytes of the Python writer for `f` (a `DbxFile`: its `roots` are written), or
-/// an exception for a tree this function leaves to the Python writer (module doc).
+/// `dbx.write(f)`: `f` (a `DbxFile`: its `roots` are written) as a binary `.dbx`, the bytes the retired Python writer
+/// wrote, or the reason it cannot be written (module doc).
 #[pyfunction]
 pub fn dbx_write<'py>(py: Python<'py>, file: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyBytes>> {
     let mut out = Out {
@@ -170,9 +218,9 @@ pub fn dbx_write<'py>(py: Python<'py>, file: &Bound<'py, PyAny>) -> PyResult<Bou
         ids: HashMap::default(),
         held: Vec::new(),
     };
-    let roots = Seq::of(file.getattr(intern!(py, "roots"))?)?;
+    let roots = Seq::iterable(file.getattr(intern!(py, "roots"))?)?;
     for i in 0..roots.len() {
-        emit(&mut out, &roots.get(i)?, 0)?;
+        emit(&mut out, &roots.get(i)?)?;
     }
     let bytes = out.w.finish().map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(PyBytes::new(py, &bytes))

@@ -19,6 +19,8 @@ bc2-convert.workspace = true
 bc2-navbuild.workspace = true
 bc2-shader.workspace = true
 bc2-stockmp.workspace = true
+bc2-harness.workspace = true
+iced-x86.workspace = true
 pyo3.workspace = true
 rayon.workspace = true
 

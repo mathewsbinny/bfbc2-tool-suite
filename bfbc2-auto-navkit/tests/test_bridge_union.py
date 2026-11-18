@@ -1,7 +1,9 @@
-r"""NavKit's 45-degree bridge outlines (navbuild.bridge_union) on random cell patterns built here (no game data): an
-area's boundary - its cells' open sides, minus the sides its bridges cover, plus the bridges' diagonals - is closed
-(every end point is met an even number of times) for every pattern, as in DICE's files; non-overlapping bridges give
-exactly two diagonals each; the old clipping (clip_bridges) leaves open ends on some patterns (the bug this replaced).
+r"""NavKit's 45-degree bridge outlines (navbuild.trace_emit, the Rust core's union of an area's bridges) on random cell
+patterns built here (no game data): an area's outline - its cells' open sides, but those its bridges cover, plus the
+bridges' diagonals - is closed (every end point is met an even number of times) for every pattern, as in DICE's
+files, overlapping bridges (chains, a cell shared by two corners) included; a lone bridge gives exactly its two
+diagonals and covers the four sides at its corner. (The old clip_bridges, which left open ends on some patterns, went
+with trace_emit's Python on 2026-11-18: round R1.)
 
   python test_bridge_union.py
 """
@@ -12,6 +14,8 @@ from collections import Counter
 from types import SimpleNamespace
 from typing import Any
 
+import numpy as np
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
@@ -20,6 +24,9 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
 import navbuild  # noqa: E402
+
+N = 10                                   # the grid: N x N columns, the patterns inside it
+P = navbuild.PITCH
 
 
 def bridges_of(cells):
@@ -32,37 +39,37 @@ def bridges_of(cells):
     return out
 
 
-def open_ends(cells, drop, diag):
-    """End points (half-sample units) of the boundary met an odd number of times."""
+def outline(cells, heights=None):
+    """trace_emit's outline of one area holding the cells (one surface in each of their columns, none elsewhere; the
+    cells need not be connected): [((x, z, y), (x, z, y))] in local sample units."""
+    heights = heights or {}
+    start: list[int] = [0]
+    ys: list[float] = []
+    cell_k = {}
+    for j in range(N):
+        for i in range(N):
+            if (i, j) in cells:
+                cell_k[(i, j)] = len(ys)
+                ys.append(heights.get((i, j), 0.0))
+            start.append(len(ys))
+    n = len(ys)
+    s: Any = SimpleNamespace(nx=N, nz=N, pitch=P, min_x=0.0, min_z=0.0, start=np.array(start, np.int64),
+                             y=np.array(ys, np.float32), normal=np.tile(np.array([0, 1, 0], np.float32), (n, 1)),
+                             hit=None, flags=np.zeros(n, np.uint8))
+    lv = navbuild.Level(s, np.ones(n, bool), 0.28)
+    area = {'cells': [(i, j, k) for (i, j), k in sorted(cell_k.items(), key=lambda t: t[1])]}
+    per_area, _one_way = navbuild.trace_edges(lv, [area], {k: 0 for k in cell_k.values()}, 0, 0)
+    (_portals, _borders, lines), = navbuild.trace_emit(lv, [area], per_area, 0, 0, 0.0, 0.0)
+    return [((a[0] / P, a[2] / P, a[1]), (b[0] / P, b[2] / P, b[1])) for a, b in lines]
+
+
+def open_ends(lines):
+    """End points (half-sample units) of the outline met an odd number of times."""
     deg: Counter[tuple[int, int]] = Counter()
-    for i, j in cells:
-        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            if (i + di, j + dj) in cells:
-                continue
-            key = ('x', i + di * 0.5, j) if di else ('z', j + dj * 0.5, i)
-            if key in drop:
-                continue
-            if di:
-                a, b = (2 * i + di, 2 * j - 1), (2 * i + di, 2 * j + 1)
-            else:
-                a, b = (2 * i - 1, 2 * j + dj), (2 * i + 1, 2 * j + dj)
-            deg[a] += 1
-            deg[b] += 1
-    for p, q in diag:
+    for p, q in lines:
         deg[(round(p[0] * 2), round(p[1] * 2))] += 1
         deg[(round(q[0] * 2), round(q[1] * 2))] += 1
     return [k for k, v in deg.items() if v % 2]
-
-
-def old_method(cells, bridges, level, cell_k):
-    """trace_emit's previous code: four sides dropped per bridge, the two diagonals, clip_bridges."""
-    drop, bsegs = set(), []
-    for bi, (i, j, di, dj) in enumerate(bridges):
-        drop.update({('x', i + di * 0.5, j), ('z', j + dj * 0.5, i), ('x', i + di * 0.5, j + dj), ('z', j + dj * 0.5, i + di)})
-        cx, cz = i + di * 0.5, j + dj * 0.5
-        for (ax, az), (bx, bz) in (((cx - di, cz), (cx, cz + dj)), ((cx, cz - dj), (cx + di, cz))):
-            bsegs.append((bi, (ax, az, 0.0), (bx, bz, 0.0)))
-    return drop, [((a[0], a[1]), (b[0], b[1])) for _bi, a, b in navbuild.clip_bridges(bsegs, bridges)]
 
 
 def main(argv):
@@ -74,7 +81,7 @@ def main(argv):
         print(f'{"ok  " if ok else "FAIL"} {what}')
 
     rng = random.Random(1)
-    bad_new = bad_old = with_bridges = overlapping = 0
+    bad = with_bridges = overlapping = 0
     patterns = 600
     for _ in range(patterns):
         n = rng.choice((4, 6, 8))
@@ -83,34 +90,30 @@ def main(argv):
         if not bridges:
             continue
         with_bridges += 1
-        cell_k = {c: k for k, c in enumerate(sorted(cells))}
-        level: Any = SimpleNamespace(y=[0.0] * len(cell_k))       # a navbuild.Level stand-in (bridge_union reads y)
-        drop, segs = navbuild.bridge_union(bridges, cell_k, level)
-        diag = [((a[0], a[1]), (b[0], b[1])) for a, b in segs]
-        if open_ends(cells, drop, diag):
-            bad_new += 1
         corners: Counter[tuple[int, int]] = Counter()
         for i, j, di, dj in bridges:
             corners[(i + di, j)] += 1
             corners[(i, j + dj)] += 1
         overlapping += any(v > 1 for v in corners.values())
-        odrop, odiag = old_method(cells, bridges, level, cell_k)
-        if open_ends(cells, odrop, odiag):
-            bad_old += 1
-    check(with_bridges > 300, f'{with_bridges} of {patterns} random patterns have bridges ({overlapping} with overlapping ones)')
-    check(bad_new == 0, f'bridge_union: every boundary closed ({bad_new} with open ends)')
-    check(bad_old > 0, f'the old clipping leaves open ends on {bad_old} patterns (the case this replaced)')
+        if open_ends(outline(cells)):
+            bad += 1
+    check(with_bridges > 300 and overlapping > 50,
+          f'{with_bridges} of {patterns} random patterns have bridges ({overlapping} with overlapping ones)')
+    check(bad == 0, f'the bridges\' union: every outline closed ({bad} with open ends)')
 
-    # one bridge alone: exactly its two diagonals, from A's corners to B's corners
-    cells = {(0, 0), (1, 1)}
-    cell_k = {(0, 0): 0, (1, 1): 1}
-    level = SimpleNamespace(y=[1.0, 2.0])
-    drop, segs = navbuild.bridge_union(bridges_of(cells), cell_k, level)
-    ends = sorted(((a[0], a[1], a[2]), (b[0], b[1], b[2])) for a, b in segs)
-    check(ends == [((-0.5, 0.5, 1.0 + navbuild.Y_OFFSET), (0.5, 1.5, 2.0 + navbuild.Y_OFFSET)),
-                   ((0.5, -0.5, 1.0 + navbuild.Y_OFFSET), (1.5, 0.5, 2.0 + navbuild.Y_OFFSET))],
-          'a lone bridge: two diagonals, A end at A\'s height, B end at B\'s')
-    check(drop == {('x', 0.5, 0), ('z', 0.5, 0), ('x', 0.5, 1), ('z', 0.5, 1)}, 'a lone bridge covers the four sides at its corner')
+    # one bridge alone: exactly its two diagonals, from A's corners to B's corners; the four sides at its corner
+    # covered (each cell keeps its two outer sides)
+    lines = outline({(0, 0), (1, 1)}, {(0, 0): 1.0, (1, 1): 2.0})
+    y = navbuild.Y_OFFSET
+    diag = sorted(tuple(sorted((tuple(round(v, 6) for v in p), tuple(round(v, 6) for v in q))))
+                  for p, q in lines if p[0] != q[0] and p[1] != q[1])
+    check(diag == [((-0.5, 0.5, 1.0 + y), (0.5, 1.5, 2.0 + y)), ((0.5, -0.5, 1.0 + y), (1.5, 0.5, 2.0 + y))],
+          f'a lone bridge: two diagonals, A end at A\'s height, B end at B\'s ({diag})')
+    sides = sorted(tuple(sorted(((round(p[0], 6), round(p[1], 6)), (round(q[0], 6), round(q[1], 6)))))
+                   for p, q in lines if p[0] == q[0] or p[1] == q[1])
+    want = sorted(tuple(sorted(x)) for x in (((-0.5, -0.5), (-0.5, 0.5)), ((-0.5, -0.5), (0.5, -0.5)),
+                                             ((1.5, 0.5), (1.5, 1.5)), ((0.5, 1.5), (1.5, 1.5))))
+    check(sides == want, f'a lone bridge covers the four sides at its corner (the outer sides left: {sides})')
     print('all passed' if not failed else f'{failed} check(s) failed')
     return 1 if failed else 0
 

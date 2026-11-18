@@ -108,7 +108,10 @@ share a layout and would parse either way).
 ```python
 import shaderdb as sd
 db = sd.ShaderDb.parse(data)            # PC or Xbox 360, from the first bytes; db.big_endian, db.platform
-sd.entry_textures(db)                   # {entry name: [(sampler, cube, texture name)]}
+sd.entry_textures(db)                   # {entry name: [(sampler, cube, texture name)]}; (db, {name}) for some
+sd.entry_signatures(db)                 # {entry name: (sorted constant names, sampler count)}: its shader template
+sd.entry_layouts(db)                    # {entry name: {vertex layout GUIDs its programs are compiled for}}
+sd.coverage(db, meshes)                 # {mesh: entries drawing it}
 sd.block_textures(block, db.e)          # one parameter block's textures; sd.block_constants: its constants
 sd.part_layouts(db)                     # {mesh-part name: vertex layout record body (0x49 bytes)}
 sd.texture_kind(name)                   # 'color', 'normal', 'specular', 'gloss', 'occlusion' or '' (by suffix)

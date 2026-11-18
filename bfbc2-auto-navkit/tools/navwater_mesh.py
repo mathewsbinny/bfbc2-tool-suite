@@ -194,7 +194,7 @@ def object_triangles(root, lv, log=print, cache=None):
     groups = json.load(open(os.path.join(L, 'group_instances.json'))) if os.path.isfile(os.path.join(L, 'group_instances.json')) else []
     bases = [os.path.join(L, 'pkg'), os.path.join(L, 'dist')] + \
         [os.path.join(root, 'work', 'navkit', 'common', c) for c in ('sp_common', 'mp_common')]
-    havok = collision.havok_index([b for b in bases if os.path.isdir(b)])   # NavKit's levelobjects index (Rust when built)
+    havok = collision.havok_index([b for b in bases if os.path.isdir(b)])   # NavKit's levelobjects index (the Rust core)
     local = collision.blueprint_triangles([o['bp'] for o in objs + groups], havok)
     world, missing = [], set()
     for o in objs + groups:

@@ -11,8 +11,12 @@ navdiff); the format is in bfbc2-auto-navkit/research/KYNAPSE_SPEC.md.
     nav.node_island, nav.islands islands (connected parts of the graph), largest first
 
 Cells come from navdiff.area_cells (samples inside an area's boundary, height from the nearest boundary point);
-where a cell lies on terrain, the terrain height field's height is used instead. That step is slow for a
-whole level (10-40 s), so it is cached per file (size and date) when cache_dir is given.
+where a cell lies on terrain, the terrain height field's height is used instead. The whole file is cached per file
+(size and date) when cache_dir is given.
+
+The areas, cells and the route graph's union-finds are made in the suite's Rust core (round E3o: navkit_navdata_areas,
+navkit_mesh_cells, navkit_union_roots); their Python twins were retired on 2026-11-18 (round R1; the answers recorded
+in tests/navdata_golden.json). The module is required.
 """
 import contextlib
 import hashlib
@@ -36,7 +40,6 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools')
 import hpdtool  # noqa: E402
-import kymesh  # noqa: E402
 import navdiff  # noqa: E402
 
 GRID = navdiff.GRID
@@ -153,54 +156,32 @@ def _ground(xz: np.ndarray, est: np.ndarray, heightfield: Any) -> np.ndarray:
     return np.where(np.abs(t - est) < 1.5, t, est)
 
 
-_NATIVE: list[Any] = []
-
-
 def _native() -> Any:
-    """The Rust core with round E3o's navkit_mesh_cells / navkit_union_roots (navdiff finds it: None when not built
-    or BFBC2_PURE_PYTHON is set), or None."""
-    if not _NATIVE:
-        m = navdiff._native()
-        _NATIVE.append(m if m is not None and hasattr(m, 'navkit_mesh_cells') else None)
-    return _NATIVE[0]
+    """The Rust core (round E3o's navkit_mesh_cells, navkit_navdata_areas, navkit_union_roots), or
+    bfbc2core.native.NativeMissing saying how to get it."""
+    from . import native
+    return native.require('navdata (path data for the 3D tools)', 'navkit_navdata_areas')
 
 
-def use_native(on: bool) -> bool:
-    """Round E3o's Rust paths (the cells of a whole file, the route graph's union-find, kymesh's reader) on (when
-    built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when they run. Off: the reference."""
-    _NATIVE.clear()
-    navdiff._NATIVE.clear()
-    if not on:
-        _NATIVE.append(None)
-        navdiff._NATIVE.append(None)
-        kymesh.use_native(False)
-        return False
-    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-    try:
-        kymesh.use_native(True)
-        return _native() is not None
-    finally:
-        if saved is not None:
-            os.environ['BFBC2_PURE_PYTHON'] = saved
+def _meshes(f: Any) -> list[bytes]:
+    return [bytes(s.mesh) for s in f.sectors]
 
 
-def _mesh_cells(f: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
-    """(xz, est, area) of every area of the file in the Rust core (round E3o: the meshes parsed, each area's
-    boundary sampled by navdiff.area_cells' rule, cell after cell, as the reference joins them), or None: not
-    built, or a mesh / boundary the reference must handle (an unreadable record, a value that is not finite)."""
-    nat = _native()
-    if nat is None or not all(type(s.mesh) is bytes for s in f.sectors):
-        return None
-    got = nat.navkit_mesh_cells([s.mesh for s in f.sectors], navdiff.GRID, navdiff.Y_OFFSET)
+def _mesh_cells(f: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(xz, est, area) of every area of the file in the Rust core (round E3o: the meshes parsed, each area's boundary
+    sampled by navdiff.area_cells' rule, cell after cell); ValueError for a mesh it cannot read or a boundary value
+    that is not finite (none in DICE's or NavKit's path data)."""
+    got = _native().navkit_mesh_cells(_meshes(f), navdiff.GRID, navdiff.Y_OFFSET)
     if got is None:
-        return None
+        raise ValueError('navdata: a sector mesh the Rust core cannot read, or a boundary value that is not finite '
+                         '(kymesh.parse_mesh_reference reads the record: check it with hpdview / kymesh)')
     ij, ys, area = got
     xz = np.frombuffer(ij, '<i8').reshape(-1, 2).astype(np.float64) * GRID
     return xz, np.frombuffer(ys, '<f8').astype(np.float64), np.frombuffer(area, '<i4').astype(np.int32)
 
 
-def _cells(f: Any, heightfield: Any, cache_dir: str | None, path: str,
-           meshes: list[Any] | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _cells(f: Any, heightfield: Any, cache_dir: str | None,
+           path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     xz: Any                                     # cached cell centres, or a list of arrays joined into one
     if cache_dir:
         cp = os.path.join(cache_dir, _key(path) + '.npz')
@@ -212,11 +193,7 @@ def _cells(f: Any, heightfield: Any, cache_dir: str | None, path: str,
                 return xz, _ground(xz, est, heightfield), area, est
             except Exception:
                 pass                                             # a damaged cache entry is rebuilt
-    got = _mesh_cells(f)
-    if got is not None:
-        xz, est, area = got
-    else:
-        xz, est, area = _cells_reference(f, meshes)
+    xz, est, area = _mesh_cells(f)
     y = _ground(xz, est, heightfield)
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
@@ -228,16 +205,14 @@ def _cells(f: Any, heightfield: Any, cache_dir: str | None, path: str,
     return xz, y, area, est
 
 
-def _areas_native(f: Any) -> list[NavArea] | None:
-    """The file's NavAreas from the Rust core's flat arrays (round E3o: navkit_navdata_areas; the same values,
-    dtypes and shapes as the reference loop over the parsed meshes - each outline line, portal and border end a
-    view of one array of the file), or None: not built, or a mesh the reference reader must read."""
-    nat = _native()
-    if nat is None or not hasattr(nat, 'navkit_navdata_areas') or not all(type(s.mesh) is bytes for s in f.sectors):
-        return None
-    got = nat.navkit_navdata_areas([s.mesh for s in f.sectors])
+def _areas(f: Any) -> list[NavArea]:
+    """The file's NavAreas from the Rust core's flat arrays (round E3o: navkit_navdata_areas; each outline line of 2+
+    points as float32, portal and border ends as float64, each a view of one array of the file); ValueError for a mesh
+    it cannot read."""
+    got = _native().navkit_navdata_areas(_meshes(f))
     if got is None:
-        return None
+        raise ValueError('navdata: a sector mesh the Rust core cannot read (a short record, a NaN: '
+                         'kymesh.parse_mesh_reference reads the record - check it with hpdview / kymesh)')
     ints, floats, points, line_start, area_lines, portals, targets, area_portals, borders, area_borders = got
     head = np.frombuffer(ints, '<i8').reshape(-1, 5).tolist()
     vals = np.frombuffer(floats, '<f8').reshape(-1, 3).tolist()
@@ -259,58 +234,17 @@ def _areas_native(f: Any) -> list[NavArea] | None:
     return out
 
 
-def _cells_reference(f: Any, meshes: list[Any] | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """(xz, est, area) by navdiff.area_cells_many over the parsed areas (the reference of _mesh_cells)."""
-    ys: list[np.ndarray]
-    area_of: list[np.ndarray]
-    xz: Any
-    xz, ys, area_of = [], [], []
-    if meshes is None:
-        meshes = [kymesh.parse_mesh(s.mesh) for s in f.sectors]
-    every = [a for m in meshes for a in m.areas]
-    for k, c in enumerate(navdiff.area_cells_many(every)):   # all at once (in the Rust core, in parallel: round E3h)
-        if c:
-            ij = np.array(list(c.keys()), dtype=np.float64)
-            xz.append(ij * GRID)
-            ys.append(np.array(list(c.values()), dtype=np.float64))
-            area_of.append(np.full(len(c), k, dtype=np.int32))
-    xz = np.concatenate(xz) if xz else np.zeros((0, 2))
-    est = np.concatenate(ys) if ys else np.zeros(0)
-    area = np.concatenate(area_of) if area_of else np.zeros(0, np.int32)
-    return xz, est, area
-
-
 def _union_roots(n: int, edges: np.ndarray, skip: np.ndarray | None = None) -> np.ndarray:
-    """Each node's root after joining the ends of every edge (but those marked in skip) in order, by _load's
-    union-find (path halving; parent[root of a] = root of b): in the Rust core when built (round E3o), the same
-    steps; _union_roots_reference otherwise."""
-    nat = _native()
-    if nat is not None and n:
-        e = np.ascontiguousarray(edges, dtype='<i8')
-        sk = None if skip is None else np.ascontiguousarray(skip, dtype=bool).view(np.uint8).tobytes()
-        try:
-            return np.frombuffer(nat.navkit_union_roots(n, e.tobytes(), sk), '<i8').astype(np.int64)
-        except ValueError:
-            pass                                             # a node out of range: the reference's error
-    return _union_roots_reference(n, edges, skip)
-
-
-def _union_roots_reference(n: int, edges: np.ndarray, skip: np.ndarray | None = None) -> np.ndarray:
-    """The union-find in Python (the reference)."""
-    parent = np.arange(n)
-
-    def find(a: Any) -> Any:
-        while parent[a] != a:
-            parent[a] = parent[parent[a]]
-            a = parent[a]
-        return a
-    for k, (a, b) in enumerate(edges):
-        if skip is not None and skip[k]:
-            continue
-        ra, rb = find(a), find(b)
-        if ra != rb:
-            parent[ra] = rb
-    return np.array([find(k) for k in range(n)], dtype=np.int64)
+    """Each node's root after joining the ends of every edge (but those marked in skip) in order, by a union-find with
+    path halving (parent[root of a] = root of b; then find(k) for every k in order), in the Rust core (round E3o).
+    ValueError for a node out of range."""
+    if not n:
+        if len(edges):
+            raise ValueError('navdata: route edges without nodes')
+        return np.zeros(0, np.int64)
+    e = np.ascontiguousarray(edges, dtype='<i8')
+    sk = None if skip is None else np.ascontiguousarray(skip, dtype=bool).view(np.uint8).tobytes()
+    return np.frombuffer(_native().navkit_union_roots(n, e.tobytes(), sk), '<i8').astype(np.int64)
 
 
 def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> NavData:
@@ -339,20 +273,8 @@ def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> Na
 
 def _load(path: str, heightfield: Any, cache_dir: str | None) -> NavData:
     f = hpdtool.parse(open(path, 'rb').read())
-    areas: list[NavArea] = []
-    meshes: list[Any] | None = None
-    got = _areas_native(f)
-    if got is not None:
-        areas = got
-    else:
-        meshes = [kymesh.parse_mesh(s.mesh) for s in f.sectors]     # each sector's mesh read once (round E3o)
-        for s, mesh in zip(f.sectors, meshes):
-            for n, ma in enumerate(mesh.areas):
-                areas.append(NavArea(s.id, n, (ma.tile_x, ma.tile_z), ma.layer, ma.pitch, ma.min_y, ma.max_y,
-                                     [np.asarray(l, dtype=np.float32) for l in ma.outline if len(l) >= 2],
-                                     [(np.asarray(p.p0), np.asarray(p.p1), p.target) for p in ma.portals],
-                                     [(np.asarray(b.p0), np.asarray(b.p1)) for b in ma.border_portals]))
-    xz, y, cell_area, _ = _cells(f, heightfield, cache_dir, path, meshes)
+    areas = _areas(f)
+    xz, y, cell_area, _ = _cells(f, heightfield, cache_dir, path)
     counts = np.bincount(cell_area, minlength=len(areas)) if len(cell_area) else np.zeros(len(areas), int)
     for a, cnt in zip(areas, counts):
         a.cells = int(cnt)

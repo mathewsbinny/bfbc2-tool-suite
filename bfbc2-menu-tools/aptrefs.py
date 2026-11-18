@@ -189,9 +189,53 @@ def movie_refs(code):
     return out
 
 
+# Round E4c: movie_refs runs in the suite's Rust core (bc2_formats::aptscan, bc2_native.apt_refs_many) over the
+# decoder's records without building them in Python, many movies at once on all cores; the same dicts (keys, order,
+# values). A movie the Rust decoder refuses (apt.py decodes it) or whose scan the port refuses goes through
+# movie_refs here. use_native(False) or BFBC2_PURE_PYTHON=1: movie_refs for every movie (refs_many_python).
+
+def _import_native():
+    n = apt._import_native()
+    return n if n is not None and hasattr(n, 'apt_refs_many') else None
+
+
+_native = None if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0') else _import_native()
+
+
+def use_native(on):
+    """The Rust scan on (when the core is built) or off for this process; returns 'rust' or 'python'."""
+    global _native
+    _native = _import_native() if on else None
+    return 'rust' if _native is not None else 'python'
+
+
+def refs_many_python(movies):
+    """refs_many through aptcheck.Code and movie_refs (the reference)."""
+    import aptcheck
+    return [movie_refs(aptcheck.Code(m)) for m in apt.decoded(movies)]
+
+
+def refs_many(movies):
+    """movie_refs of many apt.Movie, in order (the Rust scan on all cores when the core is built)."""
+    movies = list(movies)
+    nat = _native
+    if nat is None or apt._native is None:
+        return refs_many_python(movies)
+    out = [None] * len(movies)
+    chunk = 4 * (os.cpu_count() or 4)
+    for lo in range(0, len(movies), chunk):
+        part = [(k, m) for k, m in enumerate(movies[lo:lo + chunk], lo) if m._native_ok()]
+        res = nat.apt_refs_many([(m.name, m.a, m.big, m.movie, m.const) for _, m in part])
+        for (k, _m), r in zip(part, res):
+            out[k] = r
+    rest = [k for k, r in enumerate(out) if r is None]
+    for k, r in zip(rest, refs_many_python([movies[k] for k in rest])):
+        out[k] = r
+    return out
+
+
 def scan_movies(specs, sets, root):
     """[(label, movie name, refs)] for the movie specs given, else the movie sets of the game copy."""
-    import aptcheck
     found = []
     if specs:
         # read first, then decoded many at once on all cores (apt.decoded); a movie that cannot be read raises at its
@@ -204,12 +248,11 @@ def scan_movies(specs, sets, root):
             except Exception as e:
                 got.append((None, e))
                 break
-        ready = iter(apt.decoded(m for label, m in got if label is not None))
+        ready = iter(refs_many([m for label, m in got if label is not None]))
         for label, m in got:
             if label is None:
                 raise m
-            m = next(ready)
-            found.append((label, m.name, movie_refs(aptcheck.Code(m))))
+            found.append((label, m.name, next(ready)))
         return found
     root = root or mc.find_opfor()
     for key, rel in mc.MOVIE_SETS:
@@ -232,8 +275,8 @@ def scan_movies(specs, sets, root):
                     read.append(mc.movie_from_members(members, entry))
                 except mc.MenuToolError:
                     continue                       # a .res that is not a movie
-            for m in apt.decoded(read):          # many at once on all cores (the Rust core when it is built)
-                found.append((f'{key}:{m.name}', m.name, movie_refs(aptcheck.Code(m))))
+            for m, refs in zip(read, refs_many(read)):     # many at once on all cores (the Rust core when built)
+                found.append((f'{key}:{m.name}', m.name, refs))
     return found
 
 

@@ -1,26 +1,28 @@
-r"""The Rust bundle reader (rust/bc2-formats fbrb, through the bc2_native module) against the Python reader it was
-ported from (core/bfbc2core/fbrb.py), and against FbrbTool's unpack (in process; its files the ones FbrbTool.exe wrote,
-recorded before it was retired: csharp_golden.py): the same entries, the same bytes, the same bundles refused.
+r"""The bundle reader (rust/bc2-formats fbrb, through the bc2_native module) against what the retired Python reader
+(core/bfbc2core/fbrb.py's _header / _py_read, round F1a 2026-11-18) answered, recorded before it was deleted
+(fbrb_golden.json), and against FbrbTool's unpack (in process; its files the ones FbrbTool.exe wrote, recorded before
+it was retired: csharp_golden.py): the same entries, the same bytes, the same bundles refused.
 
   python core\tests\test_fbrb_native.py            quick: built and hand-made bundles, damaged and random ones, the
-                                                    dispatcher and fallback, FbrbTool's unpack of the built bundles;
+                                                    messages, read_many, FbrbTool's unpack of the built bundles;
                                                     8 small game bundles when the game copy is there
   python core\tests\test_fbrb_native.py --game     + every bundle of the game copy (Project OPFOR BFBC2's game\, read
-                                                    only) and of work\ww2: every entry of each read by both readers
+                                                    only) and of work\ww2: every entry of each
 
-Skipped (exit 0) when the module is not built (python rust\build_native.py).
+A game bundle whose content the recording does not have (changed since: OPFOR's installs patch the game copy) is
+counted, not compared. Needs the module (python rust\build_native.py).
 """
 import gzip
 import hashlib
 import os
 import random
 import struct
-import subprocess
 import sys
 import tempfile
 import time
 import zlib
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
@@ -32,68 +34,63 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, fbrb, fbrbtool, paths  # noqa: E402
-
-if HERE not in sys.path:
-    sys.path.insert(0, HERE)
+sys.path.insert(0, HERE)
 import csharp_golden as cg  # noqa: E402
+import goldens  # noqa: E402
+from bfbc2core import fbrb, fbrbtool, native, paths  # noqa: E402
 
-NATIVE: Any = fbrb._with_fbrb(dbx._import_native())
-BIG = 150_000_000          # bundles larger than this are compared one at a time (each reader holds every entry)
+GOLDEN = os.path.join(HERE, 'fbrb_golden.json')
+GROUP = 256_000_000        # a large bundle's entries are read in groups of about this many bytes (memory)
+
+Header = tuple[list[fbrb.Entry], bool, int]
+Reader = tuple[Callable[[str], Header], Callable[[str, list[str]], dict[str, bytes]]]
 
 
-# ------------------------------------------------------------------------------------------------ one bundle, both readers
+def _rust_header(path: str) -> Header:
+    ents, zipped, start = native.require('the bundle reader').fbrb_header(path, fbrb.Entry)
+    return list(ents), bool(zipped), int(start)
 
-def _outcome_py(path: str) -> tuple[str, Any]:
+
+def _rust_read(path: str, keys: list[str]) -> dict[str, bytes]:
+    return fbrb.read_uncached(path, keys)
+
+
+RUST: Reader = (_rust_header, _rust_read)
+
+
+# ------------------------------------------------------------------------------------------------ one bundle
+
+def digest(path: str, reader: Reader = RUST) -> tuple[str, int, int]:
+    """(the digest of what the reader answers for the bundle - its entries, zipped flag, payload start and every
+    live entry's data, or the exception's type -, entries, payload bytes)."""
+    header, read = reader
     try:
-        with open(path, 'rb') as fh:
-            ents, zipped, start = fbrb._header(fh)
-        keys = sorted({e.name.lower() for e in ents if not e.deleted})
-        data = fbrb._py_read(path, keys)
-        return 'ok', ([tuple(vars(e).values()) for e in ents], zipped, start, [hashlib.sha1(data[k]).hexdigest() for k in keys])
-    except KeyError:
-        return 'KeyError', None
-    except ValueError:
-        return 'ValueError', None
+        ents, zipped, start = header(path)
+        live = {e.name.lower(): e for e in ents if not e.deleted}
+        keys = sorted(live)
+        shas: dict[str, str] = {}
+        group: list[str] = []
+        size = 0
+        for k in sorted(keys, key=lambda k: live[k].offset + live[k].size):    # the payload's order, in groups
+            group.append(k)
+            size += live[k].size
+            if size >= GROUP:
+                shas.update((n, hashlib.sha1(d).hexdigest()) for n, d in read(path, group).items())
+                group, size = [], 0
+        if group or not keys:
+            shas.update((n, hashlib.sha1(d).hexdigest()) for n, d in read(path, group).items())
+        value = ([tuple(vars(e).values()) for e in ents], zipped, start, [shas[k] for k in keys])
+        n_bytes = sum(e.size for e in ents if not e.deleted)
+        return goldens.rh(('ok', value), 16), len(ents), n_bytes
+    except (KeyError, ValueError) as e:
+        return type(e).__name__, 0, 0
 
 
-def _outcome_rs(path: str) -> tuple[str, Any]:
-    try:
-        ents, zipped, start = NATIVE.fbrb_header(path, fbrb.Entry)
-        keys = sorted({e.name.lower() for e in ents if not e.deleted})
-        data = NATIVE.fbrb_read(path, keys, keys)
-        return 'ok', ([tuple(vars(e).values()) for e in ents], zipped, start, [hashlib.sha1(d).hexdigest() for d in data])
-    except KeyError:
-        return 'KeyError', None
-    except ValueError:
-        return 'ValueError', None
-
-
-def compare(path: str) -> tuple[str | None, int, int]:
-    """(None or the kind of difference, entries, payload bytes read) for the bundle at path."""
-    (pk, pv), (rk, rv) = _outcome_py(path), _outcome_rs(path)
-    if pk != rk:
-        return f'python {pk}, rust {rk}', 0, 0
-    if pk == 'ok':
-        if pv[0] != rv[0]:
-            return 'entries differ', 0, 0
-        if pv[1:3] != rv[1:3]:
-            return 'zipped / payload start differ', 0, 0
-        if pv[3] != rv[3]:
-            return 'entry data differs', 0, 0
-        return None, len(pv[0]), sum(e[4] for e in pv[0] if not (e[1] == fbrb.DELETED and e[4] == 0))
-    return None, 0, 0
-
-
-def compare_bytes(data: bytes, folder: str, n: int) -> str | None:
+def digest_bytes(data: bytes, folder: str, n: int, reader: Reader = RUST) -> str:
     p = os.path.join(folder, f'b{n}.fbrb')
     with open(p, 'wb') as fh:
         fh.write(data)
-    return compare(p)[0]
-
-
-def _chunk(files: list[str]) -> list[tuple[str, str | None, int, int]]:
-    return [(f, *compare(f)) for f in files]
+    return digest(p, reader)[0][:10]
 
 
 # ------------------------------------------------------------------------------------------------ bundles made here
@@ -129,7 +126,7 @@ def header(rows: list[tuple[bytes, bytes, int, int, int, int]], zipped: bool, st
 
 
 def bundle(head: bytes, payload: bytes, packed_head: bytes | None = None) -> bytes:
-    hz = gzip.compress(head) if packed_head is None else packed_head
+    hz = gzip.compress(head, mtime=0) if packed_head is None else packed_head
     return b'FbRB' + struct.pack('>I', len(hz)) + hz + payload
 
 
@@ -163,7 +160,7 @@ def built_bundles() -> list[tuple[str, bytes]]:
     out.append(('not a bundle', b'not a bundle at all'))
     out.append(('magic only', b'FbRB'))
     out.append(('empty file', b''))
-    out.append(('header length past the end', b'FbRB\xff\xff\xff\xff' + gzip.compress(b'abc')))
+    out.append(('header length past the end', b'FbRB\xff\xff\xff\xff' + gzip.compress(b'abc', mtime=0)))
     out.append(('empty header', bundle(b'', b'', b'')))
     return out
 
@@ -186,6 +183,49 @@ def mutations(data: bytes, rng: random.Random, n: int) -> list[bytes]:
     return out
 
 
+def quick_cases() -> dict[str, list[bytes]]:
+    """The quick tier's bundles, in the recording's order: built, damaged (seeded), random headers (seeded)."""
+    built = built_bundles()
+    rng = random.Random(1943)
+    sources = [d for name, d in built if name.startswith(('built zipped=True', 'non-ASCII', 'header with'))]
+    sources.append(fbrb.build([('A.dbx', 'T', bytes(range(256)) * 50), ('B.dbx', 'T', b'b' * 3000)], True))
+    sources.append(fbrb.build([('A.dbx', 'T', bytes(range(256)) * 50), ('B.dbx', 'T', b'b' * 3000)], False))
+    damaged = [m for d in sources for m in mutations(d, rng, 150)]
+    noise = [b'FbRB' + struct.pack('>I', rng.randrange(60)) + bytes(rng.randrange(256) for _ in range(rng.randrange(80)))
+             for _ in range(300)]
+    noise += [b'FbRB' + struct.pack('>I', 20 + rng.randrange(40)) + gzip.compress(bytes(rng.randrange(256) for _ in range(rng.randrange(60))), mtime=0)
+              for _ in range(300)]
+    return {'built': [d for _, d in built], 'damaged': damaged, 'noise': noise}
+
+
+def api_outcomes(work: str, read: Callable[[str, list[str]], dict[str, bytes]],
+                 read_many: Callable[[list[tuple[str, list[str]]]], list[Any]],
+                 entries: Callable[[str], list[fbrb.Entry]]) -> dict[str, Any]:
+    """The messages and read / read_many's answers on the built bundles (written to work as b0, b1 ...)."""
+    junk = os.path.join(work, 'junk.fbrb')
+    with open(junk, 'wb') as fh:
+        fh.write(b'not a bundle at all')
+    b0 = os.path.join(work, 'b0.fbrb')
+    msgs = []
+    for fn in (lambda: entries(junk), lambda: read(b0, ['Levels/Test/Test.dbx', 'Nope.dbx']),
+               lambda: entries(os.path.join(work, 'missing.fbrb'))):
+        try:
+            fn()
+            msgs.append('none')
+        except KeyError as e:
+            msgs.append(f'KeyError: {e.args[0]}'.replace(work, '<work>'))
+        except OSError as e:                          # the operating system's words: the type only
+            msgs.append(type(e).__name__)
+        except ValueError as e:
+            msgs.append(f'ValueError: {e}'.replace(work, '<work>'))
+    want = ['Levels/Test/Test.dbx', 'levels/test/test.dbx', 'Terrains/Test/Test.Heightfield-000.res', 'levels/test/empty.txt']
+    rs = read(b0, want)
+    items: list[tuple[str, list[str]]] = [(b0, want), (os.path.join(work, 'b1.fbrb'), want[2:]), (junk, []),
+                                          (b0, ['nope']), (os.path.join(work, 'missing.fbrb'), [])]
+    many = [type(r).__name__ if isinstance(r, Exception) else goldens.rh(sorted(r.items())) for r in read_many(items)]
+    return {'messages': msgs, 'read': [list(rs), goldens.rh(sorted(rs.items()))], 'read_many': many}
+
+
 # ------------------------------------------------------------------------------------------------ game bundles
 
 def game_bundles(root: str) -> list[str]:
@@ -196,33 +236,40 @@ def game_bundles(root: str) -> list[str]:
     return sorted(out)
 
 
-def run_game(files: list[str], check: Any, label: str) -> None:
+def game_chunk(job: tuple[list[str], str]) -> list[tuple[str, str, str, int, int]]:
+    """(path relative to root, file SHA-1, digest, entries, bytes) per bundle."""
+    files, root = job
+    out = []
+    for f in files:
+        d, n, b = digest(f)
+        out.append((os.path.relpath(f, root), goldens.file_sha(f)[:16], d, n, b))
+    return out
+
+
+def run_game(files: list[str], root: str, check: Any, label: str, golden: dict[str, list[Any]]) -> None:
     t = time.time()
-    small = [f for f in files if os.path.getsize(f) <= BIG]
-    big = [f for f in files if os.path.getsize(f) > BIG]
-    workers = max(1, min(6, (os.cpu_count() or 2) - 1))
-    diffs: Counter[str] = Counter()
-    examples: dict[str, str] = {}
-    n_entries = n_bytes = 0
-    for group, procs, size in ((small, workers, 4), (big, 1, 1)):
-        chunks = [group[i:i + size] for i in range(0, len(group), size)]
-        with ProcessPoolExecutor(procs) as pool:
-            for rows in pool.map(_chunk, chunks):
-                for f, diff, ne, nb in rows:
-                    n_entries += ne
-                    n_bytes += nb
-                    if diff:
-                        diffs[diff] += 1
-                        examples.setdefault(diff, f)
-    for k, n in diffs.items():
-        print(f'       {n} x {k}, e.g. {examples[k]}')
-    check(not diffs, f'{label}: {len(files)} bundles, {n_entries} entries, {n_bytes / 1e9:.2f} GB of entry data: the '
-          f'same entries and bytes in both readers  ({time.time() - t:.0f} s)')
+    workers = max(1, min(3, (os.cpu_count() or 2) - 1))
+    differ: list[str] = []
+    changed = n_entries = n_bytes = 0
+    jobs = [(files[i:i + 4], root) for i in range(0, len(files), 4)]
+    with ProcessPoolExecutor(workers) as pool:
+        for rows in pool.map(game_chunk, jobs):
+            for rel, sha, d, ne, nb in rows:
+                n_entries += ne
+                n_bytes += nb
+                want = golden.get(rel.replace(os.sep, '/'))
+                if want is None or want[0] != sha:
+                    changed += 1
+                elif want[1] != d:
+                    differ.append(rel)
+    check(not differ, f'{label}: {len(files)} bundles, {n_entries} entries, {n_bytes / 1e9:.2f} GB of entry data: the '
+          f'entries and bytes the Python reader gave on {len(files) - changed - len(differ)} ({changed} changed since '
+          f'the recording or not in it)  ({time.time() - t:.0f} s)', f'{len(differ)} differ: {differ[:3]}')
 
 
 def fbrbtool_agrees(path: str, work: str, want: str | None) -> str | None:
     """FbrbTool's unpack of path (in process; its files the ones FbrbTool.exe wrote: want, the folder's recorded
-    digest) against the Rust reader: the manifest's entries and every file's bytes."""
+    digest) against the reader: the manifest's entries and every file's bytes."""
     out = os.path.join(work, 'u')
     r = fbrbtool.run(['unpack', path, out])
     if r.returncode != 0:
@@ -233,14 +280,14 @@ def fbrbtool_agrees(path: str, work: str, want: str | None) -> str | None:
         return 'the unpacked files differ from FbrbTool.exe\'s'
     lines = [l.rstrip('\r\n') for l in open(os.path.join(out, 'fbrb.manifest'), encoding='ascii', errors='replace')
              if l.strip() and l[0] != '#']
-    ents, _, _ = NATIVE.fbrb_header(path, fbrb.Entry)
+    ents = fbrb.entries(path)
     if [l.split('|') for l in lines] != [[e.name, e.type, f'{e.flags:08X}', str(e.size2), str(e.size)] for e in ents]:
         return 'manifest differs from the entries'
     live = [e for e in ents if not e.deleted]
-    data = NATIVE.fbrb_read(path, [e.name.lower() for e in live], [e.name.lower() for e in live])
-    for e, d in zip(live, data):
+    data = fbrb.read(path, [e.name.lower() for e in live])
+    for e in live:
         p = os.path.join(out, e.name.replace('/', os.sep))
-        if open(p, 'rb').read() != d:
+        if open(p, 'rb').read() != data[e.name.lower()]:
             return f'{e.name}: bytes differ from FbrbTool\'s'
     import shutil
     shutil.rmtree(out)
@@ -250,9 +297,7 @@ def fbrbtool_agrees(path: str, work: str, want: str | None) -> str | None:
 # ------------------------------------------------------------------------------------------------ main
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py); the suite runs on the Python reader')
-        return 0
+    native.require('the bundle reader', 'fbrb_read_many')
     failed = 0
 
     def check(ok: bool, what: str, detail: str = '') -> None:
@@ -260,98 +305,37 @@ def main(argv: list[str]) -> int:
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''))
 
+    rec = goldens.load(GOLDEN)
     work = tempfile.mkdtemp(prefix='fbrb_native_')
-    built = built_bundles()
-    bad = [name for i, (name, data) in enumerate(built) if compare_bytes(data, work, i)]
-    kinds = Counter(_outcome_rs(os.path.join(work, f'b{i}.fbrb'))[0] for i in range(len(built)))
-    check(not bad, f'{len(built)} built and hand-made bundles: the same entries, bytes and refusals '
-          f'({kinds["ok"]} read, {kinds["ValueError"]} refused)', ', '.join(bad))
+    for name, items in quick_cases().items():
+        got = [digest_bytes(d, work, i if name == 'built' else 5000) for i, d in enumerate(items)]
+        want = rec['cases'][name]
+        bad = [i for i, (a, b) in enumerate(zip(got, want)) if a != b]
+        kinds = Counter('refused' if g in ('ValueError', 'KeyError') else 'read' for g in got)
+        check(len(got) == len(want) and not bad, f'{len(items)} {name} bundles: the entries, bytes and refusals the '
+              f'Python reader gave ({kinds["read"]} read, {kinds["refused"]} refused)', f'first: {bad[:5]}')
+    for i, d in enumerate(quick_cases()['built']):          # b0, b1 ... again (the damaged cases wrote b5000)
+        digest_bytes(d, work, i)
 
-    rng = random.Random(1943)
-    sources = [d for name, d in built if name.startswith(('built zipped=True', 'non-ASCII', 'header with'))]
-    sources.append(fbrb.build([('A.dbx', 'T', bytes(range(256)) * 50), ('B.dbx', 'T', b'b' * 3000)], True))
-    sources.append(fbrb.build([('A.dbx', 'T', bytes(range(256)) * 50), ('B.dbx', 'T', b'b' * 3000)], False))
-    damaged = [m for d in sources for m in mutations(d, rng, 150)]
-    bad_m, kinds = [], Counter()
-    for i, m in enumerate(damaged):
-        if compare_bytes(m, work, 1000):
-            bad_m.append(i)
-        kinds[_outcome_rs(os.path.join(work, 'b1000.fbrb'))[0]] += 1
-    check(not bad_m, f'{len(damaged)} damaged bundles (cut short, bytes changed, runs written, bytes cut out): both '
-          f'readers agree, no crash ({kinds["ok"]} read, {kinds["ValueError"]} refused)', f'first: {bad_m[:5]}')
-    noise = [b'FbRB' + struct.pack('>I', rng.randrange(60)) + bytes(rng.randrange(256) for _ in range(rng.randrange(80)))
-             for _ in range(300)]
-    noise += [b'FbRB' + struct.pack('>I', 20 + rng.randrange(40)) + gzip.compress(bytes(rng.randrange(256) for _ in range(rng.randrange(60))))
-              for _ in range(300)]
-    bad_n = [i for i, m in enumerate(noise) if compare_bytes(m, work, 2000)]
-    check(not bad_n, f'{len(noise)} random headers behind the magic: both readers agree', f'first: {bad_n[:5]}')
-
-    # the errors as the Python reader raises them, for both backends
+    # errors: ValueError or KeyError, never another exception
     errs = []
-    for on in (True, False):
-        fbrb.use_native(on)
-        for i, m in enumerate(damaged[:300]):
-            p = os.path.join(work, 'e.fbrb')
-            with open(p, 'wb') as fh:
-                fh.write(m)
-            for fn in (lambda p=p: fbrb.entries(p), lambda p=p: fbrb.read(p, ['a.dbx'])):
-                try:
-                    fn()
-                except (ValueError, KeyError):
-                    pass
-                except Exception as e:
-                    errs.append(f'{fbrb.backend()} {i}: {type(e).__name__}: {e}')
-    fbrb.use_native(True)
-    check(not errs, 'entries / read raise ValueError or KeyError (never another exception) for a damaged bundle, '
-          'in both readers', '; '.join(errs[:3]))
-    junk = os.path.join(work, 'junk.fbrb')
-    with open(junk, 'wb') as fh:
-        fh.write(b'not a bundle at all')
-    msgs = []
-    for on in (True, False):
-        fbrb.use_native(on)
-        try:
-            fbrb.entries(junk)
-        except ValueError as e:
-            msgs.append(str(e))
-        try:
-            fbrb.read(os.path.join(work, 'b0.fbrb'), ['Levels/Test/Test.dbx', 'Nope.dbx'])
-        except KeyError as e:
-            msgs.append(str(e))
-        try:
-            fbrb.entries(os.path.join(work, 'missing.fbrb'))
-        except FileNotFoundError:
-            msgs.append('FileNotFoundError')
-    fbrb.use_native(True)
-    check(len(msgs) == 6 and msgs[:3] == msgs[3:] and msgs[0] == f'{junk} is not an FbRB bundle',
-          'the same messages and exception types in both readers (not a bundle, a missing entry, a missing file)', repr(msgs))
-
-    # the dispatcher, read_many and the fallback
-    b0 = os.path.join(work, 'b0.fbrb')
-    want = ['Levels/Test/Test.dbx', 'levels/test/test.dbx', 'Terrains/Test/Test.Heightfield-000.res', 'levels/test/empty.txt']
-    rs = fbrb.read(b0, want)
-    items: list[tuple[str, list[str]]] = [(b0, want), (os.path.join(work, 'b1.fbrb'), want[2:]), (junk, []),
-                                          (b0, ['nope']), (os.path.join(work, 'missing.fbrb'), [])]
-    many_rs = fbrb.read_many(items)
-    check(fbrb.backend() == 'rust' and fbrb.use_native(False) == 'python', 'use_native(False): the Python reader')
-    py = fbrb.read(b0, want)
-    many_py = fbrb.read_many(items)
-    fbrb.use_native(True)
-    same = all(type(a) is type(b) and (isinstance(a, Exception) or a == b) for a, b in zip(many_rs, many_py))
-    check(rs == py and list(rs) == want and rs[want[0]] == rs[want[1]] == b'the later entry of a name listed twice'
-          and same and len(many_rs) == len(items) and isinstance(many_rs[2], ValueError) and isinstance(many_rs[3], KeyError)
-          and isinstance(many_rs[4], FileNotFoundError),
-          'read / read_many: keys as given, a name listed twice reads its later entry, errors in place, the same in both')
-    env = dict(os.environ, **{dbx.PURE_PYTHON_ENV: '1'})
-    code = 'from bfbc2core import fbrb; print(fbrb.backend())'
-    forced = subprocess.run([sys.executable, '-c', code], env=env, capture_output=True, text=True, cwd=os.path.join(SUITE, 'core'))
-    plain = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
-                           env={k: v for k, v in os.environ.items() if k != dbx.PURE_PYTHON_ENV}, cwd=os.path.join(SUITE, 'core'))
-    check(forced.stdout.strip() == 'python' and plain.stdout.strip() == 'rust',
-          f'{dbx.PURE_PYTHON_ENV}=1 forces the Python reader; without it the Rust core runs',
-          f'{forced.stdout.strip()} / {plain.stdout.strip()} {forced.stderr[-200:]}')
-    check(fbrb._with_fbrb(None) is None and fbrb._with_fbrb(sys) is None,
-          'a module without the bundle reader (built before it) is not used')
+    for i, m in enumerate(quick_cases()['damaged'][:300]):
+        p = os.path.join(work, 'e.fbrb')
+        with open(p, 'wb') as fh:
+            fh.write(m)
+        for fn in (lambda p=p: fbrb.entries(p), lambda p=p: fbrb.read(p, ['a.dbx'])):
+            try:
+                fn()
+            except (ValueError, KeyError):
+                pass
+            except Exception as e:
+                errs.append(f'{i}: {type(e).__name__}: {e}')
+    check(not errs, 'entries / read raise ValueError or KeyError (never another exception) for a damaged bundle',
+          '; '.join(errs[:3]))
+    got_api = api_outcomes(work, fbrb.read, fbrb.read_many, fbrb.entries)
+    check(got_api == rec['api'], 'the messages (not a bundle, a missing entry, a missing file), read\'s keys as given '
+          '(a name listed twice reads its later entry) and read_many\'s results in place: the Python reader\'s',
+          f'{got_api} / {rec["api"]}')
 
     try:
         root: str | None = paths.find_opfor()
@@ -359,22 +343,23 @@ def main(argv: list[str]) -> int:
         root = None
     golden = cg.load('fbrbtool_golden.json').get('reader_built', {})
     recorded = cg.load('fbrbtool_golden_game.json').get('bundles', {})
-    probs = [f'{name}: {why}' for i, (name, _) in enumerate(built[:2])
-             if (why := fbrbtool_agrees(os.path.join(work, f'b{i}.fbrb'), work, golden.get(name)))]
+    labels = [label for label, _ in built_bundles()[:2]]
+    probs = [f'b{i}: {why}' for i in range(2)
+             if (why := fbrbtool_agrees(os.path.join(work, f'b{i}.fbrb'), work, golden.get(labels[i])))]
     sample = sorted(game_bundles(root), key=os.path.getsize)[100:108] if root else []
     probs += [f'{os.path.basename(s)}: {why}' for s in sample
               if (why := fbrbtool_agrees(s, work, recorded.get(cg.sha1_file(s), {}).get('unpack', [None] * 4)[3]))]
-    check(not probs, f'FbrbTool\'s unpack (the files FbrbTool.exe wrote: fbrbtool_golden*.json) agrees with the Rust '
-          f'reader: the built bundles and {len(sample)} game bundles (entries, types, flags, sizes; every file\'s bytes)',
-          '; '.join(probs[:3]))
+    check(not probs, f'FbrbTool\'s unpack (the files FbrbTool.exe wrote: fbrbtool_golden*.json) agrees with the '
+          f'reader: the built bundles and {len(sample)} game bundles (entries, types, flags, sizes; every file\'s '
+          'bytes)', '; '.join(probs[:3]))
     if root is None:
         print('skipped: the game runs (no Project OPFOR BFBC2 game copy)')
     else:
         files = game_bundles(root)
         if '--game' in argv:
-            run_game(files, check, 'every bundle')
+            run_game(files, root, check, 'every bundle', rec['game'])
         else:
-            run_game(sorted(files, key=os.path.getsize)[200:208], check, 'game sample')
+            run_game(sorted(files, key=os.path.getsize)[200:208], root, check, 'game sample', rec['game'])
     import shutil
     shutil.rmtree(work, ignore_errors=True)
     print('all passed' if not failed else f'{failed} check(s) failed')

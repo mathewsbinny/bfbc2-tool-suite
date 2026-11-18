@@ -1,23 +1,21 @@
 r"""NavKit in the Rust core (rust/bc2-navbuild through bc2_native).
 
-The grid walks (round E1d: Level.neighbour's linking, components, trace_edges' side neighbours, line_walkable,
-build_graph's route-group search; navwalk's flood, islands_of and matched_flags) had a Python twin that was their
-reference until 2026-11-17, when the port had passed the full test tier (140/140) and the twin was retired
-(rust/BENCHMARKS.md, "Retired Python"). Their results were recorded first, from the Python code itself, in
-navbuild_golden.json beside this file: a SHA-1 of every walk's answers on seeded random levels, and of whole levels'
-path data (the build clock fixed). They are the oracle now; navregress (DICE's own path data) stays the independent
-check of what NavKit builds.
+The generator's logic had a Python twin that was its reference until it passed the full test tier, then retired
+(rust/BENCHMARKS.md, "Retired Python"): the grid walks (round E1d: Level.neighbour's linking, components, trace_edges'
+side neighbours, line_walkable, build_graph's route-group search; navwalk's flood, islands_of and matched_flags) on
+2026-11-17; the walkability rules, build_areas and the cell picking (E2a), the tracing, the roof rule, the cover
+nodes, Gabriel pruning, the route edges and group joining, near_characters and the seed picks (E3c), whole stages
+and sector graphs, the floods' unseeds and navdiff.area_cells (E3h) on 2026-11-18 (round R1). Their answers were
+recorded first, from the Python code itself, in navbuild_golden.json beside this file: a SHA-1 of every walk's answers
+on seeded random levels ('quick'), of every E2a / E3c / E3h comparison's answer ('retired': 331 + 456 + 39), and of
+whole levels' path data (the build clock fixed). They are the oracle now; navregress (DICE's own path data) stays the
+independent check of what NavKit builds. navsample.load's records keep their Python reader (a file format's reader:
+kept for good), compared with the Rust core's here.
 
-The walkability rules, build_areas and build_graph's cell picking (round E2a), and the tracing, the roof rule, the
-cover nodes, Gabriel pruning, build_graph's route edges and group joining, near_characters, walkable's seed picks and
-the sample files' records (round E3c) keep their Python twin: they are still compared with it, call by call (E3c's
-with the Rust side strict: no fallback).
-
-  python test_navbuild_native.py            quick: the grid walks on 24 + 16 seeded random multi-layer levels
-                                            (float32 and float64 gradients, stairs, terrain, every link rule, D
-                                            sides) against the recording; arrays of other types cast as the core
-                                            takes them; E2a's rules, build_areas and cell picking on both backends,
-                                            and CPython's float functions they need (math.hypot, x ** 2)
+  python test_navbuild_native.py            quick: the grid walks on 24 + 16 seeded random multi-layer levels and
+                                            the E2a / E3c / E3h answers against the recording; arrays and numbers of
+                                            other types cast as the core takes them; CPython's float functions the
+                                            core reproduces (math.hypot, x ** 2, round(v, 3))
   python test_navbuild_native.py --game [--levels sp_009,sp_004_b]
                                             + whole builds (navregress.build_level, Project OPFOR BFBC2's in-game
                                             samples, read only) into a temporary folder: the path data's SHA-1
@@ -67,15 +65,6 @@ def check(cond: bool, msg: str) -> None:
         print('FAIL', msg)
 
 
-def py(fn: Any, *a: Any, **k: Any) -> Any:
-    """fn with E2a's pieces on their Python reference (the grid walks have none: they run in Rust either way)."""
-    nb.use_native(False)
-    try:
-        return fn(*a, **k)
-    finally:
-        nb.use_native(True)
-
-
 # ------------------------------------------------------------------------------------------------ recorded answers
 
 def canon(v: Any) -> Any:
@@ -96,6 +85,8 @@ def canon(v: Any) -> Any:
         return [canon(x) for x in v]
     if isinstance(v, (set, frozenset)):
         return ['set', sorted((canon(x) for x in v), key=json.dumps)]
+    if hasattr(v, '__dataclass_fields__'):
+        return [type(v).__name__] + [canon(getattr(v, f)) for f in v.__dataclass_fields__]
     raise TypeError(f'canon: {type(v).__name__}')
 
 
@@ -230,8 +221,28 @@ def compare(name: str, got: Any, want: Any) -> int:
     return bad
 
 
+TWINS: dict[str, list[str]] = {}            # this run's digests per section (E2a / E3c / E3h)
+WANT: dict[str, list[str]] = {}             # the recording's
+MODE = {'record': False}
+
+
+def twin(section: str, name: str, got: Any) -> None:
+    """got (the Rust core's answer) against the retired Python's, recorded as a digest in navbuild_golden.json
+    ('retired', round R1); recording (--record), got's digest is written instead."""
+    n = len(TWINS.setdefault(section, []))
+    g = digest(got)
+    TWINS[section].append(g)
+    if MODE['record']:
+        return
+    rec = WANT.get(section, [])
+    check(n < len(rec) and rec[n] == g, f'{name}: differs from the recorded answer of the retired Python'
+          if n < len(rec) else f'{name}: not recorded ({section} #{n})')
+
+
 def quick(golden: dict[str, Any], record: bool) -> None:
     nb.require_native()
+    MODE['record'] = record
+    WANT.update(golden.get('retired', {}))
     rng = random.Random(943)
     got = walks(rng)
     if record:
@@ -245,21 +256,25 @@ def quick(golden: dict[str, Any], record: bool) -> None:
               f'recording')
     others(rng)
     calls = float_ops(rng) + rules(rng) + areas_and_picks(rng)
-    print(f'E2a: {calls} calls compared with their Python twin: {len(FAILS)} differences')
+    print(f'E2a: {calls} calls against the recorded answers: {len(FAILS)} differences')
     before = len(FAILS)
     calls = e3c(rng)
-    print(f'E3c: {calls} calls compared with their Python twin: {len(FAILS) - before} differences')
+    print(f'E3c: {calls} calls against the recorded answers: {len(FAILS) - before} differences')
     before = len(FAILS)
     calls = e3h(random.Random(7731))
-    print(f'E3h: {calls} calls compared with their Python twin: {len(FAILS) - before} differences')
+    print(f'E3h: {calls} calls against the recorded answers: {len(FAILS) - before} differences')
+    if record:
+        golden['retired'] = TWINS
+    for sec, answers in TWINS.items():
+        check(len(answers) == len(WANT.get(sec, answers)),
+              f'{sec}: {len(answers)} answers, {len(WANT.get(sec, []))} recorded')
+    print('answers recorded from the retired Python: ' + ', '.join(f'{k} {len(v)}' for k, v in sorted(TWINS.items())))
 
 
 def others(rng: random.Random) -> None:
-    """Arrays of other types are cast as the core takes them (the grid walks have no Python to fall back on): the
-    same answers as the cast arrays give; E2a's switch leaves the walks running; a surface outside the level."""
+    """Arrays of other types are cast as the core takes them: the same answers as the cast arrays give; a surface
+    outside the level."""
     lv = grid(rng, 4, 4, True)
-    check(nb.use_native(False) == 'python' and lv.native() is not None, 'use_native(False): the walks still run')
-    nb.use_native(True)
     first = int(np.nonzero(lv.keep)[0][0])
     c = int(np.searchsorted(lv.s.start, first, side='right')) - 1          # its column
     try:
@@ -379,59 +394,59 @@ def rules(rng: random.Random) -> int:
         def mask(p: float, n: int = n) -> np.ndarray:
             return np.array([rng.random() < p for _ in range(n)], bool)
         for ign in (None, mask(0.2), mask(0.0)):
-            check(same(navwalk.headroom(s, ign), py(navwalk.headroom, s, ign)), f'headroom case {case}')
+            twin('e2a', f'headroom case {case}', navwalk.headroom(s, ign))
             calls += 1
         for r, tol in ((1, 0.7), (2, 1.1), (4, 0.7), (1, 0.25)):
             m = mask(0.5)
-            check(same(navwalk.stair_slope(s, m, r=r, tol=tol), py(navwalk.stair_slope, s, m, r=r, tol=tol)),
-                  f'stair_slope case {case} r {r} tol {tol}')
+            twin('e2a', f'stair_slope case {case} r {r} tol {tol}', navwalk.stair_slope(s, m, r=r, tol=tol))
             calls += 1
         for rise, flat, width, slope in ((None, None, 2, 40.0), (0.3, None, 2, 40.0), (0.3, 15.0, 2, 40.0),
                                          (None, 15.0, 3, 30.0), (0.05, None, 1, 45.0)):
             base, cand = mask(0.6), mask(0.4)
-            a = navwalk.narrow_lips(s, base, cand, slope, width, rise=rise, flat=flat)
-            b = py(navwalk.narrow_lips, s, base, cand, slope, width, rise=rise, flat=flat)
-            check(same(a, b), f'narrow_lips case {case} rise {rise} flat {flat} width {width}')
+            twin('e2a', f'narrow_lips case {case} rise {rise} flat {flat} width {width}',
+                 navwalk.narrow_lips(s, base, cand, slope, width, rise=rise, flat=flat))
             calls += 1
         tris = tris_near(rng, s, 30)
         for grow, below, above in ((0.5, 2.2, 0.3), (0.4, 0.6, 0.6), (0.1, -0.05, 0.0), (1, 1, 0)):
-            check(same(navwalk.near_objects(s, tris, grow, below, above),
-                       py(navwalk.near_objects, s, tris, grow, below, above)), f'near_objects case {case}')
+            twin('e2a', f'near_objects case {case}', navwalk.near_objects(s, tris, grow, below, above))
             calls += 1
         for tol in (0.2, 0.08, 0.5):
-            check(same(navwalk.on_objects(s, tris, tol), py(navwalk.on_objects, s, tris, tol)), f'on_objects case {case}')
+            twin('e2a', f'on_objects case {case}', navwalk.on_objects(s, tris, tol))
             calls += 1
         seeds = [(rng.uniform(0, s.nx * s.pitch), rng.uniform(0, 3), rng.uniform(0, s.nz * s.pitch)) for _ in range(3)]
         kw: dict[str, Any] = dict(return_gradients=True, return_stairs=True, extra_seeds=seeds, anchors=seeds[:1],
                                   dynamic_tris=tris_near(rng, s, 6), stair_tris=tris_near(rng, s, 6),
                                   exclude_tris=tris_near(rng, s, 4), exclude_footprint_tris=tris_near(rng, s, 3),
                                   forbid_tris=tris_near(rng, s, 5))
-        a, b = navwalk.walkable(s, **kw), py(navwalk.walkable, s, **kw)
-        check(same(a, b), f'walkable (every rule) case {case}')
+        twin('e2a', f'walkable (every rule) case {case}', navwalk.walkable(s, **kw))
         calls += 1
-    # the run's numbers of a kind the port does not take: Python runs, the same answers
+    # numbers of another kind are cast as the core takes them; triangles of another shape raise
     s = runs(rng, 5, 5, 0.2)
     s.pitch = np.float32(0.2)
-    check(navwalk.native_samples(s) is None, 'a float32 pitch: no native grid')
+    check(navwalk.native_samples(s) is not None, 'a float32 pitch: cast to a float')
     s = runs(rng, 5, 5, 0.2)
-    check(navwalk._tris_f64(np.zeros((2, 9))) is None, 'triangles not n x 3 x 3: Python runs')
-    zero = np.zeros((2, 3, 3), np.float32)                                     # two triangles in one point
-    check(same(navwalk.near_objects(s, zero), py(navwalk.near_objects, s, zero)), 'near_objects on point triangles')
-    nan_tris = tris_near(rng, s, 3)
-    nan_tris[1, 0, 0] = np.nan                                                 # the port refuses, the reference raises
     try:
-        navwalk.near_objects(s, nan_tris)
-        check(False, 'near_objects with a NaN x: the reference raises')
+        navwalk.near_objects(s, np.zeros((2, 9)))
+        check(False, 'triangles not n x 3 x 3 must raise')
     except ValueError:
         pass
-    check(same(navwalk.on_objects(s, nan_tris), py(navwalk.on_objects, s, nan_tris)), 'on_objects with a NaN x')
-    check(same(navwalk.stair_slope(s, np.ones(len(s.y), bool), r=cast(Any, np.int64(1))),
-               py(navwalk.stair_slope, s, np.ones(len(s.y), bool), r=1)), 'stair_slope with a NumPy r: Python, the same')
+    zero = np.zeros((2, 3, 3), np.float32)                                     # two triangles in one point
+    twin('e2a', 'near_objects on point triangles', navwalk.near_objects(s, zero))
+    nan_tris = tris_near(rng, s, 3)
+    nan_tris[1, 0, 0] = np.nan                                                 # the core refuses (the Python raised)
+    try:
+        navwalk.near_objects(s, nan_tris)
+        check(False, 'near_objects with a NaN x must raise')
+    except ValueError:
+        pass
+    twin('e2a', 'on_objects with a NaN x', navwalk.on_objects(s, nan_tris))
+    twin('e2a', 'stair_slope with a NumPy r', navwalk.stair_slope(s, np.ones(len(s.y), bool), r=cast(Any, np.int64(1))))
     return calls
 
 
 def areas_and_picks(rng: random.Random) -> int:
-    """build_areas (tiles, components, bisection) and build_graph's centre and portal cells, both backends."""
+    """build_areas (tiles, components, bisection) against the recording; the sector graph's centre and portal cell
+    picks (navkit_centre_cells, navkit_nearest_cells) against the rule written out here."""
     calls = 0
     saved = (nb.BISECT_AREAS, nb.MAX_AREA)
     try:
@@ -439,13 +454,12 @@ def areas_and_picks(rng: random.Random) -> int:
             lv = grid(rng, rng.randint(5, 14), rng.randint(5, 14), case % 2 == 0, 0.8 if case % 3 else 0.2)
             nb.BISECT_AREAS, nb.MAX_AREA = case % 3 != 0, rng.choice([1, 2, 3, 5, 25])
             for start, tile, tiles in (((-1, -1), 3, 3), ((0, 0), 4, 2), ((2, -1), 1, 6), ((0, 3), 100, 1)):
-                a = nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=lv.cfg)
-                b = py(nb.build_areas, lv, 0, 0, start, tile, tiles, cfg=lv.cfg)
-                check(a == b, f'build_areas case {case} start {start} tile {tile} bisect {nb.BISECT_AREAS}')
+                twin('e2a', f'build_areas case {case} start {start} tile {tile} bisect {nb.BISECT_AREAS}',
+                     nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=lv.cfg))
                 calls += 1
             areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
             big = [x for x in areas if len(x['cells']) >= 4]
-            got = nb._centre_cells(big)
+            got = nb.require_native().navkit_centre_cells([x['cells'] for x in big])
             want: list[int] = []
             for x in big:
                 ci = sum(c[0] for c in x['cells']) / len(x['cells'])
@@ -460,7 +474,8 @@ def areas_and_picks(rng: random.Random) -> int:
                 mids = [(ox + (i0 + rng.choice([-0.5, 0.5, 1.5, 3.0])) * lv.cfg.pitch,
                          oz + (j0 + rng.choice([-0.5, 0.0, 2.5])) * lv.cfg.pitch) for _ in range(rng.randint(0, 3))]
                 ends.append((ai, mids))
-            got2 = nb._nearest_cells(areas, ends, ox, oz, lv.cfg.pitch)
+            got2 = nb.require_native().navkit_nearest_cells([(areas[ai]['cells'] if mids else [], mids)
+                                                             for ai, mids in ends], ox, oz, lv.cfg.pitch)
             want2: list[list[int]] = []
             for ai, mids in ends:
                 want2.append([])
@@ -472,12 +487,6 @@ def areas_and_picks(rng: random.Random) -> int:
             calls += 2
     finally:
         nb.BISECT_AREAS, nb.MAX_AREA = saved
-    # numbers of a kind the port does not take: build_graph picks them itself
-    check(nb._nearest_cells([{'cells': [(0, 0, 0)]}], [(0, [(0.5, 0.5)])], cast(Any, np.float32(0.0)), 0.0,
-                            0.8) is None,
-          'a float32 origin: no native picking')
-    check(nb._centre_cells([{'cells': [(0.0, 0, 0)] * 4}]) is None, 'float cells: no native picking')
-    check(nb._centre_cells([{'cells': []}]) is None, 'an area without cells: the reference raises, Python runs')
     return calls
 
 
@@ -600,23 +609,11 @@ def sector_graph(lv: nb.Level, cfg: nb.BuildSettings, ox: float, oz: float, tili
     return ordered(pts), ordered(pairs)
 
 
-def strict(fn: Any, *a: Any, **k: Any) -> Any:
-    """fn on the Rust core with no fallback: a refusal (which would run the Python silently) raises here."""
-    mods: list[Any] = [nb, navwalk]
-    saved = [m._NATIVE_ERRORS for m in mods]
-    for m in mods:
-        m._NATIVE_ERRORS = ()
-    try:
-        return fn(*a, **k)
-    finally:
-        for m, v in zip(mods, saved):
-            m._NATIVE_ERRORS = v
-
-
 def e3c(rng: random.Random) -> int:
-    """Round E3c's pieces against their Python twin on random levels: trace_edges (one sector and the parallel
-    batch), trace_emit after drop_one_way and the detail pass, roof_islands, add_cover_nodes, gabriel_prune. The Rust
-    side runs strict (no fallback)."""
+    """Round E3c's pieces on random levels against the answers recorded from their retired Python twin: trace_edges
+    (one sector and the parallel batch), trace_emit after drop_one_way and the detail pass, whole sector graphs,
+    build_areas_many, near_characters, roof_islands, add_cover_nodes, gabriel_prune; navsample.load's records against
+    its Python reader (a format reader: kept)."""
     calls = 0
     seen = dict(portals=0, borders=0, outline=0, one_way=0, details=0)
     for case in range(60):
@@ -628,14 +625,13 @@ def e3c(rng: random.Random) -> int:
         ox, oz = rng.choice([0.0, -300.0, 1200.0, -910.4000244140625]), rng.choice([0.0, 500.0, -100.0, 12.8])
         keep = {n for n in range(64) if rng.random() < 0.5}
         tiling = rng.choice([((-1, -1), cfg.tile, cfg.tiles), ((-1, -1), 3, 6), ((0, 0), 4, 4), ((-1, 0), 2, 9)])
-        a = strict(trace_chain, lv, cfg, gi0, gj0, ox, oz, keep, case % 3 == 1, tiling)
-        b = py(trace_chain, lv, cfg, gi0, gj0, ox, oz, keep, False, tiling)
+        a = trace_chain(lv, cfg, gi0, gj0, ox, oz, keep, case % 3 == 1, tiling)
         seen['one_way'] += len(a[0][1])
         seen['details'] += sum(len(x[0]) + len(x[1]) for x in a[2])
         for kind, n in (('portals', 0), ('borders', 1), ('outline', 2)):
             seen[kind] += sum(len(x[n]) for x in a[4])
-        for name, x, y in zip(('trace_edges', 'drop / detail', 'detail_pass', 'blocked', 'trace_emit'), a, b):
-            check(x == y, f'{name} case {case} (pitch {pitch}, window {cfg.window})')
+        for name, x in zip(('trace_edges', 'drop / detail', 'detail_pass', 'blocked', 'trace_emit'), a):
+            twin('e3c', f'{name} case {case} (pitch {pitch}, window {cfg.window})', x)
         calls += 3
     check(all(seen.values()), f'the random levels make every kind of edge: {seen}')
     print(f'E3c tracing: {seen}')
@@ -651,9 +647,8 @@ def e3c(rng: random.Random) -> int:
         ox, oz = rng.choice([0.0, -910.4000244140625, 300.0]), rng.choice([0.0, 12.8, -100.0])
         tiling = rng.choice([((-1, -1), cfg.tile, cfg.tiles), ((-1, -1), 4, 6), ((0, 0), 7, 4)])
         seed = rng.randrange(1 << 30)
-        a = strict(sector_graph, lv, cfg, ox, oz, tiling, seed)
-        b = py(sector_graph, lv, cfg, ox, oz, tiling, seed)
-        check(a == b, f'build_graph case {case} (pitch {pitch}, {len(a[0])} nodes, {len(a[1])} pairs)')
+        a = sector_graph(lv, cfg, ox, oz, tiling, seed)
+        twin('e3c', f'build_graph case {case} (pitch {pitch}, {len(a[0])} nodes, {len(a[1])} pairs)', a)
         joined += sum(1 for p in a[0] if p[0] < 900)
         calls += 4
     print(f'E3c route graphs: {joined} nodes')
@@ -662,21 +657,15 @@ def e3c(rng: random.Random) -> int:
         lv = ramps(rng, rng.randint(6, 20), rng.randint(6, 20), 0.8 if case % 2 else 0.2) if case % 3 else             grid(rng, rng.randint(6, 20), rng.randint(6, 20), case % 2 == 0)
         specs = [(gi, gj, 0.0, 0.0, rng.choice([(-1, -1), (0, 0), (0, -1)]), rng.choice([3, 4, 50]),
                   rng.choice([1, 3, 6])) for gi, gj in ((0, 0), (2, 1), (-1, 3), (5, 0))]
-        many = strict(nb._build_areas_many, lv, specs, lv.cfg)
-        want = []
-        for gi0, gj0, _ox, _oz, start, tile, tiles in specs:
-            areas = py(nb.build_areas, lv, gi0, gj0, start, tile, tiles, cfg=lv.cfg)
-            want.append((areas, [(min(lv.y[c[2]] for c in a['cells']), max(lv.y[c[2]] for c in a['cells']))
-                                 for a in areas]))
-        check(ordered(many) == ordered(want), f'build_areas_many case {case}')
+        many = nb._build_areas_many(lv, specs, lv.cfg)
+        twin('e3c', f'build_areas_many case {case}', ordered(many))
         calls += 1
     # soldiers' surroundings (near_characters): random characters, reaches and height bands
     for case in range(16):
         s = runs(rng, rng.randint(3, 12), rng.randint(3, 12), 0.2 if case % 2 else 0.8)
         char = np.array([rng.random() < 0.08 for _ in range(len(s.y))], bool)
         grow, below, above = rng.choice([0.9, 0.5, 1.7, 0.8]), rng.choice([2.2, 0.5]), rng.choice([0.3, 1.0])
-        check(same(strict(navwalk.near_characters, s, char, grow, below, above),
-                   py(navwalk.near_characters, s, char, grow, below, above)), f'near_characters case {case}')
+        twin('e3c', f'near_characters case {case}', navwalk.near_characters(s, char, grow, below, above))
         calls += 1
     # the sample files' records (versions 1 and 2; a run cut off between columns, a record cut short)
     import navsample
@@ -709,7 +698,12 @@ def e3c(rng: random.Random) -> int:
                 # (and whether the arrays came from the Rust core's bytearrays)
                 return (ordered((smp.start, smp.y, smp.normal, smp.flags, smp.hit, c, smp.pitch, smp.nx, smp.nz)),
                         isinstance(smp.y.base, memoryview))
-            a, b = strict(load), py(load)
+            a = load()
+            navsample.use_native(False)
+            try:
+                b = load()
+            finally:
+                navsample.use_native(True)
             check(a[0] == b[0] if case != 11 else a == b, f'navsample.load case {case} (version {version})')
             check(case == 11 or (a[1] and not b[1]), f'navsample.load case {case}: the backends were not the asked ones')
             calls += 1
@@ -727,11 +721,10 @@ def e3c(rng: random.Random) -> int:
             anchors = set(rng.sample(kept, min(len(kept), rng.randint(0, 3))))
             terrain = lv.terrain
             navwalk.ROOF_STATS.clear()
-            x = strict(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
+            x = navwalk.roof_islands(s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
             xs = dict(navwalk.ROOF_STATS)
             navwalk.ROOF_STATS.clear()
-            y = py(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
-            check(same(x, y) and xs == navwalk.ROOF_STATS, f'roof_islands case {case}: {xs} {navwalk.ROOF_STATS}')
+            twin('e3c', f'roof_islands case {case}: {xs}', (x, xs))
             calls += 1
     finally:
         navwalk.ROOF_RAISE, navwalk.ROOF_SHARE, navwalk.ROOF_NEAR, navwalk.ROOF_NEAR_DY = saved
@@ -766,7 +759,7 @@ def e3c(rng: random.Random) -> int:
                 pts.append((1000 + len(pts), pos, k, i, j))
             nb.add_cover_nodes(lv, areas, pts, add, ox, oz, cover, lv.cfg)
             return ordered(pts)
-        check(strict(run) == py(run), f'add_cover_nodes case {case} (cover {cover})')
+        twin('e3c', f'add_cover_nodes case {case} (cover {cover})', run())
         calls += 1
     # Gabriel pruning: nodes on a few floors (some at one spot), pairs within 15 m, some lengths equal
     for case in range(40):
@@ -777,13 +770,13 @@ def e3c(rng: random.Random) -> int:
             pts[1] = pts[0]
         pairs = [(a_, b_, math.dist(pts[a_][1], pts[b_][1])) for a_ in range(n) for b_ in range(a_ + 1, n)
                  if math.dist(pts[a_][1], pts[b_][1]) <= 15.0 and rng.random() < 0.6]
-        check(strict(nb.gabriel_prune, pts, pairs) == py(nb.gabriel_prune, pts, iter(pairs)), f'gabriel_prune case {case}')
+        twin('e3c', f'gabriel_prune case {case}', nb.gabriel_prune(pts, pairs))
         calls += 1
     return calls
 
 
 class _Counting:
-    """A NavLevel whose E3h calls are counted (the strict runs must take the Rust paths, not a silent Python one)."""
+    """A NavLevel whose E3h calls are counted (every stage must take the stage-wide Rust paths)."""
     seen: dict[str, int] = {}
 
     def __init__(self, nat: Any) -> None:
@@ -816,10 +809,10 @@ def whole_stage(lv: nb.Level, cfg: nb.BuildSettings, orders: list[Any]) -> Any:
 
 
 def e3h(rng: random.Random) -> int:
-    """Round E3h's pieces against their Python twin: whole stages (the areas and edge rows kept in the Rust core,
-    drop_one_way and the detail filter there, trace_emit and every sector's route graph in parallel) on random levels
-    over the corner of four sectors, at the normal and the detailed pitch; sector graphs with ladders; round(v, 3).
-    The Rust side runs strict (no fallback), its E3h calls counted."""
+    """Round E3h's pieces against the answers recorded from their retired Python twin: whole stages (the areas and
+    edge rows kept in the Rust core, drop_one_way and the detail filter there, trace_emit and every sector's route graph
+    in parallel) on random levels over the corner of four sectors, at the normal and the detailed pitch, the E3h calls
+    counted; sector graphs with ladders; walkable's unseeds; navdiff.area_cells; round(v, 3) against CPython's."""
     calls = 0
     real_native = nb.Level.native
 
@@ -843,10 +836,9 @@ def e3h(rng: random.Random) -> int:
             for k in rng.sample(kept.tolist(), min(4, len(kept))):
                 c = int(lv.col_of[k])
                 orders.append((lv.s.min_x + (c % lv.s.nx) * pitch, float(lv.y[k]), lv.s.min_z + (c // lv.s.nx) * pitch))
-            a = strict(whole_stage, lv, cfg, orders)
+            a = whole_stage(lv, cfg, orders)
             sizes['details'] += nb.DETAIL_STATS.get('d', 0) + nb.DETAIL_STATS.get('f', 0)
-            b = py(whole_stage, lv, cfg, orders)
-            check(a == b, f'stage case {case} (pitch {pitch}, {n} x {n})')
+            twin('e3h', f'stage case {case} (pitch {pitch}, {n} x {n})', a)
             sizes['sectors'] += len(a[0][1])
             sizes['areas'] += sum(len(v[0]) for _k, v in a[1][1])
             sizes['nodes'] += sum(len(g[2]) for g in a[2])
@@ -862,9 +854,8 @@ def e3h(rng: random.Random) -> int:
         lv = ramps(rng, rng.randint(6, 20), rng.randint(6, 20), pitch)
         cfg = lv.cfg
         seed = rng.randrange(1 << 30)
-        x = strict(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
-        y = py(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
-        check(x == y, f'build_graph with ladders case {case}')
+        x = sector_graph(lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
+        twin('e3h', f'build_graph with ladders case {case}', x)
         calls += 1
     # walkable's unseeds (hand edits dropping the island a point is on): the island from the flood's NavLevel
     dropped = 0
@@ -875,11 +866,11 @@ def e3h(rng: random.Random) -> int:
         for c in rng.sample(cols, min(len(cols), 6)):
             k = rng.randrange(int(s.start[c]), int(s.start[c + 1]))
             seeds.append((float(s.min_x + (c % s.nx) * s.pitch), float(s.y[k]), float(s.min_z + (c // s.nx) * s.pitch)))
-        kw = dict(extra_seeds=seeds[:3], unseeds=seeds[3:] + seeds[:1], return_gradients=True)
-        x = strict(navwalk.walkable, s, **kw)
+        kw: dict[str, Any] = dict(extra_seeds=seeds[:3], unseeds=seeds[3:] + seeds[:1], return_gradients=True)
+        x = navwalk.walkable(s, **kw)
         whole = navwalk.walkable(s, extra_seeds=seeds[:3])
         dropped += int(whole.sum() - x[0].sum())
-        check(same(x, py(navwalk.walkable, s, **kw)), f'walkable with unseeds case {case}')
+        twin('e3h', f'walkable with unseeds case {case}', x)
         calls += 1
     check(dropped > 0, 'the unseeds drop ground')
     print(f'E3h unseeds: {dropped} kept surfaces dropped')
@@ -907,17 +898,14 @@ def e3h(rng: random.Random) -> int:
         areas_.append(SimpleNamespace(outline=outline, portals=portals, border_portals=[]))
     areas_.append(SimpleNamespace(outline=[], portals=[], border_portals=[]))
     got_c = navdiff.area_cells_many(areas_)
-    want_c = [navdiff.area_cells_reference(a) for a in areas_]
-    same_c = all([(k, struct.pack('<d', v)) for k, v in x.items()] == [(k, struct.pack('<d', v)) for k, v in y.items()]
-                 for x, y in zip(got_c, want_c))
-    check(navdiff._native() is not None and same_c, 'navdiff.area_cells: the Rust core as the NumPy reference')
-    print(f'E3h area cells: {len(areas_)} areas, {sum(len(c) for c in want_c)} cells')
+    twin('e3h', 'navdiff.area_cells', [list(c.items()) for c in got_c])
+    print(f'E3h area cells: {len(areas_)} areas, {sum(len(c) for c in got_c)} cells')
     calls += 1
     # round(v, 3): random values, exact ties (multiples of 1/16), negative zero, the build's positions
     vals = [rng.uniform(-2000, 2000) for _ in range(60000)] + [k / 16 for k in range(-40000, 40000)]
     vals += [rng.randint(-2500, 2500) * 0.2 + rng.choice([0.0, 0.95, -0.05]) for _ in range(40000)]
     vals += [-0.0, 0.0, 0.0004, -0.0004, 1e-300, 5e-324, 2.675, 1.0005]
-    got = np.frombuffer(nb._native.navkit_round3(np.array(vals, '<f8').tobytes()), '<f8')
+    got = np.frombuffer(nb.require_native().navkit_round3(np.array(vals, '<f8').tobytes()), '<f8')
     want_r = np.array([round(v, 3) for v in vals], '<f8')
     check(np.array_equal(got.view('<u8'), want_r.view('<u8')), 'round(v, 3): bit for bit as CPython')
     return calls + 1
