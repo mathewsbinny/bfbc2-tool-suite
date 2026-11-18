@@ -156,6 +156,57 @@ pub fn sq(x: f64) -> f64 {
     x.abs().powf(black_box(2.0))
 }
 
+/// `round(x, 3)` on a Python float: CPython's `double_round` - the decimal string of x correctly rounded to three
+/// places (dtoa's mode 3, an exact tie to the even digit), read back as the nearest float. Here: x * 1000 computed
+/// exactly from x's mantissa and exponent, rounded half to even to an integer n, then n / 1000 (the division of two
+/// exact operands is correctly rounded, as `strtod` of the digits is). `None` for a value that is not finite or
+/// whose n a float cannot hold exactly (the reference handles those; no build position comes near).
+#[must_use]
+pub fn round3(x: f64) -> Option<f64> {
+    if !x.is_finite() {
+        return None;
+    }
+    if x == 0.0 {
+        return Some(x);
+    }
+    let bits = x.to_bits();
+    let neg = bits >> 63 == 1;
+    let exp = i64::try_from((bits >> 52) & 0x7ff).ok()?;
+    let frac = bits & ((1u64 << 52) - 1);
+    let (mant, e) = if exp == 0 {
+        (frac, -1074)
+    } else {
+        (frac | (1u64 << 52), exp - 1075)
+    };
+    let num = u128::from(mant) * 1000;
+    let n: u128 = if e >= 0 {
+        if e > 60 {
+            return None;
+        }
+        num << e
+    } else {
+        let s = u32::try_from(-e).ok()?;
+        if s >= 127 {
+            0
+        } else {
+            let q = num >> s;
+            let r = num - (q << s);
+            let half = 1u128 << (s - 1);
+            if r > half || (r == half && q & 1 == 1) {
+                q + 1
+            } else {
+                q
+            }
+        }
+    };
+    if n > (1u128 << 53) {
+        return None;
+    }
+    #[allow(clippy::cast_precision_loss)] // n <= 2 ** 53: exact
+    let v = n as f64 / 1000.0;
+    Some(if neg { -v } else { v })
+}
+
 /// `math.degrees(math.atan(math.hypot(gx, gz)))`: the slope (degrees) of a gradient.
 #[must_use]
 pub fn slope_deg(gx: f64, gz: f64) -> f64 {
@@ -204,6 +255,23 @@ mod tests {
         assert_eq!(floordiv(1.0, 0.0), None);
         // (x - fmod) / w is not always integral: CPython rounds it to the nearer integer
         assert_eq!(floordiv(1.0, 0.1), Some(9.0));
+    }
+
+    #[test]
+    fn round3_as_cpython() {
+        // values checked against CPython 3.13's round(x, 3)
+        assert_eq!(round3(0.0625), Some(0.062)); // an exact tie: to even
+        assert_eq!(round3(0.1875), Some(0.188));
+        assert_eq!(round3(-0.0625), Some(-0.062));
+        assert_eq!(round3(2.675), Some(2.675));
+        assert_eq!(round3(1.0005), Some(1.0)); // 1.0005 is a hair under the tie
+        assert_eq!(round3(-910.400_024_414_062_5), Some(-910.4));
+        assert_eq!(round3(0.0004).map(f64::to_bits), Some(0.0f64.to_bits()));
+        assert_eq!(round3(-0.0004).map(f64::to_bits), Some((-0.0f64).to_bits()));
+        assert_eq!(round3(123_456.789_5), Some(123_456.789));
+        assert_eq!(round3(f64::NAN), None);
+        assert_eq!(round3(1e300), None);
+        assert_eq!(round3(f64::from_bits(1)), Some(0.0));
     }
 
     #[test]

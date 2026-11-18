@@ -168,16 +168,13 @@ def _cells(f: Any, heightfield: Any, cache_dir: str | None,
     ys: list[np.ndarray]
     area_of: list[np.ndarray]
     xz, ys, area_of = [], [], []
-    k = 0
-    for s in f.sectors:
-        for a in kymesh.parse_mesh(s.mesh).areas:
-            c = navdiff.area_cells(a)
-            if c:
-                ij = np.array(list(c.keys()), dtype=np.float64)
-                xz.append(ij * GRID)
-                ys.append(np.array(list(c.values()), dtype=np.float64))
-                area_of.append(np.full(len(c), k, dtype=np.int32))
-            k += 1
+    every = [a for s in f.sectors for a in kymesh.parse_mesh(s.mesh).areas]
+    for k, c in enumerate(navdiff.area_cells_many(every)):   # all at once (in the Rust core, in parallel: round E3h)
+        if c:
+            ij = np.array(list(c.keys()), dtype=np.float64)
+            xz.append(ij * GRID)
+            ys.append(np.array(list(c.values()), dtype=np.float64))
+            area_of.append(np.full(len(c), k, dtype=np.int32))
     xz = np.concatenate(xz) if xz else np.zeros((0, 2))
     est = np.concatenate(ys) if ys else np.zeros(0)
     area = np.concatenate(area_of) if area_of else np.zeros(0, np.int32)

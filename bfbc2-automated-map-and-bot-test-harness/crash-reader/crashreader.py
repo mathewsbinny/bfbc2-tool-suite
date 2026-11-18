@@ -174,26 +174,85 @@ def name_of(a, syms, image):
     return '', ''
 
 
+MARK = 'crashreport.xml'
+BEFORE = 400                                # log_before_crash looks at the lines this far before the crash line
+
+
+def _near(when):
+    """The test of a crash line against `when` (None: every line passes)."""
+    if when is None:
+        return lambda line: True
+    import time
+    t = time.localtime(when)
+    want = t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
+
+    def near(line):
+        m = re.match(r'\[(\d\d):(\d\d):(\d\d)', line)
+        if not m:
+            return True                 # no time on the line (an older log): nothing to tell crashes apart by
+        d = abs(int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) - want)
+        return min(d, 86400 - d) <= 120
+    return near
+
+
 def log_before_crash(path, lines=18, when=None):
     """The log lines that led up to the crash that wrote the report: the crashreport.xml line whose time of day is
     within 2 minutes of `when` (the report's modification time, seconds since the epoch), the latest such; without
-    `when`, the last one. [] when no crash in the log matches."""
+    `when`, the last one. [] when no crash in the log matches.
+
+    Only the bytes around the crash lines are decoded (round E3m: the game's opfor.log grows to hundreds of MB; reading
+    all of it as text took 7 s): from the latest occurrence of the mark back, a window that starts just after a
+    newline at least BEFORE + 1 newlines earlier and ends at the newline after the mark. A newline byte is always a
+    line end and never inside a UTF-8 sequence, and the mark is ASCII, so the window's lines are the whole text's
+    (log_before_crash_reference reads the whole text; tests/test_crashreader.py compares them)."""
+    if REFERENCE:
+        return log_before_crash_reference(path, lines, when)
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+    except OSError:
+        return []
+    near = _near(when)
+    mark = MARK.encode()
+    q = data.rfind(mark)
+    while q >= 0:
+        s = q
+        for _ in range(BEFORE + 2):             # back past BEFORE + 1 whole lines (and the mark line's own start)
+            s = data.rfind(b'\n', 0, s)
+            if s < 0:
+                break
+        s = 0 if s < 0 else s + 1
+        e = data.find(b'\n', q)
+        e = len(data) if e < 0 else e + 1
+        window = data[s:e].decode('utf-8', errors='replace')
+        at = len(data[s:q].decode('utf-8', errors='replace'))      # the mark's first character in the window
+        pos = end = 0
+        for line in window.splitlines(keepends=True):     # the line that holds it
+            if pos + len(line) > at:
+                break
+            pos += len(line)
+            end += 1
+        text = window.splitlines()
+        if near(text[end]):
+            picked = [l for l in text[max(0, end - BEFORE):end] if 'Kynapse error' not in l and 'per frame' not in l]
+            return picked[-lines:] + [text[end]]
+        q = data.rfind(mark, 0, q)
+    return []
+
+
+# log_before_crash's reference (BFBC2_CRASHREADER_REFERENCE=1 or REFERENCE = True): the whole log read as text
+REFERENCE = os.environ.get('BFBC2_CRASHREADER_REFERENCE', '') not in ('', '0')
+
+
+def log_before_crash_reference(path, lines=18, when=None):
+    """log_before_crash as it was before round E3m: the whole log decoded and split into lines."""
     try:
         text = open(path, encoding='utf-8', errors='replace').read().splitlines()
     except OSError:
         return []
     marks = [i for i, l in enumerate(text) if 'crashreport.xml' in l]
     if when is not None:
-        import time
-        t = time.localtime(when)
-        want = t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
-
-        def near(line):
-            m = re.match(r'\[(\d\d):(\d\d):(\d\d)', line)
-            if not m:
-                return True                 # no time on the line (an older log): nothing to tell crashes apart by
-            d = abs(int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) - want)
-            return min(d, 86400 - d) <= 120
+        near = _near(when)
         marks = [i for i in marks if near(text[i])]
     if not marks:
         return []

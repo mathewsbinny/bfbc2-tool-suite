@@ -9,6 +9,8 @@
 //! - [`dbxedit`]: DbxEdit's commands in process (`xml`, `edit`, `import`, `check`, `roundtrip`, `fixslots`), a
 //!   port of `bfbc2-dbx-tools/DbxEdit.cs` giving its files, messages and exit codes.
 //! - [`fbrb`]: `.fbrb` bundles, a port of `core/bfbc2core/fbrb.py`: the header's entries and any entry's data.
+//! - [`granny`]: Granny skeletons and animations (PC and Xbox 360), a port of the reader of
+//!   `bfbc2-anim-tools/granny.py`: the tables, the object tree, DICE's per-bone table.
 //! - [`terrain`]: terrain height fields, a port of `core/bfbc2core/terrain.py` (heights, exact height at a point,
 //!   a mesh) with the tail's known layout.
 //! - [`water`]: water meshes and the shader of each triangle, a port of `core/bfbc2core/water.py`.
@@ -37,6 +39,7 @@ pub mod culltree;
 pub mod dbx;
 pub mod dbxedit;
 pub mod fbrb;
+pub mod granny;
 pub mod havok;
 pub mod shaderdb;
 pub mod terrain;

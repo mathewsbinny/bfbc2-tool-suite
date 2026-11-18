@@ -10,7 +10,16 @@
 //!   untiling, the byte swap and the three decoded console formats.
 //! - [`audio`]: EA-XAS v1 audio (`bfbc2-console-convert/audio.py`'s `xas_encode_frames` / `xas_decode_frames`):
 //!   the PC's in-memory sound codec, encoded group by group on all cores.
+//! - [`mesh`]: Xbox 360 mesh vertices to the PC's (`bfbc2-console-convert/mesh.py`'s `convert`, its vertex loop):
+//!   element by element, the packed normals and colours decoded to halves (round E3g).
+//! - [`havok`]: Xbox 360 Havok 5.5.0 packfiles to the PC's (`bfbc2-console-convert/havok.py`'s
+//!   `Packfile.convert`): the field walk over the game's class layouts (round E3g).
+//! - [`granny`]: Xbox 360 Granny resources to the PC's (`bfbc2-anim-tools/granny.py`'s `to_pc`), DICE's bone
+//!   table renumbered onto another skeleton; many on all cores.
 #![deny(unsafe_code)]
 
 pub mod audio;
+pub mod granny;
+pub mod havok;
+pub mod mesh;
 pub mod texture;

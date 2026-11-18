@@ -922,11 +922,17 @@ pub fn gzip_net(data: &[u8]) -> Vec<u8> {
     }
     let mut out = vec![0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 4, 0];
     out.extend(deflate(data, 6).unwrap_or_default());
-    let mut crc = flate2::Crc::new();
-    crc.update(data);
-    out.extend(crc.sum().to_le_bytes());
+    out.extend(crc32(data).to_le_bytes());
     out.extend((data.len() as u32).to_le_bytes());
     out
+}
+
+/// zlib's CRC-32 of `data` (Python's `zlib.crc32(data) & 0xFFFFFFFF`).
+#[must_use]
+pub fn crc32(data: &[u8]) -> u32 {
+    let mut crc = flate2::Crc::new();
+    crc.update(data);
+    crc.sum()
 }
 
 #[cfg(test)]

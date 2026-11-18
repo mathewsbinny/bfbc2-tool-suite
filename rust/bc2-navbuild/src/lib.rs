@@ -32,15 +32,21 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{BuildHasherDefault, Hasher};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use rayon::prelude::*;
 
 use thiserror::Error;
 
 pub mod graph;
 pub mod navsample;
+pub mod parity;
 pub mod pick;
 pub mod pymath;
 pub mod route;
 pub mod rules;
+pub mod sector;
 pub mod trace;
 pub mod window;
 
@@ -216,19 +222,20 @@ impl Rule {
 }
 
 /// The level's kept surfaces on the sample grid (`navbuild.Level`): per column the range of its surfaces, per
-/// surface its height, gradients, flags.
+/// surface its height, gradients, flags. The arrays other than `keep` are shared between the levels
+/// [`Level::with_keep`] makes.
 #[derive(Debug, Clone)]
 pub struct Level {
     nx: usize,
     nz: usize,
-    start: Vec<usize>,
+    start: Arc<[usize]>,
     keep: Vec<bool>,
-    y: Vec<f64>,
-    gx: Floats,
-    gz: Floats,
-    stair: Vec<bool>,
-    terrain: Vec<bool>,
-    col_of: Vec<usize>,
+    y: Arc<[f64]>,
+    gx: Arc<Floats>,
+    gz: Arc<Floats>,
+    stair: Arc<[bool]>,
+    terrain: Arc<[bool]>,
+    col_of: Arc<[usize]>,
     pitch: f64,
     step: f64,
     link_step: f64,
@@ -311,18 +318,84 @@ impl Level {
         Ok(Level {
             nx: d.nx,
             nz: d.nz,
-            start: d.start,
+            start: d.start.into(),
             keep: d.keep,
-            y: d.y,
-            gx: d.gx,
-            gz: d.gz,
-            stair: d.stair,
-            terrain: d.terrain,
-            col_of,
+            y: d.y.into(),
+            gx: Arc::new(d.gx),
+            gz: Arc::new(d.gz),
+            stair: d.stair.into(),
+            terrain: d.terrain.into(),
+            col_of: col_of.into(),
             pitch: d.pitch,
             step: d.step,
             link_step: d.link_step,
         })
+    }
+
+    /// This level with other surfaces kept (`keep`, one flag per surface; the walk of another flood or the islands
+    /// over the kept ground), its other arrays shared, not copied (round E3h: `navwalk.walkable` made the same
+    /// level from Python's arrays again for each).
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] when `keep` does not have a flag per surface.
+    pub fn with_keep(&self, keep: Vec<bool>) -> Result<Level, NavError> {
+        if keep.len() != self.len() {
+            return Err(NavError::Shape(format!(
+                "keep: {} values for {} surfaces",
+                keep.len(),
+                self.len()
+            )));
+        }
+        Ok(Level {
+            keep,
+            ..self.clone_shared()
+        })
+    }
+
+    /// [`Level::with_keep`] with other terrain flags and settings too (`navbuild.Level` on `walkable`'s level: its
+    /// terrain, the build's pitch and link step).
+    ///
+    /// # Errors
+    /// [`NavError::Shape`] when `keep` or `terrain` does not have a flag per surface.
+    pub fn with_keep_terrain(
+        &self,
+        keep: Vec<bool>,
+        terrain: Vec<bool>,
+        pitch: f64,
+        link_step: f64,
+    ) -> Result<Level, NavError> {
+        if terrain.len() != self.len() {
+            return Err(NavError::Shape(format!(
+                "terrain: {} values for {} surfaces",
+                terrain.len(),
+                self.len()
+            )));
+        }
+        Ok(Level {
+            terrain: terrain.into(),
+            pitch,
+            link_step,
+            ..self.with_keep(keep)?
+        })
+    }
+
+    /// A copy whose arrays are shared (`keep` empty: the caller sets it).
+    fn clone_shared(&self) -> Level {
+        Level {
+            nx: self.nx,
+            nz: self.nz,
+            start: Arc::clone(&self.start),
+            keep: Vec::new(),
+            y: Arc::clone(&self.y),
+            gx: Arc::clone(&self.gx),
+            gz: Arc::clone(&self.gz),
+            stair: Arc::clone(&self.stair),
+            terrain: Arc::clone(&self.terrain),
+            col_of: Arc::clone(&self.col_of),
+            pitch: self.pitch,
+            step: self.step,
+            link_step: self.link_step,
+        }
     }
 
     /// The number of surfaces.
@@ -742,14 +815,70 @@ impl Level {
     }
 
     /// `navwalk.walkable`'s flood: from the surfaces in `queue` (kept already), every surface the step rule joins
-    /// that is walkable here (this level's `keep`, the walkability rules' `ok`) and not yet in `kept` is kept, in
-    /// breadth-first order.
-    pub fn flood(&self, kept: &mut [bool], queue: impl IntoIterator<Item = usize>) {
+    /// that is walkable here (this level's `keep`, the walkability rules' `ok`) and not yet in `kept` is kept.
+    ///
+    /// When `kept` holds exactly the queued surfaces (a first flood: the seeds), the answer is the seeds and every
+    /// walkable surface in the step-rule component of a walkable seed or of a walkable surface next to a seed that
+    /// is not walkable itself (the step rule is symmetric: [`Level::roots`]), found in parallel (round E3h);
+    /// otherwise, or for few seeds, breadth first ([`Level::flood_bfs`], the reference), which stops at surfaces
+    /// already kept. Returns the surfaces it kept, in no particular order.
+    pub fn flood(&self, kept: &mut [bool], queue: impl IntoIterator<Item = usize>) -> Vec<usize> {
+        let queue: Vec<usize> = queue.into_iter().collect();
+        let seeds_only = queue.iter().all(|&k| kept.get(k).copied().unwrap_or(false))
+            && kept.iter().filter(|&&v| v).count() == {
+                let mut q = queue.clone();
+                q.sort_unstable();
+                q.dedup();
+                q.len()
+            };
+        if !seeds_only || kept.len() != self.len() {
+            return self.flood_bfs(kept, queue);
+        }
+        let roots = self.roots();
+        let mut hit = vec![false; self.len()];
+        let mut mark = |n: usize| {
+            if let Some(&r) = roots.get(n)
+                && let Some(h) = hit.get_mut(r)
+            {
+                *h = true;
+            }
+        };
+        for &k in &queue {
+            if Self::flag(&self.keep, k) {
+                mark(k);
+                continue;
+            }
+            let yk = self.y(k);
+            for (di, dj, col) in self.around(k) {
+                for n in col {
+                    if Self::flag(&self.keep, n) && self.step_fits(self.y(n) - yk, k, n, di, dj) {
+                        mark(n);
+                    }
+                }
+            }
+        }
+        let keep = &self.keep;
+        kept.par_iter_mut()
+            .enumerate()
+            .filter_map(|(k, v)| {
+                let joins =
+                    !*v && Self::flag(keep, k) && roots.get(k).is_some_and(|&r| hit.get(r).copied().unwrap_or(false));
+                joins.then(|| {
+                    *v = true;
+                    k
+                })
+            })
+            .collect()
+    }
+
+    /// The breadth-first flood ([`Level::flood`]'s reference): returns the surfaces it kept, in the order it kept
+    /// them.
+    pub fn flood_bfs(&self, kept: &mut [bool], queue: impl IntoIterator<Item = usize>) -> Vec<usize> {
         let mut q: VecDeque<usize> = queue.into_iter().collect();
+        let mut added = Vec::new();
         while let Some(k) = q.pop_front() {
             let yk = self.y(k);
-            let next: Vec<(i64, i64, std::ops::Range<usize>)> = self.around(k).collect();
-            for (di, dj, col) in next {
+            for (di, dj, col) in self.around(k) {
                 for n in col {
                     if kept.get(n).copied().unwrap_or(true) || !Self::flag(&self.keep, n) {
                         continue;
@@ -759,16 +888,106 @@ impl Level {
                     {
                         *v = true;
                         q.push_back(n);
+                        added.push(n);
                     }
                 }
             }
         }
+        added
+    }
+
+    /// For every surface, the lowest surface of its step-rule component among the surfaces this level keeps (a
+    /// surface not kept is its own), in parallel: a lock-free union-find whose links only point to lower surfaces,
+    /// over each pair of neighbouring columns once (the step rule is symmetric: `step_fits(dy, k, n, di, dj)` and
+    /// `step_fits(-dy, n, k, -di, -dj)` compute the same magnitudes with the signs flipped, exactly).
+    #[must_use]
+    pub fn roots(&self) -> Vec<usize> {
+        let parent: Vec<AtomicUsize> = (0..self.len()).map(AtomicUsize::new).collect();
+        let find = |mut x: usize| -> usize {
+            loop {
+                let Some(px) = parent.get(x).map(|p| p.load(Ordering::Acquire)) else {
+                    return x;
+                };
+                if px == x {
+                    return x;
+                }
+                let gp = parent.get(px).map_or(px, |p| p.load(Ordering::Acquire));
+                if gp != px
+                    && let Some(p) = parent.get(x)
+                {
+                    let _ = p.compare_exchange(px, gp, Ordering::AcqRel, Ordering::Acquire);
+                }
+                x = gp;
+            }
+        };
+        let union = |a: usize, b: usize| loop {
+            let (ra, rb) = (find(a), find(b));
+            if ra == rb {
+                return;
+            }
+            let (lo, hi) = if ra < rb { (ra, rb) } else { (rb, ra) };
+            if parent
+                .get(hi)
+                .is_none_or(|p| p.compare_exchange(hi, lo, Ordering::AcqRel, Ordering::Acquire).is_ok())
+            {
+                return;
+            }
+        };
+        let (nx, nz) = (self.nx as i64, self.nz as i64);
+        (0..self.nx * self.nz).into_par_iter().with_min_len(256).for_each(|c| {
+            let (i, j) = ((c % self.nx.max(1)) as i64, (c / self.nx.max(1)) as i64);
+            let Some(here) = self.column(i, j) else { return };
+            for (di, dj) in [(1, 0), (-1, 1), (0, 1), (1, 1)] {
+                if !(0..nx).contains(&(i + di)) || !(0..nz).contains(&(j + dj)) {
+                    continue;
+                }
+                let Some(there) = self.column(i + di, j + dj) else {
+                    continue;
+                };
+                for k in here.clone() {
+                    if !Self::flag(&self.keep, k) {
+                        continue;
+                    }
+                    let yk = self.y(k);
+                    for n in there.clone() {
+                        if Self::flag(&self.keep, n) && self.step_fits(self.y(n) - yk, k, n, di, dj) {
+                            union(k, n);
+                        }
+                    }
+                }
+            }
+        });
+        (0..self.len()).map(find).collect()
     }
 
     /// `navwalk.islands_of`: the island of each surface this level keeps (-1 elsewhere), surfaces joined by the
-    /// step rule as the flood joins them, numbered in surface order; and the number of islands.
+    /// step rule as the flood joins them, numbered in the order of their lowest surface; and the number of islands.
+    /// From [`Level::roots`] (round E3h); [`Level::islands_bfs`] is the reference.
     #[must_use]
     pub fn islands(&self) -> (Vec<i64>, usize) {
+        let roots = self.roots();
+        let mut comp = vec![-1i64; self.len()];
+        let mut cid = 0usize;
+        for (k, &r) in roots.iter().enumerate() {
+            if !Self::flag(&self.keep, k) {
+                continue;
+            }
+            let id = if r == k {
+                cid += 1;
+                (cid - 1) as i64
+            } else {
+                comp.get(r).copied().unwrap_or(-1)
+            };
+            if let Some(c) = comp.get_mut(k) {
+                *c = id;
+            }
+        }
+        (comp, cid)
+    }
+
+    /// The breadth-first islands ([`Level::islands`]'s reference).
+    #[must_use]
+    pub fn islands_bfs(&self) -> (Vec<i64>, usize) {
         let mut comp = vec![-1i64; self.len()];
         let mut cid = 0usize;
         for k0 in 0..self.len() {
@@ -781,8 +1000,7 @@ impl Level {
             let mut q = VecDeque::from([k0]);
             while let Some(k) = q.pop_front() {
                 let yk = self.y(k);
-                let next: Vec<(i64, i64, std::ops::Range<usize>)> = self.around(k).collect();
-                for (di, dj, col) in next {
+                for (di, dj, col) in self.around(k) {
                     for n in col {
                         if comp.get(n).is_none_or(|&c| c >= 0) || !Self::flag(&self.keep, n) {
                             continue;
@@ -864,3 +1082,7 @@ mod tests;
 #[cfg(test)]
 #[path = "e3c_tests.rs"]
 mod e3c_tests;
+
+#[cfg(test)]
+#[path = "e3h_tests.rs"]
+mod e3h_tests;

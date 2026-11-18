@@ -4,8 +4,12 @@
 //!
 //! `bfbc2-console-convert/audio.py`'s EA-XAS encoder and decoder are `xas_encode`, `xas_encode_many` and
 //! `xas_decode_frames`; `audio.py` keeps its NumPy code as the fallback and the reference.
+//!
+//! Round E3g: `mesh.py`'s vertex loop is `mesh_vertices` and `havok.py`'s `Packfile.convert` is
+//! `havok_convert_packfile` (on a `HavokClasses`, the class layouts converted once). Both return `None` where the
+//! reference is to run instead (a conversion it refuses or reads short); the Python stays the fallback.
 
-use bc2_convert::{audio, texture};
+use bc2_convert::{audio, havok, mesh, texture};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyBytesMethods, PyList};
@@ -99,4 +103,94 @@ pub fn xas_decode_frames<'py>(py: Python<'py>, data: &Bound<'py, PyBytes>) -> Py
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let out: Vec<u8> = pcm.iter().flat_map(|v| v.to_le_bytes()).collect();
     Ok(PyByteArray::new(py, &out))
+}
+
+/// One vertex element pair for `mesh_vertices`: (console format, its offset, PC format, its offset).
+type ElementPair = (u8, usize, u8, usize);
+
+/// `mesh.py`'s `convert` vertex loop (`emit`): console vertices `first .. first + count` of the region at `src`
+/// (stride `sc`) as PC vertices of `sp` bytes; `None` where the reference must run (`bc2_convert::mesh`).
+#[pyfunction]
+#[expect(clippy::too_many_arguments, reason = "the reference's emit arguments")]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn mesh_vertices<'py>(
+    py: Python<'py>,
+    data: &Bound<'py, PyBytes>,
+    src: usize,
+    sc: usize,
+    sp: usize,
+    first: usize,
+    count: usize,
+    pairs: Vec<ElementPair>,
+    colour: bool,
+) -> Option<Bound<'py, PyBytes>> {
+    let bytes = data.as_bytes();
+    let pairs: Vec<mesh::Pair> = pairs
+        .iter()
+        .map(|&(fc, oc, fp, op)| mesh::Pair { fc, oc, fp, op })
+        .collect();
+    let out = py.detach(|| mesh::convert_vertices(bytes, src, sc, sp, first, count, &pairs, colour))?;
+    Some(PyBytes::new(py, &out))
+}
+
+/// One member of a `HavokClasses` row: (name, class, type, subtype, C array size, offset).
+type MemberRow = (Option<String>, Option<String>, u8, u8, i16, u32);
+
+/// `havok.classes(exe)` for `havok_convert_packfile`: the layouts given as (name, parent, size, members) rows,
+/// members flattened and resolved once.
+#[pyclass(frozen)]
+pub struct HavokClasses {
+    classes: havok::Classes,
+}
+
+#[pymethods]
+impl HavokClasses {
+    #[new]
+    fn new(rows: Vec<(String, Option<String>, u32, Vec<MemberRow>)>) -> Self {
+        let klasses: Vec<havok::Klass> = rows
+            .into_iter()
+            .map(|(name, parent, size, members)| havok::Klass {
+                name,
+                parent,
+                size,
+                members: members
+                    .into_iter()
+                    .map(|(name, cls, ty, subtype, carray, offset)| havok::Member {
+                        name,
+                        cls,
+                        ty,
+                        subtype,
+                        carray,
+                        offset,
+                    })
+                    .collect(),
+            })
+            .collect();
+        HavokClasses {
+            classes: havok::Classes::new(&klasses),
+        }
+    }
+
+    fn __len__(&self) -> usize {
+        self.classes.len()
+    }
+}
+
+/// `havok.Packfile(data, start, classes).convert()`: the whole buffer, the packfile at `start` in the PC's byte
+/// order; `None` where the reference is to run (it refuses, or reads short: `bc2_convert::havok`).
+#[pyfunction]
+pub fn havok_convert_packfile<'py>(
+    py: Python<'py>,
+    data: &Bound<'py, PyBytes>,
+    start: usize,
+    classes: &HavokClasses,
+) -> Option<Bound<'py, PyBytes>> {
+    let bytes = data.as_bytes();
+    let out = py
+        .detach(|| havok::convert_packfile(bytes, start, &classes.classes))
+        .ok()?;
+    Some(PyBytes::new(py, &out))
 }

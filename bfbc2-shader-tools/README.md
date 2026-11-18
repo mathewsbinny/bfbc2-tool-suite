@@ -168,6 +168,12 @@ For console content brought to PC (Battlefield 1943's), the Xbox shaders themsel
   matrix from the instance rows. Not handled yet: loop-relative addressing, Dx9; the Xbox-only engine constants
   `xenonTilingScaleAndOffsetNormalized` (35 BF1943 post / water pixel shaders) and
   `xenonInstancingIndexCountAndStart` (10 vertex shaders) are given no value (none of Wake's drawn entries uses them).
+- Both run in the suite's Rust core (`rust/bc2-shader`, round E3f) when it is built: the same trees, the same HLSL
+  text and errors on every program of BF1943's and BFBC2's Xbox databases (`tests/test_xenos_native.py`), about 6x
+  faster one program at a time and 14x with `xenos.parse_many` + `xenos_hlsl.translate_many` (all cores). A tree's
+  microcode (`cf`, `instructions` ...) is built on its first read; translating it is then left to the Python, as
+  for any tree made by hand. `parse_shader_python` / `translate_python` are the reference; `BFBC2_PURE_PYTHON=1` or
+  `xenos.use_native(False)` runs them.
 - `pcbuild.py` compiles with the system's `d3dcompiler_47.dll` and builds what a PC database stores beside the code:
   the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks. `compile_hlsl` does not
   compile what it compiled before (round E3d): a source, entry, profile, defines and name already compiled come from

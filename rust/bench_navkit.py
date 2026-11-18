@@ -7,9 +7,11 @@ in-game samples (Project OPFOR BFBC2's, read only), on one backend, into a tempo
 
   rust     navbuild / navwalk / navsample on the Rust core (bc2_navbuild): Level's grid walks, the floods,
            walkable's rules, build_areas, build_graph's cell picking (E2a), the tracing, the roof rule, the cover
-           nodes, Gabriel pruning, the route edges and group joining, the sample records (E3c)
-  python   E2a's and E3c's pieces on their Python reference (navbuild.use_native(False)); the grid walks and floods
-           run in Rust either way (their Python was retired on 2026-11-17)
+           nodes, Gabriel pruning, the route edges and group joining, the sample records (E3c); build_graph whole for
+           every sector at once, a stage's areas and edge rows kept in the core, the floods' union-find, the
+           unseeds (E3h)
+  python   E2a's, E3c's and E3h's pieces on their Python reference (navbuild.use_native(False)); the grid walks and
+           floods run in Rust either way (their Python was retired on 2026-11-17)
 
 Prints the time and the sha1 of the path data. The files carry each sector's build time, so two builds' sha1 differ;
 tests\test_navbuild_native.py --game compares a build's file with the recorded one (the clock fixed).

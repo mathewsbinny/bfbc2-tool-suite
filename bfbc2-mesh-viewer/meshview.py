@@ -220,6 +220,28 @@ class Index:
                 return b
         return fbrb.read(hit[0], [hit[1]])[hit[1]]
 
+    def read_many(self, names):
+        """{name: bytes or None} of read() for many names (None: a name the index lacks, as read() gives): each
+        bundle read once for all of its names - a bundle is one gzip stream, so read() of each name decompresses it
+        from the start again (round E3g: test_havokport's 991 physics files, 0.36 s each one at a time, 369 of its 381
+        s; round E3i: the Granny port test) - the bundles on all cores with the Rust core; partitions (.dbx) through
+        their own cache, as read(). A bundle that cannot be read raises as read() does."""
+        out: dict[str, bytes | None] = {}
+        by: dict[str, list[tuple[str, str]]] = {}
+        for n in names:
+            hit = self.where.get(n.lower())
+            if not hit or hit[1].lower().endswith('.dbx'):
+                out[n] = self.read(n)                       # partitions: their own cache
+            else:
+                by.setdefault(hit[0], []).append((n, hit[1]))
+        bundles = list(by)
+        for bundle, got in zip(bundles, fbrb.read_many([(b, [e for _, e in by[b]]) for b in bundles])):
+            if isinstance(got, Exception):
+                raise got
+            for n, e in by[bundle]:
+                out[n] = got[e]
+        return {n: out[n] for n in names}
+
     def _partitions_of(self, bundle):
         """The .dbx entry names the index finds in bundle (Partitions reads them in one pass)."""
         by = self.__dict__.get('_by_bundle')

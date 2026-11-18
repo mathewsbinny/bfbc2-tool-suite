@@ -1080,6 +1080,499 @@ stream that fails or ends early is never written; its reads go through the sessi
 **The test runner** sets `BFBC2_FBRB_CACHE=0` for its tests unless it is set (the game tier sweeps every bundle and
 would fill the user's cache); the cache's own tests use folders of their own.
 
+
+## E3f: the Xbox 360 shader translator in Rust (2026-11-17, branch `rust-e3f`)
+
+**Provisional timings:** OPFOR's WW2 rebuild and other agents' builds and tests ran beside every figure below (the
+benchmarks at below-normal priority on the 16-thread PC; the same run's rows vary by up to 1.5x between runs). Ratios
+hold within a run.
+
+**The profile.** OPFOR's round 0 profile gave the translator ~15 s of `wake_translate` (xenos `_decode_alu` 7.4 s
+cumulative, `_alu_operand` 3.3 s, 4.8 M `_bits` calls), then hidden behind 365 s of HLSL compiles; E3d took the
+compiles to ~7 s cold / ~6 s warm, so the translator became one of the step's largest costs. Measured on Wake
+Island's 1,550 programs (the plain interface: each program's own interpolators and inputs), the Python spends
+**80 % decoding** (`parse_shader`: 1.8 - 2.3 ms a program; mostly building ~600 attribute objects per program, 4.8 M
+`_bits` calls per Wake build) and 20 % emitting HLSL (`translate`: 0.44 ms).
+
+**The crate** (`rust/bc2-shader`; a crate of its own rather than a `bc2-convert` module: a decoder, an IR and an
+emitter that the queued Dx9 port and the BF1943 weapons' and soldiers' translations build on, with no file format of
+`bc2-formats`' and no tie to the texture / audio converters):
+
+- `xenos::parse(blob, is_pixel) -> Shader`: every field `xenos.py` decodes under its Python name and type (an integer
+  where Python keeps `_bits`' integer, a `bool` where it makes one, dict insertion order kept for the literals); it
+  fails where `xenos.py` raises (`XenosError::Format` with the same message, `Malformed` where Python's own
+  `struct.error` / `IndexError` / `ValueError` would end it) and never panics.
+- `hlsl::translate(&Shader, &Interface) -> String`: `xenos_hlsl._Emitter` statement for statement;
+  `TranslateError::Translate` with the Python's message, `Unsupported` where the Python would stop on another
+  exception (an empty material value, a sampler fix with other format fields than `{}`, a non-ASCII name).
+  `translate_all` and `translate_blobs` (decode and translate) run many on all cores. `pyrepr::float_repr` is
+  CPython's `repr(float)`, which the text writes every number with.
+- `bc2-py` (`xenos.rs`): `xenos_parse` / `xenos_parse_many` give a `XenosProgram` (the decoded program, kept in Rust)
+  and the tree without its microcode, every record made through the caller's `Obj` class (`object.__new__` and its
+  `__dict__`, no Python call per record); `xenos_microcode` the rest; `xenos_translate` / `xenos_translate_many`
+  (interpreter released) read the `Interface` attributes and hand anything of another type than the Python reads
+  back (status 2: the Python runs).
+- `xenos.py`: `parse_shader` returns a `_NativeShader` (an `Obj` subclass; its private fields in `__slots__`, so its
+  `__dict__`, `repr` and `to_dict` are the Python tree's): the container, tables and header at once, the microcode's
+  attributes (`cf`, `instructions`, `cf_slots`, `unused_slots`, `unused_nonzero_slots`, `code_words`) built on their
+  first read - a build's translation never builds them. `xenos_hlsl.translate` translates in Rust while the microcode
+  is unread (a tree whose microcode was read may have been edited: it goes to the Python), else in Python; hand-made
+  `Obj` trees (the tests') always in Python. Copies and pickles are plain `Obj` trees. New: `parse_many`,
+  `translate_many` (`errors='raise' | 'return'`), `parse_shader_python` / `translate_python` (the reference),
+  `use_native`, `backend()`. `xenos_exec.py` (the differential test's interpreter) stays Python: numpy already
+  vectorises it over the pixels, and it runs only in tests.
+
+**The float trap.** The first parity run differed in 7 of 4,431 translations: numbers of 17 significant digits.
+Rust's shortest `{:e}` breaks an exact tie upwards, CPython's repr (David Gay's shortest mode) to the even digit -
+and an `f32` widened to `f64` often ends in exactly such a tie (15.2146759033203125: Python `15.214675903320312`,
+Rust `...313`). `float_repr` takes the length from `{:e}` and the digits from `{:.Ne}` (exact, ties to even) when they
+read back as the value: 86,366 doubles (random bits, random `f32`s, every power of two and both neighbours) all
+Python's repr.
+
+**Parity** (`bfbc2-shader-tools/tests/test_xenos_native.py`):
+
+| Corpus | Programs | Result |
+|---|---:|---|
+| BF1943 Xbox shader databases (the 5 levels', the UI's, the menu scene's) | 7,296 | |
+| BF1943 post-process / system shader containers (raw blobs) | 106 | |
+| BFBC2 Xbox level databases (OPFOR's `work\xbox`, 20 levels) | 55,903 | |
+| **all, distinct** | **8,320** (63,305 with copies) | **8,320 trees identical** (every attribute, value, type and attribute order; the CFs' lists hold the very instruction objects); each under 3 interfaces (the plain one, two seeded random ones: material values of every shape and special float, register values, engine-named constants good and bad, sampler fixes including the `{{}}` escapes, sampler / fetch registers, instancing, bones as world, the shadow atlas, NaN tracing, probes): **22,863 HLSL texts byte-identical, 2,097 `TranslateError`s with the same message** |
+| quick: built programs (seeded: pixel / vertex, constant tables, literals, every ALU and fetch opcode, exports, predication, jumps) | 1,500 | 1,476 trees identical, 24 refused alike; 1,473 translations identical, 2,955 errors alike |
+| quick: damaged blobs (bit flips, overwritten container words, cuts, junk) | 3,000 | decoded alike or the same exception and message (733 decoded; `XenosError`, `ValueError`, `struct.error`) |
+| quick: whole microcode of random words | 1,000 | 220 decoded and translated alike, 780 refused alike |
+
+The differential test (`test_xdiff.py --game`: ps317, 36, 120, 202, 476, 745, 502 against the interpreter) passes on
+both backends; `xdiff.py` now translates before its interpreter reads the microcode, so with the Rust core it
+measures the Rust translation (the one the builds use). It reads its one database from its level's bundles now, not
+through `bf1943import.Source` (all 550 MB of BF1943's bundles: the test went past 1 GB).
+
+**Timings** (`rust/bench_xenos.py`, Wake Island's 1,550 programs, 200 at a time, best of 3; ms per program):
+
+| | s | ms each | vs Python |
+|---|---:|---:|---:|
+| decode: Python (`parse_shader_python`) | 2.721 | 1.755 | |
+| decode: Rust tree, microcode on first read (`parse_shader`) | 0.178 | 0.115 | 15.3x |
+| decode: `parse_many` (all cores) | 0.084 | 0.054 | 32.5x |
+| decode: Rust tree with its microcode built (`sh.instructions` read) | 0.541 | 0.349 | 5.0x |
+| translate: Python (`translate_python`) | 0.720 | 0.465 | |
+| translate: Rust, one at a time (`translate`) | 0.280 | 0.181 | 2.6x |
+| translate: `translate_many` (all cores) | 0.065 | 0.042 | 11.1x |
+| **decode + translate: Python** | 2.901 | 1.871 | |
+| **decode + translate: Rust, one at a time** (what callers get unchanged) | 0.464 | 0.299 | **6.3x** |
+| **decode + translate: `parse_many` + `translate_many`** | 0.200 | 0.129 | **14.5x** |
+
+Without Python (`cargo run --release -p bc2-shader --example xenos_bench -- <corpus>`, the same programs): decoding
+65 us, translating 134 us a program on one thread (20.5 MB of HLSL for 1,543 programs); all cores 0.055 s and
+0.035 s for the 1,550. A first version wrote the text as a list of lines joined at the end (184 us); one growing string
+took a quarter off. What is left of a translation's time is the text itself (13 KB a program, a `format!` a line);
+the Python side's is building the header and constant table (~50 us of the 115 us tree).
+
+**For OPFOR** (read only to this round): nothing has to change for the speed-up of the rows "one at a time" -
+`wake_translate.translate_db`, `wake_water`, `wake_terrain` and `ww2_char_shaders` call `xenos.parse_shader` and
+`X.translate` as before, read only the header and constant table of the trees, and `copy.copy` their `Interface`
+(read attribute by attribute, so a copy with other fetch registers works). From the round 0 profile's ~15 s of
+translator in `wake_translate`, expect ~2.5 s. For all cores, `translate_db` needs the first pass E3d's report
+asked for: walk the same programs up to the `X.translate` line (line ~969), collecting `(vsh, viface)` and
+`(ps, iface)` jobs and the `ck` keys instead of translating, then
+`texts = X.translate_many(jobs, errors='return')` (a `TranslateError` in its job's place, as the loop's `except`
+expects), apply the same text fix-ups (`pc_patch_position`, `pc_strip_position`, the wheel decals, the cutout and
+debug replacements) and `P.prefetch` the compiles; the unchanged loop then takes `vsrc` / `psrc` from a dict by `ck`
+and its `compile_hlsl` calls find the compiles done. `xenos.parse_many` can decode a database's programs at once for
+`vs_parsed` (`[(w.vs[i].code, False) ...]`). Expected: the translator ~1 s, the compiles as E3d measured.
+
+**What remains:** `disasm` (xdiff and the tools' text dumps; no build reads it), `xenos_exec.py` (tests only), and
+the text writing itself, if a later profile shows it.
+
+## E3g: the BF1943 model, physics and effect ports (2026-11-17, branch `rust-e3g`)
+
+**Provisional timings:** OPFOR's WW2 rebuilds and other agents' tests ran beside every figure below (below-normal
+priority, 16-thread PC, the machine near its memory limit). Ratios hold within a run.
+
+`rust\bench_ports.py` ports, as Project OPFOR's WW2 steps port them, **every** mesh set (273: Rigid / Composite /
+Skinned / Tree; `bf1943_objects`' three mesh donors), **every** HavokPhysicsData (202; its two Havok templates and the
+hkUFloat8 table) and **every** effect (157 EffectAssets through `effectport.port_many` on Wake's emitter copies) of
+BF1943's source, each output's SHA-256 recorded - the bulk a new WW2 map ports (round E1's "under 4 s of a level build"
+was one level's handful of objects).
+
+### The profiles (before)
+
+| bulk port | s (cProfile) | where the time went |
+|---|---:|---|
+| 273 mesh sets | 74.2 | `meshport.Porter.pc_layout` 46.9 s cumulative for 1,578 calls: each call sorted BFBC2's 26,846 part names again per donor and recomputed every part's signature (1.3 M `signature` calls, 81 M `str.lower`, 85 M `startswith`); `mesh.convert`'s vertex loop 20.8 s (9.4 M `element` calls, 2.5 M one-value NumPy arrays for the packed normals) |
+| 202 physics files | 15.3 | `havok.Packfile`'s field walk 12.7 s: 5.0 M `swap` calls (8.4 s own time), 4.9 M `_value`; `havokport`'s own restructure / subparts 1.1 s |
+| 157 effects | 35.9 | `effectport.templates`' scan of BFBC2's 18,343 emitter documents 17.2 s (`fbrb_read`, one bundle after another); `port()` rebuilding BFBC2's partition-name set per effect 5.7 s (26 M `endswith`); `dbxport.port` 5.3 s; parsing the same partitions' types again 2.8 s |
+| `test_havokport.py` (game tier, seed 348 s) | 381.6 | `material_slots`: `meshview.Index.read` of 991 object physics files one at a time, 1,039 `fbrb_read` calls of 0.36 s each = **370.9 s** (a resource's read inflates its bundle up to it); the conversions themselves 1.2 s, MOPP checks 4.7 s |
+
+### What changed
+
+- **`meshport.Porter.pc_layout`** (algorithm): BFBC2's part names sorted once, every part's signature computed once,
+  each donor's standard parts listed once, and the last resort (the layout keeping the most elements) remembered per
+  (signature, donors); the texture loop takes the mesh folder's run of the sorted source names by bisection instead
+  of sorting all 14,027 per port. `pc_layout_reference` keeps the old scan (`REFERENCE`, `BFBC2_MESHPORT_REFERENCE=1`).
+- **`mesh.convert`'s vertex loop in Rust** (`bc2-convert::mesh::convert_vertices`, `bc2_native.mesh_vertices`): the
+  same byte swaps by value width; the 11:11:10 normal and the colour bytes decoded to halves with one rounding from the
+  double, ties to even (`f64_to_f16`, NumPy's `npy_double_to_half`). Those formats hold only 2,048 + 1,024 + 256
+  distinct values: the quick test checks every one. Any vertex the reference would not convert (an unknown format, a
+  read past the data, an element past the PC vertex) returns `None` and the Python loop runs.
+- **`havok.Packfile.convert` in Rust** (`bc2-convert::havok::convert_packfile`, `bc2_native.havok_convert_packfile` on a
+  `HavokClasses` made once per class dict): the reference's walk step for step, with its per-byte record of widths and
+  owners (a value converted twice the same way is converted once; two widths are refused with the same message).
+  Where the reference would read past the data (its short slices "convert" bytes that are not there), meet a missing
+  table entry, or nest deeper than its recursion allows, the Rust stops and `Packfile` runs - `verify` stays Python.
+- **`effectport.templates`** (algorithm + all cores + disk cache): `EmitterIndex` holds, per emitter document, its
+  instance types and which of them its bytes name (the old scan's pre-test), read in the scan's own batches as far as a
+  search goes, the bundles on all cores (`fbrb.read_many`) and the types by a new `bc2_native.dbx_instance_types_many`
+  (no Python tree); a complete index goes to `%LOCALAPPDATA%\bfbc2-tool-suite\cache\effectport` keyed by the game
+  copy's bundles (path, size, time) and the documents' places (`BFBC2_EFFECTPORT_CACHE`: a folder or `0`). The greedy
+  choice is decided from the rows; a document whose row cannot decide (it does not parse, or holds a needed type its
+  bytes do not name) is tested on its bytes as the scan tests it. `templates_reference` keeps the scan
+  (`REFERENCE`, `BFBC2_EFFECTPORT_REFERENCE=1`). `port()` takes BFBC2's partition names once per index
+  (`bc2_partitions`), `port_many` parses each partition's types once for all its effects.
+- **`meshview.Index.read_many`**: many entries, each bundle read once, the bundles on all cores; `test_havokport`'s
+  material slots read through it.
+
+Not ported, by measurement: `havokport.restructure` / `shape_subparts_to_550` (0.5 + 0.6 s over all 202 files),
+`mesh.console_layouts` (0.7 s, once per Porter), `dbxport.port` inside the effect port (5 s for 1,410 partitions: the
+port's own rules, the size of dbxport - 1,865 lines - against a few seconds a level), BF1943's bundle reader
+(`fbrb1943.Bundle.data`, another suite's).
+
+### Before and after
+
+| bulk port (all of BF1943's) | reference, s | E3g, s | |
+|---|---:|---:|---:|
+| 273 mesh sets (`meshport`) | 30.6 | **4.2** | 7.3x |
+| 202 physics files (`havokport`) | 8.3 | **1.0** | 8.3x |
+| 157 effects (`effectport.port_many`), cold: no index on disk | 28.3 | **11.1** | 2.5x |
+| 157 effects, the index from disk | 28.3 | **6.7** | 4.2x |
+| `test_havokport.py` (game tier) | 348 (seed) | **11** | 32x |
+| `test_ports_native.py --game`: everything above both ways, the index rows, Onslaught | | 124 (reference 62, E3g 13) | |
+
+What is left in the mesh run is mostly reading (the donors' partitions, BF1943's bundles); in the effect run
+`dbxport.port` (5 s) and reading the chosen template partitions' bundles (2 s).
+
+### Parity
+
+Every output both ways, byte for byte (`bench_ports.py --record` on the reference before any change, `--compare` after;
+`test_ports_native.py --game` runs both in one process):
+
+- **273 of 273** mesh ports (every LOD's MeshData, the mesh set, textures, skeleton poses, the plan and notes; 3 refused
+  the same way by both), **202 of 202** physics ports (11 refused by both with the same message), **713 of 713** effect
+  outputs (the 712 files and the report);
+- Project OPFOR's Onslaught console builds (`work\onslaught\build_*\con_*`, read only): **594 of 594** console physics files through
+  `havok.convert` and **239 of 239** console MeshData (each part in its console database layout, the PC layout made of
+  the same elements in PC formats; 300 more have no layout in the builds' databases) the same bytes both ways;
+- EmitterIndex's rows against `dbx.parse` on all of BFBC2's emitter documents: **18,343 of 18,343** documents' types and pre-test as `dbx.parse` and `bytes.__contains__` give them;
+- quick (`test_ports_native.py`, built inputs, 3 s): 400 seeded console meshes (strips, shared and windowed regions,
+  re-ordered and dropped elements; 112 refused by both) and every value of the packed formats; 3,600 packfiles of random
+  class layouts - built, cut short, bytes changed - the same bytes or the same error in all (800 converted: 793 by the
+  Rust walk, the other 7 are reads past the data the reference "converts", left to it); 3,000 layout searches against
+  `pc_layout_reference` (838 PortErrors); the emitter search on built bundles cold, from disk, after a bundle changed and
+  with a damaged document, against `templates_reference`. `cargo test -p bc2-convert`: halves, packed values, swaps,
+  refusals; packfiles with parents, pointers reached twice, arrays, a byte claimed as two widths.
+
+### For Project OPFOR (read only to this round)
+
+Nothing has to change for the gains: `bf1943_objects`, `bf1943_vehicles`, `bf1943_weapons`, `kitbags`, `soldiers`,
+`wake_install` port meshes through `Porter.port`, and `bf1943_objects` / `bf1943_vehicles` / `wake_level.resources`
+physics through `havokport.convert`. Batch APIs that would help:
+
+- `bf1943_vehicles` calls `effectport.port` once per vehicle effect without `shared=`: each call searched the
+  emitter templates again (17 s each before; now the in-process index answers after the first). `effectport.port_many`
+  over the vehicles' effects would also parse shared partitions once.
+- `wake_level.resources` reads a HavokAsset donor's physics resource with `ix.read` per pair (0.36 s each from a large
+  bundle): `ix.read_many` over the pairs' templates first.
+- `bf1943_fx`, `material_grid` and `ww2_level_build` each call `port_many` in their own process: the disk index makes
+  the template search ~0.4 s in each after the first.
+
+Peak working set of a bench run: 1.6 - 1.9 GB, nearly all of it BF1943's source (552 MB of bundles held whole by
+`bf1943import.Source`), the game index and the dbx catalogue; the ports add little.
+
+### Tests
+
+`bfbc2-bf1943-import/tests/test_ports_native.py` (quick, 2 s of work: the built inputs above; `--game`, 124 s: the
+bulk ports both ways, the index rows, the Onslaught corpus), `rust/bc2-convert` unit tests (`mesh_tests.rs`,
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests	est_durations.json`.
+
+## E3i: Granny skeletons and animations (2026-11-17, branch `rust-e3i`)
+
+**Provisional timings:** other agents' work (an OPFOR WW2 rebuild part of the time) ran beside every figure below,
+at below-normal priority on the 16-thread PC. Ratios hold within a run.
+
+### The profile (main, before)
+
+The slowest Granny test, `test_granny_port.py --game` (2,654 Xbox resources converted and compared with their PC
+twins, then BF1943's 395 soldier animations against BFBC2's copies), under cProfile: 253 s, of which
+
+| where | calls | s (profiled) |
+|---|---:|---:|
+| `meshview.Index.read` -> `fbrb.read` of one entry (the BF1943 part: one call per animation, each decompressing its bundle's gzip stream from the start) | 522 / 398 | 130 (zlib 112) |
+| `Granny.root` -> `read` / `_value` (the object trees: 6.3 M `read`, 16.5 M `_value`, 8.5 M `size` calls - a type's size recomputed for every member of every object) | 5,380 | 55 |
+| the test's `clean` (dropping `__` keys and Padding before comparing) | 54 M | 42 |
+| `to_pc` (`_swap` 1.6 M, `_marshal` 0.7 M) | 3,049 | 11 |
+| `Granny.__init__` (the relocation dict) | 9,149 | 4.7 |
+
+That profile ran before the Rust core was built in this worktree, so `fbrb.read` was Python's; with it the same
+test took 98.8 s in the last full tier and 119.6 s here. The corpora: 2,660 Xbox, 4,534 PC and 756 BF1943 Granny
+resources, typically 30 KB; a tree is ~10,000 values (13.8 M in mp_common's 1,409).
+
+### What changed, and why
+
+- **Algorithms first.** The BF1943 part read each animation's PC copy with its own bundle read: a bundle is one
+  gzip stream, so each read decompressed it from the start. `meshview.Index.read_many(names)` reads each bundle
+  once for all its names (`fbrb.read_many`, bundles on all cores); the test uses it. `Granny.size` keeps each
+  type's size (it was recomputed per member per object; members were already cached), and `root()` builds its tree
+  with the cycle collector paused (`_gc_paused`: the collections the tree's own allocations trigger; a tree has no
+  cycles).
+- **Rust** (`bc2_formats::granny`, `bc2_convert::granny`, bindings `bc2-py/src/granny.rs`): the reader
+  (`Granny::parse`: DICE's table, the strings, the sections and relocations; `members`, `size`, `type_name`;
+  `root`: a `Value` tree - objects with `__at__` / `__tref__` / members in order / `__type__`, lists, integer and
+  float lists, transforms, strings), DICE's `bone_table` / `renumber`, and `to_pc` (the swaps and marshalling, the
+  CRC, a bone map renumbering the table), `to_pc_all` on all cores. The binding builds `root()`'s dicts directly
+  (each table string and each type's `__tref__` tuple made once, number arrays as one list). `granny.py`:
+  `Granny(b)` takes its tables from `granny_header` (sections, section offsets and relocations made on first use by
+  `granny_index`), `root()` from `granny_root`, `to_pc` from `granny_to_pc`; new `to_pc_many` and `roots` (all
+  cores, the interpreter released). Anything the Rust core refuses runs the Python code, which raises what it
+  raises; a Granny written to (`put`, `to_bytes`) reads in Python from then on. `use_native` / `backend()` /
+  `BFBC2_PURE_PYTHON` as for the other ports.
+- Not ported: `add_tracks` (`_Graft`), `shift_position`, `set_orientations`, `curve_keys`, `sample` - one file at a
+  time on trees already read, milliseconds each.
+
+### Before and after
+
+`python rust\bench_granny.py --runs 2 --reference <main's granny.py>`: the 2,660 Xbox Granny resources of
+mp_common / sp_common (76.8 MB) in memory; the Python column is main's `granny.py`:
+
+| | main (Python) s | Rust core s | x |
+|---|---:|---:|---:|
+| `Granny(b)` (the tables) | 0.78 | 0.094 | 8.3 |
+| `Granny(b).root()`, each tree dropped before the next | 7.86 | 2.51 | 3.1 |
+| `Granny(b).root()`, all 2,660 trees kept | 13.20 | 10.10 | 1.3 |
+| `Granny(b).root()` of the converted PC files, all kept | 14.14 | 10.28 | 1.4 |
+| `roots(blobs)` (Rust: read on all cores, built with the collector paused) | 13.96 | 6.98 | 2.0 |
+| `to_pc(b)` one at a time | 6.89 | 0.145 | 47 |
+| `to_pc_many(blobs)` | 7.24 | 0.045 | 161 |
+
+Reading is bounded by making the Python objects: the Rust reader alone (`cargo run --release -p bc2-formats
+--example granny_bench -- <work\xbox\mp_common>`) parses mp_common's 1,409 resources in 0.033 s and reads their
+trees (13.8 M values) in 0.63 s; turning a tree into dicts, lists, tuples, ints and floats is the rest. With every
+tree kept alive the cycle collector's passes between calls walk all of them (2.3 M tracked containers here), in
+either column: callers that read many files should drop each tree when done, or use `roots`.
+
+The tests (one at a time, wall clock with Python's start):
+
+| test | before | after |
+|---|---:|---:|
+| `test_granny_port.py --game` ("Granny Xbox 360 -> PC on your Xbox files and BF1943") | 119.6 s | **19.2 s** (6.2x) |
+| `test_granny.py` ("Granny skeletons and animations (read, shift)") | 9.2 s | 7.1 s |
+
+### Parity
+
+`bfbc2-anim-tools/tests/test_granny_native.py`: each resource read with the Rust core and with the Python code -
+the tables (byte order, string table, sections, section offsets, relocations in order), `root()` (every value, its
+Python type, every dict's key order, floats bit for bit) and `to_pc`'s bytes, or the same exception:
+
+- **quick:** resources built in both byte orders with every member type (inline structs and their arrays,
+  references, arrays of references, variants and variant arrays, strings by index, past the table and by pointer,
+  transforms, 8 / 16 / 32-bit, real16 and real32, scalar arrays); the big-endian build's `to_pc` is the
+  little-endian build byte for byte; with and without a bone map, and a map missing a bone; **2,184 damaged
+  copies** (bytes changed, cut short; 316 whose damaged counts would keep the Python code looping for minutes
+  skipped) the same both ways; `to_pc_many` / `roots` against one-by-one calls; a Granny written to (`put`) reads
+  and writes as Python's.
+- **game** (229 s, peak 0.7 GB): **2,660 of 2,660** Xbox resources of mp_common / sp_common (read, converted, the
+  PC result read again), **4,534 of 4,534** PC Granny resources of the game copy (read), and **756 of 756** Granny
+  resources of Battlefield 1943's 85 bundles (read; **1,495** conversions: each, and each soldier animation also
+  with the bone map onto BFBC2's soldier) - the same both ways. Time inside that run (trees compared, so kept a
+  moment): reads 16.8 + 18.9 + 6.2 s in Python against 7.7 + 11.5 + 2.5 s; conversions 5.9 + 3.2 s against 0.3 +
+  0.1 s.
+- `test_granny_port.py --game` and `test_granny.py` pass on the Rust core as before (2,654 Xbox -> PC equal to the
+  PC twins; 31 of 395 BF1943 animations equal to BFBC2's copies; the shifts and `add_tracks`).
+- `cargo test`: `granny`'s tables and halves; `to_pc` of a built resource; DICE's bone tables.
+
+### For OPFOR (read only this round)
+
+Every OPFOR caller gets the Rust core through `granny.Granny`, `root()` (`animations`, `bone_map`) and `to_pc`
+without a change. Batch candidates: `wake_install.py`'s port loop (line ~799: `granny.to_pc` per BF1943 resource,
+mixed with mesh ports) could collect its Granny resources and call `granny.to_pc_many` once; `soldiers.py` (465),
+`wake_flags.py` (78, 97) and `bf1943import.Importer.convert` convert one file each, where `to_pc` now takes
+~0.05 ms - a batch saves little there. Readers of several trees at once (`soldiers.py` 202-231, `weapons.py`,
+`scopes.py`, `type38.py`, `winchester1897.py`, `weapon_preview.py`) can use `granny.roots`.
+
+## E3h: the rest of NavKit (2026-11-17, branch `rust-e3h`)
+
+E3c's profile left sp_004_b at about 17 s, spread thin: the group joining 1.6 s (Rust), `walkable`'s own NumPy 1.4 s,
+`stage` / `build_graph`'s Python glue 0.9 s each, the cover nodes 0.9 s (sequential), `trace_edges_many` 0.8 s
+(mostly its Python dicts), the floods and islands 1.4 s, `navdetail` 0.9 s. Profiled again at the start of the round
+(sp_004_b, 16.8 s; cProfile 18.5 s): the same picture. What moved (each keeps its Python as the reference and the
+fallback, `BFBC2_PURE_PYTHON=1` / `navbuild.use_native(False)`):
+
+| Python | Rust | binding |
+|---|---|---|
+| `build_graph` whole: centre and portal nodes with `add`'s dedup (`round(v, 3)` as CPython: `pymath::round3`), border nodes, cover nodes, walkable pairs, Gabriel, ladder links, group joining, `add_order_nodes` | `sector::build_graph`; every sector of a stage at once, in parallel; the new nodes come back in the reference's order and take their ids in Python (`_graph_finish`) | `NavLevel.graph_many` |
+| a stage's areas (`build_areas_many`'s cells), kept for the stage instead of sent back for each step | `NavAreas` (`build_areas_many(store=True)`, `reorder`) | `trace_edges_stored`, `trace_emit_many`, `graph_many` read it |
+| `trace_edges`' rows as Python dicts for every area; `drop_one_way` | the rows kept in `NavAreas` (`trace_edges_stored(keep_edges=True)`), `drop_one_way` there | `NavAreas.drop_one_way`, `edges_of` / `set_edges` |
+| `detail_pass` on every area (dicts of each area's cells) | only the areas with two side-by-side cells more than the detail step apart can have a broken side: `NavLevel.detail_candidates` (the others get no features, unread; `detail_pass(only=...)`) | |
+| `stage`'s `area_of` dict of every cell, `border_cell`'s scan | answered by the core (`navbuild._AreaOf`: a dict only when iterated) | `NavAreas.area_at`, `first_cell` |
+| `walkable`'s flood, `islands_of` (E1d's breadth-first walks) | a parallel lock-free union-find whose links point to lower surfaces (each component's root is its lowest surface, so the islands keep their numbering; the step rule is symmetric, exactly); a first flood = the components of its seeds; `flood_bfs` / `islands_bfs` stay and are compared in a property test | `NavLevel.flood`, `islands` |
+| the ladders' re-floods (all flags sent each time) | continued from flags kept in the core | `NavLevel.flood_more` |
+| `walkable`'s unseeds (a Python breadth-first walk with `step_fits`) | the island flooded on the floods' level | `NavLevel.with_walk` + `flood` |
+| three `NavLevel`s per stage made from Python's arrays (flood, roof islands, `Level.native`) | one; the others share its arrays (`Level`'s arrays behind `Arc`) | `NavLevel.with_walk` |
+| `walkable`'s sector-edge seeds (a loop over every ok surface) | NumPy | |
+
+Outside the build (navregress's measures, `navdata.load` for the Studio and the apply test): `navdiff.area_cells` in the
+core (`parity::area_cells`, `navkit_area_cells`: a file's areas at once, in parallel; the NumPy kept as
+`area_cells_reference`), `ordercheck.PathData`'s areas made when read (navparity's islands read only the route graph),
+`navdiff.pieces` in NumPy past 48 segments (`pieces_reference` kept), `navparity.ladder_ground` reads DICE's file only
+when there is ladder ground.
+
+**Not taken, measured.** `trace_edges`' side neighbours in parallel within a sector: a detailed sector of 281,000
+cells went 0.22 -> 0.20 s (its time is the rows' maps, which are sequential) - reverted.
+
+**Parity.** `tests	est_navbuild_native.py` (quick), section E3h, the Rust side strict and its calls counted: 10 whole
+`stage()` runs on random levels over the corner of four sectors at pitch 0.8 and 0.2 (40 sectors, 3,903 areas, 3,017
+route nodes, 196 D lines / F cells; meshes, areas, `area_of`, border nodes, graphs, ids, the build's counters) - every
+E3h path ran each time; 12 sector graphs with ladder links; 16 `walkable` runs with unseeds (292 surfaces dropped);
+`navdiff.area_cells` on 61 random outlines; `round(v, 3)` on 180,000 values bit for bit: 40 calls, 0 differences. The
+E3c checks (456 calls) and the recorded grid walks unchanged. Rust: `e3h_tests.rs` (a property test of the union-find
+floods and islands against the breadth-first walks, 160 random multi-layer levels; the sector graph), `parity.rs`;
+40 tests in the crate, `tests	est_rust.py` passes. Whole levels against `navbuild_golden.json` (the build clock
+fixed): **sp_009, sp_004_b, sp_008_b and ons_mp_004 byte for byte as recorded** on the Rust backend, sp_009 also on
+the Python backend (16 s). The measures: `navdiff.area_cells` on every area of every DICE file and two NavKit builds
+(170,422 areas, 23.6 million cells) the same items in order, heights bit for bit (Rust 11.9 s, NumPy 94.1 s);
+`pieces` on 164,393 DICE areas the same sets; navparity's rows for sp_009 and sp_004_b identical to the old code's.
+
+**Timings** (other agents' builds beside it; below-normal priority):
+
+| | E3c | E3h | |
+|---|---:|---:|---:|
+| sp_009 (`bench_navkit.py`) | 3.3 s | **2.3-2.5 s** | |
+| sp_004_b (`bench_navkit.py`; this session's start: 16.8 s) | 15.3-17 s | **11-12 s** | 1.4x |
+| sp_004_b (`test_navbuild_native --game`) | 17 s | **9 s** | |
+| sp_008_b | 20 s | **14 s** | |
+| ons_mp_004 | 14 s | **9 s** | |
+| `test_apply.py` (sp_004_b, two builds with edits) | 178 s | **34 s** | the unseed's island (96,336 cells) was a Python walk |
+| Studio edit mode (`test_editing.py`) | 95 s | **29 s** | the apply in the background 14 s |
+| navparity's measures, sp_004_b (`run_level`) | 23 s | **11.5 s** | |
+
+**The profile now** (sp_004_b, cProfile 12.2 s): `graph_many` 0.78 s, `build_areas_many` 0.58 s, `trace_edges_stored`
+0.56 s (each the largest detailed sector: 281,000 cells - the rows' maps are sequential), `stage`'s own 0.49 s,
+`walkable`'s own 0.46 s, `detail_pass` 1.1 s on the 460 of 2,622 normal areas that have a step (`broken_sides` 0.7 s),
+the roof rule 0.4 s, `stair_slope` 0.32 s, `matched_flags` 0.28 s, the samples' load 0.55 s, the mesh writer
+(`_area_body`) 0.38 s, `finalize_graph` 0.44 s, `ladder_ends` 0.27 s.
+
+**What remains:** `navdetail` (D lines, F cells) in Rust; the sequential per-sector maps of `trace_edges` and the
+largest sector's graph; `walkable`'s NumPy glue and the samples' load; the kymesh writer and `finalize_graph`;
+navparity's `kymesh.parse_mesh` (each file parsed several times, 6 s on sp_004_b) and `match_cells`.
+
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests\test_durations.json`.
+
+## E3m: the sweep (2026-11-17, branch `rust-e3m`)
+
+**Provisional timings:** other agents' builds and tests ran beside every figure (below-normal priority, the machine
+near its memory limit); ratios hold within a run. cProfile adds 1.5-4x to Python-heavy code: the profiled seconds
+rank the work, the before / after tables below are unprofiled.
+
+The tools no earlier round had profiled, on their real workloads: `rust\bench_sweep.py <workload> --profile <folder>`
+(the game copy and OPFOR's work folders read only; outputs and caches in a temporary folder) and each tool's
+game-tier test under cProfile. Not profiled: the tools other agents own this round (NavKit, Granny, stock-MP AI, FBRB,
+renderqa / xdiff / disasm), and four folders that hold only a README (`bfbc2-ai-behavior-simulator`,
+`bfbc2-bot-ai-debugger`, `bfbc2-tactical-map-authoring-tool`; `bfbc2-diff-workbench` is LevelDiff, C#: 2.4 s on MP_005).
+
+### The ranked table
+
+| # | tool | workload | s (profiled) | top cost (calls) | likely fix | expected gain |
+|---:|---|---|---:|---|---|---|
+| 1 | culltree | `add --auto --misplaced 2` on Onslaught MP_005 against every `work\levels` folder (console_cull's run), 2.4 GB | 128 | `ref_pairs`: 89 reference level partitions and 46 trees parsed every run, 93 s (`Level.__init__` 36 s, `CullTree.__init__` 31 s, 14 M `El.attr`, 1.4 M `El.child`); the listing (`culltree_dbx_files` + `culltree_contains`, 109,660 files) 24 s; `shape_for` 19 s (1,985 calls, leave-one-out) | cache (reference rows on disk), algorithm (shape memo) | **done**: 3x warm, memory 2.5 -> 0.2 GB |
+| 2 | culltree | `verify` on the same | 99 | the same reading; `object_checks`' leave-one-out shapes | cache + memo | **done**: 5.8x warm |
+| 3 | navdata (core) | `navdata.load` without its cache, DICE's path data of the 17 prepared levels that have one | 207 | NavKit's `navdiff.area_cells` 121 s (168,094 areas), `kymesh.parse_mesh` 38 s; navdata's own union-find loops 12 s | Rust (`area_cells` and the mesh parse are NavKit's, E3h's this round) | 10x+; every first open of a level in the Studio / harness |
+| 4 | menu tools | `aptgraft roundtrip --pack`, 73 movies (menu, MP / SP HUD) | 164 | `write` 97 s (`_emit` 257 k, `_layout` 900, `reachable` 400 calls 31 s), the parse 30 s, `apt.Movie.instructions` 19 s | algorithm (reachable / layout recomputed per write), Rust (APT model) | 3-5x |
+| 5 | menu tools | `aptrefs xref` (every movie set, the exe's table) | 47 | `apt.Movie.instructions`: 1,924,750 instructions decoded (all distinct: no repetition to cache), `decode` 16 s, `disasm` 26 s | Rust APT decoder (dump text and records) | 5-8x |
+| 6 | harness | `harness run` sp_009 + sp_004_b, cold cache, no parity | 49 | `navdata.load` 18 s (as 3), `navpath.route` 8.7 s (581 routes, 532 k `norm`), NavKit's `ordercheck` 6.9 s | cache (warm in real use), Rust A* | 2x |
+| 7 | menu tools | aptcheck's rules on every movie (128) | 37 | `apt.Movie.instructions` 27 s (as 5) | Rust APT decoder | 5-8x |
+| 8 | harness | `import-log`: `ingame.sessions` of the game copy's 349 MB opfor.log | 26 | 21 M `re.search` (13 patterns on every one of 3.2 M lines) | algorithm (literal search) | **done**: 2-4x |
+| 9 | texqa | the WW2 vehicles' 22 textures, cold | 19 | per texture 0.47 s of NumPy decode / PSNR / SSIM; BF1943's source opened 4 s | batch (all cores); Rust DXT decode | ~cores; a full WW2 run (thousands of textures) is minutes |
+| 10 | console convert | `verify-havok`, 400 Onslaught files | 17 | `havok.Packfile`'s Python walk 14 s (4.4 M `swap`): verify needs its per-byte owners; **0 of 400** files are byte-identical, so converting in Rust first does not help | Rust walk record (owners, arrays, objects) exposed to `ignorable` | ~10x |
+| 11 | navpath (core) | 400 routes on sp_009 / sp_004_b | 11.7 | `closest_between` 5.2 s (200 failed routes), `route` 2 s | algorithm (island pairs cached) | 2x |
+| 12 | console convert | soot test (BF1943 sources) | 10 | BF1943 bundles read whole (`fbrb_read` 2.5 s, gzip 2.4 s, 7,390 `scandir`) | bf1943import's reader (another suite) | - |
+| 13 | Navigation Studio | loading sp_009 (level, both path data cold, the scene) | 9.1 | spread: `scene_load` 0.8 s, `overlay.nearest_node` 1.1 s (2,017), `area_cells` | - | small |
+| 14 | crash reader | `log_before_crash` on the 349 MB log, 3 lookups | 18 (unprofiled) | the whole log decoded (3.5 s) and split (1.9 s) per lookup | algorithm (windows around the crash lines) | **done**: 23x |
+| 15 | Map Inspector | loading MP_005 + SP_01 (9.2 M triangles) | 7.2 | `viewer.add_box` 2.1 s (7,940), `add_triangles` 1.9 s (18,219) | batch the boxes | 1.5x |
+| 16 | bc2loc | `dump` English + Russian | 7.3 | `apt.Movie.__init__` 3.7 s (300 movies' constants for key names) | cache | 2x |
+| 17 | terrain (console) | the terrain test | 7.1 | BF1943 bundles (3.4 s), gzip | - | - |
+| - | small | mesh viewer test 3.3, model tools 0.7 / 2.0 / 3.4, console readers 1.5, exeref 3.4, LevelDiff 2.4 | | reading | - | - |
+
+### What changed
+
+- **culltree** (`bfbc2-culltree/culltree.py`): `ref_rows` makes `ref_pairs`' choices (the same levels, order, notes and
+  skips) and keeps each reference level's `collect()` rows - its slotted instances' leaves in the blueprint's own space,
+  the object left out (None: only the target level's objects are ever compared by identity) - in
+  `%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`, one pickle per level file, valid while the level file, its tree file
+  (size, modification time) and `culltree.py` itself (a digest) are unchanged; the tree path is recomputed from the
+  cached reference each run, so a tree that appears or moves is found as before. `collect()` takes the rows
+  (`RefRows`) beside (tree, level, label) pairs. Without the disk cache (`BFBC2_CULLTREE_CACHE=0`) each reference level
+  is still read once and dropped at once: the trees and partitions are no longer all held. `shape_for` takes a memo:
+  in `misplaced` and `object_checks` (leave-one-out) every level's instance group but the object's own is the same
+  list each call, and its consensus and shape are computed once. `BFBC2_CULLTREE_REFERENCE=1` (`REFERENCE`): `ref_pairs`
+  and no memo, as before. The listing of the `--ref-dir` folders (Rust, 10 s of the warm run) is not cached: a file's
+  content decides whether it is a level partition, and only reading it tells.
+- **harness `ingame.sessions`**: only the lines holding one of the patterns' literals are read by the patterns (the old
+  loop, kept as `sessions_reference`); in a text without carriage returns the literals are found with `str.find` over
+  the whole text and the lines between counted by their breaks (newlines with `str.count`, the rarer breaks
+  `str.splitlines` knows by their offsets: the game log has 7 `\x1d`), else line by line.
+- **crash reader `log_before_crash`**: the log read as bytes; from the last `crashreport.xml` back, a window from just
+  after a newline 402 newlines earlier to the newline after the mark is decoded and split. A newline byte always ends
+  a line and is never inside a UTF-8 sequence, and the mark is ASCII, so the window's lines are the whole text's.
+  `log_before_crash_reference` reads the whole text (`BFBC2_CRASHREADER_REFERENCE=1`).
+- **apt.py** (`bfbc2-console-readers`): the field formats compiled once, opcodes below 0x80 (no argument) returned
+  at once, the per-call lambdas gone: 16% (the same dump lines and instruction records on all 128 movies, 1,924,750
+  instructions, against the file at HEAD). The decoder is the next Rust candidate (items 4, 5, 7).
+- Tried and dropped: `havok.verify` converting in Rust first and walking in Python only where the bytes differ -
+  every one of the 400 shared files differs in ignorable bytes, so the Python walk still ran for all (item 10).
+
+### Before and after (unprofiled)
+
+| workload | before, s | E3m, s | |
+|---|---:|---:|---:|
+| culltree add, MP_005 against `work\levels` (`BFBC2_CULLTREE_REFERENCE=1` / cold cache / warm) | 52.5 (peak 2.54 GB) | 45.2 cold (0.66 GB), **17.4** warm (**0.20 GB**) | 3.0x |
+| culltree verify, the same (test run, machine busy) | 106.9 | 64.3 no cache, 64.8 cold, **18.4** warm | 5.8x |
+| culltree add in the same test run | 70.2 | 71.5 no cache, 70.3 cold, **34.9** warm | 2.0x |
+| `ingame.sessions`, 349 MB opfor.log, 587 sessions | 5.2-9.6 | **2.1-2.9** | 2.5-4x |
+| `log_before_crash`, the same log, 3 lookups | 18.2 | **0.8** | 23x |
+| `apt.Movie.instructions`, 128 movies | 20.9 | 17.5 | 1.2x |
+
+### Parity
+
+- culltree (`tests\test_culltree_e3m.py`): `add` and `verify` through the command line with the reference, with no
+  cache, a cold cache and a warm one - the same exit code, report and written files. Game: Onslaught MP_005 against
+  every `work\levels` folder, add (241 report lines, the same tree and level bytes) and verify (134 lines) all four
+  ways. Quick: built levels with the target's two huts on swapped slots (misplaced), reference levels with lamps and
+  huts, one whose tree is missing, one whose tree is damaged (the note), a file that is no level; and a reference
+  changed after the cache was made. `test_culltree_native.py`'s add run reads every reference both ways
+  (`BFBC2_CULLTREE_CACHE=0`).
+- `ingame.sessions`: the game copy's log, 587 sessions equal field for field to `sessions_reference`; quick: the built
+  log as is, CR LF, a U+2028, no final newline, blank lines around, two matches a line, reversed, three times.
+- `log_before_crash`: the game copy's log, three lookups (the last crash, one at the log's time, one an hour before);
+  quick: 300 seeded logs (CR LF, lone CR, U+2028 / U+0085 / `\x0b` / `\x1c` breaks, bytes that are not UTF-8, timed and
+  untimed crash lines, two marks a line, 0-900 lines), `when` and line counts varied.
+
+### Next rounds, by expected gain
+
+1. NavKit's `navdiff.area_cells` + `kymesh.parse_mesh` in Rust (item 3; NavKit's owner): every cold `navdata.load`.
+2. The APT decoder in Rust (`apt.Movie.instructions`: dump lines and records; items 4, 5, 7), then aptgraft's writer
+   (`reachable` / `_layout` recomputed per write, item 4).
+3. texqa's per-texture analysis on all cores (item 9).
+4. `havok.verify` from a Rust walk record (item 10).
+5. navpath: `closest_between` per island pair cached, the A* heuristic from one vectorised norm (item 11, if the
+   per-call `norm`'s bits can be matched).
+
+### Tests
+
+`bfbc2-culltree/tests/test_culltree_e3m.py` (quick 2.5 s; `--game` ~520 s: eight culltree runs),
+`test_crashreader.py` (quick: 300 seeded logs; `--game`: the game log both ways), `test_harness.py` (quick: 12 log
+variants; `--game`: the game log both ways). Seeds in `tests\test_durations.json`. Note for the coordinator: the
+harness's game test (and `harness.py run`) keeps its cache in OPFOR's `work\harness\cache` (`harness.cache_dir`) -
+this round's profile of that test wrote two navdata cache files there (2026-11-17 16:36); `bench_sweep.py`'s harness
+workload redirects it to its temporary folder.
+
 ## E3j: the stock-MP AI layer (2026-11-17, branch `rust-e3j`)
 
 **Provisional timings:** other agents' work ran on the PC throughout (a WW2 rebuild for part of it, and for a while

@@ -148,9 +148,10 @@ def ladder_ground(reference, candidate, reference_cells):
     suite_paths.use('core')
     import numpy as np
     from bfbc2core import navdata
-    cn, rn = navdata.load(candidate), navdata.load(reference)
+    cn = navdata.load(candidate)
     if not len(cn.cell_area) or not any(a.ladder for a in cn.areas):
         return {'percent': 0.0, 'extra_cells': 0, 'cells': 0}
+    rn = navdata.load(reference)                 # only when there is ladder ground to compare (round E3h)
     same_c, _ = navdata.compare_cells(cn, rn)
     lad = np.array([a.ladder for a in cn.areas])[cn.cell_area]
     return {'percent': round(100.0 * int(lad.sum()) / max(reference_cells, 1), 2), 'extra_cells': int((lad & ~same_c).sum()),

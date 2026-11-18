@@ -12,6 +12,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 name = "bc2-convert"
 version = "0.1.0"
 dependencies = [
+ "bc2-formats",
  "proptest",
  "rayon",
  "sha1_smol",
@@ -47,6 +48,7 @@ dependencies = [
  "bc2-formats",
  "bc2-navbuild",
  "bc2-scene",
+ "bc2-shader",
  "pyo3",
  "rayon",
 ]
@@ -56,6 +58,15 @@ name = "bc2-scene"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "proptest",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "bc2-shader"
+version = "0.1.0"
+dependencies = [
  "proptest",
  "rayon",
  "thiserror",

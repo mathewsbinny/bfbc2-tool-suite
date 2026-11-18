@@ -34,6 +34,7 @@ add     gives each object a new run of leaves (as many as the blueprint has in s
 The format is described in README.md ("Static cull trees"). The game reads the trees with the traversal at
 0x0056C4E0 in BFBC2Game.exe (build 795745); the notes there come from short targeted disassembly only.
 """
+import contextlib
 import glob
 import math
 import os
@@ -59,7 +60,7 @@ Vec = tuple[float, ...]                        # a point (x, y, z)
 ShapeLeaf = tuple[Vec, float, float]           # a blueprint's leaf: (local centre, radius key, Max)
 Instance = tuple[str, int, list[ShapeLeaf], 'Placed']    # collect(): (label, leaf count, leaves, object)
 Found = Mapping[str, list[Instance]]           # collect()'s {blueprint: [instance]}
-Pair = tuple['CullTree', 'Level', str]         # (tree, level, label)
+Pair = tuple['CullTree', 'Level', str]         # (tree, level, label); collect() also takes RefRows
 Log = Callable[[str], object]
 
 
@@ -648,32 +649,36 @@ class Level:
 
     def tree_path(self, field: str = 'ExclusiveStaticCullTree') -> str | None:
         """The tree file a level refers to: levels/<x>/staticculltree_* beside the level's own folder."""
-        ref = self.tree_refs.get(field)
-        if not ref:
-            return None
-        parts = ref.split('/')[:-1]           # drop the instance guid
-        base = os.path.dirname(os.path.abspath(self.path))
-        while parts and parts[0].lower() != 'levels':
-            parts = parts[1:]
-        if not parts:                         # no levels/ segment: the walk below would return the level's folder
-            return None
-        p = base
-        rest = parts[1:]
-        for i, q in enumerate(rest):
-            last = i == len(rest) - 1
-            want, isit = (q.lower() + '.dbx', os.path.isfile) if last else (q.lower(), os.path.isdir)
-            try:
-                m = [f for f in os.listdir(p) if f.lower() == want and isit(os.path.join(p, f))]
-            except OSError:
-                return None
-            if not m:
-                return None
-            p = os.path.join(p, sorted(m)[0])
-        return p
+        return tree_path_of(self.path, self.tree_refs.get(field))
 
     def set_enum(self, o: Placed, value: int) -> None:
         o.el.set_numbers(4, [struct.pack('>i', value)])
         o.enum = value
+
+
+def tree_path_of(path: str, ref: str | None) -> str | None:
+    """Level.tree_path for a level file at path whose tree reference is ref."""
+    if not ref:
+        return None
+    parts = ref.split('/')[:-1]           # drop the instance guid
+    base = os.path.dirname(os.path.abspath(path))
+    while parts and parts[0].lower() != 'levels':
+        parts = parts[1:]
+    if not parts:                         # no levels/ segment: the walk below would return the level's folder
+        return None
+    p = base
+    rest = parts[1:]
+    for i, q in enumerate(rest):
+        last = i == len(rest) - 1
+        want, isit = (q.lower() + '.dbx', os.path.isfile) if last else (q.lower(), os.path.isdir)
+        try:
+            m = [f for f in os.listdir(p) if f.lower() == want and isit(os.path.join(p, f))]
+        except OSError:
+            return None
+        if not m:
+            return None
+        p = os.path.join(p, sorted(m)[0])
+    return p
 
 
 def leaves_of(tree: 'CullTree', level: Level) -> dict[Placed, list[int]]:
@@ -715,11 +720,16 @@ def _median(vals: Iterable[float]) -> float:
     return v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2
 
 
-def collect(pairs: Iterable[Pair]) -> defaultdict[str, list[Instance]]:
+def collect(pairs: Iterable['Pair | RefRows']) -> defaultdict[str, list[Instance]]:
     """Every slotted instance of every blueprint in (tree, level, label) pairs, in order:
     {blueprint: [(label, k, [(local centre, w, Max)], object)]}."""
     found: defaultdict[str, list[Instance]] = defaultdict(list)
-    for tree, level, label in pairs:
+    for pair in pairs:
+        if isinstance(pair, RefRows):        # a reference level's rows, read or from the cache (objects None)
+            for bp, rows in pair.rows.items():
+                found[bp].extend(rows)
+            continue
+        tree, level, label = pair
         for o, lv in leaves_of(tree, level).items():
             sph: list[ShapeLeaf] = []
             s = o.scale or 1.0
@@ -733,7 +743,7 @@ def collect(pairs: Iterable[Pair]) -> defaultdict[str, list[Instance]]:
     return found
 
 
-def shape_for(blueprint: str, found: Found, tol: float = 0.5) -> 'Shape | None':
+def shape_for(blueprint: str, found: Found, tol: float = 0.5, memo: dict[Any, Any] | None = None) -> 'Shape | None':
     """The blueprint's shape from its instances: the most common leaf count; per level (label), the instances whose
     local centres lie within tol m of that level's median (a port with shuffled slots gives wrong ones). The
     first level (the target's own instances come first) whose shape is confirmed wins: by 3 or more agreeing
@@ -746,9 +756,17 @@ def shape_for(blueprint: str, found: Found, tol: float = 0.5) -> 'Shape | None':
     inst = [x for x in inst if x[1] == k and len(x[2]) == k]
     groups = []
     for label in dict.fromkeys(x[0] for x in inst):
-        good = _consensus([x for x in inst if x[0] == label], k, tol)
+        group = [x for x in inst if x[0] == label]
+        key = (label, k, tol, tuple(map(id, group)))
+        if memo is not None and key in memo:     # the same instances (leave-one-out: every level but the object's)
+            good, leaves = memo[key][1:]
+        else:
+            good = _consensus(group, k, tol)
+            leaves = _shape_leaves(good, k) if good else []
+            if memo is not None:
+                memo[key] = (group, good, leaves)    # the group kept: its ids stay its own while the memo lives
         if good:
-            groups.append((label, good, _shape_leaves(good, k)))
+            groups.append((label, good, leaves))
     if not groups:
         return None
 
@@ -840,6 +858,162 @@ def ref_pairs(refs: Sequence[str], ref_dirs: Iterable[str], log: Log,
             out.append((CullTree(tp), lv, os.path.splitext(os.path.basename(p))[0]))
         except CullTreeError as e:
             log(f'note: {tp}: {e}; not used')
+    return out
+
+
+# ref_rows (round E3m): ref_pairs' choices, with each reference level's collect() rows kept on disk per level file
+# and tree file (size and modification time) and this module's code, so a second add or verify against the same
+# --ref-dir reads no reference level again (console_cull's add on Onslaught MP_005 against work\levels: 89 level
+# partitions and 46 trees parsed, 66 of its 128 s, 2.4 GB). The rows hold no objects (None where collect() puts the
+# Placed: only the target level's objects are ever compared by identity). REFERENCE (BFBC2_CULLTREE_REFERENCE=1)
+# runs ref_pairs and shape_for without its memo, as before; BFBC2_CULLTREE_CACHE: the cache folder, or 0 for none.
+REFERENCE = os.environ.get('BFBC2_CULLTREE_REFERENCE', '') not in ('', '0')
+CACHE_VERSION = 1
+_CODE_ID: str | None = None
+
+
+class RefRows:
+    """A reference level's rows for collect(): {blueprint: [(label, leaf count, leaves, None)]}."""
+    __slots__ = ('label', 'rows')
+
+    def __init__(self, label: str, rows: dict[str, list[Instance]]) -> None:
+        self.label, self.rows = label, rows
+
+
+def cache_folder() -> str | None:
+    """Where ref_rows keeps its rows: BFBC2_CULLTREE_CACHE (a folder; 0: none), else
+    %LOCALAPPDATA%\\bfbc2-tool-suite\\cache\\culltree. None: no disk cache."""
+    v = os.environ.get('BFBC2_CULLTREE_CACHE', '')
+    if v == '0':
+        return None
+    return v or os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'bfbc2-tool-suite', 'cache',
+                             'culltree')
+
+
+def _code_id() -> str:
+    """CACHE_VERSION and a digest of this file: rows made by other code are not used."""
+    global _CODE_ID
+    if _CODE_ID is None:
+        import hashlib
+        with open(os.path.abspath(__file__), 'rb') as f:
+            _CODE_ID = f'{CACHE_VERSION}-{hashlib.sha1(f.read()).hexdigest()[:16]}'
+    return _CODE_ID
+
+
+def _stat(path: str) -> tuple[int, int]:
+    st = os.stat(path)
+    return st.st_size, st.st_mtime_ns
+
+
+class _RowCache:
+    """One pickle per reference level file: {'code', 'level': (size, mtime), 'ref': its tree reference or
+    'notlevel': True, 'trees': {tree path: {'stat': (size, mtime), 'rows' or 'error'}}}."""
+
+    def __init__(self, folder: str | None) -> None:
+        self.folder = folder
+
+    def _file(self, path: str) -> str | None:
+        if not self.folder:
+            return None
+        import hashlib
+        return os.path.join(self.folder, hashlib.sha1(os.path.normcase(os.path.abspath(path)).encode('utf-8'))
+                            .hexdigest()[:24] + '.pkl')
+
+    def get(self, path: str, st: tuple[int, int]) -> dict[str, Any] | None:
+        f = self._file(path)
+        if not f or not os.path.isfile(f):
+            return None
+        import pickle
+        try:
+            with open(f, 'rb') as fh:
+                e = pickle.load(fh)
+        except Exception:                      # a damaged or foreign file: read the level again
+            return None
+        ok = isinstance(e, dict) and e.get('code') == _code_id() and e.get('level') == st \
+            and e.get('path') == os.path.normcase(os.path.abspath(path))
+        return e if ok else None
+
+    def put(self, path: str, e: dict[str, Any]) -> None:
+        f = self._file(path)
+        if not f:
+            return
+        import pickle
+        tmp = f'{f}.{os.getpid()}.tmp'
+        try:
+            os.makedirs(os.path.dirname(f), exist_ok=True)
+            with open(tmp, 'wb') as fh:
+                pickle.dump(e, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, f)
+        except OSError:                        # a cache that cannot be written is not used
+            with contextlib.suppress(OSError):
+                os.remove(tmp)
+
+
+def ref_rows(refs: Sequence[str], ref_dirs: Iterable[str], log: Log,
+             target: tuple[str, str] | None = None) -> list['Pair | RefRows']:
+    """ref_pairs' levels as RefRows, in its order, with its notes: the same collect() result (but for the objects,
+    None here) with the rows from the cache where the level file and its tree are unchanged."""
+    if REFERENCE:
+        return list(ref_pairs(refs, ref_dirs, log, target))
+    paths = list(refs)
+    for d in ref_dirs:
+        paths += level_partitions(d)
+
+    def same(a: str) -> str:
+        return os.path.normcase(os.path.abspath(a))
+    cache = _RowCache(cache_folder())
+    out: list[Pair | RefRows] = []
+    seen: set[tuple[str, int]] = set()
+    skip = {same(x) for x in target} if target is not None else set()
+    for p in paths:
+        if same(p) in skip:
+            continue
+        lv: Level | None = None
+        try:
+            st = _stat(p)
+        except OSError:
+            Level(p)                           # raises as ref_pairs' read does
+            raise
+        e = cache.get(p, st)
+        if e is None:
+            e = {'code': _code_id(), 'path': same(p), 'level': st, 'trees': {}}
+            try:
+                lv = Level(p)
+                e['ref'] = lv.tree_refs.get('ExclusiveStaticCullTree')
+            except CullTreeError:
+                e['notlevel'] = True
+            cache.put(p, e)
+        if e.get('notlevel'):
+            continue
+        tp = tree_path_of(p, e['ref'])
+        if not tp:
+            if p in refs:
+                log(f'note: {p}: its exclusive cull tree was not found beside it; not used')
+            continue
+        if same(tp) in skip:
+            continue
+        key = (os.path.basename(p).lower(), os.path.getsize(tp))
+        if key in seen:
+            continue
+        seen.add(key)
+        label = os.path.splitext(os.path.basename(p))[0]
+        tst = _stat(tp)
+        t = e['trees'].get(same(tp))
+        if t is None or t['stat'] != tst:
+            if lv is None:
+                lv = Level(p)
+            try:
+                tree = CullTree(tp)
+                rows = {bp: [(x[0], x[1], x[2], None) for x in xs] for bp, xs in collect([(tree, lv, label)]).items()}
+                t = {'stat': tst, 'rows': rows}
+            except CullTreeError as err:
+                t = {'stat': tst, 'error': str(err)}
+            e['trees'][same(tp)] = t
+            cache.put(p, e)
+        if 'error' in t:
+            log(f'note: {tp}: {t["error"]}; not used')
+            continue
+        out.append(RefRows(label, t['rows']))
     return out
 
 
@@ -955,9 +1129,10 @@ def misplaced(tree: CullTree, level: Level, found: Found, metres: float) -> list
     """[(object, metres off)]: slotted objects whose leaves lie more than metres from where the blueprint's other
     instances (leave-one-out) put them, and whose blueprint has a shape without them."""
     out = []
+    memo: dict[Any, Any] | None = None if REFERENCE else {}
     for o, ids in leaves_of(tree, level).items():
         rest = {b: [x for x in v if x[3] is not o] for b, v in found.items() if b == o.blueprint}
-        sh = shape_for(o.blueprint, rest)
+        sh = shape_for(o.blueprint, rest, memo=memo)
         if sh is None:
             continue
         k = min(len(sh.leaves), len(ids))
@@ -1024,11 +1199,12 @@ def object_checks(tree: CullTree, level: Level, found: Found) -> tuple[list[tupl
     errs: list[float]
     worst: list[tuple[float, Placed, int]]
     errs, rad_short, n_cmp, worst = [], 0, 0, []
+    memo: dict[Any, Any] | None = None if REFERENCE else {}
     for o, ids in lv.items():
         inst = [x for x in found.get(o.blueprint, []) if x[3] is not o]
         if len(inst) < 2:
             continue
-        sh = shape_for(o.blueprint, {o.blueprint: inst})
+        sh = shape_for(o.blueprint, {o.blueprint: inst}, memo=memo)
         if sh is None or len(sh.leaves) != len(ids):
             continue
         for j, li in enumerate(ids):
@@ -1143,7 +1319,7 @@ def cmd_verify(args: list[str], log: Log) -> int:
     t, lv = CullTree(args[0]), Level(args[1])
     client = CullTree(client_p) if client_p else None
     log(f'tree  {args[0]}\nlevel {args[1]}')
-    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log, target=(args[0], args[1]))
+    pairs = [(t, lv, 'level')] + ref_rows(refs, dirs, log, target=(args[0], args[1]))
     found = collect(pairs)
     bad = _report(check_structure(t, client), log)
     res, detail = object_checks(t, lv, found)
@@ -1185,7 +1361,7 @@ def cmd_add(args: list[str], log: Log) -> int:
             raise CullTreeError('write the results to new files (--out-tree / --out-level), not over the inputs')
     t, lv = CullTree(args[0]), Level(args[1])
     client = CullTree(client_p) if client_p else None
-    pairs = [(t, lv, 'level')] + ref_pairs(refs, dirs, log, target=(args[0], args[1]))
+    pairs = [(t, lv, 'level')] + ref_rows(refs, dirs, log, target=(args[0], args[1]))
     found = collect(pairs)
     if away is not None:
         moved = misplaced(t, lv, found, float(away))

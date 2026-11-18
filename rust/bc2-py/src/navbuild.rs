@@ -11,6 +11,7 @@ use bc2_navbuild::trace::{self, TraceCfg};
 use bc2_navbuild::{Cell, CellMap, Floats, Level, LevelData, NavError, Rule, pick, pymath};
 use rayon::prelude::*;
 
+use crate::navgraph::{self, NavAreas};
 use crate::navtrace;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -363,6 +364,8 @@ fn triangles(b: &[u8]) -> PyResult<Vec<Tri>> {
 pub struct NavLevel {
     level: Level,
     blocked: std::sync::RwLock<HashSet<(usize, usize)>>,
+    /// The kept flags the last `flood` / `flood_more` left (`flood_more` continues from them).
+    flooded: std::sync::Mutex<Option<Vec<bool>>>,
 }
 
 /// A surface index, or a `ValueError` for one outside the level.
@@ -436,6 +439,7 @@ impl NavLevel {
         Ok(NavLevel {
             level: Level::new(data).map_err(value_error)?,
             blocked: std::sync::RwLock::default(),
+            flooded: std::sync::Mutex::default(),
         })
     }
 
@@ -556,13 +560,15 @@ impl NavLevel {
         clippy::needless_pass_by_value,
         reason = "PyO3 extracts a list argument as an owned Vec"
     )]
+    #[pyo3(signature = (sectors, max_area, rule_name, store=false))]
     fn build_areas_many<'py>(
         &self,
         py: Python<'py>,
         sectors: Vec<(i64, i64, (i64, i64), (i64, i64), i64, i64)>,
         max_area: Option<i64>,
         rule_name: &str,
-    ) -> PyResult<Bound<'py, PyList>> {
+        store: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let rule = rule(rule_name)?;
         let level = &self.level;
         let got = py
@@ -576,8 +582,10 @@ impl NavLevel {
             })
             .map_err(value_error)?;
         let out = PyList::empty(py);
+        let mut kept: Vec<Vec<Vec<Cell>>> = Vec::new();
         for areas in got {
             let sector = PyList::empty(py);
+            let mut sector_cells = Vec::new();
             for (t, cells) in areas {
                 // min / max over the cells' heights in order, as Python's builtins compare (`<`, `>`)
                 let mut ys = cells.iter().map(|c| level.y(c.2));
@@ -585,15 +593,103 @@ impl NavLevel {
                 let (lo, hi) = ys.fold((first, first), |(lo, hi), v| {
                     (if v < lo { v } else { lo }, if v > hi { v } else { hi })
                 });
-                let cells: Vec<Bound<'py, PyTuple>> = cells
-                    .into_iter()
-                    .map(|cell| cell.into_pyobject(py))
+                let items: Vec<Bound<'py, PyTuple>> = cells
+                    .iter()
+                    .map(|&cell| cell.into_pyobject(py))
                     .collect::<PyResult<_>>()?;
-                sector.append((t, PyList::new(py, cells)?, lo, hi))?;
+                sector.append((t, PyList::new(py, items)?, lo, hi))?;
+                if store {
+                    sector_cells.push(cells);
+                }
             }
             out.append(sector)?;
+            if store {
+                kept.push(sector_cells);
+            }
         }
-        Ok(out)
+        if store {
+            return Ok((out, NavAreas::new(kept)).into_pyobject(py)?.into_any());
+        }
+        Ok(out.into_any())
+    }
+
+    /// A stage's areas in the core from the Python's cells (`[[[(i, j, k)]]]`: sectors, areas, cells; the surfaces
+    /// checked), for `trace_edges_stored`, `trace_emit_many` and `graph_many`.
+    fn areas_from(&self, sectors: Vec<Vec<Vec<(i64, i64, i64)>>>) -> PyResult<NavAreas> {
+        navgraph::areas_from(&self.level, &sectors)
+    }
+
+    /// `trace_edges` for every sector of `store` at once, in parallel: `origins` their (gi0, gj0) in its order;
+    /// the answers as `trace_edges_many` gives them - or (`keep_edges`) kept in `store`, each sector's one-way
+    /// candidates returned.
+    #[expect(clippy::too_many_arguments, reason = "the stage's settings")]
+    #[pyo3(signature = (store, origins, window, y_offset, rule_name, symmetric, keep_edges=false))]
+    fn trace_edges_stored<'py>(
+        &self,
+        py: Python<'py>,
+        store: &NavAreas,
+        origins: Vec<(i64, i64)>,
+        window: (i64, i64),
+        y_offset: f64,
+        rule_name: &str,
+        symmetric: bool,
+        keep_edges: bool,
+    ) -> PyResult<Bound<'py, PyList>> {
+        navgraph::trace_edges_stored(
+            py,
+            &self.level,
+            store,
+            &origins,
+            window,
+            y_offset,
+            rule_name,
+            symmetric,
+            keep_edges,
+        )
+    }
+
+    /// The areas of each sector of `store` the detail pass may find broken sides in (two side-by-side cells more
+    /// than `step` apart in height): `[[area index]]`.
+    fn detail_candidates(&self, py: Python<'_>, store: &NavAreas, step: f64) -> PyResult<Vec<Vec<usize>>> {
+        navgraph::detail_candidates(py, &self.level, store, step)
+    }
+
+    /// `trace_emit` for several sectors of `store` at once, in parallel: `jobs` = `[(sector, per_area, gi0, gj0,
+    /// (ox, oz))]`; per job what `trace_emit` gives.
+    fn trace_emit_many<'py>(
+        &self,
+        py: Python<'py>,
+        store: &NavAreas,
+        jobs: &Bound<'py, PyList>,
+        pitch: f64,
+        y_offset: f64,
+        rule_name: &str,
+    ) -> PyResult<Bound<'py, PyList>> {
+        navgraph::trace_emit_many(py, &self.level, store, jobs, pitch, y_offset, rule_name)
+    }
+
+    /// `build_graph` for several sectors of `store` at once, in parallel (`bc2_navbuild::sector`): per job (nodes
+    /// `[(border index or -1, pos, k, i, j)]`, pairs, order-node indices); see `navgraph::graph_many`.
+    #[expect(clippy::type_complexity, reason = "the build's settings as a tuple")]
+    fn graph_many<'py>(
+        &self,
+        py: Python<'py>,
+        store: &NavAreas,
+        jobs: &Bound<'py, PyList>,
+        cfg: (
+            f64,
+            f64,
+            (i64, i64),
+            f64,
+            String,
+            Option<f64>,
+            bool,
+            bool,
+            f64,
+            (f64, f64),
+        ),
+    ) -> PyResult<Bound<'py, PyList>> {
+        navgraph::graph_many(py, &self.level, store, jobs, cfg)
     }
 
     /// `navbuild.build_areas(level, gi0, gj0, start, tile, tiles)` over the sector window `window` (start, stop;
@@ -876,8 +972,55 @@ impl NavLevel {
             .map(|&k| surface(&self.level, k))
             .collect::<PyResult<_>>()?;
         py.detach(|| self.level.flood(&mut out, q));
-        let bytes: Vec<u8> = out.into_iter().map(u8::from).collect();
+        let bytes: Vec<u8> = out.iter().map(|&v| u8::from(v)).collect();
+        *self.flooded.lock().map_err(value_error)? = Some(out);
         Ok(PyBytes::new(py, &bytes))
+    }
+
+    /// The flood again from more surfaces `queue` (kept now: the caller has kept them), over the kept flags the last
+    /// `flood` / `flood_more` left in the core (round E3h: walkable's ladder loop floods again and again; sending
+    /// the level's flags each time cost more than the floods). Returns the surfaces it kept besides `queue`, in no
+    /// particular order; a `ValueError` when no flood ran on this level.
+    fn flood_more(&self, py: Python<'_>, queue: Vec<i64>) -> PyResult<Vec<usize>> {
+        let q: Vec<usize> = queue
+            .iter()
+            .map(|&k| surface(&self.level, k))
+            .collect::<PyResult<_>>()?;
+        let mut g = self.flooded.lock().map_err(value_error)?;
+        let kept = g.as_mut().ok_or_else(|| value_error("no flood ran on this level"))?;
+        for &k in &q {
+            if let Some(v) = kept.get_mut(k) {
+                *v = true;
+            }
+        }
+        Ok(py.detach(|| self.level.flood_bfs(kept, q)))
+    }
+
+    /// This level with the surfaces `walk` (one byte per surface) kept instead, its other arrays shared (round E3h:
+    /// `navwalk.walkable`'s islands over its kept ground, without sending the samples again).
+    /// With `terrain` (bytes), `pitch` and `link_step` also given, those replace this level's (`navbuild.Level.native`
+    /// on `walkable`'s level).
+    #[pyo3(signature = (walk, terrain=None, pitch=0.0, link_step=0.0))]
+    fn with_walk(
+        &self,
+        walk: &Bound<'_, PyBytes>,
+        terrain: Option<&Bound<'_, PyBytes>>,
+        pitch: f64,
+        link_step: f64,
+    ) -> PyResult<NavLevel> {
+        let keep: Vec<bool> = walk.as_bytes().iter().map(|&v| v != 0).collect();
+        let level = match terrain {
+            Some(t) => {
+                self.level
+                    .with_keep_terrain(keep, t.as_bytes().iter().map(|&v| v != 0).collect(), pitch, link_step)
+            }
+            None => self.level.with_keep(keep),
+        };
+        Ok(NavLevel {
+            level: level.map_err(value_error)?,
+            blocked: std::sync::RwLock::default(),
+            flooded: std::sync::Mutex::default(),
+        })
     }
 
     /// `navwalk.islands_of` over the surfaces this level keeps: the island ids (int64, little-endian bytes) and the
