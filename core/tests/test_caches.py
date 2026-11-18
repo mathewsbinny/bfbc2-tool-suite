@@ -56,6 +56,8 @@ def names(folder):
 def env_for(tmp, **extra):
     e = {k: v for k, v in os.environ.items() if k not in ENV_NAMES}
     e['LOCALAPPDATA'] = tmp
+    os.makedirs(os.path.join(tmp, 'opfor', 'game'), exist_ok=True)     # the project caches: here, never the real ones
+    e['OPFOR_ROOT'] = os.path.join(tmp, 'opfor')
     e.update(extra)
     return e
 
@@ -327,7 +329,7 @@ def main(argv):
         lines = {ln.split()[0]: ln for ln in out.stdout.splitlines() if ln.strip()}
         check(out.returncode == 0 and '2.0 KB' in lines.get('hlsl', '') and ' 2 file' in lines.get('hlsl', '') and
               '2.9 KB' in lines.get('fbrb', '') and '0 B' in lines.get('effectport', '') and
-              'BFBC2_FBRB_CACHE_GB' in lines.get('fbrb', '') and '700 B' in lines.get('(logs,', ''),
+              'BFBC2_FBRB_CACHE_GB' in lines.get('fbrb', '') and '700 B' in lines.get('logs', ''),
               '--list: each cache with its size, files, cap and folder; the logs', out.stdout + out.stderr)
         out = run(BFBC2_EFFECTPORT_CACHE='0')
         check(out.returncode == 0 and 'off (BFBC2_EFFECTPORT_CACHE=0)' in out.stdout,

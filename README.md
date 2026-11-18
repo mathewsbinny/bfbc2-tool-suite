@@ -33,8 +33,8 @@ The 3D tools can also be started on their own: double-click `bfbc2-map-inspector
 
 ### When something goes wrong
 
-Every tool keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` (one file per tool and day, the 20 newest
-kept): what it did, warnings, and every error with its full details. When a tool crashes, a window says what
+Every tool keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` (one file per tool and day, a big day split
+into numbered parts, each tool's 20 newest days kept within size caps: README "Caches"): what it did, warnings, and every error with its full details. When a tool crashes, a window says what
 happened, the likely cause and what to do - for example "a Python library the tool needs is not installed
 (imgui_bundle) - pip install imgui-bundle", "the 3D view could not start OpenGL 3.3 - update the graphics driver",
 "the level is not prepared", "a file could not be written - close the game" - and where the log is. In the 3D
@@ -323,7 +323,11 @@ command to see and clear them:
 cd core
 python -m bfbc2core.caches                    each cache: size, files, cap and folder (also --list [name...])
 python -m bfbc2core.caches --prune [name...]  delete the least recently used files beyond each cap now
-python -m bfbc2core.caches --clear [name...]  delete the cached files (every cache when no name is given)
+                                              (every cache, project cache and the logs when no name is given)
+python -m bfbc2core.caches --clear [name...]  delete the cached files (every shared cache when no name is given;
+                                              the project caches navstudio, harness, navwater and logs by name only)
+python -m bfbc2core.caches --opfor <folder>   Project OPFOR BFBC2's folder for the project caches (default: as the
+                                              tools find it - OPFOR_ROOT, else walking up from the suite)
 ```
 
 (`python core\bfbc2core\caches.py ...` works from anywhere.) A cap is checked by the code that writes the cache, at
@@ -346,13 +350,35 @@ development PC on 2026-11-17, mid-way through a WW2 rebuild):
 | `culltree` | `<sha1 of the level file's path>.pkl` | the code (`CACHE_VERSION`, a hash of `culltree.py`), the level file's size and time; each tree's inside | `culltree` `ref_rows` (E3m) | `BFBC2_CULLTREE_CACHE` | `BFBC2_CULLTREE_CACHE_MB`, default 2048; LRU (E3p) | one file per reference level partition (none yet on this PC) |
 | `bf1943source` | `<sha1 of the source folder>.pkl` | `INDEX_VERSION`, the BF1943 bundle reader's own source (`fbrb1943.py`'s SHA-1); per bundle its size and modification time | `bf1943import.Source` (E3r): which bundles `fbrb1943` takes, their entries and where each payload starts | `BF1943_SOURCE_INDEX` | `BF1943_SOURCE_INDEX_MB`, default 64; LRU | 3.2 MB, one file per BF1943 copy |
 
-Also under `%LOCALAPPDATA%\bfbc2-tool-suite`, not caches: `logs\<tool>-<date>.log` (`bfbc2core.errors`, DbxEdit's
-own log; the 20 newest per tool are kept, no size cap: 607 MB here, single NavKit and Studio days of 50-130 MB;
-`--list` shows their size) and `test_times.json` (`run_tests.py`'s durations). In-memory caches (`BFBC2_FBRB_MEMORY_MB`,
-`pcbuild.MEMORY_LIMIT`, `functools.lru_cache`s) end with the process.
+**Logs** (`logs` in the command; round E3q): `%LOCALAPPDATA%\bfbc2-tool-suite\logs\<tool>-<date>.log`
+(`bfbc2core.errors`, DbxEdit in process). A day's file that reaches `BFBC2_LOG_FILE_MB` (default 20) goes on in
+`<tool>-<date>.1.log`, `.2.log` ... (nothing renamed or truncated: no line of a session is lost, and a file another
+process holds is never in the way). At each tool's start and each rollover the folder is pruned
+(`bfbc2core.caches.prune_logs`): each tool's 20 newest days are kept, then the oldest files are deleted beyond
+`BFBC2_LOG_TOOL_MB` per tool (default 100) and `BFBC2_LOGS_MB` in all (default 200) - never the running session's
+own files, never (for the caps) a log written in the last 10 minutes (a running tool's), never one held open.
+**Nothing is lost:** the logs a prune removes are first zipped into a new archive in `logs-archive\` beside the log
+folder (`logs-<date>_<time>.zip`, written whole before anything is deleted - if it cannot be written, nothing is
+deleted); the archives have their own cap, `BFBC2_LOG_ARCHIVE_MB` (default 1024), the oldest archive deleted first.
+Before
+E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). DbxEdit.exe and
+FbrbTool.exe (C#, `ToolLog`) still write one file per day; their logs are pruned with the rest. Also under
+`%LOCALAPPDATA%\bfbc2-tool-suite`, not a cache: `test_times.json` (`run_tests.py`'s durations). In-memory caches
+(`BFBC2_FBRB_MEMORY_MB`, `pcbuild.MEMORY_LIMIT`, `functools.lru_cache`s) end with the process.
 
-**Project caches** (in Project OPFOR BFBC2's `work\` folder or the suite's `build\`; each is per level or per game
-copy, replaced when its inputs change, and deleted by deleting the file or folder; the command leaves them alone):
+**Project caches with a cap** (round E3q; in Project OPFOR BFBC2's `work\` folder by design, found as the tools find
+it; listed, pruned and - by name - cleared by the command): `navdata.load(cache_dir=)`'s path-data entries
+(`<key>.npz`, `<key>.navdata.pkl`; only these are pruned), checked after each entry it writes (at most every 15
+minutes per folder), a hit marking its file used:
+
+| Name | Folder | Cap variable, default | Size before (2026-11-17) |
+|---|---|---|---|
+| `navstudio` | `work\navstudio\cache` | `BFBC2_NAVSTUDIO_CACHE_MB`, 2048 | 1.3 GB |
+| `harness` | `work\harness\cache` (entries in `navdata\`; `bundles\` not pruned) | `BFBC2_HARNESS_CACHE_MB`, 3072 (a full run over all levels reads about 2 GB) | 2.1 GB |
+| `navwater` | `work\navwater\cache` | `BFBC2_NAVWATER_CACHE_MB`, 1024 | 274 MB |
+
+**Other project caches** (in Project OPFOR BFBC2's `work\` folder or the suite's `build\`; each is per level or per
+game copy, replaced when its inputs change, and deleted by deleting the file or folder; the command leaves them alone):
 
 | What | Where | Key | Written by | Eviction | Typical size |
 |---|---|---|---|---|---|
@@ -360,14 +386,14 @@ copy, replaced when its inputs change, and deleted by deleting the file or folde
 | DBX catalogue | `work\tools_out\dbx_catalogue.pkl` | as the mesh viewer index | `dbxcatalogue` | one file, rebuilt when stale | 70 MB |
 | renderqa | suite `build\meshview_index.pkl`, `build\renderqa_truth.pkl` | as the mesh viewer index | `renderqa` | one file each | 33 MB, 0.2 MB |
 | terrain unpack | `work\levels\<lv>\terrain\` (with its stamp) | the terrain bundle's size and time | `level.heightfield_of` (under a lock) | one per level, replaced when stale | 4-50 MB per level (37 levels here) |
-| path data cells | `work\navstudio\cache`, `work\harness\cache\navdata`, `work\navwater\cache` (`<key>.npz`, `<key>.navdata.pkl`) | the file's path, size and time, the height source, `CACHE_VERSION` and the code | `navdata.load(cache_dir=)` | none: a new file per changed path data file | 1.3 GB, 2.1 GB (the whole harness cache), 274 MB |
-| harness bundle entries | `work\harness\cache\bundles\<stat key>\` | the bundle's size and time | `testharness.levelinfo` | none | in the 2.1 GB above |
+| path data cells | `work\navstudio\cache`, `work\harness\cache\navdata`, `work\navwater\cache` (`<key>.npz`, `<key>.navdata.pkl`) | the file's path, size and time, the height source, `CACHE_VERSION` and the code | `navdata.load(cache_dir=)` | LRU to the caps above (E3q) | 1.3 GB, 2.1 GB (the whole harness cache), 274 MB |
+| harness bundle entries | `work\harness\cache\bundles\<stat key>\` | the bundle's size and time | `testharness.levelinfo` | none | about 30 MB |
 | stock MP unpacks | `work\stockmp\_cache\<bundle>` | the bundle's hash (stamp) | `bfbc2-stockmp-ai` `pipeline` | one per bundle, re-unpacked when it changed | empty here |
 | detailed sectors | `work\navkit\<lv>\detailed.json` | the samples, their time and NavKit's settings | `navkit` | one per level | KB |
 | texture QA rows | the `--cache` folder given (`rows_v<VERSION>.json`, name lists) | the textures' and sources' SHA-1 | `texqa --cache` | none | MB |
 
-The project caches without eviction (the path data and harness caches) grow by one entry per changed input; they
-are the next candidates for a cap when the shared cache layer is designed (after the Rust port).
+The project caches still without eviction (harness bundle entries, texture QA rows) grow by one entry per changed
+input; they are small next to the path data caches capped above.
 
 ## Tests
 

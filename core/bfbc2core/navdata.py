@@ -26,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from . import atomicio
+from . import atomicio, caches
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -208,6 +208,7 @@ def _cells(f: Any, heightfield: Any, cache_dir: str | None, path: str,
             try:
                 with np.load(cp) as z:                           # closed again: no lock left on the file
                     xz, area, est = z['xz'], z['area'], z['est']
+                caches.touch(cp)
                 return xz, _ground(xz, est, heightfield), area, est
             except Exception:
                 pass                                             # a damaged cache entry is rebuilt
@@ -320,7 +321,9 @@ def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> Na
         if os.path.isfile(pk):
             try:
                 with open(pk, 'rb') as fh:
-                    return pickle.load(fh)
+                    got = pickle.load(fh)
+                caches.touch(pk)                             # used: the pruning deletes the least recently used
+                return got
             except Exception:
                 pass                                         # an unreadable cache entry is rebuilt
         nav = _load(path, heightfield, cache_dir)
@@ -329,6 +332,7 @@ def load(path: str, heightfield: Any = None, cache_dir: str | None = None) -> Na
         with open(tmp, 'wb') as fh:
             pickle.dump(nav, fh, protocol=pickle.HIGHEST_PROTOCOL)
         atomicio.replace(tmp, pk)
+        caches.prune_project_cache(cache_dir)                # a project cache (work\navstudio\cache, ...) to its cap
         return nav
     return _load(path, heightfield, None)
 

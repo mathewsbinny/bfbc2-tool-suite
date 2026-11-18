@@ -5,13 +5,13 @@ is told what happened, the likely cause and what to do, in words rather than a t
     with errors.guard('navigation-studio'):          # around main(): a crash is logged and shown, exit code 1
         ...
 
-Logs: %LOCALAPPDATA%\\bfbc2-tool-suite\\logs\\<tool>-<date>.log (the 20 newest per tool are kept). Uncaught errors in
-any thread, Python warnings and each tool's own messages go there; errors also show a window (GUI tools) or a
-short message (command line) naming the log.
+Logs: %LOCALAPPDATA%\\bfbc2-tool-suite\\logs\\<tool>-<date>.log. Uncaught errors in any thread, Python warnings and
+each tool's own messages go there; errors also show a window (GUI tools) or a short message (command line) naming
+the log. A day's log reaching BFBC2_LOG_FILE_MB goes on in <tool>-<date>.1.log, .2.log ...; at each start the folder
+is pruned (bfbc2core.caches.prune_logs: each tool's 20 newest days, BFBC2_LOG_TOOL_MB per tool, BFBC2_LOGS_MB in
+all; never this session's files).
 """
 import contextlib
-import datetime
-import glob
 import logging
 import os
 import sys
@@ -22,9 +22,9 @@ from collections.abc import Iterator
 from types import TracebackType
 from typing import Any, cast
 
-from . import paths
+from . import caches, paths
 
-KEEP = 20
+KEEP = caches.LOG_KEEP_DAYS
 _state: dict[str, Any] = {'tool': None, 'path': None, 'gui': True}
 
 # (test on the error, the cause in words, what to do)
@@ -77,18 +77,58 @@ def explain(e: BaseException) -> tuple[str, str]:
     return f'{type(e).__name__}: {e}', 'If it happens again, send the log file to the tool\'s author.'
 
 
+class DayLog(logging.FileHandler):
+    """A tool's day log: appends to caches.day_log's file and, once it reaches the per-file cap
+    (BFBC2_LOG_FILE_MB), goes on in the day's next part - nothing renamed or truncated, so no line of the session is
+    lost and a file another process holds is never in the way. files: every part this session wrote (kept by the
+    pruning)."""
+
+    def __init__(self, tool: str, folder: str) -> None:
+        self.tool, self.folder = tool, folder
+        self.limit = caches.log_caps()[2]
+        path = caches.day_log(folder, tool, limit=self.limit)
+        super().__init__(path, encoding='utf-8')
+        self.files = [self.baseFilename]
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:                                        # before the line: a part is made only for a line written to it
+            if self.stream is not None and self.stream.tell() >= max(self.limit, 1):
+                self.roll()
+        except Exception:                           # noqa: BLE001 - a log that cannot roll keeps its file
+            pass
+        super().emit(record)
+
+    def roll(self) -> None:
+        """Goes on in the day's next part (opened at the next line); the folder pruned, this session's parts kept."""
+        stream, self.stream = self.stream, None
+        if stream is not None:
+            stream.close()
+        path = os.path.abspath(caches.day_log(self.folder, self.tool, limit=self.limit))
+        if path == self.baseFilename:               # removed or emptied meanwhile: room in it again
+            return
+        if _state.get('path') and os.path.abspath(_state['path']) == self.baseFilename:
+            _state['path'] = path
+        self.baseFilename = path
+        self.files.append(path)
+        with contextlib.suppress(Exception):
+            caches.prune_logs(self.folder, keep=self.files)
+
+
 def setup(tool: str, gui: bool = True, level: int = logging.INFO) -> logging.Logger:
     """The tool's log file, warnings into it, and uncaught errors (main thread and others) logged and reported."""
     _state.update(tool=tool, gui=gui)
-    stamp = datetime.date.today().isoformat()
-    path = os.path.join(log_dir(), f'{tool}-{stamp}.log')
-    _state['path'] = path
     log = logging.getLogger('bfbc2')
     log.setLevel(level)
-    if not any(getattr(h, 'baseFilename', None) == os.path.abspath(path) for h in log.handlers):
-        h: logging.Handler = logging.FileHandler(path, encoding='utf-8')
+    folder = log_dir()
+    mine = [h for h in log.handlers if isinstance(h, DayLog) and h.tool == tool
+            and os.path.normcase(h.folder) == os.path.normcase(folder)]
+    if mine:
+        h: logging.Handler = mine[0]
+    else:
+        h = DayLog(tool, folder)
         h.setFormatter(logging.Formatter('%(asctime)s %(levelname)-7s %(message)s'))
         log.addHandler(h)
+    _state['path'] = cast(DayLog, h).baseFilename
     logging.captureWarnings(True)
     wlog = logging.getLogger('py.warnings')
     for h in log.handlers:
@@ -104,10 +144,11 @@ def setup(tool: str, gui: bool = True, level: int = logging.INFO) -> logging.Log
 
 
 def _prune(tool: str) -> None:
-    files = sorted(glob.glob(os.path.join(log_dir(), f'{tool}-*.log')))
-    for p in files[:-KEEP]:
-        with contextlib.suppress(OSError):
-            os.remove(p)
+    """The log folder pruned (caches.prune_logs: each tool's KEEP newest days, then the size caps), the files of this
+    process's logs kept. Never raises: a log folder that cannot be pruned is only bigger."""
+    keep = [f for h in logger().handlers if isinstance(h, DayLog) for f in h.files]
+    with contextlib.suppress(Exception):
+        caches.prune_logs(log_dir(), keep=keep)
 
 
 def logger() -> logging.Logger:
