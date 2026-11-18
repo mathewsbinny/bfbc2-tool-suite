@@ -315,6 +315,15 @@ works) are listed at the top of `native\shaderview.cpp`; jobs without them draw 
 It needs the Visual Studio C++ tools. It uses the GPU, and falls back to WARP (the software rasterizer) when the GPU
 device fails; `--warp` forces WARP. The harness runs at below-normal priority.
 
+Since round E3l (2026-11-17) `renderqa.run_job` hands its jobs to `shaderview -serve` processes, one Direct3D device
+for many jobs (job file paths on stdin; each job run from a cleared context and everything it made released after it,
+so a job draws exactly what it draws alone - `tests\test_shaderview_serve.py`). Creating the device was most of a
+job's time: ~340 ms on the GPU and ~55 ms on WARP for a 10 ms draw. Threads calling `run_job` at once get a server
+each; a server whose device fails (exit code 3 / 4) is replaced, and a shaderview too old for `-serve` is run once per
+job as before. `BFBC2_SHADERVIEW_SERVE=0` runs one process per job (the reference). `xdiff.py` runs its shaders on
+worker threads (`--workers`, `BFBC2_XDIFF_WORKERS`, default 4); the results, files and printed lines are the same as
+one at a time. Timings: `rust/BENCHMARKS.md`, "E3l".
+
 
 BFBC2 PC shadow compatibility: `xenos_hlsl.Interface(pc_shadow_atlas=True)`
 adapts BF1943 shadow lookups to the native PC three-cascade atlas. The raw

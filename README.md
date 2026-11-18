@@ -240,6 +240,12 @@ keeps what it compiled (in memory and in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\
 hash; `BFBC2_HLSL_CACHE` another folder or `0`) and `compile_many` / `prefetch` compile on all cores - ctypes
 already releases the interpreter around Microsoft's compiler, so Rust could not make it faster; dbxport's template
 ranking runs from an index (`_Ranking`, with the full scan `_best` as its reference, `BFBC2_DBXPORT_REFERENCE=1`).
+Round E3l (`rust/BENCHMARKS.md`, "E3l"): the shader tools' remaining Python stayed Python, by measurement - the
+render harness and the differential test waited on `shaderview.exe` (a Direct3D device created per job, ~55 ms on
+WARP and ~340 ms on the GPU, and a virus scan of every input file it opened). `shaderview -serve` keeps one device
+for many jobs (`renderqa.run_job`, thread-safe; `BFBC2_SHADERVIEW_SERVE=0` runs one process per job, the reference),
+`pack` puts a job's inputs in one file, and `xdiff.py` runs its shaders on worker threads: every Wake pixel shader in
+21 s instead of 168 s, the same verdicts and files; `xenos_exec.py`'s interpreter is 4.5 % of what is left.
 
 **DbxEdit in process** (round E3b, 2026-11-17). `bfbc2core.dbxedit` runs DbxEdit's command lines through the Rust
 core instead of starting `DbxEdit.exe` (a .NET start and a fresh parse for every call): `dbxedit.run(args)` and

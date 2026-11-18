@@ -24,6 +24,8 @@
 //                                         slot not given one sees the pixel shader's: a terrain patch's vertex shader
 //                                         reads the height map from t0 / s0, where its pixel shader has the shadow map)
 //   draw
+// "pack <file>" (anywhere before the files it holds): any file above may be given as "*<offset>:<size>", that slice
+// of the pack file - one file for a job's inputs (a new file is virus-scanned when opened).
 // "blend 1" draws the next draws alpha blended (source alpha, inverse source alpha; depth tested, not written) until
 // "blend 0" (a frame starts opaque).
 // The game's own per-program render state (renderqa.render_state decodes a program's state word into these; each
@@ -43,11 +45,25 @@
 // its own with "tex 0" (the translator's differential test, xdiff.py); s0 a comparison
 // sampler, s1 trilinear anisotropic wrap, other samplers unbound (D3D11's default: linear, clamp).
 // Exit codes: 1 usage, 2 unreadable file, 3 a Direct3D call failed, 4 the device was lost (retry with -warp).
+//
+//   shaderview -serve [-warp]              one device for many jobs (renderqa.run_job, xdiff.py): reads job file
+//                                          paths from stdin, one per line (the ANSI code page, as a command line's
+//                                          path), and runs each as "shaderview <job file>" would - its own state, the
+//                                          context cleared, every texture, sampler and state it made released after
+//                                          it - writing its output lines, then "\x1d" "err <message>" for each error
+//                                          line and "\x1d" "done <exit code>" (0, or the exit code the job alone
+//                                          would have ended with). Ends at the end of stdin; after a job ends with 3
+//                                          or 4 the caller starts another (the device may be gone). A process per job
+//                                          spends most of its time creating the device: ~55 ms on WARP, ~340 ms on
+//                                          the GPU, for a 10 ms job.
 #include <d3d11.h>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <functional>
+#include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <string>
@@ -58,17 +74,45 @@
 static ID3D11Device *dev;
 static ID3D11DeviceContext *ctx;
 
+// A job's failure: its exit code and message (printed to stderr, or in -serve as "\x1d" "err" lines)
+struct JobFail {
+    int code;
+    std::string message;
+};
+
+[[noreturn]] static void fail(int code, const char *fmt, ...) {
+    char buf[2048];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    throw JobFail{code, buf};
+}
+
+// "pack <file>": a job's inputs in one file; a file argument "*<offset>:<size>" is that slice of it ('*' is in no
+// Windows path). Each new file costs a virus scan when shaderview opens it (~5 ms): xdiff.py's ~12 inputs per shader
+// went into one pack (round E3l)
+static std::vector<char> pack;
+
 static std::vector<char> load(const std::string &p) {
+    if (!p.empty() && p[0] == '*') {
+        unsigned long long off = 0, n = 0;
+        char colon = 0;
+        std::istringstream s(p.substr(1));
+        if (!(s >> off >> colon >> n) || colon != ':' || off > pack.size() || n > pack.size() - off)
+            fail(2, "%s: not a slice of the pack (%zu bytes)\n", p.c_str(), pack.size());
+        return std::vector<char>(pack.begin() + (size_t)off, pack.begin() + (size_t)(off + n));
+    }
     std::ifstream f(p, std::ios::binary);
-    if (!f) { fprintf(stderr, "cannot read %s\n", p.c_str()); exit(2); }
+    if (!f) { fail(2, "cannot read %s\n", p.c_str()); }
     return std::vector<char>((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
 }
 
 static void check(HRESULT hr, const char *what) {
     if (FAILED(hr)) {
-        fprintf(stderr, "%s failed: 0x%08lx\n", what, (unsigned long)hr);
         HRESULT reason = dev ? dev->GetDeviceRemovedReason() : S_OK;
-        exit(hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET || FAILED(reason) ? 4 : 3);
+        fail(hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET || FAILED(reason) ? 4 : 3,
+             "%s failed: 0x%08lx\n", what, (unsigned long)hr);
     }
 }
 
@@ -93,6 +137,7 @@ static ID3D11ShaderResourceView *texture(const std::string &path, bool cube) {
     ID3D11ShaderResourceView *v;
     check(dev->CreateShaderResourceView(t, &sd, &v), "CreateShaderResourceView");
     ctx->GenerateMips(v);
+    t->Release();                                       // the view holds it
     return v;
 }
 
@@ -100,7 +145,7 @@ static ID3D11ShaderResourceView *texture(const std::string &path, bool cube) {
 // height, depth, mip count - and 15 u32 level sizes; then the levels, face by face for a cube map).
 static ID3D11ShaderResourceView *texture_res(const std::string &path) {
     auto d = load(path);
-    if (d.size() < 92) { fprintf(stderr, "%s: not a texture resource\n", path.c_str()); exit(2); }
+    if (d.size() < 92) { fail(2, "%s: not a texture resource\n", path.c_str()); }
     const uint32_t *hd = (const uint32_t *)d.data();
     uint32_t type = hd[1], fmt = hd[2], flags = hd[3], w = hd[4], h = hd[5], mips = hd[7];
     const uint32_t *sizes = hd + 8;
@@ -114,13 +159,13 @@ static ID3D11ShaderResourceView *texture_res(const std::string &path) {
     case 13: f = DXGI_FORMAT_R16G16B16A16_FLOAT; bpp = 8; break;
     case 9: f = srgb ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : DXGI_FORMAT_B8G8R8A8_UNORM; bpp = 4; break;
     case 10: f = DXGI_FORMAT_R8_UNORM; bpp = 1; break;
-    default: fprintf(stderr, "%s: texture format %u not supported\n", path.c_str(), fmt); exit(2);
+    default: fail(2, "%s: texture format %u not supported\n", path.c_str(), fmt);
     }
     if (mips < 1 || mips > 15 || w == 0 || h == 0) {
-        fprintf(stderr, "%s: %ux%u, %u mip levels\n", path.c_str(), w, h, mips); exit(2);
+        fail(2, "%s: %ux%u, %u mip levels\n", path.c_str(), w, h, mips);
     }
     if (block && (w % 4 || h % 4)) {                     // D3D11 wants a block format's top level in whole blocks
-        fprintf(stderr, "%s: %ux%u is not a multiple of 4\n", path.c_str(), w, h); exit(2);
+        fail(2, "%s: %ux%u is not a multiple of 4\n", path.c_str(), w, h);
     }
     bool cube = type == 1;
     UINT faces = cube ? 6 : 1;
@@ -137,7 +182,7 @@ static ID3D11ShaderResourceView *texture_res(const std::string &path) {
             UINT rows = block ? (lh + 3) / 4 : lh;
             if (!block && sizes[m] >= (size_t)pitch * rows && rows) pitch = sizes[m] / rows;   // L8: rows padded
             if (pos + sizes[m] > d.size() || (size_t)pitch * rows > sizes[m]) {
-                fprintf(stderr, "%s: level %u of face %u runs past the data\n", path.c_str(), m, s); exit(2);
+                fail(2, "%s: level %u of face %u runs past the data\n", path.c_str(), m, s);
             }
             init[s * mips + m] = {&d[pos], pitch, 0};
             pos += sizes[m];
@@ -173,7 +218,7 @@ static void dump(ID3D11Texture2D *src, const std::string &out, UINT W, UINT H, U
     ctx->CopyResource(st, src);
     D3D11_MAPPED_SUBRESOURCE m; check(ctx->Map(st, 0, D3D11_MAP_READ, 0, &m), "Map");
     FILE *f = fopen(out.c_str(), "wb");
-    if (!f) { fprintf(stderr, "cannot write %s\n", out.c_str()); exit(2); }
+    if (!f) { fail(2, "cannot write %s\n", out.c_str()); }
     for (UINT y = 0; y < H; y++) fwrite((char *)m.pData + y * m.RowPitch, bpp, W, f);
     fclose(f);
     ctx->Unmap(st, 0); st->Release();
@@ -187,7 +232,7 @@ static void dump_depth_stencil(ID3D11Texture2D *src, const std::string &out, UIN
     ctx->CopyResource(st, src);
     D3D11_MAPPED_SUBRESOURCE m; check(ctx->Map(st, 0, D3D11_MAP_READ, 0, &m), "Map (depth stencil)");
     FILE *fd = fopen((out + ".depth").c_str(), "wb"), *fs = fopen((out + ".stencil").c_str(), "wb");
-    if (!fd || !fs) { fprintf(stderr, "cannot write %s.depth / .stencil\n", out.c_str()); exit(2); }
+    if (!fd || !fs) { fail(2, "cannot write %s.depth / .stencil\n", out.c_str()); }
     for (UINT y = 0; y < H; y++) {
         const char *row = (const char *)m.pData + y * m.RowPitch;
         for (UINT x = 0; x < W; x++) { fwrite(row + 8 * x, 4, 1, fd); fwrite(row + 8 * x + 4, 1, 1, fs); }
@@ -214,9 +259,14 @@ static bool hexdesc(const std::string &hex, D3D11_SAMPLER_DESC &out) {
     return true;
 }
 
-int main(int argc, char **argv) {
-    if (argc < 2) { fprintf(stderr, "usage: shaderview <job file> [-warp]\n"); return 1; }
-    bool warp = argc > 2 && std::string(argv[2]) == "-warp";
+// the device's fixed state, made once: samplers, shadow map, rasterizer, depth and blend states
+static ID3D11SamplerState *samp[2];
+static ID3D11ShaderResourceView *shadow;
+static ID3D11RasterizerState *rs;
+static ID3D11DepthStencilState *ds, *dsNoWrite, *dsCount;
+static ID3D11BlendState *alphaBlend, *noWrite;
+
+static void init_device(bool warp) {
     D3D_FEATURE_LEVEL fl = D3D_FEATURE_LEVEL_11_0;
     if (warp || FAILED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, &fl, 1, D3D11_SDK_VERSION,
                                          &dev, nullptr, &ctx)))
@@ -229,27 +279,26 @@ int main(int argc, char **argv) {
     D3D11_SAMPLER_DESC sl = {};
     sl.Filter = D3D11_FILTER_ANISOTROPIC; sl.MaxAnisotropy = 8;
     sl.AddressU = sl.AddressV = sl.AddressW = D3D11_TEXTURE_ADDRESS_WRAP; sl.MaxLOD = D3D11_FLOAT32_MAX;
-    ID3D11SamplerState *samp[2];
     check(dev->CreateSamplerState(&sc, &samp[0]), "sampler0");
     check(dev->CreateSamplerState(&sl, &samp[1]), "sampler1");
     float one[4] = {1, 1, 1, 1};
     D3D11_TEXTURE2D_DESC sd = {1, 1, 1, 1, DXGI_FORMAT_R32_FLOAT, {1, 0}, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE};
     D3D11_SUBRESOURCE_DATA sdat = {one, 4, 0};
-    ID3D11Texture2D *shadowTex; ID3D11ShaderResourceView *shadow;
+    ID3D11Texture2D *shadowTex;
     check(dev->CreateTexture2D(&sd, &sdat, &shadowTex), "shadow map");
     check(dev->CreateShaderResourceView(shadowTex, nullptr, &shadow), "shadow view");
     D3D11_RASTERIZER_DESC rd = {}; rd.FillMode = D3D11_FILL_SOLID; rd.CullMode = D3D11_CULL_NONE; rd.DepthClipEnable = TRUE;
-    ID3D11RasterizerState *rs; check(dev->CreateRasterizerState(&rd, &rs), "rasterizer");
+    check(dev->CreateRasterizerState(&rd, &rs), "rasterizer");
     D3D11_DEPTH_STENCIL_DESC dd = {}; dd.DepthEnable = TRUE; dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     dd.DepthFunc = D3D11_COMPARISON_LESS;
-    ID3D11DepthStencilState *ds; check(dev->CreateDepthStencilState(&dd, &ds), "depth state");
+    check(dev->CreateDepthStencilState(&dd, &ds), "depth state");
     dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-    ID3D11DepthStencilState *dsNoWrite; check(dev->CreateDepthStencilState(&dd, &dsNoWrite), "depth state (blend)");
+    check(dev->CreateDepthStencilState(&dd, &dsNoWrite), "depth state (blend)");
     // counting: depth test on (a draw without a pixel shader is only rasterized for its depth) but always passing,
     // nothing written
     D3D11_DEPTH_STENCIL_DESC dc = {}; dc.DepthEnable = TRUE; dc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
     dc.DepthFunc = D3D11_COMPARISON_ALWAYS;
-    ID3D11DepthStencilState *dsCount; check(dev->CreateDepthStencilState(&dc, &dsCount), "depth state (count)");
+    check(dev->CreateDepthStencilState(&dc, &dsCount), "depth state (count)");
     D3D11_BLEND_DESC bdesc = {};
     bdesc.RenderTarget[0].BlendEnable = TRUE;
     bdesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA; bdesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
@@ -257,10 +306,21 @@ int main(int argc, char **argv) {
     bdesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE; bdesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
     bdesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
     bdesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-    ID3D11BlendState *alphaBlend; check(dev->CreateBlendState(&bdesc, &alphaBlend), "blend state");
+    check(dev->CreateBlendState(&bdesc, &alphaBlend), "blend state");
     D3D11_BLEND_DESC nodesc = {};
     nodesc.RenderTarget[0].RenderTargetWriteMask = 0;
-    ID3D11BlendState *noWrite; check(dev->CreateBlendState(&nodesc, &noWrite), "blend state (count)");
+    check(dev->CreateBlendState(&nodesc, &noWrite), "blend state (count)");
+}
+
+template <class T> static void release(T *&p) {
+    if (p) p->Release();
+    p = nullptr;
+}
+
+// One job file, from a cleared context: everything it makes is released when it ends (or fails)
+static void run_job_file(const std::string &path) {
+    ctx->ClearState();
+    pack.clear();
     D3D11_QUERY_DESC qd = {D3D11_QUERY_OCCLUSION, 0};
     bool blending = false, counting = false, wantDepth = false;
     // the game's per-program states (blendstate / depthstate / raster), cached by their numbers; null: as "blend"
@@ -289,8 +349,8 @@ int main(int argc, char **argv) {
         return depthCache[k.str()] = p;
     };
 
-    std::ifstream job(argv[1]);
-    if (!job) { fprintf(stderr, "cannot read %s\n", argv[1]); return 2; }
+    std::ifstream job(path);
+    if (!job) fail(2, "cannot read %s\n", path.c_str());
     std::string line, out;
     UINT W = 0, H = 0;
     ID3D11Texture2D *rt = nullptr, *depth = nullptr;
@@ -312,6 +372,18 @@ int main(int argc, char **argv) {
     std::map<int, ID3D11SamplerState *> samps, vsamps;
     std::map<std::string, ID3D11ShaderResourceView *> texCache;
     std::map<std::string, ID3D11SamplerState *> sampCache;
+    struct Cleanup {                                    // the job's objects, released however it ends
+        std::function<void()> f;
+        ~Cleanup() { f(); }
+    } cleanup{[&]() {
+        release(rtv); release(rt); release(dsv); release(depth);
+        for (auto &kv : texCache) release(kv.second);
+        for (auto &kv : sampCache) release(kv.second);
+        for (auto &kv : blendCache) release(kv.second);
+        for (auto &kv : depthCache) release(kv.second);
+        for (auto &kv : rasterCache) release(kv.second);
+        ctx->ClearState();
+    }};
     int draws = 0;
     while (std::getline(job, line)) {
         std::istringstream s(line);
@@ -321,6 +393,7 @@ int main(int argc, char **argv) {
             float c[4] = {0, 0, 0, 1};
             s >> std::quoted(out) >> W >> H >> c[0] >> c[1] >> c[2];
             if (!(s >> c[3])) c[3] = 1;
+            release(rtv); release(rt); release(dsv); release(depth);   // a frame left without "end"
             D3D11_TEXTURE2D_DESC td = {W, H, 1, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, {1, 0}, D3D11_USAGE_DEFAULT,
                                        D3D11_BIND_RENDER_TARGET};
             check(dev->CreateTexture2D(&td, nullptr, &rt), "render target");
@@ -329,11 +402,12 @@ int main(int argc, char **argv) {
             blending = false; wantDepth = false; stencilFrame = false; drawClass = 1;
             gameBlend = nullptr; haveGameBlend = false; haveGameDepth = false; gameRaster = nullptr;
             depth = nullptr; dsv = nullptr;              // made at the frame's first draw (or "stencil" / "end")
-        } else if (cmd == "stencil") { int on = 0; s >> on; stencilFrame = on != 0; }
+        } else if (cmd == "pack") { std::string p; s >> std::quoted(p); pack.clear(); pack = load(p); }
+        else if (cmd == "stencil") { int on = 0; s >> on; stencilFrame = on != 0; }
         else if (cmd == "class") { s >> drawClass; drawClass &= 0xff; }
         else if (cmd == "blendstate") {
             UINT v[9]; for (auto &x : v) s >> x;
-            if (!s) { fprintf(stderr, "blendstate: 9 numbers\n"); return 1; }
+            if (!s) fail(1, "blendstate: 9 numbers\n");
             std::ostringstream k; for (auto x : v) k << x << ' ';
             if (!blendCache.count(k.str())) {
                 D3D11_BLEND_DESC b = {};
@@ -346,11 +420,11 @@ int main(int argc, char **argv) {
             gameBlend = blendCache[k.str()]; haveGameBlend = true;
         } else if (cmd == "depthstate") {
             s >> depthEnable >> depthWrite >> depthFunc;
-            if (!s) { fprintf(stderr, "depthstate: 3 numbers\n"); return 1; }
+            if (!s) fail(1, "depthstate: 3 numbers\n");
             haveGameDepth = true;
         } else if (cmd == "raster") {
             UINT cull = 1, ccw = 0; s >> cull >> ccw;
-            if (!s) { fprintf(stderr, "raster: 2 numbers\n"); return 1; }
+            if (!s) fail(1, "raster: 2 numbers\n");
             std::ostringstream k; k << cull << ' ' << ccw;
             if (!rasterCache.count(k.str())) {
                 D3D11_RASTERIZER_DESC r = {}; r.FillMode = D3D11_FILL_SOLID; r.CullMode = (D3D11_CULL_MODE)cull;
@@ -386,7 +460,7 @@ int main(int argc, char **argv) {
             int slot; std::string hex; s >> slot >> hex;
             if (!sampCache.count(hex)) {
                 D3D11_SAMPLER_DESC desc;
-                if (!hexdesc(hex, desc)) { fprintf(stderr, "samp: bad sampler state %s\n", hex.c_str()); return 1; }
+                if (!hexdesc(hex, desc)) fail(1, "samp: bad sampler state %s\n", hex.c_str());
                 check(dev->CreateSamplerState(&desc, &sampCache[hex]), "CreateSamplerState");
             }
             (cmd == "vsamp" ? vsamps : samps)[slot] = sampCache[hex];
@@ -454,14 +528,52 @@ int main(int argc, char **argv) {
             dump(rt, out, W, H, 16);
             if (stencilFrame) dump_depth_stencil(depth, out, W, H);
             else if (wantDepth) dump(depth, out + ".depth", W, H, 4);
-            rtv->Release(); rt->Release(); dsv->Release(); depth->Release();
+            release(rtv); release(rt); release(dsv); release(depth);
             printf("%s: %d draws\n", out.c_str(), draws);
             fflush(stdout);
             draws = 0;
         } else {
-            fprintf(stderr, "unknown command %s\n", cmd.c_str());
-            return 1;
+            fail(1, "unknown command %s\n", cmd.c_str());
         }
+    }
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "usage: shaderview <job file> [-warp]\n       shaderview -serve [-warp]\n");
+        return 1;
+    }
+    bool warp = argc > 2 && std::string(argv[2]) == "-warp";
+    if (std::string(argv[1]) != "-serve") {            // one job
+        try {
+            init_device(warp);
+            run_job_file(argv[1]);
+        } catch (const JobFail &e) {
+            fputs(e.message.c_str(), stderr);
+            return e.code;
+        }
+        return 0;
+    }
+    try {
+        init_device(warp);
+    } catch (const JobFail &e) {
+        fputs(e.message.c_str(), stderr);
+        return e.code;
+    }
+    std::string path;
+    while (std::getline(std::cin, path)) {
+        if (!path.empty() && path.back() == '\r') path.pop_back();
+        if (path.empty()) continue;
+        int code = 0;
+        try {
+            run_job_file(path);
+        } catch (const JobFail &e) {
+            code = e.code;
+            std::istringstream m(e.message);
+            for (std::string ln; std::getline(m, ln);) printf("\x1d" "err %s\n", ln.c_str());
+        }
+        printf("\x1d" "done %d\n", code);
+        fflush(stdout);
     }
     return 0;
 }
