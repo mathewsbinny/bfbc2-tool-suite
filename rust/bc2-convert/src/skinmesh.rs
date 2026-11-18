@@ -132,7 +132,7 @@ pub fn decode(rows: &[u8], n: usize, stride: usize, els: &[Element], usage: u8) 
                 .flat_map(|r| {
                     col(r)
                         .chunks_exact(2)
-                        .map(|c| bc2_formats::granny::half(u16::from_le_bytes([c[0], c[1]])))
+                        .map(|c| crate::mesh::f16_to_f64(u16::from_le_bytes([c[0], c[1]])))
                 })
                 .collect(),
         ),
@@ -337,8 +337,8 @@ pub fn lay_out(vb: &[u8], ib: &[u8], parts: &[OutPart<'_>]) -> Option<(Vec<u8>, 
     Some((v, i, out))
 }
 
-/// `bounds()`: the minimum and maximum of every part's positions' x, y, z (NumPy's: a NaN anywhere is the
-/// result); `None` where the reference raises.
+/// `bounds()`: the minimum and maximum of every part's positions' x, y, z; `None` where the reference raises or a
+/// position is a NaN (NumPy's result is then one NaN of its choosing).
 #[must_use]
 pub fn bounds(parts: &[(&[u8], usize, usize, &[Element])]) -> Option<[f64; 6]> {
     let mut lo = [f64::INFINITY; 3];
@@ -355,13 +355,11 @@ pub fn bounds(parts: &[(&[u8], usize, usize, &[Element])]) -> Option<[f64; 6]> {
             any = true;
             for c in 0..3 {
                 let x = v[r * k + c];
-                if x.is_nan() || lo[c].is_nan() {
-                    lo[c] = f64::NAN;
-                    hi[c] = f64::NAN;
-                } else {
-                    lo[c] = lo[c].min(x);
-                    hi[c] = hi[c].max(x);
+                if x.is_nan() {
+                    return None; // NumPy carries one NaN of its choosing (its payload): left to the reference
                 }
+                lo[c] = lo[c].min(x);
+                hi[c] = hi[c].max(x);
             }
         }
     }

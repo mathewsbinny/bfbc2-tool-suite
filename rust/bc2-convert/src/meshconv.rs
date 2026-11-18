@@ -42,7 +42,7 @@
 
 use bc2_formats::meshdata::{self, MeshHeader};
 
-use crate::mesh::{element, f64_to_f16, size};
+use crate::mesh::{element, size};
 pub use crate::terrain::Refusal;
 
 type Res<T> = Result<T, Refusal>;
@@ -204,7 +204,7 @@ pub enum Values {
 }
 
 fn half_to_f32(h: u16) -> f32 {
-    bc2_formats::granny::half(h) as f32
+    crate::mesh::f16_to_f32(h)
 }
 
 const USAGES: [&str; 7] = [
@@ -646,7 +646,7 @@ fn pack(kind: Kind, f: u8, col: &[u8]) -> Option<Vec<u8>> {
     Some(match (kind, dk) {
         (Kind::F32, Kind::F16) => col
             .chunks_exact(4)
-            .flat_map(|c| f64_to_f16(f64::from(f32::from_le_bytes([c[0], c[1], c[2], c[3]]))).to_le_bytes())
+            .flat_map(|c| crate::mesh::f32_to_f16(f32::from_le_bytes([c[0], c[1], c[2], c[3]])).to_le_bytes())
             .collect(),
         _ => col.to_vec(),
     })
