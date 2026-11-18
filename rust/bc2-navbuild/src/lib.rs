@@ -39,6 +39,7 @@ use rayon::prelude::*;
 
 use thiserror::Error;
 
+pub mod astar;
 pub mod graph;
 pub mod navsample;
 pub mod parity;

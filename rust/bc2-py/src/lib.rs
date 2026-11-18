@@ -34,8 +34,10 @@ mod dbxedit;
 mod fbrb_cache;
 mod geometry;
 mod granny;
+mod kymesh;
 mod navbuild;
 mod navgraph;
+mod navpath;
 mod navtrace;
 mod scene;
 mod shaders;
@@ -354,8 +356,8 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::convert::{
-        HavokClasses, havok_convert_packfile, mesh_vertices, texture_convert, texture_convert_many, xas_decode_frames,
-        xas_encode, xas_encode_many,
+        HavokClasses, havok_convert_packfile, havok_verify_packfile, mesh_vertices, texture_convert,
+        texture_convert_many, xas_decode_frames, xas_encode, xas_encode_many,
     };
 
     #[pymodule_export]
@@ -374,6 +376,12 @@ mod bc2_native {
         XenosProgram, xenos_float_repr, xenos_microcode, xenos_parse, xenos_parse_many, xenos_translate,
         xenos_translate_many,
     };
+
+    #[pymodule_export]
+    use super::navpath::PathGraph;
+
+    #[pymodule_export]
+    use super::kymesh::{kymesh_parse, navkit_mesh_cells, navkit_navdata_areas, navkit_union_roots};
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

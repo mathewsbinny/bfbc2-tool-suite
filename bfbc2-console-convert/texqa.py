@@ -39,15 +39,21 @@ Outputs (-o, default .\texqa_out): texqa.json, texqa.txt, sheets\worst_NN.png - 
 DICE's identities (bundle, size, date, entry): unchanged textures are not decoded again.
 --write-baseline stores {texture: PSNR to source / DICE, flags}; --baseline compares with one: a new error flag (a
 degenerate texture, a flip, a swizzle ...) or a PSNR drop over --threshold (default 1 dB) is a regression, exit code 1.
+
+The textures are analysed on all cores (round E3o): --workers N, else BFBC2_TEXQA_WORKERS, else the CPU threads; each
+worker process runs analyse on one texture at a time (a few in flight per worker, so the sources' bytes are not all
+held at once) and the rows come back in order - the same rows, report and cache as one process (--workers 1).
 """
 import argparse
+import collections
+import concurrent.futures as cf
 import hashlib
 import json
 import os
 import re
 import struct
 import sys
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Generator, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -993,9 +999,56 @@ def lookup(name: str, entries: set[str] | dict[str, Any]) -> str | None:
 
 # ------------------------------------------------------------------------------------------------ the run
 
+def workers(n: int | None = None) -> int:
+    """Analysis processes: n, else BFBC2_TEXQA_WORKERS, else the CPU threads."""
+    if n:
+        return max(1, n)
+    env = os.environ.get('BFBC2_TEXQA_WORKERS', '')
+    return max(1, int(env)) if env.isdigit() else max(1, os.cpu_count() or 1)
+
+
+def _unreadable(name: str, e: BaseException) -> dict[str, Any]:
+    """The row of a texture whose analysis raised e (one bad entry is its row, not the run's end)."""
+    return {'name': name, 'flags': [{'code': 'unreadable', 'severity': ERROR, 'cause': 'unknown',
+                                     'detail': f'{type(e).__name__}: {e}'}], 'score': 1000.0}
+
+
+def _analyse_job(job: tuple[Any, ...]) -> dict[str, Any]:
+    """analyse(*args) of one prepared texture, or its unreadable row (in a worker process or in this one)."""
+    name, args, err = job
+    if err is not None:
+        return _unreadable(name, err)
+    try:
+        return analyse(*args)
+    except Exception as e:                      # noqa: BLE001 - one bad entry is its row, not the run's end
+        return _unreadable(name, e)
+
+
+def _rows_of(jobs: Iterable[Callable[[], tuple[Any, ...]]], n: int) -> Generator[dict[str, Any], None, None]:
+    """The rows of the prepared jobs, in order: in this process (n == 1) or in n worker processes, at most 2n jobs
+    prepared ahead (a job is made - its sources read - just before it is sent)."""
+    if n <= 1:
+        for make in jobs:
+            yield _analyse_job(make())
+        return
+    def result(x: Any) -> dict[str, Any]:
+        return x.result() if isinstance(x, cf.Future) else x
+    with cf.ProcessPoolExecutor(n) as ex:
+        pending: collections.deque[Any] = collections.deque()      # futures, or the rows of unreadable sources
+        for make in jobs:
+            job = make()
+            pending.append(_analyse_job(job) if job[2] is not None else ex.submit(_analyse_job, job))
+            if len(pending) >= 2 * n:
+                yield result(pending.popleft())
+        while pending:
+            yield result(pending.popleft())
+
+
 def run(roots: list[str], *, sources: Sequence[Any] = (), dice: Dice | None = None, cache: str | None = None,
-        skip: Iterable[str] = (), log: Callable[[str], None] | None = None) -> list[dict[str, Any]]:
-    """The rows of every texture under roots (cached by content and source identities)."""
+        skip: Iterable[str] = (), log: Callable[[str], None] | None = None,
+        jobs: int | None = None) -> list[dict[str, Any]]:
+    """The rows of every texture under roots (cached by content and source identities); jobs: the analysis
+    processes (workers())."""
     if log is None:
         def log(msg: str) -> None:
             print(msg, flush=True)
@@ -1038,19 +1091,26 @@ def run(roots: list[str], *, sources: Sequence[Any] = (), dice: Dice | None = No
         if key not in old and dkey:
             todo_dice[dkey] = dkey
     dice_bytes = dice.read_many(todo_dice) if dice is not None and todo_dice else {}
+
+    def job(it: Item, data: bytes, src_key: str | None, src_obj: Any, dkey: str | None) -> Callable[[], tuple[Any, ...]]:
+        def make() -> tuple[Any, ...]:
+            try:                                # reading the source is part of the texture's analysis (its row)
+                args = (it.name, data, src_obj.data(src_key) if src_obj is not None and src_key else None,
+                        dice_bytes.get(dkey) if dkey else None, open(it.orig, 'rb').read() if it.orig else None,
+                        'xbox' if not isinstance(src_obj, PcSource) else 'pc')
+            except Exception as e:              # noqa: BLE001
+                return it.name, None, e
+            return it.name, args, None
+        return make
+    todo = [job(it, data, src_key, src_obj, dkey) for it, data, key, src_key, src_obj, dkey in plan if key not in old]
+    # a worker process takes a second or two to start: by default one per three textures at least (jobs: as asked)
+    fresh = _rows_of(todo, min(workers(jobs), len(todo) if jobs else max(1, len(todo) // 3)))
     done = 0
-    for it, data, key, src_key, src_obj, dkey in plan:
+    for it, _data, key, src_key, src_obj, dkey in plan:
         if key in old:
             row = old[key]
         else:
-            try:
-                row = analyse(it.name, data, src_obj.data(src_key) if src_obj is not None and src_key else None,
-                              dice_bytes.get(dkey) if dkey else None,
-                              open(it.orig, 'rb').read() if it.orig else None,
-                              'xbox' if not isinstance(src_obj, PcSource) else 'pc')
-            except Exception as e:                      # noqa: BLE001 - one bad entry is its row, not the run's end
-                row = {'name': it.name, 'flags': [{'code': 'unreadable', 'severity': ERROR, 'cause': 'unknown',
-                                                    'detail': f'{type(e).__name__}: {e}'}], 'score': 1000.0}
+            row = next(fresh)
             row['source_name'] = src_key
             row['source_from'] = None if src_obj is None else type(src_obj).__name__
             row['dice_name'] = dkey
@@ -1061,6 +1121,7 @@ def run(roots: list[str], *, sources: Sequence[Any] = (), dice: Dice | None = No
         r = dict(row)
         r['path'], r['root'], r['orig'] = it.path, it.root, it.orig
         rows.append(r)
+    fresh.close()                               # the worker processes end here
     if cache_path:
         _write_json(cache_path, new)
     log(f'{len(rows)} textures: {done} analysed, {len(rows) - done} unchanged (cache)')
@@ -1256,6 +1317,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--baseline')
     ap.add_argument('--write-baseline')
     ap.add_argument('--threshold', type=float, default=1.0)
+    ap.add_argument('--workers', type=int, help='analysis processes (default: BFBC2_TEXQA_WORKERS, else every CPU thread)')
     a = ap.parse_args(argv)
     for p in a.inputs:
         if not os.path.exists(p):
@@ -1274,7 +1336,7 @@ def main(argv: list[str] | None = None) -> int:
         suite_paths.use('shader-tools')
         import shaderdb
         dice = Dice(shaderdb.find_opfor(a.opfor), a.cache)
-    rows = run(a.inputs, sources=sources, dice=dice, cache=a.cache, skip=a.skip)
+    rows = run(a.inputs, sources=sources, dice=dice, cache=a.cache, skip=a.skip, jobs=a.workers)
     reg = None
     if a.baseline:
         reg = regressions(rows, json.load(open(a.baseline)), a.threshold)

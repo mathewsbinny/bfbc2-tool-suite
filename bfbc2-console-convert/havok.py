@@ -478,7 +478,35 @@ def ignorable(pf, out, pc, i):
 
 
 def verify(console, pc, klasses):
-    """Converts console and compares with pc: (exact, {reason: bytes}, [unexplained offsets])."""
+    """Converts console and compares with pc: (exact, {reason: bytes}, [unexplained offsets]). The packfile's part
+    runs in the Rust core when it is built (round E3o: bc2_native.havok_verify_packfile - the walk's record of each
+    byte's owner, the arrays and the objects answers ignorable for every differing byte); where it cannot answer as
+    the reference does, verify_reference runs."""
+    if _native is not None and isinstance(console, bytes) and isinstance(pc, bytes) and \
+            hasattr(_native, 'havok_verify_packfile'):
+        o = wrapper_end(console)
+        w = convert_wrapper(console, o)
+        try:
+            rk = _rust_classes(klasses)
+        except (TypeError, ValueError, OverflowError, AttributeError):
+            rk = None
+        got = _native.havok_verify_packfile(console, o, rk, pc) if rk is not None else None
+        if got is not None:
+            why: collections.Counter[str] = collections.Counter()
+            bad: list[int] = []
+            if w != pc[:o]:
+                bad.append(next(i for i in range(o) if i >= len(w) or w[i] != pc[i]))
+            for i, r in got:
+                if r:
+                    why[r] += 1
+                else:
+                    bad.append(i)
+            return not why and not bad, dict(why), bad
+    return verify_reference(console, pc, klasses)
+
+
+def verify_reference(console, pc, klasses):
+    """verify by Packfile's walk in Python (the reference)."""
     o = wrapper_end(console)
     w = convert_wrapper(console, o)
     pf = Packfile(console, o, klasses)

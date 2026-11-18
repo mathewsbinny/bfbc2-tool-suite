@@ -4,9 +4,17 @@ Part of BC2 NavKit; layout as documented in ..\\research\\KYNAPSE_SPEC.md sectio
 parse_mesh(bytes) -> Mesh, write_mesh(Mesh) -> bytes. All offsets in the record are relative to its
 start; parse_mesh replaces them with references (object indices etc.) and write_mesh lays the record
 out again and recomputes every offset.
+
+parse_mesh reads the record in the suite's Rust core when it is built (round E3o: bc2_native.kymesh_parse, the same
+Mesh value for value; where the reference would raise, or a value is a NaN, the Python reads it, so the error stays
+this module's). parse_mesh_reference is the Python reader, kept as the reference and the fallback;
+BFBC2_PURE_PYTHON=1 or use_native(False) runs it only.
 """
+import os
 import struct
+import sys
 from dataclasses import dataclass, field
+from typing import Any
 
 NULL = 0xFFFFFFFF
 MARKER = b'KynogonRuntimeMesh\0\0'
@@ -100,7 +108,66 @@ def _points(m: bytes, a: int, b: int) -> list[Vec3]:
     return [_v3(m, q) for q in range(a, b, 12)]
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with kymesh_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'kymesh_parse') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust reader on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
+def _area(head: tuple, body: tuple) -> Area:
+    portals, borders, d_lines, outline, cells, end_row, nulls = body
+    sid, tx, tz, layer, radius, pitch, max_y, min_y = head
+    return Area(sid, tx, tz, layer, radius, pitch, max_y, min_y, [Portal(*p) for p in portals], [BorderPortal(*b) for b in borders], d_lines, outline,
+                [Cell(*c) for c in cells], end_row, dict(nulls))
+
+
 def parse_mesh(m: bytes) -> Mesh:
+    """The record as a Mesh: in the Rust core when it is built (round E3o), else parse_mesh_reference."""
+    nat = _native()
+    if nat is not None and type(m) is bytes:
+        got = nat.kymesh_parse(m)
+        if got is not None:
+            head, (tiles, areas, links, end_slot, null_off) = got
+            version, flags, loaded, sector_id, resolution, pitch, rect, tx, tz, radius = head
+            return Mesh(version, flags, loaded, sector_id, resolution, pitch, rect, tx, tz, radius,
+                        [[TileItem(*i) for i in t] for t in tiles], [_area(h, b) for h, b in areas],
+                        [NeighbourLink(sid, [LinkObject(h, refs) for h, refs in objs]) for sid, objs in links],
+                        end_slot, null_off)
+    return parse_mesh_reference(m)
+
+
+def parse_mesh_reference(m: bytes) -> Mesh:
+    """The Python reader (the reference)."""
     if not m.startswith(MARKER):
         raise ValueError('not a KynogonRuntimeMesh record')
     version, flags = struct.unpack_from('<HH', m, 0x14)
