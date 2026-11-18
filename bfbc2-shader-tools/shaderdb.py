@@ -53,7 +53,7 @@ import struct
 import sys
 from collections.abc import Callable, Collection, Container, Iterable, Iterator, Sequence
 from types import ModuleType
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from bfbc2core.dbx import Element
@@ -103,6 +103,36 @@ class ShaderDbError(Exception):
 def _with_shaderdb(m: ModuleType | None) -> ModuleType | None:
     """m when it has the shader database reader (a module built before it was added does not)."""
     return m if m is not None and hasattr(m, 'shaderdb_parse') else None
+
+
+# Round E4b: a database parsed by the Rust core keeps its file in a bc2_native.ShaderDbHandle (`_h` in the instance
+# dict) and makes a section's Python list only when the attribute is first read (ShaderDb.__getattr__); the queries
+# below (entry_textures, entry_signatures, entry_layouts, coverage, mesh_names, the merge's needed names, the writer)
+# ask the handle, which reads a section from the file while it was never made and from the caller's list once it was.
+# The handle answers None where the Python would do anything but the plain case; the Python (the *_reference
+# functions) then runs, so the answers and errors are always the reference's (tests/test_shaderdb_queries.py).
+SECTIONS = ('params', 'bindings', 'regs', 'vs', 'ps', 'programs', 'keys', 'layouts', 'entries', 'fragments', 'parts',
+            'groups')
+_SECTION_SET = frozenset(SECTIONS)
+_RECORD_SECTIONS = ('params', 'bindings', 'regs', 'vs', 'ps', 'programs', 'keys', 'layouts')   # the bulk of a file
+
+
+def _handle(db: object) -> Any:
+    """The Rust handle answering queries about db (made for a ShaderDb built in Python), or None (no Rust core, or not a
+    ShaderDb)."""
+    if _native is None or not isinstance(db, ShaderDb) or not hasattr(_native, 'ShaderDbHandle'):
+        return None
+    d = db.__dict__
+    h = d.get('_h')
+    if h is None:
+        h = d['_h'] = _native.ShaderDbHandle()
+    return h
+
+
+def _order(db: ShaderDb) -> bool | None:
+    """True / False: big- / little-endian (db.e), None for another struct prefix (the reference handles it)."""
+    e = db.e
+    return True if e == '>' else False if e == '<' else None
 
 
 def _load_native() -> ModuleType | None:
@@ -194,6 +224,35 @@ class ShaderDb:
         self.entries, self.fragments, self.parts = [], [], []
         self.groups = []
 
+    def __getattr__(self, name: str) -> list:
+        """A section of a database the Rust core read (round E4b): made as a Python list on its first read and kept
+        in the instance (later reads are plain attribute reads; the caller's changes to it are what the queries see).
+        Once every record section is made, the name sections are made too and the file is let go: the lists hold
+        everything, and a database is not held twice (a merge's base and donors)."""
+        if name in _SECTION_SET:
+            d = self.__dict__
+            h = d.get('_h')
+            if h is not None and h.has_file:
+                got = cast(list, h.materialize(d, name, Shader))
+                if all(s in d for s in _RECORD_SECTIONS):
+                    for s in SECTIONS:
+                        if s not in d:
+                            h.materialize(d, s, Shader)
+                    if _native is not None and hasattr(_native, 'ShaderDbHandle'):
+                        d['_h'] = _native.ShaderDbHandle()      # the queries' handle, without the file
+                    else:
+                        del d['_h']
+                return got
+        raise AttributeError(f'{type(self).__name__!r} object has no attribute {name!r}')
+
+    def __getstate__(self) -> dict[str, object]:
+        """Every section made (a pickle or copy holds plain lists, never the Rust handle)."""
+        for s in SECTIONS:
+            getattr(self, s)
+        state = dict(self.__dict__)
+        state.pop('_h', None)
+        return state
+
     @property
     def platform(self) -> str:
         return 'Xbox 360' if self.big_endian else f'Dx{self.dx}'
@@ -240,6 +299,17 @@ class ShaderDb:
     @classmethod
     def _parse(cls, data: bytes, dx: int, where: str, big_endian: bool = False) -> ShaderDb:
         db = cls(dx, big_endian)
+        if _native is not None and type(data) is bytes and hasattr(_native, 'ShaderDbHandle'):
+            try:
+                h = _native.ShaderDbHandle.open(data, dx, big_endian)
+            except ValueError as e:
+                raise ShaderDbError(f'{where}: {e}') from None
+            for sec in SECTIONS:                # made from the file when first read (__getattr__)
+                del db.__dict__[sec]
+            db.__dict__['_h'] = h
+            db.version, db.flag = h.version, h.flag
+            db.key_size = KEY_SIZES.get(db.version, KEY_SIZE)
+            return db
         if _native is not None and type(data) is bytes:          # (other buffers: Python, records keep their type)
             try:
                 got = _native.shaderdb_parse(data, dx, big_endian, Shader)
@@ -322,6 +392,13 @@ class ShaderDb:
 
     def to_bytes(self) -> bytes:
         e = self.e
+        h = self.__dict__.get('_h')
+        if _native is not None and h is not None and h.has_file and e in ('<', '>'):
+            # the sections never made written from the file's records, the others from their lists (None: an item
+            # only the Python writer takes - every section is then made and written below)
+            got = h.write(self.__dict__, e == '>', self.version, self.flag)
+            if got is not None:
+                return cast(bytes, got)
         if _native is not None:
             # None: an item only the Python writer takes (not bytes, a name not latin-1, a number out of range)
             got = _native.shaderdb_write(self.version, self.flag, e == '>', self.params, self.bindings, self.regs,
@@ -366,6 +443,14 @@ class ShaderDb:
 
     def mesh_names(self) -> set[str]:
         """Mesh paths (lower case) the mesh-part names name: '<mesh>_lod<N>/<part>/<technique>'."""
+        h = _handle(self)
+        got = h.mesh_names(self.__dict__) if h is not None else None
+        if got is not None:
+            return cast(set[str], got)
+        return self.mesh_names_reference()
+
+    def mesh_names_reference(self) -> set[str]:
+        """mesh_names in Python (the reference)."""
         out: set[str] = set()
         for name, _ in self.parts:
             lod = name.rsplit('/', 2)[0] if name.count('/') >= 2 else ''
@@ -376,7 +461,18 @@ class ShaderDb:
 
     def check(self) -> list[str]:
         """FORMAT.md section 4: the things that must hold for the game to load the file and find every entry.
-        A list of problems (empty = consistent)."""
+        A list of problems (empty = consistent). Checked by the Rust handle (sections never made read from the
+        file), else by check_reference."""
+        h = _handle(self)
+        be = _order(self)
+        if h is not None and be is not None and type(self.big_endian) is bool:
+            got = h.check(self.__dict__, self.big_endian, be)
+            if got is not None:
+                return cast(list[str], got)
+        return self.check_reference()
+
+    def check_reference(self) -> list[str]:
+        """check in Python (the reference)."""
         p = []
         n = len(self.programs)
         if n >= MAX_PROGRAMS:
@@ -858,9 +954,16 @@ class Merger:
         frag_names = {g: n for n, g in donor.fragments}
         layouts = {r[:16]: r for r in donor.layouts}
         took = 0
-        mine = needed_test(n for n in self.need if self.all_names or n not in self.in_base)  # names it may add to
-        for name, guid in donor.entries:
-            if name in self.entry_names or not mine(name):
+        want = [n for n in self.need if self.all_names or n not in self.in_base]   # names it may add to
+        mine = needed_test(want)
+        h = _handle(donor)
+        picked = h.select_needed(donor.__dict__, want) if h is not None else None
+        # the donor's entries and mesh-part names the needed names take: picked by the Rust core (the same test,
+        # without making the donor's name lists), else tested here one by one
+        cand_entries = picked[0] if picked is not None else [(n, g) for n, g in donor.entries if mine(n)]
+        cand_parts = picked[1] if picked is not None else donor.parts
+        for name, guid in cand_entries:
+            if name in self.entry_names:
                 continue
             progs: list[ProgRef] = []
             for pi in groups.get(guid, []):
@@ -897,7 +1000,7 @@ class Merger:
             self.added.append((name, label))
             took += 1
         parts = 0
-        for name, lg in donor.parts:
+        for name, lg in cand_parts:
             pm = part_mesh(name)
             if pm is None or not mine(pm):
                 continue
@@ -1083,7 +1186,108 @@ CONSTANT_RECORD = 0x38                  # 0x20-byte name, u32 hash, u8 register,
 ENGINE_TEXTURE_RECORD = 0x28            # 0x20-byte parameter name, u32 hash, u16 sampler, 2 zero
 
 
+def _block_native(block: object, e: str) -> bool:
+    """Does the Rust core read this block (a bytes block, '<' or '>')? Else the reference does."""
+    return _native is not None and type(block) is bytes and e in ('<', '>') and hasattr(_native, 'ShaderDbHandle')
+
+
 def block_textures(block: bytes, e: str = '<') -> list[TextureRef]:
+    """[(sampler, cube, texture name)] of a parameter block (FORMAT.md 'Section 1: parameter blocks'): the texture
+    records, in block order. sampler: the shader's sampler register the texture is bound to (s<N>); cube: 1 for a
+    cube map (environment maps, sky), else 0. Empty for a block without textures (or one not laid out so). Read by
+    the Rust core (bc2_formats::shaderdb::query) for a bytes block; block_textures_reference is the reference."""
+    if _block_native(block, e):
+        return cast(list[TextureRef], _native.shaderdb_block_textures(block, e == '>'))   # type: ignore[union-attr]
+    return block_textures_reference(block, e)
+
+
+def block_constants(block: bytes, e: str = '<') -> list[tuple[str, int, int, tuple[float, ...]]]:
+    """[(name, register, components, (4 floats))] of a parameter block: its named shader constants (c<register>,
+    the first `components` of the four values used) with the values the block sets (block_constants_reference in
+    Python)."""
+    if _block_native(block, e):
+        return cast(list[tuple[str, int, int, tuple[float, ...]]],
+                    _native.shaderdb_block_constants(block, e == '>'))   # type: ignore[union-attr]
+    return block_constants_reference(block, e)
+
+
+def block_engine_textures(block: bytes, e: str = '<') -> list[tuple[str, int]]:
+    """[(parameter name, sampler)] of a parameter block: the textures the engine binds itself (heightmap,
+    maskTileMap, DepthBuffer ...), named by parameter, no texture name (block_engine_textures_reference in Python)."""
+    if _block_native(block, e):
+        return cast(list[tuple[str, int]], _native.shaderdb_block_engine_textures(block, e == '>'))  # type: ignore[union-attr]
+    return block_engine_textures_reference(block, e)
+
+
+def entry_textures(db: ShaderDb, names: Container[str] | None = None) -> dict[str, list[TextureRef]]:
+    """{entry name: [(sampler, cube, texture name)]}: the textures the parameter blocks of an entry's programs
+    name (both blocks of every program), each (sampler, cube, name) once, sorted by sampler. An entry's programs
+    (permutations: lighting, shadows, instancing ...) normally bind the same textures to the same samplers; a
+    sampler holding different textures in different programs is listed once per texture. Answered by the Rust
+    handle (its entry and group lookups kept between calls, each block read once), else entry_textures_reference."""
+    h = _handle(db)
+    be = _order(db)
+    if h is not None and be is not None:
+        got = h.entry_textures(db.__dict__, be, names)
+        if got is not None:
+            return cast(dict[str, list[TextureRef]], got)
+    return entry_textures_reference(db, names)
+
+
+def entry_signatures(db: ShaderDb, names: Container[str] | None = None) -> dict[str, tuple[tuple[str, ...], int]]:
+    """{entry name: (its parameter blocks' constant names, sorted; the number of samplers they bind textures to)}:
+    the shader template an entry is built on, as far as the file shows it (OPFOR's wake_shaders.signatures, one
+    call). Answered by the Rust handle, else entry_signatures_reference."""
+    h = _handle(db)
+    be = _order(db)
+    if h is not None and be is not None:
+        got = h.entry_signatures(db.__dict__, be, names)
+        if got is not None:
+            return cast(dict[str, tuple[tuple[str, ...], int]], got)
+    return entry_signatures_reference(db, names)
+
+
+def entry_signatures_reference(db: ShaderDb, names: Container[str] | None = None) \
+        -> dict[str, tuple[tuple[str, ...], int]]:
+    """entry_signatures in Python (the reference: wake_shaders.signatures as it is)."""
+    progs = db.entry_programs()
+    out: dict[str, tuple[tuple[str, ...], int]] = {}
+    cache: dict[int, tuple[set[str], set[int]]] = {}
+    for name, g in db.entries:
+        if names is not None and name not in names:
+            continue
+        consts: set[str] = set()
+        samplers: set[int] = set()
+        for i in progs.get(g, []):
+            for k in db.program_refs(i)[2:]:
+                if k not in cache:
+                    cache[k] = ({c[0] for c in block_constants_reference(db.params[k], db.e)},
+                                {t[0] for t in block_textures_reference(db.params[k], db.e)})
+                consts |= cache[k][0]
+                samplers |= cache[k][1]
+        out[name] = (tuple(sorted(consts)), len(samplers))
+    return out
+
+
+def entry_layouts(db: ShaderDb, names: Container[str] | None = None) -> dict[str, set[bytes]]:
+    """{entry name: the vertex layout GUIDs (key bytes 32-48) its programs are compiled for}. Answered by the Rust
+    handle, else entry_layouts_reference."""
+    h = _handle(db)
+    if h is not None:
+        got = h.entry_layouts(db.__dict__, names)
+        if got is not None:
+            return cast(dict[str, set[bytes]], got)
+    return entry_layouts_reference(db, names)
+
+
+def entry_layouts_reference(db: ShaderDb, names: Container[str] | None = None) -> dict[str, set[bytes]]:
+    """entry_layouts in Python (the reference: OPFOR's wake_shaders.entry_layouts, with names)."""
+    progs = db.entry_programs()
+    return {name: {db.keys[i][32:48] for i in progs.get(g, [])} for name, g in db.entries
+            if names is None or name in names}
+
+
+def block_textures_reference(block: bytes, e: str = '<') -> list[TextureRef]:
     """[(sampler, cube, texture name)] of a parameter block (FORMAT.md 'Section 1: parameter blocks'): the texture
     records, in block order. sampler: the shader's sampler register the texture is bound to (s<N>); cube: 1 for a
     cube map (environment maps, sky), else 0. Empty for a block without textures (or one not laid out so)."""
@@ -1101,7 +1305,7 @@ def block_textures(block: bytes, e: str = '<') -> list[TextureRef]:
     return out
 
 
-def block_constants(block: bytes, e: str = '<') -> list[tuple[str, int, int, tuple[float, ...]]]:
+def block_constants_reference(block: bytes, e: str = '<') -> list[tuple[str, int, int, tuple[float, ...]]]:
     """[(name, register, components, (4 floats))] of a parameter block: its named shader constants (c<register>,
     the first `components` of the four values used) with the values the block sets."""
     if len(block) < PARAM_HEADER:
@@ -1118,7 +1322,7 @@ def block_constants(block: bytes, e: str = '<') -> list[tuple[str, int, int, tup
     return out
 
 
-def block_engine_textures(block: bytes, e: str = '<') -> list[tuple[str, int]]:
+def block_engine_textures_reference(block: bytes, e: str = '<') -> list[tuple[str, int]]:
     """[(parameter name, sampler)] of a parameter block: the textures the engine binds itself (heightmap,
     maskTileMap, DepthBuffer ...), named by parameter, no texture name (0x28-byte records after the constants)."""
     if len(block) < PARAM_HEADER:
@@ -1131,7 +1335,7 @@ def block_engine_textures(block: bytes, e: str = '<') -> list[tuple[str, int]]:
             for o in range(start, end, ENGINE_TEXTURE_RECORD)]
 
 
-def entry_textures(db: ShaderDb, names: Container[str] | None = None) -> dict[str, list[TextureRef]]:
+def entry_textures_reference(db: ShaderDb, names: Container[str] | None = None) -> dict[str, list[TextureRef]]:
     """{entry name: [(sampler, cube, texture name)]}: the textures the parameter blocks of an entry's programs
     name (both blocks of every program), each (sampler, cube, name) once, sorted by sampler. An entry's programs
     (permutations: lighting, shadows, instancing ...) normally bind the same textures to the same samplers; a
@@ -1146,7 +1350,7 @@ def entry_textures(db: ShaderDb, names: Container[str] | None = None) -> dict[st
         for i in progs.get(g, []):
             for k in db.program_refs(i)[2:]:
                 if k not in cache:
-                    cache[k] = block_textures(db.params[k], db.e)
+                    cache[k] = block_textures_reference(db.params[k], db.e)
                 found.update(cache[k])
         out[name] = sorted(found)
     return out
@@ -1160,7 +1364,17 @@ TEXTURE_KINDS = (('normal', ('_nm', '_n', '_normal', '_norm')), ('specular', ('_
 def texture_kind(name: str) -> str:
     """What a texture is for, guessed from its name's suffix (DICE's naming: _C / _Df color, _Nm / _N normal, _Sp
     specular, _Gm gloss mask, _Occlusion / _Oc / _AO occlusion), else ''. The databases do not say: a texture
-    record names only the sampler register, and the shaders' constant tables call their samplers sampler_Texture<N>."""
+    record names only the sampler register, and the shaders' constant tables call their samplers sampler_Texture<N>.
+    A latin-1 name is answered by the Rust core, any other by texture_kind_reference."""
+    if _native is not None and hasattr(_native, 'shaderdb_texture_kind'):
+        got = _native.shaderdb_texture_kind(name)
+        if got is not None:
+            return cast(str, got)
+    return texture_kind_reference(name)
+
+
+def texture_kind_reference(name: str) -> str:
+    """texture_kind in Python (the reference)."""
     low = name.lower()
     for kind, ends in TEXTURE_KINDS:
         if low.endswith(ends):
@@ -1323,7 +1537,20 @@ def cmd_textures(a: argparse.Namespace) -> int:
 
 
 def coverage(db: ShaderDb, meshes: Iterable[str]) -> dict[str, int]:
-    """{mesh (lower): number of entries} for the given meshes."""
+    """{mesh (lower): number of entries} for the given meshes: the entries whose lower-case name is the mesh or
+    starts with it and '/'. Counted by the Rust handle (no entry list made), else coverage_reference."""
+    if not isinstance(meshes, (list, tuple, set, frozenset, dict)):
+        meshes = list(meshes)                  # read once, for either side
+    h = _handle(db)
+    if h is not None:
+        got = h.coverage(db.__dict__, meshes)
+        if got is not None:
+            return cast(dict[str, int], got)
+    return coverage_reference(db, meshes)
+
+
+def coverage_reference(db: ShaderDb, meshes: Iterable[str]) -> dict[str, int]:
+    """coverage in Python (the reference)."""
     count = {m: 0 for m in meshes}
     for name, _ in db.entries:
         low = name.lower()

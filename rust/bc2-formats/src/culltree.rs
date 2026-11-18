@@ -14,7 +14,7 @@
 //!
 //! | Python (`culltree.py`) | here |
 //! |---|---|
-//! | `Doc.__init__`'s element loop | [`elements`] (a stream that reads in Python, read the same; else an error, and the Python reader says why) |
+//! | `Doc.__init__`'s element loop (retired 2026-11-18, round F1a) | [`elements`] (every stream the Python read, read the same; else an error saying why) |
 //! | `glob.glob(os.path.join(d, '**', '*.dbx'), recursive=True)` | [`dbx_files`] |
 //! | `needle in open(p, 'rb').read()` per file | [`contains`] |
 //!
@@ -44,19 +44,19 @@ pub const TEXT: u8 = 2;
 /// A numbers element's kind.
 pub const NUMBERS: u8 = 7;
 
-/// Why the element stream does not read (the Python reader raises `IndexError`, `CullTreeError` or another error
-/// for these; its message is the one the user sees).
+/// Why the element stream does not read; `culltree.py` raises `CullTreeError` with the message (the retired Python
+/// reader raised `IndexError` for the first, read the second as a big integer, and raised the third's message).
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ElementError {
     /// The data ends inside an element.
-    #[error("the file ends inside an element at {0}")]
+    #[error("truncated file (it ends inside the element at byte {0})")]
     Truncated(usize),
-    /// A varint is longer than 64 bits (the Python reader takes it as a big integer).
-    #[error("a number at {0} is longer than 64 bits")]
+    /// A varint is longer than 64 bits (no cull tree or level partition holds one).
+    #[error("a number at byte {0} is longer than 64 bits (not a cull tree or level partition)")]
     Varint(usize),
     /// Containers are still open at the end.
-    #[error("unclosed elements at the end")]
+    #[error("truncated file (unclosed elements)")]
     Unclosed,
 }
 
@@ -119,7 +119,7 @@ fn varint(data: &[u8], mut pos: usize) -> Result<(u64, usize), ElementError> {
 /// Reads the element stream from `start` (24 + the string area's size) as `culltree.Doc` does.
 ///
 /// # Errors
-/// [`ElementError`] where the Python reader raises (the binding then lets it read the file, for its message).
+/// [`ElementError`] where the retired Python reader raised, and for a varint past 64 bits.
 pub fn elements(data: &[u8], start: usize) -> Result<Elements, ElementError> {
     let mut out = Elements::default();
     let mut open: Vec<usize> = Vec::new();

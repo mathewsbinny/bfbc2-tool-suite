@@ -243,12 +243,19 @@ def quick_levelscan() -> int:
                 open(p, 'wb').close()
         sc = lo.scan(bases)
         check(sc is not None, 'levelobjects.scan read the folders')
-        a = (lo.blueprint_flags(bases, sc), lo.mesh_aliases(bases, sc), lo.havok_index(bases, sc))
-        b = (lo.blueprint_flags(bases), lo.mesh_aliases(bases), lo.havok_index(bases))
-        for name, x, y in zip(('blueprint_flags', 'mesh_aliases', 'havok_index'), a, b):
-            check(list(x.items()) == list(y.items()) and len(x) > 0,
-                  f'levelobjects.{name}: {len(x)} entries, the same items in the same order as its Python')
-    return 3
+        x, y = lo.blueprint_flags(bases, sc), lo.blueprint_flags(bases)
+        check(list(x.items()) == list(y.items()) and len(x) > 0,
+              f'levelobjects.blueprint_flags: {len(x)} entries, the same items in the same order as its Python')
+        # the scan's havok files are the collision index's packfiles (round F1a's Rust walk), in its order
+        havok = lo.havok_index(bases)
+        mine: dict[str, str] = {}
+        for n, base in enumerate(bases):
+            for r in sc[n][1]:
+                rel = r.replace(os.sep, '/').lower()[:-len('_havok.res')]
+                mine.setdefault(rel, os.path.join(base, r))
+        check(all(os.path.normcase(havok.get(k, '')) == os.path.normcase(v) for k, v in mine.items()),
+              f'levelobjects.scan: its {len(mine)} packfiles are the collision index\'s')
+    return 2
 
 
 def _f32(v: float) -> float:

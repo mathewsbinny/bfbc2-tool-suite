@@ -17,7 +17,8 @@
 //! `fbrb_cache_clear`, and `fbrb_read_uncached`, the read without it).
 //!
 //! APT movies (`apt.rs`, round E3n): `apt_constants`, `apt_decode` / `apt_decode_many`, for
-//! `bfbc2-console-readers/apt/apt.py`.
+//! `bfbc2-console-readers/apt/apt.py`; the menu tools' movie model `AptModel` and `apt_roundtrip_many`,
+//! `apt_check_many`, `apt_refs_many` (`aptmodel.rs`, round E4c) for aptgraft, aptcheck and aptrefs.
 //!
 //! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`; FbrbTool's
 //! (`fbrbtool.rs`): `fbrbtool_run` / `fbrbtool_run_many`, for `core/bfbc2core/fbrbtool.py`.
@@ -34,15 +35,21 @@
 //! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` needs;
 //! `mesh_vertices`, `havok_convert_packfile` / `havok_verify_packfile` / `HavokClasses` (rounds E3g, E3o) for
 //! `mesh.py` and `havok.py`.
+//!
+//! The map and bot test harness and the crash-reader tools (`harness.rs`, round E4f): `harness_sessions` /
+//! `harness_sessions_file`, `crash_log_before`, `harness_pair_bits`, `HarnessCells` and `ExeHandle`.
 
 mod apt;
+mod aptmodel;
 mod convert;
 mod culltree;
 mod dbxedit;
+mod dbxport;
 mod fbrb_cache;
 mod fbrbtool;
 mod geometry;
 mod granny;
+mod harness;
 mod kymesh;
 mod navbuild;
 mod navgraph;
@@ -50,6 +57,7 @@ mod navpath;
 mod navtools;
 mod navtrace;
 mod scene;
+mod shaderdb_handle;
 mod shaders;
 mod stockmp;
 mod writers;
@@ -352,6 +360,8 @@ mod bc2_native {
     #[pymodule_export]
     use super::dbxedit::{dbxedit_run, dbxedit_run_many};
     #[pymodule_export]
+    use super::dbxport::{DbxCatalogue, DbxTemplates, dbx_instance_guids, dbxport_port};
+    #[pymodule_export]
     use super::fbrb_cache::{
         fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,
     };
@@ -361,6 +371,11 @@ mod bc2_native {
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, fbrb_unpack, zlib_deflate};
 
+    #[pymodule_export]
+    use super::shaderdb_handle::{
+        ShaderDbHandle, shaderdb_block_constants, shaderdb_block_engine_textures, shaderdb_block_textures,
+        shaderdb_texture_kind,
+    };
     #[pymodule_export]
     use super::shaders::{shaderdb_parse, shaderdb_write};
 
@@ -375,6 +390,12 @@ mod bc2_native {
     use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
 
     #[pymodule_export]
+    use super::harness::{
+        ExeHandle, HarnessCells, crash_log_before, harness_pair_bits, harness_sessions, harness_sessions_file,
+        harness_x86_decode,
+    };
+
+    #[pymodule_export]
     use super::convert::{
         HavokClasses, havok_convert_packfile, havok_verify_packfile, mesh_vertices, texture_convert,
         texture_convert_many, xas_decode_frames, xas_encode, xas_encode_many,
@@ -382,6 +403,9 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
+
+    #[pymodule_export]
+    use super::aptmodel::{AptModel, apt_check_many, apt_refs_many, apt_roundtrip_many};
 
     #[pymodule_export]
     use super::granny::{granny_header, granny_index, granny_root, granny_roots_many, granny_to_pc, granny_to_pc_many};

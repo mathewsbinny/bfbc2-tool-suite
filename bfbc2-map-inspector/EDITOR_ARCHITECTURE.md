@@ -195,12 +195,17 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   only the hot spots; profiles set the order, the largest gain first.
 - The gate is unchanged: a port is used only once it is proven identical to the code it replaces on real data (for
   OPFOR, the staged bundles and installs byte for byte), with timings before and after.
-- Python twins: the Python **format** readers and writers stay for good, as the independent reference the Rust is
-  proven against; ported **logic** (NavKit's rules, the converters, OPFOR's scripts) is retired once its Rust passes
-  a full test tier. A retired piece's tests check it against results recorded from its Python before the Python
-  was deleted, and the Python module is required for it: people get it prebuilt (`rust\build_native.py --download`,
-  from a release per Rust fingerprint) or build it. First retired (2026-11-17, after the full tier's 140 of 140):
-  texture conversion and NavKit's grid walks (README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python").
+- **Everything is ported, then the Python retired** (the user, 2026-11-18, superseding "format readers stay"): every
+  Python module - format readers and writers included, the suite's and OPFOR's (`src\rust\opfor-pipeline`) - is
+  ported, proven a perfect port on real data, and its Python retired once its Rust passes a full test tier. The
+  **recorded reference data** taken from the Python before it is deleted (goldens, digests) is kept for good, as
+  documentation of the behaviour and as what future changes are compared against. A retired piece needs the Rust
+  module: people get it prebuilt (`rust\build_native.py --download`, a release per Rust fingerprint) or build it.
+  Retired so far: texture conversion and NavKit's grid walks (2026-11-17, full tier 140 of 140); the converters,
+  the translator's emission and all of NavKit's ported Python (2026-11-18, full tier 173 of 173); the core format
+  readers and writers - DBX, FBRB, terrain, water, the collision index, the level loader, the cull tree element
+  reader (2026-11-18, round F1a) - README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python". The tests themselves move to Rust once every Python tool is
+  retired (the user, 2026-11-18).
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
   Each Python GUI stays until its replacement works.

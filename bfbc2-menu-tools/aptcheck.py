@@ -145,6 +145,68 @@ class Code:
         return f'{ins.name}' + (f' {ins.arg}' if ins.arg else '')
 
 
+# Round E4c: the rules of `check` (Code's records, functions and findings) run in the suite's Rust core
+# (bc2_formats::aptscan, bound as bc2_native.apt_check_many) over the decoder's records without building them in
+# Python, many movies at once on all cores. A movie the Rust decoder refuses (apt.py decodes it) is checked by Code
+# here. use_native(False) or BFBC2_PURE_PYTHON=1: Code for every movie (the reference, check_many_python).
+Summary = tuple[int, int, int, list[Finding]]      # (instructions, functions, constants, findings in report order)
+
+
+def _load_native() -> Any:
+    if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0'):
+        return None
+    return _import_native()
+
+
+def _import_native() -> Any:
+    n = apt._import_native()
+    return n if n is not None and hasattr(n, 'apt_check_many') else None
+
+
+_native = _load_native()
+
+
+def use_native(on: bool) -> str:
+    """The Rust scan on (when the core is built) or off for this process; returns 'rust' or 'python'."""
+    global _native
+    _native = _import_native() if on else None
+    return 'rust' if _native is not None else 'python'
+
+
+def _summary(m) -> Summary:
+    code = Code(m)
+    f = code.findings()
+    return (len(code.by_at), len(code.funcs), len(m.const),
+            [x for _key, x in sorted(f.items(), key=lambda x: (x[0][0], x[0][1]))])
+
+
+def check_many_python(movies) -> list[Summary]:
+    """check_many with Code (the reference)."""
+    return [_summary(m) for m in apt.decoded(movies)]
+
+
+def check_many(movies) -> list[Summary]:
+    """`check`'s rules on many apt.Movie: [(instructions (distinct offsets), functions, constants, findings sorted by
+    (kind, key))], in order. With the Rust core: decoded and checked on all cores, a chunk at a time."""
+    movies = list(movies)
+    nat = _native
+    if nat is None or apt._native is None:
+        return check_many_python(movies)
+    out: list[Summary | None] = [None] * len(movies)
+    chunk = 4 * (os.cpu_count() or 4)
+    for lo in range(0, len(movies), chunk):
+        part = [(k, m) for k, m in enumerate(movies[lo:lo + chunk], lo) if m._native_ok()]
+        res = nat.apt_check_many([(m.name, m.a, m.big, m.movie, m.const) for _, m in part])
+        for (k, _m), r in zip(part, res):
+            if r is not None:
+                n, nf, nc, found = r
+                out[k] = (n, nf, nc, [Finding(*x) for x in found])
+    rest = [k for k, s in enumerate(out) if s is None]
+    for k, s in zip(rest, check_many_python([movies[k] for k in rest])):
+        out[k] = s
+    return [s for s in out if s is not None]
+
+
 def ranges(offsets, gap=4):
     """Changed offsets as [start, end) ranges; ranges fewer than gap bytes apart are shown as one."""
     out: list[list[int]] = []
@@ -384,15 +446,14 @@ def cmd_check(args, opfor):
         except Exception as e:
             got.append((None, e))
             break
-    ready = iter(apt.decoded(m for label, m in got if label is not None))
+    ready = iter(check_many(m for label, m in got if label is not None))
     for label, m in got:
         if label is None:
             raise m
-        code = Code(next(ready))
+        n, nfuncs, nconst, found = next(ready)
         rep = Report(f'check {label}')
-        f = code.findings()
-        rep.add('info', f'{len(code.by_at)} instructions, {len(code.funcs)} functions, {len(code.m.const)} constants')
-        for _key, x in sorted(f.items(), key=lambda x: (x[0][0], x[0][1])):
+        rep.add('info', f'{n} instructions, {nfuncs} functions, {nconst} constants')
+        for x in found:
             rep.add('error', f'{x.kind}: {x.text}')     # no stock movie breaks a rule (128 checked, 2026-10-31)
         rep.show()
         errors += rep.errors

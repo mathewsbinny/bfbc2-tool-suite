@@ -329,7 +329,7 @@ def level_geometry(level_dir, extra_bases=(), log=print, box=None):
     pieces reaching into it (plus 2 m)."""
     from bfbc2core import collision
     bases = [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + list(extra_bases)
-    # NavKit's levelobjects index and mesh aliases (the Rust core when built); aliases not read: the index alone
+    # NavKit's levelobjects index and mesh aliases (the Rust core); aliases not read: the index alone
     havok, aliases = collision.index(bases)
     if isinstance(aliases, Exception) and not isinstance(aliases, OSError):
         raise aliases

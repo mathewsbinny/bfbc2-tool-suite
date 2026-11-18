@@ -1,13 +1,13 @@
-r"""Times bfbc2core.dbx with the Python reader and with the Rust core, on the same files read into memory first
-(rust\BENCHMARKS.md). The Rust-only timings (no Python objects) are rust\bc2-formats\examples\dbx_bench.rs.
+r"""Times bfbc2core.dbx (the Rust core) on the same files read into memory first (rust\BENCHMARKS.md; the retired
+Python reader's timings are kept there). The Rust-only timings (no Python objects) are
+rust\bc2-formats\examples\dbx_bench.rs.
 
-  python rust\bench_dbx.py [--distinct] [--skip-python-xml] <folder> [<folder> ...]
+  python rust\bench_dbx.py [--distinct] [--stream] <folder> [<folder> ...]
 
-Best of three runs (one run for the Python reader on more than 5,000 files); every result is kept, as a level load
-keeps its trees. "1 by 1" calls parse / to_xml once per file; "many" passes every file at once (parse_many /
-to_xml_many: the cycle collector paused; with the Rust core the files are read on all cores, then the Python trees
-built in order). --stream drops each result at once (a check over a corpus; keeping 48,000 trees does not fit in
-16 GB): "many" then takes 500 files at a time.
+Best of three runs; every result is kept, as a level load keeps its trees. "1 by 1" calls parse / to_xml once per
+file; "many" passes every file at once (parse_many / to_xml_many: the cycle collector paused, the files read on all
+cores, then the Python trees built in order). --stream drops each result at once (a check over a corpus; keeping
+48,000 trees does not fit in 16 GB): "many" then takes 500 files at a time.
 """
 import contextlib
 import os
@@ -76,22 +76,11 @@ def main(argv: list[str]) -> int:
     STREAM = '--stream' in argv
     folders = [a for a in argv if not a.startswith('--')]
     items = files_in(folders, '--distinct' in argv)
-    print(f'{len(items)} files, {sum(map(len, items)) / 1e6:.1f} MB, backend {dbx.backend()}')
-    slow = 1 if len(items) > 5000 else 3
-    rows = []
-    if dbx.use_native(False) != 'python':
-        return 1
-    rows.append(('parse   Python, 1 by 1', *best(lambda: each(dbx.parse, items), slow)))
-    rows.append(('parse   Python, many', *best(lambda: many(dbx.parse_many, items), slow)))
-    if '--skip-python-xml' not in argv:
-        rows.append(('to_xml  Python', *best(lambda: each(dbx.to_xml, items), slow)))
-    if dbx.use_native(True) != 'rust':
-        print('the Rust core is not built (python rust/build_native.py)')
-        return 1
-    rows.append(('parse   Rust, 1 by 1', *best(lambda: each(dbx.parse, items), 3)))
-    rows.append(('parse   Rust, many (parallel)', *best(lambda: many(dbx.parse_many, items), 3)))
-    rows.append(('to_xml  Rust, 1 by 1', *best(lambda: each(dbx.to_xml, items), 3)))
-    rows.append(('to_xml  Rust, many (parallel)', *best(lambda: many(dbx.to_xml_many, items), 3)))
+    print(f'{len(items)} files, {sum(map(len, items)) / 1e6:.1f} MB')
+    rows = [('parse   1 by 1', *best(lambda: each(dbx.parse, items), 3)),
+            ('parse   many (parallel)', *best(lambda: many(dbx.parse_many, items), 3)),
+            ('to_xml  1 by 1', *best(lambda: each(dbx.to_xml, items), 3)),
+            ('to_xml  many (parallel)', *best(lambda: many(dbx.to_xml_many, items), 3))]
     for name, t, n in rows:
         print(f'{name:30s} {t:8.3f} s  ({n} files)')
     return 0

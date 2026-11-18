@@ -363,8 +363,7 @@ def cmd_import_log(args):
     path = runs.path_of(p[0], folder)
     run = runs.load(path)
     log_path = opt(args, '--log') or os.path.join(opfor(opt(args, '--opfor')), 'game', 'logs', 'opfor.log')
-    text = open(log_path, encoding='utf-8', errors='replace').read()      # read only
-    found = ingame.for_level(ingame.sessions(text), lv)
+    found = ingame.for_level(ingame.sessions_of_file(log_path), lv)        # read only
     if not found:
         print(f'no session of {lv} in {log_path}')
         return 2

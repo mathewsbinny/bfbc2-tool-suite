@@ -555,7 +555,7 @@ Profiled again (sp_004_b, cProfile: 60 s with the profiler's overhead): `merge_d
 `build_areas` 1.6 s and the cell picking 0.8 s (both Rust now); 21 million `dict.get` and 13 million `list.append`.
 `trace_edges` / `trace_emit` are the next port if NavKit builds need to be faster still.
 
-## Retired Python (2026-11-17, branch `retire-e1`; 2026-11-18, branch `retire-r2`)
+## Retired Python (2026-11-17, branch `retire-e1`; 2026-11-18, branches `retire-r1` - `r3`, `retire-f1a`)
 
 The full test tier passed on round E1 (140 of 140, 2026-11-17), which under `EDITOR_ARCHITECTURE.md` 3.8 retires the
 Python of the ported **logic** of round E1d. Retired (deleted; the module is now required for them, README.md "The
@@ -808,6 +808,84 @@ BFBC2's); `test_ports_native.py --game` (every BF1943 mesh, physics and effect p
 reference searches, the mesh / physics outputs as recorded, Onslaught 594 + 239 as recorded, emitter index 18,343);
 `test_havok.py` (400 of 400 shared files equivalent, 594 of 594 converted); `test_e3o_native.py --game` (all passed,
 verify-havok's 400 as recorded); `cargo clippy --all-targets -D warnings`, `cargo test -p bc2-convert`.
+
+### Round F1a: the core format readers and writers (2026-11-18, branch `retire-f1a`)
+
+The user's ruling of 2026-11-18 (`EDITOR_ARCHITECTURE.md` 3.8: "port everything, confirm it's a perfect port, then
+retire the Python" - format readers and writers included, superseding "format readers stay for good" above) retires
+the Python of the core formats, which had run on Rust through two full tiers (140 of 140 and 173 of 173,
+2026-11-17). Recorded first (commit `fae35c1`), proven, then deleted; the module is required for them
+(`bfbc2core.native.require`: `NativeMissing` saying how to get it, before any input is read):
+
+| piece | Python removed | kept | lines |
+|---|---|---|---:|
+| `core/bfbc2core/dbx.py` | `_py_parse`, `_py_to_xml`, `_py_write`, `_strings`, `_escape`, `_damaged`, the switch (`_load_native`, `backend`, `use_native`) and `write`'s fallback to the Python writer | the API (`parse`, `to_xml`, `parse_many`, `to_xml_many`, `read`, `write`, `Element`, `DbxFile`, `DeletedEntry`, `is_binary`, `numbers`, `floats`, `value`, `put_varint`); `_import_native` and `PURE_PYTHON_ENV` (the readers that still have a Python twin find the module through them); `value()`'s .NET number text (not ported) | 529 -> 312 |
+| `core/bfbc2core/fbrb.py` | `_header`, `_cstring`, `_py_read`, `_damaged`, the switch, the cache's "no core" answers, `_tool_pack` / `_tool_unpack` (FbrbTool.exe without the Rust core, and `unpack`'s retry of a refused bundle with it: the in-process engine is FbrbTool's, the same error) | the API (`entries`, `names`, `read`, `read_many`, `read_uncached`, the cache controls, `pack`, `pack_many`, `unpack`, `unpack_in_process`, `fbrbtool`, `build`) | 398 -> 208 |
+| `core/bfbc2core/terrain.py` | `_py_parse`, the switch | `Heightfield`, `parse`, `read`, `tail`, `find`, `HEADER` | 161 -> 124 |
+| `core/bfbc2core/water.py` | `_py_parse_mesh`, `_py_parse_visual`, `shaders_of`'s Python, the switch | the API | 223 -> 136 |
+| `core/bfbc2core/collision.py` | `_navkit`, `_py_triangles`, the Python `index` / `havok_index` / `triangles_many` through NavKit's functions, the switch | the API and the mesh-alias cache | 186 -> 128 |
+| `core/bfbc2core/level.py` | `load`'s Python loader (the entity and static-group loop, `collision.index` / `triangles_many` / `heightfield_of` / `water.read` calls), `resolve_blueprints`, `assign_teams`, `shapes_of`, `category_of`, `transform_of`, `blueprint_of`, `CATEGORIES`, `OBJECT_CATEGORIES`, `TEAMS`, `SHAPE_FIELDS`, the switch | `load` (the Rust scene), `Level`, `Entity`, `Mesh`, `Shape`, `read_many`, `terrain_name`, `heightfield_of`, `water_of`, `terrain_from_samples` (no caller used the removed names) | 660 -> 381 |
+| `bfbc2-culltree/culltree.py` | `Doc`'s element loop, the switch (`_import_native`, `_load_native`, `backend`, `use_native`), `level_partitions`' glob / read when the core is off | `Doc` (its string table stays Python: no Rust twin), the rest of the tool; `level_partitions` still lists by glob a folder whose names are not valid Unicode and reads a file the core could not, for its error | 1,472 -> 1,409 |
+| `bfbc2-auto-navkit/tools/levelobjects.py` | `havok_index`'s walk, `mesh_aliases`' XML scan, `triangles` over `hkpack.py` (each now `bfbc2core.collision`'s; `main` takes the index and aliases in one walk) | `hkpack.py` (`navsample_offline.py` reads packfiles with it: a format reader of a later round) | 272 -> 228 |
+
+1,230 lines of Python deleted, 252 written (docstrings, `_rust()`, clear errors). Not in this round: `shaderdb.py`'s
+reader / writer (its queries have `*_reference` twins), `xenos`, Granny, APT, `kymesh`, `navsample`, `mesh`, `audio`'s
+formats, `dbxbin` (with E4a's retirement).
+
+**What the Rust answers otherwise, on purpose** (no real input; each counted in its test):
+
+- `dbx.write` (`rust/bc2-py/src/writers.rs`): the walk keeps its own stack (any depth: the Python wrote 700 deep and
+  raised `RecursionError` at 3,000); children of any iterable (a generator) and raw bytes as `bytearray.extend` takes
+  them (a memoryview, a list of ints) are now written, as the Python wrote them. Refused with the reason: an empty tag
+  (the Python wrote tag 0, which reads back as an end mark), a 2-character string taken as an attribute pair (the
+  Python unpacked `'ab'` as `('a', 'b')`), a tag / attribute / text that is not a `str` (`TypeError`; the Python's was
+  an `AttributeError` from `.encode`), a kind outside 0-15 (`ValueError` for -1 too). `DELIBERATE` in
+  `test_dbx_write_native.py` lists the five edge trees that differ from the recording.
+- `culltree.Doc` (`bc2_formats::culltree::elements`, `culltree_elements` raising `ValueError`): a stream cut inside an
+  element raises `CullTreeError` ("truncated file (it ends inside the element at byte N)") where the Python raised
+  `IndexError` (42 of the quick tier's 2,146 cases; 77 more where both raised `CullTreeError`, worded otherwise); a
+  varint past 64 bits raises `CullTreeError` ("... longer than 64 bits (not a cull tree or level partition)") where the
+  Python read a big integer (113 cases, all the test's own inserted long varints; 50 more the Python refused later).
+
+**What the fallbacks took on real data** (before deleting; expect 0): `dbx.parse` / `to_xml`, `fbrb`'s reader,
+`terrain`, `water`, `collision` and `level.load` had no fallback while the module was there (a Python path only with
+`BFBC2_PURE_PYTHON` or without the module). `dbx.write`'s fallback to the Python writer: 0 of the corpus's 48,120
+trees as read and after seeded edits (the game run below writes every one with no Python left). `culltree.Doc`'s
+fallback to the Python loop: 0 of the 1,269 trees and level partitions (522 MB) of the game copy's level bundles and
+work\levels / ww2 / console_cull, and 0 in console_cull's add run (every reference level read); in the quick tier 282
+of 2,146 cases, all the test's own damage (above). `fbrb.unpack`'s retry with FbrbTool.exe: none needed since E3k (one engine).
+
+**The oracle: the Python's answers, recorded before it was deleted** (`core/tests/record_f1a.py` in `fae35c1`,
+deleted with the Python; each answer from the Python code itself - `dbx._py_parse` / `_py_to_xml` / `_py_write`,
+`fbrb._header` / `_py_read`, `use_native(False)` for terrain, water, collision and level, NavKit's `levelobjects` over
+`hkpack.py`, `culltree`'s loop - with the Rust's digest of the same case beside it: every case the same but the
+3,000-deep tree; digests as `core/tests/goldens.py` makes them; a file, bundle or level changed since is counted, not
+compared):
+
+| file | size | cases |
+|---|---:|---|
+| `core/tests/dbx_golden.json` | 99 KB | 10 built, 4,254 damaged, 500 random files (XML and tree); the writer's built partition, 41 edge trees, 2,000 random trees |
+| `core/tests/dbx_golden_corpus_0.json` - `_3.json` | 4 x 0.5 MB | 139,842 corpus files (work\levels, work\navkit\common, work\ww2), 48,120 distinct, 579 MB: XML, tree, written as read and after seeded edits, keyed by SHA-1 (Python 1,086 s, 3 processes) |
+| `core/tests/fbrb_golden.json` | 162 KB | 19 built, 1,742 damaged, 600 random bundles; the messages and `read_many`; the cache test's built bundles (12 read patterns); 1,123 game and work\ww2 bundles, 833,461 entries, 28.6 GB (entries, zipped flag, payload start, every entry's SHA-1) |
+| `core/tests/geometry_golden.json` | 64 KB | 1,808 built and damaged height fields, water files and packfiles; the collision index of built folders; 960 damaged copies of three MP_005 packfiles; 186 game bundles (527 height fields, 53 water meshes, 52 visuals and shader tables, 4,128 packfiles); the collision index of 37 prepared levels |
+| `core/tests/scene_golden.json` | 3 KB | SP_01, MP_005, MP_009GR, ONS_MP_004, entities only and whole: entities, elements, shapes, meshes, blueprints without collision, notes, height field, terrain mesh, water (Python 0.6-2.1 s and 12.7-87.2 s a load; Rust 0.2-0.5 s and 0.7-1.25 s) |
+| `bfbc2-culltree/tests/culltree_golden.json` | 218 KB | 2,146 built, damaged and random streams; add on a built level; 1,269 trees and level partitions of the game copy's level bundles and work\levels / ww2 / console_cull; console_cull's `add --auto --misplaced 2` on Onslaught MP_005 against every work\levels folder (Python 173 s, Rust 48 s, the same tree, level and 241-line report) |
+| `bfbc2-auto-navkit/tests/collision_golden.json` | 1 KB | NavKit's `detailed`, `ladders`, offline sampler geometry and boat mesh triangles on SP_009 and SP_004_B (Python 30 / 27 s, Rust 1 s) |
+
+**Proof** (`retire-f1a`, below-normal priority, the module rebuilt from this branch, no Python left): the game
+checks against the recordings - `test_dbx_native.py --game` (48,120 distinct corpus files as recorded, 218 s; XML =
+DbxEdit's on 31,404 fingerprinted), `test_dbx_write_native.py --game` (the 48,120 written as read and edited as
+recorded, 292 s; the five `DELIBERATE` edges), `test_fbrb_native.py --game` (1,123 bundles, 833,461 entries, 28.6 GB as
+recorded, 49 s), `test_geometry_native.py --game` (186 bundles, the index of 37 levels, as recorded, 21 + 75 s),
+`test_culltree_native.py --game` (1,269 trees and partitions, 522 MB, the same; the work\levels listing = glob; the
+add run's tree, level and 241-line report as recorded, 56 s), `test_fbrb_cache.py --game` (324 bundles, 20,850 reads;
+the stored bundles), `test_scene_native.py` (4 levels x 2 as recorded; 0.2-0.5 s / 0.7-1.25 s a load) and
+`test_collision_backends.py` (SP_009, SP_004_B as recorded); `test_native_required.py` (the core formats stop with
+`NativeMissing` without the module, run under `BFBC2_PURE_PYTHON=1` with it); `python run_tests.py quick -j 2`
+98 of 98 (249 s; a first run had 97: the corpus recording as one 2 MB file broke the repository's 1 MB rule - now
+four shards); `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, the workspace's tests (in the
+quick tier's `test_rust.py`). OPFOR's callers (read only) use only the kept API (`dbx.parse` / `read` / `write` /
+`to_xml`, `fbrb.entries` / `read` / `pack_many`, `culltree.py` run by `console_cull.py` from the suite): none break.
 
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 
@@ -2180,6 +2258,106 @@ DICE's partitions at once). NEEDS: the import game test `mem=1` (was 2.5), the f
 2.5); seeds in `tests\test_durations.json`. No Rust changed: `cargo fmt`, `clippy` and the tests passed in the quick
 tier as they were.
 
+## E4d: dbxport's partition port in Rust (2026-11-18, branch `rust-e4d`)
+
+E3r measured `dbxport.port` at 3 - 5 ms a partition and left its 1,865 lines of rules in Python; the newer ruling
+(port as much as possible, data kept on the Rust side, every port proven identical) re-examined it. **Moved:** the
+whole port - `bc2_convert::dbxport` (about 4,300 lines with tests, as rustfmt lays them out; the binding
+`bc2-py/src/dbxport.rs` 470): the template choice (`_roles`, `_inputs`, E3d's
+ranking index), `_Port` (alignment, the reference resolver, stand-ins, guards, the converters: enum numbers, bool
+into number, empty lists, gradient rows, numbers to items, one-to-array, renamed, nested, inline items), the passes
+(`_part_link_names`, `_values`, `_conventions`, `_bones`, `rebuild_audio_connections`, `_gate`), `_text_empty_arrays`
+and the writer. Python keeps a thin layer (`dbxport.port` -> `_port_rust`) with the same signature, `Report` and
+errors; `port_python` is the reference and the fallback.
+
+**Data on the Rust side.** `Templates` parses its partitions there (`bc2_native.DbxTemplates`, on all cores) and
+builds the Python tables only when something asks for them (`candidates`, `by_guid`, `by_type`, `where`: the Python
+port and `choose`; `types()` answers without them - effectport uses it). The catalogue's tables are copied once per
+set of tables (`DbxCatalogue`: a fair test's `fair_catalogue` copies share them; 0.7 s for the real one), its class
+defaults copied when a port first asks for one (only the types the partition holds are looked up: converting the
+whole `defaults` table on every call was half of each port's time). `guids_of` reads guids without a Python tree
+(`dbx_instance_guids`). Per call only `ours`, `stand_ins` and the bone tables cross; `resolve` is called back.
+
+**The model.** An arena of nodes, each standing for a Python `dbx.Element`: where the reference returns the same
+element the port keeps the same node, so in-place passes change it everywhere it is, as Python's do. Python's string
+semantics are reproduced where the rules use them (`str.strip`'s whitespace, `$` before a final newline, `re.I`'s
+folds onto ASCII, `\w`, `int.from_bytes`, `struct.pack`'s overflow). Where Python's answer depends on more than the
+port reproduces - its own exceptions other than `PortError` / `SchemaError` (`IndexError`, `struct.error`, a
+`ValueError` from a malformed bool), a `\w` past ASCII, a NaN packed, a value past 128 bits, alignment nested past
+150 levels (Python's `RecursionError`) or copies past 2 million nodes plus 32 per input node (instances held inline
+in each other many times over) - the Rust side says so and `port_python` ports (`dbxport.STATS`).
+
+Fallbacks also when the caller changed one of the module's tables or functions (checked on every call against the
+tables the port was written for), passes a catalogue that is no `dbxcatalogue.Catalogue`, a duck-typed `BoneTables`,
+or `donors` that is no list or tuple (the reference reads a generator once per instance). `BFBC2_DBXPORT_PYTHON=1`
+ports in Python; `BFBC2_DBXPORT_DUAL=1` runs both on every call and raises `DualMismatch` on any difference in the
+bytes, report lines, records or exception; `BFBC2_DBXPORT_STATS=1` prints the counts at exit.
+
+### Before and after
+
+**Provisional timings** (the machine was shared - the effect bench's baseline alone ran 10.0 s and 18.1 s): below-normal
+priority, `RAYON_NUM_THREADS=4`, `BFBC2_FBRB_CACHE=0`; `main` (0bbafd7, a worktree with `main`'s module) and this
+branch run back to back, twice (round 1 / round 2). `bench_bf1943.py` now times its `fair` workload's parts.
+
+| workload | before, s | after, s |
+|---|---:|---:|
+| `fair`: `dbxport.port`, 2,382 calls | 5.9 / 4.2 | **2.4 / 2.1** |
+| `fair`: `guids_of` (58,835 calls, 2,826 partitions parsed) | 2.0 / 1.6 | **0.4 / 0.4** |
+| `fair`: `Templates` for 58 pools (mostly the bundles read) | 10.2 / 7.5 | 7.4 / 5.0 |
+| `fair` whole | 23.3 / 16.8 | **14.6 / 11.2** |
+| `parity`: `dbxparity.predict` (519 ports) | 12.9 / 13.6 | **8.2 / 7.7** |
+| `bench_ports.py effects` (1,410 ports and the rest of the effect port) | 10.0 / 18.1 | 9.4 / 12.7 |
+| WW2 level ports, `bench_dbxport.py` (53 BFBC2 level partitions, the 4 levels; Python then Rust in one process, each with fresh `Templates` and catalogue copy) | 13.3 / 12.7 (Wake 10.7 / 10.8, Coral 0.35 / 0.23, Guadalcanal 0.98 / 0.67, Iwo 0.84 / 0.49) | **2.5 / 3.8** (Wake 1.7 / 2.6, Coral 0.06 / 0.08, Guadalcanal 0.14 / 0.24, Iwo 0.10 / 0.18) |
+
+The level ports' Python row is this branch's Python port, whose `Templates` builds its Python tables on first use:
+Wake's port carries the parse of the 53 partitions and the ranking indexes; the Rust row's Wake the catalogue copy
+(0.7 s) and its indexes. One port on the fair workload is 0.5 ms in the core (choose and align 0.2, the passes 0.07,
+parse 0.05, write 0.04, the gate 0.03) and 0.2 - 0.3 ms in the binding (`ours`, the class defaults asked, the records
+as tuples, the `Report`), against 2.5 - 4 ms in Python.
+
+Peaks: `fair` 915 -> 1,022 MB (the catalogue's copy: 607,100 guids), `parity` 1,213 -> 1,214, `import` 705 -> 706,
+effects 880 -> 900 MB. `import fair parity` in one process 1,216 -> 1,506 MB: `parity` loads the catalogue again while
+`fair`'s copy is still held - it is let go at the next port once nothing else holds its tables.
+
+### Parity
+
+Every comparison is both ports on the same call (DUAL: bytes, report lines, every record's fields, or exception
+type and message) and, for the benches, every output's SHA-256 against a record made by `main` (0bbafd7):
+
+- `bench_bf1943.py import fair parity` in DUAL: **2,901 of 2,901 ports** the same both ways (2,353 fair ports,
+  29 counterpart ports, `dbxparity.predict`'s 519) and **3,192 of 3,192** outputs as `main` recorded them; 0 left to
+  Python;
+- `bench_ports.py effects` in DUAL: **1,410 of 1,410 effect ports** the same, **713 of 713** outputs as recorded;
+  0 left to Python;
+- `test_dbxport_ranking.py --game`: the four WW2 level ports by the Rust port the same bytes as the Python port with
+  the reference scan (2,623 + 980 + 3,214 + 2,357 rankings, each checked); `bench_dbxport.py`: bytes and reports
+  identical both ways;
+- `test_dbxport.py`, `test_dbxport_fair.py` (game, the Rust port: 2,353 ports, every check as before),
+  `test_dbxport_rules.py` and `test_converter_edges.py` in DUAL (64 crafted ports, the errors among them);
+- `test_dbxport_native.py`: seeded random partitions, pools, catalogues and options (the rules' fields among
+  random ones; schema errors, strict failures): **20,000 of 20,000** the same (10,701 ported, 7,260 `SchemaError`,
+  2,039 `PortError`), 0 left to Python; 600 in the quick tier. Two seeds first found inputs on which the *reference*
+  runs out of memory (a float's bits read as a `MaxMainBoneIndex`, `range(4.6e18)`; exponential inline copies): the
+  generator keeps bone indices small and one inline item per partition, and the guards above leave the second kind
+  to Python within the node budget (checked: 1.2 s, bounded memory).
+
+### Tests
+
+`bfbc2-bf1943-import/tests/test_dbxport_native.py` (quick: 600 random ports both ways and the guards; `--game`: every
+fair, counterpart and effect port both ways, none left to Python); `test_dbxport_ranking.py --game` compares the
+Rust port with the scan's Python port; `rust/bench_dbxport.py` (new) times the level ports both ways. Rust:
+`cargo fmt`, `clippy --all-targets -D warnings` and `cargo test` (bc2-convert: the arena, Python's string rules, the
+tables, the helpers) clean.
+
+### What remains
+
+The port's own time is now 0.5 ms a partition (choose and align 0.2, the passes 0.07, parse and write 0.09; the
+binding's argument conversion 0.1-0.2); the workloads' time is the reading around it (bundles, BF1943's
+decompression). Not done this round: a `port_many` running many partitions on all cores (the callers port one at a
+time with per-partition setup; the core is ready for it - its data is `Sync`, `resolve` would be called back under
+the interpreter); retiring `port_python` (kept as the reference and fallback this round); the catalogue copy keeps
+607,100 guids (about 100 MB of the fair test's 1.0 GB peak, against 915 MB before).
+
 ## E3o: navdata, kymesh, navpath, havok.verify, texqa (2026-11-17, branch `rust-e3o`)
 
 E3m's next ranked items, in the order of measured gain. **Provisional timings:** WW2 rebuilds and other agents' work
@@ -2468,6 +2646,279 @@ NumPy and the placement). The Python of `config.generate` (placement on the path
 manifests) was not ported: they are small next to the above. The Python model, `Author` and the checks' Python
 readings are kept as fallback and reference until a later round retires them.
 
+## E4c: aptgraft's model, aptcheck and aptrefs in Rust (2026-11-18, branch `rust-e4c`)
+
+**Provisional timings:** other agents' builds and tests (a WW2 rebuild for the first profiles) ran beside every
+figure, below-normal priority; ratios hold within a run, absolute seconds move by up to 1.5x between runs.
+
+The corpus of E3n: 133 distinct movies (the game copy's SwfMovies, Dist and Package; OPFOR's pristine menu bundle;
+the BIGF movies of `work\xbox_dlc`), read into memory first. `python rust\bench_apt.py [--model native|python|both]
+[--profile WORKLOAD]` times every row below.
+
+### The profile (main, before)
+
+`roundtrip --pack` of the 133 movies one by one (cProfile, 240 s profiled): the parse 71 s (three models per movie:
+`wref` / `character` / `_fill_items` / `_stream`, 2.2 M `wref`, 2.3 M `words`), the writes 74 s (798 writes, `_emit`
+21 s, `plan` / `_layout` 49 s), `reachable` 22 s, apt.py's dump for `dump_text` 54 s (the Rust decoder was off in that
+profile: E3n's decoder takes most of that away), the rest leftovers and comparisons. `aptcheck check`: `Code.__init__`
+and `findings` over 2.9 M records built in Python (3.6 s of 5 in E3n's figures); aptrefs: `movie_refs` over the same
+records. Every Python object of the model is made for every movie whether the caller reads it or not.
+
+### What changed
+
+- **The model in Rust** (`rust/bc2-formats/src/aptmodel.rs`, bound as `bc2_native.AptModel`): `Movie._parse` ported in
+  its own order (the fills run once, on first read; shared nodes shared as the cache keys make them; a pointer read as
+  a number where Python would fail refuses), `reachable()` in the Python walk's order, the `keep` and `pack` layouts,
+  `write` in either byte order with the dead-data pass, `leftovers`, and `roundtrip` with `dump_text` (apt.py's dump
+  from E3n's decoder, the offsets taken out by a scanner of the same pattern, Python's `str.strip`). Nodes are
+  numbered; instructions are an arena per code node (streams of indices, branch targets as an instruction or a
+  stream's end).
+- **`aptgraft.Movie(...)` is a `NativeMovie`** when the Rust core is built: no Python object is made for the data
+  until a caller reaches it (a root, a `Ref`'s node, `reachable()`, `cache`). A node first appears as a shell of its
+  class (`_WordsShell(Words)` ...: `isinstance` holds) and is filled from Rust the first time one of its attributes is
+  read or set - then it is a plain `Words` / `Code` / `Str` / `Raw` and Python's. Before each write (and
+  `reachable()`, `leftovers()`) the filled nodes and every new node they reach go back to Rust (`_sync`: words as
+  numbers and node numbers, code as columns with each branch target found as `_place` records it, by identity);
+  another movie's node put into this one is adopted as Python shares it. `new_at` is set after each write as the
+  Python write leaves it. Where the Rust refuses - a movie its parse would raise on, a value a write cannot pack (a
+  negative or 40-bit operand, a float, a `str` in a words node, a branch to nothing), a read that parses more of the
+  file (`words` / `string` / `character` / `item`, `code` of an offset not read) - the movie becomes the Python model
+  in place (`_python()`: every node filled, the class switched to `Movie`) and the Python code answers: the same bytes
+  or the same exception. Callers keep the API: the grafting code, `add_crosshair`, the aliases and mode cases, OPFOR's
+  menu callers (read only this round): `src\tools\ww2\menu_install.py`, `wake_ui.py`, `duplicates.py`,
+  `weapon_icons.py`, `type95_icon.py`, `ww2_crosshairs.py`, `qa_checks.py`, `bf1943_hud_icons.py`, `wake_install.py`,
+  `src\tools\onslaught\console_icons.py` (in process), `console_hud.py` (the command line), the test
+  `src\tools\tests\test_ww2_crosshairs.py`.
+- **`roundtrip` in Rust, many at once**: `roundtrip_many(specs)` reads a chunk of movies (twice the cores) and runs
+  each whole roundtrip in Rust on all cores; `aptgraft roundtrip` uses it. A movie it refuses runs
+  `roundtrip_python` (the reference) at its place.
+- **aptcheck and aptrefs** (`rust/bc2-formats/src/aptscan.rs`): `Code`'s functions and `findings()`, and
+  `movie_refs`, over the records where E3n's decoder makes them - no record reaches Python.
+  `aptcheck.check_many(movies)` (used by `check`) and `aptrefs.refs_many(movies)` (used by `movie`, `xref`, `find`)
+  decode and scan many movies on all cores; a movie the decoder refuses, or a push-byte argument `int()` would reject,
+  runs the Python (`check_many_python` / `refs_many_python`). `aptcheck verify` keeps `Code` (it needs the records).
+- References kept: the Python model (`aptgraft.use_native(False)`, `BFBC2_PURE_PYTHON=1`, `REFERENCE` /
+  `BFBC2_APTGRAFT_REFERENCE=1`, `_py_movie`, `roundtrip_python`), `Code` / `movie_refs`.
+
+### Before and after (unprofiled, same run)
+
+| workload (133 movies) | Python model, s | Rust, s | |
+|---|---:|---:|---:|
+| `Movie(members)` (the parse) | 13.26 | **1.46** | 9x |
+| every write of each unchanged model (keep, pack, other order, dead off: 532 writes) | 61.61 | **4.64** | 13x |
+| `roundtrip(..., pack=True)` one by one | 125.17 | 15.24 | 8x |
+| `aptgraft roundtrip --pack --quiet <folder>` (batched on all cores) | 113.23 | **3.24** | 35x |
+| two sprites grafted into the next movie, placed, a label alias, three writes (`graft_all`) | 104.52 | **10.95** | 9.5x |
+| aptcheck's rules (`check_many`) | 10.66 | **1.03** | 10x |
+| aptrefs' scan (`refs_many`) | 11.30 | **0.90** | 12.5x |
+| `aptrefs xref` (every movie set, the exe's table) | 8.64 | **1.09** | 8x |
+
+(The Python column is the code as main has it: E3n's writer and the Rust decoder.)
+
+### Parity
+
+- `bfbc2-menu-tools/tests/test_apt_e4c.py` (quick): the object rules (one object per node; a shell until read; a shell
+  written before it is read, a grown string, one new node in two places, another movie's node; a `str` field, a
+  negative / 40-bit / float / bool operand, a branch to nothing, a read node's offset taken away - each the Python
+  model's bytes or exception; the cache view; a read that parses more turns the movie into the Python model); test
+  `aptgraft`'s built movies (both byte orders, crosshair movies, 3,000 pushed floats): every write, roundtrip --pack,
+  three grafts, label alias / mode alias / mode case and their writes, crosshair-add - the same as the Python model;
+  300 damaged copies written and round-tripped the same (221 refused by both); aptcheck / aptrefs on the built movies
+  and 200 damaged copies the same as `Code` / `movie_refs`. `test_apt_e3n.py` (the Rust model now answers where it
+  ran E3n's writer) and `test_aptgraft.py` pass unchanged.
+- `--game`: the 133 movies, both models in one process: 3,593 writes (each unchanged model 8 ways; two sprites grafted into the next movie of its byte order and written three ways; a label alias, `add_mode_alias(onslaught, conquest)` and `add_mode_case(getMapDesc)` with three writes; crosshair-add between every pair of the 37 movies that have a crossHairs table, two ids each), `roundtrip --pack` of each (`roundtrip_python` / `roundtrip_many`), aptcheck and aptrefs - 0 differ (Python 1,109 s, Rust 352 s for the same work; most of the Rust figure is the grafting code's own Python, 1,332 crosshair-adds).
+- Rust: `cargo test -p bc2-formats apt` (the model's write-back in both byte orders, packed, a grown string moved,
+  refusals; the strip pattern; the scans) and the modules' doc examples.
+
+### What remains
+
+- Edits still run in Python over the nodes they reach: a graft or an alias fills the nodes it walks (a label alias
+  fills every frame and item of every timeline) and each write sends every filled node back - `_sync` is two thirds of
+  `graft_all`'s 11 s. Dirty tracking would need list proxies for `vals` / `ins` (callers mutate them in place); the
+  grafting operations themselves (`Grafter`, `add_label_alias`, `add_crosshair`) ported to Rust would avoid the fills.
+- A `NativeMovie` cannot be pickled or deep-copied (its handle); no caller does. An unfilled shell's
+  `type(n) is Words` is false until it is read (`isinstance` holds).
+- `aptcheck verify` / `lint` still build `Code` (the records in Python) for the two movies they compare.
+
+## E4b: the shader database logic (2026-11-18, branch `rust-e4b`)
+
+E1c ported `shaderdb.py`'s reader and writer; this round its logic. **Profiled first** (`cProfile`, the game copy's
+databases, the disk bundle cache off; OPFOR's code copied as it is, OPFOR not imported or written):
+
+| workload (before) | total | where the time went |
+|---|---:|---|
+| OPFOR's `wake_install.index_templates` (74 stock Dx9 databases, `wake_shaders.signatures` per entry) | 13.6 s | 4.7 s OPFOR's own loop (`dict(db.entries)[n]` once per entry: quadratic), 3.9 s `signatures` (221,347 `block_textures` 1.25 s, `block_constants` 0.45 s, 1.37 M `program_refs` 0.76 s), 2.4 s bundle reads, 0.9 s parsing |
+| `load_levels` of every level, Dx9 / 10 / 11 (222 databases) | 11.7 s | **4.8 s `shaderdb_parse`: 22 ms a database, nearly all of it making ~70,000 Python objects** (Rust reads one in 2 ms), 4.0 s bundle reads, 1.0 s bundle headers |
+| `wake_shaders.merge_stock` for Guadalcanal (base mp_005, 74 donors scanned) | 24.2 s | 8.3 s bundle reads, **6.3 s parsing, 3.3 s `coverage`** (228 calls, Python string joins), 2.2 s `add_donor` (1.1 s `part_mesh`, 0.7 s the needed-name test), 1.4 s headers |
+| fix_layouts' pattern: `entry_textures(db, {name})` per name | 1.1 ms a call | each call builds `entry_programs()` and walks every entry for one name |
+| `Merger(base)` + `clone_entry` + `finish` | 31 + 0.3 x n + 40 ms | record indexes and the program sort: Python dicts over bytes, small |
+
+**What moved, and why.** The cost was Python objects and per-call rebuilding, not arithmetic, so the database stays on
+the Rust side:
+
+- `bc2_native.ShaderDbHandle` (`rust/bc2-py/src/shaderdb_handle.rs`): `ShaderDb.parse` keeps the file's `bytes` and the
+  place of every record (no copy of the records); a section becomes the Python list `shaderdb_parse` made (the same
+  objects) only when the attribute is first read (`ShaderDb.__getattr__`). Once every record section is made, the name
+  sections are made too and the file is let go (no database held twice).
+- The queries ask the handle: `entry_textures`, `entry_signatures` (new: OPFOR's `wake_shaders.signatures` as a suite
+  function), `entry_layouts` (new), `coverage`, `ShaderDb.mesh_names`, `ShaderDb.check` (with an MD5 of its own),
+  `Merger.add_donor`'s needed entries and mesh-part names (`select_needed`), and the writer. A section never made is
+  read from the file, one made from the caller's list (records live, item by item). The entries' and groups' lookups
+  (name -> entries, GUID -> group) and each parameter block's textures / constant names are kept between calls; each
+  call checks the lists they came from by identity (the list object, its length, every item; a block by its object),
+  so a list changed in place or replaced is read again. The pure logic is `bc2_formats::shaderdb::query`
+  (`block_textures`, `block_constants`, `block_engine_textures`, `program_refs`, `texture_kind`, `part_mesh`, `lower`
+  (Python's `str.lower` on latin-1), `Needed`, `Coverage`, `check`, `md5`, `swap_guid`).
+- `block_textures`, `block_constants`, `block_engine_textures`, `texture_kind` read in Rust per call (a `bytes` block,
+  `'<'` / `'>'`; a latin-1 name).
+- Anything outside the plain case - an item of another type, a name that is not latin-1, an index past its section, a
+  short record, a struct prefix other than `<` / `>` - makes the handle answer `None`, and the Python reference
+  (`entry_textures_reference`, `check_reference`, `coverage_reference`, ...; kept) runs and answers or raises as before.
+
+**Not moved, by measurement:** `Merger`'s record copying, `clone_entry`, `retexture`, `finish` and `entry_contents`
+(the clone workload is 0.77 s both ways; a merge's `add_donor` after the selection is a few hundred records);
+`ShaderDb.entry_programs` and `program_refs` (they hand out the caller's own list objects / are one `struct` call).
+
+### Before and after (`rust\bench_shaderdb.py`: each run its own process, "before" = the module's handle and block
+readers hidden so `shaderdb.py` runs as it did; disk bundle cache off; PC shared with other agents' builds)
+
+| workload | before | E4b | peak commit before / E4b | result |
+|---|---:|---:|---:|---|
+| merge (OPFOR's `merge_stock`, Guadalcanal, Dx9 / 10 / 11 written) | 19.2 s | **9.9 s** | 2,104 / 1,799 MB | the same files and reports |
+| load (every level x Dx9 / 10 / 11 + coverage) | 16.1 s | **7.8 s** | 1,974 / 1,836 MB | same |
+| templates_api (index_templates on `entry_signatures` + `entry_layouts`) | 10.1 s | **7.1 s** | 1,060 / 970 MB | same - **and the same digest as OPFOR's own code below** |
+| templates (OPFOR's `index_templates` as it is) | 21.1 s | 19.5 s | 1,195 / 1,159 MB | same |
+| textures (per-name `entry_textures`, six levels) | 0.95 s | 0.69 s | 314 / 292 MB | same |
+| clone (`Merger` + `clone_entry` + `finish` + write) | 0.77 s | 0.78 s | 384 / 377 MB | same bytes |
+
+One database (mp_005 Dx9: 19 MB, 1,714 entries, 4,230 blocks, 20,366 programs), per call:
+
+| | before | E4b |
+|---|---:|---:|
+| `ShaderDb.parse` | 15-17 ms | **2.2-2.9 ms** (every section made later: 29 ms, as before) |
+| `entry_textures(db, {name})` | 0.161 ms | **0.021 ms** (0.028 ms on the first call after the entries changed) |
+| `entry_textures(db)` (all) | 37 ms | 9.9 ms |
+| `coverage(db, [mesh])` | 3.7 ms | 0.42 ms |
+| `block_textures` + `block_constants` | 5.1 us | 1.7 us |
+| `to_bytes` (sections never made) | 16.7 ms | 7.5 ms |
+| `ShaderDb.check()` (Dx10, 20,366 programs) | 18.7 ms | 8.8 ms |
+
+OPFOR's verbatim template index gains little because its own `dict(db.entries)[n]` per entry is quadratic (4.7 s of
+the profile); on the suite's functions the same table takes 7.1 s instead of 21.1 s.
+
+### Parity
+
+- `bfbc2-shader-tools/tests/test_shaderdb_queries.py` (quick, 22 s): built databases (Dx9, Dx10, Xbox 360 v120 /
+  v117; a repeated entry name, a latin-1 name, an entry without programs) and mp_008cq's three: every query (all
+  entries, sets / frozensets / lists of names, 25-40 names one by one, coverage with a dict and with names not
+  latin-1, `select_needed`, `check`, OPFOR's `signatures` code on the Rust block readers, the writer) against the
+  references on a database read by the Python reader - never made, made, and after 7 kinds of change (an entry
+  appended, a group replaced, a group's program list changed in place, two blocks swapped, the program and key lists
+  replaced, a name not latin-1, a group naming a program past the end): 65,466 answers on mp_008cq, 1,046 on the
+  built files, all the reference's; 18,000 reads of damaged / random blocks (NaN, -0, cut, long names); the handle
+  answers itself (no decline) on fresh, made and changed files and declines on a name that is not latin-1; parsing
+  and the queries make no section; pickles and deep copies hold plain lists.
+- `--game`: **745 databases** (436 in the game copy's and OPFOR's Xbox bundles, 5 BF1943, 304 work files; 17.35 GB):
+  **13,643,145 answers, all the reference's** (715 s, 2 workers).
+- `test_shaderdb_native.py` (quick and `--game`): unchanged and passing on the handle - its corpus compares every
+  section the handle makes with the Python reader's, the written bytes with the file, and the four WW2 merges
+  byte for byte with the Python merge.
+- The bench's digests: every workload's output the same before and after (the merged databases byte for byte).
+
+### For Project OPFOR (not edited)
+
+The suite's changes reach OPFOR without edits (parsing, `entry_textures`, `coverage`, the merge's selection, `check`,
+the block readers). OPFOR would gain more by calling the new functions:
+
+- `wake_shaders.signatures` -> `shaderdb.entry_signatures` (the same table: the bench's two template digests are
+  equal); `wake_shaders.entry_layouts` -> `shaderdb.entry_layouts`.
+- `wake_install.index_templates`: `dict(db.entries)[n]` inside the per-entry loop is quadratic (4.7 of 13.6 s);
+  `entry_signatures` + `entry_layouts` give the table in 7.1 s instead of 21.1 s.
+- `wake_install.fix_layouts` (`dict(base.entries)[n]` in the `bad` comprehension, `d.entry_programs()` rebuilt per
+  candidate), `_fix_layouts_apply` and `graft` (`S.entry_textures(donor, {dn})` twice per entry: now 8x faster per
+  call by itself), `ww2_level_build`'s clone steps and `S.entry_textures(db)` whole.
+- `wake_install.level_db` keeps 7 databases and reloads: a reload's parse is now 2-3 ms instead of 15-20.
+- `type38.donor_db` scans `d.entries` per prefix (makes the entry list; `coverage` would not).
+- In the suite, `renderqa.prepare_strip` / the patch runs rebuild `{n.lower(): g ...}` and `entry_programs()` per
+  strip: small next to `shaderview`, left as they are.
+
+**Remaining:** the `Merger` itself (records, `clone_entry`, `finish`) in Rust would need the merged database kept on
+the Rust side end to end (OPFOR mutates `base.entries`, `base.groups`, `base.programs` directly between merges);
+`entry_contents` / `verify_merge` (the `merge` command only). A partly made database holds its file and its made lists
+(the file is let go once every record section is made).
+
+
+## E4f: the map and bot test harness and the crash-reader tools (2026-11-18, branch `rust-e4f`)
+
+`bfbc2-automated-map-and-bot-test-harness` (the harness package, `crash-reader/crashreader.py`, `crash-reader/exeref.py`)
+in a new crate, `rust/bc2-harness`. **Profiled first** (cProfile and wall clocks, the game copy's `opfor.log` (349 MB)
+and `BFBC2Game.exe` (build 795745), read only; harness runs to temporary folders):
+
+| workload (before) | total | where the time went |
+|---|---:|---|
+| `harness.py import-log` on the real log | 4.4 s | 2.4 s `open().read()` (UTF-8 decode of 349 MB), 2.0 s `ingame.sessions` (E3m's literal search, Python lines) |
+| `crashreader.log_before_crash` (3 lookups) | 0.6 s | reading the file; E3m's windows already decode only the crash lines |
+| `exeref.py` str / refs / dis (one command) | 0.4-1.2 s | interpreter + pefile + capstone set-up, the code walk (`on_boundary`'s capstone decode from each function start), numpy's call / jmp scan |
+| `harness.py run` on sp_009 + sp_004_b (Rust core built) | 42 s | 23 s NavKit's `navparity` (not the harness's; cached after the first run), 9 s `ordercheck.on_area` (NavKit's tool), 2.6 s battery (`navpath.route`), 2.5 s hpdcheck, **2.0 s `reach_from` (the harness's BFS)**, **1.9 s `classify.Ground.cells` (a scan of every cell per point)**, 2.5 s level reading |
+
+**What moved** (`rust/bc2-harness`, bindings `rust/bc2-py/src/harness.rs`, Python switch `crash-reader/harnesscore.py`):
+
+- `oplog`: `ingame.sessions` (`harness_sessions`) and the file's (`harness_sessions_file`: read, decoded with Python's
+  `errors='replace'` rule, split as `str.splitlines` splits on all cores, only lines holding a literal read with the
+  reference's patterns); `crashreader.log_before_crash` (`crash_log_before`, the windows of E3m on the bytes).
+- `pe`: the exe mapped as pefile 2024.8.26 maps a well-formed PE32 (refused otherwise: pefile maps it).
+- `x86`: 32-bit decoding with **capstone 5.0's text and operands** on iced-x86 1.21 (pure Rust): capstone's Intel
+  printer rules (`X86IntelInstPrinter.c`: the memory operand, immediates' signs and masks, `X86ImmSize.inc` and its
+  missed F6 /1 entry; `X86_lockrep`: lock / rep / repne / repe / repz / bnd / notrack / xacquire / xrelease from the
+  prefix bytes as capstone's decoder reads them; `checkPrefix`'s lockable list), capstone's names (ljmp / lcall, pushal,
+  fcompi, the compare pseudo-ops, `nop r/m`), the x87 operands it leaves out, its branch-target arithmetic (16-bit
+  displacements unsigned unless 0x67), and its refusals (x87 aliases, the hint-nop / prefetch / MPX / fence families,
+  newer instructions). **Proof: every byte offset of BFBC2Game.exe's code, 16,786,165 starts, decoded identically**
+  (size, mnemonic, op_str, immediates and memory operands; `x86_dump` against a capstone dump). The proved encodings
+  are a table (`x86_verified.rs`: 2,730 instruction keys, 20,466 undecodable keys, from `x86_codes`); an encoding
+  outside it is refused and capstone decodes it, so another exe never gets a different answer. On 3.4 M synthetic
+  probes (every prefix set x opcode x ModRM) the core answered 877 k identically and refused the rest; 0 answered
+  differently.
+- `exe`: `crashreader.Image` (function starts, `around`, `call_before`, `name_of`) and `exeref.Exe` (`cstr`,
+  `find_strings`, `on_boundary`, `refs`, `data_refs`, `window` / `annotate`) whole, over the mapped image kept on the
+  Rust side (`ExeHandle`); each method refuses (`NotImplementedError`) where the reference would raise or an
+  instruction is unproved, and the Python facade (`Image._native_call`) then runs the `*_reference` method.
+- `graph`: the reachability pair bits (`harness_pair_bits`: a BFS per source node, on all cores) and the ground
+  classes' cell columns (`HarnessCells`: a bucket index, the reference's float64 test, cell order).
+
+**Parity** (`crash-reader/tests/test_crash_native.py`; `tests/test_harness.py --game`):
+
+| what | result |
+|---|---|
+| x86, BFBC2Game.exe, every code offset (`x86_dump` vs capstone) | 16,786,165 of 16,786,165 identical, 0 refused |
+| x86, every 61st offset (game tier) | 275,185 of 275,185, 0 refused |
+| x86, 20,000 seeded byte strings (quick tier) | 13,210 answered, all capstone's; 6,790 refused |
+| the mapped image | pefile's, byte for byte (BFBC2Game.exe 26,292,224 bytes; built exes) |
+| built exes (test_exeref's + 2 random-code exes): every method at every code address | 420 + 5,013 + 5,199 answers the reference's |
+| `exeref.py` command line, 24 commands on BFBC2Game.exe | 24 of 24 byte for byte as `BFBC2_HARNESS_PYTHON=1` |
+| crash reader on 40 built reports at sampled code addresses | 40 of 40 byte for byte |
+| opfor.log sessions: the real log | 587 of 587 sessions field for field (as `sessions_python` and `sessions_reference`) |
+| sessions of 400 seeded logs (every line break, bad UTF-8, Unicode digits) | 400 of 400 (320 read by the core, 80 refused to Python) |
+| `log_before_crash`: 300 seeded logs + the real log's 3 lookups | identical |
+| pair bits (60 seeded graphs), cell columns (2,000) | identical |
+| `harness.py run` sp_009 + sp_004_b, core vs `BFBC2_HARNESS_PYTHON=1` | every result and the report byte for byte |
+
+### Before and after (`rust\bench_harness.py`, in process, best of 2; game tests' wall clocks; shared machine)
+
+| workload | Python | E4f | |
+|---|---:|---:|---:|
+| import-log's sessions of opfor.log (349 MB, read included) | 3.17 s | **0.43 s** | x7.4 |
+| crash reader: log lines before a crash (3 lookups) | 0.59 s | 0.47 s | x1.3 (the file read) |
+| exeref: load, 3 string searches, their refs, 3 refs and windows | 1.06 s | **0.19 s** | x5.7 |
+| crash reader: load, code view, call before and name at 60 addresses | 0.42 s | **0.05 s** | x7.7 |
+| `exeref.py`, 24 commands as processes | 11.7 s | 5.5 s | (interpreter start-up included) |
+| crash reader, 40 reports in process | 2.4 s | 1.0 s | |
+| `harness.py run` sp_009 + sp_004_b (structure, reachability, battery, orders, offsets, level; caches warm) | 12 s | 9 s | |
+
+**Not moved:** NavKit's tools the harness calls (`navparity` / `navdiff`, `ordercheck.on_area`, `hpdcheck`,
+`navpath.route` - NavKit's and core's, outside this round), `levelinfo` (core's dbx / fbrb / level readers, F1a's),
+`checks.join` and `random_points` (NumPy's generator: the same draws need NumPy), and `runs` (saved-run JSON, the
+comparison and the report: milliseconds). cargo fmt / clippy -D warnings / tests clean; ruff and mypy clean.
 ## E4e: NavKit's tools around the build (2026-11-18, branch `rust-e4e`)
 
 NavKit's driver (`navkit.py`) and the tools around the build: what is left after rounds E1d - E3o and R1 moved the
@@ -2493,7 +2944,7 @@ before / after pair was taken in the same session, unprofiled unless it says so.
 |---|---|---|
 | `navvehicle.obstacle_distance` (`obstacle_distance_reference`) | `vehicle::obstacle_distance`: each candidate surface walks the offsets nearest first and stops at its first hit, columns in parallel; the plane, the rise and the band in `float32` as NumPy 2 computes them | `navkit_obstacle_distance` |
 | `navdomains.dijkstra` behind `World.leg_dijkstra` / `tables` | `domains::Graph` (a domain's adjacency kept in the core, `Domain.graph()`), `dijkstra` (the same pops: `(d, node)` is a total order), `tables` (every transition point at once) | `DomainGraph`, `navkit_domain_graph` |
-| `levelobjects.blueprint_flags`, `mesh_aliases`, `havok_index` (their glob walks and reads) | `levelscan::scan`: one walk in `glob`'s order, each `.xml` read once on all cores (`xmlinst.field_ref`'s matching, `open(..., errors='replace')`'s text); the dicts made in Python from its records (`levelobjects.scan`) | `navkit_level_scan` |
+| `levelobjects.blueprint_flags` (its glob walk and reads; `mesh_aliases` / `havok_index` were done the same way on this branch, then main's round F1a moved them to `bfbc2core.collision`'s Rust index, which the merge keeps) | `levelscan::scan`: one walk in `glob`'s order, each `.xml` read once on all cores (`xmlinst.field_ref`'s matching, `open(..., errors='replace')`'s text); the dict made in Python from its records (`levelobjects.scan`) | `navkit_level_scan` |
 | `navdiff.compare_sector` and the cells of `diff` | `measures::compare_sector` / `compare_many`: meshes parsed (E3o's reader) and sampled (E3h's `area_cells`) in the core, every sector in parallel; Python's `round` (half to even), `round(x, n)` through the exact integer it rounds to, `x ** 2` as `pymath::sq` | `navkit_diff` |
 | `ordercheck.PathData.areas` / `on_area` (the harness and the stock-MP AI call it too) | `measures::order_areas` (the crack rule), `on_area` | `OrderAreas`, `navkit_order_areas` |
 | `navdf.compare` with `ground_of` | `measures::df_features`, `df_compare`, `ground_of` | `navkit_df` (`navdf.compare_sectors`) |

@@ -502,16 +502,18 @@ def quick(tmp):
                 for dp, _ds, fs in os.walk(d) for f in fs}
     copied = os.path.join(tmp, 'e3j', 'copied')
     shutil.copytree(src, copied, ignore=shutil.ignore_patterns('.source.sha256'))
+    in_process = corefbrb.unpack_in_process
     for native in (True, False):
-        corefbrb.use_native(native)
+        if not native:                               # a bundle the in-process unpack declines
+            corefbrb.unpack_in_process = lambda *_a: False
         try:
             dst = os.path.join(tmp, 'e3j', f'build_{native}')
             pipeline.build_folder(bundle, src, dst)
         finally:
-            corefbrb.use_native(True)
+            corefbrb.unpack_in_process = in_process
         check(files_of(dst) == files_of(copied) and '.source.sha256' in files_of(src),
-              f'build folder ({"in process" if native else "copied, no Rust core"}): the cached unpack\'s files, '
-              'its stamp left out')
+              f'build folder ({"in process" if native else "copied: the in-process unpack declined"}): the cached '
+              'unpack\'s files, its stamp left out')
     ok, detail = validate.check_packed(bundle, copied, tmp)
     check(ok and detail == '2 files unpack identical', f'packed bundle checked in memory: {detail}')
     native_parity(lvl, rl, donor, c, cr, cm)

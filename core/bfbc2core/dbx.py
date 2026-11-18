@@ -1,29 +1,26 @@
-"""Binary DBX reader for the BFBC2 suite, written from bfbc2-dbx-tools/FORMAT.md.
+"""Binary DBX files for the BFBC2 suite (bfbc2-dbx-tools/FORMAT.md), read and written by the suite's Rust core.
 
     f = read('Levels/MP_005.dbx')            # or parse(bytes)
     f.instances                              # list of Element (tag 'instance')
     f.get(element, 'guid')                   # first attribute of that name, or None
     value(element)                           # a value as the XML shows it (text, 'a/b/c', true/false)
     to_xml(data)                             # FORMAT.md section 3, identical to `DbxEdit xml`
+    write(f)                                 # a tree as a binary .dbx
 
 Elements keep their kind and raw value bytes, so numbers can be read exactly (numbers(element)).
 
-parse and to_xml run in the suite's Rust core (rust/, module bc2_native) when it is built, else in Python here; both
-give the same trees, text and errors (core/tests/test_dbx_native.py: every corpus file). BFBC2_PURE_PYTHON=1 (or
-use_native(False)) forces the Python reader; backend() says which one runs. parse_many / to_xml_many take many files
-at once (on all cores with the Rust core).
-
-write runs in the Rust core too (bc2_native.dbx_write walks the Python tree): the Python writer's bytes, proven on
-every corpus file and on edited trees (core/tests/test_dbx_write_native.py); a tree the Rust writer leaves to the
-Python one (a shape or value the Python writer writes differently or refuses) is written by _py_write, so the
-result is always the Python writer's.
+parse, to_xml (and parse_many / to_xml_many, on all cores) and write run in the Rust core (rust/, module bc2_native:
+bc2_formats::dbx). The Python reader and writer were retired on 2026-11-18 (round F1a, rust/BENCHMARKS.md "Retired
+Python") after the Rust ones gave their answers on every corpus file; their answers are kept as recorded digests
+(core/tests/dbx_golden.json, dbx_golden_corpus.json) that core/tests/test_dbx_native.py and test_dbx_write_native.py
+compare with. Without the module (python rust/build_native.py, or --download) these functions raise
+bfbc2core.native.NativeMissing saying how to get it.
 """
 import contextlib
 import gc
 import math
-import os
 import struct
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from os import PathLike
@@ -100,74 +97,35 @@ def _varint(data: bytes, pos: int) -> tuple[int, int]:
         shift += 7
 
 
-def _strings(data: bytes, tolerant: bool) -> tuple[list[str], int]:
-    area, count = struct.unpack_from('>II', data, 16)
-    offsets = struct.unpack_from(f'>{count}I', data, 24)
-    base = 24 + 4 * count
-    out: list[str] = []
-    for off in offsets:
-        start = base + off
-        end = data.find(b'\0', start)
-        if end < 0:
-            if not tolerant:
-                raise ValueError('string without end')
-            end = len(data)
-        out.append(data[start:end].decode('utf-8', errors='replace'))
-    return out, 24 + area
-
-
 class DeletedEntry(ValueError):
     """The file is a bundle's zero-byte *deleted* marker: there is nothing to read (it is not a broken file)."""
 
 
-def _damaged[T](fn: Callable[[bytes], T]) -> Callable[[bytes], T]:
-    """A damaged file read by fn raises ValueError (what callers catch for a file that is not a .dbx), never an
-    IndexError or struct.error from an index past its table or a read past the end (suite deep scan 2026-11-15, S4)."""
-    import functools
+# ------------------------------------------------------------------------------------------------ the Rust core
 
-    @functools.wraps(fn)
-    def wrapper(data: bytes) -> T:
-        try:
-            return fn(data)
-        except (IndexError, struct.error) as e:
-            raise ValueError(f'damaged .dbx file ({type(e).__name__}: {e})') from e
-    return wrapper
-
-
-# ------------------------------------------------------------------------------------------------ backend
-
-PURE_PYTHON_ENV = 'BFBC2_PURE_PYTHON'      # set (not '' or '0'): the Python reader even when the Rust core is built
+# BFBC2_PURE_PYTHON (set, not '' or '0') turns the Rust core off for the readers that still have a Python twin (they
+# find the module through _import_native); the DBX reader and writer have none and always need it
+PURE_PYTHON_ENV = 'BFBC2_PURE_PYTHON'
 
 
 def _import_native() -> ModuleType | None:
     """The Rust core: bc2_native built into this folder by rust/build_native.py (or downloaded), or an installed one;
     None when neither is there or it was built from other Rust sources than this checkout's (native.load: then it
-    warns once)."""
+    warns once). For the suite's readers that still have a Python twin."""
     from . import native
     return native.load()
 
 
-def _load_native() -> ModuleType | None:
-    """The Rust core unless BFBC2_PURE_PYTHON is set."""
-    if os.environ.get(PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    return _import_native()
+_native: ModuleType | None = None
 
 
-_native = _load_native()
-
-
-def backend() -> str:
-    """'rust' when parse and to_xml run in the Rust core, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on: bool) -> str:
-    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
-    backend()."""
+def _rust() -> ModuleType:
+    """The Rust core, or NativeMissing saying how to get it."""
     global _native
-    _native = _import_native() if on else None
-    return backend()
+    if _native is None:
+        from . import native
+        _native = native.require('the DBX reader and writer (bfbc2core.dbx)', 'dbx_write')
+    return _native
 
 
 def _bytes(data: Bytes) -> bytes:
@@ -185,24 +143,20 @@ def _check(data: Bytes) -> bytes:
 def parse(data: Bytes) -> DbxFile:
     """A binary .dbx file as an element tree (FORMAT.md sections 1-2). Raises DeletedEntry for an empty file and
     ValueError for one that is not a binary .dbx or is damaged."""
-    data = _check(data)
-    if _native is not None:
-        return cast(DbxFile, _native.dbx_parse(data, Element, DbxFile))
-    return _py_parse(data)
+    m = _rust()
+    return cast(DbxFile, m.dbx_parse(_check(data), Element, DbxFile))
 
 
 def to_xml(data: Bytes) -> str:
     """FORMAT.md section 3: the readable XML, identical to `DbxEdit xml` (string reading tolerant to a missing
     terminator at the end, as the export is). Raises ValueError for a damaged file."""
-    data = _bytes(data)
-    if _native is not None:
-        return cast(str, _native.dbx_to_xml(data))
-    return _py_to_xml(data)
+    return cast(str, _rust().dbx_to_xml(_bytes(data)))
 
 
 def parse_many(items: Sequence[Bytes]) -> list[DbxFile | ValueError]:
-    """parse() of each file, in order; a file that does not parse gives its ValueError (DeletedEntry for an empty
-    one) in its place. On all cores with the Rust core."""
+    """parse() of each file, in order, on all cores; a file that does not parse gives its ValueError (DeletedEntry for
+    an empty one) in its place."""
+    m = _rust()
     out: list[DbxFile | ValueError | None] = [None] * len(items)
     todo: list[tuple[int, bytes]] = []
     for i, d in enumerate(items):
@@ -211,15 +165,8 @@ def parse_many(items: Sequence[Bytes]) -> list[DbxFile | ValueError]:
         except ValueError as e:
             out[i] = e
     with _no_gc():
-        if _native is not None:
-            for (i, _), r in zip(todo, _native.dbx_parse_many([d for _, d in todo], Element, DbxFile)):
-                out[i] = r
-        else:
-            for i, d in todo:
-                try:
-                    out[i] = _py_parse(d)
-                except ValueError as e:
-                    out[i] = e
+        for (i, _), r in zip(todo, m.dbx_parse_many([d for _, d in todo], Element, DbxFile)):
+            out[i] = r
     return cast('list[DbxFile | ValueError]', out)
 
 
@@ -238,70 +185,8 @@ def _no_gc() -> Iterator[None]:
 
 
 def to_xml_many(items: Sequence[Bytes]) -> list[str | ValueError]:
-    """to_xml() of each file, in order; a damaged file gives its ValueError in its place. On all cores with the
-    Rust core."""
-    if _native is not None:
-        return cast('list[str | ValueError]', _native.dbx_to_xml_many([_bytes(d) for d in items]))
-    out: list[str | ValueError] = []
-    for d in items:
-        try:
-            out.append(_py_to_xml(_bytes(d)))
-        except ValueError as e:
-            out.append(e)
-    return out
-
-
-# ------------------------------------------------------------------------------------------------ the Python reader
-
-@_damaged
-def _py_parse(data: bytes) -> DbxFile:
-    """parse() in Python: the reference the Rust core is checked against."""
-    data = _check(data)
-    strings, pos = _strings(data, tolerant=False)
-    roots: list[Element] = []
-    stack: list[Element] = []
-    n = len(data)
-    while pos < n:
-        tag, pos = _varint(data, pos)
-        if tag == 0:
-            if not stack:
-                break
-            stack.pop()
-            continue
-        head = data[pos]
-        pos += 1
-        e = Element(strings[tag], head >> 4)
-        for _ in range(head & 0xF):
-            k, pos = _varint(data, pos)
-            v, pos = _varint(data, pos)
-            e.attributes.append((strings[k], strings[v]))
-        if e.kind == CONTAINER:
-            pos += 1
-            e.children = []
-            (cast('list[Element]', stack[-1].children) if stack else roots).append(e)
-            stack.append(e)
-            continue
-        if e.kind == TEXT:
-            idx, pos = _varint(data, pos)
-            e.text = strings[idx]
-        elif e.kind == NUMBERS:
-            start = pos
-            count, pos = _varint(data, pos)
-            size, pos = _varint(data, pos)
-            end = pos + count * size
-            if end > n:
-                raise ValueError(f'truncated file: {count} numbers of {size} bytes run past the end')
-            pos = end
-            e.raw = data[start:end]
-        else:
-            if pos + 2 > n:
-                raise ValueError('truncated file: value cut short')
-            e.raw = data[pos:pos + 2]
-            pos += 2
-        (cast('list[Element]', stack[-1].children) if stack else roots).append(e)
-    if stack:
-        raise ValueError('truncated file: unclosed container(s)')
-    return DbxFile(strings, roots)
+    """to_xml() of each file, in order, on all cores; a damaged file gives its ValueError in its place."""
+    return cast('list[str | ValueError]', _rust().dbx_to_xml_many([_bytes(d) for d in items]))
 
 
 def read(path: str | PathLike[str]) -> DbxFile:
@@ -327,57 +212,14 @@ def write(f: DbxFile) -> bytes:
     """A DbxFile (element tree) as a binary .dbx (FORMAT.md sections 1-2): a fresh string table - the empty string
     first, then each string in the order the tree first uses it -, container bytes 0, header value 0. Not
     byte-identical to a game file (DbxEdit keeps a file's own string order), but the same tree: parse(write(f))
-    gives f back. In the Rust core when it is built (the same bytes; module doc), else _py_write."""
-    native = _native
-    if native is not None and hasattr(native, 'dbx_write'):
-        try:
-            return cast(bytes, native.dbx_write(f))
-        except Exception:
-            pass                       # a tree the Rust writer leaves to the Python one: its bytes or its error
-    return _py_write(f)
+    gives f back.
 
-
-def _py_write(f: DbxFile) -> bytes:
-    """write() in Python: the reference the Rust writer is checked against."""
-    index = {'': 0}
-    order = ['']
-
-    def sid(s: str) -> int:
-        if s not in index:
-            index[s] = len(order)
-            order.append(s)
-        return index[s]
-
-    body = bytearray()
-
-    def emit(e: Element) -> None:
-        if len(e.attributes) > 15:
-            raise ValueError(f'{e.tag}: {len(e.attributes)} attributes (15 at most)')
-        put_varint(body, sid(e.tag))
-        body.append((e.kind << 4) | len(e.attributes))
-        for k, v in e.attributes:
-            put_varint(body, sid(k))
-            put_varint(body, sid(v))
-        if e.kind == CONTAINER:
-            body.append(0)
-            for c in e.children or ():
-                emit(c)
-            body.append(0)
-        elif e.kind == TEXT:
-            put_varint(body, sid(e.text))
-        else:
-            body.extend(e.raw)
-
-    for r in f.roots:
-        emit(r)
-    offsets: list[int]
-    offsets, blob = [], bytearray()
-    for s in order:
-        offsets.append(len(blob))
-        blob += s.encode('utf-8') + b'\0'
-    area = 4 * len(order) + len(blob)
-    head = MAGIC + struct.pack('>4I', 24 + area, 0, area, len(order))
-    return bytes(head + struct.pack(f'>{len(order)}I', *offsets) + blob + body)
+    Takes duck-typed elements (tag, kind, attributes, text, raw, children): strings that are str, attributes as a
+    list or tuple of (name, value) pairs, children as any iterable or None, raw bytes as anything bytearray.extend
+    takes, any nesting depth. Raises ValueError for an empty tag (it reads back as an end mark), more than 15
+    attributes, a kind outside 0-15 or an attribute that is not a pair, TypeError for a tag, attribute or text that is
+    not a str (rust/bc2-py writers.rs)."""
+    return cast(bytes, _rust().dbx_write(f))
 
 
 # ------------------------------------------------------------------------------------------------ values
@@ -468,62 +310,3 @@ def value(e: Element) -> str:
         raise ValueError(f'a {len(e.raw)}-byte bool / byte value (expected 2 bytes)')
     v = e.raw[1]
     return 'false' if v == 0 else 'true' if v == 1 else str(v)
-
-
-# ------------------------------------------------------------------------------------------------ XML
-
-def _escape(s: str) -> str:
-    return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
-
-
-@_damaged
-def _py_to_xml(data: bytes) -> str:
-    """to_xml() in Python: the reference the Rust core is checked against."""
-    strings, pos = _strings(data, tolerant=True)
-    out = ['<?xml version="1.0"?>\r\n']
-    open_tags: list[str] = []
-    n = len(data)
-    while pos < n:
-        tag, pos = _varint(data, pos)
-        if tag == 0:
-            if not open_tags:
-                break
-            closing = open_tags.pop()
-            out.append('\t' * len(open_tags) + '</' + closing + '>\r\n')
-            continue
-        name = strings[tag]
-        head = data[pos]
-        pos += 1
-        kind = head >> 4
-        line = ['\t' * len(open_tags), '<', name]
-        first = ''
-        for i in range(head & 0xF):
-            k, pos = _varint(data, pos)
-            v, pos = _varint(data, pos)
-            if i == 0:
-                first = strings[v]
-            line.append(' ' + strings[k] + '="' + _escape(strings[v]) + '"')
-        if kind == CONTAINER:
-            pos += 1
-            out.append(''.join(line) + '>\r\n')
-            open_tags.append(name)
-            continue
-        if kind == TEXT:
-            idx, pos = _varint(data, pos)
-            content = _escape(strings[idx])
-            if not content:
-                out.append(''.join(line) + ' />\r\n')
-                continue
-        elif kind == NUMBERS:
-            count, pos = _varint(data, pos)
-            size, pos = _varint(data, pos)
-            vals = [_number_text(data[pos + i * size:pos + i * size + (4 if size == 4 else 8 if size == 8 else 2)], size, first)
-                    for i in range(count)]
-            pos += count * size
-            content = '/'.join(vals)
-        else:
-            v = data[pos + 1]
-            pos += 2
-            content = 'false' if v == 0 else 'true' if v == 1 else str(v)
-        out.append(''.join(line) + '>' + content + '</' + name + '>\r\n')
-    return ''.join(out)
