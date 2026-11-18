@@ -19,7 +19,7 @@
 //! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`.
 //!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
-//! (FbrbTool's `pack`, `fbrb.pack`) and `zlib_deflate`.
+//! (FbrbTool's `pack`, `fbrb.pack`), `fbrb_unpack` (FbrbTool's `unpack`, `fbrb.unpack`) and `zlib_deflate`.
 //!
 //! The converter's (`convert.rs`): `texture_convert` / `texture_convert_many`, and the EA-XAS audio codec
 //! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` uses when it can.
@@ -290,7 +290,7 @@ mod bc2_native {
     };
 
     #[pymodule_export]
-    use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, zlib_deflate};
+    use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, fbrb_unpack, zlib_deflate};
 
     #[pymodule_export]
     use super::shaders::{shaderdb_parse, shaderdb_write};
