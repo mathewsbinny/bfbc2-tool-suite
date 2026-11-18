@@ -167,5 +167,7 @@
  "APT decoder (Rust) and aptgraft writer against their references (E3n; built movies, 600 damaged, 3,000 floats, grafts)": 8.6,
  "APT decoder (Rust) and aptgraft writer against their references on every movie of the game copy, the pristine menus and the Xbox HUD copies; aptrefs / aptcheck / bc2loc both ways (E3n)": 1180.0,
  "Rust E3o: mesh reader, navdata cells and union-find, route search, texqa workers against their references, havok verify record against its recorded results (built inputs)": 60.0,
- "Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles": 400.0
+ "Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles": 400.0,
+ "APT model, aptcheck and aptrefs in Rust against the Python (E4c; built movies, object rules, 300 damaged, grafts, edits, crosshair-add)": 10.0,
+ "APT model, aptcheck and aptrefs in Rust against the Python on the 133 movies of E3n: every write, roundtrip --pack, grafts, aliases, crosshair-add (E4c)": 1460.0
 }

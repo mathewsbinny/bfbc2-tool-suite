@@ -17,7 +17,8 @@
 //! `fbrb_cache_clear`, and `fbrb_read_uncached`, the read without it).
 //!
 //! APT movies (`apt.rs`, round E3n): `apt_constants`, `apt_decode` / `apt_decode_many`, for
-//! `bfbc2-console-readers/apt/apt.py`.
+//! `bfbc2-console-readers/apt/apt.py`; the menu tools' movie model `AptModel` and `apt_roundtrip_many`,
+//! `apt_check_many`, `apt_refs_many` (`aptmodel.rs`, round E4c) for aptgraft, aptcheck and aptrefs.
 //!
 //! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`; FbrbTool's
 //! (`fbrbtool.rs`): `fbrbtool_run` / `fbrbtool_run_many`, for `core/bfbc2core/fbrbtool.py`.
@@ -36,6 +37,7 @@
 //! `mesh.py` and `havok.py`.
 
 mod apt;
+mod aptmodel;
 mod convert;
 mod culltree;
 mod dbxedit;
@@ -381,6 +383,9 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
+
+    #[pymodule_export]
+    use super::aptmodel::{AptModel, apt_check_many, apt_refs_many, apt_roundtrip_many};
 
     #[pymodule_export]
     use super::granny::{granny_header, granny_index, granny_root, granny_roots_many, granny_to_pc, granny_to_pc_many};

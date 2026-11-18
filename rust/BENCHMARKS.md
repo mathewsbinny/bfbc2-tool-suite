@@ -2467,3 +2467,97 @@ xml / import), `check_packed` 1.1 s (reading 2,900 built files), `generate` 1.1 
 NumPy and the placement). The Python of `config.generate` (placement on the path data) and `pipeline` (staging,
 manifests) was not ported: they are small next to the above. The Python model, `Author` and the checks' Python
 readings are kept as fallback and reference until a later round retires them.
+
+## E4c: aptgraft's model, aptcheck and aptrefs in Rust (2026-11-18, branch `rust-e4c`)
+
+**Provisional timings:** other agents' builds and tests (a WW2 rebuild for the first profiles) ran beside every
+figure, below-normal priority; ratios hold within a run, absolute seconds move by up to 1.5x between runs.
+
+The corpus of E3n: 133 distinct movies (the game copy's SwfMovies, Dist and Package; OPFOR's pristine menu bundle;
+the BIGF movies of `work\xbox_dlc`), read into memory first. `python rust\bench_apt.py [--model native|python|both]
+[--profile WORKLOAD]` times every row below.
+
+### The profile (main, before)
+
+`roundtrip --pack` of the 133 movies one by one (cProfile, 240 s profiled): the parse 71 s (three models per movie:
+`wref` / `character` / `_fill_items` / `_stream`, 2.2 M `wref`, 2.3 M `words`), the writes 74 s (798 writes, `_emit`
+21 s, `plan` / `_layout` 49 s), `reachable` 22 s, apt.py's dump for `dump_text` 54 s (the Rust decoder was off in that
+profile: E3n's decoder takes most of that away), the rest leftovers and comparisons. `aptcheck check`: `Code.__init__`
+and `findings` over 2.9 M records built in Python (3.6 s of 5 in E3n's figures); aptrefs: `movie_refs` over the same
+records. Every Python object of the model is made for every movie whether the caller reads it or not.
+
+### What changed
+
+- **The model in Rust** (`rust/bc2-formats/src/aptmodel.rs`, bound as `bc2_native.AptModel`): `Movie._parse` ported in
+  its own order (the fills run once, on first read; shared nodes shared as the cache keys make them; a pointer read as
+  a number where Python would fail refuses), `reachable()` in the Python walk's order, the `keep` and `pack` layouts,
+  `write` in either byte order with the dead-data pass, `leftovers`, and `roundtrip` with `dump_text` (apt.py's dump
+  from E3n's decoder, the offsets taken out by a scanner of the same pattern, Python's `str.strip`). Nodes are
+  numbered; instructions are an arena per code node (streams of indices, branch targets as an instruction or a
+  stream's end).
+- **`aptgraft.Movie(...)` is a `NativeMovie`** when the Rust core is built: no Python object is made for the data
+  until a caller reaches it (a root, a `Ref`'s node, `reachable()`, `cache`). A node first appears as a shell of its
+  class (`_WordsShell(Words)` ...: `isinstance` holds) and is filled from Rust the first time one of its attributes is
+  read or set - then it is a plain `Words` / `Code` / `Str` / `Raw` and Python's. Before each write (and
+  `reachable()`, `leftovers()`) the filled nodes and every new node they reach go back to Rust (`_sync`: words as
+  numbers and node numbers, code as columns with each branch target found as `_place` records it, by identity);
+  another movie's node put into this one is adopted as Python shares it. `new_at` is set after each write as the
+  Python write leaves it. Where the Rust refuses - a movie its parse would raise on, a value a write cannot pack (a
+  negative or 40-bit operand, a float, a `str` in a words node, a branch to nothing), a read that parses more of the
+  file (`words` / `string` / `character` / `item`, `code` of an offset not read) - the movie becomes the Python model
+  in place (`_python()`: every node filled, the class switched to `Movie`) and the Python code answers: the same bytes
+  or the same exception. Callers keep the API: the grafting code, `add_crosshair`, the aliases and mode cases, OPFOR's
+  menu callers (read only this round): `src\tools\ww2\menu_install.py`, `wake_ui.py`, `duplicates.py`,
+  `weapon_icons.py`, `type95_icon.py`, `ww2_crosshairs.py`, `qa_checks.py`, `bf1943_hud_icons.py`, `wake_install.py`,
+  `src\tools\onslaught\console_icons.py` (in process), `console_hud.py` (the command line), the test
+  `src\tools\tests\test_ww2_crosshairs.py`.
+- **`roundtrip` in Rust, many at once**: `roundtrip_many(specs)` reads a chunk of movies (twice the cores) and runs
+  each whole roundtrip in Rust on all cores; `aptgraft roundtrip` uses it. A movie it refuses runs
+  `roundtrip_python` (the reference) at its place.
+- **aptcheck and aptrefs** (`rust/bc2-formats/src/aptscan.rs`): `Code`'s functions and `findings()`, and
+  `movie_refs`, over the records where E3n's decoder makes them - no record reaches Python.
+  `aptcheck.check_many(movies)` (used by `check`) and `aptrefs.refs_many(movies)` (used by `movie`, `xref`, `find`)
+  decode and scan many movies on all cores; a movie the decoder refuses, or a push-byte argument `int()` would reject,
+  runs the Python (`check_many_python` / `refs_many_python`). `aptcheck verify` keeps `Code` (it needs the records).
+- References kept: the Python model (`aptgraft.use_native(False)`, `BFBC2_PURE_PYTHON=1`, `REFERENCE` /
+  `BFBC2_APTGRAFT_REFERENCE=1`, `_py_movie`, `roundtrip_python`), `Code` / `movie_refs`.
+
+### Before and after (unprofiled, same run)
+
+| workload (133 movies) | Python model, s | Rust, s | |
+|---|---:|---:|---:|
+| `Movie(members)` (the parse) | 13.26 | **1.46** | 9x |
+| every write of each unchanged model (keep, pack, other order, dead off: 532 writes) | 61.61 | **4.64** | 13x |
+| `roundtrip(..., pack=True)` one by one | 125.17 | 15.24 | 8x |
+| `aptgraft roundtrip --pack --quiet <folder>` (batched on all cores) | 113.23 | **3.24** | 35x |
+| two sprites grafted into the next movie, placed, a label alias, three writes (`graft_all`) | 104.52 | **10.95** | 9.5x |
+| aptcheck's rules (`check_many`) | 10.66 | **1.03** | 10x |
+| aptrefs' scan (`refs_many`) | 11.30 | **0.90** | 12.5x |
+| `aptrefs xref` (every movie set, the exe's table) | 8.64 | **1.09** | 8x |
+
+(The Python column is the code as main has it: E3n's writer and the Rust decoder.)
+
+### Parity
+
+- `bfbc2-menu-tools/tests/test_apt_e4c.py` (quick): the object rules (one object per node; a shell until read; a shell
+  written before it is read, a grown string, one new node in two places, another movie's node; a `str` field, a
+  negative / 40-bit / float / bool operand, a branch to nothing, a read node's offset taken away - each the Python
+  model's bytes or exception; the cache view; a read that parses more turns the movie into the Python model); test
+  `aptgraft`'s built movies (both byte orders, crosshair movies, 3,000 pushed floats): every write, roundtrip --pack,
+  three grafts, label alias / mode alias / mode case and their writes, crosshair-add - the same as the Python model;
+  300 damaged copies written and round-tripped the same (221 refused by both); aptcheck / aptrefs on the built movies
+  and 200 damaged copies the same as `Code` / `movie_refs`. `test_apt_e3n.py` (the Rust model now answers where it
+  ran E3n's writer) and `test_aptgraft.py` pass unchanged.
+- `--game`: the 133 movies, both models in one process: 3,593 writes (each unchanged model 8 ways; two sprites grafted into the next movie of its byte order and written three ways; a label alias, `add_mode_alias(onslaught, conquest)` and `add_mode_case(getMapDesc)` with three writes; crosshair-add between every pair of the 37 movies that have a crossHairs table, two ids each), `roundtrip --pack` of each (`roundtrip_python` / `roundtrip_many`), aptcheck and aptrefs - 0 differ (Python 1,109 s, Rust 352 s for the same work; most of the Rust figure is the grafting code's own Python, 1,332 crosshair-adds).
+- Rust: `cargo test -p bc2-formats apt` (the model's write-back in both byte orders, packed, a grown string moved,
+  refusals; the strip pattern; the scans) and the modules' doc examples.
+
+### What remains
+
+- Edits still run in Python over the nodes they reach: a graft or an alias fills the nodes it walks (a label alias
+  fills every frame and item of every timeline) and each write sends every filled node back - `_sync` is two thirds of
+  `graft_all`'s 11 s. Dirty tracking would need list proxies for `vals` / `ins` (callers mutate them in place); the
+  grafting operations themselves (`Grafter`, `add_label_alias`, `add_crosshair`) ported to Rust would avoid the fills.
+- A `NativeMovie` cannot be pickled or deep-copied (its handle); no caller does. An unfilled shell's
+  `type(n) is Words` is false until it is read (`isinstance` holds).
+- `aptcheck verify` / `lint` still build `Code` (the records in Python) for the two movies they compare.
