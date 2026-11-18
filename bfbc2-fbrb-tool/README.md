@@ -34,6 +34,13 @@ offset + size2. `unpack` records such a layout on the manifest's first line (`la
 (every other bundle gets no tokens and packs as before). An unpack into a folder whose paths would pass Windows'
 260-character limit says so; unpack into a shorter path.
 
+## In process
+
+The suite runs these commands without starting this exe: `bfbc2core.fbrbtool` (the suite's Rust core,
+`rust/bc2-formats/src/fbrb/tool.rs`) writes the same files and prints the same messages, exit codes and errors
+(README.md, "FbrbTool in process"; `BFBC2_FBRBTOOL_EXE=1` runs this exe instead). `FbrbTool.exe` stays the reference
+the port is tested against.
+
 ## Errors and logs
 
 FbrbTool keeps a log in `%LOCALAPPDATA%\bfbc2-tool-suite\logs\` like the suite's other tools. When it cannot do

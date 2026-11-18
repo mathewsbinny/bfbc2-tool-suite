@@ -570,7 +570,6 @@ def heightfield_of(root: str, lv: str, log: Callable[[str], Any] = print,
 def _terrain_file(root: str, lv: str, log: Callable[[str], Any] = print, name: str | None = None) -> str | None:
     """heightfield_of's file: the level's .Heightfield-000.res, its terrain bundle unpacked when the unpack is missing,
     incomplete or from another bundle; None when there is none."""
-    import subprocess
     if name is None:
         part = None
         for b in ('pkg', 'dist'):
@@ -610,10 +609,12 @@ def _terrain_file(root: str, lv: str, log: Callable[[str], Any] = print, name: s
             path = terrain.find(dest, name) if os.path.isdir(dest) else None
             if not current():
                 log(f'{lv}: unpacking {os.path.relpath(bundle, root)}')
-                tool = paths.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool', suite=SUITE)   # as navkit.find_tool (ToolNotFound)
+                from . import fbrbtool
+                # in process (bfbc2core.fbrbtool); the exe only with BFBC2_FBRBTOOL_EXE=1 or without the Rust core
+                tool = paths.find_tool(root, 'FbrbTool.exe', 'bfbc2-fbrb-tool', suite=SUITE)                     if fbrbtool.use_exe() else 'FbrbTool.exe'               # as navkit.find_tool (ToolNotFound)
                 if os.path.isdir(dest):
                     shutil.rmtree(dest)
-                subprocess.run([tool, 'unpack', bundle, dest], check=True, capture_output=True)
+                fbrbtool.run_cmd([tool, 'unpack', bundle, dest], check=True, capture_output=True)
                 atomicio.write_text(stamp, want)
                 path = terrain.find(dest, name)
     return path

@@ -2053,3 +2053,100 @@ for any folder of path data. Rust: `kymesh.rs` (a built record, refusals), `asta
 
 `navdata`: `hpdtool.parse` (nodes and edges in Python) and the per-area island loop. `navpath.route` in the harness
 (`route_pairs`: same-island pairs) now runs the Rust search; `harness run` itself was not re-measured this round.
+
+## E3k: FbrbTool's commands in process (2026-11-17, branch `rust-e3k`)
+
+Every call of FbrbTool started .NET, read the whole bundle and its whole payload into memory: the logs of 16 and 17
+November held 14,967 launches before this round's own tests ran (`unpack` 7,597, `pack` 7,358, `list` 12).
+`bc2_formats::fbrb::tool` is a port of `bfbc2-fbrb-tool/FbrbTool.cs`'s four commands, run in process through
+`bfbc2core.fbrbtool` (README.md, "FbrbTool in process"); round E3j's in-process unpack (`fbrb::unpack_path`,
+`bfbc2core.fbrb.unpack`) now runs on the same engine.
+
+| FbrbTool.cs | port |
+|---|---|
+| `Main`: `unpack`, `pack`, `list`, `big` (BIGF / BIG4 archives), the usage line, `ToolLog.Fail` / `Explain` (with its own words for a path too long) | `tool::run` / `run_many`: stdout, stderr, exit code, log lines |
+| `Read`: `File.ReadAllBytes`, `Gunzip` (.NET Framework's `GZipStream` and `CopyTo`), the header with C#'s 32-bit wrapping arithmetic and array bounds, `new List<Entry>(count)`, `MemoryStream`'s argument checks | `read_bundle`, `parse_header`, `fbrb::netgzip` |
+| `Unpack`, `LayoutTokens`, `Safe` (`Path.Combine`, `GetFullPath`, `IsPathRooted`), `Directory.CreateDirectory`, `File.Create` + `FileStream.Write`'s checks, `File.WriteAllText` | `unpack_bundle`, `write_entries`, `layout_tokens`, `safe`, `full_path` / `normalize`, `create_directory` |
+| `Pack`: `File.ReadAllLines`, `int.Parse` / `uint.Parse` / `Convert.ToUInt32(s, 16)` and their exceptions, in FbrbTool's order (name, file, size2, size, flags); the bytes by E1b's packer | `pack` (`pack_rows`) |
+| `List` | `list` |
+
+**.NET's gzip reader.** FbrbTool does not read gzip as zlib or Python do. Decompression in .NET Framework 4 is the
+managed `Inflater` (checked by reflection: `DeflateStream.inflater` is `System.IO.Compression.Inflater`), with its own
+rules: one member, trailing bytes ignored, the header's flags and checksum not checked, an unfilled Huffman table slot
+decoding as symbol 0, distance codes 30 and 31 taken, a distance before the start copying zeros, and - the one found by
+measurement - **output lost at a cut**: `Inflate` copies the window out before each decoding step, not after the step
+that runs out of input, and `Stream.CopyTo` stops at the first `Read` that returns nothing, so a stream cut short gives
+the bytes decoded up to the last 8 KiB input chunk boundary (`DeflateStream`'s buffer) rather than all it could
+decode. `fbrb::netgzip` ports `Inflater`, `InputBuffer`, `OutputWindow`, `HuffmanTree`, `GZipDecoder`,
+`DeflateStream.Read` and `CopyTo` as the resumable state machine they are. zlib reads a stream first: a stream zlib
+takes whole, its trailer complete and matching, is one the managed inflater decodes to the same bytes (zlib refuses
+everything it refuses, and its oddities only show on data zlib refuses), so the port only runs on damaged streams.
+Proof: a C# probe of `GZipStream.CopyTo` against the port (zlib first, and the port alone) on valid and damaged
+streams of every block type, header field and damage: 10,500 during development (two seeds of 3,000 small, 1,500 up
+to 600 KB), 500 in the quick test and 3,000 in the game tier - **0 differences** in bytes or exception.
+
+**Proof of the commands** (`core/tests/test_fbrbtool.py`; FbrbTool.exe built from this branch's `FbrbTool.cs` is
+the reference, each case run both ways on two copies of a folder; stdout, stderr, exit code and every file's SHA-1
+compared, temporary files' `<pid>` suffix aside):
+
+- **228 command lines**: built bundles (zipped, stored, DICE's padded layouts in every `hdr` / `plen` / `size2` combination),
+  unpack over older files and other-case names, names with dots, spaces, `..` runs, device names, illegal characters,
+  past 260 / 248 characters, two entries on one file, a file where a folder is needed; header fields out of range
+  (offsets and sizes past the payload or negative as C# ints, name offsets outside the header, counts past the header,
+  negative or huge, string-table lengths huge or negative); cut, flipped and junk-tailed bundles; every `pack` manifest
+  error (flags, size2, size and `hdr=` values .NET refuses each its own way, missing files and folders, a folder as an
+  entry, an unsafe name, an old manifest), the bundle into a missing folder, over a folder, over another case; `big`
+  archives and their errors; the usage errors - **228 of 228 identical**. Quick tier, about 40 s (the exe's starts).
+- **600 randomly damaged bundles** (cut, bits flipped, bytes replaced, junk appended) through `list` and `unpack`:
+  **identical** (248 fail in both, 352 succeed in both).
+- **Every bundle of the game copy unpacked** (round E3j's sweep, `test_fbrb_unpack_native.py --game`, on the merged
+  engine): **1,086 of 1,086 bundles identical, 445,372 files** (1,075 with payloads up to 300 MiB, then the 11 larger
+  one at a time). Its 48 odd and damaged bundles now ask for FbrbTool's result (12 unpacked identically, 36 refused
+  with the same files left behind); they found the one case E3k's own cases had missed (two entries on one file in
+  another case: `File.Create` keeps the existing name; a write now moves onto the name already on disk).
+- **Game bundles through every command** (`test_fbrbtool.py --game`): 40 of up to 120 MB (30,177 entries) unpacked,
+  listed and their unpacked folders packed again, on main after the merge: **identical**.
+- **The logged invocations replayed** (16 and 17 November, outputs redirected to a temporary folder; inputs only
+  read): 520 replayed both ways over three runs (the last: of 30,628 logged launches, 21,875 distinct, 10,998 with
+  their inputs still there) - **identical** (nearly all `unpack`: the `pack` inputs were temporary folders since
+  deleted).
+- `cargo test -p bc2-formats`: the engine's unit tests, E3j's unpack tests on it, `netgzip`'s.
+
+**Time** (`python rust\bench_fbrbtool.py --runs 5`, after the WW2 rebuild, below-normal priority; best / median of 5, the
+exe's start included; `unpack` into a fresh folder, `pack` of the exe's unpack of the same bundle):
+
+| command | bundle | MB | FbrbTool.exe | in process | faster (median) |
+|---|---|---:|---:|---:|---:|
+| list | `async\weapon\bu_shg_f2000-00` | 0.4 | 41 / 43 ms | 3 / 4 ms | 12x |
+| unpack | | | 54 / 55 ms | 12 / 12 ms | 4.5x |
+| pack | | | 71 / 77 ms | 27 / 29 ms | 2.7x |
+| list | `levels\mp_007\ingame-00` | 1.7 | 53 / 56 ms | 6 / 7 ms | 8x |
+| unpack | | | 58 / 59 ms | 9 / 9 ms | 6.3x |
+| pack | | | 134 / 136 ms | 79 / 80 ms | 1.7x |
+| list | `levels\mp_006sdm\level-00` (1,747 files) | 18.9 | 559 / 570 ms | 147 / 150 ms | 3.8x |
+| unpack | | | 1,348 / 2,685 ms | 478 / 552 ms | 4.9x |
+| pack | | | 2,777 / 2,823 ms | 2,784 / 2,793 ms | 1.0x |
+| list | `streaming_sounds-00` (stored) | 592.5 | 258 / 293 ms | 5 / 6 ms | 48x |
+| unpack | | | 4,077 / 4,352 ms | 1,469 / 1,672 ms | 2.6x |
+| pack | | | 1,303 / 3,730 ms | 1,112 / 2,320 ms | 1.6x |
+
+Over the game tier's 40 bundles (up to 120 MB): unpack 17.7 -> 7.3 s, list 4.0 -> 0.7 s, pack 13.1 -> 10.6 s; round
+E3j's sweep of 1,086 bundles: unpack 560 -> 211 s. Where the time goes: a small call was mostly .NET starting (40 - 50
+ms); `list` of a zipped bundle is the payload's inflate (FbrbTool decompresses all of it even to list, and so must the
+port: it prints the payload's length and fails where a damaged payload fails); `list` of a stored bundle reads only
+its header (the exe read 592 MB). `unpack` is file creation: entries are checked in order and written on all cores,
+each beside its name and moved over it (on 1,747 files: 1,074 ms written one by one with the moves, 703 ms without them,
+552 ms on all cores with them). `pack` of a zipped bundle is the deflate of the payload at zlib's level 6 in one stream
+- FbrbTool's bytes need .NET's single stream, so it cannot be split across cores; the suite's port of zlib's deflate (E1b)
+runs as fast as .NET's native zlib. The gains are in the calls: a launch per call is gone.
+
+**Callers switched.** In the suite: NavKit's unpack (`navkit.Project.run`), `level.heightfield_of`'s terrain unpack and
+`bfbc2-stockmp-ai`'s `pipeline.run` go through `fbrbtool.run_cmd`; `bfbc2core.fbrb.unpack` (E3j's) is the same engine.
+`BFBC2_FBRBTOOL_EXE=1` (or no Rust core) runs the exe. Project OPFOR's callers are not switched (another repository).
+
+**Known limits.** A write that fails part-way on all cores (a disk full, a file locked) reports the first failing
+entry in order as FbrbTool would, but entries after it may already be written (FbrbTool would have stopped). .NET's
+messages for I/O errors other than missing / denied / in use / too long are worded by Rust. Path rules are those of
+this Windows (device names are plain files on Windows 11; both ways go through the same Win32 calls). A manifest whose
+UTF-8 is invalid is decoded with Rust's replacement rules (.NET's may count replacement characters differently).
+`pack`'s `hdr=` larger than any real value pads in memory as .NET would. The exe stays the reference this round.

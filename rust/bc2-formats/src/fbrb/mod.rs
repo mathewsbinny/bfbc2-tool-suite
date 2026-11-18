@@ -13,9 +13,12 @@
 //! | `read(path, names)` | [`read_path`] ([`read`] on any reader), [`read_many`] for many bundles on all cores |
 //! | `build(items, zipped)` | [`build`] (a test writer) |
 //! | `pack(folder, out)` (FbrbTool's `pack`) | [`pack_path`], [`pack_dir`], [`pack_many`]; [`pack`] from entries in memory |
-//! | `unpack(bundle, out)` (FbrbTool's `unpack`) | [`unpack_path`], [`unpack_bytes`] (plain bundles; [`UnpackError::Unsupported`] leaves the rest to FbrbTool.exe) |
+//! | `unpack(bundle, out)` (FbrbTool's `unpack`) | [`unpack_path`], [`unpack_bytes`] (every bundle as FbrbTool unpacks it: [`tool`]'s engine) |
 //! | `Entry`, `Entry.deleted`, `DELETED` | [`Entry`], [`Entry::is_deleted`], [`DELETED`] |
 //! | `ValueError` / `KeyError` / `OSError` | [`FbrbError`] |
+//!
+//! FbrbTool's command line in process ([`tool`], round E3k: `unpack`, `pack`, `list`, `big`, FbrbTool's files, messages
+//! and exit codes), its gzip streams read as .NET's `GZipStream` reads them ([`netgzip`]).
 //!
 //! New here: [`extract`] / [`extract_path`] / [`extract_many`], every entry's data at once; the bundle cache
 //! ([`cache`], round E3e): the path functions keep headers and decompressed payloads, in the process and on disk, so a
@@ -43,16 +46,18 @@ pub mod cache;
 mod error;
 mod gzip;
 mod header;
+pub mod netgzip;
 mod pack;
 mod read;
+pub mod tool;
 mod unpack;
 
 pub use build::build;
 pub use error::{FbrbError, Result};
 pub use header::{DELETED, Entry, Header, MAGIC, parse_header_fields, read_header};
 pub use pack::{
-    Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, decode_text, entry_path, pack,
-    pack_dir, pack_many, pack_path, parse_manifest,
+    Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, SourceRow, decode_text,
+    entry_path, pack, pack_dir, pack_many, pack_path, pack_rows, parse_manifest,
 };
 pub use read::{
     entries_path, extract, extract_many, extract_path, extract_path_uncached, read, read_many, read_path,

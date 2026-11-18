@@ -249,6 +249,22 @@ pub fn parse_int(s: &str) -> Result<i32> {
         })
 }
 
+/// `uint.Parse(s)` (`NumberStyles.Integer`).
+///
+/// # Errors
+/// `FormatException` or `OverflowException`.
+pub fn parse_uint(s: &str) -> Result<u32> {
+    let trimmed = s.trim_matches(is_number_white);
+    let n = parse_number(trimmed, true)
+        .ok_or_else(|| Fault::new(FaultKind::Format, "Input string was not in a correct format."))?;
+    whole(&n, 0, i64::from(u32::MAX)).map(|v| v as u32).ok_or_else(|| {
+        Fault::new(
+            FaultKind::Overflow,
+            "Value was either too large or too small for a UInt32.",
+        )
+    })
+}
+
 /// `Convert.ToInt32(s, 16)`: hex digits (an optional `0x`), 8 at most, read as 32 bits.
 ///
 /// # Errors

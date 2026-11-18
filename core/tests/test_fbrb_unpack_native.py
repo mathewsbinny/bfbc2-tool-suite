@@ -1,14 +1,14 @@
 r"""The in-process unpack (rust/bc2-formats fbrb::unpack through the bc2_native module, bfbc2core.fbrb.unpack)
 against FbrbTool's unpack, which it replaces: the same files (names with their case, bytes) and the same
-fbrb.manifest, or a refusal that leaves the bundle to FbrbTool.exe.
+fbrb.manifest; for a bundle FbrbTool refuses, its failure with the same files left behind.
 
   python core\tests\test_fbrb_unpack_native.py          quick: built bundles (zipped, stored, every padded layout
                                                          FbrbTool's manifest names, markers, folders, an empty one),
-                                                         bundles the port refuses (odd names, two entries on one file,
-                                                         a file where a folder is needed, extra gzip bytes) and
-                                                         damaged ones (every cut of a small bundle): refused in
-                                                         process, and bfbc2core.fbrb.unpack giving FbrbTool's result
-                                                         or error; 8 small game bundles when the game copy is there
+                                                         odd bundles (odd names, two entries on one file, a file
+                                                         where a folder is needed, extra gzip bytes) and damaged ones
+                                                         (every cut of a small bundle): FbrbTool's files or its
+                                                         failure, in process and through bfbc2core.fbrb.unpack; 8
+                                                         small game bundles when the game copy is there
   python core\tests\test_fbrb_unpack_native.py --game   + every bundle of the game copy whose payload is at most
                                                          BFBC2_UNPACK_TEST_MAX_MB (default 300; memory), both ways
                                                          (BFBC2_UNPACK_TEST_MIN_MB: only those from that size)
@@ -61,8 +61,9 @@ def tree(d: str) -> dict[str, tuple[int, bytes]]:
 
 
 def compare(bundle: str, root: str) -> str:
-    """'identical' (both unpacked the same), 'refused' (Rust left it to FbrbTool, which bfbc2core.fbrb.unpack then
-    ran: its result checked too), or what differs."""
+    """'identical' (both unpacked the same), 'refused' (FbrbTool fails on it and so does Rust, leaving the same files
+    behind; bfbc2core.fbrb.unpack raises), or what differs. Since round E3k the in-process unpack is FbrbTool's
+    command line's engine: it takes every bundle FbrbTool takes."""
     a, b, c = (os.path.join(root, x) for x in ('tool', 'rust', 'api'))
     for x in (a, b, c):
         shutil.rmtree(x, ignore_errors=True)
@@ -78,15 +79,13 @@ def compare(bundle: str, root: str) -> str:
     except (ValueError, OSError) as e:
         api_err = e
     if rust_err is not None:
-        if isinstance(rust_err, OSError):
-            return f'Rust: OSError {rust_err}'
-        if os.path.exists(b):
-            return 'Rust refused but wrote files'
-        # the API ran FbrbTool: its outcome
-        if r.returncode != 0:
-            return 'refused' if api_err is not None and 'FbrbTool unpack' in str(api_err) else \
-                f'FbrbTool failed, the API did not ({api_err})'
-        return 'refused' if api_err is None and tree(a) == tree(c) else f'the API differs from FbrbTool ({api_err})'
+        if r.returncode == 0:
+            return f'Rust failed where FbrbTool unpacks it: {rust_err}'
+        left_a = tree(a) if os.path.isdir(a) else {}
+        left_b = tree(b) if os.path.isdir(b) else {}
+        if left_a != left_b:
+            return f'Rust and FbrbTool fail, leaving different files: {sorted(set(left_a) ^ set(left_b))[:3]}'
+        return 'refused' if api_err is not None else f'FbrbTool failed, the API did not ({api_err})'
     if r.returncode != 0:
         return f'Rust unpacked a bundle FbrbTool refuses: {r.stderr.strip()[-200:]}'
     ta, tb, tc = tree(a), tree(b), tree(c)
@@ -142,7 +141,7 @@ def built_bundles(root: str, rng: random.Random) -> list[tuple[str, str]]:
 
 
 def odd_bundles(root: str, rng: random.Random) -> list[tuple[str, str]]:
-    """(label, bundle) the port leaves to FbrbTool (it unpacks some, refuses others)."""
+    """(label, bundle) of odd and damaged bundles (FbrbTool unpacks some, refuses others; so does the port)."""
     out: list[tuple[str, str]] = []
 
     def put(label: str, data: bytes) -> None:
@@ -184,10 +183,11 @@ def check_built(check: Any) -> None:
         outcomes = {label: compare(p, os.path.join(root, 'cmp')) for label, p in odd}
         bad = {k: v for k, v in outcomes.items() if v not in ('refused', 'identical')}
         refused = sum(v == 'refused' for v in outcomes.values())
-        check(not bad, f'{len(odd)} odd and damaged bundles: {refused} left to FbrbTool (bfbc2core.fbrb.unpack gives '
-              f'its files or its error), {len(odd) - refused} unpacked as FbrbTool does', str(bad)[:600])
-        check(outcomes['a byte after the payload stream'] == 'refused' and outcomes['two entries on one file (case)']
-              == 'refused', 'extra bytes after the payload and two entries on one file are left to FbrbTool')
+        check(not bad, f'{len(odd)} odd and damaged bundles: {len(odd) - refused} unpacked in process as FbrbTool does, '
+              f'{refused} refused as FbrbTool refuses them (the same files left behind)', str(bad)[:600])
+        check(outcomes['a byte after the payload stream'] == 'identical' and outcomes['two entries on one file (case)']
+              == 'identical', 'extra bytes after the payload and two entries on one file: unpacked in process as '
+              'FbrbTool unpacks them (round E3k)')
         # without the Rust core: FbrbTool.exe
         b = built[0][1]
         fbrb.use_native(False)
@@ -260,7 +260,8 @@ def run_bundles(bundles: list[str], check: Any, label: str) -> None:
         shutil.rmtree(root, ignore_errors=True)
     for k, n in outcomes.items():
         print(f'       {n} x {k}' + ('' if k == 'identical' else f', e.g. {examples[k]}'))
-    bad = outcomes['DIFFERENT'] + outcomes['Rust unpacked a bundle FbrbTool refuses']
+    bad = (outcomes['DIFFERENT'] + outcomes['Rust unpacked a bundle FbrbTool refuses']
+           + outcomes['refused (FbrbTool unpacks it)'])
     check(not bad, f'{label}: {sum(outcomes.values())} bundles unpacked both ways ({files} files): '
           f'{outcomes["identical"]} identical, {bad} different; {skipped} with payloads outside {floor >> 20} - '
           f'{cap >> 20} MiB not run '

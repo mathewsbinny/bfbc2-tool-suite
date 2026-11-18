@@ -16,7 +16,7 @@ count, per entry six u32 (name offset, flags, payload offset, size, size2, type 
 u32 payload length; then the payload (gzip when zipped). Unpacking and packing, FbrbTool's commands:
 
     unpack(bundle, out)              FbrbTool's `unpack <bundle> <out>`: the same files and fbrb.manifest; in the Rust
-                                     core for plain bundles (round E3j), else by FbrbTool.exe
+                                     core (rounds E3j, E3k), else by FbrbTool.exe
     pack(folder, out)              FbrbTool's `pack <folder> <out>`: the bundle of an unpacked folder (its files and
                                      fbrb.manifest), the same bytes; returns (entries, payload bytes)
     pack_many([(folder, out), ...])  pack() of many folders (on all cores with the Rust core): each result is the
@@ -346,7 +346,7 @@ def _tool_unpack(bundle: Path, out: Path) -> str:
 
 def unpack_in_process(bundle: Path, out: Path) -> bool:
     """unpack() in the Rust core only: True when it unpacked the bundle (FbrbTool's files and manifest), False when
-    the core is off or not built, or left the bundle to FbrbTool (out may then hold part of it). For a caller with a
+    the core is off or not built, or the bundle cannot be unpacked (out may then hold part of it, as FbrbTool leaves it). For a caller with a
     quicker fallback than FbrbTool.exe (a copy of an earlier unpack)."""
     native = _native_unpack()
     if native is None:
@@ -363,10 +363,11 @@ def unpack(bundle: Path, out: Path) -> str:
     listed in out\\fbrb.manifest only, the manifest FbrbTool writes - the same files and bytes. Returns how it ran:
     'rust' (in process, bc2_formats::fbrb::unpack_path) or FbrbTool's output.
 
-    The Rust core unpacks the bundles every reader agrees on (one plain gzip member each for header and payload,
-    plain ASCII names, no two entries on one file); any other bundle, and any error in process, goes to
-    FbrbTool.exe - the reference, which unpacks it or raises its error (ValueError; OSError for files). Without the
-    Rust core (or BFBC2_PURE_PYTHON / use_native(False)) FbrbTool.exe runs."""
+    The Rust core unpacks every bundle as FbrbTool does (round E3j for plain bundles; since E3k one engine with
+    FbrbTool's command line, bfbc2core.fbrbtool: .NET's gzip reader, path rules and errors). A bundle it cannot
+    unpack goes to FbrbTool.exe when that is built - the reference, which reports the same error (ValueError;
+    OSError for files) - else the in-process error is raised. Without the Rust core (or BFBC2_PURE_PYTHON /
+    use_native(False)) FbrbTool.exe runs."""
     native = _native_unpack()
     if native is not None:
         try:

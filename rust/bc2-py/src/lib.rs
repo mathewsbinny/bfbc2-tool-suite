@@ -19,7 +19,8 @@
 //! APT movies (`apt.rs`, round E3n): `apt_constants`, `apt_decode` / `apt_decode_many`, for
 //! `bfbc2-console-readers/apt/apt.py`.
 //!
-//! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`.
+//! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`; FbrbTool's
+//! (`fbrbtool.rs`): `fbrbtool_run` / `fbrbtool_run_many`, for `core/bfbc2core/fbrbtool.py`.
 //!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`), `fbrb_unpack` (FbrbTool's `unpack`, `fbrb.unpack`) and `zlib_deflate`.
@@ -36,6 +37,7 @@ mod convert;
 mod culltree;
 mod dbxedit;
 mod fbrb_cache;
+mod fbrbtool;
 mod geometry;
 mod granny;
 mod kymesh;
@@ -348,6 +350,8 @@ mod bc2_native {
     use super::fbrb_cache::{
         fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,
     };
+    #[pymodule_export]
+    use super::fbrbtool::{fbrbtool_gunzip, fbrbtool_run, fbrbtool_run_many};
 
     #[pymodule_export]
     use super::writers::{dbx_write, fbrb_pack, fbrb_pack_many, fbrb_unpack, zlib_deflate};

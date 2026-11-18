@@ -126,29 +126,6 @@ pub(crate) fn gunzip_all(data: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// `data` as exactly one plain gzip member - a ten-byte header with no flags, the deflate stream, a trailer whose
-/// CRC-32 and length match - followed by nothing, or (`zero_tail`) by zero bytes only; `None` for anything else.
-///
-/// The strict form every reader agrees on: FbrbTool's unpack (.NET's `GZipStream`) and the reference's readers may
-/// differ on extra members, flags or bytes after the stream, so the in-process unpack ([`super::unpack`]) takes
-/// only what this accepts and leaves everything else to FbrbTool.exe.
-pub(crate) fn gunzip_plain(data: &[u8], zero_tail: bool) -> Option<Vec<u8>> {
-    if data.get(..4)? != [0x1F, 0x8B, 8, 0] || data.len() < 10 {
-        return None;
-    }
-    let body = data.get(10..)?;
-    let mut out = Vec::new();
-    let (ended, used) = inflate_into(body, &mut out).ok()?;
-    let trailer = body.get(used..)?;
-    let mut sum = Crc::new();
-    sum.update(&out);
-    if !ended || u32_le(trailer, 0)? != sum.sum() || u32_le(trailer, 4)? != out.len() as u32 {
-        return None;
-    }
-    let rest = trailer.get(8..)?;
-    (rest.is_empty() || (zero_tail && rest.iter().all(|&b| b == 0))).then_some(out)
-}
-
 /// The length of the gzip member header at the start of `data` as zlib's inflate reads it (`Ok(None)`: not all of
 /// it is there yet).
 fn zlib_header(data: &[u8]) -> Result<Option<usize>> {
