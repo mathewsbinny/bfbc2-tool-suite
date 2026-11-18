@@ -187,10 +187,8 @@ KITS = {f'{f}/{k}': f'objects/soldiers/{f}/{k}/{G(700 + i).lower()}' for i, (f, 
 
 
 def dbxedit(*args):
-    exe = pipeline.DBX
-    if coredbxedit.use_exe() and not os.path.isfile(exe):
-        return None
-    r = coredbxedit.run_cmd([exe, *map(str, args)], capture_output=True, text=True, errors='replace')
+    """DbxEdit's command, in process (the Rust core): (exit code, its output)."""
+    r = coredbxedit.run([str(a) for a in args])
     return r.returncode, r.stdout + r.stderr
 
 
@@ -277,16 +275,13 @@ def quick(tmp):
     open(p_l, 'wb').write(data)
     open(p_o, 'wb').write(lvl)
     r = dbxedit('check', p_l)
-    if r is not None:
-        check(' 0 error(s)' in r[1], 'DbxEdit check: the authored synthetic level has no errors')
-        r = dbxedit('roundtrip', p_l)
-        check('1 identical' in r[1], 'DbxEdit roundtrip: identical')
-        dbxedit('xml', p_l)
-        r = dbxedit('import', p_l[:-4] + '.xml', os.path.join(tmp, 'back.dbx'), '--like', p_l)
-        check(r[0] == 0 and open(os.path.join(tmp, 'back.dbx'), 'rb').read() == data,
-              'DbxEdit xml -> import gives the authored file back')
-    else:
-        check(False, 'DbxEdit.exe not built (run bfbc2-dbx-tools\\build.bat)')
+    check(' 0 error(s)' in r[1], 'DbxEdit check: the authored synthetic level has no errors')
+    r = dbxedit('roundtrip', p_l)
+    check('1 identical' in r[1], 'DbxEdit roundtrip: identical')
+    dbxedit('xml', p_l)
+    r = dbxedit('import', p_l[:-4] + '.xml', os.path.join(tmp, 'back.dbx'), '--like', p_l)
+    check(r[0] == 0 and open(os.path.join(tmp, 'back.dbx'), 'rb').read() == data,
+          'DbxEdit xml -> import gives the authored file back')
 
     # minimal layer
     cm = cfgmod.generate(m, 'test_01', KITS, {}, layer='minimal', stock_spawners='keep')

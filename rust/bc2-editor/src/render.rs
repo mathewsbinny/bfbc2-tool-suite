@@ -1,13 +1,14 @@
 //! The 3D view's renderer on wgpu: the scene's geometry on the GPU, drawn into an offscreen colour target with an
 //! object-id target beside it (picking reads the id under the cursor), the selected object into a mask, and a
-//! composite that outlines the selection in the `selection` colour. The result is a texture the window shows
+//! composite that outlines the selection in the `view-selection` colour. The result is a texture the window shows
 //! through egui, and that the headless tests read back.
 //!
 //! Geometry: each blueprint's collision is uploaded once in its own space and drawn instanced, one instance per
 //! placed entity (its transform's rows), as `bc2_scene` keeps it; the terrain and water are one mesh each; entities
 //! without collision are marker boxes (sizes as the Map Inspector draws them), spawns with a facing line; outlines
-//! (areas, routes) are lines. Colours: team-owned entities take their team's token colour; everything else a muted
-//! scene colour ([`SceneColors`]).
+//! (areas, routes) are lines. Colours, all tokens: team-owned entities take their team's `view-team-*` colour,
+//! gameplay no team owns `view-unowned` (both lit evenly, as overlays), everything else a muted `scene-*` colour
+//! ([`SceneColors`]).
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -84,8 +85,8 @@ impl Gpu {
     }
 }
 
-/// The scene colours that are not tokens (terrain, water, objects by kind): muted, so the map's overlays and the
-/// selection stand out.
+/// The scene's own colours (the `scene-*` tokens: sky, terrain, water, objects by kind): muted, so the map's
+/// overlays (the `view-*` tokens) and the selection stand out.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(missing_docs)]
 pub struct SceneColors {
@@ -103,35 +104,51 @@ pub struct SceneColors {
 }
 
 impl SceneColors {
-    /// The colours with `palette`'s background (`ground`).
+    /// The `scene-*` colours of `palette`.
     #[must_use]
     pub fn new(palette: &Palette) -> Self {
         Self {
-            background: palette.ground,
-            terrain: Color32::from_rgb(0x6b, 0x78, 0x5c),
-            water: Color32::from_rgb(0x2e, 0x5f, 0x96),
-            object: Color32::from_rgb(0x9e, 0x99, 0x8f),
-            destructible: Color32::from_rgb(0xb8, 0x9c, 0x7c),
-            dynamic: Color32::from_rgb(0x9a, 0x80, 0x66),
-            ladder: Color32::from_rgb(0xc8, 0xc0, 0x6a),
-            group_member: Color32::from_rgb(0x8c, 0x88, 0x82),
-            effect: Color32::from_rgb(0x8f, 0xb4, 0xcf),
-            area_point: Color32::from_rgb(0xa8, 0xa8, 0xc8),
-            other: Color32::from_rgb(0x90, 0x90, 0x90),
+            background: palette.scene_sky,
+            terrain: palette.scene_terrain,
+            water: palette.scene_water,
+            object: palette.scene_object,
+            destructible: palette.scene_object_destructible,
+            dynamic: palette.scene_object_dynamic,
+            ladder: palette.scene_ladder,
+            group_member: palette.scene_object_group,
+            effect: palette.scene_effect,
+            area_point: palette.scene_area_point,
+            other: palette.scene_other,
         }
     }
 }
 
-/// An entity's colour: its team's when it has one, else its kind's scene colour.
+/// The gameplay categories: drawn as overlays (a `view-*` colour, evenly lit) whether a team owns them or not.
+pub const GAMEPLAY: [&str; 6] = [
+    "soldier spawn",
+    "vehicle spawn",
+    "capture point",
+    "objective",
+    "combat area",
+    "ai order",
+];
+
+/// Whether an entity is drawn as an overlay: a team owns it, or it is gameplay (`view.wgsl` lights overlays
+/// evenly, so their colour reads on the terrain from every side).
+#[must_use]
+pub fn is_overlay(e: &Entity) -> bool {
+    e.team.is_some() || GAMEPLAY.contains(&e.category.as_str())
+}
+
+/// An entity's colour: its team's (`view-team-*`) when it has one, `view-unowned` for gameplay no team owns, else
+/// its kind's `scene-*` colour.
 #[must_use]
 pub fn entity_color(e: &Entity, palette: &Palette, colors: &SceneColors) -> Color32 {
     if let Some(t) = e.team {
-        return palette.team(t);
+        return palette.view_team(t);
     }
     match e.category.as_str() {
-        "soldier spawn" | "vehicle spawn" | "capture point" | "objective" | "combat area" | "ai order" => {
-            palette.team_neutral
-        }
+        c if GAMEPLAY.contains(&c) => palette.view_unowned,
         "destructible" => colors.destructible,
         "dynamic object" => colors.dynamic,
         "ladder" => colors.ladder,
@@ -213,6 +230,13 @@ struct Mesh {
 
 fn rgba(c: Color32) -> [u8; 4] {
     [c.r(), c.g(), c.b(), 255]
+}
+
+/// An entity's instance colour: its colour, the alpha byte telling `view.wgsl` how to light it (255 the scene's
+/// light, 0 an overlay's even light).
+fn entity_rgba(e: &Entity, palette: &Palette, colors: &SceneColors) -> [u8; 4] {
+    let c = entity_color(e, palette, colors);
+    [c.r(), c.g(), c.b(), if is_overlay(e) { 0 } else { 255 }]
 }
 
 fn buffer(gpu: &Gpu, label: &str, data: &[u8], usage: wgpu::BufferUsages) -> wgpu::Buffer {
@@ -456,7 +480,7 @@ impl SceneGpu {
                 sample.push([m[12], m[13], m[14]]);
                 instances.push(Instance {
                     rows: rows_of(&m),
-                    color: rgba(entity_color(e, palette, &colors)),
+                    color: entity_rgba(e, palette, &colors),
                     id: entity_id(*index),
                     group: group_of(&e.category),
                     mesh,
@@ -472,7 +496,7 @@ impl SceneGpu {
                 continue;
             };
             let p = [m[12] as f32, m[13] as f32, m[14] as f32];
-            let colour = rgba(entity_color(e, palette, &colors));
+            let colour = entity_rgba(e, palette, &colors);
             let group = group_of(&e.category);
             let centre = [p[0], p[1] + size / 2.0, p[2]];
             instances.push(Instance {
@@ -517,7 +541,7 @@ impl SceneGpu {
             let Some(e) = scene.entities.get(s.entity) else {
                 continue;
             };
-            let colour = rgba(entity_color(e, palette, &colors));
+            let colour = entity_rgba(e, palette, &colors);
             let group = group_of(&e.category);
             let id = entity_id(s.entity);
             let pts: Vec<[f32; 3]> = s
@@ -1104,7 +1128,7 @@ impl Renderer {
             g.extend_from_slice(&v.to_le_bytes());
         }
         gpu.queue.write_buffer(&self.globals, 0, &g);
-        let sel = palette.selection;
+        let sel = palette.view_selection;
         let mut c = Vec::with_capacity(32);
         for v in [
             f32::from(sel.r()) / 255.0,
@@ -1235,6 +1259,13 @@ impl Renderer {
             }
         }
         best.map_or(centre, |(_, id)| id)
+    }
+
+    /// The id drawn at every pixel, rows top to bottom (the tests: which pixels are which object's).
+    #[must_use]
+    pub fn read_ids(&self, gpu: &Gpu, target: &Target) -> Option<Vec<u32>> {
+        let data = read_texture(gpu, &target.id, [0, 0], target.size, 4)?;
+        Some(data.as_chunks::<4>().0.iter().map(|b| u32::from_le_bytes(*b)).collect())
     }
 
     /// The composed image, RGBA rows top to bottom.

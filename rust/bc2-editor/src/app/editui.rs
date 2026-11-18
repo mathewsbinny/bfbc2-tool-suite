@@ -13,6 +13,10 @@ use super::*;
 use bc2_levelwrite::Operation;
 use bc2_levelwrite::ops::Organisation;
 
+/// The views' corner hint in the Objects workspace.
+pub(super) const EDITING_HINT: &str = "Select: click, Ctrl+click, drag a box   Gizmo: drag a handle   Orbit / pan: \
+                                       Alt+left drag, middle drag   Fly: hold right   Undo: Ctrl+Z   Help: F1";
+
 /// Coordinate `a` (0 X, 1 Y, 2 Z) of a point.
 fn coord(p: V3, a: usize) -> f64 {
     p.get(a).copied().unwrap_or(0.0)
@@ -247,6 +251,8 @@ impl ViewState {
         items: &[(usize, M, M, Option<Placement>)],
         label: &str,
     ) {
+        // a per-object sink being typed is now in the log (or was left unused)
+        self.prop_place = None;
         let Some(d) = self.doc.as_mut() else { return };
         let moved: Vec<Moved> = items
             .iter()
@@ -756,14 +762,14 @@ impl Tabs<'_> {
                 let pts: Vec<Pos2> = pts.into_iter().map(to_screen).collect();
                 match h {
                     Handle::Axis(k) => {
-                        let c = if hot { p.selection } else { axis(k) };
+                        let c = if hot { p.view_selection } else { axis(k) };
                         if let [a, b] = pts.as_slice() {
                             painter.line_segment([*a, *b], Stroke::new(3.0, c));
                             painter.circle_filled(*b, 5.0, c);
                         }
                     }
                     Handle::Plane(k) => {
-                        let c = if hot { p.selection } else { axis(k) };
+                        let c = if hot { p.view_selection } else { axis(k) };
                         painter.add(egui::Shape::convex_polygon(
                             pts.clone(),
                             c.gamma_multiply(0.35),
@@ -772,7 +778,7 @@ impl Tabs<'_> {
                     }
                     Handle::Centre => {
                         if let Some(c) = pts.first() {
-                            let col = if hot { p.selection } else { p.ink };
+                            let col = if hot { p.view_selection } else { p.ink };
                             painter.rect_stroke(
                                 Rect::from_center_size(*c, Vec2::splat(12.0)),
                                 CornerRadius::same(2),
@@ -782,7 +788,7 @@ impl Tabs<'_> {
                         }
                     }
                     Handle::Ring(k) => {
-                        let c = if hot { p.selection } else { axis(k) };
+                        let c = if hot { p.view_selection } else { axis(k) };
                         painter.add(egui::Shape::line(pts, Stroke::new(if hot { 3.0 } else { 2.0 }, c)));
                     }
                 }
@@ -793,11 +799,11 @@ impl Tabs<'_> {
             && pr == projection
         {
             let r = Rect::from_two_pos(from, to);
-            painter.rect_filled(r, CornerRadius::ZERO, p.accent.gamma_multiply(0.12));
+            painter.rect_filled(r, CornerRadius::ZERO, p.view_selection.gamma_multiply(0.12));
             painter.rect_stroke(
                 r,
                 CornerRadius::ZERO,
-                Stroke::new(1.0, p.accent),
+                Stroke::new(1.0, p.view_selection),
                 egui::StrokeKind::Middle,
             );
         }
@@ -810,15 +816,15 @@ impl Tabs<'_> {
             .map(to_screen)
             .collect();
         for q in &pts {
-            painter.circle_filled(*q, 4.0, p.selection);
+            painter.circle_filled(*q, 4.0, p.view_selection);
         }
         if let ([a, b], [wa, wb]) = (pts.as_slice(), self.view.ruler.as_slice()) {
-            painter.line_segment([*a, *b], Stroke::new(2.0, p.selection));
+            painter.line_segment([*a, *b], Stroke::new(2.0, p.view_selection));
             let label = ruler_text(*wa, *wb);
             let g = painter.layout_no_wrap(label, FontId::monospace(12.0), p.ink);
             let mid = Pos2::new(f32::midpoint(a.x, b.x), f32::midpoint(a.y, b.y)) - Vec2::new(0.0, 14.0);
             let r = Rect::from_center_size(mid, g.size() + Vec2::splat(8.0));
-            painter.rect_filled(r, CornerRadius::same(2), p.surface_2.gamma_multiply(0.92));
+            painter.rect_filled(r, CornerRadius::same(2), p.scene_label);
             painter.galley(r.min + Vec2::splat(4.0), g, p.ink);
         }
         // the gizmo toolbar, along the top of the view
@@ -994,11 +1000,15 @@ impl Tabs<'_> {
             Some((x, pl)) if x == k => pl,
             _ => stored.unwrap_or(self.view.snap.placement),
         };
+        let shown = place;
         ui.horizontal(|ui| {
             ui.label(RichText::new("Sink").color(p.ink_muted));
             sink_editor(ui, &mut place, "object sink");
         });
-        self.view.prop_place = Some((k, place));
+        // kept only while the user changes it (else it follows the object's stored placement)
+        if place != shown {
+            self.view.prop_place = Some((k, place));
+        }
         let place_btn = ui.button("Place on surface").on_hover_text(
             "Puts this object on the terrain or mesh below it with this sink depth; it keeps the depth when moved",
         );

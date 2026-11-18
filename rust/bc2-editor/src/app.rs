@@ -30,10 +30,13 @@ use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use crate::actions::{self, Action, PanelKind};
 use crate::camera::{self, Camera, Projection};
 use crate::edit::Doc;
+use crate::factions::{Profile, Teams};
 use crate::gizmo::{self, Frame, Handle, Space, Tool};
+use crate::help::{self, HelpState};
 use crate::levels::{self, LevelInfo};
 use crate::math::{self, M, V3};
 use crate::model::{self, Kind, Outliner};
+use crate::prepare::{self, Job, Outcome, Plan};
 use crate::query;
 use crate::render::{self, Gpu, SceneGpu, Target};
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
@@ -219,6 +222,8 @@ pub struct ViewState {
     pub labels: bool,
     /// The surface point under the last click (the status bar's read-out).
     pub last_hit: Option<query::Hit>,
+    /// Which faction each team is (the labels), from the level's data.
+    pub teams: Teams,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -259,8 +264,16 @@ pub enum Then {
     Open(PathBuf, Option<Box<MapProject>>),
 }
 
+/// What the top bar asks for: an action, or a page of the Help window.
+enum TopBar {
+    Run(Action),
+    Help(help::Page),
+}
+
 enum Mode {
     Start,
+    /// The level is being prepared (NavKit's prepare, the terrain unpack); it opens when that is done.
+    Preparing(Box<Job>),
     Loading {
         lv: String,
         rx: Receiver<Loaded>,
@@ -288,6 +301,8 @@ pub struct EditorApp {
     palette_open: bool,
     palette_query: String,
     palette_row: usize,
+    /// The Help window.
+    pub help: HelpState,
     /// "New map from an existing map": the base level, the name, the folder.
     new_level: Option<String>,
     new_name: String,
@@ -297,6 +312,8 @@ pub struct EditorApp {
     recent: Vec<PathBuf>,
     /// An autosave to offer before a project opens: the project file and the autosave.
     recover: Option<(PathBuf, Box<MapProject>)>,
+    /// What to do with a level being prepared once it is loaded.
+    after_prepare: Then,
 }
 
 /// The folder new projects go to when none was chosen before: `Documents\BFBC2 Map Projects`.
@@ -338,12 +355,14 @@ impl EditorApp {
             palette_open: false,
             palette_query: String::new(),
             palette_row: 0,
+            help: HelpState::default(),
             new_level: None,
             new_name: String::new(),
             new_folder: folder.unwrap_or_else(default_project_folder).display().to_string(),
             open_path: String::new(),
             recent,
             recover: None,
+            after_prepare: Then::View,
         })
     }
 
@@ -476,6 +495,10 @@ impl EditorApp {
                     v.labels = !v.labels;
                 }
             }
+            Action::Help => {
+                let page = self.help.page;
+                self.help.show(page);
+            }
             // the editing actions ran above
             _ => {}
         }
@@ -549,13 +572,59 @@ impl EditorApp {
         Palette::new(self.tokens, self.theme)
     }
 
-    /// Starts loading a level on a worker thread (the window stays usable), to view it read-only.
+    /// Opens a level read-only: prepares it first when it needs it (NavKit's prepare, the terrain unpack: a child
+    /// process, with its progress shown), then loads it on a worker thread (the window stays usable).
     pub fn open_level(&mut self, lv: &str) {
         self.open_level_then(lv, Then::View);
     }
 
     /// Starts loading a level on a worker thread, then does `then` with it (view it, make or open a project).
     pub fn open_level_then(&mut self, lv: &str, then: Then) {
+        let Ok(root) = self.opfor.clone() else { return };
+        self.error = None;
+        match prepare::plan(&root, lv) {
+            Plan::Ready => self.load_level(lv, then),
+            plan => {
+                // what to do once prepared and loaded
+                self.after_prepare = then;
+                self.start_preparing(Job::start(&root, lv, plan));
+            }
+        }
+    }
+
+    /// [`EditorApp::open_level`] with another preparing script, whatever the level needs (the tests' stand-in).
+    pub fn open_level_preparing_with(&mut self, script: &Path, lv: &str) {
+        let Ok(root) = self.opfor.clone() else { return };
+        self.error = None;
+        self.start_preparing(Job::start_with(script, &root, lv, Plan::Full));
+    }
+
+    fn start_preparing(&mut self, job: Result<Job, String>) {
+        match job {
+            Ok(job) => self.mode = Mode::Preparing(Box::new(job)),
+            Err(e) => {
+                self.error = Some(e);
+                self.mode = Mode::Start;
+            }
+        }
+    }
+
+    /// The preparation running now, if any (tests: its progress).
+    #[must_use]
+    pub fn preparing(&self) -> Option<&prepare::Progress> {
+        match &self.mode {
+            Mode::Preparing(job) => Some(&job.progress),
+            _ => None,
+        }
+    }
+
+    /// Whether a level is being loaded (after its preparation).
+    #[must_use]
+    pub fn is_loading(&self) -> bool {
+        matches!(self.mode, Mode::Loading { .. })
+    }
+
+    fn load_level(&mut self, lv: &str, then: Then) {
         let Ok(root) = self.opfor.clone() else { return };
         let (tx, rx) = std::sync::mpsc::channel();
         let name = lv.to_owned();
@@ -587,6 +656,13 @@ impl EditorApp {
     /// No game copy, the level does not load, or the project cannot be made or opened.
     pub fn open_level_blocking_then(&mut self, gpu: &GpuCtx, lv: &str, then: Then) -> Result<(), String> {
         let root = self.opfor.clone()?;
+        let plan = prepare::plan(&root, lv);
+        if plan != Plan::Ready {
+            let mut job = Job::start(&root, lv, plan)?;
+            if let Outcome::Failed(e) = job.wait(std::time::Duration::from_mins(15)) {
+                return Err(e);
+            }
+        }
         let loaded = load(&root, lv)?;
         self.show_scene(gpu, lv, loaded, then);
         self.error.clone().map_or(Ok(()), Err)
@@ -694,7 +770,13 @@ impl EditorApp {
             Some(d) => Outliner::new_without(&d.scene, &d.deleted),
             None => Outliner::new(&scene),
         };
+        let teams = match scene.file(0) {
+            Some((_, data)) => Teams::from_partition(data, Profile::of(lv)),
+            None if lv == "demo" => crate::demo::teams(),
+            None => Teams::unknown("The scene has no level partition; teams are shown as T1 and T2."),
+        };
         let mut v = ViewState {
+            teams,
             lv: lv.to_owned(),
             outliner,
             base: if editing { Scene::default() } else { scene },
@@ -824,10 +906,15 @@ impl EditorApp {
             self.recovery_modal(&ctx, &palette);
         }
         let metrics = Metrics::new(self.tokens);
-        for action in self.top_bar(ui, &palette, &metrics) {
-            self.run(gpu, &ctx, action);
+        for asked in self.top_bar(ui, &palette, &metrics) {
+            match asked {
+                TopBar::Run(action) => self.run(gpu, &ctx, action),
+                TopBar::Help(page) => self.help.show(page),
+            }
         }
         self.status_bar(ui, &palette, &metrics, gpu);
+        help::window(&ctx, &mut self.help, &palette, &metrics);
+        let mut cancel = false;
         let Self {
             mode,
             dock,
@@ -876,11 +963,43 @@ impl EditorApp {
                     });
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
             }
+            Mode::Preparing(job) => {
+                cancel = preparing_view(ui, job, &palette, &metrics);
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            }
             Mode::Start => self.start_screen(ui, &palette, &metrics),
+        }
+        if cancel && let Mode::Preparing(job) = &mut self.mode {
+            job.cancel();
+            self.mode = Mode::Start;
         }
     }
 
     fn poll_loading(&mut self, gpu: &GpuCtx, ctx: &egui::Context) {
+        if let Mode::Preparing(job) = &mut self.mode {
+            match job.poll() {
+                Outcome::Running => {}
+                Outcome::Done => {
+                    let lv = job.lv.clone();
+                    if let Ok(root) = &self.opfor {
+                        // listed as prepared from here on
+                        self.levels = levels::list_levels(root);
+                    }
+                    let then = std::mem::replace(&mut self.after_prepare, Then::View);
+                    self.load_level(&lv, then);
+                    ctx.request_repaint();
+                }
+                Outcome::Failed(e) => {
+                    self.error = Some(e);
+                    self.mode = Mode::Start;
+                    // the start screen's rows say again which levels are prepared
+                    if let Ok(root) = &self.opfor {
+                        self.levels = levels::list_levels(root);
+                    }
+                }
+            }
+            return;
+        }
         let Mode::Loading { lv, rx, then, .. } = &self.mode else {
             return;
         };
@@ -888,6 +1007,10 @@ impl EditorApp {
             Ok(Ok(loaded)) => {
                 let (lv, then) = (lv.clone(), then.clone());
                 self.show_scene(gpu, &lv, loaded, then);
+                if let Ok(root) = &self.opfor {
+                    // a level prepared just now is listed as ready from here on
+                    self.levels = levels::list_levels(root);
+                }
                 ctx.request_repaint();
             }
             Ok(Err(e)) => {
@@ -1081,8 +1204,8 @@ impl EditorApp {
         self.palette_open
     }
 
-    /// The top bar; the actions its buttons ask for.
-    fn top_bar(&self, ui: &mut egui::Ui, p: &Palette, m: &Metrics) -> Vec<Action> {
+    /// The top bar; what its buttons and its Help menu ask for.
+    fn top_bar(&self, ui: &mut egui::Ui, p: &Palette, m: &Metrics) -> Vec<TopBar> {
         let mut run = Vec::new();
         let frame = egui::Frame::new()
             .fill(p.surface_2)
@@ -1100,34 +1223,29 @@ impl EditorApp {
                             .color(p.ink),
                     );
                     separator(ui, p, m);
-                    // the workspace switcher: View, and Objects with a project open
+                    // the workspace switcher (help::WORKSPACES, as the Help window describes them): View, and Objects
+                    // with a project open
                     let ws = match &self.mode {
                         Mode::View(v) => Some((v.workspace, v.doc.is_some())),
                         _ => None,
                     };
-                    let objects_why = if ws.is_some_and(|(_, d)| d) {
-                        ""
-                    } else {
-                        "Editing needs a map project: New map from an existing map, or Open a project."
-                    };
-                    for (name, active, enabled, why) in [
-                        ("View", ws.is_none_or(|(w, _)| w == Workspace::View), true, ""),
-                        (
-                            "Objects",
-                            ws.is_some_and(|(w, _)| w == Workspace::Objects),
-                            ws.is_some_and(|(_, d)| d),
-                            objects_why,
-                        ),
-                        (
-                            "Gameplay",
-                            false,
-                            false,
-                            "Flags, spawns and areas come with gameplay editing (round E4).",
-                        ),
-                        ("AI", false, false, "The AI workspace comes later (round E5a)."),
-                    ] {
-                        if segment(ui, p, m, name, active, enabled, why) && !active {
-                            run.push(Action::ToggleWorkspace);
+                    for w in help::WORKSPACES {
+                        let (active, enabled, why) = match w.name {
+                            "View" => (ws.is_none_or(|(x, _)| x == Workspace::View), true, String::new()),
+                            "Objects" => (
+                                ws.is_some_and(|(x, _)| x == Workspace::Objects),
+                                ws.is_some_and(|(_, d)| d),
+                                if ws.is_some_and(|(_, d)| d) {
+                                    String::new()
+                                } else {
+                                    "Editing needs a map project: New map from an existing map, or Open a project."
+                                        .into()
+                                },
+                            ),
+                            _ => (false, false, format!("{} {}", w.what, w.when)),
+                        };
+                        if segment(ui, p, m, w.name, active, enabled, &why) && !active {
+                            run.push(TopBar::Run(Action::ToggleWorkspace));
                         }
                     }
                     separator(ui, p, m);
@@ -1159,7 +1277,23 @@ impl EditorApp {
                         }
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        // right to left: the theme last on screen
+                        // right to left: Help last on screen, then the theme
+                        let help_entry = actions::entry(Action::Help);
+                        ui.menu_button(RichText::new("Help").color(p.ink_muted), |ui| {
+                            for page in help::Page::ALL {
+                                if ui.button(page.name()).clicked() {
+                                    run.push(TopBar::Help(page));
+                                    ui.close();
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("Command palette").clicked() {
+                                run.push(TopBar::Run(Action::CommandPalette));
+                                ui.close();
+                            }
+                        })
+                        .response
+                        .on_hover_text(help_entry.map_or("", |e| e.help).to_owned() + " (F1)");
                         let theme_label = match self.theme {
                             ThemeId::Dark => "Light theme",
                             ThemeId::Light => "Dark theme",
@@ -1188,7 +1322,7 @@ impl EditorApp {
                         }
                         for (action, label) in buttons {
                             if action_button(ui, p, action, label, self.why_not(action)).clicked() {
-                                run.push(action);
+                                run.push(TopBar::Run(action));
                             }
                         }
                     });
@@ -1242,6 +1376,9 @@ impl EditorApp {
                         }
                         Mode::Loading { lv, .. } => {
                             ui.label(small(format!("opening {lv}")));
+                        }
+                        Mode::Preparing(job) => {
+                            ui.label(small(format!("preparing {} for the editor", job.lv)));
                         }
                         Mode::Start => {
                             let where_ = match &self.opfor {
@@ -1331,7 +1468,7 @@ impl EditorApp {
                                         .show(ui, |ui| {
                                             ui.set_width(ui.available_width());
                                             for l in self.levels.iter().filter(|l| f.is_empty() || l.lv.contains(&f)) {
-                                                if level_row(ui, p, m, l).clicked() && l.prepared {
+                                                if level_row(ui, p, m, l).clicked() {
                                                     open = Some(l.lv.clone());
                                                 }
                                             }
@@ -1359,13 +1496,7 @@ fn load(root: &Path, lv: &str) -> Loaded {
 /// The content profile of a level, for the badge.
 #[must_use]
 pub fn profile_of(lv: &str) -> &'static str {
-    if lv.starts_with("nam_") {
-        "VIETNAM"
-    } else if lv.starts_with("ww2_") || lv.starts_with("pw_") {
-        "WW2 - PACIFIC WAR"
-    } else {
-        "BFBC2"
-    }
+    Profile::of(lv).badge()
 }
 
 fn style(name: &str) -> TextStyle {
@@ -1473,26 +1604,128 @@ fn action_button(ui: &mut egui::Ui, p: &Palette, action: Action, label: &str, wh
     }
 }
 
+/// The preparing view: the level, its step of how many, a bar (`accent` on `surface-2`; never a spinner alone),
+/// the time so far and the last thing the tools said, on a dialog card. Whether Cancel was pressed.
+fn preparing_view(ui: &mut egui::Ui, job: &Job, p: &Palette, m: &Metrics) -> bool {
+    let mut cancel = false;
+    let pr = &job.progress;
+    egui::CentralPanel::default()
+        .frame(egui::Frame::new().fill(p.ground))
+        .show(ui, |ui| {
+            let width = 520.0_f32.min(ui.available_width() - 2.0 * m.space_6);
+            let card_h = 236.0;
+            let top = ui.max_rect().center().y - card_h / 2.0;
+            let rect = Rect::from_min_size(
+                Pos2::new(ui.max_rect().center().x - width / 2.0, top),
+                Vec2::new(width, card_h),
+            );
+            ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                egui::Frame::new()
+                    .fill(p.surface_1)
+                    .stroke(Stroke::new(1.0, p.line))
+                    .corner_radius(CornerRadius::same(m.radius_lg as u8))
+                    .inner_margin(Margin::same(m.space_6 as i8))
+                    .show(ui, |ui| {
+                        ui.set_width(width - 2.0 * m.space_6);
+                        ui.label(
+                            RichText::new(format!("Preparing {}", job.lv.to_uppercase()))
+                                .text_style(style("section"))
+                                .color(p.ink),
+                        );
+                        ui.add_space(m.space_1);
+                        let step = if pr.steps == 0 {
+                            "Starting the suite's tools".to_owned()
+                        } else {
+                            format!("Step {} of {}: {}", pr.step, pr.steps, pr.what)
+                        };
+                        ui.label(RichText::new(step).color(p.ink));
+                        ui.add_space(m.space_3);
+                        let (bar, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 6.0), Sense::hover());
+                        ui.painter()
+                            .rect_filled(bar, CornerRadius::same(m.radius_sm as u8), p.surface_2);
+                        let mut done = bar;
+                        done.set_width(bar.width() * pr.fraction());
+                        ui.painter()
+                            .rect_filled(done, CornerRadius::same(m.radius_sm as u8), p.accent);
+                        ui.add_space(m.space_2);
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("{} s", job.since.elapsed().as_secs()))
+                                    .text_style(style("value"))
+                                    .color(p.ink_muted),
+                            );
+                            ui.add(
+                                egui::Label::new(RichText::new(&pr.last).text_style(style("log")).color(p.ink_muted))
+                                    .truncate(),
+                            );
+                        });
+                        ui.add_space(m.space_3);
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(
+                                    "Once per level: its bundles are unpacked and its objects, collision and terrain \
+                                     read into Project OPFOR BFBC2's work folder. The game copy is not changed. The \
+                                     map opens when this is done.",
+                                )
+                                .text_style(style("small"))
+                                .color(p.ink_muted),
+                            )
+                            .wrap(),
+                        );
+                        ui.add_space(m.space_3);
+                        if ui
+                            .add(egui::Button::new("Cancel").min_size(Vec2::new(0.0, m.control)))
+                            .on_hover_text("Stops preparing; the level stays unprepared")
+                            .clicked()
+                        {
+                            cancel = true;
+                        }
+                    });
+            });
+        });
+    cancel
+}
+
 /// A severity with its word and colour, then the text.
 fn status_line(ui: &mut egui::Ui, p: &Palette, word: &str, colour: Color32, text: &str) {
     ui.horizontal_wrapped(|ui| {
-        let shape = match word {
-            "Error" => "\u{2BC3}",
-            "Warning" => "\u{25B2}",
-            _ => "\u{25CF}",
-        };
-        ui.label(
-            RichText::new(format!("{shape} {word}"))
-                .text_style(style("body-strong"))
-                .color(colour),
-        );
+        // the status shape, drawn (IBM Plex has no octagon glyph: G1's showed a '?'), then the word
+        let (r, _) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());
+        status_shape(ui.painter(), r.center(), 5.5, word, colour);
+        ui.label(RichText::new(word).text_style(style("body-strong")).color(colour));
         ui.label(RichText::new(text).color(p.ink));
     });
 }
 
+/// A status shape (the design's fixed set): octagon for an error, triangle for a warning, circle otherwise.
+fn status_shape(painter: &egui::Painter, c: Pos2, r: f32, word: &str, colour: Color32) {
+    match word {
+        "Error" => {
+            let pts = (0..8)
+                .map(|k| {
+                    let a = (k as f32 + 0.5) * std::f32::consts::TAU / 8.0;
+                    c + Vec2::new(a.cos(), a.sin()) * r
+                })
+                .collect();
+            painter.add(egui::Shape::convex_polygon(pts, colour, Stroke::NONE));
+        }
+        "Warning" => {
+            let pts = vec![
+                c + Vec2::new(0.0, -r),
+                c + Vec2::new(r, r * 0.8),
+                c + Vec2::new(-r, r * 0.8),
+            ];
+            painter.add(egui::Shape::convex_polygon(pts, colour, Stroke::NONE));
+        }
+        _ => {
+            painter.circle_filled(c, r * 0.85, colour);
+        }
+    }
+}
+
 fn level_row(ui: &mut egui::Ui, p: &Palette, m: &Metrics, l: &LevelInfo) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), m.row + m.space_1), Sense::click());
-    if resp.hovered() && l.prepared {
+    if resp.hovered() {
         ui.painter().rect_filled(rect, CornerRadius::ZERO, p.surface_2);
     }
     let x = rect.left() + m.space_3;
@@ -1501,12 +1734,12 @@ fn level_row(ui: &mut egui::Ui, p: &Palette, m: &Metrics, l: &LevelInfo) -> egui
         Align2::LEFT_CENTER,
         l.lv.to_uppercase(),
         FontId::monospace(12.0),
-        if l.prepared { p.ink } else { p.ink_faint },
+        p.ink,
     );
     let state = if !l.prepared {
-        "Not prepared yet - open it once in the Map Inspector"
+        "Not prepared yet - opening it prepares it first (up to a minute)"
     } else if !l.terrain_current {
-        "Ready - terrain not unpacked"
+        "Ready - opening it unpacks its terrain first"
     } else {
         "Ready"
     };
@@ -1526,12 +1759,12 @@ fn level_row(ui: &mut egui::Ui, p: &Palette, m: &Metrics, l: &LevelInfo) -> egui
     );
     ui.painter()
         .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, p.line));
-    if l.prepared {
-        resp.on_hover_text("Open read-only")
-            .on_hover_cursor(egui::CursorIcon::PointingHand)
+    resp.on_hover_text(if l.prepared {
+        "Open read-only"
     } else {
-        resp
-    }
+        "Prepare it, then open it read-only"
+    })
+    .on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 impl ViewState {
@@ -1855,23 +2088,43 @@ impl Tabs<'_> {
         if editing {
             self.edit_overlay(ui, rect, projection, &vp.camera);
         }
-        // the controls, in the corner
-        let help = if editing {
-            "Select: click, Ctrl+click, drag a box   Gizmo: drag a handle   Orbit / pan: Alt+left drag, middle drag   \
-             Fly: hold right   Undo: Ctrl+Z   Commands: Ctrl+Shift+P"
-        } else if ortho {
-            "Pan: left or middle drag   Zoom: wheel   Focus: F   Bookmarks: Ctrl+1-9, 1-9   Commands: Ctrl+Shift+P"
+        // the controls, in the corner (from Help's list, so the two never differ; editing adds its own), on the
+        // view's label plate
+        let painter = ui.painter().with_clip_rect(rect);
+        let m = &self.metrics;
+        let hint_text = if editing {
+            editui::EDITING_HINT.to_owned()
         } else {
-            "Orbit: left drag   Pan: middle drag   Zoom: wheel   Fly: hold right, W A S D, Q E   Focus: F   \
-             Bookmarks: Ctrl+1-9, 1-9   Commands: Ctrl+Shift+P"
+            help::corner_hint(ortho)
         };
-        ui.painter().text(
-            rect.left_bottom() + Vec2::new(self.metrics.space_2, -self.metrics.space_2),
-            Align2::LEFT_BOTTOM,
-            help,
-            FontId::proportional(11.0),
-            self.palette.ink_muted,
-        );
+        let hint = painter.layout_no_wrap(hint_text, FontId::proportional(11.0), self.palette.ink);
+        let at = rect.left_bottom() + Vec2::new(m.space_2, -m.space_2 - hint.size().y);
+        let plate = Rect::from_min_size(at, hint.size()).expand2(Vec2::new(m.space_1, 2.0));
+        painter.rect_filled(plate, CornerRadius::same(m.radius_sm as u8), self.palette.scene_label);
+        painter.galley(at, hint, self.palette.ink);
+        // what the level opened without (no terrain ...): a note in the corner, the details in Problems
+        if let Some(first) = self.view.notes.first() {
+            let more = self.view.notes.len() - 1;
+            let text = if more > 0 {
+                format!("{first} (+{more} in Problems)")
+            } else {
+                first.clone()
+            };
+            let g = painter.layout(text, FontId::proportional(12.0), self.palette.ink, rect.width() * 0.6);
+            let at = rect.left_top() + Vec2::new(m.space_2 + m.space_1 + 14.0, m.space_2 + 2.0);
+            let plate = Rect::from_min_size(at - Vec2::new(14.0, 0.0), g.size() + Vec2::new(14.0, 0.0))
+                .expand2(Vec2::new(m.space_1, 2.0));
+            painter.rect_filled(plate, CornerRadius::same(m.radius_sm as u8), self.palette.scene_label);
+            // the information circle, in the panel colour: it sits on the plate
+            status_shape(
+                &painter,
+                Pos2::new(at.x - 8.0, at.y + 8.0),
+                5.0,
+                "Information",
+                self.palette.status_info,
+            );
+            painter.galley(at, g, self.palette.ink);
+        }
         self.view.viewports.insert(projection, vp);
     }
 
@@ -1917,7 +2170,13 @@ impl Tabs<'_> {
             let Some(e) = v.scene().entities.get(index) else {
                 continue;
             };
-            let team = e.team.map_or_else(String::new, |t| model::team_label(t).to_owned());
+            // the team's faction (US, RU, NVA, JP ...; T1 / T2 where the level says none), beside its colour
+            let team = e.team.map_or_else(String::new, |t| v.teams.label(t).to_owned());
+            let square = match e.team {
+                Some(t) => Some(p.team(t)),
+                None if render::GAMEPLAY.contains(&e.category.as_str()) => Some(p.unowned),
+                None => None,
+            };
             let text = model::display_name(e);
             let font = FontId::proportional(11.0);
             let g = painter.layout_no_wrap(text, font.clone(), p.ink);
@@ -1926,7 +2185,7 @@ impl Tabs<'_> {
                 FontId::new(11.0, egui::FontFamily::Name(crate::fonts::SANS_SEMIBOLD.into())),
                 p.ink_muted,
             );
-            let sq = if e.team.is_some() { 8.0 } else { 0.0 };
+            let sq = if square.is_some() { 8.0 } else { 0.0 };
             let w = sq
                 + if sq > 0.0 { m.space_1 } else { 0.0 }
                 + g.size().x
@@ -1941,11 +2200,7 @@ impl Tabs<'_> {
                 continue;
             }
             placed.push(r);
-            painter.rect_filled(
-                r,
-                CornerRadius::same(m.radius_sm as u8),
-                p.surface_2.gamma_multiply(0.85),
-            );
+            painter.rect_filled(r, CornerRadius::same(m.radius_sm as u8), p.scene_label);
             if selected {
                 painter.rect_stroke(
                     r,
@@ -1955,11 +2210,11 @@ impl Tabs<'_> {
                 );
             }
             let mut x = r.left() + m.space_1;
-            if let Some(t) = e.team {
+            if let Some(c) = square {
                 painter.rect_filled(
                     Rect::from_center_size(Pos2::new(x + 4.0, r.center().y), Vec2::splat(8.0)),
                     CornerRadius::same(1),
-                    p.team(t),
+                    c,
                 );
                 x += sq + m.space_1;
             }
@@ -2077,6 +2332,7 @@ impl Tabs<'_> {
                                         &p,
                                         &m,
                                         e,
+                                        &v.teams,
                                         v.selection.contains(&e.entity),
                                         hidden || v.doc.as_ref().is_some_and(|d| !d.shown(e.entity)),
                                         layer,
@@ -2137,10 +2393,35 @@ impl Tabs<'_> {
             .cloned()
         else {
             self.header(ui, "Properties", "");
+            let t = &self.view.teams;
             egui::Frame::new()
                 .inner_margin(Margin::same(m.space_3 as i8))
                 .show(ui, |ui| {
                     ui.label(RichText::new("Select an object in the 3D view or the outliner.").color(p.ink_muted));
+                    // the level: its profile and its teams, with where the labels come from
+                    ui.add_space(m.space_4);
+                    ui.label(caption("Level", p.ink_muted));
+                    ui.add_space(m.space_1);
+                    egui::Grid::new("level teams")
+                        .num_columns(2)
+                        .spacing([m.space_3, m.space_1])
+                        .show(ui, |ui| {
+                            ui.label(RichText::new("Content").color(p.ink_muted));
+                            ui.label(RichText::new(Profile::of(&self.view.lv).word()).color(p.ink));
+                            ui.end_row();
+                            for team in [1u8, 2] {
+                                ui.label(RichText::new(format!("Team {team}")).color(p.ink_muted));
+                                ui.horizontal_wrapped(|ui| {
+                                    let (r, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
+                                    ui.painter().rect_filled(r, CornerRadius::same(2), p.team(team));
+                                    ui.add(egui::Label::new(RichText::new(t.describe(team)).color(p.ink)).wrap());
+                                });
+                                ui.end_row();
+                            }
+                            ui.label(RichText::new("Team labels").color(p.ink_muted));
+                            ui.add(egui::Label::new(RichText::new(&t.source).color(p.ink)).wrap());
+                            ui.end_row();
+                        });
                 });
             return;
         };
@@ -2159,7 +2440,7 @@ impl Tabs<'_> {
                         .num_columns(2)
                         .spacing([m.space_3, m.space_1])
                         .show(ui, |ui| {
-                            for (label, value, data) in model::properties(&e) {
+                            for (label, value, data) in model::properties(&e, &self.view.teams) {
                                 ui.label(RichText::new(label).color(p.ink_muted));
                                 let text = if data {
                                     RichText::new(value).text_style(style("value")).color(p.ink)
@@ -2167,11 +2448,11 @@ impl Tabs<'_> {
                                     RichText::new(value).color(p.ink)
                                 };
                                 if label == "Team" {
-                                    ui.horizontal(|ui| {
+                                    ui.horizontal_wrapped(|ui| {
                                         let (r, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
-                                        ui.painter()
-                                            .rect_filled(r, CornerRadius::same(2), p.team(e.team.unwrap_or(0)));
-                                        ui.label(text);
+                                        let c = e.team.map_or(p.unowned, |t| p.team(t));
+                                        ui.painter().rect_filled(r, CornerRadius::same(2), c);
+                                        ui.add(egui::Label::new(text).wrap());
                                     });
                                 } else {
                                     ui.add(egui::Label::new(text).wrap());
@@ -2266,11 +2547,16 @@ impl Tabs<'_> {
     }
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a row's look and state, as the design names them"
+)]
 fn outliner_row(
     ui: &mut egui::Ui,
     p: &Palette,
     m: &Metrics,
     e: &model::Entry,
+    teams: &Teams,
     selected: bool,
     hidden: bool,
     layer: Option<[u8; 3]>,
@@ -2309,7 +2595,7 @@ fn outliner_row(
         painter.text(
             Pos2::new(rect.right() - m.space_2, rect.center().y),
             Align2::RIGHT_CENTER,
-            model::team_label(t),
+            teams.label(t),
             FontId::proportional(11.0),
             p.ink_muted,
         );

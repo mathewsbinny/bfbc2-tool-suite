@@ -10,6 +10,10 @@ window.
   - the 3D view drawn offscreen: not blank, the selection outlined in the `selection` colour and only there, picking,
     a click in the running editor selecting the entity under it, the command palette opening a top view, and each
     of the four levels drawn with a flag selected and outlined;
+  - round G2: the view-* and scene-* tokens found in rendered frames and the overlays' contrast measured on them,
+    the panel contrast and the third neutral's hue distance, team labels by faction on BFBC2, Vietnam and WW2 levels
+    (read only), Help generated from the action registry, and opening a level that needs preparing (a stand-in
+    script; the real preparation only with BC2_EDITOR_PREPARE=<level>, on a stand-in OPFOR folder in temp);
   - round E2 (rust\bc2-levelwrite and the editor's editing): the map project's log (save / load / undo / redo,
     autosave and recovery, the base-changed report); levelwrite on MP_005, SP_01 and Guadalcanal copied to a temp
     folder (parse, exactly the expected field-level changes, writer round trips, the scene loads them; DbxEdit and the
@@ -47,6 +51,7 @@ def main() -> int:
                        capture_output=True, text=True, encoding='utf-8', errors='replace')
     out = (r.stdout + r.stderr).splitlines()
     keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared',
+            'levels in this game copy', 'median',
             'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
             'MP_005 project')
     for line in out:

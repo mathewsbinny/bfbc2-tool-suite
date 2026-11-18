@@ -45,6 +45,7 @@ pub mod graph;
 pub mod levelscan;
 pub mod measures;
 pub mod navsample;
+pub mod navtune;
 pub mod offline;
 pub mod parity;
 pub mod pick;

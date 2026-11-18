@@ -476,6 +476,7 @@ name = "bc2-navbuild"
 version = "0.1.0"
 dependencies = [
  "bc2-formats",
+ "bc2-shader",
  "proptest",
  "rayon",
  "thiserror 2.0.21",
