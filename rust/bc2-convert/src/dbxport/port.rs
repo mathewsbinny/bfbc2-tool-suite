@@ -20,7 +20,7 @@ use super::Fail;
 use super::arena::{Arena, Id, Node, Tn};
 use super::catalogue::Catalogue;
 use super::py::{self, R};
-use super::rules;
+use super::rules::{self, Rules};
 use super::templates::{self, Chosen, Role, Step, Templates};
 
 /// The catalogue a port asks, with the class defaults it chooses from (a fair test's are not the catalogue's own).
@@ -110,6 +110,8 @@ pub struct Options<'a> {
     pub bones: Option<&'a Bones>,
     /// `(name or '').lower()`.
     pub name: String,
+    /// `dbxport.py`'s data tables as the caller has them.
+    pub rules: &'a Rules,
     /// `resolve(partition)`.
     pub resolve: Option<&'a (dyn Fn(&str) -> R<bool> + Sync)>,
 }
@@ -819,7 +821,8 @@ impl<'a> P<'a> {
     fn numbers_to_items(&mut self, e: Id, t: Tn<'a>, path: &str, tpath: &str, itype: &str) -> R<Option<Id>> {
         let n = self.ar.attr(e, "name").unwrap_or("");
         let owner = py::owner(path);
-        let Some((key, others)) = rules::numbers_to_items(owner, n) else {
+        let rules = self.o.rules;
+        let Some((key, others)) = rules.numbers_to_items(owner, n) else {
             return Ok(None);
         };
         let proto = if t.kind() == CONTAINER && t.has_kids() {
@@ -834,7 +837,9 @@ impl<'a> P<'a> {
         let fields: Vec<Option<&str>> = proto.kids().map(|c| c.attr("name")).collect();
         let mut got: Vec<&str> = fields.iter().map(|f| f.unwrap_or("")).collect();
         got.sort_unstable();
-        let mut want: Vec<&str> = std::iter::once(key).chain(others.iter().map(|(f, _)| *f)).collect();
+        let mut want: Vec<&str> = std::iter::once(key.as_str())
+            .chain(others.iter().map(|(f, _)| f.as_str()))
+            .collect();
         want.sort_unstable();
         if got != want {
             return Ok(None);
@@ -849,7 +854,7 @@ impl<'a> P<'a> {
         for c in proto.kids() {
             width.insert(c.attr("name").unwrap_or(""), rules::numbers(c.raw())?.0);
         }
-        if Some(&size) != width.get(key) {
+        if Some(&size) != width.get(key.as_str()) {
             return Ok(None);
         }
         let vals: Vec<Vec<u8>> = vals.into_iter().map(<[u8]>::to_vec).collect();
@@ -859,7 +864,7 @@ impl<'a> P<'a> {
             for c in self.ar.kids(item).to_vec() {
                 let f = self.ar.attr(c, "name").unwrap_or("").to_owned();
                 let w = width.get(f.as_str()).copied().unwrap_or(0);
-                let bytes = if f == key {
+                let bytes = if f == *key {
                     v.clone()
                 } else {
                     let x = others
@@ -900,11 +905,11 @@ impl<'a> P<'a> {
     fn enum_number(&mut self, e: Id, t: Option<Tn<'a>>, path: &str, owner: &str, n: &str) -> R<Option<Id>> {
         let (_, vals) = rules::numbers(self.ar.raw(e))?;
         let [one] = vals.as_slice() else { return Ok(None) };
-        if !rules::has_enum_table(owner, n) {
+        if self.o.rules.enum_table(owner, n).is_none() {
             return Ok(None);
         }
         let num = py::int_be(one)?;
-        let Some(name) = rules::enum_name(owner, n, num) else {
+        let Some(name) = self.o.rules.enum_name(owner, n, num) else {
             let Some(t) = t else { return Ok(None) };
             self.rec(path, "UNMAPPED").old = Some(num.to_string());
             self.fail(|| format!("{path}: BF1943 number {num} has no known BFBC2 name"))?;
@@ -1145,11 +1150,11 @@ impl<'a> P<'a> {
         let theirs: HashSet<&str> = t.kids().filter_map(|c| c.attr("name")).collect();
         let here = py::last_field(path).to_owned();
         let mut new = Vec::new();
-        let mut hoisted: HashSet<&'static str> = HashSet::new();
+        let mut hoisted: HashSet<&str> = HashSet::new();
         for c in t.kids() {
             let Some(n) = c.attr("name") else { continue };
             let (p, tp) = (format!("{path}.{n}"), format!("{tpath}.{n}"));
-            let single = rules::one_to_array(n);
+            let single = self.o.rules.one_to_array(n);
             if !mine.has(Some(n)) && mine.has(single) && c.tag() == "array" {
                 let single = single.unwrap_or_default();
                 let r = mine
@@ -1177,7 +1182,7 @@ impl<'a> P<'a> {
                 new.push(arr);
                 continue;
             }
-            let old = rules::renamed(n);
+            let old = self.o.rules.renamed(n);
             if !mine.has(Some(n))
                 && let Some(old) = old
                 && let Some(m) = mine.get(old)
@@ -1198,13 +1203,13 @@ impl<'a> P<'a> {
                 continue;
             }
             if !mine.has(Some(n))
-                && let Some(moved) = rules::nested(&here, n)
+                && let Some(moved) = self.o.rules.nested(&here, n)
                 && c.kind() == CONTAINER
-                && moved.iter().any(|m| mine.has(Some(m)))
+                && moved.iter().any(|m| mine.has(Some(m.as_str())))
             {
                 let x = self.nested(&mine, moved, c, &p, &tp, itype, step)?;
                 new.push(x);
-                hoisted.extend(moved.iter().filter(|m| mine.has(Some(m))));
+                hoisted.extend(moved.iter().map(String::as_str).filter(|m| mine.has(Some(m))));
                 continue;
             }
             if let Some(m) = mine.get(n) {
@@ -1218,8 +1223,8 @@ impl<'a> P<'a> {
         }
         let converted: HashSet<&str> = theirs
             .iter()
-            .filter_map(|n| rules::one_to_array(n))
-            .chain(theirs.iter().filter_map(|n| rules::renamed(n)))
+            .filter_map(|n| self.o.rules.one_to_array(n))
+            .chain(theirs.iter().filter_map(|n| self.o.rules.renamed(n)))
             .collect();
         for n in &mine.order {
             if !theirs.contains(n.as_str()) && !converted.contains(n.as_str()) && !hoisted.contains(n.as_str()) {
@@ -1237,7 +1242,16 @@ impl<'a> P<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn nested(&mut self, mine: &Named, moved: &[&str], c: Tn<'a>, p: &str, tp: &str, itype: &str, step: Step) -> R<Id> {
+    fn nested(
+        &mut self,
+        mine: &Named,
+        moved: &[String],
+        c: Tn<'a>,
+        p: &str,
+        tp: &str,
+        itype: &str,
+        step: Step,
+    ) -> R<Id> {
         let conv = self.o.conventions;
         let mut kids = Vec::new();
         let mut used: Vec<String> = Vec::new();
@@ -1246,7 +1260,7 @@ impl<'a> P<'a> {
             let kp = format!("{p}.{}", py::opt(kn));
             if let Some(kn) = kn
                 && let Some(m) = mine.get(kn)
-                && moved.contains(&kn)
+                && moved.iter().any(|m| m == kn)
             {
                 used.push(kn.to_owned());
                 if conv {
@@ -1404,9 +1418,9 @@ impl<'a> P<'a> {
                 && !self.ar.text(c).is_empty()
             {
                 let v = py::strip(self.ar.text(c)).to_owned();
-                let mut new = rules::eia_value(&v)?;
+                let mut new = self.o.rules.eia_value(&v)?;
                 if new == v && matches!(n.as_deref(), Some("HintLine1" | "HintLine2")) {
-                    rules::hint_text(&v).unwrap_or(&v).clone_into(&mut new);
+                    self.o.rules.hint_text(&v).unwrap_or(&v).clone_into(&mut new);
                 }
                 if new != v {
                     let rec = self.rec(format!("{itype}{p}"), "value");
@@ -2313,7 +2327,7 @@ pub fn port<'a>(data: &[u8], templates: &'a Templates, o: &'a Options<'a>) -> R<
         }
         let mut inst = c;
         let mut t = p.ar.attr(inst, "type").unwrap_or("").to_owned();
-        if let Some(new_t) = rules::type_as(&t)
+        if let Some(new_t) = o.rules.type_as(&t)
             && !templates.has(&t)
             && !cat.is_some_and(|c| c.cat.has_class(&t))
         {
@@ -2340,7 +2354,7 @@ pub fn port<'a>(data: &[u8], templates: &'a Templates, o: &'a Options<'a>) -> R<
         } else if o.drop_untemplated && !cat.is_some_and(|c| c.cat.has_class(&t)) && !templates.has(&t) {
             p.dropped.insert(g);
             p.rec(format!("{t} ({guid})"), "left out instance").note = some("BFBC2 has no such class (catalogue)");
-        } else if o.conventions && rules::dice_moved(&t) {
+        } else if o.conventions && o.rules.dice_moved(&t) {
             p.dropped.insert(g);
             p.rec(format!("{t} ({guid})"), "left out instance").note =
                 some("DICE keeps these out of the partition (persistence/weapons)");
@@ -2389,7 +2403,7 @@ pub fn port<'a>(data: &[u8], templates: &'a Templates, o: &'a Options<'a>) -> R<
             p.rec(path, "left out instance").note = Some(format!("its {fld} {what} will not exist"));
         }
     }
-    let roles = templates::roles(&p.ar, &insts)?;
+    let roles = templates::roles(&p.ar, &insts, o.rules)?;
     let defaults_of = |t: &str| -> Option<Chosen<'_>> {
         let c = cat?;
         let (part, id) = c.defaults.get(t)?;

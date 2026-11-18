@@ -160,6 +160,8 @@
  "Rust NavKit builds: sp_009 and sp_004_b path data as recorded": 30.0,
  "HLSL compile cache and batches (pcbuild): deterministic compiler, compile_many / prefetch, disk cache": 2.0,
  "dbxport ranking index against the reference scan (20,000 random rankings, Templates.choose)": 1.0,
+ "dbxport tables in Rust against the Python reference: every entry, changed in place as OPFOR changes them": 1.0,
+ "dbxport in Rust against its Python reference: the Project OPFOR BF1943 vehicle, weapon and object builds replayed both ways (outputs to temp)": 45.0,
  "dbxport in Rust against its Python reference (600 random partitions, pools, catalogues, options)": 3.0,
  "dbxport in Rust against its Python reference: every fair, counterpart and effect port both ways": 45.0,
  "HLSL batches (pcbuild): every Wake pixel shader translated, compile_many against one at a time": 95.0,
