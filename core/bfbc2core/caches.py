@@ -96,7 +96,7 @@ CACHES: dict[str, Spec] = {s.name: s for s in (
          'compiled HLSL (pcbuild.compile_hlsl), one file per source, under a folder per compiler DLL',
          off_without_localappdata=True),
     Spec('fbrb', 'BFBC2_FBRB_CACHE', ('.payload',), 'BFBC2_FBRB_CACHE_GB', 1 << 30, 16,
-         "large bundles' decompressed payloads (fbrb.read with the Rust core)", markers=('.seen',)),
+         "large bundles' decompressed payloads (fbrb.read)", markers=('.seen',)),
     Spec('collision', 'BFBC2_COLLISION_CACHE', ('.bin',), 'BFBC2_COLLISION_CACHE_MB', MB, 256,
          "each data folder's mesh aliases (collision.index, level.load)"),
     Spec('effectport', 'BFBC2_EFFECTPORT_CACHE', ('.pkl',), 'BFBC2_EFFECTPORT_CACHE_MB', MB, 256,

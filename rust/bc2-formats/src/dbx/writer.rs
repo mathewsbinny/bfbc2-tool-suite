@@ -146,7 +146,7 @@ impl Writer {
         } else if kind > 0xF {
             DbxError::Unwritable(format!("{tag}: kind {kind} does not fit 4 bits"))
         } else {
-            DbxError::Unwritable("an element with an empty tag".into())
+            DbxError::Unwritable("an element with an empty tag (string 0 reads back as the end of a container)".into())
         }
     }
 

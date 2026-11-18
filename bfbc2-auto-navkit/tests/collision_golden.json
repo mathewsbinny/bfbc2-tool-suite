@@ -1,0 +1,13 @@
+{
+ "note": "Recorded 2026-11-18 (round F1a) from the retired Python code itself, before it was deleted; rust/BENCHMARKS.md \"Retired Python\". Digests: tests/goldens.py.",
+ "levels": {
+  "sp_009": {
+   "inputs": "257e38c87972a06c",
+   "outcomes": {"detailed sectors": "2d304d02d4f72dc1", "ladders": "97d170e1550eee4a", "offline sampler geometry": "7a3ae39ca9efd2e0", "boat mesh object triangles": "7794f98178cc89c7"}
+  },
+  "sp_004_b": {
+   "inputs": "7eedadbd49ae45c6",
+   "outcomes": {"detailed sectors": "ed4d01cca18e1f1e", "ladders": "b165da03bf4d9bdb", "offline sampler geometry": "e489298eb90c2a7b", "boat mesh object triangles": "0b56a74a78ddf205"}
+  }
+ }
+}

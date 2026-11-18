@@ -20,7 +20,6 @@ import glob
 import json
 import os
 import re
-import struct
 import sys
 
 import numpy as np
@@ -31,8 +30,7 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools')
-import hkpack  # noqa: E402
-from bfbc2core import xmlinst  # noqa: E402
+from bfbc2core import collision, xmlinst  # noqa: E402
 
 SEP = chr(92)
 
@@ -83,72 +81,28 @@ def blueprint_flags(bases):
 
 def mesh_aliases(bases):
     """lower-case blueprint path -> blueprint path of its Mesh reference (without _mesh), for blueprints that
-    reuse another object's mesh and collision (InvWall_SP03 -> invisiblewall/invwall)."""
-    out: dict[str, str] = {}
-    for base in bases:
-        for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
-            t = open(f, encoding='utf-8', errors='replace').read()
-            ref = xmlinst.field_ref(t, 'Mesh')
-            if not ref or ref == 'null':
-                continue
-            rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-4]
-            mesh = ref.rsplit('/', 1)[0].lower()
-            out.setdefault(rel, re.sub(r'_mesh$', '', mesh))
-    return out
+    reuse another object's mesh and collision (InvWall_SP03 -> invisiblewall/invwall). bfbc2core.collision's index
+    (the Rust core; this function's Python was retired 2026-11-18, round F1a): the error that stopped it is raised."""
+    _, aliases = collision.index(bases)
+    if isinstance(aliases, Exception):
+        raise aliases
+    return aliases
 
 
 def havok_index(bases):
-    out: dict[str, str] = {}
-    for base in bases:
-        for f in glob.glob(os.path.join(base, '**', '*_havok.res'), recursive=True):
-            rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-len('_havok.res')]
-            out.setdefault(rel, f)
-            # some assets name their packfile <name>_Havok_Havok.res (sp_009's animated aircraft door,
-            # PdtWhenAlive: without its collision the closed door stayed solid and cut the plane's cabins apart;
-            # inv_Wall): the blueprint is <name>
-            while rel.endswith('_havok'):
-                rel = rel[:-len('_havok')]
-                out.setdefault(rel, f)
-    return out
+    """lower-case blueprint path -> its <name>_Havok.res packfile under the folders (the first folder that has one
+    wins); some assets name their packfile <name>_Havok_Havok.res (sp_009's animated aircraft door, PdtWhenAlive:
+    without its collision the closed door stayed solid and cut the plane's cabins apart; inv_Wall): it is found under
+    <name> too. bfbc2core.collision.havok_index (the Rust core; the Python walk was retired 2026-11-18, round F1a)."""
+    return collision.havok_index(bases)
 
 
 def triangles(path):
-    """Collision triangles (local space) of a blueprint's Havok asset (storage extended mesh subparts;
-    16-bit indices in groups of four: three corners + padding)."""
-    try:
-        pf = hkpack.load(path)
-    except ValueError:
-        return None
-    tris = []
-    for off in pf.objects_of('hkpStorageExtendedMeshShapeMeshSubpartStorage'):
-        p = pf.deref(off + 8)
-        n = struct.unpack_from('<i', pf.d, off + 12)[0]
-        ip = pf.deref(off + 0x14)
-        ni = struct.unpack_from('<i', pf.d, off + 0x18)[0]
-        if not (p and n > 0 and ip and ni > 0):
-            continue
-        v = np.frombuffer(pf.d, dtype='<f4', count=n * 4, offset=p).reshape(-1, 4)[:, :3]
-        idx = np.frombuffer(pf.d, dtype='<u2', count=ni, offset=ip).reshape(-1, 4)[:, :3]
-        if idx.max() < n:
-            tris.append(v[idx])
-    # convex shapes (boxes, rails, doors): the 12 triangles of each shape's bounding box. Vertices are stored as
-    # FourVectors (x0..3, y0..3, z0..3); the first array member of a plausible size holds them.
-    for off in pf.objects_of('hkpConvexVerticesShape'):
-        for k in range(0x10, 0x60, 4):
-            p = pf.deref(off + k)
-            if not p:
-                continue
-            n = struct.unpack_from('<i', pf.d, off + k + 4)[0]
-            if 0 < n < 10000:
-                fv = np.frombuffer(pf.d, dtype='<f4', count=n * 12, offset=p).reshape(n, 3, 4)
-                v = np.stack([fv[:, 0, :].ravel(), fv[:, 1, :].ravel(), fv[:, 2, :].ravel()], 1)
-                lo, hi = v.min(0), v.max(0)
-                c = np.array([[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])])
-                faces = [(0, 1, 3), (0, 3, 2), (4, 6, 7), (4, 7, 5), (0, 4, 5), (0, 5, 1), (2, 3, 7), (2, 7, 6),
-                         (0, 2, 6), (0, 6, 4), (1, 5, 7), (1, 7, 3)]
-                tris.append(c[np.array(faces)])
-                break
-    return np.concatenate(tris).astype(np.float32) if tris else None
+    """Collision triangles (local space) of a blueprint's Havok asset: storage extended mesh subparts (16-bit indices
+    in groups of four: three corners + padding) and the bounding box of each convex shape (its FourVector vertices);
+    None for a file that is not a packfile or has none. bfbc2core.collision.triangles (the Rust core,
+    bc2_formats::havok; this function's Python over hkpack.py was retired 2026-11-18, round F1a)."""
+    return collision.triangles(path)
 
 
 def main(argv):
@@ -192,9 +146,11 @@ def main(argv):
     json.dump(objs, open(os.path.join(level_dir, 'objects.json'), 'w'))
     json.dump(groups, open(os.path.join(level_dir, 'group_instances.json'), 'w'))
 
-    havok = havok_index(bases)
+    havok, aliases = collision.index(bases)
+    if isinstance(aliases, Exception):
+        raise aliases
     # blueprints without their own collision asset use the one of the object their Mesh reference names
-    for bp, target in mesh_aliases(bases).items():
+    for bp, target in aliases.items():
         if bp not in havok and target in havok:
             havok[bp] = havok[target]
     cache, missing = {}, set()

@@ -37,7 +37,7 @@ SLOPE_MAX = 40.0
 
 def flagged_sectors(level_dir, common, xoff, zoff, margin=MARGIN):
     """Sectors (X, Z) within margin of a NeedsDetailedPathfinding object's collision box (objects.json). Collision
-    through bfbc2core.collision (NavKit's levelobjects index and triangles; the Rust core when built)."""
+    through bfbc2core.collision (NavKit's levelobjects index and triangles, in the Rust core)."""
     bases = [b for b in [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + list(common) if os.path.isdir(b)]
     hv = collision.havok_index(bases)
     flagged = [o for o in json.load(open(os.path.join(level_dir, 'objects.json'))) if o.get('flags') and o['flags'][0]]

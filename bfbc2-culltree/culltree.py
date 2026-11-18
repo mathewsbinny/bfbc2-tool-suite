@@ -68,46 +68,27 @@ class CullTreeError(Exception):
     pass
 
 
-# ------------------------------------------------------------------------------------------------ backend
+# ------------------------------------------------------------------------------------------------ the Rust core
 # Doc's element reader and ref_pairs' search for level partitions run in the suite's Rust core (rust/, module
-# bc2_native: bc2_formats::culltree) when it is built, else in Python here: the same elements, the same files
-# (tests/test_culltree_native.py; the game tier: every tree and level partition of OPFOR's work folders). A file the
-# Rust reader refuses is read by the Python reader, which raises what it raises. BFBC2_PURE_PYTHON=1 (or
-# use_native(False)) forces Python; backend() says which one runs.
+# bc2_native: bc2_formats::culltree). The Python element reader was retired on 2026-11-18 (round F1a,
+# rust/BENCHMARKS.md "Retired Python"); its answers on every tree and level partition of the game copy and OPFOR's
+# work folders are kept as recorded digests (tests/culltree_golden.json, compared by tests/test_culltree_native.py).
+# The tool needs the module: run it inside the suite (python rust/build_native.py builds it, or --download).
 
-def _import_native() -> Any:
-    try:
+_native: Any = None
+
+
+def _rust() -> Any:
+    """The Rust core, or NativeMissing saying how to get it."""
+    global _native
+    if _native is None:
         if SUITE not in sys.path:
             sys.path.insert(0, SUITE)
         import suite_paths
         suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:                       # the tool copied out of the suite: Python only
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'culltree_elements') else None
-
-
-def _load_native() -> Any:
-    if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0'):
-        return None
-    return _import_native()
-
-
-_native = _load_native()
-
-
-def backend() -> str:
-    """'rust' when the Rust core reads the element streams and searches the reference levels, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on: bool) -> str:
-    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
-    backend()."""
-    global _native
-    _native = _import_native() if on else None
-    return backend()
+        from bfbc2core import native
+        _native = native.require('culltree.py (cull trees and level partitions)', 'culltree_elements')
+    return _native
 
 
 # ------------------------------------------------------------------------------------------------ binary DBX
@@ -198,7 +179,8 @@ class El:
 
 
 class Doc:
-    def __init__(self, data: bytes, name: str) -> None:
+    def __init__(self, data: bytes | bytearray, name: str) -> None:
+        data = bytes(data)
         if len(data) <= 24 or not data.startswith(MAGIC):
             raise CullTreeError(f'{name} is not a binary .dbx file')
         self.name = name
@@ -213,57 +195,11 @@ class Doc:
             self.strings.append(data[base + off:end].decode('utf-8', 'replace'))
         pos = 24 + size
         self.roots: list[El]
-        stack: list[El]
-        got = _native.culltree_elements(data, pos, self, El) if _native is not None and type(data) is bytes else None
-        if got is not None:
-            self.roots, end = got
-            self.trailer = data[end:]
-            return
-        self.roots, stack = [], []
-        while pos < len(data):
-            tag, p = _varint(data, pos)
-            if tag == 0:
-                if not stack:
-                    break
-                stack.pop()
-                pos = p
-                continue
-            pos = p
-            head = data[pos]
-            pos += 1
-            attrs = []
-            for _ in range(head & 0xF):
-                k, pos = _varint(data, pos)
-                v, pos = _varint(data, pos)
-                attrs.append((k, v))
-            e = El(self, tag, head, attrs)
-            siblings = stack[-1].children if stack else self.roots
-            assert siblings is not None                # the stack holds containers only
-            siblings.append(e)
-            kind = head >> 4
-            if kind == CONTAINER:
-                e.extra = data[pos]
-                pos += 1
-                e.children = []
-                stack.append(e)
-            elif kind == TEXT:
-                start = pos
-                _, pos = _varint(data, pos)
-                e.value = data[start:pos]
-            elif kind == NUMBERS:
-                start = pos
-                n, pos = _varint(data, pos)
-                sz, pos = _varint(data, pos)
-                pos += n * sz
-                if pos > len(data):
-                    raise CullTreeError(f'{name}: truncated file')
-                e.value = data[start:pos]
-            else:
-                e.value = data[pos:pos + 2]
-                pos += 2
-        if stack:
-            raise CullTreeError(f'{name}: truncated file (unclosed elements)')
-        self.trailer = data[pos:]
+        try:
+            self.roots, end = _rust().culltree_elements(data, pos, self, El)
+        except ValueError as e:               # the stream cut short, unclosed, or a number past 64 bits
+            raise CullTreeError(f'{name}: {e}') from None
+        self.trailer = data[end:]
 
     @classmethod
     def read(cls, path: str) -> 'Doc':
@@ -805,15 +741,16 @@ def level_partitions(folder: str) -> list[str]:
     """The level partitions under a folder: every .dbx below it (glob's '**/*.dbx', sorted) that is not a tree or a
     description and holds ExclusiveStaticCullTree. With the Rust core the folder is listed and the files searched on
     all cores (2026-11-16: --ref-dir over work\\levels' 37 levels read 109,660 files, 136 of a 200 s add run)."""
-    rels = _native.culltree_dbx_files(folder) if _native is not None else None
+    m = _rust()
+    rels = m.culltree_dbx_files(folder)               # None: a name that is not valid Unicode (glob lists it)
     files = sorted(os.path.join(folder, r) for r in rels) if rels is not None else \
         sorted(glob.glob(os.path.join(folder, '**', '*.dbx'), recursive=True))
     cands = [p for p in files if 'staticculltree' not in os.path.basename(p).lower()
              and '_description' not in os.path.basename(p).lower()]
-    hits = _native.culltree_contains(cands, LEVEL_MARK) if _native is not None else [None] * len(cands)
+    hits = m.culltree_contains(cands, LEVEL_MARK)
     out = []
     for p, hit in zip(cands, hits):
-        if hit is None:                             # Python: and a file that cannot be read raises here
+        if hit is None:                             # a file that cannot be read: raises here
             with open(p, 'rb') as f:
                 hit = LEVEL_MARK in f.read()
         if hit:

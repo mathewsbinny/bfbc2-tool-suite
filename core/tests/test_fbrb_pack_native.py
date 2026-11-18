@@ -6,7 +6,7 @@ pack, which it replaces: the same bytes from the same unpacked folder.
                                                          FbrbTool knows (zipped, align4096 / gap64, hdr, plen=size2,
                                                          size2=minus64, edited entries, old manifests, markers with
                                                          and without files, CR LF / BOM manifests), the refusals,
-                                                         bfbc2core.fbrb.pack / pack_many and the FbrbTool fallback;
+                                                         bfbc2core.fbrb.pack / pack_many;
                                                          8 small game bundles when the game copy is there
   python core\tests\test_fbrb_pack_native.py --game     + every bundle of the game copy (Project OPFOR BFBC2's game\,
                                                          read only): unpacked by FbrbTool into a temporary folder,
@@ -14,7 +14,7 @@ pack, which it replaces: the same bytes from the same unpacked folder.
 
 Each game bundle is also compared with the game's own file: identical, or (for a zipped bundle DICE packed)
 identical but for the two 10-byte gzip headers (DICE's xfl 0 / os 0x0b, FbrbTool's xfl 4 / os 0): the deflate
-streams are zlib level 6 in all three. Skipped (exit 0) when the module or FbrbTool.exe is not built.
+streams are zlib level 6 in all three. Needs the module; skipped (exit 0) when FbrbTool.exe is not built.
 """
 import os
 import random
@@ -37,10 +37,9 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, fbrb, paths  # noqa: E402
+from bfbc2core import fbrb, native, paths  # noqa: E402
 
-NATIVE: Any = dbx._import_native()
-NATIVE = NATIVE if NATIVE is not None and hasattr(NATIVE, 'fbrb_pack') else None
+NATIVE: Any = native.load()
 TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 SMALL = 8
 EMPTY = 'identical but gzip headers and the empty payload stream DICE writes (FbrbTool writes none)'
@@ -224,7 +223,7 @@ def check_built(check: Any) -> None:
         check(kinds == ['OSError', 'ValueError', 'ValueError', 'ValueError', 'ValueError', 'ValueError', 'OSError'],
               'fbrb.pack raises OSError for a missing file, ValueError for a manifest or name it cannot use', str(kinds))
 
-        # the dispatcher, pack_many and the FbrbTool fallback
+        # fbrb.pack and pack_many (the Rust core: FbrbTool.exe is no fallback since round F1a)
         d = folders[0][1]
         tool('pack', d, os.path.join(scratch, 'want.fbrb'))
         want = open(os.path.join(scratch, 'want.fbrb'), 'rb').read()
@@ -232,7 +231,7 @@ def check_built(check: Any) -> None:
         write(target, b'an older bundle')
         got = fbrb.pack(d, target)
         e = fbrb.entries(target)
-        check(fbrb.backend() == 'rust' and got == (len(e), sum(x.size for x in e)) and open(target, 'rb').read() == want
+        check(got == (len(e), sum(x.size for x in e)) and open(target, 'rb').read() == want
               and not [n for n in os.listdir(scratch) if '.tmp-' in n],
               'fbrb.pack runs in Rust: FbrbTool\'s bytes over an older bundle, (entries, payload bytes), no temporary '
               'file left')
@@ -241,18 +240,6 @@ def check_built(check: Any) -> None:
         check(all(isinstance(m, tuple) for m in many[:4]) and isinstance(many[4], OSError)
               and open(os.path.join(scratch, 'm0.fbrb'), 'rb').read() == want,
               'fbrb.pack_many: in order, a folder that cannot be packed gives its exception in its place')
-        fbrb.use_native(False)
-        try:
-            os.remove(target)
-            got_tool = fbrb.pack(d, target)
-            many_tool = fbrb.pack_many([(folders[1][1], os.path.join(scratch, 't1.fbrb')),
-                                        (refused[3][1], os.path.join(scratch, 'bad.fbrb'))])
-            check(fbrb.backend() == 'python' and got_tool == got and open(target, 'rb').read() == want
-                  and isinstance(many_tool[0], tuple) and isinstance(many_tool[1], ValueError),
-                  'without the Rust core fbrb.pack runs FbrbTool.exe: the same bundle and counts, its errors as '
-                  'ValueError / OSError')
-        finally:
-            fbrb.use_native(True)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -352,9 +339,7 @@ def run_bundles(bundles: list[str], check: Any, label: str) -> None:
 # ------------------------------------------------------------------------------------------------ main
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py); bundles are packed by FbrbTool')
-        return 0
+    native.require('the bundle packer', 'fbrb_pack')
     if not os.path.isfile(TOOL):
         print('skipped: FbrbTool.exe is not built (bfbc2-fbrb-tool\\build.bat): nothing to compare the packer with')
         return 0

@@ -2,18 +2,19 @@
 //! built): `bc2_formats::culltree`.
 //!
 //! `culltree_elements` builds `Doc`'s element tree with the caller's `El` class (each element made as `El.__new__`
-//! and given the attributes `El.__init__` and the reader set), so the objects are the ones the Python reader makes.
-//! A stream the Rust reader refuses gives `None`: the Python reader then reads the file and raises what it raises.
+//! and given the attributes `El.__init__` and the reader set), so the objects are the ones the retired Python reader
+//! made. A stream that does not read raises `ValueError` saying why (`Doc` raises it as `CullTreeError`).
 
 use std::path::PathBuf;
 
 use bc2_formats::culltree;
+use pyo3::exceptions::PyValueError;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyTuple};
 
-/// `Doc.__init__`'s element loop through Rust: `(roots, end)` (the trailer starts at `end`), the elements made as
-/// `el_cls` instances belonging to `doc`; `None` when the stream does not read here.
+/// `Doc.__init__`'s element loop: `(roots, end)` (the trailer starts at `end`), the elements made as `el_cls`
+/// instances belonging to `doc`; `ValueError` when the stream does not read.
 #[pyfunction]
 pub fn culltree_elements<'py>(
     py: Python<'py>,
@@ -21,11 +22,11 @@ pub fn culltree_elements<'py>(
     start: usize,
     doc: &Bound<'py, PyAny>,
     el_cls: &Bound<'py, PyAny>,
-) -> PyResult<Option<(Bound<'py, PyList>, usize)>> {
+) -> PyResult<(Bound<'py, PyList>, usize)> {
     let bytes = data.as_bytes();
-    let Ok(read) = py.detach(|| culltree::elements(bytes, start)) else {
-        return Ok(None);
-    };
+    let read = py
+        .detach(|| culltree::elements(bytes, start))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let new = el_cls.getattr(intern!(py, "__new__"))?;
     let names = [
         intern!(py, "doc"),
@@ -78,7 +79,7 @@ pub fn culltree_elements<'py>(
             open.push((children.cast_into::<PyList>()?, end));
         }
     }
-    Ok(Some((roots, read.end)))
+    Ok((roots, read.end))
 }
 
 /// `glob.glob(os.path.join(dir, '**', '*.dbx'), recursive=True)` through Rust, as paths relative to `dir` (not

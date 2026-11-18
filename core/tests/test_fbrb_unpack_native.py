@@ -13,7 +13,7 @@ fbrb.manifest; for a bundle FbrbTool refuses, its failure with the same files le
                                                          BFBC2_UNPACK_TEST_MAX_MB (default 300; memory), both ways
                                                          (BFBC2_UNPACK_TEST_MIN_MB: only those from that size)
 
-Skipped (exit 0) when the module or FbrbTool.exe is not built.
+Needs the module; skipped (exit 0) when FbrbTool.exe is not built.
 """
 import os
 import random
@@ -33,10 +33,9 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, fbrb, paths  # noqa: E402
+from bfbc2core import fbrb, native, paths  # noqa: E402
 
-NATIVE: Any = dbx._import_native()
-NATIVE = NATIVE if NATIVE is not None and hasattr(NATIVE, 'fbrb_unpack') else None
+NATIVE: Any = native.load()
 TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 SMALL = 8
 LINE0 = '# fbrb.manifest - entry order matters. name|type|flags(hex)|size2|size  zipped='
@@ -188,17 +187,12 @@ def check_built(check: Any) -> None:
         check(outcomes['a byte after the payload stream'] == 'identical' and outcomes['two entries on one file (case)']
               == 'identical', 'extra bytes after the payload and two entries on one file: unpacked in process as '
               'FbrbTool unpacks them (round E3k)')
-        # without the Rust core: FbrbTool.exe
         b = built[0][1]
-        fbrb.use_native(False)
-        try:
-            got = fbrb.unpack(b, os.path.join(root, 'py'))
-        finally:
-            fbrb.use_native(True)
+        got = fbrb.unpack(b, os.path.join(root, 'api'))
         a = os.path.join(root, 'rs')
         NATIVE.fbrb_unpack(b, a)
-        check(got != 'rust' and tree(os.path.join(root, 'py')) == tree(a),
-              'use_native(False): bfbc2core.fbrb.unpack runs FbrbTool.exe, the same files', got)
+        check(got == 'rust' and tree(os.path.join(root, 'api')) == tree(a),
+              'bfbc2core.fbrb.unpack runs in process (FbrbTool.exe is no fallback since round F1a), the same files', got)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -269,9 +263,7 @@ def run_bundles(bundles: list[str], check: Any, label: str) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if NATIVE is None:
-        print('skipped: the Rust core is not built (python rust\\build_native.py); bundles are unpacked by FbrbTool')
-        return 0
+    native.require('the bundle unpack', 'fbrb_unpack')
     if not os.path.isfile(TOOL):
         print('skipped: FbrbTool.exe is not built (bfbc2-fbrb-tool\\build.bat): nothing to compare the unpack with')
         return 0

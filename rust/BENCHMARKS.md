@@ -555,7 +555,7 @@ Profiled again (sp_004_b, cProfile: 60 s with the profiler's overhead): `merge_d
 `build_areas` 1.6 s and the cell picking 0.8 s (both Rust now); 21 million `dict.get` and 13 million `list.append`.
 `trace_edges` / `trace_emit` are the next port if NavKit builds need to be faster still.
 
-## Retired Python (2026-11-17, branch `retire-e1`; 2026-11-18, branch `retire-r2`)
+## Retired Python (2026-11-17, branch `retire-e1`; 2026-11-18, branches `retire-r1` - `r3`, `retire-f1a`)
 
 The full test tier passed on round E1 (140 of 140, 2026-11-17), which under `EDITOR_ARCHITECTURE.md` 3.8 retires the
 Python of the ported **logic** of round E1d. Retired (deleted; the module is now required for them, README.md "The
@@ -808,6 +808,84 @@ BFBC2's); `test_ports_native.py --game` (every BF1943 mesh, physics and effect p
 reference searches, the mesh / physics outputs as recorded, Onslaught 594 + 239 as recorded, emitter index 18,343);
 `test_havok.py` (400 of 400 shared files equivalent, 594 of 594 converted); `test_e3o_native.py --game` (all passed,
 verify-havok's 400 as recorded); `cargo clippy --all-targets -D warnings`, `cargo test -p bc2-convert`.
+
+### Round F1a: the core format readers and writers (2026-11-18, branch `retire-f1a`)
+
+The user's ruling of 2026-11-18 (`EDITOR_ARCHITECTURE.md` 3.8: "port everything, confirm it's a perfect port, then
+retire the Python" - format readers and writers included, superseding "format readers stay for good" above) retires
+the Python of the core formats, which had run on Rust through two full tiers (140 of 140 and 173 of 173,
+2026-11-17). Recorded first (commit `fae35c1`), proven, then deleted; the module is required for them
+(`bfbc2core.native.require`: `NativeMissing` saying how to get it, before any input is read):
+
+| piece | Python removed | kept | lines |
+|---|---|---|---:|
+| `core/bfbc2core/dbx.py` | `_py_parse`, `_py_to_xml`, `_py_write`, `_strings`, `_escape`, `_damaged`, the switch (`_load_native`, `backend`, `use_native`) and `write`'s fallback to the Python writer | the API (`parse`, `to_xml`, `parse_many`, `to_xml_many`, `read`, `write`, `Element`, `DbxFile`, `DeletedEntry`, `is_binary`, `numbers`, `floats`, `value`, `put_varint`); `_import_native` and `PURE_PYTHON_ENV` (the readers that still have a Python twin find the module through them); `value()`'s .NET number text (not ported) | 529 -> 312 |
+| `core/bfbc2core/fbrb.py` | `_header`, `_cstring`, `_py_read`, `_damaged`, the switch, the cache's "no core" answers, `_tool_pack` / `_tool_unpack` (FbrbTool.exe without the Rust core, and `unpack`'s retry of a refused bundle with it: the in-process engine is FbrbTool's, the same error) | the API (`entries`, `names`, `read`, `read_many`, `read_uncached`, the cache controls, `pack`, `pack_many`, `unpack`, `unpack_in_process`, `fbrbtool`, `build`) | 398 -> 208 |
+| `core/bfbc2core/terrain.py` | `_py_parse`, the switch | `Heightfield`, `parse`, `read`, `tail`, `find`, `HEADER` | 161 -> 124 |
+| `core/bfbc2core/water.py` | `_py_parse_mesh`, `_py_parse_visual`, `shaders_of`'s Python, the switch | the API | 223 -> 136 |
+| `core/bfbc2core/collision.py` | `_navkit`, `_py_triangles`, the Python `index` / `havok_index` / `triangles_many` through NavKit's functions, the switch | the API and the mesh-alias cache | 186 -> 128 |
+| `core/bfbc2core/level.py` | `load`'s Python loader (the entity and static-group loop, `collision.index` / `triangles_many` / `heightfield_of` / `water.read` calls), `resolve_blueprints`, `assign_teams`, `shapes_of`, `category_of`, `transform_of`, `blueprint_of`, `CATEGORIES`, `OBJECT_CATEGORIES`, `TEAMS`, `SHAPE_FIELDS`, the switch | `load` (the Rust scene), `Level`, `Entity`, `Mesh`, `Shape`, `read_many`, `terrain_name`, `heightfield_of`, `water_of`, `terrain_from_samples` (no caller used the removed names) | 660 -> 381 |
+| `bfbc2-culltree/culltree.py` | `Doc`'s element loop, the switch (`_import_native`, `_load_native`, `backend`, `use_native`), `level_partitions`' glob / read when the core is off | `Doc` (its string table stays Python: no Rust twin), the rest of the tool; `level_partitions` still lists by glob a folder whose names are not valid Unicode and reads a file the core could not, for its error | 1,472 -> 1,409 |
+| `bfbc2-auto-navkit/tools/levelobjects.py` | `havok_index`'s walk, `mesh_aliases`' XML scan, `triangles` over `hkpack.py` (each now `bfbc2core.collision`'s; `main` takes the index and aliases in one walk) | `hkpack.py` (`navsample_offline.py` reads packfiles with it: a format reader of a later round) | 272 -> 228 |
+
+1,230 lines of Python deleted, 252 written (docstrings, `_rust()`, clear errors). Not in this round: `shaderdb.py`'s
+reader / writer (its queries have `*_reference` twins), `xenos`, Granny, APT, `kymesh`, `navsample`, `mesh`, `audio`'s
+formats, `dbxbin` (with E4a's retirement).
+
+**What the Rust answers otherwise, on purpose** (no real input; each counted in its test):
+
+- `dbx.write` (`rust/bc2-py/src/writers.rs`): the walk keeps its own stack (any depth: the Python wrote 700 deep and
+  raised `RecursionError` at 3,000); children of any iterable (a generator) and raw bytes as `bytearray.extend` takes
+  them (a memoryview, a list of ints) are now written, as the Python wrote them. Refused with the reason: an empty tag
+  (the Python wrote tag 0, which reads back as an end mark), a 2-character string taken as an attribute pair (the
+  Python unpacked `'ab'` as `('a', 'b')`), a tag / attribute / text that is not a `str` (`TypeError`; the Python's was
+  an `AttributeError` from `.encode`), a kind outside 0-15 (`ValueError` for -1 too). `DELIBERATE` in
+  `test_dbx_write_native.py` lists the five edge trees that differ from the recording.
+- `culltree.Doc` (`bc2_formats::culltree::elements`, `culltree_elements` raising `ValueError`): a stream cut inside an
+  element raises `CullTreeError` ("truncated file (it ends inside the element at byte N)") where the Python raised
+  `IndexError` (42 of the quick tier's 2,146 cases; 77 more where both raised `CullTreeError`, worded otherwise); a
+  varint past 64 bits raises `CullTreeError` ("... longer than 64 bits (not a cull tree or level partition)") where the
+  Python read a big integer (113 cases, all the test's own inserted long varints; 50 more the Python refused later).
+
+**What the fallbacks took on real data** (before deleting; expect 0): `dbx.parse` / `to_xml`, `fbrb`'s reader,
+`terrain`, `water`, `collision` and `level.load` had no fallback while the module was there (a Python path only with
+`BFBC2_PURE_PYTHON` or without the module). `dbx.write`'s fallback to the Python writer: 0 of the corpus's 48,120
+trees as read and after seeded edits (the game run below writes every one with no Python left). `culltree.Doc`'s
+fallback to the Python loop: 0 of the 1,269 trees and level partitions (522 MB) of the game copy's level bundles and
+work\levels / ww2 / console_cull, and 0 in console_cull's add run (every reference level read); in the quick tier 282
+of 2,146 cases, all the test's own damage (above). `fbrb.unpack`'s retry with FbrbTool.exe: none needed since E3k (one engine).
+
+**The oracle: the Python's answers, recorded before it was deleted** (`core/tests/record_f1a.py` in `fae35c1`,
+deleted with the Python; each answer from the Python code itself - `dbx._py_parse` / `_py_to_xml` / `_py_write`,
+`fbrb._header` / `_py_read`, `use_native(False)` for terrain, water, collision and level, NavKit's `levelobjects` over
+`hkpack.py`, `culltree`'s loop - with the Rust's digest of the same case beside it: every case the same but the
+3,000-deep tree; digests as `core/tests/goldens.py` makes them; a file, bundle or level changed since is counted, not
+compared):
+
+| file | size | cases |
+|---|---:|---|
+| `core/tests/dbx_golden.json` | 99 KB | 10 built, 4,254 damaged, 500 random files (XML and tree); the writer's built partition, 41 edge trees, 2,000 random trees |
+| `core/tests/dbx_golden_corpus_0.json` - `_3.json` | 4 x 0.5 MB | 139,842 corpus files (work\levels, work\navkit\common, work\ww2), 48,120 distinct, 579 MB: XML, tree, written as read and after seeded edits, keyed by SHA-1 (Python 1,086 s, 3 processes) |
+| `core/tests/fbrb_golden.json` | 162 KB | 19 built, 1,742 damaged, 600 random bundles; the messages and `read_many`; the cache test's built bundles (12 read patterns); 1,123 game and work\ww2 bundles, 833,461 entries, 28.6 GB (entries, zipped flag, payload start, every entry's SHA-1) |
+| `core/tests/geometry_golden.json` | 64 KB | 1,808 built and damaged height fields, water files and packfiles; the collision index of built folders; 960 damaged copies of three MP_005 packfiles; 186 game bundles (527 height fields, 53 water meshes, 52 visuals and shader tables, 4,128 packfiles); the collision index of 37 prepared levels |
+| `core/tests/scene_golden.json` | 3 KB | SP_01, MP_005, MP_009GR, ONS_MP_004, entities only and whole: entities, elements, shapes, meshes, blueprints without collision, notes, height field, terrain mesh, water (Python 0.6-2.1 s and 12.7-87.2 s a load; Rust 0.2-0.5 s and 0.7-1.25 s) |
+| `bfbc2-culltree/tests/culltree_golden.json` | 218 KB | 2,146 built, damaged and random streams; add on a built level; 1,269 trees and level partitions of the game copy's level bundles and work\levels / ww2 / console_cull; console_cull's `add --auto --misplaced 2` on Onslaught MP_005 against every work\levels folder (Python 173 s, Rust 48 s, the same tree, level and 241-line report) |
+| `bfbc2-auto-navkit/tests/collision_golden.json` | 1 KB | NavKit's `detailed`, `ladders`, offline sampler geometry and boat mesh triangles on SP_009 and SP_004_B (Python 30 / 27 s, Rust 1 s) |
+
+**Proof** (`retire-f1a`, below-normal priority, the module rebuilt from this branch, no Python left): the game
+checks against the recordings - `test_dbx_native.py --game` (48,120 distinct corpus files as recorded, 218 s; XML =
+DbxEdit's on 31,404 fingerprinted), `test_dbx_write_native.py --game` (the 48,120 written as read and edited as
+recorded, 292 s; the five `DELIBERATE` edges), `test_fbrb_native.py --game` (1,123 bundles, 833,461 entries, 28.6 GB as
+recorded, 49 s), `test_geometry_native.py --game` (186 bundles, the index of 37 levels, as recorded, 21 + 75 s),
+`test_culltree_native.py --game` (1,269 trees and partitions, 522 MB, the same; the work\levels listing = glob; the
+add run's tree, level and 241-line report as recorded, 56 s), `test_fbrb_cache.py --game` (324 bundles, 20,850 reads;
+the stored bundles), `test_scene_native.py` (4 levels x 2 as recorded; 0.2-0.5 s / 0.7-1.25 s a load) and
+`test_collision_backends.py` (SP_009, SP_004_B as recorded); `test_native_required.py` (the core formats stop with
+`NativeMissing` without the module, run under `BFBC2_PURE_PYTHON=1` with it); `python run_tests.py quick -j 2`
+98 of 98 (249 s; a first run had 97: the corpus recording as one 2 MB file broke the repository's 1 MB rule - now
+four shards); `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, the workspace's tests (in the
+quick tier's `test_rust.py`). OPFOR's callers (read only) use only the kept API (`dbx.parse` / `read` / `write` /
+`to_xml`, `fbrb.entries` / `read` / `pack_many`, `culltree.py` run by `console_cull.py` from the suite): none break.
 
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 

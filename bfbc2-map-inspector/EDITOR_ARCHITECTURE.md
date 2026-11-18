@@ -202,8 +202,9 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   documentation of the behaviour and as what future changes are compared against. A retired piece needs the Rust
   module: people get it prebuilt (`rust\build_native.py --download`, a release per Rust fingerprint) or build it.
   Retired so far: texture conversion and NavKit's grid walks (2026-11-17, full tier 140 of 140); the converters,
-  the translator's emission and all of NavKit's ported Python (2026-11-18, full tier 173 of 173) - README.md, "The
-  Rust core"; `rust/BENCHMARKS.md`, "Retired Python". The tests themselves move to Rust once every Python tool is
+  the translator's emission and all of NavKit's ported Python (2026-11-18, full tier 173 of 173); the core format
+  readers and writers - DBX, FBRB, terrain, water, the collision index, the level loader, the cull tree element
+  reader (2026-11-18, round F1a) - README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python". The tests themselves move to Rust once every Python tool is
   retired (the user, 2026-11-18).
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
