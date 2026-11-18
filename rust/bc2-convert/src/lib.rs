@@ -21,6 +21,7 @@
 #![deny(unsafe_code)]
 
 pub mod audio;
+pub mod dbxcatalogue;
 pub mod dbxport;
 pub mod granny;
 pub mod havok;

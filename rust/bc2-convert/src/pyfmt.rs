@@ -87,6 +87,29 @@ impl<K: Hash + Eq + Clone, V> OrderedMap<K, V> {
         self.slots.get(i)?.as_ref().map(|(_, v)| v)
     }
 
+    /// `d[k]` to change in place.
+    pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+        let i = *self.index.get(k)?;
+        self.slots.get_mut(i)?.as_mut().map(|(_, v)| v)
+    }
+
+    /// `d[k]` of a `defaultdict`: the value, a default one inserted at the end first when absent.
+    pub fn entry_default(&mut self, k: K) -> &mut V
+    where
+        V: Default,
+    {
+        let i = if let Some(&i) = self.index.get(&k) {
+            i
+        } else {
+            self.index.insert(k.clone(), self.slots.len());
+            self.slots.push(None);
+            self.slots.len() - 1
+        };
+        #[allow(clippy::indexing_slicing)] // a slot of this map: found in its index or just pushed
+        let slot = &mut self.slots[i];
+        &mut slot.get_or_insert_with(|| (k, V::default())).1
+    }
+
     /// `k in d`.
     pub fn contains_key(&self, k: &K) -> bool {
         self.index.contains_key(k)

@@ -9,12 +9,15 @@
 
 use std::collections::{HashMap, HashSet};
 
+use bc2_convert::dbxcatalogue::{self, Key};
 use bc2_convert::havokport::{self, Layouts, Port};
 use bc2_convert::mopp::{self, Mopp, Ray, Tri};
+use bc2_convert::pyfmt::OrderedMap;
+use bc2_formats::dbx::{self, DbxTree};
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PySet, PyString, PyTuple};
 
 /// `(value,)`, `None` for a refusal, `ValueError` for the reference's own error.
 fn answer<'py, T: IntoPyObject<'py>>(
@@ -68,7 +71,8 @@ fn num(x: &Bound<'_, PyAny>, how: Num) -> Option<f64> {
     if how == Num::Double {
         if x.is_exact_instance_of::<PyInt>() {
             let v: i64 = x.extract().ok()?;
-            return (v.unsigned_abs() < 1 << 53).then_some(v as f64);
+            let small = i32::try_from(v).ok()?;
+            return Some(f64::from(small));
         }
         let ty = x.get_type();
         if ty.name().ok()?.to_str().ok()? == "float64" && ty.module().ok()?.to_str().ok()? == "numpy" {
@@ -433,4 +437,208 @@ pub fn havokport_with_face_materials<'py>(
     }
     let r = havokport::with_face_materials(b.as_bytes(), &rows);
     answer(py, r.map(|v| PyBytes::new(py, &v)).map_err(of_port))
+}
+
+// ------------------------------------------------------------------------------------------------ dbxcatalogue
+
+/// Builds the Python elements of one partition's kept subtrees, each element once (a prototype inside a kept
+/// instance is the same object, as in the reference's one tree).
+struct Elements<'py, 't, 'a> {
+    py: Python<'py>,
+    cls: &'t Bound<'py, PyAny>,
+    tree: &'t DbxTree<'a>,
+    built: HashMap<usize, Bound<'py, PyAny>>,
+    strings: HashMap<u32, Bound<'py, PyString>>,
+    empty: Bound<'py, PyBytes>,
+}
+
+impl<'py> Elements<'py, '_, '_> {
+    /// One Python string per string of the file, as the reference's parse makes them (shared by every element).
+    fn s(&mut self, id: u32) -> Bound<'py, PyString> {
+        let (py, tree) = (self.py, self.tree);
+        self.strings
+            .entry(id)
+            .or_insert_with(|| PyString::new(py, tree.str(id)))
+            .clone()
+    }
+
+    fn of(&mut self, index: usize) -> PyResult<Bound<'py, PyAny>> {
+        if let Some(e) = self.built.get(&index) {
+            return Ok(e.clone());
+        }
+        let node = self
+            .tree
+            .node(index)
+            .ok_or_else(|| PyValueError::new_err("catalogue: an element index past its tree"))?;
+        let attributes = PyList::empty(self.py);
+        for (k, v) in node.attribute_ids() {
+            attributes.append((self.s(k), self.s(v)))?;
+        }
+        let children = if node.is_container() {
+            let list = PyList::empty(self.py);
+            for c in node.children() {
+                list.append(self.of(c.index())?)?;
+            }
+            Some(list)
+        } else {
+            None
+        };
+        let empty = PyString::new(self.py, "");
+        let (text, raw) = match (&children, node.text_id()) {
+            (Some(_), _) => (empty, &[][..]),
+            (None, Some(t)) => (self.s(t), &[][..]),
+            (None, None) => (empty, node.raw()),
+        };
+        let tag = self.s(node.tag_id());
+        let raw = if raw.is_empty() {
+            self.empty.clone()
+        } else {
+            PyBytes::new(self.py, raw)
+        };
+        let e = self.cls.call1((tag, node.kind(), attributes, text, raw, children))?;
+        self.built.insert(index, e.clone());
+        Ok(e)
+    }
+}
+
+/// One Python string per distinct text of the tables (names, types and values recur thousands of times: shared, the
+/// catalogue's pickle stays small).
+struct Interned<'py> {
+    py: Python<'py>,
+    map: HashMap<String, Bound<'py, PyString>>,
+}
+
+impl<'py> Interned<'py> {
+    fn s(&mut self, v: &str) -> Bound<'py, PyString> {
+        if let Some(x) = self.map.get(v) {
+            return x.clone();
+        }
+        let x = PyString::new(self.py, v);
+        self.map.insert(v.to_owned(), x.clone());
+        x
+    }
+}
+
+fn counters<'py>(
+    py: Python<'py>,
+    m: &OrderedMap<Key, OrderedMap<String, u64>>,
+    st: &mut Interned<'py>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let out = PyDict::new(py);
+    for ((t, p), c) in m.iter() {
+        let d = PyDict::new(py);
+        for (k, v) in c.iter() {
+            d.set_item(st.s(k), v)?;
+        }
+        out.set_item((st.s(t), p), d)?;
+    }
+    Ok(out)
+}
+
+/// `dbxcatalogue.build`'s pass in Rust: `jobs` is `[(bundle, [entry names in the index's order])]`; returns `(dict,)`
+/// of the catalogue's tables (`partitions`, `classes`, `order`, `shapes`, `texts`, `numeric` as dicts of dicts in
+/// the reference's insertion order - the caller makes the `Counter`s -, `protos`, `guids`, `primary`, `defaults`,
+/// `others`, `problems`), the elements made with `element_cls`; `None` where the port refuses.
+#[pyfunction]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts a list argument as an owned Vec"
+)]
+pub fn catalogue_build<'py>(
+    py: Python<'py>,
+    jobs: Vec<(String, Vec<String>)>,
+    element_cls: &Bound<'py, PyAny>,
+    group: usize,
+) -> PyResult<Option<Bound<'py, PyTuple>>> {
+    let Some(b) = py.detach(|| dbxcatalogue::build(&jobs, group)) else {
+        return Ok(None);
+    };
+    // the kept elements, partition by partition
+    let mut wanted: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (_, (_, (pi, ei))) in b.defaults.iter().chain(b.others.iter()) {
+        wanted.entry(*pi).or_default().push(*ei);
+    }
+    for (_, (pi, ei)) in b.protos.iter() {
+        wanted.entry(*pi).or_default().push(*ei);
+    }
+    let mut made: HashMap<(usize, usize), Bound<'py, PyAny>> = HashMap::new();
+    let mut parts: Vec<&usize> = wanted.keys().collect();
+    parts.sort_unstable();
+    for pi in parts {
+        let data = b.kept.get(pi).map_or(&[][..], Vec::as_slice);
+        let tree = dbx::parse_tree(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let mut el = Elements {
+            py,
+            cls: element_cls,
+            tree: &tree,
+            built: HashMap::new(),
+            strings: HashMap::new(),
+            empty: PyBytes::new(py, b""),
+        };
+        let mut idx = wanted.get(pi).cloned().unwrap_or_default();
+        // instances first, so a prototype inside one is taken from it
+        idx.sort_unstable();
+        for ei in idx {
+            made.insert((*pi, ei), el.of(ei)?);
+        }
+    }
+    let get = |r: &(usize, usize)| -> PyResult<Bound<'py, PyAny>> {
+        made.get(r)
+            .cloned()
+            .ok_or_else(|| PyValueError::new_err("catalogue: an element not made"))
+    };
+    let mut st = Interned {
+        py,
+        map: HashMap::new(),
+    };
+    let out = PyDict::new(py);
+    out.set_item("partitions", b.partitions)?;
+    let classes: Vec<Bound<'py, PyString>> = b.classes.iter().map(|c| st.s(c)).collect();
+    out.set_item("classes", PySet::new(py, &classes)?)?;
+    let order = PyDict::new(py);
+    for (t, v) in b.order.iter() {
+        let names: Vec<Bound<'py, PyString>> = v.iter().map(|n| st.s(n)).collect();
+        order.set_item(st.s(t), names)?;
+    }
+    out.set_item("order", order)?;
+    out.set_item("shapes", counters(py, &b.shapes, &mut st)?)?;
+    out.set_item("texts", counters(py, &b.texts, &mut st)?)?;
+    out.set_item("numeric", counters(py, &b.numeric, &mut st)?)?;
+    let protos = PyDict::new(py);
+    for ((t, p), r) in b.protos.iter() {
+        protos.set_item((st.s(t), p), get(r)?)?;
+    }
+    out.set_item("protos", protos)?;
+    let guids = PyDict::new(py);
+    for (g, w) in b.guids.iter() {
+        match w.as_slice() {
+            [one] => guids.set_item(g, st.s(one))?,
+            many => {
+                let names: Vec<Bound<'py, PyString>> = many.iter().map(|n| st.s(n)).collect();
+                guids.set_item(g, PyTuple::new(py, names)?)?;
+            }
+        }
+    }
+    out.set_item("guids", guids)?;
+    let primary = PyDict::new(py);
+    for (k, v) in b.primary.iter() {
+        primary.set_item(st.s(k), v)?;
+    }
+    out.set_item("primary", primary)?;
+    for (key, m) in [("defaults", &b.defaults), ("others", &b.others)] {
+        let d = PyDict::new(py);
+        for (t, (name, r)) in m.iter() {
+            d.set_item(st.s(t), (st.s(name), get(r)?))?;
+        }
+        out.set_item(key, d)?;
+    }
+    out.set_item("problems", &b.problems)?;
+    Ok(Some(PyTuple::new(py, [out])?))
+}
+
+/// `dbxcatalogue.exe_identifiers`' scan of the executable's bytes (the caller makes the frozenset).
+#[pyfunction]
+pub fn catalogue_exe_identifiers(py: Python<'_>, data: &Bound<'_, PyBytes>) -> Vec<String> {
+    let d = data.as_bytes();
+    py.detach(|| dbxcatalogue::exe_identifiers(d))
 }

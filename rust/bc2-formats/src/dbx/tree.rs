@@ -237,6 +237,15 @@ impl<'a> DbxTree<'a> {
         }
     }
 
+    /// The element at `index` in file order ([`Node::index`]), or `None` past the tree.
+    #[must_use]
+    pub fn node(&self, index: usize) -> Option<Node<'_, 'a>> {
+        (index < self.nodes.len()).then_some(Node {
+            tree: self,
+            index: index as u32,
+        })
+    }
+
     /// The partition: the first root.
     #[must_use]
     pub fn partition(&self) -> Option<Node<'_, 'a>> {

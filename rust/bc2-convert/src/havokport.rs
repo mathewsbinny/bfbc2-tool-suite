@@ -1123,6 +1123,7 @@ fn lower(s: &str) -> String {
 ///
 /// # Errors
 /// The reference's `MaterialError`s; [`Port::Refused`] for its other exceptions.
+#[expect(clippy::too_many_lines, reason = "the reference's one function, step for step")]
 pub fn with_havok_materials(b: &[u8], names: &[String]) -> Result<Vec<u8>> {
     let p = find_magic(b).ok_or(Port::Refused)?;
     let old = havok_materials(b)?;
