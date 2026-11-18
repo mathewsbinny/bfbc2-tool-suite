@@ -1,8 +1,8 @@
 r"""Every command-line tool's error handling (no game data): each is run with input that must fail - a file that is
 missing, or not the kind the tool reads - and must exit with an error code, tell the cause and what to do in
 words, name its log, and record the error in that log (%LOCALAPPDATA%\bfbc2-tool-suite\logs; a temporary folder
-here). The C# tools (FbrbTool, LevelDiff, DbxEdit) and the Python ones (NavKit's, the crash reader, the console
-readers, the test harness) alike.
+here). The C# tool (LevelDiff), FbrbTool's and DbxEdit's command lines (fbrbtool.py / dbxedit.py: the Rust core) and
+the Python ones (NavKit's, the crash reader, the console readers, the test harness) alike.
 
   python tests\test_cli_errors.py
 """
@@ -25,7 +25,7 @@ def main(argv: list[str]) -> int:
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}', flush=True)
 
-    for bat in ('bfbc2-fbrb-tool', 'bfbc2-dbx-tools', os.path.join('bfbc2-diff-workbench', 'level-diff')):
+    for bat in (os.path.join('bfbc2-diff-workbench', 'level-diff'),):
         exe = glob.glob(os.path.join(SUITE, bat, '*.exe'))
         if not exe:
             subprocess.run(['cmd', '/c', os.path.join(SUITE, bat, 'build.bat')], capture_output=True)
@@ -38,10 +38,10 @@ def main(argv: list[str]) -> int:
     notrun = os.path.join(tmp, 'notrun.json')
     open(notrun, 'w').write('{"format": "something else"}')
     cases = [
-        ('FbrbTool, a file that is not a bundle', [os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe'), 'list', junk], 'fbrbtool', 'not the kind the tool reads'),
-        ('FbrbTool, a missing bundle', [os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe'), 'list', missing], 'fbrbtool', 'missing'),
+        ('FbrbTool, a file that is not a bundle', [PY, os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'), 'list', junk], 'fbrbtool', 'not the kind the tool reads'),
+        ('FbrbTool, a missing bundle', [PY, os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'), 'list', missing], 'fbrbtool', 'missing'),
         ('LevelDiff, a missing file', [os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe'), missing, junk], 'leveldiff', 'what to do'),
-        ('DbxEdit, a missing file', [os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe'), 'edit', missing, junk + '.out', 'drop=x'], 'dbxedit', 'missing'),
+        ('DbxEdit, a missing file', [PY, os.path.join(SUITE, 'bfbc2-dbx-tools', 'dbxedit.py'), 'edit', missing, junk + '.out', 'drop=x'], 'dbxedit', 'missing'),
         ('hpdtool, a file that is not path data', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'), 'info', junk], 'hpdtool', 'what to do'),
         ('crash reader, a report that is not XML', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'), junk, '--no-code'], 'crashreader', 'what to do'),
         ('STFS reader, a missing package', [PY, os.path.join(SUITE, 'bfbc2-console-readers', 'stfs', 'stfs.py'), 'info', missing], 'stfs', 'missing'),

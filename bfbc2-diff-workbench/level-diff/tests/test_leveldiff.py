@@ -3,7 +3,7 @@ known differences: a changed field, a placed object re-created under a new GUID 
 --match-objects), reference lists with entries added, removed or only reordered, instances added and
 removed. Also: --ignore, --type, the exit codes, the JSON output, and bad input.
 
-  python test_leveldiff.py            no game data (builds LevelDiff.exe and DbxEdit.exe if missing)
+  python test_leveldiff.py            no game data (builds LevelDiff.exe if missing; DbxEdit's import in process)
   python test_leveldiff.py --game     also a level against itself and its Package copy against its Dist copy
 """
 import json
@@ -18,10 +18,12 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+suite_paths.use('core')
+from bfbc2core import dbxedit  # noqa: E402
+
+HERE =os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 LD = os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe')
-DBX = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
 
 
 def g(n):
@@ -90,8 +92,7 @@ def guids(items):
 
 
 def build_tools():
-    for exe, bat in ((DBX, os.path.join(SUITE, 'bfbc2-dbx-tools', 'build.bat')),
-                     (LD, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat'))):
+    for exe, bat in ((LD, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')),):
         if not os.path.isfile(exe):
             subprocess.run(['cmd', '/c', bat], check=True, capture_output=True)
 
@@ -106,7 +107,7 @@ def main(argv):
             x = os.path.join(work, name + '.xml')
             open(x, 'w', encoding='utf-8').write(partition(inst))
             files[name] = os.path.join(work, name + '.dbx')
-            r = subprocess.run([DBX, 'import', x, files[name]], capture_output=True, text=True)
+            r = dbxedit.run(['import', x, files[name]])                 # in process (the Rust core)
             if r.returncode not in (0, 3) or not os.path.isfile(files[name]):
                 print('FAIL DbxEdit import of the test level:', (r.stdout + r.stderr)[-300:])
                 return 1

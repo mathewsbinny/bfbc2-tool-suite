@@ -1,4 +1,4 @@
-"""Read-only access to .fbrb bundles without unpacking them (the layout FbrbTool reads, bfbc2-fbrb-tool/FbrbTool.cs).
+"""Read-only access to .fbrb bundles without unpacking them (the layout FbrbTool reads: rust/bc2-formats/src/fbrb).
 
     entries(path)                    [Entry]: name, type, flags, offset, size, size2 - reads only the header (fast)
     names(path)                      {lower-case entry name: Entry}, *deleted* markers left out
@@ -15,18 +15,19 @@ Layout: "FbRB", u32 big-endian header length, the header (gzip): u32, u32 string
 count, per entry six u32 (name offset, flags, payload offset, size, size2, type offset), one byte (payload zipped),
 u32 payload length; then the payload (gzip when zipped). Unpacking and packing, FbrbTool's commands:
 
-    unpack(bundle, out)              FbrbTool's `unpack <bundle> <out>`: the same files and fbrb.manifest; in the Rust
-                                     core (rounds E3j, E3k), else by FbrbTool.exe
-    pack(folder, out)              FbrbTool's `pack <folder> <out>`: the bundle of an unpacked folder (its files and
+    unpack(bundle, out)              FbrbTool's `unpack <bundle> <out>`: the same files and fbrb.manifest, in the Rust
+                                     core (rounds E3j, E3k)
+    pack(folder, out)                FbrbTool's `pack <folder> <out>`: the bundle of an unpacked folder (its files and
                                      fbrb.manifest), the same bytes; returns (entries, payload bytes)
-    pack_many([(folder, out), ...])  pack() of many folders (on all cores with the Rust core): each result is the
-                                     tuple, or the exception pack() raised
+    pack_many([(folder, out), ...])  pack() of many folders on all cores: each result is the tuple, or the exception
+                                     pack() raised
 
-pack runs in the Rust core (bc2_formats::fbrb::pack_path: zlib's deflate ported byte for byte, DICE's padded
-layouts, the size2 rules) when it is built, else it runs FbrbTool.exe (the suite's build); both write the same
-bytes (core/tests/test_fbrb_pack_native.py: every bundle of the game copy). A folder that cannot be packed raises
-ValueError (a malformed manifest, an unsafe entry name, an old manifest whose size2 cannot be kept) or OSError (a
-missing or unreadable file, a bundle that cannot be written).
+pack and unpack run in the Rust core, which they require (bfbc2core.native.require; FbrbTool.exe, their fallback
+before, was retired 2026-11-18): bc2_formats::fbrb::pack_path (zlib's deflate ported byte for byte, DICE's padded
+layouts, the size2 rules) writes the bytes FbrbTool.exe wrote (core/tests/test_fbrb_pack_native.py: every bundle of
+the game copy against the recorded ones). A folder that cannot be packed raises ValueError (a malformed manifest, an
+unsafe entry name, an old manifest whose size2 cannot be kept) or OSError (a missing or unreadable file, a bundle
+that cannot be written).
 
 entries / names / read / read_many run in the suite's Rust core (rust/, module bc2_native: bc2_formats::fbrb) when it
 is built, else in Python here; both give the same entries and bytes and refuse the same bundles
@@ -268,91 +269,33 @@ def _py_read(path: Path, wanted: Iterable[str]) -> dict[str, bytes]:
 
 # ------------------------------------------------------------------------------------------------ packing
 
-def _native_pack() -> ModuleType | None:
-    """The Rust core when it is on and has the packer (a module built before it was added does not)."""
-    return _native if _native is not None and hasattr(_native, 'fbrb_pack') else None
-
-
-def fbrbtool() -> str:
-    """FbrbTool.exe where the suite's build puts it (bfbc2-fbrb-tool), whether it is built or not."""
-    from . import paths
-    return paths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe')
-
-
-def _tool_pack(folder: Path, out: Path) -> tuple[int, int]:
-    """pack() by FbrbTool.exe: its 'packed N entries (X bytes) into ...' line read back."""
-    import re
-    import subprocess
-    tool = fbrbtool()
-    if not os.path.isfile(tool):
-        raise OSError(f'{tool} is not built (run bfbc2-fbrb-tool\\build.bat) and the Rust core is not built either')
-    r = subprocess.run([tool, 'pack', os.fspath(folder), os.fspath(out)], capture_output=True, text=True,
-                       errors='replace')
-    m = re.search(r'packed (\d+) entries \((\d+) bytes\)', r.stdout)
-    if r.returncode != 0 or m is None:
-        text = (r.stderr.strip() or r.stdout.strip())[-2000:]
-        io = any(k in text for k in ('is missing', 'could not be written or read', 'in use', 'out of memory'))
-        raise (OSError if io else ValueError)(f'FbrbTool pack {os.fspath(folder)}: {text}')
-    return int(m.group(1)), int(m.group(2))
+def _core(attr: str) -> ModuleType:
+    """The Rust core for FbrbTool's pack / unpack (no Python twin: they always need it, whatever use_native says),
+    or NativeMissing saying how to get it."""
+    from . import native
+    return native.require('FbrbTool\'s pack and unpack', attr)
 
 
 def pack(folder: Path, out: Path) -> tuple[int, int]:
     """FbrbTool's pack: the bundle of folder (unpacked by FbrbTool: its files and fbrb.manifest) written to out
     (through a temporary file beside it, so a pack cut short leaves the old bundle). Returns (entries, payload
-    bytes). In the Rust core when it is built, else by FbrbTool.exe."""
-    native = _native_pack()
-    if native is not None:
-        n, size = native.fbrb_pack(os.fspath(folder), os.fspath(out))
-        return int(n), int(size)
-    return _tool_pack(folder, out)
+    bytes). In the Rust core (required)."""
+    n, size = _core('fbrb_pack').fbrb_pack(os.fspath(folder), os.fspath(out))
+    return int(n), int(size)
 
 
 def pack_many(items: Sequence[tuple[Path, Path]]) -> list[tuple[int, int] | Exception]:
-    """pack() of each (folder, out), in order; a folder that cannot be packed gives the exception pack() raises
-    (ValueError, OSError) in its place, returned. With the Rust core the bundles are packed on all cores."""
-    native = _native_pack()
-    if native is not None:
-        got = native.fbrb_pack_many([(os.fspath(f), os.fspath(o)) for f, o in items])
-        return [r if isinstance(r, Exception) else (int(r[0]), int(r[1])) for r in got]
-    out: list[tuple[int, int] | Exception] = []
-    for f, o in items:
-        try:
-            out.append(_tool_pack(f, o))
-        except (ValueError, OSError) as e:
-            out.append(e)
-    return out
-
-
-def _native_unpack() -> ModuleType | None:
-    """The Rust core when it is on and has the unpacker (a module built before round E3j does not)."""
-    return _native if _native is not None and hasattr(_native, 'fbrb_unpack') else None
-
-
-def _tool_unpack(bundle: Path, out: Path) -> str:
-    """unpack() by FbrbTool.exe; its output (stdout + stderr) returned, or OSError / ValueError when it fails."""
-    import subprocess
-    tool = fbrbtool()
-    if not os.path.isfile(tool):
-        raise OSError(f'{tool} is not built (run bfbc2-fbrb-tool\\build.bat)')
-    r = subprocess.run([tool, 'unpack', os.fspath(bundle), os.fspath(out)], capture_output=True, text=True,
-                       errors='replace')
-    if r.returncode != 0:
-        text = (r.stderr.strip() or r.stdout.strip())[-2000:]
-        io = any(k in text for k in ('is missing', 'could not be written or read', 'in use', 'out of memory',
-                                     'not find'))
-        raise (OSError if io else ValueError)(f'FbrbTool unpack {os.fspath(bundle)}: {text}')
-    return r.stdout + r.stderr
+    """pack() of each (folder, out), in order, on all cores; a folder that cannot be packed gives the exception
+    pack() raises (ValueError, OSError) in its place, returned."""
+    got = _core('fbrb_pack_many').fbrb_pack_many([(os.fspath(f), os.fspath(o)) for f, o in items])
+    return [r if isinstance(r, Exception) else (int(r[0]), int(r[1])) for r in got]
 
 
 def unpack_in_process(bundle: Path, out: Path) -> bool:
-    """unpack() in the Rust core only: True when it unpacked the bundle (FbrbTool's files and manifest), False when
-    the core is off or not built, or the bundle cannot be unpacked (out may then hold part of it, as FbrbTool leaves it). For a caller with a
-    quicker fallback than FbrbTool.exe (a copy of an earlier unpack)."""
-    native = _native_unpack()
-    if native is None:
-        return False
+    """unpack() that answers False instead of raising when the bundle cannot be unpacked (out may then hold part of
+    it, as FbrbTool left it): for a caller with a quicker fallback (a copy of an earlier unpack)."""
     try:
-        native.fbrb_unpack(os.fspath(bundle), os.fspath(out))
+        _core('fbrb_unpack').fbrb_unpack(os.fspath(bundle), os.fspath(out))
     except (ValueError, OSError):
         return False
     return True
@@ -360,23 +303,14 @@ def unpack_in_process(bundle: Path, out: Path) -> bool:
 
 def unpack(bundle: Path, out: Path) -> str:
     """FbrbTool's `unpack <bundle> <out>`: every entry written under out by its archive name, *deleted* markers
-    listed in out\\fbrb.manifest only, the manifest FbrbTool writes - the same files and bytes. Returns how it ran:
-    'rust' (in process, bc2_formats::fbrb::unpack_path) or FbrbTool's output.
+    listed in out\\fbrb.manifest only, the manifest FbrbTool writes - the same files and bytes. Returns 'rust' (in
+    process, bc2_formats::fbrb::unpack_path; the Rust core is required).
 
-    The Rust core unpacks every bundle as FbrbTool does (round E3j for plain bundles; since E3k one engine with
-    FbrbTool's command line, bfbc2core.fbrbtool: .NET's gzip reader, path rules and errors). A bundle it cannot
-    unpack goes to FbrbTool.exe when that is built - the reference, which reports the same error (ValueError;
-    OSError for files) - else the in-process error is raised. Without the Rust core (or BFBC2_PURE_PYTHON /
-    use_native(False)) FbrbTool.exe runs."""
-    native = _native_unpack()
-    if native is not None:
-        try:
-            native.fbrb_unpack(os.fspath(bundle), os.fspath(out))
-            return 'rust'
-        except (ValueError, OSError):
-            if not os.path.isfile(fbrbtool()):
-                raise
-    return _tool_unpack(bundle, out)
+    The Rust core unpacks every bundle as FbrbTool.exe did (one engine with FbrbTool's command line,
+    bfbc2core.fbrbtool: .NET's gzip reader, path rules and errors); a bundle it cannot unpack raises ValueError
+    (OSError for files), as FbrbTool.exe refused it."""
+    _core('fbrb_unpack').fbrb_unpack(os.fspath(bundle), os.fspath(out))
+    return 'rust'
 
 
 def build(items: list[tuple[str, str, bytes]], zipped: bool = True) -> bytes:

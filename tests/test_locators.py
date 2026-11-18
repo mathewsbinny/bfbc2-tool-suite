@@ -68,8 +68,6 @@ def probe(suite: str, mode: str) -> dict[str, Any]:
         ('convert.default_exe', lambda: convert.default_exe()),
         ('bf1943import.default_source', lambda: bf1943import.default_source()),
         ('bf1943import.fbrb1943', lambda: os.path.dirname(bf1943import.fbrb1943().__file__)),
-        ('pipeline.FBRB', lambda: pipeline.FBRB),
-        ('pipeline.DBX', lambda: pipeline.DBX),
         ('pipeline.Paths', lambda: pipeline.Paths('sp_009').opfor),
     ]
     if mode != 'hide':

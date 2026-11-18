@@ -201,6 +201,9 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   was deleted, and the Python module is required for it: people get it prebuilt (`rust\build_native.py --download`,
   from a release per Rust fingerprint) or build it. First retired (2026-11-17, after the full tier's 140 of 140):
   texture conversion and NavKit's grid walks (README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python").
+  The C# tools whose commands were ported went the same way (round R4, 2026-11-18, after the full tier's 173 of
+  173): DbxEdit.exe and FbrbTool.exe are retired, their answers recorded (`core/tests/*_golden*.json`); DbxEditGUI
+  stays, built on DbxEdit.cs, until this editor replaces it (`rust/BENCHMARKS.md`, "Retired C# tools").
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
   Each Python GUI stays until its replacement works.

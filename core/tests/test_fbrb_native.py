@@ -1,5 +1,6 @@
 r"""The Rust bundle reader (rust/bc2-formats fbrb, through the bc2_native module) against the Python reader it was
-ported from (core/bfbc2core/fbrb.py), and against FbrbTool: the same entries, the same bytes, the same bundles refused.
+ported from (core/bfbc2core/fbrb.py), and against FbrbTool's unpack (in process; its files the ones FbrbTool.exe wrote,
+recorded before it was retired: csharp_golden.py): the same entries, the same bytes, the same bundles refused.
 
   python core\tests\test_fbrb_native.py            quick: built and hand-made bundles, damaged and random ones, the
                                                     dispatcher and fallback, FbrbTool's unpack of the built bundles;
@@ -31,10 +32,13 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-from bfbc2core import dbx, fbrb, paths  # noqa: E402
+from bfbc2core import dbx, fbrb, fbrbtool, paths  # noqa: E402
+
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import csharp_golden as cg  # noqa: E402
 
 NATIVE: Any = fbrb._with_fbrb(dbx._import_native())
-TOOL = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
 BIG = 150_000_000          # bundles larger than this are compared one at a time (each reader holds every entry)
 
 
@@ -216,12 +220,17 @@ def run_game(files: list[str], check: Any, label: str) -> None:
           f'same entries and bytes in both readers  ({time.time() - t:.0f} s)')
 
 
-def fbrbtool_agrees(path: str, work: str) -> str | None:
-    """FbrbTool's unpack of path against the Rust reader: the manifest's entries and every file's bytes."""
+def fbrbtool_agrees(path: str, work: str, want: str | None) -> str | None:
+    """FbrbTool's unpack of path (in process; its files the ones FbrbTool.exe wrote: want, the folder's recorded
+    digest) against the Rust reader: the manifest's entries and every file's bytes."""
     out = os.path.join(work, 'u')
-    r = subprocess.run([TOOL, 'unpack', path, out], capture_output=True, text=True)
+    r = fbrbtool.run(['unpack', path, out])
     if r.returncode != 0:
         return f'FbrbTool unpack failed: {(r.stdout + r.stderr).strip()[-200:]}'
+    if want is None:
+        return 'FbrbTool.exe\'s unpack of it was not recorded'
+    if cg.tree_digest(out) != want:
+        return 'the unpacked files differ from FbrbTool.exe\'s'
     lines = [l.rstrip('\r\n') for l in open(os.path.join(out, 'fbrb.manifest'), encoding='ascii', errors='replace')
              if l.strip() and l[0] != '#']
     ents, _, _ = NATIVE.fbrb_header(path, fbrb.Entry)
@@ -348,15 +357,16 @@ def main(argv: list[str]) -> int:
         root: str | None = paths.find_opfor()
     except paths.PathsError:
         root = None
-    if os.path.isfile(TOOL):
-        probs = [f'{name}: {why}' for i, (name, _) in enumerate(built[:2])
-                 if (why := fbrbtool_agrees(os.path.join(work, f'b{i}.fbrb'), work))]
-        sample = sorted(game_bundles(root), key=os.path.getsize)[100:108] if root else []
-        probs += [f'{os.path.basename(s)}: {why}' for s in sample if (why := fbrbtool_agrees(s, work))]
-        check(not probs, f'FbrbTool unpack agrees with the Rust reader: the built bundles and {len(sample)} game bundles '
-              '(entries, types, flags, sizes; every file\'s bytes)', '; '.join(probs[:3]))
-    else:
-        print(f'skipped: FbrbTool unpack comparison ({TOOL} not built)')
+    golden = cg.load('fbrbtool_golden.json').get('reader_built', {})
+    recorded = cg.load('fbrbtool_golden_game.json').get('bundles', {})
+    probs = [f'{name}: {why}' for i, (name, _) in enumerate(built[:2])
+             if (why := fbrbtool_agrees(os.path.join(work, f'b{i}.fbrb'), work, golden.get(name)))]
+    sample = sorted(game_bundles(root), key=os.path.getsize)[100:108] if root else []
+    probs += [f'{os.path.basename(s)}: {why}' for s in sample
+              if (why := fbrbtool_agrees(s, work, recorded.get(cg.sha1_file(s), {}).get('unpack', [None] * 4)[3]))]
+    check(not probs, f'FbrbTool\'s unpack (the files FbrbTool.exe wrote: fbrbtool_golden*.json) agrees with the Rust '
+          f'reader: the built bundles and {len(sample)} game bundles (entries, types, flags, sizes; every file\'s bytes)',
+          '; '.join(probs[:3]))
     if root is None:
         print('skipped: the game runs (no Project OPFOR BFBC2 game copy)')
     else:

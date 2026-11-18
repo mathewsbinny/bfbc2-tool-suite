@@ -40,7 +40,7 @@ happened, the likely cause and what to do - for example "a Python library the to
 "the level is not prepared", "a file could not be written - close the game" - and where the log is. In the 3D
 tools an error in one panel does not close the window: it is listed in a Problems window and logged once. The
 suite window checks the libraries when it opens, and when a tool it runs fails it shows that tool's last lines.
-The command-line tools - FbrbTool, DbxEdit, LevelDiff, NavKit's `navkit.py` and `tools\*.py`, the crash reader,
+The command-line tools - FbrbTool (`fbrbtool.py`), DbxEdit (`dbxedit.py`), LevelDiff, NavKit's `navkit.py` and `tools\*.py`, the crash reader,
 the console readers, the menu tools, the test harness, the test runner - log the same way and, on an error, print the cause, what to do and the
 log's path (exit code 1); DbxEditGUI and NavKit's window show it in a window. If you report a problem, send the
 log file.
@@ -50,8 +50,8 @@ log file.
 | Folder | Tool |
 |---|---|
 | `bfbc2-auto-navkit/` | **BC2 NavKit**: generates AI navigation data (`pathdata.hpd`) for levels. Start with `QUICKSTART.md`, or `navkitGUI.pyw`. |
-| `bfbc2-dbx-tools/` | **DbxEdit** and **DbxEditGUI**: view, edit, check and repair binary `.dbx` files; XML export and import |
-| `bfbc2-fbrb-tool/` | **FbrbTool**: unpack and repack `.fbrb` bundles |
+| `bfbc2-dbx-tools/` | **DbxEdit** (`dbxedit.py`, the Rust core) and **DbxEditGUI** (the window, C#): view, edit, check and repair binary `.dbx` files; XML export and import |
+| `bfbc2-fbrb-tool/` | **FbrbTool** (`fbrbtool.py`, the Rust core): unpack and repack `.fbrb` bundles |
 | `bfbc2-console-readers/` | read-only readers for Xbox 360 disc images and content packages |
 | `bfbc2-diff-workbench/level-diff/` | **LevelDiff**: what differs between two `.dbx` files, instance by instance |
 | `bfbc2-automated-map-and-bot-test-harness/` | **test harness** (offline, M5): per level and path-data file (DICE's, NavKit's) structure, spawn-to-objective reachability, path-test batteries, orders near the route network, sector offsets, NavKit's DICE parity, and AI readiness from the game copy's bundles; saved runs compared between builds (`harness.py`); in-game tests on hold |
@@ -201,13 +201,13 @@ with the disk cache off (`BFBC2_FBRB_CACHE=0`, unless set): a sweep of the game 
 The writers too: `dbx.write` runs in Rust (the
 Python writer's bytes; a tree the Rust writer does not take, such as one with an empty tag, goes to the Python
 writer, so the result is always the Python writer's), and the new `fbrb.pack(folder, out)` / `fbrb.pack_many` pack
-an unpacked folder as FbrbTool's `pack` does, the same bytes on every bundle of the game copy, with FbrbTool.exe as
-the fallback (`bfbc2-stockmp-ai` packs through it). **Unpacking** (round E3j): `fbrb.unpack(bundle, out)` is
+an unpacked folder as FbrbTool's `pack` does, the same bytes on every bundle of the game copy (the Rust core is
+required: FbrbTool.exe, the fallback, was retired 2026-11-18; `bfbc2-stockmp-ai` packs through it). **Unpacking** (round E3j): `fbrb.unpack(bundle, out)` is
 FbrbTool's `unpack` - the same files, names and `fbrb.manifest` - in the Rust core (`bc2_formats::fbrb::unpack_path`,
 entries written on all cores); since round E3k it is the engine of FbrbTool's command line in process (below), so
 every bundle is unpacked as FbrbTool unpacks it - odd names, clashes, extra gzip bytes and damage included, a failure
-with FbrbTool's error and the files FbrbTool leaves; an error in process still goes to `FbrbTool.exe` when it is built
-(`core/tests/test_fbrb_unpack_native.py`: built, odd and damaged bundles and the game copy both ways).
+with FbrbTool's error and the files FbrbTool leaves (`core/tests/test_fbrb_unpack_native.py`: built, odd and damaged
+bundles and the game copy, against FbrbTool.exe's recorded unpacks).
 `bfbc2-stockmp-ai` unpacks through it.
 Outside `core`, `bfbc2-shader-tools/shaderdb.py` (`ShaderDb.parse` and `to_bytes`; a record of a kind only Python writes, such as a `bytearray`, falls back to the Python writer) and `bfbc2-culltree/culltree.py` (the element reader of `Doc`; `level_partitions`, the `--ref-dir` search) work the same way, each with `use_native` and `backend()`.
 NavKit's walkability rules (`headroom`, `stair_slope`, `narrow_lips`, landings, `near_objects` / `on_objects`),
@@ -299,28 +299,32 @@ for many jobs (`renderqa.run_job`, thread-safe; `BFBC2_SHADERVIEW_SERVE=0` runs 
 core instead of starting `DbxEdit.exe` (a .NET start and a fresh parse for every call): `dbxedit.run(args)` and
 `run_many(list of args)` (all cores) return a `subprocess.CompletedProcess` with DbxEdit's exit code and output;
 `edit`, `import_xml`, `xml`, `check`, `roundtrip` and `fixslots` name the commands; `run_cmd(cmd, **kw)` takes a
-command line that starts with `DbxEdit.exe`'s path and `subprocess.run`'s keyword arguments, so a caller switches
-with one line. Writes go through `bc2-formats`' `atomic::replace` (a moment's lock on the target is waited out).
-Each run is logged in DbxEdit's own log (`dbxedit-<date>.log`, "started (in process)"). `BFBC2_DBXEDIT_EXE=1` runs
-`DbxEdit.exe` instead (for comparison), as does a checkout without the Rust core (warned once). `DbxEdit.exe`
-stays the reference: `core/tests/test_dbxedit.py` runs DbxEdit's unit-test cases both ways (quick) and a corpus
-sample, DbxEdit's edit fingerprints and a replay of a day's invocations (`--game`, `rust/bench_dbxedit.py`); the
-suite's NavKit unpack and `bfbc2-stockmp-ai`'s validation use it.
+command line whose program is DbxEdit (`'DbxEdit'`, or `DbxEdit.exe` by any path) and `subprocess.run`'s keyword
+arguments, so a caller switches with one line; `python bfbc2-dbx-tools\dbxedit.py <command> ...` is the command line
+by hand. Writes go through `bc2-formats`' `atomic::replace` (a moment's lock on the target is waited out).
+Each run is logged in DbxEdit's own log (`dbxedit-<date>.log`, "started (in process)"). **DbxEdit.exe was retired**
+(round R4, 2026-11-18, after the full tier): the Rust core is required (`NativeMissing` says how to get it) and
+`BFBC2_DBXEDIT_EXE` is gone; `core/tests/test_dbxedit.py` checks the commands against the exe's recorded answers
+(`core/tests/dbxedit_golden.json`: DbxEdit's unit-test cases; `dbxedit_golden_game_0.json / _1.json`: a 1,592-file corpus
+sample through every command, 12,464 runs) and DbxEdit's edit fingerprints. DbxEdit.cs stays as the DBX classes
+of DbxEditGUI (the window, until the map editor replaces it) and LevelDiff. The suite's NavKit unpack and
+`bfbc2-stockmp-ai`'s validation use it.
 **FbrbTool in process** (round E3k, 2026-11-17). `bfbc2core.fbrbtool` does the same for `FbrbTool.exe`'s `unpack`,
 `pack`, `list` and `big` (`rust/bc2-formats/src/fbrb/tool.rs`): `fbrbtool.run(args)`, `run_many`, `unpack`, `pack`,
-`list_entries`, `big`, and `run_cmd(cmd, **kw)` as a drop-in for `subprocess.run([FbrbTool.exe, ...], ...)`
+`list_entries`, `big`, and `run_cmd(cmd, **kw)` as a drop-in for `subprocess.run(['FbrbTool', ...], ...)`
 (`capture_output` defaults to False as `subprocess.run`'s does; `stdout=` / `stderr=` PIPE, DEVNULL, STDOUT or a
-file are honoured; a call with `cwd=` runs the exe). The same files byte for byte, the same messages and exit codes,
+file are honoured; with `cwd=` the command's relative paths are taken from that folder);
+`python bfbc2-fbrb-tool\fbrbtool.py <command> ...` is the command line by hand. The same files byte for byte, the same messages and exit codes,
 the same failures on damaged bundles: a bundle's gzip streams are read by .NET's own rules (`fbrb::netgzip`, a port of
 .NET Framework's managed inflater and `GZipStream.CopyTo`; zlib reads every stream it takes whole, the port decides
 the rest), entry paths are normalised as .NET's `GetFullPath` does. A zipped payload is decompressed as the file is
 read and a stored one is never loaded (entries are read where they are). Entries, the manifest and packed bundles are
 written beside their name and moved over it (`atomic::replace`). Logged in `fbrbtool-<date>.log` ("started (in
-process)"); `BFBC2_FBRBTOOL_EXE=1` runs the exe, as does a checkout without the Rust core. `FbrbTool.exe` stays the
-reference: `core/tests/test_fbrbtool.py` (quick: 228 command lines both ways, damaged bundles, 500 gzip streams
-against a C# probe of .NET's reader; `--game`: game bundles, a replay of the logged invocations), timings
-`rust/bench_fbrbtool.py`. NavKit's unpack, `level.heightfield_of`'s terrain unpack and `bfbc2-stockmp-ai`'s
-`pipeline.run` use it.
+process)"). **FbrbTool.exe was retired** with DbxEdit.exe (FbrbTool.cs deleted; `BFBC2_FBRBTOOL_EXE` gone; the Rust
+core required): `core/tests/test_fbrbtool.py` checks against the exe's recorded answers (`fbrbtool_golden.json`:
+228 command lines, 600 damaged bundles, .NET's gzip reader on 3,000 streams; `fbrbtool_golden_game.json`: every
+bundle of the game copy up to 300 MiB unpacked, listed and packed again). NavKit's unpack, `level.heightfield_of`'s
+terrain unpack, the hub's Bundles tab and `bfbc2-stockmp-ai` use it.
 **The stock-MP AI layer** (round E4a, 2026-11-18, crate `rust/bc2-stockmp`). `bfbc2-stockmp-ai`'s logic runs in Rust
 with its data kept there: `bc2_formats::dbx::edit::EditDbx` is the port of `dbxbin.py` (a level partition as an arena
 of elements named by handles, edited and written back byte for byte, the string table kept until a string is added);
@@ -412,8 +416,8 @@ own files, never (for the caps) a log written in the last 10 minutes (a running 
 folder (`logs-<date>_<time>.zip`, written whole before anything is deleted - if it cannot be written, nothing is
 deleted); the archives have their own cap, `BFBC2_LOG_ARCHIVE_MB` (default 1024), the oldest archive deleted first.
 Before
-E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). DbxEdit.exe and
-FbrbTool.exe (C#, `ToolLog`) still write one file per day; their logs are pruned with the rest. Also under
+E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). DbxEditGUI and
+LevelDiff (C#, `ToolLog`) still write one file per day; their logs are pruned with the rest. Also under
 `%LOCALAPPDATA%\bfbc2-tool-suite`, not a cache: `test_times.json` (`run_tests.py`'s durations). In-memory caches
 (`BFBC2_FBRB_MEMORY_MB`, `pcbuild.MEMORY_LIMIT`, `functools.lru_cache`s) end with the process.
 
@@ -466,7 +470,7 @@ read it), every `pathdata.hpd` under `work\` (hpdtool reads them, the vehicle te
 Studio cache, `work\navkit\sp_004_b`, the suite's `build\` folder (shaderview.exe, renderqa's pickles), a window on
 the desktop, `DbxTests.exe` and `rust\target`. A writer never runs beside a reader or another writer of the same
 thing, and tests that share a thing keep their listed order, so each sees it as a one-at-a-time run did. The build
-steps (Rust core, DbxEdit, FbrbTool, LevelDiff) run first, alone, before any test, since nearly every test loads
+steps (Rust core, DbxEditGUI, LevelDiff) run first, alone, before any test, since nearly every test loads
 what they build. The runner starts a test while a slot, the CPU threads (`--cpus`, default all) and the memory
 (`--mem`, default three quarters of the PC's) it declares are free; the longest chains go first, and a test held
 back for room keeps its place (shorter tests fill in only while they end in time). A test missing from `NEEDS` runs
