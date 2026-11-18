@@ -1,6 +1,14 @@
-r"""granny.py's Rust core (bc2_native: bc2_formats::granny, bc2_convert::granny) against its Python code, the
-reference: the same tables, the same object trees (every value, its type, every dict's key order, floats bit for
-bit), the same PC bytes from to_pc, the same exceptions.
+r"""granny.py's Rust core (bc2_native: bc2_formats::granny, bc2_convert::granny): the reader against granny.py's
+Python reader, the format reference that stays (the same tables, the same object trees: every value, its type,
+every dict's key order, floats bit for bit, the same exceptions), and the Xbox 360 -> PC conversion (to_pc) against
+results recorded from its retired Python code.
+
+The Python to_pc (_to_pc_python, _marshal, _swap) was the reference until 2026-11-18, when the port had passed the
+full test tier and it was retired (rust/BENCHMARKS.md, "Retired Python"). Its results were recorded first, from the
+Python code itself, in granny_golden.json beside this file: each conversion's output SHA-1 or its exception, under
+"quick", "xbox" and "bf1943" (with each input's SHA-1). Where the Rust core now answers otherwise on purpose (a
+damaged resource the Python code converted or failed on in another way, now a GrannyError saying why), the new
+answer is under "now", case by case; every other case must give the recorded answer.
 
   python test_granny_native.py           quick: resources built here (both byte orders, every member type: inline
                                          structs and arrays, references, arrays of references, variants, variant
@@ -11,12 +19,19 @@ bit), the same PC bytes from to_pc, the same exceptions.
   python test_granny_native.py --game    + every Granny resource (GrannyAnimation, DeltaAnimation, GrannyModel) of
                                          your Xbox mp_common / sp_common (OPFOR's work\xbox), their PC twins and the
                                          game copy's, and every one of Battlefield 1943's bundles (the Rising Sun
-                                         workspace): read both ways, the Xbox ones converted both ways (BF1943's
-                                         soldier animations also with the bone map onto BFBC2's soldier); timings
+                                         workspace): read both ways, the Xbox ones converted (BF1943's soldier
+                                         animations also with the bone map onto BFBC2's soldier) against the
+                                         recording; timings
+  python test_granny_native.py --record [--game]
+                                         write the "now" answers from the current code where they differ from the
+                                         recording: only after a deliberate change, proven on the game's files
+                                         (test_granny_port.py --game) - the recording is the only oracle
 
-Skipped (exit 0) when the module is not built (python rust\build_native.py).
+The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
 """
 import glob
+import hashlib
+import json
 import math
 import os
 import random
@@ -37,11 +52,102 @@ from bfbc2core import paths  # noqa: E402
 
 KINDS = ('GrannyAnimation', 'DeltaAnimation', 'GrannyModel')
 NATIVE = granny._import_native()
+GOLDEN = os.path.join(HERE, 'granny_golden.json')
 
 
 def use(on: bool) -> None:
-    """granny's backend for this process (granny.use_native without loading the module again each time)."""
+    """granny's reader for this process (granny.use_native without loading the module again each time): the Rust
+    core or the Python reader. to_pc always runs in the Rust core."""
     granny._native = NATIVE if on else None
+
+
+def to_pc(b: bytes, bones: Any, where: str) -> bytes:
+    """The conversion the recording is compared with (granny.to_pc)."""
+    return granny.to_pc(b, bones, where)
+
+
+def sha1(b: bytes) -> str:
+    """The first 16 hex digits of b's SHA-1."""
+    return hashlib.sha1(b).hexdigest()[:16]
+
+
+# ------------------------------------------------------------------------------------------------ the recording
+
+def load() -> dict[str, Any]:
+    try:
+        with open(GOLDEN, encoding='utf-8') as f:
+            return dict(json.load(f))
+    except FileNotFoundError:
+        return {}
+
+
+def write(golden: dict[str, Any]) -> None:
+    """granny_golden.json, one case per line (a change shows as the lines of the cases it changed)."""
+    lines = ['{']
+    keys = sorted(golden)
+    for i, k in enumerate(keys):
+        v, end = golden[k], (',' if i < len(keys) - 1 else '')
+        if isinstance(v, dict) and v:
+            rows = [f'{json.dumps(n)}: {json.dumps(v[n])}' for n in sorted(v)]
+            lines += [f'{json.dumps(k)}: {{', *[r + ',' for r in rows[:-1]], *rows[-1:], '}' + end]
+        else:
+            lines.append(f'{json.dumps(k)}: {json.dumps(v)}{end}')
+    lines.append('}')
+    with open(GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(lines) + '\n')
+
+
+GOLD: dict[str, Any] = {}
+RECORD = [False]
+
+
+class Recorded:
+    """Each conversion's recorded answer ("now" over the reference's) against the current one; with --record, the
+    current answers that differ from the reference's go to "now"."""
+
+    def __init__(self, group: str):
+        self.ref: dict[str, Any] = GOLD.get(group, {})
+        self.now: dict[str, Any] = GOLD.setdefault('now', {})
+        self.group = group
+        self.n = self.same = self.changed = 0
+        self.diffs: list[str] = []
+
+    def __call__(self, name: str, got: list[str], input_sha: str | None = None) -> None:
+        key = f'{self.group}/{name}'
+        ref = self.ref.get(name)
+        if ref is None or (input_sha is not None and ref[0] != input_sha):
+            self.diffs.append(f'{key}: ' + ('not recorded' if ref is None else 'the input is not the recorded one'))
+            return
+        ref = ref[1:] if input_sha is not None else ref
+        self.n += 1
+        if RECORD[0]:
+            if got != ref:
+                self.now[key] = got
+            else:
+                self.now.pop(key, None)
+            return
+        want = self.now.get(key, ref)
+        self.changed += key in self.now
+        if got == want:
+            self.same += 1
+        else:
+            self.diffs.append(f'{key}: to_pc {got} != recorded {want}')
+
+    def report(self, check, what: str) -> None:
+        if RECORD[0]:
+            print(f'     {what}: {self.n} conversions recorded')
+            return
+        check(not self.diffs, f'{what}: {self.same} of {self.n} conversions as recorded ({self.changed} of them '
+              'answered as "now" records, not as the Python code did)', '; '.join(self.diffs[:5]))
+
+
+def converted(b: bytes, bones: Any, where: str) -> tuple[list[str], bytes | None]:
+    """(to_pc's outcome as recorded: ['ok', SHA-1] or ['error', exception type, message]; the PC bytes or None)."""
+    try:
+        out = to_pc(b, bones, where)
+    except Exception as e:                                   # noqa: BLE001 - recorded, compared
+        return ['error', type(e).__name__, str(e)], None
+    return ['ok', sha1(out)], out
 
 
 # ------------------------------------------------------------------------------------------------ comparing
@@ -85,8 +191,9 @@ def tables(g) -> tuple:
             [bytes(s) for s in g.sections], list(g.section_at), list(g.reloc.items()))
 
 
-def check_one(b: bytes, bones=None, convert=True) -> list[str]:
-    """[differences] between the Rust core and Python for one resource: the tables, root(), to_pc."""
+def check_one(b: bytes, rec: Recorded, name: str, bones=None) -> list[str]:
+    """[differences] between the Rust reader and the Python reader for one resource (the tables, root()); its
+    to_pc against the recording (rec, as name)."""
     diffs = []
     rs, py = both(lambda: tables(granny.Granny(b, 'x')))
     if rs[0] != py[0] or not same(rs[1], py[1]):
@@ -94,10 +201,7 @@ def check_one(b: bytes, bones=None, convert=True) -> list[str]:
     rs, py = both(lambda: granny.Granny(b, 'x').root())
     if rs[0] != py[0] or not same(rs[1], py[1]):
         diffs.append(f'root: {rs[0]} {str(rs[1])[:80]} / {py[0]} {str(py[1])[:80]}')
-    if convert:
-        rs, py = both(lambda: granny.to_pc(b, bones, 'x'))
-        if rs != py:
-            diffs.append(f'to_pc: {rs[0]} / {py[0]}')
+    rec(name, converted(b, bones, 'x')[0])
     return diffs
 
 
@@ -251,9 +355,12 @@ def built(e: str, words=(10,)) -> bytes:
 def quick(check) -> None:
     anim = (10, 2, 40, 1, 0, 0x3F800000, 7, 1, 0, 0x3F000000)            # an animation's table: bones 40 and 7
     files = {'little': built('<'), 'big': built('>'), 'big, an animation table': built('>', anim)}
+    rec = Recorded('quick')
     for name, b in files.items():
-        d = check_one(b) + check_one(b, {40: 3, 7: 1}) + check_one(b, {40: 3})
-        check(not d, f'built resource ({name}): the same tables, tree, PC bytes and errors both ways', '; '.join(d))
+        d = []
+        for bones in (None, {40: 3, 7: 1}, {40: 3}):
+            d += check_one(b, rec, f'built {name}, bones {bones}', bones)
+        check(not d, f'built resource ({name}): the same tables, tree and errors both ways', '; '.join(d))
     g = granny.Granny(files['little'])
     check(granny.backend() == 'rust' and g._raw is not None, 'the Rust core reads the built resource')
     pc = granny.to_pc(files['big'])
@@ -275,23 +382,22 @@ def quick(check) -> None:
         if not safe(b):
             skipped += 1
             continue
-        d = check_one(b, {40: 3, 7: 1} if k % 2 else None)
+        d = check_one(b, rec, f'damaged {k}', {40: 3, 7: 1} if k % 2 else None)
         n += 1
         if d:
             differ += 1
             if differ <= 5:
                 print(f'  case {k}: {"; ".join(d)}')
-    check(differ == 0, f'{n} damaged copies the same both ways ({skipped} whose counts would run Python for minutes '
-          f'skipped; {time.perf_counter() - t0:.1f} s)')
+    check(differ == 0, f'{n} damaged copies read the same both ways ({skipped} whose counts would run the Python '
+          f'reader for minutes skipped; {time.perf_counter() - t0:.1f} s)')
+    rec.report(check, f'{len(files)} built resources (3 bone maps each) and {n} damaged copies')
 
     # the batch functions: in order, failures returned or raised as to_pc raises
     items = [(files['big'], None, 'a'), files['little'], (files['big, an animation table'], {40: 3, 7: 1})]
     got = granny.to_pc_many(items, errors='return')
-    use(False)
     ref = [outcome(lambda it=it: granny.to_pc(*((it,) if isinstance(it, bytes) else it))) for it in items]
-    use(True)
-    check([type(r).__name__ if isinstance(r, Exception) else r for r in got]
-          == [r[0] if r[0] != 'ok' else r[1] for r in ref], 'to_pc_many: the results of to_pc, errors returned')
+    check([(type(r).__name__, str(r)) if isinstance(r, Exception) else r for r in got]
+          == [r if r[0] != 'ok' else r[1] for r in ref], 'to_pc_many: the results of to_pc, errors returned')
     try:
         granny.to_pc_many(items)
         check(False, 'to_pc_many: an error raised by default')
@@ -382,45 +488,49 @@ def opfor():
 
 
 class Tally:
-    def __init__(self):
-        self.files = self.converted = 0
+    def __init__(self, group: str | None = None):
+        self.files = 0
         self.diffs: list[str] = []
-        self.t = {'read rust': 0.0, 'read python': 0.0, 'to_pc rust': 0.0, 'to_pc python': 0.0}
+        self.rec = Recorded(group) if group else None
+        self.t = {'read rust': 0.0, 'read python': 0.0, 'to_pc': 0.0}
 
-    def one(self, name: str, b: bytes, bones=None, convert=False) -> None:
+    def one(self, name: str, b: bytes, key: str | None = None, bones=None) -> None:
+        """name: where (in the messages); key: the recording's name of its conversion (None: read only)."""
         self.files += 1
-        rs, py = self.timed('read', lambda: granny.Granny(b, name).root())
+        rs, py = self.timed(lambda: granny.Granny(b, name).root())
         if rs[0] != py[0] or not same(rs[1], py[1]):
             self.diffs.append(f'{name}: root {rs[0]} / {py[0]}')
         rs, py = both(lambda: tables(granny.Granny(b, name)))
         if rs[0] != py[0] or not same(rs[1], py[1]):
             self.diffs.append(f'{name}: tables')
-        if convert:
+        if key is not None and self.rec is not None:
             for m in ((None, bones) if bones is not None else (None,)):
-                rs, py = self.timed('to_pc', lambda m=m: granny.to_pc(b, m, name))
-                self.converted += 1
-                if rs != py:
-                    self.diffs.append(f'{name}: to_pc{" (bone map)" if m else ""} {rs[0]} / {py[0]}')
-                elif rs[0] == 'ok':
-                    self.one(name + ' (PC)', rs[1])
+                t = time.perf_counter()
+                got, pc = converted(b, m, name)
+                self.t['to_pc'] += time.perf_counter() - t
+                self.rec(key + (' (bone map)' if m else ''), got, sha1(b))
+                if pc is not None:
+                    self.one(name + ' (PC)', pc)
                     self.files -= 1
 
-    def timed(self, what, fn):
+    def timed(self, fn):
         use(True)
         t = time.perf_counter()
         rs = outcome(fn)
-        self.t[f'{what} rust'] += time.perf_counter() - t
+        self.t['read rust'] += time.perf_counter() - t
         use(False)
         t = time.perf_counter()
         py = outcome(fn)
-        self.t[f'{what} python'] += time.perf_counter() - t
+        self.t['read python'] += time.perf_counter() - t
         use(True)
         return rs, py
 
     def report(self, check, what):
         times = ', '.join(f'{k} {v:.1f} s' for k, v in self.t.items())
-        check(not self.diffs, f'{what}: {self.files} resources read and {self.converted} conversions, the same both '
-              f'ways ({times})', '; '.join(self.diffs[:5]))
+        check(not self.diffs, f'{what}: {self.files} resources read the same both ways ({times})',
+              '; '.join(self.diffs[:5]))
+        if self.rec is not None:
+            self.rec.report(check, what)
 
 
 def game(check) -> None:
@@ -429,7 +539,7 @@ def game(check) -> None:
         print('SKIP game part: no Project OPFOR BFBC2 game copy')
         return
     from bfbc2core import fbrb
-    tally = Tally()
+    tally = Tally('xbox')
     for lv in ('mp_common', 'sp_common'):
         xdir = os.path.join(root, 'work', 'xbox', lv)
         man = os.path.join(xdir, 'fbrb.manifest')
@@ -441,7 +551,7 @@ def game(check) -> None:
             if len(f) > 1 and f[1] in KINDS:
                 p = os.path.join(xdir, *f[0].split('/'))
                 if os.path.isfile(p):
-                    tally.one(f'xbox {lv}/{f[0]}', open(p, 'rb').read(), convert=True)
+                    tally.one(f'xbox {lv}/{f[0]}', open(p, 'rb').read(), f'{lv}/{f[0]}')
     tally.report(check, 'your Xbox mp_common / sp_common (each converted, the PC result read too)')
 
     tally = Tally()
@@ -479,7 +589,7 @@ def bf1943(check, root) -> None:
     bones = granny.bone_map(src, ix.read('characters/skeletons/ske01.res'))
     names = {b['Name'] for b in granny.Granny(src).root()['Skeletons'][0]['Bones']}
     del common
-    tally = Tally()
+    tally = Tally('bf1943')
     seen = set()
     for path in bundles:
         try:
@@ -499,15 +609,13 @@ def bf1943(check, root) -> None:
                     soldier = bones if tr and tr <= names else None
                 except granny.GrannyError:
                     pass
-            tally.one(f'bf1943 {e["name"]}', b, bones=soldier, convert=True)
+            tally.one(f'bf1943 {e["name"]}', b, e['name'], soldier)
         del bd
     tally.report(check, f'Battlefield 1943 ({len(bundles)} bundles; soldier animations also converted with the bone map)')
 
 
 def main(argv) -> int:
-    if NATIVE is None:
-        print('SKIP: the Rust core (bc2_native with granny_*) is not built: python rust\\build_native.py')
-        return 0
+    granny.require()
     fails = []
 
     def check(ok, what, detail=''):
@@ -515,9 +623,15 @@ def main(argv) -> int:
         if not ok:
             fails.append(what)
 
+    GOLD.update(load())
+    RECORD[0] = '--record' in argv
     quick(check)
     if '--game' in argv:
         game(check)
+    if RECORD[0] and not fails:
+        GOLD['now_recorded'] = time.strftime('%Y-%m-%d')
+        write(GOLD)
+        print(f'wrote {GOLDEN}')
     return 1 if fails else 0
 
 

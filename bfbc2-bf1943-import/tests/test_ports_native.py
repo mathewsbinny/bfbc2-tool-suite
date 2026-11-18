@@ -1,8 +1,11 @@
-r"""Round E3g (rust/BENCHMARKS.md, "E3g"): the BF1943 model / physics / effect ports' faster paths against their
-references - each run both ways, the bytes (or the exception) compared.
+r"""Round E3g (rust/BENCHMARKS.md, "E3g"): the BF1943 model / physics / effect ports' faster paths.
 
-  - mesh.convert's vertex loop in Rust (bc2_native.mesh_vertices) against its Python loop (mesh.use_native);
-  - havok.convert's packfile walk in Rust (bc2_native.havok_convert_packfile) against havok.Packfile;
+  - mesh.convert's vertex loop (the Rust core: bc2_native.mesh_vertices) and havok.convert's packfile walk
+    (bc2_native.havok_convert_packfile) against results recorded from their retired Python (mesh.py's loop,
+    havok.Packfile: retired on 2026-11-18 after the full test tier, rust/BENCHMARKS.md "Retired Python"), in
+    ports_golden.json beside this file: each case's output SHA-1 or its exception. Where the Rust core now answers
+    otherwise on purpose (an input the Python took or refused in another way, now a ConvertError saying why), the new
+    answer is under "now", case by case; every other case must give the recorded answer;
   - meshport.Porter.pc_layout (cached signatures, donor lists, fallback choices) against pc_layout_reference;
   - effectport.templates (EmitterIndex, its disk cache) against templates_reference.
 
@@ -13,10 +16,17 @@ references - each run both ways, the bytes (or the exception) compared.
                                         searches over a made-up part index; the emitter template search on built
                                         bundles (cold, from disk, after a bundle changed, a damaged document)
   python test_ports_native.py --game    + every mesh set (273) and HavokPhysicsData (202) of the user's BF1943 copy
-                                        ported as Project OPFOR ports them, every effect (157) through
-                                        effectport.port_many, every console MeshData / HavokPhysicsData of OPFOR's
-                                        Onslaught builds (work\onslaught\build_*\con_*, read only), and EmitterIndex's
-                                        rows against dbx.parse on all of BFBC2's emitter documents
+                                        ported as Project OPFOR ports them (against the recording, and with E3g's
+                                        indexes against meshport's / effectport's references), every effect (157)
+                                        through effectport.port_many, every console MeshData / HavokPhysicsData of
+                                        OPFOR's Onslaught builds (work\onslaught\build_*\con_*, read only) against the
+                                        recording, and EmitterIndex's rows against dbx.parse on all of BFBC2's emitter
+                                        documents
+  python test_ports_native.py --record [--game]
+                                        write the "now" answers from the current code where they differ from the
+                                        recording: only after a deliberate change to the conversions, proven on the
+                                        game's files (bfbc2-console-convert tests\test_havok.py, test_mesh_decode.py)
+                                        - the recording is the only oracle
 
 The module is required: without it (or built from other sources) this test fails, saying how to build it.
 """
@@ -42,6 +52,7 @@ import mesh  # noqa: E402
 import meshport  # noqa: E402
 from bfbc2core import dbx, fbrb  # noqa: E402
 
+GOLDEN = os.path.join(HERE, 'ports_golden.json')
 FAILS: list[str] = []
 
 
@@ -59,12 +70,98 @@ def outcome(f, *a, **kw):
         return (type(e).__name__, str(e))
 
 
-def both(module, f, *a, **kw):
-    """f run with module's Rust core off (the reference), then on: (reference, rust)."""
-    module.use_native(False)
-    ref = outcome(f, *a, **kw)
-    module.use_native(True)
-    return ref, outcome(f, *a, **kw)
+def sha1(b: bytes) -> str:
+    """The first 16 hex digits of b's SHA-1."""
+    return hashlib.sha1(b).hexdigest()[:16]
+
+
+def recorded_form(r) -> list:
+    """An outcome as the recording keeps it: ['ok', SHA-1] or ['error', exception type, message]."""
+    return ['ok', sha1(r)] if isinstance(r, bytes) else ['error', *r]
+
+
+# the conversions the recording is compared with
+def mesh_convert(b, pairs, **kw):
+    return mesh.convert(b, pairs, **kw)
+
+
+def havok_convert_packfile(b, o, k):
+    return havok.convert_packfile(b, o, k)
+
+
+def havok_convert(b, k):
+    return havok.convert(b, k)
+
+
+# ------------------------------------------------------------------------------------------------ the recording
+
+def load() -> dict:
+    try:
+        with open(GOLDEN, encoding='utf-8') as f:
+            return dict(json.load(f))
+    except FileNotFoundError:
+        return {}
+
+
+def write(golden: dict) -> None:
+    """ports_golden.json, one case per line (a change shows as the lines of the cases it changed)."""
+    lines = ['{']
+    keys = sorted(golden)
+    for i, k in enumerate(keys):
+        v, end = golden[k], (',' if i < len(keys) - 1 else '')
+        if isinstance(v, dict) and v:
+            rows = [f'{json.dumps(n)}: {json.dumps(v[n])}' for n in sorted(v)]
+            lines += [f'{json.dumps(k)}: {{', *[r + ',' for r in rows[:-1]], *rows[-1:], '}' + end]
+        else:
+            lines.append(f'{json.dumps(k)}: {json.dumps(v)}{end}')
+    lines.append('}')
+    with open(GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(lines) + '\n')
+
+
+GOLD: dict = {}
+RECORD = [False]
+
+
+class Recorded:
+    """Each case's recorded answer ("now" over the reference's) against the current one; with --record, the current
+    answers that differ from the reference's go to "now"."""
+
+    def __init__(self, group: str):
+        self.ref: dict = GOLD.get(group, {})
+        self.now: dict = GOLD.setdefault('now', {})
+        self.group = group
+        self.n = self.same = self.changed = self.converted = 0
+        self.diffs: list[str] = []
+
+    def __call__(self, name: str, got: list, input_sha: str | None = None) -> None:
+        key = f'{self.group}/{name}'
+        ref = self.ref.get(name)
+        if ref is None or (input_sha is not None and ref[0] != input_sha):
+            self.diffs.append(f'{key}: ' + ('not recorded' if ref is None else 'the input is not the recorded one'))
+            return
+        ref = ref[1:] if input_sha is not None else ref
+        self.n += 1
+        self.converted += got[0] == 'ok'
+        if RECORD[0]:
+            if got != ref:
+                self.now[key] = got
+            else:
+                self.now.pop(key, None)
+            return
+        want = self.now.get(key, ref)
+        self.changed += key in self.now
+        if got == want:
+            self.same += 1
+        else:
+            self.diffs.append(f'{key}: {got} != recorded {want}')
+
+    def report(self, what: str, at_least: int = 0) -> None:
+        if RECORD[0]:
+            print(f'     {what}: {self.n} cases recorded')
+            return
+        check(not self.diffs and self.n >= at_least, f'{what}: {self.same} of {self.n} as recorded ({self.converted} '
+              f'converted; {self.changed} answered as "now" records, not as the Python did)', '; '.join(self.diffs[:5]))
 
 
 # ------------------------------------------------------------------------------------------------ console meshes
@@ -155,25 +252,24 @@ def packed_values():
 
 def quick_mesh():
     rnd = random.Random(31)
-    same = rust = n = 0
-    errors = 0
-    for _ in range(400):
+    rec = Recorded('mesh-quick')
+    for i in range(400):
         b, pairs, reorder = random_mesh(rnd)
-        ref, got = both(mesh, mesh.convert, b, pairs, reorder=reorder)
-        n += 1
-        same += ref == got
-        errors += isinstance(ref, tuple)
-    check(same == n, f'console meshes: {same} of {n} the same bytes or error both ways ({errors} refused by both)')
+        rec(f'mesh {i}', recorded_form(outcome(mesh_convert, b, pairs, reorder=reorder)))
     b, pairs = packed_values()
-    ref, got = both(mesh, mesh.convert, b, pairs)
-    check(isinstance(ref, bytes) and ref == got, 'every value of the packed normal (11:11:10) and colour bytes: the '
-          'same halves as NumPy')
-    # the Rust loop is the one that ran: called directly it converts the packed mesh
-    mesh.use_native(True)
+    rec('every packed value', recorded_form(outcome(mesh_convert, b, pairs)))
+    rec.report('console meshes (400 seeded, every value of the packed normal and colour bytes)', 401)
+    # the Rust loop converts the packed mesh itself
     m = mesh.parse(b, True)
-    direct = mesh._native.mesh_vertices(b, m['data'], 8, 16, 0, 2048, [(0x2B, 0, 0x08, 0), (0x0D, 4, 0x08, 8)], False)
-    rust += direct is not None and direct in (ref if isinstance(ref, bytes) else b'')
-    check(rust == 1, 'mesh_vertices converts the packed mesh itself (not left to the reference)')
+    direct = mesh.require().mesh_vertices(b, m['data'], 8, 16, 0, 2048, [(0x2B, 0, 0x08, 0), (0x0D, 4, 0x08, 8)], False)
+    check(direct is not None and direct in mesh.convert(b, pairs), 'mesh_vertices converts the packed mesh itself')
+    # what the loop refuses says why: a format it does not know, vertices past the data
+    lc = layout([(0x01, 0, 0, 0)], 4)
+    r = outcome(mesh.convert, console_mesh([(b'p', 1, 3, 0, 0, 4, 3, [])], bytes(12), [0, 1, 2], False), [(lc, lc)])
+    check(isinstance(r, tuple) and r[0] == 'ConvertError' and 'is not converted' in r[1], f'format 0x01: {r}')
+    lc = layout([(0x04, 0, 8, 0)], 12)                          # a 16-byte element at 8 of a 12-byte vertex
+    r = outcome(mesh.convert, console_mesh([(b'p', 1, 3, 0, 0, 12, 3, [])], bytes(36), [0, 1, 2], False), [(lc, lc)])
+    check(isinstance(r, tuple) and r[0] == 'ConvertError' and 'past' in r[1], f'an element past the vertex: {r}')
 
 
 # ------------------------------------------------------------------------------------------------ packfiles
@@ -299,8 +395,8 @@ def random_packfile(rnd, classes):
 
 def quick_havok():
     rnd = random.Random(7)
-    n = same = converted = errors = native_hits = past = 0
-    for _ in range(600):
+    rec = Recorded('havok-quick')
+    for i in range(600):
         k = random_classes(rnd)
         b = bytes(16) + random_packfile(rnd, k)
         variants = [b]
@@ -308,29 +404,12 @@ def quick_havok():
         for _ in range(3):
             m = bytearray(b)
             for _ in range(rnd.randint(1, 4)):                   # the low half of a word (counts stay < 65,536)
-                i = rnd.randrange(16, len(m))
-                m[i | 2 if i % 4 < 2 else i] = rnd.getrandbits(8)
+                j = rnd.randrange(16, len(m))
+                m[j | 2 if j % 4 < 2 else j] = rnd.getrandbits(8)
             variants.append(bytes(m))
-        for v in variants:
-            ref, got = both(havok, havok.convert_packfile, v, 16, k)
-            n += 1
-            same += ref == got
-            if isinstance(ref, bytes):
-                converted += 1
-                havok.use_native(True)
-                hit = havok._native.havok_convert_packfile(v, 16, havok._rust_classes(k)) is not None
-                native_hits += hit
-                if not hit:                 # left to the reference: only where it "converts" values past the data
-                    pf = havok.Packfile(v, 16, k)
-                    pf.convert()
-                    past += max(pf.claim, default=0) >= len(v)
-            else:
-                errors += 1
-    check(same == n, f'packfiles: {same} of {n} the same bytes or the same error both ways ({converted} converted, '
-          f'{errors} refused - built, cut short, bytes changed)')
-    check(native_hits + past == converted and converted > 500, f'the Rust walk converted {native_hits} of the '
-          f'{converted} the reference converts; the other {past} read values past the data (the reference\'s short slices: '
-          'left to the reference, as designed)')
+        for j, v in enumerate(variants):
+            rec(f'packfile {i}.{j}', recorded_form(outcome(havok_convert_packfile, v, 16, k)))
+    rec.report('packfiles (600 seeded of random class layouts; built, cut short, bytes changed)', 3600)
 
 
 # ------------------------------------------------------------------------------------------------ meshport layouts
@@ -474,10 +553,7 @@ def game():
     exe = os.path.join(root, 'game', 'BFBC2Game.exe')
     runs = {}
     for side in ('reference', 'rust'):
-        native = side == 'rust'
-        mesh.use_native(native)
-        havok.use_native(native)
-        meshport.REFERENCE = effectport.REFERENCE = not native
+        set_side(side == 'rust')
         effectport.EmitterIndex._of[:] = [None, None]
         out: dict[str, str] = {}
         t = time.perf_counter()
@@ -493,7 +569,16 @@ def game():
         bad = [k for k in keys if a.get(k) != b.get(k)]
         errs = sum(1 for k in keys if str(a.get(k)).startswith('error'))
         check(same == len(keys) and len(keys) > 100, f'BF1943 {kind} ports: {same} of {len(keys)} outputs identical '
-              f'({errs} errors on both sides)', ', '.join(bad[:3]))
+              f'with E3g\'s indexes and with meshport\'s / effectport\'s reference searches ({errs} errors on both '
+              'sides)', ', '.join(bad[:3]))
+    # the mesh and physics ports' outputs against the recording (made with the retired Python conversions)
+    for kind in ('mesh', 'havok'):
+        rec = Recorded(f'bf1943-{kind}')
+        for run in (a, b):
+            for k in sorted(x for x in run if x.startswith(kind + ':')):
+                v = run[k]
+                rec(k[len(kind) + 1:], ['error', v[len('error '):]] if v.startswith('error ') else ['ok', v])
+        rec.report(f'BF1943 {kind} ports (both runs)', 200)
     # EmitterIndex's rows against dbx.parse on every BFBC2 emitter document
     idx = effectport.EmitterIndex(ix)
     for i in range(0, len(idx.cands), effectport.EMITTER_BATCH):
@@ -520,9 +605,14 @@ def game():
     onslaught(exe)
 
 
+def set_side(rust: bool) -> None:
+    """The ports' searches: E3g's indexes (rust) or meshport's / effectport's reference searches."""
+    meshport.REFERENCE = effectport.REFERENCE = not rust
+
+
 def onslaught(exe):
     """Every console MeshData (each part in its console layout, the PC layout made of the same elements) and
-    HavokPhysicsData of OPFOR's Onslaught builds, converted both ways."""
+    HavokPhysicsData of OPFOR's Onslaught builds, converted, against the recording."""
     import glob
 
     import convert
@@ -546,13 +636,11 @@ def onslaught(exe):
         for rel, p in convert.manifest(f, 'HavokPhysicsData').items():
             physics.setdefault(rel, p)
     k = havok.classes(exe)
-    n = same = conv = 0
-    for _, p in sorted(physics.items()):
-        ref, got = both(havok, havok.convert, open(p, 'rb').read(), k)
-        n += 1
-        same += ref == got
-        conv += isinstance(ref, bytes)
-    check(same == n and n > 300, f'Onslaught console physics: {same} of {n} the same bytes ({conv} converted)')
+    rec = Recorded('onslaught-havok')
+    for rel, p in sorted(physics.items()):
+        b = open(p, 'rb').read()
+        rec(rel, recorded_form(outcome(havok_convert, b, k)), sha1(b))
+    rec.report('Onslaught console physics', 300)
 
     def pc_of(lc):
         els, _ = mesh.elements(lc)
@@ -562,8 +650,8 @@ def onslaught(exe):
             pe.append((fp, u, o, s))
             o += mesh.SIZE.get(fp, 4)
         return layout(pe, o)
-    n = same = conv = skipped = 0
-    digest = hashlib.sha256()
+    skipped = 0
+    rec = Recorded('onslaught-mesh')
     for rel, p in sorted(meshes.items()):
         b = open(p, 'rb').read()
         try:
@@ -577,19 +665,15 @@ def onslaught(exe):
             skipped += 1
             continue
         pairs = [(lc, pc_of(lc)) for lc in lcs]
-        ref, got = both(mesh, mesh.convert, b, pairs)
-        n += 1
-        same += ref == got
-        conv += isinstance(ref, bytes)
-        digest.update(json.dumps(ref if isinstance(ref, tuple) else hashlib.sha256(ref).hexdigest()).encode())
-    check(same == n and conv > 100, f'Onslaught console meshes: {same} of {n} the same bytes ({conv} converted, '
-          f'{skipped} without layouts in the console databases)')
+        rec(rel, recorded_form(outcome(mesh_convert, b, pairs)), sha1(b))
+    rec.report(f'Onslaught console meshes ({skipped} without layouts in the console databases)', 200)
 
 
 def main(argv):
-    if mesh.backend() != 'rust' or havok.backend() != 'rust':
-        check(False, 'the Rust core with mesh_vertices and havok_convert_packfile is built (python rust\\build_native.py)')
-        return 1
+    mesh.require()
+    havok.require()
+    GOLD.update(load())
+    RECORD[0] = '--record' in argv
     t = time.perf_counter()
     quick_mesh()
     quick_havok()
@@ -598,6 +682,10 @@ def main(argv):
     print(f'     quick part: {time.perf_counter() - t:.1f} s')
     if '--game' in argv:
         game()
+    if RECORD[0] and not FAILS:
+        GOLD['now_recorded'] = time.strftime('%Y-%m-%d')
+        write(GOLD)
+        print(f'wrote {GOLDEN}')
     return 1 if FAILS else 0
 
 

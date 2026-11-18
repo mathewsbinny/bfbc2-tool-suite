@@ -29,8 +29,9 @@
 //! `granny_to_pc` / `granny_to_pc_many`, for `bfbc2-anim-tools/granny.py`.
 //!
 //! The converter's (`convert.rs`): `texture_convert` / `texture_convert_many`, and the EA-XAS audio codec
-//! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` uses when it can;
-//! `mesh_vertices` and `havok_convert_packfile` / `HavokClasses` (round E3g) for `mesh.py` and `havok.py`.
+//! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` needs;
+//! `mesh_vertices`, `havok_convert_packfile` / `havok_verify_packfile` / `HavokClasses` (rounds E3g, E3o) for
+//! `mesh.py` and `havok.py`.
 
 mod apt;
 mod convert;

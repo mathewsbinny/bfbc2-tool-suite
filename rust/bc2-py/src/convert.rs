@@ -3,11 +3,15 @@
 //! with the same message (its Python converter was retired on 2026-11-17).
 //!
 //! `bfbc2-console-convert/audio.py`'s EA-XAS encoder and decoder are `xas_encode`, `xas_encode_many` and
-//! `xas_decode_frames`; `audio.py` keeps its NumPy code as the fallback and the reference.
+//! `xas_decode_frames`.
 //!
 //! Round E3g: `mesh.py`'s vertex loop is `mesh_vertices` and `havok.py`'s `Packfile.convert` is
-//! `havok_convert_packfile` (on a `HavokClasses`, the class layouts converted once). Both return `None` where the
-//! reference is to run instead (a conversion it refuses or reads short); the Python stays the fallback.
+//! `havok_convert_packfile` (on a `HavokClasses`, the class layouts converted once); round E3o: `havok.verify`'s
+//! packfile part is `havok_verify_packfile`. `mesh_vertices` returns `None` for vertices it does not convert (an
+//! unknown format, an element past the vertex or the data: `mesh.py` says which); the Havok functions raise
+//! `ValueError` with the refusal's message and return `None` where the retired reference would have read past the
+//! data or met an entry the layouts lack (`havok.py` raises its `ConvertError` saying so). The Python of all four
+//! (and of audio.py's codec) was retired on 2026-11-18.
 
 use bc2_convert::{audio, havok, mesh, texture};
 use pyo3::exceptions::PyValueError;
@@ -180,24 +184,38 @@ impl HavokClasses {
 }
 
 /// `havok.Packfile(data, start, classes).convert()`: the whole buffer, the packfile at `start` in the PC's byte
-/// order; `None` where the reference is to run (it refuses, or reads short: `bc2_convert::havok`).
+/// order; `ValueError` with the message of a refusal; `None` where the walk stops without one (a read past the
+/// data, a class or type the layouts lack, nesting too deep: `bc2_convert::havok`'s `Reference`).
+///
+/// # Errors
+///
+/// `ValueError`: the packfile is refused (the retired reference's `ConvertError` message).
 #[pyfunction]
 pub fn havok_convert_packfile<'py>(
     py: Python<'py>,
     data: &Bound<'py, PyBytes>,
     start: usize,
     classes: &HavokClasses,
-) -> Option<Bound<'py, PyBytes>> {
+) -> PyResult<Option<Bound<'py, PyBytes>>> {
     let bytes = data.as_bytes();
-    let out = py
-        .detach(|| havok::convert_packfile(bytes, start, &classes.classes))
-        .ok()?;
-    Some(PyBytes::new(py, &out))
+    match py.detach(|| havok::convert_packfile(bytes, start, &classes.classes)) {
+        Ok(out) => Ok(Some(PyBytes::new(py, &out))),
+        Err(havok::HavokError::Refused(msg)) => Err(PyValueError::new_err(msg)),
+        Err(havok::HavokError::Reference) => Ok(None),
+    }
 }
+
+/// Each differing byte's `(offset, reason)` (`havok_verify_packfile`).
+type Reasons = Vec<(usize, Option<&'static str>)>;
 
 /// `havok.verify`'s packfile part (round E3o): the packfile at `start` of `console` converted and compared with
 /// `pc` from `start` on - each differing byte's `(offset, reason)`, the reason `havok.ignorable`'s text or `None`;
-/// `None` where the reference is to run (`bc2_convert::havok::verify_packfile`).
+/// `ValueError` with the message of a refused packfile; `None` where the walk or the comparison stops without one
+/// (`bc2_convert::havok::verify_packfile`'s `Reference`).
+///
+/// # Errors
+///
+/// `ValueError`: the packfile is refused (the retired reference's `ConvertError` message).
 #[pyfunction]
 pub fn havok_verify_packfile(
     py: Python<'_>,
@@ -205,10 +223,13 @@ pub fn havok_verify_packfile(
     start: usize,
     classes: &HavokClasses,
     pc: &Bound<'_, PyBytes>,
-) -> Option<Vec<(usize, Option<&'static str>)>> {
+) -> PyResult<Option<Reasons>> {
     let (c, p) = (console.as_bytes(), pc.as_bytes());
-    let got = py
-        .detach(|| havok::verify_packfile(c, start, &classes.classes, p))
-        .ok()?;
-    Some(got.into_iter().map(|(i, w)| (i, w.map(havok::Why::text))).collect())
+    match py.detach(|| havok::verify_packfile(c, start, &classes.classes, p)) {
+        Ok(got) => Ok(Some(
+            got.into_iter().map(|(i, w)| (i, w.map(havok::Why::text))).collect(),
+        )),
+        Err(havok::HavokError::Refused(msg)) => Err(PyValueError::new_err(msg)),
+        Err(havok::HavokError::Reference) => Ok(None),
+    }
 }

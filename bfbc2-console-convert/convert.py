@@ -72,6 +72,7 @@ def _find(root, rel):
 
 
 def cmd_havok(a):
+    havok.require()                         # the conversion runs in the Rust core: say so before reading anything
     k = havok.classes(a.exe or default_exe())
     data = open(a.input, 'rb').read()
     out = havok.convert(data, k)
@@ -81,6 +82,7 @@ def cmd_havok(a):
 
 
 def cmd_verify_havok(a):
+    havok.require()                         # the conversion runs in the Rust core: say so before reading anything
     k = havok.classes(a.exe or default_exe())
     pc = manifest(a.pc, 'HavokPhysicsData')
     con: dict[str, str] = {}

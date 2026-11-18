@@ -14,9 +14,10 @@
 //! 2,048 + 1,024 + 256 distinct values, so `bfbc2-console-convert/tests/test_mesh_native.py` checks every one
 //! against NumPy.
 //!
-//! Where the reference would not convert - a format it does not know (a `KeyError` or its `ConvertError`), a
-//! value read past the end of the data (Python's short slice) or written past the PC vertex - [`convert_vertices`]
-//! returns `None` and the caller runs the reference, so its result or its exception is the reference's.
+//! Where the retired reference would not convert - a format it does not know (a `KeyError` or its
+//! `ConvertError`), a value read past the end of the data (Python's short slice) or written past the PC vertex -
+//! [`convert_vertices`] returns `None` and `mesh.py` raises its `ConvertError` saying which (the reference was
+//! retired on 2026-11-18, its results recorded in `bfbc2-bf1943-import/tests/ports_golden.json`).
 //!
 //! ```
 //! use bc2_convert::mesh::{self, Pair};

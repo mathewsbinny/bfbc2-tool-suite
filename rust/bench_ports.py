@@ -11,8 +11,9 @@ material_grid: effectport.port_many on Wake's emitter copies), each output's SHA
   effects   effectport.port_many of every effects/ EffectAsset BF1943 has (157 partitions), on Wake's copies
   (none: all three)
 
-  --backend  rust (default): the ports' Rust paths (mesh.use_native, havok.use_native) and E3g's indexes (meshport's
-             layout search, effectport's emitter templates); python: the Python references of all of them
+  --backend  rust (default): E3g's indexes (meshport's layout search, effectport's emitter templates); python: their
+             Python reference searches. The mesh vertex loop and the Havok walk run in the Rust core either way
+             (their Python was retired on 2026-11-18: BENCHMARKS.md, "Retired Python")
   --no-cache effectport's emitter index not read from or written to disk (BFBC2_EFFECTPORT_CACHE=0): a cold run
   --every N  every N-th item only (a quick look)
   --record   the outputs' hashes (and errors) as JSON; --compare: checked against such a file (a run of the other
@@ -40,7 +41,6 @@ import bf1943import as bi  # noqa: E402
 import effectport  # noqa: E402
 import havok  # noqa: E402
 import havokport  # noqa: E402
-import mesh  # noqa: E402
 import meshport  # noqa: E402
 import meshview  # noqa: E402
 import shaderdb  # noqa: E402
@@ -163,8 +163,6 @@ def main(argv):
     top = int(opt('--top', '30'))
     what = args or ['mesh', 'havok', 'effects']
     native = backend == 'rust'
-    for m in (mesh, havok):
-        m.use_native(native)
     # the reference searches E3g replaced by indexes (meshport's layouts, effectport's emitter templates)
     meshport.REFERENCE = effectport.REFERENCE = not native
     if '--no-cache' in args:

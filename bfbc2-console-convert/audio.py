@@ -10,12 +10,14 @@ BFBC2's own Xbox files and Battlefield 1943's.
     pcs = audio.convert_many([(xbox_bytes, 'bfbc2', None), ...])  # many at once (ffmpeg and the encoder side by side)
 
 Needs numpy, and ffmpeg (decoding only: EA-XMA as XMA2; on PATH, in $FFMPEG, or the WinGet Gyan.FFmpeg package) for
-anything that reads EA-XMA. The EA-XAS encoder and decoder are this module's own: they run in the suite's Rust core
-(rust/bc2-convert's audio, through bfbc2core's bc2_native) when it is built, with this module's NumPy code as the
-fallback and the reference (xas_encode_frames_python, xas_decode_frames_python): the same bytes on every input
-(tests\test_audio_native.py: seeded PCM of every shape, BFBC2's and BF1943's sounds). BFBC2_PURE_PYTHON=1 (or
-use_native(False)) runs the NumPy code; backend() says which one runs.
-Proven in tests\test_audio.py on BFBC2's Xbox / PC twins and on Battlefield 1943's sounds.
+anything that reads EA-XMA. The EA-XAS encoder and decoder are this module's own and run in the suite's Rust core
+(rust/bc2-convert's audio, through bfbc2core's bc2_native), which they need: without the module (or with one built
+from other sources) they raise bfbc2core.native.NativeMissing saying how to get it (README.md, "The Rust core");
+BFBC2_PURE_PYTHON does not change that. The NumPy codec that was their reference was retired on 2026-11-18, after the
+port had given the same bytes on every sound of BFBC2's Xbox copy and Battlefield 1943 and passed the full test tier;
+its results are recorded in tests\audio_golden.json, which tests\test_audio_native.py checks. The block framing
+(DICE's blocks, the SPS writer) stays here. Proven in tests\test_audio.py on BFBC2's Xbox / PC twins and on
+Battlefield 1943's sounds.
 
 Frostbite Wave resource, BFBC2 (Xbox big-endian, PC little-endian; the words are the same on both, 35,811 twins):
     0x00  u32 flags << 16 | id    flags 1 - 4, 0x13, 0x14, 0x23, 0x24, 0x31; id 0 or a 16-bit value (0xda91 on
@@ -115,60 +117,31 @@ class AudioError(Exception):
                   'needs ffmpeg (PATH or $FFMPEG).')
 
 
-# ---------------------------------------------------------------- backend (the Rust core's EA-XAS codec)
+# ---------------------------------------------------------------- the Rust core (the EA-XAS codec)
 
-def _with_xas(m):
-    """m when it has the EA-XAS codec (a module built before it was added does not)."""
-    return m if m is not None and hasattr(m, 'xas_encode_many') else None
-
-
-def _load_native():
-    """The Rust core (found as bfbc2core.dbx finds it) with the EA-XAS codec, or None: not built, built from other
-    sources, or BFBC2_PURE_PYTHON set."""
-    try:
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        import suite_paths
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    return _with_xas(_dbx._import_native())
-
-
-_native = _load_native()
-
-
-def backend():
-    """'rust' when EA-XAS is encoded and decoded in the Rust core, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on):
-    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
-    global _native
-    if on:
-        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-        try:
-            _native = _load_native()
-        finally:
-            if saved is not None:
-                os.environ['BFBC2_PURE_PYTHON'] = saved
-    else:
-        _native = None
-    return backend()
+def require():
+    """The Rust core, which encodes and decodes EA-XAS (bfbc2core.native.require): NativeMissing, saying how to get
+    it, when it is not built or downloaded or was built from other sources. A tool that converts sounds calls this
+    when it starts, so it stops before doing other work."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('EA-XAS audio (bfbc2-console-convert/audio.py)', 'xas_encode_many')
 
 
 def _pcm16(pcm):
-    """pcm as C-ordered little-endian int16 (samples, channels) when the Rust core encodes it as the reference does
-    (a 2-D integer array within int16: the reference widens it to int64 as it is), else None."""
-    if not isinstance(pcm, np.ndarray) or pcm.ndim != 2 or pcm.dtype.kind not in 'iu':
-        return None
+    """pcm as C-ordered little-endian int16 (samples, channels), the samples the Rust core encodes: a 2-D integer
+    array within int16 (other integer types are cast); ValueError otherwise (the retired NumPy encoder widened
+    anything to int64 and clipped its own way - no caller passes such samples)."""
+    if not isinstance(pcm, np.ndarray) or pcm.ndim != 2:
+        raise ValueError(f'EA-XAS encode: pcm must be a (samples, channels) array, not {getattr(pcm, "shape", type(pcm))}')
+    if pcm.dtype.kind not in 'iu':
+        raise ValueError(f'EA-XAS encode: integer samples within int16 needed, not {pcm.dtype}')
     if pcm.dtype != np.int16 and pcm.size and (pcm.min() < -32768 or pcm.max() > 32767):
-        return None
+        raise ValueError(f'EA-XAS encode: samples beyond int16 ({pcm.min()} .. {pcm.max()})')
     return np.ascontiguousarray(pcm, '<i2')
 
 
@@ -427,7 +400,7 @@ def decode_xma(st, trim=True):
     return pcm[:st.samples]
 
 
-# ---------------------------------------------------------------- EA-XAS v1 (numpy)
+# ---------------------------------------------------------------- EA-XAS v1 (the Rust core)
 
 def decode_xas(st):
     """int16 (samples, channels) of an EA-XAS v1 stream (this module's decoder; ffmpeg's adpcm_ea_xas alike)."""
@@ -441,112 +414,31 @@ def decode_xas(st):
 
 
 def xas_decode_frames(f):
-    """int16 (..., 128) of XAS frames (..., 76) uint8 (in the Rust core when it is built: the same samples)."""
-    if (_native is not None and isinstance(f, np.ndarray) and f.dtype == np.uint8 and f.ndim
-            and f.shape[-1] == XAS_FRAME):
-        out = _native.xas_decode_frames(np.ascontiguousarray(f).tobytes())
-        return np.frombuffer(out, '<i2').astype(np.int16, copy=False).reshape(f.shape[:-1] + (128,))
-    return xas_decode_frames_python(f)
-
-
-def xas_decode_frames_python(f):
-    """xas_decode_frames in NumPy: the reference the Rust core is checked against."""
-    shp = f.shape[:-1]
-    f = f.reshape(-1, XAS_FRAME)
-    h = f[:, :16].copy().view('<u4').astype(np.int64)               # (G0, 4)
-    lo, hi = h & 0xFFFF, h >> 16
-    s0 = ((lo & 0xFFF0) ^ 0x8000) - 0x8000
-    s1 = ((hi & 0xFFF0) ^ 0x8000) - 0x8000
-    c0, c1 = COEFS[lo & 15], COEFS[(lo & 15) + 4]
-    step = np.left_shift(1, 20 - (hi & 15))
-    rows = f[:, 16:].reshape(-1, 15, 4).astype(np.int64)            # (G0, row, group)
-    nib = np.empty(rows.shape[:1] + (4, 30), np.int64)
-    nib[:, :, 0::2] = (rows >> 4).transpose(0, 2, 1)
-    nib[:, :, 1::2] = (rows & 15).transpose(0, 2, 1)
-    nib = (nib ^ 8) - 8
-    out = np.empty(rows.shape[:1] + (4, 32), np.int64)
-    out[:, :, 0], out[:, :, 1] = s0, s1
-    p2, p1 = s0, s1
-    for t in range(30):
-        s = np.clip((nib[:, :, t] * step + p1 * c0 + p2 * c1 + 128) >> 8, -32768, 32767)
-        out[:, :, t + 2] = s
-        p2, p1 = p1, s
-    return out.reshape(shp + (128,)).astype(np.int16)
+    """int16 (..., 128) of XAS frames (..., 76) uint8, in the Rust core."""
+    f = np.asarray(f)
+    if f.dtype != np.uint8 or not f.ndim or f.shape[-1] != XAS_FRAME:
+        raise ValueError(f'EA-XAS decode: frames must be uint8 (..., {XAS_FRAME}), not {f.dtype} {f.shape}')
+    out = require().xas_decode_frames(np.ascontiguousarray(f).tobytes())
+    return np.frombuffer(out, '<i2').astype(np.int16, copy=False).reshape(f.shape[:-1] + (128,))
 
 
 def xas_encode_frames(pcm):
     """XAS frames (frames, channels, 76) uint8 of int16 pcm (samples, channels), the last frame padded with zeros.
     Per group of 32 samples: the first two stored at 12 bits, the coefficient set and shift that give the least
     squared error (each set tried with the shift its prediction residual needs and the next two finer / coarser).
-    In the Rust core when it is built (the same bytes), else xas_encode_frames_python."""
-    n, ch = pcm.shape
-    got = _encode_native([pcm])
-    if got is not None:
-        return np.frombuffer(got[0], np.uint8).reshape(-(-n // 128), ch, XAS_FRAME)
-    return xas_encode_frames_python(pcm)
+    In the Rust core."""
+    n, ch = _pcm16(pcm).shape
+    return np.frombuffer(_frames_bytes([pcm])[0], np.uint8).reshape(-(-n // 128), ch, XAS_FRAME)
 
 
-def _encode_native(pcms):
-    """The frames' bytes of each pcm through the Rust core, all at once on every core; None when the core is not
-    there or a pcm is not one it takes (_pcm16)."""
-    if _native is None:
-        return None
+def _frames_bytes(pcms):
+    """The frames' bytes (frame-major) of each pcm, all at once on every core in the Rust core."""
     arrays = [_pcm16(p) for p in pcms]
-    if any(a is None for a in arrays):
-        return None
-    out = _native.xas_encode_many([(a.tobytes(), a.shape[1]) for a in arrays])
+    out = require().xas_encode_many([(a.tobytes(), a.shape[1]) for a in arrays])
     for r in out:
         if isinstance(r, Exception):
             raise r
     return out
-
-
-def _frames_bytes(pcms):
-    """The frames of each pcm as bytes (frame-major): the Rust core's batch, else the reference one by one."""
-    got = _encode_native(pcms)
-    return got if got is not None else [xas_encode_frames_python(p).tobytes() for p in pcms]
-
-
-def xas_encode_frames_python(pcm):
-    """xas_encode_frames in NumPy: the reference the Rust core is checked against."""
-    n, ch = pcm.shape
-    F = -(-n // 128)
-    x = np.zeros((F * 128, ch), np.int64)
-    x[:n] = pcm
-    g = x.reshape(F, 4, 32, ch).transpose(0, 3, 1, 2).reshape(-1, 32)   # (frames * ch * 4, 32), frame-major
-    q0 = np.clip((g[:, 0] + 8) >> 4 << 4, -32768, 32752)
-    q1 = np.clip((g[:, 1] + 8) >> 4 << 4, -32768, 32752)
-    best_err = np.full(len(g), np.inf)
-    best = (np.zeros(len(g), np.int64), np.zeros(len(g), np.int64), np.zeros((len(g), 30), np.int64))
-    target = g[:, 2:] * 256
-    for c in range(4):
-        c0, c1 = int(COEFS[c]), int(COEFS[c + 4])
-        r = np.abs(target - (np.c_[q1, g[:, 2:-1]] * c0 + np.c_[q0, q1, g[:, 2:-2]] * c1)).max(1)
-        need = np.ceil(np.log2(np.maximum(r, 1) / 7.0)).astype(np.int64)    # step 2^need covers the residual
-        for d in (-1, 0, 1):
-            k = np.clip(20 - need - d, 0, 15)
-            step = np.left_shift(1, 20 - k).astype(np.int64)
-            p2, p1 = q0, q1
-            err = np.zeros(len(g))
-            nib = np.empty((len(g), 30), np.int64)
-            for t in range(30):
-                pred = p1 * c0 + p2 * c1
-                v = np.clip(np.rint((target[:, t] - pred) / step), -8, 7).astype(np.int64)
-                s = np.clip((v * step + pred + 128) >> 8, -32768, 32767)
-                err += (s - g[:, t + 2]) ** 2
-                nib[:, t] = v
-                p2, p1 = p1, s
-            better = err < best_err
-            best_err = np.where(better, err, best_err)
-            best = (np.where(better, c, best[0]), np.where(better, k, best[1]), np.where(better[:, None], nib, best[2]))
-    cset, k, nib = best
-    head = ((q0 & 0xFFF0) | cset) & 0xFFFF | ((((q1 & 0xFFF0) | k) & 0xFFFF) << 16)
-    G = len(g) // 4
-    frames = np.empty((G, XAS_FRAME), np.uint8)
-    frames[:, :16] = head.astype('<u4').reshape(G, 4).view(np.uint8)
-    nb = (nib & 15).reshape(G, 4, 15, 2)                             # (frame, group, row, hi/lo)
-    frames[:, 16:] = ((nb[..., 0] << 4) | nb[..., 1]).transpose(0, 2, 1).reshape(G, 60).astype(np.uint8)
-    return frames.reshape(F, ch, XAS_FRAME)
 
 
 def xas_block_samples(rate):
@@ -561,8 +453,8 @@ def encode_xas(pcm, rate, type_=1):
 
 
 def encode_xas_many(items):
-    """encode_xas of many (pcm, rate) or (pcm, rate, type_), encoded all at once on every core (the Rust core; else
-    one by one): a list of Streams."""
+    """encode_xas of many (pcm, rate) or (pcm, rate, type_), encoded all at once on every core: a list of
+    Streams."""
     items = [tuple(it) for it in items]
     shapes = [it[0].shape for it in items]
     data = _frames_bytes([it[0] for it in items])
@@ -578,18 +470,6 @@ def _xas_stream(frames, n, ch, rate, type_):
     mv = memoryview(frames)
     blocks = [(per, bytes(mv[i * size:(i + 1) * size])) for i in range(full)]
     blocks.append((n - full * per, bytes(mv[full * size:])))
-    return Stream(1, 4, ch, rate, type_, n, blocks)
-
-
-def encode_xas_python(pcm, rate, type_=1):
-    """encode_xas with the reference encoder, as it was before the Rust core (the comparison's other side)."""
-    n, ch = pcm.shape
-    frames = xas_encode_frames_python(pcm)
-    per = xas_block_samples(rate)
-    full = n // per
-    f = per // 128
-    blocks = [(per, frames[i * f:(i + 1) * f].tobytes()) for i in range(full)]
-    blocks.append((n - full * per, frames[full * f:].tobytes()))
     return Stream(1, 4, ch, rate, type_, n, blocks)
 
 
@@ -673,6 +553,7 @@ def main(argv=None):
     ap.add_argument('--stream', action='append', default=[], metavar='N=FILE',
                     help='a streamed segment\'s waveDataSns_<N>.res (N: 0 intro, 1 loop, 2 outro)')
     a = ap.parse_args(argv)
+    require()                               # the encoder runs in the Rust core: say so before reading anything
     streams = {}
     for s in a.stream:
         n, _, p = s.partition('=')

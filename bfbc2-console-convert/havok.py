@@ -10,11 +10,16 @@ field keeps its offset and only its bytes are reversed by the field's width.
     classes = havok.classes(r'...\BFBC2Game.exe')
     pc_bytes = havok.convert(console_bytes, classes)
 
-convert's packfile walk (Packfile.convert) runs in the suite's Rust core when it is built (bc2_native.
-havok_convert_packfile, round E3g: the same bytes on every BF1943 physics file and BFBC2 Xbox one,
-tests\\test_havok_native.py); where the Rust stops (a ConvertError, a read past the data) Packfile runs, so the
-result or the error is this module's. Packfile stays the reference and verify's walk. BFBC2_PURE_PYTHON=1 (or
-use_native(False)) runs Packfile only; backend() says which runs.
+The packfile's walk (convert_packfile; verify's record of each byte's owner, verify_packfile) runs in the suite's
+Rust core (bc2_convert::havok, rounds E3g and E3o), which it needs: without the module (or with one built from other
+sources) it raises bfbc2core.native.NativeMissing saying how to get it; BFBC2_PURE_PYTHON does not change that. The
+walk: from the packfile's header, sections and fixup tables, each object of the data section member by member from
+its class layout (parents first), arrays and pointed-to objects followed, every value's bytes reversed by its width
+(a byte converted as two widths is refused). Its Python (Packfile, ignorable, verify_reference) was retired on
+2026-11-18, after the port had given the same bytes on every BF1943 physics port and Onslaught console physics file
+and the same verify answers on every Onslaught file, and passed the full test tier; its results are recorded in
+bfbc2-bf1943-import\tests\ports_golden.json and tests\havok_verify_golden.json. classes() and the wrapper's
+conversion stay here.
 """
 import collections
 import os
@@ -183,235 +188,21 @@ def convert_wrapper(b, o):
     return bytes(out)
 
 
-# ---------------------------------------------------------------- the packfile
+# ---------------------------------------------------------------- the packfile (the Rust core)
 
-class Packfile:
-    """One packfile at offset start of data; convert() returns the whole buffer with it converted. The converted
-    bytes are recorded (.claim: offset -> value width, .owner: offset -> (class, member)) for verification."""
-
-    def __init__(self, data, start, klasses):
-        self.src, self.out, self.p0, self.classes = data, bytearray(data), start, klasses
-        self.claim, self.owner = {}, {}
-        self.seen = set()
-        self.arrays = []                    # (class, member, data start, count, element size, array header)
-        self.cur = self.note = None
-
-    def swap(self, at, width, count=1):
-        for k in range(count):
-            o = at + k * width
-            if o in self.claim and self.claim[o] == width and self.owner.get(o, self.note) == self.note:
-                continue
-            for b in range(o, o + width):
-                if self.claim.get(b, width) != width:
-                    raise ConvertError(f'byte {b - self.p0:#x} converted as a {self.claim[b]}-byte and a '
-                                       f'{width}-byte value')
-            if o not in self.claim:
-                self.out[o:o + width] = self.src[o:o + width][::-1]
-            for b in range(o, o + width):
-                self.claim[b] = width
-                self.owner[b] = self.note
-
-    def be32(self, at):
-        return struct.unpack_from('>I', self.src, at)[0]
-
-    def convert(self):
-        p = self.p0
-        if self.src[p:p + 8] != MAGIC:
-            raise ConvertError('no packfile magic')
-        rules = self.src[p + 16:p + 20]
-        if rules != b'\x04\x00\x00\x01':
-            raise ConvertError(f'layout rules {rules.hex()}, not the Xbox 360\'s 04 00 00 01')
-        if not self.src[p + 40:p + 56].startswith(b'Havok-5.5.0'):
-            raise ConvertError(f'Havok version {self.src[p + 40:p + 56]!r}, not 5.5.0')
-        self.note = ('header', '')
-        self.swap(p + 8, 4, 2)                         # user tag, file version
-        self.out[p + 17] = 1                           # little endian
-        nsec = self.be32(p + 20)
-        self.swap(p + 20, 4, 5)                        # sections, contents section / offset, class names / offset
-        self.swap(p + 56, 4, 2)                        # flags, pad
-        self.sections = []
-        for i in range(nsec):
-            h = p + 64 + 48 * i
-            self.sections.append((self.src[h:h + 19].split(b'\0')[0].decode('latin-1'),
-                                  struct.unpack_from('>7I', self.src, h + 20)))
-            self.swap(h + 20, 4, 7)
-        for i, (tag, (start, loc, glob, virt, exp, imp, end)) in enumerate(self.sections):
-            base = p + start
-            if tag == '__classnames__':
-                self._classnames(base, base + loc)
-                continue
-            if loc == end:
-                continue                               # empty (__types__)
-            if exp != end or imp != end:
-                raise ConvertError(f'{tag}: exports or imports (not handled)')
-            self.note = ('fixups', tag)
-            self.local: dict[int, int]
-            self.glob: dict[int, tuple[int, int]]
-            self.local, self.glob = {}, {}
-            for o in self._entries(base + loc, base + glob, 8):
-                self.swap(o, 4, 2)
-                self.local[self.be32(o)] = self.be32(o + 4)
-            for o in self._entries(base + glob, base + virt, 12):
-                self.swap(o, 4, 3)
-                self.glob[self.be32(o)] = (self.be32(o + 4), self.be32(o + 8))
-            objs = []
-            for o in self._entries(base + virt, base + exp, 12):
-                self.swap(o, 4, 3)
-                sec, off = self.be32(o + 4), self.be32(o + 8)
-                if self.sections[sec][0] != '__classnames__' or off not in self.names:
-                    raise ConvertError(f'{tag}: an object\'s class name is not in the class-name section')
-                objs.append((self.be32(o), self.names[off]))
-            self.base, self.secindex = base, i
-            for off, name in objs:
-                self._struct(name, off)
-        return bytes(self.out)
-
-    def _entries(self, a, end, size):
-        o = a
-        while o + size <= end and self.be32(o) != 0xFFFFFFFF:
-            yield o
-            o += size
-        if any(x != 0xFF for x in self.src[o:end]):
-            raise ConvertError(f'a fixup table has data after its 0xFF padding at {o - self.p0:#x}')
-
-    def _classnames(self, a, end):
-        self.names = {}
-        self.note = ('class names', '')
-        o = a
-        while o + 5 <= end and self.src[o + 4] == 0x09:
-            e = self.src.index(b'\0', o + 5)
-            self.names[o + 5 - a] = self.src[o + 5:e].decode('latin-1')
-            self.swap(o, 4)                            # the class signature
-            o = e + 1
-        if any(x != 0xFF for x in self.src[o:end]):
-            raise ConvertError('class-name section: unknown data after the names')
-
-    def _members(self, name):
-        k = self.classes.get(name)
-        if k is None:
-            raise ConvertError(f'class {name} is not among the game\'s Havok classes')
-        chain = []
-        while k:
-            chain.append(k)
-            k = self.classes.get(k.parent) if k.parent else None
-        return [m for k in reversed(chain) for m in k.members]
-
-    def _target(self, at):
-        if at in self.local:
-            return self.local[at]
-        g = self.glob.get(at)
-        return g[1] if g and g[0] == self.secindex else None
-
-    def _struct(self, name, off):
-        if (off, name) in self.seen:
-            return
-        self.seen.add((off, name))
-        prev, self.cur = self.cur, name
-        for m in self._members(name):
-            self.note = (name, m.name)
-            self._member(m, off + m.offset)
-        self.cur = prev
-
-    def _size(self, ty, cls):
-        return self.classes[cls].size if ty == STRUCT else PLAIN[ty][0]
-
-    def _value(self, ty, sub, cls, at, ctx):
-        """One value of type ty at section offset at; returns its size."""
-        A = self.base + at
-        if ty in (ENUM, FLAGS):
-            size, w = PLAIN[sub]
-            self.swap(A, w, size // w)
-            return size
-        if ty == STRUCT:
-            if cls not in self.classes:
-                raise ConvertError(f'{ctx}: struct class {cls} unknown')
-            note = self.note
-            self._struct(cls, at)
-            self.note = note
-            return self.classes[cls].size
-        if ty == ZERO:
-            return self._value(sub, VOID, cls, at, ctx)
-        if ty == VARIANT:
-            self.swap(A, 4, 2)
-            return 8
-        if ty not in PLAIN:
-            raise ConvertError(f'{ctx}: member type {ty} not handled')
-        size, w = PLAIN[ty]
-        self.swap(A, w, size // w)
-        if ty == POINTER and sub == STRUCT and cls:
-            t = self._target(at)
-            if t is not None:
-                note = self.note
-                self._struct(cls, t)
-                self.note = note
-        return size
-
-    def _member(self, m, at):
-        ctx = f'{self.cur}.{m.name}'
-        if m.type in (ARRAY, SIMPLEARRAY):
-            head = 12 if m.type == ARRAY else 8
-            for k in range(max(m.carray, 1)):
-                a = at + k * head
-                count = self.be32(self.base + a + 4)
-                self.swap(self.base + a, 4, head // 4)
-                if not count or m.subtype == VOID:
-                    continue
-                t = self._target(a)
-                if t is None:
-                    raise ConvertError(f'{ctx}: an array of {count} without a fixup')
-                es = self._size(m.subtype, m.cls)
-                self.arrays.append((self.cur, m.name, self.base + t, count, es, self.base + a))
-                sub = STRUCT if m.subtype == POINTER else VOID      # an array of pointers: their objects too
-                for e in range(count):
-                    self._value(m.subtype, sub, m.cls, t + e * es, ctx)
-            return
-        if m.type in (HOMOGENEOUSARRAY, INPLACEARRAY):
-            raise ConvertError(f'{ctx}: member type {m.type} not handled')
-        size = self._value(m.type, m.subtype, m.cls, at, ctx)
-        for k in range(1, max(m.carray, 1)):
-            self._value(m.type, m.subtype, m.cls, at + k * size, ctx)
+def require():
+    """The Rust core, which walks the packfile (bfbc2core.native.require): NativeMissing, saying how to get it, when
+    it is not built or downloaded or was built from other sources. A tool that converts calls this when it starts."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('Havok conversion (bfbc2-console-convert/havok.py)', 'havok_convert_packfile')
 
 
-def _load_native():
-    """The Rust core with the packfile walk, or None: not built, built from other sources, or BFBC2_PURE_PYTHON
-    set (as audio.py finds it)."""
-    try:
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        import suite_paths
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'havok_convert_packfile') else None
-
-
-_native = _load_native()
 _native_classes: list = [None, None]          # [the classes dict last handed to the Rust core, its HavokClasses]
-
-
-def backend():
-    """'rust' when convert's packfile walk runs in the Rust core, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on):
-    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
-    global _native
-    if on:
-        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-        try:
-            _native = _load_native()
-        finally:
-            if saved is not None:
-                os.environ['BFBC2_PURE_PYTHON'] = saved
-    else:
-        _native = None
-    return backend()
 
 
 def _rust_classes(klasses):
@@ -420,27 +211,39 @@ def _rust_classes(klasses):
     if _native_classes[0] is not klasses:
         rows = [(name, k.parent, k.size, [(m.name, m.cls, m.type, m.subtype, m.carray, m.offset) for m in k.members])
                 for name, k in klasses.items()]
-        _native_classes[:] = [klasses, _native.HavokClasses(rows)]
+        try:
+            _native_classes[:] = [klasses, require().HavokClasses(rows)]
+        except (TypeError, ValueError, OverflowError) as e:
+            raise ConvertError(f'class layouts the converter does not take ({e})') from None
     return _native_classes[1]
 
 
+def _stopped(b, o):
+    """Why the walk stopped without a refusal of its own."""
+    v = b[o + 40:o + 56]
+    if not v.startswith(b'Havok-5.5.0'):
+        return f'Havok version {v!r}, not 5.5.0'
+    return ('the packfile is not converted: it reads past the end of the data, names a class or member type the '
+            'game\'s layouts lack, or nests objects too deeply')
+
+
 def convert_packfile(b, o, klasses):
-    """Packfile(b, o, klasses).convert(): in the Rust core when it is built, else (and wherever the Rust stops) by
-    Packfile - the same bytes, the same errors."""
-    if _native is not None and isinstance(b, bytes):
-        try:
-            rk = _rust_classes(klasses)
-        except (TypeError, ValueError, OverflowError, AttributeError):  # layouts the Rust rows cannot hold
-            rk = None
-        if rk is not None:
-            out = _native.havok_convert_packfile(b, o, rk)
-            if out is not None:
-                return out
-    return Packfile(b, o, klasses).convert()
+    """The buffer b with the packfile at o converted to the PC's byte order (the same length; the bytes before o as
+    they are), in the Rust core; ConvertError saying why for a packfile it does not convert."""
+    b = bytes(b)
+    rk = _rust_classes(klasses)
+    try:
+        out = require().havok_convert_packfile(b, o, rk)
+    except ValueError as e:
+        raise ConvertError(str(e)) from None
+    if out is None:
+        raise ConvertError(_stopped(b, o))
+    return out
 
 
 def convert(b, klasses):
     """A console HavokPhysicsData resource -> the PC one (same size)."""
+    b = bytes(b)
     o = wrapper_end(b)
     w = convert_wrapper(b, o)
     out = convert_packfile(b, o, klasses)
@@ -449,78 +252,42 @@ def convert(b, klasses):
 
 # ---------------------------------------------------------------- verification against PC files
 
-def ignorable(pf, out, pc, i):
-    """Why byte i may differ from the PC file although the conversion is right (FORMAT.md 1.3), or None: values
-    the game never reads (padding index of a 16-bit triangle, the saved quality type of a motion with no saved
-    motion) or rebuilds at load (a collidable's cached bounding volume marked invalid, a triangle subpart's
-    triangleOffset)."""
-    cls, mem = pf.owner.get(i, (None, None))
-    if cls == 'hkpStorageExtendedMeshShapeMeshSubpartStorage' and mem == 'indices16':
-        for _c, m, st, n, _es, _ in pf.arrays:
-            if m == 'indices16' and st <= i < st + 2 * n:
-                return 'triangle padding index' if (i - st) // 2 % 4 == 3 else None
-    if cls == 'hkpCollidableBoundingVolumeData':
-        for off, name in pf.seen:
-            A = pf.base + off
-            if name == cls and A <= i < A + 0x20:
-                ours = struct.unpack_from('<I', out, A)[0] > struct.unpack_from('<I', out, A + 0x10)[0]
-                theirs = struct.unpack_from('<I', pc, A)[0] > struct.unpack_from('<I', pc, A + 0x10)[0]
-                marker = A <= i < A + 4 or A + 0x10 <= i < A + 0x14     # min[0] > max[0]: must be the same
-                return 'cached bounding volume marked invalid' if ours and theirs and not marker else None
-    if cls == 'hkpExtendedMeshShapeTrianglesSubpart' and mem == 'triangleOffset':
-        return 'triangle offset (computed at load)'
-    if cls in ('hkpMaxSizeMotion', 'hkpKeyframedRigidMotion', 'hkpMotion') and mem == 'savedQualityTypeIndex':
-        for off, _name in pf.seen:
-            A = pf.base + off
-            if A + 0x11C <= i < A + 0x11E and (off + 0x118) not in pf.local and (off + 0x118) not in pf.glob:
-                return 'saved quality type without a saved motion'
-    return None
+def verify_packfile(console, start, klasses, pc):
+    """The packfile at start of console converted and compared with pc from start on: [(offset, reason)] of each
+    differing byte, the reason why it may differ although the conversion is right (FORMAT.md 1.3: values the game
+    never reads - a 16-bit triangle's padding index, the saved quality type of a motion with no saved motion - or
+    rebuilds at load - a collidable's cached bounding volume marked invalid, a triangle subpart's triangleOffset) or
+    None. In the Rust core, from the walk's record of each byte's owner, the arrays and the objects; ConvertError
+    for a packfile it does not convert or a comparison it cannot answer."""
+    console, pc = bytes(console), bytes(pc)
+    rk = _rust_classes(klasses)
+    try:
+        got = require().havok_verify_packfile(console, start, rk, pc)
+    except ValueError as e:
+        raise ConvertError(str(e)) from None
+    if got is None:
+        convert_packfile(console, start, klasses)            # the walk's own reason, when it is the walk that stops
+        if len(pc) > len(console):
+            raise ConvertError(f'the PC file is longer than the console one ({len(pc)} > {len(console)} bytes)')
+        raise ConvertError('not verified: a cached bounding volume lies past the end of the data, or a byte lies in '
+                           'two bounding volumes that answer differently')
+    return got
 
 
 def verify(console, pc, klasses):
-    """Converts console and compares with pc: (exact, {reason: bytes}, [unexplained offsets]). The packfile's part
-    runs in the Rust core when it is built (round E3o: bc2_native.havok_verify_packfile - the walk's record of each
-    byte's owner, the arrays and the objects answers ignorable for every differing byte); where it cannot answer as
-    the reference does, verify_reference runs."""
-    if _native is not None and isinstance(console, bytes) and isinstance(pc, bytes) and \
-            hasattr(_native, 'havok_verify_packfile'):
-        o = wrapper_end(console)
-        w = convert_wrapper(console, o)
-        try:
-            rk = _rust_classes(klasses)
-        except (TypeError, ValueError, OverflowError, AttributeError):
-            rk = None
-        got = _native.havok_verify_packfile(console, o, rk, pc) if rk is not None else None
-        if got is not None:
-            why: collections.Counter[str] = collections.Counter()
-            bad: list[int] = []
-            if w != pc[:o]:
-                bad.append(next(i for i in range(o) if i >= len(w) or w[i] != pc[i]))
-            for i, r in got:
-                if r:
-                    why[r] += 1
-                else:
-                    bad.append(i)
-            return not why and not bad, dict(why), bad
-    return verify_reference(console, pc, klasses)
-
-
-def verify_reference(console, pc, klasses):
-    """verify by Packfile's walk in Python (the reference)."""
+    """Converts console and compares with pc: (exact, {reason: bytes}, [unexplained offsets]) - the wrapper's
+    first differing byte, then the packfile's bytes (verify_packfile)."""
+    console, pc = bytes(console), bytes(pc)
     o = wrapper_end(console)
     w = convert_wrapper(console, o)
-    pf = Packfile(console, o, klasses)
-    out = pf.convert()
-    why: collections.Counter[str]
-    bad: list[int]
-    why, bad = collections.Counter(), []
+    got = verify_packfile(console, o, klasses, pc)
+    why: collections.Counter[str] = collections.Counter()
+    bad: list[int] = []
     if w != pc[:o]:
         bad.append(next(i for i in range(o) if i >= len(w) or w[i] != pc[i]))
-    for i in range(o, len(pc)):
-        if out[i] != pc[i]:
-            r = ignorable(pf, out, pc, i)
-            if r:
-                why[r] += 1
-            else:
-                bad.append(i)
+    for i, r in got:
+        if r:
+            why[r] += 1
+        else:
+            bad.append(i)
     return not why and not bad, dict(why), bad

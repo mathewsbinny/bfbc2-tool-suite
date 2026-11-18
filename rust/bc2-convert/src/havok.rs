@@ -14,8 +14,10 @@
 //! twice the same way is converted once, as two widths it is refused), so the bytes are the reference's. Where the
 //! reference would do something other than convert or refuse - read past the data (a short slice, a `struct.error`),
 //! look up a class or type it has no entry for (a `KeyError`), nest deeper than Python's recursion allows - the
-//! walk stops with [`HavokError::Reference`] and the caller runs the reference, so the result or the exception is
-//! the reference's in every case. `verify` (the per-byte reasons a conversion differs from a PC file) stays Python.
+//! walk stops with [`HavokError::Reference`]. The reference was retired on 2026-11-18 (its results recorded in
+//! `bfbc2-bf1943-import/tests/ports_golden.json`): `havok.py` now raises its `ConvertError` for those, saying the
+//! packfile reads past its data or names what the layouts lack. [`verify_packfile`] is `havok.verify`'s packfile
+//! part (the per-byte reasons a conversion differs from a PC file).
 //!
 //! ```
 //! use bc2_convert::havok::{self, Classes, HavokError};
@@ -67,8 +69,9 @@ pub enum HavokError {
     /// The reference's `ConvertError`, with its message.
     #[error("{0}")]
     Refused(String),
-    /// The reference would not refuse it this way (a short read, a missing table entry, deep nesting): run it.
-    #[error("not converted here (the reference decides)")]
+    /// The retired reference would not have refused it this way (a short read, a missing table entry, deep
+    /// nesting): not converted.
+    #[error("not converted (it reads past the data, names what the layouts lack or nests too deep)")]
     Reference,
 }
 
@@ -540,8 +543,13 @@ impl Walk<'_> {
                 self.swap(o, 4, 3)?;
                 let (sec, off) = (self.be32(o + 4)?, self.be32(o + 8)?);
                 let (stag, _) = sections.get(sec).ok_or(HavokError::Reference)?;
-                let names = self.names.as_ref().ok_or(HavokError::Reference)?;
-                let Some(name) = names.get(&off).filter(|_| stag == "__classnames__") else {
+                // the reference's `or`: another section is refused before the class names are looked at
+                let name = if stag == "__classnames__" {
+                    self.names.as_ref().ok_or(HavokError::Reference)?.get(&off)
+                } else {
+                    None
+                };
+                let Some(name) = name else {
                     return refused(format!(
                         "{tag}: an object's class name is not in the class-name section"
                     ));

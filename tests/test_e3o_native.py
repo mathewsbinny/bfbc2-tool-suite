@@ -5,7 +5,11 @@ results compared exactly (every float by its bits, every array by dtype, shape a
   - navdata.load's cells of a whole file (navkit_mesh_cells) and its union-find (navkit_union_roots) against
     _cells_reference / _union_roots_reference (with the reference mesh reader);
   - navpath.route's A* in Rust (PathGraph) and closest_between kept per island pair, against route_reference;
-  - havok.verify's packfile part from the Rust walk's record (havok_verify_packfile) against Packfile + ignorable;
+  - havok.verify's packfile part from the Rust walk's record (havok.verify_packfile) against results recorded
+    from Packfile + ignorable, retired on 2026-11-18 (havok_verify_golden.json beside this file: each case's digest
+    or exception; "now" holds the cases the Rust core answers otherwise on purpose: a ConvertError where the
+    reference read past the data or its set's order picked one of two answers; --record rewrites "now" from the
+    current code, only after a deliberate change);
   - texqa's analysis in worker processes against one process.
 
   python test_e3o_native.py           quick: built inputs - 600 seeded runtime meshes (each also cut short, with
@@ -15,7 +19,7 @@ results compared exactly (every float by its bits, every array by dtype, shape a
                                       copies), 9 built textures with 1 and 3 workers
   python test_e3o_native.py --game    + every sector of the game copy's path data (rust\parity_e3o_nav.py mesh),
                                       navdata.load of DICE's infantry path data of every prepared level, 400 routes on
-                                      sp_009 / sp_004_b (bench_sweep's), verify-havok's Onslaught files both ways, the
+                                      sp_009 / sp_004_b (bench_sweep's), verify-havok's Onslaught files as recorded, the
                                       WW2 vehicles' textures (texqa, cold, 1 worker and all)
 
 The module is required: without it (or built from other sources) this test fails, saying how to build it.
@@ -44,6 +48,9 @@ from bfbc2core import native, navdata, navpath  # noqa: E402
 
 FAILS: list[str] = []
 NULL = kymesh.NULL
+GOLDEN = os.path.join(HERE, 'havok_verify_golden.json')
+GOLD: dict = {}
+RECORD = [False]
 
 
 def check(ok: bool, what: str, detail: str = '') -> None:
@@ -311,23 +318,100 @@ def verify_classes(rnd: random.Random) -> dict:
     return k
 
 
-def verify_reference(console: bytes, start: int, k: dict, pc: bytes) -> list:
-    """The packfile part of havok.verify_reference: (offset, reason) of each differing byte."""
+def generated(b: bytes, k: dict) -> bytes:
+    """The console packfile (at 16) converted, the start of the PC copies the quick part changes; b itself when it
+    is not converted."""
     import havok
-    pf = havok.Packfile(console, start, k)
-    out = pf.convert()
-    return [(i, havok.ignorable(pf, out, pc, i)) for i in range(start, len(pc)) if out[i] != pc[i]]
+    try:
+        return havok.convert_packfile(b, 16, k)
+    except havok.ConvertError:
+        return b
+
+
+def verify_part(console: bytes, start: int, k: dict, pc: bytes) -> list:
+    """havok.verify's packfile part: (offset, reason or None) of each differing byte."""
+    import havok
+    return havok.verify_packfile(console, start, k, pc)
+
+
+def verify_whole(c: bytes, p: bytes, k: dict):
+    import havok
+    return havok.verify(c, p, k)
+
+
+def load_golden() -> dict:
+    try:
+        with open(GOLDEN, encoding='utf-8') as f:
+            return dict(json.load(f))
+    except FileNotFoundError:
+        return {}
+
+
+def write_golden(golden: dict) -> None:
+    """havok_verify_golden.json, one case per line."""
+    lines = ['{']
+    keys = sorted(golden)
+    for i, key in enumerate(keys):
+        v, end = golden[key], (',' if i < len(keys) - 1 else '')
+        if isinstance(v, dict) and v:
+            rows = [f'{json.dumps(n)}: {json.dumps(v[n])}' for n in sorted(v)]
+            lines += [f'{json.dumps(key)}: {{', *[r + ',' for r in rows[:-1]], *rows[-1:], '}' + end]
+        else:
+            lines.append(f'{json.dumps(key)}: {json.dumps(v)}{end}')
+    lines.append('}')
+    with open(GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(lines) + '\n')
+
+
+class Recorded:
+    """Each case's recorded answer ("now" over the reference's) against the current one; with --record, the current
+    answers that differ from the reference's go to "now"."""
+
+    def __init__(self, group: str):
+        self.ref: dict = GOLD.get(group, {})
+        self.now: dict = GOLD.setdefault('now', {})
+        self.group = group
+        self.n = self.same = self.changed = 0
+        self.diffs: list[str] = []
+
+    def __call__(self, name: str, got, input_sha: str | None = None) -> None:
+        got = list(got)
+        key = f'{self.group}/{name}'
+        ref = self.ref.get(name)
+        if ref is None or (input_sha is not None and ref[0] != input_sha):
+            self.diffs.append(f'{key}: ' + ('not recorded' if ref is None else 'the input is not the recorded one'))
+            return
+        ref = ref[1:] if input_sha is not None else ref
+        self.n += 1
+        if RECORD[0]:
+            if got != ref:
+                self.now[key] = got
+            else:
+                self.now.pop(key, None)
+            return
+        want = self.now.get(key, ref)
+        self.changed += key in self.now
+        if got == want:
+            self.same += 1
+        else:
+            self.diffs.append(f'{key}: {got} != recorded {want}')
+
+    def report(self, what: str, at_least: int = 0) -> None:
+        if RECORD[0]:
+            print(f'     {what}: {self.n} cases recorded')
+            return
+        check(not self.diffs and self.n >= at_least, f'{what}: {self.same} of {self.n} as recorded ({self.changed} '
+              'answered as "now" records, not as Packfile + ignorable did)', '; '.join(self.diffs[:5]))
 
 
 def quick_havok() -> None:
-    import havok
     suite_paths.use('bf1943-import')
     sys.path.insert(0, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests'))
     import test_ports_native as tp
     rnd = random.Random(17)
-    n = same = answered = reasons = ref_ok = 0
+    rec = Recorded('quick')
+    reasons = 0
     seen_reasons: set = set()
-    havok.use_native(True)
     special = ['hkpStorageExtendedMeshShapeMeshSubpartStorage', 'hkpCollidable', 'hkpCollidableBoundingVolumeData',
                'hkpExtendedMeshShapeTrianglesSubpart', 'hkpMaxSizeMotion', 'hkpKeyframedRigidMotion']
     for _ in range(500):
@@ -344,26 +428,21 @@ def quick_havok() -> None:
                 continue
         if b is None:
             continue
-        try:
-            conv = havok.Packfile(b, 16, k).convert()
-        except Exception:                                        # noqa: BLE001 - refused: both raise (checked below)
-            conv = b
-        for _ in range(4):
+        conv = generated(b, k)
+        for j in range(4):
             changed = bytearray(conv)
             for _ in range(rnd.randint(0, 40)):
                 changed[rnd.randrange(16, len(changed))] = rnd.getrandbits(8)
             pc = bytes(changed[:len(changed) - rnd.choice([0, 0, 0, 3])])
             if rnd.random() < 0.05:
                 pc += b'\0\0'                                    # longer than the console file: the reference's IndexError
-            ref = outcome(verify_reference, b, 16, k, pc)
-            got = havok._native.havok_verify_packfile(b, 16, havok._rust_classes(k), pc)
-            n += 1
-            ref_ok += ref[0] == 'ok' and len(pc) <= len(b)
-            if got is None:
-                same += 1                                        # left to the reference: its answer, by construction
+            name = f'{parity_e3o_nav.digest([b, pc])[:16]} {j}'
+            try:
+                got = verify_part(b, 16, k, pc)
+            except Exception as e:                               # noqa: BLE001 - recorded, compared
+                rec(name, ['error', type(e).__name__, str(e)])
                 continue
-            answered += 1
-            same += ref == ('ok', parity_e3o_nav.digest(got))
+            rec(name, ['ok', parity_e3o_nav.digest(got)])
             reasons += sum(1 for _, r in got if r)
             seen_reasons |= {r for _, r in got if r}
     # triangle padding: an indices16 array of 8 (the random layouts' arrays hold 3 at most)
@@ -373,23 +452,18 @@ def quick_havok() -> None:
     content[64:80] = bytes(range(1, 17))
     b = bytes(16) + tp.packfile(['hkpStorageExtendedMeshShapeMeshSubpartStorage'], bytes(content), [(12, 64)], [],
                                 [(0, 'hkpStorageExtendedMeshShapeMeshSubpartStorage')])
-    conv = havok.Packfile(b, 16, k).convert()
+    conv = generated(b, k)
     data = 16 + conv.find(bytes([2, 1, 4, 3]))                   # the indices, swapped to little endian
     for flip in ([6, 7], [0, 14], [6, 15]):
         flipped = bytearray(conv)
         for j in flip:
             flipped[data - 16 + j] ^= 0xFF
-        ref = outcome(verify_reference, b, 16, k, bytes(flipped))
-        got = havok._native.havok_verify_packfile(b, 16, havok._rust_classes(k), bytes(flipped))
-        n += 1
-        ref_ok += 1
-        answered += got is not None
-        same += got is not None and ref == ('ok', parity_e3o_nav.digest(got))
-        seen_reasons |= {r for _, r in got or [] if r}
-    check(same == n and answered > 0.9 * ref_ok, f'packfile verification: {same} of {n} the same (offset, reason) '
-          f'lists as Packfile + ignorable ({answered} of the {ref_ok} the reference answers answered by the Rust '
-          f'record, the rest read past the data; {reasons:,} ignorable bytes)')
-    check(len(seen_reasons) == 4, f'every reason met: {sorted(seen_reasons)}')
+        got = verify_part(b, 16, k, bytes(flipped))
+        rec(f'triangle padding {flip}', list(outcome(lambda g=got: g)))
+        seen_reasons |= {r for _, r in got if r}
+    rec.report(f'packfile verification ((offset, reason) lists; {reasons:,} ignorable bytes)', 2000)
+    if not RECORD[0]:
+        check(len(seen_reasons) == 4, f'every reason met: {sorted(seen_reasons)}')
 
 
 # ------------------------------------------------------------------------------------------------ texqa
@@ -473,23 +547,16 @@ def game_havok(root: str) -> None:
     for f in consoles:
         for rel, p in convert.manifest(f, 'HavokPhysicsData').items():
             con.setdefault(rel, p)
-    n = same = answered = 0
-    t_new = t_ref = 0.0
+    rec = Recorded('onslaught')
+    t_new = 0.0
     for rel in sorted(set(pc) & set(con)):
         c, p = open(con[rel], 'rb').read(), open(pc[rel], 'rb').read()
         if len(c) != len(p):
             continue
         t = time.perf_counter()
-        a = outcome(havok.verify, c, p, k)
+        rec(rel, outcome(verify_whole, c, p, k), parity_e3o_nav.digest([c, p])[:16])
         t_new += time.perf_counter() - t
-        t = time.perf_counter()
-        b = outcome(havok.verify_reference, c, p, k)
-        t_ref += time.perf_counter() - t
-        n += 1
-        same += a == b
-        answered += havok._native.havok_verify_packfile(c, havok.wrapper_end(c), havok._rust_classes(k), p) is not None
-    check(same == n and n >= 300, f'verify-havok: {same} of {n} Onslaught files the same (exact, reasons, unexplained '
-          f'offsets) both ways, {answered} answered by the Rust record (Rust {t_new:.1f} s, reference {t_ref:.1f} s)')
+    rec.report(f'verify-havok: Onslaught files (exact, reasons, unexplained offsets; {t_new:.1f} s)', 300)
 
 
 def game_texqa(root: str) -> None:
@@ -520,6 +587,8 @@ def main(argv: list[str]) -> int:
     except Exception as e:                                      # noqa: BLE001 - NativeMissing, with how to get it
         print(f'FAIL the Rust core: {e}')
         return 1
+    GOLD.update(load_golden())
+    RECORD[0] = '--record' in argv
     quick_kymesh()
     quick_navdata()
     quick_navpath()
@@ -527,6 +596,10 @@ def main(argv: list[str]) -> int:
     quick_texqa()
     if '--game' in argv:
         game()
+    if RECORD[0] and not FAILS:
+        GOLD['now_recorded'] = time.strftime('%Y-%m-%d')
+        write_golden(GOLD)
+        print(f'wrote {GOLDEN}')
     print('all passed' if not FAILS else f'{len(FAILS)} check(s) failed')
     return 1 if FAILS else 0
 
