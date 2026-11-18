@@ -9,17 +9,23 @@ fix-ups. Engine constants keep their names (pcbuild binds them by name); block c
 (Interface.named_vs / named_ps: the terrain's heightmap and dynamic mask parameters) are $Globals variables under their
 names, which the build records in the PC parameter blocks at the registers the compiler gives them.
 
-translate runs in the suite's Rust core (rust/bc2-shader; round E3f) for a tree xenos.parse_shader decoded there,
-else here (translate_python, the reference); the same text byte for byte and the same TranslateError messages
-(tests/test_xenos_native.py: every program of BF1943's and BFBC2's Xbox shader databases, under varied
-interfaces). translate_many translates many programs at once on all cores. BFBC2_PURE_PYTHON=1 or
-xenos.use_native(False) forces Python.
+The translation runs in the suite's Rust core (rust/bc2-shader, hlsl.rs; round E3f), which it needs
+(bfbc2core.native.require: NativeMissing saying how to get it). Its Python twin (translate_python, _Emitter) was
+retired on 2026-11-18 after the full test tier (rust/BENCHMARKS.md, "Retired Python"); its results, recorded before
+it was deleted, are the oracle (tests/test_xenos_native.py: xenos_golden.json, xenos_golden_game.json). Any tree is
+taken: xenos.parse_shader's (its program kept in Rust), one whose microcode a caller read or edited, the Python
+decoder's (xenos.parse_shader_python, the format reference), copies and pickles, or one built by hand of any class
+(the attributes the translation reads, by name). What the Rust core cannot take (an interface value of another type
+than Interface's comments say, a literal that is not four 32-bit floats, an unknown operation's name, an empty
+material value, a sampler fix with format fields other than {}) raises ValueError saying what; TranslateError is a
+program the translator refuses, with its reason.
 """
 from __future__ import annotations
 
 import os
 import sys
 from collections.abc import Iterable, Sequence
+from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,8 +36,6 @@ import xenos  # noqa: E402
 if TYPE_CHECKING:
     from xenos import Obj
 
-
-FLT_MAX = '3.402823466e+38'
 
 # engine constants: natural size in float4 registers on PC (Dx10/11 cbuffer); anything else is a material constant
 ENGINE_SIZE = {
@@ -45,17 +49,8 @@ ENGINE_SIZE = {
 }
 SHADOW = 'outdoorLightShadowmapTexture'
 PROBE_X0, PROBE_Y0, PROBE_W, PROBE_H = 60, 100, 26, 20     # the bit-bar block (screen pixels)
-# instanced draws (BFBC2 StreamInstancingFloat): these engine matrices are rebuilt from the instance's rows
-INSTANCED = {'worldMatrix': 'instW', 'worldViewProjMatrix': 'instWVP'}
+# instanced draws (BFBC2 StreamInstancingFloat): the per-instance rows' TEXCOORD semantics (inst0..inst2)
 INSTANCE_SEMANTICS = (13, 14, 15)
-INSTANCE_PRELUDE = '''    float4 instW[4], instWVP[4];
-    [unroll] for (int k = 0; k < 3; k++)
-        instW[k] = vin.inst0 * worldMatrix[k].x + vin.inst1 * worldMatrix[k].y + vin.inst2 * worldMatrix[k].z
-                 + float4(0.0, 0.0, 0.0, worldMatrix[k].w);
-    instW[3] = float4(0.0, 0.0, 0.0, 1.0);
-    [unroll] for (int j = 0; j < 4; j++)
-        instWVP[j] = viewProjMatrix[j].x * instW[0] + viewProjMatrix[j].y * instW[1] + viewProjMatrix[j].z * instW[2]
-                   + float4(0.0, 0.0, 0.0, viewProjMatrix[j].w);'''
 
 
 class TranslateError(Exception):
@@ -99,685 +94,57 @@ class Interface:
         self.colour_scale = colour_scale
 
 
-def _f(v: float) -> str:
-    if v != v:
-        return '0.0'
-    if v in (float('inf'), float('-inf')):
-        return ('' if v > 0 else '-') + FLT_MAX
-    r = repr(float(v))
-    return r if ('e' in r or '.' in r) else r + '.0'
+def require() -> ModuleType:
+    """The Rust core, which translates (bfbc2core.native.require): NativeMissing, saying how to get it, when it is not
+    built or downloaded or was built from other sources."""
+    root = os.path.dirname(_HERE)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('The Xbox 360 shader translator (bfbc2-shader-tools/xenos_hlsl.py)', 'xenos_tree_program')
 
 
-class _Emitter:
-    samplers: dict[int, tuple[str, str, str]]   # sampler register -> (texture name, HLSL type, constant name)
-    vfetch_element: dict[int, int]              # vfetch slot -> TEXCOORD usage index
-    block_pred: bool | None
-    pred_written: bool
-    pending_a0: str | None                      # the address register write of the current ALU instruction (alu)
-    cube_dir_set: bool
-    need_world: bool
-
-    def __init__(self, sh: Obj, iface: Interface) -> None:
-        self.sh, self.iface = sh, iface
-        self.ps = sh.is_pixel
-        self.lines: list[str] = []
-        self.depth = 1
-        self.cube_dir = None
-        self.cmap: dict[int, str] = {}  # const register -> expression of a float4
-        self.globals_: list[str] = []   # cbuffer declarations
-        self.named: list[str] = []      # engine-named block constants (Interface.named_vs / named_ps), declared last
-        self.statics: list[str] = []
-        self.textures: list[str] = []
-        self.used_regs: set[int] = set()
-
-    def w(self, s: str) -> None:
-        self.lines.append('    ' * self.depth + s)
-
-    # ---------------------------------------------------------------- declarations
-    def constants(self) -> None:
-        ct = self.sh.ctab.constants if self.sh.ctab else []
-        declared: set[str] = set()
-        for c in ct:
-            if c.regset != 'float4':
-                continue
-            if c.name in ENGINE_SIZE:
-                n = max(ENGINE_SIZE[c.name], c.count)
-                inst = self.iface.instanced and c.name in INSTANCED
-                if inst:
-                    for need in ('worldMatrix', 'viewProjMatrix'):
-                        if need not in declared:
-                            self.globals_.append(f'float4 {need}[4];')
-                            declared.add(need)
-                elif c.name not in declared:
-                    self.globals_.append(f'float4 {c.name}[{n}];')
-                    declared.add(c.name)
-                for k in range(c.count):
-                    self.cmap[c.reg + k] = f'{INSTANCED[c.name]}[{k}]' if inst else f'{c.name}[{k}]'
-            else:
-                vals = self.iface.material.get(c.name)
-                if vals is None and c.name == 'colorScale':
-                    vals = [(self.iface.colour_scale,) * 4]
-                regs = self.iface.material_regs
-                if vals is None and c.name == 'constants' and any(c.reg + k in regs for k in range(c.count)):
-                    # the block's values by register inside the array; registers no block value sets stay 0 (the
-                    # engine's own: a tree's wind and fade)
-                    vals = [tuple(regs.get(c.reg + k, (0.0, 0.0, 0.0, 0.0))) for k in range(c.count)]
-                    unset = [k for k in range(c.count) if c.reg + k not in regs]
-                    if unset:
-                        self.statics.append(f'// material constant {c.name}: no value given for {unset}, 0')
-                if vals is None:
-                    vals = [(0.0, 0.0, 0.0, 0.0)] * c.count
-                    self.statics.append(f'// material constant {c.name}: no value given, 0')
-                if isinstance(vals[0], (int, float)):
-                    vals = [tuple(vals)]
-                named = self.iface.named_ps if self.ps else self.iface.named_vs
-                for k in range(c.count):
-                    nm_ = named.get(c.reg + k)
-                    if nm_ is not None:
-                        if not nm_.isidentifier() or nm_ in ENGINE_SIZE:
-                            raise TranslateError(f'engine-named constant {nm_!r}: not a usable name')
-                        decl = f'float4 {nm_};'
-                        if decl not in self.named:
-                            self.named.append(decl)
-                        self.cmap[c.reg + k] = nm_
-                        continue
-                    v = vals[k] if k < len(vals) else (0.0,) * 4
-                    nm = f'm_{c.name}_{k}'
-                    self.statics.append(f'static const float4 {nm} = float4({", ".join(_f(x) for x in v)});')
-                    self.cmap[c.reg + k] = nm
-        for reg, v in sorted(self.sh.literals.items()):
-            nm = f'lit{reg}'
-            self.statics.append(f'static const float4 {nm} = float4({", ".join(_f(x) for x in v)});')
-            self.cmap[reg] = nm
-        self.samplers = {}
-        for c in ct:
-            if c.regset != 'sampler':
-                continue
-            kind = c.type.type
-            name = c.name
-            tex = 'texture_' + (name[len('sampler_'):] if name.startswith('sampler_') else name)
-            typ = {'samplerCube': 'TextureCube', 'sampler3D': 'Texture3D', 'sampler1D': 'Texture1D'}.get(kind, 'Texture2D')
-            self.textures.append(f'{typ} {tex} : register(t{c.reg});')
-            self.samplers[c.reg] = (tex, typ, name)
-
-    # ---------------------------------------------------------------- operands
-    def const(self, idx: int, rel: str | None) -> str:
-        if rel:
-            if rel != 'a0':
-                raise TranslateError(f'loop-relative constant addressing (c[{idx}+{rel}])')
-            for c in (self.sh.ctab.constants if self.sh.ctab else []):
-                if c.regset == 'float4' and c.reg <= idx < c.reg + c.count and c.name in ENGINE_SIZE:
-                    if self.iface.bones_as_world and c.name in ('boneMatrices', 'boneVectors') and \
-                            c.type.cls in ('matrix_rows', 'matrix_columns') and idx - c.reg < 3:
-                        # Adapt matrix-typed composite transforms only. Some kind-9 shaders instead declare
-                        # a vector palette: boneMatrices[part].x gates visibility while positions use worldMatrix
-                        # separately. Replacing that flag with worldMatrix[0].x hides parts at certain rotations.
-                        self.need_world = True
-                        return f'{"instW" if self.iface.instanced else "worldMatrix"}[{idx - c.reg}]'
-                    return f'{c.name}[a0 + {idx - c.reg}]'
-            raise TranslateError(f'relative constant addressing c[{idx}+a0] outside an engine array')
-        return self.cmap.get(idx, 'float4(0.0, 0.0, 0.0, 0.0)')
-
-    def reg(self, i: int) -> str:
-        self.used_regs.add(i)
-        return f'r{i}'
-
-    def operand(self, o: Obj, swz: str | None = None) -> str:
-        if o.file == 'temp':
-            if o.rel:
-                raise TranslateError('relative temp addressing is not supported')
-            base = self.reg(o.index)
-        else:
-            base = self.const(o.index, o.rel)
-        s = swz if swz is not None else o.swizzle
-        e = f'{base}.{s}'
-        if o.abs:
-            e = f'abs({e})'
-        if o.negate:
-            e = f'(-{e})'
-        return e
-
-    # ---------------------------------------------------------------- ALU
-    def vector(self, ins: Obj) -> str:
-        op = ins.vector_op
-        a = [self.operand(o) for o in ins.vector_operands]
-        if op == 'add':
-            return f'({a[0]} + {a[1]})'
-        if op == 'mul':
-            return f'xmul({a[0]}, {a[1]})'
-        if op == 'max':
-            return f'max({a[0]}, {a[1]})'
-        if op == 'min':
-            return f'min({a[0]}, {a[1]})'
-        if op in ('seq', 'sgt', 'sge', 'sne'):
-            cmp = {'seq': '==', 'sgt': '>', 'sge': '>=', 'sne': '!='}[op]
-            return f'float4(({a[0]}) {cmp} ({a[1]}))'
-        if op == 'frc':
-            return f'frac({a[0]})'
-        if op == 'trunc':
-            return f'trunc({a[0]})'
-        if op == 'floor':
-            return f'floor({a[0]})'
-        if op == 'mad':
-            return f'(xmul({a[0]}, {a[1]}) + {a[2]})'
-        if op in ('cndeq', 'cndge', 'cndgt'):
-            cmp = {'cndeq': '==', 'cndge': '>=', 'cndgt': '>'}[op]
-            return f'xsel(({a[0]}) {cmp} 0.0, {a[1]}, {a[2]})'
-        if op == 'dp4':
-            return f'xdot4({a[0]}, {a[1]}).xxxx'
-        if op == 'dp3':
-            return f'xdot4(float4(({a[0]}).xyz, 0.0), float4(({a[1]}).xyz, 0.0)).xxxx'
-        if op == 'dp2add':
-            return f'(xdot4(float4(({a[0]}).xy, 0.0, 0.0), float4(({a[1]}).xy, 0.0, 0.0)) + ({a[2]}).x).xxxx'
-        if op == 'cube':
-            # src0 = d.zzxy, src1 = d.yxzz: the direction is (src0.z, src0.w, src0.x)
-            self.w(f'cubeDir = float3(({a[0]}).z, ({a[0]}).w, ({a[0]}).x);')
-            return 'xcube(cubeDir)'
-        if op == 'max4':
-            return f'xmax4({a[0]})'
-        if op.startswith('setp_') and op.endswith('_push'):
-            cmp = {'eq': '==', 'ne': '!=', 'gt': '>', 'ge': '>='}[op[5:7]]
-            self.w(f'p0_next = (({a[0]}).w == 0.0 && ({a[1]}).w {cmp} 0.0);')
-            self.pred_written = True
-            return f'((({a[0]}).x == 0.0 && ({a[1]}).x {cmp} 0.0) ? 0.0 : ({a[0]}).x + 1.0).xxxx'
-        if op.startswith('kill_'):
-            cmp = {'eq': '==', 'gt': '>', 'ge': '>=', 'ne': '!='}[op[5:]]
-            self.w(f'if (any(({a[0]}) {cmp} ({a[1]}))) discard;')
-            return f'float4(any(({a[0]}) {cmp} ({a[1]})).xxxx)'
-        if op == 'dst':
-            return f'float4(1.0, ({a[0]}).y * ({a[1]}).y, ({a[0]}).z, ({a[1]}).w)'
-        if op == 'maxa':
-            self.pending_a0 = f'a0 = (int)clamp(floor(({a[0]}).w + 0.5), -256.0, 255.0);'
-            return f'max({a[0]}, {a[1]})'
-        raise TranslateError(f'vector op {op}')
-
-    def scalar(self, ins: Obj) -> str:
-        op = ins.scalar_op
-        ops = ins.scalar_operands
-        if op == 'retain_prev':
-            return 'ps'
-        if not ops:
-            if op == 'setp_clr':
-                self.w('p0_next = false;')
-                self.pred_written = True
-                return FLT_MAX
-            raise TranslateError(f'scalar op {op}')
-        b: str | None                         # the second operand, none for a single-component one
-        if len(ops) == 2:                     # mulsc / addsc / subsc: c[].a (op) r[].b
-            a = self.operand(ops[0], ops[0].components)
-            b = self.operand(ops[1], ops[1].components)
-        else:
-            o = ops[0]
-            a = self.operand(o, o.components[0])
-            b = self.operand(o, o.components[1]) if len(o.components) > 1 else None
-        if op in ('adds', 'addsc'):
-            return f'({a} + {b})'
-        if op == 'adds_prev':
-            return f'({a} + ps)'
-        if op in ('muls', 'mulsc'):
-            return f'xmul1({a}, {b})'
-        if op == 'muls_prev':
-            return f'xmul1({a}, ps)'
-        if op == 'muls_prev2':
-            return f'((ps == -{FLT_MAX} || !isfinite(ps) || !isfinite({b}) || {b} <= 0.0) ? -{FLT_MAX} : xmul1({a}, ps))'
-        if op == 'maxs':
-            return f'max({a}, {b})'
-        if op == 'mins':
-            return f'min({a}, {b})'
-        if op in ('seqs', 'sgts', 'sges', 'snes'):
-            cmp = {'seqs': '==', 'sgts': '>', 'sges': '>=', 'snes': '!='}[op]
-            return f'(({a}) {cmp} 0.0 ? 1.0 : 0.0)'
-        if op == 'frcs':
-            return f'frac({a})'
-        if op == 'truncs':
-            return f'trunc({a})'
-        if op == 'floors':
-            return f'floor({a})'
-        if op == 'exp':
-            return f'exp2({a})'
-        if op in ('log', 'logc'):
-            return f'xlog({a})' if op == 'logc' else f'(({a}) == 1.0 ? 0.0 : log2({a}))'
-        if op in ('rcp', 'rcpc', 'rcpf'):
-            return f'xrcp{op[3:]}({a})'
-        if op in ('rsq', 'rsqc', 'rsqf'):
-            return f'xrsq{op[3:]}({a})'
-        if op in ('maxas', 'maxasf'):
-            rnd = ' + 0.5' if op == 'maxas' else ''
-            self.pending_a0 = f'a0 = (int)clamp(floor({a}{rnd}), -256.0, 255.0);'
-            return f'max({a}, {b})'
-        if op in ('subs', 'subsc'):
-            return f'({a} - {b})'
-        if op == 'subs_prev':
-            return f'({a} - ps)'
-        if op in ('setp_eq', 'setp_ne', 'setp_gt', 'setp_ge'):
-            cmp = {'eq': '==', 'ne': '!=', 'gt': '>', 'ge': '>='}[op[5:]]
-            self.w(f'p0_next = ({a}) {cmp} 0.0;')
-            self.pred_written = True
-            return f'(({a}) {cmp} 0.0 ? 0.0 : 1.0)'
-        if op == 'setp_inv':
-            self.w(f'p0_next = ({a}) == 1.0;')
-            self.pred_written = True
-            return f'(({a}) == 1.0 ? 0.0 : (({a}) == 0.0 ? 1.0 : ({a})))'
-        if op == 'setp_pop':
-            self.w(f'p0_next = ({a}) - 1.0 <= 0.0;')
-            self.pred_written = True
-            return f'(({a}) - 1.0 <= 0.0 ? 0.0 : ({a}) - 1.0)'
-        if op == 'setp_rstr':
-            self.w(f'p0_next = ({a}) == 0.0;')
-            self.pred_written = True
-            return f'(({a}) == 0.0 ? 0.0 : ({a}))'
-        if op.startswith('kills_'):
-            cmp = {'eq': '==', 'gt': '>', 'ge': '>=', 'ne': '!=', 'one': '=='}[op[6:]]
-            rhs = '1.0' if op == 'kills_one' else '0.0'
-            self.w(f'if (({a}) {cmp} {rhs}) discard;')
-            return f'(({a}) {cmp} {rhs} ? 1.0 : 0.0)'
-        if op == 'sqrt':
-            return f'sqrt({a})'
-        if op == 'sin':
-            return f'sin({a})'
-        if op == 'cos':
-            return f'cos({a})'
-        raise TranslateError(f'scalar op {op}')
-
-    def write(self, dest: Obj, value: str, comps_from: object, is_vector: bool) -> None:
-        """dest.write: per component 'x'..'w' (take that component of value), '0', '1', '_'."""
-        if dest.file == 'temp':
-            if dest.rel:
-                raise TranslateError('relative destination')
-            target = self.reg(dest.index)
-        else:
-            target = self.out_name(dest)
-        for c, ch in zip('xyzw', dest.write):
-            if ch == '_':
-                continue
-            if ch in '01':
-                self.w(f'{target}.{c} = {ch}.0;')
-                continue
-            src = f'{value}.{c}' if is_vector else value
-            if dest.saturate:
-                src = f'saturate({src})'
-            self.w(f'{target}.{c} = {src};')
-
-    def out_name(self, dest: Obj) -> str:
-        if dest.file == 'oPos':
-            return 'o.pos'
-        if dest.file == 'o':
-            return f'o.t{dest.index}'
-        if dest.file == 'oC':
-            return f'oC{dest.index}'
-        raise TranslateError(f'export to {dest.file}')
-
-    def alu(self, ins: Obj) -> None:
-        self.pred_written = False
-        self.pending_a0 = None
-        k = ins.address
-        vec = None if ins.vector_nop else self.vector(ins)
-        sca = None if ins.scalar_nop else self.scalar(ins)
-        if vec is not None:
-            self.w(f'float4 v{k} = {vec};')
-            if self.iface.trace_nan:
-                self.w(f'if (firstNan < 0.0 && any(isnan(v{k}) || isinf(v{k}))) firstNan = {k}.0;')
-        if sca is not None:
-            self.w(f'float s{k} = {sca};')
-            if self.iface.trace_nan:
-                self.w(f'if (firstNan < 0.0 && (isnan(s{k}) || isinf(s{k}))) firstNan = {k}.5;')
-        if self.pending_a0:
-            # MAXA / MAXAS set the address register for the NEXT instruction: the co-issued half of this one still
-            # reads the old a0 (written before the vector op, a soldier's bone 1 row 0 was read from bone 2 - the
-            # arms drew as shards in game, 2026-11-15)
-            self.w(self.pending_a0)
-        if vec is not None:
-            self.write(ins.vector_dest, f'v{k}', None, True)
-        if sca is not None:
-            self.write(ins.scalar_dest, f's{k}', None, False)
-            self.w(f'ps = s{k};')
-        if self.pred_written:
-            self.w('p0 = p0_next;')
-
-    # ---------------------------------------------------------------- fetch
-    def fetch(self, ins: Obj) -> None:
-        if ins.fetch_kind == 'vertex':
-            el = self.vfetch_element.get(ins.address)
-            if el is None:
-                raise TranslateError(f'vfetch at {ins.address} has no vertex element')
-            val = f'float4(vin.t{el})'
-            self.fetch_write(ins, val)
-            return
-        op = ins.op
-        if op == 'setTexLOD':
-            self.w(f'texLod = {self.reg(ins.src)}.{ins.src_swizzle[0]};')
-            return
-        if not ins.has_dest:
-            return
-        reg = self.iface.fetch_registers.get(ins.const_index, ins.const_index)
-        if reg not in self.samplers:
-            raise TranslateError(f'fetch from tf{reg}: no sampler s{reg} in the constant table')
-        tex, typ, name = self.samplers[reg]
-        sampler = f'sampler{self.iface.sampler_registers.get(reg, 1)}'
-        src = f'{self.reg(ins.src)}.{ins.src_swizzle}'
-        if typ not in ('Texture2D', 'TextureCube'):
-            raise TranslateError(f'{typ} sampling is not supported')
-        if getattr(ins, 'use_register_gradients', False):
-            raise TranslateError('texture fetch with explicit gradients is not supported')
-        if getattr(ins, 'unnormalized', False):
-            if typ != 'Texture2D':
-                raise TranslateError('unnormalized cube sampling is not supported')
-            src = f'({src} / tdim({tex}))'
-        explicit_lod = ins.use_register_lod or not getattr(ins, 'use_computed_lod', True) or not self.ps
-        lod = f'(texLod + {_f(ins.lod_bias)})' if ins.use_register_lod else _f(ins.lod_bias)
-        if name == SHADOW and self.iface.pc_shadow_atlas:
-            if getattr(ins, 'unnormalized', False):
-                raise TranslateError('PC shadow atlas requires normalized console coordinates')
-            # BF1943 computes a normalized cascade centre in the third source
-            # component (1/6, 1/2, 5/6). Preserve it even on the 2D fetch.
-            swizzle = ''.join('xyzw'[(ins.src_swizzle_raw >> (2 * k)) & 3] for k in range(3))
-            src = f'xshadowuv({self.reg(ins.src)}.{swizzle})'
-        off = (ins.offset_x, ins.offset_y)
-        if op.startswith('getWeights'):
-            self.w(f'float4 f{ins.address} = float4(frac({src} * tdim({tex}) - 0.5 + float2({_f(off[0])}, {_f(off[1])})), 0.0, 0.0);')
-            self.fetch_write(ins, f'f{ins.address}')
-            return
-        if not op.startswith('tfetch'):
-            raise TranslateError(f'fetch op {op}')
-        if typ == 'TextureCube':
-            # the fetch's own (s, t, face) turned back into a direction (xcubefetch): a shader with two cube ops, or
-            # one that moves the coordinates between the cube op and the fetch, sampled the last cube op's direction
-            # (cubeDir) - the second of two reflection fetches read the first's texel (xdiff.py: 4 of 815 shaders)
-            coord = f'xcubefetch({self.reg(ins.src)}.{ins.src_swizzle})' if self.cube_dir_set else src
-            if explicit_lod:
-                e = f'{tex}.SampleLevel({sampler}, {coord}, {lod})'
-            elif ins.lod_bias:
-                e = f'{tex}.SampleBias({sampler}, {coord}, {_f(ins.lod_bias)})'
-            else:
-                e = f'{tex}.Sample({sampler}, {coord})'
-        elif name == SHADOW or (ins.mag_filter == 'point' and ins.min_filter == 'point'):
-            # point taps: exact texel loads (the shadow map is a depth texture: raw depth), the texel clamped to the
-            # texture as the Xbox's clamp addressing does - Load reads 0 outside it, which drew a shadow-map edge
-            # fully shadowed (the differential test, xdiff.py: 330 of 815 pixel shaders differed only there)
-            if explicit_lod:
-                dim = f'fetchDim{ins.address}'
-                self.w(f'float3 {dim} = tsizeLod({tex}, {lod});')
-                e = (f'{tex}.Load(int3(clamp(floor({src} * {dim}.xy + float2({_f(off[0])}, {_f(off[1])})), '
-                     f'0.0, {dim}.xy - 1.0), {dim}.z))')
-            else:
-                e = (f'{tex}.Load(int3(clamp(floor({src} * tdim({tex}) + float2({_f(off[0])}, {_f(off[1])})), '
-                     f'0.0, tdim({tex}) - 1.0), 0))')
-        else:
-            coord = src
-            if off != (0.0, 0.0):
-                coord = f'({src} + float2({_f(off[0])}, {_f(off[1])}) / tdim({tex}))'
-            if explicit_lod:
-                e = f'{tex}.SampleLevel({sampler}, {coord}, {lod})'
-            elif ins.lod_bias:
-                e = f'{tex}.SampleBias({sampler}, {coord}, {_f(ins.lod_bias)})'
-            else:
-                e = f'{tex}.Sample({sampler}, {coord})'
-        fix = self.iface.sampler_fix.get(reg)
-        if fix and '{}' in fix:                    # a wrapping expression, e.g. 'xsrgb({})'
-            e = fix.format(e)
-        elif fix:
-            e = f'({e}).{fix}'
-        self.w(f'float4 f{ins.address} = {e};')
-        self.fetch_write(ins, f'f{ins.address}')
-
-    def fetch_write(self, ins: Obj, val: str) -> None:
-        target = self.reg(ins.dst)
-        for c, ch in zip('xyzw', ins.dst_swizzle):
-            if ch in '_?':
-                continue
-            if ch in '01':
-                self.w(f'{target}.{c} = {ch}.0;')
-            else:
-                self.w(f'{target}.{c} = {val}.{ch};')
-
-    # ---------------------------------------------------------------- control flow
-    def instr(self, ins: Obj) -> None:
-        pred = ins.predicated and not self.block_pred_covers(ins)
-        if pred:
-            self.w(f'if (p0 == {"true" if ins.pred_condition else "false"}) {{')
-            self.depth += 1
-        if ins.kind == 'alu':
-            self.alu(ins)
-        else:
-            self.fetch(ins)
-        if pred:
-            self.depth -= 1
-            self.w('}')
-
-    def block_pred_covers(self, ins: Obj) -> bool:
-        return self.block_pred is not None and self.block_pred == ins.pred_condition
-
-    def cfs(self, lst: list[Obj], start: int, end: int) -> None:
-        i = start
-        while i < end:
-            cf = lst[i]
-            if cf.op in ('exec', 'exec_end', 'cond_exec_pred', 'cond_exec_pred_end'):
-                if cf.op.startswith('cond_exec_pred'):
-                    self.w(f'if (p0 == {"true" if cf.condition else "false"}) {{')
-                    self.depth += 1
-                    self.block_pred = bool(cf.condition)
-                else:
-                    self.block_pred = None
-                for ins in cf.instructions:
-                    self.instr(ins)
-                if cf.op.startswith('cond_exec_pred'):
-                    self.depth -= 1
-                    self.w('}')
-                self.block_pred = None
-                if cf.is_end and i != len(lst) - 1 and any(c.op != 'alloc' for c in lst[i + 1:]):
-                    raise TranslateError('exec_end before the last CF')
-                i += 1
-            elif cf.op == 'alloc' or cf.op == 'nop':
-                i += 1
-            elif cf.op == 'cond_jmp':
-                if cf.type == 'unconditional':
-                    cond = 'false'
-                elif cf.type == 'predicated':
-                    cond = f'p0 != {"true" if cf.condition else "false"}'
-                else:
-                    raise TranslateError('bool-constant jump')
-                t = next((j for j, c in enumerate(lst) if c.index == cf.address), None)
-                if t is None or t <= i or t > end:
-                    raise TranslateError(f'jump to cf {cf.address} is not a nested forward jump')
-                self.w(f'if ({cond}) {{')
-                self.depth += 1
-                self.cfs(lst, i + 1, t)
-                self.depth -= 1
-                self.w('}')
-                i = t
-            else:
-                raise TranslateError(f'control flow {cf.op} is not supported')
-
-    # ---------------------------------------------------------------- whole shader
-    def run(self) -> str:
-        sh = self.sh
-        self.block_pred = None
-        self.cube_dir_set = any(i.kind == 'alu' and i.vector_op == 'cube' and not i.vector_nop
-                                for i in sh.instructions)
-        self.constants()
-        h = sh.header
-        self.vfetch_element = {}
-        if not self.ps:
-            for el in h.vertex_elements:
-                if el.usage != 'TEXCOORD':
-                    raise TranslateError(f'vertex input usage {el.usage}')
-                self.vfetch_element[el.fetch_address] = el.usage_index
-        body_start = len(self.lines)
-        self.cfs(sh.cf, 0, len(sh.cf))
-        body = self.lines[body_start:]
-        del self.lines[body_start:]
-        return self.assemble(body)
-
-    def assemble(self, body: list[str]) -> str:
-        sh, iface = self.sh, self.iface
-        out = ['// translated from Xbox 360 (Xenos) microcode', '#define xsel(c, a, b) ((c) ? (a) : (b))']
-        out += HELPERS
-        if getattr(self, 'need_world', False) or (not self.ps and iface.instanced):
-            for need in ('worldMatrix', 'viewProjMatrix'):
-                if not any(g.startswith(f'float4 {need}[') for g in self.globals_):
-                    self.globals_.append(f'float4 {need}[4];')
-        out += self.globals_
-        out += self.named
-        out += self.statics + self.textures
-        for slot in sorted({1} | set(self.iface.sampler_registers.values())):
-            if not 0 <= slot < 16:
-                raise TranslateError('Sampler register outside the PC range')
-            out.append(f'SamplerState sampler{slot} : register(s{slot});')
-        inter = iface.interpolators
-        out.append('struct V2P {')
-        out.append('    float4 pos : SV_Position;')
-        out += [f'    float4 t{k} : TEXCOORD{k};' for k in inter]
-        out.append('};')
-        n = sh.header.num_temp_regs
-        regs = sorted(self.used_regs | set(range(n)))
-        decl = ['    float4 ' + ', '.join(f'r{i} = 0.0' for i in regs) + ';',
-                '    float ps = 0.0; bool p0 = false; bool p0_next = false; int a0 = 0; float texLod = 0.0;',
-                '    float firstNan = -1.0;',
-                '    float3 cubeDir = float3(0.0, 0.0, 1.0);']
-        if self.ps:
-            outs = [k for k in range(4) if sh.header.outputs >> k & 1]
-            out.append('struct PSOut {' + ''.join(f' float4 c{k} : SV_Target{k};' for k in outs) + ' };')
-            out.append('PSOut main(V2P i, bool frontFace : SV_IsFrontFace) {')
-            out += decl
-            out += [f'    float4 oC{k} = 0.0;' for k in outs]
-            for it in sh.header.interpolators:
-                if it.usage_index not in inter:
-                    raise TranslateError(f'PS reads TEXCOORD{it.usage_index}, the VS does not write it')
-                out.append(f'    r{it.reg} = i.t{it.usage_index};')
-            if sh.header.context_misc_fields.sc_output_screen_xy:
-                # PsParamGen (Xenia's dxbc_shader_translator): XY the pixel's integer position, X's sign bit set on
-                # back faces; ZW point-sprite coordinates (0: not a point)
-                n = sh.header.context_misc_fields.param_gen_pos
-                out.append(f'    r{n} = float4(floor(i.pos.xy), 0.0, 0.0);')
-                out.append(f'    if (!frontFace) r{n}.x = asfloat(asuint(r{n}.x) | 0x80000000u);')
-            out += body
-            out.append('    PSOut po;')
-            if iface.trace_nan:
-                out.append('    oC0 = float4(firstNan, 0.0, 0.0, 1.0);   // debug: first instruction giving NaN / inf')
-            if iface.probe:
-                # debug: the engine's constants as bit bars (white = 1) - read back from a screenshot, exact whatever
-                # the tone mapping does to black and very bright white
-                out.append(f'    float probeVals[{len(iface.probe)}] = {{ {", ".join(iface.probe)} }};')
-                out.append(f'    int2 pc = int2((i.pos.xy - float2({PROBE_X0}, {PROBE_Y0})) / float2({PROBE_W}, {PROBE_H}));')
-                out.append(f'    if (pc.x >= 0 && pc.x < 32 && pc.y >= 0 && pc.y < {len(iface.probe)})')
-                out.append('        oC0 = ((asuint(probeVals[pc.y]) >> (31 - pc.x)) & 1) ? float4(2.0, 0.0, 2.0, 1.0) '
-                           ': float4(0.0, 2.0, 0.0, 1.0);')
-            out += [f'    po.c{k} = oC{k};' for k in outs]
-            out.append('    return po;')
-        else:
-            out.append('struct VIn {')
-            for k, typ in sorted(iface.vs_inputs.items()):
-                out.append(f'    {typ} t{k} : TEXCOORD{k};')
-            if iface.instanced:
-                out += [f'    float4 inst{j} : TEXCOORD{s};' for j, s in enumerate(INSTANCE_SEMANTICS)]
-            out.append('};')
-            out.append('V2P main(VIn vin) {')
-            out += decl
-            if iface.instanced:
-                out.append(INSTANCE_PRELUDE)
-            out.append('    V2P o = (V2P)0;')
-            for it in sh.header.interpolators:
-                if it.usage_index not in inter:
-                    raise TranslateError(f'VS writes TEXCOORD{it.usage_index}, not in the interface')
-            out += body
-            out.append('    return o;')
-        out.append('}')
-        return '\n'.join(out) + '\n'
+def _program(m: Any, sh: Obj) -> Any:
+    """The Rust core's program of a tree: kept from the decode (xenos.parse_shader's untouched tree), else the tree
+    handed over attribute by attribute (ValueError for one it cannot hold)."""
+    p = xenos.native_program(sh)
+    return p if p is not None else m.xenos_tree_program(sh)
 
 
-HELPERS = r'''
-float3 tsizeLod(Texture2D t, float lod) {
-    uint w, h, n;
-    t.GetDimensions(0, w, h, n);
-    uint m = (uint)clamp(floor(lod + 0.5), 0.0, float(n - 1));
-    t.GetDimensions(m, w, h, n);
-    return float3(w, h, m);
-}
-
-float4 xcube(float3 d) {
-    float3 a = abs(d);
-    if (a.z >= a.x && a.z >= a.y) return float4(-d.y, d.z < 0.0 ? -d.x : d.x, 2.0 * d.z, d.z < 0.0 ? 5.0 : 4.0);
-    if (a.y >= a.x) return float4(d.y < 0.0 ? -d.z : d.z, d.x, 2.0 * d.y, d.y < 0.0 ? 3.0 : 2.0);
-    return float4(-d.y, d.x < 0.0 ? d.z : -d.z, 2.0 * d.x, d.x < 0.0 ? 1.0 : 0.0);
-}
-// Xenos multiplies as Direct3D 9 does: 0 * anything = 0 (also 0 * inf, 0 * NaN), unlike IEEE (Xenia's
-// "legacy multiply"); shaders rely on it when they normalise zero vectors
-float4 xmul(float4 a, float4 b) { return (a == 0.0 || b == 0.0) ? 0.0 : a * b; }
-float xmul1(float a, float b) { return (a == 0.0 || b == 0.0) ? 0.0 : a * b; }
-float xdot4(float4 a, float4 b) { float4 m = xmul(a, b); return m.x + m.y + m.z + m.w; }
-float xmax4(float4 v) { return max(max(v.x, v.y), max(v.z, v.w)); }
-float xlog(float a) { float t = a == 1.0 ? 0.0 : log2(a); return isinf(t) && t < 0.0 ? -3.402823466e+38 : t; }
-float xrcp(float a) { return a == 1.0 ? 1.0 : 1.0 / a; }
-float xrcpc(float a) { float t = xrcp(a); return isinf(t) ? (t < 0.0 ? -3.402823466e+38 : 3.402823466e+38) : t; }
-float xrcpf(float a) { float t = xrcp(a); return isinf(t) ? (t < 0.0 ? -0.0 : 0.0) : t; }
-float xrsq(float a) { return a == 1.0 ? 1.0 : rsqrt(a); }
-float xrsqc(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -3.402823466e+38 : 3.402823466e+38) : t; }
-float xrsqf(float a) { float t = xrsq(a); return isinf(t) ? (t < 0.0 ? -0.0 : 0.0) : t; }
-// Native BFBC2 PC object shaders pack near/middle/far cascades into top-left,
-// top-right and bottom-left quadrants, with a 255/256 guard scale.
-float2 xshadowuv(float3 consoleCoord) {
-    float cascade = clamp(floor(consoleCoord.z * 3.0), 0.0, 2.0);
-    float2 tile = cascade < 0.5 ? float2(0.0, 0.0) :
-                  (cascade < 1.5 ? float2(0.5, 0.0) : float2(0.0, 0.5));
-    return (consoleCoord.xy - 0.5) * (0.5 * (255.0 / 256.0)) + 0.25 + tile;
-}
-float2 tdim(Texture2D t) { uint w, h; t.GetDimensions(w, h); return float2(w, h); }
-float3 xcubefetch(float3 c) {
-    // tfetchCube's (s, t, face) - s, t in 1..2 from the cube op's sequence - as a direction (Direct3D's face
-    // conventions, which the cube op follows: Xenia ucode.h kCube)
-    float sc = (c.x - 1.5) * 2.0, tc = (c.y - 1.5) * 2.0;
-    int f = (int)round(c.z);
-    if (f == 0) return float3(1.0, -tc, -sc);
-    if (f == 1) return float3(-1.0, -tc, sc);
-    if (f == 2) return float3(sc, 1.0, tc);
-    if (f == 3) return float3(sc, -1.0, -tc);
-    if (f == 4) return float3(sc, -tc, 1.0);
-    return float3(-sc, -tc, -1.0);
-}
-float4 xsrgb(float4 c) { float3 l = saturate(c.rgb); return float4(l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1.0 / 2.4) - 0.055, c.a); }
-'''.strip('\n').split('\n')
+def _result(status: int, text: str) -> str | TranslateError:
+    if status == 0:
+        return text
+    if status == 1:
+        return TranslateError(text)
+    raise ValueError(f'xenos_hlsl.translate: {text}')
 
 
 def translate(sh: Obj, iface: Interface) -> str:
-    """The program as HLSL (entry point 'main'): in the Rust core for a tree xenos.parse_shader decoded there (and
-    whose microcode no caller has read), else here; the same text and the same TranslateError either way."""
-    program = xenos.native_program(sh)
-    if program is not None:
-        status, text = xenos._native.xenos_translate(program, iface)
-        if status == 0:
-            return text
-        if status == 1:
-            raise TranslateError(text)
-    return translate_python(sh, iface)
-
-
-def translate_python(sh: Obj, iface: Interface) -> str:
-    """translate in Python: the reference of the Rust translator, and its fallback (any tree, any interface)."""
-    return _Emitter(sh, iface).run()
-
-
-def backend() -> str:
-    """'rust' when parse_shader's trees are translated in the Rust core (xenos.backend), else 'python'."""
-    return xenos.backend()
+    """The program as HLSL (entry point 'main'); TranslateError for a program the translator refuses."""
+    m = require()
+    got = _result(*m.xenos_translate(_program(m, sh), iface))
+    if isinstance(got, TranslateError):
+        raise got
+    return got
 
 
 def translate_many(jobs: Iterable[tuple[Obj, Interface]], errors: str = 'raise') -> list[Any]:
-    """translate of each (shader, iface), in order: the Rust core's programs on all cores at once (the interpreter
-    released), the others here. errors='raise' raises the first failure (in input order), 'return' puts each
-    TranslateError in its place (other exceptions still raise)."""
-    jobs = list(jobs)
-    out: list[Any] = [None] * len(jobs)
-    native = [(k, p) for k, p in enumerate(xenos.native_program(sh) for sh, _ in jobs) if p is not None]
-    if native:
-        got = xenos._native.xenos_translate_many([(p, jobs[k][1]) for k, p in native])
-        for (k, _), (status, text) in zip(native, got):
-            out[k] = text if status == 0 else TranslateError(text) if status == 1 else None
-    for k, (sh, iface) in enumerate(jobs):
-        if out[k] is None:
-            try:
-                out[k] = translate_python(sh, iface)
-            except TranslateError as e:
-                out[k] = e
-        if errors != 'return' and isinstance(out[k], TranslateError):
-            raise out[k]
+    """translate of each (shader, iface), in order, on all cores at once (the interpreter released). errors='raise'
+    raises the first TranslateError (in input order), 'return' puts each in its place; a ValueError (a tree or
+    interface the translator cannot take) is raised either way."""
+    m = require()
+    out = []
+    for got in m.xenos_translate_many([(_program(m, sh), iface) for sh, iface in jobs]):
+        r = _result(*got)
+        if errors != 'return' and isinstance(r, TranslateError):
+            raise r
+        out.append(r)
     return out
+
+
+def helpers() -> str:
+    """The HLSL helper functions every translation starts with (xcube, xmul, tsizeLod, xshadowuv, xcubefetch ...):
+    tests compile pieces of a translation with them."""
+    return str(require().xenos_helpers())

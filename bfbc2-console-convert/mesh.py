@@ -10,10 +10,14 @@ converted from the console's encoding to the PC's in order, by the elements' for
     m = mesh.parse(console_bytes, big_endian=True)
     pc_bytes = mesh.convert(console_bytes, [(console_layout, pc_layout), ...])     # one pair per part
 
-convert's vertex loop (each element of each vertex, element()) runs in the suite's Rust core when it is built
-(bc2_native.mesh_vertices, round E3g: the same bytes on every BF1943 mesh, tests\\test_mesh_native.py); where the
-Rust would not convert (a format element() refuses, a read past the data) the loop below runs, so its result or its
-error is this module's. BFBC2_PURE_PYTHON=1 (or use_native(False)) runs the loop below; backend() says which runs.
+convert's vertex loop (each element of each vertex by element()'s rule) runs in the suite's Rust core
+(bc2_native.mesh_vertices, round E3g), which it needs: without the module (or with one built from other sources) it
+raises bfbc2core.native.NativeMissing saying how to get it; BFBC2_PURE_PYTHON does not change that. Vertices it does
+not convert (a format element() refuses, an element past the PC vertex, a read past the data) raise ConvertError
+saying which. The Python loop that was its reference was retired on 2026-11-18, after the port had given the same
+bytes on every BF1943 mesh port and Onslaught console mesh and passed the full test tier; its results are recorded in
+bfbc2-bf1943-import\tests\ports_golden.json (test_ports_native.py). element() stays: the per-value rule (OPFOR's
+wake_audit checks meshes with it).
 """
 import os
 import struct
@@ -32,45 +36,16 @@ class ConvertError(Exception):
     pass
 
 
-def _load_native():
-    """The Rust core with the mesh vertex loop, or None: not built, built from other sources, or
-    BFBC2_PURE_PYTHON set (as audio.py finds it)."""
-    try:
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        import suite_paths
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'mesh_vertices') else None
-
-
-_native = _load_native()
-
-
-def backend():
-    """'rust' when convert's vertex loop runs in the Rust core, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on):
-    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns backend()."""
-    global _native
-    if on:
-        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-        try:
-            _native = _load_native()
-        finally:
-            if saved is not None:
-                os.environ['BFBC2_PURE_PYTHON'] = saved
-    else:
-        _native = None
-    return backend()
+def require():
+    """The Rust core, which converts the vertices (bfbc2core.native.require): NativeMissing, saying how to get it,
+    when it is not built or downloaded or was built from other sources."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('Mesh conversion (bfbc2-console-convert/mesh.py)', 'mesh_vertices')
 
 
 class _Reader:
@@ -303,6 +278,17 @@ def strip_to_list(s):
     return out
 
 
+def _not_converted(name, pairs, sp):
+    """Why the Rust core does not convert a part's vertices: an element conversion element() does not make, an
+    element past the PC vertex, else a read past the data."""
+    for (fc, _, _, _), (fp, _, op, _) in pairs:
+        if fc not in SIZE or fp not in SIZE or not (fc == fp and fc in SWAP or (fc, fp) in ((0x2B, 0x08), (0x0D, 0x08))):
+            return f'vertex element format {fc:#04x} -> {fp:#04x} is not converted'
+        if op + SIZE[fp] > sp:
+            return f'part {name!r}: a {SIZE[fp]}-byte element at {op} of its {sp}-byte PC vertex reaches past the vertex'
+    return f'part {name!r}: its vertices reach past the end of the mesh data'
+
+
 def convert(b, layouts, drop=None, reorder=False, bones=None):
     """Console MeshData -> PC MeshData. layouts: per part (console layout record body, PC layout record body);
     drop: per part, indices of console elements the PC layout does not have (left out, in order); otherwise the
@@ -311,6 +297,8 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     elements the PC layout has no place for (the last ones of their kind). bones ({old index: new index})
     renumbers the parts' bone palettes - a mesh from another game's skeleton order (Battlefield 1943's soldier); the
     vertices index the palette, so they stay as they are."""
+    native = require()
+    b = bytes(b)
     m = parse(b, True)
     if len(layouts) != len(m['parts']):
         raise ConvertError(f'{len(m["parts"])} parts, {len(layouts)} layout pairs')
@@ -352,21 +340,15 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     for p, plan in zip(m['parts'], plans):
         layouts_at.setdefault(p['vertex_offset'], set()).add(plan[4][1:])
 
-    def emit(pairs, sc, sp, colour, src, first, count):
-        """Converted vertices first .. first + count - 1 of the console region at src, appended; their start."""
+    def emit(name, pairs, sc, sp, colour, src, first, count):
+        """Converted vertices first .. first + count - 1 of the console region at src, appended (the Rust core);
+        their start."""
         start = len(vb)
-        if _native is not None and isinstance(b, bytes):
-            got = _native.mesh_vertices(b, src, sc, sp, first, count,
-                                        [(fc, oc, fp, op) for (fc, _, oc, _), (fp, _, op, _) in pairs], colour)
-            if got is not None:
-                vb.extend(got)
-                return start
-        for v in range(first, first + count):
-            row = bytearray(sp)
-            base = src + v * sc
-            for (fc, _, oc, _), (fp, _, op, _) in pairs:
-                row[op:op + SIZE[fp]] = element(fc, fp, b[base + oc:base + oc + SIZE[fc]], colour)
-            vb.extend(row)
+        got = native.mesh_vertices(b, src, sc, sp, first, count,
+                                   [(fc, oc, fp, op) for (fc, _, oc, _), (fp, _, op, _) in pairs], colour)
+        if got is None:
+            raise ConvertError(_not_converted(name, pairs, sp))
+        vb.extend(got)
         return start
 
     # parts sharing a console region and their PC layout share one converted region, to the next offset as the
@@ -397,13 +379,13 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
             raise ConvertError(f'part {p["name"]!r}: its indices leave the window of its {p["vertices"]} vertices')
         if len(layouts_at[p['vertex_offset']]) == 1:
             if key not in shared:
-                shared[key] = emit(pairs, sc, sp, colour, src, 0, region)
+                shared[key] = emit(p['name'], pairs, sc, sp, colour, src, 0, region)
             new_offset[n] = shared[key]
             continue
         hit = next(((clo, start) for clo, chi, start in windows.get(key, []) if clo <= lo and lo + p['vertices'] <= chi),
                    None)
         if hit is None:
-            hit = (lo, emit(pairs, sc, sp, colour, src, lo, p['vertices']))
+            hit = (lo, emit(p['name'], pairs, sc, sp, colour, src, lo, p['vertices']))
             windows.setdefault(key, []).append((lo, lo + p['vertices'], hit[1]))
         new_offset[n] = hit[1] - hit[0] * sp
         if new_offset[n] < 0:

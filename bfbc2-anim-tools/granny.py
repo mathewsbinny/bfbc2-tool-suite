@@ -20,11 +20,13 @@ animations/weapons/handheld/m1garand_rgl/1p/1p_fire.res; any case, the .res endi
 
 Xbox 360 resources (BFBC2's console copy, Battlefield 1943) are the same format big-endian throughout, with the
 big-endian Granny magic B595110E 4BB5A56A 502828EB 04B37825; they are read (dump, bones, tracks) and converted
-(topc, to_pc), never patched in place. to_pc reverses a file as Granny does (each section's 32-bit part as u32, its
-16-bit part as u16, then the objects of its mixed-marshalling list member by member) and keeps the console's
-layout; checked on all 2,654 resources of BFBC2's Xbox mp_common / sp_common that have a PC twin of the same size:
-DICE's table, the strings and every value of the object tree match the PC file (Granny's unused Padding members
-aside).
+(topc, to_pc), never patched in place. to_pc reverses a file as Granny does (DICE's table and the string table
+field by field, each section's 32-bit part as u32, its 16-bit part as u16, then the objects of its mixed-marshalling
+list member by member, the header, section table, fixups and marshalling lists as u32; the Granny CRC recomputed) and
+keeps the console's layout; checked on all 2,654 resources of BFBC2's Xbox mp_common / sp_common that have a PC twin
+of the same size: DICE's table, the strings and every value of the object tree match the PC file (Granny's unused
+Padding members aside). to_pc runs in the suite's Rust core (bc2_convert::granny), which it needs; its Python was
+retired on 2026-11-18 (tests/granny_golden.json holds its recorded results).
 
 Format (little-endian on PC): u32 10 | DICE's per-bone table (bone_table: animations n x {u32 bone, u32 k, k x (f32
 start, f32 end)}; delta animations n bone indices, then such a list; skeletons none; bone indices in the
@@ -77,12 +79,13 @@ class GrannyError(Exception):
 
 
 # ------------------------------------------------------------------------------------------------ backend
-# Reading (Granny's tables, root()) and the Xbox 360 -> PC conversion (to_pc) run in the suite's Rust core (rust/,
-# module bc2_native: bc2_formats::granny, bc2_convert::granny) when it is built, else in Python here: the same
-# values, the same bytes (tests/test_granny_native.py; the game tier: every Granny resource of the Xbox copy and
-# Battlefield 1943). An input the Rust core refuses is handled by the Python code, which raises what it raises.
-# A Granny written to (put, to_bytes) reads in Python from then on. BFBC2_PURE_PYTHON=1 (or use_native(False))
-# forces Python; backend() says which one runs.
+# Reading (Granny's tables, root()) runs in the suite's Rust core (rust/, module bc2_native: bc2_formats::granny)
+# when it is built, else in Python here - the reader below is the format's reference and stays: the same values
+# (tests/test_granny_native.py; the game tier: every Granny resource of the Xbox copy, the game copy and Battlefield
+# 1943). An input the Rust reader refuses is read by the Python code, which raises what it raises. A Granny written
+# to (put, to_bytes) reads in Python from then on. BFBC2_PURE_PYTHON=1 (or use_native(False)) reads in Python;
+# backend() says which reader runs. The Xbox 360 -> PC conversion (to_pc, to_pc_many: bc2_convert::granny) always
+# runs in the Rust core (require): its Python was retired on 2026-11-18.
 
 def _import_native() -> Any:
     try:
@@ -118,8 +121,16 @@ def _gc_paused():
         gc.enable()
 
 
+def require() -> Any:
+    """The Rust core, which converts (bfbc2core.native.require): NativeMissing, saying how to get it, when it is not
+    built or downloaded or was built from other sources. A tool that converts calls this when it starts."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('Granny Xbox 360 -> PC conversion (bfbc2-anim-tools/granny.py)', 'granny_to_pc')
+
+
 def backend() -> str:
-    """'rust' when the Rust core reads and converts Granny resources, else 'python'."""
+    """'rust' when the Rust core reads Granny resources, else 'python' (to_pc always runs in the Rust core)."""
     return 'rust' if _native is not None else 'python'
 
 
@@ -632,50 +643,44 @@ def bone_map(src_skeleton, dst_skeleton):
     return {i: at[n] for i, n in enumerate(s) if n in at}
 
 
-_WORDS = {2: 1, 3: 2, 4: 2, 5: 2, 7: 3, 8: 1, 9: 17, 10: 1, 19: 1, 20: 1, 22: 1}       # members of 32-bit fields
-_HALVES = {15, 16, 17, 18, 21}
-
-
-def _swap(dst, src, at, size, count):
-    for i in range(at, at + size * count, size):
-        dst[i:i + size] = src[i:i + size][::-1]
+def _bones_error(where, e):
+    return GrannyError(f'{where}: the bone map must map bone indices (0 .. 2^32 - 1) to bone indices ({e})')
 
 
 def to_pc(b, bones=None, where='resource'):
-    """An Xbox 360 (big-endian) Granny resource as the PC's little-endian one (_to_pc_python), in the Rust core when
-    it is built (the same bytes); what it refuses, the Python code converts or raises about."""
-    if _native is not None and isinstance(b, (bytes, bytearray)):
-        try:
-            return _native.granny_to_pc(bytes(b), bones)
-        except (ValueError, TypeError, OverflowError):
-            pass
-    return _to_pc_python(b, bones, where)
+    """An Xbox 360 (big-endian) Granny resource as the PC's little-endian one, in the Rust core (the module's text:
+    DICE's table and the string table swapped field by field, the Granny file as Granny reverses a file, the CRC
+    recomputed; the layout stays the console's). bones ({old index: new index}) renumbers DICE's per-bone table (a
+    port to another skeleton's bone order); a bone missing from it is an error. GrannyError (where: why) for a
+    resource it does not convert."""
+    native = require()
+    try:
+        return native.granny_to_pc(bytes(b), bones)
+    except ValueError as e:
+        raise GrannyError(f'{where}: {e}') from None
+    except (TypeError, OverflowError) as e:
+        raise _bones_error(where, e) from None
 
 
 def to_pc_many(items, errors='raise'):
-    """to_pc of many resources, in order: items are (bytes, bones or None, where) - or (bytes, bones), or bytes.
-    With the Rust core they are converted on all cores (the interpreter released). errors='raise' raises the first
-    failure's exception as to_pc would; errors='return' puts the exception in its place."""
+    """to_pc of many resources on all cores (the interpreter released), in order: items are (bytes, bones or None,
+    where) - or (bytes, bones), or bytes. errors='raise' raises the first failure's GrannyError as to_pc would;
+    errors='return' puts it in its place."""
     jobs = []
     for it in items:
         it = (it,) if isinstance(it, (bytes, bytearray)) else tuple(it)
         jobs.append((it[0], it[1] if len(it) > 1 else None, it[2] if len(it) > 2 else 'resource'))
-    got = None
-    if _native is not None and all(isinstance(b, (bytes, bytearray)) for b, _, _ in jobs):
-        try:
-            got = _native.granny_to_pc_many([(bytes(b), bones) for b, bones, _ in jobs])
-        except (TypeError, OverflowError):                  # a bone map the Rust core does not take: one by one
-            got = None
+    native = require()
+    try:
+        got = native.granny_to_pc_many([(bytes(b), bones) for b, bones, _ in jobs])
+    except (TypeError, OverflowError) as e:
+        raise _bones_error('to_pc_many', e) from None
     out = []
-    for k, (b, bones, where) in enumerate(jobs):
-        r = got[k] if got is not None else None
-        if r is None or isinstance(r, Exception):
-            try:
-                r = _to_pc_python(b, bones, where)
-            except Exception as e:                          # noqa: BLE001 - raised or returned below
-                if errors != 'return':
-                    raise
-                r = e
+    for (_, _, where), r in zip(jobs, got):
+        if isinstance(r, Exception):
+            r = GrannyError(f'{where}: {r}')
+            if errors != 'return':
+                raise r
         out.append(r)
     return out
 
@@ -697,75 +702,6 @@ def roots(blobs, limit=64, where='resource'):
             r = g.root(limit)
         out.append(r)
     return out
-
-
-def _to_pc_python(b, bones=None, where='resource'):
-    """An Xbox 360 (big-endian) Granny resource as the PC's little-endian one. DICE's table and string table are
-    swapped field by field; the Granny file as Granny reverses a file: each section's 32-bit part (up to First16Bit)
-    as u32, its 16-bit part (to First8Bit) as u16, the rest kept; then every object of the section's mixed-marshalling
-    list member by member from its type; the header, section table, pointer fixups and marshalling lists as u32. The
-    Granny CRC is recomputed. bones ({old index: new index}) renumbers DICE's per-bone table (a port to another
-    skeleton's bone order); a bone missing from it is an error. The layout (section order, offsets) stays the
-    console's."""
-    g = Granny(b, where)
-    if g.e != '>':
-        raise GrannyError(f'{where}: already little-endian (a PC resource)')
-    out = bytearray(b)
-    words = list(struct.unpack_from('>%dI' % (g.strings_from // 4), b, 0))
-    if bones is not None:
-        words = renumber(words, bones, where)
-    struct.pack_into('<%dI' % len(words), out, 0, *words)
-    p = g.strings_from
-    _swap(out, b, p, 4, 1)
-    p += 4
-    for _ in range(len(g.strings)):
-        ln = struct.unpack_from('>H', b, p)[0]
-        _swap(out, b, p, 2, 1)
-        p += 2 + ln
-    _swap(out, b, p, 4, 1)                                  # the Granny file's size
-    G = g.gr2
-    out[G:G + 16] = MAGIC
-    header = struct.unpack_from('>I', b, G + 16)[0]
-    _swap(out, b, G + 16, 4, (header - 16) // 4)
-    soff, count = struct.unpack_from('>5I', b, G + 32)[3:5]
-    for k in range(count):
-        _, off, size, _, _, f16, f8, roff, rcount, moff, mcount = struct.unpack_from('>11I', b, G + 32 + soff + 44 * k)
-        if f16 % 4 or f16 > f8 or f8 > size:
-            raise GrannyError(f'{where}: section {k}: 16-bit part at {f16}, 8-bit at {f8}, size {size}')
-        base = G + off
-        _swap(out, b, base, 4, f16 // 4)
-        _swap(out, b, base + f16, 2, (f8 - f16) // 2)
-        _swap(out, b, G + roff, 4, 3 * rcount)
-        _swap(out, b, G + moff, 4, 4 * mcount)
-        for m in range(mcount):
-            n, o, ts, to = struct.unpack_from('>4I', b, G + moff + 16 * m)
-            sz = g.size((ts, to))
-            for i in range(n):
-                _marshal(g, out, b, (ts, to), base + o + i * sz)
-    crc = zlib.crc32(bytes(out[G + 32 + soff:G + g.total])) & 0xFFFFFFFF
-    struct.pack_into('<I', out, G + 40, crc)
-    return bytes(out)
-
-
-def _marshal(g, out, b, tref, at):
-    """One object of type tref at absolute position `at`, member by member from the big-endian bytes."""
-    for t, _, child, arr in g.members(tref):
-        n = max(arr, 1)
-        if t == 1:
-            sz = g.size(child)
-            for i in range(n):
-                _marshal(g, out, b, child, at + i * sz)
-            at += sz * n
-        elif t in _WORDS:
-            _swap(out, b, at, 4, _WORDS[t] * n)
-            at += SIZES[t] * n
-        elif t in _HALVES:
-            _swap(out, b, at, 2, n)
-            at += 2 * n
-        else:                                               # 8-bit members: undo the 32-bit part's blind swap
-            sz = SIZES.get(t, 0) * n
-            out[at:at + sz] = b[at:at + sz]
-            at += sz
 
 
 # ------------------------------------------------------------------------------------------------ adding tracks
@@ -1119,6 +1055,8 @@ def main(argv):
     if len(args) < 2 or args[0] not in ('dump', 'bones', 'tracks', 'shift', 'topc'):
         print(__doc__)
         return 1
+    if args[0] == 'topc':
+        require()                           # the conversion runs in the Rust core: say so before reading anything
     b, where = load(args[1], opts.get('--opfor'))
     if args[0] == 'topc':
         if not opts.get('--out'):

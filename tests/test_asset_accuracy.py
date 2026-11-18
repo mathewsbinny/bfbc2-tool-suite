@@ -1,4 +1,5 @@
 """Pixel-level regressions for BF1943 texture, mask, emitter and shader fidelity."""
+import re
 import struct
 import sys
 import tempfile
@@ -23,6 +24,37 @@ import xdiff
 import xenos
 import xenos_exec as XE
 import xenos_hlsl as X
+
+
+def head(pixel=True):
+    return xenos.Obj(vertex_elements=[], interpolators=[], num_temp_regs=0, outputs=1,
+                     context_misc_fields=xenos.Obj(sc_output_screen_xy=False))
+
+
+def fetch_body(ins, iface, pixel=True, kind='sampler2D', name='sampler_Texture2'):
+    """The translation's lines for one fetch: a program of one exec_end running it, the constant table's sampler s2
+    named `name` (its texture written tx)."""
+    const = xenos.Obj(regset='sampler', name=name, reg=2, count=1, type=xenos.Obj(type=kind, cls='object'))
+    sh = xenos.Obj(is_pixel=pixel, ctab=xenos.Obj(constants=[const]), literals={}, instructions=[ins],
+                   cf=[xenos.Obj(op='exec_end', instructions=[ins], is_end=True)], header=head(pixel))
+    lines = X.translate(sh, iface).split('\n')
+    start = lines.index('    float4 oC0 = 0.0;' if pixel else '    V2P o = (V2P)0;') + 1
+    end = lines.index('    PSOut po;' if pixel else '    return o;')
+    tex = 'texture_' + (name[len('sampler_'):] if name.startswith('sampler_') else name)
+    return '\n'.join(lines[start:end]).replace(tex, 'tx')
+
+
+def const_expr(constant, idx, iface):
+    """What a vertex shader's c[idx + a0] is translated as (the program: one max of it with itself)."""
+    op = xenos.Obj(file='const', index=idx, rel='a0', swizzle='xyzw', negate=False, abs=False)
+    ins = xenos.Obj(kind='alu', address=0, predicated=False, vector_nop=False, scalar_nop=True, vector_op='max',
+                    vector_operands=[op, op],
+                    vector_dest=xenos.Obj(file='temp', index=0, rel=None, write='xyzw', saturate=False))
+    sh = xenos.Obj(is_pixel=False, ctab=xenos.Obj(constants=[constant]), literals={}, instructions=[ins],
+                   cf=[xenos.Obj(op='exec_end', instructions=[ins], is_end=True)], header=head(False))
+    m = re.search(r'float4 v0 = max\((.+?)\.xyzw, ', X.translate(sh, iface))
+    assert m is not None
+    return m.group(1)
 
 
 class AssetAccuracy(unittest.TestCase):
@@ -104,7 +136,7 @@ class AssetAccuracy(unittest.TestCase):
                     texture.convert(source)
 
     def fetch(self, **overrides):
-        values = dict(fetch_kind='texture', op='tfetch2D', has_dest=True, const_index=2,
+        values = dict(kind='fetch', fetch_kind='texture', op='tfetch2D', has_dest=True, const_index=2,
                       src=0, src_swizzle='xy', dst=1, dst_swizzle='xyzw', address=1,
                       offset_x=0.0, offset_y=0.0, mag_filter='linear', min_filter='linear',
                       use_register_lod=False, use_computed_lod=True, lod_bias=0.0,
@@ -113,25 +145,16 @@ class AssetAccuracy(unittest.TestCase):
         return xenos.Obj(**values)
 
     def expression(self, ins, pixel=True):
-        em = X._Emitter(xenos.Obj(is_pixel=pixel), X.Interface([]))
-        em.samplers = {2: ('tx', 'Texture2D', 'sampler_Texture2')}
-        em.fetch(ins)
-        return '\n'.join(em.lines)
+        return fetch_body(ins, X.Interface([]), pixel)
 
     def test_explicit_sampler_routing_preserves_addressing_for_each_fetch_form(self):
         for overrides, operation in (({}, 'Sample'), ({'lod_bias': 0.5}, 'SampleBias'),
                                      ({'use_computed_lod': False}, 'SampleLevel')):
-            em = X._Emitter(xenos.Obj(is_pixel=True), X.Interface([], sampler_registers={2: 3}))
-            em.samplers = {2: ('tx', 'Texture2D', 'sampler_Texture2')}
-            em.fetch(self.fetch(**overrides))
-            code = '\n'.join(em.lines)
+            code = fetch_body(self.fetch(**overrides), X.Interface([], sampler_registers={2: 3}))
             self.assertIn(operation+'(sampler3,', code)
             self.assertNotIn(operation+'(sampler1,', code)
-        em = X._Emitter(xenos.Obj(is_pixel=True), X.Interface([], sampler_registers={2: 4}))
-        em.samplers = {2: ('tx', 'TextureCube', 'sampler_Texture2')}
-        em.cube_dir_set = False
-        em.fetch(self.fetch(src_swizzle='xyz'))
-        self.assertIn('Sample(sampler4,', '\n'.join(em.lines))
+        code = fetch_body(self.fetch(src_swizzle='xyz'), X.Interface([], sampler_registers={2: 4}), kind='samplerCube')
+        self.assertIn('Sample(sampler4,', code)
 
     def test_shader_lod_selection(self):
         fixed = self.expression(self.fetch(use_computed_lod=False, lod_bias=1.5))
@@ -174,7 +197,7 @@ class AssetAccuracy(unittest.TestCase):
                 ins = self.fetch(use_register_lod=True, lod_bias=0.5,
                                  mag_filter='point' if point else 'linear', min_filter='point' if point else 'linear')
                 ps = ('Texture2D tx : register(t2); SamplerState sampler1 : register(s1);' +
-                      '\n'.join(X.HELPERS) + vhead + ' float4 main(V2P i) : SV_Target0 {'
+                      X.helpers() + vhead + ' float4 main(V2P i) : SV_Target0 {'
                       'float4 r0=i.t0,r1=0; float texLod=.5;' + self.expression(ins) + 'return r1; }')
                 variants.append((f'pixel_{point}', vs_plain, ps, [0,1,0,1]))
             for name, vs_src, ps_src, expected in variants:
@@ -198,9 +221,7 @@ class AssetAccuracy(unittest.TestCase):
         for name in ('boneMatrices', 'boneVectors'):
             constant = xenos.Obj(name=name, regset='float4', reg=21, count=180,
                                  type=xenos.Obj(cls='vector', rows=1, cols=4, elements=180))
-            shader = xenos.Obj(is_pixel=False, ctab=xenos.Obj(constants=[constant]))
-            emitter = X._Emitter(shader, X.Interface([], bones_as_world=True))
-            expression = emitter.const(21, 'a0')
+            expression = const_expr(constant, 21, X.Interface([], bones_as_world=True))
             self.assertEqual(expression, f'{name}[a0 + 0]')
             code = (f'float4 {name}[180];float4 worldMatrix[3];'
                     'struct V2P{float4 pos:SV_Position;float4 t0:TEXCOORD0;};'
@@ -224,16 +245,15 @@ class AssetAccuracy(unittest.TestCase):
     def test_composite_matrix_palette_still_uses_pc_world_transform(self):
         constant = xenos.Obj(name='boneMatrices', regset='float4', reg=21, count=180,
                              type=xenos.Obj(cls='matrix_columns', rows=4, cols=3, elements=60))
-        shader = xenos.Obj(is_pixel=False, ctab=xenos.Obj(constants=[constant]))
-        emitter = X._Emitter(shader, X.Interface([], bones_as_world=True))
-        self.assertEqual([emitter.const(21+k, 'a0') for k in range(3)],
+        iface = X.Interface([], bones_as_world=True)
+        self.assertEqual([const_expr(constant, 21+k, iface) for k in range(3)],
                          [f'worldMatrix[{k}]' for k in range(3)])
-        self.assertEqual(emitter.const(24, 'a0'), 'boneMatrices[a0 + 3]')
+        self.assertEqual(const_expr(constant, 24, iface), 'boneMatrices[a0 + 3]')
         # Keep the existing matrix adaptation operational, including rotation
         # and translation, while the separate vector visibility test runs.
         code = ('float4 worldMatrix[3];'
                 'struct V2P{float4 pos:SV_Position;float4 t0:TEXCOORD0;};'
-                'float4 main(V2P i):SV_Target0{return '+emitter.const(21, 'a0')+';}')
+                'float4 main(V2P i):SV_Target0{return '+const_expr(constant, 21, iface)+';}')
         sh = xenos.Obj(header=xenos.Obj(interpolators=[xenos.Obj(usage_index=0, reg=0)]))
         world = np.array([[-1,0,0,3],[0,1,0,4],[0,0,-1,5],[0,0,0,1]], np.float32)
         cs = {'inputs':{0:np.zeros((4,4), np.float32)}, 'engine':{'worldMatrix':world}, 'textures':{}}
@@ -244,10 +264,7 @@ class AssetAccuracy(unittest.TestCase):
     def test_pc_shadow_cascade_atlas(self):
         ins = self.fetch(src_swizzle_raw=36, mag_filter='point', min_filter='point')
         iface = X.Interface([], pc_shadow_atlas=True)
-        em = X._Emitter(xenos.Obj(is_pixel=True), iface)
-        em.samplers = {2: ('tx', 'Texture2D', X.SHADOW)}
-        em.fetch(ins)
-        body = '\n'.join(em.lines)
+        body = fetch_body(ins, iface, name=X.SHADOW)
         self.assertIn('xshadowuv(r0.xyz)', body)
         # An atlas with a unique colour per quadrant makes a wrong cascade
         # observable on the GPU, including the previously discarded selector.
@@ -258,7 +275,7 @@ class AssetAccuracy(unittest.TestCase):
         texels[0, 4:, 4:] = [1,1,0,1]
         uv = np.array([[.5,.5,1/6,0], [.5,.5,.5,0], [.5,.5,5/6,0], [.5,.5,1/6,0]], np.float32)
         code = ('Texture2D tx:register(t2); SamplerState sampler1:register(s1);\n' +
-                '\n'.join(X.HELPERS) +
+                X.helpers() +
                 '\nstruct V2P {float4 pos:SV_Position;float4 t0:TEXCOORD0;};'
                 'float4 main(V2P i):SV_Target0 {float4 r0=i.t0,r1=0;float texLod=0;'+body+'return r1;}')
         sh = xenos.Obj(header=xenos.Obj(interpolators=[xenos.Obj(usage_index=0,reg=0)]))
@@ -276,15 +293,12 @@ class AssetAccuracy(unittest.TestCase):
                 got, _ = xdiff.run_hlsl(sh,cs,4,tmp,variant)
             np.testing.assert_array_equal(got,np.array([[1,0,0,1],[0,1,0,1],[0,0,1,1],[1,0,0,1]]))
         # The raw console translation remains available for differential tests.
-        default = X._Emitter(xenos.Obj(is_pixel=True), X.Interface([]))
-        default.samplers = em.samplers
-        default.fetch(ins)
-        self.assertNotIn('xshadowuv', '\n'.join(default.lines))
+        self.assertNotIn('xshadowuv', fetch_body(ins, X.Interface([]), name=X.SHADOW))
 
     def test_unnormalized_fetch_pixels(self):
         ins = self.fetch(unnormalized=True, use_computed_lod=False, mag_filter='point', min_filter='point')
         body = self.expression(ins)
-        code = ('Texture2D tx : register(t2); SamplerState sampler1 : register(s1);\n' + '\n'.join(X.HELPERS) +
+        code = ('Texture2D tx : register(t2); SamplerState sampler1 : register(s1);\n' + X.helpers() +
                 '\nstruct V2P { float4 pos : SV_Position; float4 t0 : TEXCOORD0; };\n'
                 'float4 main(V2P i) : SV_Target0 { float4 r0 = i.t0, r1 = 0; float texLod = 0;\n' + body +
                 '\nreturn r1; }')

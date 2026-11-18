@@ -92,7 +92,7 @@ def alu_semantics():
 
 def cubefetch_in_shaderview():
     """xcubefetch through Direct3D: each face's (s, t) must land on the texel the interpreter's cube sampling reads."""
-    src = open(X.__file__).read()
+    src = X.helpers()
     a = src.index('float3 xcubefetch(')
     b = src.index('\n}\n', a) + 3
     fn = src[a:b]

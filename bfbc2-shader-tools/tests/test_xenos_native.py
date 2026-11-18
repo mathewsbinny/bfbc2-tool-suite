@@ -1,23 +1,37 @@
-r"""The Rust shader translator (rust/bc2-shader through the bc2_native module: round E3f) against the Python it was
-ported from: xenos.py's parse_shader (parse_shader_python) and xenos_hlsl.py's translate (translate_python). The same
+r"""The Xbox 360 shader translator in the Rust core (rust/bc2-shader through the bc2_native module: round E3f).
+
+The decoder: xenos.py's parse_shader in Rust against parse_shader_python, the format reference that stays: the same
 trees (every attribute, its value and type, the attribute order, the CFs' instruction lists holding the same objects
-as instructions), the same HLSL text byte for byte, the same TranslateError messages, the same exceptions.
+as instructions) and the same exceptions.
+
+The translation: xenos_hlsl.translate's Python (translate_python) was the reference until 2026-11-18, when its Rust
+port had passed the full test tier (173/173 on 2026-11-17) and it was retired (rust/BENCHMARKS.md, "Retired
+Python"). Its results were recorded first, from the Python code itself (each translation's text SHA-1, each
+TranslateError's message): xenos_golden.json (the built programs) and xenos_golden_game.json (the game's programs)
+beside this file. They are the oracle now. Every tree is translated in Rust: a fresh one decoded there, one whose
+microcode was read (materialized) and the Python decoder's own (both handed over attribute by attribute), each
+against the recording.
 
   python test_xenos_native.py          quick, no game data: programs built here (pixel and vertex shaders, constant
                                        tables, literals, every ALU and fetch opcode, the control flow the translator
                                        takes and refuses) translated under seeded random interfaces; seeded damaged
                                        blobs (decoded alike or refused with the same exception); Python's float repr;
                                        the dispatch (lazy microcode, copies, pickles, use_native, parse_many,
-                                       translate_many)
+                                       translate_many, trees built by hand, declines)
   python test_xenos_native.py --game   + every program of Battlefield 1943's Xbox shader databases (the levels', the
                                        UI's, the post-process containers') and of BFBC2's Xbox level databases (OPFOR's
                                        work\xbox), each decoded both ways and translated under three interfaces
                                        (the plain one and two seeded random ones); counts and timings printed
+  python test_xenos_native.py --record [--game]
+                                       write the recordings from the current translator: only after a deliberate
+                                       change to the translation, proven on the game (test_xdiff.py --game-all) -
+                                       the recordings are the only oracle
 
-Skipped (exit 0) when the module is not built (python rust\build_native.py).
+The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
 """
 import copy
 import hashlib
+import json
 import math
 import os
 import pickle
@@ -39,8 +53,11 @@ suite_paths.use('shader-tools', 'core', 'console-convert', 'bf1943-import')
 import xenos  # noqa: E402
 import xenos_hlsl as X  # noqa: E402
 
-xenos.use_native(True)          # both backends are compared, whatever BFBC2_PURE_PYTHON says (pool workers too)
+xenos.use_native(True)          # the decoders are compared, whatever BFBC2_PURE_PYTHON says (pool workers too)
 
+GOLDEN = os.path.join(HERE, 'xenos_golden.json')
+GOLDEN_GAME = os.path.join(HERE, 'xenos_golden_game.json')
+RECORD = '--record' in sys.argv
 fails: list[str] = []
 
 
@@ -119,23 +136,73 @@ def compare_parse(blob: bytes, is_pixel: bool | None) -> tuple[str | None, str, 
     return d, 'ok', py[1], rs[1]
 
 
-def compare_translate(sh_py: Any, blob: bytes, is_pixel: bool | None, iface: Any) -> tuple[str | None, str]:
-    """Python's translate of the Python tree against the Rust core's (a fresh, untouched tree)."""
-    py = outcome(X.translate_python, sh_py, iface)
-    sh_rs = xenos.parse_shader(blob, is_pixel)
-    if xenos.native_program(sh_rs) is None:
-        return 'no Rust program', 'none'
-    rs = outcome(X.translate, sh_rs, iface)
-    if py != rs:
-        if py[0] != rs[0]:
-            return f'python {py[0]} {py[1]!s:.100}, rust {rs[0]} {rs[1]!s:.100}', rs[0]
-        if py[0] == 'ok':
-            a, b = py[1].split('\n'), rs[1].split('\n')
-            k = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
-            return f'text differs at line {k}: {a[k] if k < len(a) else None!r:.120} / ' \
-                   f'{b[k] if k < len(b) else None!r:.120}', 'ok'
-        return f'messages differ: {py[1]!r} / {rs[1]!r}', rs[0]
-    return None, py[0]
+# ------------------------------------------------------------------------------------------------ translations
+
+def digest(text: str) -> str:
+    """The first 16 hex digits of the text's SHA-1 (64 bits: plenty to tell a changed translation, a small file)."""
+    return hashlib.sha1(text.encode()).hexdigest()[:16]
+
+
+def translation(sh: Any, iface: Any) -> str:
+    """'H:' and the HLSL text's digest, 'E:' and a TranslateError's message, or 'X:' and another exception's type and
+    message (the recordings' form)."""
+    try:
+        return 'H:' + digest(X.translate(sh, iface))
+    except X.TranslateError as e:
+        return 'E:' + str(e)
+    except Exception as e:  # noqa: BLE001 - recorded
+        return f'X:{type(e).__name__}: {e}'
+
+
+def fresh_trees(blob: bytes, is_pixel: bool | None, sh_py: Any) -> list[tuple[str, Any]]:
+    """The trees a caller can hand the translator, each made anew: the Rust decoder's untouched (its program kept in
+    Rust), the same with its microcode read (handed over attribute by attribute) and the Python decoder's."""
+    mat = xenos.parse_shader(blob, is_pixel)
+    mat._materialize()
+    return [('fresh', xenos.parse_shader(blob, is_pixel)), ('materialized', mat), ('python tree', sh_py)]
+
+
+def against(label: str, want: str | None, got: list[tuple[str, str]], bad: Counter[str],
+            example: dict[str, str]) -> None:
+    """Each tree's translation against the recording (want None: not recorded)."""
+    for how, g in got:
+        if want is None:
+            key = 'not recorded'
+        elif g != want:
+            key = f'{how}: {"text" if g[:2] == want[:2] == "H:" else g[:2] + " / recorded " + want[:2]}'
+        else:
+            continue
+        bad[key] += 1
+        example.setdefault(key, f'{label} ({how}): {g[:120]!r} / recorded {want and want[:120]!r}')
+
+
+# ------------------------------------------------------------------------------------------------ recordings
+
+def load(path: str) -> dict[str, Any]:
+    try:
+        with open(path, encoding='utf-8') as f:
+            return dict(json.load(f))
+    except FileNotFoundError:
+        return {}
+
+
+def write(path: str, golden: dict[str, Any]) -> None:
+    """A recording, one case per line (a change shows as the lines of the cases it changed)."""
+    lines = ['{']
+    keys = sorted(golden)
+    for i, k in enumerate(keys):
+        v, end = golden[k], (',' if i < len(keys) - 1 else '')
+        if isinstance(v, list):
+            rows = [json.dumps(r) for r in v]
+            lines += [f'{json.dumps(k)}: [', *[r + ',' for r in rows[:-1]], *rows[-1:], ']' + end]
+        elif isinstance(v, dict):
+            rows = [f'{json.dumps(n)}: {json.dumps(v[n])}' for n in sorted(v)]
+            lines += [f'{json.dumps(k)}: {{', *[r + ',' for r in rows[:-1]], *rows[-1:], '}' + end]
+        else:
+            lines.append(f'{json.dumps(k)}: {json.dumps(v)}{end}')
+    lines.append('}')
+    with open(path, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(lines) + '\n')
 
 
 # ------------------------------------------------------------------------------------------------ interfaces
@@ -402,60 +469,81 @@ def mutate(blob: bytes, rng: random.Random) -> bytes:
     return bytes(b)
 
 
-def quick() -> None:
+def quick(golden: dict[str, Any]) -> None:
+    """The built programs (seed 1943: the generator of the Python-vs-Rust test before 2026-11-18, its random draws in
+    the same order): decoded both ways, translated against the recording."""
     t = time.time()
     rng = random.Random(1943)
     kinds: Counter[str] = Counter()
     tkinds: Counter[str] = Counter()
     bad: Counter[str] = Counter()
     example: dict[str, str] = {}
+    rec: dict[str, str] = {}
+    want = golden.get('built', {})
     n = 1500
     for k in range(n):
         pixel = k % 2 == 0
         blob = build(rng, pixel)
         given: Any = rng.choice([None, pixel, pixel, int(pixel)])        # 1 / 0: kept as given
-        d, kind, sh_py, _ = compare_parse(blob, given)
+        if RECORD:
+            kind, sh_py = outcome(xenos.parse_shader_python, blob, given)
+            d = None
+        else:
+            d, kind, sh_py, _ = compare_parse(blob, given)
         kinds[kind] += 1
         if d:
             bad['decode: ' + d[:60]] += 1
             example.setdefault('decode: ' + d[:60], d)
             continue
-        if sh_py is None:
+        if kind != 'ok':
             continue
         for j in range(3):
             iface = interface(sh_py, None if j == 0 else random.Random(k * 7 + j))
-            d, tk = compare_translate(sh_py, blob, None, iface)
-            tkinds[tk] += 1
-            if d:
-                bad['translate: ' + d[:60]] += 1
-                example.setdefault('translate: ' + d[:60], d)
-    for key, c in bad.items():
-        print(f'       {c} x {example[key]}')
-    check(not bad and kinds['ok'] > n // 2 and tkinds['ok'] > n // 2,
-          f'{n} built programs: the same trees ({kinds["ok"]} decoded, others refused alike: '
-          f'{dict((k, v) for k, v in kinds.items() if k != "ok")}), the same HLSL under three interfaces each '
-          f'({tkinds["ok"]} translated, {tkinds["TranslateError"]} TranslateError alike, others: '
-          f'{dict((k, v) for k, v in tkinds.items() if k not in ("ok", "TranslateError"))})  ({time.time() - t:.0f} s)')
-    # damaged blobs
+            key = f'{k}.{j}'
+            if RECORD:
+                rec[key] = translation(sh_py, iface)
+                tkinds[rec[key][:2]] += 1
+                continue
+            got = [(how, translation(tree, iface)) for how, tree in fresh_trees(blob, None, sh_py)]
+            tkinds[got[0][1][:2]] += 1
+            against(f'program {k} interface {j}', want.get(key), got, bad, example)
+    if RECORD:
+        golden['built'] = rec
+        print(f'{len(rec)} translations of {n} built programs recorded ({dict(tkinds)})')
+    else:
+        for key, c in bad.items():
+            print(f'       {c} x {example[key]}')
+        check(not bad and kinds['ok'] > n // 2 and tkinds['H:'] > n // 2 and len(want) == sum(tkinds.values()),
+              f'{n} built programs: the same trees ({kinds["ok"]} decoded, others refused alike: '
+              f'{dict((k, v) for k, v in kinds.items() if k != "ok")}); under three interfaces each, every tree '
+              f'(fresh, materialized, the Python decoder\'s) translated as recorded ({tkinds["H:"]} texts, '
+              f'{tkinds["E:"]} TranslateErrors, others {tkinds["X:"]}; {len(want)} recorded)  ({time.time() - t:.0f} s)')
+    # damaged blobs (the decoders only)
     t = time.time()
     kinds.clear()
     bad.clear()
     n = 3000
     for k in range(n):
         blob = mutate(build(rng, k % 2 == 0), rng)
+        if RECORD:
+            continue
         d, kind, _, _ = compare_parse(blob, None)
         kinds[kind] += 1
         if d:
             bad[d[:60]] += 1
             example.setdefault(d[:60], d)
-    for key, c in bad.items():
-        print(f'       {c} x {example[key]}')
-    check(not bad, f'{n} damaged blobs: decoded alike or refused with the same exception and message '
-          f'({dict(kinds)})  ({time.time() - t:.0f} s)')
+    if not RECORD:
+        for key, c in bad.items():
+            print(f'       {c} x {example[key]}')
+        check(not bad, f'{n} damaged blobs: decoded alike or refused with the same exception and message '
+              f'({dict(kinds)})  ({time.time() - t:.0f} s)')
     # random 32-bit words as whole microcode (the decoder's every field)
     t = time.time()
     kinds.clear()
     bad.clear()
+    tkinds.clear()
+    rec = {}
+    want = golden.get('random microcode', {})
     for k in range(1000):
         pixel = k % 2 == 0
         raw = bytearray(build(rng, pixel))
@@ -464,20 +552,34 @@ def quick() -> None:
         start = code_off + struct.unpack_from('>I', raw, hdr)[0]
         for i in range(start + 12 * (rng.random() < 0.5), len(raw) - 3, 4):
             raw[i:i + 4] = struct.pack('>I', rng.getrandbits(32))
-        d, kind, sh_py, _ = compare_parse(bytes(raw), None)
+        blob = bytes(raw)
+        if RECORD:
+            kind, sh_py = outcome(xenos.parse_shader_python, blob, None)
+            d = None
+        else:
+            d, kind, sh_py, _ = compare_parse(blob, None)
         kinds[kind] += 1
         if d:
             bad[d[:60]] += 1
             example.setdefault(d[:60], d)
-        elif sh_py is not None:
-            d, _ = compare_translate(sh_py, bytes(raw), None, interface(sh_py, random.Random(k)))
-            if d:
-                bad['translate ' + d[:60]] += 1
-                example.setdefault('translate ' + d[:60], d)
+        elif kind == 'ok':
+            iface = interface(sh_py, random.Random(k))
+            if RECORD:
+                rec[str(k)] = translation(sh_py, iface)
+                tkinds[rec[str(k)][:2]] += 1
+            else:
+                got = [(how, translation(tree, iface)) for how, tree in fresh_trees(blob, None, sh_py)]
+                tkinds[got[0][1][:2]] += 1
+                against(f'random program {k}', want.get(str(k)), got, bad, example)
+    if RECORD:
+        golden['random microcode'] = rec
+        print(f'{len(rec)} translations of random microcode recorded ({dict(tkinds)})')
+        return
     for key, c in bad.items():
         print(f'       {c} x {example[key]}')
-    check(not bad, f'1000 programs of random microcode words: the same trees and translations ({dict(kinds)})  '
-          f'({time.time() - t:.0f} s)')
+    check(not bad and len(want) == sum(tkinds.values()),
+          f'1000 programs of random microcode words: the same trees ({dict(kinds)}), every tree translated as '
+          f'recorded ({dict(tkinds)}; {len(want)} recorded)  ({time.time() - t:.0f} s)')
 
 
 def float_reprs() -> None:
@@ -495,27 +597,42 @@ def float_reprs() -> None:
     check(not bad, f'{len(vals)} doubles: the Rust repr is Python\'s repr(float) {bad[:3]}')
 
 
-def dispatch() -> None:
+def dispatch(golden: dict[str, Any]) -> None:
     rng = random.Random(2)
     blob = build(rng, True)
     while True:
         try:
             sh0 = xenos.parse_shader_python(blob, True)
-            X.translate_python(sh0, interface(sh0, None))
+            X.translate(sh0, interface(sh0, None))
             break
         except (xenos.XenosError, X.TranslateError):
             blob = build(rng, True)
+    jobs = []
+    for k in range(60):
+        b = build(rng, k % 2 == 0)
+        try:
+            s = xenos.parse_shader(b)
+        except xenos.XenosError:
+            continue
+        jobs.append((s, b, interface(s, random.Random(k))))
+    if RECORD:
+        golden['dispatch'] = {'program': translation(sh0, interface(sh0, None)),
+                              'translate_many': [translation(xenos.parse_shader_python(b), i) for _s, b, i in jobs]}
+        print(f'dispatch: {len(jobs)} translations recorded')
+        return
+    want = golden.get('dispatch', {})
     sh = xenos.parse_shader(blob, True)
     check(type(sh) is xenos._NativeShader and xenos.native_program(sh) is not None and 'cf' not in sh.__dict__,
           'parse_shader: decoded in Rust, the microcode not built yet')
-    check(X.translate(sh, interface(sh, None)) == X.translate_python(sh0, interface(sh0, None)),
-          'translate: the Rust core\'s text on an untouched tree')
-    check(sh.instructions is sh.__dict__['instructions'] and xenos.native_program(sh) is None,
-          'reading the microcode builds it; the tree is then translated in Python')
+    check(translation(sh, interface(sh, None)) == want.get('program'), 'translate: an untouched tree as recorded')
+    check(sh.instructions is sh.__dict__['instructions'] and xenos.native_program(sh) is None
+          and translation(sh, interface(sh, None)) == want.get('program'),
+          'reading the microcode builds it; the tree is then handed over attribute by attribute, as recorded')
     check(not diff(sh0, sh) and repr(sh0) == repr(sh) and sh0.to_dict() == sh.to_dict(), 'repr and to_dict: the same')
     sh2 = xenos.parse_shader(blob, True)
     for name, c in (('copy', copy.copy(sh2)), ('deepcopy', copy.deepcopy(sh2)), ('pickle', pickle.loads(pickle.dumps(sh2)))):
-        check(type(c) is xenos.Obj and not diff(sh0, c), f'{name}: a plain Obj, the same tree')
+        check(type(c) is xenos.Obj and not diff(sh0, c) and translation(c, interface(c, None)) == want.get('program'),
+              f'{name}: a plain Obj, the same tree, translated as recorded')
     check(xenos.disasm(xenos.parse_shader(blob, True)) == xenos.disasm(sh0), 'disasm: the same text')
     one: Any = 1
     check(xenos.parse_shader(blob, one).is_pixel == 1 and xenos.parse_shader(blob, one).is_pixel is not True,
@@ -528,34 +645,91 @@ def dispatch() -> None:
         check(False, 'parse_many raises the first failure')
     except xenos.XenosError:
         check(True, 'parse_many raises the first failure')
-    jobs = []
-    for k in range(60):
-        b = build(rng, k % 2 == 0)
-        try:
-            s = xenos.parse_shader(b)
-        except xenos.XenosError:
-            continue
-        jobs.append((s, b, interface(s, random.Random(k))))
-    ref: list[Any] = []
-    for _s, b, i in jobs:
-        try:
-            ref.append(X.translate_python(xenos.parse_shader_python(b), i))
-        except X.TranslateError as e:
-            ref.append(('TranslateError', str(e)))
-    got = X.translate_many([(s, i) for s, _, i in jobs], errors='return')
-    got = [('TranslateError', str(g)) if isinstance(g, X.TranslateError) else g for g in got]
-    check(got == ref, f'translate_many: {len(jobs)} programs, the same texts and errors in order')
+    ref = want.get('translate_many', [])
+    for how, trees in (('Rust trees', [s for s, _, _ in jobs]), ('Python trees', [xenos.parse_shader_python(b) for _, b, _ in jobs])):
+        got = X.translate_many([(s, i) for s, (_, _, i) in zip(trees, jobs)], errors='return')
+        got = ['E:' + str(g) if isinstance(g, X.TranslateError) else 'H:' + digest(g) for g in got]
+        check(got == ref and len(ref) == len(jobs),
+              f'translate_many ({how}): {len(jobs)} programs, the recorded texts and errors in order')
+    first = next((k for k, r in enumerate(ref) if r.startswith('E:')), None)
+    try:
+        X.translate_many([(s, i) for s, _, i in jobs])
+        check(first is None, 'translate_many raises the first TranslateError')
+    except X.TranslateError as e:
+        check(first is not None and 'E:' + str(e) == ref[first], 'translate_many raises the first TranslateError')
     xenos.use_native(False)
-    check(xenos.backend() == 'python' and X.backend() == 'python' and type(xenos.parse_shader(blob)) is xenos.Obj,
-          'use_native(False): Python trees')
+    check(xenos.backend() == 'python' and type(xenos.parse_shader(blob)) is xenos.Obj
+          and translation(xenos.parse_shader(blob, True), interface(sh0, None)) == want.get('program'),
+          'use_native(False): Python trees (the decoder), still translated in Rust as recorded')
     check(xenos.use_native(True) == 'rust' and type(xenos.parse_shader(blob)) is xenos._NativeShader,
           'use_native(True): the Rust core again')
-    # an interface the Rust core leaves to the Python: the Python's answer
-    s = xenos.parse_shader(blob, True)
-    odd = interface(s, None)
+    hand_built()
+    declines(blob, sh0)
+
+
+class Stub:
+    """A tree node built by hand (any class with attributes: the translator reads them by name)."""
+
+    def __init__(self, **k: Any) -> None:
+        self.__dict__.update(k)
+
+
+def hand_built() -> None:
+    """Trees callers make themselves (test_xdiff's, test_asset_accuracy's): only the attributes the translation
+    reads, of plain classes; CF instruction lists holding objects of their own; an edited microcode."""
+    const = Stub(regset='float4', name='constants', reg=4, count=2, type=Stub(type='float4', cls='vector'))
+    smp = Stub(regset='sampler', name='sampler_Texture2', reg=2, count=1, type=Stub(type='sampler2D', cls='object'))
+    head = Stub(vertex_elements=[], interpolators=[Stub(usage_index=0, reg=0)], num_temp_regs=2, outputs=1,
+                context_misc_fields=Stub(sc_output_screen_xy=False))
+    fetch = Stub(kind='fetch', fetch_kind='texture', op='tfetch2D', has_dest=True, const_index=2, src=0,
+                 src_swizzle='xy', dst=1, dst_swizzle='xyzw', address=1, offset_x=0.0, offset_y=0.0,
+                 mag_filter='linear', min_filter='linear', use_register_lod=True, use_computed_lod=True, lod_bias=0.5,
+                 predicated=False)
+    sh = Stub(is_pixel=True, ctab=Stub(constants=[const, smp]), literals={7: (1, 0.5, -0.0, 2)}, instructions=[],
+              cf=[Stub(op='exec_end', instructions=[fetch], is_end=True)], header=head)
+    text = X.translate(sh, X.Interface([0], sampler_registers={2: 3}))  # type: ignore[arg-type]
+    lines = text.split('\n')
+    check('    float4 f1 = texture_Texture2.SampleLevel(sampler3, r0.xy, (texLod + 0.5));' in lines
+          and 'static const float4 lit7 = float4(1.0, 0.5, -0.0, 2.0);' in lines
+          and '    r0 = i.t0;' in lines and '    r1.w = f1.w;' in lines,
+          'a tree built by hand (plain classes, a CF instruction not in sh.instructions): translated')
+    # an edited tree: the materialized microcode changed by a caller is what is translated
+    rng = random.Random(4)
+    while True:
+        b = build(rng, True)
+        try:
+            e = xenos.parse_shader(b, True)
+            base = X.translate(e, X.Interface(sorted(i.usage_index for i in e.header.interpolators)))
+        except (xenos.XenosError, X.TranslateError):
+            continue
+        tex = [i for i in e.instructions if i.kind == 'fetch' and i.fetch_kind == 'texture' and i.op.startswith('tfetch')
+               and i.has_dest]
+        if tex and 'Sample(' in base:
+            break
+    tex[0].lod_bias = 1.25
+    tex[0].use_computed_lod = False
+    edited = X.translate(e, X.Interface(sorted(i.usage_index for i in e.header.interpolators)))
+    check(edited != base and ', 1.25);' in edited, 'a materialized tree edited by a caller: the edit translated')
+
+
+def declines(blob: bytes, sh0: Any) -> None:
+    """What the Rust translator does not take is refused with a ValueError saying what (never another backend)."""
+    sh = xenos.parse_shader(blob, True)
+    odd = interface(sh, None)
     odd.material = {'tint': [object()]}
-    check(outcome(X.translate, s, odd) == outcome(X.translate_python, sh0, odd),
-          'an interface value of another type: the Python\'s outcome')
+    try:
+        X.translate(sh, odd)
+        check(False, 'an interface value of another type: refused')
+    except ValueError as e:
+        check(not isinstance(e, X.TranslateError) and 'interface' in str(e),
+              f'an interface value of another type: refused ({e})')
+    bad = copy.deepcopy(sh0)
+    bad.literals = {3: (1.0, 2.0)}
+    try:
+        X.translate(bad, interface(bad, None))
+        check(False, 'a literal of another length: refused')
+    except ValueError as e:
+        check('literal' in str(e), f'a literal of another length: refused ({e})')
 
 
 # ------------------------------------------------------------------------------------------------ the game corpus
@@ -643,41 +817,54 @@ def corpus() -> tuple[list[tuple[str, int, bytes, bool]], list[str]]:
     return [tuple(v) for v in items.values()], skipped
 
 
-def _check_item(item: tuple[str, int, bytes, bool]) -> tuple[list[str], str, list[str], float, float, float, float]:
-    """(differences, decode kind, translate kinds, Python decode s, Rust decode s, Python translate s, Rust
-    translate s) of one program."""
+def program_key(blob: bytes, pixel: bool) -> str:
+    return hashlib.sha1(blob + bytes([pixel])).hexdigest()[:16]
+
+
+def recorded_form(outcomes: list[str]) -> Any:
+    """A program's three translations as recorded: one digest of the three texts when all translated, else the
+    three outcomes (the errors' messages in plain)."""
+    if all(o.startswith('H:') for o in outcomes):
+        return 'H:' + digest(''.join(outcomes))
+    return outcomes
+
+
+def _check_item(item: tuple[str, int, bytes, bool]) -> tuple[str, Any, list[str], str, list[str], float, float, float]:
+    """(the program's key, its translations in the recorded form for each tree kind (fresh, Python decoder's), the
+    decoders' differences, the decode kind, the translate kinds, Python decode s, Rust decode s, Rust translate s)."""
     label, _, blob, pixel = item
+    key = program_key(blob, pixel)
     t0 = time.perf_counter()
     py = outcome(xenos.parse_shader_python, blob, pixel)
     t1 = time.perf_counter()
     rs = outcome(xenos.parse_shader, blob, pixel)
     t2 = time.perf_counter()
-    d, kind, sh_py, _ = compare_parse(blob, pixel)
-    diffs = [f'{label}: decode: {d}'] if d else []
-    tk = []
-    tpy = trs = 0.0
-    if not d and sh_py is not None:
-        h = int.from_bytes(hashlib.sha1(blob).digest()[:4], 'big')
-        for j in range(3):
-            iface = interface(sh_py, None if j == 0 else random.Random(h * 3 + j))
-            a = time.perf_counter()
-            pyt = outcome(X.translate_python, py[1], iface)
-            b = time.perf_counter()
-            fresh = xenos.parse_shader(blob, pixel)
-            c = time.perf_counter()
-            rst = outcome(X.translate, fresh, iface)
-            e = time.perf_counter()
-            tpy += b - a
-            trs += e - c
-            tk.append(pyt[0])
-            if pyt != rst:
-                d2, _ = compare_translate(sh_py, blob, pixel, iface)
-                diffs.append(f'{label}: translate {j}: {d2}')
     del rs
-    return diffs, kind, tk, t1 - t0, t2 - t1, tpy, trs
+    if RECORD:
+        d, kind, sh_py = None, py[0], py[1]
+    else:
+        d, kind, sh_py, _ = compare_parse(blob, pixel)
+    diffs = [f'{label}: decode: {d}'] if d else []
+    trs = 0.0
+    forms: dict[str, Any] = {}
+    tk: list[str] = []
+    if not d and kind == 'ok':
+        h = int.from_bytes(hashlib.sha1(blob).digest()[:4], 'big')
+        ifaces = [interface(sh_py, None if j == 0 else random.Random(h * 3 + j)) for j in range(3)]
+        hows = [('python tree', sh_py)] if RECORD else [('fresh', None), ('python tree', sh_py)]
+        for how, tree in hows:
+            got = []
+            for iface in ifaces:
+                a = time.perf_counter()
+                got.append(translation(tree if tree is not None else xenos.parse_shader(blob, pixel), iface))
+                trs += time.perf_counter() - a
+            forms[how] = recorded_form(got)
+            if how == hows[0][0]:
+                tk = [g[:2] for g in got]
+    return key, forms, diffs, kind, tk, t1 - t0, t2 - t1, trs
 
 
-def game() -> None:
+def game(golden: dict[str, Any]) -> None:
     t = time.time()
     items, skipped = corpus()
     if skipped:
@@ -688,38 +875,72 @@ def game() -> None:
     kinds: Counter[str] = Counter()
     tkinds: Counter[str] = Counter()
     diffs: list[str] = []
-    tp: list[float] = [0.0, 0.0, 0.0, 0.0]
+    tp: list[float] = [0.0, 0.0, 0.0]
+    rec: dict[str, Any] = {}
+    same = 0
+    bad: Counter[str] = Counter()
     workers = max(1, min(2, (os.cpu_count() or 2) - 1))       # each under ~300 MB
     with ProcessPoolExecutor(workers) as pool:
-        for r in pool.map(_check_item, items, chunksize=64):
-            diffs += r[0]
-            kinds[r[1]] += 1
-            tkinds.update(r[2])
-            for k in range(4):
-                tp[k] += float(r[3 + k])  # type: ignore[arg-type]
-    for d in diffs[:20]:
-        print('       ' + d)
+        for key, forms, d, kind, tk, *times in pool.map(_check_item, items, chunksize=64):
+            diffs += d
+            kinds[kind] += 1
+            tkinds.update(tk)
+            for k in range(3):
+                tp[k] += float(times[k])
+            if not forms:
+                continue
+            if RECORD:
+                rec[key] = forms['python tree']
+                continue
+            want = golden.get(key)
+            ok = True
+            for how, f in forms.items():
+                if want is None:
+                    bad['not recorded'] += 1
+                    ok = False
+                elif f != want:
+                    bad[how] += 1
+                    ok = False
+                    if bad[how] <= 10:
+                        diffs.append(f'{key} ({how}): {f!r:.200} / recorded {want!r:.200}')
+            same += ok
+    if RECORD:
+        golden.clear()
+        golden.update(rec)
+        print(f'{len(rec):,} programs recorded ({dict(tkinds)}, {dict(kinds)})  ({time.time() - t:.0f} s)')
+        return
+    for line in diffs[:20]:
+        print('       ' + line)
     copies = sum(i[1] for i in items)
-    check(not diffs and kinds['ok'] == len(items),
+    translated = sum(kinds[k] for k in ('ok',))
+    check(not diffs and kinds['ok'] == len(items) and same == translated and len(golden) == translated,
           f'{len(items):,} distinct programs ({copies:,} with copies): the same trees ({kinds["ok"]:,} decoded'
-          f'{", " + str(dict(kinds)) if len(kinds) > 1 else ""}); 3 interfaces each, the same HLSL text '
-          f'({tkinds["ok"]:,} translations) and TranslateErrors ({tkinds["TranslateError"]:,})'
-          f'{", others " + str(dict((k, v) for k, v in tkinds.items() if k not in ("ok", "TranslateError"))) if len(tkinds) > 2 else ""}'
-          f'  ({time.time() - t:.0f} s)')
+          f'{", " + str(dict(kinds)) if len(kinds) > 1 else ""}); 3 interfaces each, the fresh tree and the Python '
+          f'decoder\'s translated as recorded on {same:,} of {len(golden):,} recorded programs ({tkinds["H:"]:,} texts, '
+          f'{tkinds["E:"]:,} TranslateErrors, others {tkinds["X:"]:,}; differing: {dict(bad)})  ({time.time() - t:.0f} s)')
     print(f'       per program, single thread: decode Python {1e3 * tp[0] / len(items):.3f} ms, Rust (eager tree) '
-          f'{1e3 * tp[1] / len(items):.3f} ms; translate Python {1e3 * tp[2] / max(sum(tkinds.values()), 1):.3f} ms, '
-          f'Rust (fresh tree + translate) {1e3 * tp[3] / max(sum(tkinds.values()), 1):.3f} ms')
+          f'{1e3 * tp[1] / len(items):.3f} ms; translate Rust (fresh tree and the Python decoder\'s, each with its '
+          f'decode) {1e3 * tp[2] / max(2 * sum(tkinds.values()), 1):.3f} ms')
 
 
 def main() -> int:
-    if xenos._native is None:
-        print('SKIP: the Rust core (bc2_native with the translator) is not built: python rust\\build_native.py')
-        return 0
-    float_reprs()
-    dispatch()
-    quick()
+    if not RECORD:
+        from bfbc2core import native
+        native.require('The Xbox shader translator\'s test', 'xenos_tree_program')
+        if xenos._native is None:
+            check(False, 'the decoder\'s Rust core is not loaded')
+            return 1
+        float_reprs()
+    golden = load(GOLDEN)
+    dispatch(golden)
+    quick(golden)
+    if RECORD:
+        write(GOLDEN, golden)
     if '--game' in sys.argv:
-        game()
+        game_golden = load(GOLDEN_GAME)
+        game(game_golden)
+        if RECORD:
+            write(GOLDEN_GAME, game_golden)
     print(f'\n{len(fails)} failed' if fails else '\nall passed')
     return 1 if fails else 0
 
