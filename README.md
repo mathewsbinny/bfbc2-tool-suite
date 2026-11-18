@@ -271,6 +271,63 @@ against DICE's path data.
 `cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene -p bc2-convert -p bc2-navbuild` (after
 `cargo install cargo-llvm-cov` and `rustup component add llvm-tools-preview`). Timings: `rust\BENCHMARKS.md`.
 
+## Caches
+
+The tools keep what is slow to make again on disk. Every cache is only a cache: a file that is missing, damaged or
+from other inputs (other code, another compiler, a changed bundle) is made again, never an error, so any of them can
+be deleted at any time, also while tools run. Round E3p (2026-11-17) gave the shared ones under
+`%LOCALAPPDATA%\bfbc2-tool-suite\cache` a size cap each, the least recently used files deleted first, and one
+command to see and clear them:
+
+```
+cd core
+python -m bfbc2core.caches                    each cache: size, files, cap and folder (also --list [name...])
+python -m bfbc2core.caches --prune [name...]  delete the least recently used files beyond each cap now
+python -m bfbc2core.caches --clear [name...]  delete the cached files (every cache when no name is given)
+```
+
+(`python core\bfbc2core\caches.py ...` works from anywhere.) A cap is checked by the code that writes the cache, at
+most every 15 minutes per folder (`bfbc2core.caches.maybe_prune`; fbrb: the Rust core after each payload it writes),
+and a hit marks its file used (its modification time), so the clock the pruning goes by is the last use. The
+pruning never deletes a writer's temporary file (`*.tmp`, `*.tmp-*`) younger than an hour, an entry another process
+has open without delete sharing, or one rewritten or used since it looked; it runs under a lock between processes
+(the folder's `.prune.lock`), and deletes only the cache's own kind of file (by suffix), so a cache variable pointed
+at the wrong folder costs nothing else.
+
+**Shared caches** (`%LOCALAPPDATA%\bfbc2-tool-suite\cache\<name>`; the command manages these; sizes measured on the
+development PC on 2026-11-17, mid-way through a WW2 rebuild):
+
+| Name | Files | Key (a change makes a new entry) | Written by | Folder variable (`0`: off) | Cap, eviction | Typical size |
+|---|---|---|---|---|---|---|
+| `hlsl` | `<compiler>\<2 hex>\<sha256>.bin`, a folder per `d3dcompiler_47.dll` | SHA-256 of the source, entry, profile, defines, name, flags and the compiler DLL's hash | `pcbuild.compile_hlsl` / `compile_many` (E3d) | `BFBC2_HLSL_CACHE` (none without `%LOCALAPPDATA%`) | `BFBC2_HLSL_CACHE_MB`, default 1024; LRU (E3p; before: never evicted) | 28 MB, 2,370 files |
+| `fbrb` | `<bundle id>.payload`, `.seen` markers | the bundle's canonical path, size, modification and creation times | `fbrb.read` / `read_many` with the Rust core (E3e) | `BFBC2_FBRB_CACHE` (`BFBC2_FBRB_CACHE_MIN_MB` 8: smaller bundles never go to disk) | `BFBC2_FBRB_CACHE_GB`, default 16; LRU by the Rust core after each write; markers after 30 days | 12 GB, 117 payloads |
+| `collision` | `aliases-<hash of the data folder>.bin` | one file per data folder; each XML file's and `.dbx`'s size and modification time inside | `collision.index`, `level.load` (Rust index, E1e) | `BFBC2_COLLISION_CACHE` | `BFBC2_COLLISION_CACHE_MB`, default 256; LRU (E3p; a reuse now marks the file) | 24 MB, 81 files (temp folders of test runs included) |
+| `effectport` | `emitters-<24 hex>.pkl` | the emitter documents' places and their bundles' paths, sizes and times, `INDEX_VERSION` | `effectport.EmitterIndex` (E3g) | `BFBC2_EFFECTPORT_CACHE` | `BFBC2_EFFECTPORT_CACHE_MB`, default 256; LRU (E3p) | 3.8 MB, 1 file per game copy |
+| `culltree` | `<sha1 of the level file's path>.pkl` | the code (`CACHE_VERSION`, a hash of `culltree.py`), the level file's size and time; each tree's inside | `culltree` `ref_rows` (E3m) | `BFBC2_CULLTREE_CACHE` | `BFBC2_CULLTREE_CACHE_MB`, default 2048; LRU (E3p) | one file per reference level partition (none yet on this PC) |
+
+Also under `%LOCALAPPDATA%\bfbc2-tool-suite`, not caches: `logs\<tool>-<date>.log` (`bfbc2core.errors`, DbxEdit's
+own log; the 20 newest per tool are kept, no size cap: 607 MB here, single NavKit and Studio days of 50-130 MB;
+`--list` shows their size) and `test_times.json` (`run_tests.py`'s durations). In-memory caches (`BFBC2_FBRB_MEMORY_MB`,
+`pcbuild.MEMORY_LIMIT`, `functools.lru_cache`s) end with the process.
+
+**Project caches** (in Project OPFOR BFBC2's `work\` folder or the suite's `build\`; each is per level or per game
+copy, replaced when its inputs change, and deleted by deleting the file or folder; the command leaves them alone):
+
+| What | Where | Key | Written by | Eviction | Typical size |
+|---|---|---|---|---|---|
+| mesh viewer index | `work\tools_out\meshview_index.pkl` | the game copy's bundles (signature), `CACHE_VERSION` | `meshview.Index` (built under a lock) | one file, rebuilt when stale | 33 MB |
+| DBX catalogue | `work\tools_out\dbx_catalogue.pkl` | as the mesh viewer index | `dbxcatalogue` | one file, rebuilt when stale | 70 MB |
+| renderqa | suite `build\meshview_index.pkl`, `build\renderqa_truth.pkl` | as the mesh viewer index | `renderqa` | one file each | 33 MB, 0.2 MB |
+| terrain unpack | `work\levels\<lv>\terrain\` (with its stamp) | the terrain bundle's size and time | `level.heightfield_of` (under a lock) | one per level, replaced when stale | 4-50 MB per level (37 levels here) |
+| path data cells | `work\navstudio\cache`, `work\harness\cache\navdata`, `work\navwater\cache` (`<key>.npz`, `<key>.navdata.pkl`) | the file's path, size and time, the height source, `CACHE_VERSION` and the code | `navdata.load(cache_dir=)` | none: a new file per changed path data file | 1.3 GB, 2.1 GB (the whole harness cache), 274 MB |
+| harness bundle entries | `work\harness\cache\bundles\<stat key>\` | the bundle's size and time | `testharness.levelinfo` | none | in the 2.1 GB above |
+| stock MP unpacks | `work\stockmp\_cache\<bundle>` | the bundle's hash (stamp) | `bfbc2-stockmp-ai` `pipeline` | one per bundle, re-unpacked when it changed | empty here |
+| detailed sectors | `work\navkit\<lv>\detailed.json` | the samples, their time and NavKit's settings | `navkit` | one per level | KB |
+| texture QA rows | the `--cache` folder given (`rows_v<VERSION>.json`, name lists) | the textures' and sources' SHA-1 | `texqa --cache` | none | MB |
+
+The project caches without eviction (the path data and harness caches) grow by one entry per changed input; they
+are the next candidates for a cap when the shared cache layer is designed (after the Rust port).
+
 ## Tests
 
 ```

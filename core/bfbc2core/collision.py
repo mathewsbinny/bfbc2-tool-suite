@@ -20,7 +20,8 @@ backend() says which one runs.
 The Rust index keeps each partition's Mesh reference in a cache (cache_folder(): bfbc2-tool-suite/cache/collision
 under %LOCALAPPDATA%, or BFBC2_COLLISION_CACHE; one file per data folder), reused while the XML file and its .dbx keep the
 size and modification time they had when it was read - an unchanged level is indexed without opening its partitions.
-use_cache(None) (or BFBC2_COLLISION_CACHE=0) turns it off; the index is the same either way.
+use_cache(None) (or BFBC2_COLLISION_CACHE=0) turns it off; the index is the same either way. It is kept under
+BFBC2_COLLISION_CACHE_MB (default 256), the least recently used files deleted first (prune_cache, bfbc2core.caches).
 """
 import os
 import struct
@@ -88,6 +89,14 @@ def use_cache(folder: str | None) -> str | None:
     return _cache
 
 
+def prune_cache() -> None:
+    """Keeps the mesh-alias cache under BFBC2_COLLISION_CACHE_MB (default 256), the least recently used folders'
+    files deleted first (bfbc2core.caches; at most every 15 minutes; the Rust index marks a file it reuses)."""
+    if _cache:
+        from . import caches
+        caches.maybe_prune('collision', _cache)
+
+
 def backend() -> str:
     """'rust' when collision is read in the Rust core, else 'python'."""
     return 'rust' if _native is not None else 'python'
@@ -110,6 +119,7 @@ def index(bases: Sequence[str]) -> tuple[dict[str, str], dict[str, str] | Except
     read."""
     if _native is not None:
         havok, aliases = _native.collision_index([os.fspath(b) for b in bases], _cache)
+        prune_cache()
         return dict(havok), (aliases if isinstance(aliases, Exception) else dict(aliases))
     lo = _navkit()
     havok = lo.havok_index(bases)

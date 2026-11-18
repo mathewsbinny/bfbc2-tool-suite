@@ -135,7 +135,8 @@ def compile_hlsl_uncached(src: str, entry: str, profile: str, defines: Mapping[s
 # %LOCALAPPDATA%\bfbc2-tool-suite\cache\hlsl (BFBC2_HLSL_CACHE: another folder, or 0 for none; use_cache()), each
 # file written whole (a temporary file, then a rename) and checked when read (a damaged one is a miss). The compiler
 # is deterministic (the same bytes from every compile, sequential or threaded: tests/test_pcbuild_batch.py), so a
-# cached result is the compile's. compile_many compiles a batch on all cores (the results in input order) and
+# cached result is the compile's. Round E3p: a hit marks its file used and the folder is kept under
+# BFBC2_HLSL_CACHE_MB (default 1024), the least recently used deleted first (bfbc2core.caches). compile_many compiles a batch on all cores (the results in input order) and
 # prefetch starts one without waiting: compile_hlsl then waits for a compile of its source already under way.
 
 class CompileJob(NamedTuple):
@@ -224,6 +225,28 @@ def _remember(key: bytes, code: bytes) -> None:
             _memo_size += len(code)
 
 
+_caches_mod: Any = None
+
+
+def _caches() -> Any:
+    """bfbc2core.caches (the size cap and its least-recently-used pruning: BFBC2_HLSL_CACHE_MB, default 1 GB), or
+    None when this file runs outside the suite."""
+    global _caches_mod
+    if _caches_mod is None:
+        try:
+            import sys
+            suite = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if suite not in sys.path:
+                sys.path.insert(0, suite)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import caches
+            _caches_mod = caches
+        except ImportError:
+            _caches_mod = False
+    return _caches_mod or None
+
+
 def _disk_path(folder: str, key: bytes) -> str:
     k = key.hex()
     return os.path.join(folder, k[:2], k + '.bin')
@@ -243,6 +266,9 @@ def _disk_get(key: bytes) -> bytes | None:
     if data[:head] != CACHE_VERSION or data[head:head + 32] != key or \
             data[head + 32:head + 64] != hashlib.sha256(code).digest():
         return None                                     # damaged or foreign: a miss, compiled and written again
+    c = _caches()
+    if c is not None:
+        c.touch(_disk_path(folder, key))                # used now: the pruning deletes the least recently used
     return code
 
 
@@ -259,6 +285,9 @@ def _disk_put(key: bytes, code: bytes) -> None:
         for i in range(6):          # another process reading the same entry for a moment (Windows): wait, retry
             try:
                 os.replace(tmp, path)
+                c = _caches()
+                if c is not None:   # the folder kept under its cap (all compilers' folders: cache_dir's parent)
+                    c.maybe_prune('hlsl', os.path.dirname(folder))
                 return
             except PermissionError:
                 if os.path.exists(path):

@@ -231,6 +231,8 @@ class EmitterIndex:
             rows = c['rows']
         except Exception:                                       # noqa: BLE001 - damaged or foreign: read again
             return
+        from bfbc2core import caches
+        caches.touch(p)                                         # used now: the pruning deletes the least recently used
         self.rows = {n: (r if r == 'error' else (frozenset(r[0]), frozenset(r[1]))) for n, r in rows.items()}
         self.loaded = set(range(0, len(self.cands), EMITTER_BATCH))
         self.stats['from_disk'] = True
@@ -247,7 +249,9 @@ class EmitterIndex:
                     self.rows.items()}
             atomicio.write_bytes(p, pickle.dumps({'version': INDEX_VERSION, 'key': self.key(), 'rows': rows}))
         except OSError:
-            pass                                                # a cache that cannot be written is only slower
+            return                                              # a cache that cannot be written is only slower
+        from bfbc2core import caches
+        caches.maybe_prune('effectport', os.path.dirname(p))    # BFBC2_EFFECTPORT_CACHE_MB, default 256
 
     def batch(self, i):
         """The rows of the batch starting at document i (read now if not yet)."""

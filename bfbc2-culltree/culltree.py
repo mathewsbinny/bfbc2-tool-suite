@@ -931,6 +931,10 @@ class _RowCache:
             return None
         ok = isinstance(e, dict) and e.get('code') == _code_id() and e.get('level') == st \
             and e.get('path') == os.path.normcase(os.path.abspath(path))
+        if ok:
+            c = _caches()
+            if c is not None:
+                c.touch(f)                     # used now: the pruning deletes the least recently used
         return e if ok else None
 
     def put(self, path: str, e: dict[str, Any]) -> None:
@@ -947,6 +951,23 @@ class _RowCache:
         except OSError:                        # a cache that cannot be written is not used
             with contextlib.suppress(OSError):
                 os.remove(tmp)
+            return
+        c = _caches()
+        if c is not None:                      # kept under BFBC2_CULLTREE_CACHE_MB (default 2048)
+            c.maybe_prune('culltree', self.folder)
+
+
+def _caches() -> Any:
+    """bfbc2core.caches (the cache's size cap and pruning), or None when the tool runs outside the suite."""
+    try:
+        if SUITE not in sys.path:
+            sys.path.insert(0, SUITE)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import caches
+        return caches
+    except ImportError:
+        return None
 
 
 def ref_rows(refs: Sequence[str], ref_dirs: Iterable[str], log: Log,
