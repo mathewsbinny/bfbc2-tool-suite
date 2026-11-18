@@ -35,6 +35,7 @@ dependencies = [
 name = "bc2-navbuild"
 version = "0.1.0"
 dependencies = [
+ "bc2-formats",
  "proptest",
  "rayon",
  "thiserror",

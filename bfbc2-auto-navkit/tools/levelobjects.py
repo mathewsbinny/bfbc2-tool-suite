@@ -63,10 +63,27 @@ def area_orders(level_xml):
     return pts
 
 
-def blueprint_flags(bases):
+def scan(bases):
+    """The Rust core's one walk over the bases (round E4e: navkit.py prepare spent 600 of sp_009's 887 s reading every
+    XML file twice, once for blueprint_flags and once for mesh_aliases, and globbing three times): per base, the .xml
+    files with flags or a Mesh reference and the *_havok.res files, in glob's order, each file read once on all
+    cores. None: the core not in use (navnative), or a file it could not read - the functions below then read as before
+    (their Python is the reference)."""
+    import navnative
+    m = navnative.core('navkit_level_scan')
+    return m.navkit_level_scan([os.fspath(b) for b in bases]) if m is not None else None
+
+
+def blueprint_flags(bases, scanned=None):
     """lower-case blueprint path -> (ForbidPathfinding, ExcludeFromPathfinding, AllowPathdataSeeds, dynamic,
-    DisablePathfinding value - e.g. PdtNever / PdtWhenAlive)."""
+    DisablePathfinding value - e.g. PdtNever / PdtWhenAlive). scanned: scan(bases)'s records."""
     flags: dict[str, tuple[bool, bool, bool, bool, str]] = {}
+    if scanned is not None:
+        for (records, _havok) in scanned:
+            for rel, fl, _mesh in records:
+                if fl is not None:
+                    flags.setdefault(rel.replace(SEP, '/').lower()[:-4], tuple(fl))
+        return flags
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
             t = open(f, encoding='utf-8', errors='replace').read()
@@ -81,10 +98,18 @@ def blueprint_flags(bases):
     return flags
 
 
-def mesh_aliases(bases):
+def mesh_aliases(bases, scanned=None):
     """lower-case blueprint path -> blueprint path of its Mesh reference (without _mesh), for blueprints that
-    reuse another object's mesh and collision (InvWall_SP03 -> invisiblewall/invwall)."""
+    reuse another object's mesh and collision (InvWall_SP03 -> invisiblewall/invwall). scanned: scan(bases)'s."""
     out: dict[str, str] = {}
+    if scanned is not None:
+        for (records, _havok) in scanned:
+            for rel, _fl, ref in records:
+                if not ref or ref == 'null':
+                    continue
+                mesh = ref.rsplit('/', 1)[0].lower()
+                out.setdefault(rel.replace(SEP, '/').lower()[:-4], re.sub(r'_mesh$', '', mesh))
+        return out
     for base in bases:
         for f in glob.glob(os.path.join(base, '**', '*.xml'), recursive=True):
             t = open(f, encoding='utf-8', errors='replace').read()
@@ -97,10 +122,14 @@ def mesh_aliases(bases):
     return out
 
 
-def havok_index(bases):
+def havok_index(bases, scanned=None):
+    """lower-case blueprint path -> its *_havok.res packfile (the first base that has one wins). scanned: scan(bases)'s
+    (the packfiles' paths, relative to their base, in glob's order)."""
     out: dict[str, str] = {}
-    for base in bases:
-        for f in glob.glob(os.path.join(base, '**', '*_havok.res'), recursive=True):
+    for n, base in enumerate(bases):
+        found = (glob.glob(os.path.join(base, '**', '*_havok.res'), recursive=True) if scanned is None else
+                 [os.path.join(base, r) for r in scanned[n][1]])
+        for f in found:
             rel = os.path.relpath(f, base).replace(SEP, '/').lower()[:-len('_havok.res')]
             out.setdefault(rel, f)
             # some assets name their packfile <name>_Havok_Havok.res (sp_009's animated aircraft door,
@@ -157,7 +186,8 @@ def main(argv):
         return 1
     level_dir, level = argv[1], argv[2]
     bases = [os.path.join(level_dir, 'pkg'), os.path.join(level_dir, 'dist')] + argv[3:]
-    flags = blueprint_flags(bases)
+    scanned = scan(bases)
+    flags = blueprint_flags(bases, scanned)
     x = open(os.path.join(level_dir, 'dist', 'levels', level + '.xml'), encoding='utf-8', errors='replace').read()
     objs = []
     for _typ, _guid, body in xmlinst.instances(x, 'Entity.ReferenceObjectData'):
@@ -192,9 +222,9 @@ def main(argv):
     json.dump(objs, open(os.path.join(level_dir, 'objects.json'), 'w'))
     json.dump(groups, open(os.path.join(level_dir, 'group_instances.json'), 'w'))
 
-    havok = havok_index(bases)
+    havok = havok_index(bases, scanned)
     # blueprints without their own collision asset use the one of the object their Mesh reference names
-    for bp, target in mesh_aliases(bases).items():
+    for bp, target in mesh_aliases(bases, scanned).items():
         if bp not in havok and target in havok:
             havok[bp] = havok[target]
     cache, missing = {}, set()
