@@ -1,0 +1,496 @@
+//! Editing a map (round E2): a map project ([`bc2_levelwrite::MapProject`]) open on its base level. The [`Doc`] keeps
+//! the base scene as loaded and derives from it, by the project's log, the scene the views show and the level
+//! partition levelwrite writes ([`bc2_levelwrite::write::LevelWriter`]): a new operation is applied to both at once;
+//! an undo or redo replays the log from the base (operations are few; the base is never edited).
+//!
+//! Every change is autosaved beside the project at once (crash recovery); **Save** writes the project and removes the
+//! autosave. Entities are named by guid in the log and by index in the scene: base entities keep their index,
+//! deleted ones stay in the scene's list (left out of the views, the outliner and the queries), copies are added at
+//! its end.
+
+use std::collections::{BTreeSet, HashMap};
+use std::path::{Path, PathBuf};
+
+use bc2_levelwrite::ops::Organisation;
+use bc2_levelwrite::project::BaseReport;
+use bc2_levelwrite::write::{Applied, LevelWriter, apply_one};
+use bc2_levelwrite::{FieldType, FieldValue, MapProject, Op, Operation, Profile, Schema};
+use bc2_scene::scene::{Scene, Source};
+
+/// One field as the properties panel edits it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FieldRow {
+    /// `Name`, `Struct.Field`.
+    pub path: String,
+    /// Its type, from the schema.
+    pub ty: FieldType,
+    /// Its value now.
+    pub value: Option<FieldValue>,
+    /// For a text field: the texts the level's data uses there (an enum's names), most used first.
+    pub choices: Vec<String>,
+}
+
+/// A map project open on its level.
+pub struct Doc {
+    /// The project.
+    pub project: MapProject,
+    /// Its file.
+    pub path: PathBuf,
+    base: Scene,
+    /// The scene with the log applied.
+    pub scene: Scene,
+    /// Entities deleted by the log (their indices stay taken).
+    pub deleted: BTreeSet<usize>,
+    by_guid: HashMap<String, usize>,
+    /// Layers, folders, groups and placements by the log.
+    pub org: Organisation,
+    base_bytes: Option<Vec<u8>>,
+    writer: Option<LevelWriter>,
+    /// The field types (the level partition's data, `dbxcatalogue`'s rules).
+    pub schema: Schema,
+    /// What did not apply, and the base-changed report, in words.
+    pub problems: Vec<String>,
+    /// Saved since the last change.
+    pub saved: bool,
+    /// The base-changed check made when the project was opened.
+    pub base_report: BaseReport,
+    /// The last autosave's error, if it failed.
+    pub autosave_error: Option<String>,
+}
+
+fn index_of(scene: &Scene) -> HashMap<String, usize> {
+    scene
+        .entities
+        .iter()
+        .map(|e| (e.guid.to_ascii_uppercase(), e.index))
+        .collect()
+}
+
+impl Doc {
+    /// A new project, "New map from an existing map": `name` in `folder`, on the loaded level `scene` (of level
+    /// `level`); saved at once.
+    ///
+    /// # Errors
+    /// A project of that name is already in the folder, or it cannot be written.
+    pub fn create(name: &str, folder: &Path, level: &str, scene: Scene) -> Result<Self, String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("Give the new map a name.".into());
+        }
+        let bytes = scene.file(0).map_or_else(Vec::new, |(_, b)| b.to_vec());
+        let project = MapProject::new(
+            name,
+            level,
+            &format!("levels/{}", scene.name),
+            &bytes,
+            Profile::of_level(level),
+        );
+        let path = folder.join(project.file_name());
+        if path.exists() {
+            return Err(format!(
+                "{} is already in this folder. Open it with \"Open a project\", or choose another name.",
+                path.display()
+            ));
+        }
+        project
+            .save(&path)
+            .map_err(|e| format!("The project could not be written to {}: {e}", path.display()))?;
+        Ok(Self::with(project, path, scene))
+    }
+
+    /// A project on its loaded level (the project's base level).
+    #[must_use]
+    pub fn with(project: MapProject, path: PathBuf, scene: Scene) -> Self {
+        let base_bytes = scene.file(0).map(|(_, b)| b.to_vec());
+        let writer = base_bytes.as_deref().and_then(|b| LevelWriter::parse(b).ok());
+        let schema = Schema::scan(writer.as_ref().map(|w| &w.d));
+        let base_report = base_bytes
+            .as_deref()
+            .map_or_else(BaseReport::default, |b| project.base_report(b));
+        let mut d = Self {
+            project,
+            path,
+            by_guid: index_of(&scene),
+            scene: scene.clone(),
+            base: scene,
+            deleted: BTreeSet::new(),
+            org: Organisation::default(),
+            base_bytes,
+            writer,
+            schema,
+            problems: Vec::new(),
+            saved: true,
+            base_report,
+            autosave_error: None,
+        };
+        d.rebuild();
+        d
+    }
+
+    /// The scene and the partition again from the base and the whole log.
+    pub fn rebuild(&mut self) {
+        self.scene = self.base.clone();
+        self.deleted.clear();
+        self.by_guid = index_of(&self.base);
+        self.writer = self.base_bytes.as_deref().and_then(|b| LevelWriter::parse(b).ok());
+        self.problems.clear();
+        let r = &self.base_report;
+        if r.changed {
+            self.problems.push(format!(
+                "The level changed since this project was made (a game patch, or a rebuilt level): its partition is \
+                 not the one the edits were made on. {} operation(s) name objects it no longer has; they are kept, \
+                 not dropped.",
+                r.missing.len()
+            ));
+        }
+        for (n, name, guid) in &r.missing {
+            self.problems.push(format!(
+                "Operation {n} ({name}) names {guid}, which the level does not have."
+            ));
+        }
+        let ops = self.project.operations.clone();
+        for o in &ops {
+            self.apply(o);
+        }
+        self.org = self.project.organisation();
+    }
+
+    fn apply(&mut self, o: &Operation) {
+        if let Some(w) = self.writer.as_mut()
+            && let Err(e) = apply_one(w, o, &self.schema, &mut Applied::default())
+        {
+            self.problems.push(e.to_string());
+        }
+        match &o.op {
+            Op::Move { items } | Op::Rotate { items } => {
+                for m in items {
+                    if let Some(k) = self.index(&m.guid) {
+                        self.scene.set_transform(k, bc2_levelwrite::matrix_of(&m.to));
+                    }
+                }
+            }
+            Op::Delete { guids } => {
+                for g in guids {
+                    if let Some(k) = self.index(g) {
+                        self.deleted.insert(k);
+                        if let Some(c) = self.scene.collision.as_mut() {
+                            c.meshes.retain(|(i, _)| *i != k);
+                        }
+                        self.by_guid.remove(&g.to_ascii_uppercase());
+                    }
+                }
+            }
+            Op::Duplicate { items } => {
+                for d in items {
+                    let Some(k) = self.index(&d.source) else { continue };
+                    let Some(mut e) = self.scene.entities.get(k).cloned() else {
+                        continue;
+                    };
+                    let n = self.scene.entities.len();
+                    e.index = n;
+                    e.guid.clone_from(&d.guid);
+                    e.id = None;
+                    e.matrix = Some(bc2_levelwrite::matrix_of(&d.transform));
+                    self.scene.entities.push(e);
+                    if let Some(c) = self.scene.collision.as_mut()
+                        && let Some(bp) = c.meshes.iter().find(|(i, _)| *i == k).map(|(_, b)| b.clone())
+                    {
+                        c.meshes.push((n, bp));
+                    }
+                    self.by_guid.insert(d.guid.to_ascii_uppercase(), n);
+                }
+            }
+            Op::SetField { items } => {
+                for f in items {
+                    let Some(k) = self.index(&f.guid) else { continue };
+                    let Some(e) = self.scene.entities.get_mut(k) else {
+                        continue;
+                    };
+                    match (f.field.as_str(), &f.to) {
+                        ("Name", FieldValue::Text(s)) => e.name = Some(s.clone()),
+                        ("Team", FieldValue::Int(t)) if e.team.is_some() && (0..=2).contains(t) => {
+                            e.team = Some(*t as u8);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Adds an operation (applied to the scene and the partition at once, autosaved); its number.
+    pub fn commit(&mut self, op: Op, label: &str) -> u64 {
+        let n = self.project.push(op, label);
+        if let Some(o) = self.project.operations.last().cloned() {
+            self.apply(&o);
+        }
+        self.org = self.project.organisation();
+        self.changed();
+        n
+    }
+
+    fn changed(&mut self) {
+        self.saved = false;
+        self.autosave_error = self.project.autosave(&self.path).err().map(|e| e.to_string());
+    }
+
+    /// Undoes the last operation; `false` when there is none.
+    pub fn undo(&mut self) -> bool {
+        if self.project.undo().is_none() {
+            return false;
+        }
+        self.rebuild();
+        self.changed();
+        true
+    }
+
+    /// Redoes the last undone operation; `false` when there is none.
+    pub fn redo(&mut self) -> bool {
+        if self.project.redo().is_none() {
+            return false;
+        }
+        self.rebuild();
+        self.changed();
+        true
+    }
+
+    /// Undoes or redoes until `applied` operations are in the log (History: "go to this point").
+    pub fn go_to(&mut self, applied: usize) {
+        if applied != self.project.operations.len() {
+            self.project.go_to(applied);
+            self.rebuild();
+            self.changed();
+        }
+    }
+
+    /// Saves the project (and removes the autosave).
+    ///
+    /// # Errors
+    /// The file cannot be written.
+    pub fn save(&mut self) -> Result<(), String> {
+        self.project.save(&self.path).map_err(|e| e.to_string())?;
+        self.saved = true;
+        Ok(())
+    }
+
+    /// Moves entities in the scene only, while a drag is under way (the operation is added when it ends).
+    pub fn preview(&mut self, transforms: &[(usize, [f64; 16])]) {
+        for (k, m) in transforms {
+            self.scene.set_transform(*k, *m);
+        }
+    }
+
+    /// The scene index of a guid (`None` when not in the scene, or deleted).
+    #[must_use]
+    pub fn index(&self, guid: &str) -> Option<usize> {
+        self.by_guid.get(&guid.to_ascii_uppercase()).copied()
+    }
+
+    /// An entity's guid.
+    #[must_use]
+    pub fn guid(&self, k: usize) -> Option<&str> {
+        self.scene.entities.get(k).map(|e| e.guid.as_str())
+    }
+
+    /// Whether an entity is drawn and listed: not deleted, and its layer shown.
+    #[must_use]
+    pub fn shown(&self, k: usize) -> bool {
+        !self.deleted.contains(&k) && self.guid(k).is_some_and(|g| self.org.shown(g))
+    }
+
+    /// Why an entity cannot be moved, turned, copied or deleted (`None`: it can).
+    #[must_use]
+    pub fn why_not(&self, k: usize) -> Option<&'static str> {
+        let e = self.scene.entities.get(k)?;
+        if self.deleted.contains(&k) {
+            return Some("It is deleted");
+        }
+        if matches!(e.source, Source::GroupMember { .. }) {
+            return Some("A static group member: it is edited with its group's file (a later round)");
+        }
+        if e.type_name.ends_with(".LevelData") {
+            return Some("The level itself");
+        }
+        if e.matrix.is_none() {
+            return Some("It has no transform");
+        }
+        if !self.org.editable(&e.guid) {
+            return Some("Its layer is locked");
+        }
+        None
+    }
+
+    /// The members of an entity's group (indices), or the entity alone.
+    #[must_use]
+    pub fn with_group(&self, k: usize) -> Vec<usize> {
+        let Some(g) = self.guid(k) else { return vec![k] };
+        match self.org.group_of(g) {
+            Some((_, members)) => members.iter().filter_map(|m| self.index(m)).collect(),
+            None => vec![k],
+        }
+    }
+
+    /// The entity's fields, typed from the schema (empty for entities outside the level partition).
+    #[must_use]
+    pub fn fields(&self, k: usize) -> Vec<FieldRow> {
+        let (Some(w), Some(e)) = (self.writer.as_ref(), self.scene.entities.get(k)) else {
+            return Vec::new();
+        };
+        w.fields(&self.schema, &e.guid)
+            .into_iter()
+            .map(|(path, ty, value)| {
+                let choices = if ty == FieldType::Text {
+                    self.schema.texts(&e.type_name, &format!(".{path}"))
+                } else {
+                    Vec::new()
+                };
+                FieldRow {
+                    path,
+                    ty,
+                    value,
+                    choices,
+                }
+            })
+            .collect()
+    }
+
+    /// Whether the doc has the level partition (the demo scene has none: its edits change the scene only).
+    #[must_use]
+    pub fn has_partition(&self) -> bool {
+        self.writer.is_some()
+    }
+
+    /// The edited partition's bytes.
+    #[must_use]
+    pub fn partition(&self) -> Option<Vec<u8>> {
+        self.writer.as_ref().and_then(|w| w.write().ok())
+    }
+
+    /// Checks the edits: the whole log applied to the base afresh gives what the editor holds; a summary in words.
+    #[must_use]
+    pub fn check(&self) -> String {
+        let Some(base) = self.base_bytes.as_deref() else {
+            return "This scene has no level partition (the demo): its edits change the view only.".into();
+        };
+        match bc2_levelwrite::apply(base, &self.project.operations, &self.schema) {
+            Ok(a) => {
+                let same = self.partition().is_some_and(|p| p == a.bytes);
+                let changes = match (
+                    bc2_formats::dbx::edit::EditDbx::parse(base),
+                    bc2_formats::dbx::edit::EditDbx::parse(&a.bytes),
+                ) {
+                    (Ok(x), Ok(y)) => bc2_levelwrite::diff::diff(&x, &y).len(),
+                    _ => 0,
+                };
+                format!(
+                    "{} operation(s) apply cleanly to {}: {} transform(s), {} copy(ies), {} deleted, {} field(s); {} \
+                     change(s) in the partition{}.",
+                    a.operations,
+                    self.project.base.partition,
+                    a.transforms,
+                    a.duplicated,
+                    a.deleted,
+                    a.fields,
+                    changes,
+                    if same {
+                        ""
+                    } else {
+                        " (the live copy differs: reopen the project)"
+                    }
+                )
+            }
+            Err(e) => format!("The edits do not apply: {e}"),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+    use bc2_levelwrite::ops::{Duplicated, Moved};
+
+    #[test]
+    fn the_log_drives_the_scene() {
+        let dir = std::env::temp_dir().join(format!("bc2_editor_doc_{}", std::process::id()));
+        let mut d = Doc::create("Demo edit", &dir, "demo", crate::demo::scene()).unwrap();
+        assert!(Doc::create("Demo edit", &dir, "demo", crate::demo::scene()).is_err());
+        let g1 = d.guid(1).unwrap().to_owned();
+        let m = d.scene.entities[1].matrix.unwrap();
+        let to = bc2_levelwrite::rows_of(&crate::math::translate(&m, [3.0, 0.0, 0.0]));
+        d.commit(
+            Op::Move {
+                items: vec![Moved {
+                    guid: g1.clone(),
+                    from: bc2_levelwrite::rows_of(&m),
+                    to,
+                    placement: None,
+                }],
+            },
+            "",
+        );
+        assert_eq!(d.scene.entities[1].position().unwrap()[0], -22.0);
+        let copy = d.project.new_guid(&g1);
+        d.commit(
+            Op::Duplicate {
+                items: vec![Duplicated {
+                    source: g1.clone(),
+                    guid: copy.clone(),
+                    transform: bc2_levelwrite::rows_at([0.0, 0.0, 40.0]),
+                }],
+            },
+            "",
+        );
+        assert_eq!(d.scene.entities.len(), 6);
+        assert_eq!(d.index(&copy), Some(5));
+        // the house's copy gets its collision
+        let house = d.guid(0).unwrap().to_owned();
+        let hc = d.project.new_guid(&house);
+        d.commit(
+            Op::Duplicate {
+                items: vec![Duplicated {
+                    source: house.clone(),
+                    guid: hc.clone(),
+                    transform: bc2_levelwrite::rows_at([30.0, 0.0, 0.0]),
+                }],
+            },
+            "",
+        );
+        assert!(d.scene.collision.as_ref().unwrap().meshes.iter().any(|(k, _)| *k == 6));
+        d.commit(
+            Op::Delete {
+                guids: vec![house.clone()],
+            },
+            "",
+        );
+        assert!(!d.shown(0) && d.why_not(0).is_some() && d.index(&house).is_none());
+        assert!(
+            crate::query::surface_below(&d.scene, 1.0, 1.0)
+                .unwrap()
+                .entity
+                .is_none()
+        );
+        assert!(!d.saved);
+        assert!(bc2_levelwrite::project::autosave_path(&d.path).exists());
+        // undo and redo replay the log
+        assert!(d.undo());
+        assert!(d.shown(0));
+        assert!(d.undo() && d.undo());
+        assert_eq!(d.scene.entities.len(), 5);
+        assert!(d.redo());
+        assert_eq!(d.scene.entities.len(), 6);
+        d.go_to(4);
+        assert_eq!(d.scene.entities.len(), 7);
+        assert!(!d.shown(0));
+        d.save().unwrap();
+        assert!(d.saved && !bc2_levelwrite::project::autosave_path(&d.path).exists());
+        // reopened, the same scene
+        let p = MapProject::load(&d.path).unwrap();
+        let e = Doc::with(p, d.path.clone(), crate::demo::scene());
+        assert_eq!(e.scene.entities.len(), 7);
+        assert_eq!(e.scene.entities[1].position(), d.scene.entities[1].position());
+        assert!(!e.has_partition());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

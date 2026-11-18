@@ -167,8 +167,14 @@ impl Outliner {
     /// The outliner of a scene: every entity, grouped.
     #[must_use]
     pub fn new(scene: &Scene) -> Self {
+        Self::new_without(scene, &std::collections::BTreeSet::new())
+    }
+
+    /// The outliner of a scene without some entities (those a project deleted).
+    #[must_use]
+    pub fn new_without(scene: &Scene, without: &std::collections::BTreeSet<usize>) -> Self {
         let mut groups: Vec<Group> = Vec::new();
-        for e in &scene.entities {
+        for e in scene.entities.iter().filter(|e| !without.contains(&e.index)) {
             let entry = Entry {
                 entity: e.index,
                 name: display_name(e),

@@ -94,7 +94,7 @@ fn renders_the_scene_and_outlines_the_selection() {
             "{theme:?}: the corner is the background"
         );
         // the house (entity 0) selected: an outline in the selection colour, around where the house is drawn
-        sg.set_selection(&gpu, Some(0));
+        sg.set_selection(&gpu, &[0]);
         r.render(&gpu, &sg, &target, &view.matrix(), &palette);
         let img = r.read_output(&gpu, &target).unwrap();
         let outlined: Vec<(u32, u32)> = (0..SIZE[1])
@@ -206,7 +206,8 @@ fn palette_opens_a_top_view_with_its_own_camera() {
     let (gpu, ctx) = (h.gpu.clone(), h.ctx.clone());
     app.run(&gpu, &ctx, bc2_editor::actions::Action::ResetLayout);
     assert!(!app.tabs().contains(&Tab::Viewport(Projection::Top)));
-    assert_eq!(app.tabs().len(), 4);
+    // the 3D view, Outliner, Layers, Properties, Problems, History
+    assert_eq!(app.tabs().len(), 6);
 }
 
 #[test]
@@ -226,7 +227,7 @@ fn a_click_in_the_editor_selects_the_entity_there() {
     }
     // the outliner shows the selection: its group opens and the properties name it
     h.settle(&mut app, 10);
-    let name = model::display_name(&app.view().unwrap().scene.entities[0]);
+    let name = model::display_name(&app.view().unwrap().scene().entities[0]);
     assert_eq!(name, "House");
     // a click on the sky clears the selection
     let rect = app.view().unwrap().view_rect().unwrap();

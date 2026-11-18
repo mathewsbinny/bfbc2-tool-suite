@@ -98,11 +98,53 @@ one: set `python.exe` to "High performance" in Settings > System > Display > Gra
 PC that took the Navigation Studio on SP_01 (10.4 million triangles) from the AMD Radeon integrated GPU to
 the GeForce RTX 4060, at 144 frames a second.
 
-## The map editor (preview: view a map read-only)
+## The map editor (preview: view a map, edit a copy of it)
 
 `rust/bc2-editor` is the map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8 - 3.10), in Rust
 with egui on wgpu (Vulkan, DirectX 12 or a software adapter). Round G1 (2026-11-18) is its shell and the read-only
-map view; the Map Inspector stays until the editor replaces it.
+map view; round E2 (2026-11-18) edits a map as a **map project**. Building and installing an edited map is round E3:
+for now a project's edits stay in the project. The Map Inspector stays until the editor replaces it.
+
+**Editing a map (round E2).**
+
+- **New map from an existing map** (start screen): choose the base map, a name and a folder (default
+  `Documents\BFBC2 Map Projects`); the editor writes `<name>.mapedit.json` there at once and opens it in the
+  **Objects** workspace. **Open a project** takes a project file (or a recent one); its base map loads first. The
+  project is data only - the base level, its partition's sha1, the content profile and the operation log (each
+  operation with who and when, new objects named by UUIDv5 guids) - never game files; the base map is never changed.
+  A project whose base level has changed (a game patch, a rebuilt WW2 level) opens with the operations naming
+  objects it no longer has listed under Problems; none is dropped.
+- **Select:** click (with its group), Ctrl or Shift + click adds or removes, drag a box on empty ground (Select tool,
+  or any tool off the gizmo). Alt + left drag orbits (pans in the top / front / side views) while editing.
+- **Gizmo** (toolbar at the top of each view; **Q** select, **W** move, **E** rotate, **R** ruler, **X** world or
+  local axes): drag an arrow, a plane square or the centre to move, a ring to turn; the dragged handle turns
+  orange, the arms are in the axis colours. **Snapping:** grid (**G**, its size in metres), angle (its step in
+  degrees), vertex (**V**: the pivot goes to the corner under the pointer, Shift for the edge), and **surface**
+  (**B**): moved objects sit on the terrain or mesh below them, sunk by the **sink depth** (metres, or a percentage
+  of the object's height; along the surface normal or straight down; optionally turned to the normal). The depth is
+  stored with the object's operation and kept when it is moved again; Properties shows and changes it per object
+  ("Place on surface"). **End** (Snap to ground) puts the selection on the surface below it.
+- **Delete** (Del: the object, its array entries elsewhere, and its event connections), **Duplicate** (Ctrl+D: a copy
+  with a new guid, in `LevelData.Objects` and with copies of its event connections, 2 m along X and selected),
+  **Align** on X / Y / Z (to the primary, the last selected) and **Distribute** on X / Z, **Group** (Ctrl+G) and
+  **Ungroup** (Ctrl+Shift+G), from the command palette.
+- **Ruler** (R): click two points (vertex snapping applies); the distance, its horizontal part and the height
+  difference.
+- **Layers** panel: a layer from the selection, hide, isolate, lock (locked objects cannot be selected in the views),
+  colour (shown beside its objects in the outliner); objects stay in the build when hidden. **Folders** (Properties >
+  Folder, `Buildings/North`) and groups are listed at the top of the outliner.
+- **Properties:** position and yaw as numbers, the surface placement, the layer and folder, and the object's own
+  fields typed from the level's data (`dbxcatalogue`'s rules: text with the values the level uses, yes / no, whole
+  numbers, decimals; a number the data does not say is whole or decimal is shown, not written).
+- **History** panel: every operation with who and when; click one to undo or redo to it. **Ctrl+Z** / **Ctrl+Y**
+  (or Ctrl+Shift+Z). **Ctrl+S** saves; every change is written at once to `<name>.mapedit.json.autosave`, and a
+  project opened with an autosave that differs from it offers to recover it. **Check edits** (palette) applies the
+  whole log to the base partition again and says what it changes.
+
+The edits are written by `rust/bc2-levelwrite` (levelwrite: one mutation API on the level partition, the port of
+`dbxbin`; README of the crate in its `lib.rs`): an untouched partition writes back byte for byte, a moved object
+changes only its `Transform`, and a delete, duplicate or field set only what it names (proven on MP_005, SP_01 and
+Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.md`, "E2").
 
 - **Start screen:** "View a map" lists the game copy's levels (found as the suite finds them: `--opfor`, OPFOR_ROOT,
   or a `project-opfor-bfbc2` folder beside or above the suite). A level NavKit has not prepared yet is listed but
@@ -111,8 +153,9 @@ map view; the Map Inspector stays until the editor replaces it.
   says so under Problems.
 - **The window:** docked panels (drag a tab to dock, tab or float it; **Reset layout** puts them back): the Outliner
   (the map by kind and group, searchable, Hide / Show per group), the views, Properties (the selection's type, GUID,
-  team, blueprint, source partition and element, transform) and Problems. The top bar has the workspace switcher
-  (only View in G1), the level and its content profile badge, and the commands; the theme (Dark or Light) follows
+  team, blueprint, source partition and element, transform), Problems, and with a project History and Layers. The
+  top bar has the workspace switcher (View; Objects with a project), the level or project and its content profile
+  badge, Save / Undo / Redo and the commands; the theme (Dark or Light) follows
   the suite's design language (`design/project/tokens.json`, IBM Plex fonts).
 - **The views:** the 3D view and top, front and side views (top bar, or Alt+1 - Alt+4), each with its own camera.
   3D view: left drag orbits, middle drag pans, the wheel zooms, hold the right button to fly (W A S D, Q / E, Shift
@@ -126,7 +169,7 @@ Run it (Rust as in "The Rust core" below; the first build takes a few minutes):
 
     cd rust
     cargo build --release -p bc2-editor
-    target\release\bfbc2-editor.exe [level] [--opfor <folder>] [--theme light]
+    target\release\bfbc2-editor.exe [level | --project <name>.mapedit.json] [--opfor <folder>] [--theme light]
 
 or from the hub: Levels > "Open in Map Editor (preview)", or More tools > "Open Map Editor". Without a display,
 `bfbc2-editor.exe <level> --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]` draws the window
@@ -137,7 +180,14 @@ Its tests (`python tests\test_editor.py`, quick tier) prove it headless: the the
 themes; the outliner against the Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004 (recorded by
 `rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
 view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
-the command palette opening a top view) and each of the four levels drawn with a flag selected.
+the command palette opening a top view) and each of the four levels drawn with a flag selected. Round E2 adds
+levelwrite's proofs (`cargo test -p bc2-levelwrite`: the project log, its file, undo / redo, autosave and recovery,
+the base-changed report; edits on MP_005, SP_01 and Guadalcanal copied to a temp folder: they parse, differ from the
+base exactly where the operations say, round-trip through the Rust DBX writers, load in the scene with each object
+where the log put it, and equal DbxEdit's `drop` / `setfield` and the Python `dbxbin` reference byte for byte), the
+surface placement with sink depths on terrain and on a mesh, the gizmo's maths, and the editing interface driven
+headless (`tests/editing.rs`: click, a 5 m drag on the grid, undo, redo, a 15-degree turn, box selection, duplicate,
+delete, snap to ground sunk 0.5 m and kept on the next move, a layer, save and reopen).
 
 ## The Rust core (required for the core formats, the console converters and NavKit's builds)
 

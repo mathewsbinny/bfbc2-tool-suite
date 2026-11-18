@@ -1,15 +1,20 @@
 //! Questions about the scene's surfaces, on the CPU: where a ray first meets the terrain or a placed object's
-//! collision (with the surface normal there), and the point a given sink depth below a surface.
+//! collision (with the surface normal and the triangle there), the point a given sink depth below a surface, and
+//! placing an object on a surface (`EDITOR_ARCHITECTURE.md` 3.10, item 3).
 //!
-//! The view uses it for the status bar's surface read-out (the point under a click); it is the base the editing
-//! rounds build surface snapping on (`EDITOR_ARCHITECTURE.md` 3.10, item 3: an object dropped on terrain or a mesh
-//! sits on it, optionally aligned to the normal, and a sink depth pushes it partly underground along the normal or
-//! straight down). Picking *which* entity is under the cursor stays on the GPU (the id target, `render::pick`);
-//! this answers *where* on its surface.
+//! **Surface placement** ([`place`]): an object dropped on terrain or a mesh sits on it - its lowest point (the
+//! bottom of its collision in its own space, or its pivot for an object drawn as a marker) on the surface point -
+//! optionally turned so its up axis is the surface normal; then a **sink depth** (metres, or a fraction of the
+//! object's height) pushes it into the surface along the surface normal or straight down. The depth is stored with
+//! the object's operation and kept when it is moved again (`bc2_levelwrite::ops::Placement`).
+//!
+//! **Vertex and edge snapping** ([`snap_vertex`], [`snap_edge`]): the corner, or the nearest point on an edge, of the
+//! triangle a ray meets. Picking *which* entity is under the cursor stays on the GPU (the id target, `render::pick`).
 
+use bc2_levelwrite::Placement;
 use bc2_scene::scene::Scene;
 
-use crate::camera::V3;
+use crate::math::{self, M, V3, add, cross, dot, len, mul, norm, row, sub};
 
 /// What a ray met.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -22,20 +27,8 @@ pub struct Hit {
     pub normal: V3,
     /// The entity whose collision it is; `None` for the terrain.
     pub entity: Option<usize>,
-}
-
-fn sub(a: V3, b: V3) -> V3 {
-    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-fn dot(a: V3, b: V3) -> f64 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-fn cross(a: V3, b: V3) -> V3 {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
+    /// The triangle met (world space).
+    pub tri: [V3; 3],
 }
 
 /// Möller-Trumbore: the distance along the ray to the triangle, if it meets it in front of the origin.
@@ -66,12 +59,18 @@ fn ray_triangle(o: V3, d: V3, tri: [V3; 3]) -> Option<(f64, V3)> {
 /// The first surface (terrain or placed collision) along a ray from `origin` in unit direction `dir`.
 #[must_use]
 pub fn ray_hit(scene: &Scene, origin: V3, dir: V3) -> Option<Hit> {
-    let mut best: Option<(f64, V3, Option<usize>)> = None;
+    ray_hit_except(scene, origin, dir, &|_| false)
+}
+
+/// [`ray_hit`] passing through the entities `skip` says yes to (the objects being dragged, deleted ones).
+#[must_use]
+pub fn ray_hit_except(scene: &Scene, origin: V3, dir: V3, skip: &dyn Fn(usize) -> bool) -> Option<Hit> {
+    let mut best: Option<(f64, V3, Option<usize>, [V3; 3])> = None;
     let mut consider = |tri: [V3; 3], entity: Option<usize>| {
         if let Some((t, n)) = ray_triangle(origin, dir, tri)
-            && best.is_none_or(|(bt, _, _)| t < bt)
+            && best.is_none_or(|(bt, _, _, _)| t < bt)
         {
-            best = Some((t, n, entity));
+            best = Some((t, n, entity, tri));
         }
     };
     if let Some((v, tris)) = &scene.terrain {
@@ -84,6 +83,9 @@ pub fn ray_hit(scene: &Scene, origin: V3, dir: V3) -> Option<Hit> {
     }
     if let Some(col) = &scene.collision {
         for (index, _) in &col.meshes {
+            if skip(*index) {
+                continue;
+            }
             // a bounding-sphere test first: most placed objects are nowhere near the ray
             let Some(e) = scene.entities.get(*index) else { continue };
             let Some(m) = e.matrix else { continue };
@@ -95,15 +97,8 @@ pub fn ray_hit(scene: &Scene, origin: V3, dir: V3) -> Option<Hit> {
                 .flat_map(|t| t.iter())
                 .map(|p| f64::from(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt())
                 .fold(0.0, f64::max);
-            let scale = (0..3)
-                .map(|r| {
-                    (0..3)
-                        .map(|c| m.get(r * 4 + c).copied().unwrap_or(0.0).powi(2))
-                        .sum::<f64>()
-                        .sqrt()
-                })
-                .fold(0.0, f64::max);
-            let centre = [m[12], m[13], m[14]];
+            let scale = (0..3).map(|r| len(row(&m, r))).fold(0.0, f64::max);
+            let centre = row(&m, 3);
             let oc = sub(centre, origin);
             let along = dot(oc, dir);
             let miss2 = dot(oc, oc) - along * along;
@@ -118,24 +113,33 @@ pub fn ray_hit(scene: &Scene, origin: V3, dir: V3) -> Option<Hit> {
             }
         }
     }
-    let (t, n, entity) = best?;
-    let len = dot(n, n).sqrt();
-    let mut normal = if len > 0.0 { n.map(|c| c / len) } else { [0.0, 1.0, 0.0] };
+    let (t, n, entity, tri) = best?;
+    let mut normal = norm(n);
+    if len(normal) == 0.0 {
+        normal = [0.0, 1.0, 0.0];
+    }
     if dot(normal, dir) > 0.0 {
-        normal = normal.map(|c| -c);
+        normal = mul(normal, -1.0);
     }
     Some(Hit {
         t,
-        point: [origin[0] + dir[0] * t, origin[1] + dir[1] * t, origin[2] + dir[2] * t],
+        point: add(origin, mul(dir, t)),
         normal,
         entity,
+        tri,
     })
 }
 
 /// The surface straight below (or above) a point: the first hit of a vertical ray from high above it.
 #[must_use]
 pub fn surface_below(scene: &Scene, x: f64, z: f64) -> Option<Hit> {
-    ray_hit(scene, [x, 100_000.0, z], [0.0, -1.0, 0.0])
+    surface_below_except(scene, x, z, &|_| false)
+}
+
+/// [`surface_below`] passing through the entities `skip` says yes to.
+#[must_use]
+pub fn surface_below_except(scene: &Scene, x: f64, z: f64, skip: &dyn Fn(usize) -> bool) -> Option<Hit> {
+    ray_hit_except(scene, [x, 100_000.0, z], [0.0, -1.0, 0.0], skip)
 }
 
 /// Where an object placed on a surface sits when sunk `depth` metres into it: along the surface normal into the
@@ -143,17 +147,105 @@ pub fn surface_below(scene: &Scene, x: f64, z: f64) -> Option<Hit> {
 #[must_use]
 pub fn sunk(hit: &Hit, depth: f64, along_normal: bool) -> V3 {
     let d = if along_normal { hit.normal } else { [0.0, 1.0, 0.0] };
-    [
-        hit.point[0] - d[0] * depth,
-        hit.point[1] - d[1] * depth,
-        hit.point[2] - d[2] * depth,
-    ]
+    sub(hit.point, mul(d, depth))
+}
+
+/// Vertex snapping: the corner of the hit triangle nearest the hit point.
+#[must_use]
+pub fn snap_vertex(hit: &Hit) -> V3 {
+    let mut best = hit.tri[0];
+    for v in hit.tri {
+        if len(sub(v, hit.point)) < len(sub(best, hit.point)) {
+            best = v;
+        }
+    }
+    best
+}
+
+/// Edge snapping: the point on the hit triangle's edges nearest the hit point.
+#[must_use]
+pub fn snap_edge(hit: &Hit) -> V3 {
+    let mut best = hit.tri[0];
+    let mut bd = f64::INFINITY;
+    let [p, q, r] = hit.tri;
+    for (a, b) in [(p, q), (q, r), (r, p)] {
+        let ab = sub(b, a);
+        let t = (dot(sub(hit.point, a), ab) / dot(ab, ab).max(1e-12)).clamp(0.0, 1.0);
+        let q = add(a, mul(ab, t));
+        let d = len(sub(q, hit.point));
+        if d < bd {
+            bd = d;
+            best = q;
+        }
+    }
+    best
+}
+
+/// An object's extent along its own up axis (local units, before its transform's scale): the lowest and highest
+/// points of its collision, or of its marker (pivot at the bottom) when it has none.
+#[must_use]
+pub fn extent(scene: &Scene, entity: usize) -> (f64, f64) {
+    let Some(e) = scene.entities.get(entity) else {
+        return (0.0, 0.0);
+    };
+    let placed = scene
+        .collision
+        .as_ref()
+        .filter(|c| c.meshes.iter().any(|(k, _)| *k == entity));
+    let tris = placed.and_then(|c| c.blueprints.get(e.blueprint.as_deref()?).cloned().flatten());
+    if let Some(t) = tris
+        && !t.is_empty()
+    {
+        let ys = t.iter().flat_map(|tri| tri.iter().map(|p| f64::from(p[1])));
+        return ys.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), y| (lo.min(y), hi.max(y)));
+    }
+    (0.0, crate::render::marker_size(&e.category).map_or(1.0, f64::from))
+}
+
+/// An object's height in metres (its extent along its up axis, scaled by its transform).
+#[must_use]
+pub fn height(scene: &Scene, entity: usize) -> f64 {
+    let (lo, hi) = extent(scene, entity);
+    let scale = scene
+        .entities
+        .get(entity)
+        .and_then(|e| e.matrix)
+        .map_or(1.0, |m| len(row(&m, 1)));
+    (hi - lo) * scale
+}
+
+/// An object (transform `m`, extent `ext` from [`extent`]) placed on the surface at `hit`: sitting on it, turned so
+/// its up axis is the normal when `p.align_to_normal`, then sunk `p.depth(height)` along the normal or straight
+/// down.
+#[must_use]
+pub fn place(m: &M, ext: (f64, f64), hit: &Hit, p: &Placement) -> M {
+    let mut out = *m;
+    if p.align_to_normal {
+        let up = norm(row(m, 1));
+        let (axis, angle) = math::between(up, hit.normal);
+        for r in 0..3 {
+            math::set_row(&mut out, r, math::rotate_vec(row(m, r), axis, angle));
+        }
+    }
+    let up = row(&out, 1);
+    let height = (ext.1 - ext.0) * len(up);
+    // the lowest point on the surface: the pivot sits ext.0 up-units below the bottom
+    let base = sub(hit.point, mul(up, ext.0));
+    let dir = if p.along_normal { hit.normal } else { [0.0, 1.0, 0.0] };
+    let pos = sub(base, mul(dir, p.depth(height)));
+    math::set_row(&mut out, 3, pos);
+    out
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use bc2_levelwrite::SinkUnit;
+
+    fn demo_height(x: f64, z: f64) -> f64 {
+        ((x * 0.05).sin() + (z * 0.07).cos()) * 0.8 - 1.6
+    }
 
     #[test]
     fn rays_meet_the_terrain_and_the_house() {
@@ -167,8 +259,7 @@ mod tests {
         let (x, z) = (-40.0f64, 30.0f64);
         let g = surface_below(&s, x, z).unwrap();
         assert_eq!(g.entity, None);
-        let want = ((x * 0.05).sin() + (z * 0.07).cos()) * 0.8 - 1.6;
-        assert!((g.point[1] - want).abs() < 0.05, "{} vs {want}", g.point[1]);
+        assert!((g.point[1] - demo_height(x, z)).abs() < 0.05, "{}", g.point[1]);
         // a ray from the side meets the house's wall facing it
         let w = ray_hit(&s, [-100.0, 3.0, 0.5], [1.0, 0.0, 0.0]).unwrap();
         assert_eq!(w.entity, Some(0));
@@ -179,5 +270,79 @@ mod tests {
         assert!((sunk(&w, 0.5, true)[0] + 4.5).abs() < 1e-9);
         // nothing up in the sky
         assert!(ray_hit(&s, [0.0, 50.0, 0.0], [0.0, 1.0, 0.0]).is_none());
+        // passing through the house reaches the terrain under it
+        let under = surface_below_except(&s, 1.0, 1.0, &|k| k == 0).unwrap();
+        assert_eq!(under.entity, None);
+        assert!((under.point[1] - demo_height(1.0, 1.0)).abs() < 0.05);
+    }
+
+    #[test]
+    fn snapping_to_corners_and_edges() {
+        let s = crate::demo::scene();
+        let h = surface_below(&s, 4.6, 3.7).unwrap();
+        let v = snap_vertex(&h);
+        assert!((v[0] - 5.0).abs() < 1e-9 && (v[1] - 6.0).abs() < 1e-9 && (v[2] - 4.0).abs() < 1e-9);
+        let e = snap_edge(&surface_below(&s, 4.9, 0.5).unwrap());
+        assert!((e[0] - 5.0).abs() < 1e-9 && (e[2] - 0.5).abs() < 1e-9, "{e:?}");
+    }
+
+    /// Placing on terrain and on a mesh, sunk 0, 0.5 m and 25 % of the object's height, straight down and along the
+    /// normal: the heights expected from the terrain samples.
+    #[test]
+    fn placing_with_a_sink_depth() {
+        let mut s = crate::demo::scene();
+        let p = |sink: f64, unit: SinkUnit, along_normal: bool, align: bool| Placement {
+            sink,
+            unit,
+            along_normal,
+            align_to_normal: align,
+        };
+        // the house (6 m tall, its bottom at its pivot) on the terrain at (-40, 30)
+        let (x, z) = (-40.0, 30.0);
+        let hit = surface_below_except(&s, x, z, &|k| k == 0).unwrap();
+        let ground = hit.point[1];
+        assert!((ground - demo_height(x, z)).abs() < 0.05);
+        let m = s.entities[0].matrix.unwrap();
+        let ext = extent(&s, 0);
+        assert_eq!(ext, (0.0, 6.0));
+        assert!((height(&s, 0) - 6.0).abs() < 1e-12);
+        for (sink, unit, want) in [
+            (0.0, SinkUnit::Metres, 0.0),
+            (0.5, SinkUnit::Metres, 0.5),
+            (0.25, SinkUnit::Fraction, 1.5),
+        ] {
+            let placed = place(&m, ext, &hit, &p(sink, unit, false, false));
+            let at = row(&placed, 3);
+            assert!(
+                (at[1] - (ground - want)).abs() < 1e-9,
+                "sink {sink} {unit:?}: {}",
+                at[1]
+            );
+            assert!((at[0] - x).abs() < 1e-9 && (at[2] - z).abs() < 1e-9);
+            // along the normal: the same depth, measured along it
+            let along = row(&place(&m, ext, &hit, &p(sink, unit, true, false)), 3);
+            assert!((len(sub(along, hit.point)) - want).abs() < 1e-9);
+            assert!((along[1] - (ground - want * hit.normal[1])).abs() < 1e-9);
+        }
+        // turned to the slope: the up axis is the normal
+        let aligned = place(&m, ext, &hit, &p(0.0, SinkUnit::Metres, false, true));
+        assert!(len(sub(norm(row(&aligned, 1)), hit.normal)) < 1e-9);
+        // a spawn (a 1.2 m marker) on the house's roof (a mesh): 6 m, 5.5 m, 6 - 0.3 m
+        let roof = surface_below_except(&s, 1.0, 1.0, &|k| k == 1).unwrap();
+        assert_eq!(roof.entity, Some(0));
+        let spawn = s.entities[1].matrix.unwrap();
+        let ext = extent(&s, 1);
+        for (sink, unit, want) in [
+            (0.0, SinkUnit::Metres, 6.0),
+            (0.5, SinkUnit::Metres, 5.5),
+            (0.25, SinkUnit::Fraction, 5.7),
+        ] {
+            let at = row(&place(&spawn, ext, &roof, &p(sink, unit, false, false)), 3);
+            // the marker's size is a single (1.2 m to 7 digits)
+            assert!((at[1] - want).abs() < 1e-6, "{sink} {unit:?}: {}", at[1]);
+        }
+        // a scaled object: the fraction is of its scaled height
+        s.entities[0].matrix = Some([2.0, 0., 0., 0., 0., 2., 0., 0., 0., 0., 2., 0., 0., 0., 0., 1.]);
+        assert!((height(&s, 0) - 12.0).abs() < 1e-12);
     }
 }
