@@ -420,6 +420,59 @@ def log_caps() -> tuple[int, int, int]:
             int(_number(LOG_FILE_ENV, LOG_FILE_MB) * MB))
 
 
+LOG_ARCHIVE_ENV, LOG_ARCHIVE_MB = 'BFBC2_LOG_ARCHIVE_MB', 1024.0   # the archives of pruned logs, all together
+
+
+def log_archive_folder(top: str) -> str:
+    """Where pruned logs are kept, zipped: <logs>-archive beside the log folder (the user's ruling, 2026-11-17: logs
+    the caps remove are archived first, not lost)."""
+    return os.path.normpath(top) + '-archive'
+
+
+def _archive_logs(top: str, files: list[_File]) -> str | None:
+    """files zipped into a new archive in log_archive_folder(top) (logs-<time>.zip), written beside its name and
+    moved in only when complete (atomicio): a crash or an unreadable file leaves no half archive. Returns its path,
+    None when there was nothing to keep. The archives over BFBC2_LOG_ARCHIVE_MB (default 1024 MiB) are deleted,
+    the oldest first - never the new one."""
+    import zipfile
+    files = [f for f in files if os.path.isfile(f.path)]
+    if not files:
+        return None
+    folder = log_archive_folder(top)
+    os.makedirs(folder, exist_ok=True)
+    stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S')
+    path = os.path.join(folder, f'logs-{stamp}.zip')
+    n = 1
+    while os.path.exists(path):
+        n += 1
+        path = os.path.join(folder, f'logs-{stamp}-{n}.zip')
+    tmp = f'{path}.tmp-{os.getpid()}'
+    try:
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+            for f in files:
+                z.write(f.path, os.path.basename(f.path))
+        with open(tmp, 'rb+') as fh:
+            os.fsync(fh.fileno())
+        atomicio.replace(tmp, path)
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(tmp)
+    cap = int(_number(LOG_ARCHIVE_ENV, LOG_ARCHIVE_MB) * MB)
+    olds = []
+    for e in os.scandir(folder):
+        if e.name.lower().endswith('.zip') and e.is_file(follow_symlinks=False) and e.path != path:
+            st = e.stat(follow_symlinks=False)
+            olds.append((st.st_mtime_ns, e.path, st.st_size))
+    size = os.path.getsize(path) + sum(s for _t, _p, s in olds)
+    for _t, p, s in sorted(olds):
+        if size <= cap:
+            break
+        with contextlib.suppress(OSError):
+            os.remove(p)
+            size -= s
+    return path
+
+
 def log_part(top: str, tool: str, date: str, part: int) -> str:
     """<top>\\<tool>-<date>.log (part 0), else <tool>-<date>.<part>.log."""
     return os.path.join(top, f'{tool}-{date}.log' if part == 0 else f'{tool}-{date}.{part}.log')
@@ -467,7 +520,9 @@ def prune_logs(top: str | None = None, keep: Iterable[str] = (), *, caps: tuple[
     """The log folder (logs_folder() by default) to its caps: each tool's files of other than its keep_days newest
     days deleted, then the oldest files (by modification time) beyond the per-tool cap, then beyond the overall cap.
     Never a file named in keep (the current session's), never for the caps a file written within `recent` seconds,
-    never one another process has open without delete sharing (busy). Under the folder's lock."""
+    never one another process has open without delete sharing (busy). Under the folder's lock.
+    The files chosen are first zipped into a new archive (_archive_logs: log_archive_folder, its own cap) and only
+    then deleted; when the archive cannot be written, nothing is deleted (OSError raised)."""
     top = top or logs_folder()
     r = Result()
     if not os.path.isdir(top):
@@ -479,21 +534,14 @@ def prune_logs(top: str | None = None, keep: Iterable[str] = (), *, caps: tuple[
         files = _log_files(top)
         kept = {os.path.normcase(f.path) for f, _t, _d in files if os.path.normcase(os.path.abspath(f.path)) in keep_set}
         gone: set[str] = set()
-        busy: set[str] = set()
+        chosen: list[_File] = []
 
         def drop(f: _File, held: bool) -> bool:
-            """Deletes f unless it is kept (held: also when recent); True when it no longer counts."""
-            if os.path.normcase(f.path) in kept or f.path in busy or held and now - f.mtime_ns / 1e9 < recent:
-                return False
-            done = _delete_if_unchanged(f)
-            if done is False:
-                busy.add(f.path)
-                r.busy = len(busy)
+            """Chooses f for deletion unless it is kept (held: also when recent); True when it no longer counts."""
+            if os.path.normcase(f.path) in kept or held and now - f.mtime_ns / 1e9 < recent:
                 return False
             gone.add(f.path)
-            if done:
-                r.deleted_bytes += f.size
-                r.deleted_files += 1
+            chosen.append(f)
             return True
 
         by_tool: dict[str, list[tuple[_File, str]]] = {}
@@ -518,8 +566,21 @@ def prune_logs(top: str | None = None, keep: Iterable[str] = (), *, caps: tuple[
                 break
             if drop(f, held=True):
                 size -= f.size
+        # archive first, then delete: a log the caps remove is kept in the archive (never lost)
+        if chosen:
+            _archive_logs(top, chosen)
+        busy = 0
+        for f in chosen:
+            done = _delete_if_unchanged(f)
+            if done is False:                       # held open or written since the scan: kept (and archived)
+                busy += 1
+                size += f.size
+            elif done:
+                r.deleted_bytes += f.size
+                r.deleted_files += 1
+        r.busy = busy
         r.kept_bytes = size
-        r.kept_files = len(left) - sum(1 for f in left if f.path in gone)
+        r.kept_files = len(left) - sum(1 for f in left if f.path in gone) + busy
     return r
 
 

@@ -315,7 +315,11 @@ development PC on 2026-11-17, mid-way through a WW2 rebuild):
 process holds is never in the way). At each tool's start and each rollover the folder is pruned
 (`bfbc2core.caches.prune_logs`): each tool's 20 newest days are kept, then the oldest files are deleted beyond
 `BFBC2_LOG_TOOL_MB` per tool (default 100) and `BFBC2_LOGS_MB` in all (default 200) - never the running session's
-own files, never (for the caps) a log written in the last 10 minutes (a running tool's), never one held open. Before
+own files, never (for the caps) a log written in the last 10 minutes (a running tool's), never one held open.
+**Nothing is lost:** the logs a prune removes are first zipped into a new archive in `logs-archive\` beside the log
+folder (`logs-<date>_<time>.zip`, written whole before anything is deleted - if it cannot be written, nothing is
+deleted); the archives have their own cap, `BFBC2_LOG_ARCHIVE_MB` (default 1024), the oldest archive deleted first.
+Before
 E3q there was no size cap (607 MB on the development PC; single NavKit and Studio days of 50-130 MB). DbxEdit.exe and
 FbrbTool.exe (C#, `ToolLog`) still write one file per day; their logs are pruned with the rest. Also under
 `%LOCALAPPDATA%\bfbc2-tool-suite`, not a cache: `test_times.json` (`run_tests.py`'s durations). In-memory caches

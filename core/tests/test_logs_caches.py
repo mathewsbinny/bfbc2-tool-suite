@@ -38,7 +38,8 @@ DAY = 86400.0
 KB = 1024
 ENV_NAMES = ([n for s in caches.CACHES.values() for n in (s.env, s.cap_env)] +
              [s.cap_env for s in caches.PROJECT_CACHES.values()] +
-             [caches.LOGS_ENV, caches.LOG_TOOL_ENV, caches.LOG_FILE_ENV, 'OPFOR_ROOT', 'LOCALAPPDATA'])
+             [caches.LOGS_ENV, caches.LOG_TOOL_ENV, caches.LOG_FILE_ENV, caches.LOG_ARCHIVE_ENV, 'OPFOR_ROOT',
+              'LOCALAPPDATA'])
 
 
 def write(path, n, age=0.0):
@@ -313,6 +314,48 @@ def main(argv):
         out = run('--prune')
         check(out.returncode == 0 and all(n in out.stdout for n in ('hlsl', 'navstudio', 'harness', 'logs')),
               '--prune without names: every cache, project cache and the logs', out.stdout + out.stderr)
+        # ---- archived before deleted (the user's ruling, 2026-11-17): the pruned logs zipped first, byte for byte;
+        # no archive, no deletion; the archives under their own cap, the oldest first
+        import zipfile
+        d = os.path.join(tmp, 'arch', 'logs')
+        olds = {n: write(os.path.join(d, n), 3000 + age_k, age=86400 * (30 - age_k)) for age_k, n in enumerate(
+            ['navkit-2026-01-01.log', 'navkit-2026-01-02.log', 'navkit-2026-01-02.1.log', 'dbxedit-2026-01-03.log'])}
+        fresh = write(os.path.join(d, 'navkit-2026-05-01.log'), 1000)
+        want = {n: open(p, 'rb').read() for n, p in olds.items()}
+        r = caches.prune_logs(d, caps=(1500, 10 ** 9, 1 << 20), recent=0)
+        arch = caches.log_archive_folder(d)
+        zips = sorted(os.listdir(arch)) if os.path.isdir(arch) else []
+        archived: dict[str, bytes] = {}
+        if len(zips) == 1:
+            with zipfile.ZipFile(os.path.join(arch, zips[0])) as z:
+                archived = {n: z.read(n) for n in z.namelist()}
+        check(r.deleted_files == 4 and archived == want and os.path.exists(fresh) and
+              not any(os.path.exists(p) for p in olds.values()),
+              'pruned logs: zipped into one archive (bytes equal), then deleted; the newest kept',
+              f'{r.deleted_files} {zips} {sorted(archived)}')
+        d2 = os.path.join(tmp, 'arch2', 'logs')
+        old2 = write(os.path.join(d2, 'navkit-2026-01-01.log'), 4000, age=86400)
+        write(os.path.join(d2, 'navkit-2026-05-01.log'), 100)
+        write(os.path.join(tmp, 'arch2', 'logs-archive'), 1)      # a file where the archive folder goes: cannot write
+        try:
+            caches.prune_logs(d2, caps=(500, 10 ** 9, 1 << 20), recent=0)
+            raised = False
+        except OSError:
+            raised = True
+        check(raised and os.path.exists(old2), 'archive cannot be written: an error, nothing deleted')
+        os.environ[caches.LOG_ARCHIVE_ENV] = str(1.5 * KB / (1 << 20))
+        try:
+            for t in range(3):
+                big = write(os.path.join(d, f'tool{t}-2026-02-0{t + 1}.log'), 0, age=86400 * 5)
+                with open(big, 'wb') as blob:                   # incompressible: the archive keeps its size
+                    blob.write(os.urandom(5000))
+                os.utime(big, (time.time() - 86400 * 5,) * 2)
+                caches.prune_logs(d, caps=(1500, 10 ** 9, 1 << 20), recent=0)
+            zips = sorted(os.listdir(arch))
+            check(len(zips) == 1 and zipfile.is_zipfile(os.path.join(arch, zips[0])),
+                  'archives beyond their cap: the oldest deleted, the newest kept', str(zips))
+        finally:
+            os.environ.pop(caches.LOG_ARCHIVE_ENV, None)
     finally:
         for k, v in saved.items():
             if v is None:
