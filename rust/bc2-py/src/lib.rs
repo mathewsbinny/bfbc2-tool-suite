@@ -22,6 +22,8 @@
 //! DbxEdit's commands (`dbxedit.rs`): `dbxedit_run` / `dbxedit_run_many`, for `core/bfbc2core/dbxedit.py`; FbrbTool's
 //! (`fbrbtool.rs`): `fbrbtool_run` / `fbrbtool_run_many`, for `core/bfbc2core/fbrbtool.py`.
 //!
+//! The stock-MP AI layer (`stockmp.rs`, round E4a): `stockmp_*`, for `bfbc2-stockmp-ai` (`bc2_stockmp`).
+//!
 //! The writers (`writers.rs`): `dbx_write` (`dbx.write` of a Python tree), `fbrb_pack` / `fbrb_pack_many`
 //! (FbrbTool's `pack`, `fbrb.pack`), `fbrb_unpack` (FbrbTool's `unpack`, `fbrb.unpack`) and `zlib_deflate`.
 //!
@@ -47,6 +49,7 @@ mod navpath;
 mod navtrace;
 mod scene;
 mod shaders;
+mod stockmp;
 mod writers;
 mod xenos;
 
@@ -358,6 +361,13 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::shaders::{shaderdb_parse, shaderdb_write};
+
+    #[pymodule_export]
+    use super::stockmp::{
+        stockmp_author, stockmp_author_refusal, stockmp_check_changes, stockmp_check_external, stockmp_check_structure,
+        stockmp_dbx_round_trips, stockmp_folder_index, stockmp_instance_facts, stockmp_level_model, stockmp_new_guid,
+        stockmp_packed_check,
+    };
 
     #[pymodule_export]
     use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};

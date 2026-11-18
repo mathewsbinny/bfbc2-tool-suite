@@ -8,6 +8,7 @@ r"""Tests of the stock-MP AI authoring tool.
                                          level bundles, then generate / build / validate Atacama Conquest (MP_005)
                                          in a temporary work folder, twice (the builds must be identical)
 """
+import glob
 import json
 import os
 import shutil
@@ -513,6 +514,62 @@ def quick(tmp):
               'its stamp left out')
     ok, detail = validate.check_packed(bundle, copied, tmp)
     check(ok and detail == '2 files unpack identical', f'packed bundle checked in memory: {detail}')
+    native_parity(lvl, rl, donor, c, cr, cm)
+
+
+def python_author(level, donor, c):
+    """The reference: dbxbin, levelmodel.Model and author.Author in Python - (bytes, report) or the error raised."""
+    d = dbxbin.parse(level)
+    try:
+        counts = author.Author(d, dbxbin.parse(donor), c, levelmodel.Model(d)).build()
+    except Exception as e:                       # the reference's error is part of what the port must match
+        return f'{type(e).__name__}: {e}'
+    return dbxbin.write(d), counts
+
+
+def native_parity(lvl, rl, donor, c, cr, cm):
+    """Round E4a: the Rust core (rust\\bc2-stockmp) against the Python reference on the synthetic levels - the level
+    model, the authoring (bytes and report, Conquest, Rush, minimal), the cases it leaves to Python, the round trip."""
+    import stockcore
+    nat = stockcore.native()
+    if nat is None:
+        print('skip the Rust core\'s parity: the Rust core is off or not built (python rust\\build_native.py)')
+        return
+    for name, data in (('Conquest', lvl), ('Rush', rl)):
+        mn, mp = levelmodel.model_of(data), levelmodel.Model(dbxbin.parse(data))
+        fields = ('name', 'game_mode', 'mode', 'factions', 'attacker', 'has_ai', 'events', 'objects', 'capture_points',
+                  'spawners', 'mcoms')
+        check(mn.d is None and all(getattr(mn, f) == getattr(mp, f) for f in fields)
+              and mn.rush_stages() == mp.rush_stages(), f'Rust level model = Python\'s ({name})')
+    for name, level, cfg in (('Conquest', lvl, c), ('Rush', rl, cr), ('minimal', lvl, cm)):
+        got = author.author_native(level, donor, cfg)
+        want = python_author(level, donor, cfg)
+        check(got is not None and got == want and list(got[1]) == list(want[1]),
+              f'Rust authoring = Python\'s, bytes and report ({name}: {len(got[0]) if got else None} bytes)')
+    # what the reference raises is left to it: an authored level, an unknown soldier, a decimal set as text, a
+    # numbers field without a known kind
+    authored = author.author_native(lvl, donor, c)
+    assert authored is not None
+    bad_soldier = json.loads(json.dumps(c))
+    bad_soldier['orders'][0]['soldiers'] = ['nobody']
+    as_text = json.loads(json.dumps(c))
+    as_text['defaults']['spawner']['LocationNameSid'] = 1.5
+    unknown = json.loads(json.dumps(c))
+    unknown['defaults']['spawner']['MeshShaderSetNumber'] = 3
+    null = json.loads(json.dumps(c))
+    null['spawners'][0]['name'] = None
+    for what, level, cfg in (('an authored level', authored[0], c), ('an unknown soldier', lvl, bad_soldier),
+                             ('a decimal set as a text field', lvl, as_text), ('a value of no known kind', lvl, unknown),
+                             ('a None value', lvl, null)):
+        got = author.author_native(level, donor, cfg)
+        want = python_author(level, donor, cfg)
+        check(got is None or got == want,
+              f'Rust authoring leaves {what} to Python ({nat.stockmp_author_refusal(level, donor, cfg)}; Python: {str(want)[:60]})')
+    files = [lvl, rl, donor, authored[0], b'{binary}' + b'\0' * 30, lvl[:-3]]
+    check(dbxbin.round_trips(files[:4]) == [True] * 4 and nat.stockmp_dbx_round_trips(files)[4:] == [False, None],
+          'Rust round trip: the levels come back byte for byte; a header it rewrites differs, as in Python; a cut file is left to Python')
+    check(nat.stockmp_new_guid('opfor:stockmp', ['test_01', 'spawner', 't1_00'])
+          == dbxbin.new_guid('opfor:stockmp', 'test_01', 'spawner', 't1_00'), 'Rust GUIDs = dbxbin.new_guid')
 
 
 # ------------------------------------------------------------------------------------------ game tests
@@ -522,16 +579,21 @@ def game(tmp):
     import stockmp
     import validate
     opfor = navkit.find_opfor(None)
-    n = bad = 0
+    datas = []
     for top in (os.path.join(opfor, 'work', 'levels', 'mp_005'),):
         for dp, _ds, fs in os.walk(top):
             for fn in fs:
                 if fn.lower().endswith('.dbx'):
                     data = open(os.path.join(dp, fn), 'rb').read()
                     if dbxbin.is_binary(data):
-                        n += 1
-                        bad += dbxbin.write(dbxbin.parse(data)) != data
+                        datas.append(data)
+    # the writer the build uses (the Rust core's port when built, round E4a; dbxbin for any file it leaves) on every
+    # file; the Python reference on the largest ones (the level partitions)
+    oks = dbxbin.round_trips(datas)
+    n, bad = len(oks), oks.count(False)
     check(n > 1000 and bad == 0, f'DBX writer: {n} files of Atacama\'s bundles come back byte for byte ({bad} differ)')
+    big = sorted(datas, key=len)[-4:]
+    check(all(dbxbin.write(dbxbin.parse(d)) == d for d in big), 'DBX writer (Python reference): the 4 largest files')
     work = os.path.join(tmp, 'work')
     hashes = []
     for run in range(2):
@@ -542,6 +604,16 @@ def game(tmp):
         rep = pipeline.build(paths, c, log=lambda *_a: None)
         hashes.append({k: v for k, v in rep['outputs'].items()})
         if run == 0:
+            donor_lvl, _so = pipeline.donor(paths)
+            donor = open(donor_lvl, 'rb').read()
+            for orig in sorted(glob.glob(os.path.join(paths.root, 'build', '*.original.dbx'))):
+                level = open(orig, 'rb').read()
+                want = python_author(level, donor, c)
+                got = author.author_native(level, donor, c)
+                authored = open(orig.replace('.original.', '.authored.'), 'rb').read()
+                check(isinstance(want, tuple) and want[0] == authored and (got is None or got == want),
+                      f'Atacama {os.path.basename(orig)}: the build\'s authoring = the Python reference\'s '
+                      f'({"Rust core" if got else "Python"})')
             res = validate.validate(paths, c, log=lambda *_a: None)
             for r in res['results']:
                 check(r['ok'], f'Atacama validation: {r["check"]}: {r["detail"][:110]}')

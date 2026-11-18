@@ -30,6 +30,7 @@ import config as cfgmod  # noqa: E402
 import dbxbin  # noqa: E402
 import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
+import stockcore  # noqa: E402
 import validate  # noqa: E402
 from test_stockmp import KITS, B, G, synthetic_donor, synthetic_level  # noqa: E402
 
@@ -155,7 +156,34 @@ def main(argv):
     def patch(obj, name, value):
         saved.append((obj, name, getattr(obj, name)))
         setattr(obj, name, value)
+    parity: list[tuple[str, bool, str]] = []
+
+    def both(name):
+        """validate.<name> as the tests call it, also run on the Python reading (round E4a: the Rust core's readings
+        must give the same result or raise the same error)."""
+        fn = getattr(validate, name)
+
+        def run(*a):
+            def once():
+                try:
+                    return fn(*a)
+                except Exception as e:
+                    return f'{type(e).__name__}: {e}'
+            got = once()
+            if stockcore.native() is not None:
+                stockcore.use_native(False)
+                try:
+                    ref = once()
+                finally:
+                    stockcore.use_native(True)
+                parity.append((name, got == ref, f'{got} / {ref}'))
+            if isinstance(got, str):
+                raise RuntimeError(got)
+            return got
+        return run
     try:
+        for name in ('check_structure', 'check_changes', 'check_external', 'check_stages', 'check_packed'):
+            patch(validate, name, both(name))
         lvl, donor = synthetic_level('conquest'), synthetic_donor()
         m = levelmodel.Model(dbxbin.parse(lvl))
         c = cfgmod.generate(m, LV, KITS, {'infantry': None, 'vehicle': None}, bots_per_team=3)
@@ -334,6 +362,18 @@ def main(argv):
             ok, detail = validate.check_packed(out, bdir, tmp)
             save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth)
             check(not ok and detail == f'1 of {len(added) + 1} files differ after packing', 'packed bundle: a file changed after packing', detail)
+            if stockcore.native() is not None:
+                runs = []
+                for body in (auth, auth + b'changed'):
+                    save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), body)
+                    got = validate.check_packed(out, bdir, tmp)
+                    stockcore.use_native(False)
+                    try:
+                        runs.append(got == validate.check_packed(out, bdir, tmp))
+                    finally:
+                        stockcore.use_native(True)
+                save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth)
+                check(runs == [True, True], 'packed bundle: the Rust core\'s comparison = the Python one (same and changed)')
 
             # --- validate(): a whole synthetic build folder ------------------------------------------------------
             opfor = os.path.join(tmp, 'opfor')
@@ -381,6 +421,11 @@ def main(argv):
             check(not res['passed'] and 'no sectors' in bad.get('staged vehicle path data', '')
                   and 'staged infantry path data' not in bad,
                   'validate: staged path data whose offsets cannot be read is a failed check, not a crash', str(bad))
+        if stockcore.native() is not None:
+            off = [f'{n}: {d}' for n, same, d in parity if not same]
+            check(len(parity) >= 10 and not off,
+                  f'the Rust core\'s readings give the Python reading\'s result on every check above ({len(parity)} runs)',
+                  '; '.join(off)[:600])
     finally:
         for obj, name, value in reversed(saved):
             setattr(obj, name, value)

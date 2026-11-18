@@ -357,7 +357,8 @@ def generate(paths: Paths, **kw: Any) -> dict[str, Any]:
     lvl = find_entry(d, entry)
     if lvl is None:
         raise BuildError(f'{paths.lv}: the level partition {entry} is not in {d}')
-    m = levelmodel.Model(dbxbin.read(lvl))
+    with open(lvl, 'rb') as f:
+        m = levelmodel.model_of(f.read())
     pd = kw.pop('pathdata')
     c = cfgmod.generate(m, paths.lv, kit_refs(paths), pd, **kw)
     cfgmod.save(c, paths.config())
@@ -414,6 +415,8 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
     # every variant authored first, then the bundles packed together (on all cores with the Rust core); the report
     # and the log keep the variants' order
     packs: list[tuple[str, str, str, dict[str, Any], str]] = []
+    with open(donor_lvl, 'rb') as fh:
+        donor_data = fh.read()
     for v, bundle in paths.bundles():
         src = unpacked(bundle, paths.src(v))
         rep['inputs'][f'bundle_{v}'] = {'path': bundle, 'sha256': sha(bundle)}
@@ -429,12 +432,16 @@ def build(paths: Paths, c: dict[str, Any], log: Callable[[str], object] = print)
         if lvl_file is None:
             raise BuildError(f'{paths.lv}: the level partition {entry} is not in {dst}')
         original = open(lvl_file, 'rb').read()
-        d = dbxbin.parse(original)
-        if dbxbin.write(d) != original:
-            raise BuildError(f'{entry}: the DBX writer does not reproduce the original - stopping')
-        a = author.Author(d, dbxbin.read(donor_lvl), c, levelmodel.Model(d))
-        counts = a.build()
-        data = dbxbin.write(d)
+        got = author.author_native(original, donor_data, c)          # the Rust core (round E4a), else the Python
+        if got is not None:
+            data, counts = got
+        else:
+            d = dbxbin.parse(original)
+            if dbxbin.write(d) != original:
+                raise BuildError(f'{entry}: the DBX writer does not reproduce the original - stopping')
+            a = author.Author(d, dbxbin.read(donor_lvl), c, levelmodel.Model(d))
+            counts = a.build()
+            data = dbxbin.write(d)
         shutil.copyfile(lvl_file, os.path.join(paths.root, 'build', f'{lv_upper}_{v}.original.dbx'))
         open(lvl_file, 'wb').write(data)
         shutil.copyfile(lvl_file, os.path.join(paths.root, 'build', f'{lv_upper}_{v}.authored.dbx'))

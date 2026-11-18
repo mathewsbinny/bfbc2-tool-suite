@@ -17,6 +17,9 @@ What it writes, and where each part was taken from (STOCK_MP_AI_PLAN.md, section
 - Optionally the stock spawners marked SSAiPlayer become SSHumanPlayer (they are the human spawn points).
 
 New GUIDs are deterministic (UUIDv5 of the level, the item's id and its role), so a rebuild gives the same file.
+
+The build authors in the Rust core when it is built (author_native: rust\\bc2-stockmp, the same edits in the same
+order, byte for byte); this module is the reference and the fallback.
 """
 import struct
 from collections import Counter, defaultdict
@@ -31,6 +34,21 @@ PATHFINDING = ['ai/pathfinding/infantry/3096da77-3146-479c-ae35-c822273a54a7',
 
 class AuthorError(Exception):
     pass
+
+
+def author_native(original, donor, config):
+    """The level partition `original` (bytes) authored in the Rust core (rust\\bc2-stockmp: this module's port on
+    dbxbin's, round E4a) with the donor partition's bytes: (the authored bytes, the report dict) - what
+    dbxbin.parse, Author(d, dbxbin.parse(donor), config, levelmodel.Model(d)).build() and dbxbin.write give. None
+    where the Rust core is not there or leaves the file or configuration to this module (whatever it would raise
+    or format itself): the caller then runs the Python."""
+    import stockcore
+    nat = stockcore.native()
+    got = nat.stockmp_author(original, donor, config) if nat is not None else None
+    if got is None:
+        return None
+    data, report = got
+    return data, dict(report)
 
 
 class NumberKinds:

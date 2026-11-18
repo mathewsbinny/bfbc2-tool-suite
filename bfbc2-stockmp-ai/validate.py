@@ -16,6 +16,11 @@
      order of its team and stage, and each spawner reaches its orders' objectives over the route graph (same group).
   8. Rush stages: later-stage spawners and orders start disabled; each stage's advance source is in the level.
   9. The packed bundles unpack to exactly the built files.
+
+Round E4a: with the Rust core (stockcore.native()) checks 3, 4, 5 (its reference set and the partition index), 8 and
+9 read the files in Rust (rust\\bc2-stockmp: no element tree built in Python) and word the result here; whatever
+the Rust reading leaves (a file or field it would raise on) is read in Python as before. DbxEdit's read-only runs
+(check, roundtrip) of every variant run at once before the checks.
 """
 import json
 import os
@@ -30,6 +35,7 @@ from typing import cast
 import config as cfgmod
 import dbxbin
 import pipeline
+import stockcore
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.dirname(HERE)
@@ -48,10 +54,44 @@ SPAWN_NODE = cfgmod.SNAP_RADIUS + 0.5
 ALLOWED_CHANGED = ('HasAI', 'PlayerType')
 
 
+_DBXEDIT_DONE: dict[tuple[str, ...], tuple[int, str]] = {}   # validate(): DbxEdit's read-only runs, made at once
+
+
 def _dbxedit(*args):
-    # in process through the Rust core (bfbc2core.dbxedit; BFBC2_DBXEDIT_EXE=1 runs DbxEdit.exe)
-    r = dbxedit.run_cmd([pipeline.DBX, *map(str, args)], capture_output=True, text=True, errors='replace')
+    # in process through the Rust core (bfbc2core.dbxedit; BFBC2_DBXEDIT_EXE=1 runs DbxEdit.exe); a run validate()
+    # made beforehand (_prefetch_dbxedit) is taken from there
+    key = tuple(map(str, args))
+    if key in _DBXEDIT_DONE:
+        return _DBXEDIT_DONE.pop(key)
+    r = dbxedit.run_cmd([pipeline.DBX, *key], capture_output=True, text=True, errors='replace')
     return r.returncode, r.stdout + r.stderr
+
+
+def _prefetch_dbxedit(runs):
+    """DbxEdit's runs that only read files (check, roundtrip), run at once on all cores in process (round E4a: the
+    four checks against mp_common and two round trips of a level ran one after another); their results wait in
+    _DBXEDIT_DONE for _dbxedit. Nothing is run ahead with DbxEdit.exe (BFBC2_DBXEDIT_EXE=1)."""
+    if dbxedit.use_exe() or not runs:
+        return
+    keys = [tuple(map(str, r)) for r in runs]
+    for k, r in zip(keys, dbxedit.run_many([list(k) for k in keys], text=True)):
+        _DBXEDIT_DONE[k] = (r.returncode, r.stdout + r.stderr)
+
+
+def _read(path):
+    """A file's bytes (kept while validate() runs: the checks read the same partitions)."""
+    if _VALIDATING and path in _DATA:
+        return _DATA[path]
+    with open(path, 'rb') as f:
+        data = f.read()
+    if _VALIDATING:
+        while len(_DATA) >= 4:
+            del _DATA[next(iter(_DATA))]
+        _DATA[path] = data
+    return data
+
+
+_DATA: dict[str, bytes] = {}
 
 
 def _counts(out):
@@ -111,6 +151,29 @@ def _refs(e):
 
 
 def check_structure(orig, authored, c):
+    nat = stockcore.native()
+    facts = nat.stockmp_check_structure(_read(orig), _read(authored)) if nat is not None else None
+    if facts is None:                          # no Rust core, or a level it leaves to the Python reading
+        return _py_check_structure(orig, authored, c)
+    twice, local_bad, objs_twice, n_new, unlisted, event_bad, nev, has_ai, pft = facts
+    problems = []
+    if twice:
+        problems.append(f'{len(twice)} GUIDs used by more than one instance (e.g. {twice[0]}) - authored twice?')
+    problems += [f'{g}: local reference {r} unresolved' for g, r in local_bad]
+    if objs_twice:
+        problems.append(f'{objs_twice} entities listed twice in Objects')
+    if unlisted:
+        problems.append(f'{unlisted} new instances not in Objects')
+    problems += [f'event {side} {r} unresolved' for side, r in event_bad]
+    if has_ai != 'true':
+        problems.append('HasAI is not true')
+    if [p.lower() for p in pft] != [p.lower() for p in __import__('author').PATHFINDING]:
+        problems.append(f'PathfindingTypes {pft}')
+    return not problems, (f'{n_new} new instances, all in Objects; {nev} event connections resolve; HasAI true; '
+                          f'PathfindingTypes infantry + vehicles' if not problems else '; '.join(problems[:8]))
+
+
+def _py_check_structure(orig, authored, c):
     f, inst = _core_instances(authored)
     _fo, oinst = _core_instances(orig)
     problems = []
@@ -149,7 +212,38 @@ def check_structure(orig, authored, c):
 
 
 def check_changes(orig, authored, c, tmp):
-    """The existing instances: only HasAI, PathfindingTypes, PlayerType, Objects and EventConnections may differ."""
+    """The existing instances: only HasAI, PathfindingTypes, PlayerType, Objects and EventConnections may differ.
+    Read in the Rust core when it is built (only the differing leaves come back); several differing leaves of one
+    instance are named in the Rust reading's order (the Python reading's is its set's, which varies by process)."""
+    nat = stockcore.native()
+    facts = nat.stockmp_check_changes(_read(orig), _read(authored)) if nat is not None else None
+    if facts is None:
+        return _py_check_changes(orig, authored, c, tmp)
+    bad = []
+    changed: Counter[str] = Counter()
+    for g, removed, arrays, leaves in facts:
+        if removed:
+            bad.append(f'{g} removed')
+            continue
+        bad += [f'LevelData.{arr}: existing items changed' for arr in arrays]
+        for k, x, y in leaves:
+            field = re.sub(r'\[\d+\]', '', k).strip('/')
+            if field in ALLOWED_CHANGED:
+                changed[field] += 1
+            else:
+                bad.append(f'{g} {k}: {_shown(x)} -> {_shown(y)}')
+    want_pt = c.get('stock_spawners') == 'human'
+    if changed['PlayerType'] and not want_pt:
+        bad.append('PlayerType changed although stock_spawners is not "human"')
+    return not bad, (f'existing instances unchanged except {dict(changed)}' if not bad else '; '.join(bad[:8]))
+
+
+def _shown(leaf):
+    """check_changes' shown() of a leaf the Rust core read: (kind, value text, attributes) or None."""
+    return None if leaf is None else (leaf[0], leaf[1], tuple(tuple(a) for a in leaf[2]))
+
+
+def _py_check_changes(orig, authored, c, tmp):
     fo, oinst = _core_instances(orig)
     fa, ainst = _core_instances(authored)
     bad = []
@@ -214,6 +308,12 @@ def _folder_index(top):
     while validate() runs: mp_common's 15,000 files are walked once, not once per variant)."""
     if top in _FOLDER_INDEX:
         return _FOLDER_INDEX[top]
+    nat = stockcore.native()
+    got = nat.stockmp_folder_index(top) if nat is not None else None    # the Rust core's walk (None: left to this)
+    if got is not None:
+        if _VALIDATING:
+            _FOLDER_INDEX[top] = dict(got)
+        return dict(got)
     idx: dict[str, str] = {}
     for dp, _ds, fs in os.walk(top):
         for fn in fs:
@@ -240,23 +340,10 @@ def _partition_index(folders):
 
 
 def check_external(orig, authored, folders):
-    _fo, oinst = _core_instances(orig)
-    _f, inst = _core_instances(authored)
+    nat = stockcore.native()
+    got = nat.stockmp_check_external(_read(orig), _read(authored)) if nat is not None else None
+    wanted = _py_external_refs(orig, authored) if got is None else set(got)
     idx = _partition_index(folders)
-    wanted = set()
-    for g, e in inst.items():
-        if g in oinst and not (e.attr('type') or '').endswith('.LevelData'):
-            continue
-        for _c, r in _refs(e):
-            if '/' in r:
-                wanted.add(r.lower())
-    # only the references the stock level does not already have
-    old = set()
-    for e in oinst.values():
-        for _c, r in _refs(e):
-            if '/' in r:
-                old.add(r.lower())
-    wanted -= old
     bad = []
     cache = {}
     for r in sorted(wanted):
@@ -271,6 +358,27 @@ def check_external(orig, authored, folders):
             bad.append(f'{r}: instance not in {os.path.basename(p)}')
     return not bad, (f'{len(wanted)} new references into other partitions all resolve: ' + ', '.join(sorted(wanted))
                      if not bad else '; '.join(bad))
+
+
+def _py_external_refs(orig, authored):
+    """The references into other partitions the authored level adds, read in Python (check_external's set)."""
+    _fo, oinst = _core_instances(orig)
+    _f, inst = _core_instances(authored)
+    wanted = set()
+    for g, e in inst.items():
+        if g in oinst and not (e.attr('type') or '').endswith('.LevelData'):
+            continue
+        for _c, r in _refs(e):
+            if '/' in r:
+                wanted.add(r.lower())
+    # only the references the stock level does not already have
+    old = set()
+    for e in oinst.values():
+        for _c, r in _refs(e):
+            if '/' in r:
+                old.add(r.lower())
+    wanted -= old
+    return wanted
 
 
 def check_assets(build_dir, rep, c, lv_upper):
@@ -356,6 +464,27 @@ def check_stages(authored, c):
     stages = c.get('stages') or []
     if not stages and not any(s.get('stage') for s in c['spawners']):
         return True, 'no stages (one-stage mode)'
+    nat = stockcore.native()
+    if nat is not None:
+        try:                        # the configuration as the Python reading reads it; anything odd is left to it
+            later = []
+            for s in c['spawners'] + c['orders']:
+                if (s.get('stage') or 0) > 0:
+                    role = 'spawner' if s in c['spawners'] else 'order'
+                    later.append((s, dbxbin.new_guid('opfor:stockmp', c['lv'], role, s['id'])))
+            srcs = [st['advance']['source'].upper() for st in stages]
+            facts = nat.stockmp_instance_facts(_read(authored), [g for _s, g in later] + srcs)
+        except Exception:                                   # the Python reading below raises its own
+            facts = None
+        # the Python reading where it would raise: a later-stage instance missing, or without a readable Enabled
+        if facts is not None and all(f is not None and f[1] is not None for f in facts[:len(later)]):
+            bad = [f'{s["id"]} (stage {s["stage"]}) starts enabled' for (s, _g), f in zip(later, facts) if f[1] != 'false']
+            for st, src, f in zip(stages, srcs, facts[len(later):]):
+                if f is None:
+                    bad.append(f'stage {st["index"]}: source {src} missing')
+                elif not (f[0] or '').endswith('MultipleTriggerEntityData'):
+                    bad.append(f'stage {st["index"]}: source is a {f[0]}')
+            return not bad, (f'{len(stages)} stage switches; later stages start disabled' if not bad else '; '.join(bad[:8]))
     _f, inst = _core_instances(authored)
     bad = []
     for s in c['spawners'] + c['orders']:
@@ -384,7 +513,13 @@ def packed_files(out_bundle):
 
 def check_packed(out_bundle, build_dir, tmp):
     """The packed bundle unpacks to exactly the built files (compared in memory: the same answer as FbrbTool's
-    unpack into a folder, without writing and deleting every file)."""
+    unpack into a folder, without writing and deleting every file; in the Rust core on all cores when it takes the
+    bundle and folder)."""
+    nat = stockcore.native()
+    got = nat.stockmp_packed_check(os.fspath(out_bundle), os.fspath(build_dir)) if nat is not None else None
+    if got is not None:
+        n, bad = got
+        return bad == 0, f'{n} files unpack identical' if not bad else f'{bad} of {n} files differ after packing'
     files = packed_files(out_bundle)
     bad = 0
     n = 0
@@ -410,6 +545,17 @@ def validate(paths, c, log=print):
     so = {k: (v['x'], v['z']) for k, v in rep['sector_offsets'].items()}
     _VALIDATING = True
     try:
+        try:            # every variant's read-only DbxEdit runs at once (the checks below take their results)
+            pre = []
+            for v, var in rep['variants'].items():
+                lv_upper = var['entry'].split('/')[-1][:-4]
+                orig = os.path.join(paths.root, 'build', f'{lv_upper}_{v}.original.dbx')
+                auth = os.path.join(paths.root, 'build', f'{lv_upper}_{v}.authored.dbx')
+                pre += [('check', auth, '--bundle', os.path.join(paths.root, 'build', v), '--bundle', mp_common),
+                        ('check', orig, '--bundle', paths.src(v), '--bundle', mp_common), ('roundtrip', auth)]
+            _prefetch_dbxedit(pre)
+        except Exception:                   # not made ahead: each check runs its own (and fails by its own rules)
+            _DBXEDIT_DONE.clear()
         for v, var in rep['variants'].items():
             lv_upper = var['entry'].split('/')[-1][:-4]
             orig = os.path.join(paths.root, 'build', f'{lv_upper}_{v}.original.dbx')
@@ -447,6 +593,8 @@ def validate(paths, c, log=print):
         _VALIDATING = False
         _FOLDER_INDEX.clear()
         _PARSED.clear()
+        _DATA.clear()
+        _DBXEDIT_DONE.clear()
         shutil.rmtree(tmp, ignore_errors=True)
     out = {'passed': all(ok for _n, ok, _d in results), 'results': [{'check': n, 'ok': ok, 'detail': d} for n, ok, d in results]}
     with open(os.path.join(paths.root, 'validation.json'), 'w', encoding='utf-8') as f:

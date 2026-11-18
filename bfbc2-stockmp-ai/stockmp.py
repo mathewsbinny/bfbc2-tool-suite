@@ -31,7 +31,6 @@ import suite_paths  # noqa: E402
 suite_paths.use('core', 'stockmp')
 
 import config as cfgmod  # noqa: E402
-import dbxbin  # noqa: E402
 import levelmodel  # noqa: E402
 import pipeline  # noqa: E402
 from bfbc2core import atomicio  # noqa: E402
@@ -71,7 +70,8 @@ def summary(paths: pipeline.Paths) -> None:
     lvl = pipeline.find_entry(d, entry)
     if lvl is None:
         raise SystemExit(f'{paths.lv}: the level partition {entry} is not in {d}')
-    m = levelmodel.Model(dbxbin.read(lvl))
+    with open(lvl, 'rb') as f:
+        m = levelmodel.model_of(f.read())
     print(f'{m.name}: mode {m.mode}, factions {m.factions}, attacker {m.attacker}, HasAI {m.has_ai}')
     for cp in m.capture_points:
         print(f'  capture point {cp.label or cp.name:14s} owner {cp.owner:11s} at {tuple(round(x) for x in cp.pos)}, '

@@ -66,19 +66,27 @@ start disabled and their switch sources exist.
 | file | what |
 |---|---|
 | `stockmp.py` | command line |
-| `dbxbin.py` | binary DBX as an editable typed tree, written back byte for byte (8,216 game files checked) |
+| `stockcore.py` | the Rust core's switch (round E4a): `native()`; `BFBC2_STOCKMP_PYTHON=1` runs the Python everywhere |
+| `dbxbin.py` | binary DBX as an editable typed tree, written back byte for byte (8,216 game files checked); `round_trips` on all cores |
 | `levelmodel.py` | the level as the tool sees it: capture points, spawners and ground points, M-COMs, Rush stages |
 | `config.py` | the configuration format, defaults and the generator (Conquest, Rush) |
 | `author.py` | inserts the layer into the level partition |
 | `pipeline.py` | sources, SectorOffsets asset, template packing, bundle packing, staging |
 | `validate.py` | the offline checks |
-| `tests/test_stockmp.py` | quick: synthetic levels; `--game`: Atacama Conquest built and validated twice |
+| `tests/test_stockmp.py` | quick: synthetic levels (and the Rust core against the Python on them); `--game`: Atacama Conquest built and validated twice |
+| `tests/test_validate.py` | quick: every check on good and broken synthetic builds, each with the Rust core and without |
+| `tests/test_native_levels.py` | game: the Rust core against the Python on every multiplayer level partition of the game copy |
 
 Needs Python 3.10+ and `numpy`; the suite's Rust core (`python rust\build_native.py`), else FbrbTool and DbxEdit built
 (`build.bat` in their folders); NavKit's tools are imported for the path data (`hpdtool`, `ordercheck`). With the
 Rust core no program is started: bundles are unpacked and packed in process (`bfbc2core.fbrb.unpack` / `pack_many`, the
 build's variants packed side by side), DbxEdit's checks run in process (`bfbc2core.dbxedit`), and the packed
-bundle is checked against the built files in memory (round E3j, `rust\BENCHMARKS.md`). Logs: `%LOCALAPPDATA%\bfbc2-tool-suite\logs\stockmp-*.log`.
+bundle is checked against the built files in memory (round E3j, `rust\BENCHMARKS.md`). Round E4a moved the tool's own
+logic there too (`rust\bc2-stockmp`, on `bc2_formats::dbx::edit`, the port of `dbxbin`): the level model, the
+authoring and the heavy readings of validation (structure, changes, references, stages, the partition index, the
+packed bundle), with no element tree built in Python; DbxEdit's read-only runs of every variant run at once. Every
+piece answers as its Python or leaves the input to it (anything the Python raises or formats itself), so outputs and
+messages are the Python's; Atacama's generate + build + validate 26 -> 16 s (`rust\BENCHMARKS.md`, "E4a"). Logs: `%LOCALAPPDATA%\bfbc2-tool-suite\logs\stockmp-*.log`.
 
 ## Status
 

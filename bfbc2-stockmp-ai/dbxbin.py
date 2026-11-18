@@ -9,6 +9,10 @@ This module is the Python layer's writer, used to insert new typed instances int
     d.set_text(new.child('Name'), 'AI Team1 #1')
     write(d) == original bytes                     # when nothing was changed
 
+The Rust core has this module's port (bc2_formats::dbx::edit::EditDbx, round E4a): the build authors a level there
+(author.author_level), and round_trips() checks many files on all cores; this module stays the reference and the
+fallback.
+
 Each element keeps the string-table *indexes* of its tag, attributes and text, so an unchanged file comes back exactly
 (including duplicate strings in the table), and new strings are appended at the end of the table, as DbxEdit does
 (FORMAT.md section 4). Values keep their kind: text (string index), numbers (count, size, big-endian values) and the
@@ -373,6 +377,15 @@ def write(d: Dbx) -> bytes:
 def read(path: str) -> Dbx:
     with open(path, 'rb') as f:
         return parse(f.read())
+
+
+def round_trips(items: Sequence[bytes]) -> list[bool]:
+    """Whether write(parse(data)) == data for each file: in the Rust core on all cores (bc2_formats::dbx::edit, this
+    module's port), files it refuses here; a file parse() cannot read raises its error, as parse would."""
+    import stockcore
+    nat = stockcore.native()
+    got: list[bool | None] = nat.stockmp_dbx_round_trips(list(items)) if nat is not None else [None] * len(items)
+    return [ok if ok is not None else write(parse(data)) == data for ok, data in zip(got, items)]
 
 
 def new_guid(namespace: str, *parts: object) -> str:

@@ -9,6 +9,7 @@
 //! | `value(e)`, `numbers(e)`, `floats(e)`, `_number_text` | [`value`], [`numbers`], [`floats`], [`number_text`] |
 //! | `Element`, `DbxFile` | [`Element`] (strings are [`StrId`]s into [`DbxFile::strings`]), [`DbxFile`] |
 //! | (read-only, no Python equivalent) | [`parse_tree`]: a [`DbxTree`] of [`Node`]s borrowing the file |
+//! | `bfbc2-stockmp-ai/dbxbin.py` (editable, written back byte for byte) | [`edit::EditDbx`] (round E4a) |
 //! | `ValueError` / `DeletedEntry` | [`DbxError`] |
 //!
 //! [`parse_all`], [`parse_tree_all`] and [`to_xml_all`] read many files on all cores.
@@ -24,6 +25,7 @@
 
 mod batch;
 mod cursor;
+pub mod edit;
 mod error;
 mod fieldref;
 mod model;

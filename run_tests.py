@@ -334,6 +334,7 @@ def tests():
         ('3D tools open and draw (Map Inspector, Navigation Studio)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_viewers.py')]),
         ('test harness on sp_009 and sp_004_b', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'tests', 'test_harness.py'), '--game']),
         ('stock-MP AI layer, Atacama Conquest built', 'game', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_stockmp.py'), '--game']),
+        ('stock-MP AI: the Rust core against the Python on every MP level partition', 'game', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_native_levels.py')]),
         ('Rust NavKit builds: sp_009 and sp_004_b path data as recorded', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navbuild_native.py'), '--game', '--levels', 'sp_009,sp_004_b']),
         ('NavKit regression, 2 small levels', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py'),
@@ -540,6 +541,7 @@ NEEDS = {
     '3D tools open and draw (Map Inspector, Navigation Studio)': need(cpu=4, mem=3, display='w', navstudio='w', regress='r'),
     'test harness on sp_009 and sp_004_b': need(mem=1.5, regress='r'),
     'stock-MP AI layer, Atacama Conquest built': need(cpu=2, mem=1.5),
+    'stock-MP AI: the Rust core against the Python on every MP level partition': need(cpu=2, mem=1),
     'Rust NavKit builds: sp_009 and sp_004_b path data as recorded': need(mem=3),
     'NavKit regression, 2 small levels': need(mem=3, regress='w'),
     # full

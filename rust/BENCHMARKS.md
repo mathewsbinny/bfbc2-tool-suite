@@ -2150,3 +2150,116 @@ messages for I/O errors other than missing / denied / in use / too long are word
 this Windows (device names are plain files on Windows 11; both ways go through the same Win32 calls). A manifest whose
 UTF-8 is invalid is decoded with Rust's replacement rules (.NET's may count replacement characters differently).
 `pack`'s `hdr=` larger than any real value pads in memory as .NET would. The exe stays the reference this round.
+
+## E4a: the stock-MP AI layer's logic in Rust (2026-11-18, branch `rust-e4a`)
+
+**Provisional timings:** other agents' work ran on the PC throughout (a full WW2 rebuild for about half of the runs).
+Every run was at below-normal priority, with old and new run one after the other and the order switched from level
+to level. Ratios hold within a pair; single figures vary by up to about 30 %.
+
+Round E3j moved `bfbc2-stockmp-ai`'s unpacks, packs and bundle checks into Rust. This round moves the tool's own
+logic: the level model, the authoring, and validation's readings. It keeps the data on the Rust side: the build and
+validation no longer build any element tree in Python.
+
+**The profile before** (cProfile, Atacama `generate` + `build` + `validate` in a fresh work folder, 35.7 s profiled):
+
+| where | time |
+|---|---:|
+| `fbrb.pack_many` (Dist + Package side by side, deflate-bound) | 10.4 s |
+| `fbrb.unpack` (the cached stock unpack, then the two build folders) | 5.1 s |
+| DbxEdit in process, 10 runs one after another (4 `check` against mp_common, round trips, xml, import) | 5.0 s |
+| `dbxbin.parse` / `write` (17 / 8 calls: the level partitions, the donor SP_004_B, kits) | 2.4 / 1.3 s |
+| `author.NumberKinds` (every element of the level and the donor walked in Python) + `Author.build` (its `Dbx.instance` scans every instance for each new one) | 1.2 + 0.8 s |
+| validation's `coredbx.parse` of the stock and authored partitions into Python trees (12 readings) | 1.9 s |
+| `_folder_index` (mp_common's 15,861 files walked, `relpath` per file) | 1.9 s |
+| `check_packed` (bundle read, then every built file read and compared in Python) | 2.6 s |
+| `check_changes` / `check_structure` / `check_external` beyond the parse | about 1 s |
+
+**What moved, and why:**
+
+- **`dbxbin` -> `bc2_formats::dbx::edit::EditDbx`.** This is the editable tree, kept on the Rust side: one arena of elements named by handles
+  (`NodeId`). Each element keeps the file's string indexes, the string table byte for byte until a string is added, each
+  container's flag byte and whatever follows the tree. It has the queries (`instances`, `of_type`, `instance`, `child`,
+  `attr`, `walk`), the edits (`set_attr`, `set_text`, `set_bool`, `set_numbers`, `set_transform`, `set_ref`,
+  `copy_from` / `clone_node` with `dbxbin.clone`'s interning order) and `write`. `round_trips` checks many files on
+  all cores (`dbxbin.round_trips`). Wherever `dbxbin` would fail later (a string index outside the table, a value cut
+  short, a varint past 32 bits), it refuses the file.
+- **The level model and the authoring -> the new crate `bc2-stockmp`.** It has `model::Model` (`levelmodel.Model`, Rush
+  stages included) and `author::author` (`NumberKinds`, `Author` step for step: the same edits in the same order, so
+  new strings join the table in the same order). The configuration is read from its Python dictionary into `Config`,
+  as the reference reads it. Python calls them through `levelmodel.model_of` and `author.author_native`. A level is
+  about 400,000 elements, and `NumberKinds` walked all of them (and the donor's) in Python on every build.
+- **Validation's readings -> `bc2_stockmp::checks` / `files`.** On the suite's reader (`DbxTree`, the tree `coredbx.parse`
+  gives), Rust reads the facts behind `check_structure`, `check_changes` (only the differing leaves come back, with
+  `shown()`'s value text), `check_external`'s reference set and `check_stages`' instance facts. `validate.py` still
+  decides and words every result. `_folder_index` and `check_packed` walk and compare on all cores.
+- **DbxEdit's read-only runs at once.** `validate()` runs every variant's `check` (stock and authored, against
+  mp_common) and `roundtrip` together through `dbxedit.run_many` before the checks. They read only. xml / import
+  write to the temporary folder, so they stay in order.
+- **The rule that keeps the Python's answers.** Every Rust function returns `None` where the port leaves the input to the
+  Python. That covers anything the Python raises (every `AuthorError`, a `KeyError` for an unknown soldier, a value
+  `struct.pack` refuses), anything it formats itself (a Python float as text), and any configuration value of another
+  shape. The caller then runs the Python, so the result and every error message are the reference's. The Python
+  stays the reference and the fallback this round: `stockcore.py`, with `BFBC2_STOCKMP_PYTHON=1` or
+  `BFBC2_PURE_PYTHON=1`.
+
+**Parity.** ee25186's `bfbc2-stockmp-ai` (a copy run against the same core) against this branch's, `generate` +
+`build` + `validate` in fresh work folders. Every file of the level's work folder was compared: `src\`, `build\`
+(the bundle folders, the original and authored partitions, the SectorOffsets assets), `out\` (packed bundles, staged
+path data), `config.json`, `build_report.json` and `validation.json`, with the work folder's path normalised.
+
+| level | mode | files | MB | identical | old / new (s) |
+|---|---|---:|---:|---|---:|
+| mp_005 (Atacama) | Conquest | 5,867 | 539 | yes | 26.1 / 15.7 |
+| mp_005gr | Rush | 3,338 | 284 | yes | 17.0 / 11.1 |
+| mp_002 (Valparaiso) | Rush | 4,645 | 503 | yes | 19.3 / 14.3 |
+| mp_004 | Rush | 5,311 | 509 | yes | 20.9 / 16.5 |
+| mp_008 | Rush | 3,387 | 509 | yes | 16.0 / 12.6 |
+| mp_008cq | Conquest | 2,436 | 232 | yes | 10.5 / 8.9 |
+| mp_005sr, mp_002sr, mp_004sdm, mp_008sdm | squad modes (stop in generate, as before) | 346 / 310 / 308 / 1,219 | | yes | the same error |
+| mp_001, mp_003, mp_006, mp_006cq, mp_007, mp_012gr (another world's path data*) | Rush / Conquest | 5,101 / 3,261 / 5,925 / 2,643 / 4,879 / 3,919 | 2,867 | yes | 25.8 / 18.1, 18.7 / 14.0, 31.7 / 22.4, 17.7 / 11.9, 24.8 / 18.1, 26.7 / 19.0 |
+| mp_009cq (another world's path data*) | Conquest | 2,543 | 386 | yes (validation fails both ways, identically) | 25.0 / 12.7 |
+| mp_009gr (another world's path data*) | Rush | 332 | 83 | yes (the same generate error) | 1.9 / 1.9 |
+
+\* Levels without path data of their own were built with another level's (`--pathdata`). This is not a playable
+layer, but it puts more of the stock levels' model, authoring and validation through both versions. In total:
+18 levels and 55,770 files, all identical.
+
+More proof:
+
+- `tests/test_native_levels.py` (game tier, new): all **52 multiplayer level partitions** of the game copy (Dist and
+  Package). The level model is equal field for field (Rush stages included) and the round trip is equal on all 52.
+  **30 are authored** from a generated configuration: bytes and report equal Python's, none left to Python. Their
+  validation readings with the Rust core equal those without (100 s).
+- `test_stockmp.py` (quick): Conquest, Rush and minimal layers on the synthetic levels, bytes and reports equal. Five
+  cases are left to the Python and give its answers: an authored level, an unknown soldier, a decimal set as text, a
+  value of no known kind, a `None`. The game tier also checks that the build's authoring of Atacama equals the
+  Python reference's.
+- `test_validate.py` (quick): every check call on the good and broken synthetic builds runs both ways with equal
+  results (12 runs plus the packed-bundle comparison).
+- A run whose module had gone stale (the Rust sources changed under it, so `bfbc2core` refused it) ran pure Python on
+  both sides. For six levels the outputs were identical except validation's DbxEdit lines (the old copy found no
+  `DbxEdit.exe` beside it). So the Python fallback gives the old bytes too.
+- One known difference in wording: when **several leaves of one stock instance** change, `check_changes` names them in the Rust
+  reading's order. The Python's order is a set's, which varies from process to process. No passing build has this.
+
+**Time** (whole runs from the parity table: old -> new): Atacama 26.1 -> 15.7 s, the Rush levels 16 - 21 s -> 11 - 17 s,
+the six levels on other path data 18 - 32 s -> 12 - 22 s. Validation alone: 6 - 15 s -> 2.3 - 5.2 s. Atacama
+profiled: **35.7 -> 20.5 s**. Peak working set 470 - 530 MB -> 350 - 430 MB (no Python trees of the partitions). The
+game-tier test `stock-MP AI layer, Atacama Conquest built` ran 53 s with the Rust core and 66 s with
+`BFBC2_STOCKMP_PYTHON=1`, both under the WW2 rebuild. Its writer check of Atacama's 2,567 files now runs on all cores,
+with the Python reference on the 4 largest; before, the Python ran on all 2,567 (9.4 s of parse in E3j's profile).
+
+| piece (Atacama, one variant) | Python | Rust |
+|---|---:|---:|
+| level model (`model_of`) | 0.15 - 0.23 s | 0.013 - 0.022 s |
+| authoring (parse, writer check, model, `NumberKinds`, `Author`, write) | 0.63 - 0.82 s | 0.056 s |
+| validation's readings + folder index + packed bundle (both variants) | 7.4 s (profiled) | 1.7 s (profiled) |
+| DbxEdit's six read-only runs | about 4 s in order | 1.8 s at once |
+
+**What remains** (the profile after, 20.5 s): packing **10.3 s** (zlib's deflate of each payload, byte for byte; unchanged,
+see E3j), the four unpacks **3.9 s** (file creation), DbxEdit **2.8 s** (1.8 s for the six runs together, then
+xml / import), `check_packed` 1.1 s (reading 2,900 built files), `generate` 1.1 s (NavKit's `ordercheck.PathData` in
+NumPy and the placement). The Python of `config.generate` (placement on the path data) and `pipeline` (staging,
+manifests) was not ported: they are small next to the above. The Python model, `Author` and the checks' Python
+readings are kept as fallback and reference until a later round retires them.

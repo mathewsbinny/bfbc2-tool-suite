@@ -314,6 +314,20 @@ reference: `core/tests/test_fbrbtool.py` (quick: 228 command lines both ways, da
 against a C# probe of .NET's reader; `--game`: game bundles, a replay of the logged invocations), timings
 `rust/bench_fbrbtool.py`. NavKit's unpack, `level.heightfield_of`'s terrain unpack and `bfbc2-stockmp-ai`'s
 `pipeline.run` use it.
+**The stock-MP AI layer** (round E4a, 2026-11-18, crate `rust/bc2-stockmp`). `bfbc2-stockmp-ai`'s logic runs in Rust
+with its data kept there: `bc2_formats::dbx::edit::EditDbx` is the port of `dbxbin.py` (a level partition as an arena
+of elements named by handles, edited and written back byte for byte, the string table kept until a string is added);
+on it, `levelmodel.Model` (`levelmodel.model_of`), `author.Author` (`author.author_native`: the same edits in the same
+order, so the same bytes), and the readings behind `validate.py`'s structure, changes, external-reference and stage
+checks, its partition index and its packed-bundle comparison (on all cores); `dbxbin.round_trips` checks many files
+on all cores. No element tree is built in Python on these paths (a level partition is about 400,000 elements). Each
+Rust function returns `None` where the port leaves the input to the Python (whatever the Python raises - every
+`AuthorError`, a `KeyError` - or formats itself, such as a Python float as text), so results and error messages stay
+the Python's. Python keeps every piece as the reference and the fallback: `BFBC2_STOCKMP_PYTHON=1` (or
+`BFBC2_PURE_PYTHON=1`, `stockcore.use_native(False)`) runs it. Validation also runs DbxEdit's read-only checks and
+round trips of every variant at once (`dbxedit.run_many`). Proof: `bfbc2-stockmp-ai/tests/test_native_levels.py`
+(game: all 52 multiplayer level partitions of the game copy, model, round trip, 30 authored, validation readings);
+whole work folders identical old against new (`rust/BENCHMARKS.md`, "E4a").
 **Without a fallback** (round E1d, Python retired 2026-11-17): `texture.convert` / `convert_many` and NavKit's grid
 walks (`navbuild.Level`'s neighbour linking, `components`, `trace_edges`' side neighbours, `line_walkable`,
 `build_graph`'s route-group search; `navwalk.walkable`'s flood, `islands_of`, `matched_flags`) always run in Rust:
