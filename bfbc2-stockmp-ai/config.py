@@ -133,11 +133,21 @@ def check(c):
 class Snapper:
     """Places points on the path data (NavKit's ordercheck.PathData: areas and route nodes)."""
 
+    _loaded: dict = {}          # SHA-256 of the file -> PathData (read only here: generate and validate share it)
+
     def __init__(self, hpd):
         self.pd = None
         if hpd and os.path.isfile(hpd):
+            import hashlib
+
             import ordercheck
-            self.pd = ordercheck.PathData(hpd)
+            with open(hpd, 'rb') as f:
+                key = hashlib.sha256(f.read()).digest()
+            if key not in Snapper._loaded:
+                while len(Snapper._loaded) >= 4:           # a few levels' path data at most (memory)
+                    del Snapper._loaded[next(iter(Snapper._loaded))]
+                Snapper._loaded[key] = ordercheck.PathData(hpd)
+            self.pd = Snapper._loaded[key]
             self.biggest = max(self.pd.group_size.values())
 
     def nearest(self, p):

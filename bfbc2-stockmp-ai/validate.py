@@ -41,6 +41,7 @@ import suite_paths  # noqa: E402
 suite_paths.use('core')
 from bfbc2core import dbx as coredbx  # noqa: E402
 from bfbc2core import dbxedit  # noqa: E402
+from bfbc2core import fbrb as corefbrb  # noqa: E402
 
 ORDER_NODE = 15.0
 SPAWN_NODE = cfgmod.SNAP_RADIUS + 0.5
@@ -81,9 +82,24 @@ def check_roundtrip(authored, tmp):
     return ok1 and ok2, f'roundtrip {"identical" if ok1 else "DIFFERENT"}; xml -> import {"identical" if ok2 else "DIFFERENT (exit " + str(rc2) + ")"}'
 
 
+_PARSED: dict[bytes, tuple] = {}     # validate(): SHA-256 of a file -> its reading (the checks only read them)
+
+
 def _core_instances(path):
-    f = coredbx.read(path)
-    return f, {(e.attr('guid') or '').upper(): e for e in f.instances}
+    """(file, {upper-case guid: instance}) of a DBX file by the suite's reader; while validate() runs, a file read by
+    an earlier check (the same bytes) is not parsed again."""
+    import hashlib
+    data = open(path, 'rb').read()
+    key = hashlib.sha256(data).digest()
+    if key in _PARSED:
+        return _PARSED[key]
+    f = coredbx.parse(data)
+    got = f, {(e.attr('guid') or '').upper(): e for e in f.instances}
+    if _VALIDATING:
+        while len(_PARSED) >= 2:             # a variant's stock and authored level (memory: ~100 MB each)
+            del _PARSED[next(iter(_PARSED))]
+        _PARSED[key] = got
+    return got
 
 
 def _refs(e):
@@ -140,6 +156,7 @@ def check_changes(orig, authored, c, tmp):
     changed: Counter[str] = Counter()
 
     def flat(e, path=''):
+        """{path: leaf element}; a leaf's value is compared as (kind, value text, attributes) - see same()."""
         out = {}
         for k, ch in enumerate(e.children or ()):
             name = ch.attr('name') or ch.tag
@@ -147,8 +164,19 @@ def check_changes(orig, authored, c, tmp):
             if ch.children is not None:
                 out.update(flat(ch, p))
             else:
-                out[p] = (ch.kind, coredbx.value(ch), tuple(ch.attributes))
+                out[p] = ch
         return out
+
+    def shown(ch):
+        return None if ch is None else (ch.kind, coredbx.value(ch), tuple(ch.attributes))
+
+    def same(x, y):
+        # the value text is a function of kind, text, raw bytes and attributes: leaves equal in those are equal
+        # without formatting their numbers (most of the level); others are compared by their text as before
+        if x is not None and y is not None and x.kind == y.kind and x.text == y.text and x.raw == y.raw \
+                and x.attributes == y.attributes:
+            return True
+        return shown(x) == shown(y)
     for g, e in oinst.items():
         a = ainst.get(g)
         if a is None:
@@ -166,28 +194,48 @@ def check_changes(orig, authored, c, tmp):
         else:
             fe, fa_ = flat(e), flat(a)
         for k in set(fe) | set(fa_):
-            if fe.get(k) != fa_.get(k):
+            if not same(fe.get(k), fa_.get(k)):
                 field = re.sub(r'\[\d+\]', '', k).strip('/')
                 if field in ALLOWED_CHANGED:
                     changed[field] += 1
                 else:
-                    bad.append(f'{g} {k}: {fe.get(k)} -> {fa_.get(k)}')
+                    bad.append(f'{g} {k}: {shown(fe.get(k))} -> {shown(fa_.get(k))}')
     want_pt = c.get('stock_spawners') == 'human'
     if changed['PlayerType'] and not want_pt:
         bad.append('PlayerType changed although stock_spawners is not "human"')
     return not bad, (f'existing instances unchanged except {dict(changed)}' if not bad else '; '.join(bad[:8]))
 
 
+_FOLDER_INDEX: dict[str, dict[str, str]] = {}    # validate(): one folder's index, kept while it runs
+
+
+def _folder_index(top):
+    """lower-case partition path (no .dbx) -> file path, over one unpacked bundle folder (kept in _FOLDER_INDEX
+    while validate() runs: mp_common's 15,000 files are walked once, not once per variant)."""
+    if top in _FOLDER_INDEX:
+        return _FOLDER_INDEX[top]
+    idx: dict[str, str] = {}
+    for dp, _ds, fs in os.walk(top):
+        for fn in fs:
+            if fn.lower().endswith('.dbx'):
+                p = os.path.join(dp, fn)
+                rel = os.path.relpath(p, top)[:-4].replace('\\', '/').lower()
+                idx.setdefault(rel, p)
+    if _VALIDATING:
+        _FOLDER_INDEX[top] = idx
+    return idx
+
+
+_VALIDATING = False
+
+
 def _partition_index(folders):
-    """lower-case partition path (no .dbx) -> folder file path, over unpacked bundle folders."""
+    """lower-case partition path (no .dbx) -> folder file path, over unpacked bundle folders (the first folder's
+    file where two have one)."""
     idx: dict[str, str] = {}
     for top in folders:
-        for dp, _ds, fs in os.walk(top):
-            for fn in fs:
-                if fn.lower().endswith('.dbx'):
-                    p = os.path.join(dp, fn)
-                    rel = os.path.relpath(p, top)[:-4].replace('\\', '/').lower()
-                    idx.setdefault(rel, p)
+        for rel, p in _folder_index(top).items():
+            idx.setdefault(rel, p)
     return idx
 
 
@@ -325,10 +373,19 @@ def check_stages(authored, c):
     return not bad, (f'{len(stages)} stage switches; later stages start disabled' if not bad else '; '.join(bad[:8]))
 
 
+def packed_files(out_bundle):
+    """What FbrbTool's unpack of the bundle writes, read in memory (bfbc2core.fbrb.read): {normcase relative path:
+    bytes}, *deleted* markers left out, a later entry on the same file (Windows compares names without case) winning
+    as its write would."""
+    live = [e.name for e in corefbrb.entries(out_bundle) if not e.deleted]
+    data = corefbrb.read(out_bundle, live)
+    return {os.path.normcase(os.path.normpath(n.replace('/', os.sep).replace('\\', os.sep))): data[n] for n in live}
+
+
 def check_packed(out_bundle, build_dir, tmp):
-    d = os.path.join(tmp, 'unpacked')
-    shutil.rmtree(d, ignore_errors=True)
-    pipeline.run(pipeline.FBRB, 'unpack', out_bundle, d)
+    """The packed bundle unpacks to exactly the built files (compared in memory: the same answer as FbrbTool's
+    unpack into a folder, without writing and deleting every file)."""
+    files = packed_files(out_bundle)
     bad = 0
     n = 0
     for dp, _ds, fs in os.walk(build_dir):
@@ -337,20 +394,21 @@ def check_packed(out_bundle, build_dir, tmp):
             rel = os.path.relpath(p, build_dir)
             if rel == 'fbrb.manifest':
                 continue
-            q = os.path.join(d, rel)
             n += 1
-            if not os.path.isfile(q) or open(q, 'rb').read() != open(p, 'rb').read():
+            got = files.get(os.path.normcase(rel))
+            if got is None or got != open(p, 'rb').read():
                 bad += 1
-    shutil.rmtree(d, ignore_errors=True)
     return bad == 0, f'{n} files unpack identical' if not bad else f'{bad} of {n} files differ after packing'
 
 
 def validate(paths, c, log=print):
+    global _VALIDATING
     rep = json.load(open(os.path.join(paths.root, 'build_report.json'), encoding='utf-8'))
     results = []
     tmp = tempfile.mkdtemp(prefix='stockmp_validate_')
     mp_common = pipeline.common(paths, 'mp_common')
     so = {k: (v['x'], v['z']) for k, v in rep['sector_offsets'].items()}
+    _VALIDATING = True
     try:
         for v, var in rep['variants'].items():
             lv_upper = var['entry'].split('/')[-1][:-4]
@@ -386,6 +444,9 @@ def validate(paths, c, log=print):
             results.append((f'staged {folder} path data', ok, detail))
             log(f'{"ok  " if ok else "FAIL"} staged {folder} path data: {detail}')
     finally:
+        _VALIDATING = False
+        _FOLDER_INDEX.clear()
+        _PARSED.clear()
         shutil.rmtree(tmp, ignore_errors=True)
     out = {'passed': all(ok for _n, ok, _d in results), 'results': [{'check': n, 'ok': ok, 'detail': d} for n, ok, d in results]}
     with open(os.path.join(paths.root, 'validation.json'), 'w', encoding='utf-8') as f:

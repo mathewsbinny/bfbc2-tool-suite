@@ -1079,3 +1079,99 @@ stream that fails or ends early is never written; its reads go through the sessi
 
 **The test runner** sets `BFBC2_FBRB_CACHE=0` for its tests unless it is set (the game tier sweeps every bundle and
 would fill the user's cache); the cache's own tests use folders of their own.
+
+## E3j: the stock-MP AI layer (2026-11-17, branch `rust-e3j`)
+
+**Provisional timings:** other agents' work ran on the PC throughout (a WW2 rebuild for part of it, and for a while
+the PC was paging: under 400 MB free); every run was at below-normal priority, old and new close together in time
+and in alternating order.
+
+`bfbc2-stockmp-ai` builds the AI layer of a stock multiplayer level: generate (a configuration from the level's
+objectives and the path data), build (author the level partition in each level-00 bundle, pack, stage the path data)
+and validate (DbxEdit's check and round trips, the suite's reader, the packed bundle against the built files, the
+navigation). Its game-tier test builds Atacama Conquest twice and validates once, after a writer check of
+Atacama's 2,567 binary DBX files.
+
+**The profile before** (cProfile of the game test, 91 s profiled):
+
+| where | calls | time |
+|---|---:|---:|
+| `fbrb.pack` (Rust, one bundle at a time) | 4 | 19.1 s |
+| `FbrbTool.exe unpack` (process launches: the stock bundles, then the packed ones in validation) | 6 | 16.6 s |
+| `dbxbin.parse` / `write` (2,567 test files, the level partitions) | 2,601 / 2,583 | 10.8 / 11.0 s |
+| `shutil.copytree` of the unpacked bundle into the build folder (2,359 + 566 files a build) | 4 | 7.4 s |
+| validation's `check_packed` (an unpack into a folder, every file read and deleted) | 2 | 7.8 s |
+| `rmtree` (the build and test folders) | 23 | 4.9 s |
+| validation's `check_changes` (every leaf's value formatted as text: `_net_g` 300,512 times) | 2 | 4.1 s |
+| validation's `check_external` (mp_common's 15,861 files walked once per bundle) | 2 | 2.6 s |
+| DbxEdit in process (`check`, `roundtrip`, `xml`, `import`; already round E3b) | 10 | 3.0 s |
+| NavKit: `ordercheck.PathData` / `hpdtool.parse` (the same two path-data files) | 3 / 9 | 2.7 / 1.0 s |
+
+No `DbxEdit.exe` was started (round E3b switched validation); `FbrbTool.exe` was, for every unpack.
+
+**What changed, and why:**
+
+- **Unpack in process** (`bc2_formats::fbrb::unpack_path`, `bfbc2core.fbrb.unpack`): FbrbTool's `unpack`, the same
+  files and `fbrb.manifest` (its `LayoutTokens` for padded stored payloads ported), the entries written on all
+  cores. Only bundles every reader agrees on are taken (one plain gzip member for header and payload, nothing after
+  the payload, plain ASCII names, no two entries on one file, no file where a folder is needed, paths under .NET
+  Framework's 248 characters); anything else goes to FbrbTool.exe, the reference. Atacama's Dist bundle (2,359 files):
+  FbrbTool.exe 3.8 - 5.5 s, in process 1.4 - 1.5 s.
+- **The build folder unpacked, not copied** (`pipeline.build_folder`): creating thousands of small files is the cost
+  (`shutil.copytree` 3.9 - 4.9 s for Atacama's Dist; a copy on 8 threads was no faster: 3.5 - 4.0 s), and the
+  in-process unpack writes them on all cores from the bundle in 1.4 s - the same files as the copy of the cached
+  unpack (which is that bundle's unpack, stamped with its hash). Without the Rust core, or for a bundle it leaves to
+  FbrbTool, the copy runs as before.
+- **The variants packed side by side** (`pipeline.pack_bundles`: `fbrb.pack_many`): every variant is authored
+  first, then Dist and Package are packed together; the report and the log keep the variants' order.
+- **The packed bundle checked in memory** (`validate.check_packed`): `fbrb.read` of every live entry, compared with
+  the built files by FbrbTool's path rules (a later entry on the same file wins, as its write would) - no folder
+  written, read back and deleted.
+- **Validation reads less:** `check_changes` compares leaves by kind, text, raw bytes and attributes and formats a
+  value as text only where those differ (the text is a function of them); `_partition_index` walks each folder once
+  per validation (mp_common was walked per bundle); a level partition read by one check is not parsed again by the
+  next (kept by SHA-256 while validation runs, two at a time).
+- **The path data read once:** `sector_offsets` and `config.Snapper`'s `PathData` keep their results by the file's
+  SHA-256 (a build reads each file twice, validation again; a few at most).
+- **`dbxbin` in Python, faster:** one-byte varints read inline, varints below 2^14 written from a table, the open
+  container's list kept at hand. 2,567 Atacama files: parse 3.71 -> 2.68 s, write 1.94 -> 0.88 s, every tree and
+  byte the old code's (also after an edit that rewrites the string table). A Rust parser would still have to build
+  the same 2.1 million Python elements, which is most of the cost; not ported.
+
+**Parity.** The round's code against the old (`git show HEAD` copies, run in fresh work folders: generate, build,
+validate, every file of the work folder compared - the unpacked stock bundles, the build folders, the packed and
+staged outputs, `config.json`, `build_report.json` and `validation.json` with the work folder's path normalised):
+
+| level | mode | spawners / orders | files compared | identical | old / new (s) |
+|---|---|---:|---:|---:|---:|
+| mp_005 (Atacama), two runs | Conquest | 16 / 6 | 5,867 x 2 (566 MB) | all | 95.1 / 29.8; 83.0 / 24.7 |
+| mp_005gr | Rush | 32 / 16 | 3,338 | all | 21.9 / 14.1 |
+| mp_002 (Valparaiso) | Rush | 40 / 20 | 4,645 | all | 30.4 / 22.1 |
+| mp_004 | Rush | 24 / 12 | 5,311 | all | 32.4 / 17.1 |
+| mp_008 | Rush | 20 / 10 | 3,387 | all | 29.4 / 13.8 |
+| mp_008cq | Conquest | 8 / 4 | 2,436 | all | 11.7 / 7.5 |
+| mp_005sr, mp_002sr, mp_004sdm, mp_008sdm | squad modes | - | 346 / 310 / 308 / 1,219 (the unpacked stock bundle) | all | the same error both ways |
+
+(Every validation passed both ways. The squad modes stop in `generate` - "only conquest and rush" / "no multiplayer
+kits known for FactionNeutral" - identically.) The unpack: `core/tests/test_fbrb_unpack_native.py` - 30 built
+bundles (zipped, stored, every padded layout and token), 48 odd and damaged ones (all left to FbrbTool; the API then
+gives FbrbTool's files or error), and `--game`: **1,073 bundles of the game copy, 361,171 files, identical** both
+ways, none refused (1,059 with payloads up to 150 MiB: unpack time FbrbTool 507 s, Rust 118 s; then the 14 of 150 -
+250 MiB: 58 s / 16 s; the 13 larger ones were not run under the PC's memory rule that day). `cargo test`: the unpack's own tests.
+
+**Time** (the game test `stock-MP AI layer, Atacama Conquest built`, wall, old and new alternating):
+
+| run | old | new |
+|---|---:|---:|
+| 1 | 66.6 s | 36.1 s |
+| 2 | 89.4 s | 38.4 s |
+
+One level's generate + build + validate, from the parity runs: Atacama 83 - 95 s -> 25 - 30 s; the Rush levels
+22 - 32 s -> 14 - 22 s. A rebuild of a level whose stock bundles are already unpacked skips the first unpack either
+way.
+
+**What remains** (the profile after, 67 s profiled): packing (16.2 s for the two builds' four bundles: zlib's deflate
+of the whole payload, byte for byte, although only the level partition and a few entries changed - reusing the
+unchanged prefix's compressed stream would need the deflater's state at an entry boundary), the test's own
+`dbxbin` writer check (9.4 s of parse), the in-process unpacks (8.6 s for 8, mostly file creation), DbxEdit's
+`check` against mp_common (5.4 s for 10 runs) and folder deletion (4.4 s).

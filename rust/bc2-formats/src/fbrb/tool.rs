@@ -29,6 +29,7 @@ use rayon::prelude::*;
 
 use super::netgzip::{self, NetGzipError};
 use super::pack::{Layout, Manifest, ManifestLine, Padding, SourceRow, decode_text, lines, pack_rows, token};
+use super::unpack::UnpackStats;
 use crate::dbxedit::{Fault, FaultKind, net};
 
 type Result<T, E = Fault> = std::result::Result<T, E>;
@@ -383,6 +384,21 @@ fn read_all(path: &str) -> Result<Vec<u8>> {
 
 static WRITES: AtomicU64 = AtomicU64::new(0);
 
+/// `target` spelled as the file already there is (Windows matches names without case): `File.Create` keeps an
+/// existing file's name, where a move onto another spelling would rename it (`pack`'s `File.Replace` takes the new
+/// spelling: it moves onto `target` as given).
+fn on_disk_name(target: &Path) -> PathBuf {
+    if fs::symlink_metadata(target).is_err() {
+        return target.to_path_buf();
+    }
+    match (fs::canonicalize(target), target.parent()) {
+        (Ok(real), Some(parent)) => real
+            .file_name()
+            .map_or_else(|| target.to_path_buf(), |n| parent.join(n)),
+        _ => target.to_path_buf(),
+    }
+}
+
 /// A file written beside `target` and moved over it.
 fn write_atomic(target: &str, data: &[&[u8]]) -> Result<()> {
     let n = WRITES.fetch_add(1, Ordering::Relaxed);
@@ -398,7 +414,7 @@ fn write_atomic(target: &str, data: &[&[u8]]) -> Result<()> {
         // as File.Create(target) would have failed
         return Err(Fault::io(&e, Path::new(target)));
     }
-    crate::atomic::replace(Path::new(&tmp), Path::new(target)).map_err(|e| {
+    crate::atomic::replace(Path::new(&tmp), &on_disk_name(Path::new(target))).map_err(|e| {
         let _ = fs::remove_file(&tmp);
         Fault::io(&e, Path::new(target))
     })
@@ -581,7 +597,6 @@ fn region(len: usize, index: i32, count: i32) -> Result<()> {
 
 /// FbrbTool's `Read(path, ...)`.
 fn read_bundle(path: &str) -> Result<Bundle> {
-    const BASE: i32 = 8;
     let (mut f, len) = open_for_read(path)?;
     let io = |e: io::Error| Fault::new(FaultKind::Io, e.to_string());
     let mut first = [0u8; 8];
@@ -606,8 +621,33 @@ fn read_bundle(path: &str) -> Result<Bundle> {
     let h = netgzip::gunzip(&hz).map_err(gzip_fault)?;
     drop(hz);
 
-    let strlen = read_be(&h, 4)? as i32;
-    let count = read_be(&h, BASE.wrapping_add(strlen))? as i32;
+    let (entries, zipped, payload_field) = parse_header(&h)?;
+    let header_region = 8i32.wrapping_add(cut);
+    let rest = len - 8 - cut as usize;
+    let start = header_region as u64;
+    let payload = if zipped {
+        read_zipped(&f, len, start, rest)?
+    } else {
+        Payload::File {
+            file: f,
+            start,
+            len: rest,
+        }
+    };
+    Ok(Bundle {
+        entries,
+        payload,
+        zipped,
+        payload_field,
+        header_region,
+    })
+}
+
+/// The decompressed header as FbrbTool's `Read` takes it apart: C#'s 32-bit wrapping arithmetic, its array bounds.
+fn parse_header(h: &[u8]) -> Result<(Vec<Entry>, bool, u32)> {
+    const BASE: i32 = 8;
+    let strlen = read_be(h, 4)? as i32;
+    let count = read_be(h, BASE.wrapping_add(strlen))? as i32;
     if count < 0 {
         return Err(Fault::new(
             FaultKind::ArgumentOutOfRange,
@@ -627,14 +667,14 @@ fn read_bundle(path: &str) -> Result<Bundle> {
             .wrapping_add(strlen)
             .wrapping_add(4)
             .wrapping_add(i.wrapping_mul(24));
-        let at = |k: i32| read_be(&h, e.wrapping_add(k));
+        let at = |k: i32| read_be(h, e.wrapping_add(k));
         entries.push(Entry {
-            name: cstring(&h, BASE.wrapping_add(at(0)? as i32))?,
+            name: cstring(h, BASE.wrapping_add(at(0)? as i32))?,
             flags: at(4)?,
             offset: at(8)?,
             size: at(12)?,
             size2: at(16)?,
-            type_name: cstring(&h, BASE.wrapping_add(at(20)? as i32))?,
+            type_name: cstring(h, BASE.wrapping_add(at(20)? as i32))?,
         });
     }
     let tail = BASE
@@ -643,28 +683,44 @@ fn read_bundle(path: &str) -> Result<Bundle> {
         .wrapping_add(count.wrapping_mul(24));
     let zipped = *h.get(usize::try_from(tail).map_err(|_| index())?).ok_or_else(index)? != 0;
     let payload_field = if (h.len() as i32) >= tail.wrapping_add(5) {
-        read_be(&h, tail.wrapping_add(1))?
+        read_be(h, tail.wrapping_add(1))?
     } else {
         0
     };
-    let header_region = 8i32.wrapping_add(cut);
-    let rest = len - 8 - cut as usize;
-    let start = header_region as u64;
+    Ok((entries, zipped, payload_field))
+}
+
+/// FbrbTool's `Read` of a bundle given as bytes (`label` names it in an error, as the path would).
+fn bundle_from_bytes(label: &str, data: &[u8]) -> Result<Bundle> {
+    if data.len() < 8 || data.get(..4) != Some(b"FbRB".as_slice()) {
+        return Err(Fault::invalid(format!("{label} is not an FbRB bundle")));
+    }
+    if data.len() > i32::MAX as usize {
+        return Err(Fault::new(
+            FaultKind::Io,
+            "The file is too long. This operation is currently limited to supporting files less than 2 gigabytes in size.",
+        ));
+    }
+    let cut = data
+        .get(4..8)
+        .and_then(|b| <[u8; 4]>::try_from(b).ok())
+        .map_or(0, i32::from_be_bytes);
+    region(data.len(), 8, cut)?;
+    let start = 8 + cut as usize;
+    let h = netgzip::gunzip(data.get(8..start).unwrap_or_default()).map_err(gzip_fault)?;
+    let (entries, zipped, payload_field) = parse_header(&h)?;
+    let rest = data.get(start..).unwrap_or_default();
     let payload = if zipped {
-        read_zipped(&f, len, start, rest)?
+        netgzip::gunzip(rest).map_err(gzip_fault)?
     } else {
-        Payload::File {
-            file: f,
-            start,
-            len: rest,
-        }
+        rest.to_vec()
     };
     Ok(Bundle {
         entries,
-        payload,
+        payload: Payload::Memory(payload),
         zipped,
         payload_field,
-        header_region,
+        header_region: 8i32.wrapping_add(cut),
     })
 }
 
@@ -845,13 +901,14 @@ fn write_entries(out_dir: &str, b: &Bundle) -> Result<()> {
     Ok(())
 }
 
-fn unpack(fbrb: &str, out_dir: &str, o: &mut Outcome) -> Result<i32> {
-    let b = read_bundle(fbrb)?;
+/// FbrbTool's `Unpack` after its `Read`: the output folder, the entries (in order, then on all cores: [`write_entries`]),
+/// `fbrb.manifest`.
+fn unpack_bundle(b: &Bundle, out_dir: &str) -> Result<UnpackStats> {
     create_directory(out_dir)?;
     let mut manifest = format!(
         "# fbrb.manifest - entry order matters. name|type|flags(hex)|size2|size  zipped={}{}\r\n",
         u8::from(b.zipped),
-        if b.zipped { String::new() } else { layout_tokens(&b)? }
+        if b.zipped { String::new() } else { layout_tokens(b)? }
     );
     let mut deleted = 0;
     for e in &b.entries {
@@ -862,19 +919,47 @@ fn unpack(fbrb: &str, out_dir: &str, o: &mut Outcome) -> Result<i32> {
         );
         deleted += usize::from(e.is_deleted());
     }
-    write_entries(out_dir, &b)?;
+    write_entries(out_dir, b)?;
     write_atomic(&full_path(&combine(out_dir, "fbrb.manifest")?)?, &[manifest.as_bytes()])?;
+    Ok(UnpackStats {
+        entries: b.entries.len(),
+        payload_len: b.payload.len() as u64,
+        deleted,
+    })
+}
+
+fn unpack(fbrb: &str, out_dir: &str, o: &mut Outcome) -> Result<i32> {
+    let s = unpack_bundle(&read_bundle(fbrb)?, out_dir)?;
     o.out(&format!(
         "unpacked {} entries ({} bytes) to {out_dir}{}",
-        b.entries.len(),
-        b.payload.len(),
-        if deleted > 0 {
-            format!("; {deleted} of them *deleted* markers, listed in fbrb.manifest only")
+        s.entries,
+        s.payload_len,
+        if s.deleted > 0 {
+            format!(
+                "; {} of them *deleted* markers, listed in fbrb.manifest only",
+                s.deleted
+            )
         } else {
             String::new()
         }
     ));
     Ok(0)
+}
+
+/// FbrbTool's `unpack <bundle> <out_dir>` without its messages: what it unpacked, or the error FbrbTool reports.
+///
+/// # Errors
+/// The [`Fault`] FbrbTool would report (it explains it in words: [`Fault::explain`]).
+pub fn unpack_path(bundle: &str, out_dir: &str) -> Result<UnpackStats> {
+    unpack_bundle(&read_bundle(bundle)?, out_dir)
+}
+
+/// [`unpack_path`] of a bundle given as bytes (`label` stands for its path in an error).
+///
+/// # Errors
+/// As [`unpack_path`].
+pub fn unpack_bytes(label: &str, data: &[u8], out_dir: &str) -> Result<UnpackStats> {
+    unpack_bundle(&bundle_from_bytes(label, data)?, out_dir)
 }
 
 fn list(fbrb: &str, o: &mut Outcome) -> Result<i32> {
@@ -1138,5 +1223,52 @@ mod tests {
         let o = run(&args(&["list", &s(&d.join("missing.fbrb"))]), None);
         assert!(o.stderr.contains("A file the tool needs is missing"), "{o:?}");
         let _ = fs::remove_dir_all(&d);
+    }
+
+    /// E3j's `layout_tokens(entries, payload, payload_field, header_region)` on the shared engine.
+    fn tokens(es: &[Entry], p: &[u8], plen: u32, hr: i32) -> String {
+        let b = Bundle {
+            entries: es
+                .iter()
+                .map(|e| Entry {
+                    name: e.name.clone(),
+                    type_name: e.type_name.clone(),
+                    ..*e
+                })
+                .collect(),
+            payload: Payload::Memory(p.to_vec()),
+            zipped: false,
+            payload_field: plen,
+            header_region: hr,
+        };
+        layout_tokens(&b).unwrap()
+    }
+
+    #[test]
+    fn layout_tokens_of_padded_payloads() {
+        let e = |offset, size, size2| Entry {
+            name: "x".into(),
+            type_name: "t".into(),
+            flags: 0,
+            offset,
+            size,
+            size2,
+        };
+        let mut p = vec![1u8; 100];
+        p.extend(vec![0xBF; 4096 - 100]);
+        p.extend(vec![2u8; 100]);
+        let es = [e(0, 100, 36), e(4096, 100, 36)];
+        assert_eq!(
+            tokens(&es, &p, 4096 + 36, 4096),
+            " layout=align4096 hdr=4096 plen=size2 size2=minus64"
+        );
+        let mut g = vec![1u8; 10];
+        g.extend(vec![0xBF; 64]);
+        g.extend(vec![2u8; 10]);
+        assert_eq!(
+            tokens(&[e(0, 10, 10), e(74, 10, 10)], &g, 84, 22),
+            " layout=gap64 hdr=1"
+        );
+        assert_eq!(tokens(&[e(0, 10, 10), e(10, 10, 10)], &[0; 20], 20, 24), "");
     }
 }

@@ -236,6 +236,12 @@ def cases() -> list[tuple[str, dict[str, Any], list[str]]]:
         ('a/./b/../c.res', 'T', 1, b'1'), ('d. /e .res', 'T', 1, b'2'), ('f\xe9.res', 'T\xff', 1, b'3'),
         ('dup.res', 'T', 1, b'first'), ('DUP.res', 'T', 1, b'second'), ('x\\y.res', 'T', 1, b'4')])},
         'unpack', '{d}\\x.fbrb', '{d}\\u')
+    add('unpack: two entries on one file, in another case', {'x.fbrb': bundle([
+        ('A.dbx', 'T', 1, b'1'), ('d/x.res', 'T', 1, b'x'), ('a.DBX', 'T', 1, b'22'), ('D/X.RES', 'T', 1, b'yy')])},
+        'unpack', '{d}\\x.fbrb', '{d}\\u')
+    add('unpack over files and folders named in another case', {
+        'b1.fbrb': built['b1.fbrb'], 'u\\LEVELS\\test\\TEST.DBX': b'old', 'u\\FBRB.MANIFEST': b'old'},
+        'unpack', '{d}\\b1.fbrb', '{d}\\u')
     add('unpack: a file where a folder must be', {'x.fbrb': bundle([('a', 'T', 1, b'1'), ('a/b', 'T', 1, b'2')])},
         'unpack', '{d}\\x.fbrb', '{d}\\u')
     add('unpack: an entry that is a folder already', {'x.fbrb': bundle([('a', 'T', 1, b'1')]), 'u\\a': None},
@@ -356,6 +362,7 @@ def cases() -> list[tuple[str, dict[str, Any], list[str]]]:
     pk('a field error after the file', man + 'a.res|T|zz|5|5\r\n')
     pk('the bundle into a missing folder', man + 'a.res|T|1|5|5\r\n', out='{d}\\no\\such\\o.fbrb')
     pk('the bundle over an existing one', man + 'a.res|T|1|5|5\r\n', {'o.fbrb': b'old'})
+    pk('the bundle over an existing one named in another case', man + 'a.res|T|1|5|5\r\n', {'O.FBRB': b'old'})
     pk('the bundle path a folder', man + 'a.res|T|1|5|5\r\n', {'odir': None}, out='{d}\\odir')
     pk('illegal characters in the bundle path', man + 'a.res|T|1|5|5\r\n', out='{d}\\o<.fbrb')
     add('pack: a missing folder', {}, 'pack', '{d}\\nothing', '{d}\\o.fbrb')

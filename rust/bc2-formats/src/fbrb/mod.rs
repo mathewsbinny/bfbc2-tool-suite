@@ -13,6 +13,7 @@
 //! | `read(path, names)` | [`read_path`] ([`read`] on any reader), [`read_many`] for many bundles on all cores |
 //! | `build(items, zipped)` | [`build`] (a test writer) |
 //! | `pack(folder, out)` (FbrbTool's `pack`) | [`pack_path`], [`pack_dir`], [`pack_many`]; [`pack`] from entries in memory |
+//! | `unpack(bundle, out)` (FbrbTool's `unpack`) | [`unpack_path`], [`unpack_bytes`] (every bundle as FbrbTool unpacks it: [`tool`]'s engine) |
 //! | `Entry`, `Entry.deleted`, `DELETED` | [`Entry`], [`Entry::is_deleted`], [`DELETED`] |
 //! | `ValueError` / `KeyError` / `OSError` | [`FbrbError`] |
 //!
@@ -49,6 +50,7 @@ pub mod netgzip;
 mod pack;
 mod read;
 pub mod tool;
+mod unpack;
 
 pub use build::build;
 pub use error::{FbrbError, Result};
@@ -61,3 +63,4 @@ pub use read::{
     entries_path, extract, extract_many, extract_path, extract_path_uncached, read, read_many, read_path,
     read_path_uncached, read_payload, stream_payload,
 };
+pub use unpack::{UnpackError, UnpackStats, unpack_bytes, unpack_path};
