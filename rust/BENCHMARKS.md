@@ -1291,4 +1291,112 @@ Peak working set of a bench run: 1.6 - 1.9 GB, nearly all of it BF1943's source 
 
 `bfbc2-bf1943-import/tests/test_ports_native.py` (quick, 2 s of work: the built inputs above; `--game`, 124 s: the
 bulk ports both ways, the index rows, the Onslaught corpus), `rust/bc2-convert` unit tests (`mesh_tests.rs`,
-`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests	est_durations.json`.
+`havok_tests.rs`), `test_havokport.py` now 11 s (`ix.read_many`). Seeds in `tests\test_durations.json`.
+
+## E3m: the sweep (2026-11-17, branch `rust-e3m`)
+
+**Provisional timings:** other agents' builds and tests ran beside every figure (below-normal priority, the machine
+near its memory limit); ratios hold within a run. cProfile adds 1.5-4x to Python-heavy code: the profiled seconds
+rank the work, the before / after tables below are unprofiled.
+
+The tools no earlier round had profiled, on their real workloads: `rust\bench_sweep.py <workload> --profile <folder>`
+(the game copy and OPFOR's work folders read only; outputs and caches in a temporary folder) and each tool's
+game-tier test under cProfile. Not profiled: the tools other agents own this round (NavKit, Granny, stock-MP AI, FBRB,
+renderqa / xdiff / disasm), and four folders that hold only a README (`bfbc2-ai-behavior-simulator`,
+`bfbc2-bot-ai-debugger`, `bfbc2-tactical-map-authoring-tool`; `bfbc2-diff-workbench` is LevelDiff, C#: 2.4 s on MP_005).
+
+### The ranked table
+
+| # | tool | workload | s (profiled) | top cost (calls) | likely fix | expected gain |
+|---:|---|---|---:|---|---|---|
+| 1 | culltree | `add --auto --misplaced 2` on Onslaught MP_005 against every `work\levels` folder (console_cull's run), 2.4 GB | 128 | `ref_pairs`: 89 reference level partitions and 46 trees parsed every run, 93 s (`Level.__init__` 36 s, `CullTree.__init__` 31 s, 14 M `El.attr`, 1.4 M `El.child`); the listing (`culltree_dbx_files` + `culltree_contains`, 109,660 files) 24 s; `shape_for` 19 s (1,985 calls, leave-one-out) | cache (reference rows on disk), algorithm (shape memo) | **done**: 3x warm, memory 2.5 -> 0.2 GB |
+| 2 | culltree | `verify` on the same | 99 | the same reading; `object_checks`' leave-one-out shapes | cache + memo | **done**: 5.8x warm |
+| 3 | navdata (core) | `navdata.load` without its cache, DICE's path data of the 17 prepared levels that have one | 207 | NavKit's `navdiff.area_cells` 121 s (168,094 areas), `kymesh.parse_mesh` 38 s; navdata's own union-find loops 12 s | Rust (`area_cells` and the mesh parse are NavKit's, E3h's this round) | 10x+; every first open of a level in the Studio / harness |
+| 4 | menu tools | `aptgraft roundtrip --pack`, 73 movies (menu, MP / SP HUD) | 164 | `write` 97 s (`_emit` 257 k, `_layout` 900, `reachable` 400 calls 31 s), the parse 30 s, `apt.Movie.instructions` 19 s | algorithm (reachable / layout recomputed per write), Rust (APT model) | 3-5x |
+| 5 | menu tools | `aptrefs xref` (every movie set, the exe's table) | 47 | `apt.Movie.instructions`: 1,924,750 instructions decoded (all distinct: no repetition to cache), `decode` 16 s, `disasm` 26 s | Rust APT decoder (dump text and records) | 5-8x |
+| 6 | harness | `harness run` sp_009 + sp_004_b, cold cache, no parity | 49 | `navdata.load` 18 s (as 3), `navpath.route` 8.7 s (581 routes, 532 k `norm`), NavKit's `ordercheck` 6.9 s | cache (warm in real use), Rust A* | 2x |
+| 7 | menu tools | aptcheck's rules on every movie (128) | 37 | `apt.Movie.instructions` 27 s (as 5) | Rust APT decoder | 5-8x |
+| 8 | harness | `import-log`: `ingame.sessions` of the game copy's 349 MB opfor.log | 26 | 21 M `re.search` (13 patterns on every one of 3.2 M lines) | algorithm (literal search) | **done**: 2-4x |
+| 9 | texqa | the WW2 vehicles' 22 textures, cold | 19 | per texture 0.47 s of NumPy decode / PSNR / SSIM; BF1943's source opened 4 s | batch (all cores); Rust DXT decode | ~cores; a full WW2 run (thousands of textures) is minutes |
+| 10 | console convert | `verify-havok`, 400 Onslaught files | 17 | `havok.Packfile`'s Python walk 14 s (4.4 M `swap`): verify needs its per-byte owners; **0 of 400** files are byte-identical, so converting in Rust first does not help | Rust walk record (owners, arrays, objects) exposed to `ignorable` | ~10x |
+| 11 | navpath (core) | 400 routes on sp_009 / sp_004_b | 11.7 | `closest_between` 5.2 s (200 failed routes), `route` 2 s | algorithm (island pairs cached) | 2x |
+| 12 | console convert | soot test (BF1943 sources) | 10 | BF1943 bundles read whole (`fbrb_read` 2.5 s, gzip 2.4 s, 7,390 `scandir`) | bf1943import's reader (another suite) | - |
+| 13 | Navigation Studio | loading sp_009 (level, both path data cold, the scene) | 9.1 | spread: `scene_load` 0.8 s, `overlay.nearest_node` 1.1 s (2,017), `area_cells` | - | small |
+| 14 | crash reader | `log_before_crash` on the 349 MB log, 3 lookups | 18 (unprofiled) | the whole log decoded (3.5 s) and split (1.9 s) per lookup | algorithm (windows around the crash lines) | **done**: 23x |
+| 15 | Map Inspector | loading MP_005 + SP_01 (9.2 M triangles) | 7.2 | `viewer.add_box` 2.1 s (7,940), `add_triangles` 1.9 s (18,219) | batch the boxes | 1.5x |
+| 16 | bc2loc | `dump` English + Russian | 7.3 | `apt.Movie.__init__` 3.7 s (300 movies' constants for key names) | cache | 2x |
+| 17 | terrain (console) | the terrain test | 7.1 | BF1943 bundles (3.4 s), gzip | - | - |
+| - | small | mesh viewer test 3.3, model tools 0.7 / 2.0 / 3.4, console readers 1.5, exeref 3.4, LevelDiff 2.4 | | reading | - | - |
+
+### What changed
+
+- **culltree** (`bfbc2-culltree/culltree.py`): `ref_rows` makes `ref_pairs`' choices (the same levels, order, notes and
+  skips) and keeps each reference level's `collect()` rows - its slotted instances' leaves in the blueprint's own space,
+  the object left out (None: only the target level's objects are ever compared by identity) - in
+  `%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`, one pickle per level file, valid while the level file, its tree file
+  (size, modification time) and `culltree.py` itself (a digest) are unchanged; the tree path is recomputed from the
+  cached reference each run, so a tree that appears or moves is found as before. `collect()` takes the rows
+  (`RefRows`) beside (tree, level, label) pairs. Without the disk cache (`BFBC2_CULLTREE_CACHE=0`) each reference level
+  is still read once and dropped at once: the trees and partitions are no longer all held. `shape_for` takes a memo:
+  in `misplaced` and `object_checks` (leave-one-out) every level's instance group but the object's own is the same
+  list each call, and its consensus and shape are computed once. `BFBC2_CULLTREE_REFERENCE=1` (`REFERENCE`): `ref_pairs`
+  and no memo, as before. The listing of the `--ref-dir` folders (Rust, 10 s of the warm run) is not cached: a file's
+  content decides whether it is a level partition, and only reading it tells.
+- **harness `ingame.sessions`**: only the lines holding one of the patterns' literals are read by the patterns (the old
+  loop, kept as `sessions_reference`); in a text without carriage returns the literals are found with `str.find` over
+  the whole text and the lines between counted by their breaks (newlines with `str.count`, the rarer breaks
+  `str.splitlines` knows by their offsets: the game log has 7 `\x1d`), else line by line.
+- **crash reader `log_before_crash`**: the log read as bytes; from the last `crashreport.xml` back, a window from just
+  after a newline 402 newlines earlier to the newline after the mark is decoded and split. A newline byte always ends
+  a line and is never inside a UTF-8 sequence, and the mark is ASCII, so the window's lines are the whole text's.
+  `log_before_crash_reference` reads the whole text (`BFBC2_CRASHREADER_REFERENCE=1`).
+- **apt.py** (`bfbc2-console-readers`): the field formats compiled once, opcodes below 0x80 (no argument) returned
+  at once, the per-call lambdas gone: 16% (the same dump lines and instruction records on all 128 movies, 1,924,750
+  instructions, against the file at HEAD). The decoder is the next Rust candidate (items 4, 5, 7).
+- Tried and dropped: `havok.verify` converting in Rust first and walking in Python only where the bytes differ -
+  every one of the 400 shared files differs in ignorable bytes, so the Python walk still ran for all (item 10).
+
+### Before and after (unprofiled)
+
+| workload | before, s | E3m, s | |
+|---|---:|---:|---:|
+| culltree add, MP_005 against `work\levels` (`BFBC2_CULLTREE_REFERENCE=1` / cold cache / warm) | 52.5 (peak 2.54 GB) | 45.2 cold (0.66 GB), **17.4** warm (**0.20 GB**) | 3.0x |
+| culltree verify, the same (test run, machine busy) | 106.9 | 64.3 no cache, 64.8 cold, **18.4** warm | 5.8x |
+| culltree add in the same test run | 70.2 | 71.5 no cache, 70.3 cold, **34.9** warm | 2.0x |
+| `ingame.sessions`, 349 MB opfor.log, 587 sessions | 5.2-9.6 | **2.1-2.9** | 2.5-4x |
+| `log_before_crash`, the same log, 3 lookups | 18.2 | **0.8** | 23x |
+| `apt.Movie.instructions`, 128 movies | 20.9 | 17.5 | 1.2x |
+
+### Parity
+
+- culltree (`tests\test_culltree_e3m.py`): `add` and `verify` through the command line with the reference, with no
+  cache, a cold cache and a warm one - the same exit code, report and written files. Game: Onslaught MP_005 against
+  every `work\levels` folder, add (241 report lines, the same tree and level bytes) and verify (134 lines) all four
+  ways. Quick: built levels with the target's two huts on swapped slots (misplaced), reference levels with lamps and
+  huts, one whose tree is missing, one whose tree is damaged (the note), a file that is no level; and a reference
+  changed after the cache was made. `test_culltree_native.py`'s add run reads every reference both ways
+  (`BFBC2_CULLTREE_CACHE=0`).
+- `ingame.sessions`: the game copy's log, 587 sessions equal field for field to `sessions_reference`; quick: the built
+  log as is, CR LF, a U+2028, no final newline, blank lines around, two matches a line, reversed, three times.
+- `log_before_crash`: the game copy's log, three lookups (the last crash, one at the log's time, one an hour before);
+  quick: 300 seeded logs (CR LF, lone CR, U+2028 / U+0085 / `\x0b` / `\x1c` breaks, bytes that are not UTF-8, timed and
+  untimed crash lines, two marks a line, 0-900 lines), `when` and line counts varied.
+
+### Next rounds, by expected gain
+
+1. NavKit's `navdiff.area_cells` + `kymesh.parse_mesh` in Rust (item 3; NavKit's owner): every cold `navdata.load`.
+2. The APT decoder in Rust (`apt.Movie.instructions`: dump lines and records; items 4, 5, 7), then aptgraft's writer
+   (`reachable` / `_layout` recomputed per write, item 4).
+3. texqa's per-texture analysis on all cores (item 9).
+4. `havok.verify` from a Rust walk record (item 10).
+5. navpath: `closest_between` per island pair cached, the A* heuristic from one vectorised norm (item 11, if the
+   per-call `norm`'s bits can be matched).
+
+### Tests
+
+`bfbc2-culltree/tests/test_culltree_e3m.py` (quick 2.5 s; `--game` ~520 s: eight culltree runs),
+`test_crashreader.py` (quick: 300 seeded logs; `--game`: the game log both ways), `test_harness.py` (quick: 12 log
+variants; `--game`: the game log both ways). Seeds in `tests\test_durations.json`. Note for the coordinator: the
+harness's game test (and `harness.py run`) keeps its cache in OPFOR's `work\harness\cache` (`harness.cache_dir`) -
+this round's profile of that test wrote two navdata cache files there (2026-11-17 16:36); `bench_sweep.py`'s harness
+workload redirects it to its temporary folder.

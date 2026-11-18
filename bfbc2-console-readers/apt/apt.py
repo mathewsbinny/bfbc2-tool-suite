@@ -87,6 +87,9 @@ NAMES = {
 }
 
 
+_S = {e + c: struct.Struct(e + c).unpack_from for e in '<>' for c in 'IifhH'}    # Movie's field readers
+
+
 def read_bigf(path: str) -> dict[str, bytes]:
     """Members of a BIGF archive (menu SwfMovie resource): {name: bytes}. Index entries are big-endian on every
     platform: u32 offset, u32 size, C string name."""
@@ -143,13 +146,14 @@ class Movie:
             else:
                 self.const.append(f'type{t}:{v}')
 
-    # field readers in the movie's byte order
-    def cu(self, o: int) -> int: return struct.unpack_from(self.e + 'I', self.c, o)[0]
-    def u(self, o: int) -> int: return struct.unpack_from(self.e + 'I', self.a, o)[0]
-    def i(self, o: int) -> int: return struct.unpack_from(self.e + 'i', self.a, o)[0]
-    def f(self, o: int) -> float: return struct.unpack_from(self.e + 'f', self.a, o)[0]
-    def h(self, o: int) -> int: return struct.unpack_from(self.e + 'h', self.a, o)[0]
-    def w(self, o: int) -> int: return struct.unpack_from(self.e + 'H', self.a, o)[0]
+    # field readers in the movie's byte order (round E3m: each format compiled once per byte order - the dump decodes
+    # every instruction of a movie, 1.9 million for the game's 128 movies)
+    def cu(self, o: int) -> int: return _S[self.e + 'I'](self.c, o)[0]
+    def u(self, o: int) -> int: return _S[self.e + 'I'](self.a, o)[0]
+    def i(self, o: int) -> int: return _S[self.e + 'i'](self.a, o)[0]
+    def f(self, o: int) -> float: return _S[self.e + 'f'](self.a, o)[0]
+    def h(self, o: int) -> int: return _S[self.e + 'h'](self.a, o)[0]
+    def w(self, o: int) -> int: return _S[self.e + 'H'](self.a, o)[0]
 
     @staticmethod
     def cstr(buf: bytes, p: int) -> str:
@@ -194,37 +198,37 @@ class Movie:
         definition, the start of its body). Raises struct.error / IndexError at the end of the file."""
         a, at, op = self.a, p, self.a[p]
         p += 1
-        name = NAMES.get(op, f'op_{op:02X}')
+        name = NAMES.get(op) or f'op_{op:02X}'
+        if op < 0x80:                             # no argument (every opcode below 0x80)
+            return Ins(at, op, name, '', p, None, None, None, None, None, False, len(pool)), pool
         target: int | None
         plist: int | None
         items: list[int] | None
         func: Func | None
         index: int | None
         arg, target, plist, items, func, index = '', None, None, None, None, None
-        K = (lambda k: pool[k] if k < len(pool) else f'pool[{k}]?')
-        al = (lambda q: (q + 3) & ~3)
         if op == 0xB7:
             arg = str(self.i(p)); p += 4
         elif op in (0x81, 0x87, 0x99, 0x9D, 0xB8, 0x94, 0x9F):
-            p = al(p); v = self.i(p); p += 4
+            p = (p + 3) & ~3; v = self.i(p); p += 4
             if op in (0x99, 0x9D, 0xB8):
                 target = p + v
                 arg = f'{v:+d} -> {target:#x}'
             else:
                 arg = str(v)
         elif op == 0x83:
-            p = al(p); arg = f'"{self.s(self.u(p))}", "{self.s(self.u(p + 4))}"'; p += 8
+            p = (p + 3) & ~3; arg = f'"{self.s(self.u(p))}", "{self.s(self.u(p + 4))}"'; p += 8
         elif op == 0x88:
-            p = al(p); n, ptr = self.u(p), self.u(p + 4); p += 8
+            p = (p + 3) & ~3; n, ptr = self.u(p), self.u(p + 4); p += 8
             items = [self.u(ptr + 4 * k) for k in range(n)]
             pool = [self.const[g] if g < len(self.const) else f'?{g}' for g in items]
             arg = f'{n} constants'
         elif op == 0x8A:
-            p = al(p); arg = f'frame {self.i(p)} skip {self.i(p + 4)}'; p += 8
+            p = (p + 3) & ~3; arg = f'frame {self.i(p)} skip {self.i(p + 4)}'; p += 8
         elif op in (0x8B, 0x8C, 0xA1, 0xA4, 0xA5, 0xA6, 0xA7):
-            p = al(p); arg = f'"{self.s(self.u(p))}"'; p += 4
+            p = (p + 3) & ~3; arg = f'"{self.s(self.u(p))}"'; p += 4
         elif op == 0x96:
-            p = al(p); n, plist = self.u(p), self.u(p + 4); p += 8
+            p = (p + 3) & ~3; n, plist = self.u(p), self.u(p + 4); p += 8
             items = [self.u(plist + 4 * k) for k in range(min(n, 32))]
             items += [self.u(plist + 4 * k) for k in range(32, min(n, 4096)) if plist + 4 * k + 4 <= len(a)]
             shown = [self.const[g] if g < len(self.const) else f'#{g}' for g in items[:32]]
@@ -232,9 +236,9 @@ class Movie:
         elif op == 0x8D:
             arg = str(a[p]); p += 1
         elif op in (0xA2, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3):
-            index = a[p]; arg = K(index); p += 1
+            index = a[p]; arg = pool[index] if index < len(pool) else f'pool[{index}]?'; p += 1
         elif op == 0xA3:
-            index = self.w(p); arg = K(index); p += 2
+            index = self.w(p); arg = pool[index] if index < len(pool) else f'pool[{index}]?'; p += 2
         elif op == 0xB4:
             arg = f'{self.f(p):g}'; p += 4
         elif op == 0xB5:
@@ -244,7 +248,7 @@ class Movie:
         elif op == 0xB9:
             arg = f'r{a[p]}'; p += 1
         elif op in (0x9B, 0x8E):
-            p = al(p)
+            p = (p + 3) & ~3
             fname, nparams = self.s(self.u(p)), self.i(p + 4)
             if op == 0x8E:
                 extra = f' regs={a[p + 8] if not self.big else a[p + 9]}'   # u16 register count, u16 flags

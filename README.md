@@ -208,6 +208,12 @@ template search reads BFBC2's emitter documents' instance types once (`EmitterIn
 `%LOCALAPPDATA%\bfbc2-tool-suite\cache\effectport` while the game copy's bundles are unchanged
 (`BFBC2_EFFECTPORT_CACHE`: a folder, or `0`; `effectport.REFERENCE` / `BFBC2_EFFECTPORT_REFERENCE=1`: the old scan);
 `meshview.Index.read_many` reads many entries a bundle at a time on all cores.
+Round E3m (`rust/BENCHMARKS.md`, "E3m: the sweep") profiled the tools no round had (`rust\bench_sweep.py`) and ranked
+what is left. Changed, by measurement, in Python: the cull tree tool keeps each reference level's rows in
+`%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree` (`BFBC2_CULLTREE_CACHE`: a folder, or `0`;
+`BFBC2_CULLTREE_REFERENCE=1`: every reference read, as before) - console_cull's add 3x and 2.5 GB -> 0.2 GB, verify
+5.8x; the test harness's opfor.log reader and the crash reader's look at the log search the text instead of every
+line (`ingame.sessions_reference`, `crashreader.log_before_crash_reference` are the references).
 Round E3d's two targets stayed in Python, by measurement (`rust/BENCHMARKS.md`, "E3d"): `pcbuild.compile_hlsl`
 keeps what it compiled (in memory and in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\hlsl`, keyed by the compiler DLL's
 hash; `BFBC2_HLSL_CACHE` another folder or `0`) and `compile_many` / `prefetch` compile on all cores - ctypes
