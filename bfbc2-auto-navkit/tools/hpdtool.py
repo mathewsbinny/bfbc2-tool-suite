@@ -11,13 +11,19 @@ Usage:
 
 Sector.mesh holds the raw runtime-mesh record; kymesh.parse_mesh / write_mesh convert it to and
 from the structured model (areas, portals, outlines, cells, neighbour links).
+
+parse and write run in the suite's Rust core when it is built (round F0: bc2_native.hpd_parse / hpd_write, the same
+objects value for value and the same bytes; where the reference would raise, or a value is a NaN, the Python runs, so
+the error stays this module's). parse_reference / write_reference are the Python, kept as the reference and the
+fallback; BFBC2_PURE_PYTHON=1 or use_native(False) runs them only.
 """
+import contextlib
 import os
 import struct
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
@@ -72,7 +78,51 @@ class HpdFile:
     sectors: list[Sector]
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with hpd_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'hpd_parse') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust reader / writer on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when
+    it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
 def parse(data: bytes) -> HpdFile:
+    """The file as an HpdFile: in the Rust core when it is built (round F0), else parse_reference."""
+    nat = _native()
+    if nat is not None and type(data) is bytes:
+        got = nat.hpd_parse(data, Node, Edge, Sector, HpdFile)
+        if got is not None:
+            return cast(HpdFile, got)
+    return parse_reference(data)
+
+
+def parse_reference(data: bytes) -> HpdFile:
+    """The Python reader (the reference)."""
     if data[:12] != MAGIC:
         raise ValueError('not a Kynogon HPD file')
     header = struct.unpack_from(f'<{HEADER_WORDS}I', data, 12)
@@ -86,22 +136,59 @@ def parse(data: bytes) -> HpdFile:
         block = data[start:start + size]
         n_nodes, n_edges = struct.unpack_from('<2I', block, 0)
         pos = 8
-        nodes = []
-        for _ in range(n_nodes):
-            v = NODE.unpack_from(block, pos)
-            nodes.append(Node(v[0], (v[1], v[2], v[3]), v[4], v[5], v[6], v[7], v[8]))
-            pos += NODE.size
-        edges = []
-        for _ in range(n_edges):
-            edges.append(Edge(*EDGE.unpack_from(block, pos)))
-            pos += EDGE.size
+        end = pos + n_nodes * NODE.size
+        if end + n_edges * EDGE.size > len(block):          # cut short: one record at a time, raising as it always did
+            for _ in range(n_nodes):
+                NODE.unpack_from(block, pos)
+                pos += NODE.size
+            for _ in range(n_edges):
+                EDGE.unpack_from(block, pos)
+                pos += EDGE.size
+        # whole runs at once (iter_unpack: the same values as one record at a time; round E4e, the parity measures
+        # parse each file several times)
+        nodes = [Node(v[0], (v[1], v[2], v[3]), v[4], v[5], v[6], v[7], v[8]) for v in NODE.iter_unpack(block[pos:end])]
+        pos = end + n_edges * EDGE.size
+        edges = [Edge(*v) for v in EDGE.iter_unpack(block[end:pos])]
         mesh = block[pos:]
         if not mesh.startswith(MESH_MARKER):
             raise ValueError(f'sector {i} ({sid:#x}): runtime mesh not where expected')
         sectors.append(Sector(sid, bounds, reserved, date, time, nodes, edges, mesh))
-    if blocks + sum(len(_block(s)) for s in sectors) != len(data):
+    # the length _block(s) writes, without writing it (each value was read from the file, so packs back)
+    if blocks + sum(8 + NODE.size * len(s.nodes) + EDGE.size * len(s.edges) + len(s.mesh) for s in sectors) != len(data):
         raise ValueError('sector blocks do not cover the file')
     return HpdFile(header, sectors)
+
+
+_shared: dict[tuple[str, int, int], HpdFile] | None = None
+
+
+@contextlib.contextmanager
+def shared_reads() -> Iterator[None]:
+    """Inside it, read() parses each file once and hands every caller the same HpdFile - for readers that do not change
+    it (round E4e: navparity's measures parsed the same two files ten times). The files are forgotten on leaving."""
+    global _shared
+    outer = _shared is not None
+    if not outer:
+        _shared = {}
+    try:
+        yield
+    finally:
+        if not outer:
+            _shared = None
+
+
+def read(path: str) -> HpdFile:
+    """parse(the file's bytes); inside shared_reads(), parsed once per file (size and time) and shared: read only."""
+    if _shared is None:
+        with open(path, 'rb') as fh:
+            return parse(fh.read())
+    st = os.stat(path)
+    key = (os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns)
+    f = _shared.get(key)
+    if f is None:
+        with open(path, 'rb') as fh:
+            f = _shared[key] = parse(fh.read())
+    return f
 
 
 MESH_OBJECT_HEADER = 0x50
@@ -200,6 +287,17 @@ def _block(s: Sector) -> bytes:
 
 
 def write(f: HpdFile) -> bytes:
+    """The file's bytes: in the Rust core when it is built (round F0), else write_reference."""
+    nat = _native()
+    if nat is not None:
+        got = nat.hpd_write(f)
+        if got is not None:
+            return cast(bytes, got)
+    return write_reference(f)
+
+
+def write_reference(f: HpdFile) -> bytes:
+    """The Python writer (the reference)."""
     header = list(f.header)
     header[2] = len(f.sectors)
     out = bytearray(MAGIC + struct.pack(f'<{HEADER_WORDS}I', *header))

@@ -14,6 +14,7 @@ import os
 import struct
 import sys
 from collections.abc import Iterable, Mapping
+from typing import Any, cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUITE = os.path.abspath(os.path.join(HERE, '..'))
@@ -90,7 +91,22 @@ def read_entry(bundle: str, entry: str) -> bytes:
 
 
 def parse_bigf(b: bytes, where: str = 'file') -> dict[str, bytes]:
-    """BIGF members {name: bytes} and their order (apt.read_bigf, from bytes)."""
+    """BIGF members {name: bytes} and their order (apt.read_bigf, from bytes): in the Rust core when it is built
+    (round F0: bc2_native.bigf_parse, the same members), else parse_bigf_reference."""
+    nat = _bigf_native() if type(b) is bytes else None
+    got = nat.bigf_parse(b) if nat is not None else None
+    return cast(dict[str, bytes], got) if got is not None else parse_bigf_reference(b, where)
+
+
+def _bigf_native() -> Any:
+    """The Rust core with bigf_parse, or None (not built, BFBC2_PURE_PYTHON set): bc2loc's switch (use_native)."""
+    import bc2loc
+    nat = bc2loc._native()
+    return nat if nat is not None and hasattr(nat, 'bigf_parse') else None
+
+
+def parse_bigf_reference(b: bytes, where: str = 'file') -> dict[str, bytes]:
+    """The Python reader (the reference)."""
     if b[:4] != b'BIGF':
         raise MenuToolError(f'{where} is not a menu movie (.res, a BIGF archive)')
     n = struct.unpack_from('>I', b, 8)[0]

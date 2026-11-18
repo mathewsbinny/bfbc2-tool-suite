@@ -14,14 +14,54 @@ live copy of the top table is named by block separation bit 0x02, that of a lowe
 of its entry in the table above (the allocated block count, u32 BE at 0x395, gives the number of levels; as
 Velocity reads them). File table entries are 0x40 bytes: name (0x28), flags (low 6 bits = name length,
 0x40 = blocks consecutive, 0x80 = directory), block count u24 LE at 0x29, first block u24 LE at 0x2F, parent index u16 BE at 0x32 (0xFFFF = root), size u32 BE at 0x34.
+
+The header, the file table and each file's bytes are read in the suite's Rust core when it is built (round F0:
+bc2_native.stfs_open / StfsReader, the same values, entries and bytes). Where the reference would raise or never
+finish, the Python reads the package (Package._open_reference, read_reference: the reference, kept as the fallback);
+BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
 """
 import os
 import struct
 import sys
 from collections.abc import Sequence
-from typing import NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 BLOCK = 0x1000
+
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with stfs_open, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'stfs_open') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
 
 
 class Entry(TypedDict):
@@ -39,6 +79,17 @@ class Entry(TypedDict):
 class Package:
     def __init__(self, path: str) -> None:
         self.f = open(path, 'rb')
+        self._reader: Any = None
+        nat = _native()
+        got = nat.stfs_open(path) if nat is not None and isinstance(path, str) else None
+        if got is None:
+            self._open_reference()
+            return
+        (self.magic, self.name, self.header_size, self.separation, self.ft_blocks, self.ft_start, self.base,
+         self.allocated, self.top_level, self.shift, self.entries, self._reader) = got
+
+    def _open_reference(self) -> None:
+        """The Python reader of the header and the file table (the reference)."""
         h = self.f.read(0x1000)
         self.magic = h[:4]
         self.name = h[0x411:0x411 + 0x80].decode('utf-16-be', 'ignore').split('\0')[0]
@@ -140,6 +191,15 @@ class Package:
         return entries
 
     def read(self, e: Entry) -> bytes:
+        """An entry's bytes: in the Rust core when the package was opened there, else read_reference."""
+        if self._reader is not None:
+            got = self._reader.read(e['start'], e['count'], e['consecutive'], e['size'])
+            if got is not None:
+                return bytes(got)
+        return self.read_reference(e)
+
+    def read_reference(self, e: Entry) -> bytes:
+        """The Python reader of an entry (the reference)."""
         out = bytearray()
         for b in self._blocks(e['start'], e['count'], e['consecutive']):
             self.f.seek(self._addr(b))

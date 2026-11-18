@@ -8,19 +8,82 @@ video partition first). Volume descriptor at sector 32 of the partition: "MICROS
 root directory sector (u32) and size (u32). Directory entries form a binary tree:
 u16 left, u16 right (offsets in dwords), u32 sector, u32 size, u8 attributes, u8 name length, name;
 entries are 4-byte aligned and never cross a sector (0xFF padding). All little-endian.
+
+find_partition and walk read the image in the suite's Rust core when it is built and f is a file opened for reading
+by path (round F0: bc2_native.xiso_find_partition / xiso_walk, the same partition and the same files in the same
+order, the file left where the Python leaves it). Elsewhere, or where the reference would raise or recurse too deep,
+the Python runs (find_partition_reference, walk_reference: the reference, kept as the fallback);
+BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
 """
+import io
 import os
 import struct
 import sys
 from collections.abc import Iterator
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 SECTOR = 2048
 MAGIC = b'MICROSOFT*XBOX*MEDIA'
 PARTITIONS = (0x0, 0xFD90000, 0x2080000, 0x18300000)  # plain/xiso, XGD2, XGD3, XGD1
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with xiso_walk, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'xiso_walk') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
+def _path_of(f: BinaryIO) -> str | None:
+    """The path of a plain file opened for reading in binary (what the Rust core reads), else None."""
+    if type(f) is not io.BufferedReader or f.closed or 'b' not in getattr(f, 'mode', ''):
+        return None
+    name = getattr(f, 'name', None)
+    return name if isinstance(name, str) and os.path.isfile(name) else None
+
 
 def find_partition(f: BinaryIO) -> int:
+    """The game partition's offset: in the Rust core when it is built (round F0), else find_partition_reference."""
+    nat = _native()
+    path = _path_of(f) if nat is not None else None
+    if path is not None:
+        base = nat.xiso_find_partition(path)
+        if base is not None:
+            f.seek(base + 32 * SECTOR + len(MAGIC))     # where the reference's last read leaves the file
+            return int(base)
+    return find_partition_reference(f)
+
+
+def find_partition_reference(f: BinaryIO) -> int:
+    """The Python search (the reference)."""
     for base in PARTITIONS:
         f.seek(base + 32 * SECTOR)
         if f.read(20) == MAGIC:
@@ -29,6 +92,21 @@ def find_partition(f: BinaryIO) -> int:
 
 
 def walk(f: BinaryIO, base: int, sector: int, size: int, prefix: str = '') -> Iterator[tuple[str, int, int]]:
+    """Every file under a directory, as (path, sector, size): in the Rust core when it is built (round F0), else
+    walk_reference."""
+    nat = _native()
+    path = _path_of(f) if nat is not None else None
+    got = nat.xiso_walk(path, base, sector, size, prefix) if path is not None else None
+    if got is None:
+        yield from walk_reference(f, base, sector, size, prefix)
+        return
+    files, pos = got
+    f.seek(pos)                                      # where the reference's last read leaves the file
+    yield from files
+
+
+def walk_reference(f: BinaryIO, base: int, sector: int, size: int, prefix: str = '') -> Iterator[tuple[str, int, int]]:
+    """The Python walk (the reference)."""
     f.seek(base + sector * SECTOR)
     table = f.read(size)
     seen: set[int] = set()
@@ -42,7 +120,7 @@ def walk(f: BinaryIO, base: int, sector: int, size: int, prefix: str = '') -> It
         if left: yield from node(left * 4)
         path = prefix + name
         if attr & 0x10:
-            if sz: yield from walk(f, base, sec, sz, path + '/')
+            if sz: yield from walk_reference(f, base, sec, sz, path + '/')
         else:
             yield path, sec, sz
         if right: yield from node(right * 4)

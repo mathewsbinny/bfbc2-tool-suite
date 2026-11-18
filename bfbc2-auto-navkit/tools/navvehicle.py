@@ -242,20 +242,49 @@ def near_tris(s, tris, grow=0.5, below=2.2, above=0.3):
     return out
 
 
-def obstacle_distance(s, cand, solid, extra=None, gx=None, gz=None, lo=CLEAR_LOW, hi=CLEAR_HIGH, radius=CLEARANCE + 1.0):
-    """Per surface: the horizontal distance (m) to the nearest sample column holding an obstacle for a vehicle on it -
-    a solid surface (or an `extra` obstacle height, per surface: nan for none) rising more than lo and at most hi above
-    the surface's local ground plane at that column. Computed for `cand` surfaces only (99 elsewhere); capped at
-    radius (distances beyond it are 99)."""
-    if gx is None:
-        gx, gz = gradients(s)
-    out = np.full(len(s.y), 99.0, np.float32)
-    p = s.pitch
+def _offsets(p, radius):
+    """obstacle_distance's offsets (d, a, b) within radius, nearest first, the column itself (0, 0, 0) leading."""
     r = int(math.ceil(radius / p))
     offs = sorted((math.hypot(a, b) * p, a, b) for a in range(-r, r + 1) for b in range(-r, r + 1)
                   if 0 < math.hypot(a, b) * p <= radius)
     # the column itself: geometry above the surface within the band (an overhang) - distance 0
-    offs = [(0.0, 0, 0)] + offs
+    return r, [(0.0, 0, 0)] + offs
+
+
+def obstacle_distance(s, cand, solid, extra=None, gx=None, gz=None, lo=CLEAR_LOW, hi=CLEAR_HIGH, radius=CLEARANCE + 1.0):
+    """Per surface: the horizontal distance (m) to the nearest sample column holding an obstacle for a vehicle on it -
+    a solid surface (or an `extra` obstacle height, per surface: nan for none) rising more than lo and at most hi above
+    the surface's local ground plane at that column. Computed for `cand` surfaces only (99 elsewhere); capped at
+    radius (distances beyond it are 99). In the Rust core (round E4e: 85 of ONS_MP_002's 90 s were this step);
+    obstacle_distance_reference is its Python, the reference and the fallback (navnative: not built,
+    BFBC2_PURE_PYTHON=1)."""
+    import navnative
+    m = navnative.core('navkit_obstacle_distance')
+    if m is not None:
+        if gx is None:
+            gx, gz = gradients(s)
+        _r, offs = _offsets(s.pitch, radius)
+        got = m.navkit_obstacle_distance(
+            int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
+            np.ascontiguousarray(s.y, '<f4').tobytes(), np.ascontiguousarray(gx, '<f4').tobytes(),
+            np.ascontiguousarray(gz, '<f4').tobytes(), np.ascontiguousarray(cand, np.uint8).tobytes(),
+            np.ascontiguousarray(solid, np.uint8).tobytes(),
+            None if extra is None else np.ascontiguousarray(extra, '<f4').tobytes(),
+            offs, float(s.pitch), float(lo), float(hi))
+        if got is not None:
+            return np.frombuffer(got, '<f4').copy()
+    return obstacle_distance_reference(s, cand, solid, extra, gx, gz, lo, hi, radius)
+
+
+def obstacle_distance_reference(s, cand, solid, extra=None, gx=None, gz=None, lo=CLEAR_LOW, hi=CLEAR_HIGH,
+                                radius=CLEARANCE + 1.0):
+    """obstacle_distance in NumPy (bands of rows as fixed layers, the obstacle layers shifted by each offset): the
+    reference of the Rust core's."""
+    if gx is None:
+        gx, gz = gradients(s)
+    out = np.full(len(s.y), 99.0, np.float32)
+    p = s.pitch
+    r, offs = _offsets(p, radius)
     cnt = np.diff(s.start[:s.nx * s.nz + 1])
     band = 96
     for j0 in range(0, s.nz, band):

@@ -18,6 +18,12 @@ saying which. The Python loop that was its reference was retired on 2026-11-18, 
 bytes on every BF1943 mesh port and Onslaught console mesh and passed the full test tier; its results are recorded in
 bfbc2-bf1943-import\tests\ports_golden.json (test_ports_native.py). element() stays: the per-value rule (OPFOR's
 wake_audit checks meshes with it).
+
+The header's parse and write (and meshset.py's) run in the Rust core too when it is built (round F0:
+bc2_native.mesh_parse / mesh_write, meshset_parse / meshset_write, the same dicts and bytes). Where the reference would
+raise, or a value is one the core leaves to it, the Python runs (parse_reference, write_reference: kept as the
+reference and the fallback), so the errors stay this module's; BFBC2_PURE_PYTHON=1 or use_native(False) runs the
+Python only (the vertex loop always runs in the Rust core).
 """
 import os
 import struct
@@ -48,6 +54,43 @@ def require():
     return native.require('Mesh conversion (bfbc2-console-convert/mesh.py)', 'mesh_vertices')
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with mesh_parse (the header readers), or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'mesh_parse') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust header readers and writers (this module's and meshset's) on (when built, whatever BFBC2_PURE_PYTHON
+    says) or off for this process; True when they run."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
 class _Reader:
     def __init__(self, b, be):
         self.b, self.p, self.e = b, 0, '>' if be else '<'
@@ -70,7 +113,15 @@ class _Reader:
 
 def parse(b, big_endian):
     """The header: {h0, h1, parts: [{name, triangles, vertices, first_index, vertex_offset, stride, k, fa, fb,
-    bones}], lists: 4 lists of part indices, vertex_bytes, index_bytes, wide_indices, data: offset of the vertices}."""
+    bones}], lists: 4 lists of part indices, vertex_bytes, index_bytes, wide_indices, data: offset of the vertices}.
+    In the Rust core when it is built (round F0), else parse_reference."""
+    nat = _native()
+    got = nat.mesh_parse(b, bool(big_endian)) if nat is not None and type(b) is bytes else None
+    return got if got is not None else parse_reference(b, big_endian)
+
+
+def parse_reference(b, big_endian):
+    """The Python reader (the reference)."""
     r = _Reader(b, big_endian)
     m = {'h0': r.num('I'), 'h1': bytes([r.u8(), r.u8()]), 'parts': []}          # h1: two bytes, not a number
     for _ in range(r.u8()):
@@ -93,7 +144,15 @@ def parse(b, big_endian):
 
 
 def write(m, vertices, indices):
-    """PC (little-endian) bytes of header m with the vertex and index bytes."""
+    """PC (little-endian) bytes of header m with the vertex and index bytes: in the Rust core when it is built
+    (round F0), else write_reference."""
+    nat = _native()
+    got = nat.mesh_write(m, vertices, indices) if nat is not None else None
+    return got if got is not None else write_reference(m, vertices, indices)
+
+
+def write_reference(m, vertices, indices):
+    """The Python writer (the reference)."""
     out = bytearray(struct.pack('<I', m['h0']) + m['h1'] + bytes([len(m['parts'])]))
     for p in m['parts']:
         out += p['name'] + b'\0'

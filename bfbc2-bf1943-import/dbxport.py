@@ -56,6 +56,7 @@ The report is a Report: a list of the old text lines (callers that read lines ke
 (report.records) callers read instead of parsing text.
 """
 import collections
+import contextlib
 import copy
 import dataclasses
 import glob
@@ -272,12 +273,14 @@ class Templates:
         self.skipped_reported = False
         # choose()'s ranking indexes (_Ranking), by type or (type, donors); add() clears them
         self._rankings: dict[Any, _Ranking] = {}
-        # every partition added, in order: (name, its bytes or None, its tree or None)
-        self._added: list[tuple[str, bytes | None, dbx.DbxFile | None]] = []
+        # every partition added, in order: (name, its bytes or None, its tree or None, the data tables then - the
+        # reference read its roles with them: _tables_as)
+        self._added: list[tuple[str, bytes | None, dbx.DbxFile | None, tuple]] = []
         self._tables: tuple[dict[str, dbx.Element], dict[str, str], dict[str, list[Candidate]],
                             dict[str, Candidate]] | None = None
         native = _native()
-        self._native: Any = native.DbxTemplates() if native is not None else None
+        rules = _native_rules(native) if native is not None else None
+        self._native: Any = native.DbxTemplates() if rules is not None else None
         read: list[tuple[str, bytes]] = []
         for s in sources:
             items: list[tuple[str, bytes | None]] = []
@@ -312,7 +315,8 @@ class Templates:
                 checked.append((name, dbx._check(data), None))
             except ValueError as e:
                 checked.append((name, None, e))
-        answers = iter(self._native.add_many([(_part_key(n), d) for n, d, e in checked if e is None]))
+        snap = _tables_snapshot()
+        answers = iter(self._native.add_many([(_part_key(n), d) for n, d, e in checked if e is None], rules))
         for name, data, err in checked:
             if err is not None:
                 self.skipped.append(f'{name} ({type(err).__name__}: {err})')
@@ -322,9 +326,9 @@ class Templates:
                 self.skipped.append(f'{name} (ValueError: {got})')
                 continue
             self.partitions.append(_part_key(name))
-            self._added.append((name, data, None))
+            self._added.append((name, data, None, snap))
             if self._tables is not None:
-                self._add_tables(name, dbx.parse(cast(bytes, data)))
+                self._add_tables(name, dbx.parse(cast(bytes, data)), snap)
             elif got is not None:
                 # ('unsupported', why): the Rust side cannot hold this pool - the Python tables now, raising here
                 # what the reference raises here (a partition without instances: IndexError)
@@ -335,22 +339,28 @@ class Templates:
         part = _part_key(name)
         self.partitions.append(part)
         self._rankings.clear()
-        self._added.append((name, None, f))
+        snap = _tables_snapshot()
+        self._added.append((name, None, f, snap))
         if self._tables is not None:
-            self._add_tables(name, f)
+            self._add_tables(name, f, snap)
+        native = _native()
+        rules = _native_rules(native) if self._native is not None and native is not None else None
+        if rules is None:
+            self._native = None
         if self._native is not None:
             try:
-                got = self._native.add_many([(part, dbx.write(f))])[0]
+                got = self._native.add_many([(part, dbx.write(f))], rules)[0]
             except Exception:                   # noqa: BLE001 - a tree the writer refuses: the Python port only
                 got = 'unwritable'
             if got is not None:
                 self._native = None
                 self._py_tables()               # raising here what the reference's add raises
 
-    def _add_tables(self, name: str, f: dbx.DbxFile) -> None:
+    def _add_tables(self, name: str, f: dbx.DbxFile, snap: tuple | None = None) -> None:
         by_type, where, candidates, by_guid = self._py_tables()
         part = _part_key(name)
-        roles = _roles(f.instances)
+        with _tables_as(snap):
+            roles = _roles(f.instances)
         for inst in f.instances:
             t = inst.attr('type')
             if not t:
@@ -369,8 +379,8 @@ class Templates:
         """(by_type, where, candidates, by_guid), built from the partitions on first use."""
         if self._tables is None:
             self._tables = ({}, {}, {}, {})
-            for name, data, f in self._added:
-                self._add_tables(name, f if f is not None else dbx.parse(cast(bytes, data)))
+            for name, data, f, snap in self._added:
+                self._add_tables(name, f if f is not None else dbx.parse(cast(bytes, data)), snap)
         return self._tables
 
     @property
@@ -1473,21 +1483,111 @@ class DualMismatch(AssertionError):
 
 
 def _native() -> Any:
-    """The Rust core when dbx reads with it and it has the port (round E4d), else None."""
-    native = dbx._native
+    """The Rust core when it has the port (round E4d), else None. Asked through dbx, which loads it on first use (its
+    Python reader retired: reading dbx._native before then saw no module, and Templates made first in a process
+    held no Rust side)."""
+    rust = getattr(dbx, '_rust', None)
+    try:
+        native = rust() if rust is not None else dbx._native
+    except Exception:                           # noqa: BLE001 - NativeMissing: the module missing or stale
+        return None
     return native if native is not None and hasattr(native, 'dbxport_port') else None
 
 
-def _rules() -> tuple:
-    return (ONE_TO_ARRAY, RENAMED, NESTED, ENUM_NUMBERS, NUMBERS_TO_ITEMS, COUNT_CONVERTERS, TYPE_AS,
-            DICE_MOVED_CLASSES, HINT_ACTIONS, HINT_TEXTS, ROLE_GUARDS, FIREARM_SPEED, WEAPON_PARTITION.pattern,
-            WEAPON_PARTITION.flags, INPUT_FIELDS.pattern, AUDIO_ID_SIZE, gradient_rows, eia_value, _Port, _values,
-            _conventions, _bones, _gate, _part_link_names, rebuild_audio_connections, _text_empty_arrays, _best,
-            _Ranking, _roles, _inputs, Templates.choose, dbxcatalogue.looks_whole, dbxcatalogue.Catalogue)
+def _tables() -> tuple:
+    """The data tables the Rust port reads from the caller's process (a caller changes them: Project OPFOR's
+    bf1943_vehicles puts the planes' gear input into ENUM_NUMBERS around its ports)."""
+    return (ONE_TO_ARRAY, RENAMED, NESTED, ENUM_NUMBERS, NUMBERS_TO_ITEMS, TYPE_AS, DICE_MOVED_CLASSES, HINT_ACTIONS,
+            HINT_TEXTS)
 
 
-# the Rust port is these rules: a caller that changes a table or function here (a test, a tool) ports in Python
-_RULES: tuple = ()
+def _fixed() -> tuple:
+    """What the Rust port has built in, as comparable values (a deep copy's worth: patterns as text, tables as
+    tuples, functions and classes by identity)."""
+    guards = tuple((p.pattern, p.flags, b.pattern, b.flags, why, *[(w.pattern, w.flags) for w in where])
+                   for p, b, why, *where in ROLE_GUARDS)
+    return (tuple(COUNT_CONVERTERS.items()), guards, FIREARM_SPEED, WEAPON_PARTITION.pattern, WEAPON_PARTITION.flags,
+            INPUT_FIELDS.pattern, INPUT_FIELDS.flags, AUDIO_ID_SIZE, gradient_rows, eia_value, hint_value, _Port,
+            _values, _conventions, _bones, _gate, _part_link_names, rebuild_audio_connections, _text_empty_arrays,
+            _best, _Ranking, _roles, _inputs, Templates.choose, dbxcatalogue.looks_whole, dbxcatalogue.Catalogue)
+
+
+def _tables_args(t: tuple) -> tuple | None:
+    """The data tables as bc2_native.DbxRules takes them; None when one holds what it does not (the Python port)."""
+    one, ren, nested, enums, items, type_as, moved, actions, texts = t
+
+    def strmap(d: Any) -> dict[str, str] | None:
+        ok = type(d) is dict and all(type(k) is str and type(v) is str for k, v in d.items())
+        return d if ok else None
+
+    def field_key(k: Any) -> bool:
+        return type(k) is tuple and len(k) == 2 and all(type(x) is str for x in k)
+
+    def whole(v: Any) -> bool:
+        return type(v) is int and -2 ** 63 <= v < 2 ** 63
+    maps = [strmap(d) for d in (one, ren, type_as, actions, texts)]
+    if any(m is None for m in maps) or type(nested) is not dict or type(enums) is not dict or \
+            type(items) is not dict or type(moved) not in (set, frozenset) or \
+            not all(type(c) is str for c in moved):
+        return None
+    nest_rows, enum_rows, item_rows = [], [], []
+    for k, v in nested.items():
+        if not field_key(k) or type(v) not in (tuple, list) or not all(type(x) is str for x in v):
+            return None
+        nest_rows.append((k[0], k[1], list(v)))
+    for k, v in enums.items():
+        if not field_key(k) or type(v) is not dict or \
+                not all(whole(n) and type(name) is str for n, name in v.items()):
+            return None
+        enum_rows.append((k[0], k[1], list(v.items())))
+    for k, v in items.items():
+        if not field_key(k) or type(v) is not tuple or len(v) != 2 or type(v[0]) is not str or \
+                type(v[1]) is not dict or not all(type(f) is str and whole(x) for f, x in v[1].items()):
+            return None
+        item_rows.append((k[0], k[1], (v[0], list(v[1].items()))))
+    return (one, ren, nest_rows, enum_rows, item_rows, type_as, set(moved), actions, texts)
+
+
+# (a deep copy of the data tables when last read, the Rust side's copy of them or None when it cannot hold them)
+_TABLES_SEEN: list[Any] = [None, None]
+
+
+def _tables_snapshot() -> tuple:
+    """A deep copy of the data tables as they are now (the same object while they do not change)."""
+    now = _tables()
+    if _TABLES_SEEN[0] is None or _TABLES_SEEN[0] != now:
+        _TABLES_SEEN[:] = [copy.deepcopy(now), False]          # False: the Rust copy not made yet
+    return cast(tuple, _TABLES_SEEN[0])
+
+
+def _native_rules(native: Any) -> Any:
+    """The Rust side's copy of the data tables as they are now; None when they hold what it does not take."""
+    snap = _tables_snapshot()
+    if _TABLES_SEEN[1] is False:
+        args = _tables_args(snap)
+        _TABLES_SEEN[1] = native.DbxRules(*args) if args is not None else None
+    return _TABLES_SEEN[1]
+
+
+@contextlib.contextmanager
+def _tables_as(snap: tuple | None) -> Any:
+    """ENUM_NUMBERS and HINT_ACTIONS (what _roles reads) as they were in snap, for the duration: Templates builds its
+    Python tables when first asked, and the reference read them when each partition was added."""
+    global ENUM_NUMBERS, HINT_ACTIONS
+    if snap is None or (snap[3] == ENUM_NUMBERS and snap[7] == HINT_ACTIONS):
+        yield
+        return
+    saved = ENUM_NUMBERS, HINT_ACTIONS
+    ENUM_NUMBERS, HINT_ACTIONS = snap[3], snap[7]
+    try:
+        yield
+    finally:
+        ENUM_NUMBERS, HINT_ACTIONS = saved
+
+
+# what the Rust port has built in, as dbxport defines it (set at the end of the module): a caller that changes one
+# of these ports in Python
+_FIXED: tuple = ()
 # the Rust copies of catalogues: (the tables copied, their sizes, the copy). The tables are held so their ids stay
 # theirs; an entry whose tables nothing else holds any more (its catalogue and every copy of it dropped) is let go,
 # so a dropped catalogue's Python tables and Rust copy (~300 MB together) are not kept
@@ -1521,7 +1621,6 @@ def _port_rust(data: Any, templates: Templates, resolve: Callable[[str], bool] |
                schema: str, conventions: bool, bones: BoneTables | None,
                name: str | None) -> tuple[bytes, Report] | str:
     """port() in the Rust core, or why not (a string: port_python ports)."""
-    global _RULES
     native = _native()
     if native is None:
         return 'no Rust core'
@@ -1529,10 +1628,11 @@ def _port_rust(data: Any, templates: Templates, resolve: Callable[[str], bool] |
         return 'the Python port asked for'
     if type(templates) is not Templates or templates._native is None:
         return 'templates the Rust side does not hold'
-    if not _RULES:
-        _RULES = _rules()
-    if _rules() != _RULES:
-        return 'dbxport\'s tables or functions changed'
+    if _fixed() != _FIXED:
+        return 'dbxport\'s rules or functions changed'
+    rules = _native_rules(native)
+    if rules is None:
+        return 'dbxport\'s tables hold what the Rust port does not take'
     cat = catalogue or templates.catalogue
     nc = defaults = None
     if cat is not None:
@@ -1559,7 +1659,7 @@ def _port_rust(data: Any, templates: Templates, resolve: Callable[[str], bool] |
         if type(bones) is not BoneTables or not all(type(v) is int for v in bones.at.values()):
             return 'bones'
         bt = (list(bones.source), len(bones.target), bones.at, bones.skeleton)
-    got = native.dbxport_port(dbx._check(data), templates._native, nc, defaults, resolve, ours, stand_ins, TEMPLATE,
+    got = native.dbxport_port(dbx._check(data), templates._native, rules, nc, defaults, resolve, ours, stand_ins, TEMPLATE,
                               bt, bool(drop_untemplated), dt, bool(prune), req, [d.lower() for d in donors],
                               bool(strict), schema == 'error', bool(conventions), (name or '').lower())
     kind = got[0]
@@ -2183,3 +2283,8 @@ def _part_link_names(instances: list[dbx.Element], P: _Port) -> None:
                     fixed += 1
         if fixed:
             P.add(i.attr('type') or '', 'derived', note=f'{fixed} part link names from their indices')
+
+
+# the rules the Rust port has built in, as defined above (round E4d's fix: taken here, at import, as values - a
+# snapshot taken at the first port held the tables themselves and missed a caller's change in place)
+_FIXED = _fixed()

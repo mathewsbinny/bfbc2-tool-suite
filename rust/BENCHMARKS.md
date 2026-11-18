@@ -2287,8 +2287,12 @@ port reproduces - its own exceptions other than `PortError` / `SchemaError` (`In
 150 levels (Python's `RecursionError`) or copies past 2 million nodes plus 32 per input node (instances held inline
 in each other many times over) - the Rust side says so and `port_python` ports (`dbxport.STATS`).
 
-Fallbacks also when the caller changed one of the module's tables or functions (checked on every call against the
-tables the port was written for), passes a catalogue that is no `dbxcatalogue.Catalogue`, a duck-typed `BoneTables`,
+The module's data tables (`ONE_TO_ARRAY`, `RENAMED`, `NESTED`, `ENUM_NUMBERS`, `NUMBERS_TO_ITEMS`, `TYPE_AS`,
+`DICE_MOVED_CLASSES`, `HINT_ACTIONS`, `HINT_TEXTS`) are read from the caller's process on every call (`DbxRules`,
+remade only when they changed; see "The fix" below); template roles keep the tables of when their partition was
+added. Fallbacks also when the caller changed one of the rules the port has built in (the converters, `ROLE_GUARDS`,
+the patterns, the constants, the functions: compared on every call with their values at import), passes a catalogue
+that is no `dbxcatalogue.Catalogue`, a duck-typed `BoneTables`,
 or `donors` that is no list or tuple (the reference reads a generator once per instance). `BFBC2_DBXPORT_PYTHON=1`
 ports in Python; `BFBC2_DBXPORT_DUAL=1` runs both on every call and raises `DualMismatch` on any difference in the
 bytes, report lines, records or exception; `BFBC2_DBXPORT_STATS=1` prints the counts at exit.
@@ -2348,6 +2352,35 @@ fair, counterpart and effect port both ways, none left to Python); `test_dbxport
 Rust port with the scan's Python port; `rust/bench_dbxport.py` (new) times the level ports both ways. Rust:
 `cargo fmt`, `clippy --all-targets -D warnings` and `cargo test` (bc2-convert: the arena, Python's string rules, the
 tables, the helpers) clean.
+
+### The fix (2026-11-18, branch `fix-e4d`)
+
+A full WW2 rebuild against the hash oracle found 4 outputs the Rust port gave otherwise: Project OPFOR's
+`bf1943_vehicles` ports the Zero and the Corsair with `ENUM_NUMBERS[('ChildRotationBodyData', 'RotationInput')][16]`
+set to `EiaDynamicGadget2` (the planes' gear on the DLL's gear input, put in place around each port and restored), and
+the Rust port wrote `EiaUndefined`, the table as `dbxport.py` defines it. **Cause:** the Rust side had the tables
+built in, and the check meant to send a changed table to Python never fired: its snapshot was taken at the first port
+and held the tables themselves, so a change made in place compared equal to itself. Every other entry of every
+table was the same as Python's (`DbxRules.is_default`); no table was wrong, the changed one was not read.
+
+**Fixed:** the data tables are a `Rules` value the Python module builds from its live tables (a deep copy compared on
+each call; `DbxRules` remade when they changed) and the port, the template roles and the class-default lookup read
+it; `Templates` records the tables of each partition's addition (the Rust roles are computed then; the lazy Python
+tables are built under them, `_tables_as`), as the reference's eager tables were. The rest of the built-in rules is
+snapshotted at import as values (`_FIXED`: patterns as text, `ROLE_GUARDS` as tuples). Also fixed: `dbxport._native()`
+read `dbx._native`, which the retired Python reader (round F) now sets only on first use - a `Templates` made before
+any parse in a process held no Rust side and ported in Python; it asks `dbx._rust()`.
+
+**Proof:** `test_dbxport_tables.py` (quick): every number of both `ENUM_NUMBERS` tables (mapped and not, with and
+without a template), every `HINT_ACTIONS` / `HINT_TEXTS` spelling, every `ONE_TO_ARRAY`, `RENAMED`, `NESTED`,
+`NUMBERS_TO_ITEMS`, `TYPE_AS` and `DICE_MOVED_CLASSES` entry, both ways; then the same tables changed in place (the
+gear input and back, entries added and removed, a table emptied, new tables), template roles under a change, and a
+changed built-in rule left to Python: 96 ports, all the same. On `main` the gear case gives `DualMismatch`.
+`test_dbxport_opfor.py` (game): Project OPFOR's `bf1943_vehicles`, `bf1943_weapons` and `bf1943_objects --wake`
+builds run against this checkout (a temporary junction as `OPFOR_TOOLKIT`), their outputs in a temporary folder and
+every write under OPFOR refused, every `dbxport.port` call both ways: **62 + 19 + 234 = 315 calls the same**, 0 left to
+Python (about 40 s). With `--rust --out`, the vehicle build's 149 outputs by the Rust port alone are byte for byte the
+ones in OPFOR's `work\ww2\bf1943_vehicles` (its run with `BFBC2_DBXPORT_PYTHON=1`, which matches the hash oracle).
 
 ### What remains
 
@@ -2919,3 +2952,199 @@ and `BFBC2Game.exe` (build 795745), read only; harness runs to temporary folders
 `navpath.route` - NavKit's and core's, outside this round), `levelinfo` (core's dbx / fbrb / level readers, F1a's),
 `checks.join` and `random_points` (NumPy's generator: the same draws need NumPy), and `runs` (saved-run JSON, the
 comparison and the report: milliseconds). cargo fmt / clippy -D warnings / tests clean; ruff and mypy clean.
+## E4e: NavKit's tools around the build (2026-11-18, branch `rust-e4e`)
+
+NavKit's driver (`navkit.py`) and the tools around the build: what is left after rounds E1d - E3o and R1 moved the
+generator itself. **Provisional timings:** four other agents worked beside every figure (below-normal priority); each
+before / after pair was taken in the same session, unprofiled unless it says so.
+
+### The profile (before)
+
+| workload | time | where it went |
+|---|---:|---|
+| `navvehicle.build_level` ONS_MP_002 (`test_vehicle_level.py`'s build) | 90 s (cProfile) | **`obstacle_distance` 85 s**: NumPy over bands of fixed layers, every offset of the 3.5 m cylinder shifted and compared per layer (24,454 `reduce` calls, 22.8 s of them in `np.any`) |
+| `navkit.py prepare` sp_009, a fresh OPFOR folder (common bundles unpacked too) | 887 s (cProfile) | **`levelobjects.main` 603 s**: `blueprint_flags` 327 s and `mesh_aliases` 255 s each read every `.xml` of the level and of sp_common / mp_common (33,828 opens, 537 s of them `open` - new files are scanned on their first opening); the unpacks 281 s (DbxEdit's `xml` 229 s: 16,872 files converted and flushed one after another) |
+| `navkit.py prepare` sp_004_b, common bundles already unpacked | 478 s (cProfile) | `levelobjects.main` 448 s (33,460 opens: 402 s) |
+| the parity measures (`navparity.run_level`, navregress's second half), sp_004_b | 11.7 s (27 s cProfile) | `navdiff.diff` 5.9 s (`compare_sector`: cells matched in dicts, areas by shape as sets of pieces, nodes by position), `navcompare` 3.6 s (`ordercheck.PathData.areas`: every area's crack rule in Python), `ladder_ground` 1.1 s, `navdf` 0.4 s; `hpdtool.parse` 11 times for two files |
+| `navwater_mesh.level_run` + `navdomains.level_world` ONS_MP_004 | 28 + 9 s (cProfile) | `World.tables`: 463 Python Dijkstras 7.1 s; the boat mesh's picture (matplotlib: 3,677 `plot` calls and its import) about 9 s; the rest spread thin |
+| `navregress.build_level` sp_004_b / sp_009 | 22.6 / 6.4 s (cProfile) | spread thin since E3h: `walkable` 6.6 s, `detail_pass` 2.0 s (`navdetail`), `write_file` 1.4 s, `build_areas_many` / `graph_many` 1.6 s each |
+| `navsample_offline.run_level` sp_009 at 0.8 m | 8.7 s (cProfile; 4.0 s plain) | collision loading 3.6 s, the capsule test 2.4 s, the terrain test 2.1 s |
+| `navkit.py build` / `check` sp_009 (stand-in folder) | 2.9 s / 1.6 s | |
+
+### What moved
+
+| Python (kept: the reference and the fallback this round) | Rust | binding |
+|---|---|---|
+| `navvehicle.obstacle_distance` (`obstacle_distance_reference`) | `vehicle::obstacle_distance`: each candidate surface walks the offsets nearest first and stops at its first hit, columns in parallel; the plane, the rise and the band in `float32` as NumPy 2 computes them | `navkit_obstacle_distance` |
+| `navdomains.dijkstra` behind `World.leg_dijkstra` / `tables` | `domains::Graph` (a domain's adjacency kept in the core, `Domain.graph()`), `dijkstra` (the same pops: `(d, node)` is a total order), `tables` (every transition point at once) | `DomainGraph`, `navkit_domain_graph` |
+| `levelobjects.blueprint_flags` (its glob walk and reads; `mesh_aliases` / `havok_index` were done the same way on this branch, then main's round F1a moved them to `bfbc2core.collision`'s Rust index, which the merge keeps) | `levelscan::scan`: one walk in `glob`'s order, each `.xml` read once on all cores (`xmlinst.field_ref`'s matching, `open(..., errors='replace')`'s text); the dict made in Python from its records (`levelobjects.scan`) | `navkit_level_scan` |
+| `navdiff.compare_sector` and the cells of `diff` | `measures::compare_sector` / `compare_many`: meshes parsed (E3o's reader) and sampled (E3h's `area_cells`) in the core, every sector in parallel; Python's `round` (half to even), `round(x, n)` through the exact integer it rounds to, `x ** 2` as `pymath::sq` | `navkit_diff` |
+| `ordercheck.PathData.areas` / `on_area` (the harness and the stock-MP AI call it too) | `measures::order_areas` (the crack rule), `on_area` | `OrderAreas`, `navkit_order_areas` |
+| `navdf.compare` with `ground_of` | `measures::df_features`, `df_compare`, `ground_of` | `navkit_df` (`navdf.compare_sectors`) |
+| `ordercheck.PathData`'s route groups | E3o's `navkit_union_roots` on the node ids numbered as first met (the same roots) | |
+| `navsample_offline.terrain_blocks` (`terrain_blocks_reference`) | `offline::terrain_blocks`: every surface's ring points on the height field, in parallel; `terrain_at`'s `float32` / `float64` arithmetic | `navkit_terrain_blocks` |
+| DbxEdit's `xml` (a folder's files one at a time) | `dbxedit::cli::xml`: a folder's files on all cores, the messages and counts in the files' order | (in process, `bfbc2core.dbxedit`) |
+
+Python only, the same values: `hpdtool.parse` reads each sector's nodes and edges with `iter_unpack` and checks the
+blocks' length by arithmetic instead of writing every block again (a block cut short still raises from the record
+loop, as before); `hpdtool.read` / `shared_reads()` parse a file once for all of `navparity.run_level`'s readers.
+
+`bfbc2-auto-navkit/tools/navnative.py` is the switch: `BFBC2_NAVTOOLS_PYTHON=1` (these pieces only),
+`BFBC2_PURE_PYTHON=1` or `navnative.use_native(False)` run the Python; where the core refuses an input (arrays that do
+not fit, a cost that is negative or NaN, a value `round` cannot take, a mesh it does not read, a file it cannot read)
+it returns `None` and the Python runs, raising what it raises.
+
+### Before and after
+
+| workload | before | after | |
+|---|---:|---:|---:|
+| ONS_MP_002 vehicle grid (`vehicle_grid`) | 81.8 s | **2.0 s** | 41x |
+| ONS_MP_002 vehicle path data (`build_level`) | 57.6 s | **3.1 s** | 19x |
+| ONS_MP_004 domains world and its tables | 4.9 - 6.9 s | **2.3 - 4.1 s** | |
+| `navkit.py prepare` sp_004_b, fresh folder (common bundles unpacked and converted too) | 549.5 s | **56.7 s** | 9.7x |
+| `navkit.py prepare` sp_009 after it (common bundles there) | 410.5 s | **9.6 s** | 43x |
+| levelobjects' scan alone, sp_004_b's folders (warm) | 14.4 s | **3.8 s** | 3.8x |
+| parity measures, 15 levels (`navparity.run_level` on every regression build) | 581.6 s | **158.7 s** | 3.7x |
+| ... sp_004_b / sp_009 | 10.6 / 1.9 s | **3.2 / 0.4 s** | |
+| ... sp_006 (the largest gain) | 100.4 s | **19.3 s** | 5.2x |
+| `navregress.py --levels sp_004_b,sp_009` (the game tier's): per level, build + structure + measures | 30 / 5 s | **16 / 3 s** | |
+| offline sampler, sp_009's 0.2 m pair over its detailed sectors (geometry loaded) | 29.2 s | **8.9 s** | 3.3x |
+| offline sampler, sp_004_b at 0.8 m (geometry loaded) | 11.1 s | **3.4 s** | 3.3x |
+| `test_vehicle_level.py` (ONS_MP_002's vehicle file and its checks) | 36.5 s (durations seed) | **3 s** | |
+
+(The prepare figures without the parallel DbxEdit `xml`: 285.6 s and 45.6 s.)
+
+### Parity
+
+- **Recorded from the Python before the port** (`bfbc2-auto-navkit/tests/navtools_golden.json`, `test_navtools_native.py
+  --game`, the build clock fixed): ONS_MP_002's vehicle measures (every per-surface array of `vehicle_grid`) and its
+  vehicle path data (291,704 bytes); ONS_MP_004's boat mesh side file and report (less their build time), its domains
+  world (transitions and tables) and 40 plans; navparity's rows for sp_009 and sp_004_b (built with the clock fixed);
+  sp_009's offline samples at 0.8 m (both capsules). All **as recorded** after the port.
+- **The measures on every level**: `navparity.run_level` on the 15 regression builds of OPFOR's `work\navkit\regress`
+  (13 campaign levels, ONS_MP_002 / 004), Rust and Python: **15 of 15 rows identical** (every key, value and order).
+- **`navkit.py prepare`** on a fresh stand-in OPFOR folder (the game copy linked, its own `work`), old code
+  (`BFBC2_NAVTOOLS_PYTHON=1`) against new: sp_004_b then sp_009 - **51,256 files identical** (`work\levels`: 8,091;
+  `work\navkit`: 43,165 - the common bundles' unpacked and converted files, `objects.json`, the triangle `.npy` files,
+  `ladders.json`, `navkit.json`). With the parallel DbxEdit `xml` as well (a third fresh folder): the same 51,256 files
+  identical to the old code's.
+- **levelobjects' scan** on OPFOR's sp_009, ONS_MP_002 and sp_004_b folders (read only): `blueprint_flags`,
+  `mesh_aliases`, `havok_index` the same items in the same order (624 / 910 / 581, 558 / 1,225 / 570, 572 / 853 / 537).
+- **Quick** (`test_navtools_native.py`): 24 random multi-layer runs of `obstacle_distance` (pitch 0.2 / 0.8 / 1, both
+  bands, with and without extra heights) bit for bit; 30 random graphs (equal costs, zero costs, unreachable nodes)
+  tables and searches, 72 more searches with and without targets; a built folder tree (hidden folders, upper-case
+  `.XML`, CRLF, invalid UTF-8, attributes in both orders, `_Havok_Havok.res`) for the scan; 40 random file pairs
+  (areas kept, moved, raised, dropped, nodes moved, edges' costs changed, sectors only one side has; D lines and F
+  cells) for `navdiff.diff`, `navdf.compare_sectors`, the route groups and `on_area` - all the same as the Python.
+- **navregress** on the game tier's two levels: sp_004_b's and sp_009's rows (53 measures each) **identical** to the
+  previous run's (`regression_last.json` of 01:04 this morning, main's code), the build time and the candidate's SHA-1
+  (each sector stores its build time) aside; the builds themselves as recorded (`test_navbuild_native.py --game`).
+- **The offline sampler**: sp_009's 0.2 m pair and sp_004_b's 0.8 m pair, Python's terrain test against the core's:
+  the same files (SHA-1 of both capsules' runs).
+- Game tier, all passing: `test_navtools_native.py --game`, `test_navbuild_native.py --game` (sp_009, sp_004_b),
+  `navregress` (2 levels), `test_apply.py`, `test_vehicle_level.py`, `test_navwater_mesh.py --game`, `test_links.py`,
+  `test_traversal.py`, `test_collision_backends.py`, `core/tests/test_navdata.py`, `tests/test_e3o_native.py --game`.
+- DbxEdit: `core/tests/test_dbxedit.py` against `DbxEdit.exe` passes (its `xml` cases included).
+- Rust: `vehicle`, `domains`, `levelscan` and `measures` unit tests; `cargo clippy --all-targets -D warnings`, `cargo fmt`.
+
+### What remains
+
+- The measures: `hpdtool.parse`'s Python objects (now once per file), `navdata.load` twice for `ladder_ground`,
+  `ordercheck.PathData`'s per-edge loop and `nearest_group` (NumPy per point), `stale_nodes`' per-node loop.
+- The build (sp_004_b ~10 s): `walkable`'s NumPy glue, `navdetail` (D lines, F cells: 1-2 s; its sets' iteration order
+  reaches the output, so a port must reproduce it), `kymesh.write_mesh`, `finalize_graph`.
+- The boat mesh: its picture (matplotlib, about half of `level_run`; the PNG is an output), `validate`'s sight test,
+  `build_graph` and `grid_path` in Python.
+- The offline sampler (`navsample_offline`): the capsule test against the triangles (`_line_tri_interval`, NumPy, now
+  the largest part of a run) and the collision loading.
+- `prepare`: the unpacks themselves (FbrbTool in process) and `levelobjects`' per-blueprint triangles (`hkpack`).
+
+
+## F0: the file formats that had no Rust (2026-11-18, branch `retire-f0`)
+
+The ruling of 2026-11-18 (`EDITOR_ARCHITECTURE.md` 3.8: port everything, prove it, then retire the Python) reaches
+the format readers and writers. This round **ports**; each port keeps its Python as the reference and the fallback
+(`*_reference`, `use_native(False)`, `BFBC2_PURE_PYTHON=1`) until it passes a later full tier. Every port answers
+`None` where the reference raises, a value is a NaN, or a value is not one it reads exactly as `struct` does (a float
+overflowing a 32-bit float, a sequence of another length, a `memoryview`): the Python then runs, so a result is always
+the reference's and every error message stays its own.
+
+| Python (reference) | Rust | bound as |
+|---|---|---|
+| `hpdtool.parse` / `write` (path data) | `bc2_formats::hpd` | `hpd_parse` (builds hpdtool's dataclasses: `__new__` + `__dict__`), `hpd_write` |
+| `kymesh.write_mesh` | `bc2_formats::kymesh::write` | `kymesh_write` |
+| `bc2loc.LocFile` (parse, `decode`, `to_bytes`), `khash` | `bc2_formats::loc` | `loc_parse`, `loc_histogram` / `LocTable`, `loc_decode`, `loc_write`, `loc_khash` |
+| `menucommon.parse_bigf`, `apt.read_bigf` | `bc2_formats::bigf` | `bigf_parse` |
+| `stfs.Package` (header, file table, `read`) | `bc2_formats::stfs` | `stfs_open`, `StfsReader` |
+| `xiso.find_partition` / `walk` | `bc2_formats::xiso` | `xiso_find_partition`, `xiso_walk` (a real file opened by path only) |
+| `audio.read_wave`, `write_wave_pc`, `read_sps`, `read_snr`, `write_sps` | `bc2_formats::wave` | `wave_read`, `wave_write_pc`, `sps_read`, `snr_read`, `sps_write` |
+| `mesh.parse` / `write`, `meshset.parse` / `write` | `bc2_formats::meshdata` | `mesh_parse`, `mesh_write`, `meshset_parse`, `meshset_write` |
+| `texture.tiled` / `packed` / `layout` | `bc2_convert::texture` (the converter's own) | `texture_tiled` (ints; NumPy arrays stay Python), `texture_packed`, `texture_layout` |
+| `texture.levels` / `decode` (NumPy) | `bc2_convert::texcheck` | `texture_levels`, `texture_decode` |
+| `havok.classes` (the exe's hkClass initializers) | `bc2_convert::hkclasses` | `havok_classes` |
+
+### Parity (each both ways; quick and `--game` of the tests named)
+
+| format | corpus | result |
+|---|---|---|
+| path data (`test_pathdata_native.py`) | 144 `pathdata.hpd` + kept originals of the game copy and `work\` (656 MB), 8,858 runtime meshes; 60 built files, 1,932 damaged, 600 changed objects | every object identical (types, attribute order, float bits), every file and mesh written byte for byte as read; 0 cases the reference answered left to it |
+| localization (`test_bc2loc_native.py`) | 25 language files of every overlay layer and the pristine copy (59,177 texts), 200 built files + histograms, 2,750 damaged, 3,010 keys | every attribute, text and written byte identical (also after `set`); all texts decoded in Rust |
+| BIGF | 128 menu / HUD movies, 200 built, 2,000 damaged | the same members or the same error |
+| STFS / XISO (`test_console_readers_native.py`) | the Xbox disc image (693 files), the 3 Update packages (2,533 MB, every entry read), 4 built packages, 4 built discs, 1,500 damaged packages, 300 damaged discs | identical values, entries, bytes, listing order and file positions; damaged: the same values or the same error |
+| Waves (`test_wave_native.py`) | 84,397 game Waves (2,750 BF1943, 35,813 BFBC2 Xbox, 45,834 BFBC2 PC) with every segment's stream: 260,951 comparisons; 253,191 damaged; 1,840 built; 600 changed | all identical; no case the reference answered left to it (outside NaN-rate damage: 3) |
+| mesh headers (`test_meshdata_native.py`) | 11,319 game mesh resources (7,276 MeshData, 2,696 Rigid, 637 Composite, 553 Skinned, 157 Tree): 23,516 comparisons; 24,103 damaged; 2,175 built; 800 changed | all identical |
+| textures (`test_texture_helpers_native.py`) | 4,578 game PC textures, 30,946 levels decoded (DXT1, DXT3, DXT5, BC5, L8); 200,000 tiled offsets, 20,000 packed, 5,000 layouts; 2,000 damaged | every pixel, dtype and shape identical |
+| `havok.classes` (`test_havok_classes_native.py`) | BFBC2Game.exe (297 classes, 1,044 members), 100 built executables, 400 damaged | identical dicts in order, the same errors |
+
+Found by the parity tests on the way: an `__init__` argument shadowed in `bc2loc`'s new path (an error message named
+the file's NAME field instead of the caller's name: fixed before commit); STFS entries damaged to 16.7 M chained
+blocks made the first port allocate 32 GB (the reference builds every block's bytes before cutting at the size). The
+port now stops at the size (the same bytes) and reads runs of adjacent blocks at once.
+
+### Timings (same process, warm; the machine shared with other agents' builds)
+
+| workload | Python | Rust |
+|---|---:|---:|
+| `hpdtool.parse`, 144 files / 656 MB | 150.9 s | **5.5 s** |
+| `hpdtool.write`, the same | 3.3 s | 1.7 s |
+| `kymesh.write_mesh`, 8,858 meshes (the time is reading the Python objects) | 20.6 s | 11.7 s |
+| `LocFile` read + every text decoded + `to_bytes`, 25 files | 0.22 s | 0.05 s |
+| STFS: one 16 MB entry of an Update package (I/O bound) | 0.038 s | 0.024 s (the first port read block by block through a buffered reader: the whole packages took 50.8 s against Python's 6.2 s; now runs of adjacent blocks in one read) |
+| XISO: the disc's 693 files (warm) | 2-6 ms | 1.2 ms |
+| `read_wave` per call (small Waves) | 2.7 us | 1.0-1.3 us; `write_wave_pc` 1.45 -> 1.24 us. The `--game` loop over 84,397 Waves measured 0.79 s Python / 1.06 s Rust: cases the reference raises on run both (a refusal then the Python) |
+| `mesh` / `meshset` parse, 11,319 resources | 0.28 s | 0.19 s |
+| `texture.decode`, 30,946 levels | 126.8 s | **31.8 s** (most of it the comparison arrays' copies) |
+| `havok.classes(BFBC2Game.exe)` | 0.06 s | 0.02 s |
+
+### Not ported yet (what remains of the Python format code)
+
+- `bfbc2-anim-tools/granny.py`: the writing side (`Granny.put`, `to_bytes`, `_Graft` / `add_tracks`,
+  `set_orientations`, `shift_position`, `curve_keys`); the reader is Rust (E3i).
+- `bfbc2-console-convert`: `terrain.py` (console terrain, water, material map, visual terrain / water, roads),
+  `soot.py`, `mesh.relayout` / `decode` / `console_layouts`, `havok.convert_wrapper`, `texture.check` (NumPy
+  statistics over `decode`, which is Rust now).
+- `bfbc2-model-tools`: `skinmesh.py`, `texwrite.py` (DXT1 writer), the decimator.
+- `bfbc2-bf1943-import`: `mopp.py`, `havokport.py`, `meshport.py`'s writers, `emitteratlas.py`, `dbxcatalogue.py`.
+- `bfbc2-menu-tools/menucommon.PEImage` (E4f's `bc2-harness::pe` covers the exe for the crash reader / exeref; not
+  yet switched here), `core/bfbc2core/xmlinst.py`, `navtune.py` (JSON side files).
+
+
+## G1: the map editor's shell and read-only map view (2026-11-18, branch `rust-g1`)
+
+`rust/bc2-editor` (binary `bfbc2-editor`; README.md, "The map editor"). No Python is replaced (the Map Inspector
+stays), so there is no before to compare with; recorded for later rounds: a whole headless run of the editor (start,
+load the level with geometry through `bc2_scene`, upload it, lay out and draw 30 frames of the window at 1600 x 950,
+save the PNG), **debug build**, the mesh-alias cache warm, on the development PC (GeForce RTX 4060 Laptop, Vulkan):
+
+| level | entities | run | peak working set |
+|---|---:|---:|---:|
+| SP_01 | 13,251 | 4.4 s | 280 MB |
+| MP_005 | 6,979 | 3.1 s | 273 MB |
+| MP_009GR | 10,005 | 2.7 s | 242 MB |
+| ONS_MP_004 | 7,100 | 3.1 s | 273 MB |
+
+MP_005: 3,919,352 triangles drawn; its load alone (the status bar's "loaded in") 0.4 s. Collision is uploaded once
+per blueprint and drawn instanced (one instance per placed entity, as `bc2_scene` keeps it), so moving an object
+later changes one instance. The editor's tests (`tests/test_editor.py`): 14 unit tests, the outliner against the Map
+Inspector on 4 levels, 4 offscreen render / click tests and the 4 levels drawn with their selection outlined, about
+a minute in debug.

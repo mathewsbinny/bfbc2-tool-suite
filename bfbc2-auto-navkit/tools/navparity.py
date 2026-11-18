@@ -121,7 +121,7 @@ def stale_nodes(root, lv, reference, clip=None):
         return set()
     s, _ = navsample.load(sp)
     out = set()
-    for sec in hpdtool.parse(open(reference, 'rb').read()).sectors:
+    for sec in hpdtool.read(reference).sectors:
         for n in sec.nodes:
             x, y, z = n.pos
             if clip and not (clip[0] <= x <= clip[2] and clip[1] <= z <= clip[3]):
@@ -203,12 +203,18 @@ def islands(reference, candidate, clip=None, drop=None):
 
 
 def run_level(root, lv, candidate, log):
+    import hpdtool
+    with hpdtool.shared_reads():         # each file parsed once for all the measures (round E4e)
+        return _run_level(root, lv, candidate, log)
+
+
+def _run_level(root, lv, candidate, log):
     ref = need_reference(root, lv)
     xml = level_xml(root, lv)
     t = time.time()
     clip = terrain_bounds(root, lv)
     d, _, R, C = navdiff.diff(ref, candidate, log=lambda *a: None, clip=clip)
-    df = navdf.compare([s.mesh for s in R.values()], [s.mesh for s in C.values()], clip, navdf.ground_of(C))
+    df = navdf.compare_sectors(R, C, clip)          # in the Rust core when built (round E4e)
     a = navcompare.compare(xml, ref, candidate)
     stale = stale_nodes(root, lv, ref, clip)
     isl = islands(ref, candidate, clip, stale)

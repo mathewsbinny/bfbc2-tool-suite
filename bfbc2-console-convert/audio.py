@@ -16,7 +16,10 @@ from other sources) they raise bfbc2core.native.NativeMissing saying how to get 
 BFBC2_PURE_PYTHON does not change that. The NumPy codec that was their reference was retired on 2026-11-18, after the
 port had given the same bytes on every sound of BFBC2's Xbox copy and Battlefield 1943 and passed the full test tier;
 its results are recorded in tests\audio_golden.json, which tests\test_audio_native.py checks. The block framing
-(DICE's blocks, the SPS writer) stays here. Proven in tests\test_audio.py on BFBC2's Xbox / PC twins and on
+(DICE's blocks) stays here. The Wave resource and the EA stream framing (read_wave, write_wave_pc, read_sps, read_snr,
+write_sps) run in the Rust core too when it is built (round F0: bc2_native.wave_read and its kin, the same values and
+bytes; where the reference would raise, the Python runs: *_reference, kept as the reference and the fallback, so the
+errors stay this module's; BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only). Proven in tests\test_audio.py on BFBC2's Xbox / PC twins and on
 Battlefield 1943's sounds.
 
 Frostbite Wave resource, BFBC2 (Xbox big-endian, PC little-endian; the words are the same on both, 35,811 twins):
@@ -132,6 +135,43 @@ def require():
     return native.require('EA-XAS audio (bfbc2-console-convert/audio.py)', 'xas_encode_many')
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with wave_read (the container readers), or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'wave_read') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust container readers on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when
+    they run. The EA-XAS codec always runs in the Rust core."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
 def _pcm16(pcm):
     """pcm as C-ordered little-endian int16 (samples, channels), the samples the Rust core encodes: a 2-D integer
     array within int16 (other integer types are cast); ValueError otherwise (the retired NumPy encoder widened
@@ -161,7 +201,22 @@ class Wave:
 
 
 def read_wave(b, source):
-    """A Wave resource: source 'bfbc2-xbox', 'bfbc2-pc' or 'bf1943'."""
+    """A Wave resource: source 'bfbc2-xbox', 'bfbc2-pc' or 'bf1943'. In the Rust core when it is built (round F0),
+    else read_wave_reference."""
+    if source not in SOURCES:
+        raise AudioError(f'source {source!r}: one of {SOURCES}')
+    nat = _native()
+    got = nat.wave_read(b, source) if nat is not None and type(b) is bytes and type(source) is str else None
+    if got is None:
+        return read_wave_reference(b, source)
+    fid, total, intro, ch, outro, w14, segs, rate, w04, loop_end = got
+    if source == 'bf1943':
+        return Wave(source, fid, total, intro, ch, outro, 0, segs, rate=rate, word04=w04, loop_end=loop_end)
+    return Wave(source, fid, total, intro, ch, outro, w14, segs)
+
+
+def read_wave_reference(b, source):
+    """The Python reader (the reference)."""
     if source not in SOURCES:
         raise AudioError(f'source {source!r}: one of {SOURCES}')
     e = '<' if source == 'bfbc2-pc' else '>'
@@ -206,7 +261,15 @@ def read_wave(b, source):
 
 
 def write_wave_pc(w):
-    """BFBC2's PC Wave resource (little-endian) from a Wave."""
+    """BFBC2's PC Wave resource (little-endian) from a Wave: in the Rust core when it is built (round F0), else
+    write_wave_pc_reference."""
+    nat = _native()
+    got = nat.wave_write_pc(w) if nat is not None else None
+    return got if got is not None else write_wave_pc_reference(w)
+
+
+def write_wave_pc_reference(w):
+    """The Python writer (the reference)."""
     out = [struct.pack('<6I', *w.words())]
     for i, s in enumerate(w.segments):
         if s is None:
@@ -241,8 +304,21 @@ def _ea_header(h1, h2):
                 type_=h2 >> 30, samples=h2 & 0x1FFFFFFF)
 
 
+def _stream(got):
+    version, codec, channels, rate, type_, samples, blocks = got
+    return Stream(version, codec, channels, rate, type_, samples, blocks)
+
+
 def read_sps(s):
-    """An EA SPS stream (v1, BFBC2): 0x48 header, 0x44 audio blocks, 0x45 end."""
+    """An EA SPS stream (v1, BFBC2): 0x48 header, 0x44 audio blocks, 0x45 end. In the Rust core when it is built
+    (round F0), else read_sps_reference."""
+    nat = _native()
+    got = nat.sps_read(s) if nat is not None and type(s) is bytes else None
+    return _stream(got) if got is not None else read_sps_reference(s)
+
+
+def read_sps_reference(s):
+    """The Python reader (the reference)."""
     o, hdr, blocks = 0, None, []
     while o + 4 <= len(s):
         kind, n = s[o], int.from_bytes(s[o + 1:o + 4], 'big')
@@ -279,7 +355,15 @@ def _sns_blocks(s, o):
 
 def read_snr(s, sns=None):
     """An EA SNR / SNS stream (v0, Battlefield 1943): in memory the header and its blocks; streamed (8-byte s) the
-    header, the blocks in sns."""
+    header, the blocks in sns. In the Rust core when it is built (round F0), else read_snr_reference."""
+    nat = _native()
+    got = (nat.snr_read(s, sns) if nat is not None and type(s) is bytes and (sns is None or type(sns) is bytes)
+           else None)
+    return _stream(got) if got is not None else read_snr_reference(s, sns)
+
+
+def read_snr_reference(s, sns=None):
+    """The Python reader (the reference)."""
     if len(s) < 8:
         raise AudioError(f'SNR: {len(s)} bytes, shorter than the header')
     hdr = _ea_header(*struct.unpack_from('>II', s, 0))
@@ -297,7 +381,15 @@ def read_snr(s, sns=None):
 
 
 def write_sps(st):
-    """An EA SPS stream (v1) of st's header and blocks."""
+    """An EA SPS stream (v1) of st's header and blocks: in the Rust core when it is built (round F0), else
+    write_sps_reference."""
+    nat = _native()
+    got = nat.sps_write(st) if nat is not None else None
+    return got if got is not None else write_sps_reference(st)
+
+
+def write_sps_reference(st):
+    """The Python writer (the reference)."""
     out = [b'\x48\x00\x00\x0c', struct.pack('>II', *st.header())]
     for n, data in st.blocks:
         out.append(struct.pack('>II', 0x44000000 | (8 + len(data)), n) + data)

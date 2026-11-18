@@ -151,12 +151,16 @@ fn dispatch(args: &[String], o: &mut Outcome) -> Result<i32> {
 fn xml(paths: &[String], o: &mut Outcome) -> Result<i32> {
     let (mut converted, mut deleted) = (0, 0);
     for p in paths {
-        for f in net::dbx_files(p)? {
-            let one = (|| -> Result<bool> {
-                if net::file_len(&f)? == 0 {
+        // each folder's files converted on all cores (round E4e: NavKit's prepare converted 16,872 files one at a
+        // time, 229 s - each written and flushed); the messages and counts in the files' order, as one at a time
+        let files = net::dbx_files(p)?;
+        let results: Vec<Result<bool>> = files
+            .par_iter()
+            .map(|f| -> Result<bool> {
+                if net::file_len(f)? == 0 {
                     return Ok(false);
                 }
-                let data = net::read_bytes(&f)?;
+                let data = net::read_bytes(f)?;
                 let magic = data.get(..8).ok_or_else(|| {
                     Fault::new(
                         FaultKind::ArgumentOutOfRange,
@@ -164,10 +168,12 @@ fn xml(paths: &[String], o: &mut Outcome) -> Result<i32> {
                     )
                 })?;
                 if magic == b"{binary}" {
-                    write_atomic(&net::change_extension(&f, ".xml"), convert(&data)?.as_bytes())?;
+                    write_atomic(&net::change_extension(f, ".xml"), convert(&data)?.as_bytes())?;
                 }
                 Ok(true)
-            })();
+            })
+            .collect();
+        for (f, one) in files.iter().zip(results) {
             match one {
                 Ok(true) => converted += 1,
                 Ok(false) => deleted += 1,

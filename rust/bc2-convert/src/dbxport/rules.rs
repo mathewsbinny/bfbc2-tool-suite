@@ -1,8 +1,14 @@
-//! `dbxport.py`'s tables (`ONE_TO_ARRAY`, `RENAMED`, `NESTED`, `ENUM_NUMBERS`, `NUMBERS_TO_ITEMS`,
-//! `COUNT_CONVERTERS`, `TYPE_AS`, `DICE_MOVED_CLASSES`, `HINT_ACTIONS`, `HINT_TEXTS`, `ROLE_GUARDS`,
-//! `WEAPON_PARTITION`) and its small helpers
-//! (`eia_value`, `_shape`, `_short`, `dbx.value`, `dbx.numbers`). The Python module checks before each port that its
-//! tables are still these (a caller may change them): when not, it ports in Python.
+//! `dbxport.py`'s tables and its small helpers (`eia_value`, `_shape`, `_short`, `dbx.value`, `dbx.numbers`).
+//!
+//! The data tables a caller may change (`ONE_TO_ARRAY`, `RENAMED`, `NESTED`, `ENUM_NUMBERS`, `NUMBERS_TO_ITEMS`,
+//! `TYPE_AS`, `DICE_MOVED_CLASSES`, `HINT_ACTIONS`, `HINT_TEXTS`) are a [`Rules`] value the Python module builds
+//! from its live tables for each port (round E4d's fix: Project OPFOR's `bf1943_vehicles` puts the planes' gear input
+//! into `ENUM_NUMBERS` around its ports, and built-in tables ported it as the unchanged table). The rest
+//! (`COUNT_CONVERTERS`, `ROLE_GUARDS`, `WEAPON_PARTITION`, `INPUT_FIELDS`, `FIREARM_SPEED`, `AUDIO_ID_SIZE` and the
+//! functions) is built in: the Python module compares them with their values at import before each port and ports
+//! in Python when one changed.
+
+use std::collections::{HashMap, HashSet};
 
 use bc2_formats::dbx::{self, CONTAINER, NUMBERS, TEXT};
 
@@ -10,80 +16,186 @@ use super::Fail;
 use super::arena::{Arena, Id, Tn};
 use super::py::{self, R};
 
-/// `ONE_TO_ARRAY`: BFBC2's array field -> BF1943's single reference field.
-#[must_use]
-pub fn one_to_array(n: &str) -> Option<&'static str> {
-    match n {
-        "Meshes1p" => Some("Mesh1p"),
-        "Meshes3p" => Some("Mesh3p"),
-        _ => None,
+/// Per (type or struct, field).
+pub type ByField<V> = HashMap<String, HashMap<String, V>>;
+
+/// `NUMBERS_TO_ITEMS`' value: the item field each number goes to, and the other fields' values, in order.
+pub type ItemRule = (String, Vec<(String, i128)>);
+
+/// The data tables of `dbxport.py`, as the caller's process has them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rules {
+    /// `ONE_TO_ARRAY`: BFBC2's array field -> BF1943's single reference field.
+    pub one_to_array: HashMap<String, String>,
+    /// `RENAMED`: BFBC2's field -> the BF1943 field it was renamed from.
+    pub renamed: HashMap<String, String>,
+    /// `NESTED`: (the struct, BFBC2's new struct in it) -> the BF1943 fields moved into it.
+    pub nested: ByField<Vec<String>>,
+    /// `ENUM_NUMBERS`: (type, field) -> {BF1943's number: BFBC2's name}.
+    pub enum_numbers: ByField<HashMap<i128, String>>,
+    /// `NUMBERS_TO_ITEMS`: (type, field) -> the item rule.
+    pub numbers_to_items: ByField<ItemRule>,
+    /// `TYPE_AS`: a BF1943 class BFBC2 lacks -> the class written.
+    pub type_as: HashMap<String, String>,
+    /// `DICE_MOVED_CLASSES`.
+    pub dice_moved: HashSet<String>,
+    /// `HINT_ACTIONS`: `eia_value`'s exact spellings.
+    pub hint_actions: HashMap<String, String>,
+    /// `HINT_TEXTS`: the seat-hint texts.
+    pub hint_texts: HashMap<String, String>,
+}
+
+fn by_field<V>(rows: impl IntoIterator<Item = ((&'static str, &'static str), V)>) -> ByField<V> {
+    let mut m: ByField<V> = HashMap::new();
+    for ((t, n), v) in rows {
+        m.entry(t.to_owned()).or_default().insert(n.to_owned(), v);
+    }
+    m
+}
+
+fn pairs(rows: &[(&str, &str)]) -> HashMap<String, String> {
+    rows.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
+}
+
+impl Default for Rules {
+    /// `dbxport.py`'s tables as it defines them.
+    fn default() -> Self {
+        let recoil = [
+            "MaxRecoilAngleX",
+            "MinRecoilAngleX",
+            "MaxRecoilAngleY",
+            "MinRecoilAngleY",
+            "MaxRecoilAngleZ",
+            "MinRecoilAngleZ",
+            "MaxRecoilFov",
+            "MinRecoilFov",
+            "RecoilFollowsDispersion",
+        ];
+        let rotation: HashMap<i128, String> = [
+            (0, "EiaThrottle"),
+            (4, "EiaYaw"),
+            (5, "EiaPitch"),
+            (6, "EiaRoll"),
+            (7, "EiaFire"),
+            (16, "EiaUndefined"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k, v.to_owned()))
+        .collect();
+        let moving: HashMap<i128, String> = [(0, "EiaFire"), (7, "EiaFire")]
+            .into_iter()
+            .map(|(k, v)| (k, v.to_owned()))
+            .collect();
+        Self {
+            one_to_array: pairs(&[("Meshes1p", "Mesh1p"), ("Meshes3p", "Mesh3p")]),
+            renamed: pairs(&[
+                ("PartInfoDatas", "PartMaterialDatas"),
+                ("AngularMomentumDampingAcc", "AngularMomentumDamping"),
+                ("AngularMomentumDampingDeacc", "AngularMomentumDamping"),
+                ("CollectiveThrottleInputScale", "CollectiveInputScale"),
+                ("CollectiveBrakeInputScale", "CollectiveInputScale"),
+                ("UpsideDownAngle", "UpsideDownAngel"),
+            ]),
+            nested: by_field([(
+                ("FireLogic", "Recoil"),
+                recoil.iter().map(|s| (*s).to_owned()).collect(),
+            )]),
+            enum_numbers: by_field([
+                (("ChildRotationBodyData", "RotationInput"), rotation),
+                (("ChildMovingBodyData", "InputAction"), moving),
+            ]),
+            numbers_to_items: by_field([(
+                ("DynamicWeaponPickupEntityData", "WeaponSlots"),
+                (
+                    "WeaponSlot".to_owned(),
+                    vec![("AltWeaponSlot".to_owned(), -1), ("LinkedToWeaponSlot".to_owned(), -1)],
+                ),
+            )]),
+            type_as: pairs(&[(
+                "GameSharedResources.LandingGearEntryComponentData",
+                "GameSharedResources.PlayerEntryComponentData",
+            )]),
+            dice_moved: std::iter::once("GameSharedResources.PersistentWeapon".to_owned()).collect(),
+            hint_actions: pairs(&[
+                ("EIUndefined", "EiaUndefined"),
+                ("EIAFireCountermeasure", "EiaFireCountermeasure"),
+            ]),
+            hint_texts: pairs(&[
+                ("VH_SWITCH", "VEHICLE_HINT_CHANGE_POSITION"),
+                ("VH_BOAT_THROTTLE", "VEHICLE_HINT_ACCELERATE"),
+            ]),
+        }
     }
 }
 
-/// `RENAMED`: BFBC2's field -> the BF1943 field it was renamed from.
-#[must_use]
-pub fn renamed(n: &str) -> Option<&'static str> {
-    match n {
-        "PartInfoDatas" => Some("PartMaterialDatas"),
-        "AngularMomentumDampingAcc" | "AngularMomentumDampingDeacc" => Some("AngularMomentumDamping"),
-        "CollectiveThrottleInputScale" | "CollectiveBrakeInputScale" => Some("CollectiveInputScale"),
-        "UpsideDownAngle" => Some("UpsideDownAngel"),
-        _ => None,
+impl Rules {
+    /// `ONE_TO_ARRAY.get(n)`.
+    #[must_use]
+    pub fn one_to_array(&self, n: &str) -> Option<&str> {
+        self.one_to_array.get(n).map(String::as_str)
     }
-}
 
-/// `NESTED`: (the struct, BFBC2's new struct in it) -> the BF1943 fields moved into it.
-#[must_use]
-pub fn nested(here: &str, n: &str) -> Option<&'static [&'static str]> {
-    const RECOIL: &[&str] = &[
-        "MaxRecoilAngleX",
-        "MinRecoilAngleX",
-        "MaxRecoilAngleY",
-        "MinRecoilAngleY",
-        "MaxRecoilAngleZ",
-        "MinRecoilAngleZ",
-        "MaxRecoilFov",
-        "MinRecoilFov",
-        "RecoilFollowsDispersion",
-    ];
-    (here == "FireLogic" && n == "Recoil").then_some(RECOIL)
-}
-
-/// `ENUM_NUMBERS[(t, n)]` exists.
-#[must_use]
-pub fn has_enum_table(t: &str, n: &str) -> bool {
-    matches!(
-        (t, n),
-        ("ChildRotationBodyData", "RotationInput") | ("ChildMovingBodyData", "InputAction")
-    )
-}
-
-/// `ENUM_NUMBERS.get((t, n), {}).get(num)`.
-#[must_use]
-pub fn enum_name(t: &str, n: &str, num: i128) -> Option<&'static str> {
-    match (t, n) {
-        ("ChildRotationBodyData", "RotationInput") => match num {
-            0 => Some("EiaThrottle"),
-            4 => Some("EiaYaw"),
-            5 => Some("EiaPitch"),
-            6 => Some("EiaRoll"),
-            7 => Some("EiaFire"),
-            16 => Some("EiaUndefined"),
-            _ => None,
-        },
-        ("ChildMovingBodyData", "InputAction") => match num {
-            0 | 7 => Some("EiaFire"),
-            _ => None,
-        },
-        _ => None,
+    /// `RENAMED.get(n)`.
+    #[must_use]
+    pub fn renamed(&self, n: &str) -> Option<&str> {
+        self.renamed.get(n).map(String::as_str)
     }
-}
 
-/// `NUMBERS_TO_ITEMS[(t, n)]`: the item field each number goes to, and the others' values.
-#[must_use]
-pub fn numbers_to_items(t: &str, n: &str) -> Option<(&'static str, &'static [(&'static str, i128)])> {
-    (t == "DynamicWeaponPickupEntityData" && n == "WeaponSlots")
-        .then_some(("WeaponSlot", &[("AltWeaponSlot", -1), ("LinkedToWeaponSlot", -1)][..]))
+    /// `NESTED.get((here, n))`.
+    #[must_use]
+    pub fn nested(&self, here: &str, n: &str) -> Option<&[String]> {
+        self.nested.get(here)?.get(n).map(Vec::as_slice)
+    }
+
+    /// `ENUM_NUMBERS.get((t, n))`.
+    #[must_use]
+    pub fn enum_table(&self, t: &str, n: &str) -> Option<&HashMap<i128, String>> {
+        self.enum_numbers.get(t)?.get(n)
+    }
+
+    /// `ENUM_NUMBERS.get((t, n), {}).get(num)`.
+    #[must_use]
+    pub fn enum_name(&self, t: &str, n: &str, num: i128) -> Option<&str> {
+        self.enum_table(t, n)?.get(&num).map(String::as_str)
+    }
+
+    /// `NUMBERS_TO_ITEMS.get((t, n))`.
+    #[must_use]
+    pub fn numbers_to_items(&self, t: &str, n: &str) -> Option<&ItemRule> {
+        self.numbers_to_items.get(t)?.get(n)
+    }
+
+    /// `TYPE_AS.get(t)`.
+    #[must_use]
+    pub fn type_as(&self, t: &str) -> Option<&str> {
+        self.type_as.get(t).map(String::as_str)
+    }
+
+    /// `t in DICE_MOVED_CLASSES`.
+    #[must_use]
+    pub fn dice_moved(&self, t: &str) -> bool {
+        self.dice_moved.contains(t)
+    }
+
+    /// `eia_value(v)`.
+    ///
+    /// # Errors
+    /// As [`py::is_eia`].
+    pub fn eia_value(&self, v: &str) -> R<String> {
+        if let Some(x) = self.hint_actions.get(v) {
+            return Ok(x.clone());
+        }
+        if py::is_eia(v)? {
+            return Ok(format!("Eia{}", v.get(3..).unwrap_or_default()));
+        }
+        Ok(v.to_owned())
+    }
+
+    /// `HINT_TEXTS.get(v)`.
+    #[must_use]
+    pub fn hint_text(&self, v: &str) -> Option<&str> {
+        self.hint_texts.get(v).map(String::as_str)
+    }
 }
 
 /// `COUNT_CONVERTERS[(t, n)]` is `gradient_rows`.
@@ -103,50 +215,12 @@ pub fn gradient_rows<'v>(vals: &[&'v [u8]], want: usize) -> Option<Vec<&'v [u8]>
     rows.all(|r| r == first).then(|| first.to_vec())
 }
 
-/// `TYPE_AS[t]`.
-#[must_use]
-pub fn type_as(t: &str) -> Option<&'static str> {
-    (t == "GameSharedResources.LandingGearEntryComponentData").then_some("GameSharedResources.PlayerEntryComponentData")
-}
-
-/// `t in DICE_MOVED_CLASSES`.
-#[must_use]
-pub fn dice_moved(t: &str) -> bool {
-    t == "GameSharedResources.PersistentWeapon"
-}
-
 /// `INPUT_FIELDS.search(n)`.
 #[must_use]
 pub fn is_input_field(n: &str) -> bool {
     ["InputAction", "RotationInput", "ActionToSuppress"]
         .iter()
         .any(|s| py::ends_dollar(n, s))
-}
-
-/// `eia_value(v)`.
-///
-/// # Errors
-/// As [`py::is_eia`].
-pub fn eia_value(v: &str) -> R<String> {
-    match v {
-        "EIUndefined" => return Ok("EiaUndefined".into()),
-        "EIAFireCountermeasure" => return Ok("EiaFireCountermeasure".into()),
-        _ => {}
-    }
-    if py::is_eia(v)? {
-        return Ok(format!("Eia{}", v.get(3..).unwrap_or_default()));
-    }
-    Ok(v.to_owned())
-}
-
-/// `HINT_TEXTS.get(v)`.
-#[must_use]
-pub fn hint_text(v: &str) -> Option<&'static str> {
-    match v {
-        "VH_SWITCH" => Some("VEHICLE_HINT_CHANGE_POSITION"),
-        "VH_BOAT_THROTTLE" => Some("VEHICLE_HINT_ACCELERATE"),
-        _ => None,
-    }
 }
 
 /// `WEAPON_PARTITION.search(name)`: `^objects/weapons/`, any case.
@@ -383,11 +457,36 @@ mod tests {
 
     #[test]
     fn tables_and_helpers() {
-        assert_eq!(eia_value("EIAFire").unwrap(), "EiaFire");
-        assert_eq!(eia_value("EIUndefined").unwrap(), "EiaUndefined");
-        assert_eq!(eia_value("x").unwrap(), "x");
+        let r = Rules::default();
+        assert_eq!(r.eia_value("EIAFire").unwrap(), "EiaFire");
+        assert_eq!(r.eia_value("EIUndefined").unwrap(), "EiaUndefined");
+        assert_eq!(r.eia_value("x").unwrap(), "x");
         assert!(is_input_field("FireInputAction") && !is_input_field("Input"));
-        assert_eq!(enum_name("ChildMovingBodyData", "InputAction", 7), Some("EiaFire"));
+        assert_eq!(r.enum_name("ChildMovingBodyData", "InputAction", 7), Some("EiaFire"));
+        assert_eq!(
+            r.enum_name("ChildRotationBodyData", "RotationInput", 16),
+            Some("EiaUndefined")
+        );
+        // a caller's table is the one asked (OPFOR's gear input: 16 -> EiaDynamicGadget2)
+        let mut gear = r.clone();
+        if let Some(t) = gear
+            .enum_numbers
+            .get_mut("ChildRotationBodyData")
+            .and_then(|m| m.get_mut("RotationInput"))
+        {
+            t.insert(16, "EiaDynamicGadget2".into());
+        }
+        assert_eq!(
+            gear.enum_name("ChildRotationBodyData", "RotationInput", 16),
+            Some("EiaDynamicGadget2")
+        );
+        assert!(r.enum_table("ChildRotationBodyData", "Other").is_none());
+        assert_eq!(r.nested("FireLogic", "Recoil").map(<[String]>::len), Some(9));
+        assert_eq!(
+            r.numbers_to_items("DynamicWeaponPickupEntityData", "WeaponSlots")
+                .map(|x| x.1.len()),
+            Some(2)
+        );
         let a: &[u8] = &[1, 2];
         assert_eq!(gradient_rows(&[a, a, a, a], 2).unwrap(), vec![a, a]);
         assert!(gradient_rows(&[a, &[3, 4][..]], 1).is_none());

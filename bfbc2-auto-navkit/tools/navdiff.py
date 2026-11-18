@@ -44,20 +44,33 @@ NODE_XZ, NODE_Y = 0.05, 0.3
 class Sector:
     def __init__(self, s):
         self.id = s.id
+        self.raw = s.mesh                    # the mesh record, for the Rust core's measures (round E4e)
         self.mesh = kymesh.parse_mesh(s.mesh)
         self.nodes = s.nodes
         self.edges = s.edges
         self._cells = None
+        self._clip = None                    # diff's reference clip, applied when the cells are made
 
     def cells(self):
-        """Per area: dict (i, j) -> ground height estimate."""
+        """Per area: dict (i, j) -> ground height estimate (clipped to diff's clip, when it gave one)."""
         if self._cells is None:
-            self._cells = area_cells_many(self.mesh.areas)
+            c = area_cells_many(self.mesh.areas)
+            if self._clip:
+                clip = self._clip
+                c = [{ij: h for ij, h in d.items() if clip[0] <= ij[0] * GRID <= clip[2] and clip[1] <= ij[1] * GRID <= clip[3]}
+                     for d in c]
+            self._cells = c
         return self._cells
+
+    def native(self):
+        """(mesh record, node positions float64 bytes, edges (src, dst, tag) int64 bytes) for the Rust core."""
+        pos = np.array([n.pos for n in self.nodes], '<f8').reshape(-1, 3)
+        ed = np.array([(e.src, e.dst, e.tag) for e in self.edges], '<i8').reshape(-1, 3)
+        return self.raw, pos.tobytes(), ed.tobytes()
 
 
 def load(path):
-    f = hpdtool.parse(open(path, 'rb').read())
+    f = hpdtool.read(path)              # shared inside hpdtool.shared_reads() (read only here)
     return {s.id: Sector(s) for s in f.sectors}
 
 
@@ -278,32 +291,66 @@ def pct(a, b):
     return 100.0 * a / b if b else 100.0
 
 
+ROW_KEYS = ('cells_ref', 'cells_cand', 'cells_same', 'areas_ref', 'areas_cand', 'areas_same', 'areas_split', 'areas_other',
+            'outline_same', 'portals_same', 'borders_same', 'nodes_ref', 'nodes_cand', 'nodes_same', 'edges_ref',
+            'edges_same', 'costs_same', 'only_ref', 'only_cand', 'detailed_ref', 'detailed_cand')   # compare_sector's
+
+
+def _diff_native(R, C, common, only_r, only_c, clip):
+    """compare_sector of every common sector and the cells of the sectors only one file has, in the Rust core (round
+    E4e: bc2_navbuild::measures, every sector parsed, sampled and compared on all cores; the cells stay there). Returns
+    (rows, [(cells, areas) of only_r], [cells of only_c]) as the Python makes them, or None: the core not in use
+    (navnative) or a sector it refuses - compare_sector and the cells' Python run (the reference)."""
+    import navnative
+    m = navnative.core('navkit_diff')
+    if m is None:
+        return None
+    got = m.navkit_diff([R[s].native() for s in common], [C[s].native() for s in common],
+                        [R[s].native() for s in only_r], [C[s].native() for s in only_c],
+                        tuple(float(v) for v in clip) if clip else None, float(GRID), float(Y_OFFSET), float(STACK_TOL),
+                        float(NODE_XZ), float(NODE_Y))
+    if got is None:
+        return None
+    rows = []
+    for sid, (counts, oref, ocand) in zip(common, got[0]):
+        r = dict(counts)
+        a, b = np.frombuffer(oref, '<i8').reshape(-1, 2).tolist(), np.frombuffer(ocand, '<i8').reshape(-1, 2).tolist()
+        r['only_ref'], r['only_cand'] = [tuple(x) for x in a], [tuple(x) for x in b]
+        r = {k: r[k] for k in ROW_KEYS}
+        r['id'] = sid
+        rows.append(r)
+    return rows, got[1], got[2]
+
+
 def diff(reference, candidate, per_sector=False, log=print, clip=None):
     """clip: (minX, minZ, maxX, maxZ) - reference cells outside it are left out (ground beyond the level's terrain)."""
     R, C = load(reference), load(candidate)
+    only_r, only_c = sorted(set(R) - set(C)), sorted(set(C) - set(R))
+    common = sorted(set(R) & set(C))
+    native = _diff_native(R, C, common, only_r, only_c, clip)
     if clip:
         for s in R.values():
-            s._cells = [{ij: h for ij, h in c.items() if clip[0] <= ij[0] * GRID <= clip[2] and clip[1] <= ij[1] * GRID <= clip[3]}
-                        for c in s.cells()]
-    only_r, only_c = sorted(set(R) - set(C)), sorted(set(C) - set(R))
+            s._clip = clip                   # the reference's cells clipped (made when first read)
     tot: defaultdict[str, int] = defaultdict(int)
-    rows = []
-    for sid in sorted(set(R) & set(C)):
-        r = compare_sector(R[sid], C[sid])
-        r['id'] = sid
-        rows.append(r)
+    rows = native[0] if native is not None else []
+    if native is None:
+        for sid in common:
+            r = compare_sector(R[sid], C[sid])
+            r['id'] = sid
+            rows.append(r)
+    for r in rows:
         for k, v in r.items():
             if isinstance(v, int) and k != 'id':
                 tot[k] += v
     # sectors only in the reference count fully as missing
-    for sid in only_r:
+    for n, sid in enumerate(only_r):
         s = R[sid]
-        tot['cells_ref'] += sum(len(c) for c in s.cells())
+        tot['cells_ref'] += native[1][n][0] if native is not None else sum(len(c) for c in s.cells())
         tot['areas_ref'] += len(s.mesh.areas)
         tot['nodes_ref'] += len(s.nodes)
         tot['edges_ref'] += len(s.edges)
-    for sid in only_c:
-        tot['cells_cand'] += sum(len(c) for c in C[sid].cells())
+    for n, sid in enumerate(only_c):
+        tot['cells_cand'] += native[2][n] if native is not None else sum(len(c) for c in C[sid].cells())
     res = {
         'reference': reference, 'candidate': candidate,
         'sectors': {'reference': len(R), 'candidate': len(C), 'only_reference': [hex(s) for s in only_r], 'only_candidate': [hex(s) for s in only_c]},

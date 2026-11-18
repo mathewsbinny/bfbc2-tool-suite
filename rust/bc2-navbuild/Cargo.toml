@@ -9,6 +9,7 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+bc2-formats.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
 
