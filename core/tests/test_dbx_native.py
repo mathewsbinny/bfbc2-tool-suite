@@ -234,12 +234,10 @@ def corpus_files(root: str) -> list[str]:
     return sorted(out)
 
 
-def corpus_chunk(job: tuple[list[str], bool]) -> list[tuple[str, str, str, str, int]]:
-    """(file, SHA-1, corpus digest, XML digest, bytes) per file (python=True: the retired Python's, for the
-    recording)."""
+def corpus_chunk(files: list[str]) -> list[tuple[str, str, str, str, int]]:
+    """(file, SHA-1, corpus digest, XML digest, bytes) per file."""
     import hashlib
-    files, python = job
-    impl = python_impl() if python else RUST
+    impl = RUST
     out: list[tuple[str, str, str, str, int]] = []
     for f in files:
         try:
@@ -253,11 +251,6 @@ def corpus_chunk(job: tuple[list[str], bool]) -> list[tuple[str, str, str, str, 
     return out
 
 
-def python_impl() -> Impl:
-    """The retired Python reader and writer (present only in the recording's commit)."""
-    return Impl(lambda d: dbx._py_to_xml(dbx._bytes(d)), dbx._py_parse, dbx._py_write)  # type: ignore[attr-defined]
-
-
 def run_corpus(files: list[str], check: Any, label: str, golden: dict[str, str]) -> None:
     fingerprints = {}
     for line in open(FINGERPRINTS):
@@ -266,7 +259,7 @@ def run_corpus(files: list[str], check: Any, label: str, golden: dict[str, str])
             fingerprints[p[1]] = p[2]
     t = time.time()
     workers = max(1, min(6, (os.cpu_count() or 2) - 1))
-    chunks = [(files[i:i + 200], False) for i in range(0, len(files), 200)]
+    chunks = [files[i:i + 200] for i in range(0, len(files), 200)]
     seen: set[str] = set()
     differ: list[str] = []
     unrecorded = fingerprinted = fingerprint_wrong = total_bytes = 0

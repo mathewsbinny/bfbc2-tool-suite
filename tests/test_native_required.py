@@ -1,13 +1,15 @@
-r"""The Rust core is required for texture conversion and NavKit's grid walks (their Python retired on 2026-11-17) and
-for the sound, mesh, physics and Granny conversions (2026-11-18), and a module built from other sources is never used
-silently (core/bfbc2core/native.py; README.md, "The Rust core").
+r"""The Rust core is required for texture conversion and NavKit's grid walks (their Python retired on 2026-11-17), for
+the sound, mesh, physics and Granny conversions (2026-11-18) and for the core format readers and writers - DBX, bundles,
+terrain, water, the collision index, the level loader (2026-11-18, round F1a) -, and a module built from other sources
+is never used silently (core/bfbc2core/native.py; README.md, "The Rust core").
 
 A copy of the suite's Python and Rust sources in a temporary folder (no game data, no cargo), three ways:
   - no module: texture.convert, navbuild.build, navwalk.walkable, audio's encoder, mesh.convert,
-    havok.convert_packfile and granny.to_pc raise NativeMissing at once (before reading any input), saying how to get
-    it (build_native.py --download, or build); the DBX reader runs in Python;
-  - a stale module (the copy's Rust sources changed after it was built): the same error naming the mismatch; the
-    DBX reader falls back to Python with one RuntimeWarning;
+    havok.convert_packfile, granny.to_pc, dbx.parse / to_xml / write, fbrb.entries, terrain.parse, water.parse_mesh and
+    collision.havok_index raise NativeMissing at once (before reading any input), saying how to get it
+    (build_native.py --download, or build);
+  - a stale module (the copy's Rust sources changed after it was built): the same error naming the mismatch, and one
+    RuntimeWarning (from a reader that still has a Python twin, Granny's, found at import);
   - the matching module: they run, BFBC2_PURE_PYTHON=1 does not turn them off.
 And the source fingerprint: the same with CRLF and LF line endings, different when a source changes or a crate is
 added; build_native.py --download against a stand-in for GitHub (its fetch replaced; nothing goes on the network):
@@ -39,10 +41,9 @@ suite_paths.use('core', 'console-convert', 'navkit-tools', 'anim-tools')
 warnings.simplefilter('always')
 caught = []
 warnings.showwarning = lambda m, *a, **k: caught.append(str(m))
-from bfbc2core import dbx, native
+from bfbc2core import collision, dbx, fbrb, native, terrain, water
 import audio, granny, havok, mesh, navbuild, navwalk, texture
 import numpy as np
-print('dbx backend:', dbx.backend())
 print('warnings:', len(caught), caught[0][:80] if caught else '')
 def attempt(name, fn):
     try:
@@ -61,7 +62,15 @@ attempt('audio', lambda: audio.xas_encode_frames(np.zeros((128, 1), np.int16)).s
 attempt('mesh', lambda: mesh.convert(b'', []))
 attempt('havok', lambda: havok.convert_packfile(bytes(64), 0, {}))
 attempt('granny', lambda: granny.to_pc(bytes(16)))
+attempt('dbx', lambda: len(dbx.to_xml(b'{binary}' + bytes(40))))
+attempt('dbx write', lambda: len(dbx.write(dbx.DbxFile([], []))))
+attempt('fbrb', lambda: fbrb.entries('no such bundle.fbrb'))
+attempt('terrain', lambda: terrain.parse(b''))
+attempt('water', lambda: water.parse_mesh(b''))
+attempt('collision', lambda: collision.havok_index([]))
 '''
+RETIRED = ('texture', 'navbuild', 'walkable', 'audio', 'mesh', 'havok', 'granny', 'dbx', 'dbx write', 'fbrb', 'terrain',
+           'water', 'collision')
 
 
 def check(cond: bool, msg: str) -> None:
@@ -180,8 +189,7 @@ def main() -> int:
         root = os.path.join(tmp, 'none')
         copy_suite(root, with_module=False)
         r = probe(root)
-        check(r.get('dbx backend') == 'python', f'no module: the DBX reader runs in Python ({r.get("dbx backend")})')
-        for k in ('texture', 'navbuild', 'walkable', 'audio', 'mesh', 'havok', 'granny'):
+        for k in RETIRED:
             v = r.get(k, '')
             check(v.startswith('NativeMissing') and 'not built or downloaded' in v and '--download' in v
                   and 'build_native.py' in v, f'no module: {k} raises NativeMissing saying how to get it ({v[:150]})')
@@ -191,24 +199,25 @@ def main() -> int:
         r = probe(root, BFBC2_PURE_PYTHON='1')
         check(r.get('texture') == 'ok 156', f'matching module: texture converts under BFBC2_PURE_PYTHON=1 '
                                             f'({r.get("texture")})')
-        check(r.get('dbx backend') == 'python', 'matching module: BFBC2_PURE_PYTHON=1 still turns the DBX reader to Python')
         check(r.get('navbuild', '').startswith(('FileNotFoundError', 'OSError')),
               f'matching module: navbuild.build gets past the check to its input ({r.get("navbuild", "")[:80]})')
         check(r.get('audio') == 'ok (1, 1, 76)', f'matching module: audio encodes under BFBC2_PURE_PYTHON=1 ({r.get("audio")})')
-        for k in ('mesh', 'havok', 'granny'):
+        check(r.get('dbx write') == 'ok 29' and r.get('collision') == 'ok {}' and r.get('fbrb', '').startswith(
+            ('FileNotFoundError', 'OSError')), f'matching module: the DBX writer, the collision index and the bundle reader '
+            f'run under BFBC2_PURE_PYTHON=1 ({r.get("dbx write")}, {r.get("collision")}, {r.get("fbrb", "")[:40]})')
+        for k in ('mesh', 'havok', 'granny', 'dbx', 'terrain', 'water'):
             check(bool(r.get(k)) and not r.get(k, '').startswith('NativeMissing'),
                   f'matching module: {k} gets past the check to its input ({r.get(k)})')
         r = probe(root)
-        check(r.get('dbx backend') == 'rust' and r.get('warnings') == '0 ', f'matching module: used, no warning ({r})')
+        check(r.get('warnings') == '0 ' and r.get('dbx write') == 'ok 29', f'matching module: used, no warning ({r})')
         # stale: the copy's sources changed after the module was built
         lib = os.path.join(root, 'rust', 'bc2-py', 'src', 'lib.rs')
         with open(lib, 'a', encoding='utf-8') as f:
             f.write('// a change the module was not built with\n')
         r = probe(root)
-        check(r.get('dbx backend') == 'python', f'stale module: the DBX reader falls back to Python ({r.get("dbx backend")})')
         check(r.get('warnings', '').startswith('1 ') and 'other Rust sources' in r.get('warnings', ''),
               f'stale module: one warning ({r.get("warnings")})')
-        for k in ('texture', 'navbuild', 'walkable', 'audio', 'mesh', 'havok', 'granny'):
+        for k in RETIRED:
             v = r.get(k, '')
             check(v.startswith('NativeMissing') and 'other Rust sources' in v and '--download' in v,
                   f'stale module: {k} raises NativeMissing naming the mismatch ({v[:150]})')

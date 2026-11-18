@@ -89,12 +89,10 @@ def _rust_triangles(data: bytes) -> np.ndarray | None:
     return None if t is None else np.frombuffer(t, '<f4').reshape(-1, 3, 3)
 
 
-TRIANGLES: list[Callable[[bytes], np.ndarray | None]] = [_rust_triangles]   # the recording put the Python's here
-
-
 def havok_outcome(data: bytes) -> str:
-    """levelobjects.triangles' answer for a packfile's bytes."""
-    return _outcome(lambda: _bits(TRIANGLES[0](data)))
+    """The collision triangles of a packfile's bytes (levelobjects.triangles' answer; the recording had the retired
+    Python's, over hkpack.py)."""
+    return _outcome(lambda: _bits(_rust_triangles(data)))
 
 
 def outcome(kind: str, data: bytes, extra: bytes | None = None) -> str:

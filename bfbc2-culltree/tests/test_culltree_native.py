@@ -84,8 +84,9 @@ class Tally:
             self.n['the same'] += 1
         elif want.startswith(('E:IndexError', 'E:CullTreeError')) and g.startswith('E:CullTreeError') and 'truncated file' in msg:
             self.n['cut short: CullTreeError (Python: ' + want.split(':')[1] + ')'] += 1
-        elif want.startswith('ok:') and g.startswith('E:CullTreeError') and 'longer than 64 bits' in msg:
-            self.n['a varint past 64 bits: CullTreeError (Python read it)'] += 1
+        elif g.startswith('E:CullTreeError') and 'longer than 64 bits' in msg:
+            python = 'read it' if want.startswith('ok:') else want.split(':')[1]
+            self.n[f'a varint past 64 bits: CullTreeError (Python: {python})'] += 1
         else:
             self.bad.append(f'{label}: {g} {msg[:60]} / recorded {want}')
 

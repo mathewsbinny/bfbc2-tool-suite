@@ -12,16 +12,16 @@
 Data comes from the level as NavKit prepares it (OPFOR's work\\levels\\<level>\\dist and pkg, and the shared
 data in work\\navkit\\common\\); a level that is not prepared yet is prepared on first use (offline, no game).
 
-With the suite's Rust core built (rust/, module bc2_native: bc2_scene::scene) the level is read in Rust: the
-entities, blueprints, teams and outlines, the collision index and each blueprint's triangles, the terrain and the
-water at once on all cores; this module still finds the files, prepares and unpacks (tools and writes), and keeps
-its own element trees of the level partition and the static groups for Entity.element. Both give the same Level
-(core/tests/test_scene_native.py: entity by entity on SP_01, MP_005, MP_009GR and ONS_MP_004). BFBC2_PURE_PYTHON=1
-(or use_native(False)) forces the Python loader; backend() says which one runs.
+The level is read by the suite's Rust core (rust/, module bc2_native: bc2_scene::scene): the entities, blueprints,
+teams and outlines, the collision index and each blueprint's triangles, the terrain and the water at once on all
+cores; this module finds the files, prepares and unpacks (tools and writes), and keeps its own element trees of the
+level partition and the static groups for Entity.element. The Python loader was retired on 2026-11-18 (round F1a,
+rust/BENCHMARKS.md "Retired Python"); the Levels it loaded (SP_01, MP_005, MP_009GR, ONS_MP_004, with and without
+geometry) are kept as recorded digests (core/tests/scene_golden.json, compared by test_scene_native.py). Without the
+module load raises bfbc2core.native.NativeMissing saying how to get it.
 """
 import glob
 import os
-import re
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -43,33 +43,9 @@ NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
-import contextlib
-
 import suite_paths  # noqa: E402
 
 suite_paths.use('navkit-tools', 'navkit')
-
-# entity categories by type (DESIGN.md open question 6)
-CATEGORIES = [
-    ('soldier spawn', r'\.(SoldierSpawnEntityData|AlternateSpawnEntityData)$'),
-    ('vehicle spawn', r'\.VehicleSpawnEntityData$'),
-    ('objective', r'\.(MissionObjectiveEntityData|ArmDisarmAwardEntityData)$'),
-    ('capture point', r'\.CapturePointEntityData$'),
-    ('combat area', r'\.(CombatAreaTriggerEntityData|DamageAreaTriggerEntityData)$'),
-    ('ai order', r'\.(AreaOrderEntityData|PatrolOrderEntityData|InterludeOrderEntityData|FireAtAreaOrderEntityData)$'),
-    ('area point', r'\.AreaGeometryEntityData$'),
-    ('placed object', r'\.ReferenceObjectData$'),
-]
-# placed objects (ReferenceObjectData), by what their blueprint's object is
-OBJECT_CATEGORIES = {
-    'LadderEntityData': 'ladder',
-    'DynamicModelEntityData': 'dynamic object',      # movable or breakable props: crates, barrels
-    'RigidModelEntityData': 'dynamic object',        # breakable fences
-    'BangerEntityData': 'dynamic object',            # explosive props (gas cylinders)
-    'EffectEntityData': 'effect',
-}
-TEAMS = {'Team1': 1, 'Team2': 2, 'TeamNeutral': 0}
-SHAPE_FIELDS = (('Geometry', 'area'), ('SurroundingGeometry', 'outer area'), ('RouteWaypoints', 'route'))
 
 
 @dataclass
@@ -146,61 +122,17 @@ class Level:
         return next((e for e in self.entities if e.guid.lower() == g), None)
 
 
-# ------------------------------------------------------------------------------------------------ backend
-
-def _with_scene(m: ModuleType | None) -> ModuleType | None:
-    """m when it has the Rust scene (a module built before it was added does not)."""
-    return m if m is not None and hasattr(m, 'scene_load') else None
-
-
-def _load_native() -> ModuleType | None:
-    """The Rust core (found as dbx finds it) unless BFBC2_PURE_PYTHON is set."""
-    if os.environ.get(dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    return _with_scene(dbx._import_native())
-
-
-_native = _load_native()
-
-
-def backend() -> str:
-    """'rust' when levels are loaded by the Rust scene, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on: bool) -> str:
-    """The Rust scene on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
-    backend(). The readers level.load uses in Python (dbx, collision, terrain, water) are switched separately."""
-    global _native
-    _native = _with_scene(dbx._import_native()) if on else None
-    return backend()
-
-
-def category_of(t: str | None) -> str:
-    for name, rx in CATEGORIES:
-        if re.search(rx, t or ''):
-            return name
-    return 'other'
-
-
-def transform_of(e: dbx.Element) -> np.ndarray | None:
-    t = e.child('Transform')
-    if t is None or t.kind != dbx.NUMBERS:
-        return None
-    v = dbx.floats(t)
-    return np.array(v, dtype=np.float64).reshape(4, 4) if len(v) == 16 else None
-
-
-def blueprint_of(e: dbx.Element) -> str | None:
-    r = e.child('ReferencedObject')
-    ref = r.attr('ref') if r is not None else None
-    return ref.rsplit('/', 1)[0].lower() if ref and '/' in ref else None
+def _rust() -> ModuleType:
+    """The Rust core, or NativeMissing saying how to get it."""
+    from . import native
+    return native.require('the level loader (bfbc2core.level)', 'scene_load')
 
 
 def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Callable[[str], Any] = print,
          geometry: bool = True) -> Level:
     """geometry=False: the level partition's entities, teams and shapes only - no static-group members, collision,
     terrain or water (a second or two; the test harness's reachability and level checks)."""
+    _rust()                                              # before anything is prepared or unpacked
     import navkit
     root = paths.find_opfor(opfor, start=SUITE)          # NavKit's search and message (GameCopyNotFound)
     lv = level.replace('\\', '/').split('/')[-1].lower()
@@ -228,85 +160,14 @@ def load(level: str, opfor: str | None = None, terrain_stride: int = 2, log: Cal
     for b in (bases[:2] if geometry else ()):
         for gf in glob.glob(os.path.join(b, 'levels', lv, '*_HavokAsset.dbx')):
             group_files.setdefault(os.path.basename(gf).lower(), gf)
-    # the partition and the group files in one batch (all cores with the Rust core); errors raise as dbx.read's would
+    # the partition and the group files in one batch (all cores); errors raise as dbx.read's would
     f, *groups = _strict(read_many([part, *group_files.values()]))
-    if _native is not None:
-        return _load_scene(lvl, part, list(group_files.values()), bases, f, groups, geometry, terrain_stride, log)
-    pname = 'levels/' + LV
-    for el in f.instances:
-        t = el.attr('type') or ''
-        lvl.entities.append(Entity(len(lvl.entities), el.attr('guid') or '', t, t.rsplit('.', 1)[-1], category_of(t), el.attr('id'),
-                                   (cast(dbx.Element, el.child('Name')).text
-                                    if el.child('Name') is not None and cast(dbx.Element, el.child('Name')).kind == dbx.TEXT
-                                    else None),
-                                   pname, transform_of(el), blueprint_of(el), el))
-    for gf, g in zip(group_files.values(), groups):
-            for el in g.instances:
-                tr, assets = el.child('Transforms'), el.child('Assets')
-                if tr is None or assets is None or tr.kind != dbx.NUMBERS or not assets.children:
-                    continue
-                vals = np.array(dbx.floats(tr), dtype=np.float64)
-                for k, item in enumerate(assets.children):
-                    if 16 * (k + 1) > len(vals):
-                        break
-                    bp = re.sub(r'_havok$', '', (item.attr('ref') or '').rsplit('/', 1)[0].lower())
-                    lvl.entities.append(Entity(len(lvl.entities), f'{el.attr("guid")}#{k}', 'StaticGroupMember', 'StaticGroupMember',
-                                               'group member', None, bp.rsplit('/', 1)[-1], os.path.basename(gf)[:-4],
-                                               vals[16 * k:16 * (k + 1)].reshape(4, 4), bp, item, group=os.path.basename(gf)))
-    resolve_blueprints(lvl, bases)
-    assign_teams(lvl)
-    lvl.shapes = shapes_of(lvl)
-    if not geometry:
-        log(f'{LV}: {len(lvl.entities)} entities (no geometry)')
-        return lvl
-    # collision: NavKit's packfile index and mesh aliases, and each blueprint's triangles (collision.py: one walk and
-    # all cores with the Rust core)
-    havok, aliases = collision.index(bases)
-    if isinstance(aliases, Exception):        # needs the converted XML NavKit's prepare writes
-        lvl.notes.append(f'blueprint mesh aliases not read: {aliases}')
-    else:
-        for bp, target in aliases.items():
-            if bp not in havok and target in havok:
-                havok[bp] = havok[target]
-    placed = [e for e in lvl.entities if e.blueprint is not None and e.matrix is not None]
-    wanted = [bp for bp in dict.fromkeys(cast(str, e.blueprint) for e in placed) if bp in havok]
-    cache: dict[str, Any] = dict.fromkeys(dict.fromkeys(cast(str, e.blueprint) for e in placed))
-    for bp, r in zip(wanted, collision.triangles_many([havok[bp] for bp in wanted])):
-        if isinstance(r, Exception):          # the first damaged packfile in entity order, as one by one
-            raise r
-        cache[bp] = r
-    missing: set[str] = set()
-    for e in placed:
-        t = cache[cast(str, e.blueprint)]
-        if t is None:
-            missing.add(cast(str, e.blueprint))
-            continue
-        m = cast(np.ndarray, e.matrix)
-        lvl.meshes.append(Mesh(e.index, (t @ m[:3, :3] + m[3, :3]).astype(np.float32)))
-    lvl.missing_collision = sorted(missing)
-    source = 'none'
-    try:
-        lvl.heightfield = heightfield_of(root, lv, log, terrain_name(f.instances))
-    except Exception as e:                    # no terrain bundle, FbrbTool missing, unexpected layout
-        lvl.notes.append(f'terrain height field not read: {e}')
-    try:
-        lvl.water = water.read(os.path.join(root, 'work', 'levels', lv, 'terrain'), terrain_name(f.instances) or lv)
-    except Exception as e:
-        lvl.notes.append(f'water not read: {e}')
-    if lvl.heightfield is not None:
-        lvl.terrain, source = lvl.heightfield.mesh(terrain_stride), 'height field'
-    else:
-        lvl.terrain = terrain_from_samples(root, lv, terrain_stride)
-        source = 'samples' if lvl.terrain else 'none'
-    n_tris = sum(len(m.triangles) for m in lvl.meshes)
-    log(f'{LV}: {len(lvl.entities)} entities, {len(lvl.meshes)} with collision ({n_tris} triangles), '
-        f'{len(missing)} blueprints without collision, terrain from {source}')
-    return lvl
+    return _load_scene(lvl, part, list(group_files.values()), bases, f, groups, geometry, terrain_stride, log)
 
 
 def _load_scene(lvl: Level, part: str, group_paths: list[str], bases: list[str], f: dbx.DbxFile,
                 groups: list[dbx.DbxFile], geometry: bool, terrain_stride: int, log: Callable[[str], Any]) -> Level:
-    """load() through the Rust scene: the same Level, its elements taken from this module's trees (f, groups)."""
+    """load()'s Level from the Rust scene, its elements taken from this module's trees (f, groups)."""
     root, lv, LV = lvl.opfor, lvl.lv, lvl.name
     name = terrain_name(f.instances)
     hpath: str | None = None
@@ -318,7 +179,7 @@ def _load_scene(lvl: Level, part: str, group_paths: list[str], bases: list[str],
         except Exception as e:                # no terrain bundle, FbrbTool missing, unexpected layout
             terrain_note = f'terrain height field not read: {e}'
         water_files = water.find_files(os.path.join(root, 'work', 'levels', lv, 'terrain'), name or lv)
-    s = cast(ModuleType, _native).scene_load(LV, part, group_paths, bases, geometry, hpath, terrain_stride, *water_files,
+    s = _rust().scene_load(LV, part, group_paths, bases, geometry, hpath, terrain_stride, *water_files,
                                              alias_cache=collision.cache_folder())   # the mesh-alias cache
     collision.prune_cache()
     instances = [f.instances] + [g.instances for g in groups]
@@ -367,7 +228,7 @@ def _load_scene(lvl: Level, part: str, group_paths: list[str], bases: list[str],
 
 
 def read_many(files: Sequence[str]) -> list[dbx.DbxFile | Exception]:
-    """dbx.read of each file, in order, through dbx.parse_many: on all cores with the Rust core, and with the cycle
+    """dbx.read of each file, in order, through dbx.parse_many: on all cores, and with the cycle
     collector paused while the trees are built (a level keeps thousands of them: rust/BENCHMARKS.md). A file that
     cannot be read or parsed gives its exception (OSError, ValueError, dbx.DeletedEntry) in its place."""
     out: list[dbx.DbxFile | Exception | None] = [None] * len(files)
@@ -391,146 +252,6 @@ def _strict(results: list[dbx.DbxFile | Exception]) -> list[dbx.DbxFile]:
         if isinstance(r, Exception):
             raise r
     return cast('list[dbx.DbxFile]', results)
-
-
-def resolve_blueprints(lvl: Level, bases: list[str]) -> None:
-    """Placed objects: the blueprint's object type and whether it is destructible; categories from them."""
-    files: dict[str, dict[str, dbx.Element]] = {}
-
-    def locate(path: str) -> str | None:
-        """The blueprint partition's file: the first base that has it (Package over Dist over the shared data)."""
-        for b in bases:
-            p = os.path.join(b, path + '.dbx')
-            if os.path.isfile(p):
-                return p
-        return None
-
-    def preload(wanted: Iterable[str]) -> None:
-        """The partitions not read yet, in one read_many batch; one that cannot be read has no instances."""
-        todo: list[tuple[str, str]] = []
-        for path in dict.fromkeys(wanted):
-            if path in files:
-                continue
-            files[path] = {}
-            p = locate(path)
-            if p is not None:
-                todo.append((path, p))
-        for (path, _), r in zip(todo, read_many([p for _, p in todo])):
-            if not isinstance(r, Exception):
-                with contextlib.suppress(Exception):
-                    files[path] = {(i.attr('guid') or '').lower(): i for i in r.instances}
-
-    def instances(path: str) -> dict[str, dbx.Element]:
-        if path not in files:
-            preload([path])
-        return files[path]
-
-    def ref_of(el: dbx.Element | None, name: str) -> str | None:
-        c = el.child(name) if el is not None else None
-        return c.attr('ref') if c is not None else None
-
-    # every blueprint partition the placed objects name, then every partition their blueprints' objects live in:
-    # two read_many batches instead of one read per partition (the loop below finds them all read)
-    refs = [x for e in lvl.entities if e.short_type == 'ReferenceObjectData'
-            for x in (ref_of(e.element, 'ReferencedObject'),) if x and '/' in x]
-    preload(x.rsplit('/', 1)[0] for x in refs)
-    second = []
-    for x in refs:
-        path, guid = x.rsplit('/', 1)
-        oref = ref_of(files[path].get(guid.lower()), 'Object')
-        if oref and oref != 'null' and '/' in oref:
-            second.append(oref.rsplit('/', 1)[0])
-    preload(second)
-
-    def broken_up(insts: dict[str, dbx.Element]) -> bool:
-        """Health states or breakable part links anywhere in the blueprint (destructible buildings)."""
-        for i in insts.values():
-            for name in ('HealthStates', 'PartLinks'):
-                c = i.child(name)
-                if c is not None and c.children:
-                    return True
-        return False
-
-    destructible: dict[str, bool] = {}
-    for e in lvl.entities:
-        if e.short_type != 'ReferenceObjectData':
-            continue
-        r = e.element.child('ReferencedObject')
-        ref = r.attr('ref') if r is not None else None
-        if not ref or '/' not in ref:
-            continue
-        path, guid = ref.rsplit('/', 1)
-        insts = instances(path)
-        obj = bp = insts.get(guid.lower())
-        o = bp.child('Object') if bp is not None else None
-        oref = o.attr('ref') if o is not None else None
-        if oref and oref != 'null':
-            if '/' in oref:
-                p2, g2 = oref.rsplit('/', 1)
-                obj = instances(p2).get(g2.lower())
-            else:
-                obj = insts.get(oref.lower())
-        if obj is None:
-            continue
-        e.blueprint_type = (obj.attr('type') or '').rsplit('.', 1)[-1]
-        if path not in destructible:
-            destructible[path] = broken_up(insts)
-        e.destructible = e.blueprint_type == 'StaticModelEntityData' and destructible[path]
-        if (e.blueprint or '').startswith('objects/objects/mpobjective'):
-            e.category = 'objective'                     # Rush M-COM stations
-        elif e.destructible:
-            e.category = 'destructible'
-        else:
-            e.category = OBJECT_CATEGORIES.get(e.blueprint_type, e.category)
-
-
-def assign_teams(lvl: Level) -> None:
-    """Team and AI / human from the entity's own fields; alternate spawn points take their spawner's team."""
-    guids = {e.guid.lower(): e for e in lvl.entities}
-    for e in lvl.entities:
-        for name in ('Team', 'InitialOwnerTeam'):
-            c = e.element.child(name)
-            if c is not None and c.kind == dbx.TEXT and c.text in TEAMS:
-                e.team = TEAMS[c.text]
-                break
-        c = e.element.child('PlayerType')
-        if c is not None and c.kind == dbx.TEXT and c.text:
-            e.ai = c.text != 'SSHumanPlayer'
-    for e in lvl.entities:
-        alt = e.element.child('AlternativeSpawnPoints')
-        for item in (alt.children if alt is not None and alt.children else ()):
-            t = guids.get((item.attr('ref') or '').lower())
-            if t is not None and t.team is None:
-                t.team, t.ai = e.team, e.ai
-
-
-def shapes_of(lvl: Level) -> list[Shape]:
-    """Outlines: chains of AreaGeometryEntityData points (Next links) referenced by Geometry, SurroundingGeometry
-    and RouteWaypoints fields. A chain that comes back to its start is an area."""
-    guids = {e.guid.lower(): e for e in lvl.entities}
-    out: list[Shape] = []
-    for e in lvl.entities:
-        for name, kind in SHAPE_FIELDS:
-            c = e.element.child(name)
-            for item in (c.children if c is not None and c.children else ()):
-                p = guids.get((item.attr('ref') or '').lower())
-                pts: list[np.ndarray]
-                seen: set[str]
-                pts, seen, closed, height = [], set(), False, 0.0
-                while p is not None and p.position is not None:
-                    if p.guid in seen:
-                        closed = True
-                        break
-                    seen.add(p.guid)
-                    pts.append(p.position)
-                    h = p.element.child('Height')
-                    if h is not None and h.kind == dbx.NUMBERS and not height:
-                        height = float(dbx.floats(h)[0])
-                    n = p.element.child('Next')
-                    p = guids.get((n.attr('ref') or '').lower()) if n is not None else None
-                if len(pts) >= 2:
-                    out.append(Shape(e.index, kind, np.array(pts), closed and kind != 'route', height, name))
-    return out
 
 
 def terrain_name(entities: Iterable[dbx.Element]) -> str | None:

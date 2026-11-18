@@ -3,18 +3,18 @@ r"""Runs the suite's tests: one line per test, the failures' output at the end, 
   python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] [--mem GB] [--plan] [--times F]
 
   quick   no game data, about a minute: the Rust core (built when stale, its cargo checks, its DBX reader against
-          the Python one; skipped without Rust), repository rules, DbxEdit unit tests, and on files built by the
+          the retired Python reader's recorded answers), repository rules, DbxEdit unit tests, and on files built by the
           tests: FbrbTool, LevelDiff, the crash reader and exeref, the console readers, the menu tools, the test
           harness (needs Windows for the C# tools)
-  game    + Project OPFOR BFBC2's game copy, about 13 minutes: the Rust DBX reader against the Python reader and
-          DbxEdit on every unpacked .dbx, FbrbTool on 12 game bundles, water on every level,
+  game    + Project OPFOR BFBC2's game copy, about 13 minutes: the DBX reader against the retired Python reader's
+          recorded answers and DbxEdit on every unpacked .dbx, FbrbTool on 12 game bundles, water on every level,
           the level loader against its snapshot, terrain against the in-game samples, path-data and mesh
           round trips, LevelDiff on MP_005, the crash reader's code view and exeref on BFBC2Game.exe, the menu
           tools on the game's movies and OPFOR's menu patches, the console
           readers on your own Xbox 360 files (skipped when they are not on the PC), the 3D tools opening a
           level (needs a display), the structure of DICE's path data (hpdcheck), the test harness on two small
           levels, NavKit's regression test on two small levels
-  full    + the corpus runs, about 90 minutes: DbxEdit and the Python DBX reader on every unpacked .dbx,
+  full    + the corpus runs, about 90 minutes: DbxEdit and the DBX reader on every unpacked .dbx,
           FbrbTool on all 1,055 bundles, NavKit's regression test on the 13 campaign levels and the imported
           Onslaught maps (about 5 hours)
 
@@ -108,13 +108,13 @@ def tests():
     t = [
         ('Rust core build (when stale; skipped without Rust)', 'quick', [PY, os.path.join(SUITE, 'rust', 'build_native.py'), '--if-stale']),
         ('Rust core: cargo fmt, clippy, tests (skipped without Rust)', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_rust.py')]),
-        ('Rust DBX reader against the Python reader (built, damaged, 200 corpus files)', 'quick',
+        ("DBX reader (Rust) against the retired Python reader's recorded answers (built, damaged, 200 corpus files)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_native.py')]),
-        ('Rust FBRB reader against the Python reader and FbrbTool (built, damaged, 8 game bundles)', 'quick',
+        ("FBRB reader (Rust) against the retired Python reader's recorded answers and FbrbTool (built, damaged, 8 game bundles)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_native.py')]),
-        ('Rust FBRB bundle cache against the reader without it (built, damaged, changed, 4 processes, 3 game bundles)', 'quick',
+        ("Rust FBRB bundle cache against the reader without it and the Python reader's recorded answers (built, damaged, changed, 4 processes, 3 game bundles)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_cache.py')]),
-        ('Rust terrain, water and collision readers against the Python readers (built, damaged, dispatch, aliases from binary partitions)', 'quick',
+        ("terrain, water and collision readers (Rust) against the retired Python readers' recorded answers (built, damaged, aliases from binary partitions)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py')]),
         ('Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_native.py')]),
@@ -122,7 +122,7 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_queries.py')]),
         ('Rust shader translator: decoder against xenos.py, translations against the recorded Python (built programs, damaged blobs, random microcode, dispatch, hand-built trees)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_xenos_native.py')]),
-        ('Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)', 'quick',
+        ("cull tree element reader (Rust) against the retired Python reader's recorded answers, level search against glob (built, damaged, listing, 2 work trees)", 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-culltree', 'tests', 'test_culltree_native.py')]),
         ('Rust Granny reader against granny.py, Xbox 360 -> PC conversion against its recorded results (built, damaged, batch, writes)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_native.py')]),
@@ -153,7 +153,7 @@ def tests():
         ('FbrbTool build (when stale)', 'quick', stale_build('bfbc2-fbrb-tool', ['FbrbTool.exe'],
                                                              [os.path.join('bfbc2-fbrb-tool', 'FbrbTool.cs')])),
         ('FbrbTool round trip, built bundle', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py')]),
-        ('Rust DBX writer against the Python writer (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)', 'quick',
+        ("DBX writer (Rust) against the retired Python writer's recorded bytes (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_write_native.py')]),
         ("DbxEdit in process against DbxEdit.exe (the unit tests' 82 cases both ways, the drop-in runner, the batch, the log)", 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbxedit.py')]),
@@ -161,7 +161,7 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrbtool.py')]),
         ('Rust FBRB packer against FbrbTool, zlib against Python\'s (built folders in every layout, 8 game bundles)', 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_pack_native.py')]),
-        ('Rust FBRB unpack against FbrbTool (built, odd and damaged bundles, the fallback, 8 game bundles)', 'quick',
+        ('Rust FBRB unpack against FbrbTool (built, odd and damaged bundles, 8 game bundles)', 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_unpack_native.py')]),
         ('error handling and logs', 'quick', [PY, os.path.join(SUITE, 'core', 'tests', 'test_errors.py')]),
         ('cache caps and pruning (bfbc2core.caches): least recently used first, writers and readers beside it, the command', 'quick',
@@ -246,15 +246,15 @@ def tests():
         ('emitter atlases merged, emitters re-pointed (synthetic)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-bf1943-import', 'tests', 'test_emitteratlas.py')]),
         ('texture QA: decoding, Xbox untiling, flips / swizzles / degenerate, baseline (synthetic)', 'quick',
          [PY, os.path.join(SUITE, 'bfbc2-console-convert', 'tests', 'test_texqa.py')]),
-        ('Rust DBX reader against the Python reader, every corpus file', 'game',
+        ("DBX reader (Rust) against the retired Python reader's recorded answers, every corpus file", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_native.py'), '--game']),
         ('Rust DBX reader against DbxEdit, every fingerprinted file; every bundle extracted (cargo)', 'game',
          [PY, os.path.join(SUITE, 'tests', 'test_rust.py'), '--corpus']),
-        ('Rust FBRB reader against the Python reader, every bundle', 'game',
+        ("FBRB reader (Rust) against the retired Python reader's recorded answers, every bundle", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_native.py'), '--game']),
         ('Rust FBRB bundle cache: every 3rd game bundle read in a random order, the stored bundles', 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_cache.py'), '--game']),
-        ('Rust DBX writer against the Python writer, every corpus file written back and edited', 'game',
+        ("DBX writer (Rust) against the retired Python writer's recorded bytes, every corpus file written back and edited", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx_write_native.py'), '--game']),
         ('DbxEdit in process against DbxEdit.exe, 2,000 corpus files through every command and every edit fingerprint', 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbxedit.py'), '--game']),
@@ -264,7 +264,7 @@ def tests():
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_pack_native.py'), '--game']),
         ('Rust FBRB unpack against FbrbTool, every game bundle with a payload up to 300 MiB unpacked both ways', 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb_unpack_native.py'), '--game']),
-        ('Rust terrain, water and Havok readers on every bundle of the game copy, the collision index of every prepared level', 'game',
+        ("terrain, water and Havok readers (Rust) on every bundle of the game copy, the collision index of every prepared level, against the retired Python readers' recorded answers", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_geometry_native.py'), '--game']),
         ('Rust shader databases on every database of the game copy, the Xbox and BF1943 levels and work; the WW2 merges', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_native.py'), '--game']),
@@ -272,7 +272,7 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_shaderdb_queries.py'), '--game']),
         ('Rust shader translator on every program of the BF1943 and BFBC2 Xbox shader databases (trees, HLSL, errors)', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-shader-tools', 'tests', 'test_xenos_native.py'), '--game']),
-        ('Rust cull trees on every tree and level partition of the game copy and work; listings; an add run both ways', 'game',
+        ("cull trees (Rust) on every tree and level partition of the game copy and work against the retired Python reader's recorded answers; listings; the recorded add run", 'game',
          [PY, os.path.join(SUITE, 'bfbc2-culltree', 'tests', 'test_culltree_native.py'), '--game']),
         ('Rust Granny reader and conversion on every Granny resource of your Xbox files, the game copy and BF1943', 'game',
          [PY, os.path.join(SUITE, 'bfbc2-anim-tools', 'tests', 'test_granny_native.py'), '--game']),
@@ -280,9 +280,9 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-culltree', 'tests', 'test_culltree_e3m.py'), '--game']),
         ("Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles", 'game',
          [PY, os.path.join(SUITE, 'tests', 'test_e3o_native.py'), '--game']),
-        ('Rust scene against the Python loader, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)', 'game',
+        ("level loader (Rust scene) against the retired Python loader's recorded Levels, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)", 'game',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_scene_native.py')]),
-        ("NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core and in Python (SP_009, SP_004_B)", 'game',
+        ("NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core against the retired Python path's recorded results (SP_009, SP_004_B)", 'game',
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_collision_backends.py')]),
         ('path locators: the same answers as a reference checkout (main)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_locators.py')]),
         ('LevelDiff on MP_005', 'game', [PY, os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'tests', 'test_leveldiff.py'), '--game']),
@@ -350,7 +350,7 @@ def tests():
         ('NavKit regression, all levels with DICE path data', 'full', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py')]),
         ('DbxEdit corpus and fingerprints', 'full', lambda root: ['cmd', '/c', os.path.join(SUITE, 'bfbc2-dbx-tools', 'tests', 'run_tests.bat'),
                                                                  os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
-        ('Python DBX reader against DbxEdit', 'full', lambda root: [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx.py'),
+        ('DBX reader against DbxEdit, every unpacked .dbx', 'full', lambda root: [PY, os.path.join(SUITE, 'core', 'tests', 'test_dbx.py'),
                                                                    os.path.join(root, 'work', 'levels'), os.path.join(root, 'work', 'navkit', 'common')]),
         ('FbrbTool round trip, every game bundle', 'full', [PY, os.path.join(SUITE, 'core', 'tests', 'test_fbrb.py'), '--game', '0']),
         ('Rust EA-XAS audio encoder: every BF1943 Wave and in-memory BFBC2 Xbox Wave converted as recorded, byte for byte', 'full',
@@ -384,14 +384,14 @@ NEEDS = {
     # quick
     'Rust core build (when stale; skipped without Rust)': need(setup=True),
     'Rust core: cargo fmt, clippy, tests (skipped without Rust)': need(cpu='all', mem=2, cargo='w'),
-    'Rust DBX reader against the Python reader (built, damaged, 200 corpus files)': need(cpu=2, mem=1),
-    'Rust FBRB reader against the Python reader and FbrbTool (built, damaged, 8 game bundles)': need(cpu=6, mem=4.5),   # measured 4.6 GB
-    'Rust FBRB bundle cache against the reader without it (built, damaged, changed, 4 processes, 3 game bundles)': need(cpu=4, mem=1),
-    'Rust terrain, water and collision readers against the Python readers (built, damaged, dispatch, aliases from binary partitions)': need(),
+    "DBX reader (Rust) against the retired Python reader's recorded answers (built, damaged, 200 corpus files)": need(cpu=2, mem=1),
+    "FBRB reader (Rust) against the retired Python reader's recorded answers and FbrbTool (built, damaged, 8 game bundles)": need(cpu=3, mem=1),
+    "Rust FBRB bundle cache against the reader without it and the Python reader's recorded answers (built, damaged, changed, 4 processes, 3 game bundles)": need(cpu=4, mem=1),
+    "terrain, water and collision readers (Rust) against the retired Python readers' recorded answers (built, damaged, aliases from binary partitions)": need(),
     'Rust shader database reader / writer against shaderdb.py (built, damaged, writer fallback, merge, mp_008cq)': need(cpu=4, mem=1),
     'Rust shader database handle and queries against shaderdb.py (never made, made, changed lists; blocks, checks, writer, mp_008cq)': need(mem=0.6),
     'Rust shader translator: decoder against xenos.py, translations against the recorded Python (built programs, damaged blobs, random microcode, dispatch, hand-built trees)': need(mem=0.3),
-    'Rust cull tree element reader and level search against culltree.py (built, damaged, listing, 2 work trees)': need(cpu=2),
+    "cull tree element reader (Rust) against the retired Python reader's recorded answers, level search against glob (built, damaged, listing, 2 work trees)": need(cpu=2),
     'Rust Granny reader against granny.py, Xbox 360 -> PC conversion against its recorded results (built, damaged, batch, writes)': need(),
     'Rust texture converter against its recorded results (built, damaged, batch)': need(cpu=2),
     "Rust EA-XAS audio encoder / decoder against its recorded results (shift rule, seeded PCM of every shape, random frames, DICE's blocks)": need(cpu=2, mem=1),
@@ -412,11 +412,11 @@ NEEDS = {
     'DbxEdit unit tests': need(display='w', dbxtests='w'),
     'FbrbTool build (when stale)': need(setup=True),
     'FbrbTool round trip, built bundle': need(),
-    'Rust DBX writer against the Python writer (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)': need(cpu=2, mem=1),
+    "DBX writer (Rust) against the retired Python writer's recorded bytes (edge, random and edited trees, 200 corpus files, DbxEdit roundtrip)": need(cpu=2, mem=1),
     "DbxEdit in process against DbxEdit.exe (the unit tests' 82 cases both ways, the drop-in runner, the batch, the log)": need(cpu=2),
     "FbrbTool in process against FbrbTool.exe (228 command lines and 100 damaged bundles both ways, .NET's gzip reader, the drop-in runner)": need(cpu=2, mem=0.5),
     'Rust FBRB packer against FbrbTool, zlib against Python\'s (built folders in every layout, 8 game bundles)': need(cpu=4, mem=1),
-    'Rust FBRB unpack against FbrbTool (built, odd and damaged bundles, the fallback, 8 game bundles)': need(cpu=2, mem=1),
+    'Rust FBRB unpack against FbrbTool (built, odd and damaged bundles, 8 game bundles)': need(cpu=2, mem=1),
     'error handling and logs': need(),
     'cache caps and pruning (bfbc2core.caches): least recently used first, writers and readers beside it, the command': need(),
     'log caps and day rollover, project caches in work\\ (bfbc2core.caches), the command': need(),
@@ -486,27 +486,27 @@ NEEDS = {
     'shader translator differential test: BF1943 shaders behind each translator fix exact': need(cpu=4, mem=1.5, shaderview='w'),
     'HLSL batches (pcbuild): every Wake pixel shader translated, compile_many against one at a time': need(cpu='all', mem=1.6),
     'shader translator differential test: every Wake pixel shader served on threads against one process each, one at a time': need(cpu=4, mem=1.5, shaderview='w'),
-    'Rust DBX reader against the Python reader, every corpus file': need(cpu='all', mem=4),
+    "DBX reader (Rust) against the retired Python reader's recorded answers, every corpus file": need(cpu=6, mem=3),
     'Rust DBX reader against DbxEdit, every fingerprinted file; every bundle extracted (cargo)': need(cpu='all', mem=3, cargo='w'),
-    'Rust FBRB reader against the Python reader, every bundle': need(cpu=6, mem=8),    # its quick run: 4.6 GB
+    "FBRB reader (Rust) against the retired Python reader's recorded answers, every bundle": need(cpu=3, mem=3),    # 3 processes, a bundle read in groups of 256 MB
     'Rust FBRB bundle cache: every 3rd game bundle read in a random order, the stored bundles': need(cpu=2, mem=1.5),
-    'Rust DBX writer against the Python writer, every corpus file written back and edited': need(cpu='all', mem=4),
+    "DBX writer (Rust) against the retired Python writer's recorded bytes, every corpus file written back and edited": need(cpu=6, mem=3),
     'DbxEdit in process against DbxEdit.exe, 2,000 corpus files through every command and every edit fingerprint': need(cpu=4, mem=1),
     'FbrbTool in process against FbrbTool.exe, 40 game bundles unpacked, listed and packed, 600 damaged bundles, a replay of the logged invocations': need(cpu=2, mem=2),   # the exe holds a bundle and its payload: about 1 GB at 120 MB
     'Rust FBRB packer against FbrbTool, every bundle of the game copy unpacked and packed again': need(cpu=8, mem=8),
     'Rust FBRB unpack against FbrbTool, every game bundle with a payload up to 300 MiB unpacked both ways': need(cpu=2, mem=2),
-    'Rust terrain, water and Havok readers on every bundle of the game copy, the collision index of every prepared level': need(cpu=8, mem=4),
+    "terrain, water and Havok readers (Rust) on every bundle of the game copy, the collision index of every prepared level, against the retired Python readers' recorded answers": need(cpu=3, mem=2),
     'Rust shader databases on every database of the game copy, the Xbox and BF1943 levels and work; the WW2 merges': need(cpu=8, mem=3),
     'Rust shader database queries on every database of the game copy, the Xbox and BF1943 levels and work': need(cpu=3, mem=1.5),   # 2 workers
     'Rust shader translator on every program of the BF1943 and BFBC2 Xbox shader databases (trees, HLSL, errors)': need(cpu=3, mem=1),          # 2 workers of ~360 MB
-    'Rust cull trees on every tree and level partition of the game copy and work; listings; an add run both ways': need(cpu=8, mem=3),
+    "cull trees (Rust) on every tree and level partition of the game copy and work against the retired Python reader's recorded answers; listings; the recorded add run": need(cpu=3, mem=3),
     'Rust Granny reader and conversion on every Granny resource of your Xbox files, the game copy and BF1943': need(mem=1),
     'cull tree add and verify on Onslaught MP_005 against every work\\levels folder: reference, no cache, cold, warm (E3m)': need(cpu=2, mem=3),
     'APT decoder (Rust) and aptgraft writer against their references on every movie of the game copy, the pristine menus and the Xbox HUD copies; aptrefs / aptcheck / bc2loc both ways (E3n)': need(cpu=2, mem=1.5),
     'APT model, aptcheck and aptrefs in Rust against the Python on the 133 movies of E3n: every write, roundtrip --pack, grafts, aliases, crosshair-add (E4c)': need(cpu=2, mem=1.5),
     "Rust E3o on the game copy: every path-data sector, navdata.load of DICE's prepared levels, 400 routes, verify-havok's Onslaught files, texqa on the WW2 vehicles": need(cpu='all', mem=2),
-    'Rust scene against the Python loader, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)': need(cpu=8, mem=3),
-    "NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core and in Python (SP_009, SP_004_B)": need(cpu=4, mem=2),
+    "level loader (Rust scene) against the retired Python loader's recorded Levels, entity by entity (SP_01, MP_005, MP_009GR, ONS_MP_004)": need(cpu=8, mem=3),
+    "NavKit's collision readers (detailed, ladders, offline sampler, boat mesh) on the Rust core against the retired Python path's recorded results (SP_009, SP_004_B)": need(cpu=4, mem=2),
     'path locators: the same answers as a reference checkout (main)': need(),
     'LevelDiff on MP_005': need(),
     'crash reader code view (BFBC2Game.exe)': need(),
@@ -559,7 +559,7 @@ NEEDS = {
     # full
     'NavKit regression, all levels with DICE path data': need(mem=3, regress='w'),
     'DbxEdit corpus and fingerprints': need(mem=1, display='w', dbxtests='w'),
-    'Python DBX reader against DbxEdit': need(mem=1),
+    'DBX reader against DbxEdit, every unpacked .dbx': need(mem=1),
     'FbrbTool round trip, every game bundle': need(mem=2),
     'Rust EA-XAS audio encoder: every BF1943 Wave and in-memory BFBC2 Xbox Wave converted as recorded, byte for byte': need(cpu=4, mem=2.5),
 }
