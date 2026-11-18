@@ -20,13 +20,24 @@
 //!   template choice, alignment, reference rules and value passes over trees kept here (round E4d).
 //! - [`texcheck`] (round F0): a PC texture's levels and a level decoded to pixels (`texture.py`'s `levels` /
 //!   `decode`); [`hkclasses`] (round F0): the Havok class layouts of BFBC2Game.exe (`havok.py`'s `classes`).
+//! - round F2b, `bfbc2-bf1943-import`'s remaining Python: [`mopp`] (`mopp.py`'s MOPP queries and ray casts),
+//!   [`havokport`] (`havokport.py`: the 4.6.1 restructure, the material table, the shape subparts, the physics
+//!   materials), [`emitteratlas`] (`emitteratlas.py`'s build, proof and tree comparison), [`dbxcatalogue`]
+//!   (`dbxcatalogue.build`'s pass), [`meshport`] (`Porter.pc_layout`'s search) and [`pyfmt`] (the Python number
+//!   rules they reproduce).
 #![deny(unsafe_code)]
 
 pub mod audio;
+pub mod dbxcatalogue;
 pub mod dbxport;
+pub mod emitteratlas;
 pub mod granny;
 pub mod havok;
+pub mod havokport;
 pub mod hkclasses;
 pub mod mesh;
+pub mod meshport;
+pub mod mopp;
+pub mod pyfmt;
 pub mod texcheck;
 pub mod texture;

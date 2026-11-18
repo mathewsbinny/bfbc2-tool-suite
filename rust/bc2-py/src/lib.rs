@@ -44,11 +44,16 @@
 //!
 //! The map and bot test harness and the crash-reader tools (`harness.rs`, round E4f): `harness_sessions` /
 //! `harness_sessions_file`, `crash_log_before`, `harness_pair_bits`, `HarnessCells` and `ExeHandle`.
+//!
+//! Round F2b (`importer.rs`): `mopp_*`, `havokport_*` / `PortLayouts`, `catalogue_build` /
+//! `catalogue_exe_identifiers`, `emitteratlas_*`, `MeshLayouts` for `bfbc2-bf1943-import` (through `importcore.py`);
+//! `pefile.rs`: `pe_raw_*` for `menucommon.PEImage`; `coretext.rs`: `xmlinst_*` and `navtune_*` for `bfbc2core`.
 
 mod apt;
 mod aptmodel;
 mod console;
 mod convert;
+mod coretext;
 mod culltree;
 mod dbxedit;
 mod dbxport;
@@ -57,6 +62,7 @@ mod fbrbtool;
 mod geometry;
 mod granny;
 mod harness;
+mod importer;
 mod kymesh;
 mod loc;
 mod meshdata;
@@ -66,6 +72,7 @@ mod navpath;
 mod navtools;
 mod navtrace;
 mod pathdata;
+mod pefile;
 mod scene;
 mod shaderdb_handle;
 mod shaders;
@@ -415,6 +422,22 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
+
+    #[pymodule_export]
+    use super::coretext::{navtune_dumps, navtune_summary, navtune_validate, xmlinst_field_ref, xmlinst_instances};
+
+    #[pymodule_export]
+    use super::pefile::{pe_raw_find_cstring, pe_raw_find_dword, pe_raw_header, pe_raw_strings};
+
+    #[pymodule_export]
+    use super::importer::{
+        MeshLayouts, PortLayouts, catalogue_build, catalogue_exe_identifiers, emitteratlas_build, emitteratlas_prove,
+        emitteratlas_same_but_uv, havokport_bodies, havokport_finish, havokport_havok_materials,
+        havokport_part_materials, havokport_part_run, havokport_restructure, havokport_run_table,
+        havokport_run_table_to_pc, havokport_subparts, havokport_ufloat8_table, havokport_with_face_materials,
+        havokport_with_havok_materials, havokport_with_part_materials, havokport_wrapper, mopp_complete, mopp_query,
+        mopp_query_box, mopp_ray_cast, mopp_ray_cast_brute,
+    };
 
     #[pymodule_export]
     use super::aptmodel::{AptModel, apt_check_many, apt_refs_many, apt_roundtrip_many};

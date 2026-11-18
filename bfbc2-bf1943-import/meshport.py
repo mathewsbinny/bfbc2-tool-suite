@@ -23,6 +23,12 @@ bone indices and weights, normal / binormal / tangent, UVs - formats as the cons
 Meshes skinned to the soldier skeleton (ske01) have their bone palettes and their mesh set's bone list renumbered
 from BF1943's bone order to BFBC2's (granny.bone_map). Vehicle and prop skeletons keep their indices.
 
+The layout search runs in the suite's Rust core when it is built (round F2b, rust/bc2-convert/src/meshport.rs,
+through importcore: BFBC2's part signatures once, the donors' parts once, the last resort per signature and donors) -
+the same choices as pc_layout_cached, the Python search kept as its reference (and pc_layout_reference, the first
+scan); BFBC2_IMPORTER_PYTHON=1 runs the Python. The MeshData and mesh set readers and writers are mesh.py's and
+meshset.py's (in the Rust core since round F0).
+
 Proven on the BF1943 weapon models BFBC2 shipped: ported, the Type 100, Nambu pistol, M1911A1, Mk 2 grenade and
 Shin Gunto equal BFBC2's own (every position, normals within the PC format's precision, palettes, index buffer); the
 Thompson differs in 1.8 % of its vertices, which DICE moved for BFBC2.
@@ -40,8 +46,9 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('mesh-viewer', 'anim-tools', 'console-convert', 'core')
+suite_paths.use('mesh-viewer', 'anim-tools', 'console-convert', 'core', 'bf1943-import')
 import granny  # noqa: E402
+import importcore  # noqa: E402
 import mesh  # noqa: E402
 import meshset  # noqa: E402
 import texture  # noqa: E402
@@ -121,6 +128,7 @@ class Porter:
         self._sigs = None                     # {part name: signature}
         self._donor_parts = {}                # donor -> [(part name, signature)] of its LODs' standard parts, sorted
         self._fallback = {}                   # (signature, donors) -> pc_layout's last choice (or None)
+        self._native_ix: Any = None           # the Rust core's MeshLayouts (False: not available)
 
     def layouts(self):
         """BF1943's mesh part layouts, from every level's shader database."""
@@ -195,6 +203,48 @@ class Porter:
         says it in full - this is the same search on the parts' signatures, donor lists and choices kept)."""
         if REFERENCE:
             return self.pc_layout_reference(name, lod, part, bf_layout, donors)
+        r = self._pc_layout_rust(name, lod, part, bf_layout, donors)
+        return r if r is not None else self.pc_layout_cached(name, lod, part, bf_layout, donors)
+
+    def _native_layouts(self):
+        """The Rust core's index of BFBC2's part layouts (made once), or None."""
+        if self._native_ix is None:
+            m = importcore.native()
+            try:
+                self._native_ix = m.MeshLayouts([(k, bytes(self.ix.parts[k])) for k in self.part_names()]) \
+                    if m is not None else False
+            except (ValueError, TypeError):
+                self._native_ix = False
+        return self._native_ix or None
+
+    def _pc_layout_rust(self, name, lod, part, bf_layout, donors):
+        """pc_layout's search in the Rust core, or None (no core, or refused)."""
+        m = self._native_layouts()
+        if m is None:
+            return None
+        donors = list(donors)
+        try:
+            r = m.search(name, lod, part, bytes(bf_layout), donors)
+        except (TypeError, OverflowError):
+            return None
+        if r is None:
+            return None
+        parts = self.ix.parts
+        if r[0] == 'own':
+            return parts[r[1]], 'BFBC2 has this part', None
+        if r[0] == 'donor':
+            return parts[r[1]], 'donor', (donors[r[2]], r[3])
+        if r[0] == 'layout':
+            return parts[r[1]], f'layout of {r[1]}', None
+        if r[0] == 'none':
+            raise PortError(f'{name} LOD {lod} {part}: no BFBC2 layout holds a part of its elements '
+                            f'{signature(bf_layout)}')
+        _, k, left, d, folder = r
+        return parts[k], f'layout of {k} ({left} element(s) left out)', \
+            ((donors[d], folder) if d is not None else None)
+
+    def pc_layout_cached(self, name, lod, part, bf_layout, donors):
+        """pc_layout's search in Python (round E3g's cached search; the reference of the Rust core's)."""
         parts = self.ix.parts
         own = f'{name}_lod{lod}/{part}/standard'.lower()
         sig = signature(bf_layout)

@@ -63,6 +63,7 @@ pub mod terrain;
 pub mod water;
 pub mod wave;
 pub mod xiso;
+pub mod xmlinst;
 pub mod zlib;
 
 mod bytes;
