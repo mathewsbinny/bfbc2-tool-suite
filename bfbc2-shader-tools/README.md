@@ -171,9 +171,12 @@ For console content brought to PC (Battlefield 1943's), the Xbox shaders themsel
 - Both run in the suite's Rust core (`rust/bc2-shader`, round E3f) when it is built: the same trees, the same HLSL
   text and errors on every program of BF1943's and BFBC2's Xbox databases (`tests/test_xenos_native.py`), about 6x
   faster one program at a time and 14x with `xenos.parse_many` + `xenos_hlsl.translate_many` (all cores). A tree's
-  microcode (`cf`, `instructions` ...) is built on its first read; translating it is then left to the Python, as
-  for any tree made by hand. `parse_shader_python` / `translate_python` are the reference; `BFBC2_PURE_PYTHON=1` or
-  `xenos.use_native(False)` runs them.
+  microcode (`cf`, `instructions` ...) is built on its first read; such a tree, the Python decoder's, copies and
+  trees made by hand are handed to the Rust translator attribute by attribute. `parse_shader_python` is the
+  decoder's reference (a format reader, kept for good; `BFBC2_PURE_PYTHON=1` or `xenos.use_native(False)` decodes
+  in Python). The translation's Python (`translate_python`, `_Emitter`) was retired on 2026-11-18: the module is
+  required to translate, and `tests/test_xenos_native.py` checks the results recorded from the Python
+  (`xenos_golden.json`, `xenos_golden_game.json`). `xenos_hlsl.helpers()` gives the HLSL helper functions.
 - `pcbuild.py` compiles with the system's `d3dcompiler_47.dll` and builds what a PC database stores beside the code:
   the binding table (FORMAT.md section 2), the Dx10/11 input layout, parameter blocks. `compile_hlsl` does not
   compile what it compiled before (round E3d): a source, entry, profile, defines and name already compiled come from

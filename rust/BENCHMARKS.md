@@ -605,6 +605,60 @@ picking and `pymath` (quick and game tiers only so far), and every format reader
 `tests/test_native_required.py` checks the required module (missing, stale, matching) and the download on a copy of
 the suite; navregress stays the independent check against DICE's path data.
 
+### 2026-11-18 (branch `retire-r3`): the shader translator's HLSL emission
+
+The full tier passed on 2026-11-17 (173 of 173, `ee25186`). Retired:
+
+| piece | Python removed | Rust |
+|---|---|---|
+| Xenos -> HLSL translation | `xenos_hlsl.py`: `_Emitter` (declarations, operands, every ALU / fetch op, control flow, assembly), `translate_python`, `_f`, `HELPERS`, `FLT_MAX`, `INSTANCED`, `INSTANCE_PRELUDE`, `backend()`, the Python fallback of `translate` / `translate_many` (status 2, untouched-tree check); 783 -> 150 lines. Kept: `Interface`, `TranslateError`, `ENGINE_SIZE`, `SHADOW`, `PROBE_*`, `INSTANCE_SEMANTICS` (callers use them); new `require()`, `helpers()` | `bc2_shader::hlsl` (`translate`, new `translate_given`); bindings `xenos_tree_program` (any tree handed over), `xenos_helpers` |
+
+**Kept, and why.** `xenos.py`'s decoder (`parse_shader_python`, its `use_native` / `BFBC2_PURE_PYTHON`) is a format
+reader - the Xenos container and microcode format - and stays for good as the Rust decoder's live reference, as do
+`disasm` and the opcode tables. `xenos_exec.py` (the differential test's interpreter) is not a port: it is the
+independent check of the translation. In `bfbc2-console-readers/apt/apt.py` nothing is plain logic: the dump, the
+instruction records and the constants are the APT reader (round E3n ported the reader; it keeps its Python and its
+switch). `bfbc2-menu-tools/aptgraft.py`'s `assemble_reference` (with `_ins_len_reference`, `_place_reference`,
+`_emit_reference`), `Movie._stream_reference` and `Movie.write_reference` (`BFBC2_APTGRAFT_REFERENCE=1`) are Python
+references of a faster Python algorithm, not of a Rust port: untouched.
+
+**What the Rust had to take first.** The Python translator translated every tree the Rust did not: a tree whose
+microcode was read (`xdiff.py --bisect`: its interpreter reads it), the Python decoder's (`use_native(False)`),
+copies, pickles and trees built by hand (`test_xdiff`'s, `test_asset_accuracy`'s, OPFOR's
+`test_ww2_terrain_patches`'), and status 2 (an interface value of another type, an empty material value, a sampler fix
+with other format fields, a non-ASCII engine-named constant). Ported: `xenos_tree_program` reads a tree attribute by
+attribute as the Python read it (instance `__dict__` first, then `getattr`; a vector operand's `swizzle`, a scalar
+one's `components`; an attribute read only on some paths may be missing), converting only the instructions the CFs
+run and computing `cube` over the tree's own `instructions` (`translate_given`). What a program cannot hold - a
+literal not four 32-bit floats, an unknown operation name, a number of another type - and status 2 raise
+`ValueError` saying what (the interface's field named), never another backend.
+
+**Fallbacks on real data before deleting** (the old code, `translate_python` calls counted): OPFOR's
+`wake_translate.translate_db` over Wake's Dx10 and Dx11 databases (the rebuild's default filters, terrain strips and
+patches; compiles skipped): 3,576 translation jobs, 0 Python fallbacks, 0 status 2; the new code gives the same
+3,576 outcomes, and the same as the retired Python run alone (`BFBC2_PURE_PYTHON=1` on the old suite: every job
+handed to `translate_python`). The game corpus: 0 status 2 over 24,960 translations; the quick tier: 0 outside the
+tests' own deliberate cases.
+
+**The oracle, recorded from `translate_python` itself before it was deleted** (`test_xenos_native.py --record`, the
+Python tree translated by the old code's Python):
+
+- `bfbc2-shader-tools/tests/xenos_golden.json` (197 KB): the 1,500 built programs under three interfaces (4,428
+  translations: 1,473 texts' SHA-1, 2,955 `TranslateError` messages), 1,000 programs of random microcode (220
+  translated), the dispatch's 60 `translate_many` jobs.
+- `bfbc2-shader-tools/tests/xenos_golden_game.json` (496 KB): all 8,320 distinct programs of BF1943's and BFBC2's
+  Xbox databases, three interfaces each (22,863 texts, 2,097 `TranslateError` messages in plain).
+
+Every tree kind is checked against them: fresh (the program kept in Rust), materialized (microcode read, handed
+over) and the Python decoder's (handed over): all 4,428 + 220 + 60 quick and 8,320 x 3 game outcomes as recorded.
+Also: a hand-built tree (plain classes, a CF instruction outside `instructions`), an edited materialized tree, the
+declines. `test_xdiff --game` (7 shaders exact against the interpreter), `xdiff --bisect`, `test_renderqa --game`
+and `test_asset_accuracy` (its emitter probes now translate one-instruction trees) pass.
+
+**Speed of the handed-over path** (`bench_xenos.py`, Wake, busy PC, one run): a Python-decoded tree handed over and
+translated 0.75 ms a program, the hand-over alone 0.24 ms; the retired `translate_python` measured 0.76 ms in the
+same conditions, the kept program 0.40 ms. Callers' trees are kept programs (OPFOR: 3,576 of 3,576).
+
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 
 **Provisional timings:** OPFOR's WW2 rebuild (`rebuild_all.py`, a `ww2_level_build.py` under it) ran the whole
