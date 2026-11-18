@@ -49,6 +49,7 @@ mod apt;
 mod aptmodel;
 mod console;
 mod convert;
+mod coretext;
 mod culltree;
 mod dbxedit;
 mod dbxport;
@@ -417,6 +418,9 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
+
+    #[pymodule_export]
+    use super::coretext::{xmlinst_field_ref, xmlinst_instances};
 
     #[pymodule_export]
     use super::pefile::{pe_raw_find_cstring, pe_raw_find_dword, pe_raw_header, pe_raw_strings};
