@@ -16,6 +16,7 @@ import math
 import os
 import random
 import sys
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -88,7 +89,8 @@ def rop(rnd):
 
 def quick():
     rnd = random.Random(53)
-    bad, n = [], 0
+    bad: list[Any] = []
+    n = 0
     for _ in range(20000):
         o = rop(rnd)
         for kind in ('navkit', 'dice'):
@@ -97,7 +99,8 @@ def quick():
             if a != b:
                 bad.append((o, kind, a, b))
     check(not bad, f'validate: {n} seeded checks the same', repr(bad[:1])[:400])
-    bad, files, lines = [], 0, 0
+    bad = []
+    files, lines = 0, 0
     for i in range(2000):
         ops = [rop(rnd) for _ in range(rnd.randint(0, 6))]
         t = navtune.NavTune(rnd.choice(['Levels/SP_01', 'Levels/MP_005', 'caf\u00e9']),

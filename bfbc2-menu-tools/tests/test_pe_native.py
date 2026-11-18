@@ -128,9 +128,9 @@ def built(rnd):
     elif r < 0.1:
         b = b[:2] + b'\0' * 2 + b[4:] if rnd.random() < 0.5 else b.replace(b'PE\0\0', b'PX\0\0', 1)
     elif r < 0.13:
-        b = bytearray(b)
-        struct.pack_into('<H', b, pe + 24, 0x20B)
-        b = bytes(b)
+        ba = bytearray(b)
+        struct.pack_into('<H', ba, pe + 24, 0x20B)
+        b = bytes(ba)
     return b
 
 
@@ -173,7 +173,7 @@ def game():
         t2 = time.perf_counter()
         print(f'     BFBC2Game.exe strings(2): {len(a)} strings, {t1 - t:.3f} s (reference {t2 - t1:.3f} s)')
 
-
+        check(a == b, f'BFBC2Game.exe strings(2): {len(a)} strings the same, {t1 - t:.3f} s (reference {t2 - t1:.3f} s)')
 def main(argv):
     from bfbc2core import native
     try:
