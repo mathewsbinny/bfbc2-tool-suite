@@ -887,6 +887,69 @@ four shards); `cargo fmt --check`, `cargo clippy --workspace --all-targets -D wa
 quick tier's `test_rust.py`). OPFOR's callers (read only) use only the kept API (`dbx.parse` / `read` / `write` /
 `to_xml`, `fbrb.entries` / `read` / `pack_many`, `culltree.py` run by `console_cull.py` from the suite): none break.
 
+## Retired C# tools (2026-11-18, branch `retire-r4`)
+
+After the full tier (173 of 173, 2026-11-17 23:54) the C# command lines whose commands were ported and proven
+identical (E3b: DbxEdit; E3k: FbrbTool) were retired as tools, as their Python twins were above
+(`EDITOR_ARCHITECTURE.md` 3.8). The Rust core is required for their commands: `bfbc2core.dbxedit` / `fbrbtool`
+(`run`, `run_many`, `run_cmd`, new `main`); `fbrb.pack` / `pack_many` / `unpack` lost their FbrbTool.exe fallbacks
+here and in round F1a (above), merged. By hand:
+`python bfbc2-dbx-tools\dbxedit.py` / `python bfbc2-fbrb-tool\fbrbtool.py` (the exes' command lines, messages and
+exit codes).
+
+| removed | lines |
+|---|---|
+| `bfbc2-fbrb-tool/FbrbTool.cs`, its `build.bat` | 464 + 8 |
+| `DbxEdit.cs`'s command line (`static class Program`: `Main`, the command dispatch, usage); `build.bat` builds `DbxEditGUI.exe` only | 280 -> 7 (header) |
+| `DbxTests.cs`' exe groups (`CommandLine`, `MakeGolden`, `Golden`, `Battery`) and `run_tests.bat`'s exe copy / `--golden` | 150 -> 6 |
+| `rust/bench_dbxedit.py`, `rust/bench_fbrbtool.py` (the exe against in process; their results stay in E3b / E3k) | 253 + 78 |
+| the switches and fallbacks: `BFBC2_DBXEDIT_EXE`, `BFBC2_FBRBTOOL_EXE`, `use_exe`, `EXE`, `_exe` (dbxedit, fbrbtool), `fbrb.fbrbtool` / `_tool_pack` / `_tool_unpack`, `pipeline.FBRB` / `DBX` / `run`, NavKit's and `level.heightfield_of`'s exe look-ups, `validate`'s exe branch | about 150 |
+| run_tests' steps "FbrbTool build (when stale)"; "DbxEdit build" builds DbxEditGUI only | |
+
+**Kept, and why.** DbxEditGUI (the window) stays until the egui map editor replaces it, built from DbxEditGUI.cs
+and DbxEdit.cs; DbxEdit.cs (the DBX classes, `ToolLog`) is also LevelDiff's library, so only its command-line class
+went (trivially safe: nothing referenced it; the GUI, LevelDiff and DbxTests build and pass). DbxTests.cs stays as
+the GUI's and the C# classes' tests (85 checks, the window included; `--corpus` for the full tier).
+`bfbc2core.paths.find_tool` stays (DbxEditGUI, LevelDiff). `fingerprints_795745.txt` stays: it is DbxEdit's own
+recording (the XML and edit fingerprints `test_dbx.py`, `test_rust.py --corpus` and `test_dbxedit.py --game` check).
+
+**The new oracle: the exes' answers, recorded from the exes before they went** (`core/tests/csharp_golden.py`;
+built from `f10522d`'s sources, the same bytes as the main checkout's builds; texts with the test folder as `<dir>`,
+the log as `<log>`, temporary names as `.tmp-N`; digests are the first 16 hex digits of a SHA-256):
+
+- `dbxedit_golden.json` (24 KB): DbxTests.cs' 82 unit cases as command lines - exit code, stdout, stderr, every
+  file's SHA-1.
+- `dbxedit_golden_game_0.json / _1.json` (1.4 MB): a seeded 2,000-file sample of OPFOR's work\levels, work\navkit\common and
+  work\ww2 (139,842 files; 1,592 distinct), each through xml, roundtrip, import --like / without a reference /
+  edited (the edits seeded by the file's SHA-1), check and, on every 4th file by SHA-1, the edit battery: 12,464
+  runs, keyed by the input's SHA-1 (591 s).
+- `fbrbtool_golden.json` (660 KB): test_fbrbtool's 228 command lines (run in a folder 64 characters long, as the
+  test does: FbrbTool's path-length rules depend on it), the 600 seeded damaged bundles, what .NET 4's GZipStream
+  answered for the 3,000 seeded gzip streams (a C# probe), test_fbrb_unpack_native's 78 built / odd / damaged bundles
+  (exit code, files left), test_fbrb_pack_native's 25 built and refused folders, test_fbrb_native's 2 built bundles.
+- `fbrbtool_golden_game.json` (250 KB): every bundle of the game copy up to 300 MiB (1,081 of 1,086; the 5 larger
+  ones, 307-565 MiB, were left out for memory) and the 40 bundles of the logged invocations: unpack (the folder's
+  digest), list, and pack of the unpacked folder (the bundle's SHA-1); 693 distinct bundles by SHA-1.
+
+The tests now check the in-process commands against these: `test_dbxedit.py` (quick: the 82 cases as recorded and as
+DbxTests.cs expects; `--game`: the recorded sample whose files are still there unchanged - at least a quarter must
+be - and every edit fingerprint), `test_fbrbtool.py` (quick: 228 lines, 100 damaged, 500 streams; `--game`: 600,
+3,000, a 40-bundle sample and the logged invocations' bundles), `test_fbrb_unpack_native.py` / `test_fbrb_pack_native.py`
+/ `test_fbrb_native.py` (built inputs; the game copy by SHA-1: unpacked and packed again in Rust, the result the
+exe's), `test_fbrb.py` (round trips in process). A bundle rebuilt since the recording is counted as not recorded and
+the sweeps fail when more than half are.
+
+**Proof** (`retire-r4` merged with main after F1a / E4f, the module rebuilt from it, below-normal priority, one test at
+a time): `python run_tests.py quick -j 2` 99 of 99 (221 s); `test_dbxedit.py --game` (160 of 160 edit fingerprints;
+1,592 of 1,592 recorded corpus files, 12,458 runs as recorded, 75 s); `test_fbrbtool.py --game` (228 lines, 600
+damaged, 3,000 gzip streams, 40 game bundles with 30,177 entries and 40 logged invocations' bundles as recorded);
+`test_fbrb_unpack_native.py --game` (1,075 of 1,075 bundles up to 300 MiB of payload identical to FbrbTool.exe's
+files, 226 s of unpacking); `test_fbrb_pack_native.py --game` (1,081 of 1,086 bundles, 6.94 GB, unpacked and packed
+again in Rust byte-identical to the bundles FbrbTool.exe packed - the game's own file 59, but for the gzip headers 917,
+and the empty payload stream 105; the 5 over 300 MiB not recorded); `test_fbrb.py --game 12`; DbxTests.cs 85 of 85;
+`cargo fmt`, clippy `-D warnings`, 292 cargo tests. OPFOR (callers switched in its own commit): 373 tests, lint and
+types included, and opforcore's 71.
+
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 
 **Provisional timings:** OPFOR's WW2 rebuild (`rebuild_all.py`, a `ww2_level_build.py` under it) ran the whole

@@ -34,12 +34,12 @@ if not os.path.isfile(PYTHON):
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 TOOLS = {
-    'fbrb': (os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe'), os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')),
     'leveldiff': (os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe'),
                   os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'build.bat')),
     'dbxgui': (os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEditGUI.exe'), os.path.join(SUITE, 'bfbc2-dbx-tools', 'build.bat')),
 }
 SCRIPTS = {
+    'fbrb': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),           # FbrbTool's commands (the Rust core)
     'inspector': os.path.join(SUITE, 'bfbc2-map-inspector', 'inspector.py'),
     'studio': os.path.join(SUITE, 'bfbc2-navigation-studio', 'studio.py'),
     'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
@@ -397,15 +397,15 @@ class Hub:
         b = ttk.Frame(f)
         b.grid(row=3, column=1, sticky='w', pady=6)
         ttk.Button(b, text='List entries', command=lambda: self.need(('a bundle', self.fb_file)) and
-                   self.run([tool('fbrb'), 'list', self.fb_file.get()], 'FbrbTool list')).pack(side='left')
+                   self.run([PYTHON, SCRIPTS['fbrb'], 'list', self.fb_file.get()], 'FbrbTool list')).pack(side='left')
         ttk.Button(b, text='Unpack', command=lambda: self.need(('a bundle', self.fb_file), ('a folder', self.fb_dir)) and
-                   self.run([tool('fbrb'), 'unpack', self.fb_file.get(), self.fb_dir.get()], 'FbrbTool unpack')).pack(side='left', padx=6)
+                   self.run([PYTHON, SCRIPTS['fbrb'], 'unpack', self.fb_file.get(), self.fb_dir.get()], 'FbrbTool unpack')).pack(side='left', padx=6)
         ttk.Separator(f).grid(row=4, column=0, columnspan=3, sticky='we', pady=8)
         self.fb_src = tk.StringVar()
         self.file_row(f, 5, 'Unpacked folder to pack:', self.fb_src, kind='dir')
         self.file_row(f, 6, 'New bundle:', self.fb_out, kind='save', types=(('Bundles', '*.fbrb'),))
         ttk.Button(f, text='Pack', command=lambda: self.need(('a folder', self.fb_src), ('a new bundle', self.fb_out)) and
-                   self.run([tool('fbrb'), 'pack', self.fb_src.get(), self.fb_out.get()], 'FbrbTool pack')).grid(row=7, column=1, sticky='w', pady=6)
+                   self.run([PYTHON, SCRIPTS['fbrb'], 'pack', self.fb_src.get(), self.fb_out.get()], 'FbrbTool pack')).grid(row=7, column=1, sticky='w', pady=6)
 
     # --- Level diff ---------------------------------------------------------------------------------
     def tab_diff(self):

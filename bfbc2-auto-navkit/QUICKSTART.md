@@ -24,8 +24,8 @@ You need:
 1. **Project OPFOR BFBC2, set up and built.** NavKit measures levels in OPFOR's copy of the game, through
    OPFOR's in-game sampler. In the OPFOR folder, run `setup_game.bat` (the game copy), then `build.bat`
    (OPFOR's core). `OPFOR BFBC2.exe` must be able to start the game.
-2. **FbrbTool and DbxEdit** from the suite: run `build.bat` in its `bfbc2-fbrb-tool` and `bfbc2-dbx-tools` folders.
-   NavKit also accepts the copies OPFOR's `build_menus.bat` puts in OPFOR's `tools\` folder.
+2. **The suite's Rust core** (FbrbTool's and DbxEdit's commands run in it): in the suite folder run
+   `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core").
 3. **Where OPFOR is.** NavKit looks for a `project-opfor-bfbc2` folder next to one of the folders it sits in (for example
    `C:\Programming\Projects\project-opfor-bfbc2` next to `C:\Programming\Projects\bfbc2-tool-suite`). If yours is elsewhere, set the
    environment variable `OPFOR_ROOT` to it, or add `--opfor <folder>` to every command.
@@ -200,7 +200,7 @@ bottom and top height. Make the top higher than the tallest roof. A larger area 
 | "...has no AI path data, so its AI (and the sampler) may not start" | The level is a stock multiplayer map, which the window and `navkit.py` do not support yet. See [What works today](#what-works-today). |
 | A run was cancelled or the PC crashed during sampling | NavKit edits `game\opfor.ini` while sampling and puts it back afterwards. If that was interrupted, the next Sample puts it back, and **Cancel** in the window does too. The saved copy is `work\navkit\opfor.ini.backup`. |
 | The AI acts oddly with NavKit's file installed | Click **Restore original** (or `navkit.py restore <level>`). The level is back to its original data. |
-| "FbrbTool.exe not found" / "DbxEdit.exe not found" | Run `build.bat` in the suite's `bfbc2-fbrb-tool` and `bfbc2-dbx-tools` folders (see [Before you start](#before-you-start)). |
+| "... needs the suite's Rust core (bc2_native)" | Get the Rust core: `python rust\build_native.py --download` in the suite (see [Before you start](#before-you-start)). |
 | "Project OPFOR BFBC2 not found" / "no game copy" | Tell NavKit where OPFOR is (`OPFOR_ROOT` or `--opfor`), and run OPFOR's `setup_game.bat` if it has no `game\` folder yet. |
 
 ## How NavKit stays clean

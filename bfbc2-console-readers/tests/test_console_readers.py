@@ -243,14 +243,15 @@ def apt_checks(c, work):
 def console_menu_checks(c, u3, work):
     """Update #3's console main menu: apt.py reads its main_nav (big-endian) and finds the Onslaught mode picture:
     the sprite with a frame "onslaught" places shape 634."""
-    fbrb = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
     e = next((x for x in u3.entries if x['path'].lower() == 'menu/main/mainmenu-00.fbrb'), None)
-    if e is None or not os.path.isfile(fbrb):
-        print('skip the console menu (no menu bundle in Update #3, or FbrbTool.exe not built)')
+    if e is None:
+        print('skip the console menu (no menu bundle in Update #3)')
         return
     bundle = os.path.join(work, 'mainmenu-00.fbrb')
     open(bundle, 'wb').write(u3.read(e))
-    subprocess.run([fbrb, 'unpack', bundle, os.path.join(work, 'menu')], check=True, stdout=subprocess.DEVNULL)
+    suite_paths.use('core')
+    from bfbc2core import fbrbtool  # FbrbTool's unpack, in process (the Rust core)
+    fbrbtool.run(['unpack', bundle, os.path.join(work, 'menu')], check=True)
     suite_paths.use('apt')
     import apt
     mv = apt.Movie(os.path.join(work, 'menu', 'Menu', 'main_nav.res'))

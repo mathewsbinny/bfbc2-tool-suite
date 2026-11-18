@@ -206,6 +206,9 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   readers and writers - DBX, FBRB, terrain, water, the collision index, the level loader, the cull tree element
   reader (2026-11-18, round F1a) - README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python". The tests themselves move to Rust once every Python tool is
   retired (the user, 2026-11-18).
+  The C# tools whose commands were ported went the same way (round R4, 2026-11-18, after the full tier's 173 of
+  173): DbxEdit.exe and FbrbTool.exe are retired, their answers recorded (`core/tests/*_golden*.json`); DbxEditGUI
+  stays, built on DbxEdit.cs, until this editor replaces it (`rust/BENCHMARKS.md`, "Retired C# tools").
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
   Each Python GUI stays until its replacement works. **Status (G1, 2026-11-18):** the editor application's shell and
@@ -427,6 +430,21 @@ features, beyond 3.1 - 3.9, each in the operation log and undoable like any edit
     slots), warnings in the Problems panel as a map nears them.
 12. **Version control.** Project history with diffs between versions and branches, on top of the data-only project
     format (which is already friendly to `git`).
+
+**Decisions on G1's first version** (the user, 2026-11-18):
+- Team labels name the side's faction per level and content profile (US / RU, US / NVA, US / JP ...), not T1 / T2.
+- The design tokens gain 3D-view variants of the team, neutral and status colours (readable on terrain in both
+  themes) and a `scene-*` group (terrain, water, sky, object greys) where it helps.
+- A third neutral colour for gameplay objects no team owns (objectives, combat areas), distinct from
+  `team-neutral`, the selection orange, the accent and the status colours.
+- Selection outlines show through walls; fly is right-button + WASD; F focuses.
+- A Help menu in the top bar for new users: controls and shortcuts, a getting-started guide, what each workspace is
+  for.
+- Opening a level NavKit has not prepared prepares it from the editor (a Prepare step with progress, or done
+  automatically on open), not by sending the user to another tool.
+- **Live rendering is the goal for the 3D view:** terrain, water and objects drawn as the game draws them - its
+  materials, textures, shaders (the shader translator, shaderview) and lighting - so a level looks in the editor as it
+  does in game. The opaque water and plain terrain of G1 are a first step.
 
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
