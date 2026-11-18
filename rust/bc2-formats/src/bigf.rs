@@ -41,17 +41,17 @@ mod tests {
         b.extend(0u32.to_be_bytes());
         b.extend(2u32.to_be_bytes());
         b.extend(0u32.to_be_bytes());
-        for (off, size, name) in [(40u32, 3u32, "a.apt"), (43, 9, "b.const")] {
+        for (off, size, name) in [(64u32, 3u32, "a.apt"), (67, 9, "b.const")] {
             b.extend(off.to_be_bytes());
             b.extend(size.to_be_bytes());
             b.extend(name.as_bytes());
             b.push(0);
         }
-        b.resize(40, 0);
+        b.resize(64, 0);
         b.extend(b"abcdef");
         let m = parse(&b).unwrap();
-        assert_eq!(m[0], ("a.apt".to_owned(), 40..43));
-        assert_eq!(m[1], ("b.const".to_owned(), 43..46));
+        assert_eq!(m[0], ("a.apt".to_owned(), 64..67));
+        assert_eq!(m[1], ("b.const".to_owned(), 67..70));
         assert_eq!(parse(&b[..20]), None);
         assert_eq!(parse(b"BIGX"), None);
     }
