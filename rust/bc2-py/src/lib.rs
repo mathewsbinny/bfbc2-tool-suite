@@ -384,8 +384,8 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::xenos::{
-        XenosProgram, xenos_float_repr, xenos_microcode, xenos_parse, xenos_parse_many, xenos_translate,
-        xenos_translate_many,
+        XenosProgram, xenos_float_repr, xenos_helpers, xenos_microcode, xenos_parse, xenos_parse_many, xenos_translate,
+        xenos_translate_many, xenos_tree_program,
     };
 
     #[pymodule_export]

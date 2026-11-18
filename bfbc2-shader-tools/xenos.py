@@ -25,10 +25,11 @@ The decoder runs in the suite's Rust core (rust/bc2-shader, module bc2_native; r
 here; both give the same tree (the same attributes, values, types and attribute order) and raise the same errors:
 bfbc2-shader-tools/tests/test_xenos_native.py, every program of BF1943's and BFBC2's Xbox shader databases and
 seeded random microcode. The Rust tree's microcode attributes (cf, instructions, cf_slots, unused_slots,
-unused_nonzero_slots, code_words) are made on their first read; until then xenos_hlsl.translate translates the
-program in Rust (a tree whose microcode was read, which a caller may have edited, is translated in Python).
-parse_shader_python is the reference. BFBC2_PURE_PYTHON=1 (or use_native(False)) forces Python; backend() says
-which one runs.
+unused_nonzero_slots, code_words) are made on their first read; until then xenos_hlsl.translate takes the program
+kept in Rust (a tree whose microcode was read, which a caller may have edited, is handed to the Rust translator
+attribute by attribute, as any other tree). parse_shader_python is the format reference and stays for good (the
+suite's ruling: Python format readers stay, ported logic is retired - the HLSL translation's Python was retired on
+2026-11-18). BFBC2_PURE_PYTHON=1 (or use_native(False)) decodes in Python; backend() says which decoder runs.
 """
 from __future__ import annotations
 
@@ -109,13 +110,13 @@ _native: Any = _load_native()          # the module (its functions untyped), or 
 
 
 def backend() -> str:
-    """'rust' when shaders are decoded (and xenos_hlsl translates them) in the Rust core, else 'python'."""
+    """'rust' when shaders are decoded in the Rust core, else 'python' (xenos_hlsl translates in Rust either way)."""
     return 'rust' if _native is not None else 'python'
 
 
 def use_native(on: bool) -> str:
-    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process, for xenos and
-    xenos_hlsl; returns backend()."""
+    """The Rust decoder on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
+    backend(). The translation (xenos_hlsl) is Rust's either way."""
     global _native
     if on:
         saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
@@ -141,7 +142,7 @@ def _plain(d: dict[str, Any]) -> Obj:
 class _NativeShader(Obj):
     """parse_shader's tree decoded in the Rust core: the attributes of parse_shader_python's, in its order; the
     microcode's (_MICROCODE) made on their first read (or by repr, to_dict, copy and pickle, which give a plain Obj).
-    Until then the program is translated in Rust (native_program)."""
+    Until then xenos_hlsl translates the program kept in Rust (native_program)."""
 
     __slots__ = ('_xenos_program', '_xenos_microcode', '_xenos_done')
     _xenos_program: Any                     # bc2_native.XenosProgram

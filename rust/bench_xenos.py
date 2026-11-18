@@ -1,5 +1,7 @@
 r"""Times the Xbox 360 shader translator (bfbc2-shader-tools xenos.py / xenos_hlsl.py) in Python and in the Rust core
-(rust\bc2-shader, round E3f) on Battlefield 1943's Xbox shader databases (rust\BENCHMARKS.md, "E3f").
+(rust\bc2-shader, round E3f) on Battlefield 1943's Xbox shader databases (rust\BENCHMARKS.md, "E3f"). The
+translation's Python (translate_python) was retired on 2026-11-18: its rows now time the Rust translator on the
+Python decoder's trees (handed over attribute by attribute).
 
   python rust\bench_xenos.py [--db wake_island_s | --all] [--runs 3] [--chunk 200]
 
@@ -8,7 +10,8 @@ translated with its own interpolators and inputs (the plain interface). The work
 and drops each chunk's trees before the next (the whole corpus's Python trees held at once took ~4 GB), so the
 process stays small; the times are the chunks' sums, best of --runs. Rows: decoding (Python; the Rust core's tree,
 its microcode not built; parse_many on all cores; the Rust tree with its microcode built in Python objects),
-translating a decoded program (Python; Rust one at a time; translate_many on all cores), and both together.
+translating a decoded program (a Python tree handed over; Rust one at a time; translate_many on all cores), and both
+together.
 """
 import argparse
 import hashlib
@@ -104,16 +107,16 @@ def main() -> int:
 
     def rs_trees(c: list[Prog]) -> list[tuple[Any, Any]]:
         return [(sh, plain(sh)) for sh in (xenos.parse_shader(b, p) for b, p in c)]
-    t, ref = timed(progs, a.chunk, a.runs, py_trees, lambda j: digest([safe(X.translate_python, s, i) for s, i in j]))
-    rows.append(('translate: Python (translate_python)', t, 'translate'))
+    t, ref = timed(progs, a.chunk, a.runs, py_trees, lambda j: digest([safe(X.translate, s, i) for s, i in j]))
+    rows.append(('translate: the Python decoder\'s tree, handed over (translate)', t, 'translate'))
     t, got = timed(progs, a.chunk, a.runs, rs_trees, lambda j: digest([safe(X.translate, s, i) for s, i in j]))
     rows.append(('translate: Rust, one at a time (translate)', t, 'translate'))
     t, got2 = timed(progs, a.chunk, a.runs, rs_trees, lambda j: digest(
         [x if isinstance(x, str) else f'TranslateError: {x}' for x in X.translate_many(j, errors='return')]))
     rows.append(('translate: translate_many (all cores)', t, 'translate'))
     t, _ = timed(progs, a.chunk, a.runs, ident, lambda c: digest(
-        [safe(X.translate_python, sh, plain(sh)) for sh in (xenos.parse_shader_python(b, p) for b, p in c)]))
-    rows.append(('decode + translate: Python', t, 'both'))
+        [safe(X.translate, sh, plain(sh)) for sh in (xenos.parse_shader_python(b, p) for b, p in c)]))
+    rows.append(('decode + translate: Python decoder, its tree handed over', t, 'both'))
     t, _ = timed(progs, a.chunk, a.runs, ident, lambda c: digest(
         [safe(X.translate, sh, plain(sh)) for sh in (xenos.parse_shader(b, p) for b, p in c)]))
     rows.append(('decode + translate: Rust, one at a time', t, 'both'))

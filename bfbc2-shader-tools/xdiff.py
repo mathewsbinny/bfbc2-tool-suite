@@ -333,8 +333,8 @@ def run_shader(code: bytes, p: int, seed: int, n: int, out: str, named: dict[int
     try:
         sh = xenos.parse_shader(code, True)
         cs = case(sh, rng, n, named)
-        # translated before the interpreter reads the microcode: with the Rust core, its translation (a tree
-        # whose microcode was read goes to the Python translator) - the one the builds use
+        # translated before the interpreter reads the microcode: the program kept in Rust, as the builds translate
+        # it (a tree whose microcode was read is handed to the translator attribute by attribute: the same text)
         hlsl: str | Exception
         try:
             hlsl = translated(sh, cs)

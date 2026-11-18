@@ -315,6 +315,7 @@ struct Emitter<'a> {
     pending_a0: Option<String>,
     cube_dir_set: bool,
     need_world: bool,
+    cube_given: Option<bool>,
 }
 
 impl<'a> Emitter<'a> {
@@ -338,6 +339,7 @@ impl<'a> Emitter<'a> {
             pending_a0: None,
             cube_dir_set: false,
             need_world: false,
+            cube_given: None,
         }
     }
 
@@ -1012,10 +1014,11 @@ impl<'a> Emitter<'a> {
     fn run(mut self) -> Result<String> {
         let sh = self.sh;
         self.block_pred = None;
-        self.cube_dir_set = sh
-            .instructions
-            .iter()
-            .any(|i| matches!(&i.kind, InstrKind::Alu(a) if a.vector_op() == "cube" && !a.vector_nop));
+        self.cube_dir_set = self.cube_given.unwrap_or_else(|| {
+            sh.instructions
+                .iter()
+                .any(|i| matches!(&i.kind, InstrKind::Alu(a) if a.vector_op() == "cube" && !a.vector_nop))
+        });
         self.constants()?;
         if !self.ps {
             for el in &sh.header.vertex_elements {
@@ -1181,6 +1184,18 @@ impl<'a> Emitter<'a> {
 /// another exception.
 pub fn translate(sh: &Shader, iface: &Interface) -> Result<String> {
     Emitter::new(sh, iface).run()
+}
+
+/// [`translate`] of a program whose instruction list is not its own: a tree a caller handed over (the bindings'
+/// `xenos_tree_program`), whose `instructions` hold only the instructions its CFs run, with `cube_dir_set` (any vector
+/// `cube` among the tree's own `instructions`, which the fetches' cube coordinates depend on) given.
+///
+/// # Errors
+/// As [`translate`].
+pub fn translate_given(sh: &Shader, iface: &Interface, cube_dir_set: bool) -> Result<String> {
+    let mut e = Emitter::new(sh, iface);
+    e.cube_given = Some(cube_dir_set);
+    e.run()
 }
 
 /// [`translate`] of many programs on all cores, in input order.
