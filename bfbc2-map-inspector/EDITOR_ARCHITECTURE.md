@@ -428,6 +428,21 @@ features, beyond 3.1 - 3.9, each in the operation log and undoable like any edit
 12. **Version control.** Project history with diffs between versions and branches, on top of the data-only project
     format (which is already friendly to `git`).
 
+**Decisions on G1's first version** (the user, 2026-11-18):
+- Team labels name the side's faction per level and content profile (US / RU, US / NVA, US / JP ...), not T1 / T2.
+- The design tokens gain 3D-view variants of the team, neutral and status colours (readable on terrain in both
+  themes) and a `scene-*` group (terrain, water, sky, object greys) where it helps.
+- A third neutral colour for gameplay objects no team owns (objectives, combat areas), distinct from
+  `team-neutral`, the selection orange, the accent and the status colours.
+- Selection outlines show through walls; fly is right-button + WASD; F focuses.
+- A Help menu in the top bar for new users: controls and shortcuts, a getting-started guide, what each workspace is
+  for.
+- Opening a level NavKit has not prepared prepares it from the editor (a Prepare step with progress, or done
+  automatically on open), not by sending the user to another tool.
+- **Live rendering is the goal for the 3D view:** terrain, water and objects drawn as the game draws them - its
+  materials, textures, shaders (the shader translator, shaderview) and lighting - so a level looks in the editor as it
+  does in game. The opaque water and plain terrain of G1 are a first step.
+
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
 the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
