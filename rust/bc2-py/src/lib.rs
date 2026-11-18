@@ -67,6 +67,7 @@ mod navpath;
 mod navtools;
 mod navtrace;
 mod pathdata;
+mod pefile;
 mod scene;
 mod shaderdb_handle;
 mod shaders;
@@ -416,6 +417,9 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::apt::{AptLines, apt_constants, apt_decode, apt_decode_many};
+
+    #[pymodule_export]
+    use super::pefile::{pe_raw_find_cstring, pe_raw_find_dword, pe_raw_header, pe_raw_strings};
 
     #[pymodule_export]
     use super::importer::{
