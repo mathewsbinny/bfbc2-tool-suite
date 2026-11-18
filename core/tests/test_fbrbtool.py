@@ -171,7 +171,9 @@ def run_case(d: str, files: dict[str, Any], args: list[str], run: Runner = run_n
         else:
             write(p, data)
     code, out, err = run([a.replace('{d}', d) for a in args])
-    return [code, cg.text(out, (d, '<dir>')), cg.text(err, (d, '<dir>')), cg.snapshot(d)]
+    # an empty path resolves against the working folder (the checkout the test runs from): recorded as '<cwd>'
+    places = ((d, '<dir>'), (os.getcwd(), '<cwd>'))
+    return [code, cg.text(out, *places), cg.text(err, *places), cg.snapshot(d)]
 
 
 def case_dir(golden: dict[str, Any]) -> tuple[str, str]:
