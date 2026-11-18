@@ -251,6 +251,16 @@ keeps what it compiled (in memory and in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\
 hash; `BFBC2_HLSL_CACHE` another folder or `0`) and `compile_many` / `prefetch` compile on all cores - ctypes
 already releases the interpreter around Microsoft's compiler, so Rust could not make it faster; dbxport's template
 ranking runs from an index (`_Ranking`, with the full scan `_best` as its reference, `BFBC2_DBXPORT_REFERENCE=1`).
+Round E3r (`rust/BENCHMARKS.md`, "E3r"): the rest of the BF1943 importer stayed Python, by measurement - its time
+went to reading and to algorithms, not to rules a Rust port would speed up. `bf1943import.Source` no longer holds
+BF1943's bundles whole (~1.2 GB): it keeps their entries (checked once per bundle with `fbrb1943` and kept in the
+`bf1943source` cache, so an open takes 0.05 s instead of 3 s) and reads an entry from a compressed payload through
+restart points (the inflater's state every 1 MiB, made on a bundle's first read) and the decoded spans of the last
+reads (`BF1943_SOURCE_MEMORY_MB`, default 128); `bf1943import.WholeSource` (`BF1943_SOURCE_WHOLE=1`) is the reference.
+`emitteratlas.dedupe` makes the scan's choices with array operations (`dedupe_reference`,
+`BFBC2_EMITTERATLAS_REFERENCE=1`); `bf1943import.check` compares trees without copying them (`same_clean`);
+`Importer` reads each game resource once; `dbxport.guids_of` remembers each partition's guids;
+`meshview.Index.read_many(names, whole_bundles=False)` reads only the partitions named, the bundles on all cores.
 Round E3l (`rust/BENCHMARKS.md`, "E3l"): the shader tools' remaining Python stayed Python, by measurement - the
 render harness and the differential test waited on `shaderview.exe` (a Direct3D device created per job, ~55 ms on
 WARP and ~340 ms on the GPU, and a virus scan of every input file it opened). `shaderview -serve` keeps one device
@@ -315,6 +325,7 @@ development PC on 2026-11-17, mid-way through a WW2 rebuild):
 | `collision` | `aliases-<hash of the data folder>.bin` | one file per data folder; each XML file's and `.dbx`'s size and modification time inside | `collision.index`, `level.load` (Rust index, E1e) | `BFBC2_COLLISION_CACHE` | `BFBC2_COLLISION_CACHE_MB`, default 256; LRU (E3p; a reuse now marks the file) | 24 MB, 81 files (temp folders of test runs included) |
 | `effectport` | `emitters-<24 hex>.pkl` | the emitter documents' places and their bundles' paths, sizes and times, `INDEX_VERSION` | `effectport.EmitterIndex` (E3g) | `BFBC2_EFFECTPORT_CACHE` | `BFBC2_EFFECTPORT_CACHE_MB`, default 256; LRU (E3p) | 3.8 MB, 1 file per game copy |
 | `culltree` | `<sha1 of the level file's path>.pkl` | the code (`CACHE_VERSION`, a hash of `culltree.py`), the level file's size and time; each tree's inside | `culltree` `ref_rows` (E3m) | `BFBC2_CULLTREE_CACHE` | `BFBC2_CULLTREE_CACHE_MB`, default 2048; LRU (E3p) | one file per reference level partition (none yet on this PC) |
+| `bf1943source` | `<sha1 of the source folder>.pkl` | `INDEX_VERSION`, the BF1943 bundle reader's own source (`fbrb1943.py`'s SHA-1); per bundle its size and modification time | `bf1943import.Source` (E3r): which bundles `fbrb1943` takes, their entries and where each payload starts | `BF1943_SOURCE_INDEX` | `BF1943_SOURCE_INDEX_MB`, default 64; LRU | 3.2 MB, one file per BF1943 copy |
 
 Also under `%LOCALAPPDATA%\bfbc2-tool-suite`, not caches: `logs\<tool>-<date>.log` (`bfbc2core.errors`, DbxEdit's
 own log; the 20 newest per tool are kept, no size cap: 607 MB here, single NavKit and Studio days of 50-130 MB;

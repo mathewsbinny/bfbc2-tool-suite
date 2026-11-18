@@ -1861,3 +1861,117 @@ one write, now with the faster placement and table) and run `aptcheck.py check <
 start and an import per movie. `qa_checks.py` / `ww2_crosshairs.py` read crosshair tables and `deps` through the
 model (no decoder). bc2loc users (`names.py`, `ww2_awards.py`, `menu_install.py`) gain the faster constants when
 they read movies.
+
+## E3r: the rest of the BF1943 importer (2026-11-17, branch `rust-e3r`)
+
+**Provisional timings:** a WW2 rebuild and other agents' tests ran beside the first half of the work; every figure is
+below-normal priority on the 16-thread PC, with every process kept near 1 GB (`RAYON_NUM_THREADS=2`,
+`BFBC2_FBRB_CACHE=0` as the test runner sets it). Ratios hold within a run.
+
+`rust\bench_bf1943.py` (new) runs the importer's real workloads and records each output's SHA-256: `source` (every
+entry of BF1943's copy), `import` (`Importer.convert` of every animation, delta animation, skeleton and aim
+animation, the thumb-donor undeploys, `check()`), `fair` (`dbxport.port` of every partition both games ship, as
+`test_dbxport_fair.py` ports it, and the 29 firings with DICE's counterpart), `parity` (`dbxparity.compare` and
+`predict`), `atlas` (`emitteratlas.build` / `prove` / `same_but_uv` on the inputs of Project OPFOR's last
+`emitter_atlas` run: 615 emitter partitions, 14 authoring atlases, rebuilt read only from its manifest by `capture` -
+the build gives the atlases that run recorded).
+
+### The profiles (before)
+
+| workload | s | where the time and memory went |
+|---|---:|---|
+| `bf1943import.Source` open | 2.9 | every bundle read and decompressed; **1.24 GB kept** (508 MB raw bundles, 733 MB decompressed payloads; a stored bundle's payload a second copy of its raw bytes) - most of every BF1943 tool's footprint (E3g: 1.6 - 1.9 GB peaks) |
+| Wake's emitter atlas, `build` | 52.7 (profiled; 33 - 36 plain) | `dedupe` 50.5 s: the probe search's `std()` of every 8 x 8 window at even offsets (1.8 million numpy calls, 28 s) and the pre-test of every grid offset of every kept cell (1.8 million `(pk == probe).all(-1).mean()`) |
+| Wake's emitter atlas, `prove` | 9.2 | small numpy calls per image and level (`array_equal`, `corrcoef`, the crops), the source atlases decoded again |
+| `test_dbxport_fair.py` | 74.6 (profiled, an early lazy Source) | the test's own loop: each partition's folder found by scanning all 14,027 names (2,353 times: 33 M `endswith`, 16 s); `guids_of` 58,835 times for 2,353 partitions (10.8 s of parsing); DICE's partitions read a bundle at a time (11 s); **`dbxport.port` 6.9 s** for 2,357 ports |
+| `test_bf1943import.py --game` | 34.4 (profiled) | `check()`'s tree comparison: `clean()` copies of both trees, 13.9 million calls, 12.4 s; DICE's resources read one at a time (TRACK_FORMATS again for every undeploy: 82 reads, 4.2 s; the test's 24 undeploys 4.4 s); the deploys converted again for each stance |
+| `dbxparity` (compare) | 23.0 (profiled) | DICE's partitions read a bundle at a time 11 s; `flatten` / `dbx.value` 6.7 s |
+| `bench_ports.py effects` | 14.9 (profiled) | `dbxport.port` 7.1 s for 1,410 ports (5 ms each: `align` 3.7 s, `_gate` 0.9 s, parse / write); reading 3.5 s |
+
+### What changed
+
+- **`bf1943import.Source`, lazy** (`WholeSource` keeps the old class: the reference, `BF1943_SOURCE_WHOLE=1`). The open
+  checks each bundle with `fbrb1943.Bundle` exactly as before (the same bundles taken, the same entries and order)
+  and keeps only the entries; the verdict per bundle - keyed by its size and modification time and `fbrb1943.py`'s
+  SHA-1 - goes to the new `bf1943source` cache (3.2 MB), so later opens read no payload (0.04 s). A stored payload is
+  read where each entry lies. A compressed payload is one gzip stream: its first read decompresses it once and keeps
+  **restart points** - every 1 MiB of output, the inflater's whole state (`zlib`'s `Decompress.copy()`: window and
+  bit position) and how far into the stream it had read; the bytes between two points are the earlier state, copied,
+  fed the stream up to the later point (the same input into the same state). An entry costs at most 1 MiB of
+  inflating; decoded spans are kept, least recently used dropped, within `BF1943_SOURCE_MEMORY_MB` (default 128).
+  (E3e's Rust cache could not do this: the safe Rust inflaters have no `inflatePrime`; Python's zlib copies the state
+  whole. A stream that is not one plain gzip member is decompressed whole per read, as before.) A bundle changed on
+  disk after the open is refused where a read needs the file. A first version kept whole payloads in a 384 MB LRU:
+  the fair-port test thrashed between levels-common and the level bundles (70 decompressions, 21 s); with restart
+  points 3.5 s.
+- **`emitteratlas.dedupe`** (`dedupe_reference` keeps the scan, `BFBC2_EMITTERATLAS_REFERENCE=1`): the probe search
+  is one `std()` over a sliding-window view (`_probe_at`) - exact, because a full window holds 64 (8-bit) or 1,024
+  (BC5) values, a power of two, so the mean, the deviations, their squares and every partial sum are dyadic numbers a
+  double holds exactly in any summation order, and `argmax` takes the first maximum as the scan's `>` did; the
+  offset pre-test is one comparison over all offsets of a kept cell (`_matches`); the offsets that pass are checked
+  with `same_image` in the scan's order. A core narrower than the grid or an empty probe runs the scan. `prove`
+  compares each crop once for its three numbers.
+- **`bf1943import.check`**: `same_clean(a, b)` answers `clean(a) == clean(b)` without the copies (the plain
+  comparison first, in C: equal trees are equal cleaned; the walk only where it fails); `check(cleaned=)` takes the
+  reference. `Importer.game_read` reads each game resource once; a deploy's and HandsIkPose's tracks are converted once
+  per Importer; the BF1943 soldier's bone names once per `check`.
+- **`dbxport.guids_of`** remembers each partition's guids (by length and BLAKE2b; 8,192 partitions, a new set
+  returned each time) - OPFOR's `bf1943_vehicles` builds `ours` the same way.
+- **`meshview.Index.read_many(names, whole_bundles=False)`** reads only the partitions named, the bundles on all
+  cores (and what `Partitions` already holds); the fair-port test and `dbxparity` read DICE's partitions with it and
+  list each folder's partitions once. `test_bf1943import.py` reads DICE's undeploys at once.
+
+**Not ported, by measurement:** `dbxport.port` - 3 - 5 ms a partition (6.9 s of the fair-port test, 7.1 s of the bulk
+effect port, about 1 s of a WW2 level port since E3d), spread over `align` / `align_struct`'s rules, `_gate`, the
+reference resolver and the reports: 1,865 lines of rules whose every branch would need its own proof, for a few
+seconds a level build. `dbxparity`'s `flatten` / `dbx.value` (a research tool, 6 s). `prove`'s per-image numpy calls
+(7 s once a level). meshport / havokport / effectport: nothing new beyond E3g - their bench is unchanged but for the
+Source.
+
+### Before and after
+
+Before: `main` at 2a59fcd extracted, with the lazy `Source` put in (WholeSource's 1.24 GB would have broken the 1 GB
+limit; its bytes are proven the same below) and its `Importer` / `check` as they were.
+
+| workload | before, s | after, s | peak, before -> after |
+|---|---:|---:|---|
+| `Source` open | 2.9 (every bundle) | **0.04** (the index; 2.9 the first time) | 1.24 GB kept -> the entries + 128 MB of spans at most |
+| emitter atlas `build` (Wake, OPFOR's inputs) | 33.4 | **5.2** (6.4x) | 870 MB both |
+| emitter atlas `prove` | 9.7 | 7.5 | |
+| emitter atlas, all three | 44.0 | **13.4** (3.3x) | |
+| `test_dbxport_fair.py` (game tier) | 37.8 (seed with WholeSource 31.3, mem 2.5 GB) | **26.8** | 1,126 -> 886 MB |
+| bench `fair`: 2,382 ports | 20.8 | **14.9** | |
+| bench `import`: 808 converts and `check()` | 15.7 (`check` 8.9) | **13.9** (`check` 6.4) | |
+| `test_bf1943import.py --game`, profiled, without E3r's new proofs | 34.4 | **16.7** | ~2 GB (WholeSource) -> 690 MB |
+| `test_bf1943import.py --game` with E3r's two proofs | | 23.9 | 856 MB |
+| `dbxparity` compare | 17.1 | **11.3** | 798 -> 444 MB |
+| `dbxparity --predict` | 20.7 | 21.0 | 1.18 GB both |
+| `bench_ports.py` mesh / havok / effects | 8.7 / 1.6 / 7.6 | 9.4 / 1.6 / 7.6 (noise) | 907 MB both |
+
+### Parity
+
+Every output of every workload both ways (`bench_bf1943.py --record` in each checkout, compared):
+
+- **17,219 of 17,219** `bench_bf1943` outputs identical: 14,027 entries, 804 converts (bytes and records) and 4
+  thumb-donor converts, `check()`'s failures, 2,353 fair ports and 29 counterpart ports (bytes and report),
+  `dbxparity`'s compare and predict results;
+- **620 of 620** atlas outputs (both atlases - the ones OPFOR's run recorded -, 615 partitions, the report, the proof,
+  the trees); and in one checkout with `BFBC2_EMITTERATLAS_REFERENCE=1` against without: 620 of 620;
+- **1,188 of 1,188** `bench_ports.py` outputs (273 mesh, 202 physics, 713 effect);
+- `dbxparity.py` and `--predict` reports (and the enums JSON) byte for byte; the fair-port test's every count;
+- `Source` against `WholeSource`'s reading on the user's copy (game tier): the same 82 bundles and 14,027 names,
+  **14,027 of 14,027 entries** the same bytes; in a random order through a 4 MB span budget, 14,027 of 14,027
+  (12,230 span decodes);
+- `check()`: **3,024 of 3,024** tree comparisons answered by `same_clean` as by the reference;
+- quick: 6,000 seeded random tree pairs (`same_clean` against `clean() ==`: NaNs, `__` keys, `Padding`, mixed kinds);
+  `Source` on built bundles (restart points 4 KiB apart, a two-member payload, a stored one, a refused one, the index
+  used and refreshed, a bundle changed after the open refused); `dedupe` against `dedupe_reference` on 48 seeded
+  synthetic atlas sets (8-bit and BC5, copies at grid offsets, flat regions, narrow cores): 48 of 48.
+
+### Tests
+
+`test_bf1943import.py` (quick: the fuzz and the built-bundle Source; `--game`: the Source on the whole copy and the
+dual `check`), `test_emitteratlas.py` (quick: the dedupe cases), `test_dbxport_fair.py` (faster: folders listed once,
+DICE's partitions at once). NEEDS: the import game test `mem=1` (was 2.5), the fair-port test `cpu=4, mem=1.5` (was
+2.5); seeds in `tests\test_durations.json`. No Rust changed: `cargo fmt`, `clippy` and the tests passed in the quick
+tier as they were.

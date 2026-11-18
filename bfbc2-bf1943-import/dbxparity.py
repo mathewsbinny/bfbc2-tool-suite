@@ -81,6 +81,25 @@ def instances(data):
     return out
 
 
+def _dice(ix, names):
+    """DICE's partitions of names read at once, each bundle once on all cores (meshview.Index.read_many without
+    whole bundles: round E3r, one bundle at a time was half of a run); {} when ix cannot (the reads then go one by
+    one, as before) or a bundle fails (its read raises in the loop, as before)."""
+    try:
+        return ix.read_many(names, whole_bundles=False)
+    except Exception:                                               # noqa: BLE001 - read one by one, as before
+        return {}
+
+
+def _by_folder(src):
+    """{folder: the .dbx partitions (names without .dbx) in it} of the source (listed once: round E3r)."""
+    out = collections.defaultdict(set)
+    for e in src.entries:
+        if e.endswith('.dbx'):
+            out[e.rsplit('/', 1)[0]].add(e[:-4])
+    return out
+
+
 def compare(src, ix, names, log=print):
     stats: collections.defaultdict[tuple[str, str], collections.Counter[str]] = \
         collections.defaultdict(collections.Counter)                # (type, field) -> class counts
@@ -88,9 +107,10 @@ def compare(src, ix, names, log=print):
     enums: collections.defaultdict[tuple[str, str], collections.Counter[tuple[str, str]]] = \
         collections.defaultdict(collections.Counter)                # (type, field) -> (number, name) counts
     partitions = matched = 0
+    dice = _dice(ix, names)
     for k in names:
         try:
-            a, b = instances(src.data(k)), instances(ix.read(k))
+            a, b = instances(src.data(k)), instances(dice[k] if k in dice else ix.read(k))
         except Exception as e:                                      # noqa: BLE001
             log(f'  {k}: not compared ({e})')
             continue
@@ -237,10 +257,12 @@ def predict(src, ix, names, cat, bones, log=print):
         if key not in tcache:
             tcache[key] = dbxport.Templates.from_index(ix, key)
         return tcache[key]
+    by_folder = _by_folder(src)
+    dice_bytes = _dice(ix, names)
     for k in names:
         name = k[:-4]
         folder = name.rsplit('/', 1)[0]
-        ported = {e[:-4] for e in src.entries if e.endswith('.dbx') and e.rsplit('/', 1)[0] == folder}
+        ported = set(by_folder.get(folder, ()))
         ours = {p: dbxport.guids_of(src.data(p + '.dbx')) for p in ported}
 
         def resolve(p, ported=ported):
@@ -259,7 +281,7 @@ def predict(src, ix, names, cat, bones, log=print):
         except dbxport.PortError as e:
             log(f'  {k}: not ported ({e})')
             continue
-        dice = instances(ix.read(k))
+        dice = instances(dice_bytes[k] if k in dice_bytes else ix.read(k))
         got = {r: instances(d) for r, d in runs.items()}
         for g, (t, fd) in dice.items():
             short = t.split('.')[-1]

@@ -9,7 +9,8 @@ r"""emitteratlas.py, the merged emitter atlas (quick tier: synthetic atlases and
 - the build: three emitters from two source atlases (one image in both, at other places) - the image found once,
   every emitter's frames read through its new fields equal its source's (levels 0..K: texels exactly), the
   partitions' element trees unchanged but for the texture fields, the new values exact in float32;
-- the round trip: the merged atlases and partitions read back (prove) as built.
+- the round trip: the merged atlases and partitions read back (prove) as built;
+- dedupe (round E3r) against dedupe_reference on 48 seeded synthetic atlas sets: the same choices.
 
   python test_emitteratlas.py
 """
@@ -84,6 +85,63 @@ def emitter(guid, uv, nm, frames=1, cols=1, animated=False, spawn=False):
                        children=inst)
     strings = ['']
     return dbx.write(dbx.DbxFile(strings, [part]))
+
+
+def dedupe_cases(check, rng):
+    """dedupe (round E3r: the probe search and the offset pre-test as array operations) against dedupe_reference on
+    seeded synthetic atlases, 8-bit and BC5: sources holding copies of one another's regions at grid offsets (BC5
+    copies with a few units changed: matches by correlation), flat regions (ties in the probe search), cores
+    narrower than the grid (the scan's own path) - the same kept cells, and every other cell drawn from the same
+    cell at the same offset."""
+    n = same = drawn = 0
+    for case in range(48):
+        fmt = ea.L8 if case % 2 == 0 else ea.BC5
+        ch = 1 if fmt == ea.L8 else 16
+        side = 96
+
+        def level(a):
+            return a[::2, ::2].copy()
+        base = rng.integers(0, 256, (side, side, ch), dtype=np.uint8)
+        base[rng.integers(0, side - 16):, :rng.integers(8, 40)] = 7          # a flat region: ties
+        texs, srcs = {}, []
+        for i, s in enumerate('abc'):
+            if i == 0:
+                img = base
+            else:
+                dy, dx = (int(v) * ea.GRID for v in rng.integers(-3, 4, 2))
+                img = np.roll(base, (dy, dx), axis=(0, 1)).copy()
+                img[rng.integers(0, side, 6), rng.integers(0, side, 6)] = rng.integers(0, 256, ch, dtype=np.uint8)
+                if fmt == ea.BC5 and rng.random() < 0.5:
+                    img[rng.integers(0, side, 40), rng.integers(0, side, 40), rng.integers(0, ch, 40)] ^= 1
+            unit = 1 if fmt == ea.L8 else 4
+            texs[s] = ea.Tex(fmt, 0, side * unit, side * unit, [img, level(img)])
+            srcs.append(s)
+
+        def cells(case=case, side=side, srcs=srcs):
+            r = np.random.default_rng(case)
+            out = []
+            for _ in range(14):
+                w, h = (int(v) * ea.GRID for v in r.integers(2, 7, 2))
+                x, y = (int(v) * ea.GRID for v in r.integers(0, (side - max(w, h)) // ea.GRID + 1, 2))
+                if r.random() < 0.25:                                      # a core narrower than the grid
+                    core = (x + 9, y + 9, x + 9 + int(r.integers(1, 7)), y + 9 + int(r.integers(1, 7)))
+                else:
+                    core = (x + int(r.integers(0, 6)), y + int(r.integers(0, 6)), x + w - int(r.integers(0, 6)),
+                            y + h - int(r.integers(0, 6)))
+                out.append(ea.Cell(srcs[int(r.integers(0, 3))], x, y, w, h, core=core))
+            return out
+        a, b = cells(), cells()
+        ka, kb = ea.dedupe(a, texs), ea.dedupe_reference(b, texs)
+        n += 1
+        ia = {id(c): i for i, c in enumerate(a)}
+        ib = {id(c): i for i, c in enumerate(b)}
+        ok = [ia[id(c)] for c in ka] == [ib[id(c)] for c in kb] and all(
+            (x.into is None) == (y.into is None) and (x.into is None or (ia[id(x.into)], x.dx, x.dy) ==
+                                                      (ib[id(y.into)], y.dx, y.dy)) for x, y in zip(a, b))
+        same += ok
+        drawn += sum(c.into is not None and c.into.source != c.source for c in a)
+    check(same == n and drawn > 20, f'dedupe: {same} of {n} synthetic cases as dedupe_reference ({drawn} cells drawn '
+          'from another source\'s copy)')
 
 
 def main(argv):
@@ -189,6 +247,7 @@ def main(argv):
         check(False, 'an emitter of an unknown source is refused')
     except ea.EmitterAtlasError:
         check(True, 'an emitter of an unknown source is refused')
+    dedupe_cases(check, rng)
     return 1 if fails else 0
 
 

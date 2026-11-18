@@ -17,6 +17,11 @@ SHA-256, type, what was done (or why not), the output's SHA-256; later imports a
 **Source:** BF1943's extracted `dist\xenon` folder - by default the Project Rising Sun workspace next to the suite
 (`operation-rising-sun\work\extracted\dist\xenon`), or `--source` / `BF1943_XENON`. The bundles are read with the
 BF1943 suite's reader (`bf1943-tool-suite\bf1943-fbrb-tool\fbrb1943.py`, next to this suite). Read only.
+`bf1943import.Source` (round E3r) holds only the entries: each bundle is checked with that reader once (the result
+kept in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\bf1943source`, by the bundle's size and time), and an entry of a
+compressed payload is read through restart points made on the bundle's first read (at most 1 MiB inflated per read)
+and the decoded spans of the last reads (`BF1943_SOURCE_MEMORY_MB`, default 128) - the same bytes as
+`WholeSource`, which reads every bundle whole (~1.2 GB; `BF1943_SOURCE_WHOLE=1`).
 
 ## What is converted
 

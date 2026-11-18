@@ -111,6 +111,15 @@ class Partitions:
             self.bundles.move_to_end(key)
         return got.get(name)
 
+    def peek(self, path: str, name: str) -> bytes | None:
+        """Entry name of bundle path when the cache holds the bundle (unchanged on disk), else None - never reads."""
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        got = self.bundles.get((os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns))
+        return got.get(name) if got is not None else None
+
 
 PARTITIONS = Partitions()
 
@@ -220,17 +229,24 @@ class Index:
                 return b
         return fbrb.read(hit[0], [hit[1]])[hit[1]]
 
-    def read_many(self, names):
+    def read_many(self, names, whole_bundles=True):
         """{name: bytes or None} of read() for many names (None: a name the index lacks, as read() gives): each
         bundle read once for all of its names - a bundle is one gzip stream, so read() of each name decompresses it
         from the start again (round E3g: test_havokport's 991 physics files, 0.36 s each one at a time, 369 of its 381
         s; round E3i: the Granny port test) - the bundles on all cores with the Rust core; partitions (.dbx) through
-        their own cache, as read(). A bundle that cannot be read raises as read() does."""
+        their own cache, as read() - or, with whole_bundles=False, read with the rest (only the partitions named, the
+        bundles on all cores; those the partition cache holds from it: round E3r, the fair-port test read 42 bundles'
+        partitions one bundle at a time, 11 s). A bundle that cannot be read raises as read() does."""
         out: dict[str, bytes | None] = {}
         by: dict[str, list[tuple[str, str]]] = {}
         for n in names:
             hit = self.where.get(n.lower())
-            if not hit or hit[1].lower().endswith('.dbx'):
+            if hit and hit[1].lower().endswith('.dbx') and not whole_bundles:
+                cached = PARTITIONS.peek(hit[0], hit[1])
+                if cached is not None:
+                    out[n] = cached
+                    continue
+            if not hit or (hit[1].lower().endswith('.dbx') and whole_bundles):
                 out[n] = self.read(n)                       # partitions: their own cache
             else:
                 by.setdefault(hit[0], []).append((n, hit[1]))

@@ -5,11 +5,17 @@ Without game data (quick tier):
   separator-blind and does not take a sibling folder with a common prefix for a subfolder;
 - each resource type is routed to its converter, or listed with the reason it is not converted;
 - an import into a folder inside the source, or with no filter, or with a filter that matches nothing, is refused
-  before anything is written.
+  before anything is written;
+- same_clean (check()'s tree comparison, round E3r) answers 6,000 seeded random tree pairs as clean() and == do;
+- Source (round E3r, lazy) against WholeSource on built bundles: every entry in a random order through restart points
+  4 KiB apart and almost no span budget, a two-member gzip payload, a stored payload, a refused bundle, the on-disk
+  index used and refreshed, a bundle changed after the open refused (needs the BF1943 suite's bundle reader).
 
 With --game (game tier; skipped without the Rising Sun workspace and the BF1943 suite next to this one):
 - check: every BF1943 animation, delta animation and skeleton converts, reads as a PC file with the source's object
-  tree, and every renumbered bone table names the same bones in BFBC2's soldier;
+  tree, and every renumbered bone table names the same bones in BFBC2's soldier; every tree comparison it makes is
+  answered by same_clean as by the reference;
+- Source on the user's copy: the same bundles, names and bytes for every entry as WholeSource reads them;
 - import of the Garand bayonet's resources into a temporary folder: the animations land under their names and read
   as little-endian with the bayonet bone (jntWpn_6) at the muzzle in the 1P thrust; import.json records each
   resource (converted or why not); a second import with another filter adds to the records instead of replacing
@@ -81,6 +87,186 @@ def units(check):
         shutil.rmtree(out, ignore_errors=True)
 
 
+def _bundle(entries, compressed=True, members=1):
+    """A BF1943 bundle (fbrb1943's layout): [(name, type, bytes)], its payload gzip (in `members` gzip members) or
+    stored."""
+    import gzip
+    import struct
+    strings, offs = bytearray(), {}
+    for n, t, _ in entries:
+        for s in (n, t):
+            if s not in offs:
+                offs[s] = len(strings)
+                strings += s.encode() + b'\0'
+    payload = b''.join(d for _, _, d in entries)
+    d = bytearray(struct.pack('>II', 2, len(strings)) + strings + struct.pack('>I', len(entries)))
+    pos = 0
+    for n, t, data in entries:
+        d += struct.pack('>6I', offs[n], 0, pos, len(data), len(data), offs[t])
+        pos += len(data)
+    d += bytes([1 if compressed else 0]) + struct.pack('>I', len(payload))
+    gd = gzip.compress(bytes(d), mtime=0)
+    if not compressed:
+        body = payload
+    elif members == 1:
+        body = gzip.compress(payload, compresslevel=6, mtime=0)
+    else:
+        cut = len(payload) // members
+        body = b''.join(gzip.compress(payload[i * cut:(i + 1) * cut if i < members - 1 else None], mtime=0)
+                        for i in range(members))
+    return b'FbRB' + struct.pack('>I', len(gd)) + gd + body
+
+
+def lazy_source(check):
+    """Source (round E3r: entries checked once and indexed on disk, data read through restart points) against
+    WholeSource on built bundles: every entry in a random order, through restart points 4 KiB apart and a span budget
+    that keeps almost nothing; a bundle of two gzip members (read whole each time), a stored one, one fbrb1943
+    refuses; the index written, used and refreshed; a bundle changed after the open refused, never read."""
+    import random
+    try:
+        bi.fbrb1943()
+    except bi.Bf1943ImportError as e:
+        print(f'SKIP lazy source: {e}')
+        return
+    rng = random.Random(1943)
+    tmp = tempfile.mkdtemp(prefix='bf1943src_')
+    old = (bi.SPAN, bi.CHUNK, os.environ.get(bi.INDEX_ENV))
+    try:
+        folder = os.path.join(tmp, 'xenon')
+        os.makedirs(os.path.join(folder, 'levels', 'a'))
+
+        def blob(n):
+            return bytes(rng.getrandbits(8) for _ in range(n)) if rng.random() < 0.3 else \
+                bytes(rng.choice(b'abcdefgh') for _ in range(n))
+        files = {
+            'levels/a/big-00.fbrb': _bundle([(f'Big/E{i}.dbx', '<non-resource>', blob(rng.choice((0, 1, 7, 300, 5000,
+                                                                                                    20000))))
+                                             for i in range(80)] + [('Shared/X.res', 'Mesh', b'first copy')]),
+            'aa-00.fbrb': _bundle([('Shared/X.res', 'Mesh', b'xx'), ('Shared/x.RES', 'Mesh', b'yy')] +
+                                  [(f'Two/E{i}.res', 'Mesh', blob(3000)) for i in range(20)], members=2),
+            'stored-00.fbrb': _bundle([(f'S/E{i}.res', 'Wave', blob(rng.randrange(0, 4000))) for i in range(30)],
+                                      compressed=False),
+            'bad-00.fbrb': _bundle([('Bad/E.res', 'Mesh', b'abc')])[:-3],
+        }
+        for rel, raw in files.items():
+            with open(os.path.join(folder, *rel.split('/')), 'wb') as fh:
+                fh.write(raw)
+        os.environ[bi.INDEX_ENV] = os.path.join(tmp, 'index')
+        bi.SPAN, bi.CHUNK = 4096, 512
+        ref = bi.WholeSource(folder)
+        src = bi.Source(folder, memory_mb=0.01)
+        check(src.entries == ref.entries and list(src.bundles) == list(ref.bundles) and
+              'bad-00.fbrb' not in src.bundles and src.stats['checked'] == 4,
+              'lazy source: the same entries and bundles as WholeSource (the damaged bundle refused by both)')
+        keys = sorted(ref.entries) * 3
+        rng.shuffle(keys)
+        same = sum(src.data(k) == ref.data(k) for k in keys)
+        check(same == len(keys) and src.stats['spans'] > 50 and src.stats['whole'] > 0 and
+              src.stats['stored_reads'] > 0,
+              f'lazy source: {same} of {len(keys)} reads in a random order WholeSource\'s bytes '
+              f'(spans {src.stats["spans"]}, whole {src.stats["whole"]}, stored {src.stats["stored_reads"]})')
+        again = bi.Source(folder)
+        check(again.stats['from_index'] == 4 and again.stats['checked'] == 0 and again.entries == ref.entries and
+              all(again.data(k) == ref.data(k) for k in ref.entries),
+              'lazy source: a second open takes every bundle from the index, the same entries and bytes')
+        again = bi.Source(folder)                       # opened, nothing read yet (what is read is kept as read)
+        big = os.path.join(folder, 'levels', 'a', 'big-00.fbrb')
+        raw = bytearray(files['levels/a/big-00.fbrb'])
+        raw[-40] ^= 0xFF                                         # inside the payload's deflate data
+        k = next(k for k in ref.entries if k.startswith('big/'))
+        st = os.stat(big)
+        with open(big, 'wb') as fh:
+            fh.write(raw)
+        os.utime(big, ns=(st.st_atime_ns, st.st_mtime_ns + 10 ** 9))
+        try:
+            again.data(k)
+            check(False, 'lazy source: a bundle changed after the open is refused')
+        except bi.Bf1943ImportError:
+            check(True, 'lazy source: a bundle changed after the open is refused')
+        third = bi.Source(folder)
+        ref2 = bi.WholeSource(folder)
+        check(third.stats['checked'] == 1 and third.entries == ref2.entries and list(third.bundles) == list(ref2.bundles),
+              'lazy source: the changed bundle checked again on the next open, as WholeSource reads it')
+    finally:
+        bi.SPAN, bi.CHUNK = old[0], old[1]
+        if old[2] is None:
+            os.environ.pop(bi.INDEX_ENV, None)
+        else:
+            os.environ[bi.INDEX_ENV] = old[2]
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def same_clean_fuzz(check):
+    """same_clean against the reference (clean(a) == clean(b)) on seeded random trees and changed copies."""
+    import copy
+    import random
+    rng = random.Random(7)
+    nan = float('nan')
+
+    def tree(d):
+        r = rng.random()
+        if d > 3 or r < 0.35:
+            return rng.choice([0, 1, 2.5, -0.0, 0.0, nan, 'a', 'b', None, True, (1, 2), b'x', [], {}])
+        if r < 0.65:
+            return [tree(d + 1) for _ in range(rng.randrange(0, 4))]
+        keys = ['A', 'B', 'C', '__Ptr', '__Type', 'Padding', 'PaddingX']
+        return {k: tree(d + 1) for k in rng.sample(keys, rng.randrange(0, len(keys) + 1))}
+
+    def mutate(t):
+        if isinstance(t, dict) and t:
+            k = rng.choice(list(t))
+            if rng.random() < 0.3:
+                del t[k]
+            else:
+                t[k] = mutate(t[k]) if isinstance(t[k], (dict, list)) and rng.random() < 0.7 else tree(2)
+        elif isinstance(t, list) and t:
+            i = rng.randrange(len(t))
+            t[i] = mutate(t[i]) if isinstance(t[i], (dict, list)) and rng.random() < 0.7 else tree(2)
+        return t
+    n = agree = differ = 0
+    for _ in range(6000):
+        a = tree(0)
+        b = copy.deepcopy(a) if rng.random() < 0.8 else tree(0)
+        if rng.random() < 0.7:
+            b = mutate(b)
+        n += 1
+        want = bi.clean(a) == bi.clean(b)
+        agree += bi.same_clean(a, b) == want
+        differ += not want
+    check(agree == n and 0 < differ < n, f'same_clean: {agree} of {n} random tree pairs as clean() compares them '
+          f'({differ} unequal)')
+
+
+def lazy_game(check, source):
+    """Source against WholeSource's reading on the user's BF1943 copy, one bundle read whole at a time: the same
+    bundles and entries, every entry's bytes."""
+    import time
+    fb = bi.fbrb1943()
+    entries: dict[str, tuple] = {}
+    bundles: list[str] = []
+    same = n = 0
+    t = time.perf_counter()
+    by: dict[str, list[str]] = {}
+    for k, (r, _e) in source.entries.items():
+        by.setdefault(r, []).append(k)
+    for rel, path in bi._bundle_files(source.folder):
+        try:
+            bd = fb.Bundle(open(path, 'rb').read())
+        except ValueError:
+            continue
+        bundles.append(rel)
+        for e in bd.entries:
+            entries.setdefault(e['name'].lower(), (rel, e))
+        for k in by.get(rel, ()):
+            n += 1
+            same += source.data(k) == bd.data(source.entries[k][1]['name'])
+        del bd
+    check(entries == source.entries and bundles == list(source.bundles),
+          f'lazy source: the {len(bundles)} bundles and {len(entries)} names WholeSource takes')
+    check(same == n == len(entries), f'lazy source: {same} of {n} entries WholeSource\'s bytes '
+          f'({time.perf_counter() - t:.0f} s)')
+
+
 def game(check):
     folder = bi.default_source()
     try:
@@ -90,8 +276,20 @@ def game(check):
         return
     before = {r: hashlib.sha256(open(os.path.join(folder, *r.split('/')), 'rb').read()).hexdigest()
               for r in source.bundles}
-    fails = bi.check(source, log=lambda s: None)
+    # every tree comparison check() makes, by same_clean and by the reference (clean() both, ==): the reference's
+    # answer decides, and the two must agree on every pair (round E3r)
+    pairs = [0, 0]
+
+    def both(a, b):
+        want = bi.clean(a) == bi.clean(b)
+        pairs[0] += 1
+        pairs[1] += bi.same_clean(a, b) == want
+        return want
+    fails = bi.check(source, log=lambda s: None, cleaned=both)
     check(not fails, 'check: every BF1943 animation and skeleton converts and reads back', '; '.join(fails[:3]))
+    check(pairs[1] == pairs[0] > 3000, f'check: same_clean answers {pairs[1]} of {pairs[0]} tree comparisons as the '
+          'reference')
+    lazy_game(check, source)
     out = tempfile.mkdtemp(prefix='bf1943import_')
     try:
         recs = bi.run_import(source, ['M1Garand_Bayonet/'], out, log=lambda s: None)
@@ -147,11 +345,14 @@ def undeploys(check):
         return math.degrees(2 * math.acos(min(1.0, abs(sum(x * y for x, y in zip(a, b))))))
     keys = sorted(k for k, (_, e) in source.entries.items() if bi.UNDEPLOY.search(k) and e['type'] == 'GrannyAnimation')
     shared = [k for k in keys if k in ix.where]
+    H = 'animations/weapons/handheld/'
+    # DICE's undeploys read at once, each bundle once (round E3r: one read each, 0.16 s apiece)
+    dice = ix.read_many(shared + [f'{H}m1garand/3p/{st}undeploy.res' for st in ('stand', 'crouch')])
     exact = tracks_ok = total = 0
     thumbs, bad = [], []
     for k in shared:
         out, _ = imp.convert(k)
-        dur, d = tracks(ix.read(k))
+        dur, d = tracks(dice[k])
         _, o = tracks(out)
         _, p = tracks(imp.convert(k, extra_tracks=False)[0])
         if len(o) != len(d) or any(granny.curve_keys(o[n][c]['CurveData']) != granny.curve_keys(p[n][c]['CurveData'])
@@ -184,14 +385,13 @@ def undeploys(check):
           str(counts))
     # thumb_donors: the Garand's thumbs copied from Vietnam's Garand undeploys (the same animation DICE shipped twice)
     # come out as DICE's (0 degrees), its other tracks as without a donor; the K98's from the M24's: still 88 tracks
-    H = 'animations/weapons/handheld/'
     don = bi.Importer(source, thumb_donors={H + 'm1garand': H + 'vietnam/nam_rif_m1garand',
                                             H + 'beach/k98': H + 'us_sni_m24'})
     don._ix, don._bones = ix, imp._bones
     worst, same = 0.0, True
     for st in ('stand', 'crouch'):
         k = f'{H}m1garand/3p/{st}undeploy.res'
-        dur, d = tracks(ix.read(k))
+        dur, d = tracks(dice[k])
         out, rec = don.convert(k)
         _, o = tracks(out)
         _, plain = tracks(imp.convert(k)[0])
@@ -218,6 +418,8 @@ def main(argv):
             fails.append(what)
 
     units(check)
+    same_clean_fuzz(check)
+    lazy_source(check)
     if '--game' in argv:
         game(check)
         undeploys(check)
