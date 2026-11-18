@@ -25,6 +25,14 @@ the keys, DICE's 27.7 %) - no rebuild is needed.
 
     import havokport
     pc_bytes = havokport.convert(bf1943_bytes, template_pc_bytes, havok.classes(exe))
+
+In the suite's Rust core (round F2b, rust/bc2-convert/src/havokport.rs, through importcore): restructure, the material
+table's swap, shape_subparts_to_550, ufloat8_table and the physics materials' readers and writers run there when it is
+built (the console converter's packfile walk already did: havok.convert). Each is the reference step for step; where
+the reference would raise anything but its own PortError / MaterialError (a short read, a missing table entry), or a
+case not reproduced (a velocity limit without a table: its message prints the value), the Python below runs - the
+*_reference functions, also what tests/test_havokport_native.py compares against; BFBC2_IMPORTER_PYTHON=1 runs them
+always.
 """
 import os
 import struct
@@ -32,6 +40,10 @@ import sys
 from typing import Any, cast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import importcore  # noqa: E402
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -63,6 +75,14 @@ VELOCITY_BYTE = {200.0: 0x7F}        # hkUFloat8 of the velocity limits without 
 def ufloat8_table(exe):
     """Havok's hkUFloat8 decoding table (256 rising floats: 0, 0.01, ... about 1e6) found in the user's executable
     (bytes); None if absent. 5.5.0 stores a rigid body's velocity limits as an index into it."""
+    n = importcore.native()
+    if n is not None:
+        return n.havokport_ufloat8_table(bytes(exe))
+    return ufloat8_table_reference(exe)
+
+
+def ufloat8_table_reference(exe):
+    """ufloat8_table in Python (the reference)."""
     import numpy as np
     for off in range(4):
         a = np.frombuffer(exe, '<f4', (len(exe) - off) // 4, off)
@@ -131,10 +151,45 @@ def _classnames(d, start, e):
     return out
 
 
+_layouts: list = [None, None]          # [the classes dict last handed to the Rust core, its PortLayouts]
+
+
+def _port_layouts(classes):
+    """The class layouts restructure asks, as the Rust core's PortLayouts (made once per dict, kept with it)."""
+    n = importcore.native()
+    if n is None:
+        return None
+    if _layouts[0] is not classes:
+        aabb = {}
+        for name in AABB_W:
+            r = _rename(name, classes)
+            if r is not None:
+                try:
+                    aabb[r] = _member_offset(classes, r, 'aabbCenter')
+                except (KeyError, AttributeError):
+                    aabb[r] = None
+        try:
+            _layouts[:] = [classes, n.PortLayouts(set(classes), aabb)]
+        except (TypeError, OverflowError):
+            _layouts[:] = [classes, None]
+    return _layouts[1]
+
+
 def restructure(b, template, classes, table=None):
     """The 4.6.1 resource b as a big-endian 5.5.0 one (DICE's wrapper kept); template: a BFBC2 PC physics resource
     whose class-name section names every class b's objects need; table: ufloat8_table (else only VELOCITY_BYTE's
     velocity limits are known)."""
+    lay = _port_layouts(classes)
+    if lay is not None:
+        r = importcore.call('havokport_restructure', bytes(b), bytes(template), lay,
+                            None if table is None else list(table), error=PortError)
+        if r is not None:
+            return r[0]
+    return restructure_reference(b, template, classes, table)
+
+
+def restructure_reference(b, template, classes, table=None):
+    """restructure in Python (the reference)."""
     p = b.find(MAGIC)
     if p < 0 or b'Havok-4.6.1' not in b[p + 40:p + 56]:
         raise PortError('not a Havok 4.6.1 packfile')
@@ -299,6 +354,12 @@ def wrapper_run_table(b):
     FORMAT.md 1.1): u16 M groups, u16 C material hashes, C u32 hashes, M u16 group ends (the last = C), then the
     per-part bytes. BFBC2 writes the table little-endian on both platforms; BF1943 big-endian. None: no table found
     in either byte order."""
+    r = importcore.call('havokport_run_table', bytes(b))
+    return r[0] if r is not None else wrapper_run_table_reference(b)
+
+
+def wrapper_run_table_reference(b):
+    """wrapper_run_table in Python (the reference)."""
     o = b.find(MAGIC)
     n = struct.unpack_from('<I', b, 0)[0]
     p = 8 + 4 * n
@@ -327,7 +388,13 @@ def wrapper_run_table(b):
 
 def _run_table_to_pc(b):
     """The wrapper's material table in BFBC2's byte order (little-endian)."""
-    t = wrapper_run_table(b)
+    r = importcore.call('havokport_run_table_to_pc', bytes(b), error=PortError)
+    return r[0] if r is not None else _run_table_to_pc_reference(b)
+
+
+def _run_table_to_pc_reference(b):
+    """_run_table_to_pc in Python (the reference)."""
+    t = wrapper_run_table_reference(b)
     if t is None:
         if b.find(MAGIC) >= 0 and struct.unpack_from('<I', b, 0)[0] != struct.unpack_from('<I', b, 4)[0]:
             return b                          # not the part-list wrapper (FORMAT.md 1.1): nothing to swap
@@ -405,6 +472,12 @@ def shape_subparts_to_550(pc):
     The w lanes as BFBC2's exporter writes them (4.6.1's are 0): every shape subpart with children has translation.w
     1.0 (all 277,950 such subparts of BFBC2's levels; the empty subpart Havok adds last keeps 0), and a shape built
     of shape subparts only gets aabbCenter.w / aabbHalfExtents.w from aabb_w. Returns (bytes, subparts swapped)."""
+    r = importcore.call('havokport_subparts', bytes(pc))
+    return tuple(r[0]) if r is not None else shape_subparts_to_550_reference(pc)
+
+
+def shape_subparts_to_550_reference(pc):
+    """shape_subparts_to_550 in Python (the reference)."""
     import numpy as np
     b = bytearray(pc)
     p = bytes(b).find(MAGIC)
@@ -490,8 +563,15 @@ def convert(b, template, classes, table=None):
     The wrapper's material table is swapped too: BF1943 writes it big-endian, and BFBC2's loader, which reads its
     counts to find the packfile, otherwise lands short of it (a null version string at load, 0xC585D8). The model
     groups' shape subparts get 5.5.0's field order (shape_subparts_to_550)."""
-    pc = _run_table_to_pc(havok.convert(restructure(b, template, classes, table), classes))
-    return shape_subparts_to_550(pc)[0]
+    pc = havok.convert(restructure(b, template, classes, table), classes)
+    r = importcore.call('havokport_finish', bytes(pc), error=PortError)
+    return r[0] if r is not None else shape_subparts_to_550(_run_table_to_pc(pc))[0]
+
+
+def convert_reference(b, template, classes, table=None):
+    """convert with the Python steps (the reference; the console converter is havok.convert either way)."""
+    pc = _run_table_to_pc_reference(havok.convert(restructure_reference(b, template, classes, table), classes))
+    return shape_subparts_to_550_reference(pc)[0]
 
 
 # ------------------------------------------------------------------------------------------------ physics materials
@@ -516,6 +596,12 @@ class MaterialError(ValueError):
 def _wrapper(b):
     """(parts n, the part run's start, the material list's start (its "1, k"), the list's hashes, the packfile's
     start) of a PC physics resource."""
+    r = importcore.call('havokport_wrapper', bytes(b), error=MaterialError)
+    return tuple(r[0]) if r is not None else _wrapper_reference(b)
+
+
+def _wrapper_reference(b):
+    """_wrapper in Python (the reference)."""
     o = b.find(MAGIC)
     if o < 0 or len(b) < 8:
         raise MaterialError('no Havok packfile')
@@ -537,7 +623,13 @@ def _wrapper(b):
 
 def part_materials(b):
     """(the material list's hashes, each part's index into it) of a PC physics resource."""
-    n, p, q, hashes, _ = _wrapper(b)
+    r = importcore.call('havokport_part_materials', bytes(b), error=MaterialError)
+    return tuple(r[0]) if r is not None else part_materials_reference(b)
+
+
+def part_materials_reference(b):
+    """part_materials in Python (the reference)."""
+    n, p, q, hashes, _ = _wrapper_reference(b)
     run = b[p:q]
     if n == 0:
         return hashes, []
@@ -553,6 +645,12 @@ def part_materials(b):
 
 def part_run(indices):
     """The part run of these per-part material indices (the format part_materials reads)."""
+    r = importcore.call('havokport_part_run', indices, error=MaterialError)
+    return r[0] if r is not None else part_run_reference(indices)
+
+
+def part_run_reference(indices):
+    """part_run in Python (the reference)."""
     if not indices:
         raise MaterialError('no parts')
     if max(indices) > 255 or min(indices) < 0:
@@ -565,8 +663,14 @@ def part_run(indices):
 def with_part_materials(b, indices, hashes):
     """b with part i on material hashes[indices[i]]; hashes is the new material list: the old one, new hashes only
     appended (the packfile's face indices keep their meaning)."""
-    n, p, _, old, o = _wrapper(b)
-    part_materials(b)                                         # the run is the shape this writes
+    r = importcore.call('havokport_with_part_materials', bytes(b), indices, hashes, error=MaterialError)
+    return r[0] if r is not None else with_part_materials_reference(b, indices, hashes)
+
+
+def with_part_materials_reference(b, indices, hashes):
+    """with_part_materials in Python (the reference)."""
+    n, p, _, old, o = _wrapper_reference(b)
+    part_materials_reference(b)                                         # the run is the shape this writes
     if len(indices) != n:
         raise MaterialError(f'{len(indices)} part materials for {n} parts')
     if list(hashes[:len(old)]) != old:
@@ -574,7 +678,7 @@ def with_part_materials(b, indices, hashes):
     if max(indices) >= len(hashes):
         raise MaterialError('a part index past the material list')
     tail = struct.pack('<2I', 1, len(hashes)) + struct.pack(f'<{len(hashes)}I', *hashes)
-    return b[:p] + part_run(list(indices)) + tail + b[o:]
+    return b[:p] + part_run_reference(list(indices)) + tail + b[o:]
 
 
 def _data(b):
@@ -616,6 +720,12 @@ def _cstr(b, at):
 
 def havok_materials(b):
     """The packfile's HavokMaterials list: the material names the face indices count in, in order."""
+    r = importcore.call('havokport_havok_materials', bytes(b))
+    return r[0] if r is not None else havok_materials_reference(b)
+
+
+def havok_materials_reference(b):
+    """havok_materials in Python (the reference)."""
     base, local, glob_, kinds = _data(b)
     lists = sorted(o for o, c in kinds.items() if c == 'HavokMaterials')
     if not lists:
@@ -644,8 +754,14 @@ def with_havok_materials(b, names):
     0, as DICE's exporter lays them out: the list's objects end the data section - a 16-byte object, its name at the
     next 16 bytes, padded to 16). DICE keeps this list equal to the material list (MaterialMappings, the wrapper's
     hashes) in every file it ships."""
+    r = importcore.call('havokport_with_havok_materials', bytes(b), list(names), error=MaterialError)
+    return r[0] if r is not None else with_havok_materials_reference(b, names)
+
+
+def with_havok_materials_reference(b, names):
+    """with_havok_materials in Python (the reference)."""
     p = b.find(MAGIC)
-    old = havok_materials(b)
+    old = havok_materials_reference(b)
     if [n.lower() for n in names[:len(old)]] != [n.lower() for n in old]:
         raise MaterialError('the HavokMaterials list may only grow at its end')
     if len(names) == len(old):
@@ -722,6 +838,12 @@ def bodies(b):
     """[(name, [the face materials of each subpart storage: indices into havok_materials] or None)] of the
     packfile's rigid bodies in data order (None: the body's shape is no storage mesh, e.g. a model group's
     collision body of convex children)."""
+    r = importcore.call('havokport_bodies', bytes(b))
+    return r[0] if r is not None else bodies_reference(b)
+
+
+def bodies_reference(b):
+    """bodies in Python (the reference)."""
     base, local, glob_, kinds = _data(b)
     out = []
     for o in sorted(k for k, c in kinds.items() if c == 'hkpRigidBody'):
@@ -735,9 +857,17 @@ def bodies(b):
 def with_face_materials(b, changes):
     """b with face materials rewritten in place: changes {body index (bodies' order): [per subpart storage: its
     indices into havok_materials]} - the counts as bodies() lists them; only values change."""
+    r = None
+    if isinstance(changes, dict):
+        r = importcore.call('havokport_with_face_materials', bytes(b), changes, error=MaterialError)
+    return r[0] if r is not None else with_face_materials_reference(b, changes)
+
+
+def with_face_materials_reference(b, changes):
+    """with_face_materials in Python (the reference)."""
     base, local, glob_, kinds = _data(b)
     out = bytearray(b)
-    n = len(havok_materials(b))
+    n = len(havok_materials_reference(b))
     order = sorted(k for k, c in kinds.items() if c == 'hkpRigidBody')
     for bi, new in changes.items():
         st = _storages(b, base, local, glob_, kinds, order[bi])

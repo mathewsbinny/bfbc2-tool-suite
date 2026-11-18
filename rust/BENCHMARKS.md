@@ -887,6 +887,69 @@ four shards); `cargo fmt --check`, `cargo clippy --workspace --all-targets -D wa
 quick tier's `test_rust.py`). OPFOR's callers (read only) use only the kept API (`dbx.parse` / `read` / `write` /
 `to_xml`, `fbrb.entries` / `read` / `pack_many`, `culltree.py` run by `console_cull.py` from the suite): none break.
 
+## Retired C# tools (2026-11-18, branch `retire-r4`)
+
+After the full tier (173 of 173, 2026-11-17 23:54) the C# command lines whose commands were ported and proven
+identical (E3b: DbxEdit; E3k: FbrbTool) were retired as tools, as their Python twins were above
+(`EDITOR_ARCHITECTURE.md` 3.8). The Rust core is required for their commands: `bfbc2core.dbxedit` / `fbrbtool`
+(`run`, `run_many`, `run_cmd`, new `main`); `fbrb.pack` / `pack_many` / `unpack` lost their FbrbTool.exe fallbacks
+here and in round F1a (above), merged. By hand:
+`python bfbc2-dbx-tools\dbxedit.py` / `python bfbc2-fbrb-tool\fbrbtool.py` (the exes' command lines, messages and
+exit codes).
+
+| removed | lines |
+|---|---|
+| `bfbc2-fbrb-tool/FbrbTool.cs`, its `build.bat` | 464 + 8 |
+| `DbxEdit.cs`'s command line (`static class Program`: `Main`, the command dispatch, usage); `build.bat` builds `DbxEditGUI.exe` only | 280 -> 7 (header) |
+| `DbxTests.cs`' exe groups (`CommandLine`, `MakeGolden`, `Golden`, `Battery`) and `run_tests.bat`'s exe copy / `--golden` | 150 -> 6 |
+| `rust/bench_dbxedit.py`, `rust/bench_fbrbtool.py` (the exe against in process; their results stay in E3b / E3k) | 253 + 78 |
+| the switches and fallbacks: `BFBC2_DBXEDIT_EXE`, `BFBC2_FBRBTOOL_EXE`, `use_exe`, `EXE`, `_exe` (dbxedit, fbrbtool), `fbrb.fbrbtool` / `_tool_pack` / `_tool_unpack`, `pipeline.FBRB` / `DBX` / `run`, NavKit's and `level.heightfield_of`'s exe look-ups, `validate`'s exe branch | about 150 |
+| run_tests' steps "FbrbTool build (when stale)"; "DbxEdit build" builds DbxEditGUI only | |
+
+**Kept, and why.** DbxEditGUI (the window) stays until the egui map editor replaces it, built from DbxEditGUI.cs
+and DbxEdit.cs; DbxEdit.cs (the DBX classes, `ToolLog`) is also LevelDiff's library, so only its command-line class
+went (trivially safe: nothing referenced it; the GUI, LevelDiff and DbxTests build and pass). DbxTests.cs stays as
+the GUI's and the C# classes' tests (85 checks, the window included; `--corpus` for the full tier).
+`bfbc2core.paths.find_tool` stays (DbxEditGUI, LevelDiff). `fingerprints_795745.txt` stays: it is DbxEdit's own
+recording (the XML and edit fingerprints `test_dbx.py`, `test_rust.py --corpus` and `test_dbxedit.py --game` check).
+
+**The new oracle: the exes' answers, recorded from the exes before they went** (`core/tests/csharp_golden.py`;
+built from `f10522d`'s sources, the same bytes as the main checkout's builds; texts with the test folder as `<dir>`,
+the log as `<log>`, temporary names as `.tmp-N`; digests are the first 16 hex digits of a SHA-256):
+
+- `dbxedit_golden.json` (24 KB): DbxTests.cs' 82 unit cases as command lines - exit code, stdout, stderr, every
+  file's SHA-1.
+- `dbxedit_golden_game_0.json / _1.json` (1.4 MB): a seeded 2,000-file sample of OPFOR's work\levels, work\navkit\common and
+  work\ww2 (139,842 files; 1,592 distinct), each through xml, roundtrip, import --like / without a reference /
+  edited (the edits seeded by the file's SHA-1), check and, on every 4th file by SHA-1, the edit battery: 12,464
+  runs, keyed by the input's SHA-1 (591 s).
+- `fbrbtool_golden.json` (660 KB): test_fbrbtool's 228 command lines (run in a folder 64 characters long, as the
+  test does: FbrbTool's path-length rules depend on it), the 600 seeded damaged bundles, what .NET 4's GZipStream
+  answered for the 3,000 seeded gzip streams (a C# probe), test_fbrb_unpack_native's 78 built / odd / damaged bundles
+  (exit code, files left), test_fbrb_pack_native's 25 built and refused folders, test_fbrb_native's 2 built bundles.
+- `fbrbtool_golden_game.json` (250 KB): every bundle of the game copy up to 300 MiB (1,081 of 1,086; the 5 larger
+  ones, 307-565 MiB, were left out for memory) and the 40 bundles of the logged invocations: unpack (the folder's
+  digest), list, and pack of the unpacked folder (the bundle's SHA-1); 693 distinct bundles by SHA-1.
+
+The tests now check the in-process commands against these: `test_dbxedit.py` (quick: the 82 cases as recorded and as
+DbxTests.cs expects; `--game`: the recorded sample whose files are still there unchanged - at least a quarter must
+be - and every edit fingerprint), `test_fbrbtool.py` (quick: 228 lines, 100 damaged, 500 streams; `--game`: 600,
+3,000, a 40-bundle sample and the logged invocations' bundles), `test_fbrb_unpack_native.py` / `test_fbrb_pack_native.py`
+/ `test_fbrb_native.py` (built inputs; the game copy by SHA-1: unpacked and packed again in Rust, the result the
+exe's), `test_fbrb.py` (round trips in process). A bundle rebuilt since the recording is counted as not recorded and
+the sweeps fail when more than half are.
+
+**Proof** (`retire-r4` merged with main after F1a / E4f, the module rebuilt from it, below-normal priority, one test at
+a time): `python run_tests.py quick -j 2` 99 of 99 (221 s); `test_dbxedit.py --game` (160 of 160 edit fingerprints;
+1,592 of 1,592 recorded corpus files, 12,458 runs as recorded, 75 s); `test_fbrbtool.py --game` (228 lines, 600
+damaged, 3,000 gzip streams, 40 game bundles with 30,177 entries and 40 logged invocations' bundles as recorded);
+`test_fbrb_unpack_native.py --game` (1,075 of 1,075 bundles up to 300 MiB of payload identical to FbrbTool.exe's
+files, 226 s of unpacking); `test_fbrb_pack_native.py --game` (1,081 of 1,086 bundles, 6.94 GB, unpacked and packed
+again in Rust byte-identical to the bundles FbrbTool.exe packed - the game's own file 59, but for the gzip headers 917,
+and the empty payload stream 105; the 5 over 300 MiB not recorded); `test_fbrb.py --game 12`; DbxTests.cs 85 of 85;
+`cargo fmt`, clippy `-D warnings`, 292 cargo tests. OPFOR (callers switched in its own commit): 373 tests, lint and
+types included, and opforcore's 71.
+
 ## E3a: the XAS audio encoder (2026-11-17, branch `rust-e3a`)
 
 **Provisional timings:** OPFOR's WW2 rebuild (`rebuild_all.py`, a `ww2_level_build.py` under it) ran the whole
@@ -3148,6 +3211,127 @@ per blueprint and drawn instanced (one instance per placed entity, as `bc2_scene
 later changes one instance. The editor's tests (`tests/test_editor.py`): 14 unit tests, the outliner against the Map
 Inspector on 4 levels, 4 offscreen render / click tests and the 4 levels drawn with their selection outlined, about
 a minute in debug.
+
+## F2b: the BF1943 importer's remaining Python, the menu tools' PE reader, xmlinst and navtune (2026-11-18, branch `rust-f2b`)
+
+**Provisional timings:** two WW2 rebuilds ran beside parts of the work (every process under 1 GB then,
+`RAYON_NUM_THREADS=2`); the rest at most 2 GB, 4 threads, below-normal priority on the 16-thread PC. Ratios hold
+within a run.
+
+Each port keeps its Python as the reference and the fallback; a Rust function answers `(result,)`, refuses (`None`:
+the Python runs) where the reference would raise another exception or decide by a rule not reproduced, and raises the
+reference's own error with its message. The importer's switch is `bfbc2-bf1943-import/importcore.py`
+(`BFBC2_IMPORTER_PYTHON=1`); the core modules and the menu tools use the module unless `BFBC2_PURE_PYTHON=1`.
+
+### Inventory and what moved
+
+| Python (lines) | Rust | what the profile said |
+|---|---|---|
+| `mopp.py` (201) | `bc2-convert/src/mopp.rs`: `query_int`, `query`, `complete`, `ray_cast`, `ray_cast_brute` | `test_havokport`'s MOPP checks: `query_int` 4.4 s of 7.6 s (profiled) |
+| `havokport.py` (755; E3g ported the packfile walk) | `havokport.rs`: `restructure`, the material table's swap, `shape_subparts_to_550` / `aabb_w`, `ufloat8_table`, `_wrapper`, `part_materials`, `part_run`, `with_part_materials`, `havok_materials`, `with_havok_materials`, `bodies`, `with_face_materials` | 0.5 + 0.6 s over BF1943's 202 files (E3g) |
+| `meshport.py` (370) | `meshport.rs`: `Porter.pc_layout`'s search (`MeshLayouts`); the MeshData and mesh set writers it calls are F0's | 0.6 s of an 8 s bulk port; the rest is reading BF1943's bundles |
+| `emitteratlas.py` (819) | `emitteratlas.rs`: `build` (read / write of the atlases, infos, cells, merge, dedupe, pack, compose, the re-pointed partitions), `prove`, `same_but_uv` | Wake: build 6.1 s, prove 6.8 s |
+| `dbxcatalogue.py` (302) | `dbxcatalogue.rs`: `build`'s pass and `exe_identifiers` | 173 s: `dbx_parse` into Python trees 74 s, bundle reads 34 s, the walk 46 s |
+| `menucommon.PEImage` (87) | `bc2-harness` `pe::raw`: the header, `strings`, `find_cstring`, `find_dword` | `strings` 0.2 s per run of bc2loc / aptrefs |
+| `bfbc2core/xmlinst.py` (35) | `bc2-formats/src/xmlinst.rs` | NavKit's six scans over OPFOR's 791 level XML files: 40 s |
+| `bfbc2core/navtune.py` (226) | `bc2-navbuild/src/navtune.rs`: `validate`, the side file's text, `summary` | milliseconds (side files are small); ported for the ruling |
+
+Kept Python, not ported: `navtune.load`'s `json.load` (the standard library's C parser; its checks are `validate`'s),
+`emitteratlas`'s dataclasses (built from the Rust result), meshport's `port` orchestration (calls into F0's writers,
+texture and Granny conversion).
+
+How NumPy's floats are matched where the reference decides on them (`emitteratlas.rs`, `havokport.rs`, `mopp.rs`):
+
+- `aabb_w`: float32 arithmetic in the same order; `np.dot` / `.sum()` of the three lanes checked on 200,000 random
+  vectors to be left-to-right float32;
+- the probe search: exact integer variances; full 8 x 8 windows are exact in NumPy too; for a cut window two
+  different windows' variances equal or within 1e-9 are refused;
+- `np.corrcoef` on integer data: the exact rational correlation, refused within 1e-9 of `SAME`, `PASS` or a 4-place
+  rounding boundary;
+- Python's `sum` of floats (3.12's compensated sum) in the MOPP ray test, its `round`, `min` / `max`, floor division
+  and slicing; a ray over NumPy scalars (summed plainly by Python) is refused.
+
+### Parity
+
+| what | inputs | identical | left to the Python |
+|---|---|---:|---:|
+| `test_havokport_native.py` quick | 2,000 MOPP codes x 5 queries, 1,500 4.6.1 packfiles, 1,500 PC resources x 11 functions | 28,675 of 28,675 | 1,334 (damaged inputs) |
+| ... `--game` | 202 HavokPhysicsData x 2 templates x table / none (restructure and convert), 92 finished, 1,290 BFBC2 physics resources x 9 functions, 944 MOPP codes (9,440 boxes, 944 completeness checks, 9,440 rays) | 61,518 of 61,518 | 2,570 (11 restructures: velocity limits without a table; 962 rays over NumPy scalars on purpose; the rest seeded) |
+| `test_dbxcatalogue_native.py --game` / `cmp` | the game copy: 84,739 partitions | every table in order: 631 classes, 9,657 paths, 1,615 text paths, 3,443 number paths, 432 prototypes, 607,100 guids, 84,739 primaries, 631 defaults, 505 seconds, 17,218 exe names; shared elements as the reference's | 0 |
+| ... quick | 6 seeded games of built bundles (chunks past 400 names, PER_TYPE, TEXTS_CAP, deleted markers, problems) | 6 of 6 | 0 |
+| `test_emitteratlas_native.py --game` | OPFOR's four emitter_atlas runs' inputs: Wake (615 emitters, 1,603 uses), Coral Sea (500, 1,298), Guadalcanal (588, 1,524), Iwo Jima (601, 1,576) | atlases, 2,304 partitions, 6,001 uses, cells, reports, 6,001 proof rows, 2,304 tree comparisons | 0 |
+| ... quick | 40 seeded synthetic levels | 40 of 40 (build, prove, same_but_uv) | 0 |
+| `bench_bf1943.py --compare` (source, import, fair, parity, atlas on Wake) | `BFBC2_IMPORTER_PYTHON=1` recorded, then the core | 17,839 of 17,839 | |
+| `bench_ports.py mesh havok --compare` | 273 mesh sets, 202 physics files | 475 of 475 | |
+| `test_ports_native.py` | 3,000 seeded layout searches against `pc_layout_reference` | 3,000 of 3,000 | |
+| `test_pe_native.py` | 400 built executables; the game copy's 11 .exe / .dll (header, strings 1 - 4, 200 C strings, 200 dwords each) | 19,966 of 19,966 | |
+| `test_xmlinst_native.py` | 3,000 seeded texts; OPFOR's 791 converted level XML files | 1,352,550 instances and 3,030,990 references | (the 3 non-ASCII files' word decisions: none needed) |
+| `test_navtune_native.py` | 40,000 seeded checks, 2,000 side files, 5,997 summaries (no real side file exists yet) | all | |
+
+The game tests that use these modules pass unchanged: `test_havokport.py` (23 s), `test_meshport.py`,
+`test_ports_native.py --game`, `test_bf1943import.py --game`, `test_dbxport_fair.py`, `test_menu_tools.py --game`.
+
+### Timings
+
+| workload | Python, s | Rust core, s | |
+|---|---:|---:|---:|
+| `dbxcatalogue.build`, the game copy | 173 | **24** | 7x |
+| emitter atlas, Wake: build / prove / same_but_uv | 6.1 / 6.8 / 0.6 | **1.2 / 3.0 / 0.2** | 3x |
+| emitter atlas build, the WW2 levels (Coral Sea / Guadalcanal / Iwo Jima) | 6.7 / 6.2 / 7.6 | **1.6 / 1.5 / 1.7** | 4x |
+| NavKit's six `xmlinst` scans, 791 level XML files | 40.3 | **1.8** | 22x |
+| `bench_ports.py havok` (202 files) | 1.7 | **1.2** | |
+| `PEImage.strings(2)`, BFBC2Game.exe | 0.21 | **0.17** | |
+| `bench_ports.py mesh` (273 mesh sets) | 7.4 | 7.7 (noise: reading BF1943's bundles) | |
+
+Peak working set: the atlas bench 1.43 GB (1.69 GB with the Python).
+
+### Tests
+
+Quick: `test_havokport_native.py`, `test_dbxcatalogue_native.py`, `test_emitteratlas_native.py`,
+`bfbc2-menu-tools/tests/test_pe_native.py`, `core/tests/test_xmlinst_native.py`, `core/tests/test_navtune_native.py`;
+game: the first five with `--game`. Unit tests in `mopp.rs`, `havokport.rs`, `pyfmt.rs`, `dbxcatalogue.rs`,
+`emitteratlas.rs`, `meshport.rs`, `pe.rs` (`raw`), `xmlinst.rs`, `navtune.rs`. `rust/bench_bf1943.py capture` takes a
+manifest folder (the WW2 levels' runs).
+
+
+## G2: the user's decisions on G1 (2026-11-18, branch `rust-g2`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Decisions on G1's first version". No Python replaced; what was measured and proved:
+
+**Preparing a level from the editor.** Opening a level NavKit has not prepared runs `rust/bc2-editor/prepare_level.py`
+(NavKit's `prepare` and `bfbc2core.level.heightfield_of`, the Map Inspector's terrain unpack) as a child process; the
+editor shows "Preparing MP_005 - Step n of 4" with a bar, the time and the tools' last line, then opens the map.
+MP_005 on a **fresh stand-in OPFOR folder** in temp (the game copy linked read only by a junction, its own `work\`;
+`tests/g2.rs` with `BC2_EDITOR_PREPARE=mp_005`), debug build, four other agents beside it:
+
+| step | from | took |
+|---|---:|---:|
+| 1. the shared bundles (sp_common, mp_common: unpacked and converted, once per OPFOR folder) | 1.3 s | 143.6 s |
+| 2. the level's bundles | 144.9 s | 9.1 s |
+| 3. objects, collision and spawn points (`levelobjects`, ladders, the sampling box) | 154.0 s | 59.8 s |
+| 4. the terrain unpack | 213.8 s | ~6 s |
+| loaded and shown (6,979 entities, terrain, no notes) | | **225.1 s in all** |
+
+A second level on the same folder skips step 1's work (E4e: sp_009 after sp_004_b, 9.6 s). The junction was removed
+before the stand-in folder; nothing was written to the game copy or the real OPFOR `work\`.
+
+**Faction labels** (`factions.rs`, `tests/factions.rs`, read only): MP_005 US / RU, MP_012GR and ONS_MP_005GR RU / US
+(the Russians are team 1 there), MP_004SDM and SP_01 T1 / T2 (`FactionNeutral`: said in Properties),
+NAM_MP_002CQ and NAM_MP_005R US / NVA (Vietnam's team 2 kits are DICE's `vietnam/vc_*` art), Wake Island, Coral Sea,
+Guadalcanal and Iwo Jima US / JP - 11 of 11; the Package-only levels' partitions are read from their
+`level-00.fbrb` in memory (`bc2_formats::fbrb::read`; the whole test, 11 levels, 7.2 s).
+
+**The 3D view's tokens** (`design/project/README.md`, Colour): 22 new colour tokens (`unowned`, 9 `view-*`, 12
+`scene-*`; 50 in all), each reaching the style, the dock or the palette in both themes. On rendered frames
+(`tests/g2.rs`, both themes): every `view-*` and `scene-*` colour found where it is drawn; overlay markers against the
+terrain around them, median to median / darkest tenth to brightest tenth: team-1 4.00 / 3.95, team-2 4.01 / 3.95,
+team-neutral 5.63 / 5.54, unowned 4.02 / 3.97 (Dark); 3.97 / 3.92, 3.99 / 3.92, 5.69 / 5.52, 4.10 / 3.99 (Light).
+Overlays are lit evenly (0.88 - 1.0) by the instance colour's alpha in `view.wgsl`; no cost measurable.
+
+**Help** is generated from the action registry (13 actions, Help on F1 new), the views' 9 controls and the 4 workspaces; a
+test fails if an action lacks a description. Headless screenshots of this round: MP_005 (Dark, Light),
+NAM_MP_002CQ and Iwo Jima (Dark, Light; stand-in OPFOR folders in temp with their Package bundles unpacked), the
+Help window, the preparing view and a failed preparation.
 
 ## E2: editing an existing map, first part (2026-11-18, branch `rust-e2edit`)
 

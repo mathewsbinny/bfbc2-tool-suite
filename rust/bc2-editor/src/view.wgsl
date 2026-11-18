@@ -39,7 +39,10 @@ fn vs_mesh(
     return o;
 }
 
-// flat shading from the face's own normal (screen-space derivatives: no normals in the data)
+// flat shading from the face's own normal (screen-space derivatives: no normals in the data). The colour's alpha
+// says how: 1 the scene's light (terrain, objects: 0.40 - 1.0), 0 an overlay's even light (team-owned and gameplay
+// objects: 0.88 - 1.0, so their view-* colour reads on the terrain from every side; theme.rs's contrast tests use
+// these numbers)
 @fragment
 fn fs_mesh(i: MeshOut) -> SceneOut {
     let c = cross(dpdx(i.world), dpdy(i.world));
@@ -49,7 +52,9 @@ fn fs_mesh(i: MeshOut) -> SceneOut {
         n = c / l;
     }
     let d = abs(dot(n, normalize(g.light.xyz)));
-    let shade = 0.40 + 0.45 * d + 0.15 * abs(n.y);
+    let lit = 0.40 + 0.45 * d + 0.15 * abs(n.y);
+    let even = 0.88 + 0.12 * max(d, abs(n.y));
+    let shade = mix(even, lit, i.color.a);
     var o: SceneOut;
     o.color = vec4<f32>(i.color.rgb * shade, 1.0);
     o.id = i.id;

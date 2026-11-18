@@ -1,8 +1,9 @@
 r"""The stock-MP AI layer's offline validation (validate.py) on synthetic builds (no game data): each check_* on a
 good build and on builds broken the way it guards against, then validate() over a whole synthetic build folder
 (build_report.json, the original / authored partitions, the bundle folder, the packed bundle, mp_common) - the
-results and validation.json. The levels come from test_stockmp.py's synthetic_level / synthetic_donor; DbxEdit.exe and
-FbrbTool.exe (built in the suite) run on temp files only; the path data is a stand-in (cfgmod.Snapper, sector offsets).
+results and validation.json. The levels come from test_stockmp.py's synthetic_level / synthetic_donor; DbxEdit's and
+FbrbTool's commands (in process, the Rust core) run on temp files only; the path data is a stand-in (cfgmod.Snapper,
+sector offsets).
 
   python test_validate.py
 """
@@ -149,7 +150,6 @@ def main(argv):
         failed += not ok
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''))
 
-    have_tools = os.path.isfile(pipeline.DBX) and os.path.isfile(pipeline.FBRB)
     tmp = tempfile.mkdtemp(prefix='stockmp_validate_test_')
     saved = []
 
@@ -338,89 +338,86 @@ def main(argv):
         saved.clear()
 
         # --- DbxEdit and FbrbTool on the temp files -------------------------------------------------------------
-        if not have_tools:
-            check(False, 'DbxEdit.exe / FbrbTool.exe not built (run build.bat in bfbc2-dbx-tools and bfbc2-fbrb-tool)')
-        else:
-            ok, detail = validate.check_roundtrip(auth_p, tmp)
-            check(ok and detail == 'roundtrip identical; xml -> import identical', 'round trips: DbxEdit roundtrip and xml -> import', detail)
-            junk = save(os.path.join(tmp, 'junk.dbx'), b'{binary}' + b'\x00' * 7)
-            ok, detail = validate.check_roundtrip(junk, tmp)
-            check(not ok and 'DIFFERENT' in detail, 'round trips: a file DbxEdit cannot read back fails', detail)
-            src = os.path.join(tmp, 'src', 'dist')
-            save(os.path.join(src, 'Levels', LV_UPPER + '.dbx'), lvl)
-            ok, detail = validate.check_dbxedit(orig_p, auth_p, bdir, src, common)
-            check(ok and detail == 'authored 1 error(s), 1 warning(s); stock 1 / 1',
-                  'DbxEdit check: no more errors or warnings than the stock level (the stand-in kit error is the stock level\'s own)', detail)
-            ok, detail = validate.check_dbxedit(orig_p, junk, bdir, src, common)
-            check(not ok, 'DbxEdit check: a broken authored file fails', detail)
-            out = os.path.join(tmp, 'out', 'level-00.fbrb')
-            os.makedirs(os.path.dirname(out))
-            pipeline.pack_bundle(bdir, out)                          # the pipeline's pack (Rust, else FbrbTool)
-            ok, detail = validate.check_packed(out, bdir, tmp)
-            check(ok and detail == f'{len(added) + 1} files unpack identical', 'packed bundle: unpacks to the built files', detail)
-            save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth + b'changed')
-            ok, detail = validate.check_packed(out, bdir, tmp)
+        ok, detail = validate.check_roundtrip(auth_p, tmp)
+        check(ok and detail == 'roundtrip identical; xml -> import identical', 'round trips: DbxEdit roundtrip and xml -> import', detail)
+        junk = save(os.path.join(tmp, 'junk.dbx'), b'{binary}' + b'\x00' * 7)
+        ok, detail = validate.check_roundtrip(junk, tmp)
+        check(not ok and 'DIFFERENT' in detail, 'round trips: a file DbxEdit cannot read back fails', detail)
+        src = os.path.join(tmp, 'src', 'dist')
+        save(os.path.join(src, 'Levels', LV_UPPER + '.dbx'), lvl)
+        ok, detail = validate.check_dbxedit(orig_p, auth_p, bdir, src, common)
+        check(ok and detail == 'authored 1 error(s), 1 warning(s); stock 1 / 1',
+              'DbxEdit check: no more errors or warnings than the stock level (the stand-in kit error is the stock level\'s own)', detail)
+        ok, detail = validate.check_dbxedit(orig_p, junk, bdir, src, common)
+        check(not ok, 'DbxEdit check: a broken authored file fails', detail)
+        out = os.path.join(tmp, 'out', 'level-00.fbrb')
+        os.makedirs(os.path.dirname(out))
+        pipeline.pack_bundle(bdir, out)                          # the pipeline's pack (the Rust core)
+        ok, detail = validate.check_packed(out, bdir, tmp)
+        check(ok and detail == f'{len(added) + 1} files unpack identical', 'packed bundle: unpacks to the built files', detail)
+        save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth + b'changed')
+        ok, detail = validate.check_packed(out, bdir, tmp)
+        save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth)
+        check(not ok and detail == f'1 of {len(added) + 1} files differ after packing', 'packed bundle: a file changed after packing', detail)
+        if stockcore.native() is not None:
+            runs = []
+            for body in (auth, auth + b'changed'):
+                save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), body)
+                got = validate.check_packed(out, bdir, tmp)
+                stockcore.use_native(False)
+                try:
+                    runs.append(got == validate.check_packed(out, bdir, tmp))
+                finally:
+                    stockcore.use_native(True)
             save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth)
-            check(not ok and detail == f'1 of {len(added) + 1} files differ after packing', 'packed bundle: a file changed after packing', detail)
-            if stockcore.native() is not None:
-                runs = []
-                for body in (auth, auth + b'changed'):
-                    save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), body)
-                    got = validate.check_packed(out, bdir, tmp)
-                    stockcore.use_native(False)
-                    try:
-                        runs.append(got == validate.check_packed(out, bdir, tmp))
-                    finally:
-                        stockcore.use_native(True)
-                save(os.path.join(bdir, 'Levels', LV_UPPER + '.dbx'), auth)
-                check(runs == [True, True], 'packed bundle: the Rust core\'s comparison = the Python one (same and changed)')
+            check(runs == [True, True], 'packed bundle: the Rust core\'s comparison = the Python one (same and changed)')
 
-            # --- validate(): a whole synthetic build folder ------------------------------------------------------
-            opfor = os.path.join(tmp, 'opfor')
-            paths = pipeline.Paths(LV, opfor=opfor, work=os.path.join(opfor, 'work', 'stockmp'), game=os.path.join(opfor, 'game'))
-            shutil.copytree(common, os.path.join(paths.common, 'mp_common'))
-            save(os.path.join(paths.common, 'mp_common', 'fbrb.manifest'), b'')
-            shutil.copytree(src, paths.src('dist'))
-            shutil.copytree(bdir, os.path.join(paths.root, 'build', 'dist'))
-            save(os.path.join(paths.root, 'build', f'{LV_UPPER}_dist.original.dbx'), lvl)
-            save(os.path.join(paths.root, 'build', f'{LV_UPPER}_dist.authored.dbx'), auth)
-            os.makedirs(os.path.dirname(paths.out_bundle('dist')))
-            shutil.copyfile(out, paths.out_bundle('dist'))
-            report = {'variants': {'dist': {'entry': f'Levels/{LV_UPPER}.dbx', 'added_entries': added}},
-                      'sector_offsets': {k: {'x': v[0], 'z': v[1]} for k, v in offsets.items()}, 'template_pack': [added[-1]]}
-            save(os.path.join(paths.root, 'build_report.json'), json.dumps(report).encode())
-            patch(cfgmod, 'Snapper', lambda hpd: FakeSnapper(pd_good))
-            staged = {'infantry': (-9, -4), 'vehicle': (-9, -3)}
-            patch(pipeline, 'sector_offsets', lambda hpd: (staged[os.path.basename(os.path.dirname(hpd))], (1.0, 1.0)))
-            said: list[str] = []
-            res = validate.validate(paths, c, log=said.append)
-            names = [r['check'] for r in res['results']]
-            failing = [f'{r["check"]}: {r["detail"]}' for r in res['results'] if not r['ok']]
-            check(res['passed'] and not failing and len(names) == 8 + 1 + 2 and names[0] == 'dist: DbxEdit check'
-                  and names[-2:] == ['staged infantry path data', 'staged vehicle path data'],
-                  'validate: every check passes on the synthetic build (8 per bundle, navigation, the staged path data)', '; '.join(failing))
-            saved_json = json.load(open(os.path.join(paths.root, 'validation.json'), encoding='utf-8'))
-            check(saved_json == res and len(said) == len(names) and all(s.startswith('ok  ') for s in said),
-                  'validate: validation.json holds the results; one log line per check')
-            staged['vehicle'] = (0, 0)
-            patch(validate, 'check_assets', lambda *a: 1 / 0)
-            res = validate.validate(paths, dict(c, layer='minimal'), log=lambda m: None)
-            bad = {r['check']: r['detail'] for r in res['results'] if not r['ok']}
-            check(not res['passed'] and set(bad) == {'dist: packed assets', 'staged vehicle path data'}
-                  and bad['dist: packed assets'] == 'ZeroDivisionError: division by zero' and 'navigation' not in [r['check'] for r in res['results']],
-                  'validate: a check that raises is a failed check; staged offsets other than the asset\'s fail; minimal: no navigation check',
-                  str(bad))
+        # --- validate(): a whole synthetic build folder ------------------------------------------------------
+        opfor = os.path.join(tmp, 'opfor')
+        paths = pipeline.Paths(LV, opfor=opfor, work=os.path.join(opfor, 'work', 'stockmp'), game=os.path.join(opfor, 'game'))
+        shutil.copytree(common, os.path.join(paths.common, 'mp_common'))
+        save(os.path.join(paths.common, 'mp_common', 'fbrb.manifest'), b'')
+        shutil.copytree(src, paths.src('dist'))
+        shutil.copytree(bdir, os.path.join(paths.root, 'build', 'dist'))
+        save(os.path.join(paths.root, 'build', f'{LV_UPPER}_dist.original.dbx'), lvl)
+        save(os.path.join(paths.root, 'build', f'{LV_UPPER}_dist.authored.dbx'), auth)
+        os.makedirs(os.path.dirname(paths.out_bundle('dist')))
+        shutil.copyfile(out, paths.out_bundle('dist'))
+        report = {'variants': {'dist': {'entry': f'Levels/{LV_UPPER}.dbx', 'added_entries': added}},
+                  'sector_offsets': {k: {'x': v[0], 'z': v[1]} for k, v in offsets.items()}, 'template_pack': [added[-1]]}
+        save(os.path.join(paths.root, 'build_report.json'), json.dumps(report).encode())
+        patch(cfgmod, 'Snapper', lambda hpd: FakeSnapper(pd_good))
+        staged = {'infantry': (-9, -4), 'vehicle': (-9, -3)}
+        patch(pipeline, 'sector_offsets', lambda hpd: (staged[os.path.basename(os.path.dirname(hpd))], (1.0, 1.0)))
+        said: list[str] = []
+        res = validate.validate(paths, c, log=said.append)
+        names = [r['check'] for r in res['results']]
+        failing = [f'{r["check"]}: {r["detail"]}' for r in res['results'] if not r['ok']]
+        check(res['passed'] and not failing and len(names) == 8 + 1 + 2 and names[0] == 'dist: DbxEdit check'
+              and names[-2:] == ['staged infantry path data', 'staged vehicle path data'],
+              'validate: every check passes on the synthetic build (8 per bundle, navigation, the staged path data)', '; '.join(failing))
+        saved_json = json.load(open(os.path.join(paths.root, 'validation.json'), encoding='utf-8'))
+        check(saved_json == res and len(said) == len(names) and all(s.startswith('ok  ') for s in said),
+              'validate: validation.json holds the results; one log line per check')
+        staged['vehicle'] = (0, 0)
+        patch(validate, 'check_assets', lambda *a: 1 / 0)
+        res = validate.validate(paths, dict(c, layer='minimal'), log=lambda m: None)
+        bad = {r['check']: r['detail'] for r in res['results'] if not r['ok']}
+        check(not res['passed'] and set(bad) == {'dist: packed assets', 'staged vehicle path data'}
+              and bad['dist: packed assets'] == 'ZeroDivisionError: division by zero' and 'navigation' not in [r['check'] for r in res['results']],
+              'validate: a check that raises is a failed check; staged offsets other than the asset\'s fail; minimal: no navigation check',
+              str(bad))
 
-            def offsets_or_fail(hpd):
-                if os.path.basename(os.path.dirname(hpd)) == 'vehicle':
-                    raise pipeline.BuildError('no sectors in the path data')
-                return staged['infantry'], (1.0, 1.0)
-            patch(pipeline, 'sector_offsets', offsets_or_fail)
-            res = validate.validate(paths, dict(c, layer='minimal'), log=lambda m: None)
-            bad = {r['check']: r['detail'] for r in res['results'] if not r['ok']}
-            check(not res['passed'] and 'no sectors' in bad.get('staged vehicle path data', '')
-                  and 'staged infantry path data' not in bad,
-                  'validate: staged path data whose offsets cannot be read is a failed check, not a crash', str(bad))
+        def offsets_or_fail(hpd):
+            if os.path.basename(os.path.dirname(hpd)) == 'vehicle':
+                raise pipeline.BuildError('no sectors in the path data')
+            return staged['infantry'], (1.0, 1.0)
+        patch(pipeline, 'sector_offsets', offsets_or_fail)
+        res = validate.validate(paths, dict(c, layer='minimal'), log=lambda m: None)
+        bad = {r['check']: r['detail'] for r in res['results'] if not r['ok']}
+        check(not res['passed'] and 'no sectors' in bad.get('staged vehicle path data', '')
+              and 'staged infantry path data' not in bad,
+              'validate: staged path data whose offsets cannot be read is a failed check, not a crash', str(bad))
         if stockcore.native() is not None:
             off = [f'{n}: {d}' for n, same, d in parity if not same]
             check(len(parity) >= 10 and not off,

@@ -9,6 +9,11 @@ navigation data, recorded by position so they still apply after the level is reg
 Bases: 'navkit' (NavKit's output; every operation allowed) or 'dice' (the level's own path data; only additive
 operations: links, route edges, traversal annotations, notes - DESIGN.md section 5.1, decided 2026-10-16).
 Each operation records who made it (`by`: the PC's name unless set) and when (`when`, local time).
+
+validate, the side file's text (save) and summary run in the suite's Rust core when it is built (round F2b,
+rust/bc2-navbuild/src/navtune.rs): the same problems, bytes and lines; for a value the port does not take (a type
+JSON does not have, a comparison Python would raise on, a value printed with repr) or without the core
+(BFBC2_PURE_PYTHON=1) the Python runs - validate_reference, NavTune.save_text_reference, summary_reference.
 """
 import copy
 import datetime
@@ -17,6 +22,7 @@ import json
 import os
 import socket
 from collections.abc import Iterable, Sequence
+from types import ModuleType
 from typing import Any
 
 from . import atomicio
@@ -81,8 +87,27 @@ def op(name: str, by: str | None = None, when: str | None = None, **fields: Any)
     return o
 
 
+_NATIVE: list[ModuleType | None] = []
+
+
+def _native() -> ModuleType | None:
+    """The Rust core with the navtune functions, or None."""
+    if not _NATIVE:
+        from . import dbx
+        m = dbx._import_native() if os.environ.get(dbx.PURE_PYTHON_ENV, '') in ('', '0') else None
+        _NATIVE.append(m if m is not None and hasattr(m, 'navtune_validate') else None)
+    return _NATIVE[0]
+
+
 def validate(o: dict[str, Any], kind: str = 'navkit') -> list[str]:
     """Problems with one operation (empty list: fine)."""
+    m = _native()
+    got = m.navtune_validate(o, kind) if m is not None and type(kind) is str else None
+    return list(got) if got is not None else validate_reference(o, kind)
+
+
+def validate_reference(o: dict[str, Any], kind: str = 'navkit') -> list[str]:
+    """validate in Python (the reference)."""
     problems: list[str] = []
     name = o.get('op')
     if name not in OPS:
@@ -179,16 +204,33 @@ class NavTune:
         return {'format': FORMAT, 'version': VERSION, 'level': self.level, 'base': self.base,
                 'operations': copy.deepcopy(self.operations)}
 
+    def save_text(self) -> str:
+        """The side file's text."""
+        m = _native()
+        got = m.navtune_dumps(self.to_json()) if m is not None else None
+        return str(got) if got is not None else self.save_text_reference()
+
+    def save_text_reference(self) -> str:
+        """save_text in Python (the reference)."""
+        return json.dumps(self.to_json(), indent=1, ensure_ascii=False) + '\n'
+
     def save(self, path: str) -> None:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         tmp = path + '.tmp'
+        text = self.save_text()
         with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
-            json.dump(self.to_json(), f, indent=1, ensure_ascii=False)
-            f.write('\n')
+            f.write(text)
         atomicio.replace(tmp, path)            # never a half-written side file
         self.dirty = False
 
     def summary(self, k: int) -> str:
+        o = self.operations[k]
+        m = _native()
+        got = m.navtune_summary(o) if m is not None else None
+        return str(got) if got is not None else self.summary_reference(k)
+
+    def summary_reference(self, k: int) -> str:
+        """summary in Python (the reference)."""
         o = self.operations[k]
         name = o['op']
         if 'region' in o:

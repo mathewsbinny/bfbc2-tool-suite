@@ -501,11 +501,10 @@ def game(check, tmp):
     import navkit
     root = navkit.find_opfor(None)
     bundle = os.path.join(root, 'game', 'Dist', 'win32', 'levels', 'sp_009', 'level-00.fbrb')
-    tool = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
-    if os.path.isfile(tool):
-        out = subprocess.run([tool, 'list', bundle], capture_output=True, text=True).stdout.splitlines()[:-1]
-        theirs = sorted(l.split(None, 2)[2].lower() for l in out if '*deleted*' not in l)      # names may hold spaces
-        check(theirs == sorted(fbrb.names(bundle)), f'the fbrb reader lists the same {len(theirs)} entries as FbrbTool (sp_009)')
+    from bfbc2core import fbrbtool  # FbrbTool's list, in process (the Rust core)
+    out = fbrbtool.run(['list', bundle]).stdout.splitlines()[:-1]
+    theirs = sorted(l.split(None, 2)[2].lower() for l in out if '*deleted*' not in l)      # names may hold spaces
+    check(theirs == sorted(fbrb.names(bundle)), f'the fbrb reader lists the same {len(theirs)} entries as FbrbTool (sp_009)')
     runs_dir = os.path.join(tmp, 'runs')
     env = {**os.environ, 'LOCALAPPDATA': tmp}
 

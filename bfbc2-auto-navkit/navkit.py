@@ -28,8 +28,8 @@ Options: --box minX,minZ,maxX,maxZ and --y bottom,top (prepare / sample: overrid
          --opfor <Project OPFOR BFBC2 folder> (default: OPFOR_ROOT, else "project-opfor-bfbc2" next to the suite),
          --no-detail (build / apply / all: no D lines or F cells - navbuild.BuildSettings detail_features off).
 
-NavKit works on Project OPFOR BFBC2's game copy and uses its in-game sampler. FbrbTool / DbxEdit come from the
-toolkit (..\\bfbc2-fbrb-tool, ..\\bfbc2-dbx-tools, built with their build.bat) or from OPFOR's tools\\ folder.
+NavKit works on Project OPFOR BFBC2's game copy and uses its in-game sampler. FbrbTool's and DbxEdit's commands run
+in process (bfbc2core.fbrbtool / dbxedit: the suite's Rust core, which NavKit needs).
 
 Files (in the OPFOR folder): work\\levels\\<level>\\ (unpacked level, objects), work\\navkit\\<level>\\
 (settings, pathdata.hpd, check report), work\\navsample\\<level>_navkit*.bin (samples, written by OPFOR's
@@ -149,22 +149,10 @@ class Project:
         self.log_path = os.path.join(self.game, 'logs', 'opfor.log')
         if not os.path.isfile(paths.game_exe(self.root)):
             raise NavKitError(f'no game copy in {self.game} (run OPFOR\'s setup_game.bat first)')
-        # FbrbTool runs in process too (bfbc2core.fbrbtool.run_cmd); its exe is needed only with BFBC2_FBRBTOOL_EXE=1
-        # or without the Rust core
-        try:
-            self.fbrbtool = find_tool(self.root, 'FbrbTool.exe', 'bfbc2-fbrb-tool')
-        except NavKitError:
-            if fbrbtool.use_exe():
-                raise
-            self.fbrbtool = 'FbrbTool.exe'
-        # DbxEdit runs in process (bfbc2core.dbxedit.run_cmd takes the exe's command line); the exe itself is needed
-        # only with BFBC2_DBXEDIT_EXE=1 or without the Rust core
-        try:
-            self.dbxedit = find_tool(self.root, 'DbxEdit.exe', 'bfbc2-dbx-tools')
-        except NavKitError:
-            if dbxedit.use_exe():
-                raise
-            self.dbxedit = 'DbxEdit.exe'
+        # FbrbTool's and DbxEdit's commands run in process (bfbc2core.fbrbtool / dbxedit.run_cmd, the Rust core): the
+        # command lines name the program, no exe (retired 2026-11-18)
+        self.fbrbtool = 'FbrbTool'
+        self.dbxedit = 'DbxEdit'
 
     # --- levels --------------------------------------------------------------------------------------
     def level_dirs(self) -> dict[str, str]:
@@ -225,7 +213,7 @@ class Project:
         r = runner(args, capture_output=True, text=True, errors='replace', creationflags=NO_WINDOW)
         out = (r.stdout + r.stderr).strip().splitlines()
         if r.returncode != 0:
-            raise NavKitError(f'{os.path.basename(args[0])} failed: ' + ' | '.join(out[-3:]))
+            raise NavKitError(f'{" ".join([os.path.basename(args[0]), *args[1:2]])} failed: ' + ' | '.join(out[-3:]))
         return out
 
     def unpack(self, bundle: str, dest: str, log: Log) -> None:

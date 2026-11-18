@@ -1,0 +1,270 @@
+//! `bfbc2-bf1943-import/meshport.py`'s layout search (`Porter.pc_layout`, round F2b): which BFBC2 mesh part layout a
+//! BF1943 part's vertices are written in - BFBC2's own part, a donor's part of the same material kind, any part with
+//! the same elements, else the layout keeping the most of them. BFBC2's part signatures are computed once per index
+//! (`signature`: the elements' PC format, usage and stream), each donor's standard parts listed once, and the last
+//! resort remembered per (signature, donors), as the Python search keeps them.
+//!
+//! [`Search::Refused`] where the reference would raise something other than its `PortError` (a layout record
+//! shorter than its element count, a part name without a folder).
+
+use std::collections::HashMap;
+
+/// An element as a signature holds it: (PC format, usage, stream).
+pub type Elem = (u8, u8, u8);
+/// A layout's signature.
+pub type Sig = Vec<Elem>;
+
+/// `mesh.PC_FORMAT`: console-only packed formats and their PC format.
+fn pc_format(f: u8) -> u8 {
+    match f {
+        0x2B | 0x0D => 0x08,
+        x => x,
+    }
+}
+
+/// `signature(layout)`, or `None` where the reference raises (a record past the layout's bytes).
+#[must_use]
+pub fn signature(layout: &[u8]) -> Option<Sig> {
+    let n = usize::from(*layout.get(64)?);
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let r = layout.get(4 * i..4 * i + 4)?;
+        out.push((pc_format(*r.first()?), *r.get(1)?, *r.get(3)?));
+    }
+    Some(out)
+}
+
+/// `_subset(small, big)`: every element of small in big, as many times.
+#[must_use]
+pub fn subset(small: &[Elem], big: &[Elem]) -> bool {
+    let mut pool: Vec<Elem> = big.to_vec();
+    for e in small {
+        match pool.iter().position(|x| x == e) {
+            Some(i) => {
+                pool.remove(i);
+            }
+            None => return false,
+        }
+    }
+    true
+}
+
+/// Python's `str.lower()`.
+fn lower(s: &str) -> String {
+    if s.is_ascii() {
+        s.to_ascii_lowercase()
+    } else {
+        s.to_lowercase()
+    }
+}
+
+/// `k.split('/')[-2]`, or `None` for a name without a folder.
+fn folder_of(k: &str) -> Option<&str> {
+    let mut it = k.rsplit('/');
+    it.next()?;
+    it.next()
+}
+
+/// `s.rsplit('_', 1)[-1]`.
+fn last_word(s: &str) -> &str {
+    s.rsplit('_').next().unwrap_or(s)
+}
+
+/// The search's answer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Found {
+    /// BFBC2 has this part (its index).
+    Own(usize),
+    /// A donor's part: (part index, donor index in the donors given, the part's folder).
+    Donor(usize, usize, String),
+    /// Any part with the same elements.
+    Layout(usize),
+    /// The layout keeping the most elements: (part index, elements left out, donor index or `None`, folder).
+    Fallback(usize, usize, Option<usize>, Option<String>),
+    /// No layout holds a part of its elements (the reference's `PortError`).
+    Nothing,
+}
+
+/// The last resort's pick: (elements kept, part index, donor index or `None`).
+type Best = (usize, usize, Option<usize>);
+
+/// Not answered here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Refused;
+
+/// BFBC2's part layouts, indexed once.
+#[derive(Debug, Default)]
+pub struct Index {
+    names: Vec<String>,
+    sigs: Vec<Sig>,
+    by_name: HashMap<String, usize>,
+    by_sig: HashMap<Sig, usize>,
+    donors: HashMap<String, Vec<usize>>,
+    fallback: HashMap<(Sig, Vec<String>), Option<Best>>,
+}
+
+impl Index {
+    /// The index of `(name, layout)` pairs, the names sorted (`Porter.part_names`); `None` when a layout's signature
+    /// cannot be read.
+    #[must_use]
+    pub fn new(parts: Vec<(String, Vec<u8>)>) -> Option<Self> {
+        let mut ix = Self::default();
+        for (n, l) in parts {
+            let s = signature(&l)?;
+            let i = ix.names.len();
+            ix.by_name.insert(n.clone(), i);
+            ix.by_sig.entry(s.clone()).or_insert(i);
+            ix.names.push(n);
+            ix.sigs.push(s);
+        }
+        Some(ix)
+    }
+
+    /// The part names.
+    #[must_use]
+    pub fn names(&self) -> &[String] {
+        &self.names
+    }
+
+    fn donor_parts(&mut self, d: &str) -> Vec<usize> {
+        if let Some(v) = self.donors.get(d) {
+            return v.clone();
+        }
+        let pre = lower(&format!("{d}_lod"));
+        let v: Vec<usize> = (0..self.names.len())
+            .filter(|&i| {
+                self.names
+                    .get(i)
+                    .is_some_and(|k| k.starts_with(&pre) && k.ends_with("/standard"))
+            })
+            .collect();
+        self.donors.insert(d.to_owned(), v.clone());
+        v
+    }
+
+    /// `pc_layout(name, lod, part, bf_layout, donors)`.
+    ///
+    /// # Errors
+    /// [`Refused`] where the reference raises another exception.
+    pub fn search(
+        &mut self,
+        name: &str,
+        lod: i64,
+        part: &str,
+        bf_layout: &[u8],
+        donors: &[String],
+    ) -> Result<Found, Refused> {
+        let sig = signature(bf_layout).ok_or(Refused)?;
+        let own = lower(&format!("{name}_lod{lod}/{part}/standard"));
+        if let Some(&i) = self.by_name.get(&own)
+            && self.sigs.get(i) == Some(&sig)
+        {
+            return Ok(Found::Own(i));
+        }
+        let kind = if part.contains('_') {
+            lower(last_word(part))
+        } else {
+            String::new()
+        };
+        for (di, d) in donors.iter().enumerate() {
+            let hits: Vec<usize> = self
+                .donor_parts(d)
+                .into_iter()
+                .filter(|&i| self.sigs.get(i) == Some(&sig))
+                .collect();
+            if hits.is_empty() {
+                continue;
+            }
+            let mut pick = None;
+            for &i in &hits {
+                let f = folder_of(self.names.get(i).ok_or(Refused)?).ok_or(Refused)?;
+                if last_word(f) == kind {
+                    pick = Some(i);
+                    break;
+                }
+            }
+            let k = pick.or_else(|| hits.first().copied()).ok_or(Refused)?;
+            let f = folder_of(self.names.get(k).ok_or(Refused)?).ok_or(Refused)?.to_owned();
+            return Ok(Found::Donor(k, di, f));
+        }
+        if let Some(&k) = self.by_sig.get(&sig) {
+            return Ok(Found::Layout(k));
+        }
+        let key = (sig.clone(), donors.to_vec());
+        if !self.fallback.contains_key(&key) {
+            let mut best: Option<Best> = None;
+            for d in std::iter::once(None).chain(donors.iter().enumerate().map(Some)) {
+                let pre = d.map(|(_, d)| lower(&format!("{d}_lod")));
+                for (k2, name2) in self.names.iter().enumerate() {
+                    if let Some(p) = &pre
+                        && !name2.starts_with(p.as_str())
+                    {
+                        continue;
+                    }
+                    let s2 = self.sigs.get(k2).ok_or(Refused)?;
+                    if !(subset(s2, &sig) && s2.iter().any(|e| e.1 == 1)) {
+                        continue;
+                    }
+                    // `d and not best[2]`: a donor (a non-empty name) over the index's own pick
+                    let d_truthy = d.is_some_and(|(_, d)| !d.is_empty());
+                    let better = match best {
+                        None => true,
+                        Some((n, _, bd)) => {
+                            let bd_falsy = bd.is_none_or(|i| donors.get(i).is_none_or(String::is_empty));
+                            s2.len() > n || (s2.len() == n && d_truthy && bd_falsy)
+                        }
+                    };
+                    if better {
+                        best = Some((s2.len(), k2, d.map(|(i, _)| i)));
+                    }
+                }
+            }
+            self.fallback.insert(key.clone(), best);
+        }
+        let Some((n, k, d)) = self.fallback.get(&key).copied().flatten() else {
+            return Ok(Found::Nothing);
+        };
+        let donor_named = d.is_some_and(|i| donors.get(i).is_some_and(|x| !x.is_empty()));
+        let folder = if donor_named {
+            Some(folder_of(self.names.get(k).ok_or(Refused)?).ok_or(Refused)?.to_owned())
+        } else {
+            None
+        };
+        Ok(Found::Fallback(k, sig.len() - n, d.filter(|_| donor_named), folder))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[allow(clippy::indexing_slicing)]
+    fn layout(els: &[(u8, u8, u8)]) -> Vec<u8> {
+        let mut l = vec![0u8; 0x49];
+        for (i, (f, u, s)) in els.iter().enumerate() {
+            l[4 * i..4 * i + 4].copy_from_slice(&[*f, *u, 0, *s]);
+        }
+        l[64] = els.len() as u8;
+        l
+    }
+
+    #[test]
+    #[allow(clippy::indexing_slicing, clippy::unwrap_used)]
+    fn searches() {
+        let a = layout(&[(2, 1, 0), (8, 3, 0)]);
+        let b = layout(&[(2, 1, 0)]);
+        let mut ix = Index::new(vec![
+            ("donor_lod0/body_metal/standard".into(), a.clone()),
+            ("x_lod0/p/standard".into(), b.clone()),
+        ])
+        .unwrap();
+        assert_eq!(
+            ix.search("m", 0, "Body_Metal", &a, &["donor".into()]),
+            Ok(Found::Donor(0, 0, "body_metal".into()))
+        );
+        assert_eq!(ix.search("x", 0, "p", &b, &[]), Ok(Found::Own(1)));
+        let c = layout(&[(2, 1, 0), (9, 5, 1)]);
+        assert_eq!(ix.search("m", 0, "q", &c, &[]), Ok(Found::Fallback(1, 1, None, None)));
+        assert!(!subset(&[(1, 1, 1), (1, 1, 1)], &[(1, 1, 1)]));
+    }
+}

@@ -12,7 +12,7 @@ import glob
 import os
 import random
 import re
-import subprocess
+import shutil
 import sys
 import tempfile
 from typing import Any
@@ -153,13 +153,13 @@ def main():
           not any(p.startswith('effects/') for p in places) and len(places) < n_before,
           f'port: a level pruned - every event connection\'s ends exist, {n_before - len(places)} placements of '
           f'missing objects left out')
-    exe = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
-    if os.path.isfile(exe):
-        tmp = tempfile.mkdtemp(prefix='dbxport_')
-        p = os.path.join(tmp, 'springfield_mesh.dbx')
-        open(p, 'wb').write(out)
-        r = subprocess.run([exe, 'roundtrip', p], capture_output=True, text=True)
-        check(r.returncode == 0, 'DbxEdit reads the port and writes it back unchanged', (r.stdout + r.stderr)[-200:])
+    from bfbc2core import dbxedit  # DbxEdit's roundtrip, in process (the Rust core)
+    tmp = tempfile.mkdtemp(prefix='dbxport_')
+    p = os.path.join(tmp, 'springfield_mesh.dbx')
+    open(p, 'wb').write(out)
+    r = dbxedit.run(['roundtrip', p])
+    check(r.returncode == 0, 'DbxEdit reads the port and writes it back unchanged', (r.stdout + r.stderr)[-200:])
+    shutil.rmtree(tmp, ignore_errors=True)
     return 1 if fails else 0
 
 

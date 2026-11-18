@@ -15,6 +15,11 @@
 //! - [`app`]: the window's contents; [`headless`]: the same without a window (tests, screenshots).
 //! - [`demo`]: a made-up scene for tests without a game copy.
 //!
+//! Round G2 (2026-11-18): [`factions`] (team labels by faction, from the level's own data), the 3D view's own
+//! tokens (`view-*`, `scene-*` and the third neutral `unowned`, in [`theme`]), [`help`] (the Help window, generated
+//! from the registry) and [`prepare`] (an unprepared level is prepared when it is opened, with its progress; the one
+//! write to OPFOR's work folder, through the suite's own NavKit prepare and terrain unpack).
+//!
 //! Round E2 (2026-11-18): editing a map. [`edit`]: a map project (`bc2_levelwrite`) open on its level, the scene and
 //! the partition derived from its log; [`gizmo`]: the move and rotate gizmo; [`math`]: transforms; the Objects
 //! workspace's interface in `app` (selection, gizmo and snapping toolbar, ruler, History, Layers, folders, groups).
@@ -34,12 +39,15 @@ pub mod app;
 pub mod camera;
 pub mod demo;
 pub mod edit;
+pub mod factions;
 pub mod fonts;
 pub mod gizmo;
 pub mod headless;
+pub mod help;
 pub mod levels;
 pub mod math;
 pub mod model;
+pub mod prepare;
 pub mod query;
 pub mod render;
 pub mod theme;

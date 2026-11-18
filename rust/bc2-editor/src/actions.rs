@@ -72,6 +72,8 @@ pub enum Action {
     ToggleWorkspace,
     /// Shows a panel.
     ShowPanel(PanelKind),
+    /// Opens the Help window (controls and shortcuts, getting started, the workspaces).
+    Help,
 }
 
 /// The panels an action can show.
@@ -333,6 +335,12 @@ pub fn registry() -> Vec<Entry> {
             "Switches the interface between Dark and Light",
         ),
         e(Action::CloseMap, "Close map", None, "Back to the start screen"),
+        e(
+            Action::Help,
+            "Help",
+            key(none, Key::F1),
+            "Controls and shortcuts, a getting-started guide, and what each workspace is for",
+        ),
     ]);
     out
 }

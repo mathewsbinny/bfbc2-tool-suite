@@ -303,12 +303,38 @@ def apply_patch(members: Mapping[str, bytes], lines: Iterable[PatchLine]
 
 # ------------------------------------------------------------------------------------------------ the exe (data only)
 
+def _pe_native() -> Any:
+    """The Rust core with the executable reader (round F2b: bc2_harness::pe::raw), or None (not built,
+    BFBC2_PURE_PYTHON set): bc2loc's switch."""
+    import bc2loc
+    nat = bc2loc._native()
+    return nat if nat is not None and hasattr(nat, 'pe_raw_strings') else None
+
+
 class PEImage:
-    """A 32-bit Windows exe's sections, for reading its data (strings, tables) - no code is decoded here."""
+    """A 32-bit Windows exe's sections, for reading its data (strings, tables) - no code is decoded here.
+
+    The header, strings, find_cstring and find_dword run in the suite's Rust core when it is built (round F2b,
+    rust/bc2-harness/src/pe.rs, raw): the same answers in the same order; where the core cannot read a header the
+    reference raises on, or an argument it does not take, the *_reference methods run (they are the reference)."""
 
     def __init__(self, path: str) -> None:
         self.path = path
         b = self.b = open(path, 'rb').read()
+        nat = _pe_native()
+        h = nat.pe_raw_header(b) if nat is not None else None
+        if h is None:
+            self._read_reference(path, b)
+            return
+        if h[0] == 'not_exe':
+            raise MenuToolError(f'{path} is not a Windows program (.exe)')
+        if h[0] == 'not_32':
+            raise MenuToolError(f'{path} is not a 32-bit Windows program')
+        _, self.timestamp, self.base, secs = h
+        self.sections: list[Section] = [cast(Section, tuple(s)) for s in secs]
+
+    def _read_reference(self, path: str, b: bytes) -> None:
+        """The header read in Python (the reference)."""
         if b[:2] != b'MZ' or len(b) < 0x40:
             raise MenuToolError(f'{path} is not a Windows program (.exe)')
         pe = struct.unpack_from('<I', b, 0x3C)[0]
@@ -317,7 +343,7 @@ class PEImage:
         n, opt = struct.unpack_from('<H', b, pe + 6)[0], struct.unpack_from('<H', b, pe + 20)[0]
         self.timestamp = struct.unpack_from('<I', b, pe + 8)[0]
         self.base = struct.unpack_from('<I', b, pe + 52)[0]
-        self.sections: list[Section] = []      # (name, va, virtual size, file offset, raw size, flags)
+        self.sections = []      # (name, va, virtual size, file offset, raw size, flags)
         for i in range(n):
             o = pe + 24 + opt + 40 * i
             vs, va, rs, ra = struct.unpack_from('<IIII', b, o + 8)
@@ -356,6 +382,15 @@ class PEImage:
     def strings(self, minimum: int = 3) -> dict[str, list[int]]:
         """The printable C strings of the data sections: {text: [va, ...]}. A string starts after a 00 byte or, inside
         a longer printable run (data before it that happens to be printable), at a 4-byte aligned offset."""
+        nat = _pe_native()
+        if nat is not None and type(minimum) is int and minimum >= 1:
+            secs = [(s[1], s[3], s[4]) for s in self.data_sections()]
+            if all(0 <= s[1] < 1 << 32 and 0 <= s[2] < 1 << 32 and 0 <= s[0] < 1 << 63 for s in secs):
+                return cast(dict[str, list[int]], nat.pe_raw_strings(self.b, secs, minimum))
+        return self.strings_reference(minimum)
+
+    def strings_reference(self, minimum: int = 3) -> dict[str, list[int]]:
+        """strings in Python (the reference)."""
         import re
         out: dict[str, list[int]] = {}
         pat = re.compile(rb'[\x20-\x7e]{%d,}(?=\x00)' % minimum)
@@ -368,6 +403,15 @@ class PEImage:
 
     def find_cstring(self, text: str) -> list[int]:
         """The virtual addresses of the C string text (whole string) in the data sections."""
+        nat = _pe_native()
+        if nat is not None and isinstance(text, str) and text.isascii():
+            secs = [(s[1], s[3], s[4]) for s in self.data_sections()]
+            if all(0 <= s[1] < 1 << 32 and 0 <= s[2] < 1 << 32 and 0 <= s[0] < 1 << 63 for s in secs):
+                return cast(list[int], nat.pe_raw_find_cstring(self.b, secs, text.encode('ascii')))
+        return self.find_cstring_reference(text)
+
+    def find_cstring_reference(self, text: str) -> list[int]:
+        """find_cstring in Python (the reference)."""
         out: list[int]
         out, pat = [], b'\0' + text.encode('ascii') + b'\0'
         for _, sva, _vs, ra, rs, _ in self.data_sections():
@@ -379,6 +423,17 @@ class PEImage:
 
     def find_dword(self, value: int, sections: Iterable[Section] | None = None) -> list[int]:
         """File offsets in the data sections where the little-endian 32-bit value is stored, 4-byte aligned."""
+        nat = _pe_native()
+        if nat is not None and type(value) is int and 0 <= value < 1 << 32:
+            secs = list(sections or self.data_sections())
+            rows = [(s[3], s[4]) for s in secs]
+            if all(0 <= a < 1 << 32 and 0 <= n < 1 << 32 for a, n in rows):
+                return cast(list[int], nat.pe_raw_find_dword(self.b, rows, value))
+            return self.find_dword_reference(value, secs)
+        return self.find_dword_reference(value, sections)
+
+    def find_dword_reference(self, value: int, sections: Iterable[Section] | None = None) -> list[int]:
+        """find_dword in Python (the reference)."""
         out: list[int]
         pat, out = struct.pack('<I', value), []
         for s in sections or self.data_sections():

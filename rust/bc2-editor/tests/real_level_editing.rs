@@ -14,6 +14,7 @@
     clippy::panic,
     clippy::many_single_char_names,
     clippy::doc_markdown,
+    clippy::too_many_lines,
     missing_docs
 )]
 

@@ -1,11 +1,12 @@
 //! Finding Project OPFOR BFBC2's game copy, its levels, and a level's files, as the suite's Python finds them
 //! (`core/bfbc2core/paths.find_opfor`, NavKit's `Project.level_dirs`, `level.load`), without writing anything.
 //!
-//! The editor only reads: a level NavKit has not prepared yet (`work\levels\<lv>\dist`) is listed but cannot be
-//! opened here (the Map Inspector or `navkit.py prepare` prepares it once), and a terrain unpack that is missing or
-//! older than its bundle is not used (the level opens without its terrain and says so). The one thing written is
-//! the collision index's mesh-alias cache, outside the game data, as `level.load` writes it
-//! (`%LOCALAPPDATA%\bfbc2-tool-suite\cache\collision`, `BFBC2_COLLISION_CACHE`; `0` turns it off).
+//! Reading here writes nothing: a level NavKit has not prepared yet (`work\levels\<lv>\dist`), or whose terrain
+//! unpack is missing or older than its bundle, is prepared first when it is opened (`prepare`: NavKit's prepare and
+//! the terrain unpack, in the suite's Python); a terrain unpack that is still not current is not used (the level
+//! opens without its terrain and says so). The one thing written while loading is the collision index's mesh-alias
+//! cache, outside the game data, as `level.load` writes it (`%LOCALAPPDATA%\bfbc2-tool-suite\cache\collision`,
+//! `BFBC2_COLLISION_CACHE`; `0` turns it off).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -126,7 +127,8 @@ fn stamp_of(path: &Path) -> Option<String> {
 }
 
 /// The level's terrain bundle (`terrain-00.fbrb`): Dist first, then Package.
-fn terrain_bundle(opfor: &Path, lv: &str) -> Option<PathBuf> {
+#[must_use]
+pub fn terrain_bundle(opfor: &Path, lv: &str) -> Option<PathBuf> {
     let game = opfor.join("game");
     for top in [
         game.join("Dist").join("win32").join("levels"),
@@ -218,7 +220,7 @@ pub fn load_options(opfor: &Path, lv: &str) -> Result<Found, String> {
     let base = opfor.join("work").join("levels").join(&lv);
     if !base.join("dist").is_dir() {
         return Err(format!(
-            "{lv} is not prepared yet: open it once in the Map Inspector (or run navkit.py prepare {lv}), then here"
+            "{lv} is not prepared yet: open it from the start screen, which prepares it first"
         ));
     }
     let mut bases = vec![base.join("pkg"), base.join("dist")];
@@ -266,7 +268,7 @@ pub fn load_options(opfor: &Path, lv: &str) -> Result<Found, String> {
         }
         Err(why) => {
             notes.push(format!(
-                "Terrain not shown: {why}. Open the level once in the Map Inspector to unpack it."
+                "Terrain not shown: {why}. Close the map and open it again to unpack it."
             ));
             (None, None)
         }

@@ -27,6 +27,13 @@ executable changes.
     cat = dbxcatalogue.load(ix)                     # meshview.Index
     cat.has_class('GameSharedResources.CarHornComponentData')       # False
     cat.where('46021992-...')                       # ('objects/soldiers/common/defaulthaloaimer',)
+
+The pass runs in the suite's Rust core when it is built (round F2b, rust/bc2-convert/src/dbxcatalogue.rs, through
+importcore): the bundles read and their partitions parsed on all cores, the walk in this module's order - every
+table equal to build_reference's key for key and in the same insertion order, the kept elements built as the same
+trees (a prototype inside a kept instance the same object). Where a chunk cannot be read or a partition is one the
+reference would read otherwise, build_reference runs (it records the problems); BFBC2_IMPORTER_PYTHON=1 runs it
+always.
 """
 import collections
 import hashlib
@@ -42,7 +49,8 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('core')
+suite_paths.use('core', 'bf1943-import')
+import importcore  # noqa: E402
 from bfbc2core import atomicio, dbx  # noqa: E402
 
 CACHE_VERSION = 3
@@ -202,16 +210,59 @@ def _signature(ix: Any, exe: str) -> str:
     return h.hexdigest()
 
 
-def build(ix: Any, exe: str | None, log: Any = None) -> Catalogue:
-    """A Catalogue over every BFBC2 partition the index names (stock bundles; FbrbTool's build overlays left out)."""
-    from bfbc2core import fbrb
-    cat = Catalogue()
-    if exe and os.path.isfile(exe):
-        cat.exe_names = exe_identifiers(exe)
+GROUP = 8                           # chunks read at once by the Rust pass (each up to 400 partitions)
+
+
+def _names(ix: Any) -> dict[str, list[str]]:
+    """{bundle: [entry names]} of the index's partitions (stock bundles), in the index's order."""
     names: dict[str, list[str]] = collections.defaultdict(list)
     for k, (b, n) in ix.where.items():
         if k.endswith('.dbx') and 'build_overlay' not in b.lower():
             names[b].append(n)
+    return names
+
+
+def build(ix: Any, exe: str | None, log: Any = None) -> Catalogue:
+    """A Catalogue over every BFBC2 partition the index names (stock bundles; FbrbTool's build overlays left out)."""
+    cat = _build_rust(ix, exe, log)
+    return cat if cat is not None else build_reference(ix, exe, log)
+
+
+def _build_rust(ix: Any, exe: str | None, log: Any) -> Catalogue | None:
+    """build's pass in the Rust core, or None (no core, or refused)."""
+    m = importcore.native()
+    if m is None:
+        return None
+    t0 = time.time()
+    names = _names(ix)
+    r = importcore.call('catalogue_build', list(names.items()), dbx.Element, GROUP)
+    if r is None:
+        return None
+    d = r[0]
+    cat = Catalogue()
+    if exe and os.path.isfile(exe):
+        with open(exe, 'rb') as fh:
+            cat.exe_names = frozenset(m.catalogue_exe_identifiers(fh.read()))
+    cat.partitions = d['partitions']
+    cat.classes = d['classes']
+    cat.order = d['order']
+    cat.shapes = {k: collections.Counter(v) for k, v in d['shapes'].items()}
+    cat.texts = {k: collections.Counter(v) for k, v in d['texts'].items()}
+    cat.numeric = {k: collections.Counter(v) for k, v in d['numeric'].items()}
+    cat.protos, cat.guids, cat.primary = d['protos'], d['guids'], d['primary']
+    cat.defaults, cat.others, cat.problems = d['defaults'], d['others'], d['problems']
+    if log:
+        log(f'  catalogue: {len(names)}/{len(names)} bundles, {cat.partitions} partitions, {time.time() - t0:.0f} s')
+    return cat
+
+
+def build_reference(ix: Any, exe: str | None, log: Any = None) -> Catalogue:
+    """build in Python (the reference)."""
+    from bfbc2core import fbrb
+    cat = Catalogue()
+    if exe and os.path.isfile(exe):
+        cat.exe_names = exe_identifiers(exe)
+    names = _names(ix)
     seen: collections.Counter[str] = collections.Counter()
     t0 = time.time()
     for i, (b, ns) in enumerate(sorted(names.items())):

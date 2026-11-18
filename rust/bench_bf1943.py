@@ -18,7 +18,9 @@ recorded: run it in two checkouts (before / after) with --record, then --compare
            rebuilt from its manifest - the build must give the atlases that run recorded): the atlases', partitions',
            report's and proof's SHA-256
 
-  python rust\bench_bf1943.py capture <inputs.pkl>      (reads Project OPFOR's work\ww2\emitter_atlas\manifest.json)
+  python rust\bench_bf1943.py capture <inputs.pkl> [folder]
+           (reads Project OPFOR's work\ww2\<folder>\manifest.json, read only; folder: emitter_atlas - Wake's -, or
+           a WW2 level's emitter_atlas_coral_sea, emitter_atlas_guadal_canal, emitter_atlas_iwo_jima_s)
 
 Runs the checkout it lies in (copy it into another checkout's rust\ to time that one). The game copy and BF1943's
 copy are read only; nothing is written but --record / --profile's files.
@@ -171,7 +173,7 @@ def run_parity(src, ix, out, times):
     out['parity:predict'] = sha(repr((sorted((k, sorted(v.items())) for k, v in got.items()), sorted(ex.items()))))
 
 
-def capture_atlas(path):
+def capture_atlas(path, folder='emitter_atlas'):
     """The inputs of Project OPFOR's last emitter_atlas run, from its manifest (work\\ww2\\emitter_atlas, read only):
     each emitter partition as the install took it (a stock bundle's entry, or the WW2 build's file - its SHA-1 checked
     against the manifest's), each authoring atlas (a BFBC2 level's from its level bundle, BF1943's converted), and
@@ -179,7 +181,7 @@ def capture_atlas(path):
     import texture
     from bfbc2core import fbrb
     root = shaderdb.find_opfor(None)
-    man = json.load(open(os.path.join(root, 'work', 'ww2', 'emitter_atlas', 'manifest.json'), encoding='utf-8'))
+    man = json.load(open(os.path.join(root, 'work', 'ww2', folder, 'manifest.json'), encoding='utf-8'))
     atlases = ('emittertexturealpha.res', 'emittertexturenormals.res')
     emitters, bad = {}, []
     for low, m in man['emitters'].items():
@@ -261,7 +263,7 @@ def main(argv):
     record, compare, prof = opt('--record'), opt('--compare'), opt('--profile')
     top = int(opt('--top', '30'))
     if args[:1] == ['capture']:
-        capture_atlas(args[1])
+        capture_atlas(args[1], *args[2:3])
         return 0
     atlas_inputs = None
     if 'atlas' in args:

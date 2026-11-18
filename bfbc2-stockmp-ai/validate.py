@@ -58,20 +58,20 @@ _DBXEDIT_DONE: dict[tuple[str, ...], tuple[int, str]] = {}   # validate(): DbxEd
 
 
 def _dbxedit(*args):
-    # in process through the Rust core (bfbc2core.dbxedit; BFBC2_DBXEDIT_EXE=1 runs DbxEdit.exe); a run validate()
-    # made beforehand (_prefetch_dbxedit) is taken from there
+    # in process through the Rust core (bfbc2core.dbxedit); a run validate() made beforehand (_prefetch_dbxedit) is
+    # taken from there
     key = tuple(map(str, args))
     if key in _DBXEDIT_DONE:
         return _DBXEDIT_DONE.pop(key)
-    r = dbxedit.run_cmd([pipeline.DBX, *key], capture_output=True, text=True, errors='replace')
+    r = dbxedit.run(list(key), text=True)
     return r.returncode, r.stdout + r.stderr
 
 
 def _prefetch_dbxedit(runs):
     """DbxEdit's runs that only read files (check, roundtrip), run at once on all cores in process (round E4a: the
     four checks against mp_common and two round trips of a level ran one after another); their results wait in
-    _DBXEDIT_DONE for _dbxedit. Nothing is run ahead with DbxEdit.exe (BFBC2_DBXEDIT_EXE=1)."""
-    if dbxedit.use_exe() or not runs:
+    _DBXEDIT_DONE for _dbxedit."""
+    if not runs:
         return
     keys = [tuple(map(str, r)) for r in runs]
     for k, r in zip(keys, dbxedit.run_many([list(k) for k in keys], text=True)):
