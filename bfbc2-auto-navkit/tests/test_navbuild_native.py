@@ -96,6 +96,8 @@ def canon(v: Any) -> Any:
         return [canon(x) for x in v]
     if isinstance(v, (set, frozenset)):
         return ['set', sorted((canon(x) for x in v), key=json.dumps)]
+    if hasattr(v, '__dataclass_fields__'):
+        return [type(v).__name__] + [canon(getattr(v, f)) for f in v.__dataclass_fields__]
     raise TypeError(f'canon: {type(v).__name__}')
 
 
@@ -230,8 +232,31 @@ def compare(name: str, got: Any, want: Any) -> int:
     return bad
 
 
+TWINS: dict[str, list[str]] = {}            # this run's digests per section (E2a / E3c / E3h)
+WANT: dict[str, list[str]] = {}             # the recording's
+MODE = {'record': False}
+
+
+def twin(section: str, name: str, got: Any, want: Any = None) -> None:
+    """got (the Rust core's answer) against the retired Python's, recorded as a digest in navbuild_golden.json
+    ('retired'): recording, want() is the Python's answer, digested (and got must give the same digest)."""
+    n = len(TWINS.setdefault(section, []))
+    if MODE['record']:
+        w = digest(want())
+        check(digest(got) == w, f'{name}: the Rust core differs from its Python twin')
+        TWINS[section].append(w)
+        return
+    g = digest(got)
+    TWINS[section].append(g)
+    rec = WANT.get(section, [])
+    check(n < len(rec) and rec[n] == g, f'{name}: differs from the recorded answer of the retired Python'
+          if n < len(rec) else f'{name}: not recorded ({section} #{n})')
+
+
 def quick(golden: dict[str, Any], record: bool) -> None:
     nb.require_native()
+    MODE['record'] = record
+    WANT.update(golden.get('retired', {}))
     rng = random.Random(943)
     got = walks(rng)
     if record:
@@ -252,6 +277,11 @@ def quick(golden: dict[str, Any], record: bool) -> None:
     before = len(FAILS)
     calls = e3h(random.Random(7731))
     print(f'E3h: {calls} calls compared with their Python twin: {len(FAILS) - before} differences')
+    if record:
+        golden['retired'] = TWINS
+    for sec, got in TWINS.items():
+        check(len(got) == len(WANT.get(sec, got)), f'{sec}: {len(got)} answers, {len(WANT.get(sec, []))} recorded')
+    print('answers recorded from the retired Python: ' + ', '.join(f'{k} {len(v)}' for k, v in sorted(TWINS.items())))
 
 
 def others(rng: random.Random) -> None:
@@ -379,35 +409,36 @@ def rules(rng: random.Random) -> int:
         def mask(p: float, n: int = n) -> np.ndarray:
             return np.array([rng.random() < p for _ in range(n)], bool)
         for ign in (None, mask(0.2), mask(0.0)):
-            check(same(navwalk.headroom(s, ign), py(navwalk.headroom, s, ign)), f'headroom case {case}')
+            twin('e2a', f'headroom case {case}', navwalk.headroom(s, ign), lambda: py(navwalk.headroom, s, ign))
             calls += 1
         for r, tol in ((1, 0.7), (2, 1.1), (4, 0.7), (1, 0.25)):
             m = mask(0.5)
-            check(same(navwalk.stair_slope(s, m, r=r, tol=tol), py(navwalk.stair_slope, s, m, r=r, tol=tol)),
-                  f'stair_slope case {case} r {r} tol {tol}')
+            twin('e2a', f'stair_slope case {case} r {r} tol {tol}', navwalk.stair_slope(s, m, r=r, tol=tol),
+                 lambda: py(navwalk.stair_slope, s, m, r=r, tol=tol))
             calls += 1
         for rise, flat, width, slope in ((None, None, 2, 40.0), (0.3, None, 2, 40.0), (0.3, 15.0, 2, 40.0),
                                          (None, 15.0, 3, 30.0), (0.05, None, 1, 45.0)):
             base, cand = mask(0.6), mask(0.4)
-            a = navwalk.narrow_lips(s, base, cand, slope, width, rise=rise, flat=flat)
-            b = py(navwalk.narrow_lips, s, base, cand, slope, width, rise=rise, flat=flat)
-            check(same(a, b), f'narrow_lips case {case} rise {rise} flat {flat} width {width}')
+            twin('e2a', f'narrow_lips case {case} rise {rise} flat {flat} width {width}',
+                 navwalk.narrow_lips(s, base, cand, slope, width, rise=rise, flat=flat),
+                 lambda: py(navwalk.narrow_lips, s, base, cand, slope, width, rise=rise, flat=flat))
             calls += 1
         tris = tris_near(rng, s, 30)
         for grow, below, above in ((0.5, 2.2, 0.3), (0.4, 0.6, 0.6), (0.1, -0.05, 0.0), (1, 1, 0)):
-            check(same(navwalk.near_objects(s, tris, grow, below, above),
-                       py(navwalk.near_objects, s, tris, grow, below, above)), f'near_objects case {case}')
+            twin('e2a', f'near_objects case {case}', navwalk.near_objects(s, tris, grow, below, above),
+                 lambda: py(navwalk.near_objects, s, tris, grow, below, above))
             calls += 1
         for tol in (0.2, 0.08, 0.5):
-            check(same(navwalk.on_objects(s, tris, tol), py(navwalk.on_objects, s, tris, tol)), f'on_objects case {case}')
+            twin('e2a', f'on_objects case {case}', navwalk.on_objects(s, tris, tol),
+                 lambda: py(navwalk.on_objects, s, tris, tol))
             calls += 1
         seeds = [(rng.uniform(0, s.nx * s.pitch), rng.uniform(0, 3), rng.uniform(0, s.nz * s.pitch)) for _ in range(3)]
         kw: dict[str, Any] = dict(return_gradients=True, return_stairs=True, extra_seeds=seeds, anchors=seeds[:1],
                                   dynamic_tris=tris_near(rng, s, 6), stair_tris=tris_near(rng, s, 6),
                                   exclude_tris=tris_near(rng, s, 4), exclude_footprint_tris=tris_near(rng, s, 3),
                                   forbid_tris=tris_near(rng, s, 5))
-        a, b = navwalk.walkable(s, **kw), py(navwalk.walkable, s, **kw)
-        check(same(a, b), f'walkable (every rule) case {case}')
+        twin('e2a', f'walkable (every rule) case {case}', navwalk.walkable(s, **kw),
+             lambda: py(navwalk.walkable, s, **kw))
         calls += 1
     # the run's numbers of a kind the port does not take: Python runs, the same answers
     s = runs(rng, 5, 5, 0.2)
@@ -416,7 +447,7 @@ def rules(rng: random.Random) -> int:
     s = runs(rng, 5, 5, 0.2)
     check(navwalk._tris_f64(np.zeros((2, 9))) is None, 'triangles not n x 3 x 3: Python runs')
     zero = np.zeros((2, 3, 3), np.float32)                                     # two triangles in one point
-    check(same(navwalk.near_objects(s, zero), py(navwalk.near_objects, s, zero)), 'near_objects on point triangles')
+    twin('e2a', 'near_objects on point triangles', navwalk.near_objects(s, zero), lambda: py(navwalk.near_objects, s, zero))
     nan_tris = tris_near(rng, s, 3)
     nan_tris[1, 0, 0] = np.nan                                                 # the port refuses, the reference raises
     try:
@@ -424,9 +455,9 @@ def rules(rng: random.Random) -> int:
         check(False, 'near_objects with a NaN x: the reference raises')
     except ValueError:
         pass
-    check(same(navwalk.on_objects(s, nan_tris), py(navwalk.on_objects, s, nan_tris)), 'on_objects with a NaN x')
-    check(same(navwalk.stair_slope(s, np.ones(len(s.y), bool), r=cast(Any, np.int64(1))),
-               py(navwalk.stair_slope, s, np.ones(len(s.y), bool), r=1)), 'stair_slope with a NumPy r: Python, the same')
+    twin('e2a', 'on_objects with a NaN x', navwalk.on_objects(s, nan_tris), lambda: py(navwalk.on_objects, s, nan_tris))
+    twin('e2a', 'stair_slope with a NumPy r', navwalk.stair_slope(s, np.ones(len(s.y), bool), r=cast(Any, np.int64(1))),
+         lambda: py(navwalk.stair_slope, s, np.ones(len(s.y), bool), r=1))
     return calls
 
 
@@ -439,9 +470,9 @@ def areas_and_picks(rng: random.Random) -> int:
             lv = grid(rng, rng.randint(5, 14), rng.randint(5, 14), case % 2 == 0, 0.8 if case % 3 else 0.2)
             nb.BISECT_AREAS, nb.MAX_AREA = case % 3 != 0, rng.choice([1, 2, 3, 5, 25])
             for start, tile, tiles in (((-1, -1), 3, 3), ((0, 0), 4, 2), ((2, -1), 1, 6), ((0, 3), 100, 1)):
-                a = nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=lv.cfg)
-                b = py(nb.build_areas, lv, 0, 0, start, tile, tiles, cfg=lv.cfg)
-                check(a == b, f'build_areas case {case} start {start} tile {tile} bisect {nb.BISECT_AREAS}')
+                twin('e2a', f'build_areas case {case} start {start} tile {tile} bisect {nb.BISECT_AREAS}',
+                     nb.build_areas(lv, 0, 0, start, tile, tiles, cfg=lv.cfg),
+                     lambda: py(nb.build_areas, lv, 0, 0, start, tile, tiles, cfg=lv.cfg))
                 calls += 1
             areas = nb.build_areas(lv, 0, 0, cfg=lv.cfg)
             big = [x for x in areas if len(x['cells']) >= 4]
@@ -629,13 +660,14 @@ def e3c(rng: random.Random) -> int:
         keep = {n for n in range(64) if rng.random() < 0.5}
         tiling = rng.choice([((-1, -1), cfg.tile, cfg.tiles), ((-1, -1), 3, 6), ((0, 0), 4, 4), ((-1, 0), 2, 9)])
         a = strict(trace_chain, lv, cfg, gi0, gj0, ox, oz, keep, case % 3 == 1, tiling)
-        b = py(trace_chain, lv, cfg, gi0, gj0, ox, oz, keep, False, tiling)
+        b: Any = (lambda: py(trace_chain, lv, cfg, gi0, gj0, ox, oz, keep, False, tiling)) if MODE['record'] else None
+        b = b() if b else [None] * 5
         seen['one_way'] += len(a[0][1])
         seen['details'] += sum(len(x[0]) + len(x[1]) for x in a[2])
         for kind, n in (('portals', 0), ('borders', 1), ('outline', 2)):
             seen[kind] += sum(len(x[n]) for x in a[4])
         for name, x, y in zip(('trace_edges', 'drop / detail', 'detail_pass', 'blocked', 'trace_emit'), a, b):
-            check(x == y, f'{name} case {case} (pitch {pitch}, window {cfg.window})')
+            twin('e3c', f'{name} case {case} (pitch {pitch}, window {cfg.window})', x, lambda y=y: y)
         calls += 3
     check(all(seen.values()), f'the random levels make every kind of edge: {seen}')
     print(f'E3c tracing: {seen}')
@@ -652,8 +684,8 @@ def e3c(rng: random.Random) -> int:
         tiling = rng.choice([((-1, -1), cfg.tile, cfg.tiles), ((-1, -1), 4, 6), ((0, 0), 7, 4)])
         seed = rng.randrange(1 << 30)
         a = strict(sector_graph, lv, cfg, ox, oz, tiling, seed)
-        b = py(sector_graph, lv, cfg, ox, oz, tiling, seed)
-        check(a == b, f'build_graph case {case} (pitch {pitch}, {len(a[0])} nodes, {len(a[1])} pairs)')
+        twin('e3c', f'build_graph case {case} (pitch {pitch}, {len(a[0])} nodes, {len(a[1])} pairs)', a,
+             lambda: py(sector_graph, lv, cfg, ox, oz, tiling, seed))
         joined += sum(1 for p in a[0] if p[0] < 900)
         calls += 4
     print(f'E3c route graphs: {joined} nodes')
@@ -663,20 +695,23 @@ def e3c(rng: random.Random) -> int:
         specs = [(gi, gj, 0.0, 0.0, rng.choice([(-1, -1), (0, 0), (0, -1)]), rng.choice([3, 4, 50]),
                   rng.choice([1, 3, 6])) for gi, gj in ((0, 0), (2, 1), (-1, 3), (5, 0))]
         many = strict(nb._build_areas_many, lv, specs, lv.cfg)
-        want = []
-        for gi0, gj0, _ox, _oz, start, tile, tiles in specs:
-            areas = py(nb.build_areas, lv, gi0, gj0, start, tile, tiles, cfg=lv.cfg)
-            want.append((areas, [(min(lv.y[c[2]] for c in a['cells']), max(lv.y[c[2]] for c in a['cells']))
-                                 for a in areas]))
-        check(ordered(many) == ordered(want), f'build_areas_many case {case}')
+
+        def want(lv: nb.Level = lv, specs: Any = specs) -> Any:
+            out = []
+            for gi0, gj0, _ox, _oz, start, tile, tiles in specs:
+                areas = py(nb.build_areas, lv, gi0, gj0, start, tile, tiles, cfg=lv.cfg)
+                out.append((areas, [(min(lv.y[c[2]] for c in a['cells']), max(lv.y[c[2]] for c in a['cells']))
+                                    for a in areas]))
+            return ordered(out)
+        twin('e3c', f'build_areas_many case {case}', ordered(many), want)
         calls += 1
     # soldiers' surroundings (near_characters): random characters, reaches and height bands
     for case in range(16):
         s = runs(rng, rng.randint(3, 12), rng.randint(3, 12), 0.2 if case % 2 else 0.8)
         char = np.array([rng.random() < 0.08 for _ in range(len(s.y))], bool)
         grow, below, above = rng.choice([0.9, 0.5, 1.7, 0.8]), rng.choice([2.2, 0.5]), rng.choice([0.3, 1.0])
-        check(same(strict(navwalk.near_characters, s, char, grow, below, above),
-                   py(navwalk.near_characters, s, char, grow, below, above)), f'near_characters case {case}')
+        twin('e3c', f'near_characters case {case}', strict(navwalk.near_characters, s, char, grow, below, above),
+             lambda: py(navwalk.near_characters, s, char, grow, below, above))
         calls += 1
     # the sample files' records (versions 1 and 2; a run cut off between columns, a record cut short)
     import navsample
@@ -730,8 +765,12 @@ def e3c(rng: random.Random) -> int:
             x = strict(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
             xs = dict(navwalk.ROOF_STATS)
             navwalk.ROOF_STATS.clear()
-            y = py(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
-            check(same(x, y) and xs == navwalk.ROOF_STATS, f'roof_islands case {case}: {xs} {navwalk.ROOF_STATS}')
+
+            def want(s: Any = s, kmask: Any = kmask, lv: nb.Level = lv, terrain: Any = terrain,
+                     anchors: Any = anchors) -> Any:
+                y = py(navwalk.roof_islands, s, kmask, lv.gx, lv.gz, lv.stair, 0.28, terrain, anchors)
+                return (y, dict(navwalk.ROOF_STATS))
+            twin('e3c', f'roof_islands case {case}: {xs}', (x, xs), want)
             calls += 1
     finally:
         navwalk.ROOF_RAISE, navwalk.ROOF_SHARE, navwalk.ROOF_NEAR, navwalk.ROOF_NEAR_DY = saved
@@ -766,7 +805,7 @@ def e3c(rng: random.Random) -> int:
                 pts.append((1000 + len(pts), pos, k, i, j))
             nb.add_cover_nodes(lv, areas, pts, add, ox, oz, cover, lv.cfg)
             return ordered(pts)
-        check(strict(run) == py(run), f'add_cover_nodes case {case} (cover {cover})')
+        twin('e3c', f'add_cover_nodes case {case} (cover {cover})', strict(run), lambda run=run: py(run))
         calls += 1
     # Gabriel pruning: nodes on a few floors (some at one spot), pairs within 15 m, some lengths equal
     for case in range(40):
@@ -777,7 +816,8 @@ def e3c(rng: random.Random) -> int:
             pts[1] = pts[0]
         pairs = [(a_, b_, math.dist(pts[a_][1], pts[b_][1])) for a_ in range(n) for b_ in range(a_ + 1, n)
                  if math.dist(pts[a_][1], pts[b_][1]) <= 15.0 and rng.random() < 0.6]
-        check(strict(nb.gabriel_prune, pts, pairs) == py(nb.gabriel_prune, pts, iter(pairs)), f'gabriel_prune case {case}')
+        twin('e3c', f'gabriel_prune case {case}', strict(nb.gabriel_prune, pts, pairs),
+             lambda: py(nb.gabriel_prune, pts, iter(pairs)))
         calls += 1
     return calls
 
@@ -845,8 +885,8 @@ def e3h(rng: random.Random) -> int:
                 orders.append((lv.s.min_x + (c % lv.s.nx) * pitch, float(lv.y[k]), lv.s.min_z + (c // lv.s.nx) * pitch))
             a = strict(whole_stage, lv, cfg, orders)
             sizes['details'] += nb.DETAIL_STATS.get('d', 0) + nb.DETAIL_STATS.get('f', 0)
-            b = py(whole_stage, lv, cfg, orders)
-            check(a == b, f'stage case {case} (pitch {pitch}, {n} x {n})')
+            twin('e3h', f'stage case {case} (pitch {pitch}, {n} x {n})', a,
+                 lambda: py(whole_stage, lv, cfg, orders))
             sizes['sectors'] += len(a[0][1])
             sizes['areas'] += sum(len(v[0]) for _k, v in a[1][1])
             sizes['nodes'] += sum(len(g[2]) for g in a[2])
@@ -863,8 +903,8 @@ def e3h(rng: random.Random) -> int:
         cfg = lv.cfg
         seed = rng.randrange(1 << 30)
         x = strict(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
-        y = py(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3)
-        check(x == y, f'build_graph with ladders case {case}')
+        twin('e3h', f'build_graph with ladders case {case}', x,
+             lambda: py(sector_graph, lv, cfg, 0.0, -100.0, ((-1, -1), cfg.tile, cfg.tiles), seed, 3))
         calls += 1
     # walkable's unseeds (hand edits dropping the island a point is on): the island from the flood's NavLevel
     dropped = 0
@@ -879,7 +919,7 @@ def e3h(rng: random.Random) -> int:
         x = strict(navwalk.walkable, s, **kw)
         whole = navwalk.walkable(s, extra_seeds=seeds[:3])
         dropped += int(whole.sum() - x[0].sum())
-        check(same(x, py(navwalk.walkable, s, **kw)), f'walkable with unseeds case {case}')
+        twin('e3h', f'walkable with unseeds case {case}', x, lambda: py(navwalk.walkable, s, **kw))
         calls += 1
     check(dropped > 0, 'the unseeds drop ground')
     print(f'E3h unseeds: {dropped} kept surfaces dropped')
@@ -907,11 +947,9 @@ def e3h(rng: random.Random) -> int:
         areas_.append(SimpleNamespace(outline=outline, portals=portals, border_portals=[]))
     areas_.append(SimpleNamespace(outline=[], portals=[], border_portals=[]))
     got_c = navdiff.area_cells_many(areas_)
-    want_c = [navdiff.area_cells_reference(a) for a in areas_]
-    same_c = all([(k, struct.pack('<d', v)) for k, v in x.items()] == [(k, struct.pack('<d', v)) for k, v in y.items()]
-                 for x, y in zip(got_c, want_c))
-    check(navdiff._native() is not None and same_c, 'navdiff.area_cells: the Rust core as the NumPy reference')
-    print(f'E3h area cells: {len(areas_)} areas, {sum(len(c) for c in want_c)} cells')
+    twin('e3h', 'navdiff.area_cells', [list(c.items()) for c in got_c],
+         lambda: [list(navdiff.area_cells_reference(a).items()) for a in areas_])
+    print(f'E3h area cells: {len(areas_)} areas, {sum(len(c) for c in got_c)} cells')
     calls += 1
     # round(v, 3): random values, exact ties (multiples of 1/16), negative zero, the build's positions
     vals = [rng.uniform(-2000, 2000) for _ in range(60000)] + [k / 16 for k in range(-40000, 40000)]
