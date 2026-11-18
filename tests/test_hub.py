@@ -80,7 +80,7 @@ def main(argv: list[str]) -> int:
     bundle = os.path.join(hub.pr.game, 'Dist', 'win32', 'levels', 'sp_009', 'terrain-00.fbrb')
     hub.fb_file.set(bundle)
     hub.tabs.select(1)
-    hub.run([hubmod.tool('fbrb'), 'list', hub.fb_file.get()], 'FbrbTool list')
+    hub.run([hubmod.PYTHON, hubmod.SCRIPTS['fbrb'], 'list', hub.fb_file.get()], 'FbrbTool list')
     wait()
     check('entries, payload' in output() and 'Heightfield' in output(), 'Bundles: FbrbTool lists a terrain bundle')
 

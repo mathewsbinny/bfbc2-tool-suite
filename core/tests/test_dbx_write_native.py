@@ -38,7 +38,6 @@ from bfbc2core import dbx, paths  # noqa: E402
 
 NATIVE: Any = dbx._import_native()
 NATIVE = NATIVE if NATIVE is not None and hasattr(NATIVE, 'dbx_write') else None
-DBXEDIT = os.path.join(SUITE, 'bfbc2-dbx-tools', 'DbxEdit.exe')
 E, C, T, N = dbx.Element, dbx.CONTAINER, dbx.TEXT, dbx.NUMBERS
 
 
@@ -279,16 +278,15 @@ def run_corpus(files: list[str], check: Any, label: str, keep: str | None = None
 
 
 def check_dbxedit(files: list[str], check: Any) -> None:
-    """DbxEdit's roundtrip (read, write with the file's own table) of Rust-written files: unchanged."""
-    if not os.path.isfile(DBXEDIT):
-        print('skipped: DbxEdit roundtrip (DbxEdit.exe not built)')
-        return
+    """DbxEdit's roundtrip (read, write with the file's own table; in process, bfbc2core.dbxedit) of Rust-written
+    files: unchanged."""
+    from bfbc2core import dbxedit
     tmp = tempfile.mkdtemp(prefix='dw')
     try:
         for i, p in enumerate(files):
             with open(os.path.join(tmp, f'{i}.dbx'), 'wb') as fh:
                 fh.write(NATIVE.dbx_write(dbx.read(p)))
-        r = subprocess.run([DBXEDIT, 'roundtrip', tmp], capture_output=True, text=True, errors='replace')
+        r = dbxedit.run(['roundtrip', tmp])
         last = (r.stdout.strip().splitlines() or [''])[-1]
         check(r.returncode == 0 and last.startswith(f'roundtrip: {len(files)} identical, 0 different'),
               f'DbxEdit reads {len(files)} Rust-written files and writes each back unchanged', last or r.stderr[-200:])

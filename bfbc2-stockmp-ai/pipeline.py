@@ -43,11 +43,8 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('navkit', 'navkit-tools', 'core')
 from bfbc2core import fbrb as corefbrb  # noqa: E402
-from bfbc2core import fbrbtool  # noqa: E402
 from bfbc2core import paths as corepaths  # noqa: E402  (not `paths`: the functions below name their Paths that)
 
-FBRB = corepaths.suite_tool('bfbc2-fbrb-tool', 'FbrbTool.exe', SUITE)
-DBX = corepaths.suite_tool('bfbc2-dbx-tools', 'DbxEdit.exe', SUITE)
 NAVKIT = os.path.join(SUITE, 'bfbc2-auto-navkit')
 
 DONOR_LEVEL = 'SP_004_B'
@@ -62,17 +59,9 @@ class BuildError(Exception):
     pass
 
 
-def run(*args: object, ok: tuple[int, ...] = (0,)) -> str:
-    # FbrbTool's command lines run in process (bfbc2core.fbrbtool; BFBC2_FBRBTOOL_EXE=1 runs the exe), others as given
-    r = fbrbtool.run_cmd([str(a) for a in args], capture_output=True, text=True, errors='replace')
-    if r.returncode not in ok:
-        raise BuildError(f'failed: {" ".join(map(str, args))}\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}')
-    return r.stdout
-
-
 def pack_bundle(folder: str, out: str) -> None:
-    """FbrbTool's pack of folder into out: in the Rust core when it is built, else by FbrbTool.exe (the same bytes,
-    bfbc2core.fbrb.pack); a folder that cannot be packed stops the build."""
+    """FbrbTool's pack of folder into out, in the Rust core (bfbc2core.fbrb.pack); a folder that cannot be packed
+    stops the build."""
     try:
         corefbrb.pack(folder, out)
     except (ValueError, OSError) as e:
@@ -80,8 +69,8 @@ def pack_bundle(folder: str, out: str) -> None:
 
 
 def pack_bundles(items: list[tuple[str, str]]) -> None:
-    """pack_bundle of each (folder, out), together (bfbc2core.fbrb.pack_many: on all cores with the Rust core, else
-    FbrbTool.exe one by one); the first folder that cannot be packed stops the build, as pack_bundle says it."""
+    """pack_bundle of each (folder, out), together (bfbc2core.fbrb.pack_many: on all cores); the first folder that
+    cannot be packed stops the build, as pack_bundle says it."""
     for (folder, out), r in zip(items, corefbrb.pack_many(items)):
         if isinstance(r, Exception):
             raise BuildError(f'failed: pack {folder} -> {out}: {r}') from r
@@ -89,9 +78,9 @@ def pack_bundles(items: list[tuple[str, str]]) -> None:
 
 def build_folder(bundle: str, src: str, dst: str) -> None:
     """dst: the bundle's folder to author in - what shutil.copytree of its cached unpack src gives (src less its
-    .source.sha256 stamp). Unpacked afresh in the Rust core when it takes the bundle (the same files, proven against
-    FbrbTool: 1.4 s for Atacama's 2,359 files where the copy takes 4 s - creating the files is the cost, and the core
-    writes them on all cores), else copied from src."""
+    .source.sha256 stamp). Unpacked afresh in the Rust core when it takes the bundle (FbrbTool's files: 1.4 s for
+    Atacama's 2,359 files where the copy takes 4 s - creating the files is the cost, and the core writes them on all
+    cores), else copied from src."""
     if corefbrb.unpack_in_process(bundle, dst):
         return
     shutil.rmtree(dst, ignore_errors=True)
@@ -99,8 +88,8 @@ def build_folder(bundle: str, src: str, dst: str) -> None:
 
 
 def unpack_bundle(bundle: str, d: str) -> None:
-    """FbrbTool's unpack of bundle into d: in the Rust core for the bundles it takes, else by FbrbTool.exe (the same
-    files and manifest, bfbc2core.fbrb.unpack); a bundle that cannot be unpacked stops the build."""
+    """FbrbTool's unpack of bundle into d, in the Rust core (bfbc2core.fbrb.unpack); a bundle that cannot be
+    unpacked stops the build."""
     try:
         corefbrb.unpack(bundle, d)
     except (ValueError, OSError) as e:

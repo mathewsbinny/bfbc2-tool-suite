@@ -1,5 +1,5 @@
-//! `.fbrb` bundles, ported from `core/bfbc2core/fbrb.py` (the layout `bfbc2-fbrb-tool/FbrbTool.cs` reads and
-//! writes): the header's entries and any entry's data, without unpacking.
+//! `.fbrb` bundles, ported from `core/bfbc2core/fbrb.py` (the layout FbrbTool read and wrote; FbrbTool.cs was retired
+//! in round R4, 2026-11-18): the header's entries and any entry's data, without unpacking.
 //!
 //! Layout: `FbRB`, a big-endian `u32` header length, the header (gzip), then the payload (one gzip stream when the
 //! header's zipped byte is set, else stored). The header: `u32` 2, `u32` string-table length, the strings, `u32`
