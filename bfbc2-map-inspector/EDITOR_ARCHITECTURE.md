@@ -206,6 +206,9 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   readers and writers - DBX, FBRB, terrain, water, the collision index, the level loader, the cull tree element
   reader (2026-11-18, round F1a) - README.md, "The Rust core"; `rust/BENCHMARKS.md`, "Retired Python". The tests themselves move to Rust once every Python tool is
   retired (the user, 2026-11-18).
+  The C# tools whose commands were ported went the same way (round R4, 2026-11-18, after the full tier's 173 of
+  173): DbxEdit.exe and FbrbTool.exe are retired, their answers recorded (`core/tests/*_golden*.json`); DbxEditGUI
+  stays, built on DbxEdit.cs, until this editor replaces it (`rust/BENCHMARKS.md`, "Retired C# tools").
 - The suite's GUIs (Map Inspector, Navigation Studio, NavKit's window, DbxEditGUI, the launcher) are rebuilt in Rust
   (`egui`, the shared design language, `DESIGN.md`) inside the map editor application, as its views and workspaces.
   Each Python GUI stays until its replacement works. **Status (G1, 2026-11-18):** the editor application's shell and

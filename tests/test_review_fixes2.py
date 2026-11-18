@@ -17,7 +17,6 @@ import contextlib
 import io
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import types
@@ -199,24 +198,19 @@ def stockmp_case(c, work):
 
 
 def fbrb_old_manifest(c, work):
-    fbrb = os.path.join(SUITE, 'bfbc2-fbrb-tool', 'FbrbTool.exe')
-    if not os.path.isfile(fbrb):
-        subprocess.run(['cmd', '/c', os.path.join(SUITE, 'bfbc2-fbrb-tool', 'build.bat')], capture_output=True)
-    if not os.path.isfile(fbrb):
-        c.check(False, 'FbrbTool.exe is built')
-        return
+    from bfbc2core import fbrbtool  # FbrbTool's pack, in process (the Rust core)
     d = os.path.join(work, 'oldmanifest')
     os.makedirs(os.path.join(d, 'Levels', 'Test'))
     open(os.path.join(d, 'Levels', 'Test', 'Test.dbx'), 'wb').write(b'0123456789')     # 10 bytes
     manifest = os.path.join(d, 'fbrb.manifest')
     open(manifest, 'w').write('# fbrb.manifest - entry order matters. name|type|flags(hex)|size2  zipped=0\n'
                               'Levels/Test/Test.dbx|<non-resource>|00010000|10\n')
-    r = subprocess.run([fbrb, 'pack', d, os.path.join(work, 'ok.fbrb')], capture_output=True, text=True)
+    r = fbrbtool.run(['pack', d, os.path.join(work, 'ok.fbrb')])
     c.check(r.returncode == 0, 'FbrbTool: a four-column manifest whose size2 matches the payload still packs',
             (r.stdout + r.stderr).strip()[-200:])
     open(manifest, 'w').write('# fbrb.manifest - entry order matters. name|type|flags(hex)|size2  zipped=0\n'
                               'Levels/Test/Test.dbx|<non-resource>|00010000|999\n')
-    r = subprocess.run([fbrb, 'pack', d, os.path.join(work, 'bad.fbrb')], capture_output=True, text=True)
+    r = fbrbtool.run(['pack', d, os.path.join(work, 'bad.fbrb')])
     c.check(r.returncode != 0 and 'older unpack' in (r.stdout + r.stderr),
             'FbrbTool: a four-column manifest with a differing size2 is rejected with a re-unpack hint',
             (r.stdout + r.stderr).strip()[-200:])

@@ -1,5 +1,6 @@
-//! FbrbTool's commands in process: a port of `bfbc2-fbrb-tool/FbrbTool.cs` (`unpack`, `pack`, `list`, `big`) that
-//! gives FbrbTool's output byte for byte - the same files, messages and exit codes - without starting .NET.
+//! FbrbTool's commands in process: a port of FbrbTool.cs (`unpack`, `pack`, `list`, `big`) that gives FbrbTool's
+//! output byte for byte - the same files, messages and exit codes - without starting .NET. FbrbTool.exe was retired in
+//! round R4 (2026-11-18; its source is in the git history): `core/tests/fbrbtool_golden*.json` hold its answers.
 //!
 //! | `FbrbTool.cs` | here |
 //! |---|---|

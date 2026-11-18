@@ -3,18 +3,24 @@
 A command-line tool to unpack and repack Battlefield: Bad Company 2's `.fbrb` bundles (Frostbite 1
 archives: the game's levels, menus and shared data).
 
-## Build
-
-Run `build.bat`. It compiles `FbrbTool.exe` into this folder with the C# compiler that ships with
-Windows (.NET Framework 4) and needs no install.
-
 ## Use
 
+FbrbTool's commands run in the suite's Rust core (`bfbc2core.fbrbtool`, `rust/bc2-formats/src/fbrb/tool.rs`): get it
+with `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core"). Then:
+
 ```
-FbrbTool list   <file.fbrb>                list the entries
-FbrbTool unpack <file.fbrb> <outdir>       write every entry under <outdir>, plus fbrb.manifest
-FbrbTool pack   <dir> <file.fbrb>          rebuild a bundle from an unpacked folder
+python fbrbtool.py list   <file.fbrb>              list the entries
+python fbrbtool.py unpack <file.fbrb> <outdir>     write every entry under <outdir>, plus fbrb.manifest
+python fbrbtool.py pack   <dir> <file.fbrb>        rebuild a bundle from an unpacked folder
+python fbrbtool.py big    <file.big> <outdir>      every file of a BIGF / BIG4 archive (a menu movie resource)
 ```
+
+Python tools call the same commands in process: `bfbc2core.fbrbtool.run(['unpack', bundle, folder])`, or
+`run_cmd(['FbrbTool', ...], ...)` as a drop-in for `subprocess.run` (README.md, "FbrbTool in process").
+
+**FbrbTool.exe was retired** (round R4, 2026-11-18): the C# tool (FbrbTool.cs, its source in the git history) was the
+reference its port was proven against, byte for byte, on every bundle of the game copy; its answers are recorded in
+`core/tests/fbrbtool_golden*.json` and the tests check the port against them.
 
 `unpack` writes `fbrb.manifest`, which lists the entries in archive order with their type, flags and
 sizes. `pack` uses it to rebuild the bundle faithfully. To change a bundle, unpack it, edit or add files
@@ -33,13 +39,6 @@ offset + size2. `unpack` records such a layout on the manifest's first line (`la
 `hdr=<alignment>`, `plen=size2`, `size2=minus64`) and `pack` rebuilds it, so all 1,063 bundles of the game round-trip
 (every other bundle gets no tokens and packs as before). An unpack into a folder whose paths would pass Windows'
 260-character limit says so; unpack into a shorter path.
-
-## In process
-
-The suite runs these commands without starting this exe: `bfbc2core.fbrbtool` (the suite's Rust core,
-`rust/bc2-formats/src/fbrb/tool.rs`) writes the same files and prints the same messages, exit codes and errors
-(README.md, "FbrbTool in process"; `BFBC2_FBRBTOOL_EXE=1` runs this exe instead). `FbrbTool.exe` stays the reference
-the port is tested against.
 
 ## Errors and logs
 
