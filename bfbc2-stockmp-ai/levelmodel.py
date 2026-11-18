@@ -100,8 +100,49 @@ class Stage:
     mcoms: list[tuple[str, tuple[float, float, float]]]
 
 
+def model_of(data):
+    """Model of a level partition's bytes: read in the Rust core when it takes the file (rust\\bc2-stockmp: the same
+    fields, no element tree built in Python), else Model(dbxbin.parse(data))."""
+    import stockcore
+    nat = stockcore.native()
+    got = nat.stockmp_level_model(data) if nat is not None else None
+    if got is None:
+        return Model(dbxbin.parse(data))
+    m = Model.__new__(Model)
+    m._native(got, data)
+    return m
+
+
 class Model:
+    def _native(self, f, data):
+        """The fields from the Rust core's reading (model_of); d and level stay None, inst empty (rush_stages and typ then
+        read the file in Python where the Rust core left them)."""
+        self.d = self.level = None
+        self.inst = {}
+        self._from_rust = True
+        self._data = data
+        self._py = None
+        self.name, self.game_mode, self.mode = f['name'], f['game_mode'], f['mode']
+        self.factions = dict(f['factions'])
+        self.attacker, self.has_ai = f['attacker'], f['has_ai']
+        self.events = list(f['events'])
+        self.objects = list(f['objects'])
+        self.capture_points = [CapturePoint(g, n, lab, p, o, list(sp), list(out))
+                               for g, n, lab, p, o, sp, out in f['capture_points']]
+        self.spawners = [Spawner(g, n, t, pt, p, en, list(alts), fl) for g, n, t, pt, p, en, alts, fl in f['spawners']]
+        self.mcoms = list(f['mcoms'])
+        self._stages = (None if f['stages'] is None else
+                        [Stage(i, t, n, list(mc)) for i, t, n, mc in f['stages']])
+
+    def _python(self):
+        """The Python reading of a model read in the Rust core (for what it left to Python)."""
+        if self._py is None:
+            self._py = Model(dbxbin.parse(self._data))
+        return self._py
+
     def __init__(self, d):
+        self._stages = None
+        self._from_rust = False
         self.d = d
         self.inst = {(e.attr('guid') or '').upper(): e for e in d.instances()}
         self.level = next(e for e in d.instances() if (e.attr('type') or '').endswith('.LevelData'))
@@ -141,6 +182,8 @@ class Model:
                 self.mcoms.append((e.attr('guid').upper(), text(e, 'Name') or '', position(e)))
 
     def typ(self, guid):
+        if self._from_rust:
+            return self._python().typ(guid)
         e = self.inst.get(guid or '')
         return (e.attr('type') or '').rsplit('.', 1)[-1] if e is not None else None
 
@@ -179,6 +222,10 @@ class Model:
 
     def rush_stages(self):
         """Stages in order, from the stock stage logic: MultipleTriggers fed by M-COM onDestroyed."""
+        if self._stages is not None:
+            return [Stage(s.index, s.trigger, s.trigger_name, list(s.mcoms)) for s in self._stages]
+        if self._from_rust:
+            return self._python().rush_stages()
         mcom = {g: p for g, _n, p in self.mcoms}
         fed: dict[str, list[tuple[str, tuple[float, float, float]]]] = {}
         enabled_by = {}

@@ -57,7 +57,7 @@ disable_error_code = ['annotation-unchecked']   # typed locals inside not-yet-ty
 # Fully annotated modules: every function typed, bodies checked. Keep them so (a new untyped def is an error).
 [[tool.mypy.overrides]]
 module = ['hpdtool', 'kymesh', 'navsample', 'navbuild', 'navwalk', 'navkit', 'menucommon', 'aptgraft', 'culltree',
-          'apt', 'stfs', 'xiso', 'dbxbin', 'pipeline', 'stockmp', 'shaderdb', 'xenos', 'xenos_hlsl', 'pcbuild',
+          'apt', 'stfs', 'xiso', 'dbxbin', 'pipeline', 'stockmp', 'stockcore', 'shaderdb', 'xenos', 'xenos_hlsl', 'pcbuild',
           'testharness.runs', 'testharness.ingame', 'testharness.levelchecks', 'testharness', 'bfbc2core', 'bfbc2core.*',
           'bfbc2core.paths',
           'test_bc2loc_write', 'test_meshview', 'test_meshview_index', 'test_crashreader', 'test_exeref', 'test_types',

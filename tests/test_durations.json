@@ -148,6 +148,7 @@
  "3D tools open and draw (Map Inspector, Navigation Studio)": 17.5,
  "test harness on sp_009 and sp_004_b": 34.5,
  "stock-MP AI layer, Atacama Conquest built": 37.3,
+ "stock-MP AI: the Rust core against the Python on every MP level partition": 99.5,
  "NavKit regression, 2 small levels": 120.0,
  "Rust EA-XAS audio encoder / decoder against its recorded results (shift rule, seeded PCM of every shape, random frames, DICE's blocks)": 9.0,
  "Rust EA-XAS audio encoder: every 10th BF1943 Wave and in-memory BFBC2 Xbox Wave converted as recorded, byte for byte": 68.3,

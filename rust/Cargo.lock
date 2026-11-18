@@ -49,6 +49,7 @@ dependencies = [
  "bc2-navbuild",
  "bc2-scene",
  "bc2-shader",
+ "bc2-stockmp",
  "pyo3",
  "rayon",
 ]
@@ -70,6 +71,15 @@ dependencies = [
  "proptest",
  "rayon",
  "thiserror",
+]
+
+[[package]]
+name = "bc2-stockmp"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "rayon",
+ "sha1_smol",
 ]
 
 [[package]]
