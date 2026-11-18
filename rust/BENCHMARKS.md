@@ -635,10 +635,12 @@ rounds E2a, E3c, E3h and E3o's NavKit part. Retired (deleted; the module is requ
   `detail_pass` / `navdetail`, `Level.connected`, `step_fits`, `near_points`, `ladder_ends`, `objective_floor`,
   `closest_between`: not ported.
 
-**Settings the Rust core has no build for now raise** (`navbuild._unported`, `NotImplementedError` naming the
-commit to port them from) instead of running the deleted Python: `BRIDGE_UNION = False` (the old `clip_bridges`,
-which left open outline ends), `DEDUP_GRAPH_NODES = False`, `DETOUR_REPAIR = True` (`repair_detours`). All three are
-research switches off by default, set by no tool or test. Numbers of another type are cast where the Python's gates
+**Research switches removed** (the user's decision, a separate commit on `retire-r1`): `BRIDGE_UNION` (False was the
+old `clip_bridges`, which left open outline ends - a superseded bug path), `DEDUP_GRAPH_NODES` (False: two route
+nodes on one surface joined by zero-length edges - a superseded bug path) and `DETOUR_REPAIR` with
+`DETOUR_TRIGGER` / `DETOUR_MAX` / `DETOUR_LINK_ALL` / `DETOUR_PASSES` (`repair_detours`, a rejected experiment).
+The Rust core builds the exact bridge union and one node per surface only, as the defaults always did; no tool, CLI
+flag or test set them. Numbers of another type are cast where the Python's gates
 sent them to the reference (a NumPy integer or float32 pitch, origin, tile, window bound, `r`, `width`; normals of
 another float type for the flat test); triangles that are not n x 3 x 3, a sector window with a step, a mesh the core
 cannot read, a boundary or route graph that is not finite raise `ValueError`.

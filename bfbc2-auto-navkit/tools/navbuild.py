@@ -128,8 +128,6 @@ GABRIEL_EDGES = 'detailed'      # prune the route graph's walkable pairs to the 
                                 # 'detailed' = in pitch-0.2 sectors, 'all', or None. DICE's detailed-sector edges are 71 %
                                 # Gabriel (RNG 50 %), 2.7 edges per node; NavKit's all-visible-pairs rule gave 15.9 per node
                                 # there (174,024 edges against DICE's 24,710; ONS_MP_002, 2026-10-21)
-DEDUP_GRAPH_NODES = True        # at most one route node per surface (build_graph; DICE: only border pairs share one).
-                                # The Rust core's sector graph has only this rule: False raises (round R1, 2026-11-18)
 SORT_NODES_BY_ID = True         # a sector's nodes in the file sorted by unsigned id, border nodes last (finalize_graph)
 BORDER_OWNER = True             # node field c bit 16 only on the border copies the sector does not own (finalize_graph)
 ORDER_NODES = True              # a route node at AI order positions far from any node (build_graph; needs the level's
@@ -144,15 +142,8 @@ ORDER_MIN_ISLAND = 25           # an order node in a route island with fewer nod
                                 # stairs-top nodes and gains 0.26 connectivity / 0.6 AI pairwise). A size, not "the main
                                 # network": campaign levels have several large networks (sp_004_b: 2,577 and 1,255
                                 # nodes). Calibrated on campaign levels; to check on MP geometry (2026-10-20)
-DETOUR_REPAIR = False           # waypoint nodes where the route graph detours (repair_detours) - off: at 1.3x it added
-                                # 65 % nodes / 4x edges on sp_004_b, far tighter than DICE's own graph (2026-10-20). Its
-                                # Python went with build_graph's on 2026-11-18 (round R1; the Rust core's sector graph
-                                # has no detour repair): True raises - to try it again, port repair_detours (ee25186)
 LADDER_STATS: dict[str, int] = {}               # ladder links made, and ladders whose ends lie in two sectors (not linked yet)
 BORDER_NODE_SPACING = 10.0
-BRIDGE_UNION = True             # 45-degree bridges: outline from the exact union of the bridges (the Rust core's
-                                # trace_emit). False was the old clip_bridges, which left open ends (1.7-3.1 % of areas):
-                                # retired with trace_emit's Python on 2026-11-18 (round R1) - False raises
 MAX_WATER_DEPTH = 1.5           # ground deeper under water is not walkable (DICE's data: 99.9 % of its ground under
                                 # water is within 1.45 m, median over 11 levels; navwater.py)
 DETAIL_FEATURES = True          # D lines and F cells (navdetail.py): sides between two cells of one area whose heights
@@ -197,7 +188,7 @@ DETAIL_STATS: dict[str, int] = {}               # D lines, F cells and outline s
 # on 2026-11-18 (round R1; rust/BENCHMARKS.md "Retired Python"). The module is required (require_native, which a build
 # calls first); what the twins answered is recorded in tests/navbuild_golden.json (tests/test_navbuild_native.py), and
 # navregress stays the independent check against DICE's path data. Numbers the core takes are cast to them here (a
-# NumPy integer or float to int / float); a setting the core does not have raises (_unported).
+# NumPy integer or float to int / float).
 
 def require_native() -> Any:
     """The Rust core for the generator, or bfbc2core.native.NativeMissing saying how to get it."""
@@ -217,18 +208,6 @@ def _window(cfg: 'BuildSettings') -> tuple[int, int]:
 def _max_area() -> int | None:
     """build_areas' bisection size (BISECT_AREAS), as the Rust core takes it."""
     return int(MAX_AREA) if BISECT_AREAS else None
-
-
-def _unported() -> None:
-    """The settings whose Python went with round R1 (2026-11-18) and that the Rust core does not have: an error
-    naming them, not a silent other build."""
-    off = [name for name, bad in (('BRIDGE_UNION = False (clip_bridges)', not BRIDGE_UNION),
-                                  ('DEDUP_GRAPH_NODES = False', not DEDUP_GRAPH_NODES),
-                                  ('DETOUR_REPAIR = True (repair_detours)', DETOUR_REPAIR)) if bad]
-    if off:
-        raise NotImplementedError(", ".join(off) + ": retired with NavKit's Python twins on 2026-11-18 (round R1, "
-                                  'rust/BENCHMARKS.md "Retired Python"); the Rust core has no such build - port it '
-                                  "from the suite's commit ee25186 to use it again")
 
 
 def water_tops(s: navsample.Samples, vertices: np.ndarray | None, triangles: np.ndarray) -> np.ndarray:
@@ -770,7 +749,6 @@ def _trace_emit_many(level: Level, store: Any,
                      cfg: BuildSettings) -> list[list[Traced]]:
     """trace_emit for several sectors of a stage at once, in parallel in the Rust core (round E3h): jobs = [(the
     sector's index in store, per_area or None - the rows store keeps -, gi0, gj0, ox, oz)]."""
-    _unported()
     got = level.native().trace_emit_many(
         store, [(n, pa if pa is None or isinstance(pa, list) else list(pa), int(gi0), int(gj0), (float(ox), float(oz)))
                 for n, pa, gi0, gj0, ox, oz in jobs], float(cfg.pitch), float(cfg.y_offset), LINK_RULE)
@@ -783,7 +761,6 @@ def trace_emit(level: Level, areas: Sequence[AreaInfo], per_area: Sequence[EdgeR
     run per stretch of consecutive cells), and the 45-degree bridges between diagonal-only cells of the area (where
     neither cell has a connected surface beside it there) outlined as the boundary of their union, the area-cell sides
     they cover left out. In the Rust core (round E3c); per_area is left as it is."""
-    _unported()
     got = level.native().trace_emit([a['cells'] for a in areas], per_area if isinstance(per_area, list)
                                     else list(per_area), int(gi0), int(gj0), (float(ox), float(oz)), float(cfg.pitch),
                                     float(cfg.y_offset), LINK_RULE)
@@ -1018,7 +995,7 @@ def stage(samples_path: str | None, high_path: str | None, xoff: int, zoff: int,
                     t, k = run[int((q + 0.5) * len(run) / n)]
                     i, j = (line, t) if dX else (t, line)
                     pos = (ox + i * cfg.pitch, float(level.y[k]) + cfg.y_offset, oz + j * cfg.pitch)
-                    if DEDUP_GRAPH_NODES and k in border_at:
+                    if k in border_at:
                         # a surface already holding a border node (a sector corner: on both lines): the same
                         # node, shared with this neighbour too - DICE has border ids in 3 and 4 sectors; two ids
                         # on one spot were joined by zero-length edges (11 of 13 campaign levels, 2026-10-20)
@@ -1357,7 +1334,6 @@ def _number(v: Any) -> bool:
 
 def _graph_cfg(level: Level, cfg: BuildSettings) -> tuple[Any, ...]:
     """The build's settings as the Rust core's sector graph takes them (round E3h; numbers cast to Python floats)."""
-    _unported()
     cover = cfg.node_cover.get('detailed' if abs(cfg.pitch - DETAILED_PITCH) < 1e-6 else 'normal')
     s = level.s
     gabriel = GABRIEL_EDGES == 'all' or (GABRIEL_EDGES == 'detailed' and abs(cfg.pitch - DETAILED_PITCH) < 1e-6)
@@ -1403,7 +1379,7 @@ def build_graph(level: Level, areas: Sequence[AreaInfo], area_of: dict[int, int]
     """A sector's route graph: (pts, pairs), in the Rust core (round E3h: bc2_navbuild::sector; stage runs a stage's
     sectors at once). Nodes: one per area of 4+ cells (the cell nearest the cells' mean), one per portal pair (the
     area's cell nearest the portal's middle), the border nodes, NODE_COVER's coverage nodes - at most one per surface
-    and rounded position (DEDUP_GRAPH_NODES); pairs: nodes within DIST_EDGE_MAX whose straight line is walkable
+    and rounded position; pairs: nodes within DIST_EDGE_MAX whose straight line is walkable
     (line_walkable; GABRIEL_EDGES' pruning), the ladder links, then the groups joined (a grid search from one group to
     the nearest node of another, string-pulled into walkable legs with waypoint nodes), then the order nodes (an AI
     order position farther than ORDER_NODE_MIN from every node on its floor). area_of: each cell's surface -> its area,

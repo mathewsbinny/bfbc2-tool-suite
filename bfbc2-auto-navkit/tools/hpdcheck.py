@@ -4,11 +4,11 @@
 
 Checks, per file:
   closed boundaries   every area's outline, portals and border portals meet in pairs at every end point (DICE: no
-                      open area; an open one misleads point-in-area tests - navbuild.BRIDGE_UNION)
+                      open area; an open one misleads point-in-area tests - trace_emit's exact union of the bridges)
   edges               every edge's two node indices exist in its sector
   node order          each sector's nodes sorted by unsigned id, border nodes (id flag 80000000h) after the others
                       (the game binary-searches these arrays - navbuild.SORT_NODES_BY_ID)
-  zero-length edges   no edge between two different nodes at one position (navbuild.DEDUP_GRAPH_NODES)
+  zero-length edges   no edge between two different nodes at one position (build_graph: one route node per surface)
   detail features     every D line has 2+ points; every F polygon is closed (first point repeated) with a horizontal
                       unit direction (infantry files: +-x / +-z; vehicle files also diagonals) - navbuild.DETAIL_FEATURES
 Every check holds on DICE's 15 files (13 campaign levels, ONS_MP_002 / 004; 2026-10-23). Not checked: the owner bit
