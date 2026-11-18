@@ -2099,17 +2099,46 @@ compared, temporary files' `<pid>` suffix aside):
   archives and their errors; the usage errors - **228 of 228 identical**. Quick tier, about 40 s (the exe's starts).
 - **600 randomly damaged bundles** (cut, bits flipped, bytes replaced, junk appended) through `list` and `unpack`:
   **identical** (248 fail in both, 352 succeed in both).
-- **Game bundles**: 40 of up to 120 MB (30,177 entries) unpacked, listed and their unpacked folders packed again - and
-  after the parallel writer, 25 more: **identical**. Round E3j's test (`test_fbrb_unpack_native.py`) now asks for
-  FbrbTool's result on its 48 odd and damaged bundles (12 unpacked identically, 36 refused with the same files left
-  behind); it found the one case E3k's own cases had missed (two entries on one file in another case: `File.Create`
-  keeps the existing name; a write now moves onto the name already on disk).
-- **The logged invocations replayed** (16 and 17 November, outputs redirected to a temporary folder): of 21,654
-  launches, 15,727 distinct, 7,496 with their inputs still there; 320 replayed both ways - **identical** (nearly all
-  `unpack`: the `pack` inputs were temporary folders since deleted).
+- **Every bundle of the game copy unpacked** (round E3j's sweep, `test_fbrb_unpack_native.py --game`, on the merged
+  engine): **1,086 of 1,086 bundles identical, 445,372 files** (1,075 with payloads up to 300 MiB, then the 11 larger
+  one at a time). Its 48 odd and damaged bundles now ask for FbrbTool's result (12 unpacked identically, 36 refused
+  with the same files left behind); they found the one case E3k's own cases had missed (two entries on one file in
+  another case: `File.Create` keeps the existing name; a write now moves onto the name already on disk).
+- **Game bundles through every command** (`test_fbrbtool.py --game`): 40 of up to 120 MB (30,177 entries) unpacked,
+  listed and their unpacked folders packed again, on main after the merge: **identical**.
+- **The logged invocations replayed** (16 and 17 November, outputs redirected to a temporary folder; inputs only
+  read): 520 replayed both ways over three runs (the last: of 30,628 logged launches, 21,875 distinct, 10,998 with
+  their inputs still there) - **identical** (nearly all `unpack`: the `pack` inputs were temporary folders since
+  deleted).
 - `cargo test -p bc2-formats`: the engine's unit tests, E3j's unpack tests on it, `netgzip`'s.
 
-TIMINGS
+**Time** (`python rust\bench_fbrbtool.py --runs 5`, after the WW2 rebuild, below-normal priority; best / median of 5, the
+exe's start included; `unpack` into a fresh folder, `pack` of the exe's unpack of the same bundle):
+
+| command | bundle | MB | FbrbTool.exe | in process | faster (median) |
+|---|---|---:|---:|---:|---:|
+| list | `async\weapon\bu_shg_f2000-00` | 0.4 | 41 / 43 ms | 3 / 4 ms | 12x |
+| unpack | | | 54 / 55 ms | 12 / 12 ms | 4.5x |
+| pack | | | 71 / 77 ms | 27 / 29 ms | 2.7x |
+| list | `levels\mp_007\ingame-00` | 1.7 | 53 / 56 ms | 6 / 7 ms | 8x |
+| unpack | | | 58 / 59 ms | 9 / 9 ms | 6.3x |
+| pack | | | 134 / 136 ms | 79 / 80 ms | 1.7x |
+| list | `levels\mp_006sdm\level-00` (1,747 files) | 18.9 | 559 / 570 ms | 147 / 150 ms | 3.8x |
+| unpack | | | 1,348 / 2,685 ms | 478 / 552 ms | 4.9x |
+| pack | | | 2,777 / 2,823 ms | 2,784 / 2,793 ms | 1.0x |
+| list | `streaming_sounds-00` (stored) | 592.5 | 258 / 293 ms | 5 / 6 ms | 48x |
+| unpack | | | 4,077 / 4,352 ms | 1,469 / 1,672 ms | 2.6x |
+| pack | | | 1,303 / 3,730 ms | 1,112 / 2,320 ms | 1.6x |
+
+Over the game tier's 40 bundles (up to 120 MB): unpack 17.7 -> 7.3 s, list 4.0 -> 0.7 s, pack 13.1 -> 10.6 s; round
+E3j's sweep of 1,086 bundles: unpack 560 -> 211 s. Where the time goes: a small call was mostly .NET starting (40 - 50
+ms); `list` of a zipped bundle is the payload's inflate (FbrbTool decompresses all of it even to list, and so must the
+port: it prints the payload's length and fails where a damaged payload fails); `list` of a stored bundle reads only
+its header (the exe read 592 MB). `unpack` is file creation: entries are checked in order and written on all cores,
+each beside its name and moved over it (on 1,747 files: 1,074 ms written one by one with the moves, 703 ms without them,
+552 ms on all cores with them). `pack` of a zipped bundle is the deflate of the payload at zlib's level 6 in one stream
+- FbrbTool's bytes need .NET's single stream, so it cannot be split across cores; the suite's port of zlib's deflate (E1b)
+runs as fast as .NET's native zlib. The gains are in the calls: a launch per call is gone.
 
 **Callers switched.** In the suite: NavKit's unpack (`navkit.Project.run`), `level.heightfield_of`'s terrain unpack and
 `bfbc2-stockmp-ai`'s `pipeline.run` go through `fbrbtool.run_cmd`; `bfbc2core.fbrb.unpack` (E3j's) is the same engine.

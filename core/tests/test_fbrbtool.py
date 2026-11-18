@@ -307,7 +307,7 @@ def cases() -> list[tuple[str, dict[str, Any], list[str]]]:
     add('unpack: illegal characters in the output folder', built, 'unpack', '{d}\\b1.fbrb', '{d}\\o|ut')
     # pack
     man = '# fbrb.manifest - entry order matters. name|type|flags(hex)|size2|size  zipped=1\r\n'
-    good = {'f\\a.res': b'hello', 'f\\b\\c.res': b'x' * 100}
+    good: dict[str, Any] = {'f\\a.res': b'hello', 'f\\b\\c.res': b'x' * 100}
 
     def pk(name: str, manifest: str | bytes | None, extra: dict[str, Any] | None = None, out: str = '{d}\\o.fbrb') -> None:
         files = dict(good)
@@ -346,8 +346,8 @@ def cases() -> list[tuple[str, dict[str, Any], list[str]]]:
         pk(f'size2 {size2!r}', man + f'a.res|T|1|{size2}|5\r\n')
     for size in ('', 'x', '99999999999', '-0'):
         pk(f'size {size!r}', man + f'a.res|T|1|5|{size}\r\n')
-    for hdr in ('x', '99999999999', ''):
-        pk(f'hdr={hdr}', man.replace('zipped=1', f'zipped=0 hdr={hdr}') + 'a.res|T|1|5|5\r\n')
+    for hdr_text in ('x', '99999999999', ''):
+        pk(f'hdr={hdr_text}', man.replace('zipped=1', f'zipped=0 hdr={hdr_text}') + 'a.res|T|1|5|5\r\n')
     pk('an unsafe name', man + '../x.res|T|1|5|5\r\n')
     pk('names normalised as .NET does', man + 'b/./c.res|T|1|100|100\r\nb. /c.res . |T|1|100|100\r\n'
        'x/../a.res|T|1|5|5\r\n')
@@ -415,7 +415,8 @@ def damaged(check: Any, root: str, n: int = 300, seed: int = 5) -> None:
     sources = [bundle(BASIC, True), bundle(BASIC, False), bundle(PADDED, False, 'align4096', 4096, True),
                bundle([(f'e{i}.res', 'T', 0x10000, bytes(rnd.randrange(256) for _ in range(rnd.randrange(0, 3000))))
                        for i in range(12)], True)]
-    bad, kinds = [], {}
+    bad: list[str] = []
+    kinds: dict[Any, int] = {}
     for i in range(n):
         b = bytearray(rnd.choice(sources))
         k = rnd.randrange(4)
@@ -516,7 +517,8 @@ def gzip_reader(check: Any, root: str, n: int = 1500) -> None:
         write(p, g)
         paths.append(p)
     theirs = subprocess.run([exe], input='\n'.join(paths) + '\n', capture_output=True, text=True).stdout.splitlines()
-    bad, kinds = [], {}
+    bad: list[str] = []
+    kinds: dict[Any, int] = {}
     for p, g, t in zip(paths, streams, theirs):
         for managed in (False, True):
             ok, value = NATIVE.fbrbtool_gunzip(g, managed)
@@ -603,7 +605,7 @@ def game_bundles(n: int, max_mb: float) -> list[str]:
     return sorted(rnd.sample(small, min(n, len(small))), key=os.path.getsize)
 
 
-def game(check: Any, root: str, n: int, max_mb: float, timings: dict[str, list[float]]) -> None:
+def game(check: Any, root: str, n: int, max_mb: float, timings: dict[str, list[tuple[float, float, int]]]) -> None:
     bad, entries, done = [], 0, 0
     for p in game_bundles(n, max_mb):
         for args_of, files_of, cmd in (
@@ -615,7 +617,8 @@ def game(check: Any, root: str, n: int, max_mb: float, timings: dict[str, list[f
             if not ok:
                 bad.append(f'{os.path.basename(p)} {cmd}: {why}')
             if cmd == 'list':
-                entries += int(re.search(r'(\d+) entries, payload', a[1]).group(1)) if a[0] == 0 else 0
+                m = re.search(r'(\d+) entries, payload', a[1])
+                entries += int(m.group(1)) if a[0] == 0 and m else 0
         # pack the exe's unpacked folder both ways
         src = os.path.join(root, 'src')
         shutil.rmtree(src, ignore_errors=True)
@@ -699,7 +702,7 @@ def main(argv: list[str]) -> int:
         gzip_reader(check, root, n=3000 if game_tier else 500)
         api(check, root)
         if '--game' in argv and HAVE_EXE:
-            timings: dict[str, list[float]] = {}
+            timings: dict[str, list[tuple[float, float, int]]] = {}
             game(check, root, int(opt('--sample', 40)), opt('--max-mb', 120), timings)
             for cmd, rows in timings.items():
                 e, r = sum(x[0] for x in rows), sum(x[1] for x in rows)
