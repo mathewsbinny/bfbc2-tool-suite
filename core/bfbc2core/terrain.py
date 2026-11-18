@@ -19,10 +19,11 @@ Layout (all little-endian; checked against the in-game terrain samples of 13 cam
     then               u32 x size offsets (u16 units) into the tail's first section, then u16 values: the first
                        section, then a part of fixed length (62,474 bytes at 1024, 256,012 at 2048) - not decoded
 
-parse / read run in the suite's Rust core (rust/, module bc2_native: bc2_formats::terrain) when it is built, else in
-Python here; both give bit-identical heights and refuse the same files with ValueError
-(core/tests/test_geometry_native.py: every height field of the game copy). BFBC2_PURE_PYTHON=1 (or use_native(False))
-forces Python; backend() says which one runs. The Rust core also reads the tail's known layout (tail()).
+parse / read run in the suite's Rust core (rust/, module bc2_native: bc2_formats::terrain), which also reads the
+tail's known layout (tail()). The Python reader was retired on 2026-11-18 (round F1a, rust/BENCHMARKS.md "Retired
+Python"); its answers on every height field of the game copy are kept as recorded digests
+(core/tests/geometry_golden.json, compared by test_geometry_native.py). Without the module these functions raise
+bfbc2core.native.NativeMissing saying how to get it.
 """
 import os
 import struct
@@ -31,8 +32,6 @@ from types import ModuleType
 from typing import Any, cast
 
 import numpy as np
-
-from . import dbx as _dbx
 
 HEADER = struct.Struct('<6f6IB')
 
@@ -76,60 +75,27 @@ class Heightfield:
         return verts, tris
 
 
-# ------------------------------------------------------------------------------------------------ backend
-
-def _with_terrain(m: ModuleType | None) -> ModuleType | None:
-    """m when it has the terrain reader (a module built before it was added does not)."""
-    return m if m is not None and hasattr(m, 'terrain_heights') else None
+_native: ModuleType | None = None
 
 
-def _load_native() -> ModuleType | None:
-    """The Rust core (found as dbx finds it) unless BFBC2_PURE_PYTHON is set."""
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    return _with_terrain(_dbx._import_native())
-
-
-_native = _load_native()
-
-
-def backend() -> str:
-    """'rust' when height fields are read in the Rust core, else 'python'."""
-    return 'rust' if _native is not None else 'python'
-
-
-def use_native(on: bool) -> str:
-    """The Rust core on (when it is built, whatever BFBC2_PURE_PYTHON says) or off for this process; returns
-    backend()."""
+def _rust() -> ModuleType:
+    """The Rust core, or NativeMissing saying how to get it."""
     global _native
-    _native = _with_terrain(_dbx._import_native()) if on else None
-    return backend()
+    if _native is None:
+        from . import native
+        _native = native.require('the terrain reader (bfbc2core.terrain)', 'terrain_heights')
+    return _native
 
-
-# ------------------------------------------------------------------------------------------------ the API
 
 def parse(data: bytes) -> Heightfield:
     """A TerrainHeightfield's bytes as a Heightfield. ValueError when it is too short for its header or its size is
     0, not a power of two or larger than the file holds."""
+    m = _rust()
     data = data if type(data) is bytes else bytes(data)
-    if _native is not None:
-        lo, hi, size, heights = _native.terrain_heights(data)
-        raw = np.frombuffer(data, '<u2', size * size, HEADER.size).reshape(size, size)
-        return Heightfield(np.array(lo, dtype=np.float64), np.array(hi, dtype=np.float64), size, raw,
-                           np.frombuffer(heights, np.float32).reshape(size, size))
-    return _py_parse(data)
-
-
-def _py_parse(data: bytes) -> Heightfield:
-    if len(data) < HEADER.size:
-        raise ValueError(f'not a TerrainHeightfield (the file has {len(data)} bytes, the header {HEADER.size})')
-    f = HEADER.unpack_from(data, 0)
-    lo, hi, size = np.array(f[0:3]), np.array(f[3:6]), f[6]
-    if size <= 0 or size & (size - 1) or HEADER.size + 2 * size * size > len(data):
-        raise ValueError(f'not a TerrainHeightfield (size {size})')
+    lo, hi, size, heights = m.terrain_heights(data)
     raw = np.frombuffer(data, '<u2', size * size, HEADER.size).reshape(size, size)
-    heights = (lo[1] + raw * ((hi[1] - lo[1]) / 65535.0)).astype(np.float32)
-    return Heightfield(lo, hi, size, raw, heights)
+    return Heightfield(np.array(lo, dtype=np.float64), np.array(hi, dtype=np.float64), size, raw,
+                       np.frombuffer(heights, np.float32).reshape(size, size))
 
 
 def read(path: str) -> Heightfield:
@@ -142,13 +108,10 @@ def read(path: str) -> Heightfield:
 
 
 def tail(data: bytes) -> tuple[tuple[Any, ...], tuple[int, ...]]:
-    """The bytes after the heights as far as their layout is known, with the Rust core only (bc2_formats::terrain::
-    Tail): (('sections', offsets u32 bytes, first section u16 bytes, fixed part u16 bytes) | ('quadtree', u16 pairs)
-    | ('unknown', bytes), (log2 - 3, log2 - 2 or 0, 0, size / 256, 0, 0, first section length))."""
-    m = _with_terrain(_dbx._import_native())
-    if m is None:
-        raise RuntimeError('terrain.tail needs the Rust core (rust/build_native.py)')
-    return cast('tuple[tuple[Any, ...], tuple[int, ...]]', tuple(m.terrain_tail(bytes(data))))
+    """The bytes after the heights as far as their layout is known (bc2_formats::terrain::Tail): (('sections',
+    offsets u32 bytes, first section u16 bytes, fixed part u16 bytes) | ('quadtree', u16 pairs) | ('unknown', bytes),
+    (log2 - 3, log2 - 2 or 0, 0, size / 256, 0, 0, first section length))."""
+    return cast('tuple[tuple[Any, ...], tuple[int, ...]]', tuple(_rust().terrain_tail(bytes(data))))
 
 
 def find(folder: str, lv: str) -> str | None:

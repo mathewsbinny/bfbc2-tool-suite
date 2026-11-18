@@ -41,6 +41,9 @@
 //! (`xas_encode`, `xas_encode_many`, `xas_decode_frames`) that `bfbc2-console-convert/audio.py` needs;
 //! `mesh_vertices`, `havok_convert_packfile` / `havok_verify_packfile` / `HavokClasses` (rounds E3g, E3o) for
 //! `mesh.py` and `havok.py`.
+//!
+//! The map and bot test harness and the crash-reader tools (`harness.rs`, round E4f): `harness_sessions` /
+//! `harness_sessions_file`, `crash_log_before`, `harness_pair_bits`, `HarnessCells` and `ExeHandle`.
 
 mod apt;
 mod aptmodel;
@@ -48,10 +51,12 @@ mod console;
 mod convert;
 mod culltree;
 mod dbxedit;
+mod dbxport;
 mod fbrb_cache;
 mod fbrbtool;
 mod geometry;
 mod granny;
+mod harness;
 mod kymesh;
 mod loc;
 mod meshdata;
@@ -366,6 +371,8 @@ mod bc2_native {
     #[pymodule_export]
     use super::dbxedit::{dbxedit_run, dbxedit_run_many};
     #[pymodule_export]
+    use super::dbxport::{DbxCatalogue, DbxTemplates, dbx_instance_guids, dbxport_port};
+    #[pymodule_export]
     use super::fbrb_cache::{
         fbrb_cache_clear, fbrb_cache_config, fbrb_cache_configure, fbrb_cache_stats, fbrb_read_uncached,
     };
@@ -392,6 +399,12 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::culltree::{culltree_contains, culltree_dbx_files, culltree_elements};
+
+    #[pymodule_export]
+    use super::harness::{
+        ExeHandle, HarnessCells, crash_log_before, harness_pair_bits, harness_sessions, harness_sessions_file,
+        harness_x86_decode,
+    };
 
     #[pymodule_export]
     use super::convert::{

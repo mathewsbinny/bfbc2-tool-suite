@@ -71,8 +71,8 @@ def run(*args: object, ok: tuple[int, ...] = (0,)) -> str:
 
 
 def pack_bundle(folder: str, out: str) -> None:
-    """FbrbTool's pack of folder into out: in the Rust core when it is built, else by FbrbTool.exe (the same bytes,
-    bfbc2core.fbrb.pack); a folder that cannot be packed stops the build."""
+    """FbrbTool's pack of folder into out, in the Rust core (the same bytes, bfbc2core.fbrb.pack); a folder that
+    cannot be packed stops the build."""
     try:
         corefbrb.pack(folder, out)
     except (ValueError, OSError) as e:
@@ -80,8 +80,8 @@ def pack_bundle(folder: str, out: str) -> None:
 
 
 def pack_bundles(items: list[tuple[str, str]]) -> None:
-    """pack_bundle of each (folder, out), together (bfbc2core.fbrb.pack_many: on all cores with the Rust core, else
-    FbrbTool.exe one by one); the first folder that cannot be packed stops the build, as pack_bundle says it."""
+    """pack_bundle of each (folder, out), together (bfbc2core.fbrb.pack_many: on all cores); the first folder that
+    cannot be packed stops the build, as pack_bundle says it."""
     for (folder, out), r in zip(items, corefbrb.pack_many(items)):
         if isinstance(r, Exception):
             raise BuildError(f'failed: pack {folder} -> {out}: {r}') from r
@@ -99,8 +99,8 @@ def build_folder(bundle: str, src: str, dst: str) -> None:
 
 
 def unpack_bundle(bundle: str, d: str) -> None:
-    """FbrbTool's unpack of bundle into d: in the Rust core for the bundles it takes, else by FbrbTool.exe (the same
-    files and manifest, bfbc2core.fbrb.unpack); a bundle that cannot be unpacked stops the build."""
+    """FbrbTool's unpack of bundle into d, in the Rust core (the same files and manifest, bfbc2core.fbrb.unpack); a
+    bundle that cannot be unpacked stops the build."""
     try:
         corefbrb.unpack(bundle, d)
     except (ValueError, OSError) as e:
