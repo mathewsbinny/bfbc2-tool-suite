@@ -21,3 +21,7 @@ core/bfbc2core/bc2_native*.so
 core/bfbc2core/bc2_native.pyd.*
 core/bfbc2core/bc2_native.json
 core/bfbc2core/bc2_native.json.tmp
+
+# a personal override of the application icon (round I1): read by the builds and the hub before the committed
+# design/icons/app.ico, never committed (README.md, "The application icon")
+design/icons/local/

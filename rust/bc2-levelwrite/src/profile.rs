@@ -17,6 +17,8 @@
 //!   donor's.
 //! - **The team labels** are the donor's `FactionTeam1` / `2` read through the profile (`bc2-editor`'s
 //!   `factions::faction_side`: `FactionRUS` is RU, NVA or JP).
+//! - **The announcer** (round E3c, [`Announcer`]) is the donor's: its own line banks and trigger sets (a WW2 level's;
+//!   the other sets' are their commons'), its `vo/<lang>` blocks and manifest lines, its own voice-over bundles.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
@@ -47,6 +49,136 @@ pub struct Donor {
     /// Its `LevelData`'s own fields (name -> value: a text, or a reference).
     #[serde(skip)]
     pub fields: BTreeMap<String, String>,
+    /// Its announcer's voice-over data (round E3c).
+    #[serde(default)]
+    pub announcer: Announcer,
+}
+
+/// The partition prefixes of the announcer's data: the line banks (`sound/vo/vo_common`, `vo_en` ...) and the trigger
+/// sets (`sound/vo_triggers/...`) the mode layer's `VoiceOvers` name.
+pub const ANNOUNCER_PREFIXES: [&str; 2] = ["sound/vo/", "sound/vo_triggers/"];
+
+/// Whether an entry name is announcer data ([`ANNOUNCER_PREFIXES`]).
+#[must_use]
+pub fn is_announcer(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    ANNOUNCER_PREFIXES.iter().any(|p| n.starts_with(p))
+}
+
+/// A level's announcer voice-over data as the game copy has it (round E3c), read from the level's own bundles and
+/// its `package.mft` / `bundleManifest` entries. On OPFOR's game copy:
+///
+/// - **BFBC2** (`mp_009cq`): no line bank or Conquest trigger set of its own (they are `mp_common`'s; OPFOR's `mp_001`
+///   adds two Squad Deathmatch trigger sets); seven `vo/<lang>` blocks targeting `mp1_common`'s voice-over bundles,
+///   the level's own absent (DICE's `mp_sp_005cq`, made with the DLC's `mp2_common`, targets BFBC1's);
+/// - **BFBC1** (`bc1_*`): `mp2_common`'s banks (its copies come before `mp_common`'s); seven blocks targeting
+///   `mp2_common`'s then `mp_common`'s voice-over bundles, the level's own absent;
+/// - **Vietnam** (`nam_mp_*`): `nam_common`'s, the blocks targeting `nam_common`'s then `mp_common`'s;
+/// - **WW2** (OPFOR's Pacific War levels): the level's own banks and trigger sets (BF1943's lines merged into
+///   BFBC2's banks, the level's `GameInfo` set), its own `vo/en-00` bundle of BF1943's waves in `Package`, one
+///   `vo/en` block targeting `mp1_common`'s English bundle.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Announcer {
+    /// Its own level bundles' live announcer entries ([`is_announcer`]), as named there, by name (an export copies
+    /// those its layer reaches).
+    pub partitions: Vec<String>,
+    /// Its `vo/<lang>` blocks of `package.mft`, in order: (`vo/en`, the targets).
+    pub blocks: Vec<(String, Vec<String>)>,
+    /// The `vo/<lang>` bundles `bundleManifest` names for it (`vo/en`).
+    pub manifest: Vec<String>,
+    /// Its own `vo/<lang>` bundles that are there: (`vo/en`, the bundle as `package.mft` names it).
+    pub bundles: Vec<(String, String)>,
+}
+
+impl Announcer {
+    /// A level's announcer data, read from the game copy.
+    ///
+    /// # Errors
+    /// A bundle does not read.
+    pub fn of(game: &Game, lv: &str) -> Result<Self> {
+        let low = lv.to_ascii_lowercase();
+        let own = game.live(&game.level_bundles(&low, "level"))?;
+        let mut partitions: Vec<String> = own
+            .values()
+            .filter(|(_, e)| is_announcer(&e.name))
+            .map(|(_, e)| e.name.clone())
+            .collect();
+        partitions.sort_by_key(|n| n.to_ascii_lowercase());
+        let blocks = game.vo_blocks(&low);
+        let mut manifest = Vec::new();
+        let mut bundles = Vec::new();
+        for (kind, _) in &blocks {
+            if game.in_manifest(&format!("levels/{low}/{kind}")) {
+                manifest.push(kind.clone());
+            }
+            if let Some(b) = [
+                format!("package:levels/{low}/{kind}-00.fbrb"),
+                format!("game:levels/{low}/{kind}-00.fbrb"),
+            ]
+            .into_iter()
+            .find(|b| game.bundle(b).is_file())
+            {
+                bundles.push((kind.clone(), b));
+            }
+        }
+        Ok(Self {
+            partitions,
+            blocks,
+            manifest,
+            bundles,
+        })
+    }
+
+    /// The blocks as a new level `lv` takes them: its own source, a target in the donor's own folder re-pointed to
+    /// the new level's, the rest as they are.
+    #[must_use]
+    pub fn blocks_for(&self, donor: &str, lv: &str) -> Vec<Vec<String>> {
+        let (d, l) = (donor.to_ascii_lowercase(), lv.to_ascii_lowercase());
+        let from = format!("levels/{d}/");
+        self.blocks
+            .iter()
+            .map(|(kind, targets)| {
+                let mut lines = vec![format!("BundleSource game:levels/{l}/{kind}-00.fbrb")];
+                for t in targets {
+                    let lt = t.to_ascii_lowercase();
+                    let t = match lt.find(&from) {
+                        Some(i) => format!(
+                            "{}levels/{l}/{}",
+                            lt.get(..i).unwrap_or_default(),
+                            lt.get(i + from.len()..).unwrap_or_default()
+                        ),
+                        None => t.clone(),
+                    };
+                    lines.push(format!("BundleTarget {t}"));
+                }
+                lines
+            })
+            .collect()
+    }
+
+    /// One line for reports.
+    #[must_use]
+    pub fn describe(&self) -> String {
+        format!(
+            "{} partitions of its own{}; voice-over blocks {}; its own voice-over bundles {:?}",
+            self.partitions.len(),
+            if self.partitions.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", self.partitions.join(", "))
+            },
+            if self.blocks.is_empty() {
+                "none".to_owned()
+            } else {
+                self.blocks
+                    .iter()
+                    .map(|(k, t)| format!("{k} -> {}", t.join(" + ")))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            },
+            self.bundles.iter().map(|b| &b.1).collect::<Vec<_>>()
+        )
+    }
 }
 
 impl Donor {
@@ -358,6 +490,7 @@ fn donor(game: &Game, l: &Listed, given: &HashSet<String>) -> Result<Donor> {
         capture_points: mpconvert::capture_points(&w),
         outside,
         fields: level_fields(&w),
+        announcer: Announcer::of(game, &l.lv)?,
     })
 }
 

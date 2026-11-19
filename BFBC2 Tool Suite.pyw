@@ -23,7 +23,7 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit')
 import bfbc2core  # noqa: E402
-from bfbc2core import errors, native  # noqa: E402
+from bfbc2core import appicon, errors, native  # noqa: E402
 
 # library -> what needs it (checked when the window opens)
 LIBRARIES = [('numpy', 'every tool'), ('matplotlib', 'NavKit, screenshots'), ('moderngl', 'the 3D tools'),
@@ -99,6 +99,7 @@ class Hub:
         self.proc = None                       # the tab's running tool (one at a time)
         root.title(f'BFBC2 Tool Suite {bfbc2core.__version__}')
         root.minsize(900, 640)
+        appicon.apply(root)                    # the suite's icon (round I1), when there is one
         with contextlib.suppress(tk.TclError):
             ttk.Style().theme_use('vista')
         self.pr = None

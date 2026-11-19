@@ -18,7 +18,7 @@
     reason = "entry names are compared lower case (DICE's names mix cases)"
 )]
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -37,10 +37,10 @@ use crate::write::LevelWriter;
 pub const FORMAT: &str = "bfbc2-mapexport";
 /// The export file's `version`.
 pub const VERSION: u32 = 1;
-/// The bundles of a new level, as `package.mft` and `bundleManifest` name them (`wake_install.KINDS` less `vo/en`:
-/// the stock levels' voice-over bundles are registered but absent from the game copy, and a new level registered
-/// with a bundle it does not have crashes the start-up checksum - so it ships and registers none; its announcer's
-/// lines are the common bundles').
+/// The bundles every new level has, as `package.mft` and `bundleManifest` name them (`wake_install.KINDS` less
+/// `vo/en`). Its voice-over blocks are the donor's (round E3c, [`crate::profile::Announcer`]): the stock levels'
+/// `vo/<lang>` sources are absent from the game copy and their blocks target the common voice-over bundles, which
+/// are there; a WW2 level's own `vo/en-00` is in `Package`, and the export ships a copy of it.
 pub const KINDS: [&str; 4] = ["level", "terrain", "ingame", "loader"];
 /// An entry's flags in every level bundle of the game (`0x10000`).
 pub const FLAGS: u32 = 0x10000;
@@ -199,6 +199,8 @@ pub struct Game {
     /// The game folder (OPFOR's `game\`).
     pub root: PathBuf,
     mft: Vec<(String, Vec<String>)>,
+    /// `bundleManifest`'s bundle names (`levels/mp_009cq/vo/en`), lower case; empty when there is none.
+    manifest: Vec<String>,
 }
 
 /// A live entry of a set of bundles: (bundle, entry).
@@ -212,10 +214,38 @@ impl Game {
     pub fn open(root: &Path) -> Result<Self> {
         let p = root.join("Dist").join("win32").join("package.mft");
         let text = std::fs::read(&p).map_err(|e| err(format!("{}: {e}", p.display())))?;
+        let bm = std::fs::read(root.join("Dist").join("win32").join("bundleManifest")).unwrap_or_default();
         Ok(Self {
             root: root.to_path_buf(),
             mft: parse_mft(&String::from_utf8_lossy(&text)),
+            manifest: String::from_utf8_lossy(&bm)
+                .lines()
+                .filter_map(|l| l.split('\t').next())
+                .map(|n| n.trim().to_ascii_lowercase())
+                .filter(|n| !n.is_empty())
+                .collect(),
         })
+    }
+
+    /// Whether `bundleManifest` names a bundle (`levels/mp_009cq/vo/en`).
+    #[must_use]
+    pub fn in_manifest(&self, name: &str) -> bool {
+        let n = name.to_ascii_lowercase();
+        self.manifest.contains(&n)
+    }
+
+    /// A level's voice-over blocks of `package.mft`, in its order: (`vo/en`, the block's targets).
+    #[must_use]
+    pub fn vo_blocks(&self, lv: &str) -> Vec<(String, Vec<String>)> {
+        let prefix = format!("game:levels/{}/", lv.to_ascii_lowercase());
+        self.mft
+            .iter()
+            .filter_map(|(s, t)| {
+                let rest = s.to_ascii_lowercase().strip_prefix(&prefix)?.to_owned();
+                let kind = rest.strip_suffix("-00.fbrb")?;
+                kind.starts_with("vo/").then(|| (kind.to_owned(), t.clone()))
+            })
+            .collect()
     }
 
     /// A bundle named as `package.mft` names it (`game:levels/x/level-00.fbrb` is `Dist\win32\...`, `package:...`
@@ -448,6 +478,10 @@ pub struct StageRecord {
     /// The pictures an install adds to the on-demand awards bundle (`install`: the entry's name).
     #[serde(default)]
     pub awards: Vec<StagedFile>,
+    /// The donor's own announcer partitions copied into the level's bundle (round E3c; a WW2 donor's line banks and
+    /// trigger sets), by name.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub announcer: Vec<String>,
 }
 
 /// Root files the engine finds by a level's name (`console_onslaught.rename_level_files`, `wake_install.ROOT_FILES`):
@@ -596,15 +630,16 @@ pub fn mft_blocks(game: &Game, lv: &str, base: &str, profile: &ContentProfile) -
 /// The new level's `bundleManifest` lines (`wake_install.bm_with_level`).
 #[must_use]
 pub fn bundle_manifest_lines(lv: &str) -> Vec<String> {
-    KINDS
-        .iter()
-        .map(|k| {
-            format!(
-                "levels/{}/{k}\t00000000-0000-0000-0000-000000000000\t1",
-                lv.to_ascii_lowercase()
-            )
-        })
-        .collect()
+    KINDS.iter().map(|k| bundle_manifest_line(lv, k)).collect()
+}
+
+/// One `bundleManifest` line of a level's bundle (`levels/<lv>/vo/en\t<null guid>\t1`).
+#[must_use]
+pub fn bundle_manifest_line(lv: &str, kind: &str) -> String {
+    format!(
+        "levels/{}/{kind}\t00000000-0000-0000-0000-000000000000\t1",
+        lv.to_ascii_lowercase()
+    )
 }
 
 fn pack_entries(entries: &[StagedEntry]) -> Result<Vec<u8>> {
@@ -913,10 +948,75 @@ pub fn build(
         },
     ];
     level_all.extend(level_entries);
+    // the announcer's voice-over as the donor's set has it (round E3c): the donor's own line banks and trigger sets
+    // (a WW2 level's: BF1943's lines; BFBC2's, BFBC1's and Vietnam's levels have none, theirs are the commons') into
+    // the level's own bundle, which comes first, so the layer's triggers name what the donor's do
+    let ann = &donor_info.announcer;
+    let mut announcer = Vec::new();
+    if !ann.partitions.is_empty() {
+        // what the layer reaches of them: the level's references into announcer partitions, followed through the
+        // donor's own copies (OPFOR's mp_001 holds Squad Deathmatch trigger sets no Conquest layer names)
+        let own = game.live(&game.level_bundles(&donor_lv, "level"))?;
+        let mut have: HashSet<String> = level_all.iter().map(|e| e.name.to_ascii_lowercase()).collect();
+        let announcer_refs = |data: &[u8]| -> Vec<String> {
+            EditDbx::parse(data).map_or_default(|d| {
+                refs_of(&d)
+                    .into_iter()
+                    .filter_map(|r| {
+                        r.rsplit_once('/')
+                            .map(|(p, _)| format!("{}.dbx", p.to_ascii_lowercase()))
+                    })
+                    .filter(|n| crate::profile::is_announcer(n))
+                    .collect()
+            })
+        };
+        let mut todo: Vec<String> = level_all.first().map_or_default(|e| announcer_refs(&e.data));
+        while let Some(n) = todo.pop() {
+            if have.contains(&n) {
+                continue;
+            }
+            let Some(f) = own.get(&n) else { continue };
+            have.insert(n);
+            let data = read_found(&[f])?.pop().unwrap_or_default();
+            todo.extend(announcer_refs(&data));
+            announcer.push(StagedEntry {
+                name: f.1.name.clone(),
+                type_name: f.1.type_name.clone(),
+                data,
+            });
+        }
+        announcer.sort_by(|a, b| a.name.cmp(&b.name));
+    }
+    report.push(format!(
+        "announcer: {} of the donor's own partitions copied{}",
+        announcer.len(),
+        if announcer.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " ({})",
+                announcer.iter().map(|e| e.name.as_str()).collect::<Vec<_>>().join(", ")
+            )
+        }
+    ));
+    let announcer: Vec<String> = announcer
+        .into_iter()
+        .map(|e| {
+            let n = e.name.clone();
+            level_all.push(e);
+            n
+        })
+        .collect();
+    report.push(format!(
+        "announcer: {}'s ({} voice-over): {}",
+        donor_lv,
+        spec.profile.word(),
+        ann.describe()
+    ));
     // the partitions the layer names that the bundles the level loads do not give: the base's deleted markers hide
     // mp_common's flags and spawn camera (SP_01), a WW2 donor's team kits and flags are in its own bundle - copied
     // from the profile's common bundles, else the donor's, into the level's own bundle, which comes first
-    let blocks = mft_blocks(game, &low, &base, prof);
+    let mut blocks = mft_blocks(game, &low, &base, prof);
     let mut block_loaded: Vec<PathBuf> = blocks.first().map_or_default(|b| {
         b.iter()
             .filter_map(|l| l.strip_prefix("BundleTarget "))
@@ -979,6 +1079,7 @@ pub fn build(
             let _ = std::fs::remove_file(out.join(format!("{k}-00.fbrb")));
         }
         let _ = std::fs::remove_dir_all(out.join("awards"));
+        let _ = std::fs::remove_dir_all(out.join("vo"));
         for p in ["preview_loading.png", "preview_level.png"] {
             let _ = std::fs::remove_file(out.join(p));
         }
@@ -1019,6 +1120,31 @@ pub fn build(
     put("terrain", pack_entries(&terrain)?, terrain.len())?;
     put("ingame", pack_entries(&ingame)?, ingame.len())?;
     put("loader", pack_entries(&loader)?, loader.len())?;
+    // the donor's own voice-over bundles (a WW2 level's vo/en-00: BF1943's waves), byte for byte, and the donor's
+    // voice-over blocks and manifest lines under the new name (round E3c)
+    for (kind, b) in &ann.bundles {
+        let bytes = std::fs::read(game.bundle(b))?;
+        let n = fbrb::entries_path(game.bundle(b))
+            .map_err(|e| err(format!("{b}: {e}")))?
+            .entries
+            .len();
+        let path = format!("{kind}-00.fbrb");
+        let p = out.join(&path);
+        if let Some(dir) = p.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::write(&p, &bytes)?;
+        files.push(StagedFile {
+            install: format!("Package/levels/{low}/{path}"),
+            path,
+            sha1: sha1_hex(&bytes),
+            size: bytes.len() as u64,
+            entries: n,
+        });
+    }
+    blocks.extend(ann.blocks_for(&donor_lv, &low));
+    let mut manifest = bundle_manifest_lines(&low);
+    manifest.extend(ann.manifest.iter().map(|k| bundle_manifest_line(&low, k)));
     let desc_file = format!("{lv}_description.dbx");
     std::fs::write(out.join(&desc_file), &desc_bytes)?;
     report.push(format!(
@@ -1040,13 +1166,14 @@ pub fn build(
         files,
         description: (desc_file, desc_name),
         mft_blocks: blocks,
-        bundle_manifest: bundle_manifest_lines(&low),
+        bundle_manifest: manifest,
         level_list: vec![format!("{low}.dbx"), format!("{low}_description.dbx")],
         report,
         converted: conv,
         profile: spec.profile,
         strings,
         awards,
+        announcer,
     };
     write_record(out, &rec)?;
     Ok(rec)
@@ -1422,6 +1549,9 @@ fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>>
         }
     } else if let Some(rest) = o.strip_prefix(&format!("levels/{low}/")) {
         sources.push((game.loaded(&rec.base, "level"), format!("levels/{}/{rest}", rec.base)));
+    } else if rec.announcer.iter().any(|a| a.eq_ignore_ascii_case(ours)) {
+        // the donor's own announcer partition (round E3c)
+        sources.push((game.level_bundles(&rec.donor, "level"), o));
     } else {
         // a partition copied into the level's bundle: the source it was copied from, the first bundle of the level
         // block (each read alone), else the donor's, that has it (`fill_hidden`'s order)
@@ -1502,7 +1632,24 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         );
     }
     // the registration: one block and one manifest line per bundle, each block's targets present
-    let kinds_ok = rec.mft_blocks.len() == KINDS.len()
+    // (the voice-over blocks, lines and bundles after them: the announcer's check, `check_announcer`)
+    let is_vo = |l: &str| {
+        l.to_ascii_lowercase()
+            .starts_with(&format!("bundlesource game:levels/{low}/vo/"))
+    };
+    let staged: Vec<&str> = rec
+        .files
+        .iter()
+        .map(|f| f.path.as_str())
+        .filter(|p| !p.starts_with("vo/"))
+        .collect();
+    let kinds_ok = rec.mft_blocks.len()
+        == KINDS.len()
+            + rec
+                .mft_blocks
+                .iter()
+                .filter(|b| b.first().is_some_and(|s| is_vo(s)))
+                .count()
         && KINDS.iter().all(|k| {
             rec.mft_blocks
                 .iter()
@@ -1513,9 +1660,8 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
                 .count()
                 == 1
         })
-        && rec.bundle_manifest == bundle_manifest_lines(&low)
-        && rec.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>()
-            == KINDS.iter().map(|k| format!("{k}-00.fbrb")).collect::<Vec<_>>();
+        && rec.bundle_manifest.get(..KINDS.len()) == Some(bundle_manifest_lines(&low).as_slice())
+        && staged == KINDS.iter().map(|k| format!("{k}-00.fbrb")).collect::<Vec<_>>();
     r.add(
         kinds_ok,
         format!("registration: a package.mft block and a bundleManifest line for each of {KINDS:?}"),
@@ -1676,7 +1822,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         desc_level.as_deref() == Some(format!("Levels/{}", rec.level).as_str()),
         format!("description: LevelName {desc_level:?}"),
     );
-    check_profile(game, &rec, &ours, &live, &mut r)?;
+    check_profile(game, stage, &rec, &ours, &live, &mut r)?;
     check_identity(game, stage, &rec, &ours, &mut r)?;
     // the cull tree: one tree, and one object per slot, each slot a leaf of a tree
     if let (Some((_, lw)), Some((_, tree))) = (
@@ -1736,6 +1882,7 @@ fn desc_field(d: &EditDbx, f: &[u8]) -> Option<String> {
 #[allow(clippy::too_many_lines, reason = "the profile's checks in order, each named")]
 fn check_profile(
     game: &Game,
+    stage: &Path,
     rec: &StageRecord,
     ours: &[(String, EditDbx)],
     live: &HashMap<String, Found>,
@@ -1850,6 +1997,198 @@ fn check_profile(
             "profile {}: the level fields {:?} are the set's {wrong:?}",
             prof.profile.word(),
             prof.fields
+        ),
+    );
+    check_announcer(game, stage, rec, &profiles, donor, lvl, live, r)
+}
+
+/// The set of maps a bundle belongs to, as the profiles read it: a level's own bundle its level's set, a common
+/// bundle the set with the fewest level commons that loads it (`mp_common` BFBC2's, `nam_common` Vietnam's ...).
+fn set_of_bundle(game: &Game, profiles: &crate::profile::Profiles, bundle: &Path) -> Option<Profile> {
+    let rel = |name: &str| game.bundle(name) == bundle;
+    for s in &profiles.sets {
+        if s.levels
+            .iter()
+            .any(|lv| game.level_bundles(lv, "level").iter().any(|b| b == bundle))
+        {
+            return Some(s.profile);
+        }
+    }
+    profiles
+        .sets
+        .iter()
+        .filter(|s| s.commons("level").iter().any(|c| rel(c)))
+        .min_by_key(|s| s.commons("level").len())
+        .map(|s| s.profile)
+}
+
+/// The announcer's check (round E3c): the level's voice-over registration is the donor's (its `vo/<lang>` blocks
+/// and manifest lines under the new name, its own voice-over bundles byte for byte), and every announcer partition
+/// the level names - the trigger sets and line banks, followed through their references - resolves in the bundles
+/// the level loads to the same data the donor's own load gives it. Names whose voices the level ends up with: the
+/// set of the bundles they come from (the donor's set for the level's own copies).
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the stage, its record, the profiles and what the checks read"
+)]
+#[allow(clippy::too_many_lines, reason = "the registration, then the references, each named")]
+fn check_announcer(
+    game: &Game,
+    stage: &Path,
+    rec: &StageRecord,
+    profiles: &crate::profile::Profiles,
+    donor: &crate::profile::Donor,
+    lvl: Option<&(String, EditDbx)>,
+    live: &HashMap<String, Found>,
+    r: &mut CheckReport,
+) -> Result<()> {
+    let low = rec.level.to_ascii_lowercase();
+    let a = &donor.announcer;
+    // the registration
+    let vo_blocks: Vec<&Vec<String>> = rec
+        .mft_blocks
+        .iter()
+        .filter(|b| {
+            b.first().is_some_and(|s| {
+                s.to_ascii_lowercase()
+                    .starts_with(&format!("bundlesource game:levels/{low}/vo/"))
+            })
+        })
+        .collect();
+    let want_blocks = a.blocks_for(&donor.level, &low);
+    let vo_lines: Vec<&String> = rec.bundle_manifest.iter().skip(KINDS.len()).collect();
+    let want_lines: Vec<String> = a.manifest.iter().map(|k| bundle_manifest_line(&low, k)).collect();
+    let mut bad_files = Vec::new();
+    let vo_files: Vec<&StagedFile> = rec.files.iter().filter(|f| f.path.starts_with("vo/")).collect();
+    for (kind, b) in &a.bundles {
+        let path = format!("{kind}-00.fbrb");
+        let same = vo_files.iter().any(|f| {
+            f.path == path
+                && f.install == format!("Package/levels/{low}/{path}")
+                && std::fs::read(game.bundle(b)).is_ok_and(|d| sha1_hex(&d) == f.sha1)
+        });
+        if !same {
+            bad_files.push(path);
+        }
+    }
+    r.add(
+        vo_blocks.iter().copied().eq(want_blocks.iter())
+            && vo_lines.iter().copied().eq(want_lines.iter())
+            && bad_files.is_empty()
+            && vo_files.len() == a.bundles.len(),
+        format!(
+            "announcer: the voice-over registration is {}'s ({} vo blocks: {}; {} manifest lines; its own bundles {:?} \
+             copied byte for byte) {bad_files:?}",
+            donor.level,
+            want_blocks.len(),
+            want_blocks
+                .iter()
+                .map(|b| b
+                    .iter()
+                    .skip(1)
+                    .map(|t| t.trim_start_matches("BundleTarget "))
+                    .collect::<Vec<_>>()
+                    .join(" + "))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join("; "),
+            want_lines.len(),
+            a.bundles.iter().map(|b| &b.1).collect::<Vec<_>>()
+        ),
+    );
+    // the references: the level's announcer partitions, followed through theirs
+    let mut dl = game.loaded(&donor.level, "level");
+    dl.extend(game.startup());
+    let donor_live = game.live(&dl)?;
+    let mut todo: Vec<String> = lvl.map_or_default(|(_, d)| {
+        refs_of(d)
+            .into_iter()
+            .filter_map(|x| x.rsplit_once('/').map(|(p, _)| p.to_ascii_lowercase()))
+            .filter(|p| crate::profile::is_announcer(&format!("{p}/")))
+            .collect()
+    });
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut from: BTreeMap<String, usize> = BTreeMap::new(); // where they come from -> how many
+    let mut sets: Vec<Profile> = Vec::new();
+    let mut differ = Vec::new();
+    let ours_bundle = stage.join("level-00.fbrb");
+    while let Some(p) = todo.pop() {
+        if !seen.insert(p.clone()) {
+            continue;
+        }
+        let name = format!("{p}.dbx");
+        let (Some(mine), Some(theirs)) = (live.get(&name), donor_live.get(&name)) else {
+            differ.push(format!(
+                "{p} (not in {})",
+                if live.contains_key(&name) {
+                    &donor.level
+                } else {
+                    "the level's bundles"
+                }
+            ));
+            continue;
+        };
+        let data = read_found(&[mine, theirs])?;
+        let (Some(a1), Some(a2)) = (data.first(), data.get(1)) else {
+            continue;
+        };
+        if a1 != a2 {
+            differ.push(p.clone());
+        }
+        let (where_, set) = if mine.0 == ours_bundle {
+            (
+                format!("its own copy of {}'s", donor.level),
+                set_of_bundle(game, profiles, &theirs.0),
+            )
+        } else {
+            (
+                mine.0
+                    .strip_prefix(&game.root)
+                    .map_or_else(|_| mine.0.display().to_string(), |x| x.display().to_string()),
+                set_of_bundle(game, profiles, &mine.0),
+            )
+        };
+        *from.entry(where_).or_default() += 1;
+        match set {
+            Some(s) => {
+                if !sets.contains(&s) {
+                    sets.push(s);
+                }
+            }
+            None => differ.push(format!("{p} (from a bundle of no set's multiplayer levels)")),
+        }
+        if let Ok(d) = EditDbx::parse(a1) {
+            for x in refs_of(&d) {
+                if let Some((q, _)) = x.rsplit_once('/') {
+                    let q = q.to_ascii_lowercase();
+                    if crate::profile::is_announcer(&format!("{q}/")) && !seen.contains(&q) {
+                        todo.push(q);
+                    }
+                }
+            }
+        }
+    }
+    // the voices are the set's whose bundles they come from: a set's own data over the shared BFBC2 commons
+    let voices = if sets.len() > 1 {
+        sets.iter().copied().find(|s| *s != Profile::Bfbc2)
+    } else {
+        sets.iter().copied().next()
+    };
+    let one_set = sets.len() <= 1 || (sets.len() == 2 && sets.contains(&Profile::Bfbc2));
+    r.add(
+        !seen.is_empty() && differ.is_empty() && voices == Some(rec.profile) && one_set,
+        format!(
+            "announcer: {} voices - {} partitions the level names (its trigger sets and line banks, followed) resolve \
+             as on {} ({}) {:?}",
+            voices.map_or_else(|| "no set's".to_owned(), |v| format!("{}'s", v.word())),
+            seen.len(),
+            donor.level,
+            from.iter()
+                .map(|(k, n)| format!("{n} from {k}"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            differ.iter().take(8).collect::<Vec<_>>()
         ),
     );
     Ok(())

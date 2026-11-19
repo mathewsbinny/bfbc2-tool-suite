@@ -145,6 +145,8 @@ def tests():
          [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navtools_native.py')]),
         ("map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views", 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_editor.py')]),
+        ("application icon: the lookup, the hub's window icon, the icon in bin\\'s .exe files", 'quick',
+         [PY, os.path.join(SUITE, 'tests', 'test_appicon.py')]),
         ('Rust core required: no module, a stale one, the source fingerprint', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_native_required.py')]),
         ('review regressions: HPD selection, launcher completion, mypy failures', 'quick',
