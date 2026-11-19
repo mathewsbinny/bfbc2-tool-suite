@@ -58,21 +58,22 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import csharp_golden as cg  # noqa: E402
 
-GROUPS = ('menu', 'crash', 'nav')
+GROUPS: tuple[str, ...] = ('menu', 'crash', 'nav')
+ROUND = 'o2'                            # the case modules cli_<ROUND>_<group>.py, goldens cli_<ROUND>_<group>_golden*
 _ref_arg = sys.argv[sys.argv.index('--ref') + 1] if '--ref' in sys.argv[:-1] else None
 REF = os.path.abspath(_ref_arg or os.environ.get('BFBC2_O2_REF') or SUITE)
 SCRIPTS = native.CLI_TOOLS
 # the environment Python's stdio reads, and the switches that pick the Python, left out unless a case sets them
 PY_ENV = ('PYTHONUTF8', 'PYTHONIOENCODING', 'PYTHONUNBUFFERED', 'PYTHONLEGACYWINDOWSSTDIO', 'BFBC2_PURE_PYTHON',
           'BFBC2_CLI_PYTHON', 'BFBC2_CLI_TRACE', 'BFBC2_CRASHREADER_REFERENCE')
-WORKERS = 4
+WORKERS = int(os.environ.get('BFBC2_CLI_WORKERS') or 4)     # fewer on a busy PC (round O3)
 SHARD = 900_000                        # bytes of JSON per golden file at most
 # key, tool, files ({name: bytes | str | None (a folder)}), args ({d}: the case folder), env ({d} too), merged
 Case = tuple[str, str, dict[str, Any], list[str], dict[str, str], bool]
 
 
 def group_module(group: str) -> Any:
-    return importlib.import_module(f'cli_o2_{group}')
+    return importlib.import_module(f'cli_{ROUND}_{group}')
 
 
 # ------------------------------------------------------------------------------------------- running one
@@ -82,7 +83,7 @@ class Place:
     its alone) and the trace file."""
 
     def __init__(self, k: int, dir_len: int = 64) -> None:
-        self.root, self.d = cg.case_root(dir_len, f'cli_o2_{k}_')
+        self.root, self.d = cg.case_root(dir_len, f'cli_{ROUND}_{k}_')
         self.lad = os.path.join(self.root, 'lad')
         self.logs = os.path.join(self.lad, 'bfbc2-tool-suite', 'logs')
         self.trace = os.path.join(self.root, 'trace.txt')
@@ -137,6 +138,33 @@ class Place:
                 out.append(f'[{name}]\n' + self.norm(b'\n'.join(rows) + b'\n'))
         return ''.join(out)
 
+    def lad(self) -> str:
+        """Round O3: what the run left in its local app data besides the log records (log() compares those): every
+        file's name (a log by name only, the day's date as <date>; an archive of pruned logs by its members: name,
+        size, CRC, time - the deflate bytes are zlib's in Python and zlib-rs' in Rust; its name's stamp as <stamp>),
+        other files by their bytes."""
+        import zipfile
+        rows = []
+        for d, _ds, fs in os.walk(self.lad):
+            for f in fs:
+                full = os.path.join(d, f)
+                rel = os.path.relpath(full, self.lad).replace(os.sep, '/')
+                rel = re.sub(r'logs-\d{4}-\d\d-\d\d_\d{6}(-\d+)?\.zip$', 'logs-<stamp>.zip', rel)
+                rel = re.sub(r'\.tmp-\d+$', '.tmp-N', rel)
+                if f.lower().endswith('.log'):
+                    rows.append(re.sub(datetime.date.today().isoformat(), '<date>', rel))
+                elif f.lower().endswith('.zip'):
+                    try:
+                        with zipfile.ZipFile(full) as z:
+                            members = [f'{i.filename}:{i.file_size}:{i.CRC:08x}:{i.date_time}' for i in z.infolist()]
+                        rows.append(f'{rel} [' + ', '.join(members) + ']')
+                    except (OSError, zipfile.BadZipFile) as e:
+                        rows.append(f'{rel} (unreadable: {type(e).__name__})')
+                else:
+                    with open(full, 'rb') as fh:
+                        rows.append(f'{rel} {hashlib.sha1(fh.read()).hexdigest()}')
+        return '\n'.join(sorted(rows))
+
     def who(self) -> str:
         """Who answered the last run: 'rust', 'python' (bfbc2.exe handed it off) or '' (a Python command line)."""
         try:
@@ -153,7 +181,8 @@ def setup(pl: Place, files: dict[str, Any]) -> None:
     if os.path.exists(pl.trace):
         os.remove(pl.trace)
     for name, data in files.items():
-        p = os.path.join(pl.d, name.replace('{d}', pl.d))
+        # round O3: '{lad}/...' is a file of the run's local app data (old logs, caches), not of the case folder
+        p = os.path.join(pl.lad, name[6:]) if name.startswith('{lad}/') else os.path.join(pl.d, name.replace('{d}', pl.d))
         if data is None:
             os.makedirs(p, exist_ok=True)
         else:
@@ -169,7 +198,7 @@ def setup(pl: Place, files: dict[str, Any]) -> None:
 
 def base_env(extra: dict[str, str], pl: Place) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k.upper() not in PY_ENV}
-    env.update({k: v.replace('{d}', pl.d) for k, v in extra.items()})
+    env.update({k: v.replace('{d}', pl.d).replace('{lad}', pl.lad) for k, v in extra.items()})
     env['LOCALAPPDATA'] = pl.lad
     env['BFBC2_CLI_TRACE'] = pl.trace
     env['BFBC2_CLI_SUITE'] = REF                # a hand-off runs the reference's .py
@@ -204,13 +233,14 @@ def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: 
         merged: bool) -> tuple[dict[str, Any], float, str]:
     """One command line in a fresh case folder: ({code, out, err, files, log}, its wall time, who answered)."""
     setup(pl, files)
-    argv = [a.replace('{d}', pl.d) for a in args]
+    argv = [a.replace('{d}', pl.d).replace('{lad}', pl.lad) for a in args]
     t = time.perf_counter()
     p = subprocess.run(cmd + argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT if merged else subprocess.PIPE,
                        env=base_env(env, pl), cwd=SUITE)
     took = time.perf_counter() - t
     return {'code': p.returncode, 'out': traceback_tail(pl.norm(p.stdout)),
-            'err': traceback_tail(pl.norm(p.stderr or b'')), 'files': pl.files(), 'log': pl.log()}, \
+            'err': traceback_tail(pl.norm(p.stderr or b'')), 'files': pl.files(), 'log': pl.log(),
+            **({'lad': pl.lad()} if ROUND != 'o2' else {})}, \
         took, pl.who()
 
 
@@ -248,7 +278,7 @@ def run_all(rows: list[Case], sides: list[str], exe: str
 
 
 def diff(want: dict[str, Any], got: dict[str, Any]) -> str:
-    for k in ('code', 'out', 'err', 'files', 'log'):
+    for k in ('code', 'out', 'err', 'files', 'log', 'lad'):
         if want.get(k) != got.get(k):
             return f'{k}: {str(want.get(k))[-300:]!r} / {str(got.get(k))[-300:]!r}'
     return ''
@@ -257,7 +287,7 @@ def diff(want: dict[str, Any], got: dict[str, Any]) -> str:
 # ------------------------------------------------------------------------------------------- goldens (sharded)
 
 def golden_names(group: str) -> list[str]:
-    base = f'cli_o2_{group}_golden'
+    base = f'cli_{ROUND}_{group}_golden'
     names = sorted(n for n in os.listdir(HERE) if re.fullmatch(base + r'(_\d+)?\.json', n))
     return names
 
@@ -283,7 +313,7 @@ def save_golden(group: str, cases: dict[str, Any], meta: dict[str, Any]) -> list
         size += n
     names = []
     for i, part in enumerate(shards):
-        name = f'cli_o2_{group}_golden.json' if len(shards) == 1 else f'cli_o2_{group}_golden_{i}.json'
+        name = f'cli_{ROUND}_{group}_golden.json' if len(shards) == 1 else f'cli_{ROUND}_{group}_golden_{i}.json'
         cg.save(name, {'meta': dict(meta, shard=i, shards=len(shards)), 'cases': part})
         names.append(name)
     return names
