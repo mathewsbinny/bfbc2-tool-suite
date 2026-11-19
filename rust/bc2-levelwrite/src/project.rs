@@ -301,6 +301,21 @@ impl MapProject {
         n
     }
 
+    /// Replaces the last operation's change with `op` (its number, author and label kept, its time now): a gesture
+    /// that goes on (a wheel burst, a slider drag) stays one operation, one undo step. `false` (nothing changed) when
+    /// the log is empty or its last operation is not number `n`.
+    pub fn amend_last(&mut self, n: u64, op: Op) -> bool {
+        match self.operations.last_mut() {
+            Some(o) if o.n == n => {
+                o.op = op;
+                o.when = now();
+                self.redo.clear();
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// Undoes the last operation; `None` when there is none.
     pub fn undo(&mut self) -> Option<&Operation> {
         let o = self.operations.pop()?;
@@ -519,6 +534,7 @@ mod tests {
                     source: a.into(),
                     guid: g.clone(),
                     transform: crate::rows_at([1.0, 2.0, 3.0]),
+                    owned: Vec::new(),
                 }],
             },
             "",

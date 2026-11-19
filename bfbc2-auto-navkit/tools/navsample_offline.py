@@ -991,8 +991,54 @@ def sample_grid(grid, geom, hf, log=print, bottoms=(0.28, 0.6)):
 
 
 def write(path, s):
-    """navsample.cpp's version-3 file."""
+    """navsample.cpp's version-3 file (file_bytes), written through a temporary file."""
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    data = file_bytes(s)
+    tmp = path + '.tmp'
+    with open(tmp, 'wb') as f:
+        f.write(data)
+    os.replace(tmp, path)
+
+
+def _write_args(s):
+    """navkit_navsample_write's arguments for s, or None: an array of another dtype or shape (the reference casts or
+    broadcasts it), or a header value float() / int() refuses (the reference raises its error)."""
+    try:
+        def arr(a, dt, shape):
+            return (isinstance(a, np.ndarray) and a.dtype == np.dtype(dt) and a.shape == shape
+                    and a.dtype.byteorder in '=<|')
+        n = len(s.y) if isinstance(s.y, np.ndarray) and s.y.ndim == 1 else -1
+        hit = s.hit if s.hit is not None and len(s.hit) else None
+        if (n < 0 or not isinstance(s.start, np.ndarray) or s.start.ndim != 1 or not arr(s.start, np.int64, s.start.shape)
+                or not arr(s.y, np.float32, (n,)) or not arr(s.normal, np.float32, (n, 3))
+                or not arr(s.flags, np.uint8, (n,)) or (hit is not None and not arr(hit, np.uint32, (n, 3)))):
+            return None
+        head = (float(s.pitch), float(s.min_x), float(s.min_z), int(s.nx), int(s.nz), float(s.y_top),
+                float(s.y_bottom), float(s.radius), float(s.cap_bottom), float(s.cap_top), float(s.ray_radius))
+        if not all(-(1 << 63) <= v < (1 << 63) for v in head[3:5]):
+            return None
+        return (head, np.ascontiguousarray(s.start).tobytes(), np.ascontiguousarray(s.y).tobytes(),
+                np.ascontiguousarray(s.normal).tobytes(), np.ascontiguousarray(s.flags).tobytes(),
+                None if hit is None else np.ascontiguousarray(hit).tobytes())
+    except Exception:                                   # noqa: BLE001 - the reference raises its own error
+        return None
+
+
+def file_bytes(s):
+    """The version-3 file's bytes: in the Rust core when it is built (round F3: navkit_navsample_write, the same
+    bytes; where the reference would raise, a normal is a NaN, or an array is of another dtype or shape, the Python
+    runs), else file_bytes_reference."""
+    nat = navsample._native
+    if nat is not None and hasattr(nat, 'navkit_navsample_write'):
+        args = _write_args(s)
+        got = nat.navkit_navsample_write(*args) if args is not None else None
+        if got is not None:
+            return got
+    return file_bytes_reference(s)
+
+
+def file_bytes_reference(s):
+    """The Python (the reference)."""
     counts = np.diff(s.start)
     if len(counts) and counts.max() > 255:
         raise ValueError('more than 255 surfaces in a column')
@@ -1004,15 +1050,8 @@ def write(path, s):
     rec['n'] = np.clip(np.rint(s.normal * 127), -127, 127).astype(np.int8)
     rec['f'] = s.flags
     rec['h'] = s.hit if s.hit is not None and len(s.hit) else 0
-    tmp = path + '.tmp'
-    with open(tmp, 'wb') as f:
-        f.write(hdr)
-        f.write(rec.tobytes())
-        at = f.tell()
-        f.write(counts.astype(np.uint8).tobytes())
-        f.write(struct.pack('<Q', at))
-        f.write(b'CNT3')
-    os.replace(tmp, path)
+    body = rec.tobytes()
+    return hdr + body + counts.astype(np.uint8).tobytes() + struct.pack('<Q', len(hdr) + len(body)) + b'CNT3'
 
 
 # --- comparison with an in-game file ---------------------------------------------------------------------------------

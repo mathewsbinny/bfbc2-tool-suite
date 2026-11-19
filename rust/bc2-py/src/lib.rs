@@ -48,6 +48,10 @@
 //! Round F2b (`importer.rs`): `mopp_*`, `havokport_*` / `PortLayouts`, `catalogue_build` /
 //! `catalogue_exe_identifiers`, `emitteratlas_*`, `MeshLayouts` for `bfbc2-bf1943-import` (through `importcore.py`);
 //! `pefile.rs`: `pe_raw_*` for `menucommon.PEImage`; `coretext.rs`: `xmlinst_*` and `navtune_*` for `bfbc2core`.
+//!
+//! Round F3 (`formats_f3.rs`): `aimanim_*`, `hpd_mesh_layout` / `hpd_mesh_coverage`, `audio_xma_parts` /
+//! `audio_xma2_riff` / `audio_xas_blocks`, `navkit_navsample_v3` /
+//! `navkit_navsample_write`, `hkpack_parse`; `xenos_disasm_body` (`xenos.rs`).
 
 mod apt;
 mod aptmodel;
@@ -60,6 +64,7 @@ mod dbxport;
 mod f2a;
 mod fbrb_cache;
 mod fbrbtool;
+mod formats_f3;
 mod geometry;
 mod granny;
 mod harness;
@@ -456,8 +461,14 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::xenos::{
-        XenosProgram, xenos_float_repr, xenos_helpers, xenos_microcode, xenos_parse, xenos_parse_many, xenos_translate,
-        xenos_translate_many, xenos_tree_program,
+        XenosProgram, xenos_disasm_body, xenos_float_repr, xenos_helpers, xenos_microcode, xenos_parse,
+        xenos_parse_many, xenos_translate, xenos_translate_many, xenos_tree_program,
+    };
+
+    #[pymodule_export]
+    use super::formats_f3::{
+        aimanim_parse, aimanim_to_pc, aimanim_write, audio_xas_blocks, audio_xma_parts, audio_xma2_riff, hkpack_parse,
+        hpd_mesh_coverage, hpd_mesh_layout, navkit_navsample_v3, navkit_navsample_write,
     };
 
     #[pymodule_export]
