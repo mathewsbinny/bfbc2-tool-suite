@@ -459,6 +459,147 @@ hotkeys (shortcuts are fixed and shown until then), and the nearest thing to pla
 the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
 editor cannot host the game's engine; the fast build / install / launch of 3.6 stands in for it.
 
+### 3.11 Game-accurate rendering (round R5, 2026-11-18: study and prototype)
+
+The goal of 3.10 ("live rendering"): terrain, buildings and objects in the 3D view look as they do in BFBC2 on PC under
+Direct3D 11. This section is what the game draws (read from its data), the two routes compared, the route chosen and
+the prototype that proves it (`rust/bc2-render`, the 3D view's **Game-accurate** switch; `rust/BENCHMARKS.md` "R5").
+
+#### What the game draws (from its data)
+
+**The shader databases hold compiled DXBC only - no HLSL source.** Each level has `Levels/<LV>/Shaders/Dx11_Single.res`
+(`bfbc2-shader-tools/FORMAT.md`). MP_005's: 1,714 entries, 12,850 programs, 1,527 vertex and 2,166 pixel shaders
+(`vs_5_0` / `ps_5_0`, every one built by DICE's "Microsoft (R) HLSL Shader Compiler 9.27.952.3022"), 2,112 parameter
+blocks, 114 vertex layouts, 31 different render-state words. What the file records beside the code:
+
+- each shader's **own reflection** (`RDEF`): its `$Globals` variables by name, offset and size, its textures and
+  samplers by name and register - so every constant a shader reads is named;
+- **binding tables** (which engine value goes in which register: `viewProjMatrix`, `worldMatrix`, `cameraPos`,
+  `outdoorLightDir`, `outdoorLightKeyColor` / `TopColor` / `BottomColor`, `outdoorLightShadowTransform0..2` (three
+  shadow cascades), `boneMatrices`, `pointLight*`, `time`, `invScreenSize` ...) and **register tables** (the textures
+  the engine binds: the shadow map, `outdoorLightReflectionEnvmap`);
+- **parameter blocks**: a material's named constants with their registers and values, its textures by sampler, the
+  textures the engine binds by name (`heightmap`, `maskTileMap`, `DepthBuffer` ...), and the pixel shader's sampler
+  states as whole `D3D11_SAMPLER_DESC`s;
+- **programs**: vertex and pixel shader, two parameter blocks, the render state (blend, depth, culling, alpha to
+  coverage: FORMAT.md 6, read from the exe) and a key (pass: main / depth only; mesh kind: rigid, bones, skinned,
+  destructible composite; instanced; point light; the vertex layout).
+
+**Mesh materials.** A draw is the entry `<mesh>/<shader>` for each part of a mesh set's chosen shader set, its
+main-pass program for the part's vertex layout. Texture kinds by DICE's names (MP_005's 587 textures): colour (`_C`,
+`_D`, `_Df`), normal (`_Nm`, `_N`), specular (`_S`, `_Sp`), gloss (`_Gm`), baked ambient occlusion per mesh (`_Oc`,
+`_OcRGB`, `_Occlusion`, `_AO`) and sky occlusion (`_SkyOc`), material masks (`_RGBmask`, `Msk_*`) with tiling detail
+textures (`Dt_*`, `Nm_*`), the level's reflection cube (`texture_outdoorLightReflectionEnvmap`: the level's
+`StaticEnvmapEntityData`, MP_005's `mp05_envmap`, radius 5,000 m). **No classic lightmaps**: buildings carry baked
+occlusion textures and an `IrradianceVolume` (`<mesh>_Irradiance.res`, 19 in `mp_common`; not decoded yet), and the
+databases hold Enlighten's entries (`Systems/Enlighten/DirectIllumination`, `DiffuseDuster`; MP_005's
+`EnlightenSkyColorIntensity` is 0).
+
+**Terrain.** `PatchMaskShaders/<layers>` entries (MP_005: 50, `Dunes_Asphalt_Destruction` ...) drawn on 16 x 16 m
+patches. Read from the `VisualTerrain` (`<lv>.Visual.res`) and the shaders' disassembly:
+
+- the patch map (MP_005: 128 x 128 cells, header `[66, 1, 15, 7, 128]`: tile size, border, tiles per row, rows, cells
+  per side) gives each cell its patch shader and up to four mask tiles (`u16`) with flags (`u8`, 8 where tiled);
+  rows run along z (sea-floor patches lie 37 m lower that way round) and a cell's tiled-mask count equals its non-zero
+  flags on all 16,384 cells;
+- the **mask-tile atlas** (`<lv>.MaskTileAtlas.res`, L8, 1024 x 512: 66-pixel tiles with a 1-pixel border) holds the
+  tiled layers' masks; the other layers are procedural ("rule" layers: slope, height, noise in the shader);
+- the vertex shader reads a grid point (`R16G16_SINT`) and two masks' atlas coordinates per `R16G16B16A16_SNORM`
+  stream, samples the **height map** and places the vertex at `(x, h, z) * posScale + posOffset`; the pixel shader
+  takes the world back through `heightmapScaleAndOffsetXZ`, its normal from neighbouring height samples, the level's
+  **colour / occlusion map** (`mp05_AmbientOcclusion`, over the whole 2 km) and per layer a colour, normal and detail
+  texture blended by DICE's per-shader formulas (literal weights compiled into each shader), then the dynamic
+  (destruction) mask;
+- road and decal strips are baked into the `VisualTerrain` (renderqa `strips`), undergrowth comes from the
+  `UgMaskShaders` entries.
+
+**Water.** `Shaders/WaterOcean` (6 programs: lerp-blended, `0x581`; a depth-only program reads `DepthBuffer`) on the
+`VisualWater` mesh (`<lv>.Water.res`, per-triangle shaders: `bc2_formats::water`), with `WaterTile_t01_Nm` and the foam
+texture, `time` for the waves.
+
+**Sky, fog, light.** The weather's active state (`WeatherSettings.ActiveState` into `WeatherSystem.States`; MP_005:
+`Default`, whose partitions are `Sunny`'s) names `Sun` (theta, phi), `OutdoorLight` (key, top and bottom colours with
+intensities, specular scale, hemisphere), `Fog` (start, end, colour, density, height fall-off), `Sky` (horizon
+coefficients, halo, haze, Mie / Rayleigh constants) and `PostProcess`. **No object shader reads a fog constant**: the
+sky and the atmosphere are `Systems/Weather/Shaders/Surface/EnvironmentMain` (and its half-resolution and cube
+variants), a pass that reads the **depth buffer** and the level's panoramic sky (`mp05_Skydome`, `_A`) with twelve
+`g_*` constants (horizon coefficients, halo, haze, sun direction, Mie mu / sigma) - so haze and fog are laid over the
+drawn scene by depth.
+
+**Post-process and shadows: the engine's own shaders are in `async/startup-00.fbrb`** as standalone resources (112
+`Dx11PixelShader`, 14 `Dx11VertexShader`): `Systems/PostProcess/ShaderContainer/psDownsampleHalfGrayscaleLog`,
+`psExposure` (auto exposure), `psFilmicTonemap` and its variants with bloom blur, depth of field, grain and colour
+effects, the separable bloom filters, `HorizonBasedAO` / `HorizonBasedAOBlur` (HBAO: the game's ambient occlusion,
+its `Hsao*` settings in the exe), `psDrawParticleVertexShadows*` and `psDrawEnlightenShadows`. Shadows are three
+cascades (`outdoorLightShadowTransform0..2`, a comparison sampler on `s0`), drawn with each entry's depth-only
+programs (pass 5) - all in the databases.
+
+#### Route A: DICE's own Direct3D 11 shaders, unchanged
+
+A Direct3D 11 device in Rust (the `windows` crate, the version wgpu already brings in) drawing each program's DXBC
+with its input layout, constant buffers filled by name from `RDEF`, its parameter blocks' constants, textures and
+sampler states, and its render state - off screen, the frame then shown in egui. This is the suite's render harness
+(`renderqa.py` / `shaderview.cpp`, which already drew DICE's meshes, terrain patches and strips this way) moved into
+the editor.
+
+- **Exact by construction** for everything the shaders compute: the result is DICE's code on DICE's data. What is
+  not in the data are the **values the engine computes per frame**, each one a named constant now: `outdoorLightDir`
+  from the sun's theta / phi (OPFOR's Wake formula does not carry over: it points below the horizon on MP_005), the
+  shadow cascades' transforms, `EnvironmentMain`'s twelve `g_*` values from the Sky and Fog states, the exposure /
+  tonemap constants, tree and wind vertex constants, the terrain's per-patch stream (the prototype's reading of the
+  atlas tiles, above) and LOD choices. A single RenderDoc capture answers all of them, draw by draw (the capture asked
+  for is in the R5 report).
+- **Interop with wgpu.** Phase 1 copies: the float frame read back, tonemapped on the CPU, uploaded as an egui texture
+  (costs in `rust/BENCHMARKS.md` "R5"). Without the copy: the frame in a shared texture (`D3D11_RESOURCE_MISC_SHARED_NTHANDLE`)
+  opened by wgpu's Direct3D 12 backend (`ID3D12Device::OpenSharedHandle`, wgpu-hal's `texture_from_raw`) or by its
+  Vulkan backend (`VK_KHR_external_memory_win32`, the D3D11 texture handle type) - both need wgpu-hal's unsafe
+  interop, and the editor runs on Vulkan today.
+- **Costs:** Windows only (the game and its users are); `unsafe` foreign calls, confined to `bc2-render`'s `d3d`
+  module; two GPU APIs in one window.
+
+#### Route B: DICE's material model again in WGSL on wgpu
+
+Portable, but approximate by nature: MP_005 alone has 2,166 distinct compiled pixel shaders, each a shader graph with
+its own blend formulas and literal weights (the terrain patch above: per-layer weights such as 0.7025 / 0.6755 / 0.648
+compiled in). A hand-written "material model" reproduces none of them exactly; translating every DXBC program to WGSL
+would mean a DXBC decompiler (naga reads no DXBC) and still a proof against route A's picture. Portability buys
+nothing here: the game, its data and its users are on Windows.
+
+#### Recommendation: route A
+
+Evidence (this round):
+
+- **The Rust port draws DICE's shaders exactly as the harness does:** MP_005's `IND_Warehouse` with its material-mask
+  mesh, renderqa's three views at 512 x 512, its light and post: the Rust `bc2-render` picture and the C++
+  `shaderview` picture are **identical, pixel for pixel, in all three views** (786,432 of 786,432 pixels;
+  `bc2-render/examples/harness_views.rs`, `tests/warehouse.rs`). The harness had already validated 15 of 16 stock
+  meshes against the game's look, 33 of 33 terrain patch entries of mp_009cq and DICE's road strips.
+- **Terrain patches draw with their real layers**: MP_005's patch map, height field, mask atlas and patch shaders give
+  continuous ground across patches (no seam where tiles meet), asphalt with its road markings where the harbour is,
+  and the occlusion map's dark footprints under the buildings.
+- **The editor shows it**: the 3D view's Game-accurate switch draws MP_005's placed objects and the patches around the
+  camera with DICE's shaders (`tests/game_view.rs`; screenshots with the R5 report).
+
+The editor keeps wgpu for its own drawing (the editor's view, the overlays, collision, navmesh and cull-tree modes of
+3.10 item 5); the game-accurate frame is one more mode of the 3D view.
+
+#### Phased plan
+
+1. **Phase 1 (R5, done):** the study; `bc2-render` (files, DXBC reflection, materials, weather light, terrain
+   patches, frame and draw order, the D3D11 device, the harness's tonemap); the 3D view's switch; parity with the
+   harness; costs measured.
+2. **Phase 2, the engine's values (one or two rounds, with the capture):** the sun direction, shadow cascades (the
+   depth-only programs, three cascades), `EnvironmentMain` (sky, haze, fog), and DICE's own post-process
+   (`psDownsampleHalfGrayscaleLog`, `psExposure`, `psFilmicTonemap*`, bloom, HBAO from `startup-00.fbrb`) replacing
+   the harness's tonemap; the terrain stream checked against the captured vertex buffers; water (`WaterOcean` on the
+   `VisualWater` mesh); static model groups (`*_HavokAsset` members), undergrowth, road strips, trees' engine
+   constants; the `IrradianceVolume`. Each proven against the capture's own draws and its final picture.
+3. **Phase 3, the editor (one or two rounds):** the shared texture (no copy) and the tonemap on the GPU; culling and
+   LODs (the cull tree, `LodSettings`), the instanced programs (`StreamInstancingFloat`); edits shown live (a moved
+   object drawn at its new transform); picking and the overlays on the game frame's depth; every prepared level drawn
+   with no harness flag; Vietnam and the Pacific War levels (their installed Dx11 databases, BF1943's translated
+   shaders included, draw the same way).
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
