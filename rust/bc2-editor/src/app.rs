@@ -33,7 +33,7 @@ use crate::edit::Doc;
 use crate::factions::{Profile, Teams};
 use crate::gizmo::{self, Frame, Handle, Space, Tool};
 use crate::help::{self, HelpState};
-use crate::levels::{self, LevelInfo};
+use crate::levels::{self, ContentSet, LevelInfo};
 use crate::math::{self, M, V3};
 use crate::model::{self, Kind, Outliner};
 use crate::prepare::{self, Job, Outcome, Plan};
@@ -1404,7 +1404,10 @@ impl EditorApp {
             )
             .show(ui, |ui| {
                 ui.vertical(|ui| {
-                    ui.set_max_width(720.0);
+                    // at most 720, never wider than the window (round G3: set alone, it widened a narrow window's
+                    // column past its edge)
+                    let column = ui.available_width().min(720.0);
+                    ui.set_max_width(column);
                     ui.label(
                         RichText::new("BFBC2 Map Editor")
                             .text_style(style("display"))
@@ -1418,6 +1421,9 @@ impl EditorApp {
                         )
                         .color(p.ink_muted),
                     );
+                    // the lists grouped by set of maps (round G3; which sets are shown waits for the user's
+                    // start-screen design)
+                    let shown: Vec<ContentSet> = ContentSet::ALL.to_vec();
                     ui.add_space(m.space_6);
                     let choice = editui::start_projects(
                         ui,
@@ -1425,6 +1431,7 @@ impl EditorApp {
                         m,
                         &mut editui::StartForm {
                             levels: &self.levels,
+                            shown: &shown,
                             new_level: &mut self.new_level,
                             new_name: &mut self.new_name,
                             new_folder: &mut self.new_folder,
@@ -1463,13 +1470,27 @@ impl EditorApp {
                                 .stroke(Stroke::new(1.0, p.line))
                                 .corner_radius(CornerRadius::same(m.radius_md as u8))
                                 .show(ui, |ui| {
+                                    // the column's width, whatever the cards above took (the frame's line inside)
+                                    ui.set_max_width(column - 2.0);
                                     egui::ScrollArea::vertical()
                                         .max_height(ui.available_height() - m.space_4)
                                         .show(ui, |ui| {
-                                            ui.set_width(ui.available_width());
-                                            for l in self.levels.iter().filter(|l| f.is_empty() || l.lv.contains(&f)) {
-                                                if level_row(ui, p, m, l).clicked() {
-                                                    open = Some(l.lv.clone());
+                                            ui.set_width(column - 2.0);
+                                            // grouped by set, each under its heading
+                                            for set in &shown {
+                                                let rows: Vec<&LevelInfo> = self
+                                                    .levels
+                                                    .iter()
+                                                    .filter(|l| l.set == *set && (f.is_empty() || l.lv.contains(&f)))
+                                                    .collect();
+                                                if rows.is_empty() {
+                                                    continue;
+                                                }
+                                                set_heading(ui, p, m, set.word(), rows.len());
+                                                for l in rows {
+                                                    if level_row(ui, p, m, l).clicked() {
+                                                        open = Some(l.lv.clone());
+                                                    }
                                                 }
                                             }
                                         });
@@ -1496,7 +1517,8 @@ fn load(root: &Path, lv: &str) -> Loaded {
 /// The content profile of a level, for the badge.
 #[must_use]
 pub fn profile_of(lv: &str) -> &'static str {
-    Profile::of(lv).badge()
+    // the set's badge: the content profile's, and BFBC1 for the Bad Company 1 maps (round G3)
+    ContentSet::of(lv, Profile::of(lv), true).badge()
 }
 
 fn style(name: &str) -> TextStyle {
@@ -1728,14 +1750,6 @@ fn level_row(ui: &mut egui::Ui, p: &Palette, m: &Metrics, l: &LevelInfo) -> egui
     if resp.hovered() {
         ui.painter().rect_filled(rect, CornerRadius::ZERO, p.surface_2);
     }
-    let x = rect.left() + m.space_3;
-    ui.painter().text(
-        Pos2::new(x, rect.center().y),
-        Align2::LEFT_CENTER,
-        l.lv.to_uppercase(),
-        FontId::monospace(12.0),
-        p.ink,
-    );
     let state = if !l.prepared {
         "Not prepared yet - opening it prepares it first (up to a minute)"
     } else if !l.terrain_current {
@@ -1743,29 +1757,85 @@ fn level_row(ui: &mut egui::Ui, p: &Palette, m: &Metrics, l: &LevelInfo) -> egui
     } else {
         "Ready"
     };
-    ui.painter().text(
-        // room for the longest names (BC1_HARVEST_DAY_SDM, a Package level: round G3)
-        Pos2::new(x + 180.0, rect.center().y),
-        Align2::LEFT_CENTER,
+    // the columns fit the row at any width (round G3): the badge at the right always shown whole, the name column
+    // at most 180 (a third of the row in a narrow one), the state between them; a name or state cut short ends in
+    // an ellipsis and the row's tooltip says it whole
+    let cy = rect.center().y;
+    let left = rect.left() + m.space_3;
+    let right = rect.right() - m.space_3;
+    let badge = ui
+        .painter()
+        .layout_no_wrap(l.set.badge().to_owned(), FontId::proportional(11.0), p.ink_muted);
+    let badge_left = right - badge.size().x;
+    ui.painter()
+        .galley(Pos2::new(badge_left, cy - badge.size().y / 2.0), badge, p.ink_muted);
+    let name_w = ((badge_left - left) / 3.0).clamp(0.0, 180.0);
+    let name = elided(
+        ui,
+        &l.lv.to_uppercase(),
+        FontId::monospace(12.0),
+        p.ink,
+        name_w - m.space_2,
+    );
+    let state_left = left + name_w;
+    let state_g = elided(
+        ui,
         state,
         FontId::proportional(12.0),
         p.ink_muted,
+        badge_left - m.space_3 - state_left,
     );
-    ui.painter().text(
-        Pos2::new(rect.right() - m.space_3, rect.center().y),
-        Align2::RIGHT_CENTER,
-        profile_of(&l.lv),
-        FontId::proportional(11.0),
+    let cut = name.elided || state_g.elided;
+    ui.painter()
+        .galley(Pos2::new(left, cy - name.size().y / 2.0), name, p.ink);
+    ui.painter()
+        .galley(Pos2::new(state_left, cy - state_g.size().y / 2.0), state_g, p.ink_muted);
+    ui.painter()
+        .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, p.line));
+    let action = if l.prepared {
+        "Open read-only"
+    } else {
+        "Prepare it, then open it read-only"
+    };
+    let tip = if cut {
+        format!("{} - {state}\n{action}", l.lv.to_uppercase())
+    } else {
+        action.to_owned()
+    };
+    resp.on_hover_text(tip).on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// A set's heading in the level list: its name and count, as a `label` caption on `surface-2`.
+fn set_heading(ui: &mut egui::Ui, p: &Palette, m: &Metrics, name: &str, n: usize) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), m.row), Sense::hover());
+    ui.painter().rect_filled(rect, CornerRadius::ZERO, p.surface_2);
+    let g = ui.painter().layout_job(caption(&format!("{name}  {n}"), p.ink_muted));
+    ui.painter().galley(
+        Pos2::new(rect.left() + m.space_3, rect.center().y - g.size().y / 2.0),
+        g,
         p.ink_muted,
     );
     ui.painter()
         .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, p.line));
-    resp.on_hover_text(if l.prepared {
-        "Open read-only"
-    } else {
-        "Prepare it, then open it read-only"
-    })
-    .on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// `text` on one line, cut to `width` with an ellipsis when it is longer (the galley's `elided` says so).
+fn elided(ui: &egui::Ui, text: &str, font: FontId, color: Color32, width: f32) -> Arc<egui::Galley> {
+    let mut job = egui::text::LayoutJob::single_section(
+        text.to_owned(),
+        egui::TextFormat {
+            font_id: font,
+            color,
+            ..Default::default()
+        },
+    );
+    job.wrap = egui::text::TextWrapping {
+        max_width: width.max(1.0),
+        max_rows: 1,
+        break_anywhere: true,
+        overflow_character: Some('\u{2026}'),
+    };
+    ui.painter().layout_job(job)
 }
 
 impl ViewState {

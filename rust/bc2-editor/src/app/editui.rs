@@ -46,9 +46,13 @@ fn differ(a: &M, b: &M) -> bool {
 
 // ------------------------------------------------------------------------------------------------- start screen
 
+use crate::levels::ContentSet;
+
 /// The start screen's project forms.
 pub(super) struct StartForm<'a> {
     pub(super) levels: &'a [LevelInfo],
+    /// The sets of maps shown (the start screen's toggles), in order.
+    pub(super) shown: &'a [ContentSet],
     pub(super) new_level: &'a mut Option<String>,
     pub(super) new_name: &'a mut String,
     pub(super) new_folder: &'a mut String,
@@ -72,6 +76,11 @@ pub(super) fn start_projects(
     f: &mut StartForm<'_>,
 ) -> Option<StartChoice> {
     let mut out = None;
+    // two cards side by side within the start screen's column (each at most 340 wide; narrower in a narrow window),
+    // their contents top to bottom (round G3: laid out in the row's direction, they ran past the window's edge)
+    let card_w = ((ui.available_width() - 2.0 * m.space_3 - 4.0 * m.space_3 - 2.0) / 2.0).clamp(200.0, 340.0);
+    // the form's fields: what the card leaves beside its labels
+    let field_w = (card_w - 90.0).min(200.0);
     ui.horizontal_top(|ui| {
         let card = |ui: &mut egui::Ui, add: &mut dyn FnMut(&mut egui::Ui)| {
             egui::Frame::new()
@@ -80,8 +89,10 @@ pub(super) fn start_projects(
                 .corner_radius(CornerRadius::same(m.radius_md as u8))
                 .inner_margin(Margin::same(m.space_3 as i8))
                 .show(ui, |ui| {
-                    ui.set_width(340.0);
-                    add(ui);
+                    ui.vertical(|ui| {
+                        ui.set_width(card_w);
+                        add(ui);
+                    });
                 });
         };
         card(ui, &mut |ui| {
@@ -106,15 +117,27 @@ pub(super) fn start_projects(
                     ui.label(RichText::new("Base map").color(p.ink_muted));
                     egui::ComboBox::from_id_salt("base map")
                         .selected_text(f.new_level.as_deref().map_or("Choose a map".into(), str::to_uppercase))
-                        .width(200.0)
+                        .width(field_w)
                         .show_ui(ui, |ui| {
-                            for l in &prepared {
-                                let text = if l.prepared {
-                                    l.lv.to_uppercase()
-                                } else {
-                                    format!("{} (prepared first)", l.lv.to_uppercase())
-                                };
-                                ui.selectable_value(f.new_level, Some(l.lv.clone()), text);
+                            // grouped by the sets the start screen shows, each under its heading
+                            for set in f.shown {
+                                let rows: Vec<&&LevelInfo> = prepared.iter().filter(|l| l.set == *set).collect();
+                                if rows.is_empty() {
+                                    continue;
+                                }
+                                ui.label(
+                                    RichText::new(set.word().to_uppercase())
+                                        .text_style(style("small"))
+                                        .color(p.ink_faint),
+                                );
+                                for l in rows {
+                                    let text = if l.prepared {
+                                        l.lv.to_uppercase()
+                                    } else {
+                                        format!("{} (prepared first)", l.lv.to_uppercase())
+                                    };
+                                    ui.selectable_value(f.new_level, Some(l.lv.clone()), text);
+                                }
                             }
                         });
                     ui.end_row();
@@ -122,11 +145,11 @@ pub(super) fn start_projects(
                     ui.add(
                         egui::TextEdit::singleline(f.new_name)
                             .hint_text(RichText::new("Harvest Day North").color(p.ink_faint))
-                            .desired_width(200.0),
+                            .desired_width(field_w),
                     );
                     ui.end_row();
                     ui.label(RichText::new("Folder").color(p.ink_muted));
-                    ui.add(egui::TextEdit::singleline(f.new_folder).desired_width(200.0));
+                    ui.add(egui::TextEdit::singleline(f.new_folder).desired_width(field_w));
                     ui.end_row();
                 });
             ui.add_space(m.space_2);
@@ -169,7 +192,7 @@ pub(super) fn start_projects(
                 ui.add(
                     egui::TextEdit::singleline(f.open_path)
                         .hint_text(RichText::new("Project file").color(p.ink_faint))
-                        .desired_width(240.0),
+                        .desired_width((card_w - 70.0).min(240.0)),
                 );
                 if ui
                     .add_enabled(!f.open_path.trim().is_empty(), egui::Button::new("Open"))

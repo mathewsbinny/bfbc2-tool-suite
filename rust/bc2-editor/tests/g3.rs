@@ -210,6 +210,63 @@ fn stand_in(root: &Path) {
     put(&pk.join("nam_common").join("level-00.fbrb.keep"), b"");
 }
 
+/// [`stand_in`] plus one level of each other set, each set decided by its data: a Bad Company 1 map (`bc1_`, on
+/// `mp2_common`), a Pacific War level named like none (`island_x`: its stack loads `ww2_common`), an extra mode layout
+/// on a Dist level (`mp_005gr`: BFBC2).
+fn stand_in_all_sets(root: &Path) {
+    stand_in(root);
+    let game = root.join("game");
+    let pk = game.join("Package").join("levels");
+    let mft_path = game.join("Dist").join("win32").join("package.mft");
+    let mut mft = std::fs::read_to_string(&mft_path).unwrap();
+    for (lv, common) in [
+        ("bc1_x", "package:levels/mp2_common/level-00.fbrb"),
+        ("island_x", "package:levels/ww2_common/level-00.fbrb"),
+        ("mp_005gr", "game:levels/mp_005/level-00.fbrb"),
+    ] {
+        std::fmt::Write::write_fmt(
+            &mut mft,
+            format_args!(
+                "\r\nBundleSource game:levels/{lv}/level-00.fbrb\r\nBundleTarget package:levels/{lv}/level-00.fbrb\r\n\
+                 BundleTarget {common}\r\nBundleTarget game:levels/mp_common/level-00.fbrb\r\n"
+            ),
+        )
+        .unwrap();
+        put(&pk.join(lv).join("level-00.fbrb"), &fbrb::build(&[], true));
+    }
+    for common in ["mp2_common", "ww2_common"] {
+        put(&pk.join(common).join("level-00.fbrb"), &fbrb::build(&[], true));
+    }
+    std::fs::write(&mft_path, mft).unwrap();
+}
+/// Each level's set of maps from its data: the `bc1_` maps of game\Package, the stacks loading `nam_common` and
+/// `ww2_common` (whatever the level is named), everything else BFBC2; the BFBC1 badge; the start screen draws them.
+#[test]
+fn sets_from_the_data() {
+    use bc2_editor::levels::ContentSet;
+    let root = temp("sets");
+    stand_in_all_sets(&root);
+    let app = EditorApp::new(Some(&root), None).unwrap();
+    let set_of = |lv: &str| app.levels().iter().find(|l| l.lv == lv).unwrap().set;
+    assert_eq!(set_of("mp_005"), ContentSet::Bfbc2);
+    assert_eq!(set_of("mp_005gr"), ContentSet::Bfbc2);
+    assert_eq!(set_of("bc1_x"), ContentSet::Bfbc1);
+    assert_eq!(set_of("nam_x"), ContentSet::Vietnam);
+    assert_eq!(set_of("island_x"), ContentSet::Ww2);
+    assert!(ContentSet::ALL.iter().all(|s| app.levels().iter().any(|l| l.set == *s)));
+    assert_eq!(ContentSet::Bfbc1.badge(), "BFBC1");
+    assert_eq!(bc2_editor::app::profile_of("bc1_x"), "BFBC1");
+    assert_eq!(bc2_editor::app::profile_of("mp_005"), "BFBC2");
+    assert_eq!(Profile::of("island_x"), Profile::Ww2, "recognised from its bundles");
+    // a Dist level is never BFBC1, whatever its name
+    assert_eq!(ContentSet::of("bc1_y", Profile::Bfbc2, false), ContentSet::Bfbc2);
+    if let Ok(mut h) = Headless::new([1280, 800]) {
+        let mut app = app;
+        h.settle(&mut app, 4);
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 #[test]
 fn stand_in_package_levels() {
     let root = temp("stand_in");
