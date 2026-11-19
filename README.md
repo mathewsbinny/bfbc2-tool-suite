@@ -625,6 +625,28 @@ drive, instant; cargo goes on using what it built, a few build-script crates may
 everything is built again on the next build. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene -p bc2-convert -p bc2-navbuild` (after
 `cargo install cargo-llvm-cov` and `rustup component add llvm-tools-preview`). Timings: `rust\BENCHMARKS.md`.
 
+## The application icon
+
+The suite's programs show one icon: `bfbc2.exe`, `bfbc2-editor.exe` and `mapexport.exe` carry it as a Windows
+resource (what Explorer, the taskbar and shortcuts show), the map editor's window shows it in its title bar, the
+taskbar and Alt+Tab, and so does the hub's window (`BFBC2 Tool Suite.pyw`). The icon is an M67 grenade, the author's
+own render (`design\icons\source\m67_render.png`; `design\icons\README.md` has the files and how they are made).
+
+What it is: one multi-size Windows `.ico` (256, 128, 64, 48, 32, 24 and 16 pixels; the editor's window takes the
+largest PNG-compressed picture in it, the form current tools write). Where it is looked for, in order:
+
+1. the environment variable `BFBC2_APP_ICON` - the full path of an `.ico`;
+2. `design\icons\local\app.ico` - a personal override. `design\icons\local\` is gitignored: git never sees it;
+3. `design\icons\app.ico` - the committed icon;
+4. none - everything builds and runs without an icon.
+
+The Rust binaries take the icon when they are built (`rust\app_icon.rs`, run by the build scripts of `bc2-cli`,
+`bc2-editor` and `bc2-levelwrite`; it needs `rc.exe` of the Windows SDK, which the Visual Studio C++ tools bring).
+Cargo builds them again when `BFBC2_APP_ICON` or anything under `design\icons` changes, so after adding, changing
+or removing the icon, `python rust\build_native.py` and `python rust\build_native.py --editor` copy binaries with the
+new icon to `bin\`. Without an icon, or without `rc.exe` (a build warning), the binaries have none. The editor and
+the hub read the file when they start.
+
 ## Caches
 
 The tools keep what is slow to make again on disk. Every cache is only a cache: a file that is missing, damaged or

@@ -26,6 +26,10 @@ png.workspace = true
 zune-jpeg.workspace = true
 zune-core.workspace = true
 
+# mapexport.exe's application icon (round I1: build.rs)
+[build-dependencies]
+embed-resource.workspace = true
+
 [dev-dependencies]
 # the proofs: an edited partition loaded as a level
 bc2-scene.workspace = true
