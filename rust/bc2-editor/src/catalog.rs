@@ -72,6 +72,52 @@ pub struct Catalog {
     pub fresh: bool,
 }
 
+/// Multiplayer or campaign, from a level's description (round G4: "Edit existing level" lists multiplayer levels
+/// only; "Create level - from existing levels" lists every level).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LevelKind {
+    /// Its description's `GameMode` is a multiplayer mode (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught,
+    /// Air Superiority, or any other that is not a campaign mode).
+    Multiplayer,
+    /// Its description's `GameMode` is a campaign mode (`gamemodes/singelplayer...`: [`mode_word`]'s `Campaign`).
+    Campaign,
+    /// No description or no `GameMode` read (listed under "Create level" only).
+    Unknown,
+}
+
+impl LevelKind {
+    /// The kind of a level from its game mode in words ([`mode_word`]; `None`: not read).
+    #[must_use]
+    pub fn of_mode(word: Option<&str>) -> Self {
+        match word {
+            None | Some("") => Self::Unknown,
+            Some(CAMPAIGN) => Self::Campaign,
+            Some(_) => Self::Multiplayer,
+        }
+    }
+
+    /// In words, for the map lists.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Multiplayer => "Multiplayer",
+            Self::Campaign => "Campaign",
+            Self::Unknown => "Game mode not read",
+        }
+    }
+}
+
+/// [`mode_word`] of every campaign mode (`gamemodes/sing...`).
+pub const CAMPAIGN: &str = "Campaign";
+
+impl Catalog {
+    /// A level's kind from its description's game mode.
+    #[must_use]
+    pub fn kind(&self, lv: &str) -> LevelKind {
+        LevelKind::of_mode(self.modes.get(&lv.to_lowercase()).map(String::as_str))
+    }
+}
+
 /// A bundle's size and time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Stamp {
@@ -126,7 +172,7 @@ pub fn mode_word(reference: &str) -> String {
         "teamdeathmatch" => "Squad Deathmatch".into(),
         "onslaught" => "Onslaught".into(),
         "airsuperiority" => "Air Superiority".into(),
-        n if n.starts_with("sing") => "Campaign".into(),
+        n if n.starts_with("sing") => CAMPAIGN.into(),
         "" => String::new(),
         n => n.to_owned(),
     }
@@ -451,6 +497,32 @@ mod tests {
         assert_eq!(mode_word("gamemodes/singelplayerfirstlevel/x"), "Campaign");
         assert_eq!(mode_word("gamemodes/airsuperiority/x"), "Air Superiority");
         assert_eq!(mode_word("null"), "");
+    }
+
+    #[test]
+    fn kinds_from_the_modes() {
+        let k = |r: &str| LevelKind::of_mode(Some(&mode_word(r)));
+        assert_eq!(k("gamemodes/singelplayerfirstlevel/x"), LevelKind::Campaign);
+        assert_eq!(k("gamemodes/singleplayer/x"), LevelKind::Campaign);
+        for m in [
+            "conquest",
+            "goldrush",
+            "namsquadrush",
+            "teamdeathmatch",
+            "onslaught",
+            "airsuperiority",
+            "x",
+        ] {
+            assert_eq!(k(&format!("gamemodes/{m}/1")), LevelKind::Multiplayer, "{m}");
+        }
+        assert_eq!(k("null"), LevelKind::Unknown);
+        assert_eq!(LevelKind::of_mode(None), LevelKind::Unknown);
+        let mut c = Catalog::default();
+        c.modes.insert("sp_01".into(), "Campaign".into());
+        c.modes.insert("mp_005".into(), "Conquest".into());
+        assert_eq!(c.kind("SP_01"), LevelKind::Campaign);
+        assert_eq!(c.kind("mp_005"), LevelKind::Multiplayer);
+        assert_eq!(c.kind("mp_006"), LevelKind::Unknown);
     }
 
     #[test]

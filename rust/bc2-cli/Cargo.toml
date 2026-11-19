@@ -14,7 +14,16 @@ path = "src/main.rs"
 
 [dependencies]
 bc2-formats.workspace = true
+bc2-harness.workspace = true
+bc2-convert.workspace = true
 regex.workspace = true
+
+# round O2's tool groups (all on by default; a group alone builds with --no-default-features --features <group>)
+[features]
+default = ["menu", "crash", "nav"]
+menu = []
+crash = []
+nav = []
 
 # the local time (Python's datetime.now()), the ANSI code page and the console test Python's stdio makes
 [target.'cfg(windows)'.dependencies]

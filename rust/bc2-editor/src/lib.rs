@@ -33,6 +33,11 @@
 //! wireframe, collision, navmesh, cull tree: [`viewmodes`] reads their data); [`content`] - the content browser's
 //! catalogue of placeable blueprints; in `app` the context menus, the sink popup (Alt+wheel), placing, polygon
 //! selection and several objects' fields at once; deep duplicates and placements go through levelwrite.
+//!
+//! Round G4 (2026-11-19): the start flow of the user's design - Open project, Edit existing level (the mode cards,
+//! then a mode's multiplayer maps) and Create level (from any existing level, or from a height map: [`heightmap`]
+//! checks the file and saves a project of the import's settings); multiplayer or campaign from each level's
+//! description ([`catalog::LevelKind`]).
 #![deny(unsafe_code)]
 #![allow(
     clippy::many_single_char_names,
@@ -58,6 +63,7 @@ pub mod gameplay;
 pub mod gameview;
 pub mod gizmo;
 pub mod headless;
+pub mod heightmap;
 pub mod help;
 pub mod levels;
 pub mod math;

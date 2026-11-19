@@ -518,6 +518,30 @@ Company 1 maps, mode layouts such as MP_005GR) are listed, prepared and opened b
 - Static group members stay read-only (queued). Placed and copied objects keep their template's `Enumeration` (cull
   slot) until the build round runs `culltree add` for them.
 
+*Done in round G4 (2026-11-19; `rust/BENCHMARKS.md` "G4"): the start flow of the user's design.* The start screen
+opens on three buttons (`rust/bc2-editor/src/app/modes.rs`, `create.rs`; Back and a trail of links lead up again):
+- **Open project:** a `.mapedit.json` path (typed or pasted: no file-dialog dependency), the recent projects, and the
+  projects found in the projects folder; an autosave newer than the file is offered first (crash recovery).
+- **Edit existing level:** G3's four mode cards with their game art, each counting its **multiplayer** maps, then a
+  mode's multiplayer maps (thumbnail, game mode, prepared; search; Open views read-only, New project starts a project
+  on it in a dialog). WW2 lists OPFOR's Pacific War maps.
+- **Create level:** *From existing levels* lists every level of every mode - multiplayer and campaign - grouped by
+  mode with a search; New level opens the name and folder dialog (a campaign base's dialog says the export strips its
+  campaign parts), and the project records the base's kind (`base.kind`: `multiplayer` / `campaign`) for the export.
+  *From a height map* is a form: the file (a 16-bit greyscale PNG, or RAW 16-bit with its size and byte order chosen),
+  the map size in metres, the height of sample values 0 and 65535, the water level, an optional colour map (PNG) and
+  the mode whose content is used. The file is checked as it is typed: it reads, it is square, and it is 1024 or 2048
+  samples a side - the main height field sizes the terrain reader knows (`bc2_formats::terrain::FIXED`) - or 1025 /
+  2049 (the last row and column dropped). Create saves a project with `terrain_import` (the settings, the sample
+  range) and the height map and colour map copied beside it with their sha1s; its base names no level. Such a
+  project opens on its own page saying "Terrain generation arrives in a later round (E7)"; nothing is generated.
+- **Multiplayer or campaign, from the data:** each level's description's `GameMode` (read by `catalog.rs`): a
+  campaign mode (`gamemodes/singelplayer...`) is campaign, any other mode multiplayer; a level whose description is
+  not read is listed under Create level only. On OPFOR's game copy: BFBC2 38 multiplayer + 13 campaign, BFBC1 8 + 0,
+  Vietnam 20 + 0, WW2 4 + 0 (70 + 13, none unknown).
+- **The top bar** keeps the project's badge and name in the room its buttons leave (the name is cut, never drawn
+  under Save), the orthographic views in one Views menu, the theme button shortened to Light / Dark.
+
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
 the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
