@@ -211,9 +211,11 @@ Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.
 
 Run it (Rust as in "The Rust core" below; the first build takes a few minutes):
 
-    cd rust
-    cargo build --release -p bc2-editor
-    target\release\bfbc2-editor.exe [level | --project <name>.mapedit.json] [--opfor <folder>] [--theme light]
+    python rust\build_native.py --editor
+    bin\bfbc2-editor.exe [level | --project <name>.mapedit.json] [--opfor <folder>] [--theme light]
+
+(`--editor` builds `bfbc2-editor.exe` and `mapexport.exe` in this checkout's build folder and copies them to the
+suite's `bin\`: "Where Rust builds", below.)
 
 or from the hub: Levels > "Open in Map Editor (preview)", or More tools > "Open Map Editor". Without a display,
 `bfbc2-editor.exe <level> --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]` draws the window
@@ -529,7 +531,7 @@ core required): `core/tests/test_fbrbtool.py` checks against the exe's recorded 
 228 command lines, 600 damaged bundles, .NET's gzip reader on 3,000 streams; `fbrbtool_golden_game.json`: every
 bundle of the game copy up to 300 MiB unpacked, listed and packed again). NavKit's unpack, `level.heightfield_of`'s
 terrain unpack, the hub's Bundles tab and `bfbc2-stockmp-ai` use it.
-**The command lines in Rust** (round O1, 2026-11-18, crate `rust/bc2-cli`, binary `rust\target\release\bfbc2.exe`).
+**The command lines in Rust** (round O1, 2026-11-18, crate `rust/bc2-cli`, binary `bin\bfbc2.exe` since round D1).
 `bfbc2 fbrbtool <command> ...` and `bfbc2 dbxedit <command> ...` are `fbrbtool.py` / `dbxedit.py` without Python:
 the same arguments, files, exit codes, log lines and printed bytes (stdout and stderr in the code page and order
 Python's stdio gives them, alone or on one pipe), in about 20 ms instead of about 300 ms per call.
@@ -598,8 +600,29 @@ areas, the tracing, the route graphs, the floods), `navdiff.area_cells`, `bfbc2c
 not finite or a route graph the core cannot search raises `ValueError`. Their tests check the answers recorded from
 the Python (`navbuild_golden.json`, `tests/navdata_golden.json`).
 
-**Develop:** in `rust\`, `cargo test` (unit, property and doc tests), `cargo clippy --all-targets -- -D warnings`,
-`cargo fmt`; `python tests\test_rust.py` runs all three. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene -p bc2-convert -p bc2-navbuild` (after
+**Develop:** `python rust\build_native.py --cargo test` (unit, property and doc tests), `--cargo clippy --all-targets
+-- -D warnings`, `--cargo fmt`; `python tests\test_rust.py` runs all three.
+
+**Where Rust builds** (round D1, 2026-11-19). cargo's build folder is not `rust\target` but
+`C:\Programming\Projects\rust-targets\<checkout folder name>` (`rust-targets\bfbc2-tool-suite` for the main checkout,
+`rust-targets\bfbc2-tool-suite-e2b` for a worktree): one folder per checkout, beside the checkouts, so worktrees never
+share a cargo lock and none hides a build inside its own folder. `bfbc2core.native.target_dir()` says where:
+`CARGO_TARGET_DIR` when it is set, else `BFBC2_RUST_TARGETS` (another root) or `rust-targets`, then the checkout's
+folder name. Every suite tool that runs cargo sets it (`build_native.py`, `tests\test_rust.py`, `tests\test_editor.py`,
+`run_tests.py`); a bare `cargo` typed in `rust\` would still use `rust\target`, so run cargo through
+`python rust\build_native.py --cargo <arguments>` (or set `CARGO_TARGET_DIR` to `python rust\build_native.py
+--target-dir`). The binaries the tools run are copied to the suite's `bin\` (gitignored, built outputs only):
+`bin\bfbc2.exe` (every build), `bin\bfbc2-editor.exe` and `bin\mapexport.exe` (`--editor`); the tools look there first
+(`native.find_binary`), then in the build folder.
+
+Removing a worktree: `git worktree remove <folder>`, then `python -m bfbc2core.caches --prune-targets` (from `core\`)
+lists every folder of the build root whose checkout no longer exists beside it, and `--prune-targets --yes` deletes
+them. `--report` shows each checkout's build folder with its size.
+
+Moving an existing `rust\target` (a checkout built before round D1) when nothing is building:
+`move <checkout>\rust\target C:\Programming\Projects\rust-targets\<checkout folder name>` (a rename on the same
+drive, instant; cargo goes on using what it built, a few build-script crates may build again). Or delete it:
+everything is built again on the next build. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene -p bc2-convert -p bc2-navbuild` (after
 `cargo install cargo-llvm-cov` and `rustup component add llvm-tools-preview`). Timings: `rust\BENCHMARKS.md`.
 
 ## Caches
@@ -620,7 +643,17 @@ python -m bfbc2core.caches --clear [name...]  delete the cached files (every sha
                                               name only)
 python -m bfbc2core.caches --opfor <folder>   Project OPFOR BFBC2's folder for the project caches (default: as the
                                               tools find it - OPFOR_ROOT, else walking up from the suite)
+python -m bfbc2core.caches --report           every cache with its size and cap, the overall budget, the logs, every
+                                              checkout's Rust build folder, Project OPFOR's work\ by kind (input,
+                                              output, cache, scratch, backup; --no-work leaves that scan out)
+python -m bfbc2core.caches --prune-targets [--yes]   the Rust build folders whose checkout is gone (deleted with --yes)
 ```
+
+**One budget for all of them** (round D1, 2026-11-19): besides each cache's own cap, every cache together - the
+shared ones (the fbrb payloads included) and the project caches - stays under `BFBC2_CACHE_TOTAL_GB` (default 20
+GiB), the least recently used entries of any cache deleted first (`caches.prune_total`). It runs when tools write,
+as the per-cache caps do (after a cache's own prune, and after `fbrb.read`), at most every 15 minutes across
+processes; `--prune` without names prunes to it too. Nothing is deleted at import time. The logs keep their own caps.
 
 (`python core\bfbc2core\caches.py ...` works from anywhere.) A cap is checked by the code that writes the cache, at
 most every 15 minutes per folder (`bfbc2core.caches.maybe_prune`; fbrb: the Rust core after each payload it writes),

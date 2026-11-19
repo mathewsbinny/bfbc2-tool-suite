@@ -93,8 +93,12 @@ def main():
         print(f'SKIP Battlefield 1943: {e}')
         return 1 if fails else 0
     c = terrain.heightfield(w, source='bf1943')
+    import atexit
+    import shutil
     import tempfile
-    path = os.path.join(tempfile.mkdtemp(prefix='terrain_'), 'wake.res')
+    tmp = tempfile.mkdtemp(prefix='terrain_')
+    atexit.register(shutil.rmtree, tmp, True)           # an 8 MB heightfield: deleted at the end (round D1)
+    path = os.path.join(tmp, 'wake.res')
     open(path, 'wb').write(c)
     h = hf.read(path)
     import numpy as np

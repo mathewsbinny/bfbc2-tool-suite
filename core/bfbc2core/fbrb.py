@@ -104,7 +104,9 @@ def names(path: Path) -> dict[str, Entry]:
 def read(path: Path, wanted: Iterable[str]) -> dict[str, bytes]:
     """{name: bytes} for the entry names given (matched without regard to case; keys as given)."""
     keys = list(dict.fromkeys(wanted))
-    return dict(zip(keys, _rust().fbrb_read(os.fspath(path), keys, [k.lower() for k in keys])))
+    out = dict(zip(keys, _rust().fbrb_read(os.fspath(path), keys, [k.lower() for k in keys])))
+    _budget()
+    return out
 
 
 def read_many(items: Sequence[tuple[Path, Iterable[str]]]) -> list[dict[str, bytes] | Exception]:
@@ -112,7 +114,25 @@ def read_many(items: Sequence[tuple[Path, Iterable[str]]]) -> list[dict[str, byt
     raises (KeyError, ValueError, OSError) in its place, returned."""
     jobs = [(path, list(dict.fromkeys(wanted))) for path, wanted in items]
     got = _rust().fbrb_read_many([(os.fspath(p), keys, [k.lower() for k in keys]) for p, keys in jobs])
+    _budget()
     return [r if isinstance(r, Exception) else dict(zip(keys, r)) for r, (_, keys) in zip(got, jobs)]
+
+
+_budget_next = 0.0
+
+
+def _budget() -> None:
+    """The caches' overall budget (caches.maybe_prune_total, round D1) after a read that may have written payloads to
+    the disk cache: asked at most once per caches.PRUNE_EVERY seconds in this process (a clock compare otherwise).
+    Never raises."""
+    global _budget_next
+    import time
+    now = time.monotonic()
+    if now < _budget_next:
+        return
+    from . import caches
+    _budget_next = now + caches.PRUNE_EVERY
+    caches.maybe_prune_total()
 
 
 # ------------------------------------------------------------------------------------------------ the bundle cache
