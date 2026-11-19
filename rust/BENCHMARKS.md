@@ -3398,7 +3398,60 @@ undo, a new operation clearing the redo stack, history "go to", autosave and rec
 The viewport modes (lit with the game's shaders, unlit, wireframe, collision, navmesh, cull tree), polygon
 selection, editing static group members (they live in the `*_HavokAsset` group files), deep duplicates (sub-instances
 an object owns, such as a flag's capture area, are shared by the copy today), several objects' fields edited at once
-("Mixed"), and levelwrite's proof run over every prepared level rather than three.
+("Mixed"), and levelwrite's proof run over every prepared level rather than three. *All but static group members
+(still read-only, queued) and the game's own shaders in the editor view (route A of R5 draws them in the Game-accurate
+view) were done in round E2b, below.*
+
+## E2b: context menus, edit modes, sink by mouse, the asset browser (2026-11-19, branch `rust-e2b`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Done in round E2b". No Python replaced.
+
+**levelwrite's new operations** (`rust/bc2-levelwrite`): `place` (an added instance: a clone of a template - a plain
+placement of the same blueprint, else any placed object - with a new UUID v5 guid, the blueprint in
+`ReferencedObject` or another reference field (a vehicle spawner's `Vehicle`), the fields most of the level's
+placements of it share, an `Objects` item, no event connections; with `owned`: the template's sub-instances copied
+with it, only the connections among them), a deep duplicate (`duplicate` with `owned`: `LevelWriter::owned` is the
+greatest set reachable from the object whose every referrer is inside it, `LevelData.Objects` or an event connection;
+the copies' references among themselves remapped; every connection touching the set copied once, both ends
+remapped), `hide` and `lock` (per object, the editor's organisation) and `MapProject::amend_last` (a gesture going
+on: one operation). Unit test on a made-up owning level: the ring, the marker and a shared instance; replay through
+`apply` gives the same bytes.
+
+**Every prepared level** (`cargo test -p bc2-editor --test every_level`; OPFOR's `work\levels`: 37, and every level G3
+lists from `game\Package`, read from its `level-00.fbrb` in memory: 45 - Vietnam, Pacific War, BFBC1, extra layouts;
+nothing written): a scripted log of a move, a rotate, a duplicate, a deep duplicate of a flag (else the first object
+of the first 400 that owns something), the same owner placed as a gameplay tile, two placements (the most and the
+least placed blueprint), a delete, a decimal field, a hide and a lock. **82 of 82 levels**: the field-level diff is
+exactly the expected set (the copies and placements added, the deleted removed, the moved, turned and set fields,
+`Objects`, every `EventConnections` naming a copied or deleted object, every field that named the deleted one); the
+result parses, writes back byte for byte and reads as a tree; the log replayed (also after a JSON round trip) gives
+the same bytes; no deep copy names an original it copied. Deep copies of 0 (SP levels without an owner in the first
+400 instances) to 33 sub-objects (ONS_MP_004). Debug build, 438 s in all (the SP levels' ownership search the most).
+
+**The interface** (`cargo test -p bc2-editor --test e2b`, headless on the demo level with a real partition written by
+the suite's DBX writer): the context menus' entries per workspace (Objects, Gameplay, AI, View; the Terrain and
+Vegetation ground menus' brushes greyed with "Coming in the terrain round"); disabled entries with their reasons; a
+right-click selects and opens the object menu, an entry clicked runs (Hide: one operation); the ground menu; "Place
+object here..." picker (Enter takes the first match), Shift+wheel turns 15 degrees a notch, Alt+wheel sinks 0.1 m a
+notch, a click places (one `place`, the crate's plain placement its template); a content tile dragged into the view
+places the house; Objectives: the flag tile dragged in with team 2 gives one `place` with its 5 owned sub-instances,
+the copy's `MapMarker` names its own marker, the outliner lists it, the Gameplay workspace selects it and its menu
+offers Set team; Spawners: a spawn point with team 1; Alt+wheel over a selected crate: three notches one operation,
+sink 0.30 m; after a pause Alt+Shift: 0.01 m a notch, a second operation; one undo takes back a whole burst; Esc closes
+the popup; Ctrl+Shift+D on the flag copies it with its ring and marker (references remapped); the six view modes each
+draw differently (the navmesh mode says when a level has no path data; the cull tree reads the level's slots); a
+polygon of four clicks and Enter selects the two crates; two crates' Health shows Mixed, "40" sets both (one
+operation); Set team 1 from the Gameplay workspace; "Check edits" replays the whole log to the same bytes; saved and
+reopened, the same log.
+
+**The asset browser on the game copy** (`cargo test -p bc2-editor --test asset_browser`, read only): MP_005 lists 675
+placeable objects of BFBC2 (115 its own placements, the rest from its folders and 156 from the set's other bundles'
+headers - the whole set listed in 5.2 s, debug); a blueprint of another level's bundle (`objects/buildings/airtower`,
+`sp_007`) is resolved when placed in 0.07 s. Spawners on MP_005: player spawn points (41), the HQ spawn (with 6 owned),
+AI spawners, a vehicle spawner per vehicle (ah64, mi28, cobra, humvee, m1a2, quadbike, t90 ...); Objectives: capture
+points (with 13 owned), the combat area (44 owned area points), ticket counters. MP_005SR (Rush) adds M-COMs, arm /
+disarm awards, life counters and mission objectives, and offers the set's other vehicles (a10, bmd3, f18 ...) as
+spawner tiles from the catalogue.
 ## F2a: the console converter's rest, the model tools, Granny's writing side (2026-11-18, branch `rust-f2a`)
 
 Round F2a ports the Python that remained of `bfbc2-console-convert`, `bfbc2-model-tools` and Granny's writer

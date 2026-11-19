@@ -21,6 +21,10 @@ window.
     gizmo's maths; the editing interface driven headless (the demo project and an MP_005 project).
   - round R5 (rust\bc2-render): the game-accurate view - MP_005's warehouse drawn as the C++ render harness draws
     it (its recorded picture's coverage and colour), and the editor's Game-accurate switch on MP_005 (Direct3D 11).
+  - round E2b: the context menus per workspace, Alt+wheel sinking (one operation per burst), placing from the picker
+    and the content browser, deep duplicate, the view modes, polygon selection and Mixed fields, driven headless on
+    a made-up level with a partition; levelwrite's scripted log on every prepared level (work\levels and every
+    game\Package level, in memory), exactly the expected changes, replayed to the same bytes.
 
 Read only for the game copy and OPFOR's work folder: projects and edited partitions go to temp folders. The
 game-data parts are skipped (with a note) without the game copy, the GPU parts without any graphics adapter; the
@@ -56,7 +60,7 @@ def main() -> int:
     keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared',
             'levels in this game copy', 'median',
             'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
-            'MP_005 project', 'draws at', 'loaded in')
+            'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ')
     for line in out:
         if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))

@@ -485,6 +485,39 @@ Company 1 maps, mode layouts such as MP_005GR) are listed, prepared and opened b
   every start. Sets from the data: `bc1_` Package maps, `nam_common`, `ww2_common`, the rest BFBC2. The pictures are
   decoded into `work\editor\art` (`rust/bc2-editor/src/catalog.rs`), never into the repository.
 
+*Done in round E2b (2026-11-19; `rust/BENCHMARKS.md` "E2b"): the user's context menus, edit modes and sink by mouse.*
+- **Workspaces are editing methods** (`rust/bc2-editor/src/workspace.rs`): View, Objects (buildings, props,
+  vehicles, effects, sounds ... edited alike; a category filter decided from blueprint data limits what can be
+  selected and what the content browser shows), Terrain and Vegetation (layouts and brush actions registered,
+  greyed "Coming in the terrain round"), Gameplay (only the mode's entities select; Set team) and AI (orders, AI
+  spawns, area points; the navmesh view; the path test registered for E5a).
+- **Context menus** from the action registry, per workspace, on objects (views and outliner) and on the ground;
+  disabled entries say why.
+- **Sink by mouse**: Alt+wheel (0.1 m a notch, 0.01 m with Shift) over a view sinks the selection or the object being
+  placed; a popup beside the pointer (depth in metres and as a share of the height, a slider, straight down / along
+  the normal / aligned to the normal). A wheel burst, a slider drag or a mode click is one operation
+  (`MapProject::amend_last`).
+- **Placing** (levelwrite `place`, "add instance"): the content browser (the level's placements, then its folders'
+  and shared bundles' blueprints) by drag, or "Place object here..." with a searchable picker; Shift+wheel turns
+  (15 degrees, 1 with Ctrl), a click places. A placement is a clone of a template (a plain placement of the same
+  blueprint, else any placed object) with the blueprint, transform and the fields most of the level's placements
+  of it share.
+- **The asset browser** (the user's refinement): three modes. *Place Objects*: a tile for every placeable object of the
+  content set (the level's placements, its folders', every bundle of the set by its header - read from its bundle
+  when placed), category tabs, search; a type icon until rendered thumbnails exist (`work\editor\thumbs`, the hook
+  for the renderer's rounds). *Spawners* (player spawn points, HQ / base spawns, AI spawners, a vehicle spawner per
+  vehicle of the set) and *Objectives* (capture points with their capture area, M-COMs, combat areas, mission
+  objectives, arm / disarm awards, life and ticket counters), drawn from the level's data, placed with the team
+  picker's team and the sub-instances they own; their links (spawns to flags, Rush stages, tickets) are E4's.
+- **Deep duplicate**: the sub-instances an object owns (reached through its references, named by nothing outside
+  the set but `LevelData.Objects` and event connections: a flag's capture area points, map marker, its own
+  spawners) copied with new guids, references among them remapped, their connections copied.
+- **Viewport modes** (the editor view): lit, unlit, wireframe, collision, navmesh (Kynapse path data), cull tree
+  (each object's slot: none, shared, its own; the leaves' spheres). **Polygon selection** (P). **Several objects'
+  fields** in Properties, "Mixed" where they differ, one operation for all.
+- Static group members stay read-only (queued). Placed and copied objects keep their template's `Enumeration` (cull
+  slot) until the build round runs `culltree add` for them.
+
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
 the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
