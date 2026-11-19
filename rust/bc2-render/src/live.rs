@@ -467,6 +467,8 @@ pub struct Live {
     always: Vec<u32>,
     /// The last frame.
     pub built: Built,
+    /// The last frame's camera.
+    pub camera: Option<Camera>,
     visible: Vec<bool>,
 }
 
@@ -557,6 +559,7 @@ impl Live {
 
     /// Builds the frame for a camera: the visible draws in order, their constants in the arena.
     pub fn build(&mut self, cam: &Camera, size: [u32; 2], opts: Options) -> &Built {
+        self.camera = Some(*cam);
         let vp = cam.view_proj();
         let inv = [1.0 / size[0].max(1) as f32, 1.0 / size[1].max(1) as f32, 0.0, 0.0];
         let frame: [Vec<f32>; 6] = [

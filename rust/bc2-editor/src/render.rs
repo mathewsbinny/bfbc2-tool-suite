@@ -79,7 +79,12 @@ impl Gpu {
         }
         let adapter = adapter.ok_or("no graphics adapter")?;
         let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+        // the game-accurate view's shared frame (round R5c), when the adapter can
+        let desc = wgpu::DeviceDescriptor {
+            required_features: crate::gameview::device_features(&adapter),
+            ..Default::default()
+        };
+        let (device, queue) = pollster::block_on(adapter.request_device(&desc))
             .map_err(|e| format!("no graphics device: {e}"))?;
         Ok((Self { device, queue }, format!("{} ({:?})", info.name, info.backend)))
     }

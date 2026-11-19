@@ -28,6 +28,10 @@ bytemuck.workspace = true
 pollster.workspace = true
 png.workspace = true
 
+# the game-accurate view's shared frame opened on egui's device (the NT handle's type)
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
 [dev-dependencies]
 # the recorded Map Inspector lists are gzip JSON (tests/data)
 flate2.workspace = true

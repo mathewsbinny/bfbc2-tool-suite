@@ -7,7 +7,7 @@
 //! Also here: picking by replaying the frame's draws into the stencil (the object's number, a byte a replay, at one
 //! pixel: DICE's own shaders decide coverage, discards included), the selection mask and outline drawn on the game
 //! frame with its depth, and the finished frame shared with the editor's graphics device (an NT handle to a
-//! `R8G8B8A8_UNORM_SRGB` texture; no read back).
+//! `R8G8B8A8_UNORM` texture: the picture's gamma-space bytes, as egui's own textures; no read back).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -27,7 +27,7 @@ use windows::Win32::Graphics::Direct3D11::{
     ID3D11Texture2D, ID3D11VertexShader,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
-    DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, DXGI_FORMAT_R16_UINT, DXGI_FORMAT_R32_UINT, DXGI_SAMPLE_DESC,
+    DXGI_FORMAT, DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R16_UINT, DXGI_FORMAT_R32_UINT, DXGI_SAMPLE_DESC,
 };
 use windows::Win32::Graphics::Dxgi::{DXGI_SHARED_RESOURCE_READ, DXGI_SHARED_RESOURCE_WRITE, IDXGIResource1};
 use windows::core::{Interface, PCSTR, PCWSTR, s};
@@ -78,6 +78,7 @@ struct Material {
 /// A texture shared with another device.
 struct Shared {
     tex: ID3D11Texture2D,
+    rtv: windows::Win32::Graphics::Direct3D11::ID3D11RenderTargetView,
     handle: HANDLE,
 }
 
@@ -94,7 +95,7 @@ pub(super) struct Gpu {
     shared_size: [u32; 2],
     shared_next: usize,
     shared_generation: u32,
-    outline: Option<(ID3D11VertexShader, ID3D11PixelShader)>,
+    outline: Option<(ID3D11VertexShader, ID3D11PixelShader, ID3D11PixelShader)>,
     query: Option<ID3D11Query>,
 }
 
@@ -242,6 +243,9 @@ float4 ps(float4 pos : SV_Position) : SV_Target {
     if ((near & 0x40) && !(here & 0x40)) return hidden;
     discard;
     return seen;
+}
+float4 opaque(float4 pos : SV_Position) : SV_Target {
+    return float4(0, 0, 0, 1);
 }
 ";
 
@@ -664,6 +668,17 @@ impl Device {
         self.bind_scene()
     }
 
+    /// The overlay shaders (the outline, the opaque alpha), compiled on first use.
+    fn overlay_shaders(&mut self) -> Result<(), String> {
+        if self.gpu.outline.is_none() {
+            let vs = compile(s!("vs"), s!("vs_5_0"))?;
+            let ps = compile(s!("ps"), s!("ps_5_0"))?;
+            let one = compile(s!("opaque"), s!("ps_5_0"))?;
+            self.gpu.outline = Some((self.vertex_shader(&vs)?, self.pixel_shader(&ps)?, self.pixel_shader(&one)?));
+        }
+        Ok(())
+    }
+
     /// Draws the live list's last built frame ([`Live::build`]) and its post-process, as [`Device::render`] draws
     /// the same draws (read the result with [`Device::read_scene`], [`Device::read_output`] or [`Device::share`]).
     ///
@@ -885,11 +900,7 @@ impl Device {
         if steps.is_empty() {
             return Ok(());
         }
-        if self.gpu.outline.is_none() {
-            let vs = compile(s!("vs"), s!("vs_5_0"))?;
-            let ps = compile(s!("ps"), s!("ps_5_0"))?;
-            self.gpu.outline = Some((self.vertex_shader(&vs)?, self.pixel_shader(&ps)?));
-        }
+        self.overlay_shaders()?;
         let (mats, _) = self.materials_of(live, &steps, files, raw)?;
         let ring = self.ctx1().is_some();
         // SAFETY: the context of this device
@@ -899,7 +910,7 @@ impl Device {
             self.submit(live, &steps, &mats, ring, Mode::Mask(seen_pass), None, files, raw)?;
         }
         let (rtv, _) = self.pass_target(out)?;
-        let (vs, ps) = some(self.gpu.outline.clone(), "outline")?;
+        let (vs, ps, _) = some(self.gpu.outline.clone(), "outline")?;
         let cb: Vec<u8> = seen.iter().chain(&hidden).flat_map(|v| v.to_le_bytes()).collect();
         let cb = self.cbuffer(&cb, 1)?;
         // alpha blended over, no depth
@@ -955,7 +966,7 @@ impl Device {
                     Height: size[1],
                     MipLevels: 1,
                     ArraySize: 1,
-                    Format: DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+                    Format: DXGI_FORMAT_R8G8B8A8_UNORM,
                     SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
                     Usage: D3D11_USAGE_DEFAULT,
                     BindFlags: (D3D11_BIND_SHADER_RESOURCE.0 | D3D11_BIND_RENDER_TARGET.0) as u32,
@@ -979,7 +990,15 @@ impl Device {
                         .map_err(err("CreateSharedHandle"))?;
                     (t, h)
                 };
-                self.gpu.shared.push(Shared { tex: tex2, handle });
+                let mut rtv = None;
+                // SAFETY: a view of the texture just made
+                unsafe { self.device.CreateRenderTargetView(&tex2, None, Some(&raw mut rtv)) }
+                    .map_err(err("CreateRenderTargetView (shared)"))?;
+                self.gpu.shared.push(Shared {
+                    tex: tex2,
+                    rtv: some(rtv, "shared rtv")?,
+                    handle,
+                });
             }
             self.gpu.shared_size = size;
             self.gpu.shared_generation += 1;
@@ -987,9 +1006,35 @@ impl Device {
         let slot = self.gpu.shared_next % self.gpu.shared.len();
         self.gpu.shared_next = slot + 1;
         let s = some(self.gpu.shared.get(slot), "shared")?;
-        let (dst, handle) = (s.tex.clone(), s.handle);
-        // SAFETY: two textures of this device of the same size and format group
-        unsafe { self.ctx.CopyResource(&dst, &tex) };
+        let (dst, rtv, handle) = (s.tex.clone(), s.rtv.clone(), s.handle);
+        self.overlay_shaders()?;
+        let (vs, _, one) = some(self.gpu.outline.clone(), "overlay")?;
+        // the alpha written as 1: the frame is opaque (the tonemap's alpha is not coverage)
+        let (blend, depth, raster) = self.keyed_states_ex([0, 0, 2, 1, 1, 2, 1, 1, 8], [0, 0, 8, 0], 1)?;
+        // SAFETY: two textures of this device of the same size and format; then a full-screen triangle into the
+        // copy's alpha
+        unsafe {
+            self.ctx.CopyResource(&dst, &tex);
+            self.ctx.ClearState();
+            self.ctx.OMSetRenderTargets(Some(&[Some(rtv)]), None);
+            self.ctx.RSSetViewports(Some(&[D3D11_VIEWPORT {
+                TopLeftX: 0.0,
+                TopLeftY: 0.0,
+                Width: size[0] as f32,
+                Height: size[1] as f32,
+                MinDepth: 0.0,
+                MaxDepth: 1.0,
+            }]));
+            self.ctx
+                .IASetPrimitiveTopology(windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            self.ctx.VSSetShader(&vs, None);
+            self.ctx.PSSetShader(&one, None);
+            self.ctx.OMSetBlendState(&blend, None, 0xffff_ffff);
+            self.ctx.OMSetDepthStencilState(&depth, 0);
+            self.ctx.RSSetState(&raster);
+            self.ctx.Draw(3, 0);
+            self.ctx.OMSetRenderTargets(None, None);
+        }
         self.finish()?;
         Ok(SharedFrame {
             handle: handle.0 as isize,
@@ -997,6 +1042,12 @@ impl Device {
             size,
             generation: self.gpu.shared_generation,
         })
+    }
+
+    /// The shared textures' NT handles, in slot order (empty before the first [`Device::share`]).
+    #[must_use]
+    pub fn shared_handles(&self) -> Vec<isize> {
+        self.gpu.shared.iter().map(|s| s.handle.0 as isize).collect()
     }
 
     /// Clears the scene's targets (an empty frame of `size`).
