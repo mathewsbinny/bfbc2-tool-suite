@@ -98,6 +98,9 @@ fn sp_01_exports_as_a_new_conquest_level() {
             ],
             combat_area: "E4C7B1C2-BB9F-481A-B3CC-F67E4E5CB088".into(),
         },
+        // E3's export: the BFBC2 profile, the base's names and loading picture
+        profile: Profile::Bfbc2,
+        identity: None,
     };
     let out = std::env::temp_dir().join(format!("bc2_levelwrite_export_{}", std::process::id()));
     let rec = export::build(&game, &p, "test", &spec, &out).unwrap();

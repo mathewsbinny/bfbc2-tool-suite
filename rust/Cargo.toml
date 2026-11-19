@@ -61,6 +61,10 @@ serde_json = "=1.0.151"
 bytemuck = "=1.25.2"
 pollster = "=1.0.1"
 png = "=0.18.1"
+# The export's pictures from the user's JPEG files (bc2-levelwrite's awards, round E3b; already in the lock through
+# eframe's image decoders).
+zune-jpeg = "=0.5.15"
+zune-core = "=0.5.3"
 # The game-accurate view (bc2-render, round R5): Direct3D 11 drawing DICE's own compiled shaders, the version wgpu's
 # Direct3D 12 backend already brings in (one copy of the bindings in the build).
 windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Direct3D_Fxc", "Win32_Security"] }
