@@ -32,6 +32,7 @@ use std::io::{self, Write as _};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+#[allow(unused_imports, reason = "a group built alone uses some of them")]
 pub use bc2_pyrt::err::{Fail, PyErr, PyResult, explain, os_error, read_file, write_file};
 pub use bc2_pyrt::py::suite_root;
 
