@@ -74,7 +74,13 @@ pub struct Placing {
     pub extent: (f64, f64),
     /// Half its width and depth (the preview box).
     pub half: (f64, f64),
+    /// A spawner or objective of the Spawners and Objectives modes (`entry` is then its stand-in).
+    pub gameplay: Option<crate::gameplay::Tile>,
 }
+
+/// A Spawners or Objectives tile being dragged (its key).
+#[derive(Debug, Clone)]
+pub struct GameplayDrag(pub String);
 
 /// What a gesture of the sink popup is (each is one operation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -853,7 +859,135 @@ impl ViewState {
             at: None,
             extent,
             half,
+            gameplay: None,
         });
+    }
+
+    /// The Spawners and Objectives tiles (made again when the log or the catalogue changed).
+    pub fn gameplay_tiles(&mut self) -> Vec<crate::gameplay::Tile> {
+        let key = (
+            self.doc.as_ref().map_or(0, |d| d.project.operations.len() + d.project.redo.len() * 1000),
+            self.content.as_ref().map_or(0, |c| c.entries.len()),
+        );
+        if let Some((k, t)) = &self.tiles
+            && *k == key
+        {
+            return t.clone();
+        }
+        let Some(d) = &self.doc else { return Vec::new() };
+        let t = crate::gameplay::tiles(d, self.content.as_ref());
+        self.tiles = Some((key, t.clone()));
+        t
+    }
+
+    /// Starts placing a Spawners or Objectives tile: it follows the pointer like an object.
+    pub fn start_placing_gameplay(&mut self, tile: crate::gameplay::Tile) {
+        if let Some(w) = tile.why_not {
+            self.message = format!("{} cannot be placed: {w}", tile.label);
+            self.place_failed = Some(tile.key());
+            return;
+        }
+        let size = self
+            .doc
+            .as_ref()
+            .and_then(|d| d.index(&tile.template))
+            .and_then(|k| self.scene().entities.get(k))
+            .and_then(|e| render::marker_size(&e.category))
+            .map_or(1.0, f64::from);
+        let entry = Entry {
+            reference: String::new(),
+            path: format!("gameplay:{}", tile.key()),
+            name: tile.label.clone(),
+            category: Category::Gameplay,
+            object_type: None,
+            destructible: false,
+            used: tile.count,
+            source: "This level".into(),
+            why_not: None,
+            bundle: None,
+            in_stack: true,
+        };
+        self.message = format!(
+            "Placing {}: click to place, Alt+wheel sinks, Shift+wheel turns, Esc cancels",
+            tile.label
+        );
+        self.placing = Some(Placing {
+            entry,
+            yaw: 0.0,
+            placement: Placement::default(),
+            at: None,
+            extent: (0.0, size),
+            half: (size / 2.0, size / 2.0),
+            gameplay: Some(tile),
+        });
+    }
+
+    /// Places a Spawners or Objectives tile at `m`: a copy of its template with the sub-instances it owns (carried
+    /// to the new place), the browser's team, a vehicle spawner's vehicle; one `place` operation.
+    fn finish_gameplay(&mut self, gpu: &GpuCtx, palette: &Palette, tile: crate::gameplay::Tile, m: M, place: Placement) {
+        let mut vehicle = tile.vehicle.clone();
+        if vehicle.is_empty()
+            && let Some(path) = &tile.vehicle_path
+        {
+            match self.content.as_mut().map(|c| c.resolved(path)) {
+                Some(Ok(e)) => vehicle = e.reference,
+                Some(Err(x)) => {
+                    self.message = format!("Not placed: {x}");
+                    return;
+                }
+                None => return,
+            }
+        }
+        let team = self.place_team;
+        let Some(d) = self.doc.as_ref() else { return };
+        let Some(old) = d.index(&tile.template).and_then(|k| d.scene.entities.get(k)).and_then(|e| e.matrix) else {
+            return;
+        };
+        let owned: Vec<bc2_levelwrite::ops::SubCopy> = tile
+            .owned
+            .iter()
+            .map(|g| bc2_levelwrite::ops::SubCopy {
+                source: g.clone(),
+                guid: d.project.new_guid(g),
+                transform: d
+                    .index(g)
+                    .and_then(|k| d.scene.entities.get(k))
+                    .and_then(|e| e.matrix)
+                    .map(|sm| bc2_levelwrite::rows_of(&math::carry_matrix(&old, &m, &sm))),
+            })
+            .collect();
+        let fields = tile
+            .team_field
+            .filter(|_| d.index(&tile.template).and_then(|k| d.scene.entities.get(k)).is_some_and(|e| e.team.is_some()))
+            .map(|f| FieldIs {
+                field: f.into(),
+                value: FieldValue::Text(
+                    match team {
+                        1 => "Team1",
+                        2 => "Team2",
+                        _ => "TeamNeutral",
+                    }
+                    .into(),
+                ),
+            })
+            .into_iter()
+            .collect();
+        let vehicle_spawner = matches!(tile.kind, crate::gameplay::Kind::VehicleSpawner(_));
+        let guid = d.project.new_guid(&tile.template);
+        let item = Placed {
+            guid: guid.clone(),
+            template: tile.template.clone(),
+            blueprint: if vehicle_spawner { vehicle } else { String::new() },
+            ref_field: vehicle_spawner.then(|| "Vehicle".to_owned()),
+            owned,
+            transform: bc2_levelwrite::rows_of(&m),
+            fields,
+            placement: Some(place),
+        };
+        self.commit(gpu, palette, Op::Place { items: vec![item] }, "");
+        if let Some(k) = self.doc.as_ref().and_then(|d| d.index(&guid)) {
+            self.set_selection(gpu, vec![k], true);
+        }
     }
 
     /// Moves the object being placed to the surface under a ray.
@@ -874,6 +1008,10 @@ impl ViewState {
             self.message = "Nothing under the pointer to place on".into();
             return;
         };
+        if let Some(tile) = p.gameplay {
+            self.finish_gameplay(gpu, palette, tile, m, p.placement);
+            return;
+        }
         let Some(d) = self.doc.as_mut() else { return };
         let Some((template, fields)) = d.template_for(&p.entry.reference) else {
             self.message = "This level has no placed object to make a new one from".into();
@@ -982,7 +1120,19 @@ impl Tabs<'_> {
         {
             self.view.start_placing(e);
         }
-        let released = resp.dnd_release_payload::<ContentDrag>().is_some();
+        if let Some(payload) = resp.dnd_hover_payload::<GameplayDrag>()
+            && self.view.placing.as_ref().is_none_or(|p| p.entry.path != format!("gameplay:{}", payload.0))
+            && self.view.place_failed.as_deref() != Some(payload.0.as_str())
+            && let Some(t) = self.view.gameplay_tiles().into_iter().find(|t| t.key() == payload.0)
+        {
+            self.view.start_placing_gameplay(t);
+        }
+        // (taking a payload of another type drops it: ask for the type being carried)
+        let released = if egui::DragAndDrop::has_payload_of_type::<GameplayDrag>(ui.ctx()) {
+            resp.dnd_release_payload::<GameplayDrag>().is_some()
+        } else {
+            resp.dnd_release_payload::<ContentDrag>().is_some()
+        };
         if resp.hovered() || released {
             let alt_held = ui.input(|i| i.modifiers.alt);
             for (n, m) in notches(ui) {
@@ -1417,11 +1567,30 @@ impl Tabs<'_> {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
             }
         }
-        let Some(cat) = self.view.content.as_ref() else {
+        if self.view.content.is_none() {
             self.header(ui, "Place objects", "");
             ui.label(RichText::new("Open a project to place objects.").color(p.ink_muted));
             return;
-        };
+        }
+        // the browser's modes
+        let mut mode = self.view.browser_mode;
+        egui::Frame::new()
+            .inner_margin(Margin::symmetric(m.space_2 as i8, m.space_1 as i8))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for bm in crate::gameplay::BrowserMode::ALL {
+                        if ui.selectable_label(mode == bm, bm.name()).clicked() {
+                            mode = bm;
+                        }
+                    }
+                });
+            });
+        self.view.browser_mode = mode;
+        if mode != crate::gameplay::BrowserMode::PlaceObjects {
+            self.gameplay_browser(ui, mode);
+            return;
+        }
+        let Some(cat) = self.view.content.as_ref() else { return };
         let reading = cat.reading;
         let source = cat.source.clone();
         let shown: Vec<Entry> = cat
@@ -1530,6 +1699,125 @@ impl Tabs<'_> {
         }
         if let Some(e) = start {
             self.view.start_placing(e);
+            if let Some(r) = self.view.view_rect()
+                && let Some(vp) = self.view.viewports.get(&Projection::Perspective)
+            {
+                let view = Tabs::view_of(r, &vp.camera);
+                let (o, d) = view.ray([f64::from(r.width()) / 2.0, f64::from(r.height()) / 2.0]);
+                self.view.placing_to(o, d);
+            }
+        }
+    }
+
+    /// The Spawners and Objectives modes: the team picker and the level's gameplay tiles; drag one into a view.
+    fn gameplay_browser(&mut self, ui: &mut egui::Ui, mode: crate::gameplay::BrowserMode) {
+        let p = self.palette;
+        let m = self.metrics;
+        let tiles: Vec<crate::gameplay::Tile> = self
+            .view
+            .gameplay_tiles()
+            .into_iter()
+            .filter(|t| t.mode == mode)
+            .filter(|t| {
+                let q = self.view.content_query.to_lowercase();
+                q.split_whitespace().all(|w| t.label.to_lowercase().contains(w))
+            })
+            .collect();
+        self.header(ui, mode.name(), &format!("{} kinds", tiles.len()));
+        let mut team = self.view.place_team;
+        egui::Frame::new()
+            .inner_margin(Margin::same(m.space_2 as i8))
+            .show(ui, |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.view.content_query)
+                        .hint_text(RichText::new("Search").color(p.ink_faint))
+                        .desired_width(f32::INFINITY),
+                );
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Team").color(p.ink_muted));
+                    for t in [1u8, 2, 0] {
+                        let label = if t == 0 {
+                            "Neutral".to_owned()
+                        } else {
+                            format!("Team {t} ({})", self.view.teams.label(t))
+                        };
+                        if ui
+                            .selectable_label(team == t, label)
+                            .on_hover_text("Placed spawns, flags and vehicle spawners take this team")
+                            .clicked()
+                        {
+                            team = t;
+                        }
+                    }
+                });
+            });
+        self.view.place_team = team;
+        let (tile_w, tile_h, gap) = (118.0f32, 112.0f32, 6.0f32);
+        let width = ui.available_width() - m.space_2 * 2.0;
+        let cols = ((width + gap) / (tile_w + gap)).floor().max(1.0) as usize;
+        let rows = tiles.len().div_ceil(cols);
+        let mut rects = Vec::new();
+        let mut start = None;
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show_rows(ui, tile_h + gap, rows, |ui, range| {
+                for r in range {
+                    ui.horizontal(|ui| {
+                        ui.add_space(m.space_2);
+                        ui.spacing_mut().item_spacing.x = gap;
+                        for t in tiles.iter().skip(r * cols).take(cols) {
+                            let stand_in = Entry {
+                                reference: String::new(),
+                                path: t.key(),
+                                name: t.label.clone(),
+                                category: if matches!(t.kind, crate::gameplay::Kind::VehicleSpawner(_)) {
+                                    Category::Vehicles
+                                } else {
+                                    Category::Gameplay
+                                },
+                                object_type: None,
+                                destructible: false,
+                                used: t.count,
+                                source: String::new(),
+                                why_not: t.why_not,
+                                bundle: None,
+                                in_stack: true,
+                            };
+                            let draw = |ui: &mut egui::Ui| tile(ui, &p, &stand_in, None, false, [tile_w, tile_h]);
+                            let id = egui::Id::new(("gameplay tile", t.key()));
+                            let resp = if t.why_not.is_none() {
+                                ui.dnd_drag_source(id, GameplayDrag(t.key()), draw).response
+                            } else {
+                                draw(ui)
+                            };
+                            let tip = format!(
+                                "{}\n{} in this level{}\n{}{}",
+                                t.label,
+                                t.count,
+                                if t.owned.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!("; placed with the {} sub-objects it owns", t.owned.len())
+                                },
+                                t.why_not.map_or_else(
+                                    || "Drag into a view to place it (the team picker's team). ".to_owned(),
+                                    |w| format!("{w}. ")
+                                ),
+                                t.wiring
+                            );
+                            let resp = resp.on_hover_text(tip);
+                            rects.push((t.key(), resp.rect));
+                            if resp.double_clicked() && t.why_not.is_none() {
+                                start = Some(t.clone());
+                            }
+                        }
+                    });
+                    ui.add_space(gap);
+                }
+            });
+        self.view.content_rects = rects;
+        if let Some(t) = start {
+            self.view.start_placing_gameplay(t);
             if let Some(r) = self.view.view_rect()
                 && let Some(vp) = self.view.viewports.get(&Projection::Perspective)
             {

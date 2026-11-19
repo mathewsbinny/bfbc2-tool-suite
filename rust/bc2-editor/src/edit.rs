@@ -218,6 +218,9 @@ impl Doc {
                         continue;
                     };
                     self.copy_owned(k, n, old, to, &p.owned);
+                    for f in &p.fields {
+                        self.field_to_scene(n, &f.field, &f.value);
+                    }
                     let path = blueprint_path(&p.blueprint);
                     let same = self.scene.entities.get(k).and_then(|e| e.blueprint.clone()) == Some(path.clone());
                     // a spawner's vehicle or a template kept as it is: the entity stays the template's kind
@@ -243,26 +246,30 @@ impl Doc {
             }
             Op::SetField { items } => {
                 for f in items {
-                    let Some(k) = self.index(&f.guid) else { continue };
-                    let Some(e) = self.scene.entities.get_mut(k) else {
-                        continue;
-                    };
-                    match (f.field.as_str(), &f.to) {
-                        ("Name", FieldValue::Text(s)) => e.name = Some(s.clone()),
-                        ("Team", FieldValue::Int(t)) if e.team.is_some() && (0..=2).contains(t) => {
-                            e.team = Some(*t as u8);
-                        }
-                        ("Team" | "InitialOwnerTeam", FieldValue::Text(t)) if e.team.is_some() => {
-                            e.team = match t.as_str() {
-                                "Team1" => Some(1),
-                                "Team2" => Some(2),
-                                "TeamNeutral" => Some(0),
-                                _ => e.team,
-                            };
-                        }
-                        _ => {}
+                    if let Some(k) = self.index(&f.guid) {
+                        self.field_to_scene(k, &f.field, &f.to);
                     }
                 }
+            }
+            _ => {}
+        }
+    }
+
+    /// What a field set changes in the scene: a name, a team.
+    fn field_to_scene(&mut self, k: usize, field: &str, to: &FieldValue) {
+        let Some(e) = self.scene.entities.get_mut(k) else { return };
+        match (field, to) {
+            ("Name", FieldValue::Text(s)) => e.name = Some(s.clone()),
+            ("Team", FieldValue::Int(t)) if e.team.is_some() && (0..=2).contains(t) => {
+                e.team = Some(*t as u8);
+            }
+            ("Team" | "InitialOwnerTeam", FieldValue::Text(t)) if e.team.is_some() => {
+                e.team = match t.as_str() {
+                    "Team1" => Some(1),
+                    "Team2" => Some(2),
+                    "TeamNeutral" => Some(0),
+                    _ => e.team,
+                };
             }
             _ => {}
         }
