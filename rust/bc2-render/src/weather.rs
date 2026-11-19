@@ -52,6 +52,8 @@ pub struct Post {
     pub contrast: [f32; 3],
     /// `Saturation`.
     pub saturation: [f32; 3],
+    /// `BloomScale` (r, g, b).
+    pub bloom_scale: [f32; 3],
 }
 
 impl Default for Post {
@@ -63,6 +65,7 @@ impl Default for Post {
             brightness: [1.0; 3],
             contrast: [1.0; 3],
             saturation: [1.0; 3],
+            bloom_scale: [0.0; 3],
         }
     }
 }
@@ -225,6 +228,7 @@ pub fn light(w: &Weather, sun_dir: [f32; 3]) -> (Values, Post) {
         brightness: rgb(pp, "Brightness", 1.0),
         contrast: rgb(pp, "Contrast", 1.0),
         saturation: rgb(pp, "Saturation", 1.0),
+        bloom_scale: rgb(pp, "BloomScale", 0.0),
     };
     (v, post)
 }

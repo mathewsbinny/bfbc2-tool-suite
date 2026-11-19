@@ -83,9 +83,49 @@ impl PatchMap {
     }
 }
 
-/// A `VisualTerrain`'s patch shaders and patch maps.
+/// One baked road or decal strip (`terrain.road_strips`' dicts): its entry, a range of its block's indices.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Strip {
+    /// Its shader entry (`Terrains/MP_005/Shaders/Road_Asphalt_01`).
+    pub shader: String,
+    /// A second pass's entry (`..._Zonly`), or empty.
+    pub second: String,
+    /// Its mask's name, or empty.
+    pub mask: String,
+    /// The first index.
+    pub first: u32,
+    /// Triangles.
+    pub triangles: u32,
+    /// The stored bounds (6 floats).
+    pub bounds: [f32; 6],
+    /// The layer (draw order among strips).
+    pub layer: u32,
+}
+
+/// A road block: its strips, vertices (28 bytes each: position float3, texture coordinate float2, 4 x f16) and indices.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct RoadBlock {
+    /// The strips.
+    pub strips: Vec<Strip>,
+    /// The vertices.
+    pub vertices: Vec<u8>,
+    /// The indices (`u32`).
+    pub indices: Vec<u32>,
+}
+
+/// Bytes per road vertex.
+pub const ROAD_STRIDE: u32 = 28;
+
+/// The strip vertex layout (`renderqa.STRIP_LAYOUT`).
+pub const STRIP_LAYOUT: [u8; 16] = [
+    0xbc, 0xd3, 0x77, 0x55, 0xdf, 0xa1, 0x71, 0x4a, 0x6f, 0x0d, 0x12, 0x6a, 0xed, 0x6a, 0xd4, 0xed,
+];
+
+/// A `VisualTerrain`'s road blocks, patch shaders and patch maps.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct VisualTerrain {
+    /// Each terrain block's full-detail roads, then each one's low-detail ones.
+    pub roads: Vec<RoadBlock>,
     /// The patch shaders.
     pub shaders: Vec<PatchShader>,
     /// One per terrain block.
@@ -127,17 +167,40 @@ pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, String> {
     if !(1..=256).contains(&n) {
         return Err(format!("visual terrain: {n} terrain blocks"));
     }
-    for _ in 0..2 * n {
-        for _ in 0..w.u32()? {
-            w.string()?;
-            w.string()?;
-            w.string()?;
-            w.skip(4 * 9)?;
-        }
-        let (v, _, i) = (w.u32()?, w.u32()?, w.u32()?);
-        w.skip(28 * v as usize + 4 * i as usize)?;
-    }
     let mut out = VisualTerrain::default();
+    for _ in 0..2 * n {
+        let mut block = RoadBlock::default();
+        for _ in 0..w.u32()? {
+            let (shader, second, mask) = (w.string()?, w.string()?, w.string()?);
+            let (first, triangles) = (w.u32()?, w.u32()?);
+            let mut bounds = [0f32; 6];
+            for b in &mut bounds {
+                *b = f32_at(data, w.o);
+                w.skip(4)?;
+            }
+            let layer = w.u32()?;
+            block.strips.push(Strip {
+                shader,
+                second,
+                mask,
+                first,
+                triangles,
+                bounds,
+                layer,
+            });
+        }
+        let (v, b, i) = (w.u32()?, w.u32()?, w.u32()?);
+        if b != ROAD_STRIDE * v {
+            return Err(format!("visual terrain: road vertices of {b} bytes for {v} (not 28 each)"));
+        }
+        let at = w.o;
+        w.skip(28 * v as usize)?;
+        block.vertices = data.get(at..w.o).unwrap_or_default().to_vec();
+        let at = w.o;
+        w.skip(4 * i as usize)?;
+        block.indices = (0..i as usize).map(|k| u32_at(data, at + 4 * k)).collect();
+        out.roads.push(block);
+    }
     for _ in 0..w.u32()? {
         let (name, undergrowth) = (w.string()?, w.string()?);
         let (layers, tiled) = (w.u32()?, w.u32()?);
@@ -227,16 +290,22 @@ pub struct RawTexture {
     pub data: Vec<u8>,
 }
 
-/// The engine's height map: the height field's stored values as `R16_UNORM` (height = min y + value * (max y - min
-/// y), the posScale / posOffset below).
+/// The engine's height map: the height field's stored 16-bit values v as `R32_FLOAT` v / 65535 (what `R16_UNORM`
+/// reads; height = min y + value * (max y - min y), the posScale / posOffset below). Held as floats so the C++
+/// harness, whose engine textures are float, filters the very same texels (the engine's own format is the capture's
+/// to tell).
 #[must_use]
 pub fn heightmap(hf: &Heightfield) -> RawTexture {
     RawTexture {
         width: hf.size,
         height: hf.size,
-        format: 56,
-        texel: 2,
-        data: hf.raw.iter().flat_map(|v| v.to_le_bytes()).collect(),
+        format: 41,
+        texel: 4,
+        data: hf
+            .raw
+            .iter()
+            .flat_map(|&v| (f32::from(v) / 65535.0).to_le_bytes())
+            .collect(),
     }
 }
 
@@ -305,13 +374,26 @@ fn patch_element(semantic: u32) -> Option<Element> {
 }
 
 /// One patch shader's draw (everything but the vertices), made once per entry.
-fn patch_draw(
+/// What a terrain draw is drawn on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum On {
+    /// A patch whose cell has this many tiled masks.
+    Patch(u32),
+    /// A road or decal strip.
+    Strip,
+}
+
+/// One terrain shader's draw (everything but the vertices), made once per entry: a patch shader's
+/// (`renderqa.prepare_patch`) or a strip's (`renderqa.prepare_strip`, with the level's own engine values).
+#[allow(clippy::too_many_arguments, reason = "the draw's inputs, as renderqa's")]
+fn terrain_draw(
     files: &Files,
     db: &Db,
     entry: &str,
-    tiled: u32,
+    on: On,
     values: &HashMap<&'static str, [f32; 4]>,
     atlas: &str,
+    envmap: &str,
     cache: &mut TextureFiles,
 ) -> Result<Draw, String> {
     let progs = db
@@ -334,9 +416,12 @@ fn patch_draw(
             .collect();
         lit.first().or(all.first()).copied()
     };
-    let k = (if tiled == 0 { main(&PATCH_LAYOUT_NO_TILES) } else { None })
-        .or_else(|| main(&PATCH_LAYOUT))
-        .ok_or_else(|| format!("{entry}: no main-pass program for the patch layout"))?;
+    let k = match on {
+        On::Patch(tiled) => (if tiled == 0 { main(&PATCH_LAYOUT_NO_TILES) } else { None })
+            .or_else(|| main(&PATCH_LAYOUT))
+            .ok_or_else(|| format!("{entry}: no main-pass program for the patch layout"))?,
+        On::Strip => main(&STRIP_LAYOUT).ok_or_else(|| format!("{entry}: no main-pass program for the strip layout"))?,
+    };
     let prog = db.programs.get(k).ok_or("program")?;
     let (vs, ps) = (db.vs.get(prog.vs).ok_or("vs")?, db.ps.get(prog.ps).ok_or("ps")?);
     let (vblock, block) = (db.param(vs.param), db.param(prog.block2));
@@ -351,10 +436,16 @@ fn patch_draw(
     };
     let mut ps_named = query::block_constants(block, false);
     ps_named.extend(query::block_constants(db.param(ps.param), false));
-    let elements: Vec<Element> = material::vs_elements(&vs.tail)
-        .iter()
-        .filter_map(|e| patch_element(e.semantic).filter(|p| p.format == e.format && e.instance == 0))
-        .collect();
+    let elements: Vec<Element> = match on {
+        On::Patch(_) => material::vs_elements(&vs.tail)
+            .iter()
+            .filter_map(|e| patch_element(e.semantic).filter(|p| p.format == e.format && e.instance == 0))
+            .collect(),
+        On::Strip => material::vs_elements(&vs.tail)
+            .into_iter()
+            .filter(|e| e.slot == 0)
+            .collect(),
+    };
     let state = RenderState::of(prog.state.0, prog.state.1);
     let ps_reflect = Arc::new(dxbc::reflect(&ps.code));
     let vs_reflect = Arc::new(dxbc::reflect(&vs.code));
@@ -377,6 +468,10 @@ fn patch_draw(
         if let Some(t) = records.get(&r.point) {
             if material::texture(files, cache, t).is_some() {
                 textures.push((r.point, t.clone()));
+            }
+        } else if r.name == "texture_outdoorLightReflectionEnvmap" {
+            if material::texture(files, cache, envmap).is_some() {
+                textures.push((r.point, envmap.to_owned()));
             }
         } else if let Some(key) = engine.get(&r.point).and_then(|n| engine_key(n)) {
             if key == atlas && material::texture(files, cache, &key).is_none() {
@@ -405,7 +500,7 @@ fn patch_draw(
         ps_reflect,
         elements,
         vertex_offset: 0,
-        stride: PATCH_STRIDE,
+        stride: if on == On::Strip { ROAD_STRIDE } else { PATCH_STRIDE },
         index_count: 0,
         first_index: 0,
         kind: 0,
@@ -414,6 +509,7 @@ fn patch_draw(
             .iter()
             .map(|c| (c.register, c.values))
             .collect(),
+        named: Vec::new(),
         vs_extra: extra(query::block_constants(vblock, false)),
         ps_extra: extra(ps_named),
         textures,
@@ -441,6 +537,10 @@ pub struct Terrain {
     pub raw: HashMap<String, RawTexture>,
     /// The shared index list of a patch.
     pub indices: Arc<Vec<u8>>,
+    /// The baked road and decal strips of each terrain block's full-detail road block, one prepared mesh per block
+    /// (its strips in layer order; a strip has no centre, so blended strips keep that order, after the other blended
+    /// draws).
+    pub strips: Vec<Prepared>,
 }
 
 impl Terrain {
@@ -449,7 +549,7 @@ impl Terrain {
     ///
     /// # Errors
     /// A file is missing or unreadable.
-    pub fn load(files: &Files, db: &Db, name: &str, cache: &mut TextureFiles) -> Result<Self, String> {
+    pub fn load(files: &Files, db: &Db, name: &str, envmap: &str, cache: &mut TextureFiles) -> Result<Self, String> {
         let base = format!("Terrains/{name}/{name}");
         let vt = files
             .read(&format!("{base}.Visual.res"))
@@ -467,8 +567,38 @@ impl Terrain {
         let draws = visual
             .shaders
             .iter()
-            .map(|s| patch_draw(files, db, &s.name, s.tiled, &values, &atlas, cache))
+            .map(|s| terrain_draw(files, db, &s.name, On::Patch(s.tiled), &values, &atlas, envmap, cache))
             .collect();
+        let mut strip_draws: HashMap<String, Result<Draw, String>> = HashMap::new();
+        let mut strips = Vec::new();
+        for block in visual.roads.iter().take(visual.maps.len()) {
+            let mut p = Prepared {
+                mesh: format!("{base} roads"),
+                vertices: Arc::new(block.vertices.clone()),
+                indices: Arc::new(block.indices.iter().flat_map(|v| v.to_le_bytes()).collect()),
+                wide: true,
+                ..Prepared::default()
+            };
+            let mut order: Vec<&Strip> = block.strips.iter().collect();
+            order.sort_by_key(|s| s.layer);
+            for st in order {
+                let made = strip_draws.entry(st.shader.to_lowercase()).or_insert_with(|| {
+                    terrain_draw(files, db, &st.shader, On::Strip, &values, &atlas, envmap, cache)
+                });
+                match made {
+                    Ok(d) => {
+                        let mut d = d.clone();
+                        d.first_index = st.first;
+                        d.index_count = st.triangles * 3;
+                        p.draws.push(d);
+                    }
+                    Err(e) => p.notes.push(format!("strip: {e}")),
+                }
+            }
+            p.notes.sort();
+            p.notes.dedup();
+            strips.push(p);
+        }
         let q = (hf.size as usize / map.side().max(1)).max(1);
         let mut idx = Vec::with_capacity(q * q * 6);
         let row = q as u32 + 1;
@@ -489,6 +619,7 @@ impl Terrain {
             draws,
             raw,
             indices: Arc::new(idx.iter().flat_map(|v| v.to_le_bytes()).collect()),
+            strips,
         })
     }
 
@@ -559,6 +690,7 @@ impl Terrain {
             indices: Arc::clone(&self.indices),
             wide: true,
             bounds: Some(([x0 as f32, ylo, z0 as f32], [x1 as f32, yhi, z1 as f32])),
+            shader_set: String::new(),
         })
     }
 

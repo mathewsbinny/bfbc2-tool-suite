@@ -19,6 +19,8 @@ windows.workspace = true
 [dev-dependencies]
 # the parity test reads the C++ harness's (renderqa / shaderview) picture
 png.workspace = true
+# the examples and level tests place a level's objects and group members as the editor does
+bc2-scene.workspace = true
 
 [lints]
 workspace = true

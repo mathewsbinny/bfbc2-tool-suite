@@ -25,12 +25,14 @@ use windows::Win32::Graphics::Direct3D::{
 use windows::Win32::Graphics::Direct3D11::{
     D3D11_BIND_CONSTANT_BUFFER, D3D11_BIND_DEPTH_STENCIL, D3D11_BIND_INDEX_BUFFER, D3D11_BIND_RENDER_TARGET,
     D3D11_BIND_SHADER_RESOURCE, D3D11_BIND_VERTEX_BUFFER, D3D11_BLEND, D3D11_BLEND_DESC, D3D11_BLEND_OP,
-    D3D11_BUFFER_DESC, D3D11_CLEAR_DEPTH, D3D11_CLEAR_STENCIL, D3D11_COMPARISON_ALWAYS, D3D11_COMPARISON_FUNC,
+    D3D11_BUFFER_DESC, D3D11_CLEAR_DEPTH, D3D11_DEPTH_STENCIL_VIEW_DESC, D3D11_DEPTH_STENCIL_VIEW_DESC_0,
+    D3D11_DSV_DIMENSION_TEXTURE2D, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEX2D_DSV, D3D11_CLEAR_STENCIL, D3D11_COMPARISON_ALWAYS, D3D11_COMPARISON_FUNC,
     D3D11_COMPARISON_LESS_EQUAL, D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_FLAG, D3D11_CULL_MODE,
     D3D11_DEPTH_STENCIL_DESC, D3D11_DEPTH_STENCILOP_DESC, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_DEPTH_WRITE_MASK_ZERO,
     D3D11_FILL_SOLID, D3D11_FILTER, D3D11_FILTER_ANISOTROPIC, D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT,
     D3D11_INPUT_ELEMENT_DESC, D3D11_INPUT_PER_INSTANCE_DATA, D3D11_INPUT_PER_VERTEX_DATA, D3D11_MAP_READ,
-    D3D11_MAPPED_SUBRESOURCE, D3D11_RASTERIZER_DESC, D3D11_RENDER_TARGET_BLEND_DESC, D3D11_RESOURCE_MISC_TEXTURECUBE,
+    D3D11_MAPPED_SUBRESOURCE, D3D11_RASTERIZER_DESC, D3D11_RENDER_TARGET_BLEND_DESC, D3D11_RESOURCE_MISC_GENERATE_MIPS,
+    D3D11_RESOURCE_MISC_TEXTURECUBE,
     D3D11_SAMPLER_DESC, D3D11_SDK_VERSION, D3D11_SHADER_RESOURCE_VIEW_DESC, D3D11_SHADER_RESOURCE_VIEW_DESC_0,
     D3D11_STENCIL_OP_KEEP, D3D11_STENCIL_OP_REPLACE, D3D11_SUBRESOURCE_DATA, D3D11_TEX2D_SRV, D3D11_TEXCUBE_SRV,
     D3D11_TEXTURE_ADDRESS_CLAMP, D3D11_TEXTURE_ADDRESS_MODE, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE2D_DESC,
@@ -43,12 +45,14 @@ use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, DXGI_FORMAT_BC1_UNORM,
     DXGI_FORMAT_BC1_UNORM_SRGB, DXGI_FORMAT_BC2_UNORM, DXGI_FORMAT_BC2_UNORM_SRGB, DXGI_FORMAT_BC3_UNORM,
     DXGI_FORMAT_BC3_UNORM_SRGB, DXGI_FORMAT_BC5_UNORM, DXGI_FORMAT_D32_FLOAT_S8X24_UINT, DXGI_FORMAT_R8_UNORM,
-    DXGI_FORMAT_R16_UINT, DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_UINT,
-    DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_SAMPLE_DESC,
+    DXGI_FORMAT_R16_UINT, DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS,
+    DXGI_FORMAT_R32_UINT, DXGI_FORMAT_R32G8X24_TYPELESS, DXGI_FORMAT_R32G32_FLOAT, DXGI_FORMAT_R32G32B32A32_FLOAT,
+    DXGI_SAMPLE_DESC,
 };
 use windows::core::s;
 
 use crate::frame::{DrawCall, Frame, Rendered};
+use crate::post::{self, Pass};
 use crate::material::{Element, TextureFiles};
 use crate::terrain::RawTexture;
 use crate::{f32_at, u32_at};
@@ -57,10 +61,20 @@ struct Target {
     size: [u32; 2],
     rt: ID3D11Texture2D,
     rtv: ID3D11RenderTargetView,
+    rt_srv: ID3D11ShaderResourceView,
     ds: ID3D11Texture2D,
     dsv: ID3D11DepthStencilView,
+    ds_srv: ID3D11ShaderResourceView,
     rt_read: ID3D11Texture2D,
     ds_read: ID3D11Texture2D,
+}
+
+/// A post pass's target: its texture, views and description.
+struct PassTarget {
+    key: ([u32; 2], u32),
+    tex: ID3D11Texture2D,
+    rtv: ID3D11RenderTargetView,
+    srv: ID3D11ShaderResourceView,
 }
 
 /// The device and everything it keeps.
@@ -83,6 +97,11 @@ pub struct Device {
     depths: HashMap<[u32; 3], ID3D11DepthStencilState>,
     rasters: HashMap<u32, ID3D11RasterizerState>,
     target: Option<Target>,
+    /// Post passes' targets by output key.
+    passes: HashMap<String, PassTarget>,
+    /// `vs2D`'s quads by target size.
+    quads: HashMap<[u32; 2], ID3D11Buffer>,
+    linear: ID3D11SamplerState,
 }
 
 fn err(what: &str) -> impl Fn(windows::core::Error) -> String + '_ {
@@ -166,6 +185,17 @@ impl Device {
         sc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
         sc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
         let aniso = Self::make_sampler(&device, &sc)?;
+        let linear = Self::make_sampler(
+            &device,
+            &D3D11_SAMPLER_DESC {
+                Filter: D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+                AddressU: D3D11_TEXTURE_ADDRESS_CLAMP,
+                AddressV: D3D11_TEXTURE_ADDRESS_CLAMP,
+                AddressW: D3D11_TEXTURE_ADDRESS_CLAMP,
+                MaxLOD: f32::MAX,
+                ..Default::default()
+            },
+        )?;
         let one = 1f32.to_le_bytes();
         let shadow = Self::make_texture(&device, 1, 1, 1, 1, DXGI_FORMAT_R32_FLOAT, false, &[(&one, 4)])?;
         Ok(Self {
@@ -185,6 +215,9 @@ impl Device {
             depths: HashMap::new(),
             rasters: HashMap::new(),
             target: None,
+            passes: HashMap::new(),
+            quads: HashMap::new(),
+            linear,
         })
     }
 
@@ -330,17 +363,7 @@ impl Device {
     ) -> Option<ID3D11ShaderResourceView> {
         if !self.textures.contains_key(name) {
             let made = if let Some(r) = raw.get(name) {
-                Self::make_texture(
-                    &self.device,
-                    r.width,
-                    r.height,
-                    1,
-                    1,
-                    DXGI_FORMAT(r.format as i32),
-                    false,
-                    &[(&r.data, r.width * r.texel)],
-                )
-                .ok()
+                self.mipped_texture(r).ok()
             } else {
                 files
                     .get(name)
@@ -350,6 +373,40 @@ impl Device {
             self.textures.insert(name.to_owned(), made);
         }
         self.textures.get(name).cloned().flatten()
+    }
+
+    /// An engine texture with a full mip chain made by `GenerateMips`, as the C++ harness makes its float textures
+    /// (`shaderview`'s `tex`): a terrain pixel shader's implicit-LOD reads of the height map then see the same levels.
+    fn mipped_texture(&self, r: &RawTexture) -> Result<ID3D11ShaderResourceView, String> {
+        let desc = D3D11_TEXTURE2D_DESC {
+            Width: r.width,
+            Height: r.height,
+            MipLevels: 0,
+            ArraySize: 1,
+            Format: DXGI_FORMAT(r.format as i32),
+            SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+            Usage: D3D11_USAGE_DEFAULT,
+            BindFlags: (D3D11_BIND_SHADER_RESOURCE.0 | D3D11_BIND_RENDER_TARGET.0) as u32,
+            CPUAccessFlags: 0,
+            MiscFlags: D3D11_RESOURCE_MISC_GENERATE_MIPS.0 as u32,
+        };
+        let (mut t, mut v) = (None, None);
+        // SAFETY: a valid description; level 0 written from `r.data` (width x texel bytes a row), which outlives the
+        // call; a view of the texture just made
+        unsafe {
+            self.device
+                .CreateTexture2D(&raw const desc, None, Some(&raw mut t))
+                .map_err(err("CreateTexture2D (engine)"))?;
+            let t = some(t, "CreateTexture2D (engine)")?;
+            self.ctx
+                .UpdateSubresource(&t, 0, None, r.data.as_ptr().cast(), r.width * r.texel, 0);
+            self.device
+                .CreateShaderResourceView(&t, None, Some(&raw mut v))
+                .map_err(err("CreateShaderResourceView (engine)"))?;
+            let v = some(v, "CreateShaderResourceView (engine)")?;
+            self.ctx.GenerateMips(&v);
+            Ok(v)
+        }
     }
 
     fn buffer(&mut self, data: &Arc<Vec<u8>>, bind: u32) -> Result<ID3D11Buffer, String> {
@@ -503,6 +560,16 @@ impl Device {
                 )
             }
         };
+        self.keyed_states(blend, depth, cull)
+    }
+
+    /// The blend, depth-stencil and rasterizer states of their keys, made on first use.
+    fn keyed_states(
+        &mut self,
+        blend: [u32; 9],
+        depth: [u32; 3],
+        cull: u32,
+    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), String> {
         if !self.blends.contains_key(&blend) {
             let [a2c, en, cs, cd, co, a_s, ad, ao, mask] = blend;
             let rt = D3D11_RENDER_TARGET_BLEND_DESC {
@@ -575,6 +642,344 @@ impl Device {
         ))
     }
 
+    fn vertex_shader(&mut self, code: &[u8]) -> Result<ID3D11VertexShader, String> {
+        let k = checksum(code);
+        if !self.vs.contains_key(&k) {
+            let mut s = None;
+            // SAFETY: the code is a whole DXBC container
+            unsafe { self.device.CreateVertexShader(code, None, Some(&raw mut s)) }
+                .map_err(err("CreateVertexShader"))?;
+            self.vs.insert(k, some(s, "CreateVertexShader")?);
+        }
+        some(self.vs.get(&k).cloned(), "vs")
+    }
+
+    fn pixel_shader(&mut self, code: &[u8]) -> Result<ID3D11PixelShader, String> {
+        let k = checksum(code);
+        if !self.ps.contains_key(&k) {
+            let mut s = None;
+            // SAFETY: the code is a whole DXBC container
+            unsafe { self.device.CreatePixelShader(code, None, Some(&raw mut s)) }
+                .map_err(err("CreatePixelShader"))?;
+            self.ps.insert(k, some(s, "CreatePixelShader")?);
+        }
+        some(self.ps.get(&k).cloned(), "ps")
+    }
+
+    /// `vs2D`'s input layout: `POSITION` (pixels), `COLOR`, `TEXCOORD0`, 32 bytes a vertex.
+    fn quad_layout(&mut self, vs: &[u8]) -> Result<ID3D11InputLayout, String> {
+        let key = (checksum(vs), vec![[u32::MAX; 5]]);
+        if !self.layouts.contains_key(&key) {
+            let el = |name, format, offset| D3D11_INPUT_ELEMENT_DESC {
+                SemanticName: name,
+                SemanticIndex: 0,
+                Format: format,
+                InputSlot: 0,
+                AlignedByteOffset: offset,
+                InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
+                InstanceDataStepRate: 0,
+            };
+            let descs = [
+                el(s!("POSITION"), DXGI_FORMAT_R32G32_FLOAT, 0),
+                el(s!("COLOR"), DXGI_FORMAT_R32G32B32A32_FLOAT, 8),
+                el(s!("TEXCOORD"), DXGI_FORMAT_R32G32_FLOAT, 24),
+            ];
+            let mut l = None;
+            // SAFETY: static semantic strings; the code is vs2D's
+            unsafe { self.device.CreateInputLayout(&descs, vs, Some(&raw mut l)) }
+                .map_err(err("CreateInputLayout (vs2D)"))?;
+            self.layouts.insert(key.clone(), some(l, "CreateInputLayout (vs2D)")?);
+        }
+        some(self.layouts.get(&key).cloned(), "layout")
+    }
+
+    /// Two triangles over a target of `size` pixels, texture coordinates 0..1 (top left 0, 0).
+    fn quad(&mut self, size: [u32; 2]) -> Result<ID3D11Buffer, String> {
+        if let Some(b) = self.quads.get(&size) {
+            return Ok(b.clone());
+        }
+        let (w, h) = (size[0] as f32, size[1] as f32);
+        let corner = |x: f32, y: f32| [x * w, y * h, 1.0, 1.0, 1.0, 1.0, x, y];
+        let v: Vec<u8> = [
+            corner(0.0, 0.0),
+            corner(1.0, 0.0),
+            corner(0.0, 1.0),
+            corner(0.0, 1.0),
+            corner(1.0, 0.0),
+            corner(1.0, 1.0),
+        ]
+        .iter()
+        .flatten()
+        .flat_map(|f| f.to_le_bytes())
+        .collect();
+        let b = self.buffer(&Arc::new(v), D3D11_BIND_VERTEX_BUFFER.0 as u32)?;
+        self.quads.insert(size, b.clone());
+        Ok(b)
+    }
+
+    /// A pass's output target, made (again) when its size or format changes.
+    fn pass_target(&mut self, p: &Pass) -> Result<(ID3D11RenderTargetView, ID3D11Texture2D), String> {
+        let key = (p.size, p.format);
+        // the scene's linear depth gets a mip chain, as the C++ harness gives every float texture (the water reads it
+        // with an implicit level of detail a hair above 0)
+        let mipped = p.output == crate::water::DEPTH;
+        if self.passes.get(&p.output).is_none_or(|t| t.key != key) {
+            let desc = D3D11_TEXTURE2D_DESC {
+                Width: p.size[0].max(1),
+                Height: p.size[1].max(1),
+                MipLevels: if mipped { 0 } else { 1 },
+                ArraySize: 1,
+                Format: DXGI_FORMAT(p.format as i32),
+                SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                Usage: D3D11_USAGE_DEFAULT,
+                BindFlags: (D3D11_BIND_RENDER_TARGET.0 | D3D11_BIND_SHADER_RESOURCE.0) as u32,
+                CPUAccessFlags: 0,
+                MiscFlags: if mipped {
+                    D3D11_RESOURCE_MISC_GENERATE_MIPS.0 as u32
+                } else {
+                    0
+                },
+            };
+            let (mut t, mut rtv, mut srv) = (None, None, None);
+            // SAFETY: a valid description; views of the texture just made
+            unsafe {
+                self.device
+                    .CreateTexture2D(&raw const desc, None, Some(&raw mut t))
+                    .map_err(err("CreateTexture2D (pass)"))?;
+                let tex = some(t.clone(), "pass texture")?;
+                self.device
+                    .CreateRenderTargetView(&tex, None, Some(&raw mut rtv))
+                    .map_err(err("CreateRenderTargetView (pass)"))?;
+                self.device
+                    .CreateShaderResourceView(&tex, None, Some(&raw mut srv))
+                    .map_err(err("CreateShaderResourceView (pass)"))?;
+            }
+            self.passes.insert(
+                p.output.clone(),
+                PassTarget {
+                    key,
+                    tex: some(t, "pass texture")?,
+                    rtv: some(rtv, "pass rtv")?,
+                    srv: some(srv, "pass srv")?,
+                },
+            );
+        }
+        let t = some(self.passes.get(&p.output), "pass target")?;
+        Ok((t.rtv.clone(), t.tex.clone()))
+    }
+
+    /// A texture by key: the scene's colour or depth, a pass's output, the device's own 1 x 1 textures, or a texture
+    /// resource / engine texture.
+    fn view(
+        &mut self,
+        name: &str,
+        files: &TextureFiles,
+        raw: &HashMap<String, RawTexture>,
+    ) -> Option<ID3D11ShaderResourceView> {
+        match name {
+            post::SCENE => return self.target.as_ref().map(|t| t.rt_srv.clone()),
+            post::SCENE_DEPTH => return self.target.as_ref().map(|t| t.ds_srv.clone()),
+            _ => {}
+        }
+        if let Some(t) = self.passes.get(name) {
+            return Some(t.srv.clone());
+        }
+        if !self.textures.contains_key(name) {
+            let fixed = match name {
+                post::OLD_EXPOSURE => Some((1f32.to_le_bytes().to_vec(), DXGI_FORMAT_R32_FLOAT)),
+                post::BLACK => Some((vec![0u8; 4], DXGI_FORMAT(post::RGBA8 as i32))),
+                _ => None,
+            };
+            if let Some((data, format)) = fixed {
+                let made = Self::make_texture(&self.device, 1, 1, 1, 1, format, false, &[(&data, 4)]).ok();
+                self.textures.insert(name.to_owned(), made);
+            }
+        }
+        self.texture(name, files, raw)
+    }
+
+    /// Draws one full-screen pass into its target (the scene's targets unbound while it runs).
+    fn run_pass(&mut self, p: &Pass, files: &TextureFiles, raw: &HashMap<String, RawTexture>) -> Result<(), String> {
+        let vs = self.vertex_shader(&p.vs)?;
+        let ps = self.pixel_shader(&p.ps)?;
+        let layout = self.quad_layout(&p.vs)?;
+        let quad = self.quad(p.size)?;
+        let (rtv, _) = self.pass_target(p)?;
+        let cv = self.cbuffer(&p.cb_vs, 0)?;
+        let cp = self.cbuffer(&p.cb_ps, 1)?;
+        let mut srv: [Option<ID3D11ShaderResourceView>; 8] = Default::default();
+        for (slot, key) in &p.inputs {
+            if let Some(s) = srv.get_mut(*slot as usize) {
+                *s = self.view(key, files, raw);
+                if s.is_none() {
+                    return Err(format!("{}: input {key} not made", p.name));
+                }
+            }
+        }
+        let ss: [Option<ID3D11SamplerState>; 8] = std::array::from_fn(|_| Some(self.linear.clone()));
+        let (blend, depth, raster) = self.keyed_states([0, 0, 2, 1, 1, 2, 1, 1, 15], [0, 0, 8], 1)?;
+        let ctx = self.ctx.clone();
+        let stride = 32u32;
+        let offset = 0u32;
+        let vbs = [Some(quad)];
+        let none: [Option<ID3D11ShaderResourceView>; 8] = Default::default();
+        // SAFETY: objects made by this device; every array outlives its call
+        unsafe {
+            ctx.OMSetRenderTargets(Some(&[Some(rtv)]), None);
+            ctx.RSSetViewports(Some(&[D3D11_VIEWPORT {
+                TopLeftX: 0.0,
+                TopLeftY: 0.0,
+                Width: p.size[0] as f32,
+                Height: p.size[1] as f32,
+                MinDepth: 0.0,
+                MaxDepth: 1.0,
+            }]));
+            ctx.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            ctx.IASetInputLayout(&layout);
+            ctx.IASetVertexBuffers(
+                0,
+                1,
+                Some(vbs.as_ptr()),
+                Some(&raw const stride),
+                Some(&raw const offset),
+            );
+            ctx.VSSetShader(&vs, None);
+            ctx.PSSetShader(&ps, None);
+            ctx.VSSetConstantBuffers(0, Some(&[cv]));
+            ctx.PSSetConstantBuffers(0, Some(&[cp]));
+            ctx.PSSetSamplers(0, Some(&ss));
+            ctx.PSSetShaderResources(0, Some(&srv));
+            ctx.OMSetBlendState(&blend, None, 0xffff_ffff);
+            ctx.OMSetDepthStencilState(&depth, 0);
+            ctx.RSSetState(&raster);
+            ctx.Draw(6, 0);
+            ctx.PSSetShaderResources(0, Some(&none));
+            ctx.OMSetRenderTargets(None, None);
+            if p.output == crate::water::DEPTH
+                && let Some(t) = self.passes.get(&p.output)
+            {
+                ctx.GenerateMips(&t.srv);
+            }
+        }
+        Ok(())
+    }
+
+    /// Sets the scene's targets and viewport (again, after a pass).
+    fn bind_scene(&self) -> Result<(), String> {
+        let t = some(self.target.as_ref(), "target")?;
+        // SAFETY: views made by this device
+        unsafe {
+            self.ctx.OMSetRenderTargets(Some(&[Some(t.rtv.clone())]), &t.dsv);
+            self.ctx.RSSetViewports(Some(&[D3D11_VIEWPORT {
+                TopLeftX: 0.0,
+                TopLeftY: 0.0,
+                Width: t.size[0] as f32,
+                Height: t.size[1] as f32,
+                MinDepth: 0.0,
+                MaxDepth: 1.0,
+            }]));
+            self.ctx.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        }
+        Ok(())
+    }
+
+    /// The last frame's output of a float pass (`R32_FLOAT`: the scene's linear depth, a luminance or the exposure, the
+    /// value in every channel; or `R32G32B32A32_FLOAT`) as RGBA floats: (width, height, texels). `None` for another
+    /// format or a pass not drawn.
+    ///
+    /// # Errors
+    /// A Direct3D call failed.
+    pub fn read_pass(&mut self, key: &str) -> Result<Option<(u32, u32, Vec<f32>)>, String> {
+        let Some(t) = self.passes.get(key) else {
+            return Ok(None);
+        };
+        let ([w, h], format) = t.key;
+        let rgba = format == post::RGBA32F;
+        if format != post::R32F && !rgba {
+            return Ok(None);
+        }
+        let tex = t.tex.clone();
+        let desc = D3D11_TEXTURE2D_DESC {
+            Width: w,
+            Height: h,
+            MipLevels: 1,
+            ArraySize: 1,
+            Format: DXGI_FORMAT(format as i32),
+            SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+            Usage: D3D11_USAGE_STAGING,
+            BindFlags: 0,
+            CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,
+            MiscFlags: 0,
+        };
+        let mut st = None;
+        let mut out = Vec::with_capacity((w * h * 4) as usize);
+        // SAFETY: a staging copy of a pass's R32_FLOAT target, mapped for reading; rows read within RowPitch
+        unsafe {
+            self.device
+                .CreateTexture2D(&raw const desc, None, Some(&raw mut st))
+                .map_err(err("CreateTexture2D (read back)"))?;
+            let st = some(st, "staging")?;
+            self.ctx.CopySubresourceRegion(&st, 0, 0, 0, 0, &tex, 0, None);
+            let mut m = D3D11_MAPPED_SUBRESOURCE::default();
+            self.ctx
+                .Map(&st, 0, D3D11_MAP_READ, 0, Some(&raw mut m))
+                .map_err(err("Map (pass)"))?;
+            let base: *const u8 = m.pData.cast();
+            for y in 0..h as usize {
+                let texel = if rgba { 16 } else { 4 };
+                let row = std::slice::from_raw_parts(base.add(y * m.RowPitch as usize), w as usize * texel);
+                for px in row.as_chunks::<4>().0 {
+                    let v = f32::from_le_bytes(*px);
+                    if rgba {
+                        out.push(v);
+                    } else {
+                        out.extend([v; 4]);
+                    }
+                }
+            }
+            self.ctx.Unmap(&st, 0);
+        }
+        Ok(Some((w, h, out)))
+    }
+
+    /// A pass's RGBA8 output read back, row by row.
+    fn read_rgba8(&mut self, p: &Pass) -> Result<Vec<u8>, String> {
+        let (_, tex) = self.pass_target(p)?;
+        let (w, h) = (p.size[0] as usize, p.size[1] as usize);
+        let desc = D3D11_TEXTURE2D_DESC {
+            Width: p.size[0],
+            Height: p.size[1],
+            MipLevels: 1,
+            ArraySize: 1,
+            Format: DXGI_FORMAT(p.format as i32),
+            SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+            Usage: D3D11_USAGE_STAGING,
+            BindFlags: 0,
+            CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,
+            MiscFlags: 0,
+        };
+        let mut st = None;
+        let mut out = Vec::with_capacity(w * h * 4);
+        // SAFETY: a staging copy of a pass's RGBA8 target, mapped for reading; rows read within RowPitch
+        unsafe {
+            self.device
+                .CreateTexture2D(&raw const desc, None, Some(&raw mut st))
+                .map_err(err("CreateTexture2D (read back)"))?;
+            let st = some(st, "staging")?;
+            self.ctx.CopyResource(&st, &tex);
+            let mut m = D3D11_MAPPED_SUBRESOURCE::default();
+            self.ctx
+                .Map(&st, 0, D3D11_MAP_READ, 0, Some(&raw mut m))
+                .map_err(err("Map (post)"))?;
+            let base: *const u8 = m.pData.cast();
+            for y in 0..h {
+                out.extend_from_slice(std::slice::from_raw_parts(base.add(y * m.RowPitch as usize), w * 4));
+            }
+            self.ctx.Unmap(&st, 0);
+        }
+        Ok(out)
+    }
+
     fn make_target(&self, size: [u32; 2]) -> Result<Target, String> {
         let tex = |format, bind: u32, staging: bool| -> Result<ID3D11Texture2D, String> {
             let desc = D3D11_TEXTURE2D_DESC {
@@ -599,30 +1004,65 @@ impl Device {
                 .map_err(err("CreateTexture2D (target)"))?;
             some(t, "CreateTexture2D (target)")
         };
-        let rt = tex(DXGI_FORMAT_R32G32B32A32_FLOAT, D3D11_BIND_RENDER_TARGET.0 as u32, false)?;
-        let ds = tex(
-            DXGI_FORMAT_D32_FLOAT_S8X24_UINT,
-            D3D11_BIND_DEPTH_STENCIL.0 as u32,
+        let rt = tex(
+            DXGI_FORMAT_R32G32B32A32_FLOAT,
+            (D3D11_BIND_RENDER_TARGET.0 | D3D11_BIND_SHADER_RESOURCE.0) as u32,
             false,
         )?;
-        let (mut rtv, mut dsv) = (None, None);
-        // SAFETY: views of the textures just made
+        // typeless, so that the post passes can read the depth (psUnprojectDepthBuffer)
+        let ds = tex(
+            DXGI_FORMAT_R32G8X24_TYPELESS,
+            (D3D11_BIND_DEPTH_STENCIL.0 | D3D11_BIND_SHADER_RESOURCE.0) as u32,
+            false,
+        )?;
+        let (mut rtv, mut dsv, mut rt_srv, mut ds_srv) = (None, None, None, None);
+        let dsv_desc = D3D11_DEPTH_STENCIL_VIEW_DESC {
+            Format: DXGI_FORMAT_D32_FLOAT_S8X24_UINT,
+            ViewDimension: D3D11_DSV_DIMENSION_TEXTURE2D,
+            Flags: 0,
+            Anonymous: D3D11_DEPTH_STENCIL_VIEW_DESC_0 {
+                Texture2D: D3D11_TEX2D_DSV { MipSlice: 0 },
+            },
+        };
+        let srv_desc = |format| D3D11_SHADER_RESOURCE_VIEW_DESC {
+            Format: format,
+            ViewDimension: D3D_SRV_DIMENSION_TEXTURE2D,
+            Anonymous: D3D11_SHADER_RESOURCE_VIEW_DESC_0 {
+                Texture2D: D3D11_TEX2D_SRV {
+                    MostDetailedMip: 0,
+                    MipLevels: 1,
+                },
+            },
+        };
+        let (rs, dss) = (
+            srv_desc(DXGI_FORMAT_R32G32B32A32_FLOAT),
+            srv_desc(DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS),
+        );
+        // SAFETY: views of the textures just made, with descriptions that outlive the calls
         unsafe {
             self.device
                 .CreateRenderTargetView(&rt, None, Some(&raw mut rtv))
                 .map_err(err("CreateRenderTargetView"))?;
             self.device
-                .CreateDepthStencilView(&ds, None, Some(&raw mut dsv))
+                .CreateDepthStencilView(&ds, Some(&raw const dsv_desc), Some(&raw mut dsv))
                 .map_err(err("CreateDepthStencilView"))?;
+            self.device
+                .CreateShaderResourceView(&rt, Some(&raw const rs), Some(&raw mut rt_srv))
+                .map_err(err("CreateShaderResourceView (colour)"))?;
+            self.device
+                .CreateShaderResourceView(&ds, Some(&raw const dss), Some(&raw mut ds_srv))
+                .map_err(err("CreateShaderResourceView (depth)"))?;
         }
         Ok(Target {
             size,
             rt_read: tex(DXGI_FORMAT_R32G32B32A32_FLOAT, 0, true)?,
-            ds_read: tex(DXGI_FORMAT_D32_FLOAT_S8X24_UINT, 0, true)?,
+            ds_read: tex(DXGI_FORMAT_R32G8X24_TYPELESS, 0, true)?,
             rt,
             ds,
             rtv: some(rtv, "rtv")?,
             dsv: some(dsv, "dsv")?,
+            rt_srv: some(rt_srv, "rt srv")?,
+            ds_srv: some(ds_srv, "ds srv")?,
         })
     }
 
@@ -655,19 +1095,18 @@ impl Device {
             ctx.ClearState();
             ctx.ClearRenderTargetView(&rtv, &frame.clear);
             ctx.ClearDepthStencilView(&dsv, D3D11_CLEAR_DEPTH.0 | D3D11_CLEAR_STENCIL.0, 1.0, 0);
-            ctx.OMSetRenderTargets(Some(&[Some(rtv.clone())]), &dsv);
-            ctx.RSSetViewports(Some(&[D3D11_VIEWPORT {
-                TopLeftX: 0.0,
-                TopLeftY: 0.0,
-                Width: size[0] as f32,
-                Height: size[1] as f32,
-                MinDepth: 0.0,
-                MaxDepth: 1.0,
-            }]));
-            ctx.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         }
+        self.bind_scene()?;
         let mut drawn = 0;
+        let mut depth_made = false;
         for d in &frame.draws {
+            if !depth_made && d.textures.iter().any(|(_, n)| n == crate::water::DEPTH) {
+                depth_made = true;
+                if let Some(p) = &frame.depth_pass {
+                    self.run_pass(p, files, raw)?;
+                    self.bind_scene()?;
+                }
+            }
             let (vs, ps, layout) = self.shaders(d)?;
             let vb = self.buffer(&d.vertices, D3D11_BIND_VERTEX_BUFFER.0 as u32)?;
             let ib = self.buffer(&d.indices, D3D11_BIND_INDEX_BUFFER.0 as u32)?;
@@ -691,13 +1130,13 @@ impl Device {
             srv[0] = Some(self.shadow.clone());
             for (slot, name) in &d.textures {
                 if let Some(s) = srv.get_mut(*slot as usize) {
-                    *s = self.texture(name, files, raw);
+                    *s = self.view(name, files, raw);
                 }
             }
             let mut vsrv = srv.clone();
             for (slot, name) in &d.vs_textures {
                 if let Some(s) = vsrv.get_mut(*slot as usize) {
-                    *s = self.texture(name, files, raw);
+                    *s = self.view(name, files, raw);
                 }
             }
             let (blend, depth, raster) = self.states(d)?;
@@ -739,7 +1178,16 @@ impl Device {
             drawn += 1;
         }
         let submit = t0.elapsed().as_secs_f64();
+        let tp = Instant::now();
+        for p in &frame.post {
+            self.run_pass(p, files, raw)?;
+        }
+        let post_time = tp.elapsed().as_secs_f64();
         let t1 = Instant::now();
+        let ldr = match frame.post.last() {
+            Some(p) => self.read_rgba8(p)?,
+            None => Vec::new(),
+        };
         let t = some(self.target.as_ref(), "target")?;
         let (w, h) = (size[0] as usize, size[1] as usize);
         let mut out = Rendered {
@@ -748,8 +1196,10 @@ impl Device {
             hdr: Vec::with_capacity(w * h * 4),
             depth: Vec::with_capacity(w * h),
             classes: Vec::with_capacity(w * h),
+            ldr,
             draws: drawn,
             submit,
+            post: post_time,
             readback: 0.0,
         };
         // SAFETY: staging copies of this device's targets, mapped for reading; rows read within RowPitch

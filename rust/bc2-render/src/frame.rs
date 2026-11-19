@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::dxbc::Reflection;
 use crate::material::{BLENDED, Draw, Element, Prepared, RenderState, identity_bones};
+use crate::post::Pass;
 use crate::weather::Values;
 
 /// A 4 x 4 matrix, row by row.
@@ -252,7 +253,7 @@ pub struct DrawCall {
     pub class: u8,
 }
 
-/// A frame: its size, clear colour and draw calls in order.
+/// A frame: its size, clear colour and draw calls in order, and the engine's passes around them.
 #[derive(Debug, Clone, Default)]
 pub struct Frame {
     /// Width in pixels.
@@ -263,6 +264,10 @@ pub struct Frame {
     pub clear: [f32; 4],
     /// The draws.
     pub draws: Vec<DrawCall>,
+    /// The scene's linear depth (`DepthBuffer`), made before the first draw that reads its output.
+    pub depth_pass: Option<Pass>,
+    /// The post-process after the draws; the last pass's output (RGBA8) is read back as [`Rendered::ldr`].
+    pub post: Vec<Pass>,
 }
 
 /// A prepared mesh placed in the world.
@@ -274,16 +279,42 @@ pub struct Instance {
     pub world: Mat,
 }
 
-/// The engine's per-draw values: bones (`renderqa.bone_values`).
-fn bone_values(d: &Draw, v: &mut Values) {
+/// The engine's per-draw values: bones (`renderqa.bone_values`). A bone-transformed (kind 1) or skinned (4) program
+/// takes the instance's placement from its bones alone - DICE's vertex shaders for them place a vertex with
+/// `boneMatrices[index]` and then `viewProjMatrix`, no `worldMatrix` (an Overgrowth tree's reads only its translation,
+/// for the wind's phase) - so each bone is the world matrix times the bone at rest (the harness drew one mesh at the
+/// origin, where the two are the same).
+fn bone_values(d: &Draw, world: &Mat, v: &mut Values) {
     let rows: Vec<[f32; 4]> = if d.kind == 9 {
         vec![[1.0; 4]; 180] // a destructible composite: boneMatrices[i].x > 0 shows part i
     } else {
-        d.bones.clone().unwrap_or_else(identity_bones)
+        let rest = d.bones.clone().unwrap_or_else(identity_bones);
+        if matches!(d.kind, 1 | 4) && *world != IDENTITY {
+            placed_bones(&rest, world)
+        } else {
+            rest
+        }
     };
     let flat: Vec<f32> = rows.iter().flatten().copied().collect();
     v.insert("boneMatrices".into(), flat.clone());
     v.insert("boneVectors".into(), flat);
+}
+
+/// Bones at rest (3 rows of a 3 x 4 `[R | t]` each) placed by a world matrix: `W * B` per bone, its first three rows.
+#[must_use]
+pub fn placed_bones(rest: &[[f32; 4]], world: &Mat) -> Vec<[f32; 4]> {
+    let w = |r: usize, c: usize| world.get(r * 4 + c).copied().unwrap_or(0.0);
+    rest.chunks(3)
+        .flat_map(|b| {
+            let bone = |r: usize, c: usize| f64::from(b.get(r).and_then(|row| row.get(c)).copied().unwrap_or(0.0));
+            (0..3).map(move |r| {
+                [0, 1, 2, 3].map(|c| {
+                    let t = if c == 3 { w(r, 3) } else { 0.0 };
+                    ((0..3).map(|k| w(r, k) * bone(k, c)).sum::<f64>() + t) as f32
+                })
+            })
+        })
+        .collect()
 }
 
 /// The draw calls of placed meshes seen by a camera, in the renderer's order: opaque, alpha-tested, then blended
@@ -298,10 +329,16 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
         "cameraPos".into(),
         vec![cam.eye[0] as f32, cam.eye[1] as f32, cam.eye[2] as f32, 0.0],
     );
+    let inv = vec![1.0 / size[0].max(1) as f32, 1.0 / size[1].max(1) as f32, 0.0, 0.0];
+    base.insert("invScreenSize".into(), inv.clone());
+    base.insert("g_screenSizeInv".into(), inv);
     base.insert(
-        "invScreenSize".into(),
-        vec![1.0 / size[0].max(1) as f32, 1.0 / size[1].max(1) as f32, 0.0, 0.0],
+        "g_depthScaleFactors".into(),
+        crate::water::depth_factors(cam.near, cam.far).to_vec(),
     );
+    if let Some(d) = light.get("outdoorLightDir") {
+        base.insert("sunDir".into(), d.clone());
+    }
     let mut keyed = Vec::new();
     // one map for every draw: the per-instance and per-draw values are written over the last ones
     let mut vals = base;
@@ -326,7 +363,17 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
                 }
                 _ => 0.0,
             };
-            bone_values(d, &mut vals);
+            bone_values(d, &inst.world, &mut vals);
+            let named: Vec<(u8, [f32; 4])> = d
+                .named
+                .iter()
+                .filter_map(|(reg, n)| {
+                    let v = vals.get(n)?;
+                    Some((*reg, [0, 1, 2, 3].map(|k| v.get(k).copied().unwrap_or(0.0))))
+                })
+                .collect();
+            // the named values after the stored ones: written over them, inside each shader's own `constants`
+            let material: Vec<(u8, [f32; 4])> = d.material.iter().chain(&named).copied().collect();
             let call = DrawCall {
                 vs: Arc::clone(&d.vs),
                 ps: Arc::clone(&d.ps),
@@ -338,8 +385,8 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
                 wide: p.wide,
                 index_count: d.index_count,
                 first_index: d.first_index,
-                cb_vs: cbuffer(&d.vs_reflect, &vals, &d.material, &d.vs_extra),
-                cb_ps: cbuffer(&d.ps_reflect, &vals, &d.material, &d.ps_extra),
+                cb_vs: cbuffer(&d.vs_reflect, &vals, &material, &d.vs_extra),
+                cb_ps: cbuffer(&d.ps_reflect, &vals, &material, &d.ps_extra),
                 samplers: d.samplers.clone(),
                 vs_samplers: d.vs_samplers.clone(),
                 textures: d.textures.clone(),
@@ -368,8 +415,12 @@ pub struct Rendered {
     pub depth: Vec<f32>,
     /// The draw class last to keep each pixel (0: nothing drawn).
     pub classes: Vec<u8>,
+    /// The post-processed picture (RGBA8), when the frame has a post-process.
+    pub ldr: Vec<u8>,
     /// Draw calls made.
     pub draws: usize,
+    /// Seconds spent on the post-process passes (their submit; the GPU's time is in `readback`).
+    pub post: f64,
     /// Seconds spent making the draw calls (objects made on first use included).
     pub submit: f64,
     /// Seconds spent waiting for the GPU and reading back.
@@ -421,6 +472,21 @@ mod tests {
         assert!(z > 0.0 && z < 1.0);
         // right = forward x up: looking along +z, right is -x (the game's right-handed data)
         assert!((cam.right[0] + 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn bones_are_placed_by_the_world_matrix() {
+        let mut w = IDENTITY;
+        w[3] = 10.0; // translation x
+        w[0] = 0.0; // a quarter turn about y: x' = z, z' = -x
+        w[2] = 1.0;
+        w[8] = -1.0;
+        w[10] = 0.0;
+        let rest = vec![[1.0, 0.0, 0.0, 2.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]];
+        let b = placed_bones(&rest, &w);
+        // the bone's own translation (2, 0, 0) turned to (0, 0, -2), then moved by (10, 0, 0)
+        assert_eq!(b[0], [0.0, 0.0, 1.0, 10.0]);
+        assert_eq!(b[2], [-1.0, 0.0, 0.0, -2.0]);
     }
 
     #[test]
