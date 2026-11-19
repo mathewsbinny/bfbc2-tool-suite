@@ -210,7 +210,27 @@ def collect(problems: list[str], files: list[str] | None = None) -> list[Rule]:
             problems.append(f'{r.file}:{r.line}: {r.id} is already defined at {seen[r.id].file}:{seen[r.id].line}')
         seen[r.id] = r
         check_evidence(r, problems)
+    if files is None:
+        check_mentions(seen, problems)
     return rules
+
+
+MENTION = re.compile(rf'\b({ID})\b')
+
+
+def check_mentions(ids: dict[str, Rule], problems: list[str]) -> None:
+    """Every rule ID the prose names (outside code blocks) is defined somewhere: no dangling cross-reference."""
+    for p in md_files():
+        in_fence = False
+        for n, line in enumerate(file_lines(p), 1):
+            if line.lstrip().startswith('```'):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            for m in MENTION.finditer(line):
+                if m.group(1) not in ids:
+                    problems.append(f'{rel(p)}:{n}: {m.group(1)} is named but defined nowhere')
 
 
 # ------------------------------------------------------------------------------------------------ tests
