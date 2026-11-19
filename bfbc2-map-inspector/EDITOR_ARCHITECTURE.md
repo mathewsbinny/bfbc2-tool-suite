@@ -651,11 +651,46 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
    the harness's tonemap; the terrain stream checked against the captured vertex buffers; water (`WaterOcean` on the
    `VisualWater` mesh); static model groups (`*_HavokAsset` members), undergrowth, road strips, trees' engine
    constants; the `IrradianceVolume`. Each proven against the capture's own draws and its final picture.
-3. **Phase 3, the editor (one or two rounds):** the shared texture (no copy) and the tonemap on the GPU; culling and
-   LODs (the cull tree, `LodSettings`), the instanced programs (`StreamInstancingFloat`); edits shown live (a moved
-   object drawn at its new transform); picking and the overlays on the game frame's depth; every prepared level drawn
-   with no harness flag; Vietnam and the Pacific War levels (their installed Dx11 databases, BF1943's translated
-   shaders included, draw the same way).
+3. **Phase 3a (R5c, done: interactive and editable, the picture unchanged):**
+   - `bc2_render::live::Live`: the draw list built once. Each instance's draws are planned once (`live::plan`: the
+     bytes `frame::cbuffer` writes, the camera's values - `viewProjMatrix`, `viewMatrix`, `cameraPos`,
+     `worldViewProjMatrix`, `invScreenSize`, `g_screenSizeInv`, `g_depthScaleFactors` - left as holes filled per
+     frame); the renderer's order kept as indices (only the blended draws sorted again per frame, farthest first, the
+     given order among equals); the depth pass where the first reader of `DepthBuffer` is in the whole list.
+   - **Culling** (`Options::cull`, on by default): a draw whose bounds (its part's positions, through its bones at
+     rest, a tenth of its size and at least a metre of margin) lie wholly outside the frustum is left out; instances
+     sit in a 64 m grid tested first. Exact: the rasterizer clips to the same planes. Strips and water have no
+     bounds and are always drawn.
+   - **The device** (`d3d/live.rs`): each (mesh, draw) resolved once into a material (shaders, layout, buffers,
+     texture and sampler arrays, states); the frame's constants uploaded with one `Map` into a ring bound by offset
+     (Direct3D 11.1 `VSSetConstantBuffers1`; `BC2_RENDER_NO_CB_OFFSETS` or a device without it: one update per
+     draw); only the bindings that changed since the last draw are set. No state sorting: it would change the draw
+     order, and with it depth ties and blending.
+   - **Edits** (`World::set_placed`, `Live::set`): the instances whose key, mesh and transform are unchanged are kept
+     as planned; moved, turned, added, removed and duplicated objects are planned again (the editor's `GameView::sync`
+     follows the scene by a fingerprint of its placed things).
+   - **No read back:** the finished frame is copied on the GPU into one of three `R8G8B8A8_UNORM` textures shared by
+     NT handle, its alpha written as 1 (the tonemap's alpha is not coverage: R5b's upload showed it as holes), and
+     opened on egui's Vulkan device (`VULKAN_EXTERNAL_MEMORY_WIN32`, wgpu-hal's `texture_from_d3d11_shared_handle`),
+     an event query waited for before egui samples it. `BC2_GAMEVIEW_COPY=1` / `GameView::copy`: the read back and
+     upload as before.
+   - **Picking** replays the frame's draws into the stencil inside a one-pixel scissor, a byte of the object's
+     number per replay (DICE's own shaders decide coverage, discards included; draws that write no depth leave it
+     alone). **The selection** is replayed against the frame's depth into stencil bits (`EQUAL`: seen, `GREATER`:
+     hidden) and outlined in the view's selection orange by a full-screen pass (our own HLSL, compiled at run time
+     by `D3DCompile`): seen edges solid, hidden edges faint. The gizmo and the labels stay egui's overlays above it.
+   - **Package levels** (Vietnam, the Pacific War, DICE's other Package-only levels): `World::load_package` reads
+     the level's bundle stack from `package.mft` in place (`Files::bundles`: the first bundle that lists a name decides
+     it, *deleted* markers hide it), in rounds - each round's missing files read with one streamed pass a bundle -
+     until nothing more is asked for (Vietnam's NAM_MP_002CQ 11 rounds, 84 MB; Wake Island 12 rounds, 134 MB).
+     Nothing is written to disk.
+   - Proofs and costs: `rust/BENCHMARKS.md` "R5c".
+4. **Phase 3b (next):** the game's LODs (the mesh sets' LODs and their distances, switchable off for proofs) and
+   the instanced programs (`StreamInstancingFloat`) - the GPU is now most of a frame on wide views; the whole
+   terrain with the game's terrain LOD instead of the window of patches around the target; labels hidden by the game
+   frame's depth; the sky (`EnvironmentMain`) and Wake Island's tiled-mask terrain cells (black: the patch stream
+   reading of R5 does not cover the converted terrain); package levels' load (rounds read the large common bundles
+   again: a payload index or one pass for every name a mesh can need).
 
 ### 3.12 Exporting a level as a new multiplayer level (round E3, 2026-11-18: study and first export)
 

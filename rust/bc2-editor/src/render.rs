@@ -84,8 +84,8 @@ impl Gpu {
             required_features: crate::gameview::device_features(&adapter),
             ..Default::default()
         };
-        let (device, queue) = pollster::block_on(adapter.request_device(&desc))
-            .map_err(|e| format!("no graphics device: {e}"))?;
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&desc)).map_err(|e| format!("no graphics device: {e}"))?;
         Ok((Self { device, queue }, format!("{} ({:?})", info.name, info.backend)))
     }
 }

@@ -117,7 +117,71 @@ impl World {
     /// # Errors
     /// The level's database or weather cannot be read.
     pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], weather: Option<&str>) -> Result<Self, String> {
-        let files = Files::new(&level_folders(opfor, lv));
+        Self::load_from(Files::new(&level_folders(opfor, lv)), opfor, lv, level, placed, weather)
+    }
+
+    /// Loads a level that lives only in the game copy's `game\Package` (Vietnam, the Pacific War, the other
+    /// Package-only levels; round R5c) from its bundles in place ([`Files::bundles`] over
+    /// [`crate::files::package_stack`]): [`World::load_from`] in rounds, each round's missing files read from the
+    /// bundles (one streamed pass a bundle), until nothing more is asked for. Nothing is written to disk.
+    ///
+    /// # Errors
+    /// The registry does not name the level, a bundle cannot be read, or the level's database or weather cannot be
+    /// read.
+    pub fn load_package(
+        opfor: &Path,
+        lv: &str,
+        level: &str,
+        placed: &[Placed],
+        weather: Option<&str>,
+    ) -> Result<Self, String> {
+        let stack = crate::files::package_stack(&opfor.join("game"), lv)
+            .ok_or_else(|| format!("{lv}: not in the game's bundle registry (package.mft), or a bundle is missing"))?;
+        let files = Files::bundles(&stack)?;
+        let mut rounds = 0;
+        loop {
+            rounds += 1;
+            let made = Self::load_from(files.clone(), opfor, lv, level, placed, weather);
+            let missed = files.missed();
+            if missed.is_empty() || rounds >= 40 {
+                let mut w = made?;
+                if !missed.is_empty() {
+                    w.notes
+                        .push(format!("{} files still unread after {rounds} rounds", missed.len()));
+                }
+                w.notes.push(format!(
+                    "read from {} bundles in place ({}): {} rounds, {:.0} MB",
+                    stack.len(),
+                    stack
+                        .iter()
+                        .filter_map(|p| Some(format!(
+                            "{}/{}",
+                            p.parent()?.file_name()?.to_string_lossy(),
+                            p.file_name()?.to_string_lossy()
+                        )))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    rounds,
+                    files.bundled_bytes() as f64 / 1e6
+                ));
+                return Ok(w);
+            }
+            files.fetch(&missed)?;
+        }
+    }
+
+    /// [`World::load`] from a set of files (`opfor`: where the post shaders' startup bundle is).
+    ///
+    /// # Errors
+    /// The level's database or weather cannot be read.
+    pub fn load_from(
+        files: Files,
+        opfor: &Path,
+        lv: &str,
+        level: &str,
+        placed: &[Placed],
+        weather: Option<&str>,
+    ) -> Result<Self, String> {
         let lv = lv.to_lowercase();
         let db = Db::parse(
             &files
@@ -402,7 +466,11 @@ impl World {
             return Ok((None, Vec::new()));
         };
         let depth = Some(post::unproject(s, cam, size)?);
-        let chain = if post { post::chain(s, &self.post, size)? } else { Vec::new() };
+        let chain = if post {
+            post::chain(s, &self.post, size)?
+        } else {
+            Vec::new()
+        };
         Ok((depth, chain))
     }
 

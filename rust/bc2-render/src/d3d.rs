@@ -46,8 +46,8 @@ use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_FORMAT_BC1_UNORM_SRGB, DXGI_FORMAT_BC2_UNORM, DXGI_FORMAT_BC2_UNORM_SRGB, DXGI_FORMAT_BC3_UNORM,
     DXGI_FORMAT_BC3_UNORM_SRGB, DXGI_FORMAT_BC5_UNORM, DXGI_FORMAT_D32_FLOAT_S8X24_UINT, DXGI_FORMAT_R8_UNORM,
     DXGI_FORMAT_R16_UINT, DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS,
-    DXGI_FORMAT_R32_UINT, DXGI_FORMAT_R32G8X24_TYPELESS, DXGI_FORMAT_X32_TYPELESS_G8X24_UINT, DXGI_FORMAT_R32G32_FLOAT, DXGI_FORMAT_R32G32B32A32_FLOAT,
-    DXGI_SAMPLE_DESC,
+    DXGI_FORMAT_R32_UINT, DXGI_FORMAT_R32G8X24_TYPELESS, DXGI_FORMAT_R32G32_FLOAT, DXGI_FORMAT_R32G32B32A32_FLOAT,
+    DXGI_FORMAT_X32_TYPELESS_G8X24_UINT, DXGI_SAMPLE_DESC,
 };
 use windows::core::s;
 
@@ -503,15 +503,13 @@ impl Device {
         if !self.vs.contains_key(&kv) {
             let mut s = None;
             // SAFETY: the code is a whole DXBC container
-            unsafe { self.device.CreateVertexShader(vs, None, Some(&raw mut s)) }
-                .map_err(err("CreateVertexShader"))?;
+            unsafe { self.device.CreateVertexShader(vs, None, Some(&raw mut s)) }.map_err(err("CreateVertexShader"))?;
             self.vs.insert(kv, some(s, "CreateVertexShader")?);
         }
         if !self.ps.contains_key(&kp) {
             let mut s = None;
             // SAFETY: as above
-            unsafe { self.device.CreatePixelShader(ps, None, Some(&raw mut s)) }
-                .map_err(err("CreatePixelShader"))?;
+            unsafe { self.device.CreatePixelShader(ps, None, Some(&raw mut s)) }.map_err(err("CreatePixelShader"))?;
             self.ps.insert(kp, some(s, "CreatePixelShader")?);
         }
         let els: Vec<[u32; 5]> = elements
@@ -538,8 +536,7 @@ impl Device {
                 .collect();
             let mut l = None;
             // SAFETY: the descriptions name a static semantic string; the code is the vertex shader's
-            unsafe { self.device.CreateInputLayout(&descs, vs, Some(&raw mut l)) }
-                .map_err(err("CreateInputLayout"))?;
+            unsafe { self.device.CreateInputLayout(&descs, vs, Some(&raw mut l)) }.map_err(err("CreateInputLayout"))?;
             self.layouts.insert(lk.clone(), some(l, "CreateInputLayout")?);
         }
         Ok((
@@ -573,24 +570,24 @@ impl Device {
 /// A program's state keys (`renderqa.state_lines`; no state recorded: opaque, no culling): blend, depth, culling.
 fn state_keys(state: Option<&crate::material::RenderState>) -> ([u32; 9], [u32; 3], u32) {
     match state {
-            None => ([0, 0, 2, 1, 1, 2, 1, 1, 15], [1, 1, 2], 1),
-            Some(st) => {
-                let [(cs, cd, co), (a_s, ad, ao)] = st.factors();
-                (
-                    [
-                        u32::from(st.alpha_to_coverage),
-                        u32::from(st.blend()),
-                        cs,
-                        cd,
-                        co,
-                        a_s,
-                        ad,
-                        ao,
-                        15,
-                    ],
-                    [u32::from(st.depth_test), u32::from(st.depth_write), 4],
-                    if st.two_sided { 1 } else { 3 },
-                )
+        None => ([0, 0, 2, 1, 1, 2, 1, 1, 15], [1, 1, 2], 1),
+        Some(st) => {
+            let [(cs, cd, co), (a_s, ad, ao)] = st.factors();
+            (
+                [
+                    u32::from(st.alpha_to_coverage),
+                    u32::from(st.blend()),
+                    cs,
+                    cd,
+                    co,
+                    a_s,
+                    ad,
+                    ao,
+                    15,
+                ],
+                [u32::from(st.depth_test), u32::from(st.depth_write), 4],
+                if st.two_sided { 1 } else { 3 },
+            )
         }
     }
 }

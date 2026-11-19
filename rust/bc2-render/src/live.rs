@@ -63,7 +63,7 @@ impl Dyn {
 
     /// How many floats the value has.
     #[must_use]
-    pub fn len(self) -> usize {
+    pub fn floats(self) -> usize {
         match self {
             Self::ViewProj | Self::View | Self::WorldViewProj => 16,
             _ => 4,
@@ -124,7 +124,7 @@ pub fn plan(r: &Reflection, values: &Values, material: &[(u8, Item)], extra: &[(
         let at = v.offset as usize / 4;
         let n = v.size as usize / 4;
         if let Some(k) = Dyn::of(&v.name) {
-            for (i, d) in buf.iter_mut().skip(at).take(n.min(k.len())).enumerate() {
+            for (i, d) in buf.iter_mut().skip(at).take(n.min(k.floats())).enumerate() {
                 *d = Src::Dyn(k, i as u8);
             }
         } else if let Some(x) = values.get(&v.name) {
@@ -250,10 +250,10 @@ fn transform_box(rows: &[[f64; 4]; 3], lo: [f32; 3], hi: [f32; 3]) -> Aabb {
             f64::from(if k & 2 == 0 { lo[1] } else { hi[1] }),
             f64::from(if k & 4 == 0 { lo[2] } else { hi[2] }),
         ];
-        for (r, row) in rows.iter().enumerate() {
+        for ((row, lo), hi) in rows.iter().zip(a.iter_mut()).zip(b.iter_mut()) {
             let v = row[0] * p[0] + row[1] * p[1] + row[2] * p[2] + row[3];
-            a[r] = a[r].min(v);
-            b[r] = b[r].max(v);
+            *lo = lo.min(v);
+            *hi = hi.max(v);
         }
     }
     (a, b)
@@ -273,10 +273,10 @@ fn union(a: Option<Aabb>, b: Aabb) -> Aabb {
 /// placed by it (bone-placed programs take the placement from the bones).
 fn draw_bounds(d: &Draw, p: &Prepared, world: &Mat) -> Option<Aabb> {
     let (lo, hi) = d.bounds.or(if p.draws.len() == 1 { p.bounds } else { None })?;
-    let w = |r: usize| [world[r * 4], world[r * 4 + 1], world[r * 4 + 2], world[r * 4 + 3]];
+    let w = |r: usize| [0, 1, 2, 3].map(|c| world.get(r * 4 + c).copied().unwrap_or(0.0));
     let mut b = transform_box(&[w(0), w(1), w(2)], lo, hi);
     if let Some(rest) = &d.bones {
-        for bone in placed_bones(rest, world).chunks_exact(3) {
+        for bone in placed_bones(rest, world).as_chunks::<3>().0 {
             let r = |i: usize| bone.get(i).map_or([0.0; 4], |v| v.map(f64::from));
             b = union(Some(b), transform_box(&[r(0), r(1), r(2)], lo, hi));
         }
@@ -328,7 +328,10 @@ pub fn instance(source: Source, base: &Values) -> Inst {
                         return Some((*reg, Item::Named(k)));
                     }
                     let v = vals.get(n)?;
-                    Some((*reg, Item::Const([0, 1, 2, 3].map(|k| v.get(k).copied().unwrap_or(0.0)))))
+                    Some((
+                        *reg,
+                        Item::Const([0, 1, 2, 3].map(|k| v.get(k).copied().unwrap_or(0.0))),
+                    ))
                 })
                 .collect();
             let material: Vec<(u8, Item)> = d
@@ -377,6 +380,9 @@ pub fn base_values(light: &Values) -> Values {
     }
     base
 }
+
+/// A spatial-index cell: its bounds and instances.
+type Cell = (Aabb, Vec<u32>);
 
 /// The size of a spatial-index cell, metres.
 pub const CELL: f64 = 64.0;
@@ -428,7 +434,7 @@ pub const ALIGN: usize = 256;
 /// The six planes of a view-projection (`a x + b y + c z + d >= 0` inside), Direct3D's depth 0..1.
 #[must_use]
 pub fn planes(vp: &Mat) -> [[f64; 4]; 6] {
-    let row = |r: usize| [vp[r * 4], vp[r * 4 + 1], vp[r * 4 + 2], vp[r * 4 + 3]];
+    let row = |r: usize| [0, 1, 2, 3].map(|c| vp.get(r * 4 + c).copied().unwrap_or(0.0));
     let (r0, r1, r2, r3) = (row(0), row(1), row(2), row(3));
     let add = |a: [f64; 4], b: [f64; 4], s: f64| [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2], a[3] + s * b[3]];
     [
@@ -463,7 +469,7 @@ pub struct Live {
     /// Where the blended draws start and end in `order`.
     blended: (usize, usize),
     /// The grid: cell -> (its bounds, instances); and the instances without bounds.
-    grid: Vec<(Aabb, Vec<u32>)>,
+    grid: Vec<Cell>,
     always: Vec<u32>,
     /// The last frame.
     pub built: Built,
@@ -496,19 +502,20 @@ impl Live {
                 let kept = old.get_mut(&s.key).and_then(|v| {
                     let at = v.iter().rposition(|i| {
                         Arc::ptr_eq(&i.source.prepared, &s.prepared)
-                            && i.source.world.iter().zip(&s.world).all(|(a, b)| a.to_bits() == b.to_bits())
+                            && i.source
+                                .world
+                                .iter()
+                                .zip(&s.world)
+                                .all(|(a, b)| a.to_bits() == b.to_bits())
                     })?;
                     Some(v.remove(at))
                 });
-                match kept {
-                    Some(mut i) => {
-                        i.source.pick = s.pick;
-                        i
-                    }
-                    None => {
-                        planned += 1;
-                        instance(s, &self.base)
-                    }
+                if let Some(mut i) = kept {
+                    i.source.pick = s.pick;
+                    i
+                } else {
+                    planned += 1;
+                    instance(s, &self.base)
                 }
             })
             .collect();
@@ -530,14 +537,14 @@ impl Live {
         let b1 = order.iter().rposition(|o| o.0 == BLENDED).map_or(b0, |p| p + 1);
         self.blended = (b0, b1);
         self.order = order.into_iter().map(|o| (o.1, o.2)).collect();
-        let mut cells: HashMap<(i64, i64), (Aabb, Vec<u32>)> = HashMap::new();
+        let mut cells: HashMap<(i64, i64), Cell> = HashMap::new();
         self.always.clear();
         for (i, inst) in self.instances.iter().enumerate() {
             match inst.bounds {
                 Some(b) => {
                     let c = (
-                        ((b.0[0] + b.1[0]) / 2.0 / CELL).floor() as i64,
-                        ((b.0[2] + b.1[2]) / 2.0 / CELL).floor() as i64,
+                        (f64::midpoint(b.0[0], b.1[0]) / CELL).floor() as i64,
+                        (f64::midpoint(b.0[2], b.1[2]) / CELL).floor() as i64,
                     );
                     let e = cells.entry(c).or_insert((b, Vec::new()));
                     e.0 = union(Some(e.0), b);
@@ -546,7 +553,7 @@ impl Live {
                 None => self.always.push(i as u32),
             }
         }
-        let mut grid: Vec<((i64, i64), (Aabb, Vec<u32>))> = cells.into_iter().collect();
+        let mut grid: Vec<((i64, i64), Cell)> = cells.into_iter().collect();
         grid.sort_by_key(|g| g.0);
         self.grid = grid.into_iter().map(|g| g.1).collect();
     }
@@ -632,8 +639,12 @@ impl Live {
         built.culled_instances = culled;
         let mut wvp: HashMap<u32, Vec<f32>> = HashMap::new();
         for &(i, k) in &self.order {
-            let Some(inst) = self.instances.get(i as usize) else { continue };
-            let Some(d) = inst.draws.get(usize::from(k)) else { continue };
+            let Some(inst) = self.instances.get(i as usize) else {
+                continue;
+            };
+            let Some(d) = inst.draws.get(usize::from(k)) else {
+                continue;
+            };
             if d.reads_depth && built.depth_at.is_none() {
                 built.depth_at = Some(built.steps.len());
             }
@@ -642,7 +653,11 @@ impl Live {
             {
                 continue;
             }
-            let needs_wvp = d.vs.holes.iter().chain(&d.ps.holes).any(|h| h.key == Dyn::WorldViewProj);
+            let needs_wvp =
+                d.vs.holes
+                    .iter()
+                    .chain(&d.ps.holes)
+                    .any(|h| h.key == Dyn::WorldViewProj);
             if needs_wvp && !wvp.contains_key(&i) {
                 wvp.insert(i, floats(&mul(&vp, &inst.source.world)));
             }
@@ -669,7 +684,12 @@ impl Live {
             };
             let vs = put(&d.vs);
             let ps = put(&d.ps);
-            built.steps.push(Step { inst: i, draw: k, vs, ps });
+            built.steps.push(Step {
+                inst: i,
+                draw: k,
+                vs,
+                ps,
+            });
         }
         &self.built
     }
