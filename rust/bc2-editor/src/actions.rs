@@ -42,6 +42,8 @@ pub enum Action {
     Save,
     /// Applies the whole log to the base again and reports.
     CheckEdits,
+    /// Exports the project as a new multiplayer level (staged, checked; the game copy unchanged).
+    Export,
     /// Deletes the selection.
     Delete,
     /// Duplicates the selection.
@@ -193,6 +195,12 @@ pub fn registry() -> Vec<Entry> {
             "Check edits",
             None,
             "Applies the whole log to the base level again and says what it changes",
+        ),
+        e(
+            Action::Export,
+            "Export as a multiplayer level",
+            None,
+            "Builds the map as a new level for the game's level list (staged and checked; installing is a separate step)",
         ),
         e(
             Action::Delete,
