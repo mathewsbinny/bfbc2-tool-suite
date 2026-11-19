@@ -6,7 +6,8 @@ least recently used files deleted first, and a command to see and clear them (ro
     python -m bfbc2core.caches --clear [name...]  delete the cached files (every cache when no name is given)
 
 (from the suite's core\ folder; or python core\bfbc2core\caches.py ...). Names: hlsl, fbrb, collision, effectport,
-culltree, bf1943source (round E3r); the project caches navstudio, harness, navwater, editor (round G3); logs. Every cache is only a cache: a deleted file is read
+culltree, bf1943source (round E3r), shadercover (round S1); the project caches navstudio, harness, navwater, editor
+(round G3); logs. Every cache is only a cache: a deleted file is read
 or computed again on its next use, never an error, so clearing or pruning is safe while tools run.
 
 Project caches (round E3q): caches the suite's tools keep inside Project OPFOR BFBC2's work\ folder by design -
@@ -89,7 +90,7 @@ class Spec:
 
 
 # As each owner resolves its folder (pcbuild.cache_dir, fbrb's CacheConfig::from_env, collision._default_cache,
-# effectport.cache_dir, culltree.cache_folder, bf1943import.index_dir). The fbrb cache is trimmed by the Rust core itself after each payload
+# effectport.cache_dir, culltree.cache_folder, bf1943import.index_dir, shaderdb.cover_cache_dir). The fbrb cache is trimmed by the Rust core itself after each payload
 # it writes (same rule, same cap); the others are pruned through maybe_prune by the code that writes them.
 CACHES: dict[str, Spec] = {s.name: s for s in (
     Spec('hlsl', 'BFBC2_HLSL_CACHE', ('.bin',), 'BFBC2_HLSL_CACHE_MB', MB, 1024,
@@ -105,6 +106,8 @@ CACHES: dict[str, Spec] = {s.name: s for s in (
          "reference levels' cull tree rows (culltree ref_rows)"),
     Spec('bf1943source', 'BF1943_SOURCE_INDEX', ('.pkl',), 'BF1943_SOURCE_INDEX_MB', MB, 64,
          "BF1943 source folders' checked bundles and their entries (bf1943import.Source)"),
+    Spec('shadercover', 'BFBC2_SHADERCOVER_CACHE', ('.pkl',), 'BFBC2_SHADERCOVER_CACHE_MB', MB, 64,
+         "level shader databases' entry-name prefixes (shaderdb.level_coverage / donor_levels)"),
 )}
 
 # navdata.load's entries: <key>.npz (the cells) and <key>.navdata.pkl (the whole NavData); temporary <entry>.<pid>.tmp

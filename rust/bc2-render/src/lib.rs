@@ -9,9 +9,14 @@
 //! - [`dxbc`]: what a compiled shader declares (its `$Globals` and resource bindings) and whether it discards.
 //! - [`material`]: a mesh's draws with a database, as the engine picks them (`renderqa.prepare`).
 //! - [`weather`]: the light and post-process values of a level's active weather state (`renderqa.light`).
+//! - [`placement`]: the level partition's shader-set overrides and model-group members.
+//! - [`water`]: the visual water drawn with its slots' entries.
 //! - [`terrain`]: terrain patches drawn with their `PatchMaskShaders` entries on the level's height map and mask atlas.
-//! - [`frame`]: the camera, the engine constants and the draw list of a frame; [`tonemap`]: the post-process.
-//! - `d3d` (Windows): the Direct3D 11 device that draws a frame and reads it back.
+//! - [`frame`]: the camera, the engine constants and the draw list of a frame.
+//! - [`post`]: DICE's own post-process shaders as full-screen passes; [`tonemap`]: the harness's CPU tonemap.
+//! - [`world`]: a level's whole drawable world (objects, group members, terrain, strips, water, post shaders).
+//! - [`job`]: a frame as a job for the C++ harness (`shaderview`), for the pixel-for-pixel proofs.
+//! - `d3d` (Windows): the Direct3D 11 device that draws a frame (and its post passes) and reads it back.
 //!
 //! Nothing is written to the game copy; every file is read from OPFOR's `work` folder.
 
@@ -29,10 +34,15 @@
 pub mod dxbc;
 pub mod files;
 pub mod frame;
+pub mod job;
 pub mod material;
+pub mod placement;
+pub mod post;
 pub mod terrain;
 pub mod tonemap;
+pub mod water;
 pub mod weather;
+pub mod world;
 
 #[cfg(windows)]
 pub mod d3d;

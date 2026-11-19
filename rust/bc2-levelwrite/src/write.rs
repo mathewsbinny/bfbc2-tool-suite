@@ -192,7 +192,8 @@ impl LevelWriter {
     }
 
     /// The event connection arrays of the partition (every instance's `EventConnections` that is a container).
-    fn connection_arrays(&self) -> Vec<NodeId> {
+    #[must_use]
+    pub fn connection_arrays(&self) -> Vec<NodeId> {
         self.d
             .instances()
             .into_iter()
@@ -234,6 +235,76 @@ impl LevelWriter {
         out.instances = self.drop_in(&mut roots, g, &mut out.references)?;
         *self.d.roots_mut() = roots;
         Ok(out)
+    }
+
+    /// [`LevelWriter::delete`] of many instances in one pass over the partition (an export removes thousands; one
+    /// walk per instance is quadratic): the same result as deleting them one by one, in any order. `guids` upper
+    /// case; guids not in the partition are skipped. The level's `LevelData` is never removed.
+    ///
+    /// # Errors
+    /// The DBX writer refuses an element (none of these edits makes one it refuses).
+    pub fn delete_many(&mut self, guids: &HashSet<String>) -> Result<Deleted> {
+        let mut out = Deleted::default();
+        if guids.is_empty() {
+            return Ok(out);
+        }
+        let hit = |r: &[u8]| -> bool {
+            let tail = r.rsplit(|&b| b == b'/').next().unwrap_or(r);
+            guids.contains(&String::from_utf8_lossy(tail).to_ascii_uppercase())
+        };
+        for a in self.connection_arrays() {
+            let kids = self.d.children(a).unwrap_or_default().to_vec();
+            let keep: Vec<NodeId> = kids
+                .iter()
+                .copied()
+                .filter(|&c| {
+                    ![&b"Source"[..], b"Target"]
+                        .iter()
+                        .any(|f| self.d.child(c, f).and_then(|x| self.d.attr(x, b"ref")).is_some_and(hit))
+                })
+                .collect();
+            out.connections += kids.len() - keep.len();
+            *self.d.children_mut(a)? = keep;
+        }
+        let level = self.level_data();
+        let mut roots = self.d.roots().to_vec();
+        out.instances = self.drop_many_in(&mut roots, &hit, level, &mut out.references)?;
+        *self.d.roots_mut() = roots;
+        Ok(out)
+    }
+
+    fn drop_many_in(
+        &mut self,
+        list: &mut Vec<NodeId>,
+        hit: &dyn Fn(&[u8]) -> bool,
+        level: Option<NodeId>,
+        references: &mut usize,
+    ) -> Result<usize> {
+        let mut removed = 0;
+        let mut i = list.len();
+        while i > 0 {
+            i -= 1;
+            let Some(&e) = list.get(i) else { continue };
+            if self.d.tag(e) == b"instance" && Some(e) != level && self.d.attr(e, b"guid").is_some_and(hit) {
+                list.remove(i);
+                removed += 1;
+                continue;
+            }
+            if self.d.attr(e, b"ref").is_some_and(hit) {
+                *references += 1;
+                if self.d.tag(e) == b"item" {
+                    list.remove(i);
+                    continue;
+                }
+                self.d.set_attr(e, b"ref", b"null")?;
+            }
+            if let Some(kids) = self.d.children(e) {
+                let mut kids = kids.to_vec();
+                removed += self.drop_many_in(&mut kids, hit, level, references)?;
+                *self.d.children_mut(e)? = kids;
+            }
+        }
+        Ok(removed)
     }
 
     /// DbxEdit's `drop_in`, on a list of elements (from the end, as DbxEdit walks it).

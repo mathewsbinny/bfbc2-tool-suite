@@ -1,0 +1,112 @@
+//! `mapexport`: a map project exported as a NEW multiplayer level, staged; never writes the game copy
+//! (`EDITOR_ARCHITECTURE.md` 3.12). Project OPFOR's `mapedit_install.py` runs it and installs the stage.
+//!
+//! ```text
+//! mapexport build   <project.mapedit.json> <export.json> --game <game folder> --out <stage folder>
+//! mapexport check   <stage folder> --game <game folder>
+//! mapexport startup <startup-00.fbrb> --out <file> --work <temp folder> [--add <LEVEL> <description.dbx>]...
+//!                   [--remove <LEVEL>]...
+//! ```
+//!
+//! Exit code 0, or 1 with the reason on standard error (a failed check: 1, the checks printed).
+
+use std::path::PathBuf;
+use std::process::ExitCode;
+
+use bc2_levelwrite::MapProject;
+use bc2_levelwrite::export::{self, ExportSpec, Game};
+
+fn value(args: &[String], key: &str) -> Option<PathBuf> {
+    args.iter()
+        .position(|a| a == key)
+        .and_then(|i| args.get(i + 1))
+        .map(PathBuf::from)
+}
+
+fn run(args: &[String]) -> Result<bool, String> {
+    let game = || -> Result<Game, String> {
+        let g = value(args, "--game").ok_or("--game <game folder> is needed")?;
+        Game::open(&g).map_err(|e| e.to_string())
+    };
+    let mut out = std::io::stdout().lock();
+    let mut say = |s: &str| {
+        use std::io::Write as _;
+        let _ = writeln!(out, "{s}");
+    };
+    match args.first().map(String::as_str) {
+        Some("build") => {
+            let (Some(p), Some(s)) = (args.get(1), args.get(2)) else {
+                return Err("build <project> <export.json> --game <folder> --out <stage>".into());
+            };
+            let project = MapProject::load(&PathBuf::from(p)).map_err(|e| format!("{p}: {e}"))?;
+            let text = std::fs::read_to_string(s).map_err(|e| format!("{s}: {e}"))?;
+            let spec = ExportSpec::from_json(&text).map_err(|e| e.to_string())?;
+            let stage = value(args, "--out").ok_or("--out <stage folder> is needed")?;
+            let t = std::time::Instant::now();
+            let rec = export::build(&game()?, &project, p, &spec, &stage).map_err(|e| e.to_string())?;
+            for l in &rec.report {
+                say(l);
+            }
+            say(&format!(
+                "staged {} in {} ({:.1} s)",
+                rec.level,
+                stage.display(),
+                t.elapsed().as_secs_f64()
+            ));
+            Ok(true)
+        }
+        Some("check") => {
+            let stage = PathBuf::from(args.get(1).ok_or("check <stage folder> --game <folder>")?);
+            let r = export::check(&game()?, &stage).map_err(|e| e.to_string())?;
+            for (ok, what) in &r.checks {
+                say(&format!("{} {what}", if *ok { "ok    " } else { "FAILED" }));
+            }
+            say(if r.ok() { "check: ok" } else { "check: FAILED" });
+            Ok(r.ok())
+        }
+        Some("startup") => {
+            let src = PathBuf::from(
+                args.get(1)
+                    .ok_or("startup <startup-00.fbrb> --out <file> --work <folder>")?,
+            );
+            let out_p = value(args, "--out").ok_or("--out <file> is needed")?;
+            let work = value(args, "--work").ok_or("--work <folder> is needed")?;
+            let mut add = Vec::new();
+            let mut remove = Vec::new();
+            let mut i = 0;
+            while let Some(a) = args.get(i) {
+                match a.as_str() {
+                    "--add" => {
+                        let (Some(l), Some(f)) = (args.get(i + 1), args.get(i + 2)) else {
+                            return Err("--add <LEVEL> <description.dbx>".into());
+                        };
+                        add.push((l.clone(), std::fs::read(f).map_err(|e| format!("{f}: {e}"))?));
+                        i += 3;
+                    }
+                    "--remove" => {
+                        remove.push(args.get(i + 1).ok_or("--remove <LEVEL>")?.clone());
+                        i += 2;
+                    }
+                    _ => i += 1,
+                }
+            }
+            let items = export::patch_startup(&src, &add, &remove, &work, &out_p).map_err(|e| e.to_string())?;
+            say(&format!("{}: level list of {} items", out_p.display(), items.len()));
+            Ok(true)
+        }
+        _ => Err("mapexport build | check | startup (see the source's documentation)".into()),
+    }
+}
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match run(&args) {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::from(1),
+        Err(e) => {
+            use std::io::Write as _;
+            let _ = writeln!(std::io::stderr(), "mapexport: {e}");
+            ExitCode::from(1)
+        }
+    }
+}
