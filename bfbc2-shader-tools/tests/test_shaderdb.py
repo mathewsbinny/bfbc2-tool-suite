@@ -170,9 +170,9 @@ def quick(c: Checks, tmp: str) -> None:
             and sd.split_name('Objects/Edge/Brick/Brick_t01/Objects/Edge/Shaders/X', {'objects/edge/brick/brick_t01'})
             == ('Objects/Edge/Brick/Brick_t01', 'Objects/Edge/Shaders/X'), 'entry names split into mesh and shader')
     # ---- the coverage index (round S1): the counts of every name prefix answer coverage for any meshes
-    names = [('Objects/A/A_Mesh/Objects/A/Shaders/Metal', 1), ('objects/a/a_mesh/Objects/A/Shaders/Wood', 1),
-             ('Objects/A/A_Mesh_lod/X', 1), ('A/A', 1), ('Shaders/Decals/Decal_1', 1), ('a/B', 1)]
-    db = build(9, names, 3)
+    cover_names = [('Objects/A/A_Mesh/Objects/A/Shaders/Metal', 1), ('objects/a/a_mesh/Objects/A/Shaders/Wood', 1),
+                   ('Objects/A/A_Mesh_lod/X', 1), ('A/A', 1), ('Shaders/Decals/Decal_1', 1), ('a/B', 1)]
+    db = build(9, cover_names, 3)
     ask = ['objects/a/a_mesh', 'objects/a', 'objects', 'a', 'a/a', 'shaders/decals/decal_1', 'objects/a/a_mesh_lod',
            'objects/a/a_mesh/objects', 'nothing', 'objects/a/a_mesh/objects/a/shaders/metal', 'objects/a/a_me']
     pre = sd.cover_prefixes(db)

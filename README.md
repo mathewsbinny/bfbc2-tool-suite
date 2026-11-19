@@ -603,6 +603,11 @@ development PC on 2026-11-17, mid-way through a WW2 rebuild):
 | `effectport` | `emitters-<24 hex>.pkl` | the emitter documents' places and their bundles' paths, sizes and times, `INDEX_VERSION` | `effectport.EmitterIndex` (E3g) | `BFBC2_EFFECTPORT_CACHE` | `BFBC2_EFFECTPORT_CACHE_MB`, default 256; LRU (E3p) | 3.8 MB, 1 file per game copy |
 | `culltree` | `<sha1 of the level file's path>.pkl` | the code (`CACHE_VERSION`, a hash of `culltree.py`), the level file's size and time; each tree's inside | `culltree` `ref_rows` (E3m) | `BFBC2_CULLTREE_CACHE` | `BFBC2_CULLTREE_CACHE_MB`, default 2048; LRU (E3p) | one file per reference level partition (none yet on this PC) |
 | `bf1943source` | `<sha1 of the source folder>.pkl` | `INDEX_VERSION`, the BF1943 bundle reader's own source (`fbrb1943.py`'s SHA-1); per bundle its size and modification time | `bf1943import.Source` (E3r): which bundles `fbrb1943` takes, their entries and where each payload starts | `BF1943_SOURCE_INDEX` | `BF1943_SOURCE_INDEX_MB`, default 64; LRU | 3.2 MB, one file per BF1943 copy |
+| `shadercover` | `<24 hex>.pkl` per level bundle and Dx | SHA-1 of `COVER_VERSION`, the bundle's path, size and modification time, the Dx | `shaderdb.level_cover_prefixes` / `level_coverage` / `donor_levels` (S1): each level database's entry-name prefixes and their counts (`coverage` without loading the database) | `BFBC2_SHADERCOVER_CACHE` | `BFBC2_SHADERCOVER_CACHE_MB`, default 64; LRU | 27 MB, 79 files (every stock level's Dx9) |
+
+The BF1943 importer also keeps restart points for the whole process (S1; in memory, not on disk):
+`bf1943import.RESTARTS`, by the bundle's path, size and time, within `BF1943_RESTARTS_MB` (default 128; 0: none), so
+a new `Source` does not decompress a bundle whole again (30 MB for every bundle of BF1943).
 
 **Logs** (`logs` in the command; round E3q): `%LOCALAPPDATA%\bfbc2-tool-suite\logs\<tool>-<date>.log`
 (`bfbc2core.errors`, DbxEdit in process). A day's file that reaches `BFBC2_LOG_FILE_MB` (default 20) goes on in
