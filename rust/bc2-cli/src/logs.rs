@@ -43,7 +43,6 @@ pub struct Seen {
     pub size: u64,
     pub mtime_ns: i128,
     /// `_File.used`: the later of its access and modification times (logs: the modification time)
-    #[allow(dead_code, reason = "the caches group's (in progress)")]
     pub used: f64,
 }
 
@@ -89,7 +88,6 @@ pub fn log_files(top: &str) -> Vec<(Seen, String, String)> {
 }
 
 /// `logs_usage(top)`: (bytes, files) of the logs.
-#[allow(dead_code, reason = "the caches group's (in progress)")]
 pub fn logs_usage(top: &str) -> (u64, usize) {
     let files = log_files(top);
     (files.iter().map(|f| f.0.size).sum(), files.len())

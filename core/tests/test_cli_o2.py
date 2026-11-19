@@ -132,9 +132,11 @@ class Place:
         out; its files' names by tool and part."""
         out = []
         if os.path.isdir(self.logs):
-            # left out: the start-up pruning's lock file (caches.prune_logs: the Python tools prune, bfbc2.exe leaves
-            # it to them) and the ResourceWarnings errors.setup logs for files Python itself left unclosed
-            for n in sorted(x for x in os.listdir(self.logs) if not x.startswith('.')):
+            # left out: the start-up pruning's lock file (caches.prune_logs; round O3: bfbc2.exe prunes as the Python
+            # tools do: lad_state compares it), folders, and the ResourceWarnings errors.setup logs for files Python
+            # itself left unclosed
+            for n in sorted(x for x in os.listdir(self.logs)
+                            if not x.startswith('.') and os.path.isfile(os.path.join(self.logs, x))):
                 with open(os.path.join(self.logs, n), 'rb') as f:
                     text = f.read()
                 rows = re.findall(rb'(?m)^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} ([^\r\n]*)', text)
@@ -189,11 +191,15 @@ def setup(pl: Place, files: dict[str, Any]) -> None:
     shutil.rmtree(pl.lad, ignore_errors=True)
     if os.path.exists(pl.trace):
         os.remove(pl.trace)
+    dir_times = []
     for name, data in files.items():
         # round O3: '{lad}/...' is a file of the run's local app data (old logs, caches), not of the case folder
         p = os.path.join(pl.lad, name[6:]) if name.startswith('{lad}/') else os.path.join(pl.d, name.replace('{d}', pl.d))
         if data is None:
             os.makedirs(p, exist_ok=True)
+        elif isinstance(data, tuple) and data[0] is None:   # round O3: (None, time): a folder with that time, set last
+            os.makedirs(p, exist_ok=True)
+            dir_times.append((p, data[1]))
         else:
             mtime = None
             if isinstance(data, tuple):             # (contents, modification time): os.utime after writing
@@ -205,6 +211,8 @@ def setup(pl: Place, files: dict[str, Any]) -> None:
                 f.write(data.encode('utf-8') if isinstance(data, str) else data)
             if mtime is not None:
                 os.utime(p, (mtime, mtime))
+    for p, mtime in dir_times:
+        os.utime(p, (mtime, mtime))
 
 
 def base_env(extra: dict[str, str], pl: Place) -> dict[str, str]:

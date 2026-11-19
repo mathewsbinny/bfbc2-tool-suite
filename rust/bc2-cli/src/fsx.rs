@@ -60,7 +60,6 @@ pub fn now() -> f64 {
 }
 
 /// `os.utime(path)`: its access and modification times set to now.
-#[allow(dead_code, reason = "the caches group's (in progress)")]
 pub fn utime_now(path: &str) -> io::Result<()> {
     let now = SystemTime::now();
     let f = open_attrs(path)?;
@@ -68,7 +67,6 @@ pub fn utime_now(path: &str) -> io::Result<()> {
 }
 
 #[cfg(windows)]
-#[allow(dead_code, reason = "the caches group's (in progress)")]
 fn open_attrs(path: &str) -> io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt;
     // FILE_WRITE_ATTRIBUTES, as Python's utime opens the file
@@ -81,7 +79,6 @@ fn open_attrs(path: &str) -> io::Result<File> {
 }
 
 /// `with open(path, 'wb'): pass` then `os.utime(path)`: an empty marker file stamped now.
-#[allow(dead_code, reason = "the caches group's (in progress)")]
 pub fn touch_marker(path: &str) -> io::Result<()> {
     File::create(path)?;
     utime_now(path)
@@ -163,7 +160,6 @@ pub struct Entry {
     pub name: String,
     /// a symbolic link or junction (`is_symlink() or is_junction()`): never followed
     pub link: bool,
-    #[allow(dead_code, reason = "the caches group's (in progress)")]
     pub dir: bool,
     pub file: bool,
     pub stat: Option<Stat>,

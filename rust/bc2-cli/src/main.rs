@@ -22,7 +22,11 @@ mod audio;
 #[cfg(feature = "bf1943")]
 mod bf1943;
 // round O3: the caches' overall budget after a bundle read (fbrb._budget), for the ports that read bundles
-#[cfg(feature = "graft")]
+#[cfg(any(feature = "graft", feature = "meshview", feature = "bf1943", feature = "caches"))]
+#[cfg_attr(
+    not(any(feature = "graft", feature = "meshview", feature = "bf1943")),
+    allow(dead_code)
+)]
 mod budget;
 #[cfg(feature = "caches")]
 mod caches;
@@ -48,9 +52,6 @@ mod cull;
     allow(dead_code)
 )]
 mod fsx;
-// round O3: the caches' overall budget after a bundle read (fbrb._budget), for the tools that read bundles
-#[cfg(any(feature = "meshview", feature = "bf1943"))]
-mod budget;
 // round O3: meshview.Index from its cache (the meshview and bf1943 groups)
 #[cfg(any(feature = "meshview", feature = "bf1943"))]
 mod gameindex;
