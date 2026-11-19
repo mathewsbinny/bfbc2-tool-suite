@@ -657,6 +657,212 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
    with no harness flag; Vietnam and the Pacific War levels (their installed Dx11 databases, BF1943's translated
    shaders included, draw the same way).
 
+### 3.12 Exporting a level as a new multiplayer level (round E3, 2026-11-18: study and first export)
+
+The user's goal: load Operation Aurora's map, edit it, save, export it, and find it in the level list on the next
+launch. A campaign level is exported as a NEW multiplayer level; no original is ever written. Built in round E3:
+`bc2_levelwrite::{export, mpconvert, culltree}`, the `mapexport` binary, the editor's Export window
+(`bc2-editor/src/export_ui.rs`), and OPFOR's `src\tools\mapedit\mapedit_install.py`.
+
+#### What a campaign level lacks for multiplayer (from the data)
+
+The ground truth is DICE's own conversion of a campaign level: Heavy Metal's Conquest, MP_SP_005CQ, made from SP_005.
+It was compared instance type by instance type with SP_005, SP_01, MP_005 and MP_009CQ (and Napisal's MP_SP_001CQ,
+his Aurora Conquest).
+
+- **The world stays.** DICE kept the objects (`ReferenceObjectData`, in fact more of them), terrain splines, model
+  groups and their members, effects, sound areas, weather states, damage and clear areas, and predestruction.
+- **The campaign's scripting goes.** Every instance of these types was removed:
+  - AI orders (`AreaOrder`, `PatrolOrder`, `InterludeOrder`, `CancelOrder`, `ShootAtObjectOrder` ...);
+  - cutscenes (`Cutscene*`, 170 `CutsceneSoldier` on SP_01) and `PlayVideo`;
+  - mission objectives and saves (`MissionObjective`, `Save`, `Continue`);
+  - the campaign's AI spawning (`SoldierSpawnGhost`, `SquadGhost`, `SquadEntity`, `SpawnPointManager`, 190 AI and
+    player `SoldierSpawn`s on SP_01);
+  - waypoints and targets (`AnimatedWaypoint`, `Waypoint`, `WaypointAnimation`, `TargetObject*`, `StaticPosition`);
+  - scripted triggers (`VehicleStateTrigger`, `UnderFireTrigger`, `LookAtTrigger`, `CharacterStateTrigger` ...);
+  - tooltips, debug menus and screen fades;
+  - scripted demolitions (`ExplosionPack`, `ExplosiveObject`), artillery strikes and weapon pickups.
+
+  `mpconvert::CAMPAIGN_SCRIPTING` has the list, computed from 13 campaign against 24 multiplayer levels (Onslaught's
+  AI levels left out). These types are in no multiplayer level, or DICE removed every campaign instance of them.
+- **The game-mode layer comes in.** A Conquest level's layer is the same set of types on every stock level:
+  - `AutoTeam` and three `TeamEntityData`s, 12 `TeamFilter`s, two `TicketCounter`s, `PreRound`, `Spectate`;
+  - `SquadData`s, 16 `Message`s, the announcer's `VoiceOver`s and `VoiceOverLineAsset`s;
+  - an MP `HumanPlayer`, `Mission`, `Menu`s, `InputRestriction`;
+  - the event glue (`EventSplitter`, `DelayTrigger`) wiring player enter, death, spectate, the win menu and the ticket
+    messages;
+  - the `CapturePoint`s: two team bases (`UnableToChangeTeam`, each with HQ `SoldierSpawn`s and `AlternateSpawn`s)
+    and the flags (`objects/gameplay/flag_*`, `mp_flagpole`, a `MapMarker` each);
+  - one `CombatAreaTrigger` with its polygon (`AreaGeometryEntityData` points linked by `Next`).
+
+  Without such a layer, a campaign level hosted as a match stalls in session state 14 (OPFOR's SP_005 test,
+  `research/BFBC2_NAPISAL_RESEARCH.md` 7).
+- **The level's fields.**
+  - Campaign values: `HasAI` true, `StartLevelFadedToBlack`, a `SubtitleAsset`, `WaypointAnimations`,
+    `PathfindingTypes`, `SpawnPointManager`, `InfantryFOVMultiplier` 0.82.
+  - Multiplayer values: false, null, empty, and 1. The `LevelDescription` gets the mode's `GameMode`
+    (`gamemodes/conquest`), `FactionTeam1` / `2` US / RU, `WaitForButtonBeforeStarting` false, no achievements or
+    collectibles, and the mode's `KitImages`.
+  - DICE kept the base's minimap reference (`levels/sp_005/ui/minimaptexture`): the new level reads it from the
+    original.
+- **Bundles.**
+  - MP_SP_005CQ's `package.mft` blocks target `mp_common` (plus the DLC's `mp2_common`, which holds SP_005's
+    terrain); campaign levels target `sp_common`.
+  - The engine finds some files by the level's name, so a new name needs its own copies: the shader database
+    collection and its databases, the emitter system and atlases, the model groups (`*ModelGroupEntity*_HavokAsset`,
+    `ForestEntity_HavokAsset`), the static cull trees and the animation sound map. Proof: DICE's MP_005GR holds all
+    of them under its own name, and deleted markers hide MP_005's. The Onslaught ports copied them as well
+    (`console_onslaught.rename_level_files`).
+  - The level partition names only the cull trees, the material grid, the minimap and its ambient sounds by
+    reference.
+- **Menus.**
+  - `Levels/<LV>_description.dbx` in `Package\async\startup-00.fbrb`; without it the load crashes in state 13.
+  - Its two `LevelListQuery` items (`<lv>.dbx`, `<lv>_description.dbx`); without them the level is in no menu.
+  - OPFOR's `maps.ini` section gives the launcher's and the server browser's row its name.
+  - The description's `Name` loc key also names the loading picture (cut at `_NAME`).
+- **Kits and unlocks** come with the mode: the MP soldier kits from `mp_common` and the description's `KitImages`.
+  Nothing per level.
+- **Voice-over bundles.** The stock levels' `vo/<lang>-00` bundles are registered in `package.mft` but absent from
+  OPFOR's game copy. A new level ships and registers none (`export::KINDS`: level, terrain, ingame, loader).
+
+#### The new level's identity
+
+- **Its id** is `Levels/<LV>` (letters, digits, `_`; for the first export `MAPEDIT_AURORA_CQ`). Its folder is
+  `game\Package\levels\<lv>\`. The export refuses an id that is a level of the game copy or registered by another
+  tool. Only an earlier install of an export may be replaced; it is marked by `opfor-mapedit-installed.json`
+  (section 6, ruling 1).
+- **The level partition** is the edited base partition renamed: a new partition guid (UUID v5 of its name, as the
+  Onslaught copies), `LevelData.Name` and `id`, and the references to the copied root files re-pointed.
+- **The root files** are copied under the new name, their own names re-pointed (`mpconvert::rename_strings`). 22
+  files on SP_01, including 44.6 MB of shader databases; the level bundle is 11.7 MB.
+- **The rest is read from the original's bundles.** The new level's `package.mft` level block targets its own
+  bundle, then `package:` and `game:levels/sp_01/level-00`, then `mp_common`, then `sp_common`. This is DICE's
+  pattern for mode levels (MP_005GR targets MP_005's bundle).
+  - The new level's own bundle comes first. It also holds what the base's deleted markers hide: SP_01's bundle hides
+    `mp_common`'s neutral flag and spawn camera, so `export::fill_hidden` copies those 12 entries from `mp_common`.
+  - The terrain block targets SP_01's terrain bundles; the level's own terrain bundle holds SP_01's one Package
+    entry.
+  - The ingame and loader blocks target `mp_common`'s (the MP HUD and loading UI). The new level's ingame holds
+    SP_01's minimap and its loader SP_01's loading music.
+
+#### Building it
+
+`mapexport build <project> <export.json> --game <game> --out <stage>` (or the editor's Export window):
+
+1. The base partition is read from the game's bundles (`Package` before `Dist`) and checked against the project's
+   sha1. When it differs, the base-changed report runs. Then `levelwrite::apply` replays the log.
+2. `mpconvert::strip` removes the campaign's scripting and what the layer replaces, in one pass
+   (`LevelWriter::delete_many`: event connections and references cut as DbxEdit's `drop` cuts them).
+   - On SP_01: 1,785 instances, 1,185 event connections and 3,639 references.
+   - One of the base's combat areas is kept (the spec names it).
+3. `mpconvert::graft` copies the donor level's layer.
+   - Donor: MP_009CQ, a stock Conquest level, chosen because its layer refers only to `mp_common`. MP_SP_005CQ's
+     layer would need the DLC's `mp2_common`.
+   - What it copies: the seed types, the chosen capture points, and what they refer to or their events reach within
+     the layer's types. Each copy gets a new UUID v5 guid. Event connections, `Objects` items and the voice-over
+     arrays come too.
+   - Anything else is cut and listed: the donor's vehicle spawns, and the flag C not chosen.
+   - On SP_01: 158 instances and 75 event connections.
+4. `mpconvert::place` moves each base and flag, with its spawns, alternative spawn points, map marker and area, so
+   its capture point stands at the spec's x, z.
+   - Heights follow the ground: each instance keeps its height above the donor's terrain, over the base's terrain
+     (both height fields read from the bundles).
+   - Then `level_fields` sets the level's fields, and the donor's `LevelDescription` comes in with the base's name,
+     minimap, music and rich presence.
+5. `culltree::reslot`: a moved object, or a copy sharing its original's slot, gets new leaves in the exclusive cull
+   tree.
+   - This is `culltree.py add` ported, the shape taken from the object's own leaves in the base, moved with it.
+   - Its old leaves stay unregistered, as a deleted object's do.
+   - Otherwise a moved object is culled where it used to stand.
+6. The root files are renamed, the description is built (MP_009CQ's, with new guids and the level's name, map and
+   music), and the bundles are packed (the suite's packer). `stage.json`, `report.txt` and `registration.txt` (what
+   an install adds) go beside them.
+
+`mapexport check <stage> --game <game>` proves the stage offline:
+
+- each bundle is the one recorded, opens, and every partition parses (the DBX reader and `EditDbx`);
+- a `package.mft` block and a `bundleManifest` line per bundle, and every target bundle exists;
+- the name is no level of the game copy;
+- every local reference names an instance of its partition;
+- every reference into another partition (8,578 into 777 partitions on SP_01) names a partition in a bundle the
+  level loads, and an instance in it;
+- references to partitions no bundle of the whole game copy has are allowed only when DICE's own source partition
+  has the same reference. Two on SP_01: `animations/settings/quality/1p/zoomquality` and
+  `objects/objects/shaders/flag_neutral`, both from stock MP data;
+- `LevelData.Name` and the description's `LevelName`;
+- the cull tree is one preorder tree, every slotted object has its own slot, and every slot is a leaf.
+
+**Install and uninstall (Project OPFOR).** `mapedit_install.py --plan <stage>` runs the check, then builds the four
+shared files into `work\mapedit\<lv>\shared` and prints every change. `--apply` installs in WW2's order, and every
+check runs before the first write:
+
+1. the level's bundles go into `Package\levels\<lv>\`, with `opfor-mapedit-installed.json` (their sha256);
+2. `startup-00` gets each exported level's description and list items (`mapexport startup`: FbrbTool's unpack and
+   pack, the list kept sorted as DICE's is);
+3. `maps.ini` gets a section per exported level after the tool's marker;
+4. last, `package.mft` and `bundleManifest`.
+
+The backups and the revert:
+
+- **Backups** follow `console_common`'s stage protocol: stage `mapedit`, `<file>.opfor-mapedit-orig`, the last-writer
+  record. The file's earlier record is kept as `.opfor-mapedit-prevlast`.
+- **The shared patch** is always built from that backup while the tool wrote the file last, so every exported level
+  installed is in one patch.
+- **`--revert <LV>`** checks the bundles' sha256 first and takes the registration out first.
+  - The last level out: each file comes back from its backup, with its earlier last-writer record, so the WW2
+    opt-out still recognises its own state.
+  - One level among several: the patch is written again without it.
+  - The level's folder goes last.
+- **Refusals.** Both refuse while the game runs, and when another tool wrote a shared file after this one (revert
+  that tool first, as the stages already do).
+
+**Bots (later).** `HasAI` is false. Bots need NavKit path data for the new level, written under
+`Output\win32\ai\levels\<lv>`, with `HasAI`, `PathfindingTypes` and the `SectorOffsets` partitions under the new
+name. They also need the AI layer (stockmp-ai's spawners and orders) or the AI workspace (3.4a, E5 / E5a). SP_01's
+own campaign path data covers the campaign's routes, and a NavKit build from the edited collision is the right
+source. A NavKit build of sp_004_b takes 186 s.
+
+**The editor.** The Export window (the "Export as a multiplayer level" action, also in the command palette):
+
+- the form: map name (the `maps.ini` row), level id, game mode (Conquest; the other modes need E4's mode
+  definitions), teams (the layer's), the bases' and flags' x / z, and the combat area kept;
+- the form is kept as `<project>.export.json` beside the project (data only);
+- the checks run as the form changes, and Export stays disabled with the reason while one fails: project saved,
+  valid and free level id, a supported mode, two bases, at least one flag, a combat area, a game copy;
+- Export builds and checks on a worker thread, then shows the report and the install command. The editor never
+  writes the game copy.
+
+E4's gameplay panels replace the x / z fields: placing flags, spawns and combat areas in the 3D view, as operations
+in the project log.
+
+#### First export: SP_01 as Conquest (offline)
+
+`examples/aurora_export.rs` writes a project and an export file:
+
+- the project moves the two slotted objects nearest the campaign start 10 m east and deletes the next two;
+- the export file names `MAPEDIT_AURORA_CQ`: MP_009CQ's two bases and flags A and B placed between the beach and
+  the inland end, and CombatArea6 kept.
+
+The results:
+
+- **The stage.** Level 11.7 MB, terrain 0.1 MB, ingame 1.6 MB, loader 2.0 MB. The build takes 26-45 s (debug, on
+  a shared PC) and `mapexport check` passes every check (`tests/export_sp01.rs` repeats it).
+- **The cull tree.** The two moved objects got slots 8,248 and 8,250 (leaves 4,612 -> 4,615); no slot is shared.
+- **The game copy did not change.** All 1,582 files of `game\` have the same size and time after the build, check
+  and plan, and 17 key files have the same sha256: SP_01's bundles, `mp_common`, `sp_common`, both startups,
+  `package.mft`, `bundleManifest`, `maps.ini` and `opfor.ini`.
+- **The install and revert.** OPFOR's test runs `--apply` and `--revert` on a scratch copy of the shared files.
+  Every file comes back byte for byte, with its last-writer record.
+
+**Open for the in-game test.**
+
+- Placement: the bases' and flags' places are first guesses from the terrain. Spawns over water or inside rocks
+  show only in game.
+- Campaign set pieces: SP_01's 53 campaign vehicle spawns were removed (E4 places multiplayer vehicles).
+- Loading picture: the level keeps SP_01's loc keys (`SP_01_NAME`), so the loading picture is looked up as SP_01's.
+- WW2 profile: under the user's 2026-11-16 note, an Aurora Conquest is a Pacific War map (WW2 kits). This export
+  uses the BFBC2 profile and modern kits.
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
@@ -686,7 +892,7 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
 | E0 | The Rust workspace (3.8): Rust toolchain, Cargo workspace in the suite, PyO3 bindings; the first core formats (DBX, FBRB) ported and proven on the existing corpora; baseline timings. **Status (2026-11-16, branch `rust-e0`):** workspace `rust/` (`bc2-formats`, `bc2-py` / `bc2_native`), the DBX reader ported and identical to the Python reader on all 48,120 distinct corpus files and to DbxEdit on its 31,404 fingerprints, `bfbc2core.dbx` on it with the Python fallback, timings in `rust/BENCHMARKS.md`. **E0b (branch `rust-e0b`):** the FBRB reader ported (`bc2_formats::fbrb`; `bfbc2core.fbrb` on it with the Python fallback), the same entries and bytes as the Python reader on every bundle of the game copy and `work\ww2`, and FbrbTool's unpack on the built and sampled bundles; level loading through `dbx.parse_many`. Bundle packing stays with FbrbTool (E1 / `levelwrite`). E0 done. |
 | E1 | Core (Rust): dynamic scene, gizmo, selection, command log; `levelwrite` with tests (round trip against DbxEdit). **E1a (branch `rust-e1a`, 2026-11-16):** a level load profiled (the collision index was 85-95 % of it); terrain, water and Havok readers in `bc2-formats`, the collision index and the scene (`bc2-scene`) loading what `level.load` loads, identical to the Python loader entity by entity on 18 levels; `level.load` on it (6-15 s -> under a second). **E1b (branch `rust-e1b`):** the writers in Rust: `dbx.write` (the Python writer's bytes on all 48,119 corpus files) and bundle packing (`fbrb.pack` / `pack_many`, FbrbTool's bytes on all 1,086 bundles of the game copy, with a byte-exact port of zlib's deflate). **E1c (branch `rust-e1c`):** shader databases (reader / writer, all 745 corpus databases identical) and the cull tree tool's element reader and level search in `bc2-formats` (3.8). **E1e (branch `rust-e1e`):** the mesh alias table read from the binary partitions and cached by the files' sizes and times (identical on all 37 prepared levels; MP_005's index 0.36 -> 0.11 s warm), NavKit's `detailed`, `ladders`, `navsample_offline` and `navwater_mesh` on the Rust collision readers (their output byte for byte the same), a WW2 level (Guadalcanal) loaded and timed from a temp prepare. **E1d (branch `rust-e1d`, 2026-11-16):** a WW2 level build and a NavKit build profiled; console textures (`bc2-convert`) and NavKit's grid walks and floods (`bc2-navbuild`) in Rust, byte-identical to the Python code on every BF1943 / Onslaught texture and on whole NavKit builds; the converters' partition reads one pass per bundle (`meshview.Partitions`): coral_sea's build 1,293 -> 667 s, a NavKit build of sp_004_b 566 -> 186 s (sp_009 153 -> 19 s). **Integrated** on branch `rust-e1`. **G1 (branch `rust-g1`, 2026-11-18): the editor's view on the scene** - the application's shell in `rust/bc2-editor` (binary `bfbc2-editor`, egui 0.36 on wgpu 30 through eframe, docked panels with egui_dock): the theme generated from `design/project/tokens.json` (Dark and Light, IBM Plex), the start screen ("View a map": the game copy's levels, read-only), the 3D view on `bc2-scene` (terrain, water, collision instanced per blueprint, entities as markers in team colours with labels, outlines; orbit / fly / focus, GPU picking, the selection outlined in `selection`, camera bookmarks) plus top / front / side orthographic views with their own cameras, the Outliner / Properties / Problems panels, an action registry shared by the top bar, the shortcuts and a command palette (Ctrl+Shift+P), and a CPU ray-cast on the scene's surfaces (the base of 3.10's surface snapping); the hub starts it. Proven headless: every token reaches the theme in both themes; the outliner equals the Map Inspector's lists on SP_01, MP_005, MP_009GR and ONS_MP_004 entity by entity; offscreen frames, outline, picking and clicks (README.md, "The map editor"). Next: entity creation / deletion and field edits with `levelwrite` |
 | E2 | Map project and operation log; edit mode in the Map Inspector: move, rotate, delete, duplicate; save; with 3.10: surface / grid / angle / vertex snapping incl. sinking below the surface, align and distribute, ruler; layers and outliner folders; groups; several viewports and the viewport modes; the command palette; autosave and crash recovery. **Status (2026-11-18, branch `rust-e2edit`, first part):** the map project and its log in Rust (`rust/bc2-levelwrite`: `<name>.mapedit.json` after navtune.json's pattern - base level, partition sha1, content profile, operations with `by` / `when`, UUIDv5 guids, undo / redo, base-changed report, autosave beside it and crash recovery); levelwrite on `EditDbx` (transform, delete = DbxEdit's `drop` plus the deleted object's event connections, duplicate wired into `LevelData.Objects` and `EventConnections`, typed field sets from the partitions' own data by `dbxcatalogue`'s rules, never guessed; a field-level diff), proven on MP_005, SP_01 and Guadalcanal (parse, exactly the expected changes, writer round trips, the scene loads them; DbxEdit `drop` / `setfield` and the Python `dbxbin` reference byte for byte); the Objects workspace in `bfbc2-editor` ("New map from an existing map", "Open a project"; select by click and box, the move / rotate gizmo in world or local axes, grid / angle / vertex and edge / surface snapping with a sink depth in metres or a share of the height, along the normal or straight down, kept with the object; delete, duplicate, align, distribute, ruler, layers with hide / isolate / lock / colour, outliner folders, groups, typed properties; every edit one undoable operation in the History panel; the actions in the command palette). Remaining for E2: the viewport modes (lit / unlit / wireframe / collision / navmesh / cull tree), polygon selection, editing static group members (their group files), deep duplicates (owned sub-instances such as a flag's capture area), multi-object property editing ("Mixed"), and the levelwrite proofs extended to every prepared level (rust/BENCHMARKS.md, "E2") |
-| E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install` |
+| E3 | Apply for an edited stock map: partition, closure, shader entries, cull tree, bundles, validation gate, stage, install / revert; the level installer split out of `wake_install`. **Status (2026-11-18, branch `rust-e3`, 3.12):** export as a NEW multiplayer level, campaign levels included - `bc2_levelwrite::{export, mpconvert, culltree}` and `mapexport` (build, offline check, the startup patch), the editor's Export window, OPFOR's `mapedit_install.py` (plan / apply / revert on the stage protocol); SP_01 staged as `MAPEDIT_AURORA_CQ` and every offline check passed, the game copy unchanged. Next: the first in-game test (with the user), new shader entries for placed meshes (E4's placing), bots |
 | E4 | Asset browser with the safe-to-place rules; placing new objects; gameplay panels (flags, spawns, vehicles, combat areas); the mode definition format with the built-in modes (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air Superiority); with 3.10: prefabs, copy and paste between maps, performance budgets, splines |
 | E5 | NavKit and AI regenerated on apply; play-test button; content profiles incl. WW2; custom game modes from mode definitions; export of a built map |
 | E5a | The AI workspace (3.4a): spawners and orders, routes and connections, navmesh coverage and its regions, the workspace checks; Navigation Studio's editing and stockmp-ai brought into the editor's project. WW2's bot tools (carriers, LCVPs, spawn choice) when the WW2 bot planning becomes a build |
