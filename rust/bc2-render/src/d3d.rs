@@ -47,7 +47,7 @@ use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_FORMAT_BC3_UNORM_SRGB, DXGI_FORMAT_BC5_UNORM, DXGI_FORMAT_D32_FLOAT_S8X24_UINT, DXGI_FORMAT_R8_UNORM,
     DXGI_FORMAT_R16_UINT, DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS,
     DXGI_FORMAT_R32_UINT, DXGI_FORMAT_R32G8X24_TYPELESS, DXGI_FORMAT_R32G32_FLOAT, DXGI_FORMAT_R32G32B32A32_FLOAT,
-    DXGI_SAMPLE_DESC,
+    DXGI_FORMAT_X32_TYPELESS_G8X24_UINT, DXGI_SAMPLE_DESC,
 };
 use windows::core::s;
 
@@ -56,6 +56,9 @@ use crate::material::{Element, TextureFiles};
 use crate::post::{self, Pass};
 use crate::terrain::RawTexture;
 use crate::{f32_at, u32_at};
+
+mod live;
+pub use live::{LiveStats, Mode, SharedFrame};
 
 struct Target {
     size: [u32; 2],
@@ -67,6 +70,8 @@ struct Target {
     ds_srv: ID3D11ShaderResourceView,
     rt_read: ID3D11Texture2D,
     ds_read: ID3D11Texture2D,
+    /// The stencil as a texture (`X32_TYPELESS_G8X24_UINT`: the selection outline reads it).
+    stencil_srv: ID3D11ShaderResourceView,
 }
 
 /// A post pass's target: its texture, views and description.
@@ -94,8 +99,10 @@ pub struct Device {
     textures: HashMap<String, Option<ID3D11ShaderResourceView>>,
     samplers: HashMap<Vec<u8>, ID3D11SamplerState>,
     blends: HashMap<[u32; 9], ID3D11BlendState>,
-    depths: HashMap<[u32; 3], ID3D11DepthStencilState>,
+    depths: HashMap<[u32; 4], ID3D11DepthStencilState>,
     rasters: HashMap<u32, ID3D11RasterizerState>,
+    /// The live list's GPU side ([`live`]).
+    gpu: live::Gpu,
     target: Option<Target>,
     /// Post passes' targets by output key.
     passes: HashMap<String, PassTarget>,
@@ -215,6 +222,7 @@ impl Device {
             depths: HashMap::new(),
             rasters: HashMap::new(),
             target: None,
+            gpu: live::Gpu::default(),
             passes: HashMap::new(),
             quads: HashMap::new(),
             linear,
@@ -482,30 +490,35 @@ impl Device {
     }
 
     fn shaders(&mut self, d: &DrawCall) -> Result<(ID3D11VertexShader, ID3D11PixelShader, ID3D11InputLayout), String> {
-        let (kv, kp) = (checksum(&d.vs), checksum(&d.ps));
+        self.shaders_of(&d.vs, &d.ps, &d.elements)
+    }
+
+    fn shaders_of(
+        &mut self,
+        vs: &[u8],
+        ps: &[u8],
+        elements: &[Element],
+    ) -> Result<(ID3D11VertexShader, ID3D11PixelShader, ID3D11InputLayout), String> {
+        let (kv, kp) = (checksum(vs), checksum(ps));
         if !self.vs.contains_key(&kv) {
             let mut s = None;
             // SAFETY: the code is a whole DXBC container
-            unsafe { self.device.CreateVertexShader(&d.vs, None, Some(&raw mut s)) }
-                .map_err(err("CreateVertexShader"))?;
+            unsafe { self.device.CreateVertexShader(vs, None, Some(&raw mut s)) }.map_err(err("CreateVertexShader"))?;
             self.vs.insert(kv, some(s, "CreateVertexShader")?);
         }
         if !self.ps.contains_key(&kp) {
             let mut s = None;
             // SAFETY: as above
-            unsafe { self.device.CreatePixelShader(&d.ps, None, Some(&raw mut s)) }
-                .map_err(err("CreatePixelShader"))?;
+            unsafe { self.device.CreatePixelShader(ps, None, Some(&raw mut s)) }.map_err(err("CreatePixelShader"))?;
             self.ps.insert(kp, some(s, "CreatePixelShader")?);
         }
-        let els: Vec<[u32; 5]> = d
-            .elements
+        let els: Vec<[u32; 5]> = elements
             .iter()
             .map(|e: &Element| [e.semantic, e.format, e.slot, e.offset, e.instance])
             .collect();
         let lk = (kv, els);
         if !self.layouts.contains_key(&lk) {
-            let descs: Vec<D3D11_INPUT_ELEMENT_DESC> = d
-                .elements
+            let descs: Vec<D3D11_INPUT_ELEMENT_DESC> = elements
                 .iter()
                 .map(|e| D3D11_INPUT_ELEMENT_DESC {
                     SemanticName: s!("TEXCOORD"),
@@ -523,8 +536,7 @@ impl Device {
                 .collect();
             let mut l = None;
             // SAFETY: the descriptions name a static semantic string; the code is the vertex shader's
-            unsafe { self.device.CreateInputLayout(&descs, &d.vs, Some(&raw mut l)) }
-                .map_err(err("CreateInputLayout"))?;
+            unsafe { self.device.CreateInputLayout(&descs, vs, Some(&raw mut l)) }.map_err(err("CreateInputLayout"))?;
             self.layouts.insert(lk.clone(), some(l, "CreateInputLayout")?);
         }
         Ok((
@@ -539,35 +551,53 @@ impl Device {
         &mut self,
         d: &DrawCall,
     ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), String> {
-        let (blend, depth, cull) = match &d.state {
-            None => ([0, 0, 2, 1, 1, 2, 1, 1, 15], [1, 1, 2], 1),
-            Some(st) => {
-                let [(cs, cd, co), (a_s, ad, ao)] = st.factors();
-                (
-                    [
-                        u32::from(st.alpha_to_coverage),
-                        u32::from(st.blend()),
-                        cs,
-                        cd,
-                        co,
-                        a_s,
-                        ad,
-                        ao,
-                        15,
-                    ],
-                    [u32::from(st.depth_test), u32::from(st.depth_write), 4],
-                    if st.two_sided { 1 } else { 3 },
-                )
-            }
-        };
+        let (blend, depth, cull) = state_keys(d.state.as_ref());
         self.keyed_states(blend, depth, cull)
     }
 
-    /// The blend, depth-stencil and rasterizer states of their keys, made on first use.
+    /// The blend, depth-stencil and rasterizer states of their keys, made on first use (`depth`: enable, write,
+    /// function; the stencil written with the reference, every bit).
     fn keyed_states(
         &mut self,
         blend: [u32; 9],
         depth: [u32; 3],
+        cull: u32,
+    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), String> {
+        self.keyed_states_ex(blend, [depth[0], depth[1], depth[2], 0xff], cull)
+    }
+}
+
+/// A program's state keys (`renderqa.state_lines`; no state recorded: opaque, no culling): blend, depth, culling.
+fn state_keys(state: Option<&crate::material::RenderState>) -> ([u32; 9], [u32; 3], u32) {
+    match state {
+        None => ([0, 0, 2, 1, 1, 2, 1, 1, 15], [1, 1, 2], 1),
+        Some(st) => {
+            let [(cs, cd, co), (a_s, ad, ao)] = st.factors();
+            (
+                [
+                    u32::from(st.alpha_to_coverage),
+                    u32::from(st.blend()),
+                    cs,
+                    cd,
+                    co,
+                    a_s,
+                    ad,
+                    ao,
+                    15,
+                ],
+                [u32::from(st.depth_test), u32::from(st.depth_write), 4],
+                if st.two_sided { 1 } else { 3 },
+            )
+        }
+    }
+}
+
+impl Device {
+    /// [`Device::keyed_states`] with the stencil write mask (`depth[3]`) and the scissor test (`cull` bit 8).
+    fn keyed_states_ex(
+        &mut self,
+        blend: [u32; 9],
+        depth: [u32; 4],
         cull: u32,
     ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), String> {
         if !self.blends.contains_key(&blend) {
@@ -594,7 +624,7 @@ impl Device {
             self.blends.insert(blend, some(s, "CreateBlendState")?);
         }
         if !self.depths.contains_key(&depth) {
-            let [en, wr, func] = depth;
+            let [en, wr, func, mask] = depth;
             let face = D3D11_DEPTH_STENCILOP_DESC {
                 StencilFailOp: D3D11_STENCIL_OP_KEEP,
                 StencilDepthFailOp: D3D11_STENCIL_OP_KEEP,
@@ -611,7 +641,7 @@ impl Device {
                 DepthFunc: D3D11_COMPARISON_FUNC(func as i32),
                 StencilEnable: true.into(),
                 StencilReadMask: 0xff,
-                StencilWriteMask: 0xff,
+                StencilWriteMask: mask as u8,
                 FrontFace: face,
                 BackFace: face,
             };
@@ -624,9 +654,10 @@ impl Device {
         if !self.rasters.contains_key(&cull) {
             let desc = D3D11_RASTERIZER_DESC {
                 FillMode: D3D11_FILL_SOLID,
-                CullMode: D3D11_CULL_MODE(cull as i32),
+                CullMode: D3D11_CULL_MODE((cull & 0xff) as i32),
                 FrontCounterClockwise: true.into(),
                 DepthClipEnable: true.into(),
+                ScissorEnable: (cull & 0x100 != 0).into(),
                 ..Default::default()
             };
             let mut s = None;
@@ -1014,7 +1045,7 @@ impl Device {
             (D3D11_BIND_DEPTH_STENCIL.0 | D3D11_BIND_SHADER_RESOURCE.0) as u32,
             false,
         )?;
-        let (mut rtv, mut dsv, mut rt_srv, mut ds_srv) = (None, None, None, None);
+        let (mut rtv, mut dsv, mut rt_srv, mut ds_srv, mut st_srv) = (None, None, None, None, None);
         let dsv_desc = D3D11_DEPTH_STENCIL_VIEW_DESC {
             Format: DXGI_FORMAT_D32_FLOAT_S8X24_UINT,
             ViewDimension: D3D11_DSV_DIMENSION_TEXTURE2D,
@@ -1033,9 +1064,10 @@ impl Device {
                 },
             },
         };
-        let (rs, dss) = (
+        let (rs, dss, sts) = (
             srv_desc(DXGI_FORMAT_R32G32B32A32_FLOAT),
             srv_desc(DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS),
+            srv_desc(DXGI_FORMAT_X32_TYPELESS_G8X24_UINT),
         );
         // SAFETY: views of the textures just made, with descriptions that outlive the calls
         unsafe {
@@ -1051,6 +1083,9 @@ impl Device {
             self.device
                 .CreateShaderResourceView(&ds, Some(&raw const dss), Some(&raw mut ds_srv))
                 .map_err(err("CreateShaderResourceView (depth)"))?;
+            self.device
+                .CreateShaderResourceView(&ds, Some(&raw const sts), Some(&raw mut st_srv))
+                .map_err(err("CreateShaderResourceView (stencil)"))?;
         }
         Ok(Target {
             size,
@@ -1062,6 +1097,7 @@ impl Device {
             dsv: some(dsv, "dsv")?,
             rt_srv: some(rt_srv, "rt srv")?,
             ds_srv: some(ds_srv, "ds srv")?,
+            stencil_srv: some(st_srv, "stencil srv")?,
         })
     }
 

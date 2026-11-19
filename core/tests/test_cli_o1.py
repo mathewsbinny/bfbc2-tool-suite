@@ -13,7 +13,7 @@ log lines (rust/BENCHMARKS.md, "O1").
                                               ways, timed
   python core\tests\test_cli_o1.py --record   record cli_o1_golden.json from the Python command lines (before the
                                               Python is retired: the oracle afterwards)
-     --exe <bfbc2.exe>   the binary (default: rust\target\release\bfbc2.exe, else debug)
+     --exe <bfbc2.exe>   the binary (default: bin\bfbc2.exe, else the checkout's build folder's release / debug)
      --sample N          logged FbrbTool invocations' bundles in --game (default 12)
 
 Skipped (exit 0) without the binary or without the Rust core module (the Python command lines need it).
@@ -331,11 +331,7 @@ def game(check: Any, exe: str, sample: int) -> None:
 def find_exe(argv: list[str]) -> str | None:
     if '--exe' in argv:
         return argv[argv.index('--exe') + 1]
-    for profile in ('release', 'debug'):
-        p = native.cli_path(profile)
-        if os.path.isfile(p):
-            return p
-    return None
+    return native.find_binary('bfbc2')
 
 
 def main(argv: list[str]) -> int:
