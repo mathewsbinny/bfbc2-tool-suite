@@ -3694,7 +3694,14 @@ that check.
 - `cargo test -p bc2-cli -p bc2-formats` (`bc2-cli`'s: cp1252 and its errors, Python's float and digits,
   `ntpath.join`);
 - ruff and mypy (every folder) clean;
-- `python run_tests.py quick -j 2`: see the commit.
+- `python run_tests.py quick -j 2` (merged with main at F2a, `f61e970`): 118 of 119, 665 s.
+  - The one failure was this round's own test. The recording had been made in a temporary folder of another
+    length, and a `UnicodeEncodeError`'s position counts the folder's characters.
+  - Recorded again in the default `%TEMP%` (8 lines changed, the positions). Then this test passed quick, `--live`
+    (Python 271 s, Rust 91 s, a busier PC) and `--game` (192 runs; Python 81.0 s, Rust 30.4 s), so 119 of 119.
+  - The tier ran with cargo hidden: drive C: had 5.9 GB free. Its workspace `cargo test` and the editor's headless
+    test (a full debug build of the editor) reported themselves skipped. This round's Rust is `bc2-cli` plus a
+    manifest line, and it was checked by the clippy and cargo tests above.
 
 ### Timings (`rust\bench_cli.py`, processes, best of 5, OPFOR's real calls)
 

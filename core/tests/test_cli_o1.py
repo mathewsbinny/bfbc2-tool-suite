@@ -17,6 +17,10 @@ log lines (rust/BENCHMARKS.md, "O1").
      --sample N          logged FbrbTool invocations' bundles in --game (default 12)
 
 Skipped (exit 0) without the binary or without the Rust core module (the Python command lines need it).
+
+The case folder is 64 characters long, as test_fbrbtool's (FbrbTool's path rules depend on it), when the temporary
+folder's path is shorter; the recording was made in the default %TEMP% (a UnicodeEncodeError's position counts the
+folder's characters too, so a run whose %TEMP% is over 60 characters long differs there; --live still compares).
 """
 from __future__ import annotations
 
