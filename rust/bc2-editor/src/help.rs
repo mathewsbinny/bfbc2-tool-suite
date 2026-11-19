@@ -64,7 +64,7 @@ pub struct Control {
 }
 
 /// The views' controls, as `app.rs`'s viewport handles them.
-pub const VIEW_CONTROLS: [Control; 9] = [
+pub const VIEW_CONTROLS: [Control; 15] = [
     Control {
         name: "Orbit",
         keys: "Left drag",
@@ -121,6 +121,42 @@ pub const VIEW_CONTROLS: [Control; 9] = [
         views: Views::All,
         help: "Moves this view's camera to a bookmark kept with Ctrl",
     },
+    Control {
+        name: "Context menu",
+        keys: "Right click",
+        views: Views::All,
+        help: "A menu of what can be done to the object under the pointer (selected first) or to the ground there; its entries follow the workspace, and greyed ones say why",
+    },
+    Control {
+        name: "Sink into the surface",
+        keys: "Alt+wheel",
+        views: Views::All,
+        help: "Sinks the selection (or the object being placed) 0.1 m a notch into the surface below it, 0.01 m with Shift; a popup shows the depth and its mode, and each burst is one undo step",
+    },
+    Control {
+        name: "Place from the content browser",
+        keys: "Drag an entry into a view",
+        views: Views::All,
+        help: "The object follows the pointer on the surface; let go to place it (one operation)",
+    },
+    Control {
+        name: "Place the object being placed",
+        keys: "Click",
+        views: Views::All,
+        help: "After Place object here: the object follows the pointer; a click places it, Esc cancels",
+    },
+    Control {
+        name: "Turn the object being placed",
+        keys: "Shift+wheel",
+        views: Views::All,
+        help: "15 degrees a notch about its up axis; 1 degree with Ctrl held too",
+    },
+    Control {
+        name: "Polygon corner",
+        keys: "Click (Polygon select)",
+        views: Views::All,
+        help: "Adds a corner; Enter or a double click selects what is inside, Esc cancels",
+    },
 ];
 
 /// A workspace of the top bar's switcher.
@@ -137,34 +173,42 @@ pub struct Workspace {
 }
 
 /// The workspaces, in the switcher's order (`EDITOR_ARCHITECTURE.md` 3.9).
-pub const WORKSPACES: [Workspace; 4] = [
+pub const WORKSPACES: [Workspace; 6] = [
     Workspace {
         name: "View",
         available: true,
-        what: "Look at any map of your game copy, read-only: fly around it, find objects in the outliner, read their \
-               properties. Nothing is changed.",
+        what: "Look at any map of your game copy, read-only: fly around it, find objects in the outliner, read their properties. Nothing is changed.",
         when: "",
     },
     Workspace {
         name: "Objects",
         available: true,
-        what: "Edit a map project (New map from an existing map, or Open a project): move, rotate, duplicate and \
-               delete objects, with snapping to the grid, angles, vertices and surfaces (with a sink depth); align, \
-               distribute, the ruler, layers, folders and groups; every edit undoable in History.",
+        what: "Edit a map project's buildings, props, vehicles, effects and sounds, all edited alike: place them from the content browser, move, rotate, sink into the ground (Alt+wheel), duplicate (deep duplicate copies what an object owns), hide, lock and delete; a category filter limits what can be selected; snapping, align, distribute, the ruler, layers, folders and groups; every edit undoable in History.",
         when: "",
     },
     Workspace {
-        name: "Gameplay",
+        name: "Terrain",
         available: false,
-        what: "The game mode's flags, spawns, vehicles, objectives and areas, with a checklist of what the mode \
-               still needs.",
-        when: "Comes with gameplay editing (round E4).",
+        what: "Sculpt the terrain (raise, lower, smooth, flatten) and paint its texture layers. The workspace and its actions are here; its brushes are greyed until then.",
+        when: "Its brushes come in the terrain round.",
+    },
+    Workspace {
+        name: "Vegetation",
+        available: false,
+        what: "Scatter and erase vegetation that passes the safe-to-place rules. The workspace and its actions are here; its brushes are greyed until then.",
+        when: "Its brushes come in a later round.",
+    },
+    Workspace {
+        name: "Gameplay",
+        available: true,
+        what: "The game mode's flags, spawns, vehicle spawns, objectives and areas: only they can be selected; move them, give them a team from the context menu, deep duplicate a flag with its capture area. A checklist of what the mode needs comes with gameplay editing (round E4).",
+        when: "",
     },
     Workspace {
         name: "AI",
-        available: false,
-        what: "The bots' navigation mesh, coverage, routes and links, and a path test between two points.",
-        when: "Comes later (round E5a).",
+        available: true,
+        what: "The bots' orders, AI spawns and area points: only they can be selected; the navmesh view shows the walkable ground. Spawners, routes, links and the path test come later (round E5a).",
+        when: "",
     },
 ];
 
@@ -568,6 +612,8 @@ mod tests {
         assert!(search(&t, "ctrl+shift+p").iter().any(|x| x.title == "Command palette"));
         assert!(search(&t, "faction").iter().any(|x| x.page == Page::GettingStarted));
         assert!(search(&t, "gameplay checklist").iter().any(|x| x.title == "Gameplay"));
+        assert!(search(&t, "alt+wheel").iter().any(|x| x.title == "Sink into the surface"));
+        assert!(search(&t, "right click").iter().any(|x| x.title == "Context menu"));
         assert_eq!(search(&t, "no such words anywhere"), Vec::<&Topic>::new());
         assert_eq!(search(&t, "").len(), t.len());
         let h = corner_hint(false);

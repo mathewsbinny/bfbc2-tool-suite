@@ -672,7 +672,7 @@ mod tests {
         assert_eq!(search("undo").first().map(|e| e.action), Some(Action::Undo));
         assert_eq!(
             search("sink").first().map(|e| e.action),
-            Some(Action::ToggleSurfaceSnap)
+            Some(Action::SinkPopup)
         );
         assert_eq!(search("distribute").len(), 2);
         assert_eq!(search("deep").first().map(|e| e.action), Some(Action::DeepDuplicate));
