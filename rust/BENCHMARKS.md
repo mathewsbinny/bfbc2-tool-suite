@@ -4220,3 +4220,199 @@ now under one 20 GiB budget (it was 16 GiB for fbrb plus every other cap, about 
 
 **Proof**: the WW2 rebuild against the oracle, 10,852 of 10,852 identical (1,737 s, the PC loaded); the WW2 install
 plan (wake_install.py --plan) 389 s, work\ww2 peak 9.86 GB, unchanged by the round (its code is not touched).
+
+## O2: the menu, crash-reader and NavKit / converter command lines (2026-11-19, branch `rust-o2`)
+
+The second batch of O1's plan: `aptcheck`, `aptrefs`, `bc2loc` (with `menucommon`'s pieces), `exeref`,
+`crashreader`, and the command lines of `hpdtool`, `hkpack`, the console converter's `convert.py` and `aimanim`. Each
+is a subcommand of `bfbc2.exe` (shape A; `bc2loc` and `aimanim` stay importable libraries for OPFOR, so their shape C
+is the module itself plus this command line). Each `.py` stays as the reference and the fallback behind
+`bfbc2core.native.cli_command` (`BFBC2_CLI_PYTHON=1`).
+
+### What was added
+
+- **`bc2-cli/src/pyproc.rs`: a Python command line's process.** O1's tools print once at the end; these print as they
+  go, log through `errors.setup` and report through `errors.guard`. So each write is modelled as Python 3.13 makes it:
+  - `\n` as `\r\n`, the ANSI code page off a console (stdout strict: a `UnicodeEncodeError` at that write, reported as
+    the guard reports it; `errors='replace'` after `bc2loc`'s `reconfigure`), UTF-8 on a console, stderr
+    `backslashreplace`;
+  - the text layer's 8,192-byte pending chunk and `BufferedWriter`'s 8,192 bytes, so stdout reaches a pipe in
+    Python's chunks and at Python's moments. Measured on 3.13: a write that takes the pending bytes past the chunk
+    goes out together with them. stderr is line-buffered. An uncaught exception flushes stdout first (`flush_io`); a
+    guarded one does not (the report, then stdout at exit). `PYTHONUNBUFFERED` writes through;
+  - the day log: `<tool>-<date>.log` as `caches.day_log` picks it, the start line, an error's record;
+  - `errors.explain`'s causes and fixes, word for word.
+- **The hand-off.** Sometimes the Rust core refuses: the Python binding would return None or raise
+  `NotImplementedError`. Sometimes the Python's answer is an exception text only Python makes: `struct.error`, expat's
+  `ParseError`, pefile's errors. In both cases the run returns `Fail::Python`. Nothing has been printed or logged yet,
+  so `bfbc2.exe` runs `python <the tool's .py> <arguments>` with its stdio and returns its exit code.
+  - The interpreter is `BFBC2_PYTHON`, else `python.exe` on `PATH`; the suite folder is the one above the binary.
+  - `BFBC2_PURE_PYTHON=1` hands every line off.
+  - `BFBC2_CLI_TRACE=<file>` records who answered each run.
+- **`pyfmt.rs`**: Python's text forms of values:
+  - `repr()` of floats and strs (the unprintable ranges are generated from Python 3.13.15's unicodedata,
+    `pyunprintable.rs`);
+  - `format(x, 'g')`, `round(x, n)` and `{:,}`;
+  - a module's `__doc__` read from its `.py` (`include_str!`), so the usages cannot drift.
+- **The groups** `menu`, `crash` and `nav` are cargo features, all on by default. `bc2-cli` now has 7,722 lines of
+  Rust, O1's included.
+- **Callers.** `cli_command` knows the nine tools, and the hub's crash reader runs through it.
+
+### Proof
+
+The method is O1's (`core/tests/test_cli_o2.py`, cases in `cli_o2_menu.py`, `cli_o2_crash.py`, `cli_o2_nav.py`):
+
+- **Recorded first.** Each group's golden was recorded from the Python command lines before that tool's Rust existed.
+  The recording ran in a frozen copy of the checkout (`--ref`), whose Rust core module matched its sources while this
+  branch's Rust changed. The goldens are 0.71, 0.72 and 0.61 MB.
+- **Quick inputs are synthetic** (no EA content):
+  - menu movies, bundles, localization files and PE files built in code;
+  - 32-bit PE files with code, crash reports, symbols and logs;
+  - path data, Havok packfiles, PE files with hkClass initializers, console textures and unpacked folders;
+  - a fake game copy, through `OPFOR_ROOT`.
+- **Each line** is compared on exit code, both streams' bytes, the case folder's files and the log records. The cases
+  include every line on one pipe, and the encoding and long-output cases under `PYTHONUTF8`, `PYTHONUNBUFFERED` and
+  `PYTHONIOENCODING`.
+
+**Who answered** (the final run, after merging main: this checkout's own freshly built module and `bin\bfbc2.exe`):
+
+| tool | recorded lines | Rust | handed to Python |
+|---|---:|---:|---:|
+| aptcheck | 174 | 166 | 8 |
+| aptrefs | 82 | 82 | 0 |
+| bc2loc | 116 | 114 | 2 |
+| exeref | 138 | 128 | 10 |
+| crashreader | 120 | 112 | 8 |
+| hpdtool | 104 | 84 | 20 |
+| hkpack | 64 | 60 | 4 |
+| convert | 110 | 106 | 4 |
+| aimanim | 58 | 40 | 18 |
+| **all** | **966** | **892** | **74** |
+
+- **Rust: 966 of 966 as recorded.** Every hand-off is a damaged or off-type input, or an instruction the decoder
+  refuses (`--who` lists them):
+  - menu: `struct.error` texts of cut constant files, BIGF indexes and histograms; two movies the decoder refuses;
+  - crash: random code the x86 decoder refuses (capstone answers), XML only expat reads, pefile's errors, symbols
+    that are not UTF-8;
+  - nav: cut, NaN or random path data, cut packfiles, wrong-endian or poseless aim files, a non-game exe, PC
+    physics files given as console ones.
+- **`--live`, both ways:** the Python gave the same 966 answers again. Python took 172 s and Rust 35 s of process
+  time (4 workers).
+- **One case was dropped** after the recording: `convert havok` with no `--exe` and no `OPFOR_ROOT` exe. Then
+  `default_exe` looks beside the suite, so the answer depends on where the checkout sits. The frozen copy found no
+  game. This checkout sits beside `project-opfor-bfbc2` and found the real exe. Both sides agreed live, and the
+  exe-from-`OPFOR_ROOT` case stays.
+
+**OPFOR's real calls, replayed read-only** (`--game`): inputs are copied to the case folder with their times, the game
+copy is read in place, and every output goes to the case folder. Each line runs alone and on one pipe, on both sides:
+
+| group | lines | runs | Rust answered | Python | Rust |
+|---|---:|---:|---:|---:|---:|
+| menu | 42 | 168 | 42 of 42 | 157.3 s | 15.9 s |
+| crash | 26 | 104 | 26 of 26 | 13.0 s | 4.4 s |
+| nav | 60 | 240 | 60 of 60 | 32.3 s | 6.4 s |
+
+All 128 lines were identical, with no hand-offs. They were:
+
+- **menu:**
+  - `aptcheck check` of 19 movies that OPFOR's WW2 / Onslaught steps edited (copied out of `work\`);
+  - `verify pristine:main_nav`, and `check` of `main_nav` / `main_root` and their pristine copies;
+  - `lint` of OPFOR's 12 `src\menus\*.patch` (plain, `--brief`, `--installed`);
+  - `aptrefs table` / `movie` / `find` / `xref`;
+  - `bc2loc langs`, `get` (English, Russian, Japanese), `search`, `movie`, `dump`, `set --lang all`.
+- **crash:**
+  - `testrun.py`'s exact line (`<report> --exe <game exe> --log <opfor.log>`) on the two real crash reports in
+    Documents, with the 349 MB opfor.log read in place;
+  - the same reports with the log found beside the exe, with `--no-code`, and the newest report found;
+  - six reports at real crash sites from `symbols_795745.txt`;
+  - 13 `exeref str` / `refs` / `dis` lines on BFBC2Game.exe.
+- **nav:**
+  - `hpdtool` `info`, `sector`, `roundtrip`, `coverage`, `meshtrip` on NavKit's sp_009, ons_mp_002 and sp_01 path
+    data;
+  - `hkpack` `classes` and dumps of MP_005's four Havok assets;
+  - `aimanim` on 6 BFBC2 aim poses;
+  - `convert`: `havok` x4 and `texture` x4 from Onslaught MP_002's console level with the real exe, and
+    `verify-havok` / `verify-texture` on copied subsets and on whole folders.
+
+**Recorded differences, by design.** None occurs in the recorded lines or in OPFOR's calls.
+
+- **The log.** Its start line names `bfbc2.exe` where Python names its version. Under an error record, Python writes
+  its own traceback and `bfbc2.exe` one line naming the exception. The test compares each record's first line.
+- **Log pruning.** `bfbc2.exe` does not prune the log folder at start-up (`caches.prune_logs`, with its archive).
+  Every Python tool still does. Porting it is O3's (caches).
+- **`bc2loc`'s key names.** Where two candidate keys hash to the same entry, Rust takes them in sorted order and
+  Python in its randomized set order. Only a true 32-bit collision could differ.
+- **Handed to the Python:**
+  - `aptcheck lint` with wildcards before the file name;
+  - `convert`'s argparse help and errors when `COLUMNS` is set or stdout is a console;
+  - option abbreviations and `--`.
+- **`crashreader --symbols` as the last argument,** with stdout redirected to a disk file. Python stats and reads
+  descriptor 1. Rust logs the same "not a file" warning, which is Python's answer on a pipe or a console.
+
+**Checks:**
+
+- `cargo fmt`; `cargo clippy -p bc2-cli --all-targets -D warnings` with all features and with each group alone;
+  `cargo test -p bc2-cli` (10).
+- ruff and mypy on the new and changed Python.
+- `python run_tests.py quick -j 2` after merging main (E2b, R5c, D1): 117 of 121, 754 s. O2's own entry passed. None
+  of the four failures is O2's:
+  - `test_console_readers_native.py` and `test_dbxport_native.py` each failed within 2 s in the tier, then passed
+    alone (8 of 8; all passed).
+  - The workspace `cargo fmt / clippy / test` step and the editor's headless test need full debug builds of the
+    workspace and the editor:
+    - Before the merge, the workspace step died inside rustc (`STATUS_STACK_BUFFER_OVERRUN` compiling `windows`,
+      the PC short of memory).
+    - Rerun alone after the merge, it filled drive C:. The link failed with `LNK1140` at 0 MB free, and its 13 GB
+      debug folder was deleted.
+    - `bc2-cli`'s own checks above pass on the merged tree.
+
+### Timings (processes, best of 5, OPFOR's real inputs)
+
+| job | Python | Rust | |
+|---|---:|---:|---:|
+| start-up alone (`aptcheck` usage) | 0.162 s | 0.010 s | x16 |
+| `aptcheck check main_nav` | 0.223 s | 0.058 s | x3.8 |
+| `aptcheck lint` OPFOR's 12 patches `--brief` | 2.535 s | 0.831 s | x3.0 |
+| `bc2loc get MENU_PLAY_NOW` | 0.163 s | 0.011 s | x15 |
+| `bc2loc search browser` (keys named) | 0.534 s | 0.325 s | x1.6 |
+| `aptrefs xref` (every movie set) | 0.820 s | 0.647 s | x1.3 |
+| `crashreader`, testrun.py's line (real report, exe, 349 MB log) | 0.328 s | 0.137 s | x2.4 |
+| `exeref str presenceRequestOnline --dis` | 0.252 s | 0.062 s | x4.0 |
+| `exeref refs 0x006EFBC0` | 0.209 s | 0.029 s | x7.3 |
+| `exeref dis 0x006EFF8A` | 0.223 s | 0.022 s | x10 |
+| `hpdtool roundtrip` sp_01 (12 MB) | 0.334 s | 0.018 s | x18 |
+| `hpdtool meshtrip` sp_01 | 0.544 s | 0.050 s | x11 |
+| `hkpack classes` MP_005 StaticModelGroup | 0.180 s | 0.011 s | x17 |
+| `convert havok` (one console physics resource) | 0.213 s | 0.029 s | x7 |
+| `convert texture` (one console texture) | 0.184 s | 0.011 s | x16 |
+| `convert verify-texture` (33 textures) | 2.143 s | 0.836 s | x2.6 |
+| `aimanim` (one aim pose) | 0.149 s | 0.009 s | x17 |
+
+Start-up is 0.13-0.16 s of Python against 0.01 s, so short jobs gain the most. The longer ones (`lint`, `xref`,
+`verify-texture`) spend their time in the core, which was already Rust.
+
+### For Project OPFOR (not edited)
+
+- **aptcheck's `subprocess.run([sys.executable, ...aptcheck.py, 'check', ...])`** can become
+  `bfbc2core.native.cli_command('aptcheck') + ['check', ...]`. Each call saves about 0.15 s, and the WW2 install makes
+  many. The calls are:
+  - `console_icons.py:306`
+  - `menu_install.py:590` (`aptcheck()`, also `verify`)
+  - `duplicates.py:114`
+  - `type95_icon.py:201`
+  - `wake_ui.py:79`
+  - `weapon_icons.py:462`
+  - `ww2_crosshairs.py:387`
+- **`testrun.py`'s `crash_help`** can use `[<suite>\bin\bfbc2.exe, 'crashreader']` when the binary exists, else
+  `[sys.executable, reader]`. Its arguments and `errors='replace'` capture stay as they are.
+- **`bc2loc`, `hpdtool`, `aimanim`** are imported by OPFOR, not run, so nothing changes there.
+
+### Left for O3
+
+O1's O3 batch is unchanged: caches (prune and logs; then `bfbc2.exe` prunes too), stockmp with `bc2-stockmp`'s plan,
+aptgraft, audio, dbxcatalogue / dbxparity / portparity, meshview's library, and culltree's `add`. O2 adds two items:
+
+- **`menucommon`.** Its Python stays the library that `aptgraft` and OPFOR import. Its Rust twin is
+  `bc2-cli/src/menu/common.rs`, which aptgraft's port can move into a library crate.
+- **The hand-off's interpreter lookup** (`BFBC2_PYTHON`, else `PATH`). It matters once the binary ships without the
+  suite's Python (the final release).

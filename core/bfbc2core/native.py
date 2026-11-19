@@ -289,6 +289,16 @@ CLI_PYTHON_ENV = 'BFBC2_CLI_PYTHON'      # 1: the Python command lines answer, t
 CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line it is the port of
     'fbrbtool': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),
     'dbxedit': os.path.join(SUITE, 'bfbc2-dbx-tools', 'dbxedit.py'),
+    # round O2 (rust\bc2-cli\src\pyproc.rs: each hands the command line to its .py where the Rust core refuses)
+    'aptcheck': os.path.join(SUITE, 'bfbc2-menu-tools', 'aptcheck.py'),
+    'aptrefs': os.path.join(SUITE, 'bfbc2-menu-tools', 'aptrefs.py'),
+    'bc2loc': os.path.join(SUITE, 'bfbc2-menu-tools', 'bc2loc.py'),
+    'exeref': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'exeref.py'),
+    'crashreader': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'),
+    'hpdtool': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdtool.py'),
+    'hkpack': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hkpack.py'),
+    'convert': os.path.join(SUITE, 'bfbc2-console-convert', 'convert.py'),
+    'aimanim': os.path.join(SUITE, 'bfbc2-anim-tools', 'aimanim.py'),
 }
 _cli: dict[str, str | None] = {}
 
