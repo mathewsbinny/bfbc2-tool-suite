@@ -25,6 +25,8 @@
 //!   materials), [`emitteratlas`] (`emitteratlas.py`'s build, proof and tree comparison), [`dbxcatalogue`]
 //!   (`dbxcatalogue.build`'s pass), [`meshport`] (`Porter.pc_layout`'s search) and [`pyfmt`] (the Python number
 //!   rules they reproduce).
+//! - round F3: [`soot`] (`soot.py`'s `soot_mesh`: soot meshes in the PC's byte order) and [`havokwrap`]
+//!   (`havok.py`'s `convert_wrapper`: DICE's wrapper before the packfile).
 #![deny(unsafe_code)]
 
 pub mod audio;
@@ -34,10 +36,12 @@ pub mod emitteratlas;
 pub mod granny;
 pub mod havok;
 pub mod havokport;
+pub mod havokwrap;
 pub mod hkclasses;
 pub mod mesh;
 pub mod meshport;
 pub mod mopp;
 pub mod pyfmt;
+pub mod soot;
 pub mod texcheck;
 pub mod texture;
