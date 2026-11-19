@@ -8,12 +8,12 @@
 # Crates: bc2-formats (the game's file formats, no Python types), bc2-scene (a level: entities, collision, terrain,
 # water), bc2-py (PyO3 bindings, module bc2_native), bc2-editor (the map editor application, binary bfbc2-editor; an
 # application, not part of bc2_native: bfbc2core.native.APPLICATIONS), bc2-levelwrite (the map project's operation log
-# and its edits on a level partition, round E2). Later crates join `members` and take their dependencies from
-# [workspace.dependencies].
+# and its edits on a level partition, round E2), bc2-cli (the command-line binary bfbc2: the tools' command lines as
+# subcommands, round O1). Later crates join `members` and take their dependencies from [workspace.dependencies].
 
 [workspace]
 resolver = "3"
-members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite"]
+members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite", "bc2-cli"]
 
 [workspace.package]
 version = "0.1.0"
@@ -59,6 +59,9 @@ serde_json = "=1.0.151"
 bytemuck = "=1.25.2"
 pollster = "=1.0.1"
 png = "=0.18.1"
+# The command-line binary (bc2-cli, round O1): the local time, the ANSI code page and the console test Python's stdio
+# makes, so its output and logs are the Python command lines' byte for byte (already in the lock through eframe).
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console", "Win32_System_SystemInformation"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

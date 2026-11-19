@@ -22,7 +22,7 @@ if SUITE not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit')
-from bfbc2core import errors  # noqa: E402
+from bfbc2core import errors, native  # noqa: E402
 
 # library -> what needs it (checked when the window opens)
 LIBRARIES = [('numpy', 'every tool'), ('matplotlib', 'NavKit, screenshots'), ('moderngl', 'the 3D tools'),
@@ -32,6 +32,13 @@ PYTHON = os.path.join(os.path.dirname(sys.executable), 'python.exe')        # co
 if not os.path.isfile(PYTHON):
     PYTHON = sys.executable
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+
+
+def fbrbtool():
+    """FbrbTool's command line: the Rust binary bfbc2.exe when it is built from this checkout (round O1), else the
+    Python one (BFBC2_CLI_PYTHON=1: always the Python one) - the same output either way."""
+    cmd = native.cli_command('fbrbtool')
+    return [PYTHON, cmd[1]] if cmd[0] == sys.executable else cmd
 
 TOOLS = {
     'leveldiff': (os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe'),
@@ -397,15 +404,15 @@ class Hub:
         b = ttk.Frame(f)
         b.grid(row=3, column=1, sticky='w', pady=6)
         ttk.Button(b, text='List entries', command=lambda: self.need(('a bundle', self.fb_file)) and
-                   self.run([PYTHON, SCRIPTS['fbrb'], 'list', self.fb_file.get()], 'FbrbTool list')).pack(side='left')
+                   self.run([*fbrbtool(), 'list', self.fb_file.get()], 'FbrbTool list')).pack(side='left')
         ttk.Button(b, text='Unpack', command=lambda: self.need(('a bundle', self.fb_file), ('a folder', self.fb_dir)) and
-                   self.run([PYTHON, SCRIPTS['fbrb'], 'unpack', self.fb_file.get(), self.fb_dir.get()], 'FbrbTool unpack')).pack(side='left', padx=6)
+                   self.run([*fbrbtool(), 'unpack', self.fb_file.get(), self.fb_dir.get()], 'FbrbTool unpack')).pack(side='left', padx=6)
         ttk.Separator(f).grid(row=4, column=0, columnspan=3, sticky='we', pady=8)
         self.fb_src = tk.StringVar()
         self.file_row(f, 5, 'Unpacked folder to pack:', self.fb_src, kind='dir')
         self.file_row(f, 6, 'New bundle:', self.fb_out, kind='save', types=(('Bundles', '*.fbrb'),))
         ttk.Button(f, text='Pack', command=lambda: self.need(('a folder', self.fb_src), ('a new bundle', self.fb_out)) and
-                   self.run([PYTHON, SCRIPTS['fbrb'], 'pack', self.fb_src.get(), self.fb_out.get()], 'FbrbTool pack')).grid(row=7, column=1, sticky='w', pady=6)
+                   self.run([*fbrbtool(), 'pack', self.fb_src.get(), self.fb_out.get()], 'FbrbTool pack')).grid(row=7, column=1, sticky='w', pady=6)
 
     # --- Level diff ---------------------------------------------------------------------------------
     def tab_diff(self):
