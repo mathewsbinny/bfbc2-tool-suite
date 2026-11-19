@@ -14,29 +14,47 @@ use crate::fsx;
 use crate::pylog;
 
 /// `caches.PRUNE_EVERY`
-const PRUNE_EVERY: f64 = 900.0;
-const TOTAL_ENV: &str = "BFBC2_CACHE_TOTAL_GB";
-const TOTAL_LOCK: &str = ".prune-total.lock";
-const TOTAL_STAMP: &str = ".pruned-total";
+pub const PRUNE_EVERY: f64 = 900.0;
+pub const TOTAL_ENV: &str = "BFBC2_CACHE_TOTAL_GB";
+pub const TOTAL_LOCK: &str = ".prune-total.lock";
+pub const TOTAL_STAMP: &str = ".pruned-total";
 
 /// One cache of `caches.CACHES` / `PROJECT_CACHES`: name, folder variable (suite caches), entry suffixes, off without
 /// `LOCALAPPDATA`, its folder under Project OPFOR BFBC2's (project caches).
-struct Spec {
-    name: &'static str,
-    env: &'static str,
-    suffixes: &'static [&'static str],
-    off_without_localappdata: bool,
-    project: &'static [&'static str],
+pub struct Spec {
+    pub name: &'static str,
+    pub env: &'static str,
+    pub suffixes: &'static [&'static str],
+    pub off_without_localappdata: bool,
+    pub project: &'static [&'static str],
+    /// the cap: `cap_env` (a number of `cap_unit` bytes, fractions allowed), else `default_cap`
+    pub cap_env: &'static str,
+    pub cap_unit: f64,
+    pub default_cap: f64,
+    /// small bookkeeping files (deleted by `--clear`, by the pruning once older than `MARKER_AGE`)
+    pub markers: &'static [&'static str],
 }
 
+/// `caches.MB`, the GiB of fbrb's cap
+pub const MB: f64 = 1_048_576.0;
+const GB: f64 = 1_073_741_824.0;
+/// `Spec.marker_age`'s default (every cache's)
+pub const MARKER_AGE: f64 = 30.0 * 86_400.0;
+
+/// navdata.load's entries
 const NAVDATA: &[&str] = &[".navdata.pkl", ".npz"];
-const SPECS: &[Spec] = &[
+/// `caches.CACHES`, then `PROJECT_CACHES` (the project caches: `project` set).
+pub const SPECS: &[Spec] = &[
     Spec {
         name: "hlsl",
         env: "BFBC2_HLSL_CACHE",
         suffixes: &[".bin"],
         off_without_localappdata: true,
         project: &[],
+        cap_env: "BFBC2_HLSL_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 1024.0,
+        markers: &[],
     },
     Spec {
         name: "fbrb",
@@ -44,6 +62,10 @@ const SPECS: &[Spec] = &[
         suffixes: &[".payload"],
         off_without_localappdata: false,
         project: &[],
+        cap_env: "BFBC2_FBRB_CACHE_GB",
+        cap_unit: GB,
+        default_cap: 16.0,
+        markers: &[".seen"],
     },
     Spec {
         name: "collision",
@@ -51,6 +73,10 @@ const SPECS: &[Spec] = &[
         suffixes: &[".bin"],
         off_without_localappdata: false,
         project: &[],
+        cap_env: "BFBC2_COLLISION_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 256.0,
+        markers: &[],
     },
     Spec {
         name: "effectport",
@@ -58,6 +84,10 @@ const SPECS: &[Spec] = &[
         suffixes: &[".pkl"],
         off_without_localappdata: false,
         project: &[],
+        cap_env: "BFBC2_EFFECTPORT_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 256.0,
+        markers: &[],
     },
     Spec {
         name: "culltree",
@@ -65,6 +95,10 @@ const SPECS: &[Spec] = &[
         suffixes: &[".pkl"],
         off_without_localappdata: false,
         project: &[],
+        cap_env: "BFBC2_CULLTREE_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 2048.0,
+        markers: &[],
     },
     Spec {
         name: "bf1943source",
@@ -72,6 +106,10 @@ const SPECS: &[Spec] = &[
         suffixes: &[".pkl"],
         off_without_localappdata: false,
         project: &[],
+        cap_env: "BF1943_SOURCE_INDEX_MB",
+        cap_unit: MB,
+        default_cap: 64.0,
+        markers: &[],
     },
     Spec {
         name: "shadercover",
@@ -79,6 +117,10 @@ const SPECS: &[Spec] = &[
         suffixes: &[".pkl"],
         off_without_localappdata: false,
         project: &[],
+        cap_env: "BFBC2_SHADERCOVER_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 64.0,
+        markers: &[],
     },
     Spec {
         name: "navstudio",
@@ -86,6 +128,10 @@ const SPECS: &[Spec] = &[
         suffixes: NAVDATA,
         off_without_localappdata: false,
         project: &["work", "navstudio", "cache"],
+        cap_env: "BFBC2_NAVSTUDIO_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 2048.0,
+        markers: &[],
     },
     Spec {
         name: "harness",
@@ -93,6 +139,10 @@ const SPECS: &[Spec] = &[
         suffixes: NAVDATA,
         off_without_localappdata: false,
         project: &["work", "harness", "cache"],
+        cap_env: "BFBC2_HARNESS_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 3072.0,
+        markers: &[],
     },
     Spec {
         name: "navwater",
@@ -100,6 +150,10 @@ const SPECS: &[Spec] = &[
         suffixes: NAVDATA,
         off_without_localappdata: false,
         project: &["work", "navwater", "cache"],
+        cap_env: "BFBC2_NAVWATER_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 1024.0,
+        markers: &[],
     },
     Spec {
         name: "editor",
@@ -107,6 +161,10 @@ const SPECS: &[Spec] = &[
         suffixes: &[".dbx", ".res", ".xml", ".json"],
         off_without_localappdata: false,
         project: &["work", "editor", "levels"],
+        cap_env: "BFBC2_EDITOR_CACHE_MB",
+        cap_unit: MB,
+        default_cap: 2048.0,
+        markers: &[],
     },
 ];
 
@@ -119,7 +177,7 @@ fn join(a: &str, names: &[&str]) -> String {
 }
 
 /// `caches.folder(name)`: the cache's folder as its owner resolves it; None when off (or no project folder).
-fn folder(s: &Spec, opfor: Option<&str>) -> Option<String> {
+pub fn folder(s: &Spec, opfor: Option<&str>) -> Option<String> {
     if !s.project.is_empty() {
         return opfor.map(|root| join(root, s.project));
     }
@@ -140,7 +198,7 @@ fn folder(s: &Spec, opfor: Option<&str>) -> Option<String> {
 }
 
 /// `caches.cache_root()`.
-fn cache_root() -> String {
+pub fn cache_root() -> String {
     join(
         &local_app_data().unwrap_or_else(pylog::home_dir),
         &["bfbc2-tool-suite", "cache"],
@@ -152,7 +210,7 @@ fn cache_root() -> String {
     clippy::case_sensitive_file_extension_comparisons,
     reason = "the reference compares as it is"
 )]
-fn is_temp(name: &str) -> bool {
+pub fn is_temp(name: &str) -> bool {
     name.ends_with(".tmp") || name.contains(".tmp-")
 }
 
