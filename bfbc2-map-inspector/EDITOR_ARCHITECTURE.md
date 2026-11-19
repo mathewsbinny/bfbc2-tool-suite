@@ -619,6 +619,32 @@ The editor keeps wgpu for its own drawing (the editor's view, the overlays, coll
 1. **Phase 1 (R5, done):** the study; `bc2-render` (files, DXBC reflection, materials, weather light, terrain
    patches, frame and draw order, the D3D11 device, the harness's tonemap); the 3D view's switch; parity with the
    harness; costs measured.
+2. **Phase 2a (R5b, done: what the data alone determines, no capture):**
+   - `bc2_render::world::World`: a level's placed objects and model-group members (`placement`: the partition's
+     `MeshShaderSet` overrides, picked from the mesh set by the set's own `path/GUID` name; the groups' `MemberDatas`
+     with each instance's own set - MP_005: 554 of 3,915 drawn with an override), the terrain the first
+     `TerrainEntityData` names, the baked road and decal strips (`VisualTerrain`'s road blocks, the strip layout), the
+     visual water (`water`: `.Water.res` ranges with their slots' entries; `g_depthScaleFactors` / `g_screenSizeInv`
+     / `sunDir` written by name over their block placeholders), the weather the partition references.
+   - Bone-transformed and skinned programs place a vertex by `boneMatrices` and `viewProjMatrix` alone, so each bone
+     is now the world matrix times the bone at rest (the trees and other kind-1 meshes were drawn at the origin).
+   - DICE's post shaders (`post`, from `Dist/win32/async/startup-00.fbrb`) as full-screen `vs2D` passes on the
+     device: `psUnprojectDepthBuffer` before the first draw reading `DepthBuffer`; `psDownsampleHalfGrayscaleLog`
+     and `psDownsampleHalf` to 1 x 1, `psExposure`, `psDownsampleQuarter`, `psSeperableFilter15H/V`,
+     `psFilmicTonemap`. `post::PLACEHOLDERS` lists the values not in the data (exposure blend, kernel, colour
+     matrix construction, vignette, flare, samplers) for the capture.
+   - Proofs (`examples/world_view.rs --job`, `tests/world.rs`): the whole MP_005 frame (10,417 draws: objects,
+     members, patches, strips, water) written as a `shaderview` job (`job`) and drawn by the C++ harness:
+     921,600 of 921,600 pixels bit-identical (colour and draw class) at the warehouses; at the west shore 921,599
+     (one far horizon pixel, 3.8e-4; 3 with the water left out - depth ties between distant draws, open). Getting
+     there: engine textures get a `GenerateMips` chain as the harness's float textures do (the height map's implicit
+     LOD reads differed). `psUnprojectDepthBuffer` against `n / (1 - z / q)` in singles: worst 3.8e-5 relative;
+     `psFilmicTonemap` (bloom off) against the harness's CPU curve: worst 2.4e-7.
+   - `examples/levels_check.rs`: all 37 prepared stock levels load and draw with DICE's post-process. Missing:
+     `ONS_MP_005GR` (its partition names MP_005's terrain, whose visual terrain its terrain bundle lacks: SP_005's
+     drawn, with no program for its patch, strip and water entries), two-layout gaps on ONS_MP_005GR / ONS_MP_008
+     (radar dish, antenna, lamp metal parts), SP_01's `waterfall_drip_01` (no mesh data), SP_006 / SP_009 water with
+     no range.
 2. **Phase 2, the engine's values (one or two rounds, with the capture):** the sun direction, shadow cascades (the
    depth-only programs, three cascades), `EnvironmentMain` (sky, haze, fog), and DICE's own post-process
    (`psDownsampleHalfGrayscaleLog`, `psExposure`, `psFilmicTonemap*`, bloom, HBAO from `startup-00.fbrb`) replacing

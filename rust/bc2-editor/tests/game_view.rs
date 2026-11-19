@@ -38,6 +38,18 @@ fn warehouse_camera() -> Camera {
     }
 }
 
+/// MP_005's west shore: the sea, the shore and the camp above it, looked at from the east.
+fn harbour_camera() -> Camera {
+    Camera {
+        target: [-90.0, 60.0, 300.0],
+        yaw: std::f64::consts::FRAC_PI_2,
+        pitch: 0.35,
+        distance: 120.0,
+        fov: 60.0,
+        projection: Projection::Perspective,
+    }
+}
+
 fn spread(img: &[u8]) -> f64 {
     let lum: Vec<f64> = img
         .chunks_exact(4)
@@ -144,13 +156,31 @@ fn game_accurate_view_of_mp_005() {
         avg(|t| t.tonemap),
         avg(|t| t.upload),
     );
-    app.view_mut()
-        .unwrap()
-        .viewports
-        .get_mut(&Projection::Perspective)
-        .unwrap()
-        .camera = warehouse_camera();
+    // round R5b: the harbour - the water, the shore, the group members - in both themes
+    let set_camera = |app: &mut EditorApp, c: Camera| {
+        app.view_mut()
+            .unwrap()
+            .viewports
+            .get_mut(&Projection::Perspective)
+            .unwrap()
+            .camera = c;
+    };
+    set_camera(&mut app, harbour_camera());
+    h.settle(&mut app, 4);
+    save(&mut h, "r5b_mp_005_harbour_dark.png");
+    let harbour = h.image().unwrap();
+    assert!(spread(&harbour) > 10.0, "the harbour frame is not one colour");
+    {
+        let g = app.view().unwrap().game.as_ref().unwrap();
+        assert!(g.error.is_none(), "{:?}", g.error);
+        let c = g.world().counts;
+        assert_eq!(c.water, 2, "the harbour's water and wakes: {c:?}");
+        assert!(c.members > 2000 && c.overridden > 200, "{c:?}");
+    }
     app.theme = ThemeId::Light;
+    h.settle(&mut app, 4);
+    save(&mut h, "r5b_mp_005_harbour_light.png");
+    set_camera(&mut app, warehouse_camera());
     h.settle(&mut app, 4);
     save(&mut h, "r5_game_view_light.png");
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
