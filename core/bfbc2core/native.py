@@ -6,7 +6,8 @@ sources, and the error a tool raises when it needs it (README.md, "The Rust core
     m = native.require('texture conversion')    # the module, or NativeMissing saying how to get it
 
 The source fingerprint. fingerprint() is a SHA-256 over every file whose change makes a new module (sources(): the
-workspace and crate manifests, the lock file, the toolchain file, each crate's build.rs and src\**\*.rs), each as
+workspace and crate manifests, the lock file, the toolchain file, each crate's build.rs and src\**\*.rs, and the
+suite's VERSION file, which bfbc2.exe reads at build time), each as
 its path relative to rust\ with forward slashes, its length and its bytes with CRLF turned into LF, in path order:
 a Windows checkout with autocrlf, a Linux one and the release workflow's all give the same value. build_native.py
 bakes it into the module (the environment variable BC2_SOURCE_HASH, read at compile time: bc2_native.__source_hash__,
@@ -52,8 +53,10 @@ APPLICATIONS = ('bc2-editor',)
 def sources(rust: str = RUST) -> list[str]:
     """Every file whose change makes a new module: the workspace's manifests, lock and toolchain files, and each crate
     (a folder of rust\\ with a Cargo.toml: a new crate needs no entry here) with its build.rs, src\\**\\*.rs and the
-    Python package file maturin reads (pyproject.toml); not the APPLICATIONS' crates."""
+    Python package file maturin reads (pyproject.toml); not the APPLICATIONS' crates. And the suite's VERSION file
+    beside rust\\ (round P1): bfbc2.exe reads it at build time, so a new version is a new build (and release)."""
     out = [os.path.join(rust, n) for n in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml')]
+    out.append(os.path.join(os.path.dirname(os.path.abspath(rust)), 'VERSION'))
     if os.path.isdir(rust):
         for crate in sorted(d for d in os.listdir(rust)
                             if os.path.isfile(os.path.join(rust, d, 'Cargo.toml')) and d not in APPLICATIONS):

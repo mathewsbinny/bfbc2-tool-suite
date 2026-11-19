@@ -3,6 +3,9 @@
 Tools for building and debugging AI on Battlefield: Bad Company 2 maps, in one repository. The 3D tools
 share one core: level loading, a 3D view, picking and the game's data formats.
 
+Version: see `VERSION` and `CHANGELOG.md`. What is being worked on and what comes next: `ROADMAP.md`. How changes
+are merged and versions released: `RELEASING.md`.
+
 ## Getting started
 
 1. Install Python 3.12 or newer (`pyproject.toml` targets 3.12: bf1943-import uses its f-string syntax), then the
@@ -736,7 +739,14 @@ python run_tests.py --list     what each tier runs;   --only <name> runs the tes
 python run_tests.py game -j 8  tests side by side, 8 at a time (the default: half the CPU threads, at most 8)
 python run_tests.py game -j 1  one after another in the listed order, as before 2026-11-17
 python run_tests.py game --plan   the schedule and expected wall-clock, from the last run's durations; runs nothing
+python run_tests.py quick --no-game   only the entries that need nothing but the checkout (no game copy, OPFOR,
+                                      BF1943 / Xbox copies or graphics card); the others are named with the reason
+python run_tests.py quick --no-game --ci-steps   as CI runs it: also leaves out cargo, ruff and mypy (CI's own steps)
 ```
+
+**CI.** `.github/workflows/checks.yml` runs on every push and pull request (Windows): the module's build, cargo fmt,
+clippy `-D warnings`, the workspace's cargo tests, ruff, mypy and `quick --no-game --ci-steps`. Merge a branch into
+`main` once its checks are green (`RELEASING.md`). The game tier still runs only where the game copy is.
 
 **Side by side.** Tests run several at a time (`-j N`). Each test declares what it needs in `run_tests.py`'s `NEEDS`
 table: the CPU threads it keeps busy (`cpu`: 1, its process pool's size, or `'all'` for Rust batch work and cargo),

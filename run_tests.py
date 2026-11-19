@@ -1,6 +1,13 @@
 r"""Runs the suite's tests: one line per test, the failures' output at the end, exit code 1 if any failed.
 
   python run_tests.py [quick | game | full] [--only <name>] [--list] [-j N] [--cpus N] [--mem GB] [--plan] [--times F]
+  python run_tests.py quick --no-game [--ci-steps] [-j N]
+
+  --no-game    only the quick entries that need nothing but the checkout (CI, .github/workflows/checks.yml): no game
+               copy, OPFOR folder, BF1943 / Xbox copies or graphics card; the others (NOT_GAME_FREE) are named with
+               the reason they are skipped
+  --ci-steps   leaves out the entries CI runs as steps of its own (CI_STEPS): cargo fmt, clippy and the workspace's
+               tests, ruff, mypy
 
   quick   no game data, about a minute: the Rust core (built when stale, its cargo checks, its DBX reader against
           the retired Python reader's recorded answers), repository rules, DbxEditGUI's unit tests, and on files
@@ -716,6 +723,51 @@ NEEDS = {
 }
 
 
+# Round P1: `quick --no-game` runs the quick entries that need nothing but the checkout, as CI does on a GitHub runner
+# (.github/workflows/checks.yml): no game copy, no Project OPFOR folder, no BF1943 or Xbox copies, no graphics card.
+# Every quick entry is such already (2026-11-19): they test built files and recorded answers, skip their own
+# game-data parts with a note when the game copy is not found ("8 game bundles" becomes 0, "skipped: the game runs"),
+# and draw on WARP or skip their GPU parts without a graphics adapter (shaderview, the editor's offscreen tests).
+# Checked with the game copy out of reach: a checkout outside the projects folder, so no project-opfor-bfbc2 is found
+# beside or above it (OPFOR_ROOT alone does not hide it: the locators walk up from the suite), and OPFOR_ROOT /
+# BF1943_XENON / BF1943_SUITE_FBRB pointing at a folder that does not exist: 121 of 121 passed. An entry that cannot
+# run so goes here (name in tests() -> why) and is skipped with the reason. One part is left out instead of the
+# entry: DbxEditGUI's window test (DBX_TESTS_ARGS=--no-gui; the unit tests still run), as a CI runner's desktop
+# session is not guaranteed.
+NOT_GAME_FREE: dict[str, str] = {
+}
+NO_GAME_PARTS = ["DbxEditGUI's window test (DBX_TESTS_ARGS=--no-gui; its unit tests run)"]
+
+# The entries CI runs as steps of its own (checks.yml: cargo fmt, clippy, the workspace's tests, ruff, mypy):
+# `--ci-steps` skips them, so they are not built and run twice.
+CI_STEPS: dict[str, str] = {
+    'Rust core: cargo fmt, clippy, tests (skipped without Rust)':
+        "cargo fmt, clippy and the workspace's tests are CI steps of their own",
+    "map editor (Rust), headless: theme from tokens.json, outliner against the Map Inspector's lists (4 levels), offscreen render, outline, picking, palette, views":
+        "its cargo tests (bc2-editor, bc2-levelwrite, bc2-render) are in the workspace's tests, a CI step of its own",
+    'lint (ruff check, every folder)': 'ruff is a CI step of its own',
+    'types (mypy, every folder)': 'mypy is a CI step of its own',
+}
+
+
+def skipped_entries(chosen, no_game, ci_steps):
+    """(entries to run, [(name, why)] skipped) for --no-game / --ci-steps."""
+    run, skipped = [], []
+    for entry in chosen:
+        why = (NOT_GAME_FREE.get(entry[0]) if no_game else None) or (CI_STEPS.get(entry[0]) if ci_steps else None)
+        if why:
+            skipped.append((entry[0], why))
+        else:
+            run.append(entry)
+    return run, skipped
+
+
+def unknown_skip_names():
+    """Names in NOT_GAME_FREE / CI_STEPS that are no entry of tests() (a renamed test): they would skip nothing."""
+    names = {name for name, _, _ in tests()}
+    return sorted(n for n in (*NOT_GAME_FREE, *CI_STEPS) if n not in names)
+
+
 def safe_console():
     """Any child's output prints on any console: characters the console's code page lacks (maturin's emoji on a
     cp1252 console) are written as escapes instead of crashing the runner and hiding the failure (2026-11-16)."""
@@ -781,6 +833,7 @@ class _ProcessGroup:
 
 
 RUNNING: dict = {}                   # test name -> its _ProcessGroup, so that Ctrl+C ends every test's processes
+SKIPPED = 0                          # entries --no-game / --ci-steps left out (said at the start and in the total)
 
 
 def run_one(name, args):
@@ -1056,9 +1109,21 @@ def main(argv):
     tier = next((a for a in argv[1:] if a in TIERS), 'quick')
     only = argv[argv.index('--only') + 1].lower() if '--only' in argv else None
     chosen = [x for x in tests() if TIERS.index(x[1]) <= TIERS.index(tier) and (only is None or only in x[0].lower())]
+    no_game, ci_steps = '--no-game' in argv, '--ci-steps' in argv
+    if no_game and tier != 'quick':
+        print(f'run_tests: --no-game runs the quick tier\'s game-free entries; the {tier} tier needs the game copy')
+        return 2
+    if no_game or ci_steps:
+        unknown = unknown_skip_names()
+        if unknown:
+            print('run_tests: NOT_GAME_FREE / CI_STEPS name no test: ' + '; '.join(unknown))
+            return 2
+    chosen, skipped = skipped_entries(chosen, no_game, ci_steps)
     if '--list' in argv:
         for name, t, _ in chosen:
             print(f'{t:6s} {name}')
+        for name, why in skipped:
+            print(f'skip   {name}  ({why})')
         return 0
     threads = os.cpu_count() or 2
     slots = option(argv, ('-j', '--jobs'), int, max(1, min(8, threads // 2)))
@@ -1071,7 +1136,15 @@ def main(argv):
         return 0
     root = opfor() if any(callable(a) or t != 'quick' for _, t, a in chosen) else None
     print(f'BFBC2 Tool Suite tests: {tier}, {len(chosen)} test(s)' + (f', OPFOR at {root}' if root else '')
-          + (f', {slots} at a time' if slots > 1 else ''))
+          + (f', {slots} at a time' if slots > 1 else '') + (', game-free entries only' if no_game else ''))
+    for name, why in skipped:
+        print(f'skip {name}: {why}')
+    if no_game:
+        os.environ.setdefault('DBX_TESTS_ARGS', '--no-gui')
+        for part in NO_GAME_PARTS:
+            print(f'skip part: {part}')
+    global SKIPPED
+    SKIPPED = len(skipped)
     os.environ['DBX_SKIP_BUILD'] = '1'          # run_tests.bat: DbxEditGUI is the 'DbxEditGUI build (when stale)' step's
     # the tests read bundles without the bundle cache's disk files (round E3e): a sweep of the game copy would fill
     # the user's cache with every bundle; the cache's own tests give theirs a folder of their own
@@ -1086,7 +1159,8 @@ def report(chosen_names, failures, start, passed_times):
     for name, out in failures:
         print(f'\n--- {name} (last 25 lines) ---')
         print('\n'.join(out.splitlines()[-25:]))
-    print(f'\n{len(chosen_names) - len(failures)} of {len(chosen_names)} passed in {time.time() - start:.0f} s')
+    print(f'\n{len(chosen_names) - len(failures)} of {len(chosen_names)} passed in {time.time() - start:.0f} s'
+          + (f'; {SKIPPED} skipped (listed at the start)' if SKIPPED else ''))
     return 1 if failures else 0
 
 

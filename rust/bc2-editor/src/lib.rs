@@ -76,3 +76,28 @@ pub mod strip_ui;
 pub mod theme;
 pub mod viewmodes;
 pub mod workspace;
+
+/// The `VERSION` file at the repository's root, as read at build time (round P1; `CHANGELOG.md`).
+const VERSION_FILE: &str = include_str!("../../../VERSION");
+
+/// The suite's version (`0.MINOR.PATCH`), shown in the Help window and by `bfbc2-editor --version`.
+#[must_use]
+pub fn version() -> &'static str {
+    VERSION_FILE.trim()
+}
+
+#[cfg(test)]
+mod version_tests {
+    #[test]
+    fn version_is_semver() {
+        let v = super::version();
+        let parts: Vec<&str> = v.split('.').collect();
+        assert_eq!(parts.len(), 3, "{v}");
+        assert!(
+            parts
+                .iter()
+                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())),
+            "{v}"
+        );
+    }
+}

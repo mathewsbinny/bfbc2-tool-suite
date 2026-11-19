@@ -22,6 +22,7 @@ if SUITE not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit')
+import bfbc2core  # noqa: E402
 from bfbc2core import errors, native  # noqa: E402
 
 # library -> what needs it (checked when the window opens)
@@ -96,7 +97,7 @@ class Hub:
         self.stopped_procs = set()
         self.ok_codes = {}
         self.proc = None                       # the tab's running tool (one at a time)
-        root.title('BFBC2 Tool Suite')
+        root.title(f'BFBC2 Tool Suite {bfbc2core.__version__}')
         root.minsize(900, 640)
         with contextlib.suppress(tk.TclError):
             ttk.Style().theme_use('vista')

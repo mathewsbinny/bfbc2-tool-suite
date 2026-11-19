@@ -15,6 +15,7 @@ on:
     paths:
       - 'rust/**'
       - 'core/bfbc2core/native.py'
+      - 'VERSION'                          # part of the sources' fingerprint (bfbc2.exe --version reads it)
       - '.github/workflows/native.yml'
   workflow_dispatch:
 
