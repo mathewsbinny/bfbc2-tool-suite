@@ -1,0 +1,99 @@
+//! `bfbc2`: the suite's command lines in Rust (round O1, `rust/BENCHMARKS.md` "O1"), one binary with the tools as
+//! subcommands. Each subcommand is its Python command line's port: the same arguments, files, printed bytes (stdout
+//! and stderr, in the order and code page Python writes them), exit codes and log lines.
+//!
+//! ```text
+//! bfbc2 fbrbtool unpack|pack|list|big ...     python bfbc2-fbrb-tool\fbrbtool.py ...
+//! bfbc2 dbxedit xml|edit|import|check|roundtrip|fixslots ...
+//!                                             python bfbc2-dbx-tools\dbxedit.py ...
+//! bfbc2 --source-hash                         the Rust sources' fingerprint it was built from (bfbc2core.native)
+//! ```
+//!
+//! Without a subcommand (or with an unknown one) it prints its usage to stderr and exits 2.
+
+#![deny(unsafe_code)]
+
+mod clock;
+mod pylog;
+mod pystdio;
+
+use std::process::ExitCode;
+
+use bc2_formats::{dbxedit, fbrb};
+
+/// The fingerprint of the Rust sources this binary was built from (`build_native.py` passes it as it does to the
+/// module; empty when built by cargo alone).
+const SOURCE_HASH: &str = match option_env!("BC2_SOURCE_HASH") {
+    Some(h) => h,
+    None => "",
+};
+
+const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
+     fbrbtool unpack|pack|list|big ...   FbrbTool's commands (bfbc2-fbrb-tool\\fbrbtool.py)\n  \
+     dbxedit xml|edit|import|check|roundtrip|fixslots ...   DbxEdit's commands (bfbc2-dbx-tools\\dbxedit.py)\n  \
+     --source-hash   the Rust sources' fingerprint this binary was built from\n";
+
+/// What one tool's run gave: exit code, stdout, stderr (lines ended by `\n`) and its log lines.
+struct Run {
+    code: i32,
+    stdout: String,
+    stderr: String,
+    log: Vec<(String, String)>,
+}
+
+/// A tool's command line run in process: the arguments after the tool's name, and its log file.
+type Runner = fn(&[String], Option<&str>) -> Run;
+
+/// A tool of the `bfbc2-*` folders whose command line is ported: its log name and its runner.
+fn tool(name: &str) -> Option<(&'static str, Runner)> {
+    match name {
+        "fbrbtool" => Some(("fbrbtool", |a, l| {
+            let o = fbrb::tool::run(a, l);
+            Run {
+                code: o.code,
+                stdout: o.stdout,
+                stderr: o.stderr,
+                log: o.log,
+            }
+        })),
+        "dbxedit" => Some(("dbxedit", |a, l| {
+            let o = dbxedit::run(a, l);
+            Run {
+                code: o.code,
+                stdout: o.stdout,
+                stderr: o.stderr,
+                log: o.log,
+            }
+        })),
+        _ => None,
+    }
+}
+
+fn exit(code: i32) -> ExitCode {
+    // the tools' codes are 0..=3; anything else is clamped as a process exit code would truncate it
+    ExitCode::from(u8::try_from(code & 0xFF).unwrap_or(1))
+}
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args_os()
+        .skip(1)
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    let Some((first, rest)) = args.split_first() else {
+        pystdio::emit("", USAGE);
+        return exit(2);
+    };
+    if first == "--source-hash" && rest.is_empty() {
+        pystdio::emit(&format!("{SOURCE_HASH}\n"), "");
+        return exit(0);
+    }
+    let Some((log_name, runner)) = tool(first) else {
+        pystdio::emit("", &format!("bfbc2: unknown tool {first:?}\n{USAGE}"));
+        return exit(2);
+    };
+    // as bfbc2core.dbxedit / fbrbtool.run: the day's log file first, the command, then its lines appended
+    let log = pylog::log_path(log_name);
+    let r = runner(rest, log.as_deref());
+    pylog::append(log.as_deref(), log_name, rest, &r.log);
+    exit(pystdio::emit_or_fail(&r.stdout, &r.stderr).unwrap_or(r.code))
+}
