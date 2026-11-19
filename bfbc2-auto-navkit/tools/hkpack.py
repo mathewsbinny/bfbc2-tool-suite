@@ -26,8 +26,80 @@ VEC = {T_VECTOR4: 4, T_QUATERNION: 4, T_MATRIX3: 12, T_ROTATION: 12, T_QSTRANSFO
        T_TRANSFORM: 16}
 
 
+_NATIVE: list = []
+
+
+def _native():
+    """The Rust core with hkpack_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'hkpack_parse') else None)
+    return _NATIVE[0]
+
+
+def use_native(on):
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
 class Packfile:
+    """A packfile's sections, pointer fixups, objects and class descriptions. Read in the suite's Rust core when it
+    is built (round F3: bc2_native.hkpack_parse over bc2_formats::havok, the reader NavKit's collision code has used
+    since round F1a: the same fields, the dicts in the same order); a file it refuses, a base given, or data that is
+    not bytes is read by the Python (_init_reference, kept as the reference and the fallback), so the errors stay
+    this module's. BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only."""
+
     def __init__(self, data, base=None):
+        nat = _native() if base is None and type(data) is bytes else None
+        got = nat.hkpack_parse(data) if nat is not None else None
+        if got is None:
+            self._init_reference(data, base)
+            return
+        base, h, cv, sections, (slots, targets), objects, classes = got
+        self.d = data                                         # the attributes in the reference's order
+        self.base = base
+        (_m0, _m1, _tag, self.version, layout, self.nsections, self.contents_sec, self.contents_off) = h
+        self.ptr_size = layout & 0xFF
+        self.contents_version = cv
+        self.sections = [{'name': n, 'start': st, 'local': lo, 'global': gl, 'virtual': vi, 'exports': ex,
+                          'imports': im, 'end': en} for n, st, lo, gl, vi, ex, im, en in sections]
+        self.ptr = dict(zip(slots, targets))
+        self.objects = objects
+        self.by_offset = {o: c for o, c in self.objects}
+        self.classes = {off: {'name': name, 'parent': parent, 'size': size,
+                              'members': [{'name': mn, 'class': mc, 'type': mt, 'subtype': ms, 'carray': ca,
+                                           'offset': mo} for mn, mc, mt, ms, ca, mo in members]}
+                        for off, name, parent, size, members in classes}
+        self.class_by_name = {c['name']: off for off, c in self.classes.items()}
+
+    @classmethod
+    def reference(cls, data, base=None):
+        """The packfile read by the Python only (the reference)."""
+        pf = cls.__new__(cls)
+        pf._init_reference(data, base)
+        return pf
+
+    def _init_reference(self, data, base=None):
         if base is None:
             base = data.find(MAGIC)
             if base < 0:

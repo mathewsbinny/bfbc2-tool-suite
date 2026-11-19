@@ -286,16 +286,23 @@ type Arrays<'py> = (
 /// (the arrays `navkit_navsample_parse` gives), or `None`.
 #[pyfunction]
 pub fn navkit_navsample_v3<'py>(py: Python<'py>, data: &Bound<'py, PyBytes>, nx: i64, nz: i64) -> Option<Arrays<'py>> {
-    let bytes = data.as_bytes();
-    let r = py.detach(|| bc2_navbuild::navsample::parse_v3(bytes, nx, nz)).ok()?;
-    let le = |v: Vec<u8>| PyByteArray::new(py, &v);
+    use bc2_navbuild::navsample::V3;
+    let v = V3::new(data.as_bytes(), nx, nz).ok()?;
+    let (cols, n) = (v.counts.len(), v.records.len());
+    let fill = |len: usize, f: &dyn Fn(&mut [u8])| {
+        PyByteArray::new_with(py, len, |buf| {
+            f(buf);
+            Ok(())
+        })
+        .ok()
+    };
     Some((
-        le(r.start.iter().flat_map(|v| v.to_le_bytes()).collect()),
-        le(r.y.iter().flat_map(|v| v.to_le_bytes()).collect()),
-        le(r.normal.iter().flat_map(|v| v.to_le_bytes()).collect()),
-        PyByteArray::new(py, &r.flags),
-        le(r.hit.iter().flat_map(|v| v.to_le_bytes()).collect()),
-        r.read,
+        fill(8 * (cols + 1), &|b| v.fill_start(b))?,
+        fill(4 * n, &|b| v.fill_y(b))?,
+        fill(12 * n, &|b| v.fill_normal(b))?,
+        fill(n, &|b| v.fill_flags(b))?,
+        fill(12 * n, &|b| v.fill_hit(b))?,
+        cols,
     ))
 }
 
@@ -328,25 +335,14 @@ pub fn navkit_navsample_write<'py>(
         cap_top,
         ray_radius,
     };
-    let words = |b: &[u8]| {
-        b.as_chunks::<4>()
-            .0
-            .iter()
-            .map(|c| u32::from_le_bytes(*c))
-            .collect::<Vec<_>>()
+    let cols = bc2_navbuild::navsample::Columns {
+        start: start.as_bytes(),
+        y: y.as_bytes(),
+        normal: normal.as_bytes(),
+        flags: flags.as_bytes(),
+        hit: hit.map(PyBytesMethods::as_bytes),
     };
-    let (s, yb, nb) = (start.as_bytes(), y.as_bytes(), normal.as_bytes());
-    if s.len() % 8 != 0 || yb.len() % 4 != 0 || nb.len() % 4 != 0 || hit.is_some_and(|h| h.as_bytes().len() % 4 != 0) {
-        return None;
-    }
-    let start: Vec<i64> = s.as_chunks::<8>().0.iter().map(|c| i64::from_le_bytes(*c)).collect();
-    let yv: Vec<f32> = words(yb).into_iter().map(f32::from_bits).collect();
-    let nv: Vec<f32> = words(nb).into_iter().map(f32::from_bits).collect();
-    let hv = hit.map(|h| words(h.as_bytes()));
-    let fl = flags.as_bytes();
-    let out = py
-        .detach(|| bc2_navbuild::navsample::write_v3(&h, &start, &yv, &nv, fl, hv.as_deref()))
-        .ok()?;
+    let out = py.detach(|| bc2_navbuild::navsample::write_v3(&h, &cols)).ok()?;
     Some(PyBytes::new(py, &out))
 }
 

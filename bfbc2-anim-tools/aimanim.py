@@ -123,7 +123,17 @@ def parse_reference(b, big_endian=False):
 
 
 def write(a):
-    """PC (little-endian) bytes."""
+    """PC (little-endian) bytes. In the Rust core when it is built (round F3), else write_reference."""
+    nat = _native()
+    if nat is not None:
+        got = nat.aimanim_write(a)
+        if got is not None:
+            return got
+    return write_reference(a)
+
+
+def write_reference(a):
+    """The Python writer (the reference)."""
     nb, n = len(a['bones']), a['poses']
     head = bytearray(_data_at(nb))
     struct.pack_into('<5I', head, 0, 1, a['addr'], 0, (a['addr'] + 0x10) & 0xffffffff, nb)
@@ -159,9 +169,20 @@ def renumbered(a, bones):
 
 
 def to_pc(b, bones=None):
-    """BF1943's (big-endian) aim animation as a PC resource, bones renumbered with `bones` when given."""
-    a = parse(b, True)
-    return write(renumbered(a, bones) if bones else a)
+    """BF1943's (big-endian) aim animation as a PC resource, bones renumbered with `bones` when given. In the Rust
+    core when it is built (round F3), else to_pc_reference."""
+    nat = _native()
+    if nat is not None and type(b) is bytes:
+        got = nat.aimanim_to_pc(b, bones)
+        if got is not None:
+            return got
+    return to_pc_reference(b, bones)
+
+
+def to_pc_reference(b, bones=None):
+    """The Python conversion (the reference)."""
+    a = parse_reference(b, True)
+    return write_reference(renumbered(a, bones) if bones else a)
 
 
 def main(argv):
