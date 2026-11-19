@@ -38,6 +38,7 @@ fn main() {
                 f.iter().map(|c| &c.name).collect::<Vec<_>>(),
                 d.outside
             );
+            println!("     announcer: {}", d.announcer.describe());
         }
         println!("   default donor {:?}", s.default_donor().map(|d| &d.level));
     }
