@@ -26,7 +26,6 @@ import gc
 import glob
 import hashlib
 import json
-import mmap
 import os
 import random
 import struct
@@ -114,20 +113,24 @@ class Golden:
     def __init__(self, area: str) -> None:
         self.area = area
         self.path = GOLDEN.format(area)
-        self.rec: dict[str, list[Any]] = {}
-        if not RECORD:
-            for p in sorted(glob.glob(self.path.replace('.json', '*.json'))):
-                with open(p, encoding='utf-8') as f:
-                    self.rec.update(json.load(f))
+        self.old: dict[str, list[Any]] = {}
+        for p in sorted(glob.glob(self.path.replace('.json', '*.json'))):
+            with open(p, encoding='utf-8') as f:
+                self.old.update(json.load(f))
+        self.rec = {} if RECORD else self.old
         self.new: dict[str, list[Any]] = {}
         self.cur: dict[str, Any] = {}
         self.same = self.differ = self.changed = self.missing = 0
         self.bad: list[str] = []
+        self.strip: list[str] = []        # text taken out of the answers before digesting (a temporary path)
 
     def add(self, group: str, stamp: Any, ref: Any, got: Any) -> None:
         h = self.cur.setdefault(group, [stamp, hashlib.sha1(), hashlib.sha1(), 0])
-        h[1].update(repr(ref).encode())
-        h[2].update(repr(got).encode())
+        r, a = repr(ref), repr(got)
+        for s in self.strip:
+            r, a = r.replace(s, '<tmp>'), a.replace(s, '<tmp>')
+        h[1].update(r.encode())
+        h[2].update(a.encode())
         h[3] += 1
 
     def close(self) -> None:
@@ -147,12 +150,13 @@ class Golden:
         self.cur.clear()
 
     def save(self) -> None:
-        """The shards (each under 1 MB), when recording."""
+        """The shards (each under 1 MB), when recording (without --game, the quick groups replace theirs and the
+        game groups recorded before stay)."""
         if not RECORD:
             return
         for p in glob.glob(self.path.replace('.json', '*.json')):
             os.remove(p)
-        items = sorted(self.new.items())
+        items = sorted((self.new if GAME else {**self.old, **self.new}).items())
         shards: list[dict[str, Any]] = [{}]
         size = 0
         for k, v in items:
@@ -625,6 +629,7 @@ def area_navsample(c: Checks) -> None:
     rng = random.Random(0xF3D4)
     tmp = tempfile.mkdtemp(prefix='f3_navsample_', dir=SCRATCH)
     path = os.path.join(tmp, 'run.bin')
+    g.strip = [path, repr(path)[1:-1]]
     try:
         for i in range(300):
             s = samples(rng, rng.randrange(0, 60))
@@ -671,8 +676,9 @@ def area_navsample(c: Checks) -> None:
                     continue
                 version = struct.unpack_from('<I', head, 4)[0]
                 # the whole file both ways while the reference's arrays fit the memory cap (the reference holds
-                # the file, its records' views and float64 normals: about 3.5x the file)
-                if size <= 120_000_000:
+                # the file, its records' views and float64 normals: about 3.5x the file; version 1 / 2's loop
+                # builds Python lists, about 15x the file: those runs are E3c's reader, read whole up to 40 MB)
+                if size <= (120_000_000 if version == 3 else 40_000_000):
                     n_whole += 1
                     t.both(group, group, size, navsample.load, navsample.load_reference,
                            nat_load if version == 3 else None, p, real=version == 3)
@@ -681,49 +687,49 @@ def area_navsample(c: Checks) -> None:
                     skipped_v12.append(group)
                 if version != 3:
                     continue
-                fh = open(p, 'rb')
-                data = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)   # pages read as the ranges need them
-                if data[-4:] != b'CNT3':
-                    data.close()
-                    fh.close()
-                    continue                                 # an unfinished run: compared whole above
-                nx, nz = struct.unpack_from('<2i', data, 20)
-                at = struct.unpack_from('<Q', data, len(data) - 12)[0]
-                counts = np.frombuffer(data, np.uint8, nx * nz, at).astype(np.int64)
-                start = np.zeros(len(counts) + 1, np.int64)
-                np.cumsum(counts, out=start[1:])
-                n_cols += len(counts)
-                n_surf += int(start[-1])
-                # every record through both readers and both writers, in column ranges of at most ~3 M records:
-                # each range a file of its own (the header with nx = the range, nz = 1)
-                step = max(1, len(counts) // (int(start[-1]) // 1_500_000 + 1))
-                lo = 0
-                while lo < len(counts):
-                    hi = min(len(counts), lo + step)
-                    a, b = int(start[lo]), int(start[hi])
-                    with open(chunk_path, 'wb') as out:
-                        for piece in (data[:20], struct.pack('<2i', hi - lo, 1), data[28:56],
-                                      data[56 + 20 * a:56 + 20 * b], data[at + lo:at + hi],
-                                      struct.pack('<Q', 56 + 20 * (b - a)), b'CNT3'):
-                            out.write(piece)
-                    n_chunks += 1
-                    t.both(f'{group} columns {lo}-{hi}', group + ' read', size, navsample.load,
-                           navsample.load_reference, nat_load, chunk_path, real=True)
-                    part, _ = navsample.load_reference(chunk_path)
-                    t.both(f'{group} write {lo}-{hi}', group + ' write', size, navsample_offline.file_bytes,
-                           navsample_offline.file_bytes_reference, nat_write, part, real=True)
-                    del part
-                    lo = hi
-                del counts, start
-                data.close()
-                fh.close()
+                with open(p, 'rb') as fh:                   # streamed: only one column range in memory
+                    fh.seek(size - 12)
+                    at, tag = struct.unpack('<Q4s', fh.read(12))
+                    if tag != b'CNT3':
+                        continue                             # an unfinished run: compared whole above
+                    nx, nz = struct.unpack_from('<2i', head, 20)
+                    cols = nx * nz
+
+                    def counts_sum(lo: int, hi: int, fh: Any = fh, at: int = at) -> tuple[int, bytes]:
+                        fh.seek(at + lo)
+                        cb = fh.read(hi - lo)
+                        return int(np.frombuffer(cb, np.uint8).sum(dtype=np.int64)), cb
+                    total = sum(counts_sum(k, min(cols, k + (1 << 24)))[0] for k in range(0, cols, 1 << 24))
+                    n_cols += cols
+                    n_surf += total
+                    # every record through both readers and both writers, in column ranges of at most ~1.5 M
+                    # records: each range a file of its own (the header with nx = the range, nz = 1)
+                    step = max(1, cols // (total // 1_500_000 + 1))
+                    lo = a = 0
+                    while lo < cols:
+                        hi = min(cols, lo + step)
+                        n, cb = counts_sum(lo, hi)
+                        fh.seek(56 + 20 * a)
+                        with open(chunk_path, 'wb') as out:
+                            for piece in (head[:20], struct.pack('<2i', hi - lo, 1), head[28:56], fh.read(20 * n), cb,
+                                          struct.pack('<Q', 56 + 20 * n), b'CNT3'):
+                                out.write(piece)
+                        del cb
+                        n_chunks += 1
+                        t.both(f'{group} columns {lo}-{hi}', group + ' read', size, navsample.load,
+                               navsample.load_reference, nat_load, chunk_path, real=True)
+                        part, _ = navsample.load_reference(chunk_path)
+                        t.both(f'{group} write {lo}-{hi}', group + ' write', size, navsample_offline.file_bytes,
+                               navsample_offline.file_bytes_reference, nat_write, part, real=True)
+                        del part
+                        lo, a = hi, a + n
                 gc.collect()
         finally:
             if os.path.exists(chunk_path):
                 os.remove(chunk_path)
             os.rmdir(chunk_dir)
         print(f'sample files: {len(files)} ({n_whole} also read whole), version 3: {n_cols:,} columns, {n_surf:,} '
-              f'surfaces in {n_chunks} column ranges; version 1 / 2 files over 120 MB not read: {skipped_v12}')
+              f'surfaces in {n_chunks} column ranges; version 1 / 2 files over 40 MB not read whole (E3c reader): {skipped_v12}')
     print(f'navsample timing: Rust {t.t_nat:.2f} s, Python {t.t_ref:.2f} s')
     t.report(c, 'navsample load (version 3) / write', GAME)
     g.save()
