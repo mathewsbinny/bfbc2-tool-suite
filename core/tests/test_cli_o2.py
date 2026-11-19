@@ -138,7 +138,7 @@ class Place:
                 out.append(f'[{name}]\n' + self.norm(b'\n'.join(rows) + b'\n'))
         return ''.join(out)
 
-    def lad(self) -> str:
+    def lad_state(self) -> str:
         """Round O3: what the run left in its local app data besides the log records (log() compares those): every
         file's name (a log by name only, the day's date as <date>; an archive of pruned logs by its members: name,
         size, CRC, time - the deflate bytes are zlib's in Python and zlib-rs' in Rust; its name's stamp as <stamp>),
@@ -240,7 +240,7 @@ def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: 
     took = time.perf_counter() - t
     return {'code': p.returncode, 'out': traceback_tail(pl.norm(p.stdout)),
             'err': traceback_tail(pl.norm(p.stderr or b'')), 'files': pl.files(), 'log': pl.log(),
-            **({'lad': pl.lad()} if ROUND != 'o2' else {})}, \
+            **({'lad': pl.lad_state()} if ROUND != 'o2' else {})}, \
         took, pl.who()
 
 
