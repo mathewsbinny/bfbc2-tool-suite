@@ -17,6 +17,11 @@ serde.workspace = true
 serde_json.workspace = true
 # the base partition's sha1 (navtune.json's base check)
 sha1_smol.workspace = true
+# the new level's pictures (round E3b): the texture writer and reader, the user's PNG / JPEG pictures
+bc2-convert.workspace = true
+png.workspace = true
+zune-jpeg.workspace = true
+zune-core.workspace = true
 
 [dev-dependencies]
 # the proofs: an edited partition loaded as a level

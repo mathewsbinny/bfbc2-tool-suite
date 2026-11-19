@@ -6,7 +6,14 @@
 //! mapexport check   <stage folder> --game <game folder>
 //! mapexport startup <startup-00.fbrb> --out <file> --work <temp folder> [--add <LEVEL> <description.dbx>]...
 //!                   [--remove <LEVEL>]...
+//! mapexport overlay <overlay-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]... [--remove <LEVEL>]...
+//! mapexport awards  <ondemand_awards-00.fbrb> --out <file> --work <temp folder> [--add <stage folder>]...
+//!                   [--remove <LEVEL>]...
 //! ```
+//!
+//! `overlay` puts each added stage's texts (its own name and description: `stage.json`'s `strings`) in every
+//! language's localization and takes the removed levels' keys out; `awards` does the same with the stages' pictures
+//! (`awards`) in the on-demand awards bundle (round E3b).
 //!
 //! Exit code 0, or 1 with the reason on standard error (a failed check: 1, the checks printed).
 
@@ -23,6 +30,7 @@ fn value(args: &[String], key: &str) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+#[allow(clippy::too_many_lines, reason = "one arm per command, each its arguments in order")]
 fn run(args: &[String]) -> Result<bool, String> {
     let game = || -> Result<Game, String> {
         let g = value(args, "--game").ok_or("--game <game folder> is needed")?;
@@ -94,7 +102,60 @@ fn run(args: &[String]) -> Result<bool, String> {
             say(&format!("{}: level list of {} items", out_p.display(), items.len()));
             Ok(true)
         }
-        _ => Err("mapexport build | check | startup (see the source's documentation)".into()),
+        Some(cmd @ ("overlay" | "awards")) => {
+            let src = PathBuf::from(
+                args.get(1)
+                    .ok_or("overlay | awards <bundle> --out <file> --work <folder>")?,
+            );
+            let out_p = value(args, "--out").ok_or("--out <file> is needed")?;
+            let work = value(args, "--work").ok_or("--work <folder> is needed")?;
+            let (mut strings, mut pictures, mut remove_keys, mut remove_pics) =
+                (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            let mut i = 0;
+            while let Some(a) = args.get(i) {
+                match a.as_str() {
+                    "--add" => {
+                        let stage = PathBuf::from(args.get(i + 1).ok_or("--add <stage folder>")?);
+                        let rec = export::read_record(&stage).map_err(|e| format!("{}: {e}", stage.display()))?;
+                        strings.extend(rec.strings.iter().cloned());
+                        for f in &rec.awards {
+                            let bytes = std::fs::read(stage.join(&f.path)).map_err(|e| format!("{}: {e}", f.path))?;
+                            pictures.push((f.install.clone(), bytes));
+                        }
+                        i += 2;
+                    }
+                    "--remove" => {
+                        let lv = args.get(i + 1).ok_or("--remove <LEVEL>")?;
+                        let (n, d) = export::loc_keys(lv);
+                        remove_keys.extend([n, d]);
+                        remove_pics.extend(export::picture_entries(lv));
+                        i += 2;
+                    }
+                    _ => i += 1,
+                }
+            }
+            if cmd == "overlay" {
+                let langs =
+                    export::patch_overlay(&src, &strings, &remove_keys, &work, &out_p).map_err(|e| e.to_string())?;
+                say(&format!(
+                    "{}: {} texts in {} languages ({})",
+                    out_p.display(),
+                    strings.len(),
+                    langs.len(),
+                    langs.join(", ")
+                ));
+            } else {
+                let n =
+                    export::patch_awards(&src, &pictures, &remove_pics, &work, &out_p).map_err(|e| e.to_string())?;
+                say(&format!(
+                    "{}: {} pictures added, {n} entries",
+                    out_p.display(),
+                    pictures.len()
+                ));
+            }
+            Ok(true)
+        }
+        _ => Err("mapexport build | check | startup | overlay | awards (see the source's documentation)".into()),
     }
 }
 

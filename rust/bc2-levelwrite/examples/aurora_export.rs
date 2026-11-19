@@ -109,6 +109,9 @@ fn main() {
             ],
             combat_area: AREA.into(),
         },
+        // E3's export: the BFBC2 profile, the base's names and loading picture
+        profile: Profile::Bfbc2,
+        identity: None,
     };
     std::fs::write(
         out.join("export.json"),

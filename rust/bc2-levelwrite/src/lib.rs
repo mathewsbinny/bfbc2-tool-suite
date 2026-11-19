@@ -18,17 +18,22 @@
 //! - [`export`] (round E3): a project built into a NEW multiplayer level, staged - [`mpconvert`] (a campaign level
 //!   made a multiplayer one: its scripting out, a mode's layer grafted from a donor level and placed) and
 //!   [`culltree`] (moved objects given new cull tree leaves); the `mapexport` binary drives it.
+//! - [`awards`] (round E3b): the new level's loading screen and map-list picture from the user's picture.
+//! - [`profile`] (round E3b): the content profiles an export is made for (BFBC2, BFBC1, Vietnam, WW2), read from the
+//!   game copy's stock levels of each set.
 #![deny(unsafe_code)]
 #![allow(
     clippy::many_single_char_names,
     reason = "tree walks: d (the file), e / x / y (elements), a / b (the two files compared), t (a type)"
 )]
 
+pub mod awards;
 pub mod culltree;
 pub mod diff;
 pub mod export;
 pub mod mpconvert;
 pub mod ops;
+pub mod profile;
 pub mod project;
 pub mod schema;
 pub mod write;

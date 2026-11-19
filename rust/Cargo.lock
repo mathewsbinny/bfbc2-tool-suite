@@ -475,13 +475,17 @@ dependencies = [
 name = "bc2-levelwrite"
 version = "0.1.0"
 dependencies = [
+ "bc2-convert",
  "bc2-formats",
  "bc2-scene",
  "bc2-stockmp",
+ "png",
  "serde",
  "serde_json",
  "sha1_smol",
  "thiserror 2.0.21",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]

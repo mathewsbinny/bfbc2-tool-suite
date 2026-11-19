@@ -4,12 +4,15 @@
 //! ```text
 //! bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light]
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
+//!              [--export | --no-strip]
 //! ```
 //!
 //! Without a level the start screen shows "Choose mode" (BFBC1, BFBC2, Vietnam, WW2: a card each), then the chosen
 //! mode's maps with Open and New project (`--mode` shows one mode's maps at once), and "Open a project".
 //! `--project` opens a map project on its base level. `--screenshot` draws the window without showing it (no
-//! display needed) and saves it.
+//! display needed) and saves it; with `--export` it shows the project's Export window (its content profiles read
+//! and its picture previewed first, round E3b), with `--no-strip` without the campaign checklist a campaign base
+//! offers.
 #![deny(unsafe_code)]
 
 use std::path::PathBuf;
@@ -32,6 +35,8 @@ struct Args {
     select: Option<String>,
     demo: bool,
     project: Option<PathBuf>,
+    export: bool,
+    no_strip: bool,
     /// The start screen's set of maps to show (`--mode bfbc1|bfbc2|vietnam|ww2`).
     mode: Option<ContentSet>,
 }
@@ -46,6 +51,8 @@ fn parse() -> Result<Args, String> {
         select: None,
         demo: false,
         project: None,
+        export: false,
+        no_strip: false,
         mode: None,
     };
     let mut it = std::env::args().skip(1);
@@ -65,6 +72,8 @@ fn parse() -> Result<Args, String> {
                 });
             }
             "--project" => a.project = Some(PathBuf::from(value("a .mapedit.json file")?)),
+            "--export" => a.export = true,
+            "--no-strip" => a.no_strip = true,
             "--theme" => {
                 a.theme = Some(match value("dark or light")?.as_str() {
                     "light" => ThemeId::Light,
@@ -128,6 +137,17 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
         )?;
     } else if let Some(lv) = &a.level {
         app.open_level_blocking(&h.gpu, lv)?;
+    }
+    if a.no_strip || a.export {
+        app.export.strip.open = false;
+    }
+    if a.export
+        && let Some(p) = &a.project
+    {
+        let opfor = bc2_editor::levels::find_opfor(a.opfor.as_deref())?;
+        let base = bc2_levelwrite::MapProject::load(p).map_or_else(|_| String::new(), |x| x.base.level);
+        app.export.open_for(p, Some(&opfor));
+        app.export.settle(&h.ctx, &base);
     }
     if let Some(g) = &a.select {
         let gpu = h.gpu.clone();

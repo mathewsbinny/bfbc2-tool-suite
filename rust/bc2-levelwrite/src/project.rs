@@ -37,14 +37,54 @@ pub enum Profile {
     /// Pacific War (WW2): WW2 kits and assets only.
     #[serde(rename = "WW2")]
     Ww2,
+    /// Bad Company 1's maps (DICE's `bc1_*` levels of `game\Package`, on `mp2_common`).
+    #[serde(rename = "BFBC1")]
+    Bfbc1,
 }
 
 impl Profile {
-    /// The profile of a level by its name (`nam_*`: Vietnam; OPFOR's WW2 levels: WW2).
+    /// Every profile, in the editor's order.
+    pub const ALL: [Self; 4] = [Self::Bfbc2, Self::Bfbc1, Self::Vietnam, Self::Ww2];
+
+    /// The profile of a level from the bundles it loads, as the editor's start screen recognises it (round G3): a
+    /// level block that targets `ww2_common` is WW2, `nam_common` Vietnam; a `bc1_` level with its own bundle in
+    /// `game\Package` is BFBC1; everything else BFBC2.
+    #[must_use]
+    pub fn of_stack(lv: &str, targets: &[String], package: bool) -> Self {
+        let has = |c: &str| {
+            targets
+                .iter()
+                .any(|t| t.to_ascii_lowercase().contains(&format!("levels/{c}/")))
+        };
+        if has("ww2_common") {
+            Self::Ww2
+        } else if has("nam_common") {
+            Self::Vietnam
+        } else if package && lv.to_ascii_lowercase().starts_with("bc1_") {
+            Self::Bfbc1
+        } else {
+            Self::Bfbc2
+        }
+    }
+
+    /// Its name in a sentence.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Bfbc2 => "BFBC2",
+            Self::Bfbc1 => "BFBC1",
+            Self::Vietnam => "Vietnam",
+            Self::Ww2 => "WW2 (Pacific War)",
+        }
+    }
+
+    /// The profile of a level by its name (`nam_*`: Vietnam; OPFOR's WW2 levels: WW2; `bc1_*`: BFBC1).
     #[must_use]
     pub fn of_level(lv: &str) -> Self {
         let l = lv.to_ascii_lowercase();
-        if l.starts_with("nam_") {
+        if l.starts_with("bc1_") {
+            Self::Bfbc1
+        } else if l.starts_with("nam_") {
             Self::Vietnam
         } else if l.starts_with("ww2_")
             || l.starts_with("pw_")
@@ -63,6 +103,7 @@ impl Profile {
     pub fn badge(self) -> &'static str {
         match self {
             Self::Bfbc2 => "BFBC2",
+            Self::Bfbc1 => "BFBC1",
             Self::Vietnam => "VIETNAM",
             Self::Ww2 => "WW2 - PACIFIC WAR",
         }
@@ -286,6 +327,22 @@ impl MapProject {
         Organisation::of(&self.operations)
     }
 
+    /// The campaign content an export keeps, as the log's last choice left it (round E3b; DICE's choice, all
+    /// removed, until one is made).
+    #[must_use]
+    pub fn strip(&self) -> crate::mpconvert::Strip {
+        self.strip_chosen().unwrap_or_default()
+    }
+
+    /// The log's last campaign-content choice, `None` when none was made (the editor offers the checklist then).
+    #[must_use]
+    pub fn strip_chosen(&self) -> Option<crate::mpconvert::Strip> {
+        self.operations.iter().rev().find_map(|o| match &o.op {
+            Op::SetStrip { to, .. } => Some(to.clone()),
+            _ => None,
+        })
+    }
+
     /// The base-changed check on the partition's current bytes: whether it is another file, and which operations
     /// name objects it does not have.
     #[must_use]
@@ -425,6 +482,19 @@ mod tests {
         assert_eq!(Profile::of_level("NAM_MP_002"), Profile::Vietnam);
         assert_eq!(Profile::of_level("guadal_canal"), Profile::Ww2);
         assert_eq!(Profile::of_level("mp_005"), Profile::Bfbc2);
+        assert_eq!(Profile::of_level("bc1_oasis_cq"), Profile::Bfbc1);
+        let t = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        let nam = t(&[
+            "package:levels/nam_common/level-00.fbrb",
+            "game:levels/mp_common/level-00.fbrb",
+        ]);
+        assert_eq!(Profile::of_stack("nam_mp_002cq", &nam, true), Profile::Vietnam);
+        let ww2 = t(&["package:levels/ww2_common/level-00.fbrb"]);
+        assert_eq!(Profile::of_stack("my_map", &ww2, true), Profile::Ww2);
+        let mp2 = t(&["package:levels/mp2_common/level-00.fbrb"]);
+        assert_eq!(Profile::of_stack("bc1_oasis_cq", &mp2, true), Profile::Bfbc1);
+        assert_eq!(Profile::of_stack("bc1_oasis_cq", &mp2, false), Profile::Bfbc2);
+        assert_eq!(Profile::of_stack("mp_sp_005cq", &mp2, true), Profile::Bfbc2);
     }
 
     #[test]
