@@ -316,7 +316,14 @@ fn main() {
                     );
                 }
                 println!("  the old path against shaderview:");
-                parity(&mut dev, &mut lv, old_frame.as_ref().unwrap(), &old, &out, &format!("{stem}_old{vi}"));
+                parity(
+                    &mut dev,
+                    &mut lv,
+                    old_frame.as_ref().unwrap(),
+                    &old,
+                    &out,
+                    &format!("{stem}_old{vi}"),
+                );
             }
         }
         if has("--pick") {
