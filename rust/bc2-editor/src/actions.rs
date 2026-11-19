@@ -362,7 +362,7 @@ pub fn registry() -> Vec<Entry> {
             Action::SelectAllOfType,
             "Select all of this type",
             None,
-            "Selects every object of the selected one's blueprint (or type), or of the content browser's entry",
+            "Selects every object of the selected one's blueprint (or type), or of the asset browser's tile",
         ),
         e(
             Action::FocusHere,
@@ -484,9 +484,9 @@ pub fn registry() -> Vec<Entry> {
         ),
         e(
             Action::ShowPanel(PanelKind::Content),
-            "Show content browser",
+            "Show asset browser",
             None,
-            "The level's and its bundles' blueprints, to drag into the view",
+            "The asset browser: every placeable object of the content set, spawners and objectives, to drag into the view",
         ),
         e(
             Action::ShowPanel(PanelKind::History),
