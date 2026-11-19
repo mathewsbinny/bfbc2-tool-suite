@@ -13,6 +13,8 @@ bc2-formats.workspace = true
 rayon.workspace = true
 # UUIDv5 (SHA-1) of the deterministic GUIDs, as Python's uuid.uuid5
 sha1_smol.workspace = true
+# build_report.json (round O3: stockmp install's check of the build against its report)
+serde_json.workspace = true
 
 [lints]
 workspace = true

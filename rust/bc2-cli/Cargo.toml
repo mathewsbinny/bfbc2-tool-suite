@@ -23,6 +23,8 @@ bc2-menu.workspace = true
 flate2.workspace = true
 # round O3's cull group: culltree.py's model (bc2_levelwrite::culltool)
 bc2-levelwrite = { workspace = true, optional = true }
+# round O3: stockmp install's readings of the build and the game folder
+bc2-stockmp = { workspace = true, optional = true }
 
 # the tool groups (rounds O2, O3; all on by default; a group alone builds with --no-default-features --features <group>)
 [features]
@@ -31,7 +33,7 @@ menu = []
 crash = []
 nav = []
 caches = []
-stockmp = []
+stockmp = ["dep:bc2-stockmp"]
 graft = []
 audio = []
 bf1943 = []
