@@ -93,11 +93,29 @@ class Samples:
 
 
 def load(path: str) -> tuple[Samples, int]:
+    """A sample file's Samples and the columns read: the records in the Rust core when it is built (versions 1 and
+    2 since round E3c, version 3 since round F3: navkit_navsample_v3, the same arrays), else load_reference."""
+    return _load(path, _native)
+
+
+def load_reference(path: str) -> tuple[Samples, int]:
+    """load in Python only (the reference: NumPy for version 3, the record loop for 1 and 2)."""
+    return _load(path, None)
+
+
+def _load(path: str, nat: Any) -> tuple[Samples, int]:
     data = open(path, 'rb').read()
     magic, version, pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, _ = \
         HEADER.unpack_from(data, 0)
     if magic != b'ONS1' or version not in (1, 2, 3):
         raise ValueError(f'{path}: not a navsample file')
+    if version == 3 and nat is not None and hasattr(nat, 'navkit_navsample_v3'):
+        got = nat.navkit_navsample_v3(data, nx, nz)          # None: the NumPy pass below (which raises its error)
+        if got is not None:
+            st, ya, na, fa, ha, c = got
+            return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r,
+                           np.frombuffer(st, '<i8'), np.frombuffer(ya, '<f4'), np.frombuffer(na, '<f4').reshape(-1, 3),
+                           np.frombuffer(fa, np.uint8), np.frombuffer(ha, '<u4').reshape(-1, 3)), c
     if version == 3:
         # records, then the column counts in one block, then { u64 offset of the counts, "CNT3" } - read at once
         if len(data) < HEADER.size + 12 or data[-4:] != b'CNT3':
@@ -113,10 +131,10 @@ def load(path: str) -> tuple[Samples, int]:
                        rec['f'].astype(np.uint8), rec['h'].astype(np.uint32)), nx * nz
     pos = HEADER.size
     cols = nx * nz
-    if _native is not None:
+    if nat is not None:
         # the records in the Rust core (round E3c: 4.5 s of sp_004_b's build in this loop); the loop is its reference
         try:
-            st, ya, na, fa, ha, c = _native.navkit_navsample_parse(data, pos, cols, version)
+            st, ya, na, fa, ha, c = nat.navkit_navsample_parse(data, pos, cols, version)
         except ValueError:
             pass                                 # a record cut short: the loop below raises struct.error
         else:

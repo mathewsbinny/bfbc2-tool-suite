@@ -134,6 +134,49 @@ pub fn yaw_degrees(m: &M) -> f64 {
     f[0].atan2(f[2]).to_degrees()
 }
 
+/// A world point carried from an object at `from` to the same place relative to it at `to` (outlines and owned
+/// points following a copy): into `from`'s own space, out through `to`.
+#[must_use]
+pub fn carry(from: &M, to: &M, p: V3) -> V3 {
+    let d = sub(p, row(from, 3));
+    let local: Vec<f64> = (0..3)
+        .map(|r| {
+            let axis = row(from, r);
+            let l2 = dot(axis, axis);
+            if l2 > 1e-12 { dot(d, axis) / l2 } else { 0.0 }
+        })
+        .collect();
+    let mut out = row(to, 3);
+    for (r, v) in local.iter().enumerate() {
+        out = add(out, mul(row(to, r), *v));
+    }
+    out
+}
+
+/// A transform carried from an object at `from` to the same place relative to it at `to` ([`carry`] of its
+/// position and its axes).
+#[must_use]
+pub fn carry_matrix(from: &M, to: &M, m: &M) -> M {
+    let pos = row(m, 3);
+    let at = carry(from, to, pos);
+    let mut out = *m;
+    for r in 0..3 {
+        set_row(&mut out, r, sub(carry(from, to, add(pos, row(m, r))), at));
+    }
+    set_row(&mut out, 3, at);
+    out
+}
+
+/// An upright transform at `p` turned `yaw` degrees about the up axis (the forward row is (sin, 0, cos), as
+/// [`yaw_degrees`] reads it).
+#[must_use]
+pub fn upright(p: V3, yaw: f64) -> M {
+    let (s, c) = yaw.to_radians().sin_cos();
+    [
+        c, 0.0, -s, 0.0, 0.0, 1.0, 0.0, 0.0, s, 0.0, c, 0.0, p[0], p[1], p[2], 1.0,
+    ]
+}
+
 #[cfg(test)]
 #[allow(clippy::indexing_slicing)]
 mod tests {
