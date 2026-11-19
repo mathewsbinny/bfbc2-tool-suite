@@ -17,10 +17,70 @@ the nearest of the four - but a DXT1 block with a transparent texel (a colour pi
 three-colour mode (colour 0 <= colour 1: the two ends, their midpoint, index 3 transparent); DXT5's alpha half
 chooses the lower-error eight-value or six-value palette (the latter reserves exact 0 and 255).
 The principal axis is solved from the symmetric covariance matrix, preserving opposing channel variations. Mip levels: 2 x 2 box filter; normal maps renormalised after each step.
+
+The levels, the blocks, the alpha decoders and l8_down run in the suite's Rust core when it is built (round F2a:
+bc2_convert::texwrite, the same bytes and arrays); the principal axes stay numpy.linalg.eigh's (LAPACK through
+OpenBLAS, whose kernels' last bits depend on the processor): the core gives each block's covariance, NumPy solves
+them, the core encodes. The Python is kept as the reference and the fallback (levels, dxt1_reference,
+dxt5_reference, alpha1_reference, alpha5_reference, l8_down_reference); BFBC2_PURE_PYTHON=1 or use_native(False)
+runs it only.
 """
+import os
 import struct
+import sys
+from typing import Any
 
 import numpy as np
+
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with TexWriteJob, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'TexWriteJob') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
+def _encode(levels: list[tuple[int, int, int, bytes]], dxt5_: bool) -> list[bytes] | None:
+    """Each level's blocks in the Rust core, the axes from numpy.linalg.eigh; None where the core leaves it."""
+    nat = _native()
+    job = nat.TexWriteJob.prepare(levels, dxt5_) if nat is not None else None
+    if job is None:
+        return None
+    cov = np.frombuffer(job.covariances(), np.float64).reshape(-1, 3, 3)
+    axes = np.linalg.eigh(cov)[1][:, :, -1]
+    return job.finish(np.ascontiguousarray(axes).tobytes())
+
+
+def _u8_picture(img: Any) -> bool:
+    return isinstance(img, np.ndarray) and img.dtype == np.uint8 and img.ndim == 3 and img.shape[0] > 0 and img.shape[1] > 0
 
 COLOR, NORMAL, DXT5 = 0, 18, 2
 HEADER = 92
@@ -53,15 +113,40 @@ def dxt1(rgb):
     (h, w, 4): the fourth channel is 1-bit alpha (under 128: transparent) - a block with a transparent texel is written
     in three-colour mode (colour 0 <= colour 1, index 3 transparent), the others as without alpha."""
     img = np.asarray(rgb)
+    if _native() is not None and _u8_picture(img) and img.shape[2] >= 3:
+        x = img if img.shape[2] in (3, 4) else img[..., :3]
+        got = _encode([(x.shape[0], x.shape[1], x.shape[2], np.ascontiguousarray(x).tobytes())], False)
+        if got is not None:
+            return got[0]
+    return dxt1_reference(rgb)
+
+
+def dxt1_reference(rgb):
+    """The Python dxt1 (the reference)."""
+    img = np.asarray(rgb)
     if img.ndim == 3 and img.shape[2] == 4:
         blk = _blocks(img, 4)
         return _color_blocks(blk[:, :, :3], blk[:, :, 3] < 128).tobytes()
     return _color_blocks(_blocks(img[..., :3], 3)).tobytes()
 
 
+def _alpha(level: Any, w: Any, h: Any, five: bool) -> Any:
+    nat = _native()
+    if nat is None or type(level) is not bytes or type(w) is not int or type(h) is not int or w < 0 or h < 0:
+        return None
+    got = nat.texwrite_alpha(level, w, h, five)
+    return None if got is None else np.frombuffer(got[2], '<i8').reshape(got[0], got[1])
+
+
 def alpha1(level, w, h):
     """The 1-bit alpha of a DXT1 level (PC block order) -> (h, w) int array, 0 (transparent: a three-colour block's
     index 3) or 255 - what the console converter's decode, colour only, leaves out."""
+    got = _alpha(level, w, h, False)
+    return got if got is not None else alpha1_reference(level, w, h)
+
+
+def alpha1_reference(level, w, h):
+    """The Python alpha1 (the reference)."""
     bw, bh = max((w + 3) // 4, 1), max((h + 3) // 4, 1)
     blk = np.frombuffer(level[:bw * bh * 8], np.uint8).reshape(-1, 8)
     c0 = blk[:, 0].astype(np.int64) | (blk[:, 1].astype(np.int64) << 8)
@@ -104,6 +189,16 @@ def _alpha_blocks(a):
 
 def dxt5(rgba):
     """(h, w, 4) uint8 -> DXT5 blocks: each the alpha half then the colour half."""
+    img = np.asarray(rgba)
+    if _native() is not None and _u8_picture(img) and img.shape[2] == 4:
+        got = _encode([(img.shape[0], img.shape[1], 4, np.ascontiguousarray(img).tobytes())], True)
+        if got is not None:
+            return got[0]
+    return dxt5_reference(rgba)
+
+
+def dxt5_reference(rgba):
+    """The Python dxt5 (the reference)."""
     blk = _blocks(np.asarray(rgba), 4)
     return np.hstack([_alpha_blocks(blk[:, :, 3]), _color_blocks(blk[:, :, :3])]).tobytes()
 
@@ -111,6 +206,12 @@ def dxt5(rgba):
 def alpha5(level, w, h):
     """The alpha of a DXT5 level (PC block order) -> (h, w) int array (the console converter's decode gives the
     colour)."""
+    got = _alpha(level, w, h, True)
+    return got if got is not None else alpha5_reference(level, w, h)
+
+
+def alpha5_reference(level, w, h):
+    """The Python alpha5 (the reference)."""
     bw, bh = max((w + 3) // 4, 1), max((h + 3) // 4, 1)
     blk = np.frombuffer(level[:bw * bh * 16], np.uint8).reshape(-1, 16)[:, :8].astype(np.int64)
     a0, a1 = blk[:, 0], blk[:, 1]
@@ -221,12 +322,23 @@ def texture(img, kind='color', mips=True):
     if kind == 'dxt5' and (img.ndim != 3 or img.shape[2] != 4):
         raise TexWriteError('dxt5 takes an (h, w, 4) picture')
     punch = kind == 'color' and img.ndim == 3 and img.shape[2] == 4    # DXT1 with 1-bit alpha (dxt1)
-    lv = levels(img, normal, 4 if kind == 'dxt5' or punch else 3)
-    if not mips:
-        lv = lv[:1]
-    if len(lv) > 15:
-        raise TexWriteError(f'{w} x {h}: more than 15 levels')
-    data = [dxt5(x) if kind == 'dxt5' else dxt1(x) for x in lv]
+    channels = 4 if kind == 'dxt5' or punch else 3
+    data = None
+    nat = _native()
+    if nat is not None and _u8_picture(img) and img.shape[2] >= channels:
+        got = nat.texwrite_levels(np.ascontiguousarray(img).tobytes(), h, w, img.shape[2], normal, channels)
+        if got is not None:
+            lvn = got if mips else got[:1]
+            if len(lvn) > 15:
+                raise TexWriteError(f'{w} x {h}: more than 15 levels')
+            data = _encode([(lh, lw, channels, px) for lh, lw, px in lvn], kind == 'dxt5')
+    if data is None:
+        lv = levels(img, normal, channels)
+        if not mips:
+            lv = lv[:1]
+        if len(lv) > 15:
+            raise TexWriteError(f'{w} x {h}: more than 15 levels')
+        data = [dxt5_reference(x) if kind == 'dxt5' else dxt1_reference(x) for x in lv]
     sizes = [len(d) for d in data] + [0] * (15 - len(data))
     fmt = {'color': COLOR, 'normal': NORMAL, 'dxt5': DXT5}[kind]
     head = struct.pack('<8I', 3, 0, fmt, 0 if normal else 1, w, h, 0, len(data))
@@ -249,6 +361,17 @@ def l8_down(level):
     """The next level of an 8-bit texture (format 10) as DICE builds its emitter atlases: each texel the rounded mean
     of its 2 x 2 block, (a + b + c + d + 2) // 4 (every level of mp_005's and bc1_harvest_day_cq's atlases is exactly
     this of the one above)."""
+    a = np.asarray(level)
+    nat = _native()
+    if nat is not None and a.dtype == np.uint8 and a.ndim == 2:
+        got = nat.texwrite_l8_down(np.ascontiguousarray(a).tobytes(), a.shape[0], a.shape[1])
+        if got is not None:
+            return np.frombuffer(got, np.uint8).reshape(a.shape[0] // 2, a.shape[1] // 2).copy()
+    return l8_down_reference(level)
+
+
+def l8_down_reference(level):
+    """The Python l8_down (the reference)."""
     a = np.asarray(level).astype(np.int32)
     return ((a[0::2, 0::2] + a[1::2, 0::2] + a[0::2, 1::2] + a[1::2, 1::2] + 2) // 4).astype(np.uint8)
 

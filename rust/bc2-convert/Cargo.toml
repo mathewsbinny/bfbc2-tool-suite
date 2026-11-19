@@ -12,6 +12,8 @@ repository.workspace = true
 bc2-formats.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
+regex.workspace = true
+memchr.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

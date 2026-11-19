@@ -218,5 +218,11 @@
  "F2b: dbxcatalogue.build in Rust against its Python on the game copy (84,739 partitions)": 202.0,
  "F2b: emitteratlas in Rust against its Python on the inputs of the four OPFOR emitter_atlas runs": 155.0,
  "F2b: menucommon.PEImage in Rust against its Python on every executable of the game copy": 32.0,
- "F2b: xmlinst in Rust against its patterns on every converted level XML of OPFOR work levels": 239.0
+ "F2b: xmlinst in Rust against its patterns on every converted level XML of OPFOR work levels": 239.0,
+ "Rust F2a console converter against terrain.py / soot.py / mesh.py / havok.py / texture.py (built, damaged, edited relayouts, 40 BF1943 resources)": 22.0,
+ "Rust F2a model tools against texwrite.py / skinmesh.py (built pictures and skinned LODs, damaged, the Garand and Type 5 LODs)": 18.0,
+ "Rust F2a Granny writing against granny.py (CRC, shift, orientations, add_tracks on the WW2 rifles' animations, damaged)": 12.0,
+ "Rust F2a console converter on every BF1943 / Xbox terrain, soot, physics, shader database and mesh resource and the game copy (readers, decode, relayout, texture.check), both ways": 1742.8,
+ "Rust F2a model tools on every game-copy DXT texture encoded again and every skinned LOD, both ways": 986.0,
+ "Rust F2a Granny writing on every game-copy animation (shift, orientations, add_tracks), both ways": 911.6
 }
