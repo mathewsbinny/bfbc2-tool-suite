@@ -2209,9 +2209,17 @@ impl Tabs<'_> {
                 vp.dirty = false;
             }
             let at = (pos - rect.min) * ppp;
-            let id = self
+            let mut id = self
                 .renderer
                 .pick(gpu, t, [at.x.max(0.0) as u32, at.y.max(0.0) as u32], 4);
+            // the game-accurate view picks what its own frame shows (round R5c)
+            if projection == Projection::Perspective
+                && self.view.game_accurate
+                && let Some(g) = self.view.game.as_mut()
+                && let Ok(e) = g.pick([at.x.max(0.0) as u32, at.y.max(0.0) as u32], px)
+            {
+                id = e.map_or(render::ID_NONE, render::entity_id);
+            }
             let hit = if id == render::ID_NONE {
                 None
             } else {
@@ -2250,13 +2258,15 @@ impl Tabs<'_> {
             );
             vp.dirty = false;
         }
-        let game = self
-            .view
+        let v = &mut *self.view;
+        let game = v
             .game
             .as_mut()
-            .filter(|_| projection == Projection::Perspective && self.view.game_accurate);
+            .filter(|_| projection == Projection::Perspective && v.game_accurate);
         if let Some(g) = game {
-            g.paint(ui, rect, &vp.camera, px);
+            // the game frame follows the scene's edits and outlines the selection (round R5c)
+            let scene = v.doc.as_ref().map_or(&v.base, |d| &d.scene);
+            g.paint(ui, Some(self.gpu), rect, &vp.camera, px, scene, &v.selection);
         } else if let Some(tex) = vp.texture {
             ui.painter().image(
                 tex,

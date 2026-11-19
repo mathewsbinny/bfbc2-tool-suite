@@ -3595,6 +3595,93 @@ camera, tonemap curve and exposure, weather fields, the visual terrain grammar, 
 `cargo test -p bc2-editor --test game_view` (MP_005 headless: the switch, the frame drawn, back to the editor's view;
 `BC2_EDITOR_SHOTS` saves both views in both themes). Both skip with a note without the prepared level or Direct3D 11.
 
+## R5c: game-accurate rendering, phase 3a - interactive and editable (2026-11-19, branch `rust-r5c`)
+
+`EDITOR_ARCHITECTURE.md` 3.11, "Phase 3a". New `bc2_render::live` (the draw list built once: planned constant
+buffers, culling with a grid, the renderer's order kept), `d3d/live.rs` (materials resolved once, one constant ring
+bound by offset, only changed bindings set, picking, the selection outline, the shared texture), `World::set_placed`
+/ `sources` / `load_package`, `Files::bundles`; the editor's game view on it (`gameview.rs`: edits followed, picking
+and the outline on the game frame, the frame shared with egui's Vulkan device). Development PC: GeForce RTX 4060
+Laptop, Direct3D 11 hardware device; egui on Vulkan.
+
+### Frame costs, 1600 x 950, before (R5b's per-frame draw list) and after
+
+`examples/live_view.rs`, the median of 10 frames (release) or 3 (debug), the camera turning 0.05 degrees a frame so
+every frame is built again. Before: build (constants per draw), submit, post, GPU + read back (float colour, depth,
+stencil). After: build (camera values, culling, the blended order, the constant arena), upload (one `Map`), submit,
+post, the GPU waited for, the frame copied into the shared texture. MP_005 at the warehouses; SP_01, NAM_MP_002CQ
+and Wake Island from the south-west of the placed objects' median (`--view auto`).
+
+| level | draws listed / drawn | build before → after (ms) | submit before → after | GPU (+ read back) before → after | share | **frame before → after** |
+|---|---:|---:|---:|---:|---:|---:|
+| MP_005, release | 10,417 / 3,093 | 54.7 → 3.2 | 64.1 → 1.0 (+0.5 upload) | 17.0 → 6.2 | 1.6 | **136.1 → 12.5** |
+| SP_01, release | 7,839 / 2,565 | 36.8 → 2.0 | 32.9 → 0.8 (+0.2) | 13.5 → 1.0 | 0.2 | **83.3 → 4.3** |
+| NAM_MP_002CQ (Vietnam), release | 4,577 / 1,823 | 17.6 → 1.0 | 16.9 → 0.5 (+0.1) | 15.5 → 1.1 | 0.2 | **50.0 → 2.9** |
+| Wake Island (Pacific War), release | 10,395 / 4,063 | 43.3 → 4.2 | 44.0 → 1.2 (+0.6) | 14.5 → 7.0 | 0.4 | **101.9 → 13.4** |
+| MP_005, debug | 10,417 / 3,093 | 517.5 → 11.7 | 168.9 → 11.7 (+0.5) | 115.9 → 4.7 | 1.8 | **802.4 → 30.5** |
+| SP_01, debug | 7,839 / 2,565 | 428.3 → 8.9 | 151.8 → 7.0 (+0.2) | 127.8 → 8.4 | 3.6 | **708.1 → 28.6** |
+| NAM_MP_002CQ, debug | 4,577 / 1,823 | 183.6 → 8.0 | 87.5 → 6.1 (+0.1) | 125.7 → 1.1 | 0.6 | **397.0 → 16.5** |
+| Wake Island, debug | 10,395 / 4,063 | 562.7 → 13.2 | 158.6 → 11.3 (+0.5) | 112.0 → 9.3 | 3.2 | **833.5 → 37.6** |
+
+The copy fallback's read back of the picture alone costs 1.5-5.7 ms more, then egui's upload (18.8 ms in the debug
+editor). The first frame of a level makes its materials: 105-210 ms release, 0.4-1.5 s debug. In the editor (the
+3D view about 920 x 660, `tests/game_view_live.rs` and `tests/game_view_package.rs`, debug): MP_005 21.5 ms shared
+against 41.7 ms copied; NAM_MP_002CQ 15.6 ms; Wake Island 75-112 ms (a wide view: 7,507 of 10,395 draws). Peak
+memory of the release example: 631-781 MB working set, 668-962 MB private.
+
+Where the frame goes now: the GPU on wide views (MP_005, Wake Island), then the build. LODs and instancing (next
+round) cut the GPU's work; the CPU submit is already about a millisecond.
+
+### Proofs
+
+| what | result |
+|---|---|
+| live list against R5b's per-frame list (colour bits, depth bits, draw class, post-processed RGBA8), culling off and on | **identical** on every view run: MP_005 warehouses and a second view at 1280 x 720 (921,600 of 921,600) and 1600 x 950 (1,520,000 of 1,520,000); SP_01, NAM_MP_002CQ, Wake Island at 1600 x 950 (1,520,000 each) |
+| `--job`: the frame as a `shaderview` job (all 10,417 draws), drawn by the C++ harness, against the live frame (culled) | MP_005 warehouses **921,600 of 921,600**; the harbour from the east (`60,40,300`) 921,600 of 921,600; the west shore (`-90,60,300`, looking east) 921,584-921,600, see below |
+| an edit replayed (`--edit`: an object moved, one turned a quarter, one removed, one duplicated, one added) against the level loaded again with the edits | **921,600 of 921,600** (and the post-processed picture identical); replayed in 10.5 ms, 4 instances planned again; the unedited frame differs in 39,307 pixels |
+| the editor: the warehouse moved through `GameView::sync`, against `GameView::load` of the edited scene | 611,800 of 611,800 |
+| picking (`--pick`): at the projected centres of 26 + 45 objects in two views | every answer confirmed by the selection mask (the picked object lies at the frame's depth under the pixel) |
+| the editor: a click at the 3D view's centre | `objects/buildings/ind_warehouse` selected, its outline drawn (1,718 pixels orange) |
+| the editor's window, shared texture against the copy fallback | 1,520,000 of 1,520,000 pixels identical (the costs line left out) |
+
+**The west shore stays open (R5b's far horizon):** there, 0-16 far water pixels (blended, the same depth and alpha,
+colour differing in the fourth decimal) change from run to run in all three paths alike: R5b's per-frame list, the
+live list with culling on or off, and `shaderview` (R5b's list against `shaderview`: 921,584 in one run). The live
+list adds no difference of its own: culling off and on give the same count in every run. The water reads the
+scene's linear depth through its `GenerateMips` chain, the first suspect.
+
+**Also open:** once, in the quick tier (GPU tests two at a time), the editor test's edit check found the two
+devices' post-processed pictures one 8-bit step apart over the whole frame (sky 211 against 210: the exposure a hair
+apart), their HDR scenes identical bit for bit; alone it never differs (every run). The test asserts the scene bit
+for bit and the picture within one step.
+
+### Package levels (round G3's levels, read from their bundles in place)
+
+Opened through a stand-in OPFOR folder in temp (the game copy linked, the junction removed first; nothing written
+to OPFOR's `work\`). Load (release): NAM_MP_002CQ 9.8 s (11 rounds, 84 MB from 5 bundles), Wake Island 25.0 s (12
+rounds, 134 MB from 4 bundles). Missing per level:
+
+- **NAM_MP_002CQ:** nothing reported (1,133 objects, 261 group members, 82 meshes, 12 strip and 2 water draws,
+  terrain drawn).
+- **Wake Island:** nothing reported missing (1,329 objects, 2,999 group members, 96 meshes, 40 strip draws, 1
+  water draw, terrain drawn), but its tiled-mask terrain cells draw black (the converted terrain's patch stream is
+  not what R5's reading gives; the terrain-patch donor rule), the sky is the fog colour (the sky pass is not drawn
+  yet: every level) and the carriers stand on no water (the open sea is not in its `VisualWater`).
+
+### Still placeholders
+
+Unchanged from R5b (the capture postponed): the sun direction, shadow cascades, `EnvironmentMain` (sky, haze, fog),
+the exposure and tonemap constants (`post::PLACEHOLDERS`), tree and wind constants, the terrain's patch stream.
+
+### Tests
+
+`cargo test -p bc2-render`: 20 unit tests (a plan filled gives `frame::cbuffer`'s bytes; boxes outside the
+frustum; and R5's), `tests/live.rs` (MP_005: the live list against the old one with culling on and off, picking
+at the centre checked by the mask, an edit against a fresh load), `tests/world.rs`, `tests/warehouse.rs`.
+`cargo test -p bc2-editor --test game_view_live` (shared against copied, a click picks the warehouse, the outline,
+an edit through `sync`); `--test game_view_package` (with `BC2_R5C_PACKAGE_OPFOR`: NAM_MP_002CQ and Wake Island
+opened and drawn, their notes and costs).
+
 ## G3: the levels that live only in game\Package (2026-11-18, branch `rust-g3`)
 
 `EDITOR_ARCHITECTURE.md` 3.10, "Done in round G3"; `rust/bc2-editor/src/package.rs`. No Python replaced: NavKit
