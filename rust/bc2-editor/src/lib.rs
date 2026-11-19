@@ -23,6 +23,10 @@
 //! Round E2 (2026-11-18): editing a map. [`edit`]: a map project (`bc2_levelwrite`) open on its level, the scene and
 //! the partition derived from its log; [`gizmo`]: the move and rotate gizmo; [`math`]: transforms; the Objects
 //! workspace's interface in `app` (selection, gizmo and snapping toolbar, ruler, History, Layers, folders, groups).
+//!
+//! Round G3 (2026-11-18): [`package`] - the levels that live only in `game\Package` (Vietnam, Pacific War and
+//! DICE's other Package-only levels) are listed, prepared from their bundles in memory into the editor's own copy
+//! (`work\editor\levels\<level>`, never `work\levels`) and opened like the others.
 #![deny(unsafe_code)]
 #![allow(
     clippy::many_single_char_names,
@@ -37,6 +41,7 @@
 pub mod actions;
 pub mod app;
 pub mod camera;
+pub mod catalog;
 pub mod demo;
 pub mod edit;
 pub mod factions;
@@ -48,6 +53,7 @@ pub mod help;
 pub mod levels;
 pub mod math;
 pub mod model;
+pub mod package;
 pub mod prepare;
 pub mod query;
 pub mod render;

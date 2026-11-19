@@ -454,6 +454,37 @@ level names none, said in Properties); `view-*` and `scene-*` tokens and the thi
 design README's Colour section); the Help menu (generated from the action registry); opening an unprepared level
 prepares it in the editor with its progress (NavKit's prepare and the terrain unpack, run as the suite's Python).
 
+*Done in round G3 (2026-11-18; `rust/BENCHMARKS.md` "G3"): the levels that live only in `game\Package`.* NavKit lists
+only `game\Dist` levels, so Vietnam's (`NAM_*`), the Pacific War's and DICE's other Package-only levels (the Bad
+Company 1 maps, mode layouts such as MP_005GR) are listed, prepared and opened by the editor itself
+(`rust/bc2-editor/src/package.rs`):
+- **Listed when installed:** the game's registry `game\Dist\win32\package.mft` names the level and every bundle its
+  `level-00.fbrb` loads is present. The badge comes from the bundles it loads (`ww2_common`: Pacific War, `nam_common`:
+  Vietnam; else by name, as G2). Not installed (Pacific War and Vietnam are optional): not listed, no error.
+- **Prepared in Rust, in memory:** the registry's stack in the game's order (`nam_mp_002cq`, `nam_common`,
+  `mp_common`), the first bundle naming a file decides it, a `*deleted*` marker hiding later bundles' copies as in the
+  game. Only what the scene opens is read, each bundle's payload streamed once per round: the level partition and
+  static groups; the placed blueprints, their packfiles and the `ReferenceObjectData` blueprints; the second-level
+  blueprints and the `Mesh` aliases' packfiles; the terrain's height field and water through the terrain stack (a
+  Vietnam level's terrain is in `nam_common`'s terrain bundle). The same progress card, Cancel and plain failures as
+  G2 (the job runs on a thread instead of a child process).
+- **Where it goes: `work\editor\levels\<level>\`, never `work\levels`.** Several suite tests and tools enumerate every
+  folder of `work\levels` against recorded corpora (the cull tree's, the geometry's, the shader goldens), so a new
+  folder there would change them. The copy holds one folder per bundle of the stack (`00_<level>`, `01_nam_common`,
+  `02_mp_common`: the scene's bases in the game's order), the placed blueprints' XML (the collision index counts a
+  partition by its XML, as in NavKit's unpack) and `editor-level.json` (the bundles' sizes and times, every file).
+  It is a project cache (`bfbc2core.caches`, `editor`: listed, pruned, cleared; `BFBC2_EDITOR_CACHE_MB`, default
+  2048), made again when a bundle changed or a file is missing; the editor drops the least recently opened copies
+  beyond the cap.
+- **Projects:** "New map from an existing map" offers every level, Package levels included (one not prepared is
+  prepared first); a project on a Package level takes its profile (Vietnam, WW2) from the same recognition.
+- **Choose mode (the user's design, 2026-11-18):** the start screen opens on four cards (BFBC1, BFBC2, Vietnam, WW2:
+  each set's installed map count and its own picture, the game's loading screen read at run time - DICE's
+  `bc1_oasis`, `mp_005`, `nam_mp_002`, OPFOR's converted `wake_island_s`; a plain tile without it, greyed "Not
+  installed" without maps), then a set's map list (thumbnail, name, game mode, prepared, Open / New project); shown on
+  every start. Sets from the data: `bc1_` Package maps, `nam_common`, `ww2_common`, the rest BFBC2. The pictures are
+  decoded into `work\editor\art` (`rust/bc2-editor/src/catalog.rs`), never into the repository.
+
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
 the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
