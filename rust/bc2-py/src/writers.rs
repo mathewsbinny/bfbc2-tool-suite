@@ -238,7 +238,8 @@ fn stats(s: PackStats) -> (usize, u64) {
     (s.entries, s.payload_len)
 }
 
-/// FbrbTool's `pack <folder> <out>` through Rust: `(entries, payload bytes)`. Runs with the interpreter released.
+/// FbrbTool's `pack <folder> <out>` through Rust: `(entries, payload bytes)`. Runs with the interpreter released;
+/// streamed into the file (round S1: the payload is never held).
 #[pyfunction]
 pub fn fbrb_pack(py: Python<'_>, folder: &str, out: &str) -> PyResult<(usize, u64)> {
     py.detach(|| fbrb::pack_path(Path::new(folder), Path::new(out)))

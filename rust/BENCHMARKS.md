@@ -3541,3 +3541,372 @@ the game's own tonemap on the GPU) and the per-frame constants (kept per draw, c
 camera, tonemap curve and exposure, weather fields, the visual terrain grammar, files) and `tests/warehouse.rs`;
 `cargo test -p bc2-editor --test game_view` (MP_005 headless: the switch, the frame drawn, back to the editor's view;
 `BC2_EDITOR_SHOTS` saves both views in both themes). Both skip with a note without the prepared level or Direct3D 11.
+
+## G3: the levels that live only in game\Package (2026-11-18, branch `rust-g3`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Done in round G3"; `rust/bc2-editor/src/package.rs`. No Python replaced: NavKit
+never listed these levels. The editor lists every installed Package-only level (`package.mft` names it, every
+bundle of its level stack is present) - 45 on OPFOR's game copy: Vietnam's 20 (`nam_mp_00{2,3,5,6,7}` x cq / r /
+sdm / sr), the Pacific War's 4 (Wake Island, Coral Sea, Guadalcanal, Iwo Jima) and DICE's other 21 (the 8 Bad
+Company 1 maps and 5 `MP_SP_*` layouts on `mp2_common`, 8 mode layouts on a Dist level such as MP_005GR) - and
+prepares each in Rust from
+its bundles, reading only what the scene opens, into `work\editor\levels\<level>` (not `work\levels`: its corpora
+stay as they are - OPFOR's 37 folders the same before and after; all runs went to a stand-in OPFOR folder in temp
+with the game copy linked read only, the junction removed first).
+
+**Prepare and open** (debug build of the test, `tests/g3.rs` `real_package_levels`, a WW2 rebuild running beside it;
+the editor's process stayed under 150 MB):
+
+| | levels | prepare (s) | open (s) | copy (MB) | entities | collision meshes |
+|---|---:|---:|---:|---:|---:|---:|
+| Vietnam (`nam_*`) | 20 | 2.4 - 4.7 | 0.15 - 0.33 | 7.9 - 9.0 | 4,070 - 6,140 | 2,416 - 4,007 |
+| Pacific War | 4 | 2.7 - 4.0 | 0.24 - 0.29 | 12.6 - 17.6 | 3,539 - 7,144 | 2,847 - 5,230 |
+| Bad Company 1 maps | 8 | 2.9 - 3.7 | 0.28 - 0.34 | 18.1 - 19.9 | 11,158 - 12,679 | 8,969 - 9,217 |
+| other mode layouts (8 on Dist levels, 5 `MP_SP_*`) | 13 | 2.9 - 3.7 | 0.21 - 0.34 | 9.5 - 19.0 | 4,011 - 12,307 | 2,342 - 9,968 |
+| all | 45 | 151 in all | | 585 in all | | |
+
+Each opened with terrain (1024 or 2048 samples a side) and water, team labels from its data (US / NVA on Vietnam's,
+US / JP on the Pacific War's; T1 / T2 on the squad deathmatch layouts that name no faction) and no notes. A whole
+unpack of the same bundles, by comparison, writes 1.3 - 2.0 GB per stack (below). Vietnam's terrain is in
+`nam_common`'s terrain bundle (each level's own terrain bundle holds only `*deleted*` markers of the others' terrains);
+`*deleted*` markers hid 1 name a later bundle had on 9 levels (`nam_mp_006*`, `nam_mp_007*`, MP_009SR), none of them
+read by the scene.
+
+**The independent read** (`tests/package_levels_check.py`): every bundle of each level's stack unpacked whole by the
+suite's FbrbTool and converted by DbxEdit `xml`, as NavKit prepares a Dist level (NavKit's own current unpacks of
+`mp_common` and the Dist base levels read in place), the terrain bundles unpacked too, then loaded by the suite's level
+loader (`bfbc2core.level`'s `scene_load`) and compared with what the editor opened from its copy: the entity GUIDs in
+order, the entities with a blueprint type, every collision mesh (entity and blueprint, in order), the blueprints
+without collision, the collision triangles, the terrain's size and the water's triangles. **45 of 45 levels the
+same** (Vietnam and the others in 41 levels, scratch peak 1.32 GB; the Pacific War's 4, peak 1.97 GB; the scratch
+deleted). Guadalcanal's 7,144 entities are E1e's hand-prepared count.
+
+**Projects on Package levels** ("New map from an existing map"; `BC2_EDITOR_G3_PROJECTS`): on NAM_MP_002CQ, Wake
+Island and Coral Sea a project made through the editor's own flow has its base's profile (Vietnam, WW2), and a move
+plus a delete apply through levelwrite to the partition with nothing else changed (the moved object's `Transform`;
+the deleted instance, its `LevelData.Objects` entry and, on Wake, its `EventConnections`); "Check edits" replays both
+cleanly.
+
+**Choose mode** (the user's start-screen design; `src/catalog.rs`, `src/app/modes.rs`): four cards from the levels'
+data (BFBC1 8 maps, BFBC2 51, Vietnam 20, WW2 4 on OPFOR's copy), each with the game's own loading screen
+(`awards/images/loadingscreens/`: `bc1_oasis`, `mp_005`, `nam_mp_002` - DICE's - and `wake_island_s` - OPFOR's
+converted; a `RES` header, then a 1280 x 720 DXT1 `ITexture`, decoded by `bc2-convert`'s `texcheck` and halved to
+640 x 360), 82 level thumbnails (`awards/images/levels/<level>.res`, the picture in the top left of a 512 x 256 texture,
+its white margin cut) and 83 game modes (the descriptions' `GameMode`). Read from four bundles at once in 4.8 s on the
+first start (debug build), 0.11 s from `work\editor\art` (about 1.1 MB of PNGs and `art.json`) after;
+`card_art_on_the_real_game_copy` (`BC2_EDITOR_G3_ART=1`) checks every set's card on the real copy,
+`mode_cards_fall_back_to_the_tile` the plain tile where a picture is missing or not a texture.
+## O1: the orchestration and command-line glue (2026-11-18, branch `rust-o1`)
+
+The scripts and command lines that parse arguments, walk levels and folders, call the Rust core and print or write
+results. The rounds before this one ported the core under them. This round makes the inventory and the plan for
+the rest, and ports the first batch: FbrbTool's and DbxEdit's command lines.
+
+**Provisional timings.** Other agents ran on the PC throughout. Free RAM was 0.7 GB at times, and
+`ERROR_NO_SYSTEM_RESOURCES` (1450) stopped one unpack. Start-up figures are stable. Figures dominated by disk
+writes varied up to 4x from run to run.
+
+### Step 1: the inventory
+
+The scope is every Python module that is orchestration or a command line rather than a format or compute kernel.
+`git ls-files`, less the tests, has 59,103 lines of Python. 24,594 of them are in the 48 modules below: entry
+points, drivers, walkers and report printers, counted whole (most mix a CLI with logic).
+
+**Left out of the inventory:**
+
+- **GUIs** move into the egui editor. These are the hub `BFBC2 Tool Suite.pyw`, `navkitGUI.pyw`, `inspector.py`,
+  `studio.py`, `overlay.py`, `editing.py`, `core/bfbc2core/viewer.py`, `pick.py` and the window half of
+  `errors.py`.
+- **Tests** are ported after every tool's retirement. This includes `run_tests.py` and `rust/bench_*.py`.
+- **Compute kernels**, ported with their E and F rounds: NavKit's `navbuild`, `navwalk`, `navdetail` and the like,
+  and `testharness/checks`, `classify` and `ingame`.
+- **Pieces other rounds own:**
+  - F3: the remaining format readers;
+  - S1: FBRB packing, BF1943 `Source`, shaderdb merging and indexing;
+  - F2a: Granny, texwrite, terrain, the console mesh, skinmesh, shapes, decimate;
+  - the editor crates.
+
+**How the table was measured:**
+
+- **Start-up** is a fresh `python` that imports the module without running its main, best of 3. It is the fixed
+  cost every process call pays before any work.
+- **A job** is a representative real one, cited from the round that measured it.
+- **Callers** come from a survey of the suite and of OPFOR's tracked `.py`, `.bat` and `.ps1` files:
+  - "sub" means the module is run as a process;
+  - "imp" means it is imported.
+
+**Shapes.** The table assigns each module one of four:
+
+- **A, a subcommand of `bfbc2.exe`** (`rust/bc2-cli`). Use it when the module is a command line over core that is
+  already Rust. The process then saves the interpreter, the imports and the module load (0.1-0.3 s per call).
+  Callers that run the tool as a process gain the most: OPFOR's `.bat` and `.ps1` files, and its `subprocess`
+  calls of aptcheck, aptgraft, culltree, renderqa and shaderdb.
+- **B, a Rust library function behind the Python shim.** Use it when Python callers import the module (OPFOR's WW2
+  pipeline imports bc2loc, meshview, bf1943import and shaderdb). The data stays on the Rust side, and the shim keeps
+  the import working until its callers move.
+- **C, both:** library first, then the subcommand on it.
+- **G, the egui editor.**
+
+Each port keeps the Python as reference and fallback behind a switch until a full tier passes. The switch for the
+command lines is `BFBC2_CLI_PYTHON=1`.
+
+| module | lines | callers | start-up | a real job (round) | core-bound? | shape, batch |
+|---|---:|---|---:|---|---|---|
+| `bfbc2-fbrb-tool/fbrbtool.py` (+ `bfbc2core.fbrbtool.main`) | 23 (+15) | hub (sub); OPFOR `build_menus.bat`, `merge_startup.ps1`, `campaign_fill.ps1` (sub, by `import_onslaught.bat`); test_cli_errors | 0.15 s | `merge_startup.ps1`'s unpack + pack: 1.64 s, Rust 0.32 s | yes | **A, done (O1)** |
+| `bfbc2-dbx-tools/dbxedit.py` (+ `bfbc2core.dbxedit.main`) | 26 (+15) | by hand; test_cli_errors (OPFOR calls it in process) | 0.15 s | xml + roundtrip + check of one partition: 0.70 s, Rust 0.39 s | yes | **A, done (O1)** |
+| `menu-tools/aptcheck.py` | 501 | OPFOR sub `check` / `verify` (console_icons, menu_install, duplicates, type95_icon, wake_ui, weapon_icons, ww2_crosshairs); aptrefs | 0.12 s | E4c: the model and checks in Rust | yes (E4c) | A, **O2** |
+| `menu-tools/aptrefs.py` | 444 | tests; bench | 0.10 s | E4c | yes (E4c) | A, O2 |
+| `menu-tools/bc2loc.py` | 429 | OPFOR imp (menu_install, names, wake_install, ww2_awards); menucommon | 0.11 s | F0: `LocTable` in Rust | yes (F0) | C, O2 |
+| `menu-tools/menucommon.py` | 458 | aptcheck, aptrefs, bc2loc | (lib) | | mostly | B with its CLIs, O2 |
+| `crash-reader/exeref.py` | 336 | tests, bench | 0.07 s | E4f: 24 commands as processes 11.7 s, in process 5.5 s | yes (E4f), but capstone answers what the core refuses | A with a Python fallback for refused instructions, O2 |
+| `crash-reader/crashreader.py` | 485 | hub (sub); OPFOR `testrun.py` (sub, `<report> --exe --log`) | 0.08 s | E4f: 40 reports 2.4 s, Rust core 1.0 s | yes (E4f), the same capstone fallback | A, O2 |
+| `navkit/tools/hpdtool.py` (CLI half) | 425 | sub navsample_offline (`roundtrip`, `meshtrip`); run_tests; imp everywhere | 0.07 s | F0: `hpd_parse` / `hpd_write` in Rust | yes (F0) | A for the CLI, O2 (the module stays a library) |
+| `navkit/tools/hkpack.py` | 226 | navsample_offline; OPFOR research notes | 0.04 s | F1a: the Havok reader in Rust | yes | A, O2 |
+| `console-convert/convert.py` | 204 | tests | 0.12 s | R2 / F2a: the conversions in Rust | yes | A, O2 |
+| `anim-tools/aimanim.py` | 131 | bf1943import; OPFOR weapon_preview (imp) | 0.04 s | | yes (Granny reader E3i) | C, O2 |
+| `core/bfbc2core/caches.py` (`python -m bfbc2core.caches`) | 686 | every cache (imp) | | prune / list: file walks, its own work | own | B (prune, day_log: the log naming is already Rust in `bc2-cli/src/pylog.rs`), O3 |
+| `culltree.py` (CLI and `add`) | 1,409 | OPFOR `console_cull.py` (sub `add <tree> <level> --auto --misplaced N <refs>`) | 0.06 s | E1c: the reader and level search in Rust; `add` is Python | half | C, O3 (after F3) |
+| `console-readers/apt/apt.py`, `stfs/stfs.py`, `xiso/xiso.py` (CLI halves) | 551 + 242 + 172 | hub (sub stfs / xiso); OPFOR imp | 0.04-0.12 s | F0 | yes | A for the CLIs, after F3 |
+| `shader-tools/shaderdb.py` (CLI half) | 1,731 | OPFOR `console_shaders.py` (sub `needs`, `merge`); ~80 imports | 0.11 s | E4b / S1 | after S1 | A for `needs` / `merge`, after S1 |
+| `bf1943-import/bf1943import.py` (CLI half) | 841 | ~30 OPFOR WW2 imports | 0.17 s | E3r / F2b | after S1 (`Source`) | C, after S1 |
+| `menu-tools/aptgraft.py` | 3,291 | OPFOR sub (`mode-alias`, `mode-case`, `onslaught-timer`), imp (ww2 icons, menu_install, wake_install ...) | 0.10 s | E4c: model in Rust, the grafts Python | half | C, O3 |
+| `console-convert/audio.py` | 668 | OPFOR imp (wake_level, wake_vo); tests | 0.23 s | E3a / F0: encoder and framing in Rust | mostly | C, O3 |
+| `stockmp-ai/stockmp.py`, `pipeline.py`, `validate.py`, `config.py` | 278 + 512 + 602 + 326 | by hand (OPFOR docs: `stockmp.py install mp_005 --variant exp0 [--revert]`); tests | 0.10 s | E4a: Atacama generate + build + validate 15.7 s, 10 s of it packing (core) | mostly | C, O3: `bfbc2 stockmp` with the plan in Rust (`bc2-stockmp` has the model, authoring and checks) |
+| `auto-navkit/navkit.py` | 998 | hub (sub `prepare`), navkitGUI (sub), Navigation Studio (sub `apply`, `install`, `restore`), editor's `prepare_level.py`; 19 tests | 0.11 s | E4e: `prepare` sp_004_b 56.7 s, sp_009 9.6 s (unpack, DbxEdit xml, levelobjects: core) | mostly | C, O4, after NavKit's remaining stage Python (navdetail, finalize) |
+| NavKit's tool CLIs: `navregress`, `navparity`, `navcompare`, `levelobjects`, `detailed`, `ladders`, `hpdcheck`, `hpdview`, `sample_all`, `graphstats` | 301 + 336 + 101 + 247 + 125 + 63 + 96 + 109 + 71 + 29 | navkit, harness, tests (imp); run_tests (sub hpdcheck, navregress) | 0.08-0.71 s | E4e: parity measures 15 levels 158.7 s; navregress per level 3-16 s | mostly (E4e) | C, O4, each with its kernel's round |
+| `test-harness/harness.py`, `testharness/runs.py`, `levelchecks.py`, `levelinfo.py` | 418 + 288 + 138 + 394 | bench_sweep; tests | 0.28 s | E4f: `run` sp_009 + sp_004_b 9 s (NavKit's tools inside) | half | C, O4 (after NavKit's tools) |
+| `bf1943-import/dbxcatalogue.py`, `dbxparity.py`, `portparity.py` | 353 + 371 + 259 | OPFOR imp (bf1943_fx, bf1943_objects, qa_checks ...) | 0.09-0.22 s | E4d / F2b: the catalogue and port in Rust | mostly | B, O3 |
+| `console-convert/texqa.py` | 1,364 | OPFOR imp (qa_checks); bench_sweep | 0.24 s | E3o: texqa's decoder in Rust | half | C, O4 |
+| `shader-tools/renderqa.py`, `xdiff.py` | 2,399 + 438 | OPFOR sub (`ww2_level_checks.py`: `renderqa.py strips` / `patches`), imp (fidelity_checks, wake_preview; xdiff in OPFOR tests) | 0.26 s (renderqa: import needs the module's state) | GPU (shaderview.exe) + E3f's translator | half | C, O5 (after the Dx9 / shader rounds) |
+| `mesh-viewer/meshview.py` (`find`, the `Partitions` / `Index` library) | 609 | ~55 OPFOR imports, 22 tests | 0.21 s | E1d / E3m: `Partitions` one pass per bundle | half | B for the library, G for the viewer, O3 |
+| `rust/bc2-editor/prepare_level.py` | 90 | the editor (Rust starts it) | 0.03 s | runs `navkit.py prepare` | yes | into `bc2-editor` once `navkit prepare` is Rust (O4) |
+
+What is left to port: 24,594 lines of the inventory, less the ported command lines' 49 + 30. The Python of those
+stays as the reference until a full tier, as earlier rounds kept theirs. Most of the remainder is logic its own
+rounds port. Once that logic is Rust, the glue around it becomes a thin subcommand, so the plan orders the batches
+by what each module waits on:
+
+| batch | modules | why then |
+|---|---|---|
+| **O2** | aptcheck, aptrefs, bc2loc, menucommon; exeref, crashreader; hpdtool's / hkpack's / convert.py's / aimanim's command lines | thin over core that is already Rust; OPFOR runs aptcheck many times a WW2 install and crashreader after every test run (0.1-0.3 s of start-up each) |
+| **O3** | caches (prune, logs), stockmp (with `bc2-stockmp`'s plan), aptgraft, audio, dbxcatalogue / dbxparity / portparity, meshview's library, culltree's `add` (after F3) | glue whose logic is mostly in Rust already |
+| **O4** | navkit.py and NavKit's tool CLIs, the harness, texqa, prepare_level | after NavKit's last stage Python and the harness's NavKit calls |
+| **O5** | renderqa, xdiff; shaderdb's, bf1943import's and the console readers' command lines | after S1, F3 and the shader rounds |
+
+### Step 2: the first batch - FbrbTool's and DbxEdit's command lines
+
+**Why these first:**
+
+- They are the most-called process command lines. The hub's Bundles tab runs them, and OPFOR's
+  `build_menus.bat`, `merge_startup.ps1` and `campaign_fill.ps1` call `python fbrbtool.py`.
+- They sit entirely over the core that is already Rust (E3b / E3k), so a process paid 0.15 s of start-up for
+  nothing.
+- They are the pattern the later subcommands follow.
+
+**What was added:**
+
+- **`rust/bc2-cli`, the binary `bfbc2.exe`.** `bfbc2 fbrbtool <args>` and `bfbc2 dbxedit <args>` run
+  `bc2_formats::fbrb::tool::run` / `dbxedit::run`, then write what `fbrbtool.py` / `dbxedit.py` write.
+- **The day log.** `pylog.rs` ports `caches.day_log`, `log_caps` / `_number` and `dbxedit.log_path` / `_log`:
+  - the part numbering and the per-file cap (`BFBC2_LOG_FILE_MB`, read as Python's `float` reads it: Unicode
+    digits, underscores, Python's whitespace);
+  - `ntpath.join`, and `expanduser`'s fallbacks;
+  - the stamp of `datetime.now()` (`GetLocalTime`).
+- **The printed bytes.** `pystdio.rs` writes what Python 3's stdio writes on Windows:
+  - **A console** (`GetConsoleMode`, not Rust's `is_terminal`, which also counts MSYS pipes) gets Unicode text.
+  - **Anything else** gets `\r\n` in the ANSI code page: Python's own `cp1252` table, or UTF-8 under
+    `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8` or code page 65001.
+  - **stdout** is strict. A character cp1252 lacks raises `UnicodeEncodeError` before anything is printed: exit
+    code 1, with the error naming the same character run and position.
+  - **stderr** uses `backslashreplace`.
+  - **The order on one pipe** is Python's. stderr is line-buffered and leaves at once. stdout leaves at exit, after
+    stderr, when its encoded text is 8,192 bytes or less, and at once when longer (`TextIOWrapper` / `BufferedWriter`
+    in 3.13). `PYTHONUNBUFFERED` makes it leave at once.
+- **`bfbc2 --source-hash`** prints the fingerprint baked in by `build_native.py`, which now builds the binary with
+  the module.
+- **`bfbc2core.native.cli_command(tool)`** returns `[bfbc2.exe, tool]` only while that hash is this checkout's.
+  Otherwise, or with `BFBC2_CLI_PYTHON=1`, it returns `[python, tool.py]`.
+- **The hub's Bundles tab** runs through `cli_command`. `fbrbtool.py` and `dbxedit.py` stay as they are: the
+  reference and the fallback.
+
+**Recorded differences, by design** (none occurs in OPFOR's calls or the recorded lines):
+
+- Python's traceback frames (file paths, source lines) on that `UnicodeEncodeError` are not printed. Its first and
+  last lines are, and the test compares those.
+- Under an ANSI code page other than 1252 or 65001, non-ASCII output is written as UTF-8 where Python would use
+  that page.
+- `PYTHONIOENCODING`'s error-handler part, and a `TZ` variable for the log stamps, are not read.
+
+### Proof
+
+**The recording.** `core/tests/cli_o1_golden.json` (722 command lines, 0.6 MB) was recorded from the Python command
+lines before the port answered any (`test_cli_o1.py --record`). For each line it records:
+
+- the exit code;
+- stdout and stderr as bytes, the folders named;
+- the case folder's digest;
+- the log lines, with stamps taken out.
+
+The 722 lines are:
+
+- test_fbrbtool's 228 lines and test_dbxedit's 82 cases (what the retired exes answered, as command lines);
+- 15 encoding, buffering and argument cases:
+  - paths and entry names in cp1252 and outside it (stdout fails, stderr escapes), an emoji;
+  - lists of more and less than 8,192 bytes, and a `big` that prints more or less than 8,192 bytes and then fails;
+  - an empty argument, quotes and spaces, the usage;
+- each of those lines again with stderr on stdout's pipe;
+- the stdio cases again under `PYTHONUTF8=1`, `PYTHONUNBUFFERED=1` and `PYTHONIOENCODING=utf-8`.
+
+**Who answered.**
+
+- **Rust: 722 of 722 as recorded.**
+- **Live, both ways** (`--live`): the Python command lines gave the same 722 answers again, with Python's own
+  bytes. Python took 178 s of process time and Rust 50 s, 4 workers.
+- **The order on one pipe** really flips at 8,192 bytes. The recorded `big` with 18,268 bytes on stdout prints
+  stdout first; the 3,268-byte one prints stderr first. Rust gives both orders.
+
+**OPFOR's real calls, replayed read-only** (`--game`; outputs in a temporary folder, the game and OPFOR's `work\`
+only read). 28 FbrbTool lines and 36 DbxEdit runs, each alone and on one pipe, 192 runs: **Rust answered every one
+as Python did**. Python took 22.9 s and Rust 10.0 s. The lines were:
+
+- `build_menus.bat`'s unpack of `original\...\mainmenu-00.fbrb` and its pack;
+- `merge_startup.ps1`'s unpack of `startup-00.fbrb` and its pack;
+- `campaign_fill.ps1`'s two sp_005 unpacks;
+- 12 bundles of the logged invocations (fbrbtool-<date>.log), each listed and unpacked;
+- `xml`, `roundtrip` and `check` of 12 corpus partitions, copied out of `work\`.
+
+A scripted line must succeed on the Python side, or the test says the replay is not of a working call. The first
+run of this, in the long scratch folder, failed both ways identically on the 260-character limit, which led to
+that check.
+
+**Checks:**
+
+- `cargo fmt`; `cargo clippy --workspace --all-targets -D warnings`;
+- `cargo test -p bc2-cli -p bc2-formats` (`bc2-cli`'s: cp1252 and its errors, Python's float and digits,
+  `ntpath.join`);
+- ruff and mypy (every folder) clean;
+- `python run_tests.py quick -j 2` (merged with main at F2a, `f61e970`): 118 of 119, 665 s.
+  - The one failure was this round's own test. The recording had been made in a temporary folder of another
+    length, and a `UnicodeEncodeError`'s position counts the folder's characters.
+  - Recorded again in the default `%TEMP%` (8 lines changed, the positions). Then this test passed quick, `--live`
+    (Python 271 s, Rust 91 s, a busier PC) and `--game` (192 runs; Python 81.0 s, Rust 30.4 s), so 119 of 119.
+  - The tier ran with cargo hidden: drive C: had 5.9 GB free. Its workspace `cargo test` and the editor's headless
+    test (a full debug build of the editor) reported themselves skipped. This round's Rust is `bc2-cli` plus a
+    manifest line, and it was checked by the clippy and cargo tests above.
+
+### Timings (`rust\bench_cli.py`, processes, best of 5, OPFOR's real calls)
+
+| job | Python | Rust | |
+|---|---:|---:|---:|
+| start-up alone (the usage) | 0.147 s | 0.011 s | x13 |
+| `list startup-00.fbrb` | 0.140 s | 0.017 s | x8 |
+| `build_menus.bat`: unpack + pack `mainmenu-00` | 3.44 s | 1.36 s | x2.5 |
+| `merge_startup.ps1`: unpack + pack `startup-00` | 1.64 s | 0.32 s | x5 |
+| `campaign_fill.ps1`: unpack sp_005's two bundles | 3.93 s | 4.61 s | (noise, see below) |
+| `dbxedit` xml + roundtrip + check, one MP_005 partition | 0.70 s | 0.39 s | x1.8 |
+
+**The noise.** campaign_fill's unpacks write about 5,000 files, and the PC was short of memory. Both sides run the
+same `tool::run`. An A/B of the larger unpack, the order alternating, gave Python 11.8 / 2.8 / 24.7 / 10.8 s and
+Rust 5.8 / 3.5 / 8.4 / 5.9 s: the disk sets that time, not the command line.
+
+**The saving** is the 0.13-0.14 s of start-up per call, plus the module load. OPFOR's scripted calls make one
+process per command, and the hub one per click.
+
+### For Project OPFOR (not edited)
+
+- **`merge_startup.ps1` / `campaign_fill.ps1`:** run the binary when `-Tool` names it, else Python:
+  `function Fbrb { if ($Tool -like '*.exe') { & $Tool fbrbtool @args } else { & python $Tool @args } }`.
+  `import_onslaught.bat` then passes `-Tool "%OPFOR_TOOLKIT%\bfbc2-tool-suite\rust\target\release\bfbc2.exe"` when
+  that exists.
+- **`build_menus.bat`:**
+  `if exist "%SUITE%\rust\target\release\bfbc2.exe" (set FBRBTOOL="%SUITE%\rust\target\release\bfbc2.exe" fbrbtool)`
+  before its Python fallback.
+- **`opforcore.util.dbx_run`** stays in process (no process to save).
+- **Its WW2 / Onslaught `subprocess` calls of aptcheck, aptgraft, culltree, renderqa and shaderdb** can switch the
+  same way when their subcommands land (O2-O5). `bfbc2core.native.cli_command(tool)` gives the right command line,
+  falling back to Python.
+## S1: streamed packing, process-wide BF1943 restart points, the shader coverage index (2026-11-18, branch `rust-s1`)
+
+Three suite changes from profiling OPFOR's WW2 install plan (`wake_install.py --plan`, 602 -> 321 s after OPFOR's own
+fixes c3503fc / 58cf539). Every output is the same; what changes is memory and repeated work.
+
+### 1. Bundle packing streamed (`bc2_formats::fbrb`, `zlib`)
+
+Before: `pack_rows` read every file of the folder into one payload `Vec` (on all cores), deflated it whole into a
+second `Vec` and copied that into the bundle - a WW2 level's 650-680 MB payload, its 186-341 MB compressed copy and the
+copy again. Now the layout (offsets, padding, the header) comes from the files' sizes; the files are read in order on a
+second thread a megabyte at a time (4 chunks ahead) and fed through the deflater into the output as it is made.
+
+- `zlib::deflate_stream` / `gzip_net_stream` (new): the zlib 1.3.1 port reading from any `Read`, writing to any
+  `Write` every 256 KB of output. The window is filled exactly as from one slice (a short read is asked again; only
+  the input's end gives less), so the bytes are the slice's: `deflate` / `gzip_net` are now these on a slice.
+- `fbrb::pack_rows_into` (new): a bundle to any writer. `pack_path` / `pack_many` / `fbrb.pack` / FbrbTool's `pack`
+  stream into their temporary file; `pack_rows` / `pack_dir` write into a `Vec` (the bundle held, not the payload).
+  A file that ends early or grows is the same error as before, naming it; a failed pack leaves no temporary file.
+
+Proof:
+
+| check | result |
+|---|---|
+| OPFOR's real WW2 pack calls replayed: each level's `pack_many` as `pack_level` made it (every staging folder of `work\ww2\install*`, read only, unchanged since the real run) into a scratch folder | **23 of 23 bundles byte-identical** to the bundles the real run's packer wrote (Wake's 8, Guadalcanal's, Iwo Jima's and Coral Sea's 5 each; 4 levels' `level-00` 186-341 MB) |
+| `test_fbrb_pack_native.py --game` (every game bundle FbrbTool.exe's recording covers, up to 300 MiB) | **1,081 of 1,081 recorded bundles (6.83 GB) byte-identical** to FbrbTool.exe's (1,078 in the run; 3 that a full drive C: stopped mid-write, repacked alone: identical); 5 not recorded (over 300 MiB). Pack 4,042 s on one process |
+| quick tier: zlib against Python's zlib (levels 4-9), 18 built folders in every layout against FbrbTool's goldens, the refusals, 8 small game bundles; FbrbTool's commands in process (228 command lines) | all pass |
+| `streams_as_one_slice`, `streamed_files_as_from_memory` (new Rust tests): readers giving 1, 7, 4096 bytes a call and interrupted ones, chunk boundaries across entries, every layout, files that shrink or grow, a failing output | pass |
+
+Memory (peak working set of the process, measured with `K32GetProcessMemoryInfo`):
+
+| workload | before | after |
+|---|---:|---:|
+| the four WW2 levels' 23 bundles, one `pack_many` per level (`pack_proof.py`) | payload + compressed copy + its copy: about 1.35 GB for Wake's or Iwo Jima's `level-00` alone (680 MB + 2 x 341 MB; not re-measured: the old packer's run waits for the user's go-ahead) | **47 MB** for all four levels |
+
+Time: Wake's 8 bundles 35.4 s, each other level's 5 bundles 22-24 s (one core deflates each bundle, as before; the
+reads overlap the deflating instead of preceding it). With OPFOR's `PACK_LATER`, packing a level beside the next
+level's build no longer adds the level's payload to the plan's peak (58cf539 measured 2.9 -> 3.5 GB for it).
+
+### 2. BF1943 restart points for the process (`bf1943import.RESTARTS`)
+
+`Source._points` (one decompression of a compressed bundle, a restart point every MB) is kept per process, keyed by
+the bundle's path, size, modification time, payload place and the spacing; least recently used out beyond
+`BF1943_RESTARTS_MB` (default 128; a point costed at 40 KB: 40,113 bytes by tracemalloc); a lock around the table, the
+states only ever copied. Every read still checks the file unchanged first. `Source.stats['shared_points']` counts the
+points a Source found made.
+
+| check | result |
+|---|---|
+| every entry of every one of BF1943's 82 bundles (81 compressed; also the copies a name's first bundle shadows), the committed module against the new one | **29,465 of 29,465 entries identical** (906 MB) |
+| the entries by name (14,027) | identical |
+| a fresh `Source` per call, one entry from each of the 49 compressed bundles that win a name, three Sources in turn | old 3.00 / 2.98 / 3.27 s; new 2.93 / **0.20 / 0.21 s** |
+| memory held for every bundle's points | 81 entries, 30 MB (as costed) |
+| quick tests: a second Source reuses the points, `BF1943_RESTARTS_MB=0` keeps none, a budget of one point keeps within it, four Sources reading on four threads | pass |
+
+OPFOR's plan opened a Source per level and step (about 12): about 36 s of repeated decompressing, which OPFOR's
+`bf_source()` avoided for wake_install only; every other caller (ww2_level_build, the weapon and object builds) now
+gets it too.
+
+### 3. The shader coverage index (`shaderdb.level_cover_prefixes`, `level_coverage`, `donor_levels`; cache `shadercover`)
+
+For each level database, every leading `/`-joined part of each lower-case entry name with the number of entries
+under it: `coverage(db, meshes)` is `{m: prefixes.get(m, 0)}` for any meshes, so choosing donor levels needs no
+database loaded. One pickle per level bundle and Dx in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\shadercover`, keyed
+by `COVER_VERSION` and the bundle's path, size and time (hashed); pruned and listed by `python -m bfbc2core.caches`
+(cap `BFBC2_SHADERCOVER_CACHE_MB`, 64). A level without a database of the Dx keeps its error.
+
+| check | result |
+|---|---|
+| every level of the game copy: each prefix of each entry name (and 200 of every other level's) answered as `coverage` answers it on the loaded database (`test_shaderdb.py --game`) | **89 levels, 406,242 names: every answer identical**; a second pass read only the index (1.19 s; loading all 1.4 s with the fbrb payload cache warm). (This test's older ONS_MP_008 flag checks fail on main as well: the game copy's ons_mp_008 now has flag entries) |
+| the four WW2 levels (`shader_proof.py`): the stock levels (79) and the meshes their staged level draws that the base database lacks (81-82), the old loop (every stock Dx9 database loaded, `coverage`) against `donor_levels` | **identical donors** for all four (mp_002, nam_mp_002cq, sp_01) |
+| each level's Dx9 / 10 / 11 database merged from either choice (`S.merge`) | **12 of 12 byte-identical** (56 entries added each) |
+
+| time per WW2 level | old loop | index |
+|---|---:|---:|
+| first level (index built: 79 databases loaded) | 2.66 s | 2.83 s |
+| the next three | 1.07-1.46 s (bundles in the fbrb payload cache) | **0.11-0.13 s** (79 pickles, 27 MB) |
+
+The index is 27 MB for every stock level's Dx9 database.
+
+### OPFOR changes these allow (not made here)
+
+- `wake_install.shader_dbs`: the donor loop (`for lv, read in S.load_levels(stock, [9], cc.OPFOR): ...`) becomes
+  `donors = S.donor_levels(stock, need, opfor=cc.OPFOR)`.
+- `wake_install.bf_source()` can stay; it is no longer needed for speed (a plain `Source(...)` shares the points).
+- `PACK_LATER`'s comment on the packing thread holding a level in memory no longer holds.
