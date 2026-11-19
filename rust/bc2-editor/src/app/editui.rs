@@ -14,8 +14,9 @@ use bc2_levelwrite::Operation;
 use bc2_levelwrite::ops::Organisation;
 
 /// The views' corner hint in the Objects workspace.
-pub(super) const EDITING_HINT: &str = "Select: click, Ctrl+click, drag a box   Gizmo: drag a handle   Orbit / pan: \
-                                       Alt+left drag, middle drag   Fly: hold right   Undo: Ctrl+Z   Help: F1";
+pub(super) const EDITING_HINT: &str = "Select: click, Ctrl+click, drag a box   Gizmo: drag a handle   Menu: right \
+                                       click   Sink: Alt+wheel   Orbit / pan: Alt+left drag, middle drag   Fly: \
+                                       hold right   Undo: Ctrl+Z   Help: F1";
 
 /// Coordinate `a` (0 X, 1 Y, 2 Z) of a point.
 fn coord(p: V3, a: usize) -> f64 {
