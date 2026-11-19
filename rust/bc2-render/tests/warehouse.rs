@@ -11,6 +11,7 @@
     clippy::print_stdout,
     clippy::cast_precision_loss,
     clippy::doc_markdown,
+    clippy::indexing_slicing,
     missing_docs
 )]
 
