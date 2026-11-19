@@ -523,6 +523,11 @@ pub fn window(ctx: &egui::Context, state: &mut HelpState, p: &Palette, m: &Metri
                 if searching && search(&all, &state.query).is_empty() {
                     ui.label(RichText::new("Nothing in Help matches. Try fewer words.").color(p.ink_muted));
                 }
+                // About: the suite's version (the VERSION file, round P1)
+                ui.add_space(m.space_4);
+                ui.label(
+                    RichText::new(format!("BFBC2 Tool Suite {} - map editor", crate::version())).color(p.ink_faint),
+                );
             });
         });
     if !open {

@@ -5,6 +5,7 @@
 //! bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light]
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
 //!              [--export | --no-strip]
+//! bfbc2-editor --version
 //! ```
 //!
 //! Without a level the start screen offers three paths (round G4): Open project, Edit existing level (the mode
@@ -211,6 +212,12 @@ impl eframe::App for Window {
 }
 
 fn main() -> ExitCode {
+    if std::env::args().nth(1).as_deref() == Some("--version") {
+        // the suite's version (the VERSION file, round P1)
+        use std::io::Write;
+        let ok = writeln!(std::io::stdout(), "bfbc2-editor {}", bc2_editor::version()).is_ok();
+        return if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE };
+    }
     let a = match parse() {
         Ok(a) => a,
         Err(e) => {
