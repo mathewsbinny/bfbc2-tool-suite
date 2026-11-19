@@ -67,6 +67,18 @@ SCRIPTS = native.CLI_TOOLS
 PY_ENV = ('PYTHONUTF8', 'PYTHONIOENCODING', 'PYTHONUNBUFFERED', 'PYTHONLEGACYWINDOWSSTDIO', 'BFBC2_PURE_PYTHON',
           'BFBC2_CLI_PYTHON', 'BFBC2_CLI_TRACE', 'BFBC2_CRASHREADER_REFERENCE', 'BFBC2_CULLTREE_REFERENCE',
           'BFBC2_CULLTREE_CACHE')
+# round O3: what a run inherits that changes its answers or reaches outside the case - every cache's folder and cap,
+# the overall budget, the log caps, Project OPFOR's folder (a project cache under the real work\ would be listed and
+# pruned), the build root: left out of the environment unless the case sets it. run_tests.py sets BFBC2_FBRB_CACHE=0
+# (the fbrb cache off), which changed the budget's answers from those recorded (2026-11-19, the graft group in main's
+# quick tier); an inherited OPFOR_ROOT made the budget cases prune that copy's project caches.
+O3_ISOLATE = ('BFBC2_HLSL_CACHE', 'BFBC2_FBRB_CACHE', 'BFBC2_COLLISION_CACHE', 'BFBC2_EFFECTPORT_CACHE',
+              'BFBC2_CULLTREE_CACHE', 'BF1943_SOURCE_INDEX', 'BFBC2_SHADERCOVER_CACHE', 'BFBC2_HLSL_CACHE_MB',
+              'BFBC2_FBRB_CACHE_GB', 'BFBC2_COLLISION_CACHE_MB', 'BFBC2_EFFECTPORT_CACHE_MB', 'BFBC2_CULLTREE_CACHE_MB',
+              'BF1943_SOURCE_INDEX_MB', 'BFBC2_SHADERCOVER_CACHE_MB', 'BFBC2_NAVSTUDIO_CACHE_MB',
+              'BFBC2_HARNESS_CACHE_MB', 'BFBC2_NAVWATER_CACHE_MB', 'BFBC2_EDITOR_CACHE_MB', 'BFBC2_CACHE_TOTAL_GB',
+              'BFBC2_LOGS_MB', 'BFBC2_LOG_TOOL_MB', 'BFBC2_LOG_FILE_MB', 'BFBC2_LOG_ARCHIVE_MB', 'OPFOR_ROOT',
+              'BFBC2_RUST_TARGETS', 'CARGO_TARGET_DIR')
 # a group's local-app-data paths left out of lad_state (a regex on the path, the case module's LAD_SKIP): files the
 # port keeps differently by design (round O3: culltree.py's row cache, which bfbc2.exe does not keep)
 LAD_SKIP: str | None = None
@@ -216,7 +228,8 @@ def setup(pl: Place, files: dict[str, Any]) -> None:
 
 
 def base_env(extra: dict[str, str], pl: Place) -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if k.upper() not in PY_ENV}
+    drop = PY_ENV + (O3_ISOLATE if ROUND != 'o2' else ())
+    env = {k: v for k, v in os.environ.items() if k.upper() not in drop}
     env.update({k: v.replace('{d}', pl.d).replace('{lad}', pl.lad) for k, v in extra.items()})
     env['LOCALAPPDATA'] = pl.lad
     env['BFBC2_CLI_TRACE'] = pl.trace
