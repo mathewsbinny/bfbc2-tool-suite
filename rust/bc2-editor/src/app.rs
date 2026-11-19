@@ -273,6 +273,8 @@ pub struct ViewState {
     pub menu_rects: Vec<(String, Rect, bool)>,
     /// Which menu that was.
     pub menu_kind: Option<MenuKind>,
+    /// The content browser's rows on screen: (blueprint path, rectangle) - the tests drag them.
+    pub content_rects: Vec<(String, Rect)>,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -1013,6 +1015,7 @@ impl EditorApp {
             pending: Vec::new(),
             menu_rects: Vec::new(),
             menu_kind: None,
+            content_rects: Vec::new(),
         };
         if editing {
             v.refresh(gpu, &palette);
