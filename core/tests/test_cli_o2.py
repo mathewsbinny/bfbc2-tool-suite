@@ -121,7 +121,10 @@ class Place:
                     data = fh.read()
                 text = self.norm(data)
                 data = text.encode('latin-1') if '<dir>' in text or '<cwd>' in text or '<lad>' in text else data
-                snap[os.path.relpath(os.path.join(d, f), self.d)] = hashlib.sha1(data).hexdigest()
+                rel = os.path.relpath(os.path.join(d, f), self.d)
+                # round O3: a group's LOOSE files (a cache whose hash names the case folder) by size only
+                loose = any(re.search(p, rel.replace(os.sep, '/')) for p in LOOSE)
+                snap[rel] = f'{len(data)} bytes' if loose else hashlib.sha1(data).hexdigest()
         return cg.digest(''.join(f'{k}\t{v}\n' for k, v in sorted(snap.items())))
 
     def log(self) -> str:
@@ -195,6 +198,8 @@ def setup(pl: Place, files: dict[str, Any]) -> None:
             mtime = None
             if isinstance(data, tuple):             # (contents, modification time): os.utime after writing
                 data, mtime = data
+            if callable(data):                      # round O3: contents made from the case folder (a cache naming it)
+                data = data(pl.d)
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, 'wb') as f:
                 f.write(data.encode('utf-8') if isinstance(data, str) else data)
@@ -235,6 +240,18 @@ def traceback_tail(err: str) -> str:
     return head + header + '\r\n' + last + '\r\n' + '\r\n'.join(lines[i:])
 
 
+# round O3: a group's own (pattern, replacement) pairs over both streams (its NORMS: a time the tool prints)
+NORMS: list[tuple[str, str]] = []
+# round O3: a group's files compared by size only (its LOOSE: path patterns)
+LOOSE: list[str] = []
+
+
+def normed(text: str) -> str:
+    for pat, rep in NORMS:
+        text = re.sub(pat, rep, text)
+    return text
+
+
 def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: dict[str, str],
         merged: bool) -> tuple[dict[str, Any], float, str]:
     """One command line in a fresh case folder: ({code, out, err, files, log}, its wall time, who answered)."""
@@ -244,8 +261,8 @@ def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: 
     p = subprocess.run(cmd + argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT if merged else subprocess.PIPE,
                        env=base_env(env, pl), cwd=SUITE)
     took = time.perf_counter() - t
-    return {'code': p.returncode, 'out': traceback_tail(pl.norm(p.stdout)),
-            'err': traceback_tail(pl.norm(p.stderr or b'')), 'files': pl.files(), 'log': pl.log(),
+    return {'code': p.returncode, 'out': normed(traceback_tail(pl.norm(p.stdout))),
+            'err': normed(traceback_tail(pl.norm(p.stderr or b''))), 'files': pl.files(), 'log': pl.log(),
             **({'lad': pl.lad_state()} if ROUND != 'o2' else {})}, \
         took, pl.who()
 
@@ -409,6 +426,8 @@ def main(argv: list[str]) -> int:
     for group in groups:
         mod = group_module(group)
         LAD_SKIP = getattr(mod, 'LAD_SKIP', None)
+        NORMS[:] = list(getattr(mod, 'NORMS', ()))
+        LOOSE[:] = list(getattr(mod, 'LOOSE', ()))
         rows: list[Case] = mod.cases()
         keys = [r[0] for r in rows]
         if len(set(keys)) != len(keys):

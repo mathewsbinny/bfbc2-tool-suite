@@ -420,6 +420,7 @@ dependencies = [
  "bc2-stockmp",
  "flate2",
  "regex",
+ "sha1_smol",
  "windows-sys 0.61.2",
 ]
 
