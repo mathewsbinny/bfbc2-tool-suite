@@ -12,7 +12,7 @@ the same bytes on stdout and stderr (each alone, and both on one pipe), the same
                                               retired: the oracle afterwards)
      --group menu|crash|nav   one group only (default: all three)
      --who                    list the lines bfbc2.exe handed to the Python
-     --exe <bfbc2.exe>        the binary (default: rust\target\release\bfbc2.exe, else debug)
+     --exe <bfbc2.exe>        the binary (default: native.find_binary - bin\bfbc2.exe, else the build folder)
      --ref <suite folder>     the suite copy whose Python command lines answer (default: BFBC2_O2_REF, else this
                               checkout): while the Rust sources change, a copy of the checkout before them keeps a
                               Rust core module that matches its sources
@@ -349,11 +349,7 @@ def game(check: Callable[..., None], exe: str, group: str, mod: Any) -> dict[str
 def find_exe(argv: list[str]) -> str | None:
     if '--exe' in argv:
         return argv[argv.index('--exe') + 1]
-    for profile in ('release', 'debug'):
-        p = native.cli_path(profile)
-        if os.path.isfile(p):
-            return p
-    return None
+    return native.find_binary('bfbc2')
 
 
 def main(argv: list[str]) -> int:
