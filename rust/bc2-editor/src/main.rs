@@ -6,7 +6,8 @@
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
 //! ```
 //!
-//! Without a level the start screen lists the game copy's levels ("View a map") and the project forms.
+//! Without a level the start screen shows "Choose mode" (BFBC1, BFBC2, Vietnam, WW2: a card each), then the chosen
+//! mode's maps with Open and New project (`--mode` shows one mode's maps at once), and "Open a project".
 //! `--project` opens a map project on its base level. `--screenshot` draws the window without showing it (no
 //! display needed) and saves it.
 #![deny(unsafe_code)]
@@ -16,6 +17,7 @@ use std::process::ExitCode;
 
 use bc2_editor::app::{EditorApp, GpuCtx, Saved};
 use bc2_editor::headless::Headless;
+use bc2_editor::levels::ContentSet;
 use bc2_editor::theme::ThemeId;
 use eframe::egui;
 
@@ -30,6 +32,8 @@ struct Args {
     select: Option<String>,
     demo: bool,
     project: Option<PathBuf>,
+    /// The start screen's set of maps to show (`--mode bfbc1|bfbc2|vietnam|ww2`).
+    mode: Option<ContentSet>,
 }
 
 fn parse() -> Result<Args, String> {
@@ -42,6 +46,7 @@ fn parse() -> Result<Args, String> {
         select: None,
         demo: false,
         project: None,
+        mode: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -51,6 +56,14 @@ fn parse() -> Result<Args, String> {
             "--screenshot" => a.screenshot = Some(PathBuf::from(value("a file")?)),
             "--select" => a.select = Some(value("a GUID")?),
             "--demo" => a.demo = true,
+            "--mode" => {
+                a.mode = Some(match value("bfbc1, bfbc2, vietnam or ww2")?.to_lowercase().as_str() {
+                    "bfbc1" => ContentSet::Bfbc1,
+                    "vietnam" => ContentSet::Vietnam,
+                    "ww2" => ContentSet::Ww2,
+                    _ => ContentSet::Bfbc2,
+                });
+            }
             "--project" => a.project = Some(PathBuf::from(value("a .mapedit.json file")?)),
             "--theme" => {
                 a.theme = Some(match value("dark or light")?.as_str() {
@@ -69,7 +82,7 @@ fn parse() -> Result<Args, String> {
             "-h" | "--help" => {
                 return Err(
                     "bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] \
-                     [--screenshot out.png [--size 1600x950] [--select <guid>] [--demo]]"
+                     [--screenshot out.png [--size 1600x950] [--select <guid>] [--demo] [--mode bfbc1|bfbc2|vietnam|ww2]]"
                         .into(),
                 );
             }
@@ -97,6 +110,11 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
     let mut app = EditorApp::new(a.opfor.as_deref(), None).map_err(|e| e.to_string())?;
     if let Some(t) = a.theme {
         app.theme = t;
+    }
+    // the start screen's pictures first (read from the game copy, or their cache)
+    app.wait_for_catalog(std::time::Duration::from_mins(2));
+    if a.mode.is_some() {
+        app.choose_mode(a.mode);
     }
     h.settle(&mut app, 2);
     if a.demo {
