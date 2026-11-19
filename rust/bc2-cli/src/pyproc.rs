@@ -244,11 +244,6 @@ impl Py {
         }
     }
 
-    /// The day log's file (`errors._state['path']`).
-    pub fn log_file(&self) -> Option<&str> {
-        self.log_path.as_deref()
-    }
-
     fn encode(&self, text: &str, stream: Stream) -> Result<Vec<u8>, PyErr> {
         let console = match stream {
             Stream::Out => self.out_console,
@@ -275,12 +270,9 @@ impl Py {
             self.events.push((Stream::Out, b));
             return Ok(());
         }
-        if self.pending.len() + b.len() > CHUNK {
-            self.flush_pending();
-            self.pending = b;
-        } else {
-            self.pending.extend_from_slice(&b);
-        }
+        // measured on 3.13 (a recording BufferedWriter's raw writes, and the order on a real pipe): a write that takes
+        // the pending bytes past the chunk goes on together with them (one buffered write of both), not after them
+        self.pending.extend_from_slice(&b);
         if self.pending.len() >= CHUNK {
             self.flush_pending();
         }
