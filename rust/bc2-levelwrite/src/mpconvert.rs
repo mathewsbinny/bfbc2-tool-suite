@@ -105,6 +105,231 @@ pub const REPLACED_BY_LAYER: &[&str] = &[
     "VoiceOverLineAsset",
 ];
 
+/// The campaign's vehicle set pieces (its vehicle spawners): kept or removed by the user's choice (round E3b; DICE's
+/// conversion removed them, so removed by default).
+pub const CAMPAIGN_VEHICLES: &str = "VehicleSpawnEntityData";
+
+/// A group of the strip checklist: its id, its title, its types, and whether the user may keep them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StripGroup {
+    /// Its id (kept in no file: the choice keeps type names).
+    pub id: &'static str,
+    /// Its title in the checklist.
+    pub title: &'static str,
+    /// What it is, in words.
+    pub note: &'static str,
+    /// Its types (type names after the module's dot).
+    pub types: &'static [&'static str],
+    /// The user may keep them (false: the mode's layer replaces them, always removed).
+    pub choosable: bool,
+}
+
+/// The strip checklist (round E3b): [`CAMPAIGN_SCRIPTING`] and [`REPLACED_BY_LAYER`] grouped by what they do. Every
+/// type is in exactly one group (`groups_cover_the_lists`).
+pub const STRIP_GROUPS: &[StripGroup] = &[
+    StripGroup {
+        id: "ai-orders",
+        title: "AI orders and AI areas",
+        note: "what the campaign's soldiers are told to do, and where they may not go",
+        types: &[
+            "AimAtOrderEntityData",
+            "AreaOrderEntityData",
+            "CancelOrderEntityData",
+            "ChangeOrderEntityData",
+            "FireAtAreaOrderEntityData",
+            "FollowClosestHumanOrderEntityData",
+            "ForbiddenAIAreaData",
+            "InterludeOrderEntityData",
+            "JoinSquadOrderEntityData",
+            "RandomWalkOrderEntityData",
+            "SearchAndDestroyOrderEntityData",
+            "ShootAtObjectOrderEntityData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "ai-squads",
+        title: "Campaign squads and AI spawning",
+        note: "the campaign's AI soldiers, their squads, spawn manager and static positions",
+        types: &[
+            "SoldierSpawnGhostEntityData",
+            "SpawnPointManagerData",
+            "SquadEntityData",
+            "SquadGhostEntityData",
+            "StaticPositionEntityData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "waypoints",
+        title: "Waypoints and targets",
+        note: "AI routes, animated waypoints and the targets orders name",
+        types: &[
+            "AnimatedWaypointData",
+            "TargetObjectData",
+            "TargetObjectDataGroup",
+            "WaypointAnimationData",
+            "WaypointData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "cutscenes",
+        title: "Cutscenes and videos",
+        note: "scripted scenes, their cameras, actors and vehicles, and full-screen videos",
+        types: &[
+            "AnimationEntityData",
+            "CutsceneCameraEntityData",
+            "CutsceneEntityCameraData",
+            "CutsceneEntityData",
+            "CutsceneEntityScreenFadeData",
+            "CutsceneObjectEntityData",
+            "CutsceneSoldierEntityData",
+            "CutsceneVehicleEntityData",
+            "PlayVideoEntityData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "objectives",
+        title: "Objectives, checkpoints and saves",
+        note: "mission objectives and their HUD, save and continue points, counters and stat events",
+        types: &[
+            "ContinueEntityData",
+            "HudCounterEntityData",
+            "MissionObjectiveEntityData",
+            "MissionObjectiveHudData",
+            "SaveEntityData",
+            "StatEventTriggerEntityData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "triggers",
+        title: "Scripted triggers",
+        note: "triggers on looking, being shot at, vehicle and character states, motion, interactions and forces",
+        types: &[
+            "CharacterStateTriggerEntityData",
+            "ConsumableTriggerEntityData",
+            "EventIfSwitchEntityData",
+            "ForceAreaEntityData",
+            "GameInteractionEntityData",
+            "LookAtTriggerEntityData",
+            "MotionSensorEntityData",
+            "RandomTriggerEntityData",
+            "UnderFireTriggerEntityData",
+            "VehicleStateTriggerEntityData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "screen",
+        title: "Tooltips, debug menus and screen effects",
+        note: "on-screen hints and texts, the debug menus, screen fades and effects",
+        types: &[
+            "CSITextData",
+            "DebugMenuItemEntityData",
+            "DebugMenuSubMenuEntityData",
+            "DebugTextEntityData",
+            "ScreenEffectEntityData",
+            "ScreenFadeEntityData",
+            "TooltipEntityData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "set-pieces",
+        title: "Scripted demolitions, strikes and pickups",
+        note: "explosion packs, explosive objects, artillery strikes, missiles, weapon pickups and ammo crates",
+        types: &[
+            "AmmoCrateEntityData",
+            "ArtilleryStrikeEntityData",
+            "ExplosionPackEntityData",
+            "ExplosiveObjectData",
+            "MissileEntityData",
+            "WeaponPickupEntityData",
+        ],
+        choosable: true,
+    },
+    StripGroup {
+        id: "vehicles",
+        title: "Campaign vehicles",
+        note: "the campaign's vehicle spawners (the game mode's own vehicles come in E4)",
+        types: &[CAMPAIGN_VEHICLES],
+        choosable: true,
+    },
+    StripGroup {
+        id: "replaced",
+        title: "Replaced by the game mode's layer",
+        note: "the campaign's player, mission, menus, spawns, combat areas, map markers and voice-over: the mode's \
+               layer brings its own, so these always go",
+        types: &[
+            "AlternateSpawnEntityData",
+            "CombatAreaTriggerEntityData",
+            "HumanPlayerEntityData",
+            "InputRestrictionEntityData",
+            "MapMarkerEntityData",
+            "MenuEntityData",
+            "MissionEntityData",
+            "SoldierSpawnEntityData",
+            "VoiceOverEntityData",
+            "VoiceOverLineAsset",
+        ],
+        choosable: false,
+    },
+];
+
+/// Which campaign content an export keeps (round E3b): the types (of [`STRIP_GROUPS`]' choosable groups) kept in the
+/// new level. Empty is DICE's own choice for `SP_005` -> `MP_SP_005CQ`: every campaign type removed.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Strip {
+    /// The types kept (type names after the module's dot).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub keep: std::collections::BTreeSet<String>,
+}
+
+impl Strip {
+    /// Whether an instance of type `t` (after the module's dot) is removed.
+    #[must_use]
+    pub fn removes(&self, t: &str) -> bool {
+        let campaign = CAMPAIGN_SCRIPTING.contains(&t) || REPLACED_BY_LAYER.contains(&t);
+        campaign && !(self.keep.contains(t) && choosable(t))
+    }
+
+    /// The choice with the campaign vehicles kept or removed.
+    #[must_use]
+    pub fn with_vehicles(mut self, keep: bool) -> Self {
+        if keep {
+            self.keep.insert(CAMPAIGN_VEHICLES.into());
+        } else {
+            self.keep.remove(CAMPAIGN_VEHICLES);
+        }
+        self
+    }
+
+    /// The choice in words (the History panel).
+    #[must_use]
+    pub fn describe(&self) -> String {
+        let kept: Vec<&str> = self.keep.iter().map(String::as_str).filter(|t| choosable(t)).collect();
+        if kept.is_empty() {
+            return "all removed (DICE's choice)".into();
+        }
+        let vehicles = kept.contains(&CAMPAIGN_VEHICLES);
+        let others = kept.len() - usize::from(vehicles);
+        match (vehicles, others) {
+            (true, 0) => "campaign vehicles kept".into(),
+            (true, n) => format!("campaign vehicles and {n} other kinds kept"),
+            (false, n) => format!("{n} kinds kept"),
+        }
+    }
+}
+
+/// Whether the user may keep instances of type `t` (a choosable group's type).
+#[must_use]
+pub fn choosable(t: &str) -> bool {
+    STRIP_GROUPS.iter().any(|g| g.choosable && g.types.contains(&t))
+}
+
 /// The mode layer's logic: every instance of these types in the donor is taken (with what it refers to and what
 /// its events reach, within [`LAYER_TYPES`]).
 pub const LAYER_SEEDS: &[&str] = &[
@@ -217,18 +442,18 @@ fn refused(why: impl Into<String>) -> LevelWriteError {
 }
 
 /// Removes the campaign's scripting ([`CAMPAIGN_SCRIPTING`]) and what the layer replaces ([`REPLACED_BY_LAYER`]),
-/// keeping `keep` (the combat area the map keeps).
+/// keeping `keep` (the combat area the map keeps) and the types the user's `choice` keeps.
 ///
 /// # Errors
 /// The writer refuses (it does not on a level partition).
-pub fn strip(w: &mut LevelWriter, keep: &HashSet<String>, out: &mut Converted) -> Result<()> {
+pub fn strip(w: &mut LevelWriter, keep: &HashSet<String>, choice: &Strip, out: &mut Converted) -> Result<()> {
     let mut by_type: HashMap<String, usize> = HashMap::new();
     let mut gone = HashSet::new();
     for e in w.d.instances() {
         let t = type_of(&w.d, e);
         let s = short(&t);
         let g = guid_of(&w.d, e);
-        if (CAMPAIGN_SCRIPTING.contains(&s) || REPLACED_BY_LAYER.contains(&s)) && !keep.contains(&g) {
+        if choice.removes(s) && !keep.contains(&g) {
             *by_type.entry(s.to_owned()).or_default() += 1;
             gone.insert(g);
         }
@@ -296,6 +521,69 @@ fn layer_set(donor: &LevelWriter, capture_points: &HashSet<String>) -> HashSet<S
         }
     }
     set
+}
+
+/// A capture point of a level's mode layer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapturePoint {
+    /// Its `Name` (`US Base`, `A: Crash Site`): what an [`Anchor`] names.
+    pub name: String,
+    /// A team's base (`UnableToChangeTeam`: its spawns, never captured).
+    pub base: bool,
+    /// Its `InitialOwnerTeam` (`Team1`, `Team2`, `TeamNeutral`).
+    pub team: String,
+    /// Where it stands.
+    pub at: [f32; 3],
+}
+
+/// The capture points of a level partition, in the partition's order.
+#[must_use]
+pub fn capture_points(w: &LevelWriter) -> Vec<CapturePoint> {
+    w.d.of_type(b".CapturePointEntityData")
+        .into_iter()
+        .filter_map(|e| {
+            let text = |f: &[u8]| {
+                w.d.child(e, f)
+                    .and_then(|x| w.d.text(x))
+                    .map(|t| String::from_utf8_lossy(t).into_owned())
+            };
+            Some(CapturePoint {
+                name: text(b"Name")?,
+                // a bool: a two-byte value, the second byte 0 or 1
+                base: w
+                    .d
+                    .child(e, b"UnableToChangeTeam")
+                    .is_some_and(|x| w.d.raw(x).get(1).is_some_and(|&b| b != 0)),
+                team: text(b"InitialOwnerTeam").unwrap_or_default(),
+                at: w.transform(&guid_of(&w.d, e)).map_or([0.0; 3], |r| translation(&r)),
+            })
+        })
+        .collect()
+}
+
+/// The partitions (lower case) a level's whole mode layer (every capture point) names outside the level partition.
+#[must_use]
+pub fn layer_partitions(w: &LevelWriter) -> std::collections::BTreeSet<String> {
+    let cps: HashSet<String> =
+        w.d.of_type(b".CapturePointEntityData")
+            .into_iter()
+            .map(|e| guid_of(&w.d, e))
+            .collect();
+    let set = layer_set(w, &cps);
+    let mut out = std::collections::BTreeSet::new();
+    for e in w.d.instances() {
+        if !set.contains(&guid_of(&w.d, e)) {
+            continue;
+        }
+        for x in w.d.walk(e) {
+            if let Some(r) = w.d.attr(x, b"ref")
+                && let Some((p, _)) = String::from_utf8_lossy(r).rsplit_once('/')
+            {
+                out.insert(p.to_ascii_lowercase());
+            }
+        }
+    }
+    out
 }
 
 /// Re-points the local references under `n` (a copy from the donor) by `map`; a local reference to anything not
@@ -471,6 +759,26 @@ fn replace_field(
         *slot = copy;
     }
     Ok(copy)
+}
+
+/// A `LevelData` field replaced by the donor's (a content profile's field: round E3b).
+///
+/// # Errors
+/// Either level lacks the field.
+pub fn take_field(
+    w: &mut LevelWriter,
+    donor: &LevelWriter,
+    name: &str,
+    map: &HashMap<String, String>,
+    out: &mut Converted,
+) -> Result<()> {
+    let ld = w.level_data().ok_or_else(|| refused("no LevelData"))?;
+    let dl = donor
+        .level_data()
+        .ok_or_else(|| refused("the donor has no LevelData"))?;
+    replace_field(w, donor, ld, dl, name.as_bytes(), map, out)?;
+    out.fields.push(format!("{name} (the profile's: the donor's)"));
+    Ok(())
 }
 
 fn translation(rows: &Rows) -> [f32; 3] {
@@ -810,5 +1118,26 @@ mod tests {
         );
         assert_eq!(r("Levels/SP_011"), None);
         assert_eq!(r("levels/mp_005/x"), None);
+    }
+
+    #[test]
+    fn groups_cover_the_lists() {
+        let mut all: Vec<&str> = CAMPAIGN_SCRIPTING.iter().chain(REPLACED_BY_LAYER).copied().collect();
+        all.sort_unstable();
+        let mut grouped: Vec<&str> = STRIP_GROUPS.iter().flat_map(|g| g.types.iter().copied()).collect();
+        grouped.sort_unstable();
+        assert_eq!(grouped, all, "every type in exactly one group");
+        // the default removes everything; vehicles kept keeps only them; a locked type is never kept
+        let d = Strip::default();
+        assert!(all.iter().all(|t| d.removes(t)));
+        assert!(!d.removes("ReferenceObjectData"));
+        let v = d.clone().with_vehicles(true);
+        assert!(!v.removes(CAMPAIGN_VEHICLES) && v.removes("CutsceneEntityData"));
+        assert_eq!(v.describe(), "campaign vehicles kept");
+        assert_eq!(v.with_vehicles(false), d);
+        let mut locked = Strip::default();
+        locked.keep.insert("HumanPlayerEntityData".into());
+        assert!(locked.removes("HumanPlayerEntityData"));
+        assert_eq!(d.describe(), "all removed (DICE's choice)");
     }
 }

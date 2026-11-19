@@ -224,6 +224,12 @@ impl Doc {
         }
     }
 
+    /// The level partition with the log applied (the export's campaign checklist counts its kinds).
+    #[must_use]
+    pub fn writer(&self) -> Option<&LevelWriter> {
+        self.writer.as_ref()
+    }
+
     /// Adds an operation (applied to the scene and the partition at once, autosaved); its number.
     pub fn commit(&mut self, op: Op, label: &str) -> u64 {
         let n = self.project.push(op, label);

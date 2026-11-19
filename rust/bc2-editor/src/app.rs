@@ -851,6 +851,10 @@ impl EditorApp {
             }
         };
         let editing = doc.is_some();
+        if let Some(d) = &doc {
+            // a campaign level as the base: the export's campaign checklist (round E3b)
+            self.export.offer_strip(d);
+        }
         let outliner = match &doc {
             Some(d) => Outliner::new_without(&d.scene, &d.deleted),
             None => Outliner::new(&scene),
@@ -1005,7 +1009,11 @@ impl EditorApp {
         }
         self.status_bar(ui, &palette, &metrics, gpu);
         help::window(&ctx, &mut self.help, &palette, &metrics);
-        crate::export_ui::window(&ctx, &mut self.export);
+        let (doc, selected) = match &mut self.mode {
+            Mode::View(v) => (v.doc.as_mut(), v.selected),
+            _ => (None, None),
+        };
+        crate::export_ui::window(&ctx, &mut self.export, doc, selected);
         let mut cancel = false;
         let Self {
             mode,
