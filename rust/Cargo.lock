@@ -414,6 +414,9 @@ dependencies = [
  "bc2-convert",
  "bc2-formats",
  "bc2-harness",
+ "bc2-menu",
+ "bc2-pyrt",
+ "flate2",
  "regex",
  "windows-sys 0.61.2",
 ]
@@ -488,6 +491,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bc2-menu"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "bc2-harness",
+ "bc2-pyrt",
+]
+
+[[package]]
 name = "bc2-navbuild"
 version = "0.1.0"
 dependencies = [
@@ -513,6 +525,10 @@ dependencies = [
  "pyo3",
  "rayon",
 ]
+
+[[package]]
+name = "bc2-pyrt"
+version = "0.1.0"
 
 [[package]]
 name = "bc2-render"

@@ -299,6 +299,16 @@ CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line
     'hkpack': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hkpack.py'),
     'convert': os.path.join(SUITE, 'bfbc2-console-convert', 'convert.py'),
     'aimanim': os.path.join(SUITE, 'bfbc2-anim-tools', 'aimanim.py'),
+    # round O3 (the same way; rust\bc2-cli\src\<group>)
+    'caches': os.path.join(SUITE, 'core', 'bfbc2core', 'caches.py'),
+    'stockmp': os.path.join(SUITE, 'bfbc2-stockmp-ai', 'stockmp.py'),
+    'aptgraft': os.path.join(SUITE, 'bfbc2-menu-tools', 'aptgraft.py'),
+    'audio': os.path.join(SUITE, 'bfbc2-console-convert', 'audio.py'),
+    'dbxcatalogue': os.path.join(SUITE, 'bfbc2-bf1943-import', 'dbxcatalogue.py'),
+    'dbxparity': os.path.join(SUITE, 'bfbc2-bf1943-import', 'dbxparity.py'),
+    'portparity': os.path.join(SUITE, 'bfbc2-bf1943-import', 'portparity.py'),
+    'meshview': os.path.join(SUITE, 'bfbc2-mesh-viewer', 'meshview.py'),
+    'culltree': os.path.join(SUITE, 'bfbc2-culltree', 'culltree.py'),
 }
 _cli: dict[str, str | None] = {}
 

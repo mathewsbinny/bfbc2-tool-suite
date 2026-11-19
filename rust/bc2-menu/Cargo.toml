@@ -1,0 +1,17 @@
+[package]
+name = "bc2-menu"
+description = "The menu tools' library in Rust (bfbc2-menu-tools: menucommon's pieces, round O3)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+bc2-formats.workspace = true
+bc2-harness.workspace = true
+bc2-pyrt.workspace = true
+
+[lints]
+workspace = true

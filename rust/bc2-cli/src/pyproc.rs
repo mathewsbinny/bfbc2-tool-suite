@@ -14,173 +14,29 @@
 //! **The log.** `errors.setup(tool)`: `%LOCALAPPDATA%\bfbc2-tool-suite\logs\<tool>-<date>.log` (the day's part, as
 //! `caches.day_log`), its start line `--- <tool> started (bfbc2.exe, win32) ---` (Python's names its version), and on
 //! an error the record `errors.report` writes (its traceback is Python's own; here one line names the exception).
-//! The start-up pruning of the log folder (`caches.prune_logs`) is left to the Python tools (round O3).
+//! The log folder is pruned as `errors.setup` prunes it at start-up (`caches.prune_logs`, round O3: `logs.rs`): after
+//! the start line, this session's file kept, the files it removes archived first. Here that happens when the run ends
+//! (nothing is written before a run is known to be Rust's), with the folder as the Python's prune would see it.
 //!
 //! **Errors.** A tool returns [`Fail::Err`] with the Python exception it would raise ([`PyErr`]: its type, `str()`
 //! and filename); a guarded tool reports it as `errors.report` does (`error: <cause>` / `what to do` / `details`,
 //! exit code 1), an unguarded one as Python's traceback (first and last line). [`Fail::Python`] hands the whole
 //! command line to the Python (the reference): `python <the tool's .py> <arguments>`, its stdio inherited, its exit
-//! code returned (`BFBC2_PYTHON` names the interpreter, else `python.exe` on `PATH`; `BFBC2_CLI_SUITE` the suite
-//! folder, else the one the binary sits in). `BFBC2_CLI_TRACE=<file>` appends `<tool> rust` or `<tool> python` to the file (the tests count who
-//! answered).
+//! code returned ([`python`]: `BFBC2_PYTHON`, else the suite's configured Python `bin\python.txt`, else `python.exe`
+//! on `PATH`; `BFBC2_CLI_SUITE` the suite folder, else the one the binary sits in). `BFBC2_CLI_TRACE=<file>` appends
+//! `<tool> rust` or `<tool> python` to the file (the tests count who answered).
 
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
 use std::io::{self, Write as _};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
+pub use bc2_pyrt::err::{Fail, PyErr, PyResult, explain, os_error, read_file, write_file};
+pub use bc2_pyrt::py::suite_root;
+
 use crate::pystdio::{self, Codec};
-use crate::{clock, pyfmt, pylog};
-
-/// A Python exception: its type's name, `str()` of it, its `filename` (an `OSError`'s) and a tool error's
-/// `what_to_do`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PyErr {
-    pub kind: String,
-    pub msg: String,
-    pub filename: Option<String>,
-    pub what_to_do: Option<String>,
-}
-
-impl PyErr {
-    pub fn new(kind: &str, msg: impl Into<String>) -> Self {
-        Self {
-            kind: kind.to_owned(),
-            msg: msg.into(),
-            filename: None,
-            what_to_do: None,
-        }
-    }
-
-    /// `FileNotFoundError(path)` as the tools raise it themselves (`str()` the path, no filename).
-    pub fn file_not_found(path: &str) -> Self {
-        Self::new("FileNotFoundError", path)
-    }
-
-    /// The last line of its traceback: `Kind: message`, or `Kind` alone.
-    pub fn line(&self) -> String {
-        if self.msg.is_empty() {
-            self.kind.clone()
-        } else {
-            format!("{}: {}", self.kind, self.msg)
-        }
-    }
-}
-
-/// How a run ends other than with an exit code.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Fail {
-    /// The exception the Python command line raises at this point.
-    Err(PyErr),
-    /// The Rust core refuses, or the Python's answer here is its own (an exception text only Python makes): the
-    /// whole command line is handed to the Python.
-    Python,
-}
-
-impl From<PyErr> for Fail {
-    fn from(e: PyErr) -> Self {
-        Self::Err(e)
-    }
-}
-
-pub type PyResult<T> = Result<T, Fail>;
-
-/// The `OSError` Python's `open()` (and the `os` calls on a file) raises for `path`: `[Errno 2] No such file or
-/// directory: 'path'` and its kin; an error whose text only Python knows hands off.
-pub fn os_error(path: &str, e: &io::Error) -> Fail {
-    let (kind, errno, text) = match e.kind() {
-        io::ErrorKind::NotFound => ("FileNotFoundError", 2, "No such file or directory"),
-        io::ErrorKind::PermissionDenied => ("PermissionError", 13, "Permission denied"),
-        io::ErrorKind::InvalidFilename | io::ErrorKind::InvalidInput => ("OSError", 22, "Invalid argument"),
-        _ => return Fail::Python,
-    };
-    Fail::Err(PyErr {
-        kind: kind.to_owned(),
-        msg: format!("[Errno {errno}] {text}: {}", pyfmt::str_repr(path)),
-        filename: Some(path.to_owned()),
-        what_to_do: None,
-    })
-}
-
-/// `open(path, 'rb').read()`.
-pub fn read_file(path: &str) -> PyResult<Vec<u8>> {
-    std::fs::read(path).map_err(|e| os_error(path, &e))
-}
-
-/// `open(path, 'wb').write(data)`.
-pub fn write_file(path: &str, data: &[u8]) -> PyResult<()> {
-    std::fs::write(path, data).map_err(|e| os_error(path, &e))
-}
-
-/// `errors.explain(e)`: (the cause, what to do), in words.
-pub fn explain(e: &PyErr) -> (String, String) {
-    let s = e.msg.clone();
-    let low = s.to_lowercase();
-    if let Some(w) = e.what_to_do.as_ref().filter(|w| !w.is_empty()) {
-        return (s, w.clone());
-    }
-    if e.kind == "ModuleNotFoundError" {
-        let name = e.filename.clone().unwrap_or_default();
-        return (
-            format!("A Python library the tool needs is not installed ({name})."),
-            format!("Install it: pip install {name}"),
-        );
-    }
-    if low.contains("opengl") || low.contains("glfw") {
-        return (
-            "The 3D view could not start OpenGL 3.3 (the graphics driver is too old, or Python runs on a GPU \
-             without it)."
-                .to_owned(),
-            "Update the graphics driver; on a laptop with two GPUs set python.exe to \"High performance\" in \
-             Windows Settings > System > Display > Graphics."
-                .to_owned(),
-        );
-    }
-    if e.kind == "GameCopyNotFound"
-        || low.contains("no game copy")
-        || (low.contains("project opfor") && low.contains("not found"))
-    {
-        return (
-            "The tools could not find Project OPFOR BFBC2's game copy.".to_owned(),
-            "Put the suite folder next to the \"project-opfor-bfbc2\" folder, or set OPFOR_ROOT to it.".to_owned(),
-        );
-    }
-    if low.contains("not prepared") || low.contains("unknown level") {
-        return (
-            format!("The level is not available: {s}"),
-            "Choose a level from the list, or prepare it first (Levels tab: Prepare level).".to_owned(),
-        );
-    }
-    let file = || {
-        e.filename
-            .clone()
-            .filter(|f| !f.is_empty())
-            .unwrap_or_else(|| s.clone())
-    };
-    if e.kind == "PermissionError" {
-        return (
-            format!("A file could not be written or read: {}", file()),
-            "Close the program using it (the game, an editor), or check the folder is not read-only.".to_owned(),
-        );
-    }
-    if e.kind == "FileNotFoundError" {
-        return (
-            format!("A file the tool needs is missing: {}", file()),
-            "Check the path; if it is a level's file, prepare the level again.".to_owned(),
-        );
-    }
-    if e.kind == "MemoryError" {
-        return (
-            "The PC ran out of memory.".to_owned(),
-            "Close other programs, or open a smaller level.".to_owned(),
-        );
-    }
-    (
-        format!("{}: {s}", e.kind),
-        "If it happens again, send the log file to the tool's author.".to_owned(),
-    )
-}
+use crate::{clock, logs, pylog};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stream {
@@ -365,12 +221,22 @@ impl Py {
             };
         }
         if let Some(path) = &self.log_path {
-            let mut text = String::new();
-            for (stamp, level, message) in &self.log {
-                let _ = writeln!(text, "{stamp} {level:<7} {message}");
-            }
-            if let Ok(mut f) = OpenOptions::new().append(true).create(true).open(path) {
-                let _ = f.write_all(text.replace('\n', "\r\n").as_bytes());
+            let append = |records: &[(String, &'static str, String)]| {
+                let mut text = String::new();
+                for (stamp, level, message) in records {
+                    let _ = writeln!(text, "{stamp} {level:<7} {message}");
+                }
+                if let Ok(mut f) = OpenOptions::new().append(true).create(true).open(path) {
+                    let _ = f.write_all(text.replace('\n', "\r\n").as_bytes());
+                }
+            };
+            // errors.setup: the start line, then the folder pruned with this session's file kept (round O3), then
+            // the tool's records - the folder as the Python's prune saw it
+            let (start, rest) = self.log.split_at(self.log.len().min(1));
+            append(start);
+            let _ = logs::prune_logs(&pylog::logs_dir(), std::slice::from_ref(path), None);
+            if !rest.is_empty() {
+                append(rest);
             }
         }
     }
@@ -393,46 +259,80 @@ fn trace(tool: &str, who: &str) {
     }
 }
 
-/// The suite whose Python answers a hand-off: `BFBC2_CLI_SUITE` (the tests' reference copy), else the first folder
-/// above the binary with `suite_paths.py`, else the checkout it was built in.
-pub fn suite_root() -> PathBuf {
-    if let Some(p) = std::env::var_os("BFBC2_CLI_SUITE").filter(|p| !p.is_empty()) {
-        return PathBuf::from(p);
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        for dir in exe.ancestors().skip(1) {
-            if dir.join("suite_paths.py").is_file() {
-                return dir.to_path_buf();
-            }
-        }
-    }
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
-}
+/// The suite's configured Python: `bin\python.txt` beside the binary's suite, one line naming the interpreter
+/// (absolute, or relative to the suite folder). `build_native.py` writes the Python it built with; a shipped suite
+/// names the one it brings.
+pub const PYTHON_TXT: &str = "bin\\python.txt";
 
-/// The Python that runs the reference: `BFBC2_PYTHON`, else the first `python.exe` on `PATH`.
-fn python() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("BFBC2_PYTHON").filter(|p| !p.is_empty()) {
-        return Some(PathBuf::from(p));
+/// `name` on `PATH` (as given when it names a file already).
+fn on_path(name: &str) -> Option<PathBuf> {
+    let p = PathBuf::from(name);
+    if p.is_file() {
+        return Some(p);
+    }
+    if p.components().count() != 1 {
+        return None;
     }
     let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|d| d.join(if cfg!(windows) { "python.exe" } else { "python3" }))
-        .find(|p| p.is_file())
+    let exe = if cfg!(windows) && p.extension().is_none() {
+        format!("{name}.exe")
+    } else {
+        name.to_owned()
+    };
+    std::env::split_paths(&path).map(|d| d.join(&exe)).find(|c| c.is_file())
+}
+
+/// The Python that runs the reference (round O3): `BFBC2_PYTHON` (a file, or a name on `PATH`), else the suite's
+/// configured Python ([`PYTHON_TXT`]), else the first `python.exe` on `PATH`. Err: none found, in words naming every
+/// place looked at.
+pub fn python() -> Result<PathBuf, String> {
+    if let Some(v) = std::env::var_os("BFBC2_PYTHON").filter(|p| !p.is_empty()) {
+        let v = v.to_string_lossy().into_owned();
+        // set on purpose: used or reported, never passed over for another Python
+        return on_path(&v).ok_or_else(|| format!("BFBC2_PYTHON names {v}, which is not a file or on PATH"));
+    }
+    let suite = suite_root();
+    let txt = suite.join(PYTHON_TXT);
+    let mut looked = vec!["BFBC2_PYTHON (not set)".to_owned()];
+    match std::fs::read_to_string(&txt) {
+        Ok(content) => {
+            let line = content.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+            let p = suite.join(line);
+            if !line.is_empty() && p.is_file() {
+                return Ok(p);
+            }
+            looked.push(format!("{} (names {line:?}, not a file)", txt.display()));
+        }
+        Err(_) => looked.push(format!("{} (not there)", txt.display())),
+    }
+    let exe = if cfg!(windows) { "python.exe" } else { "python3" };
+    if let Some(p) = on_path(exe) {
+        return Ok(p);
+    }
+    looked.push(format!("{exe} on PATH (none)"));
+    Err(looked.join("; "))
 }
 
 /// The command line handed to the Python: its exit code.
 fn hand_off(tool: &Tool, args: &[String]) -> i32 {
     trace(tool.name, "python");
     let script = suite_root().join(tool.script);
-    let Some(py) = python() else {
-        pystdio::emit(
-            "",
-            &format!(
-                "bfbc2: {} needs Python here (BFBC2_PYTHON, or python.exe on PATH)\n",
-                tool.name
-            ),
-        );
-        return 1;
+    let py = match python() {
+        Ok(p) => p,
+        Err(looked) => {
+            pystdio::emit(
+                "",
+                &format!(
+                    "bfbc2: {} needs Python for this command line (the Rust port hands it to {}), and none was \
+                     found.\n  looked at: {looked}\n  what to do: install Python 3.12 or later, or set BFBC2_PYTHON to \
+                     its python.exe, or name it in {}\n",
+                    tool.name,
+                    script.display(),
+                    suite_root().join(PYTHON_TXT).display()
+                ),
+            );
+            return 1;
+        }
     };
     match std::process::Command::new(py).arg(&script).args(args).status() {
         Ok(s) => s.code().unwrap_or(1),

@@ -14,7 +14,7 @@
 
 [workspace]
 resolver = "3"
-members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite", "bc2-render", "bc2-cli"]
+members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite", "bc2-render", "bc2-cli", "bc2-pyrt", "bc2-menu"]
 
 [workspace.package]
 version = "0.1.0"
@@ -35,6 +35,8 @@ bc2-stockmp = { path = "bc2-stockmp" }
 bc2-levelwrite = { path = "bc2-levelwrite" }
 bc2-harness = { path = "bc2-harness" }
 bc2-render = { path = "bc2-render" }
+bc2-pyrt = { path = "bc2-pyrt" }
+bc2-menu = { path = "bc2-menu" }
 thiserror = "=2.0.21"
 rayon = "=1.12.0"
 # gzip of FBRB bundles: raw deflate (the gzip framing is read in bc2-formats, by the reference's rules) and CRC-32
@@ -66,7 +68,7 @@ png = "=0.18.1"
 windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Direct3D_Fxc", "Win32_Security"] }
 # The command-line binary (bc2-cli, round O1): the local time, the ANSI code page and the console test Python's stdio
 # makes, so its output and logs are the Python command lines' byte for byte (already in the lock through eframe).
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console", "Win32_System_SystemInformation"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console", "Win32_System_SystemInformation", "Win32_System_Time"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
