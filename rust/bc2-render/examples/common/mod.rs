@@ -29,6 +29,15 @@ pub fn placed(opfor: &Path, lv: &str) -> Result<(String, Vec<Placed>, Option<Str
     let lv = lv.to_lowercase();
     let base = opfor.join("work").join("levels").join(&lv);
     let mut bases = vec![base.join("pkg"), base.join("dist")];
+    // a Package level: the editor's prepared copy (`work\editor\levels\<lv>`, one folder per bundle of its stack)
+    let package = opfor.join("work").join("editor").join("levels").join(&lv);
+    if !base.is_dir() && package.is_dir() {
+        bases = entries(&package)
+            .into_iter()
+            .filter(|d| d.is_dir() && lower_name(d) != "terrain")
+            .collect();
+    }
+    let own = if base.is_dir() { 2 } else { bases.len() };
     bases.extend(
         entries(&opfor.join("work").join("navkit").join("common"))
             .into_iter()
@@ -36,7 +45,7 @@ pub fn placed(opfor: &Path, lv: &str) -> Result<(String, Vec<Placed>, Option<Str
     );
     let partition = bases
         .iter()
-        .take(2)
+        .take(own)
         .flat_map(|b| entries(&b.join("levels")))
         .find(|p| {
             p.extension().is_some_and(|e| e.eq_ignore_ascii_case("dbx"))
@@ -48,7 +57,7 @@ pub fn placed(opfor: &Path, lv: &str) -> Result<(String, Vec<Placed>, Option<Str
         .map_or_else(|| lv.to_uppercase(), |s| s.to_string_lossy().into_owned());
     let mut groups: Vec<PathBuf> = Vec::new();
     let mut seen: Vec<String> = Vec::new();
-    for b in bases.iter().take(2) {
+    for b in bases.iter().take(own) {
         for g in entries(&b.join("levels").join(&lv)) {
             let n = lower_name(&g);
             if n.ends_with("_havokasset.dbx") && !seen.contains(&n) {

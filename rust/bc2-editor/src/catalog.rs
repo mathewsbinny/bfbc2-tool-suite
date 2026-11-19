@@ -233,7 +233,9 @@ fn write_png(path: &Path, p: &Picture) -> std::io::Result<()> {
     w.write_image_data(&p.rgba).map_err(std::io::Error::other)
 }
 
-fn read_png(path: &Path) -> Option<Picture> {
+/// A PNG file (RGBA, 8 bits) as a picture (the cached pictures; the asset browser's rendered thumbnails).
+#[must_use]
+pub fn read_png(path: &Path) -> Option<Picture> {
     let d = png::Decoder::new(std::io::BufReader::new(File::open(path).ok()?));
     let mut r = d.read_info().ok()?;
     let mut buf = vec![0; r.output_buffer_size()?];

@@ -1854,8 +1854,14 @@ def f32(x: float) -> int:
     return struct.unpack('<I', struct.pack('<f', x))[0]
 
 
+# <bundle.fbrb>:<name>, also a bundle's backup by its name (x.fbrb.opfor-hud-orig:<name>, round D1: read where it is,
+# not copied to a .fbrb name first)
+BUNDLE_SPEC = re.compile(r'\.fbrb(?:\.[^\\/:]+)?:[^\\/:]+$', re.IGNORECASE)
+
+
 def load_members(spec: str) -> tuple[str, Members]:
-    """(label, [(name, bytes)]) of a movie spec: a .res, a .apt (with .const / .geo beside it), <bundle.fbrb>:<name>."""
+    """(label, [(name, bytes)]) of a movie spec: a .res, a .apt (with .const / .geo beside it), <bundle.fbrb>:<name>
+    (or <bundle.fbrb.backup-suffix>:<name>)."""
     if os.path.isfile(spec):
         if spec.lower().endswith('.apt'):
             base = os.path.splitext(spec)[0]
@@ -1866,7 +1872,7 @@ def load_members(spec: str) -> tuple[str, Members]:
                     out.append((name + ext, open(base + ext, 'rb').read()))
             return spec, out
         return spec, read_bigf_bytes(open(spec, 'rb').read(), spec)
-    if '.fbrb:' in spec.lower():
+    if '.fbrb:' in spec.lower() or BUNDLE_SPEC.search(spec):
         from bfbc2core import fbrb
         bundle, name = spec.rsplit(':', 1)
         if not os.path.isfile(bundle):

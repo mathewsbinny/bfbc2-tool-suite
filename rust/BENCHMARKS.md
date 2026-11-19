@@ -3398,7 +3398,60 @@ undo, a new operation clearing the redo stack, history "go to", autosave and rec
 The viewport modes (lit with the game's shaders, unlit, wireframe, collision, navmesh, cull tree), polygon
 selection, editing static group members (they live in the `*_HavokAsset` group files), deep duplicates (sub-instances
 an object owns, such as a flag's capture area, are shared by the copy today), several objects' fields edited at once
-("Mixed"), and levelwrite's proof run over every prepared level rather than three.
+("Mixed"), and levelwrite's proof run over every prepared level rather than three. *All but static group members
+(still read-only, queued) and the game's own shaders in the editor view (route A of R5 draws them in the Game-accurate
+view) were done in round E2b, below.*
+
+## E2b: context menus, edit modes, sink by mouse, the asset browser (2026-11-19, branch `rust-e2b`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Done in round E2b". No Python replaced.
+
+**levelwrite's new operations** (`rust/bc2-levelwrite`): `place` (an added instance: a clone of a template - a plain
+placement of the same blueprint, else any placed object - with a new UUID v5 guid, the blueprint in
+`ReferencedObject` or another reference field (a vehicle spawner's `Vehicle`), the fields most of the level's
+placements of it share, an `Objects` item, no event connections; with `owned`: the template's sub-instances copied
+with it, only the connections among them), a deep duplicate (`duplicate` with `owned`: `LevelWriter::owned` is the
+greatest set reachable from the object whose every referrer is inside it, `LevelData.Objects` or an event connection;
+the copies' references among themselves remapped; every connection touching the set copied once, both ends
+remapped), `hide` and `lock` (per object, the editor's organisation) and `MapProject::amend_last` (a gesture going
+on: one operation). Unit test on a made-up owning level: the ring, the marker and a shared instance; replay through
+`apply` gives the same bytes.
+
+**Every prepared level** (`cargo test -p bc2-editor --test every_level`; OPFOR's `work\levels`: 37, and every level G3
+lists from `game\Package`, read from its `level-00.fbrb` in memory: 45 - Vietnam, Pacific War, BFBC1, extra layouts;
+nothing written): a scripted log of a move, a rotate, a duplicate, a deep duplicate of a flag (else the first object
+of the first 400 that owns something), the same owner placed as a gameplay tile, two placements (the most and the
+least placed blueprint), a delete, a decimal field, a hide and a lock. **82 of 82 levels**: the field-level diff is
+exactly the expected set (the copies and placements added, the deleted removed, the moved, turned and set fields,
+`Objects`, every `EventConnections` naming a copied or deleted object, every field that named the deleted one); the
+result parses, writes back byte for byte and reads as a tree; the log replayed (also after a JSON round trip) gives
+the same bytes; no deep copy names an original it copied. Deep copies of 0 (SP levels without an owner in the first
+400 instances) to 33 sub-objects (ONS_MP_004). Debug build, 438 s in all (the SP levels' ownership search the most).
+
+**The interface** (`cargo test -p bc2-editor --test e2b`, headless on the demo level with a real partition written by
+the suite's DBX writer): the context menus' entries per workspace (Objects, Gameplay, AI, View; the Terrain and
+Vegetation ground menus' brushes greyed with "Coming in the terrain round"); disabled entries with their reasons; a
+right-click selects and opens the object menu, an entry clicked runs (Hide: one operation); the ground menu; "Place
+object here..." picker (Enter takes the first match), Shift+wheel turns 15 degrees a notch, Alt+wheel sinks 0.1 m a
+notch, a click places (one `place`, the crate's plain placement its template); a content tile dragged into the view
+places the house; Objectives: the flag tile dragged in with team 2 gives one `place` with its 5 owned sub-instances,
+the copy's `MapMarker` names its own marker, the outliner lists it, the Gameplay workspace selects it and its menu
+offers Set team; Spawners: a spawn point with team 1; Alt+wheel over a selected crate: three notches one operation,
+sink 0.30 m; after a pause Alt+Shift: 0.01 m a notch, a second operation; one undo takes back a whole burst; Esc closes
+the popup; Ctrl+Shift+D on the flag copies it with its ring and marker (references remapped); the six view modes each
+draw differently (the navmesh mode says when a level has no path data; the cull tree reads the level's slots); a
+polygon of four clicks and Enter selects the two crates; two crates' Health shows Mixed, "40" sets both (one
+operation); Set team 1 from the Gameplay workspace; "Check edits" replays the whole log to the same bytes; saved and
+reopened, the same log.
+
+**The asset browser on the game copy** (`cargo test -p bc2-editor --test asset_browser`, read only): MP_005 lists 675
+placeable objects of BFBC2 (115 its own placements, the rest from its folders and 156 from the set's other bundles'
+headers - the whole set listed in 5.2 s, debug); a blueprint of another level's bundle (`objects/buildings/airtower`,
+`sp_007`) is resolved when placed in 0.07 s. Spawners on MP_005: player spawn points (41), the HQ spawn (with 6 owned),
+AI spawners, a vehicle spawner per vehicle (ah64, mi28, cobra, humvee, m1a2, quadbike, t90 ...); Objectives: capture
+points (with 13 owned), the combat area (44 owned area points), ticket counters. MP_005SR (Rush) adds M-COMs, arm /
+disarm awards, life counters and mission objectives, and offers the set's other vehicles (a10, bmd3, f18 ...) as
+spawner tiles from the catalogue.
 ## F2a: the console converter's rest, the model tools, Granny's writing side (2026-11-18, branch `rust-f2a`)
 
 Round F2a ports the Python that remained of `bfbc2-console-convert`, `bfbc2-model-tools` and Granny's writer
@@ -3541,6 +3594,93 @@ the game's own tonemap on the GPU) and the per-frame constants (kept per draw, c
 camera, tonemap curve and exposure, weather fields, the visual terrain grammar, files) and `tests/warehouse.rs`;
 `cargo test -p bc2-editor --test game_view` (MP_005 headless: the switch, the frame drawn, back to the editor's view;
 `BC2_EDITOR_SHOTS` saves both views in both themes). Both skip with a note without the prepared level or Direct3D 11.
+
+## R5c: game-accurate rendering, phase 3a - interactive and editable (2026-11-19, branch `rust-r5c`)
+
+`EDITOR_ARCHITECTURE.md` 3.11, "Phase 3a". New `bc2_render::live` (the draw list built once: planned constant
+buffers, culling with a grid, the renderer's order kept), `d3d/live.rs` (materials resolved once, one constant ring
+bound by offset, only changed bindings set, picking, the selection outline, the shared texture), `World::set_placed`
+/ `sources` / `load_package`, `Files::bundles`; the editor's game view on it (`gameview.rs`: edits followed, picking
+and the outline on the game frame, the frame shared with egui's Vulkan device). Development PC: GeForce RTX 4060
+Laptop, Direct3D 11 hardware device; egui on Vulkan.
+
+### Frame costs, 1600 x 950, before (R5b's per-frame draw list) and after
+
+`examples/live_view.rs`, the median of 10 frames (release) or 3 (debug), the camera turning 0.05 degrees a frame so
+every frame is built again. Before: build (constants per draw), submit, post, GPU + read back (float colour, depth,
+stencil). After: build (camera values, culling, the blended order, the constant arena), upload (one `Map`), submit,
+post, the GPU waited for, the frame copied into the shared texture. MP_005 at the warehouses; SP_01, NAM_MP_002CQ
+and Wake Island from the south-west of the placed objects' median (`--view auto`).
+
+| level | draws listed / drawn | build before → after (ms) | submit before → after | GPU (+ read back) before → after | share | **frame before → after** |
+|---|---:|---:|---:|---:|---:|---:|
+| MP_005, release | 10,417 / 3,093 | 54.7 → 3.2 | 64.1 → 1.0 (+0.5 upload) | 17.0 → 6.2 | 1.6 | **136.1 → 12.5** |
+| SP_01, release | 7,839 / 2,565 | 36.8 → 2.0 | 32.9 → 0.8 (+0.2) | 13.5 → 1.0 | 0.2 | **83.3 → 4.3** |
+| NAM_MP_002CQ (Vietnam), release | 4,577 / 1,823 | 17.6 → 1.0 | 16.9 → 0.5 (+0.1) | 15.5 → 1.1 | 0.2 | **50.0 → 2.9** |
+| Wake Island (Pacific War), release | 10,395 / 4,063 | 43.3 → 4.2 | 44.0 → 1.2 (+0.6) | 14.5 → 7.0 | 0.4 | **101.9 → 13.4** |
+| MP_005, debug | 10,417 / 3,093 | 517.5 → 11.7 | 168.9 → 11.7 (+0.5) | 115.9 → 4.7 | 1.8 | **802.4 → 30.5** |
+| SP_01, debug | 7,839 / 2,565 | 428.3 → 8.9 | 151.8 → 7.0 (+0.2) | 127.8 → 8.4 | 3.6 | **708.1 → 28.6** |
+| NAM_MP_002CQ, debug | 4,577 / 1,823 | 183.6 → 8.0 | 87.5 → 6.1 (+0.1) | 125.7 → 1.1 | 0.6 | **397.0 → 16.5** |
+| Wake Island, debug | 10,395 / 4,063 | 562.7 → 13.2 | 158.6 → 11.3 (+0.5) | 112.0 → 9.3 | 3.2 | **833.5 → 37.6** |
+
+The copy fallback's read back of the picture alone costs 1.5-5.7 ms more, then egui's upload (18.8 ms in the debug
+editor). The first frame of a level makes its materials: 105-210 ms release, 0.4-1.5 s debug. In the editor (the
+3D view about 920 x 660, `tests/game_view_live.rs` and `tests/game_view_package.rs`, debug): MP_005 21.5 ms shared
+against 41.7 ms copied; NAM_MP_002CQ 15.6 ms; Wake Island 75-112 ms (a wide view: 7,507 of 10,395 draws). Peak
+memory of the release example: 631-781 MB working set, 668-962 MB private.
+
+Where the frame goes now: the GPU on wide views (MP_005, Wake Island), then the build. LODs and instancing (next
+round) cut the GPU's work; the CPU submit is already about a millisecond.
+
+### Proofs
+
+| what | result |
+|---|---|
+| live list against R5b's per-frame list (colour bits, depth bits, draw class, post-processed RGBA8), culling off and on | **identical** on every view run: MP_005 warehouses and a second view at 1280 x 720 (921,600 of 921,600) and 1600 x 950 (1,520,000 of 1,520,000); SP_01, NAM_MP_002CQ, Wake Island at 1600 x 950 (1,520,000 each) |
+| `--job`: the frame as a `shaderview` job (all 10,417 draws), drawn by the C++ harness, against the live frame (culled) | MP_005 warehouses **921,600 of 921,600**; the harbour from the east (`60,40,300`) 921,600 of 921,600; the west shore (`-90,60,300`, looking east) 921,584-921,600, see below |
+| an edit replayed (`--edit`: an object moved, one turned a quarter, one removed, one duplicated, one added) against the level loaded again with the edits | **921,600 of 921,600** (and the post-processed picture identical); replayed in 10.5 ms, 4 instances planned again; the unedited frame differs in 39,307 pixels |
+| the editor: the warehouse moved through `GameView::sync`, against `GameView::load` of the edited scene | 611,800 of 611,800 |
+| picking (`--pick`): at the projected centres of 26 + 45 objects in two views | every answer confirmed by the selection mask (the picked object lies at the frame's depth under the pixel) |
+| the editor: a click at the 3D view's centre | `objects/buildings/ind_warehouse` selected, its outline drawn (1,718 pixels orange) |
+| the editor's window, shared texture against the copy fallback | 1,520,000 of 1,520,000 pixels identical (the costs line left out) |
+
+**The west shore stays open (R5b's far horizon):** there, 0-16 far water pixels (blended, the same depth and alpha,
+colour differing in the fourth decimal) change from run to run in all three paths alike: R5b's per-frame list, the
+live list with culling on or off, and `shaderview` (R5b's list against `shaderview`: 921,584 in one run). The live
+list adds no difference of its own: culling off and on give the same count in every run. The water reads the
+scene's linear depth through its `GenerateMips` chain, the first suspect.
+
+**Also open:** once, in the quick tier (GPU tests two at a time), the editor test's edit check found the two
+devices' post-processed pictures one 8-bit step apart over the whole frame (sky 211 against 210: the exposure a hair
+apart), their HDR scenes identical bit for bit; alone it never differs (every run). The test asserts the scene bit
+for bit and the picture within one step.
+
+### Package levels (round G3's levels, read from their bundles in place)
+
+Opened through a stand-in OPFOR folder in temp (the game copy linked, the junction removed first; nothing written
+to OPFOR's `work\`). Load (release): NAM_MP_002CQ 9.8 s (11 rounds, 84 MB from 5 bundles), Wake Island 25.0 s (12
+rounds, 134 MB from 4 bundles). Missing per level:
+
+- **NAM_MP_002CQ:** nothing reported (1,133 objects, 261 group members, 82 meshes, 12 strip and 2 water draws,
+  terrain drawn).
+- **Wake Island:** nothing reported missing (1,329 objects, 2,999 group members, 96 meshes, 40 strip draws, 1
+  water draw, terrain drawn), but its tiled-mask terrain cells draw black (the converted terrain's patch stream is
+  not what R5's reading gives; the terrain-patch donor rule), the sky is the fog colour (the sky pass is not drawn
+  yet: every level) and the carriers stand on no water (the open sea is not in its `VisualWater`).
+
+### Still placeholders
+
+Unchanged from R5b (the capture postponed): the sun direction, shadow cascades, `EnvironmentMain` (sky, haze, fog),
+the exposure and tonemap constants (`post::PLACEHOLDERS`), tree and wind constants, the terrain's patch stream.
+
+### Tests
+
+`cargo test -p bc2-render`: 20 unit tests (a plan filled gives `frame::cbuffer`'s bytes; boxes outside the
+frustum; and R5's), `tests/live.rs` (MP_005: the live list against the old one with culling on and off, picking
+at the centre checked by the mask, an edit against a fresh load), `tests/world.rs`, `tests/warehouse.rs`.
+`cargo test -p bc2-editor --test game_view_live` (shared against copied, a click picks the warehouse, the outline,
+an edit through `sync`); `--test game_view_package` (with `BC2_R5C_PACKAGE_OPFOR`: NAM_MP_002CQ and Wake Island
+opened and drawn, their notes and costs).
 
 ## G3: the levels that live only in game\Package (2026-11-18, branch `rust-g3`)
 
@@ -4002,3 +4142,39 @@ The index is 27 MB for every stock level's Dx9 database.
   `donors = S.donor_levels(stock, need, opfor=cc.OPFOR)`.
 - `wake_install.bf_source()` can stay; it is no longer needed for speed (a plain `Source(...)` shares the points).
 - `PACK_LATER`'s comment on the packing thread holding a level in memory no longer holds.
+
+## D1: the disk budget (2026-11-19)
+
+Drive C: filled up repeatedly on 2026-11-18. Measured on the shared PC (other agents building; "free" is the drive's).
+
+**Rust build folders** (`native.target_dir`: `rust-targets\<checkout>`; README.md, "Where Rust builds").
+- `build_native.py` (bc2-py + bfbc2.exe, release, `-j 4`): 0.36 GB, 134 s from nothing. Plus `--editor`
+  (bfbc2-editor.exe, mapexport.exe): 1.35 GB in all, 270 s. Nothing is written into the checkout but `bin\` (three
+  exes, 23 MB).
+- The quick tier from nothing (workspace clippy + tests + the editor's tests, debug, `CARGO_INCREMENTAL=0`,
+  `-j 4`): the folder peaked at 15.1 GB (13.7 GB of it `debug\`), 975 s for the tier at `-j 2`. That is the cost of
+  a worktree's first quick tier; the old layout kept it inside every worktree for good (the main checkout's
+  `rust\target\debug`: 47.8 GB). Deleting `debug\` after a round (the folder is outside the worktree now) frees it.
+- sccache: not installed on the PC, and the round installs nothing; not measured. The per-checkout folders already
+  avoid the locking a shared folder brings. Sharing dependency compiles between checkouts would save about 1 GB of
+  release and most of a debug build per worktree; worth measuring once sccache is installed by the user.
+
+**Scratch** (OPFOR `console_common.drop_scratch`, `--keep`): each console stage's `work\console_<stage>\<lv>`, combat
+A / B's and sector offsets' working files deleted at the step's end. `console_vehicles --plan --level ons_mp_002`:
+peak 221 MB, left 0 (was 217 MB kept); `console_shaders`: peak 332 MB, left 0 (was 332 MB). Outputs (the kept tree
+with `--keep`, sha256 of every file, and the printed plan) identical to the code before.
+
+**Streaming** (a bundle's few entries read in memory with `fbrb.read` / `dbx.to_xml`, not a whole unpack kept):
+- `console_deps`: the source bundles (`work\console_deps\src`, 4.46 GB for the four levels). ons_mp_002's plan
+  355 -> 100 s; its 1,260 files and printed plan identical.
+- `console_mode`: Conquest from mp_common (`work\console_mode\mp_common`, 0.63 GB); the level's 507 files identical,
+  `Conquest.dbx` byte-identical to the unpack's.
+- `apply_ai_template --plan`: the level partition (`work\combat_a\<lv>\plan`, 1.47 GB); the printed plan identical.
+
+**Steady state** (Project OPFOR's `work\`, 112 GB, by kind with `caches --report`): 25.4 GB is scratch; of it about
+21 GB goes as each stage next runs (the per-level folders, the three caches above), the rest is what the stages keep
+on purpose (console_shaders\shared, console_loadset\mp2_common, combat_a's source unpacks). The caches: 20.0 GB,
+now under one 20 GiB budget (it was 16 GiB for fbrb plus every other cap, about 28 GiB in all).
+
+**Proof**: the WW2 rebuild against the oracle, 10,852 of 10,852 identical (1,737 s, the PC loaded); the WW2 install
+plan (wake_install.py --plan) 389 s, work\ww2 peak 9.86 GB, unchanged by the round (its code is not touched).

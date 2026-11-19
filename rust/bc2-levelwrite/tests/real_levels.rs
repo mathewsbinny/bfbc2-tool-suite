@@ -285,6 +285,7 @@ fn edits_on_real_levels() {
                         source: s.clone(),
                         guid: g.clone(),
                         transform: t,
+                        owned: Vec::new(),
                     }],
                 },
                 "",

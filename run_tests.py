@@ -463,7 +463,8 @@ def need(cpu: int | str = 1, mem: float = 0.5, setup: bool = False, alone: bool 
 #   shaderview  the suite's build\ folder: shaderview.exe built on first use, renderqa's index and truth pickles
 #   display     a window on the desktop (Tk, OpenGL, WinForms)
 #   dbxtests    bfbc2-dbx-tools\tests\DbxTests.exe, compiled by every run of run_tests.bat
-#   cargo       rust\target (cargo's lock; mypy walks it)
+#   cargo       the checkout's cargo build folder (native.target_dir, round D1: rust-targets\<checkout>; cargo's
+#               lock) and bin\ (build_native.py copies the binaries there)
 # Tests that share a thing also keep their listed order between them, so each finds it as a run one at a time did.
 # Not resources, because the code takes care of them (2026-11-17): a level's terrain unpack and the meshview / dbx
 # catalogue caches in work\tools_out are built under a lock between processes (atomicio.locked); the collision cache

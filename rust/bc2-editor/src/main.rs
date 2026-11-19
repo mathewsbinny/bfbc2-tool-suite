@@ -201,8 +201,20 @@ fn main() -> ExitCode {
             }
         };
     }
+    // egui's device with the features the game-accurate view's shared frame needs, when the adapter has them
+    let mut setup = eframe::egui_wgpu::WgpuSetupCreateNew::without_display_handle();
+    let base = std::sync::Arc::clone(&setup.device_descriptor);
+    setup.device_descriptor = std::sync::Arc::new(move |adapter| {
+        let mut d = base(adapter);
+        d.required_features |= bc2_editor::gameview::device_features(adapter);
+        d
+    });
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
+        wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
+            wgpu_setup: setup.into(),
+            ..Default::default()
+        },
         viewport: egui::ViewportBuilder::default()
             .with_title("BFBC2 Map Editor")
             .with_inner_size([1600.0, 950.0])
