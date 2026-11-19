@@ -22,10 +22,11 @@ mod crash;
 mod menu;
 #[cfg(feature = "nav")]
 mod nav;
-#[allow(dead_code)] // the shared helpers; the O2 groups use them as they land
+// the helpers the O2 groups share: some go unused when a group is built alone (--no-default-features --features ..)
+#[cfg_attr(not(all(feature = "menu", feature = "crash", feature = "nav")), allow(dead_code))]
 mod pyfmt;
 mod pylog;
-#[allow(dead_code)]
+#[cfg_attr(not(all(feature = "menu", feature = "crash", feature = "nav")), allow(dead_code))]
 mod pyproc;
 mod pystdio;
 mod pyunprintable;

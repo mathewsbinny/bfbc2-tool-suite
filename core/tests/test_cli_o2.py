@@ -11,6 +11,7 @@ the same bytes on stdout and stderr (each alone, and both on one pipe), the same
   python core\tests\test_cli_o2.py --record   record the goldens from the Python command lines (before the Python is
                                               retired: the oracle afterwards)
      --group menu|crash|nav   one group only (default: all three)
+     --who                    list the lines bfbc2.exe handed to the Python
      --exe <bfbc2.exe>        the binary (default: rust\target\release\bfbc2.exe, else debug)
      --ref <suite folder>     the suite copy whose Python command lines answer (default: BFBC2_O2_REF, else this
                               checkout): while the Rust sources change, a copy of the checkout before them keeps a
@@ -31,6 +32,7 @@ Skipped (exit 0) without the binary or without the Rust core module (the Python 
 from __future__ import annotations
 
 import datetime
+import hashlib
 import importlib
 import json
 import os
@@ -101,15 +103,34 @@ class Place:
         data = re.sub(rb'\.tmp-\d+(-\d+)?', b'.tmp-N', data)
         return data.decode('latin-1')
 
+    def files(self) -> str:
+        """cg.tree_digest of the case folder with each file's bytes normalized as norm() does first (outputs that
+        name the case folder, e.g. aptrefs' JSON, do not depend on the temporary folder; a file that names none
+        digests as before)."""
+        snap: dict[str, str] = {}
+        for d, ds, fs in os.walk(self.d):
+            if not ds and not fs and d != self.d:
+                snap[os.path.relpath(d, self.d) + os.sep] = '<dir>'
+            for f in fs:
+                with open(os.path.join(d, f), 'rb') as fh:
+                    data = fh.read()
+                text = self.norm(data)
+                data = text.encode('latin-1') if '<dir>' in text or '<cwd>' in text or '<lad>' in text else data
+                snap[os.path.relpath(os.path.join(d, f), self.d)] = hashlib.sha1(data).hexdigest()
+        return cg.digest(''.join(f'{k}\t{v}\n' for k, v in sorted(snap.items())))
+
     def log(self) -> str:
         """The log records the run appended: each record's first line, the stamp and the start line's runtime taken
         out; its files' names by tool and part."""
         out = []
         if os.path.isdir(self.logs):
-            for n in sorted(os.listdir(self.logs)):
+            # left out: the start-up pruning's lock file (caches.prune_logs: the Python tools prune, bfbc2.exe leaves
+            # it to them) and the ResourceWarnings errors.setup logs for files Python itself left unclosed
+            for n in sorted(x for x in os.listdir(self.logs) if not x.startswith('.')):
                 with open(os.path.join(self.logs, n), 'rb') as f:
                     text = f.read()
                 rows = re.findall(rb'(?m)^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} ([^\r\n]*)', text)
+                rows = [r for r in rows if not (r.startswith(b'WARNING ') and b'ResourceWarning: unclosed file' in r)]
                 rows = [re.sub(rb' started \((Python [^,]*|bfbc2\.exe), win32\) ---$', b' started (<who>) ---', r)
                         for r in rows]
                 name = re.sub(r'\d{4}-\d\d-\d\d', '<date>', n)
@@ -136,9 +157,14 @@ def setup(pl: Place, files: dict[str, Any]) -> None:
         if data is None:
             os.makedirs(p, exist_ok=True)
         else:
+            mtime = None
+            if isinstance(data, tuple):             # (contents, modification time): os.utime after writing
+                data, mtime = data
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, 'wb') as f:
                 f.write(data.encode('utf-8') if isinstance(data, str) else data)
+            if mtime is not None:
+                os.utime(p, (mtime, mtime))
 
 
 def base_env(extra: dict[str, str], pl: Place) -> dict[str, str]:
@@ -184,7 +210,7 @@ def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: 
                        env=base_env(env, pl), cwd=SUITE)
     took = time.perf_counter() - t
     return {'code': p.returncode, 'out': traceback_tail(pl.norm(p.stdout)),
-            'err': traceback_tail(pl.norm(p.stderr or b'')), 'files': cg.tree_digest(pl.d), 'log': pl.log()}, \
+            'err': traceback_tail(pl.norm(p.stderr or b'')), 'files': pl.files(), 'log': pl.log()}, \
         took, pl.who()
 
 
@@ -287,8 +313,11 @@ def game(check: Callable[..., None], exe: str, group: str, mod: Any) -> dict[str
         for label, tool, args, sources, env, must in calls:
             files = {}
             for name, src in sources.items():
+                if isinstance(src, tuple):              # (contents, modification time) made by the group
+                    files[name] = src
+                    continue
                 with open(src, 'rb') as f:
-                    files[name] = f.read()
+                    files[name] = (f.read(), os.path.getmtime(src))     # the copy keeps the time (crashreader)
             got: dict[str, Any] = {}
             for side in ('python', 'rust'):
                 for merged in (False, True):
@@ -377,6 +406,10 @@ def main(argv: list[str]) -> int:
             ks = [r[0] for r in rows if r[1] == tool]
             r_n = sum(who.get(k) == 'rust' for k in ks)
             per_tool.append(f'{tool} {len(ks)} (Rust {r_n}, Python {len(ks) - r_n})')
+            if '--who' in argv:                          # the lines bfbc2.exe handed to the Python
+                for k in ks:
+                    if who.get(k) != 'rust':
+                        print(f'     handed to Python: {k}')
         check(not bad and not missing, f'{group}: {len(rows)} command lines through bfbc2.exe ({"; ".join(per_tool)}): '
               'exit codes, both streams\' bytes, files and log records as the Python command lines answered '
               f'({len(rows) - len(bad) - len(missing)} of {len(rows)} as recorded)',
