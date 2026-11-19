@@ -123,6 +123,79 @@ pub struct Base {
     pub size: u64,
     /// The content profile.
     pub profile: Profile,
+    /// What kind of level the base is, from its description's game mode (round G4): a campaign base is stripped of
+    /// its campaign parts when exported. Absent in projects made before G4 (and where the mode was not known).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<BaseKind>,
+}
+
+/// The kind of a project's base level, decided from its description's `GameMode` (round G4): a campaign mode
+/// (`gamemodes/singelplayer...`) or a multiplayer one (Conquest, Rush, Squad Rush, Squad Deathmatch, Onslaught, Air
+/// Superiority ...).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BaseKind {
+    /// A multiplayer level.
+    #[serde(rename = "multiplayer")]
+    Multiplayer,
+    /// A campaign (singleplayer) level.
+    #[serde(rename = "campaign")]
+    Campaign,
+}
+
+/// A file a project keeps beside itself (round G4: an imported height map, a colour map): its name in the project's
+/// folder, where it was taken from, its size and sha1. It is the user's own file, never game content.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeptFile {
+    /// The copy's file name, in the project's folder.
+    pub file: String,
+    /// The path it was copied from.
+    pub source: String,
+    /// Its size in bytes.
+    pub size: u64,
+    /// Its sha1.
+    pub sha1: String,
+}
+
+/// How an imported height map's samples are stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum HeightFormat {
+    /// A 16-bit greyscale PNG.
+    #[serde(rename = "png16")]
+    Png16,
+    /// Raw 16-bit samples, row by row, `side` x `side`.
+    #[serde(rename = "raw16")]
+    Raw16 {
+        /// Samples per side.
+        side: u32,
+        /// Byte order: little-endian (PC) or big-endian.
+        little_endian: bool,
+    },
+}
+
+/// A new level from a height map (round G4, "Create level - from a height map"): the import's settings and the files
+/// it keeps. The terrain itself is generated in a later round (E7); until then the project records this only.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TerrainImport {
+    /// The content set the level is made for (`BFBC1`, `BFBC2`, `Vietnam`, `WW2`).
+    pub content_set: String,
+    /// The height map, copied beside the project.
+    pub heightmap: KeptFile,
+    /// How its samples are stored.
+    pub format: HeightFormat,
+    /// Its samples per side as read (1024, 1025, 2048 or 2049).
+    pub samples: u32,
+    /// Its lowest and highest stored sample.
+    pub sample_range: [u16; 2],
+    /// The map's size along x and z in metres.
+    pub map_size_m: f64,
+    /// The height of sample 0 and of sample 65535 in metres.
+    pub height_range_m: [f64; 2],
+    /// The water's height in metres.
+    pub water_level_m: f64,
+    /// The optional colour map, copied beside the project.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colour_map: Option<KeptFile>,
 }
 
 /// Why a project file did not load.
@@ -167,6 +240,10 @@ pub struct MapProject {
     pub redo: Vec<Operation>,
     /// The next operation's number.
     pub next: u64,
+    /// A new level from a height map: the import's settings (round G4). Its `base` names no level until the terrain
+    /// is generated (E7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terrain_import: Option<TerrainImport>,
 }
 
 /// The name recorded with edits: the PC's name (`navtune.author`).
@@ -246,11 +323,28 @@ impl MapProject {
                 sha1: sha1_hex(base),
                 size: base.len() as u64,
                 profile,
+                kind: None,
             },
             operations: Vec::new(),
             redo: Vec::new(),
             next: 1,
+            terrain_import: None,
         }
+    }
+
+    /// A new level from a height map (round G4): no base level yet, the import's settings recorded.
+    #[must_use]
+    pub fn new_import(name: &str, profile: Profile, import: TerrainImport) -> Self {
+        let mut p = Self::new(name, "", "", &[], profile);
+        p.base.sha1 = String::new();
+        p.terrain_import = Some(import);
+        p
+    }
+
+    /// Whether this is a height-map import waiting for terrain generation (no base level to open).
+    #[must_use]
+    pub fn is_import(&self) -> bool {
+        self.terrain_import.is_some() && self.base.level.is_empty()
     }
 
     /// The project file's name: the map's name with only letters, digits, `-`, `_` and spaces kept.
@@ -510,6 +604,49 @@ mod tests {
         assert_eq!(Profile::of_stack("bc1_oasis_cq", &mp2, true), Profile::Bfbc1);
         assert_eq!(Profile::of_stack("bc1_oasis_cq", &mp2, false), Profile::Bfbc2);
         assert_eq!(Profile::of_stack("mp_sp_005cq", &mp2, true), Profile::Bfbc2);
+    }
+
+    #[test]
+    fn base_kind_and_terrain_import() {
+        // a project made before G4 reads (no kind, no import) and writes the same keys back
+        let mut p = MapProject::new("Old", "mp_005", "levels/MP_005", b"x", Profile::Bfbc2);
+        let old = p.to_json().unwrap();
+        assert!(!old.contains("kind") && !old.contains("terrain_import"));
+        assert_eq!(MapProject::from_json(&old).unwrap(), p);
+        p.base.kind = Some(BaseKind::Campaign);
+        let text = p.to_json().unwrap();
+        assert!(text.contains("\"kind\": \"campaign\""));
+        assert_eq!(
+            MapProject::from_json(&text).unwrap().base.kind,
+            Some(BaseKind::Campaign)
+        );
+        assert!(!p.is_import());
+        let import = TerrainImport {
+            content_set: "WW2".into(),
+            heightmap: KeptFile {
+                file: "Atoll.heightmap.raw".into(),
+                source: "C:/maps/atoll.raw".into(),
+                size: 2 * 1025 * 1025,
+                sha1: "ab".into(),
+            },
+            format: HeightFormat::Raw16 {
+                side: 1025,
+                little_endian: true,
+            },
+            samples: 1025,
+            sample_range: [3, 60_000],
+            map_size_m: 2048.0,
+            height_range_m: [-20.0, 300.0],
+            water_level_m: 0.0,
+            colour_map: None,
+        };
+        let q = MapProject::new_import("Atoll", Profile::Ww2, import.clone());
+        assert!(q.is_import() && q.base.level.is_empty() && q.operations.is_empty());
+        let text = q.to_json().unwrap();
+        assert!(text.contains("\"type\": \"raw16\"") && text.contains("\"little_endian\": true"));
+        let back = MapProject::from_json(&text).unwrap();
+        assert_eq!(back.terrain_import, Some(import));
+        assert_eq!(back, q);
     }
 
     #[test]

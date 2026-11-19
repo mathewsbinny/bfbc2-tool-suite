@@ -1,5 +1,5 @@
 //! The map editor's window: the top bar (workspace switcher, the level or project, the content profile badge, the
-//! theme and the layout), the start screen ("New map from an existing map", "Open a project", "View a map"), the
+//! theme and the layout), the start screen (round G4: Open project, Edit existing level, Create level), the
 //! docked panels around the 3D view (Outliner and Layers left, Properties right, Problems and History below; drag,
 //! dock, tab and float them, Reset layout returns to this), and the status bar.
 //!
@@ -42,11 +42,14 @@ use crate::query;
 use crate::render::{self, Gpu, SceneGpu, Target};
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
+mod create;
 mod editui;
 mod modes;
 mod tools;
 
 pub use crate::workspace::Workspace;
+pub use create::HeightmapForm;
+pub use modes::StartPage;
 pub use tools::{ContextTarget, MenuItem, MenuKind, Placing, SinkPopup, menu_items};
 
 /// The GPU and egui's renderer on it (the window's, or the headless runner's).
@@ -376,8 +379,20 @@ pub struct EditorApp {
     recover: Option<(PathBuf, Box<MapProject>)>,
     /// What to do with a level being prepared once it is loaded.
     after_prepare: Then,
-    /// The start screen's chosen set of maps (`None`: the mode cards; never remembered: round G3).
-    start_set: Option<ContentSet>,
+    /// The start screen's page (round G4; never remembered: every start opens on the three paths).
+    start: StartPage,
+    /// "Create level - from a height map": the form.
+    pub heightmap: HeightmapForm,
+    /// A height-map project shown on the start screen (it has no level to open until E7): its file and project.
+    import_shown: Option<(PathBuf, Box<MapProject>)>,
+    /// The start screen's buttons drawn this frame, by label (the tests click them).
+    start_buttons: Vec<(String, Rect)>,
+    /// The top bar's buttons' width as last drawn (the room left for the map's name).
+    top_right: std::cell::Cell<f32>,
+    /// The top bar as last drawn: the right edge of the map's badge and name, the left edge of the buttons.
+    top_spans: std::cell::Cell<[f32; 2]>,
+    /// "Open project": the project files found in the projects folder (read when the page opens).
+    found_projects: Vec<PathBuf>,
     /// The start screen's pictures, thumbnails and modes from the game copy, and the thread reading them.
     catalog: Option<Catalog>,
     catalog_rx: Option<Receiver<Catalog>>,
@@ -443,7 +458,13 @@ impl EditorApp {
             recent,
             recover: None,
             after_prepare: Then::View,
-            start_set: None,
+            start: StartPage::Home,
+            heightmap: HeightmapForm::default(),
+            import_shown: None,
+            start_buttons: Vec::new(),
+            top_right: std::cell::Cell::new(640.0),
+            top_spans: std::cell::Cell::new([0.0, 0.0]),
+            found_projects: Vec::new(),
             catalog: None,
             catalog_rx,
             pictures: HashMap::new(),
@@ -737,6 +758,13 @@ impl EditorApp {
         }
     }
 
+    /// The top bar as last drawn with a map open: the right edge of its badge and name, the left edge of its buttons
+    /// (round G4: the first is never past the second).
+    #[must_use]
+    pub fn top_bar_spans(&self) -> [f32; 2] {
+        self.top_spans.get()
+    }
+
     /// The levels of the game copy.
     #[must_use]
     pub fn levels(&self) -> &[LevelInfo] {
@@ -872,6 +900,13 @@ impl EditorApp {
     /// autosave that differs from the file is offered first (crash recovery).
     pub fn open_project(&mut self, path: &Path) {
         match MapProject::load(path) {
+            Ok(p) if p.is_import() => {
+                // a new level from a height map: no level to open until its terrain is generated (round E7)
+                self.error = None;
+                self.remember(path);
+                self.import_shown = Some((path.to_owned(), Box::new(p)));
+                self.start = StartPage::ImportProject;
+            }
             Ok(p) => {
                 if let Some(auto) = MapProject::recover(path) {
                     self.recover = Some((path.to_owned(), Box::new(auto)));
@@ -937,7 +972,8 @@ impl EditorApp {
         }
         let doc = match then {
             Then::View => None,
-            Then::Create(name, folder) => match Doc::create(&name, &folder, lv, scene.clone()) {
+            Then::Create(name, folder) => match Doc::create_kind(&name, &folder, lv, scene.clone(), self.base_kind(lv))
+            {
                 Ok(d) => {
                     self.remember(&d.path);
                     Some(d)
@@ -1534,31 +1570,40 @@ impl EditorApp {
                     }
                     separator(ui, p, m);
                     if let Mode::View(v) = &self.mode {
-                        if let Some(d) = &v.doc {
-                            ui.label(
-                                RichText::new(d.project.name.clone())
-                                    .text_style(style("body-strong"))
-                                    .color(p.ink),
-                            );
-                            ui.label(
-                                RichText::new(format!(
-                                    "{}{}",
-                                    v.scene().name,
-                                    if d.saved { "" } else { "  -  not saved" }
-                                ))
-                                .text_style(style("small"))
-                                .color(p.ink_muted),
-                            );
-                            badge(ui, p, m, d.project.base.profile.badge());
-                        } else {
-                            ui.label(
-                                RichText::new(v.scene().name.clone())
-                                    .text_style(style("body-strong"))
-                                    .color(p.ink),
-                            );
-                            ui.label(RichText::new("read-only").text_style(style("small")).color(p.ink_muted));
-                            badge(ui, p, m, profile_of(&v.lv));
-                        }
+                        // the badge, the map's name and its level in the room the buttons at the right leave (their
+                        // width as last drawn): the name is cut first, never drawn under the buttons (round G4)
+                        let (tag, name, sub) = match &v.doc {
+                            Some(d) => (
+                                d.project.base.profile.badge(),
+                                d.project.name.clone(),
+                                format!("{}{}", v.scene().name, if d.saved { "" } else { "  -  not saved" }),
+                            ),
+                            None => (profile_of(&v.lv), v.scene().name.clone(), "read-only".to_owned()),
+                        };
+                        let room = (ui.available_width() - self.top_right.get() - m.space_4).max(0.0);
+                        let h = ui.available_height();
+                        let info = ui.allocate_ui_with_layout(
+                            Vec2::new(room, h),
+                            Layout::left_to_right(Align::Center),
+                            |ui| {
+                                ui.set_max_width(room);
+                                ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
+                                badge(ui, p, m, tag);
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(&name).text_style(style("body-strong")).color(p.ink),
+                                    )
+                                    .truncate(),
+                                )
+                                .on_hover_text(format!("{name}  -  {sub}"));
+                                ui.add(
+                                    egui::Label::new(RichText::new(sub).text_style(style("small")).color(p.ink_muted))
+                                        .truncate(),
+                                );
+                            },
+                        );
+                        let s = self.top_spans.get();
+                        self.top_spans.set([info.response.rect.right(), s[1]]);
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         // right to left: Help last on screen, then the theme
@@ -1579,8 +1624,8 @@ impl EditorApp {
                         .response
                         .on_hover_text(help_entry.map_or("", |e| e.help).to_owned() + " (F1)");
                         let theme_label = match self.theme {
-                            ThemeId::Dark => "Light theme",
-                            ThemeId::Light => "Dark theme",
+                            ThemeId::Dark => "Light",
+                            ThemeId::Light => "Dark",
                         };
                         let mut buttons: Vec<(Action, &str)> = vec![
                             (Action::ToggleTheme, theme_label),
@@ -1597,26 +1642,43 @@ impl EditorApp {
                                     "Game-accurate"
                                 },
                             ));
-                            for (proj, name) in [
-                                (Projection::Side, "Side"),
-                                (Projection::Front, "Front"),
-                                (Projection::Top, "Top"),
-                            ] {
-                                buttons.push((Action::OpenViewport(proj), name));
-                            }
-                            if v.doc.is_some() {
-                                buttons.extend([
-                                    (Action::Redo, "Redo"),
-                                    (Action::Undo, "Undo"),
-                                    (Action::Save, "Save"),
-                                ]);
-                            }
                         }
                         for (action, label) in buttons {
                             if action_button(ui, p, action, label, self.why_not(action)).clicked() {
                                 run.push(TopBar::Run(action));
                             }
                         }
+                        if let Mode::View(v) = &self.mode {
+                            // the orthographic views in one menu (round G4: a compact top bar)
+                            ui.menu_button(RichText::new("Views").color(p.ink_muted), |ui| {
+                                for (proj, name) in [
+                                    (Projection::Top, "Top view"),
+                                    (Projection::Front, "Front view"),
+                                    (Projection::Side, "Side view"),
+                                ] {
+                                    let action = Action::OpenViewport(proj);
+                                    let tip = actions::entry(action).map_or("", |e| e.help);
+                                    if ui.button(name).on_hover_text(tip).clicked() {
+                                        run.push(TopBar::Run(action));
+                                        ui.close();
+                                    }
+                                }
+                            })
+                            .response
+                            .on_hover_text("Open the top, front or side view beside the 3D view (Alt+2, Alt+3, Alt+4)");
+                            if v.doc.is_some() {
+                                for (action, label) in
+                                    [(Action::Redo, "Redo"), (Action::Undo, "Undo"), (Action::Save, "Save")]
+                                {
+                                    if action_button(ui, p, action, label, self.why_not(action)).clicked() {
+                                        run.push(TopBar::Run(action));
+                                    }
+                                }
+                            }
+                        }
+                        self.top_right.set(ui.min_rect().width());
+                        let s = self.top_spans.get();
+                        self.top_spans.set([s[0], ui.min_rect().left()]);
                     });
                 });
             });
