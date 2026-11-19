@@ -19,7 +19,14 @@ Layout (decoded 2026-11-08 from BFBC2's and BF1943's files; every file of both g
 All numbers 32-bit floats. Nothing else (the "memory addresses" the importer listed were the two header words).
 
     python aimanim.py <file.res> [--big]          prints the bones and the first pose
+
+parse, write and to_pc run in the suite's Rust core when it is built (round F3: bc2_native.aimanim_parse /
+aimanim_write / aimanim_to_pc, bc2_formats::aimanim: the same dicts and bytes). Where the reference would raise, a
+value is a NaN, or a value is one the core leaves to it, the Python runs (parse_reference, write_reference,
+to_pc_reference: kept as the reference and the fallback until a full test tier retires them), so the errors stay this
+module's. BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
 """
+import os
 import struct
 import sys
 from typing import Any
@@ -31,6 +38,42 @@ class AimError(Exception):
     pass
 
 
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with aimanim_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'aimanim_parse') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
 def _data_at(nb):
     o = 0x1c + 2 * nb
     return o + (-(o - 0x0c)) % 16
@@ -38,7 +81,17 @@ def _data_at(nb):
 
 def parse(b, big_endian=False):
     """{'addr', 'poses', 'bones': [(bone, kind, block)]}; block: kind 0 (pos4, quat4), kind 1 (pos4, [quat4]),
-    kind 2 ([(pos4, quat4)])."""
+    kind 2 ([(pos4, quat4)]). In the Rust core when it is built (round F3), else parse_reference."""
+    nat = _native()
+    if nat is not None and type(b) is bytes:
+        got = nat.aimanim_parse(b, bool(big_endian))
+        if got is not None:
+            return got
+    return parse_reference(b, big_endian)
+
+
+def parse_reference(b, big_endian=False):
+    """The Python reader (the reference)."""
     e = '>' if big_endian else '<'
     if len(b) < 0x1c:
         raise AimError('too short for an aim animation')
@@ -70,7 +123,17 @@ def parse(b, big_endian=False):
 
 
 def write(a):
-    """PC (little-endian) bytes."""
+    """PC (little-endian) bytes. In the Rust core when it is built (round F3), else write_reference."""
+    nat = _native()
+    if nat is not None:
+        got = nat.aimanim_write(a)
+        if got is not None:
+            return got
+    return write_reference(a)
+
+
+def write_reference(a):
+    """The Python writer (the reference)."""
     nb, n = len(a['bones']), a['poses']
     head = bytearray(_data_at(nb))
     struct.pack_into('<5I', head, 0, 1, a['addr'], 0, (a['addr'] + 0x10) & 0xffffffff, nb)
@@ -106,9 +169,20 @@ def renumbered(a, bones):
 
 
 def to_pc(b, bones=None):
-    """BF1943's (big-endian) aim animation as a PC resource, bones renumbered with `bones` when given."""
-    a = parse(b, True)
-    return write(renumbered(a, bones) if bones else a)
+    """BF1943's (big-endian) aim animation as a PC resource, bones renumbered with `bones` when given. In the Rust
+    core when it is built (round F3), else to_pc_reference."""
+    nat = _native()
+    if nat is not None and type(b) is bytes:
+        got = nat.aimanim_to_pc(b, bones)
+        if got is not None:
+            return got
+    return to_pc_reference(b, bones)
+
+
+def to_pc_reference(b, bones=None):
+    """The Python conversion (the reference)."""
+    a = parse_reference(b, True)
+    return write_reference(renumbered(a, bones) if bones else a)
 
 
 def main(argv):

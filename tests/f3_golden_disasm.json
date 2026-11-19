@@ -1,0 +1,132 @@
+{
+"levels/coral_sea/shaders": [
+8320,
+"c2975701eb5d09b2ea8f",
+2476
+],
+"levels/guadal_canal/shaders": [
+8320,
+"f4fcfbd761b7a711a401",
+1812
+],
+"levels/iwo_jima_s/shaders": [
+8320,
+"f8569231bdff14187bdf",
+672
+],
+"levels/wake_island_s/shaders": [
+8320,
+"1d7adcdabacc37332d4a",
+408
+],
+"levels/wake_island_tutorial/shaders": [
+8320,
+"fca31156a11b49f84f66",
+116
+],
+"mp_001": [
+8320,
+"a787264fe0afe5033cd4",
+11440
+],
+"mp_001sr": [
+8320,
+"007f026dc1c5db58abf8",
+72
+],
+"mp_002": [
+8320,
+"cefdd4bc611dc6793d2a",
+2820
+],
+"mp_002sr": [
+8320,
+"5518c4af14d1bacfaa56",
+28
+],
+"mp_003": [
+8320,
+"9287287bbbd50080f68a",
+1892
+],
+"mp_004": [
+8320,
+"50cf1b31a17986d86e90",
+1704
+],
+"mp_005": [
+8320,
+"b09520194d053d21c7a4",
+1692
+],
+"mp_006": [
+8320,
+"4ef28e45d387e2372b18",
+1288
+],
+"mp_007": [
+8320,
+"70f7b2eb5413ff2f2ce1",
+3076
+],
+"mp_008": [
+8320,
+"664b06fc592fcb5f53cb",
+1260
+],
+"mp_009cq": [
+8320,
+"e1ee008f66b01c721f9a",
+712
+],
+"mp_009gr": [
+8320,
+"6d0578b9382d3eeed492",
+16
+],
+"mp_012gr": [
+8320,
+"ba8d241e482423cebdcf",
+1188
+],
+"mp_012sr": [
+8320,
+"51a6d605c49eeef5f6a3",
+8
+],
+"quick:built": [
+0,
+"227e7ed6ba4687996a89",
+1200
+],
+"quick:damaged": [
+0,
+"a691e28998325a72b989",
+1200
+],
+"quick:edge": [
+0,
+"00d1e6ec8fd164991c01",
+1
+],
+"scenes/uibackground/shaders": [
+8320,
+"ed5cc265736af1387d2e",
+108
+],
+"systems/postprocess/shadercontainer": [
+8320,
+"530edc1d5b7652b7ae8d",
+408
+],
+"systems/shader": [
+8320,
+"61d48de0f4fbf81d8fb4",
+12
+],
+"systems/ui": [
+8320,
+"5bd65fa5729423231c54",
+72
+]
+}

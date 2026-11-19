@@ -1020,6 +1020,19 @@ def _cf_text(cf: Obj, is_pixel: bool) -> str:
 
 
 def disasm(sh: Obj, show_raw: bool = False, show_header: bool = True) -> str:
+    """The program as text: the header comments (show_header), then the listing - in the Rust core for a tree
+    parse_shader decoded there whose microcode nobody has read (round F3: bc2_native.xenos_disasm_body, the same
+    lines), else in Python (disasm_reference)."""
+    prog = native_program(sh) if _native is not None and hasattr(_native, 'xenos_disasm_body') else None
+    return _disasm(sh, show_raw, show_header, prog)
+
+
+def disasm_reference(sh: Obj, show_raw: bool = False, show_header: bool = True) -> str:
+    """disasm in Python only (the reference)."""
+    return _disasm(sh, show_raw, show_header, None)
+
+
+def _disasm(sh: Obj, show_raw: Any, show_header: Any, prog: Any) -> str:
     out: list[str] = []
     kind = 'ps' if sh.is_pixel else 'vs'
     if show_header:
@@ -1054,6 +1067,15 @@ def disasm(sh: Obj, show_raw: bool = False, show_header: bool = True) -> str:
             for it in h.interpolators:
                 out.append('    dcl_%s%d o%d  (exported at slots %s)' % (
                     it.usage.lower(), it.usage_index, it.reg, ','.join(map(str, it.export_addresses))))
+    if prog is not None:
+        out.extend(_native.xenos_disasm_body(prog, bool(show_raw), bool(sh.is_pixel)))
+    else:
+        _disasm_body(sh, show_raw, out)
+    return '\n'.join(out) + '\n'
+
+
+def _disasm_body(sh: Obj, show_raw: Any, out: list[str]) -> None:
+    """The listing after the header, in Python (the reference of xenos_disasm_body)."""
     labels: set[int] = set()
     for cf in sh.cf:
         if cf.opcode in (7, 8, 9, 11):
@@ -1070,4 +1092,3 @@ def disasm(sh: Obj, show_raw: bool = False, show_header: bool = True) -> str:
                 if k == 0 and show_raw:
                     line = line.ljust(60) + ' // %08x %08x %08x' % ins.raw
                 out.append(prefix + '   ' + line)
-    return '\n'.join(out) + '\n'

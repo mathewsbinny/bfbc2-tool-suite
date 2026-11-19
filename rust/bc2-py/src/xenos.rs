@@ -1517,3 +1517,17 @@ pub fn xenos_tree_program<'py>(py: Python<'py>, tree_obj: &Bound<'py, PyAny>) ->
         },
     )
 }
+
+/// Round F3: `xenos.disasm`'s listing after its header (`bc2_shader::disasm::body`) for a program `xenos_parse`
+/// decoded, whose tree's microcode nobody has read (`xenos.native_program`); `is_pixel` is the tree's, as `_cf_text`
+/// reads it.
+#[pyfunction]
+pub fn xenos_disasm_body(
+    py: Python<'_>,
+    program: &Bound<'_, XenosProgram>,
+    show_raw: bool,
+    is_pixel: bool,
+) -> Vec<String> {
+    let shader = Arc::clone(&program.get().shader);
+    py.detach(|| bc2_shader::disasm::body(&shader, show_raw, is_pixel))
+}
