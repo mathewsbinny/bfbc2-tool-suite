@@ -25,6 +25,8 @@
 // values masked, positions below 2^16, tree indices below the fixed table sizes), not by the data compressed.
 #![allow(clippy::indexing_slicing)]
 
+use std::cell::Cell;
+use std::io::{self, Read, Write};
 use std::sync::OnceLock;
 
 const MIN_MATCH: usize = 3;
@@ -40,6 +42,7 @@ const HASH_SHIFT: usize = 5; // (hash_bits + MIN_MATCH - 1) / MIN_MATCH
 const LIT_BUFSIZE: usize = 1 << 14; // 1 << (memLevel + 6)
 const SYM_END: usize = (LIT_BUFSIZE - 1) * 3;
 const TOO_FAR: usize = 4096;
+const DRAIN: usize = 1 << 18; // output bytes collected before they are handed on
 
 const LENGTH_CODES: usize = 29;
 const LITERALS: usize = 256;
@@ -664,8 +667,13 @@ fn config(level: u8) -> Option<Config> {
 
 /// `deflate_state`'s window and matcher.
 struct State<'a> {
-    input: &'a [u8],
-    next_in: usize,
+    // the input, read as far as `fill_window` asks (a short read is asked again: only the input's end gives less)
+    input: &'a mut dyn Read,
+    eof: bool,
+    // the output: the bit writer's bytes are handed on after a block once DRAIN bytes have collected, and at the end
+    output: &'a mut dyn Write,
+    err: Option<io::Error>,
+    read: u64,
     window: Vec<u8>,
     prev: Vec<u16>,
     head: Vec<u16>,
@@ -737,13 +745,11 @@ impl State<'_> {
             self.slide_hash();
             more += W_SIZE;
         }
-        let n = more.min(self.input.len() - self.next_in);
+        let at = self.strstart + self.lookahead;
+        let n = self.read_into(at, more);
         if n == 0 {
             return;
         }
-        let at = self.strstart + self.lookahead;
-        self.window[at..at + n].copy_from_slice(&self.input[self.next_in..self.next_in + n]);
-        self.next_in += n;
         self.lookahead += n;
         if self.lookahead >= MIN_MATCH {
             self.ins_h = update_hash(usize::from(self.window[self.strstart]), self.window[self.strstart + 1]);
@@ -799,6 +805,37 @@ impl State<'_> {
         best_len.min(self.lookahead)
     }
 
+    /// Up to `want` bytes of input into the window at `at`: `want` unless the input ends (a reader's short read is
+    /// not the end: it is asked again), as zlib's `read_buf` reads input that is all there. A read error ends the
+    /// input and is kept for the caller.
+    fn read_into(&mut self, at: usize, want: usize) -> usize {
+        let mut got = 0;
+        while got < want && !self.eof {
+            match self.input.read(&mut self.window[at + got..at + want]) {
+                Ok(0) => self.eof = true,
+                Ok(k) => got += k,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+                Err(e) => {
+                    self.err.get_or_insert(e);
+                    self.eof = true;
+                }
+            }
+        }
+        self.read += got as u64;
+        got
+    }
+
+    /// The bytes made so far handed to the output (after an error, dropped: the caller gets the error).
+    fn drain(&mut self) {
+        if self.err.is_none()
+            && let Err(e) = self.output.write_all(&self.bits.out)
+        {
+            self.err = Some(e);
+            self.eof = true;
+        }
+        self.bits.out.clear();
+    }
+
     fn flush_block(&mut self, last: bool) {
         let stored_len = (self.strstart as isize - self.block_start) as usize;
         let stored = usize::try_from(self.block_start)
@@ -807,6 +844,9 @@ impl State<'_> {
         self.trees
             .flush_block(self.st, stored, stored_len, last, &mut self.bits);
         self.block_start = self.strstart as isize;
+        if last || self.bits.out.len() >= DRAIN {
+            self.drain();
+        }
     }
 
     /// `deflate_slow` run to the end of the input with `Z_FINISH` (the bytes are the same as zlib's `Z_NO_FLUSH`
@@ -882,10 +922,38 @@ impl State<'_> {
 /// 8)`), or `None` for a level other than the lazy levels 4-9 (zlib's levels 1-3 use another matcher, not ported).
 #[must_use]
 pub fn deflate(data: &[u8], level: u8) -> Option<Vec<u8>> {
-    let cfg = config(level)?;
+    config(level)?;
+    let mut out = Vec::with_capacity(data.len() / 3 + 64);
+    let mut input = data;
+    // reading a slice and writing a Vec cannot fail
+    deflate_stream(&mut input, &mut out, level).ok()?;
+    Some(out)
+}
+
+/// [`deflate`] of everything `input` gives, written to `output` as it is made (round S1): the same bytes, with
+/// zlib's window (64 KB) and a few blocks' output in memory instead of the whole input and output. `input` is read
+/// until it gives 0 bytes (a short read is asked again, so a chain of files gives the bytes one slice would).
+/// Returns the number of input bytes compressed.
+///
+/// # Errors
+/// The first error `input` or `output` gave (compression stops there; what was written is incomplete), or
+/// [`io::ErrorKind::InvalidInput`] for a level other than 4-9.
+///
+/// ```
+/// let data = b"Battlefield: Bad Company 2, ".repeat(5000);
+/// let mut out = Vec::new();
+/// let n = bc2_formats::zlib::deflate_stream(&mut data.as_slice(), &mut out, 6)?;
+/// assert_eq!((n, Some(out)), (data.len() as u64, bc2_formats::zlib::deflate(&data, 6)));
+/// # Ok::<(), std::io::Error>(())
+/// ```
+pub fn deflate_stream(input: &mut dyn Read, output: &mut dyn Write, level: u8) -> io::Result<u64> {
+    let cfg = config(level).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "deflate levels are 4-9"))?;
     let mut s = State {
-        input: data,
-        next_in: 0,
+        input,
+        eof: false,
+        output,
+        err: None,
+        read: 0,
         window: vec![0; WINDOW_SIZE],
         prev: vec![0; W_SIZE],
         head: vec![0; HASH_SIZE],
@@ -901,14 +969,17 @@ pub fn deflate(data: &[u8], level: u8) -> Option<Vec<u8>> {
         cfg,
         trees: Trees::new(),
         bits: Bits {
-            out: Vec::with_capacity(data.len() / 3 + 64),
+            out: Vec::with_capacity(DRAIN + (1 << 16)),
             buf: 0,
             n: 0,
         },
         st: statics(),
     };
     s.deflate_slow();
-    Some(s.bits.out)
+    match s.err {
+        Some(e) => Err(e),
+        None => Ok(s.read),
+    }
 }
 
 /// `data` as a gzip member as .NET Framework's `GZipStream` writes it (what FbrbTool's bundles hold): the 10-byte
@@ -917,14 +988,90 @@ pub fn deflate(data: &[u8], level: u8) -> Option<Vec<u8>> {
 /// written to it (FbrbTool's bundles of *deleted* markers only have an empty payload part).
 #[must_use]
 pub fn gzip_net(data: &[u8]) -> Vec<u8> {
-    if data.is_empty() {
-        return Vec::new();
-    }
-    let mut out = vec![0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 4, 0];
-    out.extend(deflate(data, 6).unwrap_or_default());
-    out.extend(crc32(data).to_le_bytes());
-    out.extend((data.len() as u32).to_le_bytes());
+    let mut out = Vec::with_capacity(data.len() / 3 + 64);
+    let mut input = data;
+    // reading a slice and writing a Vec cannot fail
+    let _ = gzip_net_stream(&mut input, &mut out);
     out
+}
+
+const GZIP_NET_HEADER: [u8; 10] = [0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 4, 0];
+
+/// The CRC-32 and length of what passes through.
+struct Counted<'a> {
+    inner: &'a mut dyn Read,
+    crc: flate2::Crc,
+    len: &'a Cell<u64>,
+}
+
+impl Read for Counted<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        if let Some(got) = buf.get(..n) {
+            self.crc.update(got);
+        }
+        self.len.set(self.len.get() + n as u64);
+        Ok(n)
+    }
+}
+
+/// The gzip header written before the first output, once there is input (no input: nothing at all).
+struct Framed<'a> {
+    inner: &'a mut dyn Write,
+    len: &'a Cell<u64>,
+    started: bool,
+}
+
+impl Write for Framed<'_> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.len.get() == 0 {
+            return Ok(buf.len()); // the deflate stream of no data: GZipStream writes nothing
+        }
+        if !self.started {
+            self.inner.write_all(&GZIP_NET_HEADER)?;
+            self.started = true;
+        }
+        self.inner.write_all(buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// [`gzip_net`] of everything `input` gives, written to `output` as it is made ([`deflate_stream`]: the same bytes
+/// from a 64 KB window). Returns the number of input bytes.
+///
+/// # Errors
+/// The first error `input` or `output` gave.
+///
+/// ```
+/// let data = b"Bad Company".repeat(9000);
+/// let mut out = Vec::new();
+/// bc2_formats::zlib::gzip_net_stream(&mut data.as_slice(), &mut out)?;
+/// assert_eq!(out, bc2_formats::zlib::gzip_net(&data));
+/// # Ok::<(), std::io::Error>(())
+/// ```
+pub fn gzip_net_stream(input: &mut dyn Read, output: &mut dyn Write) -> io::Result<u64> {
+    let len = Cell::new(0u64);
+    let mut counted = Counted {
+        inner: input,
+        crc: flate2::Crc::new(),
+        len: &len,
+    };
+    let mut framed = Framed {
+        inner: output,
+        len: &len,
+        started: false,
+    };
+    deflate_stream(&mut counted, &mut framed, 6)?;
+    let n = len.get();
+    if n > 0 {
+        framed.inner.write_all(&counted.crc.sum().to_le_bytes())?;
+        framed.inner.write_all(&(n as u32).to_le_bytes())?;
+    }
+    Ok(n)
 }
 
 /// zlib's CRC-32 of `data` (Python's `zlib.crc32(data) & 0xFFFFFFFF`).
@@ -941,7 +1088,7 @@ mod tests {
     use super::*;
 
     fn inflate(z: &[u8]) -> Vec<u8> {
-        use std::io::Read as _;
+        use io::Read as _;
         let mut out = Vec::new();
         flate2::read::DeflateDecoder::new(z).read_to_end(&mut out).unwrap();
         out
@@ -995,6 +1142,83 @@ mod tests {
         assert_eq!(common_prefix(&a, &a), 255);
     }
 
+    /// A reader giving at most `step` bytes a call, every fifth call interrupted.
+    struct Trickle<'a> {
+        data: &'a [u8],
+        step: usize,
+        calls: usize,
+    }
+
+    impl Read for Trickle<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.calls += 1;
+            if self.calls.is_multiple_of(5) {
+                return Err(io::ErrorKind::Interrupted.into());
+            }
+            let n = self.step.min(buf.len()).min(self.data.len());
+            buf[..n].copy_from_slice(&self.data[..n]);
+            self.data = &self.data[n..];
+            Ok(n)
+        }
+    }
+
+    /// A reader and writer that always fail.
+    struct Fail;
+
+    impl Read for Fail {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::other("no input"))
+        }
+    }
+
+    impl Write for Fail {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            Err(io::Error::other("no output"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn streams_as_one_slice() {
+        let text: Vec<u8> = (0..700_000u32)
+            .map(|i| b"abcdefgh"[(i.wrapping_mul(i) % 7) as usize])
+            .collect();
+        let noise: Vec<u8> = (0..300_000u32)
+            .map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8)
+            .collect();
+        for data in [Vec::new(), b"a".to_vec(), text, noise] {
+            let whole = gzip_net(&data);
+            for step in [1, 7, 4096, 100_000] {
+                let mut out = Vec::new();
+                let n = gzip_net_stream(
+                    &mut Trickle {
+                        data: &data,
+                        step,
+                        calls: 0,
+                    },
+                    &mut out,
+                )
+                .unwrap();
+                assert_eq!((n, &out), (data.len() as u64, &whole), "step {step}");
+            }
+            for level in [4, 9] {
+                let mut out = Vec::new();
+                deflate_stream(&mut data.as_slice(), &mut out, level).unwrap();
+                assert_eq!(Some(out), deflate(&data, level));
+            }
+        }
+        // the first error of either side ends it
+        let e = gzip_net_stream(&mut Fail, &mut Vec::new()).unwrap_err();
+        assert_eq!(e.to_string(), "no input");
+        let e = gzip_net_stream(&mut b"abc".as_slice(), &mut Fail).unwrap_err();
+        assert_eq!(e.to_string(), "no output");
+        let e = deflate_stream(&mut b"abc".as_slice(), &mut Vec::new(), 3).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    }
+
     #[test]
     fn gzip_frame() {
         assert_eq!(gzip_net(b""), Vec::<u8>::new());
@@ -1002,7 +1226,7 @@ mod tests {
         assert_eq!(&z[..10], &[0x1F, 0x8B, 8, 0, 0, 0, 0, 0, 4, 0]);
         assert_eq!(&z[z.len() - 4..], &3u32.to_le_bytes());
         let mut out = Vec::new();
-        std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(z.as_slice()), &mut out).unwrap();
+        Read::read_to_end(&mut flate2::read::GzDecoder::new(z.as_slice()), &mut out).unwrap();
         assert_eq!(out, b"abc");
     }
 }

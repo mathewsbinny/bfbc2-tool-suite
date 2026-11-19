@@ -29,7 +29,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use rayon::prelude::*;
 
 use super::netgzip::{self, NetGzipError};
-use super::pack::{Layout, Manifest, ManifestLine, Padding, SourceRow, decode_text, lines, pack_rows, token};
+use super::pack::{
+    Layout, Manifest, ManifestLine, Padding, SourceRow, StreamError, decode_text, lines, pack_rows_stream, token,
+};
 use super::unpack::UnpackStats;
 use crate::dbxedit::{Fault, FaultKind, net};
 
@@ -1123,19 +1125,12 @@ fn pack(dir: &str, fbrb: &str, o: &mut Outcome) -> Result<i32> {
         rows.push(SourceRow { src, len, size2 });
     }
     let manifest = Manifest { layout, lines: mlines };
-    let (bytes, stats) = pack_rows(&manifest, &rows).map_err(|e| Fault::new(FaultKind::Io, e.to_string()))?;
-    // written beside the bundle, then moved over it (FbrbTool's name for the temporary file: <bundle>.tmp-<pid>)
+    // written beside the bundle, then moved over it (FbrbTool's name for the temporary file: <bundle>.tmp-<pid>);
+    // the payload streamed into it as it is made (round S1), never held
     let tmp = format!("{fbrb}.tmp-{}", std::process::id());
     check_chars(&tmp)?;
     let tmp_full = full_path(&tmp)?;
-    let written = File::create(&tmp_full).and_then(|mut f| {
-        f.write_all(&bytes)?;
-        f.sync_all()
-    });
-    if let Err(e) = written {
-        let _ = fs::remove_file(&tmp_full);
-        return Err(Fault::io(&e, Path::new(&tmp_full)));
-    }
+    let stats = pack_to_file(&manifest, &rows, &tmp_full)?;
     let target = full_path(fbrb)?;
     if Path::new(&target).is_dir() {
         // File.Exists is false for a folder, and File.Move onto it fails with Windows' own words
@@ -1154,6 +1149,25 @@ fn pack(dir: &str, fbrb: &str, o: &mut Outcome) -> Result<i32> {
         stats.entries, stats.payload_len
     ));
     Ok(0)
+}
+
+/// The bundle streamed into the file `tmp_full` (made, written, flushed to disk); on any error the file is deleted:
+/// a packing error is reported as FbrbTool reported a failed pack, a write error with the file's name.
+fn pack_to_file(manifest: &Manifest, rows: &[SourceRow], tmp_full: &str) -> Result<super::pack::PackStats> {
+    let written = File::create(tmp_full).map_err(StreamError::Write).and_then(|f| {
+        let mut w = io::BufWriter::with_capacity(1 << 20, f);
+        let stats = pack_rows_stream(manifest, rows, &mut w)?;
+        let f = w.into_inner().map_err(|e| StreamError::Write(e.into_error()))?;
+        f.sync_all().map_err(StreamError::Write)?;
+        Ok(stats)
+    });
+    written.map_err(|e| {
+        let _ = fs::remove_file(tmp_full);
+        match e {
+            StreamError::Pack(e) => Fault::new(FaultKind::Io, e.to_string()),
+            StreamError::Write(e) => Fault::io(&e, Path::new(tmp_full)),
+        }
+    })
 }
 
 #[cfg(test)]

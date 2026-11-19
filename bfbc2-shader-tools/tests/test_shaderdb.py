@@ -169,6 +169,17 @@ def quick(c: Checks, tmp: str) -> None:
             and sd.split_name('Shaders/Decals/Decal_1', set()) == ('', 'Shaders/Decals/Decal_1')
             and sd.split_name('Objects/Edge/Brick/Brick_t01/Objects/Edge/Shaders/X', {'objects/edge/brick/brick_t01'})
             == ('Objects/Edge/Brick/Brick_t01', 'Objects/Edge/Shaders/X'), 'entry names split into mesh and shader')
+    # ---- the coverage index (round S1): the counts of every name prefix answer coverage for any meshes
+    names = [('Objects/A/A_Mesh/Objects/A/Shaders/Metal', 1), ('objects/a/a_mesh/Objects/A/Shaders/Wood', 1),
+             ('Objects/A/A_Mesh_lod/X', 1), ('A/A', 1), ('Shaders/Decals/Decal_1', 1), ('a/B', 1)]
+    db = build(9, names, 3)
+    ask = ['objects/a/a_mesh', 'objects/a', 'objects', 'a', 'a/a', 'shaders/decals/decal_1', 'objects/a/a_mesh_lod',
+           'objects/a/a_mesh/objects', 'nothing', 'objects/a/a_mesh/objects/a/shaders/metal', 'objects/a/a_me']
+    pre = sd.cover_prefixes(db)
+    want = sd.coverage_reference(db, ask)
+    c.check(sd.coverage_from(pre, ask) == want == sd.coverage(db, ask) and want['objects/a/a_mesh'] == 2
+            and want['a'] == 2 and want['objects/a/a_me'] == 0,
+            f'coverage index: cover_prefixes answers coverage for any meshes ({want})')
 
     # ---- merging
     A, A2, B, B2, C = ('Objects/A/A_Mesh/Objects/A/Shaders/Metal', 'Objects/A/A_Mesh/Objects/A/Shaders/MetalSnow',
@@ -425,6 +436,66 @@ def game(c: Checks, tmp: str) -> None:
         c.check(all(cover.values()) and not problems and len(m.added) == 5,
                 f'Dx{dx}: ONS_MP_008 + mp_008cq: flags and flagpole covered ({len(m.added)} entries), consistent, '
                 f'every entry draws as in its source', '; '.join(problems) + str(cover))
+    cover_index(c, tmp)
+
+
+def cover_index(c: Checks, tmp: str) -> None:
+    """Round S1: the coverage index on every level of the game copy (Dx9): cover_prefixes answers coverage(db, m)
+    for every prefix of every entry name of every level; level_cover_prefixes from an empty cache folder, then from
+    the index without loading anything; donor_levels as OPFOR's loop over loaded databases chooses."""
+    import time
+    old = os.environ.get('BFBC2_SHADERCOVER_CACHE')
+    os.environ['BFBC2_SHADERCOVER_CACHE'] = os.path.join(tmp, 'shadercover')
+    try:
+        root = sd.find_opfor()
+        levels = sorted(sd.level_bundles(root))
+        s0 = dict(sd.COVER_STATS)
+        first = dict(sd.level_cover_prefixes(levels))
+        s1 = dict(sd.COVER_STATS)
+        t = time.perf_counter()
+        second = dict(sd.level_cover_prefixes(levels))
+        t_index = time.perf_counter() - t
+        s2 = dict(sd.COVER_STATS)
+        # every level's database loaded again, one at a time: each prefix of each name (and the other levels' first
+        # few) answered as coverage answers it on the database
+        foreign = sorted({k for p in first.values() if not isinstance(p, sd.ShaderDbError) for k in list(p)[:200]})
+        need = ['objects/gameplay/flag_neutral', 'objects/gameplay/flag_rus', 'objects/gameplay/flag_us',
+                'objects/objects/mp_flagpole_mobile_01', 'objects/vehicles/air/ah64/ah64_mesh', 'no/such/mesh']
+        bad: list[str] = []
+        want: list[str] = []
+        have: set[str] = set()
+        asked = 0
+        t = time.perf_counter()
+        for lv, got in sd.load_levels(levels, [9]):
+            db, p = got[9], first[lv]
+            if isinstance(db, sd.ShaderDbError) or isinstance(p, sd.ShaderDbError):
+                if not (isinstance(db, sd.ShaderDbError) and isinstance(p, sd.ShaderDbError) and str(db) == str(p)):
+                    bad.append(lv)
+                continue
+            every = sorted(set(p) | set(foreign))
+            asked += len(every)
+            if sd.coverage(db, every) != sd.coverage_from(p, every):
+                bad.append(lv)
+            new = {n for n, k in sd.coverage(db, need).items() if k} - have
+            if new:
+                want.append(lv)
+                have |= new
+        t_load = time.perf_counter() - t
+        same = all(type(first[lv]) is type(second[lv]) and str(first[lv]) == str(second[lv]) if
+                   isinstance(first[lv], sd.ShaderDbError) else first[lv] == second[lv] for lv in levels)
+        c.check(not bad and same and s1['loaded'] - s0['loaded'] == len(levels) and s2['loaded'] == s1['loaded']
+                and s2['index_hits'] - s1['index_hits'] == len(levels),
+                f'coverage index: {len(levels)} levels, {asked:,} names answered as coverage answers them on the '
+                f'loaded database; a second pass read only the index ({t_index:.2f} s; loading all: {t_load:.1f} s)',
+                f'differ: {bad[:5]}')
+        got_donors = sd.donor_levels(levels, need)
+        c.check(got_donors == want and want, f'donor_levels: the donors a loop over the loaded databases chooses '
+                f'({want})', str(got_donors))
+    finally:
+        if old is None:
+            os.environ.pop('BFBC2_SHADERCOVER_CACHE', None)
+        else:
+            os.environ['BFBC2_SHADERCOVER_CACHE'] = old
 
 
 # ------------------------------------------------------------------------------------------------ Xbox 360 data
