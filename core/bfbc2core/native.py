@@ -30,6 +30,7 @@ import hashlib
 import importlib
 import json
 import os
+import subprocess
 import sys
 import warnings
 from collections.abc import Iterator
@@ -221,3 +222,45 @@ def reset() -> None:
     """Forget what the probe found (tests; after build_native.py replaced the module, a running process still
     holds the old one until it restarts)."""
     _state.clear()
+    _cli.clear()
+
+
+# ------------------------------------------------------------------------------- the command-line binary (round O1)
+
+CLI_PYTHON_ENV = 'BFBC2_CLI_PYTHON'      # 1: the Python command lines answer, the binary is not used
+CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line it is the port of
+    'fbrbtool': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),
+    'dbxedit': os.path.join(SUITE, 'bfbc2-dbx-tools', 'dbxedit.py'),
+}
+_cli: dict[str, str | None] = {}
+
+
+def cli_path(profile: str = 'release') -> str:
+    """Where cargo builds the command-line binary (rust\\bc2-cli: bfbc2.exe)."""
+    return os.path.join(RUST, 'target', profile, 'bfbc2.exe' if os.name == 'nt' else 'bfbc2')
+
+
+def cli_exe() -> str | None:
+    """The command-line binary when it is built from this checkout's Rust sources (its --source-hash is the
+    checkout's fingerprint: build_native.py builds it with the module), else None. Asked once per process."""
+    if 'exe' not in _cli:
+        exe, found = cli_path(), None
+        if os.path.isfile(exe):
+            try:
+                r = subprocess.run([exe, '--source-hash'], capture_output=True, text=True, timeout=30)
+                want = checkout_fingerprint()
+                if r.returncode == 0 and (want is None or r.stdout.strip() == want):
+                    found = exe
+            except (OSError, subprocess.SubprocessError):
+                pass
+        _cli['exe'] = found
+    return _cli['exe']
+
+
+def cli_command(tool: str) -> list[str]:
+    """The command line that runs a ported tool (CLI_TOOLS): [bfbc2.exe, tool] when the binary is built from this
+    checkout, else (or with BFBC2_CLI_PYTHON=1) [python, the tool's .py] - the same arguments, output and exit
+    codes either way (rust/BENCHMARKS.md, "O1")."""
+    script = CLI_TOOLS[tool]
+    exe = None if os.environ.get(CLI_PYTHON_ENV, '').strip() == '1' else cli_exe()
+    return [exe, tool] if exe else [sys.executable, script]

@@ -26,6 +26,8 @@ pub enum Action {
     OpenViewport(Projection),
     /// Shows or hides the labels in the 3D views.
     ToggleLabels,
+    /// The 3D view draws the level as the game does, or as the editor does.
+    ToggleGameView,
     /// Puts every panel back where it starts.
     ResetLayout,
     /// Dark or Light.
@@ -161,6 +163,12 @@ pub fn registry() -> Vec<Entry> {
             "Show or hide labels",
             key(none, Key::L),
             "Names and teams of spawns, flags and objectives in the views",
+        ),
+        e(
+            Action::ToggleGameView,
+            "Game-accurate view",
+            None,
+            "The 3D view drawn as the game draws it: DICE's own Direct3D 11 shaders, textures and the level's light",
         ),
         e(
             Action::Undo,

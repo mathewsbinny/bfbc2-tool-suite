@@ -19,6 +19,8 @@ window.
     folder (parse, exactly the expected field-level changes, writer round trips, the scene loads them; DbxEdit and the
     Python dbxbin reference byte for byte); surface placement with sink depths (the demo and MP_005's terrain); the
     gizmo's maths; the editing interface driven headless (the demo project and an MP_005 project).
+  - round R5 (rust\bc2-render): the game-accurate view - MP_005's warehouse drawn as the C++ render harness draws
+    it (its recorded picture's coverage and colour), and the editor's Game-accurate switch on MP_005 (Direct3D 11).
 
 Read only for the game copy and OPFOR's work folder: projects and edited partitions go to temp folders. The
 game-data parts are skipped (with a note) without the game copy, the GPU parts without any graphics adapter; the
@@ -46,14 +48,15 @@ def main() -> int:
         print('skipped: Rust (cargo) is not installed')
         return 0
     cargo = shutil.which('cargo', path=env.get('PATH')) or 'cargo'
-    r = subprocess.run([cargo, 'test', '-p', 'bc2-editor', '-p', 'bc2-levelwrite', '--', '--nocapture', '--test-threads', '1'],
+    r = subprocess.run([cargo, 'test', '-p', 'bc2-editor', '-p', 'bc2-levelwrite', '-p', 'bc2-render', '--',
+                        '--nocapture', '--test-threads', '1'],
                        cwd=RUST, env=env,
                        capture_output=True, text=True, encoding='utf-8', errors='replace')
     out = (r.stdout + r.stderr).splitlines()
     keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared',
             'levels in this game copy', 'median',
             'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
-            'MP_005 project')
+            'MP_005 project', 'draws at', 'loaded in')
     for line in out:
         if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))
