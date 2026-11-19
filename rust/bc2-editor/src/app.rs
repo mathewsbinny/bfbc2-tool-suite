@@ -88,7 +88,7 @@ impl Tab {
             Self::Problems => "Problems",
             Self::History => "History",
             Self::Layers => "Layers",
-            Self::Content => "Content",
+            Self::Content => "Place objects",
         }
     }
 }
@@ -273,8 +273,12 @@ pub struct ViewState {
     pub menu_rects: Vec<(String, Rect, bool)>,
     /// Which menu that was.
     pub menu_kind: Option<MenuKind>,
-    /// The content browser's rows on screen: (blueprint path, rectangle) - the tests drag them.
+    /// The content browser's tiles on screen: (blueprint path, rectangle) - the tests drag them.
     pub content_rects: Vec<(String, Rect)>,
+    /// An entry that could not be placed (not read again while it is dragged).
+    place_failed: Option<String>,
+    /// Rendered thumbnails loaded from the cache, by blueprint path (`None`: none there).
+    thumbs: HashMap<String, Option<egui::TextureHandle>>,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -949,9 +953,19 @@ impl EditorApp {
             }
         };
         let editing = doc.is_some();
+        // the asset browser: the level's placements, its folders', its content set's bundles' (round E2b)
+        let game = self.opfor.as_ref().ok().and_then(|root| {
+            let set = self.levels.iter().find(|l| l.lv.eq_ignore_ascii_case(lv))?.set;
+            Some(crate::content::GameSource {
+                opfor: root.clone(),
+                set,
+                levels: self.levels.iter().filter(|l| l.set == set).map(|l| l.lv.clone()).collect(),
+                own: lv.to_owned(),
+            })
+        });
         let content = doc
             .as_ref()
-            .map(|d| crate::content::Catalogue::start(&d.scene, bases.clone()));
+            .map(|d| crate::content::Catalogue::start(&d.scene, bases.clone(), game));
         let outliner = match &doc {
             Some(d) => Outliner::new_without(&d.scene, &d.deleted),
             None => Outliner::new(&scene),
@@ -1016,6 +1030,8 @@ impl EditorApp {
             menu_rects: Vec::new(),
             menu_kind: None,
             content_rects: Vec::new(),
+            place_failed: None,
+            thumbs: HashMap::new(),
         };
         if editing {
             v.refresh(gpu, &palette);

@@ -1,24 +1,36 @@
-//! The content browser's catalogue (round E2b): the blueprints a project can place - those the level already places
-//! (from its partition: each `ReferenceObjectData`'s `ReferencedObject`, with how many times), then the blueprints
-//! of the level's own folders and its shared bundles (the profile's: a Vietnam level's `nam_common`, a Pacific War
-//! level's `ww2_common`, `mp_common` ...), read on a thread. Each entry has its category from its data
-//! ([`Category::of_blueprint`]) and whether it can be placed as an object, with why not.
+//! The asset browser's catalogue ("Place Objects", round E2b; the user's refinement): every placeable map object of
+//! the level's content set (BFBC1, BFBC2, Vietnam, WW2), not only the open level's.
 //!
-//! The safety checks of `EDITOR_ARCHITECTURE.md` 3.3 (a cull shape somewhere, collision, references that resolve)
-//! belong to the asset browser round; until then an entry the level does not place yet says so.
+//! - **The level's placements** first (from its partition: each `ReferenceObjectData`'s `ReferencedObject`, with how
+//!   many times; their references known).
+//! - **The level's folders on disk** (its prepared bundles and the shared ones NavKit or G3 unpacked): each
+//!   blueprint read, its object's type and whether it breaks up.
+//! - **Every bundle of the content set in the game copy** (`game\Dist` and `game\Package`: the set's levels and its
+//!   commons - `mp_common` / `sp_common`, `nam_common`, `ww2_common`): only the bundles' headers are read (the names
+//!   of their blueprints, `<name>\<name>.dbx`), so the whole set is listed in about a second; an entry is resolved
+//!   (its partition read from its bundle: the primary instance's guid and type) when it is placed ([`resolve`]).
+//!   An entry outside the open level's bundles says so: the build adds its bundle (a later round).
+//!
+//! Categories come from the blueprint's data where it was read ([`Category::of_blueprint`]: its object's type, its
+//! health states) and from its path otherwise. Thumbnails: a type icon until rendered ones exist; the renderer
+//! (round R5's `bc2-render`) writes them to [`thumbnail_file`] and the browser shows a file there instead of the
+//! icon - the hook for those rounds. The safety checks of `EDITOR_ARCHITECTURE.md` 3.3 (a cull shape somewhere,
+//! collision, references that resolve) belong to a later round; until then an entry the level does not place says so.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use bc2_formats::dbx;
 use bc2_scene::scene::Scene;
 
+use crate::levels::ContentSet;
 use crate::workspace::Category;
 
 /// A placeable blueprint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
-    /// The reference a placement takes (`objects/props/crate/crate/<guid>`, lower case as the partitions write it).
+    /// The reference a placement takes (`objects/props/crate/crate/<guid>`, lower case as the partitions write it);
+    /// empty until [`resolve`]d for an entry listed from a bundle's header.
     pub reference: String,
     /// The blueprint's path (`objects/props/crate/crate`).
     pub path: String,
@@ -32,26 +44,38 @@ pub struct Entry {
     pub destructible: bool,
     /// How many times the level places it.
     pub used: usize,
-    /// Where it comes from: `This level`, or the folder (`mp_common` ...).
+    /// Where it comes from: `This level`, a folder (`mp_common` ...), a bundle's level (`mp_012`).
     pub source: String,
     /// Why it cannot be placed as an object, or `None`.
     pub why_not: Option<&'static str>,
+    /// Listed from a bundle's header: the bundle and the partition's name in it (read when placed).
+    pub bundle: Option<(PathBuf, String)>,
+    /// In the open level's own or shared bundles (else the build has to add its bundle).
+    pub in_stack: bool,
 }
 
 impl Entry {
-    /// Whether a search matches it: every word in its name, path, category or object type, ignoring case.
+    /// Whether a search matches it: every word in its name, path, category, source or object type, ignoring case.
     #[must_use]
     pub fn matches(&self, query: &str) -> bool {
         let hay = format!(
-            "{} {} {} {}",
+            "{} {} {} {} {}",
             self.name,
             self.path,
             self.category.name(),
+            self.source,
             self.object_type.as_deref().unwrap_or("")
         )
         .to_lowercase();
         query.to_lowercase().split_whitespace().all(|w| hay.contains(w))
     }
+}
+
+/// Why a path cannot be placed as an object, from where it lies (vehicles go through spawners).
+fn why_not_by_path(path: &str) -> Option<&'static str> {
+    path.starts_with("vehicles/").then_some(
+        "Vehicles are placed through a vehicle spawner (the Gameplay workspace's tools, a later round)",
+    )
 }
 
 /// The level's own placements: one entry per blueprint, the most placed first.
@@ -93,6 +117,8 @@ pub fn level_entries(scene: &Scene) -> Vec<Entry> {
                 why_not: None,
                 path,
                 reference,
+                bundle: None,
+                in_stack: true,
             }
         })
         .collect();
@@ -100,14 +126,25 @@ pub fn level_entries(scene: &Scene) -> Vec<Entry> {
     out
 }
 
-/// The top folders blueprints are looked for in, under each of the level's folders.
+/// The top folders blueprints are looked for in.
 const TOPS: [&str; 4] = ["objects", "vehicles", "vegetation", "fx"];
 
 fn entries(dir: &Path) -> Vec<PathBuf> {
     std::fs::read_dir(dir).map_or_else(|_| Vec::new(), |r| r.flatten().map(|e| e.path()).collect())
 }
 
-/// The blueprint files under a folder: `<name>\<name>.dbx` (the game's layout of a blueprint and its parts).
+/// Whether a partition's path (`objects/props/crate/crate`) is a blueprint's: under a top folder, its name its
+/// folder's (the game's layout of a blueprint and its parts).
+#[must_use]
+pub fn is_blueprint_path(path: &str) -> bool {
+    let parts: Vec<&str> = path.split('/').collect();
+    match parts.as_slice() {
+        [top, .., folder, name] => TOPS.contains(top) && folder == name,
+        _ => false,
+    }
+}
+
+/// The blueprint files under a folder: `<name>\<name>.dbx`.
 fn blueprint_files(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
     if depth > 6 {
         return;
@@ -124,10 +161,10 @@ fn blueprint_files(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
     }
 }
 
-/// One blueprint file read: its entry (`None` for a partition that is not a blueprint).
-fn read_blueprint(file: &Path, base: &Path, source: &str) -> Option<Entry> {
-    let data = std::fs::read(file).ok()?;
-    let tree = dbx::parse_tree(&data).ok()?;
+/// A blueprint partition's facts: the reference of its primary instance, its object's type, whether it breaks up,
+/// and whether it can be placed as an object.
+fn blueprint_facts(data: &[u8], path: &str) -> Option<(String, Option<String>, bool, Option<&'static str>)> {
+    let tree = dbx::parse_tree(data).ok()?;
     let part = tree.partition()?;
     let primary = part.attr("primaryInstance")?.to_lowercase();
     let mut types: HashMap<String, (String, Option<String>)> = HashMap::new();
@@ -146,19 +183,29 @@ fn read_blueprint(file: &Path, base: &Path, source: &str) -> Option<Entry> {
     let object_type = object
         .and_then(|o| types.get(&o).map(|(t, _)| short(t)))
         .or_else(|| Some(short(&ptype)));
+    let why_not = if ptype.ends_with("ObjectBlueprint") {
+        None
+    } else {
+        Some(
+            "Not an object blueprint: vehicles, effects and sounds are placed through their spawners and emitters \
+             (a later round)",
+        )
+    };
+    Some((format!("{path}/{primary}"), object_type, destructible, why_not))
+}
+
+/// One blueprint file on disk read: its entry.
+fn read_blueprint(file: &Path, base: &Path, source: &str) -> Option<Entry> {
+    let data = std::fs::read(file).ok()?;
     let rel = file.strip_prefix(base).ok()?.with_extension("");
     let path = rel
         .components()
         .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
         .collect::<Vec<_>>()
         .join("/");
-    let why_not = if !ptype.ends_with("ObjectBlueprint") {
-        Some("Not an object blueprint: vehicles, effects and sounds are placed through their spawners and emitters (a later round)")
-    } else {
-        None
-    };
+    let (reference, object_type, destructible, why_not) = blueprint_facts(&data, &path)?;
     Some(Entry {
-        reference: format!("{path}/{primary}"),
+        reference,
         name: bc2_levelwrite::ops::blueprint_name(&path).to_owned(),
         category: Category::of_blueprint(&path, object_type.as_deref(), destructible),
         object_type,
@@ -167,14 +214,15 @@ fn read_blueprint(file: &Path, base: &Path, source: &str) -> Option<Entry> {
         source: source.to_owned(),
         why_not,
         path,
+        bundle: None,
+        in_stack: true,
     })
 }
 
-/// The blueprints of the level's folders (its own, then its shared bundles'), each once (the first folder naming it
-/// wins, as the game's stack), leaving out those in `known` (the level's own placements).
+/// The blueprints of the level's folders on disk (its own, then its shared bundles'), each once, leaving out those
+/// in `seen` (which grows).
 #[must_use]
-pub fn base_entries(bases: &[PathBuf], known: &[String]) -> Vec<Entry> {
-    let mut seen: std::collections::HashSet<String> = known.iter().cloned().collect();
+pub fn base_entries(bases: &[PathBuf], seen: &mut HashSet<String>) -> Vec<Entry> {
     let mut out = Vec::new();
     for base in bases {
         let source = base
@@ -206,36 +254,171 @@ pub fn base_entries(bases: &[PathBuf], known: &[String]) -> Vec<Entry> {
             }
         }
     }
-    out.sort_by(|a, b| a.category.cmp(&b.category).then(a.name.cmp(&b.name)));
     out
 }
 
-/// The catalogue: the level's placements and, once read, its folders' blueprints.
+/// The shared folders a content set's levels load.
+#[must_use]
+pub fn commons(set: ContentSet) -> &'static [&'static str] {
+    match set {
+        ContentSet::Bfbc2 => &["mp_common", "sp_common"],
+        ContentSet::Bfbc1 => &["mp_common"],
+        ContentSet::Vietnam => &["nam_common", "mp_common"],
+        ContentSet::Ww2 => &["ww2_common"],
+    }
+}
+
+/// The game copy's bundles of a content set: the set's levels' folders and its commons, in `game\Dist` and
+/// `game\Package`; each with its folder's name and whether it is the open level's (its own or a common).
+#[must_use]
+pub fn set_bundles(game: &Path, set: ContentSet, levels: &[String], own: &str) -> Vec<(PathBuf, String, bool)> {
+    let tops = [game.join("Dist").join("win32").join("levels"), game.join("Package").join("levels")];
+    let mut folders: Vec<(String, bool)> = commons(set).iter().map(|c| ((*c).to_owned(), true)).collect();
+    folders.extend(levels.iter().map(|l| (l.to_lowercase(), l.eq_ignore_ascii_case(own))));
+    let mut out = Vec::new();
+    for (folder, mine) in folders {
+        for top in &tops {
+            let mut files: Vec<PathBuf> = entries(&top.join(&folder))
+                .into_iter()
+                .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("fbrb")))
+                .collect();
+            files.sort();
+            out.extend(files.into_iter().map(|f| (f, folder.clone(), mine)));
+        }
+    }
+    out
+}
+
+/// Every blueprint the bundles' headers name, each once (the first bundle naming it), leaving out those in `seen`.
+#[must_use]
+pub fn bundle_entries(bundles: &[(PathBuf, String, bool)], seen: &mut HashSet<String>) -> Vec<Entry> {
+    let mut out = Vec::new();
+    for (file, folder, mine) in bundles {
+        let Ok(f) = std::fs::File::open(file) else { continue };
+        let Ok(h) = bc2_formats::fbrb::read_header(&mut std::io::BufReader::new(f)) else {
+            continue;
+        };
+        for e in &h.entries {
+            if e.is_deleted() || e.size == 0 {
+                continue;
+            }
+            let lower = e.name.to_lowercase();
+            let Some(path) = lower.strip_suffix(".dbx") else { continue };
+            if !is_blueprint_path(path) || !seen.insert(path.to_owned()) {
+                continue;
+            }
+            out.push(Entry {
+                reference: String::new(),
+                name: bc2_levelwrite::ops::blueprint_name(path).to_owned(),
+                category: Category::of_blueprint(path, None, false),
+                object_type: None,
+                destructible: false,
+                used: 0,
+                source: folder.clone(),
+                why_not: why_not_by_path(path),
+                path: path.to_owned(),
+                bundle: Some((file.clone(), e.name.clone())),
+                in_stack: *mine,
+            });
+        }
+    }
+    out
+}
+
+/// Reads an entry listed from a bundle's header: its partition from its bundle (the payload streamed until it),
+/// its reference, object type and category. Nothing to do for an entry already read.
+///
+/// # Errors
+/// The bundle does not read, or the partition is not a blueprint.
+pub fn resolve(e: &mut Entry) -> Result<(), String> {
+    if !e.reference.is_empty() {
+        return Ok(());
+    }
+    let Some((file, name)) = e.bundle.clone() else {
+        return Err(format!("{}: no bundle to read it from", e.path));
+    };
+    let f = std::fs::File::open(&file).map_err(|x| format!("{}: {x}", file.display()))?;
+    let data = bc2_formats::fbrb::read(&mut std::io::BufReader::new(f), &[name.as_str()])
+        .map_err(|x| format!("{}: {name}: {x}", file.display()))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("{}: {name} is not in it", file.display()))?;
+    let (reference, object_type, destructible, why_not) =
+        blueprint_facts(&data, &e.path).ok_or_else(|| format!("{} is not a blueprint partition", e.path))?;
+    e.reference = reference;
+    e.category = Category::of_blueprint(&e.path, object_type.as_deref(), destructible);
+    e.object_type = object_type;
+    e.destructible = destructible;
+    e.why_not = e.why_not.or(why_not);
+    Ok(())
+}
+
+/// Where a rendered thumbnail of a blueprint is kept: `work\editor\thumbs\<set>\<path with / as _>.png` (the hook
+/// for the renderer's rounds; the browser shows a type icon while there is none).
+#[must_use]
+pub fn thumbnail_file(opfor: &Path, set: ContentSet, path: &str) -> PathBuf {
+    opfor
+        .join("work")
+        .join("editor")
+        .join("thumbs")
+        .join(set.badge().to_lowercase())
+        .join(format!("{}.png", path.replace('/', "_")))
+}
+
+/// Where the catalogue looks in the game copy.
+#[derive(Debug, Clone)]
+pub struct GameSource {
+    /// Project OPFOR BFBC2's folder.
+    pub opfor: PathBuf,
+    /// The open level's content set.
+    pub set: ContentSet,
+    /// The set's levels.
+    pub levels: Vec<String>,
+    /// The open level.
+    pub own: String,
+}
+
+/// The catalogue: the level's placements and, once read, its folders' and its content set's blueprints.
 #[derive(Debug, Default)]
 pub struct Catalogue {
     /// Every entry: the level's first.
     pub entries: Vec<Entry>,
-    /// The folders' entries are still being read.
+    /// The folders and bundles are still being read.
     pub reading: bool,
+    /// The content set (thumbnails).
+    pub source: Option<GameSource>,
     rx: Option<std::sync::mpsc::Receiver<Vec<Entry>>>,
 }
 
 impl Catalogue {
-    /// The level's placements at once, its folders' blueprints on a thread.
+    /// The level's placements at once; its folders' and its content set's blueprints on a thread.
     #[must_use]
-    pub fn start(scene: &Scene, bases: Vec<PathBuf>) -> Self {
+    pub fn start(scene: &Scene, bases: Vec<PathBuf>, game: Option<GameSource>) -> Self {
         let entries = level_entries(scene);
-        let known: Vec<String> = entries.iter().map(|e| e.path.clone()).collect();
-        let rx = (!bases.is_empty()).then(|| {
+        let mut seen: HashSet<String> = entries.iter().map(|e| e.path.clone()).collect();
+        let rx = (!bases.is_empty() || game.is_some()).then(|| {
             let (tx, rx) = std::sync::mpsc::channel();
+            let g = game.clone();
             std::thread::spawn(move || {
-                let _ = tx.send(base_entries(&bases, &known));
+                let mut out = base_entries(&bases, &mut seen);
+                if let Some(g) = g {
+                    let bundles = set_bundles(&g.opfor.join("game"), g.set, &g.levels, &g.own);
+                    out.extend(bundle_entries(&bundles, &mut seen));
+                }
+                out.sort_by(|a, b| {
+                    b.in_stack
+                        .cmp(&a.in_stack)
+                        .then(a.category.cmp(&b.category))
+                        .then(a.name.cmp(&b.name))
+                });
+                let _ = tx.send(out);
             });
             rx
         });
         Self {
             entries,
             reading: rx.is_some(),
+            source: game,
             rx,
         }
     }
@@ -280,5 +463,35 @@ impl Catalogue {
     #[must_use]
     pub fn by_path(&self, path: &str) -> Option<&Entry> {
         self.entries.iter().find(|e| e.path == path)
+    }
+
+    /// An entry resolved ([`resolve`]: read from its bundle when listed from a header), kept resolved.
+    ///
+    /// # Errors
+    /// As [`resolve`]; no such entry.
+    pub fn resolved(&mut self, path: &str) -> Result<Entry, String> {
+        let e = self
+            .entries
+            .iter_mut()
+            .find(|e| e.path == path)
+            .ok_or_else(|| format!("{path} is not in the catalogue"))?;
+        resolve(e)?;
+        Ok(e.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blueprint_paths() {
+        assert!(is_blueprint_path("objects/props/crate/crate"));
+        assert!(is_blueprint_path("vehicles/us/m1a2/m1a2"));
+        assert!(!is_blueprint_path("objects/props/crate/crate_mesh"));
+        assert!(!is_blueprint_path("levels/mp_005/mp_005"));
+        assert!(why_not_by_path("vehicles/us/m1a2/m1a2").is_some());
+        let t = thumbnail_file(Path::new("C:/o"), ContentSet::Vietnam, "objects/a/a");
+        assert!(t.ends_with("vietnam/objects_a_a.png") || t.to_string_lossy().ends_with("objects_a_a.png"));
     }
 }

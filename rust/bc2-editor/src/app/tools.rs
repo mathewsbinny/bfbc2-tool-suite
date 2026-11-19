@@ -773,8 +773,47 @@ impl ViewState {
         Ok(())
     }
 
-    /// Starts placing a content browser entry (it follows the pointer).
+    /// A blueprint's rendered thumbnail from the cache ([`crate::content::thumbnail_file`]), loaded once; `None`
+    /// while there is none (the tile shows its category's icon).
+    pub(super) fn thumbnail(
+        &mut self,
+        ctx: &egui::Context,
+        source: &crate::content::GameSource,
+        path: &str,
+    ) -> Option<egui::TextureHandle> {
+        if let Some(t) = self.thumbs.get(path) {
+            return t.clone();
+        }
+        let file = crate::content::thumbnail_file(&source.opfor, source.set, path);
+        let t = file.is_file().then(|| catalog::read_png(&file)).flatten().map(|pic| {
+            let img = egui::ColorImage::from_rgba_unmultiplied(pic.size, &pic.rgba);
+            ctx.load_texture(format!("thumb:{path}"), img, egui::TextureOptions::LINEAR)
+        });
+        self.thumbs.insert(path.to_owned(), t.clone());
+        t
+    }
+
+    /// Starts placing a content browser entry (it follows the pointer); an entry listed from a bundle's header is
+    /// read from its bundle first.
     pub fn start_placing(&mut self, entry: Entry) {
+        let entry = if entry.reference.is_empty() {
+            match self.content.as_mut().map(|c| c.resolved(&entry.path)) {
+                Some(Ok(e)) => e,
+                Some(Err(x)) => {
+                    self.message = format!("Not placed: {x}");
+                    self.place_failed = Some(entry.path);
+                    return;
+                }
+                None => return,
+            }
+        } else {
+            entry
+        };
+        if let Some(w) = entry.why_not {
+            self.message = format!("{} cannot be placed as an object: {w}", entry.name);
+            self.place_failed = Some(entry.path);
+            return;
+        }
         let path = entry.path.clone();
         let tris = self
             .scene()
@@ -855,6 +894,8 @@ impl ViewState {
             blueprint: p.entry.reference.clone(),
             transform: bc2_levelwrite::rows_of(&m),
             fields: fields.into_iter().collect::<Vec<FieldIs>>(),
+            ref_field: None,
+            owned: Vec::new(),
             placement: Some(p.placement),
         };
         self.commit(gpu, palette, Op::Place { items: vec![item] }, "");
@@ -936,6 +977,7 @@ impl Tabs<'_> {
         // a content browser entry dragged over the view: placing follows the pointer; released: placed
         if let Some(payload) = resp.dnd_hover_payload::<ContentDrag>()
             && self.view.placing.as_ref().is_none_or(|p| p.entry.path != payload.0)
+            && self.view.place_failed.as_deref() != Some(payload.0.as_str())
             && let Some(e) = self.view.content.as_ref().and_then(|c| c.by_path(&payload.0)).cloned()
         {
             self.view.start_placing(e);
@@ -1362,8 +1404,10 @@ impl Tabs<'_> {
         self.view.picker = Some(pk);
     }
 
-    /// The content browser: the level's blueprints and its bundles', searchable, by category; drag one into a view
-    /// to place it, double-click to place it at the view's centre.
+    /// "Place Objects", the asset browser: a tile for every placeable object of the content set (the level's own
+    /// first), category tabs and a search; drag a tile into a view to place it, double-click it to place it in the
+    /// middle of the 3D view. A tile shows the blueprint's rendered thumbnail when one is in the cache
+    /// ([`crate::content::thumbnail_file`]), else its category's icon.
     pub(super) fn content(&mut self, ui: &mut egui::Ui) {
         let p = self.palette;
         let m = self.metrics;
@@ -1374,43 +1418,49 @@ impl Tabs<'_> {
             }
         }
         let Some(cat) = self.view.content.as_ref() else {
-            self.header(ui, "Content", "");
+            self.header(ui, "Place objects", "");
             ui.label(RichText::new("Open a project to place objects.").color(p.ink_muted));
             return;
         };
         let reading = cat.reading;
+        let source = cat.source.clone();
         let shown: Vec<Entry> = cat
             .shown(&self.view.content_query, self.view.filter)
             .into_iter()
             .cloned()
             .collect();
         let total = cat.entries.len();
-        self.header(ui, "Content", &format!("{} of {total}", shown.len()));
+        let set = source.as_ref().map_or("", |s| s.set.word());
+        self.header(ui, "Place objects", &format!("{} of {total} {set}", shown.len()));
         let mut filter = self.view.filter;
         egui::Frame::new()
             .inner_margin(Margin::same(m.space_2 as i8))
             .show(ui, |ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.view.content_query)
-                        .hint_text(RichText::new("Search blueprints").color(p.ink_faint))
+                        .hint_text(RichText::new("Search objects").color(p.ink_faint))
                         .desired_width(f32::INFINITY),
                 );
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Category").color(p.ink_muted));
-                    egui::ComboBox::from_id_salt("content category")
-                        .selected_text(filter.map_or("All", Category::name))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut filter, None, "All");
-                            for c in Category::ALL {
-                                ui.selectable_value(&mut filter, Some(c), c.name());
-                            }
-                        });
-                })
-                .response
-                .on_hover_text("Also limits what can be selected in the Objects workspace");
+                ui.add_space(m.space_1);
+                // the category tabs (they also limit what the Objects workspace selects)
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 2.0);
+                    if ui.selectable_label(filter.is_none(), "All").clicked() {
+                        filter = None;
+                    }
+                    for c in Category::ALL {
+                        if ui
+                            .selectable_label(filter == Some(c), c.name())
+                            .on_hover_text("Also limits what can be selected in the Objects workspace")
+                            .clicked()
+                        {
+                            filter = Some(c);
+                        }
+                    }
+                });
                 if reading {
                     ui.label(
-                        RichText::new("Reading the bundles' blueprints\u{2026}")
+                        RichText::new("Reading the content set's bundles\u{2026}")
                             .text_style(style("small"))
                             .color(p.ink_muted),
                     );
@@ -1425,67 +1475,55 @@ impl Tabs<'_> {
         let pick = self.view.content_pick.clone();
         let mut picked = None;
         let mut rects = Vec::new();
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show_rows(ui, 34.0, shown.len(), |ui, range| {
-            for e in shown.get(range).unwrap_or_default() {
-                let sel = pick.as_deref() == Some(e.path.as_str());
-                let id = egui::Id::new(("content row", &e.path));
-                let draw = |ui: &mut egui::Ui| {
-                    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 34.0), Sense::click());
-                    if sel {
-                        ui.painter().rect_filled(rect, CornerRadius::same(2), p.accent_subtle);
-                    } else if resp.hovered() {
-                        ui.painter().rect_filled(rect, CornerRadius::ZERO, p.surface_2);
-                    }
-                    let ink = if e.why_not.is_some() { p.ink_faint } else { p.ink };
-                    ui.painter().text(
-                        rect.left_top() + Vec2::new(m.space_2, 3.0),
-                        Align2::LEFT_TOP,
-                        &e.name,
-                        FontId::proportional(13.0),
-                        ink,
-                    );
-                    let used = if e.used > 0 {
-                        format!("{}  -  {}  -  placed {} times", e.category.name(), e.source, e.used)
-                    } else {
-                        format!("{}  -  {}", e.category.name(), e.source)
-                    };
-                    ui.painter().text(
-                        rect.left_bottom() + Vec2::new(m.space_2, -3.0),
-                        Align2::LEFT_BOTTOM,
-                        used,
-                        FontId::proportional(10.5),
-                        p.ink_muted,
-                    );
-                    ui.painter().hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, p.line));
-                    resp
-                };
-                let resp = if e.why_not.is_none() {
-                    ui.dnd_drag_source(id, ContentDrag(e.path.clone()), draw).response
-                } else {
-                    draw(ui)
-                };
-                let resp = match e.why_not {
-                    Some(w) => resp.on_hover_text(w),
-                    None => resp.on_hover_text(format!(
-                        "{}{}\nDrag into a view to place it; double-click to place it in the middle of the 3D view",
-                        e.path,
-                        if e.used == 0 {
-                            "\nNot placed in this level yet: the build's safety checks (cull shape, references) come \
-                             with the asset browser round"
-                        } else {
-                            ""
+        let (tile_w, tile_h, gap) = (118.0f32, 112.0f32, 6.0f32);
+        let width = ui.available_width() - m.space_2 * 2.0;
+        let cols = ((width + gap) / (tile_w + gap)).floor().max(1.0) as usize;
+        let rows = shown.len().div_ceil(cols);
+        let ctx = ui.ctx().clone();
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show_rows(ui, tile_h + gap, rows, |ui, range| {
+                for r in range {
+                    ui.horizontal(|ui| {
+                        ui.add_space(m.space_2);
+                        ui.spacing_mut().item_spacing.x = gap;
+                        for e in shown.iter().skip(r * cols).take(cols) {
+                            let thumb = source.as_ref().and_then(|s| self.view.thumbnail(&ctx, s, &e.path));
+                            let sel = pick.as_deref() == Some(e.path.as_str());
+                            let draw = |ui: &mut egui::Ui| tile(ui, &p, e, thumb.as_ref(), sel, [tile_w, tile_h]);
+                            let id = egui::Id::new(("content tile", &e.path));
+                            let resp = if e.why_not.is_none() {
+                                ui.dnd_drag_source(id, ContentDrag(e.path.clone()), draw).response
+                            } else {
+                                draw(ui)
+                            };
+                            let tip = match e.why_not {
+                                Some(w) => format!("{}\n{w}", e.path),
+                                None => format!(
+                                    "{}\n{}{}Drag into a view to place it; double-click to place it in the middle of \
+                                     the 3D view",
+                                    e.path,
+                                    e.object_type.as_deref().map_or_else(String::new, |t| format!("{t}\n")),
+                                    if e.in_stack {
+                                        ""
+                                    } else {
+                                        "From another level's bundle: the build adds that bundle (a later round)\n"
+                                    }
+                                ),
+                            };
+                            let resp = resp.on_hover_text(tip);
+                            rects.push((e.path.clone(), resp.rect));
+                            if resp.clicked() {
+                                picked = Some(e.path.clone());
+                            }
+                            if resp.double_clicked() && e.why_not.is_none() {
+                                start = Some(e.clone());
+                            }
                         }
-                    )),
-                };
-                rects.push((e.path.clone(), resp.rect));
-                if resp.clicked() {
-                    picked = Some(e.path.clone());
+                    });
+                    ui.add_space(gap);
                 }
-                if resp.double_clicked() && e.why_not.is_none() {
-                    start = Some(e.clone());
-                }
-            }
-        });
+            });
         self.view.content_rects = rects;
         if picked.is_some() {
             self.view.content_pick = picked;
@@ -1540,7 +1578,11 @@ impl Tabs<'_> {
                                     .unwrap_or_else(|| shown.clone());
                                 let r = ui.add(
                                     egui::TextEdit::singleline(&mut text)
-                                        .hint_text(RichText::new("Mixed").color(p.ink_faint).italics())
+                                        .hint_text(
+                                            RichText::new(if value.is_some() { "(empty)" } else { "Mixed" })
+                                                .color(p.ink_faint)
+                                                .italics(),
+                                        )
                                         .desired_width(150.0)
                                         .font(TextStyle::Monospace),
                                 );
@@ -1596,6 +1638,151 @@ fn menu_ui(ui: &mut egui::Ui, items: &[Option<MenuItem>], rects: &mut Vec<(Strin
         }
     }
     chosen
+}
+
+/// A category's icon: a few strokes (a house, a crate, a vehicle, a spark, sound waves, a tree, a flag, a dot).
+fn icon(painter: &egui::Painter, r: Rect, c: Category, ink: Color32) {
+    let st = Stroke::new(2.0, ink);
+    let cx = r.center();
+    let s = r.height().min(r.width()) * 0.32;
+    let at = |x: f32, y: f32| cx + Vec2::new(x * s, y * s);
+    match c {
+        Category::Buildings => {
+            painter.add(egui::Shape::closed_line(
+                vec![at(-1.0, 1.0), at(-1.0, -0.2), at(0.0, -1.0), at(1.0, -0.2), at(1.0, 1.0)],
+                st,
+            ));
+            painter.rect_stroke(
+                Rect::from_min_max(at(-0.25, 0.3), at(0.25, 1.0)),
+                CornerRadius::ZERO,
+                st,
+                egui::StrokeKind::Middle,
+            );
+        }
+        Category::Props => {
+            painter.rect_stroke(
+                Rect::from_min_max(at(-0.8, -0.8), at(0.8, 0.8)),
+                CornerRadius::same(2),
+                st,
+                egui::StrokeKind::Middle,
+            );
+            painter.line_segment([at(-0.8, -0.8), at(0.8, 0.8)], st);
+            painter.line_segment([at(0.8, -0.8), at(-0.8, 0.8)], st);
+        }
+        Category::Vehicles => {
+            painter.rect_stroke(
+                Rect::from_min_max(at(-1.1, -0.4), at(1.1, 0.4)),
+                CornerRadius::same(3),
+                st,
+                egui::StrokeKind::Middle,
+            );
+            painter.circle_stroke(at(-0.6, 0.65), s * 0.3, st);
+            painter.circle_stroke(at(0.6, 0.65), s * 0.3, st);
+        }
+        Category::Effects => {
+            for k in 0..8 {
+                let a = k as f32 * std::f32::consts::TAU / 8.0;
+                let l = if k % 2 == 0 { 1.0 } else { 0.55 };
+                painter.line_segment([cx, at(a.cos() * l, a.sin() * l)], st);
+            }
+        }
+        Category::Sounds => {
+            painter.circle_filled(at(-0.8, 0.0), s * 0.18, ink);
+            for k in 1..=3 {
+                let rad = k as f32 * 0.45;
+                let pts: Vec<Pos2> = (0..=8)
+                    .map(|i| {
+                        let a = -0.8 + 1.6 * i as f32 / 8.0;
+                        at(-0.8 + a.cos() * rad, a.sin() * rad)
+                    })
+                    .collect();
+                painter.add(egui::Shape::line(pts, st));
+            }
+        }
+        Category::Vegetation => {
+            painter.line_segment([at(0.0, 1.0), at(0.0, 0.1)], st);
+            painter.add(egui::Shape::closed_line(vec![at(0.0, -1.0), at(0.8, 0.2), at(-0.8, 0.2)], st));
+        }
+        Category::Gameplay => {
+            painter.line_segment([at(-0.6, 1.0), at(-0.6, -1.0)], st);
+            painter.add(egui::Shape::closed_line(vec![at(-0.6, -1.0), at(0.8, -0.6), at(-0.6, -0.2)], st));
+        }
+        Category::Other => {
+            painter.circle_stroke(cx, s * 0.6, st);
+        }
+    }
+}
+
+/// One tile of the asset browser: the thumbnail (or the category's icon), the name, the category; a selected tile
+/// in the accent, an entry that cannot be placed greyed, a mark for objects outside the level's bundles.
+fn tile(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    e: &Entry,
+    thumb: Option<&egui::TextureHandle>,
+    selected: bool,
+    size: [f32; 2],
+) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(size[0], size[1]), Sense::click());
+    let painter = ui.painter();
+    let fill = if selected {
+        p.accent_subtle
+    } else if resp.hovered() {
+        p.surface_2
+    } else {
+        p.surface_1
+    };
+    painter.rect_filled(rect, CornerRadius::same(4), fill);
+    painter.rect_stroke(
+        rect,
+        CornerRadius::same(4),
+        Stroke::new(1.0, if selected { p.accent } else { p.line }),
+        egui::StrokeKind::Inside,
+    );
+    let pic = Rect::from_min_size(rect.min + Vec2::splat(4.0), Vec2::new(rect.width() - 8.0, 64.0));
+    let ink = if e.why_not.is_some() { p.ink_faint } else { p.ink_muted };
+    match thumb {
+        Some(t) => {
+            painter.image(t.id(), pic, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+        }
+        None => {
+            painter.rect_filled(pic, CornerRadius::same(3), p.surface_3);
+            icon(painter, pic, e.category, ink);
+        }
+    }
+    if e.used > 0 {
+        painter.text(
+            pic.right_top() + Vec2::new(-4.0, 3.0),
+            Align2::RIGHT_TOP,
+            format!("x{}", e.used),
+            FontId::proportional(10.5),
+            p.accent_text,
+        );
+    } else if !e.in_stack {
+        painter.text(
+            pic.right_top() + Vec2::new(-4.0, 3.0),
+            Align2::RIGHT_TOP,
+            "+bundle",
+            FontId::proportional(10.0),
+            p.status_warn,
+        );
+    }
+    let name = elided(
+        ui,
+        &e.name,
+        FontId::proportional(12.0),
+        if e.why_not.is_some() { p.ink_faint } else { p.ink },
+        rect.width() - 8.0,
+    );
+    painter.galley(Pos2::new(rect.left() + 4.0, pic.bottom() + 4.0), name, p.ink);
+    painter.text(
+        Pos2::new(rect.left() + 4.0, rect.bottom() - 4.0),
+        Align2::LEFT_BOTTOM,
+        e.category.name(),
+        FontId::proportional(10.5),
+        p.ink_muted,
+    );
+    resp
 }
 
 #[cfg(test)]

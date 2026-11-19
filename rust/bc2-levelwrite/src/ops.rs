@@ -125,8 +125,17 @@ pub struct Placed {
     /// The instance of the partition the new one is made from: its type and fields (a placement of the same
     /// blueprint when the level has one: [`crate::write::LevelWriter::template_for`]).
     pub template: String,
-    /// The blueprint it places: the reference (`objects/props/crate/crate/<guid>`) its `ReferencedObject` takes.
+    /// The blueprint it places: the reference (`objects/props/crate/crate/<guid>`) its `ReferencedObject` (or
+    /// [`Placed::ref_field`]) takes; empty: the template's is kept (a spawn point, a flag).
     pub blueprint: String,
+    /// The field the blueprint goes to when it is not `ReferencedObject` (a vehicle spawner's `Vehicle`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ref_field: Option<String>,
+    /// The sub-instances the template owns, copied with it (a flag's capture area and marker): new guids, the
+    /// references among them remapped, only the event connections among them copied (its links to the level's
+    /// logic are E4's gameplay wiring).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owned: Vec<SubCopy>,
     /// Its transform.
     pub transform: Rows,
     /// Its fields that differ from the template's: the values the level's placements of the blueprint share
@@ -334,7 +343,10 @@ impl Op {
                 .iter()
                 .flat_map(|d| std::iter::once(d.source.as_str()).chain(d.owned.iter().map(|o| o.source.as_str())))
                 .collect(),
-            Self::Place { items } => items.iter().map(|p| p.template.as_str()).collect(),
+            Self::Place { items } => items
+                .iter()
+                .flat_map(|p| std::iter::once(p.template.as_str()).chain(p.owned.iter().map(|o| o.source.as_str())))
+                .collect(),
             Self::SetField { items } => items.iter().map(|f| f.guid.as_str()).collect(),
             Self::AddLayer { .. } | Self::SetLayer { .. } | Self::RemoveLayer { .. } | Self::Ungroup { .. } => {
                 Vec::new()
@@ -350,7 +362,10 @@ impl Op {
                 .iter()
                 .flat_map(|d| std::iter::once(d.guid.as_str()).chain(d.owned.iter().map(|o| o.guid.as_str())))
                 .collect(),
-            Self::Place { items } => items.iter().map(|p| p.guid.as_str()).collect(),
+            Self::Place { items } => items
+                .iter()
+                .flat_map(|p| std::iter::once(p.guid.as_str()).chain(p.owned.iter().map(|o| o.guid.as_str())))
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -395,6 +410,7 @@ impl Op {
                 }
             }
             Self::Place { items } => match items.as_slice() {
+                [one] if one.blueprint.is_empty() => format!("Place a copy of {}", one.template),
                 [one] => format!("Place {}", blueprint_name(&one.blueprint)),
                 many => format!("Place {}", objects(many.len())),
             },

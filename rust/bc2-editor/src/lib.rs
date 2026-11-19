@@ -27,6 +27,12 @@
 //! Round G3 (2026-11-18): [`package`] - the levels that live only in `game\Package` (Vietnam, Pacific War and
 //! DICE's other Package-only levels) are listed, prepared from their bundles in memory into the editor's own copy
 //! (`work\editor\levels\<level>`, never `work\levels`) and opened like the others.
+//!
+//! Round E2b (2026-11-19): [`workspace`] - the workspaces as editing methods (View, Objects with a category filter,
+//! Terrain and Vegetation as registered stubs, Gameplay, AI) and the editor view's display modes (lit, unlit,
+//! wireframe, collision, navmesh, cull tree: [`viewmodes`] reads their data); [`content`] - the content browser's
+//! catalogue of placeable blueprints; in `app` the context menus, the sink popup (Alt+wheel), placing, polygon
+//! selection and several objects' fields at once; deep duplicates and placements go through levelwrite.
 #![deny(unsafe_code)]
 #![allow(
     clippy::many_single_char_names,
@@ -47,6 +53,7 @@ pub mod demo;
 pub mod edit;
 pub mod factions;
 pub mod fonts;
+pub mod gameplay;
 pub mod gameview;
 pub mod gizmo;
 pub mod headless;

@@ -525,49 +525,24 @@ impl LevelWriter {
     /// names). A deep duplicate copies them with it; a plain duplicate's copy shares them. Empty for an unknown guid.
     #[must_use]
     pub fn owned(&self, guid: &str) -> Vec<String> {
-        let x = guid.to_ascii_uppercase();
+        self.ownership().owned(guid)
+    }
+
+    /// The partition's reference graph, to ask [`Ownership::owned`] of many objects (one graph made).
+    #[must_use]
+    pub fn ownership(&self) -> Ownership {
         let (insts, refs) = self.ownership_graph();
-        if !refs.contains_key(&x) {
-            return Vec::new();
-        }
-        let level = self.level_data().map(|l| guid_of(&self.d, l));
-        let mut referrers: HashMap<&str, Vec<&str>> = HashMap::new();
+        let mut referrers: HashMap<String, Vec<String>> = HashMap::new();
         for (from, tos) in &refs {
             for t in tos {
-                referrers.entry(t.as_str()).or_default().push(from.as_str());
+                referrers.entry(t.clone()).or_default().push(from.clone());
             }
         }
-        // the greatest set: reachable from the object, every referrer inside it
-        let mut alive: HashSet<&str> = refs
-            .keys()
-            .map(String::as_str)
-            .filter(|g| Some(*g) != level.as_deref())
-            .collect();
-        loop {
-            let mut reach: HashSet<&str> = HashSet::from([x.as_str()]);
-            let mut todo = vec![x.as_str()];
-            while let Some(g) = todo.pop() {
-                for t in refs.get(g).into_iter().flatten() {
-                    if alive.contains(t.as_str()) && reach.insert(t.as_str()) {
-                        todo.push(t.as_str());
-                    }
-                }
-            }
-            let out: Vec<&str> = reach
-                .iter()
-                .copied()
-                .filter(|g| *g != x && referrers.get(g).into_iter().flatten().any(|r| !reach.contains(r)))
-                .collect();
-            if out.is_empty() {
-                return insts
-                    .iter()
-                    .filter(|(g, _)| *g != x && reach.contains(g.as_str()))
-                    .map(|(g, _)| g.clone())
-                    .collect();
-            }
-            for g in out {
-                alive.remove(g);
-            }
+        Ownership {
+            order: insts.into_iter().map(|(g, _)| g).collect(),
+            refs,
+            referrers,
+            level: self.level_data().map(|l| guid_of(&self.d, l)),
         }
     }
 
@@ -584,6 +559,19 @@ impl LevelWriter {
         new_guid: &str,
         transform: &Rows,
         owned: &[SubCopy],
+    ) -> Result<Duplicated> {
+        self.copy_set(source, new_guid, transform, owned, false)
+    }
+
+    /// [`LevelWriter::deep_duplicate`]'s copy; `internal_only`: only the event connections between the copied
+    /// instances are copied (a placement: the template's links to the level's logic are not the new object's).
+    fn copy_set(
+        &mut self,
+        source: &str,
+        new_guid: &str,
+        transform: &Rows,
+        owned: &[SubCopy],
+        internal_only: bool,
     ) -> Result<Duplicated> {
         let pairs: Vec<(&str, &str, Option<&Rows>)> = std::iter::once((source, new_guid, Some(transform)))
             .chain(owned.iter().map(|o| (o.source.as_str(), o.guid.as_str(), o.transform.as_ref())))
@@ -662,12 +650,17 @@ impl LevelWriter {
                 .iter()
                 .copied()
                 .filter(|&c| {
-                    [&b"Source"[..], b"Target"].iter().any(|f| {
+                    let ends = [&b"Source"[..], b"Target"].map(|f| {
                         self.d
                             .child(c, f)
                             .and_then(|x| self.d.attr(x, b"ref"))
                             .is_some_and(|r| mapped(r).is_some())
-                    })
+                    });
+                    if internal_only {
+                        ends.iter().all(|e| *e)
+                    } else {
+                        ends.iter().any(|e| *e)
+                    }
                 })
                 .collect();
             for c in found {
@@ -755,6 +748,28 @@ impl LevelWriter {
     /// The template missing or the level's `LevelData`, the new guid taken, a template without `Transform` or
     /// `ReferencedObject`, or a field value its type does not take.
     pub fn add_instance(&mut self, schema: &Schema, p: &Placed) -> Result<()> {
+        let field = p.ref_field.as_deref().unwrap_or("ReferencedObject");
+        if !p.owned.is_empty() {
+            // with the sub-instances it owns: the deep duplicate's copy, the connections among them only
+            if self.type_of(self.need(&p.template)?).ends_with(".LevelData") {
+                return Err(LevelWriteError::Refused(
+                    "the level itself (LevelData) cannot be a template".into(),
+                ));
+            }
+            self.copy_set(&p.template, &p.guid, &p.transform, &p.owned, true)?;
+            if !p.blueprint.is_empty() {
+                let e = self.need(&p.guid)?;
+                let r = self.d.child(e, field.as_bytes()).ok_or_else(|| LevelWriteError::NoField {
+                    guid: p.template.clone(),
+                    field: field.into(),
+                })?;
+                self.d.set_ref(r, p.blueprint.as_bytes())?;
+            }
+            for f in &p.fields {
+                self.set_field(schema, &p.guid, &f.field, &f.value)?;
+            }
+            return Ok(());
+        }
         let src = self.need(&p.template)?;
         if self.find(&p.guid).is_some() {
             return Err(LevelWriteError::Exists(p.guid.clone()));
@@ -773,11 +788,10 @@ impl LevelWriter {
         self.d.retain_attrs(e, |k| k == b"guid" || k == b"type")?;
         let t = self.d.child(e, b"Transform").ok_or_else(|| missing("Transform"))?;
         self.d.set_transform(t, &p.transform)?;
-        let r = self
-            .d
-            .child(e, b"ReferencedObject")
-            .ok_or_else(|| missing("ReferencedObject"))?;
-        self.d.set_ref(r, p.blueprint.as_bytes())?;
+        if !p.blueprint.is_empty() {
+            let r = self.d.child(e, field.as_bytes()).ok_or_else(|| missing(field))?;
+            self.d.set_ref(r, p.blueprint.as_bytes())?;
+        }
         let part = self
             .d
             .partition()
@@ -801,6 +815,61 @@ impl LevelWriter {
             self.set_field(schema, &p.guid, &f.field, &f.value)?;
         }
         Ok(())
+    }
+}
+
+/// A partition's local references, for [`LevelWriter::owned`].
+#[derive(Debug, Clone)]
+pub struct Ownership {
+    order: Vec<String>,
+    refs: HashMap<String, Vec<String>>,
+    referrers: HashMap<String, Vec<String>>,
+    level: Option<String>,
+}
+
+impl Ownership {
+    /// The sub-instances an object owns ([`LevelWriter::owned`]).
+    #[must_use]
+    pub fn owned(&self, guid: &str) -> Vec<String> {
+        let x = guid.to_ascii_uppercase();
+        if !self.refs.contains_key(&x) {
+            return Vec::new();
+        }
+        // the greatest set: reachable from the object, every referrer inside it
+        let mut dead: HashSet<&str> = self.level.iter().map(String::as_str).collect();
+        loop {
+            let mut reach: HashSet<&str> = HashSet::from([x.as_str()]);
+            let mut todo = vec![x.as_str()];
+            while let Some(g) = todo.pop() {
+                for t in self.refs.get(g).into_iter().flatten() {
+                    if !dead.contains(t.as_str()) && reach.insert(t.as_str()) {
+                        todo.push(t.as_str());
+                    }
+                }
+            }
+            let out: Vec<&str> = reach
+                .iter()
+                .copied()
+                .filter(|g| {
+                    *g != x
+                        && self
+                            .referrers
+                            .get(*g)
+                            .into_iter()
+                            .flatten()
+                            .any(|r| !reach.contains(r.as_str()))
+                })
+                .collect();
+            if out.is_empty() {
+                return self
+                    .order
+                    .iter()
+                    .filter(|g| **g != x && reach.contains(g.as_str()))
+                    .cloned()
+                    .collect();
+            }
+            dead.extend(out);
+        }
     }
 }
 
@@ -1281,6 +1350,8 @@ pub(crate) mod tests {
             blueprint: "objects/new/new/1".into(),
             transform: crate::rows_at([5.0, 6.0, 7.0]),
             fields: d,
+            ref_field: None,
+            owned: Vec::new(),
             placement: None,
         };
         w.add_instance(&s, &p).unwrap();
