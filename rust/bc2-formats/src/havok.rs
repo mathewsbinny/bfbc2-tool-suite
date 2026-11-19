@@ -376,6 +376,32 @@ impl<'a> Packfile<'a> {
     pub fn classes(&self) -> &[(u64, Class)] {
         &self.classes
     }
+
+    /// Every pointer fixup `(slot, target)` in the order [`Packfile::parse`] applied them (each section's local
+    /// fixups, then its global ones; a later one for the same slot wins): the insertion order of `hkpack.Packfile.ptr`
+    /// (round F3).
+    #[must_use]
+    pub fn pointer_fixups(&self) -> Vec<(u64, u64)> {
+        let (data, len) = (self.data, self.data.len() as u64);
+        let mut out = Vec::new();
+        for s in &self.sections {
+            for at in table(len, s.start, s.local, s.global, 8) {
+                let [src, dst] = words::<2>(data, at);
+                if src != u32::MAX {
+                    out.push((s.start + u64::from(src), s.start + u64::from(dst)));
+                }
+            }
+            for at in table(len, s.start, s.global, s.virtual_fixups, 12) {
+                let [src, sec, dst] = words::<3>(data, at);
+                if src != u32::MAX
+                    && let Some(t) = self.sections.get(sec as usize)
+                {
+                    out.push((s.start + u64::from(src), t.start + u64::from(dst)));
+                }
+            }
+        }
+        out
+    }
 }
 
 /// A triangle: three corners (x, y, z).
