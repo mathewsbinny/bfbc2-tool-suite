@@ -54,9 +54,22 @@ fn fs_mesh(i: MeshOut) -> SceneOut {
     let d = abs(dot(n, normalize(g.light.xyz)));
     let lit = 0.40 + 0.45 * d + 0.15 * abs(n.y);
     let even = 0.88 + 0.12 * max(d, abs(n.y));
-    let shade = mix(even, lit, i.color.a);
+    var shade = mix(even, lit, i.color.a);
+    // the unlit view mode: flat colours
+    if (g.light.w > 0.5) {
+        shade = 1.0;
+    }
     var o: SceneOut;
     o.color = vec4<f32>(i.color.rgb * shade, 1.0);
+    o.id = i.id;
+    return o;
+}
+
+// the wireframe view mode: a mesh's edges in its instance's colour
+@fragment
+fn fs_wire(i: MeshOut) -> SceneOut {
+    var o: SceneOut;
+    o.color = vec4<f32>(i.color.rgb, 1.0);
     o.id = i.id;
     return o;
 }

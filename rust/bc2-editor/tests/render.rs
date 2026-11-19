@@ -207,8 +207,8 @@ fn palette_opens_a_top_view_with_its_own_camera() {
     let (gpu, ctx) = (h.gpu.clone(), h.ctx.clone());
     app.run(&gpu, &ctx, bc2_editor::actions::Action::ResetLayout);
     assert!(!app.tabs().contains(&Tab::Viewport(Projection::Top)));
-    // the 3D view, Outliner, Layers, Properties, Problems, History
-    assert_eq!(app.tabs().len(), 6);
+    // the 3D view, Outliner, Layers, Place objects (round E2b), Properties, Problems, History
+    assert_eq!(app.tabs().len(), 7);
 }
 
 #[test]

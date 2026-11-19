@@ -10,6 +10,7 @@ use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 
 use crate::camera::Projection;
 use crate::gizmo::Tool;
+use crate::workspace::{ViewMode, Workspace};
 
 /// An action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -72,8 +73,38 @@ pub enum Action {
     Ungroup,
     /// Makes a layer and puts the selection on it.
     NewLayer,
-    /// The Objects workspace (editing) or the View workspace.
-    ToggleWorkspace,
+    /// Switches to a workspace.
+    SetWorkspace(Workspace),
+    /// Copies the selection with the sub-instances it owns (a flag's capture area).
+    DeepDuplicate,
+    /// Hides the selection in the views.
+    Hide,
+    /// Shows every object hidden one by one.
+    ShowHidden,
+    /// Locks the selection.
+    Lock,
+    /// Unlocks every object locked one by one.
+    UnlockAll,
+    /// Opens the sink popup for the selection.
+    SinkPopup,
+    /// Opens the placing picker at the point under the pointer.
+    PlaceObject,
+    /// Copies the selection (for Paste).
+    Copy,
+    /// Pastes the copied objects at the point under the pointer.
+    Paste,
+    /// Selects every object of the primary's type (its blueprint, else its entity type).
+    SelectAllOfType,
+    /// Moves the camera to the point under the pointer.
+    FocusHere,
+    /// The editor view's display mode.
+    SetViewMode(ViewMode),
+    /// A terrain or vegetation brush (stubs until their rounds).
+    Brush(Brush),
+    /// Sets the team of the selected gameplay objects (1, 2; 0 neutral).
+    SetTeam(u8),
+    /// The AI workspace's path test (a later round).
+    PathTest,
     /// Shows a panel.
     ShowPanel(PanelKind),
     /// Opens the Help window (controls and shortcuts, getting started, the workspaces).
@@ -89,6 +120,65 @@ pub enum PanelKind {
     Layers,
     /// Problems.
     Problems,
+    /// Properties.
+    Properties,
+    /// The content browser.
+    Content,
+}
+
+/// The Terrain and Vegetation workspaces' brushes (registered; their tools come in later rounds).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Brush {
+    /// Raise the terrain.
+    Raise,
+    /// Lower the terrain.
+    Lower,
+    /// Smooth the terrain.
+    Smooth,
+    /// Flatten the terrain.
+    Flatten,
+    /// Paint a texture layer.
+    Paint,
+    /// Scatter vegetation.
+    Scatter,
+    /// Erase vegetation.
+    Erase,
+}
+
+impl Brush {
+    /// Every brush: the terrain's, then the vegetation's.
+    pub const ALL: [Self; 7] = [
+        Self::Raise,
+        Self::Lower,
+        Self::Smooth,
+        Self::Flatten,
+        Self::Paint,
+        Self::Scatter,
+        Self::Erase,
+    ];
+
+    /// The workspace it belongs to.
+    #[must_use]
+    pub fn workspace(self) -> Workspace {
+        match self {
+            Self::Scatter | Self::Erase => Workspace::Vegetation,
+            _ => Workspace::Terrain,
+        }
+    }
+
+    /// Its name (the stub toolbar).
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Raise => "Raise",
+            Self::Lower => "Lower",
+            Self::Smooth => "Smooth",
+            Self::Flatten => "Flatten",
+            Self::Paint => "Paint layer",
+            Self::Scatter => "Scatter",
+            Self::Erase => "Erase",
+        }
+    }
 }
 
 /// An action's entry in the registry.
@@ -212,7 +302,73 @@ pub fn registry() -> Vec<Entry> {
             Action::Duplicate,
             "Duplicate",
             key(ctrl, Key::D),
-            "Copies the selected objects beside them, with their connections",
+            "Copies the selected objects beside them, with their connections; sub-objects they own are shared",
+        ),
+        e(
+            Action::DeepDuplicate,
+            "Deep duplicate",
+            key(ctrl_shift, Key::D),
+            "Copies the selected objects with the sub-objects they own (a flag's capture area), references remapped",
+        ),
+        e(
+            Action::Copy,
+            "Copy",
+            key(ctrl, Key::C),
+            "Remembers the selected objects for Paste",
+        ),
+        e(
+            Action::Paste,
+            "Paste",
+            key(ctrl, Key::V),
+            "Copies the remembered objects to the point under the pointer, keeping their spacing",
+        ),
+        e(
+            Action::PlaceObject,
+            "Place object here\u{2026}",
+            key(Modifiers::SHIFT, Key::A),
+            "Opens a searchable list of blueprints to place at the point under the pointer",
+        ),
+        e(
+            Action::SinkPopup,
+            "Sink below surface\u{2026}",
+            None,
+            "Opens the sink popup: depth by slider or Alt+wheel, straight down, along or aligned to the normal",
+        ),
+        e(
+            Action::Hide,
+            "Hide",
+            key(none, Key::H),
+            "Hides the selected objects in the views (they stay in the build)",
+        ),
+        e(
+            Action::ShowHidden,
+            "Show hidden objects",
+            key(Modifiers::ALT, Key::H),
+            "Shows every object hidden with Hide",
+        ),
+        e(
+            Action::Lock,
+            "Lock",
+            None,
+            "Locks the selected objects: they cannot be selected in the views or edited",
+        ),
+        e(
+            Action::UnlockAll,
+            "Unlock all",
+            None,
+            "Unlocks every object locked with Lock",
+        ),
+        e(
+            Action::SelectAllOfType,
+            "Select all of this type",
+            None,
+            "Selects every object of the selected one's blueprint (or type), or of the asset browser's tile",
+        ),
+        e(
+            Action::FocusHere,
+            "Focus here",
+            None,
+            "Moves the camera to look at the point under the pointer",
         ),
         e(
             Action::UseTool(Tool::Select),
@@ -237,6 +393,12 @@ pub fn registry() -> Vec<Entry> {
             "Ruler",
             key(none, Key::R),
             "Click two points to measure the distance between them",
+        ),
+        e(
+            Action::UseTool(Tool::Polygon),
+            "Polygon select",
+            key(none, Key::P),
+            "Click the corners of a polygon; Enter or a double click selects what is inside, Esc cancels",
         ),
         e(
             Action::ToggleSpace,
@@ -315,10 +477,16 @@ pub fn registry() -> Vec<Entry> {
             "Makes a layer and puts the selected objects on it",
         ),
         e(
-            Action::ToggleWorkspace,
-            "Switch workspace",
+            Action::ShowPanel(PanelKind::Properties),
+            "Show properties",
             None,
-            "Objects (editing) or View (looking around)",
+            "The selection's fields; several objects show Mixed where they differ",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::Content),
+            "Show asset browser",
+            None,
+            "The asset browser: every placeable object of the content set, spawners and objectives, to drag into the view",
         ),
         e(
             Action::ShowPanel(PanelKind::History),
@@ -352,12 +520,104 @@ pub fn registry() -> Vec<Entry> {
         ),
         e(Action::CloseMap, "Close map", None, "Back to the start screen"),
         e(
+            Action::SetTeam(1),
+            "Set team 1",
+            None,
+            "Gives the selected spawns, flags and vehicle spawns to team 1",
+        ),
+        e(
+            Action::SetTeam(2),
+            "Set team 2",
+            None,
+            "Gives the selected spawns, flags and vehicle spawns to team 2",
+        ),
+        e(
+            Action::SetTeam(0),
+            "Set neutral",
+            None,
+            "Makes the selected flags neutral at the start",
+        ),
+        e(
+            Action::PathTest,
+            "Test a path from here",
+            None,
+            "The bots' route from this point to another (the AI workspace's tools, a later round)",
+        ),
+        e(
             Action::Help,
             "Help",
             key(none, Key::F1),
             "Controls and shortcuts, a getting-started guide, and what each workspace is for",
         ),
     ]);
+    for w in Workspace::ALL {
+        out.push(e(
+            Action::SetWorkspace(w),
+            match w {
+                Workspace::View => "View workspace",
+                Workspace::Objects => "Objects workspace",
+                Workspace::Terrain => "Terrain workspace",
+                Workspace::Vegetation => "Vegetation workspace",
+                Workspace::Gameplay => "Gameplay workspace",
+                Workspace::Ai => "AI workspace",
+            },
+            None,
+            match w {
+                Workspace::View => "Looks around the map, read only",
+                Workspace::Objects => "Selects, moves, places, copies and deletes buildings, props, vehicles and more",
+                Workspace::Terrain => "Sculpts and paints the terrain (its brushes come in the terrain round)",
+                Workspace::Vegetation => "Scatters and erases vegetation (its brushes come in a later round)",
+                Workspace::Gameplay => "Edits the mode's flags, spawns, objectives and areas",
+                Workspace::Ai => "Edits the bots' orders and shows their navigation",
+            },
+        ));
+    }
+    for m in ViewMode::ALL {
+        out.push(e(
+            Action::SetViewMode(m),
+            match m {
+                ViewMode::Lit => "Lit view",
+                ViewMode::Unlit => "Unlit view",
+                ViewMode::Wireframe => "Wireframe view",
+                ViewMode::Collision => "Collision view",
+                ViewMode::Navmesh => "Navmesh view",
+                ViewMode::CullTree => "Cull tree view",
+            },
+            None,
+            match m {
+                ViewMode::Lit => "The editor view shaded by its light",
+                ViewMode::Unlit => "The editor view in flat colours, without light",
+                ViewMode::Wireframe => "The editor view as the triangles' edges",
+                ViewMode::Collision => "Only what the game collides with: terrain and the objects' Havok shapes",
+                ViewMode::Navmesh => "The bots' walkable ground from the level's path data, over the level",
+                ViewMode::CullTree => "The static cull tree: each object's slot (none, shared, its own) and the leaves",
+            },
+        ));
+    }
+    for b in Brush::ALL {
+        out.push(e(
+            Action::Brush(b),
+            match b {
+                Brush::Raise => "Raise terrain",
+                Brush::Lower => "Lower terrain",
+                Brush::Smooth => "Smooth terrain",
+                Brush::Flatten => "Flatten terrain",
+                Brush::Paint => "Paint terrain layer",
+                Brush::Scatter => "Scatter vegetation",
+                Brush::Erase => "Erase vegetation",
+            },
+            None,
+            match b {
+                Brush::Raise => "A brush that raises the terrain (the terrain round)",
+                Brush::Lower => "A brush that lowers the terrain (the terrain round)",
+                Brush::Smooth => "A brush that smooths the terrain (the terrain round)",
+                Brush::Flatten => "A brush that flattens the terrain to a height (the terrain round)",
+                Brush::Paint => "Paints a texture layer under the terrain-patch rules (the terrain round)",
+                Brush::Scatter => "Scatters vegetation that passes the safe-to-place rules (a later round)",
+                Brush::Erase => "Erases scattered vegetation (a later round)",
+            },
+        ));
+    }
     out
 }
 
@@ -418,10 +678,22 @@ mod tests {
         assert_eq!(search("").len(), r.len());
         assert_eq!(entry(Action::ResetLayout).map(|e| e.name), Some("Reset layout"));
         assert_eq!(search("undo").first().map(|e| e.action), Some(Action::Undo));
-        assert_eq!(
-            search("sink").first().map(|e| e.action),
-            Some(Action::ToggleSurfaceSnap)
-        );
+        assert_eq!(search("sink").first().map(|e| e.action), Some(Action::SinkPopup));
         assert_eq!(search("distribute").len(), 2);
+        assert_eq!(search("deep").first().map(|e| e.action), Some(Action::DeepDuplicate));
+        assert_eq!(
+            search("workspace")
+                .iter()
+                .filter(|e| matches!(e.action, Action::SetWorkspace(_)))
+                .count(),
+            Workspace::ALL.len()
+        );
+        assert_eq!(
+            search("view")
+                .iter()
+                .filter(|e| matches!(e.action, Action::SetViewMode(_)))
+                .count(),
+            6
+        );
     }
 }
