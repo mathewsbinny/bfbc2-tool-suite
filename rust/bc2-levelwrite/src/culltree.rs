@@ -9,6 +9,11 @@
 //! is `EnumOffset + its first leaf`, and it owns consecutive leaves from there. A deleted object's leaves stay in the
 //! tree with nothing registered on them (the traversal skips a leaf without an object), as do a moved object's old
 //! leaves.
+#![allow(
+    clippy::indexing_slicing,
+    reason = "fixed-size vectors and rows ([f64; 3], [[f32; 3]; 4], [u16; 4]) indexed by constants or 0..3"
+)]
+#![allow(clippy::cast_precision_loss, reason = "sphere keys are 16-bit integers")]
 
 use std::collections::HashMap;
 
@@ -57,7 +62,11 @@ fn s16(v: u16) -> f64 {
 #[must_use]
 pub fn decode(keys: [u16; 4]) -> Sphere {
     Sphere {
-        c: [s16(keys[0]) / CENTER_SCALE, s16(keys[1]) / CENTER_SCALE, s16(keys[2]) / CENTER_SCALE],
+        c: [
+            s16(keys[0]) / CENTER_SCALE,
+            s16(keys[1]) / CENTER_SCALE,
+            s16(keys[2]) / CENTER_SCALE,
+        ],
         r: s16(keys[3]) / RADIUS_SCALE,
     }
 }
@@ -83,7 +92,12 @@ pub fn encode(s: &Sphere, contain: &[Sphere]) -> Result<[u16; 4]> {
     if w > 32767 {
         return Err(bad(format!("sphere radius {need:.1} m is more than a cull tree holds")));
     }
-    Ok([keys[0] as i16 as u16, keys[1] as i16 as u16, keys[2] as i16 as u16, w as u16])
+    Ok([
+        keys[0] as i16 as u16,
+        keys[1] as i16 as u16,
+        keys[2] as i16 as u16,
+        w as u16,
+    ])
 }
 
 /// `culltree.enclose`: the smallest sphere holding both.
@@ -168,7 +182,10 @@ impl CullTree {
                 } else if name == b"Max" {
                     max = <[u8; 4]>::try_from(v.as_slice()).ok().map(f32::from_be_bytes);
                 } else if let Some(k) = KEYS.iter().position(|k| *k == name) {
-                    keys[k] = v.get(..2).and_then(|b| <[u8; 2]>::try_from(b).ok()).map(u16::from_be_bytes);
+                    keys[k] = v
+                        .get(..2)
+                        .and_then(|b| <[u8; 2]>::try_from(b).ok())
+                        .map(u16::from_be_bytes);
                 }
             }
             let (Some(r), Some(m), [Some(a), Some(b), Some(x), Some(w)]) = (right, max, keys) else {
@@ -380,7 +397,11 @@ impl CullTree {
         let s = enclose(&tn.sphere(), sph);
         let keys = encode(&s, &[tn.sphere(), *sph])?;
         let pn = *self.node(parent)?;
-        let (left, right) = if pn.left == target { (target, sub) } else { (sub, target) };
+        let (left, right) = if pn.left == target {
+            (target, sub)
+        } else {
+            (sub, target)
+        };
         self.nodes.push(TNode {
             max: tn.max.max(sub_max),
             keys,
@@ -496,7 +517,9 @@ pub fn slot_of(w: &LevelWriter, inst: NodeId) -> u32 {
 }
 
 fn set_slot(w: &mut LevelWriter, inst: NodeId, slot: u32) -> Result<()> {
-    let e = w.d.child(inst, b"Enumeration").ok_or_else(|| bad("an object without Enumeration"))?;
+    let e =
+        w.d.child(inst, b"Enumeration")
+            .ok_or_else(|| bad("an object without Enumeration"))?;
     w.d.set_numbers(e, &[slot.to_be_bytes()])?;
     Ok(())
 }
@@ -582,9 +605,21 @@ mod tests {
         let k = encode(&s, &[]).unwrap();
         let d = decode(k);
         assert!(d.contains(&s), "{d:?} {s:?}");
-        assert!(encode(&Sphere { c: [5000.0, 0.0, 0.0], r: 1.0 }, &[]).is_err());
+        assert!(
+            encode(
+                &Sphere {
+                    c: [5000.0, 0.0, 0.0],
+                    r: 1.0
+                },
+                &[]
+            )
+            .is_err()
+        );
         let a = Sphere { c: [0.0; 3], r: 1.0 };
-        let b = Sphere { c: [4.0, 0.0, 0.0], r: 1.0 };
+        let b = Sphere {
+            c: [4.0, 0.0, 0.0],
+            r: 1.0,
+        };
         let e = enclose(&a, &b);
         assert!(e.contains(&a) && e.contains(&b));
         assert!((e.r - 3.0).abs() < 1e-12);
@@ -593,12 +628,40 @@ mod tests {
     #[test]
     fn add_keeps_one_preorder_tree() {
         // a root over two leaves
-        let sph = |x: f64| encode(&Sphere { c: [x, 0.0, 0.0], r: 1.0 }, &[]).unwrap();
+        let sph = |x: f64| {
+            encode(
+                &Sphere {
+                    c: [x, 0.0, 0.0],
+                    r: 1.0,
+                },
+                &[],
+            )
+            .unwrap()
+        };
         let root = encode(&Sphere { c: [0.0; 3], r: 20.0 }, &[]).unwrap();
-        let flat = vec![(2, 1.0, root), ((LEAF | 1) as i32, 1.0, sph(-5.0)), ((LEAF | 2) as i32, 1.0, sph(5.0))];
+        let flat = vec![
+            (2, 1.0, root),
+            ((LEAF | 1) as i32, 1.0, sph(-5.0)),
+            ((LEAF | 2) as i32, 1.0, sph(5.0)),
+        ];
         let mut t = CullTree::build(&flat, 100).unwrap();
         let slot = t
-            .add(&[(Sphere { c: [30.0, 0.0, 0.0], r: 2.0 }, 2.0), (Sphere { c: [30.0, 0.0, 0.0], r: 2.0 }, 2.0)])
+            .add(&[
+                (
+                    Sphere {
+                        c: [30.0, 0.0, 0.0],
+                        r: 2.0,
+                    },
+                    2.0,
+                ),
+                (
+                    Sphere {
+                        c: [30.0, 0.0, 0.0],
+                        r: 2.0,
+                    },
+                    2.0,
+                ),
+            ])
             .unwrap();
         assert_eq!(slot, 103);
         let back = t.flatten();
@@ -606,7 +669,10 @@ mod tests {
         let again = CullTree::build(&back, 100).unwrap();
         assert_eq!(again.leaf_count(), 4);
         // every ancestor holds the new leaves' spheres; the root grew to hold them
-        assert!(decode(back[0].2).contains(&Sphere { c: [30.0, 0.0, 0.0], r: 2.0 }));
+        assert!(decode(back[0].2).contains(&Sphere {
+            c: [30.0, 0.0, 0.0],
+            r: 2.0
+        }));
         assert!(back[0].1 >= 2.0);
     }
 }

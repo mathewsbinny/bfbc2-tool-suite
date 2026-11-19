@@ -3,9 +3,13 @@
 //! level's fields set as a multiplayer level's, and the partition renamed.
 //!
 //! The lists below come from the data (3.12, "What a campaign level lacks"): DICE's own conversion of a campaign
-//! level (SP_005 -> MP_SP_005CQ, Heavy Metal) removed every instance of these types and kept the world (objects,
+//! level (`SP_005` -> `MP_SP_005CQ`, Heavy Metal) removed every instance of these types and kept the world (objects,
 //! terrain splines, model groups, effects, sound areas, weather states); the multiplayer layer is the set of types
 //! every stock Conquest level has and no campaign level wires the same way.
+#![allow(
+    clippy::implicit_hasher,
+    reason = "the guid maps and sets are the standard ones throughout"
+)]
 
 use std::collections::{HashMap, HashSet};
 
@@ -357,7 +361,10 @@ pub fn graft(
         let g = names.get(&a.from).ok_or_else(|| {
             let mut have: Vec<&String> = names.keys().collect();
             have.sort();
-            refused(format!("the donor {} has no capture point {:?} (it has {have:?})", spec.donor, a.from))
+            refused(format!(
+                "the donor {} has no capture point {:?} (it has {have:?})",
+                spec.donor, a.from
+            ))
         })?;
         cps.insert(g.clone());
     }
@@ -382,12 +389,13 @@ pub fn graft(
         w.d.children_mut(part)?.push(c);
     }
     let level = w.level_data().ok_or_else(|| refused("no LevelData"))?;
-    let dl = donor.level_data().ok_or_else(|| refused("the donor has no LevelData"))?;
+    let dl = donor
+        .level_data()
+        .ok_or_else(|| refused("the donor has no LevelData"))?;
     // the donor's event connections between grafted instances
-    let target = w
-        .d
-        .child(level, b"EventConnections")
-        .ok_or_else(|| refused("no LevelData.EventConnections"))?;
+    let target =
+        w.d.child(level, b"EventConnections")
+            .ok_or_else(|| refused("no LevelData.EventConnections"))?;
     if let Some(src) = donor.d.child(dl, b"EventConnections") {
         for &c in donor.d.children(src).unwrap_or_default() {
             let end = |f: &[u8]| {
@@ -397,7 +405,9 @@ pub fn graft(
                     .and_then(|x| donor.d.attr(x, b"ref"))
                     .and_then(local_ref)
             };
-            let (Some(s), Some(t)) = (end(b"Source"), end(b"Target")) else { continue };
+            let (Some(s), Some(t)) = (end(b"Source"), end(b"Target")) else {
+                continue;
+            };
             if !(map.contains_key(&s) && map.contains_key(&t)) {
                 continue;
             }
@@ -409,7 +419,9 @@ pub fn graft(
         }
     }
     // LevelData.Objects items of the grafted instances
-    let objs = w.d.child(level, b"Objects").ok_or_else(|| refused("no LevelData.Objects"))?;
+    let objs =
+        w.d.child(level, b"Objects")
+            .ok_or_else(|| refused("no LevelData.Objects"))?;
     if let Some(src) = donor.d.child(dl, b"Objects") {
         for &it in donor.d.children(src).unwrap_or_default() {
             if let Some(new) = donor.d.attr(it, b"ref").and_then(local_ref).and_then(|r| map.get(&r)) {
@@ -441,19 +453,20 @@ fn replace_field(
     map: &HashMap<String, String>,
     out: &mut Converted,
 ) -> Result<NodeId> {
-    let src = donor
-        .d
-        .child(dl, name)
-        .ok_or_else(|| refused(format!("the donor's LevelData has no {}", String::from_utf8_lossy(name))))?;
+    let src = donor.d.child(dl, name).ok_or_else(|| {
+        refused(format!(
+            "the donor's LevelData has no {}",
+            String::from_utf8_lossy(name)
+        ))
+    })?;
     let copy = w.d.copy_from(&donor.d, src);
     remap(&mut w.d, copy, map, &mut out.not_followed, "LevelData")?;
-    let pos = w
-        .d
-        .children(level)
-        .unwrap_or_default()
-        .iter()
-        .position(|&k| w.d.attr(k, b"name") == Some(name))
-        .ok_or_else(|| refused(format!("LevelData has no {}", String::from_utf8_lossy(name))))?;
+    let pos =
+        w.d.children(level)
+            .unwrap_or_default()
+            .iter()
+            .position(|&k| w.d.attr(k, b"name") == Some(name))
+            .ok_or_else(|| refused(format!("LevelData has no {}", String::from_utf8_lossy(name))))?;
     if let Some(slot) = w.d.children_mut(level)?.get_mut(pos) {
         *slot = copy;
     }
@@ -489,9 +502,16 @@ pub fn place(
     ];
     let mut done = HashSet::new();
     for a in spec.bases.iter().chain(&spec.flags) {
-        let dg = names.get(&a.from).ok_or_else(|| refused(format!("no capture point {:?}", a.from)))?;
-        let cp = map.get(dg).ok_or_else(|| refused(format!("{:?} was not grafted", a.from)))?;
-        let origin = w.transform(cp).map(|r| translation(&r)).ok_or_else(|| refused("a capture point without Transform"))?;
+        let dg = names
+            .get(&a.from)
+            .ok_or_else(|| refused(format!("no capture point {:?}", a.from)))?;
+        let cp = map
+            .get(dg)
+            .ok_or_else(|| refused(format!("{:?} was not grafted", a.from)))?;
+        let origin = w
+            .transform(cp)
+            .map(|r| translation(&r))
+            .ok_or_else(|| refused("a capture point without Transform"))?;
         let (dx, dz) = (a.at[0] - origin[0], a.at[2] - origin[2]);
         // the cluster: the capture point and what it reaches through `follow` types
         let mut cluster = vec![cp.clone()];
@@ -501,8 +521,12 @@ pub fn place(
             i += 1;
             let Some(e) = w.find(&g) else { continue };
             for x in w.d.walk(e) {
-                let Some(r) = w.d.attr(x, b"ref").and_then(local_ref) else { continue };
-                let Some(t) = w.find(&r).map(|n| type_of(&w.d, n)) else { continue };
+                let Some(r) = w.d.attr(x, b"ref").and_then(local_ref) else {
+                    continue;
+                };
+                let Some(t) = w.find(&r).map(|n| type_of(&w.d, n)) else {
+                    continue;
+                };
                 if follow.contains(&short(&t)) && !done.contains(&r) && seen.insert(r.clone()) {
                     cluster.push(r);
                 }
@@ -531,28 +555,25 @@ pub fn place(
 }
 
 fn set_bool_field(w: &mut LevelWriter, inst: NodeId, name: &[u8], v: bool) -> Result<()> {
-    let f = w
-        .d
-        .child(inst, name)
-        .ok_or_else(|| refused(format!("no field {}", String::from_utf8_lossy(name))))?;
+    let f =
+        w.d.child(inst, name)
+            .ok_or_else(|| refused(format!("no field {}", String::from_utf8_lossy(name))))?;
     w.d.set_bool(f, u8::from(v))?;
     Ok(())
 }
 
 fn set_text_field(w: &mut LevelWriter, inst: NodeId, name: &[u8], v: &str) -> Result<()> {
-    let f = w
-        .d
-        .child(inst, name)
-        .ok_or_else(|| refused(format!("no field {}", String::from_utf8_lossy(name))))?;
+    let f =
+        w.d.child(inst, name)
+            .ok_or_else(|| refused(format!("no field {}", String::from_utf8_lossy(name))))?;
     w.d.set_text(f, v.as_bytes())?;
     Ok(())
 }
 
 fn set_ref_field(w: &mut LevelWriter, inst: NodeId, name: &[u8], v: &[u8]) -> Result<()> {
-    let f = w
-        .d
-        .child(inst, name)
-        .ok_or_else(|| refused(format!("no field {}", String::from_utf8_lossy(name))))?;
+    let f =
+        w.d.child(inst, name)
+            .ok_or_else(|| refused(format!("no field {}", String::from_utf8_lossy(name))))?;
     w.d.set_ref(f, v)?;
     Ok(())
 }
@@ -581,7 +602,12 @@ impl DescriptionKeep {
         };
         let refs = [&b"Music"[..], b"MinimapTexture", b"LoadingMovie", b"RichPresence"]
             .iter()
-            .filter_map(|f| Some((f.to_vec(), w.d.child(desc, f).and_then(|x| w.d.attr(x, b"ref"))?.to_vec())))
+            .filter_map(|f| {
+                Some((
+                    f.to_vec(),
+                    w.d.child(desc, f).and_then(|x| w.d.attr(x, b"ref"))?.to_vec(),
+                ))
+            })
             .collect();
         Some(Self {
             name: text(b"Name")?,
@@ -617,8 +643,15 @@ pub fn level_fields(
     out: &mut Converted,
 ) -> Result<()> {
     let ld = w.level_data().ok_or_else(|| refused("no LevelData"))?;
-    let dl = donor.level_data().ok_or_else(|| refused("the donor has no LevelData"))?;
-    for f in [&b"HasAI"[..], b"HasFlyingAI", b"StartLevelFadedToBlack", b"StartLevelWithSoundFaded"] {
+    let dl = donor
+        .level_data()
+        .ok_or_else(|| refused("the donor has no LevelData"))?;
+    for f in [
+        &b"HasAI"[..],
+        b"HasFlyingAI",
+        b"StartLevelFadedToBlack",
+        b"StartLevelWithSoundFaded",
+    ] {
         set_bool_field(w, ld, f, false)?;
         out.fields.push(format!("{} = false", String::from_utf8_lossy(f)));
     }
@@ -626,13 +659,19 @@ pub fn level_fields(
         set_ref_field(w, ld, f, b"null")?;
         out.fields.push(format!("{} = null", String::from_utf8_lossy(f)));
     }
-    for f in [&b"PathfindingTypes"[..], b"InfantryFOVMultiplier", b"DefaultFOV", b"FriendlyDamageModifier"] {
+    for f in [
+        &b"PathfindingTypes"[..],
+        b"InfantryFOVMultiplier",
+        b"DefaultFOV",
+        b"FriendlyDamageModifier",
+    ] {
         replace_field(w, donor, ld, dl, f, map, out)?;
         out.fields.push(format!("{} (the donor's)", String::from_utf8_lossy(f)));
     }
     let desc = replace_field(w, donor, ld, dl, b"LevelDescription", map, out)?;
     keep.apply(w, desc)?;
-    out.fields.push("LevelDescription (the donor's: game mode, factions, kits; the base's name, map, music)".into());
+    out.fields
+        .push("LevelDescription (the donor's: game mode, factions, kits; the base's name, map, music)".into());
     Ok(())
 }
 
@@ -679,11 +718,11 @@ pub fn rename_strings(d: &mut EditDbx, old: &str, new: &str, renamed: &HashSet<S
         for e in d.walk(r) {
             let attrs: Vec<(Vec<u8>, Vec<u8>)> = d.attributes(e).map(|(k, v)| (k.to_vec(), v.to_vec())).collect();
             for (k, v) in attrs {
-                if k == b"ref" || k == b"id" {
-                    if let Some(x) = renamed_string(&v, old, new, renamed) {
-                        d.set_attr(e, &k, &x)?;
-                        n += 1;
-                    }
+                if (k == b"ref" || k == b"id")
+                    && let Some(x) = renamed_string(&v, old, new, renamed)
+                {
+                    d.set_attr(e, &k, &x)?;
+                    n += 1;
                 }
             }
             if d.kind(e) == bc2_formats::dbx::TEXT
@@ -752,15 +791,23 @@ mod tests {
     #[test]
     fn names_follow_the_level_and_case() {
         let renamed: HashSet<String> = ["levels/sp_01/staticculltree_client".to_owned()].into();
-        let r = |s: &str| renamed_string(s.as_bytes(), "SP_01", "Mapedit_X_CQ", &renamed).map(|v| String::from_utf8(v).unwrap());
+        let r = |s: &str| {
+            renamed_string(s.as_bytes(), "SP_01", "Mapedit_X_CQ", &renamed).map(|v| String::from_utf8(v).unwrap())
+        };
         assert_eq!(r("Levels/SP_01").as_deref(), Some("Levels/MAPEDIT_X_CQ"));
         assert_eq!(
             r("levels/sp_01/staticculltree_client/3eb17d94-4ffc-11e0-bf3f-cbc4fb3f961e").as_deref(),
             Some("levels/mapedit_x_cq/staticculltree_client/3eb17d94-4ffc-11e0-bf3f-cbc4fb3f961e")
         );
         // not renamed: the material grid, the minimap, another level
-        assert_eq!(r("levels/sp_01/materials_win32/d1cbe90b-d5b9-4161-b517-8d0259034605"), None);
-        assert_eq!(r("levels/sp_01/ui/minimaptexture/33bfcd1e-238e-4a31-a480-e258cf31a6dd"), None);
+        assert_eq!(
+            r("levels/sp_01/materials_win32/d1cbe90b-d5b9-4161-b517-8d0259034605"),
+            None
+        );
+        assert_eq!(
+            r("levels/sp_01/ui/minimaptexture/33bfcd1e-238e-4a31-a480-e258cf31a6dd"),
+            None
+        );
         assert_eq!(r("Levels/SP_011"), None);
         assert_eq!(r("levels/mp_005/x"), None);
     }

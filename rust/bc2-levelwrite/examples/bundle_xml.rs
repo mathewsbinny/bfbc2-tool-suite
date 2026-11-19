@@ -2,7 +2,12 @@
 //!
 //! `cargo run -p bc2-levelwrite --example bundle_xml -- <bundle> <entry> <out.xml>`
 //! `cargo run -p bc2-levelwrite --example bundle_xml -- <bundle> --list <text>`
-#![allow(clippy::print_stdout, clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+#![allow(
+    clippy::print_stdout,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing
+)]
 
 use bc2_formats::{dbx, fbrb};
 
