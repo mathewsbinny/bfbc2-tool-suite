@@ -3882,7 +3882,7 @@ the test; every one below was answered in Rust.
 | aimanim | every AimAnimation of the game copy (PC), `work\xbox`, `work\xbox_dlc` and BF1943, parse / write / `to_pc` (BF1943's with the importer's own soldier bone map, `granny.bone_map`, and without) | 9,875 identical, 0 different; quick 1,500 damaged and 1,500 changed dicts the same result or error |
 | `mesh_layout` / `mesh_coverage` | every sector of the 144 path-data files of the game copy and `work` (8,858 sectors) and a damaged copy of each | 40,032 identical, 0 different |
 | audio framing | 6,497 EA-XMA streams (BFBC2 Xbox, Xbox DLC, BF1943: parts and each part's RIFF) and 8,627 EA-XAS streams (the game copy's in-memory PC sounds, re-cut into DICE's blocks); OPFOR's call: `audio.convert` of 125 BF1943 Waves (the WW2 install's sound port, through ffmpeg) with the Rust framing and the Python framing | 24,055 identical, 0 different; 125 of 125 converted Waves byte-identical |
-| navsample | 173 sample runs of `work\navsample` / `work\navsample_offline` (24 GB): every version-3 record (1,001,855,046 surfaces, 2,141,076,036 columns) through both readers and both writers in column ranges, the runs up to 120 MB also whole | NAVSAMPLE_RESULT |
+| navsample | 173 sample runs of `work\navsample` / `work\navsample_offline` (24 GB): every version-3 record (1,001,855,046 surfaces, 2,141,076,036 columns) through both readers and both writers in 823 column ranges of at most ~1.5 M records (each a file of its own), the version-3 runs up to 120 MB also read whole (88 runs whole, version 1 / 2 ones up to 40 MB: E3c's reader) | 3,234 identical, 0 different (every real input answered in Rust) |
 | `hkpack.Packfile` | every HavokPhysicsData of the game copy and `work\ww2`, every `*_havok.res` of `work\levels` (NavKit's offline sampler reads them): 9,866 | 10,675 identical (with the quick tier's), 0 different |
 | `xenos.disasm` | every program of BF1943's and BFBC2's Xbox shader databases and containers (8,320 distinct of 63,305), with and without the raw words and the header | 35,681 identical, 0 different; 34,788 answered in Rust (the rest: damaged quick blobs the decoder refuses, and the tree whose microcode was read) |
 
@@ -3894,20 +3894,21 @@ built sample runs written and read back (and damaged), 300 changed ones (float64
 seeded Xenos programs and their damaged copies. All identical; the inputs handed back are damaged or deliberately
 off-type.
 
-### Timings (`--game`, whole corpora, both in one process; the calls timed, not the reading of bundles)
+### Timings (`--game`, whole corpora, both in one process; the calls timed, not the reading of bundles; the recording run, the verifying runs within 20 %)
 
 | workload | Python | Rust | |
 |---|---:|---:|---:|
 | `xenos.parse_shader` + `disasm`, 8,320 programs x 4 | 62.6 s | **13.1 s** | 4.8x |
-| navsample load + write, every run | NAVSAMPLE_PY | **NAVSAMPLE_RS** | |
+| navsample load + write, every record of the 173 runs | 136.4 s | **104.1 s** | 1.3x (the writer's array copies in the shim; the version-3 read alone fills Python's buffers once) |
 | `mesh_layout` + `mesh_coverage`, 8,858 sectors x 2 | 15.9 s | **9.1 s** | 1.7x (the result is a Python structure of every tile item) |
 | aimanim parse / write / `to_pc` | 5.1 s | **3.7 s** | 1.4x |
 | `hkpack.Packfile`, 9,866 packfiles | 5.8 s | 5.7 s | 1.0x: the Python dicts (`ptr`, `by_offset`, `classes`) are built from the Rust lists; their building is the cost |
 | audio framing, 15,124 streams | 1.7 s | 1.5 s | the work is a few slices per stream |
 
-Peak working set of the navsample game check: NAVSAMPLE_PEAK (the reference's version-3 pass holds the file, its
-records and float64 normals: about 3.5x the file, so runs over 120 MB are compared in column ranges; the Rust fills
-the arrays in place: the file plus the arrays).
+Peak working set of the navsample game check: 778 MB (streamed: one column range in memory at a time; the first
+version of the check, holding whole runs, reached 3.4 GB - the reference's version-3 pass holds the file, its records
+and float64 normals, about 3.5x the file, and version 1 / 2's loop about 15x; the Rust fills the arrays in place: the
+file plus the arrays).
 
 ### What remains
 
