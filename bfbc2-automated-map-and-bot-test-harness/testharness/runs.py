@@ -213,16 +213,19 @@ def compare(base: Run, new: Run, scale: float = 1.0) -> list[tuple[Any, ...]]:
     out: list[tuple[Any, ...]] = []
     a = {(lv, sc, t): r for lv, sc, t, r in results(base)}
     b = {(lv, sc, t): r for lv, sc, t, r in results(new)}
-    for k in a.keys() - b.keys():
+    # the set differences in sorted order (level, then scope, then test): set order follows str hashes, randomised
+    # per process, so the same two runs printed their missing / new findings in a different order each time
+    # (sorting approved 2026-11-19, round O4)
+    for k in sorted(a.keys() - b.keys()):
         if k[0] in new['levels']:
             out.append(('missing', *k, '', a[k]['status'], None))
-    for k in b.keys() - a.keys():
+    for k in sorted(b.keys() - a.keys()):
         if k[0] in base['levels']:
             # a test only the new run has, failing (e.g. the level could not be read): a regression, not just "new"
             out.append(('status' if b[k]['status'] in BAD else 'new', *k, '', None, b[k]['status']))
-    for lv in base['levels'].keys() - new['levels'].keys():
+    for lv in sorted(base['levels'].keys() - new['levels'].keys()):
         out.append(('missing', lv, '', '', '', 'level', None))
-    for lv in new['levels'].keys() - base['levels'].keys():
+    for lv in sorted(new['levels'].keys() - base['levels'].keys()):
         out.append(('new', lv, '', '', '', None, 'level'))
     for k in sorted(a.keys() & b.keys()):
         ra, rb = a[k], b[k]

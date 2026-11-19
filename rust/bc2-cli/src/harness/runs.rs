@@ -473,19 +473,8 @@ fn metric_num(v: &Value) -> Option<f64> {
     }
 }
 
-/// Two findings of one kind from one set difference: Python lists them in its `str` hash order (randomized per
-/// process unless `PYTHONHASHSEED` is set), an order only the Python can give - handed to it.
-fn hash_order(found: &[Found]) -> PyResult<()> {
-    for (i, f) in found.iter().enumerate() {
-        if found.iter().skip(i + 1).any(|g| g.0 == f.0) {
-            return Err(Fail::Python);
-        }
-    }
-    Ok(())
-}
-
-/// `compare(base, new, scale)`. A set difference with two findings of one kind (whose order is Python's hash order)
-/// hands off ([`hash_order`]).
+/// `compare(base, new, scale)`. The set differences' findings in sorted order (level, scope, test), as runs.compare
+/// sorts them since round O4 (Python's set order followed its randomized str hashes).
 pub fn compare(base: &Value, new: &Value, scale: f64) -> PyResult<Vec<Found>> {
     let ra = results(base).ok_or(Fail::Python)?;
     let rb = results(new).ok_or(Fail::Python)?;
@@ -515,7 +504,6 @@ pub fn compare(base: &Value, new: &Value, scale: f64) -> PyResult<Vec<Found>> {
     let mut only_a: Vec<&((String, String, String), Value)> =
         a.iter().filter(|(k, _)| !b.iter().any(|(o, _)| o == k)).collect();
     only_a.sort_by(|x, y| x.0.cmp(&y.0));
-    let start = out.len();
     for (k, r) in only_a {
         if lb.contains(&k.0) {
             out.push((
@@ -529,11 +517,9 @@ pub fn compare(base: &Value, new: &Value, scale: f64) -> PyResult<Vec<Found>> {
             ));
         }
     }
-    hash_order(&out[start..])?;
     let mut only_b: Vec<&((String, String, String), Value)> =
         b.iter().filter(|(k, _)| !a.iter().any(|(o, _)| o == k)).collect();
     only_b.sort_by(|x, y| x.0.cmp(&y.0));
-    let start = out.len();
     for (k, r) in only_b {
         if la.contains(&k.0) {
             let kind = if is_bad(&st(r)) { "status" } else { "new" };
@@ -548,10 +534,8 @@ pub fn compare(base: &Value, new: &Value, scale: f64) -> PyResult<Vec<Found>> {
             ));
         }
     }
-    hash_order(&out[start..])?;
     let mut lv_a: Vec<&String> = la.iter().filter(|l| !lb.contains(l)).collect();
     lv_a.sort();
-    let start = out.len();
     for lv in lv_a {
         out.push((
             "missing",
@@ -563,10 +547,8 @@ pub fn compare(base: &Value, new: &Value, scale: f64) -> PyResult<Vec<Found>> {
             Value::Null,
         ));
     }
-    hash_order(&out[start..])?;
     let mut lv_b: Vec<&String> = lb.iter().filter(|l| !la.contains(l)).collect();
     lv_b.sort();
-    let start = out.len();
     for lv in lv_b {
         out.push((
             "new",
@@ -578,7 +560,6 @@ pub fn compare(base: &Value, new: &Value, scale: f64) -> PyResult<Vec<Found>> {
             Value::Str("level".into()),
         ));
     }
-    hash_order(&out[start..])?;
     let mut both: Vec<(&(String, String, String), &Value, &Value)> = a
         .iter()
         .filter_map(|(k, r)| b.iter().find(|(o, _)| o == k).map(|(_, q)| (k, r, q)))

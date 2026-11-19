@@ -4489,11 +4489,19 @@ Goldens were recorded from the Python first, in a frozen copy of 4710a60 with it
 | navparity | 50 | 44 | 6 | all Rust (`show` of every real run) |
 | navregress | 26 | 26 | 0 | all Rust (no-reference answer) |
 | sample_all | 18 | 18 | 0 | - |
-| harness | 114 | 106 | 8 | 30 (24 / 6) |
+| harness | 118 | 112 | 6 | 36 (36 / 0) |
 | texqa | 80 | 62 | 18 | 4 (3 / 1) |
-| **all** | **618** | **566** | **52** | **181 lines, each alone and on one pipe, both ways: all identical** |
+| **all** | **622** | **572** | **50** | **187 lines, each alone and on one pipe, both ways: all identical** |
 
-- **Quick: 618 of 618 as recorded. `--live` both ways: the same answers** (process time: navkit Python 92 s /
+- **Quick: 622 of 622 as recorded** (618 before the harness's sorted compare, below).
+- **The harness's `compare`, sorted (approved by the user, 2026-11-19):** `testharness/runs.compare` listed its four
+  set differences (tests and levels missing from or new in a run) in Python's set order, which follows str hashes
+  randomised per process, so the same two runs printed those findings in a different order each time. Python and
+  Rust now both list them sorted by level, then scope, then test (`compare_report` keeps its order of kinds). Nothing
+  else reads that order: `harness.py` prints it, and test_harness checks kinds and counts only (its suite passes);
+  OPFOR has no reader. Recorded again from the updated Python: the compare lines (two levels missing / new, under two
+  hash seeds) and the 12 real compares of the 7 OPFOR runs (both directions) are all Rust's now.
+- **Earlier quick figure: 618 of 618 as recorded. `--live` both ways: the same answers** (process time: navkit Python 92 s /
   Rust 13 s; navtools 111 / 17 s; harness 56 / 8 s; texqa 53 / 21 s).
 - **Cases that depend on where the checkout sits are not recorded** (O2's `convert havok` lesson): the first quick
   tier from this checkout (beside Project OPFOR and bf1943-tool-suite) answered three of them differently from the
@@ -4516,8 +4524,7 @@ Goldens were recorded from the Python first, in a frozen copy of 4710a60 with it
   removed with `rmdir` before the folder. (A first run in the long scratch folder failed both ways identically on
   FbrbTool's 260-character check; the test now runs under a short root.)
 - **Who answered, real inputs:** every real navkit-group call is Rust's. The real lines still handed to the Python
-  are detailed's sector choice, harness compares whose findings Python prints in its randomised hash order (Python
-  itself differs between runs there), and texqa's bench_sweep line (BF1943 sources, DICE's copies, contact sheets).
+  are detailed's sector choice and texqa's bench_sweep line (BF1943 sources, DICE's copies, contact sheets).
 
 **Recorded differences, by design** (none occurs in the recorded lines or OPFOR's calls):
 
@@ -4529,7 +4536,6 @@ Goldens were recorded from the Python first, in a frozen copy of 4710a60 with it
 - ordercheck's nearest node uses Rust's `hypot` (the C runtime's, as NumPy's).
 - texqa: correlations are computed in double-double and answered only when the 4-decimal rounding cannot change
   within BLAS's error bound; otherwise handed off.
-- harness compare: hash-order cases handed off (sorting them would be a choice for the user).
 - O2's log differences (the start line names `bfbc2.exe`; no log pruning) hold here too.
 
 **Checks:** `cargo fmt`; `cargo clippy -p bc2-cli --all-targets -D warnings` with all features and with each of the
@@ -4579,5 +4585,4 @@ suite's own tools. Nothing changes there; a Rust library for texqa (shape B) wou
   (`time.ctime`: the local time of a file stamp).
 - `sample` / `sample_all` start the game: they stay Python by rule.
 - `navtools/pycommon.rs` repeats navkit's `find_opfor` / `original_file` (the groups build alone): one shared copy.
-- The harness compare's hash order: hand off, or accept sorted output as a recorded difference.
 - prepare as a library call inside the editor (no child process), once the editor links bc2-scene's collision.

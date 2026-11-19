@@ -81,7 +81,7 @@ def _dump(run: Any) -> bytes:
 
 def _new(run: dict[str, Any]) -> None:
     """Changes for compare: worse / better / count metrics, a test now failing, one fixed, lost pairs, a test only one
-    side has, a level only one side has (one of each: Python lists set differences in hash order)."""
+    side has, a level only one side has."""
     nk = run['levels']['sp_009']['files']['navkit']['tests']
     nk['reachability']['metrics']['reach_pct'] = 50.0
     nk['battery']['metrics']['found_pct'] = 99.9
@@ -181,8 +181,10 @@ def cases() -> list[Case]:
         ('compare --scale 0', runs, ['compare', 'base', 'new', '--scale', '0'] + r, {}),
         ('compare --scale x', runs, ['compare', 'base', 'new', '--scale', 'x'] + r, {}),
         ('compare a run with itself', runs, ['compare', 'base', 'base'] + r, {}),
-        ('compare, two levels missing (hash order: handed to the Python)', runs,
-         ['compare', '{d}\\runs\\my run.json', 'base'] + r, {'PYTHONHASHSEED': '0'}),
+        ('compare, two levels missing (sorted)', runs, ['compare', '{d}\\runs\\my run.json', 'base'] + r, {}),
+        ('compare, two levels missing, another hash seed', runs,
+         ['compare', '{d}\\runs\\my run.json', 'base'] + r, {'PYTHONHASHSEED': '12345'}),
+        ('compare, two levels new', runs, ['compare', 'base', '{d}\\runs\\my run.json'] + r, {}),
         ('compare with a run of one level', runs, ['compare', 'base', 'odd'] + r, {}),
         ('compare with one run', runs, ['compare', 'base'] + r, {}),
         ('compare with a missing run', runs, ['compare', 'base', 'none'] + r, {}),
@@ -229,10 +231,9 @@ def opfor_calls(opfor: str) -> list[Call]:
         calls.append((f'harness show {f} --details 25', 'harness', ['show', f[:-5], '--details', '25'] + r, files, {},
                       True))
     for a, b in zip(names, names[1:]):
-        # PYTHONHASHSEED: a set difference of two or more findings is listed in Python's str hash order (bfbc2.exe
-        # hands those to the Python); a fixed seed makes the two Python runs list them alike
-        calls.append((f'harness compare {a} {b}', 'harness', ['compare', a[:-5], b[:-5]] + r, files,
-                      {'PYTHONHASHSEED': '0'}, False))
+        # the set differences' findings are sorted (round O4): no hash seed needed for the two sides to agree
+        calls.append((f'harness compare {a} {b}', 'harness', ['compare', a[:-5], b[:-5]] + r, files, {}, False))
+        calls.append((f'harness compare {b} {a}', 'harness', ['compare', b[:-5], a[:-5]] + r, files, {}, False))
     log = os.path.join(opfor, 'game', 'logs', 'opfor.log')
     if os.path.isfile(log):
         for f in names[:3]:
