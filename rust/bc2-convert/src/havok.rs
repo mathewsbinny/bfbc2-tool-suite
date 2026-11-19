@@ -721,6 +721,79 @@ pub fn verify_packfile(
     Ok(out)
 }
 
+/// Why DICE's wrapper is not converted here ([`convert_wrapper`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WrapperError {
+    /// `havok.py`'s `ConvertError`, with its message.
+    Refused(String),
+    /// A read past the data (the reference's `struct.error`) or a float `struct` would not give back as it was (a
+    /// NaN): the reference runs.
+    Reference,
+}
+
+/// DICE's wrapper before the packfile at `o`, console -> PC (`havok.convert_wrapper`, round F2a; `FORMAT.md` 1.1):
+/// a count, the part name hashes, `a` vectors and `c` boxes swapped field by field, the byte run as it is, then 1,
+/// `k` and `k` hashes ending at the packfile (the byte run's end: the one place where that holds).
+///
+/// # Errors
+/// See [`WrapperError`].
+#[allow(
+    clippy::indexing_slicing,
+    clippy::many_single_char_names,
+    reason = "each slice is cut by get() first; the reference's names"
+)]
+pub fn convert_wrapper(b: &[u8], o: usize) -> std::result::Result<Vec<u8>, WrapperError> {
+    use WrapperError::Reference;
+    let word = |at: usize| -> std::result::Result<u32, WrapperError> {
+        let s = b.get(at..at.checked_add(4).ok_or(Reference)?).ok_or(Reference)?;
+        Ok(u32::from_be_bytes([s[0], s[1], s[2], s[3]]))
+    };
+    let half = |at: usize| -> std::result::Result<u16, WrapperError> {
+        let s = b.get(at..at.checked_add(2).ok_or(Reference)?).ok_or(Reference)?;
+        Ok(u16::from_be_bytes([s[0], s[1]]))
+    };
+    let mut out = Vec::new();
+    let mut p = 0usize;
+    // num('I' / 'H' / 'f', n): n values swapped
+    let num = |out: &mut Vec<u8>, width: usize, float: bool, n: u64, p: &mut usize| {
+        for _ in 0..n {
+            let s = b.get(*p..*p + width).ok_or(Reference)?;
+            if float && f32::from_bits(u32::from_be_bytes([s[0], s[1], s[2], s[3]])).is_nan() {
+                return Err(Reference);
+            }
+            out.extend(s.iter().rev());
+            *p += width;
+        }
+        Ok(())
+    };
+    let n = word(0)?;
+    num(&mut out, 4, false, 2, &mut p)?;
+    num(&mut out, 4, false, u64::from(word(4)?), &mut p)?;
+    let a = half(p)?;
+    num(&mut out, 2, false, 1, &mut p)?;
+    num(&mut out, 4, true, 3 * u64::from(a), &mut p)?;
+    let c = half(p)?;
+    num(&mut out, 2, false, 1, &mut p)?;
+    num(&mut out, 4, true, 6 * u64::from(c), &mut p)?;
+    let mut tail = Vec::new();
+    for q in p..o.saturating_sub(7) {
+        if word(q)? == 1 && (q + 8) as u64 + 4 * u64::from(word(q + 4)?) == o as u64 {
+            tail.push(q);
+        }
+    }
+    let [t] = tail[..] else {
+        return Err(WrapperError::Refused(format!(
+            "wrapper: the end of the byte run is not unique ({} candidates; {n} parts)",
+            tail.len()
+        )));
+    };
+    out.extend_from_slice(b.get(p..t).unwrap_or_default());
+    p = t;
+    let k = word(p + 4)?;
+    num(&mut out, 4, false, 2 + u64::from(k), &mut p)?;
+    Ok(out)
+}
+
 #[cfg(test)]
 #[path = "havok_tests.rs"]
 mod tests;

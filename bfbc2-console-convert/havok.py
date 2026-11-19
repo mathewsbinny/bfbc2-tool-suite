@@ -186,7 +186,57 @@ def wrapper_end(b):
 
 
 def convert_wrapper(b, o):
-    """The wrapper before the packfile at o (FORMAT.md 1.1), console -> PC."""
+    """The wrapper before the packfile at o (FORMAT.md 1.1), console -> PC: in the Rust core when it is built (round
+    F2a: bc2_convert::havok::convert_wrapper; the same bytes and ConvertError messages), else convert_wrapper_reference
+    (kept as the reference and the fallback: where the reference would raise struct.error, or a value is a NaN)."""
+    nat = _native_core() if type(b) is bytes and type(o) is int and o >= 0 else None
+    got = nat.havok_convert_wrapper(b, o) if nat is not None else None
+    if got is None:
+        return convert_wrapper_reference(b, o)
+    if not got[0]:
+        raise ConvertError(got[1])
+    return got[1]
+
+
+_CORE: list = []
+
+
+def _native_core():
+    """The Rust core with havok_convert_wrapper, or None: not built, or BFBC2_PURE_PYTHON set (the packfile walk
+    always runs in the Rust core: require)."""
+    if not _CORE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _CORE.append(m if m is not None and hasattr(m, 'havok_convert_wrapper') else None)
+    return _CORE[0]
+
+
+def use_native_wrapper(on):
+    """The Rust wrapper conversion on (when built, whatever BFBC2_PURE_PYTHON says) or off; True when it runs."""
+    _CORE.clear()
+    if not on:
+        _CORE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native_core() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
+def convert_wrapper_reference(b, o):
+    """The Python convert_wrapper (the reference)."""
     out, p = bytearray(), 0
 
     def num(fmt, n=1):

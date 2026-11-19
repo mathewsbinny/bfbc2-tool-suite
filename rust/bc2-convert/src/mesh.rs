@@ -82,11 +82,12 @@ pub fn f64_to_f16(v: f64) -> u16 {
     let exp = ((bits >> 52) & 0x7FF) as i32;
     let mant = bits & ((1u64 << 52) - 1);
     if exp == 0x7FF {
-        // infinity, or a NaN (kept quiet, its top mantissa bits kept as NumPy does)
+        // infinity, or a NaN: its top mantissa bits kept as NumPy keeps them (never all zero: then 1)
         return if mant == 0 {
             sign | 0x7C00
         } else {
-            sign | 0x7E00 | ((mant >> 42) as u16 & 0x3FF)
+            let r = 0x7C00 | ((mant >> 42) as u16 & 0x3FF);
+            sign | if r == 0x7C00 { 0x7C01 } else { r }
         };
     }
     if exp == 0 {
@@ -116,6 +117,56 @@ pub fn f64_to_f16(v: f64) -> u16 {
     // the mantissa moves into the exponent (up to infinity), as the bit patterns are ordered
     let out = if e >= -14 { base + m - (1 << 10) } else { m };
     sign | (out.min(0x7C00) as u16)
+}
+
+/// An IEEE half as a float, exactly as NumPy casts it (`npy_halfbits_to_floatbits`): a NaN keeps its payload,
+/// shifted into the float's mantissa.
+#[must_use]
+pub fn f16_to_f32(h: u16) -> f32 {
+    let sign = u32::from(h & 0x8000) << 16;
+    let exp = u32::from((h >> 10) & 0x1F);
+    let sig = u32::from(h & 0x3FF);
+    let bits = match exp {
+        0x1F => sign | 0x7F80_0000 | (sig << 13),
+        0 if sig == 0 => sign,
+        0 => {
+            // a subnormal half: normalised into the float's exponent
+            let mut e = 0u32;
+            let mut m = sig;
+            while m & 0x400 == 0 {
+                m <<= 1;
+                e += 1;
+            }
+            sign | ((127 - 14 - e) << 23) | ((m & 0x3FF) << 13)
+        }
+        _ => sign | ((exp + 127 - 15) << 23) | (sig << 13),
+    };
+    f32::from_bits(bits)
+}
+
+/// An IEEE half as a double, exactly as NumPy casts it (`npy_halfbits_to_doublebits`: a NaN keeps its payload).
+#[must_use]
+pub fn f16_to_f64(h: u16) -> f64 {
+    let x = f16_to_f32(h);
+    if x.is_nan() {
+        let b = x.to_bits();
+        let sign = u64::from(b >> 31) << 63;
+        return f64::from_bits(sign | 0x7FF0_0000_0000_0000 | (u64::from(b & 0x7F_FFFF) << 29));
+    }
+    f64::from(x)
+}
+
+/// A float as an IEEE half's bits as NumPy casts a float32 array to float16: to nearest, ties to even; a NaN keeps
+/// its top mantissa bits (`npy_floatbits_to_halfbits`, never through a double: that would quiet it).
+#[must_use]
+pub fn f32_to_f16(v: f32) -> u16 {
+    if v.is_nan() {
+        let b = v.to_bits();
+        let sign = ((b >> 16) & 0x8000) as u16;
+        let r = 0x7C00 | (((b & 0x7F_FFFF) >> 13) as u16);
+        return sign | if r == 0x7C00 { 0x7C01 } else { r };
+    }
+    f64_to_f16(f64::from(v))
 }
 
 /// `mesh.py`'s `_hend3n`: a signed normalized 11:11:10 value as three doubles.
