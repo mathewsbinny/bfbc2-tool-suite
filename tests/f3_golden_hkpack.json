@@ -1,0 +1,692 @@
+{
+"game/Dist/win32/levels/mp_001/level-00.fbrb": [
+38740245,
+"d693f79c507c330e2341",
+29
+],
+"game/Dist/win32/levels/mp_001sr/level-00.fbrb": [
+33315376,
+"c2d25f2233b1e9eb7094",
+29
+],
+"game/Dist/win32/levels/mp_002/level-00.fbrb": [
+40956326,
+"452ffc337c5bf07b8a4f",
+32
+],
+"game/Dist/win32/levels/mp_002sr/level-00.fbrb": [
+36535423,
+"a1118c761d8b9d760a76",
+33
+],
+"game/Dist/win32/levels/mp_003/level-00.fbrb": [
+33086334,
+"e60fdabf5c9b533374b2",
+17
+],
+"game/Dist/win32/levels/mp_004/level-00.fbrb": [
+42192218,
+"5c77b0da45f907a84a35",
+24
+],
+"game/Dist/win32/levels/mp_004sdm/level-00.fbrb": [
+34034694,
+"0be61fc8d1157b45eaca",
+23
+],
+"game/Dist/win32/levels/mp_005/level-00.fbrb": [
+48471720,
+"63691c80631e63fc9483",
+19
+],
+"game/Dist/win32/levels/mp_005sr/level-00.fbrb": [
+34434616,
+"5d572e45a360095a6bd9",
+15
+],
+"game/Dist/win32/levels/mp_006/level-00.fbrb": [
+27925596,
+"36a93debe48ae44bd8cf",
+6
+],
+"game/Dist/win32/levels/mp_006cq/level-00.fbrb": [
+19656597,
+"913c649e204f30fdcec1",
+6
+],
+"game/Dist/win32/levels/mp_006sdm/level-00.fbrb": [
+18866104,
+"280c27b5f709cb71bc34",
+4
+],
+"game/Dist/win32/levels/mp_007/level-00.fbrb": [
+35252427,
+"5c148cc56b8f62085ac5",
+12
+],
+"game/Dist/win32/levels/mp_007sdm/level-00.fbrb": [
+29914855,
+"450f8ea21fa2a64b27da",
+12
+],
+"game/Dist/win32/levels/mp_008/level-00.fbrb": [
+38687374,
+"ff4d4767db9867377d56",
+22
+],
+"game/Dist/win32/levels/mp_009cq/level-00.fbrb": [
+18557973,
+"1725303785790f25247e",
+3
+],
+"game/Dist/win32/levels/mp_009gr/level-00.fbrb": [
+21692642,
+"4191f8870a6f5db98e5c",
+4
+],
+"game/Dist/win32/levels/mp_009sdm/level-00.fbrb": [
+17006184,
+"c8b08cab61fb1b2af1d9",
+3
+],
+"game/Dist/win32/levels/mp_012gr/level-00.fbrb": [
+46113223,
+"15211ceadae527b065c9",
+32
+],
+"game/Dist/win32/levels/mp_012sr/level-00.fbrb": [
+34161067,
+"3d6c9e7ecf9cf4cbdf0f",
+25
+],
+"game/Dist/win32/levels/mp_common/level-00.fbrb": [
+299786143,
+"581a3276f12ed6cccb81",
+467
+],
+"game/Dist/win32/levels/ons_mp_002/level-00.fbrb": [
+59375895,
+"daadac56d62fef224ccd",
+35
+],
+"game/Dist/win32/levels/ons_mp_004/level-00.fbrb": [
+60736822,
+"b755a1e7b60d726499d5",
+27
+],
+"game/Dist/win32/levels/ons_mp_005/level-00.fbrb": [
+66490461,
+"5881ebaf1735a4fecf19",
+23
+],
+"game/Dist/win32/levels/ons_mp_005gr/level-00.fbrb": [
+42932393,
+"9f18995bec5da95faf8d",
+43
+],
+"game/Dist/win32/levels/ons_mp_008/level-00.fbrb": [
+56987601,
+"c13f6990c75c8992b1ec",
+26
+],
+"game/Dist/win32/levels/sp_003_B/level-00.fbrb": [
+44926046,
+"28580aa7b8574adecd88",
+60
+],
+"game/Dist/win32/levels/sp_004_B/level-00.fbrb": [
+34392110,
+"50bf57714e97b7b2bdb4",
+14
+],
+"game/Dist/win32/levels/sp_005/level-00.fbrb": [
+58509430,
+"9e1153136bbd8070bb49",
+56
+],
+"game/Dist/win32/levels/sp_005_B/level-00.fbrb": [
+49454285,
+"33eaf8d50347a7f7c62b",
+70
+],
+"game/Dist/win32/levels/sp_006/level-00.fbrb": [
+55995153,
+"576a3355b87bd9136e45",
+123
+],
+"game/Dist/win32/levels/sp_007/level-00.fbrb": [
+44230774,
+"6f3fe5c43a968c58b57f",
+61
+],
+"game/Dist/win32/levels/sp_008/level-00.fbrb": [
+55788817,
+"7bd430a984e7023d05bf",
+79
+],
+"game/Dist/win32/levels/sp_008_B/level-00.fbrb": [
+60375274,
+"25ddf62222133137c8fa",
+66
+],
+"game/Dist/win32/levels/sp_009/level-00.fbrb": [
+110656348,
+"639f39e9056628d63337",
+57
+],
+"game/Dist/win32/levels/sp_01/level-00.fbrb": [
+127065035,
+"a067fda7f972ab9a0ecf",
+107
+],
+"game/Dist/win32/levels/sp_02/level-00.fbrb": [
+60389380,
+"11986864b493e90088a4",
+44
+],
+"game/Dist/win32/levels/sp_03/level-00.fbrb": [
+39354234,
+"8d359d95d2c0b442b2a3",
+52
+],
+"game/Dist/win32/levels/sp_04/level-00.fbrb": [
+42335010,
+"96eb66287ff748bce6af",
+67
+],
+"game/Dist/win32/levels/sp_common/level-00.fbrb": [
+221190137,
+"9625df4e588b3d6e22f7",
+298
+],
+"game/Package/levels/bc1_harvest_day_cq/level-00.fbrb": [
+20332540,
+"b030a5811a90666c3dcf",
+3
+],
+"game/Package/levels/bc1_harvest_day_gr/level-00.fbrb": [
+20868578,
+"0bc9f183e89a4307712c",
+3
+],
+"game/Package/levels/bc1_harvest_day_sdm/level-00.fbrb": [
+19450346,
+"453bb0fa97399dc90733",
+3
+],
+"game/Package/levels/bc1_harvest_day_sr/level-00.fbrb": [
+19018666,
+"f23b8f2136422c13da9b",
+3
+],
+"game/Package/levels/bc1_oasis_cq/level-00.fbrb": [
+23386310,
+"f0126be5c72896609f85",
+8
+],
+"game/Package/levels/bc1_oasis_gr/level-00.fbrb": [
+23892476,
+"f19dfb5daa76a603f864",
+7
+],
+"game/Package/levels/bc1_oasis_sdm/level-00.fbrb": [
+19847703,
+"2490438a2df3db01863a",
+6
+],
+"game/Package/levels/bc1_oasis_sr/level-00.fbrb": [
+19659164,
+"54f61eb7670e1a5ced0d",
+6
+],
+"game/Package/levels/coral_sea/level-00.fbrb": [
+186271343,
+"e81e4b39265b73b3b77e",
+42
+],
+"game/Package/levels/guadal_canal/level-00.fbrb": [
+322073261,
+"2876765b7de642575694",
+128
+],
+"game/Package/levels/iwo_jima_s/level-00.fbrb": [
+340954076,
+"3688fd56c8b526ae10ad",
+140
+],
+"game/Package/levels/mp2_common/level-00.fbrb": [
+115109330,
+"a389c19d9f690e4666e2",
+409
+],
+"game/Package/levels/mp_001/level-00.fbrb": [
+16795868,
+"7facabe6b690ab0719ec",
+4
+],
+"game/Package/levels/mp_001sdm/level-00.fbrb": [
+20346845,
+"64e2fddda4af0dbf6f9e",
+4
+],
+"game/Package/levels/mp_001sr/level-00.fbrb": [
+16024273,
+"c5fd3f8353379d68ffa1",
+4
+],
+"game/Package/levels/mp_002/level-00.fbrb": [
+16513931,
+"2ab6bb3e42707832cfc8",
+3
+],
+"game/Package/levels/mp_002sr/level-00.fbrb": [
+15662190,
+"14291ec53718265d7983",
+3
+],
+"game/Package/levels/mp_003/level-00.fbrb": [
+15373047,
+"a8380759e0efefdbc23e",
+2
+],
+"game/Package/levels/mp_003sr/level-00.fbrb": [
+21722180,
+"962cb44f451de03eb117",
+11
+],
+"game/Package/levels/mp_004/level-00.fbrb": [
+16667475,
+"2681ea6b49a9564233b4",
+3
+],
+"game/Package/levels/mp_004sdm/level-00.fbrb": [
+15287649,
+"21606ae276375c2a43f4",
+3
+],
+"game/Package/levels/mp_005/level-00.fbrb": [
+17398354,
+"6c2d9f9a5d356bb55fe0",
+9
+],
+"game/Package/levels/mp_005gr/level-00.fbrb": [
+31499231,
+"f1eb554cea06df13d88e",
+31
+],
+"game/Package/levels/mp_005sr/level-00.fbrb": [
+15631266,
+"63fd26308eb99826b3b8",
+9
+],
+"game/Package/levels/mp_006/level-00.fbrb": [
+17385672,
+"63191b9c2e7866c10757",
+4
+],
+"game/Package/levels/mp_006cq/level-00.fbrb": [
+20367780,
+"74faba05c5d808293b31",
+6
+],
+"game/Package/levels/mp_006sdm/level-00.fbrb": [
+16904002,
+"cca1713d0ffbc6722cdb",
+5
+],
+"game/Package/levels/mp_007/level-00.fbrb": [
+16987723,
+"2857706005fb7ce06ba4",
+4
+],
+"game/Package/levels/mp_007gr/level-00.fbrb": [
+24040807,
+"72b55c8b1b8facff0c72",
+16
+],
+"game/Package/levels/mp_007sdm/level-00.fbrb": [
+16102289,
+"d8275e61e9a064f7dc6a",
+4
+],
+"game/Package/levels/mp_008/level-00.fbrb": [
+17481029,
+"0dd32678afb56ff80524",
+4
+],
+"game/Package/levels/mp_008cq/level-00.fbrb": [
+22778241,
+"536c59b694dd48e1ba88",
+7
+],
+"game/Package/levels/mp_008sdm/level-00.fbrb": [
+24965992,
+"1a10a402051949619e71",
+7
+],
+"game/Package/levels/mp_009cq/level-00.fbrb": [
+15775152,
+"ae304c5e99efd560af05",
+3
+],
+"game/Package/levels/mp_009gr/level-00.fbrb": [
+16153720,
+"08205cd8ae2391dd5da5",
+3
+],
+"game/Package/levels/mp_009sdm/level-00.fbrb": [
+14966211,
+"0c221d5b13e36cb6c288",
+3
+],
+"game/Package/levels/mp_009sr/level-00.fbrb": [
+19204157,
+"27ac818dd21168f78793",
+3
+],
+"game/Package/levels/mp_012cq/level-00.fbrb": [
+33415674,
+"4e8adea699b49d04c3aa",
+13
+],
+"game/Package/levels/mp_012gr/level-00.fbrb": [
+17550759,
+"6ab2e1dad372d9c6a571",
+4
+],
+"game/Package/levels/mp_012sr/level-00.fbrb": [
+16764349,
+"3d861396033a52b3edb2",
+4
+],
+"game/Package/levels/mp_sp_002gr/level-00.fbrb": [
+20321136,
+"b70f6d1af4c3de6f5e8e",
+6
+],
+"game/Package/levels/mp_sp_002sdm/level-00.fbrb": [
+17951507,
+"3f3d92161509abe351f9",
+5
+],
+"game/Package/levels/mp_sp_002sr/level-00.fbrb": [
+17513010,
+"88d93f494c0d272091f3",
+5
+],
+"game/Package/levels/mp_sp_005cq/level-00.fbrb": [
+21772730,
+"12f08a3b0cebd60987a4",
+8
+],
+"game/Package/levels/mp_sp_005sdm/level-00.fbrb": [
+17472889,
+"c25d91f71343718723ea",
+6
+],
+"game/Package/levels/nam_common/level-00.fbrb": [
+295617627,
+"277d39bb29bfbf34f92d",
+253
+],
+"game/Package/levels/nam_mp_002cq/level-00.fbrb": [
+9856150,
+"0abb0ad855e3840e73eb",
+3
+],
+"game/Package/levels/nam_mp_002r/level-00.fbrb": [
+10302427,
+"9b32ee515be4cd5f97c7",
+4
+],
+"game/Package/levels/nam_mp_002sdm/level-00.fbrb": [
+9435374,
+"090eb2caa74eb7e01132",
+3
+],
+"game/Package/levels/nam_mp_002sr/level-00.fbrb": [
+9806672,
+"fb53ae9506e2cd063311",
+3
+],
+"game/Package/levels/nam_mp_003cq/level-00.fbrb": [
+10100510,
+"421c9c3882ec34d7bc1d",
+3
+],
+"game/Package/levels/nam_mp_003r/level-00.fbrb": [
+10575031,
+"2ba05c9d04279b6ea8e6",
+3
+],
+"game/Package/levels/nam_mp_003sdm/level-00.fbrb": [
+9923507,
+"417a9a116d981c6ec5d5",
+3
+],
+"game/Package/levels/nam_mp_003sr/level-00.fbrb": [
+10088045,
+"191c2a1b94c4fed2eb3b",
+3
+],
+"game/Package/levels/nam_mp_005cq/level-00.fbrb": [
+10534226,
+"565f27c0701819e71e07",
+4
+],
+"game/Package/levels/nam_mp_005r/level-00.fbrb": [
+10894555,
+"72320e5c9e48084d453b",
+3
+],
+"game/Package/levels/nam_mp_005sdm/level-00.fbrb": [
+10067125,
+"425be13fc1026b147e4b",
+3
+],
+"game/Package/levels/nam_mp_005sr/level-00.fbrb": [
+10502645,
+"4fc3f2242903c73b19ac",
+3
+],
+"game/Package/levels/nam_mp_006cq/level-00.fbrb": [
+16365835,
+"bf895935011436059db1",
+7
+],
+"game/Package/levels/nam_mp_006r/level-00.fbrb": [
+10489831,
+"2df1d815846719c873a6",
+3
+],
+"game/Package/levels/nam_mp_006sdm/level-00.fbrb": [
+10293244,
+"b2ac9d83bb0b6c4ee5dd",
+3
+],
+"game/Package/levels/nam_mp_006sr/level-00.fbrb": [
+10430907,
+"1a9e6b846d8e2093f578",
+3
+],
+"game/Package/levels/nam_mp_007cq/level-00.fbrb": [
+16171399,
+"424f5777026f4e1549c8",
+7
+],
+"game/Package/levels/nam_mp_007r/level-00.fbrb": [
+10556799,
+"219508248d5ed9945abb",
+3
+],
+"game/Package/levels/nam_mp_007sdm/level-00.fbrb": [
+10091988,
+"36b872361b73e8fef5c4",
+3
+],
+"game/Package/levels/nam_mp_007sr/level-00.fbrb": [
+10234422,
+"4b32681fed114483d630",
+3
+],
+"game/Package/levels/ons_mp_002/level-00.fbrb": [
+37698054,
+"b44a871fc5e1e74ac317",
+15
+],
+"game/Package/levels/ons_mp_004/level-00.fbrb": [
+35921491,
+"0e80276b0cf89b352565",
+19
+],
+"game/Package/levels/ons_mp_005/level-00.fbrb": [
+40969672,
+"11b9508ee3f66d90aa51",
+27
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb": [
+213529944,
+"1737ce632f67810dc7aa",
+157
+],
+"game/Package/levels/ons_mp_008/level-00.fbrb": [
+37825634,
+"0894870dac2022adeda5",
+29
+],
+"game/Package/levels/sp_003_b/level-00.fbrb": [
+17018718,
+"b64689b6a57aaa1b4d49",
+3
+],
+"game/Package/levels/sp_004_b/level-00.fbrb": [
+11995029,
+"fb8e1e466080721c3106",
+3
+],
+"game/Package/levels/sp_005/level-00.fbrb": [
+16381229,
+"06b042d520a1395aaf5a",
+5
+],
+"game/Package/levels/sp_005_b/level-00.fbrb": [
+16000978,
+"eb4f2c30dae126b78ce3",
+9
+],
+"game/Package/levels/sp_006/level-00.fbrb": [
+15529438,
+"ea3f8e11466a3b900b2f",
+14
+],
+"game/Package/levels/sp_007/level-00.fbrb": [
+16381977,
+"0dae3866b9cbd6549274",
+10
+],
+"game/Package/levels/sp_008/level-00.fbrb": [
+17111552,
+"cc15f5423e42444d9e26",
+6
+],
+"game/Package/levels/sp_008_b/level-00.fbrb": [
+13700250,
+"9fe7332564e07a318b90",
+6
+],
+"game/Package/levels/sp_009/level-00.fbrb": [
+9998603,
+"45a6eb687cd612b67e7d",
+2
+],
+"game/Package/levels/sp_01/level-00.fbrb": [
+10906844,
+"1102b7c973ccb96f0380",
+5
+],
+"game/Package/levels/sp_02/level-00.fbrb": [
+16028040,
+"9a071bf582db5647506b",
+5
+],
+"game/Package/levels/sp_03/level-00.fbrb": [
+16273377,
+"2fc146257aa7d74841ac",
+9
+],
+"game/Package/levels/sp_04/level-00.fbrb": [
+14944164,
+"c61f4b9cf2e4f06ae214",
+10
+],
+"game/Package/levels/wake_island_s/level-00.fbrb": [
+339911529,
+"3401445208fc9b182152",
+129
+],
+"game/Package/levels/ww2_common/level-00.fbrb": [
+301683487,
+"277d39bb29bfbf34f92d",
+253
+],
+"quick:damaged": [
+0,
+"12e0951c0aa4f8988fd9",
+800
+],
+"quick:edge": [
+0,
+"ffe675d7b1cce1f28146",
+1
+],
+"quick:seed": [
+0,
+"3f9de29c927e8548c2ee",
+8
+],
+"work/levels": [
+4287,
+"5d9b3f619afcaa08b06f",
+4287
+],
+"work/ww2/install/level-00.fbrb": [
+339911529,
+"3401445208fc9b182152",
+129
+],
+"work/ww2/install/ww2_common/level-00.fbrb": [
+301683487,
+"277d39bb29bfbf34f92d",
+253
+],
+"work/ww2/install_coral_sea/level-00.fbrb": [
+186271343,
+"e81e4b39265b73b3b77e",
+42
+],
+"work/ww2/install_coral_sea/ww2_common/level-00.fbrb": [
+301683487,
+"277d39bb29bfbf34f92d",
+253
+],
+"work/ww2/install_guadal_canal/level-00.fbrb": [
+322073261,
+"2876765b7de642575694",
+128
+],
+"work/ww2/install_guadal_canal/ww2_common/level-00.fbrb": [
+301683487,
+"277d39bb29bfbf34f92d",
+253
+],
+"work/ww2/install_iwo_jima_s/level-00.fbrb": [
+340954076,
+"3688fd56c8b526ae10ad",
+140
+],
+"work/ww2/install_iwo_jima_s/ww2_common/level-00.fbrb": [
+301683487,
+"277d39bb29bfbf34f92d",
+253
+]
+}
