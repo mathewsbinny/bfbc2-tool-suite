@@ -34,7 +34,7 @@ fn main() {
     let mut cache = TextureFiles::new();
     let t = Instant::now();
     let name = lv.to_uppercase();
-    let terrain = Terrain::load(&files, &db, &name, &mut cache).unwrap();
+    let terrain = Terrain::load(&files, &db, &name, "Textures/Sky/Sky_Beach_Generic_RGBA16f", &mut cache).unwrap();
     println!("terrain loaded in {:.2} s", t.elapsed().as_secs_f64());
     for (k, d) in terrain.draws.iter().enumerate() {
         if let Err(e) = d {
@@ -74,6 +74,7 @@ fn main() {
         height: ht,
         clear: [0.0; 4],
         draws: draw_calls(&instances, &values, &cam, [wd, ht]),
+        ..Frame::default()
     };
     let mut dev = Device::new(false).unwrap();
     for _ in 0..3 {
