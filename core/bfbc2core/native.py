@@ -309,6 +309,22 @@ CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line
     'portparity': os.path.join(SUITE, 'bfbc2-bf1943-import', 'portparity.py'),
     'meshview': os.path.join(SUITE, 'bfbc2-mesh-viewer', 'meshview.py'),
     'culltree': os.path.join(SUITE, 'bfbc2-culltree', 'culltree.py'),
+    # round O4: NavKit's driver and tools, the editor's level prepare, the test harness, texqa
+    'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
+    'prepare_level': os.path.join(SUITE, 'rust', 'bc2-editor', 'prepare_level.py'),
+    'levelobjects': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'levelobjects.py'),
+    'ladders': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'ladders.py'),
+    'ordercheck': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'ordercheck.py'),
+    'navcompare': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navcompare.py'),
+    'graphstats': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'graphstats.py'),
+    'hpdcheck': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdcheck.py'),
+    'hpdview': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'hpdview.py'),
+    'detailed': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'detailed.py'),
+    'navparity': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navparity.py'),
+    'navregress': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'navregress.py'),
+    'sample_all': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'sample_all.py'),
+    'harness': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'harness.py'),
+    'texqa': os.path.join(SUITE, 'bfbc2-console-convert', 'texqa.py'),
 }
 _cli: dict[str, str | None] = {}
 

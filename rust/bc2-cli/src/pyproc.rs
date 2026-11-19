@@ -185,6 +185,18 @@ impl Py {
         self.flush_buffer();
     }
 
+    /// `sys.stdout.flush()` with the bytes written to the handles now (round O4: `print(..., flush=True)` of a tool
+    /// whose reader follows its progress - the editor's prepare view). After it the run cannot hand off to the
+    /// Python (what it printed is out): a tool calls it only once it is past every [`Fail::Python`].
+    pub fn flush_now(&mut self) {
+        self.flush_out();
+        if !self.err_pending.is_empty() {
+            let p = std::mem::take(&mut self.err_pending);
+            self.events.push((Stream::Err, p));
+        }
+        write_events(&std::mem::take(&mut self.events));
+    }
+
     /// `errors.report(e)`: the error logged and told on stderr.
     fn report(&mut self, e: &PyErr) {
         let (cause, fix) = explain(e);
@@ -207,20 +219,7 @@ impl Py {
             let p = std::mem::take(&mut self.err_pending);
             self.events.push((Stream::Err, p));
         }
-        let stdout = io::stdout();
-        let stderr = io::stderr();
-        for (s, b) in &self.events {
-            let _ = match s {
-                Stream::Out => {
-                    let mut h = stdout.lock();
-                    h.write_all(b).and_then(|()| h.flush())
-                }
-                Stream::Err => {
-                    let mut h = stderr.lock();
-                    h.write_all(b).and_then(|()| h.flush())
-                }
-            };
-        }
+        write_events(&self.events);
         if let Some(path) = &self.log_path {
             let append = |records: &[(String, &'static str, String)]| {
                 let mut text = String::new();
@@ -240,6 +239,24 @@ impl Py {
                 append(rest);
             }
         }
+    }
+}
+
+/// The recorded writes to the handles, in order.
+fn write_events(events: &[(Stream, Vec<u8>)]) {
+    let stdout = io::stdout();
+    let stderr = io::stderr();
+    for (s, b) in events {
+        let _ = match s {
+            Stream::Out => {
+                let mut h = stdout.lock();
+                h.write_all(b).and_then(|()| h.flush())
+            }
+            Stream::Err => {
+                let mut h = stderr.lock();
+                h.write_all(b).and_then(|()| h.flush())
+            }
+        };
     }
 }
 

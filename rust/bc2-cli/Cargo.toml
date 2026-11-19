@@ -19,6 +19,9 @@ bc2-convert.workspace = true
 regex.workspace = true
 bc2-pyrt.workspace = true
 bc2-menu.workspace = true
+# round O4: NavKit's driver, prepare and tools (the collision index, the level scan and measures), the harness, texqa
+bc2-scene.workspace = true
+bc2-navbuild.workspace = true
 # round O3: the archives of pruned logs (deflate and CRC-32, as zipfile writes them)
 flate2.workspace = true
 # round O3's cull group: culltree.py's model (bc2_levelwrite::culltool)
@@ -30,7 +33,7 @@ sha1_smol.workspace = true
 
 # the tool groups (rounds O2, O3; all on by default; a group alone builds with --no-default-features --features <group>)
 [features]
-default = ["menu", "crash", "nav", "caches", "stockmp", "graft", "audio", "bf1943", "meshview", "cull"]
+default = ["menu", "crash", "nav", "caches", "stockmp", "graft", "audio", "bf1943", "meshview", "cull", "navkit", "navtools", "harness", "texqa"]
 menu = []
 crash = []
 nav = []
@@ -41,6 +44,12 @@ audio = []
 bf1943 = []
 meshview = []
 cull = ["dep:bc2-levelwrite"]
+# round O4's groups: NavKit's driver and prepare (navkit.py, prepare_level.py, levelobjects, ladders, ordercheck,
+# navcompare); NavKit's other tool command lines; the map and bot test harness; texqa
+navkit = []
+navtools = []
+harness = []
+texqa = []
 
 # the local time (Python's datetime.now()), the ANSI code page and the console test Python's stdio makes
 [target.'cfg(windows)'.dependencies]

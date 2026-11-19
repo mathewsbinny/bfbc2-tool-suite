@@ -390,7 +390,7 @@ class Hub:
     def prepare(self):
         lv = self.chosen_level()
         if lv:
-            self.run([PYTHON, SCRIPTS['navkit'], 'prepare', lv], f'Levels: prepare {lv}')
+            self.run(cli('navkit') + ['prepare', lv], f'Levels: prepare {lv}')      # round O4: bfbc2.exe navkit
 
     def open_level_folder(self):
         lv = self.chosen_level()

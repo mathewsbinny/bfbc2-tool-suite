@@ -1,7 +1,7 @@
 //! What the suite's Python command lines show of the Python runtime, for their Rust ports (`bc2-cli`'s `bfbc2.exe`,
 //! rounds O2-O3; `rust/BENCHMARKS.md` "O3"): the exceptions they raise and report ([`err`]), the text forms of values
 //! ([`fmt`]: `repr`, `format(x, 'g')`, `round`, `{:,}`, a module's `__doc__`) and `ntpath` / `str` / `dict` pieces
-//! ([`py`]). A library so the ported tools' own libraries (`bc2-menu`, ...) can share them with the binary.
+//! ([`py`]), and `json`'s dumps / loads ([`json`], round O4). A library so the ported tools' own libraries (`bc2-menu`, ...) can share them with the binary.
 
 #![allow(
     clippy::missing_errors_doc,
@@ -13,6 +13,7 @@
 
 pub mod err;
 pub mod fmt;
+pub mod json;
 pub mod pickle;
 pub mod pickle_write;
 pub mod py;

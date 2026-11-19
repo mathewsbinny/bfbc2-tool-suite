@@ -2,8 +2,10 @@
 //! NavKit has not prepared, or whose terrain unpack is missing or stale, is prepared when it is opened - open, then
 //! "Preparing `MP_001` (step 2 of 4)", then the map - without sending the user to another tool.
 //!
-//! The work is the suite's own Python, run as a child process (`prepare_level.py` beside this crate): NavKit's
-//! prepare and the Map Inspector's terrain unpack. It reports steps and log lines on its output ([`parse`]); the
+//! The work is the suite's own, run as a child process: `bfbc2.exe prepare_level` (round O4's Rust port, the
+//! suite's `bin\bfbc2.exe` when it knows the command - [`binary`]), else the Python script it ports
+//! (`prepare_level.py` beside this crate; `BFBC2_CLI_PYTHON=1` picks it): NavKit's prepare and the Map Inspector's
+//! terrain unpack, the same files and output lines either way. It reports steps and log lines on its output ([`parse`]); the
 //! editor shows them ([`Job::poll`]) and can cancel ([`Job::cancel`]). The child writes only where those steps write:
 //! Project OPFOR BFBC2's `work\levels\<level>` and `work\navkit`, never the game copy.
 
@@ -59,6 +61,43 @@ pub fn plan(opfor: &Path, lv: &str) -> Plan {
 #[must_use]
 pub fn script() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("prepare_level.py")
+}
+
+/// The environment variable that makes the editor run the Python script even where the binary is there (as
+/// `BFBC2_CLI_PYTHON=1` does for the suite's other command lines).
+pub const CLI_PYTHON_ENV: &str = "BFBC2_CLI_PYTHON";
+
+/// The suite's command-line binary when it can prepare (round O4: `bfbc2.exe prepare_level`, the Rust port of the
+/// script - the same steps, files and output lines): `<suite>\bin\bfbc2.exe` of the suite this editor was built in,
+/// asked once whether it knows the command (an older binary prints its usage instead, and the script runs). None
+/// with `BFBC2_CLI_PYTHON=1`.
+#[must_use]
+pub fn binary() -> Option<PathBuf> {
+    static FOUND: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    if std::env::var(CLI_PYTHON_ENV).is_ok_and(|v| v.trim() == "1") {
+        return None;
+    }
+    FOUND
+        .get_or_init(|| {
+            let exe = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("..")
+                .join("bin")
+                .join("bfbc2.exe");
+            let mut cmd = Command::new(&exe);
+            cmd.arg("prepare_level").stdin(Stdio::null());
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x0800_0000);
+            }
+            // with no level it answers in the script's words
+            let out = cmd.output().ok()?;
+            String::from_utf8_lossy(&out.stdout)
+                .starts_with("@error Which level?")
+                .then_some(exe)
+        })
+        .clone()
 }
 
 /// One line of the script's output.
@@ -199,6 +238,13 @@ impl Job {
         if plan == Plan::Package {
             return Self::start_package(opfor, lv);
         }
+        if let Some(exe) = binary() {
+            let mut cmd = Command::new(&exe);
+            cmd.arg("prepare_level");
+            if let Ok(job) = Self::spawn(cmd, opfor, lv, plan) {
+                return Ok(job);
+            }
+        }
         Self::start_with(&script(), opfor, lv, plan)
     }
 
@@ -265,64 +311,9 @@ impl Job {
         for py in pythons() {
             let Some((exe, pre)) = py.split_first() else { continue };
             let mut cmd = Command::new(exe);
-            cmd.args(pre)
-                .arg("-u")
-                .arg(script)
-                .arg(lv)
-                .arg("--opfor")
-                .arg(opfor)
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .env("PYTHONIOENCODING", "utf-8");
-            if plan == Plan::Terrain {
-                cmd.arg("--terrain-only");
-            }
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt;
-                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-                cmd.creation_flags(CREATE_NO_WINDOW);
-            }
-            match cmd.spawn() {
-                Ok(mut child) => {
-                    let (tx, rx) = std::sync::mpsc::channel();
-                    let out = child.stdout.take();
-                    let err = child.stderr.take();
-                    let tx_err = tx.clone();
-                    // stderr: a traceback's last line becomes the error when the script did not say one
-                    std::thread::spawn(move || {
-                        if let Some(e) = err {
-                            for line in BufReader::new(e).lines().map_while(Result::ok) {
-                                let _ = tx_err.send(Msg::Line(format!("@stderr {line}")));
-                            }
-                        }
-                        let _ = tx_err.send(Msg::Exit);
-                    });
-                    std::thread::spawn(move || {
-                        if let Some(o) = out {
-                            for line in BufReader::new(o).lines().map_while(Result::ok) {
-                                if tx.send(Msg::Line(line)).is_err() {
-                                    return;
-                                }
-                            }
-                        }
-                        let _ = tx.send(Msg::Exit);
-                    });
-                    return Ok(Self {
-                        lv: lv.to_lowercase(),
-                        progress: Progress::default(),
-                        since: Instant::now(),
-                        child: Some(child),
-                        stop: None,
-                        rx,
-                        error: None,
-                        stderr_tail: None,
-                        exits: 0,
-                        done: false,
-                        outcome: Outcome::Running,
-                    });
-                }
+            cmd.args(pre).arg("-u").arg(script);
+            match Self::spawn(cmd, opfor, lv, plan) {
+                Ok(job) => return Ok(job),
                 Err(e) => last_err = format!("{exe}: {e}"),
             }
         }
@@ -330,6 +321,64 @@ impl Job {
             "Preparing a level needs Python 3.12 or later with the suite's tools, and none could be started \
              ({last_err}). Install Python, or set {PYTHON_ENV} to the python.exe to use."
         ))
+    }
+
+    /// The preparing command (the script under a Python, or the binary's `prepare_level`) started for `lv`, its two
+    /// output streams read on their own threads.
+    fn spawn(mut cmd: Command, opfor: &Path, lv: &str, plan: Plan) -> std::io::Result<Self> {
+        cmd.arg(lv)
+            .arg("--opfor")
+            .arg(opfor)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env("PYTHONIOENCODING", "utf-8");
+        if plan == Plan::Terrain {
+            cmd.arg("--terrain-only");
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = cmd.spawn()?;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let out = child.stdout.take();
+        let err = child.stderr.take();
+        let tx_err = tx.clone();
+        // stderr: a traceback's last line becomes the error when the script did not say one
+        std::thread::spawn(move || {
+            if let Some(e) = err {
+                for line in BufReader::new(e).lines().map_while(Result::ok) {
+                    let _ = tx_err.send(Msg::Line(format!("@stderr {line}")));
+                }
+            }
+            let _ = tx_err.send(Msg::Exit);
+        });
+        std::thread::spawn(move || {
+            if let Some(o) = out {
+                for line in BufReader::new(o).lines().map_while(Result::ok) {
+                    if tx.send(Msg::Line(line)).is_err() {
+                        return;
+                    }
+                }
+            }
+            let _ = tx.send(Msg::Exit);
+        });
+        Ok(Self {
+            lv: lv.to_lowercase(),
+            progress: Progress::default(),
+            since: Instant::now(),
+            child: Some(child),
+            stop: None,
+            rx,
+            error: None,
+            stderr_tail: None,
+            exits: 0,
+            done: false,
+            outcome: Outcome::Running,
+        })
     }
 
     /// Reads what the child said since the last call; the outcome once it has exited.
