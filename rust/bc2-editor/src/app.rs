@@ -279,6 +279,12 @@ pub struct ViewState {
     place_failed: Option<String>,
     /// Rendered thumbnails loaded from the cache, by blueprint path (`None`: none there).
     thumbs: HashMap<String, Option<egui::TextureHandle>>,
+    /// The asset browser's mode: Place Objects, Spawners, Objectives.
+    pub browser_mode: crate::gameplay::BrowserMode,
+    /// The team placed spawns, flags and vehicle spawners take (1, 2; 0 neutral).
+    pub place_team: u8,
+    /// The Spawners and Objectives tiles, with what they were made from (the log's and the catalogue's sizes).
+    tiles: Option<((usize, usize), Vec<crate::gameplay::Tile>)>,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -1032,6 +1038,9 @@ impl EditorApp {
             content_rects: Vec::new(),
             place_failed: None,
             thumbs: HashMap::new(),
+            browser_mode: crate::gameplay::BrowserMode::PlaceObjects,
+            place_team: 1,
+            tiles: None,
         };
         if editing {
             v.refresh(gpu, &palette);

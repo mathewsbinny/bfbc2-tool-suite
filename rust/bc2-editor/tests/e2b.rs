@@ -22,6 +22,7 @@ use bc2_editor::actions::{Action, PanelKind};
 use bc2_editor::app::{EditorApp, MenuKind, Then, Workspace, menu_items};
 use bc2_editor::camera::Projection;
 use bc2_editor::demo;
+use bc2_editor::gameplay::BrowserMode;
 use bc2_editor::gizmo::Tool;
 use bc2_editor::headless::Headless;
 use bc2_editor::theme::ThemeId;
@@ -266,6 +267,78 @@ fn e2b_through_the_interface() {
     };
     assert_eq!(items[0].template, demo::level_guid(1));
     assert!(app.view().unwrap().placing.is_none());
+    // ---------------------------------------------------------------- Objectives: a flag with its capture area
+    app.view_mut().unwrap().browser_mode = BrowserMode::Objectives;
+    app.view_mut().unwrap().place_team = 2;
+    h.settle(&mut app, 4);
+    shots(&mut h, &mut app, "e2b_browser_objectives");
+    let tile_at = |app: &EditorApp, key: &str| {
+        app.view()
+            .unwrap()
+            .content_rects
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, r)| r.center())
+            .unwrap_or_else(|| panic!("{key} in {:?}", app.view().unwrap().content_rects))
+    };
+    let n = ops(&app).len();
+    let flags_before = app.view().unwrap().scene().shapes.len();
+    let from = tile_at(&app, "CapturePoint");
+    let target = ground(&app, -30.0, -5.0);
+    h.drag(&mut app, from, target, 12, Modifiers::NONE);
+    let log = ops(&app);
+    assert_eq!(log.len(), n + 1, "{:?} {}", &log[n..], app.view().unwrap().message);
+    let Some(Op::Place { items }) = log.last() else {
+        panic!("{log:?}")
+    };
+    assert_eq!(items[0].template, demo::level_guid(5));
+    assert_eq!(items[0].owned.len(), 5, "the flag's ring and marker come with it");
+    assert_eq!(items[0].fields[0].value, FieldValue::Text("Team2".into()));
+    let new_flag = app.view().unwrap().selected.unwrap();
+    assert_eq!(app.view().unwrap().scene().entities[new_flag].team, Some(2));
+    assert_eq!(app.view().unwrap().scene().shapes.len(), flags_before + 1, "its capture area outline");
+    {
+        // the copy's references point at its own ring and marker; only internal connections were copied
+        let d = app.view().unwrap().doc.as_ref().unwrap();
+        let w = bc2_levelwrite::LevelWriter::parse(&d.partition().unwrap()).unwrap();
+        let get = |g: &str, f: &str| match w.get_field(&d.schema, g, f).unwrap().1 {
+            Some(FieldValue::Ref(r)) => r,
+            v => panic!("{v:?}"),
+        };
+        assert_eq!(get(&items[0].guid, "MapMarker"), items[0].owned[4].guid.to_ascii_lowercase());
+        // the outliner lists it as a flag; the Gameplay workspace selects it and offers its menu
+        assert!(
+            app.view()
+                .unwrap()
+                .outliner
+                .groups
+                .iter()
+                .any(|g| g.entries.iter().any(|e| e.entity == new_flag))
+        );
+    }
+    app.run_action(&gpu, &ctx, Action::SetWorkspace(Workspace::Gameplay));
+    assert!(app.view().unwrap().selectable(new_flag));
+    let menu = names(&menu_items(app.view().unwrap(), MenuKind::Object, Some(new_flag)));
+    assert!(menu.iter().any(|n| n == "Set team 1"), "{menu:?}");
+    app.run_action(&gpu, &ctx, Action::SetWorkspace(Workspace::Objects));
+    // ---------------------------------------------------------------- Spawners: a player spawn point
+    app.view_mut().unwrap().browser_mode = BrowserMode::Spawners;
+    app.view_mut().unwrap().place_team = 1;
+    h.settle(&mut app, 4);
+    shots(&mut h, &mut app, "e2b_browser_spawners");
+    let n = ops(&app).len();
+    let from = tile_at(&app, "SpawnPoint");
+    let target = ground(&app, -35.0, 20.0);
+    h.drag(&mut app, from, target, 12, Modifiers::NONE);
+    let log = ops(&app);
+    assert_eq!(log.len(), n + 1);
+    let Some(Op::Place { items }) = log.last() else {
+        panic!("{log:?}")
+    };
+    assert_eq!(items[0].template, demo::level_guid(4));
+    assert_eq!(items[0].fields[0].value, FieldValue::Text("Team1".into()));
+    app.view_mut().unwrap().browser_mode = BrowserMode::PlaceObjects;
+    h.settle(&mut app, 3);
     // ---------------------------------------------------------------- the sink popup: Alt+wheel, one entry per burst
     app.select(&gpu, Some(crate_b));
     h.settle(&mut app, 2);
@@ -324,7 +397,7 @@ fn e2b_through_the_interface() {
         assert_eq!(get(&items[0].owned[3].guid, "Next"), items[0].owned[0].guid.to_ascii_lowercase());
         // a plain duplicate shares them
         let shapes = app.view().unwrap().scene().shapes.len();
-        assert_eq!(shapes, 2, "the copy has its own capture area outline");
+        assert_eq!(shapes, 3, "the copy has its own capture area outline (beside the placed flag's)");
     }
     // ---------------------------------------------------------------- view modes
     let mut images = Vec::new();

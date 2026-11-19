@@ -153,6 +153,20 @@ pub fn carry(from: &M, to: &M, p: V3) -> V3 {
     out
 }
 
+/// A transform carried from an object at `from` to the same place relative to it at `to` ([`carry`] of its
+/// position and its axes).
+#[must_use]
+pub fn carry_matrix(from: &M, to: &M, m: &M) -> M {
+    let pos = row(m, 3);
+    let at = carry(from, to, pos);
+    let mut out = *m;
+    for r in 0..3 {
+        set_row(&mut out, r, sub(carry(from, to, add(pos, row(m, r))), at));
+    }
+    set_row(&mut out, 3, at);
+    out
+}
+
 /// An upright transform at `p` turned `yaw` degrees about the up axis (the forward row is (sin, 0, cos), as
 /// [`yaw_degrees`] reads it).
 #[must_use]
