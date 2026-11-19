@@ -15,7 +15,7 @@ use bc2_levelwrite::ops::Organisation;
 use bc2_levelwrite::project::BaseReport;
 use bc2_levelwrite::write::{Applied, LevelWriter, apply_one};
 use bc2_levelwrite::{FieldType, FieldValue, MapProject, Op, Operation, Profile, Schema};
-use bc2_scene::scene::{Scene, Source};
+use bc2_scene::scene::{Scene, Shape, Source};
 
 /// One field as the properties panel edits it.
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +56,20 @@ pub struct Doc {
     pub base_report: BaseReport,
     /// The last autosave's error, if it failed.
     pub autosave_error: Option<String>,
+    /// Blueprints the level does not place, as the content browser described them (category, object type,
+    /// destructible).
+    known: HashMap<String, (String, Option<String>, bool)>,
+}
+
+/// A blueprint's path (lower case, as the scene keeps it) from its reference (`objects/x/x/<guid>`).
+#[must_use]
+pub fn blueprint_path(reference: &str) -> String {
+    let r = reference.trim_end_matches('/');
+    let looks_guid = |s: &str| s.len() == 36 && s.chars().filter(|c| *c == '-').count() == 4;
+    match r.rsplit_once('/') {
+        Some((head, last)) if looks_guid(last) => head.to_lowercase(),
+        _ => r.to_lowercase(),
+    }
 }
 
 fn index_of(scene: &Scene) -> HashMap<String, usize> {
@@ -127,6 +141,7 @@ impl Doc {
             saved: true,
             base_report,
             autosave_error: None,
+            known: HashMap::new(),
         };
         d.rebuild();
         d
@@ -188,40 +203,200 @@ impl Doc {
             Op::Duplicate { items } => {
                 for d in items {
                     let Some(k) = self.index(&d.source) else { continue };
-                    let Some(mut e) = self.scene.entities.get(k).cloned() else {
+                    let old = self.scene.entities.get(k).and_then(|e| e.matrix);
+                    let to = bc2_levelwrite::matrix_of(&d.transform);
+                    let Some(n) = self.copy_entity(k, &d.guid, Some(to)) else {
                         continue;
                     };
-                    let n = self.scene.entities.len();
-                    e.index = n;
-                    e.guid.clone_from(&d.guid);
-                    e.id = None;
-                    e.matrix = Some(bc2_levelwrite::matrix_of(&d.transform));
-                    self.scene.entities.push(e);
-                    if let Some(c) = self.scene.collision.as_mut()
-                        && let Some(bp) = c.meshes.iter().find(|(i, _)| *i == k).map(|(_, b)| b.clone())
-                    {
-                        c.meshes.push((n, bp));
+                    self.copy_owned(k, n, old, to, &d.owned);
+                }
+            }
+            Op::Place { items } => {
+                for p in items {
+                    let Some(k) = self.index(&p.template) else { continue };
+                    let old = self.scene.entities.get(k).and_then(|e| e.matrix);
+                    let to = bc2_levelwrite::matrix_of(&p.transform);
+                    let Some(n) = self.copy_entity(k, &p.guid, Some(to)) else {
+                        continue;
+                    };
+                    self.copy_owned(k, n, old, to, &p.owned);
+                    for f in &p.fields {
+                        self.field_to_scene(n, &f.field, &f.value);
                     }
-                    self.by_guid.insert(d.guid.to_ascii_uppercase(), n);
+                    let path = blueprint_path(&p.blueprint);
+                    let same = self.scene.entities.get(k).and_then(|e| e.blueprint.clone()) == Some(path.clone());
+                    // a spawner's vehicle or a template kept as it is: the entity stays the template's kind
+                    if !same && !p.blueprint.is_empty() && p.ref_field.is_none() {
+                        let info = self.blueprint_info(&path);
+                        if let Some(c) = self.scene.collision.as_mut() {
+                            c.meshes.retain(|(i, _)| *i != n);
+                            if c.blueprints.contains_key(&path) {
+                                c.meshes.push((n, path.clone()));
+                            }
+                        }
+                        if let Some(e) = self.scene.entities.get_mut(n) {
+                            e.blueprint = Some(path);
+                            e.name = None;
+                            if let Some((category, bt, destructible)) = info {
+                                e.category = category;
+                                e.blueprint_type = bt;
+                                e.destructible = destructible;
+                            }
+                        }
+                    }
                 }
             }
             Op::SetField { items } => {
                 for f in items {
-                    let Some(k) = self.index(&f.guid) else { continue };
-                    let Some(e) = self.scene.entities.get_mut(k) else {
-                        continue;
-                    };
-                    match (f.field.as_str(), &f.to) {
-                        ("Name", FieldValue::Text(s)) => e.name = Some(s.clone()),
-                        ("Team", FieldValue::Int(t)) if e.team.is_some() && (0..=2).contains(t) => {
-                            e.team = Some(*t as u8);
-                        }
-                        _ => {}
+                    if let Some(k) = self.index(&f.guid) {
+                        self.field_to_scene(k, &f.field, &f.to);
                     }
                 }
             }
             _ => {}
         }
+    }
+
+    /// What a field set changes in the scene: a name, a team.
+    fn field_to_scene(&mut self, k: usize, field: &str, to: &FieldValue) {
+        let Some(e) = self.scene.entities.get_mut(k) else {
+            return;
+        };
+        match (field, to) {
+            ("Name", FieldValue::Text(s)) => e.name = Some(s.clone()),
+            ("Team", FieldValue::Int(t)) if e.team.is_some() && (0..=2).contains(t) => {
+                e.team = Some(*t as u8);
+            }
+            ("Team" | "InitialOwnerTeam", FieldValue::Text(t)) if e.team.is_some() => {
+                e.team = match t.as_str() {
+                    "Team1" => Some(1),
+                    "Team2" => Some(2),
+                    "TeamNeutral" => Some(0),
+                    _ => e.team,
+                };
+            }
+            _ => {}
+        }
+    }
+
+    /// Copies entity `k` as `guid` at `matrix` (its own when `None`) at the end of the scene, with its collision;
+    /// the copy's index.
+    fn copy_entity(&mut self, k: usize, guid: &str, matrix: Option<[f64; 16]>) -> Option<usize> {
+        let mut e = self.scene.entities.get(k).cloned()?;
+        let n = self.scene.entities.len();
+        e.index = n;
+        guid.clone_into(&mut e.guid);
+        e.id = None;
+        if matrix.is_some() {
+            e.matrix = matrix;
+        }
+        self.scene.entities.push(e);
+        if let Some(c) = self.scene.collision.as_mut()
+            && let Some(bp) = c.meshes.iter().find(|(i, _)| *i == k).map(|(_, b)| b.clone())
+        {
+            c.meshes.push((n, bp));
+        }
+        self.by_guid.insert(guid.to_ascii_uppercase(), n);
+        Some(n)
+    }
+
+    /// The sub-instances copied with entity `k` (as `n`): their entities, and `k`'s outlines (a flag's capture
+    /// area) carried from `old` to `to`.
+    fn copy_owned(
+        &mut self,
+        k: usize,
+        n: usize,
+        old: Option<[f64; 16]>,
+        to: [f64; 16],
+        owned: &[bc2_levelwrite::ops::SubCopy],
+    ) {
+        for s in owned {
+            if let Some(sk) = self.index(&s.source) {
+                self.copy_entity(sk, &s.guid, s.transform.as_ref().map(bc2_levelwrite::matrix_of));
+            }
+        }
+        if owned.is_empty() {
+            return;
+        }
+        let Some(old) = old else { return };
+        let copies: Vec<Shape> = self
+            .scene
+            .shapes
+            .iter()
+            .filter(|s| s.entity == k)
+            .map(|s| {
+                let mut c = s.clone();
+                c.entity = n;
+                c.points = c.points.iter().map(|p| crate::math::carry(&old, &to, *p)).collect();
+                c
+            })
+            .collect();
+        self.scene.shapes.extend(copies);
+    }
+
+    /// The level partition being edited (levelwrite's writer), when the scene has one.
+    #[must_use]
+    pub fn writer(&self) -> Option<&LevelWriter> {
+        self.writer.as_ref()
+    }
+
+    /// What a blueprint is (category, the type of its object, destructible): from a placement of it in the scene,
+    /// else what the content browser told ([`Doc::know_blueprint`]).
+    fn blueprint_info(&self, path: &str) -> Option<(String, Option<String>, bool)> {
+        self.base
+            .entities
+            .iter()
+            .find(|e| e.blueprint.as_deref() == Some(path))
+            .map(|e| (e.category.clone(), e.blueprint_type.clone(), e.destructible))
+            .or_else(|| self.known.get(path).cloned())
+    }
+
+    /// Tells the doc what a blueprint the level does not place is (the content browser's catalogue), so a placed
+    /// copy is drawn and listed as one.
+    pub fn know_blueprint(&mut self, path: &str, category: &str, object_type: Option<String>, destructible: bool) {
+        self.known
+            .insert(path.to_owned(), (category.to_owned(), object_type, destructible));
+    }
+
+    /// The sub-instances entity `k` owns (a deep duplicate copies them): [`LevelWriter::owned`]; empty without a
+    /// partition.
+    #[must_use]
+    pub fn owned(&self, k: usize) -> Vec<String> {
+        match (self.writer.as_ref(), self.guid(k)) {
+            (Some(w), Some(g)) => w.owned(g),
+            _ => Vec::new(),
+        }
+    }
+
+    /// The instance a new placement of `blueprint` (a reference) is made from, and the fields it takes from the
+    /// level's data; `None` without a partition or a placed object to make it from.
+    #[must_use]
+    pub fn template_for(&self, blueprint: &str) -> Option<(String, Vec<bc2_levelwrite::ops::FieldIs>)> {
+        let w = self.writer.as_ref()?;
+        let t = w.template_for(blueprint)?;
+        let f = w.place_defaults(&self.schema, &t, blueprint);
+        Some((t, f))
+    }
+
+    /// Changes the last operation (number `n`) to `op`, for a gesture that goes on (a sink wheel burst, a slider
+    /// drag): still one operation in History. Applied on top (a move sets transforms: the same as a replay).
+    /// `false` when the last operation is not `n`.
+    pub fn amend(&mut self, n: u64, op: Op) -> bool {
+        if !self.project.amend_last(n, op) {
+            return false;
+        }
+        if let Some(o) = self.project.operations.last().cloned() {
+            self.apply(&o);
+        }
+        self.org = self.project.organisation();
+        self.changed();
+        true
+    }
+
+    /// The number of the last operation.
+    #[must_use]
+    pub fn last_n(&self) -> Option<u64> {
+        self.project.operations.last().map(|o| o.n)
     }
 
     /// Adds an operation (applied to the scene and the partition at once, autosaved); its number.
@@ -389,12 +564,13 @@ impl Doc {
                     _ => 0,
                 };
                 format!(
-                    "{} operation(s) apply cleanly to {}: {} transform(s), {} copy(ies), {} deleted, {} field(s); {} \
-                     change(s) in the partition{}.",
+                    "{} operation(s) apply cleanly to {}: {} transform(s), {} copy(ies), {} placed, {} deleted, {} \
+                     field(s); {} change(s) in the partition{}.",
                     a.operations,
                     self.project.base.partition,
                     a.transforms,
                     a.duplicated,
+                    a.placed,
                     a.deleted,
                     a.fields,
                     changes,
@@ -443,6 +619,7 @@ mod tests {
                     source: g1.clone(),
                     guid: copy.clone(),
                     transform: bc2_levelwrite::rows_at([0.0, 0.0, 40.0]),
+                    owned: Vec::new(),
                 }],
             },
             "",
@@ -458,6 +635,7 @@ mod tests {
                     source: house.clone(),
                     guid: hc.clone(),
                     transform: bc2_levelwrite::rows_at([30.0, 0.0, 0.0]),
+                    owned: Vec::new(),
                 }],
             },
             "",

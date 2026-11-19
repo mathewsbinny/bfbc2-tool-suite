@@ -448,6 +448,7 @@ dependencies = [
  "pollster",
  "serde",
  "serde_json",
+ "windows",
 ]
 
 [[package]]

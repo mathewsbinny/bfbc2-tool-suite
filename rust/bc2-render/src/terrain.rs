@@ -523,6 +523,7 @@ fn terrain_draw(
         class: material::draw_class(state.as_ref(), &ps.code),
         state,
         centre: None,
+        bounds: None,
     })
 }
 

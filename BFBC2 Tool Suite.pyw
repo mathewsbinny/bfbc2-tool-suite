@@ -63,16 +63,16 @@ SCRIPTS = {
 }
 
 
-EDITOR_BUILD = ['cargo', 'build', '--release', '-p', 'bc2-editor']      # in rust\ (README.md, "The map editor")
+EDITOR_BUILD = ['python', os.path.join('rust', 'build_native.py'), '--editor']   # README.md, "The map editor"
 
 
 def editor_exe():
-    """The map editor (rust\\bc2-editor, round G1: read-only map view), release build first, else the debug one."""
-    for profile in ('release', 'debug'):
-        exe = os.path.join(SUITE, 'rust', 'target', profile, 'bfbc2-editor.exe')
-        if os.path.isfile(exe):
-            return exe
-    raise RuntimeError('The map editor is not built yet. Build it once with Rust: in the suite\'s rust folder, run '
+    """The map editor (rust\\bc2-editor, round G1): bin\\bfbc2-editor.exe (build_native.py --editor puts it there),
+    else this checkout's build folder (release, debug; native.find_binary)."""
+    exe = native.find_binary('bfbc2-editor')
+    if exe:
+        return exe
+    raise RuntimeError('The map editor is not built yet. Build it once with Rust: in the suite\'s folder, run '
                        f'"{subprocess.list2cmdline(EDITOR_BUILD)}" (a few minutes the first time; README.md, '
                        '"The map editor").')
 

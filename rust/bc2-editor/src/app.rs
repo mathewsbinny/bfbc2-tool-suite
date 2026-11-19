@@ -44,6 +44,10 @@ use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
 mod editui;
 mod modes;
+mod tools;
+
+pub use crate::workspace::Workspace;
+pub use tools::{ContextTarget, MenuItem, MenuKind, Placing, SinkPopup, menu_items};
 
 /// The GPU and egui's renderer on it (the window's, or the headless runner's).
 #[derive(Clone)]
@@ -71,6 +75,8 @@ pub enum Tab {
     History,
     /// The project's layers: hide, isolate, lock, colour.
     Layers,
+    /// The content browser: blueprints to place.
+    Content,
 }
 
 impl Tab {
@@ -82,6 +88,7 @@ impl Tab {
             Self::Problems => "Problems",
             Self::History => "History",
             Self::Layers => "Layers",
+            Self::Content => "Place objects",
         }
     }
 }
@@ -92,7 +99,7 @@ impl Tab {
 pub fn default_layout() -> DockState<Tab> {
     let mut d = DockState::new(vec![Tab::Viewport(Projection::Perspective)]);
     let s = d.main_surface_mut();
-    let [centre, _] = s.split_left(NodeIndex::root(), 0.2, vec![Tab::Outliner, Tab::Layers]);
+    let [centre, _] = s.split_left(NodeIndex::root(), 0.2, vec![Tab::Outliner, Tab::Layers, Tab::Content]);
     let [centre, _] = s.split_right(centre, 0.72, vec![Tab::Properties]);
     let [_, _] = s.split_below(centre, 0.78, vec![Tab::Problems, Tab::History]);
     d
@@ -114,15 +121,6 @@ pub struct Saved {
     /// Where new projects were last made.
     #[serde(default)]
     pub project_folder: Option<PathBuf>,
-}
-
-/// The workspace.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Workspace {
-    /// Look around (read-only).
-    View,
-    /// Edit objects (a project is open).
-    Objects,
 }
 
 /// The snapping and placement settings (the gizmo toolbar).
@@ -175,6 +173,7 @@ struct Drag {
 }
 
 /// An open level.
+#[allow(clippy::struct_excessive_bools, reason = "the view's switches, one field each")]
 pub struct ViewState {
     /// The level (`mp_005`).
     pub lv: String,
@@ -230,6 +229,63 @@ pub struct ViewState {
     pub game_accurate: bool,
     /// The game-accurate view's level, loaded when the mode is first turned on.
     pub game: Option<crate::gameview::GameView>,
+    // ---- round E2b
+    /// The Objects workspace's category filter (also the content browser's).
+    pub filter: Option<crate::workspace::Category>,
+    /// The editor view's display mode.
+    pub view_mode: crate::workspace::ViewMode,
+    /// What the display mode shows, in words (where its data came from).
+    pub mode_note: String,
+    /// The navmesh mode's outlines (loaded once): the file and its segments, or why there are none.
+    nav: Option<Result<(String, Vec<crate::viewmodes::Segment>), String>>,
+    /// The cull-tree mode's data (loaded once).
+    cull: Option<crate::viewmodes::CullView>,
+    /// The level's folders (its own, then its shared bundles').
+    pub bases: Vec<PathBuf>,
+    /// Project OPFOR BFBC2's folder.
+    root: Option<PathBuf>,
+    /// The content browser's catalogue (a project open).
+    pub content: Option<crate::content::Catalogue>,
+    content_query: String,
+    /// The content browser's chosen entry (its blueprint path).
+    pub content_pick: Option<String>,
+    /// An object being placed.
+    pub placing: Option<Placing>,
+    /// The sink popup.
+    pub sink: Option<SinkPopup>,
+    /// The "Place object here..." picker.
+    pub picker: Option<tools::Picker>,
+    /// The last right-click's target.
+    pub context: Option<ContextTarget>,
+    /// The point a context menu entry acts at (taken once).
+    menu_point: Option<V3>,
+    /// The ray under the pointer in the view it is over (last frame).
+    pointer_ray: Option<(V3, V3)>,
+    /// The polygon selection's corners (screen) and the view they are drawn in.
+    pub polygon: Vec<Pos2>,
+    polygon_view: Option<Projection>,
+    /// Enter was pressed: the polygon closes.
+    polygon_close: bool,
+    /// The objects Copy remembered (guids).
+    pub clipboard: Vec<String>,
+    /// Actions asked for by menus and panels, run by the app after the frame's panels.
+    pub pending: Vec<Action>,
+    /// The last context menu's entries on screen: (label, rectangle, enabled) - the tests click them.
+    pub menu_rects: Vec<(String, Rect, bool)>,
+    /// Which menu that was.
+    pub menu_kind: Option<MenuKind>,
+    /// The content browser's tiles on screen: (blueprint path, rectangle) - the tests drag them.
+    pub content_rects: Vec<(String, Rect)>,
+    /// An entry that could not be placed (not read again while it is dragged).
+    place_failed: Option<String>,
+    /// Rendered thumbnails loaded from the cache, by blueprint path (`None`: none there).
+    thumbs: HashMap<String, Option<egui::TextureHandle>>,
+    /// The asset browser's mode: Place Objects, Spawners, Objectives.
+    pub browser_mode: crate::gameplay::BrowserMode,
+    /// The team placed spawns, flags and vehicle spawners take (1, 2; 0 neutral).
+    pub place_team: u8,
+    /// The Spawners and Objectives tiles, with what they were made from (the log's and the catalogue's sizes).
+    tiles: Option<((usize, usize), Vec<crate::gameplay::Tile>)>,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -257,7 +313,7 @@ impl Viewport {
     }
 }
 
-type Loaded = Result<(Scene, Vec<String>, f64), String>;
+type Loaded = Result<(Scene, Vec<String>, f64, Vec<PathBuf>), String>;
 
 /// What to do with a level once it is loaded.
 #[derive(Debug, Clone)]
@@ -428,13 +484,69 @@ impl EditorApp {
     /// Why an action cannot run now (for its disabled control's tooltip), or `None` when it can.
     #[must_use]
     pub fn why_not(&self, action: Action) -> Option<&'static str> {
-        let open = matches!(self.mode, Mode::View(_));
-        let v = self.view();
+        why_not_in(self.view(), action)
+    }
+}
+
+/// Why an action cannot run now in the open level (`None`: no level open), or `None` when it can.
+#[must_use]
+#[allow(
+    clippy::match_same_arms,
+    reason = "the arms' guards differ and their order matters: the first reason that holds is the one shown"
+)]
+pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str> {
+    {
+        let open = v.is_some();
         let selected = v.is_some_and(|v| v.selected.is_some());
         let doc = v.and_then(|v| v.doc.as_ref());
-        let editing = v.is_some_and(|v| v.doc.is_some() && v.workspace == Workspace::Objects);
+        let editing = v.is_some_and(|v| v.doc.is_some() && v.workspace.moves_objects());
         let editable: Vec<usize> = v.map_or_else(Vec::new, ViewState::editable_selection);
+        let objects = v.is_some_and(|v| v.doc.is_some() && v.workspace == Workspace::Objects);
         match action {
+            Action::Brush(b) => b.workspace().coming(),
+            Action::PathTest => Some("Comes with the AI workspace's tools (round E5a)"),
+            Action::SetWorkspace(_) | Action::SetViewMode(_) | Action::FocusHere if !open => Some("Open a map first"),
+            Action::SetWorkspace(w) if w.edits() && doc.is_none() => {
+                Some("Open a project first (New map from an existing map, or Open a project)")
+            }
+            Action::SelectAllOfType if !(selected || v.is_some_and(|v| v.content_pick.is_some())) => {
+                Some("Select an object or a content browser entry first")
+            }
+            Action::ShowPanel(PanelKind::Content) if doc.is_none() => {
+                Some("Open a project first (New map from an existing map, or Open a project)")
+            }
+            Action::PlaceObject if !objects => Some("Edit a project in the Objects workspace first"),
+            Action::PlaceObject if !doc.is_some_and(Doc::has_partition) => {
+                Some("This scene has no level partition to add objects to")
+            }
+            Action::Paste if !editing => Some("Edit a project in the Objects workspace first"),
+            Action::Paste if v.is_some_and(|v| v.clipboard.is_empty()) => Some("Copy objects first"),
+            Action::ShowHidden if doc.is_none_or(|d| d.org.hidden.is_empty()) => Some("Nothing is hidden"),
+            Action::UnlockAll if doc.is_none_or(|d| d.org.locked.is_empty()) => Some("Nothing is locked"),
+            Action::DeepDuplicate
+            | Action::Hide
+            | Action::Lock
+            | Action::Copy
+            | Action::SinkPopup
+            | Action::SetTeam(_)
+                if !editing =>
+            {
+                Some("Edit a project in the Objects, Gameplay or AI workspace first")
+            }
+            Action::DeepDuplicate | Action::Hide | Action::Lock | Action::Copy | Action::SinkPopup
+                if editable.is_empty() =>
+            {
+                Some("Select an object that can be edited first")
+            }
+            Action::SetTeam(_)
+                if !v.is_some_and(|v| {
+                    editable
+                        .iter()
+                        .any(|&k| v.scene().entities.get(k).is_some_and(|e| e.team.is_some()))
+                }) =>
+            {
+                Some("Select spawns, flags or vehicle spawns first")
+            }
             Action::FocusSelection | Action::CopyGuid | Action::ClearSelection if !selected => {
                 Some("Select an object first")
             }
@@ -446,7 +558,6 @@ impl EditorApp {
             | Action::Save
             | Action::CheckEdits
             | Action::Export
-            | Action::ToggleWorkspace
             | Action::ShowPanel(PanelKind::History | PanelKind::Layers)
                 if doc.is_none() =>
             {
@@ -470,7 +581,7 @@ impl EditorApp {
             | Action::ToggleSurfaceSnap
                 if !editing =>
             {
-                Some("Edit a project in the Objects workspace first")
+                Some("Edit a project in the Objects, Gameplay or AI workspace first")
             }
             Action::Delete | Action::Duplicate | Action::PlaceOnSurface | Action::Group | Action::NewLayer
                 if editable.is_empty() =>
@@ -493,7 +604,9 @@ impl EditorApp {
             _ => None,
         }
     }
+}
 
+impl EditorApp {
     /// Runs an action (the top bar, the keyboard and the command palette all come here).
     pub fn run(&mut self, gpu: &GpuCtx, ctx: &egui::Context, action: Action) {
         if self.why_not(action).is_some() {
@@ -501,7 +614,7 @@ impl EditorApp {
         }
         let palette = self.palette();
         if let Mode::View(v) = &mut self.mode
-            && v.edit_action(gpu, &palette, action)
+            && (v.tool_action(gpu, &palette, action) || v.edit_action(gpu, &palette, action))
         {
             return;
         }
@@ -511,6 +624,8 @@ impl EditorApp {
                     PanelKind::History => Tab::History,
                     PanelKind::Layers => Tab::Layers,
                     PanelKind::Problems => Tab::Problems,
+                    PanelKind::Properties => Tab::Properties,
+                    PanelKind::Content => Tab::Content,
                 };
                 if let Some(path) = self.dock.find_tab(&tab) {
                     let _ = self.dock.set_active_tab(path);
@@ -790,12 +905,12 @@ impl EditorApp {
 
     /// Shows a scene that is already loaded (the demo scene, tests).
     pub fn open_scene(&mut self, gpu: &GpuCtx, lv: &str, scene: Scene) {
-        self.show_scene(gpu, lv, (scene, Vec::new(), 0.0), Then::View);
+        self.show_scene(gpu, lv, (scene, Vec::new(), 0.0, Vec::new()), Then::View);
     }
 
     /// Shows a scene that is already loaded and does `then` with it (the demo scene as a project, tests).
     pub fn open_scene_then(&mut self, gpu: &GpuCtx, lv: &str, scene: Scene, then: Then) {
-        self.show_scene(gpu, lv, (scene, Vec::new(), 0.0), then);
+        self.show_scene(gpu, lv, (scene, Vec::new(), 0.0, Vec::new()), then);
     }
 
     fn remember(&mut self, path: &Path) {
@@ -804,7 +919,13 @@ impl EditorApp {
         self.recent.truncate(10);
     }
 
-    fn show_scene(&mut self, gpu: &GpuCtx, lv: &str, (scene, notes, secs): (Scene, Vec<String>, f64), then: Then) {
+    fn show_scene(
+        &mut self,
+        gpu: &GpuCtx,
+        lv: &str,
+        (scene, notes, secs, bases): (Scene, Vec<String>, f64, Vec<PathBuf>),
+        then: Then,
+    ) {
         let palette = self.palette();
         let mut gpu_scene = SceneGpu::new(&gpu.gpu, &scene, &palette);
         for g in model::HIDDEN_AT_START {
@@ -851,6 +972,24 @@ impl EditorApp {
             }
         };
         let editing = doc.is_some();
+        // the asset browser: the level's placements, its folders', its content set's bundles' (round E2b)
+        let game = self.opfor.as_ref().ok().and_then(|root| {
+            let set = self.levels.iter().find(|l| l.lv.eq_ignore_ascii_case(lv))?.set;
+            Some(crate::content::GameSource {
+                opfor: root.clone(),
+                set,
+                levels: self
+                    .levels
+                    .iter()
+                    .filter(|l| l.set == set)
+                    .map(|l| l.lv.clone())
+                    .collect(),
+                own: lv.to_owned(),
+            })
+        });
+        let content = doc
+            .as_ref()
+            .map(|d| crate::content::Catalogue::start(&d.scene, bases.clone(), game));
         let outliner = match &doc {
             Some(d) => Outliner::new_without(&d.scene, &d.deleted),
             None => Outliner::new(&scene),
@@ -891,6 +1030,35 @@ impl EditorApp {
             game_accurate: false,
             game: None,
             last_hit: None,
+            filter: None,
+            view_mode: crate::workspace::ViewMode::Lit,
+            mode_note: String::new(),
+            nav: None,
+            cull: None,
+            bases,
+            root: self.opfor.clone().ok(),
+            content,
+            content_query: String::new(),
+            content_pick: None,
+            placing: None,
+            sink: None,
+            picker: None,
+            context: None,
+            menu_point: None,
+            pointer_ray: None,
+            polygon: Vec::new(),
+            polygon_view: None,
+            polygon_close: false,
+            clipboard: Vec::new(),
+            pending: Vec::new(),
+            menu_rects: Vec::new(),
+            menu_kind: None,
+            content_rects: Vec::new(),
+            place_failed: None,
+            thumbs: HashMap::new(),
+            browser_mode: crate::gameplay::BrowserMode::PlaceObjects,
+            place_team: 1,
+            tiles: None,
         };
         if editing {
             v.refresh(gpu, &palette);
@@ -977,6 +1145,7 @@ impl EditorApp {
             if let Mode::View(v) = &mut self.mode {
                 // the scene's colours follow the theme
                 let palette = Palette::new(self.tokens, self.theme);
+                v.apply_look(&palette);
                 v.refresh(gpu, &palette);
             }
         }
@@ -1061,6 +1230,13 @@ impl EditorApp {
             }
             Mode::Start => self.start_screen(ui, &palette, &metrics),
         }
+        let pending = match &mut self.mode {
+            Mode::View(v) => std::mem::take(&mut v.pending),
+            _ => Vec::new(),
+        };
+        for a in pending {
+            self.run(gpu, &ctx, a);
+        }
         if cancel && let Mode::Preparing(job) = &mut self.mode {
             job.cancel();
             self.mode = Mode::Start;
@@ -1126,6 +1302,15 @@ impl EditorApp {
             || ctx.input(|i| i.pointer.secondary_down())
         {
             return;
+        }
+        if let Mode::View(v) = &mut self.mode {
+            if v.has_transient() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+                v.cancel_transient();
+                v.redraw();
+            }
+            if v.polygon.len() >= 3 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
+                v.polygon_close = true;
+            }
         }
         let redo2 = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), Key::Z);
         if self.why_not(Action::Redo).is_none() && ctx.input_mut(|i| i.consume_shortcut(&redo2)) {
@@ -1321,23 +1506,22 @@ impl EditorApp {
                         Mode::View(v) => Some((v.workspace, v.doc.is_some())),
                         _ => None,
                     };
-                    for w in help::WORKSPACES {
-                        let (active, enabled, why) = match w.name {
-                            "View" => (ws.is_none_or(|(x, _)| x == Workspace::View), true, String::new()),
-                            "Objects" => (
-                                ws.is_some_and(|(x, _)| x == Workspace::Objects),
-                                ws.is_some_and(|(_, d)| d),
-                                if ws.is_some_and(|(_, d)| d) {
-                                    String::new()
-                                } else {
-                                    "Editing needs a map project: New map from an existing map, or Open a project."
-                                        .into()
-                                },
-                            ),
-                            _ => (false, false, format!("{} {}", w.what, w.when)),
+                    for w in Workspace::ALL {
+                        let active = ws.map_or(w == Workspace::View, |(x, _)| x == w);
+                        let enabled = ws.is_some_and(|(_, d)| d || !w.edits());
+                        let what = help::WORKSPACES
+                            .iter()
+                            .find(|h| h.name == w.name())
+                            .map_or("", |h| h.what);
+                        let why = if enabled {
+                            what.to_owned()
+                        } else if ws.is_none() {
+                            "Open a map first.".to_owned()
+                        } else {
+                            "Editing needs a map project: New map from an existing map, or Open a project.".to_owned()
                         };
-                        if segment(ui, p, m, w.name, active, enabled, &why) && !active {
-                            run.push(TopBar::Run(Action::ToggleWorkspace));
+                        if segment(ui, p, m, w.name(), active, enabled, &why) && !active {
+                            run.push(TopBar::Run(Action::SetWorkspace(w)));
                         }
                     }
                     separator(ui, p, m);
@@ -1502,7 +1686,7 @@ fn load(root: &Path, lv: &str) -> Loaded {
     let s = scene::load(&found.options).map_err(|e| format!("{lv} could not be read: {e}"))?;
     let mut notes = found.notes;
     notes.extend(s.notes.iter().cloned());
-    Ok((s, notes, t.elapsed().as_secs_f64()))
+    Ok((s, notes, t.elapsed().as_secs_f64(), found.options.bases))
 }
 
 /// The content profile of a level, for the badge.
@@ -1864,12 +2048,14 @@ impl TabViewer for Tabs<'_> {
             Tab::Problems => self.problems(ui),
             Tab::History => self.history(ui),
             Tab::Layers => self.layers(ui),
+            Tab::Content => self.content(ui),
         }
     }
 
     /// The orthographic views, History and Layers can be closed (the actions open them again); the rest stay.
     fn is_closeable(&self, tab: &Tab) -> bool {
-        matches!(tab, Tab::Viewport(p) if *p != Projection::Perspective) || matches!(tab, Tab::History | Tab::Layers)
+        matches!(tab, Tab::Viewport(p) if *p != Projection::Perspective)
+            || matches!(tab, Tab::History | Tab::Layers | Tab::Content)
     }
 
     fn scroll_bars(&self, _tab: &Tab) -> [bool; 2] {
@@ -1914,8 +2100,9 @@ impl Tabs<'_> {
         });
         let h = f64::from(rect.height());
         // editing: the left button drags the gizmo or a selection box (Alt+left orbits or pans)
-        let editing = self.view.doc.is_some() && self.view.workspace == Workspace::Objects;
-        let consumed = editing && self.edit_input(ui, &resp, rect, projection, &mut vp);
+        let editing = self.view.doc.is_some() && self.view.workspace.moves_objects();
+        let (wheel_taken, tools_left) = self.tools_input(ui, &resp, rect, projection, &vp);
+        let consumed = tools_left || (editing && self.edit_input(ui, &resp, rect, projection, &mut vp));
         if resp.dragged_by(PointerButton::Primary) && !consumed {
             let d = resp.drag_delta();
             if ortho {
@@ -1943,7 +2130,7 @@ impl Tabs<'_> {
             }
             ui.ctx().request_repaint();
         }
-        if resp.hovered() && scroll != 0.0 {
+        if resp.hovered() && scroll != 0.0 && !wheel_taken {
             vp.camera.zoom(f64::from(scroll) / 50.0);
             vp.dirty = true;
         }
@@ -2012,6 +2199,7 @@ impl Tabs<'_> {
         // a click picks what is drawn under the pointer (a double click also focuses it); the surface point under
         // it goes to the status bar
         if (resp.clicked() || resp.double_clicked())
+            && !tools_left
             && let (Some(pos), Some(t)) = (resp.interact_pointer_pos(), vp.target.as_ref())
         {
             let view = vp.camera.view(size);
@@ -2021,9 +2209,17 @@ impl Tabs<'_> {
                 vp.dirty = false;
             }
             let at = (pos - rect.min) * ppp;
-            let id = self
+            let mut id = self
                 .renderer
                 .pick(gpu, t, [at.x.max(0.0) as u32, at.y.max(0.0) as u32], 4);
+            // the game-accurate view picks what its own frame shows (round R5c)
+            if projection == Projection::Perspective
+                && self.view.game_accurate
+                && let Some(g) = self.view.game.as_mut()
+                && let Ok(e) = g.pick([at.x.max(0.0) as u32, at.y.max(0.0) as u32], px)
+            {
+                id = e.map_or(render::ID_NONE, render::entity_id);
+            }
             let hit = if id == render::ID_NONE {
                 None
             } else {
@@ -2062,13 +2258,15 @@ impl Tabs<'_> {
             );
             vp.dirty = false;
         }
-        let game = self
-            .view
+        let v = &mut *self.view;
+        let game = v
             .game
             .as_mut()
-            .filter(|_| projection == Projection::Perspective && self.view.game_accurate);
+            .filter(|_| projection == Projection::Perspective && v.game_accurate);
         if let Some(g) = game {
-            g.paint(ui, rect, &vp.camera, px);
+            // the game frame follows the scene's edits and outlines the selection (round R5c)
+            let scene = v.doc.as_ref().map_or(&v.base, |d| &d.scene);
+            g.paint(ui, Some(self.gpu), rect, &vp.camera, px, scene, &v.selection);
         } else if let Some(tex) = vp.texture {
             ui.painter().image(
                 tex,
@@ -2083,6 +2281,8 @@ impl Tabs<'_> {
         if editing {
             self.edit_overlay(ui, rect, projection, &vp.camera);
         }
+        self.tools_overlay(ui, rect, projection, &vp.camera);
+        self.view_menu(&resp);
         // the controls, in the corner (from Help's list, so the two never differ; editing adds its own), on the
         // view's label plate
         let painter = ui.painter().with_clip_rect(rect);
@@ -2261,6 +2461,7 @@ impl Tabs<'_> {
             .flatten();
         let mut clicked: Option<(usize, bool)> = None;
         let mut toggles: Vec<(String, bool)> = Vec::new();
+        let mut menus: Vec<(egui::Response, usize)> = Vec::new();
         let query = self.view.search.clone();
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             let v = &*self.view;
@@ -2316,40 +2517,47 @@ impl Tabs<'_> {
                     });
                     header.body(|ui| {
                         let row_h = m.row;
-                        let show =
-                            |ui: &mut egui::Ui, range: std::ops::Range<usize>, clicked: &mut Option<(usize, bool)>| {
-                                for e in rows.get(range).unwrap_or_default() {
-                                    let layer = v.doc.as_ref().and_then(|d| {
-                                        d.guid(e.entity).and_then(|g| d.org.layer(g)).map(|l| l.state.colour)
-                                    });
-                                    let resp = outliner_row(
-                                        ui,
-                                        &p,
-                                        &m,
-                                        e,
-                                        &v.teams,
-                                        v.selection.contains(&e.entity),
-                                        hidden || v.doc.as_ref().is_some_and(|d| !d.shown(e.entity)),
-                                        layer,
-                                    );
-                                    if reveal == Some(e.entity) {
-                                        resp.scroll_to_me(Some(Align::Center));
-                                    }
-                                    if resp.double_clicked() {
-                                        *clicked = Some((e.entity, true));
-                                    } else if resp.clicked() {
-                                        *clicked = Some((e.entity, false));
-                                    }
+                        let show = |ui: &mut egui::Ui,
+                                    range: std::ops::Range<usize>,
+                                    clicked: &mut Option<(usize, bool)>,
+                                    menus: &mut Vec<(egui::Response, usize)>| {
+                            for e in rows.get(range).unwrap_or_default() {
+                                let layer = v.doc.as_ref().and_then(|d| {
+                                    d.guid(e.entity).and_then(|g| d.org.layer(g)).map(|l| l.state.colour)
+                                });
+                                let resp = outliner_row(
+                                    ui,
+                                    &p,
+                                    &m,
+                                    e,
+                                    &v.teams,
+                                    v.selection.contains(&e.entity),
+                                    hidden || v.doc.as_ref().is_some_and(|d| !d.shown(e.entity)),
+                                    layer,
+                                );
+                                if reveal == Some(e.entity) {
+                                    resp.scroll_to_me(Some(Align::Center));
                                 }
-                            };
+                                if resp.secondary_clicked() || resp.context_menu_opened() {
+                                    menus.push((resp.clone(), e.entity));
+                                }
+                                if resp.double_clicked() {
+                                    *clicked = Some((e.entity, true));
+                                } else if resp.clicked() {
+                                    *clicked = Some((e.entity, false));
+                                }
+                            }
+                        };
                         if rows.len() > 300 {
                             // long groups (static group members) scroll on their own, drawing only the rows in view
                             egui::ScrollArea::vertical()
                                 .id_salt(("rows", &grp.category))
                                 .max_height(row_h * 16.0)
-                                .show_rows(ui, row_h, rows.len(), |ui, range| show(ui, range, &mut clicked));
+                                .show_rows(ui, row_h, rows.len(), |ui, range| {
+                                    show(ui, range, &mut clicked, &mut menus);
+                                });
                         } else {
-                            show(ui, 0..rows.len(), &mut clicked);
+                            show(ui, 0..rows.len(), &mut clicked, &mut menus);
                         }
                     });
                 }
@@ -2358,6 +2566,9 @@ impl Tabs<'_> {
         for (g, hide) in toggles {
             self.view.gpu_scene.set_hidden(&self.gpu.gpu, &g, hide);
             self.view.redraw();
+        }
+        for (resp, entity) in menus {
+            self.row_menu(&resp, entity);
         }
         if let Some((entity, focus)) = clicked {
             let add = ui.input(|i| i.modifiers.command || i.modifiers.shift);
@@ -2381,6 +2592,10 @@ impl Tabs<'_> {
     fn properties(&mut self, ui: &mut egui::Ui) {
         let p = self.palette;
         let m = self.metrics;
+        if self.view.doc.is_some() && self.view.editable_selection().len() > 1 {
+            self.multi_properties(ui);
+            return;
+        }
         let Some(e) = self
             .view
             .selected
