@@ -3825,3 +3825,88 @@ process per command, and the hub one per click.
 - **Its WW2 / Onslaught `subprocess` calls of aptcheck, aptgraft, culltree, renderqa and shaderdb** can switch the
   same way when their subcommands land (O2-O5). `bfbc2core.native.cli_command(tool)` gives the right command line,
   falling back to Python.
+## S1: streamed packing, process-wide BF1943 restart points, the shader coverage index (2026-11-18, branch `rust-s1`)
+
+Three suite changes from profiling OPFOR's WW2 install plan (`wake_install.py --plan`, 602 -> 321 s after OPFOR's own
+fixes c3503fc / 58cf539). Every output is the same; what changes is memory and repeated work.
+
+### 1. Bundle packing streamed (`bc2_formats::fbrb`, `zlib`)
+
+Before: `pack_rows` read every file of the folder into one payload `Vec` (on all cores), deflated it whole into a
+second `Vec` and copied that into the bundle - a WW2 level's 650-680 MB payload, its 186-341 MB compressed copy and the
+copy again. Now the layout (offsets, padding, the header) comes from the files' sizes; the files are read in order on a
+second thread a megabyte at a time (4 chunks ahead) and fed through the deflater into the output as it is made.
+
+- `zlib::deflate_stream` / `gzip_net_stream` (new): the zlib 1.3.1 port reading from any `Read`, writing to any
+  `Write` every 256 KB of output. The window is filled exactly as from one slice (a short read is asked again; only
+  the input's end gives less), so the bytes are the slice's: `deflate` / `gzip_net` are now these on a slice.
+- `fbrb::pack_rows_into` (new): a bundle to any writer. `pack_path` / `pack_many` / `fbrb.pack` / FbrbTool's `pack`
+  stream into their temporary file; `pack_rows` / `pack_dir` write into a `Vec` (the bundle held, not the payload).
+  A file that ends early or grows is the same error as before, naming it; a failed pack leaves no temporary file.
+
+Proof:
+
+| check | result |
+|---|---|
+| OPFOR's real WW2 pack calls replayed: each level's `pack_many` as `pack_level` made it (every staging folder of `work\ww2\install*`, read only, unchanged since the real run) into a scratch folder | **23 of 23 bundles byte-identical** to the bundles the real run's packer wrote (Wake's 8, Guadalcanal's, Iwo Jima's and Coral Sea's 5 each; 4 levels' `level-00` 186-341 MB) |
+| `test_fbrb_pack_native.py --game` (every game bundle FbrbTool.exe's recording covers, up to 300 MiB) | **1,081 of 1,081 recorded bundles (6.83 GB) byte-identical** to FbrbTool.exe's (1,078 in the run; 3 that a full drive C: stopped mid-write, repacked alone: identical); 5 not recorded (over 300 MiB). Pack 4,042 s on one process |
+| quick tier: zlib against Python's zlib (levels 4-9), 18 built folders in every layout against FbrbTool's goldens, the refusals, 8 small game bundles; FbrbTool's commands in process (228 command lines) | all pass |
+| `streams_as_one_slice`, `streamed_files_as_from_memory` (new Rust tests): readers giving 1, 7, 4096 bytes a call and interrupted ones, chunk boundaries across entries, every layout, files that shrink or grow, a failing output | pass |
+
+Memory (peak working set of the process, measured with `K32GetProcessMemoryInfo`):
+
+| workload | before | after |
+|---|---:|---:|
+| the four WW2 levels' 23 bundles, one `pack_many` per level (`pack_proof.py`) | payload + compressed copy + its copy: about 1.35 GB for Wake's or Iwo Jima's `level-00` alone (680 MB + 2 x 341 MB; not re-measured: the old packer's run waits for the user's go-ahead) | **47 MB** for all four levels |
+
+Time: Wake's 8 bundles 35.4 s, each other level's 5 bundles 22-24 s (one core deflates each bundle, as before; the
+reads overlap the deflating instead of preceding it). With OPFOR's `PACK_LATER`, packing a level beside the next
+level's build no longer adds the level's payload to the plan's peak (58cf539 measured 2.9 -> 3.5 GB for it).
+
+### 2. BF1943 restart points for the process (`bf1943import.RESTARTS`)
+
+`Source._points` (one decompression of a compressed bundle, a restart point every MB) is kept per process, keyed by
+the bundle's path, size, modification time, payload place and the spacing; least recently used out beyond
+`BF1943_RESTARTS_MB` (default 128; a point costed at 40 KB: 40,113 bytes by tracemalloc); a lock around the table, the
+states only ever copied. Every read still checks the file unchanged first. `Source.stats['shared_points']` counts the
+points a Source found made.
+
+| check | result |
+|---|---|
+| every entry of every one of BF1943's 82 bundles (81 compressed; also the copies a name's first bundle shadows), the committed module against the new one | **29,465 of 29,465 entries identical** (906 MB) |
+| the entries by name (14,027) | identical |
+| a fresh `Source` per call, one entry from each of the 49 compressed bundles that win a name, three Sources in turn | old 3.00 / 2.98 / 3.27 s; new 2.93 / **0.20 / 0.21 s** |
+| memory held for every bundle's points | 81 entries, 30 MB (as costed) |
+| quick tests: a second Source reuses the points, `BF1943_RESTARTS_MB=0` keeps none, a budget of one point keeps within it, four Sources reading on four threads | pass |
+
+OPFOR's plan opened a Source per level and step (about 12): about 36 s of repeated decompressing, which OPFOR's
+`bf_source()` avoided for wake_install only; every other caller (ww2_level_build, the weapon and object builds) now
+gets it too.
+
+### 3. The shader coverage index (`shaderdb.level_cover_prefixes`, `level_coverage`, `donor_levels`; cache `shadercover`)
+
+For each level database, every leading `/`-joined part of each lower-case entry name with the number of entries
+under it: `coverage(db, meshes)` is `{m: prefixes.get(m, 0)}` for any meshes, so choosing donor levels needs no
+database loaded. One pickle per level bundle and Dx in `%LOCALAPPDATA%\bfbc2-tool-suite\cache\shadercover`, keyed
+by `COVER_VERSION` and the bundle's path, size and time (hashed); pruned and listed by `python -m bfbc2core.caches`
+(cap `BFBC2_SHADERCOVER_CACHE_MB`, 64). A level without a database of the Dx keeps its error.
+
+| check | result |
+|---|---|
+| every level of the game copy: each prefix of each entry name (and 200 of every other level's) answered as `coverage` answers it on the loaded database (`test_shaderdb.py --game`) | **89 levels, 406,242 names: every answer identical**; a second pass read only the index (1.19 s; loading all 1.4 s with the fbrb payload cache warm). (This test's older ONS_MP_008 flag checks fail on main as well: the game copy's ons_mp_008 now has flag entries) |
+| the four WW2 levels (`shader_proof.py`): the stock levels (79) and the meshes their staged level draws that the base database lacks (81-82), the old loop (every stock Dx9 database loaded, `coverage`) against `donor_levels` | **identical donors** for all four (mp_002, nam_mp_002cq, sp_01) |
+| each level's Dx9 / 10 / 11 database merged from either choice (`S.merge`) | **12 of 12 byte-identical** (56 entries added each) |
+
+| time per WW2 level | old loop | index |
+|---|---:|---:|
+| first level (index built: 79 databases loaded) | 2.66 s | 2.83 s |
+| the next three | 1.07-1.46 s (bundles in the fbrb payload cache) | **0.11-0.13 s** (79 pickles, 27 MB) |
+
+The index is 27 MB for every stock level's Dx9 database.
+
+### OPFOR changes these allow (not made here)
+
+- `wake_install.shader_dbs`: the donor loop (`for lv, read in S.load_levels(stock, [9], cc.OPFOR): ...`) becomes
+  `donors = S.donor_levels(stock, need, opfor=cc.OPFOR)`.
+- `wake_install.bf_source()` can stay; it is no longer needed for speed (a plain `Source(...)` shares the points).
+- `PACK_LATER`'s comment on the packing thread holding a level in memory no longer holds.

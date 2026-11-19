@@ -1,23 +1,21 @@
-//! The 3D view's "Game-accurate" mode (round R5, `EDITOR_ARCHITECTURE.md` 3.11): the level drawn as BFBC2's Direct3D
-//! 11 renderer draws it - DICE's own compiled shaders, textures, material constants and render states from the level's
-//! `Dx11_Single.res`, under its weather's light (`bc2_render`) - off screen, then shown in the view as an image.
+//! The 3D view's "Game-accurate" mode (rounds R5 and R5b, `EDITOR_ARCHITECTURE.md` 3.11): the level drawn as BFBC2's
+//! Direct3D 11 renderer draws it - DICE's own compiled shaders, textures, material constants and render states from
+//! the level's `Dx11_Single.res`, under its weather's light, then DICE's own post-process (`bc2_render`) - off screen,
+//! then shown in the view as an image.
 //!
-//! Phase 1 draws the placed objects (`objects/...` blueprints with a `Mesh`) at their transforms and the terrain
-//! patches around the camera's target; the selection, labels and gizmo stay egui's overlays. The frame is drawn again
-//! only when the camera or the view's size changes. On a machine without Direct3D 11 the mode says why and the view
-//! stays as it was.
+//! Drawn ([`bc2_render::world::World`]): the placed objects and the model groups' members with their shader-set
+//! overrides, the terrain patches around the camera's target, the baked road and decal strips, the visual water;
+//! then DICE's exposure, bloom and filmic tonemap passes (the harness's CPU tonemap where the post shaders cannot be
+//! read). The selection, labels and gizmo stay egui's overlays. The frame is drawn again only when the camera or the
+//! view's size changes. On a machine without Direct3D 11 the mode says why and the view stays as it was.
 
-use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Instant;
 
-use bc2_render::files::{Files, level_folders};
-use bc2_render::frame::{self, Instance};
-use bc2_render::material::{self, Db, Prepared, TextureFiles};
-use bc2_render::terrain::Terrain;
-use bc2_render::weather::{self, Post, Values};
-use bc2_scene::scene::Scene;
+use bc2_render::files::Files;
+use bc2_render::frame;
+use bc2_render::world::{Placed, World};
+use bc2_scene::scene::{Scene, Source};
 use eframe::egui::{self, Color32, ColorImage, Pos2, Rect, TextureHandle, TextureOptions};
 
 use crate::camera::Camera;
@@ -38,15 +36,15 @@ impl Device {
     fn render(
         &mut self,
         _frame: &frame::Frame,
-        _files: &TextureFiles,
-        _raw: &HashMap<String, bc2_render::terrain::RawTexture>,
+        _files: &bc2_render::material::TextureFiles,
+        _raw: &std::collections::HashMap<String, bc2_render::terrain::RawTexture>,
     ) -> Result<frame::Rendered, String> {
         Err("the game-accurate view needs Direct3D 11 (Windows)".into())
     }
 }
 
 /// Patches drawn on each side of the patch under the camera's target.
-pub const TERRAIN_RADIUS: usize = 24;
+pub const TERRAIN_RADIUS: usize = bc2_render::world::TERRAIN_RADIUS;
 /// The far plane, metres.
 pub const FAR: f64 = 4000.0;
 
@@ -59,7 +57,7 @@ pub struct Timings {
     pub submit: f64,
     /// Waiting for the GPU and reading the frame back.
     pub readback: f64,
-    /// The post-process (tonemap).
+    /// The post-process: DICE's passes' submit (their GPU time is in `readback`), or the CPU tonemap.
     pub tonemap: f64,
     /// Handing the picture to egui.
     pub upload: f64,
@@ -77,14 +75,7 @@ impl Timings {
 
 /// The level, ready to draw the game's way.
 pub struct GameView {
-    files: Files,
-    textures: TextureFiles,
-    objects: Vec<Instance>,
-    terrain: Option<Terrain>,
-    patches: HashMap<(usize, usize), Arc<Prepared>>,
-    light: Values,
-    post: Post,
-    background: [f32; 3],
+    world: World,
     device: Device,
     texture: Option<TextureHandle>,
     drawn: Option<([u64; 8], [u32; 2])>,
@@ -98,128 +89,50 @@ pub struct GameView {
     pub error: Option<String>,
 }
 
-/// The blueprint's `Mesh` reference (`path/guid` -> path), read from its partition.
-fn mesh_of(files: &Files, blueprint: &str) -> Option<String> {
-    let xml = bc2_formats::dbx::to_xml(&files.read(&format!("{blueprint}.dbx"))?).ok()?;
-    let at = xml.find("name=\"Mesh\"")?;
-    let head = xml.get(..at)?;
-    let r = head.get(head.rfind("ref=\"")? + 5..)?;
-    let r = r.get(..r.find('"')?)?;
-    (r != "null").then(|| r.get(..r.rfind('/')?).map(str::to_owned))?
-}
-
-/// The level's `StaticEnvmapEntityData`'s texture (the reflection cube the engine binds), if it has one.
-fn static_envmap(files: &Files, scene_name: &str) -> Option<String> {
-    let xml = bc2_formats::dbx::to_xml(&files.read(&format!("levels/{scene_name}.dbx"))?).ok()?;
-    let at = xml.find("WorldRender.StaticEnvmapEntityData")?;
-    let rest = xml.get(at..)?;
-    let f = rest.find("name=\"StaticEnvmap\"")?;
-    let head = rest.get(..f)?;
-    let r = head.get(head.rfind("ref=\"")? + 5..)?;
-    r.get(..r.rfind('/')?).map(str::to_owned)
+/// The scene's placed things as the renderer takes them: the level partition's instances (by GUID) and the group
+/// members (by group file and item).
+#[must_use]
+pub fn placed(scene: &Scene) -> Vec<Placed> {
+    scene
+        .entities
+        .iter()
+        .filter_map(|e| {
+            Some(Placed {
+                guid: e.guid.clone(),
+                blueprint: e.blueprint.clone()?,
+                rows: e.matrix?,
+                group: match e.source {
+                    Source::GroupMember { item, .. } => Some((e.group.clone()?, item)),
+                    Source::Instance { .. } => None,
+                },
+            })
+        })
+        .collect()
 }
 
 impl GameView {
-    /// Loads a level's draws: its shader database, weather, placed objects and terrain.
+    /// Loads a level's draws: its shader database, weather, placed objects, group members, terrain, strips, water and
+    /// the post shaders.
     ///
     /// # Errors
     /// No Direct3D 11 device, or the level's database or weather cannot be read.
     pub fn load(opfor: &Path, lv: &str, scene: &Scene) -> Result<Self, String> {
         let t = Instant::now();
         let device = Device::new(false)?;
-        let files = Files::new(&level_folders(opfor, lv));
-        let lv = lv.to_lowercase();
-        let db = Db::parse(
-            &files
-                .read(&format!("levels/{lv}/shaders/dx11_single.res"))
-                .ok_or_else(|| format!("{lv}: no Dx11 shader database in its prepared files"))?,
-        )?;
-        let folder = scene
+        let weather = scene
             .entities
             .iter()
             .filter_map(|e| e.blueprint.as_deref())
-            .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)))
-            .map_or_else(|| format!("weather/r_{}", lv.replace('_', "")), str::to_owned);
-        let w = weather::read(&files, &folder)?;
-        let (light, post) = weather::light(&w, weather::NOON_DIR);
-        let fog = w.fog.get("Color").cloned().unwrap_or_else(|| vec![0.32, 0.36, 0.42]);
-        let background = [0, 1, 2].map(|k| fog.get(k).copied().unwrap_or(0.4));
-        let mut notes = vec![format!("weather: {}", w.state)];
-        let envmap =
-            static_envmap(&files, &scene.name).unwrap_or_else(|| "Textures/Sky/Sky_Beach_Generic_RGBA16f".into());
-        let mut textures = TextureFiles::new();
-        let mut meshes: HashMap<String, Option<Arc<Prepared>>> = HashMap::new();
-        let mut blueprints: HashMap<String, Option<String>> = HashMap::new();
-        let mut objects = Vec::new();
-        for e in &scene.entities {
-            let (Some(bp), Some(m)) = (e.blueprint.as_deref(), e.matrix.as_ref()) else {
-                continue;
-            };
-            if !bp.starts_with("objects/") {
-                continue;
-            }
-            let mesh = blueprints
-                .entry(bp.to_owned())
-                .or_insert_with(|| mesh_of(&files, bp))
-                .clone();
-            let Some(mesh) = mesh else { continue };
-            let prepared = meshes
-                .entry(mesh.clone())
-                .or_insert_with(|| {
-                    let p = material::prepare(&files, &db, &mesh, &envmap, &mut textures);
-                    notes.extend(p.notes.iter().map(|n| format!("{mesh}: {n}")));
-                    (!p.draws.is_empty()).then(|| Arc::new(p))
-                })
-                .clone();
-            if let Some(prepared) = prepared {
-                objects.push(Instance {
-                    prepared,
-                    world: frame::from_rows(m),
-                });
-            }
-        }
-        let terrain_name = files
-            .names()
-            .filter(|n| n.starts_with("terrains/") && n.ends_with(".visual.res"))
-            .min()
-            .and_then(|n| n.rsplit('/').next())
-            .map(|n| n.trim_end_matches(".visual.res").to_owned());
-        let terrain = match terrain_name.map(|n| Terrain::load(&files, &db, &n, &mut textures)) {
-            Some(Ok(t)) => {
-                for (k, d) in t.draws.iter().enumerate() {
-                    if let Err(e) = d {
-                        notes.push(format!("patch shader {k}: {e}"));
-                    }
-                }
-                Some(t)
-            }
-            Some(Err(e)) => {
-                notes.push(format!("terrain: {e}"));
-                None
-            }
-            None => None,
-        };
-        notes.push(format!(
-            "{} objects drawn ({} meshes), terrain {}",
-            objects.len(),
-            meshes.values().filter(|m| m.is_some()).count(),
-            if terrain.is_some() { "drawn" } else { "not drawn" }
-        ));
+            .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)));
+        let world = World::load(opfor, lv, &scene.name, &placed(scene), weather)?;
         Ok(Self {
-            files,
-            textures,
-            objects,
-            terrain,
-            patches: HashMap::new(),
-            light,
-            post,
-            background,
+            notes: world.notes.clone(),
+            world,
             device,
             texture: None,
             drawn: None,
             timings: Timings::default(),
             load_seconds: t.elapsed().as_secs_f64(),
-            notes,
             error: None,
         })
     }
@@ -238,30 +151,6 @@ impl GameView {
             near: v.near.max(0.1),
             far: FAR,
         }
-    }
-
-    /// The instances of a frame: the objects and the terrain patches around `target`.
-    fn instances(&mut self, target: [f64; 3]) -> Vec<Instance> {
-        let mut out = self.objects.clone();
-        if let Some(t) = &self.terrain
-            && let Some((px, pz)) = t.patch_at(target[0], target[2])
-        {
-            for j in pz.saturating_sub(TERRAIN_RADIUS)..=pz + TERRAIN_RADIUS {
-                for i in px.saturating_sub(TERRAIN_RADIUS)..=px + TERRAIN_RADIUS {
-                    let p = self
-                        .patches
-                        .entry((i, j))
-                        .or_insert_with(|| Arc::new(t.patch(i, j).unwrap_or_default()));
-                    if !p.draws.is_empty() {
-                        out.push(Instance {
-                            prepared: Arc::clone(p),
-                            world: frame::IDENTITY,
-                        });
-                    }
-                }
-            }
-        }
-        out
     }
 
     /// Draws the frame for a camera (when it or the size changed) and returns the picture's texture.
@@ -289,22 +178,18 @@ impl GameView {
     fn draw(&mut self, ctx: &egui::Context, camera: &Camera, size: [u32; 2]) -> Result<(), String> {
         let t = Instant::now();
         let cam = Self::camera(camera, size);
-        let instances = self.instances(camera.target);
-        let clear = [self.background[0], self.background[1], self.background[2], 0.0];
-        let f = frame::Frame {
-            width: size[0],
-            height: size[1],
-            clear,
-            draws: frame::draw_calls(&instances, &self.light, &cam, size),
-        };
+        let f = self.world.frame(&cam, camera.target, size, true)?;
         let build = t.elapsed().as_secs_f64();
-        let none = HashMap::new();
-        let raw = self.terrain.as_ref().map_or(&none, |t| &t.raw);
-        let r = self.device.render(&f, &self.textures, raw)?;
+        let r = self.device.render(&f, &self.world.textures, self.world.raw())?;
         let t2 = Instant::now();
-        let bg = bc2_render::tonemap::map(self.background, 1.0, &self.post).map(|v| (v * 255.0).round() as u8);
-        let (ldr, _) = bc2_render::tonemap::tonemap(&r.hdr, &r.mask(), &self.post, bg);
-        let tonemap = t2.elapsed().as_secs_f64();
+        let ldr = if r.ldr.is_empty() {
+            let w = &self.world;
+            let bg = bc2_render::tonemap::map(w.background, 1.0, &w.post).map(|v| (v * 255.0).round() as u8);
+            bc2_render::tonemap::tonemap(&r.hdr, &r.mask(), &w.post, bg).0
+        } else {
+            r.ldr
+        };
+        let tonemap = r.post + t2.elapsed().as_secs_f64();
         let t3 = Instant::now();
         let image = ColorImage::from_rgba_unmultiplied([size[0] as usize, size[1] as usize], &ldr);
         match &mut self.texture {
@@ -337,8 +222,8 @@ impl GameView {
         let text = match &self.error {
             Some(e) => format!("Game-accurate view failed: {e}"),
             None => format!(
-                "Game-accurate (Direct3D 11, DICE's shaders) - {} draws, {:.1} ms: submit {:.1}, GPU + read back {:.1}, \
-                 tonemap {:.1}, upload {:.1}",
+                "Game-accurate (Direct3D 11, DICE's shaders and post-process) - {} draws, {:.1} ms: submit {:.1}, GPU + \
+                 read back {:.1}, post {:.1}, upload {:.1}",
                 t.draws,
                 t.total() * 1e3,
                 t.submit * 1e3,
@@ -359,12 +244,18 @@ impl GameView {
     /// The files the view reads.
     #[must_use]
     pub fn files(&self) -> &Files {
-        &self.files
+        &self.world.files
     }
 
-    /// Placed objects drawn.
+    /// Placed objects and group members drawn.
     #[must_use]
     pub fn object_count(&self) -> usize {
-        self.objects.len()
+        self.world.objects.len()
+    }
+
+    /// The world drawn.
+    #[must_use]
+    pub fn world(&self) -> &World {
+        &self.world
     }
 }

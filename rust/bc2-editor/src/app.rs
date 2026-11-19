@@ -382,6 +382,8 @@ pub struct EditorApp {
     catalog_rx: Option<Receiver<Catalog>>,
     /// The catalog's pictures made into textures, by key.
     pictures: HashMap<String, egui::TextureHandle>,
+    /// The Export window (round E3: `export_ui`).
+    pub export: crate::export_ui::ExportWindow,
 }
 
 /// The folder new projects go to when none was chosen before: `Documents\BFBC2 Map Projects`.
@@ -444,6 +446,7 @@ impl EditorApp {
             catalog: None,
             catalog_rx,
             pictures: HashMap::new(),
+            export: crate::export_ui::ExportWindow::default(),
         })
     }
 
@@ -551,6 +554,7 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             | Action::Redo
             | Action::Save
             | Action::CheckEdits
+            | Action::Export
             | Action::ShowPanel(PanelKind::History | PanelKind::Layers)
                 if doc.is_none() =>
             {
@@ -685,6 +689,12 @@ impl EditorApp {
             Action::Help => {
                 let page = self.help.page;
                 self.help.show(page);
+            }
+            Action::Export => {
+                if let Some(path) = self.view().and_then(|v| v.doc.as_ref()).map(|d| d.path.clone()) {
+                    self.export
+                        .open_for(&path, self.opfor.as_ref().ok().map(PathBuf::as_path));
+                }
             }
             // the editing actions ran above
             _ => {}
@@ -1156,6 +1166,7 @@ impl EditorApp {
         }
         self.status_bar(ui, &palette, &metrics, gpu);
         help::window(&ctx, &mut self.help, &palette, &metrics);
+        crate::export_ui::window(&ctx, &mut self.export);
         let mut cancel = false;
         let Self {
             mode,

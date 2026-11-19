@@ -300,6 +300,24 @@ impl RenderState {
     }
 }
 
+/// Named material constants whose stored value is a placeholder the engine writes over at draw time (FORMAT.md
+/// section 1's constant records name them; DICE stores 0 or 1 there): the water's screen and depth factors
+/// (`g_screenSizeInv`, `g_depthScaleFactors`: [`crate::water`]) and the trees' `sunDir` (the Overgrowth leaves and
+/// bark, stored (1, 1, 1): the engine's sun direction, `outdoorLightDir`).
+pub const ENGINE_NAMED: [&str; 3] = ["g_screenSizeInv", "g_depthScaleFactors", "sunDir"];
+
+/// The constant records of a block the engine writes by name ([`ENGINE_NAMED`]).
+#[must_use]
+pub fn engine_named(constants: &[query::Constant<'_>]) -> Vec<(u8, String)> {
+    constants
+        .iter()
+        .filter_map(|c| {
+            let n: String = c.name.iter().map(|&b| char::from(b)).collect();
+            ENGINE_NAMED.contains(&n.as_str()).then_some((c.register, n))
+        })
+        .collect()
+}
+
 /// Draw classes, drawn in this order (`renderqa.OPAQUE / TESTED / BLENDED`).
 pub const OPAQUE: u8 = 1;
 /// Alpha-tested, alpha to coverage or discarding.
@@ -357,6 +375,9 @@ pub struct Draw {
     pub vs_extra: Vec<(u8, [f32; 4])>,
     /// The same for the pixel shader.
     pub ps_extra: Vec<(u8, [f32; 4])>,
+    /// Block constants the engine writes by name at draw time ([`ENGINE_NAMED`]): (register, name), the frame's value
+    /// of that name written over the block's placeholder in both shaders' `constants`.
+    pub named: Vec<(u8, String)>,
     /// Bound textures: (t slot, texture name; `engine:<name>` for a texture the engine makes).
     pub textures: Vec<(u32, String)>,
     /// The vertex shader's own textures (else it sees the pixel shader's).
@@ -390,6 +411,8 @@ pub struct Prepared {
     pub wide: bool,
     /// The drawn parts' position bounds.
     pub bounds: Option<([f32; 3], [f32; 3])>,
+    /// The shader set drawn (its name in the mesh set, `path/GUID`).
+    pub shader_set: String,
 }
 
 /// Texture resources by name, read once (`None`: missing or not drawable as stored).
@@ -541,8 +564,23 @@ pub fn identity_bones() -> Vec<[f32; 4]> {
 /// Everything needed to draw a mesh's LOD 0 with a database, and the problems found (`renderqa.prepare`). `envmap`:
 /// the cube bound as `outdoorLightReflectionEnvmap` when the material names none.
 #[must_use]
-#[allow(clippy::too_many_lines, reason = "renderqa.prepare, step by step")]
 pub fn prepare(files: &Files, db: &Db, mesh: &str, envmap: &str, cache: &mut TextureFiles) -> Prepared {
+    prepare_set(files, db, mesh, None, envmap, cache)
+}
+
+/// [`prepare`] with the shader set the placement names (`MeshShaderSet`: `path/guid`, any case), the set of the mesh
+/// set whose name it is; `None` or a name the mesh set does not list: the first set the database draws whole, as
+/// [`prepare`] (a note says so for a name not listed).
+#[must_use]
+#[allow(clippy::too_many_lines, reason = "renderqa.prepare, step by step")]
+pub fn prepare_set(
+    files: &Files,
+    db: &Db,
+    mesh: &str,
+    shader_set: Option<&str>,
+    envmap: &str,
+    cache: &mut TextureFiles,
+) -> Prepared {
     let low = mesh.to_lowercase();
     let mut out = Prepared {
         mesh: mesh.to_owned(),
@@ -585,11 +623,19 @@ pub fn prepare(files: &Files, db: &Db, mesh: &str, envmap: &str, cache: &mut Tex
             })
             .count()
     };
-    let chosen = lod
-        .sets
-        .iter()
-        .find(|s| has(s) == s.1.len())
-        .or_else(|| lod.sets.iter().max_by_key(|s| has(s)));
+    let named = shader_set.and_then(|want| lod.sets.iter().find(|s| name(&s.0).eq_ignore_ascii_case(want)));
+    if let (Some(want), None) = (shader_set, named) {
+        out.notes.push(format!(
+            "shader-set: {want} is not one of the mesh's sets (the default drawn)"
+        ));
+    }
+    let chosen = named.or_else(|| {
+        lod.sets
+            .iter()
+            .find(|s| has(s) == s.1.len())
+            .or_else(|| lod.sets.iter().max_by_key(|s| has(s)))
+    });
+    out.shader_set = chosen.map_or_else(String::new, |s| name(&s.0));
     let shaders: Vec<String> = chosen.map_or_else(Vec::new, |s| s.1.iter().map(|n| name(n)).collect());
     let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
     for (i, p) in md.parts.iter().enumerate() {
@@ -661,6 +707,7 @@ pub fn prepare(files: &Files, db: &Db, mesh: &str, envmap: &str, cache: &mut Tex
                 .collect(),
             vs_extra: Vec::new(),
             ps_extra: Vec::new(),
+            named: engine_named(&query::block_constants(block2, false)),
             textures: Vec::new(),
             vs_textures: Vec::new(),
             samplers: sampler_states(db.param(ps.param)),

@@ -51,6 +51,7 @@ pub mod catalog;
 pub mod content;
 pub mod demo;
 pub mod edit;
+pub mod export_ui;
 pub mod factions;
 pub mod fonts;
 pub mod gameplay;

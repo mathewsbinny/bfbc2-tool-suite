@@ -150,14 +150,16 @@ def cache_clear() -> None:
 def pack(folder: Path, out: Path) -> tuple[int, int]:
     """FbrbTool's pack: the bundle of folder (unpacked by FbrbTool: its files and fbrb.manifest) written to out
     (through a temporary file beside it, so a pack cut short leaves the old bundle). Returns (entries, payload
-    bytes)."""
+    bytes). Streamed (round S1): each file is read and deflated as the bundle is written - about 10 MB held per
+    bundle, never its payload (a WW2 level's 650 MB and its compressed copy were held before)."""
     n, size = _rust().fbrb_pack(os.fspath(folder), os.fspath(out))
     return int(n), int(size)
 
 
 def pack_many(items: Sequence[tuple[Path, Path]]) -> list[tuple[int, int] | Exception]:
-    """pack() of each (folder, out), in order, on all cores; a folder that cannot be packed gives the exception
-    pack() raises (ValueError, OSError) in its place, returned."""
+    """pack() of each (folder, out), in order, on all cores (each streamed: a few bundles at once hold tens of MB,
+    not their payloads); a folder that cannot be packed gives the exception pack() raises (ValueError, OSError) in
+    its place, returned."""
     got = _rust().fbrb_pack_many([(os.fspath(f), os.fspath(o)) for f, o in items])
     return [r if isinstance(r, Exception) else (int(r[0]), int(r[1])) for r in got]
 
