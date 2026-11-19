@@ -328,8 +328,11 @@ pub struct StageRecord {
     pub title: String,
     /// Its game mode (maps.ini's key: `Conquest`).
     pub mode: String,
-    /// The base level (`sp_01`) and its partition's sha1 as read.
+    /// The base level (`sp_01`).
     pub base: String,
+    /// The mode layer's donor level (`mp_009cq`).
+    #[serde(default)]
+    pub donor: String,
     /// The base partition's sha1 in the game copy.
     pub base_sha1: String,
     /// The project's id and file.
@@ -712,7 +715,29 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
         },
     ];
     level_all.extend(level_entries);
-    // 7. the other bundles: the base's terrain overlay, its minimap, its loading music; the donor's voice-over
+    // the partitions the layer names that the base's bundles hide (SP_01's deleted markers over mp_common's
+    // flags and spawn camera): copied from mp_common into the level's own bundle, which comes first
+    let mut block_loaded: Vec<PathBuf> = mft_blocks(game, &low, &base)
+        .first()
+        .map(|b| {
+            b.iter()
+                .filter_map(|l| l.strip_prefix("BundleTarget "))
+                .filter(|t| !t.to_ascii_lowercase().contains(&format!("levels/{low}/")))
+                .map(|t| game.bundle(t))
+                .collect()
+        })
+        .unwrap_or_default();
+    block_loaded.extend(game.startup());
+    let filled = fill_hidden(game, &block_loaded, &level_all)?;
+    if !filled.is_empty() {
+        report.push(format!(
+            "hidden partitions: {} entries copied from mp_common (the base's deleted markers hide them): {}",
+            filled.len(),
+            filled.iter().map(|e| e.name.as_str()).collect::<Vec<_>>().join(", ")
+        ));
+    }
+    level_all.extend(filled);
+    // 7. the other bundles: the base's terrain overlay, its minimap, its loading music
     let pick = |bundles: Vec<PathBuf>, keep: &dyn Fn(&str) -> bool| -> Result<Vec<StagedEntry>> {
         let live = game.live(&bundles)?;
         let mut f: Vec<&Found> = live.iter().filter(|(n, _)| keep(n)).map(|x| x.1).collect();
@@ -769,6 +794,7 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
         title: spec.title.clone(),
         mode: mode_title(&spec.mode),
         base: base.clone(),
+        donor: donor_lv.clone(),
         base_sha1,
         project: format!("{} ({project_file})", project.id),
         files,
@@ -781,6 +807,58 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
     };
     write_record(out, &rec)?;
     Ok(rec)
+}
+
+/// The partitions `ours` reference (transitively) that no bundle of `loaded` gives - hidden by an earlier bundle's
+/// deleted marker - taken from mp_common's level bundle, each with its resources (`<stem>.res`, `<stem>_*.res`).
+///
+/// # Errors
+/// A bundle does not read.
+fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry]) -> Result<Vec<StagedEntry>> {
+    let live = game.live(loaded)?;
+    let common = game.live(&[game.bundle("game:levels/mp_common/level-00.fbrb")])?;
+    let mut have: HashSet<String> = ours.iter().map(|e| e.name.to_ascii_lowercase()).collect();
+    let mut out: Vec<StagedEntry> = Vec::new();
+    let mut todo: Vec<Vec<u8>> = ours
+        .iter()
+        .filter(|e| e.name.to_ascii_lowercase().ends_with(".dbx"))
+        .map(|e| e.data.clone())
+        .collect();
+    while let Some(data) = todo.pop() {
+        let Ok(d) = EditDbx::parse(&data) else { continue };
+        let mut want: Vec<String> = refs_of(&d)
+            .into_iter()
+            .filter_map(|r| r.rsplit_once('/').map(|(p, _)| format!("{}.dbx", p.to_ascii_lowercase())))
+            .filter(|n| !have.contains(n) && !live.contains_key(n) && common.contains_key(n))
+            .collect();
+        want.sort();
+        want.dedup();
+        for n in want {
+            let st = n.trim_end_matches(".dbx").to_owned();
+            let mut names: Vec<&String> = common
+                .keys()
+                .filter(|k| {
+                    **k == n
+                        || (k.ends_with(".res") && (k.trim_end_matches(".res") == st || k.starts_with(&format!("{st}_"))))
+                })
+                .filter(|k| !have.contains(*k))
+                .collect();
+            names.sort();
+            let found: Vec<&Found> = names.iter().filter_map(|k| common.get(*k)).collect();
+            for ((_, e), bytes) in found.iter().zip(read_found(&found)?) {
+                have.insert(e.name.to_ascii_lowercase());
+                if e.name.to_ascii_lowercase().ends_with(".dbx") {
+                    todo.push(bytes.clone());
+                }
+                out.push(StagedEntry {
+                    name: e.name.clone(),
+                    type_name: e.type_name.clone(),
+                    data: bytes,
+                });
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// The maps.ini key of a mode (`conquest` -> `Conquest`).
@@ -878,6 +956,54 @@ fn instance_guids(d: &EditDbx) -> HashSet<String> {
         .into_iter()
         .map(|e| String::from_utf8_lossy(d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase())
         .collect()
+}
+
+/// Every live entry name (lower case) of every bundle of the game copy.
+fn all_partition_names(root: &Path) -> Result<HashSet<String>> {
+    let mut out = HashSet::new();
+    let mut dirs = vec![root.to_path_buf()];
+    while let Some(d) = dirs.pop() {
+        for e in std::fs::read_dir(&d)?.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                dirs.push(p);
+            } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("fbrb"))
+                && let Ok(h) = fbrb::entries_path(&p)
+            {
+                out.extend(h.entries.iter().filter(|x| !x.is_deleted()).map(|x| x.name.to_ascii_lowercase()));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The references of the stock partition(s) one of ours was made from: the level partition from the base and
+/// the donor levels, a root file from the base's, anything else from mp_common's copy of the same name.
+fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>> {
+    let low = rec.level.to_ascii_lowercase();
+    let o = ours.to_ascii_lowercase();
+    let mut sources: Vec<(Vec<PathBuf>, String)> = Vec::new();
+    if o == format!("levels/{low}.dbx") {
+        sources.push((game.loaded(&rec.base, "level"), format!("levels/{}.dbx", rec.base)));
+        if !rec.donor.is_empty() {
+            sources.push((game.loaded(&rec.donor, "level"), format!("levels/{}.dbx", rec.donor)));
+        }
+    } else if let Some(rest) = o.strip_prefix(&format!("levels/{low}/")) {
+        sources.push((game.loaded(&rec.base, "level"), format!("levels/{}/{rest}", rec.base)));
+    } else {
+        sources.push((vec![game.bundle("game:levels/mp_common/level-00.fbrb")], o));
+    }
+    let mut out = Vec::new();
+    for (bundles, name) in sources {
+        let live = game.live(&bundles)?;
+        if let Some(f) = live.get(&name)
+            && let Some(data) = read_found(&[f])?.pop()
+            && let Ok(d) = EditDbx::parse(&data)
+        {
+            out.extend(refs_of(&d));
+        }
+    }
+    Ok(out)
 }
 
 /// Proves a stage offline against the game's rules (nothing is written).
@@ -996,6 +1122,42 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             }
         }
     }
+    // a partition no bundle of the whole game copy has, named by the same reference in the stock partition ours was
+    // made from, is DICE's own dangling reference (the stock levels load with it): listed, not a failure
+    let mut dangling = Vec::new();
+    if !no_partition.is_empty() {
+        let everywhere = all_partition_names(&game.root)?;
+        let mut stock_cache: HashMap<String, Vec<String>> = HashMap::new();
+        let mut keep = Vec::new();
+        for part in no_partition {
+            let absent = !everywhere.contains(&format!("{part}.dbx"));
+            let froms: HashSet<&String> = wanted.get(&part).map(|v| v.iter().map(|x| &x.1).collect()).unwrap_or_default();
+            let mut stock_too = absent && !froms.is_empty();
+            for from in froms {
+                let refs = match stock_cache.get(from) {
+                    Some(v) => v.clone(),
+                    None => {
+                        let v = stock_refs(game, &rec, from)?;
+                        stock_cache.insert(from.clone(), v.clone());
+                        v
+                    }
+                };
+                stock_too &= refs.iter().any(|x| x.rsplit_once('/').is_some_and(|(p, _)| p.eq_ignore_ascii_case(&part)));
+            }
+            if stock_too {
+                dangling.push(part);
+            } else {
+                keep.push(part);
+            }
+        }
+        no_partition = keep;
+    }
+    r.add(
+        true,
+        format!(
+            "references to partitions in no bundle of the game copy, as DICE's own source partitions have them: {dangling:?}"
+        ),
+    );
     let total: usize = wanted.values().map(Vec::len).sum();
     r.add(
         no_partition.is_empty(),
