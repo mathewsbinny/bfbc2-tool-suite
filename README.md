@@ -158,6 +158,34 @@ Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.
   objects, collision and spawn points; 10 - 60 s since round E4e) and the Map Inspector's terrain unpack. They write
   only OPFOR's `work\levels\<level>` and `work\navkit`, never the game copy; a failure is said in plain words on the
   start screen.
+- **Choose mode (round G3, the user's design):** the start screen opens on four cards - BFBC1, BFBC2, Vietnam, WW2 -
+  each with its installed map count and its own picture, the game's loading screen read from the game copy at run
+  time (`awards/images/loadingscreens/` in `ondemand_awards-00.fbrb`: DICE's `bc1_oasis`, `mp_005` and `nam_mp_002`,
+  OPFOR's converted `wake_island_s` for WW2; a set without it gets a plain tile, a set with no installed map is greyed
+  "Not installed"); "Open a project" and the recent projects below; four in a row, two by two in a narrow window.
+  A card opens that set's maps: "Choose mode" back, the set's name and a search box, a row per map with its picture
+  (`awards/images/levels/<level>.res`), name, game mode (its description's `GameMode`), prepared or not, **Open** and
+  **New project** ("New map from an existing map": the name and folder, then Make the map). The sets come from the
+  levels' data: the `bc1_` maps of `game\Package` (badge BFBC1), the levels loading `nam_common` (Vietnam) or
+  `ww2_common` (WW2), every other level BFBC2. No game art is kept in the repository: the pictures are decoded
+  once into Project OPFOR BFBC2's `work\editor\art` (`art.json` records the bundles' sizes and times; made again when
+  they change; about 1 MB) - 4.8 s the first time, 0.1 s after.
+- **Levels in `game\Package` only (round G3):** Vietnam's (`NAM_*`, badge VIETNAM), the Pacific War's (Wake Island,
+  Coral Sea, Guadalcanal, Iwo Jima ...; badge WW2 - PACIFIC WAR) and DICE's other Package-only levels (the Bad
+  Company 1 maps, extra mode layouts such as MP_005GR) are listed too, when installed: the game's registry
+  (`game\Dist\win32\package.mft`) names the level and every bundle it loads is there. Pacific War and Vietnam are
+  optional; a level that is not installed is simply not listed. Opening one prepares it in the editor itself, in
+  Rust and in memory (no Python, no whole unpack): the bundles the level loads are read in the game's order (its own,
+  then `nam_common` / `ww2_common` / `mp2_common`, then `mp_common`; a `*deleted*` marker hides a later bundle's
+  file, as in the game) and only what the map view opens is kept - the level partition and static groups, the placed
+  blueprints, their collision and `Mesh` aliases, the terrain and water. 2 - 5 s and 8 - 20 MB per level; opening it then takes a third of a second
+  (rust/BENCHMARKS.md, G3: all 45 Package levels of OPFOR's game copy, each the same as a whole unpack loaded by the
+  suite's level loader).
+  **Where it goes:** `work\editor\levels\<level>\` - deliberately **not** `work\levels`, whose folders several tests
+  compare against recorded corpora. It is a cache (`python -m bfbc2core.caches --list` shows it as `editor`;
+  `--prune editor` / `--clear editor` trim it; `BFBC2_EDITOR_CACHE_MB`, default 2048): each level's
+  `editor-level.json` records the bundles' sizes and times and every file, and a copy whose bundles changed or with a
+  file missing is made again on its next opening. The editor drops the least recently opened copies beyond the cap.
 - **Teams by faction:** labels, the outliner and Properties name each side's faction as the level's data says it
   (`LevelDescription.FactionTeam1` / `FactionTeam2`, through the content profile): US / RU on BFBC2 levels (RU / US
   where the Russians are team 1, as on MP_012GR), US / NVA on Vietnam's, US / JP on the Pacific War's; T1 / T2 where
@@ -501,6 +529,15 @@ core required): `core/tests/test_fbrbtool.py` checks against the exe's recorded 
 228 command lines, 600 damaged bundles, .NET's gzip reader on 3,000 streams; `fbrbtool_golden_game.json`: every
 bundle of the game copy up to 300 MiB unpacked, listed and packed again). NavKit's unpack, `level.heightfield_of`'s
 terrain unpack, the hub's Bundles tab and `bfbc2-stockmp-ai` use it.
+**The command lines in Rust** (round O1, 2026-11-18, crate `rust/bc2-cli`, binary `rust\target\release\bfbc2.exe`).
+`bfbc2 fbrbtool <command> ...` and `bfbc2 dbxedit <command> ...` are `fbrbtool.py` / `dbxedit.py` without Python:
+the same arguments, files, exit codes, log lines and printed bytes (stdout and stderr in the code page and order
+Python's stdio gives them, alone or on one pipe), in about 20 ms instead of about 300 ms per call.
+`python rust\build_native.py` builds it with the module (a download fetches the module only); `bfbc2 --source-hash`
+prints the sources it was built from, and `bfbc2core.native.cli_command('fbrbtool')` gives the binary only while
+that is this checkout's (else the Python command line; `BFBC2_CLI_PYTHON=1` always the Python). The hub's Bundles
+tab runs through it. `core/tests/test_cli_o1.py` checks it against the Python command lines' recorded answers
+(`cli_o1_golden.json`; `--live` both ways, `--game` OPFOR's real calls); `rust/BENCHMARKS.md`, "O1".
 **The stock-MP AI layer** (round E4a, 2026-11-18, crate `rust/bc2-stockmp`). `bfbc2-stockmp-ai`'s logic runs in Rust
 with its data kept there: `bc2_formats::dbx::edit::EditDbx` is the port of `dbxbin.py` (a level partition as an arena
 of elements named by handles, edited and written back byte for byte, the string table kept until a string is added);
@@ -579,7 +616,8 @@ python -m bfbc2core.caches                    each cache: size, files, cap and f
 python -m bfbc2core.caches --prune [name...]  delete the least recently used files beyond each cap now
                                               (every cache, project cache and the logs when no name is given)
 python -m bfbc2core.caches --clear [name...]  delete the cached files (every shared cache when no name is given;
-                                              the project caches navstudio, harness, navwater and logs by name only)
+                                              the project caches navstudio, harness, navwater, editor and logs by
+                                              name only)
 python -m bfbc2core.caches --opfor <folder>   Project OPFOR BFBC2's folder for the project caches (default: as the
                                               tools find it - OPFOR_ROOT, else walking up from the suite)
 ```
@@ -603,6 +641,11 @@ development PC on 2026-11-17, mid-way through a WW2 rebuild):
 | `effectport` | `emitters-<24 hex>.pkl` | the emitter documents' places and their bundles' paths, sizes and times, `INDEX_VERSION` | `effectport.EmitterIndex` (E3g) | `BFBC2_EFFECTPORT_CACHE` | `BFBC2_EFFECTPORT_CACHE_MB`, default 256; LRU (E3p) | 3.8 MB, 1 file per game copy |
 | `culltree` | `<sha1 of the level file's path>.pkl` | the code (`CACHE_VERSION`, a hash of `culltree.py`), the level file's size and time; each tree's inside | `culltree` `ref_rows` (E3m) | `BFBC2_CULLTREE_CACHE` | `BFBC2_CULLTREE_CACHE_MB`, default 2048; LRU (E3p) | one file per reference level partition (none yet on this PC) |
 | `bf1943source` | `<sha1 of the source folder>.pkl` | `INDEX_VERSION`, the BF1943 bundle reader's own source (`fbrb1943.py`'s SHA-1); per bundle its size and modification time | `bf1943import.Source` (E3r): which bundles `fbrb1943` takes, their entries and where each payload starts | `BF1943_SOURCE_INDEX` | `BF1943_SOURCE_INDEX_MB`, default 64; LRU | 3.2 MB, one file per BF1943 copy |
+| `shadercover` | `<24 hex>.pkl` per level bundle and Dx | SHA-1 of `COVER_VERSION`, the bundle's path, size and modification time, the Dx | `shaderdb.level_cover_prefixes` / `level_coverage` / `donor_levels` (S1): each level database's entry-name prefixes and their counts (`coverage` without loading the database) | `BFBC2_SHADERCOVER_CACHE` | `BFBC2_SHADERCOVER_CACHE_MB`, default 64; LRU | 27 MB, 79 files (every stock level's Dx9) |
+
+The BF1943 importer also keeps restart points for the whole process (S1; in memory, not on disk):
+`bf1943import.RESTARTS`, by the bundle's path, size and time, within `BF1943_RESTARTS_MB` (default 128; 0: none), so
+a new `Source` does not decompress a bundle whole again (30 MB for every bundle of BF1943).
 
 **Logs** (`logs` in the command; round E3q): `%LOCALAPPDATA%\bfbc2-tool-suite\logs\<tool>-<date>.log`
 (`bfbc2core.errors`, DbxEdit in process). A day's file that reaches `BFBC2_LOG_FILE_MB` (default 20) goes on in
@@ -630,6 +673,7 @@ minutes per folder), a hit marking its file used:
 | `navstudio` | `work\navstudio\cache` | `BFBC2_NAVSTUDIO_CACHE_MB`, 2048 | 1.3 GB |
 | `harness` | `work\harness\cache` (entries in `navdata\`; `bundles\` not pruned) | `BFBC2_HARNESS_CACHE_MB`, 3072 (a full run over all levels reads about 2 GB) | 2.1 GB |
 | `navwater` | `work\navwater\cache` | `BFBC2_NAVWATER_CACHE_MB`, 1024 | 274 MB |
+| `editor` | `work\editor\levels\<level>\` (round G3: the map editor's copies of `game\Package` levels; `.dbx`, `.res`, `.xml` and each level's `editor-level.json`; a copy missing a file is made again when opened; the editor also drops the least recently opened levels beyond the cap) | `BFBC2_EDITOR_CACHE_MB`, 2048 | new (G3: 8 - 20 MB per level, 585 MB for all 45) |
 
 **Other project caches** (in Project OPFOR BFBC2's `work\` folder or the suite's `build\`; each is per level or per
 game copy, replaced when its inputs change, and deleted by deleting the file or folder; the command leaves them alone):

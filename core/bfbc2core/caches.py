@@ -6,7 +6,8 @@ least recently used files deleted first, and a command to see and clear them (ro
     python -m bfbc2core.caches --clear [name...]  delete the cached files (every cache when no name is given)
 
 (from the suite's core\ folder; or python core\bfbc2core\caches.py ...). Names: hlsl, fbrb, collision, effectport,
-culltree, bf1943source (round E3r); the project caches navstudio, harness, navwater; logs. Every cache is only a cache: a deleted file is read
+culltree, bf1943source (round E3r), shadercover (round S1); the project caches navstudio, harness, navwater, editor
+(round G3); logs. Every cache is only a cache: a deleted file is read
 or computed again on its next use, never an error, so clearing or pruning is safe while tools run.
 
 Project caches (round E3q): caches the suite's tools keep inside Project OPFOR BFBC2's work\ folder by design -
@@ -89,7 +90,7 @@ class Spec:
 
 
 # As each owner resolves its folder (pcbuild.cache_dir, fbrb's CacheConfig::from_env, collision._default_cache,
-# effectport.cache_dir, culltree.cache_folder, bf1943import.index_dir). The fbrb cache is trimmed by the Rust core itself after each payload
+# effectport.cache_dir, culltree.cache_folder, bf1943import.index_dir, shaderdb.cover_cache_dir). The fbrb cache is trimmed by the Rust core itself after each payload
 # it writes (same rule, same cap); the others are pruned through maybe_prune by the code that writes them.
 CACHES: dict[str, Spec] = {s.name: s for s in (
     Spec('hlsl', 'BFBC2_HLSL_CACHE', ('.bin',), 'BFBC2_HLSL_CACHE_MB', MB, 1024,
@@ -105,10 +106,14 @@ CACHES: dict[str, Spec] = {s.name: s for s in (
          "reference levels' cull tree rows (culltree ref_rows)"),
     Spec('bf1943source', 'BF1943_SOURCE_INDEX', ('.pkl',), 'BF1943_SOURCE_INDEX_MB', MB, 64,
          "BF1943 source folders' checked bundles and their entries (bf1943import.Source)"),
+    Spec('shadercover', 'BFBC2_SHADERCOVER_CACHE', ('.pkl',), 'BFBC2_SHADERCOVER_CACHE_MB', MB, 64,
+         "level shader databases' entry-name prefixes (shaderdb.level_coverage / donor_levels)"),
 )}
 
 # navdata.load's entries: <key>.npz (the cells) and <key>.navdata.pkl (the whole NavData); temporary <entry>.<pid>.tmp
 NAVDATA = ('.navdata.pkl', '.npz')
+# the map editor's Package level copies: partitions, resources, their XML and each level's record
+EDITOR = ('.dbx', '.res', '.xml', '.json')
 
 # Caches in Project OPFOR BFBC2's work\ folder (studio.py, harness.py cache_dir, navwater_mesh.py): kept there, listed
 # and pruned here. A harness run reads every level's entries in turn, so its cap holds a whole run (about 2 GB, 2026-11).
@@ -120,6 +125,13 @@ PROJECT_CACHES: dict[str, Spec] = {s.name: s for s in (
          project=('work', 'harness', 'cache')),
     Spec('navwater', '', NAVDATA, 'BFBC2_NAVWATER_CACHE_MB', MB, 1024,
          "navwater_mesh's path-data loads (navdata.load)", project=('work', 'navwater', 'cache')),
+    # the map editor's copies of the levels that live only in game\Package (round G3, rust/bc2-editor/src/package.rs):
+    # each level's folder holds what the editor opens from its bundles and editor-level.json, the bundles' sizes and
+    # times and every file; a copy with a file missing or a bundle changed is made again on its next opening. The editor
+    # keeps the folder under the same cap itself (least recently opened levels first).
+    Spec('editor', '', EDITOR, 'BFBC2_EDITOR_CACHE_MB', MB, 2048,
+         "the map editor's copies of game\\Package levels (Vietnam, Pacific War ...)",
+         project=('work', 'editor', 'levels')),
 )}
 
 

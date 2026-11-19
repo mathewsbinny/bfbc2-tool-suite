@@ -18,20 +18,26 @@
 //! - both gzip streams as .NET Framework's `GZipStream` writes them ([`crate::zlib::gzip_net`]: zlib level 6), the
 //!   header region padded with zeros to `hdr`.
 //!
+//! Round S1: the payload is streamed. The layout (offsets, padding, the header) comes from the files' sizes alone;
+//! the files are then read in order on a second thread, a megabyte at a time, and fed through the deflater
+//! ([`crate::zlib::gzip_net_stream`]) into the output as it is made. A bundle holds about 10 MB however large its
+//! payload (a WW2 level's 1.5 GB was held whole before, then its compressed copy); the bytes are the same.
+//!
 //! The manifest is read as `File.ReadAllLines` reads it (UTF-8 or a byte-order mark's encoding; lines end at CR, LF
 //! or CR LF), numbers as `uint.Parse` and `Convert.ToUInt32(s, 16)` parse them, and names are stored as
 //! `Encoding.ASCII` stores them (`?` for anything outside ASCII). An entry name that is empty, rooted or leads
 //! out of the folder is refused, as FbrbTool's `Safe` refuses it.
 
 use std::fs;
-use std::io::{self, Read as _};
+use std::io::{self, Read as _, Write};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 
 use rayon::prelude::*;
 use thiserror::Error;
 
 use super::header::{DELETED, MAGIC};
-use crate::zlib::gzip_net;
+use crate::zlib::{gzip_net, gzip_net_stream};
 
 /// Why a folder could not be packed (FbrbTool's exceptions: a missing or unreadable file, a malformed manifest, an
 /// unsafe entry name, an old manifest whose size2 cannot be kept).
@@ -154,17 +160,28 @@ fn ascii(s: &str, out: &mut Vec<u8>) {
     }
 }
 
-/// A payload being laid out: the entries' offsets and DICE's padding.
-struct Payload {
-    data: Vec<u8>,
+/// One piece of a payload, in order: DICE's padding, bytes in memory, or a file's bytes (read when the payload is
+/// written: round S1 streams them into the deflater instead of holding the payload).
+#[derive(Debug, Clone, Copy)]
+enum Seg<'a> {
+    Pad(usize),
+    Bytes(&'a [u8]),
+    File(&'a Path, usize),
+}
+
+/// A payload being laid out: the entries' offsets and DICE's padding, and the pieces it is made of.
+struct Payload<'a> {
+    len: usize,
+    segs: Vec<Seg<'a>>,
     rows: Vec<[u32; 4]>, // flags, offset, size, size2
     first: bool,
 }
 
-impl Payload {
-    fn new(capacity: usize) -> Self {
+impl<'a> Payload<'a> {
+    fn new() -> Self {
         Self {
-            data: Vec::with_capacity(capacity),
+            len: 0,
+            segs: Vec::new(),
             rows: Vec::new(),
             first: true,
         }
@@ -177,25 +194,34 @@ impl Payload {
         }
         if let Some(p) = layout.padding {
             if !self.first {
-                match p {
-                    Padding::Align4096 => {
-                        let n = self.data.len().next_multiple_of(4096) - self.data.len();
-                        self.data.resize(self.data.len() + n, 0xBF);
-                    }
-                    Padding::Gap64 => self.data.resize(self.data.len() + 64, 0xBF),
-                }
+                let n = match p {
+                    Padding::Align4096 => self.len.next_multiple_of(4096) - self.len,
+                    Padding::Gap64 => 64,
+                };
+                self.push(Seg::Pad(n), n);
             }
             self.first = false;
         }
     }
 
+    fn push(&mut self, seg: Seg<'a>, n: usize) {
+        if n > 0 {
+            self.segs.push(seg);
+            self.len += n;
+        }
+    }
+
     fn offset(&self) -> PackResult<u32> {
-        u32_of(self.data.len())
+        u32_of(self.len)
     }
 }
 
-/// The bundle of laid-out entries: string table, header, the two parts.
-fn assemble<'a>(names: impl Iterator<Item = (&'a str, &'a str)>, p: &Payload, layout: Layout) -> PackResult<Vec<u8>> {
+/// The bundle's first part (magic, length, the gzip'd header padded to `hdr`) for laid-out entries.
+fn header_part<'a>(
+    names: impl Iterator<Item = (&'a str, &'a str)>,
+    p: &Payload<'_>,
+    layout: Layout,
+) -> PackResult<Vec<u8>> {
     let mut strings = Vec::new();
     let mut types: Vec<(&str, u32)> = Vec::new();
     let mut table = Vec::with_capacity(24 * p.rows.len());
@@ -230,7 +256,7 @@ fn assemble<'a>(names: impl Iterator<Item = (&'a str, &'a str)>, p: &Payload, la
     header.push(u8::from(layout.zipped));
     let plen = match last_live {
         Some(end) if layout.plen_size2 => end,
-        _ => u32_of(p.data.len())?,
+        _ => u32_of(p.len)?,
     };
     header.extend(plen.to_be_bytes());
     let mut part1 = gzip_net(&header);
@@ -238,19 +264,245 @@ fn assemble<'a>(names: impl Iterator<Item = (&'a str, &'a str)>, p: &Payload, la
         let a = layout.header_align as usize;
         part1.resize(part1.len() + (a - (8 + part1.len()) % a) % a, 0);
     }
-    let compressed;
-    let part2: &[u8] = if layout.zipped {
-        compressed = gzip_net(&p.data);
-        &compressed
-    } else {
-        &p.data
-    };
-    let mut out = Vec::with_capacity(8 + part1.len() + part2.len());
+    let mut out = Vec::with_capacity(8 + part1.len());
     out.extend_from_slice(MAGIC);
     out.extend(u32_of(part1.len())?.to_be_bytes());
     out.extend(part1);
-    out.extend_from_slice(part2);
     Ok(out)
+}
+
+/// Why writing a bundle stopped: the packing's own error (a file that cannot be read or changed size), or the
+/// output's.
+pub(crate) enum StreamError {
+    Pack(PackError),
+    Write(io::Error),
+}
+
+/// The payload's pieces as one stream of bytes, the files opened one at a time. The first error is kept (`err`) and
+/// given to the reader's caller as an `io::Error`.
+struct SegReader<'a> {
+    segs: &'a [Seg<'a>],
+    i: usize,
+    done: usize,
+    file: Option<fs::File>,
+    err: Option<PackError>,
+}
+
+impl<'a> SegReader<'a> {
+    fn new(segs: &'a [Seg<'a>]) -> Self {
+        Self {
+            segs,
+            i: 0,
+            done: 0,
+            file: None,
+            err: None,
+        }
+    }
+
+    fn next(&mut self) {
+        self.i += 1;
+        self.done = 0;
+        self.file = None;
+    }
+
+    fn fail(&mut self, e: PackError) -> io::Error {
+        let msg = e.to_string();
+        self.err = Some(e);
+        io::Error::other(msg)
+    }
+
+    /// Up to `buf.len()` bytes of the current file (`len` long), checked as [`read_exactly`] checks it: a file that
+    /// ends early or goes on past its length is an error.
+    fn file_bytes(&mut self, src: &Path, len: usize, buf: &mut [u8]) -> io::Result<usize> {
+        if self.file.is_none() {
+            match fs::File::open(src) {
+                Ok(f) => self.file = Some(f),
+                Err(e) => return Err(self.fail(io_err(src)(e))),
+            }
+        }
+        let Some(f) = self.file.as_mut() else {
+            return Ok(0);
+        };
+        let want = (len - self.done).min(buf.len());
+        if want == 0 {
+            // the whole length read: the file must end here
+            let mut more = [0u8; 1];
+            return match f.read(&mut more) {
+                Ok(0) => {
+                    self.next();
+                    Ok(0)
+                }
+                Ok(_) => Err(self.fail(PackError::Io {
+                    path: src.to_path_buf(),
+                    source: io::Error::other("the file grew while it was packed"),
+                })),
+                Err(e) => Err(self.fail(io_err(src)(e))),
+            };
+        }
+        match f.read(buf.get_mut(..want).unwrap_or_default()) {
+            Ok(0) => Err(self.fail(io_err(src)(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "failed to fill whole buffer",
+            )))),
+            Ok(k) => {
+                self.done += k;
+                Ok(k)
+            }
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => Ok(0),
+            Err(e) => Err(self.fail(io_err(src)(e))),
+        }
+    }
+}
+
+impl io::Read for SegReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.err.is_some() || buf.is_empty() {
+            return Ok(0);
+        }
+        loop {
+            let Some(&seg) = self.segs.get(self.i) else {
+                return Ok(0);
+            };
+            let n = match seg {
+                Seg::Pad(n) => {
+                    let k = (n - self.done).min(buf.len());
+                    buf.get_mut(..k).unwrap_or_default().fill(0xBF);
+                    self.done += k;
+                    if self.done == n {
+                        self.next();
+                    }
+                    k
+                }
+                Seg::Bytes(b) => {
+                    let k = (b.len() - self.done).min(buf.len());
+                    buf.get_mut(..k)
+                        .unwrap_or_default()
+                        .copy_from_slice(b.get(self.done..self.done + k).unwrap_or_default());
+                    self.done += k;
+                    if self.done == b.len() {
+                        self.next();
+                    }
+                    k
+                }
+                Seg::File(src, len) => self.file_bytes(src, len, buf)?,
+            };
+            if n > 0 {
+                return Ok(n);
+            }
+        }
+    }
+}
+
+/// Bytes read ahead (files read on another thread while the deflater works), as the channel hands them on.
+const AHEAD_CHUNK: usize = 1 << 20;
+const AHEAD_CHUNKS: usize = 4;
+
+/// The other end of the read-ahead thread: its chunks as one stream, its error kept.
+struct Ahead {
+    rx: mpsc::Receiver<Result<Vec<u8>, PackError>>,
+    chunk: Vec<u8>,
+    at: usize,
+    err: Option<PackError>,
+}
+
+impl io::Read for Ahead {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        while self.at == self.chunk.len() {
+            match self.rx.recv() {
+                Ok(Ok(c)) => {
+                    self.chunk = c;
+                    self.at = 0;
+                }
+                Ok(Err(e)) => {
+                    let msg = e.to_string();
+                    self.err = Some(e);
+                    return Err(io::Error::other(msg));
+                }
+                Err(_) => return Ok(0), // the reader finished
+            }
+        }
+        let k = (self.chunk.len() - self.at).min(buf.len());
+        buf.get_mut(..k)
+            .unwrap_or_default()
+            .copy_from_slice(self.chunk.get(self.at..self.at + k).unwrap_or_default());
+        self.at += k;
+        Ok(k)
+    }
+}
+
+/// The payload's bytes through `out`: gzip'd for a zipped layout, else as they are.
+fn copy_payload(input: &mut dyn io::Read, out: &mut dyn Write, zipped: bool) -> io::Result<u64> {
+    if zipped {
+        gzip_net_stream(input, out)
+    } else {
+        io::copy(input, out)
+    }
+}
+
+/// The bundle of laid-out entries written to `out`: the header part, then the payload made from its pieces as it is
+/// written (files read ahead on a second thread when there are any). Holds about 64 KB of deflate window, a few
+/// blocks of output and `AHEAD_CHUNKS` MB read ahead - not the payload.
+fn write_bundle<'a>(
+    names: impl Iterator<Item = (&'a str, &'a str)>,
+    p: &Payload<'_>,
+    layout: Layout,
+    out: &mut dyn Write,
+) -> Result<(), StreamError> {
+    let part1 = header_part(names, p, layout).map_err(StreamError::Pack)?;
+    out.write_all(&part1).map_err(StreamError::Write)?;
+    let files = p.segs.iter().any(|s| matches!(s, Seg::File(..)));
+    let (copied, err) = if files {
+        std::thread::scope(|scope| {
+            let (tx, rx) = mpsc::sync_channel(AHEAD_CHUNKS);
+            let segs = &p.segs;
+            scope.spawn(move || {
+                let mut r = SegReader::new(segs);
+                loop {
+                    let mut chunk = vec![0u8; AHEAD_CHUNK];
+                    let mut n = 0;
+                    while n < chunk.len() {
+                        match io::Read::read(&mut r, chunk.get_mut(n..).unwrap_or_default()) {
+                            Ok(0) | Err(_) => break, // the end, or the error kept in r.err
+                            Ok(k) => n += k,
+                        }
+                    }
+                    if let Some(e) = r.err.take() {
+                        let _ = tx.send(Err(e));
+                        return;
+                    }
+                    if n == 0 {
+                        return; // the end
+                    }
+                    chunk.truncate(n);
+                    if tx.send(Ok(chunk)).is_err() {
+                        return; // the writer stopped
+                    }
+                }
+            });
+            let mut ahead = Ahead {
+                rx,
+                chunk: Vec::new(),
+                at: 0,
+                err: None,
+            };
+            let copied = copy_payload(&mut ahead, out, layout.zipped);
+            // dropping the receiver ends the reader at its next chunk
+            (copied, ahead.err)
+        })
+    } else {
+        let mut r = SegReader::new(&p.segs);
+        let copied = copy_payload(&mut r, out, layout.zipped);
+        (copied, r.err)
+    };
+    match (copied, err) {
+        (_, Some(e)) => Err(StreamError::Pack(e)),
+        (Err(e), None) => Err(StreamError::Write(e)),
+        (Ok(n), None) if n != p.len as u64 => Err(StreamError::Pack(PackError::Io {
+            path: PathBuf::new(),
+            source: io::Error::other("the payload changed length while it was packed"),
+        })),
+        (Ok(_), None) => Ok(()),
+    }
 }
 
 /// A bundle of these entries in this order, laid out as FbrbTool lays out a manifest's entries (each item's
@@ -269,14 +521,22 @@ fn assemble<'a>(names: impl Iterator<Item = (&'a str, &'a str)>, p: &Payload, la
 /// # Ok::<(), fbrb::PackError>(())
 /// ```
 pub fn pack(items: &[PackItem<'_>], layout: &Layout) -> PackResult<Vec<u8>> {
-    let mut p = Payload::new(items.iter().map(|i| i.data.len()).sum());
+    let mut p = Payload::new();
     for it in items {
         p.pad(*layout, is_marker(it.type_name, it.data.len()));
         let offset = p.offset()?;
-        p.data.extend_from_slice(it.data);
+        p.push(Seg::Bytes(it.data), it.data.len());
         p.rows.push([it.flags, offset, u32_of(it.data.len())?, it.size2]);
     }
-    assemble(items.iter().map(|i| (i.name, i.type_name)), &p, *layout)
+    let mut out = Vec::new();
+    match write_bundle(items.iter().map(|i| (i.name, i.type_name)), &p, *layout, &mut out) {
+        Ok(()) => Ok(out),
+        Err(StreamError::Pack(e)) => Err(e),
+        Err(StreamError::Write(e)) => Err(PackError::Io {
+            path: PathBuf::new(),
+            source: e,
+        }),
+    }
 }
 
 /// One entry line of a manifest.
@@ -539,7 +799,12 @@ fn io_err(path: &Path) -> impl FnOnce(io::Error) -> PackError + '_ {
 /// manifest's errors ([`parse_manifest`], [`ManifestLine::size2_for`]), [`PackError::UnsafeName`],
 /// [`PackError::TooLarge`].
 pub fn pack_dir(dir: impl AsRef<Path>) -> PackResult<(Vec<u8>, PackStats)> {
-    let dir = dir.as_ref();
+    let (manifest, rows) = dir_rows(dir.as_ref())?;
+    pack_rows(&manifest, &rows)
+}
+
+/// `dir`'s manifest and the rows [`pack_rows`] takes for it (each file checked, its size2 decided).
+fn dir_rows(dir: &Path) -> PackResult<(Manifest, Vec<SourceRow>)> {
     let mpath = dir.join("fbrb.manifest");
     let manifest = parse_manifest(&decode_text(&fs::read(&mpath).map_err(io_err(&mpath))?))?;
     let layout = manifest.layout;
@@ -560,7 +825,7 @@ pub fn pack_dir(dir: impl AsRef<Path>) -> PackResult<(Vec<u8>, PackStats)> {
         let size2 = l.size2_for(len, &layout)?;
         rows.push(SourceRow { src, len, size2 });
     }
-    pack_rows(&manifest, &rows)
+    Ok((manifest, rows))
 }
 
 /// One manifest entry's data as [`pack_rows`] takes it: its file (none for a marker without one), the file's length
@@ -576,45 +841,66 @@ pub struct SourceRow {
 }
 
 /// The bundle of `manifest`'s entries, each `rows[i]` (the files checked and size2 decided by the caller, as
-/// [`pack_dir`] or FbrbTool's command line do), its files read on all cores.
+/// [`pack_dir`] or FbrbTool's command line do), in memory: [`pack_rows_into`] into a `Vec` (the bundle's bytes are
+/// held, not its payload).
 ///
 /// # Errors
 /// [`PackError::Io`] for a file that cannot be read or changed length, [`PackError::TooLarge`].
 pub fn pack_rows(manifest: &Manifest, rows: &[SourceRow]) -> PackResult<(Vec<u8>, PackStats)> {
+    let mut out = Vec::new();
+    let stats = pack_rows_into(manifest, rows, &mut out, Path::new(""))?;
+    Ok((out, stats))
+}
+
+/// [`pack_rows`] written to `out` as it is made (round S1): each file is read when the payload reaches it and
+/// streamed into the deflater, so a bundle of any size holds about 10 MB (the deflate window, a few blocks of
+/// output, the files read ahead) instead of its whole payload (1.5 GB for a WW2 level). The bytes are
+/// [`pack_rows`]'s. `out_path` names the output in a write error.
+///
+/// # Errors
+/// As [`pack_rows`], and [`PackError::Io`] (with `out_path`) when `out` fails.
+pub fn pack_rows_into(
+    manifest: &Manifest,
+    rows: &[SourceRow],
+    out: &mut dyn Write,
+    out_path: &Path,
+) -> PackResult<PackStats> {
+    pack_rows_stream(manifest, rows, out).map_err(|e| match e {
+        StreamError::Pack(e) => e,
+        StreamError::Write(source) => PackError::Io {
+            path: out_path.to_path_buf(),
+            source,
+        },
+    })
+}
+
+/// [`pack_rows_into`], a write error told apart from the packing's (FbrbTool's command line reports them apart).
+pub(crate) fn pack_rows_stream(
+    manifest: &Manifest,
+    rows: &[SourceRow],
+    out: &mut dyn Write,
+) -> Result<PackStats, StreamError> {
     let layout = manifest.layout;
-    // the layout from the files' sizes, then every file read into its place on all cores
-    let mut p = Payload::new(rows.iter().map(|r| r.len).sum());
-    let mut reads: Vec<(&Path, usize, usize)> = Vec::new();
+    let mut p = Payload::new();
     for (l, r) in manifest.lines.iter().zip(rows) {
         p.pad(layout, is_marker(&l.type_name, r.len));
-        let offset = p.offset()?;
-        p.rows.push([l.flags, offset, u32_of(r.len)?, r.size2]);
+        let offset = p.offset().map_err(StreamError::Pack)?;
+        p.rows
+            .push([l.flags, offset, u32_of(r.len).map_err(StreamError::Pack)?, r.size2]);
         if let (Some(src), true) = (&r.src, r.len > 0) {
-            reads.push((src, p.data.len(), r.len));
-            p.data.resize(p.data.len() + r.len, 0);
+            p.push(Seg::File(src, r.len), r.len);
         }
     }
-    let mut jobs = Vec::with_capacity(reads.len());
-    let mut rest: &mut [u8] = &mut p.data;
-    let mut at = 0;
-    for (src, offset, len) in &reads {
-        let (_, tail) = std::mem::take(&mut rest).split_at_mut(offset - at);
-        let (dst, tail) = tail.split_at_mut(*len);
-        jobs.push((*src, dst));
-        rest = tail;
-        at = offset + len;
-    }
-    jobs.into_par_iter().try_for_each(|(src, dst)| read_exactly(src, dst))?;
     let names = manifest.lines.iter().map(|l| (l.name.as_str(), l.type_name.as_str()));
-    let bytes = assemble(names, &p, layout)?;
-    let stats = PackStats {
+    write_bundle(names, &p, layout, out)?;
+    Ok(PackStats {
         entries: manifest.lines.len(),
-        payload_len: p.data.len() as u64,
-    };
-    Ok((bytes, stats))
+        payload_len: p.len as u64,
+    })
 }
 
 /// The file at `src` into `dst`, which has its size: a file that changed size since is an error.
+#[cfg(test)]
 fn read_exactly(src: &Path, dst: &mut [u8]) -> PackResult<()> {
     let mut f = fs::File::open(src).map_err(io_err(src))?;
     f.read_exact(dst).map_err(io_err(src))?;
@@ -628,23 +914,31 @@ fn read_exactly(src: &Path, dst: &mut [u8]) -> PackResult<()> {
     Ok(())
 }
 
-/// [`pack_dir`] written to `out` as FbrbTool writes it: to `<out>.tmp-<process id>` beside it, then moved over
-/// `out`, so a pack cut short never leaves a truncated bundle where the old one was.
+/// The bundle FbrbTool's `pack` makes of `dir` written to `out` as FbrbTool writes it: to `<out>.tmp-<process id>`
+/// beside it, then moved over `out`, so a pack cut short never leaves a truncated bundle where the old one was.
+/// Streamed ([`pack_rows_into`]): the payload is never held.
 ///
 /// # Errors
 /// As [`pack_dir`], and [`PackError::Io`] when the bundle cannot be written.
 pub fn pack_path(dir: impl AsRef<Path>, out: impl AsRef<Path>) -> PackResult<PackStats> {
     let out = out.as_ref();
-    let (bytes, stats) = pack_dir(dir)?;
+    let (manifest, rows) = dir_rows(dir.as_ref())?;
     let mut tmp = out.as_os_str().to_owned();
     tmp.push(format!(".tmp-{}", std::process::id()));
     let tmp = PathBuf::from(tmp);
-    let written = fs::write(&tmp, &bytes).and_then(|()| crate::atomic::replace(&tmp, out));
+    let written = fs::File::create(&tmp)
+        .map_err(io_err(out))
+        .and_then(|f| {
+            let mut w = io::BufWriter::with_capacity(1 << 20, f);
+            let stats = pack_rows_into(&manifest, &rows, &mut w, out)?;
+            w.flush().map_err(io_err(out))?;
+            Ok(stats)
+        })
+        .and_then(|stats| crate::atomic::replace(&tmp, out).map_err(io_err(out)).map(|()| stats));
     if written.is_err() {
         let _ = fs::remove_file(&tmp);
     }
-    written.map_err(io_err(out))?;
-    Ok(stats)
+    written
 }
 
 /// [`pack_path`] of each `(folder, bundle)`, in parallel (one bundle per task). Results keep the input order.
@@ -841,6 +1135,101 @@ mod tests {
         let h = read_header(&mut pack(&gone, &z).unwrap().as_slice()).unwrap();
         assert_eq!(h.payload_len, Some(0));
         assert!(pack(&items, &z).unwrap().len() < 1000);
+    }
+
+    /// An output that always fails.
+    struct Full;
+
+    impl Write for Full {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            Err(io::Error::other("disk full"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Round S1: files streamed through the read-ahead thread (several chunks, entries across chunk boundaries)
+    /// give the bytes the same entries give from memory, in every layout; a file that changed size since its row
+    /// was made is an error naming it, and `pack_path` leaves no temporary file.
+    #[test]
+    fn streamed_files_as_from_memory() {
+        let d = temp("stream");
+        let sizes = [0usize, 1, 3 << 20, 70, 5000, 1 << 20, 0, 123_457];
+        let data: Vec<Vec<u8>> = sizes
+            .iter()
+            .enumerate()
+            .map(|(k, &n)| (0..n).map(|i| ((i * (k + 3)) ^ (i >> 7)) as u8).collect())
+            .collect();
+        let names: Vec<String> = (0..sizes.len()).map(|k| format!("e{k}.res")).collect();
+        for (n, b) in names.iter().zip(&data) {
+            fs::write(d.join(n), b).unwrap();
+        }
+        for first in [
+            "# zipped=1",
+            "# zipped=0 layout=align4096 hdr=4096 plen=size2",
+            "# zipped=0 layout=gap64",
+        ] {
+            let mut text = format!("{first}\n");
+            for (n, b) in names.iter().zip(&data) {
+                std::fmt::Write::write_fmt(&mut text, format_args!("{n}|T|00010000|{0}|{0}\n", b.len())).unwrap();
+            }
+            fs::write(d.join("fbrb.manifest"), &text).unwrap();
+            let layout = parse_manifest(&text).unwrap().layout;
+            let items: Vec<PackItem<'_>> = names
+                .iter()
+                .zip(&data)
+                .map(|(n, b)| PackItem {
+                    name: n,
+                    type_name: "T",
+                    flags: 0x10000,
+                    size2: b.len() as u32,
+                    data: b,
+                })
+                .collect();
+            let want = pack(&items, &layout).unwrap();
+            let (got, stats) = pack_dir(&d).unwrap();
+            assert!(got == want, "{first}");
+            assert_eq!(stats.entries, sizes.len());
+            if layout.zipped {
+                assert_eq!(stats.payload_len as usize, sizes.iter().sum::<usize>());
+            }
+            let out = d.join("out.fbrb");
+            pack_path(&d, &out).unwrap();
+            assert!(fs::read(&out).unwrap() == want, "{first}");
+        }
+        // rows made, then the file changed: shorter, longer
+        let (manifest, mut rows) = dir_rows(&d).unwrap();
+        rows[2].len += 1;
+        let e = pack_rows(&manifest, &rows).unwrap_err();
+        assert!(
+            matches!(&e, PackError::Io { path, .. } if path.ends_with("e2.res")),
+            "{e}"
+        );
+        rows[2].len -= 2;
+        let e = pack_rows(&manifest, &rows).unwrap_err();
+        assert!(
+            e.to_string().contains("grew") && e.to_string().contains("e2.res"),
+            "{e}"
+        );
+        // an output that fails: the error names it
+        rows[2].len += 1;
+        let e = pack_rows_into(&manifest, &rows, &mut Full, Path::new("x.fbrb")).unwrap_err();
+        assert!(
+            e.to_string().contains("x.fbrb") && e.to_string().contains("disk full"),
+            "{e}"
+        );
+        // pack_path of a folder whose file is gone: the error, and no temporary file beside the bundle
+        fs::remove_file(d.join("e5.res")).unwrap();
+        assert!(pack_path(&d, d.join("gone.fbrb")).is_err());
+        let left: Vec<_> = fs::read_dir(&d)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))
+            .collect();
+        assert!(left.is_empty());
+        let _ = fs::remove_dir_all(&d);
     }
 
     #[test]
