@@ -213,7 +213,10 @@ def prepare_level_cases() -> list[Case]:
             'opf\\game\\Dist\\win32\\levels\\SP_TEST\\terrain-00.fbrb': b'not a bundle'}),
          ['sp_test', '--opfor', '{d}\\opf', '--terrain-only']),
     ]
-    out: list[Case] = [(f'prepare_level: {n}', 'prepare_level', f, a, {}, False) for n, f, a in rows]
+    # OPFOR_ROOT names the fake folder: without it the search walks up from the suite and finds whatever Project
+    # OPFOR sits beside the checkout (the recording's frozen copy has none, a checkout beside OPFOR has one)
+    env = {'OPFOR_ROOT': '{d}\\opf'}
+    out: list[Case] = [(f'prepare_level: {n}', 'prepare_level', f, a, env, False) for n, f, a in rows]
     return nav.with_variants(out, ['prepare_level: an unknown level'])
 
 
