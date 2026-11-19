@@ -67,7 +67,7 @@ zune-jpeg = "=0.5.15"
 zune-core = "=0.5.3"
 # The game-accurate view (bc2-render, round R5): Direct3D 11 drawing DICE's own compiled shaders, the version wgpu's
 # Direct3D 12 backend already brings in (one copy of the bindings in the build).
-windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common"] }
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Graphics_Direct3D_Fxc", "Win32_Security"] }
 # The command-line binary (bc2-cli, round O1): the local time, the ANSI code page and the console test Python's stdio
 # makes, so its output and logs are the Python command lines' byte for byte (already in the lock through eframe).
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console", "Win32_System_SystemInformation"] }

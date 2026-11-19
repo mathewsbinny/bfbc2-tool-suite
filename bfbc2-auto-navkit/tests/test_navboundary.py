@@ -5,8 +5,10 @@ without tolerance); portal displacement; the CSV / JSON / map export.
 
   python test_navboundary.py
 """
+import atexit
 import csv
 import os
+import shutil
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -71,6 +73,7 @@ def main(argv):
     check(s['exact_areas'] == 2 and s['exact_areas_pct'] == 100.0 and s['missing'] == 0 and s['extra'] == 0, 'identical: all exact')
 
     out = tempfile.mkdtemp()
+    atexit.register(shutil.rmtree, out, True)           # the export and map: deleted at the end (round D1)
     s, cells, edges, portals, only = navboundary.diagnose(dice, nav([0, 1, 2, 2], portals=[(1, 1.2, 0.4)]))
     navboundary.export(out, cells, edges, portals)
     rows = list(csv.DictReader(open(os.path.join(out, 'edges.csv'))))

@@ -35,6 +35,7 @@ pub mod dxbc;
 pub mod files;
 pub mod frame;
 pub mod job;
+pub mod live;
 pub mod material;
 pub mod placement;
 pub mod post;

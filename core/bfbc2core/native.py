@@ -227,6 +227,64 @@ def reset() -> None:
 
 # ------------------------------------------------------------------------------- the command-line binary (round O1)
 
+# ------------------------------------------------------------- where cargo builds, where the binaries live (round D1)
+#
+# cargo's build folder is outside the checkout (round D1, 2026-11-19: each worktree's own rust\target took 5-15 GB of
+# the only drive): <root>\<checkout folder name>, root C:\Programming\Projects\rust-targets beside the checkouts
+# (BFBC2_RUST_TARGETS overrides it), e.g. rust-targets\bfbc2-tool-suite, rust-targets\bfbc2-tool-suite-e2b - one
+# folder per checkout, so two checkouts never wait on each other's cargo lock. An explicit CARGO_TARGET_DIR wins.
+# The binaries the tools run are copied to the suite's bin\ (gitignored, built outputs only) by build_native.py:
+# their path never depends on the build folder.
+
+TARGETS_ENV = 'BFBC2_RUST_TARGETS'
+BIN = os.path.join(SUITE, 'bin')
+EXE = '.exe' if os.name == 'nt' else ''
+
+
+def targets_root() -> str:
+    """The folder holding every checkout's build folder: BFBC2_RUST_TARGETS, else rust-targets beside the
+    checkout."""
+    v = os.environ.get(TARGETS_ENV, '').strip()
+    return os.path.abspath(v) if v else os.path.join(os.path.dirname(SUITE), 'rust-targets')
+
+
+def target_dir(suite: str = SUITE) -> str:
+    """cargo's build folder for this checkout: CARGO_TARGET_DIR when set (relative to rust\\, where cargo runs),
+    else <targets_root()>\\<the checkout's folder name>."""
+    v = os.environ.get('CARGO_TARGET_DIR', '').strip()
+    if v:
+        return os.path.normpath(os.path.join(suite, 'rust', v))
+    return os.path.join(targets_root(), os.path.basename(os.path.normpath(suite)))
+
+
+def cargo_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """env (default: this process's) with CARGO_TARGET_DIR set to target_dir(): every cargo the suite runs builds
+    there."""
+    out = dict(os.environ if env is None else env)
+    out['CARGO_TARGET_DIR'] = target_dir()
+    return out
+
+
+def built_path(name: str, profile: str = 'release') -> str:
+    """Where cargo leaves the binary `name` (no .exe) of `profile`."""
+    return os.path.join(target_dir(), profile, name + EXE)
+
+
+def bin_path(name: str) -> str:
+    """The binary's stable place: the suite's bin\\ (build_native.py copies it there after a build)."""
+    return os.path.join(BIN, name + EXE)
+
+
+def find_binary(name: str) -> str | None:
+    """The binary `name`: bin\\ first, then this checkout's build folder (release, debug), then the old rust\\target
+    (a checkout built before round D1); None when none is there."""
+    for p in (bin_path(name), built_path(name, 'release'), built_path(name, 'debug'),
+              os.path.join(RUST, 'target', 'release', name + EXE), os.path.join(RUST, 'target', 'debug', name + EXE)):
+        if os.path.isfile(p):
+            return p
+    return None
+
+
 CLI_PYTHON_ENV = 'BFBC2_CLI_PYTHON'      # 1: the Python command lines answer, the binary is not used
 CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line it is the port of
     'fbrbtool': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),
@@ -235,16 +293,17 @@ CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line
 _cli: dict[str, str | None] = {}
 
 
-def cli_path(profile: str = 'release') -> str:
-    """Where cargo builds the command-line binary (rust\\bc2-cli: bfbc2.exe)."""
-    return os.path.join(RUST, 'target', profile, 'bfbc2.exe' if os.name == 'nt' else 'bfbc2')
+def cli_path(profile: str | None = None) -> str:
+    """The command-line binary (rust\\bc2-cli: bfbc2.exe): its stable place bin\\bfbc2.exe (build_native.py copies
+    it there), or with a profile where cargo builds it."""
+    return bin_path('bfbc2') if profile is None else built_path('bfbc2', profile)
 
 
 def cli_exe() -> str | None:
     """The command-line binary when it is built from this checkout's Rust sources (its --source-hash is the
     checkout's fingerprint: build_native.py builds it with the module), else None. Asked once per process."""
     if 'exe' not in _cli:
-        exe, found = cli_path(), None
+        exe, found = find_binary('bfbc2') or cli_path(), None
         if os.path.isfile(exe):
             try:
                 r = subprocess.run([exe, '--source-hash'], capture_output=True, text=True, timeout=30)
