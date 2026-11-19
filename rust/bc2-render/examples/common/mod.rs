@@ -10,7 +10,8 @@ use bc2_render::world::Placed;
 use bc2_scene::scene::{self, LoadOptions, Source};
 
 fn entries(dir: &Path) -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = fs::read_dir(dir).map_or_else(|_| Vec::new(), |r| r.flatten().map(|e| e.path()).collect());
+    let mut v: Vec<PathBuf> =
+        fs::read_dir(dir).map_or_else(|_| Vec::new(), |r| r.flatten().map(|e| e.path()).collect());
     v.sort();
     v
 }
@@ -61,7 +62,12 @@ pub fn placed(opfor: &Path, lv: &str) -> Result<(String, Vec<Placed>, Option<Str
     options.geometry = true;
     // the editor's mesh-alias cache (`bc2-editor`'s `levels::alias_cache`), when it is there
     options.alias_cache = std::env::var_os("LOCALAPPDATA")
-        .map(|b| PathBuf::from(b).join("bfbc2-tool-suite").join("cache").join("collision"))
+        .map(|b| {
+            PathBuf::from(b)
+                .join("bfbc2-tool-suite")
+                .join("cache")
+                .join("collision")
+        })
         .filter(|p| p.is_dir());
     let s = scene::load(&options).map_err(|e| e.to_string())?;
     let weather = s

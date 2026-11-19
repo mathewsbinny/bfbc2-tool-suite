@@ -219,8 +219,7 @@ impl World {
         };
         let strips: Vec<Arc<Prepared>> = terrain
             .as_ref()
-            .map(|t| t.strips.iter().cloned().map(Arc::new).collect())
-            .unwrap_or_default();
+            .map_or_else(Vec::new, |t| t.strips.iter().cloned().map(Arc::new).collect());
         for s in &strips {
             notes.extend(s.notes.iter().cloned());
             counts.strips += s.draws.len();

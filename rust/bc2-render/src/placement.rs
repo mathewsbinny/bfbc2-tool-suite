@@ -114,14 +114,11 @@ pub fn read(files: &Files, level: &str) -> Result<Placements, String> {
         } else if ty == "WorldRender.StaticEnvmapEntityData" {
             out.envmap = reference(inst.child("StaticEnvmap")).and_then(|r| path_of(&r));
         } else if ty.ends_with("ModelGroupEntityData") || ty.ends_with(".ForestEntityData") {
-            let group = inst.child("Name").map(|n| n.text()).unwrap_or_default();
+            let group = inst.child("Name").map_or("", |n| n.text());
             let file = format!("{}_havokasset.dbx", group.rsplit('/').next().unwrap_or(group)).to_lowercase();
             let mut items = Vec::new();
             for item in inst.child("MemberDatas").map(|m| m.children()).into_iter().flatten() {
-                let Some(member) = item
-                    .attr("ref")
-                    .and_then(|r| by_guid.get(&r.to_lowercase()))
-                else {
+                let Some(member) = item.attr("ref").and_then(|r| by_guid.get(&r.to_lowercase())) else {
                     continue;
                 };
                 let count = member

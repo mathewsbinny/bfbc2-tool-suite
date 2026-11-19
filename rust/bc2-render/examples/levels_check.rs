@@ -12,6 +12,7 @@
     clippy::indexing_slicing,
     clippy::too_many_lines,
     clippy::cast_precision_loss,
+    clippy::many_single_char_names,
     missing_docs
 )]
 
@@ -98,7 +99,14 @@ fn main() {
                 target[2] + dist * pitch.cos() * yaw.cos(),
             ];
             let (wd, ht) = (960u32, 540u32);
-            let cam = Camera::look(eye, target, 60f64.to_radians(), 0.5, 4000.0, f64::from(wd) / f64::from(ht));
+            let cam = Camera::look(
+                eye,
+                target,
+                60f64.to_radians(),
+                0.5,
+                4000.0,
+                f64::from(wd) / f64::from(ht),
+            );
             let t2 = Instant::now();
             let f = w.frame(&cam, target, [wd, ht], true)?;
             let raw = w.raw().clone();
@@ -110,7 +118,11 @@ fn main() {
             let nan = r.hdr.iter().filter(|v| !v.is_finite()).count();
             let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
             // the load's own summary and weather lines are not findings
-            for n in w.notes.iter().filter(|n| !n.contains(" group members drawn") && !n.starts_with("weather: ")) {
+            for n in w
+                .notes
+                .iter()
+                .filter(|n| !n.contains(" group members drawn") && !n.starts_with("weather: "))
+            {
                 *kinds.entry(kind(n)).or_default() += 1;
             }
             kinds.remove("other");
@@ -119,7 +131,11 @@ fn main() {
                 "{lv}: ok - load {load:.1} s, frame {frame_s:.2} s ({} draws{}); {} objects, {} group members, {} meshes, \
                  {} overridden, {} strip draws, {} water draws, terrain {}, post {}{}",
                 r.draws,
-                if nan > 0 { format!(", {nan} non-finite values") } else { String::new() },
+                if nan > 0 {
+                    format!(", {nan} non-finite values")
+                } else {
+                    String::new()
+                },
                 c.objects,
                 c.members,
                 c.meshes,
@@ -133,12 +149,20 @@ fn main() {
                 } else {
                     format!(
                         "\n    missing / notes: {}",
-                        kinds.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", ")
+                        kinds
+                            .iter()
+                            .map(|(k, n)| format!("{k} {n}"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
                     )
                 }
             );
             let mut shown = 0;
-            for n in w.notes.iter().filter(|n| !n.contains(" group members drawn") && !n.starts_with("weather: ")) {
+            for n in w
+                .notes
+                .iter()
+                .filter(|n| !n.contains(" group members drawn") && !n.starts_with("weather: "))
+            {
                 shown += 1;
                 if shown > 12 {
                     let _ = write!(s, "\n    ... ({} more)", w.notes.len() - 2 - 12);

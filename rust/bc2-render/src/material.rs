@@ -625,8 +625,9 @@ pub fn prepare_set(
     };
     let named = shader_set.and_then(|want| lod.sets.iter().find(|s| name(&s.0).eq_ignore_ascii_case(want)));
     if let (Some(want), None) = (shader_set, named) {
-        out.notes
-            .push(format!("shader-set: {want} is not one of the mesh's sets (the default drawn)"));
+        out.notes.push(format!(
+            "shader-set: {want} is not one of the mesh's sets (the default drawn)"
+        ));
     }
     let chosen = named.or_else(|| {
         lod.sets
@@ -634,7 +635,7 @@ pub fn prepare_set(
             .find(|s| has(s) == s.1.len())
             .or_else(|| lod.sets.iter().max_by_key(|s| has(s)))
     });
-    out.shader_set = chosen.map(|s| name(&s.0)).unwrap_or_default();
+    out.shader_set = chosen.map_or_else(String::new, |s| name(&s.0));
     let shaders: Vec<String> = chosen.map_or_else(Vec::new, |s| s.1.iter().map(|n| name(n)).collect());
     let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
     for (i, p) in md.parts.iter().enumerate() {
