@@ -153,7 +153,7 @@ After editing rules: `python spec/trace.py --emit`, then `--check`.
 | [model/level.md](model/level.md) | the level: LevelData, its description, layers, Objects, event connections, model groups |
 | [model/registration.md](model/registration.md) | `package.mft`, `bundleManifest`, the level checksum |
 
-(A file listed here and not present has not been written yet: see the plan.)
+[rules.json](rules.json) is the index of every rule; [trace.py](trace.py) checks it.
 
 ## The plan
 
@@ -192,4 +192,26 @@ invariant between input and output and cites the test that proves it:
 
 ## Remaining
 
-Filled in at the end of each round: the formats and model topics not yet written, and the biggest open questions.
+Filled in at the end of each round.
+
+**After round SP1** (2026-11-19: 439 rules in 27 files - 250 verified, 48 implemented, 134 observed, 7 inferred;
+158 rules without a test; 341 of the suite's 514 test functions cite no rule yet):
+
+- **Formats not specified.** Resource types the suite copies without reading: `AnimTreeInfo`, `OccluderMesh`,
+  `IrradianceVolume`, `BinkMemory`, `WeatherSystem`, `ImpulseResponse`, `RagdollResource`; `SootMesh` (converted
+  Xbox 360 -> PC by `bc2-convert`, not yet written down); `database.dbmanifest`; EALayer3 streamed audio. The PS3.
+- **Tests to tie in.** The `spec:` comment convention is in place but no test carries one yet; the next step is to
+  add them to the tests the rules already cite and to write tests for the 158 rules that have none (the observed
+  corpus facts first: most can become `game`-tier checks).
+- **The biggest open questions** (each file's own section has the rest):
+  1. what the level checksum covers and where it is computed; why a registered-but-absent bundle crashes a new level
+     but not DICE's (REG / CSUM, `model/registration.md`);
+  2. the executable's class schema (field types per class), so that DBX values stop being typed from data
+     (TYPE-SCH-1);
+  3. the Havok wrapper's part and material hashes and the material-table run form, needed to add parts and
+     materials (`formats/havok.md`);
+  4. which header fields the game reads at all: FBRB version, flags, size2 and payload length, the DBX header's
+     kept word, the RES wrapper's length words (`formats/fbrb.md`, `formats/dbx.md`, `formats/res.md`);
+  5. the height field's main-block tail, needed for terrain of a new size (`formats/terrain.md`);
+  6. the path data's unexplained header words, A records and the runtime's tile-size choice (`formats/hpd.md`).
+- **Layers 3 and 4** as planned above, layer 3 starting with level loading and the checksum (it closes question 1).
