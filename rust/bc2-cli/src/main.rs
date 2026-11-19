@@ -21,6 +21,9 @@
 mod audio;
 #[cfg(feature = "bf1943")]
 mod bf1943;
+// round O3: the caches' overall budget after a bundle read (fbrb._budget), for the ports that read bundles
+#[cfg(feature = "graft")]
+mod budget;
 #[cfg(feature = "caches")]
 mod caches;
 mod clock;
