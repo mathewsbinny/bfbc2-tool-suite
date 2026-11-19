@@ -16,7 +16,7 @@ const LOG_FILE_MB: f64 = 20.0;
 const MB: f64 = 1_048_576.0;
 
 /// `caches.LOG_NAME` (`re.IGNORECASE`; Python's `\d` is Unicode's decimal digits, as the regex crate's).
-static LOG_NAME: LazyLock<Option<Regex>> =
+pub static LOG_NAME: LazyLock<Option<Regex>> =
     LazyLock::new(|| Regex::new(r"(?i)^(?P<tool>.+)-(?P<date>\d{4}-\d{2}-\d{2})(?:\.(?P<part>\d+))?\.log$").ok());
 
 static DIGIT: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"^\d$").ok());
@@ -70,7 +70,7 @@ fn py_space(c: char) -> bool {
 /// Python's `float(text)` of an environment value, or None where it raises `ValueError`: Unicode digits read as
 /// their ASCII ones, underscores allowed only between digits, the rest as Rust reads a float (`inf`, `nan`,
 /// `infinity`, exponents, either case).
-fn py_float(text: &str) -> Option<f64> {
+pub fn py_float(text: &str) -> Option<f64> {
     let s: String = text
         .trim_matches(py_space)
         .chars()
@@ -99,13 +99,8 @@ fn py_float(text: &str) -> Option<f64> {
 
 /// `caches.log_caps()[2]`: one log file's cap in bytes, `int(_number(BFBC2_LOG_FILE_MB, 20) * MB)` (as a float
 /// holding that integer).
-fn file_cap() -> f64 {
-    let v = std::env::var(LOG_FILE_ENV).ok().and_then(|t| py_float(&t));
-    let v = match v {
-        Some(v) if v >= 0.0 && v != f64::INFINITY => v,
-        _ => LOG_FILE_MB,
-    };
-    (v * MB).trunc()
+pub fn file_cap() -> f64 {
+    (number(LOG_FILE_ENV, LOG_FILE_MB) * MB).trunc()
 }
 
 /// `ntpath.join(a, b)` for a name `b` that is neither absolute nor has a drive: a separator added unless `a` is
@@ -177,10 +172,33 @@ fn day_log(top: &str, tool: &str, date: &str) -> String {
     }
 }
 
+/// `caches._number(env, default)`: the variable read as Python's `float`, else (unset, unreadable, negative, inf or
+/// nan) the default.
+pub fn number(env: &str, default: f64) -> f64 {
+    match std::env::var(env).ok().and_then(|t| py_float(&t)) {
+        Some(v) if v >= 0.0 && v != f64::INFINITY => v,
+        _ => default,
+    }
+}
+
+/// `errors.log_dir()` / `caches.logs_folder()`: `%LOCALAPPDATA%\bfbc2-tool-suite\logs` (not made here).
+pub fn logs_dir() -> String {
+    let base = env_nonempty("LOCALAPPDATA").unwrap_or_else(home);
+    join(&join(&base, "bfbc2-tool-suite"), "logs")
+}
+
+/// `os.path.expanduser('~')`.
+#[cfg_attr(
+    not(any(feature = "caches", feature = "graft", feature = "meshview", feature = "bf1943")),
+    allow(dead_code)
+)]
+pub fn home_dir() -> String {
+    home()
+}
+
 /// `dbxedit.log_path()` / `fbrbtool.log_path()`: today's log file of `tool`, or None when the folder cannot be made.
 pub fn log_path(tool: &str) -> Option<String> {
-    let base = env_nonempty("LOCALAPPDATA").unwrap_or_else(home);
-    let d = join(&join(&base, "bfbc2-tool-suite"), "logs");
+    let d = logs_dir();
     fs::create_dir_all(&d).ok()?;
     Some(day_log(&d, tool, &clock::now().date()))
 }
