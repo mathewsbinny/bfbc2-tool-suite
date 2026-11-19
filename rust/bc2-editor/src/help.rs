@@ -172,7 +172,8 @@ pub const WORKSPACES: [Workspace; 4] = [
 pub const GETTING_STARTED: [(&str, &str); 7] = [
     (
         "Open a map",
-        "The start screen lists the levels of your game copy. Click one to open it. A level opened for the first \
+        "The start screen asks you to choose a mode - BFBC1, BFBC2, Vietnam or WW2 - then lists that mode's maps; \
+         Open views one, New project makes a new map from it (Choose mode goes back). A level opened for the first \
          time is prepared first - its bundles unpacked, its objects and terrain read - which takes up to a minute; \
          the progress shows each step. Nothing in your game copy is changed.",
     ),

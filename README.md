@@ -158,6 +158,18 @@ Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.
   objects, collision and spawn points; 10 - 60 s since round E4e) and the Map Inspector's terrain unpack. They write
   only OPFOR's `work\levels\<level>` and `work\navkit`, never the game copy; a failure is said in plain words on the
   start screen.
+- **Choose mode (round G3, the user's design):** the start screen opens on four cards - BFBC1, BFBC2, Vietnam, WW2 -
+  each with its installed map count and its own picture, the game's loading screen read from the game copy at run
+  time (`awards/images/loadingscreens/` in `ondemand_awards-00.fbrb`: DICE's `bc1_oasis`, `mp_005` and `nam_mp_002`,
+  OPFOR's converted `wake_island_s` for WW2; a set without it gets a plain tile, a set with no installed map is greyed
+  "Not installed"); "Open a project" and the recent projects below; four in a row, two by two in a narrow window.
+  A card opens that set's maps: "Choose mode" back, the set's name and a search box, a row per map with its picture
+  (`awards/images/levels/<level>.res`), name, game mode (its description's `GameMode`), prepared or not, **Open** and
+  **New project** ("New map from an existing map": the name and folder, then Make the map). The sets come from the
+  levels' data: the `bc1_` maps of `game\Package` (badge BFBC1), the levels loading `nam_common` (Vietnam) or
+  `ww2_common` (WW2), every other level BFBC2. No game art is kept in the repository: the pictures are decoded
+  once into Project OPFOR BFBC2's `work\editor\art` (`art.json` records the bundles' sizes and times; made again when
+  they change; about 1 MB) - 4.8 s the first time, 0.1 s after.
 - **Levels in `game\Package` only (round G3):** Vietnam's (`NAM_*`, badge VIETNAM), the Pacific War's (Wake Island,
   Coral Sea, Guadalcanal, Iwo Jima ...; badge WW2 - PACIFIC WAR) and DICE's other Package-only levels (the Bad
   Company 1 maps, extra mode layouts such as MP_005GR) are listed too, when installed: the game's registry

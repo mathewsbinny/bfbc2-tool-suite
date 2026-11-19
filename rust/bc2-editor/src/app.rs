@@ -29,6 +29,7 @@ use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 
 use crate::actions::{self, Action, PanelKind};
 use crate::camera::{self, Camera, Projection};
+use crate::catalog::{self, Catalog};
 use crate::edit::Doc;
 use crate::factions::{Profile, Teams};
 use crate::gizmo::{self, Frame, Handle, Space, Tool};
@@ -42,6 +43,7 @@ use crate::render::{self, Gpu, SceneGpu, Target};
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
 mod editui;
+mod modes;
 
 /// The GPU and egui's renderer on it (the window's, or the headless runner's).
 #[derive(Clone)]
@@ -314,6 +316,13 @@ pub struct EditorApp {
     recover: Option<(PathBuf, Box<MapProject>)>,
     /// What to do with a level being prepared once it is loaded.
     after_prepare: Then,
+    /// The start screen's chosen set of maps (`None`: the mode cards; never remembered: round G3).
+    start_set: Option<ContentSet>,
+    /// The start screen's pictures, thumbnails and modes from the game copy, and the thread reading them.
+    catalog: Option<Catalog>,
+    catalog_rx: Option<Receiver<Catalog>>,
+    /// The catalog's pictures made into textures, by key.
+    pictures: HashMap<String, egui::TextureHandle>,
 }
 
 /// The folder new projects go to when none was chosen before: `Documents\BFBC2 Map Projects`.
@@ -336,6 +345,15 @@ impl EditorApp {
         let tokens = Tokens::embedded()?;
         let opfor = levels::find_opfor(opfor);
         let levels = opfor.as_ref().map_or_else(|_| Vec::new(), |r| levels::list_levels(r));
+        // the start screen's pictures, thumbnails and modes, read (or taken from their cache) on a thread
+        let catalog_rx = opfor.as_ref().ok().map(|root| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let (root, names): (PathBuf, Vec<String>) = (root.clone(), levels.iter().map(|l| l.lv.clone()).collect());
+            std::thread::spawn(move || {
+                let _ = tx.send(catalog::load(&root, &names));
+            });
+            rx
+        });
         let (theme, dock, bookmarks, recent, folder) = match saved {
             Some(s) => (s.theme, s.dock, s.bookmarks, s.recent, s.project_folder),
             None => (ThemeId::Dark, default_layout(), HashMap::new(), Vec::new(), None),
@@ -363,7 +381,41 @@ impl EditorApp {
             recent,
             recover: None,
             after_prepare: Then::View,
+            start_set: None,
+            catalog: None,
+            catalog_rx,
+            pictures: HashMap::new(),
         })
+    }
+
+    /// The start screen's catalog (pictures, thumbnails, modes) once read.
+    #[must_use]
+    pub fn catalog(&mut self) -> Option<&Catalog> {
+        self.poll_catalog();
+        self.catalog.as_ref()
+    }
+
+    /// Waits for the catalog (headless runs, screenshots), at most `limit`.
+    pub fn wait_for_catalog(&mut self, limit: std::time::Duration) {
+        let start = Instant::now();
+        while self.catalog_rx.is_some() && start.elapsed() < limit {
+            self.poll_catalog();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    fn poll_catalog(&mut self) {
+        if let Some(rx) = &self.catalog_rx {
+            match rx.try_recv() {
+                Ok(c) => {
+                    self.catalog = Some(c);
+                    self.catalog_rx = None;
+                    self.pictures.clear();
+                }
+                Err(TryRecvError::Disconnected) => self.catalog_rx = None,
+                Err(TryRecvError::Empty) => {}
+            }
+        }
     }
 
     /// Why an action cannot run now (for its disabled control's tooltip), or `None` when it can.
@@ -897,6 +949,10 @@ impl EditorApp {
             self.renderer = Some(render::Renderer::new(&gpu.gpu));
         }
         self.poll_loading(gpu, &ctx);
+        self.poll_catalog();
+        if self.catalog_rx.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
         self.shortcuts(gpu, &ctx);
         let palette = self.palette();
         if self.palette_open {
@@ -1394,115 +1450,6 @@ impl EditorApp {
                 });
             });
     }
-
-    fn start_screen(&mut self, ui: &mut egui::Ui, p: &Palette, m: &Metrics) {
-        egui::CentralPanel::default()
-            .frame(
-                egui::Frame::new()
-                    .fill(p.ground)
-                    .inner_margin(Margin::same(m.space_8 as i8)),
-            )
-            .show(ui, |ui| {
-                ui.vertical(|ui| {
-                    // at most 720, never wider than the window (round G3: set alone, it widened a narrow window's
-                    // column past its edge)
-                    let column = ui.available_width().min(720.0);
-                    ui.set_max_width(column);
-                    ui.label(
-                        RichText::new("BFBC2 Map Editor")
-                            .text_style(style("display"))
-                            .color(p.ink),
-                    );
-                    ui.add_space(m.space_1);
-                    ui.label(
-                        RichText::new(
-                            "Make a new map from an existing one, open a project, or view any map read-only. Game \
-                             files are never changed: a project holds only your edits.",
-                        )
-                        .color(p.ink_muted),
-                    );
-                    // the lists grouped by set of maps (round G3; which sets are shown waits for the user's
-                    // start-screen design)
-                    let shown: Vec<ContentSet> = ContentSet::ALL.to_vec();
-                    ui.add_space(m.space_6);
-                    let choice = editui::start_projects(
-                        ui,
-                        p,
-                        m,
-                        &mut editui::StartForm {
-                            levels: &self.levels,
-                            shown: &shown,
-                            new_level: &mut self.new_level,
-                            new_name: &mut self.new_name,
-                            new_folder: &mut self.new_folder,
-                            open_path: &mut self.open_path,
-                            recent: &self.recent,
-                        },
-                    );
-                    match choice {
-                        Some(editui::StartChoice::Create(lv, name, folder)) => {
-                            self.open_level_then(&lv, Then::Create(name, folder));
-                        }
-                        Some(editui::StartChoice::Open(path)) => self.open_project(&path),
-                        None => {}
-                    }
-                    ui.add_space(m.space_6);
-                    ui.label(RichText::new("View a map").text_style(style("section")).color(p.ink));
-                    ui.add_space(m.space_2);
-                    if let Some(e) = &self.error {
-                        status_line(ui, p, "Error", p.status_error, e);
-                        ui.add_space(m.space_2);
-                    }
-                    if let Err(e) = &self.opfor {
-                        status_line(ui, p, "Error", p.status_error, e);
-                    } else {
-                        {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.level_filter)
-                                    .hint_text(RichText::new("Filter levels (mp_005, sp_01 ...)").color(p.ink_faint))
-                                    .desired_width(320.0),
-                            );
-                            ui.add_space(m.space_2);
-                            let mut open = None;
-                            let f = self.level_filter.trim().to_lowercase();
-                            egui::Frame::new()
-                                .fill(p.surface_1)
-                                .stroke(Stroke::new(1.0, p.line))
-                                .corner_radius(CornerRadius::same(m.radius_md as u8))
-                                .show(ui, |ui| {
-                                    // the column's width, whatever the cards above took (the frame's line inside)
-                                    ui.set_max_width(column - 2.0);
-                                    egui::ScrollArea::vertical()
-                                        .max_height(ui.available_height() - m.space_4)
-                                        .show(ui, |ui| {
-                                            ui.set_width(column - 2.0);
-                                            // grouped by set, each under its heading
-                                            for set in &shown {
-                                                let rows: Vec<&LevelInfo> = self
-                                                    .levels
-                                                    .iter()
-                                                    .filter(|l| l.set == *set && (f.is_empty() || l.lv.contains(&f)))
-                                                    .collect();
-                                                if rows.is_empty() {
-                                                    continue;
-                                                }
-                                                set_heading(ui, p, m, set.word(), rows.len());
-                                                for l in rows {
-                                                    if level_row(ui, p, m, l).clicked() {
-                                                        open = Some(l.lv.clone());
-                                                    }
-                                                }
-                                            }
-                                        });
-                                });
-                            if let Some(lv) = open {
-                                self.open_level(&lv);
-                            }
-                        }
-                    }
-                });
-            });
-    }
 }
 
 fn load(root: &Path, lv: &str) -> Loaded {
@@ -1743,80 +1690,6 @@ fn status_shape(painter: &egui::Painter, c: Pos2, r: f32, word: &str, colour: Co
             painter.circle_filled(c, r * 0.85, colour);
         }
     }
-}
-
-fn level_row(ui: &mut egui::Ui, p: &Palette, m: &Metrics, l: &LevelInfo) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), m.row + m.space_1), Sense::click());
-    if resp.hovered() {
-        ui.painter().rect_filled(rect, CornerRadius::ZERO, p.surface_2);
-    }
-    let state = if !l.prepared {
-        "Not prepared yet - opening it prepares it first (up to a minute)"
-    } else if !l.terrain_current {
-        "Ready - opening it unpacks its terrain first"
-    } else {
-        "Ready"
-    };
-    // the columns fit the row at any width (round G3): the badge at the right always shown whole, the name column
-    // at most 180 (a third of the row in a narrow one), the state between them; a name or state cut short ends in
-    // an ellipsis and the row's tooltip says it whole
-    let cy = rect.center().y;
-    let left = rect.left() + m.space_3;
-    let right = rect.right() - m.space_3;
-    let badge = ui
-        .painter()
-        .layout_no_wrap(l.set.badge().to_owned(), FontId::proportional(11.0), p.ink_muted);
-    let badge_left = right - badge.size().x;
-    ui.painter()
-        .galley(Pos2::new(badge_left, cy - badge.size().y / 2.0), badge, p.ink_muted);
-    let name_w = ((badge_left - left) / 3.0).clamp(0.0, 180.0);
-    let name = elided(
-        ui,
-        &l.lv.to_uppercase(),
-        FontId::monospace(12.0),
-        p.ink,
-        name_w - m.space_2,
-    );
-    let state_left = left + name_w;
-    let state_g = elided(
-        ui,
-        state,
-        FontId::proportional(12.0),
-        p.ink_muted,
-        badge_left - m.space_3 - state_left,
-    );
-    let cut = name.elided || state_g.elided;
-    ui.painter()
-        .galley(Pos2::new(left, cy - name.size().y / 2.0), name, p.ink);
-    ui.painter()
-        .galley(Pos2::new(state_left, cy - state_g.size().y / 2.0), state_g, p.ink_muted);
-    ui.painter()
-        .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, p.line));
-    let action = if l.prepared {
-        "Open read-only"
-    } else {
-        "Prepare it, then open it read-only"
-    };
-    let tip = if cut {
-        format!("{} - {state}\n{action}", l.lv.to_uppercase())
-    } else {
-        action.to_owned()
-    };
-    resp.on_hover_text(tip).on_hover_cursor(egui::CursorIcon::PointingHand)
-}
-
-/// A set's heading in the level list: its name and count, as a `label` caption on `surface-2`.
-fn set_heading(ui: &mut egui::Ui, p: &Palette, m: &Metrics, name: &str, n: usize) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), m.row), Sense::hover());
-    ui.painter().rect_filled(rect, CornerRadius::ZERO, p.surface_2);
-    let g = ui.painter().layout_job(caption(&format!("{name}  {n}"), p.ink_muted));
-    ui.painter().galley(
-        Pos2::new(rect.left() + m.space_3, rect.center().y - g.size().y / 2.0),
-        g,
-        p.ink_muted,
-    );
-    ui.painter()
-        .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, p.line));
 }
 
 /// `text` on one line, cut to `width` with an ellipsis when it is longer (the galley's `elided` says so).

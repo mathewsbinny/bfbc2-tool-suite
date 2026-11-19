@@ -422,6 +422,7 @@ dependencies = [
 name = "bc2-editor"
 version = "0.1.0"
 dependencies = [
+ "bc2-convert",
  "bc2-formats",
  "bc2-levelwrite",
  "bc2-scene",

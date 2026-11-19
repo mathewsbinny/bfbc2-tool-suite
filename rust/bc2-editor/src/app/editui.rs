@@ -46,13 +46,8 @@ fn differ(a: &M, b: &M) -> bool {
 
 // ------------------------------------------------------------------------------------------------- start screen
 
-use crate::levels::ContentSet;
-
 /// The start screen's project forms.
 pub(super) struct StartForm<'a> {
-    pub(super) levels: &'a [LevelInfo],
-    /// The sets of maps shown (the start screen's toggles), in order.
-    pub(super) shown: &'a [ContentSet],
     pub(super) new_level: &'a mut Option<String>,
     pub(super) new_name: &'a mut String,
     pub(super) new_folder: &'a mut String,
@@ -68,100 +63,64 @@ pub(super) enum StartChoice {
     Open(PathBuf),
 }
 
-/// "New map from an existing map" and "Open a project".
-pub(super) fn start_projects(
-    ui: &mut egui::Ui,
-    p: &Palette,
-    m: &Metrics,
-    f: &mut StartForm<'_>,
-) -> Option<StartChoice> {
+/// A card of the start screen (`surface-1`, a `line` outline), its contents top to bottom, `width` wide inside.
+pub(super) fn card(ui: &mut egui::Ui, p: &Palette, m: &Metrics, width: f32, add: &mut dyn FnMut(&mut egui::Ui)) {
+    egui::Frame::new()
+        .fill(p.surface_1)
+        .stroke(Stroke::new(1.0, p.line))
+        .corner_radius(CornerRadius::same(m.radius_md as u8))
+        .inner_margin(Margin::same(m.space_3 as i8))
+        .show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.set_width(width);
+                add(ui);
+            });
+        });
+}
+
+/// "New map from an existing map" once its base is chosen in a set's map list (round G3: a mode, then a map, then
+/// this): the name and the folder, Make the map, Cancel.
+pub(super) fn new_map_form(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut StartForm<'_>) -> Option<StartChoice> {
+    let lv = f.new_level.clone()?;
     let mut out = None;
-    // two cards side by side within the start screen's column (each at most 340 wide; narrower in a narrow window),
-    // their contents top to bottom (round G3: laid out in the row's direction, they ran past the window's edge)
-    let card_w = ((ui.available_width() - 2.0 * m.space_3 - 4.0 * m.space_3 - 2.0) / 2.0).clamp(200.0, 340.0);
-    // the form's fields: what the card leaves beside its labels
-    let field_w = (card_w - 90.0).min(200.0);
-    ui.horizontal_top(|ui| {
-        let card = |ui: &mut egui::Ui, add: &mut dyn FnMut(&mut egui::Ui)| {
-            egui::Frame::new()
-                .fill(p.surface_1)
-                .stroke(Stroke::new(1.0, p.line))
-                .corner_radius(CornerRadius::same(m.radius_md as u8))
-                .inner_margin(Margin::same(m.space_3 as i8))
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        ui.set_width(card_w);
-                        add(ui);
-                    });
-                });
+    let width = (ui.available_width() - 2.0 * m.space_3 - 2.0).max(200.0);
+    let field_w = (width - 90.0).clamp(120.0, 320.0);
+    card(ui, p, m, width, &mut |ui| {
+        ui.label(
+            RichText::new(format!("New map from {}", lv.to_uppercase()))
+                .text_style(style("title"))
+                .color(p.ink),
+        );
+        ui.label(
+            RichText::new("The base map is never changed: the new map is a project of your edits on it.")
+                .text_style(style("small"))
+                .color(p.ink_muted),
+        );
+        ui.add_space(m.space_2);
+        egui::Grid::new("new map")
+            .num_columns(2)
+            .spacing([m.space_2, m.space_2])
+            .show(ui, |ui| {
+                ui.label(RichText::new("Name").color(p.ink_muted));
+                ui.add(
+                    egui::TextEdit::singleline(f.new_name)
+                        .hint_text(RichText::new("Harvest Day North").color(p.ink_faint))
+                        .desired_width(field_w),
+                );
+                ui.end_row();
+                ui.label(RichText::new("Folder").color(p.ink_muted));
+                ui.add(egui::TextEdit::singleline(f.new_folder).desired_width(field_w));
+                ui.end_row();
+            });
+        ui.add_space(m.space_2);
+        let why = if f.new_name.trim().is_empty() {
+            Some("Give the new map a name")
+        } else if f.new_folder.trim().is_empty() {
+            Some("Choose a folder for the project")
+        } else {
+            None
         };
-        card(ui, &mut |ui| {
-            ui.label(
-                RichText::new("New map from an existing map")
-                    .text_style(style("title"))
-                    .color(p.ink),
-            );
-            ui.label(
-                RichText::new("The base map is never changed: the new map is a project of your edits on it.")
-                    .text_style(style("small"))
-                    .color(p.ink_muted),
-            );
-            ui.add_space(m.space_2);
-            // every level: one not prepared yet is prepared first (the choice carries through it), a Package level
-            // (Vietnam, Pacific War) from its bundles (round G3)
-            let prepared: Vec<&LevelInfo> = f.levels.iter().collect();
-            egui::Grid::new("new map")
-                .num_columns(2)
-                .spacing([m.space_2, m.space_2])
-                .show(ui, |ui| {
-                    ui.label(RichText::new("Base map").color(p.ink_muted));
-                    egui::ComboBox::from_id_salt("base map")
-                        .selected_text(f.new_level.as_deref().map_or("Choose a map".into(), str::to_uppercase))
-                        .width(field_w)
-                        .show_ui(ui, |ui| {
-                            // grouped by the sets the start screen shows, each under its heading
-                            for set in f.shown {
-                                let rows: Vec<&&LevelInfo> = prepared.iter().filter(|l| l.set == *set).collect();
-                                if rows.is_empty() {
-                                    continue;
-                                }
-                                ui.label(
-                                    RichText::new(set.word().to_uppercase())
-                                        .text_style(style("small"))
-                                        .color(p.ink_faint),
-                                );
-                                for l in rows {
-                                    let text = if l.prepared {
-                                        l.lv.to_uppercase()
-                                    } else {
-                                        format!("{} (prepared first)", l.lv.to_uppercase())
-                                    };
-                                    ui.selectable_value(f.new_level, Some(l.lv.clone()), text);
-                                }
-                            }
-                        });
-                    ui.end_row();
-                    ui.label(RichText::new("Name").color(p.ink_muted));
-                    ui.add(
-                        egui::TextEdit::singleline(f.new_name)
-                            .hint_text(RichText::new("Harvest Day North").color(p.ink_faint))
-                            .desired_width(field_w),
-                    );
-                    ui.end_row();
-                    ui.label(RichText::new("Folder").color(p.ink_muted));
-                    ui.add(egui::TextEdit::singleline(f.new_folder).desired_width(field_w));
-                    ui.end_row();
-                });
-            ui.add_space(m.space_2);
-            let why = if f.new_level.is_none() {
-                Some("Choose the map to start from")
-            } else if f.new_name.trim().is_empty() {
-                Some("Give the new map a name")
-            } else if f.new_folder.trim().is_empty() {
-                Some("Choose a folder for the project")
-            } else {
-                None
-            };
+        ui.horizontal(|ui| {
             let b = ui.add_enabled(
                 why.is_none(),
                 egui::Button::new(RichText::new("Make the map").color(p.on_accent))
@@ -170,54 +129,70 @@ pub(super) fn start_projects(
             );
             if let Some(w) = why {
                 b.on_disabled_hover_text(w);
-            } else if b.clicked()
-                && let Some(lv) = f.new_level.clone()
-            {
+            } else if b.clicked() {
                 out = Some(StartChoice::Create(
-                    lv,
+                    lv.clone(),
                     f.new_name.trim().to_owned(),
                     PathBuf::from(f.new_folder.trim()),
                 ));
             }
-        });
-        card(ui, &mut |ui| {
-            ui.label(RichText::new("Open a project").text_style(style("title")).color(p.ink));
-            ui.label(
-                RichText::new("A .mapedit.json file: its base map loads first, then your edits on it.")
-                    .text_style(style("small"))
-                    .color(p.ink_muted),
-            );
-            ui.add_space(m.space_2);
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(f.open_path)
-                        .hint_text(RichText::new("Project file").color(p.ink_faint))
-                        .desired_width((card_w - 70.0).min(240.0)),
-                );
-                if ui
-                    .add_enabled(!f.open_path.trim().is_empty(), egui::Button::new("Open"))
-                    .clicked()
-                {
-                    out = Some(StartChoice::Open(PathBuf::from(f.open_path.trim())));
-                }
-            });
-            if !f.recent.is_empty() {
-                ui.add_space(m.space_2);
-                ui.label(RichText::new("Recent").color(p.ink_muted));
-                for r in f.recent {
-                    let name = r
-                        .file_name()
-                        .map_or_else(|| r.display().to_string(), |n| n.to_string_lossy().into_owned());
-                    if ui
-                        .add(egui::Button::new(RichText::new(name).color(p.accent_text)).frame(false))
-                        .on_hover_text(r.display().to_string())
-                        .clicked()
-                    {
-                        out = Some(StartChoice::Open(r.clone()));
-                    }
-                }
+            if ui
+                .add(egui::Button::new("Cancel").min_size(Vec2::new(0.0, m.control)))
+                .clicked()
+            {
+                *f.new_level = None;
             }
         });
+    });
+    out
+}
+
+/// "Open a project" and the recent projects (below the mode cards).
+pub(super) fn open_card(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut StartForm<'_>) -> Option<StartChoice> {
+    let mut out = None;
+    let width = (ui.available_width() - 2.0 * m.space_3 - 2.0).max(200.0);
+    card(ui, p, m, width, &mut |ui| {
+        ui.label(RichText::new("Open a project").text_style(style("title")).color(p.ink));
+        ui.label(
+            RichText::new("A .mapedit.json file: its base map loads first, then your edits on it.")
+                .text_style(style("small"))
+                .color(p.ink_muted),
+        );
+        ui.add_space(m.space_2);
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(f.open_path)
+                    .hint_text(RichText::new("Project file").color(p.ink_faint))
+                    .desired_width((width - 80.0).clamp(120.0, 420.0)),
+            );
+            if ui
+                .add_enabled(!f.open_path.trim().is_empty(), egui::Button::new("Open"))
+                .clicked()
+            {
+                out = Some(StartChoice::Open(PathBuf::from(f.open_path.trim())));
+            }
+        });
+        ui.add_space(m.space_2);
+        ui.label(RichText::new("Recent projects").color(p.ink_muted));
+        if f.recent.is_empty() {
+            ui.label(
+                RichText::new("None yet: a project you make or open is listed here.")
+                    .text_style(style("small"))
+                    .color(p.ink_faint),
+            );
+        }
+        for r in f.recent {
+            let name = r
+                .file_name()
+                .map_or_else(|| r.display().to_string(), |n| n.to_string_lossy().into_owned());
+            if ui
+                .add(egui::Button::new(RichText::new(name).color(p.accent_text)).frame(false))
+                .on_hover_text(r.display().to_string())
+                .clicked()
+            {
+                out = Some(StartChoice::Open(r.clone()));
+            }
+        }
     });
     out
 }

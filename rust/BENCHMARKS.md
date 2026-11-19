@@ -3447,3 +3447,13 @@ Island and Coral Sea a project made through the editor's own flow has its base's
 plus a delete apply through levelwrite to the partition with nothing else changed (the moved object's `Transform`;
 the deleted instance, its `LevelData.Objects` entry and, on Wake, its `EventConnections`); "Check edits" replays both
 cleanly.
+
+**Choose mode** (the user's start-screen design; `src/catalog.rs`, `src/app/modes.rs`): four cards from the levels'
+data (BFBC1 8 maps, BFBC2 51, Vietnam 20, WW2 4 on OPFOR's copy), each with the game's own loading screen
+(`awards/images/loadingscreens/`: `bc1_oasis`, `mp_005`, `nam_mp_002` - DICE's - and `wake_island_s` - OPFOR's
+converted; a `RES` header, then a 1280 x 720 DXT1 `ITexture`, decoded by `bc2-convert`'s `texcheck` and halved to
+640 x 360), 82 level thumbnails (`awards/images/levels/<level>.res`, the picture in the top left of a 512 x 256 texture,
+its white margin cut) and 83 game modes (the descriptions' `GameMode`). Read from four bundles at once in 4.8 s on the
+first start (debug build), 0.11 s from `work\editor\art` (about 1.1 MB of PNGs and `art.json`) after;
+`card_art_on_the_real_game_copy` (`BC2_EDITOR_G3_ART=1`) checks every set's card on the real copy,
+`mode_cards_fall_back_to_the_tile` the plain tile where a picture is missing or not a texture.
