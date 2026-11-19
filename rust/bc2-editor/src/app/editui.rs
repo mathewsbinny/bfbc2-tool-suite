@@ -361,6 +361,7 @@ impl ViewState {
                             source: g.to_owned(),
                             guid: d.project.new_guid(g),
                             transform: rows(&math::translate(&m, [offset, 0.0, 0.0])),
+                            owned: Vec::new(),
                         })
                     })
                     .collect();

@@ -16,7 +16,9 @@ use bc2_formats::dbx::CONTAINER;
 use bc2_formats::dbx::edit::{EditDbx, EditError, NodeId};
 use thiserror::Error;
 
-use crate::ops::{FieldValue, Op, Operation, Rows};
+use std::collections::{HashMap, HashSet};
+
+use crate::ops::{FieldIs, FieldValue, Op, Operation, Placed, Rows, SubCopy};
 use crate::schema::{FieldType, Schema};
 
 /// Why an edit was not made (in words for the Problems panel).
@@ -465,6 +467,343 @@ impl LevelWriter {
     }
 }
 
+/// The guid of an instance, upper case.
+fn guid_of(d: &EditDbx, e: NodeId) -> String {
+    String::from_utf8_lossy(d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase()
+}
+
+/// A local reference (a guid of this partition, not `null`, not `path/guid`), upper case.
+fn local_ref(r: &[u8]) -> Option<String> {
+    (!r.is_empty() && !r.contains(&b'/') && !r.eq_ignore_ascii_case(b"null"))
+        .then(|| String::from_utf8_lossy(r).to_ascii_uppercase())
+}
+
+/// The value that most of `values` share (at least two of them, and more than half), if any.
+fn shared_value(values: &[FieldValue]) -> Option<FieldValue> {
+    let mut counts: Vec<(&FieldValue, usize)> = Vec::new();
+    for v in values {
+        match counts.iter_mut().find(|(x, _)| *x == v) {
+            Some((_, n)) => *n += 1,
+            None => counts.push((v, 1)),
+        }
+    }
+    let (best, n) = counts.into_iter().max_by_key(|(_, n)| *n)?;
+    (n >= 2 && n * 2 > values.len()).then(|| best.clone())
+}
+
+impl LevelWriter {
+    /// The local references of each instance (upper-case guids of this partition), except those in `LevelData`'s
+    /// `Objects` list and in event connections (every object is listed there; they are copied for copies anyway).
+    fn ownership_graph(&self) -> (Vec<(String, NodeId)>, HashMap<String, Vec<String>>) {
+        let level = self.level_data();
+        let insts: Vec<(String, NodeId)> = self.d.instances().into_iter().map(|e| (guid_of(&self.d, e), e)).collect();
+        let known: HashSet<&str> = insts.iter().map(|(g, _)| g.as_str()).collect();
+        let mut out: HashMap<String, Vec<String>> = HashMap::new();
+        for (g, e) in &insts {
+            let mut refs = Vec::new();
+            for &c in self.d.children(*e).unwrap_or_default() {
+                let name = self.d.attr(c, b"name").unwrap_or_default();
+                if name == b"EventConnections" || (Some(*e) == level && name == b"Objects") {
+                    continue;
+                }
+                for x in self.d.walk(c) {
+                    if let Some(r) = self.d.attr(x, b"ref").and_then(local_ref)
+                        && known.contains(r.as_str())
+                    {
+                        refs.push(r);
+                    }
+                }
+            }
+            out.insert(g.clone(), refs);
+        }
+        (insts, out)
+    }
+
+    /// The sub-instances an object owns, in partition order: those it reaches through its references (directly or
+    /// through other owned ones) that nothing else refers to - only the object, other owned sub-instances,
+    /// `LevelData.Objects` and event connections (a flag's capture area points, its map marker, spawners only it
+    /// names). A deep duplicate copies them with it; a plain duplicate's copy shares them. Empty for an unknown guid.
+    #[must_use]
+    pub fn owned(&self, guid: &str) -> Vec<String> {
+        let x = guid.to_ascii_uppercase();
+        let (insts, refs) = self.ownership_graph();
+        if !refs.contains_key(&x) {
+            return Vec::new();
+        }
+        let level = self.level_data().map(|l| guid_of(&self.d, l));
+        let mut referrers: HashMap<&str, Vec<&str>> = HashMap::new();
+        for (from, tos) in &refs {
+            for t in tos {
+                referrers.entry(t.as_str()).or_default().push(from.as_str());
+            }
+        }
+        // the greatest set: reachable from the object, every referrer inside it
+        let mut alive: HashSet<&str> = refs
+            .keys()
+            .map(String::as_str)
+            .filter(|g| Some(*g) != level.as_deref())
+            .collect();
+        loop {
+            let mut reach: HashSet<&str> = HashSet::from([x.as_str()]);
+            let mut todo = vec![x.as_str()];
+            while let Some(g) = todo.pop() {
+                for t in refs.get(g).into_iter().flatten() {
+                    if alive.contains(t.as_str()) && reach.insert(t.as_str()) {
+                        todo.push(t.as_str());
+                    }
+                }
+            }
+            let out: Vec<&str> = reach
+                .iter()
+                .copied()
+                .filter(|g| *g != x && referrers.get(g).into_iter().flatten().any(|r| !reach.contains(r)))
+                .collect();
+            if out.is_empty() {
+                return insts
+                    .iter()
+                    .filter(|(g, _)| *g != x && reach.contains(g.as_str()))
+                    .map(|(g, _)| g.clone())
+                    .collect();
+            }
+            for g in out {
+                alive.remove(g);
+            }
+        }
+    }
+
+    /// A deep duplicate: the object as `new_guid` (at `transform`) and each owned sub-instance as its [`SubCopy`]'s
+    /// guid (at its transform, when it has one), at the end of the partition in that order; every local reference
+    /// inside the copies to one of the originals remapped to its copy; an `Objects` item for each original that
+    /// has one; each event connection from or to any of the originals copied once, both ends remapped.
+    ///
+    /// # Errors
+    /// A source missing, a new guid taken, the level's `LevelData`, or a transform for an instance without one.
+    pub fn deep_duplicate(
+        &mut self,
+        source: &str,
+        new_guid: &str,
+        transform: &Rows,
+        owned: &[SubCopy],
+    ) -> Result<Duplicated> {
+        let pairs: Vec<(&str, &str, Option<&Rows>)> = std::iter::once((source, new_guid, Some(transform)))
+            .chain(owned.iter().map(|o| (o.source.as_str(), o.guid.as_str(), o.transform.as_ref())))
+            .collect();
+        let mut srcs = Vec::new();
+        for (s, n, _) in &pairs {
+            let e = self.need(s)?;
+            if self.find(n).is_some() {
+                return Err(LevelWriteError::Exists((*n).to_owned()));
+            }
+            if self.type_of(e).ends_with(".LevelData") {
+                return Err(LevelWriteError::Refused(
+                    "the level itself (LevelData) cannot be duplicated".into(),
+                ));
+            }
+            srcs.push(e);
+        }
+        let map: HashMap<String, String> = pairs
+            .iter()
+            .map(|(s, n, _)| (s.to_ascii_uppercase(), n.to_ascii_lowercase()))
+            .collect();
+        let part = self
+            .d
+            .partition()
+            .ok_or_else(|| LevelWriteError::Read("no partition element".into()))?;
+        let mut clones = Vec::new();
+        for ((s, n, t), src) in pairs.iter().zip(srcs) {
+            let e = self.d.clone_node(src);
+            self.d.set_attr(e, b"guid", n.to_ascii_uppercase().as_bytes())?;
+            self.d.retain_attrs(e, |k| k == b"guid" || k == b"type")?;
+            if let Some(rows) = t {
+                let tr = self.d.child(e, b"Transform").ok_or_else(|| LevelWriteError::NoField {
+                    guid: (*s).to_owned(),
+                    field: "Transform".into(),
+                })?;
+                self.d.set_transform(tr, rows)?;
+            }
+            self.d.children_mut(part)?.push(e);
+            clones.push(e);
+        }
+        for e in clones {
+            for x in self.d.walk(e) {
+                if let Some(to) = self.d.attr(x, b"ref").and_then(local_ref).and_then(|r| map.get(&r)).cloned() {
+                    self.d.set_ref(x, to.as_bytes())?;
+                }
+            }
+        }
+        let mut out = Duplicated::default();
+        if let Some(objs) = self.level_data().and_then(|l| self.d.child(l, b"Objects")) {
+            for (k, (s, n, _)) in pairs.iter().enumerate() {
+                let item = self
+                    .d
+                    .children(objs)
+                    .unwrap_or_default()
+                    .iter()
+                    .copied()
+                    .find(|&it| self.d.attr(it, b"ref").is_some_and(|r| refers_to(r, s.as_bytes())));
+                if let Some(item) = item {
+                    let it = self.d.clone_node(item);
+                    self.d.set_ref(it, n.to_ascii_lowercase().as_bytes())?;
+                    self.d.children_mut(objs)?.push(it);
+                    out.objects_item |= k == 0;
+                }
+            }
+        }
+        let mapped = |r: &[u8]| -> Option<String> {
+            map.iter()
+                .find(|(s, _)| refers_to(r, s.as_bytes()))
+                .map(|(_, n)| n.clone())
+        };
+        for a in self.connection_arrays() {
+            let found: Vec<NodeId> = self
+                .d
+                .children(a)
+                .unwrap_or_default()
+                .iter()
+                .copied()
+                .filter(|&c| {
+                    [&b"Source"[..], b"Target"].iter().any(|f| {
+                        self.d
+                            .child(c, f)
+                            .and_then(|x| self.d.attr(x, b"ref"))
+                            .is_some_and(|r| mapped(r).is_some())
+                    })
+                })
+                .collect();
+            for c in found {
+                let copy = self.d.clone_node(c);
+                for f in [&b"Source"[..], b"Target"] {
+                    if let Some(x) = self.d.child(copy, f)
+                        && let Some(to) = self.d.attr(x, b"ref").and_then(mapped)
+                    {
+                        self.d.set_ref(x, to.as_bytes())?;
+                    }
+                }
+                self.d.children_mut(a)?.push(copy);
+                out.connections += 1;
+            }
+        }
+        Ok(out)
+    }
+
+    /// The `ReferencedObject` reference of an instance, as stored.
+    fn referenced(&self, e: NodeId) -> Option<&[u8]> {
+        self.d.child(e, b"ReferencedObject").and_then(|c| self.d.attr(c, b"ref"))
+    }
+
+    /// The placed objects (`ReferenceObjectData`) of a blueprint reference (`path/guid`, any case); all of them
+    /// for `None`.
+    fn placements(&self, blueprint: Option<&str>) -> Vec<NodeId> {
+        self.d
+            .of_type(b".ReferenceObjectData")
+            .into_iter()
+            .filter(|&e| blueprint.is_none_or(|b| self.referenced(e).is_some_and(|r| r.eq_ignore_ascii_case(b.as_bytes()))))
+            .collect()
+    }
+
+    /// The instance a new placement of `blueprint` is made from (levelwrite's "add instance"): a placement of the
+    /// same blueprint when the level has one, else any placed object; of those, the one with the fewest local
+    /// references (no object sets, no other instances named), the first of equals. `None` in a level without placed
+    /// objects.
+    #[must_use]
+    pub fn template_for(&self, blueprint: &str) -> Option<String> {
+        let same = self.placements(Some(blueprint));
+        let pool = if same.is_empty() { self.placements(None) } else { same };
+        let local = |e: NodeId| {
+            self.d
+                .walk(e)
+                .into_iter()
+                .filter(|&x| self.d.attr(x, b"ref").and_then(local_ref).is_some())
+                .count()
+        };
+        pool.into_iter().min_by_key(|&e| local(e)).map(|e| guid_of(&self.d, e))
+    }
+
+    /// The fields a new placement of `blueprint` made from `template` takes from the level's data: for each field the
+    /// template has (settable, not a reference), the value most of the level's placements of the blueprint share
+    /// (more than half of them, two at least; every placed object when the level has none of it) where the
+    /// template's differs. A value no majority shares stays the template's.
+    #[must_use]
+    pub fn place_defaults(&self, schema: &Schema, template: &str, blueprint: &str) -> Vec<FieldIs> {
+        let same = self.placements(Some(blueprint));
+        let peers = if same.is_empty() { self.placements(None) } else { same };
+        let peers: Vec<String> = peers.into_iter().map(|e| guid_of(&self.d, e)).collect();
+        let mut out = Vec::new();
+        for (path, ty, value) in self.fields(schema, template) {
+            if !ty.settable() || ty == FieldType::Ref {
+                continue;
+            }
+            let values: Vec<FieldValue> = peers
+                .iter()
+                .filter_map(|g| self.get_field(schema, g, &path).ok().and_then(|(_, v)| v))
+                .collect();
+            if let Some(v) = shared_value(&values)
+                && Some(&v) != value.as_ref()
+            {
+                out.push(FieldIs { field: path, value: v });
+            }
+        }
+        out
+    }
+
+    /// Adds a placed object (levelwrite's "add instance", on the duplicate's machinery): a clone of the template as
+    /// the new guid (attributes `guid` and `type`), its `ReferencedObject` the blueprint, its transform, its fields;
+    /// at the end of the partition, with an `Objects` item (the template's copied, else the list's first). No event
+    /// connections: a new object has none.
+    ///
+    /// # Errors
+    /// The template missing or the level's `LevelData`, the new guid taken, a template without `Transform` or
+    /// `ReferencedObject`, or a field value its type does not take.
+    pub fn add_instance(&mut self, schema: &Schema, p: &Placed) -> Result<()> {
+        let src = self.need(&p.template)?;
+        if self.find(&p.guid).is_some() {
+            return Err(LevelWriteError::Exists(p.guid.clone()));
+        }
+        if self.type_of(src).ends_with(".LevelData") {
+            return Err(LevelWriteError::Refused(
+                "the level itself (LevelData) cannot be a template".into(),
+            ));
+        }
+        let missing = |field: &str| LevelWriteError::NoField {
+            guid: p.template.clone(),
+            field: field.into(),
+        };
+        let e = self.d.clone_node(src);
+        self.d.set_attr(e, b"guid", p.guid.to_ascii_uppercase().as_bytes())?;
+        self.d.retain_attrs(e, |k| k == b"guid" || k == b"type")?;
+        let t = self.d.child(e, b"Transform").ok_or_else(|| missing("Transform"))?;
+        self.d.set_transform(t, &p.transform)?;
+        let r = self
+            .d
+            .child(e, b"ReferencedObject")
+            .ok_or_else(|| missing("ReferencedObject"))?;
+        self.d.set_ref(r, p.blueprint.as_bytes())?;
+        let part = self
+            .d
+            .partition()
+            .ok_or_else(|| LevelWriteError::Read("no partition element".into()))?;
+        self.d.children_mut(part)?.push(e);
+        if let Some(objs) = self.level_data().and_then(|l| self.d.child(l, b"Objects")) {
+            let items = self.d.children(objs).unwrap_or_default();
+            let g = p.template.as_bytes();
+            let item = items
+                .iter()
+                .copied()
+                .find(|&it| self.d.attr(it, b"ref").is_some_and(|r| refers_to(r, g)))
+                .or_else(|| items.first().copied());
+            if let Some(item) = item {
+                let it = self.d.clone_node(item);
+                self.d.set_ref(it, p.guid.to_ascii_lowercase().as_bytes())?;
+                self.d.children_mut(objs)?.push(it);
+            }
+        }
+        for f in &p.fields {
+            self.set_field(schema, &p.guid, &f.field, &f.value)?;
+        }
+        Ok(())
+    }
+}
+
 /// What [`apply`] did.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Applied {
@@ -480,6 +819,8 @@ pub struct Applied {
     pub duplicated: usize,
     /// Fields set.
     pub fields: usize,
+    /// Objects placed (added instances).
+    pub placed: usize,
 }
 
 /// Why [`apply`] stopped: the operation and the edit's error.
@@ -550,8 +891,19 @@ pub fn apply_one(
         }
         Op::Duplicate { items } => {
             for d in items {
-                w.duplicate(&d.source, &d.guid, Some(&d.transform)).map_err(fail)?;
-                out.duplicated += 1;
+                if d.owned.is_empty() {
+                    w.duplicate(&d.source, &d.guid, Some(&d.transform)).map_err(fail)?;
+                } else {
+                    w.deep_duplicate(&d.source, &d.guid, &d.transform, &d.owned)
+                        .map_err(fail)?;
+                }
+                out.duplicated += 1 + d.owned.len();
+            }
+        }
+        Op::Place { items } => {
+            for p in items {
+                w.add_instance(schema, p).map_err(fail)?;
+                out.placed += 1;
             }
         }
         Op::SetField { items } => {
@@ -732,5 +1084,248 @@ pub(crate) mod tests {
             1
         );
         assert!(refers_to(b"levels/x/AB", b"ab") && !refers_to(b"xab", b"ab"));
+    }
+
+    /// A level with ownership to find: a flag F (Geometry: a ring of points P1 <-> P2; MapMarker M; Shared S, which G
+    /// also names; an event connection F -> M), and three placed objects (R1, R2 of blueprint `a`, R3 of `b`, in an
+    /// object set O).
+    pub(crate) fn owning_level() -> Vec<u8> {
+        let mut f = DbxFile::default();
+        let g = |k: &str| format!("BBBBBBBB-0000-0000-0000-00000000000{k}");
+        let lg = |k: &str| g(k).to_ascii_lowercase();
+        let tr = |f: &mut DbxFile, x: f32| {
+            let mut t = Vec::new();
+            for v in [
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, x, 0.0, 0.0, 0.0f32,
+            ] {
+                t.extend(v.to_be_bytes());
+            }
+            Element::numbers(f, "complex", &[("name", "Transform")], 4, &t)
+        };
+        let names = ["F", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        let items: Vec<Element> = names
+            .iter()
+            .skip(1)
+            .map(|k| Element::text(&mut f, "item", &[("ref", &lg(k))], ""))
+            .collect();
+        let objs = Element::container(&mut f, "array", &[("name", "Objects")], items);
+        let src = Element::text(&mut f, "field", &[("ref", &lg("1")), ("name", "Source")], "");
+        let tgt = Element::text(&mut f, "field", &[("ref", &lg("3")), ("name", "Target")], "");
+        let c = Element::container(&mut f, "complex", &[], vec![src, tgt]);
+        let ec = Element::container(&mut f, "array", &[("name", "EventConnections")], vec![c]);
+        let ld = Element::container(
+            &mut f,
+            "instance",
+            &[("guid", &g("0")), ("type", "X.LevelData")],
+            vec![objs, ec],
+        );
+        let mut insts = vec![ld];
+        // 1: the flag F
+        let geo_item = Element::text(&mut f, "item", &[("ref", &lg("2"))], "");
+        let geo = Element::container(&mut f, "array", &[("name", "Geometry")], vec![geo_item]);
+        let marker = Element::text(&mut f, "field", &[("ref", &lg("3")), ("name", "MapMarker")], "");
+        let shared = Element::text(&mut f, "field", &[("ref", &lg("5")), ("name", "Shared")], "");
+        let ext = Element::text(
+            &mut f,
+            "field",
+            &[("ref", "objects/flag/flag/abc"), ("name", "CapturePoint")],
+            "",
+        );
+        let t = tr(&mut f, 1.0);
+        insts.push(Element::container(
+            &mut f,
+            "instance",
+            &[("guid", &g("1")), ("type", "X.CapturePointEntityData")],
+            vec![t, geo, marker, shared, ext],
+        ));
+        // 2 and 4: the ring of points
+        for (k, next) in [("2", "4"), ("4", "2")] {
+            let t = tr(&mut f, 2.0);
+            let n = Element::text(&mut f, "field", &[("ref", &lg(next)), ("name", "Next")], "");
+            insts.push(Element::container(
+                &mut f,
+                "instance",
+                &[("guid", &g(k)), ("type", "X.AreaGeometryEntityData")],
+                vec![t, n],
+            ));
+        }
+        // 3: the marker; 5: shared; 6: names 5
+        let t = tr(&mut f, 3.0);
+        insts.push(Element::container(
+            &mut f,
+            "instance",
+            &[("guid", &g("3")), ("type", "X.MapMarkerEntityData")],
+            vec![t],
+        ));
+        let n5 = Element::text(&mut f, "field", &[("name", "Name")], "shared");
+        insts.push(Element::container(
+            &mut f,
+            "instance",
+            &[("guid", &g("5")), ("type", "X.TeamEntityData")],
+            vec![n5],
+        ));
+        let r5 = Element::text(&mut f, "field", &[("ref", &lg("5")), ("name", "Team")], "");
+        insts.push(Element::container(
+            &mut f,
+            "instance",
+            &[("guid", &g("6")), ("type", "X.SpawnEntityData")],
+            vec![r5],
+        ));
+        // 7, 8: blueprint a (Enumeration 11, 12; Mode 4); 9: blueprint b in object set (Mode 7)
+        for (k, bp, en, set) in [("7", "a", 11i32, false), ("8", "a", 12, false), ("9", "b", 13, true)] {
+            let en = Element::numbers(&mut f, "field", &[("name", "Enumeration")], 4, &en.to_be_bytes());
+            let t = tr(&mut f, 9.0);
+            let r = Element::text(
+                &mut f,
+                "field",
+                &[("ref", &format!("objects/{bp}/{bp}/0000")), ("name", "ReferencedObject")],
+                "",
+            );
+            let mode = Element::numbers(
+                &mut f,
+                "field",
+                &[("name", "Mode")],
+                4,
+                &(if bp == "a" { 4i32 } else { 7 }).to_be_bytes(),
+            );
+            let sets: Vec<Element> = if set {
+                vec![Element::text(&mut f, "item", &[("ref", &lg("6"))], "")]
+            } else {
+                Vec::new()
+            };
+            let arr = Element::container(&mut f, "array", &[("name", "ObjectSets")], sets);
+            insts.push(Element::container(
+                &mut f,
+                "instance",
+                &[("guid", &g(k)), ("type", "Entity.ReferenceObjectData")],
+                vec![en, t, r, mode, arr],
+            ));
+        }
+        let part = Element::container(&mut f, "partition", &[("guid", "P")], insts);
+        f.roots.push(part);
+        dbx::write(&f).unwrap()
+    }
+
+    #[test]
+    fn deep_duplicate_and_place() {
+        let g = |k: &str| format!("BBBBBBBB-0000-0000-0000-00000000000{k}");
+        let base = owning_level();
+        let mut w = LevelWriter::parse(&base).unwrap();
+        assert_eq!(w.write().unwrap(), base);
+        // the flag owns its ring and its marker, not what another instance also names
+        assert_eq!(w.owned(&g("1")), [g("2"), g("4"), g("3")]);
+        assert!(w.owned(&g("6")).is_empty());
+        assert!(w.owned("nope").is_empty());
+        let new = |k: &str| crate::new_guid("p", 1, &g(k));
+        let subs: Vec<SubCopy> = [("2", Some(2.0f32)), ("4", Some(2.0)), ("3", Some(3.0))]
+            .iter()
+            .map(|(k, x)| SubCopy {
+                source: g(k),
+                guid: new(k),
+                transform: x.map(|x| crate::rows_at([x + 10.0, 0.0, 0.0])),
+            })
+            .collect();
+        let d = w
+            .deep_duplicate(&g("1"), &new("1"), &crate::rows_at([11.0, 0.0, 0.0]), &subs)
+            .unwrap();
+        assert_eq!(
+            d,
+            Duplicated {
+                objects_item: true,
+                connections: 1
+            }
+        );
+        assert!(w.deep_duplicate(&g("1"), &new("1"), &crate::rows_at([0.0; 3]), &[]).is_err());
+        let back = LevelWriter::parse(&w.write().unwrap()).unwrap();
+        let s = Schema::scan([&back.d]);
+        let r = |guid: &str, field: &str| match back.get_field(&s, guid, field).unwrap().1 {
+            Some(FieldValue::Ref(r)) => r,
+            v => panic!("{v:?}"),
+        };
+        // the copy's references point at the copies; the shared one and the blueprint stay
+        assert_eq!(r(&new("1"), "MapMarker"), new("3").to_ascii_lowercase());
+        assert_eq!(r(&new("1"), "Shared"), g("5").to_ascii_lowercase());
+        assert_eq!(r(&new("1"), "CapturePoint"), "objects/flag/flag/abc");
+        assert_eq!(r(&new("2"), "Next"), new("4").to_ascii_lowercase());
+        assert_eq!(r(&new("4"), "Next"), new("2").to_ascii_lowercase());
+        // the originals are untouched
+        assert_eq!(r(&g("1"), "MapMarker"), g("3").to_ascii_lowercase());
+        assert_eq!(back.transform(&new("2")).unwrap()[3], [12.0, 0.0, 0.0]);
+        // Objects: 9 + 4; the connection copied with both ends remapped
+        let ld = back.level_data().unwrap();
+        assert_eq!(back.d.children(back.d.child(ld, b"Objects").unwrap()).unwrap().len(), 13);
+        let ec = back.d.children(back.d.child(ld, b"EventConnections").unwrap()).unwrap();
+        assert_eq!(ec.len(), 2);
+        let end = |c: NodeId, f: &[u8]| back.d.attr(back.d.child(c, f).unwrap(), b"ref").unwrap().to_vec();
+        assert_eq!(end(ec[1], b"Source"), new("1").to_ascii_lowercase().into_bytes());
+        assert_eq!(end(ec[1], b"Target"), new("3").to_ascii_lowercase().into_bytes());
+        // placing: the template is a plain placement of the blueprint; another blueprint takes the shared values
+        assert_eq!(w.template_for("OBJECTS/A/A/0000").as_deref(), Some(g("7").as_str()));
+        assert_eq!(w.template_for("objects/new/new/1").as_deref(), Some(g("7").as_str()));
+        let s = Schema::scan([&w.d]);
+        assert!(w.place_defaults(&s, &g("7"), "objects/a/a/0000").is_empty());
+        // a placement of b made from a's template: b's one placement shares nothing (one is not a majority of two)
+        assert!(w.place_defaults(&s, &g("7"), "objects/b/b/0000").is_empty());
+        // made from b's template for a new blueprint: every placed object is a peer, Mode 4 is the majority
+        let d = w.place_defaults(&s, &g("9"), "objects/new/new/1");
+        assert_eq!(
+            d,
+            [FieldIs {
+                field: "Mode".into(),
+                value: FieldValue::Int(4)
+            }]
+        );
+        let p = Placed {
+            guid: crate::new_guid("p", 2, "objects/new/new/1"),
+            template: g("9"),
+            blueprint: "objects/new/new/1".into(),
+            transform: crate::rows_at([5.0, 6.0, 7.0]),
+            fields: d,
+            placement: None,
+        };
+        w.add_instance(&s, &p).unwrap();
+        assert!(w.add_instance(&s, &p).is_err());
+        let back = LevelWriter::parse(&w.write().unwrap()).unwrap();
+        let s = Schema::scan([&back.d]);
+        assert_eq!(back.transform(&p.guid).unwrap()[3], [5.0, 6.0, 7.0]);
+        assert_eq!(
+            back.get_field(&s, &p.guid, "ReferencedObject").unwrap().1,
+            Some(FieldValue::Ref("objects/new/new/1".into()))
+        );
+        assert_eq!(
+            back.get_field(&s, &p.guid, "Mode").unwrap().1,
+            Some(FieldValue::Int(4))
+        );
+        assert_eq!(back.d.children(back.d.child(ld, b"Objects").unwrap()).unwrap().len(), 14);
+        // no connection copied for a placement
+        assert_eq!(back.d.children(back.d.child(ld, b"EventConnections").unwrap()).unwrap().len(), 2);
+        // replayed through apply: the same bytes
+        let ops = [
+            Operation {
+                n: 1,
+                by: "PC".into(),
+                when: "now".into(),
+                label: String::new(),
+                op: Op::Duplicate {
+                    items: vec![crate::ops::Duplicated {
+                        source: g("1"),
+                        guid: new("1"),
+                        transform: crate::rows_at([11.0, 0.0, 0.0]),
+                        owned: subs,
+                    }],
+                },
+            },
+            Operation {
+                n: 2,
+                by: "PC".into(),
+                when: "now".into(),
+                label: String::new(),
+                op: Op::Place { items: vec![p] },
+            },
+        ];
+        let base_schema = Schema::scan([&LevelWriter::parse(&base).unwrap().d]);
+        let a = apply(&base, &ops, &base_schema).unwrap();
+        assert_eq!(a.bytes, w.write().unwrap());
+        assert_eq!((a.duplicated, a.placed, a.operations), (4, 1, 2));
     }
 }

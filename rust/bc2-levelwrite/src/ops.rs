@@ -89,6 +89,53 @@ pub struct Duplicated {
     pub guid: String,
     /// The copy's transform.
     pub transform: Rows,
+    /// A deep duplicate: the sub-instances the object owns, copied with it (new guids, the references among them
+    /// remapped to the copies, their event connections copied). Empty for a plain duplicate, whose copy shares
+    /// them with the original.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owned: Vec<SubCopy>,
+}
+
+/// A sub-instance copied by a deep duplicate ([`crate::write::LevelWriter::owned`] says which an object owns).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubCopy {
+    /// The sub-instance copied.
+    pub source: String,
+    /// The copy's guid ([`crate::new_guid`]).
+    pub guid: String,
+    /// The copy's transform (moved with its owner), for sub-instances that have one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transform: Option<Rows>,
+}
+
+/// A field and its value (a placed object's fields that differ from its template's).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldIs {
+    /// The field: its name, or `Struct.Field`.
+    pub field: String,
+    /// Its value.
+    pub value: FieldValue,
+}
+
+/// One object placed from the content browser: a new instance of a blueprint (levelwrite's "add instance").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Placed {
+    /// The new object's guid ([`crate::new_guid`] over the project, the operation and the blueprint reference).
+    pub guid: String,
+    /// The instance of the partition the new one is made from: its type and fields (a placement of the same
+    /// blueprint when the level has one: [`crate::write::LevelWriter::template_for`]).
+    pub template: String,
+    /// The blueprint it places: the reference (`objects/props/crate/crate/<guid>`) its `ReferencedObject` takes.
+    pub blueprint: String,
+    /// Its transform.
+    pub transform: Rows,
+    /// Its fields that differ from the template's: the values the level's placements of the blueprint share
+    /// ([`crate::write::LevelWriter::place_defaults`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<FieldIs>,
+    /// Placed on a surface: how (kept with the object).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placement: Option<Placement>,
 }
 
 /// A field's value, in the field's type (from the schema: [`crate::schema::FieldType`]).
@@ -224,6 +271,25 @@ pub enum Op {
         /// The objects.
         guids: Vec<String>,
     },
+    /// Objects placed from the content browser (new instances of blueprints).
+    Place {
+        /// The new objects.
+        items: Vec<Placed>,
+    },
+    /// Objects hidden in the views (`hidden: false`: shown again); they stay in the build.
+    Hide {
+        /// The objects.
+        guids: Vec<String>,
+        /// Hidden or shown.
+        hidden: bool,
+    },
+    /// Objects locked: they cannot be selected in the views or edited (`locked: false`: unlocked).
+    Lock {
+        /// The objects.
+        guids: Vec<String>,
+        /// Locked or unlocked.
+        locked: bool,
+    },
     /// Objects grouped: selecting one selects them all.
     Group {
         /// The group's name.
@@ -249,6 +315,7 @@ impl Op {
                 | Self::Delete { .. }
                 | Self::Duplicate { .. }
                 | Self::SetField { .. }
+                | Self::Place { .. }
         )
     }
 
@@ -260,8 +327,14 @@ impl Op {
             Self::Delete { guids } | Self::AssignLayer { guids, .. } | Self::SetFolder { guids, .. } => {
                 guids.iter().map(String::as_str).collect()
             }
-            Self::Group { guids, .. } => guids.iter().map(String::as_str).collect(),
-            Self::Duplicate { items } => items.iter().map(|d| d.source.as_str()).collect(),
+            Self::Group { guids, .. } | Self::Hide { guids, .. } | Self::Lock { guids, .. } => {
+                guids.iter().map(String::as_str).collect()
+            }
+            Self::Duplicate { items } => items
+                .iter()
+                .flat_map(|d| std::iter::once(d.source.as_str()).chain(d.owned.iter().map(|o| o.source.as_str())))
+                .collect(),
+            Self::Place { items } => items.iter().map(|p| p.template.as_str()).collect(),
             Self::SetField { items } => items.iter().map(|f| f.guid.as_str()).collect(),
             Self::AddLayer { .. } | Self::SetLayer { .. } | Self::RemoveLayer { .. } | Self::Ungroup { .. } => {
                 Vec::new()
@@ -273,7 +346,11 @@ impl Op {
     #[must_use]
     pub fn creates(&self) -> Vec<&str> {
         match self {
-            Self::Duplicate { items } => items.iter().map(|d| d.guid.as_str()).collect(),
+            Self::Duplicate { items } => items
+                .iter()
+                .flat_map(|d| std::iter::once(d.guid.as_str()).chain(d.owned.iter().map(|o| o.guid.as_str())))
+                .collect(),
+            Self::Place { items } => items.iter().map(|p| p.guid.as_str()).collect(),
             _ => Vec::new(),
         }
     }
@@ -305,7 +382,28 @@ impl Op {
             }
             Self::Rotate { items } => format!("Rotate {}", objects(items.len())),
             Self::Delete { guids } => format!("Delete {}", objects(guids.len())),
-            Self::Duplicate { items } => format!("Duplicate {}", objects(items.len())),
+            Self::Duplicate { items } => {
+                let owned: usize = items.iter().map(|d| d.owned.len()).sum();
+                if owned == 0 {
+                    format!("Duplicate {}", objects(items.len()))
+                } else {
+                    format!(
+                        "Deep duplicate {} with {owned} owned sub-object{}",
+                        objects(items.len()),
+                        if owned == 1 { "" } else { "s" }
+                    )
+                }
+            }
+            Self::Place { items } => match items.as_slice() {
+                [one] => format!("Place {}", blueprint_name(&one.blueprint)),
+                many => format!("Place {}", objects(many.len())),
+            },
+            Self::Hide { guids, hidden } => {
+                format!("{} {}", if *hidden { "Hide" } else { "Show" }, objects(guids.len()))
+            }
+            Self::Lock { guids, locked } => {
+                format!("{} {}", if *locked { "Lock" } else { "Unlock" }, objects(guids.len()))
+            }
             Self::SetField { items } => match items.as_slice() {
                 [one] => format!("Set {} to {}", one.field, one.to.text()),
                 many => format!("Set fields of {}", objects(many.len())),
@@ -335,6 +433,18 @@ impl Op {
             Self::Group { group, guids } => format!("Group {} as {group}", objects(guids.len())),
             Self::Ungroup { group } => format!("Ungroup {group}"),
         }
+    }
+}
+
+/// A blueprint's name from its reference or path: the last folder (`objects/props/crate/crate/<guid>`: `crate`).
+#[must_use]
+pub fn blueprint_name(reference: &str) -> &str {
+    let parts: Vec<&str> = reference.split('/').filter(|s| !s.is_empty()).collect();
+    let looks_guid = |s: &str| s.len() == 36 && s.chars().filter(|c| *c == '-').count() == 4;
+    match parts.as_slice() {
+        [.., name, last] if looks_guid(last) => name,
+        [.., last] => last,
+        [] => "an object",
     }
 }
 
@@ -392,6 +502,10 @@ pub struct Organisation {
     pub placement: HashMap<String, Placement>,
     /// Objects deleted.
     pub deleted: BTreeSet<String>,
+    /// Objects hidden one by one (besides their layer's state).
+    pub hidden: BTreeSet<String>,
+    /// Objects locked one by one.
+    pub locked: BTreeSet<String>,
 }
 
 /// The layer colours offered to a new layer, in turn (muted, apart from the team, axis and selection colours).
@@ -432,6 +546,8 @@ impl Organisation {
                     let g = up(g);
                     self.layer_of.remove(&g);
                     self.folder_of.remove(&g);
+                    self.hidden.remove(&g);
+                    self.locked.remove(&g);
                     for members in self.groups.values_mut() {
                         members.retain(|m| *m != g);
                     }
@@ -441,8 +557,12 @@ impl Organisation {
             }
             Op::Duplicate { items } => {
                 // a copy is on its source's layer and in its folder, not in its group; its placement goes with it
-                for d in items {
-                    let (s, g) = (up(&d.source), up(&d.guid));
+                let pairs = items.iter().flat_map(|d| {
+                    std::iter::once((d.source.as_str(), d.guid.as_str()))
+                        .chain(d.owned.iter().map(|o| (o.source.as_str(), o.guid.as_str())))
+                });
+                for (source, guid) in pairs {
+                    let (s, g) = (up(source), up(guid));
                     if let Some(l) = self.layer_of.get(&s).cloned() {
                         self.layer_of.insert(g.clone(), l);
                     }
@@ -455,6 +575,31 @@ impl Organisation {
                 }
             }
             Op::SetField { .. } => {}
+            Op::Place { items } => {
+                for p in items {
+                    if let Some(pl) = p.placement {
+                        self.placement.insert(up(&p.guid), pl);
+                    }
+                }
+            }
+            Op::Hide { guids, hidden } => {
+                for g in guids {
+                    if *hidden {
+                        self.hidden.insert(up(g));
+                    } else {
+                        self.hidden.remove(&up(g));
+                    }
+                }
+            }
+            Op::Lock { guids, locked } => {
+                for g in guids {
+                    if *locked {
+                        self.locked.insert(up(g));
+                    } else {
+                        self.locked.remove(&up(g));
+                    }
+                }
+            }
             Op::AddLayer { layer, colour } => {
                 if !self.layers.iter().any(|l| l.name == *layer) {
                     self.layers.push(Layer {
@@ -521,6 +666,9 @@ impl Organisation {
     /// is one of them.
     #[must_use]
     pub fn shown(&self, guid: &str) -> bool {
+        if self.hidden.contains(&guid.to_ascii_uppercase()) {
+            return false;
+        }
         let layer = self.layer(guid);
         if layer.is_some_and(|l| l.state.hidden) {
             return false;
@@ -532,7 +680,7 @@ impl Organisation {
     /// Whether an object can be selected in the views and edited (its layer is not locked).
     #[must_use]
     pub fn editable(&self, guid: &str) -> bool {
-        !self.layer(guid).is_some_and(|l| l.state.locked)
+        !self.locked.contains(&guid.to_ascii_uppercase()) && !self.layer(guid).is_some_and(|l| l.state.locked)
     }
 
     /// The group an object is in.
@@ -665,6 +813,7 @@ mod tests {
                         source: "a".into(),
                         guid: "d".into(),
                         transform: crate::rows_at([0.0; 3]),
+                        owned: Vec::new(),
                     }],
                 },
             ),
