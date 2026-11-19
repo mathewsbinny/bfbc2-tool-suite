@@ -25,6 +25,10 @@
 //!   materials), [`emitteratlas`] (`emitteratlas.py`'s build, proof and tree comparison), [`dbxcatalogue`]
 //!   (`dbxcatalogue.build`'s pass), [`meshport`] (`Porter.pc_layout`'s search) and [`pyfmt`] (the Python number
 //!   rules they reproduce).
+//! - Round F2a: [`terrain`] (`terrain.py`'s console terrain, water and visual terrain / water; `soot.py`),
+//!   [`meshconv`] (`mesh.py`'s `console_layouts`, `decode`, `relayout`), `havok::convert_wrapper`,
+//!   `texcheck::check` (`texture.check`'s statistics), [`texwrite`] (`bfbc2-model-tools/texwrite.py`'s encoders),
+//!   [`skinmesh`] (`skinmesh.py`'s vertex work) and [`granny_edit`] (`granny.py`'s writing side).
 #![deny(unsafe_code)]
 
 pub mod audio;
@@ -32,12 +36,17 @@ pub mod dbxcatalogue;
 pub mod dbxport;
 pub mod emitteratlas;
 pub mod granny;
+pub mod granny_edit;
 pub mod havok;
 pub mod havokport;
 pub mod hkclasses;
 pub mod mesh;
+pub mod meshconv;
 pub mod meshport;
 pub mod mopp;
 pub mod pyfmt;
+pub mod skinmesh;
+pub mod terrain;
 pub mod texcheck;
 pub mod texture;
+pub mod texwrite;
