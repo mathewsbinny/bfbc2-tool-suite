@@ -88,8 +88,63 @@ pub struct LevelInfo {
     pub terrain_current: bool,
     /// It lives only in `game\Package` (Vietnam, Pacific War ...): prepared by the editor, not NavKit (round G3).
     pub package: bool,
-    /// Its content profile (the badge).
+    /// Its content profile (factions, a project's profile).
     pub profile: Profile,
+    /// The set of maps the start screen groups it in (and its badge).
+    pub set: ContentSet,
+}
+
+/// The sets of maps the start screen groups the levels in, each with a heading and a toggle (round G3, the user's
+/// ruling: all 45 Package levels kept, grouped).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub enum ContentSet {
+    /// Bad Company 2's own levels: `game\Dist`'s and the extra mode layouts of `game\Package` (`MP_005GR` ...).
+    Bfbc2,
+    /// The Bad Company 1 maps of `game\Package` (`bc1_*`).
+    Bfbc1,
+    /// Vietnam: the levels that load `nam_common`.
+    Vietnam,
+    /// The Pacific War: the levels that load `ww2_common`.
+    Ww2,
+}
+
+impl ContentSet {
+    /// Every set, in the start screen's order.
+    pub const ALL: [Self; 4] = [Self::Bfbc2, Self::Bfbc1, Self::Vietnam, Self::Ww2];
+
+    /// The set of a level from its data: the bundles it loads (`nam_common`: Vietnam, `ww2_common`: WW2, through its
+    /// profile) and, for the Bad Company 1 maps, their `bc1_` levels in `game\Package`; everything else is BFBC2.
+    #[must_use]
+    pub fn of(lv: &str, profile: Profile, package: bool) -> Self {
+        match profile {
+            Profile::Vietnam => Self::Vietnam,
+            Profile::Ww2 => Self::Ww2,
+            Profile::Bfbc2 if package && lv.to_lowercase().starts_with("bc1_") => Self::Bfbc1,
+            Profile::Bfbc2 => Self::Bfbc2,
+        }
+    }
+
+    /// Its heading and toggle text.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Bfbc2 => "BFBC2",
+            Self::Bfbc1 => "BFBC1",
+            Self::Vietnam => "Vietnam",
+            Self::Ww2 => "WW2 / Pacific War",
+        }
+    }
+
+    /// Its badge.
+    #[must_use]
+    pub fn badge(self) -> &'static str {
+        match self {
+            Self::Bfbc2 => "BFBC2",
+            Self::Bfbc1 => "BFBC1",
+            Self::Vietnam => "VIETNAM",
+            Self::Ww2 => "WW2 - PACIFIC WAR",
+        }
+    }
 }
 
 /// The entries of `dir` in the order the file system lists them (Python's `os.listdir` / `glob` order).
@@ -120,6 +175,7 @@ pub fn list_levels(opfor: &Path) -> Vec<LevelInfo> {
             terrain_current: terrain_unpack(opfor, &lv).is_ok(),
             package: false,
             profile: Profile::of(&lv),
+            set: ContentSet::of(&lv, Profile::of(&lv), false),
             lv,
         })
         .collect();
@@ -131,6 +187,7 @@ pub fn list_levels(opfor: &Path) -> Vec<LevelInfo> {
             terrain_current: current,
             package: true,
             profile: p.profile,
+            set: ContentSet::of(&p.lv, p.profile, true),
             lv: p.lv,
         });
     }
