@@ -20,11 +20,18 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit')
 import navkit  # noqa: E402
-from bfbc2core import errors  # noqa: E402
+from bfbc2core import errors, native  # noqa: E402
 
 PYTHON = os.path.join(os.path.dirname(sys.executable), 'python.exe')   # console python for the steps
 if not os.path.isfile(PYTHON):
     PYTHON = sys.executable
+
+
+def navkit_command() -> list[str]:
+    """navkit.py's command line, unbuffered (each line shown as it comes): bfbc2.exe navkit when the binary is built
+    from this checkout (round O4; PYTHONUNBUFFERED set in the environment), else python -u navkit.py."""
+    cmd = native.cli_command('navkit')
+    return [PYTHON, '-u', cmd[1]] if cmd[0] == sys.executable else cmd
 
 STEPS = [('prepare', '1. Prepare', 'Unpack the level, extract its objects, choose the sampling box'),
          ('sample', '2. Sample in game', 'Starts the game twice to sample the level\'s collision (a few minutes)'),
@@ -181,7 +188,7 @@ class App:
         lv = self.level.get()
         if not lv or self.proc:
             return
-        args = [PYTHON, '-u', os.path.join(HERE, 'navkit.py'), cmd, lv]
+        args = [*navkit_command(), cmd, lv]
         try:
             if cmd in ('prepare', 'sample', 'all'):
                 args += self.area_args()
@@ -201,10 +208,11 @@ class App:
             return
         if cmd == 'restore' and not messagebox.askokcancel('NavKit', f'Put the original path data of {lv.upper()} back?'):
             return
-        self.write(f'\n> navkit.py {" ".join(args[3:])}\n')
+        self.write(f'\n> navkit.py {" ".join(args[args.index(cmd):])}\n')
         self.set_busy(True, f'Running {cmd} on {lv} ...')
         self.proc = subprocess.Popen(args, cwd=self.pr.root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                     text=True, errors='replace', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                                     text=True, errors='replace', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                                     env=dict(os.environ, PYTHONUNBUFFERED='1'))
         threading.Thread(target=self.reader, args=(self.proc, cmd), daemon=True).start()
 
     def reader(self, proc, cmd):
