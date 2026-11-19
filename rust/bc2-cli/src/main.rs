@@ -6,7 +6,9 @@
 //! bfbc2 fbrbtool unpack|pack|list|big ...     python bfbc2-fbrb-tool\fbrbtool.py ...
 //! bfbc2 dbxedit xml|edit|import|check|roundtrip|fixslots ...
 //!                                             python bfbc2-dbx-tools\dbxedit.py ...
-//! bfbc2 --source-hash                         the Rust sources' fingerprint it was built from (bfbc2core.native)
+//! bfbc2 aptcheck|aptrefs|bc2loc|exeref|crashreader|hpdtool|hkpack|convert|aimanim ...
+//!                                             round O2: python <the tool's .py> ... (src/pyproc.rs)
+//! bfbc2 --source-hash                        the Rust sources' fingerprint it was built from (bfbc2core.native)
 //! ```
 //!
 //! Without a subcommand (or with an unknown one) it prints its usage to stderr and exits 2.
@@ -14,8 +16,19 @@
 #![deny(unsafe_code)]
 
 mod clock;
+#[cfg(feature = "crash")]
+mod crash;
+#[cfg(feature = "menu")]
+mod menu;
+#[cfg(feature = "nav")]
+mod nav;
+#[allow(dead_code)] // the shared helpers; the O2 groups use them as they land
+mod pyfmt;
 mod pylog;
+#[allow(dead_code)]
+mod pyproc;
 mod pystdio;
+mod pyunprintable;
 
 use std::process::ExitCode;
 
@@ -31,6 +44,9 @@ const SOURCE_HASH: &str = match option_env!("BC2_SOURCE_HASH") {
 const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      fbrbtool unpack|pack|list|big ...   FbrbTool's commands (bfbc2-fbrb-tool\\fbrbtool.py)\n  \
      dbxedit xml|edit|import|check|roundtrip|fixslots ...   DbxEdit's commands (bfbc2-dbx-tools\\dbxedit.py)\n  \
+     aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
+     exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
+     hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
      --source-hash   the Rust sources' fingerprint this binary was built from\n";
 
 /// What one tool's run gave: exit code, stdout, stderr (lines ended by `\n`) and its log lines.
@@ -69,6 +85,20 @@ fn tool(name: &str) -> Option<(&'static str, Runner)> {
     }
 }
 
+/// Round O2's command lines (`pyproc`: each runs as its Python process would, and hands off to it where the Rust
+/// core refuses).
+fn py_tool(name: &str) -> Option<&'static pyproc::Tool> {
+    let groups: &[&[pyproc::Tool]] = &[
+        #[cfg(feature = "menu")]
+        menu::TOOLS,
+        #[cfg(feature = "crash")]
+        crash::TOOLS,
+        #[cfg(feature = "nav")]
+        nav::TOOLS,
+    ];
+    groups.iter().flat_map(|g| g.iter()).find(|t| t.name == name)
+}
+
 fn exit(code: i32) -> ExitCode {
     // the tools' codes are 0..=3; anything else is clamped as a process exit code would truncate it
     ExitCode::from(u8::try_from(code & 0xFF).unwrap_or(1))
@@ -86,6 +116,9 @@ fn main() -> ExitCode {
     if first == "--source-hash" && rest.is_empty() {
         pystdio::emit(&format!("{SOURCE_HASH}\n"), "");
         return exit(0);
+    }
+    if let Some(t) = py_tool(first) {
+        return pyproc::run(t, rest);
     }
     let Some((log_name, runner)) = tool(first) else {
         pystdio::emit("", &format!("bfbc2: unknown tool {first:?}\n{USAGE}"));
