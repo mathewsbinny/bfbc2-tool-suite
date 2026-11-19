@@ -24,6 +24,7 @@
     reason = "tree walks: d (the file), e / x / y (elements), a / b (the two files compared), t (a type)"
 )]
 
+pub mod culltool;
 pub mod culltree;
 pub mod diff;
 pub mod export;
