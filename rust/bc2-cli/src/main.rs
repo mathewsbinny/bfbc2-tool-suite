@@ -45,6 +45,12 @@ mod cull;
     allow(dead_code)
 )]
 mod fsx;
+// round O3: the caches' overall budget after a bundle read (fbrb._budget), for the tools that read bundles
+#[cfg(any(feature = "meshview", feature = "bf1943"))]
+mod budget;
+// round O3: meshview.Index from its cache (the meshview and bf1943 groups)
+#[cfg(any(feature = "meshview", feature = "bf1943"))]
+mod gameindex;
 #[cfg(feature = "graft")]
 mod graft;
 #[cfg_attr(

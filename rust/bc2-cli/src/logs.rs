@@ -102,6 +102,7 @@ fn key(p: &str) -> String {
 
 /// `prune_logs(top, keep, caps=caps)` (`clear_logs`: caps (0, 0, 0)). Err: the folder's lock or the archive could not
 /// be written (nothing deleted then), as the Python raises its `OSError`.
+#[allow(clippy::too_many_lines, reason = "the reference's one function, kept in one piece")]
 pub fn prune_logs(top: &str, keep: &[String], caps: Option<(u64, u64, u64)>) -> io::Result<Done> {
     let mut r = Done::default();
     if !bc2_pyrt::py::isdir(top) {

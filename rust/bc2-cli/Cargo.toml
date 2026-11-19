@@ -21,6 +21,8 @@ bc2-pyrt.workspace = true
 bc2-menu.workspace = true
 # round O3: the archives of pruned logs (deflate and CRC-32, as zipfile writes them)
 flate2.workspace = true
+# round O3: dbxcatalogue's cache signature (SHA-1, as hashlib)
+sha1_smol.workspace = true
 
 # the tool groups (rounds O2, O3; all on by default; a group alone builds with --no-default-features --features <group>)
 [features]

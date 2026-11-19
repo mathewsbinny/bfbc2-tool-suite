@@ -418,6 +418,7 @@ dependencies = [
  "bc2-pyrt",
  "flate2",
  "regex",
+ "sha1_smol",
  "windows-sys 0.61.2",
 ]
 
