@@ -169,6 +169,47 @@ def lazy_source(check):
         check(again.stats['from_index'] == 4 and again.stats['checked'] == 0 and again.entries == ref.entries and
               all(again.data(k) == ref.data(k) for k in ref.entries),
               'lazy source: a second open takes every bundle from the index, the same entries and bytes')
+        # round S1: the restart points are the process's - the second Source decompressed no payload whole
+        check(again.stats['indexed'] == 0 and again.stats['shared_points'] == 2 and src.stats['indexed'] == 2,
+              f'lazy source: a second Source reuses the process\'s restart points (made {src.stats["indexed"]} times '
+              f'by the first, {again.stats["indexed"]} by the second; shared {again.stats["shared_points"]})')
+        old_mb = os.environ.get(bi.RESTARTS_ENV)
+        try:
+            os.environ[bi.RESTARTS_ENV] = '0'
+            bi.RESTARTS.clear()
+            off = bi.Source(folder)
+            ok = all(off.data(k) == ref.data(k) for k in ref.entries)
+            check(ok and off.stats['indexed'] == 2 and bi.RESTARTS.held() == (0, 0),
+                  'lazy source: BF1943_RESTARTS_MB=0 keeps no points for the process (each Source makes its own)')
+            os.environ[bi.RESTARTS_ENV] = str(1.5 * bi.POINT_BYTES / 2 ** 20)    # room for about one point
+            bi.RESTARTS.clear()
+            small = bi.Source(folder)
+            ok = all(small.data(k) == ref.data(k) for k in ref.entries)
+            n, held = bi.RESTARTS.held()
+            check(ok and n <= 2 and held <= bi.RESTARTS.budget() + 1024,
+                  f'lazy source: the process\'s points kept within BF1943_RESTARTS_MB ({n} entries, {held} bytes)')
+        finally:
+            if old_mb is None:
+                os.environ.pop(bi.RESTARTS_ENV, None)
+            else:
+                os.environ[bi.RESTARTS_ENV] = old_mb
+            bi.RESTARTS.clear()
+        import threading
+        shared = [bi.Source(folder) for _ in range(4)]
+        errors: list[str] = []
+
+        def read_all(s, order):
+            for k in order:
+                if s.data(k) != ref.data(k):
+                    errors.append(k)
+        threads = [threading.Thread(target=read_all, args=(s, rng.sample(sorted(ref.entries), len(ref.entries))))
+                   for s in shared]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        check(not errors and sum(s.stats['indexed'] for s in shared) >= 2,
+              f'lazy source: four Sources reading at once on four threads get WholeSource\'s bytes ({len(errors)} wrong)')
         again = bi.Source(folder)                       # opened, nothing read yet (what is read is kept as read)
         big = os.path.join(folder, 'levels', 'a', 'big-00.fbrb')
         raw = bytearray(files['levels/a/big-00.fbrb'])

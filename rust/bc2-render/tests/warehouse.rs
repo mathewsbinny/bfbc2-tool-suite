@@ -84,6 +84,7 @@ fn warehouse_as_the_harness_draws_it() {
         height: 512,
         clear: [0.0; 4],
         draws: draw_calls(&instances, &values, &cam, [512, 512]),
+        ..Frame::default()
     };
     let r = dev.render(&frame, &cache, &std::collections::HashMap::new()).unwrap();
     let mask = r.mask();

@@ -1562,6 +1562,148 @@ def coverage_reference(db: ShaderDb, meshes: Iterable[str]) -> dict[str, int]:
     return count
 
 
+# ------------------------------------------------------------------------------------------------ coverage index
+# Round S1: choosing donor levels (OPFOR's WW2 install: the stock levels covering the meshes a level still lacks)
+# loaded every stock level's database for each WW2 level, only to count entry names. The index keeps those counts:
+# for each stock level's database, {every leading '/'-joined part of an entry's lower-case name: the entries under
+# it} - coverage(db, meshes) is then {m: prefixes.get(m, 0)}, for any meshes, without the database.
+
+COVER_VERSION = 1           # the index's layout and rules: a change makes every entry stale
+
+
+def cover_prefixes(db: ShaderDb) -> dict[str, int]:
+    """{lower-case prefix: entries} of db: for every entry, each '/'-joined leading part of its lower-case name (the
+    whole name too) counted once - coverage_reference's count of every possible mesh."""
+    count: dict[str, int] = {}
+    for name, _ in db.entries:
+        parts = name.lower().split('/')
+        for i in range(1, len(parts) + 1):
+            k = '/'.join(parts[:i])
+            count[k] = count.get(k, 0) + 1
+    return count
+
+
+def coverage_from(prefixes: dict[str, int], meshes: Iterable[str]) -> dict[str, int]:
+    """coverage(db, meshes) from db's cover_prefixes."""
+    return {m: prefixes.get(m, 0) for m in meshes}
+
+
+def cover_cache_dir() -> str | None:
+    """The index's folder: bfbc2core.caches 'shadercover' (BFBC2_SHADERCOVER_CACHE; 0: off)."""
+    from bfbc2core import caches
+    return caches.folder('shadercover')
+
+
+def _cover_key(bundle: str, dx: int) -> tuple[str, str]:
+    """(file name, key) of a level bundle's index entry: the bundle's identity (path, size, modification time), the
+    Dx and COVER_VERSION, hashed."""
+    st = os.stat(bundle)
+    key = repr((COVER_VERSION, os.path.normcase(os.path.abspath(bundle)), st.st_size, st.st_mtime_ns, dx))
+    return hashlib.sha1(key.encode('utf-8')).hexdigest()[:24] + '.pkl', key
+
+
+def _cover_load(folder: str | None, bundle: str, dx: int) -> dict[str, Any] | None:
+    import pickle
+    if folder is None:
+        return None
+    try:
+        name, key = _cover_key(bundle, dx)
+        p = os.path.join(folder, name)
+        with open(p, 'rb') as fh:
+            got = pickle.load(fh)
+        if not isinstance(got, dict) or got.get('key') != key:
+            return None
+        from bfbc2core import caches
+        caches.touch(p)
+        return got
+    except Exception:                                   # noqa: BLE001 - missing, old or damaged: made again
+        return None
+
+
+def _cover_save(folder: str | None, bundle: str, dx: int, row: dict[str, Any]) -> None:
+    import pickle
+    if folder is None:
+        return
+    try:
+        from bfbc2core import atomicio, caches
+        name, key = _cover_key(bundle, dx)
+        os.makedirs(folder, exist_ok=True)
+        atomicio.write_bytes(os.path.join(folder, name), pickle.dumps(dict(row, key=key),
+                                                                     protocol=pickle.HIGHEST_PROTOCOL))
+        caches.maybe_prune('shadercover', folder)
+    except OSError:
+        pass                                            # only a cache: the next run loads the database again
+
+
+COVER_STATS = {'index_hits': 0, 'loaded': 0}
+
+
+def level_cover_prefixes(levels: Iterable[str], dx: int = 9, opfor: str | None = None,
+                         cache: bool = True) -> Iterator[tuple[str, dict[str, int] | ShaderDbError]]:
+    """(level, cover_prefixes of its Dx<dx> database, or the ShaderDbError load_levels gives for it) for each level,
+    in order: from the index where the level's bundle is unchanged since it was indexed, the others loaded
+    (load_levels: several bundles at a time) and indexed. A bundle that cannot be read raises as load_levels does."""
+    levels = list(levels)
+    root = find_opfor(opfor) if levels else ''
+    bundles = level_bundles(root) if levels else {}
+    folder = cover_cache_dir() if cache else None
+    got: dict[str, dict[str, int] | ShaderDbError] = {}
+    todo: list[str] = []
+    for lv in levels:
+        b = bundles.get(lv.lower())
+        row = _cover_load(folder, b, dx) if b is not None else None
+        if row is None:
+            todo.append(lv)
+        elif 'error' in row:
+            got[lv] = ShaderDbError(row['error'])
+            COVER_STATS['index_hits'] += 1
+        else:
+            got[lv] = row['prefixes']
+            COVER_STATS['index_hits'] += 1
+    for lv, read in load_levels(todo, [dx], opfor):
+        db = read[dx]
+        COVER_STATS['loaded'] += 1
+        b = bundles.get(lv.lower())
+        if isinstance(db, ShaderDbError):
+            got[lv] = db
+            if b is not None and not str(db).startswith('unknown level'):
+                _cover_save(folder, b, dx, {'error': str(db)})
+            continue
+        got[lv] = prefixes = cover_prefixes(db)
+        if b is not None:
+            _cover_save(folder, b, dx, {'label': db.label, 'prefixes': prefixes})
+    for lv in levels:
+        yield lv, got[lv]
+
+
+def level_coverage(levels: Iterable[str], meshes: Iterable[str], dx: int = 9, opfor: str | None = None,
+                   cache: bool = True) -> Iterator[tuple[str, dict[str, int] | ShaderDbError]]:
+    """(level, coverage(its Dx<dx> database, meshes)) for each level - what coverage gives on load_levels' databases
+    (the ShaderDbError in place of a database load_levels could not make) - through the coverage index
+    (level_cover_prefixes): an unchanged stock level's database is not loaded at all."""
+    meshes = list(meshes)
+    for lv, p in level_cover_prefixes(levels, dx, opfor, cache):
+        yield lv, p if isinstance(p, ShaderDbError) else coverage_from(p, meshes)
+
+
+def donor_levels(levels: Iterable[str], need: Iterable[str], dx: int = 9, opfor: str | None = None,
+                 cache: bool = True) -> list[str]:
+    """The donor levels for the meshes in need (lower case): in the given order, each level whose database has an
+    entry for a needed mesh no earlier donor had - OPFOR's WW2 install's choice (the fewest that cover the most, in
+    level order), from the coverage index. Levels without a Dx<dx> database are skipped."""
+    need = list(need)
+    donors: list[str] = []
+    have: set[str] = set()
+    for lv, cover in level_coverage(levels, need, dx, opfor, cache):
+        if isinstance(cover, ShaderDbError):
+            continue
+        got = {n for n, c in cover.items() if c} - have
+        if got:
+            donors.append(lv)
+            have |= got
+    return donors
+
+
 def cmd_cover(a: argparse.Namespace) -> int:
     db, _ = load(a.res, a.dx, a.opfor)
     meshes = level_meshes(a.level)
