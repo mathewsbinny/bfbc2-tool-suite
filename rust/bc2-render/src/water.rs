@@ -188,6 +188,7 @@ fn water_draw(files: &Files, db: &Db, entry: &str, envmap: &str, cache: &mut Tex
         class: material::draw_class(state.as_ref(), &ps.code),
         state,
         centre: None,
+        bounds: None,
     })
 }
 

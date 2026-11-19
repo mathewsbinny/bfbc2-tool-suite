@@ -390,6 +390,9 @@ pub struct Draw {
     pub state: Option<RenderState>,
     /// The part's mean vertex position (blended draws' order).
     pub centre: Option<[f32; 3]>,
+    /// The part's position bounds in the mesh's space (before its bones), for culling; `None`: not known (drawn
+    /// whatever the camera sees).
+    pub bounds: Option<([f32; 3], [f32; 3])>,
     /// [`OPAQUE`], [`TESTED`] or [`BLENDED`].
     pub class: u8,
 }
@@ -675,11 +678,16 @@ pub fn prepare_set(
         let pos = positions(&ldata, md.data, p, layout);
         let mut centre = [0.0f32; 3];
         let mut count = 0.0f32;
+        let (mut plo, mut phi) = ([f32::MAX; 3], [f32::MIN; 3]);
         for q in pos.iter().filter(|q| q.iter().all(|v| v.is_finite())) {
             for (((l, h), c), v) in lo.iter_mut().zip(hi.iter_mut()).zip(centre.iter_mut()).zip(q) {
                 *l = l.min(*v);
                 *h = h.max(*v);
                 *c += v;
+            }
+            for ((l, h), v) in plo.iter_mut().zip(phi.iter_mut()).zip(q) {
+                *l = l.min(*v);
+                *h = h.max(*v);
             }
             count += 1.0;
         }
@@ -714,6 +722,7 @@ pub fn prepare_set(
             vs_samplers: Vec::new(),
             state,
             centre: (count > 0.0).then(|| centre.map(|v| v / count)),
+            bounds: (count > 0.0).then_some((plo, phi)),
             class: draw_class(state.as_ref(), &ps.code),
         };
         let records: HashMap<u32, String> = query::block_textures(block2, false)

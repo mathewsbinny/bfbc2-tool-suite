@@ -78,8 +78,24 @@ pub struct World {
     pub notes: Vec<String>,
     /// What is drawn.
     pub counts: Counts,
+    /// Each object's place in the placed list it was made from (`objects[k]` is `placed[object_of[k]]`).
+    pub object_of: Vec<usize>,
+    /// Each object's identity (its GUID, or its group file and item).
+    pub object_keys: Vec<String>,
     patches: HashMap<(usize, usize), Arc<Prepared>>,
     no_raw: HashMap<String, crate::terrain::RawTexture>,
+    meshes: HashMap<(String, Option<String>), Option<Arc<Prepared>>>,
+    blueprints: HashMap<String, Option<String>>,
+    envmap: String,
+}
+
+/// A placed thing's identity: its GUID (lower case), or a group member's group file and item.
+#[must_use]
+pub fn placed_key(p: &Placed) -> String {
+    match &p.group {
+        Some((g, k)) => format!("{}#{k}", g.to_lowercase()),
+        None => p.guid.to_lowercase(),
+    }
 }
 
 /// The blueprint's `Mesh` reference (`path/guid` -> path), read from its partition.
@@ -101,7 +117,71 @@ impl World {
     /// # Errors
     /// The level's database or weather cannot be read.
     pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], weather: Option<&str>) -> Result<Self, String> {
-        let files = Files::new(&level_folders(opfor, lv));
+        Self::load_from(Files::new(&level_folders(opfor, lv)), opfor, lv, level, placed, weather)
+    }
+
+    /// Loads a level that lives only in the game copy's `game\Package` (Vietnam, the Pacific War, the other
+    /// Package-only levels; round R5c) from its bundles in place ([`Files::bundles`] over
+    /// [`crate::files::package_stack`]): [`World::load_from`] in rounds, each round's missing files read from the
+    /// bundles (one streamed pass a bundle), until nothing more is asked for. Nothing is written to disk.
+    ///
+    /// # Errors
+    /// The registry does not name the level, a bundle cannot be read, or the level's database or weather cannot be
+    /// read.
+    pub fn load_package(
+        opfor: &Path,
+        lv: &str,
+        level: &str,
+        placed: &[Placed],
+        weather: Option<&str>,
+    ) -> Result<Self, String> {
+        let stack = crate::files::package_stack(&opfor.join("game"), lv)
+            .ok_or_else(|| format!("{lv}: not in the game's bundle registry (package.mft), or a bundle is missing"))?;
+        let files = Files::bundles(&stack)?;
+        let mut rounds = 0;
+        loop {
+            rounds += 1;
+            let made = Self::load_from(files.clone(), opfor, lv, level, placed, weather);
+            let missed = files.missed();
+            if missed.is_empty() || rounds >= 40 {
+                let mut w = made?;
+                if !missed.is_empty() {
+                    w.notes
+                        .push(format!("{} files still unread after {rounds} rounds", missed.len()));
+                }
+                w.notes.push(format!(
+                    "read from {} bundles in place ({}): {} rounds, {:.0} MB",
+                    stack.len(),
+                    stack
+                        .iter()
+                        .filter_map(|p| Some(format!(
+                            "{}/{}",
+                            p.parent()?.file_name()?.to_string_lossy(),
+                            p.file_name()?.to_string_lossy()
+                        )))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    rounds,
+                    files.bundled_bytes() as f64 / 1e6
+                ));
+                return Ok(w);
+            }
+            files.fetch(&missed)?;
+        }
+    }
+
+    /// [`World::load`] from a set of files (`opfor`: where the post shaders' startup bundle is).
+    ///
+    /// # Errors
+    /// The level's database or weather cannot be read.
+    pub fn load_from(
+        files: Files,
+        opfor: &Path,
+        lv: &str,
+        level: &str,
+        placed: &[Placed],
+        weather: Option<&str>,
+    ) -> Result<Self, String> {
         let lv = lv.to_lowercase();
         let db = Db::parse(
             &files
@@ -146,50 +226,7 @@ impl World {
             .clone()
             .unwrap_or_else(|| "Textures/Sky/Sky_Beach_Generic_RGBA16f".into());
         let mut textures = TextureFiles::new();
-        let mut meshes: HashMap<(String, Option<String>), Option<Arc<Prepared>>> = HashMap::new();
-        let mut blueprints: HashMap<String, Option<String>> = HashMap::new();
-        let mut objects = Vec::new();
         let mut counts = Counts::default();
-        for p in placed {
-            if !p.blueprint.starts_with("objects/") {
-                continue;
-            }
-            let member = p.group.as_ref().and_then(|(f, k)| placements.member(f, *k));
-            let set = match &p.group {
-                Some(_) => member.and_then(|m| m.shader_set.clone()),
-                None => placements.objects.get(&p.guid.to_lowercase()).cloned(),
-            };
-            let mesh = member.and_then(|m| m.mesh.clone()).or_else(|| {
-                blueprints
-                    .entry(p.blueprint.clone())
-                    .or_insert_with(|| mesh_of(&files, &p.blueprint))
-                    .clone()
-            });
-            let Some(mesh) = mesh else { continue };
-            let prepared = meshes
-                .entry((mesh.to_lowercase(), set.clone()))
-                .or_insert_with(|| {
-                    let pr = material::prepare_set(&files, &db, &mesh, set.as_deref(), &envmap, &mut textures);
-                    notes.extend(pr.notes.iter().map(|n| format!("{mesh}: {n}")));
-                    (!pr.draws.is_empty()).then(|| Arc::new(pr))
-                })
-                .clone();
-            if let Some(prepared) = prepared {
-                if p.group.is_some() {
-                    counts.members += 1;
-                } else {
-                    counts.objects += 1;
-                }
-                if set.is_some() {
-                    counts.overridden += 1;
-                }
-                objects.push(Instance {
-                    prepared,
-                    world: frame::from_rows(&p.rows),
-                });
-            }
-        }
-        counts.meshes = meshes.values().filter(|m| m.is_some()).count();
         // the level's own terrain (its TerrainEntityData), else the first visual terrain its files hold
         let terrain_name = placements.terrain.clone().or_else(|| {
             files
@@ -246,7 +283,32 @@ impl World {
                 None
             }
         };
-        let (o, g) = placements.override_counts();
+        let mut world = Self {
+            files,
+            db,
+            textures,
+            light,
+            post,
+            background,
+            objects: Vec::new(),
+            terrain,
+            water,
+            strips,
+            post_shaders,
+            placements,
+            notes: Vec::new(),
+            counts,
+            object_of: Vec::new(),
+            object_keys: Vec::new(),
+            patches: HashMap::new(),
+            no_raw: HashMap::new(),
+            meshes: HashMap::new(),
+            blueprints: HashMap::new(),
+            envmap,
+        };
+        notes.extend(world.set_placed(placed));
+        let counts = world.counts;
+        let (o, g) = world.placements.override_counts();
         notes.push(format!(
             "{} objects and {} group members drawn ({} meshes; {} drawn with a shader-set override, of {} + {} named), \
              {} strip draws, {} water draws, terrain {}",
@@ -258,26 +320,165 @@ impl World {
             g,
             counts.strips,
             counts.water,
-            if terrain.is_some() { "drawn" } else { "not drawn" }
+            if world.terrain.is_some() { "drawn" } else { "not drawn" }
         ));
-        Ok(Self {
-            files,
-            db,
-            textures,
-            light,
-            post,
-            background,
-            objects,
-            terrain,
-            water,
-            strips,
-            post_shaders,
-            placements,
-            notes,
-            counts,
-            patches: HashMap::new(),
-            no_raw: HashMap::new(),
-        })
+        world.notes = notes;
+        Ok(world)
+    }
+
+    /// The placed objects and group members made again from a placed list (an edit: moved, added, removed
+    /// things), each mesh prepared once and kept for later edits. Returns what was found preparing new meshes.
+    pub fn set_placed(&mut self, placed: &[Placed]) -> Vec<String> {
+        let mut notes = Vec::new();
+        let mut objects = Vec::new();
+        let mut object_of = Vec::new();
+        let mut keys = Vec::new();
+        let mut counts = Counts {
+            strips: self.counts.strips,
+            water: self.counts.water,
+            ..Counts::default()
+        };
+        for (n, p) in placed.iter().enumerate() {
+            if !p.blueprint.starts_with("objects/") {
+                continue;
+            }
+            let member = p.group.as_ref().and_then(|(f, k)| self.placements.member(f, *k));
+            let set = match &p.group {
+                Some(_) => member.and_then(|m| m.shader_set.clone()),
+                None => self.placements.objects.get(&p.guid.to_lowercase()).cloned(),
+            };
+            let files = &self.files;
+            let mesh = member.and_then(|m| m.mesh.clone()).or_else(|| {
+                self.blueprints
+                    .entry(p.blueprint.clone())
+                    .or_insert_with(|| mesh_of(files, &p.blueprint))
+                    .clone()
+            });
+            let Some(mesh) = mesh else { continue };
+            let (db, envmap, textures) = (&self.db, &self.envmap, &mut self.textures);
+            let prepared = self
+                .meshes
+                .entry((mesh.to_lowercase(), set.clone()))
+                .or_insert_with(|| {
+                    let pr = material::prepare_set(files, db, &mesh, set.as_deref(), envmap, textures);
+                    notes.extend(pr.notes.iter().map(|n| format!("{mesh}: {n}")));
+                    (!pr.draws.is_empty()).then(|| Arc::new(pr))
+                })
+                .clone();
+            if let Some(prepared) = prepared {
+                if p.group.is_some() {
+                    counts.members += 1;
+                } else {
+                    counts.objects += 1;
+                }
+                if set.is_some() {
+                    counts.overridden += 1;
+                }
+                objects.push(Instance {
+                    prepared,
+                    world: frame::from_rows(&p.rows),
+                });
+                object_of.push(n);
+                keys.push(placed_key(p));
+            }
+        }
+        counts.meshes = self.meshes.values().filter(|m| m.is_some()).count();
+        self.objects = objects;
+        self.object_of = object_of;
+        self.object_keys = keys;
+        self.counts = counts;
+        notes
+    }
+
+    /// The patch under a point (the terrain is drawn around the camera's target), if any.
+    #[must_use]
+    pub fn patch_under(&self, target: [f64; 3]) -> Option<(usize, usize)> {
+        self.terrain.as_ref()?.patch_at(target[0], target[2])
+    }
+
+    /// The live list's sources for a camera looking at `target`, in the order of [`World::instances`]: the objects
+    /// (each picked as its place in the placed list plus one), the terrain patches around `target`, the strips, the
+    /// water.
+    pub fn sources(&mut self, target: [f64; 3]) -> Vec<crate::live::Source> {
+        use crate::live::{Key, Source};
+        let mut out: Vec<Source> = self
+            .objects
+            .iter()
+            .zip(&self.object_keys)
+            .zip(&self.object_of)
+            .map(|((o, k), n)| Source {
+                prepared: Arc::clone(&o.prepared),
+                world: o.world,
+                key: Key::Object(k.clone()),
+                pick: *n as u32 + 1,
+            })
+            .collect();
+        if let Some(t) = &self.terrain
+            && let Some((px, pz)) = t.patch_at(target[0], target[2])
+        {
+            for j in pz.saturating_sub(TERRAIN_RADIUS)..=pz + TERRAIN_RADIUS {
+                for i in px.saturating_sub(TERRAIN_RADIUS)..=px + TERRAIN_RADIUS {
+                    let p = self
+                        .patches
+                        .entry((i, j))
+                        .or_insert_with(|| Arc::new(t.patch(i, j).unwrap_or_default()));
+                    if !p.draws.is_empty() {
+                        out.push(Source {
+                            prepared: Arc::clone(p),
+                            world: frame::IDENTITY,
+                            key: Key::Patch(i, j),
+                            pick: 0,
+                        });
+                    }
+                }
+            }
+        }
+        for (k, s) in self.strips.iter().enumerate() {
+            out.push(Source {
+                prepared: Arc::clone(s),
+                world: frame::IDENTITY,
+                key: Key::Strip(k),
+                pick: 0,
+            });
+        }
+        if let Some(w) = &self.water {
+            out.push(Source {
+                prepared: Arc::clone(w),
+                world: frame::IDENTITY,
+                key: Key::Water,
+                pick: 0,
+            });
+        }
+        out
+    }
+
+    /// The engine's passes of a frame: the depth pass the water reads, and DICE's post-process when `post`.
+    ///
+    /// # Errors
+    /// A post shader is missing.
+    pub fn passes(
+        &self,
+        cam: &Camera,
+        size: [u32; 2],
+        post: bool,
+    ) -> Result<(Option<post::Pass>, Vec<post::Pass>), String> {
+        let Some(s) = &self.post_shaders else {
+            return Ok((None, Vec::new()));
+        };
+        let depth = Some(post::unproject(s, cam, size)?);
+        let chain = if post {
+            post::chain(s, &self.post, size)?
+        } else {
+            Vec::new()
+        };
+        Ok((depth, chain))
+    }
+
+    /// The clear colour of a frame.
+    #[must_use]
+    pub fn clear(&self) -> [f32; 4] {
+        let b = self.background;
+        [b[0], b[1], b[2], 0.0]
     }
 
     /// The instances of a frame: the objects, the strips, the water and the terrain patches around `target`.

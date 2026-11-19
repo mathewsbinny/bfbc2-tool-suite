@@ -1,22 +1,31 @@
-//! The 3D view's "Game-accurate" mode (rounds R5 and R5b, `EDITOR_ARCHITECTURE.md` 3.11): the level drawn as BFBC2's
-//! Direct3D 11 renderer draws it - DICE's own compiled shaders, textures, material constants and render states from
-//! the level's `Dx11_Single.res`, under its weather's light, then DICE's own post-process (`bc2_render`) - off screen,
-//! then shown in the view as an image.
+//! The 3D view's "Game-accurate" mode (rounds R5, R5b and R5c, `EDITOR_ARCHITECTURE.md` 3.11): the level drawn as
+//! BFBC2's Direct3D 11 renderer draws it - DICE's own compiled shaders, textures, material constants and render
+//! states from the level's `Dx11_Single.res`, under its weather's light, then DICE's own post-process (`bc2_render`).
 //!
 //! Drawn ([`bc2_render::world::World`]): the placed objects and the model groups' members with their shader-set
 //! overrides, the terrain patches around the camera's target, the baked road and decal strips, the visual water;
-//! then DICE's exposure, bloom and filmic tonemap passes (the harness's CPU tonemap where the post shaders cannot be
-//! read). The selection, labels and gizmo stay egui's overlays. The frame is drawn again only when the camera or the
-//! view's size changes. On a machine without Direct3D 11 the mode says why and the view stays as it was.
+//! then DICE's exposure, bloom and filmic tonemap passes.
+//!
+//! Round R5c made it interactive ([`bc2_render::live`]): the draw list is built once and kept; a frame writes only
+//! the camera's values and leaves out what the camera cannot see (the same picture). Edits to the scene (moved,
+//! turned, added, removed or duplicated objects) re-plan only those objects. The finished frame goes to egui's
+//! device through a shared texture (no read back; `BC2_GAMEVIEW_COPY=1` or [`GameView::copy`] reads it back and
+//! uploads it instead, as before). A click picks the object the game frame shows under the pointer, and the
+//! selection is outlined on the game frame with its depth (seen edges solid, hidden ones faint); the gizmo and the
+//! labels stay egui's overlays above it.
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::time::Instant;
 
 use bc2_render::files::Files;
 use bc2_render::frame;
+use bc2_render::live::{Live, Options};
 use bc2_render::world::{Placed, World};
 use bc2_scene::scene::{Scene, Source};
 use eframe::egui::{self, Color32, ColorImage, Pos2, Rect, TextureHandle, TextureOptions};
+use eframe::egui_wgpu::wgpu;
 
 use crate::camera::Camera;
 
@@ -32,37 +41,36 @@ impl Device {
     fn new(_warp: bool) -> Result<Self, String> {
         Err("the game-accurate view needs Direct3D 11 (Windows)".into())
     }
-
-    fn render(
-        &mut self,
-        _frame: &frame::Frame,
-        _files: &bc2_render::material::TextureFiles,
-        _raw: &std::collections::HashMap<String, bc2_render::terrain::RawTexture>,
-    ) -> Result<frame::Rendered, String> {
-        Err("the game-accurate view needs Direct3D 11 (Windows)".into())
-    }
 }
 
 /// Patches drawn on each side of the patch under the camera's target.
 pub const TERRAIN_RADIUS: usize = bc2_render::world::TERRAIN_RADIUS;
 /// The far plane, metres.
 pub const FAR: f64 = 4000.0;
+/// The environment variable that turns the shared texture off (the frame read back and uploaded instead).
+pub const COPY_ENV: &str = "BC2_GAMEVIEW_COPY";
+/// The selection's outline on the game frame (the view's selection orange): seen edges, hidden edges.
+pub const OUTLINE: ([f32; 4], [f32; 4]) = ([1.0, 0.45, 0.0, 1.0], [1.0, 0.45, 0.0, 0.4]);
 
 /// What the last frame cost, in seconds.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Timings {
-    /// Building the draw list (constants per draw).
+    /// Building the frame's draws (the camera's values, culling, the blended draws' order).
     pub build: f64,
-    /// Making the draw calls.
+    /// Making the draw calls (constant upload included).
     pub submit: f64,
-    /// Waiting for the GPU and reading the frame back.
+    /// Waiting for the GPU (the frame finished and shared), or the read back of the copy fallback.
     pub readback: f64,
-    /// The post-process: DICE's passes' submit (their GPU time is in `readback`), or the CPU tonemap.
+    /// The post-process passes' submit.
     pub tonemap: f64,
-    /// Handing the picture to egui.
+    /// Handing the picture to egui (opening the shared textures, or the upload).
     pub upload: f64,
     /// Draw calls.
     pub draws: usize,
+    /// Draws in the whole list.
+    pub listed: usize,
+    /// The frame went through the shared texture.
+    pub shared: bool,
 }
 
 impl Timings {
@@ -73,12 +81,31 @@ impl Timings {
     }
 }
 
+/// The shared textures opened on egui's device.
+struct Opened {
+    generation: u32,
+    textures: Vec<(wgpu::Texture, egui::TextureId)>,
+}
+
 /// The level, ready to draw the game's way.
 pub struct GameView {
     world: World,
+    live: Live,
     device: Device,
     texture: Option<TextureHandle>,
-    drawn: Option<([u64; 8], [u32; 2])>,
+    opened: Option<Opened>,
+    shown: Option<egui::TextureId>,
+    drawn: Option<u64>,
+    scene: Option<u64>,
+    /// The patch the terrain window is around, when the live list has been given its sources.
+    window: Option<(usize, usize)>,
+    sourced: bool,
+    /// Each placed thing's entity (the placed list is the scene's entities with a blueprint and a transform).
+    entity_of: Vec<usize>,
+    /// Read the frame back and upload it (no shared texture).
+    pub copy: bool,
+    /// Leave out what the camera cannot see (the same picture; off for proofs).
+    pub cull: bool,
     /// The last frame's costs.
     pub timings: Timings,
     /// Loading took (seconds).
@@ -89,25 +116,110 @@ pub struct GameView {
     pub error: Option<String>,
 }
 
-/// The scene's placed things as the renderer takes them: the level partition's instances (by GUID) and the group
-/// members (by group file and item).
+/// The scene's placed things as the renderer takes them - the level partition's instances (by GUID) and the group
+/// members (by group file and item) - and each one's entity.
 #[must_use]
-pub fn placed(scene: &Scene) -> Vec<Placed> {
+pub fn placed_entities(scene: &Scene) -> (Vec<Placed>, Vec<usize>) {
     scene
         .entities
         .iter()
         .filter_map(|e| {
-            Some(Placed {
-                guid: e.guid.clone(),
-                blueprint: e.blueprint.clone()?,
-                rows: e.matrix?,
-                group: match e.source {
-                    Source::GroupMember { item, .. } => Some((e.group.clone()?, item)),
-                    Source::Instance { .. } => None,
+            Some((
+                Placed {
+                    guid: e.guid.clone(),
+                    blueprint: e.blueprint.clone()?,
+                    rows: e.matrix?,
+                    group: match e.source {
+                        Source::GroupMember { item, .. } => Some((e.group.clone()?, item)),
+                        Source::Instance { .. } => None,
+                    },
                 },
-            })
+                e.index,
+            ))
         })
-        .collect()
+        .unzip()
+}
+
+/// The scene's placed things as the renderer takes them.
+#[must_use]
+pub fn placed(scene: &Scene) -> Vec<Placed> {
+    placed_entities(scene).0
+}
+
+/// What the placed things of a scene are, as a number: changes when one is moved, added or removed.
+fn fingerprint(scene: &Scene) -> u64 {
+    let mut h = DefaultHasher::new();
+    for e in &scene.entities {
+        if let (Some(b), Some(m)) = (&e.blueprint, &e.matrix) {
+            e.index.hash(&mut h);
+            e.guid.hash(&mut h);
+            b.hash(&mut h);
+            e.group.hash(&mut h);
+            for v in m {
+                v.to_bits().hash(&mut h);
+            }
+        }
+    }
+    h.finish()
+}
+
+/// The graphics features the game-accurate view asks of egui's device when the adapter has them: Vulkan's
+/// external memory (the shared frame).
+#[must_use]
+pub fn device_features(adapter: &wgpu::Adapter) -> wgpu::Features {
+    adapter.features() & wgpu::Features::VULKAN_EXTERNAL_MEMORY_WIN32
+}
+
+/// Opens a Direct3D 11 texture shared by NT handle on egui's device (Vulkan, with external memory).
+#[cfg(windows)]
+#[allow(
+    unsafe_code,
+    reason = "wgpu's hal interop: a Vulkan image on the Direct3D 11 texture's memory"
+)]
+fn open_shared(device: &wgpu::Device, handle: isize, size: [u32; 2]) -> Option<wgpu::Texture> {
+    use wgpu::hal;
+    if !device.features().contains(wgpu::Features::VULKAN_EXTERNAL_MEMORY_WIN32) {
+        return None;
+    }
+    let extent = wgpu::Extent3d {
+        width: size[0],
+        height: size[1],
+        depth_or_array_layers: 1,
+    };
+    let hal_desc = hal::TextureDescriptor {
+        label: Some("game-accurate view (shared)"),
+        size: extent,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUses::RESOURCE,
+        memory_flags: hal::MemoryFlags::empty(),
+        view_formats: Vec::new(),
+    };
+    let desc = wgpu::TextureDescriptor {
+        label: Some("game-accurate view (shared)"),
+        size: extent,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    };
+    // SAFETY: the handle is an NT handle of a live R8G8B8A8_UNORM texture of `size` (bc2_render's `share`), kept
+    // open by the Direct3D device for as long as this view lives; the image is wrapped as uninitialised, so wgpu
+    // moves it out of its undefined layout itself; the Direct3D device has finished writing (an event query waited
+    // for) before egui samples it, and writes the three textures in turn
+    unsafe {
+        let hal_tex = {
+            let hal_dev = device.as_hal::<hal::api::Vulkan>()?;
+            hal_dev
+                .texture_from_d3d11_shared_handle(windows::Win32::Foundation::HANDLE(handle as _), &hal_desc)
+                .ok()?
+        };
+        Some(device.create_texture_from_hal::<hal::api::Vulkan>(hal_tex, &desc, wgpu::TextureUses::UNINITIALIZED))
+    }
 }
 
 impl GameView {
@@ -124,13 +236,35 @@ impl GameView {
             .iter()
             .filter_map(|e| e.blueprint.as_deref())
             .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)));
-        let world = World::load(opfor, lv, &scene.name, &placed(scene), weather)?;
+        let (placed, entity_of) = placed_entities(scene);
+        // a level of game\Package only (Vietnam, the Pacific War ...): read from its bundles in place (round R5c)
+        let package = !opfor
+            .join("work")
+            .join("levels")
+            .join(lv.to_lowercase())
+            .join("dist")
+            .is_dir()
+            && crate::package::find(opfor, lv).is_some();
+        let world = if package {
+            World::load_package(opfor, lv, &scene.name, &placed, weather)?
+        } else {
+            World::load(opfor, lv, &scene.name, &placed, weather)?
+        };
         Ok(Self {
             notes: world.notes.clone(),
+            live: Live::new(&world.light),
             world,
             device,
             texture: None,
+            opened: None,
+            shown: None,
             drawn: None,
+            scene: Some(fingerprint(scene)),
+            window: None,
+            sourced: false,
+            entity_of,
+            copy: std::env::var_os(COPY_ENV).is_some(),
+            cull: true,
             timings: Timings::default(),
             load_seconds: t.elapsed().as_secs_f64(),
             error: None,
@@ -153,64 +287,257 @@ impl GameView {
         }
     }
 
-    /// Draws the frame for a camera (when it or the size changed) and returns the picture's texture.
-    pub fn frame(&mut self, ctx: &egui::Context, camera: &Camera, size: [u32; 2]) -> Option<egui::TextureId> {
-        let key = [
-            camera.target[0].to_bits(),
-            camera.target[1].to_bits(),
-            camera.target[2].to_bits(),
-            camera.yaw.to_bits(),
-            camera.pitch.to_bits(),
-            camera.distance.to_bits(),
-            camera.fov.to_bits(),
-            0,
-        ];
-        if self.drawn != Some((key, size)) {
-            self.drawn = Some((key, size));
-            match self.draw(ctx, camera, size) {
+    /// Follows the scene: its placed things moved, added or removed since the last look are drawn so (only those
+    /// planned again). Returns whether anything changed.
+    pub fn sync(&mut self, scene: &Scene) -> bool {
+        let fp = fingerprint(scene);
+        if self.scene == Some(fp) {
+            return false;
+        }
+        self.scene = Some(fp);
+        let (placed, entity_of) = placed_entities(scene);
+        self.notes.extend(self.world.set_placed(&placed));
+        self.entity_of = entity_of;
+        // the instances again (the unchanged ones kept as planned) at the next frame
+        self.sourced = false;
+        self.drawn = None;
+        true
+    }
+
+    /// The live list follows the terrain window (the patches around the target) and the objects.
+    fn update_sources(&mut self, target: [f64; 3]) {
+        let under = self.world.patch_under(target);
+        if !self.sourced || self.window != under {
+            self.sourced = true;
+            self.window = under;
+            let sources = self.world.sources(target);
+            self.live.set(sources);
+        }
+    }
+
+    fn key(camera: &Camera, size: [u32; 2], selection: &[usize], cull: bool) -> u64 {
+        let mut h = DefaultHasher::new();
+        for v in camera.target {
+            v.to_bits().hash(&mut h);
+        }
+        for v in [camera.yaw, camera.pitch, camera.distance, camera.fov] {
+            v.to_bits().hash(&mut h);
+        }
+        size.hash(&mut h);
+        selection.hash(&mut h);
+        cull.hash(&mut h);
+        h.finish()
+    }
+
+    /// Draws the frame for a camera (when it, the size, the selection or the scene changed) and returns the
+    /// picture's texture.
+    pub fn frame(
+        &mut self,
+        ctx: &egui::Context,
+        gpu: Option<&crate::app::GpuCtx>,
+        camera: &Camera,
+        size: [u32; 2],
+        selection: &[usize],
+    ) -> Option<egui::TextureId> {
+        let key = Self::key(camera, size, selection, self.cull);
+        if self.drawn != Some(key) {
+            self.drawn = Some(key);
+            match self.draw(ctx, gpu, camera, size, selection) {
                 Ok(()) => self.error = None,
                 Err(e) => self.error = Some(e),
             }
         }
-        self.texture.as_ref().map(TextureHandle::id)
+        self.shown
     }
 
-    fn draw(&mut self, ctx: &egui::Context, camera: &Camera, size: [u32; 2]) -> Result<(), String> {
+    /// The pick numbers (the placed list's places plus one) of entities.
+    fn picks(&self, entities: &[usize]) -> Vec<u32> {
+        self.entity_of
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| entities.contains(e))
+            .map(|(k, _)| k as u32 + 1)
+            .collect()
+    }
+
+    #[cfg(windows)]
+    fn draw(
+        &mut self,
+        ctx: &egui::Context,
+        gpu: Option<&crate::app::GpuCtx>,
+        camera: &Camera,
+        size: [u32; 2],
+        selection: &[usize],
+    ) -> Result<(), String> {
         let t = Instant::now();
         let cam = Self::camera(camera, size);
-        let f = self.world.frame(&cam, camera.target, size, true)?;
+        self.update_sources(camera.target);
+        self.live.build(&cam, size, Options { cull: self.cull });
+        let (depth, post) = self.world.passes(&cam, size, true)?;
         let build = t.elapsed().as_secs_f64();
-        let r = self.device.render(&f, &self.world.textures, self.world.raw())?;
+        let raw = self.world.raw();
+        let st = self.device.render_live(
+            &self.live,
+            size,
+            self.world.clear(),
+            depth.as_ref(),
+            &post,
+            &self.world.textures,
+            raw,
+        )?;
+        let out = post
+            .last()
+            .ok_or("the post-process shaders are missing (startup-00.fbrb): no picture to show")?;
+        let picks = self.picks(selection);
+        if !picks.is_empty() {
+            self.device
+                .outline(&self.live, &picks, out, OUTLINE.0, OUTLINE.1, &self.world.textures, raw)?;
+        }
         let t2 = Instant::now();
-        let ldr = if r.ldr.is_empty() {
-            let w = &self.world;
-            let bg = bc2_render::tonemap::map(w.background, 1.0, &w.post).map(|v| (v * 255.0).round() as u8);
-            bc2_render::tonemap::tonemap(&r.hdr, &r.mask(), &w.post, bg).0
+        let mut shared = false;
+        let mut upload = 0.0;
+        if !self.copy
+            && let Some(g) = gpu
+            && g.gpu
+                .device
+                .features()
+                .contains(wgpu::Features::VULKAN_EXTERNAL_MEMORY_WIN32)
+        {
+            let f = self.device.share(out)?;
+            let t3 = Instant::now();
+            if self.opened.as_ref().is_none_or(|o| o.generation != f.generation) {
+                self.open(g, f.generation, size)?;
+            }
+            self.shown = self
+                .opened
+                .as_ref()
+                .and_then(|o| o.textures.get(f.slot))
+                .map(|(_, id)| *id);
+            shared = self.shown.is_some();
+            upload = t3.elapsed().as_secs_f64();
+        }
+        let readback;
+        if shared {
+            readback = t2.elapsed().as_secs_f64() - upload;
         } else {
-            r.ldr
-        };
-        let tonemap = r.post + t2.elapsed().as_secs_f64();
-        let t3 = Instant::now();
-        let image = ColorImage::from_rgba_unmultiplied([size[0] as usize, size[1] as usize], &ldr);
-        match &mut self.texture {
-            Some(h) => h.set(image, TextureOptions::LINEAR),
-            None => self.texture = Some(ctx.load_texture("game-accurate view", image, TextureOptions::LINEAR)),
+            let mut ldr = self.device.read_output(out)?;
+            readback = t2.elapsed().as_secs_f64();
+            // the frame is opaque (the tonemap's alpha is not coverage), as the shared texture's
+            for px in ldr.as_chunks_mut::<4>().0 {
+                px[3] = 255;
+            }
+            let t3 = Instant::now();
+            let image = ColorImage::from_rgba_unmultiplied([size[0] as usize, size[1] as usize], &ldr);
+            match &mut self.texture {
+                Some(h) => h.set(image, TextureOptions::LINEAR),
+                None => self.texture = Some(ctx.load_texture("game-accurate view", image, TextureOptions::LINEAR)),
+            }
+            self.shown = self.texture.as_ref().map(TextureHandle::id);
+            upload = t3.elapsed().as_secs_f64();
         }
         self.timings = Timings {
             build,
-            submit: r.submit,
-            readback: r.readback,
-            tonemap,
-            upload: t3.elapsed().as_secs_f64(),
-            draws: r.draws,
+            submit: st.making + st.upload + st.submit,
+            readback,
+            tonemap: st.post,
+            upload,
+            draws: st.draws,
+            listed: self.live.draw_count(),
+            shared,
         };
         Ok(())
     }
 
-    /// Paints the view: the frame, and its costs in the corner.
-    pub fn paint(&mut self, ui: &egui::Ui, rect: Rect, camera: &Camera, size: [u32; 2]) {
+    #[cfg(not(windows))]
+    #[allow(
+        clippy::unused_self,
+        clippy::unnecessary_wraps,
+        reason = "the Windows view's signature"
+    )]
+    fn draw(
+        &mut self,
+        _ctx: &egui::Context,
+        _gpu: Option<&crate::app::GpuCtx>,
+        _camera: &Camera,
+        _size: [u32; 2],
+        _selection: &[usize],
+    ) -> Result<(), String> {
+        Err("the game-accurate view needs Direct3D 11 (Windows)".into())
+    }
+
+    /// Opens the device's three shared textures on egui's device and registers them with egui.
+    #[cfg(windows)]
+    fn open(&mut self, g: &crate::app::GpuCtx, generation: u32, size: [u32; 2]) -> Result<(), String> {
+        let handles = self.device.shared_handles();
+        let mut r = g.egui.write();
+        if let Some(old) = self.opened.take() {
+            for (_, id) in old.textures {
+                r.free_texture(&id);
+            }
+        }
+        let mut textures = Vec::new();
+        for h in handles {
+            let tex = open_shared(&g.gpu.device, h, size)
+                .ok_or("the shared frame could not be opened on the editor's device")?;
+            let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
+            let id = r.register_native_texture(&g.gpu.device, &view, wgpu::FilterMode::Linear);
+            textures.push((tex, id));
+        }
+        self.opened = Some(Opened { generation, textures });
+        Ok(())
+    }
+
+    /// The entity the game frame shows at a pixel (`at`, in the frame's pixels of a frame of `size`): `None` for
+    /// terrain, water, sky or anything not placed. The next frame is drawn again (picking replays the frame's draws
+    /// into its depth and stencil).
+    ///
+    /// # Errors
+    /// No frame drawn yet, or a Direct3D call failed.
+    #[cfg(windows)]
+    pub fn pick(&mut self, at: [u32; 2], size: [u32; 2]) -> Result<Option<usize>, String> {
+        let Some(cam) = self.live.camera else {
+            return Err("no game-accurate frame drawn yet".into());
+        };
+        let (depth, _) = self.world.passes(&cam, size, false)?;
+        let id = self.device.pick(
+            &self.live,
+            size,
+            at,
+            depth.as_ref(),
+            &self.world.textures,
+            self.world.raw(),
+        )?;
+        self.drawn = None;
+        Ok((id as usize)
+            .checked_sub(1)
+            .and_then(|k| self.entity_of.get(k).copied()))
+    }
+
+    /// Without Direct3D 11 nothing is picked.
+    ///
+    /// # Errors
+    /// Always: no frame.
+    #[cfg(not(windows))]
+    pub fn pick(&mut self, _at: [u32; 2], _size: [u32; 2]) -> Result<Option<usize>, String> {
+        Err("the game-accurate view needs Direct3D 11 (Windows)".into())
+    }
+
+    /// Paints the view: the frame (following the scene's edits, the selection outlined), and its costs in the
+    /// corner.
+    #[allow(clippy::too_many_arguments, reason = "the view's inputs")]
+    pub fn paint(
+        &mut self,
+        ui: &egui::Ui,
+        gpu: Option<&crate::app::GpuCtx>,
+        rect: Rect,
+        camera: &Camera,
+        size: [u32; 2],
+        scene: &Scene,
+        selection: &[usize],
+    ) {
         let ctx = ui.ctx().clone();
-        if let Some(tex) = self.frame(&ctx, camera, size) {
+        self.sync(scene);
+        if let Some(tex) = self.frame(&ctx, gpu, camera, size, selection) {
             ui.painter().image(
                 tex,
                 rect,
@@ -222,13 +549,16 @@ impl GameView {
         let text = match &self.error {
             Some(e) => format!("Game-accurate view failed: {e}"),
             None => format!(
-                "Game-accurate (Direct3D 11, DICE's shaders and post-process) - {} draws, {:.1} ms: submit {:.1}, GPU + \
-                 read back {:.1}, post {:.1}, upload {:.1}",
+                "Game-accurate (Direct3D 11, DICE's shaders and post-process) - {} of {} draws, {:.1} ms: build {:.1}, \
+                 submit {:.1}, GPU {:.1}, post {:.1}, {} {:.1}",
                 t.draws,
+                t.listed,
                 t.total() * 1e3,
+                t.build * 1e3,
                 t.submit * 1e3,
                 t.readback * 1e3,
                 t.tonemap * 1e3,
+                if t.shared { "shared" } else { "upload" },
                 t.upload * 1e3
             ),
         };
@@ -239,6 +569,11 @@ impl GameView {
             egui::FontId::proportional(11.0),
             Color32::WHITE,
         );
+    }
+
+    /// Draws the frame again at the next paint (after a switch such as [`GameView::copy`]).
+    pub fn redraw(&mut self) {
+        self.drawn = None;
     }
 
     /// The files the view reads.
@@ -257,5 +592,48 @@ impl GameView {
     #[must_use]
     pub fn world(&self) -> &World {
         &self.world
+    }
+
+    /// The live draw list.
+    #[must_use]
+    pub fn live(&self) -> &Live {
+        &self.live
+    }
+
+    /// Draws the frame for a camera now and reads it back (tests and proofs): the scene's HDR colour, depth and draw
+    /// classes, and the picture shown (the selection outlined).
+    ///
+    /// # Errors
+    /// A Direct3D call failed.
+    #[cfg(windows)]
+    pub fn read_back(
+        &mut self,
+        camera: &Camera,
+        size: [u32; 2],
+        selection: &[usize],
+    ) -> Result<frame::Rendered, String> {
+        let cam = Self::camera(camera, size);
+        self.update_sources(camera.target);
+        self.live.build(&cam, size, Options { cull: self.cull });
+        let (depth, post) = self.world.passes(&cam, size, true)?;
+        let raw = self.world.raw();
+        self.device.render_live(
+            &self.live,
+            size,
+            self.world.clear(),
+            depth.as_ref(),
+            &post,
+            &self.world.textures,
+            raw,
+        )?;
+        let picks = self.picks(selection);
+        if let Some(out) = post.last()
+            && !picks.is_empty()
+        {
+            self.device
+                .outline(&self.live, &picks, out, OUTLINE.0, OUTLINE.1, &self.world.textures, raw)?;
+        }
+        self.drawn = None;
+        self.device.read_scene(post.last())
     }
 }
