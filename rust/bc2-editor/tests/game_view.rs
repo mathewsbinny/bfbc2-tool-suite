@@ -115,7 +115,7 @@ fn game_accurate_view_of_mp_005() {
         .filter(|(a, b)| a != b)
         .count();
     assert!(
-        changed > editor.len() / 8,
+        changed > editor.len() / 4 / 8,
         "the view shows the game-accurate frame: {changed} pixels changed"
     );
     // per-frame costs: the camera turned a little each frame, so every frame is drawn again

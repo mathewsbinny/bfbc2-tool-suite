@@ -8,7 +8,8 @@
 # Crates: bc2-formats (the game's file formats, no Python types), bc2-scene (a level: entities, collision, terrain,
 # water), bc2-py (PyO3 bindings, module bc2_native), bc2-editor (the map editor application, binary bfbc2-editor; an
 # application, not part of bc2_native: bfbc2core.native.APPLICATIONS), bc2-levelwrite (the map project's operation log
-# and its edits on a level partition, round E2). Later crates join `members` and take their dependencies from
+# and its edits on a level partition, round E2), bc2-render (the editor's game-accurate view: DICE's Direct3D 11 shaders,
+# round R5). Later crates join `members` and take their dependencies from
 # [workspace.dependencies].
 
 [workspace]
