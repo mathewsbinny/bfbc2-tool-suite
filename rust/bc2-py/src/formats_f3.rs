@@ -8,8 +8,6 @@
 //! | `aimanim.parse` / `write` / `to_pc` | `aimanim_parse`, `aimanim_write`, `aimanim_to_pc` | `bc2_formats::aimanim` |
 //! | `hpdtool.mesh_layout` / `mesh_coverage` | `hpd_mesh_layout`, `hpd_mesh_coverage` | `bc2_formats::hpdlayout` |
 //! | `audio.xma_parts` / `xma2_riff` / `_xas_stream`'s blocks | `audio_xma_parts`, `audio_xma2_riff`, `audio_xas_blocks` | `bc2_formats::audioframe` |
-//! | `soot.soot_mesh` | `soot_mesh` | `bc2_convert::soot` |
-//! | `havok.convert_wrapper` | `havok_convert_wrapper` | `bc2_convert::havokwrap` |
 //! | `navsample.load` (version 3), `navsample_offline.write` | `navkit_navsample_v3`, `navkit_navsample_write` | `bc2_navbuild::navsample` |
 //! | `hkpack.Packfile` | `hkpack_parse` | `bc2_formats::havok::Packfile` |
 //!
@@ -271,29 +269,6 @@ pub fn audio_xas_blocks<'py>(
         out.append((k, PyBytes::new(py, b)))?;
     }
     Ok(Some(out))
-}
-
-// ------------------------------------------------------------------------------------------------- console
-
-/// `soot.soot_mesh(x)`, or `None`.
-#[pyfunction]
-pub fn soot_mesh<'py>(py: Python<'py>, x: &Bound<'py, PyBytes>) -> Option<Bound<'py, PyBytes>> {
-    let bytes = x.as_bytes();
-    let out = py.detach(|| bc2_convert::soot::soot_mesh(bytes)).ok()?;
-    Some(PyBytes::new(py, &out))
-}
-
-/// `havok.convert_wrapper(b, o)`, or `None`.
-#[pyfunction]
-pub fn havok_convert_wrapper<'py>(
-    py: Python<'py>,
-    b: &Bound<'py, PyBytes>,
-    o: &Bound<'py, PyAny>,
-) -> Option<Bound<'py, PyBytes>> {
-    let o = usize::try_from(int_of(o)?).ok()?;
-    let bytes = b.as_bytes();
-    let out = py.detach(|| bc2_convert::havokwrap::convert_wrapper(bytes, o)).ok()?;
-    Some(PyBytes::new(py, &out))
 }
 
 // ------------------------------------------------------------------------------------------------- navsample

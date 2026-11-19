@@ -50,7 +50,7 @@
 //! `pefile.rs`: `pe_raw_*` for `menucommon.PEImage`; `coretext.rs`: `xmlinst_*` and `navtune_*` for `bfbc2core`.
 //!
 //! Round F3 (`formats_f3.rs`): `aimanim_*`, `hpd_mesh_layout` / `hpd_mesh_coverage`, `audio_xma_parts` /
-//! `audio_xma2_riff` / `audio_xas_blocks`, `soot_mesh`, `havok_convert_wrapper`, `navkit_navsample_v3` /
+//! `audio_xma2_riff` / `audio_xas_blocks`, `navkit_navsample_v3` /
 //! `navkit_navsample_write`, `hkpack_parse`; `xenos_disasm_body` (`xenos.rs`).
 
 mod apt;
@@ -61,6 +61,7 @@ mod coretext;
 mod culltree;
 mod dbxedit;
 mod dbxport;
+mod f2a;
 mod fbrb_cache;
 mod fbrbtool;
 mod formats_f3;
@@ -466,9 +467,8 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::formats_f3::{
-        aimanim_parse, aimanim_to_pc, aimanim_write, audio_xas_blocks, audio_xma_parts, audio_xma2_riff,
-        havok_convert_wrapper, hkpack_parse, hpd_mesh_coverage, hpd_mesh_layout, navkit_navsample_v3,
-        navkit_navsample_write, soot_mesh,
+        aimanim_parse, aimanim_to_pc, aimanim_write, audio_xas_blocks, audio_xma_parts, audio_xma2_riff, hkpack_parse,
+        hpd_mesh_coverage, hpd_mesh_layout, navkit_navsample_v3, navkit_navsample_write,
     };
 
     #[pymodule_export]
@@ -496,6 +496,15 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::pathdata::{hpd_parse, hpd_write, kymesh_write};
+
+    #[pymodule_export]
+    use super::f2a::{
+        TexWriteJob, granny_add_tracks, granny_orientation_plan, granny_shift_plan, granny_with_crc,
+        havok_convert_wrapper, mesh_console_layouts, mesh_decode, mesh_relayout, mesh_relayout_blocks, skin_bounds,
+        skin_cut, skin_decode, skin_encode, skin_lay_out, skin_winding, terrain_convert, terrain_heightfield,
+        terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts, terrain_visual_water_parts,
+        texture_check, texwrite_alpha, texwrite_l8_down, texwrite_levels,
+    };
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};
