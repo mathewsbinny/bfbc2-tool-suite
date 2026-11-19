@@ -54,6 +54,15 @@ pub(super) struct StartForm<'a> {
     pub(super) new_folder: &'a mut String,
     pub(super) open_path: &'a mut String,
     pub(super) recent: &'a [PathBuf],
+    /// The start screen's buttons drawn, by label (the tests click them).
+    pub(super) buttons: &'a mut Vec<(String, Rect)>,
+}
+
+/// What the new project form says: its title, its button, a note (a campaign base's).
+pub(super) struct FormText<'a> {
+    pub(super) title: String,
+    pub(super) button: &'a str,
+    pub(super) note: Option<&'a str>,
 }
 
 /// What the start screen asked for.
@@ -79,24 +88,33 @@ pub(super) fn card(ui: &mut egui::Ui, p: &Palette, m: &Metrics, width: f32, add:
         });
 }
 
-/// "New map from an existing map" once its base is chosen in a set's map list (round G3: a mode, then a map, then
-/// this): the name and the folder, Make the map, Cancel.
-pub(super) fn new_map_form(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut StartForm<'_>) -> Option<StartChoice> {
+/// A new project once its base is chosen (round G4: a map's New project in "Edit existing level", or a level of
+/// "Create level - from existing levels"): the name and the folder, the button, Cancel.
+pub(super) fn new_map_form(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    m: &Metrics,
+    f: &mut StartForm<'_>,
+    text: &FormText<'_>,
+) -> Option<StartChoice> {
     let lv = f.new_level.clone()?;
     let mut out = None;
     let width = (ui.available_width() - 2.0 * m.space_3 - 2.0).max(200.0);
     let field_w = (width - 90.0).clamp(120.0, 320.0);
     card(ui, p, m, width, &mut |ui| {
+        ui.label(RichText::new(&text.title).text_style(style("title")).color(p.ink));
         ui.label(
-            RichText::new(format!("New map from {}", lv.to_uppercase()))
-                .text_style(style("title"))
-                .color(p.ink),
+            RichText::new(format!(
+                "{} is never changed: the new level is a project of your edits on it.",
+                lv.to_uppercase()
+            ))
+            .text_style(style("small"))
+            .color(p.ink_muted),
         );
-        ui.label(
-            RichText::new("The base map is never changed: the new map is a project of your edits on it.")
-                .text_style(style("small"))
-                .color(p.ink_muted),
-        );
+        if let Some(n) = text.note {
+            ui.add_space(m.space_2);
+            status_line(ui, p, "Note", p.status_info, n);
+        }
         ui.add_space(m.space_2);
         egui::Grid::new("new map")
             .num_columns(2)
@@ -115,7 +133,7 @@ pub(super) fn new_map_form(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut 
             });
         ui.add_space(m.space_2);
         let why = if f.new_name.trim().is_empty() {
-            Some("Give the new map a name")
+            Some("Give the new level a name")
         } else if f.new_folder.trim().is_empty() {
             Some("Choose a folder for the project")
         } else {
@@ -124,10 +142,11 @@ pub(super) fn new_map_form(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut 
         ui.horizontal(|ui| {
             let b = ui.add_enabled(
                 why.is_none(),
-                egui::Button::new(RichText::new("Make the map").color(p.on_accent))
+                egui::Button::new(RichText::new(text.button).color(p.on_accent))
                     .fill(p.accent)
                     .min_size(Vec2::new(0.0, m.control)),
             );
+            f.buttons.push((text.button.to_owned(), b.rect));
             if let Some(w) = why {
                 b.on_disabled_hover_text(w);
             } else if b.clicked() {
@@ -148,33 +167,89 @@ pub(super) fn new_map_form(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut 
     out
 }
 
-/// "Open a project" and the recent projects (below the mode cards).
-pub(super) fn open_card(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut StartForm<'_>) -> Option<StartChoice> {
+/// One project row of "Open project": its name (a link), its folder; `missing` greys it. The click opens it.
+fn project_row(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    f: &mut StartForm<'_>,
+    tag: &str,
+    path: &Path,
+    out: &mut Option<StartChoice>,
+) {
+    let name = path
+        .file_name()
+        .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+    let missing = !path.is_file();
+    ui.horizontal(|ui| {
+        let b = ui
+            .add_enabled(
+                !missing,
+                egui::Button::new(RichText::new(&name).color(if missing { p.ink_faint } else { p.accent_text }))
+                    .frame(false),
+            )
+            .on_hover_text(path.display().to_string())
+            .on_disabled_hover_text(format!("{} is no longer there", path.display()));
+        f.buttons.push((format!("{tag}:{name}"), b.rect));
+        if b.clicked() {
+            *out = Some(StartChoice::Open(path.to_owned()));
+        }
+        let folder = path.parent().map_or_else(String::new, |d| d.display().to_string());
+        ui.add(
+            egui::Label::new(
+                RichText::new(if missing {
+                    format!("{folder}  -  missing")
+                } else {
+                    folder
+                })
+                .text_style(style("small"))
+                .color(p.ink_faint),
+            )
+            .truncate(),
+        );
+    });
+}
+
+/// "Open project" (round G4): a project file's path, the recent projects, and the projects found in the projects
+/// folder (`found`; `folder` names it). An autosave newer than the file is offered on opening (crash recovery).
+pub(super) fn open_card(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    m: &Metrics,
+    f: &mut StartForm<'_>,
+    found: &[PathBuf],
+    folder: &str,
+) -> Option<StartChoice> {
     let mut out = None;
     let width = (ui.available_width() - 2.0 * m.space_3 - 2.0).max(200.0);
     card(ui, p, m, width, &mut |ui| {
-        ui.label(RichText::new("Open a project").text_style(style("title")).color(p.ink));
+        ui.label(RichText::new("Project file").text_style(style("title")).color(p.ink));
         ui.label(
-            RichText::new("A .mapedit.json file: its base map loads first, then your edits on it.")
-                .text_style(style("small"))
-                .color(p.ink_muted),
+            RichText::new(
+                "A .mapedit.json file: its base level loads first, then your edits on it. Type or paste its path.",
+            )
+            .text_style(style("small"))
+            .color(p.ink_muted),
         );
         ui.add_space(m.space_2);
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(f.open_path)
-                    .hint_text(RichText::new("Project file").color(p.ink_faint))
-                    .desired_width((width - 80.0).clamp(120.0, 420.0)),
+                    .hint_text(RichText::new("C:\\...\\My map.mapedit.json").color(p.ink_faint))
+                    .desired_width((width - 80.0).clamp(120.0, 560.0)),
             );
-            if ui
-                .add_enabled(!f.open_path.trim().is_empty(), egui::Button::new("Open"))
-                .clicked()
-            {
-                out = Some(StartChoice::Open(PathBuf::from(f.open_path.trim())));
+            let b = ui.add_enabled(
+                !f.open_path.trim().is_empty(),
+                egui::Button::new(RichText::new("Open").color(p.on_accent)).fill(p.accent),
+            );
+            f.buttons.push(("Open file".into(), b.rect));
+            if b.clicked() {
+                out = Some(StartChoice::Open(PathBuf::from(f.open_path.trim().trim_matches('"'))));
             }
         });
-        ui.add_space(m.space_2);
-        ui.label(RichText::new("Recent projects").color(p.ink_muted));
+    });
+    ui.add_space(m.space_4);
+    card(ui, p, m, width, &mut |ui| {
+        ui.label(RichText::new("Recent projects").text_style(style("title")).color(p.ink));
         if f.recent.is_empty() {
             ui.label(
                 RichText::new("None yet: a project you make or open is listed here.")
@@ -182,17 +257,28 @@ pub(super) fn open_card(ui: &mut egui::Ui, p: &Palette, m: &Metrics, f: &mut Sta
                     .color(p.ink_faint),
             );
         }
-        for r in f.recent {
-            let name = r
-                .file_name()
-                .map_or_else(|| r.display().to_string(), |n| n.to_string_lossy().into_owned());
-            if ui
-                .add(egui::Button::new(RichText::new(name).color(p.accent_text)).frame(false))
-                .on_hover_text(r.display().to_string())
-                .clicked()
-            {
-                out = Some(StartChoice::Open(r.clone()));
-            }
+        let recent = f.recent.to_vec();
+        for r in &recent {
+            project_row(ui, p, f, "recent", r, &mut out);
+        }
+    });
+    ui.add_space(m.space_4);
+    card(ui, p, m, width, &mut |ui| {
+        ui.label(
+            RichText::new("In the projects folder")
+                .text_style(style("title"))
+                .color(p.ink),
+        );
+        ui.label(RichText::new(folder).text_style(style("small")).color(p.ink_muted));
+        if found.is_empty() {
+            ui.label(
+                RichText::new("No project there yet.")
+                    .text_style(style("small"))
+                    .color(p.ink_faint),
+            );
+        }
+        for r in found {
+            project_row(ui, p, f, "found", r, &mut out);
         }
     });
     out
