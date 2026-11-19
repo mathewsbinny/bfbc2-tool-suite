@@ -87,7 +87,14 @@ fn main() {
         }
     }
     println!("{} objects", instances.len());
-    let terrain = Terrain::load(&files, &db, &lv.to_uppercase(), "terrains/mp_005/textures/mp05_envmap", &mut cache).unwrap();
+    let terrain = Terrain::load(
+        &files,
+        &db,
+        &lv.to_uppercase(),
+        "terrains/mp_005/textures/mp05_envmap",
+        &mut cache,
+    )
+    .unwrap();
     if only.is_none() {
         let (px, pz) = terrain.patch_at(x, z).unwrap();
         for j in pz.saturating_sub(24)..=pz + 24 {

@@ -43,15 +43,30 @@ use crate::weather::{Post, Values};
 
 /// The engine values of the chain that are not in the data, by name, for the capture to fill.
 pub const PLACEHOLDERS: [(&str, &str); 12] = [
-    ("exposureFactor", "1: the exposure converged (the engine blends with the last frame's by frame time)"),
+    (
+        "exposureFactor",
+        "1: the exposure converged (the engine blends with the last frame's by frame time)",
+    ),
     ("exposureColorScale", "1"),
     ("colorScale", "(1, 1, 1, 1) in the downsamples and the tonemap"),
     ("luminanceVector", "(0.3, 0.59, 0.11), psExposure's own literal"),
-    ("pass sizes", "half size down to 1 x 1 for the luminance, quarter size for the bloom"),
-    ("invPixelSize", "the target's 1 / size in vs2D, the source's in the pixel shaders"),
-    ("invTexelSize", "the source's 1 / size (psDownsampleQuarter's tap offsets)"),
+    (
+        "pass sizes",
+        "half size down to 1 x 1 for the luminance, quarter size for the bloom",
+    ),
+    (
+        "invPixelSize",
+        "the target's 1 / size in vs2D, the source's in the pixel shaders",
+    ),
+    (
+        "invTexelSize",
+        "the source's 1 / size (psDownsampleQuarter's tap offsets)",
+    ),
     ("seperableKernelWeights", "a 15-tap Gaussian, deviation 3, normalised"),
-    ("colorMatrix0..2", "built from Brightness / Contrast / Saturation (identity at 1 / 1 / 1)"),
+    (
+        "colorMatrix0..2",
+        "built from Brightness / Contrast / Saturation (identity at 1 / 1 / 1)",
+    ),
     ("vignetteParams / vignetteColor", "no vignette (vignetteColor.w 0)"),
     ("flareTexture", "black (no lens flare)"),
     ("samplers", "linear filtering, clamp, for every post pass"),
@@ -209,10 +224,10 @@ pub fn values(post: &Post) -> Values {
 pub fn color_matrix(post: &Post) -> [[f32; 4]; 3] {
     const L: [f32; 3] = [0.3, 0.59, 0.11];
     let mut rows = [[0f32; 4]; 3];
-    for (k, row) in rows.iter_mut().enumerate() {
-        let (s, c, b) = (post.saturation[k], post.contrast[k], post.brightness[k]);
-        for (j, v) in row.iter_mut().take(3).enumerate() {
-            let sat = L[j] * (1.0 - s) + if j == k { s } else { 0.0 };
+    let channels = post.saturation.iter().zip(&post.contrast).zip(&post.brightness);
+    for (k, (row, ((&s, &c), &b))) in rows.iter_mut().zip(channels).enumerate() {
+        for (j, (v, l)) in row.iter_mut().zip(L).enumerate() {
+            let sat = l * (1.0 - s) + if j == k { s } else { 0.0 };
             *v = sat * c * b;
         }
         row[3] = (0.5 - 0.5 * c) * b;

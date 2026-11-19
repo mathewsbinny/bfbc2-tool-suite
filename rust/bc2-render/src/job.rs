@@ -77,7 +77,14 @@ fn float_file(w: u32, h: u32, rgba: &[f32]) -> Vec<u8> {
 /// An engine texture (one channel: `R32_FLOAT`) as RGBA floats, its value in every channel.
 fn raw_rgba(r: &RawTexture) -> Option<Vec<f32>> {
     if r.format == 2 && r.texel == 16 {
-        return Some(r.data.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect());
+        return Some(
+            r.data
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|c| f32::from_le_bytes(*c))
+                .collect(),
+        );
     }
     if r.format != 41 || r.texel != 4 {
         return None;
@@ -133,11 +140,11 @@ fn hex(b: &[u8]) -> String {
 /// pack file's path as the job names it (forward slashes), `extra` the GPU-made engine textures by key. The post
 /// passes are not part of it (`shaderview` draws `TEXCOORD` inputs only; `vs2D` reads `POSITION` and `COLOR`).
 #[must_use]
-pub fn write(
+pub fn write<S: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     frame: &Frame,
     textures: &TextureFiles,
-    raw: &HashMap<String, RawTexture>,
-    extra: &HashMap<String, FloatTexture>,
+    raw: &HashMap<String, RawTexture, S>,
+    extra: &HashMap<String, FloatTexture, S2>,
     out: &str,
     pack: &str,
 ) -> Job {
@@ -196,7 +203,8 @@ pub fn write(
         }
         for (vs_stage, list) in [(false, &d.textures), (true, &d.vs_textures)] {
             for (slot, name) in list {
-                let is_float = extra.contains_key(name) || raw.get(name).is_some_and(|r| r.format == 41 || r.format == 2);
+                let is_float =
+                    extra.contains_key(name) || raw.get(name).is_some_and(|r| r.format == 41 || r.format == 2);
                 let line = if is_float {
                     // made once per name (a height map is millions of texels)
                     let f = p.by_name(name, || {
@@ -213,15 +221,12 @@ pub fn write(
                     let f = p.by_name(name, || textures.get(name).cloned().flatten().map(|b| b.to_vec()));
                     f.map(|f| format!("texres {slot} {f}"))
                 };
-                match line {
-                    Some(l) => {
-                        let _ = writeln!(s, "{l}");
-                    }
-                    None => {
-                        job.skipped.push(format!("draw {k}: texture {name} not available to the job"));
-                        continue 'draws;
-                    }
-                }
+                let Some(l) = line else {
+                    job.skipped
+                        .push(format!("draw {k}: texture {name} not available to the job"));
+                    continue 'draws;
+                };
+                let _ = writeln!(s, "{l}");
             }
         }
         let _ = writeln!(s, "draw");

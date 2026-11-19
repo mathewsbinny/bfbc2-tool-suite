@@ -19,6 +19,8 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
+    clippy::float_cmp,
+    clippy::chunks_exact_to_as_chunks,
     missing_docs
 )]
 
@@ -53,10 +55,7 @@ fn main() {
     let scene_s = t.elapsed().as_secs_f64();
     let t = Instant::now();
     let mut world = World::load(&opfor, &lv, &name, &placed, weather.as_deref()).unwrap();
-    println!(
-        "{lv}: scene {scene_s:.2} s, world {:.2} s",
-        t.elapsed().as_secs_f64()
-    );
+    println!("{lv}: scene {scene_s:.2} s, world {:.2} s", t.elapsed().as_secs_f64());
     for n in &world.notes {
         println!("  note: {n}");
     }
@@ -217,7 +216,14 @@ fn main() {
         let fwd = |p: &std::path::Path| p.to_string_lossy().replace('\\', "/");
         let raw_out = out.join(format!("{stem}_shaderview.raw"));
         let pack = out.join(format!("{stem}_job.pack"));
-        let j = job::write(&frame, &world.textures, world.raw(), &extra, &fwd(&raw_out), &fwd(&pack));
+        let j = job::write(
+            &frame,
+            &world.textures,
+            world.raw(),
+            &extra,
+            &fwd(&raw_out),
+            &fwd(&pack),
+        );
         std::fs::write(&pack, &j.pack).unwrap();
         let jf = out.join(format!("{stem}_job.txt"));
         std::fs::write(&jf, &j.text).unwrap();
@@ -266,7 +272,9 @@ fn main() {
             }
             worst = worst.max(d);
         }
-        println!("  differing pixels by our draw class (none, opaque, tested, blended): {by_class:?}; {class_only} differ in class only");
+        println!(
+            "  differing pixels by our draw class (none, opaque, tested, blended): {by_class:?}; {class_only} differ in class only"
+        );
         common::save_png(&out.join(format!("{stem}_diff.png")), wd, ht, &diff).unwrap();
         println!(
             "parity with shaderview: {} draws in the job (of {}), {same} of {} pixels identical (colour bits and draw \

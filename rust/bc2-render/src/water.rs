@@ -98,7 +98,13 @@ pub fn load(files: &Files, db: &Db, terrain: &str, envmap: &str, cache: &mut Tex
         d.stride = stride;
         d.first_index = first;
         d.index_count = count.min(triangles * 3);
-        d.centre = out.bounds.map(|(l, h)| [0, 1, 2].map(|k| (l[k] + h[k]) / 2.0));
+        d.centre = out.bounds.map(|(l, h)| {
+            let mut c = [0f32; 3];
+            for ((c, a), b) in c.iter_mut().zip(l).zip(h) {
+                *c = f32::midpoint(a, b);
+            }
+            c
+        });
         out.draws.push(d);
     }
     if out.draws.is_empty() && out.notes.is_empty() {

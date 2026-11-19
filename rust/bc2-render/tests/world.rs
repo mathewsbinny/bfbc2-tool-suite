@@ -10,6 +10,8 @@
     clippy::print_stdout,
     clippy::cast_precision_loss,
     clippy::float_cmp,
+    clippy::many_single_char_names,
+    clippy::doc_markdown,
     missing_docs
 )]
 
@@ -56,14 +58,24 @@ fn mp_005_world_draws_and_matches_the_harness() {
         target[2] + dist * pitch.cos() * yaw.cos(),
     ];
     let (w, h) = (640u32, 360u32);
-    let cam = Camera::look(eye, target, 60f64.to_radians(), 0.5, 4000.0, f64::from(w) / f64::from(h));
+    let cam = Camera::look(
+        eye,
+        target,
+        60f64.to_radians(),
+        0.5,
+        4000.0,
+        f64::from(w) / f64::from(h),
+    );
     let frame = world.frame(&cam, target, [w, h], true).unwrap();
     let raw = world.raw().clone();
     let r = dev.render(&frame, &world.textures, &raw).unwrap();
     assert_eq!(r.ldr.len(), (w * h * 4) as usize);
     let covered = r.classes.iter().filter(|&&k| k > 0).count();
     assert!(covered > (w * h / 2) as usize, "{covered}");
-    let depth = dev.read_pass(water::DEPTH).unwrap().expect("the water read the scene's depth");
+    let depth = dev
+        .read_pass(water::DEPTH)
+        .unwrap()
+        .expect("the water read the scene's depth");
     let Some(exe) = common::shaderview() else {
         println!("parity skipped: shaderview.exe not found (SHADERVIEW)");
         return;
@@ -92,10 +104,19 @@ fn mp_005_world_draws_and_matches_the_harness() {
     let mut same = 0;
     for k in 0..(w * h) as usize {
         let ours = &r.hdr[4 * k..4 * k + 4];
-        if ours.iter().zip(&theirs[4 * k..4 * k + 4]).all(|(a, b)| a.to_bits() == *b) && stencil[k] == r.classes[k] {
+        if ours
+            .iter()
+            .zip(&theirs[4 * k..4 * k + 4])
+            .all(|(a, b)| a.to_bits() == *b)
+            && stencil[k] == r.classes[k]
+        {
             same += 1;
         }
     }
-    println!("{same} of {} pixels identical to shaderview's ({} draws)", w * h, j.draws);
+    println!(
+        "{same} of {} pixels identical to shaderview's ({} draws)",
+        w * h,
+        j.draws
+    );
     assert_eq!(same, (w * h) as usize);
 }

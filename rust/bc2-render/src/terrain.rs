@@ -191,7 +191,9 @@ pub fn parse_visual(data: &[u8]) -> Result<VisualTerrain, String> {
         }
         let (v, b, i) = (w.u32()?, w.u32()?, w.u32()?);
         if b != ROAD_STRIDE * v {
-            return Err(format!("visual terrain: road vertices of {b} bytes for {v} (not 28 each)"));
+            return Err(format!(
+                "visual terrain: road vertices of {b} bytes for {v} (not 28 each)"
+            ));
         }
         let at = w.o;
         w.skip(28 * v as usize)?;
@@ -420,7 +422,9 @@ fn terrain_draw(
         On::Patch(tiled) => (if tiled == 0 { main(&PATCH_LAYOUT_NO_TILES) } else { None })
             .or_else(|| main(&PATCH_LAYOUT))
             .ok_or_else(|| format!("{entry}: no main-pass program for the patch layout"))?,
-        On::Strip => main(&STRIP_LAYOUT).ok_or_else(|| format!("{entry}: no main-pass program for the strip layout"))?,
+        On::Strip => {
+            main(&STRIP_LAYOUT).ok_or_else(|| format!("{entry}: no main-pass program for the strip layout"))?
+        }
     };
     let prog = db.programs.get(k).ok_or("program")?;
     let (vs, ps) = (db.vs.get(prog.vs).ok_or("vs")?, db.ps.get(prog.ps).ok_or("ps")?);
@@ -582,9 +586,9 @@ impl Terrain {
             let mut order: Vec<&Strip> = block.strips.iter().collect();
             order.sort_by_key(|s| s.layer);
             for st in order {
-                let made = strip_draws.entry(st.shader.to_lowercase()).or_insert_with(|| {
-                    terrain_draw(files, db, &st.shader, On::Strip, &values, &atlas, envmap, cache)
-                });
+                let made = strip_draws
+                    .entry(st.shader.to_lowercase())
+                    .or_insert_with(|| terrain_draw(files, db, &st.shader, On::Strip, &values, &atlas, envmap, cache));
                 match made {
                     Ok(d) => {
                         let mut d = d.clone();
