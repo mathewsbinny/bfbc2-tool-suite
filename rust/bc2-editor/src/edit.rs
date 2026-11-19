@@ -87,12 +87,26 @@ impl Doc {
     /// # Errors
     /// A project of that name is already in the folder, or it cannot be written.
     pub fn create(name: &str, folder: &Path, level: &str, scene: Scene) -> Result<Self, String> {
+        Self::create_kind(name, folder, level, scene, None)
+    }
+
+    /// [`Doc::create`] with the base's kind recorded (round G4: multiplayer or campaign, from its description).
+    ///
+    /// # Errors
+    /// A project of that name is already in the folder, or it cannot be written.
+    pub fn create_kind(
+        name: &str,
+        folder: &Path,
+        level: &str,
+        scene: Scene,
+        kind: Option<bc2_levelwrite::BaseKind>,
+    ) -> Result<Self, String> {
         let name = name.trim();
         if name.is_empty() {
             return Err("Give the new map a name.".into());
         }
         let bytes = scene.file(0).map_or_else(Vec::new, |(_, b)| b.to_vec());
-        let project = MapProject::new(
+        let mut project = MapProject::new(
             name,
             level,
             &format!("levels/{}", scene.name),
@@ -104,10 +118,11 @@ impl Doc {
                 crate::factions::Profile::Bfbc2 => Profile::of_level(level),
             },
         );
+        project.base.kind = kind;
         let path = folder.join(project.file_name());
         if path.exists() {
             return Err(format!(
-                "{} is already in this folder. Open it with \"Open a project\", or choose another name.",
+                "{} is already in this folder. Open it with \"Open project\", or choose another name.",
                 path.display()
             ));
         }

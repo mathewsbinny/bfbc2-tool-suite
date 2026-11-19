@@ -34,7 +34,7 @@ pub mod schema;
 pub mod write;
 
 pub use ops::{FieldValue, Op, Operation, Placement, Rows, SinkUnit};
-pub use project::{MapProject, Profile};
+pub use project::{BaseKind, MapProject, Profile};
 pub use schema::{FieldType, Schema};
 pub use write::{LevelWriteError, LevelWriter, apply};
 

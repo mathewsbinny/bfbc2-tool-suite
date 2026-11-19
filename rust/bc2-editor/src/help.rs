@@ -213,13 +213,29 @@ pub const WORKSPACES: [Workspace; 6] = [
 ];
 
 /// The getting-started guide: (title, text) steps.
-pub const GETTING_STARTED: [(&str, &str); 7] = [
+pub const GETTING_STARTED: [(&str, &str); 9] = [
     (
-        "Open a map",
-        "The start screen asks you to choose a mode - BFBC1, BFBC2, Vietnam or WW2 - then lists that mode's maps; \
-         Open views one, New project makes a new map from it (Choose mode goes back). A level opened for the first \
-         time is prepared first - its bundles unpacked, its objects and terrain read - which takes up to a minute; \
-         the progress shows each step. Nothing in your game copy is changed.",
+        "Start: three paths",
+        "The start screen offers three buttons. Open project opens a map project you saved (a .mapedit.json file; \
+         your recent projects are listed). Edit existing level shows the four modes - BFBC1, BFBC2, Vietnam and \
+         WW2 - and then that mode's multiplayer maps. Create level makes a new level, from any existing level or from \
+         a height map. Back (or Start) goes up a step. Nothing in your game copy is ever changed: a project holds \
+         only your edits.",
+    ),
+    (
+        "Edit an existing level",
+        "Choose a mode card, then a map: Open views it read-only, New project starts a project on it (a name and a \
+         folder). Only multiplayer maps are listed here - each level's description says its game mode; campaign \
+         levels are under Create level. A level opened for the first time is prepared first - its objects and terrain \
+         read - which takes up to a minute; the progress shows each step.",
+    ),
+    (
+        "Create a level",
+        "From existing levels lists every level of every mode, multiplayer and campaign, with a search: choose one, \
+         give the new level a name and a folder, and edit it; when it is exported, a campaign base's campaign parts \
+         are stripped (the export's checklist). From a height map takes a 16-bit PNG or RAW height map (1024 or 2048 \
+         samples a side, or 1025 / 2049), the map's size, height range and water level, an optional colour map and \
+         the mode its content comes from; the project records them, and the terrain is generated in a later round.",
     ),
     (
         "Look around",

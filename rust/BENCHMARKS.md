@@ -3736,6 +3736,48 @@ its white margin cut) and 83 game modes (the descriptions' `GameMode`). Read fro
 first start (debug build), 0.11 s from `work\editor\art` (about 1.1 MB of PNGs and `art.json`) after;
 `card_art_on_the_real_game_copy` (`BC2_EDITOR_G3_ART=1`) checks every set's card on the real copy,
 `mode_cards_fall_back_to_the_tile` the plain tile where a picture is missing or not a texture.
+
+## G4: the start flow - Open project, Edit existing level, Create level (2026-11-19, branch `rust-g4`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Done in round G4". No Python replaced; no game data written (the catalog's
+`work\editor\art` cache only, as G3).
+
+**Multiplayer or campaign** (`catalog::LevelKind`, from each description's `GameMode`; `cargo test -p bc2-editor
+--test g4 real_counts` with `BC2_EDITOR_G4_REAL=1`, read only, OPFOR's game copy):
+
+| set | levels | multiplayer (Edit existing level) | campaign (Create level only) | not read |
+|---|---:|---:|---:|---:|
+| BFBC1 | 8 | 8 | 0 | 0 |
+| BFBC2 | 51 | 38 | 13 (`sp_01` - `sp_04`, `sp_003_b` - `sp_009`) | 0 |
+| Vietnam | 20 | 20 | 0 | 0 |
+| WW2 / Pacific War | 4 | 4 | 0 | 0 |
+| all | 83 | 70 | 13 | 0 |
+
+The `MP_SP_*` layouts and the Onslaught levels name multiplayer modes, so they are multiplayer.
+
+**Through the interface** (`cargo test -p bc2-editor --test g4`, headless, clicking the buttons the start screen
+drew; a made-up game copy in temp with four Package levels and their descriptions - WW2 Conquest, Vietnam Rush,
+BFBC2 Conquest, BFBC2 campaign):
+- `edit_existing_level`: Edit existing level, BFBC2 lists the multiplayer level and not the campaign one; Back; WW2,
+  Open prepares and opens the WW2 level read-only.
+- `create_and_open_projects`: Create level, From existing levels lists all four (the campaign level too); its New
+  level, a name and folder, Create level opens the new project, its file records `"kind": "campaign"`. The next start
+  (the saved state): Open project lists it under recent and in the projects folder; an autosave differing from the file
+  brings the recovery offer; the saved project opens and the autosave is gone.
+- `create_from_a_height_map`: the form refuses a missing file ("does not read"), a 300 x 300 PNG (the sizes it could
+  be) and a RAW whose length is not the size chosen ("choose 1024"); a 1025 x 1025 16-bit PNG with WW2, 1024 m,
+  -10 to 250 m and water at 2.5 m saves `Atoll.mapedit.json` recording exactly these, the sample range 0 - 40,960 and
+  the height map copied beside it byte for byte; reopened, it shows its page (no level loaded).
+- `top_bar_fits`: a project named "Operation Long Project Name North Ridge" on a WW2 level at 1500 px: the badge and
+  name end at x = 910, the buttons start at 913 (before G4 the name and badge ran under Save).
+- Unit tests: `heightmap` (sizes, PNG / RAW / 8-bit / not-a-PNG checks, the settings, a saved project), `catalog`
+  (kinds from the modes), `bc2-levelwrite` (`base.kind` and `terrain_import` round trip; a project without them
+  writes the same keys as before).
+
+**Screenshots** (`BC2_EDITOR_G4_SHOTS=<folder>`, `screenshots`): the start, Open project, the mode cards, WW2's and
+BFBC2's maps, the New project dialog, Create level, From existing levels, a campaign base's dialog, the height-map form
+(ready and refused) and the saved project's page, dark and light, 1600 and 1280 px wide (48 pictures).
+
 ## O1: the orchestration and command-line glue (2026-11-18, branch `rust-o1`)
 
 The scripts and command lines that parse arguments, walk levels and folders, call the Rust core and print or write

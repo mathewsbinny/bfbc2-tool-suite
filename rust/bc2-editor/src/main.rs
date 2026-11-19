@@ -6,10 +6,11 @@
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
 //! ```
 //!
-//! Without a level the start screen shows "Choose mode" (BFBC1, BFBC2, Vietnam, WW2: a card each), then the chosen
-//! mode's maps with Open and New project (`--mode` shows one mode's maps at once), and "Open a project".
-//! `--project` opens a map project on its base level. `--screenshot` draws the window without showing it (no
-//! display needed) and saves it.
+//! Without a level the start screen offers three paths (round G4): Open project, Edit existing level (the mode
+//! cards - BFBC1, BFBC2, Vietnam, WW2 - then a mode's multiplayer maps with Open and New project; `--mode` shows one
+//! mode's maps at once) and Create level (from any existing level, or from a height map). `--project` opens a map
+//! project on its base level (a height-map project on its page of the start screen). `--screenshot` draws the
+//! window without showing it (no display needed) and saves it.
 #![deny(unsafe_code)]
 
 use std::path::PathBuf;
@@ -121,11 +122,16 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
         app.open_scene(&h.gpu, "demo", bc2_editor::demo::scene());
     } else if let Some(p) = &a.project {
         let project = bc2_levelwrite::MapProject::load(p).map_err(|e| format!("{}: {e}", p.display()))?;
-        app.open_level_blocking_then(
-            &h.gpu,
-            &project.base.level,
-            bc2_editor::app::Then::Open(p.clone(), None),
-        )?;
+        if project.is_import() {
+            // a height-map project: its page of the start screen
+            app.open_project(p);
+        } else {
+            app.open_level_blocking_then(
+                &h.gpu,
+                &project.base.level,
+                bc2_editor::app::Then::Open(p.clone(), None),
+            )?;
+        }
     } else if let Some(lv) = &a.level {
         app.open_level_blocking(&h.gpu, lv)?;
     }
