@@ -64,6 +64,7 @@ fn main() {
             height: size,
             clear: [0.0; 4],
             draws: draw_calls(&instances, &values, &cam, [size, size]),
+            ..Frame::default()
         };
         let r = dev
             .render(&frame, &cache, &std::collections::HashMap::default())
