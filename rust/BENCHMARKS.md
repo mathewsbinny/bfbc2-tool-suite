@@ -3650,10 +3650,19 @@ live list with culling on or off, and `shaderview` (R5b's list against `shadervi
 list adds no difference of its own: culling off and on give the same count in every run. The water reads the
 scene's linear depth through its `GenerateMips` chain, the first suspect.
 
-**Also open:** once, in the quick tier (GPU tests two at a time), the editor test's edit check found the two
-devices' post-processed pictures one 8-bit step apart over the whole frame (sky 211 against 210: the exposure a hair
-apart), their HDR scenes identical bit for bit; alone it never differs (every run). The test asserts the scene bit
-for bit and the picture within one step.
+**Fixed after the merge (R5c fix, branch `rust-r5c-fix`): two devices' post-processed pictures differing.** The
+editor test's edit check found the replayed and the freshly loaded view's RGBA8 pictures apart (once one 8-bit step
+in the quick tier; on main, alone, 1,414,404 bytes by up to 57) while their HDR scenes were identical bit for bit.
+Not the exposure: `psExposure` reads a fixed old exposure of 1, there is no history between frames. The cause was
+`Device::buffer`'s cache, keyed by the data's address and length: the post passes' full-screen quads (192 bytes
+each, one per pass size) were made from data dropped at once, so a later quad of another size could take a freed
+address and be handed the cached buffer of the earlier size - a post pass drawing the wrong area, depending on the
+allocator's history. The cache now keeps each `Arc` it was given (no other data can take the address while its
+buffer is kept) and the quads are made directly, kept by size. `d3d::tests::a_dropped_datas_buffer_is_not_given_to_new_data`
+reproduces the hazard (it fails on the old code, a new allocation taking the dropped data's address and its buffer)
+and passes now. The test asserts the post-processed pictures bit for bit again: 5 runs alone and 3 with the quick
+tier running (2 beside it, 1 inside it), all 0 bytes apart. The editor's view keeps no exposure state between
+frames, so no reset is needed on load or after an edit.
 
 ### Package levels (round G3's levels, read from their bundles in place)
 
