@@ -13,7 +13,7 @@
 
 [workspace]
 resolver = "3"
-members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite"]
+members = ["bc2-formats", "bc2-scene", "bc2-py", "bc2-convert", "bc2-navbuild", "bc2-shader", "bc2-stockmp", "bc2-harness", "bc2-editor", "bc2-levelwrite", "bc2-render"]
 
 [workspace.package]
 version = "0.1.0"
@@ -33,6 +33,7 @@ bc2-shader = { path = "bc2-shader" }
 bc2-stockmp = { path = "bc2-stockmp" }
 bc2-levelwrite = { path = "bc2-levelwrite" }
 bc2-harness = { path = "bc2-harness" }
+bc2-render = { path = "bc2-render" }
 thiserror = "=2.0.21"
 rayon = "=1.12.0"
 # gzip of FBRB bundles: raw deflate (the gzip framing is read in bc2-formats, by the reference's rules) and CRC-32
@@ -59,6 +60,9 @@ serde_json = "=1.0.151"
 bytemuck = "=1.25.2"
 pollster = "=1.0.1"
 png = "=0.18.1"
+# The game-accurate view (bc2-render, round R5): Direct3D 11 drawing DICE's own compiled shaders, the version wgpu's
+# Direct3D 12 backend already brings in (one copy of the bindings in the build).
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
