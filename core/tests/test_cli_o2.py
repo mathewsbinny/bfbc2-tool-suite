@@ -65,8 +65,12 @@ REF = os.path.abspath(_ref_arg or os.environ.get('BFBC2_O2_REF') or SUITE)
 SCRIPTS = native.CLI_TOOLS
 # the environment Python's stdio reads, and the switches that pick the Python, left out unless a case sets them
 PY_ENV = ('PYTHONUTF8', 'PYTHONIOENCODING', 'PYTHONUNBUFFERED', 'PYTHONLEGACYWINDOWSSTDIO', 'BFBC2_PURE_PYTHON',
-          'BFBC2_CLI_PYTHON', 'BFBC2_CLI_TRACE', 'BFBC2_CRASHREADER_REFERENCE')
-WORKERS = int(os.environ.get('BFBC2_CLI_WORKERS') or 4)     # fewer on a busy PC (round O3)
+          'BFBC2_CLI_PYTHON', 'BFBC2_CLI_TRACE', 'BFBC2_CRASHREADER_REFERENCE', 'BFBC2_CULLTREE_REFERENCE',
+          'BFBC2_CULLTREE_CACHE')
+# a group's local-app-data paths left out of lad_state (a regex on the path, the case module's LAD_SKIP): files the
+# port keeps differently by design (round O3: culltree.py's row cache, which bfbc2.exe does not keep)
+LAD_SKIP: str | None = None
+WORKERS =int(os.environ.get('BFBC2_CLI_WORKERS') or 4)     # fewer on a busy PC (round O3)
 SHARD = 900_000                        # bytes of JSON per golden file at most
 # key, tool, files ({name: bytes | str | None (a folder)}), args ({d}: the case folder), env ({d} too), merged
 Case = tuple[str, str, dict[str, Any], list[str], dict[str, str], bool]
@@ -151,6 +155,8 @@ class Place:
                 rel = os.path.relpath(full, self.lad).replace(os.sep, '/')
                 rel = re.sub(r'logs-\d{4}-\d\d-\d\d_\d{6}(-\d+)?\.zip$', 'logs-<stamp>.zip', rel)
                 rel = re.sub(r'\.tmp-\d+$', '.tmp-N', rel)
+                if LAD_SKIP and re.match(LAD_SKIP, rel):
+                    continue
                 if f.lower().endswith('.log'):
                     rows.append(re.sub(datetime.date.today().isoformat(), '<date>', rel))
                 elif f.lower().endswith('.zip'):
@@ -399,8 +405,10 @@ def main(argv: list[str]) -> int:
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''), flush=True)
 
     t = time.time()
+    global LAD_SKIP
     for group in groups:
         mod = group_module(group)
+        LAD_SKIP = getattr(mod, 'LAD_SKIP', None)
         rows: list[Case] = mod.cases()
         keys = [r[0] for r in rows]
         if len(set(keys)) != len(keys):

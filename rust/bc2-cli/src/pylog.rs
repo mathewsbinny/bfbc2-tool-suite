@@ -70,7 +70,7 @@ fn py_space(c: char) -> bool {
 /// Python's `float(text)` of an environment value, or None where it raises `ValueError`: Unicode digits read as
 /// their ASCII ones, underscores allowed only between digits, the rest as Rust reads a float (`inf`, `nan`,
 /// `infinity`, exponents, either case).
-fn py_float(text: &str) -> Option<f64> {
+pub fn py_float(text: &str) -> Option<f64> {
     let s: String = text
         .trim_matches(py_space)
         .chars()

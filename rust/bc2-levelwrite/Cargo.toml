@@ -13,6 +13,9 @@ bc2-formats.workspace = true
 # dbxbin.new_guid's port (UUIDv5 over NAMESPACE_URL, DICE's upper-case form)
 bc2-stockmp.workspace = true
 thiserror.workspace = true
+# culltree.py's model (culltool, round O3): its exceptions and value texts; the reference levels read on all cores
+bc2-pyrt.workspace = true
+rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 # the base partition's sha1 (navtune.json's base check)
