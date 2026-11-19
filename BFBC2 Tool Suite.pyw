@@ -34,11 +34,16 @@ if not os.path.isfile(PYTHON):
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
-def fbrbtool():
-    """FbrbTool's command line: the Rust binary bfbc2.exe when it is built from this checkout (round O1), else the
-    Python one (BFBC2_CLI_PYTHON=1: always the Python one) - the same output either way."""
-    cmd = native.cli_command('fbrbtool')
+def cli(tool):
+    """A ported tool's command line: the Rust binary bfbc2.exe when it is built from this checkout (rounds O1 / O2),
+    else the Python one (BFBC2_CLI_PYTHON=1: always the Python one) - the same output either way."""
+    cmd = native.cli_command(tool)
     return [PYTHON, cmd[1]] if cmd[0] == sys.executable else cmd
+
+
+def fbrbtool():
+    """FbrbTool's command line (cli)."""
+    return cli('fbrbtool')
 
 TOOLS = {
     'leveldiff': (os.path.join(SUITE, 'bfbc2-diff-workbench', 'level-diff', 'LevelDiff.exe'),
@@ -468,7 +473,7 @@ class Hub:
         ttk.Button(f, text='Read the crash report', command=self.crash).grid(row=4, column=1, sticky='w', pady=6)
 
     def crash(self):
-        args = [PYTHON, SCRIPTS['crash']]
+        args = cli('crashreader')                            # bfbc2.exe crashreader, else crashreader.py
         if self.cr_file.get().strip():
             args.append(self.cr_file.get().strip())
         if self.cr_log.get().strip():
