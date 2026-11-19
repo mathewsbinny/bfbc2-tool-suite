@@ -17,7 +17,10 @@ use bc2_levelwrite::MapProject;
 use bc2_levelwrite::export::{self, ExportSpec, Game};
 
 fn value(args: &[String], key: &str) -> Option<PathBuf> {
-    args.iter().position(|a| a == key).and_then(|i| args.get(i + 1)).map(PathBuf::from)
+    args.iter()
+        .position(|a| a == key)
+        .and_then(|i| args.get(i + 1))
+        .map(PathBuf::from)
 }
 
 fn run(args: &[String]) -> Result<bool, String> {
@@ -44,7 +47,12 @@ fn run(args: &[String]) -> Result<bool, String> {
             for l in &rec.report {
                 say(l);
             }
-            say(&format!("staged {} in {} ({:.1} s)", rec.level, stage.display(), t.elapsed().as_secs_f64()));
+            say(&format!(
+                "staged {} in {} ({:.1} s)",
+                rec.level,
+                stage.display(),
+                t.elapsed().as_secs_f64()
+            ));
             Ok(true)
         }
         Some("check") => {
@@ -57,7 +65,10 @@ fn run(args: &[String]) -> Result<bool, String> {
             Ok(r.ok())
         }
         Some("startup") => {
-            let src = PathBuf::from(args.get(1).ok_or("startup <startup-00.fbrb> --out <file> --work <folder>")?);
+            let src = PathBuf::from(
+                args.get(1)
+                    .ok_or("startup <startup-00.fbrb> --out <file> --work <folder>")?,
+            );
             let out_p = value(args, "--out").ok_or("--out <file> is needed")?;
             let work = value(args, "--work").ok_or("--work <folder> is needed")?;
             let mut add = Vec::new();

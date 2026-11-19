@@ -5,7 +5,7 @@
 //! tree leaves ([`crate::culltree`]), and the files the engine finds by a level's name copied under the new name. It
 //! writes the new level's bundles into a stage folder with `stage.json` (what is in them, their sha1, the
 //! registration an install adds) - the base's bundles are read by the new level at run time, not copied
-//! (`package.mft` lists them among its targets, as DICE's mode levels list their base level's, MP_005GR -> MP_005).
+//! (`package.mft` lists them among its targets, as DICE's mode levels list their base level's, `MP_005GR` -> `MP_005`).
 //!
 //! [`check`] proves a stage offline against the game's rules (every reference resolves in the bundles the level
 //! loads, every bundle and partition parses, the registration names every bundle once, the cull tree is one tree with
@@ -13,7 +13,13 @@
 //! (`startup-00`: the descriptions and the menus' level list). Installing (copying the stage into the game copy,
 //! the backups, the registration last, the revert) is Project OPFOR's (`src\tools\mapedit\mapedit_install.py`).
 
+#![allow(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "entry names are compared lower case (DICE's names mix cases)"
+)]
+
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use bc2_formats::dbx::edit::EditDbx;
@@ -173,8 +179,7 @@ impl Game {
         self.mft
             .iter()
             .find(|(s, _)| s.to_ascii_lowercase() == want)
-            .map(|(_, t)| t.clone())
-            .unwrap_or_default()
+            .map_or_default(|(_, t)| t.clone())
     }
 
     /// The live entries of bundles in priority order (the first bundle's entry of a name wins; a deleted marker
@@ -286,7 +291,11 @@ fn read_one(game: &Game, bundles: &[PathBuf], name: &str) -> Result<Vec<u8>> {
 }
 
 fn show(bundles: &[PathBuf]) -> String {
-    bundles.iter().map(|b| b.display().to_string()).collect::<Vec<_>>().join(", ")
+    bundles
+        .iter()
+        .map(|b| b.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 // ------------------------------------------------------------------------------------------------ building
@@ -382,7 +391,11 @@ pub fn is_root_file(rest: &str) -> bool {
 fn renamed_entry(name: &str, base: &str, new: &str) -> String {
     let n = base.len();
     let tail = name.get(7 + n..).unwrap_or_default();
-    format!("{}{}{tail}", name.get(..7).unwrap_or("Levels/"), new.to_ascii_uppercase())
+    format!(
+        "{}{}{tail}",
+        name.get(..7).unwrap_or("Levels/"),
+        new.to_ascii_uppercase()
+    )
 }
 
 fn stem(name: &str) -> String {
@@ -407,7 +420,9 @@ fn new_guids(d: &mut EditDbx, seed: &str) -> crate::write::Result<()> {
     for r in roots {
         for e in d.walk(r) {
             for k in [&b"ref"[..], b"primaryInstance"] {
-                let Some(v) = d.attr(e, k).map(<[u8]>::to_vec) else { continue };
+                let Some(v) = d.attr(e, k).map(<[u8]>::to_vec) else {
+                    continue;
+                };
                 if v.len() == 36
                     && !v.contains(&b'/')
                     && let Some(n) = map.get(&String::from_utf8_lossy(&v).to_ascii_uppercase())
@@ -429,17 +444,20 @@ fn heightfield(game: &Game, lv: &str, partition: &LevelWriter) -> Result<Option<
         .of_type(b".TerrainEntityData")
         .first()
         .and_then(|&e| {
-            partition
-                .d
-                .walk(e)
-                .into_iter()
-                .find_map(|x| partition.d.attr(x, b"ref").filter(|r| r.to_ascii_lowercase().starts_with(b"terrains/")))
+            partition.d.walk(e).into_iter().find_map(|x| {
+                partition
+                    .d
+                    .attr(x, b"ref")
+                    .filter(|r| r.to_ascii_lowercase().starts_with(b"terrains/"))
+            })
         })
         .map(|r| String::from_utf8_lossy(r).into_owned());
     let Some(r) = terrain else { return Ok(None) };
     // terrains/sp_01/sp_01/<guid> -> Terrains/SP_01/SP_01.Heightfield-000.res
     let parts: Vec<&str> = r.split('/').collect();
-    let (Some(a), Some(b)) = (parts.get(1), parts.get(2)) else { return Ok(None) };
+    let (Some(a), Some(b)) = (parts.get(1), parts.get(2)) else {
+        return Ok(None);
+    };
     let name = format!("terrains/{a}/{b}.heightfield-000.res");
     let mut bundles = game.loaded(lv, "terrain");
     bundles.extend(game.loaded(lv, "level"));
@@ -471,7 +489,11 @@ pub fn mft_blocks(game: &Game, lv: &str, base: &str) -> Vec<Vec<String>> {
                 targets.extend(mine.into_iter().filter(|t| game.bundle(t).is_file()));
                 if kind == "level" {
                     targets.push("game:levels/mp_common/level-00.fbrb".into());
-                    targets.extend(common.into_iter().filter(|t| !t.to_ascii_lowercase().contains("mp_common")));
+                    targets.extend(
+                        common
+                            .into_iter()
+                            .filter(|t| !t.to_ascii_lowercase().contains("mp_common")),
+                    );
                 }
             }
             _ => {
@@ -490,7 +512,12 @@ pub fn mft_blocks(game: &Game, lv: &str, base: &str) -> Vec<Vec<String>> {
 pub fn bundle_manifest_lines(lv: &str) -> Vec<String> {
     KINDS
         .iter()
-        .map(|k| format!("levels/{}/{k}\t00000000-0000-0000-0000-000000000000\t1", lv.to_ascii_lowercase()))
+        .map(|k| {
+            format!(
+                "levels/{}/{k}\t00000000-0000-0000-0000-000000000000\t1",
+                lv.to_ascii_lowercase()
+            )
+        })
         .collect()
 }
 
@@ -513,8 +540,17 @@ fn pack_entries(entries: &[StagedEntry]) -> Result<Vec<u8>> {
 ///
 /// # Errors
 /// The base, the donor or a file the level needs is missing, the project does not apply, or a write fails.
-#[allow(clippy::too_many_lines, reason = "the export's steps in order, each named in the report")]
-pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &ExportSpec, out: &Path) -> Result<StageRecord> {
+#[allow(
+    clippy::too_many_lines,
+    reason = "the export's steps in order, each named in the report"
+)]
+pub fn build(
+    game: &Game,
+    project: &MapProject,
+    project_file: &str,
+    spec: &ExportSpec,
+    out: &Path,
+) -> Result<StageRecord> {
     let lv = spec.level_id()?;
     let low = lv.to_ascii_lowercase();
     let base = project.base.level.to_ascii_lowercase();
@@ -527,7 +563,9 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
         )));
     }
     if !game.targets(&format!("levels/{low}/level-00.fbrb")).is_empty() && !is_custom(game, &low) {
-        return Err(err(format!("{lv} is registered in package.mft by another tool: choose another name")));
+        return Err(err(format!(
+            "{lv} is registered in package.mft by another tool: choose another name"
+        )));
     }
     let mut report = Vec::new();
     // 1. the base partition with the project's operations
@@ -535,7 +573,9 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
     let base_bytes = read_one(game, &base_bundles, &format!("Levels/{base_up}.dbx"))?;
     let base_sha1 = sha1_hex(&base_bytes);
     if base_sha1 == project.base.sha1 {
-        report.push(format!("base: Levels/{base_up} as the project was made on (sha1 {base_sha1})"));
+        report.push(format!(
+            "base: Levels/{base_up} as the project was made on (sha1 {base_sha1})"
+        ));
     } else {
         let r = project.base_report(&base_bytes);
         if !r.missing.is_empty() {
@@ -571,7 +611,10 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
     let mut conv = Converted::default();
     let keep_area: HashSet<String> = [spec.layer.combat_area.to_ascii_uppercase()].into();
     if w.find(&spec.layer.combat_area).is_none() {
-        return Err(err(format!("the combat area {} is not in the base level", spec.layer.combat_area)));
+        return Err(err(format!(
+            "the combat area {} is not in the base level",
+            spec.layer.combat_area
+        )));
     }
     mpconvert::strip(&mut w, &keep_area, &mut conv)?;
     let seed = format!("{}:{low}", project.id);
@@ -584,7 +627,11 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
     };
     report.push(format!(
         "ground: {}",
-        if ground.is_some() { "the donor's and the base's height fields" } else { "not found: heights moved as given" }
+        if ground.is_some() {
+            "the donor's and the base's height fields"
+        } else {
+            "not found: heights moved as given"
+        }
     ));
     mpconvert::place(&mut w, &donor, &spec.layer, &map, ground.as_ref(), &mut conv)?;
     mpconvert::enable(&mut w, &spec.layer.combat_area)?;
@@ -673,25 +720,38 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
     let level_bytes = w.write()?;
     // 6. the description: the donor's (its mode, kits, pictures) with the level's name, map and music
     let st = game.startup();
-    let dd = read_one(game, &st, &format!("Levels/{}_description.dbx", donor_lv.to_ascii_uppercase()))?;
+    let dd = read_one(
+        game,
+        &st,
+        &format!("Levels/{}_description.dbx", donor_lv.to_ascii_uppercase()),
+    )?;
     let mut dw = LevelWriter::parse(&dd)?;
     new_guids(&mut dw.d, &format!("{seed}:description"))?;
-    let asset = dw
-        .d
-        .of_type(b".LevelDescriptionAsset")
-        .first()
-        .copied()
-        .ok_or_else(|| err("the donor's description has no LevelDescriptionAsset"))?;
+    let asset =
+        dw.d.of_type(b".LevelDescriptionAsset")
+            .first()
+            .copied()
+            .ok_or_else(|| err("the donor's description has no LevelDescriptionAsset"))?;
     let set_text = |dw: &mut LevelWriter, f: &[u8], v: &str| -> Result<()> {
-        let x = dw.d.child(asset, f).ok_or_else(|| err(format!("description: no {}", String::from_utf8_lossy(f))))?;
+        let x =
+            dw.d.child(asset, f)
+                .ok_or_else(|| err(format!("description: no {}", String::from_utf8_lossy(f))))?;
         dw.d.set_text(x, v.as_bytes()).map_err(|e| err(e.0))
     };
     set_text(&mut dw, b"Name", &format!("Levels/{lv}_description"))?;
     set_text(&mut dw, b"LevelName", &format!("Levels/{lv}"))?;
-    dw.d.set_attr(asset, b"id", format!("{lv}_description").as_bytes()).map_err(|e| err(e.0))?;
-    let dc = dw.d.child(asset, b"Description").ok_or_else(|| err("description: no Description"))?;
+    dw.d.set_attr(asset, b"id", format!("{lv}_description").as_bytes())
+        .map_err(|e| err(e.0))?;
+    let dc =
+        dw.d.child(asset, b"Description")
+            .ok_or_else(|| err("description: no Description"))?;
     let keep_desc = DescriptionKeep {
-        refs: keep.refs.iter().filter(|(f, _)| f != b"RichPresence").cloned().collect(),
+        refs: keep
+            .refs
+            .iter()
+            .filter(|(f, _)| f != b"RichPresence")
+            .cloned()
+            .collect(),
         name: keep.name.clone(),
         description: keep.description.clone(),
     };
@@ -717,16 +777,13 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
     level_all.extend(level_entries);
     // the partitions the layer names that the base's bundles hide (SP_01's deleted markers over mp_common's
     // flags and spawn camera): copied from mp_common into the level's own bundle, which comes first
-    let mut block_loaded: Vec<PathBuf> = mft_blocks(game, &low, &base)
-        .first()
-        .map(|b| {
-            b.iter()
-                .filter_map(|l| l.strip_prefix("BundleTarget "))
-                .filter(|t| !t.to_ascii_lowercase().contains(&format!("levels/{low}/")))
-                .map(|t| game.bundle(t))
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut block_loaded: Vec<PathBuf> = mft_blocks(game, &low, &base).first().map_or_default(|b| {
+        b.iter()
+            .filter_map(|l| l.strip_prefix("BundleTarget "))
+            .filter(|t| !t.to_ascii_lowercase().contains(&format!("levels/{low}/")))
+            .map(|t| game.bundle(t))
+            .collect()
+    });
     block_loaded.extend(game.startup());
     let filled = fill_hidden(game, &block_loaded, &level_all)?;
     if !filled.is_empty() {
@@ -752,8 +809,13 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
             })
             .collect())
     };
-    let terrain = pick(game.level_bundles(&base, "terrain").into_iter().take(1).collect(), &|_| true)?;
-    let ingame = pick(game.level_bundles(&base, "ingame"), &|n| n.starts_with(&format!("levels/{base}/ui/")))?;
+    let terrain = pick(
+        game.level_bundles(&base, "terrain").into_iter().take(1).collect(),
+        &|_| true,
+    )?;
+    let ingame = pick(game.level_bundles(&base, "ingame"), &|n| {
+        n.starts_with(&format!("levels/{base}/ui/"))
+    })?;
     let loader = pick(game.level_bundles(&base, "loader"), &|n| n.starts_with("sound/"))?;
     // write the stage
     if out.is_dir() {
@@ -810,7 +872,7 @@ pub fn build(game: &Game, project: &MapProject, project_file: &str, spec: &Expor
 }
 
 /// The partitions `ours` reference (transitively) that no bundle of `loaded` gives - hidden by an earlier bundle's
-/// deleted marker - taken from mp_common's level bundle, each with its resources (`<stem>.res`, `<stem>_*.res`).
+/// deleted marker - taken from `mp_common`'s level bundle, each with its resources (`<stem>.res`, `<stem>_*.res`).
 ///
 /// # Errors
 /// A bundle does not read.
@@ -828,7 +890,10 @@ fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry]) -> Result<
         let Ok(d) = EditDbx::parse(&data) else { continue };
         let mut want: Vec<String> = refs_of(&d)
             .into_iter()
-            .filter_map(|r| r.rsplit_once('/').map(|(p, _)| format!("{}.dbx", p.to_ascii_lowercase())))
+            .filter_map(|r| {
+                r.rsplit_once('/')
+                    .map(|(p, _)| format!("{}.dbx", p.to_ascii_lowercase()))
+            })
             .filter(|n| !have.contains(n) && !live.contains_key(n) && common.contains_key(n))
             .collect();
         want.sort();
@@ -839,7 +904,8 @@ fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry]) -> Result<
                 .keys()
                 .filter(|k| {
                     **k == n
-                        || (k.ends_with(".res") && (k.trim_end_matches(".res") == st || k.starts_with(&format!("{st}_"))))
+                        || (k.ends_with(".res")
+                            && (k.trim_end_matches(".res") == st || k.starts_with(&format!("{st}_"))))
                 })
                 .filter(|k| !have.contains(*k))
                 .collect();
@@ -877,7 +943,8 @@ pub fn mode_title(mode: &str) -> String {
 /// beside its bundles): only such a level may be replaced by a later export of the same name (section 6, ruling 1).
 #[must_use]
 pub fn is_custom(game: &Game, low: &str) -> bool {
-    game.bundle(&format!("package:levels/{low}/opfor-mapedit-installed.json")).is_file()
+    game.bundle(&format!("package:levels/{low}/opfor-mapedit-installed.json"))
+        .is_file()
 }
 
 fn write_record(out: &Path, rec: &StageRecord) -> Result<()> {
@@ -891,7 +958,7 @@ fn write_record(out: &Path, rec: &StageRecord) -> Result<()> {
         rec.level.to_ascii_lowercase()
     );
     for f in &rec.files {
-        reg.push_str(&format!("#   {} ({} bytes, sha1 {})\n", f.install, f.size, f.sha1));
+        let _ = writeln!(reg, "#   {} ({} bytes, sha1 {})", f.install, f.size, f.sha1);
     }
     reg.push_str("# package.mft blocks:\n");
     for b in &rec.mft_blocks {
@@ -899,10 +966,11 @@ fn write_record(out: &Path, rec: &StageRecord) -> Result<()> {
     }
     reg.push_str("# bundleManifest lines:\n");
     reg.push_str(&(rec.bundle_manifest.join("\n") + "\n"));
-    reg.push_str(&format!(
-        "# startup-00: {} and LevelListQuery items {:?}\n",
+    let _ = writeln!(
+        reg,
+        "# startup-00: {} and LevelListQuery items {:?}",
         rec.description.1, rec.level_list
-    ));
+    );
     std::fs::write(out.join("registration.txt"), reg)?;
     Ok(())
 }
@@ -970,7 +1038,12 @@ fn all_partition_names(root: &Path) -> Result<HashSet<String>> {
             } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("fbrb"))
                 && let Ok(h) = fbrb::entries_path(&p)
             {
-                out.extend(h.entries.iter().filter(|x| !x.is_deleted()).map(|x| x.name.to_ascii_lowercase()));
+                out.extend(
+                    h.entries
+                        .iter()
+                        .filter(|x| !x.is_deleted())
+                        .map(|x| x.name.to_ascii_lowercase()),
+                );
             }
         }
     }
@@ -978,7 +1051,7 @@ fn all_partition_names(root: &Path) -> Result<HashSet<String>> {
 }
 
 /// The references of the stock partition(s) one of ours was made from: the level partition from the base and
-/// the donor levels, a root file from the base's, anything else from mp_common's copy of the same name.
+/// the donor levels, a root file from the base's, anything else from `mp_common`'s copy of the same name.
 fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>> {
     let low = rec.level.to_ascii_lowercase();
     let o = ours.to_ascii_lowercase();
@@ -1020,7 +1093,10 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     for f in &rec.files {
         let p = stage.join(&f.path);
         let bytes = std::fs::read(&p)?;
-        r.add(sha1_hex(&bytes) == f.sha1, format!("{}: the staged file is the one recorded", f.path));
+        r.add(
+            sha1_hex(&bytes) == f.sha1,
+            format!("{}: the staged file is the one recorded", f.path),
+        );
         let (h, data) = fbrb::extract_path_uncached(&p).map_err(|e| err(format!("{}: {e}", p.display())))?;
         let mut bad = Vec::new();
         for (e, d) in h.entries.iter().zip(&data) {
@@ -1037,7 +1113,16 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         }
         r.add(
             bad.is_empty() && h.entries.len() == f.entries,
-            format!("{}: opens, {} entries, every partition parses{}", f.path, h.entries.len(), if bad.is_empty() { String::new() } else { format!(" (not: {bad:?})") }),
+            format!(
+                "{}: opens, {} entries, every partition parses{}",
+                f.path,
+                h.entries.len(),
+                if bad.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (not: {bad:?})")
+                }
+            ),
         );
     }
     // the registration: one block and one manifest line per bundle, each block's targets present
@@ -1045,14 +1130,20 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         && KINDS.iter().all(|k| {
             rec.mft_blocks
                 .iter()
-                .filter(|b| b.first().is_some_and(|s| *s == format!("BundleSource game:levels/{low}/{k}-00.fbrb")))
+                .filter(|b| {
+                    b.first()
+                        .is_some_and(|s| *s == format!("BundleSource game:levels/{low}/{k}-00.fbrb"))
+                })
                 .count()
                 == 1
         })
         && rec.bundle_manifest == bundle_manifest_lines(&low)
         && rec.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>()
             == KINDS.iter().map(|k| format!("{k}-00.fbrb")).collect::<Vec<_>>();
-    r.add(kinds_ok, format!("registration: a package.mft block and a bundleManifest line for each of {KINDS:?}"));
+    r.add(
+        kinds_ok,
+        format!("registration: a package.mft block and a bundleManifest line for each of {KINDS:?}"),
+    );
     let mut missing_targets = Vec::new();
     for b in &rec.mft_blocks {
         for t in b.iter().filter_map(|l| l.strip_prefix("BundleTarget ")) {
@@ -1062,7 +1153,10 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             }
         }
     }
-    r.add(missing_targets.is_empty(), format!("registration: every target bundle exists {missing_targets:?}"));
+    r.add(
+        missing_targets.is_empty(),
+        format!("registration: every target bundle exists {missing_targets:?}"),
+    );
     r.add(
         game.targets(&format!("levels/{low}/level-00.fbrb")).is_empty() || is_custom(game, &low),
         format!("the name {} is not a level of the game copy", rec.level),
@@ -1098,7 +1192,13 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             }
         }
     }
-    r.add(local_bad.is_empty(), format!("local references: every one names an instance of its partition {:?}", local_bad.iter().take(5).collect::<Vec<_>>()));
+    r.add(
+        local_bad.is_empty(),
+        format!(
+            "local references: every one names an instance of its partition {:?}",
+            local_bad.iter().take(5).collect::<Vec<_>>()
+        ),
+    );
     let mut no_partition = Vec::new();
     let mut need: Vec<(&String, &Found)> = Vec::new();
     for part in wanted.keys() {
@@ -1116,7 +1216,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
             continue;
         };
         let have = instance_guids(&d);
-        for (g, from) in wanted.get(*part).map(Vec::as_slice).unwrap_or_default() {
+        for (g, from) in wanted.get(*part).map_or_default(Vec::as_slice) {
             if !have.contains(g) {
                 no_instance.push(format!("{from} -> {part}/{g}"));
             }
@@ -1131,18 +1231,19 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         let mut keep = Vec::new();
         for part in no_partition {
             let absent = !everywhere.contains(&format!("{part}.dbx"));
-            let froms: HashSet<&String> = wanted.get(&part).map(|v| v.iter().map(|x| &x.1).collect()).unwrap_or_default();
+            let froms: HashSet<&String> = wanted.get(&part).map_or_default(|v| v.iter().map(|x| &x.1).collect());
             let mut stock_too = absent && !froms.is_empty();
             for from in froms {
-                let refs = match stock_cache.get(from) {
-                    Some(v) => v.clone(),
-                    None => {
-                        let v = stock_refs(game, &rec, from)?;
-                        stock_cache.insert(from.clone(), v.clone());
-                        v
-                    }
+                let refs = if let Some(v) = stock_cache.get(from) {
+                    v.clone()
+                } else {
+                    let v = stock_refs(game, &rec, from)?;
+                    stock_cache.insert(from.clone(), v.clone());
+                    v
                 };
-                stock_too &= refs.iter().any(|x| x.rsplit_once('/').is_some_and(|(p, _)| p.eq_ignore_ascii_case(&part)));
+                stock_too &= refs
+                    .iter()
+                    .any(|x| x.rsplit_once('/').is_some_and(|(p, _)| p.eq_ignore_ascii_case(&part)));
             }
             if stock_too {
                 dangling.push(part);
@@ -1169,13 +1270,20 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     );
     r.add(
         no_instance.is_empty(),
-        format!("references: every one names an instance of its partition {:?}", no_instance.iter().take(8).collect::<Vec<_>>()),
+        format!(
+            "references: every one names an instance of its partition {:?}",
+            no_instance.iter().take(8).collect::<Vec<_>>()
+        ),
     );
     // the level and its description
-    let lvl = ours.iter().find(|(n, _)| n.eq_ignore_ascii_case(&format!("Levels/{}.dbx", rec.level)));
+    let lvl = ours
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case(&format!("Levels/{}.dbx", rec.level)));
     let level_name = lvl.and_then(|(_, d)| {
         let ld = d.of_type(b".LevelData").first().copied()?;
-        d.child(ld, b"Name").and_then(|x| d.text(x)).map(|t| String::from_utf8_lossy(t).into_owned())
+        d.child(ld, b"Name")
+            .and_then(|x| d.text(x))
+            .map(|t| String::from_utf8_lossy(t).into_owned())
     });
     r.add(
         level_name.as_deref() == Some(format!("Levels/{}", rec.level).as_str()),
@@ -1184,7 +1292,9 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     let desc = ours.iter().find(|(n, _)| n.eq_ignore_ascii_case(&rec.description.1));
     let desc_level = desc.and_then(|(_, d)| {
         let a = d.of_type(b".LevelDescriptionAsset").first().copied()?;
-        d.child(a, b"LevelName").and_then(|x| d.text(x)).map(|t| String::from_utf8_lossy(t).into_owned())
+        d.child(a, b"LevelName")
+            .and_then(|x| d.text(x))
+            .map(|t| String::from_utf8_lossy(t).into_owned())
     });
     r.add(
         desc_level.as_deref() == Some(format!("Levels/{}", rec.level).as_str()),
@@ -1193,7 +1303,8 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     // the cull tree: one tree, and one object per slot, each slot a leaf of a tree
     if let (Some((_, lw)), Some((_, tree))) = (
         lvl,
-        ours.iter().find(|(n, _)| n.to_ascii_lowercase().ends_with("staticculltree_exclusive.dbx")),
+        ours.iter()
+            .find(|(n, _)| n.to_ascii_lowercase().ends_with("staticculltree_exclusive.dbx")),
     ) {
         match crate::culltree::CullTree::read(tree) {
             Ok(t) => {
@@ -1235,7 +1346,13 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
 ///
 /// # Errors
 /// The source does not unpack, has no level list, or the pack fails.
-pub fn patch_startup(source: &Path, add: &[(String, Vec<u8>)], remove: &[String], work: &Path, out: &Path) -> Result<Vec<String>> {
+pub fn patch_startup(
+    source: &Path,
+    add: &[(String, Vec<u8>)],
+    remove: &[String],
+    work: &Path,
+    out: &Path,
+) -> Result<Vec<String>> {
     if work.exists() {
         std::fs::remove_dir_all(work)?;
     }
@@ -1262,8 +1379,14 @@ pub fn patch_startup(source: &Path, add: &[(String, Vec<u8>)], remove: &[String]
     let list_name = list_line.split('|').next().unwrap_or(LEVEL_LIST).to_owned();
     let list_path = fbrb::entry_path(work, &list_name)?;
     let mut d = EditDbx::parse(&std::fs::read(&list_path)?).map_err(|e| err(format!("{LEVEL_LIST}: {e}")))?;
-    let inst = d.instances().first().copied().ok_or_else(|| err(format!("{LEVEL_LIST}: no instance")))?;
-    let results = d.child(inst, b"Results").ok_or_else(|| err(format!("{LEVEL_LIST}: no Results array")))?;
+    let inst = d
+        .instances()
+        .first()
+        .copied()
+        .ok_or_else(|| err(format!("{LEVEL_LIST}: no instance")))?;
+    let results = d
+        .child(inst, b"Results")
+        .ok_or_else(|| err(format!("{LEVEL_LIST}: no Results array")))?;
     let tmpl = *d
         .children(results)
         .and_then(<[u32]>::first)
@@ -1345,9 +1468,16 @@ mod tests {
             "Levels/MAPEDIT_X_CQ/shaders/Dx11_Single.res"
         );
         assert_eq!(stem("Levels/SP_01/shaders.dbx"), "levels/sp_01/shaders");
-        let m = parse_mft("Signature x\r\n\r\nBundleSource game:a\r\nBundleTarget package:a\r\nBundleTarget game:b\r\n");
-        assert_eq!(m, vec![("game:a".to_owned(), vec!["package:a".to_owned(), "game:b".to_owned()])]);
-        assert_eq!(bundle_manifest_lines("X")[3], "levels/x/loader\t00000000-0000-0000-0000-000000000000\t1");
+        let m =
+            parse_mft("Signature x\r\n\r\nBundleSource game:a\r\nBundleTarget package:a\r\nBundleTarget game:b\r\n");
+        assert_eq!(
+            m,
+            vec![("game:a".to_owned(), vec!["package:a".to_owned(), "game:b".to_owned()])]
+        );
+        assert_eq!(
+            bundle_manifest_lines("X")[3],
+            "levels/x/loader\t00000000-0000-0000-0000-000000000000\t1"
+        );
         let spec = ExportSpec {
             format: FORMAT.into(),
             version: 1,

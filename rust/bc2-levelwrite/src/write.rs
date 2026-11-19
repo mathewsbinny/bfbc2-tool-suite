@@ -256,12 +256,9 @@ impl LevelWriter {
                 .iter()
                 .copied()
                 .filter(|&c| {
-                    ![&b"Source"[..], b"Target"].iter().any(|f| {
-                        self.d
-                            .child(c, f)
-                            .and_then(|x| self.d.attr(x, b"ref"))
-                            .is_some_and(hit)
-                    })
+                    ![&b"Source"[..], b"Target"]
+                        .iter()
+                        .any(|f| self.d.child(c, f).and_then(|x| self.d.attr(x, b"ref")).is_some_and(hit))
                 })
                 .collect();
             out.connections += kids.len() - keep.len();
