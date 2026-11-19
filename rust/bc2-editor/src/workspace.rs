@@ -268,9 +268,10 @@ mod tests {
             c("objects/buildings/barn/barn", Some("StaticModelEntityData"), false),
             Category::Buildings
         );
+        // a breakable prop stays a prop (a cactus, a fence)
         assert_eq!(
             c("objects/props/crate/crate", Some("StaticModelEntityData"), true),
-            Category::Buildings
+            Category::Props
         );
         assert_eq!(
             c("objects/props/crate/crate", Some("StaticModelEntityData"), false),

@@ -502,6 +502,13 @@ Company 1 maps, mode layouts such as MP_005GR) are listed, prepared and opened b
   (15 degrees, 1 with Ctrl), a click places. A placement is a clone of a template (a plain placement of the same
   blueprint, else any placed object) with the blueprint, transform and the fields most of the level's placements
   of it share.
+- **The asset browser** (the user's refinement): three modes. *Place Objects*: a tile for every placeable object of the
+  content set (the level's placements, its folders', every bundle of the set by its header - read from its bundle
+  when placed), category tabs, search; a type icon until rendered thumbnails exist (`work\editor\thumbs`, the hook
+  for the renderer's rounds). *Spawners* (player spawn points, HQ / base spawns, AI spawners, a vehicle spawner per
+  vehicle of the set) and *Objectives* (capture points with their capture area, M-COMs, combat areas, mission
+  objectives, arm / disarm awards, life and ticket counters), drawn from the level's data, placed with the team
+  picker's team and the sub-instances they own; their links (spawns to flags, Rush stages, tickets) are E4's.
 - **Deep duplicate**: the sub-instances an object owns (reached through its references, named by nothing outside
   the set but `LevelData.Objects` and event connections: a flag's capture area points, map marker, its own
   spawners) copied with new guids, references among them remapped, their connections copied.
