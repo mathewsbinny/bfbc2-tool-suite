@@ -816,6 +816,8 @@ his Aurora Conquest).
   Nothing per level.
 - **Voice-over bundles.** The stock levels' `vo/<lang>-00` bundles are registered in `package.mft` but absent from
   OPFOR's game copy. A new level ships and registers none (`export::KINDS`: level, terrain, ingame, loader).
+  Round E3c changed this: each stock level's `vo/<lang>` block targets its set's common voice-over bundles, which
+  are there, so a new level now registers the donor's blocks (see "Round E3c" below).
 
 #### The new level's identity
 
@@ -1027,6 +1029,77 @@ selected object stands (move any object with the gizmo, then take its place).
 - Vietnam profile with its own name and picture: `mapexport check` passes every check, among them the profile's
   commons in every block, the game mode, factions and 8 kit pictures the donor's, `SoundStates` the set's, the name
   keys, and both pictures in their templates' form.
+
+#### Round E3c: the announcer per profile (the user, 2026-11-19)
+
+E3b's open defect: a WW2 export (Aurora, donor `guadal_canal`) failed one reference check. The grafted layer's
+`guadal_canal_GameInfo` trigger set names `sound/vo/vo_common` lines that only the WW2 level's own copy of that bank
+has. The user's ruling: the announcer follows the profile's own conventions (WW2 BF1943's voices as OPFOR's WW2
+levels have them, Vietnam the DLC's, BFBC2 its own, BFBC1 the BFBC1 maps' own). Copying back the hidden modern
+partitions the base's own objects need stays as it is.
+
+**Each set's announcer, from the data** (`profile::Announcer`, read per donor from its own level bundles,
+`package.mft` and `bundleManifest`; `examples/profiles.rs` prints it):
+
+| Set | Line banks and trigger sets | `vo/<lang>` blocks (sources absent, targets there) | Own voice-over bundle |
+| --- | --- | --- | --- |
+| BFBC2 (`mp_009cq` ...) | `mp_common`'s (`sound/vo/vo_common`, `vo_en` ...; `sound/vo_triggers/mp/...`) | 7 languages -> `package:levels/mp1_common/vo/<lang>` | none |
+| BFBC1 (`bc1_*`) | `mp2_common`'s own copies of the banks, before `mp_common`'s | 7 -> `mp2_common`'s, then `mp_common`'s | none |
+| Vietnam (`nam_mp_*`) | `nam_common`'s own copies and `nam/` trigger sets, before `mp_common`'s | 7 -> `nam_common`'s, then `mp_common`'s | none |
+| WW2 (OPFOR's 4) | the level's own: `vo_common`, `vo_en` (BF1943's lines merged in), `vo_triggers`, `<level>_GameInfo`, `VO_SP_JP_Generic` | 1 (`vo/en`) -> `mp1_common`'s | `Package\levels\<lv>\vo\en-00` (BF1943's waves) |
+
+- Every stock level's own bundle hides other modes' trigger sets with deleted markers (Squad Deathmatch's on the
+  Conquest levels), one of thousands of markers a level bundle carries. The export copies no donor marker (E3 never
+  did), so this is not taken over.
+- DICE's MP_SP_005CQ (a BFBC2 level made from the campaign with the DLC's `mp2_common`) targets `mp2_common`'s
+  voice-over bundles, as the BFBC1 levels do. OPFOR's `mp_001` has two Squad Deathmatch trigger sets in its
+  `Package` bundle. The export takes whatever donor is chosen.
+
+**What the export does** (`export::build`, step "announcer"):
+
+- the donor's own announcer partitions that the layer reaches (the level's references into `sound/vo/` and
+  `sound/vo_triggers/`, followed through the donor's own copies) go into the new level's bundle, which comes first, so
+  the triggers resolve as on the donor (WW2: 5 partitions; the other sets: none, their commons give them);
+- the donor's `vo/<lang>` blocks under the new name (a target in the donor's own folder re-pointed to the new
+  level's) and its `bundleManifest` vo lines are added to the registration. These are the same blocks the stock
+  levels have: absent sources, present targets;
+- the donor's own voice-over bundles are staged byte for byte as `vo/<lang>-00.fbrb`, installed into
+  `Package\levels\<lv>\vo\` (WW2: `guadal_canal`'s `vo/en-00`, BF1943's waves);
+- `stage.json`'s `announcer` lists the copied partitions; the check takes their stock references from the donor's
+  own bundle.
+
+**The check** (`mapexport check`, two new lines):
+
+- *the voice-over registration is the donor's*: the vo blocks and manifest lines under the new name, its own bundles
+  byte for byte;
+- *`<Set>`'s voices*: every announcer partition the level names, followed through their references, resolves in the
+  bundles the level loads to the same bytes the donor's own load gives. The set is named from the bundles they come
+  from: a set's own commons or levels over the shared BFBC2 `mp_common`. It must be the profile's.
+
+The editor's Export window shows the donor's announcer (a row under Kits).
+
+**Proof (2026-11-19).** On the Aurora project of E3's example, the four profiles (donors `mp_009cq`, `nam_mp_002cq`,
+`guadal_canal`, `bc1_harvest_day_cq`):
+
+- `mapexport check` passes every check on all four, among them the two announcer lines:
+  - BFBC2: 13 partitions, all from `mp_common`;
+  - Vietnam: 13, all from `nam_common`;
+  - WW2: 12, 5 from its own copy of `guadal_canal`'s and 7 from `ww2_common`;
+  - BFBC1: 13, 10 from `mp2_common` and 3 from `mp_common`.
+
+  Each one resolves to the same bytes as on its donor. E3b's binary failed the WW2 export on `guadal_canal_GameInfo`
+  -> `vo_common/CE4CC304...` (`Guadalcanal_Win`);
+- the BFBC2, Vietnam and BFBC1 exports' four bundles and description are byte-identical to E3b's. Their registration
+  gains the donor's vo blocks (7 each) and its manifest lines (7 on `mp_009cq`; none on the Vietnam and BFBC1 donors,
+  whose levels have no `bundleManifest` lines at all);
+- WW2: the level bundle holds E3b's entries plus the three it lacked: the `vo_common` and `vo_en` banks and
+  `VO_SP_JP_Generic` (1,391 entries). The copy-back of hidden partitions is otherwise unchanged (1,362 entries; E3b's
+  1,364 counted `vo_triggers` and `guadal_canal_GameInfo`, which the announcer step now copies).
+  `vo/en-00` is `guadal_canal`'s, byte for byte (476 entries);
+- `game\`: the 1,582 files kept their size and write time, and 19 key files kept their sha256;
+- OPFOR's `mapedit_install --plan` on the WW2 stage lists the new `vo\en-00.fbrb` and the vo block. Its apply /
+  revert test on a scratch copy of the shared files, run with all four stages, gives every file back byte for byte;
+- `tests/export_e3c.rs`: each set's announcer data, and the WW2 export with its check.
 
 ## 4. Stage 2: new maps from imported or randomized terrain
 
