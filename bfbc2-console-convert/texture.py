@@ -310,6 +310,26 @@ def levels_reference(pc):
 
 
 def check(pc, reference=None):
+    """check_reference's answer: the mip-chain error and the block counts in the Rust core when it is built (round
+    F2a: bc2_convert::texcheck::check, NumPy's values to the bit), the correlation with NumPy's corrcoef here."""
+    nat = _native() if type(pc) is bytes and (reference is None or type(reference) is bytes) else None
+    got = nat.texture_check(pc, reference) if nat is not None and hasattr(nat, 'texture_check') else None
+    if got is None:
+        return check_reference(pc, reference)
+    if got[1] is None:
+        return None, None, None, None
+    import numpy as np
+    worst, same, total, args = got[1]
+    corr = None
+    if args is not None:
+        w, h, (a0, a1), (b0, b1) = args
+        fmt = struct.unpack_from('<I', pc, 8)[0]
+        a, b = decode(pc[a0:a1], w, h, fmt).ravel(), decode(reference[b0:b1], w, h, fmt).ravel()
+        corr = float(np.corrcoef(a, b)[0, 1]) if a.std() and b.std() else 1.0
+    return worst, corr, same, total
+
+
+def check_reference(pc, reference=None):
     """(worst mip-chain error, correlation with reference's level 0 or None, blocks identical, blocks): each level
     should be about its larger neighbour scaled down; a reference (the PC's own file of the asset) should look the
     same where it is the same art. Every format decode() reads is compared (DECODED: the block formats and L8); for

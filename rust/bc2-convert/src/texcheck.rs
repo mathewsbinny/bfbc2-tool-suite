@@ -141,6 +141,109 @@ pub fn decode(level: &[u8], w: i64, h: i64, fmt: u32) -> Option<(usize, usize, V
     Some((out_h, out_w, px))
 }
 
+/// The formats `check` compares (`DECODED`: the block formats and L8).
+#[must_use]
+pub const fn decoded(fmt: u32) -> bool {
+    matches!(fmt, 0 | 18 | 1 | 2 | 19 | 20 | 10)
+}
+
+/// Level 0's width and height and its byte ranges in the texture and in the reference.
+pub type Level0 = (u32, u32, std::ops::Range<usize>, std::ops::Range<usize>);
+
+/// What [`check`] measures of a PC texture (`texture.check`, round F2a).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Check {
+    /// The worst mip-chain error: each level against its larger neighbour scaled down (the mean of absolute
+    /// differences), the largest over the levels compared.
+    pub worst: f64,
+    /// With a reference of the same header: (blocks identical, blocks), and level 0's (width, height, its range in
+    /// the texture, its range in the reference) for the correlation, which `texture.py` computes with NumPy's
+    /// `corrcoef` (its float sums are NumPy's own order).
+    pub blocks: Option<(usize, usize, Level0)>,
+}
+
+/// `texture.check(pc, reference)`'s statistics: `Some(None)` for a format it does not compare, `None` where the
+/// reference raises. Every value is NumPy's to the bit: the 2 x 2 means are exact (four integers over 4), and the
+/// mean of absolute differences sums multiples of 1/4 exactly, so only its one division rounds.
+#[must_use]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::indexing_slicing,
+    clippy::cast_precision_loss,
+    reason = "the reference's names; indices within the decoded levels' sizes; counts far below 2^52"
+)]
+pub fn check(pc: &[u8], reference: Option<&[u8]>) -> Option<Option<Check>> {
+    let fmt = u32::from_le_bytes(pc.get(8..12)?.try_into().ok()?);
+    if !decoded(fmt) {
+        return Some(None);
+    }
+    let lv = levels(pc)?;
+    let mut worst = 0f64;
+    for pair in lv.windows(2) {
+        let [(s, _, w, h, d), (s2, _, w2, h2, d2)] = pair else {
+            continue;
+        };
+        if s != s2 || *w < 8 || *h < 8 {
+            continue;
+        }
+        let (_, aw, a) = decode(pc.get(d.clone())?, i64::from(*w), i64::from(*h), fmt)?;
+        let (bh, bw, b) = decode(pc.get(d2.clone())?, i64::from(*w2), i64::from(*h2), fmt)?;
+        let (sh, sw) = ((*h / 2) as usize, (*w / 2) as usize);
+        if bh < sh || bw < sw {
+            return None; // NumPy's broadcast of two shapes fails
+        }
+        // the sum of |small - b| in quarters: exact in integers
+        let mut quarters: u64 = 0;
+        for y in 0..sh {
+            for x in 0..sw {
+                for c in 0..3 {
+                    let at = |yy: usize, xx: usize| i64::from(a[yy * aw + xx][c]);
+                    let four =
+                        at(2 * y, 2 * x) + at(2 * y, 2 * x + 1) + at(2 * y + 1, 2 * x) + at(2 * y + 1, 2 * x + 1);
+                    let diff = four - 4 * i64::from(b[y * bw + x][c]);
+                    quarters += diff.unsigned_abs();
+                }
+            }
+        }
+        let count = (sh * sw * 3) as f64;
+        let mean = if count > 0.0 {
+            (quarters as f64 / 4.0) / count
+        } else {
+            f64::NAN
+        };
+        if mean.is_nan() {
+            return None; // NumPy's mean of nothing (a warning and NaN): left to the reference
+        }
+        worst = worst.max(mean);
+    }
+    let mut blocks = None;
+    if let Some(r) = reference
+        && r.get(..HEADER) == pc.get(..HEADER)
+        && pc.len() >= HEADER
+    {
+        let (_, _, w, h, d) = lv.first()?.clone();
+        let rl = levels(r)?;
+        let rr = rl.first()?.4.clone();
+        // the reference decodes both (an error there is its error)
+        decode(pc.get(d.clone())?, i64::from(w), i64::from(h), fmt)?;
+        decode(r.get(rr.clone())?, i64::from(w), i64::from(h), fmt)?;
+        let bpb = match fmt {
+            0 | 18 => 8,
+            10 => 1,
+            _ => 16,
+        };
+        let total = (pc.len() - HEADER) / bpb;
+        let same = (0..total)
+            .filter(|&i| {
+                let a = &pc[HEADER + i * bpb..HEADER + (i + 1) * bpb];
+                r.get(HEADER + i * bpb..HEADER + (i + 1) * bpb) == Some(a)
+            })
+            .count();
+        blocks = Some((same, total, (w, h, d, rr)));
+    }
+    Some(Some(Check { worst, blocks }))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {

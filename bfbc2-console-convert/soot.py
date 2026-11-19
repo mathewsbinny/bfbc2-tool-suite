@@ -16,10 +16,22 @@ SootMesh (PC little-endian, Xbox big-endian; the same size on both):
     V / 12 vertices: 4 x u16, u32
     I / 2 indices: u16
     256 bytes: 64 x u32
+
+soot_mesh runs in the suite's Rust core when it is built (round F2a: bc2_convert::terrain::soot_mesh, through
+terrain.py's switch: the same bytes and SootError messages); where the reference would raise another error the
+Python runs (soot_mesh_reference, kept as the reference and the fallback; BFBC2_PURE_PYTHON=1 or
+terrain.use_native(False): Python only).
 """
+import os
 import struct
+import sys
 
 import numpy as np
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+import terrain  # noqa: E402
 
 EMPTY = 16
 TAIL = 256
@@ -31,6 +43,13 @@ class SootError(Exception):
 
 def soot_mesh(x):
     """An Xbox SootMesh (BFBC2's or BF1943's) as BFBC2's PC file."""
+    nat = terrain._native() if type(x) is bytes else None
+    got = terrain._answer(nat.terrain_convert('soot_mesh', x), SootError) if nat is not None else None
+    return got[0] if got is not None else soot_mesh_reference(x)
+
+
+def soot_mesh_reference(x):
+    """The Python soot_mesh (the reference)."""
     out = bytearray(len(x))
 
     def swap(dt, n, at):
