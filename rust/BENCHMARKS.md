@@ -4425,3 +4425,150 @@ aptgraft, audio, dbxcatalogue / dbxparity / portparity, meshview's library, and 
   `bc2-cli/src/menu/common.rs`, which aptgraft's port can move into a library crate.
 - **The hand-off's interpreter lookup** (`BFBC2_PYTHON`, else `PATH`). It matters once the binary ships without the
   suite's Python (the final release).
+
+## O4: NavKit's driver and tools, the editor's prepare, the test harness, texqa (2026-11-19, branch `rust-o4`)
+
+The fourth batch of O1's plan, as `bfbc2.exe` subcommands (shape A) in four cargo feature groups of `rust/bc2-cli`
+(each builds alone with `--no-default-features --features <group>`):
+
+| group | subcommands (the Python they port) |
+|---|---|
+| `navkit` | `navkit` (`bfbc2-auto-navkit\navkit.py`), `prepare_level` (`rust\bc2-editor\prepare_level.py`), `levelobjects`, `ladders`, `ordercheck`, `navcompare` |
+| `navtools` | `graphstats`, `hpdcheck`, `hpdview`, `detailed`, `navparity`, `navregress`, `sample_all` |
+| `harness` | `harness` (`bfbc2-automated-map-and-bot-test-harness\harness.py`) |
+| `texqa` | `texqa` (`bfbc2-console-convert\texqa.py`) |
+
+Each `.py` stays the reference and the fallback behind `bfbc2core.native.cli_command` (`BFBC2_CLI_PYTHON=1`), with
+O2's machinery (`pyproc`: Python's stdio, chunking, day logs, error reports, the hand-off).
+
+### What was added
+
+- **Shared pieces** (`bc2-cli/src`): `pyjson.rs` (`json.dumps` with and without `indent`, `json.loads` with Python's
+  grammar, dict order and duplicate keys), `pyos.rs` (`ntpath` join / split / normpath / abspath / relpath, `glob`'s
+  order and hidden-name rule, `os.walk`, `atomicio`'s writes, SHA-256 - on the CPU's SHA extensions when it has them,
+  as `hashlib`'s OpenSSL runs it, else the portable rounds; the two are compared in the tests), and
+  `Py::flush_now` in `pyproc.rs`: `print(..., flush=True)` for a tool whose reader follows its progress (after it the
+  run cannot hand off).
+- **navkit:** the steps whose core is Rust: `levels`, `prepare` (the common and the level's bundles unpacked and
+  converted in process, stamped by SHA-256; `levelobjects`' JSON and `.npy` triangles with NumPy's float64 matmul and
+  float32 comparisons; `ladders`; the sampling box and sector offsets), `compare`, `check` (ordercheck as its own
+  process, as navkit.py runs it), `install`, `restore`. Handed to navkit.py: `build`, `apply`, `all` (navbuild's
+  Python stages), `sample` (it starts the game), `status` (`time.ctime`) and `--no-detail`. Under
+  `PYTHONUNBUFFERED` (navkitGUI) a prepare's lines leave as they come.
+- **prepare_level:** NavKit's prepare and the terrain unpack (`level.heightfield_of`: the lock file, the stamp, the
+  height field read), `@step` / `@log` / `@error` / `@done` flushed line by line for the editor's progress view.
+  **The editor** (`bc2-editor/src/prepare.rs`) now runs `<suite>\bin\bfbc2.exe prepare_level` when that binary
+  answers the command (asked once), else the script; `BFBC2_CLI_PYTHON=1` forces the script.
+- **Callers:** the hub's Levels tab (`prepare`), navkitGUI's steps and the Navigation Studio's apply / install /
+  restore run navkit through `cli_command`.
+- **navtools:** graphstats, hpdcheck and `navparity show` whole (navparity's mean row adds as Python 3.12's `sum()`
+  does, Neumaier-compensated: a plain sum printed 99.1 where Python prints 99.2); navregress, detailed, sample_all
+  and hpdview answer their argument and setup errors and hand the work to the Python.
+- **harness:** `show`, `list`, `compare`, `import-log`, `ingame`; `run` is handed off. The harness never starts the
+  game on either side.
+- **texqa:** decoding, the per-texture measures (NumPy's pairwise sums, `mean(0)` / `std(0)` order, SSIM windows,
+  `np.round`), flags, score, report, cache, baselines.
+
+### Proof (O2's method: `core/tests/test_cli_o4.py`, cases in `cli_o4_<group>.py`; `test_prepare_o4.py`)
+
+Goldens were recorded from the Python first, in a frozen copy of 4710a60 with its matching core module
+(`BFBC2_O2_REF`), from synthetic inputs (no EA content): 0.12, 0.16, 0.11 and 0.04 MB.
+
+| tool | recorded lines | Rust | handed to Python | `--game`: real calls (Rust / Python) |
+|---|---:|---:|---:|---|
+| navkit | 110 | 104 | 6 | 13 (13 / 0) |
+| prepare_level | 22 | 22 | 0 | (test_prepare_o4, below) |
+| levelobjects | 18 | 18 | 0 | (inside prepare) |
+| ladders | 6 | 6 | 0 | (inside prepare) |
+| ordercheck | 30 | 28 | 2 | 6 (6 / 0) |
+| navcompare | 16 | 16 | 0 | 6 (6 / 0) |
+| graphstats | 32 | 30 | 2 | all Rust |
+| hpdcheck | 58 | 54 | 4 | all Rust (DICE's 15 files, 12 regress builds) |
+| hpdview | 14 | 12 | 2 | - |
+| detailed | 24 | 20 | 4 | 1 (0 / 1) |
+| navparity | 50 | 44 | 6 | all Rust (`show` of every real run) |
+| navregress | 26 | 26 | 0 | all Rust (no-reference answer) |
+| sample_all | 18 | 18 | 0 | - |
+| harness | 114 | 106 | 8 | 30 (24 / 6) |
+| texqa | 84 | 62 | 22 | 4 (3 / 1) |
+| **all** | **622** | **566** | **56** | **181 lines, each alone and on one pipe, both ways: all identical** |
+
+- **Quick: 622 of 622 as recorded. `--live` both ways: the same answers** (process time: navkit Python 92 s /
+  Rust 13 s; navtools 111 / 17 s; harness 56 / 8 s; texqa 53 / 21 s).
+- **`--game`** replays OPFOR's real calls read-only: navkit `levels` of the real folder; `compare` / `check` /
+  `install` / `restore` in a fake OPFOR folder holding copies of a prepared level's files (DICE's path data, NavKit's
+  build, the partition, `navkit.json`) for sp_009, sp_004_b, ons_mp_002, sp_01; ordercheck and navcompare on the
+  real partitions and path data in place; hpdcheck of DICE's 15 files (run_tests' line); harness list / show /
+  compare of the 7 real runs (copied) and import-log of the real 349 MB opfor.log (read in place); texqa over
+  `work\ww2\bf1943_vehicles` and `bf1943_jp_bazooka` (outputs in the case folder).
+- **The level prepare, byte for byte** (`test_prepare_o4.py --game`): a stand-in OPFOR folder (`game\` a junction to
+  the real game copy, its own `work\` and LOCALAPPDATA, the same path for both sides), `prepare_level` of sp_009,
+  sp_004_b and mp_005 in turn (the common bundles unpacked by the first), each again (all already unpacked), each
+  with `--terrain-only`: **9 runs, the output and exit codes identical, 56,831 files under `work\` identical by
+  sha256** (the unpacks and their XML, the `.source.sha256` stamps, `objects.json`, `group_instances.json`, spawn and
+  order points, the five triangle `.npy` files, `ladders.json`, `navkit.json`, the terrain unpacks with their stamps
+  and lock files), **the day logs' records identical** (fbrbtool / dbxedit). Rust answered all 9. The junction is
+  removed with `rmdir` before the folder. (A first run in the long scratch folder failed both ways identically on
+  FbrbTool's 260-character check; the test now runs under a short root.)
+- **Who answered, real inputs:** every real navkit-group call is Rust's. The real lines still handed to the Python
+  are detailed's sector choice, harness compares whose findings Python prints in its randomised hash order (Python
+  itself differs between runs there), and texqa's bench_sweep line (BF1943 sources, DICE's copies, contact sheets).
+
+**Recorded differences, by design** (none occurs in the recorded lines or OPFOR's calls):
+
+- prepare_level: past its first progress line the run cannot be handed to the Python (its lines are out); an input
+  the port refuses there (a NaN collision vertex, an unreadable XML file the core's scan refuses) is reported as an
+  `@error` in words instead of Python's answer.
+- navkit `check` computes its summary before starting ordercheck, so a refusal hands off before ordercheck's log is
+  written; an error it raises is raised where Python meets it.
+- ordercheck's nearest node uses Rust's `hypot` (the C runtime's, as NumPy's).
+- texqa: correlations are computed in double-double and answered only when the 4-decimal rounding cannot change
+  within BLAS's error bound; otherwise handed off.
+- harness compare: hash-order cases handed off (sorting them would be a choice for the user).
+- O2's log differences (the start line names `bfbc2.exe`; no log pruning) hold here too.
+
+**Checks:** `cargo fmt`; `cargo clippy -p bc2-cli --all-targets -D warnings` with all features and with each of the
+seven groups alone; `cargo clippy -p bc2-editor --all-targets -D warnings`; `cargo test -p bc2-cli` (21); ruff and
+mypy on the new tests (the changed GUI files keep their earlier mypy findings, none new).
+
+### Timings (processes, best of 5, real inputs)
+
+| job | Python | Rust | |
+|---|---:|---:|---:|
+| `navkit` usage (start-up) | 0.128 s | 0.010 s | x13 |
+| `navkit levels` (real OPFOR folder) | 0.128 s | 0.017 s | x7.5 |
+| `navkit compare sp_009` | 0.332 s | 0.027 s | x12 |
+| `ordercheck` sp_009 (DICE, NavKit) | 0.319 s | 0.029 s | x11 |
+| `navcompare sp_009 --json` | 0.324 s | 0.024 s | x13 |
+| `prepare_level sp_009`, fresh folder (common bundles too) | 56.2 s | 55.2 s | (the core's unpacks) |
+| `prepare_level sp_004_b` / `mp_005` after it | 8.2 / 10.6 s | 7.9 / 9.7 s | |
+| `prepare_level`, already prepared (sp_009 / sp_004_b / mp_005) | 2.7 / 3.1 / 2.6 s | 2.2 / 1.7 / 1.9 s | x1.2-1.8 |
+| `prepare_level --terrain-only`, prepared | 0.4-0.5 s | 0.0-0.1 s | |
+| `hpdcheck`, DICE's 15 files (run_tests' line) | 11.9 s | 1.9 s | x6.2 |
+| `graphstats`, DICE sp_004_b | 0.217 s | 0.016 s | x13 |
+| `navparity show`, two runs | 0.383 s | 0.013 s | x30 |
+| `navregress`, no reference run | 0.399 s | 0.014 s | x29 |
+| `harness list` (7 runs) / `show` (179 KB run) | 0.392 / 0.371 s | 0.014 / 0.015 s | x26-28 |
+| `harness import-log` (349 MB opfor.log) | 0.957 s | 0.572 s | x1.7 |
+| `texqa`, one texture / the 66 WW2 vehicle textures | 0.931 / 2.567 s | 0.201 / 0.703 s | x3.7-4.6 |
+
+A fresh prepare is the core's unpacks and conversions (the same Rust either way); a prepared level's re-run is the
+bundles' SHA-256 stamps, which the first Rust build (portable rounds, about a quarter of OpenSSL's speed) made slower
+than Python's (5.0 against 2.0 s) until the SHA extensions were used.
+
+### For Project OPFOR (not edited)
+
+OPFOR runs none of these command lines: it imports texqa (qa_checks.py) in process, and NavKit / the harness are the
+suite's own tools. Nothing changes there; a Rust library for texqa (shape B) would serve qa_checks later (O5).
+
+### Left for O5
+
+- **Python cores behind the hand-offs:** navkit `build` / `apply` / `all` and navregress's builds (navbuild's
+  `walkable` glue, `navdetail`, `finalize_graph`); harness `run` (NumPy's seeded draws, NavKit's measures);
+  navparity `run` (stale_nodes, ladder_ground, islands); detailed's sector choice; texqa's contact sheets (PIL),
+  BF1943 sources (`bf1943import.Source`) and DICE copies (meshview); hpdview's picture (matplotlib); `status`
+  (`time.ctime`: the local time of a file stamp).
+- `sample` / `sample_all` start the game: they stay Python by rule.
+- `navtools/pycommon.rs` repeats navkit's `find_opfor` / `original_file` (the groups build alone): one shared copy.
+- The harness compare's hash order: hand off, or accept sorted output as a recorded difference.
+- prepare as a library call inside the editor (no child process), once the editor links bc2-scene's collision.
