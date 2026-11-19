@@ -30,6 +30,14 @@ COLOURS = {'walkable': (0.2, 1.0, 0.35), 'unwalkable': (1.0, 0.25, 0.2), 'seed':
            'traversal': (0.95, 0.95, 0.95), 'note': (0.8, 0.8, 1.0), 'drawing': (1.0, 1.0, 0.6)}
 
 
+def navkit_command():
+    """navkit.py's command line: bfbc2.exe navkit when the binary is built from this checkout (round O4; the steps
+    whose core is still Python - apply - are handed to navkit.py by it), else python navkit.py (BFBC2_CLI_PYTHON=1:
+    always)."""
+    from bfbc2core import native
+    return native.cli_command('navkit')
+
+
 def ring(points2, y, colour, closed=True):
     p = [np.array([x, y, z]) for x, z in points2]
     if closed and len(p) > 2:
@@ -109,14 +117,13 @@ class Editor:
     # --- build with the edits (navkit apply) --------------------------------------------------------
     def start_apply(self):
         import subprocess
-        import sys
         import threading
         self.tune.save(self.path)
-        navkit_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'bfbc2-auto-navkit', 'navkit.py')
-        cmd = [sys.executable, '-u', navkit_py, 'apply', self.lv, '--navtune', self.path, '--out', self.job_out, '--opfor', self.root]
+        cmd = [*navkit_command(), 'apply', self.lv, '--navtune', self.path, '--out', self.job_out, '--opfor', self.root]
         self.job_log = ['saved the side file; building with its edits (a full rebuild: about 1-8 minutes) ...']
         self.job = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace',
-                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                                    env=dict(os.environ, PYTHONUNBUFFERED='1'))     # the build's lines as they come
 
         def read():
             for line in self.job.stdout:
@@ -126,9 +133,7 @@ class Editor:
     def run_navkit(self, args):
         """navkit.py install / restore (quick): runs to the end, its last line shown in the panel."""
         import subprocess
-        import sys
-        navkit_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'bfbc2-auto-navkit', 'navkit.py')
-        r = subprocess.run([sys.executable, navkit_py, *args, '--opfor', self.root], capture_output=True, text=True,
+        r = subprocess.run([*navkit_command(), *args, '--opfor', self.root], capture_output=True, text=True,
                            errors='replace', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         out = [l for l in (r.stdout + r.stderr).strip().splitlines() if l.strip()]
         self.install_msg = ' / '.join(out[-2:]) if out else f'navkit {args[0]}: exit {r.returncode}'

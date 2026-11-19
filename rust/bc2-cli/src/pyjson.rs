@@ -12,6 +12,9 @@
 //! inside one is an error), a dict keeping each key's first position and its last value. Text Python would reject
 //! gives `None`: the caller hands the command line to the Python, whose error text is its own.
 
+// `float(x)` of a JSON int: Python's own rounding of a large int to a float
+#![allow(clippy::cast_precision_loss)]
+
 use std::fmt::Write as _;
 
 use crate::pyfmt;
@@ -474,14 +477,25 @@ mod tests {
             ("e", Value::List(vec![])),
             ("d", Value::Dict(vec![])),
             ("u", Value::Str("é\u{1F600}".into())),
-            ("n", Value::List(vec![Value::Null, Value::Bool(true), Value::Int(-3), Value::Float(f64::NAN)])),
+            (
+                "n",
+                Value::List(vec![
+                    Value::Null,
+                    Value::Bool(true),
+                    Value::Int(-3),
+                    Value::Float(f64::NAN),
+                ]),
+            ),
         ]);
         assert_eq!(
             dumps(&v, None),
             "{\"level\": \"SP_01\", \"box\": [-120.0, 0.5, 1e+16, 1e-05], \"e\": [], \"d\": {}, \"u\": \"\\u00e9\\ud83d\\ude00\", \"n\": [null, true, -3, NaN]}"
         );
         assert_eq!(
-            dumps(&Value::dict([("a", Value::List(vec![Value::Int(1), Value::Int(2)]))]), Some(1)),
+            dumps(
+                &Value::dict([("a", Value::List(vec![Value::Int(1), Value::Int(2)]))]),
+                Some(1)
+            ),
             "{\n \"a\": [\n  1,\n  2\n ]\n}"
         );
     }
