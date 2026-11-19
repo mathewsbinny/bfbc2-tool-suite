@@ -15,6 +15,7 @@ here points LOCALAPPDATA and the caches' variables at a temp folder).
 
   python core\tests\test_caches.py
 """
+import contextlib
 import os
 import shutil
 import subprocess
@@ -99,10 +100,13 @@ def main(argv):
         print(f'{"ok  " if ok else "FAIL"} {what}' + (f'  ({detail})' if detail and not ok else ''))
 
     tmp = tempfile.mkdtemp(prefix='caches_test_')
-    saved = {k: os.environ.get(k) for k in ENV_NAMES + ['LOCALAPPDATA']}
-    for k in ENV_NAMES:
+    saved = {k: os.environ.get(k) for k in ENV_NAMES + ['LOCALAPPDATA', 'OPFOR_ROOT', caches.TOTAL_ENV,
+                                                        caches.native.TARGETS_ENV, 'CARGO_TARGET_DIR']}
+    for k in ENV_NAMES + [caches.TOTAL_ENV, caches.native.TARGETS_ENV, 'CARGO_TARGET_DIR']:
         os.environ.pop(k, None)
     os.environ['LOCALAPPDATA'] = tmp
+    os.makedirs(os.path.join(tmp, 'opfor', 'game'), exist_ok=True)   # the project caches: here, never the real ones
+    os.environ['OPFOR_ROOT'] = os.path.join(tmp, 'opfor')
     try:
         # ---- pruning order and the cap
         d = os.path.join(tmp, 'order')
@@ -354,6 +358,77 @@ def main(argv):
         out = run('--clear', 'nope')
         check(out.returncode != 0 and 'unknown cache nope' in (out.stdout + out.stderr), '--clear of an unknown name '
               'is refused', out.stdout + out.stderr)
+
+        # ---- the overall budget (round D1): every cache together, least recently used first across caches
+        root = os.path.join(tmp, 'bfbc2-tool-suite', 'cache')
+        shutil.rmtree(root, ignore_errors=True)
+        nav = os.path.join(tmp, 'opfor', 'work', 'navstudio', 'cache')
+        files = {'h_old': write(os.path.join(root, 'hlsl', 'h_old.bin'), 1000, age=5 * DAY),
+                 'f_mid': write(os.path.join(root, 'fbrb', 'f_mid.payload'), 1000, age=3 * DAY),
+                 'n_old': write(os.path.join(nav, 'n_old.npz'), 1000, age=4 * DAY),
+                 'c_new': write(os.path.join(root, 'culltree', 'c_new.pkl'), 1000, age=DAY),
+                 'f_new': write(os.path.join(root, 'fbrb', 'f_new.payload'), 1000)}
+        write(os.path.join(root, 'fbrb', 'notes.txt'), 50_000, age=9 * DAY)          # not an entry: never counted
+        check(caches.total_cap() == 20 << 30, 'the budget: 20 GiB by default')
+        os.environ[caches.TOTAL_ENV] = str(2500 / (1 << 30))
+        check(caches.total_cap() == 2500, f'the budget from {caches.TOTAL_ENV} (GiB, fractions)')
+        per = caches.prune_total()
+        left = {k for k, p in files.items() if os.path.isfile(p)}
+        check(left == {'c_new', 'f_new'} and per['hlsl'].deleted_files == 1 and per['navstudio'].deleted_files == 1
+              and per['fbrb'].deleted_files == 1 and os.path.isfile(os.path.join(root, 'fbrb', 'notes.txt')),
+              'prune_total: the oldest entries of any cache (suite, fbrb, project) deleted until all fit',
+              f'{sorted(left)} {per}')
+        again = caches.maybe_prune_total(every=3600)
+        check(again is None, 'maybe_prune_total: not again within the interval (the root\'s stamp)', str(again))
+        os.remove(os.path.join(root, caches.TOTAL_STAMP))
+        caches._last.pop(caches.TOTAL_STAMP, None)
+        write(os.path.join(root, 'hlsl', 'h2.bin'), 2000, age=2 * DAY)
+        cdir = os.path.join(root, 'culltree')
+        with contextlib.suppress(OSError):
+            os.remove(os.path.join(cdir, caches.STAMP))
+        caches._last.clear()
+        caches.maybe_prune('culltree', cdir, every=0)
+        check(not os.path.isfile(os.path.join(root, 'hlsl', 'h2.bin')) and os.path.isfile(files['f_new']),
+              'a cache\'s own prune (a tool writing) brings every cache under the budget too')
+        del os.environ[caches.TOTAL_ENV]
+
+        # ---- the checkouts' Rust build folders
+        targets = os.path.join(tmp, 'targets')
+        os.environ[caches.native.TARGETS_ENV] = targets
+        here = os.path.basename(caches.native.SUITE)
+        suffix = here.rsplit('-', 1)[-1] if '-' in here else here
+
+        def build_folder(name, age, tag=True):
+            p = os.path.join(targets, name)
+            write(os.path.join(p, 'release', 'x.rlib'), 10, age=age)
+            if tag:
+                write(os.path.join(p, 'CACHEDIR.TAG'), 10, age=age)
+            for d in (os.path.join(p, 'release'), p):
+                os.utime(d, (time.time() - age, time.time() - age))
+            return p
+        gone = build_folder('zz-no-such-checkout-d1test', 3 * DAY)
+        busy = build_folder('zz-no-such-checkout-busy', 60)
+        mine = build_folder(here, 3 * DAY)
+        short = build_folder(suffix, 3 * DAY)
+        other = build_folder('zz-not-cargo', 3 * DAY, tag=False)
+        check(caches.native.target_dir() == os.path.join(targets, here),
+              'target_dir: <root>\\<this checkout\'s folder name> (BFBC2_RUST_TARGETS the root)')
+        os.environ['CARGO_TARGET_DIR'] = os.path.join(tmp, 'explicit')
+        check(caches.native.target_dir() == os.path.join(tmp, 'explicit') and
+              caches.native.cargo_env()['CARGO_TARGET_DIR'] == os.path.join(tmp, 'explicit'),
+              'target_dir: an explicit CARGO_TARGET_DIR wins')
+        del os.environ['CARGO_TARGET_DIR']
+        rows = {n: w for n, _p, w in caches.prune_targets()}
+        check(rows == {'zz-no-such-checkout-d1test': 'orphan',
+                       'zz-no-such-checkout-busy': 'kept: written in the last day (a build may be running)'},
+              '--prune-targets lists the folders whose checkout is gone; a recent one is kept; this checkout\'s, a '
+              'worktree suffix\'s and a folder that is not cargo\'s are not listed', str(rows))
+        caches.prune_targets(delete=True)
+        check(not os.path.exists(gone) and all(os.path.isdir(p) for p in (busy, mine, short, other)),
+              '--prune-targets --yes deletes only the orphan')
+        out = run('--report', '--no-work', **{caches.native.TARGETS_ENV: targets})
+        check(out.returncode == 0 and 'budget' in out.stdout and here in out.stdout and 'fbrb' in out.stdout,
+              '--report: the caches, the budget and the build folders', out.stdout + out.stderr)
     finally:
         for k, v in saved.items():
             if v is None:

@@ -14,6 +14,9 @@ build/
 # the Rust core: cargo's build folder, and the Python module rust/build_native.py builds into core/bfbc2core
 rust/target/
 *.pyd
+# the binaries build_native.py copies out of cargo's build folder (round D1: rust-targets\<checkout>, outside the
+# checkout): bfbc2.exe, bfbc2-editor.exe, mapexport.exe - built outputs only
+bin/
 core/bfbc2core/bc2_native*.so
 core/bfbc2core/bc2_native.pyd.*
 core/bfbc2core/bc2_native.json

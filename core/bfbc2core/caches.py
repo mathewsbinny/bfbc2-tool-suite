@@ -4,11 +4,23 @@ least recently used files deleted first, and a command to see and clear them (ro
     python -m bfbc2core.caches                    each cache: folder, size, files, cap (also --list)
     python -m bfbc2core.caches --prune [name...]  delete the least recently used files beyond each cap now
     python -m bfbc2core.caches --clear [name...]  delete the cached files (every cache when no name is given)
+    python -m bfbc2core.caches --report           every cache (size, cap), the overall budget, the logs, each
+                                                  checkout's Rust build folder, Project OPFOR's work\ by kind
+    python -m bfbc2core.caches --prune-targets [--yes]   the Rust build folders whose checkout is gone: listed;
+                                                  deleted with --yes
 
 (from the suite's core\ folder; or python core\bfbc2core\caches.py ...). Names: hlsl, fbrb, collision, effectport,
 culltree, bf1943source (round E3r), shadercover (round S1); the project caches navstudio, harness, navwater, editor
 (round G3); logs. Every cache is only a cache: a deleted file is read
 or computed again on its next use, never an error, so clearing or pruning is safe while tools run.
+
+The overall budget (round D1, 2026-11-19): besides each cache's own cap, all the caches together - the suite's
+(fbrb's payloads included) and the project caches - stay under BFBC2_CACHE_TOTAL_GB (default 20 GiB), the least
+recently used entries of any cache deleted first (prune_total, under the cache root's .prune-total.lock). It runs as
+the per-cache pruning does, when tools write: maybe_prune (after a cache's own prune) and fbrb.read / read_many (the
+Rust core writes the payloads) call maybe_prune_total, at most once per PRUNE_EVERY seconds across processes (the
+root's .pruned-total stamp). Nothing is deleted at import time. --prune prunes every cache to its cap, then the total.
+The logs are not part of it (their own caps; pruned logs are archived).
 
 Project caches (round E3q): caches the suite's tools keep inside Project OPFOR BFBC2's work\ folder by design -
 navdata.load's path-data caches of Navigation Studio (work\navstudio\cache), the test harness (work\harness\cache)
@@ -54,9 +66,9 @@ from dataclasses import dataclass, field
 
 if __package__ in (None, ''):                       # run as a file: python core\bfbc2core\caches.py
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from bfbc2core import atomicio, paths
+    from bfbc2core import atomicio, native, paths
 else:
-    from . import atomicio, paths
+    from . import atomicio, native, paths
 
 MB = 1 << 20
 STALE_TMP = 3600.0              # s: a temporary file not written to for this long is a dead writer's
@@ -377,7 +389,96 @@ def maybe_prune(name: str, top: str | None = None, every: float = PRUNE_EVERY) -
             with open(stamp, 'wb'):
                 pass
             os.utime(stamp)
-        return r
+    except Exception:                               # noqa: BLE001 - pruning never stops the tool using the cache
+        return None
+    maybe_prune_total(every=every)                  # then all the caches together to the overall budget
+    return r
+
+
+# ---- the overall budget (round D1)
+TOTAL_ENV, TOTAL_GB = 'BFBC2_CACHE_TOTAL_GB', 20.0
+TOTAL_LOCK = '.prune-total.lock'
+TOTAL_STAMP = '.pruned-total'
+
+
+def cache_root() -> str:
+    """%LOCALAPPDATA%\\bfbc2-tool-suite\\cache (where the overall budget keeps its lock and stamp)."""
+    return os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'bfbc2-tool-suite', 'cache')
+
+
+def total_cap() -> int:
+    """The overall budget in bytes: BFBC2_CACHE_TOTAL_GB (GiB, fractions allowed), else 20 GiB."""
+    return int(_number(TOTAL_ENV, TOTAL_GB) * (1 << 30))
+
+
+def members(opfor: str | None = None) -> list[tuple[str, str]]:
+    """(name, folder) of every cache the budget counts: the suite's caches that are on, then the project caches
+    when the project folder is found; a folder named twice (two variables pointing at one place) counted once."""
+    out, seen = [], set()
+    for name in [*CACHES, *PROJECT_CACHES]:
+        try:
+            top = folder(name, opfor)
+        except Exception:                           # noqa: BLE001 - a cache that cannot be resolved is not counted
+            top = None
+        if not top or not os.path.isdir(top):
+            continue
+        key = os.path.normcase(os.path.abspath(top))
+        if key not in seen:
+            seen.add(key)
+            out.append((name, top))
+    return out
+
+
+def prune_total(cap_bytes: int | None = None, opfor: str | None = None) -> dict[str, Result]:
+    """Every cache's entries (members()) together brought under cap_bytes (total_cap() by default), the least
+    recently used entries of any cache deleted first, with the per-cache rules (only the cache's own kind of entry,
+    unchanged since the scan, not held open). Under the cache root's lock. {name: what it did there}."""
+    cap_bytes = total_cap() if cap_bytes is None else cap_bytes
+    root = cache_root()
+    os.makedirs(root, exist_ok=True)
+    out: dict[str, Result] = {}
+    with atomicio.locked(os.path.join(root, TOTAL_LOCK)):
+        files: list[tuple[_File, str]] = []
+        for name, top in members(opfor):
+            files += [(f, name) for f in _scan(top, _spec(name).suffixes).entries]
+            out[name] = Result()
+        total = sum(f.size for f, _n in files)
+        for f, name in sorted(files, key=lambda x: (x[0].used, x[0].path)):
+            if total <= cap_bytes:
+                break
+            r = out[name]
+            done = _delete_if_unchanged(f)
+            if done is False:
+                r.busy += 1
+                continue
+            total -= f.size
+            if done:
+                r.deleted_bytes += f.size
+                r.deleted_files += 1
+        for f, name in files:
+            if os.path.exists(f.path):
+                out[name].kept_bytes += f.size
+                out[name].kept_files += 1
+        with contextlib.suppress(OSError):
+            with open(os.path.join(root, TOTAL_STAMP), 'wb'):
+                pass
+            os.utime(os.path.join(root, TOTAL_STAMP))
+    return out
+
+
+def maybe_prune_total(every: float = PRUNE_EVERY) -> dict[str, Result] | None:
+    """prune_total() unless it ran in the last `every` seconds in this or any other process (the root's
+    .pruned-total stamp). Never raises; None when it did not run."""
+    try:
+        now = time.monotonic()
+        if now - _last.get(TOTAL_STAMP, -1e18) < every:
+            return None
+        _last[TOTAL_STAMP] = now
+        stamp = os.path.join(cache_root(), TOTAL_STAMP)
+        with contextlib.suppress(OSError):
+            if time.time() - os.stat(stamp).st_mtime < every:
+                return None
+        return prune_total()
     except Exception:                               # noqa: BLE001 - pruning never stops the tool using the cache
         return None
 
@@ -621,6 +722,183 @@ def _size(n: int) -> str:
 LOGS = 'logs'
 
 
+# ---- Project OPFOR's work\ by kind (round D1's audit, 2026-11-19): what each top-level folder holds
+#   input    read by later steps and not made again from game\ alone (console extracts, the DLL's recordings, staged
+#            exports, the Onslaught builds the console stages start from)
+#   output   what a step makes for people or for an install (rebuilt by running the step again)
+#   cache    made again from game\ when missing (unpacks with a stamp, indexes, the project caches)
+#   scratch  a step's working folders: deleted at the step's end since round D1 (--keep keeps them)
+#   backup   originals kept to restore or re-patch from (never deleted by a tool)
+WORK_KINDS: dict[str, str] = {
+    'onslaught': 'input', 'xbox': 'input', 'xbox_dlc': 'input', 'navsample': 'input', 'mapedit': 'input',
+    'levels': 'cache', 'harness': 'cache', 'navstudio': 'cache', 'testrun': 'cache', 'tools_out': 'cache',
+    'editor': 'cache', 'import': 'cache',
+    'ww2': 'output', 'navkit': 'output', 'navsample_offline': 'output', 'navkit_offline': 'output', 'navwater': 'output',
+    'navvehicle': 'output', 'navbuild': 'output', 'stockmp': 'output', 'bf1943': 'output', 'playtest': 'output',
+    'audit': 'output', 'aptgraft': 'output',
+    'console_deps': 'scratch', 'console_input': 'scratch', 'console_loading': 'scratch', 'console_loadset': 'scratch',
+    'console_mode': 'scratch', 'console_soldiers': 'scratch', 'console_vehicles': 'scratch', 'console_cull': 'scratch',
+    'console_markv': 'scratch', 'console_icons': 'scratch', 'console_shaders': 'scratch', 'combat_a': 'scratch',
+    'combat_b': 'scratch', 'sectoroff': 'scratch', 'menus': 'scratch', 'ledgertest': 'scratch',
+    'console_hud': 'backup', 'backups': 'backup', 'import_backup': 'backup', 'logs-archive': 'backup',
+}
+KINDS = ('input', 'output', 'cache', 'scratch', 'backup', 'unknown')
+
+
+def tree_size(top: str) -> tuple[int, int]:
+    """(bytes, files) under top; links and junctions not followed (never counted twice, never outside)."""
+    size = n = 0
+    stack = [top]
+    while stack:
+        d = stack.pop()
+        try:
+            it = list(os.scandir(d))
+        except OSError:
+            continue
+        for e in it:
+            try:
+                if e.is_symlink() or (hasattr(e, 'is_junction') and e.is_junction()):
+                    continue
+                if e.is_dir(follow_symlinks=False):
+                    stack.append(e.path)
+                elif e.is_file(follow_symlinks=False):
+                    size += e.stat(follow_symlinks=False).st_size
+                    n += 1
+            except OSError:
+                continue
+    return size, n
+
+
+def work_by_kind(opfor: str | None = None) -> list[tuple[str, str, int, int]]:
+    """(folder, kind, bytes, files) of every top-level entry of Project OPFOR's work\\ (WORK_KINDS; 'unknown' when not
+    listed), biggest first; [] without a project folder. A junction is listed with 0 bytes (its target is not
+    counted)."""
+    root = project_root(opfor)
+    if not root or not os.path.isdir(os.path.join(root, 'work')):
+        return []
+    out = []
+    for e in os.scandir(os.path.join(root, 'work')):
+        kind = WORK_KINDS.get(e.name, 'unknown')
+        if e.is_symlink() or (hasattr(e, 'is_junction') and e.is_junction()):
+            out.append((e.name, kind, 0, 0))
+        elif e.is_dir(follow_symlinks=False):
+            out.append((e.name, kind, *tree_size(e.path)))
+        else:
+            out.append((e.name, kind, e.stat(follow_symlinks=False).st_size, 1))
+    return sorted(out, key=lambda r: (-r[2], r[0]))
+
+
+# ---- the checkouts' Rust build folders (round D1: native.target_dir)
+TARGET_RECENT = 86400.0         # s: a build folder written this recently is kept by --prune-targets (a build running)
+CARGO_MARKS = ('CACHEDIR.TAG', '.rustc_info.json')     # files cargo writes at a build folder's top (not always both)
+
+
+def target_folders() -> list[tuple[str, str, bool]]:
+    """(name, folder, its checkout exists) of every cargo build folder (CARGO_MARKS: files cargo writes) in the build
+    root; the checkout is a folder with a rust\\ folder beside this suite's checkout, named as the build folder or
+    ending in -<its name> (a build folder named by hand after a worktree's suffix: rust-targets\\r5c for
+    bfbc2-tool-suite-r5c)."""
+    root = native.targets_root()
+    checkouts = os.path.dirname(native.SUITE)
+    names: set[str] = set()
+    with contextlib.suppress(OSError):
+        names = {e.name.lower() for e in os.scandir(checkouts)
+                 if e.is_dir(follow_symlinks=False) and os.path.isdir(os.path.join(e.path, 'rust'))}
+
+    def has_checkout(name: str) -> bool:
+        n = name.lower()
+        return n in names or any(c.endswith('-' + n) for c in names)
+    out = []
+    with contextlib.suppress(OSError):
+        for e in sorted(os.scandir(root), key=lambda e: e.name.lower()):
+            if not e.is_dir(follow_symlinks=False) or e.is_symlink():
+                continue
+            if not any(os.path.isfile(os.path.join(e.path, n)) for n in CARGO_MARKS):
+                continue                            # not a cargo build folder: never touched
+            out.append((e.name, e.path, has_checkout(e.name)))
+    return out
+
+
+def _last_write(top: str) -> float:
+    """The latest modification time of top, its entries and theirs (two levels: cargo touches its lock and
+    fingerprint folders on every build)."""
+    t = 0.0
+    for d in [top] + [e.path for e in os.scandir(top) if e.is_dir(follow_symlinks=False)]:
+        with contextlib.suppress(OSError):
+            t = max(t, os.stat(d).st_mtime)
+            for e in os.scandir(d):
+                with contextlib.suppress(OSError):
+                    t = max(t, e.stat(follow_symlinks=False).st_mtime)
+    return t
+
+
+def prune_targets(delete: bool = False, recent: float = TARGET_RECENT) -> list[tuple[str, str, str]]:
+    """The build folders whose checkout is gone: (name, folder, what happened: 'orphan' listed, 'deleted', 'kept: in
+    use' when written within `recent` seconds, 'kept: <error>'). Deletes them only with delete=True; never a folder
+    that is not a cargo build folder, never a link or junction inside one (rmtree does not follow them)."""
+    import shutil
+    out = []
+    for name, top, has_checkout in target_folders():
+        if has_checkout:
+            continue
+        if time.time() - _last_write(top) < recent:
+            out.append((name, top, 'kept: written in the last day (a build may be running)'))
+            continue
+        if not delete:
+            out.append((name, top, 'orphan'))
+            continue
+        try:
+            shutil.rmtree(top)
+            out.append((name, top, 'deleted'))
+        except OSError as e:
+            out.append((name, top, f'kept: {e}'))
+    return out
+
+
+def report(opfor: str | None = None, work: bool = True) -> None:
+    """--report: the caches with their sizes and caps, the overall budget, the logs, the Rust build folders and
+    Project OPFOR's work\\ by kind."""
+    total = 0
+    print('caches')
+    for n in [*CACHES, *PROJECT_CACHES]:
+        s, top = _spec(n), folder(n, opfor)
+        if top is None:
+            print(f'  {n:<13} ' + ('no project folder' if s.project else f'off ({s.env}=0)'))
+            continue
+        b, files, extra = usage(top, s.suffixes, s.markers)
+        total += b + extra
+        print(f'  {n:<13} {_size(b + extra):>9} in {files:>6} file(s)   cap {_size(cap(n)):>9}   {top}')
+    print(f'  {"all caches":<13} {_size(total):>9}                    budget {_size(total_cap()):>9} ({TOTAL_ENV}, GB)')
+    b, files = logs_usage()
+    print(f'  {LOGS:<13} {_size(b):>9} in {files:>6} file(s)   cap {_size(log_caps()[0]):>9}   {logs_folder()}')
+    print(f'Rust build folders ({native.targets_root()}; this checkout: {native.target_dir()})')
+    rows = target_folders()
+    for name, top, has in rows:
+        size, _n = tree_size(top)
+        print(f'  {name:<28} {_size(size):>9}   ' + ('checkout there' if has else 'checkout gone: --prune-targets'))
+    if not rows:
+        print('  (none)')
+    old = os.path.join(native.RUST, 'target')
+    if os.path.isdir(old):
+        print(f'  this checkout\'s old rust\\target: {_size(tree_size(old)[0])} (README.md, "Where Rust builds": how to '
+              'move it)')
+    if not work:
+        return
+    rows2 = work_by_kind(opfor)
+    if not rows2:
+        print("Project OPFOR's work\\: not found (--opfor, OPFOR_ROOT)")
+        return
+    print(f"Project OPFOR's work\\ ({os.path.join(project_root(opfor) or '', 'work')}) by kind")
+    by: dict[str, int] = {}
+    for _name, kind, size, _n in rows2:
+        by[kind] = by.get(kind, 0) + size
+    for kind in KINDS:
+        if kind in by:
+            names = [f'{nm} {_size(sz)}' for nm, k, sz, _n in rows2 if k == kind and sz]
+            print(f'  {kind:<8} {_size(by[kind]):>9}   ' + ', '.join(names[:12]) + (' ...' if len(names) > 12 else ''))
+    print(f'  {"all":<8} {_size(sum(by.values())):>9}')
+
+
 def _names(given: Sequence[str]) -> list[str]:
     known = [*CACHES, *PROJECT_CACHES, LOGS]
     bad = [n for n in given if n not in known]
@@ -646,6 +924,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                                                         '(every cache, project cache and the logs when no name)')
     g.add_argument('--clear', action='store_true', help="delete the cached files (every suite cache when no name; "
                                                         'project caches and logs only when named)')
+    g.add_argument('--report', action='store_true', help='every cache with its size and cap, the overall budget, the '
+                                                         "logs, the Rust build folders, Project OPFOR's work\\ by kind")
+    g.add_argument('--prune-targets', action='store_true', help='list the Rust build folders whose checkout is gone '
+                                                                '(--yes: delete them)')
+    ap.add_argument('--yes', action='store_true', help='with --prune-targets: delete the folders listed')
+    ap.add_argument('--no-work', action='store_true', help="with --report: leave out work\\ (its scan takes a while)")
     ap.add_argument('--opfor', metavar='DIR', help='Project OPFOR BFBC2\'s folder (default: as the tools find it)')
     ap.add_argument('names', nargs='*', metavar='name',
                     help=f'caches to act on: {", ".join([*CACHES, *PROJECT_CACHES, LOGS])}')
@@ -653,6 +937,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     names = _names(a.names)
     if a.opfor and not os.path.isdir(os.path.join(a.opfor, paths.GAME_DIR)):
         raise SystemExit(f'--opfor {a.opfor}: no game\\ folder there (not Project OPFOR BFBC2\'s folder)')
+    if a.report:
+        report(a.opfor, work=not a.no_work)
+        return 0
+    if a.prune_targets:
+        rows = prune_targets(delete=a.yes)
+        for name, where, what in rows:
+            print(f'{name:<28} {what:<10} {where}')
+        if not rows:
+            print(f'no build folder without its checkout in {native.targets_root()}')
+        elif not a.yes and any(w == 'orphan' for _n, _t, w in rows):
+            print('(--yes deletes the orphans)')
+        return 0
     if a.clear and not a.names:
         names = list(CACHES)
     if a.prune or a.clear:
@@ -669,6 +965,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 r = clear(top, s.suffixes, s.markers)
             print(_done(n, r))
+        if a.prune and not a.names:
+            for n, r in prune_total(opfor=a.opfor).items():
+                if r.deleted_files or r.busy:
+                    print(_done(f'{n} (budget)', r))
+            print(f'all caches within the overall budget of {_size(total_cap())} ({TOTAL_ENV})')
         if a.clear and not a.names:
             print(f'(project caches and logs are cleared only by name: {", ".join([*PROJECT_CACHES, LOGS])})')
         return 0
@@ -690,7 +991,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         unit = 'GB' if s.cap_unit == 1 << 30 else 'MB'
         print(f'{n:<11} {_size(b + extra):>9} in {files:>6} file(s)   cap {_size(cap(n)):>9} ({s.cap_env}, {unit})   '
               f'{top}' + ('   (project cache)' if s.project else ''))
-    print(f'{"all":<11} {_size(total):>9}')
+    print(f'{"all":<11} {_size(total):>9}   (the caches\' overall budget: {_size(total_cap())}, {TOTAL_ENV})')
     return 0
 
 
