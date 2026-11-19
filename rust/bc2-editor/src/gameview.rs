@@ -97,7 +97,9 @@ pub struct GameView {
     shown: Option<egui::TextureId>,
     drawn: Option<u64>,
     scene: Option<u64>,
-    window: Option<Option<(usize, usize)>>,
+    /// The patch the terrain window is around, when the live list has been given its sources.
+    window: Option<(usize, usize)>,
+    sourced: bool,
     /// Each placed thing's entity (the placed list is the scene's entities with a blueprint and a transform).
     entity_of: Vec<usize>,
     /// Read the frame back and upload it (no shared texture).
@@ -170,7 +172,10 @@ pub fn device_features(adapter: &wgpu::Adapter) -> wgpu::Features {
 
 /// Opens a Direct3D 11 texture shared by NT handle on egui's device (Vulkan, with external memory).
 #[cfg(windows)]
-#[allow(unsafe_code, reason = "wgpu's hal interop: a Vulkan image on the Direct3D 11 texture's memory")]
+#[allow(
+    unsafe_code,
+    reason = "wgpu's hal interop: a Vulkan image on the Direct3D 11 texture's memory"
+)]
 fn open_shared(device: &wgpu::Device, handle: isize, size: [u32; 2]) -> Option<wgpu::Texture> {
     use wgpu::hal;
     if !device.features().contains(wgpu::Features::VULKAN_EXTERNAL_MEMORY_WIN32) {
@@ -232,7 +237,19 @@ impl GameView {
             .filter_map(|e| e.blueprint.as_deref())
             .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)));
         let (placed, entity_of) = placed_entities(scene);
-        let world = World::load(opfor, lv, &scene.name, &placed, weather)?;
+        // a level of game\Package only (Vietnam, the Pacific War ...): read from its bundles in place (round R5c)
+        let package = !opfor
+            .join("work")
+            .join("levels")
+            .join(lv.to_lowercase())
+            .join("dist")
+            .is_dir()
+            && crate::package::find(opfor, lv).is_some();
+        let world = if package {
+            World::load_package(opfor, lv, &scene.name, &placed, weather)?
+        } else {
+            World::load(opfor, lv, &scene.name, &placed, weather)?
+        };
         Ok(Self {
             notes: world.notes.clone(),
             live: Live::new(&world.light),
@@ -244,6 +261,7 @@ impl GameView {
             drawn: None,
             scene: Some(fingerprint(scene)),
             window: None,
+            sourced: false,
             entity_of,
             copy: std::env::var_os(COPY_ENV).is_some(),
             cull: true,
@@ -281,7 +299,7 @@ impl GameView {
         self.notes.extend(self.world.set_placed(&placed));
         self.entity_of = entity_of;
         // the instances again (the unchanged ones kept as planned) at the next frame
-        self.window = None;
+        self.sourced = false;
         self.drawn = None;
         true
     }
@@ -289,8 +307,9 @@ impl GameView {
     /// The live list follows the terrain window (the patches around the target) and the objects.
     fn update_sources(&mut self, target: [f64; 3]) {
         let under = self.world.patch_under(target);
-        if self.window != Some(under) {
-            self.window = Some(under);
+        if !self.sourced || self.window != under {
+            self.sourced = true;
+            self.window = under;
             let sources = self.world.sources(target);
             self.live.set(sources);
         }
@@ -379,7 +398,10 @@ impl GameView {
         let mut upload = 0.0;
         if !self.copy
             && let Some(g) = gpu
-            && g.gpu.device.features().contains(wgpu::Features::VULKAN_EXTERNAL_MEMORY_WIN32)
+            && g.gpu
+                .device
+                .features()
+                .contains(wgpu::Features::VULKAN_EXTERNAL_MEMORY_WIN32)
         {
             let f = self.device.share(out)?;
             let t3 = Instant::now();
@@ -401,10 +423,8 @@ impl GameView {
             let mut ldr = self.device.read_output(out)?;
             readback = t2.elapsed().as_secs_f64();
             // the frame is opaque (the tonemap's alpha is not coverage), as the shared texture's
-            for px in ldr.chunks_exact_mut(4) {
-                if let Some(a) = px.get_mut(3) {
-                    *a = 255;
-                }
+            for px in ldr.as_chunks_mut::<4>().0 {
+                px[3] = 255;
             }
             let t3 = Instant::now();
             let image = ColorImage::from_rgba_unmultiplied([size[0] as usize, size[1] as usize], &ldr);
@@ -429,7 +449,11 @@ impl GameView {
     }
 
     #[cfg(not(windows))]
-    #[allow(clippy::unused_self, clippy::unnecessary_wraps, reason = "the Windows view's signature")]
+    #[allow(
+        clippy::unused_self,
+        clippy::unnecessary_wraps,
+        reason = "the Windows view's signature"
+    )]
     fn draw(
         &mut self,
         _ctx: &egui::Context,

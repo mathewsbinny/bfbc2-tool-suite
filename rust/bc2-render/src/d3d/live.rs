@@ -87,8 +87,10 @@ struct Shared {
 pub(super) struct Gpu {
     mats: Vec<Material>,
     ids: HashMap<(usize, u16), u32>,
-    /// `Some(None)`: probed, no constant-buffer offsets.
-    ctx1: Option<Option<ID3D11DeviceContext1>>,
+    /// Probed for constant-buffer offsets.
+    probed: bool,
+    /// Direct3D 11.1's context, when constant buffers can be bound by offset.
+    ctx1: Option<ID3D11DeviceContext1>,
     ring: Option<ID3D11Buffer>,
     ring_size: usize,
     shared: Vec<Shared>,
@@ -207,14 +209,23 @@ impl Bound {
 
 /// The range of slots whose binding differs, recording the new ones.
 fn changed<const N: usize>(last: &mut [usize; N], now: &[usize; N]) -> Option<(usize, usize)> {
-    let lo = (0..N).find(|&i| last[i] != now[i])?;
-    let hi = (0..N).rfind(|&i| last[i] != now[i])?;
+    let lo = last.iter().zip(now).position(|(a, b)| a != b)?;
+    let hi = last.iter().zip(now).rposition(|(a, b)| a != b)?;
     last.copy_from_slice(now);
     Some((lo, hi))
 }
 
 fn addrs<T: Interface, const N: usize>(a: &[Option<T>; N]) -> [usize; N] {
-    std::array::from_fn(|i| addr(a[i].as_ref()))
+    let mut out = [0; N];
+    for (o, x) in out.iter_mut().zip(a) {
+        *o = addr(x.as_ref());
+    }
+    out
+}
+
+/// Slots `lo..=hi` of a binding array (empty when out of range).
+fn slots<T>(a: &[T], lo: usize, hi: usize) -> &[T] {
+    a.get(lo..=hi).unwrap_or_default()
 }
 
 /// A texture the frame makes (its view changes with the frame's size), not a file.
@@ -285,7 +296,8 @@ fn compile(entry: PCSTR, target: PCSTR) -> Result<Vec<u8>, String> {
 impl Device {
     /// Direct3D 11.1's context when it binds constant buffers by offset.
     fn ctx1(&mut self) -> Option<ID3D11DeviceContext1> {
-        if self.gpu.ctx1.is_none() {
+        if !self.gpu.probed {
+            self.gpu.probed = true;
             let mut o = D3D11_FEATURE_DATA_D3D11_OPTIONS::default();
             // SAFETY: the out structure is the feature's own, of its size
             let ok = unsafe {
@@ -298,9 +310,9 @@ impl Device {
             .is_ok()
                 && o.ConstantBufferOffsetting.as_bool()
                 && std::env::var_os("BC2_RENDER_NO_CB_OFFSETS").is_none();
-            self.gpu.ctx1 = Some(if ok { self.ctx.cast().ok() } else { None });
+            self.gpu.ctx1 = if ok { self.ctx.cast().ok() } else { None };
         }
-        self.gpu.ctx1.clone().flatten()
+        self.gpu.ctx1.clone()
     }
 
     /// Whether constant buffers are bound by offset in one ring (else one update per draw).
@@ -376,7 +388,11 @@ impl Device {
             stride: d.stride,
             offset: d.vertex_offset,
             ib,
-            format: if p.wide { DXGI_FORMAT_R32_UINT } else { DXGI_FORMAT_R16_UINT },
+            format: if p.wide {
+                DXGI_FORMAT_R32_UINT
+            } else {
+                DXGI_FORMAT_R16_UINT
+            },
             index_count: d.index_count,
             first_index: d.first_index,
             ps_srv,
@@ -498,7 +514,8 @@ impl Device {
                     let mut b = keys.0;
                     b[8] = 0;
                     let d = keys.1;
-                    let st = self.keyed_states_ex(b, [d[0], d[1], d[2], if d[1] != 0 { 0xff } else { 0 }], keys.2 | 0x100)?;
+                    let st =
+                        self.keyed_states_ex(b, [d[0], d[1], d[2], if d[1] != 0 { 0xff } else { 0 }], keys.2 | 0x100)?;
                     (Some(st), (pick >> (8 * u32::from(k))) & 0xff)
                 }
                 Mode::Mask(seen) => {
@@ -512,9 +529,8 @@ impl Device {
             // SAFETY: the ring holds the frame's constants at the steps' offsets (uploaded before this submit); the
             // fallback's buffers are this device's
             unsafe {
-            for (stage, (off, len)) in [(0u8, s.vs), (1, s.ps)] {
-                match &ctx1 {
-                    Some(c1) => {
+                for (stage, (off, len)) in [(0u8, s.vs), (1, s.ps)] {
+                    if let Some(c1) = &ctx1 {
                         let first = off / 16;
                         let num = len.div_ceil(256).max(1) * 16;
                         let key = (addr(ring_buf[0].as_ref()), first, num);
@@ -539,8 +555,7 @@ impl Device {
                             }
                             *slot = key;
                         }
-                    }
-                    None => {
+                    } else {
                         let data = arena.get(off as usize..(off + len) as usize).unwrap_or_default();
                         let b = self.cbuffer(data, stage)?;
                         if stage == 0 {
@@ -552,7 +567,6 @@ impl Device {
                         }
                     }
                 }
-            }
             }
             let mat = some(self.gpu.mats.get(m as usize), "material")?;
             let (blend, dss, raster) = states.as_ref().unwrap_or(&mat.states);
@@ -612,16 +626,16 @@ impl Device {
                     last.ps = a;
                 }
                 if let Some((lo, hi)) = changed(&mut last.pss, &addrs(&mat.ps_ss)) {
-                    ctx.PSSetSamplers(lo as u32, Some(&mat.ps_ss[lo..=hi]));
+                    ctx.PSSetSamplers(lo as u32, Some(slots(&mat.ps_ss, lo, hi)));
                 }
                 if let Some((lo, hi)) = changed(&mut last.vss, &addrs(&mat.vs_ss)) {
-                    ctx.VSSetSamplers(lo as u32, Some(&mat.vs_ss[lo..=hi]));
+                    ctx.VSSetSamplers(lo as u32, Some(slots(&mat.vs_ss, lo, hi)));
                 }
                 if let Some((lo, hi)) = changed(&mut last.vsr, &addrs(vsr)) {
-                    ctx.VSSetShaderResources(lo as u32, Some(&vsr[lo..=hi]));
+                    ctx.VSSetShaderResources(lo as u32, Some(slots(vsr, lo, hi)));
                 }
                 if let Some((lo, hi)) = changed(&mut last.psr, &addrs(psr)) {
-                    ctx.PSSetShaderResources(lo as u32, Some(&psr[lo..=hi]));
+                    ctx.PSSetShaderResources(lo as u32, Some(slots(psr, lo, hi)));
                 }
                 let a = addr(Some(blend));
                 if last.blend != a {
@@ -674,7 +688,11 @@ impl Device {
             let vs = compile(s!("vs"), s!("vs_5_0"))?;
             let ps = compile(s!("ps"), s!("ps_5_0"))?;
             let one = compile(s!("opaque"), s!("ps_5_0"))?;
-            self.gpu.outline = Some((self.vertex_shader(&vs)?, self.pixel_shader(&ps)?, self.pixel_shader(&one)?));
+            self.gpu.outline = Some((
+                self.vertex_shader(&vs)?,
+                self.pixel_shader(&ps)?,
+                self.pixel_shader(&one)?,
+            ));
         }
         Ok(())
     }
@@ -705,7 +723,7 @@ impl Device {
         let upload = t1.elapsed().as_secs_f64();
         let t2 = Instant::now();
         self.begin(size, &clear)?;
-        let depth = depth_pass.and_then(|p| live.built.depth_at.map(|at| (at, p)));
+        let depth = live.built.depth_at.zip(depth_pass);
         let draws = self.submit(live, steps, &mats, ring, Mode::Normal, depth, files, raw)?;
         let submit = t2.elapsed().as_secs_f64();
         let t3 = Instant::now();
@@ -860,7 +878,7 @@ impl Device {
             };
             // SAFETY: as above
             unsafe { self.ctx.RSSetScissorRects(Some(&[rect])) };
-            let depth = depth_pass.and_then(|p| live.built.depth_at.map(|a| (a, p)));
+            let depth = live.built.depth_at.zip(depth_pass);
             self.submit(live, steps, &mats, ring, Mode::Pick(k), depth, files, raw)?;
             let t = some(self.target.as_ref(), "target")?;
             // SAFETY: a staging copy of the depth-stencil, mapped for reading; one texel read inside the mapped rows

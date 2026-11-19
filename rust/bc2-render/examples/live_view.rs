@@ -47,7 +47,14 @@ fn camera(v: &[f64], size: [u32; 2]) -> (Camera, [f64; 3]) {
         z + dist * pitch.cos() * yaw.cos(),
     ];
     (
-        Camera::look(eye, [x, y, z], 60f64.to_radians(), 0.5, 4000.0, f64::from(size[0]) / f64::from(size[1])),
+        Camera::look(
+            eye,
+            [x, y, z],
+            60f64.to_radians(),
+            0.5,
+            4000.0,
+            f64::from(size[0]) / f64::from(size[1]),
+        ),
         [x, y, z],
     )
 }
@@ -80,8 +87,16 @@ fn live_frame(dev: &mut Device, lv: &mut Lv, cam: &Camera, target: [f64; 3], siz
     lv.live.build(cam, size, Options { cull });
     let (depth, post) = lv.world.passes(cam, size, true).unwrap();
     let raw = lv.world.raw().clone();
-    dev.render_live(&lv.live, size, lv.world.clear(), depth.as_ref(), &post, &lv.world.textures, &raw)
-        .unwrap();
+    dev.render_live(
+        &lv.live,
+        size,
+        lv.world.clear(),
+        depth.as_ref(),
+        &post,
+        &lv.world.textures,
+        &raw,
+    )
+    .unwrap();
     dev.read_scene(post.last()).unwrap()
 }
 
@@ -104,17 +119,61 @@ fn main() {
     let size = [size[0], size[1]];
     let frames: usize = opt("--frames").map_or(10, |v| v.parse().unwrap());
     let stem = opt("--name").unwrap_or_else(|| lvname.clone());
-    let views: Vec<Vec<f64>> = a
+    let specs: Vec<String> = a
         .iter()
         .enumerate()
         .filter(|(_, s)| *s == "--view")
-        .map(|(i, _)| a[i + 1].split(',').map(|v| v.parse().unwrap()).collect())
+        .map(|(i, _)| a[i + 1].clone())
         .collect();
     std::fs::create_dir_all(&out).ok();
     let t = Instant::now();
     let (name, placed, weather) = common::placed(&opfor, &lvname).unwrap();
-    let world = World::load(&opfor, &lvname, &name, &placed, weather.as_deref()).unwrap();
-    println!("{lvname}: loaded in {:.2} s; {:?}", t.elapsed().as_secs_f64(), world.counts);
+    let package = !opfor.join("work").join("levels").join(lvname.to_lowercase()).is_dir();
+    let world = if package {
+        World::load_package(&opfor, &lvname, &name, &placed, weather.as_deref()).unwrap()
+    } else {
+        World::load(&opfor, &lvname, &name, &placed, weather.as_deref()).unwrap()
+    };
+    for n in world
+        .notes
+        .iter()
+        .filter(|n| !n.contains(": ") || n.starts_with("read from") || n.contains("unread"))
+    {
+        println!("  note: {n}");
+    }
+    println!(
+        "{lvname}: loaded in {:.2} s; {:?}",
+        t.elapsed().as_secs_f64(),
+        world.counts
+    );
+    // `--view auto`: the placed object nearest the objects' median, from the south-west, a little above
+    let views: Vec<Vec<f64>> = specs
+        .iter()
+        .map(|v| {
+            if v != "auto" {
+                return v.split(',').map(|x| x.parse().unwrap()).collect();
+            }
+            let mut xs: Vec<[f64; 3]> = world
+                .objects
+                .iter()
+                .map(|o| [o.world[3], o.world[7], o.world[11]])
+                .collect();
+            let med = |k: usize, xs: &mut Vec<[f64; 3]>| {
+                xs.sort_by(|a, b| a[k].total_cmp(&b[k]));
+                xs[xs.len() / 2][k]
+            };
+            let (mx, mz) = (med(0, &mut xs), med(2, &mut xs));
+            let c = xs
+                .iter()
+                .min_by(|a, b| {
+                    let d = |p: &[f64; 3]| (p[0] - mx).powi(2) + (p[2] - mz).powi(2);
+                    d(a).total_cmp(&d(b))
+                })
+                .copied()
+                .unwrap();
+            vec![c[0], c[1], c[2], 225.0, 20.0, 90.0]
+        })
+        .collect();
     let mut lv = Lv {
         live: Live::new(&world.light),
         world,
@@ -176,7 +235,15 @@ fn main() {
             let (depth, post) = lv.world.passes(&c, size, true).unwrap();
             let raw = lv.world.raw().clone();
             let st = dev
-                .render_live(&lv.live, size, lv.world.clear(), depth.as_ref(), &post, &lv.world.textures, &raw)
+                .render_live(
+                    &lv.live,
+                    size,
+                    lv.world.clear(),
+                    depth.as_ref(),
+                    &post,
+                    &lv.world.textures,
+                    &raw,
+                )
                 .unwrap();
             let t1 = Instant::now();
             dev.finish().unwrap();
@@ -215,7 +282,14 @@ fn main() {
         if has("--job") {
             // the view drawn again: the scene's linear depth the job gives the harness is this view's
             let culled = live_frame(&mut dev, &mut lv, &cam, target, size, true);
-            parity(&mut dev, &mut lv, old_frame.as_ref().unwrap(), &culled, &out, &format!("{stem}_view{vi}"));
+            parity(
+                &mut dev,
+                &mut lv,
+                old_frame.as_ref().unwrap(),
+                &culled,
+                &out,
+                &format!("{stem}_view{vi}"),
+            );
         }
         if has("--pick") {
             pick(&mut dev, &mut lv, &cam, target, size, &out, &format!("{stem}_view{vi}"));
@@ -224,7 +298,17 @@ fn main() {
     if has("--edit")
         && let Some(v) = views.first()
     {
-        edit(&mut dev, &mut lv, &opfor, &lvname, &name, &placed, weather.as_deref(), v, size);
+        edit(
+            &mut dev,
+            &mut lv,
+            &opfor,
+            &lvname,
+            &name,
+            &placed,
+            weather.as_deref(),
+            v,
+            size,
+        );
     }
 }
 
@@ -243,7 +327,14 @@ fn parity(dev: &mut Device, lv: &mut Lv, frame: &bc2_render::frame::Frame, live:
         out.join(format!("{stem}_job.pack")),
         out.join(format!("{stem}_job.txt")),
     );
-    let j = job::write(frame, &lv.world.textures, lv.world.raw(), &extra, &fwd(&raw_out), &fwd(&pack));
+    let j = job::write(
+        frame,
+        &lv.world.textures,
+        lv.world.raw(),
+        &extra,
+        &fwd(&raw_out),
+        &fwd(&pack),
+    );
     std::fs::write(&pack, &j.pack).unwrap();
     std::fs::write(&jf, &j.text).unwrap();
     let o = std::process::Command::new(exe).arg(&jf).output().unwrap();
@@ -297,32 +388,64 @@ fn pick(dev: &mut Device, lv: &mut Lv, cam: &Camera, target: [f64; 3], size: [u3
         if c[3] <= 0.0 {
             continue;
         }
-        let (x, y) = ((c[0] / c[3] + 1.0) / 2.0, (1.0 - c[1] / c[3]) / 2.0);
+        let (x, y) = (f64::midpoint(c[0] / c[3], 1.0), f64::midpoint(1.0, -c[1] / c[3]));
         if !(0.0..1.0).contains(&x) || !(0.0..1.0).contains(&y) {
             continue;
         }
         let at = [(x * f64::from(size[0])) as u32, (y * f64::from(size[1])) as u32];
         lv.live.set(lv.world.sources(target));
         lv.live.build(cam, size, Options::default());
-        let id = dev.pick(&lv.live, size, at, depth.as_ref(), &lv.world.textures, &raw).unwrap();
+        let id = dev
+            .pick(&lv.live, size, at, depth.as_ref(), &lv.world.textures, &raw)
+            .unwrap();
         tried += 1;
         // the answer checked: the picked object's draws lie at the frame's depth under the pixel
-        dev.render_live(&lv.live, size, lv.world.clear(), depth.as_ref(), &post, &lv.world.textures, &raw)
-            .unwrap();
+        dev.render_live(
+            &lv.live,
+            size,
+            lv.world.clear(),
+            depth.as_ref(),
+            &post,
+            &lv.world.textures,
+            &raw,
+        )
+        .unwrap();
         let ok = if id == 0 {
             // nothing pickable: the pixel belongs to terrain, strips, water or the sky
             let r = dev.read_scene(None).unwrap();
             let i = at[1] as usize * size[0] as usize + at[0] as usize;
             r.classes[i] == 0 || {
                 // drawn by a non-object: no object mask covers it
-                let picks: Vec<u32> = lv.live.instances.iter().map(|i| i.source.pick).filter(|&p| p != 0).collect();
-                dev.outline(&lv.live, &picks, post.last().unwrap(), [1.0; 4], [1.0; 4], &lv.world.textures, &raw)
-                    .unwrap();
+                let picks: Vec<u32> = lv
+                    .live
+                    .instances
+                    .iter()
+                    .map(|i| i.source.pick)
+                    .filter(|&p| p != 0)
+                    .collect();
+                dev.outline(
+                    &lv.live,
+                    &picks,
+                    post.last().unwrap(),
+                    [1.0; 4],
+                    [1.0; 4],
+                    &lv.world.textures,
+                    &raw,
+                )
+                .unwrap();
                 dev.read_scene(None).unwrap().classes[i] & 0x80 == 0
             }
         } else {
-            dev.outline(&lv.live, &[id], post.last().unwrap(), [1.0, 0.45, 0.0, 1.0], [1.0, 0.45, 0.0, 0.45], &lv.world.textures, &raw)
-                .unwrap();
+            dev.outline(
+                &lv.live,
+                &[id],
+                post.last().unwrap(),
+                [1.0, 0.45, 0.0, 1.0],
+                [1.0, 0.45, 0.0, 0.45],
+                &lv.world.textures,
+                &raw,
+            )
+            .unwrap();
             let r = dev.read_scene(None).unwrap();
             r.classes[at[1] as usize * size[0] as usize + at[0] as usize] & 0x80 != 0
         };
@@ -339,10 +462,26 @@ fn pick(dev: &mut Device, lv: &mut Lv, cam: &Camera, target: [f64; 3], size: [u3
     // the outline of the first picked object, saved
     if let Some((_, id, _)) = answers.iter().find(|a| a.1 != 0) {
         lv.live.build(cam, size, Options::default());
-        dev.render_live(&lv.live, size, lv.world.clear(), depth.as_ref(), &post, &lv.world.textures, &raw)
-            .unwrap();
-        dev.outline(&lv.live, &[*id], post.last().unwrap(), [1.0, 0.45, 0.0, 1.0], [1.0, 0.45, 0.0, 0.45], &lv.world.textures, &raw)
-            .unwrap();
+        dev.render_live(
+            &lv.live,
+            size,
+            lv.world.clear(),
+            depth.as_ref(),
+            &post,
+            &lv.world.textures,
+            &raw,
+        )
+        .unwrap();
+        dev.outline(
+            &lv.live,
+            &[*id],
+            post.last().unwrap(),
+            [1.0, 0.45, 0.0, 1.0],
+            [1.0, 0.45, 0.0, 0.45],
+            &lv.world.textures,
+            &raw,
+        )
+        .unwrap();
         let ldr = dev.read_output(post.last().unwrap()).unwrap();
         common::save_png(&out.join(format!("{stem}_selected.png")), size[0], size[1], &ldr).unwrap();
     }
@@ -398,8 +537,16 @@ fn edit(
     lv.live.build(&cam, size, Options::default());
     let (depth, post) = lv.world.passes(&cam, size, true).unwrap();
     let raw = lv.world.raw().clone();
-    dev.render_live(&lv.live, size, lv.world.clear(), depth.as_ref(), &post, &lv.world.textures, &raw)
-        .unwrap();
+    dev.render_live(
+        &lv.live,
+        size,
+        lv.world.clear(),
+        depth.as_ref(),
+        &post,
+        &lv.world.textures,
+        &raw,
+    )
+    .unwrap();
     let replayed = dev.read_scene(post.last()).unwrap();
     // from scratch: the world loaded with the edited placements, a new live list, a new device
     let fresh_world = World::load(opfor, lvname, name, &edited, weather).unwrap();
@@ -410,10 +557,17 @@ fn edit(
     let mut dev2 = Device::new(dev.warp).unwrap();
     let scratch = live_frame(&mut dev2, &mut fresh, &cam, target, size, true);
     let (s, l) = same(&replayed, &scratch);
-    let unedited = live_frame(dev, &mut Lv {
-        live: Live::new(&lv.world.light),
-        world: World::load(opfor, lvname, name, placed, weather).unwrap(),
-    }, &cam, target, size, true);
+    let unedited = live_frame(
+        dev,
+        &mut Lv {
+            live: Live::new(&lv.world.light),
+            world: World::load(opfor, lvname, name, placed, weather).unwrap(),
+        },
+        &cam,
+        target,
+        size,
+        true,
+    );
     let (s0, _) = same(&unedited, &scratch);
     println!(
         "edit (moved, turned, removed, duplicated, added near the first view's target): replayed in {:.1} ms ({planned} \
@@ -424,6 +578,18 @@ fn edit(
         scratch.depth.len() - s0
     );
     let out = std::env::args().nth(2).map(PathBuf::from).unwrap();
-    common::save_png(&out.join(format!("{lvname}_edited.png")), size[0], size[1], &replayed.ldr).unwrap();
-    common::save_png(&out.join(format!("{lvname}_unedited.png")), size[0], size[1], &unedited.ldr).unwrap();
+    common::save_png(
+        &out.join(format!("{lvname}_edited.png")),
+        size[0],
+        size[1],
+        &replayed.ldr,
+    )
+    .unwrap();
+    common::save_png(
+        &out.join(format!("{lvname}_unedited.png")),
+        size[0],
+        size[1],
+        &unedited.ldr,
+    )
+    .unwrap();
 }

@@ -20,6 +20,9 @@
     clippy::doc_markdown,
     clippy::too_many_lines,
     clippy::float_cmp,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::chunks_exact_to_as_chunks,
     missing_docs
 )]
 
@@ -134,14 +137,15 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
     {
         let g = app.view().unwrap().game.as_ref().unwrap();
         assert!(g.error.is_none(), "{:?}", g.error);
-        assert_eq!(g.timings.shared, shared_on, "the frame is shared when egui's device can open it");
+        assert_eq!(
+            g.timings.shared, shared_on,
+            "the frame is shared when egui's device can open it"
+        );
     }
-    save(&mut h, "r5c_shared.png");
     let shared_img = h.image().unwrap();
     app.view_mut().unwrap().game.as_mut().unwrap().copy = true;
     app.view_mut().unwrap().game.as_mut().unwrap().redraw();
     h.settle(&mut app, 2);
-    save(&mut h, "r5c_copied.png");
     let copied_img = h.image().unwrap();
     // the costs line at the view's top (its numbers change every frame) left out
     let r = app
@@ -165,15 +169,6 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
         if shared_on { "on" } else { "not available" },
         shared_img.len() / 4
     );
-    let diffs: Vec<(usize, &[u8], &[u8])> = shared_img
-        .chunks_exact(4)
-        .zip(copied_img.chunks_exact(4))
-        .enumerate()
-        .filter(|(_, (a, b))| a != b)
-        .map(|(k, (a, b))| (k, a, b))
-        .take(6)
-        .collect();
-    println!("first differences (pixel, shared, copied): {diffs:?}");
     assert_eq!(same, shared_img.len() / 4);
     let t_copy = costs(&mut h, &mut app);
     print("copy fallback", &t_copy);
