@@ -426,6 +426,7 @@ version = "0.1.0"
 dependencies = [
  "bc2-formats",
  "bc2-levelwrite",
+ "bc2-render",
  "bc2-scene",
  "bytemuck",
  "eframe",
@@ -498,6 +499,16 @@ dependencies = [
  "iced-x86",
  "pyo3",
  "rayon",
+]
+
+[[package]]
+name = "bc2-render"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "png",
+ "rayon",
+ "windows",
 ]
 
 [[package]]

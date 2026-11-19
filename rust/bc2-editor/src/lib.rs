@@ -41,6 +41,7 @@ pub mod demo;
 pub mod edit;
 pub mod factions;
 pub mod fonts;
+pub mod gameview;
 pub mod gizmo;
 pub mod headless;
 pub mod help;

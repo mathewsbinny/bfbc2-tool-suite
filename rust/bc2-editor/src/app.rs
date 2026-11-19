@@ -224,6 +224,10 @@ pub struct ViewState {
     pub last_hit: Option<query::Hit>,
     /// Which faction each team is (the labels), from the level's data.
     pub teams: Teams,
+    /// The 3D view draws the level as the game does (round R5: [`crate::gameview`]).
+    pub game_accurate: bool,
+    /// The game-accurate view's level, loaded when the mode is first turned on.
+    pub game: Option<crate::gameview::GameView>,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -379,7 +383,9 @@ impl EditorApp {
             Action::FocusSelection | Action::CopyGuid | Action::ClearSelection if !selected => {
                 Some("Select an object first")
             }
-            Action::OpenViewport(_) | Action::ToggleLabels | Action::CloseMap if !open => Some("Open a map first"),
+            Action::OpenViewport(_) | Action::ToggleLabels | Action::ToggleGameView | Action::CloseMap if !open => {
+                Some("Open a map first")
+            }
             Action::Undo
             | Action::Redo
             | Action::Save
@@ -493,6 +499,23 @@ impl EditorApp {
             Action::ToggleLabels => {
                 if let Mode::View(v) = &mut self.mode {
                     v.labels = !v.labels;
+                }
+            }
+            Action::ToggleGameView => {
+                if let (Mode::View(v), Ok(root)) = (&mut self.mode, &self.opfor) {
+                    v.game_accurate = !v.game_accurate;
+                    if v.game_accurate && v.game.is_none() {
+                        match crate::gameview::GameView::load(root, &v.lv, v.scene()) {
+                            Ok(g) => {
+                                v.message = format!("Game-accurate view: loaded in {:.1} s", g.load_seconds);
+                                v.game = Some(g);
+                            }
+                            Err(e) => {
+                                v.message = format!("Game-accurate view: {e}");
+                                v.game_accurate = false;
+                            }
+                        }
+                    }
                 }
             }
             Action::Help => {
@@ -803,6 +826,8 @@ impl EditorApp {
             load_seconds: secs,
             reveal: false,
             labels: true,
+            game_accurate: false,
+            game: None,
             last_hit: None,
         };
         if editing {
@@ -1305,6 +1330,14 @@ impl EditorApp {
                         ];
                         if let Mode::View(v) = &self.mode {
                             buttons.push((Action::CloseMap, "Close map"));
+                            buttons.push((
+                                Action::ToggleGameView,
+                                if v.game_accurate {
+                                    "Editor view"
+                                } else {
+                                    "Game-accurate"
+                                },
+                            ));
                             for (proj, name) in [
                                 (Projection::Side, "Side"),
                                 (Projection::Front, "Front"),
@@ -2074,7 +2107,14 @@ impl Tabs<'_> {
             );
             vp.dirty = false;
         }
-        if let Some(tex) = vp.texture {
+        let game = self
+            .view
+            .game
+            .as_mut()
+            .filter(|_| projection == Projection::Perspective && self.view.game_accurate);
+        if let Some(g) = game {
+            g.paint(ui, rect, &vp.camera, px);
+        } else if let Some(tex) = vp.texture {
             ui.painter().image(
                 tex,
                 rect,
