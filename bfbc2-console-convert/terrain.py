@@ -65,10 +65,67 @@ VisualWater (the PC's 15,216 bytes larger on mp_005: 8 bytes more per vertex, 1,
     { u32 material, u32 triangles, u32 first index, u32 index count }; f32 8192
     Everything but the normals / tangents byte for byte on all 20 levels (whole files on 6); those decoded from the
     Xbox's 10 bits: 91% of the components exact, the rest within 1 / 511 (the Xbox's rounding lost the PC's last bits).
+
+Every function here runs in the suite's Rust core when it is built (round F2a: bc2_convert::terrain through
+bc2_native.terrain_*; the same bytes, the same TerrainError messages). Where the reference would raise another
+error (a read past the data) the Python runs: the *_reference functions, kept as the reference and the fallback;
+BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
 """
+import os
 import struct
+import sys
+from typing import Any
 
 import numpy as np
+
+_NATIVE: list[Any] = []
+
+
+def _native() -> Any:
+    """The Rust core with the terrain functions, or None: not built, or BFBC2_PURE_PYTHON set."""
+    if not _NATIVE:
+        m = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            import suite_paths
+            suite_paths.use('core')
+            from bfbc2core import dbx as _dbx
+            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
+                m = _dbx._import_native()
+        except ImportError:
+            m = None
+        _NATIVE.append(m if m is not None and hasattr(m, 'terrain_convert') else None)
+    return _NATIVE[0]
+
+
+def use_native(on: bool) -> bool:
+    """The Rust terrain conversion on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True
+    when it runs."""
+    _NATIVE.clear()
+    if not on:
+        _NATIVE.append(None)
+        return False
+    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
+    try:
+        return _native() is not None
+    finally:
+        if saved is not None:
+            os.environ['BFBC2_PURE_PYTHON'] = saved
+
+
+def _answer(got: Any, error: type = Exception) -> Any:
+    """A native answer: (True, value) -> (value,); (False, message) -> error(message) raised; None stays None."""
+    if got is not None and not got[0]:
+        raise error(got[1])
+    return None if got is None else (got[1],)
+
+
+def _run(name: str, x: Any) -> Any:
+    """The Rust core's terrain_convert(name, x) as (value,), or None (not built, not bytes, or left to Python)."""
+    nat = _native() if type(x) is bytes else None
+    return _answer(nat.terrain_convert(name, x), TerrainError) if nat is not None else None
 
 FIXED = {1024: 62474, 2048: 256012}         # the tail's second part, by size
 SUB_SIZES = (64, 128)                       # sub-terrain heightfields: a min / max quadtree after the heights
@@ -110,6 +167,13 @@ def _swap(x, out, dt, count, at, to=None):
 
 def heightfield(x, source='bfbc2'):
     """An Xbox TerrainHeightfield (BFBC2's, or source='bf1943': Battlefield 1943's) as BFBC2's PC file."""
+    nat = _native() if type(x) is bytes else None
+    got = _answer(nat.terrain_heightfield(x, bool(source == 'bfbc2')), TerrainError) if nat is not None else None
+    return got[0] if got is not None else heightfield_reference(x, source)
+
+
+def heightfield_reference(x, source='bfbc2'):
+    """The Python heightfield (the reference)."""
     n = struct.unpack_from('>I', x, 0x18)[0]
     if n in SUB_SIZES:
         return sub_heightfield(x, n, source)
@@ -141,6 +205,12 @@ def heightfield(x, source='bfbc2'):
 
 def water_mesh(x):
     """An Xbox WaterMesh as BFBC2's PC file."""
+    got = _run('water_mesh', x)
+    return got[0] if got is not None else water_mesh_reference(x)
+
+
+def water_mesh_reference(x):
+    """The Python water_mesh (the reference)."""
     if len(x) % 4:
         raise TerrainError(f'water mesh: {len(x)} bytes, not 4-byte values')
     return np.frombuffer(x, '>u4').astype('<u4').tobytes()
@@ -148,6 +218,12 @@ def water_mesh(x):
 
 def material_map(x):
     """An Xbox TerrainMaterialMap (BFBC2's or BF1943's) as BFBC2's PC file."""
+    got = _run('material_map', x)
+    return got[0] if got is not None else material_map_reference(x)
+
+
+def material_map_reference(x):
+    """The Python material_map (the reference)."""
     out = bytearray(x)
     w, b = struct.unpack_from('>IH', x, 0)
     struct.pack_into('<IH', out, 0, w, b)
@@ -260,6 +336,12 @@ def _visual_terrain(x, e):
 
 def visual_terrain(x):
     """An Xbox VisualTerrain (BFBC2's or BF1943's) as BFBC2's PC file (the same size)."""
+    got = _run('visual_terrain', x)
+    return got[0] if got is not None else visual_terrain_reference(x)
+
+
+def visual_terrain_reference(x):
+    """The Python visual_terrain (the reference)."""
     return _visual_terrain(x, '>').done()
 
 
@@ -272,6 +354,17 @@ def road_strips(pc):
     bytes (V x 28: world position float3, texture coordinate float2, 4 x f16), 'indices': uint32 array}] - the baked
     road and decal strips, each drawn with its shader entry ('second': a second pass, e.g. "..._Zonly"); 'first' /
     'triangles' a range of the block's indices, 'bounds' 6 floats as stored."""
+    nat = _native() if type(pc) is bytes else None
+    got = _answer(nat.terrain_road_strips(pc), TerrainError) if nat is not None else None
+    if got is None:
+        return road_strips_reference(pc)
+    for b in got[0]:
+        b['indices'] = np.frombuffer(b['indices'], np.uint32).copy()
+    return got[0]
+
+
+def road_strips_reference(pc):
+    """The Python road_strips (the reference)."""
     w = _Walk(pc, 'visual terrain', '<')
     n = w.u32()
     if not 1 <= n <= 256:
@@ -305,6 +398,13 @@ def road_positions(vertices):
 def visual_terrain_parts(pc):
     """A PC VisualTerrain's parts: [(name, bytes)] ('blocks', 'roads 0' ..., 'patch shaders', 'patch map 0', 'patch
     map 0 cells', 'patch map 0 names', ...)."""
+    nat = _native() if type(pc) is bytes else None
+    got = _answer(nat.terrain_visual_terrain_parts(pc), TerrainError) if nat is not None else None
+    return got[0] if got is not None else visual_terrain_parts_reference(pc)
+
+
+def visual_terrain_parts_reference(pc):
+    """The Python visual_terrain_parts (the reference)."""
     w = _visual_terrain(pc, '<')
     w.done()
     return [(name, pc[a:b]) for name, a, b in w.parts]
@@ -359,6 +459,12 @@ def _visual_water(x, e):
 def visual_water(x):
     """An Xbox VisualWater (BFBC2's or BF1943's) as BFBC2's PC file: the vertices grow from 28 to 36 bytes (normal
     and tangent DEC3N -> 4 x f16); exact except those two vectors (the Xbox keeps 10 bits of each)."""
+    got = _run('visual_water', x)
+    return got[0] if got is not None else visual_water_reference(x)
+
+
+def visual_water_reference(x):
+    """The Python visual_water (the reference)."""
     fmt, v, w = _visual_water(x, '>')
     pc = np.zeros(len(v), _water_vertex('<'))
     pc['pos'], pc['uv'] = v['pos'], v['uv']
@@ -370,12 +476,29 @@ def visual_water(x):
 def visual_water_parts(pc):
     """A PC VisualWater's vertices (numpy: pos, n, t, uv) and other parts [(name, bytes)]: indices, materials, draw
     ranges."""
+    nat = _native() if type(pc) is bytes else None
+    got = _answer(nat.terrain_visual_water_parts(pc), TerrainError) if nat is not None else None
+    if got is None:
+        return visual_water_parts_reference(pc)
+    n, parts = got[0]
+    return np.frombuffer(pc, _water_vertex('<'), n, 12), parts
+
+
+def visual_water_parts_reference(pc):
+    """The Python visual_water_parts (the reference)."""
     _, v, w = _visual_water(pc, '<')
     return v, [(name, pc[a:b]) for name, a, b in w.parts]
 
 
 def material_names(pc):
     """The material names of a PC TerrainMaterialMap."""
+    nat = _native() if type(pc) is bytes else None
+    got = _answer(nat.terrain_material_names(pc), TerrainError) if nat is not None else None
+    return got[0] if got is not None else material_names_reference(pc)
+
+
+def material_names_reference(pc):
+    """The Python material_names (the reference)."""
     w, b = struct.unpack_from('<IH', pc, 0)
     o = 6
     for _ in range(b):
