@@ -8,7 +8,10 @@
 //!                                             python bfbc2-dbx-tools\dbxedit.py ...
 //! bfbc2 aptcheck|aptrefs|bc2loc|exeref|crashreader|hpdtool|hkpack|convert|aimanim ...
 //!                                             round O2: python <the tool's .py> ... (src/pyproc.rs)
-//! bfbc2 --source-hash                        the Rust sources' fingerprint it was built from (bfbc2core.native)
+//! bfbc2 navkit|prepare_level|levelobjects|ladders|ordercheck|navcompare|graphstats|hpdcheck|hpdview|detailed|
+//!       navparity|navregress|sample_all|harness|texqa ...
+//!                                             round O4: NavKit's driver and tools, the test harness, texqa
+//! bfbc2 --source-hash                       the Rust sources' fingerprint it was built from (bfbc2core.native)
 //! ```
 //!
 //! Without a subcommand (or with an unknown one) it prints its usage to stderr and exits 2.
@@ -18,14 +21,27 @@
 mod clock;
 #[cfg(feature = "crash")]
 mod crash;
+#[cfg(feature = "harness")]
+mod harness;
 #[cfg(feature = "menu")]
 mod menu;
 #[cfg(feature = "nav")]
 mod nav;
+#[cfg(feature = "navkit")]
+mod navkit;
+#[cfg(feature = "navtools")]
+mod navtools;
+#[cfg(feature = "texqa")]
+mod texqa;
 // the helpers the O2 groups share: some go unused when a group is built alone (--no-default-features --features ..)
 #[cfg_attr(not(all(feature = "menu", feature = "crash", feature = "nav")), allow(dead_code))]
 mod pyfmt;
+// round O4's shared pieces (json; os / os.path / glob / atomicio): each group uses its own part
+#[allow(dead_code)]
+mod pyjson;
 mod pylog;
+#[allow(dead_code)]
+mod pyos;
 #[cfg_attr(not(all(feature = "menu", feature = "crash", feature = "nav")), allow(dead_code))]
 mod pyproc;
 mod pystdio;
@@ -48,6 +64,9 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
      exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
      hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
+     navkit, prepare_level, levelobjects, ladders, ordercheck, navcompare ...   NavKit's driver, prepare and tools\n  \
+     graphstats, hpdcheck, hpdview, detailed, navparity, navregress, sample_all ...   NavKit's other tools\n  \
+     harness, texqa ...   the map and bot test harness, the texture QA\n  \
      --source-hash   the Rust sources' fingerprint this binary was built from\n";
 
 /// What one tool's run gave: exit code, stdout, stderr (lines ended by `\n`) and its log lines.
@@ -96,6 +115,14 @@ fn py_tool(name: &str) -> Option<&'static pyproc::Tool> {
         crash::TOOLS,
         #[cfg(feature = "nav")]
         nav::TOOLS,
+        #[cfg(feature = "navkit")]
+        navkit::TOOLS,
+        #[cfg(feature = "navtools")]
+        navtools::TOOLS,
+        #[cfg(feature = "harness")]
+        harness::TOOLS,
+        #[cfg(feature = "texqa")]
+        texqa::TOOLS,
     ];
     groups.iter().flat_map(|g| g.iter()).find(|t| t.name == name)
 }

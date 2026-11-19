@@ -414,7 +414,10 @@ dependencies = [
  "bc2-convert",
  "bc2-formats",
  "bc2-harness",
+ "bc2-navbuild",
+ "bc2-scene",
  "regex",
+ "sha1_smol",
  "windows-sys 0.61.2",
 ]
 
