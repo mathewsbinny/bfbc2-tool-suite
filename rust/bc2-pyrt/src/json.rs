@@ -17,7 +17,7 @@
 
 use std::fmt::Write as _;
 
-use crate::pyfmt;
+use crate::fmt as pyfmt;
 
 /// A JSON value as Python holds it: ints of any size the tools meet (`i128`), floats, dicts in insertion order.
 #[derive(Debug, Clone, PartialEq)]

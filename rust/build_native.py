@@ -192,10 +192,13 @@ def build(env: dict[str, str]) -> int:
 def build_cli(env: dict[str, str]) -> int:
     """The command-line binary bfbc2.exe (round O1: the tools' command lines in Rust), with the same fingerprint
     baked in (env carries it): bfbc2core.native.cli_exe uses it only while that matches. Built in the build folder,
-    copied to bin\\bfbc2.exe."""
+    copied to bin\\bfbc2.exe. bin\\python.txt names this Python (round O3): the interpreter bfbc2.exe hands a command
+    line to where the Rust refuses it, when BFBC2_PYTHON is not set (then python.exe on PATH)."""
     if _cargo_build(env, ['-p', 'bc2-cli'], 'the command-line binary'):
         return 1
     print(f'built {install_binary("bfbc2")}')
+    with open(os.path.join(native.BIN, 'python.txt'), 'w', encoding='utf-8') as f:
+        f.write(sys.executable + '\n')
     return 0
 
 

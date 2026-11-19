@@ -6,7 +6,8 @@ use crate::pyproc::Tool;
 mod aptcheck;
 mod aptrefs;
 mod bc2loc;
-mod common;
+// menucommon's twin: the library crate bc2-menu (round O3)
+use bc2_menu::common;
 mod json;
 
 /// The group's tools.

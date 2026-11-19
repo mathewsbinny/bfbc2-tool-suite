@@ -72,6 +72,7 @@ mod importer;
 mod kymesh;
 mod loc;
 mod meshdata;
+mod meshindex;
 mod navbuild;
 mod navgraph;
 mod navpath;
@@ -505,6 +506,10 @@ mod bc2_native {
         terrain_material_names, terrain_road_strips, terrain_visual_terrain_parts, terrain_visual_water_parts,
         texture_check, texwrite_alpha, texwrite_l8_down, texwrite_levels,
     };
+
+    // round O3: meshview.Index's tables (bfbc2-mesh-viewer\meshview.py)
+    #[pymodule_export]
+    use super::meshindex::meshview_index;
 
     #[pymodule_export]
     use super::navtrace::{navkit_gabriel, navkit_navsample_parse, navkit_roof_drop};

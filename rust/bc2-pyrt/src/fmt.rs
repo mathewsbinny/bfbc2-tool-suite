@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use crate::pyunprintable::UNPRINTABLE;
+use crate::unprintable::UNPRINTABLE;
 
 /// The shortest round-trip digits of a finite, non-zero `x` and its decimal point position: `x = 0.d1d2... *
 /// 10^decpt` (what Python's `repr` builds on: David Gay's shortest mode, as Rust's `{:e}`).

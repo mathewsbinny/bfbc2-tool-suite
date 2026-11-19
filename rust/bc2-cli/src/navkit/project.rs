@@ -8,7 +8,7 @@ use crate::pyfmt::str_repr;
 use crate::pyjson::{self, Value};
 use crate::pylog;
 use crate::pyos::{self, join, join2};
-use crate::pyproc::{Fail, Py, PyErr, PyResult, suite_root};
+use crate::pyproc::{Fail, Py, PyErr, PyResult};
 
 pub const BACKUP_SUFFIX: &str = ".opfor-orig";
 pub const NEW_SUFFIX: &str = ".opfor-new";
@@ -28,106 +28,11 @@ impl Log for Print {
     }
 }
 
-/// The folder the suite's Python sits in (navkit.py's `os.path.dirname(HERE)`), as a str.
-pub fn suite() -> PyResult<String> {
-    suite_root().into_os_string().into_string().map_err(|_| Fail::Python)
-}
+pub use crate::navshared::{original_file, suite};
 
-/// `paths.find_opfor(given, start=<suite>)` as `navkit.find_opfor` raises it (`NavKitError`).
+/// `navkit.find_opfor(given)`: `paths.find_opfor(given, start=<suite>)`, its `GameCopyNotFound` as `NavKitError`.
 pub fn find_opfor(given: Option<&str>) -> PyResult<String> {
-    let mut looked: Vec<String> = Vec::new();
-    if let Some(g) = given.filter(|g| !g.is_empty()) {
-        looked.push(g.to_owned());
-    }
-    if let Ok(e) = std::env::var("OPFOR_ROOT")
-        && !e.is_empty()
-    {
-        looked.push(e);
-    }
-    // walk_up(suite): <start>\project-opfor-bfbc2, then each folder above
-    let mut d = pyos::abspath(&suite()?)?;
-    looked.push(join2(&d, "project-opfor-bfbc2")?);
-    loop {
-        let up = pyos::dirname(&d)?;
-        if up == d {
-            break;
-        }
-        d = up;
-        looked.push(join2(&d, "project-opfor-bfbc2")?);
-    }
-    for c in &looked {
-        if pyos::isdir(&join2(c, "game")?) {
-            return pyos::abspath(c);
-        }
-    }
-    Err(navkit_error(format!(
-        "Project OPFOR BFBC2 not found - pass --opfor <folder> or set OPFOR_ROOT (looked for a game\\ folder in: {})",
-        looked.join(", ")
-    )))
-}
-
-/// `original_file(p)`: DICE's original of game file p, or None.
-pub fn original_file(p: &str) -> PyResult<Option<String>> {
-    let (d, base) = pyos::split(p)?;
-    let Ok(listed) = pyos::listdir(if d.is_empty() { "." } else { &d }) else {
-        return Ok(None);
-    };
-    // {f.lower(): f} - a later name of the same lower case replaces the earlier
-    let mut names: Vec<(String, String)> = Vec::new();
-    for f in listed {
-        let k = f.to_lowercase();
-        match names.iter_mut().find(|(x, _)| *x == k) {
-            Some(slot) => slot.1 = f,
-            None => names.push((k, f)),
-        }
-    }
-    let pre = format!("{}.opfor-", base.to_lowercase());
-    let ours: Vec<&String> = names.iter().map(|(k, _)| k).filter(|k| k.starts_with(&pre)).collect();
-    let real = |k: &str| {
-        names
-            .iter()
-            .find(|(x, _)| x == k)
-            .map_or_else(String::new, |(_, f)| f.clone())
-    };
-    let new_mark = format!("{pre}new");
-    if ours.iter().any(|k| **k == new_mark) {
-        let own = format!("{pre}orig");
-        return Ok(if ours.iter().any(|k| **k == own) {
-            Some(join2(&d, &real(&own))?)
-        } else {
-            None
-        });
-    }
-    let applied_alone = ours.iter().any(|f| {
-        f.ends_with("-applied") && {
-            let orig = format!("{}-orig", &f[..f.len() - "-applied".len()]);
-            !ours.iter().any(|k| **k == orig)
-        }
-    });
-    if applied_alone {
-        return Ok(None);
-    }
-    let mut backups: Vec<String> = Vec::new();
-    for f in &ours {
-        if f.ends_with("-orig") {
-            let b = join2(&d, &real(f))?;
-            if pyos::isfile(&b) {
-                backups.push(b);
-            }
-        }
-    }
-    if !backups.is_empty() {
-        // min by (mtime, not ends with .opfor-orig): the first of equal keys wins
-        let mut best: Option<(f64, bool, String)> = None;
-        for b in backups {
-            let key = (pyos::getmtime(&b)?, !b.to_lowercase().ends_with(BACKUP_SUFFIX));
-            if best.as_ref().is_none_or(|(t, n, _)| (key.0, key.1) < (*t, *n)) {
-                best = Some((key.0, key.1, b));
-            }
-        }
-        return Ok(best.map(|x| x.2));
-    }
-    Ok(pyos::isfile(p).then(|| p.to_owned()))
+    crate::navshared::find_opfor(given, "NavKitError")
 }
 
 /// The output of one in-process tool run: (exit code, stdout + stderr).

@@ -63,6 +63,7 @@ pub mod hpdlayout;
 pub mod kymesh;
 pub mod loc;
 pub mod meshdata;
+pub mod meshindex;
 pub mod shaderdb;
 pub mod stfs;
 pub mod terrain;
