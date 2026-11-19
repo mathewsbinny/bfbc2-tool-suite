@@ -4,6 +4,18 @@
 //! Paths are Python strs; a path the port cannot spell as Python would (a UNC path, a name that is not Unicode, a
 //! pattern with `[`) gives [`Fail::Python`] so the command line is handed to the Python.
 
+// path parts and SHA-256's words indexed within the lengths just checked; SHA-256's own one-letter names; Python's
+// float of a nanosecond count; ntpath's assignments kept as it writes them
+#![allow(
+    clippy::indexing_slicing,
+    clippy::many_single_char_names,
+    clippy::cast_precision_loss,
+    clippy::assigning_clones,
+    clippy::unnecessary_wraps,
+    clippy::chunks_exact_to_as_chunks
+)]
+
+use std::fmt::Write as _;
 use std::fs;
 use std::io::{Read as _, Write as _};
 use std::path::Path;
@@ -484,14 +496,70 @@ pub struct Sha256 {
 }
 
 const K: [u32; 64] = [
-    0x428a_2f98, 0x7137_4491, 0xb5c0_fbcf, 0xe9b5_dba5, 0x3956_c25b, 0x59f1_11f1, 0x923f_82a4, 0xab1c_5ed5,
-    0xd807_aa98, 0x1283_5b01, 0x2431_85be, 0x550c_7dc3, 0x72be_5d74, 0x80de_b1fe, 0x9bdc_06a7, 0xc19b_f174,
-    0xe49b_69c1, 0xefbe_4786, 0x0fc1_9dc6, 0x240c_a1cc, 0x2de9_2c6f, 0x4a74_84aa, 0x5cb0_a9dc, 0x76f9_88da,
-    0x983e_5152, 0xa831_c66d, 0xb003_27c8, 0xbf59_7fc7, 0xc6e0_0bf3, 0xd5a7_9147, 0x06ca_6351, 0x1429_2967,
-    0x27b7_0a85, 0x2e1b_2138, 0x4d2c_6dfc, 0x5338_0d13, 0x650a_7354, 0x766a_0abb, 0x81c2_c92e, 0x9272_2c85,
-    0xa2bf_e8a1, 0xa81a_664b, 0xc24b_8b70, 0xc76c_51a3, 0xd192_e819, 0xd699_0624, 0xf40e_3585, 0x106a_a070,
-    0x19a4_c116, 0x1e37_6c08, 0x2748_774c, 0x34b0_bcb5, 0x391c_0cb3, 0x4ed8_aa4a, 0x5b9c_ca4f, 0x682e_6ff3,
-    0x748f_82ee, 0x78a5_636f, 0x84c8_7814, 0x8cc7_0208, 0x90be_fffa, 0xa450_6ceb, 0xbef9_a3f7, 0xc671_78f2,
+    0x428a_2f98,
+    0x7137_4491,
+    0xb5c0_fbcf,
+    0xe9b5_dba5,
+    0x3956_c25b,
+    0x59f1_11f1,
+    0x923f_82a4,
+    0xab1c_5ed5,
+    0xd807_aa98,
+    0x1283_5b01,
+    0x2431_85be,
+    0x550c_7dc3,
+    0x72be_5d74,
+    0x80de_b1fe,
+    0x9bdc_06a7,
+    0xc19b_f174,
+    0xe49b_69c1,
+    0xefbe_4786,
+    0x0fc1_9dc6,
+    0x240c_a1cc,
+    0x2de9_2c6f,
+    0x4a74_84aa,
+    0x5cb0_a9dc,
+    0x76f9_88da,
+    0x983e_5152,
+    0xa831_c66d,
+    0xb003_27c8,
+    0xbf59_7fc7,
+    0xc6e0_0bf3,
+    0xd5a7_9147,
+    0x06ca_6351,
+    0x1429_2967,
+    0x27b7_0a85,
+    0x2e1b_2138,
+    0x4d2c_6dfc,
+    0x5338_0d13,
+    0x650a_7354,
+    0x766a_0abb,
+    0x81c2_c92e,
+    0x9272_2c85,
+    0xa2bf_e8a1,
+    0xa81a_664b,
+    0xc24b_8b70,
+    0xc76c_51a3,
+    0xd192_e819,
+    0xd699_0624,
+    0xf40e_3585,
+    0x106a_a070,
+    0x19a4_c116,
+    0x1e37_6c08,
+    0x2748_774c,
+    0x34b0_bcb5,
+    0x391c_0cb3,
+    0x4ed8_aa4a,
+    0x5b9c_ca4f,
+    0x682e_6ff3,
+    0x748f_82ee,
+    0x78a5_636f,
+    0x84c8_7814,
+    0x8cc7_0208,
+    0x90be_fffa,
+    0xa450_6ceb,
+    0xbef9_a3f7,
+    0xc671_78f2,
 ];
 
 impl Default for Sha256 {
@@ -534,7 +602,11 @@ impl Sha256 {
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ (!e & g);
-            let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let t1 = h
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(K[i])
+                .wrapping_add(w[i]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let t2 = s0.wrapping_add(maj);
@@ -564,11 +636,14 @@ impl Sha256 {
                 Self::compress(&mut self.state, &b);
             }
         }
-        let mut chunks = data.chunks_exact(64);
-        for c in &mut chunks {
-            Self::compress(&mut self.state, c);
+        let whole = data.len() / 64 * 64;
+        let (blocks, rest) = data.split_at(whole);
+        if !blocks.is_empty() && !shani::compress(&mut self.state, blocks) {
+            for c in blocks.chunks_exact(64) {
+                Self::compress(&mut self.state, c);
+            }
         }
-        self.block.extend_from_slice(chunks.remainder());
+        self.block.extend_from_slice(rest);
     }
 
     /// The digest as lower-case hex.
@@ -584,7 +659,109 @@ impl Sha256 {
         for c in tail.chunks_exact(64) {
             Self::compress(&mut self.state, c);
         }
-        self.state.iter().map(|v| format!("{v:08x}")).collect()
+        let mut out = String::with_capacity(64);
+        for v in self.state {
+            let _ = write!(out, "{v:08x}");
+        }
+        out
+    }
+}
+
+/// SHA-256's block function on the CPU's SHA extensions (as `OpenSSL`, which `hashlib` uses, runs it): about four
+/// times the portable rounds on the bundles NavKit stamps (hundreds of MB). Detected at run time; `compress`
+/// returns false where the CPU has none (the portable rounds then run). The instruction sequence is the one Intel
+/// documents (and the `sha2` crate uses); the digests are checked against the portable rounds in the tests.
+#[allow(unsafe_code)]
+mod shani {
+    #[cfg(target_arch = "x86_64")]
+    use std::arch::x86_64::{
+        __m128i, _mm_add_epi32, _mm_alignr_epi8, _mm_blend_epi16, _mm_loadu_si128, _mm_set_epi32, _mm_set_epi64x,
+        _mm_sha256msg1_epu32, _mm_sha256msg2_epu32, _mm_sha256rnds2_epu32, _mm_shuffle_epi8, _mm_shuffle_epi32,
+        _mm_storeu_si128,
+    };
+
+    /// The blocks (a multiple of 64 bytes) into `state`; false: no SHA extensions here.
+    pub fn compress(state: &mut [u32; 8], blocks: &[u8]) -> bool {
+        #[cfg(target_arch = "x86_64")]
+        {
+            if std::arch::is_x86_feature_detected!("sha")
+                && std::arch::is_x86_feature_detected!("sse4.1")
+                && std::arch::is_x86_feature_detected!("ssse3")
+            {
+                // SAFETY: the features the function is compiled for were detected just above
+                unsafe { blocks_ni(state, blocks) };
+                return true;
+            }
+        }
+        let _ = (state, blocks);
+        false
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "sha,sse2,ssse3,sse4.1")]
+    fn schedule(v0: __m128i, v1: __m128i, v2: __m128i, v3: __m128i) -> __m128i {
+        let t1 = _mm_sha256msg1_epu32(v0, v1);
+        let t2 = _mm_alignr_epi8(v3, v2, 4);
+        let t3 = _mm_add_epi32(t1, t2);
+        _mm_sha256msg2_epu32(t3, v3)
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "sha,sse2,ssse3,sse4.1")]
+    fn rounds4(abef: &mut __m128i, cdgh: &mut __m128i, w: __m128i, i: usize) {
+        let k = &super::K[4 * i..4 * i + 4];
+        let kv = _mm_set_epi32(k[3] as i32, k[2] as i32, k[1] as i32, k[0] as i32);
+        let t1 = _mm_add_epi32(w, kv);
+        *cdgh = _mm_sha256rnds2_epu32(*cdgh, *abef, t1);
+        let t2 = _mm_shuffle_epi32(t1, 0x0E);
+        *abef = _mm_sha256rnds2_epu32(*abef, *cdgh, t2);
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "sha,sse2,ssse3,sse4.1")]
+    #[allow(clippy::cast_ptr_alignment)] // only the unaligned loads and stores (loadu / storeu) use the pointers
+    unsafe fn blocks_ni(state: &mut [u32; 8], blocks: &[u8]) {
+        let mask = _mm_set_epi64x(0x0C0D_0E0F_0809_0A0B_u64 as i64, 0x0405_0607_0001_0203_u64 as i64);
+        let sp = state.as_ptr().cast::<__m128i>();
+        // SAFETY: state is 32 bytes: two unaligned 16-byte loads
+        let (dcba, efgh) = unsafe { (_mm_loadu_si128(sp), _mm_loadu_si128(sp.add(1))) };
+        let cdab = _mm_shuffle_epi32(dcba, 0xB1);
+        let efgh = _mm_shuffle_epi32(efgh, 0x1B);
+        let mut abef = _mm_alignr_epi8(cdab, efgh, 8);
+        let mut cdgh = _mm_blend_epi16(efgh, cdab, 0xF0);
+        for block in blocks.chunks_exact(64) {
+            let (abef_save, cdgh_save) = (abef, cdgh);
+            let dp = block.as_ptr().cast::<__m128i>();
+            // SAFETY: the block is 64 bytes: four unaligned 16-byte loads
+            let mut w = unsafe {
+                [
+                    _mm_shuffle_epi8(_mm_loadu_si128(dp), mask),
+                    _mm_shuffle_epi8(_mm_loadu_si128(dp.add(1)), mask),
+                    _mm_shuffle_epi8(_mm_loadu_si128(dp.add(2)), mask),
+                    _mm_shuffle_epi8(_mm_loadu_si128(dp.add(3)), mask),
+                ]
+            };
+            for (i, wi) in w.iter().enumerate() {
+                rounds4(&mut abef, &mut cdgh, *wi, i);
+            }
+            for i in 4..16 {
+                let next = schedule(w[0], w[1], w[2], w[3]);
+                w = [w[1], w[2], w[3], next];
+                rounds4(&mut abef, &mut cdgh, next, i);
+            }
+            abef = _mm_add_epi32(abef, abef_save);
+            cdgh = _mm_add_epi32(cdgh, cdgh_save);
+        }
+        let feba = _mm_shuffle_epi32(abef, 0x1B);
+        let dchg = _mm_shuffle_epi32(cdgh, 0xB1);
+        let dcba = _mm_blend_epi16(feba, dchg, 0xF0);
+        let hgef = _mm_alignr_epi8(dchg, feba, 8);
+        let mp = state.as_mut_ptr().cast::<__m128i>();
+        // SAFETY: state is 32 bytes: two unaligned 16-byte stores
+        unsafe {
+            _mm_storeu_si128(mp, dcba);
+            _mm_storeu_si128(mp.add(1), hgef);
+        }
     }
 }
 
@@ -608,9 +785,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sha256_extensions_as_the_portable_rounds() {
+        let mut x: u32 = 12345;
+        let data: Vec<u8> = (0..64 * 97)
+            .map(|_| {
+                x = x.wrapping_mul(1_103_515_245).wrapping_add(12345);
+                (x >> 16) as u8
+            })
+            .collect();
+        let mut a = [
+            0x6a09_e667,
+            0xbb67_ae85,
+            0x3c6e_f372,
+            0xa54f_f53a,
+            0x510e_527f,
+            0x9b05_688c,
+            0x1f83_d9ab,
+            0x5be0_cd19,
+        ];
+        let mut b = a;
+        for c in data.chunks_exact(64) {
+            Sha256::compress(&mut a, c);
+        }
+        if shani::compress(&mut b, &data) {
+            assert_eq!(a, b);
+        }
+    }
+
+    #[test]
     fn sha256_vectors() {
-        assert_eq!(sha256_hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-        assert_eq!(sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            sha256_hex(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
         let long = vec![b'a'; 1_000_003];
         let mut h = Sha256::new();
         for c in long.chunks(777) {
@@ -626,7 +837,10 @@ mod tests {
         assert_eq!(join("a", &["C:\\b"]).unwrap(), "C:\\b");
         assert_eq!(join("C:", &["b"]).unwrap(), "C:b");
         assert_eq!(normpath("C:/a/./b/../c/").unwrap(), "C:\\a\\c");
-        assert_eq!(relpath("C:\\x\\work\\levels\\sp_01", "C:\\x").unwrap(), "work\\levels\\sp_01");
+        assert_eq!(
+            relpath("C:\\x\\work\\levels\\sp_01", "C:\\x").unwrap(),
+            "work\\levels\\sp_01"
+        );
         assert_eq!(relpath("C:\\x\\a", "C:\\x\\b\\c").unwrap(), "..\\..\\a");
         assert_eq!(relpath("C:\\X", "c:\\x").unwrap(), ".");
         assert_eq!(splitext("a\\b.c\\d.xml"), ("a\\b.c\\d".to_owned(), ".xml".to_owned()));
