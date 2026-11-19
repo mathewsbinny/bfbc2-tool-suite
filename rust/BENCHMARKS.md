@@ -3597,6 +3597,11 @@ live list with culling on or off, and `shaderview` (R5b's list against `shadervi
 list adds no difference of its own: culling off and on give the same count in every run. The water reads the
 scene's linear depth through its `GenerateMips` chain, the first suspect.
 
+**Also open:** once, in the quick tier (GPU tests two at a time), the editor test's edit check found the two
+devices' post-processed pictures one 8-bit step apart over the whole frame (sky 211 against 210: the exposure a hair
+apart), their HDR scenes identical bit for bit; alone it never differs (every run). The test asserts the scene bit
+for bit and the picture within one step.
+
 ### Package levels (round G3's levels, read from their bundles in place)
 
 Opened through a stand-in OPFOR folder in temp (the game copy linked, the junction removed first; nothing written
