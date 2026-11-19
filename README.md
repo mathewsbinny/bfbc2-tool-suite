@@ -529,6 +529,15 @@ core required): `core/tests/test_fbrbtool.py` checks against the exe's recorded 
 228 command lines, 600 damaged bundles, .NET's gzip reader on 3,000 streams; `fbrbtool_golden_game.json`: every
 bundle of the game copy up to 300 MiB unpacked, listed and packed again). NavKit's unpack, `level.heightfield_of`'s
 terrain unpack, the hub's Bundles tab and `bfbc2-stockmp-ai` use it.
+**The command lines in Rust** (round O1, 2026-11-18, crate `rust/bc2-cli`, binary `rust\target\release\bfbc2.exe`).
+`bfbc2 fbrbtool <command> ...` and `bfbc2 dbxedit <command> ...` are `fbrbtool.py` / `dbxedit.py` without Python:
+the same arguments, files, exit codes, log lines and printed bytes (stdout and stderr in the code page and order
+Python's stdio gives them, alone or on one pipe), in about 20 ms instead of about 300 ms per call.
+`python rust\build_native.py` builds it with the module (a download fetches the module only); `bfbc2 --source-hash`
+prints the sources it was built from, and `bfbc2core.native.cli_command('fbrbtool')` gives the binary only while
+that is this checkout's (else the Python command line; `BFBC2_CLI_PYTHON=1` always the Python). The hub's Bundles
+tab runs through it. `core/tests/test_cli_o1.py` checks it against the Python command lines' recorded answers
+(`cli_o1_golden.json`; `--live` both ways, `--game` OPFOR's real calls); `rust/BENCHMARKS.md`, "O1".
 **The stock-MP AI layer** (round E4a, 2026-11-18, crate `rust/bc2-stockmp`). `bfbc2-stockmp-ai`'s logic runs in Rust
 with its data kept there: `bc2_formats::dbx::edit::EditDbx` is the port of `dbxbin.py` (a level partition as an arena
 of elements named by handles, edited and written back byte for byte, the string table kept until a string is added);

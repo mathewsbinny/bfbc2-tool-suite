@@ -10,6 +10,10 @@ module put into core\bfbc2core\bc2_native.pyd, where bfbc2core finds it (README.
                                            an error saying how to get it; the readers run in Python)
   python rust\build_native.py --fingerprint   print this checkout's source fingerprint (the release tag's)
 
+A build also builds the command-line binary rust\target\release\bfbc2.exe (round O1: the tools' command lines in
+Rust, "bfbc2 fbrbtool ...", "bfbc2 dbxedit ...") with the same fingerprint; a download fetches the module only (the
+Python command lines then answer, as before).
+
 Building needs Rust (cargo: on PATH or in %USERPROFILE%\.cargo\bin) and maturin (pip install maturin). The module
 carries the fingerprint of the Rust sources it was built from (bfbc2core.native: a SHA-256 over sources(), line
 endings normalized), baked in through BC2_SOURCE_HASH; bc2_native.json beside it records it, and bfbc2core uses a
@@ -158,6 +162,20 @@ def build(env: dict[str, str]) -> int:
     install(tmp)
     native.write_stamp(fp, 'build', info.get('version', ''), RUST)
     print(f'built {TARGET} (sources {fp[:12]})')
+    return build_cli(env)
+
+
+def build_cli(env: dict[str, str]) -> int:
+    """The command-line binary rust\\target\\release\\bfbc2.exe (round O1: the tools' command lines in Rust), with the
+    same fingerprint baked in (env carries it): bfbc2core.native.cli_exe uses it only while that matches."""
+    r = subprocess.run(['cargo', 'build', '--release', '--quiet', '--color', 'never', '-p', 'bc2-cli'], env=env,
+                       capture_output=True, cwd=RUST)
+    if r.returncode:
+        text = (r.stdout + r.stderr).decode('utf-8', errors='replace')
+        print(text.encode('ascii', errors='backslashreplace').decode('ascii'))
+        print(f'build_native: the command-line binary failed to build (exit code {r.returncode})')
+        return r.returncode
+    print(f'built {native.cli_path()}')
     return 0
 
 
