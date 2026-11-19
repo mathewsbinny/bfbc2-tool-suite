@@ -12,7 +12,7 @@
 //! | `names(path)` | [`Header::names`] |
 //! | `read(path, names)` | [`read_path`] ([`read`] on any reader), [`read_many`] for many bundles on all cores |
 //! | `build(items, zipped)` | [`build`] (a test writer) |
-//! | `pack(folder, out)` (FbrbTool's `pack`) | [`pack_path`], [`pack_dir`], [`pack_many`]; [`pack`] from entries in memory |
+//! | `pack(folder, out)` (FbrbTool's `pack`) | [`pack_path`], [`pack_dir`], [`pack_many`] (streamed: the payload is never held); [`pack_rows_into`] to any writer; [`pack`] from entries in memory |
 //! | `unpack(bundle, out)` (FbrbTool's `unpack`) | [`unpack_path`], [`unpack_bytes`] (every bundle as FbrbTool unpacks it: [`tool`]'s engine) |
 //! | `Entry`, `Entry.deleted`, `DELETED` | [`Entry`], [`Entry::is_deleted`], [`DELETED`] |
 //! | `ValueError` / `KeyError` / `OSError` | [`FbrbError`] |
@@ -57,7 +57,7 @@ pub use error::{FbrbError, Result};
 pub use header::{DELETED, Entry, Header, MAGIC, parse_header_fields, read_header};
 pub use pack::{
     Layout, Manifest, ManifestLine, PackError, PackItem, PackResult, PackStats, Padding, SourceRow, decode_text,
-    entry_path, pack, pack_dir, pack_many, pack_path, pack_rows, parse_manifest,
+    entry_path, pack, pack_dir, pack_many, pack_path, pack_rows, pack_rows_into, parse_manifest,
 };
 pub use read::{
     entries_path, extract, extract_many, extract_path, extract_path_uncached, read, read_many, read_path,

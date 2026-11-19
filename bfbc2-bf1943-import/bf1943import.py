@@ -168,6 +168,89 @@ def _reader_signature(fb):
         return 'unknown'
 
 
+RESTARTS_ENV = 'BF1943_RESTARTS_MB'         # the process's restart points (every Source's), at most this much
+RESTARTS_MB = 128
+POINT_BYTES = 40 << 10                      # one restart point's inflater state (zlib: its 32 KiB window and
+                                            # inflate_state): 40,113 bytes by tracemalloc over 1,000 copies, 2026-11-18
+
+
+def _restart_key(b):
+    """A compressed payload's identity for RESTARTS: the file (path, size, modification time), where the payload
+    lies in it, and the spacing the points are made at."""
+    return (os.path.normcase(os.path.abspath(b.path)), b.size, b.mtime_ns, b.payload_at, b.payload_len, SPAN, CHUNK)
+
+
+class _RestartCache:
+    """Restart points (Source._points) kept for the whole process, by the file's identity (_restart_key), so a new
+    Source of the same BF1943 copy finds them made (round S1: OPFOR's WW2 install opened a Source per level and per
+    step, each decompressing every bundle it read whole again - 36 s a plan). Least recently used out first beyond
+    BF1943_RESTARTS_MB (default 128; 0: none kept), an entry costed at POINT_BYTES a point. Thread-safe: the table
+    is changed under a lock; the points themselves are never changed (a read copies a state before using it). A
+    file changed on disk has another key, and every read still checks the file (Source._changed) before using it."""
+
+    def __init__(self):
+        import collections
+        import threading
+        self._d: collections.OrderedDict[tuple, Any] = collections.OrderedDict()
+        self._cost: dict[tuple, int] = {}
+        self._held = 0
+        self._lock = threading.Lock()
+        self.stats = {'hits': 0, 'misses': 0, 'kept': 0, 'dropped': 0}
+
+    @staticmethod
+    def budget():
+        try:
+            mb = float(os.environ.get(RESTARTS_ENV, '') or RESTARTS_MB)
+        except ValueError:
+            mb = RESTARTS_MB
+        return int(max(mb, 0) * 2 ** 20)
+
+    @staticmethod
+    def cost(points):
+        return 1024 if points is False else 1024 + POINT_BYTES * sum(s is not None for s in points[2])
+
+    def get(self, key):
+        with self._lock:
+            got = self._d.get(key)
+            if got is None:
+                self.stats['misses'] += 1
+                return None
+            self._d.move_to_end(key)
+            self.stats['hits'] += 1
+            return got
+
+    def put(self, key, points):
+        size, budget = self.cost(points), self.budget()
+        with self._lock:
+            if key in self._d:
+                self._held -= self._cost.pop(key)
+                del self._d[key]
+            if size > budget:
+                return
+            self._d[key] = points
+            self._cost[key] = size
+            self._held += size
+            self.stats['kept'] += 1
+            while self._held > budget and len(self._d) > 1:
+                old, _ = self._d.popitem(last=False)
+                self._held -= self._cost.pop(old)
+                self.stats['dropped'] += 1
+
+    def held(self):
+        """(entries, bytes as costed)."""
+        with self._lock:
+            return len(self._d), self._held
+
+    def clear(self):
+        with self._lock:
+            self._d.clear()
+            self._cost.clear()
+            self._held = 0
+
+
+RESTARTS = _RestartCache()
+
+
 class _BundleInfo:
     """What Source keeps of a bundle: its file's identity, its entries, where its payload starts in the file."""
     __slots__ = ('path', 'size', 'mtime_ns', 'entries', 'compressed', 'payload_at', 'payload_len')
@@ -235,8 +318,8 @@ class Source:
         self._restarts: dict[str, Any] = {}            # rel -> restart points (_points)
         import threading
         self._lock = threading.Lock()
-        self.stats = {'checked': 0, 'from_index': 0, 'indexed': 0, 'spans': 0, 'hits': 0, 'whole': 0,
-                      'stored_reads': 0, 'decompressed_bytes': 0}
+        self.stats = {'checked': 0, 'from_index': 0, 'indexed': 0, 'shared_points': 0, 'spans': 0, 'hits': 0,
+                      'whole': 0, 'stored_reads': 0, 'decompressed_bytes': 0}
         self.info: dict[str, _BundleInfo] = {}
         self.entries: dict[str, tuple[str, dict[str, Any]]] = {}
         fb = fbrb1943()
@@ -357,10 +440,24 @@ class Source:
         """The restart points of a compressed payload: ([input offsets], [output offsets], [inflater states]), the
         first at 0 and a last (input end, payload length, None); or False when the stream is not one plain gzip
         member (then the payload is decompressed whole on each read, as WholeSource did). The spans decoded on the
-        way are kept as far as the budget allows."""
+        way are kept as far as the budget allows. Round S1: also kept for the process (RESTARTS, by the file's
+        identity), so every Source of the same file finds them made - a new Source no longer decompresses each
+        bundle whole again."""
         got = self._restarts.get(rel)
         if got is not None:
             return got
+        key = _restart_key(b)
+        got = RESTARTS.get(key)
+        if got is not None:
+            self._restarts[rel] = got
+            self.stats['shared_points'] += 1
+            return got
+        got = self._make_points(rel, b)
+        RESTARTS.put(key, got)
+        return got
+
+    def _make_points(self, rel, b):
+        """_points made: the payload decompressed start to end once."""
         import zlib
         body = self._body(rel, b)
         d = zlib.decompressobj(31)
@@ -468,7 +565,8 @@ class Source:
         return fbrb1943().Bundle(open(b.path, 'rb').read())
 
     def drop(self):
-        """Forget the decoded spans and restart points kept (the entries stay; the next reads decompress again)."""
+        """Forget the decoded spans and restart points this Source holds (the entries stay). The process's restart
+        points (RESTARTS) stay within their own budget: RESTARTS.clear() lets them go too."""
         with self._lock:
             self._spans.clear()
             self._restarts.clear()
