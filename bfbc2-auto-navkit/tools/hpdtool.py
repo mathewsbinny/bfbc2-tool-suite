@@ -194,10 +194,30 @@ def read(path: str) -> HpdFile:
 MESH_OBJECT_HEADER = 0x50
 
 
-def mesh_layout(m: bytes) -> tuple[list[tuple[int, int, str]], list[tuple[int, list[tuple[Any, ...]], int | None]],
-                                   dict[int, int], list[tuple[int, int, int]], list[int]]:
+MeshLayout = tuple[list[tuple[int, int, str]], list[tuple[int, list[tuple[Any, ...]], int | None]],
+                   dict[int, int], list[tuple[int, int, int]], list[int]]
+
+
+def _layout_native() -> Any:
+    nat = _native()
+    return nat if nat is not None and hasattr(nat, 'hpd_mesh_layout') else None
+
+
+def mesh_layout(m: bytes) -> MeshLayout:
     """Walk a runtime mesh record (offsets relative to its start) and return a list of
-    (start, end, label) regions plus the parsed structure. Raises ValueError on inconsistencies."""
+    (start, end, label) regions plus the parsed structure. Raises ValueError on inconsistencies.
+    In the Rust core when it is built (round F3: bc2_native.hpd_mesh_layout, the same values in the same order;
+    where the reference would raise, or a float is a NaN, the Python runs), else mesh_layout_reference."""
+    nat = _layout_native()
+    if nat is not None and type(m) is bytes:
+        got = nat.hpd_mesh_layout(m)
+        if got is not None:
+            return cast(MeshLayout, got)
+    return mesh_layout_reference(m)
+
+
+def mesh_layout_reference(m: bytes) -> MeshLayout:
+    """The Python walk (the reference)."""
     u32 = lambda o: struct.unpack_from('<I', m, o)[0]
     regions = [(0, 0x50, 'header')]
     nx, nz = u32(0x38), u32(0x3C)
@@ -259,8 +279,23 @@ def _object_end(m: bytes, o: int) -> int:
     return end
 
 
-def mesh_coverage(m: bytes) -> tuple[list[tuple[int, int]], list[tuple[int, int, str]]]:
-    regions, *_ = mesh_layout(m)
+Coverage = tuple[list[tuple[int, int]], list[tuple[int, int, str]]]
+
+
+def mesh_coverage(m: bytes) -> Coverage:
+    """The gaps between the sorted regions and their overlaps. In the Rust core when it is built (round F3), else
+    mesh_coverage_reference."""
+    nat = _layout_native()
+    if nat is not None and type(m) is bytes:
+        got = nat.hpd_mesh_coverage(m)
+        if got is not None:
+            return cast(Coverage, got)
+    return mesh_coverage_reference(m)
+
+
+def mesh_coverage_reference(m: bytes) -> Coverage:
+    """The Python (the reference)."""
+    regions, *_ = mesh_layout_reference(m)
     regions.sort()
     gaps: list[tuple[int, int]] = []
     overlaps: list[tuple[int, int, str]] = []

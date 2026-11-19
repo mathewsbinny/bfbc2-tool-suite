@@ -447,8 +447,22 @@ def ffmpeg_decode(data, fmt, channels):
     return np.frombuffer(r.stdout, '<i2').reshape(-1, channels)
 
 
+def _f3(name):
+    """The Rust core's round-F3 function `name`, or None (not built, or the containers' readers off)."""
+    nat = _native()
+    return getattr(nat, name, None) if nat is not None else None
+
+
 def xma_parts(st):
-    """The XMA2 packets of each XMA stream (2 channels each), each block's part padded to whole packets."""
+    """The XMA2 packets of each XMA stream (2 channels each), each block's part padded to whole packets. In the Rust
+    core when it is built (round F3: bc2_native.audio_xma_parts, the same bytearrays), else xma_parts_reference."""
+    fn = _f3('audio_xma_parts')
+    got = fn(st) if fn is not None else None
+    return got if got is not None else xma_parts_reference(st)
+
+
+def xma_parts_reference(st):
+    """The Python (the reference)."""
     k = (st.channels + 1) // 2
     out = [bytearray() for _ in range(k)]
     for bi, (_, b) in enumerate(st.blocks):
@@ -467,8 +481,16 @@ def xma_parts(st):
 
 
 def xma2_riff(packets, channels, rate, samples):
-    """A RIFF WAVE of XMA2 packets (XMA2WAVEFORMATEX, one stream)."""
-    fmt = struct.pack('<HHIIHHH', 0x166, channels, rate, rate * channels * 2, XMA_PACKET, 16, 34)
+    """A RIFF WAVE of XMA2 packets (XMA2WAVEFORMATEX, one stream). In the Rust core when it is built (round F3), else
+    xma2_riff_reference."""
+    fn = _f3('audio_xma2_riff')
+    got = fn(packets, channels, rate, samples) if fn is not None and type(packets) is bytes else None
+    return got if got is not None else xma2_riff_reference(packets, channels, rate, samples)
+
+
+def xma2_riff_reference(packets, channels, rate, samples):
+    """The Python (the reference)."""
+    fmt =struct.pack('<HHIIHHH', 0x166, channels, rate, rate * channels * 2, XMA_PACKET, 16, 34)
     fmt += struct.pack('<HIIIIIIIBBH', 1, 4 if channels == 1 else 3, samples, XMA_PACKET, 0, 0, 0, 0, 0, 4, 1)
     body = b'WAVEfmt ' + struct.pack('<I', len(fmt)) + fmt + b'data' + struct.pack('<I', len(packets)) + packets
     return b'RIFF' + struct.pack('<I', len(body)) + body
@@ -555,14 +577,24 @@ def encode_xas_many(items):
 
 def _xas_stream(frames, n, ch, rate, type_):
     """The Stream of a sound's frames (bytes, frame-major) in DICE's blocks: 256 * ceil(rate / 1280) samples each,
-    the last the rest (empty when the count is a multiple of the block)."""
+    the last the rest (empty when the count is a multiple of the block). The blocks are cut in the Rust core when it
+    is built (round F3: bc2_native.audio_xas_blocks), else by _xas_blocks_reference."""
+    fn = _f3('audio_xas_blocks')
+    blocks = fn(frames, n, ch, rate) if fn is not None and type(frames) is bytes else None
+    if blocks is None:
+        blocks = _xas_blocks_reference(frames, n, ch, rate)
+    return Stream(1, 4, ch, rate, type_, n, blocks)
+
+
+def _xas_blocks_reference(frames, n, ch, rate):
+    """The Python (the reference)."""
     per = xas_block_samples(rate)
     full = n // per                                                  # an exact multiple: DICE's last block is empty
     size = per // 128 * ch * XAS_FRAME
     mv = memoryview(frames)
     blocks = [(per, bytes(mv[i * size:(i + 1) * size])) for i in range(full)]
     blocks.append((n - full * per, bytes(mv[full * size:])))
-    return Stream(1, 4, ch, rate, type_, n, blocks)
+    return blocks
 
 
 def ffmpeg_decode_xas(st):
