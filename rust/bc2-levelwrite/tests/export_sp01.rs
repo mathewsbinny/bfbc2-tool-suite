@@ -1,4 +1,4 @@
-//! Round E3's proof on real data: Operation Aurora (SP_01) exported as a new Conquest level and checked offline
+//! Round E3's proof on real data: Operation Aurora (`SP_01`) exported as a new Conquest level and checked offline
 //! (`EDITOR_ARCHITECTURE.md` 3.12). Reads OPFOR's game copy (found beside the suite, or `OPFOR_GAME`), writes only a
 //! temporary stage folder; skipped where there is no game copy.
 #![allow(
