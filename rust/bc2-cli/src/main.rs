@@ -8,44 +8,156 @@
 //!                                             python bfbc2-dbx-tools\dbxedit.py ...
 //! bfbc2 aptcheck|aptrefs|bc2loc|exeref|crashreader|hpdtool|hkpack|convert|aimanim ...
 //!                                             round O2: python <the tool's .py> ... (src/pyproc.rs)
+//! bfbc2 caches|stockmp|aptgraft|audio|dbxcatalogue|dbxparity|portparity|meshview|culltree ...
+//!                                             round O3, the same way
 //! bfbc2 navkit|prepare_level|levelobjects|ladders|ordercheck|navcompare|graphstats|hpdcheck|hpdview|detailed|
 //!       navparity|navregress|sample_all|harness|texqa ...
 //!                                             round O4: NavKit's driver and tools, the test harness, texqa
-//! bfbc2 --source-hash                       the Rust sources' fingerprint it was built from (bfbc2core.native)
+//! bfbc2 --source-hash                        the Rust sources' fingerprint it was built from (bfbc2core.native)
 //! ```
 //!
 //! Without a subcommand (or with an unknown one) it prints its usage to stderr and exits 2.
 
 #![deny(unsafe_code)]
 
+#[cfg(feature = "audio")]
+mod audio;
+#[cfg(feature = "bf1943")]
+mod bf1943;
+// round O3: the caches' overall budget after a bundle read (fbrb._budget), for the ports that read bundles
+#[cfg(any(feature = "graft", feature = "meshview", feature = "bf1943", feature = "caches"))]
+// (its marker fields are read only by the caches group, its budget only by the bundle readers: dead code in a group
+// built alone)
+#[cfg_attr(
+    not(all(feature = "caches", any(feature = "graft", feature = "meshview", feature = "bf1943"))),
+    allow(dead_code)
+)]
+mod budget;
+#[cfg(feature = "caches")]
+mod caches;
 mod clock;
 #[cfg(feature = "crash")]
 mod crash;
+#[cfg(feature = "cull")]
+mod cull;
+// round O3: os / atomicio as the Python sees them, and the log folder's pruning (every guarded tool prunes it)
+#[cfg_attr(
+    not(all(
+        feature = "menu",
+        feature = "crash",
+        feature = "nav",
+        feature = "caches",
+        feature = "stockmp",
+        feature = "graft",
+        feature = "audio",
+        feature = "bf1943",
+        feature = "meshview",
+        feature = "cull",
+        feature = "navkit",
+        feature = "navtools",
+        feature = "harness",
+        feature = "texqa"
+    )),
+    allow(dead_code)
+)]
+mod fsx;
+// round O3: meshview.Index from its cache (the meshview and bf1943 groups)
+#[cfg(any(feature = "meshview", feature = "bf1943"))]
+mod gameindex;
+#[cfg(feature = "graft")]
+mod graft;
 #[cfg(feature = "harness")]
 mod harness;
+#[cfg_attr(
+    not(all(
+        feature = "menu",
+        feature = "crash",
+        feature = "nav",
+        feature = "caches",
+        feature = "stockmp",
+        feature = "graft",
+        feature = "audio",
+        feature = "bf1943",
+        feature = "meshview",
+        feature = "cull",
+        feature = "navkit",
+        feature = "navtools",
+        feature = "harness",
+        feature = "texqa"
+    )),
+    allow(dead_code)
+)]
+mod logs;
 #[cfg(feature = "menu")]
 mod menu;
+#[cfg(feature = "meshview")]
+mod meshview;
 #[cfg(feature = "nav")]
 mod nav;
 #[cfg(feature = "navkit")]
 mod navkit;
+// round O4: the helpers NavKit's groups share (the OPFOR folder, original path data)
+#[cfg(any(feature = "navkit", feature = "navtools", feature = "harness"))]
+#[allow(dead_code)]
+mod navshared;
 #[cfg(feature = "navtools")]
 mod navtools;
-#[cfg(feature = "texqa")]
-mod texqa;
-// the helpers the O2 groups share: some go unused when a group is built alone (--no-default-features --features ..)
-#[cfg_attr(not(all(feature = "menu", feature = "crash", feature = "nav")), allow(dead_code))]
-mod pyfmt;
-// round O4's shared pieces (json; os / os.path / glob / atomicio): each group uses its own part
-#[allow(dead_code)]
-mod pyjson;
 mod pylog;
+// round O4: os / os.path / glob / atomicio / hashlib as the O4 tools use them
 #[allow(dead_code)]
 mod pyos;
-#[cfg_attr(not(all(feature = "menu", feature = "crash", feature = "nav")), allow(dead_code))]
+// the helpers the groups share: some go unused when a group is built alone (--no-default-features --features ..)
+#[cfg_attr(
+    not(all(
+        feature = "menu",
+        feature = "crash",
+        feature = "nav",
+        feature = "caches",
+        feature = "stockmp",
+        feature = "graft",
+        feature = "audio",
+        feature = "bf1943",
+        feature = "meshview",
+        feature = "cull",
+        feature = "navkit",
+        feature = "navtools",
+        feature = "harness",
+        feature = "texqa"
+    )),
+    allow(dead_code)
+)]
 mod pyproc;
 mod pystdio;
-mod pyunprintable;
+#[cfg(feature = "stockmp")]
+mod stockmp;
+#[cfg(feature = "texqa")]
+mod texqa;
+
+// round O3: Python's exceptions, value texts and ntpath live in the library crate bc2-pyrt (shared with the tools'
+// libraries: bc2-menu ...)
+#[cfg_attr(
+    not(all(
+        feature = "menu",
+        feature = "crash",
+        feature = "nav",
+        feature = "caches",
+        feature = "stockmp",
+        feature = "graft",
+        feature = "audio",
+        feature = "bf1943",
+        feature = "meshview",
+        feature = "cull",
+        feature = "navkit",
+        feature = "navtools",
+        feature = "harness",
+        feature = "texqa"
+    )),
+    allow(unused_imports)
+)]
+use bc2_pyrt::fmt as pyfmt;
+// round O4: json.dumps / loads (bc2-pyrt's json, shared like fmt)
+#[allow(unused_imports)]
+use bc2_pyrt::json as pyjson;
 
 use std::process::ExitCode;
 
@@ -64,9 +176,10 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      aptcheck, aptrefs, bc2loc ...   the menu tools (bfbc2-menu-tools\\<tool>.py)\n  \
      exeref, crashreader ...   the crash reader's tools (bfbc2-automated-map-and-bot-test-harness\\crash-reader)\n  \
      hpdtool, hkpack, convert, aimanim ...   NavKit's hpdtool / hkpack, the console converter, aim poses\n  \
+     caches, stockmp, aptgraft, audio, dbxcatalogue, dbxparity, portparity, meshview, culltree ...   round O3\n  \
      navkit, prepare_level, levelobjects, ladders, ordercheck, navcompare ...   NavKit's driver, prepare and tools\n  \
      graphstats, hpdcheck, hpdview, detailed, navparity, navregress, sample_all ...   NavKit's other tools\n  \
-     harness, texqa ...   the map and bot test harness, the texture QA\n  \
+     harness, texqa ...   round O4: the map and bot test harness, the texture QA\n  \
      --source-hash   the Rust sources' fingerprint this binary was built from\n";
 
 /// What one tool's run gave: exit code, stdout, stderr (lines ended by `\n`) and its log lines.
@@ -115,6 +228,22 @@ fn py_tool(name: &str) -> Option<&'static pyproc::Tool> {
         crash::TOOLS,
         #[cfg(feature = "nav")]
         nav::TOOLS,
+        // round O3
+        #[cfg(feature = "caches")]
+        caches::TOOLS,
+        #[cfg(feature = "stockmp")]
+        stockmp::TOOLS,
+        #[cfg(feature = "graft")]
+        graft::TOOLS,
+        #[cfg(feature = "audio")]
+        audio::TOOLS,
+        #[cfg(feature = "bf1943")]
+        bf1943::TOOLS,
+        #[cfg(feature = "meshview")]
+        meshview::TOOLS,
+        #[cfg(feature = "cull")]
+        cull::TOOLS,
+        // round O4
         #[cfg(feature = "navkit")]
         navkit::TOOLS,
         #[cfg(feature = "navtools")]

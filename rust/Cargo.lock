@@ -414,8 +414,13 @@ dependencies = [
  "bc2-convert",
  "bc2-formats",
  "bc2-harness",
+ "bc2-levelwrite",
+ "bc2-menu",
  "bc2-navbuild",
+ "bc2-pyrt",
  "bc2-scene",
+ "bc2-stockmp",
+ "flate2",
  "regex",
  "sha1_smol",
  "windows-sys 0.61.2",
@@ -483,15 +488,26 @@ version = "0.1.0"
 dependencies = [
  "bc2-convert",
  "bc2-formats",
+ "bc2-pyrt",
  "bc2-scene",
  "bc2-stockmp",
  "png",
+ "rayon",
  "serde",
  "serde_json",
  "sha1_smol",
  "thiserror 2.0.21",
  "zune-core",
  "zune-jpeg",
+]
+
+[[package]]
+name = "bc2-menu"
+version = "0.1.0"
+dependencies = [
+ "bc2-formats",
+ "bc2-harness",
+ "bc2-pyrt",
 ]
 
 [[package]]
@@ -520,6 +536,10 @@ dependencies = [
  "pyo3",
  "rayon",
 ]
+
+[[package]]
+name = "bc2-pyrt"
+version = "0.1.0"
 
 [[package]]
 name = "bc2-render"
@@ -557,6 +577,7 @@ version = "0.1.0"
 dependencies = [
  "bc2-formats",
  "rayon",
+ "serde_json",
  "sha1_smol",
 ]
 

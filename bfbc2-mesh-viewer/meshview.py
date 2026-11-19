@@ -74,6 +74,16 @@ def _bundles(root):
     return out
 
 
+def _native_index(bundles):
+    """bc2_native.meshview_index(bundles) when the Rust core is built (and BFBC2_PURE_PYTHON is not set), else None."""
+    if os.environ.get('BFBC2_PURE_PYTHON', '') not in ('', '0'):
+        return None
+    from bfbc2core import native
+    n = native.load()
+    fn = getattr(n, 'meshview_index', None) if n is not None else None
+    return fn(bundles) if fn is not None else None
+
+
 class Partitions:
     """The .dbx partitions of the bundles read last, each bundle's read in one pass (Index.read). A bundle is one
     gzip stream, so one entry costs decompressing the bundle up to it (about 1 s in mp_common's 588 MB); all 8,446
@@ -162,6 +172,24 @@ class Index:
 
     def _build(self, bundles, sig, path):
         print('indexing the game copy (once; cached) ...', file=sys.stderr)
+        # round O3: the tables built in the Rust core (bc2_native.meshview_index, the same objects shared, so the
+        # cache is this method's byte for byte); None where a bundle or database would be left out or the build would
+        # raise: the reference below runs and says so. BFBC2_PURE_PYTHON=1: the reference only.
+        got = _native_index([b for _lv, b in bundles])
+        if got is not None:
+            self.where, self.parts, self.entries, read = got
+            if read:
+                fbrb._budget()                                  # as after the reference's fbrb.read of a database
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            try:
+                self._write(path, sig)
+            except PermissionError as ex:                       # Windows: another process is reading the old file
+                print(f'index: built but not cached this time ({ex})', file=sys.stderr)
+            return
+        self._build_reference(bundles, sig, path)
+
+    def _build_reference(self, bundles, sig, path):
+        """_build in Python (the reference)."""
         self.where, self.parts, self.entries = {}, {}, {}
         skipped: list[str] = []
         for _lv, b in bundles:

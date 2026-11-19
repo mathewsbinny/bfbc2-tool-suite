@@ -5,6 +5,8 @@
 # fingerprint; run the Rust checks and the Python tests that need no game data; publish the module and its SHA-256
 # as the assets of a release tagged native-<the fingerprint's first 12 hex digits>. `python rust\build_native.py
 # --download` fetches the release of its checkout's fingerprint. A fingerprint already published is not built again.
+# Only the newest release is kept: publishing one removes every older native-* release and its tag, so a checkout
+# behind main builds its module locally instead of downloading it.
 name: native
 
 on:
@@ -106,18 +108,44 @@ jobs:
           $sha = (Get-FileHash -Algorithm SHA256 dist/bc2_native.pyd).Hash.ToLower()
           [IO.File]::WriteAllText("$PWD/dist/bc2_native.pyd.sha256", "$sha  bc2_native.pyd`n")
           Copy-Item core/bfbc2core/bc2_native.json dist/bc2_native.json
+          $short = $env:GITHUB_SHA.Substring(0, 7)
           $notes = @"
-          The suite's Rust core (bc2_native) for 64-bit Windows and Python 3.12 or later, built from the Rust
-          sources with fingerprint $env:HASH (commit $env:GITHUB_SHA). Get it with ``python rust\build_native.py --download``
-          (README.md, "The Rust core"). SHA-256 of bc2_native.pyd: $sha.
+          Prebuilt Rust core (``bc2_native.pyd``) for the BFBC2 Tool Suite.
+
+          | | |
+          |---|---|
+          | Platform | Windows 64-bit, Python 3.12 or later |
+          | Built from | commit $short |
+          | Source fingerprint | ``$($env:HASH.Substring(0, 12))`` |
+          | SHA-256 | ``$sha`` |
+
+          **Install:** run ``python rust\build_native.py --download`` from the suite folder. It downloads this module
+          when your checkout's Rust sources match the fingerprint above; otherwise build it locally with
+          ``python rust\build_native.py``. See the README, "The Rust core".
+
+          Only the newest build is kept as a release.
           "@
           gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE) {
             gh release create $env:TAG --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
-              --title "Rust core $($env:HASH.Substring(0, 12))" --notes $notes --latest=false `
+              --title "Rust core ($short)" --notes $notes --latest `
               dist/bc2_native.pyd dist/bc2_native.pyd.sha256 dist/bc2_native.json
           } else {
             gh release upload $env:TAG --repo $env:GITHUB_REPOSITORY --clobber `
               dist/bc2_native.pyd dist/bc2_native.pyd.sha256 dist/bc2_native.json
           }
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Keep only the newest release
+        if: steps.fp.outputs.published != 'true'
+        env:
+          TAG: ${{ steps.fp.outputs.tag }}
+        run: |
+          # one release at a time: every older native-* release and its tag is removed once the new one is up
+          $old = gh release list --repo $env:GITHUB_REPOSITORY --limit 200 --json tagName --jq '.[].tagName' |
+            Where-Object { $_ -like 'native-*' -and $_ -ne $env:TAG }
+          foreach ($t in $old) {
+            Write-Output "removing $t"
+            gh release delete $t --repo $env:GITHUB_REPOSITORY --yes --cleanup-tag
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
