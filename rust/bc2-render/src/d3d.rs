@@ -6,8 +6,9 @@
 //! comparison sampler, s1 trilinear anisotropic wrap, the program's own sampler states over them.
 //!
 //! GPU objects are made once and kept: shaders by their DXBC checksum, input layouts by shader and elements, vertex
-//! and index buffers by their data (the `Arc`'s address and length: keep the data alive while the device is used, or
-//! call [`Device::forget`]), textures by name, states by their description.
+//! and index buffers by their data (the `Arc`'s address and length; the cache keeps the `Arc`, so no other data can
+//! take that address while its buffer is kept - [`Device::forget`] drops them), textures by name, states by their
+//! description. The post passes' full-screen quads are made by size, outside that cache.
 #![allow(
     unsafe_code,
     reason = "Direct3D 11 through the windows crate: every call is a foreign call"
@@ -82,6 +83,9 @@ struct PassTarget {
     srv: ID3D11ShaderResourceView,
 }
 
+/// A cached vertex or index buffer and the data it was made from (kept alive).
+type Kept = (ID3D11Buffer, Arc<Vec<u8>>);
+
 /// The device and everything it keeps.
 #[allow(clippy::struct_field_names, reason = "the D3D11 device beside its context")]
 pub struct Device {
@@ -94,7 +98,9 @@ pub struct Device {
     vs: HashMap<[u8; 16], ID3D11VertexShader>,
     ps: HashMap<[u8; 16], ID3D11PixelShader>,
     layouts: HashMap<([u8; 16], Vec<[u32; 5]>), ID3D11InputLayout>,
-    buffers: HashMap<(usize, usize, u32), ID3D11Buffer>,
+    /// Vertex and index buffers by their data's address, length and binding, each with its data kept alive (a
+    /// freed address taken by other data of the same length would get this buffer).
+    buffers: HashMap<(usize, usize, u32), Kept>,
     cbuffers: HashMap<(usize, u8), ID3D11Buffer>,
     textures: HashMap<String, Option<ID3D11ShaderResourceView>>,
     samplers: HashMap<Vec<u8>, ID3D11SamplerState>,
@@ -419,9 +425,16 @@ impl Device {
 
     fn buffer(&mut self, data: &Arc<Vec<u8>>, bind: u32) -> Result<ID3D11Buffer, String> {
         let key = (Arc::as_ptr(data) as usize, data.len(), bind);
-        if let Some(b) = self.buffers.get(&key) {
+        if let Some((b, _)) = self.buffers.get(&key) {
             return Ok(b.clone());
         }
+        let b = self.make_buffer(data, bind)?;
+        self.buffers.insert(key, (b.clone(), Arc::clone(data)));
+        Ok(b)
+    }
+
+    /// An immutable buffer holding `data` (at least 16 bytes: shorter data is padded with zeros).
+    fn make_buffer(&self, data: &[u8], bind: u32) -> Result<ID3D11Buffer, String> {
         let desc = D3D11_BUFFER_DESC {
             ByteWidth: (data.len().max(16)) as u32,
             Usage: D3D11_USAGE_IMMUTABLE,
@@ -448,9 +461,7 @@ impl Device {
                 .CreateBuffer(&raw const desc, Some(&raw const init), Some(&raw mut b))
         }
         .map_err(err("CreateBuffer"))?;
-        let b = some(b, "CreateBuffer")?;
-        self.buffers.insert(key, b.clone());
-        Ok(b)
+        some(b, "CreateBuffer")
     }
 
     /// A constant buffer of `data`'s size for a stage (0 vertex, 1 pixel), filled with it.
@@ -742,7 +753,9 @@ impl Device {
         .flatten()
         .flat_map(|f| f.to_le_bytes())
         .collect();
-        let b = self.buffer(&Arc::new(v), D3D11_BIND_VERTEX_BUFFER.0 as u32)?;
+        // made here, not through the data cache: this data is dropped at once, and a cached address of dropped data
+        // (every quad is 192 bytes) once gave a post pass another size's quad
+        let b = self.make_buffer(&v, D3D11_BIND_VERTEX_BUFFER.0 as u32)?;
         self.quads.insert(size, b.clone());
         Ok(b)
     }
@@ -1266,5 +1279,41 @@ impl Device {
         }
         out.readback = t1.elapsed().as_secs_f64();
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout)]
+mod tests {
+    use super::*;
+    use windows::core::Interface;
+
+    /// A buffer cached for data that is then dropped is never handed to other data of the same length that takes its
+    /// address (a post pass once drew with another size's full-screen quad this way).
+    #[test]
+    fn a_dropped_datas_buffer_is_not_given_to_new_data() {
+        let Ok(mut dev) = Device::new(false) else {
+            println!("skipped: no Direct3D 11 device");
+            return;
+        };
+        let bind = D3D11_BIND_VERTEX_BUFFER.0 as u32;
+        let mut reused = 0;
+        for k in 0..64u8 {
+            let a = Arc::new(vec![k; 192]);
+            let at = Arc::as_ptr(&a) as usize;
+            let first = dev.buffer(&a, bind).unwrap();
+            drop(a);
+            let b = Arc::new(vec![k.wrapping_add(1); 192]);
+            if Arc::as_ptr(&b) as usize == at {
+                reused += 1;
+            }
+            let second = dev.buffer(&b, bind).unwrap();
+            assert_ne!(
+                first.as_raw(),
+                second.as_raw(),
+                "new data got the dropped data's buffer"
+            );
+        }
+        println!("{reused} of 64 new allocations took the dropped data's address");
     }
 }
