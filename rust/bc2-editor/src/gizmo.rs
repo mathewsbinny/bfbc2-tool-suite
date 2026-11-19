@@ -24,6 +24,8 @@ pub enum Tool {
     Rotate,
     /// Measure: click two points.
     Ruler,
+    /// Select inside a polygon: click its corners.
+    Polygon,
 }
 
 impl Tool {
@@ -35,6 +37,7 @@ impl Tool {
             Self::Move => "Move",
             Self::Rotate => "Rotate",
             Self::Ruler => "Ruler",
+            Self::Polygon => "Polygon",
         }
     }
 }
@@ -151,7 +154,7 @@ pub fn handles(view: &View, f: &Frame, tool: Tool) -> Vec<(Handle, Outline)> {
                 }
             }
         }
-        Tool::Select | Tool::Ruler => {}
+        Tool::Select | Tool::Ruler | Tool::Polygon => {}
     }
     out
 }

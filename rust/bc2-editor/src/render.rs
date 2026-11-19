@@ -19,6 +19,7 @@ use eframe::egui_wgpu::wgpu;
 use wgpu::util::DeviceExt;
 
 use crate::theme::Palette;
+use crate::workspace::ViewMode;
 
 /// The id buffer's value where nothing was drawn.
 pub const ID_NONE: u32 = 0;
@@ -173,6 +174,51 @@ pub fn marker_size(category: &str) -> Option<f32> {
         "combat area" => Some(1.5),
         _ => None,
     }
+}
+
+/// How the editor view draws the scene besides the theme (round E2b): its display mode, colours that replace some
+/// entities' own (the cull-tree mode's slot colours), and extra lines (the navmesh outlines, the cull tree's spheres).
+#[derive(Debug, Clone, Default)]
+pub struct Look {
+    /// The display mode.
+    pub mode: ViewMode,
+    /// Entity colours that replace their own.
+    pub tint: HashMap<usize, Color32>,
+    /// Extra lines in world space, each with its colour.
+    pub overlay: Vec<([[f32; 3]; 2], Color32)>,
+}
+
+/// A colour of its own for each blueprint (the collision mode): a hue from the name's hash, muted.
+#[must_use]
+pub fn blueprint_colour(name: &str) -> Color32 {
+    let mut h: u32 = 2_166_136_261;
+    for b in name.bytes() {
+        h = (h ^ u32::from(b)).wrapping_mul(16_777_619);
+    }
+    let hue = f32::from((h % 360) as u16) / 360.0;
+    let c = eframe::egui::ecolor::Hsva::new(hue, 0.45, 0.78, 1.0);
+    Color32::from(c)
+}
+
+/// The edges of a triangle list (three vertices a triangle), as a line list.
+fn edges_of(tris: &[[f32; 3]]) -> Vec<[f32; 3]> {
+    let mut out = Vec::with_capacity(tris.len() * 2);
+    for t in tris.chunks_exact(3) {
+        if let [a, b, c] = t {
+            out.extend([*a, *b, *b, *c, *c, *a]);
+        }
+    }
+    out
+}
+
+/// The edges of an indexed mesh, as a line list.
+fn edges_of_indexed(v: &[[f32; 3]], t: &[[u32; 3]]) -> Vec<[f32; 3]> {
+    let at = |i: u32| v.get(i as usize).copied().unwrap_or_default();
+    let mut out = Vec::with_capacity(t.len() * 6);
+    for [a, b, c] in t {
+        out.extend([at(*a), at(*b), at(*b), at(*c), at(*c), at(*a)]);
+    }
+    out
 }
 
 /// One instance: rows (right, up, forward, translation), colour, id.
@@ -337,6 +383,10 @@ pub struct SceneGpu {
     pub triangles: u64,
     /// The size of each entity's drawn shape (metres; for focusing).
     pub sizes: Vec<f64>,
+    /// The display mode, colours and extra lines ([`SceneGpu::refresh`] reads it).
+    pub look: Look,
+    /// The wireframe mode's edge meshes, by the mesh they outline.
+    edges: HashMap<u32, u32>,
 }
 
 impl SceneGpu {
@@ -369,6 +419,8 @@ impl SceneGpu {
             bounds: None,
             triangles: 0,
             sizes: Vec::new(),
+            look: Look::default(),
+            edges: HashMap::new(),
         };
         out.refresh(gpu, scene, palette, &|_| false);
         out
@@ -379,6 +431,10 @@ impl SceneGpu {
     /// before. Hidden groups and the selection stay.
     pub fn refresh(&mut self, gpu: &Gpu, scene: &Scene, palette: &Palette, skip: &dyn Fn(usize) -> bool) {
         let colors = SceneColors::new(palette);
+        let mode = self.look.mode;
+        let tint = self.look.tint.clone();
+        let tinted = |index: usize, c: [u8; 4]| tint.get(&index).map_or(c, |t| [t.r(), t.g(), t.b(), 0]);
+        let collision_only = mode == ViewMode::Collision;
         let groups = &mut self.groups;
         let mut group_of = |name: &str| -> u16 {
             if let Some(k) = groups.iter().position(|g| g == name) {
@@ -424,7 +480,7 @@ impl SceneGpu {
                 mesh,
             });
         }
-        if let Some(w) = &scene.water
+        if let Some(w) = scene.water.as_ref().filter(|_| !collision_only)
             && !w.mesh.triangles.is_empty()
         {
             let mesh = *self.water_mesh.get_or_insert_with(|| {
@@ -478,9 +534,14 @@ impl SceneGpu {
                     *w = true;
                 }
                 sample.push([m[12], m[13], m[14]]);
+                let color = if collision_only {
+                    rgba(blueprint_colour(bp))
+                } else {
+                    tinted(*index, entity_rgba(e, palette, &colors))
+                };
                 instances.push(Instance {
                     rows: rows_of(&m),
-                    color: entity_rgba(e, palette, &colors),
+                    color,
                     id: entity_id(*index),
                     group: group_of(&e.category),
                     mesh,
@@ -489,14 +550,14 @@ impl SceneGpu {
         }
         // markers for the entities without collision, and spawns' facing
         for e in &scene.entities {
-            if with_mesh.get(e.index).copied().unwrap_or(false) || skip(e.index) {
+            if collision_only || with_mesh.get(e.index).copied().unwrap_or(false) || skip(e.index) {
                 continue;
             }
             let (Some(m), Some(size)) = (e.matrix, marker_size(&e.category)) else {
                 continue;
             };
             let p = [m[12] as f32, m[13] as f32, m[14] as f32];
-            let colour = entity_rgba(e, palette, &colors);
+            let colour = tinted(e.index, entity_rgba(e, palette, &colors));
             let group = group_of(&e.category);
             let centre = [p[0], p[1] + size / 2.0, p[2]];
             instances.push(Instance {
@@ -535,7 +596,7 @@ impl SceneGpu {
         }
         // outlines: areas (with their prism) and routes, in their owner's colour, a little above the ground
         for s in &scene.shapes {
-            if skip(s.entity) {
+            if collision_only || skip(s.entity) {
                 continue;
             }
             let Some(e) = scene.entities.get(s.entity) else {
@@ -581,6 +642,60 @@ impl SceneGpu {
                 for p in &pts {
                     seg(*p, lift(*p));
                 }
+            }
+        }
+        // the mode's extra lines: navmesh outlines, cull-tree spheres
+        if !self.look.overlay.is_empty() {
+            let group = group_of("overlay");
+            for (seg, c) in &self.look.overlay {
+                for p in seg {
+                    lines.push(LineVertex {
+                        p: *p,
+                        color: rgba(*c),
+                        id: ID_NONE,
+                        group,
+                    });
+                }
+            }
+        }
+        // the wireframe mode: an edge mesh for each mesh drawn, made once
+        if mode == ViewMode::Wireframe {
+            let mut wanted: Vec<u32> = instances.iter().map(|i| i.mesh).collect();
+            wanted.sort_unstable();
+            wanted.dedup();
+            let blueprint_of: HashMap<u32, &str> = self
+                .blueprint_mesh
+                .iter()
+                .map(|(name, (m, _))| (*m, name.as_str()))
+                .collect();
+            for m in wanted {
+                if self.edges.contains_key(&m) {
+                    continue;
+                }
+                let lines_of = if m == 0 {
+                    edges_of(&cube())
+                } else if Some(m) == self.terrain_mesh {
+                    scene.terrain.as_ref().map_or_else(Vec::new, |(v, t)| edges_of_indexed(v, t))
+                } else if Some(m) == self.water_mesh {
+                    scene
+                        .water
+                        .as_ref()
+                        .map_or_else(Vec::new, |w| edges_of_indexed(&w.mesh.vertices, &w.mesh.triangles))
+                } else {
+                    blueprint_of
+                        .get(&m)
+                        .and_then(|bp| scene.collision.as_ref()?.blueprints.get(*bp)?.clone())
+                        .map_or_else(Vec::new, |tris| {
+                            let flat: Vec<[f32; 3]> = tris.iter().flat_map(|t| t.iter().copied()).collect();
+                            edges_of(&flat)
+                        })
+                };
+                self.meshes.push(Mesh {
+                    vertices: buffer(gpu, "edges", &f32_bytes(&lines_of), wgpu::BufferUsages::VERTEX),
+                    indices: None,
+                    count: lines_of.len() as u32,
+                });
+                self.edges.insert(m, (self.meshes.len() - 1) as u32);
             }
         }
         if self.bounds.is_none() {
@@ -728,6 +843,8 @@ pub struct Renderer {
     mask_mesh: wgpu::RenderPipeline,
     mask_line: wgpu::RenderPipeline,
     composite: wgpu::RenderPipeline,
+    /// The wireframe mode: meshes' edge lists placed by their instances.
+    wire: wgpu::RenderPipeline,
 }
 
 fn mesh_layouts() -> [wgpu::VertexBufferLayout<'static>; 2] {
@@ -998,6 +1115,15 @@ impl Renderer {
             depth(true),
             &scene_targets,
         );
+        let wire = pipeline(
+            "wire",
+            "vs_mesh",
+            "fs_wire",
+            &mesh_buffers,
+            lin,
+            depth(true),
+            &scene_targets,
+        );
         let mask_mesh = pipeline(
             "mask mesh",
             "vs_mesh",
@@ -1051,6 +1177,7 @@ impl Renderer {
             mask_mesh,
             mask_line,
             composite,
+            wire,
         }
     }
 
@@ -1124,7 +1251,9 @@ impl Renderer {
                 g.extend_from_slice(&v.to_le_bytes());
             }
         }
-        for v in [0.35f32, 0.85, 0.40, 0.0] {
+        // the light's fourth value: 1 draws unlit (flat colours)
+        let unlit = if scene.look.mode == ViewMode::Unlit { 1.0 } else { 0.0 };
+        for v in [0.35f32, 0.85, 0.40, unlit] {
             g.extend_from_slice(&v.to_le_bytes());
         }
         gpu.queue.write_buffer(&self.globals, 0, &g);
@@ -1174,9 +1303,19 @@ impl Renderer {
                 multiview_mask: None,
             });
             pass.set_bind_group(0, &self.globals_bg, &[]);
-            pass.set_pipeline(&self.mesh);
             pass.set_vertex_buffer(1, scene.instance_buf.slice(..));
-            draw_batches(&mut pass, &scene.meshes, &scene.batches);
+            if scene.look.mode == ViewMode::Wireframe {
+                pass.set_pipeline(&self.wire);
+                let batches: Vec<(u32, Range<u32>)> = scene
+                    .batches
+                    .iter()
+                    .filter_map(|(m, r)| Some((*scene.edges.get(m)?, r.clone())))
+                    .collect();
+                draw_batches(&mut pass, &scene.meshes, &batches);
+            } else {
+                pass.set_pipeline(&self.mesh);
+                draw_batches(&mut pass, &scene.meshes, &scene.batches);
+            }
             if scene.line_count > 0 {
                 pass.set_pipeline(&self.line);
                 pass.set_vertex_buffer(0, scene.line_buf.slice(..));

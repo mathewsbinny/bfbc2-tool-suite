@@ -232,7 +232,7 @@ impl ViewState {
             .collect()
     }
 
-    fn matrix(&self, k: usize) -> Option<M> {
+    pub(super) fn matrix(&self, k: usize) -> Option<M> {
         self.scene().entities.get(k).and_then(|e| e.matrix)
     }
 
@@ -248,7 +248,7 @@ impl ViewState {
     }
 
     /// Commits moves or turns: (entity, before, after, placement) per object.
-    fn commit_transforms(
+    pub(super) fn commit_transforms(
         &mut self,
         gpu: &GpuCtx,
         palette: &Palette,
@@ -471,14 +471,6 @@ impl ViewState {
                 );
                 self.commit(gpu, palette, Op::AssignLayer { layer, guids }, "");
             }
-            Action::ToggleWorkspace => {
-                self.workspace = match self.workspace {
-                    Workspace::View => Workspace::Objects,
-                    Workspace::Objects => Workspace::View,
-                };
-                self.drag = None;
-                self.box_from = None;
-            }
             _ => return false,
         }
         self.redraw();
@@ -600,7 +592,7 @@ impl ViewState {
 // ------------------------------------------------------------------------------------------------ the views
 
 impl Tabs<'_> {
-    fn view_of(rect: Rect, cam: &Camera) -> camera::View {
+    pub(super) fn view_of(rect: Rect, cam: &Camera) -> camera::View {
         cam.view([f64::from(rect.width()), f64::from(rect.height())])
     }
 
@@ -700,7 +692,7 @@ impl Tabs<'_> {
         let Some(d) = self.view.doc.as_ref() else { return };
         let mut list = if add { self.view.selection.clone() } else { Vec::new() };
         for e in &d.scene.entities {
-            if !d.shown(e.index) || d.why_not(e.index).is_some() || list.contains(&e.index) {
+            if !self.view.selectable(e.index) || d.why_not(e.index).is_some() || list.contains(&e.index) {
                 continue;
             }
             let Some(p) = e.position() else { continue };
@@ -735,7 +727,8 @@ impl Tabs<'_> {
         }
         let Some(d) = self.view.doc.as_ref() else { return };
         // objects on a locked layer, and deleted ones, are not selected in the views
-        let entity = entity.filter(|&k| d.shown(k) && d.guid(k).is_some_and(|g| d.org.editable(g)));
+        let _ = d;
+        let entity = entity.filter(|&k| self.view.selectable(k));
         if add {
             let Some(k) = entity else { return };
             let group = d.with_group(k);
