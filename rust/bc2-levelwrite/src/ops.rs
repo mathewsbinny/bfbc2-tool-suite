@@ -311,6 +311,14 @@ pub enum Op {
         /// The group's name.
         group: String,
     },
+    /// The campaign content an export keeps chosen (round E3b: the export's strip checklist; the partition is not
+    /// changed, the export reads the last choice: [`crate::MapProject::strip`]).
+    SetStrip {
+        /// The choice before.
+        from: crate::mpconvert::Strip,
+        /// The choice after.
+        to: crate::mpconvert::Strip,
+    },
 }
 
 impl Op {
@@ -348,9 +356,11 @@ impl Op {
                 .flat_map(|p| std::iter::once(p.template.as_str()).chain(p.owned.iter().map(|o| o.source.as_str())))
                 .collect(),
             Self::SetField { items } => items.iter().map(|f| f.guid.as_str()).collect(),
-            Self::AddLayer { .. } | Self::SetLayer { .. } | Self::RemoveLayer { .. } | Self::Ungroup { .. } => {
-                Vec::new()
-            }
+            Self::AddLayer { .. }
+            | Self::SetLayer { .. }
+            | Self::RemoveLayer { .. }
+            | Self::Ungroup { .. }
+            | Self::SetStrip { .. } => Vec::new(),
         }
     }
 
@@ -448,6 +458,7 @@ impl Op {
             Self::SetFolder { folder, guids } => format!("Put {} in folder {folder}", objects(guids.len())),
             Self::Group { group, guids } => format!("Group {} as {group}", objects(guids.len())),
             Self::Ungroup { group } => format!("Ungroup {group}"),
+            Self::SetStrip { to, .. } => format!("Campaign content: {}", to.describe()),
         }
     }
 }
@@ -591,7 +602,7 @@ impl Organisation {
                     }
                 }
             }
-            Op::SetField { .. } => {}
+            Op::SetField { .. } | Op::SetStrip { .. } => {}
             Op::Place { items } => {
                 for p in items {
                     if let Some(pl) = p.placement {

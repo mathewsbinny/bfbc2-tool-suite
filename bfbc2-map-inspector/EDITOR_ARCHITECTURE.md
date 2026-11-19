@@ -955,6 +955,79 @@ The results:
 - WW2 profile: under the user's 2026-11-16 note, an Aurora Conquest is a Pacific War map (WW2 kits). This export
   uses the BFBC2 profile and modern kits.
 
+#### Round E3b: profiles, the level's own name and picture, the campaign checklist (the user, 2026-11-19)
+
+The user's answers to E3's open points: levels for BFBC1, BFBC2, Vietnam and WW2 by choice; each export with its own
+in-game name and loading picture; the user chooses what a campaign base loses; placement stays E3's first guess,
+editable, until E4's gameplay tools.
+
+**Content profiles** (`bc2_levelwrite::profile`). Nothing is a hand-kept list; each profile is read from the stock
+levels of its set in the game copy:
+
+- **The set** of a level is what its bundles load (`Profile::of_stack`, the start screen's recognition from G3):
+  a level block that targets `ww2_common` is WW2, `nam_common` Vietnam, a `bc1_` level of `game\Package` BFBC1,
+  anything else BFBC2. Its multiplayer levels are those whose description names a multiplayer game mode
+  (on OPFOR's copy: BFBC2 38, BFBC1 8, Vietnam 20, WW2 4).
+- **The common bundles** of each kind are the `_common` targets every multiplayer level of the set loads, in order:
+  BFBC2 `mp_common`; BFBC1 `mp2_common`, `mp_common`; Vietnam `nam_common`, `mp_common`; WW2 `ww2_common`,
+  `mp_common` (terrain: `mp2_common` / `nam_common` only). The new level's `package.mft` blocks take them in place
+  of E3's fixed `mp_common`.
+- **The donors** are the set's levels of the mode (Conquest: `conquest`, and Vietnam's and WW2's `namconquest`).
+  The donor's description brings the profile's own data: the game mode (its HUD, kit bundles), `FactionTeam1` / `2`,
+  the kit pictures, `Licenses` (`nam` on Vietnam and WW2), `KickIfLicenseMissing`, `MatchmakingModID` (`BC2`,
+  `VIETNAM`, `PACIFIC`), the start delay and the level's memory. The default donor is the first by name whose layer
+  names nothing outside the set's commons and the startup bundles (BFBC2 `mp_001`, BFBC1 `bc1_harvest_day_cq`,
+  Vietnam `nam_mp_002cq`); the form lists them all. WW2's donors all name their team kits and flags
+  (`objects/teams/ww2_us`, `ww2_jp`, `flag_us_1943`, `flag_jpn`) in their own bundle, which the export copies.
+- **The profile's level fields** are the `LevelData` fields every donor of each set has with one value and the sets
+  do not share: on OPFOR's copy only `SoundStates` (`sound/nam_soundstates` on Vietnam). The export takes the donor's
+  where the base's differs.
+- **The team labels** are the donor's factions through the profile (`factions::faction_side`: `FactionRUS` is RU on
+  BFBC2 and BFBC1, NVA on Vietnam, JP on WW2).
+- **Hidden partitions.** `nam_common` and `ww2_common` carry deleted markers over modern content of `mp_common` and
+  `sp_common`, among it partitions SP_01's own world uses (destruction effects, havok props: 466 entries on the
+  Vietnam export). The export copies what no loaded bundle gives from the level block's own bundles (each read
+  alone), then the donor's, into the new level's bundle; the check takes a copied partition's references as DICE's
+  when the bundle it was copied from has them too. Only the shared bundles (`_common`, `async`) count for "a partition
+  no bundle has": a level's own bundle is loaded by no other (OPFOR's `iwo_jima_s` holds a root `emitters/...` copy).
+
+**The level's own name and picture** (`ExportSpec::identity`, `bc2_levelwrite::awards`; OPFOR's WW2 install's way):
+
+- the description's and the level's `Name` / `Description` loc keys are `<LV>_NAME` / `<LV>_DESC`, with the
+  export's title and description as their texts in every language of `Dist\win32\overlay-00.fbrb`
+  (`language_<lang>_normal.bin`, plain ASCII). The server browser's and the launcher's row is `maps.ini`'s title;
+- the loading screen cuts the name key at `_NAME`, so its picture is `Awards/images/loadingScreens/<lv>.res`; the main
+  menu's map list shows `Awards/images/Levels/<lv>.res`; both go into `Package\async\ondemand_awards-00.fbrb`;
+- the pictures are made from the user's PNG or JPEG (empty: the base's own loading picture), scaled to cover and cut
+  at the centre (Lanczos-3), in the form of the donor's own pictures, read from them: DXT1 1280 x 720 one level for
+  the loading screen; DXT5 512 x 256 for the map list, the picture in the box its alpha shows (295 x 196 top-left),
+  white at alpha 0 elsewhere. The suite's texture writer (`texwrite`, F2a) encodes them, each block's axis from a
+  3 x 3 Jacobi solve; each is decoded back and its PSNR against what was encoded reported (about 41 dB loading,
+  40 dB map list on the test picture);
+- `mapexport overlay` and `mapexport awards` build the two bundles from the install's backups (FbrbTool's unpack
+  and pack, as `startup`): only the levels' keys and entries are added or taken out, every other entry and text
+  is the source's (`tests/export_e3b.rs` compares them all).
+
+**The campaign checklist** (`mpconvert::STRIP_GROUPS`, the editor's `strip_ui`): the 60 campaign types and the
+campaign vehicles, grouped (AI orders and areas; squads and AI spawning; waypoints and targets; cutscenes and videos;
+objectives, checkpoints and saves; scripted triggers; tooltips, debug menus and screen effects; demolitions, strikes
+and pickups; campaign vehicles), each with the level's count; the ten types the mode's layer replaces are shown and
+always go. Nothing kept is DICE's own choice and E3's result. The choice is an operation of the project's log
+(`Op::SetStrip`, undone and redone like any edit; the export reads the last one). The checklist opens by itself when
+a project is made or opened on a campaign level with no choice yet, and from the Export window.
+
+**Placement** stays E3's: each base and flag keeps its x / z in the form, and "Use selection" puts it where the
+selected object stands (move any object with the gizmo, then take its place).
+
+**Proof (2026-11-19).** On the Aurora project of E3's example:
+
+- BFBC2 profile, no choice in the log: the four bundles and the description are byte-identical to E3's `mapexport`
+  (built from 05fc268) on the same project and export file;
+- keeping the campaign vehicles keeps SP_01's 53 vehicle spawns and no other instance (`tests/export_e3b.rs`);
+- Vietnam profile with its own name and picture: `mapexport check` passes every check, among them the profile's
+  commons in every block, the game mode, factions and 8 kit pictures the donor's, `SoundStates` the set's, the name
+  keys, and both pictures in their templates' form.
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from

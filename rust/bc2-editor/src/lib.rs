@@ -72,6 +72,7 @@ pub mod package;
 pub mod prepare;
 pub mod query;
 pub mod render;
+pub mod strip_ui;
 pub mod theme;
 pub mod viewmodes;
 pub mod workspace;

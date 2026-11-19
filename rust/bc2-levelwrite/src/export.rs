@@ -28,7 +28,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::mpconvert::{self, Converted, DescriptionKeep, Ground, LayerSpec};
-use crate::project::{MapProject, sha1_hex};
+use crate::profile::ContentProfile;
+use crate::project::{MapProject, Profile, sha1_hex};
 use crate::schema::Schema;
 use crate::write::LevelWriter;
 
@@ -99,6 +100,63 @@ pub struct ExportSpec {
     pub mode: String,
     /// The mode's layer.
     pub layer: LayerSpec,
+    /// The content profile (round E3b): the set of maps the level is made for. The layer's donor is one of that
+    /// set's levels of the mode, and the common bundles, kits, factions and level fields are the set's
+    /// ([`crate::profile`]). Older export files: BFBC2.
+    #[serde(default)]
+    pub profile: Profile,
+    /// The level's own name and pictures (round E3b): `title` as its localized name, a description, a picture.
+    /// `None` (older export files): the base level's names and loading picture.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<Identity>,
+}
+
+/// The level's own name and pictures (round E3b): the menus, the server browser and the loading screen show the
+/// export's `title` (loc key `<LV>_NAME`) and this description (`<LV>_DESC`); the loading screen and the map list
+/// show the picture.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Identity {
+    /// The description under the name (the loading screen, the map list).
+    #[serde(default)]
+    pub description: String,
+    /// The picture: a PNG or JPEG file. Empty: the base level's own loading picture.
+    #[serde(default)]
+    pub picture: String,
+}
+
+/// The loc keys of a level's own name and description (the loading screen cuts the name's at `_NAME` and finds the
+/// picture under the level's id).
+#[must_use]
+pub fn loc_keys(lv: &str) -> (String, String) {
+    let up = lv.to_ascii_uppercase();
+    (format!("{up}_NAME"), format!("{up}_DESC"))
+}
+
+/// The on-demand entries of a level's pictures: its loading screen and its map-list picture.
+#[must_use]
+pub fn picture_entries(lv: &str) -> [String; 2] {
+    let low = lv.to_ascii_lowercase();
+    [
+        format!("Awards/images/loadingScreens/{low}.res"),
+        format!("Awards/images/Levels/{low}.res"),
+    ]
+}
+
+/// A text the localization files hold as it is: printable ASCII, 1 to `max` characters.
+///
+/// # Errors
+/// Empty, too long, or a character outside printable ASCII (the files store other characters through their
+/// histogram; the export writes plain text only).
+pub fn loc_text(what: &str, t: &str, max: usize) -> Result<()> {
+    if t.trim().is_empty() || t.len() > max {
+        return Err(err(format!("{what} must be 1 to {max} characters")));
+    }
+    if let Some(c) = t.chars().find(|c| !(' '..='~').contains(c)) {
+        return Err(err(format!(
+            "{what}: {c:?} is not plain ASCII (letters, digits, punctuation and spaces)"
+        )));
+    }
+    Ok(())
 }
 
 impl ExportSpec {
@@ -182,6 +240,12 @@ impl Game {
             .map_or_default(|(_, t)| t.clone())
     }
 
+    /// Every `BundleSource` of `package.mft`, in its order (`game:levels/mp_005/level-00.fbrb`).
+    #[must_use]
+    pub fn sources(&self) -> Vec<&str> {
+        self.mft.iter().map(|(s, _)| s.as_str()).collect()
+    }
+
     /// The live entries of bundles in priority order (the first bundle's entry of a name wins; a deleted marker
     /// hides the name in the bundles after it), by lower-case name.
     ///
@@ -230,6 +294,20 @@ impl Game {
             }
         }
         out
+    }
+
+    /// The on-demand awards bundles (`Package\async`, then `Dist\win32\async`): the loading screens, the map-list
+    /// pictures.
+    #[must_use]
+    pub fn ondemand_awards(&self) -> Vec<PathBuf> {
+        [
+            "package:async/ondemand_awards-00.fbrb",
+            "game:async/ondemand_awards-00.fbrb",
+        ]
+        .iter()
+        .map(|n| self.bundle(n))
+        .filter(|p| p.is_file())
+        .collect()
     }
 
     /// The startup bundles (`Package\async`, then `Dist\win32\async`): descriptions, game modes, the level list.
@@ -360,6 +438,16 @@ pub struct StageRecord {
     pub report: Vec<String>,
     /// The conversion's counts.
     pub converted: Converted,
+    /// The content profile (round E3b).
+    #[serde(default)]
+    pub profile: Profile,
+    /// The texts an install adds to every language's localization (loc key, text): the level's own name and
+    /// description (round E3b); empty: the base level's.
+    #[serde(default)]
+    pub strings: Vec<(String, String)>,
+    /// The pictures an install adds to the on-demand awards bundle (`install`: the entry's name).
+    #[serde(default)]
+    pub awards: Vec<StagedFile>,
 }
 
 /// Root files the engine finds by a level's name (`console_onslaught.rename_level_files`, `wake_install.ROOT_FILES`):
@@ -467,39 +555,37 @@ fn heightfield(game: &Game, lv: &str, partition: &LevelWriter) -> Result<Option<
     Ok(bc2_formats::terrain::parse(&data).ok())
 }
 
-/// The new level's `package.mft` blocks: its own bundle first, then (level, terrain) the base level's bundles and
-/// the base's own targets with `mp_common` before them; (ingame, loader) `mp_common`'s; (vo/en) `mp1_common`'s, as
-/// the stock multiplayer levels and the WW2 levels have.
+/// The new level's `package.mft` blocks: its own bundle first, then (level, terrain) the base level's bundles, the
+/// profile's common bundles of the kind ([`ContentProfile::commons`]: BFBC2 `mp_common`, Vietnam `nam_common` and
+/// `mp_common` ...) and, for the level, the base's other targets after them; (ingame, loader) the profile's common
+/// bundles, as the stock multiplayer levels of the set have.
 #[must_use]
-pub fn mft_blocks(game: &Game, lv: &str, base: &str) -> Vec<Vec<String>> {
+pub fn mft_blocks(game: &Game, lv: &str, base: &str, profile: &ContentProfile) -> Vec<Vec<String>> {
     let lv = lv.to_ascii_lowercase();
     let base = base.to_ascii_lowercase();
     let mut out = Vec::new();
     for kind in KINDS {
         let own = format!("levels/{lv}/{kind}-00.fbrb");
         let mut lines = vec![format!("BundleSource game:{own}")];
-        let mut targets: Vec<String> = Vec::new();
+        let mut targets: Vec<String> = vec![format!("package:{own}")];
+        let commons = profile.commons(kind);
         match kind {
             "level" | "terrain" => {
-                targets.push(format!("package:{own}"));
                 let base_targets = game.targets(&format!("levels/{base}/{kind}-00.fbrb"));
-                let (mine, common): (Vec<String>, Vec<String>) = base_targets
+                let (mine, other): (Vec<String>, Vec<String>) = base_targets
                     .into_iter()
                     .partition(|t| t.to_ascii_lowercase().contains(&format!("levels/{base}/")));
                 targets.extend(mine.into_iter().filter(|t| game.bundle(t).is_file()));
+                targets.extend(commons.iter().cloned());
                 if kind == "level" {
-                    targets.push("game:levels/mp_common/level-00.fbrb".into());
                     targets.extend(
-                        common
+                        other
                             .into_iter()
-                            .filter(|t| !t.to_ascii_lowercase().contains("mp_common")),
+                            .filter(|t| !commons.iter().any(|c| c.eq_ignore_ascii_case(t))),
                     );
                 }
             }
-            _ => {
-                targets.push(format!("package:{own}"));
-                targets.push(format!("game:levels/mp_common/{kind}-00.fbrb"));
-            }
+            _ => targets.extend(commons.iter().cloned()),
         }
         lines.extend(targets.into_iter().map(|t| format!("BundleTarget {t}")));
         out.push(lines);
@@ -568,6 +654,41 @@ pub fn build(
         )));
     }
     let mut report = Vec::new();
+    // 0. the content profile: the set's common bundles, donors and level fields, read from its stock levels
+    let profiles = crate::profile::scan(game, &spec.mode)?;
+    let prof = profiles.get(spec.profile)?;
+    let donor_lv = spec.layer.donor.to_ascii_lowercase();
+    let donor_info = prof.donor(&donor_lv).ok_or_else(|| {
+        err(format!(
+            "{donor_lv} is not a {} level of the {} mode (the profile's: {})",
+            spec.profile.word(),
+            spec.mode,
+            prof.donors
+                .iter()
+                .map(|d| d.level.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))
+    })?;
+    report.push(format!(
+        "profile: {} (from its {} multiplayer levels): level commons {:?}; donor {} - game mode {}, factions {} / {}, \
+         {} kit pictures; level fields {:?}",
+        spec.profile.word(),
+        prof.levels.len(),
+        prof.commons("level"),
+        donor_lv,
+        donor_info.game_mode,
+        donor_info.factions[0],
+        donor_info.factions[1],
+        donor_info.kits.len(),
+        prof.fields.iter().map(|f| f.0.as_str()).collect::<Vec<_>>()
+    ));
+    if let Some(id) = &spec.identity {
+        loc_text("The map name", &spec.title, 64)?;
+        if !id.description.is_empty() {
+            loc_text("The description", &id.description, 400)?;
+        }
+    }
     // 1. the base partition with the project's operations
     let base_bundles = game.loaded(&base, "level");
     let base_bytes = read_one(game, &base_bundles, &format!("Levels/{base_up}.dbx"))?;
@@ -600,14 +721,22 @@ pub fn build(
     ));
     let mut w = LevelWriter::parse(&applied.bytes)?;
     // 2. multiplayer: the campaign out, the donor's layer in, placed, the level's fields
-    let donor_lv = spec.layer.donor.to_ascii_lowercase();
     let donor_bytes = read_one(
         game,
         &game.loaded(&donor_lv, "level"),
         &format!("Levels/{}.dbx", donor_lv.to_ascii_uppercase()),
     )?;
     let donor = LevelWriter::parse(&donor_bytes)?;
-    let keep = DescriptionKeep::of(&w).ok_or_else(|| err("the base level has no LevelDescription"))?;
+    let mut keep = DescriptionKeep::of(&w).ok_or_else(|| err("the base level has no LevelDescription"))?;
+    // the base's own name key names its loading picture (SP_01_NAME -> sp_01)
+    let base_picture = keep
+        .name
+        .strip_suffix("_NAME")
+        .unwrap_or(&keep.name)
+        .to_ascii_lowercase();
+    if spec.identity.is_some() {
+        (keep.name, keep.description) = loc_keys(&lv);
+    }
     let mut conv = Converted::default();
     let keep_area: HashSet<String> = [spec.layer.combat_area.to_ascii_uppercase()].into();
     if w.find(&spec.layer.combat_area).is_none() {
@@ -616,7 +745,9 @@ pub fn build(
             spec.layer.combat_area
         )));
     }
-    mpconvert::strip(&mut w, &keep_area, &mut conv)?;
+    let choice = project.strip();
+    report.push(format!("campaign content: {}", choice.describe()));
+    mpconvert::strip(&mut w, &keep_area, &choice, &mut conv)?;
     let seed = format!("{}:{low}", project.id);
     let map = mpconvert::graft(&mut w, &donor, &spec.layer, &seed, &mut conv)?;
     let hb = heightfield(game, &base, &base_w)?;
@@ -636,6 +767,13 @@ pub fn build(
     mpconvert::place(&mut w, &donor, &spec.layer, &map, ground.as_ref(), &mut conv)?;
     mpconvert::enable(&mut w, &spec.layer.combat_area)?;
     mpconvert::level_fields(&mut w, &donor, &keep, &map, &mut conv)?;
+    // the profile's own level fields (Vietnam's sound states ...): the donor's, where the base's differ
+    let mine = crate::profile::level_fields(&w);
+    for (f, v) in &prof.fields {
+        if mine.get(f) != Some(v) {
+            mpconvert::take_field(&mut w, &donor, f, &map, &mut conv)?;
+        }
+    }
     report.push(format!(
         "multiplayer: {} campaign instances removed ({} event connections, {} references cut); {} instances and {} \
          event connections of {}'s {} layer grafted; {} references of the layer not followed",
@@ -775,9 +913,11 @@ pub fn build(
         },
     ];
     level_all.extend(level_entries);
-    // the partitions the layer names that the base's bundles hide (SP_01's deleted markers over mp_common's
-    // flags and spawn camera): copied from mp_common into the level's own bundle, which comes first
-    let mut block_loaded: Vec<PathBuf> = mft_blocks(game, &low, &base).first().map_or_default(|b| {
+    // the partitions the layer names that the bundles the level loads do not give: the base's deleted markers hide
+    // mp_common's flags and spawn camera (SP_01), a WW2 donor's team kits and flags are in its own bundle - copied
+    // from the profile's common bundles, else the donor's, into the level's own bundle, which comes first
+    let blocks = mft_blocks(game, &low, &base, prof);
+    let mut block_loaded: Vec<PathBuf> = blocks.first().map_or_default(|b| {
         b.iter()
             .filter_map(|l| l.strip_prefix("BundleTarget "))
             .filter(|t| !t.to_ascii_lowercase().contains(&format!("levels/{low}/")))
@@ -785,10 +925,21 @@ pub fn build(
             .collect()
     });
     block_loaded.extend(game.startup());
-    let filled = fill_hidden(game, &block_loaded, &level_all)?;
+    // every bundle of the level block, each read alone (Vietnam's nam_common hides sp_common's partitions SP_01's
+    // own world uses), then the donor's own
+    let mut sources: Vec<PathBuf> = blocks.first().map_or_default(|b| {
+        b.iter()
+            .filter_map(|l| l.strip_prefix("BundleTarget "))
+            .filter(|t| !t.to_ascii_lowercase().contains(&format!("levels/{low}/")))
+            .map(|t| game.bundle(t))
+            .collect()
+    });
+    sources.extend(game.level_bundles(&donor_lv, "level"));
+    let filled = fill_hidden(game, &block_loaded, &level_all, &sources)?;
     if !filled.is_empty() {
         report.push(format!(
-            "hidden partitions: {} entries copied from mp_common (the base's deleted markers hide them): {}",
+            "hidden partitions: {} entries copied from the level block's bundles or the donor's (the bundles the \
+             level loads hide them, or lack them): {}",
             filled.len(),
             filled.iter().map(|e| e.name.as_str()).collect::<Vec<_>>().join(", ")
         ));
@@ -817,13 +968,40 @@ pub fn build(
         n.starts_with(&format!("levels/{base}/ui/"))
     })?;
     let loader = pick(game.level_bundles(&base, "loader"), &|n| n.starts_with("sound/"))?;
+    // 8. the level's own name and pictures (round E3b)
+    let (strings, pictures, previews) = match &spec.identity {
+        Some(id) => identity(game, spec, id, &lv, &base_picture, &dd, &mut report)?,
+        None => Default::default(),
+    };
     // write the stage
     if out.is_dir() {
         for k in KINDS {
             let _ = std::fs::remove_file(out.join(format!("{k}-00.fbrb")));
         }
+        let _ = std::fs::remove_dir_all(out.join("awards"));
+        for p in ["preview_loading.png", "preview_level.png"] {
+            let _ = std::fs::remove_file(out.join(p));
+        }
     }
     std::fs::create_dir_all(out)?;
+    let mut awards = Vec::new();
+    for (entry, path, bytes) in &pictures {
+        let p = out.join(path);
+        if let Some(dir) = p.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::write(&p, bytes)?;
+        awards.push(StagedFile {
+            path: path.clone(),
+            install: entry.clone(),
+            sha1: sha1_hex(bytes),
+            size: bytes.len() as u64,
+            entries: 1,
+        });
+    }
+    for (name, bytes) in &previews {
+        std::fs::write(out.join(name), bytes)?;
+    }
     let mut files = Vec::new();
     let mut put = |kind: &str, bytes: Vec<u8>, entries: usize| -> Result<()> {
         let path = format!("{kind}-00.fbrb");
@@ -861,24 +1039,32 @@ pub fn build(
         project: format!("{} ({project_file})", project.id),
         files,
         description: (desc_file, desc_name),
-        mft_blocks: mft_blocks(game, &low, &base),
+        mft_blocks: blocks,
         bundle_manifest: bundle_manifest_lines(&low),
         level_list: vec![format!("{low}.dbx"), format!("{low}_description.dbx")],
         report,
         converted: conv,
+        profile: spec.profile,
+        strings,
+        awards,
     };
     write_record(out, &rec)?;
     Ok(rec)
 }
 
 /// The partitions `ours` reference (transitively) that no bundle of `loaded` gives - hidden by an earlier bundle's
-/// deleted marker - taken from `mp_common`'s level bundle, each with its resources (`<stem>.res`, `<stem>_*.res`).
+/// deleted marker, or (a WW2 donor's team kits and flags) in the donor's own bundle - taken from the first of
+/// `sources` that has it (each bundle read alone, its own entries), each with its resources (`<stem>.res`,
+/// `<stem>_*.res`).
 ///
 /// # Errors
 /// A bundle does not read.
-fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry]) -> Result<Vec<StagedEntry>> {
+fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry], sources: &[PathBuf]) -> Result<Vec<StagedEntry>> {
     let live = game.live(loaded)?;
-    let common = game.live(&[game.bundle("game:levels/mp_common/level-00.fbrb")])?;
+    let per: Vec<HashMap<String, Found>> = sources
+        .iter()
+        .map(|b| game.live(std::slice::from_ref(b)))
+        .collect::<Result<_>>()?;
     let mut have: HashSet<String> = ours.iter().map(|e| e.name.to_ascii_lowercase()).collect();
     let mut out: Vec<StagedEntry> = Vec::new();
     let mut todo: Vec<Vec<u8>> = ours
@@ -894,11 +1080,15 @@ fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry]) -> Result<
                 r.rsplit_once('/')
                     .map(|(p, _)| format!("{}.dbx", p.to_ascii_lowercase()))
             })
-            .filter(|n| !have.contains(n) && !live.contains_key(n) && common.contains_key(n))
+            .filter(|n| !have.contains(n) && !live.contains_key(n) && per.iter().any(|c| c.contains_key(n)))
             .collect();
         want.sort();
         want.dedup();
         for n in want {
+            // the first source with the partition gives it and its resources
+            let Some(common) = per.iter().find(|c| c.contains_key(&n)) else {
+                continue;
+            };
             let st = n.trim_end_matches(".dbx").to_owned();
             let mut names: Vec<&String> = common
                 .keys()
@@ -923,6 +1113,166 @@ fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry]) -> Result<
                 });
             }
         }
+    }
+    Ok(out)
+}
+
+/// The `Name` loc key of a level's description in the startup bundles (`MP_009_NAME`, `SP_01_NAME`): cut at
+/// `_NAME`, the name of its loading picture.
+///
+/// # Errors
+/// No such description.
+pub fn description_key(game: &Game, lv: &str) -> Result<String> {
+    let d = read_one(
+        game,
+        &game.startup(),
+        &format!("Levels/{}_description.dbx", lv.to_ascii_uppercase()),
+    )?;
+    description_name(&d)
+}
+
+/// The `Name` loc key of a description partition's level description (`MP_009_NAME`).
+fn description_name(desc: &[u8]) -> Result<String> {
+    let w = LevelWriter::parse(desc)?;
+    let a =
+        w.d.of_type(b".LevelDescriptionAsset")
+            .first()
+            .copied()
+            .ok_or_else(|| err("a description without LevelDescriptionAsset"))?;
+    w.d.child(a, b"Description")
+        .and_then(|c| w.d.child(c, b"Name"))
+        .and_then(|x| w.d.text(x))
+        .map(|t| String::from_utf8_lossy(t).into_owned())
+        .ok_or_else(|| err("a description without Name"))
+}
+
+/// The texts, pictures (entry, stage path, bytes) and previews (file, PNG bytes) of the level's own name and
+/// pictures: the picture from the user's file or the base's loading picture, in the forms of the donor's own
+/// loading picture (its name key's) and map-list picture.
+#[allow(clippy::type_complexity, reason = "three lists the stage writes")]
+fn identity(
+    game: &Game,
+    spec: &ExportSpec,
+    id: &Identity,
+    lv: &str,
+    base_picture: &str,
+    donor_desc: &[u8],
+    report: &mut Vec<String>,
+) -> Result<(
+    Vec<(String, String)>,
+    Vec<(String, String, Vec<u8>)>,
+    Vec<(String, Vec<u8>)>,
+)> {
+    let (nk, dk) = loc_keys(lv);
+    let strings = vec![
+        (nk, spec.title.trim().to_owned()),
+        (dk, id.description.trim().to_owned()),
+    ];
+    let donor_key = description_name(donor_desc)?;
+    let donor_lv = spec.layer.donor.to_ascii_lowercase();
+    let made = pictures(game, &donor_lv, &donor_key, base_picture, &id.picture)?;
+    let mut pictures = Vec::new();
+    let mut previews = Vec::new();
+    for (p, what) in made.into_iter().zip(["loading", "level"]) {
+        let m = p.made;
+        let entry = p.entry.replace("{lv}", &lv.to_ascii_lowercase());
+        report.push(format!(
+            "picture {}: from {}, in {}'s form (format {}, {} x {}, {} levels; the picture in {:?}), {} bytes, \
+             {:.1} dB against what was encoded",
+            entry,
+            p.from,
+            p.template,
+            m.info.fmt,
+            m.info.w,
+            m.info.h,
+            m.info.mips,
+            m.area,
+            m.wrapped.len(),
+            m.psnr
+        ));
+        let path = format!(
+            "awards/{}",
+            entry.to_ascii_lowercase().trim_start_matches("awards/images/")
+        );
+        previews.push((
+            format!("preview_{what}.png"),
+            crate::awards::png_bytes(&m.decoded).map_err(err)?,
+        ));
+        pictures.push((entry, path, m.wrapped));
+    }
+    let (nk, dk) = loc_keys(lv);
+    report.push(format!(
+        "names: {nk} {:?} and {dk} in every language (the menus, the loading screen); maps.ini {:?}",
+        spec.title.trim(),
+        spec.title
+    ));
+    Ok((strings, pictures, previews))
+}
+
+/// One picture of the level made: the entry, the stock picture whose form it takes, where it came from, it.
+#[derive(Debug, Clone)]
+pub struct Picture {
+    /// Its on-demand entry (`Awards/images/loadingScreens/<lv>.res`; `<lv>` until the level is named).
+    pub entry: String,
+    /// The donor's own picture whose form it has.
+    pub template: String,
+    /// Where the picture came from, in words.
+    pub from: String,
+    /// It.
+    pub made: crate::awards::Made,
+}
+
+/// The level's loading and map-list pictures (in that order): `picture` (a PNG or JPEG file; empty: the base's
+/// own loading picture, `base_picture` the base's name key cut at `_NAME`) in the forms of the donor's own pictures
+/// (`donor_key`: the donor description's name key). The Export window's preview and the build make them alike.
+///
+/// # Errors
+/// A picture is not there or does not decode, or the encoding fails.
+pub fn pictures(
+    game: &Game,
+    donor_lv: &str,
+    donor_key: &str,
+    base_picture: &str,
+    picture: &str,
+) -> Result<Vec<Picture>> {
+    let od = game.ondemand_awards();
+    let (src, from) = if picture.trim().is_empty() {
+        let name = format!("awards/images/loadingscreens/{base_picture}.res");
+        let data = read_one(game, &od, &name).map_err(|e| {
+            err(format!(
+                "no picture given, and the base's loading picture is not there: {e}"
+            ))
+        })?;
+        let (rgb, _) = crate::awards::decode(crate::awards::unwrap(&data))
+            .ok_or_else(|| err(format!("{name} does not decode")))?;
+        (rgb, format!("the base's loading picture {name}"))
+    } else {
+        let path = picture.trim();
+        let bytes = std::fs::read(path).map_err(|e| err(format!("{path}: {e}")))?;
+        let rgb = crate::awards::read_image(&bytes).map_err(|e| err(format!("{path}: {e}")))?;
+        let from = format!("{path} ({} x {})", rgb.w, rgb.h);
+        (rgb, from)
+    };
+    let templates = [
+        format!(
+            "awards/images/loadingscreens/{}.res",
+            donor_key
+                .strip_suffix("_NAME")
+                .unwrap_or(donor_key)
+                .to_ascii_lowercase()
+        ),
+        format!("awards/images/levels/{donor_lv}.res"),
+    ];
+    let mut out = Vec::new();
+    for (entry, tmpl) in picture_entries("{lv}").iter().zip(&templates) {
+        let t = read_one(game, &od, tmpl).map_err(|e| err(format!("the donor's picture: {e}")))?;
+        let made = crate::awards::make(&src, &t).map_err(|e| err(format!("{entry}: {e}")))?;
+        out.push(Picture {
+            entry: entry.clone(),
+            template: tmpl.clone(),
+            from: from.clone(),
+            made,
+        });
     }
     Ok(out)
 }
@@ -1026,16 +1376,25 @@ fn instance_guids(d: &EditDbx) -> HashSet<String> {
         .collect()
 }
 
-/// Every live entry name (lower case) of every bundle of the game copy.
+/// Every live entry name (lower case) of every shared bundle of the game copy: the `_common` folders' and the
+/// `async` ones (round E3b). A level's own bundles are left out: no other level loads them (OPFOR's converted WW2
+/// levels hold copies of partitions DICE's levels only name, `iwo_jima_s`'s root `emitters/...`).
 fn all_partition_names(root: &Path) -> Result<HashSet<String>> {
     let mut out = HashSet::new();
     let mut dirs = vec![root.to_path_buf()];
     while let Some(d) = dirs.pop() {
         for e in std::fs::read_dir(&d)?.flatten() {
             let p = e.path();
+            let shared = p.strip_prefix(root).is_ok_and(|rel| {
+                rel.components().any(|c| {
+                    let n = c.as_os_str().to_string_lossy().to_ascii_lowercase();
+                    n.ends_with("_common") || n == "async"
+                })
+            });
             if p.is_dir() {
                 dirs.push(p);
-            } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("fbrb"))
+            } else if shared
+                && p.extension().is_some_and(|x| x.eq_ignore_ascii_case("fbrb"))
                 && let Ok(h) = fbrb::entries_path(&p)
             {
                 out.extend(
@@ -1064,7 +1423,24 @@ fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>>
     } else if let Some(rest) = o.strip_prefix(&format!("levels/{low}/")) {
         sources.push((game.loaded(&rec.base, "level"), format!("levels/{}/{rest}", rec.base)));
     } else {
-        sources.push((vec![game.bundle("game:levels/mp_common/level-00.fbrb")], o));
+        // a partition copied into the level's bundle: the source it was copied from, the first bundle of the level
+        // block (each read alone), else the donor's, that has it (`fill_hidden`'s order)
+        let mut from: Vec<PathBuf> = rec.mft_blocks.first().map_or_default(|b| {
+            b.iter()
+                .filter_map(|l| l.strip_prefix("BundleTarget "))
+                .filter(|t| !t.to_ascii_lowercase().contains(&format!("levels/{low}/")))
+                .map(|t| game.bundle(t))
+                .collect()
+        });
+        if !rec.donor.is_empty() {
+            from.extend(game.level_bundles(&rec.donor, "level"));
+        }
+        for b in from {
+            if game.live(std::slice::from_ref(&b))?.contains_key(&o) {
+                sources.push((vec![b], o));
+                break;
+            }
+        }
     }
     let mut out = Vec::new();
     for (bundles, name) in sources {
@@ -1300,6 +1676,8 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         desc_level.as_deref() == Some(format!("Levels/{}", rec.level).as_str()),
         format!("description: LevelName {desc_level:?}"),
     );
+    check_profile(game, &rec, &ours, &live, &mut r)?;
+    check_identity(game, stage, &rec, &ours, &mut r)?;
     // the cull tree: one tree, and one object per slot, each slot a leaf of a tree
     if let (Some((_, lw)), Some((_, tree))) = (
         lvl,
@@ -1335,6 +1713,227 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         }
     }
     Ok(r)
+}
+
+/// The mode of a record's maps.ini key (`Conquest` -> `conquest`).
+fn mode_key(title: &str) -> String {
+    title.to_ascii_lowercase().replace(' ', "")
+}
+
+/// A level description's field (a text, or a reference) in a partition holding one.
+fn desc_field(d: &EditDbx, f: &[u8]) -> Option<String> {
+    let a = d.of_type(b".LevelDescriptionAsset").first().copied()?;
+    let c = d.child(a, b"Description")?;
+    let x = d.child(c, f)?;
+    d.attr(x, b"ref")
+        .or_else(|| d.text(x))
+        .map(|t| String::from_utf8_lossy(t).into_owned())
+}
+
+/// The profile's checks (round E3b): its common bundles in every block, the donor one of the set's levels of the
+/// mode, the description's game mode, factions and kit pictures the donor's (each resolving in the bundles the level
+/// loads), the profile's level fields the set's.
+#[allow(clippy::too_many_lines, reason = "the profile's checks in order, each named")]
+fn check_profile(
+    game: &Game,
+    rec: &StageRecord,
+    ours: &[(String, EditDbx)],
+    live: &HashMap<String, Found>,
+    r: &mut CheckReport,
+) -> Result<()> {
+    let profiles = crate::profile::scan(game, &mode_key(&rec.mode))?;
+    let prof = match profiles.get(rec.profile) {
+        Ok(p) => p,
+        Err(e) => {
+            r.add(false, format!("profile {}: {e}", rec.profile.word()));
+            return Ok(());
+        }
+    };
+    let mut missing = Vec::new();
+    for (k, block) in KINDS.iter().zip(&rec.mft_blocks) {
+        let targets: Vec<String> = block
+            .iter()
+            .filter_map(|l| l.strip_prefix("BundleTarget "))
+            .map(str::to_ascii_lowercase)
+            .collect();
+        // the commons in their order (a subsequence of the targets)
+        let mut at = 0;
+        for c in prof.commons(k) {
+            match targets.iter().skip(at).position(|t| t.eq_ignore_ascii_case(c)) {
+                Some(i) => at += i + 1,
+                None => missing.push(format!("{k}: {c}")),
+            }
+        }
+    }
+    r.add(
+        missing.is_empty(),
+        format!(
+            "profile {}: every block loads the set's common bundles in their order ({}) {missing:?}",
+            prof.profile.word(),
+            KINDS
+                .iter()
+                .map(|k| format!("{k} {:?}", prof.commons(k)))
+                .collect::<Vec<_>>()
+                .join("; ")
+        ),
+    );
+    let Some(donor) = prof.donor(&rec.donor) else {
+        r.add(
+            false,
+            format!(
+                "profile {}: the donor {} is not one of its levels of the mode",
+                prof.profile.word(),
+                rec.donor
+            ),
+        );
+        return Ok(());
+    };
+    let desc = ours.iter().find(|(n, _)| n.eq_ignore_ascii_case(&rec.description.1));
+    let (mode, f1, f2, kits) = desc.map_or_default(|(_, d)| {
+        let kits: Vec<String> = d
+            .of_type(b".LevelDescriptionAsset")
+            .first()
+            .and_then(|&a| d.child(a, b"Description"))
+            .and_then(|c| d.child(c, b"KitImages"))
+            .map_or_default(|arr| {
+                d.children(arr)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|&k| {
+                        let t = |f: &[u8]| {
+                            d.child(k, f)
+                                .and_then(|x| d.attr(x, b"ref").or_else(|| d.text(x)))
+                                .map_or_else(String::new, |v| String::from_utf8_lossy(v).into_owned())
+                        };
+                        format!("{} {} {}", t(b"Team"), t(b"KitCategory"), t(b"Texture"))
+                    })
+                    .collect()
+            });
+        (
+            desc_field(d, b"GameMode").unwrap_or_default(),
+            desc_field(d, b"FactionTeam1").unwrap_or_default(),
+            desc_field(d, b"FactionTeam2").unwrap_or_default(),
+            kits,
+        )
+    });
+    let resolves = |reference: &str| {
+        reference
+            .rsplit_once('/')
+            .is_some_and(|(p, _)| live.contains_key(&format!("{}.dbx", p.to_ascii_lowercase())))
+    };
+    let kit_parts_ok = kits
+        .iter()
+        .all(|k| k.rsplit(' ').next().is_some_and(|t| t == "null" || resolves(t)));
+    r.add(
+        mode == donor.game_mode && resolves(&mode),
+        format!("kits: the game mode {mode} is the donor's and resolves (its kits and HUD)"),
+    );
+    r.add(
+        [f1.clone(), f2.clone()] == donor.factions,
+        format!("kits: the factions {f1} / {f2} are the donor's {}", donor.level),
+    );
+    r.add(
+        kits == donor.kits && kit_parts_ok,
+        format!(
+            "kits: {} kit pictures, the donor's, each resolving in the bundles the level loads",
+            kits.len()
+        ),
+    );
+    let lvl = ours
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case(&format!("Levels/{}.dbx", rec.level)));
+    let fields = lvl.map_or_default(|(_, d)| crate::profile::level_fields(&LevelWriter { d: d.clone() }));
+    let wrong: Vec<&(String, String)> = prof.fields.iter().filter(|(f, v)| fields.get(f) != Some(v)).collect();
+    r.add(
+        wrong.is_empty(),
+        format!(
+            "profile {}: the level fields {:?} are the set's {wrong:?}",
+            prof.profile.word(),
+            prof.fields
+        ),
+    );
+    Ok(())
+}
+
+/// The level's own name and pictures (round E3b): the description's and the level's loc keys are the staged texts',
+/// each text plain ASCII, each picture the one recorded, in its template's form (format, size, levels and entry
+/// size: the donor's own picture), and decoding.
+fn check_identity(
+    game: &Game,
+    stage: &Path,
+    rec: &StageRecord,
+    ours: &[(String, EditDbx)],
+    r: &mut CheckReport,
+) -> Result<()> {
+    if rec.strings.is_empty() && rec.awards.is_empty() {
+        r.add(true, "names and pictures: the base level's (no own name chosen)");
+        return Ok(());
+    }
+    let (nk, dk) = loc_keys(&rec.level);
+    let keys: Vec<&str> = rec.strings.iter().map(|x| x.0.as_str()).collect();
+    let texts_ok = rec
+        .strings
+        .iter()
+        .all(|(_, t)| t.is_empty() || loc_text("text", t, 400).is_ok());
+    let desc = ours.iter().find(|(n, _)| n.eq_ignore_ascii_case(&rec.description.1));
+    let lvl = ours
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case(&format!("Levels/{}.dbx", rec.level)));
+    let in_desc = desc.map(|(_, d)| (desc_field(d, b"Name"), desc_field(d, b"Description")));
+    let in_level = lvl.and_then(|(_, d)| {
+        let ld = d.of_type(b".LevelData").first().copied()?;
+        let c = d.child(ld, b"LevelDescription")?;
+        let t = |f: &[u8]| {
+            d.child(c, f)
+                .and_then(|x| d.text(x))
+                .map(|v| String::from_utf8_lossy(v).into_owned())
+        };
+        Some((t(b"Name"), t(b"Description")))
+    });
+    let want = Some((Some(nk.clone()), Some(dk.clone())));
+    r.add(
+        keys == [nk.as_str(), dk.as_str()] && texts_ok && in_desc == want && in_level == want,
+        format!("names: {nk} and {dk} in the description and the level, their texts plain ASCII"),
+    );
+    // the templates: the donor's own pictures
+    let st = game.startup();
+    let dd = read_one(
+        game,
+        &st,
+        &format!("Levels/{}_description.dbx", rec.donor.to_ascii_uppercase()),
+    )?;
+    let key = description_name(&dd)?;
+    let templates = [
+        format!(
+            "awards/images/loadingscreens/{}.res",
+            key.strip_suffix("_NAME").unwrap_or(&key).to_ascii_lowercase()
+        ),
+        format!("awards/images/levels/{}.res", rec.donor),
+    ];
+    let entries = picture_entries(&rec.level);
+    let od = game.ondemand_awards();
+    for (want_entry, tmpl) in entries.iter().zip(&templates) {
+        let Some(f) = rec.awards.iter().find(|a| a.install == *want_entry) else {
+            r.add(false, format!("picture {want_entry}: not staged"));
+            continue;
+        };
+        let bytes = std::fs::read(stage.join(&f.path))?;
+        let t = read_one(game, &od, tmpl)?;
+        let (a, b) = (
+            crate::awards::tex_info(crate::awards::unwrap(&bytes)),
+            crate::awards::tex_info(crate::awards::unwrap(&t)),
+        );
+        let decodes = crate::awards::decode(crate::awards::unwrap(&bytes)).is_some();
+        r.add(
+            sha1_hex(&bytes) == f.sha1 && a.is_some() && a == b && bytes.len() == t.len() && decodes,
+            format!(
+                "picture {want_entry}: the one recorded, decodes, in {tmpl}'s form ({} bytes, {:?})",
+                bytes.len(),
+                a.map(|i| (i.fmt, i.w, i.h, i.mips))
+            ),
+        );
+    }
+    Ok(())
 }
 
 // ------------------------------------------------------------------------------------------------ startup patch
@@ -1448,6 +2047,150 @@ pub fn patch_startup(
     Ok(items)
 }
 
+// ------------------------------------------------------------------------------------------------ overlay and awards
+
+/// A bundle unpacked into `work` (FbrbTool's way), changed by `f` (the folder, the manifest's entry lines), its
+/// manifest written again and packed to `out` with the source's layout; `work` removed.
+fn repack(source: &Path, work: &Path, out: &Path, f: impl FnOnce(&Path, &mut Vec<String>) -> Result<()>) -> Result<()> {
+    if work.exists() {
+        std::fs::remove_dir_all(work)?;
+    }
+    fbrb::unpack_path(source, work).map_err(|e| err(format!("{}: {e}", source.display())))?;
+    let man_path = work.join("fbrb.manifest");
+    let man = String::from_utf8_lossy(&std::fs::read(&man_path)?).into_owned();
+    let mut lines: Vec<String> = man.lines().map(str::to_owned).collect();
+    let head = if lines.is_empty() {
+        String::new()
+    } else {
+        lines.remove(0)
+    };
+    f(work, &mut lines)?;
+    std::fs::write(&man_path, format!("{head}\n{}\n", lines.join("\n")))?;
+    fbrb::pack_path(work, out)?;
+    std::fs::remove_dir_all(work)?;
+    Ok(())
+}
+
+/// The manifest line's entry name.
+fn line_name(l: &str) -> &str {
+    l.split('|').next().unwrap_or_default()
+}
+
+/// The overlay bundle (`Dist\win32\overlay-00.fbrb`) with texts in every language's localization
+/// (`Localization/bin/language_<lang>_normal.bin`, as OPFOR's WW2 names are): the keys of `remove` taken out, each of
+/// `add` (loc key, plain ASCII text) put in - a key already there gets the new text - every other entry and text as
+/// it was. Returns the languages written.
+///
+/// # Errors
+/// The source does not unpack, has no localization, a text is not plain ASCII, or the pack fails.
+pub fn patch_overlay(
+    source: &Path,
+    add: &[(String, String)],
+    remove: &[String],
+    work: &Path,
+    out: &Path,
+) -> Result<Vec<String>> {
+    for (k, t) in add {
+        if !t.is_empty() {
+            loc_text(k, t, 400)?;
+        }
+    }
+    let gone: HashSet<u32> = remove.iter().map(|k| bc2_formats::loc::khash_str(k)).collect();
+    let changed: Vec<(u32, Vec<u8>)> = add
+        .iter()
+        .map(|(k, t)| (bc2_formats::loc::khash_str(k), t.as_bytes().to_vec()))
+        .collect();
+    let mut langs = Vec::new();
+    repack(source, work, out, |dir, lines| {
+        for l in lines.iter_mut() {
+            let name = line_name(l).to_owned();
+            let low = name.to_ascii_lowercase();
+            let Some(lang) = low
+                .strip_prefix("localization/bin/language_")
+                .and_then(|r| r.strip_suffix("_normal.bin"))
+            else {
+                continue;
+            };
+            let path = fbrb::entry_path(dir, &name)?;
+            let data = std::fs::read(&path)?;
+            let loc = bc2_formats::loc::parse(&data).map_err(|e| err(format!("{name}: {e}")))?;
+            let name16: [u8; 16] = data
+                .get(20..36)
+                .and_then(|b| b.try_into().ok())
+                .ok_or_else(|| err(format!("{name}: short")))?;
+            let offsets: Vec<(u32, u32)> = loc
+                .entries
+                .iter()
+                .filter(|e| !gone.contains(&e.0))
+                .map(|e| (e.0, e.1))
+                .collect();
+            let bytes =
+                bc2_formats::loc::write(&name16, data.get(loc.strings..).unwrap_or_default(), &offsets, &changed)
+                    .map_err(|e| err(format!("{name}: {e}")))?;
+            std::fs::write(&path, &bytes)?;
+            let mut f: Vec<String> = l.split('|').map(str::to_owned).collect();
+            for k in [3, 4] {
+                if let Some(v) = f.get_mut(k) {
+                    *v = bytes.len().to_string();
+                }
+            }
+            *l = f.join("|");
+            langs.push(lang.to_owned());
+        }
+        if langs.is_empty() {
+            return Err(err(format!(
+                "{}: no Localization/bin/language_*_normal.bin",
+                source.display()
+            )));
+        }
+        Ok(())
+    })?;
+    Ok(langs)
+}
+
+/// The on-demand awards bundle (`Package\async\ondemand_awards-00.fbrb`) with pictures: the entries of `remove`
+/// (any case) taken out, each of `add` (entry name, the entry as the on-demand bundles keep it) put in at the end
+/// (type `ITexture`, the level bundles' flags), every other entry as it was. Returns the entries in the bundle.
+///
+/// # Errors
+/// The source does not unpack or the pack fails.
+pub fn patch_awards(
+    source: &Path,
+    add: &[(String, Vec<u8>)],
+    remove: &[String],
+    work: &Path,
+    out: &Path,
+) -> Result<usize> {
+    let drop: HashSet<String> = remove
+        .iter()
+        .chain(add.iter().map(|a| &a.0))
+        .map(|n| n.to_ascii_lowercase())
+        .collect();
+    let mut count = 0;
+    repack(source, work, out, |dir, lines| {
+        let mut keep = Vec::with_capacity(lines.len());
+        for l in lines.drain(..) {
+            if drop.contains(&line_name(&l).to_ascii_lowercase()) {
+                let _ = std::fs::remove_file(fbrb::entry_path(dir, line_name(&l))?);
+            } else {
+                keep.push(l);
+            }
+        }
+        for (name, bytes) in add {
+            let p = fbrb::entry_path(dir, name)?;
+            if let Some(d) = p.parent() {
+                std::fs::create_dir_all(d)?;
+            }
+            std::fs::write(&p, bytes)?;
+            keep.push(format!("{name}|ITexture|{FLAGS:08x}|{}|{}", bytes.len(), bytes.len()));
+        }
+        count = keep.len();
+        *lines = keep;
+        Ok(())
+    })?;
+    Ok(count)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
@@ -1490,7 +2233,111 @@ mod tests {
                 flags: vec![],
                 combat_area: String::new(),
             },
+            profile: Profile::Bfbc2,
+            identity: None,
         };
         assert!(spec.level_id().is_err());
+        // an E3 export file (no profile, no identity) reads as BFBC2 with the base's names
+        let old = serde_json::to_string(&spec).unwrap();
+        assert!(!old.contains("identity"));
+        let back = ExportSpec::from_json(&old.replace(",\"profile\":\"BFBC2\"", "")).unwrap();
+        assert_eq!(back.profile, Profile::Bfbc2);
+        assert_eq!(
+            loc_keys("Mapedit_x"),
+            ("MAPEDIT_X_NAME".into(), "MAPEDIT_X_DESC".into())
+        );
+        assert_eq!(
+            picture_entries("MAPEDIT_X")[0],
+            "Awards/images/loadingScreens/mapedit_x.res"
+        );
+        assert!(loc_text("t", "Operation Aurora (Conquest)", 64).is_ok());
+        assert!(loc_text("t", "Op\u{e9}ration", 64).is_err());
+        assert!(loc_text("t", " ", 64).is_err());
+        assert_eq!(mode_key("Squad Rush"), "squadrush");
+    }
+
+    #[test]
+    fn overlay_and_awards_patches() {
+        let dir = std::env::temp_dir().join(format!("bc2_levelwrite_shared_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // a bundle with one language file and a picture
+        let mut n16 = [0u8; 16];
+        n16[..6].copy_from_slice(b"NORMAL");
+        let lang = bc2_formats::loc::write(
+            &n16,
+            b"",
+            &[],
+            &[(bc2_formats::loc::khash_str("MP_005_NAME"), b"Atacama".to_vec())],
+        )
+        .unwrap();
+        let items = [
+            PackItem {
+                name: "Localization/bin/language_english_normal.bin",
+                type_name: NONRES,
+                flags: FLAGS,
+                size2: lang.len() as u32,
+                data: &lang,
+            },
+            PackItem {
+                name: "Awards/images/loadingScreens/mp_005.res",
+                type_name: "ITexture",
+                flags: FLAGS,
+                size2: 3,
+                data: b"abc",
+            },
+        ];
+        let src = dir.join("src.fbrb");
+        std::fs::write(&src, fbrb::pack(&items, &Layout::default()).unwrap()).unwrap();
+        let out = dir.join("out.fbrb");
+        let add = [("MAPEDIT_X_NAME".to_owned(), "X".to_owned())];
+        let langs = patch_overlay(&src, &add, &[], &dir.join("w"), &out).unwrap();
+        assert_eq!(langs, ["english"]);
+        let (_, data) = fbrb::extract_path_uncached(&out).unwrap();
+        let f = bc2_formats::loc::parse(&data[0]).unwrap();
+        let text = |k: &str| {
+            let h = bc2_formats::loc::khash_str(k);
+            f.entries
+                .iter()
+                .position(|e| e.0 == h)
+                .map(|i| f.raw(&data[0], i).to_vec())
+        };
+        assert_eq!(text("MAPEDIT_X_NAME").as_deref(), Some(&b"X"[..]));
+        assert_eq!(text("MP_005_NAME").as_deref(), Some(&b"Atacama"[..]));
+        assert_eq!(data[1], b"abc");
+        // taken out again: the language file is the source's
+        let back = dir.join("back.fbrb");
+        patch_overlay(&out, &[], &["MAPEDIT_X_NAME".into()], &dir.join("w"), &back).unwrap();
+        let (_, b) = fbrb::extract_path_uncached(&back).unwrap();
+        let g = bc2_formats::loc::parse(&b[0]).unwrap();
+        assert_eq!(g.entries.len(), 1);
+        // pictures in and out
+        let pics = dir.join("pics.fbrb");
+        let n = patch_awards(
+            &src,
+            &[("Awards/images/Levels/x.res".into(), b"pic".to_vec())],
+            &[],
+            &dir.join("w"),
+            &pics,
+        )
+        .unwrap();
+        assert_eq!(n, 3);
+        let (h, d) = fbrb::extract_path_uncached(&pics).unwrap();
+        assert_eq!(h.entries[2].name, "Awards/images/Levels/x.res");
+        assert_eq!(d[2], b"pic");
+        assert_eq!(d[0], lang);
+        let none = dir.join("none.fbrb");
+        assert_eq!(
+            patch_awards(
+                &pics,
+                &[],
+                &["awards/images/levels/X.res".into()],
+                &dir.join("w"),
+                &none
+            )
+            .unwrap(),
+            2
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

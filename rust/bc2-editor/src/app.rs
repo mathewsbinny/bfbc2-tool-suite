@@ -1008,6 +1008,10 @@ impl EditorApp {
             }
         };
         let editing = doc.is_some();
+        if let Some(d) = &doc {
+            // a campaign level as the base: the export's campaign checklist (round E3b)
+            self.export.offer_strip(d);
+        }
         // the asset browser: the level's placements, its folders', its content set's bundles' (round E2b)
         let game = self.opfor.as_ref().ok().and_then(|root| {
             let set = self.levels.iter().find(|l| l.lv.eq_ignore_ascii_case(lv))?.set;
@@ -1210,7 +1214,11 @@ impl EditorApp {
         }
         self.status_bar(ui, &palette, &metrics, gpu);
         help::window(&ctx, &mut self.help, &palette, &metrics);
-        crate::export_ui::window(&ctx, &mut self.export);
+        let (doc, selected) = match &mut self.mode {
+            Mode::View(v) => (v.doc.as_mut(), v.selected),
+            _ => (None, None),
+        };
+        crate::export_ui::window(&ctx, &mut self.export, doc, selected);
         let mut cancel = false;
         let Self {
             mode,
