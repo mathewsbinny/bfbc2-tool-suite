@@ -303,8 +303,9 @@ pub fn draw_calls(instances: &[Instance], light: &Values, cam: &Camera, size: [u
         vec![1.0 / size[0].max(1) as f32, 1.0 / size[1].max(1) as f32, 0.0, 0.0],
     );
     let mut keyed = Vec::new();
+    // one map for every draw: the per-instance and per-draw values are written over the last ones
+    let mut vals = base;
     for inst in instances {
-        let mut vals = base.clone();
         vals.insert("worldMatrix".into(), floats(&inst.world));
         vals.insert("worldViewProjMatrix".into(), floats(&mul(&vp, &inst.world)));
         let p = &inst.prepared;

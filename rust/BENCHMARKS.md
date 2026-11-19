@@ -3504,3 +3504,40 @@ are milliseconds per resource either way.
   calls) and `decimate.py`; `granny.curve_keys` / `sample` (the reader's side); `Granny.put` / `field` / `array_at`.
 - Stays NumPy by design: `numpy.linalg.eigh` (texwrite's axes), `np.corrcoef` (`texture.check`), a relayout `edit`
   callback's arrays and the rows packed from them.
+
+## R5: game-accurate rendering, phase 1 (2026-11-18, branch `rust-r5`)
+
+`EDITOR_ARCHITECTURE.md` 3.11 (the study, the route chosen, the plan). New crate `rust/bc2-render`: the render harness
+(`bfbc2-shader-tools/renderqa.py` + `native/shaderview.cpp`) in Rust - DICE's compiled Direct3D 11 shaders from the
+level's `Dx11_Single.res`, their constants, textures, sampler states and render states, the weather's light, the
+harness's tonemap - and the editor's **Game-accurate** switch (`bc2-editor/src/gameview.rs`). Nothing Python is
+replaced; renderqa stays.
+
+### Parity with the C++ harness
+
+| what | inputs | result |
+|---|---|---|
+| `examples/harness_views.rs` against `renderqa.py render --together --size 512` | MP_005's `IND_Warehouse` + its material-mask mesh, renderqa's three views, `weather/r_mp005` (Default), the fixed sun | **identical**: 786,432 of 786,432 pixels in the three views (max difference 0) |
+| `tests/warehouse.rs` | the same, the three-quarter view | 8 draws (7 + 1, renderqa's parts), 73,711 pixels covered, mean colour (63.76, 57.21, 48.77) - the harness picture's own numbers |
+
+### Costs per frame (development PC: GeForce RTX 4060 Laptop, Direct3D 11 hardware device)
+
+`examples/level_view.rs`, MP_005 at the harbour warehouses, 1280 x 720: 1,619 placed objects (`objects.json`) and
+49 x 49 terrain patches, 5,221 draws; steady frames (the first makes the GPU objects: 216 ms of submit):
+
+| build | draw list (constants per draw) | submit | GPU + read back (float RGBA, depth, stencil) | tonemap (CPU, rayon) | frame |
+|---|---:|---:|---:|---:|---:|
+| release | 30 ms | 33 ms | 8 ms | 7 ms | **~80 ms** |
+| debug | 380 ms | 185 ms | 120 ms | 97 ms | ~780 ms |
+
+In the editor (`tests/game_view.rs`, debug, 1600 x 950 window, the 3D view about 920 x 660): 3,915 objects (136
+meshes) and the patches, 10,390 draws; loading the view 2.1 s (database, weather, every placed object's mesh set
+prepared, terrain); the egui upload ~28 ms. Phase 3 (3.11) takes the copy and the CPU tonemap away (a shared texture,
+the game's own tonemap on the GPU) and the per-frame constants (kept per draw, culling, LODs, instanced programs).
+
+### Tests
+
+`cargo test -p bc2-render`: 14 unit tests (DXBC reflection and discard scan, render states, cbuffer placement,
+camera, tonemap curve and exposure, weather fields, the visual terrain grammar, files) and `tests/warehouse.rs`;
+`cargo test -p bc2-editor --test game_view` (MP_005 headless: the switch, the frame drawn, back to the editor's view;
+`BC2_EDITOR_SHOTS` saves both views in both themes). Both skip with a note without the prepared level or Direct3D 11.
