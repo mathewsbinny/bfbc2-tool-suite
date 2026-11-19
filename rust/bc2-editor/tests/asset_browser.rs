@@ -3,7 +3,13 @@
 //! a blueprint from another level's bundle is resolved (its partition read from the bundle: the primary instance's
 //! reference and type), and the Spawners / Objectives tiles of a Conquest and a Rush level are drawn from their
 //! data. Nothing is written. Skipped (with a note) without Project OPFOR BFBC2.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout, missing_docs)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::print_stdout,
+    clippy::too_many_lines,
+    missing_docs
+)]
 
 use bc2_editor::content::{Catalogue, GameSource};
 use bc2_editor::gameplay::{BrowserMode, Kind, tiles};
@@ -116,7 +122,7 @@ fn every_placeable_object_of_the_content_set() {
     println!("{runs} levels' catalogues");
 }
 
-/// The asset browser's three modes on MP_005, as screenshots (`BC2_EDITOR_SHOTS`, dark and light); skipped without
+/// The asset browser's three modes on `MP_005`, as screenshots (`BC2_EDITOR_SHOTS`, dark and light); skipped without
 /// it, the game copy or a graphics adapter.
 #[test]
 fn asset_browser_screenshots() {
