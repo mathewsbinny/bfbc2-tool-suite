@@ -17,7 +17,7 @@ use std::io::{self, Write as _};
 
 /// The encoding Python picks for a stream that is not a console.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Codec {
+pub(crate) enum Codec {
     Utf8,
     Cp1252,
     /// Another ANSI code page: written as UTF-8.
@@ -60,7 +60,7 @@ const CP1252_80: [Option<u16>; 32] = [
     Some(0x0178),
 ];
 
-fn cp1252(c: char) -> Option<u8> {
+pub(crate) fn cp1252(c: char) -> Option<u8> {
     let u = c as u32;
     if u < 0x80 || (0xA0..=0xFF).contains(&u) {
         return u8::try_from(u).ok();
@@ -83,7 +83,7 @@ fn ansi_code_page() -> u32 {
     65001
 }
 
-fn codec() -> Codec {
+pub(crate) fn codec() -> Codec {
     if std::env::var("PYTHONUTF8").is_ok_and(|v| v == "1") {
         return Codec::Utf8;
     }
@@ -111,7 +111,7 @@ fn codec() -> Codec {
 
 /// A character run stdout's strict encoder refused: Python's `UnicodeEncodeError` (char positions, end exclusive).
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Unencodable {
+pub(crate) struct Unencodable {
     start: usize,
     end: usize,
     first: char,
@@ -119,7 +119,7 @@ struct Unencodable {
 
 impl Unencodable {
     /// `str(UnicodeEncodeError)` as the cp1252 codec raises it.
-    fn message(&self) -> String {
+    pub(crate) fn message(&self) -> String {
         let reason = "character maps to <undefined>";
         if self.end == self.start + 1 {
             let u = self.first as u32;
@@ -158,7 +158,7 @@ fn backslash(c: char, out: &mut Vec<u8>) {
 
 /// `text` (already with `\r\n`) in `codec`; strict (`replace` false) refuses the first run of characters cp1252
 /// lacks, as Python's charmap encoder reports it.
-fn encode(text: &str, codec: Codec, replace: bool) -> Result<Vec<u8>, Unencodable> {
+pub(crate) fn encode(text: &str, codec: Codec, replace: bool) -> Result<Vec<u8>, Unencodable> {
     if codec != Codec::Cp1252 || text.is_ascii() {
         return Ok(text.as_bytes().to_vec());
     }
@@ -190,7 +190,7 @@ fn encode(text: &str, codec: Codec, replace: bool) -> Result<Vec<u8>, Unencodabl
 
 #[cfg(windows)]
 #[allow(unsafe_code)]
-fn is_console<T: std::os::windows::io::AsRawHandle>(h: &T) -> bool {
+pub(crate) fn is_console<T: std::os::windows::io::AsRawHandle>(h: &T) -> bool {
     let mut mode = 0u32;
     // SAFETY: GetConsoleMode reads the handle (a process's standard handle, open for the process's life) and writes
     // one u32 it is given; a handle that is not a console makes it fail and return 0.
@@ -198,7 +198,7 @@ fn is_console<T: std::os::windows::io::AsRawHandle>(h: &T) -> bool {
 }
 
 #[cfg(not(windows))]
-fn is_console<T: std::io::IsTerminal>(h: &T) -> bool {
+pub(crate) fn is_console<T: std::io::IsTerminal>(h: &T) -> bool {
     h.is_terminal()
 }
 
