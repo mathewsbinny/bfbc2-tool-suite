@@ -32,6 +32,10 @@ png.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
 
+# the application icon (round I1: build.rs)
+[build-dependencies]
+embed-resource.workspace = true
+
 [dev-dependencies]
 # the recorded Map Inspector lists are gzip JSON (tests/data)
 flate2.workspace = true

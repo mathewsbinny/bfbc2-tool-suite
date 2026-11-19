@@ -38,6 +38,9 @@
 //! then a mode's multiplayer maps) and Create level (from any existing level, or from a height map: [`heightmap`]
 //! checks the file and saves a project of the import's settings); multiplayer or campaign from each level's
 //! description ([`catalog::LevelKind`]).
+//!
+//! Round I1 (2026-11-19): [`appicon`] - the window's icon, the suite's application icon (the .exe carries it too,
+//! embedded by `build.rs`).
 #![deny(unsafe_code)]
 #![allow(
     clippy::many_single_char_names,
@@ -51,6 +54,7 @@
 
 pub mod actions;
 pub mod app;
+pub mod appicon;
 pub mod camera;
 pub mod catalog;
 pub mod content;
