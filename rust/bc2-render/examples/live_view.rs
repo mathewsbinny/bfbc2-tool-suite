@@ -290,6 +290,34 @@ fn main() {
                 &out,
                 &format!("{stem}_view{vi}"),
             );
+            if has("--explain") {
+                // where the culled live frame and the old path differ; then the old path against the harness
+                let diff: Vec<usize> = (0..old.depth.len())
+                    .filter(|&k| {
+                        old.hdr[4 * k..4 * k + 4]
+                            .iter()
+                            .zip(&culled.hdr[4 * k..4 * k + 4])
+                            .any(|(a, b)| a.to_bits() != b.to_bits())
+                            || old.depth[k].to_bits() != culled.depth[k].to_bits()
+                            || old.classes[k] != culled.classes[k]
+                    })
+                    .collect();
+                for &k in diff.iter().take(8) {
+                    println!(
+                        "  pixel ({}, {}): old {:?} depth {:e} class {}; live {:?} depth {:e} class {}",
+                        k % size[0] as usize,
+                        k / size[0] as usize,
+                        &old.hdr[4 * k..4 * k + 4],
+                        old.depth[k],
+                        old.classes[k],
+                        &culled.hdr[4 * k..4 * k + 4],
+                        culled.depth[k],
+                        culled.classes[k]
+                    );
+                }
+                println!("  the old path against shaderview:");
+                parity(&mut dev, &mut lv, old_frame.as_ref().unwrap(), &old, &out, &format!("{stem}_old{vi}"));
+            }
         }
         if has("--pick") {
             pick(&mut dev, &mut lv, &cam, target, size, &out, &format!("{stem}_view{vi}"));

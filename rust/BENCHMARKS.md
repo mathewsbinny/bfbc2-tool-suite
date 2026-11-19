@@ -3584,12 +3584,18 @@ round) cut the GPU's work; the CPU submit is already about a millisecond.
 | what | result |
 |---|---|
 | live list against R5b's per-frame list (colour bits, depth bits, draw class, post-processed RGBA8), culling off and on | **identical** on every view run: MP_005 warehouses and a second view at 1280 x 720 (921,600 of 921,600) and 1600 x 950 (1,520,000 of 1,520,000); SP_01, NAM_MP_002CQ, Wake Island at 1600 x 950 (1,520,000 each) |
-| `--job`: the frame as a `shaderview` job (all 10,417 draws), drawn by the C++ harness, against the live frame (culled) | MP_005 warehouses **921,600 of 921,600**; second view 921,600 of 921,600 |
+| `--job`: the frame as a `shaderview` job (all 10,417 draws), drawn by the C++ harness, against the live frame (culled) | MP_005 warehouses **921,600 of 921,600**; the harbour from the east (`60,40,300`) 921,600 of 921,600; the west shore (`-90,60,300`, looking east) 921,584-921,600, see below |
 | an edit replayed (`--edit`: an object moved, one turned a quarter, one removed, one duplicated, one added) against the level loaded again with the edits | **921,600 of 921,600** (and the post-processed picture identical); replayed in 10.5 ms, 4 instances planned again; the unedited frame differs in 39,307 pixels |
 | the editor: the warehouse moved through `GameView::sync`, against `GameView::load` of the edited scene | 611,800 of 611,800 |
 | picking (`--pick`): at the projected centres of 26 + 45 objects in two views | every answer confirmed by the selection mask (the picked object lies at the frame's depth under the pixel) |
 | the editor: a click at the 3D view's centre | `objects/buildings/ind_warehouse` selected, its outline drawn (1,718 pixels orange) |
 | the editor's window, shared texture against the copy fallback | 1,520,000 of 1,520,000 pixels identical (the costs line left out) |
+
+**The west shore stays open (R5b's far horizon):** there, 0-16 far water pixels (blended, the same depth and alpha,
+colour differing in the fourth decimal) change from run to run in all three paths alike: R5b's per-frame list, the
+live list with culling on or off, and `shaderview` (R5b's list against `shaderview`: 921,584 in one run). The live
+list adds no difference of its own: culling off and on give the same count in every run. The water reads the
+scene's linear depth through its `GenerateMips` chain, the first suspect.
 
 ### Package levels (round G3's levels, read from their bundles in place)
 
