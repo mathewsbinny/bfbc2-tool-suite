@@ -16,6 +16,7 @@
     clippy::print_stdout,
     clippy::doc_markdown,
     clippy::many_single_char_names,
+    clippy::panic,
     clippy::too_many_lines,
     missing_docs
 )]
@@ -265,6 +266,108 @@ fn sets_from_the_data() {
         h.settle(&mut app, 4);
     }
     let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The "Choose mode" cards without the game's art (this made-up copy has no loading screens): the catalog finds no
+/// picture, every card is drawn as the plain tile, a set's map list opens and goes back; a card picture that is not a
+/// texture the reader decodes falls back the same way.
+#[test]
+fn mode_cards_fall_back_to_the_tile() {
+    use bc2_editor::catalog;
+    use bc2_editor::levels::ContentSet;
+    let root = temp("tiles");
+    stand_in_all_sets(&root);
+    // a loading screen that is not a texture: no picture
+    put(
+        &root
+            .join("game")
+            .join("Package")
+            .join("async")
+            .join("ondemand_awards-00.fbrb"),
+        &fbrb::build(
+            &[(
+                "awards/images/loadingscreens/nam_mp_002.res",
+                "ITexture",
+                b"RES\x02 not a texture",
+            )],
+            true,
+        ),
+    );
+    let mut app = EditorApp::new(Some(&root), None).unwrap();
+    app.wait_for_catalog(std::time::Duration::from_secs(30));
+    let c = app.catalog().unwrap();
+    assert!(c.cards.is_empty() && c.thumbs.is_empty(), "no art: the tiles");
+    assert!(
+        root.join("work")
+            .join("editor")
+            .join("art")
+            .join(catalog::RECORD)
+            .is_file()
+    );
+    let Ok(mut h) = Headless::new([1280, 800]) else {
+        println!("skipped the drawing: no graphics adapter");
+        let _ = std::fs::remove_dir_all(&root);
+        return;
+    };
+    h.settle(&mut app, 4);
+    if let Some(dir) = std::env::var_os("BC2_EDITOR_SHOTS") {
+        h.save(&Path::new(&dir).join("g3_mode_tiles_check.png")).unwrap();
+    }
+    assert_eq!(app.chosen_mode(), None);
+    app.choose_mode(Some(ContentSet::Vietnam));
+    h.settle(&mut app, 3);
+    assert_eq!(app.chosen_mode(), Some(ContentSet::Vietnam));
+    app.choose_mode(None);
+    h.settle(&mut app, 2);
+    // a second start reads the cache
+    let mut again = EditorApp::new(Some(&root), None).unwrap();
+    again.wait_for_catalog(std::time::Duration::from_secs(30));
+    assert!(!again.catalog().unwrap().fresh, "from the cache");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The cards' art on the real game copy (`BC2_EDITOR_G3_ART=1`): each set's loading screen found and decoded, the
+/// level thumbnails and game modes read, then the same from the cache; on a stand-in OPFOR folder in temp (the game
+/// copy linked read only, the junction removed first).
+#[test]
+fn card_art_on_the_real_game_copy() {
+    use bc2_editor::catalog;
+    use bc2_editor::levels::ContentSet;
+    if std::env::var_os("BC2_EDITOR_G3_ART").is_none() {
+        println!("skipped: set BC2_EDITOR_G3_ART=1 to read the cards' art from the real game copy");
+        return;
+    }
+    let Ok(real) = levels::find_opfor(None) else {
+        println!("skipped: no Project OPFOR BFBC2");
+        return;
+    };
+    let root = temp("art");
+    junction(&root.join("game"), &real.join("game"));
+    let names: Vec<String> = levels::list_levels(&root).into_iter().map(|l| l.lv).collect();
+    let t = std::time::Instant::now();
+    let c = catalog::load(&root, &names);
+    let cold = t.elapsed().as_secs_f64();
+    let t = std::time::Instant::now();
+    let warm = catalog::load(&root, &names);
+    let warm_s = t.elapsed().as_secs_f64();
+    std::fs::remove_dir(root.join("game")).unwrap();
+    assert!(real.join("game").is_dir());
+    let _ = std::fs::remove_dir_all(&root);
+    for set in ContentSet::ALL {
+        let p = c.cards.get(&set).unwrap_or_else(|| panic!("{set:?}: no card art"));
+        println!("{set:?}: {} x {}", p.size[0], p.size[1]);
+        assert!(p.size[0] >= 256 && p.size[1] >= 128);
+    }
+    println!(
+        "{} levels: {} thumbnails, {} modes; read {cold:.1} s, from the cache {warm_s:.2} s",
+        names.len(),
+        c.thumbs.len(),
+        c.modes.len()
+    );
+    assert!(c.fresh && !warm.fresh);
+    assert_eq!(warm.thumbs.len(), c.thumbs.len());
+    assert_eq!(c.modes.get("wake_island_s").map(String::as_str), Some("Conquest"));
+    assert_eq!(c.modes.get("nam_mp_002r").map(String::as_str), Some("Rush"));
 }
 
 #[test]

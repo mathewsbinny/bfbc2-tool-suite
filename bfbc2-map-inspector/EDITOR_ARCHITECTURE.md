@@ -478,6 +478,12 @@ Company 1 maps, mode layouts such as MP_005GR) are listed, prepared and opened b
   beyond the cap.
 - **Projects:** "New map from an existing map" offers every level, Package levels included (one not prepared is
   prepared first); a project on a Package level takes its profile (Vietnam, WW2) from the same recognition.
+- **Choose mode (the user's design, 2026-11-18):** the start screen opens on four cards (BFBC1, BFBC2, Vietnam, WW2:
+  each set's installed map count and its own picture, the game's loading screen read at run time - DICE's
+  `bc1_oasis`, `mp_005`, `nam_mp_002`, OPFOR's converted `wake_island_s`; a plain tile without it, greyed "Not
+  installed" without maps), then a set's map list (thumbnail, name, game mode, prepared, Open / New project); shown on
+  every start. Sets from the data: `bc1_` Package maps, `nam_common`, `ww2_common`, the rest BFBC2. The pictures are
+  decoded into `work\editor\art` (`rust/bc2-editor/src/catalog.rs`), never into the repository.
 
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to

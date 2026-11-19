@@ -41,6 +41,7 @@
 pub mod actions;
 pub mod app;
 pub mod camera;
+pub mod catalog;
 pub mod demo;
 pub mod edit;
 pub mod factions;

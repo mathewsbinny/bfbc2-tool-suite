@@ -16,6 +16,8 @@ path = "src/main.rs"
 bc2-formats.workspace = true
 bc2-scene.workspace = true
 bc2-levelwrite.workspace = true
+# the PC texture decoder (the start screen's pictures read from the game copy: catalog.rs)
+bc2-convert.workspace = true
 eframe.workspace = true
 egui_dock.workspace = true
 serde.workspace = true
