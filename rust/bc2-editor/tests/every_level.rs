@@ -223,14 +223,48 @@ fn script(base: &[u8]) -> Option<(Vec<Operation>, BTreeSet<Change>, Schema, Vec<
         connected.extend(owned.iter().cloned());
         let transform = w.transform(&owner).map_or_else(|| bc2_levelwrite::rows_at([0.0; 3]), |t| moved(&t, 6.0));
         if w.transform(&owner).is_some() {
+            // and the same owner placed as a gameplay tile (the asset browser's Spawners / Objectives): a copy with
+            // what it owns, the team field kept, only the connections among them copied
+            let kp = k + 100;
+            let pguid = bc2_levelwrite::new_guid(project, kp, &owner);
+            let psubs: Vec<SubCopy> = owned
+                .iter()
+                .map(|s| SubCopy {
+                    source: s.clone(),
+                    guid: bc2_levelwrite::new_guid(project, kp, s),
+                    transform: w.transform(s).map(|t| moved(&t, 9.0)),
+                })
+                .collect();
+            expected.insert(Change::Added(pguid.to_ascii_uppercase()));
+            deep_pairs.push((owner.clone(), pguid.clone()));
+            for sc in &psubs {
+                expected.insert(Change::Added(sc.guid.to_ascii_uppercase()));
+                deep_pairs.push((sc.source.clone(), sc.guid.clone()));
+            }
+            let ptransform = moved(&w.transform(&owner)?, 9.0);
             ops.push(op(
                 k,
                 Op::Duplicate {
                     items: vec![Duplicated {
-                        source: owner,
+                        source: owner.clone(),
                         guid,
                         transform,
                         owned: subs,
+                    }],
+                },
+            ));
+            ops.push(op(
+                kp,
+                Op::Place {
+                    items: vec![Placed {
+                        guid: pguid,
+                        template: owner,
+                        blueprint: String::new(),
+                        ref_field: None,
+                        owned: psubs,
+                        transform: ptransform,
+                        fields: Vec::new(),
+                        placement: None,
                     }],
                 },
             ));
@@ -379,10 +413,10 @@ fn prove(lv: &str, base: &[u8]) -> Result<String, String> {
         }
     }
     Ok(format!(
-        "{lv}: {} ops, {} changes as expected (deep copy of {} sub-objects, {} placed), {:.2} s",
+        "{lv}: {} ops, {} changes as expected ({} instances copied with their owners, {} placed), {:.2} s",
         a.operations,
         got.len(),
-        deep.len().saturating_sub(1),
+        deep.len(),
         a.placed,
         t.elapsed().as_secs_f64()
     ))
