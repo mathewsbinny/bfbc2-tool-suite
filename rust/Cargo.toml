@@ -73,6 +73,9 @@ windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Graphics
 # The command-line binary (bc2-cli, round O1): the local time, the ANSI code page and the console test Python's stdio
 # makes, so its output and logs are the Python command lines' byte for byte (already in the lock through eframe).
 windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console", "Win32_System_SystemInformation", "Win32_System_Time"] }
+# The application icon as a Windows resource in bfbc2.exe, bfbc2-editor.exe and mapexport.exe (round I1: the build
+# scripts' rust/app_icon.rs; rc.exe of the Windows SDK, found by the crate; nothing on other targets).
+embed-resource = "=3.0.12"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

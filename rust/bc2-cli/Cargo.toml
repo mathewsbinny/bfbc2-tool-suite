@@ -55,5 +55,9 @@ texqa = []
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
 
+# the application icon (round I1: build.rs)
+[build-dependencies]
+embed-resource.workspace = true
+
 [lints]
 workspace = true
