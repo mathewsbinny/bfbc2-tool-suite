@@ -376,6 +376,11 @@ class Granny:
             raise GrannyError(f'{self.where}: a big-endian (Xbox 360) resource is read only; writing is for PC files')
         g0 = self.gr2
         self._written()
+        nat = _native if _native is not None and hasattr(_native, 'granny_with_crc') else None
+        got = nat.granny_with_crc(self.data, g0, self.crc_from, self.total) if nat is not None else None
+        if got is not None:                                 # the Rust core's CRC (round F2a), written here too
+            self.data[g0 + 40:g0 + 44] = got[g0 + 40:g0 + 44]
+            return got
         crc = zlib.crc32(bytes(self.data[g0 + self.crc_from:g0 + self.total])) & 0xFFFFFFFF
         struct.pack_into('<I', self.data, g0 + 40, crc)
         return bytes(self.data)
@@ -451,11 +456,40 @@ def curve_keys(cd):
     raise GrannyError(f'curve format {t} is not read')
 
 
+def _apply(g, curve, puts):
+    """A plan's puts through g.put, each place found as the reference finds it (g.field; g.array_at once per array)."""
+    arrays: dict[str, Any] = {}
+    for name, element, fmt, values in puts:
+        if element is None:
+            at = g.field(curve, name)
+        else:
+            if name not in arrays:
+                arrays[name] = g.array_at(curve, name)
+            at = (arrays[name][0], arrays[name][1] + element)
+        g.put(at, fmt, *values)
+
+
 def shift_position(g, curve, delta, ramp=False):
     """Moves a position curve (a CurveData dict read from g) by delta (3 floats), in place. ramp=False: every key by
     delta. ramp=True: each key by delta times the key's progress from the first key's value to the last one's along
     delta (clamped 0..1) - a part carried from somewhere else to a mount moves only as it arrives there. Constant
-    curves and quantized curves (scale / offset) are written back in their own format; returns what was done."""
+    curves and quantized curves (scale / offset) are written back in their own format; returns what was done. The
+    values are computed in the Rust core when it is built (round F2a: bc2_convert::granny_edit::shift_plan), written
+    here; else shift_position_reference."""
+    got = None
+    if _native is not None and hasattr(_native, 'granny_shift_plan'):
+        try:
+            got = _native.granny_shift_plan(curve, [float(x) for x in delta], bool(ramp)) if len(delta) == 3 else None
+        except (TypeError, ValueError, OverflowError):
+            got = None
+    if got is None:
+        return shift_position_reference(g, curve, delta, ramp)
+    _apply(g, curve, got[0])
+    return got[1]
+
+
+def shift_position_reference(g, curve, delta, ramp=False):
+    """The Python shift_position (the reference)."""
     t = curve.get('__type__', '')
     if t.endswith('D3Constant32f'):
         c = curve['Controls']
@@ -520,7 +554,23 @@ def set_orientations(g, curve, quats):
     """Writes one quaternion (x, y, z, w) per key into a quantized orientation curve (D4nK16uC15u / D4nK8uC7u, read
     from g), in place; the knots (times) are kept. The curve's scale / offset selectors are set to table entry 0 for
     every component ([-0.7071, 0.7071]: any quaternion's three smallest components fit), each key stored with its
-    largest component dropped and made positive (q and -q are the same rotation)."""
+    largest component dropped and made positive (q and -q are the same rotation). The values are computed in the
+    Rust core when it is built (round F2a), written here; else set_orientations_reference."""
+    got = None
+    if _native is not None and hasattr(_native, 'granny_orientation_plan'):
+        try:
+            qs = [[float(v) for v in q] for q in quats]
+            got = _native.granny_orientation_plan(curve, qs) if all(len(q) == 4 for q in qs) else None
+        except (TypeError, ValueError, OverflowError):
+            got = None
+    if got is None:
+        return set_orientations_reference(g, curve, quats)
+    _apply(g, curve, got[0])
+    return got[1]
+
+
+def set_orientations_reference(g, curve, quats):
+    """The Python set_orientations (the reference)."""
     t = curve.get('__type__', '')
     if not t.endswith(('D4nK16uC15u', 'D4nK8uC7u')):
         raise GrannyError(f'curve format {t}: writing orientations is not supported')
@@ -924,7 +974,34 @@ def _member_at(g, tref, name):
     raise GrannyError(f'{g.where}: no member {name}')
 
 
+def _track_specs(tracks):
+    """add_tracks' tracks as the Rust core takes them, or None where the reference must run."""
+    def spec(s):
+        if s is None:
+            return None
+        if s[0] == 'copy':
+            return ('copy', (tuple(s[1]['__tref__']), tuple(s[1]['__at__'])))
+        if s[0] == 'constant':
+            return ('constant', list(s[1]))
+        return ('other',)
+    try:
+        return [(t['name'].encode('latin-1'), spec(t.get('orientation')), spec(t.get('position'))) for t in tracks]
+    except (KeyError, TypeError, IndexError, AttributeError, UnicodeEncodeError):
+        return None
+
+
 def add_tracks(pc, tracks, donor, where='resource'):
+    """add_tracks_reference's resource, in the Rust core when it is built (round F2a: bc2_convert::granny_edit,
+    the same bytes); else the Python."""
+    if _native is not None and hasattr(_native, 'granny_add_tracks') and type(pc) is bytes and type(donor) is bytes:
+        specs = _track_specs(tracks)
+        got = _native.granny_add_tracks(pc, specs, donor) if specs is not None else None
+        if got is not None:
+            return got
+    return add_tracks_reference(pc, tracks, donor, where)
+
+
+def add_tracks_reference(pc, tracks, donor, where='resource'):
     """A PC animation with transform tracks added to its (first) track group, kept in name order as Granny files
     have them. tracks: [{'name', 'position', 'orientation'}], each curve None (identity), ('constant', values: 3
     floats for a position, a quaternion x, y, z, w) or ('copy', curve data dict read from donor). donor: a PC
