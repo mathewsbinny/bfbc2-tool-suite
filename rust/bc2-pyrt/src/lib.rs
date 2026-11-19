@@ -13,5 +13,7 @@
 
 pub mod err;
 pub mod fmt;
+pub mod pickle;
+pub mod pickle_write;
 pub mod py;
 pub mod unprintable;
