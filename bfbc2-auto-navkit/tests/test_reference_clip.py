@@ -5,7 +5,9 @@ and gives None for a level without path data; the defaults.
 
   python test_reference_clip.py
 """
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -50,6 +52,7 @@ def main(argv):
                            border_portals=[SimpleNamespace(p0=(-50.0, 0, -50.0), p1=(-50.0, 0, 60.0))])
     detailed = SimpleNamespace(outline=[[(3.0, 0.0, 2.0), (3.2, 0.0, 1.6)]], portals=[], border_portals=[])
     tmp = tempfile.mkdtemp()
+    atexit.register(shutil.rmtree, tmp, True)           # deleted at the end (round D1)
     fake = os.path.join(tmp, 'pathdata.hpd')
     open(fake, 'wb').write(b'x')
     real = (navregress.navparity.reference_of, navregress.hpdtool if hasattr(navregress, 'hpdtool') else None)
