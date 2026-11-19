@@ -4490,11 +4490,16 @@ Goldens were recorded from the Python first, in a frozen copy of 4710a60 with it
 | navregress | 26 | 26 | 0 | all Rust (no-reference answer) |
 | sample_all | 18 | 18 | 0 | - |
 | harness | 114 | 106 | 8 | 30 (24 / 6) |
-| texqa | 84 | 62 | 22 | 4 (3 / 1) |
-| **all** | **622** | **566** | **56** | **181 lines, each alone and on one pipe, both ways: all identical** |
+| texqa | 80 | 62 | 18 | 4 (3 / 1) |
+| **all** | **618** | **566** | **52** | **181 lines, each alone and on one pipe, both ways: all identical** |
 
-- **Quick: 622 of 622 as recorded. `--live` both ways: the same answers** (process time: navkit Python 92 s /
+- **Quick: 618 of 618 as recorded. `--live` both ways: the same answers** (process time: navkit Python 92 s /
   Rust 13 s; navtools 111 / 17 s; harness 56 / 8 s; texqa 53 / 21 s).
+- **Cases that depend on where the checkout sits are not recorded** (O2's `convert havok` lesson): the first quick
+  tier from this checkout (beside Project OPFOR and bf1943-tool-suite) answered three of them differently from the
+  frozen copy that recorded them (prepare_level's `--opfor` without a folder walked up to the real OPFOR; texqa's
+  BF1943 folder and DICE copies found the sibling projects). prepare_level's cases now name the fake folder in
+  `OPFOR_ROOT`; the two texqa hand-off cases were dropped. Recorded again, then 618 of 618 from this checkout too.
 - **`--game`** replays OPFOR's real calls read-only: navkit `levels` of the real folder; `compare` / `check` /
   `install` / `restore` in a fake OPFOR folder holding copies of a prepared level's files (DICE's path data, NavKit's
   build, the partition, `navkit.json`) for sp_009, sp_004_b, ons_mp_002, sp_01; ordercheck and navcompare on the
@@ -4530,6 +4535,10 @@ Goldens were recorded from the Python first, in a frozen copy of 4710a60 with it
 **Checks:** `cargo fmt`; `cargo clippy -p bc2-cli --all-targets -D warnings` with all features and with each of the
 seven groups alone; `cargo clippy -p bc2-editor --all-targets -D warnings`; `cargo test -p bc2-cli` (21); ruff and
 mypy on the new tests (the changed GUI files keep their earlier mypy findings, none new).
+`python run_tests.py quick -j 2` (this checkout's module and `bin\bfbc2.exe` built): 119 of 122, 1,027 s. The three
+failures: O4's own entry (the location-dependent cases above, fixed and passing since), and the workspace
+`cargo fmt / clippy / test` step and the editor's headless test, both stopped by Windows' paging file (os error 1455,
+`failed to mmap` an rlib) while other sessions' builds and tiers ran on the PC - not a compile or test failure.
 
 ### Timings (processes, best of 5, real inputs)
 

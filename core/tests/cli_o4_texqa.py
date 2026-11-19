@@ -403,9 +403,8 @@ def cases() -> list[Case]:
         ('BF1943 folder given, missing', clean,
          ['{d}\\ours', '--bf1943', '{d}\\nobf', '--console', '{d}\\src', '--no-dice', '-o', '{d}\\out', '--opfor',
           '{d}'], {}),
-        ('BF1943 folder there (the Python)', dict(clean, **{'bf\\x.txt': 'x'}),
-         ['{d}\\ours', '--bf1943', '{d}\\bf', '--no-dice', '-o', '{d}\\out'], {}),
-        ('DICE copies (the Python)', clean, ['{d}\\ours', '--no-bf1943', '-o', '{d}\\out', '--opfor', '{d}\\none'], {}),
+        # (a BF1943 folder that is there, and DICE's copies, are handed to the Python; their answers depend on the
+        # projects beside the checkout - bf1943-tool-suite, Project OPFOR - so they are not recorded here)
         ('a missing input', {}, ['{d}\\missing'] + BASE, {}),
         ('a missing input outside cp1252', {}, ['{d}\\Ж'] + BASE, {}),
         ('an empty input', {}, [''] + BASE, {}),
