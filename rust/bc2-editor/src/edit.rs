@@ -270,6 +270,14 @@ impl Doc {
                         ("Team", FieldValue::Int(t)) if e.team.is_some() && (0..=2).contains(t) => {
                             e.team = Some(*t as u8);
                         }
+                        ("Team" | "InitialOwnerTeam", FieldValue::Text(t)) if e.team.is_some() => {
+                            e.team = match t.as_str() {
+                                "Team1" => Some(1),
+                                "Team2" => Some(2),
+                                "TeamNeutral" => Some(0),
+                                _ => e.team,
+                            };
+                        }
                         _ => {}
                     }
                 }

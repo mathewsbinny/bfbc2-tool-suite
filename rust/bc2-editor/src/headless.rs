@@ -20,6 +20,9 @@ pub struct Headless {
     pub size: [u32; 2],
     time: f64,
     last: Option<egui::FullOutput>,
+    /// The modifier keys held in every frame (Alt for the sink wheel ...).
+    pub modifiers: egui::Modifiers,
+    sent_modifiers: egui::Modifiers,
 }
 
 impl Headless {
@@ -42,12 +45,18 @@ impl Headless {
             size,
             time: 0.0,
             last: None,
+            modifiers: egui::Modifiers::NONE,
+            sent_modifiers: egui::Modifiers::NONE,
         })
     }
 
     /// Runs one frame of the app with these input events.
-    pub fn frame(&mut self, app: &mut EditorApp, events: Vec<egui::Event>) {
+    pub fn frame(&mut self, app: &mut EditorApp, mut events: Vec<egui::Event>) {
         self.time += 1.0 / 60.0;
+        if self.modifiers != self.sent_modifiers {
+            events.insert(0, egui::Event::ModifiersChanged(self.modifiers));
+            self.sent_modifiers = self.modifiers;
+        }
         let input = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(
                 Pos2::ZERO,
@@ -95,6 +104,41 @@ impl Headless {
         };
         self.frame(app, vec![button(true)]);
         self.frame(app, vec![button(false)]);
+        self.frame(app, Vec::new());
+    }
+
+    /// A right click at a point (a context menu).
+    pub fn right_click(&mut self, app: &mut EditorApp, at: Pos2) {
+        self.frame(app, vec![egui::Event::PointerMoved(at)]);
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        self.frame(app, vec![button(true)]);
+        self.frame(app, vec![button(false)]);
+        self.frame(app, Vec::new());
+    }
+
+    /// Wheel notches over a point, one a frame (negative: towards the user), with the held modifiers.
+    pub fn wheel(&mut self, app: &mut EditorApp, at: Pos2, notches: i32) {
+        self.frame(app, vec![egui::Event::PointerMoved(at)]);
+        for _ in 0..notches.unsigned_abs() {
+            let ev = egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Line,
+                delta: Vec2::new(0.0, notches.signum() as f32),
+                phase: egui::TouchPhase::Move,
+                modifiers: self.modifiers,
+            };
+            self.frame(app, vec![ev]);
+        }
+        self.frame(app, Vec::new());
+    }
+
+    /// The pointer moved to a point.
+    pub fn hover(&mut self, app: &mut EditorApp, at: Pos2) {
+        self.frame(app, vec![egui::Event::PointerMoved(at)]);
         self.frame(app, Vec::new());
     }
 

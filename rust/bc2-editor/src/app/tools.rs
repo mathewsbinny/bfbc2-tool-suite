@@ -949,7 +949,7 @@ impl Tabs<'_> {
                 let ctrl = m.ctrl || m.command || ui.input(|i| i.modifiers.command);
                 let step = if shift { 0.01 } else { 0.1 };
                 if alt && let Some(p) = self.view.placing.as_mut() {
-                    p.placement.sink -= n * step;
+                    p.placement.sink = ((p.placement.sink - n * step) * 1000.0).round() / 1000.0;
                     wheel = true;
                 } else if !alt && shift && let Some(p) = self.view.placing.as_mut() {
                     p.yaw += n * if ctrl { 1.0 } else { 15.0 };
@@ -959,7 +959,7 @@ impl Tabs<'_> {
                         self.view.open_sink(hover.unwrap_or(rect.center()));
                     }
                     if let Some(s) = self.view.sink.as_mut() {
-                        s.placement.sink -= n * step;
+                        s.placement.sink = ((s.placement.sink - n * step) * 1000.0).round() / 1000.0;
                     }
                     self.view.sink_to(gpu, &palette, Gesture::Wheel, now);
                     wheel = true;
@@ -1248,7 +1248,8 @@ impl Tabs<'_> {
                                 .suffix(" m")
                                 .max_decimals(2),
                         );
-                        slider_drag = r.changed();
+                        // a change the user made (the slider also rounds a value it is shown)
+                        slider_drag = r.changed() && (r.dragged() || r.drag_stopped() || r.has_focus() || r.clicked());
                         slider_end = r.drag_stopped();
                         let modes = [
                             ("Straight down", false, false),
@@ -1423,6 +1424,7 @@ impl Tabs<'_> {
         let mut start = None;
         let pick = self.view.content_pick.clone();
         let mut picked = None;
+        let mut rects = Vec::new();
         egui::ScrollArea::vertical().auto_shrink([false, false]).show_rows(ui, 34.0, shown.len(), |ui, range| {
             for e in shown.get(range).unwrap_or_default() {
                 let sel = pick.as_deref() == Some(e.path.as_str());
@@ -1475,6 +1477,7 @@ impl Tabs<'_> {
                         }
                     )),
                 };
+                rects.push((e.path.clone(), resp.rect));
                 if resp.clicked() {
                     picked = Some(e.path.clone());
                 }
@@ -1483,6 +1486,7 @@ impl Tabs<'_> {
                 }
             }
         });
+        self.view.content_rects = rects;
         if picked.is_some() {
             self.view.content_pick = picked;
         }
