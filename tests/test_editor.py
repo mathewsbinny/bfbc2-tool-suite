@@ -25,6 +25,10 @@ window.
     and the content browser, deep duplicate, the view modes, polygon selection and Mixed fields, driven headless on
     a made-up level with a partition; levelwrite's scripted log on every prepared level (work\levels and every
     game\Package level, in memory), exactly the expected changes, replayed to the same bytes.
+  - round G4: the start flow (Open project, Edit existing level, Create level) driven through its buttons on a
+    made-up game copy - no campaign level under Edit existing level, a WW2 map opened, a project from a campaign
+    level with its kind recorded, a project opened from the recent list with the recovery offer, the height-map
+    form's checks and its saved project - and the top bar's name never under its buttons at 1500 px.
 
 Read only for the game copy and OPFOR's work folder: projects and edited partitions go to temp folders. The
 game-data parts are skipped (with a note) without the game copy, the GPU parts without any graphics adapter; the
@@ -60,7 +64,7 @@ def main() -> int:
     keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared',
             'levels in this game copy', 'median',
             'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
-            'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ')
+            'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ', 'g4 ')
     for line in out:
         if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))
