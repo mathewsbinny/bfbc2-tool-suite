@@ -9,6 +9,7 @@
 //!
 //! - [`xenos`]: [`xenos::parse`], a shader blob as a [`xenos::Shader`] (container, constant table, literals, header,
 //!   control flow, ALU and fetch instructions).
+//! - [`disasm`] (round F3): `xenos.disasm`'s listing of a decoded program (labels, control flow, instructions).
 //! - [`hlsl`]: [`hlsl::translate`] with an [`hlsl::Interface`] (what the PC side provides), [`hlsl::translate_all`]
 //!   many programs on all cores.
 //! - [`translate_blobs`]: decode and translate many blobs on all cores, nothing shared between them.
@@ -24,6 +25,7 @@
     clippy::too_many_lines
 )]
 
+pub mod disasm;
 pub mod hlsl;
 pub mod pyrepr;
 pub mod xenos;

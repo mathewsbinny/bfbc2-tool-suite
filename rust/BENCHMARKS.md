@@ -3825,6 +3825,98 @@ process per command, and the hub one per click.
 - **Its WW2 / Onslaught `subprocess` calls of aptcheck, aptgraft, culltree, renderqa and shaderdb** can switch the
   same way when their subcommands land (O2-O5). `bfbc2core.native.cli_command(tool)` gives the right command line,
   falling back to Python.
+
+## F3: the rest of the Python format readers and writers (2026-11-18, branch `rust-f3`)
+
+**Provisional timings:** other agents' builds and tests ran beside every figure (below-normal priority); ratios hold
+within a run.
+
+Like F0 and F2a this round **ports**: each Python function stays as its reference and fallback (`*_reference`, the
+module's `use_native(False)`, `BFBC2_PURE_PYTHON=1`) until a full test tier retires it. A binding answers `None`
+where the reference raises, a value is a NaN (`struct`'s float conversion of a NaN is the interpreter's to define),
+or a value is one the port does not read exactly as the reference does (a sequence that is not a list / tuple, a
+`bytes`-like that is not `bytes`, a number of another type, an array of another dtype or shape); the Python then
+runs, so a result is always the reference's and every error message stays its own.
+
+### Inventory: the Python format code and its Rust (after F2a, `f61e970`)
+
+| Python | Rust | round |
+|---|---|---|
+| `aimanim.parse` / `write` / `to_pc` (generated aim poses) | `bc2_formats::aimanim` (`aimanim_parse`, `aimanim_write`, `aimanim_to_pc`) | **F3** |
+| `hpdtool.mesh_layout` / `mesh_coverage` (the runtime mesh's byte layout) | `bc2_formats::hpdlayout` (`hpd_mesh_layout`, `hpd_mesh_coverage`) | **F3** |
+| `audio.xma_parts`, `xma2_riff`, `_xas_stream`'s blocks | `bc2_formats::audioframe` (`audio_xma_parts`, `audio_xma2_riff`, `audio_xas_blocks`) | **F3** |
+| `navsample.load` version 3 (NumPy pass) | `bc2_navbuild::navsample::V3` (`navkit_navsample_v3`: the arrays filled in Python's own buffers) | **F3** |
+| `navsample_offline.write`'s bytes (now `file_bytes`) | `bc2_navbuild::navsample::write_v3` (`navkit_navsample_write`) | **F3** |
+| `hkpack.Packfile` (sections, fixups, objects, classes) | `bc2_formats::havok::Packfile` (F1a's reader) + `pointer_fixups` (`hkpack_parse`) | **F3** |
+| `xenos.disasm`'s listing (labels, CFs, instructions) | `bc2_shader::disasm` (`xenos_disasm_body`) | **F3** |
+| `navsample.load` versions 1 / 2 | `navsample::parse_runs` | E3c |
+| APT: `apt.py`'s reader, `aptgraft`'s model and writer, aptcheck / aptrefs | `apt`, `aptmodel`, `aptscan` | E3n, E4c |
+| `kymesh.parse_mesh` / `write_mesh` | `kymesh` | E3o, F0 |
+| `xenos.parse_shader` (container, microcode) | `bc2_shader::xenos` | E3f |
+| `audio` Wave / SPS / SNR / SNS; EA-XAS codec | `wave`; `bc2_convert::audio` | F0; E3a |
+| hpd, loc, BIGF, STFS, XISO, MeshData / mesh sets, texture helpers, `havok.classes` | F0's | F0 |
+| soot, `havok.convert_wrapper`, console terrain, mesh relayout / decode, texwrite, skinmesh, Granny writing | F2a's | F2a |
+| Granny reader, DBX (`dbx.py`), FBRB, cull trees, terrain, water, collision | | E3i, F1a (Python retired) |
+| `dbxbin.py` | `dbx::edit::EditDbx` | E4a |
+| `menucommon.PEImage`, `xmlinst`, `navtune` | | F2b |
+
+**Not ported (and why):** `xenos.disasm`'s header comment lines and `disasm_instruction` (one instruction of a tree
+in Python; the header is read from the tree the caller holds, which may have been edited); `xenos_exec.py` (the
+differential test's interpreter: the independent check of the translation, not a format); `audio.segment_stream`,
+`decode*`, the ffmpeg glue (dispatch over Rust readers); `hkpack.read_object` / `read_value` (the reflection dump of
+the CLI; BFBC2's 5.5 packfiles carry no class descriptions) and `navsample_offline._shape_parts` / `_hull_faces`
+(NumPy geometry over `hkpack`); `meshview._values` / `load_mesh` (NumPy views over F0's MeshData reader);
+`texqa.read_pc` / `read_xbox` (QA statistics over the Rust texture helpers); `culltree.Doc`'s string table;
+`aimanim.renumbered` (a dict operation; `to_pc` renumbers in Rust); `hpdview.py` (a viewer); `shaderdb.py`'s reader
+and writer (a later round, by the brief).
+
+### Parity (`tests/test_f3_native.py`; quick and `--game`, both ways in one process and against the goldens)
+
+The goldens (`tests/f3_golden_<area>.json`, 1-31 KB each) hold, per source file (keyed by its path and size) or quick
+set, a digest of the reference's every answer in order: recorded from the Python (`--record`), then the Rust's
+answers checked against them (a changed source counted, not compared). Real inputs handed back to the reference fail
+the test; every one below was answered in Rust.
+
+| area | real inputs (`--game`) | result |
+|---|---|---|
+| aimanim | every AimAnimation of the game copy (PC), `work\xbox`, `work\xbox_dlc` and BF1943, parse / write / `to_pc` (BF1943's with the importer's own soldier bone map, `granny.bone_map`, and without) | 9,875 identical, 0 different; quick 1,500 damaged and 1,500 changed dicts the same result or error |
+| `mesh_layout` / `mesh_coverage` | every sector of the 144 path-data files of the game copy and `work` (8,858 sectors) and a damaged copy of each | 40,032 identical, 0 different |
+| audio framing | 6,497 EA-XMA streams (BFBC2 Xbox, Xbox DLC, BF1943: parts and each part's RIFF) and 8,627 EA-XAS streams (the game copy's in-memory PC sounds, re-cut into DICE's blocks); OPFOR's call: `audio.convert` of 125 BF1943 Waves (the WW2 install's sound port, through ffmpeg) with the Rust framing and the Python framing | 24,055 identical, 0 different; 125 of 125 converted Waves byte-identical |
+| navsample | 173 sample runs of `work\navsample` / `work\navsample_offline` (24 GB): every version-3 record (1,001,855,046 surfaces, 2,141,076,036 columns) through both readers and both writers in 823 column ranges of at most ~1.5 M records (each a file of its own), the version-3 runs up to 120 MB also read whole (88 runs whole, version 1 / 2 ones up to 40 MB: E3c's reader) | 3,234 identical, 0 different (every real input answered in Rust) |
+| `hkpack.Packfile` | every HavokPhysicsData of the game copy and `work\ww2`, every `*_havok.res` of `work\levels` (NavKit's offline sampler reads them): 9,866 | 10,675 identical (with the quick tier's), 0 different |
+| `xenos.disasm` | every program of BF1943's and BFBC2's Xbox shader databases and containers (8,320 distinct of 63,305), with and without the raw words and the header | 35,681 identical, 0 different; 34,788 answered in Rust (the rest: damaged quick blobs the decoder refuses, and the tree whose microcode was read) |
+
+Quick (`run_tests.py`, about 2 s an area): 400 built aim animations in both byte orders with eight kinds of bone maps,
+1,500 damaged, 1,500 changed dicts; 300 seeded runtime meshes (E3o's generator) and 2,000 damaged, 3 game files;
+600 built EA-XMA streams, damaged blocks, 600 RIFF argument sets and XAS framings (bad rates, counts, types); 300
+built sample runs written and read back (and damaged), 300 changed ones (float64 heights, NaN normals, columns over
+255, header values past float32 / int32, a broadcast hit row, int32 flags); 8 MP_005 packfiles and 800 damaged; 300
+seeded Xenos programs and their damaged copies. All identical; the inputs handed back are damaged or deliberately
+off-type.
+
+### Timings (`--game`, whole corpora, both in one process; the calls timed, not the reading of bundles; the recording run, the verifying runs within 20 %)
+
+| workload | Python | Rust | |
+|---|---:|---:|---:|
+| `xenos.parse_shader` + `disasm`, 8,320 programs x 4 | 62.6 s | **13.1 s** | 4.8x |
+| navsample load + write, every record of the 173 runs | 136.4 s | **104.1 s** | 1.3x (the writer's array copies in the shim; the version-3 read alone fills Python's buffers once) |
+| `mesh_layout` + `mesh_coverage`, 8,858 sectors x 2 | 15.9 s | **9.1 s** | 1.7x (the result is a Python structure of every tile item) |
+| aimanim parse / write / `to_pc` | 5.1 s | **3.7 s** | 1.4x |
+| `hkpack.Packfile`, 9,866 packfiles | 5.8 s | 5.7 s | 1.0x: the Python dicts (`ptr`, `by_offset`, `classes`) are built from the Rust lists; their building is the cost |
+| audio framing, 15,124 streams | 1.7 s | 1.5 s | the work is a few slices per stream |
+
+Peak working set of the navsample game check: 778 MB (streamed: one column range in memory at a time; the first
+version of the check, holding whole runs, reached 3.4 GB - the reference's version-3 pass holds the file, its records
+and float64 normals, about 3.5x the file, and version 1 / 2's loop about 15x; the Rust fills the arrays in place: the
+file plus the arrays).
+
+### What remains
+
+- The `*_reference` functions above, until a full tier retires them.
+- `hkpack.Packfile` keeps Python dicts; a handle with `deref` / `by_offset` lookups in Rust would make it fast, with
+  `navsample_offline.asset_bodies`' walk ported over it (its hull faces are NumPy geometry).
+- `xenos.disasm`'s header lines (Python reads them from the caller's tree).
+
 ## S1: streamed packing, process-wide BF1943 restart points, the shader coverage index (2026-11-18, branch `rust-s1`)
 
 Three suite changes from profiling OPFOR's WW2 install plan (`wake_install.py --plan`, 602 -> 321 s after OPFOR's own

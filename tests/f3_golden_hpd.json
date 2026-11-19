@@ -1,0 +1,1452 @@
+{
+"game/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
+4154480,
+"14ec47c1b5336453ab3e",
+112
+],
+"game/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
+4154480,
+"11483c7e92ee488165f4",
+112
+],
+"game/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
+344100,
+"e07a90ff80c5fc40e55b",
+38
+],
+"game/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
+344100,
+"b77d5ba1761653ad7281",
+38
+],
+"game/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
+3142584,
+"3251b785281e66875b50",
+54
+],
+"game/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
+3142584,
+"d4a144d15d14fb4d599e",
+54
+],
+"game/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd": [
+470192,
+"8d79f6683055693618a8",
+40
+],
+"game/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd damaged": [
+470192,
+"3a6ca793dd26f10128b4",
+40
+],
+"game/Output/win32/ai/levels/ons_mp_005/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"game/Output/win32/ai/levels/ons_mp_005/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"game/Output/win32/ai/levels/ons_mp_005/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"game/Output/win32/ai/levels/ons_mp_005/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"game/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"game/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"game/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"game/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"game/Output/win32/ai/levels/ons_mp_008/infantry/pathdata.hpd": [
+1872532,
+"544e60fda52505c78a63",
+44
+],
+"game/Output/win32/ai/levels/ons_mp_008/infantry/pathdata.hpd damaged": [
+1872532,
+"98941e29cd7212fdf1d3",
+44
+],
+"game/Output/win32/ai/levels/ons_mp_008/vehicle/pathdata.hpd": [
+253636,
+"4b90cc108a4e03e3f059",
+28
+],
+"game/Output/win32/ai/levels/ons_mp_008/vehicle/pathdata.hpd damaged": [
+253636,
+"0cdea754698969477a10",
+28
+],
+"game/Output/win32/ai/levels/sp_003_b/infantry/pathdata.hpd": [
+22973904,
+"14aec4c200176f4057ce",
+612
+],
+"game/Output/win32/ai/levels/sp_003_b/infantry/pathdata.hpd damaged": [
+22973904,
+"7e274c059f281b405415",
+612
+],
+"game/Output/win32/ai/levels/sp_003_b/vehicle/pathdata.hpd": [
+292072,
+"457361db200d832a7bd1",
+34
+],
+"game/Output/win32/ai/levels/sp_003_b/vehicle/pathdata.hpd damaged": [
+292072,
+"912557ba093f7389fc20",
+34
+],
+"game/Output/win32/ai/levels/sp_004_b/infantry/pathdata.hpd": [
+2798476,
+"d1e8ffebf0ef87f0aa2b",
+80
+],
+"game/Output/win32/ai/levels/sp_004_b/infantry/pathdata.hpd damaged": [
+2798476,
+"77e49af0d4894d0fd210",
+80
+],
+"game/Output/win32/ai/levels/sp_004_b/vehicle/pathdata.hpd": [
+93964,
+"11fbe0aec359e542401e",
+14
+],
+"game/Output/win32/ai/levels/sp_004_b/vehicle/pathdata.hpd damaged": [
+93964,
+"db9ae85a551e09687bc7",
+14
+],
+"game/Output/win32/ai/levels/sp_005/infantry/pathdata.hpd": [
+23305020,
+"9ea0e3c0ae22d32fbcf9",
+538
+],
+"game/Output/win32/ai/levels/sp_005/infantry/pathdata.hpd damaged": [
+23305020,
+"b131211dcf235b30a392",
+538
+],
+"game/Output/win32/ai/levels/sp_005/vehicle/pathdata.hpd": [
+1216280,
+"9f630965e91481bc5c64",
+82
+],
+"game/Output/win32/ai/levels/sp_005/vehicle/pathdata.hpd damaged": [
+1216280,
+"6b496dd2a43d48ba6742",
+82
+],
+"game/Output/win32/ai/levels/sp_005_b/infantry/pathdata.hpd": [
+24728852,
+"ec540bbbaeda6b06af03",
+540
+],
+"game/Output/win32/ai/levels/sp_005_b/infantry/pathdata.hpd damaged": [
+24728852,
+"d5dfb6adc510775afe0c",
+540
+],
+"game/Output/win32/ai/levels/sp_005_b/vehicle/pathdata.hpd": [
+516480,
+"f7c2f805cdc7a1c0d962",
+62
+],
+"game/Output/win32/ai/levels/sp_005_b/vehicle/pathdata.hpd damaged": [
+516480,
+"ad78317986709f151830",
+62
+],
+"game/Output/win32/ai/levels/sp_006/infantry/pathdata.hpd": [
+19160800,
+"c06e6513fde8940e5123",
+760
+],
+"game/Output/win32/ai/levels/sp_006/infantry/pathdata.hpd damaged": [
+19160800,
+"4f3bc28d97cf7a38cde5",
+760
+],
+"game/Output/win32/ai/levels/sp_006/vehicle/pathdata.hpd": [
+1892940,
+"c406a31761fa352b1b8b",
+156
+],
+"game/Output/win32/ai/levels/sp_006/vehicle/pathdata.hpd damaged": [
+1892940,
+"f2f78a11105e7086c010",
+156
+],
+"game/Output/win32/ai/levels/sp_007/infantry/pathdata.hpd": [
+17503736,
+"e97020de529afb2ab29a",
+576
+],
+"game/Output/win32/ai/levels/sp_007/infantry/pathdata.hpd damaged": [
+17503736,
+"dfbec5e0c66eb3a01f9d",
+576
+],
+"game/Output/win32/ai/levels/sp_007/vehicle/pathdata.hpd": [
+801288,
+"ec6af39710807d91f714",
+120
+],
+"game/Output/win32/ai/levels/sp_007/vehicle/pathdata.hpd damaged": [
+801288,
+"814f336b57155bde785b",
+120
+],
+"game/Output/win32/ai/levels/sp_008/infantry/pathdata.hpd": [
+3466960,
+"f4708a17a9fe62a9a070",
+82
+],
+"game/Output/win32/ai/levels/sp_008/infantry/pathdata.hpd damaged": [
+3466960,
+"db4f64927b6d91dd5091",
+82
+],
+"game/Output/win32/ai/levels/sp_008/vehicle/pathdata.hpd": [
+31524,
+"ddf40b2ba76c53aa95b7",
+14
+],
+"game/Output/win32/ai/levels/sp_008/vehicle/pathdata.hpd damaged": [
+31524,
+"ffa8e9b0603ca740087b",
+14
+],
+"game/Output/win32/ai/levels/sp_008_b/infantry/pathdata.hpd": [
+1743612,
+"14a5aa14e5d69077ecad",
+54
+],
+"game/Output/win32/ai/levels/sp_008_b/infantry/pathdata.hpd damaged": [
+1743612,
+"0d357e4b7956cb956dd2",
+54
+],
+"game/Output/win32/ai/levels/sp_008_b/vehicle/pathdata.hpd": [
+11300,
+"8ea9dc354f7922439666",
+10
+],
+"game/Output/win32/ai/levels/sp_008_b/vehicle/pathdata.hpd damaged": [
+11300,
+"06ef4346c490e68576f2",
+10
+],
+"game/Output/win32/ai/levels/sp_009/infantry/pathdata.hpd": [
+173492,
+"9466f16722da10ed54a0",
+18
+],
+"game/Output/win32/ai/levels/sp_009/infantry/pathdata.hpd damaged": [
+173492,
+"7e6f56d49a095c95d1aa",
+18
+],
+"game/Output/win32/ai/levels/sp_01/infantry/pathdata.hpd": [
+10473228,
+"9868fbe22cfd6a33ae84",
+252
+],
+"game/Output/win32/ai/levels/sp_01/infantry/pathdata.hpd damaged": [
+10473228,
+"c4252612c6c4376c45b7",
+252
+],
+"game/Output/win32/ai/levels/sp_01/vehicle/pathdata.hpd": [
+635388,
+"25fca64e1469302d2804",
+70
+],
+"game/Output/win32/ai/levels/sp_01/vehicle/pathdata.hpd damaged": [
+635388,
+"1b0071bb02d0642e0749",
+70
+],
+"game/Output/win32/ai/levels/sp_02/infantry/pathdata.hpd": [
+7072332,
+"4451606594b892dd6b09",
+240
+],
+"game/Output/win32/ai/levels/sp_02/infantry/pathdata.hpd damaged": [
+7072332,
+"5a0ad7d38f0250821182",
+240
+],
+"game/Output/win32/ai/levels/sp_02/vehicle/pathdata.hpd": [
+148240,
+"a711b8cee3c43ef0d850",
+36
+],
+"game/Output/win32/ai/levels/sp_02/vehicle/pathdata.hpd damaged": [
+148240,
+"5a07603c5145878e62ac",
+36
+],
+"game/Output/win32/ai/levels/sp_03/infantry/pathdata.hpd": [
+22403312,
+"6e9568069ca48f1e00ae",
+608
+],
+"game/Output/win32/ai/levels/sp_03/infantry/pathdata.hpd damaged": [
+22403312,
+"76679293ca24cfcd2288",
+608
+],
+"game/Output/win32/ai/levels/sp_03/vehicle/pathdata.hpd": [
+122040,
+"825bd9db809b5430f1c9",
+28
+],
+"game/Output/win32/ai/levels/sp_03/vehicle/pathdata.hpd damaged": [
+122040,
+"a2f2490a35af529fa89d",
+28
+],
+"game/Output/win32/ai/levels/sp_04/infantry/pathdata.hpd": [
+13228052,
+"068250a03daaf5faf8b1",
+422
+],
+"game/Output/win32/ai/levels/sp_04/infantry/pathdata.hpd damaged": [
+13228052,
+"c93a395e581fd22f67c1",
+422
+],
+"game/Output/win32/ai/levels/sp_04/vehicle/pathdata.hpd": [
+1495440,
+"993b8e1511da984daa52",
+144
+],
+"game/Output/win32/ai/levels/sp_04/vehicle/pathdata.hpd damaged": [
+1495440,
+"f9fca15be7d676b07018",
+144
+],
+"quick:built": [
+0,
+"f9e22ea14297efb48523",
+600
+],
+"quick:damaged": [
+0,
+"4bc54458435a59c57f78",
+4000
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
+4154480,
+"14ec47c1b5336453ab3e",
+112
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
+4154480,
+"11483c7e92ee488165f4",
+112
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
+344100,
+"e07a90ff80c5fc40e55b",
+38
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
+344100,
+"b77d5ba1761653ad7281",
+38
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
+3142584,
+"3251b785281e66875b50",
+54
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
+3142584,
+"d4a144d15d14fb4d599e",
+54
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd": [
+470192,
+"8d79f6683055693618a8",
+40
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd damaged": [
+470192,
+"3a6ca793dd26f10128b4",
+40
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
+4154480,
+"14ec47c1b5336453ab3e",
+112
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
+4154480,
+"11483c7e92ee488165f4",
+112
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
+344100,
+"e07a90ff80c5fc40e55b",
+38
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
+344100,
+"b77d5ba1761653ad7281",
+38
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
+3142584,
+"3251b785281e66875b50",
+54
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
+3142584,
+"d4a144d15d14fb4d599e",
+54
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd": [
+470192,
+"8d79f6683055693618a8",
+40
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_004/vehicle/pathdata.hpd damaged": [
+470192,
+"3a6ca793dd26f10128b4",
+40
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/import_backup/Output/win32/ai/levels/ons_mp_005gr/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/navkit/ons_mp_002/pathdata.hpd": [
+3001764,
+"13bf7118492ef06c4aef",
+114
+],
+"work/navkit/ons_mp_002/pathdata.hpd damaged": [
+3001764,
+"d6b4b09cf08e30661658",
+114
+],
+"work/navkit/sp_009/pathdata.hpd": [
+404356,
+"9a0260ced155d884a3e0",
+18
+],
+"work/navkit/sp_009/pathdata.hpd damaged": [
+404356,
+"ed1f21a2dece2bbb6497",
+18
+],
+"work/navkit/sp_01/pathdata.hpd": [
+12069668,
+"dd0b6c7d646e886bda2f",
+308
+],
+"work/navkit/sp_01/pathdata.hpd damaged": [
+12069668,
+"ec719faf0b3d635c9bc8",
+308
+],
+"work/navkit_offline/mp_001/pathdata.hpd": [
+11597932,
+"9439034c4a5d8d539019",
+76
+],
+"work/navkit_offline/mp_001/pathdata.hpd damaged": [
+11597932,
+"5d514189562ce375294b",
+76
+],
+"work/navkit_offline/mp_001sr/pathdata.hpd": [
+5667460,
+"2e64946b079a7b7526ed",
+28
+],
+"work/navkit_offline/mp_001sr/pathdata.hpd damaged": [
+5667460,
+"4d8bae0190a884c6eac0",
+28
+],
+"work/navkit_offline/mp_002/pathdata.hpd": [
+11672360,
+"d679552584d22c568ed2",
+114
+],
+"work/navkit_offline/mp_002/pathdata.hpd damaged": [
+11672360,
+"3df969fe22158cdb9078",
+114
+],
+"work/navkit_offline/mp_002sr/pathdata.hpd": [
+5503772,
+"1ac9d2b2db2b20422157",
+38
+],
+"work/navkit_offline/mp_002sr/pathdata.hpd damaged": [
+5503772,
+"643401b7d54ed38d08d7",
+38
+],
+"work/navkit_offline/mp_003/pathdata.hpd": [
+7974128,
+"6c5959d2f361e99b6405",
+60
+],
+"work/navkit_offline/mp_003/pathdata.hpd damaged": [
+7974128,
+"071fa49b2b7dc52fd2e4",
+60
+],
+"work/navkit_offline/mp_004/pathdata.hpd": [
+9537908,
+"0dd05116151110762f2d",
+86
+],
+"work/navkit_offline/mp_004/pathdata.hpd damaged": [
+9537908,
+"1fec3027141f6b257d15",
+86
+],
+"work/navkit_offline/mp_004sdm/pathdata.hpd": [
+3787764,
+"753056f01606e81d3c14",
+22
+],
+"work/navkit_offline/mp_004sdm/pathdata.hpd damaged": [
+3787764,
+"46c0fc4639b7b16fefd3",
+22
+],
+"work/navkit_offline/mp_005/pathdata.hpd": [
+13416104,
+"50c646eb455b517adfd3",
+162
+],
+"work/navkit_offline/mp_005/pathdata.hpd damaged": [
+13416104,
+"a9aeffb6253a93ca0bf4",
+162
+],
+"work/navkit_offline/mp_005sr/pathdata.hpd": [
+6893392,
+"4735529bff433edf9d7a",
+44
+],
+"work/navkit_offline/mp_005sr/pathdata.hpd damaged": [
+6893392,
+"5d069709b0d95730de53",
+44
+],
+"work/navkit_offline/mp_006/pathdata.hpd": [
+17822244,
+"b84daba4f08f9eb2a5f0",
+184
+],
+"work/navkit_offline/mp_006/pathdata.hpd damaged": [
+17822244,
+"5e60d6c5dec6754c6605",
+184
+],
+"work/navkit_offline/mp_006cq/pathdata.hpd": [
+10428116,
+"952b3e4276954c299b40",
+64
+],
+"work/navkit_offline/mp_006cq/pathdata.hpd damaged": [
+10428116,
+"d12d9b94a8d1dddcc8a9",
+64
+],
+"work/navkit_offline/mp_006sdm/pathdata.hpd": [
+5973888,
+"ffe9650ff56330c7f71d",
+40
+],
+"work/navkit_offline/mp_006sdm/pathdata.hpd damaged": [
+5973888,
+"5202d576a3f8a98687ae",
+40
+],
+"work/navkit_offline/mp_007/pathdata.hpd": [
+6131592,
+"b3d577b2d53a910728ac",
+48
+],
+"work/navkit_offline/mp_007/pathdata.hpd damaged": [
+6131592,
+"19a0f7d110e3746d5beb",
+48
+],
+"work/navkit_offline/mp_007sdm/pathdata.hpd": [
+4799636,
+"73bef90da4811bcddccb",
+40
+],
+"work/navkit_offline/mp_007sdm/pathdata.hpd damaged": [
+4799636,
+"39cfecd0f798460faeaa",
+40
+],
+"work/navkit_offline/mp_008/pathdata.hpd": [
+9475612,
+"7a0694988f7bef572503",
+64
+],
+"work/navkit_offline/mp_008/pathdata.hpd damaged": [
+9475612,
+"f2f161d22d88be0ddab6",
+64
+],
+"work/navkit_offline/mp_009cq/pathdata.hpd": [
+8676540,
+"86b64f8d46893c6d6116",
+60
+],
+"work/navkit_offline/mp_009cq/pathdata.hpd damaged": [
+8676540,
+"4e6dddfd2b3f628ca01b",
+60
+],
+"work/navkit_offline/mp_009gr/pathdata.hpd": [
+16046720,
+"0fba00503419bba7760d",
+142
+],
+"work/navkit_offline/mp_009gr/pathdata.hpd damaged": [
+16046720,
+"97ca603e6716e3146e84",
+142
+],
+"work/navkit_offline/mp_009sdm/pathdata.hpd": [
+6230972,
+"a7b7d3c06a0ec681ebbe",
+38
+],
+"work/navkit_offline/mp_009sdm/pathdata.hpd damaged": [
+6230972,
+"a8190833a99640fb65e7",
+38
+],
+"work/navkit_offline/mp_012gr/pathdata.hpd": [
+13387124,
+"37ee843105fcf036f810",
+126
+],
+"work/navkit_offline/mp_012gr/pathdata.hpd damaged": [
+13387124,
+"be2f36d1161909de2c8f",
+126
+],
+"work/navkit_offline/mp_012sr/pathdata.hpd": [
+4836348,
+"cb57ab4fa0bada673f00",
+36
+],
+"work/navkit_offline/mp_012sr/pathdata.hpd damaged": [
+4836348,
+"4519fc605ac1a2224eb2",
+36
+],
+"work/navvehicle/ons_mp_002/pathdata.hpd": [
+292000,
+"d73d0c718971745e6ad1",
+38
+],
+"work/navvehicle/ons_mp_002/pathdata.hpd damaged": [
+292000,
+"fc37935afeb3c521d27e",
+38
+],
+"work/navvehicle/ons_mp_004/pathdata.hpd": [
+433796,
+"a88bdcccccbb9238a0b7",
+40
+],
+"work/navvehicle/ons_mp_004/pathdata.hpd damaged": [
+433796,
+"06795ad12452619ba732",
+40
+],
+"work/navvehicle/sp_003_b/pathdata.hpd": [
+333180,
+"2d6a33af708f208a61ff",
+34
+],
+"work/navvehicle/sp_003_b/pathdata.hpd damaged": [
+333180,
+"a0619fc864bdcd8946a8",
+34
+],
+"work/navvehicle/sp_004_b/pathdata.hpd": [
+88968,
+"20c85489ea3799aa4316",
+12
+],
+"work/navvehicle/sp_004_b/pathdata.hpd damaged": [
+88968,
+"6086633e0489b7a3ad83",
+12
+],
+"work/navvehicle/sp_005/pathdata.hpd": [
+1467052,
+"46adee593fbcfd49b2cb",
+82
+],
+"work/navvehicle/sp_005/pathdata.hpd damaged": [
+1467052,
+"c8ebf85c0414cec6e751",
+82
+],
+"work/navvehicle/sp_005_b/pathdata.hpd": [
+672792,
+"880ca4afc0ed11e700c7",
+62
+],
+"work/navvehicle/sp_005_b/pathdata.hpd damaged": [
+672792,
+"21f640f202dd515d3345",
+62
+],
+"work/navvehicle/sp_006/pathdata.hpd": [
+1461552,
+"ebdadab6c3c0081f86b0",
+156
+],
+"work/navvehicle/sp_006/pathdata.hpd damaged": [
+1461552,
+"74f782159578099f5eb5",
+156
+],
+"work/navvehicle/sp_007/pathdata.hpd": [
+615160,
+"282de7d2cfa3b9bde2b0",
+116
+],
+"work/navvehicle/sp_007/pathdata.hpd damaged": [
+615160,
+"f467a267e5f29d6c0866",
+116
+],
+"work/navvehicle/sp_008/pathdata.hpd": [
+41248,
+"884cff29f55c20ea914e",
+14
+],
+"work/navvehicle/sp_008/pathdata.hpd damaged": [
+41248,
+"d785d2234bbe50c38f63",
+14
+],
+"work/navvehicle/sp_008_b/pathdata.hpd": [
+32092,
+"b65b4aed3fe99c44cdd5",
+10
+],
+"work/navvehicle/sp_008_b/pathdata.hpd damaged": [
+32092,
+"753c761528a9cca34369",
+10
+],
+"work/navvehicle/sp_01/pathdata.hpd": [
+512828,
+"cb7fc61beaf401f01b7e",
+66
+],
+"work/navvehicle/sp_01/pathdata.hpd damaged": [
+512828,
+"8a0560395bbe6f7df6b4",
+66
+],
+"work/navvehicle/sp_02/pathdata.hpd": [
+184196,
+"580422dfbc5f91b8f93d",
+32
+],
+"work/navvehicle/sp_02/pathdata.hpd damaged": [
+184196,
+"9ec3cdad6300b0f79ef9",
+32
+],
+"work/navvehicle/sp_03/pathdata.hpd": [
+140892,
+"036475d2317653a32fbb",
+24
+],
+"work/navvehicle/sp_03/pathdata.hpd damaged": [
+140892,
+"c4af05166a697f06c89b",
+24
+],
+"work/navvehicle/sp_04/pathdata.hpd": [
+1226284,
+"e15e3705379ec9bf5db0",
+142
+],
+"work/navvehicle/sp_04/pathdata.hpd damaged": [
+1226284,
+"df65a05d0ff3015a2e7a",
+142
+],
+"work/navvehicle/test/ons_mp_002/pathdata.hpd": [
+291704,
+"dc3cbb8f06f48286773b",
+38
+],
+"work/navvehicle/test/ons_mp_002/pathdata.hpd damaged": [
+291704,
+"550fc35c6c567abaea9a",
+38
+],
+"work/onslaught/build_ons_mp_002/xbox/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
+4154480,
+"14ec47c1b5336453ab3e",
+112
+],
+"work/onslaught/build_ons_mp_002/xbox/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
+4154480,
+"11483c7e92ee488165f4",
+112
+],
+"work/onslaught/build_ons_mp_002/xbox/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
+344100,
+"e07a90ff80c5fc40e55b",
+38
+],
+"work/onslaught/build_ons_mp_002/xbox/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
+344100,
+"b77d5ba1761653ad7281",
+38
+],
+"work/onslaught/build_ons_mp_004/xbox/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
+3142584,
+"3251b785281e66875b50",
+54
+],
+"work/onslaught/build_ons_mp_004/xbox/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
+3142584,
+"d4a144d15d14fb4d599e",
+54
+],
+"work/onslaught/build_ons_mp_004/xbox/ai/levels/ons_mp_004/vehicle/pathdata.hpd": [
+470192,
+"8d79f6683055693618a8",
+40
+],
+"work/onslaught/build_ons_mp_004/xbox/ai/levels/ons_mp_004/vehicle/pathdata.hpd damaged": [
+470192,
+"3a6ca793dd26f10128b4",
+40
+],
+"work/onslaught/build_ons_mp_005/xbox/ai/levels/ons_mp_005/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/onslaught/build_ons_mp_005/xbox/ai/levels/ons_mp_005/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/onslaught/build_ons_mp_005/xbox/ai/levels/ons_mp_005/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/onslaught/build_ons_mp_005/xbox/ai/levels/ons_mp_005/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/onslaught/build_ons_mp_008/xbox/ai/levels/ons_mp_008/infantry/pathdata.hpd": [
+1872532,
+"544e60fda52505c78a63",
+44
+],
+"work/onslaught/build_ons_mp_008/xbox/ai/levels/ons_mp_008/infantry/pathdata.hpd damaged": [
+1872532,
+"98941e29cd7212fdf1d3",
+44
+],
+"work/onslaught/build_ons_mp_008/xbox/ai/levels/ons_mp_008/vehicle/pathdata.hpd": [
+253636,
+"4b90cc108a4e03e3f059",
+28
+],
+"work/onslaught/build_ons_mp_008/xbox/ai/levels/ons_mp_008/vehicle/pathdata.hpd damaged": [
+253636,
+"0cdea754698969477a10",
+28
+],
+"work/stockmp/mp_002/out/game/Output/win32/ai/levels/mp_002/infantry/pathdata.hpd": [
+4154480,
+"14ec47c1b5336453ab3e",
+112
+],
+"work/stockmp/mp_002/out/game/Output/win32/ai/levels/mp_002/infantry/pathdata.hpd damaged": [
+4154480,
+"11483c7e92ee488165f4",
+112
+],
+"work/stockmp/mp_002/out/game/Output/win32/ai/levels/mp_002/vehicle/pathdata.hpd": [
+344100,
+"e07a90ff80c5fc40e55b",
+38
+],
+"work/stockmp/mp_002/out/game/Output/win32/ai/levels/mp_002/vehicle/pathdata.hpd damaged": [
+344100,
+"b77d5ba1761653ad7281",
+38
+],
+"work/stockmp/mp_005-exp0/out/game/Output/win32/ai/levels/mp_005/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/stockmp/mp_005-exp0/out/game/Output/win32/ai/levels/mp_005/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/stockmp/mp_005-exp0/out/game/Output/win32/ai/levels/mp_005/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/stockmp/mp_005-exp0/out/game/Output/win32/ai/levels/mp_005/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/stockmp/mp_005/out/game/Output/win32/ai/levels/mp_005/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/stockmp/mp_005/out/game/Output/win32/ai/levels/mp_005/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/stockmp/mp_005/out/game/Output/win32/ai/levels/mp_005/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/stockmp/mp_005/out/game/Output/win32/ai/levels/mp_005/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/xbox/Output/xenon/ai/levels/sp_003_b/infantry/pathdata.hpd": [
+22973904,
+"14aec4c200176f4057ce",
+612
+],
+"work/xbox/Output/xenon/ai/levels/sp_003_b/infantry/pathdata.hpd damaged": [
+22973904,
+"7e274c059f281b405415",
+612
+],
+"work/xbox/Output/xenon/ai/levels/sp_003_b/vehicle/pathdata.hpd": [
+292072,
+"457361db200d832a7bd1",
+34
+],
+"work/xbox/Output/xenon/ai/levels/sp_003_b/vehicle/pathdata.hpd damaged": [
+292072,
+"912557ba093f7389fc20",
+34
+],
+"work/xbox/Output/xenon/ai/levels/sp_004_b/infantry/pathdata.hpd": [
+2798476,
+"d1e8ffebf0ef87f0aa2b",
+80
+],
+"work/xbox/Output/xenon/ai/levels/sp_004_b/infantry/pathdata.hpd damaged": [
+2798476,
+"77e49af0d4894d0fd210",
+80
+],
+"work/xbox/Output/xenon/ai/levels/sp_004_b/vehicle/pathdata.hpd": [
+93964,
+"11fbe0aec359e542401e",
+14
+],
+"work/xbox/Output/xenon/ai/levels/sp_004_b/vehicle/pathdata.hpd damaged": [
+93964,
+"db9ae85a551e09687bc7",
+14
+],
+"work/xbox/Output/xenon/ai/levels/sp_005/infantry/pathdata.hpd": [
+23305020,
+"9ea0e3c0ae22d32fbcf9",
+538
+],
+"work/xbox/Output/xenon/ai/levels/sp_005/infantry/pathdata.hpd damaged": [
+23305020,
+"b131211dcf235b30a392",
+538
+],
+"work/xbox/Output/xenon/ai/levels/sp_005/vehicle/pathdata.hpd": [
+1216280,
+"9f630965e91481bc5c64",
+82
+],
+"work/xbox/Output/xenon/ai/levels/sp_005/vehicle/pathdata.hpd damaged": [
+1216280,
+"6b496dd2a43d48ba6742",
+82
+],
+"work/xbox/Output/xenon/ai/levels/sp_005_b/infantry/pathdata.hpd": [
+24728852,
+"ec540bbbaeda6b06af03",
+540
+],
+"work/xbox/Output/xenon/ai/levels/sp_005_b/infantry/pathdata.hpd damaged": [
+24728852,
+"d5dfb6adc510775afe0c",
+540
+],
+"work/xbox/Output/xenon/ai/levels/sp_005_b/vehicle/pathdata.hpd": [
+516480,
+"f7c2f805cdc7a1c0d962",
+62
+],
+"work/xbox/Output/xenon/ai/levels/sp_005_b/vehicle/pathdata.hpd damaged": [
+516480,
+"ad78317986709f151830",
+62
+],
+"work/xbox/Output/xenon/ai/levels/sp_006/infantry/pathdata.hpd": [
+19160800,
+"c06e6513fde8940e5123",
+760
+],
+"work/xbox/Output/xenon/ai/levels/sp_006/infantry/pathdata.hpd damaged": [
+19160800,
+"4f3bc28d97cf7a38cde5",
+760
+],
+"work/xbox/Output/xenon/ai/levels/sp_006/vehicle/pathdata.hpd": [
+1892940,
+"c406a31761fa352b1b8b",
+156
+],
+"work/xbox/Output/xenon/ai/levels/sp_006/vehicle/pathdata.hpd damaged": [
+1892940,
+"f2f78a11105e7086c010",
+156
+],
+"work/xbox/Output/xenon/ai/levels/sp_007/infantry/pathdata.hpd": [
+17503736,
+"e97020de529afb2ab29a",
+576
+],
+"work/xbox/Output/xenon/ai/levels/sp_007/infantry/pathdata.hpd damaged": [
+17503736,
+"dfbec5e0c66eb3a01f9d",
+576
+],
+"work/xbox/Output/xenon/ai/levels/sp_007/vehicle/pathdata.hpd": [
+801288,
+"ec6af39710807d91f714",
+120
+],
+"work/xbox/Output/xenon/ai/levels/sp_007/vehicle/pathdata.hpd damaged": [
+801288,
+"814f336b57155bde785b",
+120
+],
+"work/xbox/Output/xenon/ai/levels/sp_008/infantry/pathdata.hpd": [
+3466960,
+"f4708a17a9fe62a9a070",
+82
+],
+"work/xbox/Output/xenon/ai/levels/sp_008/infantry/pathdata.hpd damaged": [
+3466960,
+"db4f64927b6d91dd5091",
+82
+],
+"work/xbox/Output/xenon/ai/levels/sp_008/vehicle/pathdata.hpd": [
+31524,
+"ddf40b2ba76c53aa95b7",
+14
+],
+"work/xbox/Output/xenon/ai/levels/sp_008/vehicle/pathdata.hpd damaged": [
+31524,
+"ffa8e9b0603ca740087b",
+14
+],
+"work/xbox/Output/xenon/ai/levels/sp_008_b/infantry/pathdata.hpd": [
+1743612,
+"14a5aa14e5d69077ecad",
+54
+],
+"work/xbox/Output/xenon/ai/levels/sp_008_b/infantry/pathdata.hpd damaged": [
+1743612,
+"0d357e4b7956cb956dd2",
+54
+],
+"work/xbox/Output/xenon/ai/levels/sp_008_b/vehicle/pathdata.hpd": [
+11300,
+"8ea9dc354f7922439666",
+10
+],
+"work/xbox/Output/xenon/ai/levels/sp_008_b/vehicle/pathdata.hpd damaged": [
+11300,
+"06ef4346c490e68576f2",
+10
+],
+"work/xbox/Output/xenon/ai/levels/sp_009/infantry/pathdata.hpd": [
+173492,
+"9466f16722da10ed54a0",
+18
+],
+"work/xbox/Output/xenon/ai/levels/sp_009/infantry/pathdata.hpd damaged": [
+173492,
+"7e6f56d49a095c95d1aa",
+18
+],
+"work/xbox/Output/xenon/ai/levels/sp_01/infantry/pathdata.hpd": [
+10473228,
+"9868fbe22cfd6a33ae84",
+252
+],
+"work/xbox/Output/xenon/ai/levels/sp_01/infantry/pathdata.hpd damaged": [
+10473228,
+"c4252612c6c4376c45b7",
+252
+],
+"work/xbox/Output/xenon/ai/levels/sp_01/vehicle/pathdata.hpd": [
+635388,
+"25fca64e1469302d2804",
+70
+],
+"work/xbox/Output/xenon/ai/levels/sp_01/vehicle/pathdata.hpd damaged": [
+635388,
+"1b0071bb02d0642e0749",
+70
+],
+"work/xbox/Output/xenon/ai/levels/sp_02/infantry/pathdata.hpd": [
+7072332,
+"4451606594b892dd6b09",
+240
+],
+"work/xbox/Output/xenon/ai/levels/sp_02/infantry/pathdata.hpd damaged": [
+7072332,
+"5a0ad7d38f0250821182",
+240
+],
+"work/xbox/Output/xenon/ai/levels/sp_02/vehicle/pathdata.hpd": [
+148240,
+"a711b8cee3c43ef0d850",
+36
+],
+"work/xbox/Output/xenon/ai/levels/sp_02/vehicle/pathdata.hpd damaged": [
+148240,
+"5a07603c5145878e62ac",
+36
+],
+"work/xbox/Output/xenon/ai/levels/sp_03/infantry/pathdata.hpd": [
+22403312,
+"6e9568069ca48f1e00ae",
+608
+],
+"work/xbox/Output/xenon/ai/levels/sp_03/infantry/pathdata.hpd damaged": [
+22403312,
+"76679293ca24cfcd2288",
+608
+],
+"work/xbox/Output/xenon/ai/levels/sp_03/vehicle/pathdata.hpd": [
+122040,
+"825bd9db809b5430f1c9",
+28
+],
+"work/xbox/Output/xenon/ai/levels/sp_03/vehicle/pathdata.hpd damaged": [
+122040,
+"a2f2490a35af529fa89d",
+28
+],
+"work/xbox/Output/xenon/ai/levels/sp_04/infantry/pathdata.hpd": [
+13228052,
+"068250a03daaf5faf8b1",
+422
+],
+"work/xbox/Output/xenon/ai/levels/sp_04/infantry/pathdata.hpd damaged": [
+13228052,
+"c93a395e581fd22f67c1",
+422
+],
+"work/xbox/Output/xenon/ai/levels/sp_04/vehicle/pathdata.hpd": [
+1495440,
+"993b8e1511da984daa52",
+144
+],
+"work/xbox/Output/xenon/ai/levels/sp_04/vehicle/pathdata.hpd damaged": [
+1495440,
+"f9fca15be7d676b07018",
+144
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
+4154480,
+"14ec47c1b5336453ab3e",
+112
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
+4154480,
+"11483c7e92ee488165f4",
+112
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
+344100,
+"e07a90ff80c5fc40e55b",
+38
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
+344100,
+"b77d5ba1761653ad7281",
+38
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
+3142584,
+"3251b785281e66875b50",
+54
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
+3142584,
+"d4a144d15d14fb4d599e",
+54
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_004/vehicle/pathdata.hpd": [
+470192,
+"8d79f6683055693618a8",
+40
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_004/vehicle/pathdata.hpd damaged": [
+470192,
+"3a6ca793dd26f10128b4",
+40
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_005/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_005/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_005/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_005/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_008/infantry/pathdata.hpd": [
+1872532,
+"544e60fda52505c78a63",
+44
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_008/infantry/pathdata.hpd damaged": [
+1872532,
+"98941e29cd7212fdf1d3",
+44
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_008/vehicle/pathdata.hpd": [
+253636,
+"4b90cc108a4e03e3f059",
+28
+],
+"work/xbox_dlc/454108A800000002/ai/levels/ons_mp_008/vehicle/pathdata.hpd damaged": [
+253636,
+"0cdea754698969477a10",
+28
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
+4154480,
+"14ec47c1b5336453ab3e",
+112
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
+4154480,
+"11483c7e92ee488165f4",
+112
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
+344100,
+"e07a90ff80c5fc40e55b",
+38
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
+344100,
+"b77d5ba1761653ad7281",
+38
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
+3142584,
+"3251b785281e66875b50",
+54
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
+3142584,
+"d4a144d15d14fb4d599e",
+54
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_004/vehicle/pathdata.hpd": [
+470192,
+"8d79f6683055693618a8",
+40
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_004/vehicle/pathdata.hpd damaged": [
+470192,
+"3a6ca793dd26f10128b4",
+40
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_005/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_005/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_005/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_005/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_008/infantry/pathdata.hpd": [
+1872532,
+"544e60fda52505c78a63",
+44
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_008/infantry/pathdata.hpd damaged": [
+1872532,
+"98941e29cd7212fdf1d3",
+44
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_008/vehicle/pathdata.hpd": [
+253636,
+"4b90cc108a4e03e3f059",
+28
+],
+"work/xbox_dlc/454108A800000003/ai/levels/ons_mp_008/vehicle/pathdata.hpd damaged": [
+253636,
+"0cdea754698969477a10",
+28
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_005/infantry/pathdata.hpd": [
+2791612,
+"eb5c82743d75cc5efcdd",
+130
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_005/infantry/pathdata.hpd damaged": [
+2791612,
+"9514635af14f2ff35e26",
+130
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_005/vehicle/pathdata.hpd": [
+903284,
+"a2ec428367d312daf3fc",
+56
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_005/vehicle/pathdata.hpd damaged": [
+903284,
+"addece407f9f70446ca5",
+56
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_008/infantry/pathdata.hpd": [
+1872532,
+"544e60fda52505c78a63",
+44
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_008/infantry/pathdata.hpd damaged": [
+1872532,
+"98941e29cd7212fdf1d3",
+44
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_008/vehicle/pathdata.hpd": [
+253636,
+"4b90cc108a4e03e3f059",
+28
+],
+"work/xbox_dlc/u3/ai/levels/ons_mp_008/vehicle/pathdata.hpd damaged": [
+253636,
+"0cdea754698969477a10",
+28
+]
+}

@@ -28,6 +28,9 @@
 //!   `hpdtool.py`) and [`kymesh::write`]; [`loc`] (localized texts, `bc2loc.py`) and [`bigf`] (BIGF archives);
 //!   [`stfs`] / [`xiso`] (Xbox 360 content packages and discs); [`wave`] (Wave resources, EA stream framing,
 //!   `audio.py`); [`meshdata`] (the `MeshData` header and the mesh sets, `mesh.py` / `meshset.py`).
+//! - Round F3, the rest of the format code: [`aimanim`] (generated aim poses, `aimanim.py`), [`audioframe`]
+//!   (`audio.py`'s EA-XMA parts, XMA2 RIFF and EA-XAS blocks) and [`hpdlayout`] (`hpdtool.mesh_layout` /
+//!   `mesh_coverage`).
 //!
 //! ```
 //! use bc2_formats::dbx::{self, DbxFile, Element};
@@ -42,10 +45,12 @@
 //! ```
 #![deny(unsafe_code)]
 
+pub mod aimanim;
 pub mod apt;
 pub mod aptmodel;
 pub mod aptscan;
 pub mod atomic;
+pub mod audioframe;
 pub mod bigf;
 pub mod culltree;
 pub mod dbx;
@@ -54,6 +59,7 @@ pub mod fbrb;
 pub mod granny;
 pub mod havok;
 pub mod hpd;
+pub mod hpdlayout;
 pub mod kymesh;
 pub mod loc;
 pub mod meshdata;
