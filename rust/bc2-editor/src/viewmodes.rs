@@ -87,7 +87,9 @@ pub struct CullView {
 fn tree_file(scene: &Scene, bases: &[PathBuf]) -> Option<PathBuf> {
     let (_, data) = scene.file(0)?;
     let tree = dbx::parse_tree(data).ok()?;
-    let level = tree.instances().find(|i| i.attr("type").is_some_and(|t| t.ends_with(".LevelData")))?;
+    let level = tree
+        .instances()
+        .find(|i| i.attr("type").is_some_and(|t| t.ends_with(".LevelData")))?;
     let r = level.child("ExclusiveStaticCullTree")?.attr("ref")?;
     let path = r.rsplit_once('/').map_or(r, |(p, _)| p);
     bases.iter().find_map(|b| {
@@ -102,11 +104,10 @@ fn tree_file(scene: &Scene, bases: &[PathBuf]) -> Option<PathBuf> {
         // the folders keep DICE's case: look case-insensitively in the last folder
         let dir = f.parent()?;
         let want = f.file_name()?.to_string_lossy().to_lowercase();
-        std::fs::read_dir(dir)
-            .ok()?
-            .flatten()
-            .map(|e| e.path())
-            .find(|p| p.file_name().is_some_and(|n| n.to_string_lossy().to_lowercase() == want))
+        std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path()).find(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().to_lowercase() == want)
+        })
     })
 }
 
@@ -157,8 +158,8 @@ pub fn cull_view(scene: &Scene, bases: &[PathBuf]) -> CullView {
     out.unslotted.sort_unstable();
     out.shared.sort_unstable();
     let Some(file) = tree_file(scene, bases) else {
-        out.source = "The level's static cull tree was not found in its folders; only the objects' slots are shown."
-            .into();
+        out.source =
+            "The level's static cull tree was not found in its folders; only the objects' slots are shown.".into();
         return out;
     };
     let Ok(data) = std::fs::read(&file) else {
@@ -179,16 +180,20 @@ pub fn cull_view(scene: &Scene, bases: &[PathBuf]) -> CullView {
                 continue;
             }
             let key = |f: &str| get(f).map(|v| f32::from(v as u16 as i16));
-            if let (Some(x), Some(y), Some(z), Some(w)) =
-                (key("SphereKeyX"), key("SphereKeyY"), key("SphereKeyZ"), get("SphereKeyW"))
-            {
+            if let (Some(x), Some(y), Some(z), Some(w)) = (
+                key("SphereKeyX"),
+                key("SphereKeyY"),
+                key("SphereKeyZ"),
+                get("SphereKeyW"),
+            ) {
                 out.leaves.push(([x / 16.0, y / 16.0, z / 16.0], w as f32 / 4.0));
             }
         }
     }
     out.source = format!(
         "{}: {} leaves; {} objects with a slot of their own, {} sharing one, {} with none",
-        file.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
+        file.file_name()
+            .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
         out.leaves.len(),
         out.slotted,
         out.shared.len(),

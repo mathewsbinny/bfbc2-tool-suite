@@ -203,10 +203,8 @@ pub fn blueprint_colour(name: &str) -> Color32 {
 /// The edges of a triangle list (three vertices a triangle), as a line list.
 fn edges_of(tris: &[[f32; 3]]) -> Vec<[f32; 3]> {
     let mut out = Vec::with_capacity(tris.len() * 2);
-    for t in tris.chunks_exact(3) {
-        if let [a, b, c] = t {
-            out.extend([*a, *b, *b, *c, *c, *a]);
-        }
+    for [a, b, c] in tris.as_chunks::<3>().0 {
+        out.extend([*a, *b, *b, *c, *c, *a]);
     }
     out
 }
@@ -675,7 +673,10 @@ impl SceneGpu {
                 let lines_of = if m == 0 {
                     edges_of(&cube())
                 } else if Some(m) == self.terrain_mesh {
-                    scene.terrain.as_ref().map_or_else(Vec::new, |(v, t)| edges_of_indexed(v, t))
+                    scene
+                        .terrain
+                        .as_ref()
+                        .map_or_else(Vec::new, |(v, t)| edges_of_indexed(v, t))
                 } else if Some(m) == self.water_mesh {
                     scene
                         .water

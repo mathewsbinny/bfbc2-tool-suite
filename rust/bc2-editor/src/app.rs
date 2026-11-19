@@ -173,6 +173,7 @@ struct Drag {
 }
 
 /// An open level.
+#[allow(clippy::struct_excessive_bools, reason = "the view's switches, one field each")]
 pub struct ViewState {
     /// The level (`mp_005`).
     pub lv: String,
@@ -489,6 +490,10 @@ impl EditorApp {
 
 /// Why an action cannot run now in the open level (`None`: no level open), or `None` when it can.
 #[must_use]
+#[allow(
+    clippy::match_same_arms,
+    reason = "the arms' guards differ and their order matters: the first reason that holds is the one shown"
+)]
 pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str> {
     {
         let open = v.is_some();
@@ -504,9 +509,7 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             Action::SetWorkspace(w) if w.edits() && doc.is_none() => {
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }
-            Action::SelectAllOfType
-                if !(selected || v.is_some_and(|v| v.content_pick.is_some())) =>
-            {
+            Action::SelectAllOfType if !(selected || v.is_some_and(|v| v.content_pick.is_some())) => {
                 Some("Select an object or a content browser entry first")
             }
             Action::ShowPanel(PanelKind::Content) if doc.is_none() => {
@@ -518,8 +521,8 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             }
             Action::Paste if !editing => Some("Edit a project in the Objects workspace first"),
             Action::Paste if v.is_some_and(|v| v.clipboard.is_empty()) => Some("Copy objects first"),
-            Action::ShowHidden if !doc.is_some_and(|d| !d.org.hidden.is_empty()) => Some("Nothing is hidden"),
-            Action::UnlockAll if !doc.is_some_and(|d| !d.org.locked.is_empty()) => Some("Nothing is locked"),
+            Action::ShowHidden if doc.is_none_or(|d| d.org.hidden.is_empty()) => Some("Nothing is hidden"),
+            Action::UnlockAll if doc.is_none_or(|d| d.org.locked.is_empty()) => Some("Nothing is locked"),
             Action::DeepDuplicate
             | Action::Hide
             | Action::Lock
@@ -975,7 +978,12 @@ impl EditorApp {
             Some(crate::content::GameSource {
                 opfor: root.clone(),
                 set,
-                levels: self.levels.iter().filter(|l| l.set == set).map(|l| l.lv.clone()).collect(),
+                levels: self
+                    .levels
+                    .iter()
+                    .filter(|l| l.set == set)
+                    .map(|l| l.lv.clone())
+                    .collect(),
                 own: lv.to_owned(),
             })
         });
@@ -2499,45 +2507,47 @@ impl Tabs<'_> {
                     });
                     header.body(|ui| {
                         let row_h = m.row;
-                        let menus_cell = std::cell::RefCell::new(&mut menus);
-                        let show =
-                            |ui: &mut egui::Ui, range: std::ops::Range<usize>, clicked: &mut Option<(usize, bool)>| {
-                                for e in rows.get(range).unwrap_or_default() {
-                                    let menus = &mut *menus_cell.borrow_mut();
-                                    let layer = v.doc.as_ref().and_then(|d| {
-                                        d.guid(e.entity).and_then(|g| d.org.layer(g)).map(|l| l.state.colour)
-                                    });
-                                    let resp = outliner_row(
-                                        ui,
-                                        &p,
-                                        &m,
-                                        e,
-                                        &v.teams,
-                                        v.selection.contains(&e.entity),
-                                        hidden || v.doc.as_ref().is_some_and(|d| !d.shown(e.entity)),
-                                        layer,
-                                    );
-                                    if reveal == Some(e.entity) {
-                                        resp.scroll_to_me(Some(Align::Center));
-                                    }
-                                    if resp.secondary_clicked() || resp.context_menu_opened() {
-                                        menus.push((resp.clone(), e.entity));
-                                    }
-                                    if resp.double_clicked() {
-                                        *clicked = Some((e.entity, true));
-                                    } else if resp.clicked() {
-                                        *clicked = Some((e.entity, false));
-                                    }
+                        let show = |ui: &mut egui::Ui,
+                                    range: std::ops::Range<usize>,
+                                    clicked: &mut Option<(usize, bool)>,
+                                    menus: &mut Vec<(egui::Response, usize)>| {
+                            for e in rows.get(range).unwrap_or_default() {
+                                let layer = v.doc.as_ref().and_then(|d| {
+                                    d.guid(e.entity).and_then(|g| d.org.layer(g)).map(|l| l.state.colour)
+                                });
+                                let resp = outliner_row(
+                                    ui,
+                                    &p,
+                                    &m,
+                                    e,
+                                    &v.teams,
+                                    v.selection.contains(&e.entity),
+                                    hidden || v.doc.as_ref().is_some_and(|d| !d.shown(e.entity)),
+                                    layer,
+                                );
+                                if reveal == Some(e.entity) {
+                                    resp.scroll_to_me(Some(Align::Center));
                                 }
-                            };
+                                if resp.secondary_clicked() || resp.context_menu_opened() {
+                                    menus.push((resp.clone(), e.entity));
+                                }
+                                if resp.double_clicked() {
+                                    *clicked = Some((e.entity, true));
+                                } else if resp.clicked() {
+                                    *clicked = Some((e.entity, false));
+                                }
+                            }
+                        };
                         if rows.len() > 300 {
                             // long groups (static group members) scroll on their own, drawing only the rows in view
                             egui::ScrollArea::vertical()
                                 .id_salt(("rows", &grp.category))
                                 .max_height(row_h * 16.0)
-                                .show_rows(ui, row_h, rows.len(), |ui, range| show(ui, range, &mut clicked));
+                                .show_rows(ui, row_h, rows.len(), |ui, range| {
+                                    show(ui, range, &mut clicked, &mut menus);
+                                });
                         } else {
-                            show(ui, 0..rows.len(), &mut clicked);
+                            show(ui, 0..rows.len(), &mut clicked, &mut menus);
                         }
                     });
                 }

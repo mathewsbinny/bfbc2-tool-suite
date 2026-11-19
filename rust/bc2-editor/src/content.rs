@@ -73,15 +73,16 @@ impl Entry {
 
 /// Why a path cannot be placed as an object, from where it lies (vehicles go through spawners).
 fn why_not_by_path(path: &str) -> Option<&'static str> {
-    path.starts_with("vehicles/").then_some(
-        "Vehicles are placed through a vehicle spawner (the Gameplay workspace's tools, a later round)",
-    )
+    path.starts_with("vehicles/")
+        .then_some("Vehicles are placed through a vehicle spawner (the Gameplay workspace's tools, a later round)")
 }
 
 /// The level's own placements: one entry per blueprint, the most placed first.
 #[must_use]
 pub fn level_entries(scene: &Scene) -> Vec<Entry> {
-    let Some((_, data)) = scene.file(0) else { return Vec::new() };
+    let Some((_, data)) = scene.file(0) else {
+        return Vec::new();
+    };
     let Ok(tree) = dbx::parse_tree(data) else {
         return Vec::new();
     };
@@ -106,7 +107,9 @@ pub fn level_entries(scene: &Scene) -> Vec<Entry> {
         .into_iter()
         .map(|(reference, used)| {
             let path = crate::edit::blueprint_path(&reference);
-            let (bt, destructible) = info.get(path.as_str()).map_or((None, false), |(t, d)| ((*t).clone(), *d));
+            let (bt, destructible) = info
+                .get(path.as_str())
+                .map_or((None, false), |(t, d)| ((*t).clone(), *d));
             Entry {
                 name: bc2_levelwrite::ops::blueprint_name(&path).to_owned(),
                 category: Category::of_blueprint(&path, bt.as_deref(), destructible),
@@ -222,7 +225,7 @@ fn read_blueprint(file: &Path, base: &Path, source: &str) -> Option<Entry> {
 /// The blueprints of the level's folders on disk (its own, then its shared bundles'), each once, leaving out those
 /// in `seen` (which grows).
 #[must_use]
-pub fn base_entries(bases: &[PathBuf], seen: &mut HashSet<String>) -> Vec<Entry> {
+pub(crate) fn base_entries(bases: &[PathBuf], seen: &mut HashSet<String>) -> Vec<Entry> {
     let mut out = Vec::new();
     for base in bases {
         let source = base
@@ -240,7 +243,9 @@ pub fn base_entries(bases: &[PathBuf], seen: &mut HashSet<String>) -> Vec<Entry>
         };
         let mut files = Vec::new();
         for top in entries(base) {
-            let n = top.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            let n = top
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().to_lowercase());
             if top.is_dir() && TOPS.contains(&n.as_str()) {
                 blueprint_files(&top, &mut files, 0);
             }
@@ -272,7 +277,10 @@ pub fn commons(set: ContentSet) -> &'static [&'static str] {
 /// `game\Package`; each with its folder's name and whether it is the open level's (its own or a common).
 #[must_use]
 pub fn set_bundles(game: &Path, set: ContentSet, levels: &[String], own: &str) -> Vec<(PathBuf, String, bool)> {
-    let tops = [game.join("Dist").join("win32").join("levels"), game.join("Package").join("levels")];
+    let tops = [
+        game.join("Dist").join("win32").join("levels"),
+        game.join("Package").join("levels"),
+    ];
     let mut folders: Vec<(String, bool)> = commons(set).iter().map(|c| ((*c).to_owned(), true)).collect();
     folders.extend(levels.iter().map(|l| (l.to_lowercase(), l.eq_ignore_ascii_case(own))));
     let mut out = Vec::new();
@@ -291,7 +299,7 @@ pub fn set_bundles(game: &Path, set: ContentSet, levels: &[String], own: &str) -
 
 /// Every blueprint the bundles' headers name, each once (the first bundle naming it), leaving out those in `seen`.
 #[must_use]
-pub fn bundle_entries(bundles: &[(PathBuf, String, bool)], seen: &mut HashSet<String>) -> Vec<Entry> {
+pub(crate) fn bundle_entries(bundles: &[(PathBuf, String, bool)], seen: &mut HashSet<String>) -> Vec<Entry> {
     let mut out = Vec::new();
     for (file, folder, mine) in bundles {
         let Ok(f) = std::fs::File::open(file) else { continue };
@@ -303,7 +311,9 @@ pub fn bundle_entries(bundles: &[(PathBuf, String, bool)], seen: &mut HashSet<St
                 continue;
             }
             let lower = e.name.to_lowercase();
-            let Some(path) = lower.strip_suffix(".dbx") else { continue };
+            let Some(path) = lower.strip_suffix(".dbx") else {
+                continue;
+            };
             if !is_blueprint_path(path) || !seen.insert(path.to_owned()) {
                 continue;
             }

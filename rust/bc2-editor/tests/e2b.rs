@@ -15,6 +15,10 @@
     clippy::float_cmp,
     clippy::too_many_lines,
     clippy::panic,
+    clippy::many_single_char_names,
+    clippy::type_complexity,
+    clippy::map_unwrap_or,
+    clippy::assert_is_empty,
     missing_docs
 )]
 
@@ -68,7 +72,13 @@ fn ops(app: &EditorApp) -> Vec<Op> {
 }
 
 fn index(app: &EditorApp, k: u32) -> usize {
-    app.view().unwrap().doc.as_ref().unwrap().index(&demo::level_guid(k)).unwrap()
+    app.view()
+        .unwrap()
+        .doc
+        .as_ref()
+        .unwrap()
+        .index(&demo::level_guid(k))
+        .unwrap()
 }
 
 fn names(items: &[Option<bc2_editor::app::MenuItem>]) -> Vec<String> {
@@ -146,7 +156,12 @@ fn e2b_through_the_interface() {
         let ground_menu = names(&menu_items(v, MenuKind::Ground, None));
         assert_eq!(
             ground_menu,
-            ["Place object here\u{2026}", "Paste", "Select all of this type", "Focus here"]
+            [
+                "Place object here\u{2026}",
+                "Paste",
+                "Select all of this type",
+                "Focus here"
+            ]
         );
         // disabled entries say why
         let items = menu_items(v, MenuKind::Ground, None);
@@ -157,8 +172,16 @@ fn e2b_through_the_interface() {
         assert_eq!(ungroup.why, Some("Select a grouped object first"));
     }
     for (w, has, lacks) in [
-        (Workspace::Gameplay, vec!["Set team 1", "Set team 2", "Set neutral", "Deep duplicate"], vec!["Group"]),
-        (Workspace::Ai, vec!["Show the navmesh", "Test a path from here"], vec!["Group", "Set team 1"]),
+        (
+            Workspace::Gameplay,
+            vec!["Set team 1", "Set team 2", "Set neutral", "Deep duplicate"],
+            vec!["Group"],
+        ),
+        (
+            Workspace::Ai,
+            vec!["Show the navmesh", "Test a path from here"],
+            vec!["Group", "Set team 1"],
+        ),
         (Workspace::View, vec!["Focus", "Copy GUID"], vec!["Delete", "Move"]),
     ] {
         app.run_action(&gpu, &ctx, Action::SetWorkspace(w));
@@ -173,7 +196,11 @@ fn e2b_through_the_interface() {
     }
     app.run_action(&gpu, &ctx, Action::SetWorkspace(Workspace::Ai));
     let path_test = menu_items(app.view().unwrap(), MenuKind::Ground, None);
-    let path_test = path_test.iter().flatten().find(|i| i.name == "Test a path from here").unwrap();
+    let path_test = path_test
+        .iter()
+        .flatten()
+        .find(|i| i.name == "Test a path from here")
+        .unwrap();
     assert_eq!(path_test.why, Some("Comes with the AI workspace's tools (round E5a)"));
     for (w, brushes) in [(Workspace::Terrain, 5usize), (Workspace::Vegetation, 2)] {
         app.run_action(&gpu, &ctx, Action::SetWorkspace(w));
@@ -235,8 +262,15 @@ fn e2b_through_the_interface() {
     let Some(Op::Place { items }) = log.last() else {
         panic!("{log:?}")
     };
-    assert_eq!(items[0].blueprint, format!("{}/{}", demo::LEVEL_BLUEPRINTS[1].0, demo::LEVEL_BLUEPRINTS[1].1));
-    assert_eq!(items[0].template, demo::level_guid(2), "a plain placement of the crate is its template");
+    assert_eq!(
+        items[0].blueprint,
+        format!("{}/{}", demo::LEVEL_BLUEPRINTS[1].0, demo::LEVEL_BLUEPRINTS[1].1)
+    );
+    assert_eq!(
+        items[0].template,
+        demo::level_guid(2),
+        "a plain placement of the crate is its template"
+    );
     assert!((items[0].placement.unwrap().sink - 0.3).abs() < 1e-9);
     let placed = app.view().unwrap().selected.unwrap();
     assert_eq!(
@@ -296,7 +330,11 @@ fn e2b_through_the_interface() {
     assert_eq!(items[0].fields[0].value, FieldValue::Text("Team2".into()));
     let new_flag = app.view().unwrap().selected.unwrap();
     assert_eq!(app.view().unwrap().scene().entities[new_flag].team, Some(2));
-    assert_eq!(app.view().unwrap().scene().shapes.len(), flags_before + 1, "its capture area outline");
+    assert_eq!(
+        app.view().unwrap().scene().shapes.len(),
+        flags_before + 1,
+        "its capture area outline"
+    );
     {
         // the copy's references point at its own ring and marker; only internal connections were copied
         let d = app.view().unwrap().doc.as_ref().unwrap();
@@ -305,7 +343,10 @@ fn e2b_through_the_interface() {
             Some(FieldValue::Ref(r)) => r,
             v => panic!("{v:?}"),
         };
-        assert_eq!(get(&items[0].guid, "MapMarker"), items[0].owned[4].guid.to_ascii_lowercase());
+        assert_eq!(
+            get(&items[0].guid, "MapMarker"),
+            items[0].owned[4].guid.to_ascii_lowercase()
+        );
         // the outliner lists it as a flag; the Gameplay workspace selects it and offers its menu
         assert!(
             app.view()
@@ -348,7 +389,12 @@ fn e2b_through_the_interface() {
     h.wheel(&mut app, at, -3);
     h.modifiers = Modifiers::NONE;
     let log = ops(&app);
-    assert_eq!(log.len(), n + 1, "a burst of three notches is one operation: {:?}", &log[n..]);
+    assert_eq!(
+        log.len(),
+        n + 1,
+        "a burst of three notches is one operation: {:?}",
+        &log[n..]
+    );
     let Some(Op::Move { items }) = log.last() else {
         panic!("{log:?}")
     };
@@ -393,11 +439,20 @@ fn e2b_through_the_interface() {
             Some(FieldValue::Ref(r)) => r,
             v => panic!("{v:?}"),
         };
-        assert_eq!(get(&items[0].guid, "MapMarker"), items[0].owned[4].guid.to_ascii_lowercase());
-        assert_eq!(get(&items[0].owned[3].guid, "Next"), items[0].owned[0].guid.to_ascii_lowercase());
+        assert_eq!(
+            get(&items[0].guid, "MapMarker"),
+            items[0].owned[4].guid.to_ascii_lowercase()
+        );
+        assert_eq!(
+            get(&items[0].owned[3].guid, "Next"),
+            items[0].owned[0].guid.to_ascii_lowercase()
+        );
         // a plain duplicate shares them
         let shapes = app.view().unwrap().scene().shapes.len();
-        assert_eq!(shapes, 3, "the copy has its own capture area outline (beside the placed flag's)");
+        assert_eq!(
+            shapes, 3,
+            "the copy has its own capture area outline (beside the placed flag's)"
+        );
     }
     // ---------------------------------------------------------------- view modes
     let mut images = Vec::new();
@@ -406,7 +461,11 @@ fn e2b_through_the_interface() {
         h.settle(&mut app, 3);
         assert_eq!(app.view().unwrap().view_mode, m);
         images.push(h.image().unwrap());
-        shots(&mut h, &mut app, &format!("e2b_view_{}", m.name().to_lowercase().replace(' ', "_")));
+        shots(
+            &mut h,
+            &mut app,
+            &format!("e2b_view_{}", m.name().to_lowercase().replace(' ', "_")),
+        );
     }
     for (k, a) in images.iter().enumerate() {
         for b in images.iter().skip(k + 1).take(1) {
@@ -423,7 +482,10 @@ fn e2b_through_the_interface() {
     app.select(&gpu, None);
     h.key(&mut app, Key::P, Modifiers::NONE);
     assert_eq!(app.view().unwrap().tool, Tool::Polygon);
-    let (a, b) = (app.project_entity(crate_a).unwrap(), app.project_entity(crate_b).unwrap());
+    let (a, b) = (
+        app.project_entity(crate_a).unwrap(),
+        app.project_entity(crate_b).unwrap(),
+    );
     let (lo, hi) = (a.min(b) - Vec2::splat(25.0), a.max(b) + Vec2::splat(25.0));
     for p in [lo, Pos2::new(hi.x, lo.y), hi, Pos2::new(lo.x, hi.y)] {
         h.click(&mut app, p);
@@ -433,7 +495,10 @@ fn e2b_through_the_interface() {
     h.key(&mut app, Key::Enter, Modifiers::NONE);
     let mut sel = app.view().unwrap().selection.clone();
     sel.sort_unstable();
-    assert!(sel.contains(&crate_a) && sel.contains(&crate_b) && !sel.contains(&house), "{sel:?}");
+    assert!(
+        sel.contains(&crate_a) && sel.contains(&crate_b) && !sel.contains(&house),
+        "{sel:?}"
+    );
     // ---------------------------------------------------------------- two objects' fields: Mixed, then one set
     app.select_many(&gpu, &[crate_a, crate_b]);
     h.key(&mut app, Key::W, Modifiers::NONE);
@@ -464,7 +529,10 @@ fn e2b_through_the_interface() {
     h.settle(&mut app, 2);
     let at = app.project_entity(house).unwrap();
     h.click(&mut app, at);
-    assert!(!app.view().unwrap().selection.contains(&house), "a house is not gameplay");
+    assert!(
+        !app.view().unwrap().selection.contains(&house),
+        "a house is not gameplay"
+    );
     app.select(&gpu, Some(flag));
     app.run_action(&gpu, &ctx, Action::SetTeam(1));
     let log = ops(&app);
@@ -489,6 +557,9 @@ fn e2b_through_the_interface() {
     assert_eq!(ops(&app).len(), saved.operations.len());
     let again = app.view().unwrap().doc.as_ref().unwrap().check();
     assert!(again.contains("apply cleanly") && !again.contains("differs"), "{again}");
-    println!("e2b through the interface: {} operations, saved and reopened", saved.operations.len());
+    println!(
+        "e2b through the interface: {} operations, saved and reopened",
+        saved.operations.len()
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

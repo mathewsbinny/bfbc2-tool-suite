@@ -538,6 +538,9 @@ impl LevelWriter {
     }
 }
 
+/// Each instance's local references (upper-case guids), by its guid.
+type RefGraph = HashMap<String, Vec<String>>;
+
 /// The guid of an instance, upper case.
 fn guid_of(d: &EditDbx, e: NodeId) -> String {
     String::from_utf8_lossy(d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase()
@@ -565,9 +568,14 @@ fn shared_value(values: &[FieldValue]) -> Option<FieldValue> {
 impl LevelWriter {
     /// The local references of each instance (upper-case guids of this partition), except those in `LevelData`'s
     /// `Objects` list and in event connections (every object is listed there; they are copied for copies anyway).
-    fn ownership_graph(&self) -> (Vec<(String, NodeId)>, HashMap<String, Vec<String>>) {
+    fn ownership_graph(&self) -> (Vec<(String, NodeId)>, RefGraph) {
         let level = self.level_data();
-        let insts: Vec<(String, NodeId)> = self.d.instances().into_iter().map(|e| (guid_of(&self.d, e), e)).collect();
+        let insts: Vec<(String, NodeId)> = self
+            .d
+            .instances()
+            .into_iter()
+            .map(|e| (guid_of(&self.d, e), e))
+            .collect();
         let known: HashSet<&str> = insts.iter().map(|(g, _)| g.as_str()).collect();
         let mut out: HashMap<String, Vec<String>> = HashMap::new();
         for (g, e) in &insts {
@@ -636,6 +644,10 @@ impl LevelWriter {
 
     /// [`LevelWriter::deep_duplicate`]'s copy; `internal_only`: only the event connections between the copied
     /// instances are copied (a placement: the template's links to the level's logic are not the new object's).
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the copy's steps in order: clones, remapped references, items, connections"
+    )]
     fn copy_set(
         &mut self,
         source: &str,
@@ -645,7 +657,11 @@ impl LevelWriter {
         internal_only: bool,
     ) -> Result<Duplicated> {
         let pairs: Vec<(&str, &str, Option<&Rows>)> = std::iter::once((source, new_guid, Some(transform)))
-            .chain(owned.iter().map(|o| (o.source.as_str(), o.guid.as_str(), o.transform.as_ref())))
+            .chain(
+                owned
+                    .iter()
+                    .map(|o| (o.source.as_str(), o.guid.as_str(), o.transform.as_ref())),
+            )
             .collect();
         let mut srcs = Vec::new();
         for (s, n, _) in &pairs {
@@ -685,7 +701,13 @@ impl LevelWriter {
         }
         for e in clones {
             for x in self.d.walk(e) {
-                if let Some(to) = self.d.attr(x, b"ref").and_then(local_ref).and_then(|r| map.get(&r)).cloned() {
+                if let Some(to) = self
+                    .d
+                    .attr(x, b"ref")
+                    .and_then(local_ref)
+                    .and_then(|r| map.get(&r))
+                    .cloned()
+                {
                     self.d.set_ref(x, to.as_bytes())?;
                 }
             }
@@ -752,7 +774,9 @@ impl LevelWriter {
 
     /// The `ReferencedObject` reference of an instance, as stored.
     fn referenced(&self, e: NodeId) -> Option<&[u8]> {
-        self.d.child(e, b"ReferencedObject").and_then(|c| self.d.attr(c, b"ref"))
+        self.d
+            .child(e, b"ReferencedObject")
+            .and_then(|c| self.d.attr(c, b"ref"))
     }
 
     /// The placed objects (`ReferenceObjectData`) of a blueprint reference (`path/guid`, any case); all of them
@@ -761,7 +785,9 @@ impl LevelWriter {
         self.d
             .of_type(b".ReferenceObjectData")
             .into_iter()
-            .filter(|&e| blueprint.is_none_or(|b| self.referenced(e).is_some_and(|r| r.eq_ignore_ascii_case(b.as_bytes()))))
+            .filter(|&e| {
+                blueprint.is_none_or(|b| self.referenced(e).is_some_and(|r| r.eq_ignore_ascii_case(b.as_bytes())))
+            })
             .collect()
     }
 
@@ -830,10 +856,13 @@ impl LevelWriter {
             self.copy_set(&p.template, &p.guid, &p.transform, &p.owned, true)?;
             if !p.blueprint.is_empty() {
                 let e = self.need(&p.guid)?;
-                let r = self.d.child(e, field.as_bytes()).ok_or_else(|| LevelWriteError::NoField {
-                    guid: p.template.clone(),
-                    field: field.into(),
-                })?;
+                let r = self
+                    .d
+                    .child(e, field.as_bytes())
+                    .ok_or_else(|| LevelWriteError::NoField {
+                        guid: p.template.clone(),
+                        field: field.into(),
+                    })?;
                 self.d.set_ref(r, p.blueprint.as_bytes())?;
             }
             for f in &p.fields {
@@ -1063,7 +1092,9 @@ pub fn apply_one(
     clippy::unwrap_used,
     clippy::indexing_slicing,
     clippy::assert_is_empty,
-    clippy::doc_markdown
+    clippy::doc_markdown,
+    clippy::too_many_lines,
+    clippy::panic
 )]
 pub(crate) mod tests {
     use super::*;
@@ -1318,7 +1349,10 @@ pub(crate) mod tests {
             let r = Element::text(
                 &mut f,
                 "field",
-                &[("ref", &format!("objects/{bp}/{bp}/0000")), ("name", "ReferencedObject")],
+                &[
+                    ("ref", &format!("objects/{bp}/{bp}/0000")),
+                    ("name", "ReferencedObject"),
+                ],
                 "",
             );
             let mode = Element::numbers(
@@ -1375,7 +1409,10 @@ pub(crate) mod tests {
                 connections: 1
             }
         );
-        assert!(w.deep_duplicate(&g("1"), &new("1"), &crate::rows_at([0.0; 3]), &[]).is_err());
+        assert!(
+            w.deep_duplicate(&g("1"), &new("1"), &crate::rows_at([0.0; 3]), &[])
+                .is_err()
+        );
         let back = LevelWriter::parse(&w.write().unwrap()).unwrap();
         let s = Schema::scan([&back.d]);
         let r = |guid: &str, field: &str| match back.get_field(&s, guid, field).unwrap().1 {
@@ -1393,7 +1430,10 @@ pub(crate) mod tests {
         assert_eq!(back.transform(&new("2")).unwrap()[3], [12.0, 0.0, 0.0]);
         // Objects: 9 + 4; the connection copied with both ends remapped
         let ld = back.level_data().unwrap();
-        assert_eq!(back.d.children(back.d.child(ld, b"Objects").unwrap()).unwrap().len(), 13);
+        assert_eq!(
+            back.d.children(back.d.child(ld, b"Objects").unwrap()).unwrap().len(),
+            13
+        );
         let ec = back.d.children(back.d.child(ld, b"EventConnections").unwrap()).unwrap();
         assert_eq!(ec.len(), 2);
         let end = |c: NodeId, f: &[u8]| back.d.attr(back.d.child(c, f).unwrap(), b"ref").unwrap().to_vec();
@@ -1434,13 +1474,19 @@ pub(crate) mod tests {
             back.get_field(&s, &p.guid, "ReferencedObject").unwrap().1,
             Some(FieldValue::Ref("objects/new/new/1".into()))
         );
+        assert_eq!(back.get_field(&s, &p.guid, "Mode").unwrap().1, Some(FieldValue::Int(4)));
         assert_eq!(
-            back.get_field(&s, &p.guid, "Mode").unwrap().1,
-            Some(FieldValue::Int(4))
+            back.d.children(back.d.child(ld, b"Objects").unwrap()).unwrap().len(),
+            14
         );
-        assert_eq!(back.d.children(back.d.child(ld, b"Objects").unwrap()).unwrap().len(), 14);
         // no connection copied for a placement
-        assert_eq!(back.d.children(back.d.child(ld, b"EventConnections").unwrap()).unwrap().len(), 2);
+        assert_eq!(
+            back.d
+                .children(back.d.child(ld, b"EventConnections").unwrap())
+                .unwrap()
+                .len(),
+            2
+        );
         // replayed through apply: the same bytes
         let ops = [
             Operation {

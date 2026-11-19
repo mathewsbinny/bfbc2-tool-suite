@@ -172,7 +172,9 @@ pub fn carry_matrix(from: &M, to: &M, m: &M) -> M {
 #[must_use]
 pub fn upright(p: V3, yaw: f64) -> M {
     let (s, c) = yaw.to_radians().sin_cos();
-    [c, 0.0, -s, 0.0, 0.0, 1.0, 0.0, 0.0, s, 0.0, c, 0.0, p[0], p[1], p[2], 1.0]
+    [
+        c, 0.0, -s, 0.0, 0.0, 1.0, 0.0, 0.0, s, 0.0, c, 0.0, p[0], p[1], p[2], 1.0,
+    ]
 }
 
 #[cfg(test)]

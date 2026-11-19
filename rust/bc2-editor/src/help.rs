@@ -612,7 +612,11 @@ mod tests {
         assert!(search(&t, "ctrl+shift+p").iter().any(|x| x.title == "Command palette"));
         assert!(search(&t, "faction").iter().any(|x| x.page == Page::GettingStarted));
         assert!(search(&t, "gameplay checklist").iter().any(|x| x.title == "Gameplay"));
-        assert!(search(&t, "alt+wheel").iter().any(|x| x.title == "Sink into the surface"));
+        assert!(
+            search(&t, "alt+wheel")
+                .iter()
+                .any(|x| x.title == "Sink into the surface")
+        );
         assert!(search(&t, "right click").iter().any(|x| x.title == "Context menu"));
         assert_eq!(search(&t, "no such words anywhere"), Vec::<&Topic>::new());
         assert_eq!(search(&t, "").len(), t.len());

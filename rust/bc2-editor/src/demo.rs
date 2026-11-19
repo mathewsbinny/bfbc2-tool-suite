@@ -183,8 +183,14 @@ pub fn level_guid(k: u32) -> String {
 
 /// The blueprints the demo level places: (path, the reference's guid).
 pub const LEVEL_BLUEPRINTS: [(&str, &str); 2] = [
-    ("objects/buildings/demo_house/demo_house", "d0000000-0000-0000-0000-000000000001"),
-    ("objects/props/demo_crate/demo_crate", "d0000000-0000-0000-0000-000000000002"),
+    (
+        "objects/buildings/demo_house/demo_house",
+        "d0000000-0000-0000-0000-000000000001",
+    ),
+    (
+        "objects/props/demo_crate/demo_crate",
+        "d0000000-0000-0000-0000-000000000002",
+    ),
 ];
 
 /// The demo level's partition (made up, written with the suite's DBX writer): `LevelData` (every object in
@@ -202,7 +208,9 @@ pub fn level_partition() -> Vec<u8> {
     let lg = |k: u32| g(k).to_ascii_lowercase();
     let tr = |f: &mut DbxFile, p: [f32; 3]| {
         let mut t = Vec::new();
-        for v in [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, p[0], p[1], p[2], 0.0f32] {
+        for v in [
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, p[0], p[1], p[2], 0.0f32,
+        ] {
             t.extend(v.to_be_bytes());
         }
         Element::numbers(f, "complex", &[("name", "Transform")], 4, &t)
@@ -221,12 +229,21 @@ pub fn level_partition() -> Vec<u8> {
     let ld = Element::container(
         &mut f,
         "instance",
-        &[("guid", &g(0)), ("type", "GameSharedResources.LevelData"), ("id", "DEMO")],
+        &[
+            ("guid", &g(0)),
+            ("type", "GameSharedResources.LevelData"),
+            ("id", "DEMO"),
+        ],
         vec![lname, objs, ec],
     );
     let mut insts = vec![ld];
     let mut inst = |f: &mut DbxFile, k: u32, ty: &str, kids: Vec<Element>| {
-        insts.push(Element::container(f, "instance", &[("guid", &g(k)), ("type", ty)], kids));
+        insts.push(Element::container(
+            f,
+            "instance",
+            &[("guid", &g(k)), ("type", ty)],
+            kids,
+        ));
     };
     // the house and the crates
     for (k, at, bp, health) in [
@@ -235,7 +252,13 @@ pub fn level_partition() -> Vec<u8> {
         (3, [14.0, -1.0, 12.0], 1, 30.0),
     ] {
         let (path, guid) = LEVEL_BLUEPRINTS.get(bp).copied().unwrap_or_default();
-        let en = Element::numbers(&mut f, "field", &[("name", "Enumeration")], 4, &(k as i32).to_be_bytes());
+        let en = Element::numbers(
+            &mut f,
+            "field",
+            &[("name", "Enumeration")],
+            4,
+            &(k as i32).to_be_bytes(),
+        );
         let name = Element::text(&mut f, "field", &[("name", "Name")], "");
         let t = tr(&mut f, at);
         let r = Element::text(
@@ -251,7 +274,12 @@ pub fn level_partition() -> Vec<u8> {
     let name = Element::text(&mut f, "field", &[("name", "Name")], "Spawn 1");
     let t = tr(&mut f, [-25.0, 0.0, 10.0]);
     let team = Element::text(&mut f, "field", &[("name", "Team")], "Team1");
-    inst(&mut f, 4, "GameSharedResources.AlternateSpawnEntityData", vec![name, t, team]);
+    inst(
+        &mut f,
+        4,
+        "GameSharedResources.AlternateSpawnEntityData",
+        vec![name, t, team],
+    );
     // the flag
     let name = Element::text(&mut f, "field", &[("name", "Name")], "Flag A");
     let t = tr(&mut f, [20.0, 0.0, -15.0]);
@@ -283,7 +311,12 @@ pub fn level_partition() -> Vec<u8> {
     let name = Element::text(&mut f, "field", &[("name", "Name")], "Tank");
     let t = tr(&mut f, [30.0, 0.0, 25.0]);
     let team = Element::text(&mut f, "field", &[("name", "Team")], "Team2");
-    inst(&mut f, 11, "GameSharedResources.VehicleSpawnEntityData", vec![name, t, team]);
+    inst(
+        &mut f,
+        11,
+        "GameSharedResources.VehicleSpawnEntityData",
+        vec![name, t, team],
+    );
     let part = Element::container(
         &mut f,
         "partition",

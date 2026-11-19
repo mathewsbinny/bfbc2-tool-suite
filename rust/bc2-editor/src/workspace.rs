@@ -182,7 +182,10 @@ impl Category {
     /// An entity's category: its blueprint's for placed objects, else by its type.
     #[must_use]
     pub fn of(e: &Entity) -> Self {
-        if matches!(e.category.as_str(), "objective" | "capture point" | "soldier spawn" | "combat area") {
+        if matches!(
+            e.category.as_str(),
+            "objective" | "capture point" | "soldier spawn" | "combat area"
+        ) {
             return Self::Gameplay;
         }
         if let Some(bp) = &e.blueprint {
@@ -252,16 +255,29 @@ impl ViewMode {
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
     #[test]
     fn categories_from_blueprint_data() {
         let c = Category::of_blueprint;
-        assert_eq!(c("objects/buildings/barn/barn", Some("StaticModelEntityData"), false), Category::Buildings);
-        assert_eq!(c("objects/props/crate/crate", Some("StaticModelEntityData"), true), Category::Buildings);
-        assert_eq!(c("objects/props/crate/crate", Some("StaticModelEntityData"), false), Category::Props);
-        assert_eq!(c("vehicles/us/m1a2/m1a2", Some("VehicleEntityData"), false), Category::Vehicles);
+        assert_eq!(
+            c("objects/buildings/barn/barn", Some("StaticModelEntityData"), false),
+            Category::Buildings
+        );
+        assert_eq!(
+            c("objects/props/crate/crate", Some("StaticModelEntityData"), true),
+            Category::Buildings
+        );
+        assert_eq!(
+            c("objects/props/crate/crate", Some("StaticModelEntityData"), false),
+            Category::Props
+        );
+        assert_eq!(
+            c("vehicles/us/m1a2/m1a2", Some("VehicleEntityData"), false),
+            Category::Vehicles
+        );
         assert_eq!(c("fx/smoke/smoke", Some("EffectEntityData"), false), Category::Effects);
         assert_eq!(c("objects/x/x", Some("SoundEntityData"), false), Category::Sounds);
         assert_eq!(c("vegetation/trees/palm/palm", None, false), Category::Vegetation);

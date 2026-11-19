@@ -127,7 +127,9 @@ fn guid(w: &LevelWriter, e: NodeId) -> String {
 /// Whether a catalogue path is a vehicle or a stationary weapon (what a vehicle spawner spawns).
 #[must_use]
 pub fn is_vehicle_path(path: &str) -> bool {
-    path.starts_with("objects/vehicles/") || path.starts_with("objects/weapons/stationary/") || path.starts_with("vehicles/")
+    path.starts_with("objects/vehicles/")
+        || path.starts_with("objects/weapons/stationary/")
+        || path.starts_with("vehicles/")
 }
 
 /// The Spawners and Objectives tiles of a project's level (and the content set's vehicles from the catalogue).
@@ -157,7 +159,11 @@ pub fn tiles(doc: &Doc, catalogue: Option<&Catalogue>) -> Vec<Tile> {
                 } else {
                     bc2_levelwrite::ops::blueprint_name(&path).to_owned()
                 };
-                (BrowserMode::Spawners, Kind::VehicleSpawner(v), format!("Vehicle spawner: {name}"))
+                (
+                    BrowserMode::Spawners,
+                    Kind::VehicleSpawner(v),
+                    format!("Vehicle spawner: {name}"),
+                )
             }
             "CapturePointEntityData" => (
                 BrowserMode::Objectives,
@@ -173,8 +179,13 @@ pub fn tiles(doc: &Doc, catalogue: Option<&Catalogue>) -> Vec<Tile> {
                 let name = bc2_levelwrite::ops::blueprint_name(&path).to_owned();
                 (BrowserMode::Objectives, Kind::Mcom(path), format!("M-COM: {name}"))
             }
-            s if ["MissionObjectiveEntityData", "ArmDisarmAwardEntityData", "LifeCounterEntityData", "TicketCounterEntityData"]
-                .contains(&s)
+            s if [
+                "MissionObjectiveEntityData",
+                "ArmDisarmAwardEntityData",
+                "LifeCounterEntityData",
+                "TicketCounterEntityData",
+            ]
+            .contains(&s)
                 || s.contains("Objective") =>
             {
                 let label = match s {
@@ -188,7 +199,11 @@ pub fn tiles(doc: &Doc, catalogue: Option<&Catalogue>) -> Vec<Tile> {
             }
             _ => continue,
         };
-        groups.entry(kind).or_insert_with(|| (mode, label, Vec::new())).2.push(e);
+        groups
+            .entry(kind)
+            .or_insert_with(|| (mode, label, Vec::new()))
+            .2
+            .push(e);
     }
     let mut out = Vec::new();
     let mut spawner_template = None;
@@ -231,7 +246,8 @@ pub fn tiles(doc: &Doc, catalogue: Option<&Catalogue>) -> Vec<Tile> {
             count: insts.len(),
             team_field,
             vehicle_path: None,
-            why_not: (!positioned).then_some("It has no position: the mode's logic objects are set up with the mode (E4)"),
+            why_not: (!positioned)
+                .then_some("It has no position: the mode's logic objects are set up with the mode (E4)"),
             wiring,
         });
     }
@@ -242,7 +258,11 @@ pub fn tiles(doc: &Doc, catalogue: Option<&Catalogue>) -> Vec<Tile> {
             .filter(|t| matches!(t.kind, Kind::VehicleSpawner(_)))
             .map(|t| crate::edit::blueprint_path(&t.vehicle))
             .collect();
-        for e in cat.entries.iter().filter(|e| is_vehicle_path(&e.path) && !have.contains(&e.path)) {
+        for e in cat
+            .entries
+            .iter()
+            .filter(|e| is_vehicle_path(&e.path) && !have.contains(&e.path))
+        {
             out.push(Tile {
                 mode: BrowserMode::Spawners,
                 kind: Kind::VehicleSpawner(e.path.clone()),
