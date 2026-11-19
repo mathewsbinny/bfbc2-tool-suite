@@ -206,40 +206,22 @@ impl Doc {
                     let old = self.scene.entities.get(k).and_then(|e| e.matrix);
                     let to = bc2_levelwrite::matrix_of(&d.transform);
                     let Some(n) = self.copy_entity(k, &d.guid, Some(to)) else { continue };
-                    for s in &d.owned {
-                        if let Some(sk) = self.index(&s.source) {
-                            self.copy_entity(sk, &s.guid, s.transform.as_ref().map(bc2_levelwrite::matrix_of));
-                        }
-                    }
-                    if !d.owned.is_empty()
-                        && let Some(old) = old
-                    {
-                        // the owner's outlines (a flag's capture area) follow the copy
-                        let copies: Vec<Shape> = self
-                            .scene
-                            .shapes
-                            .iter()
-                            .filter(|s| s.entity == k)
-                            .map(|s| {
-                                let mut c = s.clone();
-                                c.entity = n;
-                                c.points = c.points.iter().map(|p| crate::math::carry(&old, &to, *p)).collect();
-                                c
-                            })
-                            .collect();
-                        self.scene.shapes.extend(copies);
-                    }
+                    self.copy_owned(k, n, old, to, &d.owned);
                 }
             }
             Op::Place { items } => {
                 for p in items {
                     let Some(k) = self.index(&p.template) else { continue };
-                    let Some(n) = self.copy_entity(k, &p.guid, Some(bc2_levelwrite::matrix_of(&p.transform))) else {
+                    let old = self.scene.entities.get(k).and_then(|e| e.matrix);
+                    let to = bc2_levelwrite::matrix_of(&p.transform);
+                    let Some(n) = self.copy_entity(k, &p.guid, Some(to)) else {
                         continue;
                     };
+                    self.copy_owned(k, n, old, to, &p.owned);
                     let path = blueprint_path(&p.blueprint);
                     let same = self.scene.entities.get(k).and_then(|e| e.blueprint.clone()) == Some(path.clone());
-                    if !same {
+                    // a spawner's vehicle or a template kept as it is: the entity stays the template's kind
+                    if !same && !p.blueprint.is_empty() && p.ref_field.is_none() {
                         let info = self.blueprint_info(&path);
                         if let Some(c) = self.scene.collision.as_mut() {
                             c.meshes.retain(|(i, _)| *i != n);
@@ -305,6 +287,46 @@ impl Doc {
         }
         self.by_guid.insert(guid.to_ascii_uppercase(), n);
         Some(n)
+    }
+
+    /// The sub-instances copied with entity `k` (as `n`): their entities, and `k`'s outlines (a flag's capture
+    /// area) carried from `old` to `to`.
+    fn copy_owned(
+        &mut self,
+        k: usize,
+        n: usize,
+        old: Option<[f64; 16]>,
+        to: [f64; 16],
+        owned: &[bc2_levelwrite::ops::SubCopy],
+    ) {
+        for s in owned {
+            if let Some(sk) = self.index(&s.source) {
+                self.copy_entity(sk, &s.guid, s.transform.as_ref().map(bc2_levelwrite::matrix_of));
+            }
+        }
+        if owned.is_empty() {
+            return;
+        }
+        let Some(old) = old else { return };
+        let copies: Vec<Shape> = self
+            .scene
+            .shapes
+            .iter()
+            .filter(|s| s.entity == k)
+            .map(|s| {
+                let mut c = s.clone();
+                c.entity = n;
+                c.points = c.points.iter().map(|p| crate::math::carry(&old, &to, *p)).collect();
+                c
+            })
+            .collect();
+        self.scene.shapes.extend(copies);
+    }
+
+    /// The level partition being edited (levelwrite's writer), when the scene has one.
+    #[must_use]
+    pub fn writer(&self) -> Option<&LevelWriter> {
+        self.writer.as_ref()
     }
 
     /// What a blueprint is (category, the type of its object, destructible): from a placement of it in the scene,
@@ -531,12 +553,13 @@ impl Doc {
                     _ => 0,
                 };
                 format!(
-                    "{} operation(s) apply cleanly to {}: {} transform(s), {} copy(ies), {} deleted, {} field(s); {} \
-                     change(s) in the partition{}.",
+                    "{} operation(s) apply cleanly to {}: {} transform(s), {} copy(ies), {} placed, {} deleted, {} \
+                     field(s); {} change(s) in the partition{}.",
                     a.operations,
                     self.project.base.partition,
                     a.transforms,
                     a.duplicated,
+                    a.placed,
                     a.deleted,
                     a.fields,
                     changes,

@@ -83,10 +83,20 @@ impl Workspace {
             Self::View => true,
             Self::Objects => filter.is_none_or(|f| Category::of(e) == f),
             Self::Terrain | Self::Vegetation => false,
-            Self::Gameplay => Category::of(e) == Category::Gameplay,
+            Self::Gameplay => is_gameplay(e),
             Self::Ai => is_ai(e),
         }
     }
+}
+
+/// Whether an entity is the Gameplay workspace's: spawns, vehicle spawners, flags, objectives (M-COMs), combat
+/// areas.
+#[must_use]
+pub fn is_gameplay(e: &Entity) -> bool {
+    matches!(
+        e.category.as_str(),
+        "soldier spawn" | "vehicle spawn" | "capture point" | "objective" | "combat area"
+    )
 }
 
 /// Whether an entity is the AI workspace's: orders, AI soldier spawns and the points of their areas.
@@ -172,6 +182,9 @@ impl Category {
     /// An entity's category: its blueprint's for placed objects, else by its type.
     #[must_use]
     pub fn of(e: &Entity) -> Self {
+        if matches!(e.category.as_str(), "objective" | "capture point" | "soldier spawn" | "combat area") {
+            return Self::Gameplay;
+        }
         if let Some(bp) = &e.blueprint {
             return Self::of_blueprint(bp, e.blueprint_type.as_deref(), e.destructible);
         }
