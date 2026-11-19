@@ -3910,3 +3910,39 @@ The index is 27 MB for every stock level's Dx9 database.
   `donors = S.donor_levels(stock, need, opfor=cc.OPFOR)`.
 - `wake_install.bf_source()` can stay; it is no longer needed for speed (a plain `Source(...)` shares the points).
 - `PACK_LATER`'s comment on the packing thread holding a level in memory no longer holds.
+
+## D1: the disk budget (2026-11-19)
+
+Drive C: filled up repeatedly on 2026-11-18. Measured on the shared PC (other agents building; "free" is the drive's).
+
+**Rust build folders** (`native.target_dir`: `rust-targets\<checkout>`; README.md, "Where Rust builds").
+- `build_native.py` (bc2-py + bfbc2.exe, release, `-j 4`): 0.36 GB, 134 s from nothing. Plus `--editor`
+  (bfbc2-editor.exe, mapexport.exe): 1.35 GB in all, 270 s. Nothing is written into the checkout but `bin\` (three
+  exes, 23 MB).
+- The quick tier from nothing (workspace clippy + tests + the editor's tests, debug, `CARGO_INCREMENTAL=0`,
+  `-j 4`): the folder peaked at 15.1 GB (13.7 GB of it `debug\`), 975 s for the tier at `-j 2`. That is the cost of
+  a worktree's first quick tier; the old layout kept it inside every worktree for good (the main checkout's
+  `rust\target\debug`: 47.8 GB). Deleting `debug\` after a round (the folder is outside the worktree now) frees it.
+- sccache: not installed on the PC, and the round installs nothing; not measured. The per-checkout folders already
+  avoid the locking a shared folder brings. Sharing dependency compiles between checkouts would save about 1 GB of
+  release and most of a debug build per worktree; worth measuring once sccache is installed by the user.
+
+**Scratch** (OPFOR `console_common.drop_scratch`, `--keep`): each console stage's `work\console_<stage>\<lv>`, combat
+A / B's and sector offsets' working files deleted at the step's end. `console_vehicles --plan --level ons_mp_002`:
+peak 221 MB, left 0 (was 217 MB kept); `console_shaders`: peak 332 MB, left 0 (was 332 MB). Outputs (the kept tree
+with `--keep`, sha256 of every file, and the printed plan) identical to the code before.
+
+**Streaming** (a bundle's few entries read in memory with `fbrb.read` / `dbx.to_xml`, not a whole unpack kept):
+- `console_deps`: the source bundles (`work\console_deps\src`, 4.46 GB for the four levels). ons_mp_002's plan
+  355 -> 100 s; its 1,260 files and printed plan identical.
+- `console_mode`: Conquest from mp_common (`work\console_mode\mp_common`, 0.63 GB); the level's 507 files identical,
+  `Conquest.dbx` byte-identical to the unpack's.
+- `apply_ai_template --plan`: the level partition (`work\combat_a\<lv>\plan`, 1.47 GB); the printed plan identical.
+
+**Steady state** (Project OPFOR's `work\`, 112 GB, by kind with `caches --report`): 25.4 GB is scratch; of it about
+21 GB goes as each stage next runs (the per-level folders, the three caches above), the rest is what the stages keep
+on purpose (console_shaders\shared, console_loadset\mp2_common, combat_a's source unpacks). The caches: 20.0 GB,
+now under one 20 GiB budget (it was 16 GiB for fbrb plus every other cap, about 28 GiB in all).
+
+**Proof**: the WW2 rebuild against the oracle, 10,852 of 10,852 identical (1,737 s, the PC loaded); the WW2 install
+plan (wake_install.py --plan) 389 s, work\ww2 peak 9.86 GB, unchanged by the round (its code is not touched).

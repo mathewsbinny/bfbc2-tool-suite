@@ -4,7 +4,9 @@ the default when nothing is known.
 
   python test_regress_progress.py
 """
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 
@@ -31,6 +33,7 @@ def main(argv):
           'durations in words')
 
     root = tempfile.mkdtemp()                           # no level inputs here: sizes unknown
+    atexit.register(shutil.rmtree, root, True)          # 70 MB of sample files below: deleted at the end (round D1)
     est = navregress.estimates(root, ['a', 'b', 'c'], {'a': {'seconds': 40}}, {'a': {'seconds': 99}, 'b': {'seconds': 300}})
     check(est == {'a': 40, 'b': 300, 'c': navregress.DEFAULT_SECONDS},
           'expected times: first run that has the level, then the next, else the default')

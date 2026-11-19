@@ -9,10 +9,20 @@ module put into core\bfbc2core\bc2_native.pyd, where bfbc2core finds it (README.
   python rust\build_native.py --remove     delete the module (texture conversion and NavKit's builds then stop with
                                            an error saying how to get it; the readers run in Python)
   python rust\build_native.py --fingerprint   print this checkout's source fingerprint (the release tag's)
+  python rust\build_native.py --editor     build the map editor (bfbc2-editor.exe) and mapexport.exe into bin\
+  python rust\build_native.py --target-dir print cargo's build folder for this checkout
+  python rust\build_native.py --cargo ARGS...   run cargo ARGS in rust\ with this checkout's build folder (use it
+                                           instead of a bare cargo, which would build into rust\target)
 
-A build also builds the command-line binary rust\target\release\bfbc2.exe (round O1: the tools' command lines in
-Rust, "bfbc2 fbrbtool ...", "bfbc2 dbxedit ...") with the same fingerprint; a download fetches the module only (the
-Python command lines then answer, as before).
+A build also builds the command-line binary bfbc2.exe (round O1: the tools' command lines in Rust, "bfbc2 fbrbtool
+...", "bfbc2 dbxedit ...") with the same fingerprint; a download fetches the module only (the Python command lines
+then answer, as before).
+
+Where things go (round D1, 2026-11-19): cargo builds in C:\Programming\Projects\rust-targets\<checkout folder name>
+(bfbc2core.native.target_dir: CARGO_TARGET_DIR when set, BFBC2_RUST_TARGETS for another root), never in rust\target;
+the binaries the tools run are copied to the suite's bin\ (bin\bfbc2.exe, bin\bfbc2-editor.exe, bin\mapexport.exe),
+a place that does not depend on the build folder. Removing a checkout leaves its build folder: remove it with
+python -m bfbc2core.caches --prune-targets (every folder of the root whose checkout is gone).
 
 Building needs Rust (cargo: on PATH or in %USERPROFILE%\.cargo\bin) and maturin (pip install maturin). The module
 carries the fingerprint of the Rust sources it was built from (bfbc2core.native: a SHA-256 over sources(), line
@@ -76,8 +86,9 @@ def stale() -> bool:
 
 
 def cargo_env() -> dict[str, str] | None:
-    """The environment with cargo on PATH, or None when Rust is not installed."""
-    env = dict(os.environ)
+    """The environment with cargo on PATH and CARGO_TARGET_DIR this checkout's build folder (native.target_dir),
+    or None when Rust is not installed."""
+    env = native.cargo_env()
     if shutil.which('cargo') is None:
         home = os.path.join(os.path.expanduser('~'), '.cargo', 'bin')
         if not os.path.isfile(os.path.join(home, 'cargo.exe' if os.name == 'nt' else 'cargo')):
@@ -91,23 +102,36 @@ def have_maturin() -> bool:
     return subprocess.run([sys.executable, '-m', 'maturin', '--version'], capture_output=True).returncode == 0
 
 
-def install(new: str) -> None:
-    """new in TARGET's place. A module a running Python has loaded cannot be replaced or deleted on Windows, but it
-    can be renamed: it moves aside (bc2_native.pyd.old-N, deleted by a later build once nothing holds it) and the
-    running tools keep the old code until they restart."""
-    for old in glob.glob(TARGET + '.old-*'):
+def install(new: str, target: str | None = None) -> None:
+    """new in target's place (TARGET, the module, by default - read at the call: tests point it elsewhere). A module
+    a running Python has loaded (or a running exe) cannot be replaced or deleted on Windows, but it can be renamed:
+    it moves aside (<name>.old-N, deleted by a later build once nothing holds it) and the running tools keep the old
+    code until they restart."""
+    target = target or TARGET
+    for old in glob.glob(target + '.old-*'):
         with contextlib.suppress(OSError):
             os.remove(old)
     try:
-        os.replace(new, TARGET)
+        os.replace(new, target)
         return
     except PermissionError:
         n = 0
-        while os.path.exists(f'{TARGET}.old-{n}'):
+        while os.path.exists(f'{target}.old-{n}'):
             n += 1
-        os.replace(TARGET, f'{TARGET}.old-{n}')
-        print(f'build_native: {os.path.basename(TARGET)} is in use by a running tool; moved aside')
-    os.replace(new, TARGET)
+        os.replace(target, f'{target}.old-{n}')
+        print(f'build_native: {os.path.basename(target)} is in use by a running tool; moved aside')
+    os.replace(new, target)
+
+
+def install_binary(name: str, profile: str = 'release') -> str:
+    """cargo's newly built binary `name` copied to its stable place bin\\<name>.exe (native.bin_path; written beside
+    it, then moved in: a running copy is moved aside). Returns the path."""
+    src, dst = native.built_path(name, profile), native.bin_path(name)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    tmp = dst + '.new'
+    shutil.copyfile(src, tmp)
+    install(tmp, dst)
+    return dst
 
 
 def module_info(path: str) -> dict[str, str] | None:
@@ -166,17 +190,40 @@ def build(env: dict[str, str]) -> int:
 
 
 def build_cli(env: dict[str, str]) -> int:
-    """The command-line binary rust\\target\\release\\bfbc2.exe (round O1: the tools' command lines in Rust), with the
-    same fingerprint baked in (env carries it): bfbc2core.native.cli_exe uses it only while that matches."""
-    r = subprocess.run(['cargo', 'build', '--release', '--quiet', '--color', 'never', '-p', 'bc2-cli'], env=env,
+    """The command-line binary bfbc2.exe (round O1: the tools' command lines in Rust), with the same fingerprint
+    baked in (env carries it): bfbc2core.native.cli_exe uses it only while that matches. Built in the build folder,
+    copied to bin\\bfbc2.exe."""
+    if _cargo_build(env, ['-p', 'bc2-cli'], 'the command-line binary'):
+        return 1
+    print(f'built {install_binary("bfbc2")}')
+    return 0
+
+
+def _cargo_build(env: dict[str, str], args: list[str], what: str) -> int:
+    r = subprocess.run(['cargo', 'build', '--release', '--quiet', '--color', 'never', *args], env=env,
                        capture_output=True, cwd=RUST)
     if r.returncode:
         text = (r.stdout + r.stderr).decode('utf-8', errors='replace')
         print(text.encode('ascii', errors='backslashreplace').decode('ascii'))
-        print(f'build_native: the command-line binary failed to build (exit code {r.returncode})')
-        return r.returncode
-    print(f'built {native.cli_path()}')
+        print(f'build_native: {what} failed to build (exit code {r.returncode})')
+    return r.returncode
+
+
+def build_editor(env: dict[str, str]) -> int:
+    """The map editor (rust\\bc2-editor: bfbc2-editor.exe) and mapexport.exe (bc2-levelwrite), release, copied to
+    bin\\."""
+    if _cargo_build(env, ['-p', 'bc2-editor', '-p', 'bc2-levelwrite', '--bin', 'bfbc2-editor', '--bin', 'mapexport'],
+                    'the map editor'):
+        return 1
+    for name in ('bfbc2-editor', 'mapexport'):
+        print(f'built {install_binary(name)}')
     return 0
+
+
+def run_cargo(env: dict[str, str], args: list[str]) -> int:
+    """cargo args in rust\\ with this checkout's build folder (where a bare cargo would use rust\\target)."""
+    cargo = shutil.which('cargo', path=env.get('PATH')) or 'cargo'
+    return subprocess.run([cargo, *args], env=env, cwd=RUST).returncode
 
 
 def _get(url: str) -> bytes:
@@ -254,6 +301,17 @@ def main(argv: list[str]) -> int:
         return 0
     if '--download' in argv:
         return download()
+    if '--target-dir' in argv:
+        print(native.target_dir())
+        return 0
+    if '--cargo' in argv or '--editor' in argv:
+        cenv = cargo_env()
+        if cenv is None:
+            print('build_native: Rust (cargo) is not installed')
+            return 1
+        if '--cargo' in argv:
+            return run_cargo(cenv, argv[argv.index('--cargo') + 1:])
+        return build_editor(cenv)
     if_stale = '--if-stale' in argv
     if if_stale and not stale():
         print(f'up to date: {os.path.basename(TARGET)}')

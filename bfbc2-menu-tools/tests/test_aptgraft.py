@@ -481,11 +481,9 @@ def game(c):
     con = os.path.join(root, 'work', 'xbox_dlc', 'hud', 'con_ingame', 'Menu', 'hudlayer_shared.res')
     pcb = os.path.join(root, 'game', 'Package', 'levels', 'ons_mp_002', 'ingame-00.fbrb')
     if os.path.isfile(pcb + '.opfor-hud-orig'):
-        # OPFOR's console_hud grafted the installed one already: graft into (a copy of) its original
-        import shutil
-        orig = os.path.join(tempfile.gettempdir(), 'aptgraft_test_ons_mp_002_ingame-00.fbrb')
-        shutil.copyfile(pcb + '.opfor-hud-orig', orig)
-        pcb = orig
+        # OPFOR's console_hud grafted the installed one already: graft into its original, read where it is (round D1:
+        # it was copied whole to %TEMP% first, and the copy was never deleted)
+        pcb += '.opfor-hud-orig'
     if not (os.path.isfile(con) and os.path.isfile(pcb)):
         print('skip the Onslaught timer graft (no console HUD in work\\xbox_dlc or no ons_mp_002 bundle)')
         return

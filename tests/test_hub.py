@@ -5,8 +5,10 @@ the 3D tools' level picker lists the levels. Needs a display and Project OPFOR B
 
   python tests\test_hub.py [--shots <folder>]       --shots: a screenshot of every tab (for a look)
 """
+import atexit
 import importlib.util
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -93,6 +95,7 @@ def main(argv: list[str]) -> int:
     check('changed: 0; only in A: 0; only in B: 0' in output(), 'Level diff: a level against itself has no differences')
 
     tmp = tempfile.mkdtemp(prefix='hub_test_')
+    atexit.register(shutil.rmtree, tmp, True)           # deleted at the end (round D1)
     rep = os.path.join(tmp, 'crashreport.xml')
     open(rep, 'w').write('<?xml version="1.0"?><report><type>crash</type><buildsignature>795745</buildsignature>'
                          '<categoryid> 0x6EFF8A</categoryid><stack> 0x6EFF8A 0x570330</stack>'
