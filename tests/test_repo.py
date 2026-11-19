@@ -3,6 +3,8 @@ r"""The repository's own rules, checked before anything is pushed (no game data 
 - no game file types and no large files anywhere in the history (EA / DICE content is never published);
 - no co-author or generated-by lines in commit messages (the author is the only author);
 - no build output or caches tracked (.exe, .pyc, __pycache__);
+- no application icon tracked from design/icons/local (a personal override), nor one in design/icons without the
+  README.md recording its source;
 - a README in every tool folder, a LICENSE at the root;
 - every Python file compiles.
 
@@ -60,6 +62,10 @@ def main(argv: list[str]) -> int:
 
     tracked = git('ls-files').splitlines()
     results.append(('no build output or caches tracked', [t for t in tracked if TRACKED_NEVER.search(t)]))
+    # the application icon (round I1): a personal override never; the committed one with its source recorded
+    icons = [t for t in tracked if t.startswith('design/icons/') and t.lower().endswith(('.ico', '.png'))]
+    unsourced = [t for t in icons if t.startswith('design/icons/local/') or 'design/icons/README.md' not in tracked]
+    results.append(('no application icon tracked without design/icons/README.md, none from design/icons/local', unsourced))
 
     folders = [d for d in sorted(os.listdir(SUITE)) if os.path.isdir(os.path.join(SUITE, d)) and (d.startswith('bfbc2-') or d == 'core')]
     results.append(('a README.md in every tool folder', [d for d in folders if not os.path.isfile(os.path.join(SUITE, d, 'README.md'))]))

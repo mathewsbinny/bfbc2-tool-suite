@@ -242,16 +242,21 @@ fn main() -> ExitCode {
         d.required_features |= bc2_editor::gameview::device_features(adapter);
         d
     });
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title(format!("BFBC2 Map Editor {}", bc2_editor::version()))
+        .with_inner_size([1600.0, 950.0])
+        .with_min_inner_size([900.0, 560.0]);
+    // the suite's application icon (round I1); none found, none set
+    if let Some(icon) = bc2_editor::appicon::load() {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
             wgpu_setup: setup.into(),
             ..Default::default()
         },
-        viewport: egui::ViewportBuilder::default()
-            .with_title("BFBC2 Map Editor")
-            .with_inner_size([1600.0, 950.0])
-            .with_min_inner_size([900.0, 560.0]),
+        viewport,
         ..Default::default()
     };
     let (opfor, theme, open, project) = (a.opfor.clone(), a.theme, a.level.clone(), a.project.clone());

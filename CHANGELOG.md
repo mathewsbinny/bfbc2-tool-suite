@@ -34,6 +34,10 @@ landed on `main`.
 - **Map editor:** export profiles for BFBC2, Vietnam, WW2 and BFBC1; an export gets its own name and description in
   every language and its own loading and map-list pictures; the campaign strip checklist for exports from a
   campaign level (round E3b).
+- **Map editor:** an export's announcer voice-over follows its profile: WW2 exports use BF1943's voices, Vietnam
+  the Vietnam DLC's, BFBC1 and BFBC2 their own; `mapexport check` verifies the voice-over registration (round E3c).
+- **The suite's icon** (the author's M67 render) on `bfbc2.exe`, `bfbc2-editor.exe`, `mapexport.exe`, the editor's
+  window and the hub's window (round I1).
 - **`bfbc2.exe`:** more of the tools' command lines in Rust, with the same arguments, output and files as their
   Python: `aptcheck`, `aptrefs`, `bc2loc`, `exeref`, `crashreader`, `hpdtool`, `hkpack`, `convert`, `aimanim`
   (round O2); `caches`, `stockmp`, `aptgraft`, `audio`, `dbxcatalogue`, `dbxparity`, `portparity`, `meshview`,
@@ -41,7 +45,7 @@ landed on `main`.
   `graphstats`, `hpdcheck`, `hpdview`, `detailed`, `navparity`, `navregress`, `sample_all`, `harness`, `texqa`
   (round O4).
 - **Versions:** the `VERSION` file, this changelog, `ROADMAP.md` and `RELEASING.md`; `bfbc2.exe --version`,
-  `bfbc2-editor --version`, `bfbc2core.__version__`, the version in the editor's Help window and in the hub's title
+  `bfbc2-editor --version`, `bfbc2core.__version__`, the version in the editor's Help window and window title and in the hub's title
   (round P1).
 - **Tests:** `python run_tests.py quick --no-game` runs only the entries that need nothing but the checkout and
   names each one it skips, with the reason; `--ci-steps` leaves out the entries CI runs as steps of their own

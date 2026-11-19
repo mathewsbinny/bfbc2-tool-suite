@@ -273,6 +273,41 @@ pub fn teams(p: Profile, d: &Donor) -> String {
     format!("{} / {}", side(&d.factions[0]), side(&d.factions[1]))
 }
 
+/// The donor's announcer data in words (round E3c): where its banks and trigger sets are, its voice-over bundles.
+#[must_use]
+pub fn announcer_text(d: &Donor) -> String {
+    let a = &d.announcer;
+    let own_banks = a
+        .partitions
+        .iter()
+        .filter(|n| n.to_ascii_lowercase().starts_with("sound/vo/"))
+        .count();
+    let banks = if own_banks == 0 {
+        "the common bundles' line banks".to_owned()
+    } else {
+        format!("{own_banks} line banks of its own")
+    };
+    let mut targets: Vec<&str> = a
+        .blocks
+        .iter()
+        .flat_map(|(_, t)| t.iter().map(|x| x.rsplit('/').nth(2).unwrap_or(x)))
+        .collect();
+    targets.dedup();
+    let mut seen = std::collections::HashSet::new();
+    targets.retain(|t| seen.insert(*t));
+    format!(
+        "{}'s: {banks}; {} voice-over languages ({}){}",
+        d.level.to_ascii_uppercase(),
+        a.blocks.len(),
+        targets.join(", "),
+        if a.bundles.is_empty() {
+            String::new()
+        } else {
+            format!(", {} bundle(s) of its own copied", a.bundles.len())
+        }
+    )
+}
+
 fn to_image(p: &Rgb) -> egui::ColorImage {
     egui::ColorImage::from_rgb([p.w, p.h], &p.px)
 }
@@ -672,6 +707,10 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                                 d.game_mode.split('/').nth(1).unwrap_or("?")
                             ));
                             ui.end_row();
+                            ui.label("Announcer");
+                            ui.label(announcer_text(d))
+                                .on_hover_text("The announcer's voice-over, as the donor's set has it (round E3c)");
+                            ui.end_row();
                         }
                         if let Some(s) = set {
                             ui.label("Common bundles");
@@ -789,6 +828,7 @@ mod tests {
             ],
             outside: Vec::new(),
             fields: std::collections::BTreeMap::new(),
+            announcer: bc2_levelwrite::profile::Announcer::default(),
         }
     }
 

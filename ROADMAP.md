@@ -10,9 +10,9 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 ## Priority order (the user, 2026-11-19)
 
-1. **The map editor's start and export:** G4 (the start flow) and E3b (export profiles, the level's own name and
-   picture, the campaign strip checklist) are done; **E3c** (the announcer's voice-over follows the export's profile:
-   WW2 uses BF1943's voices, Vietnam the Vietnam DLC's, BFBC2 its own) is in progress.
+1. **The map editor's start and export:** G4 (the start flow), E3b (export profiles, the level's own name and
+   picture, the campaign strip checklist) and E3c (the announcer's voice-over follows the export's profile: WW2 uses
+   BF1943's voices, Vietnam the Vietnam DLC's, BFBC2 its own) are done.
 2. **Rust porting:**
    - **O5**, the last command-line batch: render QA, xdiff, the command lines of shaderdb, the BF1943 importer and
      the console readers, and the Python cores behind O3 / O4's hand-offs.
@@ -56,8 +56,6 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| E3c | `rust-e3c` | announcer voice-over per export profile (WW2: BF1943's, Vietnam: the DLC's, BFBC2: its own); first commit on the branch, not merged |
-| I1 | `rust-i1` | the suite's application icon in `bfbc2.exe`, `bfbc2-editor.exe`, `mapexport.exe` and the editor's window; not merged |
 | P1 | `process-p1` | this file, `CHANGELOG.md` and `VERSION`, `RELEASING.md`, CI on every push and pull request (`.github/workflows/checks.yml`), `run_tests.py quick --no-game` |
 
 ## Queued
@@ -105,6 +103,8 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Merged | Result |
 |---|---|---|
+| E3c | 2026-11-19 | the exported level's announcer voice-over follows its profile (the donor's banks, trigger sets, vo blocks and voice-over bundles); Aurora passes the check on all four profiles |
+| I1 | 2026-11-19 | the suite's application icon (the user's M67 render) in `bfbc2.exe`, `bfbc2-editor.exe`, `mapexport.exe`, the editor's window and the hub's |
 | E3b | 2026-11-19 | exports for every content profile (BFBC2, Vietnam, WW2, BFBC1) with the level's own name and picture, and the campaign strip checklist |
 | G4 | 2026-11-19 | the start flow: Open project, Edit existing level (multiplayer maps), Create level (from a level or a height map) |
 | R5c | 2026-11-19 | the game-accurate view interactive and editable, the picture unchanged (live draw list, culling on a grid) |
