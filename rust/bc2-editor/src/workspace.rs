@@ -108,7 +108,7 @@ pub fn is_ai(e: &Entity) -> bool {
 /// What an object is (the Objects workspace's filter and the content browser's categories).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Category {
-    /// Buildings and structures (destructible models, and models in the game's building and architecture folders).
+    /// Buildings and structures (models in the game's building, architecture and bridge folders).
     Buildings,
     /// Props: other static and dynamic models, ladders.
     Props,
@@ -170,7 +170,9 @@ impl Category {
             Self::Sounds
         } else if t.contains("tree") || t.contains("vegetation") || in_folder(&["vegetation", "foliage", "trees"]) {
             Self::Vegetation
-        } else if destructible || in_folder(&["buildings", "architecture", "bridge"]) {
+        } else if in_folder(&["buildings", "architecture", "bridge", "house"])
+            || (destructible && t.contains("staticmodel") && p.contains("/building"))
+        {
             Self::Buildings
         } else if t.contains("model") || t.contains("ladder") || t.contains("banger") || p.starts_with("objects/") {
             Self::Props

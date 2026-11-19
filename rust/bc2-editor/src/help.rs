@@ -134,7 +134,7 @@ pub const VIEW_CONTROLS: [Control; 15] = [
         help: "Sinks the selection (or the object being placed) 0.1 m a notch into the surface below it, 0.01 m with Shift; a popup shows the depth and its mode, and each burst is one undo step",
     },
     Control {
-        name: "Place from the content browser",
+        name: "Place from the asset browser",
         keys: "Drag an entry into a view",
         views: Views::All,
         help: "The object follows the pointer on the surface; let go to place it (one operation)",
@@ -183,7 +183,7 @@ pub const WORKSPACES: [Workspace; 6] = [
     Workspace {
         name: "Objects",
         available: true,
-        what: "Edit a map project's buildings, props, vehicles, effects and sounds, all edited alike: place them from the content browser, move, rotate, sink into the ground (Alt+wheel), duplicate (deep duplicate copies what an object owns), hide, lock and delete; a category filter limits what can be selected; snapping, align, distribute, the ruler, layers, folders and groups; every edit undoable in History.",
+        what: "Edit a map project's buildings, props, vehicles, effects and sounds, all edited alike: place them from the asset browser (Place Objects: every placeable object of the content set), move, rotate, sink into the ground (Alt+wheel), duplicate (deep duplicate copies what an object owns), hide, lock and delete; a category filter limits what can be selected; snapping, align, distribute, the ruler, layers, folders and groups; every edit undoable in History.",
         when: "",
     },
     Workspace {
@@ -201,7 +201,7 @@ pub const WORKSPACES: [Workspace; 6] = [
     Workspace {
         name: "Gameplay",
         available: true,
-        what: "The game mode's flags, spawns, vehicle spawns, objectives and areas: only they can be selected; move them, give them a team from the context menu, deep duplicate a flag with its capture area. A checklist of what the mode needs comes with gameplay editing (round E4).",
+        what: "The game mode's flags, spawns, vehicle spawns, objectives and areas: only they can be selected; move them, give them a team from the context menu, deep duplicate a flag with its capture area; place new ones from the asset browser's Spawners and Objectives modes (with the team picker's team and the sub-objects they own). Linking them, Rush stages, tickets and the mode's checklist come with gameplay editing (round E4).",
         when: "",
     },
     Workspace {
