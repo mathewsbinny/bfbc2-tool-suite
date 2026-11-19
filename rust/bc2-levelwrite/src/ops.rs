@@ -333,12 +333,12 @@ impl Op {
     pub fn targets(&self) -> Vec<&str> {
         match self {
             Self::Move { items } | Self::Rotate { items } => items.iter().map(|m| m.guid.as_str()).collect(),
-            Self::Delete { guids } | Self::AssignLayer { guids, .. } | Self::SetFolder { guids, .. } => {
-                guids.iter().map(String::as_str).collect()
-            }
-            Self::Group { guids, .. } | Self::Hide { guids, .. } | Self::Lock { guids, .. } => {
-                guids.iter().map(String::as_str).collect()
-            }
+            Self::Delete { guids }
+            | Self::AssignLayer { guids, .. }
+            | Self::SetFolder { guids, .. }
+            | Self::Group { guids, .. }
+            | Self::Hide { guids, .. }
+            | Self::Lock { guids, .. } => guids.iter().map(String::as_str).collect(),
             Self::Duplicate { items } => items
                 .iter()
                 .flat_map(|d| std::iter::once(d.source.as_str()).chain(d.owned.iter().map(|o| o.source.as_str())))
@@ -547,6 +547,7 @@ impl Organisation {
         o
     }
 
+    #[allow(clippy::too_many_lines, reason = "one arm per operation, read top to bottom")]
     fn apply(&mut self, op: &Op) {
         let up = |g: &str| g.to_ascii_uppercase();
         match op {

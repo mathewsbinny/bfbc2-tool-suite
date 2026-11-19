@@ -20,8 +20,8 @@
 )]
 use super::*;
 
-use bc2_levelwrite::ops::{FieldIs, Placed};
 use bc2_levelwrite::Operation;
+use bc2_levelwrite::ops::{FieldIs, Placed};
 
 use crate::actions::Brush;
 use crate::content::Entry;
@@ -393,10 +393,7 @@ impl ViewState {
                         .flat_map(|s| viewmodes::sphere_lines(*s))
                         .map(|s| (s, palette.status_info))
                         .collect();
-                    self.mode_note = format!(
-                        "Cull tree: {} (orange: no slot, red: a shared slot)",
-                        c.source
-                    );
+                    self.mode_note = format!("Cull tree: {} (orange: no slot, red: a shared slot)", c.source);
                 }
             }
             ViewMode::Collision => {
@@ -509,7 +506,14 @@ impl ViewState {
                 let c = ms.iter().fold([0.0; 3], |a, (_, m)| math::add(a, math::row(m, 3)));
                 let centre = math::mul(c, 1.0 / n);
                 let shift = match at {
-                    Some(p) => math::sub(p, [centre[0], ms.iter().map(|(_, m)| m[13]).fold(f64::INFINITY, f64::min), centre[2]]),
+                    Some(p) => math::sub(
+                        p,
+                        [
+                            centre[0],
+                            ms.iter().map(|(_, m)| m[13]).fold(f64::INFINITY, f64::min),
+                            centre[2],
+                        ],
+                    ),
                     None => [2.0, 0.0, 2.0],
                 };
                 let items: Vec<bc2_levelwrite::ops::Duplicated> = ms
@@ -656,9 +660,9 @@ impl ViewState {
             return;
         }
         let op = Op::Move { items };
-        let going = popup.gesture.filter(|(g, n, t)| {
-            *g == kind && d.last_n() == Some(*n) && (kind != Gesture::Wheel || now - t < BURST)
-        });
+        let going = popup
+            .gesture
+            .filter(|(g, n, t)| *g == kind && d.last_n() == Some(*n) && (kind != Gesture::Wheel || now - t < BURST));
         let n = match going {
             Some((_, n, _)) if d.amend(n, op.clone()) => n,
             _ => d.commit(op, "Sink below surface"),
@@ -685,7 +689,9 @@ impl ViewState {
                 .iter()
                 .filter_map(|&k| self.matrix(k).map(|m| math::row(&m, 3).get(c).copied().unwrap_or(0.0)))
                 .collect();
-            let same = vals.windows(2).all(|w| w.first().map(|a| a.to_bits()) == w.get(1).map(|b| b.to_bits()));
+            let same = vals
+                .windows(2)
+                .all(|w| w.first().map(|a| a.to_bits()) == w.get(1).map(|b| b.to_bits()));
             out.push((
                 format!("Position.{axis}"),
                 FieldType::Float,
@@ -724,7 +730,10 @@ impl ViewState {
         }
         let text = text.trim();
         if let Some(axis) = path.strip_prefix("Position.") {
-            let c = ["X", "Y", "Z"].iter().position(|a| *a == axis).ok_or("no such coordinate")?;
+            let c = ["X", "Y", "Z"]
+                .iter()
+                .position(|a| *a == axis)
+                .ok_or("no such coordinate")?;
             let v: f64 = text.parse().map_err(|_| format!("{text} is not a number"))?;
             let items: Vec<_> = ks
                 .iter()
@@ -866,7 +875,9 @@ impl ViewState {
     /// The Spawners and Objectives tiles (made again when the log or the catalogue changed).
     pub fn gameplay_tiles(&mut self) -> Vec<crate::gameplay::Tile> {
         let key = (
-            self.doc.as_ref().map_or(0, |d| d.project.operations.len() + d.project.redo.len() * 1000),
+            self.doc
+                .as_ref()
+                .map_or(0, |d| d.project.operations.len() + d.project.redo.len() * 1000),
             self.content.as_ref().map_or(0, |c| c.entries.len()),
         );
         if let Some((k, t)) = &self.tiles
@@ -924,7 +935,14 @@ impl ViewState {
 
     /// Places a Spawners or Objectives tile at `m`: a copy of its template with the sub-instances it owns (carried
     /// to the new place), the browser's team, a vehicle spawner's vehicle; one `place` operation.
-    fn finish_gameplay(&mut self, gpu: &GpuCtx, palette: &Palette, tile: crate::gameplay::Tile, m: M, place: Placement) {
+    fn finish_gameplay(
+        &mut self,
+        gpu: &GpuCtx,
+        palette: &Palette,
+        tile: &crate::gameplay::Tile,
+        m: M,
+        place: Placement,
+    ) {
         let mut vehicle = tile.vehicle.clone();
         if vehicle.is_empty()
             && let Some(path) = &tile.vehicle_path
@@ -940,7 +958,11 @@ impl ViewState {
         }
         let team = self.place_team;
         let Some(d) = self.doc.as_ref() else { return };
-        let Some(old) = d.index(&tile.template).and_then(|k| d.scene.entities.get(k)).and_then(|e| e.matrix) else {
+        let Some(old) = d
+            .index(&tile.template)
+            .and_then(|k| d.scene.entities.get(k))
+            .and_then(|e| e.matrix)
+        else {
             return;
         };
         let owned: Vec<bc2_levelwrite::ops::SubCopy> = tile
@@ -958,7 +980,11 @@ impl ViewState {
             .collect();
         let fields = tile
             .team_field
-            .filter(|_| d.index(&tile.template).and_then(|k| d.scene.entities.get(k)).is_some_and(|e| e.team.is_some()))
+            .filter(|_| {
+                d.index(&tile.template)
+                    .and_then(|k| d.scene.entities.get(k))
+                    .is_some_and(|e| e.team.is_some())
+            })
             .map(|f| FieldIs {
                 field: f.into(),
                 value: FieldValue::Text(
@@ -1009,7 +1035,7 @@ impl ViewState {
             return;
         };
         if let Some(tile) = p.gameplay {
-            self.finish_gameplay(gpu, palette, tile, m, p.placement);
+            self.finish_gameplay(gpu, palette, &tile, m, p.placement);
             return;
         }
         let Some(d) = self.doc.as_mut() else { return };
@@ -1121,7 +1147,11 @@ impl Tabs<'_> {
             self.view.start_placing(e);
         }
         if let Some(payload) = resp.dnd_hover_payload::<GameplayDrag>()
-            && self.view.placing.as_ref().is_none_or(|p| p.entry.path != format!("gameplay:{}", payload.0))
+            && self
+                .view
+                .placing
+                .as_ref()
+                .is_none_or(|p| p.entry.path != format!("gameplay:{}", payload.0))
             && self.view.place_failed.as_deref() != Some(payload.0.as_str())
             && let Some(t) = self.view.gameplay_tiles().into_iter().find(|t| t.key() == payload.0)
         {
@@ -1143,7 +1173,10 @@ impl Tabs<'_> {
                 if alt && let Some(p) = self.view.placing.as_mut() {
                     p.placement.sink = ((p.placement.sink - n * step) * 1000.0).round() / 1000.0;
                     wheel = true;
-                } else if !alt && shift && let Some(p) = self.view.placing.as_mut() {
+                } else if !alt
+                    && shift
+                    && let Some(p) = self.view.placing.as_mut()
+                {
                     p.yaw += n * if ctrl { 1.0 } else { 15.0 };
                     wheel = true;
                 } else if alt && self.view.doc.is_some() && !self.view.editable_selection().is_empty() {
@@ -1193,7 +1226,9 @@ impl Tabs<'_> {
             let skip = |k: usize| self.view.doc.as_ref().is_some_and(|d| !d.shown(k));
             let hit = query::ray_hit_except(self.view.scene(), o, d, &skip);
             let picked = self.pick_at(rect, &vp.camera, at);
-            let entity = picked.or(hit.and_then(|h| h.entity)).filter(|&k| self.view.selectable(k));
+            let entity = picked
+                .or(hit.and_then(|h| h.entity))
+                .filter(|&k| self.view.selectable(k));
             if let Some(k) = entity
                 && !self.view.selection.contains(&k)
             {
@@ -1335,7 +1370,10 @@ impl Tabs<'_> {
             if let Some(h) = ui.input(|i| i.pointer.hover_pos()) {
                 pts.push(h);
             }
-            painter.add(egui::Shape::closed_line(pts.clone(), Stroke::new(1.5, p.view_selection)));
+            painter.add(egui::Shape::closed_line(
+                pts.clone(),
+                Stroke::new(1.5, p.view_selection),
+            ));
             for q in &self.view.polygon {
                 painter.circle_filled(*q, 3.5, p.view_selection);
             }
@@ -1343,7 +1381,11 @@ impl Tabs<'_> {
         // the Terrain and Vegetation workspaces: their brushes, greyed until their rounds
         if let Some(why) = self.view.workspace.coming() {
             let bar = Rect::from_min_size(rect.min + Vec2::splat(6.0), Vec2::new(rect.width() - 12.0, 40.0));
-            let mut ui2 = ui.new_child(egui::UiBuilder::new().max_rect(bar).layout(Layout::left_to_right(Align::Center)));
+            let mut ui2 = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(bar)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
             egui::Frame::new()
                 .fill(p.surface_2.gamma_multiply(0.94))
                 .stroke(Stroke::new(1.0, p.line))
@@ -1358,17 +1400,26 @@ impl Tabs<'_> {
                                 .on_disabled_hover_text(why);
                         }
                         ui.separator();
-                        ui.label(RichText::new(format!("{why}: the layout and its actions are ready")).color(p.ink_muted));
+                        ui.label(
+                            RichText::new(format!("{why}: the layout and its actions are ready")).color(p.ink_muted),
+                        );
                     });
                 });
         }
         // the view mode: its switch (top right) and its note
         if !(projection == Projection::Perspective && self.view.game_accurate) {
             let at = Rect::from_min_size(
-                Pos2::new(rect.right() - 150.0, rect.top() + if self.view.doc.is_some() { 76.0 } else { 6.0 }),
+                Pos2::new(
+                    rect.right() - 150.0,
+                    rect.top() + if self.view.doc.is_some() { 76.0 } else { 6.0 },
+                ),
                 Vec2::new(144.0, 24.0),
             );
-            let mut ui3 = ui.new_child(egui::UiBuilder::new().max_rect(at).layout(Layout::right_to_left(Align::Center)));
+            let mut ui3 = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(at)
+                    .layout(Layout::right_to_left(Align::Center)),
+            );
             let mut pick = None;
             egui::Frame::new()
                 .fill(p.surface_2.gamma_multiply(0.94))
@@ -1391,7 +1442,12 @@ impl Tabs<'_> {
                 self.view.pending.push(Action::SetViewMode(m));
             }
             if !self.view.mode_note.is_empty() && self.view.view_mode != ViewMode::Lit {
-                let g = painter.layout(self.view.mode_note.clone(), FontId::proportional(12.0), p.ink, rect.width() * 0.5);
+                let g = painter.layout(
+                    self.view.mode_note.clone(),
+                    FontId::proportional(12.0),
+                    p.ink,
+                    rect.width() * 0.5,
+                );
                 let r = Rect::from_min_size(Pos2::new(rect.right() - g.size().x - 14.0, at.bottom() + 6.0), g.size())
                     .expand(4.0);
                 painter.rect_filled(r, CornerRadius::same(3), p.scene_label);
@@ -1425,8 +1481,16 @@ impl Tabs<'_> {
                     .inner_margin(Margin::same(10))
                     .show(ui, |ui| {
                         ui.set_width(260.0);
-                        ui.label(RichText::new("Sink below surface").text_style(style("body-strong")).color(p.ink));
-                        let pct = if s.height > 0.0 { s.placement.sink / s.height * 100.0 } else { 0.0 };
+                        ui.label(
+                            RichText::new("Sink below surface")
+                                .text_style(style("body-strong"))
+                                .color(p.ink),
+                        );
+                        let pct = if s.height > 0.0 {
+                            s.placement.sink / s.height * 100.0
+                        } else {
+                            0.0
+                        };
                         ui.label(
                             RichText::new(format!(
                                 "{:.2} m  ({pct:.0} % of its {:.2} m height)",
@@ -1457,9 +1521,11 @@ impl Tabs<'_> {
                             }
                         }
                         ui.label(
-                            RichText::new("Alt+wheel: 0.1 m a notch, with Shift 0.01 m. Each gesture is one undo step.")
-                                .text_style(style("small"))
-                                .color(p.ink_muted),
+                            RichText::new(
+                                "Alt+wheel: 0.1 m a notch, with Shift 0.01 m. Each gesture is one undo step.",
+                            )
+                            .text_style(style("small"))
+                            .color(p.ink_muted),
                         );
                         if ui.button("Close").clicked() {
                             close = true;
@@ -1494,7 +1560,11 @@ impl Tabs<'_> {
         let mut chosen = None;
         let mut close = false;
         let entries: Vec<Entry> = self.view.content.as_ref().map_or_else(Vec::new, |c| {
-            c.shown(&pk.query, self.view.filter).into_iter().take(14).cloned().collect()
+            c.shown(&pk.query, self.view.filter)
+                .into_iter()
+                .take(14)
+                .cloned()
+                .collect()
         });
         egui::Area::new(egui::Id::new("place picker"))
             .fixed_pos(pk.at + Vec2::new(12.0, 12.0))
@@ -1508,7 +1578,11 @@ impl Tabs<'_> {
                     .inner_margin(Margin::same(8))
                     .show(ui, |ui| {
                         ui.set_width(300.0);
-                        ui.label(RichText::new("Place object here").text_style(style("body-strong")).color(p.ink));
+                        ui.label(
+                            RichText::new("Place object here")
+                                .text_style(style("body-strong"))
+                                .color(p.ink),
+                        );
                         let r = ui.add(
                             egui::TextEdit::singleline(&mut pk.query)
                                 .hint_text(RichText::new("Search blueprints").color(p.ink_faint))
@@ -1546,7 +1620,12 @@ impl Tabs<'_> {
             if let Some(pt) = pk.point {
                 let hit = query::surface_below(self.view.scene(), pt[0], pt[2]);
                 if let (Some(h), Some(pl)) = (hit, self.view.placing.as_mut()) {
-                    pl.at = Some(query::place(&math::upright(h.point, pl.yaw), pl.extent, &h, &pl.placement));
+                    pl.at = Some(query::place(
+                        &math::upright(h.point, pl.yaw),
+                        pl.extent,
+                        &h,
+                        &pl.placement,
+                    ));
                 }
             }
             return;
@@ -1637,7 +1716,13 @@ impl Tabs<'_> {
             });
         if filter != self.view.filter {
             self.view.filter = filter;
-            let keep: Vec<usize> = self.view.selection.iter().copied().filter(|&k| self.view.selectable(k)).collect();
+            let keep: Vec<usize> = self
+                .view
+                .selection
+                .iter()
+                .copied()
+                .filter(|&k| self.view.selectable(k))
+                .collect();
             self.view.set_selection(self.gpu, keep, false);
         }
         let mut start = None;
@@ -1847,9 +1932,11 @@ impl Tabs<'_> {
                             .color(p.ink),
                     );
                     ui.label(
-                        RichText::new("Fields they all have. Mixed: their values differ; a value typed sets it on all.")
-                            .text_style(style("small"))
-                            .color(p.ink_muted),
+                        RichText::new(
+                            "Fields they all have. Mixed: their values differ; a value typed sets it on all.",
+                        )
+                        .text_style(style("small"))
+                        .color(p.ink_muted),
                     );
                     ui.add_space(m.space_2);
                     egui::Grid::new("common fields")
@@ -1861,9 +1948,7 @@ impl Tabs<'_> {
                                     .on_hover_text(format!("{path} ({})", ty.name()));
                                 let id = ui.make_persistent_id(("common", path));
                                 let shown = value.as_ref().map_or_else(String::new, FieldValue::text);
-                                let mut text = ui
-                                    .data(|d| d.get_temp::<String>(id))
-                                    .unwrap_or_else(|| shown.clone());
+                                let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| shown.clone());
                                 let r = ui.add(
                                     egui::TextEdit::singleline(&mut text)
                                         .hint_text(
@@ -1937,7 +2022,13 @@ fn icon(painter: &egui::Painter, r: Rect, c: Category, ink: Color32) {
     match c {
         Category::Buildings => {
             painter.add(egui::Shape::closed_line(
-                vec![at(-1.0, 1.0), at(-1.0, -0.2), at(0.0, -1.0), at(1.0, -0.2), at(1.0, 1.0)],
+                vec![
+                    at(-1.0, 1.0),
+                    at(-1.0, -0.2),
+                    at(0.0, -1.0),
+                    at(1.0, -0.2),
+                    at(1.0, 1.0),
+                ],
                 st,
             ));
             painter.rect_stroke(
@@ -1989,11 +2080,17 @@ fn icon(painter: &egui::Painter, r: Rect, c: Category, ink: Color32) {
         }
         Category::Vegetation => {
             painter.line_segment([at(0.0, 1.0), at(0.0, 0.1)], st);
-            painter.add(egui::Shape::closed_line(vec![at(0.0, -1.0), at(0.8, 0.2), at(-0.8, 0.2)], st));
+            painter.add(egui::Shape::closed_line(
+                vec![at(0.0, -1.0), at(0.8, 0.2), at(-0.8, 0.2)],
+                st,
+            ));
         }
         Category::Gameplay => {
             painter.line_segment([at(-0.6, 1.0), at(-0.6, -1.0)], st);
-            painter.add(egui::Shape::closed_line(vec![at(-0.6, -1.0), at(0.8, -0.6), at(-0.6, -0.2)], st));
+            painter.add(egui::Shape::closed_line(
+                vec![at(-0.6, -1.0), at(0.8, -0.6), at(-0.6, -0.2)],
+                st,
+            ));
         }
         Category::Other => {
             painter.circle_stroke(cx, s * 0.6, st);
@@ -2029,14 +2126,16 @@ fn tile(
     );
     let pic = Rect::from_min_size(rect.min + Vec2::splat(4.0), Vec2::new(rect.width() - 8.0, 64.0));
     let ink = if e.why_not.is_some() { p.ink_faint } else { p.ink_muted };
-    match thumb {
-        Some(t) => {
-            painter.image(t.id(), pic, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
-        }
-        None => {
-            painter.rect_filled(pic, CornerRadius::same(3), p.surface_3);
-            icon(painter, pic, e.category, ink);
-        }
+    if let Some(t) = thumb {
+        painter.image(
+            t.id(),
+            pic,
+            Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+            Color32::WHITE,
+        );
+    } else {
+        painter.rect_filled(pic, CornerRadius::same(3), p.surface_3);
+        icon(painter, pic, e.category, ink);
     }
     if e.used > 0 {
         painter.text(

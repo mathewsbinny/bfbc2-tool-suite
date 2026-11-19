@@ -678,10 +678,7 @@ mod tests {
         assert_eq!(search("").len(), r.len());
         assert_eq!(entry(Action::ResetLayout).map(|e| e.name), Some("Reset layout"));
         assert_eq!(search("undo").first().map(|e| e.action), Some(Action::Undo));
-        assert_eq!(
-            search("sink").first().map(|e| e.action),
-            Some(Action::SinkPopup)
-        );
+        assert_eq!(search("sink").first().map(|e| e.action), Some(Action::SinkPopup));
         assert_eq!(search("distribute").len(), 2);
         assert_eq!(search("deep").first().map(|e| e.action), Some(Action::DeepDuplicate));
         assert_eq!(

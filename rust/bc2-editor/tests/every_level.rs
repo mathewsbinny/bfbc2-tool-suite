@@ -21,6 +21,10 @@
     clippy::print_stdout,
     clippy::too_many_lines,
     clippy::panic,
+    clippy::many_single_char_names,
+    clippy::type_complexity,
+    clippy::map_unwrap_or,
+    clippy::assert_is_empty,
     missing_docs
 )]
 
@@ -46,7 +50,8 @@ fn prepared(root: &Path, lv: &str) -> Option<Vec<u8>> {
     for b in ["pkg", "dist"] {
         for e in std::fs::read_dir(work.join(b).join("levels")).ok()?.flatten() {
             let p = e.path();
-            if p.file_stem().is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case(lv))
+            if p.file_stem()
+                .is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case(lv))
                 && p.extension().is_some_and(|x| x.eq_ignore_ascii_case("dbx"))
             {
                 return std::fs::read(p).ok();
@@ -89,7 +94,10 @@ fn connections_naming(d: &EditDbx, guids: &[String]) -> BTreeSet<Change> {
             })
         });
         if hit {
-            out.insert(Change::Field(up(d.attr(inst, b"guid").unwrap_or_default()), "EventConnections".into()));
+            out.insert(Change::Field(
+                up(d.attr(inst, b"guid").unwrap_or_default()),
+                "EventConnections".into(),
+            ));
         }
     }
     out
@@ -137,7 +145,12 @@ fn script(base: &[u8]) -> Option<(Vec<Operation>, BTreeSet<Change>, Schema, Vec<
     if placed.len() < 5 {
         return None;
     }
-    let (mv, rot, dup, del) = (placed[0].clone(), placed[1].clone(), placed[2].clone(), placed[3].clone());
+    let (mv, rot, dup, del) = (
+        placed[0].clone(),
+        placed[1].clone(),
+        placed[2].clone(),
+        placed[3].clone(),
+    );
     let mut ops = Vec::new();
     let mut expected = BTreeSet::new();
     let mut n = 0;
@@ -221,7 +234,9 @@ fn script(base: &[u8]) -> Option<(Vec<Operation>, BTreeSet<Change>, Schema, Vec<
         }
         connected.push(owner.clone());
         connected.extend(owned.iter().cloned());
-        let transform = w.transform(&owner).map_or_else(|| bc2_levelwrite::rows_at([0.0; 3]), |t| moved(&t, 6.0));
+        let transform = w
+            .transform(&owner)
+            .map_or_else(|| bc2_levelwrite::rows_at([0.0; 3]), |t| moved(&t, 6.0));
         if w.transform(&owner).is_some() {
             // and the same owner placed as a gameplay tile (the asset browser's Spawners / Objectives): a copy with
             // what it owns, the team field kept, only the connections among them copied
@@ -312,7 +327,12 @@ fn script(base: &[u8]) -> Option<(Vec<Operation>, BTreeSet<Change>, Schema, Vec<
     }
     ops.push(op(k, Op::Place { items }));
     // a delete
-    ops.push(op(next(), Op::Delete { guids: vec![del.clone()] }));
+    ops.push(op(
+        next(),
+        Op::Delete {
+            guids: vec![del.clone()],
+        },
+    ));
     expected.insert(Change::Removed(del.clone()));
     for r in referrers(d, &del) {
         if let Change::Field(g, _) = &r
@@ -434,7 +454,11 @@ fn levelwrite_on_every_prepared_level() {
     let mut done = 0;
     let mut failures = Vec::new();
     let mut names: Vec<String> = std::fs::read_dir(root.join("work").join("levels"))
-        .map(|r| r.flatten().map(|e| e.file_name().to_string_lossy().to_lowercase()).collect())
+        .map(|r| {
+            r.flatten()
+                .map(|e| e.file_name().to_string_lossy().to_lowercase())
+                .collect()
+        })
         .unwrap_or_default();
     names.sort();
     for lv in names {

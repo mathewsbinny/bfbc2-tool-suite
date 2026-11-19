@@ -205,7 +205,9 @@ impl Doc {
                     let Some(k) = self.index(&d.source) else { continue };
                     let old = self.scene.entities.get(k).and_then(|e| e.matrix);
                     let to = bc2_levelwrite::matrix_of(&d.transform);
-                    let Some(n) = self.copy_entity(k, &d.guid, Some(to)) else { continue };
+                    let Some(n) = self.copy_entity(k, &d.guid, Some(to)) else {
+                        continue;
+                    };
                     self.copy_owned(k, n, old, to, &d.owned);
                 }
             }
@@ -257,7 +259,9 @@ impl Doc {
 
     /// What a field set changes in the scene: a name, a team.
     fn field_to_scene(&mut self, k: usize, field: &str, to: &FieldValue) {
-        let Some(e) = self.scene.entities.get_mut(k) else { return };
+        let Some(e) = self.scene.entities.get_mut(k) else {
+            return;
+        };
         match (field, to) {
             ("Name", FieldValue::Text(s)) => e.name = Some(s.clone()),
             ("Team", FieldValue::Int(t)) if e.team.is_some() && (0..=2).contains(t) => {
@@ -281,7 +285,7 @@ impl Doc {
         let mut e = self.scene.entities.get(k).cloned()?;
         let n = self.scene.entities.len();
         e.index = n;
-        e.guid = guid.to_owned();
+        guid.clone_into(&mut e.guid);
         e.id = None;
         if matrix.is_some() {
             e.matrix = matrix;
