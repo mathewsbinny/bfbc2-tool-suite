@@ -17,13 +17,30 @@ bc2-formats.workspace = true
 bc2-harness.workspace = true
 bc2-convert.workspace = true
 regex.workspace = true
+bc2-pyrt.workspace = true
+bc2-menu.workspace = true
+# round O3: the archives of pruned logs (deflate and CRC-32, as zipfile writes them)
+flate2.workspace = true
+# round O3's cull group: culltree.py's model (bc2_levelwrite::culltool)
+bc2-levelwrite = { workspace = true, optional = true }
+# round O3: stockmp install's readings of the build and the game folder
+bc2-stockmp = { workspace = true, optional = true }
+# round O3: dbxcatalogue's cache signature (SHA-1, as hashlib)
+sha1_smol.workspace = true
 
-# round O2's tool groups (all on by default; a group alone builds with --no-default-features --features <group>)
+# the tool groups (rounds O2, O3; all on by default; a group alone builds with --no-default-features --features <group>)
 [features]
-default = ["menu", "crash", "nav"]
+default = ["menu", "crash", "nav", "caches", "stockmp", "graft", "audio", "bf1943", "meshview", "cull"]
 menu = []
 crash = []
 nav = []
+caches = []
+stockmp = ["dep:bc2-stockmp"]
+graft = []
+audio = []
+bf1943 = []
+meshview = []
+cull = ["dep:bc2-levelwrite"]
 
 # the local time (Python's datetime.now()), the ANSI code page and the console test Python's stdio makes
 [target.'cfg(windows)'.dependencies]

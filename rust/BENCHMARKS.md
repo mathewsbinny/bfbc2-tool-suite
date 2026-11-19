@@ -4425,3 +4425,159 @@ aptgraft, audio, dbxcatalogue / dbxparity / portparity, meshview's library, and 
   `bc2-cli/src/menu/common.rs`, which aptgraft's port can move into a library crate.
 - **The hand-off's interpreter lookup** (`BFBC2_PYTHON`, else `PATH`). It matters once the binary ships without the
   suite's Python (the final release).
+
+## O3: caches, stock-MP, aptgraft, audio, the BF1943 parity tools, meshview, culltree (2026-11-19, branch `rust-o3`)
+
+The third batch of O1's plan. Each tool is a subcommand of `bfbc2.exe` (shape A; meshview's index build is also shape
+B, behind its Python shim). Each `.py` stays as the reference and the fallback behind
+`bfbc2core.native.cli_command` (`BFBC2_CLI_PYTHON=1`). The batch was ported in four helper worktrees and merged.
+
+### What was added
+
+- **Two library crates.**
+  - `bc2-pyrt` holds what the command lines show of Python: exceptions and their texts (`err`), value texts (`fmt`),
+    `ntpath`, `str` and `dict` pieces (`py`), and a pickle reader and writer.
+  - `bc2-menu` holds menucommon's Rust twin (O2's `menu/common.rs`, moved) and aptgraft's grafts (`graft/`).
+- **The log folder is pruned at start-up.** Every guarded tool `bfbc2.exe` runs now prunes the log folder as
+  `errors.setup` does (`logs.rs`, `fsx.rs`). The order is Python's:
+  - the start line is written;
+  - the folder is pruned, the session's file kept;
+  - the files the prune removes are zipped into `logs-archive\logs-<time>.zip` first.
+
+  Here it happens when the run ends, because nothing is written before a run is known to be Rust's. The lock is
+  shared with Python's (`msvcrt.locking` of byte 0 and Rust's whole-file lock exclude each other).
+- **The overall cache budget runs after a bundle read** (`budget.rs`: `fbrb._budget` / `caches.maybe_prune_total`),
+  for aptgraft's and meshview's bundle reads. `budget.rs` holds the one cache table; the caches command line uses it
+  too.
+- **The hand-off's Python** (`pyproc::python`):
+  - `BFBC2_PYTHON` (a file, or a name on `PATH`; if it is set but not found, that is reported, never skipped);
+  - else the suite's configured Python, `bin\python.txt` (`build_native.py` writes the interpreter it built with; a
+    shipped suite names its own; relative paths are against the suite);
+  - else `python.exe` on `PATH`.
+
+  When none is found, the error names each place looked and what to do (exit code 1).
+- **The test machinery** (`test_cli_o2.py`, reused by `test_cli_o3.py`):
+  - `ROUND` / `GROUPS`, and `BFBC2_CLI_WORKERS`;
+  - `lad_state`: the run's local app data compared (logs left by name, archives by their members, other files by
+    bytes);
+  - case files in the local app data (`{lad}/`) and folders with given times;
+  - per-group `NORMS` / `LOOSE` / `LAD_SKIP`.
+- **The subcommands:**
+
+| tool | what answers in Rust | handed to the Python by design |
+|---|---|---|
+| `caches` | `--list`, `--prune`, `--clear` (caches, project caches, logs with the archive), the budget, `--report`, `--prune-targets [--yes]`, argparse at the pipe width | argparse's abbreviations, `--`, single-dash options, `--flag=value`, `COLUMNS` / console widths |
+| `stockmp` | `install --plan / --apply / --revert`, `summary`, `generate --minimal`, the path-data error | the full `generate`, `build`, `validate`, `all` (DbxEdit and NavKit's path-data model: O4); damaged reports, partitions, non-finite path data |
+| `aptgraft` | all nine subcommands, with the grafts in `bc2-menu` | none recorded |
+| `audio` | the conversion (F0 / F3 framing, E3a encoder; ffmpeg's xma2 decoder run as the Python runs it) | `--` |
+| `dbxcatalogue` | the summary from the catalogue and index caches | missing or stale catalogue cache (the Python builds it) |
+| `dbxparity`, `portparity` | help and usage errors | every parsed run (bf1943import's `Source`, dbxport / meshport, NumPy PSNR: after S1) |
+| `meshview` | `find`, from the index cache or building it (`bc2-formats::meshindex`, also behind `meshview.Index._build`) | drawing (NumPy, PIL); unreadable bundles, databases the Python leaves out |
+| `culltree` | `info`, `verify`, `add` (`bc2_levelwrite::culltool`) | trees and levels whose fields the reference itself cannot read |
+
+### Proof
+
+The method is O2's. The goldens were recorded from a frozen copy of the checkout at 5aee34d (`--ref`) before the port
+answered. Each line is compared on:
+
+- the exit code;
+- both streams' bytes, alone and on one pipe;
+- the case folder's files;
+- the log records;
+- the local app data.
+
+**Quick and live** (after the merge; this checkout's module and `bin\bfbc2.exe`):
+
+| group | recorded lines | Rust | handed to Python | live: Python / Rust process time |
+|---|---:|---:|---:|---|
+| caches | 184 | 170 | 14 | 21 s / 4 s |
+| stockmp | 236 | 214 | 22 | 370 s / 111 s |
+| graft | 228 | 228 | 0 | 61 s / 5 s |
+| audio | 182 | 180 | 2 | the same 182 |
+| bf1943 (dbxcatalogue 30, dbxparity 36, portparity 36) | 102 | 70 | 32 | 33 s / 12 s |
+| meshview | 98 | 88 | 10 | 31 s / 5 s |
+| cull | 190 | 184 | 6 | 40 s / 8 s |
+| **all** | **1,220** | **1,134** | **86** | |
+
+- Rust: 1,220 of 1,220 as recorded. Live, both ways: the same answers.
+- The caches group's 184 include 10 start-up prunes by aptgraft, stockmp and culltree over old logs. Each prune leaves
+  the same files and the same archive members as Python's. The archive's members match; its compressed bytes are
+  zlib-rs' rather than zlib's.
+- O2's 966 recorded lines still pass after the merge.
+
+**OPFOR's real calls, replayed read-only** (`--game`; each line alone and on one pipe, on both sides):
+
+| group | lines | Rust answered | Python | Rust |
+|---|---:|---:|---:|---:|
+| caches (the real caches, project caches and work\ listed, the build root's orphans listed; a copy of the real 191 MB log folder listed, pruned, cleared, and pruned at a tool's start-up) | 10 | 10 | 47.1 s | 33.6 s |
+| stockmp (install --plan / --apply / --revert of OPFOR's three builds into a game copy in the case folder, summary of six levels, generate --minimal of five) | 27 | 27 | 30.5 s | 20.9 s |
+| graft (console_hud's mode-case / mode-alias on the four Onslaught levels, as .res and bundle:name, onslaught-timer x3, roundtrips, convert, deps) | 68 | 68 | 42.7 s | 6.6 s |
+| audio (22 real Waves: BFBC2 Xbox, BF1943 voice-over and Wake effects) | 22 | 22 | | |
+| meshview (find) / dbxcatalogue | 12 / 3 | 15 | 21.4 s | 10.9 s |
+| cull (console_cull.py's add on the four Onslaught levels with every work\levels reference, info, verify) | 10 | 10 | 423.5 s | 87.5 s |
+
+All identical, none handed to Python.
+
+The caches group's `--report` lines run without the real build root. Another checkout's build (`-o4`) changed
+`rust-targets\` between the two sides' runs and made one run differ. Run back to back by hand, the real `--report`
+with the build root is identical (twice).
+
+**Checks:**
+
+- `cargo fmt --all`;
+- `cargo clippy -D warnings` on `bc2-cli` with all features and with groups alone (caches, menu, crash; the helpers:
+  each of theirs), and on the touched crates;
+- `cargo test` of the touched crates;
+- ruff and mypy on the touched Python;
+- `python run_tests.py quick -j 2` (cargo hidden behind the round's build lock, `CARGO_INCREMENTAL=0`): 121 of 122,
+  1,623 s. The one failure was O3's own entry, run with the checkout as its reference: from a checkout beside Project
+  OPFOR the tools find it by walking up, so the caches' cases listed the real project caches, and the graft group's
+  over-budget cases **pruned the real project caches in OPFOR's `work\`** (navstudio 1.3 GB, harness 2.2 GB, navwater
+  332 MB of path-data loads; caches the tools rebuild on their next use, no output lost, but `work\` was written).
+  `test_cli_o3.py` now runs from an isolated copy of the checkout in `%TEMP%` whenever its reference sits under a
+  Project OPFOR copy (and refuses a `--ref` there). Rerun as the tier runs it: 1,220 of 1,220.
+
+### Timings (processes, best of 5; `--report` and the log prune best of 3)
+
+| job | Python | Rust | |
+|---|---:|---:|---:|
+| `caches` start-up (`--list hlsl`, empty) | 0.091 s | 0.008 s | x11.5 |
+| `caches --list` (the real caches) | 0.116 s | 0.025 s | x4.6 |
+| `caches --report --no-work` | 0.341 s | 0.219 s | x1.6 |
+| `caches --report` (work\ by kind, 112 GB) | 13.7 s | 10.5 s | x1.3 |
+| `caches --prune logs` (copy of the real 191 MB folder) | 1.85 s | 1.27 s | x1.4 |
+| `stockmp summary mp_005`, warm | 0.229 s | 0.039 s | x5.9 |
+| `stockmp generate mp_005 --minimal --variant exp0` | 0.426 s | 0.041 s | x10 |
+| `stockmp install mp_005 --variant exp0 --plan` | 0.187 s | 0.062 s | x3.0 |
+| `aptgraft` start-up | 0.185 s | 0.012 s | x15 |
+| `aptgraft mode-alias hud_root` (bundle spec) | 0.397 s | 0.054 s | x7.4 |
+| `aptgraft onslaught-timer` | 0.423 s | 0.045 s | x9.3 |
+| `audio`, a BF1943 effect | 0.286 s | 0.057 s | x5.0 |
+| `meshview find garand` | 0.413 s | 0.205 s | x2.0 |
+| `dbxcatalogue` (cached) | 1.84 s | 0.90 s | x2.0 |
+| meshview's index build on the game copy (behind the shim) | 6.1 s | 2.4 s | x2.5 |
+| `culltree add`, console_cull's line on ons_mp_002 | 30.1 s | 5.9 s | x5.1 |
+| `culltree verify` of its output | 29.3 s | 5.8 s | x5.0 |
+
+### For Project OPFOR (not edited)
+
+- **`console_cull.py:82`:** `[sys.executable, CULLTREE, 'add', ...]` can become
+  `bfbc2core.native.cli_command('culltree') + ['add', ...]`. That saves about 24 s per level.
+- **`console_hud.py` and the WW2 scripts that run aptgraft:** `mode-case`, `mode-alias` and `onslaught-timer` can use
+  `cli_command('aptgraft') + [...]`. That saves 0.25-0.38 s a call.
+- **The stock-MP docs and scripts:** `cli_command('stockmp') + ['install', 'mp_005', '--variant', 'exp0', ...]`.
+- **meshview's ~55 imports, audio and aptgraft:** these are imported, not run, so nothing changes.
+  `meshview.Index` builds through the Rust core already.
+
+### Left for O4 / O5
+
+- **stockmp:** the full `generate`, `build`, `validate` and `all` (NavKit's path-data model, DbxEdit, packing).
+- **dbxparity / portparity's runs**, after S1 (bf1943import's `Source`, dbxport / meshport, NumPy's PSNR).
+- **dbxcatalogue's cache build.** It is a pickled object graph of `dbx.Element`, `Counter` and frozensets in run
+  order.
+- **meshview's drawing** (NumPy, PIL): it goes to the editor (G).
+- **Python bindings for the libraries OPFOR imports** (shape C's library side): aptgraft's grafts and caches'
+  pruning.
+- **O2's `aptcheck` / `aptrefs` bundle reads** (`pristine:` specs) still lack the budget run that Python's
+  `fbrb.read` does. They can call `budget::after_bundle_read()` as aptgraft does.
+- **culltree's ref-row cache.** Rust reads the references again every run; at 5 s a level there is no need for it.

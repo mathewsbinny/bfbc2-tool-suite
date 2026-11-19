@@ -60,12 +60,78 @@ pub fn now() -> Local {
     }
 }
 
+/// `time.localtime(t)` (the seconds floored, as Python takes a float): the local date and time of a moment given as
+/// seconds since 1970 (Windows: `SystemTimeToTzSpecificLocalTime` with the current time zone, as the C runtime's
+/// `localtime`). Before 1970 or unconvertible: 1980-01-01 (the archive's earliest time).
+#[cfg(windows)]
+#[allow(unsafe_code)]
+pub fn local_of(t: f64) -> Local {
+    use windows_sys::Win32::Foundation::{FILETIME, SYSTEMTIME};
+    use windows_sys::Win32::System::Time::{FileTimeToSystemTime, SystemTimeToTzSpecificLocalTime};
+    let fallback = Local {
+        year: 1980,
+        month: 1,
+        day: 1,
+        hour: 0,
+        minute: 0,
+        second: 0,
+        milli: 0,
+    };
+    if !(0.0..1e12).contains(&t) {
+        return fallback;
+    }
+    let ticks = (t.floor() as u64 + 11_644_473_600) * 10_000_000;
+    let ft = FILETIME {
+        dwLowDateTime: ticks as u32,
+        dwHighDateTime: (ticks >> 32) as u32,
+    };
+    let zero = SYSTEMTIME {
+        wYear: 0,
+        wMonth: 0,
+        wDayOfWeek: 0,
+        wDay: 0,
+        wHour: 0,
+        wMinute: 0,
+        wSecond: 0,
+        wMilliseconds: 0,
+    };
+    let (mut utc, mut local) = (zero, zero);
+    // SAFETY: both calls only read and write the structures they are given, which live for the calls.
+    let ok = unsafe {
+        FileTimeToSystemTime(&raw const ft, &raw mut utc) != 0
+            && SystemTimeToTzSpecificLocalTime(std::ptr::null(), &raw const utc, &raw mut local) != 0
+    };
+    if !ok {
+        return fallback;
+    }
+    Local {
+        year: local.wYear,
+        month: local.wMonth,
+        day: local.wDay,
+        hour: local.wHour,
+        minute: local.wMinute,
+        second: local.wSecond,
+        milli: 0,
+    }
+}
+
+/// `time.localtime(t)` elsewhere than Windows: UTC.
+#[cfg(not(windows))]
+pub fn local_of(t: f64) -> Local {
+    civil(std::time::Duration::from_secs_f64(t.max(0.0)))
+}
+
 /// Now, in UTC (elsewhere than Windows, which the suite does not run on: the logs' stamps only).
 #[cfg(not(windows))]
 pub fn now() -> Local {
     let d = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
+    civil(d)
+}
+
+#[cfg(not(windows))]
+fn civil(d: std::time::Duration) -> Local {
     let secs = d.as_secs();
     let days = (secs / 86_400) as i64;
     let rem = secs % 86_400;
