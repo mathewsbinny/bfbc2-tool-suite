@@ -56,7 +56,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| (none) | | |
+| RT1 | `rust-rt1` | the full test tier on main, then the Python twins Rust answers retired (E4a-f, F0, F2a, F2b, F3, O1-O5 CLI Python); OPFOR's imports kept working, the WW2 rebuild against the oracle |
 
 ## Queued
 
@@ -66,7 +66,6 @@ In priority order (above); the next rounds:
 |---|---|
 | Full tier + retire | the full test tier on main, then the Python twins retired (E4a-f, F0, F2a, F2b, F3, O1-O5 CLI Python) |
 | shaderdb reader | the shader database reader's port |
-| F4 | F3's leftovers (disasm header lines, audio decode / ffmpeg glue, hkpack objects with a handle-based Packfile, navsample_offline hulls, meshview's and texqa's readers, culltree's string table) |
 | GUIs | Map Inspector, Navigation Studio, mesh viewer, DbxEditGUI, LevelDiff folded into the editor, then retired |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
@@ -141,6 +140,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 |---|---|---|
 | D1 | 2026-11-19 | the disk budget: cargo builds outside the checkout, binaries in `bin\`, one budget for every cache |
 | S1 | 2026-11-18 | streamed bundle packing, process-wide BF1943 restart points, the shader coverage index |
+| F4 | 2026-11-20 | F3's leftovers in Rust: the disassembler's header, audio decode and ffmpeg glue, hkpack's handle-based Packfile, navsample_offline's hulls (5 tied Railway_Switch hulls still Python), meshview's and texqa's readers, culltree's string table; all identical to the Python; WW2 texture QA 212 s to 134 s |
 | F3 | 2026-11-18 | the rest of the Python format readers and writers in Rust (aimanim, hpdtool's mesh layout, audio framing, navsample, hkpack, the Xenos disassembly) |
 | F2b | 2026-11-18 | the BF1943 importer's remaining Python (mopp, havokport, dbxcatalogue, emitteratlas, meshport's layout search), the PE reader, xmlinst, navtune |
 | F2a | 2026-11-18 | the console converter's rest, the model tools and Granny's writing side in Rust |
