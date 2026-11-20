@@ -224,12 +224,45 @@ def _shape_parts(pf, sh, offset, out, depth=0):
 
 
 def asset_bodies(path):
-    """[(system index, body name, kind, triangles in the asset's space, part)] of a *_Havok.res (body transforms
-    applied; part: the index into the asset's PartInfoDatas of a mesh piece, -1 for convex pieces; the last item: the
-    kind of the body's root shape - what the in-game file's hit vtable names: a MOPP tree over convex pieces is a
-    'mesh' hit there)."""
+    """[(system index, body name, kind, triangles in the asset's space, part, root kind)] of a *_Havok.res (body
+    transforms applied; part: the index into the asset's PartInfoDatas of a mesh piece, -1 for convex pieces; the last
+    item: the kind of the body's root shape - what the in-game file's hit vtable names: a MOPP tree over convex pieces
+    is a 'mesh' hit there). In the Rust core when it is in use (round F4: bc2_native.navkit_asset_bodies, NumPy's
+    small linear algebra bit for bit: bc2_navbuild::hulls), else asset_bodies_reference; a file it does not take is
+    the Python's."""
     try:
-        pf = hkpack.load(path)
+        with open(path, 'rb') as f:
+            data = f.read()
+    except OSError:
+        return []
+    return asset_bodies_of(data)
+
+
+def asset_bodies_of(data):
+    """asset_bodies of a file's bytes."""
+    import navnative
+    m = navnative.core('navkit_asset_bodies')
+    got = m.navkit_asset_bodies(data) if m is not None and type(data) is bytes else None
+    if got is None:
+        return asset_bodies_of_reference(data)
+    return [(si, name, kind, np.frombuffer(t, np.float64).reshape(-1, 3, 3), part, rk)
+            for si, name, kind, t, part, rk in got]
+
+
+def asset_bodies_reference(path):
+    """asset_bodies in Python (the reference)."""
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+    except OSError:
+        return []
+    return asset_bodies_of_reference(data)
+
+
+def asset_bodies_of_reference(data):
+    """asset_bodies_of in Python (the reference)."""
+    try:
+        pf = hkpack.Packfile(data)
     except (ValueError, OSError, struct.error):
         return []
     out = []

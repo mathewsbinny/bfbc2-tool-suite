@@ -34,6 +34,8 @@ use thiserror::Error;
 
 use crate::bytes;
 
+pub mod reflect;
+
 /// The packfile magic: the file is read from its first occurrence.
 pub const MAGIC: [u8; 8] = [0x57, 0xe0, 0xe0, 0x57, 0x10, 0xc0, 0xc0, 0x10];
 
@@ -358,6 +360,12 @@ impl<'a> Packfile<'a> {
     #[must_use]
     pub fn deref(&self, slot: u64) -> Option<u64> {
         self.ptr.get(&slot).copied()
+    }
+
+    /// Every pointer slot and its target (`hkpack.Packfile.ptr`, a later fixup of the same slot winning).
+    #[must_use]
+    pub fn pointers(&self) -> &HashMap<u64, u64> {
+        &self.ptr
     }
 
     /// Every object (its offset and class name) in the order of the virtual fixups.
