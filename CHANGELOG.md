@@ -21,6 +21,17 @@ Versions 0.1.0 to 0.8.0 were assigned afterwards (round P1, 2026-11-19), from th
 `rust/BENCHMARKS.md`; they were not tagged at the time. Each date is the day the last change of that version
 landed on `main`.
 
+## [Unreleased]
+
+### Added
+- **Specification:** the engine specification's first two layers, the file formats and the data model (`spec/`,
+  439 rules with their evidence; `spec/trace.py` checks the index).
+
+### Changed
+- **`bfbc2.exe culltree add`** reads the reference levels one at a time: about 80-110 MB instead of 1.65 GB, and
+  0.6-0.9 s with a warm cache instead of 7 s. Its row cache is shared with `culltree.py` (either side's warmed cache
+  serves both) and is pruned within the cache budget.
+
 ## [0.9.0] - 2026-11-19
 
 ### Added
