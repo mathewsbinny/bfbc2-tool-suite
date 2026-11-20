@@ -9,6 +9,7 @@
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 
 use crate::camera::Projection;
+use crate::display::{InvisibleAs, ShowAs};
 use crate::gizmo::Tool;
 use crate::workspace::{ViewMode, Workspace};
 
@@ -103,6 +104,18 @@ pub enum Action {
     FocusHere,
     /// The editor view's display mode.
     SetViewMode(ViewMode),
+    /// How the simplified view shows every object (round SV1).
+    SetShowAs(ShowAs),
+    /// The next of [`ShowAs::VIEW`].
+    CycleShowAs,
+    /// How the selected objects are shown (a view setting, not an edit).
+    ShowObjectsAs(ShowAs),
+    /// How every object of the selected objects' blueprints is shown.
+    ShowBlueprintAs(ShowAs),
+    /// How the objects the game does not show are drawn.
+    SetInvisibleAs(InvisibleAs),
+    /// Clears every object's and blueprint's display override, level of detail and state.
+    ResetViewOverrides,
     /// A terrain or vegetation brush (stubs until their rounds).
     Brush(Brush),
     /// Sets the team of the selected gameplay objects (1, 2; 0 neutral).
@@ -619,6 +632,79 @@ pub fn registry() -> Vec<Entry> {
             },
         ));
     }
+    // round SV1: how the simplified view shows the objects (view settings, never edits)
+    out.push(e(
+        Action::CycleShowAs,
+        "Show objects as: next",
+        key(none, Key::C),
+        "Cycles how the view shows every object: visual, collision, visual + collision, wireframe, bounds",
+    ));
+    for s in ShowAs::VIEW {
+        out.push(e(
+            Action::SetShowAs(s),
+            match s {
+                ShowAs::Visual => "Show objects as visual",
+                ShowAs::Collision => "Show objects as collision",
+                ShowAs::Both => "Show objects as visual + collision",
+                ShowAs::Wireframe => "Show objects as wireframe",
+                ShowAs::Bounds | ShowAs::Hidden => "Show objects as bounds",
+            },
+            None,
+            match s {
+                ShowAs::Visual => {
+                    "Every object as the game draws its mesh, flat-shaded: leaves cut out, a tint from its texture"
+                }
+                ShowAs::Collision => "Every object as its Havok collision (what bullets and vehicles hit)",
+                ShowAs::Both => "Every object's mesh with its collision's edges over it",
+                ShowAs::Wireframe => "Every object's mesh as its triangles' edges",
+                ShowAs::Bounds | ShowAs::Hidden => "Every object as its bounding box",
+            },
+        ));
+    }
+    for s in ShowAs::OBJECT {
+        out.push(e(
+            Action::ShowObjectsAs(s),
+            match s {
+                ShowAs::Visual => "Show selection as visual",
+                ShowAs::Collision => "Show selection as collision",
+                ShowAs::Both => "Show selection as visual + collision",
+                ShowAs::Bounds => "Show selection as bounds",
+                ShowAs::Hidden | ShowAs::Wireframe => "Hide selection in the view",
+            },
+            None,
+            "How the selected objects are drawn in this view (a view setting, not an edit)",
+        ));
+        out.push(e(
+            Action::ShowBlueprintAs(s),
+            match s {
+                ShowAs::Visual => "Show this blueprint as visual",
+                ShowAs::Collision => "Show this blueprint as collision",
+                ShowAs::Both => "Show this blueprint as visual + collision",
+                ShowAs::Bounds => "Show this blueprint as bounds",
+                ShowAs::Hidden | ShowAs::Wireframe => "Hide this blueprint in the view",
+            },
+            None,
+            "How every object of the selected objects' blueprints is drawn (a view setting, not an edit)",
+        ));
+    }
+    for i in InvisibleAs::ALL {
+        out.push(e(
+            Action::SetInvisibleAs(i),
+            match i {
+                InvisibleAs::Hidden => "Hide invisible objects",
+                InvisibleAs::Outline => "Outline invisible objects",
+                InvisibleAs::Solid => "Show invisible objects solid",
+            },
+            None,
+            "Invisible walls and blueprints without a mesh: hidden, their collision's edges, or their collision",
+        ));
+    }
+    out.push(e(
+        Action::ResetViewOverrides,
+        "Reset view overrides",
+        None,
+        "Clears every object's and blueprint's Show as, level of detail and destruction state",
+    ));
     for b in Brush::ALL {
         out.push(e(
             Action::Brush(b),

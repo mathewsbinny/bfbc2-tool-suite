@@ -542,6 +542,31 @@ opens on three buttons (`rust/bc2-editor/src/app/modes.rs`, `create.rs`; Back an
 - **The top bar** keeps the project's badge and name in the room its buttons leave (the name is cut, never drawn
   under Save), the orthographic views in one Views menu, the theme button shortened to Light / Dark.
 
+*Done in round SV1 (2026-11-20; `rust/BENCHMARKS.md` "SV1"): the simplified view draws render meshes.* The user: "in
+our simplified view trees and objects sometimes look unrecognizable, like spike balls". The view drew each blueprint's
+Havok collision; for vegetation that is the render mesh's leaf cards without their alpha-tested textures.
+
+- **Render meshes** (`bc2_render::simple`, read beside the open view; collision is drawn until they arrive): the
+  meshes the Game-accurate view draws, chosen by the same rule (`world::mesh_and_set`) and read by the same code
+  (`material::prepare_untextured`), as plain geometry - positions, first texture coordinates, 32-bit indices, one
+  part per draw - instanced per blueprint as collision was. Alpha-tested parts (`material::TESTED`) are cut by their
+  diffuse texture's alpha (its level no larger than 64 texels, in one atlas); scene-lit objects take a muted tint of
+  their texture's mean colour. Blended parts (glass, decals) are left out where a mesh has other parts.
+- **Invisible objects**: blueprints that name no mesh, meshes of blended parts only (invisible walls, light shafts,
+  vista smoke) and occluder meshes are the `invisible` group: Hidden (the default), Outline or Solid (the View
+  dropdown).
+- **Show as** (`display.rs`): the view's (View dropdown, `C`): Visual, Collision, Visual + collision (the collision's
+  edges over the mesh, in its blueprint's hue), Wireframe, Bounds; an object's or a blueprint's (the object menu):
+  Visual, Collision, Both, Bounds, Hidden. The Collision view mode still draws only collision.
+- **Variants the data holds** (Properties' Display section): the mesh set's levels of detail (114 of SP_01's 205
+  render meshes and 124 of MP_005's 146 have 2 - 4) and, for a destructible blueprint, its parts' health states
+  (`PartComponentData.HealthStates[].MeshName`: `part_1`, `part_1_dest`, `ruin`, `ruin_downed`): Intact, Destroyed,
+  All parts. The parts' states are not split in the collision the scene reads (one shape list per blueprint), so
+  collision has no per-state variant yet.
+- These are view settings: kept per level in the editor's settings (`Saved::displays`), never in the project's log;
+  "Reset view overrides" clears the objects', blueprints', levels of detail and states.
+- Picking reads the id of what is drawn (the render mesh); snapping, placing and the ruler still use collision.
+
 **Later** (the user, 2026-11-18): scripting and plugins (an API for modders' automations and panels), customisable
 hotkeys (shortcuts are fixed and shown until then), and the nearest thing to play-in-editor - a live connection to
 the running game (the bot-AI debugger) to see it and jump back to objects. True play-in-editor is not possible: the
