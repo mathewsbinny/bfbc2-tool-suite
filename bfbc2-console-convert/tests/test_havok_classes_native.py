@@ -33,8 +33,12 @@ suite_paths.use('console-convert', 'core')
 import havok  # noqa: E402
 from bfbc2core import native, paths  # noqa: E402
 from f0_parity import Checks, outcome, stdout_utf8  # noqa: E402
+from replay import Replay  # noqa: E402
 
 N = native.require('havok.classes', 'havok_classes')
+R = Replay('f0_havok', HERE, [(havok, 'classes_reference')])
+# the retired reference (round RT2): replayed from the recording (Replay puts a stub in its place)
+REF = 'classes_reference'
 BASE, SEC_VA, SEC_RAW = 0x400000, 0x1000, 0x400
 
 
@@ -116,7 +120,7 @@ def damaged(b: bytes, rng: random.Random, regions: list[tuple[int, int]]) -> byt
 
 def compare(path: str) -> tuple[bool, bool]:
     """(the same classes or error both ways, Rust answered)."""
-    a, r = outcome(havok.classes, path), outcome(havok.classes_reference, path)
+    a, r = outcome(havok.classes, path), outcome(getattr(havok, REF), path)
     return a == r, N.havok_classes(path) is not None
 
 
@@ -150,22 +154,23 @@ def main(argv: list[str]) -> int:
             if not ok and len(bad) < 5:
                 kept = os.path.join(work, f'bad{i}.exe')
                 shutil.copyfile(p, kept)
-                bad.append(f'{i}: {str(outcome(havok.classes, p))[:100]} / {str(outcome(havok.classes_reference, p))[:100]}')
+                bad.append(f'{i}: {str(outcome(havok.classes, p))[:100]} / {str(outcome(getattr(havok, REF), p))[:100]}')
         c.check(same == 400, f'damaged executables: {same} of 400 the same classes or the same error ({answered} in Rust)',
                 '; '.join(bad))
-        c.check(outcome(havok.classes, os.path.join(work, 'none.exe')) == outcome(havok.classes_reference, os.path.join(work, 'none.exe')),
+        c.check(outcome(havok.classes, os.path.join(work, 'none.exe')) == outcome(getattr(havok, REF), os.path.join(work, 'none.exe')),
                 'a missing file: the reference\'s error')
 
         exe = paths.find_game_exe(walk=False, suite=SUITE)
         if exe:
             t0 = time.perf_counter()
-            k = havok.classes(exe)
+            k = outcome(havok.classes, exe)
             t1 = time.perf_counter()
-            r = havok.classes_reference(exe)
+            r = outcome(getattr(havok, REF), exe)
             t2 = time.perf_counter()
-            nm = sum(len(x.members) for x in r.values())
-            c.check(list(k.items()) == list(r.items()), f'BFBC2Game.exe: {len(r)} classes, {nm} members, the same '
-                    f'both ways (Python {t2 - t1:.2f} s, Rust {t1 - t0:.2f} s)')
+            got = havok.classes(exe)
+            nm = sum(len(x.members) for x in got.values())
+            c.check(k == r, f'BFBC2Game.exe: {len(got)} classes, {nm} members, the same both ways (reference '
+                    f'{t2 - t1:.2f} s, Rust {t1 - t0:.2f} s)')
             if game:
                 data = open(exe, 'rb').read()
                 frng = random.Random(0xF07)
@@ -182,6 +187,7 @@ def main(argv: list[str]) -> int:
             print('skip BFBC2Game.exe (no game copy)')
     finally:
         shutil.rmtree(work, ignore_errors=True)
+    c.check(R.finish(), 'the retired reference answers (replay)')
     return c.done()
 
 

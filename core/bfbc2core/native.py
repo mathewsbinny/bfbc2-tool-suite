@@ -370,6 +370,24 @@ def cli_exe() -> str | None:
 RETIRED_CLI = frozenset({'graphstats', 'prepare_level'})
 
 
+class Refused(ValueError):
+    """Round RT2: an input the Rust core does not read, given to a function whose Python reference (its fallback) was
+    retired. The reference answered or raised there; the function now raises this (a ValueError, and a subclass of
+    the module's own error where it has one: refused())."""
+
+
+_refused_types: dict[type, type] = {}
+
+
+def refused(message: str, base: type[Exception] = ValueError) -> Exception:
+    """The error a retired reference's function raises for an input the Rust core refuses (a Refused that is also a
+    `base`, so `except <the module's error>` still catches it); message: what is wrong, as far as the caller knows."""
+    cls = Refused if base in (ValueError, Exception) else _refused_types.get(base)
+    if cls is None:
+        cls = _refused_types[base] = type('Refused', (Refused, base), {'__module__': __name__})
+    return cls(message)
+
+
 class CliMissing(NativeMissing):
     """A retired command line needs bin\\bfbc2.exe built (or downloaded) from this checkout's Rust sources."""
 

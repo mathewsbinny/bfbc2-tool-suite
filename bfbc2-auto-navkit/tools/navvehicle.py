@@ -255,84 +255,27 @@ def obstacle_distance(s, cand, solid, extra=None, gx=None, gz=None, lo=CLEAR_LOW
     """Per surface: the horizontal distance (m) to the nearest sample column holding an obstacle for a vehicle on it -
     a solid surface (or an `extra` obstacle height, per surface: nan for none) rising more than lo and at most hi above
     the surface's local ground plane at that column. Computed for `cand` surfaces only (99 elsewhere); capped at
-    radius (distances beyond it are 99). In the Rust core (round E4e: 85 of ONS_MP_002's 90 s were this step);
-    obstacle_distance_reference is its Python, the reference and the fallback (navnative: not built,
-    BFBC2_PURE_PYTHON=1)."""
+    radius (distances beyond it are 99). In the Rust core (round E4e: 85 of ONS_MP_002's 90 s were this step), which
+    it needs (bfbc2core.native.NativeMissing says how to get it; BFBC2_PURE_PYTHON / BFBC2_NAVTOOLS_PYTHON do not
+    change that). Its NumPy (obstacle_distance_reference) was retired in round RT2 against its recorded answers
+    (bfbc2-auto-navkit/tests/e4e_navtools_replay.json)."""
     import navnative
-    m = navnative.core('navkit_obstacle_distance')
-    if m is not None:
-        if gx is None:
-            gx, gz = gradients(s)
-        _r, offs = _offsets(s.pitch, radius)
-        got = m.navkit_obstacle_distance(
-            int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
-            np.ascontiguousarray(s.y, '<f4').tobytes(), np.ascontiguousarray(gx, '<f4').tobytes(),
-            np.ascontiguousarray(gz, '<f4').tobytes(), np.ascontiguousarray(cand, np.uint8).tobytes(),
-            np.ascontiguousarray(solid, np.uint8).tobytes(),
-            None if extra is None else np.ascontiguousarray(extra, '<f4').tobytes(),
-            offs, float(s.pitch), float(lo), float(hi))
-        if got is not None:
-            return np.frombuffer(got, '<f4').copy()
-    return obstacle_distance_reference(s, cand, solid, extra, gx, gz, lo, hi, radius)
-
-
-def obstacle_distance_reference(s, cand, solid, extra=None, gx=None, gz=None, lo=CLEAR_LOW, hi=CLEAR_HIGH,
-                                radius=CLEARANCE + 1.0):
-    """obstacle_distance in NumPy (bands of rows as fixed layers, the obstacle layers shifted by each offset): the
-    reference of the Rust core's."""
+    from bfbc2core import native
+    m = navnative.core('navkit_obstacle_distance') or native.require(
+        'the vehicle clearance (navvehicle.obstacle_distance)', 'navkit_obstacle_distance')
     if gx is None:
         gx, gz = gradients(s)
-    out = np.full(len(s.y), 99.0, np.float32)
-    p = s.pitch
-    r, offs = _offsets(p, radius)
-    cnt = np.diff(s.start[:s.nx * s.nz + 1])
-    band = 96
-    for j0 in range(0, s.nz, band):
-        # rows j0 .. j1 - 1 and their r-row margins, as fixed layers trimmed to this band's deepest column
-        a0, a1 = max(0, j0 - r), min(s.nz, j0 + band + r)
-        c0, c1 = a0 * s.nx, a1 * s.nx
-        L = max(1, int(cnt[c0:c1].max()))
-        nzb = a1 - a0
-        col = np.repeat(np.arange(c0, c1), cnt[c0:c1])
-        kk = np.arange(s.start[c0], s.start[c1])
-        rank = kk - s.start[col]
-        jj, ii = col // s.nx - a0, col % s.nx
-        Y = np.full((nzb, s.nx, L), np.nan, np.float32)
-        K = np.full((nzb, s.nx, L), -1, np.int64)
-        Y[jj, ii, rank] = s.y[kk]
-        K[jj, ii, rank] = kk
-        valid = K >= 0
-        ks = np.where(valid, K, 0)
-        O = np.where(valid & solid[ks], Y, np.nan)
-        if extra is not None:
-            O = np.concatenate([O, np.where(valid, extra[ks], np.nan).astype(np.float32)], axis=2)
-        used = ~np.all(np.isnan(O), axis=(0, 1))
-        O = O[:, :, used] if used.any() else O[:, :, :1]
-        # candidates: only the band's own rows
-        own = np.zeros((nzb, 1, 1), bool)
-        own[j0 - a0:min(j0 + band, s.nz) - a0] = True
-        C = valid & cand[ks] & own
-        if not C.any():
-            continue
-        GX = np.where(valid, gx[ks], 0).astype(np.float32)
-        GZ = np.where(valid, gz[ks], 0).astype(np.float32)
-        D = np.full(Y.shape, 99.0, np.float32)
-        P = np.pad(O, ((r, r), (r, r), (0, 0)), constant_values=np.nan)
-        rows = [l for l in range(L) if C[:, :, l].any()]
-        for d, a, b in offs:
-            sh = P[r + b:r + b + nzb, r + a:r + a + s.nx, :]
-            for l in rows:
-                todo = C[:, :, l] & (D[:, :, l] > d)
-                if not todo.any():
-                    continue
-                base = Y[:, :, l] + GX[:, :, l] * (a * p) + GZ[:, :, l] * (b * p)
-                with np.errstate(invalid='ignore'):
-                    diff = sh - base[:, :, None]
-                    hit = np.any((diff > lo) & (diff <= hi), axis=2) & todo
-                D[:, :, l][hit] = d
-        sel = C
-        out[K[sel]] = D[sel]
-    return out
+    _r, offs = _offsets(s.pitch, radius)
+    got = m.navkit_obstacle_distance(
+        int(s.nx), int(s.nz), np.ascontiguousarray(s.start, '<i8').tobytes(),
+        np.ascontiguousarray(s.y, '<f4').tobytes(), np.ascontiguousarray(gx, '<f4').tobytes(),
+        np.ascontiguousarray(gz, '<f4').tobytes(), np.ascontiguousarray(cand, np.uint8).tobytes(),
+        np.ascontiguousarray(solid, np.uint8).tobytes(),
+        None if extra is None else np.ascontiguousarray(extra, '<f4').tobytes(),
+        offs, float(s.pitch), float(lo), float(hi))
+    if got is None:
+        raise native.refused('obstacle_distance: sample runs the clearance does not read')
+    return np.frombuffer(got, '<f4').copy()
 
 
 def resample(s, pitch=PITCH):

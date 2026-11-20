@@ -2,7 +2,10 @@
 "game/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
 4154480,
 "14ec47c1b5336453ab3e",
-112
+112,
+"14ec47c1b5336453ab3e",
+0,
+0
 ],
 "game/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd damaged": [
 4154480,
@@ -12,7 +15,10 @@
 "game/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd": [
 344100,
 "e07a90ff80c5fc40e55b",
-38
+38,
+"e07a90ff80c5fc40e55b",
+0,
+0
 ],
 "game/Output/win32/ai/levels/ons_mp_002/vehicle/pathdata.hpd damaged": [
 344100,
@@ -22,7 +28,10 @@
 "game/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd": [
 3142584,
 "3251b785281e66875b50",
-54
+54,
+"3251b785281e66875b50",
+0,
+0
 ],
 "game/Output/win32/ai/levels/ons_mp_004/infantry/pathdata.hpd damaged": [
 3142584,
@@ -351,13 +360,19 @@
 ],
 "quick:built": [
 0,
-"f9e22ea14297efb48523",
-600
+"386272e694e7ce9a2a99",
+600,
+"386272e694e7ce9a2a99",
+0,
+0
 ],
 "quick:damaged": [
 0,
-"4bc54458435a59c57f78",
-4000
+"f8ace0b8d1f34a648f0b",
+4000,
+"f8ace0b8d1f34a648f0b",
+0,
+0
 ],
 "work/backups/napisal_ons_2026-10-29/Output/win32/ai/levels/ons_mp_002/infantry/pathdata.hpd": [
 4154480,

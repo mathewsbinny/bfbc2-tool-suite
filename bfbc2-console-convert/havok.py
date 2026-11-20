@@ -19,12 +19,12 @@ its class layout (parents first), arrays and pointed-to objects followed, every 
 2026-11-18, after the port had given the same bytes on every BF1943 physics port and Onslaught console physics file
 and the same verify answers on every Onslaught file, and passed the full test tier; its results are recorded in
 bfbc2-bf1943-import\tests\ports_golden.json and tests\havok_verify_golden.json. classes() and the wrapper's
-conversion stay here; classes() scans the executable in the Rust core when it is built (round F0), its Python kept as
-the reference (classes_reference).
+conversion stay here; classes() scans the executable in the Rust core (round F0: bc2_native.havok_classes). Its
+Python scan (classes_reference) was retired in round RT2 against its recorded answers
+(bfbc2-console-convert\tests\f0_havok_replay*.json).
 """
 import collections
 import os
-import struct
 import sys
 
 MAGIC = bytes.fromhex('57e0e05710c0c010')        # the same bytes on both platforms
@@ -46,55 +46,8 @@ class ConvertError(Exception):
 
 # ---------------------------------------------------------------- class layouts from the executable
 
-class _PE:
-    def __init__(self, path):
-        d = self.d = open(path, 'rb').read()
-        pe = struct.unpack_from('<I', d, 0x3C)[0]
-        nsec = struct.unpack_from('<H', d, pe + 6)[0]
-        opt = struct.unpack_from('<H', d, pe + 20)[0]
-        self.base = struct.unpack_from('<I', d, pe + 52)[0]
-        self.secs = []
-        for i in range(nsec):
-            vsize, va, rsize, raw = struct.unpack_from('<IIII', d, pe + 24 + opt + 40 * i + 8)
-            self.secs.append((self.base + va, max(vsize, rsize), raw, rsize))
-
-    def off(self, va):
-        for s, size, raw, rsize in self.secs:
-            if s <= va < s + size:
-                return raw + va - s if va - s < rsize else None
-        return None
-
-    def va(self, off):
-        for s, _size, raw, rsize in self.secs:
-            if raw <= off < raw + rsize:
-                return s + off - raw
-        return None
-
-    def cstr(self, va):
-        o = self.off(va) if va else None
-        if o is None:
-            return None
-        s = self.d[o:self.d.find(b'\0', o)]
-        return s.decode('latin-1') if s and all(32 <= c < 127 for c in s) else None
-
-
 Member = collections.namedtuple('Member', 'name cls type subtype carray flags offset')
 Klass = collections.namedtuple('Klass', 'name parent size members')
-
-
-def _pushes(d, start, end):
-    """The immediates pushed from start to end (push imm8 / imm32 only), first argument first; None otherwise."""
-    args, p = [], start
-    while p < end:
-        if d[p] == 0x6A:
-            args.append(struct.unpack_from('<b', d, p + 1)[0] & 0xFFFFFFFF)
-            p += 2
-        elif d[p] == 0x68:
-            args.append(struct.unpack_from('<I', d, p + 1)[0])
-            p += 5
-        else:
-            return None
-    return args[::-1]
 
 
 def classes(exe):
@@ -102,77 +55,31 @@ def classes(exe):
     constructor arguments (name, parent, size, interfaces, count, enums, count, members, count, defaults,
     attributes, flags), load the static hkClass object into ecx and call the constructor. Members are the static
     24-byte hkClassMember records (name, class, enum, type, subtype, C array size, flags, offset, attributes).
-    The executable is scanned in the Rust core when it is built (round F0: bc2_native.havok_classes, the same classes
-    in the same order); where the reference raises, classes_reference runs and raises (BFBC2_PURE_PYTHON=1: the
-    Python only)."""
-    nat = _classes_native() if isinstance(exe, str) else None
-    rows = nat.havok_classes(exe) if nat is not None else None
+    The executable is scanned in the Rust core (round F0: bc2_native.havok_classes). A file it cannot scan (not
+    BFBC2Game.exe, or damaged) raises a ConvertError that is also a bfbc2core.native.Refused; a missing one, the
+    OSError of opening it."""
+    exe = os.fspath(exe)
+    rows = _core().havok_classes(exe)
     if rows is None:
-        return classes_reference(exe)
+        open(exe, 'rb').close()                            # a missing or unreadable file: its own error
+        raise _refused(f'{exe}: no Havok class initializers found (not BFBC2Game.exe, or damaged)', ConvertError)
     return {name: Klass(name, parent, size, [Member(*m) for m in members]) for name, parent, size, members in rows}
 
 
-def _classes_native():
-    """The Rust core with havok_classes, or None (not built, another module, BFBC2_PURE_PYTHON set)."""
+def _core():
+    """The Rust core (bfbc2core.native.require): NativeMissing, saying how to get it, when it is not there."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if root not in sys.path:
         sys.path.insert(0, root)
-    try:
-        import suite_paths
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'havok_classes') else None
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('bfbc2-console-convert/havok.py', 'havok_classes')
 
 
-def classes_reference(exe):
-    """The Python scan (the reference)."""
-    pe = _PE(exe)
-    d = pe.d
-    sites: list[tuple[int, int, list[int]]]
-    ctors: collections.Counter[int]
-    sites, ctors = [], collections.Counter()
-    i = 0
-    while True:
-        i = d.find(b'\xB9', i, len(d) - 10)                    # mov ecx, imm32 ; call rel32
-        if i < 0:
-            break
-        here = pe.va(i)
-        if d[i + 5] == 0xE8 and here is not None:
-            for s in range(i - 1, max(i - 80, 0), -1):         # the stub's start (an immediate may hold 0xCC)
-                if d[s - 1] in (0xCC, 0xC3):
-                    a = _pushes(d, s, i)
-                    if a and len(a) == 12 and pe.cstr(a[0]):
-                        target = here + 10 + struct.unpack_from('<i', d, i + 6)[0]
-                        if pe.cstr(a[0]).startswith('hk'):
-                            ctors[target] += 1
-                        sites.append((target, struct.unpack_from('<I', d, i + 1)[0], a))
-                        break
-        i += 1
-    if not ctors:
-        raise ConvertError(f'{exe}: no Havok class initializers found (not BFBC2Game.exe?)')
-    ctor = ctors.most_common(1)[0][0]
-    raw = {}
-    for target, obj, a in sites:
-        if target != ctor:
-            continue
-        name, parent, size, _, _, _, _, members, count = a[:9]
-        mem = []
-        for k in range(count):
-            o = pe.off(members + 24 * k)
-            nm, cl, _ = struct.unpack_from('<3I', d, o)
-            ty, st, ca, fl, off = struct.unpack_from('<BBhHH', d, o + 12)
-            mem.append(Member(pe.cstr(nm), cl, ty, st, ca, fl, off))
-        raw[obj] = (pe.cstr(name), parent, size, mem)
-    out = {}
-    for name, parent, size, mem in raw.values():
-        mem = [m._replace(cls=raw[m.cls][0] if m.cls in raw else None) for m in mem]
-        out[name] = Klass(name, raw[parent][0] if parent in raw else None, size, mem)
-    return out
+def _refused(message, base):
+    from bfbc2core import native
+    return native.refused(message, base)
 
 
 # ---------------------------------------------------------------- DICE's wrapper
@@ -186,86 +93,22 @@ def wrapper_end(b):
 
 
 def convert_wrapper(b, o):
-    """The wrapper before the packfile at o (FORMAT.md 1.1), console -> PC: in the Rust core when it is built (round
-    F2a: bc2_convert::havok::convert_wrapper; the same bytes and ConvertError messages), else convert_wrapper_reference
-    (kept as the reference and the fallback: where the reference would raise struct.error, or a value is a NaN)."""
-    nat = _native_core() if type(b) is bytes and type(o) is int and o >= 0 else None
-    got = nat.havok_convert_wrapper(b, o) if nat is not None else None
+    """The wrapper before the packfile at o (FORMAT.md 1.1), console -> PC: in the Rust core (round F2a:
+    bc2_convert::havok::convert_wrapper; the same bytes and ConvertError messages). Its Python
+    (convert_wrapper_reference) was retired in round RT2 against its recorded answers
+    (bfbc2-console-convert\\tests\\f2a_console_replay*.json): where it raised struct.error (a wrapper cut short) or
+    read a NaN, a ConvertError that is also a bfbc2core.native.Refused says so."""
+    if isinstance(b, bytearray | memoryview):
+        b = bytes(b)
+    got = None
+    if type(b) is bytes and type(o) is int and o >= 0:
+        got = require().havok_convert_wrapper(b, o)
     if got is None:
-        return convert_wrapper_reference(b, o)
+        raise _refused('wrapper: cut short or damaged (a read past the data, or a value the converter does not take)',
+                       ConvertError)
     if not got[0]:
         raise ConvertError(got[1])
     return got[1]
-
-
-_CORE: list = []
-
-
-def _native_core():
-    """The Rust core with havok_convert_wrapper, or None: not built, or BFBC2_PURE_PYTHON set (the packfile walk
-    always runs in the Rust core: require)."""
-    if not _CORE:
-        m = None
-        try:
-            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            import suite_paths
-            suite_paths.use('core')
-            from bfbc2core import dbx as _dbx
-            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
-                m = _dbx._import_native()
-        except ImportError:
-            m = None
-        _CORE.append(m if m is not None and hasattr(m, 'havok_convert_wrapper') else None)
-    return _CORE[0]
-
-
-def use_native_wrapper(on):
-    """The Rust wrapper conversion on (when built, whatever BFBC2_PURE_PYTHON says) or off; True when it runs."""
-    _CORE.clear()
-    if not on:
-        _CORE.append(None)
-        return False
-    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-    try:
-        return _native_core() is not None
-    finally:
-        if saved is not None:
-            os.environ['BFBC2_PURE_PYTHON'] = saved
-
-
-def convert_wrapper_reference(b, o):
-    """The Python convert_wrapper (the reference)."""
-    out, p = bytearray(), 0
-
-    def num(fmt, n=1):
-        nonlocal p
-        size = struct.calcsize(fmt)
-        for _ in range(n):
-            out.extend(struct.pack('<' + fmt, *struct.unpack_from('>' + fmt, b, p)))
-            p += size
-
-    def be(fmt, at):
-        return struct.unpack_from('>' + fmt, b, at)[0]
-
-    n = be('I', 0)
-    num('I', 2)
-    num('I', be('I', 4))                       # part name hashes
-    a = be('H', p)
-    num('H')
-    num('f', 3 * a)                            # a vectors
-    c = be('H', p)
-    num('H')
-    num('f', 6 * c)                            # c boxes (min, max)
-    # bytes, then 1, k and k hashes ending at the packfile: the byte run's length is where that holds
-    tail = [q for q in range(p, o - 7) if be('I', q) == 1 and q + 8 + 4 * be('I', q + 4) == o]
-    if len(tail) != 1:
-        raise ConvertError(f'wrapper: the end of the byte run is not unique ({len(tail)} candidates; {n} parts)')
-    out.extend(b[p:tail[0]])
-    p = tail[0]
-    num('I', 2 + be('I', p + 4))
-    return bytes(out)
 
 
 # ---------------------------------------------------------------- the packfile (the Rust core)

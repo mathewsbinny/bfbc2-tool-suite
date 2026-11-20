@@ -4,7 +4,8 @@
 //! - `bfbc2 dbxcatalogue`: the catalogue's summary line from its cache (`work\tools_out\dbx_catalogue.pkl`, read with
 //!   `bc2_pyrt::pickle`, over the index's cache: [`crate::gameindex`]). Building a missing catalogue or index (minutes,
 //!   once; the Python writes the cache) is handed to the Python.
-//! - `bfbc2 dbxparity|portparity`: their `argparse` command lines (help, usage errors at the pipe width of 80); a run
+//! - `bfbc2 dbxparity|portparity`: their `argparse` command lines (help, usage errors; at the console's width or
+//!   `COLUMNS` [`crate::argfmt`]'s texts, round RT2); a run
 //!   (BF1943's source, dbxport's / meshport's ports, NumPy) is handed to the Python, as are option abbreviations,
 //!   `--`, attached values and positionals on both sides of an option.
 
@@ -14,8 +15,8 @@ use bc2_pyrt::pickle::{self, Value};
 use bc2_pyrt::py::join;
 
 use crate::gameindex;
+use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, Py, PyResult, Tool};
-use crate::{pyos::files as fsx, pystdio};
 
 /// The group's tools.
 pub const TOOLS: &[Tool] = &[
@@ -127,11 +128,6 @@ fn portparity(py: &mut Py, argv: &[String]) -> PyResult<i32> {
     parse(py, &PORTPARITY, argv)
 }
 
-/// `argparse` wraps help and usage to the terminal's width: only the pipe's (80) is ported.
-fn width_ported() -> bool {
-    std::env::var_os("COLUMNS").is_none() && !pystdio::is_console(&std::io::stdout())
-}
-
 /// An option string to `argparse` ('O') rather than a value ('A'): starts with '-', is not '-' alone, and is not a
 /// negative number (the parsers have no option that looks like one).
 fn is_option(a: &str) -> bool {
@@ -150,9 +146,6 @@ fn is_option(a: &str) -> bool {
 /// `ap.parse_args(argv)` of a parity tool: the help (exit 0) or a usage error (exit 2) here; a command line that
 /// parses runs in the Python (BF1943's source, the ports, NumPy).
 fn parse(py: &mut Py, p: &Parser, argv: &[String]) -> PyResult<i32> {
-    if !width_ported() {
-        return Err(Fail::Python);
-    }
     let mut extras: Vec<&str> = Vec::new();
     let mut names_done = false;
     let mut in_run = false;
@@ -170,14 +163,14 @@ fn parse(py: &mut Py, p: &Parser, argv: &[String]) -> PyResult<i32> {
         in_run = false;
         match a {
             "-h" | "--help" => {
-                py.write(p.help)?;
+                py.write(&crate::argfmt::help_or(p.prog, p.help)?)?;
                 return Ok(0);
             }
             "--predict" if p.predict => {}
             "-o" => match argv.get(i + 1) {
                 Some(v) if !is_option(v) => i += 1,
                 Some(v) if v == "--" => return Err(Fail::Python),
-                _ => return Ok(error(py, p, "argument -o: expected one argument")),
+                _ => return error(py, p, "argument -o: expected one argument"),
             },
             _ => {
                 // an unknown long option nothing starts with is unrecognized; anything else is argparse's
@@ -196,16 +189,21 @@ fn parse(py: &mut Py, p: &Parser, argv: &[String]) -> PyResult<i32> {
         i += 1;
     }
     if !extras.is_empty() {
-        return Ok(error(py, p, &format!("unrecognized arguments: {}", extras.join(" "))));
+        return error(py, p, &format!("unrecognized arguments: {}", extras.join(" ")));
     }
     // every command line that parses: the run is the Python's
     Err(Fail::Python)
 }
 
-/// `parser.error(message)`: the usage and the message on stderr, exit code 2.
-fn error(py: &mut Py, p: &Parser, message: &str) -> i32 {
+/// `parser.error(message)`: the usage (at the console's width) and the message on stderr, exit code 2.
+fn error(py: &mut Py, p: &Parser, message: &str) -> PyResult<i32> {
     let mut s = String::new();
-    let _ = write!(s, "{}{}: error: {message}", p.usage, p.prog);
+    let _ = write!(
+        s,
+        "{}{}: error: {message}",
+        crate::argfmt::usage_or(p.prog, p.usage)?,
+        p.prog
+    );
     py.eprint(&s);
-    2
+    Ok(2)
 }

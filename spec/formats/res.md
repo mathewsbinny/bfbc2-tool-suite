@@ -62,7 +62,7 @@ outside its bundle must keep the type with it: FbrbTool's manifest records it (F
 of unpacked folders take it from there (texqa's texture search reads the manifest's type) or test the layout's own
 consistency instead.
 
-Evidence: [code: rust/bc2-cli/src/texqa/run.rs:262-276] [code: rust/bc2-formats/src/fbrb/tool.rs:917-922] [inferred: the type catalogue's layouts (texture, mesh, Havok, Wave ...) begin with counts and sizes, not identifiers; only the Havok packfile inside its wrapper, the BIGF archive of a SwfMovie and the RES wrapper have magic numbers]
+Evidence: [code: rust/bc2-cli/src/texqa/run.rs:263-277] [code: rust/bc2-formats/src/fbrb/tool.rs:917-922] [inferred: the type catalogue's layouts (texture, mesh, Havok, Wave ...) begin with counts and sizes, not identifiers; only the Havok packfile inside its wrapper, the BIGF archive of a SwfMovie and the RES wrapper have magic numbers]
 
 ### RES-TYPE-3: Byte order follows the platform
 
@@ -139,7 +139,7 @@ editor's picture decoder, texqa, the map exporter's award pictures); a writer of
 wraps the resource (`awards::wrap`). The game reads OPFOR's wrapped pictures whose bundle size2 equals size
 (FBRB-ENT-6), so the header's own length words, not size2, give the resource's length.
 
-Evidence: [code: rust/bc2-editor/src/catalog.rs:185-190] [code: rust/bc2-levelwrite/src/awards.rs:58-64] [code: rust/bc2-cli/src/texqa/run.rs:267-270] [test: rust/bc2-editor/src/catalog.rs::a_texture_decoded] [test: rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form]
+Evidence: [code: rust/bc2-editor/src/catalog.rs:185-190] [code: rust/bc2-levelwrite/src/awards.rs:58-64] [code: rust/bc2-cli/src/texqa/run.rs:268-271] [test: rust/bc2-editor/src/catalog.rs::a_texture_decoded] [test: rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form]
 
 ## Open questions
 
