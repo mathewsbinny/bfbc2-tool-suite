@@ -86,6 +86,7 @@ def copy_suite(dst: str, with_module: bool) -> None:
                                   'tests', 'work', '*.hpd')
     os.makedirs(dst)
     shutil.copy2(os.path.join(SUITE, 'suite_paths.py'), dst)
+    shutil.copy2(os.path.join(SUITE, 'VERSION'), dst)        # one of the sources' fingerprint (round P1)
     for d in ('core', 'bfbc2-console-convert', os.path.join('bfbc2-auto-navkit', 'tools'), 'bfbc2-anim-tools', 'rust'):
         shutil.copytree(os.path.join(SUITE, d), os.path.join(dst, d), ignore=skip)
     if with_module:

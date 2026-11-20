@@ -1,0 +1,95 @@
+# The suite's checks on every push (any branch) and pull request (round P1, RELEASING.md), on Windows:
+# the Rust module's build, cargo fmt, clippy with warnings as errors, the workspace's cargo tests, ruff, mypy, and the
+# quick tier's game-free entries (python run_tests.py quick --no-game --ci-steps: the runner has no game copy, no
+# Project OPFOR folder and no graphics card; the entries that need them are skipped and named with the reason).
+#
+# native.yml (pushes to main) builds and publishes the prebuilt module; this workflow publishes nothing. Cargo's
+# build folder is rust\target here (CARGO_TARGET_DIR=target, relative to rust\ for both cargo and
+# bfbc2core.native.target_dir), cached by Swatinem/rust-cache with the registry (main writes the cache, branches
+# read it). Estimated: native.yml's build and cargo checks take 8-15 minutes cold; the game-free quick tier ran in
+# 220 s at -j 2 on the development PC (expect about twice that on a 4-core runner); so about 20-25 minutes cold and
+# 12-15 warm. Not yet measured on GitHub.
+name: checks
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true                 # a newer push to the same branch replaces a running check
+
+jobs:
+  checks:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONIOENCODING: utf-8
+      CARGO_TERM_COLOR: never
+      CARGO_INCREMENTAL: '0'
+      CARGO_TARGET_DIR: target             # rust\target (cargo runs in rust\; bfbc2core.native resolves it there too)
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1   # v6.3.0
+        with:
+          python-version: '3.13'           # the development PC's Python (the module itself serves 3.12 and later)
+
+      - name: Rust toolchain (rust/rust-toolchain.toml)
+        working-directory: rust
+        run: |
+          $channel = (Select-String -Path rust-toolchain.toml -Pattern '^channel = "(.+)"').Matches[0].Groups[1].Value
+          rustup toolchain install $channel --profile minimal --component rustfmt --component clippy
+          cargo --version
+          rustc --version
+
+      - name: Cargo cache (registry and rust\target)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0   # v2.9.3
+        with:
+          workspaces: rust -> target
+          shared-key: checks
+          save-if: ${{ github.ref == 'refs/heads/main' }}   # branches read main's cache; only main writes it
+
+      - name: Python packages (the development PC's versions)
+        run: >-
+          python -m pip install --disable-pip-version-check
+          "maturin==1.16.0" "numpy==2.5.4" "pillow==12.3.0" "matplotlib==3.11.2" "pefile==2024.8.26"
+          "capstone==5.0.9" "glfw==2.11.0" "moderngl==5.13.0" "imgui-bundle==1.92.900"
+          "ruff==0.17.3" "mypy==2.4.1"
+
+      - name: Build the module and bfbc2.exe
+        run: |
+          python rust/build_native.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          bin/bfbc2.exe --version
+          python -c "import sys; sys.path.insert(0, 'core'); import bfbc2core; print('bfbc2core', bfbc2core.__version__)"
+
+      - name: cargo fmt --check
+        working-directory: rust
+        run: cargo fmt --all --check
+
+      - name: cargo clippy -D warnings
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test (the workspace)
+        working-directory: rust
+        run: cargo test --workspace
+
+      - name: ruff
+        run: python tests/test_lint.py
+
+      - name: mypy
+        run: python tests/test_types.py
+
+      - name: Quick tier, game-free entries
+        run: python run_tests.py quick --no-game --ci-steps -j 2
