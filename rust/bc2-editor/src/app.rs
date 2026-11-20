@@ -43,6 +43,7 @@ use crate::render::{self, Gpu, SceneGpu, Target};
 use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
 mod create;
+mod displayui;
 mod editui;
 mod inspectui;
 mod modes;
@@ -139,6 +140,9 @@ pub struct Saved {
     /// Where new projects were last made.
     #[serde(default)]
     pub project_folder: Option<PathBuf>,
+    /// How the simplified view shows each level's objects (round SV1: a view setting, not an edit).
+    #[serde(default)]
+    pub displays: HashMap<String, crate::display::Display>,
 }
 
 /// The snapping and placement settings (the gizmo toolbar).
@@ -247,6 +251,8 @@ pub struct ViewState {
     pub game_accurate: bool,
     /// The game-accurate view's level, loaded when the mode is first turned on.
     pub game: Option<crate::gameview::GameView>,
+    /// The level's render meshes being read for the simplified view (round SV1), until they arrive.
+    visuals_rx: Option<Receiver<Result<bc2_render::simple::Simple, String>>>,
     // ---- round E2b
     /// The Objects workspace's category filter (also the content browser's).
     pub filter: Option<crate::workspace::Category>,
@@ -351,6 +357,10 @@ impl Viewport {
 
 type Loaded = Result<(Scene, Vec<String>, f64, Vec<PathBuf>), String>;
 
+/// The environment variable that keeps the simplified view on collision (no render meshes read; round SV1's
+/// "before" pictures).
+pub const COLLISION_VIEW_ENV: &str = "BC2_EDITOR_COLLISION_VIEW";
+
 /// What to do with a level once it is loaded.
 #[derive(Debug, Clone)]
 pub enum Then {
@@ -394,6 +404,8 @@ pub struct EditorApp {
     mode: Mode,
     error: Option<String>,
     bookmarks: HashMap<String, Vec<Option<Camera>>>,
+    /// How the simplified view shows each level's objects (the open level's is its view's until it closes).
+    displays: HashMap<String, crate::display::Display>,
     renderer: Option<render::Renderer>,
     /// The command palette: open, its query, the highlighted row.
     palette_open: bool,
@@ -470,9 +482,16 @@ impl EditorApp {
             });
             rx
         });
-        let (theme, dock, bookmarks, recent, folder) = match saved {
-            Some(s) => (s.theme, s.dock, s.bookmarks, s.recent, s.project_folder),
-            None => (ThemeId::Dark, default_layout(), HashMap::new(), Vec::new(), None),
+        let (theme, dock, bookmarks, recent, folder, displays) = match saved {
+            Some(s) => (s.theme, s.dock, s.bookmarks, s.recent, s.project_folder, s.displays),
+            None => (
+                ThemeId::Dark,
+                default_layout(),
+                HashMap::new(),
+                Vec::new(),
+                None,
+                HashMap::new(),
+            ),
         };
         Ok(Self {
             tokens,
@@ -485,6 +504,7 @@ impl EditorApp {
             mode: Mode::Start,
             error: None,
             bookmarks,
+            displays,
             renderer: None,
             palette_open: false,
             palette_query: String::new(),
@@ -593,6 +613,12 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
                 v.and_then(|v| v.nav_why_not(action))
             }
             Action::SetWorkspace(_) | Action::SetViewMode(_) | Action::FocusHere if !open => Some("Open a map first"),
+            Action::SetShowAs(_) | Action::CycleShowAs | Action::SetInvisibleAs(_) | Action::ResetViewOverrides
+                if !open =>
+            {
+                Some("Open a map first")
+            }
+            Action::ShowObjectsAs(_) | Action::ShowBlueprintAs(_) if !selected => Some("Select an object first"),
             Action::SetWorkspace(w) if w.edits() && doc.is_none() => {
                 Some("Open a project first (New map from an existing map, or Open a project)")
             }
@@ -763,7 +789,10 @@ impl EditorApp {
                     ThemeId::Light => ThemeId::Dark,
                 };
             }
-            Action::CloseMap => self.mode = Mode::Start,
+            Action::CloseMap => {
+                self.stash_display();
+                self.mode = Mode::Start;
+            }
             Action::OpenViewport(p) => self.open_viewport(p),
             Action::FocusSelection => self.focus_selected(),
             Action::ClearSelection => self.select(gpu, None),
@@ -858,6 +887,14 @@ impl EditorApp {
             bookmarks: self.bookmarks.clone(),
             recent: self.recent.clone(),
             project_folder: Some(PathBuf::from(&self.new_folder)),
+            displays: {
+                let mut d = self.displays.clone();
+                if let Mode::View(v) = &self.mode {
+                    d.insert(v.lv.to_lowercase(), v.gpu_scene.display.clone());
+                }
+                d.retain(|_, x| *x != crate::display::Display::default());
+                d
+            },
         }
     }
 
@@ -866,6 +903,13 @@ impl EditorApp {
     #[must_use]
     pub fn top_bar_spans(&self) -> [f32; 2] {
         self.top_spans.get()
+    }
+
+    /// Keeps the open level's display settings (round SV1) for when it is opened again.
+    fn stash_display(&mut self) {
+        if let Mode::View(v) = &self.mode {
+            self.displays.insert(v.lv.to_lowercase(), v.gpu_scene.display.clone());
+        }
     }
 
     /// The levels of the game copy.
@@ -996,6 +1040,11 @@ impl EditorApp {
         }
         let loaded = load(&root, lv)?;
         self.show_scene(gpu, lv, loaded, then);
+        // headless runs see the view as it settles: with its render meshes (round SV1)
+        let palette = self.palette();
+        if let Mode::View(v) = &mut self.mode {
+            v.take_visuals(gpu, &palette, true);
+        }
         self.error.clone().map_or(Ok(()), Err)
     }
 
@@ -1065,7 +1114,31 @@ impl EditorApp {
         then: Then,
     ) {
         let palette = self.palette();
+        self.stash_display();
         let mut gpu_scene = SceneGpu::new(&gpu.gpu, &scene, &palette);
+        // the level's display settings, as last left (round SV1)
+        if let Some(d) = self.displays.get(&lv.to_lowercase()) {
+            gpu_scene.display = d.clone();
+            gpu_scene.refresh(&gpu.gpu, &scene, &palette, &|_| false);
+        }
+        // the simplified view's render meshes (round SV1), read beside the open view: collision until they arrive
+        let visuals_rx = match &self.opfor {
+            Ok(root) if lv != "demo" && std::env::var_os(COLLISION_VIEW_ENV).is_none() => {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let (root, lv, name, placed) = (
+                    root.clone(),
+                    lv.to_owned(),
+                    scene.name.clone(),
+                    crate::gameview::placed(&scene),
+                );
+                let package = crate::gameview::is_package(&root, &lv);
+                std::thread::spawn(move || {
+                    let _ = tx.send(bc2_render::simple::Simple::load(&root, &lv, &name, &placed, package));
+                });
+                Some(rx)
+            }
+            _ => None,
+        };
         for g in model::HIDDEN_AT_START {
             gpu_scene.set_hidden(&gpu.gpu, g, true);
         }
@@ -1203,6 +1276,7 @@ impl EditorApp {
             labels: true,
             game_accurate: false,
             game: None,
+            visuals_rx,
             last_hit: None,
             filter: None,
             view_mode: crate::workspace::ViewMode::Lit,
@@ -1335,6 +1409,13 @@ impl EditorApp {
             self.renderer = Some(render::Renderer::new(&gpu.gpu));
         }
         self.poll_loading(gpu, &ctx);
+        let palette = self.palette();
+        if let Mode::View(v) = &mut self.mode
+            && v.visuals_rx.is_some()
+        {
+            v.take_visuals(gpu, &palette, false);
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
         self.poll_catalog();
         if self.catalog_rx.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -2217,6 +2298,65 @@ impl ViewState {
         }
     }
 
+    /// The simplified view's scene on the GPU.
+    #[must_use]
+    pub fn gpu_scene(&self) -> &SceneGpu {
+        &self.gpu_scene
+    }
+
+    /// The simplified view's display settings (round SV1).
+    #[must_use]
+    pub fn display(&self) -> &crate::display::Display {
+        &self.gpu_scene.display
+    }
+
+    /// Changes the simplified view's display settings (round SV1: the View dropdown, the object menu's Show as, the
+    /// Properties' Display section) and draws the view again.
+    pub fn set_display(&mut self, gpu: &GpuCtx, palette: &Palette, change: impl FnOnce(&mut crate::display::Display)) {
+        change(&mut self.gpu_scene.display);
+        self.refresh(gpu, palette);
+    }
+
+    /// Draws the simplified view with the level's render meshes (`true`, the default once read) or with collision
+    /// (as before round SV1).
+    pub fn set_render_meshes(&mut self, gpu: &GpuCtx, palette: &Palette, on: bool) {
+        self.gpu_scene.render_meshes = on;
+        self.refresh(gpu, palette);
+    }
+
+    /// Takes the level's render meshes into the simplified view when they have been read (`wait`: waits for them);
+    /// whether the view changed. A level whose meshes cannot be read keeps its collision (a note says why).
+    pub fn take_visuals(&mut self, gpu: &GpuCtx, palette: &Palette, wait: bool) -> bool {
+        let Some(rx) = &self.visuals_rx else { return false };
+        let got = if wait {
+            rx.recv().map_err(|_| TryRecvError::Disconnected)
+        } else {
+            rx.try_recv()
+        };
+        let simple = match got {
+            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Disconnected) => {
+                self.visuals_rx = None;
+                return false;
+            }
+            Ok(s) => s,
+        };
+        self.visuals_rx = None;
+        match simple {
+            Ok(s) => {
+                self.gpu_scene.set_visuals(&gpu.gpu, Arc::new(s));
+                self.refresh(gpu, palette);
+                true
+            }
+            Err(e) => {
+                self.notes.push(format!(
+                    "Simplified view: render meshes not read ({e}); collision drawn"
+                ));
+                false
+            }
+        }
+    }
+
     /// Every viewport looks at the selection (the 3D view from a distance that fits it, the orthographic views
     /// centred on it at a zoom that fits it).
     fn focus_selected(&mut self) {
@@ -2962,6 +3102,8 @@ impl Tabs<'_> {
                             }
                         });
                     ui.add_space(m.space_3);
+                    // round SV1: how the simplified view shows it, and its variants
+                    self.display_section(ui, &e);
                     let g = ui.painter().layout_job(caption("Transform", p.ink_muted));
                     let (r, _) = ui.allocate_exact_size(g.size(), Sense::hover());
                     ui.painter().galley(r.min, g, p.ink_muted);

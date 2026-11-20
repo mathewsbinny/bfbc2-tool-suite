@@ -43,9 +43,8 @@ fn vs_mesh(
 // says how: 1 the scene's light (terrain, objects: 0.40 - 1.0), 0 an overlay's even light (team-owned and gameplay
 // objects: 0.88 - 1.0, so their view-* colour reads on the terrain from every side; theme.rs's contrast tests use
 // these numbers)
-@fragment
-fn fs_mesh(i: MeshOut) -> SceneOut {
-    let c = cross(dpdx(i.world), dpdy(i.world));
+fn shade_of(world: vec3<f32>, scene_lit: f32) -> f32 {
+    let c = cross(dpdx(world), dpdy(world));
     let l = length(c);
     var n = vec3<f32>(0.0, 1.0, 0.0);
     if (l > 1e-12) {
@@ -54,15 +53,116 @@ fn fs_mesh(i: MeshOut) -> SceneOut {
     let d = abs(dot(n, normalize(g.light.xyz)));
     let lit = 0.40 + 0.45 * d + 0.15 * abs(n.y);
     let even = 0.88 + 0.12 * max(d, abs(n.y));
-    var shade = mix(even, lit, i.color.a);
+    var shade = mix(even, lit, scene_lit);
     // the unlit view mode: flat colours
     if (g.light.w > 0.5) {
         shade = 1.0;
     }
+    return shade;
+}
+
+@fragment
+fn fs_mesh(i: MeshOut) -> SceneOut {
+    let shade = shade_of(i.world, i.color.a);
     var o: SceneOut;
     o.color = vec4<f32>(i.color.rgb * shade, 1.0);
     o.id = i.id;
     return o;
+}
+
+// ------------------------------------------------------------------------------------------- render meshes
+// round SV1: the objects' render meshes; each vertex names its part's material - the mean colour of its diffuse
+// texture (the tint), its tile in the atlas and its alpha test
+
+struct Material {
+    // rgb, and 1 when the part has a tint
+    tint: vec4<f32>,
+    // the tile's corner and size in the atlas (texels); size 0: no texture
+    tile: vec4<f32>,
+    // x: the alpha-test reference (0 - 1), negative for none
+    test: vec4<f32>,
+};
+@group(1) @binding(0) var atlas: texture_2d<f32>;
+@group(1) @binding(1) var<storage, read> materials: array<Material>;
+
+struct VisualOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) world: vec3<f32>,
+    @location(1) color: vec4<f32>,
+    @location(2) @interpolate(flat) id: u32,
+    @location(3) uv: vec2<f32>,
+    @location(4) @interpolate(flat) material: u32,
+};
+
+@vertex
+fn vs_visual(
+    @location(0) p: vec3<f32>,
+    @location(7) uv: vec2<f32>,
+    @location(8) material: u32,
+    @location(1) r0: vec4<f32>,
+    @location(2) r1: vec4<f32>,
+    @location(3) r2: vec4<f32>,
+    @location(4) r3: vec4<f32>,
+    @location(5) color: vec4<f32>,
+    @location(6) id: u32,
+) -> VisualOut {
+    let w = r0.xyz * p.x + r1.xyz * p.y + r2.xyz * p.z + r3.xyz;
+    var o: VisualOut;
+    o.pos = g.view_proj * vec4<f32>(w, 1.0);
+    o.world = w;
+    o.color = color;
+    o.id = id;
+    o.uv = uv;
+    o.material = material;
+    return o;
+}
+
+// the texel of the part's texture under the coordinates (wrapped, as the game's samplers wrap)
+fn texel(m: Material, uv: vec2<f32>) -> vec4<f32> {
+    let size = m.tile.zw;
+    let f = fract(uv);
+    let t = min(floor(f * size), size - vec2<f32>(1.0, 1.0));
+    return textureLoad(atlas, vec2<i32>(m.tile.xy + t), 0);
+}
+
+// whether an alpha-tested part has a hole here
+fn cut(m: Material, uv: vec2<f32>) -> bool {
+    if (m.test.x < 0.0 || m.tile.z <= 0.0) {
+        return false;
+    }
+    return texel(m, uv).a < m.test.x;
+}
+
+@fragment
+fn fs_visual(i: VisualOut) -> SceneOut {
+    // the shade first: derivatives in uniform control flow
+    let shade = shade_of(i.world, i.color.a);
+    let m = materials[i.material];
+    if (cut(m, i.uv)) {
+        discard;
+    }
+    // scene-lit objects take their texture's colour, muted (DICE's detail layers are not true colours) and brought to
+    // one brightness, a little of the view's own colour in it (overlays and the modes' tints keep the instance's
+    // colour: its alpha 0)
+    var base = i.color.rgb;
+    if (i.color.a > 0.5 && m.tint.a > 0.5) {
+        let t = m.tint.rgb;
+        let lum = dot(t, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let c = mix(vec3<f32>(lum), t, 0.65) * clamp(0.6 / max(lum, 0.05), 1.0, 2.4);
+        base = mix(min(c, vec3<f32>(1.0)), i.color.rgb, 0.2);
+    }
+    var o: SceneOut;
+    o.color = vec4<f32>(base * shade, 1.0);
+    o.id = i.id;
+    return o;
+}
+
+@fragment
+fn fs_mask_visual(i: VisualOut) -> @location(0) vec4<f32> {
+    if (cut(materials[i.material], i.uv)) {
+        discard;
+    }
+    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 }
 
 // the wireframe view mode: a mesh's edges in its instance's colour

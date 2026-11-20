@@ -10,6 +10,8 @@
 //! - [`levels`]: the game copy, its levels, a level's files (as the Python suite finds them).
 //! - [`model`]: the outliner's and properties' model of a scene.
 //! - [`camera`], [`render`]: the views (wgpu): perspective and top / front / side, each with its own camera.
+//! - [`display`]: how the simplified view shows the objects (round SV1: render mesh, collision, both, bounds; levels of
+//!   detail and destruction states; the invisible objects).
 //! - [`query`]: rays against the scene's surfaces; vertex and edge snapping; placing on a surface with a sink depth.
 //! - [`actions`]: the action registry the top bar, the shortcuts and the command palette share.
 //! - [`app`]: the window's contents; [`headless`]: the same without a window (tests, screenshots).
@@ -59,6 +61,7 @@ pub mod camera;
 pub mod catalog;
 pub mod content;
 pub mod demo;
+pub mod display;
 pub mod edit;
 pub mod export_ui;
 pub mod factions;

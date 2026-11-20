@@ -71,6 +71,18 @@ landed on `main`.
   then the install on confirmation).
 
 ### Changed
+- **Map editor: the simplified view draws the objects' render meshes** (round SV1). Trees, bushes and palms now look
+  like trees, bushes and palms instead of "spike balls": the view draws each object's render mesh (the one the
+  Game-accurate view draws) with its leaves cut out by their texture and a muted tint from its texture (vegetation
+  green, rocks grey), instead of its collision. Invisible walls, occluders and see-through-only meshes (light shafts,
+  vista smoke) are hidden at the start. New in the View dropdown: **Show objects as** Visual, Collision, Visual +
+  collision, Wireframe or Bounds (`C` cycles them) and **Invisible objects** Hidden / Outline / Solid; the object
+  menu's **Show as** and **Show every one like it as** (Visual, Collision, Both, Bounds, Hidden) for the selection or
+  its blueprint; Properties' **Display** section: Show as, the mesh's **level of detail** (Auto / LOD 0 - n, where its
+  mesh set has more) and a destructible object's **State** (Intact / Destroyed / All parts, from its blueprint's
+  health states). These are view settings, kept per level with the editor's settings and never in the project's
+  log; **Reset view overrides** clears them. A destructible building shows its intact parts (its mesh also holds its
+  destroyed pieces). Clicking picks what is drawn; snapping and placing still use collision.
 - **Map projects are format version 2** (round GR2: the navigation edits are new operation kinds). Version-1
   projects load unchanged (`bc2_levelwrite::project::migrate`, one step at a time; 1 to 2 changes nothing); a
   project from a newer editor is refused in words ("made by a newer editor version (project format N); this editor

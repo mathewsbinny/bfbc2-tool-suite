@@ -25,6 +25,7 @@ use bc2_levelwrite::ops::{FieldIs, Placed};
 
 use crate::actions::Brush;
 use crate::content::Entry;
+use crate::display::{InvisibleAs, ShowAs};
 use crate::viewmodes;
 use crate::workspace::{Category, ViewMode};
 
@@ -448,6 +449,54 @@ impl ViewState {
                 }
                 self.apply_look(palette);
                 self.refresh(gpu, palette);
+            }
+            // round SV1: how the objects are shown (view settings, never in the project's log)
+            Action::SetShowAs(_) | Action::CycleShowAs => {
+                let d = &mut self.gpu_scene.display;
+                d.show = match action {
+                    Action::SetShowAs(s) => s,
+                    _ => d.show.next(),
+                };
+                let s = d.show;
+                self.refresh(gpu, palette);
+                self.message = format!("Objects shown as {}", s.name().to_lowercase());
+            }
+            Action::ShowObjectsAs(s) | Action::ShowBlueprintAs(s) => {
+                let blueprint = matches!(action, Action::ShowBlueprintAs(_));
+                let keys: Vec<String> = self
+                    .selection
+                    .iter()
+                    .filter_map(|&k| self.scene().entities.get(k))
+                    .filter_map(|e| {
+                        if blueprint {
+                            e.blueprint.as_ref().map(|b| b.to_lowercase())
+                        } else {
+                            Some(e.guid.to_lowercase())
+                        }
+                    })
+                    .collect();
+                let d = &mut self.gpu_scene.display;
+                let map = if blueprint { &mut d.blueprints } else { &mut d.objects };
+                for k in &keys {
+                    map.insert(k.clone(), s);
+                }
+                self.refresh(gpu, palette);
+                self.message = format!(
+                    "{} {} shown as {} (Reset view overrides undoes it)",
+                    keys.len(),
+                    if blueprint { "blueprints" } else { "objects" },
+                    s.name().to_lowercase()
+                );
+            }
+            Action::SetInvisibleAs(i) => {
+                self.gpu_scene.display.invisible = i;
+                self.refresh(gpu, palette);
+                self.message = format!("Invisible objects: {}", i.name().to_lowercase());
+            }
+            Action::ResetViewOverrides => {
+                self.gpu_scene.display.reset_overrides();
+                self.refresh(gpu, palette);
+                self.message = "View overrides cleared".into();
             }
             Action::SetViewMode(m) => {
                 self.view_mode = m;
@@ -1310,6 +1359,9 @@ impl Tabs<'_> {
         let mut rects = Vec::new();
         resp.context_menu(|ui| {
             chosen = menu_ui(ui, &items, &mut rects);
+            if kind == MenuKind::Object {
+                chosen = show_as_menu(ui).or(chosen);
+            }
         });
         if !rects.is_empty() {
             self.view.menu_rects = rects;
@@ -1331,6 +1383,7 @@ impl Tabs<'_> {
         let mut rects = Vec::new();
         resp.context_menu(|ui| {
             chosen = menu_ui(ui, &items, &mut rects);
+            chosen = show_as_menu(ui).or(chosen);
         });
         if !rects.is_empty() {
             self.view.menu_rects = rects;
@@ -1453,6 +1506,7 @@ impl Tabs<'_> {
                     .layout(Layout::right_to_left(Align::Center)),
             );
             let mut pick = None;
+            let mut invisible = None;
             egui::Frame::new()
                 .fill(p.surface_2.gamma_multiply(0.94))
                 .stroke(Stroke::new(1.0, p.line))
@@ -1468,10 +1522,44 @@ impl Tabs<'_> {
                                     pick = Some(m);
                                 }
                             }
+                            // round SV1: how the objects are shown, and what the game does not show
+                            let d = &self.view.gpu_scene.display;
+                            ui.separator();
+                            ui.label(RichText::new("Show objects as").color(p.ink_muted));
+                            for s in ShowAs::VIEW {
+                                let mut text = s.name().to_owned();
+                                if s == ShowAs::Visual {
+                                    text.push_str("  (C cycles)");
+                                }
+                                if ui.selectable_label(d.show == s, text).clicked() {
+                                    invisible = Some(Action::SetShowAs(s));
+                                }
+                            }
+                            ui.separator();
+                            ui.label(RichText::new("Invisible objects").color(p.ink_muted))
+                                .on_hover_text("Invisible walls and blueprints without a mesh");
+                            for i in InvisibleAs::ALL {
+                                if ui.selectable_label(d.invisible == i, i.name()).clicked() {
+                                    invisible = Some(Action::SetInvisibleAs(i));
+                                }
+                            }
+                            ui.separator();
+                            if ui
+                                .add_enabled(d.has_overrides(), egui::Button::new("Reset view overrides"))
+                                .on_hover_text(
+                                    "Clears every object's and blueprint's Show as, level of detail and state",
+                                )
+                                .clicked()
+                            {
+                                invisible = Some(Action::ResetViewOverrides);
+                            }
                         });
                 });
             if let Some(m) = pick {
                 self.view.pending.push(Action::SetViewMode(m));
+            }
+            if let Some(a) = invisible {
+                self.view.pending.push(a);
             }
             if !self.view.mode_note.is_empty() && self.view.view_mode != ViewMode::Lit {
                 let g = painter.layout(
@@ -2043,6 +2131,32 @@ fn menu_ui(ui: &mut egui::Ui, items: &[Option<MenuItem>], rects: &mut Vec<(Strin
         }
     }
     chosen
+}
+
+/// The object menu's display entries (round SV1; view settings, not edits): Show as for the selection and for its
+/// blueprints, and Reset view overrides.
+fn show_as_menu(ui: &mut egui::Ui) -> Option<Action> {
+    let mut out = None;
+    ui.separator();
+    for (label, blueprint) in [("Show as", false), ("Show every one like it as", true)] {
+        ui.menu_button(label, |ui| {
+            for s in ShowAs::OBJECT {
+                if ui.button(s.name()).clicked() {
+                    out = Some(if blueprint {
+                        Action::ShowBlueprintAs(s)
+                    } else {
+                        Action::ShowObjectsAs(s)
+                    });
+                    ui.close();
+                }
+            }
+        });
+    }
+    if ui.button("Reset view overrides").clicked() {
+        out = Some(Action::ResetViewOverrides);
+        ui.close();
+    }
+    out
 }
 
 /// A category's icon: a few strokes (a house, a crate, a vehicle, a spark, sound waves, a tree, a flag, a dot).
