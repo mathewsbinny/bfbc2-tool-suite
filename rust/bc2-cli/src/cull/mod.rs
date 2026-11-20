@@ -137,10 +137,10 @@ fn cache_folder() -> Option<String> {
 
 /// `caches.touch(path)`: the entry marked used now, unless it was in the last minute.
 fn touch(path: &str) {
-    if let Ok(st) = crate::fsx::stat(path)
-        && crate::fsx::now() - st.mtime >= 60.0
+    if let Ok(st) = crate::pyos::files::stat(path)
+        && crate::pyos::files::now() - st.mtime >= 60.0
     {
-        let _ = crate::fsx::utime_now(path);
+        let _ = crate::pyos::files::utime_now(path);
     }
 }
 

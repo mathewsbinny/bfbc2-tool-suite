@@ -291,6 +291,82 @@ fn check(py: &mut Py, pr: &Project, lv: &str) -> PyResult<()> {
     py.print(&format!("  full report: {}", pyos::relpath(&report, &pr.root)?))
 }
 
+/// `status(pr, lv)` (round O5): every line made before the first is printed, so a value the port does not write as
+/// the Python does (a settings field of another type) hands the whole run to the Python.
+fn status(py: &mut Py, pr: &Project, lv: &str) -> PyResult<()> {
+    let mut out = vec![format!("{lv}:")];
+    let dice = pr.dice_pathdata(lv)?;
+    out.push(format!("  original path data : {}", dice.as_deref().unwrap_or("none")));
+    let prepared = pyos::isfile(&join(&pr.work, &["navkit", lv, "navkit.json"])?);
+    out.push(format!(
+        "  prepared           : {}",
+        if prepared { "yes" } else { "no" }
+    ));
+    if prepared {
+        let s = match pr.settings(lv) {
+            Ok(s) => s,
+            Err(Fail::Err(e)) if e.kind == "NavKitError" => {
+                // the lines before it are out when the Python raises (a damaged navkit.json)
+                for line in &out {
+                    py.print(line)?;
+                }
+                return Err(Fail::Err(e));
+            }
+            Err(e) => return Err(e),
+        };
+        let nums = |k: &str| -> PyResult<String> {
+            let Some(Value::List(v)) = s.get(k) else {
+                return Err(Fail::Python);
+            };
+            let parts: Vec<String> = v
+                .iter()
+                .map(|x| match x {
+                    Value::Int(i) if i.unsigned_abs() < (1 << 53) => Ok(pyfmt::float_g(*i as f64)),
+                    Value::Float(f) => Ok(pyfmt::float_g(*f)),
+                    _ => Err(Fail::Python),
+                })
+                .collect::<PyResult<_>>()?;
+            Ok(parts.join(","))
+        };
+        let int = |k: &str| -> PyResult<String> {
+            match s.get(k) {
+                Some(Value::Int(i)) => Ok(i.to_string()),
+                _ => Err(Fail::Python),
+            }
+        };
+        out.push(format!(
+            "    box {}, y {}, offsets {},{}",
+            nums("box")?,
+            nums("y")?,
+            int("xoff")?,
+            int("zoff")?
+        ));
+    }
+    let when = |p: &str| -> PyResult<String> {
+        if pyos::isfile(p) {
+            Ok(crate::clock::ctime(pyos::getmtime(p)?))
+        } else {
+            Ok("no".to_owned())
+        }
+    };
+    for suf in ["", "_hi"] {
+        let p = join(&pr.work, &["navsample", &format!("{lv}_navkit{suf}.bin")])?;
+        out.push(format!("  samples{suf:12}: {}", when(&p)?));
+    }
+    let built = join(&pr.work, &["navkit", lv, "pathdata.hpd"])?;
+    out.push(format!("  built              : {}", when(&built)?));
+    let pd = pr.pathdata(lv)?;
+    let installed = pyos::isfile(&format!("{pd}{BACKUP_SUFFIX}")) || pyos::isfile(&format!("{pd}{NEW_SUFFIX}"));
+    out.push(format!(
+        "  installed in game  : {}",
+        if installed { "yes" } else { "no" }
+    ));
+    for line in out {
+        py.print(&line)?;
+    }
+    Ok(())
+}
+
 fn floats_arg(v: &str) -> PyResult<Vec<f64>> {
     v.split(',').map(py_float).collect()
 }
@@ -346,7 +422,8 @@ pub fn navkit(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         let lv = pr.level(&args[1])?;
         match cmd {
             // NavKit's generator (navbuild), the game (sample), file times (status): the Python's
-            "build" | "apply" | "all" | "sample" | "status" => Err(Fail::Python),
+            "build" | "apply" | "all" | "sample" => Err(Fail::Python),
+            "status" => status(py, &pr, &lv).map(|()| 0),
             // unbuffered (navkitGUI: python -u, or PYTHONUNBUFFERED for this binary): each line out as it comes
             "prepare" if std::env::var("PYTHONUNBUFFERED").is_ok_and(|v| !v.is_empty()) => {
                 prepare(py, &pr, &lv, &mut Streamed, bx.as_deref(), y.as_deref()).map(|()| 0)

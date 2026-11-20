@@ -10,8 +10,8 @@
 
 use std::collections::HashSet;
 
-use crate::fsx;
 use crate::pylog;
+use crate::pyos::files as fsx;
 
 /// `caches.PRUNE_EVERY`
 pub const PRUNE_EVERY: f64 = 900.0;

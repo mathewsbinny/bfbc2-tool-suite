@@ -27,6 +27,11 @@ landed on `main`.
 - **Specification:** the engine specification's first two layers, the file formats and the data model (`spec/`,
   439 rules with their evidence; `spec/trace.py` checks the index).
 
+- **`bfbc2.exe`:** the shader tools (`shaderdb` with `merge`, `renderqa`, `xdiff`), the console readers (`apt`,
+  `stfs`, `xiso`), `bf1943import`, and stockmp's `generate` / `build` / `validate` / `all` (round O5); NavKit's
+  `detailed` and `navkit status` answered in Rust. `stockmp build` about 2.5 times faster, `shaderdb needs` about 8
+  times.
+
 ### Changed
 - **`bfbc2.exe culltree add`** reads the reference levels one at a time: about 80-110 MB instead of 1.65 GB, and
   0.6-0.9 s with a warm cache instead of 7 s. Its row cache is shared with `culltree.py` (either side's warmed cache
