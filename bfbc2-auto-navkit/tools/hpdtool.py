@@ -15,7 +15,10 @@ from the structured model (areas, portals, outlines, cells, neighbour links).
 parse and write run in the suite's Rust core when it is built (round F0: bc2_native.hpd_parse / hpd_write, the same
 objects value for value and the same bytes; where the reference would raise, or a value is a NaN, the Python runs, so
 the error stays this module's). parse_reference / write_reference are the Python, kept as the reference and the
-fallback; BFBC2_PURE_PYTHON=1 or use_native(False) runs them only.
+fallback; BFBC2_PURE_PYTHON=1 or use_native(False) runs them only. mesh_layout and mesh_coverage run in the Rust core
+only (round F3: bc2_native.hpd_mesh_layout / hpd_mesh_coverage, which raise the reference's ValueError and
+struct.error with its messages since round RT2); their Python was retired in round RT2 against its recorded answers
+(tests/f3_golden_hpd.json).
 """
 import contextlib
 import os
@@ -79,6 +82,13 @@ class HpdFile:
 
 
 _NATIVE: list[Any] = []
+
+
+def _core() -> Any:
+    """The Rust core (bfbc2core.native.require): NativeMissing, saying how to get it, when it is not there."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('path data (bfbc2-auto-navkit/tools/hpdtool.py)', 'hpd_mesh_layout')
 
 
 def _native() -> Any:
@@ -198,117 +208,22 @@ MeshLayout = tuple[list[tuple[int, int, str]], list[tuple[int, list[tuple[Any, .
                    dict[int, int], list[tuple[int, int, int]], list[int]]
 
 
-def _layout_native() -> Any:
-    nat = _native()
-    return nat if nat is not None and hasattr(nat, 'hpd_mesh_layout') else None
-
-
 def mesh_layout(m: bytes) -> MeshLayout:
     """Walk a runtime mesh record (offsets relative to its start) and return a list of
-    (start, end, label) regions plus the parsed structure. Raises ValueError on inconsistencies.
-    In the Rust core when it is built (round F3: bc2_native.hpd_mesh_layout, the same values in the same order;
-    where the reference would raise, or a float is a NaN, the Python runs), else mesh_layout_reference."""
-    nat = _layout_native()
-    if nat is not None and type(m) is bytes:
-        got = nat.hpd_mesh_layout(m)
-        if got is not None:
-            return cast(MeshLayout, got)
-    return mesh_layout_reference(m)
-
-
-def mesh_layout_reference(m: bytes) -> MeshLayout:
-    """The Python walk (the reference)."""
-    u32 = lambda o: struct.unpack_from('<I', m, o)[0]
-    regions = [(0, 0x50, 'header')]
-    nx, nz = u32(0x38), u32(0x3C)
-    tiles_off, links_n, links_off = u32(0x44), u32(0x48), u32(0x4C)
-    if tiles_off != 0x50:
-        raise ValueError(f'tile table at {tiles_off:#x}')
-    tile_count = nx * nz
-    regions.append((0x50, 0x50 + (tile_count + 1) * 4, 'tile table'))
-    tile_offs = [u32(0x50 + i * 4) for i in range(tile_count + 1)]
-    objects: dict[int, int] = {}
-    tiles: list[tuple[int, list[tuple[Any, ...]], int | None]] = []
-    for t in range(tile_count):
-        to = tile_offs[t]
-        n = u32(to)
-        items = [struct.unpack_from('<Iff', m, to + 4 + k * 12) for k in range(n)]
-        # An empty tile is just its count; otherwise items are followed by an end offset.
-        end_ptr = u32(to + 4 + n * 12) if n else None
-        regions.append((to, to + (8 + n * 12 if n else 4), f'tile {t}'))
-        for ptr, _, _ in items:
-            if ptr not in objects:
-                objects[ptr] = _object_end(m, ptr)
-                regions.append((ptr, objects[ptr], f'object @{ptr:#x}'))
-        tiles.append((to, items, end_ptr))
-    # The extra (last) tile-table entry points at a 4-byte slot the loader never reads; DICE's tool
-    # left uninitialised memory there (preserved for exact round trips, zero when generating).
-    regions.append((tile_offs[tile_count], tile_offs[tile_count] + 4, 'tile table end slot'))
-    # Trailer: the last 8 bytes hold their own offset and 0.
-    if u32(len(m) - 8) != len(m) - 8 or u32(len(m) - 4) != 0:
-        raise ValueError('mesh trailer not found')
-    regions.append((len(m) - 8, len(m), 'trailer'))
-    links = []
-    if links_n:
-        regions.append((links_off, links_off + links_n * 12, 'link table'))
-        for k in range(links_n):
-            sid, cnt, lst = struct.unpack_from('<3I', m, links_off + k * 12)
-            regions.append((lst, lst + cnt * 4, f'link list {sid:#x}'))
-            for j in range(cnt):
-                lo = u32(lst + j * 4)
-                c = u32(lo + 0xC)
-                regions.append((lo, lo + 0x10 + c * 4, f'link {sid:#x}/{j}'))
-            links.append((sid, cnt, lst))
-    return regions, tiles, objects, links, tile_offs
-
-
-def _object_end(m: bytes, o: int) -> int:
-    u32 = lambda x: struct.unpack_from('<I', m, x)[0]
-    a, b, c = u32(o + 0x20), u32(o + 0x28), u32(o + 0x30)
-    end = o + MESH_OBJECT_HEADER + a * 0x20 + b * 0x20 + c * 0x2C
-    for cnt_off, tab_off, stride in ((0x38, 0x3C, 4), (0x40, 0x44, 4), (0x48, 0x4C, 16)):
-        cnt = u32(o + cnt_off)
-        if not cnt:
-            continue
-        tab = o + u32(o + tab_off)
-        if tab != end:
-            raise ValueError(f'object {o:#x}: table {cnt_off:#x} at {tab:#x}, expected {end:#x}')
-        first = u32(tab)
-        last = u32(tab + cnt * stride)
-        end = tab + (cnt + 1) * stride + ((last - first) & ~3)
-    return end
+    (start, end, label) regions plus the parsed structure: the tile table (one 4-byte slot past the last tile, never
+    read by the loader, kept for exact round trips), each tile's items and end offset, each object they name (its
+    fixed header, its three tables), the trailer (the last 8 bytes: their own offset and 0), the link table and its
+    lists. Raises ValueError on inconsistencies and struct.error on a read past the end (the reference's words). In
+    the Rust core (round F3: bc2_native.hpd_mesh_layout)."""
+    return cast(MeshLayout, _core().hpd_mesh_layout(bytes(m)))
 
 
 Coverage = tuple[list[tuple[int, int]], list[tuple[int, int, str]]]
 
 
 def mesh_coverage(m: bytes) -> Coverage:
-    """The gaps between the sorted regions and their overlaps. In the Rust core when it is built (round F3), else
-    mesh_coverage_reference."""
-    nat = _layout_native()
-    if nat is not None and type(m) is bytes:
-        got = nat.hpd_mesh_coverage(m)
-        if got is not None:
-            return cast(Coverage, got)
-    return mesh_coverage_reference(m)
-
-
-def mesh_coverage_reference(m: bytes) -> Coverage:
-    """The Python (the reference)."""
-    regions, *_ = mesh_layout_reference(m)
-    regions.sort()
-    gaps: list[tuple[int, int]] = []
-    overlaps: list[tuple[int, int, str]] = []
-    pos = 0
-    for s, e, label in regions:
-        if s > pos:
-            gaps.append((pos, s))
-        elif s < pos:
-            overlaps.append((s, pos, label))
-        pos = max(pos, e)
-    if pos < len(m):
-        gaps.append((pos, len(m)))
-    return gaps, overlaps
+    """The gaps between the sorted regions and their overlaps (mesh_layout's errors), in the Rust core (round F3)."""
+    return cast(Coverage, _core().hpd_mesh_coverage(bytes(m)))
 
 
 def _block(s: Sector) -> bytes:

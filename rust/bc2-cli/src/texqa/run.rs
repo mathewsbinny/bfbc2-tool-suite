@@ -1,6 +1,7 @@
 //! texqa's command line (`main`, `run`, `find`, the reports, the baseline): the files it writes, its printed lines.
 //!
-//! Handed to the Python ([`Fail::Python`], decided before anything is written or printed): argparse's help, errors
+//! `--help` alone is argparse's help at the console's width ([`crate::argfmt`], round RT2). Handed to the Python
+//! ([`Fail::Python`], decided before anything is written or printed): argparse's help among other arguments, errors
 //! and the option forms this port does not read; BF1943's bundles as a source (`bf1943import.Source`); DICE's copies
 //! (the stock bundles' index; give `--no-dice`); a run whose report would have contact sheets (PIL draws them: some
 //! texture flagged among `--worst`); a `--write-baseline` without a folder; anything NumPy itself would raise.
@@ -848,6 +849,13 @@ fn regressions(rows: &[Value], base: &Value, threshold: f64) -> PyResult<Vec<Str
 
 /// texqa's `main` (`errors.guard` reports a `TexQaError`).
 pub fn main(py: &mut Py, argv: &[String]) -> PyResult<i32> {
+    if let [h] = argv
+        && (h == "-h" || h == "--help")
+    {
+        // argparse's help, at the console's width (round RT2: crate::argfmt)
+        py.write(&crate::argfmt::help("texqa")?)?;
+        return Ok(0);
+    }
     let a = parse(argv)?;
     for p in &a.inputs {
         if !pyos::exists(p) {

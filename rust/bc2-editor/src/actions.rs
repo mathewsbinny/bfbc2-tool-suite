@@ -120,8 +120,22 @@ pub enum Action {
     Brush(Brush),
     /// Sets the team of the selected gameplay objects (1, 2; 0 neutral).
     SetTeam(u8),
-    /// The AI workspace's path test (a later round).
+    /// The path test on or off: clicks give the start, then the end (round GR2).
     PathTest,
+    /// A navigation edit tool of the AI workspace (round GR2; again: off).
+    NavTool(crate::nav::NavTool),
+    /// The navigation ground's colouring.
+    NavColour(crate::navview::ColourMode),
+    /// Writes the project's navigation edits as the level's side file.
+    NavSaveEdits,
+    /// Reads the level's side file into the project.
+    NavReloadEdits,
+    /// Builds the path data with the edits (`navkit apply`).
+    NavBuild,
+    /// Shows the plan of installing the build into the game, to confirm.
+    NavInstall,
+    /// Shows the plan of putting DICE's file back, to confirm.
+    NavRestore,
     /// Shows a panel.
     ShowPanel(PanelKind),
     /// Opens the Help window (controls and shortcuts, getting started, the workspaces).
@@ -143,6 +157,12 @@ pub enum PanelKind {
     Content,
     /// The selection's links.
     Links,
+    /// The level's navigation (round GR2).
+    Navigation,
+    /// The navigation's islands and spawns.
+    NavIslands,
+    /// The navigation edits.
+    NavEdits,
 }
 
 /// The Terrain and Vegetation workspaces' brushes (registered; their tools come in later rounds).
@@ -577,9 +597,58 @@ pub fn registry() -> Vec<Entry> {
         ),
         e(
             Action::PathTest,
-            "Test a path from here",
+            "Path test",
+            key(Modifiers::SHIFT, Key::P),
+            "The bots' cheapest route between two clicked points over each file's route graph, or why there is none",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::Navigation),
+            "Show navigation",
             None,
-            "The bots' route from this point to another (the AI workspace's tools, a later round)",
+            "The level's path data: NavKit's build and DICE's file, colourings, layers, path test, anomalies, compare",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::NavIslands),
+            "Show islands and spawns",
+            None,
+            "The route graph's islands largest first and the soldier spawns off the main network, each to fly to",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::NavEdits),
+            "Show navigation edits",
+            None,
+            "The AI workspace's navigation tools, the project's navigation edits, build, install and restore",
+        ),
+        e(
+            Action::NavSaveEdits,
+            "Save navigation side file",
+            None,
+            "Writes the project's navigation edits as the level's navtune.json for NavKit",
+        ),
+        e(
+            Action::NavReloadEdits,
+            "Reload navigation side file",
+            None,
+            "Reads the level's navtune.json: its edits replace the project's (one operation, undoable)",
+        ),
+        e(
+            Action::NavBuild,
+            "Build with these edits",
+            None,
+            "Saves the side file and runs navkit apply: regions and seeds by a rebuild, links and route edges into \
+             the route graph (on DICE's data: into a copy of DICE's file)",
+        ),
+        e(
+            Action::NavInstall,
+            "Install navigation into the game\u{2026}",
+            None,
+            "Shows what installing the build writes in the game copy's AI path data, then installs it when confirmed",
+        ),
+        e(
+            Action::NavRestore,
+            "Restore DICE's navigation\u{2026}",
+            None,
+            "Shows what restoring puts back in the game copy's AI path data, then restores it when confirmed",
         ),
         e(
             Action::Help,
@@ -705,6 +774,52 @@ pub fn registry() -> Vec<Entry> {
         None,
         "Clears every object's and blueprint's Show as, level of detail and destruction state",
     ));
+    for t in crate::nav::NavTool::ALL {
+        out.push(e(
+            Action::NavTool(t),
+            match t {
+                crate::nav::NavTool::Walkable => "Walkable region",
+                crate::nav::NavTool::Unwalkable => "Unwalkable region",
+                crate::nav::NavTool::Seed => "Seed",
+                crate::nav::NavTool::Unseed => "Unseed",
+                crate::nav::NavTool::LinkAreas => "Link two areas",
+                crate::nav::NavTool::EdgeAdd => "Add a route edge",
+                crate::nav::NavTool::EdgeRemove => "Remove a route edge",
+                crate::nav::NavTool::Traversal => "Traversal",
+                crate::nav::NavTool::Note => "Navigation note",
+            },
+            None,
+            match t {
+                crate::nav::NavTool::Walkable => "AI workspace: makes ground walkable - an outline (Enter) or a box",
+                crate::nav::NavTool::Unwalkable => {
+                    "AI workspace: makes ground unwalkable - an outline (Enter) or a box"
+                }
+                crate::nav::NavTool::Seed => "AI workspace: a seed - NavKit grows walkable ground from this point",
+                crate::nav::NavTool::Unseed => "AI workspace: an unseed - NavKit drops the walkable ground grown here",
+                crate::nav::NavTool::LinkAreas => "AI workspace: links two areas (each point joins its nearest node)",
+                crate::nav::NavTool::EdgeAdd => "AI workspace: adds a route edge between two points",
+                crate::nav::NavTool::EdgeRemove => "AI workspace: removes the route edge between two points",
+                crate::nav::NavTool::Traversal => {
+                    "AI workspace: a ladder, jump, vault or drop for OPFOR's bots - the bottom, then the top"
+                }
+                crate::nav::NavTool::Note => "AI workspace: a note at a point, kept in the side file",
+            },
+        ));
+    }
+    for m in crate::navview::ColourMode::ALL {
+        out.push(e(
+            Action::NavColour(m),
+            match m {
+                crate::navview::ColourMode::Island => "Colour navigation by island",
+                crate::navview::ColourMode::Sector => "Colour navigation by sector",
+                crate::navview::ColourMode::Pitch => "Colour navigation by pitch",
+                crate::navview::ColourMode::Difference => "Colour navigation by difference",
+                crate::navview::ColourMode::Anomaly => "Colour navigation by anomaly",
+            },
+            None,
+            m.help(),
+        ));
+    }
     for b in Brush::ALL {
         out.push(e(
             Action::Brush(b),

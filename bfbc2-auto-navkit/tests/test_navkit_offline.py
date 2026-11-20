@@ -568,7 +568,7 @@ def main(argv):
             # --- apply -------------------------------------------------------------------------------
             alog: list[str] = []
             msg = raises(navkit.apply, pr, 'mp_005', log=alog.append)
-            check(msg is not None and 'no side file' in msg and 'Navigation Studio' in msg, 'apply: no side file', str(msg))
+            check(msg is not None and 'no side file' in msg and 'AI workspace' in msg, 'apply: no side file', str(msg))
             side = navtune.default_path(root, 'mp_005')
             write(side, '{"format": "something else"}')
             msg = raises(navkit.apply, pr, 'mp_005', log=alog.append)

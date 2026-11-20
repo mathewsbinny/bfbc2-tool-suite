@@ -28,16 +28,18 @@ the keys, DICE's 27.7 %) - no rebuild is needed.
 
 In the suite's Rust core (round F2b, rust/bc2-convert/src/havokport.rs, through importcore): restructure, the material
 table's swap, shape_subparts_to_550, ufloat8_table and the physics materials' readers and writers run there when it is
-built (the console converter's packfile walk already did: havok.convert). Each is the reference step for step; where
-the reference would raise anything but its own PortError / MaterialError (a short read, a missing table entry), or a
-case not reproduced (a velocity limit without a table: its message prints the value), the Python below runs - the
-*_reference functions, also what tests/test_havokport_native.py compares against; BFBC2_IMPORTER_PYTHON=1 runs them
-always.
+built (the console converter's packfile walk already did: havok.convert), which they need (without it
+bfbc2core.native.NativeMissing says how to get it; BFBC2_IMPORTER_PYTHON does not change that). Where the Python
+would have raised anything but its own PortError / MaterialError (a short read, a missing table entry, a damaged
+file), or in a case not reproduced (a velocity limit without a table), they raise a PortError / MaterialError that is
+also a bfbc2core.native.Refused. Their Python (the *_reference functions) was retired in round RT2 against its
+recorded answers (tests\f2b_havokport_replay*.json: 1,500 seeded 4.6.1 packfiles, 1,500 seeded PC resources, every
+BF1943 HavokPhysicsData and BFBC2 physics resource of the game copy).
 """
 import os
 import struct
 import sys
-from typing import Any, cast
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
@@ -49,8 +51,9 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import suite_paths  # noqa: E402
 
-suite_paths.use('console-convert')
+suite_paths.use('console-convert', 'core')
 import havok  # noqa: E402
+from bfbc2core import native  # noqa: E402
 
 MAGIC = havok.MAGIC
 DROPPED = {'hkSpatialRigidBodyDeactivator', 'hkRigidBodyDeactivator'}
@@ -72,25 +75,35 @@ RIGID_DROPPED_SLOTS = {144}           # the deactivator
 VELOCITY_BYTE = {200.0: 0x7F}        # hkUFloat8 of the velocity limits without a table: the value BF1943's vehicles use
 
 
+def _module():
+    """The Rust core: importcore's, else bfbc2core.native.require's (NativeMissing saying how to get it)."""
+    return importcore.native() or native.require('the BF1943 importer\'s physics port (havokport.py)',
+                                                 'havokport_restructure')
+
+
+def _call(name, *args, error=ValueError):
+    """importcore.call(name, ...) on the Rust core (required): its `(result,)`, or None where it refuses."""
+    if importcore.native() is not None:
+        return importcore.call(name, *args, error=error)
+    try:
+        return getattr(_module(), name)(*args)
+    except ValueError as e:
+        raise error(str(e)) from None
+    except (TypeError, OverflowError):
+        return None
+
+
+def _answer(r, what, error):
+    """r[0], or the refusal (an `error` that is also a bfbc2core.native.Refused)."""
+    if r is None:
+        raise native.refused(f'{what}: the resource is damaged or of a layout this port does not read', error)
+    return r[0]
+
+
 def ufloat8_table(exe):
     """Havok's hkUFloat8 decoding table (256 rising floats: 0, 0.01, ... about 1e6) found in the user's executable
     (bytes); None if absent. 5.5.0 stores a rigid body's velocity limits as an index into it."""
-    n = importcore.native()
-    if n is not None:
-        return n.havokport_ufloat8_table(bytes(exe))
-    return ufloat8_table_reference(exe)
-
-
-def ufloat8_table_reference(exe):
-    """ufloat8_table in Python (the reference)."""
-    import numpy as np
-    for off in range(4):
-        a = np.frombuffer(exe, '<f4', (len(exe) - off) // 4, off)
-        for i in np.where(a == np.float32(0.01))[0]:
-            t = a[i - 1:i + 255].astype(float)
-            if i >= 1 and len(t) == 256 and t[0] == 0 and 9e5 < t[255] < 1.1e6 and (np.diff(t) > 0).all():
-                return [float(v) for v in t]
-    return None
+    return _module().havokport_ufloat8_table(bytes(exe))
 
 
 def ufloat8(v, table):
@@ -125,40 +138,12 @@ def _rename(name, classes):
     return None
 
 
-def _sections(d, p, e):
-    out = []
-    for i in range(struct.unpack_from(e + 'I', d, p + 20)[0]):
-        h = p + 64 + 48 * i
-        out.append((d[h:h + 20], struct.unpack_from(e + '7I', d, h + 20)))
-    return out
-
-
-def _table(d, start, end, size, e):
-    out, o = [], start
-    while o + size <= end and struct.unpack_from(e + 'I', d, o)[0] != 0xFFFFFFFF:
-        out.append(struct.unpack_from(e + '%dI' % (size // 4), d, o))
-        o += size
-    return out
-
-
-def _classnames(d, start, e):
-    """[(offset of the name in the section, name, signature)]."""
-    out, o = [], start
-    while d[o + 4] == 0x09:
-        q = d.index(b'\0', o + 5)
-        out.append((o + 5 - start, d[o + 5:q].decode('latin-1'), struct.unpack_from(e + 'I', d, o)[0]))
-        o = q + 1
-    return out
-
-
 _layouts: list = [None, None]          # [the classes dict last handed to the Rust core, its PortLayouts]
 
 
 def _port_layouts(classes):
     """The class layouts restructure asks, as the Rust core's PortLayouts (made once per dict, kept with it)."""
-    n = importcore.native()
-    if n is None:
-        return None
+    n = _module()
     if _layouts[0] is not classes:
         aabb = {}
         for name in AABB_W:
@@ -180,173 +165,14 @@ def restructure(b, template, classes, table=None):
     whose class-name section names every class b's objects need; table: ufloat8_table (else only VELOCITY_BYTE's
     velocity limits are known)."""
     lay = _port_layouts(classes)
-    if lay is not None:
-        r = importcore.call('havokport_restructure', bytes(b), bytes(template), lay,
-                            None if table is None else list(table), error=PortError)
-        if r is not None:
-            return r[0]
-    return restructure_reference(b, template, classes, table)
-
-
-def restructure_reference(b, template, classes, table=None):
-    """restructure in Python (the reference)."""
-    p = b.find(MAGIC)
-    if p < 0 or b'Havok-4.6.1' not in b[p + 40:p + 56]:
-        raise PortError('not a Havok 4.6.1 packfile')
-    secs = _sections(b, p, '>')
-    tags = [t.split(b'\0')[0].decode('latin-1') for t, _ in secs]
-    cn, data = tags.index('__classnames__'), tags.index('__data__')
-    names = {off: n for off, n, _ in _classnames(b, p + secs[cn][1][0], '>')}
-    # the template's class names (PC: little-endian), written big-endian
-    tp = template.find(MAGIC)
-    tsecs = _sections(template, tp, '<')
-    ttags = [t.split(b'\0')[0].decode('latin-1') for t, _ in tsecs]
-    tcn = tsecs[ttags.index('__classnames__')][1]
-    tnames = _classnames(template, tp + tcn[0], '<')
-    new_cn = bytearray()
-    at = {}
-    for _, n, sig in tnames:
-        at[n] = len(new_cn) + 5
-        new_cn += struct.pack('>I', sig) + b'\x09' + n.encode('latin-1') + b'\0'
-    while len(new_cn) % 16:
-        new_cn += b'\xff'
-    # the data section: content, fixups
-    start, loc, glob, virt, exp, imp, end = secs[data][1]
-    base = p + start
-    content = bytearray(b[base:base + loc])
-    local = {s: t for s, t in _table(b, base + loc, base + glob, 8, '>')}
-    gfix = _table(b, base + glob, base + virt, 12, '>')
-    vfix = _table(b, base + virt, base + exp, 12, '>')
-    objects = []
-    for o, sec, noff in vfix:
-        if sec != cn or noff not in names:
-            raise PortError(f'object at {o:#x}: its class name is not in the class-name section')
-        objects.append((o, names[noff]))
-    dropped = [(o, n) for o, n in objects if n in DROPPED]
-    kept = [(o, n) for o, n in objects if n not in DROPPED]
-    unknown = sorted({n for _, n in kept if _rename(n, classes) is None})
-    if unknown:
-        raise PortError(f'classes with no 5.5.0 counterpart: {", ".join(unknown)}')
-    missing = sorted({_rename(n, classes) for _, n in kept} - set(at))
-    if missing:
-        raise PortError(f'the template\'s class names lack {", ".join(missing)}: give a BFBC2 file that has them')
-    starts = sorted(o for o, _ in objects)
-
-    def span(o):
-        nxt = [s for s in starts if s > o]
-        return (nxt[0] if nxt else loc) - o
-
-    for o, _n in dropped:                            # their own pointers go with them
-        for s in [s for s in local if o <= s < o + span(o)]:
-            del local[s]
-    slot_map = {}                                   # old slot -> new slot (None: dropped), in rewritten objects
-    for o, n in kept:
-        if n == 'hkRigidBody':
-            old = bytes(content[o:o + 512])
-            new = bytearray(512)
-            for src, dst, size in RIGID_COPY:
-                new[dst:dst + size] = old[src:src + size]
-                for k in range(0, size, 4):
-                    slot_map[o + src + k] = o + dst + k
-            for dst, val in RIGID_CONST:
-                new[dst:dst + len(val)] = val
-            for k, src in ((396, 340), (397, 344)):
-                v = round(struct.unpack_from('>f', old, src)[0], 3)
-                if table is not None:
-                    new[k] = ufloat8(v, table)
-                    continue
-                if v not in VELOCITY_BYTE:
-                    raise PortError(f'rigid body at {o:#x}: a velocity limit of {v} (only {sorted(VELOCITY_BYTE)} known;'
-                                    f' pass ufloat8_table(exe))')
-                new[k] = VELOCITY_BYTE[v]
-            new[398] = old[357]                     # deactivationClass
-            for s in RIGID_DROPPED_SLOTS:
-                slot_map[o + s] = None
-            content[o:o + 512] = new
-        elif n == 'hkMoppBvTreeShape':
-            old = bytes(content[o:o + 64])
-            new = bytearray(64)
-            for src, dst, size in MOPP_TREE_COPY:
-                new[dst:dst + size] = old[src:src + size]
-                for k in range(0, size, 4):
-                    slot_map[o + src + k] = o + dst + k
-            content[o:o + 64] = new
-        elif n == 'hkMoppCode':
-            content[o + 44] = 1                             # buildType (a 1-byte enum): built without chunk subdivision
-        if n in AABB_W:                                     # the bounding box centre's w: 1.0, as BFBC2's exporter
-            w = o + _member_offset(classes, _rename(n, classes), 'aabbCenter') + 12
-            if content[w:w + 4] == b'\0\0\0\0':
-                content[w:w + 4] = struct.pack('>f', 1.0)
-    gone = {o for o, _ in dropped}
-    new_local = {}
-    for s, t in local.items():
-        s2 = slot_map.get(s, s)
-        if s2 is None or t in gone:
-            continue
-        new_local[s2] = t
-    # class-name strings in the data (a root container's variants name their class): renamed, appended
-    renames = {n: _rename(n, classes) for n in set(names.values())}
-    renames = {k: v for k, v in renames.items() if v and v != k}
-    appended = {}
-    for s, t in list(new_local.items()):
-        if 0 <= t < loc and content[t:t + 2] == b'hk':
-            q = content.find(b'\0', t)
-            text = content[t:q].decode('latin-1', 'replace')
-            if text in renames:
-                if text not in appended:
-                    while len(content) % 16:
-                        content += b'\0'
-                    appended[text] = len(content)
-                    content += renames[text].encode('latin-1') + b'\0'
-                new_local[s] = appended[text]
-    while len(content) % 16:
-        content += b'\0'
-    # the global fixups: class-name targets to the template's offsets
-    new_glob = []
-    for s, sec, off in gfix:
-        s2 = slot_map.get(s, s)
-        if s2 is None:
-            continue
-        if sec == cn:
-            n = _rename(names[off], classes)
-            new_glob.append((s2, 0, at[n]))
-        elif sec == data:
-            new_glob.append((s2, 2, off))
-        else:
-            raise PortError(f'a global fixup into section {tags[sec]}')
-    new_virt = [(o, 0, at[_rename(n, classes)]) for o, n in kept]
-
-    def pack_table(rows, size):
-        out = bytearray()
-        for r in rows:
-            out += struct.pack('>%dI' % (size // 4), *r)
-        while len(out) % 16:
-            out += b'\xff'
-        return out
-
-    lt = pack_table(sorted(new_local.items()), 8)
-    gt = pack_table(sorted(new_glob), 12)
-    vt = pack_table(sorted(new_virt), 12)
-    d_loc = len(content)
-    d_glob = d_loc + len(lt)
-    d_virt = d_glob + len(gt)
-    d_end = d_virt + len(vt)
-    data_bytes = bytes(content) + lt + gt + vt
-    # header and section table
-    head = bytearray(b[p:p + 64])
-    struct.pack_into('>I', head, 12, 5)                         # file version
-    root_name = names[struct.unpack_from('>I', b, p + 36)[0]]
-    struct.pack_into('>5I', head, 20, 3, 2, 0, 0, at[_rename(root_name, classes)])
-    head[40:56] = b'Havok-5.5.0-r1\0\xff'                       # as BFBC2's own files pad it (0xFF after the NUL)
-    cn_start = 64 + 48 * 3
-    data_start = cn_start + len(new_cn)
-    st = bytearray()
-    for tag, rel in ((b'__classnames__', (cn_start, len(new_cn), len(new_cn), len(new_cn), len(new_cn), len(new_cn),
-                                          len(new_cn))),
-                     (b'__types__', (data_start, 0, 0, 0, 0, 0, 0)),
-                     (b'__data__', (data_start, d_loc, d_glob, d_virt, d_end, d_end, d_end))):
-        st += tag + b'\0' * (19 - len(tag)) + b'\xff' + struct.pack('>7I', *rel)
-    return b[:p] + bytes(head) + bytes(st) + bytes(new_cn) + data_bytes
+    if lay is None:
+        raise native.refused('class layouts the port does not take', PortError)
+    r = _call('havokport_restructure', bytes(b), bytes(template), lay, None if table is None else list(table),
+              error=PortError)
+    if r is None:
+        raise native.refused('the 4.6.1 physics resource is damaged, or holds a value this port does not convert (a '
+                             'velocity limit other than 200 without the hkUFloat8 table)', PortError)
+    return r[0]
 
 
 def wrapper_run_table(b):
@@ -354,58 +180,13 @@ def wrapper_run_table(b):
     FORMAT.md 1.1): u16 M groups, u16 C material hashes, C u32 hashes, M u16 group ends (the last = C), then the
     per-part bytes. BFBC2 writes the table little-endian on both platforms; BF1943 big-endian. None: no table found
     in either byte order."""
-    r = importcore.call('havokport_run_table', bytes(b))
-    return r[0] if r is not None else wrapper_run_table_reference(b)
-
-
-def wrapper_run_table_reference(b):
-    """wrapper_run_table in Python (the reference)."""
-    o = b.find(MAGIC)
-    n = struct.unpack_from('<I', b, 0)[0]
-    p = 8 + 4 * n
-    if p + 2 > o:
-        return None
-    a = struct.unpack_from('<H', b, p)[0]
-    p += 2 + 12 * a
-    if p + 2 > o:
-        return None
-    c = struct.unpack_from('<H', b, p)[0]
-    p += 2 + 24 * c
-    if p + 4 > o:
-        return None
-    if struct.unpack_from('<H', b, p)[0] == 0:
-        return p, 0, 0, False                  # no table (a single body's wrapper): the same in either byte order
-    for e, big in (('<', False), ('>', True)):
-        m, k = struct.unpack_from(e + '2H', b, p)
-        end = p + 4 + 4 * k + 2 * m
-        if end > o - 8:
-            continue
-        ends = struct.unpack_from(f'{e}{m}H', b, p + 4 + 4 * k) if m else ()
-        if (m == 0 and k == 0) or (ends and ends[-1] == k and all(x <= y for x, y in zip(ends, ends[1:]))):
-            return p, m, k, big
-    return None
+    return _answer(_call('havokport_run_table', bytes(b)), 'the wrapper\'s material table', PortError)
 
 
 def _run_table_to_pc(b):
     """The wrapper's material table in BFBC2's byte order (little-endian)."""
-    r = importcore.call('havokport_run_table_to_pc', bytes(b), error=PortError)
-    return r[0] if r is not None else _run_table_to_pc_reference(b)
-
-
-def _run_table_to_pc_reference(b):
-    """_run_table_to_pc in Python (the reference)."""
-    t = wrapper_run_table_reference(b)
-    if t is None:
-        if b.find(MAGIC) >= 0 and struct.unpack_from('<I', b, 0)[0] != struct.unpack_from('<I', b, 4)[0]:
-            return b                          # not the part-list wrapper (FORMAT.md 1.1): nothing to swap
-        raise PortError('the wrapper\'s material table (the byte run\'s start) is in neither byte order')
-    p, m, k, big = t
-    if not big:
-        return b
-    out = bytearray(b)
-    fmt = f'2H{k}I{m}H'
-    out[p:p + struct.calcsize('<' + fmt)] = struct.pack('<' + fmt, *struct.unpack_from('>' + fmt, b, p))
-    return bytes(out)
+    return _answer(_call('havokport_run_table_to_pc', bytes(b), error=PortError), 'the wrapper\'s material table',
+                   PortError)
 
 
 SHAPE_MESHES = {'hkpExtendedMeshShape', 'hkpStorageExtendedMeshShape'}
@@ -472,90 +253,7 @@ def shape_subparts_to_550(pc):
     The w lanes as BFBC2's exporter writes them (4.6.1's are 0): every shape subpart with children has translation.w
     1.0 (all 277,950 such subparts of BFBC2's levels; the empty subpart Havok adds last keeps 0), and a shape built
     of shape subparts only gets aabbCenter.w / aabbHalfExtents.w from aabb_w. Returns (bytes, subparts swapped)."""
-    r = importcore.call('havokport_subparts', bytes(pc))
-    return tuple(r[0]) if r is not None else shape_subparts_to_550_reference(pc)
-
-
-def shape_subparts_to_550_reference(pc):
-    """shape_subparts_to_550 in Python (the reference)."""
-    import numpy as np
-    b = bytearray(pc)
-    p = bytes(b).find(MAGIC)
-    if p < 0:
-        return pc, 0
-    nsec = struct.unpack_from('<I', b, p + 20)[0]
-    secs = {}
-    for i in range(nsec):
-        h = p + 64 + 48 * i
-        secs[bytes(b[h:h + 19]).split(b'\0')[0].decode('latin-1')] = struct.unpack_from('<7I', b, h + 20)
-    if '__data__' not in secs or '__classnames__' not in secs:
-        return pc, 0
-    cstart, cloc = secs['__classnames__'][:2]
-    names, o = {}, p + cstart
-    while o + 5 < p + cstart + cloc:
-        if struct.unpack_from('<I', b, o)[0] == 0xFFFFFFFF:
-            break
-        q = b.index(0, o + 5)
-        names[o + 5 - (p + cstart)] = bytes(b[o + 5:q]).decode('latin-1')
-        o = q + 1
-    start, loc, glob, virt, exp = secs['__data__'][:5]
-    base = p + start
-    local = {}
-    for o in range(base + loc, base + glob - 7, 8):
-        s, d = struct.unpack_from('<2I', b, o)
-        if s != 0xFFFFFFFF:
-            local[s] = d
-    objects = {}                                    # pointers to objects: the global fixups (into this section)
-    for o in range(base + glob, base + virt - 11, 12):
-        s, sec, d = struct.unpack_from('<3I', b, o)
-        if s != 0xFFFFFFFF:
-            objects[s] = d
-    swapped = 0
-    kinds: dict[int, str] = {}
-    for o in range(base + virt, base + exp - 11, 12):
-        off, _, cn = struct.unpack_from('<3I', b, o)
-        if off != 0xFFFFFFFF:
-            kinds[off] = names.get(cn, '')
-    for off, cls in kinds.items():
-        if cls not in SHAPE_MESHES:
-            continue
-        arr, cnt = local.get(off + SUBPARTS_AT), struct.unpack_from('<I', b, base + off + SUBPARTS_AT + 4)[0]
-        if arr is None:
-            continue
-        parts: list[tuple[tuple[float, ...], list[tuple[tuple[float, ...], tuple[float, ...], float]]]] = []
-        known = True
-        for k in range(cnt):
-            r = base + arr + SUBPART_SIZE * k
-            rot = np.frombuffer(bytes(b[r + 32:r + 48]), '<f4')
-            tra = np.frombuffer(bytes(b[r + 48:r + 64]), '<f4')
-            if abs(np.linalg.norm(rot) - 1) > 1e-2 and abs(np.linalg.norm(tra) - 1) < 1e-2:
-                b[r + 32:r + 48], b[r + 48:r + 64] = bytes(tra), bytes(rot)
-                swapped += 1
-            nch = struct.unpack_from('<I', b, r + CHILDREN_AT + 4)[0]
-            if not nch:
-                continue
-            struct.pack_into('<f', b, r + 60, 1.0)                  # translation.w
-            quat = struct.unpack_from('<4f', b, r + 32)
-            children = []
-            carr = local.get(arr + SUBPART_SIZE * k + CHILDREN_AT)
-            if carr is None:
-                known = False
-            for i in range(nch if carr is not None else 0):
-                c = objects.get(cast(int, carr) + 4 * i)
-                box = CONVEX_BOX.get(kinds.get(c, '') if c is not None else '')
-                if c is None or box is None:
-                    known = False
-                    break
-                half = struct.unpack_from('<3f', b, base + c + box[0])
-                cen = struct.unpack_from('<3f', b, base + c + box[1]) if box[1] is not None else (0.0, 0.0, 0.0)
-                children.append((cen, half, struct.unpack_from('<f', b, base + c + CONVEX_RADIUS_AT)[0]))
-            parts.append((quat, children))
-        has_triangles = struct.unpack_from('<I', b, base + off + TRIANGLE_SUBPARTS_AT + 4)[0] > 0
-        w = aabb_w(parts) if known and not has_triangles else None
-        if w is not None:
-            struct.pack_into('<f', b, base + off + CENTER_AT + 12, w[0])
-            struct.pack_into('<f', b, base + off + HALF_EXTENTS_AT + 12, w[1])
-    return bytes(b), swapped
+    return tuple(_answer(_call('havokport_subparts', bytes(pc)), 'the shape subparts', PortError))
 
 
 def convert(b, template, classes, table=None):
@@ -564,14 +262,8 @@ def convert(b, template, classes, table=None):
     counts to find the packfile, otherwise lands short of it (a null version string at load, 0xC585D8). The model
     groups' shape subparts get 5.5.0's field order (shape_subparts_to_550)."""
     pc = havok.convert(restructure(b, template, classes, table), classes)
-    r = importcore.call('havokport_finish', bytes(pc), error=PortError)
+    r = _call('havokport_finish', bytes(pc), error=PortError)
     return r[0] if r is not None else shape_subparts_to_550(_run_table_to_pc(pc))[0]
-
-
-def convert_reference(b, template, classes, table=None):
-    """convert with the Python steps (the reference; the console converter is havok.convert either way)."""
-    pc = _run_table_to_pc_reference(havok.convert(restructure_reference(b, template, classes, table), classes))
-    return shape_subparts_to_550_reference(pc)[0]
 
 
 # ------------------------------------------------------------------------------------------------ physics materials
@@ -596,89 +288,28 @@ class MaterialError(ValueError):
 def _wrapper(b):
     """(parts n, the part run's start, the material list's start (its "1, k"), the list's hashes, the packfile's
     start) of a PC physics resource."""
-    r = importcore.call('havokport_wrapper', bytes(b), error=MaterialError)
-    return tuple(r[0]) if r is not None else _wrapper_reference(b)
-
-
-def _wrapper_reference(b):
-    """_wrapper in Python (the reference)."""
-    o = b.find(MAGIC)
-    if o < 0 or len(b) < 8:
-        raise MaterialError('no Havok packfile')
-    n, n2 = struct.unpack_from('<2I', b, 0)
-    if n != n2:
-        raise MaterialError('not a part-list wrapper (its counts differ)')
-    p = 8 + 4 * n
-    p += 2 + 12 * struct.unpack_from('<H', b, p)[0]
-    p += 2 + 24 * struct.unpack_from('<H', b, p)[0]
-    for k in range(0, (o - p) // 4):
-        q = o - 4 * k - 8
-        if q < p:
-            break
-        one, kk = struct.unpack_from('<2I', b, q)
-        if one == 1 and kk == k:
-            return n, p, q, list(struct.unpack_from(f'<{k}I', b, q + 8)), o
-    raise MaterialError('no material list (1, k, k hashes) before the packfile')
+    return tuple(_answer(_call('havokport_wrapper', bytes(b), error=MaterialError), 'the wrapper', MaterialError))
 
 
 def part_materials(b):
     """(the material list's hashes, each part's index into it) of a PC physics resource."""
-    r = importcore.call('havokport_part_materials', bytes(b), error=MaterialError)
-    return tuple(r[0]) if r is not None else part_materials_reference(b)
-
-
-def part_materials_reference(b):
-    """part_materials in Python (the reference)."""
-    n, p, q, hashes, _ = _wrapper_reference(b)
-    run = b[p:q]
-    if n == 0:
-        return hashes, []
-    if len(run) < 4 or run[:2] != b'\0\0':
-        raise MaterialError(f'the part run opens with a material table ({run[:4].hex(" ")}): not read here')
-    distinct, top = run[2], run[3]
-    idx = [top] * n if distinct == 1 else list(run[4:4 + n])
-    if len(run) != (4 if distinct == 1 else 4 + n) or len(set(idx)) != distinct or max(idx) != top or \
-            top >= len(hashes):
-        raise MaterialError(f'the part run {run.hex(" ")} is not {n} parts\' indices into {len(hashes)} materials')
-    return hashes, idx
+    return tuple(_answer(_call('havokport_part_materials', bytes(b), error=MaterialError), 'the part materials',
+                         MaterialError))
 
 
 def part_run(indices):
     """The part run of these per-part material indices (the format part_materials reads)."""
-    r = importcore.call('havokport_part_run', indices, error=MaterialError)
-    return r[0] if r is not None else part_run_reference(indices)
-
-
-def part_run_reference(indices):
-    """part_run in Python (the reference)."""
-    if not indices:
-        raise MaterialError('no parts')
-    if max(indices) > 255 or min(indices) < 0:
-        raise MaterialError('an index outside 0 - 255')
-    distinct = len(set(indices))
-    head = b'\0\0' + bytes([distinct, max(indices)])
-    return head if distinct == 1 else head + bytes(indices)
+    r = _call('havokport_part_run', indices, error=MaterialError)
+    if r is None:
+        raise native.refused('the part materials: indices that are not whole numbers', MaterialError)
+    return r[0]
 
 
 def with_part_materials(b, indices, hashes):
     """b with part i on material hashes[indices[i]]; hashes is the new material list: the old one, new hashes only
     appended (the packfile's face indices keep their meaning)."""
-    r = importcore.call('havokport_with_part_materials', bytes(b), indices, hashes, error=MaterialError)
-    return r[0] if r is not None else with_part_materials_reference(b, indices, hashes)
-
-
-def with_part_materials_reference(b, indices, hashes):
-    """with_part_materials in Python (the reference)."""
-    n, p, _, old, o = _wrapper_reference(b)
-    part_materials_reference(b)                                         # the run is the shape this writes
-    if len(indices) != n:
-        raise MaterialError(f'{len(indices)} part materials for {n} parts')
-    if list(hashes[:len(old)]) != old:
-        raise MaterialError('the material list may only grow at its end')
-    if max(indices) >= len(hashes):
-        raise MaterialError('a part index past the material list')
-    tail = struct.pack('<2I', 1, len(hashes)) + struct.pack(f'<{len(hashes)}I', *hashes)
-    return b[:p] + part_run_reference(list(indices)) + tail + b[o:]
+    return _answer(_call('havokport_with_part_materials', bytes(b), indices, hashes, error=MaterialError),
+                   'the part materials', MaterialError)
 
 
 def _data(b):
@@ -714,39 +345,9 @@ def _data(b):
     return base, local, glob_, kinds
 
 
-def _cstr(b, at):
-    return b[at:b.index(0, at)].decode('latin-1')
-
-
 def havok_materials(b):
     """The packfile's HavokMaterials list: the material names the face indices count in, in order."""
-    r = importcore.call('havokport_havok_materials', bytes(b))
-    return r[0] if r is not None else havok_materials_reference(b)
-
-
-def havok_materials_reference(b):
-    """havok_materials in Python (the reference)."""
-    base, local, glob_, kinds = _data(b)
-    lists = sorted(o for o, c in kinds.items() if c == 'HavokMaterials')
-    if not lists:
-        return []
-    arr, cnt = local.get(lists[0]), struct.unpack_from('<I', b, base + lists[0] + 4)[0]
-    return [_cstr(b, base + local[glob_[cast(int, arr) + 4 * i]]) for i in range(cnt)]   # HavokMaterial.name at 0
-
-
-def _fixups(b, start, end, size):
-    out, o = [], start
-    while o + size <= end:
-        e = struct.unpack_from(f'<{size // 4}I', b, o)
-        if e[0] != 0xFFFFFFFF:
-            out.append(e)
-        o += size
-    return out
-
-
-def _table_bytes(rows, size):
-    t = b''.join(struct.pack(f'<{size // 4}I', *r) for r in rows)
-    return t + b'\xff' * (-len(t) % 16)
+    return _answer(_call('havokport_havok_materials', bytes(b)), 'the HavokMaterials list', MaterialError)
 
 
 def with_havok_materials(b, names):
@@ -754,63 +355,8 @@ def with_havok_materials(b, names):
     0, as DICE's exporter lays them out: the list's objects end the data section - a 16-byte object, its name at the
     next 16 bytes, padded to 16). DICE keeps this list equal to the material list (MaterialMappings, the wrapper's
     hashes) in every file it ships."""
-    r = importcore.call('havokport_with_havok_materials', bytes(b), list(names), error=MaterialError)
-    return r[0] if r is not None else with_havok_materials_reference(b, names)
-
-
-def with_havok_materials_reference(b, names):
-    """with_havok_materials in Python (the reference)."""
-    p = b.find(MAGIC)
-    old = havok_materials_reference(b)
-    if [n.lower() for n in names[:len(old)]] != [n.lower() for n in old]:
-        raise MaterialError('the HavokMaterials list may only grow at its end')
-    if len(names) == len(old):
-        return b
-    base, local, glob_, kinds = _data(b)
-    lists = [o for o, c in kinds.items() if c == 'HavokMaterials']
-    if len(lists) != 1:
-        raise MaterialError(f'{len(lists)} HavokMaterials lists')
-    hm = lists[0]
-    arr = local[hm]
-    if any(o > hm and c != 'HavokMaterial' for o, c in kinds.items()) or arr <= hm:
-        raise MaterialError('the HavokMaterials list does not end the data section: not written here')
-    h = p + 64 + 48 * 2
-    if b[h:h + 8] != b'__data__':
-        raise MaterialError('the data section is not the third')
-    start, loc, glob, virt, exp, imp, end = struct.unpack_from('<7I', b, h + 20)
-    if base + end != len(b) or not (exp == imp == end):
-        raise MaterialError('the data section does not end the file, or has exports / imports')
-    lo = _fixups(b, base + loc, base + glob, 8)
-    gl = _fixups(b, base + glob, base + virt, 12)
-    vi = _fixups(b, base + virt, base + exp, 12)
-    mats = sorted(o for o, c in kinds.items() if c == 'HavokMaterial')
-    sec = next(r[1] for r in gl if r[0] == arr)
-    vrow = next(r for r in vi if r[0] == mats[0])
-    # the region from the pointer array on, rebuilt: the array, then each material (the old ones' 16 bytes kept)
-    old_objs = [b[base + o:base + o + 16] for o in (glob_[arr + 4 * i] for i in range(len(old)))]
-    region, objs, strs = bytearray(), [], []
-    n = len(names)
-    region += bytes(4 * n) + bytes(-4 * n % 16)
-    for i, name in enumerate(names):
-        o = arr + len(region)
-        region += old_objs[i] if i < len(old) else bytes(16)
-        s = arr + len(region)
-        raw = name.encode('latin-1') + b'\0'
-        region += raw + bytes(-len(raw) % 16)
-        objs.append(o)
-        strs.append(s)
-    data = bytearray(b[base:base + arr]) + region
-    struct.pack_into('<I', data, hm + 4, n)                      # the array's size
-    lo = [r for r in lo if r[0] < arr] + [(o, s) for o, s in zip(objs, strs)]
-    gl = [r for r in gl if r[0] < arr] + [(arr + 4 * i, sec, o) for i, o in enumerate(objs)]
-    vi = [r for r in vi if r[0] < arr] + [(o, vrow[1], vrow[2]) for o in objs]
-    tl, tg, tv = _table_bytes(lo, 8), _table_bytes(gl, 12), _table_bytes(vi, 12)     # the old rows in their order
-    loc2 = len(data)
-    glob2, virt2 = loc2 + len(tl), loc2 + len(tl) + len(tg)
-    end2 = virt2 + len(tv)
-    head = bytearray(b[:base])
-    struct.pack_into('<7I', head, h + 20, start, loc2, glob2, virt2, end2, end2, end2)
-    return bytes(head) + bytes(data) + tl + tg + tv
+    return _answer(_call('havokport_with_havok_materials', bytes(b), list(names), error=MaterialError),
+                   'the HavokMaterials list', MaterialError)
 
 
 STORAGE_MATERIALS_AT = 56                # hkpStorageExtendedMeshShapeMeshSubpartStorage::materials (u32 array)
@@ -818,68 +364,17 @@ BODY_NAME_AT, BODY_SHAPE_AT = 112, 16     # hkpWorldObject::name, collidable.sha
 MOPP_CHILD_AT, MESH_STORAGE_AT = 52, 192  # hkpMoppBvTreeShape child.childShape, hkpStorageExtendedMeshShape::meshstorage
 
 
-def _storages(b, base, local, glob_, kinds, body):
-    """[(the materials array's offset, count)] of a rigid body's storage mesh (None: its shape is no storage mesh)."""
-    shape = glob_.get(body + BODY_SHAPE_AT)
-    if shape is not None and kinds.get(shape) == 'hkpMoppBvTreeShape':
-        shape = glob_.get(shape + MOPP_CHILD_AT)
-    if shape is None or kinds.get(shape) != 'hkpStorageExtendedMeshShape':
-        return None
-    arr, cnt = local.get(shape + MESH_STORAGE_AT), struct.unpack_from('<I', b, base + shape + MESH_STORAGE_AT + 4)[0]
-    out = []
-    for i in range(cnt):
-        st = glob_[cast(int, arr) + 4 * i]
-        k = struct.unpack_from('<I', b, base + st + STORAGE_MATERIALS_AT + 4)[0]
-        out.append((local.get(st + STORAGE_MATERIALS_AT), k))
-    return out
-
-
 def bodies(b):
     """[(name, [the face materials of each subpart storage: indices into havok_materials] or None)] of the
     packfile's rigid bodies in data order (None: the body's shape is no storage mesh, e.g. a model group's
     collision body of convex children)."""
-    r = importcore.call('havokport_bodies', bytes(b))
-    return r[0] if r is not None else bodies_reference(b)
-
-
-def bodies_reference(b):
-    """bodies in Python (the reference)."""
-    base, local, glob_, kinds = _data(b)
-    out = []
-    for o in sorted(k for k, c in kinds.items() if c == 'hkpRigidBody'):
-        name = _cstr(b, base + local[o + BODY_NAME_AT]) if o + BODY_NAME_AT in local else ''
-        st = _storages(b, base, local, glob_, kinds, o)
-        out.append((name, None if st is None else
-                    [list(struct.unpack_from(f'<{k}I', b, base + m)) if k else [] for m, k in st]))
-    return out
+    return _answer(_call('havokport_bodies', bytes(b)), 'the rigid bodies', MaterialError)
 
 
 def with_face_materials(b, changes):
     """b with face materials rewritten in place: changes {body index (bodies' order): [per subpart storage: its
     indices into havok_materials]} - the counts as bodies() lists them; only values change."""
-    r = None
-    if isinstance(changes, dict):
-        r = importcore.call('havokport_with_face_materials', bytes(b), changes, error=MaterialError)
-    return r[0] if r is not None else with_face_materials_reference(b, changes)
+    r = _call('havokport_with_face_materials', bytes(b), dict(changes), error=MaterialError)
+    return _answer(r, 'the face materials', MaterialError)
 
 
-def with_face_materials_reference(b, changes):
-    """with_face_materials in Python (the reference)."""
-    base, local, glob_, kinds = _data(b)
-    out = bytearray(b)
-    n = len(havok_materials_reference(b))
-    order = sorted(k for k, c in kinds.items() if c == 'hkpRigidBody')
-    for bi, new in changes.items():
-        st = _storages(b, base, local, glob_, kinds, order[bi])
-        if st is None:
-            raise MaterialError(f'body {bi}: not a storage mesh')
-        if len(new) != len(st):
-            raise MaterialError(f'body {bi}: {len(new)} subpart lists for {len(st)} subpart storages')
-        for i, ((m, k), vals) in enumerate(zip(st, new)):
-            if len(vals) != k:
-                raise MaterialError(f'body {bi} subpart {i}: {len(vals)} materials for {k}')
-            if any(not 0 <= x < n for x in vals):
-                raise MaterialError(f'body {bi} subpart {i}: an index past the {n} HavokMaterials')
-            if k:
-                struct.pack_into(f'<{k}I', out, base + m, *vals)
-    return bytes(out)

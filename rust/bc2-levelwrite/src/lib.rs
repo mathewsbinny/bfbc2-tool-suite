@@ -35,6 +35,7 @@ pub mod diff;
 pub mod export;
 pub mod modelayer;
 pub mod mpconvert;
+pub mod navedit;
 pub mod ops;
 pub mod profile;
 pub mod project;

@@ -5,32 +5,73 @@
 //! reports the gaps between them and the overlaps.
 //!
 //! The same regions (in order, with the same labels), tiles, objects (in first-seen order), links and tile offsets
-//! as the reference. Where the reference raises (its `ValueError`s, a read past the end) this answers [`Refused`] and
-//! the Python runs, so the error stays its own; so does a NaN in a tile item (`struct`'s float conversion of a NaN is
-//! the interpreter's).
+//! as the reference. Where the reference raises, this stops at the same read with the same error ([`Error`]: its
+//! `ValueError`s' messages, and `struct.error`'s for a read past the end, in CPython's words; round RT2, so the
+//! reference could be retired). A tile item's float is the value CPython's `struct` gives ([`c_double`]: a NaN made
+//! quiet, its payload kept).
 //!
 //! ```
 //! use bc2_formats::hpdlayout;
 //!
-//! assert!(hpdlayout::layout(&[0u8; 16]).is_err());
+//! let e = hpdlayout::layout(&[0u8; 16]).unwrap_err();
+//! assert_eq!(
+//!     e.to_string(),
+//!     "unpack_from requires a buffer of at least 60 bytes for unpacking 4 bytes at offset 56 (actual buffer size is 16)"
+//! );
 //! ```
 
 use std::collections::HashSet;
 use std::fmt::Write as _;
 
-/// The record is left to the Python reference.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Refused;
+/// Why the walk stops: the reference's own error at the same point.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    /// The reference's `ValueError(message)`.
+    Value(String),
+    /// `struct.error`: `size` bytes at `offset` (made non-negative as `struct` makes it) of a record of `len`.
+    Short {
+        /// The bytes the read takes (4 for a word, 12 for a tile item or a link record).
+        size: i64,
+        /// Where the read starts.
+        offset: i64,
+        /// The record's length.
+        len: i64,
+    },
+    /// `struct.error` for a negative offset further back than the record's start.
+    Range {
+        /// The offset asked for.
+        offset: i64,
+        /// The record's length.
+        len: i64,
+    },
+}
 
-impl std::fmt::Display for Refused {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("left to the Python reference")
+impl Error {
+    /// Whether this is the reference's `struct.error` (else its `ValueError`).
+    #[must_use]
+    pub fn is_struct(&self) -> bool {
+        !matches!(self, Self::Value(_))
     }
 }
 
-impl std::error::Error for Refused {}
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Value(m) => f.write_str(m),
+            Self::Short { size, offset, len } => write!(
+                f,
+                "unpack_from requires a buffer of at least {} bytes for unpacking {size} bytes at offset {offset} \
+                 (actual buffer size is {len})",
+                size + offset
+            ),
+            Self::Range { offset, len } => write!(f, "offset {offset} out of range for {len}-byte buffer"),
+        }
+    }
+}
 
-type Result<T> = std::result::Result<T, Refused>;
+impl std::error::Error for Error {}
+
+type Result<T> = std::result::Result<T, Error>;
 
 /// `MESH_OBJECT_HEADER`: an object's fixed part.
 pub const MESH_OBJECT_HEADER: i64 = 0x50;
@@ -59,25 +100,66 @@ pub struct Layout {
     pub tile_offs: Vec<u32>,
 }
 
-fn u32_at(m: &[u8], at: i64) -> Result<u32> {
-    let at = usize::try_from(at).map_err(|_| Refused)?;
-    let w = m.get(at..at.checked_add(4).ok_or(Refused)?).ok_or(Refused)?;
-    Ok(u32::from_le_bytes(w.try_into().map_err(|_| Refused)?))
-}
-
-fn f32_at(m: &[u8], at: i64) -> Result<f32> {
-    let v = f32::from_bits(u32_at(m, at)?);
-    if v.is_nan() { Err(Refused) } else { Ok(v) }
-}
-
-/// `count` records of `size` bytes from `at` fit in the record (checked before a loop the reference would run
-/// until its read past the end).
-fn fits(m: &[u8], at: i64, count: u64, size: u64) -> Result<()> {
-    let end = i128::from(at) + i128::from(count) * i128::from(size);
-    if at < 0 || end > m.len() as i128 {
-        Err(Refused)
+/// The double CPython's `struct.unpack('<f')` gives for a float32: the value, and for a NaN the x86 conversion's
+/// (the quiet bit set, the payload moved to the top of the double's), so the bits match the reference's.
+#[must_use]
+pub fn c_double(v: f32) -> f64 {
+    if v.is_nan() {
+        let b = u64::from(v.to_bits());
+        f64::from_bits(((b >> 31) << 63) | (0x7FF << 52) | (1 << 51) | ((b & 0x7F_FFFF) << 29))
     } else {
-        Ok(())
+        f64::from(v)
+    }
+}
+
+/// `struct.unpack_from` of `size` bytes at `at`: the bytes, or the error CPython raises (a negative offset counts
+/// from the end, as there).
+fn read(m: &[u8], at: i64, size: i64) -> Result<&[u8]> {
+    let len = m.len() as i64;
+    let mut off = at;
+    if off < 0 {
+        if off + len < 0 {
+            return Err(Error::Range { offset: at, len });
+        }
+        off += len;
+    }
+    if len - off < size {
+        return Err(Error::Short { size, offset: off, len });
+    }
+    let (a, n) = (
+        usize::try_from(off).unwrap_or(usize::MAX),
+        usize::try_from(size).unwrap_or(0),
+    );
+    m.get(a..a + n).ok_or(Error::Short { size, offset: off, len })
+}
+
+fn word(b: &[u8], k: usize) -> u32 {
+    let mut w = [0u8; 4];
+    w.copy_from_slice(b.get(4 * k..4 * k + 4).unwrap_or(&[0; 4]));
+    u32::from_le_bytes(w)
+}
+
+fn u32_at(m: &[u8], at: i64) -> Result<u32> {
+    Ok(word(read(m, at, 4)?, 0))
+}
+
+/// The first of `count` records of `size` bytes from `at` that the record does not hold (the read the reference's
+/// loop raises at), or `None` when all fit.
+fn first_short(m: &[u8], at: i64, count: u64, size: i64) -> Option<i64> {
+    if at < 0 {
+        return (count > 0).then_some(at);
+    }
+    let room = (m.len() as i64 - at).max(-1);
+    let fit = if room < size { 0 } else { (room - size) / size + 1 };
+    (u64::try_from(fit).unwrap_or(0) < count).then(|| at + fit * size)
+}
+
+/// Python's `f'{v:#x}'` (a negative value as `-0x...`).
+fn py_hex(v: i64) -> String {
+    if v < 0 {
+        format!("-{:#x}", v.unsigned_abs())
+    } else {
+        format!("{v:#x}")
     }
 }
 
@@ -92,7 +174,12 @@ fn object_end(m: &[u8], o: i64) -> Result<i64> {
         }
         let tab = o + i64::from(u32_at(m, o + tab_off)?);
         if tab != end {
-            return Err(Refused);
+            return Err(Error::Value(format!(
+                "object {}: table {cnt_off:#x} at {}, expected {}",
+                py_hex(o),
+                py_hex(tab),
+                py_hex(end)
+            )));
         }
         let first = i64::from(u32_at(m, tab)?);
         let last = i64::from(u32_at(m, tab + cnt * stride)?);
@@ -105,17 +192,23 @@ fn object_end(m: &[u8], o: i64) -> Result<i64> {
 ///
 /// # Errors
 ///
-/// [`Refused`] where the reference raises, or a tile item's float is a NaN.
+/// The reference's error where it raises ([`Error`]).
 pub fn layout(m: &[u8]) -> Result<Layout> {
     let mut regions: Vec<Region> = vec![(0, 0x50, "header".into())];
     let (nx, nz) = (u32_at(m, 0x38)?, u32_at(m, 0x3C)?);
     let (tiles_off, links_n, links_off) = (u32_at(m, 0x44)?, u32_at(m, 0x48)?, u32_at(m, 0x4C)?);
     if tiles_off != 0x50 {
-        return Err(Refused);
+        return Err(Error::Value(format!("tile table at {tiles_off:#x}")));
     }
     let tile_count = u64::from(nx) * u64::from(nz);
-    fits(m, 0x50, tile_count + 1, 4)?;
-    let tc = i64::try_from(tile_count).map_err(|_| Refused)?;
+    if let Some(at) = first_short(m, 0x50, tile_count + 1, 4) {
+        return Err(Error::Short {
+            size: 4,
+            offset: at,
+            len: m.len() as i64,
+        });
+    }
+    let tc = i64::try_from(tile_count).unwrap_or(i64::MAX);
     regions.push((0x50, 0x50 + (tc + 1) * 4, "tile table".into()));
     let tile_offs = (0..=tc).map(|i| u32_at(m, 0x50 + i * 4)).collect::<Result<Vec<_>>>()?;
     let mut objects: Vec<(u32, i64)> = Vec::new();
@@ -124,11 +217,17 @@ pub fn layout(m: &[u8]) -> Result<Layout> {
     for (t, &to) in tile_offs.iter().take(tile_offs.len() - 1).enumerate() {
         let to64 = i64::from(to);
         let n = u32_at(m, to64)?;
-        fits(m, to64 + 4, u64::from(n), 12)?;
+        if let Some(at) = first_short(m, to64 + 4, u64::from(n), 12) {
+            return Err(Error::Short {
+                size: 12,
+                offset: at,
+                len: m.len() as i64,
+            });
+        }
         let mut items = Vec::with_capacity(n as usize);
         for k in 0..i64::from(n) {
-            let at = to64 + 4 + k * 12;
-            items.push((u32_at(m, at)?, f32_at(m, at + 4)?, f32_at(m, at + 8)?));
+            let b = read(m, to64 + 4 + k * 12, 12)?;
+            items.push((word(b, 0), f32::from_bits(word(b, 1)), f32::from_bits(word(b, 2))));
         }
         let end_ptr = if n == 0 {
             None
@@ -146,33 +245,40 @@ pub fn layout(m: &[u8]) -> Result<Layout> {
         }
         tiles.push((to, items, end_ptr));
     }
-    let end_slot = i64::from(*tile_offs.last().ok_or(Refused)?);
+    let end_slot = i64::from(tile_offs.last().copied().unwrap_or(0));
     regions.push((end_slot, end_slot + 4, "tile table end slot".into()));
     let len = m.len() as i64;
-    if len < 8 || i64::from(u32_at(m, len - 8)?) != len - 8 || u32_at(m, len - 4)? != 0 {
-        return Err(Refused);
+    if i64::from(u32_at(m, len - 8)?) != len - 8 || u32_at(m, len - 4)? != 0 {
+        return Err(Error::Value("mesh trailer not found".into()));
     }
     regions.push((len - 8, len, "trailer".into()));
     let mut links = Vec::new();
     if links_n != 0 {
         let lo = i64::from(links_off);
         regions.push((lo, lo + i64::from(links_n) * 12, "link table".into()));
-        fits(m, lo, u64::from(links_n), 12)?;
         for k in 0..i64::from(links_n) {
-            let (sid, cnt, lst) = (
-                u32_at(m, lo + k * 12)?,
-                u32_at(m, lo + k * 12 + 4)?,
-                u32_at(m, lo + k * 12 + 8)?,
-            );
+            let b = read(m, lo + k * 12, 12)?;
+            let (sid, cnt, lst) = (word(b, 0), word(b, 1), word(b, 2));
             let l64 = i64::from(lst);
             regions.push((l64, l64 + i64::from(cnt) * 4, format!("link list {sid:#x}")));
-            fits(m, l64, u64::from(cnt), 4)?;
+            if let Some(at) = first_short(m, l64, u64::from(cnt), 4) {
+                // the reference reads each link (and its count) before the next pointer: the links that fit first
+                for j in 0..(at - l64) / 4 {
+                    let lk = i64::from(u32_at(m, l64 + j * 4)?);
+                    u32_at(m, lk + 0xC)?;
+                }
+                return Err(Error::Short {
+                    size: 4,
+                    offset: at,
+                    len,
+                });
+            }
             for j in 0..i64::from(cnt) {
-                let lo = i64::from(u32_at(m, l64 + j * 4)?);
-                let c = i64::from(u32_at(m, lo + 0xC)?);
+                let lk = i64::from(u32_at(m, l64 + j * 4)?);
+                let c = i64::from(u32_at(m, lk + 0xC)?);
                 let mut label = String::new();
                 let _ = write!(label, "link {sid:#x}/{j}");
-                regions.push((lo, lo + 0x10 + c * 4, label));
+                regions.push((lk, lk + 0x10 + c * 4, label));
             }
             links.push((sid, cnt, lst));
         }
@@ -191,7 +297,7 @@ pub fn layout(m: &[u8]) -> Result<Layout> {
 ///
 /// # Errors
 ///
-/// [`Refused`] where [`layout`] refuses.
+/// [`layout`]'s.
 pub fn coverage(m: &[u8]) -> Result<Coverage> {
     let mut regions = layout(m)?.regions;
     regions.sort();
@@ -257,13 +363,40 @@ mod tests {
     }
 
     #[test]
-    fn refuses_what_the_reference_raises_on() {
+    fn raises_what_the_reference_raises() {
         let mut m = record();
         put(&mut m, 0x44, 0x54);
-        assert_eq!(layout(&m), Err(Refused));
-        assert_eq!(layout(&record()[..0x40]), Err(Refused));
+        assert_eq!(layout(&m), Err(Error::Value("tile table at 0x54".into())));
+        assert_eq!(
+            layout(&record()[..0x40]).map_err(|e| (e.is_struct(), e.to_string())),
+            Err((
+                true,
+                "unpack_from requires a buffer of at least 72 bytes for unpacking 4 bytes at offset 68 (actual buffer size is 64)".into()
+            ))
+        );
         let mut big = record();
         put(&mut big, 0x38, u32::MAX);
-        assert_eq!(layout(&big), Err(Refused));
+        assert_eq!(
+            layout(&big),
+            Err(Error::Short {
+                size: 4,
+                offset: 0xC0,
+                len: 0xC0
+            })
+        );
+        let mut trailer = record();
+        let n = trailer.len();
+        put(&mut trailer, n - 8, 0);
+        assert_eq!(layout(&trailer), Err(Error::Value("mesh trailer not found".into())));
+        assert_eq!(py_hex(-16), "-0x10");
+        assert_eq!(read(&[0; 4], -8, 4), Err(Error::Range { offset: -8, len: 4 }));
+    }
+
+    #[test]
+    fn nan_as_cpython_reads_it() {
+        assert_eq!(c_double(f32::from_bits(0x7F80_0001)).to_bits(), 0x7FF8_0000_2000_0000);
+        assert_eq!(c_double(f32::from_bits(0xFF80_0ABC)).to_bits(), 0xFFF8_0157_8000_0000);
+        assert_eq!(c_double(f32::from_bits(0x7FC0_0000)).to_bits(), f64::NAN.to_bits());
+        assert_eq!(c_double(1.5).to_bits(), 1.5f64.to_bits());
     }
 }

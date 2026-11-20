@@ -66,7 +66,7 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         Parsed::Args(a) => a,
         Parsed::Exit(c) => return Ok(c),
     };
-    let a = match argp::finish(py, &p, a) {
+    let a = match argp::finish(py, &p, a)? {
         Parsed::Args(a) => a,
         Parsed::Exit(c) => return Ok(c),
     };

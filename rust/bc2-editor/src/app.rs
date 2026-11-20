@@ -47,6 +47,7 @@ mod displayui;
 mod editui;
 mod inspectui;
 mod modes;
+mod navui;
 mod tools;
 
 pub use crate::workspace::Workspace;
@@ -84,6 +85,12 @@ pub enum Tab {
     Content,
     /// The selection's links: references and event connections, both ways (round GR1).
     Links,
+    /// The level's navigation: files, colourings, layers, path test, anomalies, compare (round GR2).
+    Navigation,
+    /// The navigation's islands and the soldier spawns off the main network (round GR2).
+    NavIslands,
+    /// The navigation edits: tools, the project's edits, build, install, restore (round GR2).
+    NavEdits,
 }
 
 impl Tab {
@@ -97,19 +104,22 @@ impl Tab {
             Self::Layers => "Layers",
             Self::Content => "Place objects",
             Self::Links => "Links",
+            Self::Navigation => "Navigation",
+            Self::NavIslands => "Islands and spawns",
+            Self::NavEdits => "Navigation edits",
         }
     }
 }
 
-/// The default layout: the 3D view in the middle, the outliner (and layers) left, properties right with the links
-/// below them, problems (and history) below the view.
+/// The default layout: the 3D view in the middle, the outliner (and layers) left, properties (and navigation) right
+/// with the links (navigation edits, islands and spawns) below them, problems (and history) below the view.
 #[must_use]
 pub fn default_layout() -> DockState<Tab> {
     let mut d = DockState::new(vec![Tab::Viewport(Projection::Perspective)]);
     let s = d.main_surface_mut();
     let [centre, _] = s.split_left(NodeIndex::root(), 0.2, vec![Tab::Outliner, Tab::Layers, Tab::Content]);
-    let [centre, right] = s.split_right(centre, 0.72, vec![Tab::Properties]);
-    let [_, _] = s.split_below(right, 0.6, vec![Tab::Links]);
+    let [centre, right] = s.split_right(centre, 0.72, vec![Tab::Properties, Tab::Navigation]);
+    let [_, _] = s.split_below(right, 0.6, vec![Tab::Links, Tab::NavEdits, Tab::NavIslands]);
     let [_, _] = s.split_below(centre, 0.78, vec![Tab::Problems, Tab::History]);
     d
 }
@@ -250,8 +260,9 @@ pub struct ViewState {
     pub view_mode: crate::workspace::ViewMode,
     /// What the display mode shows, in words (where its data came from).
     pub mode_note: String,
-    /// The navmesh mode's outlines (loaded once): the file and its segments, or why there are none.
-    nav: Option<Result<(String, Vec<crate::viewmodes::Segment>), String>>,
+    /// The level's navigation (round GR2): its path data read, the layers, the path test, the compare, the edit
+    /// tools and the commands (the AI workspace and the navmesh mode draw it).
+    pub navs: crate::nav::NavState,
     /// The cull-tree mode's data (loaded once).
     cull: Option<crate::viewmodes::CullView>,
     /// The level's folders (its own, then its shared bundles').
@@ -576,7 +587,31 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
         let objects = v.is_some_and(|v| v.doc.is_some() && v.workspace == Workspace::Objects);
         match action {
             Action::Brush(b) => b.workspace().coming(),
-            Action::PathTest => Some("Comes with the AI workspace's tools (round E5a)"),
+            Action::PathTest
+            | Action::NavTool(_)
+            | Action::NavColour(_)
+            | Action::NavSaveEdits
+            | Action::NavReloadEdits
+            | Action::NavBuild
+            | Action::NavInstall
+            | Action::NavRestore
+            | Action::ShowPanel(PanelKind::Navigation | PanelKind::NavIslands | PanelKind::NavEdits)
+                if !open =>
+            {
+                Some("Open a map first")
+            }
+            Action::PathTest
+            | Action::NavTool(_)
+            | Action::NavColour(_)
+            | Action::NavSaveEdits
+            | Action::NavReloadEdits
+            | Action::NavBuild
+            | Action::NavInstall
+            | Action::NavRestore
+                if v.is_some_and(|v| v.nav_why_not(action).is_some()) =>
+            {
+                v.and_then(|v| v.nav_why_not(action))
+            }
             Action::SetWorkspace(_) | Action::SetViewMode(_) | Action::FocusHere if !open => Some("Open a map first"),
             Action::SetShowAs(_) | Action::CycleShowAs | Action::SetInvisibleAs(_) | Action::ResetViewOverrides
                 if !open =>
@@ -698,8 +733,18 @@ impl EditorApp {
             return;
         }
         let palette = self.palette();
+        // the AI workspace opens on its navigation (round GR2)
+        if action == Action::SetWorkspace(Workspace::Ai) {
+            for tab in [Tab::NavEdits, Tab::Navigation] {
+                if let Some(path) = self.dock.find_tab(&tab) {
+                    let _ = self.dock.set_active_tab(path);
+                }
+            }
+        }
         if let Mode::View(v) = &mut self.mode
-            && (v.tool_action(gpu, &palette, action) || v.edit_action(gpu, &palette, action))
+            && (v.tool_action(gpu, &palette, action)
+                || v.nav_action(gpu, &palette, action)
+                || v.edit_action(gpu, &palette, action))
         {
             return;
         }
@@ -712,6 +757,9 @@ impl EditorApp {
                     PanelKind::Properties => Tab::Properties,
                     PanelKind::Content => Tab::Content,
                     PanelKind::Links => Tab::Links,
+                    PanelKind::Navigation => Tab::Navigation,
+                    PanelKind::NavIslands => Tab::NavIslands,
+                    PanelKind::NavEdits => Tab::NavEdits,
                 };
                 if let Some(path) = self.dock.find_tab(&tab) {
                     let _ = self.dock.set_active_tab(path);
@@ -1233,7 +1281,7 @@ impl EditorApp {
             filter: None,
             view_mode: crate::workspace::ViewMode::Lit,
             mode_note: String::new(),
-            nav: None,
+            navs: crate::nav::NavState::new(),
             cull: None,
             bases,
             root: self.opfor.clone().ok(),
@@ -1380,6 +1428,14 @@ impl EditorApp {
         if self.recover.is_some() {
             self.recovery_modal(&ctx, &palette);
         }
+        // the navigation (round GR2): the worker's answer, a command's end, the edits' undo; an install's confirm
+        if let Mode::View(v) = &mut self.mode {
+            v.nav_poll(gpu, &palette);
+            if v.navs.reading() || v.navs.job.as_ref().is_some_and(|j| j.done.is_none()) {
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            }
+        }
+        self.nav_confirm_modal(&ctx, &palette);
         let metrics = Metrics::new(self.tokens);
         for asked in self.top_bar(ui, &palette, &metrics) {
             match asked {
@@ -2371,13 +2427,25 @@ impl TabViewer for Tabs<'_> {
             Tab::Layers => self.layers(ui),
             Tab::Content => self.content(ui),
             Tab::Links => self.links(ui),
+            Tab::Navigation => self.navigation(ui),
+            Tab::NavIslands => self.nav_islands(ui),
+            Tab::NavEdits => self.nav_edits(ui),
         }
     }
 
     /// The orthographic views, History and Layers can be closed (the actions open them again); the rest stay.
     fn is_closeable(&self, tab: &Tab) -> bool {
         matches!(tab, Tab::Viewport(p) if *p != Projection::Perspective)
-            || matches!(tab, Tab::History | Tab::Layers | Tab::Content | Tab::Links)
+            || matches!(
+                tab,
+                Tab::History
+                    | Tab::Layers
+                    | Tab::Content
+                    | Tab::Links
+                    | Tab::Navigation
+                    | Tab::NavIslands
+                    | Tab::NavEdits
+            )
     }
 
     fn scroll_bars(&self, _tab: &Tab) -> [bool; 2] {
@@ -2549,7 +2617,27 @@ impl Tabs<'_> {
                 let skip = |k: usize| self.view.doc.as_ref().is_some_and(|d| !d.shown(k));
                 query::ray_hit_except(self.view.scene(), o, d, &skip)
             };
-            if self.view.measuring {
+            // the navigation's clicks (round GR2): the path test, an edit tool, a reference marker, the area under it
+            let nav_point = if self.view.nav_active() {
+                hit.map(|h| h.point)
+                    .or_else(|| {
+                        let (o, d) = view.ray([f64::from(at.x), f64::from(at.y)]);
+                        self.view.nav_ray_point(o, d)
+                    })
+                    // a marker the ray does not meet: where its object stands
+                    .or_else(|| {
+                        render::id_entity(id)
+                            .and_then(|k| self.view.scene().entities.get(k))
+                            .and_then(scene::Entity::position)
+                    })
+            } else {
+                None
+            };
+            let marker = self.nav_marker_at(rect, &vp.camera, pos);
+            let palette = self.palette;
+            if !self.view.measuring && self.view.nav_click(self.gpu, &palette, nav_point, marker) {
+                // the navigation's
+            } else if self.view.measuring {
                 // measuring: the click adds the surface point under it, the selection stays
                 if let Some(h) = hit {
                     self.view.measure.push(h.point);
@@ -2609,6 +2697,7 @@ impl Tabs<'_> {
             self.links_overlay(ui, rect, &vp.camera);
         }
         self.measure_overlay(ui, rect, &vp.camera);
+        self.nav_overlay(ui, rect);
         if editing {
             self.edit_overlay(ui, rect, projection, &vp.camera);
         }
