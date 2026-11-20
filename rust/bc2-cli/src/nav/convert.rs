@@ -1,9 +1,9 @@
 //! `bfbc2 convert havok|verify-havok|texture|verify-texture ...`: the console converter's command line
 //! (`bfbc2-console-convert\convert.py`) over `bc2_convert` (`hkclasses`, `havok`, `texture`, `texcheck`), with its
-//! `argparse` parser ported for the command lines it takes (usage, errors and help at the pipe width of 80).
+//! `argparse` parser ported for the command lines it takes (usage, errors and help; at the console's width or
+//! `COLUMNS` [`crate::argfmt`]'s texts, round RT2).
 //!
-//! Handed to the Python: the help and error texts when `COLUMNS` is set or stdout is a console (`argparse` wraps them
-//! to that width), option abbreviations, `--`, single-dash options other than `-h`; an executable whose class
+//! Handed to the Python: option abbreviations, `--`, single-dash options other than `-h`; an executable whose class
 //! layouts the core cannot read (the reference raises its own exception) or that the converter does not take; a
 //! wrapper or texture check the core leaves to the reference; a correlation within 1e-9 of the 0.9 threshold
 //! (NumPy's sums decide it there).
@@ -101,26 +101,16 @@ impl Args {
     }
 }
 
-/// `argparse` wraps help and usage to the terminal's width: only the pipe's (80) is ported.
-fn width_ported() -> bool {
-    std::env::var_os("COLUMNS").is_none() && !crate::pystdio::is_console(&std::io::stdout())
-}
-
-/// `parser.error(message)`: the usage and the message on stderr, exit code 2.
+/// `parser.error(message)`: the usage (at the console's width) and the message on stderr, exit code 2.
 fn error(py: &mut Py, usage: &str, prog: &str, message: &str) -> PyResult<Option<(usize, Args)>> {
-    if !width_ported() {
-        return Err(Fail::Python);
-    }
-    py.eprint(usage.trim_end_matches('\n'));
+    py.eprint(crate::argfmt::usage_or(prog, usage)?.trim_end_matches('\n'));
     py.eprint(&format!("{prog}: error: {message}"));
     Err(Fail::Err(PyErr::new("SystemExit", "2")))
 }
 
-fn help(py: &mut Py, text: &str) -> PyResult<Option<(usize, Args)>> {
-    if !width_ported() {
-        return Err(Fail::Python);
-    }
-    py.write(text)?;
+/// The help of the parser `prog` at the console's width (`text`, recorded, at the pipe's).
+fn help(py: &mut Py, prog: &str, text: &str) -> PyResult<Option<(usize, Args)>> {
+    py.write(&crate::argfmt::help_or(prog, text)?)?;
     Ok(None)
 }
 
@@ -157,7 +147,7 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<(usize, Args)>> {
         );
     };
     if cmd == "-h" || cmd == "--help" {
-        return help(py, MAIN_HELP);
+        return help(py, "convert.py", MAIN_HELP);
     }
     if cmd.starts_with('-') && cmd != "-" {
         return Err(Fail::Python);
@@ -182,7 +172,7 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<(usize, Args)>> {
         let a = rest[i].as_str();
         if is_option(a) {
             if a == "-h" || a == "--help" {
-                return help(py, sub.help);
+                return help(py, &prog, sub.help);
             }
             if a == "--" || !a.starts_with("--") {
                 return Err(Fail::Python);
