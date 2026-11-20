@@ -16,8 +16,16 @@ not built for (an Onslaught map made from PC Rush data has capture flags, other 
 can be taken from other levels' databases: **merge** builds a database that is one level's plus the entries other
 levels have for the meshes it lacks.
 
-Python 3.10 or newer, nothing else. It reads your own game copy (straight from its bundles, or files you unpacked
-with FbrbTool) and writes only the file you name; it never writes into the game folder.
+Python 3.12 or newer (the suite's) and the suite's Rust core (`python rust\build_native.py --download`): the bundles
+are read through it, and since rounds E4b and SD1 a database's opening and its queries run there, the Python kept as
+the reference and the fallback (`use_native(False)`, `BFBC2_PURE_PYTHON=1`). It reads your own game copy (straight
+from its bundles, or files you unpacked with FbrbTool) and writes only the file you name; it never writes into the
+game folder.
+
+Without Python: `bin\bfbc2.exe shaderdb <command> ...` (the suite's `bin\`, round O5) takes the same arguments and
+writes the same databases, reports and exit codes, `merge` included (`needs` about 8 times faster). `bfbc2.exe
+renderqa` and `bfbc2.exe xdiff` check the arguments in Rust and hand the drawing (Direct3D 11, NumPy, Pillow) to the
+Python (the suite's README, "bfbc2.exe").
 
 ## Commands
 
@@ -143,6 +151,10 @@ copy: mp_008cq's and ons_mp_008's databases round trip, and ONS_MP_008 merged wi
 three kinds. `--xbox` (also run by `--game`; each part skipped when its files are missing) reads every BFBC2 Xbox
 level database (`work\xbox\dist\xenon\levels`), compares the Xbox and PC Dx9 databases of mp_002, mp_005 and mp_008
 (entries, mesh parts and layouts, each entry's textures) and reads Battlefield 1943's Wake Island database.
+
+`tests\test_shaderdb_queries.py` and `test_shaderdb_native.py`: the database queries and reader in Rust against their
+Python references (round E4b); the suite's `tests\test_sd1_native.py`: the SD1 reader against its recordings
+(`tests\sd1_golden_*.json`); the command lines in Rust: the suite's `core\tests\test_cli_o5.py`.
 
 `tests\test_renderqa.py` (quick): a Dx11 database, mesh and texture built by the test (shaders compiled with
 d3dcompiler_47) are drawn by shaderview. It checks the texel colour times the material constant, coverage, sample

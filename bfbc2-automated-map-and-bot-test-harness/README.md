@@ -3,7 +3,7 @@
 Repeatable tests of maps and bots, with results saved per run and compared between builds (`../DESIGN.md`
 section 4.5, milestone M5). It reads Project OPFOR BFBC2's game copy and work folder and never writes to the game
 copy. It never starts the game: the in-game tests are designed and wait for play tests (**ON HOLD - needs
-playtest**, below).
+playtest**, below; the user paused in-game tests on 2026-11-20).
 
 **Ready**
 
@@ -39,6 +39,10 @@ sizes), `--seed 1`, `--reference <run>`, `--scale 1` (multiplies every tolerance
 `--runs <folder>` (where runs are kept; default `<OPFOR>\work\harness\runs`). Exit code: 0 nothing failed and no
 regression, 1 a test failed, something got worse, or `show` / `compare` / `import-log` named a run that does not
 exist; 2 `run --reference` named a run that does not exist.
+
+Without Python: `bin\bfbc2.exe harness ...` (the suite's `bin\`, round O4) takes the same arguments and prints the
+same; it answers `compare`, `show`, `list`, `import-log` and `ingame` in Rust and hands `run` (NavKit builds, NumPy
+drawings) to the Python (the suite's README, "bfbc2.exe").
 
 Example (sp_004_b, NavKit's regression build of 2026-10-24; shortened):
 

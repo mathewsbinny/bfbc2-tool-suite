@@ -12,20 +12,24 @@ are merged and versions released: `RELEASING.md`.
    libraries the tools use:
    `pip install numpy matplotlib moderngl glfw imgui-bundle pillow` (and `pefile capstone` for the crash
    reader's code view).
-2. Get the suite's Rust core (one file, `core\bfbc2core\bc2_native.pyd`; texture conversion and NavKit's builds need
-   it): in a command prompt in this folder, `python rust\build_native.py --download`. It fetches the prebuilt module
-   made for this checkout's Rust sources, checks it and puts it in place; run it again after you update the suite
-   (a tool that needs a newer one says so). No download for your checkout (local Rust changes, or not Windows):
-   build it instead ("The Rust core" below).
+2. Get the suite's Rust core and its command-line binary: in a command prompt in this folder,
+   `python rust\build_native.py --download`. It fetches the prebuilt module (`core\bfbc2core\bc2_native.pyd`: nearly
+   every tool reads the game's files through it) and `bin\bfbc2.exe` (the tools' command lines in Rust: "bfbc2.exe"
+   below) made for this checkout's Rust sources, checks them and puts them in place; run it again after you update
+   the suite (a tool that needs a newer one says so). No download for your checkout (local Rust changes, or not
+   Windows): build them instead ("The Rust core" below). The map editor has no download yet: it is built with Rust
+   (`python rust\build_native.py --editor`, "The map editor" below).
 3. Put this folder next to your `project-opfor-bfbc2` folder (or set `OPFOR_ROOT` to it): the tools read the game
    copy there.
 4. Double-click **`BFBC2 Tool Suite.pyw`**. One window has every tool:
    - **Levels:** choose a level, then **Open in Map Editor** (or double-click the level) or **Open in
-     Navigation Studio**. A level is unpacked the first time (offline, about 20 s); the tool's progress
-     shows at the bottom (the editor shows its own) and its window opens when the level is loaded.
+     Navigation Studio**; **Prepare level** runs NavKit's prepare alone. A level is unpacked the first time
+     (offline, about 20 s); the tool's progress shows at the bottom (the editor shows its own) and its window opens
+     when the level is loaded.
    - **Bundles, Level diff, Crash reader, Xbox files, Tests:** the command-line tools with file pickers and
-     options; their output appears at the bottom.
-   - **More tools:** DbxEditGUI and NavKit's window.
+     options; their output appears at the bottom. Bundles, the crash reader and the level prepare run through
+     `bin\bfbc2.exe` when it is built from this checkout, else through the Python.
+   - **More tools:** the map editor, DbxEditGUI and NavKit's window.
 
    The test harness, the menu tools and the stock-MP AI tool have no tab yet: run them from a command prompt
    (their READMEs).
@@ -44,8 +48,9 @@ happened, the likely cause and what to do - for example "a Python library the to
 "the level is not prepared", "a file could not be written - close the game" - and where the log is. In the 3D
 tools an error in one panel does not close the window: it is listed in a Problems window and logged once. The
 suite window checks the libraries when it opens, and when a tool it runs fails it shows that tool's last lines.
-The command-line tools - FbrbTool (`fbrbtool.py`), DbxEdit (`dbxedit.py`), LevelDiff, NavKit's `navkit.py` and `tools\*.py`, the crash reader,
-the console readers, the menu tools, the test harness, the test runner - log the same way and, on an error, print the cause, what to do and the
+The command-line tools - `bfbc2.exe` and the Python command lines it ports (FbrbTool `fbrbtool.py`, DbxEdit
+`dbxedit.py`, NavKit's `navkit.py` and `tools\*.py`, the crash reader, the console readers, the menu tools, the test
+harness ...), LevelDiff, the test runner - log the same way and, on an error, print the cause, what to do and the
 log's path (exit code 1); DbxEditGUI and NavKit's window show it in a window. If you report a problem, send the
 log file.
 
@@ -53,9 +58,11 @@ log file.
 
 | Folder | Tool |
 |---|---|
+| `rust/bc2-editor/` (`bin\bfbc2-editor.exe`) | **the map editor**: view any map of the game copy; edit a copy of it as a map project (objects, gameplay, layers, undo); export it as a new multiplayer level for any era and mode, and install or uninstall it through Project OPFOR ("The map editor" below) |
+| `rust/bc2-cli/` (`bin\bfbc2.exe`) | **`bfbc2.exe`**: the tools' command lines below in one Rust binary, `bfbc2 <tool> ...` with the same arguments, output and files as `python <tool>.py ...` ("bfbc2.exe" below) |
 | `bfbc2-auto-navkit/` | **BC2 NavKit**: generates AI navigation data (`pathdata.hpd`) for levels. Start with `QUICKSTART.md`, or `navkitGUI.pyw`. |
-| `bfbc2-dbx-tools/` | **DbxEdit** (`dbxedit.py`, the Rust core) and **DbxEditGUI** (the window, C#): view, edit, check and repair binary `.dbx` files; XML export and import |
-| `bfbc2-fbrb-tool/` | **FbrbTool** (`fbrbtool.py`, the Rust core): unpack and repack `.fbrb` bundles |
+| `bfbc2-dbx-tools/` | **DbxEdit** (`bfbc2.exe dbxedit`, or `dbxedit.py`; the Rust core) and **DbxEditGUI** (the window, C#): view, edit, check and repair binary `.dbx` files; XML export and import |
+| `bfbc2-fbrb-tool/` | **FbrbTool** (`bfbc2.exe fbrbtool`, or `fbrbtool.py`; the Rust core): unpack and repack `.fbrb` bundles |
 | `bfbc2-console-readers/` | read-only readers for Xbox 360 disc images and content packages |
 | `bfbc2-diff-workbench/level-diff/` | **LevelDiff**: what differs between two `.dbx` files, instance by instance |
 | `bfbc2-automated-map-and-bot-test-harness/` | **test harness** (offline, M5): per level and path-data file (DICE's, NavKit's) structure, spawn-to-objective reachability, path-test batteries, orders near the route network, sector offsets, NavKit's DICE parity, and AI readiness from the game copy's bundles; saved runs compared between builds (`harness.py`); in-game tests on hold |
@@ -68,17 +75,19 @@ log file.
 | `bfbc2-model-tools/` | **model tools**: edit skinned MeshData (replace or add a part's geometry in its own vertex layout; buffers and shared windows kept) and build simple solids with texture-atlas coordinates (`skinmesh.py`, `shapes.py`); PC textures from pictures (`texwrite.py`: DXT1 with 1-bit alpha, normal maps, DXT5, 8-bit atlas levels); fewer triangles (`decimate.py`) |
 | `bfbc2-anim-tools/` | **Granny tools** (`granny.py`): the soldier skeleton and animations - bones, tracks and curves decoded; a bone's position track moved (constant, quantized, re-quantized ramp) with the Granny CRC recomputed; orientation curves written (`set_orientations`); tracks added from a donor (`add_tracks`); Xbox 360 resources read and converted to the PC's format (`topc`), DICE's bone table renumbered onto another skeleton; reading and `to_pc` in the Rust core when it is built, `to_pc_many` / `roots` for many files on all cores; generated aim poses (`aimanim.py`) |
 | `bfbc2-bf1943-import/` | **Battlefield 1943 import**: the user's BF1943 Xbox 360 resources into BFBC2's PC formats, from the user's own copy - animations, skeletons and textures (`bf1943import.py`, a record per resource in `import.json`; the 3p undeploys get the tracks DICE adds), models (`meshport.py`), physics (`havokport.py`, Havok 4.6.1 -> 5.5.0; `mopp.py` decodes and checks the MOPP trees), DBX partitions (`dbxport.py` on BFBC2's own schema from `dbxcatalogue.py`; `dbxparity.py` / `portparity.py` against DICE's own conversions), effects (`effectport.py`) and merged emitter atlases (`emitteratlas.py`) |
-| `core/` | the shared core: Python readers for `.dbx` (and a writer), `.fbrb` bundles (read only), terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking; `paths.py`, the one place that finds Project OPFOR BFBC2, its game copy, the built tools and the sibling projects (every tool's own locator wraps it) |
+| `core/` | the shared core (Python over the Rust core, `bc2_native`): `.dbx` (reader and writer), `.fbrb` bundles (read, pack, unpack), terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking; `paths.py`, the one place that finds Project OPFOR BFBC2, its game copy, the built tools and the sibling projects (every tool's own locator wraps it) |
 | `bfbc2-map-inspector/` | the map editor's plan (`EDITOR_ARCHITECTURE.md`); the **Map Inspector** that was here was retired in round GR1 (2026-11-20): its views are the map editor's Properties (All fields), Links and Measure (the folder's README) |
 | `bfbc2-navigation-studio/` | **Navigation Studio**: NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network; the path test; edit mode (walkable / unwalkable regions, seeds, links, route edges, traversals) into a side file, built with `navkit apply` and installed; a reference level's AI layer drawn on another level (`--compare`) and an anomaly overlay of NavKit builds, both with JSON export (`overlay.py`) |
 | `bfbc2-stockmp-ai/` | **stock-MP AI layer**: gives a stock multiplayer level AI spawners, AI orders and their event wiring (HasAI, PathfindingTypes, SectorOffsets, AI template), proposed from the level's own objectives and spawns, built into its bundles and checked offline (`stockmp.py`) |
 
-**Planned** (see [DESIGN.md](DESIGN.md))
+**Planned** (see [DESIGN.md](DESIGN.md)). The user's plan of 2026-11-19 (`ROADMAP.md`): the bot AI debugger, the
+tactical map authoring tool and the AI behaviour simulator become workspaces of the map editor rather than tools of
+their own.
 
 | Folder | Tool | Milestone |
 |---|---|---|
-| `bfbc2-navigation-studio/` | M4 step 7: an in-game check that the game's AI uses a hand-made link (steps 1-6 - path test, editing, side files, `navkit apply`, install - are done) | M4 |
-| `bfbc2-automated-map-and-bot-test-harness/` | in-game tests: `testrun.bat` per level (on hold - needs playtest), bot traversal, stuck detection, squads and vehicles from OPFOR's telemetry | M6, then growing |
+| `bfbc2-navigation-studio/` | M4 step 7: an in-game check that the game's AI uses a hand-made link (steps 1-6 - path test, editing, side files, `navkit apply`, install - are done); the Studio is being folded into the map editor's AI workspace (round GR2, `ROADMAP.md`) | M4 |
+| `bfbc2-automated-map-and-bot-test-harness/` | in-game tests: `testrun.bat` per level (on hold: the user paused in-game tests on 2026-11-20), bot traversal, stuck detection, squads and vehicles from OPFOR's telemetry | M6, then growing |
 | `bfbc2-bot-ai-debugger/` | live view of the AI while the game runs (through Project OPFOR BFBC2) | M6 |
 | `bfbc2-tactical-map-authoring-tool/` | tactical annotations above the navigation data for bots | M7 |
 | `bfbc2-diff-workbench/` | ImHex patterns for BC2 formats, format coverage and structure-aware diffs (LevelDiff, in `level-diff/`, is ready) | alongside |
@@ -96,7 +105,8 @@ copy, the tools and the sibling projects come from `core/bfbc2core/paths.py` (DE
 
 ## The 3D tools and your GPU
 
-The Navigation Studio draws with OpenGL 3.3 (the map editor with wgpu: "The map editor"). It prints the GPU it uses when it starts
+The Navigation Studio draws with OpenGL 3.3 (the map editor with wgpu, and its game-accurate view with Direct3D 11:
+"The map editor"). It prints the GPU it uses when it starts
 (and shows it in its status line). On a laptop with two GPUs, Windows may give Python the slower integrated
 one: set `python.exe` to "High performance" in Settings > System > Display > Graphics. On the development
 PC that took the Navigation Studio on SP_01 (10.4 million triangles) from the AMD Radeon integrated GPU to
@@ -104,20 +114,32 @@ the GeForce RTX 4060, at 144 frames a second.
 
 ## The map editor (preview: view a map, edit a copy of it)
 
-`rust/bc2-editor` is the map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8 - 3.10), in Rust
-with egui on wgpu (Vulkan, DirectX 12 or a software adapter). Round G1 (2026-11-18) is its shell and the read-only
-map view, round G2 (2026-11-18) the user's decisions on it, and round E2 (2026-11-18) edits a map as a **map
-project**. Building and installing an edited map is round E3: for now a project's edits stay in the project. Round
-GR1 (2026-11-20) folded the Map Inspector into it and retired it: Properties' *All fields* (every field of an object,
+`rust/bc2-editor` is the map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8 - 3.12), in Rust
+with egui on wgpu (Vulkan, DirectX 12 or a software adapter). Its rounds (`ROADMAP.md`, Done): G1 - G3 (2026-11-18)
+the shell, the read-only map view and the Package-only levels; E2 (2026-11-18) and E2b (2026-11-19) editing a map as
+a **map project**; R5 - R5c (2026-11-18 / 19) the game-accurate view; G4 (2026-11-19) the start flow; E3 - E3d
+(2026-11-18 / 20) export as a new multiplayer level of any era and mode, with Install and Uninstall through Project
+OPFOR; GR1 (2026-11-20) the Map Inspector folded in and retired: Properties' *All fields* (every field of an object,
 nested, with its type), the *Links* panel (references, referenced by and event connections, both ways; K draws them
-in the views) and Measure (M).
+in the views) and Measure (M). The editor's exports are built and checked offline; none has been tested in the game
+yet (the user paused in-game tests on 2026-11-20).
 
-**Editing a map (round E2).**
+**The start screen (round G4).** Three paths: **Open project** (a `.mapedit.json`; the recent projects are listed),
+**Edit existing level** (the four sets - BFBC1, BFBC2, Vietnam, WW2 - as cards, then that set's multiplayer maps:
+**Open** views one read-only, **New project** starts a project on it) and **Create level** (from any existing level,
+campaign levels included, whose campaign parts the export's checklist strips; or from a height map - a 16-bit PNG or
+RAW of 1024 / 2048 samples a side, or 1025 / 2049, its size, height range, water level and the set its content
+comes from, recorded in the project; the terrain itself is generated in a later round, E7). **Back** goes up a step.
 
-- **New map from an existing map** (start screen): choose the base map, a name and a folder (default
-  `Documents\BFBC2 Map Projects`); the editor writes `<name>.mapedit.json` there at once and opens it in the
-  **Objects** workspace. **Open a project** takes a project file (or a recent one); its base map loads first. The
-  project is data only - the base level, its partition's sha1, the content profile and the operation log (each
+**Editing a map (rounds E2, E2b).**
+
+- **A project:** a new project gets a name and a folder (default `Documents\BFBC2 Map Projects`); the editor writes
+  `<name>.mapedit.json` there at once and opens it in the **Objects** workspace. Opening a project loads its base
+  map first. The workspaces: View, Objects, Gameplay (flags, spawns, vehicle spawns, objectives and areas only),
+  AI (orders, AI spawns and area points; the navmesh view), and Terrain and Vegetation (their brushes greyed until
+  their rounds). Round E2b added context menus per workspace, edit modes, sinking an object into the surface with
+  Alt+wheel, deep duplicate (what an object owns comes with it), copy and paste, polygon selection, and the
+  **asset browser** over the whole content set with its Spawners and Objectives modes. The project is data only - the base level, its partition's sha1, the content profile and the operation log (each
   operation with who and when, new objects named by UUIDv5 guids) - never game files; the base map is never changed.
   A project whose base level has changed (a game patch, a rebuilt WW2 level) opens with the operations naming
   objects it no longer has listed under Problems; none is dropped.
@@ -153,26 +175,54 @@ The edits are written by `rust/bc2-levelwrite` (levelwrite: one mutation API on 
 changes only its `Transform`, and a delete, duplicate or field set only what it names (proven on MP_005, SP_01 and
 Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.md`, "E2").
 
+**The game-accurate view (rounds R5 - R5c).** "Game-accurate view" (command palette) draws the 3D view as the game
+draws it: DICE's own Direct3D 11 shaders, textures and the level's light, pixel for pixel against the C++ render
+harness. Since R5c it is interactive and editable: edits show at once and picking works in it. Its known gaps (Wake
+Island's black terrain cells, the sky pass, game LODs ...) are round R5d (`ROADMAP.md`).
+
+**Exporting a map (rounds E3 - E3d).** "Export as a multiplayer level" (command palette) opens the Export window:
+
+- **The target:** the era (BFBC1, BFBC2, Vietnam, WW2) and the game mode are project settings, also chosen in the
+  New project form. Only the modes the era's stock levels have are offered (WW2: Conquest; Onslaught and Air
+  Superiority are listed greyed with the reason). Choosing a target brings the donor level's mode layer into the
+  project as ordinary, editable objects (flags, bases, M-COMs per Rush stage, spawns, combat areas) and takes the
+  base's own layer out, as one undo step; "Use selection" moves a flag, base or M-COM with what belongs to it.
+- **The export:** the form (map name, level id, the target) is kept as `<project>.export.json`; its checks run as it
+  changes and Export stays disabled, with the reason, while one fails. Export builds the level on a worker into a
+  stage folder in Project OPFOR's `work\mapedit\` - the level's bundles, its own name and description in every
+  language, its loading and map-list pictures, the target era's kits, teams and announcer voice-over, and what the
+  level needs from other sets' bundles copied into its own (`closure.txt`) - then runs `mapexport check` and shows
+  the report. The same from a command prompt: `bin\mapexport.exe build <project> <export.json> --game <game> --out
+  <stage>` and `bin\mapexport.exe check <stage> --game <game>`.
+- **Install and Uninstall:** "Install..." runs Project OPFOR's `src\tools\mapedit\mapedit_install.py --plan` and shows
+  what an install changes; "Install now" (the game closed) runs `--apply`; "Uninstall..." runs `--revert <LV>`. The
+  editor itself never writes the game copy.
+
+Six canary exports (Aurora as WW2 Conquest with WW2 objects, Atacama Rush as Conquest, Wake Island as BFBC2,
+a Vietnam map as WW2, Valparaiso as Vietnam Squad Deathmatch, Guadalcanal as BFBC2 Rush) pass the check and install
+/ revert on a scratch copy of the game's shared files (`rust/BENCHMARKS.md`, "E3d"). Not yet tested in the game.
+
 **Viewing a map (rounds G1 and G2).**
 
-- **Start screen:** "View a map" lists the game copy's levels (found as the suite finds them: `--opfor`, OPFOR_ROOT,
-  or a `project-opfor-bfbc2` folder beside or above the suite). Click one to open it. A level NavKit has not
+- **Opening a level:** the start screen's levels are the game copy's (found as the suite finds them: `--opfor`,
+  OPFOR_ROOT, or a `project-opfor-bfbc2` folder beside or above the suite). A level NavKit has not
   prepared yet, or whose terrain unpack is missing or older than its bundle, is **prepared first, in the editor**:
   "Preparing MP_005 - Step 2 of 4: Unpacking the level", a progress bar, the tools' last line and Cancel, then the
   map opens. The steps are the suite's own, run by `bin\bfbc2.exe prepare_level` (its Python twin
   `prepare_level.py` was retired in round RT1: the editor needs `python rust\build_native.py`, or `--download`, once):
   NavKit's prepare (the shared bundles, the level's bundles, its
-  objects, collision and spawn points; 10 - 60 s since round E4e) and the Map Inspector's terrain unpack. They write
+  objects, collision and spawn points; 10 - 60 s since round E4e) and the terrain unpack (`level.heightfield_of`'s,
+  once the Map Inspector's). They write
   only OPFOR's `work\levels\<level>` and `work\navkit`, never the game copy; a failure is said in plain words on the
   start screen.
-- **Choose mode (round G3, the user's design):** the start screen opens on four cards - BFBC1, BFBC2, Vietnam, WW2 -
-  each with its installed map count and its own picture, the game's loading screen read from the game copy at run
+- **The set cards (round G3, the user's design; since round G4 behind "Edit existing level", and only multiplayer
+  maps listed):** four cards - BFBC1, BFBC2, Vietnam, WW2 - each with its installed map count and its own picture, the game's loading screen read from the game copy at run
   time (`awards/images/loadingscreens/` in `ondemand_awards-00.fbrb`: DICE's `bc1_oasis`, `mp_005` and `nam_mp_002`,
   OPFOR's converted `wake_island_s` for WW2; a set without it gets a plain tile, a set with no installed map is greyed
-  "Not installed"); "Open a project" and the recent projects below; four in a row, two by two in a narrow window.
-  A card opens that set's maps: "Choose mode" back, the set's name and a search box, a row per map with its picture
+  "Not installed"); four in a row, two by two in a narrow window.
+  A card opens that set's maps: Back, the set's name and a search box, a row per map with its picture
   (`awards/images/levels/<level>.res`), name, game mode (its description's `GameMode`), prepared or not, **Open** and
-  **New project** ("New map from an existing map": the name and folder, then Make the map). The sets come from the
+  **New project** (the name, folder, era and mode). The sets come from the
   levels' data: the `bc1_` maps of `game\Package` (badge BFBC1), the levels loading `nam_common` (Vietnam) or
   `ww2_common` (WW2), every other level BFBC2. No game art is kept in the repository: the pictures are decoded
   once into Project OPFOR BFBC2's `work\editor\art` (`art.json` records the bundles' sizes and times; made again when
@@ -203,7 +253,8 @@ Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.
 - **The window:** docked panels (drag a tab to dock, tab or float it; **Reset layout** puts them back): the Outliner
   (the map by kind and group, searchable, Hide / Show per group), the views, Properties (the selection's type, GUID,
   team, blueprint, source partition and element, transform), Problems, and with a project History and Layers. The
-  top bar has the workspace switcher (View; Objects with a project), the level or project and its content profile
+  top bar has the workspace switcher (View; with a project Objects, Gameplay, AI, and Terrain and Vegetation greyed),
+  the level or project and its content profile
   badge, Save / Undo / Redo, Help and the commands; the theme (Dark or Light) follows
   the suite's design language (`design/project/tokens.json`, IBM Plex fonts). The 3D view draws with its own tokens
   (`scene-*` for the sky, terrain, water and object greys; `view-*` for team, unowned, selection and status colours,
@@ -224,14 +275,14 @@ Run it (Rust as in "The Rust core" below; the first build takes a few minutes):
 (`--editor` builds `bfbc2-editor.exe` and `mapexport.exe` in this checkout's build folder and copies them to the
 suite's `bin\`: "Where Rust builds", below.)
 
-or from the hub: Levels > "Open in Map Editor (preview)", or More tools > "Open Map Editor". Without a display,
+or from the hub: Levels > "Open in Map Editor", or More tools > "Open Map Editor". Without a display,
 `bfbc2-editor.exe <level> --screenshot out.png [--size 1600x950] [--select <guid>] [--theme light]` draws the window
 offscreen and saves it (`--demo` instead of a level: a small made-up scene). The editor keeps its layout, theme and
 bookmarks in eframe's per-user storage under `%APPDATA%`.
 
 Its tests (`python tests\test_editor.py`, quick tier) prove it headless: the theme generated from every token in both
-themes; the outliner against the Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004 (recorded by
-`rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
+themes; the outliner against the retired Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004
+(recorded before its retirement by `rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
 view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
 the command palette opening a top view) and each of the four levels drawn with a flag selected; round GR1's property
 tree, references and referrers against what the Map Inspector showed for 1,074 objects of the same four levels
@@ -249,6 +300,10 @@ where the log put it, and equal DbxEdit's `drop` / `setfield` and the Python `db
 surface placement with sink depths on terrain and on a mesh, the gizmo's maths, and the editing interface driven
 headless (`tests/editing.rs`: click, a 5 m drag on the grid, undo, redo, a 15-degree turn, box selection, duplicate,
 delete, snap to ground sunk 0.5 m and kept on the next move, a layer, save and reopen).
+The later rounds' tests sit beside them: `tests\e2b.rs` and `tests\asset_browser.rs` (E2b), `tests\g3.rs` and
+`tests\g4.rs` (the start screens), `tests\game_view*.rs` (R5 - R5c), and in `rust\bc2-levelwrite\tests` the exports
+(`export_sp01.rs`, `export_e3b.rs`, `export_e3c.rs`, `export_e3d.rs`); each round's figures are in its
+`rust/BENCHMARKS.md` section.
 
 ## The Rust core (required for the core formats, the console converters and NavKit's builds)
 
@@ -299,9 +354,11 @@ and round F2a's ports) run in Python without the module.
 
 **Get it** - either way puts `bc2_native.pyd` and `bc2_native.json` in `core\bfbc2core\`:
 
-- **Download** (no Rust needed): `python rust\build_native.py --download` fetches the module made for this
-  checkout's Rust sources from the suite's GitHub Releases (64-bit Windows, Python 3.12 or later), checks its
-  SHA-256 and its fingerprint, and puts it in place. Each push to `main` that changes `rust\` publishes one
+- **Download** (no Rust needed): `python rust\build_native.py --download` fetches the module and `bin\bfbc2.exe`
+  made for this checkout's Rust sources from the suite's GitHub Releases (64-bit Windows, Python 3.12 or later),
+  checks their SHA-256 and their fingerprint, and puts them in place (a release made before round RT1 has the module
+  only, and the download says so). The map editor and `mapexport.exe` are not in the release: build them
+  (`--editor`). Each push to `main` that changes `rust\` publishes one
   (`.github/workflows/native.yml`: built with the pinned toolchain, the Rust checks and the Python tests without
   game data run first, release `native-<12 hex digits of the fingerprint>`). A checkout with Rust changes of its
   own has no download: build it.
@@ -310,7 +367,8 @@ and round F2a's ports) run in Python without the module.
      Visual Studio's C++ build tools.
   2. `pip install maturin`
   3. `python rust\build_native.py` builds `bc2-py` (release) with maturin and puts the module in
-     `core\bfbc2core\`. `--if-stale` builds only when the module is missing or was made from other sources (and,
+     `core\bfbc2core\`, and builds `bfbc2.exe` into `bin\`; `--editor` builds the map editor and `mapexport.exe`
+     into `bin\`; `--target-dir` prints this checkout's cargo build folder. `--if-stale` builds only when the module is missing or was made from other sources (and,
      without Rust, downloads it instead); `--remove` deletes it; `--fingerprint` prints the checkout's fingerprint.
      A module installed into Python instead (`pip install rust\bc2-py`, `maturin develop`) is used only when it was
      built with `BC2_SOURCE_HASH` set to that fingerprint.
@@ -327,7 +385,7 @@ few milliseconds). A module from other sources is never used silently: the piece
 
 | Crate | What |
 |---|---|
-| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `apt` (the menus' and HUDs' APT movies: constants, `apt.py`'s dump and instruction records, `decode_many` on all cores; round E3n); `aptmodel` (aptgraft's movie model: parse, layouts, writes, leftovers, roundtrip; round E4c) and `aptscan` (aptcheck's rules, aptrefs' scan; round E4c); `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; `cache`, the bundle cache: headers and decompressed payloads kept in the process and on disk; packing, byte for byte as FbrbTool's `pack`: `pack_path` / `pack_dir` / `pack_many`, `pack` from entries in memory; unpacking as FbrbTool's `unpack`: `unpack_path`, plain bundles, the rest left to FbrbTool.exe); `zlib` (zlib's deflate, levels 4-9, ported byte for byte: what FbrbTool's gzip streams hold); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer); `kymesh` (NavKit's runtime mesh record, `kymesh.py`'s `parse_mesh`; round E3o). `shaderdb` (shader databases, PC Dx9 / Dx10 / Dx11 and Xbox 360: every section as slices of the file, a writer; `shaderdb::query`, the logic: parameter blocks' textures / constants / engine textures, program indices, texture kinds, mesh-part meshes, the needed-name test, coverage, `check` with its MD5; round E4b); `culltree` (the element streams of cull trees and level partitions as `culltree.py` reads them; the reference levels' search on all cores); `granny` (Granny skeletons and animations, PC and Xbox 360: the tables, the object tree as `granny.py`'s `root()` has it, DICE's bone table and its renumbering); `dbxedit` (DbxEdit's commands in process - `xml`, `edit` with every edit command and `@file`, `import` with `--like` / `--types`, `check`, `roundtrip`, `fixslots` - a port of `DbxEdit.cs` with its own model of a file that keeps what an edit does not touch byte for byte: DbxEdit's files, messages and exit codes; `run_many` on all cores); round F0's formats, each a port of a Python reader / writer kept as its reference: `hpd` (path data, `hpdtool.py`'s `parse` / `write`), `kymesh::write` (`kymesh.write_mesh`), `loc` (the localized texts and histograms, `bc2loc.py`'s `LocFile`, `decode`, `to_bytes`, `khash`), `stfs` / `xiso` (Xbox 360 content packages and game discs, `stfs.py` / `xiso.py`), `wave` (Frostbite Wave resources and EA's SPS / SNR / SNS stream framing, `audio.py`'s `read_wave`, `write_wave_pc`, `read_sps`, `read_snr`, `write_sps`), `meshdata` (the `MeshData` header and the mesh sets, `mesh.py` / `meshset.py`'s `parse` / `write`), `bigf` (BIGF archives, `menucommon.parse_bigf` / `apt.read_bigf`); `xmlinst` (round F2b: `bfbc2core.xmlinst`'s instance and field-reference scans of DbxEdit's XML); round F3, each beside its Python reference: `aimanim` (generated aim poses, `aimanim.py`'s `parse` / `write` / `to_pc`), `audioframe` (`audio.py`'s `xma_parts`, `xma2_riff` and the EA-XAS blocks of `_xas_stream`), `hpdlayout` (`hpdtool.mesh_layout` / `mesh_coverage`), `havok::Packfile::pointer_fixups` (for `hkpack.Packfile`) |
+| `rust/bc2-formats` | the game's formats in pure Rust, no Python types: `apt` (the menus' and HUDs' APT movies: constants, `apt.py`'s dump and instruction records, `decode_many` on all cores; round E3n); `aptmodel` (aptgraft's movie model: parse, layouts, writes, leftovers, roundtrip; round E4c) and `aptscan` (aptcheck's rules, aptrefs' scan; round E4c); `dbx` (parse, XML, values, writer; `parse_tree`: a compact read-only tree borrowing the file, a few allocations per file; `parse_all` / `parse_tree_all` / `to_xml_all` on all cores); `fbrb` (entries, any entry's data, whole bundles; `read_many` / `extract_many` on all cores; `cache`, the bundle cache: headers and decompressed payloads kept in the process and on disk; packing, byte for byte as FbrbTool's `pack`: `pack_path` / `pack_dir` / `pack_many`, `pack` from entries in memory; unpacking as FbrbTool's `unpack`: `unpack_path`, every bundle since round E3k, FbrbTool's command lines in `fbrb::tool`); `zlib` (zlib's deflate, levels 4-9, ported byte for byte: what FbrbTool's gzip streams hold); `terrain` (height fields: heights bit for bit, exact height at a point, a mesh, the tail's known layout); `water` (water meshes, the shader per triangle); `havok` (packfiles and a blueprint's collision triangles; a small test writer); `kymesh` (NavKit's runtime mesh record, `kymesh.py`'s `parse_mesh`; round E3o). `shaderdb` (shader databases, PC Dx9 / Dx10 / Dx11 and Xbox 360: every section as slices of the file, a writer; `shaderdb::query`, the logic: parameter blocks' textures / constants / engine textures, program indices, texture kinds, mesh-part meshes, the needed-name test, coverage, `check` with its MD5; round E4b; `shaderdb::open`, the opening and dispatch of a database, `pick_database`, `dx_from_name`; round SD1); `culltree` (the element streams of cull trees and level partitions as `culltree.py` reads them; the reference levels' search on all cores); `granny` (Granny skeletons and animations, PC and Xbox 360: the tables, the object tree as `granny.py`'s `root()` has it, DICE's bone table and its renumbering); `dbxedit` (DbxEdit's commands in process - `xml`, `edit` with every edit command and `@file`, `import` with `--like` / `--types`, `check`, `roundtrip`, `fixslots` - a port of `DbxEdit.cs` with its own model of a file that keeps what an edit does not touch byte for byte: DbxEdit's files, messages and exit codes; `run_many` on all cores); round F0's formats, each a port of a Python reader / writer kept as its reference: `hpd` (path data, `hpdtool.py`'s `parse` / `write`), `kymesh::write` (`kymesh.write_mesh`), `loc` (the localized texts and histograms, `bc2loc.py`'s `LocFile`, `decode`, `to_bytes`, `khash`), `stfs` / `xiso` (Xbox 360 content packages and game discs, `stfs.py` / `xiso.py`), `wave` (Frostbite Wave resources and EA's SPS / SNR / SNS stream framing, `audio.py`'s `read_wave`, `write_wave_pc`, `read_sps`, `read_snr`, `write_sps`), `meshdata` (the `MeshData` header and the mesh sets, `mesh.py` / `meshset.py`'s `parse` / `write`), `bigf` (BIGF archives, `menucommon.parse_bigf` / `apt.read_bigf`); `xmlinst` (round F2b: `bfbc2core.xmlinst`'s instance and field-reference scans of DbxEdit's XML); round F3, each beside its Python reference: `aimanim` (generated aim poses, `aimanim.py`'s `parse` / `write` / `to_pc`), `audioframe` (`audio.py`'s `xma_parts`, `xma2_riff` and the EA-XAS blocks of `_xas_stream`), `hpdlayout` (`hpdtool.mesh_layout` / `mesh_coverage`), `havok::Packfile::pointer_fixups` (for `hkpack.Packfile`) |
 | `rust/bc2-stockmp` | the stock-MP AI layer of `bfbc2-stockmp-ai` (round E4a): `model` (`levelmodel.Model`), `author` (the authoring of the AI layer into a level partition, `author.py`, on `bc2_formats::dbx::edit::EditDbx`, the port of `dbxbin.py`), `checks` and `files` (`validate.py`'s readings: the structure, the changes to existing instances, the references into other partitions, the Rush stages, the folder index, the packed bundle against the built files), `guid` (`dbxbin.new_guid`'s UUIDv5); where the reference raises or formats a value the port does not, the port refuses and the Python runs, so a result is always the reference's |
 | `rust/bc2-scene` | a level as the tools see it: `collision` (which packfile each blueprint uses: NavKit's index and mesh aliases in one parallel walk, each alias read from the binary partition - `dbx::field_ref`, the XML's answer without the text - and the converted XML only where the binary cannot answer; `index_cached` keeps each answer in a cache keyed by the files' sizes and times, so an unchanged level is indexed without opening its partitions), `scene` (`level.load`'s entities, blueprints, teams, outlines, collision, terrain and water on all cores; editable entities for the map editor) |
 | `rust/bc2-convert` | the converter pipeline's hot spots: `texture` (console textures to the PC's: the Xenos untiling, the byte swap, DXT5A / RGB565 / A8R8G8B8 decoded; `bfbc2-console-convert/texture.py`'s `convert`, byte-identical on every BF1943 and Onslaught console texture; the Python converter retired 2026-11-17); `audio` (EA-XAS v1, the PC's in-memory sound codec: `bfbc2-console-convert/audio.py`'s encoder and decoder, the same bytes on every BF1943 Wave and every in-memory BFBC2 Xbox Wave; the encoder's search makes the reference's choice with less than half its work, each sound's groups on all cores, `encode_all` many sounds at once; round E3a; its NumPy code retired 2026-11-18); `mesh` (`bfbc2-console-convert/mesh.py`'s `convert` vertex loop: element by element, the packed normals and colour bytes to halves as NumPy rounds them; round E3g) and `havok` (`havok.py`'s `Packfile.convert`, the field walk over the game's class layouts, round E3g; `verify_packfile`, `havok.verify`'s record of each byte's owner, round E3o) - their Python retired 2026-11-18: what they do not convert raises `ConvertError` saying why; `granny` (Xbox 360 Granny resources to the PC's, `granny.py`'s `to_pc` byte for byte, a bone map renumbering DICE's table; `to_pc_all` on all cores; round E3i; its Python retired 2026-11-18, the reader's stays); `dbxport` (BF1943's DBX partitions in BFBC2's schema, `bfbc2-bf1943-import/dbxport.py`'s `port` rule for rule: the template choice with E3d's ranking index, the alignment, the reference resolver, the converters, the value passes and the gate, over trees kept on the Rust side - BFBC2's template partitions and the catalogue's tables parsed or copied once; the same bytes, report lines, records and errors as the Python reference on every real port; round E4d); `mopp`, `havokport`, `emitteratlas`, `dbxcatalogue`, `meshport` (round F2b: `bfbc2-bf1943-import`'s `mopp.py`, `havokport.py`, `emitteratlas.py`, `dbxcatalogue.build` and meshport's layout search, each its reference's answers or a refusal that runs the Python; `pyfmt`: Python's `round`, ties-to-even fixed formatting, compensated float `sum`, a dict's order); `texcheck` (round F0: a PC texture's levels and a level decoded to pixels - DXT1 / DXT3 / DXT5 / BC5 / L8 - `texture.py`'s `levels` / `decode`, whose NumPy stays the reference; `texture.py`'s `tiled` / `packed` / `layout` are bound to `texture`'s own) and `hkclasses` (round F0: `havok.classes`, the Havok class layouts of BFBC2Game.exe); round F2a: `terrain` (`terrain.py`'s console terrain, water, material map, visual terrain / water and their PC readers; `soot.py`), `meshconv` (`mesh.py`'s `console_layouts`, `decode`, `relayout`), `havok::convert_wrapper`, `texcheck::check`, `texwrite` (`bfbc2-model-tools/texwrite.py`: levels, DXT1 with and without 1-bit alpha, DXT5; NumPy's `eigh` gives the axes), `skinmesh` (`skinmesh.py`'s vertex work) and `granny_edit` (`granny.py`'s CRC, `add_tracks`, the `shift_position` / `set_orientations` values), each beside its Python reference |
@@ -335,6 +393,12 @@ few milliseconds). A module from other sources is never used silently: the piece
 | `rust/bc2-shader` | the Xbox 360 shader translator (round E3f): `xenos` (the XDK shader container, its constant table, literals and header, and the Xenos microcode - control flow, ALU and fetch instructions - decoded: `bfbc2-shader-tools/xenos.py`'s `parse_shader`, the same tree attribute for attribute) and `hlsl` (a decoded program as HLSL for the Dx10 / Dx11 renderers: `xenos_hlsl.py`'s `translate`, the same text byte for byte and the same `TranslateError`s); `translate_all` / `translate_blobs` many programs on all cores. Proven on every program of BF1943's and BFBC2's Xbox shader databases (8,320 distinct, 63,305 with copies; 22,863 translations). The decoder's Python stays the reference (a format reader: `xenos.use_native`, `BFBC2_PURE_PYTHON`); the translation's Python was retired 2026-11-18 (any tree handed over: `xenos_tree_program`); `disasm` (round F3: `xenos.disasm`'s listing of a decoded program, line for line; the header comments stay Python's, `disasm_reference` the reference) |
 | `rust/bc2-harness` | the map and bot test harness and the crash-reader tools (round E4f, `rust/BENCHMARKS.md` "E4f"): `oplog` (opfor.log sessions as `testharness.ingame.sessions`, the file read and split on all cores; the crash reader's lines before a crash), `pe` (the exe mapped as pefile maps it), `x86` (32-bit decoding with capstone 5's text and operands on iced-x86: every byte offset of BFBC2Game.exe's code, 16,786,165 starts, decoded identically; an encoding outside that proof is refused and capstone decodes it), `exe` (the crash reader's function starts, code view and call before a return address; exeref's strings, references, data references and annotated window), `graph` (the reachability pair bits, the ground cell index). The Python stays the reference and the fallback (`crash-reader/harnesscore.py`, `BFBC2_HARNESS_PYTHON=1`); `pe::raw` (round F2b: `menucommon.PEImage`'s section table, strings and searches, by file offset) |
 | `rust/bc2-py` | the Python bindings (PyO3), module `bc2_native` |
+| `rust/bc2-cli` | the command-line binary `bfbc2.exe` (rounds O1 - O5): the tools' command lines as subcommands, each its Python command line's port ("bfbc2.exe" below) |
+| `rust/bc2-pyrt` | what the Python command lines show of the Python runtime, for `bc2-cli`'s ports: exceptions and their texts, `repr` / format of values, `ntpath` (round O3) |
+| `rust/bc2-menu` | the menu tools' library (`menucommon`'s pieces) for `bc2-cli` (round O3) |
+| `rust/bc2-editor` | the map editor application, binary `bfbc2-editor.exe` (rounds G1 - G4, E2b, GR1; "The map editor" above); not part of `bc2_native` |
+| `rust/bc2-levelwrite` | the map project's operation log and its edits on a level partition (round E2), the export (`export`, `mpconvert`, `modelayer`, `profile`, `culltree`, `awards`; rounds E3 - E3d) and the binary `mapexport.exe` |
+| `rust/bc2-render` | the editor's game-accurate view: DICE's Direct3D 11 shaders over the level (rounds R5 - R5c) |
 
 **The core formats** (round F1a: their Python retired, the module required): `dbx.parse`, `to_xml`, `parse_many` and
 `to_xml_many` run in Rust and raise `ValueError` (`DeletedEntry` for an empty file) for a file that is not a binary
@@ -393,21 +457,26 @@ kept between calls and checked by identity each call); `block_textures`, `block_
 type, a name that is not latin-1, an index past its section) the Python runs: the `*_reference` functions
 (`entry_textures_reference`, `check_reference` ...) are the reference, `use_native(False)` / `BFBC2_PURE_PYTHON=1`
 turn the handle off (`tests/test_shaderdb_queries.py`). The merge, clone and patch helpers (`Merger`'s records,
-`clone_entry`, `retexture`, `finish`) stay Python, by measurement.
+`clone_entry`, `retexture`, `finish`) stay Python, by measurement. Since round SD1 (2026-11-20) the opening of a
+database too - `ShaderDb.parse`'s choice of byte order and layout and its messages, `pick_database`, `dx_from_name`
+- is one Rust module (`bc2_formats::shaderdb::open`) shared by `shaderdb.py` and `bfbc2.exe shaderdb`, the Python
+kept as the reference and the fallback (`tests\sd1_golden_*.json`).
 NavKit's walkability rules (`headroom`, `stair_slope`, `narrow_lips`, landings, `near_objects` / `on_objects`),
-`build_areas` and `build_graph`'s cell picking (round E2a) work the same way too (`navbuild.use_native`, which turns
-navwalk's rules off as well): their Python stays until they pass a full test tier.
-So does `bfbc2-console-convert/audio.py`'s EA-XAS codec (round E3a: `xas_encode_frames`, `xas_decode_frames`,
-`encode_xas` and the new `encode_xas_many`, all its sounds encoded at once; `audio.use_native`, `audio.backend()`;
-`xas_encode_frames_python` / `xas_decode_frames_python` are the reference). The new `audio.convert_many` converts
-many Waves side by side (ffmpeg's EA-XMA decodes in threads, the encoder without the interpreter).
-So does `bfbc2-shader-tools`' shader translator (round E3f): `xenos.parse_shader` decodes in Rust (its tree's microcode attributes made on their first read), `xenos_hlsl.translate` translates in Rust (the program kept from the decode while the tree's microcode is unread, else the tree handed over), and the new `xenos.parse_many` / `xenos_hlsl.translate_many` take many programs at once on all cores; `parse_shader_python` is the decoder's reference (`xenos.use_native`, `xenos.backend()`); the translation has no Python since 2026-11-18.
+`build_areas` and `build_graph`'s cell picking (round E2a) run in Rust; their Python was retired in round R1
+(2026-11-18, "Without a fallback" below).
 
 `bfbc2-console-convert/audio.py`'s EA-XAS codec runs in Rust (round E3a: `xas_encode_frames`, `xas_decode_frames`,
 `encode_xas` and the new `encode_xas_many`, all its sounds encoded at once; its NumPy reference retired 2026-11-18,
-see "Without a fallback" above). The new `audio.convert_many` converts many Waves side by side (ffmpeg's EA-XMA
-decodes in threads, the encoder without the interpreter).
-So does `bfbc2-shader-tools`' shader translator (round E3f): `xenos.parse_shader` decodes in Rust (its tree's microcode attributes made on their first read), `xenos_hlsl.translate` translates such a tree in Rust while its microcode is unread, and the new `xenos.parse_many` / `xenos_hlsl.translate_many` take many programs at once on all cores; `parse_shader_python` and `translate_python` are the reference (`xenos.use_native`, `xenos.backend()`).
+see "Without a fallback" below). The new `audio.convert_many` converts many Waves side by side (ffmpeg's EA-XMA
+decodes in threads, the encoder without the interpreter). Since round F4 (2026-11-20) `audio.convert` / `decode`
+run in Rust whole, the ffmpeg glue included (`convert_many` without the interpreter's lock), the Python kept as the
+fallback.
+So does `bfbc2-shader-tools`' shader translator (round E3f): `xenos.parse_shader` decodes in Rust (its tree's microcode attributes made on their first read), `xenos_hlsl.translate` translates in Rust (the program kept from the decode while the tree's microcode is unread, else the tree handed over), and the new `xenos.parse_many` / `xenos_hlsl.translate_many` take many programs at once on all cores; `parse_shader_python` is the decoder's reference (`xenos.use_native`, `xenos.backend()`); the translation has no Python since 2026-11-18.
+
+**Round F4** (2026-11-20, `rust/BENCHMARKS.md` "F4": F3's leftovers, each identical to its Python, which stays the
+fallback): `xenos.disasm`'s header lines, `hkpack.Packfile` as a handle (its dicts built only when read;
+`read_object` in Rust), `navsample_offline`'s collision hulls (`asset_bodies`), `meshview`'s part reader, `texqa`'s
+texture readers (WW2 texture QA 212 s -> 134 s) and the cull tree tool's string table.
 
 Round E3g (`rust/BENCHMARKS.md`, "E3g"): `mesh.convert`'s vertex loop and `havok.convert`'s packfile walk run in
 Rust (their Python retired 2026-11-18: what the Rust does not convert raises `ConvertError` saying why); meshport's layout search keeps BFBC2's part signatures,
@@ -541,15 +610,13 @@ core required): `core/tests/test_fbrbtool.py` checks against the exe's recorded 
 228 command lines, 600 damaged bundles, .NET's gzip reader on 3,000 streams; `fbrbtool_golden_game.json`: every
 bundle of the game copy up to 300 MiB unpacked, listed and packed again). NavKit's unpack, `level.heightfield_of`'s
 terrain unpack, the hub's Bundles tab and `bfbc2-stockmp-ai` use it.
-**The command lines in Rust** (round O1, 2026-11-18, crate `rust/bc2-cli`, binary `bin\bfbc2.exe` since round D1).
-`bfbc2 fbrbtool <command> ...` and `bfbc2 dbxedit <command> ...` are `fbrbtool.py` / `dbxedit.py` without Python:
-the same arguments, files, exit codes, log lines and printed bytes (stdout and stderr in the code page and order
-Python's stdio gives them, alone or on one pipe), in about 20 ms instead of about 300 ms per call.
-`python rust\build_native.py` builds it with the module (a download fetches the module only); `bfbc2 --source-hash`
-prints the sources it was built from, and `bfbc2core.native.cli_command('fbrbtool')` gives the binary only while
-that is this checkout's (else the Python command line; `BFBC2_CLI_PYTHON=1` always the Python). The hub's Bundles
-tab runs through it. `core/tests/test_cli_o1.py` checks it against the Python command lines' recorded answers
-(`cli_o1_golden.json`; `--live` both ways, `--game` OPFOR's real calls); `rust/BENCHMARKS.md`, "O1".
+**The command lines in Rust** (rounds O1 - O5, 2026-11-18 / 20, crate `rust/bc2-cli`, binary `bin\bfbc2.exe` since
+round D1): `bfbc2 fbrbtool <command> ...` and `bfbc2 dbxedit <command> ...` were the first (O1), `fbrbtool.py` /
+`dbxedit.py` without Python: the same arguments, files, exit codes, log lines and printed bytes (stdout and stderr in
+the code page and order Python's stdio gives them, alone or on one pipe), in about 20 ms instead of about 300 ms per
+call. Every subcommand since, and how to use them: "bfbc2.exe" below. `core/tests/test_cli_o1.py` checks it against
+the Python command lines' recorded answers (`cli_o1_golden.json`; `--live` both ways, `--game` OPFOR's real calls);
+`rust/BENCHMARKS.md`, "O1".
 **The stock-MP AI layer** (round E4a, 2026-11-18, crate `rust/bc2-stockmp`). `bfbc2-stockmp-ai`'s logic runs in Rust
 with its data kept there: `bc2_formats::dbx::edit::EditDbx` is the port of `dbxbin.py` (a level partition as an arena
 of elements named by handles, edited and written back byte for byte, the string table kept until a string is added);
@@ -635,6 +702,45 @@ drive, instant; cargo goes on using what it built, a few build-script crates may
 everything is built again on the next build. Coverage: `cargo llvm-cov -p bc2-formats -p bc2-scene -p bc2-convert -p bc2-navbuild` (after
 `cargo install cargo-llvm-cov` and `rustup component add llvm-tools-preview`). Timings: `rust\BENCHMARKS.md`.
 
+## bfbc2.exe
+
+`bin\bfbc2.exe` (crate `rust/bc2-cli`, rounds O1 - O5, 2026-11-18 to 11-20) runs the tools' command lines in Rust:
+`bfbc2 <tool> <arguments>` takes the same arguments and gives the same printed output, files, log lines and exit
+codes as `python <the tool's .py> <arguments>`, without starting Python (tens of milliseconds instead of hundreds
+per call; `rust/BENCHMARKS.md`, "O1" - "O5"). `python rust\build_native.py --download` fetches it with the module
+(since round RT1); `python rust\build_native.py` builds both. `bfbc2 --version` prints the suite's version,
+`bfbc2 --source-hash` the Rust sources it was built from; `bfbc2` alone prints the list below.
+
+| Subcommand | The Python command line it ports | Still runs in Python (the binary hands the line to it) |
+|---|---|---|
+| `fbrbtool`, `dbxedit` | `bfbc2-fbrb-tool\fbrbtool.py`, `bfbc2-dbx-tools\dbxedit.py` | nothing |
+| `aptcheck`, `aptrefs`, `bc2loc`, `aptgraft` | `bfbc2-menu-tools\<tool>.py` | damaged movies |
+| `apt`, `stfs`, `xiso` | `bfbc2-console-readers\<tool>\<tool>.py` | damaged files |
+| `exeref`, `crashreader` | `bfbc2-automated-map-and-bot-test-harness\crash-reader\<tool>.py` | another exe's code the Rust decoder does not take (capstone answers) |
+| `convert`, `audio`, `texqa` | `bfbc2-console-convert\<tool>.py` | damaged input; texqa's contact sheets (PIL) |
+| `aimanim` | `bfbc2-anim-tools\aimanim.py` | damaged files |
+| `hpdtool`, `hkpack`, `levelobjects`, `ladders`, `ordercheck`, `navcompare`, `hpdcheck`, `detailed` | `bfbc2-auto-navkit\tools\<tool>.py` | refused inputs; `detailed --score` |
+| `navkit` | `bfbc2-auto-navkit\navkit.py` | `build`, `apply`, `all` and `sample` (`prepare`, `check`, `compare`, `status` are Rust) |
+| `navparity`, `navregress`, `hpdview`, `sample_all` | `bfbc2-auto-navkit\tools\<tool>.py` | their real work (the regression builds, matplotlib drawings, starting the game); Rust checks the arguments |
+| `graphstats`, `prepare_level` | `graphstats.py`, `rust\bc2-editor\prepare_level.py` (both **retired**, round RT1) | nothing: a line the port does not read ends with an error naming the retirement (exit code 1) |
+| `harness` | `bfbc2-automated-map-and-bot-test-harness\harness.py` | `run` (NavKit builds, NumPy drawings) |
+| `caches` | `core\bfbc2core\caches.py` (`python -m bfbc2core.caches`) | nothing on real use |
+| `stockmp` | `bfbc2-stockmp-ai\stockmp.py` | hand-written configuration shapes the port leaves |
+| `culltree` | `bfbc2-culltree\culltree.py` | damaged trees or levels |
+| `meshview`, `dbxcatalogue`, `dbxparity`, `portparity`, `bf1943import` | `bfbc2-mesh-viewer\meshview.py`, `bfbc2-bf1943-import\<tool>.py` | the drawings, the parity runs, the catalogue's cache build, `bf1943import import` / `check` (Rust answers help, `list`, `find` and a current cache) |
+| `shaderdb`, `renderqa`, `xdiff` | `bfbc2-shader-tools\<tool>.py` | renderqa's and xdiff's drawing (Direct3D 11, NumPy, Pillow; Rust checks the arguments); `shaderdb` is Rust end to end, `merge` included |
+
+In a console (or with `COLUMNS` set) the `--help` screens and argument errors of `caches`, `convert`, `audio`,
+`shaderdb`, `renderqa`, `xdiff`, `dbxparity`, `portparity` and `texqa` are handed to the Python too (argparse wraps
+to the console's width; the port answers the 80-column form). The full inventory: `rust/BENCHMARKS.md`, "RT1".
+
+**Which one runs.** The suite's tools, the hub and Project OPFOR's scripts ask `bfbc2core.native.cli_command(tool)`:
+`[bin\bfbc2.exe, tool]` while the binary was built from this checkout's Rust sources (its `--source-hash` is the
+checkout's fingerprint), else `[python, the tool's .py]`. `BFBC2_CLI_PYTHON=1` asks for the Python every time, except
+for the retired command lines (`bfbc2core.native.RETIRED_CLI`: `graphstats`, `prepare_level`), which have only the
+binary: without it `cli_command` raises `CliMissing` saying to run `python rust\build_native.py --download` or build
+it. The `.py` files of the other tools stay: most are also libraries other modules import.
+
 ## The application icon
 
 The suite's programs show one icon: `bfbc2.exe`, `bfbc2-editor.exe` and `mapexport.exe` carry it as a Windows
@@ -663,7 +769,7 @@ The tools keep what is slow to make again on disk. Every cache is only a cache: 
 from other inputs (other code, another compiler, a changed bundle) is made again, never an error, so any of them can
 be deleted at any time, also while tools run. Round E3p (2026-11-17) gave the shared ones under
 `%LOCALAPPDATA%\bfbc2-tool-suite\cache` a size cap each, the least recently used files deleted first, and one
-command to see and clear them:
+command to see and clear them (`bin\bfbc2.exe caches ...` takes the same arguments without Python, round O3):
 
 ```
 cd core
@@ -704,7 +810,7 @@ development PC on 2026-11-17, mid-way through a WW2 rebuild):
 | `fbrb` | `<bundle id>.payload`, `.seen` markers | the bundle's canonical path, size, modification and creation times | `fbrb.read` / `read_many` with the Rust core (E3e) | `BFBC2_FBRB_CACHE` (`BFBC2_FBRB_CACHE_MIN_MB` 8: smaller bundles never go to disk) | `BFBC2_FBRB_CACHE_GB`, default 16; LRU by the Rust core after each write; markers after 30 days | 12 GB, 117 payloads |
 | `collision` | `aliases-<hash of the data folder>.bin` | one file per data folder; each XML file's and `.dbx`'s size and modification time inside | `collision.index`, `level.load` (Rust index, E1e) | `BFBC2_COLLISION_CACHE` | `BFBC2_COLLISION_CACHE_MB`, default 256; LRU (E3p; a reuse now marks the file) | 24 MB, 81 files (temp folders of test runs included) |
 | `effectport` | `emitters-<24 hex>.pkl` | the emitter documents' places and their bundles' paths, sizes and times, `INDEX_VERSION` | `effectport.EmitterIndex` (E3g) | `BFBC2_EFFECTPORT_CACHE` | `BFBC2_EFFECTPORT_CACHE_MB`, default 256; LRU (E3p) | 3.8 MB, 1 file per game copy |
-| `culltree` | `<sha1 of the level file's path>.pkl` | the code (`CACHE_VERSION`, a hash of `culltree.py`), the level file's size and time; each tree's inside | `culltree` `ref_rows` (E3m) | `BFBC2_CULLTREE_CACHE` | `BFBC2_CULLTREE_CACHE_MB`, default 2048; LRU (E3p) | one file per reference level partition (none yet on this PC) |
+| `culltree` | `<sha1 of the level file's path>.pkl` | the code (`CACHE_VERSION`, a hash of `culltree.py`), the level file's size and time; each tree's inside | `culltree` `ref_rows` (E3m); `bfbc2.exe culltree` shares it (round CT1: either side's warmed cache serves both) | `BFBC2_CULLTREE_CACHE` | `BFBC2_CULLTREE_CACHE_MB`, default 2048; LRU (E3p) | one file per reference level partition |
 | `bf1943source` | `<sha1 of the source folder>.pkl` | `INDEX_VERSION`, the BF1943 bundle reader's own source (`fbrb1943.py`'s SHA-1); per bundle its size and modification time | `bf1943import.Source` (E3r): which bundles `fbrb1943` takes, their entries and where each payload starts | `BF1943_SOURCE_INDEX` | `BF1943_SOURCE_INDEX_MB`, default 64; LRU | 3.2 MB, one file per BF1943 copy |
 | `shadercover` | `<24 hex>.pkl` per level bundle and Dx | SHA-1 of `COVER_VERSION`, the bundle's path, size and modification time, the Dx | `shaderdb.level_cover_prefixes` / `level_coverage` / `donor_levels` (S1): each level database's entry-name prefixes and their counts (`coverage` without loading the database) | `BFBC2_SHADERCOVER_CACHE` | `BFBC2_SHADERCOVER_CACHE_MB`, default 64; LRU | 27 MB, 79 files (every stock level's Dx9) |
 
@@ -763,7 +869,7 @@ input; they are small next to the path data caches capped above.
 ```
 python run_tests.py quick      before every commit: no game data, about a minute
 python run_tests.py game       before every push: uses Project OPFOR BFBC2's game copy, about 10 minutes
-python run_tests.py full       after changing a format reader: every unpacked file and NavKit's regression on all 15 levels, about 8 hours
+python run_tests.py full       after changing a format reader: every unpacked file and NavKit's regression on all 15 levels, about 5 hours with -j 2
 python run_tests.py --list     what each tier runs;   --only <name> runs the tests whose name contains it
 python run_tests.py game -j 8  tests side by side, 8 at a time (the default: half the CPU threads, at most 8)
 python run_tests.py game -j 1  one after another in the listed order, as before 2026-11-17
@@ -783,7 +889,8 @@ an estimate of its peak memory in GB (`mem`), and the shared things it reads or 
 OPFOR's `work\navkit\regress` (the regression test rewrites it; the apply, links, Studio, viewer and harness tests
 read it), every `pathdata.hpd` under `work\` (hpdtool reads them, the vehicle test rewrites one), the Navigation
 Studio cache, `work\navkit\sp_004_b`, the suite's `build\` folder (shaderview.exe, renderqa's pickles), a window on
-the desktop, `DbxTests.exe` and `rust\target`. A writer never runs beside a reader or another writer of the same
+the desktop, `DbxTests.exe` and the checkout's cargo build folder with `bin\` (`cargo`; `rust-targets\<checkout>`
+since round D1). A writer never runs beside a reader or another writer of the same
 thing, and tests that share a thing keep their listed order, so each sees it as a one-at-a-time run did. The build
 steps (Rust core, DbxEditGUI, LevelDiff) run first, alone, before any test, since nearly every test loads
 what they build. The runner starts a test while a slot, the CPU threads (`--cpus`, default all) and the memory
@@ -799,7 +906,8 @@ its processes, measured with a Windows job object) in `%LOCALAPPDATA%\bfbc2-tool
 run starts the longest first, and `--plan` uses them (`--times <log or json>` for others; `tests\test_durations.json`
 seeds a PC that has none). `tests/test_runner_parallel.py` (quick) checks the scheduler itself.
 
-The quick tier has 84 tests (2026-11-17). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
+The quick tier has 127 entries, the game tier those and 103 more, the full tier 5 more again (235; `--list`,
+2026-11-20; round RT1 ran the full tier, then 232 entries, in 5 h with `-j 2`: 232 of 232 passed). It includes the Rust core's checks (skipped without Rust), ruff and mypy over every folder (`tests/test_lint.py`,
 `tests/test_types.py`; settings in `pyproject.toml`), the path finder on a stand-in tree, the converter units, the
 dbxport rules and the emitter atlas. A test that needs game data the machine lacks is skipped and says so. The table
 lists a selection; `--list` gives every test.
