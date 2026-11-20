@@ -314,68 +314,18 @@ pub fn bundle_databases(path: &str) -> PyResult<Vec<(String, String)>> {
 
 /// `dx_from_name(path)`: `dx9` / `dx10` / `dx11` in the file name (any case).
 pub fn dx_from_name(path: &str) -> Option<u32> {
-    let base = pyos::basename(path).ok()?.to_ascii_lowercase();
-    let b = base.as_bytes();
-    for i in 0..b.len().saturating_sub(2) {
-        if b[i] == b'd' && b[i + 1] == b'x' {
-            let rest = &b[i + 2..];
-            if rest.first() == Some(&b'9') {
-                return Some(9);
-            }
-            if rest.starts_with(b"10") {
-                return Some(10);
-            }
-            if rest.starts_with(b"11") {
-                return Some(11);
-            }
-        }
-    }
-    None
+    shaderdb::open::dx_in_name(&pyos::basename(path).ok()?)
 }
 
-/// `pick_database(path, dx, entry)`.
+/// `pick_database(path, dx, entry)` (`bc2_formats::shaderdb::open::pick_database`; a name past latin-1: the Python).
 fn pick_database(path: &str, dx: u32, entry: Option<&str>) -> PyResult<String> {
-    let want = format!("dx{dx}shaderdatabase");
-    let dbs: Vec<String> = bundle_databases(path)?
-        .into_iter()
-        .filter(|(_, t)| t.to_ascii_lowercase() == want)
-        .map(|(n, _)| n)
-        .collect();
-    if let Some(entry) = entry {
-        let e = lower_or_py(entry)?;
-        let folder = format!("{}/", e.trim_end_matches('/'));
-        let hit: Vec<&String> = dbs
-            .iter()
-            .filter(|n| {
-                let l = n.to_ascii_lowercase();
-                l == e || l.starts_with(&folder)
-            })
-            .collect();
-        if hit.len() != 1 {
-            return Err(shader_error(format!(
-                "{path} has {} Dx{dx} shader databases matching {entry}: {}",
-                hit.len(),
-                dbs.join(", ")
-            )));
-        }
-        return Ok(hit[0].clone());
+    let dbs = bundle_databases(path)?;
+    let folder = pyos::basename(&pyos::dirname(path)?)?;
+    match shaderdb::open::pick_database(path, &dbs, dx, entry, &folder) {
+        Some(Ok(name)) => Ok(name),
+        Some(Err(msg)) => Err(shader_error(msg)),
+        None => Err(Fail::Python),
     }
-    if dbs.len() == 1 {
-        return Ok(dbs[0].clone());
-    }
-    let lv = lower_or_py(&pyos::basename(&pyos::dirname(path)?)?)?;
-    let own: Vec<&String> = dbs
-        .iter()
-        .filter(|n| n.to_ascii_lowercase().starts_with(&format!("levels/{lv}/shaders/")))
-        .collect();
-    if own.len() == 1 {
-        return Ok(own[0].clone());
-    }
-    Err(shader_error(format!(
-        "{path} has {} Dx{dx} shader databases; name one (<bundle>:<entry>): {}",
-        dbs.len(),
-        dbs.join(", ")
-    )))
 }
 
 /// A database's file read and its kind decided, as `load` gives it: parse it with [`Loaded::db`].
@@ -405,32 +355,12 @@ impl Loaded {
     }
 }
 
-/// `ShaderDb.parse(data, dx, where)`: (the layout it parsed as, big-endian) or its `ShaderDbError`.
+/// `ShaderDb.parse(data, dx, where)`: (the layout it parsed as, big-endian) or its `ShaderDbError`
+/// (`bc2_formats::shaderdb::open::open`).
 pub fn parse_kind(data: &[u8], dx: Option<u32>, place: &str) -> PyResult<(u32, bool)> {
-    if data.len() < 9 {
-        return Err(shader_error(format!("{place} is not a shader database (too short)")));
-    }
-    if shaderdb::is_big_endian(data) {
-        let d = dx.unwrap_or(9);
-        return match shaderdb::parse(data, d, true) {
-            Ok(_) => Ok((d, true)),
-            Err(e) => Err(shader_error(format!(
-                "{place} is not a shader database this tool reads (as Xbox 360: {place}: {e})"
-            ))),
-        };
-    }
-    let layouts: Vec<u32> = dx.map_or_else(|| vec![9, 10], |d| vec![d]);
-    let mut errors = Vec::new();
-    for d in layouts {
-        match shaderdb::parse(data, d, false) {
-            Ok(_) => return Ok((d, false)),
-            Err(e) => errors.push(format!("as Dx{d}: {place}: {e}")),
-        }
-    }
-    Err(shader_error(format!(
-        "{place} is not a shader database this tool reads ({})",
-        errors.join("; ")
-    )))
+    shaderdb::open::open(data, dx, None, place)
+        .map(|o| (o.dx, o.big_endian))
+        .map_err(shader_error)
 }
 
 /// `resolve(spec, dx, opfor)`: (bytes, label, dx).
