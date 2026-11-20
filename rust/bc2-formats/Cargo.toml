@@ -12,6 +12,8 @@ repository.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
 flate2.workspace = true
+# culltree::contains: the level mark searched with memmem (round CT1)
+memchr.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

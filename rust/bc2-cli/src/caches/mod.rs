@@ -173,6 +173,26 @@ fn prune(top: &str, cap_bytes: u64, s: &Spec) -> PyResult<Done> {
     .map_err(|_| Fail::Python)
 }
 
+/// `maybe_prune(name, top)` after a tool wrote to its cache (round CT1: culltree's row cache): the folder pruned to
+/// the cache's cap unless its `.pruned` stamp says it was in the last 15 minutes, then the overall budget
+/// (`maybe_prune_total`, once per process). Never fails: a cache that cannot be pruned is only bigger.
+#[cfg_attr(
+    not(feature = "cull"),
+    allow(dead_code, reason = "the cull group's row cache is its only user")
+)]
+pub fn maybe_prune(name: &str, top: &str) {
+    let Some(s) = spec(name) else { return };
+    if !isdir(top) {
+        return;
+    }
+    let stamp = join(top, &[STAMP]);
+    if fsx::stat(&stamp).is_ok_and(|st| fsx::now() - st.mtime < budget::PRUNE_EVERY) {
+        return;
+    }
+    let _ = prune(top, cap(s), s);
+    budget::after_bundle_read();
+}
+
 /// `clear(top, suffixes, markers)`.
 fn clear(top: &str, s: &Spec) -> PyResult<Done> {
     if !isdir(top) {

@@ -1,0 +1,308 @@
+# Terrain: TerrainHeightfield, TerrainMaterialMap, VisualTerrain, Terrain
+
+A level's terrain lives in its `terrain-00.fbrb` as four resource types: the height field (one main block and,
+on some levels, a ring of sub-terrain blocks), the material map (which physics material each terrain cell has),
+the visual terrain (roads, the patch shaders and the patch maps that place the mask tiles) and a zero-byte
+`Terrain` entry. Water (`WaterMesh`, `VisualWater`, in the same bundle) is in [water.md](water.md).
+
+All PC values are little-endian; the Xbox 360 and BF1943 files are big-endian with the same grammar unless a rule
+says otherwise. The suite reads the PC files (`rust/bc2-formats/src/terrain.rs`, `rust/bc2-render/src/terrain.rs`)
+and converts the Xbox 360 / BF1943 ones to them (`rust/bc2-convert/src/terrain.rs`, the reference grammar in
+`bfbc2-console-convert/terrain.py`'s docstring).
+
+Counts below are of the game copy (2026-11-19): 527 TerrainHeightfield, 53 TerrainMaterialMap, 97 VisualTerrain,
+53 Terrain entries with data or markers, all in `terrain-00.fbrb` bundles.
+
+## 1. Names and bundles
+
+### TERR-NAME-1: Terrain resources live in the level's terrain bundle
+
+Status: **observed**
+
+Every TerrainHeightfield, TerrainMaterialMap, VisualTerrain, WaterMesh and VisualWater entry with data is in a
+bundle named `terrain-00.fbrb` (the level's own, or a shared `_common` level's). Names follow
+`Terrains/<Terrain>/<Terrain>.Heightfield-<nnn>.res` (block `000` the main block, `001` ... the sub-terrains),
+`<Terrain>.Visual.res`, `<Terrain>.Water.Mesh.res`, `<Terrain>.Water.res`; the material map is a plain `.res`.
+
+[data: game copy: 527 / 527 heightfields, 53 / 53 material maps, 97 / 97 visual terrains, 53 water meshes and 52 visual waters, all in terrain-00.fbrb; heightfield suffixes -000 (71 files) to -036]
+[doc: rust/bc2-formats/src/terrain.rs:1-3]
+
+### TERR-NAME-2: The Terrain entry has no data
+
+Status: **observed**
+
+Every entry of type `Terrain` is zero bytes long (but is not a `*deleted*` marker: its type is `Terrain`). The
+terrain's settings are in the level's DBX partitions; this entry only names the resource.
+
+[data: game copy: 53 Terrain entries, 53 of them 0 bytes, type Terrain, name `<Terrain>.res`]
+
+## 2. TerrainHeightfield
+
+### TERR-HF-1: Header layout
+
+Status: **verified** · Variants: PC
+
+| Offset | Type | Field |
+|---|---|---|
+| 0x00 | 6 x f32 | world bounds: min x, y, z, max x, y, z |
+| 0x18 | u32 | n: samples per side, a power of two |
+| 0x1C | u32 | log2(n) - 3 |
+| 0x20 | u32 | log2(n) - 2 on a main block; 0 on a sub-terrain |
+| 0x24 | u16 | 0 |
+| 0x26 | u16 | n / 256 on a main block (0 on a sub-terrain) |
+| 0x28 | u32 | 0 |
+| 0x2C | u8 | 0 |
+| 0x2D | u32 | A: length in bytes of the tail's first section (0 on a sub-terrain) |
+| 0x31 | n x n u16 | the heights (TERR-HF-2) |
+
+The header is 49 bytes (0x31); a file shorter than that, or whose n is 0, not a power of two or larger than the
+file holds, is not a height field.
+
+[code: rust/bc2-formats/src/terrain.rs:163-195]
+[test: rust/bc2-formats/src/terrain.rs::refuses_what_the_reference_refuses]
+[test: rust/bc2-formats/src/terrain.rs::tails]
+[test: core/tests/test_geometry_native.py::main]
+[data: game copy: 527 height fields, header words (n, 0x1C, 0x20, 0x24, 0x26, 0x28, 0x2C) = (64, 3, 0, 0, 0, 0, 0) x 312, (128, 4, 0, 0, 0, 0, 0) x 132, (256, 5, 0, 0, 0, 0, 0) x 12, (1024, 7, 8, 0, 4, 0, 0) x 26, (2048, 8, 9, 0, 8, 0, 0) x 41; 4 exceptions in TERR-HF-6]
+
+### TERR-HF-2: Heights
+
+Status: **verified** · Variants: PC, Xbox 360, BF1943
+
+The heights are n x n u16 values, row by row: rows run along z, columns along x (sample (i, j) is value
+`j * n + i`). A value v is the height `min y + v * ((max y - min y) / 65535)`. The grid spacing is
+`(max x - min x) / n` along x and `(max z - min z) / n` along z: the bounds span n squares, not n - 1.
+
+The suite computes the height in f64 and rounds to f32 (its retired NumPy reference, bit for bit).
+
+[code: rust/bc2-formats/src/terrain.rs:220-251]
+[test: rust/bc2-formats/src/terrain.rs::heights_mesh_and_lookup]
+[test: core/tests/test_terrain.py::check]
+[data: game copy: grid squares of 1 m on all 71 main blocks; 4, 8, 16, 32, 64 and 128 m on sub-terrains]
+
+### TERR-HF-3: Triangulation along the (i, j)-(i+1, j+1) diagonal
+
+Status: **verified**
+
+Each grid square is split along its (i, j)-(i+1, j+1) diagonal; the height at a point inside it is linear on the
+half it falls in. The suite's terrain matches the game's in-game samples within 0.1 m on at least 99.97 % of
+samples per level only with this split.
+
+[code: rust/bc2-formats/src/terrain.rs:257-278]
+[test: core/tests/test_terrain.py::check]
+[doc: DESIGN.md:503]
+
+### TERR-HF-4: Main block tail: offsets, first section, fixed part
+
+Status: **verified** · Variants: PC, Xbox 360, BF1943
+
+On a main block (n = 1024 or 2048) the heights are followed by:
+
+| Part | Size | Content |
+|---|---|---|
+| offsets | n x u32 | offsets, in u16 units, into the first section |
+| first section | A bytes (header 0x2D) | u16 values (not decoded) |
+| fixed part | 62,474 bytes at n = 1024; 256,012 at n = 2048 | u16 values (not decoded) |
+
+The file ends exactly there. A tail of another length is kept as unknown bytes.
+
+[code: rust/bc2-formats/src/terrain.rs:198-216]
+[code: rust/bc2-formats/src/terrain.rs:61]
+[test: rust/bc2-formats/src/terrain.rs::tails]
+[data: game copy: 71 of 71 main blocks (26 at 1024, 45 at 2048) have exactly this tail]
+
+### TERR-HF-5: Sub-terrain tail: a min / max quadtree
+
+Status: **verified** · Variants: PC, Xbox 360, BF1943
+
+A sub-terrain block (the ring of `Heightfield-001` and up around the main block) has A = 0, header word 0x20 = 0,
+and after its heights a min / max quadtree of 16-sample cells: (min u16, max u16) per node, the root first, then
+each level's nodes, `1 + 4 + ... + (n / 16)^2` nodes (21 at n = 64, 85 at 128, 341 at 256). The file ends there.
+
+[code: rust/bc2-formats/src/terrain.rs:152-155]
+[code: rust/bc2-formats/src/terrain.rs:211-214]
+[test: rust/bc2-formats/src/terrain.rs::tails]
+[data: game copy: 456 of 456 sub-terrain blocks (312 at n = 64, 132 at 128, 12 at 256) have exactly this tail]
+
+### TERR-HF-6: Header values outside the usual pattern
+
+Status: **observed**
+
+Four main blocks of the game copy depart from TERR-HF-1's 0x24 / 0x26 values: three 2048 blocks have 0x24 = 1, one
+has 0x26 = 16 (not n / 256 = 8). The suite's reader does not depend on these words; what the game does with them
+is not known (Open questions).
+
+[data: game copy: (2048, 8, 9, 1, 8, 0, 0) x 3, (2048, 8, 9, 0, 16, 0, 0) x 1]
+
+### TERR-HF-7: Xbox 360 height field
+
+Status: **verified** · Variants: Xbox 360
+
+The Xbox 360 height field has the PC layout big-endian: each field is swapped by its width (f32 / u32 by 4, u16 by
+2, the byte at 0x2C as it is). The Xbox sub-terrains have 128 samples where DICE's PC copies of the same level have
+64. The converter checks that A equals the tail's real first-section length.
+
+[code: rust/bc2-convert/src/terrain.rs:146-188]
+[code: rust/bc2-convert/src/terrain.rs:114-139]
+[test: bfbc2-console-convert/tests/test_terrain.py::main]
+[test: bfbc2-console-convert/tests/test_console_f2a_native.py::quick]
+[data: BFBC2's Xbox / PC twins: the converted Xbox height field equals the PC file byte for byte on 7 levels; on 13 others the heights differ where DICE edited the PC terrain, the structure is the same]
+
+### TERR-HF-8: BF1943 height field header
+
+Status: **verified** · Variants: BF1943
+
+BF1943's height field header has no A field: the heights start at 0x2D, not 0x31. Its 0x28 and 0x2C hold other
+values than BFBC2's (Wake Island: 707 and 0x40). Converting to BFBC2 computes A from the tail and writes 0x28 and
+0x2C as BFBC2 has them (0). The tails are the same grammar (the fixed part's last block holds 4,098 values in both
+games).
+
+[code: rust/bc2-convert/src/terrain.rs:154-182]
+[test: bfbc2-console-convert/tests/test_console_f2a_native.py::heightfield_x]
+[doc: bfbc2-console-convert/terrain.py:24-26]
+
+## 3. TerrainMaterialMap
+
+### TERR-MM-1: Layout
+
+Status: **verified** · Variants: PC, Xbox 360, BF1943
+
+| Part | Type | Content |
+|---|---|---|
+| width | u32 | 2048 or 4096 |
+| block count b | u16 | 32 or 128 |
+| b blocks | u32 length, length bytes, 256 x u16 | the material data (bytes as they are) and a 256-entry u16 table |
+| names | u32 length, length bytes, to the end of the file | the material names, NUL-separated |
+
+The names section ends exactly at the end of the file. The Xbox 360 file swaps the u32 / u16 fields and the
+256-entry tables; the data bytes and names are the same on both.
+
+[code: rust/bc2-convert/src/terrain.rs:208-240]
+[code: rust/bc2-convert/src/terrain.rs:246]
+[test: bfbc2-console-convert/tests/test_console_f2a_native.py::material_map_x]
+[test: bfbc2-console-convert/tests/test_terrain.py::main]
+[data: game copy: (width, blocks) = (4096, 128) x 41, (2048, 32) x 12; all 20 BFBC2 Xbox / PC twin levels convert byte for byte; BF1943's Wake Island, Iwo Jima, Guadalcanal read the same way]
+
+## 4. VisualTerrain
+
+### TERR-VT-1: Layout
+
+Status: **verified** · Variants: PC, Xbox 360, BF1943
+
+Strings are NUL-terminated.
+
+| Part | Content |
+|---|---|
+| u32 N | terrain blocks: 1, or the main block and its ring of sub-terrains (1 + 12k) |
+| 2N road blocks | each block's full-detail roads, then each block's low-detail roads (TERR-VT-2) |
+| u32 m, m patch shaders | TERR-VT-3 |
+| u32 N, N patch maps | TERR-VT-4; the count must equal the first N |
+
+The file ends exactly after the last patch map.
+
+[code: rust/bc2-render/src/terrain.rs:164-275]
+[code: rust/bc2-convert/src/terrain.rs:396-468]
+[test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
+[test: bfbc2-console-convert/tests/test_terrain.py::visual_terrain]
+[data: game copy: 97 visual terrains, N = 1 x 43, 13 x 43, 25 x 6, 37 x 4, 49 x 1]
+
+### TERR-VT-2: Road blocks
+
+Status: **verified** · Variants: PC, Xbox 360
+
+A road block: u32 n strips, each (shader, second shader, mask shader strings; u32 first index; u32 triangles;
+6 x f32 bounds; u32 layer 0-7), then u32 V vertices, u32 vertex bytes (must equal 28 V), u32 I indices; V
+vertices of 28 bytes (5 x f32, 4 x f16); I x u32 indices. An empty block is 16 bytes.
+
+[code: rust/bc2-render/src/terrain.rs:164-205]
+[test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
+[test: bfbc2-console-convert/tests/test_console_f2a_native.py::visual_terrain_x]
+
+### TERR-VT-3: Patch shaders
+
+Status: **verified** · Variants: PC, Xbox 360
+
+A patch shader: its patch mask shader entry name, its undergrowth mask shader name (may be empty), u32 layer
+count (2-6), u32 tiled-mask count, u32 g groups, each u32 k meshes of (mesh name, u8 0, shader name, 12 x f32,
+u8 1, u8 0).
+
+A layer is either **tiled** (it reads a mask-atlas tile; the tiled count says how many) or a **rule** layer (base,
+slope, destruction, sea floor: computed, no tile).
+
+[code: rust/bc2-render/src/terrain.rs:206-224]
+[test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
+[doc: rust/bc2-render/src/terrain.rs:1-15]
+
+### TERR-VT-4: Patch maps
+
+Status: **verified** · Variants: PC, Xbox 360
+
+One patch map per terrain block:
+
+| Part | Content |
+|---|---|
+| bounds | 6 x f32 |
+| header | 5 x u32: tile size (66), border (1), tiles per row - 1, rows - 1, W cells per side |
+| tiles | W x W cells x 4 x u16: the cell's mask-atlas tiles |
+| flags | W x W cells x 4 x u8: per mask, non-zero (8) where the mask is tiled |
+| shader map | u32 S, then S x S u8: each cell's patch shader index |
+| names | the block's height field name, the mask-tile atlas name |
+
+Cells run row by row with rows along z. A cell's tiled-mask count equals its non-zero flags. W is 128 or 64 for a
+main block, 8 (Xbox 360) or 4 (PC) for a sub-terrain.
+
+[code: rust/bc2-render/src/terrain.rs:225-268]
+[test: rust/bc2-render/src/terrain.rs::a_minimal_visual_terrain_reads]
+[data: MP_005: header (66, 1, 15, 7, 128); its 16,384 cells' tiled counts equal their non-zero flags]
+
+### TERR-VT-5: Tiled layers must match the mask atlas's layout
+
+Status: **observed**
+
+The patch map's header gives the mask atlas's size in 64-pixel tiles minus one (15, 7: a 1024 x 512 atlas). A level
+must draw its patch shaders with an atlas of that layout: patch shaders cloned from a donor level whose atlas has
+another layout (2048 x 1024 on a 1024 x 512 level) draw every tiled cell near the camera black. A donor must also
+have the same tiled count and the same first-layer tiled-ness. Atlas contents, header flags (0 / 2), tile
+resolution bytes and `heightmapWorldScaleY` (always 500, set by the engine) were ruled out as the cause.
+
+[data: OPFOR's Wake Island conversion 2026-11-07: an Oasis-layout donor drew black tiled cells, an MP_009-layout donor (1024 x 512) drew correctly]
+[inferred: the tile index in each cell is resolved against the atlas's tiles per row and rows, so another layout addresses other tiles]
+
+### TERR-VT-6: PC and Xbox 360 visual terrain differ only where DICE edited the PC
+
+Status: **verified** · Variants: PC, Xbox 360
+
+The converted Xbox visual terrain equals the PC file byte for byte on MP_003, MP_005 and MP_005SR; elsewhere every
+part equals it but DICE's PC edits (rebuilt roads with patches reordered on MP_001, MP_004, MP_006, MP_008,
+MP_012; MP_008's patch shaders; the sub-terrain patch maps, 4 x 4 on the PC against the Xbox's 8 x 8). The
+converter keeps the Xbox's 8 x 8 sub-terrain maps, which match the Xbox's 128-sample sub-terrain height fields.
+
+[code: rust/bc2-convert/src/terrain.rs:461-468]
+[test: bfbc2-console-convert/tests/test_terrain.py::visual_terrain]
+
+## 5. The other terrain-family resources
+
+### TERR-SOOT-1: SootMesh converts by the same rules
+
+Status: **verified** · Variants: Xbox 360, BF1943
+
+The Xbox 360 `SootMesh` converts to the PC by swapping its fields by width (the converter's `soot_mesh`); an empty
+soot mesh is the 16-byte header alone. Its full grammar is not part of this file (the mesh family's file).
+
+[code: rust/bc2-convert/src/terrain.rs:645]
+[test: rust/bc2-convert/src/terrain.rs::empty_soot]
+[test: bfbc2-console-convert/tests/test_soot.py::main]
+
+## Open questions
+
+- What the main block's tail sections hold (the n offsets, the first section, the fixed part): presumably the
+  height field's compressed LOD / error data; the suite keeps them as they are and never writes a new one from
+  scratch. A new terrain of another size would need them decoded.
+- Header words 0x24 (= 1 on three blocks) and 0x26 (= 16 on one 2048 block): what the game reads them as.
+- Whether the game accepts main block sizes other than 1024 / 2048 (the converter refuses them; 256-sample blocks
+  exist only as sub-terrains in the game copy).
+- The material map's per-block data and 256-entry tables: their encoding (cell -> material index, presumably) is not
+  decoded; the names list's order is the index space.
+- The VisualTerrain mesh entries' 12 floats (density, scale ... 55.0) and the trailing u32 in TERR-VT-3's grammar.
+- The engine's rule for a tiled mask's atlas coordinate is the renderer's reading, not confirmed by a capture
+  (EDITOR_ARCHITECTURE 3.11).
+- The `Terrain` entry: whether the game needs it to exist (it has no data).

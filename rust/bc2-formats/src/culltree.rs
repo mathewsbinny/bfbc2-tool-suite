@@ -195,7 +195,25 @@ pub fn elements(data: &[u8], start: usize) -> Result<Elements, ElementError> {
 /// that cannot be listed skipped. Like glob, a folder named `*.dbx` is listed too.
 #[must_use]
 pub fn dbx_files(dir: &Path) -> Vec<PathBuf> {
-    fn walk(dir: &Path, rel: &Path) -> Vec<PathBuf> {
+    dbx_files_stat(dir).into_iter().map(|x| x.0).collect()
+}
+
+/// A listed file's size and modification time (nanoseconds since 1970) as its folder's listing gives them.
+pub type ListedStat = (u64, i128);
+
+/// [`dbx_files`] with each file's [`ListedStat`] from the folder listing itself (round CT1: no stat call per file;
+/// None for a link, or when the listing has no time).
+#[must_use]
+pub fn dbx_files_stat(dir: &Path) -> Vec<(PathBuf, Option<ListedStat>)> {
+    fn listed(e: &std::fs::DirEntry) -> Option<ListedStat> {
+        let m = e.metadata().ok().filter(|m| !m.file_type().is_symlink())?;
+        let ns = match m.modified().ok()?.duration_since(std::time::UNIX_EPOCH) {
+            Ok(d) => i128::from(d.as_secs()) * 1_000_000_000 + i128::from(d.subsec_nanos()),
+            Err(e) => -(i128::from(e.duration().as_secs()) * 1_000_000_000 + i128::from(e.duration().subsec_nanos())),
+        };
+        Some((m.len(), ns))
+    }
+    fn walk(dir: &Path, rel: &Path) -> Vec<(PathBuf, Option<ListedStat>)> {
         let Ok(rd) = std::fs::read_dir(dir.join(rel)) else {
             return Vec::new();
         };
@@ -209,14 +227,19 @@ pub fn dbx_files(dir: &Path) -> Vec<PathBuf> {
             }
             let r = rel.join(&name);
             if s.len() >= 4 && s.get(s.len() - 4..).is_some_and(|x| x.eq_ignore_ascii_case(".dbx")) {
-                files.push(r.clone());
+                files.push((r.clone(), listed(&e)));
             }
-            // glob's is_dir follows links: a link to a folder is walked
-            if e.path().is_dir() {
+            // glob's is_dir follows links: a link to a folder is walked (the entry's own type otherwise: no stat
+            // per entry, round CT1)
+            let is_dir = match e.file_type() {
+                Ok(t) if !t.is_symlink() => t.is_dir(),
+                _ => e.path().is_dir(),
+            };
+            if is_dir {
                 subdirs.push(r);
             }
         }
-        let below: Vec<Vec<PathBuf>> = subdirs.par_iter().map(|r| walk(dir, r)).collect();
+        let below: Vec<Vec<(PathBuf, Option<ListedStat>)>> = subdirs.par_iter().map(|r| walk(dir, r)).collect();
         files.extend(below.into_iter().flatten());
         files
     }
@@ -224,16 +247,50 @@ pub fn dbx_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// For each file: does it contain `needle`? `None` for a file that cannot be read (the caller reads it itself and
-/// gets the error). Files are read on all cores.
+/// gets the error). Files are read on all cores, each in 256 KiB pieces (round CT1: not whole), and only until the
+/// needle is found.
 #[must_use]
 pub fn contains<P: AsRef<Path> + Sync>(paths: &[P], needle: &[u8]) -> Vec<Option<bool>> {
     paths
         .par_iter()
-        .map(|p| {
-            let data = std::fs::read(p).ok()?;
-            Some(needle.is_empty() || data.windows(needle.len()).any(|w| w == needle))
-        })
+        .map(|p| file_contains(p.as_ref(), needle).ok())
         .collect()
+}
+
+/// Does the file hold `needle`? Read piece by piece, the last `needle.len() - 1` bytes of a piece kept before the
+/// next one so a needle across two pieces is found.
+#[allow(
+    clippy::indexing_slicing,
+    reason = "have stays within the buffer: at most its length after a read, at most keep after the copy"
+)]
+fn file_contains(path: &Path, needle: &[u8]) -> std::io::Result<bool> {
+    use std::io::Read;
+    const PIECE: usize = 256 * 1024;
+    let mut f = std::fs::File::open(path)?;
+    if needle.is_empty() {
+        return Ok(true);
+    }
+    let finder = memchr::memmem::Finder::new(needle);
+    let keep = needle.len() - 1;
+    let mut buf = vec![0u8; PIECE + keep];
+    let mut have = 0;
+    loop {
+        let n = match f.read(&mut buf[have..]) {
+            Ok(n) => n,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        };
+        if n == 0 {
+            return Ok(false);
+        }
+        have += n;
+        if finder.find(&buf[..have]).is_some() {
+            return Ok(true);
+        }
+        let tail = have.min(keep);
+        buf.copy_within(have - tail..have, 0);
+        have = tail;
+    }
 }
 
 #[cfg(test)]
