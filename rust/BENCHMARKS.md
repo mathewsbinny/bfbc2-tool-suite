@@ -5242,3 +5242,54 @@ in-process steps one Rust implementation, and `load_levels` reads 89 bundle head
 - The reader for a `bytearray` / `memoryview` (its records keep the buffer's type) and the odd arguments above:
   the reference, by design.
 - `xenos.parse_shader`'s Python for blobs the Rust decoder refuses (damaged blobs; E3f / F4).
+
+## GR1: the Map Inspector folded into the editor, then retired (2026-11-20, branch `rust-gr1`)
+
+The first round of the user's GUI plan (2026-11-19): the five older GUIs inventoried (feature, in the editor?, plan:
+`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` section 9), then what the editor lacked of the Map Inspector added
+and the inspector retired.
+
+### What the editor gained (`rust/bc2-editor`)
+
+- `inspect.rs`: an object's **property tree** (`PropNode`: name, tag, type in words, the value as DbxEdit's XML
+  writes it, the `ref`, the children) read from the scene's own partitions - the level partition, or a project's
+  edited partition (`Doc::partition`, re-read when `Doc::revision` changes), and the static groups' files for their
+  members; the **links** (`Links`: every entity's references in tree order, resolved by guid; the referrers, the
+  level's `LevelData` left out as the inspector did; the `EventConnections` of the level partition's instances, sent
+  and received); the inspector's **measure** figures and water depth.
+- `app/inspectui.rs`: Properties' *All fields* (collapsible containers, long lists paged by 400, a reference row
+  goes to its object), the *Links* dock tab (below Properties in the default layout; four sections; rows go to the
+  object, Back returns), the links drawn in every view (`view-link`, a new token: references solid, event
+  connections dashed, arrows by direction; K), Measure (M; a path of clicked points and its figures beside the last
+  point). Actions: Show links, Show or hide links (K), Measure (M); Links in the object context menus.
+
+### Proof
+
+- `tests/inspect_parity.rs` against the Map Inspector's answers recorded before it was retired
+  (`tests/data/inspector_props_*.json.gz`: per object the length and SHA-1 of its tree rows, references and
+  referrers as the inspector walked them; recorded by the round's `record_inspector_props.py`, removed with
+  `inspector.py`):
+
+  | level | objects sampled | fields | references | referrers | event connections | links read |
+  |---|---:|---:|---:|---:|---:|---:|
+  | SP_01 | 338 of 13,251 | 44,088 | 15,210 | 1,215 | 2,625 | 0.041 s |
+  | MP_005 | 209 of 6,979 | 17,044 | 6,377 | 228 | 797 | 0.016 s |
+  | MP_009GR | 284 of 10,005 | 19,933 | 6,605 | 184 | 954 | 0.024 s |
+  | ONS_MP_004 | 243 of 7,100 | 21,178 | 7,071 | 312 | 1,244 | 0.012 s |
+
+  All identical. The sample: of every entity type the first, middle and last, every 50th static group member, and
+  the 5 most referencing and 5 most referenced objects (`LevelData`'s whole tree among them).
+- `tests/gr1.rs`, headless: on the demo level (viewed, and as a project) the flag's Links rows, a click on one
+  going there, Back, All fields' types and an array opened, the `view-link` pixels in the view and none after K,
+  Measure's two points without changing the selection; on MP_005 in Dark and Light a flag's links and fields,
+  followed and back (the round's screenshots).
+- The editor's unit tests: `inspect::tests` (links both ways and events on the demo partition, the same read from a
+  copy by guid; the tree's types; measure and water depth), the token tests with `view-link` (51 colour tokens, its
+  contrast on the lit terrain 5.8 / 5.7, worst case 4.4, on the water 6.3 / 6.2).
+
+### Retired
+
+`bfbc2-map-inspector/inspector.py` and its `tests/test_inspector_offline.py`; its run in `tests/test_viewers.py`; the
+hub's "Open in Map Inspector" (the Levels tab opens the map editor, also on a double-click); `bench_sweep.py`'s
+`inspector_load`; `suite_paths`' `map-inspector`. `record_inspector.py` (G1's outliner lists) keeps the inspector's
+layer rule itself. Nothing in OPFOR (`src\`, its scripts and docs' commands) used the inspector.

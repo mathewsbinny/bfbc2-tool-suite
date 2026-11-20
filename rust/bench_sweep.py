@@ -103,18 +103,6 @@ def _level(lv: str):
 
 
 @workload
-def inspector_load(root: str, tmp: str) -> str:
-    """The Map Inspector's loading on MP_005 and SP_01 (level.load, the scene), no window."""
-    suite_paths.use('map-inspector')
-    import inspector
-    n = 0
-    for lv in ('mp_005', 'sp_01'):
-        ins = inspector.Inspector(_level(lv))
-        n += ins.scene.triangle_count()
-    return f'{n:,} triangles'
-
-
-@workload
 def studio_load(root: str, tmp: str) -> str:
     """The Navigation Studio's loading on sp_009 and mp_005: level.load, DICE's and NavKit's path data
     (navdata.load, cold: an empty cache folder), the scene, no window."""

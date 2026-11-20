@@ -19,7 +19,8 @@
 //! - **Measure** ([`measure`], [`water_above`]): the Map Inspector's measuring figures of a path of clicked points.
 //!
 //! `tests/data/inspector_props_*.json.gz` hold what the Map Inspector showed for a sample of instances of four
-//! levels (`tests/record_inspector_props.py`, recorded before it was retired); `tests/inspect_parity.rs` compares.
+//! levels (recorded by round GR1's `record_inspector_props.py` before it was retired; removed with it, in the
+//! history); `tests/inspect_parity.rs` compares.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
