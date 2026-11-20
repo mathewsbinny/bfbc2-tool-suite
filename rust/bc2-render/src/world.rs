@@ -345,9 +345,8 @@ impl World {
             ..Counts::default()
         };
         for (n, p) in placed.iter().enumerate() {
-            if !p.blueprint.starts_with("objects/") {
-                continue;
-            }
+            // every placed blueprint with a mesh, wherever it lies (round RV1: `terrains/<lv>/props`, `vegetation/...`
+            // were left out until then); one without (spawns, logic, sounds) has no `Mesh` and is not drawn
             let member = p.group.as_ref().and_then(|(f, k)| self.placements.member(f, *k));
             let set = match &p.group {
                 Some(_) => member.and_then(|m| m.shader_set.clone()),
