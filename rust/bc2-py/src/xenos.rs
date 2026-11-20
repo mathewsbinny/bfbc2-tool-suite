@@ -1531,3 +1531,226 @@ pub fn xenos_disasm_body(
     let shader = Arc::clone(&program.get().shader);
     py.detach(|| bc2_shader::disasm::body(&shader, show_raw, is_pixel))
 }
+
+// ------------------------------------------------------------------------------------------------- disasm's header
+
+/// A value of the tree as the header's `%d` / `%x` read it: an `int` (not a `bool`) within 64 bits.
+fn h_int(o: &Bound<'_, PyAny>) -> Option<i64> {
+    if !o.get_type().is(o.py().get_type::<PyInt>()) {
+        return None;
+    }
+    o.extract::<i64>().ok()
+}
+
+/// A `str` (the exact type), as `%s` gives it.
+fn h_str(o: &Bound<'_, PyAny>) -> Option<String> {
+    o.cast_exact::<PyString>().ok()?.to_str().ok().map(str::to_owned)
+}
+
+/// An ASCII `str`, as `.lower()` gives it.
+fn h_lower(o: &Bound<'_, PyAny>) -> Option<String> {
+    let s = h_str(o)?;
+    s.is_ascii().then(|| s.to_ascii_lowercase())
+}
+
+/// `'%g' % v` of a `float`, or of an `int` a float holds exactly.
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "an int of at most 2^53 as the float '%g' formats"
+)]
+fn h_g(o: &Bound<'_, PyAny>) -> Option<String> {
+    let v = if o.get_type().is(o.py().get_type::<PyFloat>()) {
+        o.extract::<f64>().ok()?
+    } else {
+        let i = h_int(o)?;
+        if i.unsigned_abs() > 1 << 53 {
+            return None;
+        }
+        i as f64
+    };
+    Some(bc2_pyrt::fmt::float_g(v))
+}
+
+fn h_attr<'py>(o: &Bound<'py, PyAny>, name: &str) -> Option<Bound<'py, PyAny>> {
+    o.getattr(name).ok()
+}
+
+/// The items of a `list` or `tuple`.
+fn h_seq<'py>(o: &Bound<'py, PyAny>) -> Option<Vec<Bound<'py, PyAny>>> {
+    if let Ok(l) = o.cast_exact::<PyList>() {
+        return Some(l.iter().collect());
+    }
+    o.cast_exact::<PyTuple>().ok().map(|t| t.iter().collect())
+}
+
+/// `'%x' % v`.
+fn h_hex(v: i64) -> String {
+    if v < 0 {
+        format!("-{:x}", v.unsigned_abs())
+    } else {
+        format!("{v:x}")
+    }
+}
+
+/// `'%-44s' % s`.
+fn h_pad(s: &str, n: usize) -> String {
+    let len = s.chars().count();
+    format!("{s}{}", " ".repeat(n.saturating_sub(len)))
+}
+
+/// A literal dict's lines (`def c` / `defi i`), its keys in order.
+fn h_literals(d: &Bound<'_, PyAny>, line: &str, reg: &str, int: bool, out: &mut Vec<String>) -> Option<()> {
+    let d = d.cast_exact::<PyDict>().ok()?;
+    let mut keys: Vec<(i64, Bound<'_, PyAny>)> = Vec::new();
+    for (k, v) in d.iter() {
+        keys.push((h_int(&k)?, v));
+    }
+    keys.sort_by_key(|k| k.0);
+    for (k, v) in keys {
+        let vals: Vec<String> = h_seq(&v)?
+            .iter()
+            .map(|x| if int { h_int(x).map(|i| i.to_string()) } else { h_g(x) })
+            .collect::<Option<_>>()?;
+        out.push(format!("    {line} {reg}{k}, {}", vals.join(", ")));
+    }
+    Some(())
+}
+
+/// The header comment lines of `xenos._disasm`, read from the tree `sh` as the Python reads them (`cf_slots` from
+/// the program: the tree's microcode is not read). `None` where a value is not one the port reads exactly as
+/// `%`-formatting does, or where the Python would raise.
+fn h_lines(sh: &Bound<'_, PyAny>, cf_slots: u64, pixel: bool, out: &mut Vec<String>) -> Option<()> {
+    let kind = if pixel { "ps" } else { "vs" };
+    let h = h_attr(sh, "header")?;
+    let ctab = h_attr(sh, "ctab")?;
+    let has_ctab = ctab.is_truthy().ok()?;
+    let (target, creator) = if has_ctab {
+        (h_str(&h_attr(&ctab, "target")?)?, h_str(&h_attr(&ctab, "creator")?)?)
+    } else {
+        ("?".to_owned(), "?".to_owned())
+    };
+    out.push(format!("// {kind} ({target}), creator {creator}"));
+    let code_offset = h_int(&h_attr(sh, "code_offset")?)?;
+    let code_size = h_int(&h_attr(sh, "code_size")?)?;
+    let temps = h_int(&h_attr(&h, "num_temp_regs")?)?;
+    out.push(format!(
+        "// code at 0x{}, {code_size} bytes ({} slots, {cf_slots} CF slots); temps declared {temps}",
+        h_hex(code_offset),
+        code_size.div_euclid(12)
+    ));
+    if has_ctab {
+        out.push("// constant table:".to_owned());
+        for c in h_seq(&h_attr(&ctab, "constants")?)? {
+            let regset = h_str(&h_attr(&c, "regset")?)?;
+            let pre = match regset.as_str() {
+                "float4" => "c",
+                "int4" => "i",
+                "bool" => "b",
+                "sampler" => "s",
+                _ => "?",
+            };
+            let name = h_str(&h_attr(&c, "name")?)?;
+            let reg = h_int(&h_attr(&c, "reg")?)?;
+            let count = h_int(&h_attr(&c, "count")?)?;
+            let range = if count > 1 {
+                format!("..{pre}{}", reg.checked_add(count)?.checked_sub(1)?)
+            } else {
+                String::new()
+            };
+            let t = h_attr(&c, "type")?;
+            let cls = h_str(&h_attr(&t, "cls")?)?;
+            let ty = h_str(&h_attr(&t, "type")?)?;
+            let rows = h_int(&h_attr(&t, "rows")?)?;
+            let cols = h_int(&h_attr(&t, "cols")?)?;
+            let elements = h_int(&h_attr(&t, "elements")?)?;
+            let el = if elements > 1 {
+                format!(" [{elements}]")
+            } else {
+                String::new()
+            };
+            out.push(format!(
+                "//   {} {pre}{reg}{range}  {cls} {ty} {rows}x{cols}{el}",
+                h_pad(&name, 44)
+            ));
+        }
+    }
+    h_literals(&h_attr(sh, "literals")?, "def", "c", false, out)?;
+    h_literals(&h_attr(sh, "int_literals")?, "defi", "i", true, out)?;
+    if pixel {
+        let outputs = h_int(&h_attr(&h, "outputs")?)?;
+        let names: Vec<&str> = [(1, "oC0"), (2, "oC1"), (4, "oC2"), (8, "oC3"), (16, "oDepth")]
+            .into_iter()
+            .filter(|(b, _)| outputs & b != 0)
+            .map(|(_, n)| n)
+            .collect();
+        out.push(format!("// outputs: {}", names.join(" ")));
+        let misc = h_attr(&h, "context_misc_fields")?;
+        let xy = h_attr(&misc, "sc_output_screen_xy")?;
+        if h_int(&xy).is_none() && !xy.get_type().is(xy.py().get_type::<pyo3::types::PyBool>()) {
+            return None;
+        }
+        if xy.is_truthy().ok()? {
+            out.push(format!(
+                "// vPos/vFace param-gen -> r{}",
+                h_int(&h_attr(&misc, "param_gen_pos")?)?
+            ));
+        }
+        for it in h_seq(&h_attr(&h, "interpolators")?)? {
+            out.push(format!(
+                "    dcl_{}{} r{}",
+                h_lower(&h_attr(&it, "usage")?)?,
+                h_int(&h_attr(&it, "usage_index")?)?,
+                h_int(&h_attr(&it, "reg")?)?
+            ));
+        }
+    } else {
+        for ve in h_seq(&h_attr(&h, "vertex_elements")?)? {
+            out.push(format!(
+                "    dcl_{}{}  (vfetch at slot {})",
+                h_lower(&h_attr(&ve, "usage")?)?,
+                h_int(&h_attr(&ve, "usage_index")?)?,
+                h_int(&h_attr(&ve, "fetch_address")?)?
+            ));
+        }
+        for it in h_seq(&h_attr(&h, "interpolators")?)? {
+            let usage = h_lower(&h_attr(&it, "usage")?)?;
+            let index = h_int(&h_attr(&it, "usage_index")?)?;
+            let reg = h_int(&h_attr(&it, "reg")?)?;
+            let at: Vec<String> = h_seq(&h_attr(&it, "export_addresses")?)?
+                .iter()
+                .map(|x| h_int(x).map(|v| v.to_string()))
+                .collect::<Option<_>>()?;
+            out.push(format!(
+                "    dcl_{usage}{index} o{reg}  (exported at slots {})",
+                at.join(",")
+            ));
+        }
+    }
+    Some(())
+}
+
+/// Round F4: `xenos.disasm(sh, show_raw, show_header)` whole in Rust for a tree `xenos_parse` decoded whose
+/// microcode nobody has read (`program`: `xenos.native_program(sh)`): the header comments read from the tree as
+/// `_disasm` reads them (its `cf_slots` from the program, so the tree's microcode stays unread), the listing
+/// `xenos_disasm_body`'s. `None` where the header holds a value the port does not format exactly as Python's `%`
+/// does (the Python then writes the header).
+#[pyfunction]
+pub fn xenos_disasm<'py>(
+    py: Python<'py>,
+    sh: &Bound<'py, PyAny>,
+    program: &Bound<'py, XenosProgram>,
+    show_raw: bool,
+    show_header: bool,
+) -> Option<String> {
+    let pixel = h_attr(sh, "is_pixel")?.is_truthy().ok()?;
+    let shader = Arc::clone(&program.get().shader);
+    let mut out = Vec::new();
+    if show_header {
+        h_lines(sh, u64::from(shader.cf_slots), pixel, &mut out)?;
+    }
+    let body = py.detach(|| bc2_shader::disasm::body(&shader, show_raw, pixel));
+    out.extend(body);
+    let mut text = out.join("\n");
+    text.push('\n');
+    Some(text)
+}

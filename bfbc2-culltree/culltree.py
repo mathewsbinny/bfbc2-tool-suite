@@ -91,6 +91,38 @@ def _rust() -> Any:
     return _native
 
 
+# Round F4: Doc's string table in the Rust core too (bc2_native.culltree_strings), the Python below its reference and
+# fallback (a table the Rust core does not read answers None, and the Python raises its own error).
+# BFBC2_PURE_PYTHON=1 or use_native(False) reads it in Python.
+_STRINGS_NATIVE: list[bool] = []
+
+
+def use_native(on: bool) -> bool:
+    """The string table read in the Rust core (on) or in Python (off) for this process; True when Rust reads it."""
+    _STRINGS_NATIVE[:] = [bool(on)]
+    return bool(on) and hasattr(_rust(), 'culltree_strings')
+
+
+def _strings(data: bytes, count: int) -> list[str]:
+    """Doc's string table: count strings, each at its offset (the big-endian word at 24 + 4 i) from 24 + 4 count, up
+    to its zero byte."""
+    on = _STRINGS_NATIVE[0] if _STRINGS_NATIVE else os.environ.get('BFBC2_PURE_PYTHON', '') in ('', '0')
+    fn = getattr(_rust(), 'culltree_strings', None) if on else None
+    got = fn(data, count) if fn is not None and type(data) is bytes and type(count) is int else None
+    return got if got is not None else _strings_reference(data, count)
+
+
+def _strings_reference(data: bytes, count: int) -> list[str]:
+    """The Python (the reference)."""
+    base = 24 + 4 * count
+    strings: list[str] = []
+    for i in range(count):
+        off = struct.unpack_from('>I', data, 24 + 4 * i)[0]
+        end = data.index(b'\0', base + off)
+        strings.append(data[base + off:end].decode('utf-8', 'replace'))
+    return strings
+
+
 # ------------------------------------------------------------------------------------------------ binary DBX
 # A minimal codec (bfbc2-dbx-tools/FORMAT.md sections 1, 2 and 4) that keeps every byte, so an unchanged file is
 # written back exactly and a changed one differs only where values or array items were changed.
@@ -187,12 +219,7 @@ class Doc:
         self.head12 = data[12:16]
         size, count = struct.unpack_from('>II', data, 16)
         self.string_area = data[24:24 + size]
-        base = 24 + 4 * count
-        self.strings: list[str] = []
-        for i in range(count):
-            off = struct.unpack_from('>I', data, 24 + 4 * i)[0]
-            end = data.index(b'\0', base + off)
-            self.strings.append(data[base + off:end].decode('utf-8', 'replace'))
+        self.strings: list[str] = _strings(data, count)
         pos = 24 + size
         self.roots: list[El]
         try:
