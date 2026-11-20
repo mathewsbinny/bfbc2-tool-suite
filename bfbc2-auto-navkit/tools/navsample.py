@@ -79,8 +79,8 @@ class Samples:
 def load(path: str) -> tuple[Samples, int]:
     """A sample file's Samples and the columns read (an interrupted run of version 1 / 2 reads fewer than nx * nz;
     the rest are empty): the records in the Rust core (navkit_navsample_parse, navkit_navsample_v3). A file the core
-    does not read (a record cut short, version 3's counts missing or damaged) raises bfbc2core.native.Refused (a
-    ValueError)."""
+    does not read: a version 1 / 2 record cut short raises struct.error in the retired Python's words; version 3's
+    counts or records cut short or damaged raise bfbc2core.native.Refused (a ValueError)."""
     data = open(path, 'rb').read()
     magic, version, pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, _ = \
         HEADER.unpack_from(data, 0)
@@ -98,11 +98,30 @@ def load(path: str) -> tuple[Samples, int]:
         try:
             got = nat.navkit_navsample_parse(data, HEADER.size, nx * nz, version)
         except ValueError:
-            raise _refused(f'{path}: a version {version} sample file with a record cut short (damaged)') from None
+            raise _cut_record(data, nx * nz, version) from None
     st, ya, na, fa, ha, c = got
     return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r,
                    np.frombuffer(st, '<i8'), np.frombuffer(ya, '<f4'), np.frombuffer(na, '<f4').reshape(-1, 3),
                    np.frombuffer(fa, np.uint8), np.frombuffer(ha, '<u4').reshape(-1, 3)), c
+
+
+def _cut_record(data: bytes, cols: int, version: int) -> Exception:
+    """The struct.error the retired record loop raised for a version 1 / 2 file with a record cut short: the first
+    read past the end, in struct's words (only the counts are walked; the core read everything before it)."""
+    pos, size = HEADER.size, len(data)
+    c = 0
+    while c < cols and pos < size:
+        n = data[pos]
+        pos += 1
+        for _ in range(n):
+            need = 8 if pos + 8 > size else 20 if version == 2 and pos + 20 > size else 0
+            if need:
+                at, take = (pos, 8) if need == 8 else (pos + 8, 12)
+                return struct.error(f'unpack_from requires a buffer of at least {at + take} bytes for unpacking '
+                                    f'{take} bytes at offset {at} (actual buffer size is {size})')
+            pos += 8 if version == 1 else 20
+        c += 1
+    return _refused('a version 1 / 2 sample file the core does not read (damaged)')
 
 
 def walkable(s: Samples, slope_max_deg: float = 40.0) -> np.ndarray:
