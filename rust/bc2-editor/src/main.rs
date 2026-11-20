@@ -6,6 +6,7 @@
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
 //!              [--export [--install-plan] | --no-strip] [--new-project <level> [--era <era>] [--target-mode <mode>]]
 //! bfbc2-editor --version
+//! bfbc2-editor --source-hash        the Rust sources' fingerprint it was built from (bfbc2core.native)
 //! ```
 //!
 //! Without a level the start screen offers three paths (round G4): Open project, Edit existing level (the mode
@@ -287,6 +288,14 @@ impl eframe::App for Window {
 }
 
 fn main() -> ExitCode {
+    if std::env::args().nth(1).as_deref() == Some("--source-hash") {
+        // the fingerprint of the Rust sources this binary was built from (`build_native.py --editor` passes it as
+        // BC2_SOURCE_HASH; empty when built by cargo alone): `bfbc2core.native.binary` uses the binary only while
+        // it is this checkout's (round QW1)
+        use std::io::Write;
+        let ok = writeln!(std::io::stdout(), "{}", option_env!("BC2_SOURCE_HASH").unwrap_or("")).is_ok();
+        return if ok { ExitCode::SUCCESS } else { ExitCode::FAILURE };
+    }
     if std::env::args().nth(1).as_deref() == Some("--version") {
         // the suite's version (the VERSION file, round P1)
         use std::io::Write;

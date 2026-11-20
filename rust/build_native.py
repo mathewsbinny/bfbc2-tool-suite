@@ -9,14 +9,16 @@ module put into core\bfbc2core\bc2_native.pyd, where bfbc2core finds it (README.
                                            when Rust and maturin are there, else download it
   python rust\build_native.py --remove     delete the module (texture conversion and NavKit's builds then stop with
                                            an error saying how to get it; the readers run in Python)
-  python rust\build_native.py --fingerprint   print this checkout's source fingerprint (the release tag's)
+  python rust\build_native.py --fingerprint [ARTEFACT]   print this checkout's source fingerprint of the module (the
+                                           release tag's), or of bfbc2, bfbc2-editor or mapexport
   python rust\build_native.py --editor     build the map editor (bfbc2-editor.exe) and mapexport.exe into bin\
   python rust\build_native.py --target-dir print cargo's build folder for this checkout
   python rust\build_native.py --cargo ARGS...   run cargo ARGS in rust\ with this checkout's build folder (use it
                                            instead of a bare cargo, which would build into rust\target)
 
 A build also builds the command-line binary bfbc2.exe (round O1: the tools' command lines in Rust, "bfbc2 fbrbtool
-...", "bfbc2 dbxedit ...") with the same fingerprint; a download fetches it too (round RT1: the command lines whose
+...", "bfbc2 dbxedit ...") with its own fingerprint (round QW1: each artefact's over the crates it links,
+bfbc2core.native.ARTEFACTS); --if-stale builds only what is stale; a download fetches it too (round RT1: the command lines whose
 Python was retired - bfbc2core.native.RETIRED_CLI - have only it; a release made before RT1 has the module only).
 
 Where things go (round D1, 2026-11-19): cargo builds in C:\Programming\Projects\rust-targets\<checkout folder name>
@@ -68,9 +70,10 @@ def sources() -> list[str]:
     return native.sources(RUST)
 
 
-def fingerprint() -> str:
-    """This checkout's source fingerprint (bfbc2core.native.fingerprint)."""
-    return native.fingerprint(RUST)
+def fingerprint(artefact: str = 'module') -> str:
+    """This checkout's source fingerprint of `artefact` (bfbc2core.native.fingerprint over native.sources(artefact));
+    the module's is the release tag's."""
+    return native.fingerprint(RUST, native.sources(RUST, artefact))
 
 
 def tag(fp: str) -> str:
@@ -84,6 +87,12 @@ def stale() -> bool:
         return True
     have = native.read_stamp().get('source_hash')
     return not have or have != native.checkout_fingerprint(RUST)
+
+
+def cli_stale() -> bool:
+    """bin\\bfbc2.exe is missing or was built from other sources than the checkout's fingerprint of bfbc2."""
+    native.reset()
+    return native.binary_status('bfbc2')[0] != 'ok'
 
 
 def cargo_env() -> dict[str, str] | None:
@@ -154,6 +163,7 @@ def module_info(path: str) -> dict[str, str] | None:
 
 def build(env: dict[str, str]) -> int:
     fp = fingerprint()
+    cli_env = env
     env = dict(env, **{native.SOURCE_ENV: fp})
     tmp = TARGET + '.new'
     with tempfile.TemporaryDirectory() as out:
@@ -187,14 +197,15 @@ def build(env: dict[str, str]) -> int:
     install(tmp)
     native.write_stamp(fp, 'build', info.get('version', ''), RUST)
     print(f'built {TARGET} (sources {fp[:12]})')
-    return build_cli(env)
+    return build_cli(cli_env)
 
 
 def build_cli(env: dict[str, str]) -> int:
-    """The command-line binary bfbc2.exe (round O1: the tools' command lines in Rust), with the same fingerprint
-    baked in (env carries it): bfbc2core.native.cli_exe uses it only while that matches. Built in the build folder,
-    copied to bin\\bfbc2.exe. bin\\python.txt names this Python (round O3): the interpreter bfbc2.exe hands a command
+    """The command-line binary bfbc2.exe (round O1: the tools' command lines in Rust), with its fingerprint baked in
+    (round QW1: the checkout's fingerprint of bfbc2, over the crates it links): bfbc2core.native.cli_exe uses it only
+    while that matches. Built in the build folder, copied to bin\\bfbc2.exe. bin\\python.txt names this Python (round O3): the interpreter bfbc2.exe hands a command
     line to where the Rust refuses it, when BFBC2_PYTHON is not set (then python.exe on PATH)."""
+    env = dict(env, **{native.SOURCE_ENV: fingerprint('bfbc2')})
     if _cargo_build(env, ['-p', 'bc2-cli'], 'the command-line binary'):
         return 1
     print(f'built {install_binary("bfbc2")}')
@@ -215,11 +226,11 @@ def _cargo_build(env: dict[str, str], args: list[str], what: str) -> int:
 
 def build_editor(env: dict[str, str]) -> int:
     """The map editor (rust\\bc2-editor: bfbc2-editor.exe) and mapexport.exe (bc2-levelwrite), release, copied to
-    bin\\."""
-    if _cargo_build(env, ['-p', 'bc2-editor', '-p', 'bc2-levelwrite', '--bin', 'bfbc2-editor', '--bin', 'mapexport'],
-                    'the map editor'):
-        return 1
-    for name in ('bfbc2-editor', 'mapexport'):
+    bin\\, each with its own fingerprint baked in (round QW1: bfbc2core.native.binary finds them only while it is the
+    checkout's)."""
+    for name, crate in (('bfbc2-editor', 'bc2-editor'), ('mapexport', 'bc2-levelwrite')):
+        if _cargo_build(dict(env, **{native.SOURCE_ENV: fingerprint(name)}), ['-p', crate, '--bin', name], name):
+            return 1
         print(f'built {install_binary(name)}')
     return 0
 
@@ -303,7 +314,8 @@ def binary_hash(path: str) -> str | None:
 
 def download_cli(base: str, fp: str) -> int:
     """The release's command-line binary bfbc2.exe (round RT1: the command lines whose Python was retired have only
-    it) into bin\\bfbc2.exe, checked like the module (its SHA-256, then its --source-hash), with bin\\python.txt
+    it) into bin\\bfbc2.exe, checked like the module (its SHA-256, then its --source-hash: the checkout's fingerprint
+    of bfbc2, round QW1; the release is found by the module's, fp), with bin\\python.txt
     naming this Python (the interpreter it hands the other tools' unusual command lines to). A release made before
     RT1 has none: said, and the module stays installed (exit code 0)."""
     try:
@@ -329,7 +341,7 @@ def download_cli(base: str, fp: str) -> int:
     with open(tmp, 'wb') as f:
         f.write(data)
     have = binary_hash(tmp)
-    if have != fp:
+    if have != fingerprint('bfbc2'):
         os.remove(tmp)
         print(f'build_native: the downloaded {CLI_ASSET} does not run or is not for these sources ({have}); not '
               f'installed')
@@ -343,7 +355,12 @@ def download_cli(base: str, fp: str) -> int:
 
 def main(argv: list[str]) -> int:
     if '--fingerprint' in argv:
-        print(fingerprint())
+        rest = argv[argv.index('--fingerprint') + 1:]
+        artefact = rest[0] if rest else 'module'
+        if artefact not in native.ARTEFACTS:
+            print(f'build_native: no artefact {artefact!r} ({", ".join(native.ARTEFACTS)})')
+            return 2
+        print(fingerprint(artefact))
         return 0
     if '--remove' in argv:
         if os.path.isfile(TARGET):
@@ -369,8 +386,9 @@ def main(argv: list[str]) -> int:
             return run_cargo(cenv, argv[argv.index('--cargo') + 1:])
         return build_editor(cenv)
     if_stale = '--if-stale' in argv
-    if if_stale and not stale():
-        print(f'up to date: {os.path.basename(TARGET)}')
+    module_stale = stale()
+    if if_stale and not module_stale and not cli_stale():
+        print(f'up to date: {os.path.basename(TARGET)}, bfbc2.exe')
         return 0
     env = cargo_env()
     if env is None or not have_maturin():
@@ -380,6 +398,9 @@ def main(argv: list[str]) -> int:
             return download()
         print(f'build_native: {missing}. Download the prebuilt module instead: python rust\\build_native.py --download')
         return 1
+    if if_stale and not module_stale:
+        print(f'up to date: {os.path.basename(TARGET)}')
+        return build_cli(env)                   # only bfbc2.exe's crates changed (round QW1)
     return build(env)
 
 

@@ -138,6 +138,148 @@ def fingerprints() -> None:
         check(write('\n') == with_b, 'fingerprint: an application crate leaves it as it is')
         files[f'{app}/src/main.rs'] += '// changed\n'
         check(write('\n') == with_b, 'fingerprint: a change to an application crate leaves it as it is')
+    artefacts()
+
+
+def artefacts() -> None:
+    """Round QW1: one fingerprint per artefact over the crates it links (native.crates: the artefact's crate and its
+    workspace path dependencies, normal / build / target-specific, not dev-dependencies), with the files they
+    include."""
+    with tempfile.TemporaryDirectory() as tmp:
+        rust = os.path.join(tmp, 'rust')
+        files = {
+            'Cargo.toml': '[workspace]\nmembers = ["bc2-py", "bc2-cli", "bc2-formats", "bc2-render", "bc2-editor", '
+                          '"bc2-levelwrite"]\n[workspace.dependencies]\nbc2-formats = { path = "bc2-formats" }\n'
+                          'bc2-render = { path = "bc2-render" }\nbc2-levelwrite = { path = "bc2-levelwrite" }\n',
+            'Cargo.lock': '', 'rust-toolchain.toml': '',
+            'bc2-formats/Cargo.toml': '[package]\nname = "bc2-formats"\n',
+            'bc2-formats/src/lib.rs': 'pub fn f() {}\n',
+            'bc2-render/Cargo.toml': '[package]\nname = "bc2-render"\n',
+            'bc2-render/src/lib.rs': '',
+            'bc2-levelwrite/Cargo.toml': '[package]\nname = "bc2-levelwrite"\n[dependencies]\nbc2-formats.workspace = true\n',
+            'bc2-levelwrite/src/lib.rs': '', 'bc2-levelwrite/src/bin/mapexport.rs': 'fn main() {}\n',
+            'bc2-py/Cargo.toml': '[package]\nname = "bc2-py"\n[dependencies]\nbc2-formats.workspace = true\n'
+                                 '[dev-dependencies]\nbc2-render.workspace = true\n',
+            'bc2-py/src/lib.rs': '',
+            'bc2-cli/Cargo.toml': '[package]\nname = "bc2-cli"\n[dependencies]\nbc2-formats.workspace = true\n'
+                                  'bc2-levelwrite = { workspace = true, optional = true }\n',
+            'bc2-cli/src/main.rs': 'const DOC: &str = include_str!(\n    "../../../tool.py"\n);\n',
+            'bc2-editor/Cargo.toml': '[package]\nname = "bc2-editor"\n[dependencies]\nbc2-levelwrite.workspace = true\n'
+                                     "[target.'cfg(windows)'.dependencies]\nbc2-render = { path = \"../bc2-render\" }\n",
+            'bc2-editor/src/main.rs': '',
+            '../tool.py': '\"\"\"doc\"\"\"\n', '../VERSION': '0.9.0\n',
+        }
+
+        def write() -> dict[str, str]:
+            for n, t in files.items():
+                p = os.path.normpath(os.path.join(rust, *n.split('/')))
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                with open(p, 'w', encoding='utf-8', newline='') as f:
+                    f.write(t)
+            return {a: native.fingerprint(rust, native.sources(rust, a)) for a in native.ARTEFACTS}
+        base = write()
+        check(native.crates(rust, 'module') == ['bc2-formats', 'bc2-py'],
+              f'artefacts: the module links bc2-py and bc2-formats, not its dev-dependency ({native.crates(rust)})')
+        check(native.crates(rust, 'bfbc2') == ['bc2-cli', 'bc2-formats', 'bc2-levelwrite'],
+              f'artefacts: bfbc2 with its optional dependency ({native.crates(rust, "bfbc2")})')
+        check(native.crates(rust, 'bfbc2-editor') == ['bc2-editor', 'bc2-formats', 'bc2-levelwrite', 'bc2-render'],
+              f'artefacts: the editor with a target-specific path dependency ({native.crates(rust, "bfbc2-editor")})')
+        check(native.crates(rust, 'mapexport') == ['bc2-formats', 'bc2-levelwrite'],
+              f'artefacts: mapexport, a binary of levelwrite ({native.crates(rust, "mapexport")})')
+        check(len(set(base.values())) == 4, 'artefacts: four different fingerprints')
+        check(os.path.join(tmp, 'tool.py') in native.sources(rust, 'bfbc2'),
+              'artefacts: a file bfbc2 includes (include_str!) is one of its sources')
+
+        def changed(name: str, text: str) -> set[str]:
+            old = files[name]
+            files[name] = text
+            now = write()
+            files[name] = old
+            write()
+            return {a for a in now if now[a] != base[a]}
+        got = changed('bc2-render/src/lib.rs', '// edited\n')
+        check(got == {'bfbc2-editor'}, f'artefacts: an edit to the renderer makes only the editor stale ({got})')
+        got = changed('bc2-editor/src/main.rs', '// edited\n')
+        check(got == {'bfbc2-editor'}, f'artefacts: an edit to the editor makes only the editor stale ({got})')
+        got = changed('bc2-levelwrite/src/bin/mapexport.rs', '// edited\n')
+        check(got == {'bfbc2', 'bfbc2-editor', 'mapexport'}, f'artefacts: levelwrite reaches its users ({got})')
+        got = changed('bc2-formats/src/lib.rs', '// edited\n')
+        check(got == set(native.ARTEFACTS), f'artefacts: the formats crate is in every one ({got})')
+        got = changed('../tool.py', '\"\"\"new doc\"\"\"\n')
+        check(got == {'bfbc2'}, f'artefacts: an included docstring makes bfbc2 stale ({got})')
+        got = changed('../VERSION', '0.9.1\n')
+        check(got == set(native.ARTEFACTS), f'artefacts: VERSION is in every one ({got})')
+
+
+def stale_cli() -> None:
+    """Round QW1 (audit AU2 A6 / A19): a stale bfbc2.exe - cli_command falls back to the Python with one
+    RuntimeWarning per process naming the fix; BFBC2_STRICT_NATIVE=1 makes it an error; BFBC2_CLI_PYTHON=1 asks for
+    the Python with no warning. binary() finds a binary only while it is the checkout's."""
+    import warnings
+    saved = (os.environ.get(native.CLI_PYTHON_ENV), os.environ.get(native.STRICT_ENV))
+    try:
+        for k in (native.CLI_PYTHON_ENV, native.STRICT_ENV):
+            os.environ.pop(k, None)
+        native.reset()
+        native._binaries['bfbc2'] = ('stale', 'C:\\stand-in\\bfbc2.exe', 'C:\\stand-in\\bfbc2.exe was built from '
+                                     'other Rust sources than this checkout has')
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            a = native.cli_command('hpdview')
+            b = native.cli_command('culltree')
+        texts = [str(w.message) for w in caught if issubclass(w.category, RuntimeWarning)]
+        check(a == [sys.executable, native.CLI_TOOLS['hpdview']] and b[0] == sys.executable,
+              'stale bfbc2.exe: the tools fall back to their Python')
+        check(len(texts) == 1 and 'other Rust sources' in texts[0] and 'build_native.py' in texts[0],
+              f'stale bfbc2.exe: one warning per process naming the fix ({texts})')
+        os.environ[native.STRICT_ENV] = '1'
+        try:
+            native.cli_command('hpdview')
+            v = 'no error'
+        except native.NativeStale as e:
+            v = str(e)
+        check('BFBC2_STRICT_NATIVE' in v and 'build_native.py' in v, f'stale bfbc2.exe, strict: an error ({v[:90]})')
+        native._binaries['bfbc2'] = ('missing', None, 'bin\\bfbc2.exe is not built or downloaded')
+        try:
+            native.cli_command('hpdview')
+            v = 'no error'
+        except native.NativeStale as e:
+            v = str(e)
+        check('not built' in v, f'missing bfbc2.exe, strict: an error ({v[:90]})')
+        os.environ[native.CLI_PYTHON_ENV] = '1'
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            a = native.cli_command('hpdview')
+        check(a == [sys.executable, native.CLI_TOOLS['hpdview']] and not caught,
+              'BFBC2_CLI_PYTHON=1: the Python, no warning and no error even when strict')
+        # the real binaries against this checkout's fingerprints (a changed fingerprint makes each one stale)
+        native.reset()
+        os.environ.pop(native.CLI_PYTHON_ENV, None)
+        os.environ.pop(native.STRICT_ENV, None)
+        for name in ('bfbc2', 'bfbc2-editor', 'mapexport'):
+            status, path, _ = native.binary_status(name)
+            if status == 'missing':
+                print(f'skipped the {name} binary check: it is not built here')
+                continue
+            check(status == 'ok' and native.binary(name) == path,
+                  f'binary({name}): the built one is this checkout\'s ({native.binary_status(name)[2][:80]})')
+            real = native.checkout_fingerprint
+            native.reset()
+            native.checkout_fingerprint = lambda rust=native.RUST, artefact='module': 'f' * 64
+            try:
+                status, _, why = native.binary_status(name)
+                check(status == 'stale' and native.binary(name) is None and 'other Rust sources' in why,
+                      f'binary({name}): stale when the checkout\'s sources differ ({status})')
+            finally:
+                native.checkout_fingerprint = real
+                native.reset()
+    finally:
+        for k, old in zip((native.CLI_PYTHON_ENV, native.STRICT_ENV), saved, strict=True):
+            if old is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = old
+        native.reset()
 
 
 def download() -> None:
@@ -203,6 +345,7 @@ def download() -> None:
             bn._get = serve(good_sha, data, hashlib.sha256(junk).hexdigest(), junk)
             check(bn.download() == 1 and not os.path.exists(native.bin_path('bfbc2')),
                   'download: a bfbc2.exe that does not run is not installed')
+            fp = native.checkout_fingerprint(artefact='bfbc2') or ''      # round QW1: bfbc2.exe's own fingerprint
             bn._get = serve(good_sha, data, hashlib.sha256(exe_data).hexdigest(), exe_data)
             ok = bn.download() == 0 and open(native.bin_path('bfbc2'), 'rb').read() == exe_data
             py_txt = os.path.join(native.BIN, 'python.txt')
@@ -248,6 +391,7 @@ def retired_cli() -> None:
 def main() -> int:
     fingerprints()
     retired_cli()
+    stale_cli()
     if not os.path.isfile(PYD):
         print('skipped the module checks: the Rust core is not built (python rust\\build_native.py)')
         return 1 if FAILS else 0
