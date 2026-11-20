@@ -328,17 +328,8 @@ fn commons_of(game: &Game, lv: &str, kind: &str) -> Vec<String> {
         .collect()
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "the scan's steps in order: the levels, their sets, commons, donors, fields"
-)]
-/// The sets' profiles for a mode (`conquest`), read from the game copy (nothing is written).
-///
-/// # Errors
-/// A bundle does not read.
-pub fn scan(game: &Game, mode: &str) -> Result<Profiles> {
-    let mode = mode.to_ascii_lowercase();
-    // every level of the game copy with its bundles there
+/// Every level of the game copy with its own level bundle there, and its set (lower case, by name).
+fn levels_of(game: &Game) -> Vec<(String, Profile)> {
     let mut lvs: Vec<(String, Profile)> = Vec::new();
     for s in game.sources() {
         let low = s.to_ascii_lowercase();
@@ -361,14 +352,19 @@ pub fn scan(game: &Game, mode: &str) -> Result<Profiles> {
     }
     lvs.sort_by(|a, b| a.0.cmp(&b.0));
     lvs.dedup_by(|a, b| a.0 == b.0);
-    // their descriptions: the multiplayer ones
+    lvs
+}
+
+/// The multiplayer levels of the game copy and their modes, as their descriptions name them.
+fn listed(game: &Game) -> Result<Vec<Listed>> {
+    let lvs = levels_of(game);
     let live = game.live(&game.startup())?;
     let wanted: Vec<(&(String, Profile), &Found)> = lvs
         .iter()
         .filter_map(|x| live.get(&format!("levels/{}_description.dbx", x.0)).map(|f| (x, f)))
         .collect();
     let datas = read_found(&wanted.iter().map(|x| x.1).collect::<Vec<_>>())?;
-    let mut listed: Vec<Listed> = Vec::new();
+    let mut out: Vec<Listed> = Vec::new();
     for (((lv, profile), _), data) in wanted.into_iter().zip(datas) {
         let Ok(w) = LevelWriter::parse(&data) else { continue };
         let Some(m) = description(&w)
@@ -377,13 +373,69 @@ pub fn scan(game: &Game, mode: &str) -> Result<Profiles> {
         else {
             continue;
         };
-        listed.push(Listed {
+        out.push(Listed {
             lv: lv.clone(),
             profile: *profile,
             mode: m,
             desc: data,
         });
     }
+    Ok(out)
+}
+
+/// The multiplayer modes each set's stock levels have (round E3d), from the game copy's descriptions: set -> mode
+/// (`conquest`, `rush`, `squadrush`, `squaddeathmatch` ...) -> its levels. A set offers an export only these modes.
+///
+/// # Errors
+/// A bundle does not read.
+pub fn modes(game: &Game) -> Result<BTreeMap<Profile, BTreeMap<String, Vec<String>>>> {
+    let mut out: BTreeMap<Profile, BTreeMap<String, Vec<String>>> = BTreeMap::new();
+    for l in listed(game)? {
+        out.entry(l.profile).or_default().entry(l.mode).or_default().push(l.lv);
+    }
+    Ok(out)
+}
+
+/// Each set's common level bundles (round E3d): the `_common` targets every multiplayer level of the set loads, in
+/// order, over all its modes (BFBC2 `mp_common`; BFBC1 `mp2_common`, `mp_common`; Vietnam `nam_common`,
+/// `mp_common`; WW2 `ww2_common`, `mp_common`).
+///
+/// # Errors
+/// A bundle does not read.
+pub fn set_commons(game: &Game) -> Result<BTreeMap<Profile, Vec<String>>> {
+    let mut by: BTreeMap<Profile, Vec<Vec<String>>> = BTreeMap::new();
+    for l in listed(game)? {
+        by.entry(l.profile).or_default().push(commons_of(game, &l.lv, "level"));
+    }
+    Ok(by
+        .into_iter()
+        .map(|(p, lists)| {
+            let mut it = lists.into_iter();
+            let first = it.next().unwrap_or_default();
+            let rest: Vec<HashSet<String>> = it.map(|v| v.iter().map(|t| t.to_ascii_lowercase()).collect()).collect();
+            (
+                p,
+                first
+                    .into_iter()
+                    .filter(|t| rest.iter().all(|r| r.contains(&t.to_ascii_lowercase())))
+                    .collect(),
+            )
+        })
+        .collect())
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scan's steps in order: the levels, their sets, commons, donors, fields"
+)]
+/// The sets' profiles for a mode (`conquest`), read from the game copy (nothing is written).
+///
+/// # Errors
+/// A bundle does not read.
+pub fn scan(game: &Game, mode: &str) -> Result<Profiles> {
+    let mode = mode.to_ascii_lowercase();
+    // every multiplayer level of the game copy, its set and mode
+    let listed = listed(game)?;
     let mut sets = Vec::new();
     for p in Profile::ALL {
         let mine: Vec<&Listed> = listed.iter().filter(|l| l.profile == p).collect();

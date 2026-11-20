@@ -56,6 +56,10 @@ pub(super) struct StartForm<'a> {
     pub(super) recent: &'a [PathBuf],
     /// The start screen's buttons drawn, by label (the tests click them).
     pub(super) buttons: &'a mut Vec<(String, Rect)>,
+    /// The new project's target (round E3d): the era (`None`: the base's own, its layer kept) and the mode.
+    pub(super) target: Option<&'a mut (Option<bc2_levelwrite::Profile>, String)>,
+    /// The game copy's modes per era (the pickers list them; `None` while not read).
+    pub(super) modes: Option<&'a EraModes>,
 }
 
 /// What the new project form says: its title, its button, a note (a campaign base's).
@@ -130,6 +134,9 @@ pub(super) fn new_map_form(
                 ui.label(RichText::new("Folder").color(p.ink_muted));
                 ui.add(egui::TextEdit::singleline(f.new_folder).desired_width(field_w));
                 ui.end_row();
+                if let Some(t) = f.target.as_deref_mut() {
+                    target_rows(ui, p, t, f.modes, field_w);
+                }
             });
         ui.add_space(m.space_2);
         let why = if f.new_name.trim().is_empty() {
@@ -165,6 +172,86 @@ pub(super) fn new_map_form(
         });
     });
     out
+}
+
+/// The target pickers (round E3d): the era the new level is made for and its multiplayer mode, the modes listed
+/// from the game copy's stock levels of that era (a mode no stock level of the era has is not offered; Onslaught
+/// and Air Superiority are listed with why they are not offered yet).
+pub(super) fn target_rows(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    t: &mut (Option<bc2_levelwrite::Profile>, String),
+    modes: Option<&EraModes>,
+    width: f32,
+) {
+    use bc2_levelwrite::Profile;
+    use bc2_levelwrite::modelayer::{mode_name, not_offered};
+    ui.label(RichText::new("Era").color(p.ink_muted));
+    let era_text = |e: Option<Profile>| {
+        e.map_or_else(
+            || "The base's own (keep its mode layer)".to_owned(),
+            |x| x.word().to_owned(),
+        )
+    };
+    egui::ComboBox::from_id_salt("new-project-era")
+        .width(width)
+        .selected_text(era_text(t.0))
+        .show_ui(ui, |ui| {
+            if ui.selectable_label(t.0.is_none(), era_text(None)).clicked() {
+                t.0 = None;
+            }
+            for e in Profile::ALL {
+                let have = modes.is_none_or(|m| m.contains_key(&e));
+                if ui
+                    .add_enabled(have, egui::Button::selectable(t.0 == Some(e), e.word()))
+                    .on_disabled_hover_text("The game copy has no multiplayer level of this era")
+                    .clicked()
+                {
+                    t.0 = Some(e);
+                    let offered = modes
+                        .and_then(|m| m.get(&e))
+                        .is_some_and(|m| m.contains_key(&t.1) && not_offered(&t.1).is_none());
+                    if !offered {
+                        "conquest".clone_into(&mut t.1);
+                    }
+                }
+            }
+        });
+    ui.end_row();
+    ui.label(RichText::new("Mode").color(p.ink_muted));
+    let era_modes = t.0.and_then(|e| modes.and_then(|m| m.get(&e)));
+    ui.add_enabled_ui(t.0.is_some(), |ui| {
+        egui::ComboBox::from_id_salt("new-project-mode")
+            .width(width)
+            .selected_text(if t.0.is_some() {
+                mode_name(&t.1)
+            } else {
+                "The base's own".into()
+            })
+            .show_ui(ui, |ui| {
+                for (k, lvs) in era_modes.into_iter().flatten() {
+                    let why = not_offered(k);
+                    let r = ui
+                        .add_enabled(
+                            why.is_none(),
+                            egui::Button::selectable(
+                                t.1 == *k,
+                                format!("{} ({} stock levels)", mode_name(k), lvs.len()),
+                            ),
+                        )
+                        .on_disabled_hover_text(why.unwrap_or_default());
+                    if r.clicked() {
+                        k.clone_into(&mut t.1);
+                    }
+                }
+            });
+    });
+    ui.end_row();
+    if let (Some(e), None) = (t.0, era_modes) {
+        ui.label("");
+        ui.label(RichText::new(format!("Reading the game copy's {} modes...", e.word())).color(p.ink_faint));
+        ui.end_row();
+    }
 }
 
 /// One project row of "Open project": its name (a link), its folder; `missing` greys it. The click opens it.

@@ -4,7 +4,7 @@
 //! ```text
 //! bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light]
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
-//!              [--export | --no-strip]
+//!              [--export [--install-plan] | --no-strip] [--new-project <level> [--era <era>] [--target-mode <mode>]]
 //! bfbc2-editor --version
 //! ```
 //!
@@ -15,6 +15,9 @@
 //! window without showing it (no display needed) and saves it.
 //! With `--screenshot`, `--export` shows the project's Export window (its content profiles read and its picture
 //! previewed first, round E3b), `--no-strip` leaves out the campaign checklist a campaign base offers.
+//! `--install-plan` (with `--export`) runs OPFOR's install plan on the project's stage and shows the Install dialog
+//! (round E3d; nothing is installed). `--new-project <level>` shows the start screen's New project form on a level,
+//! its Era and Mode pickers set by `--era bfbc1|bfbc2|vietnam|ww2` and `--target-mode <mode key>`.
 #![deny(unsafe_code)]
 
 use std::path::PathBuf;
@@ -28,6 +31,7 @@ use eframe::egui;
 
 const STORAGE_KEY: &str = "bfbc2-editor";
 
+#[allow(clippy::struct_excessive_bools, reason = "the command line's switches")]
 struct Args {
     level: Option<String>,
     opfor: Option<PathBuf>,
@@ -39,6 +43,10 @@ struct Args {
     project: Option<PathBuf>,
     export: bool,
     no_strip: bool,
+    install_plan: bool,
+    new_project: Option<String>,
+    era: Option<bc2_levelwrite::Profile>,
+    target_mode: Option<String>,
     /// The start screen's set of maps to show (`--mode bfbc1|bfbc2|vietnam|ww2`).
     mode: Option<ContentSet>,
 }
@@ -55,6 +63,10 @@ fn parse() -> Result<Args, String> {
         project: None,
         export: false,
         no_strip: false,
+        install_plan: false,
+        new_project: None,
+        era: None,
+        target_mode: None,
         mode: None,
     };
     let mut it = std::env::args().skip(1);
@@ -76,6 +88,17 @@ fn parse() -> Result<Args, String> {
             "--project" => a.project = Some(PathBuf::from(value("a .mapedit.json file")?)),
             "--export" => a.export = true,
             "--no-strip" => a.no_strip = true,
+            "--install-plan" => a.install_plan = true,
+            "--new-project" => a.new_project = Some(value("a level")?),
+            "--target-mode" => a.target_mode = Some(value("a mode")?),
+            "--era" => {
+                a.era = Some(match value("bfbc1, bfbc2, vietnam or ww2")?.to_lowercase().as_str() {
+                    "bfbc1" => bc2_levelwrite::Profile::Bfbc1,
+                    "vietnam" => bc2_levelwrite::Profile::Vietnam,
+                    "ww2" => bc2_levelwrite::Profile::Ww2,
+                    _ => bc2_levelwrite::Profile::Bfbc2,
+                });
+            }
             "--theme" => {
                 a.theme = Some(match value("dark or light")?.as_str() {
                     "light" => ThemeId::Light,
@@ -155,6 +178,29 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
         let base = bc2_levelwrite::MapProject::load(p).map_or_else(|_| String::new(), |x| x.base.level);
         app.export.open_for(p, Some(&opfor));
         app.export.settle(&h.ctx, &base);
+        if a.install_plan {
+            h.settle(&mut app, 4);
+            let stage = app.export.spec.as_ref().and_then(|s| s.level_id().ok()).map(|id| {
+                opfor
+                    .join("work")
+                    .join("mapedit")
+                    .join(id.to_ascii_lowercase())
+                    .join("stage")
+            });
+            if let Some(st) = stage {
+                app.export
+                    .install
+                    .run(&opfor, "plan", &["--plan".into(), st.display().to_string()]);
+                app.export.install.settle();
+            }
+        }
+    }
+    if let Some(lv) = &a.new_project {
+        app.start_new_project(lv);
+        app.read_era_modes();
+        if a.era.is_some() || a.target_mode.is_some() {
+            app.set_new_target(a.era, a.target_mode.as_deref().unwrap_or("conquest"));
+        }
     }
     if let Some(g) = &a.select {
         let gpu = h.gpu.clone();

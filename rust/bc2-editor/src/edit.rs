@@ -13,9 +13,9 @@ use std::path::{Path, PathBuf};
 
 use bc2_levelwrite::ops::Organisation;
 use bc2_levelwrite::project::BaseReport;
-use bc2_levelwrite::write::{Applied, LevelWriter, apply_one};
+use bc2_levelwrite::write::{Applied, LevelWriter, apply_one_with};
 use bc2_levelwrite::{FieldType, FieldValue, MapProject, Op, Operation, Profile, Schema};
-use bc2_scene::scene::{Scene, Shape, Source};
+use bc2_scene::scene::{Entity, Scene, Shape, Source};
 
 /// One field as the properties panel edits it.
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +59,8 @@ pub struct Doc {
     /// Blueprints the level does not place, as the content browser described them (category, object type,
     /// destructible).
     known: HashMap<String, (String, Option<String>, bool)>,
+    /// The game copy (round E3d): a mode choice's donor level is read from it ([`Doc::set_game`]).
+    game: Option<bc2_levelwrite::export::Game>,
 }
 
 /// A blueprint's path (lower case, as the scene keeps it) from its reference (`objects/x/x/<guid>`).
@@ -157,6 +159,7 @@ impl Doc {
             base_report,
             autosave_error: None,
             known: HashMap::new(),
+            game: None,
         };
         d.rebuild();
         d
@@ -190,9 +193,26 @@ impl Doc {
         self.org = self.project.organisation();
     }
 
+    /// The game copy the project's mode choice reads its donor from (round E3d); the log applied again.
+    pub fn set_game(&mut self, game: Option<bc2_levelwrite::export::Game>) {
+        self.game = game;
+        self.rebuild();
+    }
+
+    /// The game copy, when the editor found one.
+    #[must_use]
+    pub fn game(&self) -> Option<&bc2_levelwrite::export::Game> {
+        self.game.as_ref()
+    }
+
     fn apply(&mut self, o: &Operation) {
+        let game = self.game.clone();
+        let donors = move |lv: &str| {
+            game.as_ref()
+                .and_then(|g| bc2_levelwrite::export::level_partition(g, lv).ok())
+        };
         if let Some(w) = self.writer.as_mut()
-            && let Err(e) = apply_one(w, o, &self.schema, &mut Applied::default())
+            && let Err(e) = apply_one_with(w, o, &self.schema, &mut Applied::default(), &donors)
         {
             self.problems.push(e.to_string());
         }
@@ -202,6 +222,18 @@ impl Doc {
                     if let Some(k) = self.index(&m.guid) {
                         self.scene.set_transform(k, bc2_levelwrite::matrix_of(&m.to));
                     }
+                }
+            }
+            Op::SetMode { to } => {
+                // the old layer out of the views, the new one in, read from the edited partition
+                for g in &to.removed {
+                    if let Some(k) = self.index(g) {
+                        self.deleted.insert(k);
+                        self.by_guid.remove(&g.to_ascii_uppercase());
+                    }
+                }
+                for it in &to.items {
+                    self.add_layer_entity(&it.guid);
                 }
             }
             Op::Delete { guids } => {
@@ -296,6 +328,59 @@ impl Doc {
 
     /// Copies entity `k` as `guid` at `matrix` (its own when `None`) at the end of the scene, with its collision;
     /// the copy's index.
+    /// An entity for an instance a mode choice brought in (round E3d), from the edited partition: its type, name,
+    /// transform, blueprint and team, as the scene loader reads them.
+    fn add_layer_entity(&mut self, guid: &str) -> Option<usize> {
+        let w = self.writer.as_ref()?;
+        let e = w.find(guid)?;
+        let type_name = w.type_of(e);
+        let short = type_name.rsplit('.').next().unwrap_or(&type_name).to_owned();
+        let text = |f: &[u8]| {
+            w.d.child(e, f)
+                .and_then(|x| w.d.text(x))
+                .map(|t| String::from_utf8_lossy(t).into_owned())
+        };
+        let blueprint =
+            w.d.child(e, b"ReferencedObject")
+                .and_then(|x| w.d.attr(x, b"ref"))
+                .map(|r| blueprint_path(&String::from_utf8_lossy(r)));
+        let team = text(b"Team")
+            .or_else(|| text(b"InitialOwnerTeam"))
+            .and_then(|t| match t.as_str() {
+                "Team1" => Some(1),
+                "Team2" => Some(2),
+                "TeamNeutral" => Some(0),
+                _ => None,
+            });
+        let n = self.scene.entities.len();
+        let partition = self
+            .scene
+            .entities
+            .first()
+            .map_or_else(|| self.project.base.partition.clone(), |x| x.partition.clone());
+        let matrix = w.transform(guid).map(|r| bc2_levelwrite::matrix_of(&r));
+        self.scene.entities.push(Entity {
+            index: n,
+            guid: guid.to_ascii_uppercase(),
+            category: bc2_scene::scene::category_of(&type_name).to_owned(),
+            type_name,
+            short_type: short,
+            id: None,
+            name: text(b"Name").filter(|t| !t.is_empty()),
+            partition,
+            matrix,
+            blueprint,
+            group: None,
+            blueprint_type: None,
+            destructible: false,
+            team,
+            ai: None,
+            source: Source::Instance { instance: usize::MAX },
+        });
+        self.by_guid.insert(guid.to_ascii_uppercase(), n);
+        Some(n)
+    }
+
     fn copy_entity(&mut self, k: usize, guid: &str, matrix: Option<[f64; 16]>) -> Option<usize> {
         let mut e = self.scene.entities.get(k).cloned()?;
         let n = self.scene.entities.len();

@@ -3787,6 +3787,52 @@ BFBC2 Conquest, BFBC2 campaign):
 BFBC2's maps, the New project dialog, Create level, From existing levels, a campaign base's dialog, the height-map form
 (ready and refused) and the saved project's page, dark and light, 1600 and 1280 px wide (48 pictures).
 
+## E3d (map export): any map, any era, any mode - the canaries (2026-11-19, branch `rust-e3d`)
+
+`EDITOR_ARCHITECTURE.md` 3.12, "Round E3d". No Python replaced; `game\` only read. The project's target (era, mode,
+donor) is an operation of its log; the export writes the project as it is plus the closure under the target era's
+bundles.
+
+**The canaries** (the user's list, 2026-11-19; `cargo run --release -p bc2-levelwrite --example e3d_matrix --
+<game> <projects> <OPFOR work\mapedit>`): each a new project on a stock level, its target the first operation (the
+donor's layer in, the base's out), a scripted edit (an object moved 8 m; a flag, base or M-COM moved by "Use
+selection"), the export, then `mapexport check`. Release build, a shared PC (other rounds building), the bundle
+cache warm:
+
+| Canary | Base -> target | Layer in / base's out | Closure: copied (walked) | Check | Time |
+|---|---|---|---|---|---:|
+| Aurora -> WW2 Conquest, WW2 objects | `sp_01` -> WW2 Conquest (`guadal_canal`), a radar bunker and a Kurogane spawner placed from `guadal_canal`'s bundle, the 2 bases and 2 flags at E3's places | 277 / 395 | 1,686 (1,347): 719 `mp_common` (675 under `ww2_common`'s markers, 44 under `sp_01`'s), 952 `guadal_canal` (802 not loaded: WW2 kits, the bunker, the Kurogane), 14 `iwo_jima_s` / `wake_island_s`, 1 `ww2_common` | every line | 25 s |
+| Rush -> Conquest | `mp_005gr` -> BFBC2 Conquest (`mp_001`) | 317 / 821 (the 4 Rush stages out) | 36 (374): `mp_common` under `mp_005gr`'s markers | every line | 10 s |
+| Wake Island WW2 -> BFBC2 | `wake_island_s` -> BFBC2 Conquest (`mp_001`) | 317 / 256 | 242 (931): 241 `ww2_common` (no longer loaded), 1 `mp_001`; 2 BF1943 voice banks replaced by BFBC2's | every line | 12 s |
+| Vietnam -> WW2 | `nam_mp_003cq` -> WW2 Conquest (`guadal_canal`), the layer scaled 0.26 into the map | 277 / 254 | 1,636 (1): 1,619 `guadal_canal`, 13 `mp_common`, 4 `ww2_common`; the height field kept in `nam_common`'s terrain bundle | every line | 12 s |
+| BFBC2 -> WW2 Air Superiority | `mp_005` | - | - | PENDING: "Air Superiority is BF1943's mode, still queued in OPFOR's Pacific War work" | - |
+| A squad mode | `mp_002` (BFBC2 Rush) -> Vietnam Squad Deathmatch (`nam_mp_002sdm`) | 164 / 1,104 | 2,526 (71): 2,374 `mp_common` under `nam_common`'s markers, 138 `guadal_canal`, 14 `iwo_jima_s` / `wake_island_s` | every line | 20 s |
+| WW2 -> BFBC2 Rush | `guadal_canal` -> BFBC2 Rush (`mp_002`): 5 stages of 2 M-COMs | 1,088 / 291 | 236 (900): 234 `ww2_common`, 2 `mp_002`; 2 voice banks replaced | every line | 14 s |
+
+**What the checks found on the way** (each fixed, each now a check line or a rule): the BFBC2 export of Wake
+Island spoke BF1943's lines (the WW2 level's own `vo_common` / `vo_en` before `mp_common`: E3c's voices line failed;
+the donor's versions now go first); the Vietnam -> WW2 export lost its ground (the height field is in `nam_common`'s
+terrain bundle: the terrain block keeps the base's terrain bundles, a new *terrain* line checks it); `mp_005`'s
+guard-tower effects name emitters only `guadal_canal` holds (DICE's dangling reference: never filled from an
+unrelated level); OPFOR's Wake Island names its loading picture by its level (`WAKEISLAND2_NAME` ->
+`wake_island_s.res`); a Rush base's M-COMs leave with its layer (a scripted edit on one failed until it picked from
+the level as the target left it).
+
+**Install, end to end** (`mapedit_install.py`, the suite's release `mapexport` via `BFBC2_MAPEXPORT`): `--plan` of
+each of the six stages against the real game copy (read only); `--apply` of all six one after another on a scratch
+copy of the shared files (`--game <scratch> --check-game <game>`): each section in `maps.ini` with its mode
+(`Conquest=`, `Rush=`, `Squad Deathmatch=`), 5 or 11 `package.mft` blocks per level (the donor's vo blocks), the
+startup list, the names and pictures; `--revert` of one, then `--revert-all`: the six shared files back byte for
+byte with their last-writer records, no level folder or backup left. `game\`: 1,582 files with the same size and
+write time before and after the whole round's runs, 26 key files (the shared files and every bundle the canaries
+read) with the same sha256.
+
+**Tests.** `tests/export_e3d.rs`: each era's modes from the data, each mode's layer (`mp_005gr` 4 stages of 2,
+`mp_005sr` 2 of 1, `mp_009sdm` 5 teams and 4 kill counters, `nam_mp_002r` 3 of 2; `mp_009cq` 238 instances,
+`mp_005gr` 821), Rush -> Conquest as a project operation (complete; deleting every capture point names the missing
+base and flag; the undo gives the base back byte for byte), WW2 Rush and Air Superiority refused in words.
+OPFOR's `test_mapedit_install.py`: every mode's `maps.ini` line in and out, `--check-game`.
+
 ## O1: the orchestration and command-line glue (2026-11-18, branch `rust-o1`)
 
 The scripts and command lines that parse arguments, walk levels and folders, call the Rust core and print or write
