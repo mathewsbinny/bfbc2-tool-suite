@@ -5211,7 +5211,8 @@ messages), `pick_database` and `dx_from_name`. `bfbc2.exe shaderdb` (O5) had its
 - Checks: `cargo fmt`; `cargo clippy -p bc2-formats -p bc2-py -p bc2-cli --all-targets --all-features -D warnings`;
   `cargo test --release -p bc2-formats -p bc2-cli --all-features`; ruff and mypy on the changed Python;
   `spec/trace.py --check` (the `shaderdb.rs` citations after line 29 moved one line; SHDB-HDR-3 and SHDB-X-1 cite
-  `open.rs` and the test).
+  `open.rs` and the test); `python run_tests.py quick -j 2`: 127 of 128 (O4's navtools group failed once under the
+  tier's load and passed alone, 222 of 222 as recorded: NavKit's command lines, which this round does not touch).
 
 ### Timings (`rust/bench_sd1.py`, best of 5, `load_levels` best of 3; the game copy, a quiet machine)
 
