@@ -6,7 +6,9 @@ queue of rounds is `ROADMAP.md`.
 ## How a round reaches main
 
 1. Work on a branch of its own (a worktree beside the main checkout: `bfbc2-tool-suite-<round>`, branch
-   `<kind>-<round>`), never on `main`.
+   `<kind>-<round>`), never on `main`. Its cargo builds go to `rust-targets\bfbc2-tool-suite-<round>` beside the
+   checkouts; after the worktree is removed, `python -m bfbc2core.caches --prune-targets --yes` (from `core\`) deletes
+   that build folder (README.md, "Where Rust builds").
 2. Before each commit: `python run_tests.py quick`. Before pushing: `python run_tests.py game` on the development
    PC (it needs the game copy, which CI does not have).
 3. Push the branch. The **checks** workflow (`.github/workflows/checks.yml`) runs on every push and pull request:
@@ -14,8 +16,9 @@ queue of rounds is `ROADMAP.md`.
    the quick tier's game-free entries (`python run_tests.py quick --no-game --ci-steps`).
 4. Wait for the checks to be green, then merge the branch into `main` (a pull request, or a merge commit from the
    branch). A red check is fixed on the branch, not on `main`.
-5. On `main`: the **native** workflow builds and publishes the prebuilt Rust module when the Rust sources (or
-   `VERSION`) changed.
+5. On `main`: the **native** workflow (`.github/workflows/native.yml`) builds and publishes the prebuilt Rust module
+   and `bfbc2.exe` (since round RT1) when the Rust sources (or `VERSION`) changed; `python rust\build_native.py
+   --download` fetches both. The map editor and `mapexport.exe` are not published (built with `--editor`).
 6. Move the round to **Done** in `ROADMAP.md` with its one-line result, and add its user-visible changes to the
    **Unreleased** section of `CHANGELOG.md` (create it at the top when there is none).
 
