@@ -9,7 +9,7 @@ use crate::pickle::{PickleError, Value};
 /// `pickle.dumps(v)` (protocol 4, 3.13's default): framed in 64 KiB frames; each `str`, `bytes`, non-empty tuple,
 /// list and dict memoized on first sight and named again by its memo index (object identity: values sharing one
 /// `Rc` are one object, as the reference's shared objects); dicts and lists in batches of 1,000. Values the suite's
-/// caches do not hold (sets, objects, globals, floats) are an error.
+/// caches do not hold (sets, objects, globals) are an error.
 ///
 /// # Errors
 /// A value of a kind this writer does not write.
@@ -111,6 +111,12 @@ impl Writer {
             Value::None => self.write(b"N"),
             Value::Bool(b) => self.write(if *b { &[0x88] } else { &[0x89] }),
             Value::Int(i) => self.int(*i),
+            Value::Float(f) => {
+                // save_float: BINFLOAT, big-endian (round CT1: culltree's rows)
+                let mut b = vec![b'G'];
+                b.extend_from_slice(&f.to_be_bytes());
+                self.write(&b);
+            }
             Value::Long(b) => {
                 let mut o = vec![0x8a, b.len() as u8];
                 o.extend_from_slice(b);

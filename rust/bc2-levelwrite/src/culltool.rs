@@ -11,9 +11,10 @@
 //! `open()`, and [`Fail::Python`] where the reference raises an exception of its own on a damaged file (an index or
 //! `struct` error): the command line then runs the reference.
 //!
-//! The reference levels' rows are not cached here (`culltree.py` keeps them in pickles under
-//! `%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`): the levels are read again on all cores, which costs less than
-//! the cache saved the Python. The rows from the cache equal those read, so the answers do not depend on it.
+//! Round CT1: the reference levels are streamed ([`scan_level`]: one instance at a time, not the whole document)
+//! and only their rows are kept; the rows are kept between runs in `culltree.py`'s own row cache ([`RowStore`],
+//! the pickles of [`crate::cullcache`] under `%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`), read and written
+//! by both. The rows from the cache equal those read, so the answers do not depend on it.
 
 #![allow(
     clippy::indexing_slicing,
@@ -38,6 +39,7 @@
 
 use std::collections::HashMap;
 use std::io;
+use std::sync::Arc;
 
 use bc2_formats::culltree as raw;
 use bc2_pyrt::err::{Fail, PyErr, PyResult};
@@ -199,27 +201,32 @@ fn be32(d: &[u8], at: usize) -> PyResult<u32> {
     Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
 }
 
+/// The header and string table of a binary DBX file: (string area, strings, where the elements start).
+fn header(data: &[u8], name: &str) -> PyResult<(Vec<String>, usize)> {
+    if data.len() <= 24 || !data.starts_with(MAGIC) {
+        return Err(cte(format!("{name} is not a binary .dbx file")));
+    }
+    let size = be32(data, 16)? as usize;
+    let count = be32(data, 20)? as usize;
+    let base = 24 + 4 * count;
+    let mut strings = Vec::new();
+    for i in 0..count {
+        let off = be32(data, 24 + 4 * i)? as usize;
+        let start = base + off;
+        if start > data.len() {
+            return Err(PY);
+        }
+        let end = data[start..].iter().position(|&b| b == 0).ok_or(PY)? + start;
+        strings.push(String::from_utf8_lossy(&data[start..end]).into_owned());
+    }
+    Ok((strings, 24 + size))
+}
+
 impl Doc {
     pub fn parse(data: &[u8], name: &str) -> PyResult<Self> {
-        if data.len() <= 24 || !data.starts_with(MAGIC) {
-            return Err(cte(format!("{name} is not a binary .dbx file")));
-        }
+        let (strings, pos) = header(data, name)?;
         let head12 = data[12..16].to_vec();
-        let size = be32(data, 16)? as usize;
-        let count = be32(data, 20)? as usize;
-        let string_area = data[24.min(data.len())..(24 + size).min(data.len())].to_vec();
-        let base = 24 + 4 * count;
-        let mut strings = Vec::new();
-        for i in 0..count {
-            let off = be32(data, 24 + 4 * i)? as usize;
-            let start = base + off;
-            if start > data.len() {
-                return Err(PY);
-            }
-            let end = data[start..].iter().position(|&b| b == 0).ok_or(PY)? + start;
-            strings.push(String::from_utf8_lossy(&data[start..end]).into_owned());
-        }
-        let pos = 24 + size;
+        let string_area = data[24.min(data.len())..pos.min(data.len())].to_vec();
         let read = raw::elements(data, pos).map_err(|e| cte(format!("{name}: {e}")))?;
         // the flat stream as a tree (a container's children: the elements up to its end)
         fn take(read: &raw::Elements, data: &[u8], i: &mut usize, end: usize, out: &mut Vec<El>) {
@@ -260,6 +267,14 @@ impl Doc {
 
     pub fn read(path: &str) -> PyResult<Self> {
         Self::parse(&read(path)?, &basename(path))
+    }
+
+    /// The elements and strings dropped (round CT1: a document already written that is not used again).
+    pub fn release(&mut self) {
+        self.roots = Vec::new();
+        self.strings = Vec::new();
+        self.string_area = Vec::new();
+        self.trailer = Vec::new();
     }
 
     pub fn tobytes(&self) -> Vec<u8> {
@@ -669,6 +684,21 @@ pub struct CullTree {
 
 const NODE_FIELDS: [&str; 6] = ["Right", "Max", "SphereKeyX", "SphereKeyY", "SphereKeyZ", "SphereKeyW"];
 
+/// A streamed `Nodes` array of a root child ([`CullTree::read_only`]): (its index among the child's children, the
+/// nodes up to the first that fails, that failure).
+type Streamed = (usize, Vec<NodeData>, Option<Fail>);
+
+/// The cull tree instance's `Nodes` and `EnumOffset` fields: (the array's index among its children, `EnumOffset`).
+fn fields(s: &[String], e: &El, base: &str) -> PyResult<(usize, i64)> {
+    let array = e.child(s, "Nodes")?;
+    let eo = e.child(s, "EnumOffset")?;
+    let (Some(array), Some(eo)) = (array, eo) else {
+        return Err(cte(format!("{base}: the cull tree has no Nodes or EnumOffset field")));
+    };
+    let kids = e.children.as_ref().ok_or(PY)?;
+    Ok((array, int4(&kids[eo])?))
+}
+
 fn node_of(s: &[String], c: &El) -> PyResult<NodeData> {
     let mut v: HashMap<Option<String>, Vec<u8>> = HashMap::new();
     for f in c.children.iter().flatten() {
@@ -710,17 +740,113 @@ impl CullTree {
             )));
         };
         let e = doc.instance(inst);
-        let array = e.child(s, "Nodes")?;
-        let eo = e.child(s, "EnumOffset")?;
-        let (Some(array), Some(eo)) = (array, eo) else {
-            return Err(cte(format!("{base}: the cull tree has no Nodes or EnumOffset field")));
-        };
-        let kids = e.children.as_ref().ok_or(PY)?;
-        let enum_offset = int4(&kids[eo])?;
+        let (array, enum_offset) = fields(s, e, &base)?;
         let mut nodes = Vec::new();
-        for c in kids[array].children.iter().flatten() {
+        for c in e.children.as_ref().ok_or(PY)?[array].children.iter().flatten() {
             nodes.push(node_of(s, c)?);
         }
+        Self::with_nodes(path, doc, inst, array, enum_offset, nodes)
+    }
+
+    /// `CullTree(path)` for a tree that is only read (round CT1: the reference levels' trees, a written tree read
+    /// back): the same nodes, values and errors as [`CullTree::read`], the file streamed - its nodes taken as they
+    /// are read instead of the whole document kept. Its document is empty: it cannot be written.
+    pub fn read_only(path: &str) -> PyResult<Self> {
+        use std::cell::RefCell;
+        let data = read(path)?;
+        let base = basename(path);
+        let (strings, pos) = header(&data, &base)?;
+        let s = &strings;
+        // CullTree.__init__'s order: the document (its element errors first), `instances` (every root child's tag),
+        // every instance's type, then the first cull tree's fields and nodes
+        let mut bad = false; // a tag or type that is the reference's own exception
+        let mut chosen: Option<(usize, El)> = None;
+        // the streamed "Nodes" items of the root child being read: (its index among the child's children, the
+        // nodes up to the first that fails, that failure)
+        let items: RefCell<Vec<Streamed>> = RefCell::new(Vec::new());
+        let mut nodes_of_chosen: Vec<Streamed> = Vec::new();
+        let mut child = |i: usize, el: El| {
+            let mine = std::mem::take(&mut *items.borrow_mut());
+            match usize::try_from(el.tag).ok().and_then(|t| s.get(t)) {
+                None => bad = true,
+                Some(t) if t == "instance" => match el.attr(s, "type") {
+                    Err(_) => bad = true,
+                    Ok(Some("World.StaticCullTreeData")) if chosen.is_none() => {
+                        chosen = Some((i, el));
+                        nodes_of_chosen = mine;
+                    }
+                    Ok(_) => {}
+                },
+                Some(_) => {}
+            }
+        };
+        let streamed = |e: &El| matches!(e.name(s), Ok(Some("Nodes")));
+        let mut item = |_: usize, slot: usize, el: El| {
+            let mut v = items.borrow_mut();
+            if v.last().is_none_or(|x| x.0 != slot) {
+                v.push((slot, Vec::new(), None));
+            }
+            if let Some(x) = v.last_mut()
+                && x.2.is_none()
+            {
+                match node_of(s, &el) {
+                    Ok(n) => x.1.push(n),
+                    Err(e) => x.2 = Some(e),
+                }
+            }
+        };
+        let walked = stream_root(
+            &data,
+            pos,
+            &mut Sink {
+                child: &mut child,
+                streamed: &streamed,
+                item: &mut item,
+            },
+        );
+        let has_root = walked.map_err(|e| cte(format!("{base}: {e}")))?;
+        if !has_root || bad {
+            return Err(PY);
+        }
+        let Some((inst, e)) = chosen else {
+            return Err(cte(format!(
+                "{base} has no World.StaticCullTreeData instance (not a cull tree)"
+            )));
+        };
+        let (array, enum_offset) = fields(s, &e, &base)?;
+        let nodes = match nodes_of_chosen.into_iter().find(|x| x.0 == array) {
+            Some((_, _, Some(fail))) => return Err(fail),
+            Some((_, nodes, None)) => nodes,
+            // not streamed: a Nodes field that is not an array (no items), or one whose items are kept
+            None => {
+                let mut nodes = Vec::new();
+                for c in e.children.as_ref().ok_or(PY)?[array].children.iter().flatten() {
+                    nodes.push(node_of(s, c)?);
+                }
+                nodes
+            }
+        };
+        let doc = Doc {
+            name: base,
+            head12: Vec::new(),
+            string_area: Vec::new(),
+            strings: Vec::new(),
+            roots: Vec::new(),
+            trailer: Vec::new(),
+        };
+        Self::with_nodes(path, doc, inst, array, enum_offset, nodes)
+    }
+
+    /// The tree from its nodes: the used ones linked and checked, the spare ones counted, the leaves indexed.
+    fn with_nodes(
+        path: &str,
+        doc: Doc,
+        inst: usize,
+        array: usize,
+        enum_offset: i64,
+        nodes: Vec<NodeData>,
+    ) -> PyResult<Self> {
+        let base = basename(path);
         let mut used = nodes.len();
         while used > 0 && nodes[used - 1] == NodeData::ZERO {
             used -= 1;
@@ -920,6 +1046,72 @@ pub struct Level {
     pub tree_refs: HashMap<String, String>,
 }
 
+/// `Level.__init__`'s loop body for one instance (root child `i`): its tree references and its placed object.
+fn scan_instance(
+    s: &[String],
+    e: &El,
+    i: usize,
+    objects: &mut Vec<Placed>,
+    tree_refs: &mut HashMap<String, String>,
+) -> PyResult<()> {
+    for f in ["ExclusiveStaticCullTree", "ClientStaticCullTree"] {
+        if let Some(c) = e.child(s, f)? {
+            let kid = &e.children.as_ref().ok_or(PY)?[c];
+            if let Some(r) = kid.attr(s, "ref")?
+                && !r.is_empty()
+            {
+                tree_refs.insert(f.to_owned(), r.to_owned());
+            }
+        }
+    }
+    if e.attr(s, "type")? != Some("Entity.ReferenceObjectData") {
+        return Ok(());
+    }
+    let (en, tr, ro) = (
+        e.child(s, "Enumeration")?,
+        e.child(s, "Transform")?,
+        e.child(s, "ReferencedObject")?,
+    );
+    let (Some(en), Some(tr)) = (en, tr) else {
+        return Ok(());
+    };
+    let kids = e.children.as_ref().ok_or(PY)?;
+    let guid = e.attr(s, "guid")?.unwrap_or("").to_owned();
+    let rf = match ro {
+        Some(ro) => kids[ro].attr(s, "ref")?,
+        None => None,
+    };
+    let blueprint = match rf {
+        Some(r) if r.contains('/') => r.rsplit_once('/').map_or("", |x| x.0).to_lowercase(),
+        Some(r) => r.to_owned(),
+        None => String::new(),
+    };
+    let v = floats(&kids[tr])?;
+    if v.len() != 16 {
+        return Ok(());
+    }
+    let enumeration = int4(&kids[en])?;
+    let mut m = [[0.0; 4]; 4];
+    for (k, x) in v.iter().enumerate() {
+        m[k / 4][k % 4] = *x;
+    }
+    objects.push(Placed {
+        guid,
+        blueprint,
+        m,
+        enumeration,
+        el: (i, en),
+    });
+    Ok(())
+}
+
+fn no_objects(path: &str) -> Fail {
+    cte(format!(
+        "{} has no placed objects (Entity.ReferenceObjectData): not a level partition",
+        basename(path)
+    ))
+}
+
 impl Level {
     pub fn read(path: &str) -> PyResult<Self> {
         let doc = Doc::read(path)?;
@@ -927,59 +1119,10 @@ impl Level {
         let mut objects = Vec::new();
         let mut tree_refs = HashMap::new();
         for i in doc.instances()? {
-            let e = doc.instance(i);
-            for f in ["ExclusiveStaticCullTree", "ClientStaticCullTree"] {
-                if let Some(c) = e.child(s, f)? {
-                    let kid = &e.children.as_ref().ok_or(PY)?[c];
-                    if let Some(r) = kid.attr(s, "ref")?
-                        && !r.is_empty()
-                    {
-                        tree_refs.insert(f.to_owned(), r.to_owned());
-                    }
-                }
-            }
-            if e.attr(s, "type")? != Some("Entity.ReferenceObjectData") {
-                continue;
-            }
-            let (en, tr, ro) = (
-                e.child(s, "Enumeration")?,
-                e.child(s, "Transform")?,
-                e.child(s, "ReferencedObject")?,
-            );
-            let (Some(en), Some(tr)) = (en, tr) else { continue };
-            let kids = e.children.as_ref().ok_or(PY)?;
-            let guid = e.attr(s, "guid")?.unwrap_or("").to_owned();
-            let rf = match ro {
-                Some(ro) => kids[ro].attr(s, "ref")?,
-                None => None,
-            };
-            let blueprint = match rf {
-                Some(r) if r.contains('/') => r.rsplit_once('/').map_or("", |x| x.0).to_lowercase(),
-                Some(r) => r.to_owned(),
-                None => String::new(),
-            };
-            let v = floats(&kids[tr])?;
-            if v.len() != 16 {
-                continue;
-            }
-            let enumeration = int4(&kids[en])?;
-            let mut m = [[0.0; 4]; 4];
-            for (k, x) in v.iter().enumerate() {
-                m[k / 4][k % 4] = *x;
-            }
-            objects.push(Placed {
-                guid,
-                blueprint,
-                m,
-                enumeration,
-                el: (i, en),
-            });
+            scan_instance(s, doc.instance(i), i, &mut objects, &mut tree_refs)?;
         }
         if objects.is_empty() {
-            return Err(cte(format!(
-                "{} has no placed objects (Entity.ReferenceObjectData): not a level partition",
-                basename(path)
-            )));
+            return Err(no_objects(path));
         }
         Ok(Self {
             path: path.to_owned(),
@@ -991,8 +1134,7 @@ impl Level {
 
     /// `by_guid(guid)`: the object's index.
     pub fn by_guid(&self, guid: &str) -> Option<usize> {
-        let g = bc2_pyrt::py::strip(guid).to_lowercase();
-        self.objects.iter().position(|o| o.guid.to_lowercase() == g)
+        by_guid(&self.objects, guid)
     }
 
     pub fn tree_path(&self) -> Option<String> {
@@ -1011,6 +1153,229 @@ impl Level {
         self.objects[o].enumeration = value;
         Ok(())
     }
+}
+
+/// `by_guid(guid)`: the object's index.
+fn by_guid(objects: &[Placed], guid: &str) -> Option<usize> {
+    let g = bc2_pyrt::py::strip(guid).to_lowercase();
+    objects.iter().position(|o| o.guid.to_lowercase() == g)
+}
+
+/// A level's placed objects and tree references without its document (round CT1): what a reference level gives
+/// `collect`, read by [`scan_level`] with the memory of one instance at a time.
+#[derive(Debug, Clone)]
+pub struct Objects {
+    pub path: String,
+    pub objects: Vec<Placed>,
+    pub tree_refs: HashMap<String, String>,
+}
+
+impl Objects {
+    /// [`Level::by_guid`].
+    pub fn by_guid(&self, guid: &str) -> Option<usize> {
+        by_guid(&self.objects, guid)
+    }
+}
+
+fn varint_e(data: &[u8], mut pos: usize) -> Result<(u64, usize), raw::ElementError> {
+    let start = pos;
+    let mut v = 0u64;
+    let mut shift = 0u32;
+    loop {
+        let b = *data.get(pos).ok_or(raw::ElementError::Truncated(start))?;
+        pos += 1;
+        let low = u64::from(b & 0x7f);
+        if shift > 63 || (shift > 0 && low >> (64 - shift) != 0) {
+            return Err(raw::ElementError::Varint(start));
+        }
+        v |= low << shift;
+        if b < 0x80 {
+            return Ok((v, pos));
+        }
+        shift += 7;
+    }
+}
+
+/// What [`stream_root`] hands out: each child of the first root, and - for the containers among a root child's own
+/// children that `streamed` picks - each of their items instead of the container holding them (the container is
+/// kept with no children).
+struct Sink<'a> {
+    /// (index among the root's children, the element with its subtree), once it is closed
+    child: &'a mut dyn FnMut(usize, El),
+    /// picks a root child's child container by its (attributes-only) element
+    streamed: &'a dyn Fn(&El) -> bool,
+    /// (root child's index, the picked container's index among its children, an item with its subtree)
+    item: &'a mut dyn FnMut(usize, usize, El),
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "raw::elements' loop and its element kinds in one piece, as there"
+)]
+/// `raw::elements`' walk of the element stream, materializing only the first root's children: each one is handed
+/// to the sink as soon as it is closed, and dropped there. Ok(whether there is a root); the same errors as
+/// `raw::elements`, at the same bytes.
+fn stream_root(data: &[u8], start: usize, sink: &mut Sink) -> Result<bool, raw::ElementError> {
+    use raw::ElementError::{Truncated, Unclosed};
+    // the open containers: their element while it is kept (inside the first root), None for the roots and the
+    // containers of the other roots; with it, its index among its root child's children when its items are streamed
+    let mut open: Vec<(Option<El>, Option<usize>)> = Vec::new();
+    let mut in_root = false;
+    let mut roots = 0usize;
+    let mut index = 0usize;
+    let mut pos = start;
+    let mut deliver = |open: &mut Vec<(Option<El>, Option<usize>)>, el: El, index: &mut usize| {
+        if open.len() == 1 {
+            (sink.child)(*index, el);
+            *index += 1;
+        } else if let Some((_, Some(slot))) = open.last() {
+            (sink.item)(*index, *slot, el);
+        } else if let Some((Some(parent), _)) = open.last_mut()
+            && let Some(kids) = parent.children.as_mut()
+        {
+            kids.push(el);
+        }
+    };
+    while pos < data.len() {
+        let (tag, p) = varint_e(data, pos)?;
+        if tag == 0 {
+            let Some((top, _)) = open.pop() else { break };
+            pos = p;
+            if open.is_empty() {
+                in_root = false;
+            } else if let Some(el) = top {
+                deliver(&mut open, el, &mut index);
+            }
+            continue;
+        }
+        pos = p;
+        let head = *data.get(pos).ok_or(Truncated(pos))?;
+        pos += 1;
+        let keep = in_root && !open.is_empty();
+        let mut attrs = Vec::new();
+        for _ in 0..head & 0xf {
+            let (k, p) = varint_e(data, pos)?;
+            let (v, p) = varint_e(data, p)?;
+            if keep {
+                attrs.push((k, v));
+            }
+            pos = p;
+        }
+        let top_level = open.is_empty();
+        let value = match head >> 4 {
+            CONTAINER => {
+                let extra = *data.get(pos).ok_or(Truncated(pos))?;
+                pos += 1;
+                if top_level {
+                    roots += 1;
+                    in_root = roots == 1;
+                }
+                let el = keep.then(|| El {
+                    tag,
+                    head,
+                    attrs: std::mem::take(&mut attrs),
+                    extra,
+                    value: Vec::new(),
+                    children: Some(Vec::new()),
+                });
+                // a root child's child picked by the sink: its index there (the children before it are closed)
+                let slot = match (&el, open.as_slice()) {
+                    (Some(e), [_, (Some(parent), _)]) if (sink.streamed)(e) => parent.children.as_ref().map(Vec::len),
+                    _ => None,
+                };
+                open.push((el, slot));
+                continue;
+            }
+            raw::TEXT => {
+                let (_, p) = varint_e(data, pos)?;
+                let r = pos..p;
+                pos = p;
+                r
+            }
+            raw::NUMBERS => {
+                let s = pos;
+                let (n, p) = varint_e(data, pos)?;
+                let (size, p) = varint_e(data, p)?;
+                let end = n
+                    .checked_mul(size)
+                    .and_then(|b| (p as u64).checked_add(b))
+                    .filter(|&e| e <= data.len() as u64)
+                    .ok_or(Truncated(s))?;
+                pos = end as usize;
+                s..pos
+            }
+            _ => {
+                let r = pos..(pos + 2).min(data.len());
+                pos += 2;
+                r
+            }
+        };
+        if top_level {
+            roots += 1;
+        }
+        if keep {
+            let el = El {
+                tag,
+                head,
+                attrs,
+                extra: 0,
+                value: data.get(value).unwrap_or_default().to_vec(),
+                children: None,
+            };
+            deliver(&mut open, el, &mut index);
+        }
+    }
+    if !open.is_empty() {
+        return Err(Unclosed);
+    }
+    Ok(roots > 0)
+}
+
+/// `Level(path)`'s objects and tree references (the same values and the same errors as [`Level::read`]), the file
+/// streamed: the first root's children are read and dropped one by one instead of the whole document kept.
+pub fn scan_level(path: &str) -> PyResult<Objects> {
+    let data = read(path)?;
+    let name = basename(path);
+    let (strings, pos) = header(&data, &name)?;
+    let mut objects = Vec::new();
+    let mut tree_refs = HashMap::new();
+    // Level.__init__'s order: the document read whole (its element errors first), `instances` (every root child's
+    // tag looked up), then each instance in turn, then the check for objects
+    let mut bad_tag = false;
+    let mut first: Option<Fail> = None;
+    let mut child = |i, el: El| match usize::try_from(el.tag).ok().and_then(|t| strings.get(t)) {
+        None => bad_tag = true,
+        Some(t) if t == "instance" && !bad_tag && first.is_none() => {
+            if let Err(e) = scan_instance(&strings, &el, i, &mut objects, &mut tree_refs) {
+                first = Some(e);
+            }
+        }
+        Some(_) => {}
+    };
+    let walked = stream_root(
+        &data,
+        pos,
+        &mut Sink {
+            child: &mut child,
+            streamed: &|_| false,
+            item: &mut |_, _, _| {},
+        },
+    );
+    let has_root = walked.map_err(|e| cte(format!("{name}: {e}")))?;
+    if !has_root || bad_tag {
+        return Err(PY);
+    }
+    if let Some(e) = first {
+        return Err(e);
+    }
+    if objects.is_empty() {
+        return Err(no_objects(path));
+    }
+    Ok(Objects {
+        path: path.to_owned(),
+        objects,
+        tree_refs,
+    })
 }
 
 /// `tree_path_of(path, ref)`: levels/<x>/staticculltree_* beside the level's own folder, matched without case.
@@ -1062,16 +1427,21 @@ pub fn tree_path_of(path: &str, rf: Option<&str>) -> Option<String> {
 
 /// `leaves_of(tree, level)`: (object, its leaf indices) for the level's slotted objects, by slot.
 pub fn leaves_of(tree: &CullTree, level: &Level) -> Vec<(usize, Vec<i64>)> {
+    leaves_in(tree, &level.objects)
+}
+
+/// [`leaves_of`] over a level's objects.
+pub fn leaves_in(tree: &CullTree, objects: &[Placed]) -> Vec<(usize, Vec<i64>)> {
     let eo = tree.enum_offset;
     let last = eo + tree.leaves();
-    let mut slotted: Vec<usize> = (0..level.objects.len())
-        .filter(|&i| eo < level.objects[i].enumeration && level.objects[i].enumeration <= last)
+    let mut slotted: Vec<usize> = (0..objects.len())
+        .filter(|&i| eo < objects[i].enumeration && objects[i].enumeration <= last)
         .collect();
-    slotted.sort_by_key(|&i| level.objects[i].enumeration);
+    slotted.sort_by_key(|&i| objects[i].enumeration);
     let mut out = Vec::new();
     for (k, &o) in slotted.iter().enumerate() {
-        let en = level.objects[o].enumeration;
-        let nxt = slotted.get(k + 1).map_or(last + 1, |&n| level.objects[n].enumeration);
+        let en = objects[o].enumeration;
+        let nxt = slotted.get(k + 1).map_or(last + 1, |&n| objects[n].enumeration);
         out.push((o, ((en - eo)..(en - eo + 1).max(nxt - eo)).collect()));
     }
     out
@@ -1082,12 +1452,13 @@ pub fn leaves_of(tree: &CullTree, level: &Level) -> Vec<(usize, Vec<i64>)> {
 /// A blueprint's leaf in its own space: (local centre, radius key, Max).
 pub type ShapeLeaf = (Vec3, f64, f64);
 
-/// `Instance`: (label, leaf count, leaves, the target level's object or None).
+/// `Instance`: (label, leaf count, leaves, the target level's object or None). The label and leaves are shared
+/// (round CT1): `collect` copies every reference row into its result, and does it again after `--misplaced`.
 #[derive(Debug, Clone)]
 pub struct Instance {
-    pub label: String,
+    pub label: Arc<str>,
     pub k: usize,
-    pub leaves: Vec<ShapeLeaf>,
+    pub leaves: Arc<[ShapeLeaf]>,
     pub obj: Option<usize>,
 }
 
@@ -1133,8 +1504,14 @@ fn median(vals: &mut [f64]) -> f64 {
 
 /// The target pair's rows (`collect([(tree, level, label)])`).
 pub fn collect_target(tree: &CullTree, level: &Level, label: &str, found: &mut Found) -> PyResult<()> {
-    for (o, lv) in leaves_of(tree, level) {
-        let obj = &level.objects[o];
+    collect_in(tree, &level.objects, label, found)
+}
+
+/// [`collect_target`] over a level's objects.
+pub fn collect_in(tree: &CullTree, objects: &[Placed], label: &str, found: &mut Found) -> PyResult<()> {
+    let label: Arc<str> = Arc::from(label);
+    for (o, lv) in leaves_in(tree, objects) {
+        let obj = &objects[o];
         let s = {
             let s = obj.scale();
             if s == 0.0 { 1.0 } else { s }
@@ -1147,9 +1524,9 @@ pub fn collect_target(tree: &CullTree, level: &Level, label: &str, found: &mut F
             sph.push((obj.to_local(d.c)?, data.keys[3] as f64 / s, data.max / s));
         }
         found.entry_or(obj.blueprint.clone(), Vec::new).push(Instance {
-            label: label.to_owned(),
+            label: label.clone(),
             k: lv.len(),
-            leaves: sph,
+            leaves: Arc::from(sph),
             obj: Some(o),
         });
     }
@@ -1220,13 +1597,13 @@ pub fn shape_for(blueprint: &str, inst: &[&Instance]) -> Option<Shape> {
         .collect();
     let mut labels: Vec<&str> = Vec::new();
     for x in &inst {
-        if !labels.contains(&x.label.as_str()) {
+        if !labels.contains(&&*x.label) {
             labels.push(&x.label);
         }
     }
     let mut groups: Vec<(&str, Vec<&Instance>, Vec<ShapeLeaf>)> = Vec::new();
     for label in labels {
-        let group: Vec<&Instance> = inst.iter().copied().filter(|x| x.label == label).collect();
+        let group: Vec<&Instance> = inst.iter().copied().filter(|x| *x.label == *label).collect();
         let good: Vec<&Instance> = consensus(&group, k, tol).into_iter().map(|i| group[i]).collect();
         if !good.is_empty() {
             let leaves = shape_leaves(&good, k);
@@ -1283,23 +1660,63 @@ pub fn shape_in(blueprint: &str, found: &Found) -> Option<Shape> {
 /// `level_partitions(folder)`: every .dbx under the folder (sorted) that is not a tree or a description and holds
 /// `ExclusiveStaticCullTree`.
 pub fn level_partitions(folder: &str) -> PyResult<Vec<String>> {
-    let rels = raw::dbx_files(std::path::Path::new(folder));
+    level_partitions_in(folder, None)
+}
+
+/// A folder's searched files as the listing cache keeps them: (path below the folder, size, modification time,
+/// holds the mark).
+pub type Listed = (String, u64, i128, bool);
+
+/// [`level_partitions`], the search's answers kept in `store` (round CT1): a file whose size and modification time
+/// in the folder listing are those it had when it was searched is not read again. A file that cannot be read is
+/// never kept (it is read, and raises, every time).
+pub fn level_partitions_in(folder: &str, store: Option<&dyn RowStore>) -> PyResult<Vec<String>> {
+    let rels = raw::dbx_files_stat(std::path::Path::new(folder));
+    // (full path, path below the folder, listed stat)
     let mut files = Vec::with_capacity(rels.len());
-    for r in rels {
+    for (r, st) in rels {
         let r = r.to_str().ok_or(PY)?.to_owned(); // a name glob lists that is not Unicode
-        files.push(join(folder, &[&r]));
+        files.push((join(folder, &[&r]), r, st));
     }
-    files.sort();
-    let cands: Vec<String> = files
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    let cands: Vec<(String, String, Option<raw::ListedStat>)> = files
         .into_iter()
-        .filter(|p| {
+        .filter(|(p, _, _)| {
             let b = basename(p).to_lowercase();
             !b.contains("staticculltree") && !b.contains("_description")
         })
         .collect();
-    let hits = raw::contains(&cands, LEVEL_MARK);
+    let kept: HashMap<String, (u64, i128, bool)> =
+        store.and_then(|s| s.get_list(folder)).map_or_else(HashMap::new, |l| {
+            l.into_iter().map(|(r, a, b, h)| (r, (a, b, h))).collect()
+        });
+    let mut hits: Vec<Option<bool>> = cands
+        .iter()
+        .map(|(_, r, st)| {
+            let (sz, ns) = (*st)?;
+            kept.get(r).filter(|k| k.0 == sz && k.1 == ns).map(|k| k.2)
+        })
+        .collect();
+    let todo: Vec<usize> = (0..cands.len()).filter(|&i| hits[i].is_none()).collect();
+    let read_now: Vec<&str> = todo.iter().map(|&i| cands[i].0.as_str()).collect();
+    for (i, h) in todo.iter().zip(raw::contains(&read_now, LEVEL_MARK)) {
+        hits[*i] = h;
+    }
+    if let Some(s) = store {
+        let list: Vec<Listed> = cands
+            .iter()
+            .zip(&hits)
+            .filter_map(|((_, r, st), h)| {
+                let (sz, ns) = (*st)?;
+                Some((r.clone(), sz, ns, (*h)?))
+            })
+            .collect();
+        if !todo.is_empty() || list.len() != kept.len() {
+            s.put_list(folder, &list);
+        }
+    }
     let mut out = Vec::new();
-    for (p, hit) in cands.into_iter().zip(hits) {
+    for ((p, _, _), hit) in cands.into_iter().zip(hits) {
         let hit = if let Some(h) = hit {
             h
         } else {
@@ -1323,83 +1740,330 @@ fn same(a: &str) -> String {
     abspath(a).replace('/', "\\").to_lowercase()
 }
 
-/// What one reference level file gives: not a level, or the parsed level.
-enum Read1 {
-    NotLevel,
-    Level(Box<Level>),
+/// A file's `(st_size, st_mtime_ns)` (`culltree._stat`).
+pub type Stat = (u64, i128);
+
+/// `os.stat(path)`'s size and `st_mtime_ns` (before 1970: seconds and nanoseconds both truncated toward zero, as
+/// Python splits a FILETIME).
+pub fn stat_ns(path: &str) -> io::Result<Stat> {
+    let m = std::fs::metadata(path)?;
+    let t = m.modified()?;
+    let ns = match t.duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => i128::from(d.as_secs()) * 1_000_000_000 + i128::from(d.subsec_nanos()),
+        Err(e) => -(i128::from(e.duration().as_secs()) * 1_000_000_000 + i128::from(e.duration().subsec_nanos())),
+    };
+    Ok((m.len(), ns))
 }
 
-/// The ordered pass's events: a note, a chosen level (its index in `levels`), the exception raised there.
+/// One reference tree in a cache entry: its stat, and its rows or the `CullTreeError` text its read or `collect`
+/// raised (`{'stat': (size, mtime), 'rows' or 'error'}`).
+#[derive(Debug, Clone)]
+pub struct TreeEntry {
+    pub stat: Stat,
+    pub rows: Result<Found, String>,
+}
+
+/// `ref_rows`' cache entry for one reference level file (`culltree._RowCache`): the level's stat; not a level, or
+/// its exclusive tree reference; the rows of each tree it was read with (keyed by the tree's `normcase(abspath)`).
+#[derive(Debug, Clone, Default)]
+pub struct Entry {
+    pub level: Stat,
+    pub notlevel: bool,
+    pub tree_ref: Option<String>,
+    pub trees: Vec<(String, TreeEntry)>,
+}
+
+impl Entry {
+    /// `e['trees'][key] = t`: replaced where it is, else added at the end.
+    pub fn set_tree(&mut self, key: String, t: TreeEntry) {
+        match self.trees.iter_mut().find(|x| x.0 == key) {
+            Some(x) => x.1 = t,
+            None => self.trees.push((key, t)),
+        }
+    }
+}
+
+/// Where `ref_rows` keeps the reference levels' rows between runs (round CT1; `culltree._RowCache`). Shared by the
+/// threads that read the reference levels.
+pub trait RowStore: Sync {
+    /// The entry this code made for the level file while it had this stat, if it is kept.
+    fn get(&self, path: &str, st: Stat) -> Option<Entry>;
+    /// Keeps the entry (a store that cannot be written is not used).
+    fn put(&self, path: &str, e: &Entry);
+    /// The listing cache's record of a `--ref-dir` folder ([`level_partitions_in`]), if kept.
+    fn get_list(&self, _folder: &str) -> Option<Vec<Listed>> {
+        None
+    }
+    /// Keeps the folder's record.
+    fn put_list(&self, _folder: &str, _list: &[Listed]) {}
+}
+
+/// What one chosen reference tree gives.
+enum TreeOut {
+    Rows(Found),
+    /// a `CullTreeError` of the tree's read (true) or of `collect` (false)
+    Note(PyErr, bool),
+    /// any other exception: raised
+    Raise(Fail),
+}
+
+impl TreeOut {
+    /// The cache's record of it (None: not kept, the exception is raised again next time).
+    fn kept(&self, stat: Stat) -> Option<TreeEntry> {
+        match self {
+            Self::Rows(f) => Some(TreeEntry {
+                stat,
+                rows: Ok(f.clone()),
+            }),
+            Self::Note(e, _) => Some(TreeEntry {
+                stat,
+                rows: Err(e.msg.clone()),
+            }),
+            Self::Raise(_) => None,
+        }
+    }
+
+    fn of(t: TreeEntry) -> Self {
+        match t.rows {
+            Ok(f) => Self::Rows(f),
+            Err(m) => Self::Note(PyErr::new("CullTreeError", m), true),
+        }
+    }
+}
+
+fn is_cte(e: &Fail) -> bool {
+    matches!(e, Fail::Err(x) if x.kind == "CullTreeError")
+}
+
+/// The tree read and the level's rows collected in it, the objects left out (`collect([(tree, lv, label)])`).
+fn tree_rows(objects: &[Placed], tp: &str, label: &str) -> TreeOut {
+    let tree = match CullTree::read_only(tp) {
+        Ok(t) => t,
+        Err(Fail::Err(e)) if e.kind == "CullTreeError" => return TreeOut::Note(e, true),
+        Err(e) => return TreeOut::Raise(e),
+    };
+    let mut found = Found::default();
+    match collect_in(&tree, objects, label, &mut found) {
+        Ok(()) => {
+            for v in &mut found.items {
+                for x in &mut v.1 {
+                    x.obj = None;
+                }
+            }
+            TreeOut::Rows(found)
+        }
+        Err(Fail::Err(e)) if e.kind == "CullTreeError" => TreeOut::Note(e, false),
+        Err(e) => TreeOut::Raise(e),
+    }
+}
+
+/// One reference level file read (or found in the cache), before the ordered pass chooses it.
+enum Pre {
+    Raise(Fail),
+    NotLevel,
+    /// its exclusive tree is not found beside it
+    NoTree,
+    /// its tree is the target's
+    Skipped,
+    Tree {
+        st: Stat,
+        tp: String,
+        size: PyResult<u64>,
+        /// the tree's rows: from the cache, or read with the level (None: to be read if chosen)
+        out: Option<TreeOut>,
+    },
+}
+
+/// The level file's part of `ref_rows`' loop that does not depend on the files before it: its stat, the cache
+/// entry or the level read (streamed), its tree's path and size, and - when the level was read now or the cache
+/// has them - the tree's rows. The entry is written back when it is new or gained a tree.
+fn pre(p: &str, store: Option<&dyn RowStore>, skip: &[String]) -> Pre {
+    let label = splitext(&basename(p)).0;
+    let st = match stat_ns(p) {
+        Ok(s) => s,
+        Err(e) => {
+            // `Level(p)` raises as ref_pairs' read does, else the stat's own error
+            return Pre::Raise(match scan_level(p) {
+                Err(f) => f,
+                Ok(_) => bc2_pyrt::err::os_error(p, &e),
+            });
+        }
+    };
+    let cached = store.and_then(|s| s.get(p, st));
+    let mut dirty = cached.is_none();
+    let (mut entry, objs) = if let Some(e) = cached {
+        (e, None)
+    } else {
+        let mut e = Entry {
+            level: st,
+            ..Entry::default()
+        };
+        match scan_level(p) {
+            Ok(o) => {
+                e.tree_ref = o.tree_refs.get("ExclusiveStaticCullTree").cloned();
+                (e, Some(o))
+            }
+            Err(f) if is_cte(&f) => {
+                e.notlevel = true;
+                (e, None)
+            }
+            Err(f) => return Pre::Raise(f),
+        }
+    };
+    let put = |entry: &Entry, dirty: bool| {
+        if dirty && let Some(s) = store {
+            s.put(p, entry);
+        }
+    };
+    if entry.notlevel {
+        put(&entry, dirty);
+        return Pre::NotLevel;
+    }
+    let Some(tp) = tree_path_of(p, entry.tree_ref.as_deref()) else {
+        put(&entry, dirty);
+        return Pre::NoTree;
+    };
+    let key = same(&tp);
+    if skip.contains(&key) {
+        put(&entry, dirty);
+        return Pre::Skipped;
+    }
+    let size = std::fs::metadata(&tp)
+        .map(|m| m.len())
+        .map_err(|e| bc2_pyrt::err::os_error(&tp, &e));
+    let mut out = None;
+    if size.is_ok() {
+        match stat_ns(&tp) {
+            Err(e) => out = Some(TreeOut::Raise(bc2_pyrt::err::os_error(&tp, &e))),
+            Ok(tst) => {
+                let hit = entry.trees.iter().position(|(k, t)| *k == key && t.stat == tst);
+                if let Some(i) = hit {
+                    out = Some(TreeOut::of(entry.trees.swap_remove(i).1));
+                    dirty = false; // the entry is not written with that tree taken out
+                } else if let Some(o) = &objs {
+                    let r = tree_rows(&o.objects, &tp, &label);
+                    if let Some(t) = r.kept(tst) {
+                        entry.set_tree(key, t);
+                        dirty = true;
+                    }
+                    out = Some(r);
+                }
+            }
+        }
+    }
+    put(&entry, dirty);
+    Pre::Tree { st, tp, size, out }
+}
+
+/// How many reference levels [`ref_rows`] reads at once.
+const PRE_THREADS: usize = 8;
+
+/// The ordered pass's events: a note, a chosen level (its index in `chosen`), the exception raised there.
 enum Event {
     Note(String),
     Tree(usize),
     Raise(Fail),
 }
 
-/// `ref_rows(refs, ref_dirs, log, target)` (with `reference`: `ref_pairs`, as `BFBC2_CULLTREE_REFERENCE=1` runs):
-/// the reference levels in order, their notes logged. The levels and then their trees are read on all cores; the
-/// notes, the choices and any exception come in the reference's order.
+/// `ref_rows(refs, ref_dirs, log, target)` (with `reference`: `ref_pairs`, as `BFBC2_CULLTREE_REFERENCE=1` runs,
+/// and no store): the reference levels in order, their notes logged.
+///
+/// Round CT1: each level file is streamed (one instance at a time, [`scan_level`]) on all cores and only its
+/// objects' rows in its tree are kept; the rows come from `store` (`culltree.py`'s row cache) while the level and
+/// its tree are unchanged. A tree the cache has no rows for is read with its level when that is read anyway (the
+/// rows of levels not chosen are kept for the next run), else - a level from the cache whose tree changed - the
+/// level is read again for it once chosen. The `--ref-dir` folders are listed together, the files the store's
+/// listing entries know unchanged not searched again ([`level_partitions_in`]). The notes, the choices and any
+/// exception come in the reference's order.
 pub fn ref_rows(
     refs: &[String],
     ref_dirs: &[String],
     log: &mut dyn FnMut(&str) -> PyResult<()>,
     target: Option<(&str, &str)>,
     reference: bool,
+    store: Option<&dyn RowStore>,
 ) -> PyResult<Vec<RefLevel>> {
+    let store = if reference { None } else { store };
     let mut paths: Vec<String> = refs.to_vec();
-    for d in ref_dirs {
-        paths.extend(level_partitions(d)?);
+    // the folders listed together (each one's files are searched on all cores too); the first error in their order
+    let lists: Vec<PyResult<Vec<String>>> = ref_dirs.par_iter().map(|d| level_partitions_in(d, store)).collect();
+    for l in lists {
+        paths.extend(l?);
     }
     let skip: Vec<String> = target.map_or_else(Vec::new, |(a, b)| vec![same(a), same(b)]);
     let todo: Vec<&String> = paths.iter().filter(|p| !skip.contains(&same(p))).collect();
-    let parsed: Vec<PyResult<Read1>> = todo
-        .par_iter()
-        .map(|p| match Level::read(p) {
-            Ok(l) => Ok(Read1::Level(Box::new(l))),
-            Err(Fail::Err(e)) if e.kind == "CullTreeError" => Ok(Read1::NotLevel),
-            Err(e) => Err(e),
-        })
-        .collect();
-    let mut levels: Vec<(String, Level, String)> = Vec::new();
+    // at most 8 levels at once (round CT1): each holds its file and tree while it is read; more threads gain
+    // little time and cost memory (16 threads: about 30 MB more on the Onslaught runs)
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(rayon::current_num_threads().min(PRE_THREADS))
+        .build()
+        .map_err(|_| PY)?;
+    let pres: Vec<Pre> = pool.install(|| todo.par_iter().map(|p| pre(p, store, &skip)).collect());
+    // (level path, its stat, tree path, rows)
+    let mut chosen: Vec<(&str, Stat, String, Option<TreeOut>)> = Vec::new();
     let mut events: Vec<Event> = Vec::new();
     let mut seen: Vec<(String, u64)> = Vec::new();
-    for (p, r) in todo.iter().zip(parsed) {
-        let lv = match r {
-            Err(e) => {
+    for (p, r) in todo.iter().zip(pres) {
+        match r {
+            Pre::Raise(e) => {
                 events.push(Event::Raise(e));
                 break;
             }
-            Ok(Read1::NotLevel) => continue,
-            Ok(Read1::Level(l)) => *l,
-        };
-        let Some(tp) = lv.tree_path() else {
-            if refs.contains(p) {
-                events.push(Event::Note(format!(
-                    "note: {p}: its exclusive cull tree was not found beside it; not used"
-                )));
+            Pre::NotLevel | Pre::Skipped => {}
+            Pre::NoTree => {
+                if refs.contains(p) {
+                    events.push(Event::Note(format!(
+                        "note: {p}: its exclusive cull tree was not found beside it; not used"
+                    )));
+                }
             }
-            continue;
-        };
-        if skip.contains(&same(&tp)) {
-            continue;
-        }
-        let size = match std::fs::metadata(&tp) {
-            Ok(m) => m.len(),
-            Err(e) => {
-                events.push(Event::Raise(bc2_pyrt::err::os_error(&tp, &e)));
-                break;
+            Pre::Tree { st, tp, size, out } => {
+                let size = match size {
+                    Ok(s) => s,
+                    Err(e) => {
+                        events.push(Event::Raise(e));
+                        break;
+                    }
+                };
+                let key = (basename(p).to_lowercase(), size);
+                if seen.contains(&key) {
+                    continue;
+                }
+                seen.push(key);
+                events.push(Event::Tree(chosen.len()));
+                chosen.push((p.as_str(), st, tp, out));
             }
-        };
-        let key = (basename(p).to_lowercase(), size);
-        if seen.contains(&key) {
-            continue;
         }
-        seen.push(key);
-        events.push(Event::Tree(levels.len()));
-        levels.push(((*p).clone(), lv, tp));
     }
-    let mut trees: Vec<Option<PyResult<CullTree>>> =
-        levels.par_iter().map(|(_, _, tp)| Some(CullTree::read(tp))).collect();
+    // the chosen levels from the cache whose tree has no rows there: the level read again (`Level(p)`, its
+    // exceptions raised), the rows kept in its entry
+    chosen.par_iter_mut().for_each(|(p, st, tp, out)| {
+        if out.is_some() {
+            return;
+        }
+        let objs = match scan_level(p) {
+            Ok(o) => o,
+            Err(e) => {
+                *out = Some(TreeOut::Raise(e));
+                return;
+            }
+        };
+        let label = splitext(&basename(p)).0;
+        let r = tree_rows(&objs.objects, tp, &label);
+        if let Some(s) = store
+            && let Ok(tst) = stat_ns(tp)
+            && let Some(t) = r.kept(tst)
+        {
+            let mut e = s.get(p, *st).unwrap_or_else(|| Entry {
+                level: *st,
+                tree_ref: objs.tree_refs.get("ExclusiveStaticCullTree").cloned(),
+                ..Entry::default()
+            });
+            e.set_tree(same(tp), t);
+            s.put(p, &e);
+        }
+        *out = Some(r);
+    });
     let mut out = Vec::new();
     for ev in events {
         let i = match ev {
@@ -1410,35 +2074,16 @@ pub fn ref_rows(
             Event::Raise(e) => return Err(e),
             Event::Tree(i) => i,
         };
-        let (p, lv, tp) = &levels[i];
+        let (p, _, tp, rows) = &mut chosen[i];
         let label = splitext(&basename(p)).0;
-        let tree = match trees[i].take().ok_or(PY)? {
-            Ok(t) => t,
-            Err(Fail::Err(e)) if e.kind == "CullTreeError" => {
-                log(&format!("note: {tp}: {}; not used", e.msg))?;
-                continue;
-            }
-            Err(e) => return Err(e),
-        };
-        let mut found = Found::default();
-        let rows = collect_target(&tree, lv, &label, &mut found).map(|()| {
-            for v in &mut found.items {
-                for x in &mut v.1 {
-                    x.obj = None;
-                }
-            }
-            found
-        });
-        match rows {
-            Err(Fail::Err(e)) if e.kind == "CullTreeError" && !reference => {
-                log(&format!("note: {tp}: {}; not used", e.msg))?;
-            }
-            Err(Fail::Err(e)) if e.kind == "CullTreeError" => out.push(RefLevel {
+        match rows.take().ok_or(PY)? {
+            TreeOut::Rows(f) => out.push(RefLevel { label, rows: Ok(f) }),
+            TreeOut::Note(e, false) if reference => out.push(RefLevel {
                 label,
                 rows: Err(Fail::Err(e)),
             }),
-            Err(e) => return Err(e),
-            Ok(f) => out.push(RefLevel { label, rows: Ok(f) }),
+            TreeOut::Note(e, _) => log(&format!("note: {tp}: {}; not used", e.msg))?,
+            TreeOut::Raise(e) => return Err(e),
         }
     }
     Ok(out)
