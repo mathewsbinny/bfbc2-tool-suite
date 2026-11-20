@@ -608,8 +608,41 @@ def ffmpeg_decode_xas(st):
 
 # ---------------------------------------------------------------- whole resources
 
+def _stream_list(streams):
+    """[streams.get(i) for i in range(3)] for the Rust core (each bytes or None), or None (another kind of
+    argument: the Python reads it)."""
+    if not streams:
+        return [None, None, None]
+    if type(streams) is not dict:
+        return None
+    got = [streams.get(i) for i in range(3)]
+    return got if all(v is None or type(v) is bytes for v in got) else None
+
+
+def _ffmpeg_or_none():
+    try:
+        return ffmpeg_path()
+    except AudioError:
+        return None                         # the Rust core hands the sound back: the Python raises
+
+
 def decode(b, source, streams=None):
-    """int16 (samples, channels) of a Wave's segments one after another, and the sample rate."""
+    """int16 (samples, channels) of a Wave's segments one after another, and the sample rate. In the Rust core when it
+    is built (round F4: bc2_native.audio_decode, ffmpeg run as ffmpeg_decode runs it), else decode_reference; a
+    sound it does not take (or an error) is the Python's."""
+    fn = _f3('audio_decode')
+    sl = _stream_list(streams) if fn is not None and type(b) is bytes and type(source) is str else None
+    got = fn(b, source, sl, None) if sl is not None else None
+    if got == 'ffmpeg':                     # an EA-XMA sound: ffmpeg looked for only now, as the Python does
+        got = fn(b, source, sl, _ffmpeg_or_none())
+    if got is not None and got != 'ffmpeg':
+        pcm, ch, rate = got
+        return np.frombuffer(pcm, '<i2').reshape(-1, ch), rate
+    return decode_reference(b, source, streams)
+
+
+def decode_reference(b, source, streams=None):
+    """The Python (the reference)."""
     w = read_wave(b, source)
     out, rate = [], None
     for i in range(3):
@@ -629,7 +662,19 @@ def decode(b, source, streams=None):
 def convert(b, source, streams=None, word14=0):
     """An Xbox Wave (source 'bfbc2' / 'bfbc2-xbox' or 'bf1943') as BFBC2's PC Wave: the same words (BF1943's mapped),
     every segment in memory as EA-XAS v1 in DICE's blocks. streams: {segment index: waveDataSns bytes} for streamed
-    segments. word14: BFBC2's word 0x14 for a BF1943 source (0, as most BFBC2 sounds)."""
+    segments. word14: BFBC2's word 0x14 for a BF1943 source (0, as most BFBC2 sounds). In the Rust core when it is
+    built (round F4: bc2_native.audio_convert, without the interpreter's lock: convert_many's threads run side by
+    side), else convert_reference; a sound it does not take (or an error) is the Python's."""
+    fn = _f3('audio_convert')
+    sl = _stream_list(streams) if fn is not None and type(b) is bytes and type(source) is str else None
+    got = fn(b, source, sl, word14, None) if sl is not None else None
+    if got == 'ffmpeg':                     # ffmpeg looked for once a sound needs it, as the Python does
+        got = fn(b, source, sl, word14, _ffmpeg_or_none())
+    return got if type(got) is bytes else convert_reference(b, source, streams, word14)
+
+
+def convert_reference(b, source, streams=None, word14=0):
+    """The Python (the reference)."""
     source = 'bfbc2-xbox' if source == 'bfbc2' else source
     if source not in ('bfbc2-xbox', 'bf1943'):
         raise AudioError(f'convert: source {source!r} (bfbc2 or bf1943)')

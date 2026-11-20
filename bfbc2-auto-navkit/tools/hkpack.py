@@ -10,7 +10,9 @@ Usage:
 import os
 import struct
 import sys
+import weakref
 from collections import Counter
+from typing import Any
 
 MAGIC = bytes.fromhex('57e0e05710c0c010')
 
@@ -62,25 +64,46 @@ def use_native(on):
             os.environ['BFBC2_PURE_PYTHON'] = saved
 
 
+# Round F4: the packfile behind a handle (bc2_native.HkPackfile): its dicts (sections, ptr, objects, by_offset,
+# classes, class_by_name) are built on their first read, in the reference's order; until then deref, cstr, objects_of,
+# read_object and read_value ask the handle (the reflection walk in Rust: bc2_formats::havok::reflect). Once a dict was
+# read (a caller may have changed it) or d replaced, the Python answers.
+_HANDLES: 'weakref.WeakKeyDictionary[Any, Any]' = weakref.WeakKeyDictionary()
+_LAZY = ('sections', 'ptr', 'objects', 'by_offset', 'classes', 'class_by_name')
+
+
 class Packfile:
     """A packfile's sections, pointer fixups, objects and class descriptions. Read in the suite's Rust core when it
-    is built (round F3: bc2_native.hkpack_parse over bc2_formats::havok, the reader NavKit's collision code has used
-    since round F1a: the same fields, the dicts in the same order); a file it refuses, a base given, or data that is
-    not bytes is read by the Python (_init_reference, kept as the reference and the fallback), so the errors stay
-    this module's. BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only."""
+    is built (round F3: bc2_formats::havok, the reader NavKit's collision code has used since round F1a; round F4: a
+    handle, the dicts built when first read and the reflection walk in Rust, the same fields and values in the same
+    order); a file it refuses, a base given, or data that is not bytes is read by the Python (_init_reference, kept
+    as the reference and the fallback), so the errors stay this module's. BFBC2_PURE_PYTHON=1 or use_native(False)
+    runs the Python only."""
 
     def __init__(self, data, base=None):
         nat = _native() if base is None and type(data) is bytes else None
-        got = nat.hkpack_parse(data) if nat is not None else None
+        got = nat.hkpack_open(data) if nat is not None and hasattr(nat, 'hkpack_open') else None
         if got is None:
             self._init_reference(data, base)
             return
-        base, h, cv, sections, (slots, targets), objects, classes = got
+        h, base, hd, cv = got
         self.d = data                                         # the attributes in the reference's order
         self.base = base
-        (_m0, _m1, _tag, self.version, layout, self.nsections, self.contents_sec, self.contents_off) = h
+        (_m0, _m1, _tag, self.version, layout, self.nsections, self.contents_sec, self.contents_off) = hd
         self.ptr_size = layout & 0xFF
         self.contents_version = cv
+        _HANDLES[self] = h
+
+    def __getattr__(self, name):
+        if name in _LAZY and _HANDLES.get(self) is not None:
+            self._materialize()
+            return self.__dict__[name]
+        raise AttributeError(f'{type(self).__name__!r} object has no attribute {name!r}')
+
+    def _materialize(self):
+        """The dicts from the handle (hkpack_parse's fields), after the attributes already set; the handle let go."""
+        h = _HANDLES.pop(self)
+        _base, _h, _cv, sections, (slots, targets), objects, classes = h.fields()
         self.sections = [{'name': n, 'start': st, 'local': lo, 'global': gl, 'virtual': vi, 'exports': ex,
                           'imports': im, 'end': en} for n, st, lo, gl, vi, ex, im, en in sections]
         self.ptr = dict(zip(slots, targets))
@@ -91,6 +114,16 @@ class Packfile:
                                            'offset': mo} for mn, mc, mt, ms, ca, mo in members]}
                         for off, name, parent, size, members in classes}
         self.class_by_name = {c['name']: off for off, c in self.classes.items()}
+
+    def __getstate__(self):
+        if _HANDLES.get(self) is not None:                    # a copy or pickle holds the dicts
+            self._materialize()
+        return self.__dict__
+
+    def _handle(self):
+        """The Rust handle while no dict was read and d is the bytes it read, else None."""
+        h = _HANDLES.get(self)
+        return h if h is not None and self.__dict__.get('d') is h.data else None
 
     @classmethod
     def reference(cls, data, base=None):
@@ -144,10 +177,18 @@ class Packfile:
         self._read_classes()
 
     def cstr(self, off):
+        h = self._handle()
+        if h is not None and type(off) is int and 0 <= off < _U63:
+            got = h.cstr(off)
+            if got is not None:
+                return got
         e = self.d.index(b'\0', off)
         return self.d[off:e].decode('ascii', 'replace')
 
     def deref(self, slot):
+        h = self._handle()
+        if h is not None and type(slot) is int and 0 <= slot < _U63:
+            return h.deref(slot)
         return self.ptr.get(slot)
 
     # --- hkClass reflection --------------------------------------------------------------------------
@@ -192,6 +233,16 @@ class Packfile:
         return self.classes[off]['size'] if off is not None else None
 
     def read_value(self, at, mtype, sub, mclass_name, carray=0):
+        h = self._handle()
+        if h is not None and _walkable(at, mclass_name) and _byte(mtype) and _byte(sub) and type(carray) is int \
+                and -0x8000 <= carray < 0x8000:
+            got = h.read_value(at, mtype, sub, mclass_name, carray)
+            if got is not None:
+                return got[0]
+        return self.read_value_reference(at, mtype, sub, mclass_name, carray)
+
+    def read_value_reference(self, at, mtype, sub, mclass_name, carray=0):
+        """read_value in Python (the reference; it reads the dicts)."""
         d = self.d
         if carray:
             size = self.elem_size(mtype, mclass_name)
@@ -234,6 +285,15 @@ class Packfile:
         return None
 
     def read_object(self, at, cname):
+        h = self._handle()
+        if h is not None and _walkable(at, cname):
+            got = h.read_object(at, cname)
+            if got is not None:
+                return got[0]
+        return self.read_object_reference(at, cname)
+
+    def read_object_reference(self, at, cname):
+        """read_object in Python (the reference; it reads the dicts)."""
         out = {}
         for m in self.all_members(cname):
             if m['type'] in (T_ZERO, T_VOID, T_FUNCTIONPOINTER):
@@ -243,7 +303,23 @@ class Packfile:
         return out
 
     def objects_of(self, cname):
+        h = self._handle()
+        if h is not None and type(cname) is str:
+            return h.objects_of(cname)
         return [off for off, c in self.objects if c == cname]
+
+
+_U63 = 1 << 63
+
+
+def _byte(v):
+    return type(v) is int and 0 <= v < 256
+
+
+def _walkable(at, cname):
+    """Arguments the handle's walk takes as the Python does: an int offset (within 64 bits) and a str or None class
+    name."""
+    return type(at) is int and -_U63 <= at < _U63 and (cname is None or type(cname) is str)
 
 
 def load(path):

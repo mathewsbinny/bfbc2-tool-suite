@@ -42,6 +42,7 @@ use thiserror::Error;
 pub mod astar;
 pub mod domains;
 pub mod graph;
+pub mod hulls;
 pub mod levelscan;
 pub mod measures;
 pub mod navsample;

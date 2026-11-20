@@ -533,6 +533,7 @@ dependencies = [
  "bc2-formats",
  "bc2-harness",
  "bc2-navbuild",
+ "bc2-pyrt",
  "bc2-scene",
  "bc2-shader",
  "bc2-stockmp",

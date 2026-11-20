@@ -5038,3 +5038,122 @@ identical; shader's real calls Python 446.9 s / Rust 290.4 s, readers 27.8 / 3.1
 answers 218 of O3's stockmp lines), `o4` 622, all as recorded. `python run_tests.py quick -j 2` was **not run**: drive
 C: had 25.9 GB free after the proofs (other sessions' build folders), and the tier's workspace and editor debug builds
 take 13 GB or more.
+
+## F4: F3's leftovers (2026-11-20, branch `rust-f4`)
+
+F3 left six pieces in Python; F4 ports them. As in F3, each Python function stays as its reference and fallback
+(`*_reference`, the module's `use_native(False)`, `BFBC2_PURE_PYTHON=1`); a binding answers `None` where the port
+does not read a value exactly as the reference does or where the reference raises, and the Python then runs.
+
+### What was added
+
+| Python | binding | Rust |
+|---|---|---|
+| `culltree.Doc`'s string table (`_strings`) | `culltree_strings` | `bc2-py` (`formats_f4.rs`) |
+| `xenos.disasm`'s header lines | `xenos_disasm` (header and listing in one call) | `bc2-py` (`xenos.rs`), the listing `bc2_shader::disasm` (F3) |
+| `audio.convert` / `decode` (`segment_stream`, `decode_xma`, `decode_xas`, `ffmpeg_decode`) | `audio_convert`, `audio_decode` | `bc2_convert::wavport` |
+| `hkpack.Packfile` as a handle; `read_object` / `read_value` / `deref` / `cstr` / `objects_of` | `hkpack_open`, `HkPackfile` | `bc2_formats::havok::reflect` (moved from `bfbc2.exe hkpack`, which now uses it) |
+| `navsample_offline.asset_bodies` (`_shape_parts`, `_hull_faces`, `_box_faces`) | `navkit_asset_bodies` | `bc2_navbuild::hulls` |
+| `meshview.load_mesh`'s part reader (`_values`; now `_read_part`) | `meshview_part` | `bc2-py` (`formats_f4.rs`) |
+| `texqa.read_pc` / `read_xbox` | `texqa_read` | `bc2_convert::texqa` (moved from `bfbc2.exe texqa`, which now uses it) |
+
+Notes:
+
+- **The disassembly's header** is read from the caller's tree, as `_disasm` reads it (a tree may have been edited), and
+  formatted as `%` does (`%g` through `bc2_pyrt::fmt`); `cf_slots` comes from the program, so the header no longer
+  makes the tree read its microcode. A value of another kind (a `bool` for an `int`, a non-ASCII name or usage, an
+  `int` past 64 bits) gives `None` and the Python writes the header.
+- **The handle-based Packfile** builds its dicts (`sections`, `ptr`, `objects`, `by_offset`, `classes`,
+  `class_by_name`) on their first read, in the reference's attribute order; until then the methods ask the handle.
+  Once a dict was read (a caller may have changed it) or `d` replaced, the Python answers. Copies and pickles build
+  the dicts first.
+- **The hulls** reproduce NumPy bit for bit, including OpenBLAS' small kernels on this PC (the wheel's Haswell
+  `ddot` / `dgemv` / `dgemm`, measured with scratch probes): a 3-vector dot is `fma(x2, y2, fma(x1, y1, x0 * y0))`, a
+  `(k, 3) @ (3,)` row the same for k = 1 and `fma(a2, b2, fma(a0, b0, a1 * b1))` for k >= 2, the `(n, 3, 3) @ (3, 3)`
+  transform the dot's chain per element, and every one of them +0.0 for a zero (the first game run differed on 98
+  hulls by exactly that: an angle of -pi for pi). `np.unique(axis=0)` is a stable sort up to 17 rows; NumPy's
+  argsort of the face angles is its SIMD sort, not stable, so a face with tied angles (collinear vertices:
+  Railway_Switch's hulls, 5 files) is handed to the Python, as are rows equal with other bits past 17, NaN or
+  infinite input, and the reference's errors outside `_shape_parts`' `except`. On another CPU the reference's BLAS
+  may round otherwise; the port keeps this PC's.
+- **Audio** runs ffmpeg as `ffmpeg_decode` does, with the path `audio.ffmpeg_path()` found (or none), without the
+  interpreter's lock: `convert_many`'s threads now run the whole conversion side by side. Any error (an
+  `AudioError`, ffmpeg failing) is the Python's: it runs the sound again and raises its own error.
+- **texqa**'s `read_xbox` of a 4-byte texel raises the reference's `KeyError` (`('keyerror', bpb)`); a half-float
+  NaN (its payload is NumPy's conversion's) and textures past 2^28 texels go to the Python.
+- **Not ported:** `xenos.disasm_instruction` (one instruction of a Python tree), `audio.ffmpeg_decode_xas` (a
+  check against ffmpeg's own decoder, not a path the tools take), `hkpack.all_members` / `struct_size` /
+  `elem_size` / `member_class_name` (they return the dicts' own objects: the Python reads them from the dicts).
+
+### Proof (`tests/test_f4_native.py`; goldens recorded from the frozen starting commit)
+
+The goldens (`tests/f4_golden_<area>.json`) were recorded **before any change**, from a copy of `6a7dd68` (git
+archive, its own matching module and `bfbc2.exe` from the main checkout) whose public functions were the Python:
+quick first, then `--game`. The checks below ran on this branch's module: every answer against the recorded digest,
+and live against the reference in the same process (fn and `*_reference` / `use_native(False)` both ways).
+
+| area | inputs | result |
+|---|---|---|
+| culltree | quick 3,060 (60 real documents, 1,500 damaged, 1,500 built tables: invalid UTF-8, offsets past the end, no zero); game 6,549 documents (every `staticculltree*` of the game copy, `work\xbox`, `work\xbox_dlc`; every `.dbx` of mp_005 / sp_005) | 9,609 identical, 0 different; 8,754 answered in Rust (the 855 handed back are damaged / built) |
+| disasm | quick 7,200 (300 built programs x 4, damaged, 16 header edits each); game 8,320 distinct programs of BF1943's and BFBC2's Xbox shader databases x 4 | 40,480 identical, 0 different; 37,529 in Rust (handed back: the edits the port does not format, damaged blobs) |
+| hkpack | quick 528 (8 real, 400 damaged, 120 built packfiles **with class descriptions**: every member type, C arrays, arrays, structs, parents, repeated names); game 5,579 packfiles; per file the header values, `deref` of every slot (and non-slots), `objects_of` every class, `read_object` / `read_value` of 10 kinds at every object, `cstr`, then the dicts | 6,107 identical, 0 different; 6,076 in Rust (31 damaged handed back) |
+| bodies | quick 640 (40 real, 600 damaged); game 9,866 collision assets (`work\levels` `*_havok.res`, every HavokPhysicsData of the game copy and `work\ww2`) | 10,506 identical, 0 different; 10,501 in Rust, 5 handed back (the Railway_Switch ties) |
+| texqa | quick 1,155 (40 real, 600 damaged, 800 header variants, the on-demand wrapper); game 13,441 textures (every ITexture of the game copy, every XenonTexture of `work\xbox` / `xbox_dlc`, BF1943's) | 14,596 identical, 0 different; 14,569 in Rust (27 handed back, damaged) |
+| meshview | quick 360 (60 meshes, 300 damaged); game 2,512 meshes (every `_lod0` of the meshview index, 5,455 parts) | 2,512 identical, 0 different; every part read in Rust |
+| audio | quick 305 (BFBC2 Xbox / PC / BF1943 Waves, damaged, arguments of other kinds); game: every BF1943 Wave convert and decode, a third of the BFBC2 Xbox Waves converted, every PC Wave decoded | 260,881 identical, 0 different; 14,582 converted / decoded in Rust; the rest are sounds the reference refuses (a streamed segment without its `waveDataSns`, ...): every error is the Python's, and it raised the same 246,299 |
+
+### OPFOR's calls replayed (`src\` grepped; game\ only read)
+
+- **`ww2\wake_level.convert_waves`** (the WW2 install's `port_sounds` and `wake_vo.waves`: `audio.convert_many` in
+  batches of 64), OPFOR's own function over this checkout's `audio` (an `OPFOR_TOOLKIT` junction to the worktree),
+  every one of BF1943's 2,750 Waves: **2,750 of 2,750 byte-identical**, all answered in Rust; 28.4 s against the
+  Python's 39.0 s.
+- **`onslaught\console_cull.build`'s `culltree add`** with the Python command line (`culltree.py`, the fallback when
+  `bfbc2.exe` is not built), in process, on the four Onslaught levels' installed bundles and their
+  `.opfor-cull-orig` backups unpacked into scratch: **8 of 8 identical** (exit code, report, `tree.dbx`,
+  `level.dbx`); 32 string tables, all read in Rust (the row cache serves the rest).
+- **`ww2\qa_checks.check_textures`** (`texqa.run` over `work\ww2` and its install staging with BF1943's sources and
+  DICE's copies, then `texqa.sheets`), in process, a fresh cache each way: 2,000 textures, 3 contact sheets: **rows, text report and sheets identical**; 3,666 reads, all in Rust; 134.0 s against the Python's 211.9 s.
+- No OPFOR call reaches `hkpack`, `navsample_offline.asset_bodies`, `meshview.load_mesh` (OPFOR uses
+  `meshview.Index`, ported in O3) or `xenos.disasm` (OPFOR's WW2 shader tools translate; they do not list).
+
+### Timings (best of 5, in process; peak working set per process; `bench_f4.py` in the round's scratch)
+
+Workloads from OPFOR's game copy and work folders; "Python" is the module's `use_native(False)` (or, for the
+header, the F3 path: Python header over the Rust listing). Measured while another round's tests ran: ratios hold
+within a run.
+
+| workload | Python | Rust | |
+|---|---:|---:|---:|
+| `texqa.read_pc`, 45 PC textures (mp_005 level-00) | 2.33 s, 463 MB | **0.22 s**, 240 MB | x10.4 |
+| `texqa.read_xbox`, 45 Xbox textures (mp_005 level-00) | 1.34 s, 269 MB | **0.11 s**, 134 MB | x11.8 |
+| `asset_bodies`, 327 collision assets (`work\levels\mp_005`) | 34.1 ms | **7.6 ms** | x4.5 |
+| culltree string tables, the 2,088 documents of mp_005 level-00 | 144 ms | **58 ms** | x2.5 |
+| `meshview.load_mesh`, 21 meshes (textures off) | 9.4 ms | **6.9 ms** | x1.4 |
+| `audio.convert_many`, 40 BF1943 Waves (ffmpeg included) | 0.61 s | **0.50 s** | x1.2 |
+| `audio.decode`, 10 PC Waves (EA-XAS) | 8.3 ms | 10.5 ms | x0.8 (both decode in Rust already; the port adds the reading and a copy) |
+| `xenos.parse_shader` + `disasm`, 1,000 built programs (header Python vs Rust; listing Rust both) | 66.6 ms | **62.6 ms** | x1.06 |
+| `hkpack`: Packfile, objects_of, read_object, deref, 20 packfiles | 0.9 ms | **0.3 ms** | x3 |
+
+Whole corpora (the `--game` check, both in one process; the calls timed): parse + disasm of 8,320 programs x 4,
+the Python reference 56.4 s, the port **7.2 s** (F3: 13.1 s - the header no longer makes the tree read its
+microcode); texqa's 13,441 textures 525 s / **58.6 s**; asset_bodies of 9,866 assets 12.9 s / **2.1 s**; the
+hkpack probe of 5,579 packfiles 65.9 / 59.1 s (the probe's own Python calls dominate); OPFOR's WW2 sound port 38.7 /
+**27.7 s**; its texture QA 211.9 / **134.0 s**. Peak memory is the same or lower everywhere (texqa halves it: no
+NumPy intermediates).
+
+### Checks
+
+`cargo fmt`; `cargo clippy -D warnings --all-targets --all-features` on bc2-formats, bc2-convert, bc2-navbuild,
+bc2-py, bc2-cli; `cargo test` of the same (all pass); ruff; mypy (`tests/test_types.py`); `spec/trace.py --check`
+(RES-WRAP-1's citation moved with `unwrap` to `rust/bc2-convert/src/texqa.rs`); `tests/test_f3_native.py`
+(hkpack, disasm, audio: its Packfile comparison now builds the dicts first). `python run_tests.py quick -j 2`: 123
+of 127 (4,080 s, the workspace's cargo step included). The four failures, before the round's files were committed:
+O3, O4 and O5's command-line tests build their stand-in checkouts from the tracked files, so the untracked new Rust
+files gave them a stale module - all three pass once committed (O4's texqa group also needed its goldens recorded
+again: texqa.py's `CODE`, a hash of its source, keys its cache rows); the NavKit driver's stand-in test failed once
+under load and passes alone.
+
+**Not ported, left for a later round:** `xenos.disasm_instruction`, `audio.ffmpeg_decode_xas`, hkpack's
+dict-returning helpers (see the notes above); a tie-aware port of NumPy's SIMD argsort, if the five Railway_Switch
+hulls ever matter; the `*_reference` functions until a full tier retires them.

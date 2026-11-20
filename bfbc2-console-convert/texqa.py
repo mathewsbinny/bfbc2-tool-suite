@@ -271,8 +271,50 @@ def is_texture(res: bytes) -> bool:
     return HEADER + (6 if typ == CUBE else 1) * sum(sizes[:mips]) == len(res)
 
 
+# Round F4: read_pc / read_xbox in the Rust core when it is built (bc2_native.texqa_read: bc2_convert::texqa, the
+# decoder bfbc2.exe texqa has used since round O4), the Python below the reference and the fallback (a texture the
+# Rust core does not take - NumPy's errors, past 2^28 texels, a half NaN - is read here). BFBC2_PURE_PYTHON=1 or
+# use_native(False) reads in Python.
+_READ_NATIVE: list[bool] = []
+
+
+def use_native(on: bool) -> None:
+    """read_pc / read_xbox in the Rust core (on, when built) or in Python (off) for this process."""
+    _READ_NATIVE[:] = [bool(on)]
+
+
+def _read_native(res: Any, xbox: bool) -> Tex | None:
+    on = _READ_NATIVE[0] if _READ_NATIVE else os.environ.get('BFBC2_PURE_PYTHON', '') in ('', '0')
+    if not on or type(res) is not bytes:
+        return None
+    from bfbc2core import native
+    m = native.load()
+    fn = getattr(m, 'texqa_read', None) if m is not None else None
+    got = fn(res, xbox) if fn is not None else None
+    if got is None:
+        return None
+    if got[0] == 'error':
+        raise TexQaError(got[1])
+    if got[0] == 'keyerror':                      # read_xbox's {1: 0, 2: 1, 8: 3, 16: 4}[bpb] of a 4-byte texel
+        raise KeyError(got[1])
+    _, fmt, flags, typ, w, h, mips, levels, floats, size_errors, zero = got
+    t = Tex(fmt, flags, typ, w, h, mips, [(s, m_, np.frombuffer(px, np.uint8).reshape(lh, lw, 4))
+                                           for s, m_, lh, lw, px in levels])
+    t.floats = [np.frombuffer(f, np.float32).reshape(lh, lw, 4) for lh, lw, f in floats]
+    t.size_errors = list(size_errors)
+    t.zero_blocks = zero
+    return t
+
+
 def read_pc(res: bytes) -> Tex:
-    """A PC ITexture resource decoded, every face and level."""
+    """A PC ITexture resource decoded, every face and level (in the Rust core when it is built, else read_pc_reference;
+    round F4)."""
+    t = _read_native(res, False)
+    return t if t is not None else read_pc_reference(res)
+
+
+def read_pc_reference(res: bytes) -> Tex:
+    """The Python (the reference)."""
     res = unwrap(res)
     if len(res) < HEADER:
         raise TexQaError('shorter than a texture header')
@@ -301,7 +343,14 @@ def read_pc(res: bytes) -> Tex:
 
 def read_xbox(res: bytes) -> Tex:
     """An Xbox 360 XenonTexture decoded, every face and level: the Xenos tiling undone with texture.layout and
-    texture.tiled (on arrays: every block of a level at once), 16-bit words swapped back (not for 8-bit texels)."""
+    texture.tiled (on arrays: every block of a level at once), 16-bit words swapped back (not for 8-bit texels). In
+    the Rust core when it is built, else read_xbox_reference (round F4)."""
+    t = _read_native(res, True)
+    return t if t is not None else read_xbox_reference(res)
+
+
+def read_xbox_reference(res: bytes) -> Tex:
+    """The Python (the reference)."""
     if len(res) < HEADER:
         raise TexQaError('shorter than a texture header')
     ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('>8I', res, 0)
