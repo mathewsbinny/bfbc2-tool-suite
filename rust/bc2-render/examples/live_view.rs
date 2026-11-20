@@ -11,7 +11,7 @@
 //! - timings per stage over `--frames N` frames (the camera turning a little each frame), old and live.
 //!
 //! `cargo run --release -p bc2-render --example live_view -- <level> <out folder> --view x,y,z,yaw,pitch,dist
-//! [--view ...] [--size WxH] [--frames N] [--job] [--edit] [--pick] [--name stem]`
+//! [--view ...] [--size WxH] [--frames N] [--job] [--edit] [--pick] [--name stem] [--terrain-radius N]`
 #![allow(
     clippy::print_stdout,
     clippy::unwrap_used,
@@ -129,11 +129,13 @@ fn main() {
     let t = Instant::now();
     let (name, placed, weather) = common::placed(&opfor, &lvname).unwrap();
     let package = !opfor.join("work").join("levels").join(lvname.to_lowercase()).is_dir();
-    let world = if package {
+    let mut world = if package {
         World::load_package(&opfor, &lvname, &name, &placed, weather.as_deref()).unwrap()
     } else {
         World::load(&opfor, &lvname, &name, &placed, weather.as_deref()).unwrap()
     };
+    // `--terrain-radius 24`: the terrain window rounds R5 to R5c drew (their recorded pictures)
+    world.terrain_radius = opt("--terrain-radius").map(|v| v.parse().unwrap());
     for n in world
         .notes
         .iter()
@@ -584,7 +586,8 @@ fn edit(
     .unwrap();
     let replayed = dev.read_scene(post.last()).unwrap();
     // from scratch: the world loaded with the edited placements, a new live list, a new device
-    let fresh_world = World::load(opfor, lvname, name, &edited, weather).unwrap();
+    let mut fresh_world = World::load(opfor, lvname, name, &edited, weather).unwrap();
+    fresh_world.terrain_radius = lv.world.terrain_radius;
     let mut fresh = Lv {
         live: Live::new(&fresh_world.light),
         world: fresh_world,
@@ -596,7 +599,11 @@ fn edit(
         dev,
         &mut Lv {
             live: Live::new(&lv.world.light),
-            world: World::load(opfor, lvname, name, placed, weather).unwrap(),
+            world: {
+                let mut w = World::load(opfor, lvname, name, placed, weather).unwrap();
+                w.terrain_radius = lv.world.terrain_radius;
+                w
+            },
         },
         &cam,
         target,
