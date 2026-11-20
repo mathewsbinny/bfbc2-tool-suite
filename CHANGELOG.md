@@ -55,6 +55,14 @@ landed on `main`.
   collision assets (`asset_bodies`, its convex hulls; about 6 times faster), `hkpack.Packfile` as a handle (its
   dicts built only when read; `read_object` in Rust), `xenos.disasm`'s header (parse and listing about 8 times
   faster than the Python), `meshview`'s part reader and the cull tree tool's string table.
+- **Shader databases are opened in the Rust core end to end** (round SD1; the same results, the Python kept as the
+  fallback): `ShaderDb.parse`'s choice of byte order and layout and its messages, `pick_database` and
+  `dx_from_name` are one Rust implementation shared by `shaderdb.py` and `bfbc2.exe shaderdb`; `load_levels` reads
+  each level bundle's database list once instead of once per Dx.
+
+### Fixed
+- **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /
+  `OverflowError` from the Rust core instead of reading the file as the Python does (round SD1).
 
 ## [0.9.0] - 2026-11-19
 

@@ -887,6 +887,20 @@ impl ShaderDbHandle {
     }
 }
 
+impl ShaderDbHandle {
+    /// A handle holding `data`, the file `db` was read from (round SD1: `shaderdb_open`).
+    pub(crate) fn of_file(data: &Bound<'_, PyBytes>, db: &ShaderDb<'_>) -> Self {
+        Self {
+            file: Some(data.clone().unbind()),
+            spans: Spans::of(data.as_bytes(), db),
+            big_endian: db.big_endian,
+            version: db.version,
+            flag: db.flag,
+            cache: Mutex::new(Cache::default()),
+        }
+    }
+}
+
 /// `Some(v)` for an answer, `None` for a decline.
 fn answer<T>(q: Q<T>) -> Option<T> {
     q.ok()

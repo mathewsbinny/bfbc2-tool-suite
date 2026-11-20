@@ -95,9 +95,11 @@ class ShaderDbError(Exception):
 
 
 # ------------------------------------------------------------------------------------------------ backend
-# ShaderDb._parse and ShaderDb.to_bytes run in the suite's Rust core (rust/, module bc2_native:
-# bc2_formats::shaderdb) when it is built, else in Python here; both give the same objects, bytes and messages
-# (tests/test_shaderdb_native.py; the game tier: every database of the game copy and OPFOR's work folders).
+# ShaderDb.parse (round SD1: its dispatch too, bc2_formats::shaderdb::open, as bfbc2.exe shaderdb), pick_database,
+# dx_from_name and ShaderDb.to_bytes run in the suite's Rust core (rust/, module bc2_native: bc2_formats::shaderdb)
+# when it is built, else in Python here (parse_reference, pick_database_reference, dx_from_name_reference); both give
+# the same objects, bytes and messages (tests/test_shaderdb_native.py, tests/test_sd1_native.py; the game tier:
+# every database of the game copy and OPFOR's work folders).
 # BFBC2_PURE_PYTHON=1 (or use_native(False)) forces Python; backend() says which one runs.
 
 def _with_shaderdb(m: ModuleType | None) -> ModuleType | None:
@@ -277,21 +279,63 @@ class ShaderDb:
     @classmethod
     def parse(cls, data: bytes, dx: int | None = None, where: str = 'file', big_endian: bool | None = None) -> ShaderDb:
         """big_endian: None = from the data (an Xbox 360 database is read whatever dx says: its vertex shaders have
-        one layout; it keeps dx, default 9 - FbrbTool lists it as Dx9ShaderDatabase)."""
+        one layout; it keeps dx, default 9 - FbrbTool lists it as Dx9ShaderDatabase). Read in the Rust core in one
+        call (round SD1: the dispatch below and the reader, bc2_formats::shaderdb::open) when it is built and the
+        arguments are plain (bytes, an int or None, a bool or None, a str); else parse_reference's dispatch over
+        _parse."""
+        db = cls._parse_native(data, dx, where, big_endian)
+        if db is not None:
+            return db
+        return cls._dispatch(data, dx, where, big_endian, cls._parse)
+
+    @classmethod
+    def parse_reference(cls, data: bytes, dx: int | None = None, where: str = 'file',
+                        big_endian: bool | None = None) -> ShaderDb:
+        """parse in Python (the reference): the dispatch and the reader."""
+        return cls._dispatch(data, dx, where, big_endian, cls._parse_reference)
+
+    @classmethod
+    def _parse_native(cls, data: bytes, dx: int | None, where: str, big_endian: bool | None) -> ShaderDb | None:
+        """parse in the Rust core (the database kept in a ShaderDbHandle, its sections made when first read), or
+        None: no core, or arguments only the Python takes."""
+        m = _native
+        if (m is None or not hasattr(m, 'shaderdb_open') or type(data) is not bytes or type(where) is not str
+                or not (dx is None or (type(dx) is int and 0 <= dx < 1 << 32))
+                or not (big_endian is None or type(big_endian) is bool)):
+            return None
+        try:
+            got = m.shaderdb_open(data, dx, big_endian, where)
+        except ValueError as e:
+            raise ShaderDbError(str(e)) from None
+        if got is None:
+            return None
+        h, d, big = got
+        db = cls(d, big)
+        for sec in SECTIONS:                # made from the file when first read (__getattr__)
+            del db.__dict__[sec]
+        db.__dict__['_h'] = h
+        db.version, db.flag = h.version, h.flag
+        db.key_size = KEY_SIZES.get(db.version, KEY_SIZE)
+        return db
+
+    @classmethod
+    def _dispatch(cls, data: bytes, dx: int | None, where: str, big_endian: bool | None,
+                  reader: Callable[[bytes, int, str, bool], ShaderDb]) -> ShaderDb:
+        """parse's choice of byte order and layout, over a reader (_parse, or _parse_reference)."""
         if len(data) < 9:
             raise ShaderDbError(f'{where} is not a shader database (too short)')
         if big_endian is None:
             big_endian = cls.is_big_endian(data)
         if big_endian:
             try:
-                return cls._parse(data, dx or 9, where, True)
+                return reader(data, dx or 9, where, True)
             except ShaderDbError as e:
                 raise ShaderDbError(f'{where} is not a shader database this tool reads (as Xbox 360: {e})') from e
         layouts = [dx] if dx else [9, 10]
         errors = []
         for d in layouts:
             try:
-                return cls._parse(data, d, where)
+                return reader(data, d, where, False)
             except ShaderDbError as e:
                 errors.append(f'as Dx{d}: {e}')
         raise ShaderDbError(f'{where} is not a shader database this tool reads ({"; ".join(errors)})')
@@ -299,9 +343,12 @@ class ShaderDb:
     @classmethod
     def _parse(cls, data: bytes, dx: int, where: str, big_endian: bool = False) -> ShaderDb:
         db = cls(dx, big_endian)
-        if _native is not None and type(data) is bytes and hasattr(_native, 'ShaderDbHandle'):
+        # the Rust reader for bytes and a kind it takes (round SD1: a float, negative or huge dx went to the handle and
+        # raised TypeError / OverflowError where the Python reads it - with the Dx10 layout, as any dx but 9)
+        m = _native if type(data) is bytes and type(dx) is int and 0 <= dx < 1 << 32 else None
+        if m is not None and hasattr(m, 'ShaderDbHandle'):
             try:
-                h = _native.ShaderDbHandle.open(data, dx, big_endian)
+                h = m.ShaderDbHandle.open(data, dx, big_endian)
             except ValueError as e:
                 raise ShaderDbError(f'{where}: {e}') from None
             for sec in SECTIONS:                # made from the file when first read (__getattr__)
@@ -310,15 +357,21 @@ class ShaderDb:
             db.version, db.flag = h.version, h.flag
             db.key_size = KEY_SIZES.get(db.version, KEY_SIZE)
             return db
-        if _native is not None and type(data) is bytes:          # (other buffers: Python, records keep their type)
+        if m is not None:                        # (other buffers: Python, records keep their type)
             try:
-                got = _native.shaderdb_parse(data, dx, big_endian, Shader)
+                got = m.shaderdb_parse(data, dx, big_endian, Shader)
             except ValueError as e:
                 raise ShaderDbError(f'{where}: {e}') from None
             (db.version, db.flag, db.params, db.bindings, db.regs, db.vs, db.ps, db.programs, db.keys, db.layouts,
              db.entries, db.fragments, db.parts, db.groups) = got
             db.key_size = KEY_SIZES.get(db.version, KEY_SIZE)
             return db
+        return cls._parse_reference(data, dx, where, big_endian)
+
+    @classmethod
+    def _parse_reference(cls, data: bytes, dx: int, where: str, big_endian: bool = False) -> ShaderDb:
+        """The reader in Python (the reference): one layout, one byte order."""
+        db = cls(dx, big_endian)
         r = _Reader(data, where, db.e)
         db.version = r.u32()
         db.flag = r.u8()
@@ -587,8 +640,25 @@ class _Reader:
 
 
 def dx_from_name(path: str) -> int | None:
+    """The kind a file or entry name says: dx9 / dx10 / dx11 in its base name, any case (the Rust core's search,
+    bc2_formats::shaderdb::open::dx_in_name, when it is built; else dx_from_name_reference)."""
+    got = _dx_from_name_native(path)
+    if got is not None:
+        return got or None
+    return dx_from_name_reference(path)
+
+
+def dx_from_name_reference(path: str) -> int | None:
+    """dx_from_name in Python (the reference)."""
     m = re.search(r'dx(9|10|11)', os.path.basename(path), re.I)
     return int(m.group(1)) if m else None
+
+
+def _dx_from_name_native(path: str) -> int | None:
+    """9, 10, 11 or 0 (none) from the Rust core; None: no core, or a name only the Python takes."""
+    if _native is None or type(path) is not str or not hasattr(_native, 'shaderdb_dx_in_name'):
+        return None
+    return cast('int | None', _native.shaderdb_dx_in_name(os.path.basename(path)))
 
 
 def find_opfor(given: str | None = None) -> str:
@@ -622,8 +692,46 @@ def bundle_databases(path: str) -> list[tuple[str, str]]:
 
 def pick_database(path: str, dx: int, entry: str | None = None) -> str:
     """The entry name of the Dx<dx> database of a bundle: the one named, else the only one, else the one in the
-    bundle's own level folder (Levels/<folder>/Shaders/)."""
-    dbs = [n for n, t in bundle_databases(path) if t.lower() == f'dx{dx}shaderdatabase']
+    bundle's own level folder (Levels/<folder>/Shaders/). Chosen by the Rust core (round SD1:
+    bc2_formats::shaderdb::open::pick_database, bfbc2.exe's) when it is built, else by pick_database_reference."""
+    return _pick(path, dx, entry, None)
+
+
+def _pick(path: str, dx: int, entry: str | None, dbs: list[tuple[str, str]] | None) -> str:
+    """pick_database with the bundle's bundle_databases already read (dbs; None: read here)."""
+    if dbs is None:
+        dbs = bundle_databases(path)
+    got = _pick_native(path, dx, entry, dbs)
+    if got is not None:
+        return got
+    return _pick_python(path, dx, entry, dbs)
+
+
+def pick_database_reference(path: str, dx: int, entry: str | None = None) -> str:
+    """pick_database in Python (the reference)."""
+    return _pick_python(path, dx, entry, None)
+
+
+def _pick_native(path: str, dx: int, entry: str | None = None, dbs: list[tuple[str, str]] | None = None) -> str | None:
+    """The Rust core's choice (raises its ShaderDbError), or None: no core, or arguments / names only the Python
+    takes."""
+    if (_native is None or not hasattr(_native, 'shaderdb_pick') or type(path) is not str or type(dx) is not int
+            or not 0 <= dx < 1 << 32 or not (entry is None or type(entry) is str)):
+        return None
+    if dbs is None:
+        dbs = bundle_databases(path)
+    got = _native.shaderdb_pick(path, dbs, dx, entry, os.path.basename(os.path.dirname(path)))
+    if got is None:
+        return None
+    ok, text = got
+    if not ok:
+        raise ShaderDbError(text)
+    return cast(str, text)
+
+
+def _pick_python(path: str, dx: int, entry: str | None, dbs_read: list[tuple[str, str]] | None) -> str:
+    dbs = [n for n, t in (bundle_databases(path) if dbs_read is None else dbs_read)
+           if t.lower() == f'dx{dx}shaderdatabase']
     if entry:
         hit = [n for n in dbs if n.lower() == entry.lower() or n.lower().startswith(entry.lower().rstrip('/') + '/')]
         if len(hit) != 1:
@@ -702,12 +810,15 @@ def load_levels(levels: Iterable[str], dxs: Sequence[int] = (9, 10, 11), opfor: 
             out: LevelDbs = {}
             names: dict[int, str] = {}
             bundle = bundles.get(lv.lower())
+            dbs: list[tuple[str, str]] | None = None       # the bundle's database list, read once for every Dx
             for dx in dxs:
                 if bundle is None:
                     out[dx] = ShaderDbError(f'unknown level {lv}: the game copy has no levels\\{lv}\\level-00.fbrb')
                     continue
+                if dbs is None:
+                    dbs = bundle_databases(bundle)
                 try:
-                    names[dx] = pick_database(bundle, dx)
+                    names[dx] = _pick(bundle, dx, None, dbs)
                 except ShaderDbError as e:
                     out[dx] = e
             plans.append((lv, bundle, out, names))
