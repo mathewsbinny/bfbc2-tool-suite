@@ -1,7 +1,7 @@
 """BFBC2 Tool Suite - one window for every tool (double-click to start; needs Python 3 with numpy, and for the 3D
 tools moderngl, glfw and imgui-bundle).
 
-Tabs: Levels (open a level in the Map Inspector or the Navigation Studio), Bundles (FbrbTool), Level diff
+Tabs: Levels (open a level in the map editor or the Navigation Studio), Bundles (FbrbTool), Level diff
 (LevelDiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
 (DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane at the bottom.
 The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
@@ -53,7 +53,6 @@ TOOLS = {
 }
 SCRIPTS = {
     'fbrb': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),           # FbrbTool's commands (the Rust core)
-    'inspector': os.path.join(SUITE, 'bfbc2-map-inspector', 'inspector.py'),
     'studio': os.path.join(SUITE, 'bfbc2-navigation-studio', 'studio.py'),
     'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
     'navkitgui': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkitGUI.pyw'),
@@ -309,8 +308,8 @@ class Hub:
 
     # --- Levels: the 3D tools -----------------------------------------------------------------------
     def tab_levels(self):
-        f = self.form('Levels', 'Pick a level, then open it in the Map Inspector (the level in 3D: every object, its '
-                                'properties and links; measuring) or in the Navigation Studio (the AI\'s navigation '
+        f = self.form('Levels', 'Pick a level, then open it in the map editor (the level in 3D: every object, its '
+                                'fields and links; editing a copy) or in the Navigation Studio (the AI\'s navigation '
                                 'data: NavKit\'s and DICE\'s, islands, path test, edits). A level is unpacked the first '
                                 'time it is opened (offline, about 20 s); the first opening of its navigation data takes '
                                 'up to a minute, later ones seconds. The tool\'s progress shows below.')
@@ -322,13 +321,12 @@ class Hub:
             self.tree.column(c, width=120, anchor='center')
         self.tree.column('#0', width=160)
         self.tree.grid(row=1, column=0, columnspan=3, sticky='nsew')
-        self.tree.bind('<Double-1>', lambda e: self.open_3d('inspector'))
+        self.tree.bind('<Double-1>', lambda e: self.open_editor())
         f.rowconfigure(1, weight=1)
         btns = ttk.Frame(f)
         btns.grid(row=2, column=0, columnspan=3, sticky='w', pady=8)
-        ttk.Button(btns, text='Open in Map Inspector', command=lambda: self.open_3d('inspector')).pack(side='left')
+        ttk.Button(btns, text='Open in Map Editor', command=self.open_editor).pack(side='left')
         ttk.Button(btns, text='Open in Navigation Studio', command=lambda: self.open_3d('studio')).pack(side='left', padx=6)
-        ttk.Button(btns, text='Open in Map Editor (preview)', command=self.open_editor).pack(side='left', padx=6)
         ttk.Button(btns, text='Prepare level', command=self.prepare).pack(side='left', padx=6)
         ttk.Button(btns, text='Open level folder', command=self.open_level_folder).pack(side='left', padx=6)
         ttk.Button(btns, text='Refresh', command=self.fill_levels).pack(side='left', padx=6)
@@ -374,12 +372,11 @@ class Hub:
         args = [PYTHON, SCRIPTS[which], lv]
         if which == 'studio' and self.nav_file.get().strip():
             args += ['--candidate', self.nav_file.get().strip()]
-        name = 'Map Inspector' if which == 'inspector' else 'Navigation Studio'
-        self.launch(args, f'{name}: {lv} (the window opens when the level is loaded)')
+        self.launch(args, f'Navigation Studio: {lv} (the window opens when the level is loaded)')
 
     def open_editor(self, lv=None):
-        """The Rust map editor (preview: read-only), on the chosen level, or on its start screen without one. The Map
-        Inspector stays until the editor replaces it (EDITOR_ARCHITECTURE.md 3.8)."""
+        """The Rust map editor on the chosen level (read-only; a project edits a copy), or on its start screen without
+        one. It replaced the Map Inspector (round GR1): its Properties (All fields) and Links panels."""
         if lv is None and self.tree.selection():
             lv = self.tree.selection()[0]
         try:
@@ -540,8 +537,8 @@ class Hub:
     # --- More tools ---------------------------------------------------------------------------------
     def tab_more(self):
         f = self.form('More tools', 'Tools with windows of their own.')
-        rows = [('Map Editor', 'Preview of the map editor (Rust): view any prepared map read-only, several views, '
-                               'command palette (Ctrl+Shift+P).',
+        rows = [('Map Editor', 'The map editor (Rust): view any map - every object\'s fields and links - or edit a '
+                               'copy as a project; command palette (Ctrl+Shift+P).',
                  lambda: self.open_editor('')),
                 ('DbxEditGUI', 'View, edit, check and repair binary .dbx files; XML export and import.',
                  lambda: self.launch([tool('dbxgui')], 'DbxEditGUI')),

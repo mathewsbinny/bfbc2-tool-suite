@@ -4,8 +4,9 @@
 //! [`Inspection`](bc2_editor::inspect::Inspection) gives the same property tree as the inspector's Selection panel
 //! walked it (names, nesting, child counts, references and the objects they lead to, `dbx.value` texts), the same
 //! references (`Entity.refs`) and the same "referenced by" list (`Inspector.referrers`). The inspector's answers are
-//! kept as digests (`tests/data/inspector_props_*.json.gz`, `record_inspector_props.py`): each list's length and
-//! the SHA-1 of its compact JSON, which the test makes the same way from the editor's answers.
+//! kept as digests (`tests/data/inspector_props_*.json.gz`, recorded by GR1's `record_inspector_props.py`, removed
+//! with the inspector): each list's length and the SHA-1 of its compact JSON (`json.dumps`, separators `,` and `:`,
+//! `ensure_ascii=False`), which the test makes the same way from the editor's answers.
 //!
 //! Skipped (with a note) when the game copy is not there or a level is not prepared.
 #![allow(

@@ -214,7 +214,7 @@ The editor must be very fast and use parallelism. The user chose a **hybrid Rust
   Each Python GUI stays until its replacement works. **Status (G2, 2026-11-18):** the editor application's shell and
   its read-only map view (`rust/bc2-editor`, the "View a map" of 3.9; round G1), with 3.10's decisions on it (round
   G2): faction team labels, the 3D view's own tokens and the third neutral, the Help menu, and levels prepared from
-  the editor; the Map Inspector stays until it is replaced.
+  the editor; the Map Inspector was replaced and retired in round GR1 (section 9, with the other GUIs' plan).
 
 - **In Rust:**
   - the editor application: window, 3D view, gizmos, panels;
@@ -337,7 +337,7 @@ Everything the GUI does is an operation in the project log, so the CLI does it t
 - **Open a project, recent projects, open a shared project.** For a shared project, the editor checks that this
   game copy has its base map and assets, and names anything missing in plain words. It never asks for game files from
   another person.
-- **View a map:** open any map read-only, in the Map Inspector as today. "Edit a copy" turns it into a new project.
+- **View a map:** open any map read-only (the editor's View workspace since G1). "Edit a copy" makes a new project.
 - **Later (S2):** new map from terrain (import or generate).
 
 **Main window.** The panels are dockable (the user, 2026-11-16). A default layout ships as described below, and
@@ -1334,3 +1334,90 @@ The validation gate checks each of these, or the design avoids it.
 | A level missing from LevelListQuery: in no menu; a `_NAME` prefix mismatch: a black loading screen; a key shared by two modes: blank browser rows (2026-11-16) | OPFOR research notes; commit 6f809e1 |
 | An object at cull slot 0: draws see-through and cannot be destroyed | `bfbc2-culltree` |
 | A terrain mask atlas that differs from the donor's: black terrain cells | memory note terrain-patch-donor-rules |
+
+## 9. Folding the older GUIs into the editor (rounds GR1 on, 2026-11-20)
+
+The user's plan (2026-11-19): for each of the suite's older GUIs, list what it does that the editor
+(`rust/bc2-editor`, `bfbc2-editor`) does not, add that to the editor, then retire the GUI - removed from the
+repository and from the hub's launcher, its docs pointing at the editor. The hub (`BFBC2 Tool Suite.pyw`) stays as
+the launcher. The planned AI behaviour simulator, bot AI debugger and tactical map tools become editor workspaces
+later, not tools of their own. This replaces 3.8's "each Python GUI stays until its replacement works" with an
+order: the Map Inspector (GR1), the Navigation Studio (GR2), the mesh viewer (GR3), DbxEditGUI (GR4, the last C#);
+LevelDiff, which has no window, becomes a `bfbc2.exe` command when its round comes (GR1 if time allowed; it did not:
+GR2 or a round of its own).
+
+What each does, whether the editor has it (round GR1's read of their code and READMEs), and the plan. "Partly"
+says which part.
+
+### 9.1 Map Inspector (`bfbc2-map-inspector/inspector.py`): retired in GR1
+
+| Feature | In the editor? | Plan |
+|---|---|---|
+| A level opened by name, prepared on first use; a picker without one | Yes (G1-G4: the start screen, `bfbc2-editor <level>`, Prepare with progress) | - |
+| The 3D view: terrain (height field), water, collision by layer, markers for objects without collision, spawn facing lines, outlines as prisms | Yes (G1; R5's Game-accurate view besides) | - |
+| Orbit, pan, zoom, fly (F), double-click flies to the object | Yes (fly on the right button; F focuses; double-click focuses) | - |
+| Layers with colours and counts, shown and hidden; area points, effects and other hidden at start | Yes (the Outliner's groups, Hide / Show, `HIDDEN_AT_START`) | - |
+| Search by GUID, type, id, name or blueprint | Yes (the Outliner's search, the same haystack; Ctrl+P) | The type filter combo: the Outliner's groups are the types' categories; "Select all of type" covers the rest |
+| Selection panel: type, full type, GUID, id, name, category, blueprint, its object type, source partition and group, team, player type, destructible, position; fly to; copy GUID | Yes (Properties, G1/G2) | - |
+| **The full property tree**: every field nested, child counts, values as the XML shows them, references as buttons that follow them, *back* | **Added in GR1**: Properties, *All fields* (types too; long lists paged; references go to their object, Back in Links) | - |
+| **Referenced by** (every entity whose fields name this one, `LevelData` left out) | **Added in GR1**: the *Links* panel | - |
+| Links drawn over the scene: yellow to what it references, cyan from what references it | **Added in GR1**: `view-link` lines in every view, arrows by direction; K toggles | - |
+| Event connections | Not in the Map Inspector; **added in GR1** to Links (sent and received, both ways) and drawn dashed | - |
+| Measure (M): points on terrain or objects, last segment's length / horizontal / height / slope, path total, height above the terrain, water surface above, Esc clears | **Added in GR1**: Measure (M) in every workspace, the figures beside the last point (M again ends it); the Objects workspace's ruler besides | - |
+| Hover tooltip: what is under the mouse and where; water's shader | Partly: labels at gameplay objects, the status bar's read-out of the last click | Hover read-out with the next view round, if wanted |
+| Window layout kept between runs | Yes (eframe's storage: the dock, theme, bookmarks) | - |
+| `--screenshot`, `--select`, `--frames`, `--measure` for tests | Yes (`--screenshot`, `--select`; the headless tests drive the rest) | - |
+
+Its offline tests (`tests/test_inspector_offline.py`) and its part of `tests/test_viewers.py` went with it. What the
+editor shows was compared with what it showed before it went: the outliner in G1 (`inspector_parity.rs`), the
+property tree, references and referrers in GR1 (`inspect_parity.rs`: 1,074 objects of SP_01, MP_005, MP_009GR and
+ONS_MP_004 - of every type the first, middle and last, every 50th group member, the most referencing and most
+referenced - 102,243 fields, 35,263 references, 1,939 referrers, all identical; the inspector's answers kept as
+digests in `rust/bc2-editor/tests/data/inspector_props_*.json.gz`). The folder keeps this plan and a README saying
+where each feature went; nothing else in the suite or OPFOR used its code.
+
+### 9.2 Navigation Studio (`bfbc2-navigation-studio`: `studio.py`, `editing.py`, `overlay.py`)
+
+| Feature | In the editor? | Plan |
+|---|---|---|
+| NavKit's build and DICE's path data side by side over the level: walkable cells, outlines, portals, border portals, route graph per file | Partly: the Navmesh view mode draws one file's area outlines (E2b) | GR2: the AI workspace's layers, both files, each layer switchable |
+| Colour by island, sector, pitch, difference (NavKit vs DICE: same, extra, missing), anomaly | No | GR2 |
+| Ladder ground and ladder links layers | No | GR2 |
+| Path test (P): the cheapest route over each file's graph, cost, length, detour, NavKit against DICE, why there is none (islands, nearest approach) | Registered (`PathTest`, greyed "a later round") | GR2 (`navpath`'s planner, in Rust) |
+| Edit mode: walkable / unwalkable regions, seed, unseed, link areas, add or remove a route edge, traversals (ladder, jump, vault, drop), notes; `navtune.json` with who and when; undo, redo, save, reload | No | GR2 / E5a: the AI workspace's tools, edits in the map project's log (stored by position, 3.4a) |
+| Build with these edits (`navkit apply` in the background, its log), open the result, install into the game, restore DICE's original, the report | No | GR2, through `bfbc2.exe navkit` |
+| DICE's data edited additively (links, edges, traversals) into a copy | No | GR2 |
+| Compare with a reference AI layer (`level:`, `xbox:`, a level XML): spawners, orders, objectives, path outlines, filters, the nearest route node, export JSON | No | GR2 (a workspace overlay); `overlay.py`'s headless export stays a command |
+| Anomaly overlay: spawns on small islands, orders without a node, sliver areas, lonely nodes; export JSON | No | GR2; the headless `--anomalies` stays a command |
+| Panels: per-file figures, islands largest first with fly-to, spawns off the main network, the selected area (sector, tile, layer, cells, island); hover shows the area | No | GR2 |
+| Camera, `--screenshot` for tests | Yes | - |
+
+### 9.3 Mesh viewer (`bfbc2-mesh-viewer/meshview.py`)
+
+| Feature | In the editor? | Plan |
+|---|---|---|
+| An index of the game copy's bundles and every level's Dx9 shader database, cached | Partly: the content browser's catalogue reads every bundle's header (E2b) | GR3 |
+| `find <text>`: mesh names containing a text | Partly: the asset browser's search (blueprints, not meshes) | GR3: meshes in the asset browser |
+| A mesh's parts with their colour textures, orbit and zoom, a switch per part, wireframe (an HTML page with three.js) | No (type icons; the `work\editor\thumbs` hook) | GR3: the asset browser's preview, drawn by `bc2-render` |
+| Several meshes side by side; LOD choice | No | GR3 |
+| `--png` (side / top / front, size): a picture | No | Stays a command line (the user's plan): `bfbc2.exe meshview` or the Python, also the thumbnails' source |
+
+### 9.4 DbxEditGUI (`bfbc2-dbx-tools/DbxEditGUI.cs`): the last C#
+
+| Feature | In the editor? | Plan |
+|---|---|---|
+| Open any binary `.dbx` (File > Open, drop) | No (levels and projects only) | GR4: a DBX inspector panel opening any partition of a level's bundles or a file |
+| The tree: instances (bold), fields, lists, values | Partly: GR1's *All fields* tree for a level's objects (`inspect::PropNode`, a widget the panel reuses) | GR4 |
+| Edit a value or an attribute, Apply; Go to reference | Partly: typed fields of level instances through levelwrite (E2b); references followed (GR1) | GR4 |
+| Instance menu: remove, graft from another file, copy a field, add a list entry | Partly: levelwrite's delete, place and copy for the level partition | GR4, on `bfbc2.exe dbxedit`'s commands |
+| Edit menu: undo, find (Ctrl+F, F3), replace strings, remove a field everywhere, set a bool everywhere, the partition's GUID | No (undo for the project's own operations) | GR4 |
+| Level menu: check (F5), cull slots against another level, fix cull slots; results with go-to | No (the export's checks run `mapexport check`) | GR4 |
+| File: save keeping `.bak`, export / import XML, save the edits as a DbxEdit script | No | GR4 |
+
+### 9.5 LevelDiff (`bfbc2-diff-workbench/level-diff/LevelDiff.cs`): a command line, no window
+
+| Feature | In the editor? | Plan |
+|---|---|---|
+| Two `.dbx` files compared instance by instance: added, removed, changed fields (`path: old -> new`), reference lists as sets, reorderings | Partly: `bc2_levelwrite::diff` (field level, behind Check edits) | `bfbc2.exe leveldiff`, proven identical to LevelDiff.exe's output (text, JSON, exit codes) on real level pairs, then LevelDiff.exe, its hub tab's tool and OPFOR's `paths.exe('LevelDiff')` move to it |
+| `--match-objects` (placed objects paired by blueprint and position), `--type`, `--ignore`, `--summary`, `--all`, `--json`; exit codes 0 / 1 / 2 / 3 | No | The same command |
+| (no window) | - | Later: "Compare with base" in the editor's History, on the same diff |
