@@ -44,6 +44,7 @@ use crate::theme::{self, Metrics, Palette, ThemeId, Tokens};
 
 mod create;
 mod editui;
+mod inspectui;
 mod modes;
 mod tools;
 
@@ -80,6 +81,8 @@ pub enum Tab {
     Layers,
     /// The content browser: blueprints to place.
     Content,
+    /// The selection's links: references and event connections, both ways (round GR1).
+    Links,
 }
 
 impl Tab {
@@ -92,18 +95,20 @@ impl Tab {
             Self::History => "History",
             Self::Layers => "Layers",
             Self::Content => "Place objects",
+            Self::Links => "Links",
         }
     }
 }
 
-/// The default layout: the 3D view in the middle, the outliner (and layers) left, properties right, problems (and
-/// history) below the view.
+/// The default layout: the 3D view in the middle, the outliner (and layers) left, properties right with the links
+/// below them, problems (and history) below the view.
 #[must_use]
 pub fn default_layout() -> DockState<Tab> {
     let mut d = DockState::new(vec![Tab::Viewport(Projection::Perspective)]);
     let s = d.main_surface_mut();
     let [centre, _] = s.split_left(NodeIndex::root(), 0.2, vec![Tab::Outliner, Tab::Layers, Tab::Content]);
-    let [centre, _] = s.split_right(centre, 0.72, vec![Tab::Properties]);
+    let [centre, right] = s.split_right(centre, 0.72, vec![Tab::Properties]);
+    let [_, _] = s.split_below(right, 0.6, vec![Tab::Links]);
     let [_, _] = s.split_below(centre, 0.78, vec![Tab::Problems, Tab::History]);
     d
 }
@@ -289,6 +294,23 @@ pub struct ViewState {
     pub place_team: u8,
     /// The Spawners and Objectives tiles, with what they were made from (the log's and the catalogue's sizes).
     tiles: Option<((usize, usize), Vec<crate::gameplay::Tile>)>,
+    // ---- round GR1: the Map Inspector's views
+    /// The links are drawn in the 3D view (the selection's references and event connections).
+    pub show_links: bool,
+    /// The partitions read for the property tree and the links, and the project revision they were read at.
+    inspection: Option<(u64, crate::inspect::Inspection)>,
+    /// The selected entity's property tree (entity, revision, the tree or why it could not be read).
+    fields_tree: Option<(usize, u64, Result<Vec<crate::inspect::PropNode>, String>)>,
+    /// The objects a link was followed from, the latest last (Links' Back).
+    pub link_back: Vec<usize>,
+    /// The Links panel's rows on screen: (the entity a row leads to, its rectangle) - the tests click them.
+    pub link_rects: Vec<(usize, Rect)>,
+    /// All fields' container headers on screen: (field path by name, rectangle) - the tests open them.
+    pub field_rects: Vec<(String, Rect)>,
+    /// Measuring (M): clicks add points to [`ViewState::measure`] instead of selecting.
+    pub measuring: bool,
+    /// The measured path's points.
+    pub measure: Vec<V3>,
 }
 
 /// One view of the map: its camera, its render target and the texture egui shows it through.
@@ -580,7 +602,14 @@ pub fn why_not_in(v: Option<&ViewState>, action: Action) -> Option<&'static str>
             Action::FocusSelection | Action::CopyGuid | Action::ClearSelection if !selected => {
                 Some("Select an object first")
             }
-            Action::OpenViewport(_) | Action::ToggleLabels | Action::ToggleGameView | Action::CloseMap if !open => {
+            Action::OpenViewport(_)
+            | Action::ToggleLabels
+            | Action::ToggleLinks
+            | Action::ToggleMeasure
+            | Action::ToggleGameView
+            | Action::CloseMap
+                if !open =>
+            {
                 Some("Open a map first")
             }
             Action::Undo
@@ -656,6 +685,7 @@ impl EditorApp {
                     PanelKind::Problems => Tab::Problems,
                     PanelKind::Properties => Tab::Properties,
                     PanelKind::Content => Tab::Content,
+                    PanelKind::Links => Tab::Links,
                 };
                 if let Some(path) = self.dock.find_tab(&tab) {
                     let _ = self.dock.set_active_tab(path);
@@ -700,6 +730,22 @@ impl EditorApp {
             Action::ToggleLabels => {
                 if let Mode::View(v) = &mut self.mode {
                     v.labels = !v.labels;
+                }
+            }
+            Action::ToggleLinks => {
+                if let Mode::View(v) = &mut self.mode {
+                    v.show_links = !v.show_links;
+                }
+            }
+            Action::ToggleMeasure => {
+                if let Mode::View(v) = &mut self.mode {
+                    v.measuring = !v.measuring;
+                    v.measure.clear();
+                    v.message = if v.measuring {
+                        "Measuring: click points on the terrain or objects (M ends it)".to_owned()
+                    } else {
+                        String::new()
+                    };
                 }
             }
             Action::ToggleGameView => {
@@ -1139,6 +1185,14 @@ impl EditorApp {
             browser_mode: crate::gameplay::BrowserMode::PlaceObjects,
             place_team: 1,
             tiles: None,
+            show_links: true,
+            inspection: None,
+            fields_tree: None,
+            link_back: Vec::new(),
+            link_rects: Vec::new(),
+            field_rects: Vec::new(),
+            measuring: false,
+            measure: Vec::new(),
         };
         if editing {
             v.refresh(gpu, &palette);
@@ -2176,13 +2230,14 @@ impl TabViewer for Tabs<'_> {
             Tab::History => self.history(ui),
             Tab::Layers => self.layers(ui),
             Tab::Content => self.content(ui),
+            Tab::Links => self.links(ui),
         }
     }
 
     /// The orthographic views, History and Layers can be closed (the actions open them again); the rest stay.
     fn is_closeable(&self, tab: &Tab) -> bool {
         matches!(tab, Tab::Viewport(p) if *p != Projection::Perspective)
-            || matches!(tab, Tab::History | Tab::Layers | Tab::Content)
+            || matches!(tab, Tab::History | Tab::Layers | Tab::Content | Tab::Links)
     }
 
     fn scroll_bars(&self, _tab: &Tab) -> [bool; 2] {
@@ -2354,7 +2409,12 @@ impl Tabs<'_> {
                 let skip = |k: usize| self.view.doc.as_ref().is_some_and(|d| !d.shown(k));
                 query::ray_hit_except(self.view.scene(), o, d, &skip)
             };
-            if editing {
+            if self.view.measuring {
+                // measuring: the click adds the surface point under it, the selection stays
+                if let Some(h) = hit {
+                    self.view.measure.push(h.point);
+                }
+            } else if editing {
                 let ctrl = ui.input(|i| i.modifiers.command || i.modifiers.shift);
                 self.edit_click(render::id_entity(id), ctrl, hit);
             } else {
@@ -2405,6 +2465,10 @@ impl Tabs<'_> {
         if self.view.labels {
             self.labels(ui, rect, &vp.camera);
         }
+        if self.view.show_links {
+            self.links_overlay(ui, rect, &vp.camera);
+        }
+        self.measure_overlay(ui, rect, &vp.camera);
         if editing {
             self.edit_overlay(ui, rect, projection, &vp.camera);
         }
@@ -2852,6 +2916,7 @@ impl Tabs<'_> {
                             ui.ctx().copy_text(e.guid.clone());
                         }
                     });
+                    self.all_fields(ui, e.index);
                 });
         });
     }

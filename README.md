@@ -20,9 +20,9 @@ are merged and versions released: `RELEASING.md`.
 3. Put this folder next to your `project-opfor-bfbc2` folder (or set `OPFOR_ROOT` to it): the tools read the game
    copy there.
 4. Double-click **`BFBC2 Tool Suite.pyw`**. One window has every tool:
-   - **Levels:** choose a level, then **Open in Map Inspector** or **Open in Navigation Studio** (or
-     double-click the level). A level is unpacked the first time (offline, about 20 s); the tool's progress
-     shows at the bottom and its 3D window opens when the level is loaded.
+   - **Levels:** choose a level, then **Open in Map Editor** (or double-click the level) or **Open in
+     Navigation Studio**. A level is unpacked the first time (offline, about 20 s); the tool's progress
+     shows at the bottom (the editor shows its own) and its window opens when the level is loaded.
    - **Bundles, Level diff, Crash reader, Xbox files, Tests:** the command-line tools with file pickers and
      options; their output appears at the bottom.
    - **More tools:** DbxEditGUI and NavKit's window.
@@ -30,9 +30,10 @@ are merged and versions released: `RELEASING.md`.
    The test harness, the menu tools and the stock-MP AI tool have no tab yet: run them from a command prompt
    (their READMEs).
 
-The 3D tools can also be started on their own: double-click `bfbc2-map-inspector\inspector.py` or
-`bfbc2-navigation-studio\studio.py` and a level picker opens, or give the level on the command line
-(`python studio.py sp_01`). On a laptop with two GPUs, see "The 3D tools and your GPU" below.
+The 3D tools can also be started on their own: `bin\bfbc2-editor.exe` (the map editor, "The map editor" below) or
+`bfbc2-navigation-studio\studio.py` (double-click: a level picker opens), or give the level on the command line
+(`bin\bfbc2-editor.exe mp_005`, `python studio.py sp_01`). On a laptop with two GPUs, see "The 3D tools and your
+GPU" below.
 
 ### When something goes wrong
 
@@ -68,7 +69,7 @@ log file.
 | `bfbc2-anim-tools/` | **Granny tools** (`granny.py`): the soldier skeleton and animations - bones, tracks and curves decoded; a bone's position track moved (constant, quantized, re-quantized ramp) with the Granny CRC recomputed; orientation curves written (`set_orientations`); tracks added from a donor (`add_tracks`); Xbox 360 resources read and converted to the PC's format (`topc`), DICE's bone table renumbered onto another skeleton; reading and `to_pc` in the Rust core when it is built, `to_pc_many` / `roots` for many files on all cores; generated aim poses (`aimanim.py`) |
 | `bfbc2-bf1943-import/` | **Battlefield 1943 import**: the user's BF1943 Xbox 360 resources into BFBC2's PC formats, from the user's own copy - animations, skeletons and textures (`bf1943import.py`, a record per resource in `import.json`; the 3p undeploys get the tracks DICE adds), models (`meshport.py`), physics (`havokport.py`, Havok 4.6.1 -> 5.5.0; `mopp.py` decodes and checks the MOPP trees), DBX partitions (`dbxport.py` on BFBC2's own schema from `dbxcatalogue.py`; `dbxparity.py` / `portparity.py` against DICE's own conversions), effects (`effectport.py`) and merged emitter atlases (`emitteratlas.py`) |
 | `core/` | the shared core: Python readers for `.dbx` (and a writer), `.fbrb` bundles (read only), terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking; `paths.py`, the one place that finds Project OPFOR BFBC2, its game copy, the built tools and the sibling projects (every tool's own locator wraps it) |
-| `bfbc2-map-inspector/` | **Map Inspector**: browse a level in 3D and inspect every object's source, properties and links; measure |
+| `bfbc2-map-inspector/` | the map editor's plan (`EDITOR_ARCHITECTURE.md`); the **Map Inspector** that was here was retired in round GR1 (2026-11-20): its views are the map editor's Properties (All fields), Links and Measure (the folder's README) |
 | `bfbc2-navigation-studio/` | **Navigation Studio**: NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network; the path test; edit mode (walkable / unwalkable regions, seeds, links, route edges, traversals) into a side file, built with `navkit apply` and installed; a reference level's AI layer drawn on another level (`--compare`) and an anomaly overlay of NavKit builds, both with JSON export (`overlay.py`) |
 | `bfbc2-stockmp-ai/` | **stock-MP AI layer**: gives a stock multiplayer level AI spawners, AI orders and their event wiring (HasAI, PathfindingTypes, SectorOffsets, AI template), proposed from the level's own objectives and spawns, built into its bundles and checked offline (`stockmp.py`) |
 
@@ -95,7 +96,7 @@ copy, the tools and the sibling projects come from `core/bfbc2core/paths.py` (DE
 
 ## The 3D tools and your GPU
 
-The Map Inspector and the Navigation Studio draw with OpenGL 3.3. Each prints the GPU it uses when it starts
+The Navigation Studio draws with OpenGL 3.3 (the map editor with wgpu: "The map editor"). It prints the GPU it uses when it starts
 (and shows it in its status line). On a laptop with two GPUs, Windows may give Python the slower integrated
 one: set `python.exe` to "High performance" in Settings > System > Display > Graphics. On the development
 PC that took the Navigation Studio on SP_01 (10.4 million triangles) from the AMD Radeon integrated GPU to
@@ -106,8 +107,10 @@ the GeForce RTX 4060, at 144 frames a second.
 `rust/bc2-editor` is the map editor application (`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.8 - 3.10), in Rust
 with egui on wgpu (Vulkan, DirectX 12 or a software adapter). Round G1 (2026-11-18) is its shell and the read-only
 map view, round G2 (2026-11-18) the user's decisions on it, and round E2 (2026-11-18) edits a map as a **map
-project**. Building and installing an edited map is round E3: for now a project's edits stay in the project. The
-Map Inspector stays until the editor replaces it.
+project**. Building and installing an edited map is round E3: for now a project's edits stay in the project. Round
+GR1 (2026-11-20) folded the Map Inspector into it and retired it: Properties' *All fields* (every field of an object,
+nested, with its type), the *Links* panel (references, referenced by and event connections, both ways; K draws them
+in the views) and Measure (M).
 
 **Editing a map (round E2).**
 
@@ -230,7 +233,10 @@ Its tests (`python tests\test_editor.py`, quick tier) prove it headless: the the
 themes; the outliner against the Python Map Inspector's lists for SP_01, MP_005, MP_009GR and ONS_MP_004 (recorded by
 `rust\bc2-editor\tests\record_inspector.py`, entity by entity: order, GUID, category and layer, team, position); the
 view drawn offscreen (not blank, the outline in the `selection` colour and nowhere else, picking, a click selecting,
-the command palette opening a top view) and each of the four levels drawn with a flag selected. Round G2's
+the command palette opening a top view) and each of the four levels drawn with a flag selected; round GR1's property
+tree, references and referrers against what the Map Inspector showed for 1,074 objects of the same four levels
+(`tests\inspect_parity.rs`, its answers kept as digests) and its Links, All fields and Measure driven headless
+(`tests\gr1.rs`). Round G2's
 (`tests\g2.rs`, `tests\factions.rs`): every `view-*` / `scene-*` token found in a rendered frame, the overlays'
 contrast measured on the frame's own pixels, panel contrast and the third neutral's hue distance, the faction labels
 on BFBC2, Vietnam and WW2 levels (read only), Help generated from the registry (an action without a description

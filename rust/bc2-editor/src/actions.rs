@@ -27,6 +27,10 @@ pub enum Action {
     OpenViewport(Projection),
     /// Shows or hides the labels in the 3D views.
     ToggleLabels,
+    /// Shows or hides the selection's links in the 3D views.
+    ToggleLinks,
+    /// Measuring on or off: clicks add points to a measured path.
+    ToggleMeasure,
     /// The 3D view draws the level as the game does, or as the editor does.
     ToggleGameView,
     /// Puts every panel back where it starts.
@@ -124,6 +128,8 @@ pub enum PanelKind {
     Properties,
     /// The content browser.
     Content,
+    /// The selection's links.
+    Links,
 }
 
 /// The Terrain and Vegetation workspaces' brushes (registered; their tools come in later rounds).
@@ -255,6 +261,19 @@ pub fn registry() -> Vec<Entry> {
             "Show or hide labels",
             key(none, Key::L),
             "Names and teams of spawns, flags and objectives in the views",
+        ),
+        e(
+            Action::ToggleLinks,
+            "Show or hide links",
+            key(none, Key::K),
+            "Lines from the selection to what it references and what references it (dashed: event connections)",
+        ),
+        e(
+            Action::ToggleMeasure,
+            "Measure",
+            key(none, Key::M),
+            "Clicks add points: the last segment's length, horizontal distance, height and slope, the path's total, and \
+             the last point's height above the terrain and below the water (M again ends it)",
         ),
         e(
             Action::ToggleGameView,
@@ -481,6 +500,12 @@ pub fn registry() -> Vec<Entry> {
             "Show properties",
             None,
             "The selection's fields; several objects show Mixed where they differ",
+        ),
+        e(
+            Action::ShowPanel(PanelKind::Links),
+            "Show links",
+            None,
+            "What the selection references, what references it and its event connections; click one to go there",
         ),
         e(
             Action::ShowPanel(PanelKind::Content),

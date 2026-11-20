@@ -458,6 +458,7 @@ dependencies = [
  "pollster",
  "serde",
  "serde_json",
+ "sha1_smol",
  "windows",
 ]
 
