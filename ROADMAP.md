@@ -57,7 +57,6 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 | Round | Branch | What |
 |---|---|---|
 | O5 | `rust-o5` | the last CLI batch: renderqa, xdiff, shaderdb, the BF1943 importer and console readers' command lines; the Python cores behind O3 / O4's hand-offs |
-| CT1 | `rust-ct1` | `bfbc2.exe culltree add` from 1.65 GB peak down, with a persistent cache |
 | E3d | `rust-e3d` | any map exported to any era (BFBC1 / BFBC2 / Vietnam / WW2) and any of its multiplayer modes; objects from other sets bring their bundles; era and mode as project settings, the mode layer as editable project data; Install / Uninstall in the editor; plain errors; the canary conversions (Rush to Conquest, Wake WW2 to BFBC2, Vietnam to WW2, Aurora to WW2 Conquest with WW2 objects, a squad mode; BFBC2 to WW2 Air Superiority pending that mode) |
 
 ## Queued
@@ -129,6 +128,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Merged | Result |
 |---|---|---|
+| CT1 | 2026-11-19 | `culltree add` streamed: 1.65 GB / 7.3 s down to 80-90 MB / 0.7 s warm; row cache shared with the Python; outputs identical on the 8 Onslaught bundles |
 | O4 | 2026-11-19 | NavKit's driver and tools, the editor's prepare, the test harness and texqa in `bfbc2.exe`; 622 recorded lines identical, prepare byte-identical on 56,831 files |
 | O3 | 2026-11-19 | caches, stock-MP, aptgraft, audio, BF1943 parity tools, meshview and culltree in `bfbc2.exe`; 1,220 recorded lines identical |
 | O2 | 2026-11-19 | the menu, crash-reader and NavKit / converter command lines in `bfbc2.exe`; 966 recorded lines identical |
