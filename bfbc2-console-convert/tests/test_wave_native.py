@@ -14,6 +14,10 @@ blocks, the bytes written; for damaged inputs and changed objects the same resul
                                        written both ways with every segment's stream, 3 damaged copies of each; timings
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
+
+The audio's Wave / stream references are recorded for their retirement (round RT2; still compared live): their
+answers were recorded first (--record, and --game --record, while they were there: f0_wave_replay*.json beside this
+test) and are replayed by tests/replay.py where they are gone.
 """
 import collections
 import copy
@@ -36,8 +40,13 @@ suite_paths.use('console-convert', 'core')
 import audio  # noqa: E402
 from bfbc2core import fbrb, native, paths  # noqa: E402
 from f0_parity import Checks, outcome, stdout_utf8  # noqa: E402
+from replay import Replay  # noqa: E402
 
 N = native.require('audio.py containers', 'wave_read')
+# round RT2: the references' answers recorded (--record) and replayed once they are retired
+R = Replay('f0_wave', HERE, [(audio, 'read_wave_reference'), (audio, 'write_wave_pc_reference'),
+                             (audio, 'read_sps_reference'), (audio, 'read_snr_reference'),
+                             (audio, 'write_sps_reference')])
 
 
 class Tally:
@@ -66,10 +75,11 @@ class Tally:
 
 
 def both(t: Tally, label: str, fn: Any, ref: Any, nat: Any, *args: Any) -> Any:
-    """fn (dispatching) against ref (the Python) on args; nat(*args) says whether Rust answered. ref's result."""
+    """fn (dispatching) against ref (the Python, or its recorded answers) on args; nat(*args) says whether Rust
+    answered. fn's result when it answered."""
     a, r = outcome(fn, *args), outcome(ref, *args)
     t.add(a == r, f'{label}: {str(a)[:90]} / {str(r)[:90]}', nat(*args) is not None, r[0] == 'ok')
-    return ref(*args) if r[0] == 'ok' else None
+    return fn(*args) if a[0] == 'ok' else None
 
 
 def wave_all(t: Tally, label: str, b: bytes, source: str, streams: dict[int, bytes] | None = None) -> None:
@@ -98,7 +108,7 @@ def sps(rng: random.Random) -> bytes:
     st = audio.Stream(1, rng.choice([3, 4, 6]), rng.randint(1, 6), rng.choice([48000, 44100, 22050]), 1, 0,
                       [(rng.randrange(5000), bytes(rng.randrange(256) for _ in range(rng.randrange(40)))) for _ in range(rng.randrange(4))])
     st.samples = sum(n for n, _ in st.blocks) & 0x1FFFFFFF
-    return audio.write_sps_reference(st)
+    return audio.write_sps(st)
 
 
 def snr(rng: random.Random, streamed: bool) -> tuple[bytes, bytes | None]:
@@ -239,7 +249,8 @@ def main(argv: list[str]) -> int:
     stdout_utf8()
     game = '--game' in argv
     c = Checks()
-    c.check(audio.use_native(True), 'the Rust core runs audio.py\'s containers')
+    if hasattr(audio, 'use_native'):
+        c.check(audio.use_native(True), 'the Rust core runs audio.py\'s containers')
     rng = random.Random(0xF03)
 
     built = [wave(rng) for _ in range(300)]
@@ -251,7 +262,7 @@ def main(argv: list[str]) -> int:
     td = Tally()
     for i in range(3000):
         b, source, streams = rng.choice(built)
-        w = audio.read_wave_reference(b, source)
+        w = audio.read_wave(b, source)
         r = rng.random()
         if r < 0.5:
             both(td, f'damaged {i}', audio.read_wave, audio.read_wave_reference, lambda b, s: N.wave_read(b, s),
@@ -271,8 +282,8 @@ def main(argv: list[str]) -> int:
     c.check(not td.ndiff, f'damaged Waves and streams: {td.text()}', '; '.join(td.differ))
 
     tc = Tally()
-    waves = [audio.read_wave_reference(b, s) for b, s, _ in built]
-    streams_ = [audio.read_sps_reference(s[0]) for w in waves if w.source != 'bf1943' for s in w.segments
+    waves = [audio.read_wave(b, s) for b, s, _ in built]
+    streams_ = [audio.read_sps(s[0]) for w in waves if w.source != 'bf1943' for s in w.segments
                 if s is not None and len(s[0]) > 8]
     for i in range(300):
         both(tc, f'changed wave {i}', audio.write_wave_pc, audio.write_wave_pc_reference, N.wave_write_pc,
@@ -299,11 +310,12 @@ def main(argv: list[str]) -> int:
             except audio.AudioError:
                 pass
             t1 = time.perf_counter()
-            try:
-                w = audio.read_wave_reference(b, source)
-                audio.write_wave_pc_reference(w)
-            except audio.AudioError:
-                pass
+            if R.live(audio, 'read_wave_reference'):
+                try:
+                    w = audio.read_wave_reference(b, source)
+                    audio.write_wave_pc_reference(w)
+                except audio.AudioError:
+                    pass
             t2 = time.perf_counter()
             tn += t1 - t0
             tr += t2 - t1
@@ -317,6 +329,7 @@ def main(argv: list[str]) -> int:
                 '; '.join(tg.differ))
         c.check(not tgd.ndiff, f'damaged game Waves: {tgd.text()}', '; '.join(tgd.differ))
         print(f'timing (read_wave + write_wave_pc): Python {tr:.2f} s, Rust {tn:.2f} s')
+    c.check(R.finish(), 'the references: recorded, or replayed as recorded')
     return c.done()
 
 

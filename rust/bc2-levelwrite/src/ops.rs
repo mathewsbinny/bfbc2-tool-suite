@@ -325,6 +325,28 @@ pub enum Op {
         /// The choice.
         to: Box<crate::modelayer::ModeChoice>,
     },
+    /// A navigation edit made (round GR2: the AI workspace; [`crate::navedit`]). The partition is not changed: the
+    /// editor writes the edits as the level's side file for NavKit.
+    NavAdd {
+        /// The edit.
+        edit: crate::navedit::NavEdit,
+    },
+    /// A navigation edit taken out of the list.
+    NavRemove {
+        /// Its place in the list when it was taken out.
+        index: usize,
+        /// The edit.
+        edit: crate::navedit::NavEdit,
+    },
+    /// A side file's edits loaded: they replace the list (reload).
+    NavLoad {
+        /// The file.
+        from: String,
+        /// The file it was made on.
+        base: crate::navedit::NavBase,
+        /// Its edits.
+        edits: Vec<crate::navedit::NavEdit>,
+    },
 }
 
 impl Op {
@@ -368,7 +390,10 @@ impl Op {
             | Self::SetLayer { .. }
             | Self::RemoveLayer { .. }
             | Self::Ungroup { .. }
-            | Self::SetStrip { .. } => Vec::new(),
+            | Self::SetStrip { .. }
+            | Self::NavAdd { .. }
+            | Self::NavRemove { .. }
+            | Self::NavLoad { .. } => Vec::new(),
         }
     }
 
@@ -469,6 +494,9 @@ impl Op {
             Self::Ungroup { group } => format!("Ungroup {group}"),
             Self::SetStrip { to, .. } => format!("Campaign content: {}", to.describe()),
             Self::SetMode { to } => to.describe(),
+            Self::NavAdd { edit } => format!("Navigation edit: {}", edit.op),
+            Self::NavRemove { edit, .. } => format!("Remove navigation edit: {}", edit.op),
+            Self::NavLoad { edits, .. } => format!("Load {} navigation edit(s)", edits.len()),
         }
     }
 }
@@ -616,7 +644,11 @@ impl Organisation {
                     }
                 }
             }
-            Op::SetField { .. } | Op::SetStrip { .. } => {}
+            Op::SetField { .. }
+            | Op::SetStrip { .. }
+            | Op::NavAdd { .. }
+            | Op::NavRemove { .. }
+            | Op::NavLoad { .. } => {}
             Op::Place { items } => {
                 for p in items {
                     if let Some(pl) = p.placement {

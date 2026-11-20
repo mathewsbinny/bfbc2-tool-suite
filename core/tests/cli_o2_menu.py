@@ -449,6 +449,18 @@ def cases() -> list[Case]:
     return aptcheck_cases() + aptrefs_cases() + bc2loc_cases()
 
 
+# round RT2: lines whose answer changed on purpose (menucommon.parse_bigf_reference retired: a BIGF index cut short
+# is now refused in the archive's words instead of struct's)
+_BIGF_REFUSED = ('error: Refused: <dir>\\x.res: a BIGF archive cut short or damaged (its index runs past the data)\r\n'
+                 "  what to do: If it happens again, send the log file to the tool's author.\r\n  details: <log>\r\n")
+_BIGF_LOG = ('[aptcheck-<date>.log]\nINFO    --- aptcheck started (<who>) ---\nERROR   aptcheck error: Refused: '
+             '<dir>\\x.res: a BIGF archive cut short or damaged (its index runs past the data)\n')
+NOW: dict[str, dict[str, object]] = {
+    'aptcheck: check a BIGF index cut short': {'err': _BIGF_REFUSED, 'log': _BIGF_LOG},
+    'aptcheck: check a BIGF index cut short (merged)': {'out': _BIGF_REFUSED, 'log': _BIGF_LOG},
+}
+
+
 OPFOR_MOVIES = [
     'aptgraft/bundles/Dist/win32/levels/mp_common/ingame-00/Menu/TextManagerComponent.res',
     'aptgraft/bundles/Dist/win32/levels/sp_common/loader-00/Menu/sharedGraphics.res',

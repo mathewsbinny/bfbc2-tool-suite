@@ -207,7 +207,7 @@ pub const WORKSPACES: [Workspace; 6] = [
     Workspace {
         name: "AI",
         available: true,
-        what: "The bots' orders, AI spawns and area points: only they can be selected; the navmesh view shows the walkable ground. Spawners, routes, links and the path test come later (round E5a).",
+        what: "The bots' orders, AI spawns and area points: only they can be selected. The level's navigation is drawn here (round GR2): NavKit's build and DICE's file side by side, the ground coloured by island, sector, pitch, difference or anomaly, each layer switchable in the Navigation panel; Islands and spawns lists the islands and the spawns off the main network to fly to; the path test (Shift+P) finds each file's route between two clicks; a reference level's AI layer can be drawn over the map. Navigation edits (regions, seeds, links, route edges, traversals, notes) are drawn with the Navigation edits panel's tools and kept in the project; Build with these edits runs NavKit, Install and Restore show what they write in the game copy before they run. Placing spawners and orders, routes and the cross-domain links come with round E5a.",
         when: "",
     },
 ];

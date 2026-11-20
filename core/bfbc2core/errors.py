@@ -1,8 +1,8 @@
 """Error handling and logging for the suite's tools: every tool keeps a log, and when something goes wrong the user
 is told what happened, the likely cause and what to do, in words rather than a traceback.
 
-    log = errors.setup('navigation-studio')          # once, at start: log file, warnings, uncaught errors
-    with errors.guard('navigation-studio'):          # around main(): a crash is logged and shown, exit code 1
+    log = errors.setup('navkit')                     # once, at start: log file, warnings, uncaught errors
+    with errors.guard('navkit'):                     # around main(): a crash is logged and shown, exit code 1
         ...
 
 Logs: %LOCALAPPDATA%\\bfbc2-tool-suite\\logs\\<tool>-<date>.log. Uncaught errors in any thread, Python warnings and

@@ -6,8 +6,8 @@
 //!
 //! The readers' errors: where the core refuses a resource or stream, [`reference`] reads it as the Python reference
 //! does, for the `AudioError` it raises (or, for a Battlefield 1943 sample rate that is NaN, the values: the core
-//! leaves those to the reference). Handed to the Python: `argparse`'s texts at another width (`COLUMNS`, a console),
-//! `--` and single-dash options other than `-h`; a `struct.error` of a cut header block; an `int()` the port does not
+//! leaves those to the reference). `argparse`'s texts at the console's width or `COLUMNS` are [`crate::argfmt`]'s
+//! (round RT2). Handed to the Python: `--` and single-dash options other than `-h`; a `struct.error` of a cut header block; an `int()` the port does not
 //! read exactly (non-ASCII digits, a literal past 200 characters in its error); ffmpeg's samples that are not whole
 //! frames; a process start that fails other than "not found".
 
@@ -76,27 +76,16 @@ struct Args {
     streams: Vec<String>,
 }
 
-/// `argparse` wraps help and usage to the terminal's width: only the pipe's (80) is ported.
-fn width_ported() -> bool {
-    std::env::var_os("COLUMNS").is_none() && !crate::pystdio::is_console(&std::io::stdout())
-}
-
-/// `parser.error(message)`: the usage and the message on stderr, exit code 2.
+/// `parser.error(message)`: the usage (at the console's width) and the message on stderr, exit code 2.
 fn error(py: &mut Py, message: &str) -> PyResult<Option<Args>> {
-    if !width_ported() {
-        return Err(Fail::Python);
-    }
-    py.eprint(USAGE.trim_end_matches('\n'));
+    py.eprint(crate::argfmt::usage_or("audio.py", USAGE)?.trim_end_matches('\n'));
     py.eprint(&format!("audio.py: error: {message}"));
     Err(Fail::Err(PyErr::new("SystemExit", "2")))
 }
 
 /// The help on stdout, exit code 0.
 fn help(py: &mut Py) -> PyResult<Option<Args>> {
-    if !width_ported() {
-        return Err(Fail::Python);
-    }
-    py.write(HELP)?;
+    py.write(&crate::argfmt::help_or("audio.py", HELP)?)?;
     Ok(None)
 }
 

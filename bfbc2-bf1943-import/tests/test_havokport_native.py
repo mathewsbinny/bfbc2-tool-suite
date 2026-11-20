@@ -39,6 +39,18 @@ import havokport as hp  # noqa: E402
 import importcore  # noqa: E402
 import mopp  # noqa: E402
 
+sys.path.insert(0, os.path.join(_ROOT, 'tests'))
+from replay import Replay  # noqa: E402
+
+# round RT2: the Python's answers (the *_reference functions) recorded (--record) and replayed once they were retired
+REPLAY = Replay('f2b_havokport', HERE, [], canon=lambda v: v)
+SUB550_REF, RUN_TABLE_REF = 'shape_subparts_to_550_reference', '_run_table_to_pc_reference'  # retired (RT2)
+
+
+def ref(owner, name):
+    """A reference function, or None once round RT2 retired it (its answers are then the recording's)."""
+    return getattr(owner, name, None)
+
 FAILS: list[str] = []
 REFUSED = [0]                     # importcore.call's refusals (None) so far
 _call = importcore.call
@@ -62,10 +74,13 @@ def check(ok, what, detail=''):
 
 
 def outcome(f, *a):
+    """('ok', the answer: a set as its sorted items, so its digest does not depend on the set's order) or
+    ('error', type, message)."""
     try:
-        return ('ok', f(*a))
+        v = f(*a)
+        return ('ok', ('set', sorted(v)) if isinstance(v, set | frozenset) else v)
     except Exception as e:                                       # noqa: BLE001 - compared: both must agree
-        return ('err', type(e).__name__, str(e))
+        return ('error', type(e).__name__, str(e))
 
 
 class Pair:
@@ -75,13 +90,15 @@ class Pair:
         self.label, self.n, self.bad, self.refused = label, 0, [], 0
 
     def __call__(self, rust_name, f, ref, *a):
+        """f's outcome against ref's (the Python; None once retired: against the recording)."""
         self.n += 1
         before = REFUSED[0]
         got = outcome(f, *a)
-        self.refused += REFUSED[0] > before
-        want = outcome(ref, *a)
-        if got != want:
-            self.bad.append((a[:1], got, want))
+        refused = REFUSED[0] > before
+        self.refused += refused
+        name = f'{rust_name}:{getattr(f, "__name__", "f")}'
+        if not REPLAY.pair(name, a, got, (lambda: outcome(ref, *a)) if ref is not None else None, refused=refused):
+            self.bad.append((a[:1], got, outcome(ref, *a) if ref is not None else 'the recorded answer'))
             COUNTS['differ'] += 1
         else:
             COUNTS['same'] += 1
@@ -164,11 +181,11 @@ def quick_mopp():
         code = random_code(rnd)
         lo = [rnd.randrange(-(1 << 17), 1 << 24) for _ in range(3)]
         hi = [v + rnd.randrange(1 << rnd.randint(0, 22)) for v in lo]
-        q('mopp_query', mopp.query_int, mopp.query_int_reference, code, lo, hi)
+        q('mopp_query', mopp.query_int, ref(mopp, 'query_int_reference'), code, lo, hi)
         info = [rnd.uniform(-50, 0) for _ in range(3)] + [rnd.choice([1024.0, 4096.0, 65536.0, 1.7e5])]
         wlo = [rnd.uniform(-60, 60) for _ in range(3)]
         whi = [v + rnd.uniform(0, 30) for v in wlo]
-        qb('mopp_query_box', mopp.query, mopp.query_reference, code, info, wlo, whi)
+        qb('mopp_query_box', mopp.query, ref(mopp, 'query_reference'), code, info, wlo, whi)
         tris = {}
         for k in range(rnd.randint(1, 12)):
             a = [rnd.uniform(-5, 5) for _ in range(3)]
@@ -176,7 +193,7 @@ def quick_mopp():
                                                                       [x + rnd.uniform(-2, 2) for x in a]]
         boxes = {k: ([min(p[i] for p in t) for i in range(3)], [max(p[i] for p in t) for i in range(3)])
                  for k, t in tris.items()}
-        cp('mopp_complete', mopp.complete, mopp.complete_reference, code, info, boxes)
+        cp('mopp_complete', mopp.complete, ref(mopp, 'complete_reference'), code, info, boxes)
         o = [rnd.uniform(-8, 8) for _ in range(3)]
         if rnd.random() < 0.05:
             import numpy as np
@@ -184,8 +201,8 @@ def quick_mopp():
         d = [rnd.uniform(-1, 1) for _ in range(3)]
         n = sum(x * x for x in d) ** 0.5 or 1.0
         d = [x / n for x in d]
-        rc('mopp_ray_cast', mopp.ray_cast, mopp.ray_cast_reference, code, info, tris, o, d, rnd.uniform(0.1, 20))
-        rb('mopp_ray_cast_brute', mopp.ray_cast_brute, mopp.ray_cast_brute_reference, tris, o, d, rnd.uniform(0.1, 20))
+        rc('mopp_ray_cast', mopp.ray_cast, ref(mopp, 'ray_cast_reference'), code, info, tris, o, d, rnd.uniform(0.1, 20))
+        rb('mopp_ray_cast_brute', mopp.ray_cast_brute, ref(mopp, 'ray_cast_brute_reference'), tris, o, d, rnd.uniform(0.1, 20))
     for p, w in ((q, 'quantized boxes'), (qb, 'world boxes'), (cp, 'completeness'), (rc, 'rays'),
                  (rb, 'brute-force rays')):
         p.report(f'2,000 seeded codes, {w}')
@@ -318,7 +335,7 @@ def quick_restructure():
     for i in range(1500):
         b = damaged(rnd, random_461(rnd, tnames))
         t = small if rnd.random() < 0.05 else template
-        p('havokport_restructure', hp.restructure, hp.restructure_reference, b, t, K,
+        p('havokport_restructure', hp.restructure, ref(hp, 'restructure_reference'), b, t, K,
           table if i % 2 else None)
     p.report('1,500 seeded 4.6.1 packfiles (with and without the table)')
 
@@ -467,37 +484,37 @@ def quick_pc():
     for _ in range(1500):
         b, nb, names = random_pc(rnd)
         b = damaged(rnd, b)
-        P['wrapper_run_table']('havokport_run_table', hp.wrapper_run_table, hp.wrapper_run_table_reference, b)
-        P['_run_table_to_pc']('havokport_run_table_to_pc', hp._run_table_to_pc, hp._run_table_to_pc_reference, b)
-        P['shape_subparts_to_550']('havokport_subparts', hp.shape_subparts_to_550, hp.shape_subparts_to_550_reference,
+        P['wrapper_run_table']('havokport_run_table', hp.wrapper_run_table, ref(hp, 'wrapper_run_table_reference'), b)
+        P['_run_table_to_pc']('havokport_run_table_to_pc', hp._run_table_to_pc, ref(hp, '_run_table_to_pc_reference'), b)
+        P['shape_subparts_to_550']('havokport_subparts', hp.shape_subparts_to_550, ref(hp, 'shape_subparts_to_550_reference'),
                                    b)
-        P['_wrapper']('havokport_wrapper', hp._wrapper, hp._wrapper_reference, b)
-        P['part_materials']('havokport_part_materials', hp.part_materials, hp.part_materials_reference, b)
+        P['_wrapper']('havokport_wrapper', hp._wrapper, ref(hp, '_wrapper_reference'), b)
+        P['part_materials']('havokport_part_materials', hp.part_materials, ref(hp, 'part_materials_reference'), b)
         idx = [rnd.randrange(rnd.choice([1, 3, 300])) - (rnd.random() < 0.02) for _ in range(rnd.randint(0, 5))]
-        P['part_run']('havokport_part_run', hp.part_run, hp.part_run_reference, idx)
+        P['part_run']('havokport_part_run', hp.part_run, ref(hp, 'part_run_reference'), idx)
         hashes = [rnd.randrange(1 << 32) for _ in range(rnd.randint(0, 5))]
         P['with_part_materials']('havokport_with_part_materials', hp.with_part_materials,
-                                 hp.with_part_materials_reference, b, idx, hashes)
+                                 ref(hp, 'with_part_materials_reference'), b, idx, hashes)
         try:
-            hashes, _ = hp.part_materials_reference(b)
+            hashes, _ = hp.part_materials(b)
             P['with_part_materials']('havokport_with_part_materials', hp.with_part_materials,
-                                     hp.with_part_materials_reference, b, idx, hashes + [7, 9])
+                                     ref(hp, 'with_part_materials_reference'), b, idx, hashes + [7, 9])
         except Exception:                                        # noqa: BLE001 - not a readable wrapper
             pass
-        P['havok_materials']('havokport_havok_materials', hp.havok_materials, hp.havok_materials_reference, b)
+        P['havok_materials']('havokport_havok_materials', hp.havok_materials, ref(hp, 'havok_materials_reference'), b)
         grown = names + rnd.sample(['sand', 'glass', 'Metal'], rnd.randint(0, 2))
         if rnd.random() < 0.1:
             grown = ['other'] + grown
         P['with_havok_materials']('havokport_with_havok_materials', hp.with_havok_materials,
-                                  hp.with_havok_materials_reference, b, grown)
-        got = P['bodies']('havokport_bodies', hp.bodies, hp.bodies_reference, b)
+                                  ref(hp, 'with_havok_materials_reference'), b, grown)
+        got = P['bodies']('havokport_bodies', hp.bodies, ref(hp, 'bodies_reference'), b)
         changes = {}
         if got[0] == 'ok':
             for i, (_, st) in enumerate(got[1]):
                 if st is not None or rnd.random() < 0.2:
                     changes[i if rnd.random() < 0.95 else -1] = [[rnd.randrange(4) for _ in x] for x in (st or [[0]])]
         P['with_face_materials']('havokport_with_face_materials', hp.with_face_materials,
-                                 hp.with_face_materials_reference, b, changes)
+                                 ref(hp, 'with_face_materials_reference'), b, changes)
     for p in P.values():
         p.report('1,500 seeded PC resources')
 
@@ -524,9 +541,10 @@ def game():
     t0 = time.perf_counter()
     table = hp.ufloat8_table(raw)
     t1 = time.perf_counter()
-    ref_table = hp.ufloat8_table_reference(raw)
+    tr = ref(hp, 'ufloat8_table_reference')
+    same = REPLAY.pair('ufloat8_table', (raw,), ('ok', table), (lambda: outcome(tr, raw)) if tr is not None else None)
     t2 = time.perf_counter()
-    check(table == ref_table and table is not None, f'ufloat8_table: the same 256 values ({t1 - t0:.2f} s; the '
+    check(same and table is not None, f'ufloat8_table: the same 256 values ({t1 - t0:.2f} s; the '
           f'reference {t2 - t1:.2f} s)')
     templates = [ix.read(t) for t in ('objects/objects/boat_house/boat_house_havok.res',
                                       'objects/levelspecific_objects/ghosttown_lamppolelong/'
@@ -539,17 +557,18 @@ def game():
         b = src.data(k)
         for t in templates:
             for tab in (None, table):
-                rs('havokport_restructure', hp.restructure, hp.restructure_reference, b, t, K, tab)
-                got = cv('havokport_restructure', hp.convert, hp.convert_reference, b, t, K, tab)
+                rs('havokport_restructure', hp.restructure, ref(hp, 'restructure_reference'), b, t, K, tab)
+                got = cv('havokport_restructure', hp.convert, ref(hp, 'convert_reference'), b, t, K, tab)
                 if tab is not None and got[0] == 'ok' and t is templates[0]:
                     converted += 1
                     mopps.append(got[1])
                 elif tab is not None and t is templates[0]:
                     errors += 1
         try:
-            pc = havok.convert(hp.restructure_reference(b, templates[0], K, table), K)
+            pc = havok.convert(hp.restructure(b, templates[0], K, table), K)
             fin('havokport_finish', lambda x: hp.shape_subparts_to_550(hp._run_table_to_pc(x))[0],
-                lambda x: hp.shape_subparts_to_550_reference(hp._run_table_to_pc_reference(x))[0], pc)
+                (lambda x: getattr(hp, SUB550_REF)(getattr(hp, RUN_TABLE_REF)(x))[0])
+                if REPLAY.live(hp, SUB550_REF) else None, pc)
         except Exception:                                        # noqa: BLE001 - refused by both above
             pass
     rs.report(f'{len(names)} HavokPhysicsData x 2 templates x with / without the table')
@@ -565,25 +584,25 @@ def game():
                                                        'with_face_materials', 'with_part_materials')}
     for n in pcs:
         b = data[n]
-        P['_wrapper']('havokport_wrapper', hp._wrapper, hp._wrapper_reference, b)
-        got = P['part_materials']('havokport_part_materials', hp.part_materials, hp.part_materials_reference, b)
+        P['_wrapper']('havokport_wrapper', hp._wrapper, ref(hp, '_wrapper_reference'), b)
+        got = P['part_materials']('havokport_part_materials', hp.part_materials, ref(hp, 'part_materials_reference'), b)
         if got[0] == 'ok':
             hashes, idx = got[1]
             if idx:
-                P['part_run']('havokport_part_run', hp.part_run, hp.part_run_reference, idx)
+                P['part_run']('havokport_part_run', hp.part_run, ref(hp, 'part_run_reference'), idx)
                 P['with_part_materials']('havokport_with_part_materials', hp.with_part_materials,
-                                         hp.with_part_materials_reference, b, idx, list(hashes) + [1234567])
-        mats = P['havok_materials']('havokport_havok_materials', hp.havok_materials, hp.havok_materials_reference, b)
+                                         ref(hp, 'with_part_materials_reference'), b, idx, list(hashes) + [1234567])
+        mats = P['havok_materials']('havokport_havok_materials', hp.havok_materials, ref(hp, 'havok_materials_reference'), b)
         if mats[0] == 'ok':
             P['with_havok_materials']('havokport_with_havok_materials', hp.with_havok_materials,
-                                      hp.with_havok_materials_reference, b, mats[1] + ['aircraft_airframe', 'x'])
-        bd = P['bodies']('havokport_bodies', hp.bodies, hp.bodies_reference, b)
+                                      ref(hp, 'with_havok_materials_reference'), b, mats[1] + ['aircraft_airframe', 'x'])
+        bd = P['bodies']('havokport_bodies', hp.bodies, ref(hp, 'bodies_reference'), b)
         if bd[0] == 'ok':
             changes = {i: [list(reversed(x)) for x in st] for i, (_, st) in enumerate(bd[1]) if st is not None}
             P['with_face_materials']('havokport_with_face_materials', hp.with_face_materials,
-                                     hp.with_face_materials_reference, b, changes)
+                                     ref(hp, 'with_face_materials_reference'), b, changes)
         # the subparts step on DICE's own file, and with every w lane it writes zeroed (as 4.6.1's files have them)
-        P['shape_subparts_to_550']('havokport_subparts', hp.shape_subparts_to_550, hp.shape_subparts_to_550_reference,
+        P['shape_subparts_to_550']('havokport_subparts', hp.shape_subparts_to_550, ref(hp, 'shape_subparts_to_550_reference'),
                                    b)
         if n.endswith('_havokasset.res'):
             z = bytearray(b)
@@ -593,7 +612,7 @@ def game():
                     if z[i:i + 4] == b'\0\0\x80\x3f' and (i - p) % 16 == 12:
                         z[i:i + 4] = bytes(4)
                 P['shape_subparts_to_550']('havokport_subparts', hp.shape_subparts_to_550,
-                                           hp.shape_subparts_to_550_reference, bytes(z))
+                                           ref(hp, 'shape_subparts_to_550_reference'), bytes(z))
     for p in P.values():
         p.report(f'{len(pcs)} physics resources of BFBC2')
     # MOPP codes of the converted files (their trees as the havok test reads them)
@@ -615,7 +634,7 @@ def game():
         for code, info, tris in meshes:
             codes += 1
             boxes = {k: (t.min(0), t.max(0)) for k, t in tris.items()}
-            cp('mopp_complete', mopp.complete, mopp.complete_reference, code, info, boxes)
+            cp('mopp_complete', mopp.complete, ref(mopp, 'complete_reference'), code, info, boxes)
             tl = {k: t.tolist() for k, t in tris.items()}
             allv = np.concatenate(list(tris.values()))
             lo, hi = allv.min(0) - 0.5, allv.max(0) + 0.5
@@ -626,12 +645,12 @@ def game():
                 if rnd.random() < 0.9:
                     a = [float(x) for x in a]
                 c = [float(rnd.uniform(lo[i], hi[i])) for i in range(3)]
-                q('mopp_query_box', mopp.query, mopp.query_reference, code, info, [min(x, y) for x, y in zip(a, c)],
+                q('mopp_query_box', mopp.query, ref(mopp, 'query_reference'), code, info, [min(x, y) for x, y in zip(a, c)],
                   [max(x, y) for x, y in zip(a, c)])
                 d = [y - x for x, y in zip(a, c)]
                 n = sum(x * x for x in d) ** 0.5
                 if n > 1e-6:
-                    rc('mopp_ray_cast', mopp.ray_cast, mopp.ray_cast_reference, code, info, tl, a,
+                    rc('mopp_ray_cast', mopp.ray_cast, ref(mopp, 'ray_cast_reference'), code, info, tl, a,
                        [x / n for x in d], n * 1.5)
     q.report(f'{codes} MOPP codes of converted and DICE\'s files, random boxes')
     cp.report(f'{codes} MOPP codes, every triangle\'s own box')
@@ -656,6 +675,7 @@ def main(argv):
         game()
     print(f'{COUNTS["same"]} outputs the same, {COUNTS["differ"]} differ, {COUNTS["refused"]} left to the Python '
           f'({time.perf_counter() - t:.1f} s)')
+    check(REPLAY.finish(), 'the Python: recorded, or replayed as recorded')
     if FAILS:
         print(f'{len(FAILS)} FAILED')
         return 1

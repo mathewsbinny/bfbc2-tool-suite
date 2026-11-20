@@ -6,7 +6,7 @@ same bytes, the same lines.
                                          every JSON type, polygons and boxes right and wrong, NaN, huge ints,
                                          strings with escapes and non-ASCII text) and 2,000 seeded side files
   python test_navtune_native.py --game   + every side file under Project OPFOR's work\navkit (read only; none
-                                         exist yet on the user's PC - they are made by Navigation Studio's edits)
+                                         exist yet on the user's PC - they are made by the map editor's AI workspace)
 
 The module is required (the test fails without it, saying how to build it).
 """
@@ -20,7 +20,13 @@ from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), 'tests'))
 from bfbc2core import navtune  # noqa: E402
+from replay import Replay  # noqa: E402
+
+# round RT2: the Python's answers recorded (--record) and replayed once it was retired
+REPLAY = Replay('f2b_navtune', HERE, [(navtune, 'validate_reference'), (navtune.NavTune, 'save_text_reference'),
+                                      (navtune.NavTune, 'summary_reference')], canon=lambda v: v)
 
 FAILS: list[str] = []
 
@@ -31,11 +37,18 @@ def check(ok, what, detail=''):
         FAILS.append(what)
 
 
+def _ref(owner, name):
+    """A reference by name (once retired, the replay stub stands in for it)."""
+    return getattr(owner, name)
+
+
 def outcome(f, *a):
+    if getattr(f, '__replay__', False):                          # a retired reference: its recorded answer
+        return f(*a)
     try:
         return ('ok', f(*a))
     except Exception as e:                                       # noqa: BLE001 - compared: both must agree
-        return ('err', type(e).__name__, str(e))
+        return ('error', type(e).__name__, str(e))
 
 
 def rvalue(rnd, depth=0):
@@ -95,7 +108,7 @@ def quick():
         o = rop(rnd)
         for kind in ('navkit', 'dice'):
             n += 1
-            a, b = outcome(navtune.validate, o, kind), outcome(navtune.validate_reference, o, kind)
+            a, b = outcome(navtune.validate, o, kind), outcome(_ref(navtune, 'validate_reference'), o, kind)
             if a != b:
                 bad.append((o, kind, a, b))
     check(not bad, f'validate: {n} seeded checks the same', repr(bad[:1])[:400])
@@ -106,12 +119,12 @@ def quick():
         t = navtune.NavTune(rnd.choice(['Levels/SP_01', 'Levels/MP_005', 'caf\u00e9']),
                             {'kind': rnd.choice(navtune.KINDS), 'sha1': 'ab' * 20, 'file': 'x.navdata'}, ops)
         files += 1
-        a, b = outcome(t.save_text), outcome(t.save_text_reference)
+        a, b = outcome(t.save_text), outcome(_ref(t, 'save_text_reference'))
         if a != b:
             bad.append(('save', i, a, b))
         for k in range(len(ops)):
             lines += 1
-            a, b = outcome(t.summary, k), outcome(t.summary_reference, k)
+            a, b = outcome(t.summary, k), outcome(_ref(t, 'summary_reference'), k)
             if a != b:
                 bad.append(('summary', ops[k], a, b))
     check(not bad, f'{files} seeded side files and {lines} summaries the same', repr(bad[:1])[:400])
@@ -126,10 +139,10 @@ def game():
     bad = []
     for f in files:
         t = navtune.load(f)
-        if t.save_text() != t.save_text_reference() or open(f, encoding='utf-8').read() != t.save_text():
+        if outcome(t.save_text) != outcome(_ref(t, 'save_text_reference')) or open(f, encoding='utf-8').read() != t.save_text():
             bad.append(f)
         for k in range(len(t.operations)):
-            if t.summary(k) != t.summary_reference(k):
+            if outcome(t.summary, k) != outcome(_ref(t, 'summary_reference'), k):
                 bad.append(f'{f} {k}')
         json.dumps(t.to_json())
     check(not bad, f'{len(files)} side files of work\\navkit: text and summaries the same', '; '.join(bad[:3]))
@@ -145,6 +158,7 @@ def main(argv):
     quick()
     if '--game' in argv:
         game()
+    check(REPLAY.finish(), 'the Python: recorded, or replayed as recorded')
     if FAILS:
         print(f'{len(FAILS)} FAILED')
         return 1

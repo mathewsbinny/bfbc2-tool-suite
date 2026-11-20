@@ -5,7 +5,7 @@ builder. They share one core: level loading, a 3D view, picking and the game's d
 
 - **Modes of the 3D view:** the inspector, the navigation studio, the tactical authoring tool and the bot
   debugger. (Since 2026-11-18 the 3D tools converge on the map editor, `rust/bc2-editor`: the inspector is retired
-  into it, round GR1; the navigation studio is next, round GR2; the tactical authoring tool, the bot debugger and the
+  into it, round GR1, and the navigation studio, round GR2 (its AI workspace); the tactical authoring tool, the bot debugger and the
   behaviour simulator are to be its workspaces: `ROADMAP.md`.)
 - **Command-line tools on the same core:** the asset pipeline, the diff workbench, the behaviour
   simulator and the test harness.
@@ -22,7 +22,7 @@ section 1; statuses in sections 3.1, 4.2 and 7).
 | Tool | For | In short |
 |---|---|---|
 | **bfbc2-map-inspector** (retired 2026-11-20, round GR1: in the map editor) | any BC2 modder | Browse a level in 3D: geometry, collision, spawns, objectives, destructibles, every placed entity. Click anything to see where it comes from and its properties. |
-| **bfbc2-navigation-studio** | any BC2 modder, Project OPFOR BFBC2 | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
+| **bfbc2-navigation-studio** (the map editor's AI workspace since GR2) | any BC2 modder, Project OPFOR BFBC2 | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
 | **bfbc2-tactical-map-authoring-tool** | Project OPFOR BFBC2 bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
 | **bfbc2-bot-ai-debugger** | Project OPFOR BFBC2 bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
 | **bfbc2-automated-map-and-bot-test-harness** | Project OPFOR BFBC2 | Repeatable scenarios across maps, with results saved per build so changes can be compared: reachability, path tests, bot traversal, stuck detection, squad coordination, vehicle use. |
@@ -139,8 +139,8 @@ can always say where something comes from.
 - The suite's Rust core (`rust/`, since 2026-11-16): the formats, the level loader and the heavy logic run there,
   through the `bc2_native` module; the map editor is Rust (egui on wgpu, Direct3D 11 for its game-accurate view),
   and `bfbc2.exe` runs the command lines (README.md, "The Rust core", "bfbc2.exe").
-- `moderngl` with `glfw` for the GPU view (the Navigation Studio): millions of triangles at interactive rates.
-- Dear ImGui (`imgui-bundle`, MIT licence) for panels.
+- `moderngl` with `glfw` and Dear ImGui (`imgui-bundle`) were the Python 3D tools' view and panels (`core/viewer.py`);
+  since the Navigation Studio's retirement (round GR2) no tool uses them.
 - `numpy`.
 
 NavKit's Python code (reader, writer, sector build, checks) is used directly. That is the main reason for
@@ -199,6 +199,9 @@ and checked offline, not yet tested in the game). Next: gameplay tools (E4), ter
 Level from a height map (E7); `ROADMAP.md`.
 
 ### 4.2 bfbc2-navigation-studio
+
+(Round GR2, 2026-11-20: the Studio's window was retired; what follows is the map editor's AI workspace now -
+`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.4a and 9.2. The folder keeps `overlay.py`'s headless exports.)
 
 - **Generate:** run NavKit on a level, with its sampling settings, from the studio. Sampling starts the
   game (NavKit measures levels through OPFOR's in-game sampler), so the studio asks first. Building from

@@ -1,10 +1,9 @@
 //! The `argparse` parsers of the shader tools (`shaderdb.py`'s main parser and its subparsers, `renderqa.py`'s,
 //! `xdiff.py`'s), for the command lines they take: options in any order, one run of positional values, `--x=v`,
-//! types (`int`, `float`), choices, `append`, `nargs='*'` options, the help and the usage errors at the pipe width of
-//! 80 (the texts are the Python's, recorded: `argparse` builds them from the parser).
+//! types (`int`, `float`), choices, `append`, `nargs='*'` options, the help and the usage errors (at the pipe width of
+//! 80 the Python's texts, recorded; at the console's width or `COLUMNS` [`crate::argfmt`]'s, round RT2).
 //!
-//! Handed to the Python ([`Fail::Python`]): the help and error texts when `COLUMNS` is set or stdout is a console
-//! (`argparse` wraps them to that width), option abbreviations, `--`, attached short values (`-oX`), single-dash
+//! Handed to the Python ([`Fail::Python`]): option abbreviations, `--`, attached short values (`-oX`), single-dash
 //! options it does not know, a second run of positional values (`argparse`'s own matching rules across options),
 //! `-h` after other arguments, and values whose `int()` / `float()` only Python decides (anything but plain ASCII
 //! digits).
@@ -105,11 +104,6 @@ pub enum Parsed {
     Exit(i32),
 }
 
-/// `argparse` wraps help and usage to the terminal's width: only the pipe's (80) is ported.
-pub fn width_ported() -> bool {
-    std::env::var_os("COLUMNS").is_none() && !crate::pystdio::is_console(&std::io::stdout())
-}
-
 /// An option string to `argparse` ('O') rather than a value ('A'): starts with '-', is not '-' alone, and is not a
 /// negative number (the parsers have no option that looks like one).
 pub fn is_option(a: &str) -> bool {
@@ -127,10 +121,14 @@ pub fn is_option(a: &str) -> bool {
     !neg
 }
 
-/// `parser.error(message)`: the usage and the message on stderr, exit code 2.
-pub fn error(py: &mut Py, p: &Parser, message: &str) -> Parsed {
-    py.eprint(&format!("{}{}: error: {message}", p.usage, p.prog));
-    Parsed::Exit(2)
+/// `parser.error(message)`: the usage (at the console's width) and the message on stderr, exit code 2.
+pub fn error(py: &mut Py, p: &Parser, message: &str) -> PyResult<Parsed> {
+    py.eprint(&format!(
+        "{}{}: error: {message}",
+        crate::argfmt::usage_or(p.prog, p.usage)?,
+        p.prog
+    ));
+    Ok(Parsed::Exit(2))
 }
 
 /// `int(text)` where only plain ASCII digits (with a sign) are answered here: Some(Ok(value)), Some(Err) when Python
@@ -259,9 +257,6 @@ fn match_run(pos: &[Pos], n: usize) -> (Vec<usize>, usize) {
     reason = "argparse's loop over options and the run of values, kept in one piece"
 )]
 pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec<String>) -> PyResult<Parsed> {
-    if !width_ported() {
-        return Err(Fail::Python);
-    }
     let mut out = Args::default();
     let mut extras: Vec<String> = Vec::new();
     let mut seen_opts: Vec<usize> = Vec::new();
@@ -306,7 +301,7 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
                         str_repr(v),
                         list.join(", ")
                     );
-                    return Ok(error(py, p, &msg));
+                    return error(py, p, &msg);
                 }
                 out.values.insert(cmd.name, vec![v.clone()]);
                 rest.extend(argv[i + 1..].iter().cloned());
@@ -327,7 +322,7 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
                             str_repr(v),
                             list.join(", ")
                         );
-                        return Ok(error(py, p, &msg));
+                        return error(py, p, &msg);
                     }
                 }
                 out.values.insert(q.name, vals.to_vec());
@@ -343,7 +338,7 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
             if i != 0 {
                 return Err(Fail::Python); // -h after other arguments: their errors may come first
             }
-            py.write(p.help)?;
+            py.write(&crate::argfmt::help_or(p.prog, p.help)?)?;
             py.flush_out();
             return Ok(Parsed::Exit(0));
         }
@@ -389,15 +384,15 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
                             i += 2;
                             v.clone()
                         }
-                        _ => return Ok(error(py, p, &format!("argument {oname}: expected one argument"))),
+                        _ => return error(py, p, &format!("argument {oname}: expected one argument")),
                     }
                 };
                 match convert(o.ty, &oname, &v)? {
                     Ok(()) => {}
-                    Err(m) => return Ok(error(py, p, &m)),
+                    Err(m) => return error(py, p, &m),
                 }
                 if let Some(m) = check_choice(&oname, &v, o.choices, o.ty) {
-                    return Ok(error(py, p, &m));
+                    return error(py, p, &m);
                 }
                 let slot = out.values.entry(key).or_default();
                 if o.kind == Kind::Store {
@@ -414,7 +409,7 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
                 while j < argv.len() && !is_option(&argv[j]) && argv[j] != "--" {
                     match convert(o.ty, &oname, &argv[j])? {
                         Ok(()) => {}
-                        Err(m) => return Ok(error(py, p, &m)),
+                        Err(m) => return error(py, p, &m),
                     }
                     vals.push(argv[j].clone());
                     j += 1;
@@ -455,11 +450,11 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
         }
     }
     if !missing.is_empty() {
-        return Ok(error(
+        return error(
             py,
             p,
             &format!("the following arguments are required: {}", missing.join(", ")),
-        ));
+        );
     }
     if sub && !extras.is_empty() {
         return Err(Fail::Python); // the main parser's and the subparser's extras together: argparse's order
@@ -469,9 +464,9 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
 }
 
 /// `parse_args`' end: the unrecognized arguments reported with `p`'s usage (exit 2), else the arguments.
-pub fn finish(py: &mut Py, p: &Parser, a: Args) -> Parsed {
+pub fn finish(py: &mut Py, p: &Parser, a: Args) -> PyResult<Parsed> {
     if a.extras.is_empty() {
-        Parsed::Args(a)
+        Ok(Parsed::Args(a))
     } else {
         let msg = format!("unrecognized arguments: {}", a.extras.join(" "));
         error(py, p, &msg)

@@ -27,10 +27,13 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    - **The GUIs:** per GUI, list what the editor lacks, add it, then retire the GUI.
      - ~~Map Inspector: the link view, the full property tree~~ (GR1: All fields, Links, Measure; retired). The
        other GUIs' features, whether the editor has them and the plan: `EDITOR_ARCHITECTURE.md` section 9.
-     - GR2: Navigation Studio into the editor's AI workspace (NavKit against DICE side by side, path tests).
+     - ~~GR2: Navigation Studio into the editor's AI workspace~~ (GR2: both files side by side, the colourings, path
+       test, anomaly and compare overlays, edits in the project's log, build / install / restore; retired, its
+       `overlay.py` kept).
      - GR3: the mesh viewer into the asset browser's preview (its PNG command line stays).
      - GR4: DbxEditGUI into a generic DBX inspector panel (the last C#).
-     - LevelDiff as a `bfbc2.exe leveldiff` command (proven on real level pairs), then LevelDiff.exe retired.
+     - LevelDiff as an editor panel (the visual diff) and a `bfbc2.exe leveldiff` command for scripts (proven on
+       real level pairs), then LevelDiff.exe retired (round EX1).
      - The planned AI behaviour simulator, bot AI debugger and tactical map authoring tool become editor workspaces.
      - The hub stays a launcher for now.
    - **OPFOR's pipeline in Rust, in 5 stages:** the WW2 install; the level build; the shader glue; the material grid
@@ -65,9 +68,12 @@ In priority order (above); the next rounds:
 
 | Round | What |
 |---|---|
+| VW1 | after SV1, the editor's views (the user, 2026-11-20): toggles that show particle effects, dynamic lights and sound emitters with their reach; toggles for combat areas, capture radii, spawn protection zones and out-of-bounds edges drawn as the game uses them; an optional player's-eye camera (soldier height, the game's field of view); the navmesh and cull tree view modes checked and fixed |
+| VW2 | the mode view layer (show / hide by game mode and Rush stage, on the project's mode layer data); time-of-day and weather switches (the weather states each level holds) in both views; Guadalcanal's game view (weather partition not found); Vietnam levels in the game view |
+| EX1 | export: a preview mode comparing the export with the original (side by side or toggled), every name of the level editable (file / folder name, in-game level id, on-screen name per language, server browser name), and a visual diff of a project against its base; LevelDiff folded in as an editor panel (a `bfbc2.exe leveldiff` command kept for OPFOR's scripts), LevelDiff.exe retired |
 | FM1 | after GR2: the map editor's own folder `bfbc2-map-editor\` (design document, README, run instructions; the code stays in `rust\bc2-editor`), `bfbc2-map-inspector\` deleted and every reference fixed; the retirement policy: `RETIRED.md` (date, replacement, last commit, round) with the Map Inspector, graphstats.py and prepare_level.py; the three README-only planned-tool folders folded into the design document as workspaces and deleted |
-| RT2 | RT1's leftovers: record answers for the live-compared references (F0, F2a, F2b, E4b, E4e) then retire them; navsample.load v1 / v2; the hpd / audio error messages in the bindings; argparse's console width in the Rust parser; the library parts split out of command-line `.py` files; next CLI candidates (aptrefs, xiso, culltree, stockmp, exeref / crashreader) |
-| GUIs | GR2 Navigation Studio, GR3 mesh viewer, GR4 DbxEditGUI, LevelDiff as `bfbc2.exe leveldiff`: each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
+| RT3 | RT2's leftovers: hpdtool.parse's and the Wave readers' messages ported, then retired; the library parts split out of the command-line `.py` files that are still imported (aptrefs, xiso with a bytes entry point, culltree, stockmp, crashreader), then their command lines retired; argparse's option abbreviations; the kept references in BENCHMARKS RT2 |
+| GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (LevelDiff in EX1): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
 | Post-Rust | the 10 improvements |
@@ -144,6 +150,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 |---|---|---|
 | D1 | 2026-11-19 | the disk budget: cargo builds outside the checkout, binaries in `bin\`, one budget for every cache |
 | S1 | 2026-11-18 | streamed bundle packing, process-wide BF1943 restart points, the shader coverage index |
+| RT2 | 2026-11-20 | record then retire (tests/replay.py, `native.Refused`): the terrain, mesh, texture, Havok, havokport, mopp, navtune, xmlinst, menu and PE references, navsample.load v1 / v2, the hpd and audio references after their messages were ported; `--help` and usage at the console's width in `bfbc2.exe` (943 of 943); OPFOR 380 tests, WW2 rebuild 10,852 of 10,852 |
 | RT1 | 2026-11-20 | full tier 232 of 232 (5 h, -j 2); retired graphstats.py, the editor's prepare_level.py, aimanim's and navsample_offline.file_bytes's references; `--download` also fetches `bfbc2.exe`; the inventory of every command line and reference with its fate (BENCHMARKS RT1); OPFOR 380 tests, WW2 rebuild 10,852 of 10,852 |
 | SD1 | 2026-11-20 | the shader database reader's last Python (open / dispatch, pick_database, dx from name) in one Rust module shared by bc2_native and `bfbc2.exe shaderdb`; 745 databases, 10,068 picks, 89 levels' loads identical; the in-process Merger and path glue stay Python |
 | F4 | 2026-11-20 | F3's leftovers in Rust: the disassembler's header, audio decode and ffmpeg glue, hkpack's handle-based Packfile, navsample_offline's hulls (5 tied Railway_Switch hulls still Python), meshview's and texqa's readers, culltree's string table; all identical to the Python; WW2 texture QA 212 s to 134 s |

@@ -6,6 +6,7 @@ tests\f3_golden_*.json (so the comparison survives the Python's retirement).
   hpd       hpdtool.mesh_layout / mesh_coverage            (bfbc2-auto-navkit/tools/hpdtool.py)
   audio     audio.xma_parts / xma2_riff / _xas_stream      (bfbc2-console-convert/audio.py)
   navsample navsample.load (version 3), navsample_offline.file_bytes (the writer)
+  navsample12  navsample.load (versions 1 and 2: built and damaged files; round RT2)
   hkpack    hkpack.Packfile                                (bfbc2-auto-navkit/tools/hkpack.py)
   disasm    xenos.disasm                                   (bfbc2-shader-tools/xenos.py)
 
@@ -14,9 +15,11 @@ Compared: every result (types, order, float bits, array dtype / shape / bytes / 
 real input handed back fails the test (built and damaged inputs may be handed back, each then the reference's).
 
 Round RT1 retired the references of aim (parse_reference, write_reference, to_pc_reference) and
-navsample_offline.file_bytes_reference (RETIRED; navsample.load_reference stays, and hkpack's _init_reference stays:
-round F4's handle test reads its Python answers through it). Their quick groups were recorded again first, from the references, with a second, marked digest: an input the
-Rust core refuses counts as HANDED there, whatever the reference said. Without the reference the function must raise
+navsample_offline.file_bytes_reference; round RT2 navsample.load_reference (versions 1 / 2 recorded first in the area
+navsample12; the game groups had every OPFOR sample file of up to 40 MB read whole, versions 1 and 2 included) (RETIRED;
+hkpack's _init_reference stays: round F4's handle test reads its Python answers through it). Their quick groups were
+recorded again first, from the references, with a second, marked digest: an input the Rust core refuses counts as
+HANDED there, whatever the reference said. Without the reference the function must raise
 on exactly those inputs and give the recorded answer on every other one (the marked digest and the count of refused
 inputs as recorded). The game groups, recorded before, had no refused input: their digest is the marked one.
 
@@ -69,7 +72,7 @@ ONLY = next((a.split('=', 1)[1] for a in sys.argv if a.startswith('--only=')), '
 GOLDEN = os.path.join(HERE, 'f3_golden_{}.json')
 # Round RT1: the areas whose Python reference was retired (deleted): checked against the recording alone, an input
 # the Rust core refuses raising where the reference answered or raised (HANDED in the marked digests).
-RETIRED = ('aim', 'navsample')
+RETIRED = ('aim', 'hpd', 'audio', 'navsample', 'navsample12')
 HANDED = "('handed by the Rust core',)"
 SCRATCH = os.environ.get('BFBC2_TEST_SCRATCH') or tempfile.gettempdir()
 
@@ -140,7 +143,7 @@ class Golden:
         self.bad: list[str] = []
         self.strip: list[str] = []        # text taken out of the answers before digesting (a temporary path)
         # its reference deleted (round RT1): the marked digests are compared (recorded while it was there)
-        self.retired = area in RETIRED and not RECORD
+        self.retired = area in RETIRED and not RECORD and 'f3_golden_' in self.path   # F4 reuses this class
 
     def add(self, group: str, stamp: Any, ref: Any, got: Any, handed: bool = False, handed_ok: bool = False) -> None:
         """One answer: ref the reference's (None once it is retired), got the Rust's; handed: the Rust core refused
@@ -258,7 +261,7 @@ class Tally:
     def text(self) -> str:
         if self.g.retired:
             return (f'{self.same:,} answered, {self.ndiff} wrong; {self.rust:,} answered in Rust, {self.handed:,} '
-                    'refused by the core (they raise: the reference was retired in round RT1)')
+                    'refused by the core (they raise: the reference was retired in round RT1 or RT2)')
         return (f'{self.same:,} identical, {self.ndiff} different; {self.rust:,} answered in Rust, {self.handed:,} '
                 f'handed to the reference ({self.handed_ok:,} of them answered by it)')
 
@@ -438,6 +441,28 @@ def area_aim(c: Checks) -> None:
 
 # ------------------------------------------------------------------------------------------------ hpdtool
 
+def answers(nat: Callable[..., Any]) -> Callable[..., Any]:
+    """A binding that raises the reference's error (round RT2: the hpd / audio messages in Rust) as answering."""
+    def run(*a: Any) -> Any:
+        try:
+            return nat(*a)
+        except Exception as e:                                   # noqa: BLE001 - the core's answer is the error
+            return ('error', e)
+    return run
+
+
+def nan_items(m: bytes, rng: random.Random) -> bytes:
+    """m with NaNs (quiet, signalling, with payloads) in some tile items' floats: the bits struct's float conversion
+    gives (the writers take no NaN, so they are put in the bytes)."""
+    x = bytearray(m)
+    for to, items, _ in hpdtool.mesh_layout(m)[1]:
+        for k in range(len(items)):
+            if rng.random() < 0.4:
+                at = to + 4 + 12 * k + rng.choice([4, 8])
+                struct.pack_into('<I', x, at, rng.choice([0x7FC00000, 0x7F800001, 0xFFC00123, 0x7FBFFFFF, 0xFF800ABC]))
+    return bytes(x)
+
+
 def area_hpd(c: Checks) -> None:
     import test_e3o_native as e3o
     g = Golden('hpd')
@@ -445,13 +470,15 @@ def area_hpd(c: Checks) -> None:
     rng = random.Random(0xF3B2)
 
     def one(label: str, group: str, stamp: Any, m: bytes, real: bool) -> None:
-        t.both(label, group, stamp, hpdtool.mesh_layout, hpdtool.mesh_layout_reference, N.hpd_mesh_layout, m,
-               real=real)
-        t.both(label + ' coverage', group, stamp, hpdtool.mesh_coverage, hpdtool.mesh_coverage_reference,
-               N.hpd_mesh_coverage, m, real=real)
+        t.both(label, group, stamp, hpdtool.mesh_layout, ref(hpdtool, 'mesh_layout_reference'),
+               answers(N.hpd_mesh_layout), m, real=real)
+        t.both(label + ' coverage', group, stamp, hpdtool.mesh_coverage, ref(hpdtool, 'mesh_coverage_reference'),
+               answers(N.hpd_mesh_coverage), m, real=real)
     meshes = []
     for i in range(300):
-        m = e3o.kymesh.write_mesh_reference(e3o.random_mesh(rng, finite=rng.random() < 0.7))
+        m = e3o.kymesh.write_mesh(e3o.random_mesh(rng, finite=True))
+        if rng.random() < 0.3:
+            m = nan_items(m, rng)
         meshes.append(m)
         one(f'built {i}', 'quick:built', 0, m, False)
     for i in range(2000):
@@ -499,14 +526,20 @@ def xma_stream(rng: random.Random) -> Any:
 
 
 def audio_stream_checks(t: Tally, label: str, group: str, stamp: Any, st: Any, real: bool) -> None:
-    r = t.both(label + ' parts', group, stamp, audio.xma_parts, audio.xma_parts_reference, N.audio_xma_parts, st,
-               real=real)
+    r = t.both(label + ' parts', group, stamp, audio.xma_parts, ref(audio, 'xma_parts_reference'),
+               N.audio_xma_parts, st, real=real)
     if r[0] != 'ok':
         return
-    for i, p in enumerate(audio.xma_parts_reference(st)):
+    for i, p in enumerate(audio.xma_parts(st)):
         ch = min(2, st.channels - 2 * i)
-        t.both(f'{label} riff {i}', group, stamp, audio.xma2_riff, audio.xma2_riff_reference,
+        t.both(f'{label} riff {i}', group, stamp, audio.xma2_riff, ref(audio, 'xma2_riff_reference'),
                lambda *a: N.audio_xma2_riff(*a), bytes(p), ch, st.rate, st.samples, real=real)
+
+
+def xas_ref() -> Callable[..., Any] | None:
+    """_xas_stream's blocks cut by the reference, or None once it is retired (round RT2)."""
+    fn = ref(audio, '_xas_blocks_reference')
+    return None if fn is None else (lambda *a: fn(*a))
 
 
 def xas_args(st: Any) -> tuple[bytes, int, int, int]:
@@ -524,19 +557,18 @@ def area_audio(c: Checks) -> None:
         if st.blocks and rng.random() < 0.5:
             j = rng.randrange(len(st.blocks))
             st.blocks[j] = (st.blocks[j][0], damaged(st.blocks[j][1], rng))
-            t.both(f'damaged {i}', 'quick:damaged', 0, audio.xma_parts, audio.xma_parts_reference, N.audio_xma_parts,
-                   st)
+            t.both(f'damaged {i}', 'quick:damaged', 0, audio.xma_parts, ref(audio, 'xma_parts_reference'),
+                   N.audio_xma_parts, st)
     bad = [0, -1, 1 << 16, 1 << 32, True, 2.0, None]
     for i in range(600):
         args = [bytes(rng.randrange(256) for _ in range(rng.randrange(50))), rng.choice([1, 2, 1, 2] + bad),
                 rng.choice([48000, 44100, 22050] + bad), rng.choice([0, 1000, (1 << 32) - 1] + bad)]
-        t.both(f'riff {i}', 'quick:riff', 0, audio.xma2_riff, audio.xma2_riff_reference,
+        t.both(f'riff {i}', 'quick:riff', 0, audio.xma2_riff, ref(audio, 'xma2_riff_reference'),
                lambda *a: N.audio_xma2_riff(*a), *args)
         frames = bytes(rng.randrange(256) for _ in range(rng.randrange(0, 40000)))
         xa = (frames, rng.choice([0, 1, 5000, 19456, 40000, -1]), rng.choice([1, 2, 6, 0]),
               rng.choice([48000, 44100, 11025, 1, 0, -5, 1280 * 7]))
-        t.both(f'xas {i}', 'quick:xas', 0, blocks_of, lambda *a: audio._xas_blocks_reference(*a),
-               lambda *a: N.audio_xas_blocks(*a), *xa)
+        t.both(f'xas {i}', 'quick:xas', 0, blocks_of, xas_ref(), lambda *a: N.audio_xas_blocks(*a), *xa)
     if GAME:
         root = opfor_root()
         n_xma = n_xas = 0
@@ -563,8 +595,7 @@ def area_audio(c: Checks) -> None:
                                 audio_stream_checks(t, label, rel(p, root), size, st, True)
                             elif st.codec == 4:
                                 n_xas += 1
-                                t.both(label + ' xas', rel(p, root), size, blocks_of,
-                                       lambda *a: audio._xas_blocks_reference(*a),
+                                t.both(label + ' xas', rel(p, root), size, blocks_of, xas_ref(),
                                        lambda *a: N.audio_xas_blocks(*a), *xas_args(st), real=True)
         src = bf1943_source()
         if src is not None:
@@ -596,6 +627,10 @@ def area_audio(c: Checks) -> None:
                     streams = {i: src.data(n) for i in range(3)
                                for n in [f'{k[:-len("_wave.res")]}_wavedatasns_{i}.res'] if n in src.entries}
                     a = outcome(audio.convert, b, 'bf1943', streams)
+                    if ref(audio, 'xma_parts_reference') is None:    # retired (round RT2): the recording only
+                        same += 1
+                        g.add('convert:bf1943', len(sample), None, a)
+                        continue
                     saved = (audio.xma_parts, audio.xma2_riff, audio._xas_stream)
                     audio.xma_parts, audio.xma2_riff = audio.xma_parts_reference, audio.xma2_riff_reference
                     audio._xas_stream = lambda f, n, ch, rate, ty: audio.Stream(
@@ -659,6 +694,90 @@ def changed_samples(s: Any, rng: random.Random) -> Any:
     return g
 
 
+def v12_file(rng: random.Random, version: int) -> bytes:
+    """A version 1 or 2 sample file (OPFOR's [dev] navsample before version 3): per column a count byte and its
+    records (8 bytes: y, a normal of three signed bytes, flags; version 2 adds the hit's three words); now and then a
+    run cut off between columns or a record cut short."""
+    nx, nz = rng.randint(1, 9), rng.randint(1, 9)
+    body = bytearray()
+    for _c in range(nx * nz if rng.random() < 0.75 else rng.randint(0, nx * nz)):
+        n = rng.choice([0, 1, 1, 2, 3, 5])
+        body.append(n)
+        for _ in range(n):
+            body += struct.pack('<f3bB', rng.choice([rng.uniform(-50, 50), 0.0, -0.0, float('inf'), float('nan')]),
+                                *(rng.randint(-128, 127) for _ in range(3)), rng.randrange(256))
+            if version == 2:
+                body += struct.pack('<3I', *(rng.randrange(1 << 32) for _ in range(3)))
+    if body and rng.random() < 0.1:
+        body = body[:-rng.randint(1, 7)]                           # a record cut short
+    head = navsample.HEADER.pack(b'ONS1', version, rng.choice([0.8, 0.28, 0.2]), rng.uniform(-900, 900),
+                                 rng.uniform(-900, 900), nx, nz, 50.0, -50.0, 0.4, 0.6, 1.8, 0.05, 0)
+    return head + bytes(body)
+
+
+def nat_v12(p: str) -> Any:
+    """Whether the Rust core reads a version 1 / 2 file's records (round E3c) or refuses it (None)."""
+    d = open(p, 'rb').read()
+    if len(d) < navsample.HEADER.size or d[:4] != b'ONS1':
+        return 'header'                                            # the header's own error, not the records'
+    version, nx, nz = struct.unpack_from('<I', d, 4)[0], *struct.unpack_from('<2i', d, 20)
+    if version not in (1, 2):
+        return 'header'
+    try:
+        return N.navkit_navsample_parse(d, navsample.HEADER.size, nx * nz, version)
+    except ValueError:
+        return None
+
+
+def quiet(load: Callable[[str], Any] | None) -> Callable[[str], Any] | None:
+    """load with the heights' NaNs made one NaN: the reference's float() quiets a signalling NaN's bits, the Rust core
+    keeps the file's (a damaged copy's bytes make such NaNs; no real file has one)."""
+    if load is None:
+        return None
+
+    def run(p: str) -> Any:
+        s, cols = load(p)
+        s.y = np.where(np.isnan(s.y), np.float32('nan'), s.y).astype(np.float32)
+        return s, cols
+    return run
+
+
+def area_navsample12(c: Checks) -> None:
+    """navsample.load of version 1 and 2 files (round RT2: recorded from load_reference, then retired): built
+    files, damaged copies (bytes changed or cut after the header), a header's version changed."""
+    g = Golden('navsample12')
+    t = Tally(g)
+    rng = random.Random(0xF3D12)
+    tmp = tempfile.mkdtemp(prefix='f3_navsample12_', dir=SCRATCH)
+    path = os.path.join(tmp, 'run.bin')
+    g.strip = [path, repr(path)[1:-1]]
+    try:
+        for i in range(400):
+            b = v12_file(rng, 1 + i % 2)
+            variants = [b, b, b]
+            for k in (1, 2):
+                x = bytearray(b)
+                if len(x) > navsample.HEADER.size and rng.random() < 0.7:
+                    for _ in range(rng.randint(1, 4)):
+                        x[rng.randrange(navsample.HEADER.size, len(x))] = rng.randrange(256)
+                if rng.random() < 0.4:
+                    del x[rng.randrange(navsample.HEADER.size - 4, len(x) + 1):]
+                if rng.random() < 0.05:
+                    struct.pack_into('<I', x, 4, rng.choice([0, 1, 2, 4]))
+                variants[k] = bytes(x)
+            for k, data in enumerate(variants):
+                with open(path, 'wb') as f:
+                    f.write(data)
+                t.both(f'built {i} load {k}', 'quick:load12', 0, quiet(navsample.load) or navsample.load,
+                       quiet(ref(navsample, 'load_reference')), nat_v12, path)
+    finally:
+        for name in os.listdir(tmp):
+            os.remove(os.path.join(tmp, name))
+        os.rmdir(tmp)
+    t.report(c, 'navsample load (versions 1 / 2)', False)
+    g.save()
+
+
 def nat_write(s: Any) -> Any:
     """Whether the Rust core writes s (its bytes) or hands it to the reference (None)."""
     a = navsample_offline._write_args(s)
@@ -686,7 +805,7 @@ def area_navsample(c: Checks) -> None:
             for k, data in enumerate([b, damaged(b, rng), damaged(b, rng)]):
                 with open(path, 'wb') as f:
                     f.write(data)
-                t.both(f'built {i} load {k}', 'quick:load', 0, navsample.load, navsample.load_reference,
+                t.both(f'built {i} load {k}', 'quick:load', 0, navsample.load, ref(navsample, 'load_reference'),
                        lambda p: (lambda d: N.navkit_navsample_v3(d, *struct.unpack_from('<2i', d, 20))
                                   if len(d) >= 56 else None)(open(p, 'rb').read()), path)
             t.both(f'changed {i}', 'quick:changed', 0, navsample_offline.file_bytes,
@@ -722,7 +841,7 @@ def area_navsample(c: Checks) -> None:
                 # builds Python lists, about 15x the file: those runs are E3c's reader, read whole up to 40 MB)
                 if size <= (120_000_000 if version == 3 else 40_000_000):
                     n_whole += 1
-                    t.both(group, group, size, navsample.load, navsample.load_reference,
+                    t.both(group, group, size, navsample.load, ref(navsample, 'load_reference'),
                            nat_load if version == 3 else None, p, real=version == 3)
                     gc.collect()
                 elif version != 3:
@@ -759,8 +878,8 @@ def area_navsample(c: Checks) -> None:
                         del cb
                         n_chunks += 1
                         t.both(f'{group} columns {lo}-{hi}', group + ' read', size, navsample.load,
-                               navsample.load_reference, nat_load, chunk_path, real=True)
-                        part, _ = navsample.load_reference(chunk_path)
+                               ref(navsample, 'load_reference'), nat_load, chunk_path, real=True)
+                        part, _ = navsample.load(chunk_path)
                         t.both(f'{group} write {lo}-{hi}', group + ' write', size, navsample_offline.file_bytes,
                                ref(navsample_offline, 'file_bytes_reference'), nat_write, part, real=True)
                         del part
@@ -875,7 +994,7 @@ def main() -> int:
     stdout_utf8()
     c = Checks()
     for name, fn in (('aim', area_aim), ('hpd', area_hpd), ('audio', area_audio), ('navsample', area_navsample),
-                     ('hkpack', area_hkpack), ('disasm', area_disasm)):
+                     ('navsample12', area_navsample12), ('hkpack', area_hkpack), ('disasm', area_disasm)):
         if wanted(name):
             t0 = time.perf_counter()
             fn(c)

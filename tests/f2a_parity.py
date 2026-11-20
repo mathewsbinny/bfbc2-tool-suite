@@ -15,9 +15,11 @@ _WATCH = [False]
 
 def watch(owner: Any, *names: str) -> None:
     """Counts the calls of owner's reference functions made while a native run is watched (both, both_ways): each
-    is an answer the Rust core left to the Python."""
+    is an answer the Rust core left to the Python. A reference that is gone (retired, round RT2) is skipped."""
     for n in names:
-        f = getattr(owner, n)
+        f = getattr(owner, n, None)
+        if f is None:
+            continue
 
         def wrapper(*a: Any, _f: Any = f, **k: Any) -> Any:
             if _WATCH[0]:
@@ -63,18 +65,34 @@ class Tally:
 
 def both(t: Tally, label: str, fn: Callable[..., Any], ref: Callable[..., Any], *args: Any,
          canon: Callable[[Any], Any] | None = None) -> Any:
-    """fn(*args) against ref(*args): the same result (by canon when given) or the same error; ref's result or None."""
+    """fn(*args) against ref(*args): the same result (by canon when given) or the same error; fn's result or None.
+    A retired reference (round RT2: tests/replay.py's stub) gives its recorded answer, which is compared with fn's
+    outcome under the Replay's own canon."""
     def run(f: Callable[..., Any]) -> tuple[Any, ...]:
         return outcome(lambda: canon(f(*args)) if canon else f(*args))
-    a, native = watched(lambda: run(fn))
-    r = run(ref)
+    if getattr(ref, '__replay__', False):
+        r = ref(*args)
+        a, native = watched(lambda: _replay_outcome(r, fn, args))
+    else:
+        a, native = watched(lambda: run(fn))
+        r = run(ref)
     t.add(a == r, label if a == r else f'{label}: {repr(a)[:100]} / {repr(r)[:100]}', r[0] == 'error', native)
-    if r[0] != 'ok':
+    if a[0] != 'ok':
         return None
     try:
-        return ref(*args)
+        return fn(*args)
     except Exception:                                            # noqa: BLE001
         return None
+
+
+def _replay_outcome(r: Any, fn: Callable[..., Any], args: tuple[Any, ...]) -> tuple[Any, ...]:
+    """fn's outcome as the Replay recorded the reference's (its canon)."""
+    try:
+        return ('ok', r.replay.canon(fn(*args)))
+    except RecursionError:
+        raise
+    except Exception as ex:          # noqa: BLE001 - the error itself is what is compared
+        return ('error', type(ex).__name__, str(ex))
 
 
 def damaged(b: bytes, rng: random.Random) -> bytes:
