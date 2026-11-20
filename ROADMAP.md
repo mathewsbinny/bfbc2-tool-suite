@@ -49,8 +49,8 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    - **E6** vegetation;
    - **E7** Create Level from a height map (with a terrain writer);
    - the rendering that needs a RenderDoc capture: the exact sun, exposure and fog.
-8. **Last:** the wiki-style docs restructure (with one reverse-engineering reference), then the full suite release
-   (one download: the prebuilt module and the C# tools).
+8. **Last:** the full suite release (one download: the prebuilt module and the C# tools). The wiki-style docs
+   restructure is on hold (the user, 2026-11-20).
 
 ## In progress
 
@@ -75,7 +75,7 @@ In priority order (above); the next rounds:
 | Spec layers 3-4 | the engine subsystems; the suite's transformations (grows with each porting round) |
 | E4-E7 | gameplay tools, terrain sculpt and paint, vegetation, Create Level from a height map |
 | RenderDoc | exact sun, exposure and fog |
-| Docs, release | the wiki-style restructure, then the full suite release |
+| Release | the full suite release |
 
 ### Process (round P1's follow-ups)
 
@@ -91,6 +91,9 @@ In priority order (above); the next rounds:
 - Translating the WW2 weapons and soldiers.
 - WW2 navmesh planning.
 - A faithful Xbox Onslaught port without Napisal's work.
+- The wiki-style docs restructure (topic articles of current truth, dated reports as their sources, one
+  reverse-engineering reference).
+- In-game tests and playthroughs (paused 2026-11-20; the work continues offline).
 
 ## Done
 
