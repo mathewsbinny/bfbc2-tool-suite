@@ -139,9 +139,18 @@ impl Paths {
 
     /// `paths.out_pathdata(kind, out)`.
     fn out_pathdata(&self, kind: &str, out: &str) -> String {
-        ["game", "Output", "win32", "ai", "levels", &self.lv, kind, "pathdata.hpd"]
-            .iter()
-            .fold(join(&self.root, out), |a, n| join(&a, n))
+        [
+            "game",
+            "Output",
+            "win32",
+            "ai",
+            "levels",
+            &self.lv,
+            kind,
+            "pathdata.hpd",
+        ]
+        .iter()
+        .fold(join(&self.root, out), |a, n| join(&a, n))
     }
 
     /// `paths.bundles()`: (variant, stock bundle) of the level's level-00 bundles that exist, as before stock-MP's
@@ -229,12 +238,8 @@ fn pipeline(py: &mut Py, paths: &Paths, args: &[String], cmd: &str) -> PyResult<
     if cmd == "build" || cmd == "all" {
         let c = load_config(&config)?;
         let built = build::build(py, paths, &c, &[])?;
-        let shown = bc2_pyrt::json::Value::Dict(
-            built
-                .iter()
-                .map(|(v, r)| (v.clone(), build::report_value(r)))
-                .collect(),
-        );
+        let shown =
+            bc2_pyrt::json::Value::Dict(built.iter().map(|(v, r)| (v.clone(), build::report_value(r))).collect());
         py.print(&bc2_pyrt::json::dumps(&shown, None))?;
     }
     let c = load_config(&config)?;

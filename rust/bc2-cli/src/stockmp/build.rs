@@ -1,11 +1,18 @@
 //! `pipeline.build` (round O5): every level-00 bundle of the level unpacked into the work folder, its level partition
-//! authored (`bc2_stockmp::author`, round E4a), the SectorOffsets assets made from the donor's (`sector_asset`) and the
+//! authored (`bc2_stockmp::author`, round E4a), the `SectorOffsets` assets made from the donor's (`sector_asset`) and the
 //! AI template's partitions added (`_add_entries`), the bundles packed (`bc2_formats::fbrb::pack_many`), the path
 //! data staged, `out.partial\` swapped in and `build_report.json` written - the same files, report and printed lines.
 //!
 //! Handed to the Python (before anything is printed): a configuration or level the authoring port refuses, a bundle
 //! the in-process unpack or the packer refuses, path data the reader refuses, a value `struct.pack` refuses, a
 //! manifest that is not ASCII, a donor asset of another shape.
+
+#![allow(
+    clippy::indexing_slicing,
+    clippy::many_single_char_names,
+    clippy::type_complexity,
+    reason = "a port of Python: indexes after their lengths are checked, the reference's names and its tuples kept"
+)]
 
 use std::fs;
 
@@ -106,7 +113,10 @@ fn items<'a>(c: &'a Value, key: &str) -> Option<Vec<&'a Value>> {
 
 /// The configuration as `author.Author` reads it (`bc2-py`'s `stockmp.rs`, on the JSON); None: a shape the port
 /// leaves to the Python.
-#[allow(clippy::too_many_lines, reason = "the configuration, key for key as the reference reads it")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the configuration, key for key as the reference reads it"
+)]
 pub fn config(c: &Value) -> Option<Config> {
     let lv = string(c.get("lv")?)?;
     let stock_human = c.get("stock_spawners").and_then(Value::as_str) == Some("human");
@@ -282,7 +292,13 @@ fn sector_asset(ref_path: &str, upper: &str, kind: &str, lv: &str, xz: (i64, i64
     let mut d = EditDbx::parse(&data).map_err(|_| Fail::Python)?;
     let inst = d.instances();
     let one = match inst.as_slice() {
-        [e] if d.attr(*e, b"type").unwrap_or_default().ends_with(b".PathdataSectorOffsets") => *e,
+        [e] if d
+            .attr(*e, b"type")
+            .unwrap_or_default()
+            .ends_with(b".PathdataSectorOffsets") =>
+        {
+            *e
+        }
         _ => return Err(build_error(format!("{ref_path} is not a PathdataSectorOffsets asset"))),
     };
     let low = kind.to_lowercase();
@@ -296,8 +312,11 @@ fn sector_asset(ref_path: &str, upper: &str, kind: &str, lv: &str, xz: (i64, i64
     let Some(name) = d.child(one, b"Name") else {
         return Err(build_error("the SectorOffsets template has no Name field"));
     };
-    d.set_text(name, format!("Levels/{upper}/Precomputed/{kind}/SectorOffsets").as_bytes())
-        .map_err(|_| Fail::Python)?;
+    d.set_text(
+        name,
+        format!("Levels/{upper}/Precomputed/{kind}/SectorOffsets").as_bytes(),
+    )
+    .map_err(|_| Fail::Python)?;
     for (f, v) in [("XOffset", xz.0), ("ZOffset", xz.1)] {
         let Some(c) = d.child(one, f.as_bytes()) else {
             return Err(build_error(format!("the SectorOffsets template has no {f} field")));
@@ -356,20 +375,14 @@ fn template_parts(paths: &Paths, parts: &[String]) -> PyResult<Vec<(String, Stri
     Ok(out)
 }
 
-/// `pipeline.donor(paths)`: DICE's SP_004_B level partition and its Infantry SectorOffsets asset.
+/// `pipeline.donor(paths)`: DICE's `SP_004_B` level partition and its Infantry `SectorOffsets` asset.
 fn donor(paths: &Paths) -> PyResult<(String, String)> {
     for v in ["pkg", "dist"] {
         let base = join(&join(&join(&join(&paths.opfor, "work"), "levels"), "sp_004_b"), v);
         let lvl = join(&join(&base, "levels"), "SP_004_B.dbx");
-        let inf = [
-            "levels",
-            "sp_004_b",
-            "Precomputed",
-            "Infantry",
-            "SectorOffsets.dbx",
-        ]
-        .iter()
-        .fold(base.clone(), |a, n| join(&a, n));
+        let inf = ["levels", "sp_004_b", "Precomputed", "Infantry", "SectorOffsets.dbx"]
+            .iter()
+            .fold(base.clone(), |a, n| join(&a, n));
         if isfile(&lvl) && isfile(&inf) && isfile(&donor_sector_asset(&inf, "Vehicle")) {
             return Ok((lvl, inf));
         }
@@ -486,7 +499,10 @@ pub fn build(py: &mut Py, paths: &Paths, c: &Value, problems: &[String]) -> PyRe
     let mut variants: Vec<(String, Value)> = Vec::new();
     let mut so_rep: Vec<(String, Value)> = Vec::new();
     if paths.bundles()?.is_empty() {
-        return Err(build_error(format!("{}: no level-00 bundle in {}", paths.lv, paths.game)));
+        return Err(build_error(format!(
+            "{}: no level-00 bundle in {}",
+            paths.lv, paths.game
+        )));
     }
     fs::create_dir_all(&paths.root).map_err(|e| os_error(&paths.root, &e))?;
     let report = paths.report();
@@ -526,7 +542,10 @@ pub fn build(py: &mut Py, paths: &Paths, c: &Value, problems: &[String]) -> PyRe
             Value::dict([
                 ("x", Value::Int(i128::from(xz.0))),
                 ("z", Value::Int(i128::from(xz.1))),
-                ("agree", Value::floats(&[pyx::round(agree.0, 3)?, pyx::round(agree.1, 3)?])),
+                (
+                    "agree",
+                    Value::floats(&[pyx::round(agree.0, 3)?, pyx::round(agree.1, 3)?]),
+                ),
             ]),
         );
         set(&mut inputs, &format!("pathdata_{folder}"), file_rec(&src)?);

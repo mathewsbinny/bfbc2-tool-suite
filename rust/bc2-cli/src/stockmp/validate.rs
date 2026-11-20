@@ -8,6 +8,14 @@
 //! report, configuration or file of a shape the readings refuse or the reference words itself (an exception text only
 //! Python makes), DbxEdit output without its counts.
 
+#![allow(
+    clippy::indexing_slicing,
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::type_complexity,
+    reason = "a port of Python: indexes and slices after their lengths are checked, the reference's names and its tuples kept"
+)]
+
 use std::fs;
 
 use bc2_formats::dbx::{self, parse_tree};
@@ -250,7 +258,12 @@ fn check_changes(orig: &[u8], auth: &[u8], c: &Value) -> PyResult<Check> {
                     None => changed.push((field, 1)),
                 }
             } else {
-                bad.push(format!("{} {k}: {} -> {}", ch.guid, shown(x.as_ref()), shown(y.as_ref())));
+                bad.push(format!(
+                    "{} {k}: {} -> {}",
+                    ch.guid,
+                    shown(x.as_ref()),
+                    shown(y.as_ref())
+                ));
             }
         }
     }
@@ -300,10 +313,7 @@ fn check_external(orig: &[u8], auth: &[u8], folders: &[&str]) -> PyResult<Check>
             cache.insert(p.to_owned(), g);
         }
         if !cache.get(p).is_some_and(|g| g.contains(guid)) {
-            bad.push(format!(
-                "{r}: instance not in {}",
-                bc2_pyrt::py::basename(p)
-            ));
+            bad.push(format!("{r}: instance not in {}", bc2_pyrt::py::basename(p)));
         }
     }
     if wanted.iter().any(|w| !w.is_ascii()) {
@@ -323,7 +333,14 @@ fn check_external(orig: &[u8], auth: &[u8], folders: &[&str]) -> PyResult<Check>
 
 /// `check_assets(build_dir, var, c, lv_upper)`.
 #[allow(clippy::too_many_lines, reason = "check_assets, step for step")]
-fn check_assets(bdir: &str, var: &Value, so: &[(String, (i128, i128))], template_pack: &[String], c: &Value, upper: &str) -> PyResult<Check> {
+fn check_assets(
+    bdir: &str,
+    var: &Value,
+    so: &[(String, (i128, i128))],
+    template_pack: &[String],
+    c: &Value,
+    upper: &str,
+) -> PyResult<Check> {
     let mut bad = Vec::new();
     let m = join(bdir, "fbrb.manifest");
     let text = String::from_utf8(read(&m)?).map_err(|_| Fail::Python)?;
@@ -368,7 +385,11 @@ fn check_assets(bdir: &str, var: &Value, so: &[(String, (i128, i128))], template
         if name != format!("Levels/{upper}/Precomputed/{kind}/SectorOffsets") {
             bad.push(format!("{kind}: Name {name}"));
         }
-        let want = so.iter().find(|(k, _)| k == kind).map(|(_, v)| *v).ok_or(Fail::Python)?;
+        let want = so
+            .iter()
+            .find(|(k, _)| k == kind)
+            .map(|(_, v)| *v)
+            .ok_or(Fail::Python)?;
         for (fld, v) in [("XOffset", want.0), ("ZOffset", want.1)] {
             let c = e.child(fld).ok_or(Fail::Python)?;
             let (size, vals) = dbx::numbers(c.raw()).map_err(|_| Fail::Python)?;
@@ -397,7 +418,10 @@ fn check_assets(bdir: &str, var: &Value, so: &[(String, (i128, i128))], template
         if let Some(t) = t {
             let data = read(&t)?;
             let tree = parse_tree(&data).map_err(|_| Fail::Python)?;
-            if !tree.instances().any(|e| e.attr("guid").unwrap_or("").to_lowercase() == g) {
+            if !tree
+                .instances()
+                .any(|e| e.attr("guid").unwrap_or("").to_lowercase() == g)
+            {
                 bad.push("the template instance is not in the packed template partition".to_owned());
             }
         }
@@ -442,7 +466,11 @@ fn check_stages(auth: &[u8], c: &Value) -> PyResult<Check> {
             if stage_num(s.get("stage"))? > 0 {
                 let id = py_str(Some(s.get("id").ok_or(Fail::Python)?))?;
                 // `s in c['spawners']`: an order equal to a spawner would count as one
-                let role = if role == "order" && spawners.contains(s) { "spawner" } else { role };
+                let role = if role == "order" && spawners.contains(s) {
+                    "spawner"
+                } else {
+                    role
+                };
                 later.push((s, new_guid("opfor:stockmp", &[lv, role, &id])));
             }
         }
@@ -463,7 +491,11 @@ fn check_stages(auth: &[u8], c: &Value) -> PyResult<Check> {
     guids.extend(srcs.iter().cloned());
     let facts = checks::instance_facts(auth, &guids).map_err(|_| Fail::Python)?;
     // the Python reading where it would raise: a later-stage instance missing, or without a readable Enabled
-    if !facts.iter().take(later.len()).all(|f| f.as_ref().is_some_and(|f| f.1.is_some())) {
+    if !facts
+        .iter()
+        .take(later.len())
+        .all(|f| f.as_ref().is_some_and(|f| f.1.is_some()))
+    {
         return Err(Fail::Python);
     }
     let mut bad = Vec::new();
@@ -634,7 +666,10 @@ fn mkdtemp() -> PyResult<String> {
         let t = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.subsec_nanos());
-        let p = base.join(format!("stockmp_validate_{:08x}", (t ^ pid.rotate_left(13)).wrapping_add(n)));
+        let p = base.join(format!(
+            "stockmp_validate_{:08x}",
+            (t ^ pid.rotate_left(13)).wrapping_add(n)
+        ));
         if fs::create_dir(&p).is_ok() {
             return Ok(p.to_string_lossy().into_owned());
         }
@@ -728,8 +763,22 @@ fn run_checks(py: &mut Py, paths: &Paths, c: &Value, rep: &Value, tmp: &str) -> 
         let orig = join(&build, &format!("{upper}_{v}.original.dbx"));
         let auth = join(&build, &format!("{upper}_{v}.authored.dbx"));
         let s = |x: &str| x.to_owned();
-        pre.push(vec![s("check"), auth.clone(), s("--bundle"), join(&build, v), s("--bundle"), mp.clone()]);
-        pre.push(vec![s("check"), orig, s("--bundle"), paths.src(v), s("--bundle"), mp.clone()]);
+        pre.push(vec![
+            s("check"),
+            auth.clone(),
+            s("--bundle"),
+            join(&build, v),
+            s("--bundle"),
+            mp.clone(),
+        ]);
+        pre.push(vec![
+            s("check"),
+            orig,
+            s("--bundle"),
+            paths.src(v),
+            s("--bundle"),
+            mp.clone(),
+        ]);
         pre.push(vec![s("roundtrip"), auth]);
     }
     dx.prefetch(pre);
@@ -739,10 +788,22 @@ fn run_checks(py: &mut Py, paths: &Paths, c: &Value, rep: &Value, tmp: &str) -> 
         let bdir = join(&build, v);
         let sdir = paths.src(v);
         let checks_of: [(&str, Box<dyn FnOnce(&mut DbxEdit) -> PyResult<Check> + '_>); 8] = [
-            ("DbxEdit check", Box::new(|dx: &mut DbxEdit| check_dbxedit(dx, &orig, &auth, &bdir, &sdir, &mp))),
-            ("round trips", Box::new(|dx: &mut DbxEdit| check_roundtrip(dx, &auth, tmp))),
-            ("structure (second reader)", Box::new(|_: &mut DbxEdit| check_structure(&read(&orig)?, &read(&auth)?))),
-            ("only intended changes", Box::new(|_: &mut DbxEdit| check_changes(&read(&orig)?, &read(&auth)?, c))),
+            (
+                "DbxEdit check",
+                Box::new(|dx: &mut DbxEdit| check_dbxedit(dx, &orig, &auth, &bdir, &sdir, &mp)),
+            ),
+            (
+                "round trips",
+                Box::new(|dx: &mut DbxEdit| check_roundtrip(dx, &auth, tmp)),
+            ),
+            (
+                "structure (second reader)",
+                Box::new(|_: &mut DbxEdit| check_structure(&read(&orig)?, &read(&auth)?)),
+            ),
+            (
+                "only intended changes",
+                Box::new(|_: &mut DbxEdit| check_changes(&read(&orig)?, &read(&auth)?, c)),
+            ),
             (
                 "references into other partitions",
                 Box::new(|_: &mut DbxEdit| check_external(&read(&orig)?, &read(&auth)?, &[&bdir, &mp])),
@@ -751,8 +812,14 @@ fn run_checks(py: &mut Py, paths: &Paths, c: &Value, rep: &Value, tmp: &str) -> 
                 "packed assets",
                 Box::new(|_: &mut DbxEdit| check_assets(&bdir, var, &so, &template_pack, c, upper)),
             ),
-            ("Rush stages", Box::new(|_: &mut DbxEdit| check_stages(&read(&auth)?, c))),
-            ("packed bundle", Box::new(|_: &mut DbxEdit| check_packed(&paths.out_bundle(v, "out"), &bdir))),
+            (
+                "Rush stages",
+                Box::new(|_: &mut DbxEdit| check_stages(&read(&auth)?, c)),
+            ),
+            (
+                "packed bundle",
+                Box::new(|_: &mut DbxEdit| check_packed(&paths.out_bundle(v, "out"), &bdir)),
+            ),
         ];
         for (name, f) in checks_of {
             let (ok, detail) = caught(f(&mut dx))?;
@@ -772,7 +839,11 @@ fn run_checks(py: &mut Py, paths: &Paths, c: &Value, rep: &Value, tmp: &str) -> 
     }
     for (kind, folder) in KINDS {
         let r = sector_offsets(&paths.out_pathdata(folder, "out")).and_then(|(xz, _)| {
-            let want = so.iter().find(|(k, _)| k == kind).map(|(_, v)| *v).ok_or(Fail::Python)?;
+            let want = so
+                .iter()
+                .find(|(k, _)| k == kind)
+                .map(|(_, v)| *v)
+                .ok_or(Fail::Python)?;
             let ok = i128::from(xz.0) == want.0 && i128::from(xz.1) == want.1;
             Ok((
                 ok,
@@ -780,7 +851,10 @@ fn run_checks(py: &mut Py, paths: &Paths, c: &Value, rep: &Value, tmp: &str) -> 
             ))
         });
         let (ok, detail) = caught(r)?;
-        py.print(&format!("{} staged {folder} path data: {detail}", if ok { "ok  " } else { "FAIL" }))?;
+        py.print(&format!(
+            "{} staged {folder} path data: {detail}",
+            if ok { "ok  " } else { "FAIL" }
+        ))?;
         results.push((format!("staged {folder} path data"), ok, detail));
     }
     Ok((results, dx))

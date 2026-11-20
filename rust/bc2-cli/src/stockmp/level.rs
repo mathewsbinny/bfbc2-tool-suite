@@ -163,11 +163,7 @@ fn rounded(p: Option<Pos>) -> PyResult<String> {
 
 /// The level's stock bundle unpacked, its level partition found and read: (the unpack folder, the partition's bytes,
 /// the model, the parsed partition). As `summary` / `pipeline.generate` reach it.
-fn read_level(
-    paths: &Paths,
-    kind: &str,
-    none_error: impl FnOnce() -> Fail,
-) -> PyResult<(Vec<u8>, EditDbx, Model)> {
+fn read_level(paths: &Paths, kind: &str, none_error: impl FnOnce() -> Fail) -> PyResult<(Vec<u8>, EditDbx, Model)> {
     let bundles = paths.bundles()?;
     let Some((v, b)) = bundles.last() else {
         return Err(none_error());
@@ -348,10 +344,7 @@ pub(super) fn py_lower(t: &str) -> PyResult<String> {
 
 /// `stockmp.main`'s generate: `pipeline.generate` (the configuration written, its problems raised) and the lines
 /// printed after it. A `SystemExit` comes back as the error the caller turns into its exit (`exits`).
-#[allow(
-    clippy::too_many_lines,
-    reason = "pipeline.generate and config.generate, in order"
-)]
+#[allow(clippy::too_many_lines, reason = "pipeline.generate and config.generate, in order")]
 pub fn generate(py: &mut Py, paths: &Paths, args: &[String]) -> PyResult<()> {
     let pd = pathdata_for(paths, opt(args, "--pathdata"))?;
     let minimal = args.iter().any(|a| a == "--minimal");
@@ -545,7 +538,10 @@ fn defaults() -> Value {
     Value::dict([
         ("spawner", spawner),
         ("order", order),
-        ("issue_on", Value::List(vec![s("spawn"), s("player_enter"), s("trigger")])),
+        (
+            "issue_on",
+            Value::List(vec![s("spawn"), s("player_enter"), s("trigger")]),
+        ),
     ])
 }
 

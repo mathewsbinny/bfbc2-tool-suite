@@ -4,6 +4,11 @@
 //! `math.cos` / `math.sin` (the C library's, as `f64`'s methods call), `math.degrees`, `math.floor`, and the `repr`
 //! of the values the messages show.
 
+#![allow(
+    clippy::many_single_char_names,
+    reason = "the arithmetic's own names (x, n, e, m, q, r)"
+)]
+
 use crate::pyfmt::{float_repr, str_repr};
 use crate::pyproc::{Fail, PyResult};
 
@@ -40,7 +45,11 @@ fn scaled(x: f64, n: u32) -> Option<(bool, u128)> {
             let q = num >> s;
             let r = num - (q << s);
             let half = 1u128 << (s - 1);
-            if r > half || (r == half && q & 1 == 1) { q + 1 } else { q }
+            if r > half || (r == half && q & 1 == 1) {
+                q + 1
+            } else {
+                q
+            }
         }
     };
     Some((neg, v))
@@ -52,7 +61,10 @@ pub fn round(x: f64, n: u32) -> PyResult<f64> {
     if v > (1u128 << 53) {
         return Err(Fail::Python);
     }
-    #[allow(clippy::cast_precision_loss, reason = "v <= 2^53 and 10^n exact: one correctly rounded division")]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "v <= 2^53 and 10^n exact: one correctly rounded division"
+    )]
     let r = v as f64 / 10f64.powi(i32::try_from(n).unwrap_or(0));
     Ok(if neg { -r } else { r })
 }
