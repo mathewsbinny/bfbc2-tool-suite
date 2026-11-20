@@ -2,8 +2,9 @@
 //! over `bc2_levelwrite::culltool` (its model, the reference levels and `add` in Rust): the same arguments, printed
 //! lines (each flushed as it is printed), written trees, levels and reports, errors and exit codes.
 //!
-//! The reference levels' rows are not cached (the Python keeps them in pickles under the culltree cache folder):
-//! `bfbc2.exe` reads the reference levels again, on all cores. The answers do not depend on that cache.
+//! The reference levels' rows are kept in `culltree.py`'s own row cache (round CT1: `bc2_levelwrite::cullcache`,
+//! the pickles under the culltree cache folder, shared with the Python; `BFBC2_CULLTREE_CACHE`). The answers do not
+//! depend on that cache.
 //!
 //! Handed to the Python: the reference's own exceptions on damaged files (an index, `struct` or big-integer error
 //! where a `CullTreeError` is not raised), a sphere key or value `struct` cannot pack, an objects file that is not
@@ -15,6 +16,7 @@
     reason = "the arguments checked by count and the level's objects by the indices the model gave; the reference's names"
 )]
 
+use bc2_levelwrite::cullcache::{self, PickleStore};
 use bc2_levelwrite::culltool::{
     self as ct, CullTree, Level, SPARE, auto_objects, check_structure, collect, containment, cte, fixed, fmt3,
     leaves_of, misplaced, object_checks, ref_rows,
@@ -116,9 +118,52 @@ fn list(ids: &[i64]) -> String {
     )
 }
 
-/// `ref_rows(refs, dirs, log, target=(tree, level))`, its notes printed as the command's own lines.
+/// `culltree.cache_folder()`: `BFBC2_CULLTREE_CACHE` (a folder; 0: none), else
+/// `%LOCALAPPDATA%\bfbc2-tool-suite\cache\culltree`.
+fn cache_folder() -> Option<String> {
+    let v = std::env::var("BFBC2_CULLTREE_CACHE").unwrap_or_default();
+    if v == "0" {
+        return None;
+    }
+    if !v.is_empty() {
+        return Some(v);
+    }
+    let base = std::env::var("LOCALAPPDATA")
+        .ok()
+        .filter(|b| !b.is_empty())
+        .unwrap_or_else(crate::pylog::home_dir);
+    Some(bc2_pyrt::py::join(&base, &["bfbc2-tool-suite", "cache", "culltree"]))
+}
+
+/// `caches.touch(path)`: the entry marked used now, unless it was in the last minute.
+fn touch(path: &str) {
+    if let Ok(st) = crate::fsx::stat(path)
+        && crate::fsx::now() - st.mtime >= 60.0
+    {
+        let _ = crate::fsx::utime_now(path);
+    }
+}
+
+/// `ref_rows(refs, dirs, log, target=(tree, level))`, its notes printed as the command's own lines; the rows kept
+/// in `culltree.py`'s row cache (round CT1), its folder pruned to its cap after a run that wrote to it.
 fn ref_levels(out: &mut Out, refs: &[String], dirs: &[String], target: (&str, &str)) -> PyResult<Vec<ct::RefLevel>> {
-    ref_rows(refs, dirs, &mut |s| out.log(s), Some(target), reference())
+    let store = cache_folder()
+        .zip(cullcache::code_id(SOURCE))
+        .map(|(folder, code)| PickleStore::new(folder, code, touch));
+    let r = ref_rows(
+        refs,
+        dirs,
+        &mut |s| out.log(s),
+        Some(target),
+        reference(),
+        store.as_ref().map(|s| s as &dyn ct::RowStore),
+    );
+    if let Some(s) = &store
+        && s.wrote.load(std::sync::atomic::Ordering::Relaxed)
+    {
+        crate::caches::maybe_prune("culltree", &s.folder);
+    }
+    r
 }
 
 /// `{k: c, ...}` of the leaves per object, sorted.
@@ -135,7 +180,7 @@ fn per_object(lo: &[(usize, Vec<i64>)]) -> Vec<(usize, usize)> {
 }
 
 fn cmd_info(args: &[String], out: &mut Out) -> PyResult<i32> {
-    let t = CullTree::read(&args[0])?;
+    let t = CullTree::read_only(&args[0])?;
     let (depth, most) = t.depth_and_stack();
     let r = t.arena.sphere(t.root);
     let leaves = t.leaves();
@@ -196,10 +241,10 @@ fn cmd_verify(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
     if args.len() != 2 {
         return Err(cte("verify needs <tree.dbx> <level.dbx>"));
     }
-    let mut t = CullTree::read(&args[0])?;
+    let mut t = CullTree::read_only(&args[0])?;
     let lv = Level::read(&args[1])?;
     let client = match client_p.as_deref().filter(|c| !c.is_empty()) {
-        Some(c) => Some(CullTree::read(c)?),
+        Some(c) => Some(CullTree::read_only(c)?),
         None => None,
     };
     out.log(&format!("tree  {}\nlevel {}", args[0], args[1]))?;
@@ -309,7 +354,7 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
     let mut t = CullTree::read(&args[0])?;
     let mut lv = Level::read(&args[1])?;
     let client = match client_p.as_deref().filter(|c| !c.is_empty()) {
-        Some(c) => Some(CullTree::read(c)?),
+        Some(c) => Some(CullTree::read_only(c)?),
         None => None,
     };
     let rr = ref_levels(out, &refs, &dirs, (&args[0], &args[1]))?;
@@ -379,6 +424,9 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
     let done = ct::add(&mut t, &mut lv, &objs, &found, &mut |s| out.log(s))?;
     t.write(&out_tree)?;
     lv.doc.write(&out_level)?;
+    // the documents are not used once written (round CT1: their memory freed before the files are read back)
+    t.doc.release();
+    lv.doc.release();
     let used = t.arena.flatten(t.root).len();
     out.log(&format!(
         "tree: {} -> {used} used nodes, {} -> {} leaves, {SPARE} spare; written {out_tree}",
@@ -390,8 +438,8 @@ fn cmd_add(mut args: Vec<String>, out: &mut Out) -> PyResult<i32> {
         "level: {} Enumeration(s) set; written {out_level}",
         done.len()
     ))?;
-    let mut t2 = CullTree::read(&out_tree)?;
-    let lv2 = Level::read(&out_level)?;
+    let mut t2 = CullTree::read_only(&out_tree)?;
+    let lv2 = ct::scan_level(&out_level)?; // its objects (Level(out_level)'s, streamed)
     let mut bad = report(&check_structure(&mut t2, client.as_ref()), out)?;
     for (o, slot, ids, _) in &done {
         let c = containment(&t2, ids);

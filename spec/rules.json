@@ -1554,7 +1554,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:1693-1702"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2338-2347"
     },
     {
      "kind": "test",
@@ -1578,11 +1578,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:1710-1721"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2355-2366"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:770"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:896"
     },
     {
      "kind": "test",
@@ -1630,7 +1630,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:1722-1740"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2367-2385"
     },
     {
      "kind": "test",
@@ -1650,11 +1650,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:54"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:56"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:1741-1745"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2386-2390"
     },
     {
      "kind": "exe",
@@ -1766,7 +1766,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-levelwrite/src/culltool.rs:1746-1753"
+     "ref": "rust/bc2-levelwrite/src/culltool.rs:2391-2398"
     },
     {
      "kind": "code",

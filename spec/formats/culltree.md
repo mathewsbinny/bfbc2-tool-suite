@@ -64,7 +64,7 @@ right child at *i* + `Right`, with `Right` = 1 + the size of the left subtree (s
 = `0x80000000 | leaf index` (negative as int32). The `Right` offsets must describe exactly one tree over the used
 nodes: no loop, no node reached twice, none left over.
 
-[code: rust/bc2-levelwrite/src/culltree.rs:205-260] [code: rust/bc2-levelwrite/src/culltool.rs:1693-1702]
+[code: rust/bc2-levelwrite/src/culltree.rs:205-260] [code: rust/bc2-levelwrite/src/culltool.rs:2338-2347]
 [test: rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree] [test: bfbc2-culltree/tests/test_culltree.py::main]
 [data: 37 of 37 stock tree pairs]
 
@@ -75,7 +75,7 @@ Status: **verified**
 The leaf indices run 1 .. L, each exactly once, and the used nodes number 2 x L - 1 (every internal node has two
 children).
 
-[code: rust/bc2-levelwrite/src/culltool.rs:1710-1721] [code: rust/bc2-levelwrite/src/culltool.rs:770]
+[code: rust/bc2-levelwrite/src/culltool.rs:2355-2366] [code: rust/bc2-levelwrite/src/culltool.rs:896]
 [test: bfbc2-culltree/tests/test_culltree.py::main] [data: 37 of 37 stock tree pairs]
 
 ### CULL-NODE-3: Spare nodes
@@ -95,7 +95,7 @@ Status: **verified**
 A leaf's `Max` is its object's unquantized bounding radius (a float, the same for every instance of a blueprint); an
 internal node's `Max` is the largest `Max` of its subtree, which equals the larger of its two children's.
 
-[code: rust/bc2-levelwrite/src/culltool.rs:1722-1740] [test: bfbc2-culltree/tests/test_culltree.py::main]
+[code: rust/bc2-levelwrite/src/culltool.rs:2367-2385] [test: bfbc2-culltree/tests/test_culltree.py::main]
 [data: 263,653 internal nodes of the stock trees, no exception]
 
 ### CULL-NODE-5: Depth
@@ -104,7 +104,7 @@ Status: **implemented**
 
 The traversal keeps an explicit stack of 128 node pointers, so no path may need more entries (stock depth about 12).
 
-[code: rust/bc2-levelwrite/src/culltool.rs:54] [code: rust/bc2-levelwrite/src/culltool.rs:1741-1745]
+[code: rust/bc2-levelwrite/src/culltool.rs:56] [code: rust/bc2-levelwrite/src/culltool.rs:2386-2390]
 [exe: 0x0056C4E0 keeps 128 dwords at +0x20 of the query object, the count at +0x220]
 
 ## 3. Spheres
@@ -181,7 +181,7 @@ are 1-based and global over both trees, and **slot 0 means "not in a tree"** (dy
 pallets). An object owns the consecutive leaves from its slot: two leaves with the same sphere for most blueprints, one
 for some (distant scenery); the count belongs to the blueprint.
 
-[code: rust/bc2-levelwrite/src/culltool.rs:1746-1753] [code: rust/bc2-levelwrite/src/culltree.rs:442-447]
+[code: rust/bc2-levelwrite/src/culltool.rs:2391-2398] [code: rust/bc2-levelwrite/src/culltree.rs:442-447]
 [code: rust/bc2-formats/src/dbxedit/check.rs:66]
 [test: bfbc2-culltree/tests/test_culltree.py::main]
 [data: stock trees: 57,308 instances with two leaves (the same sphere in 96 %), 8,337 with one; EnumOffset = client leaf count in 37 of 37 pairs]
