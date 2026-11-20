@@ -1,33 +1,35 @@
-//! `stockmp.py summary` and `generate --minimal` (round O3): the level's stock bundle unpacked into the work folder
-//! as `pipeline.unpacked` caches it (FbrbTool's unpack in `bc2_formats`, its `.source.sha256` stamp), the level
-//! partition read into `bc2_stockmp::model::Model` (`levelmodel.model_of`), `mp_common`'s kits (`pipeline.kit_refs`)
-//! and the minimal configuration written as `config.save` writes it (`json.dump(indent=1)`).
+//! `stockmp.py summary` and `generate` (round O3; the full layer round O5): the level's stock bundle unpacked into the
+//! work folder as `pipeline.unpacked` caches it (FbrbTool's unpack in `bc2_formats`, its `.source.sha256` stamp), the
+//! level partition read into `bc2_stockmp::model::Model` (`levelmodel.model_of`), `mp_common`'s kits
+//! (`pipeline.kit_refs`), the layer placed on the path data (`generate.rs`) and the configuration written as
+//! `config.save` writes it (`json.dump(indent=1)`).
 //!
 //! Handed to the Python: a model the Rust core refuses (the Python's `levelmodel` reads it), text that is not UTF-8
 //! or not ASCII where Python's `lower()` or path rules would decide, a capture point without an owner or position (the
 //! reference raises its `TypeError` while printing), path data the Rust reader refuses or that has no route nodes
-//! (NavKit's `ordercheck.PathData`, which `config.generate` loads first, raises its own error), and every full
-//! (snapped) configuration: `config.Snapper` places the bots with NavKit's path-data model (round O4).
+//! (NavKit's `ordercheck.PathData`, which `config.generate` loads first, raises its own error).
 
-use std::fmt::Write as _;
 use std::fs;
 
 use bc2_formats::dbx::edit::EditDbx;
 use bc2_formats::{fbrb, hpd};
+use bc2_pyrt::json::{self as pyjson, Value};
 use bc2_stockmp::install::{self, APPLIED, BACKUP, isfile, join};
 use bc2_stockmp::model::{Model, Pos};
 use bc2_stockmp::sha256;
 
+use super::build::TEMPLATE_PARTS;
+use super::generate::{self, KIT_NAMES, Snapper};
 use super::{Paths, opt, system_exit};
-use crate::pyfmt::{float_repr, str_repr};
+use crate::pyfmt::str_repr;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, os_error};
 
 /// `pipeline.BuildError(message)`.
-fn build_error(msg: impl Into<String>) -> Fail {
+pub(super) fn build_error(msg: impl Into<String>) -> Fail {
     Fail::Err(PyErr::new("BuildError", msg))
 }
 
-fn sha(path: &str) -> PyResult<String> {
+pub(super) fn sha(path: &str) -> PyResult<String> {
     sha256::file(path).map_err(|e| os_error(path, &e))
 }
 
@@ -49,7 +51,7 @@ pub fn stock_file(p: &str) -> PyResult<Option<String>> {
 }
 
 /// `pipeline.unpacked(bundle, d)`: the cached unpack (unpacked again when the bundle's hash changed).
-fn unpacked(bundle: &str, d: &str) -> PyResult<String> {
+pub(super) fn unpacked(bundle: &str, d: &str) -> PyResult<String> {
     let stamp = join(d, ".source.sha256");
     let h = sha(bundle)?;
     if isfile(&join(d, "fbrb.manifest")) && isfile(&stamp) {
@@ -74,7 +76,7 @@ fn unpacked(bundle: &str, d: &str) -> PyResult<String> {
 }
 
 /// fbrb.manifest's lines (`open(..., encoding='utf-8').read().splitlines()`); ASCII only (Python's `lower()`).
-fn manifest_lines(d: &str) -> PyResult<Vec<String>> {
+pub(super) fn manifest_lines(d: &str) -> PyResult<Vec<String>> {
     let p = join(d, "fbrb.manifest");
     let b = fs::read(&p).map_err(|e| os_error(&p, &e))?;
     let Ok(t) = String::from_utf8(b) else {
@@ -87,7 +89,7 @@ fn manifest_lines(d: &str) -> PyResult<Vec<String>> {
 }
 
 /// `pipeline._level_name(d, lv)`: the level's name as the bundle spells it (`Levels/<NAME>.dbx`).
-fn level_name(d: &str, lv: &str) -> PyResult<String> {
+pub(super) fn level_name(d: &str, lv: &str) -> PyResult<String> {
     for line in manifest_lines(d)? {
         let name = line.split('|').next().unwrap_or("").replace('\\', "/");
         let parts: Vec<&str> = name.split('/').collect();
@@ -103,7 +105,7 @@ fn level_name(d: &str, lv: &str) -> PyResult<String> {
 }
 
 /// `pipeline.level_entry(d, lv_upper)`: the level partition's entry name, or None.
-fn level_entry(d: &str, upper: &str) -> PyResult<Option<String>> {
+pub(super) fn level_entry(d: &str, upper: &str) -> PyResult<Option<String>> {
     for line in manifest_lines(d)? {
         let name = line.split('|').next().unwrap_or("").to_owned();
         let fixed = name.replace('\\', "/");
@@ -120,7 +122,7 @@ fn level_entry(d: &str, upper: &str) -> PyResult<Option<String>> {
 }
 
 /// `pipeline.find_entry(folder, name)`.
-fn find_entry(folder: &str, name: &str) -> Option<String> {
+pub(super) fn find_entry(folder: &str, name: &str) -> Option<String> {
     let p = name.split('/').fold(folder.to_owned(), |a, n| join(&a, n));
     isfile(&p).then_some(p)
 }
@@ -161,7 +163,11 @@ fn rounded(p: Option<Pos>) -> PyResult<String> {
 
 /// The level's stock bundle unpacked, its level partition found and read: (the unpack folder, the partition's bytes,
 /// the model, the parsed partition). As `summary` / `pipeline.generate` reach it.
-fn read_level(paths: &Paths, none_error: impl FnOnce() -> Fail) -> PyResult<(Vec<u8>, EditDbx, Model)> {
+fn read_level(
+    paths: &Paths,
+    kind: &str,
+    none_error: impl FnOnce() -> Fail,
+) -> PyResult<(Vec<u8>, EditDbx, Model)> {
     let bundles = paths.bundles()?;
     let Some((v, b)) = bundles.last() else {
         return Err(none_error());
@@ -170,13 +176,13 @@ fn read_level(paths: &Paths, none_error: impl FnOnce() -> Fail) -> PyResult<(Vec
     let upper = level_name(&d, &paths.lv)?;
     let Some(entry) = level_entry(&d, &upper)? else {
         return Err(Fail::Err(PyErr::new(
-            "SystemExit",
+            kind,
             format!("{}: no level partition in {d}", paths.lv),
         )));
     };
     let Some(lvl) = find_entry(&d, &entry) else {
         return Err(Fail::Err(PyErr::new(
-            "SystemExit",
+            kind,
             format!("{}: the level partition {entry} is not in {d}", paths.lv),
         )));
     };
@@ -188,7 +194,7 @@ fn read_level(paths: &Paths, none_error: impl FnOnce() -> Fail) -> PyResult<(Vec
 }
 
 /// A `SystemExit(message)` the steps above raise: printed by the interpreter, exit code 1.
-fn exits(py: &mut Py, r: PyResult<i32>) -> PyResult<i32> {
+pub(super) fn exits(py: &mut Py, r: PyResult<i32>) -> PyResult<i32> {
     match r {
         Err(Fail::Err(e)) if e.kind == "SystemExit" => Ok(system_exit(py, &e.msg)),
         r => r,
@@ -203,7 +209,9 @@ pub fn summary(py: &mut Py, paths: &Paths) -> PyResult<i32> {
 
 fn summary_inner(py: &mut Py, paths: &Paths) -> PyResult<i32> {
     // paths.bundles()[-1] of none: IndexError
-    let (_data, dbx, m) = read_level(paths, || Fail::Err(PyErr::new("IndexError", "list index out of range")))?;
+    let (_data, dbx, m) = read_level(paths, "SystemExit", || {
+        Fail::Err(PyErr::new("IndexError", "list index out of range"))
+    })?;
     let stages = m.rush_stages(&dbx).map_err(|_| Fail::Python)?;
     // everything the prints use, checked before the first print (a refusal hands off with nothing printed)
     let mut lines = Vec::new();
@@ -329,35 +337,42 @@ fn plain_int(t: &str) -> Option<i64> {
     t.parse().ok()
 }
 
-/// `stockmp.main`'s generate (and `all` without a configuration: only the path-data lookup's error answered).
-pub fn generate(py: &mut Py, paths: &Paths, args: &[String], answer: bool) -> PyResult<i32> {
-    let r = generate_inner(py, paths, args, answer);
-    exits(py, r)
+/// `str.lower()` of ASCII text (anything else: the Python's).
+pub(super) fn py_lower(t: &str) -> PyResult<String> {
+    if t.is_ascii() {
+        Ok(t.to_ascii_lowercase())
+    } else {
+        Err(Fail::Python)
+    }
 }
 
+/// `stockmp.main`'s generate: `pipeline.generate` (the configuration written, its problems raised) and the lines
+/// printed after it. A `SystemExit` comes back as the error the caller turns into its exit (`exits`).
 #[allow(
     clippy::too_many_lines,
-    reason = "pipeline.generate and config.generate's minimal layer, in order"
+    reason = "pipeline.generate and config.generate, in order"
 )]
-fn generate_inner(py: &mut Py, paths: &Paths, args: &[String], answer: bool) -> PyResult<i32> {
+pub fn generate(py: &mut Py, paths: &Paths, args: &[String]) -> PyResult<()> {
     let pd = pathdata_for(paths, opt(args, "--pathdata"))?;
     let minimal = args.iter().any(|a| a == "--minimal");
-    if !answer || !minimal {
-        return Err(Fail::Python);
-    }
-    if let Some(b) = opt(args, "--bots")
-        && plain_int(b).is_none()
-    {
-        return Err(Fail::Python);
-    }
+    let keep = minimal || args.iter().any(|a| a == "--keep-stock-spawners");
+    let bots = match opt(args, "--bots") {
+        Some(b) => plain_int(b).ok_or(Fail::Python)?,
+        None => 8,
+    };
     // pipeline.generate
     let config = paths.config();
-    let (_data, _dbx, m) = read_level(paths, || {
+    let (_data, dbx, m) = read_level(paths, "BuildError", || {
         build_error(format!("{}: no level-00 bundle in {}", paths.lv, paths.game))
     })?;
     let kits = kit_refs(paths)?;
     // config.generate: Snapper(pathdata['infantry']) loads NavKit's path data first
-    snapper_loads(&pd.0)?;
+    let snap = if minimal {
+        snapper_loads(&pd.0)?;
+        None
+    } else {
+        Some(Snapper::new(&pd.0)?)
+    };
     let mut teams = Vec::new();
     for t in ["Team1", "Team2"] {
         let faction = m
@@ -380,12 +395,12 @@ fn generate_inner(py: &mut Py, paths: &Paths, args: &[String], answer: bool) -> 
                 )));
             }
         };
-        let k: Vec<(String, J)> = KIT_NAMES
+        let k: Vec<(String, Value)> = KIT_NAMES
             .iter()
             .map(|n| {
                 (
                     (*n).to_owned(),
-                    J::Str(
+                    Value::Str(
                         kits.iter()
                             .find(|(x, _)| *x == format!("{prefix}/{n}"))
                             .map_or_else(String::new, |(_, r)| r.clone()),
@@ -395,61 +410,72 @@ fn generate_inner(py: &mut Py, paths: &Paths, args: &[String], answer: bool) -> 
             .collect();
         teams.push((
             t.to_owned(),
-            J::Obj(vec![
-                ("faction".into(), faction.map_or(J::Null, J::Str)),
-                ("kits".into(), J::Obj(k)),
+            Value::dict([
+                ("faction", faction.map_or(Value::Null, Value::Str)),
+                ("kits", Value::Dict(k)),
             ]),
         ));
     }
-    let name = match &m.name {
-        Some(n) => J::Str(text(n)?),
-        None => J::Null,
+    let (spawners, orders, stages, notes) = match &snap {
+        None => (Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+        Some(snap) => generate::layer(&m, &dbx, snap, &generate::Layer { bots })?,
     };
-    let c = J::Obj(vec![
-        ("format".into(), J::Str("bfbc2-stockmp-ai".into())),
-        ("version".into(), J::Int(1)),
-        ("lv".into(), J::Str(paths.lv.clone())),
-        ("level".into(), name),
-        ("mode".into(), J::Str(text(&m.mode)?)),
-        ("layer".into(), J::Str("minimal".into())),
-        ("stock_spawners".into(), J::Str("keep".into())),
+    let name = match &m.name {
+        Some(n) => Value::Str(text(n)?),
+        None => Value::Null,
+    };
+    let s = |x: &str| Value::Str(x.to_owned());
+    let counts = (spawners.len(), orders.len(), stages.len(), notes.len());
+    let c = Value::dict([
+        ("format", s("bfbc2-stockmp-ai")),
+        ("version", Value::Int(1)),
+        ("lv", s(&paths.lv)),
+        ("level", name),
+        ("mode", Value::Str(text(&m.mode)?)),
+        ("layer", s(if minimal { "minimal" } else { "full" })),
+        ("stock_spawners", s(if keep { "keep" } else { "human" })),
         (
-            "pathdata".into(),
-            J::Obj(vec![
-                ("infantry".into(), J::Str(pd.0)),
-                ("vehicle".into(), J::Str(pd.1)),
-                ("source".into(), J::Str(pd.2)),
-            ]),
+            "pathdata",
+            Value::dict([("infantry", s(&pd.0)), ("vehicle", s(&pd.1)), ("source", s(&pd.2))]),
         ),
-        ("template".into(), J::Str(TEMPLATE.into())),
+        ("template", s(TEMPLATE)),
         (
-            "template_parts".into(),
-            J::Arr(TEMPLATE_PARTS.iter().map(|p| J::Str((*p).into())).collect()),
+            "template_parts",
+            Value::List(TEMPLATE_PARTS.iter().map(|p| s(p)).collect()),
         ),
-        ("teams".into(), J::Obj(teams)),
-        ("defaults".into(), defaults()),
-        ("spawners".into(), J::Arr(Vec::new())),
-        ("orders".into(), J::Arr(Vec::new())),
-        ("stages".into(), J::Arr(Vec::new())),
-        ("notes".into(), J::Arr(Vec::new())),
+        ("teams", Value::Dict(teams)),
+        ("defaults", defaults()),
+        ("spawners", Value::List(spawners)),
+        ("orders", Value::List(orders)),
+        ("stages", Value::List(stages)),
+        ("notes", Value::List(notes.iter().map(|n| s(n)).collect())),
     ]);
     // config.save: makedirs, json.dump(indent=1) and a newline, '\n' line ends
     let abs = bc2_pyrt::py::abspath(&config);
     let dir = bc2_pyrt::py::dirname(&abs);
     fs::create_dir_all(&dir).map_err(|e| os_error(&dir, &e))?;
-    let mut text_out = String::new();
-    write_json(&c, 0, &mut text_out);
-    text_out.push('\n');
+    let text_out = format!("{}\n", pyjson::dumps(&c, Some(1)));
     fs::write(&config, text_out.as_bytes()).map_err(|e| os_error(&config, &e))?;
-    // config.check finds nothing in a minimal configuration (no spawners, orders or stages)
+    let problems = generate::check(&c)?;
+    if !problems.is_empty() {
+        return Err(build_error(format!(
+            "{config}: the generated configuration has problems - edit it before building: {}",
+            problems.join("; ")
+        )));
+    }
     py.print(&format!(
-        "{config}: 0 AI spawners, 0 orders, 0 stage switches; 0 note(s)"
+        "{config}: {} AI spawners, {} orders, {} stage switches; {} note(s)",
+        counts.0, counts.1, counts.2, counts.3
     ))?;
-    Ok(0)
+    for n in &notes {
+        py.print(&format!("  note: {n}"))?;
+    }
+    Ok(())
 }
 
-/// `config.Snapper(hpd)`'s loading of the path data (`ordercheck.PathData`): it raises on a file the reader refuses,
-/// an edge naming a node its sector lacks, or no route node at all (`max()` of nothing) - all left to the Python.
+/// `config.Snapper(hpd)`'s loading of the path data (`ordercheck.PathData`) for the minimal layer: it raises on a file
+/// the reader refuses, an edge naming a node its sector lacks, or no route node at all (`max()` of nothing) - all
+/// left to the Python.
 fn snapper_loads(hpd_path: &str) -> PyResult<()> {
     let data = fs::read(hpd_path).map_err(|e| os_error(hpd_path, &e))?;
     let f = hpd::parse(&data).map_err(|_| Fail::Python)?;
@@ -473,66 +499,59 @@ fn snapper_loads(hpd_path: &str) -> PyResult<()> {
     Ok(())
 }
 
-/// `config.KIT_NAMES`, `TEMPLATE`, `TEMPLATE_PARTS`.
-const KIT_NAMES: [&str; 4] = ["assault", "demolition", "support", "recon"];
+/// `config.TEMPLATE`.
 const TEMPLATE: &str = "objects/soldiers/templates/spawntemplate_enemy_grunt/2eedbef1-52de-4b20-819c-e71097c15cbe";
-const TEMPLATE_PARTS: [&str; 3] = [
-    "Objects/Soldiers/Templates/SpawnTemplate_Enemy_Grunt.dbx",
-    "Objects/Soldiers/Templates/AI/Enemy_Grunt_Sense.dbx",
-    "Objects/Soldiers/Templates/AI/Enemy_Grunt_Bhv.dbx",
-];
 
 /// `config.DEFAULTS`.
-fn defaults() -> J {
-    let s = |v: &str| J::Str(v.to_owned());
-    let spawner = vec![
-        ("Amount", J::Int(0)),
-        ("SpawnDelay", J::Float(15.0)),
-        ("InitializedSpawnDelay", J::Float(0.0)),
-        ("SpawnSoldierFromBeginning", J::Bool(true)),
-        ("AllowMulipleSpawn", J::Bool(false)),
-        ("Immortal", J::Bool(false)),
-        ("FakeImmortal", J::Bool(false)),
-        ("SpawnEnemyRadius", J::Float(20.0)),
-        ("LodDistance", J::Float(0.0)),
+fn defaults() -> Value {
+    let s = |v: &str| Value::Str(v.to_owned());
+    let spawner = Value::dict([
+        ("Amount", Value::Int(0)),
+        ("SpawnDelay", Value::Float(15.0)),
+        ("InitializedSpawnDelay", Value::Float(0.0)),
+        ("SpawnSoldierFromBeginning", Value::Bool(true)),
+        ("AllowMulipleSpawn", Value::Bool(false)),
+        ("Immortal", Value::Bool(false)),
+        ("FakeImmortal", Value::Bool(false)),
+        ("SpawnEnemyRadius", Value::Float(20.0)),
+        ("LodDistance", Value::Float(0.0)),
         ("LocationNameSid", s("")),
-        ("UseAsAlternateSpawnPoint", J::Bool(false)),
-        ("TryToSpawnAwayFromSight", J::Bool(false)),
-        ("SoldierCreationPoint", J::Bool(false)),
+        ("UseAsAlternateSpawnPoint", Value::Bool(false)),
+        ("TryToSpawnAwayFromSight", Value::Bool(false)),
+        ("SoldierCreationPoint", Value::Bool(false)),
         ("OnSpottedType", s("OSPlayer")),
         ("SoldierSquadId", s("SquadNone")),
-        ("Enumeration", J::Int(0)),
-    ];
-    let order = vec![
-        ("IssueOrderDelay", J::Float(2.0)),
-        ("OnCompleteTimeOut", J::Float(0.0)),
-        ("OnFailedTimeOut", J::Float(0.0)),
-        ("IsUrgent", J::Bool(true)),
-        ("ReissueIfSoldierIsKilled", J::Bool(true)),
+        ("Enumeration", Value::Int(0)),
+    ]);
+    let order = Value::dict([
+        ("IssueOrderDelay", Value::Float(2.0)),
+        ("OnCompleteTimeOut", Value::Float(0.0)),
+        ("OnFailedTimeOut", Value::Float(0.0)),
+        ("IsUrgent", Value::Bool(true)),
+        ("ReissueIfSoldierIsKilled", Value::Bool(true)),
         ("ReadinessOnStart", s("RLNone")),
         ("ReadinessOnComplete", s("RLNone")),
         ("ReadinessOnFail", s("RLNone")),
-        ("UnspawnOnComplete", J::Bool(false)),
-        ("UnspawnOnFail", J::Bool(false)),
+        ("UnspawnOnComplete", Value::Bool(false)),
+        ("UnspawnOnFail", Value::Bool(false)),
         ("AllowStunAnimations", s("SASNoChange")),
         ("Stance", s("SONoChange")),
         ("SpeedState", s("SSORunning")),
         ("AimState", s("AsoNoChange")),
-        ("AnimationIndex", J::Int(-1)),
+        ("AnimationIndex", Value::Int(-1)),
         ("IdleAnimation", s("null")),
-        ("Enumeration", J::Int(0)),
-    ];
-    let obj = |v: Vec<(&str, J)>| J::Obj(v.into_iter().map(|(k, x)| (k.to_owned(), x)).collect());
-    obj(vec![
-        ("spawner", obj(spawner)),
-        ("order", obj(order)),
-        ("issue_on", J::Arr(vec![s("spawn"), s("player_enter"), s("trigger")])),
+        ("Enumeration", Value::Int(0)),
+    ]);
+    Value::dict([
+        ("spawner", spawner),
+        ("order", order),
+        ("issue_on", Value::List(vec![s("spawn"), s("player_enter"), s("trigger")])),
     ])
 }
 
 /// `pipeline.common(paths, name)`: NavKit's shared unpack while it is at least as new as the game's bundle, else this
 /// tool's own cached unpack.
-fn common(paths: &Paths, name: &str) -> PyResult<String> {
+pub(super) fn common(paths: &Paths, name: &str) -> PyResult<String> {
     let bundle = join(
         &join(&join(&join(&join(&paths.game, "Dist"), "win32"), "levels"), name),
         "level-00.fbrb",
@@ -605,84 +624,4 @@ fn kit_refs(paths: &Paths) -> PyResult<Vec<(String, String)>> {
         }
     }
     Ok(out)
-}
-
-// ------------------------------------------------------------------------------------------------ JSON
-
-/// A JSON value, dicts in insertion order.
-enum J {
-    Null,
-    Bool(bool),
-    Int(i64),
-    Float(f64),
-    Str(String),
-    Arr(Vec<J>),
-    Obj(Vec<(String, J)>),
-}
-
-/// A string as `json.dumps` writes it (`ensure_ascii`).
-fn json_str(s: &str, out: &mut String) {
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{0c}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 || (c as u32) > 0x7F => {
-                let mut buf = [0u16; 2];
-                for u in c.encode_utf16(&mut buf) {
-                    let _ = write!(out, "\\u{u:04x}");
-                }
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-}
-
-/// `json.dump(v, indent=1)`.
-fn write_json(v: &J, level: usize, out: &mut String) {
-    let pad = |n: usize, out: &mut String| {
-        out.push('\n');
-        out.push_str(&" ".repeat(n));
-    };
-    match v {
-        J::Null => out.push_str("null"),
-        J::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        J::Int(i) => out.push_str(&i.to_string()),
-        J::Float(f) => out.push_str(&float_repr(*f)),
-        J::Str(s) => json_str(s, out),
-        J::Arr(a) if a.is_empty() => out.push_str("[]"),
-        J::Obj(o) if o.is_empty() => out.push_str("{}"),
-        J::Arr(a) => {
-            out.push('[');
-            for (k, x) in a.iter().enumerate() {
-                if k > 0 {
-                    out.push(',');
-                }
-                pad(level + 1, out);
-                write_json(x, level + 1, out);
-            }
-            pad(level, out);
-            out.push(']');
-        }
-        J::Obj(o) => {
-            out.push('{');
-            for (k, (key, x)) in o.iter().enumerate() {
-                if k > 0 {
-                    out.push(',');
-                }
-                pad(level + 1, out);
-                json_str(key, out);
-                out.push_str(": ");
-                write_json(x, level + 1, out);
-            }
-            pad(level, out);
-            out.push('}');
-        }
-    }
 }

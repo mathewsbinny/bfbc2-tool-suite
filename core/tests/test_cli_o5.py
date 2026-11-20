@@ -37,9 +37,20 @@ import test_cli_o3 as o3  # noqa: E402
 ALL_GROUPS = ('readers', 'shader', 'bf1943', 'nav', 'texqa', 'stockmp')
 
 
+def _log_named(log: Callable[[Any], str]) -> Callable[[Any], str]:
+    """Place.log with the names of temporary folders a tool makes itself taken out (stockmp's validate runs DbxEdit
+    on files in tempfile.mkdtemp('stockmp_validate_'): its log records name the folder, random on each run)."""
+    import re
+
+    def named(self: Any) -> str:
+        return re.sub(r'stockmp_validate_[a-z0-9_]+', 'stockmp_validate_N', log(self))
+    return named
+
+
 def main(argv: list[str]) -> int:
     import shutil
     base.ROUND = 'o5'
+    base.Place.log = _log_named(base.Place.log)  # type: ignore[method-assign]
     base.GROUPS = tuple(g for g in ALL_GROUPS if os.path.isfile(os.path.join(HERE, f'cli_o5_{g}.py')))
     ref = argv[argv.index('--ref') + 1] if '--ref' in argv[:-1] else os.environ.get('BFBC2_O5_REF')
     base.REF = os.path.abspath(ref or base.SUITE)
