@@ -3,7 +3,13 @@
 `culltree.py` reads Battlefield: Bad Company 2's static cull trees (`World.StaticCullTreeData`), checks them
 against a level's placed objects, and **adds placed objects that have no slot** - objects with `Enumeration` 0
 that the game draws see-through and treats as indestructible because they are not in the level's cull tree.
-It is plain Python 3 (no libraries) and writes everything it does not change byte for byte.
+It writes everything it does not change byte for byte. It needs Python 3.12+ and the suite's Rust core (its element
+reader runs there since round F1a: `python rust\build_native.py --download`).
+
+Without Python: `bin\bfbc2.exe culltree info|verify|add ...` (the suite's `bin\`, round O3) takes the same arguments
+and writes the same files, output and exit codes; a damaged tree or level is handed to the Python (the suite's
+README, "bfbc2.exe"). Since round CT1 (2026-11-19) its `add` reads the reference levels one at a time: about
+80-110 MB and under a second with a warm cache, where the first port took 1.65 GB and 7 s.
 
 ```
 python culltree.py info <tree.dbx> [<level.dbx>]
@@ -29,7 +35,9 @@ What a reference level gives (its slotted instances' leaves, in the blueprint's 
 tree and `culltree.py` are unchanged (size and modification time): a second `add` or `verify` against the same
 `--ref-dir` folders reads no reference level again (round E3m, `rust/BENCHMARKS.md`). `BFBC2_CULLTREE_CACHE` names
 another folder (`0`: no cache); `BFBC2_CULLTREE_REFERENCE=1` reads every reference level each run, as before: the
-reference the cache is tested against (`tests\test_culltree_e3m.py`).
+reference the cache is tested against (`tests\test_culltree_e3m.py`). `bfbc2.exe culltree` reads and writes the same
+cache entries (round CT1: either side's warmed cache serves both) and prunes it within the cache budget (the suite's
+README, "Caches").
 
 The test (`tests\test_culltree.py`, in `run_tests.py quick`) builds trees and levels itself and needs no game data.
 

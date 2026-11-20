@@ -15,6 +15,10 @@ python fbrbtool.py pack   <dir> <file.fbrb>        rebuild a bundle from an unpa
 python fbrbtool.py big    <file.big> <outdir>      every file of a BIGF / BIG4 archive (a menu movie resource)
 ```
 
+Without Python: `bin\bfbc2.exe fbrbtool list|unpack|pack|big ...` (the suite's `bin\` folder; round O1) takes the
+same arguments and writes the same files, output and exit codes; `python rust\build_native.py --download` fetches it
+with the module (the suite's README, "bfbc2.exe").
+
 Python tools call the same commands in process: `bfbc2core.fbrbtool.run(['unpack', bundle, folder])`, or
 `run_cmd(['FbrbTool', ...], ...)` as a drop-in for `subprocess.run` (README.md, "FbrbTool in process").
 
