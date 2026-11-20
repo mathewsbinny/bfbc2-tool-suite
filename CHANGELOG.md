@@ -71,6 +71,11 @@ landed on `main`.
   then the install on confirmation).
 
 ### Changed
+- **Map projects are format version 2** (round GR2: the navigation edits are new operation kinds). Version-1
+  projects load unchanged (`bc2_levelwrite::project::migrate`, one step at a time; 1 to 2 changes nothing); a
+  project from a newer editor is refused in words ("made by a newer editor version (project format N); this editor
+  reads up to 2"), and an operation of a kind the editor does not know is named, not a bare JSON error. An editor
+  before GR2 refuses version-2 projects the same way.
 - **`bfbc2.exe culltree add`** reads the reference levels one at a time: about 80-110 MB instead of 1.65 GB, and
   0.6-0.9 s with a warm cache instead of 7 s. Its row cache is shared with `culltree.py` (either side's warmed cache
   serves both) and is pruned within the cache budget.

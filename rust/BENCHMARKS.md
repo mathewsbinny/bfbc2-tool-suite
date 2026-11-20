@@ -5493,3 +5493,14 @@ check, the hub's "Open in Navigation Studio" and its NavKit file field (now "Ope
 --navmesh`). Kept: `overlay.py` (its README describes only it), `suite_paths`' `navigation-studio`, `core`'s
 `viewer.py` and `pick.py` (no tool uses them now; `test_errors.py` and `test_hub.py` do). Nothing in OPFOR's
 `src\` or scripts called the Studio; its README and DEVELOPMENT_NOTES were updated.
+
+### The project format's version (the coordinator's audit finding)
+
+`bc2_levelwrite::project::VERSION` was 1 through E2b, E3b, E3d; GR2 makes it 2 (the navigation operations). Loading
+migrates older files step by step (`migrate`; 1 to 2 changes nothing), refuses a newer file in words ("made by a
+newer editor version (project format N); this editor reads up to 2") and names an operation of an unknown kind
+(`ProjectError::UnknownOperation`) instead of a bare serde error. Tests: `project::tests` (a version-1 file loads
+with the same log, a version-9 file and a `warp` operation give their messages); `tests/project_versions.rs` with
+`BC2_PROJECTS` on the canary examples' projects (Aurora's first export and E3d's six: 2 - 4 operations each, the
+mode choices with their donor layers) written as version 1: all 7 load with every operation, as version 1 and 2,
+and the newer-version and unknown-operation cases on each. The full versioning work is round V1's.
