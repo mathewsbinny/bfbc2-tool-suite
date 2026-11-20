@@ -345,7 +345,7 @@ fn stand_in(root: &Path, lv: &str) {
     std::fs::write(d.join("level-00.fbrb"), b"stand-in").unwrap();
 }
 
-/// A stand-in for prepare_level.py: the same output protocol, three steps, then done (it makes the level's dist
+/// A stand-in for `bfbc2.exe prepare_level`: the same output protocol, three steps, then done (it makes the level's dist
 /// folder, as NavKit's prepare would) or an error.
 fn script(dir: &Path, fail: bool) -> PathBuf {
     let p = dir.join(if fail { "prepare_fail.py" } else { "prepare_ok.py" });
@@ -444,8 +444,8 @@ fn preparing_then_opening() {
 }
 
 /// The real thing, on a stand-in Project OPFOR BFBC2 folder in temp (the game copy linked read-only by a junction,
-/// its own work folder): opening a level that was never prepared there runs the suite's prepare_level.py (NavKit's
-/// prepare and the terrain unpack) with its progress, then shows the map with its terrain. Minutes, so only with
+/// its own work folder): opening a level that was never prepared there runs the suite's `bfbc2.exe prepare_level`
+/// (NavKit's prepare and the terrain unpack) with its progress, then shows the map with its terrain. Minutes, so only with
 /// `BC2_EDITOR_PREPARE=<level>` (rust/BENCHMARKS.md, G2, has a run); the junction is removed before the folder.
 #[test]
 fn prepare_a_level_on_a_stand_in_opfor() {

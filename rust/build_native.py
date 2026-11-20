@@ -2,8 +2,9 @@ r"""Builds the suite's Rust core for Python, or downloads the prebuilt one: rust
 module put into core\bfbc2core\bc2_native.pyd, where bfbc2core finds it (README.md, "The Rust core").
 
   python rust\build_native.py              build and install into core\bfbc2core
-  python rust\build_native.py --download   download the prebuilt module for this checkout's Rust sources from the
-                                           suite's GitHub Releases instead (Windows, 64-bit Python 3.12 or later)
+  python rust\build_native.py --download   download the prebuilt module and bin\bfbc2.exe for this checkout's Rust
+                                           sources from the suite's GitHub Releases instead (Windows, 64-bit Python
+                                           3.12 or later)
   python rust\build_native.py --if-stale   only when the module is missing or was made from other sources: build it
                                            when Rust and maturin are there, else download it
   python rust\build_native.py --remove     delete the module (texture conversion and NavKit's builds then stop with
@@ -15,8 +16,8 @@ module put into core\bfbc2core\bc2_native.pyd, where bfbc2core finds it (README.
                                            instead of a bare cargo, which would build into rust\target)
 
 A build also builds the command-line binary bfbc2.exe (round O1: the tools' command lines in Rust, "bfbc2 fbrbtool
-...", "bfbc2 dbxedit ...") with the same fingerprint; a download fetches the module only (the Python command lines
-then answer, as before).
+...", "bfbc2 dbxedit ...") with the same fingerprint; a download fetches it too (round RT1: the command lines whose
+Python was retired - bfbc2core.native.RETIRED_CLI - have only it; a release made before RT1 has the module only).
 
 Where things go (round D1, 2026-11-19): cargo builds in C:\Programming\Projects\rust-targets\<checkout folder name>
 (bfbc2core.native.target_dir: CARGO_TARGET_DIR when set, BFBC2_RUST_TARGETS for another root), never in rust\target;
@@ -31,8 +32,8 @@ module only when it matches the checkout's.
 
 The download: the release tagged native-<the fingerprint's first 12 hex digits> of the suite's repository
 (.github/workflows/native.yml publishes one for each push to main that changes the Rust sources), its assets
-bc2_native.pyd and bc2_native.pyd.sha256. The SHA-256 is checked, then the module's own fingerprint, before it
-replaces anything. Plain HTTPS GETs with a generic User-Agent; nothing about the user or the PC is sent.
+bc2_native.pyd and bc2_native.pyd.sha256, bfbc2.exe and bfbc2.exe.sha256 (round RT1). The SHA-256 is checked, then
+the module's own fingerprint (the binary's --source-hash), before it replaces anything. Plain HTTPS GETs with a generic User-Agent; nothing about the user or the PC is sent.
 BFBC2_NATIVE_REPO=owner/name downloads from another repository (a fork).
 """
 import contextlib
@@ -285,6 +286,58 @@ def download() -> int:
     install(tmp)
     native.write_stamp(fp, 'download', info.get('version', ''), RUST)
     print(f'downloaded {TARGET} (sources {fp[:12]}, sha256 {got[:12]})')
+    return download_cli(base, fp)
+
+
+CLI_ASSET = 'bfbc2.exe'
+
+
+def binary_hash(path: str) -> str | None:
+    """`<path> --source-hash` (the fingerprint the binary was built from), or None when it does not run."""
+    try:
+        r = subprocess.run([path, '--source-hash'], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def download_cli(base: str, fp: str) -> int:
+    """The release's command-line binary bfbc2.exe (round RT1: the command lines whose Python was retired have only
+    it) into bin\\bfbc2.exe, checked like the module (its SHA-256, then its --source-hash), with bin\\python.txt
+    naming this Python (the interpreter it hands the other tools' unusual command lines to). A release made before
+    RT1 has none: said, and the module stays installed (exit code 0)."""
+    try:
+        want = _get(base + CLI_ASSET + '.sha256').decode('ascii', errors='replace').split()[0].lower()
+        data = _get(base + CLI_ASSET)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(f'build_native: this release has no {CLI_ASSET} (made before round RT1); the command lines whose '
+                  f'Python was retired need it built: python rust\\build_native.py (needs Rust and maturin)')
+            return 0
+        print(f'build_native: the download of {CLI_ASSET} failed: HTTP {e.code} {e.reason}')
+        return 1
+    except (urllib.error.URLError, OSError, IndexError) as e:
+        print(f'build_native: the download of {CLI_ASSET} failed: {e}')
+        return 1
+    got = hashlib.sha256(data).hexdigest()
+    if got != want:
+        print(f'build_native: the downloaded {CLI_ASSET}\'s SHA-256 is {got}, the release says {want}; not installed')
+        return 1
+    dst = native.bin_path('bfbc2')
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    tmp = dst + '.new'
+    with open(tmp, 'wb') as f:
+        f.write(data)
+    have = binary_hash(tmp)
+    if have != fp:
+        os.remove(tmp)
+        print(f'build_native: the downloaded {CLI_ASSET} does not run or is not for these sources ({have}); not '
+              f'installed')
+        return 1
+    install(tmp, dst)
+    with open(os.path.join(native.BIN, 'python.txt'), 'w', encoding='utf-8') as f:
+        f.write(sys.executable + '\n')
+    print(f'downloaded {dst} (sources {fp[:12]}, sha256 {got[:12]})')
     return 0
 
 
