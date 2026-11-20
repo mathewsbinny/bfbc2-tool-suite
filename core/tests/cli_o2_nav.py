@@ -723,6 +723,17 @@ def convert_cases() -> list[Case]:
 
 # ------------------------------------------------------------------------------------------- the group
 
+# Round RT1: the lines whose answer changed on purpose when the Python reader bfbc2.exe hands them to lost its
+# reference (aimanim.parse_reference): what they answer now, in place of the recording's fields named (the recording
+# stays as the record of the retired answer). A NaN in an aim animation is refused by the Rust core, so the command
+# line now ends with its error.
+_AIM_REFUSED = 'error: not an aim animation the reader takes (a cut or damaged file, or a value it does not read)\r\n'
+NOW: dict[str, dict[str, object]] = {
+    'aimanim: a NaN': {'code': 1, 'out': '', 'err': _AIM_REFUSED},
+    'aimanim: a NaN (merged)': {'code': 1, 'out': _AIM_REFUSED},
+}
+
+
 def cases() -> list[Case]:
     return aimanim_cases() + hpdtool_cases() + hkpack_cases() + convert_cases()
 

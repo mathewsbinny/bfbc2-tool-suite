@@ -1,0 +1,88 @@
+{
+ "sp_009,sp_004_b,mp_005": {
+  "by": "prepare_level.py",
+  "files": {
+   "all": "c943bde5992962e1b83315f8210c37355ec07835",
+   "count": 56831,
+   "tops": {
+    "levels": [
+     13665,
+     "2e8b1f511dd4a25dd5a178c78597ee4b88ca56f1"
+    ],
+    "navkit": [
+     43166,
+     "72e706195046d398f341257a23302c3d5b175ce1"
+    ]
+   }
+  },
+  "logs": "d0ffbb74ed961931d836fb3b430cac5d511df9ca",
+  "recorded": "2026-11-20",
+  "runs": [
+   [
+    "sp_009",
+    0,
+    "059276ef0690764bdc56f369ba2c8e9e3d0a1653",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "sp_004_b",
+    0,
+    "ae2919e917dfc1009af4e1a3969849ef94e32bd3",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "mp_005",
+    0,
+    "856e9ee02afb0e0b436e1cf491f97d883b3c3bca",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "sp_009",
+    0,
+    "3bf2a47cfc8f48c29a435c97be3f238f0501fb73",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "sp_004_b",
+    0,
+    "a212bc835487a5be16b2b939d2db965c65f7dc32",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "mp_005",
+    0,
+    "21526106fd0fe3f1526c2003ce3391010600cfe5",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "sp_009 --terrain-only",
+    0,
+    "7db59f6e5623178b2decb3d8fa090fc31abd67d1",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "sp_004_b --terrain-only",
+    0,
+    "7db59f6e5623178b2decb3d8fa090fc31abd67d1",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ],
+   [
+    "mp_005 --terrain-only",
+    0,
+    "7db59f6e5623178b2decb3d8fa090fc31abd67d1",
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+   ]
+  ],
+  "seconds": [
+   37.1,
+   5.9,
+   7.8,
+   1.5,
+   1.7,
+   2.0,
+   0.3,
+   0.4,
+   0.4
+  ]
+ }
+}
