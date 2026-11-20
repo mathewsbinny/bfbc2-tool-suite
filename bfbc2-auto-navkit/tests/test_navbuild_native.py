@@ -684,7 +684,7 @@ def e3c(rng: random.Random) -> int:
                     if version == 2:
                         body += struct.pack('<3I', *(rng.randrange(1 << 32) for _ in range(3)))
             if case == 11:
-                body = body[:-3]                                   # a record cut short: refused
+                body = body[:-3]                                   # a record cut short: struct.error, as before
             head = navsample.HEADER.pack(b'ONS1', version, 0.8, -12.0, 4.0, nx, nz, 50.0, -50.0, 0.4, 0.6, 1.8,
                                          0.05, 0)
             path = os.path.join(tmp, f'run{case}.bin')
@@ -693,8 +693,8 @@ def e3c(rng: random.Random) -> int:
 
             try:
                 smp, c = navsample.load(path)
-            except ValueError as e:
-                check(case == 11 and type(e).__name__ == 'Refused', f'navsample.load case {case} (version {version}): {e}')
+            except struct.error as e:
+                check(case == 11 and 'unpack_from requires' in str(e), f'navsample.load case {case} (version {version}): {e}')
             else:
                 n = int(smp.start[-1])
                 check(case != 11 and len(smp.start) == nx * nz + 1 and len(smp.y) == n == len(smp.flags)
