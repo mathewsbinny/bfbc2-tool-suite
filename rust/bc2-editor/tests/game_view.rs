@@ -108,6 +108,8 @@ fn game_accurate_view_of_mp_005() {
         g.object_count()
     );
     assert!(loaded.game_accurate);
+    // round RV1: the whole terrain, not a window of patches around the target (bc2-render's tests/whole_terrain.rs)
+    assert_eq!(g.world().terrain_radius, None, "the game view draws the whole terrain");
     h.settle(&mut app, 4);
     {
         let g = app.view().unwrap().game.as_ref().unwrap();
