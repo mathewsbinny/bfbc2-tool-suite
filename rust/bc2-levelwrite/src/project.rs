@@ -17,8 +17,27 @@ use crate::ops::{Op, Operation, Organisation};
 
 /// The file's `format`.
 pub const FORMAT: &str = "bfbc2-mapedit";
-/// The file's `version` (this build reads it and older).
-pub const VERSION: u32 = 1;
+/// The file's `version` (this build reads it and older; older files are migrated as they load: [`migrate`]).
+///
+/// - 1: rounds E2 - E3d (objects, layers, folders, groups, the export's strip and mode choices);
+/// - 2: round GR2, the navigation edits (`nav-add`, `nav-remove`, `nav-load`); nothing else changed, so a version-1
+///   file loads as it is.
+pub const VERSION: u32 = 2;
+
+/// A project file's JSON brought from its `version` to [`VERSION`], one step at a time (round GR2; the full
+/// versioning work is round V1's). Version 1 to 2 changes nothing: version 2 only added operation kinds.
+#[must_use]
+pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
+    let mut at = from.max(1);
+    while at < VERSION {
+        // 1 -> 2: the navigation operations were added; a version-1 log has none
+        at += 1;
+    }
+    if let Some(o) = v.as_object_mut() {
+        o.insert("version".to_owned(), serde_json::Value::from(VERSION));
+    }
+    v
+}
 /// A project file's extension.
 pub const EXTENSION: &str = ".mapedit.json";
 /// The autosave's extension, after the project file's name.
@@ -212,8 +231,18 @@ pub enum ProjectError {
     #[error("not a map project (format {0:?})")]
     Format(String),
     /// Made by a newer editor.
-    #[error("made by a newer editor (version {0}; this one reads {VERSION})")]
+    #[error("made by a newer editor version (project format {0}); this editor reads up to {VERSION}")]
     Version(u32),
+    /// An operation of a kind this editor does not know (a newer editor's, or a damaged file).
+    #[error(
+        "operation {index} of the log is of a kind this editor does not know ({op:?}); it was made by a newer editor or the file is damaged"
+    )]
+    UnknownOperation {
+        /// Its place in the log.
+        index: usize,
+        /// Its kind (`op`).
+        op: String,
+    },
 }
 
 /// A map project.
@@ -535,6 +564,24 @@ impl MapProject {
         if version > VERSION {
             return Err(ProjectError::Version(version));
         }
+        let v = migrate(v, version);
+        // an operation of an unknown kind is named, not a bare serde error (nor dropped)
+        for key in ["operations", "redo"] {
+            for (index, o) in v
+                .get(key)
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                if let Err(e) = serde_json::from_value::<Operation>(o.clone())
+                    && e.to_string().contains("unknown variant")
+                {
+                    let op = o.get("op").and_then(serde_json::Value::as_str).unwrap_or("").to_owned();
+                    return Err(ProjectError::UnknownOperation { index, op });
+                }
+            }
+        }
         Ok(serde_json::from_value(v)?)
     }
 
@@ -750,8 +797,31 @@ mod tests {
             MapProject::from_json("{\"format\":\"x\"}"),
             Err(ProjectError::Format(_))
         ));
-        let newer = q.to_json().unwrap().replace("\"version\": 1", "\"version\": 9");
-        assert!(matches!(MapProject::from_json(&newer), Err(ProjectError::Version(9))));
+        let newer = q
+            .to_json()
+            .unwrap()
+            .replace(&format!("\"version\": {VERSION}"), "\"version\": 9");
+        let e = MapProject::from_json(&newer).unwrap_err();
+        assert!(matches!(e, ProjectError::Version(9)));
+        assert_eq!(
+            e.to_string(),
+            format!("made by a newer editor version (project format 9); this editor reads up to {VERSION}")
+        );
+        // a version-1 file (the format before GR2's navigation operations) loads unchanged, as the current version
+        let v1 = q
+            .to_json()
+            .unwrap()
+            .replace(&format!("\"version\": {VERSION}"), "\"version\": 1");
+        let back = MapProject::from_json(&v1).unwrap();
+        assert_eq!(back.version, VERSION);
+        assert_eq!(back.operations, q.operations);
+        // an operation of an unknown kind is named
+        let odd = q.to_json().unwrap().replacen("\"op\": \"move\"", "\"op\": \"warp\"", 1);
+        let e = MapProject::from_json(&odd).unwrap_err();
+        assert!(
+            matches!(&e, ProjectError::UnknownOperation { op, .. } if op == "warp"),
+            "{e}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
