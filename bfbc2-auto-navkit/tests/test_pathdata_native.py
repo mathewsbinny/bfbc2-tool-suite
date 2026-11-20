@@ -35,8 +35,12 @@ import hpdtool  # noqa: E402
 import kymesh  # noqa: E402
 from bfbc2core import native  # noqa: E402
 from f0_parity import Checks, canon, outcome, stdout_utf8  # noqa: E402
+from replay import Replay  # noqa: E402
 
 CLASSES = (hpdtool.Node, hpdtool.Edge, hpdtool.Sector, hpdtool.HpdFile)
+# round RT2: the references' answers recorded (--record) and replayed once they are retired
+R = Replay('f0_pathdata', HERE, [(hpdtool, 'parse_reference'), (hpdtool, 'write_reference'),
+                                 (kymesh, 'write_mesh_reference')])
 
 
 # ------------------------------------------------------------------------------------------------ built inputs
@@ -107,7 +111,7 @@ def build_mesh(rng: random.Random) -> kymesh.Mesh:
 
 
 def build_file(rng: random.Random) -> bytes:
-    """A random path data file, written by the reference."""
+    """A random path data file (written in Rust: every built file is)."""
     sectors = []
     for _ in range(rng.randint(0, 4)):
         n = rng.randint(0, 12)
@@ -116,11 +120,11 @@ def build_file(rng: random.Random) -> bytes:
         edges = [hpdtool.Edge(rng.randrange(1 << 32), rng.randrange(max(n, 1)), rng.randrange(max(n, 1)))
                  for _ in range(rng.randint(0, 2 * n))]
         bounds = tuple(f32(rng) for _ in range(6))
-        mesh = kymesh.write_mesh_reference(build_mesh(rng))
+        mesh = kymesh.write_mesh(build_mesh(rng))
         sectors.append(hpdtool.Sector(rng.randrange(1 << 16), bounds, 0, 100007, rng.randrange(1 << 32), nodes, edges,
                                       mesh))
     header = tuple(rng.randrange(1 << 32) for _ in range(hpdtool.HEADER_WORDS))
-    return hpdtool.write_reference(hpdtool.HpdFile(header, sectors))
+    return hpdtool.write(hpdtool.HpdFile(header, sectors))
 
 
 def damaged(data: bytes, rng: random.Random) -> bytes:
@@ -180,19 +184,21 @@ def has_nan(v: Any, depth: int = 0) -> bool:
 
 
 def parse_both(data: bytes, t: Tally, label: str) -> Any:
-    """hpd_parse against parse_reference; the reference's file (or None)."""
+    """hpd_parse against parse_reference; the file (or None): the Rust core's, or while the reference is there its
+    answer to a file the core refuses."""
     nat = native.require('hpdtool', 'hpd_parse')
     ref = outcome(hpdtool.parse_reference, data)
     got = nat.hpd_parse(data, *CLASSES)
     if got is None:
         t.fallback += 1
-        if ref[0] == 'ok' and t.strict and not has_nan(hpdtool.parse_reference(data)):
+        kept = R.live(hpdtool, 'parse_reference')
+        if ref[0] == 'ok' and t.strict and kept and not has_nan(hpdtool.parse_reference(data)):
             t.fallback_ok.append(label)
         t.add(outcome(hpdtool.parse, data) == ref, label)
-    else:
-        t.native += 1
-        t.add(ref == ('ok', canon(got)), label)
-    return hpdtool.parse_reference(data) if ref[0] == 'ok' else None
+        return hpdtool.parse_reference(data) if kept and ref[0] == 'ok' else None
+    t.native += 1
+    t.add(ref == ('ok', canon(got)), label)
+    return got
 
 
 def write_both(f: Any, t: Tally, label: str, want: bytes | None = None) -> None:
@@ -201,7 +207,7 @@ def write_both(f: Any, t: Tally, label: str, want: bytes | None = None) -> None:
     got = nat.hpd_write(f)
     if got is None:
         t.fallback += 1
-        if ref[0] == 'ok' and t.strict and not has_nan(f):
+        if ref[0] == 'ok' and t.strict and not has_nan(f) and R.live(hpdtool, 'write_reference'):
             t.fallback_ok.append(label)
         t.add(outcome(hpdtool.write, f) == ref, label)
     else:
@@ -215,7 +221,7 @@ def mesh_both(m: Any, t: Tally, label: str, want: bytes | None = None) -> None:
     got = nat.kymesh_write(m)
     if got is None:
         t.fallback += 1
-        if ref[0] == 'ok' and t.strict and not has_nan(m):
+        if ref[0] == 'ok' and t.strict and not has_nan(m) and R.live(kymesh, 'write_mesh_reference'):
             t.fallback_ok.append(label)
         t.add(outcome(kymesh.write_mesh, m) == ref, label)
     else:
@@ -365,7 +371,8 @@ def main(argv: list[str]) -> int:
     game = '--game' in argv
     c = Checks()
     native.require('hpdtool', 'hpd_parse')
-    c.check(hpdtool.use_native(True) and kymesh.use_native(True), 'the Rust core runs hpdtool and kymesh')
+    if hasattr(hpdtool, 'use_native'):
+        c.check(hpdtool.use_native(True) and kymesh.use_native(True), 'the Rust core runs hpdtool and kymesh')
     rng = random.Random(0xF0)
 
     # built files and meshes
@@ -376,7 +383,7 @@ def main(argv: list[str]) -> int:
         if f is not None:
             write_both(f, tw, f'built {i}', data)
             for j, s in enumerate(f.sectors):
-                m = kymesh.parse_mesh_reference(s.mesh)
+                m = kymesh.parse_mesh(s.mesh)
                 mesh_both(m, tm, f'built {i} sector {j}', s.mesh)
     report(c, tp, 'built files parsed both ways')
     report(c, tw, 'built files written both ways, each the file it was read from')
@@ -388,10 +395,10 @@ def main(argv: list[str]) -> int:
     report(c, td, 'damaged files: the same objects or the same error')
 
     tc, tcm = Tally(strict=False), Tally(strict=False)
-    parsed = [hpdtool.parse_reference(d) for d in files]
+    parsed = [hpdtool.parse(d) for d in files]
     for i in range(300):
         write_both(change_file(rng.choice(parsed), rng), tc, f'changed file {i}')
-    meshes = [kymesh.parse_mesh_reference(s.mesh) for f in parsed for s in f.sectors]
+    meshes = [kymesh.parse_mesh(s.mesh) for f in parsed for s in f.sectors]
     for i in range(300):
         mesh_both(change_mesh(rng.choice(meshes), rng), tcm, f'changed mesh {i}')
     report(c, tc, 'changed files written: the same bytes or the same error')
@@ -399,13 +406,14 @@ def main(argv: list[str]) -> int:
 
     # the dispatching functions
     data = files[1]
-    c.check(canon(hpdtool.parse(data)) == canon(hpdtool.parse_reference(data))
+    c.check(outcome(hpdtool.parse, data) == outcome(hpdtool.parse_reference, data)
             and hpdtool.write(hpdtool.parse(data)) == data, 'hpdtool.parse / write dispatch to the Rust core')
     c.check(outcome(hpdtool.parse, b'nope') == outcome(hpdtool.parse_reference, b'nope')
             and outcome(hpdtool.parse, b'nope')[0] == 'error', "a file that is not path data: the reference's error")
-    hpdtool.use_native(False)
-    c.check(hpdtool._native() is None and hpdtool.write(hpdtool.parse(data)) == data, 'use_native(False): the Python')
-    hpdtool.use_native(True)
+    if hasattr(hpdtool, 'use_native'):
+        hpdtool.use_native(False)
+        c.check(hpdtool._native() is None and hpdtool.write(hpdtool.parse(data)) == data, 'use_native(False): the Python')
+        hpdtool.use_native(True)
 
     # the game's files
     paths = corpus(game)
@@ -458,6 +466,7 @@ def main(argv: list[str]) -> int:
         report(c, gd, 'damaged game files: the same objects or the same error')
         print(f'timing: parse {t_ref:.2f} s Python, {t_nat:.2f} s Rust; write {tw_ref:.2f} s / {tw_nat:.2f} s; '
               f'mesh write {tm_ref:.2f} s / {tm_nat:.2f} s')
+    c.check(R.finish(), 'the references: recorded, or replayed as recorded')
     return c.done()
 
 

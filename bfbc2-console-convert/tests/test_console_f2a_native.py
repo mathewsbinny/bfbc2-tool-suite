@@ -1,3 +1,5 @@
+# mypy: disable-error-code="attr-defined"
+# (round RT2: the retired references are named here; at run time tests/replay.py stands in for them)
 r"""Round F2a: the rest of the console converter in the Rust core against its Python reference - terrain.py
 (heightfield, water_mesh, material_map, visual_terrain, visual_water and the PC readers visual_terrain_parts,
 road_strips, visual_water_parts, material_names), soot.py (soot_mesh), havok.convert_wrapper, mesh.py
@@ -14,6 +16,10 @@ Compared both ways: the bytes, dicts, arrays (dtype, shape, every value bit for 
                                              relayout, texture.check), 2 damaged copies of each; timings
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
+
+The terrain, soot, havok.convert_wrapper, mesh.console_layouts / decode / relayout and texture.check references were
+retired in round RT2: their answers were recorded first (--record, and --game --record, while they were there:
+f2a_console_replay*.json beside this test) and are replayed by tests/replay.py where they are gone.
 """
 import contextlib
 import os
@@ -40,11 +46,18 @@ import terrain  # noqa: E402
 import texture  # noqa: E402
 import texwrite  # noqa: E402
 from bfbc2core import native, paths  # noqa: E402
-from f0_parity import Checks, stdout_utf8  # noqa: E402
-from f2a_parity import Tally, bf1943_entries, both, bundle_entries, damaged, watch  # noqa: E402
+from f0_parity import Checks, outcome, stdout_utf8  # noqa: E402
+from f0_parity import canon as canon0  # noqa: E402
+from f2a_parity import Tally, bf1943_entries, both, bundle_entries, damaged, watch, watched  # noqa: E402
+from replay import Replay  # noqa: E402
 
 N = native.require('terrain.py / soot.py / mesh.py / havok.py / texture.py (round F2a)', 'terrain_convert')
+REPLAY: list[Any] = [None]
 TERRAIN = {'TerrainHeightfield', 'WaterMesh', 'TerrainMaterialMap', 'VisualTerrain', 'VisualWater'}
+TERRAIN_REFS = ('heightfield_reference', 'water_mesh_reference', 'material_map_reference', 'visual_terrain_reference',
+                'visual_water_reference', 'road_strips_reference', 'visual_terrain_parts_reference',
+                'visual_water_parts_reference', 'material_names_reference')
+MESH_REFS = ('console_layouts_reference', 'decode_reference', 'relayout_reference')
 
 
 def arrays(v: Any) -> Any:
@@ -197,7 +210,7 @@ def mesh_pc(rng: random.Random, lays: list[bytes], big: bool = False) -> bytes:
         sys.path.insert(0, HERE)
         from test_meshdata_native import to_big
         return to_big(m, verts, struct.pack('>%dH' % len(idx), *idx))
-    return mesh.write_reference(m, verts, struct.pack('<%dH' % len(idx), *idx))
+    return mesh.write(m, verts, struct.pack('<%dH' % len(idx), *idx))
 
 
 def shader_db(rng: random.Random) -> tuple[bytes, list[str]]:
@@ -292,12 +305,13 @@ def editor(rng_seed: int) -> Any:
 
 def relayout_all(t: Tally, label: str, b: bytes, old: list[bytes], new: list[bytes], seed: int) -> None:
     both(t, label, mesh.relayout, mesh.relayout_reference, b, old, new)
-    def native_edited(b: bytes, old: list[bytes], new: list[bytes]) -> Any:
-        return mesh.relayout(b, old, new, editor(seed))
-
-    def reference_edited(b: bytes, old: list[bytes], new: list[bytes]) -> Any:
-        return mesh.relayout_reference(b, old, new, editor(seed))
-    both(t, label + ' edited', native_edited, reference_edited, b, old, new)
+    # edited (a callback): recorded under its own name with the seed (round RT2)
+    a, native = watched(lambda: outcome(lambda: arrays(mesh.relayout(b, old, new, editor(seed)))))
+    live = REPLAY[0].live(mesh, 'relayout_reference')
+    ok = REPLAY[0].pair('mesh.relayout_reference edited', (b, old, new, seed), a,
+                        (lambda: outcome(lambda: arrays(mesh.relayout_reference(b, old, new, editor(seed)))))
+                        if live else None, refused=not native)
+    t.add(ok, label + ' edited' if ok else f'{label} edited: {repr(a)[:100]}', a[0] == 'error', native)
 
 
 def quick(c: Checks, rng: random.Random) -> None:
@@ -356,15 +370,16 @@ def main(argv: list[str]) -> int:
     stdout_utf8()
     game = '--game' in argv
     c = Checks()
-    watch(terrain, 'heightfield_reference', 'water_mesh_reference', 'material_map_reference', 'visual_terrain_reference',
-          'visual_water_reference', 'road_strips_reference', 'visual_terrain_parts_reference',
-          'visual_water_parts_reference', 'material_names_reference')
+    watch(terrain, *TERRAIN_REFS)
     watch(soot, 'soot_mesh_reference')
     watch(havok, 'convert_wrapper_reference')
-    watch(mesh, 'console_layouts_reference', 'decode_reference', 'relayout_reference')
+    watch(mesh, *MESH_REFS)
     watch(texture, 'check_reference')
-    c.check(terrain.use_native(True) and mesh.use_native(True) and texture.use_native(True)
-            and havok.use_native_wrapper(True), 'the Rust core runs the F2a converter functions')
+    # round RT2: the references' answers recorded (--record) and replayed once they are retired (after watch: the
+    # port's own calls of a reference reach the recorder first, which marks them as refused inputs)
+    REPLAY[0] = Replay('f2a_console', HERE, [(terrain, n) for n in TERRAIN_REFS] + [(mesh, n) for n in MESH_REFS] + [
+        (soot, 'soot_mesh_reference'), (havok, 'convert_wrapper_reference'), (texture, 'check_reference')],
+        canon=lambda v: canon0(arrays(v)))
     rng = random.Random(0xF2A)
     quick(c, rng)
 
@@ -383,11 +398,10 @@ def main(argv: list[str]) -> int:
             kinds[kind] = kinds.get(kind, 0) + 1
             label = f'{origin} {nm}'
             frng = random.Random(len(x))
-            for use, cost in ((True, 'n'), (False, 'r')):
-                terrain.use_native(use)
-                havok.use_native_wrapper(use)
+            for use, cost in ((True, 'n'),):                 # the Python side was retired in round RT2
                 t0 = time.perf_counter()
-                with contextlib.suppress(Exception):
+                # the Python side timed on purpose: not a refused input (round RT2's recording)
+                with contextlib.suppress(Exception), (REPLAY[0].python() if not use else contextlib.nullcontext()):
                     if kind == 'SootMesh':
                         soot.soot_mesh(x)
                     elif kind == 'HavokPhysicsData':
@@ -401,8 +415,6 @@ def main(argv: list[str]) -> int:
                     tn += time.perf_counter() - t0
                 else:
                     tr += time.perf_counter() - t0
-            terrain.use_native(True)
-            havok.use_native_wrapper(True)
             if kind == 'SootMesh':
                 both(tg, label, soot.soot_mesh, soot.soot_mesh_reference, x)
                 both(tgd, label, soot.soot_mesh, soot.soot_mesh_reference, damaged(x, frng))
@@ -424,6 +436,7 @@ def main(argv: list[str]) -> int:
     meshes(c, game, limit, xbox, pcg)
     if game:
         textures_game(c, opfor)
+    c.check(REPLAY[0].finish(), 'the references: recorded, or replayed as recorded')
     return c.done()
 
 
@@ -435,7 +448,8 @@ def meshes(c: Checks, game: bool, limit: int | None, xbox: str, pcg: str) -> Non
     layouts: dict[str, bytes] = {}
     dbs = list(bf1943_entries({'Dx9ShaderDatabase'}, None if game else 4))
     for nm, _, db in dbs:
-        for k, (_use, fn) in enumerate(((True, mesh.console_layouts), (False, mesh.console_layouts_reference))):
+        for k, (_use, fn) in enumerate(((True, mesh.console_layouts), (False, mesh.console_layouts_reference))[
+                :1 + REPLAY[0].live(mesh, 'console_layouts_reference')]):
             t0 = time.perf_counter()
             fn(db)
             t_cl[k] += time.perf_counter() - t0
@@ -447,7 +461,7 @@ def meshes(c: Checks, game: bool, limit: int | None, xbox: str, pcg: str) -> Non
     for nm, _, b in bf1943_entries({'MeshData'}, None if game else limit):
         stem = nm[:-len('_data.res')] if nm.endswith('_data.res') else nm
         try:
-            m = mesh.parse_reference(b, True)
+            m = mesh.parse(b, True)
         except Exception:                                        # noqa: BLE001
             continue
         for i, p in enumerate(m['parts']):
@@ -455,7 +469,7 @@ def meshes(c: Checks, game: bool, limit: int | None, xbox: str, pcg: str) -> Non
             if lay is None:
                 continue
             parts += 1
-            for k, dec in enumerate((mesh.decode, mesh.decode_reference)):
+            for k, dec in enumerate((mesh.decode, mesh.decode_reference)[:1 + REPLAY[0].live(mesh, 'decode_reference')]):
                 t0 = time.perf_counter()
                 with contextlib.suppress(Exception):
                     dec(b, lay, i, True)
@@ -477,7 +491,7 @@ def meshes(c: Checks, game: bool, limit: int | None, xbox: str, pcg: str) -> Non
     for nm, _, b in bundle_entries(pcg, {'MeshData'}):
         stem = nm[:-len('_data.res')] if nm.endswith('_data.res') else nm
         try:
-            m = mesh.parse_reference(b, False)
+            m = mesh.parse(b, False)
         except Exception:                                        # noqa: BLE001
             continue
         lays = [ix.parts.get(f'{stem}/{p["name"].decode("latin-1")}/standard'.lower()) for p in m['parts']]
@@ -485,7 +499,8 @@ def meshes(c: Checks, game: bool, limit: int | None, xbox: str, pcg: str) -> Non
         decode_all(tp, nm, b, lays, False)
         if all(x is not None for x in lays):
             relaid += 1
-            for k, rel in enumerate((mesh.relayout, mesh.relayout_reference)):
+            for k, rel in enumerate((mesh.relayout, mesh.relayout_reference)[
+                    :1 + REPLAY[0].live(mesh, 'relayout_reference')]):
                 t0 = time.perf_counter()
                 with contextlib.suppress(Exception):
                     rel(b, lays, lays)
@@ -503,7 +518,7 @@ def textures_game(c: Checks, opfor: str) -> None:
     n = 0
     for nm, _, pc in bundle_entries(os.path.join(opfor, 'game', '**', '*.fbrb'), {'ITexture'}):
         n += 1
-        for k, fn in enumerate((texture.check, texture.check_reference)):
+        for k, fn in enumerate((texture.check, texture.check_reference)[:1 + REPLAY[0].live(texture, 'check_reference')]):
             t0 = time.perf_counter()
             with contextlib.suppress(Exception):
                 fn(pc, pc)

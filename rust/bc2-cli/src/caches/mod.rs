@@ -5,8 +5,8 @@
 //! `--prune-targets [--yes]`. The cache table and the overall budget's rules are `budget.rs`'s (one copy, shared with
 //! the tools that read bundles).
 //!
-//! `argparse` is ported for the pipe's width (80 columns). Handed to the Python: its texts with `COLUMNS` set or
-//! stdout on a console, option abbreviations, `--`, single-dash options other than `-h`, a flag given a value
+//! `argparse` is ported; its texts at the console's width or `COLUMNS` are [`crate::argfmt`]'s (round RT2: before it
+//! only the pipe's 80 columns). Handed to the Python: option abbreviations, `--`, single-dash options other than `-h`, a flag given a value
 //! (`--yes=1`); and a folder lock or log archive that cannot be written (nothing is deleted then).
 
 #![allow(
@@ -691,17 +691,9 @@ struct Args {
     names: Vec<String>,
 }
 
-/// `argparse` wraps its texts to the terminal's width: only the pipe's (80) is ported.
-fn width_ported() -> bool {
-    std::env::var_os("COLUMNS").is_none() && !crate::pystdio::is_console(&std::io::stdout())
-}
-
-/// `parser.error(message)`: usage and message on stderr, exit code 2.
+/// `parser.error(message)`: usage (at the console's width) and message on stderr, exit code 2.
 fn error(py: &mut Py, message: &str) -> PyResult<Option<Args>> {
-    if !width_ported() {
-        return Err(Fail::Python);
-    }
-    py.eprint(USAGE.trim_end_matches('\n'));
+    py.eprint(crate::argfmt::usage_or(PROG, USAGE)?.trim_end_matches('\n'));
     py.eprint(&format!("{PROG}: error: {message}"));
     Err(Fail::Err(PyErr::new("SystemExit", "2")))
 }
@@ -745,11 +737,7 @@ fn parse(py: &mut Py, argv: &[String]) -> PyResult<Option<Args>> {
             continue;
         }
         if arg == "-h" || arg == "--help" {
-            if !width_ported() {
-                return Err(Fail::Python);
-            }
-            py.write(USAGE)?;
-            py.write(HELP)?;
+            py.write(&crate::argfmt::help_or(PROG, &format!("{USAGE}{HELP}"))?)?;
             return Ok(None);
         }
         if arg == "--" || !arg.starts_with("--") {

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="attr-defined, union-attr"
+# (round RT2: the retired references are named here; at run time tests/replay.py stands in for them)
 r"""Round F2b (rust/BENCHMARKS.md, "F2b"): menucommon.PEImage's header, strings, find_cstring and find_dword in the
 Rust core (bc2_harness::pe::raw) against the Python reference - the same sections, the same strings in the same
 insertion order with the same addresses, the same places, the same errors.
@@ -9,7 +11,12 @@ insertion order with the same addresses, the same places, the same errors.
                                     header, strings(1 - 4), 200 C strings and 200 dwords each
 
 The module is required (the test fails without it, saying how to build it).
+
+The PEImage's reference methods were retired in round RT2: their answers were recorded first (--record, and --game
+--record, while they were there: f2b_pe_replay*.json beside this test) and are replayed by tests/replay.py where
+they are gone.
 """
+import hashlib
 import os
 import random
 import struct
@@ -26,6 +33,12 @@ import suite_paths  # noqa: E402
 suite_paths.use('menu-tools', 'shader-tools', 'core')
 import menucommon as mc  # noqa: E402
 
+sys.path.insert(0, os.path.join(_ROOT, 'tests'))
+from replay import Replay  # noqa: E402
+
+# round RT2: PEImage's reference methods' answers recorded (--record) and replayed once they are retired
+R = Replay('f2b_pe', HERE, [])
+
 FAILS: list[str] = []
 COUNT = {'same': 0, 'differ': 0}
 
@@ -41,7 +54,28 @@ def outcome(f, *a):
         r = f(*a)
         return ('ok', list(r.items()) if isinstance(r, dict) else r)
     except Exception as e:                                       # noqa: BLE001 - compared: both must agree
-        return ('err', type(e).__name__, str(e))
+        return ('error', type(e).__name__, str(e))
+
+
+def live() -> bool:
+    return R.live(mc.PEImage, '_read_reference')
+
+
+def header(img):
+    return (img.timestamp, img.base, img.sections)
+
+
+def asked(name, b, args, got, ref, refused, bad, label):
+    """One answer against the reference's (or its recording)."""
+    if R.pair(name, (b,) + args, got, ref if live() else None, refused=refused):
+        COUNT['same'] += 1
+    else:
+        COUNT['differ'] += 1
+        bad.append((label, name, args, repr(got)[:200]))
+
+
+def _secs_ok(secs):
+    return all(0 <= s[1] < 1 << 32 and 0 <= s[2] < 1 << 32 and 0 <= s[0] < 1 << 63 for s in secs)
 
 
 def reference(path):
@@ -53,33 +87,34 @@ def reference(path):
 
 
 def compare(path, rnd, n_queries, label, bad):
-    got = outcome(mc.PEImage, path)
-    want = outcome(reference, path)
-    if got[0] != want[0] or (got[0] == 'err' and got != want):
-        bad.append((label, 'open', got, want))
+    """rnd: unused (each file's queries come from its own bytes, so they are the same with the reference retired)."""
+    from bfbc2core import native
+    nat = native.require('PEImage', 'pe_raw_header')
+    data = open(path, 'rb').read()
+    rnd = random.Random(int.from_bytes(hashlib.sha1(data).digest()[:8], 'little') + n_queries)
+    got = outcome(lambda: header(mc.PEImage(path)))
+    asked('menucommon.PEImage', data, (), got, lambda: outcome(lambda: header(reference(path))),
+          nat.pe_raw_header(data) is None, bad, label)
+    if got[0] != 'ok':
         return
-    if got[0] == 'err':
-        COUNT['same'] += 1
-        return
-    a, b = got[1], want[1]
-    pairs = [((a.timestamp, a.base, a.sections), (b.timestamp, b.base, b.sections))]
+    a = mc.PEImage(path)
+    b = reference(path) if live() else None
+    secs_ok = _secs_ok([(s[1], s[3], s[4]) for s in a.data_sections()])
     for m in (1, 2, 3, 4):
-        pairs.append((outcome(a.strings, m), outcome(b.strings_reference, m)))
-    strs = list(b.strings_reference(3))
+        asked('PEImage.strings', data, (m,), outcome(a.strings, m), lambda m=m: outcome(b.strings_reference, m),
+              not secs_ok, bad, label)
+    strs = list(a.strings(3))
     for t in rnd.sample(strs, min(n_queries, len(strs))) + ['', 'nothereé', 'x']:
-        pairs.append((outcome(a.find_cstring, t), outcome(b.find_cstring_reference, t)))
-    data = a.b
+        asked('PEImage.find_cstring', data, (t,), outcome(a.find_cstring, t),
+              lambda t=t: outcome(b.find_cstring_reference, t), not (t.isascii() and secs_ok), bad, label)
     for _ in range(n_queries):
         o = rnd.randrange(max(len(data) - 4, 1))
         v = int.from_bytes(data[o:o + 4], 'little') if rnd.random() < 0.8 else rnd.choice([0, 1 << 32, -1, 7])
         secs = None if rnd.random() < 0.8 else a.sections
-        pairs.append((outcome(a.find_dword, v, secs), outcome(b.find_dword_reference, v, secs)))
-    for x, y in pairs:
-        if x == y:
-            COUNT['same'] += 1
-        else:
-            COUNT['differ'] += 1
-            bad.append((label, repr(x)[:200], repr(y)[:200]))
+        rows = [(s[3], s[4]) for s in (secs or a.data_sections())]
+        refused = not (0 <= v < 1 << 32 and all(0 <= x < 1 << 32 and 0 <= n < 1 << 32 for x, n in rows))
+        asked('PEImage.find_dword', data, (v, secs), outcome(a.find_dword, v, secs),
+              lambda v=v, secs=secs: outcome(b.find_dword_reference, v, secs), refused, bad, label)
 
 
 def built(rnd):
@@ -164,7 +199,7 @@ def game():
     check(files and not bad, f'{len(files)} executables of the game copy: {COUNT["same"] - before} answers the same',
           repr(bad[:2])[:400])
     exe = os.path.join(game_dir, 'BFBC2Game.exe')
-    if os.path.isfile(exe):
+    if os.path.isfile(exe) and live():
         img, ref = mc.PEImage(exe), reference(exe)
         t = time.perf_counter()
         a = img.strings(2)
@@ -187,6 +222,7 @@ def main(argv):
     quick()
     if '--game' in argv:
         game()
+    check(R.finish(), 'PEImage references: recorded, or replayed as recorded')
     print(f'{COUNT["same"]} the same, {COUNT["differ"]} differ')
     if FAILS:
         print(f'{len(FAILS)} FAILED')

@@ -14,6 +14,10 @@ inputs and odd arguments the same result or the same error.
                                                  level of a decoded format decoded both ways; timings
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
+
+The levels and decode references were retired in round RT2 (tiled, packed and layout stay: compared live): their
+answers were recorded first (--record, and --game --record, while they were there: f0_texture_replay*.json beside
+this test) and are replayed by tests/replay.py where they are gone.
 """
 import contextlib
 import glob
@@ -37,8 +41,13 @@ suite_paths.use('console-convert', 'core')
 import texture  # noqa: E402
 from bfbc2core import fbrb, native, paths  # noqa: E402
 from f0_parity import Checks, canon, stdout_utf8  # noqa: E402
+from replay import Replay  # noqa: E402
 
 N = native.require('texture.py helpers', 'texture_decode')
+# round RT2: levels' and decode's references recorded (--record) and their answers replayed once retired
+R = Replay('f0_texture', HERE, [])
+LEVELS_REF = getattr(texture, 'levels_reference', None)
+DECODE_REF = getattr(texture, 'decode_reference', None)
 
 
 def result(fn: Any, *args: Any) -> tuple[Any, ...]:
@@ -68,7 +77,13 @@ class Tally:
 
 
 def both(t: Tally, label: str, fn: Any, ref: Any, answered: bool, *args: Any) -> None:
-    a, r = result(fn, *args), result(ref, *args)
+    a = result(fn, *args)
+    if fn in (texture.levels, texture.decode):         # recorded / replayed (round RT2)
+        name = 'texture.' + fn.__name__ + '_reference'
+        t.add(R.pair(name, args, a, None if ref is None else (lambda: result(ref, *args)), refused=not answered),
+              f'{label}: {str(a)[:100]}', answered)
+        return
+    r = result(ref, *args)
     t.add(a == r, f'{label}: {str(a)[:100]} / {str(r)[:100]}', answered)
 
 
@@ -129,7 +144,8 @@ def main(argv: list[str]) -> int:
     stdout_utf8()
     game = '--game' in argv
     c = Checks()
-    c.check(texture.use_native(True), "the Rust core runs texture.py's helpers")
+    if hasattr(texture, 'use_native'):
+        c.check(texture.use_native(True), "the Rust core runs texture.py's helpers")
     rng = random.Random(0xF05)
 
     t = Tally()
@@ -166,10 +182,10 @@ def main(argv: list[str]) -> int:
             built.append(pc_texture(rng, fmt, w, h, mips, rng.random() < 0.1))
     tt = Tally()
     for i, b in enumerate(built):
-        both(tt, f'built {i} levels', texture.levels, texture.levels_reference, N.texture_levels(b) is not None, b)
+        both(tt, f'built {i} levels', texture.levels, LEVELS_REF, N.texture_levels(b) is not None, b)
         fmt = struct.unpack_from('<I', b, 8)[0]
-        for s, m, w, h, d in texture.levels_reference(b):
-            both(tt, f'built {i} decode {s}/{m}', texture.decode, texture.decode_reference,
+        for s, m, w, h, d in texture.levels(b):
+            both(tt, f'built {i} decode {s}/{m}', texture.decode, DECODE_REF,
                  N.texture_decode(d, w, h, fmt) is not None, d, w, h, fmt)
     c.check(not tt.ndiff, f'built textures (every decoded format): levels and every level decoded: {tt.same:,} '
             f'identical ({tt.native:,} in Rust)', '; '.join(tt.differ))
@@ -177,13 +193,13 @@ def main(argv: list[str]) -> int:
     td = Tally()
     for i in range(1000):
         b = damaged(rng.choice(built), rng)
-        both(td, f'damaged {i} levels', texture.levels, texture.levels_reference, N.texture_levels(b) is not None, b)
+        both(td, f'damaged {i} levels', texture.levels, LEVELS_REF, N.texture_levels(b) is not None, b)
         b = rng.choice(built)
         fmt = struct.unpack_from('<I', b, 8)[0]
-        _, _, w, h, d = rng.choice(texture.levels_reference(b))
+        _, _, w, h, d = rng.choice(texture.levels(b))
         dargs = (damaged(d, rng), rng.choice([w, w, w + 4, 0, -3]), rng.choice([h, h, h + 1, 0]),
                  rng.choice([fmt, fmt, fmt, 3, 13, 5, 9, 99]))
-        both(td, f'damaged {i} decode', texture.decode, texture.decode_reference, N.texture_decode(*dargs) is not None,
+        both(td, f'damaged {i} decode', texture.decode, DECODE_REF, N.texture_decode(*dargs) is not None,
              *dargs)
     c.check(not td.ndiff, f'damaged levels and headers, odd sizes and formats: {td.same:,} the same result or error '
             f'({td.native:,} in Rust)', '; '.join(td.differ))
@@ -195,9 +211,9 @@ def main(argv: list[str]) -> int:
         nlev = 0
         fmts: dict[int, int] = {}
         for name, b in items:
-            both(tg, f'{name} levels', texture.levels, texture.levels_reference, N.texture_levels(b) is not None, b)
+            both(tg, f'{name} levels', texture.levels, LEVELS_REF, N.texture_levels(b) is not None, b)
             try:
-                lv = texture.levels_reference(b)
+                lv = texture.levels(b)
             except Exception:                                    # noqa: BLE001
                 continue
             fmt = struct.unpack_from('<I', b, 8)[0]
@@ -210,16 +226,18 @@ def main(argv: list[str]) -> int:
                 with contextlib.suppress(Exception):
                     texture.decode(d, w, h, fmt)
                 t1 = time.perf_counter()
-                with contextlib.suppress(Exception):
-                    texture.decode_reference(d, w, h, fmt)
+                if DECODE_REF is not None:
+                    with contextlib.suppress(Exception):
+                        DECODE_REF(d, w, h, fmt)
                 tr += time.perf_counter() - t1
                 tn += t1 - t0
-                both(tg, f'{name} decode {s}/{m}', texture.decode, texture.decode_reference,
+                both(tg, f'{name} decode {s}/{m}', texture.decode, DECODE_REF,
                      N.texture_decode(d, w, h, fmt) is not None, d, w, h, fmt)
         what = ', '.join(f'format {k}: {v:,}' for k, v in sorted(fmts.items()))
         c.check(not tg.ndiff, f'{len(items):,} game textures ({what}; {nlev:,} levels decoded both ways): {tg.same:,} '
                 f'identical ({tg.native:,} in Rust)', '; '.join(tg.differ))
         print(f'timing (decode): NumPy {tr:.2f} s, Rust {tn:.2f} s')
+    c.check(R.finish(), 'levels / decode references: recorded, or replayed as recorded')
     return c.done()
 
 

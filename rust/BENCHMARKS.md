@@ -5385,6 +5385,156 @@ saved as `hashes_rt1.json`). `game\` unchanged: 1,582 files, every size and writ
 - The module text of `aimanim.py` (its usage, printed by `bfbc2.exe aimanim` and recorded) still names the retired
   references; change it with the recording (O2's goldens hold it).
 
+## RT2: RT1's leftovers - references recorded then retired, argparse at the console's width (2026-11-20, branch `rust-rt2`)
+
+### The method: recorded answers, replayed (`tests/replay.py`)
+
+RT1 recorded F3's references as one digest per group of inputs. The F0 / F2a / F2b / E4e tests compared each port with
+its reference live, call by call, in 18 differently shaped test files; RT2 gives them one mechanism instead of a
+rewrite each. `Replay(name, folder, [(module or class, attribute), ...])` wraps each named reference:
+
+- **Recording** (`<test> --record`, then `--game --record`, while the reference is there): every call's answer is
+  stored under the reference's name and a key made from its arguments by content (bytes and arrays hashed, a path
+  that names a file by the file's bytes, a temporary path by its last part, objects by their attributes), so the
+  order of the calls does not matter and a game input changed since is counted as not recorded instead of failing.
+  The answer is a digest of the outcome `('ok', canon(result))` / `('error', type, message)` with the arguments'
+  paths and the temporary folder taken out of every string. A reference called by the port itself (its fallback: the
+  caller is not a test module) marks the input as **refused by the Rust core**: `!` (the reference raised) or `+` (it
+  answered) - RT1's marked digest, per input.
+- **Replaying** (the reference deleted): a stub is put under the reference's name; `outcome(stub, ...)` gives a
+  `Recorded` that equals the port's outcome when that digests to the recorded answer, and for a refused input equals
+  the port's `Refused` error (or the reference's own answer, if the port now reads it). `R.pair(name, args, got,
+  ref)` does the same for whole pipelines the tests compared through `use_native(False)`; `R.python()` marks a
+  deliberate Python run while recording.
+- **Files:** `<name>_replay.json` and `<name>_replay_game.json` (only what the quick run did not answer) beside each
+  test, format 2: 17 characters an entry (the key's and answer's 48-bit digests in base64 and the mark), strings of
+  100 entries, shards under 900 kB. All of RT2's recordings: 4.4 MB (a first format of hex dicts was 12 MB without
+  the Wave readers' 12 MB, which were not kept: those references stay).
+
+`bfbc2core.native.refused(message, base)` is what a retired reference's function raises where the binding answers
+`None`: a `native.Refused` (a `ValueError`) that is also the module's own error class (`ConvertError`, `AudioError`,
+`MenuToolError`, `PortError`, ...), with a message in the module's words ("mesh data: ... the header reader does not
+read (cut short or damaged)").
+
+### Item 1: the live-compared references (F0, F2a, F2b, E4b, E4e)
+
+Two forks of this round did the per-test work in parallel (F0 / F2a; F2b / E4b / E4e), each test recorded quick and
+`--game` from the unchanged references before anything was deleted, then checked against the recording alone.
+"Refused, answered by the reference" counts the inputs the core refuses that the reference answered (they now
+raise); a reference was retired only where no real input is among them.
+
+| test | references | recorded (quick + game) | refused / of them answered by the reference | after: replayed, wrong | fate |
+|---|---|---|---|---|---|
+| `test_havok_classes_native` | `havok.classes_reference` | 752 | 244 / 0 | 502 quick, 508 game, 0 | **retired** (a file it cannot scan: "no Havok class initializers found (not BFBC2Game.exe, or damaged)"; a missing file its `OSError`) |
+| `test_console_f2a_native` | terrain's 9, `soot_mesh`, mesh `console_layouts` / `decode` / `relayout`, `havok.convert_wrapper`, `texture.check` | 65,183 game | 1,698 / 5 (damaged wrappers) | 47,206 game, 0 | **retired** |
+| `test_meshdata_native` | `mesh.parse` / `write`, `meshset.parse` | 86,493 game | 19,987 / 173 (damaged and changed objects only) | 5,444 quick, 47,386 game, 0 | **retired**; `meshset.write_reference` **kept** (OPFOR edits the dicts before writing: 37 changed dicts the core refuses) |
+| `test_texture_helpers_native` | `texture.levels` / `decode` | 38,383 game | 1,113 / 0 | 2,899 quick, 38,383 game, 0 | **retired**; `tiled` / `packed` / `layout` kept (RT1's ruling: texqa's independent decoder) |
+| `test_pe_native` | `PEImage._read` / `strings` / `find_cstring` / `find_dword` | 20,698 game | 964 / 0 | 16,505 quick, 20,698 game, 0 | **retired** (non-ASCII text, values outside 32 bits now `Refused`) |
+| `test_bc2loc_native` | `menucommon.parse_bigf` | 2,328 game | 1,043 / 0 | 2,232 quick, 0 | **retired**; bc2loc's own **kept** (khash from another start, lone surrogates, LocFile's edits are Python state) |
+| `test_console_readers_native` | stfs / xiso | - | - | - | **kept**: xiso's file-object reader has no Rust entry point; with the command lines (item 6) |
+| `test_wave_native` | audio's Wave / SPS / SNR | 936,831 game | 121,450 / 102 (changed objects) | - | **kept**: the binding answers `None` wherever the reader gives its diagnostic and `bfbc2.exe audio` hands damaged files to it (the messages first, as item 3 did for F3); recordings not kept (12 MB) |
+| `test_model_f2a_native`, `test_granny_f2a_native` | texwrite, skinmesh, Granny writing | - | - | - | **kept**: OPFOR's WW2 pipeline feeds them arrays and objects it builds; their tests compare the core on and off with nothing recorded per call |
+| `test_havokport_native` | havokport's 14, mopp's 5 | 28,675 quick, 61,519 game | 1,585 / 206 quick (restructure 2, ray casts 204: NumPy-scalar rays); game: restructure refuses only the 11 calls without a hkUFloat8 table (OPFOR always passes one) | 28,675 / 61,519, 0 | **retired** |
+| `test_navtune_native` | `validate`, `save_text`, `summary` | 57,298 quick (no side files in work\ yet) | 6,311 / 1,278 (seeded odd types: NaN, huge ints, non-JSON) | 47,997, 0 | **retired** |
+| `test_xmlinst_native` | `instances`, `field_ref` | 3,000 quick, 791 game | 1,665 / 1,665 (the seeded non-ASCII names), 0 on the 791 real XMLs | 3,791, 0 | **retired** |
+| `test_navtools_native` (E4e) | `navvehicle.obstacle_distance`, `navsample_offline.terrain_blocks` | 48 | 0 | 48, 0 (game tier against navtools_golden.json as before) | **retired**; the other inline Python paths kept (each serves inputs the core leaves to it by design) |
+| `test_dbxcatalogue_native`, `test_emitteratlas_native` | `dbxcatalogue.build`, emitteratlas | - | - | - | **kept**: an unreadable chunk (the game holding a bundle) is recorded by the Python, the Rust refuses the whole build; emitteratlas hands float near-ties to the Python by design |
+| `test_shaderdb_queries` (E4b) | the query references | - | - | - | **kept** with SD1's (the coordinator's ruling keeps SD1's references; the queries are what shaderdb's Python mode answers with) |
+| `test_pathdata_native` | `hpdtool.parse` / `write`, `kymesh.write_mesh` | 22,589 game (7,022 distinct) | 1,471 / 50 (3 parse, 8 write, 39 write_mesh; all built / changed, none real) | (live) | **kept**: `parse`'s `struct.error` messages are not ported (O2's `hpdtool` lines show them: "info of a cut file", "roundtrip of a folder with damaged files"), and the writers take what NavKit's Python build assembles; the recording is committed for that round |
+
+### Item 2: `navsample.load` versions 1 and 2
+
+The F3 game groups already held every OPFOR sample file of up to 40 MB read whole by the reference (34 version 2,
+2 version 1 among 173 files). The quick inputs were not recorded: a new F3 area `navsample12` (400 built files of
+both versions x 3: as built, bytes changed or cut after the header, now and then the version changed; a record cut
+short; heights including NaN and infinities) was recorded from `load_reference` (1,200 answers, 408 refused by the
+core, none of them answered by the reference). A signalling NaN read by the reference's `float()` is quieted; the
+core keeps the file's bits: the area compares heights with every NaN made one NaN (no real file has one). Then
+`load_reference`, the record loop, NumPy's version-3 pass and `use_native` were deleted: `load` reads in the core
+only; a record cut short raises `Refused` ("a version 2 sample file with a record cut short (damaged)") where the
+reference raised `struct.error`. Checked: quick 1,200 as recorded (and version 3's 1,500), NavBuild's 12 cases on the
+core's arrays.
+
+### Item 3: the hpd / audio messages in Rust, then retired
+
+- **`bc2_formats::hpdlayout`** stops where the reference raises, with its error (`hpdlayout::Error`): its
+  `ValueError`s ("tile table at 0x54", "mesh trailer not found", "object 0x...: table 0x38 at ..., expected ...",
+  negative values as Python's `#x` writes them) and `struct.error` in CPython 3.13's words ("unpack_from requires a
+  buffer of at least N bytes for unpacking 4 / 12 bytes at offset O (actual buffer size is L)", the offset of the
+  first read that fails, as the reference's loops reach it; a negative offset counted from the end). A NaN tile item
+  is read as CPython's struct reads it (`c_double`: the quiet bit set, the payload moved up), so the core no longer
+  refuses NaNs. `hpd_mesh_layout` / `hpd_mesh_coverage` raise `ValueError` / `struct.error`; `bfbc2.exe hpdtool
+  coverage` prints `ERROR <file> sector <id>: <message>` itself (O2's lines were handed off).
+- **`bc2_formats::audioframe`**: `Error::Audio` (the three EA-XMA messages), `Error::Struct` (struct.pack's
+  `'H' / 'I' format requires 0 <= number <= ...`, checked in pack's order: channels, rate, byte rate, samples) and
+  `Error::ZeroDivision` (a rate of -1279 to 0: the reference divided by a block of 0 samples); `Refused` is left for
+  stream counts past 1,024, 2^24 blocks and arguments only the reference took (a float or `None` where a count goes,
+  a negative sample count). The bindings answer `(type name, message)`; `audio.py` raises it.
+- Recorded again from the references after the change (the quick groups' marks change: hpd hands nothing to the
+  reference now), then retired: `hpdtool.mesh_layout` / `mesh_coverage` 4,804 answers, all in Rust (built meshes with
+  NaN tile items poked in, 2,000 damaged, 3 real files); audio 2,434 answers (368 refused: the odd argument types).
+
+### Item 4: argparse's console width in `bfbc2.exe`
+
+`rust/bc2-cli/src/argfmt.rs` is Python 3.13's `HelpFormatter` and `textwrap`'s line filling over each parser's
+width-independent pieces, which `rust/bc2-cli/gen_argspecs.py` takes from the Python parsers (the tools' `main()`
+stopped at `parse_args`) into `src/argspecs.rs` (22 parsers: caches, convert and its 4 subcommands, audio, shaderdb
+and its 8, renderqa, xdiff, dbxparity, portparity, texqa). The width is `shutil.get_terminal_size().columns - 2`:
+`COLUMNS` when a positive whole number, else the console window stdout writes to, else 80. At the pipe's width the
+ports print the 80-column texts recorded in O2-O5; elsewhere argfmt's. `texqa --help` alone is answered too (it was
+handed off at every width).
+
+Proof (`core/tests/test_argfmt.py`, quick tier): 41 command lines (every parser's `--help` and a usage error) x 23
+values of `COLUMNS` (10, 24, 33, 40, 47, 55, 62, 70, 79, 80, 81, 90, 100, 120, 160, 250, and ` 100 `, `1_00`, `+64`,
+`0`, `-5`, `abc`, unset): **943 of 943** identical to the Python command lines (stdout, stderr, exit code; recorded in
+`argfmt_golden.json`), every one answered by `bfbc2.exe` (no hand-off in `BFBC2_CLI_TRACE`). `gen_argspecs.py
+--check` fails the test when a parser changes without regenerating.
+
+What is still handed to the Python in these tools: option abbreviations, `--`, attached short values, single-dash
+options a port does not know, a second run of positionals, `COLUMNS` that only Python's `int()` reads (non-ASCII
+digits).
+
+### Items 5 and 6: not done this round, and why
+
+- **The CLI candidates** (`aptrefs`, `xiso`, `culltree`, `stockmp`, `exeref` / `crashreader`): none can be deleted
+  without the library split, because each `.py` is still imported: `aptrefs` by 3 tests and 2 benches
+  (`extern_table`, `movie_refs`, `scan_movies`, `cross_reference`, and `refs_many_python`, E4c's reference);
+  `xiso` by the hub (it runs `xiso.py`) and its tests (the file-object reader); `culltree` holds F4's string-table
+  reference (kept by ruling) and is imported by 5 tests; `stockmp` by 4 tests, and its port still hands off config
+  shapes it leaves (hand-written configs not yet compared); `crashreader` by `exeref` and as Project OPFOR's
+  fallback when `bin\bfbc2.exe` is missing (OPFOR's `testrun`), and other executables need capstone. 
+- **The library split** only pays with a retirement after it; with the candidates above blocked by their importers
+  (tests, the hub, OPFOR's fallback) and by hand-offs on option abbreviations (argparse tools) and damaged input, it
+  is a round of its own: per module, move the library to `<tool>lib.py` (re-exported from the old name), port the
+  tests that call `main()` to `bfbc2.exe`, then add the tool to `RETIRED_CLI`.
+
+### Item 7
+
+`aimanim.py`'s usage (its docstring, which `bfbc2.exe aimanim` prints) no longer names the retired references; the
+two O2 rows that recorded it take the new text. `hpdtool.py`'s usage changed with item 3: its six O2 rows likewise.
+O2's nav group: 336 of 336.
+
+### Proof (the whole branch, after main's GR1 / DOC1 / RV1 were merged in)
+
+- **Quick tier** (`run_tests.py quick -j 2`, 129 tests, 6,527 s on a shared machine): 127 of 129; the two failures
+  passed alone. O4's navtools failed only under load (passed alone, 222 of 222, as RT1 saw); O5's nav group showed
+  two `detailed` lines on a cut version-1 sample run ending in `Refused` instead of `struct.error`: `navsample.load`
+  now gives the retired loop's `struct.error` in its own words (`a2c65ca`), 92 of 92.
+- **Game tier of the retired areas** (`test_f3_native.py --game --only=hpd,audio,navsample`, 566 s): path data 144
+  files / 8,858 sectors, 40,032 answers all in Rust, 290 groups as recorded; audio 24,055 answers, 216 groups as
+  recorded, 125 BF1943 Waves through `audio.convert` byte-identical; navsample 173 files (2.1 billion columns, 1.0
+  billion surfaces in 823 ranges), 365 groups as recorded. The forks' game runs of their tests: 0 wrong, 0 not recorded.
+- **Project OPFOR** (unchanged; its in-process imports of the suite pointed at this branch through a toolkit folder
+  of junctions - `bfbc2-tool-suite`, `bf1943-tool-suite`, `operation-rising-sun`, `project-opfor-bfbc2` - with
+  `OPFOR_TOOLKIT` / `OPFOR_ROOT`): `src\tools\tests\run_tests.py` 380 of 380. The WW2 rebuild (`rebuild_all.py
+  --no-qa`): all 52 steps in 30 min, **10,852 of 10,852 files identical** to the oracle (`round0\hashes_rt2.json`);
+  `game\` unchanged (1,582 files, every size and write time).
+- **Checks:** `cargo fmt --check`; `cargo clippy -p bc2-formats -p bc2-py -p bc2-cli --all-features --all-targets -D
+  warnings`; `cargo test -p bc2-formats` (hpdlayout, audioframe) and `-p bc2-cli` (argfmt); ruff; mypy per folder
+  (`tests/test_types.py`); `spec/trace.py --check` (439 rules; citations moved with their code, navsample's retired
+  loops uncited). The grep for every removed function: nothing in the suite, OPFOR's `src\` or `docs\` calls one;
+  the tests reach retired references only through the replay stubs.
+
 ## GR1: the Map Inspector folded into the editor, then retired (2026-11-20, branch `rust-gr1`)
 
 The first round of the user's GUI plan (2026-11-19): the five older GUIs inventoried (feature, in the editor?, plan:

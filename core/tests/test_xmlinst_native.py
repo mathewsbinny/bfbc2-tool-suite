@@ -18,7 +18,12 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-from bfbc2core import xmlinst  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), 'tests'))
+from bfbc2core import native, xmlinst  # noqa: E402
+from replay import Replay  # noqa: E402
+
+# round RT2: the patterns' answers per text recorded (--record) and compared with once they were retired
+REPLAY = Replay('f2b_xmlinst', HERE, [], canon=lambda v: v)
 
 FAILS: list[str] = []
 SUFFIXES = (None, 'Entity.AreaGeometryEntityData', '.AreaOrderEntityData', 'Entity.ReferenceObjectData',
@@ -32,19 +37,51 @@ def check(ok, what, detail=''):
         FAILS.append(what)
 
 
-def compare(text, counts):
+def _ref(owner, name):
+    """A reference by name (once retired, the replay stub stands in for it)."""
+    return getattr(owner, name)
+
+
+def outcome(fn, *a):
+    try:
+        v = fn(*a)
+        return ('ok', list(v) if fn in (xmlinst.instances, getattr(xmlinst, 'instances_reference', None)) else v)
+    except Exception as e:                                       # noqa: BLE001 - compared: both must agree
+        return ('error', type(e).__name__, str(e))
+
+
+def answers(text, inst, ref, n=None):
+    """Every answer for one text in order: instances with each suffix, then field_ref of each instance's body for
+    each name; one Refused error for the whole text when any piece is refused."""
+    out = []
     for s in SUFFIXES:
-        got = list(xmlinst.instances(text, s))
-        want = list(xmlinst.instances_reference(text, s))
-        counts['instances'] += len(want)
-        if got != want:
-            return f'instances {s}: {got[:2]} / {want[:2]}'
-        for _, _, body in want if s is None else ():
-            for n in NAMES:
-                counts['refs'] += 1
-                a, b = xmlinst.field_ref(body, n), xmlinst.field_ref_reference(body, n)
-                if a != b:
-                    return f'field_ref {n}: {a} / {b}'
+        o = outcome(inst, text, s)
+        out.append(o)
+        if o[0] != 'ok':
+            continue
+        for _, _, body in o[1] if s is None else ():
+            for nm in NAMES:
+                out.append(outcome(ref, body, nm))
+                if n is not None:
+                    n['refs'] += 1
+                    n['refused'] |= native.require('xmlinst', 'xmlinst_field_ref').xmlinst_field_ref(body, nm) is None
+        if n is not None:
+            n['instances'] += len(o[1])
+            n['refused'] |= native.require('xmlinst', 'xmlinst_instances').xmlinst_instances(text, s) is None
+    if any(o[0] == 'error' and o[1] == 'Refused' for o in out):
+        return ('error', 'Refused', 'a piece of the text the Rust core refuses')
+    return out
+
+
+def compare(text, counts):
+    n = {'instances': 0, 'refs': 0, 'refused': False}
+    got = answers(text, xmlinst.instances, xmlinst.field_ref, n)
+    counts['instances'] += n['instances']
+    counts['refs'] += n['refs']
+    live = REPLAY.live(xmlinst, 'instances_reference')
+    ref = (lambda: answers(text, _ref(xmlinst, 'instances_reference'), _ref(xmlinst, 'field_ref_reference'))) if live else None
+    if not REPLAY.pair('text', (text,), got, ref, refused=n['refused']):
+        return f'answers differ: {str(got)[:200]}'
     return None
 
 
@@ -104,19 +141,19 @@ def game():
             for _, _, body in xmlinst.instances(x, s):
                 xmlinst.field_ref(body, 'ReferencedObject')
         t2 = time.perf_counter()
-        for s in SUFFIXES[1:7]:
-            for _, _, body in xmlinst.instances_reference(x, s):
-                xmlinst.field_ref_reference(body, 'ReferencedObject')
+        if REPLAY.live(xmlinst, 'instances_reference'):
+            for s in SUFFIXES[1:7]:
+                for _, _, body in _ref(xmlinst, 'instances_reference')(x, s):
+                    _ref(xmlinst, 'field_ref_reference')(body, 'ReferencedObject')
         t3 = time.perf_counter()
         t_r += t2 - t
         t_p += t3 - t2
     check(not bad, f'{len(files)} converted XML files of work\\levels: {counts["instances"]} instances and '
           f'{counts["refs"]} references the same', '; '.join(bad[:2]))
-    print(f'     NavKit\'s six scans over them: {t_r:.1f} s (the patterns {t_p:.1f} s)')
+    print(f'     NavKit\'s six scans over them: {t_r:.1f} s' + (f' (the patterns {t_p:.1f} s)' if REPLAY.live(xmlinst, 'instances_reference') else ''))
 
 
 def main(argv):
-    from bfbc2core import native
     try:
         native.require('xmlinst (round F2b)', 'xmlinst_instances')
     except native.NativeMissing as e:
@@ -125,6 +162,7 @@ def main(argv):
     quick()
     if '--game' in argv:
         game()
+    check(REPLAY.finish(), 'the patterns: recorded, or compared with the recording')
     if FAILS:
         print(f'{len(FAILS)} FAILED')
         return 1

@@ -657,15 +657,20 @@ def capsule_axis(bottom, radius=RADIUS, height=HEIGHT):
 
 def terrain_blocks(hf, x, z, y, bottom, radius=RADIUS, chunk=100_000, height=HEIGHT):
     """Capsule (radius, stepMax bottom: capsule_axis) overlaps the height field: the terrain under its lower hemisphere
-    rises above the hemisphere's surface somewhere (sampled on RINGS). In the Rust core when it is in use (round E4e:
-    half of a 0.2 m run's time; bc2_native.navkit_terrain_blocks, every surface in parallel); terrain_blocks_reference
-    is its NumPy, the reference and the fallback (navnative)."""
+    rises above the hemisphere's surface somewhere (sampled on RINGS). In the Rust core (round E4e: half of a 0.2 m
+    run's time; bc2_native.navkit_terrain_blocks, every surface in parallel), which it needs (bfbc2core.native.
+    NativeMissing says how to get it). A height field that is not a float32 size x size array raises
+    bfbc2core.native.Refused. Its NumPy (terrain_blocks_reference) was retired in round RT2 against its recorded
+    answers (bfbc2-auto-navkit/tests/e4e_navtools_replay.json)."""
     if hf is None or not len(y):
         return np.zeros(len(y), bool)
     import navnative
-    m = navnative.core('navkit_terrain_blocks')
+    from bfbc2core import native
+    m = navnative.core('navkit_terrain_blocks') or native.require(
+        'the offline sampler\'s terrain test (navsample_offline.terrain_blocks)', 'navkit_terrain_blocks')
     heights = getattr(hf, 'heights', None)
-    if m is not None and isinstance(heights, np.ndarray) and heights.dtype == np.float32 and heights.ndim == 2             and heights.shape == (hf.size, hf.size):
+    if isinstance(heights, np.ndarray) and heights.dtype == np.float32 and heights.ndim == 2 \
+            and heights.shape == (hf.size, hf.size):
         d = np.hypot(RINGS[:, 0], RINGS[:, 1])
         lift = capsule_axis(bottom, radius, height)[0] - np.sqrt(np.maximum(radius * radius - d * d, 0))
         cx, cz = hf.cell
@@ -676,21 +681,8 @@ def terrain_blocks(hf, x, z, y, bottom, radius=RADIUS, chunk=100_000, height=HEI
                                       [float(v) for v in lift])
         if got is not None:
             return np.frombuffer(got, np.uint8).astype(bool)
-    return terrain_blocks_reference(hf, x, z, y, bottom, radius, chunk, height)
-
-
-def terrain_blocks_reference(hf, x, z, y, bottom, radius=RADIUS, chunk=100_000, height=HEIGHT):
-    """terrain_blocks in NumPy: the reference of the Rust core's."""
-    out = np.zeros(len(y), bool)
-    if hf is None or not len(y):
-        return out
-    d = np.hypot(RINGS[:, 0], RINGS[:, 1])
-    lift = capsule_axis(bottom, radius, height)[0] - np.sqrt(np.maximum(radius * radius - d * d, 0))     # hemisphere surface above y
-    for s in range(0, len(y), chunk):
-        e = min(len(y), s + chunk)
-        h, _ = terrain_at(hf, x[s:e, None] + RINGS[None, :, 0], z[s:e, None] + RINGS[None, :, 1], normals=False)
-        out[s:e] = np.nanmax(np.where(np.isnan(h), -np.inf, h) - (y[s:e, None] + lift[None, :]), axis=1) > 1e-4
-    return out
+    raise native.refused('terrain_blocks: a height field that is not a float32 size x size array, or positions of '
+                         'different lengths')
 
 
 # --- the cast loop ---------------------------------------------------------------------------------------------------

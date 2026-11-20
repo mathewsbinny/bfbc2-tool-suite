@@ -207,7 +207,7 @@ def skinned(rng: random.Random) -> tuple[bytes, dict[str, bytes]]:
         parts.append(p)
         lays['zonly'] = lay
     m = {'h0': 7, 'h1': b'\1\0', 'parts': parts, 'lists': [[0], [], [], []]}
-    return mesh.write_reference(m, verts, struct.pack('<%dH' % len(idx), *idx)), lays
+    return mesh.write(m, verts, struct.pack('<%dH' % len(idx), *idx)), lays
 
 
 def lod_state(s: Any) -> Any:
@@ -285,7 +285,7 @@ def skin_game(c: Checks, opfor: str, only: tuple[str, ...] | None) -> None:
             if b is None:
                 break
             try:
-                m = mesh.parse_reference(b, False)
+                m = mesh.parse(b, False)
             except Exception:                                    # noqa: BLE001
                 continue
             lays = {p['name'].decode('latin-1'): ix.parts.get(f'{stem}_lod{k}/{p["name"].decode("latin-1")}/standard'.lower())

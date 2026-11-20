@@ -7,6 +7,11 @@ Usage:
 File format: see src/dll/navsample.cpp. Columns are j-major (z), then i (x); sample (i, j) is at
 (minX + i * pitch, minZ + j * pitch), minX/minZ being whole multiples of the pitch (as in the original,
 whose outlines run halfway between samples).
+
+load reads the records in the suite's Rust core (versions 1 and 2 since round E3c, version 3 since round F3), which
+it needs (bfbc2core.native.NativeMissing says how to get it). Its Python (load_reference: the record loop of versions
+1 / 2, NumPy's pass of version 3) was retired in round RT2 against its recorded answers (tests/f3_golden_navsample*.json:
+built, damaged and every OPFOR work sample file; f3_golden_navsample12.json: built and damaged version 1 / 2 files).
 """
 import math
 import os
@@ -32,37 +37,16 @@ HEADER = struct.Struct('<4sI3f2i6fI')
 BLOCKED, FAULT = 1, 2
 
 
-def _load_native() -> Any:
-    """The Rust core for load's version 1 / 2 records (round E3c), or None: not built, or BFBC2_PURE_PYTHON set (the
-    Python loop below runs; it stays the reference)."""
-    try:
-        suite_paths.use('core')
-        from bfbc2core import dbx as _dbx
-    except ImportError:
-        return None
-    if os.environ.get(_dbx.PURE_PYTHON_ENV, '') not in ('', '0'):
-        return None
-    m = _dbx._import_native()
-    return m if m is not None and hasattr(m, 'navkit_navsample_parse') else None
+def _core() -> Any:
+    """The Rust core (bfbc2core.native.require: NativeMissing, saying how to get it, when it is not there)."""
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('navigation samples (bfbc2-auto-navkit/tools/navsample.py)', 'navkit_navsample_v3')
 
 
-_native = _load_native()
-
-
-def use_native(on: bool) -> str:
-    """load's records in the Rust core (when built, whatever BFBC2_PURE_PYTHON says) or in Python; 'rust' or
-    'python'."""
-    global _native
-    if on:
-        saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-        try:
-            _native = _load_native()
-        finally:
-            if saved is not None:
-                os.environ['BFBC2_PURE_PYTHON'] = saved
-    else:
-        _native = None
-    return 'rust' if _native is not None else 'python'
+def _refused(message: str) -> Exception:
+    from bfbc2core import native
+    return native.refused(message)
 
 
 @dataclass
@@ -93,78 +77,51 @@ class Samples:
 
 
 def load(path: str) -> tuple[Samples, int]:
-    """A sample file's Samples and the columns read: the records in the Rust core when it is built (versions 1 and
-    2 since round E3c, version 3 since round F3: navkit_navsample_v3, the same arrays), else load_reference."""
-    return _load(path, _native)
-
-
-def load_reference(path: str) -> tuple[Samples, int]:
-    """load in Python only (the reference: NumPy for version 3, the record loop for 1 and 2)."""
-    return _load(path, None)
-
-
-def _load(path: str, nat: Any) -> tuple[Samples, int]:
+    """A sample file's Samples and the columns read (an interrupted run of version 1 / 2 reads fewer than nx * nz;
+    the rest are empty): the records in the Rust core (navkit_navsample_parse, navkit_navsample_v3). A file the core
+    does not read: a version 1 / 2 record cut short raises struct.error in the retired Python's words; version 3's
+    counts or records cut short or damaged raise bfbc2core.native.Refused (a ValueError)."""
     data = open(path, 'rb').read()
     magic, version, pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, _ = \
         HEADER.unpack_from(data, 0)
     if magic != b'ONS1' or version not in (1, 2, 3):
         raise ValueError(f'{path}: not a navsample file')
-    if version == 3 and nat is not None and hasattr(nat, 'navkit_navsample_v3'):
-        got = nat.navkit_navsample_v3(data, nx, nz)          # None: the NumPy pass below (which raises its error)
-        if got is not None:
-            st, ya, na, fa, ha, c = got
-            return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r,
-                           np.frombuffer(st, '<i8'), np.frombuffer(ya, '<f4'), np.frombuffer(na, '<f4').reshape(-1, 3),
-                           np.frombuffer(fa, np.uint8), np.frombuffer(ha, '<u4').reshape(-1, 3)), c
+    nat = _core()
     if version == 3:
-        # records, then the column counts in one block, then { u64 offset of the counts, "CNT3" } - read at once
-        if len(data) < HEADER.size + 12 or data[-4:] != b'CNT3':
-            raise ValueError(f'{path}: sampling run not finished (no column counts)')
-        at = struct.unpack_from('<Q', data, len(data) - 12)[0]
-        counts = np.frombuffer(data, np.uint8, nx * nz, at).astype(np.int64)
-        start = np.zeros(nx * nz + 1, dtype=np.int64)
-        np.cumsum(counts, out=start[1:])
-        rec = np.frombuffer(data, np.dtype([('y', '<f4'), ('n', 'i1', 3), ('f', 'u1'), ('h', '<u4', 3)]),
-                            int(start[-1]), HEADER.size)
-        return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, start,
-                       rec['y'].astype(np.float32), (rec['n'] / 127.0).astype(np.float32),
-                       rec['f'].astype(np.uint8), rec['h'].astype(np.uint32)), nx * nz
-    pos = HEADER.size
-    cols = nx * nz
-    if nat is not None:
-        # the records in the Rust core (round E3c: 4.5 s of sp_004_b's build in this loop); the loop is its reference
+        got = nat.navkit_navsample_v3(data, nx, nz)
+        if got is None:
+            # records, then the column counts in one block, then { u64 offset of the counts, "CNT3" }
+            if len(data) < HEADER.size + 12 or data[-4:] != b'CNT3':
+                raise ValueError(f'{path}: sampling run not finished (no column counts)')
+            raise _refused(f'{path}: a version 3 sample file whose column counts or records are cut short or damaged')
+    else:
         try:
-            st, ya, na, fa, ha, c = nat.navkit_navsample_parse(data, pos, cols, version)
+            got = nat.navkit_navsample_parse(data, HEADER.size, nx * nz, version)
         except ValueError:
-            pass                                 # a record cut short: the loop below raises struct.error
-        else:
-            return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r,
-                           np.frombuffer(st, '<i8'), np.frombuffer(ya, '<f4'), np.frombuffer(na, '<f4').reshape(-1, 3),
-                           np.frombuffer(fa, np.uint8), np.frombuffer(ha, '<u4').reshape(-1, 3)), c
-    start = np.zeros(cols + 1, dtype=np.int64)
-    ys: list[float] = []
-    normals: list[tuple[float, float, float]] = []
-    flags: list[int] = []
-    hits: list[tuple[int, ...]] = []
-    rec_size = 8 if version == 1 else 20
+            raise _cut_record(data, nx * nz, version) from None
+    st, ya, na, fa, ha, c = got
+    return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r,
+                   np.frombuffer(st, '<i8'), np.frombuffer(ya, '<f4'), np.frombuffer(na, '<f4').reshape(-1, 3),
+                   np.frombuffer(fa, np.uint8), np.frombuffer(ha, '<u4').reshape(-1, 3)), c
+
+
+def _cut_record(data: bytes, cols: int, version: int) -> Exception:
+    """The struct.error the retired record loop raised for a version 1 / 2 file with a record cut short: the first
+    read past the end, in struct's words (only the counts are walked; the core read everything before it)."""
+    pos, size = HEADER.size, len(data)
     c = 0
-    while c < cols and pos < len(data):
+    while c < cols and pos < size:
         n = data[pos]
         pos += 1
         for _ in range(n):
-            y, a, b, d, f = struct.unpack_from('<f3bB', data, pos)
-            if version == 2:
-                hits.append(struct.unpack_from('<3I', data, pos + 8))
-            pos += rec_size
-            ys.append(y)
-            normals.append((a / 127.0, b / 127.0, d / 127.0))
-            flags.append(f)
+            need = 8 if pos + 8 > size else 20 if version == 2 and pos + 20 > size else 0
+            if need:
+                at, take = (pos, 8) if need == 8 else (pos + 8, 12)
+                return struct.error(f'unpack_from requires a buffer of at least {at + take} bytes for unpacking '
+                                    f'{take} bytes at offset {at} (actual buffer size is {size})')
+            pos += 8 if version == 1 else 20
         c += 1
-        start[c] = len(ys)
-    start[c:] = len(ys)   # an interrupted run leaves the rest empty
-    return Samples(pitch, min_x, min_z, nx, nz, y_top, y_bottom, radius, cap_b, cap_t, ray_r, start,
-                   np.array(ys, dtype=np.float32), np.array(normals, dtype=np.float32).reshape(-1, 3),
-                   np.array(flags, dtype=np.uint8), np.array(hits, dtype=np.uint32).reshape(-1, 3)), c
+    return _refused('a version 1 / 2 sample file the core does not read (damaged)')
 
 
 def walkable(s: Samples, slope_max_deg: float = 40.0) -> np.ndarray:
