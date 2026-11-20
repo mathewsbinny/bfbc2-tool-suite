@@ -665,7 +665,7 @@ pub fn build(py: &mut Py, paths: &Paths, c: &Value, problems: &[String]) -> PyRe
     let tmp = format!("{report}.tmp");
     let text = pyjson::dumps(&rep, Some(1)).replace('\n', "\r\n");
     fs::write(&tmp, text.as_bytes()).map_err(|e| os_error(&tmp, &e))?;
-    crate::fsx::replace(&tmp, &report).map_err(|e| os_error(&tmp, &e))?;
+    pyos::files::replace(&tmp, &report).map_err(|e| os_error(&tmp, &e))?;
     Ok(built)
 }
 

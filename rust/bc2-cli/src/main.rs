@@ -51,27 +51,6 @@ mod clock;
 mod crash;
 #[cfg(feature = "cull")]
 mod cull;
-// round O3: os / atomicio as the Python sees them, and the log folder's pruning (every guarded tool prunes it)
-#[cfg_attr(
-    not(all(
-        feature = "menu",
-        feature = "crash",
-        feature = "nav",
-        feature = "caches",
-        feature = "stockmp",
-        feature = "graft",
-        feature = "audio",
-        feature = "bf1943",
-        feature = "meshview",
-        feature = "cull",
-        feature = "navkit",
-        feature = "navtools",
-        feature = "harness",
-        feature = "texqa"
-    )),
-    allow(dead_code)
-)]
-mod fsx;
 // round O3: meshview.Index from its cache (the meshview and bf1943 groups)
 #[cfg(any(feature = "meshview", feature = "bf1943"))]
 mod gameindex;
