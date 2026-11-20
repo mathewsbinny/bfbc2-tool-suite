@@ -3,11 +3,11 @@
 //! Answered here: the usage, finding Project OPFOR's folder (and its error), and `install` in its three modes -
 //! `--plan` (out\game against its `build_report.json`, each file new or replacing one), `--apply` (one transaction:
 //! staged copies, the originals' backups, markers; put back on a failure) and `--revert` (the backups restored, the
-//! added files removed, from the build output and the game folder's markers); `summary` and `generate --minimal`
-//! (`level.rs`: the level's unpack, its model, `mp_common`'s kits, the minimal configuration), and the path-data
-//! lookup's error of `generate` / `all`. Handed to the Python: the full (snapped) `generate`, `build`, `validate`
-//! and `all` (the offline checks run DbxEdit, NavKit's path-data model and the packer's checks: round O4), and any
-//! reading `bc2_stockmp::install` or the model refuses (a damaged report, odd names, links, text not UTF-8).
+//! added files removed, from the build output and the game folder's markers); `summary` and `generate` (`level.rs`:
+//! the level's unpack, its model, `mp_common`'s kits; round O5: the full layer placed on the path data,
+//! `generate.rs`), `build` (`build.rs`: authored, packed, staged), `validate` (`validate.rs`: the offline checks,
+//! DbxEdit in process) and `all`. Handed to the Python: any reading the ports refuse (a damaged report, odd names,
+//! links, text not UTF-8, a configuration of a shape the authoring port leaves, a check the reference words itself).
 
 use std::fs;
 use std::io::{self, Read, Write as _};
@@ -17,7 +17,11 @@ use bc2_stockmp::sha256;
 
 use crate::pyfmt::docstring;
 
+mod build;
+mod generate;
 mod level;
+mod pyx;
+mod validate;
 use crate::pyproc::{Fail, Py, PyErr, PyResult, Tool, os_error, suite_root};
 
 const SOURCE: &str = include_str!("../../../../bfbc2-stockmp-ai/stockmp.py");
@@ -117,6 +121,29 @@ impl Paths {
         join(&self.root, "config.json")
     }
 
+    /// `paths.report()`.
+    fn report(&self) -> String {
+        join(&self.root, "build_report.json")
+    }
+
+    /// `paths.out_bundle(variant, out)`.
+    fn out_bundle(&self, v: &str, out: &str) -> String {
+        let rel: &[&str] = if v == "dist" {
+            &["Dist", "win32", "levels", &self.lv]
+        } else {
+            &["Package", "levels", &self.lv]
+        };
+        let base = join(&join(&self.root, out), "game");
+        join(&rel.iter().fold(base, |a, n| join(&a, n)), "level-00.fbrb")
+    }
+
+    /// `paths.out_pathdata(kind, out)`.
+    fn out_pathdata(&self, kind: &str, out: &str) -> String {
+        ["game", "Output", "win32", "ai", "levels", &self.lv, kind, "pathdata.hpd"]
+            .iter()
+            .fold(join(&self.root, out), |a, n| join(&a, n))
+    }
+
     /// `paths.bundles()`: (variant, stock bundle) of the level's level-00 bundles that exist, as before stock-MP's
     /// install.
     fn bundles(&self) -> PyResult<Vec<(&'static str, String)>> {
@@ -169,14 +196,55 @@ pub fn run(py: &mut Py, args: &[String]) -> PyResult<i32> {
     match cmd.as_str() {
         "summary" => level::summary(py, &paths),
         "install" => install(py, &paths, args),
-        // generate, and all without a configuration: the path data looked up first (its error answered here); the
-        // minimal layer written here, the full one (snapped to the path data) by the Python
-        "generate" => level::generate(py, &paths, args, true),
-        "all" if !isfile(&paths.config()) => level::generate(py, &paths, args, false),
-        // build and validate (and all): the offline checks run DbxEdit, NavKit's path-data reader and the packer's
-        // checks - the Python's (round O4)
-        _ => Err(Fail::Python),
+        _ => {
+            let r = pipeline(py, &paths, args, cmd);
+            level::exits(py, r)
+        }
     }
+}
+
+/// `cfgmod.load(path)`: the configuration and its problems raised as `ValueError`.
+fn load_config(path: &str) -> PyResult<bc2_pyrt::json::Value> {
+    let data = fs::read(path).map_err(|e| os_error(path, &e))?;
+    let c = bc2_pyrt::json::loads_utf8(&data).ok_or(Fail::Python)?;
+    let problems = generate::check(&c)?;
+    if !problems.is_empty() {
+        return Err(Fail::Err(PyErr::new(
+            "ValueError",
+            format!("{path}: {}", problems.join("; ")),
+        )));
+    }
+    Ok(c)
+}
+
+/// `stockmp.main`'s generate / build / validate / all.
+fn pipeline(py: &mut Py, paths: &Paths, args: &[String], cmd: &str) -> PyResult<i32> {
+    if cmd == "generate" || (cmd == "all" && !isfile(&paths.config())) {
+        level::generate(py, paths, args)?;
+        if cmd == "generate" {
+            return Ok(0);
+        }
+    }
+    let config = opt(args, "--config").map_or_else(|| paths.config(), str::to_owned);
+    if cmd == "build" || cmd == "all" {
+        let c = load_config(&config)?;
+        let built = build::build(py, paths, &c, &[])?;
+        let shown = bc2_pyrt::json::Value::Dict(
+            built
+                .iter()
+                .map(|(v, r)| (v.clone(), build::report_value(r)))
+                .collect(),
+        );
+        py.print(&bc2_pyrt::json::dumps(&shown, None))?;
+    }
+    let c = load_config(&config)?;
+    let passed = validate::validate(py, paths, &c)?;
+    py.print(if passed {
+        "all checks passed"
+    } else {
+        "SOME CHECKS FAILED"
+    })?;
+    Ok(i32::from(!passed))
 }
 
 /// `stockmp.install(paths, argv)`.
