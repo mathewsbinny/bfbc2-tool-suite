@@ -10,8 +10,8 @@ are merged and versions released: `RELEASING.md`.
 
 1. Install Python 3.12 or newer (`pyproject.toml` targets 3.12: bf1943-import uses its f-string syntax), then the
    libraries the tools use:
-   `pip install numpy matplotlib moderngl glfw imgui-bundle pillow` (and `pefile capstone` for the crash
-   reader's code view).
+   `python -m pip install -r requirements.txt` (numpy, matplotlib, moderngl, glfw, imgui-bundle, pillow, pefile and
+   capstone for the crash reader's code view, maturin, ruff and mypy, pinned to the versions CI uses).
 2. Get the suite's Rust core and its command-line binary: in a command prompt in this folder,
    `python rust\build_native.py --download`. It fetches the prebuilt module (`core\bfbc2core\bc2_native.pyd`: nearly
    every tool reads the game's files through it) and `bin\bfbc2.exe` (the tools' command lines in Rust: "bfbc2.exe"
