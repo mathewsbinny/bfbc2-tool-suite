@@ -19,7 +19,7 @@ section 1; statuses in sections 3.1, 4.2 and 7).
 | Tool | For | In short |
 |---|---|---|
 | **bfbc2-map-inspector** | any BC2 modder | Browse a level in 3D: geometry, collision, spawns, objectives, destructibles, every placed entity. Click anything to see where it comes from and its properties. |
-| **bfbc2-navigation-studio** | any BC2 modder, Project OPFOR BFBC2 | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
+| **bfbc2-navigation-studio** (the map editor's AI workspace since GR2) | any BC2 modder, Project OPFOR BFBC2 | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
 | **bfbc2-tactical-map-authoring-tool** | Project OPFOR BFBC2 bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
 | **bfbc2-bot-ai-debugger** | Project OPFOR BFBC2 bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
 | **bfbc2-automated-map-and-bot-test-harness** | Project OPFOR BFBC2 | Repeatable scenarios across maps, with results saved per build so changes can be compared: reachability, path tests, bot traversal, stuck detection, squad coordination, vehicle use. |
@@ -181,6 +181,9 @@ Vietnam, WW2), then new maps from imported or randomized terrain populated with 
 modders too. The architecture plan is `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` (milestones E1-E6, S2, S3).
 
 ### 4.2 bfbc2-navigation-studio
+
+(Round GR2, 2026-11-20: the Studio's window was retired; what follows is the map editor's AI workspace now -
+`bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` 3.4a and 9.2. The folder keeps `overlay.py`'s headless exports.)
 
 - **Generate:** run NavKit on a level, with its sampling settings, from the studio. Sampling starts the
   game (NavKit measures levels through OPFOR's in-game sampler), so the studio asks first. Building from

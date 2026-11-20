@@ -1,10 +1,9 @@
-r"""Regression tests for four defects found in a code review (2026-10-26), no game data:
+r"""Regression tests for defects found in a code review (2026-10-26), no game data:
 
-- NavKit's apply (a build with the Navigation Studio's walkability edits) builds with the same inputs as a normal
+- NavKit's apply (a build with the navigation side file's walkability edits) builds with the same inputs as a normal
   build - detailed zones and ladders included (it used to leave both out);
 - the stock-MP installer reinstalls a rebuilt file (it used to say "already" when the installed file matched its own
   install stamp, without comparing it with the new build) and keeps the original as the backup, not an earlier build;
-- the Navigation Studio's option parser takes --edit as a flag (it used to swallow the next option as its value);
 - the navigation-data cache key depends on the terrain's content (it used to record only whether there was one).
 
   python tests\test_review_fixes.py
@@ -140,21 +139,6 @@ def stockmp_install(c, work):
     c.check(open(dst, 'rb').read() == b'original', 'stock-MP install: revert restores the original after a reinstall')
 
 
-def studio_args(c):
-    suite_paths.use('navigation-studio')
-    try:
-        import studio
-    except ImportError as e:
-        print(f'skip the Navigation Studio parser (cannot import: {e})')
-        return
-    opts, args = studio.parse_args(['studio.py', 'sp_009', '--edit', '--candidate', 'new.hpd'])
-    c.check(opts.get('--edit') is True and opts.get('--candidate') == 'new.hpd' and args == ['sp_009'],
-            'Navigation Studio: --edit is a flag, --candidate keeps its value', f'{opts} {args}')
-    opts, args = studio.parse_args(['studio.py', '--candidate', 'a.hpd', 'sp_009', '--edit'])
-    c.check(opts == {'--candidate': 'a.hpd', '--edit': True} and args == ['sp_009'],
-            'Navigation Studio: --edit last, a value option first', f'{opts} {args}')
-
-
 def navdata_key(c, work):
     import numpy as np
     from bfbc2core import navdata, terrain
@@ -175,7 +159,6 @@ def main(argv):
     try:
         navkit_apply(c, work)
         stockmp_install(c, work)
-        studio_args(c)
         navdata_key(c, work)
     finally:
         shutil.rmtree(work, ignore_errors=True)

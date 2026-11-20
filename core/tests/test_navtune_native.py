@@ -6,7 +6,7 @@ same bytes, the same lines.
                                          every JSON type, polygons and boxes right and wrong, NaN, huge ints,
                                          strings with escapes and non-ASCII text) and 2,000 seeded side files
   python test_navtune_native.py --game   + every side file under Project OPFOR's work\navkit (read only; none
-                                         exist yet on the user's PC - they are made by Navigation Studio's edits)
+                                         exist yet on the user's PC - they are made by the map editor's AI workspace)
 
 The module is required (the test fails without it, saying how to build it).
 """

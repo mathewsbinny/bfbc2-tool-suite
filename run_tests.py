@@ -34,7 +34,7 @@ after another in the listed order, exactly as before. Each test declares what it
   cpu     the CPU threads it keeps busy (1; its process pool's size; 'all' for Rust batch work and cargo)
   mem     its peak memory in GB (an estimate; the runner measures every test's peak and keeps it, see --plan)
   res     shared things it reads ('r') or writes ('w'): a writer never runs beside a reader or another writer of the
-          same thing (OPFOR's work\navkit\regress, the Navigation Studio cache, renderqa's build\ folder, a display ...),
+          same thing (OPFOR's work\navkit\regress, the navigation data cache, renderqa's build\ folder, a display ...),
           and they keep their listed order, so each sees the thing as it did one at a time
   setup   a build step: the build steps run first, one at a time, before any test (tests load what they build)
   alone   nothing else runs beside it; every test missing from NEEDS runs alone, so a new entry is safe before it is
@@ -193,7 +193,7 @@ def tests():
         ('log caps and day rollover, project caches in work\\ (bfbc2core.caches), the command', 'quick',
          [PY, os.path.join(SUITE, 'core', 'tests', 'test_logs_caches.py')]),
         ('every command-line tool reports errors', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_cli_errors.py')]),
-        ('review fixes: apply inputs, stock-MP reinstall, studio flags, cache key', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_review_fixes.py')]),
+        ('review fixes: apply inputs, stock-MP reinstall, cache key', 'quick', [PY, os.path.join(SUITE, 'tests', 'test_review_fixes.py')]),
         ('review fixes 2: harness missing files, navkit no-original reinstall, old fbrb manifests', 'quick',
          [PY, os.path.join(SUITE, 'tests', 'test_review_fixes2.py')]),
         ('deep scan fixes: atomic installs and writes, honest caches, damaged files said', 'quick',
@@ -221,9 +221,8 @@ def tests():
         ('NavKit shadow islands (navislands)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navislands.py')]),
         ('NavKit offline sampler (navsample_offline)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navsample_offline.py')]),
         ('NavKit tool edges (ordercheck, detailed cache, navdiff pictures)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_tool_edges.py')]),
-        ('Navigation Studio edit mode, no game (editing, overlay usage)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_editing_offline.py')]),
+        ('overlay exports, no game (AI layer, anomalies, usage)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_overlay_offline.py')]),
         ('NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_navkit_offline.py')]),
-        ('Navigation Studio logic, no window (studio.py)', 'quick', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_studio_offline.py')]),
         ('mesh viewer index and cache, stand-in bundles', 'quick', [PY, os.path.join(SUITE, 'bfbc2-mesh-viewer', 'tests', 'test_meshview_index.py')]),
         ('LevelDiff build (when stale)', 'quick', stale_build(os.path.join('bfbc2-diff-workbench', 'level-diff'), ['LevelDiff.exe'],
                                                               [os.path.join('bfbc2-diff-workbench', 'level-diff', 'LevelDiff.cs'),
@@ -456,9 +455,7 @@ def tests():
         ('NavKit links and route edges', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_links.py')]),
         ('traversals, the apply report, installing', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_traversal.py')]),
         ('navkit apply with walkability edits', 'game', [PY, os.path.join(SUITE, 'bfbc2-auto-navkit', 'tests', 'test_apply.py')]),
-        ('Navigation Studio edit mode', 'game', [PY, os.path.join(SUITE, 'bfbc2-navigation-studio', 'tests', 'test_editing.py')]),
         ('the suite window (hub) and the level picker', 'game', [PY, os.path.join(SUITE, 'tests', 'test_hub.py')]),
-        ('3D tools open and draw (Navigation Studio)', 'game', [PY, os.path.join(SUITE, 'tests', 'test_viewers.py')]),
         ('test harness on sp_009 and sp_004_b', 'game', [PY, os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'tests', 'test_harness.py'), '--game']),
         ('stock-MP AI layer, Atacama Conquest built', 'game', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_stockmp.py'), '--game']),
         ('stock-MP AI: the Rust core against the Python on every MP level partition', 'game', [PY, os.path.join(SUITE, 'bfbc2-stockmp-ai', 'tests', 'test_native_levels.py')]),
@@ -487,7 +484,7 @@ def need(cpu: int | str = 1, mem: float = 0.5, setup: bool = False, alone: bool 
 
 # What each test needs to run beside others, by its name in tests(). Shared things (res):
 #   regress     OPFOR work\navkit\regress\<lv>.hpd and work\navkit\parity\regression_last.json: navregress rewrites
-#               them in place; the apply, links, Studio, viewer and harness tests read them
+#               them in place; the apply, links and harness tests read them
 #   work_hpd    every pathdata.hpd under OPFOR's work\ (hpdtool walks them all): test_vehicle_level rewrites one
 #   navstudio   OPFOR work\navstudio\cache (navdata's cache files, replaced while another process may read them)
 #   sp_004_b    OPFOR work\navkit\sp_004_b\detailed.json (NavKit apply writes it)
@@ -552,7 +549,7 @@ NEEDS = {
     'cache caps and pruning (bfbc2core.caches): least recently used first, writers and readers beside it, the command': need(),
     'log caps and day rollover, project caches in work\\ (bfbc2core.caches), the command': need(),
     'every command-line tool reports errors': need(),
-    'review fixes: apply inputs, stock-MP reinstall, studio flags, cache key': need(),
+    'review fixes: apply inputs, stock-MP reinstall, cache key': need(),
     'review fixes 2: harness missing files, navkit no-original reinstall, old fbrb manifests': need(),
     'deep scan fixes: atomic installs and writes, honest caches, damaged files said': need(),
     'navigation side files (navtune)': need(),
@@ -578,9 +575,8 @@ NEEDS = {
     'NavKit shadow islands (navislands)': need(),
     'NavKit offline sampler (navsample_offline)': need(),
     'NavKit tool edges (ordercheck, detailed cache, navdiff pictures)': need(),
-    'Navigation Studio edit mode, no game (editing, overlay usage)': need(),
+    'overlay exports, no game (AI layer, anomalies, usage)': need(),
     'NavKit driver, stand-in OPFOR folder (navkit.py steps, install, main)': need(),
-    'Navigation Studio logic, no window (studio.py)': need(),
     'mesh viewer index and cache, stand-in bundles': need(),
     'LevelDiff build (when stale)': need(setup=True),
     'LevelDiff, built levels': need(),
@@ -720,9 +716,7 @@ NEEDS = {
     'NavKit links and route edges': need(regress='r'),
     'traversals, the apply report, installing': need(),
     'navkit apply with walkability edits': need(mem=3, regress='r', sp_004_b='w'),
-    'Navigation Studio edit mode': need(cpu=4, mem=4, regress='r', navstudio='w', sp_004_b='w'),
     'the suite window (hub) and the level picker': need(display='w'),
-    '3D tools open and draw (Navigation Studio)': need(cpu=4, mem=3, display='w', navstudio='w', regress='r'),
     'test harness on sp_009 and sp_004_b': need(mem=1.5, regress='r'),
     'stock-MP AI layer, Atacama Conquest built': need(cpu=2, mem=1.5),
     'stock-MP AI: the Rust core against the Python on every MP level partition': need(cpu=2, mem=1),

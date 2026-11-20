@@ -95,30 +95,7 @@ def culltree_verify(root: str, tmp: str) -> str:
     return f'exit {code}, {len(out.lines)} report lines'
 
 
-# ------------------------------------------------------------------------------------------------ 3D tools' loading
-
-def _level(lv: str):
-    from bfbc2core import level as levelmod
-    return levelmod.load(lv, log=lambda s: None)
-
-
-@workload
-def studio_load(root: str, tmp: str) -> str:
-    """The Navigation Studio's loading on sp_009 and mp_005: level.load, DICE's and NavKit's path data
-    (navdata.load, cold: an empty cache folder), the scene, no window."""
-    suite_paths.use('navigation-studio')
-    import studio
-    from bfbc2core import navdata
-    n = 0
-    for lv in ('sp_009', 'mp_005'):
-        lvl = _level(lv)
-        cand, ref = studio.default_files(lvl.opfor, lvl.lv)
-        files = {name: navdata.load(p, lvl.heightfield, os.path.join(tmp, 'cache'))
-                 for name, p in (('NavKit', cand), ('DICE', ref)) if p and os.path.isfile(p)}
-        st = studio.Studio(lvl, files)
-        n += st.scene.triangle_count()
-    return f'{n:,} triangles'
-
+# ------------------------------------------------------------------------------------------------ navigation data
 
 @workload
 def navdata_load(root: str, tmp: str) -> str:
