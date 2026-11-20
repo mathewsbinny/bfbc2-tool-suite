@@ -25,20 +25,29 @@ tests\test_havokport.py.
     t, key = mopp.ray_cast(code, info, tris, origin, direction, length)
     missed = mopp.complete(code, info, boxes)             # {key: (lo, hi)} whose own box does not reach the key
 
-In the suite's Rust core (round F2b, rust/bc2-convert/src/mopp.rs, through importcore): query_int, query, complete,
-ray_cast and ray_cast_brute run there when it is built - the same traversal, the same first MoppError; where the
-reference would raise anything else (an index past the code), or with keys or values the port does not take, the
-Python below runs (the *_reference functions, also what the tests compare against; BFBC2_IMPORTER_PYTHON=1 runs
-them always).
+In the suite's Rust core (round F2b, rust/bc2-convert/src/mopp.rs, through importcore), which it needs (without it
+bfbc2core.native.NativeMissing says how to get it): query_int, query, complete, ray_cast and ray_cast_brute - the
+traversal of the byte code above, the first MoppError. Where the Python would have raised anything else (an index
+past the code: a cut code), or with keys or values the port does not take (NumPy scalars, keys that are not ints),
+they raise a MoppError that is also a bfbc2core.native.Refused. Their Python (the *_reference functions) was retired
+in round RT2 against its recorded answers (tests\f2b_havokport_replay*.json: 2,000 seeded codes, the MOPP codes of
+BF1943's converted and DICE's physics files).
 """
 import math
 import os
 import sys
-from typing import Any
 
 if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importcore  # noqa: E402
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import suite_paths  # noqa: E402
+
+suite_paths.use('core')
+from bfbc2core import native  # noqa: E402
 
 START_SHIFT = 16
 AXES = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0, 1, 1), (0, 1, -1), (1, 0, 1), (1, 0, -1), (1, 1, 0), (1, -1, 0),
@@ -49,100 +58,46 @@ class MoppError(Exception):
     pass
 
 
-def _value(k, lo, hi):
-    """The range of split k's value over the box (byte space): an axis, or a sum / difference of axes averaged."""
-    w = AXES[k]
-    a = sum(lo[i] * w[i] if w[i] > 0 else hi[i] * w[i] for i in range(3))
-    b = sum(hi[i] * w[i] if w[i] > 0 else lo[i] * w[i] for i in range(3))
-    if k < 3:
-        return a, b
-    terms, negs = sum(1 for x in w if x), sum(1 for x in w if x < 0)
-    return (a + 255 * negs) // terms, (b + 255 * negs) // terms
-
-
 def _code(code):
     return code if isinstance(code, bytes) else bytes(code)
 
 
+def _exact(v):
+    """A ray's numbers as the core takes them: a plain int (as tests write points) as its float - exact below 2 ** 53,
+    where the ray arithmetic gives the same answer either way; anything else as it is (the core refuses NumPy
+    scalars: their sums round differently)."""
+    if type(v) is int and abs(v) < 2 ** 53:
+        return float(v)
+    if isinstance(v, list | tuple):
+        return [_exact(x) for x in v]
+    return v
+
+
+def _tris(tris):
+    return {k: [_exact(p) for p in t] for k, t in tris.items()}
+
+
+def _call(name, *args):
+    """The Rust core's answer (`(result,)`), or the refusal raised: a MoppError that is also a Refused."""
+    if importcore.native() is not None:
+        r = importcore.call(name, *args, error=MoppError)
+    else:
+        m = native.require('MOPP code queries (mopp.py)', 'mopp_query')
+        try:
+            r = getattr(m, name)(*args)
+        except ValueError as e:
+            raise MoppError(str(e)) from None
+        except (TypeError, OverflowError):
+            r = None
+    if r is None:
+        raise native.refused(f'{name.replace("_", " ")}: a cut code, or keys or values that are not plain ints and '
+                             'floats', MoppError)
+    return r
+
+
 def query_int(code, qmin, qmax):
     """Terminal keys reached by the quantized box qmin..qmax (3 ints each)."""
-    r = importcore.call('mopp_query', _code(code), tuple(qmin), tuple(qmax), error=MoppError)
-    return set(r[0]) if r is not None else query_int_reference(code, qmin, qmax)
-
-
-def query_int_reference(code, qmin, qmax):
-    """query_int in Python (the reference)."""
-    out: set[int] = set()
-    stack: list[tuple[int, tuple[int, ...], int, int]] = [(0, (0, 0, 0), START_SHIFT, 0)]
-    seen = set()
-    n = len(code)
-    while stack:
-        i, o, s, off = stack.pop()
-        while i < n:
-            if (i, o, s, off) in seen:
-                break
-            seen.add((i, o, s, off))
-            c = code[i]
-            if 0x30 <= c < 0x50:
-                out.add(off + c - 0x30)
-                break
-            if 0x50 <= c <= 0x53:
-                w = c - 0x4F
-                out.add(off + int.from_bytes(code[i + 1:i + 1 + w], 'big'))
-                break
-            if c in (0x09, 0x0A):
-                w = c - 0x08
-                off += int.from_bytes(code[i + 1:i + 1 + w], 'big')
-                i += 1 + w
-                continue
-            if c == 0x0B:
-                off = int.from_bytes(code[i + 1:i + 5], 'big')
-                i += 5
-                continue
-            if 0x05 <= c <= 0x08:
-                w = c - 0x04
-                i += 1 + w + int.from_bytes(code[i + 1:i + 1 + w], 'big')
-                continue
-            if 1 <= c <= 4:
-                o = tuple(o[a] + (code[i + 1 + a] << s) for a in range(3))
-                s -= c
-                if s < 0:
-                    raise MoppError(f'rescale below one unit at {i}')
-                i += 4
-                continue
-            lo = [(qmin[a] - o[a]) >> s for a in range(3)]
-            hi = [(qmax[a] - o[a]) >> s for a in range(3)]
-            if 0x26 <= c <= 0x28:
-                a = c - 0x26
-                if hi[a] < code[i + 1] or lo[a] > code[i + 2]:
-                    break
-                i += 3
-                continue
-            if 0x10 <= c <= 0x1C:
-                vlo, vhi = _value(c - 0x10, lo, hi)
-                if vhi >= code[i + 2]:
-                    stack.append((i + 4 + code[i + 3], o, s, off))
-                if vlo <= code[i + 1]:
-                    i += 4
-                    continue
-                break
-            if 0x20 <= c <= 0x22:
-                a, sp = c - 0x20, code[i + 1]
-                if hi[a] >= sp:
-                    stack.append((i + 3 + code[i + 2], o, s, off))
-                if lo[a] <= sp:
-                    i += 3
-                    continue
-                break
-            if 0x23 <= c <= 0x25:
-                a = c - 0x23
-                if hi[a] >= code[i + 2]:
-                    stack.append((i + 7 + int.from_bytes(code[i + 5:i + 7], 'big'), o, s, off))
-                if lo[a] <= code[i + 1]:
-                    stack.append((i + 7 + int.from_bytes(code[i + 3:i + 5], 'big'), o, s, off))
-                break
-            raise MoppError(f'opcode {c:#04x} at {i}')
-    return out
+    return set(_call('mopp_query', _code(code), tuple(qmin), tuple(qmax))[0])
 
 
 def quantize(info, lo, hi):
@@ -153,100 +108,28 @@ def quantize(info, lo, hi):
 
 def query(code, info, lo, hi):
     """Terminal keys whose cells overlap the world box lo..hi; info: the code's (offset x, y, z, scale)."""
-    r = importcore.call('mopp_query_box', _code(code), tuple(info), tuple(lo), tuple(hi), error=MoppError)
-    return set(r[0]) if r is not None else query_reference(code, info, lo, hi)
-
-
-def query_reference(code, info, lo, hi):
-    """query in Python (the reference)."""
-    return query_int_reference(code, *quantize(info, lo, hi))
+    return set(_call('mopp_query_box', _code(code), tuple(info), tuple(lo), tuple(hi))[0])
 
 
 def complete(code, info, boxes, tolerance=0.001):
     """The keys of boxes ({key: (lo, hi)}) the query of their own box (widened by tolerance: a flat triangle on a
     cell boundary is otherwise a matter of rounding - 58 of DICE's 49,744 triangles at 0, none at 1 mm) does not
     reach, and the mean number of keys such a query returns (how tight the tree is)."""
-    r = None
-    if isinstance(boxes, dict):
-        r = importcore.call('mopp_complete', _code(code), tuple(info), boxes, tolerance, error=MoppError)
-    return (r[0][0], r[0][1]) if r is not None else complete_reference(code, info, boxes, tolerance)
-
-
-def complete_reference(code, info, boxes, tolerance=0.001):
-    """complete in Python (the reference)."""
-    missed, total = [], 0
-    for k, (lo, hi) in boxes.items():
-        got = query_reference(code, info, [x - tolerance for x in lo], [x + tolerance for x in hi])
-        total += len(got)
-        if k not in got:
-            missed.append(k)
-    return missed, total / max(len(boxes), 1)
-
-
-def _ray_triangle(o, d, tri):
-    """Distance along the ray to the triangle (Moeller-Trumbore, both sides), or None."""
-    a, b, c = tri
-    e1 = [b[i] - a[i] for i in range(3)]
-    e2 = [c[i] - a[i] for i in range(3)]
-    p = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]]
-    det = sum(e1[i] * p[i] for i in range(3))
-    if abs(det) < 1e-12:
-        return None
-    t0 = [o[i] - a[i] for i in range(3)]
-    u = sum(t0[i] * p[i] for i in range(3)) / det
-    if u < 0 or u > 1:
-        return None
-    q = [t0[1] * e1[2] - t0[2] * e1[1], t0[2] * e1[0] - t0[0] * e1[2], t0[0] * e1[1] - t0[1] * e1[0]]
-    v = sum(d[i] * q[i] for i in range(3)) / det
-    if v < 0 or u + v > 1:
-        return None
-    t = sum(e2[i] * q[i] for i in range(3)) / det
-    return t if t >= 0 else None
+    r = _call('mopp_complete', _code(code), tuple(info), dict(boxes), tolerance)
+    return r[0][0], r[0][1]
 
 
 def ray_cast(code, info, tris, origin, direction, length, step=0.25, tolerance=0.001):
     """(distance, key) of the nearest triangle hit along the ray, the candidates found by MOPP box queries over steps
     of the ray (each widened by tolerance, as Havok's queries are); tris: {key: three points}; None when nothing is
     hit within length."""
-    r = importcore.call('mopp_ray_cast', _code(code), tuple(info), tris, tuple(origin), tuple(direction), length,
-                        step, tolerance, error=MoppError) if isinstance(tris, dict) else None
-    return r[0] if r is not None else ray_cast_reference(code, info, tris, origin, direction, length, step, tolerance)
-
-
-def ray_cast_reference(code, info, tris, origin, direction, length, step=0.25, tolerance=0.001):
-    """ray_cast in Python (the reference)."""
-    best: Any = None
-    t = 0.0
-    while t < length:
-        u = min(t + step, length)
-        a = [origin[i] + direction[i] * t for i in range(3)]
-        b = [origin[i] + direction[i] * u for i in range(3)]
-        lo = [min(a[i], b[i]) - tolerance for i in range(3)]
-        hi = [max(a[i], b[i]) + tolerance for i in range(3)]
-        for k in sorted(query_reference(code, info, lo, hi)):
-            if k in tris:
-                d = _ray_triangle(origin, direction, tris[k])
-                if d is not None and d <= length and (best is None or d < best[0]):
-                    best = (d, k)
-        if best is not None and best[0] <= u:
-            return best
-        t = u
-    return best
+    return _call('mopp_ray_cast', _code(code), tuple(info), _tris(tris), tuple(_exact(origin)),
+                 tuple(_exact(direction)), _exact(length), _exact(step), _exact(tolerance))[0]
 
 
 def ray_cast_brute(tris, origin, direction, length):
     """The same over every triangle."""
-    r = None
-    if isinstance(tris, dict):
-        r = importcore.call('mopp_ray_cast_brute', tris, tuple(origin), tuple(direction), length)
-    return r[0] if r is not None else ray_cast_brute_reference(tris, origin, direction, length)
+    return _call('mopp_ray_cast_brute', _tris(tris), tuple(_exact(origin)), tuple(_exact(direction)),
+                 _exact(length))[0]
 
 
-def ray_cast_brute_reference(tris, origin, direction, length):
-    """ray_cast_brute in Python (the reference)."""
-    best: Any = None
-    for k, tri in tris.items():
-        d = _ray_triangle(origin, direction, tri)
-        if d is not None and d <= length and (best is None or d < best[0]):
-            best = (d, k)
-    return best

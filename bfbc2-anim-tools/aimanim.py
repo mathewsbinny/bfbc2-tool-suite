@@ -20,11 +20,10 @@ All numbers 32-bit floats. Nothing else (the "memory addresses" the importer lis
 
     python aimanim.py <file.res> [--big]          prints the bones and the first pose
 
-parse, write and to_pc run in the suite's Rust core when it is built (round F3: bc2_native.aimanim_parse /
-aimanim_write / aimanim_to_pc, bc2_formats::aimanim: the same dicts and bytes). Where the reference would raise, a
-value is a NaN, or a value is one the core leaves to it, the Python runs (parse_reference, write_reference,
-to_pc_reference: kept as the reference and the fallback until a full test tier retires them), so the errors stay this
-module's. BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
+parse, write and to_pc run in the suite's Rust core (round F3: bc2_native.aimanim_parse / aimanim_write /
+aimanim_to_pc, bc2_formats::aimanim), which they need (bfbc2core.native.NativeMissing says how to get it). Their
+Python reference was retired in round RT1 against its recorded answers (tests/f3_golden_aim.json); a file or a value
+the core does not take (cut or damaged, a NaN, a value out of range or of another type) raises AimError.
 """
 import os
 import struct
@@ -42,7 +41,8 @@ class AimError(Exception):
 # / aimanim_to_pc, bc2_formats::aimanim). The Python reader / writer they were proven against (parse_reference,
 # write_reference, to_pc_reference) was retired; its answers are kept in tests\f3_golden_aim.json. What the core
 # does not take raises AimError (a cut or damaged file, a NaN, a value out of range or of another type). The text
-# above is the command line's usage (bfbc2.exe aimanim prints it), left as it was recorded.
+# above is the command line's usage (bfbc2.exe aimanim prints it): round RT2 brought it up to date, and O2's
+# recording of it (core/tests/cli_o2_nav_golden.json) with it.
 _NATIVE: list[Any] = []
 
 

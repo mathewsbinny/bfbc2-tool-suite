@@ -19,6 +19,10 @@ inputs the same object or the same error.
                                          each; timings
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
+
+The menucommon.parse_bigf_reference was retired in round RT2 (bc2loc's references stay: compared live): their
+answers were recorded first (--record, and --game --record, while they were there: f0_bigf_replay*.json beside this
+test) and are replayed by tests/replay.py where they are gone.
 """
 import os
 import random
@@ -40,6 +44,11 @@ import bc2loc  # noqa: E402
 import menucommon as mc  # noqa: E402
 from bfbc2core import native  # noqa: E402
 from f0_parity import Checks, canon, stdout_utf8  # noqa: E402
+from replay import Replay  # noqa: E402
+
+# round RT2: parse_bigf_reference's answers recorded (--record) and replayed once it is retired (bc2loc's references
+# stay: khash from another start and texts with a lone surrogate are still answered by the Python only)
+R = Replay('f0_bigf', HERE, [])
 
 
 def state(loc: Any) -> Any:
@@ -216,6 +225,14 @@ def bigf(members: list[tuple[str, bytes]], rng: random.Random) -> bytes:
     return b'BIGF' + struct.pack('>III', 16 + len(index) + len(data), len(members), 0) + out_index + data
 
 
+def bigf_same(b: bytes, nat: Any) -> bool:
+    """parse_bigf against parse_bigf_reference, or once it is retired against its recorded answer."""
+    a = outcome(mc.parse_bigf, b)
+    ref = getattr(mc, 'parse_bigf_reference', None)
+    return R.pair('menucommon.parse_bigf_reference', (b,), a, None if ref is None else (lambda: outcome(ref, b)),
+                  refused=nat.bigf_parse(b) is None)
+
+
 def bigf_checks(c: Checks, rng: random.Random, game: bool) -> None:
     """menucommon.parse_bigf / apt.read_bigf (bc2_native.bigf_parse) against parse_bigf_reference."""
     nat = native.require('bc2loc', 'bigf_parse')
@@ -226,8 +243,7 @@ def bigf_checks(c: Checks, rng: random.Random, game: bool) -> None:
     t = Tally()
     for i in range(2200):
         b = built[i] if i < 200 else damaged(rng.choice(built), rng)
-        a, r = outcome(mc.parse_bigf, b), outcome(mc.parse_bigf_reference, b)
-        t.add(a == r and (i >= 200 or nat.bigf_parse(b) is not None), f'bigf {i}: {str(a)[:80]} / {str(r)[:80]}')
+        t.add(bigf_same(b, nat) and (i >= 200 or nat.bigf_parse(b) is not None), f'bigf {i}: {str(outcome(mc.parse_bigf, b))[:80]}')
     c.check(not t.ndiff, f'BIGF archives (menucommon.parse_bigf): 200 built and 2,000 damaged, {t.same} the same '
             'members or the same error', '; '.join(t.differ))
     try:
@@ -245,8 +261,7 @@ def bigf_checks(c: Checks, rng: random.Random, game: bool) -> None:
         for bundle, entries in by.items():
             for entry, data in fbrb.read(bundle, entries).items():
                 nmov += 1
-                a, r = outcome(mc.parse_bigf, data), outcome(mc.parse_bigf_reference, data)
-                tg.add(a == r and nat.bigf_parse(data) is not None, entry)
+                tg.add(bigf_same(data, nat) and nat.bigf_parse(data) is not None, entry)
         if not game:
             break
     c.check(not tg.ndiff, f'{nmov} game menu / HUD movies: the same BIGF members both ways', '; '.join(tg.differ))
@@ -322,6 +337,7 @@ def main(argv: list[str]) -> int:
                 'left to the reference)', '; '.join(tg.differ))
         c.check(not tgd.ndiff, f'damaged game files: {tgd.same} the same object or the same error', '; '.join(tgd.differ))
         print(f'timing (read, decode every text, write): Python {tr:.2f} s, Rust {tn:.2f} s')
+    c.check(R.finish(), 'parse_bigf_reference: recorded, or replayed as recorded')
     return c.done()
 
 

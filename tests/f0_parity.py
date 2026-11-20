@@ -39,7 +39,10 @@ def canon(v: Any, depth: int = 0) -> Any:
 
 
 def outcome(fn: Callable[..., Any], *args: Any) -> tuple[Any, ...]:
-    """('ok', canon(fn(*args))) or ('error', type name, message)."""
+    """('ok', canon(fn(*args))) or ('error', type name, message); a retired reference's replay (replay.py) gives its
+    Recorded outcome."""
+    if getattr(fn, '__replay__', False):
+        return fn(*args)
     try:
         return ('ok', canon(fn(*args)))
     except RecursionError:

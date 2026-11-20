@@ -19,21 +19,19 @@ bytes on every BF1943 mesh port and Onslaught console mesh and passed the full t
 bfbc2-bf1943-import\tests\ports_golden.json (test_ports_native.py). element() stays: the per-value rule (OPFOR's
 wake_audit checks meshes with it).
 
-The header's parse and write (and meshset.py's) run in the Rust core too when it is built (round F0:
-bc2_native.mesh_parse / mesh_write, meshset_parse / meshset_write, the same dicts and bytes). Where the reference would
-raise, or a value is one the core leaves to it, the Python runs (parse_reference, write_reference: kept as the
-reference and the fallback), so the errors stay this module's; BFBC2_PURE_PYTHON=1 or use_native(False) runs the
-Python only (the vertex loop always runs in the Rust core).
-
-Round F2a: console_layouts, decode and relayout run in the Rust core too (bc2_convert::meshconv: the same dicts,
-arrays and bytes, the same ConvertError messages); with an edit callback, relayout's blocks and columns come from the
-core and the callback and the rows stay here. The Python is kept as the reference and the fallback
-(console_layouts_reference, decode_reference, relayout_reference), on the same switch.
+The header's parse and write (and meshset.py's) run in the Rust core too (round F0: bc2_native.mesh_parse /
+mesh_write, meshset_parse / meshset_write, the same dicts and bytes), and so do console_layouts, decode and relayout
+(round F2a: bc2_convert::meshconv: the same dicts, arrays and bytes, the same ConvertError messages; with an edit
+callback, relayout's blocks and columns come from the core and the callback and the rows stay here). Their Python
+(parse_reference, write_reference, console_layouts_reference, decode_reference, relayout_reference) was retired in
+round RT2 against its recorded answers (bfbc2-console-convert\\tests\\f0_meshdata_replay*.json,
+f2a_console_replay*.json): where it raised another error (a read past the data: a file cut short or damaged) or a
+value is one the core does not take, a ConvertError that is also a bfbc2core.native.Refused says so.
 """
 import os
 import struct
 import sys
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 
@@ -59,115 +57,45 @@ def require():
     return native.require('Mesh conversion (bfbc2-console-convert/mesh.py)', 'mesh_vertices')
 
 
-_NATIVE: list[Any] = []
-
-
 def _native() -> Any:
-    """The Rust core with mesh_parse (the header readers), or None: not built, or BFBC2_PURE_PYTHON set."""
-    if not _NATIVE:
-        m = None
-        try:
-            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            import suite_paths
-            suite_paths.use('core')
-            from bfbc2core import dbx as _dbx
-            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
-                m = _dbx._import_native()
-        except ImportError:
-            m = None
-        _NATIVE.append(m if m is not None and hasattr(m, 'mesh_parse') else None)
-    return _NATIVE[0]
+    """The Rust core with the header readers (bfbc2core.native.require): NativeMissing, saying how to get it."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('Mesh conversion (bfbc2-console-convert/mesh.py)', 'mesh_parse')
 
 
-def use_native(on: bool) -> bool:
-    """The Rust header readers and writers (this module's and meshset's) on (when built, whatever BFBC2_PURE_PYTHON
-    says) or off for this process; True when they run."""
-    _NATIVE.clear()
-    if not on:
-        _NATIVE.append(None)
-        return False
-    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-    try:
-        return _native() is not None
-    finally:
-        if saved is not None:
-            os.environ['BFBC2_PURE_PYTHON'] = saved
+def _refused(message: str) -> Exception:
+    from bfbc2core import native
+    return native.refused(message, ConvertError)
 
 
-class _Reader:
-    def __init__(self, b, be):
-        self.b, self.p, self.e = b, 0, '>' if be else '<'
-
-    def num(self, fmt):
-        v = struct.unpack_from(self.e + fmt, self.b, self.p)
-        self.p += struct.calcsize(fmt)
-        return v if len(v) > 1 else v[0]
-
-    def u8(self):
-        self.p += 1
-        return self.b[self.p - 1]
-
-    def cstr(self):
-        e = self.b.index(b'\0', self.p)
-        s = self.b[self.p:e]
-        self.p = e + 1
-        return s
+def _bytes(b: Any) -> Any:
+    return bytes(b) if isinstance(b, bytearray | memoryview) else b
 
 
 def parse(b, big_endian):
     """The header: {h0, h1, parts: [{name, triangles, vertices, first_index, vertex_offset, stride, k, fa, fb,
     bones}], lists: 4 lists of part indices, vertex_bytes, index_bytes, wide_indices, data: offset of the vertices}.
-    In the Rust core when it is built (round F0), else parse_reference."""
-    nat = _native()
-    got = nat.mesh_parse(b, bool(big_endian)) if nat is not None and type(b) is bytes else None
-    return got if got is not None else parse_reference(b, big_endian)
-
-
-def parse_reference(b, big_endian):
-    """The Python reader (the reference)."""
-    r = _Reader(b, big_endian)
-    m = {'h0': r.num('I'), 'h1': bytes([r.u8(), r.u8()]), 'parts': []}          # h1: two bytes, not a number
-    for _ in range(r.u8()):
-        p = {'name': r.cstr()}
-        p['triangles'], p['vertices'], p['first_index'], p['vertex_offset'] = r.num('4I')
-        p['stride'], p['k'], p['fa'], p['fb'] = r.u8(), r.u8(), r.u8(), r.u8()
-        p['bones'] = [r.num('H') for _ in range(r.num('H'))]
-        m['parts'].append(p)
-    m['lists'] = []
-    for _ in range(4):
-        n = r.num('I')
-        m['lists'].append(list(b[r.p:r.p + n]))
-        r.p += n
-    m['vertex_bytes'], m['index_bytes'], m['wide_indices'] = r.num('3I')
-    m['data'] = r.p
-    if m['data'] + m['vertex_bytes'] + m['index_bytes'] != len(b):
-        raise ConvertError(f'mesh data: header, vertices and indices make {m["data"] + m["vertex_bytes"] + m["index_bytes"]}'
-                           f' bytes, the file has {len(b)}')
-    return m
+    In the Rust core (round F0); a file it does not read (cut short or damaged) raises a Refused ConvertError."""
+    b = _bytes(b)
+    got = _native().mesh_parse(b, bool(big_endian)) if type(b) is bytes else None
+    if got is None:
+        raise _refused(f'mesh data: {len(b) if type(b) is bytes else type(b).__name__} bytes the header reader does '
+                       'not read (cut short or damaged)')
+    return got
 
 
 def write(m, vertices, indices):
     """PC (little-endian) bytes of header m with the vertex and index bytes: in the Rust core when it is built
-    (round F0), else write_reference."""
-    nat = _native()
-    got = nat.mesh_write(m, vertices, indices) if nat is not None else None
-    return got if got is not None else write_reference(m, vertices, indices)
-
-
-def write_reference(m, vertices, indices):
-    """The Python writer (the reference)."""
-    out = bytearray(struct.pack('<I', m['h0']) + m['h1'] + bytes([len(m['parts'])]))
-    for p in m['parts']:
-        out += p['name'] + b'\0'
-        out += struct.pack('<4I4B', p['triangles'], p['vertices'], p['first_index'], p['vertex_offset'], p['stride'],
-                           p['k'], p['fa'], p['fb'])
-        out += struct.pack('<H%dH' % len(p['bones']), len(p['bones']), *p['bones'])
-    for l in m['lists']:
-        out += struct.pack('<I', len(l)) + bytes(l)
-    out += struct.pack('<3I', len(vertices), len(indices), 0)
-    return bytes(out) + vertices + indices
+    (round F0); a header with values it does not write raises a Refused ConvertError."""
+    got = _native().mesh_write(m, _bytes(vertices), _bytes(indices))
+    if got is None:
+        raise _refused('mesh data: a header (or vertex / index bytes) with values the writer does not take')
+    return got
 
 
 def elements(layout):
@@ -198,45 +126,15 @@ def element(fc, fp, raw, colour=False):
 
 
 def console_layouts(db):
-    """console_layouts_reference's dict, in the Rust core when it is built (round F2a)."""
-    nat = _native()
-    if nat is not None and isinstance(db, (bytes, bytearray)) and hasattr(nat, 'mesh_console_layouts'):
-        return nat.mesh_console_layouts(bytes(db))
-    return console_layouts_reference(db)
-
-
-def console_layouts_reference(db):
     """{mesh part name (lower case, '<mesh>_lod<N>/<part>/<technique>'): layout record body} of a console shader
     database (Shaders/Single.res: BFBC2's Xbox levels, Battlefield 1943's). Part names are stored as name, NUL, the
     16-byte guid of its layout; a run of them is walked name by name, so a guid byte that happens to be printable is
     not taken for the next name's first letter. Each guid's layout record is found where the guid is followed by a
-    plausible record (1 to 16 elements)."""
-    import re
-    raw, rec, prev = [], 16 + 0x49, None
-    for m in re.finditer(rb'[ -~]{4,300}?_lod\d+/[ -~]+?\x00', db):
-        start, end = m.start(), m.end()                      # end: just past the NUL
-        anchored = prev is not None and start <= prev + 16 < end
-        if anchored:                                         # it follows a record: its name begins after that guid
-            start = cast(int, prev) + 16
-        raw.append((db[start:end - 1].decode('latin-1').lower(), db[end:end + 16], anchored))
-        prev = end
-    # the first name of a run has no record before it: a printable guid byte there shows as a stray first letter,
-    # dropped when the rest of the name starts with a top folder the anchored names use
-    roots = {n.split('/')[0] for n, _, a in raw if a}
-    out = {}
-    for n, g, a in raw:
-        if not a and n.split('/')[0] not in roots and n.split('/')[0][1:] in roots:
-            n = n[1:]
-        out[n] = g
-    found = {}
-    for g in set(out.values()):
-        p = db.find(g)
-        while p >= 0:
-            if p + rec <= len(db) and 0 < db[p + 16 + 64] <= 16 and db[p + 16 + 65] == 0:
-                found[g] = db[p + 16:p + rec]
-                break
-            p = db.find(g, p + 1)
-    return {n: found[g] for n, g in out.items() if g in found}
+    plausible record (1 to 16 elements). In the Rust core (round F2a)."""
+    db = _bytes(db)
+    if type(db) is not bytes:
+        raise TypeError(f'console_layouts: a shader database\'s bytes, not {type(db).__name__}')
+    return _native().mesh_console_layouts(db)
 
 
 TEXCOORD_PAIRS = (0x06, 0x02)          # two-component texture coordinates: half2, float2
@@ -270,57 +168,20 @@ def _bytes_like(*vs):
 
 
 def decode(b, layout, part, big_endian=True):
-    """decode_reference's arrays, in the Rust core when it is built (round F2a)."""
-    nat = _native()
-    if nat is not None and _bytes_like(b, layout) and type(part) in (int, str) and hasattr(nat, 'mesh_decode'):
-        got = nat.mesh_decode(bytes(b), bytes(layout), part, bool(big_endian))
-        if got is not None:
-            if not got[0]:
-                raise ConvertError(got[1])
-            return {k: np.frombuffer(data, dt).reshape(rows, cols) for k, dt, rows, cols, data in got[1]}
-    return decode_reference(b, layout, part, big_endian)
-
-
-def decode_reference(b, layout, part, big_endian=True):
     """One part of a MeshData file as arrays: {positions, normals, tangents, binormals, uvs (the texture coordinates:
     texcoord_element), weights (0..1),
     blend_indices (into the part's bone palette), bones (skeleton indices: the palette applied), indices (m, 3; into
     these arrays)} - each element present in the layout record body (console: the source game's shader database; PC:
-    BFBC2's). Only the vertices the part's triangles use (its window) are read; stream 0."""
-    m = parse(b, big_endian)
-    p = m['parts'][part] if isinstance(part, int) else next(q for q in m['parts'] if q['name'].decode('latin-1') == part)
-    els, stride = elements(layout)
-    if p['stride'] != stride:
-        raise ConvertError(f'part {p["name"]!r}: stride {p["stride"]}, its layout says {stride}')
-    isz = 4 if m['wide_indices'] else 2
-    e = '>' if big_endian else '<'
-    idx = np.frombuffer(b, e + ('u4' if isz == 4 else 'u2'), index_count(p),
-                        m['data'] + m['vertex_bytes'] + p['first_index'] * isz).astype(np.int64)
-    if p['k'] == STRIP:
-        idx = np.array(strip_to_list(idx.tolist()), np.int64)
-    lo = int(idx.min()) if len(idx) else 0
-    n = (int(idx.max()) - lo + 1) if len(idx) else 0
-    base = m['data'] + p['vertex_offset'] + lo * stride
-    raw = np.frombuffer(b, np.uint8, n * stride, base).reshape(n, stride) if n else np.zeros((0, stride), np.uint8)
-    out: dict[str, np.ndarray] = {'indices': (idx - lo).reshape(-1, 3)}
-    uv = texcoord_element(els)
-    for i, (f, usage, off, stream) in enumerate(els):
-        if stream != 0 or usage not in USAGES or USAGES[usage] in out or (usage == 0 and i != uv):
-            continue
-        fp = PC_FORMAT.get(f, f) if big_endian else f
-        if fp not in _PC_DTYPE:
-            raise ConvertError(f'part {p["name"]!r}: vertex element format {f:#04x} is not decoded')
-        cols = raw[:, off:off + SIZE[f]]
-        pc = b''.join(element(f, fp, bytes(r)) for r in cols) if big_endian else cols.tobytes()
-        dt, k = _PC_DTYPE[fp]
-        v = np.frombuffer(pc, dt).reshape(n, k)
-        out[USAGES[usage]] = v.astype(np.float32) if dt != 'u1' else v.copy()
-    if 'weights' in out:
-        out['weights'] = out['weights'].astype(np.float32) / 255.0
-    if 'blend_indices' in out and p['bones']:
-        pal = np.array(p['bones'])
-        out['bones'] = pal[np.minimum(out['blend_indices'], len(pal) - 1)]
-    return out
+    BFBC2's). Only the vertices the part's triangles use (its window) are read; stream 0. In the Rust core (round
+    F2a); a file or layout it does not read raises a Refused ConvertError."""
+    got = None
+    if _bytes_like(b, layout) and type(part) in (int, str):
+        got = _native().mesh_decode(bytes(b), bytes(layout), part, bool(big_endian))
+    if got is None:
+        raise _refused(f'mesh data: part {part!r}: a file or layout the decoder does not read (cut short or damaged)')
+    if not got[0]:
+        raise ConvertError(got[1])
+    return {k: np.frombuffer(data, dt).reshape(rows, cols) for k, dt, rows, cols, data in got[1]}
 
 
 def pair_by_kind(ec, ep, leftovers=False):
@@ -498,36 +359,36 @@ def convert(b, layouts, drop=None, reorder=False, bones=None):
     return write(m, bytes(vb), bytes(ib))
 
 
-def _pc_column(raw, f, off):
-    """One element of PC vertex rows (n, stride) as a numeric array: floats for the float / half formats, uint8 for
-    UBYTE4."""
-    dt, k = _PC_DTYPE[f]
-    c = np.ascontiguousarray(raw[:, off:off + SIZE[f]])
-    v = np.frombuffer(c.tobytes(), dt).reshape(len(raw), k)
-    return v.astype(np.float32) if dt != 'u1' else v.copy()
-
-
 def relayout(b, old, new, edit=None):
-    """relayout_reference's bytes, in the Rust core when it is built (round F2a); with edit, the blocks and their
-    columns from the core, the edit and the rows here."""
-    nat = _native()
-    if (nat is not None and type(b) is bytes and isinstance(old, (list, tuple)) and isinstance(new, (list, tuple))
-            and _bytes_like(*old, *new) and hasattr(nat, 'mesh_relayout')):
+    """A PC MeshData's vertices re-laid into other PC vertex layouts (each part: old[i] -> new[i], layout record
+    bodies). A PC element takes the old element of its kind (usage, stream; the k-th of a kind the k-th), its value
+    carried across formats of the same family (half / float, as many components as both have, the rest 0); an element
+    the old layout lacks is 0. edit(parts, cols) may then change the values: parts the header dicts of the parts
+    drawing from one block of vertices (their palettes may be extended), cols {new element index: array (n, k)} -
+    float32 for float / half formats, uint8 for UBYTE4. Index data is kept; vertex offsets and strides follow. A kind
+    is (usage, stream, component count) first: a half4 texture coordinate pairs with a half4, a half2 with a half2,
+    whatever order the two layouts list them in; a new element no old one of its count matches then takes the next
+    unpaired old element of its usage and stream (a half4 position into a float3: x, y, z; a half2 into a float4:
+    the rest 0).
+
+    A block is the vertices parts draw (from each part's vertex offset to its highest index), overlapping ones
+    merged; every part of a block must have the same old and the same new layout. Returns the PC bytes. In the Rust
+    core (round F2a: with edit, the blocks and their columns from the core, the edit and the rows here); a file or
+    layouts it does not read raise a Refused ConvertError."""
+    b = _bytes(b)
+    got = None
+    if (type(b) is bytes and isinstance(old, (list, tuple)) and isinstance(new, (list, tuple))
+            and _bytes_like(*old, *new)):
         o, n = [bytes(x) for x in old], [bytes(x) for x in new]
-        if edit is None:
-            got = nat.mesh_relayout(b, o, n)
-            if got is not None:
-                if not got[0]:
-                    raise ConvertError(got[1])
-                return got[1]
-        else:
-            got = nat.mesh_relayout_blocks(b, o, n)
-            if got is not None:
-                if not got[0]:
-                    raise ConvertError(got[1])
-                blocks, tail = got[1]
-                return _relayout_edited(b, new, edit, blocks, tail)
-    return relayout_reference(b, old, new, edit)
+        got = _native().mesh_relayout(b, o, n) if edit is None else _native().mesh_relayout_blocks(b, o, n)
+    if got is None:
+        raise _refused('mesh data: a file or layouts the relayout does not read (cut short or damaged)')
+    if not got[0]:
+        raise ConvertError(got[1])
+    if edit is None:
+        return got[1]
+    blocks, tail = got[1]
+    return _relayout_edited(b, new, edit, blocks, tail)
 
 
 def _relayout_edited(b, new, edit, blocks, tail):
@@ -568,87 +429,3 @@ def _relayout_write(b, m, new, vb, new_off):
     return bytes(res)
 
 
-def relayout_reference(b, old, new, edit=None):
-    """A PC MeshData's vertices re-laid into other PC vertex layouts (each part: old[i] -> new[i], layout record
-    bodies). A PC element takes the old element of its kind (usage, stream; the k-th of a kind the k-th), its value
-    carried across formats of the same family (half / float, as many components as both have, the rest 0); an element
-    the old layout lacks is 0. edit(parts, cols) may then change the values: parts the header dicts of the parts
-    drawing from one block of vertices (their palettes may be extended), cols {new element index: array (n, k)} -
-    float32 for float / half formats, uint8 for UBYTE4. Index data is kept; vertex offsets and strides follow. A kind
-    is (usage, stream, component count) first: a half4 texture coordinate pairs with a half4, a half2 with a half2,
-    whatever order the two layouts list them in; a new element no old one of its count matches then takes the next
-    unpaired old element of its usage and stream (a half4 position into a float3: x, y, z; a half2 into a float4:
-    the rest 0).
-
-    A block is the vertices parts draw (from each part's vertex offset to its highest index), overlapping ones
-    merged; every part of a block must have the same old and the same new layout. Returns the PC bytes."""
-    m = parse(b, False)
-    if len(old) != len(m['parts']) or len(new) != len(m['parts']):
-        raise ConvertError(f'{len(m["parts"])} parts, {len(old)} / {len(new)} layouts')
-    isz = 4 if m['wide_indices'] else 2
-    spans = []
-    for i, p in enumerate(m['parts']):
-        if not p['triangles']:
-            continue
-        idx = np.frombuffer(b, '<u4' if isz == 4 else '<u2', index_count(p), m['data'] + m['vertex_bytes'] + p['first_index'] * isz)
-        hi = int(idx.max()) + 1 if len(idx) else 0
-        spans.append([p['vertex_offset'], p['vertex_offset'] + hi * p['stride'], [i]])
-    spans.sort()
-    blocks: list[list[Any]] = []
-    for s in spans:
-        if blocks and s[0] < blocks[-1][1]:
-            blocks[-1][1] = max(blocks[-1][1], s[1])
-            blocks[-1][2] += s[2]
-        else:
-            blocks.append(s)
-    vb = bytearray()
-    new_off = {}
-    for start, end, members in blocks:
-        lo_ = {bytes(old[i]) for i in members}
-        ln_ = {bytes(new[i]) for i in members}
-        if len(lo_) != 1 or len(ln_) != 1:
-            raise ConvertError(f'parts {[m["parts"][i]["name"] for i in members]} share vertices in different layouts')
-        eo, so = elements(old[members[0]])
-        en, sn = elements(new[members[0]])
-        if (end - start) % so or any((m['parts'][i]['vertex_offset'] - start) % so for i in members):
-            raise ConvertError(f'parts {[m["parts"][i]["name"] for i in members]}: vertices not aligned on {so} bytes')
-        n = (end - start) // so
-        raw = np.frombuffer(b, np.uint8, n * so, m['data'] + start).reshape(n, so)
-        # pair each new element with an old one: the same (usage, stream, component count) first, then any left of
-        # the same (usage, stream) - a half4 position into a float3 one
-        left = list(range(len(eo)))
-        pair: dict[int, int] = {}
-        for exact in (True, False):
-            for k, (f, u, _off, s) in enumerate(en):
-                if k in pair:
-                    continue
-                src = next((j for j in left if eo[j][1] == u and eo[j][3] == s and
-                            (not exact or _PC_DTYPE[eo[j][0]][1] == _PC_DTYPE[f][1])), None)
-                if src is not None:
-                    pair[k] = src
-                    left.remove(src)
-        cols = {}
-        for k, (f, _u, _off, _s) in enumerate(en):
-            dt, comps = _PC_DTYPE[f]
-            src = pair.get(k)
-            out = np.zeros((n, comps), np.uint8 if dt == 'u1' else np.float32)
-            if src is not None:
-                fo, _, oo, _ = eo[src]
-                v = _pc_column(raw, fo, oo)
-                if (v.dtype == np.uint8) != (out.dtype == np.uint8):
-                    raise ConvertError(f'element {en[k]}: its old format {fo:#04x} is not carried to {f:#04x}')
-                c = min(comps, v.shape[1])
-                out[:, :c] = v[:, :c]
-            cols[k] = out
-        if edit is not None:
-            edit([m['parts'][i] for i in members], cols)
-        rows = np.zeros((n, sn), np.uint8)
-        for k, (f, _u, off, _s) in enumerate(en):
-            dt, _comps = _PC_DTYPE[f]
-            rows[:, off:off + SIZE[f]] = np.frombuffer(np.ascontiguousarray(cols[k].astype(dt)).tobytes(), np.uint8).reshape(n, -1)
-        base = len(vb)
-        vb.extend(rows.tobytes())
-        for i in members:
-            new_off[i] = base + (m['parts'][i]['vertex_offset'] - start) // so * sn
-            m['parts'][i]['stride'] = sn
-    return _relayout_write(b, m, new, vb, new_off)
