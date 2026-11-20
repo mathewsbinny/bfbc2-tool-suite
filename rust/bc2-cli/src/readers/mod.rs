@@ -48,7 +48,10 @@ fn lower(s: &str) -> PyResult<String> {
 /// `open(path, 'rb')`'s errors before any read: a missing file, a folder (`PermissionError` on Windows).
 fn open_check(path: &str) -> PyResult<()> {
     match std::fs::metadata(path) {
-        Ok(m) if m.is_dir() => Err(os_error(path, &std::io::Error::from(std::io::ErrorKind::PermissionDenied))),
+        Ok(m) if m.is_dir() => Err(os_error(
+            path,
+            &std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+        )),
         Ok(_) => Ok(()),
         Err(e) => Err(os_error(path, &e)),
     }

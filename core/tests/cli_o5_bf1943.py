@@ -116,8 +116,9 @@ def cases() -> list[Case]:
     src = source_files()
     fb = {'fb\\fbrb1943.py': reader}
     base = {**src, **fb}
-    off = {'BF1943_SUITE_FBRB': '{d}\\fb', 'BF1943_SOURCE_INDEX': '0'}
-    ix = {'BF1943_SUITE_FBRB': '{d}\\fb'}
+    # the Python imports the case folder's fbrb1943.py: no __pycache__ beside it (bfbc2.exe reads the file as text)
+    nopyc = {'PYTHONDONTWRITEBYTECODE': '1'}
+    off = {'BF1943_SUITE_FBRB': '{d}\\fb', 'BF1943_SOURCE_INDEX': '0', **nopyc}
     rows: list[tuple[str, dict[str, Any], list[str], dict[str, str]]] = [
         ('--help', {}, ['--help'], {}),
         ('/? among others', {}, ['list', '/?'], {}),
@@ -138,18 +139,28 @@ def cases() -> list[Case]:
         ('an option given twice', base, ['list', '--source', '{d}\\nowhere', '--source', '{d}\\src', 'menu'], off),
         ('import without a filter', base, ['import', '--source', '{d}\\src', '--out', '{d}\\out'], off),
         ('check', base, ['check', '--source', '{d}\\src'], off),
-        ('list, the index written on first use', base, ['list', 'wake', '--source', '{d}\\src'], ix),
     ]
     out: list[Case] = [(f'bf1943import: {n}', 'bf1943import', f, a, e, False) for n, f, a, e in rows]
-    out = menu.with_variants(out, ['bf1943import: list everything', 'bf1943import: no source folder'])
-    # the index read when current (a stale row: checked again, so written again - the Python's): in the case folder
-    # (BF1943_SOURCE_INDEX={d}\ix), its file named by the source folder's hash (_IndexName) and made from it (_Index)
+    return menu.with_variants(out, ['bf1943import: list everything', 'bf1943import: no source folder'])
+
+
+def index_rows(reader: bytes) -> list[tuple[str, dict[Any, Any], list[str], dict[str, str]]]:
+    """The source index's cases: written on first use (in the run's local app data), read when current, a stale row
+    (checked again, so written again - the Python's). The index file is named by the hash of the source folder's path
+    and holds that path, so its answer depends on the case folder, which is new for every run: these are not recorded
+    (O4's rule for location-dependent cases) but run both ways in the --game tier, the two sides in one folder.
+    In the case folder (BF1943_SOURCE_INDEX={d}\\ix), the file is named by the source folder's hash (_IndexName)
+    and made from it (_Index)."""
+    base: dict[Any, Any] = {**source_files(), 'fb\\fbrb1943.py': (reader, T0)}
+    ix = {'BF1943_SUITE_FBRB': '{d}\\fb', 'PYTHONDONTWRITEBYTECODE': '1'}
+    rows: list[tuple[str, dict[Any, Any], list[str], dict[str, str]]] = [
+        ('list, the index written on first use', base, ['list', 'wake', '--source', '{d}\\src'], ix)]
     for label, changed in (('current', None), ('stale', 'menu/menu-00.fbrb')):
         files: dict[Any, Any] = dict(base)
-        files[_IndexName()] = _Index(reader, changed)
-        out.append((f'bf1943import: list, the index {label}', 'bf1943import', files,
-                    ['list', '--source', '{d}\\src'], dict(ix, BF1943_SOURCE_INDEX='{d}\\ix'), False))
-    return out
+        files[_IndexName()] = (_Index(reader, changed), T0)
+        rows.append((f'list, the index {label}', files, ['list', '--source', '{d}\\src'],
+                     dict(ix, BF1943_SOURCE_INDEX='{d}\\ix')))
+    return rows
 
 
 class _Index:
@@ -177,11 +188,17 @@ class _IndexName(str):
 
 
 def opfor_calls(opfor: str) -> list[Call]:
-    """The real BF1943 source listed (read in place; the index off: nothing written outside the case folder)."""
-    if not (os.path.isdir(XENON) and os.path.isfile(READER)):
+    """The real BF1943 source listed (read in place; the index off: nothing written outside the case folder); first
+    the source index's synthetic cases (index_rows: location-dependent, so compared both ways here, not recorded)."""
+    if not os.path.isfile(READER):
         return []
+    with open(READER, 'rb') as f:
+        reader = f.read()
+    out: list[Call] = [(f'bf1943import: {n} (synthetic, both ways)', 'bf1943import', a, files, e, False)
+                       for n, files, a, e in index_rows(reader)]
+    if not os.path.isdir(XENON):
+        return out
     env = {'BF1943_SOURCE_INDEX': '0', 'BF1943_SUITE_FBRB': os.path.dirname(READER)}
-    out: list[Call] = []
     for args in (['garand'], ['ske01'], ['levels/wake_island_s', 'shaders'], ['m1garand', '3p'], ['XenonTexture'],
                  ['beach/k98'], ['type97'], ['zzzz']):
         out.append((f'bf1943import list {" ".join(args)}', 'bf1943import', ['list', *args, '--source', XENON], {},

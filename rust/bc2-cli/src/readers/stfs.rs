@@ -20,7 +20,11 @@ const SOURCE: &str = include_str!("../../../../bfbc2-console-readers/stfs/stfs.p
 
 /// `repr(bytes)` of the magic.
 fn bytes_repr(b: &[u8]) -> String {
-    let q = if b.contains(&b'\'') && !b.contains(&b'"') { '"' } else { '\'' };
+    let q = if b.contains(&b'\'') && !b.contains(&b'"') {
+        '"'
+    } else {
+        '\''
+    };
     let mut out = format!("b{q}");
     for &c in b {
         match c {
@@ -67,11 +71,7 @@ pub fn run(py: &mut Py, args: &[String]) -> PyResult<i32> {
         ))?;
         return Ok(0);
     }
-    let flt = if cmd == Some("list") {
-        args.get(2)
-    } else {
-        args.get(3)
-    };
+    let flt = if cmd == Some("list") { args.get(2) } else { args.get(3) };
     let flt = lower(flt.map_or("", String::as_str))?;
     let entries = pkg.entries.clone();
     for e in &entries {

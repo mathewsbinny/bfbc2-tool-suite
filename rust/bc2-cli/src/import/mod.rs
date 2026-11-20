@@ -61,7 +61,7 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         py.print(&docstring(SOURCE))?;
         return Ok(0);
     }
-    let mut args: Vec<&str> = Vec::new();
+    let mut positional: Vec<&str> = Vec::new();
     let mut opts: Vec<(&str, &str)> = Vec::new();
     let mut it = argv.iter();
     while let Some(a) = it.next() {
@@ -72,13 +72,16 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
             opts.retain(|(k, _)| *k != a.as_str());
             opts.push((a.as_str(), v.as_str()));
         } else {
-            args.push(a.as_str());
+            positional.push(a.as_str());
         }
     }
     let opt = |k: &str| opts.iter().find(|(n, _)| *n == k).map(|(_, v)| *v);
-    let Some(&cmd) = args.first().filter(|c| matches!(**c, "list" | "import" | "check")) else {
+    let Some(&cmd) = positional
+        .first()
+        .filter(|c| matches!(**c, "list" | "import" | "check"))
+    else {
         py.print(&docstring(SOURCE))?;
-        return Ok(i32::from(!args.is_empty()));
+        return Ok(i32::from(!positional.is_empty()));
     };
     let suite = crate::pyproc::suite_root().to_string_lossy().into_owned();
     let folder = opt("--source")
@@ -88,7 +91,7 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
     if cmd != "list" {
         return Err(Fail::Python);
     }
-    let filters: Vec<String> = args.iter().skip(1).map(|s| (*s).to_owned()).collect();
+    let filters: Vec<String> = positional.iter().skip(1).map(|s| (*s).to_owned()).collect();
     if filters.iter().any(|f| f.chars().any(|c| u32::from(c) > 0xFF)) {
         return Err(Fail::Python); // str.lower() beyond Latin-1
     }

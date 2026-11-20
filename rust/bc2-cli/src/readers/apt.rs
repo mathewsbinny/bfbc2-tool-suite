@@ -49,7 +49,7 @@ struct Movie {
     name: String,
     a: Vec<u8>,
     big: bool,
-    movie: i64,
+    main_at: i64,
     consts: Vec<String>,
 }
 
@@ -86,7 +86,7 @@ impl Movie {
 
     /// `Movie.characters()`.
     fn characters(&self) -> PyResult<Vec<(u32, u32, Option<u32>)>> {
-        let m = self.movie;
+        let m = self.main_at;
         let (count, ptr) = (self.u(m + 20)?, self.u(m + 24)?);
         let mut out = Vec::new();
         for c in 0..count {
@@ -182,7 +182,7 @@ fn open(path: &str) -> PyResult<Movie> {
         name,
         a,
         big,
-        movie,
+        main_at: movie,
         consts,
     })
 }
@@ -224,16 +224,24 @@ pub fn run(py: &mut Py, args: &[String]) -> PyResult<i32> {
             for t in mv.characters()?.into_iter().filter_map(|(_, _, t)| t) {
                 *kinds.entry(type_name(t)).or_default() += 1;
             }
-            let m = mv.movie;
+            let m = mv.main_at;
             let text = format!(
                 "{}: {}, {}x{}, {} frame(s), {} constants; characters: {}",
                 mv.name,
-                if mv.big { "big-endian (Xbox 360)" } else { "little-endian (PC)" },
+                if mv.big {
+                    "big-endian (Xbox 360)"
+                } else {
+                    "little-endian (PC)"
+                },
                 mv.i(m + 28)?,
                 mv.i(m + 32)?,
                 mv.u(m + 8)?,
                 mv.consts.len(),
-                kinds.iter().map(|(k, v)| format!("{v} {k}")).collect::<Vec<_>>().join(", ")
+                kinds
+                    .iter()
+                    .map(|(k, v)| format!("{v} {k}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
             py.print(&text)?;
         }
@@ -252,7 +260,7 @@ pub fn run(py: &mut Py, args: &[String]) -> PyResult<i32> {
                     name: &mv.name,
                     apt: &mv.a,
                     big: mv.big,
-                    movie: mv.movie,
+                    movie: mv.main_at,
                     consts: &mv.consts,
                 },
                 false,
