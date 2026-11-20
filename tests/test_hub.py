@@ -132,11 +132,8 @@ def main(argv: list[str]) -> int:
     check(root.report_callback_exception is not None, 'errors in the window\'s own buttons are caught and reported')
     root.destroy()
 
-    # a 3D tool given a level the game does not have: a clean exit with the cause, and its log
-    r = __import__('subprocess').run([hubmod.PYTHON, hubmod.SCRIPTS['studio'], 'no_such_level', '--screenshot', 'x.png'],
-                                     capture_output=True, text=True, timeout=300)
-    check(r.returncode == 1 and 'error:' in r.stderr and 'what to do' in r.stderr and 'details:' in r.stderr,
-          'a 3D tool that cannot open a level exits cleanly, saying why and where the log is')
+    check(not hasattr(hub, 'open_3d') and hasattr(hub, 'open_navigation'),
+          'Levels: the navigation opens in the map editor (the Navigation Studio was retired in round GR2)')
 
     from bfbc2core import pick
     items = pick.levels()

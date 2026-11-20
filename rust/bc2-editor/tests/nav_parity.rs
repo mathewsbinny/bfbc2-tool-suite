@@ -8,7 +8,8 @@
 //! `level:ons_mp_002`, `SP_009` against `level:sp_01`, and the WW2 level `GUADAL_CANAL`'s own layer from its
 //! partition.
 //!
-//! The Studio's answers are digests (`tests/data/navstudio.json.gz`, `tests/record_navstudio.py`): each list's length
+//! The Studio's answers are digests (`tests/data/navstudio.json.gz`, recorded by round GR2's `record_navstudio.py`,
+//! removed with the Studio after commit a0a1379): each list's length
 //! and the SHA-1 of its compact JSON, floats as fixed-point text. Skipped (with a note) without the game copy.
 #![allow(
     clippy::panic,

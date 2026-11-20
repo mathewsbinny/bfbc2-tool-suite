@@ -27,7 +27,9 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    - **The GUIs:** per GUI, list what the editor lacks, add it, then retire the GUI.
      - ~~Map Inspector: the link view, the full property tree~~ (GR1: All fields, Links, Measure; retired). The
        other GUIs' features, whether the editor has them and the plan: `EDITOR_ARCHITECTURE.md` section 9.
-     - GR2: Navigation Studio into the editor's AI workspace (NavKit against DICE side by side, path tests).
+     - ~~GR2: Navigation Studio into the editor's AI workspace~~ (GR2: both files side by side, the colourings, path
+       test, anomaly and compare overlays, edits in the project's log, build / install / restore; retired, its
+       `overlay.py` kept).
      - GR3: the mesh viewer into the asset browser's preview (its PNG command line stays).
      - GR4: DbxEditGUI into a generic DBX inspector panel (the last C#).
      - LevelDiff as a `bfbc2.exe leveldiff` command (proven on real level pairs), then LevelDiff.exe retired.
@@ -66,7 +68,7 @@ In priority order (above); the next rounds:
 | Round | What |
 |---|---|
 | RT2 | RT1's leftovers: record answers for the live-compared references (F0, F2a, F2b, E4b, E4e) then retire them; navsample.load v1 / v2; the hpd / audio error messages in the bindings; argparse's console width in the Rust parser; the library parts split out of command-line `.py` files; next CLI candidates (aptrefs, xiso, culltree, stockmp, exeref / crashreader) |
-| GUIs | GR2 Navigation Studio, GR3 mesh viewer, GR4 DbxEditGUI, LevelDiff as `bfbc2.exe leveldiff`: each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
+| GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI, LevelDiff as `bfbc2.exe leveldiff`: each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
 | Post-Rust | the 10 improvements |

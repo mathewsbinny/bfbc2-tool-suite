@@ -13,7 +13,7 @@ bot layer knows which parts of the route graph it joins.
              "bottom_node": {"sector": 515, "id": 1234, "pos": [x, y, z], "island": 0} | null,
              "top_node": {...} | null, "joins_islands": true, "by": "MATHEWS", "when": "..."}]
 }
-Islands are numbered by size (0: the largest, the main route network), as the Navigation Studio shows them.
+Islands are numbered by size (0: the largest, the main route network), as the map editor's AI workspace shows them.
 """
 import hashlib
 import json
