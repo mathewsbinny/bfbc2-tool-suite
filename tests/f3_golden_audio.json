@@ -812,22 +812,34 @@
 "quick:built": [
 0,
 "a5598e4fa4b3dbce17b8",
-972
+972,
+"a5598e4fa4b3dbce17b8",
+0,
+0
 ],
 "quick:damaged": [
 0,
 "96c7f973ca8be2f67d0c",
-262
+262,
+"96c7f973ca8be2f67d0c",
+0,
+0
 ],
 "quick:riff": [
 0,
 "e5a0762872fac97eb664",
-600
+600,
+"1a7cc51a2c202c8ed837",
+285,
+0
 ],
 "quick:xas": [
 0,
 "69c0ce7543ab1d359090",
-600
+600,
+"a951578575a8fb9aec6c",
+83,
+83
 ],
 "work/xbox/disc/dist/xenon/menu/main/mainmenu-00.fbrb": [
 18314362,

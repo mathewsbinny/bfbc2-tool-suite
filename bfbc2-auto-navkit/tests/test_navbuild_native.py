@@ -667,7 +667,8 @@ def e3c(rng: random.Random) -> int:
         grow, below, above = rng.choice([0.9, 0.5, 1.7, 0.8]), rng.choice([2.2, 0.5]), rng.choice([0.3, 1.0])
         twin('e3c', f'near_characters case {case}', navwalk.near_characters(s, char, grow, below, above))
         calls += 1
-    # the sample files' records (versions 1 and 2; a run cut off between columns, a record cut short)
+    # the sample files' records (versions 1 and 2; a run cut off between columns, a record cut short): read in the
+    # Rust core (its Python was retired in round RT2 against its recorded answers: test_f3_native's navsample12 area)
     import navsample
     with tempfile.TemporaryDirectory() as tmp:
         for case in range(12):
@@ -683,29 +684,24 @@ def e3c(rng: random.Random) -> int:
                     if version == 2:
                         body += struct.pack('<3I', *(rng.randrange(1 << 32) for _ in range(3)))
             if case == 11:
-                body = body[:-3]                                   # a record cut short: struct.error either way
+                body = body[:-3]                                   # a record cut short: refused
             head = navsample.HEADER.pack(b'ONS1', version, 0.8, -12.0, 4.0, nx, nz, 50.0, -50.0, 0.4, 0.6, 1.8,
                                          0.05, 0)
             path = os.path.join(tmp, f'run{case}.bin')
             with open(path, 'wb') as f:
                 f.write(head + bytes(body))
 
-            def load(path: str = path) -> Any:
-                try:
-                    smp, c = navsample.load(path)
-                except struct.error as e:
-                    return ('struct.error', str(e))
-                # (and whether the arrays came from the Rust core's bytearrays)
-                return (ordered((smp.start, smp.y, smp.normal, smp.flags, smp.hit, c, smp.pitch, smp.nx, smp.nz)),
-                        isinstance(smp.y.base, memoryview))
-            a = load()
-            navsample.use_native(False)
             try:
-                b = load()
-            finally:
-                navsample.use_native(True)
-            check(a[0] == b[0] if case != 11 else a == b, f'navsample.load case {case} (version {version})')
-            check(case == 11 or (a[1] and not b[1]), f'navsample.load case {case}: the backends were not the asked ones')
+                smp, c = navsample.load(path)
+            except ValueError as e:
+                check(case == 11 and type(e).__name__ == 'Refused', f'navsample.load case {case} (version {version}): {e}')
+            else:
+                n = int(smp.start[-1])
+                check(case != 11 and len(smp.start) == nx * nz + 1 and len(smp.y) == n == len(smp.flags)
+                      and smp.normal.shape == (n, 3) and smp.hit is not None
+                      and smp.hit.shape == ((n if version == 2 else 0), 3)
+                      and isinstance(smp.y.base, memoryview) and c <= nx * nz,
+                      f'navsample.load case {case} (version {version}): the Rust core\'s arrays')
             calls += 1
     # roof islands: random keep and anchors, the rule's settings varied
     saved = (navwalk.ROOF_RAISE, navwalk.ROOF_SHARE, navwalk.ROOF_NEAR, navwalk.ROOF_NEAR_DY)

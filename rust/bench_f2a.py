@@ -3,10 +3,9 @@ one process, warm (best of 3).
 
   python rust\bench_f2a.py
 
-Workloads: BF1943's Wake Island and Coral Sea terrain resources converted (heightfield, material map, visual
-terrain, visual water) and BFBC2's Xbox mp_005's; a console shader database's part layouts; a 1024 x 1024 picture
-encoded as each kind; the M1 Garand's skinned LODs read, decoded and written; an animation's tracks shifted and
-five tracks added.
+Workloads: a 1024 x 1024 picture encoded as each kind; the M1 Garand's skinned LODs read, decoded and written; an
+animation's tracks shifted and five tracks added. (The terrain conversions' and console_layouts' rows went with their
+Python references, retired in round RT2; BENCHMARKS.md "F2a" keeps their timings.)
 """
 import os
 import sys
@@ -41,39 +40,13 @@ def row(name: str, rust: Callable[[], Any], python: Callable[[], Any]) -> None:
 
 
 def main() -> int:
-    import bf1943import
     import granny
     import mesh
     import meshview
     import shaderdb
     import skinmesh
-    import terrain
     import texwrite
-    src = bf1943import.Source(bf1943import.default_source())
     print('| workload | Python | Rust | |\n|---|---:|---:|---:|')
-    for lv in ('wake_island_s', 'coral_sea'):
-        items = [(k, src.data(k)) for k in sorted(src.entries) if k.startswith(f'terrains/{lv}/')]
-        def hf(b: bytes, r: bool) -> Any:
-            return (terrain.heightfield_reference if r else terrain.heightfield)(b, 'bf1943')
-
-        def mm(b: bytes, r: bool) -> Any:
-            return (terrain.material_map_reference if r else terrain.material_map)(b)
-
-        def vt(b: bytes, r: bool) -> Any:
-            return (terrain.visual_terrain_reference if r else terrain.visual_terrain)(b)
-
-        def vw(b: bytes, r: bool) -> Any:
-            return (terrain.visual_water_reference if r else terrain.visual_water)(b)
-        conv: dict[str, Callable[[bytes, bool], Any]] = {'heightfield-000.res': hf, 'materialmap.res': mm,
-                                                         'visual.res': vt, 'water.res': vw}
-        jobs = [(f, b) for k, b in items for s, f in conv.items() if k.endswith(s)]
-        def run(rf: bool, jobs: list[tuple[Callable[[bytes, bool], Any], bytes]] = jobs) -> Any:
-            return [f(b, rf) for f, b in jobs]
-        row(f'{lv}: {len(jobs)} terrain resources converted', partial(run, False), partial(run, True))
-    dbk = next(k for k, (_, e) in sorted(src.entries.items()) if e.get('type') == 'Dx9ShaderDatabase'
-               and 'wake' in k.lower())
-    db = src.data(dbk)
-    row(f'console_layouts of {dbk} ({len(db) >> 20} MB)', lambda: mesh.console_layouts(db), lambda: mesh.console_layouts_reference(db))
     yy, xx = np.mgrid[0:1024, 0:1024]
     img = np.dstack([(xx // 4) % 256, (yy // 4) % 256, ((xx + yy) // 8) % 256, (xx * yy) % 256]).astype(np.uint8)
     for kind, pic in (('color', img[..., :3]), ('normal', img[..., :3]), ('dxt5', img), ('color', img)):
@@ -92,7 +65,7 @@ def main() -> int:
         b = ix.read(f'{name}_lod{k}_data.res')
         if b is None:
             break
-        m = mesh.parse_reference(b, False)
+        m = mesh.parse(b, False)
         lods.append((b, {p['name'].decode(): ix.parts[f'{name}_lod{k}/{p["name"].decode()}/standard'.lower()] for p in m['parts']}))
 
     def skin(on: bool) -> None:

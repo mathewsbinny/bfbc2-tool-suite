@@ -91,33 +91,29 @@ def read_entry(bundle: str, entry: str) -> bytes:
 
 
 def parse_bigf(b: bytes, where: str = 'file') -> dict[str, bytes]:
-    """BIGF members {name: bytes} and their order (apt.read_bigf, from bytes): in the Rust core when it is built
-    (round F0: bc2_native.bigf_parse, the same members), else parse_bigf_reference."""
-    nat = _bigf_native() if type(b) is bytes else None
-    got = nat.bigf_parse(b) if nat is not None else None
-    return cast(dict[str, bytes], got) if got is not None else parse_bigf_reference(b, where)
+    """BIGF members {name: bytes} and their order (apt.read_bigf, from bytes), read in the Rust core (round F0:
+    bc2_native.bigf_parse). Its Python reader (parse_bigf_reference) was retired in round RT2 against its recorded
+    answers (bfbc2-menu-tools\\tests\\f0_bigf_replay*.json): an archive the core does not read raises a MenuToolError
+    that is also a bfbc2core.native.Refused."""
+    if isinstance(b, bytearray | memoryview):
+        b = bytes(b)
+    got = _core('bigf_parse').bigf_parse(b) if type(b) is bytes else None
+    if got is None:
+        if b[:4] != b'BIGF':
+            raise MenuToolError(f'{where} is not a menu movie (.res, a BIGF archive)')
+        raise _refused(f'{where}: a BIGF archive cut short or damaged (its index runs past the data)')
+    return cast(dict[str, bytes], got)
 
 
-def _bigf_native() -> Any:
-    """The Rust core with bigf_parse, or None (not built, BFBC2_PURE_PYTHON set): bc2loc's switch (use_native)."""
-    import bc2loc
-    nat = bc2loc._native()
-    return nat if nat is not None and hasattr(nat, 'bigf_parse') else None
+def _core(attr: str) -> Any:
+    """The Rust core (bfbc2core.native.require): NativeMissing, saying how to get it, when it is not there."""
+    from bfbc2core import native
+    return native.require('the menu tools (bfbc2-menu-tools/menucommon.py)', attr)
 
 
-def parse_bigf_reference(b: bytes, where: str = 'file') -> dict[str, bytes]:
-    """The Python reader (the reference)."""
-    if b[:4] != b'BIGF':
-        raise MenuToolError(f'{where} is not a menu movie (.res, a BIGF archive)')
-    n = struct.unpack_from('>I', b, 8)[0]
-    out: dict[str, bytes]
-    p, out = 16, {}
-    for _ in range(n):
-        off, size = struct.unpack_from('>II', b, p)
-        e = b.index(b'\0', p + 8)
-        out[b[p + 8:e].decode()] = b[off:off + size]
-        p = e + 1
-    return out
+def _refused(message: str) -> Exception:
+    from bfbc2core import native
+    return native.refused(message, MenuToolError)
 
 
 def resolve(spec: str, root: str | None = None) -> tuple[str, dict[str, bytes]]:
@@ -304,51 +300,32 @@ def apply_patch(members: Mapping[str, bytes], lines: Iterable[PatchLine]
 # ------------------------------------------------------------------------------------------------ the exe (data only)
 
 def _pe_native() -> Any:
-    """The Rust core with the executable reader (round F2b: bc2_harness::pe::raw), or None (not built,
-    BFBC2_PURE_PYTHON set): bc2loc's switch."""
-    import bc2loc
-    nat = bc2loc._native()
-    return nat if nat is not None and hasattr(nat, 'pe_raw_strings') else None
+    """The Rust core with the executable reader (round F2b: bc2_harness::pe::raw): NativeMissing, saying how to get
+    it, when it is not there."""
+    return _core('pe_raw_strings')
 
 
 class PEImage:
     """A 32-bit Windows exe's sections, for reading its data (strings, tables) - no code is decoded here.
 
-    The header, strings, find_cstring and find_dword run in the suite's Rust core when it is built (round F2b,
-    rust/bc2-harness/src/pe.rs, raw): the same answers in the same order; where the core cannot read a header the
-    reference raises on, or an argument it does not take, the *_reference methods run (they are the reference)."""
+    The header, strings, find_cstring and find_dword run in the suite's Rust core (round F2b,
+    rust/bc2-harness/src/pe.rs, raw). Their Python (the *_reference methods) was retired in round RT2 against its
+    recorded answers (bfbc2-menu-tools\\tests\\f2b_pe_replay*.json): a header the core cannot read (cut short or
+    damaged) raises a MenuToolError that is also a bfbc2core.native.Refused, as does an argument it does not take
+    (a text that is not ASCII, a value outside 32 bits)."""
 
     def __init__(self, path: str) -> None:
         self.path = path
         b = self.b = open(path, 'rb').read()
-        nat = _pe_native()
-        h = nat.pe_raw_header(b) if nat is not None else None
+        h = _pe_native().pe_raw_header(b)
         if h is None:
-            self._read_reference(path, b)
-            return
+            raise _refused(f'{path}: a Windows program cut short or damaged (its headers run past the file)')
         if h[0] == 'not_exe':
             raise MenuToolError(f'{path} is not a Windows program (.exe)')
         if h[0] == 'not_32':
             raise MenuToolError(f'{path} is not a 32-bit Windows program')
         _, self.timestamp, self.base, secs = h
         self.sections: list[Section] = [cast(Section, tuple(s)) for s in secs]
-
-    def _read_reference(self, path: str, b: bytes) -> None:
-        """The header read in Python (the reference)."""
-        if b[:2] != b'MZ' or len(b) < 0x40:
-            raise MenuToolError(f'{path} is not a Windows program (.exe)')
-        pe = struct.unpack_from('<I', b, 0x3C)[0]
-        if b[pe:pe + 4] != b'PE\0\0' or struct.unpack_from('<H', b, pe + 24)[0] != 0x10B:
-            raise MenuToolError(f'{path} is not a 32-bit Windows program')
-        n, opt = struct.unpack_from('<H', b, pe + 6)[0], struct.unpack_from('<H', b, pe + 20)[0]
-        self.timestamp = struct.unpack_from('<I', b, pe + 8)[0]
-        self.base = struct.unpack_from('<I', b, pe + 52)[0]
-        self.sections = []      # (name, va, virtual size, file offset, raw size, flags)
-        for i in range(n):
-            o = pe + 24 + opt + 40 * i
-            vs, va, rs, ra = struct.unpack_from('<IIII', b, o + 8)
-            self.sections.append((b[o:o + 8].rstrip(b'\0').decode('latin1'), self.base + va, vs, ra, rs,
-                                  struct.unpack_from('<I', b, o + 36)[0]))
 
     def off(self, va: int) -> int | None:
         for _, sva, vs, ra, rs, _ in self.sections:
@@ -382,68 +359,33 @@ class PEImage:
     def strings(self, minimum: int = 3) -> dict[str, list[int]]:
         """The printable C strings of the data sections: {text: [va, ...]}. A string starts after a 00 byte or, inside
         a longer printable run (data before it that happens to be printable), at a 4-byte aligned offset."""
-        nat = _pe_native()
-        if nat is not None and type(minimum) is int and minimum >= 1:
-            secs = [(s[1], s[3], s[4]) for s in self.data_sections()]
-            if all(0 <= s[1] < 1 << 32 and 0 <= s[2] < 1 << 32 and 0 <= s[0] < 1 << 63 for s in secs):
-                return cast(dict[str, list[int]], nat.pe_raw_strings(self.b, secs, minimum))
-        return self.strings_reference(minimum)
+        if type(minimum) is int and minimum >= 1:
+            secs = self._secs()
+            if secs is not None:
+                return cast(dict[str, list[int]], _pe_native().pe_raw_strings(self.b, secs, minimum))
+        raise _refused(f'{self.path}: strings({minimum!r}): a minimum of 1 or more, and sections within 32 bits')
 
-    def strings_reference(self, minimum: int = 3) -> dict[str, list[int]]:
-        """strings in Python (the reference)."""
-        import re
-        out: dict[str, list[int]] = {}
-        pat = re.compile(rb'[\x20-\x7e]{%d,}(?=\x00)' % minimum)
-        for _, sva, _vs, ra, rs, _ in self.data_sections():
-            for m in pat.finditer(self.b, ra, ra + rs):
-                starts = [m.start()] + [o for o in range((m.start() + 4) & ~3, m.end() - minimum + 1, 4) if o != m.start()]
-                for o in starts:
-                    out.setdefault(self.b[o:m.end()].decode('ascii'), []).append(sva + o - ra)
-        return out
+    def _secs(self) -> list[tuple[int, int, int]] | None:
+        secs = [(s[1], s[3], s[4]) for s in self.data_sections()]
+        if all(0 <= s[1] < 1 << 32 and 0 <= s[2] < 1 << 32 and 0 <= s[0] < 1 << 63 for s in secs):
+            return secs
+        return None
 
     def find_cstring(self, text: str) -> list[int]:
         """The virtual addresses of the C string text (whole string) in the data sections."""
-        nat = _pe_native()
-        if nat is not None and isinstance(text, str) and text.isascii():
-            secs = [(s[1], s[3], s[4]) for s in self.data_sections()]
-            if all(0 <= s[1] < 1 << 32 and 0 <= s[2] < 1 << 32 and 0 <= s[0] < 1 << 63 for s in secs):
-                return cast(list[int], nat.pe_raw_find_cstring(self.b, secs, text.encode('ascii')))
-        return self.find_cstring_reference(text)
-
-    def find_cstring_reference(self, text: str) -> list[int]:
-        """find_cstring in Python (the reference)."""
-        out: list[int]
-        out, pat = [], b'\0' + text.encode('ascii') + b'\0'
-        for _, sva, _vs, ra, rs, _ in self.data_sections():
-            j = self.b.find(pat, ra, ra + rs)
-            while j >= 0:
-                out.append(sva + j + 1 - ra)
-                j = self.b.find(pat, j + 1, ra + rs)
-        return out
+        if isinstance(text, str) and text.isascii():
+            secs = self._secs()
+            if secs is not None:
+                return cast(list[int], _pe_native().pe_raw_find_cstring(self.b, secs, text.encode('ascii')))
+        raise _refused(f'{self.path}: find_cstring({text!r}): an ASCII text, and sections within 32 bits')
 
     def find_dword(self, value: int, sections: Iterable[Section] | None = None) -> list[int]:
         """File offsets in the data sections where the little-endian 32-bit value is stored, 4-byte aligned."""
-        nat = _pe_native()
-        if nat is not None and type(value) is int and 0 <= value < 1 << 32:
-            secs = list(sections or self.data_sections())
-            rows = [(s[3], s[4]) for s in secs]
+        if type(value) is int and 0 <= value < 1 << 32:
+            rows = [(s[3], s[4]) for s in (sections or self.data_sections())]
             if all(0 <= a < 1 << 32 and 0 <= n < 1 << 32 for a, n in rows):
-                return cast(list[int], nat.pe_raw_find_dword(self.b, rows, value))
-            return self.find_dword_reference(value, secs)
-        return self.find_dword_reference(value, sections)
-
-    def find_dword_reference(self, value: int, sections: Iterable[Section] | None = None) -> list[int]:
-        """find_dword in Python (the reference)."""
-        out: list[int]
-        pat, out = struct.pack('<I', value), []
-        for s in sections or self.data_sections():
-            _, sva, vs, ra, rs, _ = s
-            j = self.b.find(pat, ra, ra + rs)
-            while j >= 0:
-                if (j - ra) % 4 == 0:
-                    out.append(j)
-                j = self.b.find(pat, j + 1, ra + rs)
-        return out
+                return cast(list[int], _pe_native().pe_raw_find_dword(self.b, rows, value))
+        raise _refused(f'{self.path}: find_dword({value!r}): a value of 32 bits, and sections within 32 bits')
 
 
 def find_exe(root: str | None = None, given: str | None = None) -> str:
