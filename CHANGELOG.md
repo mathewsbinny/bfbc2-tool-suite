@@ -24,6 +24,22 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: the AI workspace's navigation** (round GR2, the Navigation Studio folded in). The navmesh view mode
+  and the AI workspace draw a level's path data: NavKit's newest build and DICE's file side by side (read on a worker
+  thread), the walkable ground coloured by island, sector, pitch, difference (NavKit's extra ground, DICE's ground
+  NavKit lacks, ladder ground) or anomaly, and each file's outlines, portals, border portals, route graph, ladder
+  ground and ladder links as layers. Panels: **Navigation** (the files and their figures, the colouring, the layers,
+  the selected area or spawn, the path test, the anomaly overlay, Compare with a reference AI layer - `level:`,
+  `xbox:` or a partition - with filters, the nearest NavKit node of a marker and Export JSON), **Islands and
+  spawns** (largest first, the spawns off the main network, each to fly to) and **Navigation edits**. The **path
+  test** (Shift+P, or "Path test from here" on the ground): each file's cheapest route between two clicks, or why
+  there is none. **Navigation edits** in a project: walkable and unwalkable regions, seeds, unseeds, linked areas,
+  route edges added or removed, traversals and notes, drawn with tools (and the AI ground menu), each an operation
+  of the project's log (undo, redo, saved with the project); the level's side file (`navtune.json`) saved and
+  reloaded; **Build with these edits** (`bfbc2.exe navkit apply`), Open the result, **Install into the game** and
+  **Restore DICE's original**, each showing what it writes in the game copy's AI path data before it runs. The
+  hover shows the area under the pointer. 25 new 3D colour tokens (`view-nav-*`, `view-ref-*`).
+  `bfbc2-editor <level> --navmesh` opens a level's navigation; the hub's Levels tab has **Open navigation**.
 - **Map editor: the Map Inspector's views** (round GR1). Properties' **All fields**: every field of the selected
   object, nested, with its type (`int32`, `float32 x16`, `bool`, `text`, `reference`, `array [n]`, `struct`) and its
   value as DbxEdit's XML writes it; references lead to their object. A **Links** panel: what the object references,
@@ -55,6 +71,11 @@ landed on `main`.
   then the install on confirmation).
 
 ### Changed
+- **Map projects are format version 2** (round GR2: the navigation edits are new operation kinds). Version-1
+  projects load unchanged (`bc2_levelwrite::project::migrate`, one step at a time; 1 to 2 changes nothing); a
+  project from a newer editor is refused in words ("made by a newer editor version (project format N); this editor
+  reads up to 2"), and an operation of a kind the editor does not know is named, not a bare JSON error. An editor
+  before GR2 refuses version-2 projects the same way.
 - **`bfbc2.exe culltree add`** reads the reference levels one at a time: about 80-110 MB instead of 1.65 GB, and
   0.6-0.9 s with a warm cache instead of 7 s. Its row cache is shared with `culltree.py` (either side's warmed cache
   serves both) and is pruned within the cache budget.
@@ -97,6 +118,10 @@ landed on `main`.
   prints them as before (now without the Python); the EA framing raises `AudioError`'s messages.
 
 ### Removed
+- **Navigation Studio** (round GR2): `bfbc2-navigation-studio\studio.py` and `editing.py`, their tests, the hub's
+  "Open in Navigation Studio" and its NavKit-file field, `tests\test_viewers.py` and `bench_sweep.py`'s
+  `studio_load`. Everything it did is in the map editor's AI workspace (above; `EDITOR_ARCHITECTURE.md` 9.2), proven
+  on its recorded answers. `overlay.py`'s headless exports (`--reference`, `--anomalies`) stay.
 - **Python twins retired (round RT1):** the command lines `bfbc2-auto-navkit\tools\graphstats.py` and
   `rust\bc2-editor\prepare_level.py` (run `bfbc2.exe graphstats` / `prepare_level`; `BFBC2_CLI_PYTHON=1` no longer
   brings them back), and the Python references `aimanim.parse_reference` / `write_reference` / `to_pc_reference`

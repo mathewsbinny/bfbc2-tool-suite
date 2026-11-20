@@ -22,10 +22,10 @@ are merged and versions released: `RELEASING.md`.
 3. Put this folder next to your `project-opfor-bfbc2` folder (or set `OPFOR_ROOT` to it): the tools read the game
    copy there.
 4. Double-click **`BFBC2 Tool Suite.pyw`**. One window has every tool:
-   - **Levels:** choose a level, then **Open in Map Editor** (or double-click the level) or **Open in
-     Navigation Studio**; **Prepare level** runs NavKit's prepare alone. A level is unpacked the first time
-     (offline, about 20 s); the tool's progress shows at the bottom (the editor shows its own) and its window opens
-     when the level is loaded.
+   - **Levels:** choose a level, then **Open in Map Editor** (or double-click the level) or **Open
+     navigation** (the editor in its navmesh view: the AI's navigation data); **Prepare level** runs NavKit's
+     prepare alone. A level is unpacked the first time (offline, about 20 s); the editor shows its progress and
+     opens the level when it is loaded.
    - **Bundles, Level diff, Crash reader, Xbox files, Tests:** the command-line tools with file pickers and
      options; their output appears at the bottom. Bundles, the crash reader and the level prepare run through
      `bin\bfbc2.exe` when it is built from this checkout, else through the Python.
@@ -34,10 +34,9 @@ are merged and versions released: `RELEASING.md`.
    The test harness, the menu tools and the stock-MP AI tool have no tab yet: run them from a command prompt
    (their READMEs).
 
-The 3D tools can also be started on their own: `bin\bfbc2-editor.exe` (the map editor, "The map editor" below) or
-`bfbc2-navigation-studio\studio.py` (double-click: a level picker opens), or give the level on the command line
-(`bin\bfbc2-editor.exe mp_005`, `python studio.py sp_01`). On a laptop with two GPUs, see "The 3D tools and your
-GPU" below.
+The map editor can also be started on its own: `bin\bfbc2-editor.exe` ("The map editor" below), or give the level
+on the command line (`bin\bfbc2-editor.exe mp_005`; `--navmesh` opens its navigation). On a laptop with two GPUs,
+see "The 3D tools and your GPU" below.
 
 ### When something goes wrong
 
@@ -77,7 +76,7 @@ log file.
 | `bfbc2-bf1943-import/` | **Battlefield 1943 import**: the user's BF1943 Xbox 360 resources into BFBC2's PC formats, from the user's own copy - animations, skeletons and textures (`bf1943import.py`, a record per resource in `import.json`; the 3p undeploys get the tracks DICE adds), models (`meshport.py`), physics (`havokport.py`, Havok 4.6.1 -> 5.5.0; `mopp.py` decodes and checks the MOPP trees), DBX partitions (`dbxport.py` on BFBC2's own schema from `dbxcatalogue.py`; `dbxparity.py` / `portparity.py` against DICE's own conversions), effects (`effectport.py`) and merged emitter atlases (`emitteratlas.py`) |
 | `core/` | the shared core (Python over the Rust core, `bc2_native`): `.dbx` (reader and writer), `.fbrb` bundles (read, pack, unpack), terrain height fields and water; the level loader (entities, teams, collision, areas and routes); the 3D view with picking; `paths.py`, the one place that finds Project OPFOR BFBC2, its game copy, the built tools and the sibling projects (every tool's own locator wraps it) |
 | `bfbc2-map-inspector/` | the map editor's plan (`EDITOR_ARCHITECTURE.md`); the **Map Inspector** that was here was retired in round GR1 (2026-11-20): its views are the map editor's Properties (All fields), Links and Measure (the folder's README) |
-| `bfbc2-navigation-studio/` | **Navigation Studio**: NavKit's and DICE's navigation data in 3D, by island, sector, pitch or difference; islands and spawns off the main network; the path test; edit mode (walkable / unwalkable regions, seeds, links, route edges, traversals) into a side file, built with `navkit apply` and installed; a reference level's AI layer drawn on another level (`--compare`) and an anomaly overlay of NavKit builds, both with JSON export (`overlay.py`) |
+| `bfbc2-navigation-studio/` | `overlay.py`: a reference level's AI layer against a level's NavKit build, and the anomalies of a NavKit build, as JSON (headless). The Navigation Studio's window was retired in round GR2 (2026-11-20): its views and edits are the map editor's AI workspace ("The map editor") |
 | `bfbc2-stockmp-ai/` | **stock-MP AI layer**: gives a stock multiplayer level AI spawners, AI orders and their event wiring (HasAI, PathfindingTypes, SectorOffsets, AI template), proposed from the level's own objectives and spawns, built into its bundles and checked offline (`stockmp.py`) |
 
 **Planned** (see [DESIGN.md](DESIGN.md)). The user's plan of 2026-11-19 (`ROADMAP.md`): the bot AI debugger, the
@@ -86,7 +85,7 @@ their own.
 
 | Folder | Tool | Milestone |
 |---|---|---|
-| `bfbc2-navigation-studio/` | M4 step 7: an in-game check that the game's AI uses a hand-made link (steps 1-6 - path test, editing, side files, `navkit apply`, install - are done); the Studio is being folded into the map editor's AI workspace (round GR2, `ROADMAP.md`) | M4 |
+| `rust/bc2-editor` (AI workspace) | M4 step 7: an in-game check that the game's AI uses a hand-made link (steps 1-6 - path test, editing, side files, `navkit apply`, install - are done) | M4 |
 | `bfbc2-automated-map-and-bot-test-harness/` | in-game tests: `testrun.bat` per level (on hold: the user paused in-game tests on 2026-11-20), bot traversal, stuck detection, squads and vehicles from OPFOR's telemetry | M6, then growing |
 | `bfbc2-bot-ai-debugger/` | live view of the AI while the game runs (through Project OPFOR BFBC2) | M6 |
 | `bfbc2-tactical-map-authoring-tool/` | tactical annotations above the navigation data for bots | M7 |
@@ -105,12 +104,9 @@ copy, the tools and the sibling projects come from `core/bfbc2core/paths.py` (DE
 
 ## The 3D tools and your GPU
 
-The Navigation Studio draws with OpenGL 3.3 (the map editor with wgpu, and its game-accurate view with Direct3D 11:
-"The map editor"). It prints the GPU it uses when it starts
-(and shows it in its status line). On a laptop with two GPUs, Windows may give Python the slower integrated
-one: set `python.exe` to "High performance" in Settings > System > Display > Graphics. On the development
-PC that took the Navigation Studio on SP_01 (10.4 million triangles) from the AMD Radeon integrated GPU to
-the GeForce RTX 4060, at 144 frames a second.
+The map editor draws with wgpu, and its game-accurate view with Direct3D 11 ("The map editor"); its status line
+shows the GPU it uses. On a laptop with two GPUs, Windows may give it the slower integrated one: set
+`bfbc2-editor.exe` to "High performance" in Settings > System > Display > Graphics.
 
 ## The map editor (preview: view a map, edit a copy of it)
 
@@ -336,8 +332,8 @@ and PE readers, `navsample.load`, `hpdtool.mesh_layout` / `mesh_coverage`, `audi
 
 **What needs it** (since 2026-11-17): **texture conversion** (`bfbc2-console-convert/texture.py`'s `convert`: the
 console converter, the BF1943 importer's textures, meshes and effects, OPFOR's WW2 and Onslaught pipelines) and
-**NavKit's grid walks** (`navbuild.py` / `navwalk.py`: every NavKit build, apply and the Navigation Studio's
-rebuilds). Their Python twins were retired after the full test tier had passed on the Rust (140 of 140,
+**NavKit's grid walks** (`navbuild.py` / `navwalk.py`: every NavKit build and apply, the AI workspace's
+rebuilds included). Their Python twins were retired after the full test tier had passed on the Rust (140 of 140,
 2026-11-17), as `EDITOR_ARCHITECTURE.md` 3.8 rules for ported logic. Since 2026-11-18 (the full tier 173 of 173)
 also **the Xbox 360 shader translation** (`bfbc2-shader-tools/xenos_hlsl.py`'s `translate` / `translate_many`:
 OPFOR's WW2 shader translation, `xdiff.py`), **the console sound, mesh, physics and Granny conversions**
@@ -345,7 +341,7 @@ OPFOR's WW2 shader translation, `xdiff.py`), **the console sound, mesh, physics 
 `havok.convert` / `havok.verify`'s packfile walk - the BF1943 importer's models and physics, OPFOR's Onslaught
 builds - and `granny.to_pc`, animations and skeletons) and **the rest of NavKit's generator** (the walkability rules,
 areas, tracing, route graphs and floods: every NavKit build), **`bfbc2core.navdata`** and **`bfbc2core.navpath`** (the
-path data the 3D tools, the Studio, NavKit's parity measures and the harness read; the path test) and
+path data NavKit's parity measures and the harness read; the path test) and
 **`navdiff.area_cells`** (round R1). And since round F1a (2026-11-18, `EDITOR_ARCHITECTURE.md` 3.8: format readers and
 writers are ported, proven and retired too) **the core formats**: `bfbc2core.dbx` (`parse`, `to_xml`, `parse_many`,
 `to_xml_many`, `write`), `bfbc2core.fbrb` (`entries`, `names`, `read`, `read_many`, the cache, `pack`, `pack_many`,
@@ -893,9 +889,9 @@ clippy `-D warnings`, the workspace's cargo tests, ruff, mypy and `quick --no-ga
 **Side by side.** Tests run several at a time (`-j N`). Each test declares what it needs in `run_tests.py`'s `NEEDS`
 table: the CPU threads it keeps busy (`cpu`: 1, its process pool's size, or `'all'` for Rust batch work and cargo),
 an estimate of its peak memory in GB (`mem`), and the shared things it reads or writes (`res`, `'r'` or `'w'`):
-OPFOR's `work\navkit\regress` (the regression test rewrites it; the apply, links, Studio, viewer and harness tests
-read it), every `pathdata.hpd` under `work\` (hpdtool reads them, the vehicle test rewrites one), the Navigation
-Studio cache, `work\navkit\sp_004_b`, the suite's `build\` folder (shaderview.exe, renderqa's pickles), a window on
+OPFOR's `work\navkit\regress` (the regression test rewrites it; the apply, links and harness tests
+read it), every `pathdata.hpd` under `work\` (hpdtool reads them, the vehicle test rewrites one), the navigation
+data cache, `work\navkit\sp_004_b`, the suite's `build\` folder (shaderview.exe, renderqa's pickles), a window on
 the desktop, `DbxTests.exe` and the checkout's cargo build folder with `bin\` (`cargo`; `rust-targets\<checkout>`
 since round D1). A writer never runs beside a reader or another writer of the same
 thing, and tests that share a thing keep their listed order, so each sees it as a one-at-a-time run did. The build
@@ -934,7 +930,7 @@ lists a selection; `--list` gives every test.
 | `bfbc2-culltree/tests/test_culltree_native.py` | quick, game | `culltree.py`'s element reader (Rust; its Python retired in round F1a) against the answers recorded from the Python (`culltree_golden.json`): 2,146 built, damaged and random files (a stream cut inside an element: `CullTreeError` where the Python raised `IndexError`; a varint past 64 bits, which the Python read as a big integer: `CullTreeError`), add on a built level, the folder listing against glob (quick); every cull tree and level partition of the game copy and work, and console_cull's add run on Onslaught MP_005 against the recorded Python run (game) |
 | `tests/test_runner_parallel.py` | quick | the test runner side by side: stand-in tests run through `run_tests.main` with `-j 4` and `-j 1` - a writer of a shared thing never overlaps its readers and they keep their listed order, an undeclared or all-core test runs beside nothing, a failure gives exit code 1 and its own output, one result line per test with its own summary; the scheduler's reservation for a held-back heavy test; the log reader; `atomicio.locked` across three processes |
 | `tests/test_repo.py` | quick | no game files or large files in the history, no co-author lines, no build output tracked, READMEs, LICENSE, every Python file compiles |
-| `tests/test_review_fixes.py` | quick | four defects from a code review (2026-10-26): NavKit's apply builds with the normal build's inputs (detailed zones, ladders); the stock-MP installer reinstalls a rebuilt file and keeps the original as its backup; the Navigation Studio's `--edit` is a flag; the navigation cache key follows the terrain's content |
+| `tests/test_review_fixes.py` | quick | three defects from a code review (2026-10-26): NavKit's apply builds with the normal build's inputs (detailed zones, ladders); the stock-MP installer reinstalls a rebuilt file and keeps the original as its backup; the navigation cache key follows the terrain's content |
 | `tests/test_review_fixes2.py` | quick | defects from the follow-up review (2026-10-27): the harness records a missing path-data file per file key, refuses to overwrite its reference through a casing alias; NavKit's restore after a second install on a map without an original; the stock-MP installer's markers found case-insensitively; FbrbTool refuses an older manifest whose size2 differs |
 | `bfbc2-culltree/tests/test_culltree.py` | quick | cull trees and levels built in the test: the DBX codec, sphere keys, the tree layout and checks, verify, adding places for slot-0 objects (leaves, spheres, ancestors, spare nodes), the command line |
 | `bfbc2-shader-tools/tests/test_shaderdb.py` | quick, game | built Dx9 and Dx10/11 databases round trip and pass the checks; merges (needed meshes only, first donor wins, records shared, programs re-sorted, every entry drawing as in its source, Dx kinds and the program limit); with the game: mp_008cq's and ons_mp_008's databases |

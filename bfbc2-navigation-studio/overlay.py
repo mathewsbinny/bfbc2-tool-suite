@@ -1,5 +1,5 @@
-"""Navigation Studio overlays (read-only): a reference level's AI layer drawn on a target level, and the anomalies of
-NavKit's path data for a level. No level data is written; path data is read, never rebuilt.
+"""Navigation overlays as JSON, headless (read-only; the map editor's AI workspace draws them): a reference
+level's AI layer drawn on a target level, and the anomalies of NavKit's path data for a level. No level data is written; path data is read, never rebuilt.
 
   python overlay.py <target level> --reference <source> [--candidate <pathdata.hpd>] [--out <file.json>]
   python overlay.py <target level> --anomalies [--candidate <pathdata.hpd>] [--out <file.json>]

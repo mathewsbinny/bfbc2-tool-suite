@@ -5585,3 +5585,72 @@ and the inspector retired.
 hub's "Open in Map Inspector" (the Levels tab opens the map editor, also on a double-click); `bench_sweep.py`'s
 `inspector_load`; `suite_paths`' `map-inspector`. `record_inspector.py` (G1's outliner lists) keeps the inspector's
 layer rule itself. Nothing in OPFOR (`src\`, its scripts and docs' commands) used the inspector.
+
+## GR2: the Navigation Studio folded into the editor's AI workspace, then retired (2026-11-20, branch `rust-gr2`)
+
+The second round of the user's GUI plan: what `EDITOR_ARCHITECTURE.md` 9.2 listed of the Navigation Studio added to
+the map editor's AI workspace, proven on the Studio's recorded answers, then `studio.py` and `editing.py` retired;
+`overlay.py`'s headless exports stay. The last commit with the Studio: a0a1379.
+
+### What the editor gained (`rust/bc2-editor`, `rust/bc2-levelwrite`)
+
+- `navdata.rs`: a path-data file as the Studio drew it (`navdata.load`: the areas, the 0.8 m cells by
+  `bc2_navbuild::parity::area_cells` with the terrain's heights, the route graph, its islands by the same union-find
+  and ordering, ladder links and ladder ground), `compare_cells`, the spawns' islands, the islands' gaps (Python's
+  float floor division for the 10 m buckets), `navpath.route` (A*, `bc2_navbuild::astar`, the `fma` norm), and
+  `overlay.py`'s AI layer (read from the binary partition), `NavIndex`, anomalies and compare rows.
+- `navview.rs` (the colourings' classes and colours, the cells as quads, the line layers), `nav.rs` (the state, the
+  side file in `navtune`'s form through the Rust core's `navtune::dumps` / `validate` / `summary`, `bfbc2.exe navkit`
+  jobs, the install and restore plans, the exports), `app/navui.rs` (Navigation, Islands and spawns, Navigation
+  edits, the confirm dialog, clicks, hover). `render.rs`: overlay meshes (uploaded once per key, slots reused).
+  `bc2_levelwrite::navedit`: the edits as operations of the project's log (`Op::NavAdd`, `NavRemove`, `NavLoad`).
+- 25 colour tokens (`view-nav-*`, `view-ref-*`): 76 in all; each 3.5:1 or more on the lit terrain and the water in
+  both themes (worst 3.6).
+
+### Proof
+
+- `tests/nav_parity.rs` against the Studio's answers (`tests/data/navstudio.json.gz`, 7 KB of digests):
+
+  | level | NavKit cells / islands | DICE cells / islands | read (both files, release) | path tests |
+  |---|---:|---:|---:|---:|
+  | SP_01 | 1,096,339 / 435 | 1,026,634 / 506 | 3.3 s | 3 |
+  | ONS_MP_002 | 454,416 / 68 | 441,463 / 28 | 0.7 s | 3 |
+  | ONS_MP_004 | 253,157 / 41 | 241,046 / 42 | 0.5 s | 3 |
+  | SP_009 | 84,528 / 3 | 82,764 / 3 | 0.1 s | 3 |
+
+  Per file: the summary, the areas (sector, index, tile, layer, pitch, heights, cells, island, ladder, boundary
+  pieces), the cells and their heights to the centimetre, the nodes' islands, the islands, the five colourings'
+  classes, the spawns' islands, the islands' gaps; per level the difference figures and both cell matches, the
+  anomaly lists, the path tests (nodes, cost, length, joins, islands, the reason, the gap) and the cost change; and
+  the compare layers (counts, HasAI, SectorOffsets, every row with its NavKit lookups) of ONS_MP_004 and MP_002
+  against `level:ons_mp_002`, SP_009 against `level:sp_01` (129 patrols) and GUADAL_CANAL's (WW2) own layer. All
+  identical. The Studio needed about 45 s for the four levels (Python and the Rust core); the editor 4.6 s.
+- `tests/gr2.rs`: ONS_MP_004 in Dark and Light - both files drawn (8,285 main-network pixels), the five colourings
+  each drawing its own picture, the outlines layer, a path test between two spawns (NavKit 970.1 m, DICE 817.9 m),
+  211 reference markers; SP_009 as a project on a scratch OPFOR copy (DICE's file only: a DICE base) - a route edge, a
+  ladder traversal, a link and a note drawn by clicks, undo and redo, saved with the project, the side file read back
+  equal, `bfbc2.exe navkit apply` (173,492 -> 173,516 bytes), Install (plan, confirm: DICE's kept as `.opfor-orig`,
+  the traversal annotations beside it), Restore (plan, confirm): the scratch game folder's 3 files byte for byte as
+  before. The game copy is never written.
+- `bfbc2-navigation-studio/tests/test_overlay_offline.py` (quick tier): `overlay.py`'s AI layer, sources and
+  anomalies on made-up data.
+
+### Retired
+
+`studio.py`, `editing.py`, `tests/test_studio_offline.py`, `test_editing_offline.py`, `test_editing.py`,
+`tests/test_viewers.py` (it ran only the Studio), `bench_sweep.py`'s `studio_load`, the review test's Studio parser
+check, the hub's "Open in Navigation Studio" and its NavKit file field (now "Open navigation": `bfbc2-editor <level>
+--navmesh`). Kept: `overlay.py` (its README describes only it), `suite_paths`' `navigation-studio`, `core`'s
+`viewer.py` and `pick.py` (no tool uses them now; `test_errors.py` and `test_hub.py` do). Nothing in OPFOR's
+`src\` or scripts called the Studio; its README and DEVELOPMENT_NOTES were updated.
+
+### The project format's version (the coordinator's audit finding)
+
+`bc2_levelwrite::project::VERSION` was 1 through E2b, E3b, E3d; GR2 makes it 2 (the navigation operations). Loading
+migrates older files step by step (`migrate`; 1 to 2 changes nothing), refuses a newer file in words ("made by a
+newer editor version (project format N); this editor reads up to 2") and names an operation of an unknown kind
+(`ProjectError::UnknownOperation`) instead of a bare serde error. Tests: `project::tests` (a version-1 file loads
+with the same log, a version-9 file and a `warp` operation give their messages); `tests/project_versions.rs` with
+`BC2_PROJECTS` on the canary examples' projects (Aurora's first export and E3d's six: 2 - 4 operations each, the
+mode choices with their donor layers) written as version 1: all 7 load with every operation, as version 1 and 2,
+and the newer-version and unknown-operation cases on each. The full versioning work is round V1's.

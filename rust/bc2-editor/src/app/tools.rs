@@ -248,9 +248,17 @@ pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<O
         ],
         (MenuKind::Ground, Workspace::Gameplay) => vec![Some(A::Paste), None, Some(A::FocusHere)],
         (MenuKind::Ground, Workspace::Ai) => vec![
-            Some(A::SetViewMode(ViewMode::Navmesh)),
             Some(A::PathTest),
             None,
+            Some(A::NavTool(crate::nav::NavTool::Seed)),
+            Some(A::NavTool(crate::nav::NavTool::Unseed)),
+            Some(A::NavTool(crate::nav::NavTool::Note)),
+            Some(A::NavTool(crate::nav::NavTool::Traversal)),
+            Some(A::NavTool(crate::nav::NavTool::EdgeAdd)),
+            None,
+            Some(A::SetViewMode(ViewMode::Navmesh)),
+            Some(A::ShowPanel(PanelKind::Navigation)),
+            Some(A::ShowPanel(PanelKind::NavEdits)),
             Some(A::FocusHere),
         ],
         (MenuKind::Ground, Workspace::Terrain) => Brush::ALL
@@ -297,6 +305,14 @@ pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<O
                 A::ShowPanel(PanelKind::Links) => "Links".to_owned(),
                 A::FocusSelection => "Focus".to_owned(),
                 A::SetViewMode(ViewMode::Navmesh) => "Show the navmesh".to_owned(),
+                A::PathTest => "Path test from here".to_owned(),
+                A::NavTool(crate::nav::NavTool::Seed) => "Seed here".to_owned(),
+                A::NavTool(crate::nav::NavTool::Unseed) => "Unseed here".to_owned(),
+                A::NavTool(crate::nav::NavTool::Note) => "Note here".to_owned(),
+                A::NavTool(crate::nav::NavTool::Traversal) => "Traversal from here".to_owned(),
+                A::NavTool(crate::nav::NavTool::EdgeAdd) => "Route edge from here".to_owned(),
+                A::ShowPanel(PanelKind::Navigation) => "Navigation".to_owned(),
+                A::ShowPanel(PanelKind::NavEdits) => "Navigation edits".to_owned(),
                 _ => entry.map_or_else(String::new, |e| e.name.to_owned()),
             };
             let why = why_not_in(Some(v), a).or_else(|| {
@@ -324,13 +340,22 @@ impl ViewState {
     /// Whether a transient tool is open (placing, the polygon, the sink popup, the picker): Esc cancels it first.
     #[must_use]
     pub fn has_transient(&self) -> bool {
-        self.placing.is_some() || !self.polygon.is_empty() || self.sink.is_some() || self.picker.is_some()
+        self.placing.is_some()
+            || !self.polygon.is_empty()
+            || self.sink.is_some()
+            || self.picker.is_some()
+            || !self.navs.clicks.is_empty()
     }
 
     /// Cancels the transient tools.
     pub fn cancel_transient(&mut self) {
         if self.placing.take().is_some() {
             self.message = "Placing cancelled".into();
+        }
+        if !self.navs.clicks.is_empty() {
+            self.navs.clicks.clear();
+            self.navs.message = "Drawing cancelled".into();
+            self.navs.dirty = true;
         }
         self.polygon.clear();
         self.sink = None;
@@ -359,26 +384,21 @@ impl ViewState {
             mode,
             ..render::Look::default()
         };
+        // the navigation's layers (round GR2): in the navmesh mode and the AI workspace, over any mode
+        let (meshes, lines) = self.nav_look(palette);
+        look.meshes = meshes;
+        look.overlay = lines;
         match mode {
             ViewMode::Navmesh => {
-                if self.nav.is_none() {
-                    let file = self.root.as_deref().and_then(|r| viewmodes::pathdata_file(r, &self.lv));
-                    self.nav = Some(match file {
-                        Some(f) => viewmodes::navmesh_outlines(&f).map(|l| (f.display().to_string(), l)),
-                        None => Err(format!(
-                            "{} has no navigation data (no pathdata.hpd installed or built by NavKit)",
-                            self.lv.to_uppercase()
-                        )),
-                    });
-                }
-                match &self.nav {
-                    Some(Ok((file, lines))) => {
-                        look.overlay = lines.iter().map(|s| (*s, palette.status_ok)).collect();
-                        self.mode_note = format!("Navmesh: {} outline segments from {file}", lines.len());
-                    }
-                    Some(Err(e)) => self.mode_note = format!("Navmesh: {e}"),
-                    None => {}
-                }
+                self.mode_note = match &self.navs.loaded {
+                    Some(Ok(d)) => format!(
+                        "Navmesh: {} coloured by {} (the Navigation panel: colourings, layers, path test)",
+                        d.files.iter().map(|f| f.name).collect::<Vec<_>>().join(" and "),
+                        self.navs.colour.name().to_lowercase()
+                    ),
+                    Some(Err(e)) => format!("Navmesh: {e}"),
+                    None => "Navmesh: reading the level's path data ...".to_owned(),
+                };
             }
             ViewMode::CullTree => {
                 if self.cull.is_none() {
@@ -391,13 +411,13 @@ impl ViewState {
                     for &k in &c.shared {
                         look.tint.insert(k, palette.status_error);
                     }
-                    look.overlay = c
-                        .leaves
-                        .iter()
-                        .take(4000)
-                        .flat_map(|s| viewmodes::sphere_lines(*s))
-                        .map(|s| (s, palette.status_info))
-                        .collect();
+                    look.overlay.extend(
+                        c.leaves
+                            .iter()
+                            .take(4000)
+                            .flat_map(|s| viewmodes::sphere_lines(*s))
+                            .map(|s| (s, palette.status_info)),
+                    );
                     self.mode_note = format!("Cull tree: {} (orange: no slot, red: a shared slot)", c.source);
                 }
             }
@@ -421,6 +441,13 @@ impl ViewState {
                 let keep: Vec<usize> = self.selection.iter().copied().filter(|&k| self.selectable(k)).collect();
                 self.set_selection(gpu, keep, false);
                 self.message = format!("{} workspace", w.name());
+                // the navigation is drawn in the AI workspace (round GR2); its tools stay there
+                if w != Workspace::Ai {
+                    self.navs.tool = None;
+                    self.navs.path.active = false;
+                }
+                self.apply_look(palette);
+                self.refresh(gpu, palette);
             }
             Action::SetViewMode(m) => {
                 self.view_mode = m;

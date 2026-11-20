@@ -448,6 +448,31 @@ pub struct Palette {
     pub view_status_error: Color32,
     pub view_status_info: Color32,
     pub view_link: Color32,
+    pub view_nav_main: Color32,
+    pub view_nav_ground: Color32,
+    pub view_nav_ground_dice: Color32,
+    pub view_nav_extra: Color32,
+    pub view_nav_missing: Color32,
+    pub view_nav_ladder: Color32,
+    pub view_nav_normal: Color32,
+    pub view_nav_dimmed: Color32,
+    pub view_nav_small: Color32,
+    pub view_nav_outline: Color32,
+    pub view_nav_portal: Color32,
+    pub view_nav_border: Color32,
+    pub view_nav_graph: Color32,
+    pub view_nav_route_navkit: Color32,
+    pub view_nav_route_dice: Color32,
+    pub view_nav_edit_add: Color32,
+    pub view_nav_edit_remove: Color32,
+    pub view_nav_edit_link: Color32,
+    pub view_nav_edit_mark: Color32,
+    pub view_ref_ai: Color32,
+    pub view_ref_human: Color32,
+    pub view_ref_order: Color32,
+    pub view_ref_patrol: Color32,
+    pub view_ref_objective: Color32,
+    pub view_ref_outline: Color32,
     pub scene_sky: Color32,
     pub scene_terrain: Color32,
     pub scene_water: Color32,
@@ -506,6 +531,31 @@ impl Palette {
             view_status_error: c("view-status-error"),
             view_status_info: c("view-status-info"),
             view_link: c("view-link"),
+            view_nav_main: c("view-nav-main"),
+            view_nav_ground: c("view-nav-ground"),
+            view_nav_ground_dice: c("view-nav-ground-dice"),
+            view_nav_extra: c("view-nav-extra"),
+            view_nav_missing: c("view-nav-missing"),
+            view_nav_ladder: c("view-nav-ladder"),
+            view_nav_normal: c("view-nav-normal"),
+            view_nav_dimmed: c("view-nav-dimmed"),
+            view_nav_small: c("view-nav-small"),
+            view_nav_outline: c("view-nav-outline"),
+            view_nav_portal: c("view-nav-portal"),
+            view_nav_border: c("view-nav-border"),
+            view_nav_graph: c("view-nav-graph"),
+            view_nav_route_navkit: c("view-nav-route-navkit"),
+            view_nav_route_dice: c("view-nav-route-dice"),
+            view_nav_edit_add: c("view-nav-edit-add"),
+            view_nav_edit_remove: c("view-nav-edit-remove"),
+            view_nav_edit_link: c("view-nav-edit-link"),
+            view_nav_edit_mark: c("view-nav-edit-mark"),
+            view_ref_ai: c("view-ref-ai"),
+            view_ref_human: c("view-ref-human"),
+            view_ref_order: c("view-ref-order"),
+            view_ref_patrol: c("view-ref-patrol"),
+            view_ref_objective: c("view-ref-objective"),
+            view_ref_outline: c("view-ref-outline"),
             scene_sky: c("scene-sky"),
             scene_terrain: c("scene-terrain"),
             scene_water: c("scene-water"),
@@ -536,6 +586,10 @@ impl Palette {
             ("view-status-error", self.view_status_error),
             ("view-status-info", self.view_status_info),
             ("view-link", self.view_link),
+        ]
+        .into_iter()
+        .chain(self.nav_entries())
+        .chain([
             ("scene-sky", self.scene_sky),
             ("scene-terrain", self.scene_terrain),
             ("scene-water", self.scene_water),
@@ -548,6 +602,40 @@ impl Palette {
             ("scene-area-point", self.scene_area_point),
             ("scene-other", self.scene_other),
             ("scene-label", self.scene_label),
+        ])
+        .collect()
+    }
+
+    /// The AI workspace's 3D colours (round GR2: the `view-nav-*` and `view-ref-*` tokens) with their names: the
+    /// navigation layers, the colourings, the path test, the edits and a reference level's AI layer.
+    #[must_use]
+    pub fn nav_entries(&self) -> Vec<(&'static str, Color32)> {
+        vec![
+            ("view-nav-main", self.view_nav_main),
+            ("view-nav-ground", self.view_nav_ground),
+            ("view-nav-ground-dice", self.view_nav_ground_dice),
+            ("view-nav-extra", self.view_nav_extra),
+            ("view-nav-missing", self.view_nav_missing),
+            ("view-nav-ladder", self.view_nav_ladder),
+            ("view-nav-normal", self.view_nav_normal),
+            ("view-nav-dimmed", self.view_nav_dimmed),
+            ("view-nav-small", self.view_nav_small),
+            ("view-nav-outline", self.view_nav_outline),
+            ("view-nav-portal", self.view_nav_portal),
+            ("view-nav-border", self.view_nav_border),
+            ("view-nav-graph", self.view_nav_graph),
+            ("view-nav-route-navkit", self.view_nav_route_navkit),
+            ("view-nav-route-dice", self.view_nav_route_dice),
+            ("view-nav-edit-add", self.view_nav_edit_add),
+            ("view-nav-edit-remove", self.view_nav_edit_remove),
+            ("view-nav-edit-link", self.view_nav_edit_link),
+            ("view-nav-edit-mark", self.view_nav_edit_mark),
+            ("view-ref-ai", self.view_ref_ai),
+            ("view-ref-human", self.view_ref_human),
+            ("view-ref-order", self.view_ref_order),
+            ("view-ref-patrol", self.view_ref_patrol),
+            ("view-ref-objective", self.view_ref_objective),
+            ("view-ref-outline", self.view_ref_outline),
         ]
     }
 
@@ -832,7 +920,7 @@ mod tests {
         let t = tokens();
         let raw: Value = serde_json::from_str(TOKENS_JSON).unwrap();
         assert_eq!(t.colors.len(), raw["color"]["tokens"].as_array().unwrap().len());
-        assert_eq!(t.colors.len(), 51);
+        assert_eq!(t.colors.len(), 76);
         let styles: usize = raw["type"]["groups"]
             .as_array()
             .unwrap()
@@ -1090,7 +1178,10 @@ mod tests {
                 ("view-status-error", p.view_status_error),
                 ("view-status-info", p.view_status_info),
                 ("view-link", p.view_link),
-            ] {
+            ]
+            .into_iter()
+            .chain(p.nav_entries())
+            {
                 for k_mark in [1.0, 0.88] {
                     for k_ground in [0.93, 0.75, 0.6] {
                         let r = contrast(shaded(colour, k_mark), shaded(p.scene_terrain, k_ground));

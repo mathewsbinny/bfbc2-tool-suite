@@ -27,7 +27,9 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    - **The GUIs:** per GUI, list what the editor lacks, add it, then retire the GUI.
      - ~~Map Inspector: the link view, the full property tree~~ (GR1: All fields, Links, Measure; retired). The
        other GUIs' features, whether the editor has them and the plan: `EDITOR_ARCHITECTURE.md` section 9.
-     - GR2: Navigation Studio into the editor's AI workspace (NavKit against DICE side by side, path tests).
+     - ~~GR2: Navigation Studio into the editor's AI workspace~~ (GR2: both files side by side, the colourings, path
+       test, anomaly and compare overlays, edits in the project's log, build / install / restore; retired, its
+       `overlay.py` kept).
      - GR3: the mesh viewer into the asset browser's preview (its PNG command line stays).
      - GR4: DbxEditGUI into a generic DBX inspector panel (the last C#).
      - LevelDiff as an editor panel (the visual diff) and a `bfbc2.exe leveldiff` command for scripts (proven on
@@ -71,7 +73,7 @@ In priority order (above); the next rounds:
 | EX1 | export: a preview mode comparing the export with the original (side by side or toggled), every name of the level editable (file / folder name, in-game level id, on-screen name per language, server browser name), and a visual diff of a project against its base; LevelDiff folded in as an editor panel (a `bfbc2.exe leveldiff` command kept for OPFOR's scripts), LevelDiff.exe retired |
 | FM1 | after GR2: the map editor's own folder `bfbc2-map-editor\` (design document, README, run instructions; the code stays in `rust\bc2-editor`), `bfbc2-map-inspector\` deleted and every reference fixed; the retirement policy: `RETIRED.md` (date, replacement, last commit, round) with the Map Inspector, graphstats.py and prepare_level.py; the three README-only planned-tool folders folded into the design document as workspaces and deleted |
 | RT3 | RT2's leftovers: hpdtool.parse's and the Wave readers' messages ported, then retired; the library parts split out of the command-line `.py` files that are still imported (aptrefs, xiso with a bytes entry point, culltree, stockmp, crashreader), then their command lines retired; argparse's option abbreviations; the kept references in BENCHMARKS RT2 |
-| GUIs | GR2 Navigation Studio, GR3 mesh viewer, GR4 DbxEditGUI (LevelDiff in EX1): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
+| GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (LevelDiff in EX1): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
 | Post-Rust | the 10 improvements |

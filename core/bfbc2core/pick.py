@@ -1,7 +1,7 @@
 """A small level picker for the suite's 3D tools, shown when they are started without a level (a double-click,
-or `python studio.py` alone): the levels of Project OPFOR BFBC2's game copy, double-click or OK to open one.
+of a Python 3D tool): the levels of Project OPFOR BFBC2's game copy, double-click or OK to open one.
 
-    lv = pick_level('BFBC2 Navigation Studio')      # the level name, or None when cancelled
+    lv = pick_level('BFBC2 Tool Suite')      # the level name, or None when cancelled
 """
 import os
 import sys

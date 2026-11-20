@@ -455,7 +455,7 @@ rule below; AI order coverage on both Onslaught maps 100 %.
   y slot also holds 0.38, 0.92, 0.71 and -2.0. A default or left-over value in DICE's generator; NavKit writes the
   outward direction, and its files route across sector borders in game. (DICE also splits border portals per 0.8 m
   cell - 3-4x NavKit's count, the same geometry.)
-- **Anomalies against DICE** (Navigation Studio's overlay counts, 15 levels, 2026-10-22 - DICE / NavKit): soldier
+- **Anomalies against DICE** (the anomaly overlay's counts, `overlay.py --anomalies`, 15 levels, 2026-10-22 - DICE / NavKit): soldier
   spawns on islands under 25 nodes 147 / 72, AI orders without a route node 768 / 686, sliver areas 77,996 /
   62,708, lonely route nodes 5,081 / 10,011, islands under 25 nodes 5,684 / 6,390. NavKit has fewer of the two that
   stop bots; more lonely nodes, and more slivers on levels with many detailed sectors (clutter at 0.2 m).
@@ -615,7 +615,7 @@ and F cells. None of it is play-tested yet. The steps below keep their history.
        SP_008_B (79.3 -> 76.6 %) and SP_02 (84.2 -> 82.7 %); connectivity better on SP_02 (+0.7) and SP_008
        (+1.2). Which input makes the SP_008 difference is still to find (likely the exclusion files).
    - **Hand edits (2026-10-16): `navkit.py apply <level>`** builds the level with the edits of its
-     navigation side file (`work\navkit\<level>\<level>.navtune.json`, made in the Navigation Studio):
+     navigation side file (`work\navkit\<level>\<level>.navtune.json`, made in the map editor's AI workspace):
      unwalkable regions remove the sampled surfaces inside them before seeding (so a cut really
      disconnects), walkable regions force them in past the slope and clearance rules (they still join the
      network by the step rule), seeds add a seed, unseeds drop the island at the point. Later edits win where
