@@ -30,51 +30,36 @@ _NATIVE: list = []
 
 
 def _native():
-    """The Rust core with hkpack_parse, or None: not built, or BFBC2_PURE_PYTHON set."""
+    """The Rust core with hkpack_parse (required since round RT1: the Python reader was retired), or NativeMissing
+    saying how to get it."""
     if not _NATIVE:
-        m = None
-        try:
-            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            import suite_paths
-            suite_paths.use('core')
-            from bfbc2core import dbx as _dbx
-            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
-                m = _dbx._import_native()
-        except ImportError:
-            m = None
-        _NATIVE.append(m if m is not None and hasattr(m, 'hkpack_parse') else None)
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import native
+        _NATIVE.append(native.require('reading Havok packfiles (hkpack, round F3)', 'hkpack_parse'))
     return _NATIVE[0]
 
 
-def use_native(on):
-    """The Rust core on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True when it runs."""
-    _NATIVE.clear()
-    if not on:
-        _NATIVE.append(None)
-        return False
-    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-    try:
-        return _native() is not None
-    finally:
-        if saved is not None:
-            os.environ['BFBC2_PURE_PYTHON'] = saved
-
-
 class Packfile:
-    """A packfile's sections, pointer fixups, objects and class descriptions. Read in the suite's Rust core when it
-    is built (round F3: bc2_native.hkpack_parse over bc2_formats::havok, the reader NavKit's collision code has used
-    since round F1a: the same fields, the dicts in the same order); a file it refuses, a base given, or data that is
-    not bytes is read by the Python (_init_reference, kept as the reference and the fallback), so the errors stay
-    this module's. BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only."""
+    """A packfile's sections, pointer fixups, objects and class descriptions, read in the suite's Rust core (round
+    F3: bc2_native.hkpack_parse over bc2_formats::havok, the reader NavKit's collision code has used since round
+    F1a: the same fields, the dicts in the same order; the Python reader it was proven against was retired in round
+    RT1, its answers kept in tests\\f3_golden_hkpack.json). A file the core refuses raises ValueError; base, when
+    given, must be where the first packfile starts (the core reads that one)."""
 
     def __init__(self, data, base=None):
-        nat = _native() if base is None and type(data) is bytes else None
-        got = nat.hkpack_parse(data) if nat is not None else None
+        data = bytes(data)
+        at = data.find(MAGIC)
+        if at < 0:
+            raise ValueError('no Havok packfile')
+        if base is not None and base != at:
+            raise ValueError(f'a packfile at byte {base} is not read (the reader takes the first one, at byte {at})')
+        got = _native().hkpack_parse(data)
         if got is None:
-            self._init_reference(data, base)
-            return
+            raise ValueError(f'the Havok packfile at byte {at} is cut or damaged (the reader refuses it)')
         base, h, cv, sections, (slots, targets), objects, classes = got
         self.d = data                                         # the attributes in the reference's order
         self.base = base
@@ -92,57 +77,6 @@ class Packfile:
                         for off, name, parent, size, members in classes}
         self.class_by_name = {c['name']: off for off, c in self.classes.items()}
 
-    @classmethod
-    def reference(cls, data, base=None):
-        """The packfile read by the Python only (the reference)."""
-        pf = cls.__new__(cls)
-        pf._init_reference(data, base)
-        return pf
-
-    def _init_reference(self, data, base=None):
-        if base is None:
-            base = data.find(MAGIC)
-            if base < 0:
-                raise ValueError('no Havok packfile')
-        self.d = data
-        self.base = base
-        h = struct.unpack_from('<8I', data, base)
-        (_m0, _m1, _tag, self.version, layout, self.nsections, self.contents_sec, self.contents_off) = h
-        self.ptr_size = layout & 0xFF
-        self.contents_version = data[base + 0x28:base + 0x38].split(b'\0')[0].decode('ascii', 'replace')
-        self.sections = []
-        for i in range(self.nsections):
-            o = base + 0x40 + i * 0x30
-            name = data[o:o + 20].split(b'\0')[0].decode()
-            start, local, glob, virt, exp, imp, end = struct.unpack_from('<7I', data, o + 20)
-            self.sections.append({'name': name, 'start': base + start, 'local': local, 'global': glob,
-                                  'virtual': virt, 'exports': exp, 'imports': imp, 'end': end})
-        self.ptr = {}      # absolute file offset of a pointer slot -> absolute file offset of its target
-        for s in self.sections:
-            st = s['start']
-            for k in range(s['local'], min(s['global'], len(data) - st - 7), 8):
-                src, dst = struct.unpack_from('<2I', data, st + k)
-                if src == 0xFFFFFFFF:
-                    continue
-                self.ptr[st + src] = st + dst
-            for k in range(s['global'], min(s['virtual'], len(data) - st - 11), 12):
-                src, sec, dst = struct.unpack_from('<3I', data, st + k)
-                if src == 0xFFFFFFFF:
-                    continue
-                self.ptr[st + src] = self.sections[sec]['start'] + dst
-        self.objects = []  # (absolute offset, class name)
-        for s in self.sections:
-            st = s['start']
-            for k in range(s['virtual'], min(s['exports'], len(data) - st - 11), 12):
-                src, sec, name_off = struct.unpack_from('<3I', data, st + k)
-                if src == 0xFFFFFFFF:
-                    continue
-                cname = self.cstr(self.sections[sec]['start'] + name_off)
-                self.objects.append((st + src, cname))
-        self.by_offset = {o: c for o, c in self.objects}
-        self.classes = {}
-        self._read_classes()
-
     def cstr(self, off):
         e = self.d.index(b'\0', off)
         return self.d[off:e].decode('ascii', 'replace')
@@ -151,27 +85,6 @@ class Packfile:
         return self.ptr.get(slot)
 
     # --- hkClass reflection --------------------------------------------------------------------------
-    def _read_classes(self):
-        for off, cname in self.objects:
-            if cname != 'hkClass':
-                continue
-            name_p = self.deref(off)
-            name = self.cstr(name_p) if name_p else '?'
-            parent = self.deref(off + 4)
-            size, _nint = struct.unpack_from('<2i', self.d, off + 8)
-            members_p = self.deref(off + 24)
-            nmembers = struct.unpack_from('<i', self.d, off + 28)[0]
-            members = []
-            for k in range(nmembers):
-                mo = members_p + k * 24
-                mname = self.cstr(self.deref(mo))
-                mclass = self.deref(mo + 4)
-                mtype, msub, carr, flags, moff = struct.unpack_from('<BBhHH', self.d, mo + 12)
-                members.append({'name': mname, 'class': mclass, 'type': mtype, 'subtype': msub,
-                                'carray': carr, 'offset': moff})
-            self.classes[off] = {'name': name, 'parent': parent, 'size': size, 'members': members}
-        self.class_by_name = {c['name']: off for off, c in self.classes.items()}
-
     def all_members(self, cname):
         """Members of a class including inherited ones, as (name, member)."""
         off = self.class_by_name.get(cname)

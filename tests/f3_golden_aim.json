@@ -252,17 +252,26 @@
 "quick:built": [
 0,
 "dbbe934e6e748a96dba0",
-2000
+2000,
+"df5572241232ac739c35",
+144,
+10
 ],
 "quick:changed": [
 0,
 "c32b52d97babf0095ebc",
-1500
+1500,
+"622e0096709fc2d8b627",
+911,
+199
 ],
 "quick:damaged": [
 0,
-"74b5ce7dcea5cfd94ec6",
-2578
+"d38c6cd97fc2ac34c622",
+2524,
+"fd8b69f14ec8cdf265ee",
+1856,
+79
 ],
 "work/xbox/dist/xenon/levels/mp_common/level-00.fbrb": [
 201364984,
