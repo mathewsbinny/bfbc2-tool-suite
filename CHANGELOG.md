@@ -31,6 +31,19 @@ landed on `main`.
   `stfs`, `xiso`), `bf1943import`, and stockmp's `generate` / `build` / `validate` / `all` (round O5); NavKit's
   `detailed` and `navkit status` answered in Rust. `stockmp build` about 2.5 times faster, `shaderdb needs` about 8
   times.
+- **Map editor:** any map exported for any era and multiplayer mode (round E3d). The era (BFBC1, BFBC2, Vietnam,
+  WW2) and the mode are project settings (`Op::SetMode`, set in the New project form and the Export window): the
+  modes offered are those the era's stock levels have (WW2: Conquest), the donor's mode layer comes into the project
+  as editable objects (flags, bases, M-COMs per Rush stage, spawns, combat areas) and the base's own layer goes
+  out, one undo step. "Use selection" moves a flag, base or M-COM with what belongs to it.
+- **Map export:** the level's closure resolves under the target era's bundles: what another era's commons, another
+  level's bundle or a deleted marker would leave missing is copied into the level's bundle and listed with its
+  source (`stage.json`'s `closure`, `closure.txt`); a WW2 base's own BF1943 voice banks give way to the target
+  era's; the map's terrain bundles stay whatever the era.
+- **`mapexport check`:** the closure, the map's height field, and the mode layer's completeness against the donor's
+  ("Rush stage 2 has one M-COM (the donor's has 2)").
+- **Map editor:** Install and Uninstall in the Export window (Project OPFOR's `mapedit_install.py`: the plan first,
+  then the install on confirmation).
 
 ### Changed
 - **`bfbc2.exe culltree add`** reads the reference levels one at a time: about 80-110 MB instead of 1.65 GB, and

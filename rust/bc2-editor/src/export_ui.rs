@@ -24,6 +24,7 @@ use std::sync::mpsc::{Receiver, channel};
 
 use bc2_levelwrite::awards::Rgb;
 use bc2_levelwrite::export::{self, ExportSpec, Game, Identity};
+use bc2_levelwrite::modelayer;
 use bc2_levelwrite::mpconvert::{Anchor, LayerSpec};
 use bc2_levelwrite::profile::{ContentProfile, Donor, Profiles};
 use bc2_levelwrite::{MapProject, Profile};
@@ -32,7 +33,8 @@ use eframe::egui;
 use crate::edit::Doc;
 use crate::strip_ui::StripWindow;
 
-/// The modes the export builds now, and the stock donor of each one's layer when the profiles are not read yet.
+/// The mode an export file without a project target builds (E3's graft at export time), and its stock donor when the
+/// profiles are not read yet. A project with a target (round E3d) takes any mode its era's stock levels have.
 pub const MODES: [(&str, &str, &str); 1] = [("conquest", "Conquest", "mp_009cq")];
 
 /// What the preview shows: the two pictures as the game will (decoded from what the export writes).
@@ -76,6 +78,102 @@ pub struct ExportWindow {
     previewing: Option<Receiver<Result<PreviewData, String>>>,
     preview: Option<Preview>,
     preview_error: Option<String>,
+    /// The target the form shows (round E3d): era, mode, donor; "Set target" makes it the project's.
+    pub target: Option<(Profile, String, String)>,
+    /// The game copy's modes per era (read once).
+    pub era_modes: Option<Result<crate::app::EraModes, String>>,
+    /// The donor's own layer counted (the completeness rows): (donor, its signature).
+    donor_sig: Option<(String, Result<modelayer::LayerSig, String>)>,
+    /// The Install dialog (round E3d).
+    pub install: Install,
+    /// The project's layer counted, what it lacks, its anchors (kept until the log changes).
+    #[allow(clippy::type_complexity, reason = "the four things the form shows of the layer")]
+    layer: Option<(u64, modelayer::LayerSig, Vec<String>, Vec<(String, String, [f32; 3])>)>,
+}
+
+/// The Install dialog's state (round E3d): OPFOR's `mapedit_install.py` run on a worker - the plan first (what an
+/// install changes, nothing written), then, on confirmation, the install; Uninstall takes the level out again.
+#[derive(Default)]
+pub struct Install {
+    /// The dialog is shown.
+    pub open: bool,
+    /// What it is about: `plan`, `apply` or `revert`.
+    pub step: String,
+    /// The last run's output.
+    pub text: Vec<String>,
+    /// The last run succeeded.
+    pub ok: bool,
+    running: Option<Receiver<(bool, String)>>,
+}
+
+/// OPFOR's install script and its arguments as one command line (python, the script, the arguments).
+#[must_use]
+pub fn install_command(opfor: &Path, args: &[String]) -> Vec<String> {
+    let script = opfor
+        .join("src")
+        .join("tools")
+        .join("mapedit")
+        .join("mapedit_install.py");
+    let mut v = vec!["python".to_owned(), script.display().to_string()];
+    v.extend(args.iter().cloned());
+    v
+}
+
+impl Install {
+    /// Runs the install script on a worker: `--plan <stage>`, `--apply <stage>` or `--revert <LV>`.
+    pub fn run(&mut self, opfor: &Path, step: &str, args: &[String]) {
+        let cmd = install_command(opfor, args);
+        self.open = true;
+        step.clone_into(&mut self.step);
+        self.text = vec![format!("> {}", cmd.join(" "))];
+        self.ok = false;
+        let (tx, rx) = channel();
+        self.running = Some(rx);
+        let dir = opfor.to_path_buf();
+        std::thread::spawn(move || {
+            let r = std::process::Command::new(cmd.first().map_or("python", String::as_str))
+                .args(cmd.iter().skip(1))
+                .current_dir(&dir)
+                .output();
+            let _ = tx.send(match r {
+                Ok(o) => (
+                    o.status.success(),
+                    format!(
+                        "{}{}",
+                        String::from_utf8_lossy(&o.stdout),
+                        String::from_utf8_lossy(&o.stderr)
+                    ),
+                ),
+                Err(e) => (false, format!("python could not be run: {e}")),
+            });
+        });
+    }
+
+    /// Whether a run is going on.
+    #[must_use]
+    pub fn busy(&self) -> bool {
+        self.running.is_some()
+    }
+
+    fn poll(&mut self) {
+        if let Some(rx) = &self.running
+            && let Ok((ok, out)) = rx.try_recv()
+        {
+            self.ok = ok;
+            self.text.extend(out.lines().map(str::to_owned));
+            self.running = None;
+        }
+    }
+
+    /// Waits for the run (the headless screenshots).
+    pub fn settle(&mut self) {
+        if let Some(rx) = self.running.take()
+            && let Ok((ok, out)) = rx.recv()
+        {
+            self.ok = ok;
+            self.text.extend(out.lines().map(str::to_owned));
+        }
+    }
 }
 
 /// The settings file beside a project.
@@ -185,6 +283,20 @@ pub fn set_donor(spec: &mut ExportSpec, d: &Donor) {
 /// The checks before an export: each failing one's reason (empty: Export can run).
 #[must_use]
 pub fn checks(spec: &ExportSpec, game: Option<&Game>, saved: bool, profiles: Option<&Profiles>) -> Vec<String> {
+    checks_for(spec, game, saved, profiles, false)
+}
+
+/// [`checks`] for a project whose target (round E3d) brought its own mode layer in (`target`): the export file's
+/// bases, flags and combat area are not asked for (the layer is the project's; its completeness is checked from the
+/// level itself).
+#[must_use]
+pub fn checks_for(
+    spec: &ExportSpec,
+    game: Option<&Game>,
+    saved: bool,
+    profiles: Option<&Profiles>,
+    target: bool,
+) -> Vec<String> {
     let mut out = Vec::new();
     if !saved {
         out.push("Save the project first (the export builds the saved project)".into());
@@ -225,17 +337,22 @@ pub fn checks(spec: &ExportSpec, game: Option<&Game>, saved: bool, profiles: Opt
             }
         }
     }
-    if !MODES.iter().any(|m| m.0 == spec.mode) {
-        out.push(format!("The {} mode is not built yet (Conquest is)", spec.mode));
-    }
-    if spec.layer.bases.len() != 2 {
-        out.push("Conquest needs two bases, one per team".into());
-    }
-    if spec.layer.flags.is_empty() {
-        out.push("Conquest needs at least one flag".into());
-    }
-    if spec.layer.combat_area.trim().len() != 36 {
-        out.push("Choose the combat area the map keeps (its guid)".into());
+    if !target {
+        if !MODES.iter().any(|m| m.0 == spec.mode) {
+            out.push(format!(
+                "The {} mode needs the project's target: choose the era and mode above and Set target (round E3d)",
+                spec.mode
+            ));
+        }
+        if spec.layer.bases.len() != 2 {
+            out.push("Conquest needs two bases, one per team".into());
+        }
+        if spec.layer.flags.is_empty() {
+            out.push("Conquest needs at least one flag".into());
+        }
+        if spec.layer.combat_area.trim().len() != 36 {
+            out.push("Choose the combat area the map keeps (its guid)".into());
+        }
     }
     match profiles.map(|p| p.get(spec.profile)) {
         None => out.push("Reading the game copy's content profiles...".into()),
@@ -246,6 +363,7 @@ pub fn checks(spec: &ExportSpec, game: Option<&Game>, saved: bool, profiles: Opt
                 spec.layer.donor,
                 spec.profile.word()
             )),
+            Some(_) if target => {}
             Some(d) => {
                 for a in spec.layer.bases.iter().chain(&spec.layer.flags) {
                     if !d.capture_points.iter().any(|c| c.name == a.from) {
@@ -308,6 +426,13 @@ pub fn announcer_text(d: &Donor) -> String {
     )
 }
 
+/// The export form made to show a project's target (round E3d): its era, mode (`maps.ini`'s name) and donor.
+pub fn sync_spec(s: &mut ExportSpec, c: &modelayer::ModeChoice) {
+    s.profile = c.profile;
+    s.mode = modelayer::mode_name(&c.mode);
+    s.layer.donor.clone_from(&c.donor);
+}
+
 fn to_image(p: &Rgb) -> egui::ColorImage {
     egui::ColorImage::from_rgb([p.w, p.h], &p.px)
 }
@@ -322,10 +447,35 @@ impl ExportWindow {
             .ok()
             .and_then(|t| ExportSpec::from_json(&t).ok());
         let profiles = self.profiles.as_ref().and_then(|p| p.as_ref().ok());
-        self.spec = from_file.or_else(|| MapProject::load(project).ok().map(|p| default_spec(&p, profiles)));
+        let loaded = MapProject::load(project).ok();
+        self.spec = from_file.or_else(|| loaded.as_ref().map(|p| default_spec(p, profiles)));
+        // round E3d: the project's own target, else the form's (Conquest of the base's era)
+        let target = loaded.as_ref().and_then(|p| p.mode().cloned());
+        self.target = match (&target, &self.spec) {
+            (Some(c), _) => Some((c.profile, c.mode.clone(), c.donor.clone())),
+            (None, Some(s)) => Some((s.profile, modelayer::mode_key(&s.mode), s.layer.donor.clone())),
+            (None, None) => None,
+        };
+        if let (Some(c), Some(s)) = (&target, self.spec.as_mut()) {
+            sync_spec(s, c);
+        }
+        if self.era_modes.is_none() {
+            self.era_modes = Some(
+                self.game()
+                    .ok_or_else(|| "no game copy".to_owned())
+                    .and_then(|g| bc2_levelwrite::profile::modes(&g).map_err(|e| e.to_string())),
+            );
+        }
         if self.profiles.is_none() && self.scanning.is_none() {
             self.scan();
         }
+    }
+
+    /// The mode the form's target names (`conquest` before one is chosen).
+    fn target_mode(&self) -> String {
+        self.target
+            .as_ref()
+            .map_or_else(|| "conquest".to_owned(), |t| t.1.clone())
     }
 
     fn game(&self) -> Option<Game> {
@@ -335,7 +485,7 @@ impl ExportWindow {
     /// Reads the content profiles on a worker.
     fn scan(&mut self) {
         let Some(opfor) = self.opfor.clone() else { return };
-        let mode = self.spec.as_ref().map_or_else(|| "conquest".into(), |s| s.mode.clone());
+        let mode = self.target_mode();
         let (tx, rx) = channel();
         self.scanning = Some(rx);
         std::thread::spawn(move || {
@@ -365,7 +515,7 @@ impl ExportWindow {
                 let donor = spec.layer.donor.to_ascii_lowercase();
                 let dk = export::description_key(&game, &donor).map_err(|e| e.to_string())?;
                 let bk = export::description_key(&game, &base).map_err(|e| e.to_string())?;
-                let bp = bk.strip_suffix("_NAME").unwrap_or(&bk).to_ascii_lowercase();
+                let bp = export::base_picture_name(&game, &bk, &base).map_err(|e| e.to_string())?;
                 let mut p = export::pictures(&game, &donor, &dk, &bp, &picture).map_err(|e| e.to_string())?;
                 let level = p.pop().ok_or("no picture")?;
                 let loading = p.pop().ok_or("no picture")?;
@@ -511,10 +661,11 @@ fn anchor_row(ui: &mut egui::Ui, a: &mut Anchor, pick: Option<[f32; 3]>) {
 /// Draws the window and the campaign checklist (when open). `doc` is the open project (the checklist commits its
 /// choice to it), `selected` its primary selected entity (an anchor can take its place).
 #[allow(clippy::too_many_lines, reason = "the form's rows in order")]
-pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Doc>, selected: Option<usize>) {
+pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Doc>, selected: Option<usize>) -> bool {
     crate::strip_ui::window(ctx, &mut w.strip, doc.as_deref_mut());
+    install_dialog(ctx, w, doc.as_deref());
     if !w.open {
-        return;
+        return false;
     }
     w.poll(ctx);
     let game = w.game();
@@ -547,6 +698,56 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
         _ => None,
     };
     let busy = w.running.is_some();
+    // round E3d: the project's target, the form's, the layer's completeness and its anchors
+    let project_target = doc.as_deref().and_then(|d| d.project.mode().cloned());
+    if let (Some(c), Some(s)) = (&project_target, w.spec.as_mut()) {
+        sync_spec(s, c);
+    }
+    let era_modes = w.era_modes.as_ref().and_then(|r| r.as_ref().ok()).cloned();
+    let mut form_target = w.target.clone();
+    if let (Some(d), Some(g)) = (project_target.as_ref().map(|c| c.donor.clone()), game.as_ref())
+        && w.donor_sig.as_ref().is_none_or(|x| x.0 != d)
+    {
+        let sig = export::level_partition(g, &d)
+            .map_err(|e| e.to_string())
+            .and_then(|b| bc2_levelwrite::LevelWriter::parse(&b).map_err(|e| e.to_string()))
+            .map(|lw| modelayer::signature(&lw));
+        w.donor_sig = Some((d, sig));
+    }
+    let key = doc
+        .as_deref()
+        .map_or(0, |d| d.project.operations.len() as u64 * 1_000_003 + d.project.next);
+    if w.layer.as_ref().is_none_or(|l| l.0 != key) {
+        w.layer = match (&project_target, doc.as_deref().and_then(Doc::writer), &w.donor_sig) {
+            (Some(c), Some(lw), Some((_, Ok(ds)))) => {
+                let have = modelayer::signature(lw);
+                let miss = modelayer::missing(&c.mode, &have, ds);
+                Some((key, have, miss, modelayer::anchors(lw)))
+            }
+            _ => None,
+        };
+    }
+    let layer_state = w.layer.clone();
+    let installed = game
+        .as_ref()
+        .zip(w.spec.as_ref().and_then(|s| s.level_id().ok()))
+        .is_some_and(|(g, id)| export::is_custom(g, &id.to_ascii_lowercase()));
+    let stage_dir = w
+        .opfor
+        .clone()
+        .zip(w.spec.as_ref().and_then(|s| s.level_id().ok()))
+        .map(|(o, id)| {
+            o.join("work")
+                .join("mapedit")
+                .join(id.to_ascii_lowercase())
+                .join("stage")
+        });
+    let staged = stage_dir.as_ref().is_some_and(|d| d.join("stage.json").is_file());
+    let installing = w.install.busy();
+    let has_doc = doc.is_some();
+    let mut set_target = false;
+    let mut move_anchor: Option<(String, [f32; 2])> = None;
+    let mut install_ask: Option<(&'static str, Vec<String>)> = None;
     let previewing = w.previewing.is_some();
     egui::Window::new("Export as a multiplayer level")
         .id(egui::Id::new("export-window"))
@@ -641,61 +842,119 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                         ui.label("Level id");
                         ui.text_edit_singleline(&mut spec.level);
                         ui.end_row();
-                        ui.label("Game mode");
-                        egui::ComboBox::from_id_salt("export-mode")
-                            .selected_text(MODES.iter().find(|m| m.0 == spec.mode).map_or("?", |m| m.1))
-                            .show_ui(ui, |ui| {
-                                for (id, name, donor) in MODES {
-                                    if ui.selectable_label(spec.mode == id, name).clicked() {
-                                        spec.mode = id.into();
-                                        spec.layer.donor = donor.into();
-                                    }
-                                }
-                            });
-                        ui.end_row();
-                        ui.label("Content profile");
-                        let label = |p: Profile| {
-                            profiles.as_ref().and_then(|ps| ps.get(p).ok()).map_or_else(
-                                || p.word().to_owned(),
-                                |s| format!("{} ({} levels)", p.word(), s.levels.len()),
-                            )
-                        };
-                        egui::ComboBox::from_id_salt("export-profile")
-                            .selected_text(label(spec.profile))
+                        let tgt = form_target.get_or_insert_with(|| {
+                            (spec.profile, modelayer::mode_key(&spec.mode), spec.layer.donor.clone())
+                        });
+                        ui.label("Era");
+                        egui::ComboBox::from_id_salt("export-era")
+                            .selected_text(tgt.0.word())
                             .show_ui(ui, |ui| {
                                 for p in Profile::ALL {
-                                    let there = profiles.as_ref().is_some_and(|ps| ps.get(p).is_ok());
+                                    let have = era_modes.as_ref().is_none_or(|m| m.contains_key(&p));
                                     if ui
-                                        .add_enabled(there, egui::Button::selectable(spec.profile == p, label(p)))
-                                        .on_disabled_hover_text("The game copy has no level of this set in the mode")
+                                        .add_enabled(have, egui::Button::selectable(tgt.0 == p, p.word()))
+                                        .on_disabled_hover_text("The game copy has no multiplayer level of this era")
                                         .clicked()
-                                        && let Some(ps) = &profiles
                                     {
-                                        set_profile(spec, ps, p);
+                                        tgt.0 = p;
+                                        let ok = era_modes.as_ref().and_then(|m| m.get(&p)).is_some_and(|m| {
+                                            m.contains_key(&tgt.1) && modelayer::not_offered(&tgt.1).is_none()
+                                        });
+                                        if !ok {
+                                            "conquest".clone_into(&mut tgt.1);
+                                        }
+                                        tgt.2.clear();
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .on_hover_text("The era the level is made for: its kits, factions, announcer and bundles");
                         ui.end_row();
-                        let set = profiles.as_ref().and_then(|ps| ps.get(spec.profile).ok());
+                        ui.label("Game mode");
+                        egui::ComboBox::from_id_salt("export-mode")
+                            .selected_text(modelayer::mode_name(&tgt.1))
+                            .show_ui(ui, |ui| {
+                                for (k, lvs) in era_modes.as_ref().and_then(|m| m.get(&tgt.0)).into_iter().flatten() {
+                                    let why = modelayer::not_offered(k);
+                                    if ui
+                                        .add_enabled(
+                                            why.is_none(),
+                                            egui::Button::selectable(
+                                                tgt.1 == *k,
+                                                format!("{} ({} stock levels)", modelayer::mode_name(k), lvs.len()),
+                                            ),
+                                        )
+                                        .on_disabled_hover_text(why.unwrap_or_default())
+                                        .clicked()
+                                    {
+                                        k.clone_into(&mut tgt.1);
+                                        tgt.2.clear();
+                                    }
+                                }
+                            })
+                            .response
+                            .on_hover_text("The era's multiplayer modes: those its stock levels have");
+                        ui.end_row();
+                        let set = profiles
+                            .as_ref()
+                            .filter(|ps| ps.mode == tgt.1)
+                            .and_then(|ps| ps.get(tgt.0).ok());
+                        if tgt.2.is_empty()
+                            && let Some(d) = set.and_then(ContentProfile::default_donor)
+                        {
+                            tgt.2.clone_from(&d.level);
+                        }
                         ui.label("Donor level");
                         egui::ComboBox::from_id_salt("export-donor")
-                            .selected_text(spec.layer.donor.to_ascii_uppercase())
+                            .selected_text(tgt.2.to_ascii_uppercase())
                             .show_ui(ui, |ui| {
                                 for d in set.map_or(&[][..], |s| s.donors.as_slice()) {
                                     let mut text = d.level.to_ascii_uppercase();
                                     if !d.outside.is_empty() {
                                         let _ = write!(text, " (+{} partitions of its own)", d.outside.len());
                                     }
-                                    if ui.selectable_label(spec.layer.donor == d.level, text).clicked() {
-                                        set_donor(spec, d);
+                                    if ui.selectable_label(tgt.2 == d.level, text).clicked() {
+                                        tgt.2.clone_from(&d.level);
                                     }
                                 }
                             })
                             .response
                             .on_hover_text(
-                                "The stock level whose game-mode layer, kits and description the export takes",
+                                "The stock level of the era and mode whose mode layer, kits and description the \
+                                 level takes",
                             );
                         ui.end_row();
+                        ui.label("Target");
+                        ui.horizontal(|ui| {
+                            let now = project_target
+                                .as_ref()
+                                .map(|c| (c.profile, c.mode.clone(), c.donor.clone()));
+                            let differs = now.as_ref() != Some(&*tgt);
+                            ui.label(project_target.as_ref().map_or_else(
+                                || "not set: the export grafts E3's Conquest layer".to_owned(),
+                                modelayer::ModeChoice::describe,
+                            ));
+                            if ui
+                                .add_enabled(has_doc && differs && !tgt.2.is_empty(), egui::Button::new("Set target"))
+                                .on_hover_text(
+                                    "Brings the donor's mode layer into the project as objects you move and edit, \
+                                     and takes the level's own layer out (one undo step)",
+                                )
+                                .clicked()
+                            {
+                                set_target = true;
+                            }
+                        });
+                        ui.end_row();
+                        if project_target.is_none() {
+                            spec.profile = tgt.0;
+                            if let Some(d) = set.and_then(|s| s.donor(&tgt.2))
+                                && spec.layer.donor != d.level
+                            {
+                                set_donor(spec, d);
+                            }
+                            spec.mode = modelayer::mode_name(&tgt.1).to_ascii_lowercase();
+                        }
                         if let Some(d) = set.and_then(|s| s.donor(&spec.layer.donor)) {
                             ui.label("Teams");
                             ui.label(format!("{} (the donor's factions)", teams(spec.profile, d)));
@@ -745,24 +1004,70 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                             }
                         });
                         ui.end_row();
-                        ui.label("Combat area kept");
-                        ui.text_edit_singleline(&mut spec.layer.combat_area);
-                        ui.end_row();
+                        if project_target.is_none() {
+                            ui.label("Combat area kept");
+                            ui.text_edit_singleline(&mut spec.layer.combat_area);
+                            ui.end_row();
+                        }
                     });
                     if let Some(e) = &scan_error {
                         ui.colored_label(ui.visuals().warn_fg_color, format!("Content profiles: {e}"));
                     }
                     ui.separator();
-                    ui.label("Bases (first guesses: move them, or take the selected object's place)");
-                    for a in &mut spec.layer.bases {
-                        anchor_row(ui, a, pick);
-                    }
-                    ui.label("Flags");
-                    for a in &mut spec.layer.flags {
-                        anchor_row(ui, a, pick);
+                    match &layer_state {
+                        Some((_, have, miss, anchors)) => {
+                            ui.heading("Mode layer (the project's)");
+                            if miss.is_empty() {
+                                ui.label(format!(
+                                    "Complete: {} bases, {} flags, {} combat areas, M-COMs per stage {:?}",
+                                    have.bases.iter().sum::<usize>(),
+                                    have.flags,
+                                    have.combat_areas,
+                                    have.stages
+                                ));
+                            }
+                            for m in miss {
+                                ui.colored_label(ui.visuals().warn_fg_color, format!("The mode layer: {m}"));
+                            }
+                            ui.label("Bases, flags and M-COMs (first guesses: take the selected object's place)");
+                            for (g, what, at) in anchors {
+                                ui.horizontal(|ui| {
+                                    ui.label(format!("{what}  x {:.0}  z {:.0}", at[0], at[2]));
+                                    if ui
+                                        .add_enabled(pick.is_some(), egui::Button::new("Use selection"))
+                                        .on_hover_text(
+                                            "Moves it, with its spawns, markers and area, where the selected object \
+                                             stands (an undoable move)",
+                                        )
+                                        .on_disabled_hover_text("Select an object in the view: its place is taken")
+                                        .clicked()
+                                        && let Some(p) = pick
+                                    {
+                                        move_anchor = Some((g.clone(), [p[0], p[2]]));
+                                    }
+                                });
+                            }
+                        }
+                        None if project_target.is_some() => {
+                            ui.label("Reading the mode layer...");
+                        }
+                        None => {
+                            ui.label("Bases (first guesses: move them, or take the selected object's place)");
+                            for a in &mut spec.layer.bases {
+                                anchor_row(ui, a, pick);
+                            }
+                            ui.label("Flags");
+                            for a in &mut spec.layer.flags {
+                                anchor_row(ui, a, pick);
+                            }
+                        }
                     }
                     ui.separator();
-                    let problems = checks(spec, game.as_ref(), saved, profiles.as_ref());
+                    let mut problems =
+                        checks_for(spec, game.as_ref(), saved, profiles.as_ref(), project_target.is_some());
+                    if let Some((_, _, miss, _)) = &layer_state {
+                        problems.extend(miss.iter().map(|m| format!("The mode layer is incomplete: {m}")));
+                    }
                     for p in &problems {
                         ui.colored_label(ui.visuals().warn_fg_color, p);
                     }
@@ -786,9 +1091,83 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
                                 ui.monospace(l);
                             }
                         });
+                    ui.separator();
+                    ui.heading("Install (Project OPFOR)");
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(staged && !installing && !busy, egui::Button::new("Install..."))
+                            .on_hover_text(
+                                "Shows what an install changes in the game copy (OPFOR's mapedit_install.py --plan), \
+                                 then installs it when you confirm",
+                            )
+                            .on_disabled_hover_text("Export the level first: the install takes its stage")
+                            .clicked()
+                            && let Some(d) = &stage_dir
+                        {
+                            install_ask = Some(("plan", vec!["--plan".into(), d.display().to_string()]));
+                        }
+                        if ui
+                            .add_enabled(installed && !installing, egui::Button::new("Uninstall..."))
+                            .on_hover_text("Takes the level out of the game copy again (every shared file back)")
+                            .on_disabled_hover_text("The level is not installed")
+                            .clicked()
+                        {
+                            install_ask = Some(("confirm-revert", Vec::new()));
+                        }
+                        ui.weak(if installed { "installed" } else { "not installed" });
+                    });
+                    ui.weak("The game must be closed to install or uninstall. Nothing is written before you confirm.");
                 });
         });
     w.open = open;
+    let mut changed = false;
+    w.target = form_target;
+    if let Some((step, args)) = install_ask {
+        if step == "confirm-revert" {
+            w.install.open = true;
+            step.clone_into(&mut w.install.step);
+            w.install.text = vec![format!(
+                "Take {} out of the game copy? Every shared file the install changed goes back from its backup.",
+                w.spec
+                    .as_ref()
+                    .map_or_else(String::new, |s| s.level.to_ascii_uppercase())
+            )];
+            w.install.ok = true;
+        } else if let Some(o) = w.opfor.clone() {
+            w.install.run(&o, step, &args);
+        }
+    }
+    if let (Some(d), Some(g)) = (doc.as_deref_mut(), game.as_ref()) {
+        if set_target && let Some((era, mode, donor)) = w.target.clone() {
+            match export::choose_mode(g, &d.project, era, &mode, Some(&donor)) {
+                Ok(c) => {
+                    d.commit(bc2_levelwrite::Op::SetMode { to: Box::new(c) }, "Target: era and mode");
+                    changed = true;
+                }
+                Err(e) => w.log = vec![format!("The target was not set: {e}")],
+            }
+        }
+        if let Some((guid, to)) = move_anchor {
+            match export::move_anchor(g, &d.project, &guid, to) {
+                Ok(items) if !items.is_empty() => {
+                    d.commit(
+                        bc2_levelwrite::Op::Move { items },
+                        "Use selection: a flag, base or M-COM placed",
+                    );
+                    changed = true;
+                }
+                Ok(_) => {}
+                Err(e) => w.log = vec![format!("Not moved: {e}")],
+            }
+        }
+    }
+    // the donors listed are the target mode's: read them again when it changed
+    if w.scanning.is_none()
+        && let (Some(t), Some(Ok(p))) = (&w.target, &w.profiles)
+        && p.mode != t.1
+    {
+        w.scan();
+    }
     if open_strip && let Some(d) = doc.as_deref() {
         w.strip.open_for(d);
     }
@@ -798,6 +1177,109 @@ pub fn window(ctx: &egui::Context, w: &mut ExportWindow, mut doc: Option<&mut Do
     }
     if go {
         w.start();
+    }
+    changed
+}
+
+/// The Install dialog (round E3d): the plan's output (what an install changes), then Install on confirmation; the
+/// install's or the uninstall's output.
+fn install_dialog(ctx: &egui::Context, w: &mut ExportWindow, _doc: Option<&Doc>) {
+    w.install.poll();
+    if !w.install.open {
+        return;
+    }
+    if w.install.busy() {
+        ctx.request_repaint_after(std::time::Duration::from_millis(200));
+    }
+    let mut open = true;
+    let mut ask: Option<(&'static str, Vec<String>)> = None;
+    let lv = w
+        .spec
+        .as_ref()
+        .map_or_else(String::new, |s| s.level.to_ascii_uppercase());
+    let stage = w.opfor.clone().map(|o| {
+        o.join("work")
+            .join("mapedit")
+            .join(lv.to_ascii_lowercase())
+            .join("stage")
+    });
+    let title = match w.install.step.as_str() {
+        "plan" => format!("Install {lv}: the plan"),
+        "apply" => format!("Install {lv}"),
+        _ => format!("Uninstall {lv}"),
+    };
+    egui::Window::new(title)
+        .id(egui::Id::new("export-install"))
+        .open(&mut open)
+        .resizable(true)
+        .default_width(760.0)
+        .default_height(560.0)
+        .show(ctx, |ui| {
+            if w.install.busy() {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(match w.install.step.as_str() {
+                        "plan" => "Checking the stage and building the plan (nothing is written)...",
+                        "apply" => "Installing...",
+                        _ => "Uninstalling...",
+                    });
+                });
+            }
+            egui::ScrollArea::vertical()
+                .id_salt("install-text")
+                .max_height(420.0)
+                .show(ui, |ui| {
+                    for l in &w.install.text {
+                        ui.monospace(l);
+                    }
+                });
+            ui.separator();
+            if w.install.busy() {
+                return;
+            }
+            match (w.install.step.as_str(), w.install.ok) {
+                ("plan", true) => {
+                    ui.label(
+                        "Close the game before installing. The install writes the files listed above (backups first).",
+                    );
+                    ui.horizontal(|ui| {
+                        if ui.button("Install now").clicked()
+                            && let Some(s) = &stage
+                        {
+                            ask = Some(("apply", vec!["--apply".into(), s.display().to_string()]));
+                        }
+                        if ui.button("Cancel").clicked() {
+                            w.install.open = false;
+                        }
+                    });
+                }
+                ("confirm-revert", _) => {
+                    ui.horizontal(|ui| {
+                        if ui.button("Uninstall now").clicked() {
+                            ask = Some(("revert", vec!["--revert".into(), lv.clone()]));
+                        }
+                        if ui.button("Cancel").clicked() {
+                            w.install.open = false;
+                        }
+                    });
+                }
+                (_, ok) => {
+                    ui.label(if ok {
+                        "Done."
+                    } else {
+                        "It did not run through: see the lines above (nothing is half written: every check runs first)."
+                    });
+                    if ui.button("Close").clicked() {
+                        w.install.open = false;
+                    }
+                }
+            }
+        });
+    if !open {
+        w.install.open = false;
+    }
+    if let (Some((step, args)), Some(o)) = (ask, w.opfor.clone()) {
+        w.install.run(&o, step, &args);
     }
 }
 
@@ -853,7 +1335,7 @@ mod tests {
         let c = checks(&s, None, false, None);
         assert!(c.iter().any(|x| x.starts_with("Save the project")));
         assert!(c.iter().any(|x| x.contains("3 to 40")));
-        assert!(c.iter().any(|x| x.contains("not built yet")));
+        assert!(c.iter().any(|x| x.contains("needs the project's target")));
         assert!(c.iter().any(|x| x.contains("plain ASCII")));
         assert!(c.iter().any(|x| x.contains("PNG or JPEG")));
         assert_eq!(

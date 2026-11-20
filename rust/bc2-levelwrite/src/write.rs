@@ -1013,6 +1013,23 @@ pub fn apply<'a>(
     ops: impl IntoIterator<Item = &'a Operation>,
     schema: &Schema,
 ) -> std::result::Result<Applied, ApplyError> {
+    apply_with(base, ops, schema, &|_| None)
+}
+
+/// A donor level's partition by its level name (`mp_005gr`), read from the game copy: a mode choice's layer comes
+/// from it ([`crate::Op::SetMode`]). `None`: not there.
+pub type Donors<'a> = dyn Fn(&str) -> Option<Vec<u8>> + 'a;
+
+/// [`apply`] with the donor levels a mode choice reads (round E3d).
+///
+/// # Errors
+/// The base does not read, or an operation cannot be applied (named, with why).
+pub fn apply_with<'a>(
+    base: &[u8],
+    ops: impl IntoIterator<Item = &'a Operation>,
+    schema: &Schema,
+    donors: &Donors<'_>,
+) -> std::result::Result<Applied, ApplyError> {
     let mut w = LevelWriter::parse(base).map_err(|error| ApplyError {
         n: 0,
         name: "read the base".into(),
@@ -1020,7 +1037,7 @@ pub fn apply<'a>(
     })?;
     let mut out = Applied::default();
     for o in ops {
-        apply_one(&mut w, o, schema, &mut out)?;
+        apply_one_with(&mut w, o, schema, &mut out, donors)?;
     }
     out.bytes = w.write().map_err(|error| ApplyError {
         n: 0,
@@ -1040,6 +1057,20 @@ pub fn apply_one(
     o: &Operation,
     schema: &Schema,
     out: &mut Applied,
+) -> std::result::Result<(), ApplyError> {
+    apply_one_with(w, o, schema, out, &|_| None)
+}
+
+/// [`apply_one`] with the donor levels a mode choice reads (round E3d).
+///
+/// # Errors
+/// The operation cannot be applied (named, with why), or a mode choice's donor is not there.
+pub fn apply_one_with(
+    w: &mut LevelWriter,
+    o: &Operation,
+    schema: &Schema,
+    out: &mut Applied,
+    donors: &Donors<'_>,
 ) -> std::result::Result<(), ApplyError> {
     let fail = |error: LevelWriteError| ApplyError {
         n: o.n,
@@ -1080,6 +1111,18 @@ pub fn apply_one(
                 w.set_field(schema, &f.guid, &f.field, &f.to).map_err(fail)?;
                 out.fields += 1;
             }
+        }
+        Op::SetMode { to } => {
+            let bytes = donors(&to.donor).ok_or_else(|| {
+                fail(LevelWriteError::Refused(format!(
+                    "the mode's donor level {} is not in the game copy (open the project with the game copy)",
+                    to.donor
+                )))
+            })?;
+            let donor = LevelWriter::parse(&bytes).map_err(fail)?;
+            let c = crate::modelayer::apply(w, to, &donor).map_err(fail)?;
+            out.deleted += c.removed.iter().map(|x| x.1).sum::<usize>();
+            out.placed += c.grafted.iter().map(|x| x.1).sum::<usize>();
         }
         _ => return Ok(()),
     }

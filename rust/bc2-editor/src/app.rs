@@ -372,6 +372,12 @@ pub struct EditorApp {
     new_level: Option<String>,
     new_name: String,
     new_folder: String,
+    /// The new project form's target (round E3d): the era (`None`: the base's own, its layer kept) and the mode.
+    new_target: (Option<bc2_levelwrite::Profile>, String),
+    /// The game copy's multiplayer modes per era, read once (round E3d: the target pickers list them).
+    era_modes: Option<Result<EraModes, String>>,
+    /// The target the next created project takes (set by the form's button).
+    pending_target: Option<(bc2_levelwrite::Profile, String)>,
     /// "Open a project": the path typed.
     open_path: String,
     recent: Vec<PathBuf>,
@@ -454,6 +460,9 @@ impl EditorApp {
             new_level: None,
             new_name: String::new(),
             new_folder: folder.unwrap_or_else(default_project_folder).display().to_string(),
+            new_target: (None, "conquest".into()),
+            era_modes: None,
+            pending_target: None,
             open_path: String::new(),
             recent,
             recover: None,
@@ -970,7 +979,7 @@ impl EditorApp {
         if let Some((lo, hi)) = gpu_scene.bounds {
             camera.frame(lo, hi);
         }
-        let doc = match then {
+        let mut doc = match then {
             Then::View => None,
             Then::Create(name, folder) => match Doc::create_kind(&name, &folder, lv, scene.clone(), self.base_kind(lv))
             {
@@ -1007,14 +1016,39 @@ impl EditorApp {
                 }
             }
         };
+        // round E3d: the doc reads a mode choice's donor from the game copy; a new project takes its target as the
+        // first operation of its log (the donor's mode layer in, the base's out)
+        if let Some(d) = doc.as_mut() {
+            let game = self
+                .opfor
+                .as_ref()
+                .ok()
+                .and_then(|r| bc2_levelwrite::export::Game::open(&r.join("game")).ok());
+            d.set_game(game.clone());
+            if let (Some((profile, mode)), Some(g)) = (self.pending_target.take(), game.as_ref()) {
+                match bc2_levelwrite::export::choose_mode(g, &d.project, profile, &mode, None) {
+                    Ok(c) => {
+                        d.commit(Op::SetMode { to: Box::new(c) }, "New project: era and mode");
+                        if let Err(e) = d.save() {
+                            self.error = Some(e);
+                        }
+                    }
+                    Err(e) => self.error = Some(format!("The project's era and mode were not set: {e}")),
+                }
+            }
+        }
         let editing = doc.is_some();
         if let Some(d) = &doc {
             // a campaign level as the base: the export's campaign checklist (round E3b)
             self.export.offer_strip(d);
         }
         // the asset browser: the level's placements, its folders', its content set's bundles' (round E2b)
+        let target_set = doc.as_ref().and_then(|d| d.project.mode()).map(|m| set_of(m.profile));
         let game = self.opfor.as_ref().ok().and_then(|root| {
-            let set = self.levels.iter().find(|l| l.lv.eq_ignore_ascii_case(lv))?.set;
+            let set = match target_set {
+                Some(s) => s,
+                None => self.levels.iter().find(|l| l.lv.eq_ignore_ascii_case(lv))?.set,
+            };
             Some(crate::content::GameSource {
                 opfor: root.clone(),
                 set,
@@ -1034,8 +1068,14 @@ impl EditorApp {
             Some(d) => Outliner::new_without(&d.scene, &d.deleted),
             None => Outliner::new(&scene),
         };
-        let teams = match scene.file(0) {
-            Some((_, data)) => Teams::from_partition(data, Profile::of(lv)),
+        // the teams follow the project's target era (round E3d): its layer's factions read as that era names them
+        let target_profile = doc
+            .as_ref()
+            .and_then(|d| d.project.mode())
+            .map(|m| faction_profile(m.profile));
+        let edited = doc.as_ref().and_then(Doc::partition);
+        let teams = match edited.as_deref().or_else(|| scene.file(0).map(|(_, d)| d)) {
+            Some(data) => Teams::from_partition(data, target_profile.unwrap_or_else(|| Profile::of(lv))),
             None if lv == "demo" => crate::demo::teams(),
             None => Teams::unknown("The scene has no level partition; teams are shown as T1 and T2."),
         };
@@ -1213,12 +1253,29 @@ impl EditorApp {
             }
         }
         self.status_bar(ui, &palette, &metrics, gpu);
+        self.help.target = match &self.mode {
+            Mode::View(v) => v.doc.as_ref().and_then(|d| d.project.mode()).map(|c| {
+                format!(
+                    "This project is made for {} {} (the mode layer from {}): the asset browser lists {} objects, the                      Spawners and Objectives are the mode's, and the team labels are the era's. Change it in the                      Export window (Set target).",
+                    c.profile.word(),
+                    bc2_levelwrite::modelayer::mode_name(&c.mode),
+                    c.donor.to_ascii_uppercase(),
+                    c.profile.word()
+                )
+            }),
+            _ => None,
+        };
         help::window(&ctx, &mut self.help, &palette, &metrics);
         let (doc, selected) = match &mut self.mode {
             Mode::View(v) => (v.doc.as_mut(), v.selected),
             _ => (None, None),
         };
-        crate::export_ui::window(&ctx, &mut self.export, doc, selected);
+        if crate::export_ui::window(&ctx, &mut self.export, doc, selected)
+            && let Mode::View(v) = &mut self.mode
+        {
+            // the target or a placement changed the project (round E3d): the views follow
+            v.refresh(gpu, &palette);
+        }
         let mut cancel = false;
         let Self {
             mode,
@@ -1574,7 +1631,7 @@ impl EditorApp {
                         // width as last drawn): the name is cut first, never drawn under the buttons (round G4)
                         let (tag, name, sub) = match &v.doc {
                             Some(d) => (
-                                d.project.base.profile.badge(),
+                                d.project.target_profile().badge(),
                                 d.project.name.clone(),
                                 format!("{}{}", v.scene().name, if d.saved { "" } else { "  -  not saved" }),
                             ),
@@ -2687,7 +2744,18 @@ impl Tabs<'_> {
                         .spacing([m.space_3, m.space_1])
                         .show(ui, |ui| {
                             ui.label(RichText::new("Content").color(p.ink_muted));
-                            ui.label(RichText::new(Profile::of(&self.view.lv).word()).color(p.ink));
+                            // the project's target era (round E3d), else the level's
+                            let era = self.view.doc.as_ref().and_then(|d| d.project.mode()).map_or_else(
+                                || Profile::of(&self.view.lv).word().to_owned(),
+                                |m| {
+                                    format!(
+                                        "{} (target; the base is {})",
+                                        m.profile.word(),
+                                        Profile::of(&self.view.lv).word()
+                                    )
+                                },
+                            );
+                            ui.label(RichText::new(era).color(p.ink));
                             ui.end_row();
                             for team in [1u8, 2] {
                                 ui.label(RichText::new(format!("Team {team}")).color(p.ink_muted));
@@ -2890,3 +2958,28 @@ fn outliner_row(
     painter.hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, p.line));
     resp
 }
+
+/// The editor's content set of an era (round E3d: the asset browser lists the target era's objects).
+#[must_use]
+pub fn set_of(p: bc2_levelwrite::Profile) -> ContentSet {
+    match p {
+        bc2_levelwrite::Profile::Bfbc2 => ContentSet::Bfbc2,
+        bc2_levelwrite::Profile::Bfbc1 => ContentSet::Bfbc1,
+        bc2_levelwrite::Profile::Vietnam => ContentSet::Vietnam,
+        bc2_levelwrite::Profile::Ww2 => ContentSet::Ww2,
+    }
+}
+
+/// The faction profile of an era (the team labels: `FactionRUS` is RU, NVA or JP).
+#[must_use]
+pub fn faction_profile(p: bc2_levelwrite::Profile) -> Profile {
+    match p {
+        bc2_levelwrite::Profile::Vietnam => Profile::Vietnam,
+        bc2_levelwrite::Profile::Ww2 => Profile::Ww2,
+        bc2_levelwrite::Profile::Bfbc2 | bc2_levelwrite::Profile::Bfbc1 => Profile::Bfbc2,
+    }
+}
+
+/// The multiplayer modes of each era, from the game copy's stock levels (`bc2_levelwrite::profile::modes`).
+pub type EraModes =
+    std::collections::BTreeMap<bc2_levelwrite::Profile, std::collections::BTreeMap<String, Vec<String>>>;

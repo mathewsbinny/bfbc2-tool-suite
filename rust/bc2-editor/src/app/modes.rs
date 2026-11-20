@@ -297,6 +297,8 @@ impl EditorApp {
                 open_path: &mut self.open_path,
                 recent: &self.recent,
                 buttons: &mut self.start_buttons,
+                target: None,
+                modes: None,
             },
             &found,
             &folder,
@@ -589,6 +591,7 @@ impl EditorApp {
     /// "Create level" (with a campaign base's note).
     fn new_project_modal(&mut self, ctx: &egui::Context, p: &Palette, m: &Metrics) {
         let Some(lv) = self.new_level.clone() else { return };
+        self.read_era_modes();
         let creating = self.start == StartPage::CreateFromExisting;
         let campaign = self.level_kind(&lv) == LevelKind::Campaign;
         let text = FormText {
@@ -625,6 +628,8 @@ impl EditorApp {
                         open_path: &mut self.open_path,
                         recent: &self.recent,
                         buttons: &mut self.start_buttons,
+                        target: Some(&mut self.new_target),
+                        modes: self.era_modes.as_ref().and_then(|r| r.as_ref().ok()),
                     },
                     &text,
                 );
@@ -634,6 +639,7 @@ impl EditorApp {
         }
         if let Some(StartChoice::Create(lv, name, folder)) = choice {
             self.new_level = None;
+            self.pending_target = self.new_target.0.map(|e| (e, self.new_target.1.clone()));
             self.open_level_then(&lv, Then::Create(name, folder));
         }
     }
@@ -734,9 +740,44 @@ impl EditorApp {
         self.new_folder = folder.display().to_string();
     }
 
-    /// Opens the new project form for a level (what its row's New project button does).
+    /// Opens the new project form for a level (what its row's New project button does): its target the base's own
+    /// on a multiplayer level, Conquest of the base's era on a campaign level (round E3d).
     pub fn start_new_project(&mut self, lv: &str) {
         self.new_level = Some(lv.to_lowercase());
+        self.new_target = if self.level_kind(lv) == LevelKind::Campaign {
+            let set = self
+                .levels
+                .iter()
+                .find(|l| l.lv.eq_ignore_ascii_case(lv))
+                .map(|l| l.set);
+            let era = match set {
+                Some(ContentSet::Vietnam) => bc2_levelwrite::Profile::Vietnam,
+                Some(ContentSet::Ww2) => bc2_levelwrite::Profile::Ww2,
+                Some(ContentSet::Bfbc1) => bc2_levelwrite::Profile::Bfbc1,
+                _ => bc2_levelwrite::Profile::Bfbc2,
+            };
+            (Some(era), "conquest".into())
+        } else {
+            (None, "conquest".into())
+        };
+    }
+
+    /// Sets the new project form's target (the tests: what a user picks).
+    pub fn set_new_target(&mut self, era: Option<bc2_levelwrite::Profile>, mode: &str) {
+        self.new_target = (era, mode.to_owned());
+    }
+
+    /// Reads the game copy's modes per era once (the target pickers).
+    pub fn read_era_modes(&mut self) {
+        if self.era_modes.is_some() {
+            return;
+        }
+        self.era_modes = Some(match &self.opfor {
+            Ok(root) => bc2_levelwrite::export::Game::open(&root.join("game"))
+                .and_then(|g| bc2_levelwrite::profile::modes(&g))
+                .map_err(|e| e.to_string()),
+            Err(e) => Err(e.clone()),
+        });
     }
 
     /// The level the new project form is open for.

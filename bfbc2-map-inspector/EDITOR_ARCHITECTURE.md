@@ -1101,6 +1101,151 @@ The editor's Export window shows the donor's announcer (a row under Kits).
   revert test on a scratch copy of the shared files, run with all four stages, gives every file back byte for byte;
 - `tests/export_e3c.rs`: each set's announcer data, and the WW2 export with its check.
 
+#### Round E3d: any map, any era, any mode (the user, 2026-11-19)
+
+The user's goal: any map altered and exported for any multiplayer mode of the era the level is declared for
+(BFBC1, BFBC2, Vietnam, WW2), then installed end to end - a stock BFBC2 map declared WW2, a WW2 Conquest level
+declared a BFBC2 Rush level, Operation Aurora as a WW2 level with WW2 objects placed from WW2 bundles. The user's
+rulings during the round: the era and the mode are **project settings**, and the mode layer is **editable project
+data**, not a graft at export time; an era change gives the level the target era's kits, factions and teams; every
+combination that cannot work fails in the check and the editor with a plain message; the proof is a list of named
+**canary conversions**.
+
+**Each era's modes, from the data** (`profile::modes`: every level's description's `GameMode`; `examples/modes.rs`
+prints it):
+
+| Era | Modes its stock levels have (stock levels) | Offered |
+| --- | --- | --- |
+| BFBC2 | Conquest (9), Rush (`goldrush`, 10), Squad Rush (7), Squad Deathmatch (`teamdeathmatch`, 8), Onslaught (4) | all but Onslaught |
+| BFBC1 | Conquest, Rush, Squad Rush, Squad Deathmatch (2 each) | all |
+| Vietnam | Conquest, Rush, Squad Rush, Squad Deathmatch (5 each) | all |
+| WW2 | Conquest (3: `guadal_canal`, `iwo_jima_s`, `wake_island_s`), Air Superiority (1: `coral_sea`) | Conquest |
+
+A mode is offered for an era only when a stock level of that era has it: WW2 has no Rush, so "WW2 Rush" is refused
+in words, never invented from another era's layer. Onslaught is co-operative play against bots (it needs NavKit
+path data and the AI layer: see "Bots" below); Air Superiority is BF1943's mode, still queued in OPFOR's Pacific
+War work (`modelayer::not_offered` says both; the editor lists them greyed with the reason).
+
+**The project's target** (`bc2_levelwrite::modelayer`, `Op::SetMode`): the era, the mode and a donor (a stock
+level of them; the profile's default donor, or the user's choice) are an operation of the project's log. Choosing
+them:
+
+- takes the base's old layer out: a level with a mode layer (`AutoTeamEntityData`) loses its whole layer and the
+  types `REPLACED_BY_LAYER` names; a campaign level the latter (its player, mission, menus, spawns, areas, markers
+  and announcer: what E3's strip always took). Vehicle spawners stay for the campaign checklist (by default
+  removed at export; their events to removed instances are cut);
+- brings the donor's layer in as ordinary objects: each instance with a new guid (UUID v5 over the project, the
+  operation and the donor's guid), its references and event connections re-pointed, its `Objects` items, the
+  donor's voice-over arrays. The editor shows them at once: flags, bases, M-COMs, spawns and combat areas are
+  selected, moved, deleted and edited like any object; one undo takes the whole choice back;
+- the operation holds data only (guids, places): the donor's instances are read from the game copy when the log is
+  applied (`write::apply_with`: a donor resolver; the editor's `Doc::set_game`).
+
+**What a mode layer is, from the data** (`modelayer::layer`): E3's Conquest seeds plus the other modes' (Rush's
+attacker lives `LifeCounterEntityData`, the M-COMs' `ArmDisarmAwardEntityData` and `MissionObjectiveEntityData`,
+Squad Deathmatch's `KillCounterEntityData`, every capture point and combat area, WW2's end-of-round spawns) and the
+**objectives**: the placed objects whose events reach the arm / defuse `GameInteractionEntityData`
+(`objects/objects/mpobjective/mpobjective` on BFBC2 and BFBC1, `mp_objective_vietnam_01` on Vietnam), with the
+objective props their events destroy. What they reach forward (references and events) among the gameplay types is
+the layer. Measured: `mp_009cq` 238 instances, `mp_005gr` 821, `mp_005sr` 279, `mp_009sdm` 172, `guadal_canal` 277,
+`nam_mp_002r` 507, `bc1_oasis_gr` 1,082. Left out, as in E3: the donor's vehicle spawns (E4 places vehicles), world
+objects, effects and cutscenes.
+
+- **Rush stages** (`modelayer::stages`): the M-COMs that trigger the same stage counters
+  (`MultipleTriggerEntityData`, `onDestroyed`) are one stage: `mp_005gr` 4 stages of 2, `nam_mp_002r` 3 of 2,
+  `bc1_oasis_gr` 5 of 2, `mp_005sr` and `bc1_oasis_sr` 2 of 1.
+- **First-guess placement** (`modelayer::choose`): the whole layer is moved (scaled down when larger, never turned)
+  so its combat areas' box lands centred in the base's largest combat area; each instance keeps its height above
+  the donor's ground over the base's. "Use selection" (`export::move_anchor`) moves a flag, base or M-COM with what
+  belongs to it (spawns, alternative spawns, markers and area geometry; an M-COM's interactions, markers, alarm sound
+  and objective props) to the selected object, as an undoable move. E4's gameplay tools build on these hooks.
+
+**The export** writes the project as it is: no graft, no placement. The campaign checklist strips the base's
+campaign scripting but never what the log made; the level's fields and the description come from the donor
+(the target era's game mode, kits, factions, licences, announcer: an era change gives the target era's kits and
+loses the base's, as ruled). An export file of a project without a target still builds E3's Conquest graft.
+
+**The closure** (`export::closure`, generalising E3b's copy-back): the level must resolve under the target
+profile's bundles. From the level's own partitions, every partition named is looked up in the bundles the level
+block loads; one in the level's own or its base's bundles is walked in turn (what it names must resolve too); one
+in a shared bundle (`_common`, `async`) stops the walk. What does not resolve is copied into the level's own bundle
+with its resources (`<stem>.res`, `<stem>_*.res`):
+
+- hidden by a deleted marker of a bundle before it (the base's own bundle over `mp_common`; `ww2_common` over
+  `mp_common` for modern content under WW2);
+- in no bundle the level loads: another era's commons under the target's profile (a WW2 base exported as BFBC2 no
+  longer loads `ww2_common`: the level block leaves out every other set's commons, `profile::set_commons`), an object
+  placed from another level's or set's bundle (E2b's "+bundle"), a mode level's own data.
+
+The sources, in order: the level block's bundles (each read alone), the donor's own bundle, the bundles the base
+itself loads (a WW2 base's `ww2_common`, whose partitions OPFOR's `nam_common` also holds), then any level bundle of
+the game copy (the shared ones first); a copy's own references are looked for first in the bundle it came from.
+**Copy, not registration**: DICE's levels register no other level's bundle (mode levels only their base map's) and
+registering another era's commons would load its deleted markers and make the level that era's (the start screen's
+recognition); so the needed partitions are copied, as E3b did. `stage.json`'s `closure` and `closure.txt` list
+each copy: the entry, its bundle, why, and the partition that named it. A partition only the base's own partitions
+name and that the stock base's own bundles lack too is DICE's dangling reference (the stock level loads with it:
+`mp_005`'s guard tower effects name emitters only OPFOR's `guadal_canal` holds): listed, never copied from an
+unrelated level. A mode level's minimap is its map's (`MP_005GR` reads `levels/mp_005/ui/`): the ingame bundle
+takes the base's UI from the base's ingame stack. The terrain block keeps every terrain bundle the base loads,
+whatever the profile: the ground is the map's (a Vietnam map's height field is in `nam_common`'s terrain bundle).
+
+**The announcer over the base.** OPFOR's WW2 levels carry their own `sound/vo/vo_common` and `vo_en` (BF1943's lines
+merged in) in their own bundle, which the level block loads before the commons: a WW2 base exported as BFBC2 would
+speak BF1943's lines. Every announcer partition the level names whose version in the bundles it loads is not the
+donor's own load's goes into the level's bundle from the donor's load (`export::announcer_over_base`), so the
+voices are the target era's (E3c's check found it: "WW2's voices" on the BFBC2 export of Wake Island).
+
+**The check** (`mapexport check`, new lines): *terrain* - the map's height field is in a bundle the terrain or level
+block loads; *closure* - every partition the level reaches through its own and
+its base's bundles resolves in the bundles it loads (what the export copied, from where); *mode layer* - complete
+for its mode against the donor's own layer, each missing piece in words (`modelayer::missing`: "Rush stage 2 has
+one M-COM (the donor's has 2)", "Conquest: team 1 has no base", "Squad Deathmatch has 3 teams (the donor's 5: the
+squads)"). The editor's Export window shows the same lines and keeps Export disabled while one fails.
+
+**The editor.**
+
+- The **New project** form has Era and Mode pickers (the modes listed from the data per era; a campaign base starts
+  with Conquest of its own era, a multiplayer base with its own layer kept); the project's first operation is the
+  target.
+- The **Export** window shows the target (Era, Game mode, Donor level; "Set target" makes a changed one the
+  project's), the layer's completeness, and each flag, base and M-COM with "Use selection".
+- The panels follow the target: the asset browser lists the target era's objects (its content set's bundles);
+  Spawners and Objectives are read from the edited partition (the target mode's layer); the team labels are the
+  target era's (`FactionRUS` is RU, NVA or JP); Help names the target.
+- **Install** (Project OPFOR): "Install..." runs `mapedit_install.py --plan <stage>` on a worker and shows what an
+  install changes; "Install now" (the game closed) runs `--apply`; "Uninstall..." asks, then runs `--revert <LV>`.
+  The install side was already mode-free (`maps.ini` gets `<Mode>=Levels/<LV>` with the stage's mode, now `Rush`,
+  `Squad Rush`, `Squad Deathmatch` too; one exported level is one mode, as DICE's mode levels are); `--check-game`
+  checks a stage against the real game copy while installing into a scratch copy.
+
+**Compatibility rules found** (a later round makes them a validation layer):
+
+1. A mode is offered for an era only when a stock level of the era has it (WW2: Conquest only).
+2. Onslaught needs bots (path data, the AI layer); Air Superiority waits for OPFOR's Pacific War work: refused with
+   the reason.
+3. The target era's donor gives the kits, factions, team labels, licences, matchmaking id, sound states and the
+   announcer; nothing of the base's era survives in them.
+4. Another era's commons are never loaded; what the level needs from them is copied (and listed).
+5. DICE's dangling references stay dangling; they are never filled from an unrelated level.
+6. A deleted marker of the base's own bundle or the target's commons hides a partition the level needs: copied.
+7. The donor's vehicle spawns are not brought in (E4 places vehicles); the base's follow the campaign checklist.
+8. A mode layer must stay complete for its mode (the check's rules above); Conquest may lose flags, never a base.
+9. The first guess never turns the layer and never scales it up; heights follow the ground.
+10. A mode level's minimap is its map's: taken from the base's ingame stack.
+11. The level id is no level of the game copy and no other tool's registration (E3).
+12. A project with a target needs the game copy to open (its donor is read when the log is applied): without it the
+    editor says so in the Problems panel.
+13. The map's terrain bundles are kept whatever the era (the ground is the map's); the check finds the height field.
+14. The announcer's banks are the target era's even where the base's own bundle shadows the commons' (WW2 bases).
+15. A base whose description's name key names no loading picture (`WAKEISLAND2_NAME`) takes the picture of its level
+    name (`wake_island_s.res`).
+
+**Bots (later).** `HasAI` stays false. The path data hook is after the export's step 2: the level's edited
+collision and the layer's spawns and combat areas are NavKit's input (`Output\win32\ai\levels\<lv>`), with `HasAI`,
+`PathfindingTypes` and the `SectorOffsets` partitions under the new name; Onslaught needs it, and the start-up
+checksum test comes with the in-game round.
+
 ## 4. Stage 2: new maps from imported or randomized terrain
 
 - **Terrain sources:** an imported heightmap (an image, or real-world elevation data), or terrain generated from
