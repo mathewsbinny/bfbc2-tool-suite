@@ -32,6 +32,11 @@ window.
     made-up game copy - no campaign level under Edit existing level, a WW2 map opened, a project from a campaign
     level with its kind recorded, a project opened from the recent list with the recovery offer, the height-map
     form's checks and its saved project - and the top bar's name never under its buttons at 1500 px.
+  - round GR2: the Navigation Studio folded into the AI workspace - NavKit's and DICE's navigation data, the five
+    colourings, the spawns' islands and the islands' gaps, the anomaly overlay, path tests and the compare overlay
+    against what the Studio showed (SP_01, ONS_MP_004, ONS_MP_002, SP_009 and the WW2 level GUADAL_CANAL, its answers
+    kept as digests); the AI workspace on ONS_MP_004 in Dark and Light; edit, build (navkit apply), install and
+    restore on a scratch OPFOR copy, its game folder byte for byte as before.
 
 Read only for the game copy and OPFOR's work folder: projects and edited partitions go to temp folders. The
 game-data parts are skipped (with a note) without the game copy, the GPU parts without any graphics adapter; the
@@ -68,7 +73,8 @@ def main() -> int:
             'levels in this game copy', 'median',
             'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
             'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ', 'g4 ', 'as the Map Inspector showed them',
-            'compared with the Map Inspector', 'gr1 ')
+            'compared with the Map Inspector', 'gr1 ', 'as the Navigation Studio showed them',
+            'compared with the Navigation Studio', 'gr2 ', 'the same AI layer', 'WW2')
     for line in out:
         if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))

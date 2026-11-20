@@ -452,6 +452,16 @@ impl MapProject {
         })
     }
 
+    /// The navigation edits the log leaves (round GR2: the AI workspace's edits, in the side file's form).
+    #[must_use]
+    pub fn nav_edits(&self) -> crate::navedit::NavEdits {
+        let mut out = crate::navedit::NavEdits::default();
+        for o in &self.operations {
+            out.apply(&o.op);
+        }
+        out
+    }
+
     /// The project's target (round E3d): the log's last era and mode choice, `None` before one is made (an export
     /// then grafts the export file's layer, as E3 did).
     #[must_use]
