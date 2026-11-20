@@ -1376,21 +1376,30 @@ referenced - 102,243 fields, 35,263 references, 1,939 referrers, all identical; 
 digests in `rust/bc2-editor/tests/data/inspector_props_*.json.gz`). The folder keeps this plan and a README saying
 where each feature went; nothing else in the suite or OPFOR used its code.
 
-### 9.2 Navigation Studio (`bfbc2-navigation-studio`: `studio.py`, `editing.py`, `overlay.py`)
+### 9.2 Navigation Studio (`bfbc2-navigation-studio`: `studio.py`, `editing.py`, `overlay.py`): retired in GR2
 
 | Feature | In the editor? | Plan |
 |---|---|---|
-| NavKit's build and DICE's path data side by side over the level: walkable cells, outlines, portals, border portals, route graph per file | Partly: the Navmesh view mode draws one file's area outlines (E2b) | GR2: the AI workspace's layers, both files, each layer switchable |
-| Colour by island, sector, pitch, difference (NavKit vs DICE: same, extra, missing), anomaly | No | GR2 |
-| Ladder ground and ladder links layers | No | GR2 |
-| Path test (P): the cheapest route over each file's graph, cost, length, detour, NavKit against DICE, why there is none (islands, nearest approach) | Registered (`PathTest`, greyed "a later round") | GR2 (`navpath`'s planner, in Rust) |
-| Edit mode: walkable / unwalkable regions, seed, unseed, link areas, add or remove a route edge, traversals (ladder, jump, vault, drop), notes; `navtune.json` with who and when; undo, redo, save, reload | No | GR2 / E5a: the AI workspace's tools, edits in the map project's log (stored by position, 3.4a) |
-| Build with these edits (`navkit apply` in the background, its log), open the result, install into the game, restore DICE's original, the report | No | GR2, through `bfbc2.exe navkit` |
-| DICE's data edited additively (links, edges, traversals) into a copy | No | GR2 |
-| Compare with a reference AI layer (`level:`, `xbox:`, a level XML): spawners, orders, objectives, path outlines, filters, the nearest route node, export JSON | No | GR2 (a workspace overlay); `overlay.py`'s headless export stays a command |
-| Anomaly overlay: spawns on small islands, orders without a node, sliver areas, lonely nodes; export JSON | No | GR2; the headless `--anomalies` stays a command |
-| Panels: per-file figures, islands largest first with fly-to, spawns off the main network, the selected area (sector, tile, layer, cells, island); hover shows the area | No | GR2 |
-| Camera, `--screenshot` for tests | Yes | - |
+| NavKit's build and DICE's path data side by side over the level: walkable cells, outlines, portals, border portals, route graph per file | **Added in GR2**: the navmesh view mode and the AI workspace draw both files (`navdata.rs` reads them on a worker; the cells as meshes per colour, `navview.rs`), every layer switchable in the Navigation panel | - |
+| Colour by island, sector, pitch, difference (NavKit vs DICE: same, extra, missing), anomaly | **Added in GR2**: the five colourings (actions, the panel's buttons), the `view-nav-*` tokens; DICE's ground NavKit lacks its own layer | - |
+| Ladder ground and ladder links layers | **Added in GR2** | - |
+| Path test (P): the cheapest route over each file's graph, cost, length, detour, NavKit against DICE, why there is none (islands, nearest approach) | **Added in GR2**: Path test (Shift+P, "Path test from here" on the ground), A* in Rust (`bc2_navbuild::astar`), the routes drawn, the figures and Fly to the gap in the panel | - |
+| Edit mode: walkable / unwalkable regions, seed, unseed, link areas, add or remove a route edge, traversals (ladder, jump, vault, drop), notes; `navtune.json` with who and when; undo, redo, save, reload | **Added in GR2**: the Navigation edits panel's tools (and the AI ground menu's), each edit an operation of the project's log (`Op::NavAdd` / `NavRemove` / `NavLoad`, `bc2_levelwrite::navedit`): undo, redo, autosave and save with the project; the side file written and read in `navtune`'s form (the Rust core's `navtune::dumps` / `validate` / `summary`); `when` is UTC | Placing spawners and orders, routes and cross-domain links: E5a |
+| Build with these edits (`navkit apply` in the background, its log), open the result, install into the game, restore DICE's original, the report | **Added in GR2**: `bfbc2.exe navkit apply / install / restore` (Python `navkit.py` without the binary); install and restore show their plan (what they write in the game copy's AI path data) in a confirm dialog first | - |
+| DICE's data edited additively (links, edges, traversals) into a copy | **Added in GR2** (a DICE base: region tools disabled with the reason) | - |
+| Compare with a reference AI layer (`level:`, `xbox:`, a level XML): spawners, orders, objectives, path outlines, filters, the nearest route node, export JSON | **Added in GR2**: the Navigation panel's Compare (read from the partitions in Rust: `level:`, `xbox:`, a `.dbx` or the `.xml` beside one), markers in `view-ref-*`, filters, a marker clicked shows its nearest NavKit node, Export JSON | `overlay.py --reference` stays a command |
+| Anomaly overlay: spawns on small islands, orders without a node, sliver areas, lonely nodes; export JSON | **Added in GR2** (layers, counts, the anomaly colouring, Export JSON) | `overlay.py --anomalies` stays a command |
+| Panels: per-file figures, islands largest first with fly-to, spawns off the main network, the selected area (sector, tile, layer, cells, island); hover shows the area | **Added in GR2**: Navigation (files, figures, selection), Islands and spawns; the hover's area beside the pointer | - |
+| Camera, `--screenshot` for tests | Yes (`bfbc2-editor <level> --navmesh` opens the navigation) | - |
+
+What the editor shows was compared with what the Studio showed before it went (`tests/nav_parity.rs` against
+`tests/data/navstudio.json.gz`, digests recorded by the round's `record_navstudio.py`, removed with the Studio): on
+SP_01, ONS_MP_004, ONS_MP_002 and SP_009, both files each - the summary, areas, cells and their heights, islands,
+the five colourings' classes, the difference figures, the spawns' islands, the islands' gaps, the anomalies and 12
+path tests - and the compare layers of ONS_MP_004 and MP_002 against `level:ons_mp_002`, SP_009 against `level:sp_01`
+and the WW2 level GUADAL_CANAL's own layer: all identical. `tests/gr2.rs` drives the workspace headless and runs the
+edit, build, install and restore round trip on a scratch OPFOR copy. The folder keeps `overlay.py` (its README says
+only that); OPFOR's code never called the Studio.
 
 ### 9.3 Mesh viewer (`bfbc2-mesh-viewer/meshview.py`)
 

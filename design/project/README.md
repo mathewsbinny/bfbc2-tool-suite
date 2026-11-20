@@ -1,4 +1,4 @@
-The shared look of every BFBC2 Tool Suite window: the map editor (the Map Inspector's successor), Navigation Studio, NavKit's
+The shared look of every BFBC2 Tool Suite window: the map editor (the Map Inspector's and the Navigation Studio's successor), NavKit's
 window, DbxEditGUI, the suite launcher and every GUI to come. It follows the conventions modders already know from
 game-engine editors such as Unity and Unreal Engine: neutral grey docked panels around a 3D viewport, a blue
 interface accent, orange for what is selected in the viewport, compact rows, and a dark and a light theme. It
@@ -112,6 +112,27 @@ between the marker's darkest tenth and the terrain's brightest tenth).
 The terrain is `#3f4837` (Dark) and `#434c3b` (Light), the sky `#1c1f23` and `#747d87`. Known closenesses, carried
 by shape and word as everywhere: `view-team-2` and `view-status-error` (both light reds, 19 degrees apart), and
 `view-team-1` and `view-status-info` (20 degrees).
+
+**The AI workspace's navigation** (round GR2, the Navigation Studio's colours made tokens; each also meets 3.5:1 on
+the lit terrain and the water, worst case 3.6:1, the editor's tests check every one; Light is Dark lifted by 6 per
+channel):
+
+- the ground's colourings: `view-nav-main` (`#6fd17a`, the main route network), `view-nav-ground` (`#a9c2a6`,
+  NavKit's ground DICE also has; a lone file's ground), `view-nav-ground-dice` (`#a7afca`), `view-nav-extra`
+  (`#f5d76e`, NavKit's extra ground and the detailed 0.2 m zones), `view-nav-missing` (`#ff9a94`, DICE's ground
+  NavKit lacks), `view-nav-ladder` (`#c4a8ff`), `view-nav-normal` (`#7fb6e0`, the 0.8 m pitch), `view-nav-dimmed`
+  (`#b0b8b0`, islands of 25 nodes or more) and `view-nav-small` (`#ff90e8`, smaller islands; lonely nodes). Every
+  other island and sector takes a hue of its own in golden-ratio steps (saturation 0.5, value 0.95), as the Studio's did;
+- the layers' lines: `view-nav-outline` (`#e8ece8`), `view-nav-portal` (`#6fe3ff`), `view-nav-border` (`#ffe066`,
+  also sliver areas), `view-nav-graph` (`#f3a6ff`);
+- the path test's routes: `view-nav-route-navkit` (`#ffe14d`) and `view-nav-route-dice` (`#5ee7ff`);
+- the edits: `view-nav-edit-add` (`#66f08a`: walkable regions, seeds), `view-nav-edit-remove` (`#ff978c`:
+  unwalkable regions, unseeds, removed route edges), `view-nav-edit-link` (`#c8f56b`: links, added route edges),
+  `view-nav-edit-mark` (`#f2f2ff`: traversals, notes, the drawing in progress);
+- a reference level's AI layer: `view-ref-ai` (`#ff9e9e`), `view-ref-human` (`#7ab0ff`), `view-ref-order` (`#ffe066`),
+  `view-ref-patrol` (`#e0b0ff`), `view-ref-objective` (`#d9d9d9`), `view-ref-outline` (`#a8f0a8`).
+
+None is orange: orange stays the viewport selection's.
 
 ## Type
 

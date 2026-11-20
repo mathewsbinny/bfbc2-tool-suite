@@ -1,7 +1,7 @@
 """BFBC2 Tool Suite - one window for every tool (double-click to start; needs Python 3 with numpy, and for the 3D
 tools moderngl, glfw and imgui-bundle).
 
-Tabs: Levels (open a level in the map editor or the Navigation Studio), Bundles (FbrbTool), Level diff
+Tabs: Levels (open a level in the map editor, or its navigation there), Bundles (FbrbTool), Level diff
 (LevelDiff), Crash reader, Xbox files (STFS packages and disc images), Tests (run_tests.py), More tools
 (DbxEditGUI, NavKit's window). Every tool runs as its own process; its output appears in the pane at the bottom.
 The tools read your own game copy (Project OPFOR BFBC2's) - nothing is sent anywhere.
@@ -53,7 +53,6 @@ TOOLS = {
 }
 SCRIPTS = {
     'fbrb': os.path.join(SUITE, 'bfbc2-fbrb-tool', 'fbrbtool.py'),           # FbrbTool's commands (the Rust core)
-    'studio': os.path.join(SUITE, 'bfbc2-navigation-studio', 'studio.py'),
     'navkit': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkit.py'),
     'navkitgui': os.path.join(SUITE, 'bfbc2-auto-navkit', 'navkitGUI.pyw'),
     'crash': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'crash-reader', 'crashreader.py'),
@@ -309,10 +308,10 @@ class Hub:
     # --- Levels: the 3D tools -----------------------------------------------------------------------
     def tab_levels(self):
         f = self.form('Levels', 'Pick a level, then open it in the map editor (the level in 3D: every object, its '
-                                'fields and links; editing a copy) or in the Navigation Studio (the AI\'s navigation '
-                                'data: NavKit\'s and DICE\'s, islands, path test, edits). A level is unpacked the first '
-                                'time it is opened (offline, about 20 s); the first opening of its navigation data takes '
-                                'up to a minute, later ones seconds. The tool\'s progress shows below.')
+                                'fields and links; editing a copy) or its navigation there (the AI\'s navigation data: '
+                                'NavKit\'s and DICE\'s, islands, path test; edits in a project\'s AI workspace). A level '
+                                'is unpacked the first time it is opened (offline, about 20 s). The tool\'s progress '
+                                'shows below.')
         cols = ('prepared', 'dice', 'navkit', 'edits')
         self.tree = ttk.Treeview(f, columns=cols, height=12, selectmode='browse')
         self.tree.heading('#0', text='Level')
@@ -326,13 +325,10 @@ class Hub:
         btns = ttk.Frame(f)
         btns.grid(row=2, column=0, columnspan=3, sticky='w', pady=8)
         ttk.Button(btns, text='Open in Map Editor', command=self.open_editor).pack(side='left')
-        ttk.Button(btns, text='Open in Navigation Studio', command=lambda: self.open_3d('studio')).pack(side='left', padx=6)
+        ttk.Button(btns, text='Open navigation', command=self.open_navigation).pack(side='left', padx=6)
         ttk.Button(btns, text='Prepare level', command=self.prepare).pack(side='left', padx=6)
         ttk.Button(btns, text='Open level folder', command=self.open_level_folder).pack(side='left', padx=6)
         ttk.Button(btns, text='Refresh', command=self.fill_levels).pack(side='left', padx=6)
-        self.nav_file = tk.StringVar()
-        self.file_row(f, 3, 'NavKit file for the Studio (optional; default: the newest build):', self.nav_file,
-                      types=(('Path data', '*.hpd'), ('All files', '*.*')))
         self.fill_levels()
 
     def fill_levels(self):
@@ -365,14 +361,19 @@ class Hub:
             return None
         return sel[0]
 
-    def open_3d(self, which):
+    def open_navigation(self):
+        """The map editor on the chosen level in its navmesh view (round GR2: the Navigation Studio's successor -
+        the Navigation, Islands and spawns and Navigation edits panels)."""
         lv = self.chosen_level()
         if not lv:
             return
-        args = [PYTHON, SCRIPTS[which], lv]
-        if which == 'studio' and self.nav_file.get().strip():
-            args += ['--candidate', self.nav_file.get().strip()]
-        self.launch(args, f'Navigation Studio: {lv} (the window opens when the level is loaded)')
+        try:
+            exe = editor_exe()
+        except RuntimeError as e:
+            messagebox.showinfo('BFBC2 Tool Suite', str(e))
+            return
+        self.launch([exe, lv, '--navmesh'], f'Map editor: {lv}, its navigation (the window opens at once, the level '
+                                             'loads in it)')
 
     def open_editor(self, lv=None):
         """The Rust map editor on the chosen level (read-only; a project edits a copy), or on its start screen without

@@ -2,7 +2,7 @@
 //! editing a map project).
 //!
 //! ```text
-//! bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light]
+//! bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] [--navmesh]
 //! bfbc2-editor [level | --demo | --project <file>] --screenshot out.png [--size 1600x950] [--select <guid>]
 //!              [--export [--install-plan] | --no-strip] [--new-project <level> [--era <era>] [--target-mode <mode>]]
 //! bfbc2-editor --version
@@ -18,6 +18,8 @@
 //! `--install-plan` (with `--export`) runs OPFOR's install plan on the project's stage and shows the Install dialog
 //! (round E3d; nothing is installed). `--new-project <level>` shows the start screen's New project form on a level,
 //! its Era and Mode pickers set by `--era bfbc1|bfbc2|vietnam|ww2` and `--target-mode <mode key>`.
+//! `--navmesh` opens the level in the navmesh view mode: its navigation data and the Navigation panel (round GR2:
+//! what the hub's "Open navigation" asks for, the Navigation Studio's successor).
 #![deny(unsafe_code)]
 
 use std::path::PathBuf;
@@ -49,6 +51,8 @@ struct Args {
     target_mode: Option<String>,
     /// The start screen's set of maps to show (`--mode bfbc1|bfbc2|vietnam|ww2`).
     mode: Option<ContentSet>,
+    /// Open the level in the navmesh view mode (`--navmesh`).
+    navmesh: bool,
 }
 
 fn parse() -> Result<Args, String> {
@@ -68,6 +72,7 @@ fn parse() -> Result<Args, String> {
         era: None,
         target_mode: None,
         mode: None,
+        navmesh: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -77,6 +82,7 @@ fn parse() -> Result<Args, String> {
             "--screenshot" => a.screenshot = Some(PathBuf::from(value("a file")?)),
             "--select" => a.select = Some(value("a GUID")?),
             "--demo" => a.demo = true,
+            "--navmesh" => a.navmesh = true,
             "--mode" => {
                 a.mode = Some(match value("bfbc1, bfbc2, vietnam or ww2")?.to_lowercase().as_str() {
                     "bfbc1" => ContentSet::Bfbc1,
@@ -115,7 +121,7 @@ fn parse() -> Result<Args, String> {
             }
             "-h" | "--help" => {
                 return Err(
-                    "bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] \
+                    "bfbc2-editor [level | --project <file.mapedit.json>] [--opfor <folder>] [--theme dark|light] [--navmesh] \
                      [--screenshot out.png [--size 1600x950] [--select <guid>] [--demo] [--mode bfbc1|bfbc2|vietnam|ww2]]"
                         .into(),
                 );
@@ -202,6 +208,18 @@ fn screenshot(a: &Args, out: &std::path::Path) -> Result<(), String> {
             app.set_new_target(a.era, a.target_mode.as_deref().unwrap_or("conquest"));
         }
     }
+    if a.navmesh && app.view().is_some() {
+        let (gpu, ctx) = (h.gpu.clone(), h.ctx.clone());
+        app.run_action(
+            &gpu,
+            &ctx,
+            bc2_editor::actions::Action::SetViewMode(bc2_editor::workspace::ViewMode::Navmesh),
+        );
+        let p = app.palette();
+        if let Some(v) = app.view_mut() {
+            v.nav_wait(&gpu, &p);
+        }
+    }
     if let Some(g) = &a.select {
         let gpu = h.gpu.clone();
         select_guid(&mut app, &gpu, g);
@@ -218,6 +236,8 @@ struct Window {
     gpu: Option<GpuCtx>,
     open: Option<String>,
     project: Option<PathBuf>,
+    /// The navmesh view mode is still to be set once the level is open (`--navmesh`).
+    navmesh: bool,
 }
 
 impl eframe::App for Window {
@@ -244,6 +264,15 @@ impl eframe::App for Window {
         }
         if let Some(p) = self.project.take() {
             self.app.open_project(&p);
+        }
+        if self.navmesh && self.app.view().is_some() {
+            self.navmesh = false;
+            let ctx = ui.ctx().clone();
+            self.app.run_action(
+                &gpu,
+                &ctx,
+                bc2_editor::actions::Action::SetViewMode(bc2_editor::workspace::ViewMode::Navmesh),
+            );
         }
         self.app.ui(ui, &gpu);
     }
@@ -305,7 +334,8 @@ fn main() -> ExitCode {
         viewport,
         ..Default::default()
     };
-    let (opfor, theme, open, project) = (a.opfor.clone(), a.theme, a.level.clone(), a.project.clone());
+    let (opfor, theme, open, project, navmesh) =
+        (a.opfor.clone(), a.theme, a.level.clone(), a.project.clone(), a.navmesh);
     let r = eframe::run_native(
         "BFBC2 Map Editor",
         options,
@@ -320,6 +350,7 @@ fn main() -> ExitCode {
                 gpu: None,
                 open,
                 project,
+                navmesh,
             }))
         }),
     );

@@ -841,7 +841,7 @@ def _apply(pr: Project, lv: str, navtune_path: str | None, out: str | None, log:
     from bfbc2core import navtune
     navtune_path = navtune_path or navtune.default_path(pr.root, lv)
     if not os.path.isfile(navtune_path):
-        raise NavKitError(f'{lv}: no side file {navtune_path} (make edits in the Navigation Studio first)')
+        raise NavKitError(f'{lv}: no side file {navtune_path} (make edits in the map editor\'s AI workspace first)')
     try:
         tune = navtune.load(navtune_path)
     except ValueError as e:
