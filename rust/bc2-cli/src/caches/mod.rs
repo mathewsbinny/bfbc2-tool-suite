@@ -20,9 +20,9 @@ use std::collections::HashSet;
 use std::fmt::Write as _;
 
 use crate::budget::{self, MARKER_AGE, MB, SPECS, Spec};
-use crate::fsx::{self, Entry};
 use crate::logs::{self, Done, Seen};
 use crate::pylog;
+use crate::pyos::files::{self as fsx, Entry};
 use crate::pyproc::{Fail, Py, PyErr, PyResult, Tool, suite_root};
 use bc2_pyrt::py::{abspath, basename, dirname, isdir, isfile, join};
 
