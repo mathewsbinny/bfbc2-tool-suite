@@ -1,4 +1,4 @@
-The shared look of every BFBC2 Tool Suite window: the map editor and Map Inspector, Navigation Studio, NavKit's
+The shared look of every BFBC2 Tool Suite window: the map editor (the Map Inspector's successor), Navigation Studio, NavKit's
 window, DbxEditGUI, the suite launcher and every GUI to come. It follows the conventions modders already know from
 game-engine editors such as Unity and Unreal Engine: neutral grey docked panels around a 3D viewport, a blue
 interface accent, orange for what is selected in the viewport, compact rows, and a dark and a light theme. It
@@ -84,9 +84,12 @@ The colours above are made for panel grounds. The 3D view draws on its terrain, 
   panel team colours on it). The terrain is deliberately dark (luminance 0.06 - 0.07) so that every overlay reads on
   it; the scene is nearly the same in both themes, the sky follows the chrome.
 - `view-*`: what is drawn on the terrain - `view-team-1`, `view-team-2`, `view-team-neutral`, `view-unowned`,
-  `view-selection` (the outline, through walls) and `view-status-ok`, `-warn`, `-error`, `-info` (problem markers in
-  the view, with their shapes). Same hues as the panel tokens, lighter. The view lights overlays evenly (0.88 - 1.0
-  of the colour, where the terrain and objects take 0.40 - 1.0), so they read from every side.
+  `view-selection` (the outline, through walls), `view-status-ok`, `-warn`, `-error`, `-info` (problem markers in
+  the view, with their shapes) and `view-link` (round GR1: the selection's links, a teal line with an arrow -
+  references solid, event connections dashed; a teal 29 degrees from `view-team-1` and from `view-status-ok`, told
+  from them by being a line with an arrow, never a marker). Same hues as the panel tokens, lighter (`view-link` has
+  no panel twin: links in panels are `accent-text`). The view lights overlays evenly (0.88 - 1.0 of the colour, where
+  the terrain and objects take 0.40 - 1.0), so they read from every side.
 
 Each `view-*` colour meets **3.5:1 on the lit terrain** - at its darkest against the terrain at its brightest (flat
 ground) and on slopes - and on the water, in both themes; the editor's tests compute this and also measure it on
@@ -104,6 +107,7 @@ between the marker's darkest tenth and the terrain's brightest tenth).
 | `view-status-warn` | `#e0c400` | `#e6cb00` | 5.9 / 6.0 | 4.6 |
 | `view-status-error` | `#ff8c9c` | `#ff94a2` | 4.7 / 4.6 | 3.6 |
 | `view-status-info` | `#85adff` | `#8cb3ff` | 4.6 / 4.6 | 3.6 |
+| `view-link` | `#40d8c0` | `#46dcc6` | 5.8 / 5.7 | 4.4 |
 
 The terrain is `#3f4837` (Dark) and `#434c3b` (Light), the sky `#1c1f23` and `#747d87`. Known closenesses, carried
 by shape and word as everywhere: `view-team-2` and `view-status-error` (both light reds, 19 degrees apart), and

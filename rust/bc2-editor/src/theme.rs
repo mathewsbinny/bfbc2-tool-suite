@@ -447,6 +447,7 @@ pub struct Palette {
     pub view_status_warn: Color32,
     pub view_status_error: Color32,
     pub view_status_info: Color32,
+    pub view_link: Color32,
     pub scene_sky: Color32,
     pub scene_terrain: Color32,
     pub scene_water: Color32,
@@ -504,6 +505,7 @@ impl Palette {
             view_status_warn: c("view-status-warn"),
             view_status_error: c("view-status-error"),
             view_status_info: c("view-status-info"),
+            view_link: c("view-link"),
             scene_sky: c("scene-sky"),
             scene_terrain: c("scene-terrain"),
             scene_water: c("scene-water"),
@@ -533,6 +535,7 @@ impl Palette {
             ("view-status-warn", self.view_status_warn),
             ("view-status-error", self.view_status_error),
             ("view-status-info", self.view_status_info),
+            ("view-link", self.view_link),
             ("scene-sky", self.scene_sky),
             ("scene-terrain", self.scene_terrain),
             ("scene-water", self.scene_water),
@@ -829,7 +832,7 @@ mod tests {
         let t = tokens();
         let raw: Value = serde_json::from_str(TOKENS_JSON).unwrap();
         assert_eq!(t.colors.len(), raw["color"]["tokens"].as_array().unwrap().len());
-        assert_eq!(t.colors.len(), 50);
+        assert_eq!(t.colors.len(), 51);
         let styles: usize = raw["type"]["groups"]
             .as_array()
             .unwrap()
@@ -1086,6 +1089,7 @@ mod tests {
                 ("view-status-warn", p.view_status_warn),
                 ("view-status-error", p.view_status_error),
                 ("view-status-info", p.view_status_info),
+                ("view-link", p.view_link),
             ] {
                 for k_mark in [1.0, 0.88] {
                     for k_ground in [0.93, 0.75, 0.6] {
