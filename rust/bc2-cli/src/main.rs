@@ -142,10 +142,10 @@ mod pyos;
 mod pyproc;
 mod pystdio;
 // round O5: the shader tools' command lines (shaderdb, renderqa, xdiff)
-#[cfg(feature = "shader")]
-mod shader;
 #[cfg(feature = "readers")]
 mod readers;
+#[cfg(feature = "shader")]
+mod shader;
 #[cfg(feature = "stockmp")]
 mod stockmp;
 #[cfg(feature = "texqa")]
