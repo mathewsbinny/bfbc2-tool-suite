@@ -7,6 +7,14 @@
 //! is not UTF-8, a value `round` cannot take exactly, a key that is not finite; in `check`, any value of a shape the
 //! reference would raise on or compare by Python's own rules (lists or dicts where a scalar is read, ...).
 
+#![allow(
+    clippy::indexing_slicing,
+    clippy::many_single_char_names,
+    clippy::type_complexity,
+    clippy::float_cmp,
+    reason = "a port of Python: indexes after their lengths are checked, the reference's names and its shapes kept, == as Python compares floats"
+)]
+
 use bc2_pyrt::json::Value;
 use bc2_stockmp::model::{CapturePoint, Model, Pos};
 
@@ -241,7 +249,7 @@ fn sort_by_key<T: Clone>(items: &[T], key_of: impl Fn(&T) -> PyResult<f64>) -> P
 }
 
 /// `min(items, key=...)`: the first smallest.
-fn min_by<'a, T>(items: &'a [T], key_of: impl Fn(&T) -> PyResult<f64>) -> PyResult<Option<&'a T>> {
+fn min_by<T>(items: &[T], key_of: impl Fn(&T) -> PyResult<f64>) -> PyResult<Option<&T>> {
     let mut best: Option<(f64, &T)> = None;
     for it in items {
         let k = key(key_of(it)?)?;
@@ -253,7 +261,7 @@ fn min_by<'a, T>(items: &'a [T], key_of: impl Fn(&T) -> PyResult<f64>) -> PyResu
 }
 
 /// `max(items, key=...)`: the first largest.
-fn max_by<'a, T>(items: &'a [T], key_of: impl Fn(&T) -> PyResult<f64>) -> PyResult<Option<&'a T>> {
+fn max_by<T>(items: &[T], key_of: impl Fn(&T) -> PyResult<f64>) -> PyResult<Option<&T>> {
     let mut best: Option<(f64, &T)> = None;
     for it in items {
         let k = key(key_of(it)?)?;
@@ -293,7 +301,9 @@ fn conquest(m: &Model, snap: &Snapper, n: i64, notes: &mut Vec<String>) -> PyRes
             .filter(|cp| cp.owner.as_deref() == Some(t.as_bytes()))
             .collect();
         if bases.is_empty() {
-            return Err(value_error(format!("{t}: no capture point owned at the start (its base)")));
+            return Err(value_error(format!(
+                "{t}: no capture point owned at the start (its base)"
+            )));
         }
         let mut cands = Vec::new();
         for b in &bases {
@@ -302,7 +312,9 @@ fn conquest(m: &Model, snap: &Snapper, n: i64, notes: &mut Vec<String>) -> PyRes
         let base_pos: Vec<[f64; 3]> = bases.iter().map(|b| pos_of(b)).collect::<PyResult<_>>()?;
         if cands.is_empty() {
             cands.clone_from(&base_pos);
-            notes.push(format!("{t}: the base has no ground spawn points; using the base flag position"));
+            notes.push(format!(
+                "{t}: the base has no ground spawn points; using the base flag position"
+            ));
         }
         let home = centroid(&base_pos);
         let cands = sort_by_key(&cands, |p| Ok(dist(*p, home)))?;
@@ -341,10 +353,7 @@ fn conquest(m: &Model, snap: &Snapper, n: i64, notes: &mut Vec<String>) -> PyRes
                 ("objective", s(&label)),
                 ("pos", floats(order_pos(snap, pos_of(f)?, notes, &name)?)),
                 ("half_extents", Value::floats(&[8.0, 3.0, 8.0])),
-                (
-                    "soldiers",
-                    Value::List(assign[first].iter().map(|x| s(x)).collect()),
-                ),
+                ("soldiers", Value::List(assign[first].iter().map(|x| s(x)).collect())),
                 ("stage", Value::Null),
                 ("trigger_radius", Value::Float(100.0)),
             ]));
@@ -372,7 +381,11 @@ fn rush(
     let dfn = if att == "Team1" { "Team2" } else { "Team1" };
     let mut centroids = Vec::new();
     for st in &stages {
-        let pts: Vec<[f64; 3]> = st.mcoms.iter().map(|(_, p)| p.map(arr).ok_or(Fail::Python)).collect::<PyResult<_>>()?;
+        let pts: Vec<[f64; 3]> = st
+            .mcoms
+            .iter()
+            .map(|(_, p)| p.map(arr).ok_or(Fail::Python))
+            .collect::<PyResult<_>>()?;
         if pts.is_empty() {
             return Err(Fail::Python); // ZeroDivisionError
         }
@@ -409,7 +422,10 @@ fn rush(
         } else {
             min_by(&att_cps, |cp| Ok(dist(pos_of(cp)?, centroids[k - 1])))?.copied()
         };
-        for (team, cp, n, kind, tag) in [(dfn, dcp, 4i64, "AreaHoldGround", "d"), (att, acp, 4i64, "AreaMoveTo", "a")] {
+        for (team, cp, n, kind, tag) in [
+            (dfn, dcp, 4i64, "AreaHoldGround", "d"),
+            (att, acp, 4i64, "AreaMoveTo", "a"),
+        ] {
             let Some(cp) = cp else {
                 notes.push(format!("stage {k}: no {team} capture point to spawn at"));
                 continue;
@@ -418,7 +434,13 @@ fn rush(
             if cands.is_empty() {
                 cands = vec![pos_of(cp)?];
             }
-            let pts = place(snap, &cands, n, notes, &format!("stage {k} {team} ({})", text(&cp.name)?))?;
+            let pts = place(
+                snap,
+                &cands,
+                n,
+                notes,
+                &format!("stage {k} {team} ({})", text(&cp.name)?),
+            )?;
             let mut ids = Vec::new();
             for (i, p) in pts.iter().enumerate() {
                 let sid = format!("s{k}{tag}_{i:02}");
@@ -444,7 +466,10 @@ fn rush(
                     ("team", s(team)),
                     ("type", s(kind)),
                     ("objective", s(&text(g)?)),
-                    ("pos", floats(order_pos(snap, mp, notes, &format!("stage {k} M-COM {j}"))?)),
+                    (
+                        "pos",
+                        floats(order_pos(snap, mp, notes, &format!("stage {k} M-COM {j}"))?),
+                    ),
                     ("half_extents", Value::floats(&[8.0, 3.0, 8.0])),
                     ("soldiers", Value::List(sold)),
                     ("stage", Value::Int(i128::try_from(k).map_err(|_| Fail::Python)?)),
@@ -561,7 +586,9 @@ pub fn check(c: &Value) -> PyResult<Vec<String>> {
         p.push("not a bfbc2-stockmp-ai v1 configuration".to_owned());
         return Ok(p);
     }
-    for k in ["lv", "level", "mode", "teams", "defaults", "spawners", "orders", "template"] {
+    for k in [
+        "lv", "level", "mode", "teams", "defaults", "spawners", "orders", "template",
+    ] {
         if !top.iter().any(|(x, _)| x == k) {
             p.push(format!("missing \"{k}\""));
         }
@@ -584,9 +611,7 @@ pub fn check(c: &Value) -> PyResult<Vec<String>> {
             ids.push(id);
         }
         let team = key_of(sp.get("team"))?;
-        if !dict_has(teams, &team) {
-            p.push(format!("spawner {shown}: team {} not in teams", py_str(sp.get("team"))?));
-        } else {
+        if dict_has(teams, &team) {
             let Key::Str(t) = &team else { return Err(Fail::Python) };
             let tv = c.get("teams").and_then(|x| x.get(t)).ok_or(Fail::Python)?;
             dict_items(tv)?;
@@ -597,6 +622,11 @@ pub fn check(c: &Value) -> PyResult<Vec<String>> {
                     py_str(sp.get("kit"))?
                 ));
             }
+        } else {
+            p.push(format!(
+                "spawner {shown}: team {} not in teams",
+                py_str(sp.get("team"))?
+            ));
         }
         if !matches!(sp.get("pos"), Some(Value::List(v)) if v.len() == 3) {
             p.push(format!("spawner {shown}: pos must be [x, y, z]"));
@@ -638,9 +668,15 @@ pub fn check(c: &Value) -> PyResult<Vec<String>> {
                 None => p.push(format!("order {shown}: unknown soldier {}", py_str(Some(x))?)),
                 Some((_, t, st)) => {
                     if key_of(*t)? != key_of(o.get("team"))? {
-                        p.push(format!("order {shown}: soldier {} is on another team", py_str(Some(x))?));
+                        p.push(format!(
+                            "order {shown}: soldier {} is on another team",
+                            py_str(Some(x))?
+                        ));
                     } else if key_of(*st)? != key_of(o.get("stage"))? {
-                        p.push(format!("order {shown}: soldier {} belongs to another stage", py_str(Some(x))?));
+                        p.push(format!(
+                            "order {shown}: soldier {} belongs to another stage",
+                            py_str(Some(x))?
+                        ));
                     }
                 }
             }
@@ -672,7 +708,12 @@ pub fn check(c: &Value) -> PyResult<Vec<String>> {
         }
     }
     stages.sort_unstable();
-    if !stages.is_empty() && stages.iter().enumerate().any(|(k, v)| i128::try_from(k).ok() != Some(*v)) {
+    if !stages.is_empty()
+        && stages
+            .iter()
+            .enumerate()
+            .any(|(k, v)| i128::try_from(k).ok() != Some(*v))
+    {
         let shown: Vec<String> = stages.iter().map(ToString::to_string).collect();
         p.push(format!("stages must be 0..n-1, have [{}]", shown.join(", ")));
     }

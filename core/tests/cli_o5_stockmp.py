@@ -64,7 +64,8 @@ def path_data(regions: tuple[tuple[float, float, float, float], ...] = ((-8, 212
     (x0, x1, z0, z1), each region one chain of edges (one route group each), and one area under them (area: its
     outline's x0, x1, z0, z1; None: no area). islands: that many more two-node groups far off."""
     hpdtool, kymesh = _navkit()
-    nodes, edges = [], []
+    nodes: list[Any] = []
+    edges: list[Any] = []
     nid = 1000 + seed
     for x0, x1, z0, z1 in regions:
         first = len(nodes)
@@ -322,7 +323,7 @@ def cases() -> list[Case]:
 
 # ------------------------------------------------------------------------------------------- the game (--game)
 
-LEVELS = (('mp_005', ['--bots', '8']), ('mp_002', []), ('mp_008cq', []), ('mp_004', []))
+LEVELS: tuple[tuple[str, list[str]], ...] = (('mp_005', ['--bots', '8']), ('mp_002', []), ('mp_008cq', []), ('mp_004', []))
 
 
 def opfor_calls(opfor: str) -> list[Call]:
@@ -344,7 +345,7 @@ def _tree(top: str) -> dict[str, str]:
             p = os.path.join(d, f)
             h = hashlib.sha256()
             with open(p, 'rb') as fh:
-                for b in iter(lambda fh=fh: fh.read(1 << 20), b''):
+                while b := fh.read(1 << 20):
                     h.update(b)
             out[os.path.relpath(p, top)] = h.hexdigest()
     return out
@@ -356,6 +357,7 @@ def game_check(check: Any, exe: str, ref: str) -> None:
     import shutil
     import subprocess
     import time
+
     import test_cli_o2 as o2
     try:
         opfor: str | None = o2.paths.find_opfor()

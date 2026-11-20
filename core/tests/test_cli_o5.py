@@ -50,7 +50,7 @@ def _log_named(log: Callable[[Any], str]) -> Callable[[Any], str]:
 def main(argv: list[str]) -> int:
     import shutil
     base.ROUND = 'o5'
-    base.Place.log = _log_named(base.Place.log)  # type: ignore[method-assign]
+    base.Place.log = _log_named(base.Place.log)
     base.GROUPS = tuple(g for g in ALL_GROUPS if os.path.isfile(os.path.join(HERE, f'cli_o5_{g}.py')))
     ref = argv[argv.index('--ref') + 1] if '--ref' in argv[:-1] else os.environ.get('BFBC2_O5_REF')
     base.REF = os.path.abspath(ref or base.SUITE)
