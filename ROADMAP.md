@@ -56,7 +56,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| RT1 | `rust-rt1` | the full test tier on main, then the Python twins Rust answers retired (E4a-f, F0, F2a, F2b, F3, O1-O5 CLI Python); OPFOR's imports kept working, the WW2 rebuild against the oracle |
+| GR1 | `rust-gr1` | the five GUIs' inventory; the Map Inspector's link view and full property tree in the editor, then its GUI retired; LevelDiff as a command if time allows |
 
 ## Queued
 
@@ -64,7 +64,7 @@ In priority order (above); the next rounds:
 
 | Round | What |
 |---|---|
-| Full tier + retire | the full test tier on main, then the Python twins retired (E4a-f, F0, F2a, F2b, F3, O1-O5 CLI Python) |
+| RT2 | RT1's leftovers: record answers for the live-compared references (F0, F2a, F2b, E4b, E4e) then retire them; navsample.load v1 / v2; the hpd / audio error messages in the bindings; argparse's console width in the Rust parser; the library parts split out of command-line `.py` files; next CLI candidates (aptrefs, xiso, culltree, stockmp, exeref / crashreader) |
 | GUIs | Map Inspector, Navigation Studio, mesh viewer, DbxEditGUI, LevelDiff folded into the editor, then retired |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
@@ -139,6 +139,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 |---|---|---|
 | D1 | 2026-11-19 | the disk budget: cargo builds outside the checkout, binaries in `bin\`, one budget for every cache |
 | S1 | 2026-11-18 | streamed bundle packing, process-wide BF1943 restart points, the shader coverage index |
+| RT1 | 2026-11-20 | full tier 232 of 232 (5 h, -j 2); retired graphstats.py, the editor's prepare_level.py, aimanim's and navsample_offline.file_bytes's references; `--download` also fetches `bfbc2.exe`; the inventory of every command line and reference with its fate (BENCHMARKS RT1); OPFOR 380 tests, WW2 rebuild 10,852 of 10,852 |
 | SD1 | 2026-11-20 | the shader database reader's last Python (open / dispatch, pick_database, dx from name) in one Rust module shared by bc2_native and `bfbc2.exe shaderdb`; 745 databases, 10,068 picks, 89 levels' loads identical; the in-process Merger and path glue stay Python |
 | F4 | 2026-11-20 | F3's leftovers in Rust: the disassembler's header, audio decode and ffmpeg glue, hkpack's handle-based Packfile, navsample_offline's hulls (5 tied Railway_Switch hulls still Python), meshview's and texqa's readers, culltree's string table; all identical to the Python; WW2 texture QA 212 s to 134 s |
 | F3 | 2026-11-18 | the rest of the Python format readers and writers in Rust (aimanim, hpdtool's mesh layout, audio framing, navsample, hkpack, the Xenos disassembly) |
