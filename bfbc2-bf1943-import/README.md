@@ -10,6 +10,12 @@ python bf1943import.py import <filter>... [--out <folder>]
 python bf1943import.py check                       every animation and skeleton converted and checked in memory
 ```
 
+Needs Python 3.12+ and the suite's Rust core. Without Python: `bin\bfbc2.exe bf1943import ...` (the suite's `bin\`,
+round O5) answers `list`, the help and the errors before work in Rust and hands `import` / `check` to the Python;
+`bfbc2.exe dbxcatalogue`, `dbxparity` and `portparity` (round O3) likewise answer from a current cache or the help
+and hand the real runs over (the suite's README, "bfbc2.exe"). The importer's own Rust switch is `importcore.py`
+(`BFBC2_IMPORTER_PYTHON=1` runs the Python).
+
 Filters are parts of a resource name (any case; all must match), e.g. `import M1Garand_Bayonet/` or
 `import US_LongKnife_Knife/1P/`. `import.json` in the output folder keeps one record per resource: source bundle and
 SHA-256, type, what was done (or why not), the output's SHA-256; later imports add to it.

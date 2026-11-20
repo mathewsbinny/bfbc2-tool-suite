@@ -71,7 +71,11 @@ a 5 x 5 grid of aim directions) are another format, read and written by `aimanim
 header, a (bone, kind) table, then per bone a fixed transform, one position and 25 rotations, or 25 transforms).
 `aimanim.to_pc` converts Battlefield 1943's onto BFBC2's soldier; `bfbc2-bf1943-import` uses it. Every aim pose of
 the game copy (266) reads to its exact size and writes back byte for byte, every BF1943 one (47) converts:
-`tests\test_aimanim.py` (`--game` for those).
+`tests\test_aimanim.py` (`--game` for those). Since round RT1 (2026-11-20) `aimanim`'s `parse`, `write` and `to_pc`
+run in the Rust core only (its Python references and `use_native` were retired; their answers stay recorded in the
+suite's `tests\f3_golden_aim.json`): an input the core refuses - a NaN value, a damaged file - raises `AimError`.
+`bin\bfbc2.exe aimanim ...` (the suite's `bin\`, round O2) is `python aimanim.py ...` without Python (the suite's
+README, "bfbc2.exe"); `granny.py`'s command line has no Rust port.
 
 Developed for Project OPFOR BFBC2. Granny is a trademark of Epic Games (RAD Game Tools); Battlefield: Bad Company 2
 is © Electronic Arts / DICE.

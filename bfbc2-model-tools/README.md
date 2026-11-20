@@ -29,6 +29,11 @@ Build and edit Battlefield: Bad Company 2 skinned meshes (weapons) on the PC.
 To look at the result use the mesh viewer (`bfbc2-mesh-viewer`). Project OPFOR's `src\tools\ww2\attachments.py`
 uses these to model the WW2 rifles' bayonets and rifle grenades onto DICE's surviving textures.
 
+These are Python libraries (no command line; `bfbc2.exe` has no subcommand for them). With the suite's Rust core
+built, `texwrite.py`'s encoders and `skinmesh.py`'s vertex work run in Rust (round F2a, `rust/bc2-convert`), the same
+bytes, the Python kept as the reference and the fallback (`use_native(False)`, `BFBC2_PURE_PYTHON=1`); `texwrite`'s
+principal axes stay NumPy's `eigh`. Python 3.12+ and `numpy`.
+
 Test: `tests\test_models.py` (game tier: every Garand / Type 5 LOD and mesh set written back byte-identical, a part
 replaced and read back); `tests\test_texwrite.py` (DICE's level layout, round trips through the console converter's
 decoder, unit-length normal mips, DXT5 colour and alpha, a cut-out picture keeping every transparent texel in DXT1;
