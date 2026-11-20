@@ -56,6 +56,9 @@ pub struct Doc {
     pub base_report: BaseReport,
     /// The last autosave's error, if it failed.
     pub autosave_error: Option<String>,
+    /// Counts the changes to the scene and the partition (an operation applied, the log replayed): what the
+    /// property tree and the links were read at (round GR1).
+    pub revision: u64,
     /// Blueprints the level does not place, as the content browser described them (category, object type,
     /// destructible).
     known: HashMap<String, (String, Option<String>, bool)>,
@@ -158,6 +161,7 @@ impl Doc {
             saved: true,
             base_report,
             autosave_error: None,
+            revision: 0,
             known: HashMap::new(),
             game: None,
         };
@@ -167,6 +171,7 @@ impl Doc {
 
     /// The scene and the partition again from the base and the whole log.
     pub fn rebuild(&mut self) {
+        self.revision += 1;
         self.scene = self.base.clone();
         self.deleted.clear();
         self.by_guid = index_of(&self.base);
@@ -206,6 +211,7 @@ impl Doc {
     }
 
     fn apply(&mut self, o: &Operation) {
+        self.revision += 1;
         let game = self.game.clone();
         let donors = move |lv: &str| {
             game.as_ref()

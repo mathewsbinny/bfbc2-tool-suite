@@ -4,13 +4,16 @@ Eight tools for building and debugging AI on Battlefield: Bad Company 2 maps, pl
 builder. They share one core: level loading, a 3D view, picking and the game's data formats.
 
 - **Modes of the 3D view:** the inspector, the navigation studio, the tactical authoring tool and the bot
-  debugger.
+  debugger. (Since 2026-11-18 the 3D tools converge on the map editor, `rust/bc2-editor`: the inspector is retired
+  into it, round GR1; the navigation studio is next, round GR2; the tactical authoring tool, the bot debugger and the
+  behaviour simulator are to be its workspaces: `ROADMAP.md`.)
 - **Command-line tools on the same core:** the asset pipeline, the diff workbench, the behaviour
   simulator and the test harness.
 
 This document fixes what each tool does, what they share, the file formats they write, and the order
 they are built in. It is a draft for review, and it changes as the tools are built (last revised
-2026-11-10: one path finder and one sys.path bootstrap, section 3.5; the BF1943 import's DBX port, section 4.10;
+2026-11-20: the map editor and `bfbc2.exe` in section 1, the stack in 3.4, the editor's status in 4.1 and 6; before
+that 2026-11-10: one path finder and one sys.path bootstrap, section 3.5; the BF1943 import's DBX port, section 4.10;
 before that 2026-10-26: the test harness, sections 4.5 and 5.5; the two tools added outside the original eight,
 section 1; statuses in sections 3.1, 4.2 and 7).
 
@@ -18,7 +21,7 @@ section 1; statuses in sections 3.1, 4.2 and 7).
 
 | Tool | For | In short |
 |---|---|---|
-| **bfbc2-map-inspector** | any BC2 modder | Browse a level in 3D: geometry, collision, spawns, objectives, destructibles, every placed entity. Click anything to see where it comes from and its properties. |
+| **bfbc2-map-inspector** (retired 2026-11-20, round GR1: in the map editor) | any BC2 modder | Browse a level in 3D: geometry, collision, spawns, objectives, destructibles, every placed entity. Click anything to see where it comes from and its properties. |
 | **bfbc2-navigation-studio** | any BC2 modder, Project OPFOR BFBC2 | View and edit the AI's navigation data (Kynapse `pathdata.hpd`, made by NavKit). Force ground walkable or unwalkable, link areas and routes, inspect disconnected regions, annotate traversal links, test paths. Export a finished file or a side file. |
 | **bfbc2-tactical-map-authoring-tool** | Project OPFOR BFBC2 bots | A layer above the navigation data: objectives, cover candidates, firing positions, rally points, vehicle approaches, squad routes, strategic regions. Generated as candidates, corrected by hand. |
 | **bfbc2-bot-ai-debugger** | Project OPFOR BFBC2 bots | Live view of the AI while the game runs: positions, orders, targets, path requests, tactical states, line of sight, threats, squads. |
@@ -46,6 +49,13 @@ Added since (2026-10-27 to 10-31, for the console Onslaught ports and the WW2 si
 | **bfbc2-model-tools** | any BC2 modder | Edit skinned meshes (replace or add a part's geometry) and build simple solids on texture atlases. |
 | **bfbc2-anim-tools** | any BC2 modder | Granny skeletons and animations: decode tracks and curves, move a bone's position track; convert Xbox 360 resources to the PC's format, renumbering DICE's bone table onto another skeleton. |
 | **bfbc2-bf1943-import** | any BC2 modder with BF1943 | The user's Battlefield 1943 (Xbox 360) resources into BFBC2's PC formats - animations, skeletons, textures, models, physics, DBX partitions, effects and emitter atlases - each checked against DICE's own conversions where BFBC2 ships one; reads the BF1943 suite's bundles, writes only to OPFOR's work folder (section 4.10). |
+
+Added with the Rust core (2026-11-16 on; README.md, "The Rust core"):
+
+| Tool | For | In short |
+|---|---|---|
+| **the map editor** (`rust/bc2-editor`, `bfbc2-editor.exe`) | any BC2 modder | The Map Inspector's successor (section 4.1): view any map; edit a copy as a map project (objects, gameplay, layers, undo); the game-accurate view; export as a new multiplayer level for any era and mode, installed through Project OPFOR. Plan: `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md`. |
+| **`bfbc2.exe`** (`rust/bc2-cli`) | every user of the command lines | The tools' command lines in one Rust binary, each the same arguments and output as its Python (README.md, "bfbc2.exe"). |
 
 ## 2. Rules
 
@@ -86,9 +96,9 @@ Added since (2026-10-27 to 10-31, for the console Onslaught ports and the WW2 si
 
 | Source | How it is read | Status |
 |---|---|---|
-| `.fbrb` bundles | FbrbTool unpack; read-only access without unpacking in `core/bfbc2core/fbrb.py` (2026-10-26: entry list and single entries; used by the test harness); since 2026-11-16 the same reader in Rust (`rust/bc2-formats` `fbrb`, through `bc2_native`) behind the same functions | works; the Rust reader identical to the Python one on every bundle of the game copy (`core/tests/test_fbrb_native.py --game`); a cache per bundle date (as `testrun` keeps) to add |
+| `.fbrb` bundles | FbrbTool unpack; read-only access without unpacking in `core/bfbc2core/fbrb.py` (2026-10-26: entry list and single entries; used by the test harness); since 2026-11-16 the same reader in Rust (`rust/bc2-formats` `fbrb`, through `bc2_native`) behind the same functions; since 2026-11-18 (round F1a) only the Rust one, with packing and unpacking | works; the Rust reader identical to the Python one on every bundle of the game copy (`core/tests/test_fbrb_native.py --game`, against the recording since F1a); the bundle cache since round E3e (README.md, "The Rust core") |
 | binary `.dbx` (entities, transforms, properties) | a Python reader written from `bfbc2-dbx-tools/FORMAT.md` (no exe calls, fast), `core/bfbc2core/dbx.py`; since 2026-11-16 the same reader in Rust (`rust/bc2-formats`, through `bc2_native`) runs behind the same functions; since 2026-11-18 (round F1a) only the Rust one: the Python reader was retired, its answers kept as recordings (`core/tests/dbx_golden*.json`) | works (2026-10-16): XML identical to DbxEdit's on all 31,404 fingerprinted files (`core/tests/test_dbx.py`, full tier); the Rust reader identical to the Python one on all 48,120 distinct corpus files (`core/tests/test_dbx_native.py --game`, against the recording since round F1a) |
-| object collision (`*_Havok.res`) | NavKit's `hkpack.py` | works for the shapes NavKit uses; other shape types to add |
+| object collision (`*_Havok.res`) | NavKit's `hkpack.py`; since round F1a `core/bfbc2core/collision.py` in Rust (`bc2_scene::collision`) | works for the shapes NavKit uses; other shape types to add |
 | static model groups (instance transforms) | `*_HavokAsset` partitions | works in NavKit |
 | terrain heights | `Terrains/<level>/<level>.Heightfield-000.res` (in `terrain-00.fbrb`) | decoded (`core/bfbc2core/terrain.py`, section 7 question 1): a 1024² or 2048² grid of 16-bit heights, matching the in-game terrain to within 4.5 cm |
 | water | `<terrain>.Water.Mesh.res` (geometry), `<terrain>.Water.res` (drawing copy), in `terrain-00.fbrb` | decoded (`core/bfbc2core/water.py`, section 7 question 2): every level's water mesh, and each triangle's shader (water, coast, wakes, river) |
@@ -125,8 +135,11 @@ can always say where something comes from.
 
 ### 3.4 Stack
 
-- Python 3.10+.
-- `moderngl` with `glfw` for the GPU view: millions of triangles at interactive rates.
+- Python 3.12+ (see below).
+- The suite's Rust core (`rust/`, since 2026-11-16): the formats, the level loader and the heavy logic run there,
+  through the `bc2_native` module; the map editor is Rust (egui on wgpu, Direct3D 11 for its game-accurate view),
+  and `bfbc2.exe` runs the command lines (README.md, "The Rust core", "bfbc2.exe").
+- `moderngl` with `glfw` for the GPU view (the Navigation Studio): millions of triangles at interactive rates.
 - Dear ImGui (`imgui-bundle`, MIT licence) for panels.
 - `numpy`.
 
@@ -173,9 +186,17 @@ the quick tier.
   references you can follow to other entities.
 - **Search, filter by type, measure** distances and heights.
 
-**Map editor (planned, 2026-11-16).** The Map Inspector gets an edit mode: first editing existing maps (BFBC2,
+**Retired (round GR1, 2026-11-20):** everything above is in the map editor (`rust/bc2-editor`), which replaced the
+Map Inspector; `bfbc2-map-inspector/README.md` says where each feature went.
+
+**Map editor (planned 2026-11-16; built since 2026-11-18).** The Map Inspector gets an edit mode: first editing existing maps (BFBC2,
 Vietnam, WW2), then new maps from imported or randomized terrain populated with existing assets, for public
 modders too. The architecture plan is `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` (milestones E1-E6, S2, S3).
+Status 2026-11-20: built in Rust as `rust/bc2-editor` (rounds G1 - G4, E2, E2b, R5 - R5c, E3 - E3d, GR1; README.md,
+"The map editor"): viewing every level, map projects with an operation log, the game-accurate view, and export of
+an edited map as a new multiplayer level for any era and mode with install / uninstall through Project OPFOR (built
+and checked offline, not yet tested in the game). Next: gameplay tools (E4), terrain (E5), vegetation (E6), Create
+Level from a height map (E7); `ROADMAP.md`.
 
 ### 4.2 bfbc2-navigation-studio
 
@@ -488,7 +509,7 @@ on the same points compare pair by pair. A newer version is refused by older rea
 | M5 | Test harness, offline: reachability, path batteries, parity, saved runs (the suite's own tests came first, 2026-10-16: `run_tests.py`; NavKit's parity runs and regression - `navparity`, `navregress`, `navboundary` - exist in NavKit, 2026-10-16 to 10-19; the harness, 2026-10-26: `bfbc2-automated-map-and-bot-test-harness/harness.py` - structure, reachability, batteries, orders, sector offsets, parity, AI readiness from the game copy's bundles, saved runs and their comparison, `import-log` for in-game sessions; running `testrun.bat` per level on hold until play-tested) | the harness's level checks for stock-MP bot maps (`STOCK_MP_AI_PLAN.md` 6.3) |
 | M6 | OPFOR telemetry module and Bot AI Debugger, on the game's own AI first | the harness's in-game tests |
 | M7 | Tactical authoring tool, once the bot layer's needs are known | |
-| E1-E6, S2, S3 | Map editor in the Map Inspector (planning: `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md`): edit existing maps, then new maps from imported or randomized terrain, then custom models | |
+| E1-E6, S2, S3 | Map editor in the Map Inspector (planning: `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md`): edit existing maps, then new maps from imported or randomized terrain, then custom models (2026-11-20: the editor is `rust/bc2-editor`; viewing, map projects and export to any era and mode done, E4-E7 next: `ROADMAP.md`) | |
 | alongside | asset pipeline (geometry and entities with M1; dependency report with M2; textures later), diff workbench patterns (with each format researched) | |
 | with Goal 3 | the bot decision library (engine-independent) and the AI behaviour simulator; bfbc2-asset-builder with the installer | |
 

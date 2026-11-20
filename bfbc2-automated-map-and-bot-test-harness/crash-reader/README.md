@@ -16,8 +16,13 @@ It only reads the report and the exe; nothing is sent anywhere.
 
 ## Setup
 
-Python 3.8 or newer. For the code view, also run `pip install pefile capstone`. Without them you still get
-the names, the stack and the hints.
+Python 3.12 or newer (the suite's). For the code view, also run `pip install pefile capstone`. Without them (and
+without the Rust core, below) you still get the names, the stack and the hints.
+
+Without Python: `bin\bfbc2.exe crashreader ...` and `bin\bfbc2.exe exeref ...` (the suite's `bin\`, round O2) take the
+same arguments and print the same; code another exe holds that the Rust decoder does not take is handed to the Python
+(the suite's README, "bfbc2.exe"). The suite's hub and Project OPFOR's `testrun.bat` run the binary when it is built,
+else `crashreader.py`.
 
 With the suite's Rust core built (`python rust\build_native.py`; round E4f, `rust/bc2-harness`) the exe is mapped
 and disassembled there, with capstone's own text: every byte offset of `BFBC2Game.exe`'s code (build 795745) decodes

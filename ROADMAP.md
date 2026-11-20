@@ -25,11 +25,12 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    - **culltree `add`'s memory:** the Rust peaks at 1.65 GB against the Python's 200 MB warm; cut it and add a
      persistent cache.
    - **The GUIs:** per GUI, list what the editor lacks, add it, then retire the GUI.
-     - Map Inspector: the link view, the full property tree.
-     - Navigation Studio into the editor's AI workspace (NavKit against DICE side by side, path tests).
-     - The mesh viewer into the asset browser's preview (its PNG command line stays).
-     - DbxEditGUI into a generic DBX inspector panel (the last C#).
-     - LevelDiff as an editor panel or a `bfbc2.exe` command.
+     - ~~Map Inspector: the link view, the full property tree~~ (GR1: All fields, Links, Measure; retired). The
+       other GUIs' features, whether the editor has them and the plan: `EDITOR_ARCHITECTURE.md` section 9.
+     - GR2: Navigation Studio into the editor's AI workspace (NavKit against DICE side by side, path tests).
+     - GR3: the mesh viewer into the asset browser's preview (its PNG command line stays).
+     - GR4: DbxEditGUI into a generic DBX inspector panel (the last C#).
+     - LevelDiff as a `bfbc2.exe leveldiff` command (proven on real level pairs), then LevelDiff.exe retired.
      - The planned AI behaviour simulator, bot AI debugger and tactical map authoring tool become editor workspaces.
      - The hub stays a launcher for now.
    - **OPFOR's pipeline in Rust, in 5 stages:** the WW2 install; the level build; the shader glue; the material grid
@@ -49,14 +50,14 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    - **E6** vegetation;
    - **E7** Create Level from a height map (with a terrain writer);
    - the rendering that needs a RenderDoc capture: the exact sun, exposure and fog.
-8. **Last:** the wiki-style docs restructure (with one reverse-engineering reference), then the full suite release
-   (one download: the prebuilt module and the C# tools).
+8. **Last:** the full suite release (one download: the prebuilt module and the C# tools). The wiki-style docs
+   restructure is on hold (the user, 2026-11-20).
 
 ## In progress
 
 | Round | Branch | What |
 |---|---|---|
-| GR1 | `rust-gr1` | the five GUIs' inventory; the Map Inspector's link view and full property tree in the editor, then its GUI retired; LevelDiff as a command if time allows |
+| GR1 | `rust-gr1` | the five GUIs inventoried (`EDITOR_ARCHITECTURE.md` section 9); the Map Inspector folded into the editor (All fields, Links, `view-link` lines, Measure) and retired |
 
 ## Queued
 
@@ -64,8 +65,9 @@ In priority order (above); the next rounds:
 
 | Round | What |
 |---|---|
+| FM1 | after GR2: the map editor's own folder `bfbc2-map-editor\` (design document, README, run instructions; the code stays in `rust\bc2-editor`), `bfbc2-map-inspector\` deleted and every reference fixed; the retirement policy: `RETIRED.md` (date, replacement, last commit, round) with the Map Inspector, graphstats.py and prepare_level.py; the three README-only planned-tool folders folded into the design document as workspaces and deleted |
 | RT2 | RT1's leftovers: record answers for the live-compared references (F0, F2a, F2b, E4b, E4e) then retire them; navsample.load v1 / v2; the hpd / audio error messages in the bindings; argparse's console width in the Rust parser; the library parts split out of command-line `.py` files; next CLI candidates (aptrefs, xiso, culltree, stockmp, exeref / crashreader) |
-| GUIs | Map Inspector, Navigation Studio, mesh viewer, DbxEditGUI, LevelDiff folded into the editor, then retired |
+| GUIs | GR2 Navigation Studio, GR3 mesh viewer, GR4 DbxEditGUI, LevelDiff as `bfbc2.exe leveldiff`: each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
 | Post-Rust | the 10 improvements |
@@ -75,7 +77,7 @@ In priority order (above); the next rounds:
 | Spec layers 3-4 | the engine subsystems; the suite's transformations (grows with each porting round) |
 | E4-E7 | gameplay tools, terrain sculpt and paint, vegetation, Create Level from a height map |
 | RenderDoc | exact sun, exposure and fog |
-| Docs, release | the wiki-style restructure, then the full suite release |
+| Release | the full suite release |
 
 ### Process (round P1's follow-ups)
 
@@ -91,6 +93,9 @@ In priority order (above); the next rounds:
 - Translating the WW2 weapons and soldiers.
 - WW2 navmesh planning.
 - A faithful Xbox Onslaught port without Napisal's work.
+- The wiki-style docs restructure (topic articles of current truth, dated reports as their sources, one
+  reverse-engineering reference).
+- In-game tests and playthroughs (paused 2026-11-20; the work continues offline).
 
 ## Done
 

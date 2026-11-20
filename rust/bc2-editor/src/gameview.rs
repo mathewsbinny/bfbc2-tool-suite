@@ -3,8 +3,8 @@
 //! states from the level's `Dx11_Single.res`, under its weather's light, then DICE's own post-process (`bc2_render`).
 //!
 //! Drawn ([`bc2_render::world::World`]): the placed objects and the model groups' members with their shader-set
-//! overrides, the terrain patches around the camera's target, the baked road and decal strips, the visual water;
-//! then DICE's exposure, bloom and filmic tonemap passes.
+//! overrides, the whole terrain (every patch; the frame's culling keeps those in view; round RV1), the baked road and
+//! decal strips, the visual water; then DICE's exposure, bloom and filmic tonemap passes.
 //!
 //! Round R5c made it interactive ([`bc2_render::live`]): the draw list is built once and kept; a frame writes only
 //! the camera's values and leaves out what the camera cannot see (the same picture). Edits to the scene (moved,
@@ -43,8 +43,6 @@ impl Device {
     }
 }
 
-/// Patches drawn on each side of the patch under the camera's target.
-pub const TERRAIN_RADIUS: usize = bc2_render::world::TERRAIN_RADIUS;
 /// The far plane, metres.
 pub const FAR: f64 = 4000.0;
 /// The environment variable that turns the shared texture off (the frame read back and uploaded instead).
@@ -97,7 +95,8 @@ pub struct GameView {
     shown: Option<egui::TextureId>,
     drawn: Option<u64>,
     scene: Option<u64>,
-    /// The patch the terrain window is around, when the live list has been given its sources.
+    /// The patch the terrain window is around ([`World::terrain_window`]; `None` while the whole terrain is drawn),
+    /// when the live list has been given its sources.
     window: Option<(usize, usize)>,
     sourced: bool,
     /// Each placed thing's entity (the placed list is the scene's entities with a blueprint and a transform).
@@ -304,9 +303,9 @@ impl GameView {
         true
     }
 
-    /// The live list follows the terrain window (the patches around the target) and the objects.
+    /// The live list follows the objects (and the terrain window, when the world draws one).
     fn update_sources(&mut self, target: [f64; 3]) {
-        let under = self.world.patch_under(target);
+        let under = self.world.terrain_window(target);
         if !self.sourced || self.window != under {
             self.sourced = true;
             self.window = under;

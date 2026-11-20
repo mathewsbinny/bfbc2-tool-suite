@@ -190,6 +190,7 @@ pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<O
             Some(A::SelectAllOfType),
             Some(A::FocusSelection),
             Some(A::ShowPanel(PanelKind::Properties)),
+            Some(A::ShowPanel(PanelKind::Links)),
             Some(A::CopyGuid),
         ],
         (MenuKind::Object, Workspace::Gameplay) => vec![
@@ -210,6 +211,7 @@ pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<O
             None,
             Some(A::FocusSelection),
             Some(A::ShowPanel(PanelKind::Properties)),
+            Some(A::ShowPanel(PanelKind::Links)),
             Some(A::CopyGuid),
         ],
         (MenuKind::Object, Workspace::Ai) => vec![
@@ -227,12 +229,14 @@ pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<O
             None,
             Some(A::FocusSelection),
             Some(A::ShowPanel(PanelKind::Properties)),
+            Some(A::ShowPanel(PanelKind::Links)),
             Some(A::CopyGuid),
         ],
         (MenuKind::Object, _) => vec![
             Some(A::SelectAllOfType),
             Some(A::FocusSelection),
             Some(A::ShowPanel(PanelKind::Properties)),
+            Some(A::ShowPanel(PanelKind::Links)),
             Some(A::CopyGuid),
         ],
         (MenuKind::Ground, Workspace::Objects) => vec![
@@ -290,6 +294,7 @@ pub fn menu_items(v: &ViewState, kind: MenuKind, target: Option<usize>) -> Vec<O
                 A::UseTool(Tool::Move) => "Move".to_owned(),
                 A::UseTool(Tool::Rotate) => "Rotate".to_owned(),
                 A::ShowPanel(PanelKind::Properties) => "Properties".to_owned(),
+                A::ShowPanel(PanelKind::Links) => "Links".to_owned(),
                 A::FocusSelection => "Focus".to_owned(),
                 A::SetViewMode(ViewMode::Navmesh) => "Show the navmesh".to_owned(),
                 _ => entry.map_or_else(String::new, |e| e.name.to_owned()),
