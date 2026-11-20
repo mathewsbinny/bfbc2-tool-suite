@@ -66,66 +66,53 @@ VisualWater (the PC's 15,216 bytes larger on mp_005: 8 bytes more per vertex, 1,
     Everything but the normals / tangents byte for byte on all 20 levels (whole files on 6); those decoded from the
     Xbox's 10 bits: 91% of the components exact, the rest within 1 / 511 (the Xbox's rounding lost the PC's last bits).
 
-Every function here runs in the suite's Rust core when it is built (round F2a: bc2_convert::terrain through
-bc2_native.terrain_*; the same bytes, the same TerrainError messages). Where the reference would raise another
-error (a read past the data) the Python runs: the *_reference functions, kept as the reference and the fallback;
-BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only.
+Every function here runs in the suite's Rust core (round F2a: bc2_convert::terrain through bc2_native.terrain_*;
+NativeMissing, saying how to get it, without it). Their Python (the *_reference functions) was retired in round RT2
+against its recorded answers (bfbc2-console-convert\\tests\\f2a_console_replay*.json): where it raised another error
+than a TerrainError (a read past the data: a resource cut short or damaged), a TerrainError that is also a
+bfbc2core.native.Refused says so. _Walk (the field walker) and ROAD_VERTEX stay: OPFOR's wake_install walks a
+VisualTerrain with them.
 """
 import os
-import struct
 import sys
 from typing import Any
 
 import numpy as np
 
-_NATIVE: list[Any] = []
-
 
 def _native() -> Any:
-    """The Rust core with the terrain functions, or None: not built, or BFBC2_PURE_PYTHON set."""
-    if not _NATIVE:
-        m = None
-        try:
-            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            import suite_paths
-            suite_paths.use('core')
-            from bfbc2core import dbx as _dbx
-            if os.environ.get(_dbx.PURE_PYTHON_ENV, '') in ('', '0'):
-                m = _dbx._import_native()
-        except ImportError:
-            m = None
-        _NATIVE.append(m if m is not None and hasattr(m, 'terrain_convert') else None)
-    return _NATIVE[0]
+    """The Rust core with the terrain functions (bfbc2core.native.require): NativeMissing, saying how to get it."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import suite_paths
+    suite_paths.use('core')
+    from bfbc2core import native
+    return native.require('terrain conversion (bfbc2-console-convert/terrain.py)', 'terrain_convert')
 
 
-def use_native(on: bool) -> bool:
-    """The Rust terrain conversion on (when built, whatever BFBC2_PURE_PYTHON says) or off for this process; True
-    when it runs."""
-    _NATIVE.clear()
-    if not on:
-        _NATIVE.append(None)
-        return False
-    saved = os.environ.pop('BFBC2_PURE_PYTHON', None)
-    try:
-        return _native() is not None
-    finally:
-        if saved is not None:
-            os.environ['BFBC2_PURE_PYTHON'] = saved
+def _bytes(x: Any) -> Any:
+    return bytes(x) if isinstance(x, bytearray | memoryview) else x
 
 
-def _answer(got: Any, error: type = Exception) -> Any:
-    """A native answer: (True, value) -> (value,); (False, message) -> error(message) raised; None stays None."""
-    if got is not None and not got[0]:
+def _answer(got: Any, error: type = Exception, what: str = 'terrain resource') -> Any:
+    """A native answer: (True, value) -> (value,); (False, message) -> error(message) raised; None (the retired
+    reference raised another error there: a read past the data) -> a Refused error."""
+    if got is None:
+        from bfbc2core import native
+        raise native.refused(f'{what}: cut short or damaged (a read past the data)', error)
+    if not got[0]:
         raise error(got[1])
-    return None if got is None else (got[1],)
+    return (got[1],)
 
 
 def _run(name: str, x: Any) -> Any:
-    """The Rust core's terrain_convert(name, x) as (value,), or None (not built, not bytes, or left to Python)."""
-    nat = _native() if type(x) is bytes else None
-    return _answer(nat.terrain_convert(name, x), TerrainError) if nat is not None else None
+    """The Rust core's terrain_convert(name, x) as (value,)."""
+    x = _bytes(x)
+    if type(x) is not bytes:
+        raise TypeError(f'{name.replace("_", " ")}: bytes needed, not {type(x).__name__}')
+    return _answer(_native().terrain_convert(name, x), TerrainError, name.replace('_', ' '))
+
 
 FIXED = {1024: 62474, 2048: 256012}         # the tail's second part, by size
 SUB_SIZES = (64, 128)                       # sub-terrain heightfields: a min / max quadtree after the heights
@@ -136,117 +123,31 @@ def quadtree_nodes(n):
     return sum(4 ** k for k in range((n // 16).bit_length()))
 
 
-def sub_heightfield(x, n, source):
-    """A sub-terrain heightfield (module docstring) as BFBC2's PC file: the header's values, the heights and the
-    quadtree's u16 pairs byte-swapped, A = 0."""
-    head = 0x31 if source == 'bfbc2' else 0x2D
-    t = head + 2 * n * n
-    q = 4 * quadtree_nodes(n)
-    if len(x) - t != q:
-        raise TerrainError(f'sub-terrain heightfield {n}: a tail of {len(x) - t} bytes, not the {q} of its quadtree')
-    out = bytearray(0x31 + 2 * n * n + q)
-    _swap(x, out, 'f4', 6, 0)
-    _swap(x, out, 'u4', 3, 0x18)
-    _swap(x, out, 'u2', 2, 0x24)
-    if struct.unpack_from('<3I', out, 0x18)[1:] != (n.bit_length() - 4, 0):
-        raise TerrainError(f'sub-terrain heightfield {n}: header {struct.unpack_from("<3I", out, 0x18)}')
-    _swap(x, out, 'u2', n * n, head, 0x31)
-    _swap(x, out, 'u2', q // 2, t, 0x31 + 2 * n * n)
-    return bytes(out)
-
-
 class TerrainError(Exception):
     what_to_do = ('Check that the resource is a TerrainHeightfield / WaterMesh / TerrainMaterialMap / VisualTerrain / '
                   'VisualWater from an Xbox 360 copy (BFBC2 or Battlefield 1943).')
 
 
-def _swap(x, out, dt, count, at, to=None):
-    to = at if to is None else to
-    out[to:to + count * np.dtype(dt).itemsize] = np.frombuffer(x, '>' + dt, count, at).astype('<' + dt).tobytes()
-
-
 def heightfield(x, source='bfbc2'):
     """An Xbox TerrainHeightfield (BFBC2's, or source='bf1943': Battlefield 1943's) as BFBC2's PC file."""
-    nat = _native() if type(x) is bytes else None
-    got = _answer(nat.terrain_heightfield(x, bool(source == 'bfbc2')), TerrainError) if nat is not None else None
-    return got[0] if got is not None else heightfield_reference(x, source)
-
-
-def heightfield_reference(x, source='bfbc2'):
-    """The Python heightfield (the reference)."""
-    n = struct.unpack_from('>I', x, 0x18)[0]
-    if n in SUB_SIZES:
-        return sub_heightfield(x, n, source)
-    if n not in FIXED:
-        raise TerrainError(f'heightfield size {n}: only {sorted(FIXED)} are known')
-    head = 0x31 if source == 'bfbc2' else 0x2D
-    t = head + 2 * n * n
-    region = len(x) - t - 4 * n
-    A = region - FIXED[n]
-    if A < 0 or region % 2:
-        raise TerrainError(f'heightfield: a tail of {len(x) - t} bytes does not fit size {n}')
-    out = bytearray(0x31 + 2 * n * n + 4 * n + region)
-    _swap(x, out, 'f4', 6, 0)
-    _swap(x, out, 'u4', 3, 0x18)
-    _swap(x, out, 'u2', 2, 0x24)
-    if source == 'bfbc2':
-        _swap(x, out, 'u4', 1, 0x28)
-        out[0x2C] = x[0x2C]
-        if struct.unpack_from('>I', x, 0x2D)[0] != A:
-            raise TerrainError(f'heightfield: the header says the first section is {struct.unpack_from(">I", x, 0x2D)[0]}'
-                               f' bytes, the tail {A}')
-    struct.pack_into('<I', out, 0x2D, A)
-    T = 0x31 + 2 * n * n
-    _swap(x, out, 'u2', n * n, head, 0x31)
-    _swap(x, out, 'u4', n, t, T)
-    _swap(x, out, 'u2', region // 2, t + 4 * n, T + 4 * n)
-    return bytes(out)
+    x = _bytes(x)
+    if type(x) is not bytes:
+        raise TypeError(f'heightfield: bytes needed, not {type(x).__name__}')
+    return _answer(_native().terrain_heightfield(x, bool(source == 'bfbc2')), TerrainError, 'heightfield')[0]
 
 
 def water_mesh(x):
     """An Xbox WaterMesh as BFBC2's PC file."""
-    got = _run('water_mesh', x)
-    return got[0] if got is not None else water_mesh_reference(x)
-
-
-def water_mesh_reference(x):
-    """The Python water_mesh (the reference)."""
-    if len(x) % 4:
-        raise TerrainError(f'water mesh: {len(x)} bytes, not 4-byte values')
-    return np.frombuffer(x, '>u4').astype('<u4').tobytes()
+    return _run('water_mesh', x)[0]
 
 
 def material_map(x):
     """An Xbox TerrainMaterialMap (BFBC2's or BF1943's) as BFBC2's PC file."""
-    got = _run('material_map', x)
-    return got[0] if got is not None else material_map_reference(x)
-
-
-def material_map_reference(x):
-    """The Python material_map (the reference)."""
-    out = bytearray(x)
-    w, b = struct.unpack_from('>IH', x, 0)
-    struct.pack_into('<IH', out, 0, w, b)
-    o = 6
-    for _ in range(b):
-        L = struct.unpack_from('>I', x, o)[0]
-        struct.pack_into('<I', out, o, L)
-        o += 4 + L
-        if o + 512 > len(x):
-            raise TerrainError(f'material map: block runs past the end ({o + 512} > {len(x)})')
-        _swap(x, out, 'u2', 256, o)
-        o += 512
-    while o < len(x):
-        L = struct.unpack_from('>I', x, o)[0]
-        struct.pack_into('<I', out, o, L)
-        o += 4 + L
-    if o != len(x):
-        raise TerrainError(f'material map: the names end at {o}, the file at {len(x)}')
-    return bytes(out)
+    return _run('material_map', x)[0]
 
 
 class _Walk:
-    """Walks a resource field by field (e: '>' an Xbox file, '<' a PC file), writing each field little-endian into a
+    """(OPFOR's wake_install walks a PC VisualTerrain with it.) Walks a resource field by field (e: '>' an Xbox file, '<' a PC file), writing each field little-endian into a
     copy of the same size; mark() names the parts walked (for comparing files part by part)."""
 
     def __init__(self, x, what, e='>'):
@@ -294,55 +195,9 @@ class _Walk:
 ROAD_VERTEX = [('f4', 5), ('u2', 4)]        # 28 bytes: 5 x f32, 4 x f16 (half floats, swapped as u16)
 
 
-def _visual_terrain(x, e):
-    w = _Walk(x, 'visual terrain', e)
-    w.mark('blocks')
-    n = w.u32()
-    if not 1 <= n <= 256:
-        raise TerrainError(f'visual terrain: {n} terrain blocks - not a VisualTerrain?')
-    for i in range(2 * n):                                       # roads: each block's full detail, then low detail
-        w.mark(f'roads {i}')
-        for _ in range(w.u32()):
-            w.string(), w.string(), w.string()
-            w.arr('u4', 2), w.arr('f4', 6), w.arr('u4', 1)
-        V, B, I = (w.u32() for _ in range(3))
-        if B != 28 * V:
-            raise TerrainError(f'visual terrain: road vertices of {B} bytes for {V} (not 28 each)')
-        w.arr(ROAD_VERTEX, V), w.arr('u4', I)
-    w.mark('patch shaders')
-    for _ in range(w.u32()):
-        w.string(), w.string()
-        w.arr('u4', 2)
-        for _ in range(w.u32()):                                 # undergrowth groups
-            for _ in range(w.u32()):                             # meshes
-                w.string()
-                w.arr('u1', 1)
-                w.string()
-                w.arr('f4', 12), w.arr('u1', 2)
-    if w.u32() != n:
-        raise TerrainError('visual terrain: the patch maps do not match the road blocks in number')
-    for i in range(n):                                           # patch maps, one per terrain block
-        w.mark(f'patch map {i}')
-        w.arr('f4', 6)
-        W = int(w.arr('u4', 5)[-1])
-        w.mark(f'patch map {i} cells')
-        w.arr('u2', 4 * W * W), w.arr('u1', 4 * W * W)
-        W2 = w.u32()
-        w.arr('u1', W2 * W2)
-        w.mark(f'patch map {i} names')
-        w.string(), w.string()
-    return w
-
-
 def visual_terrain(x):
     """An Xbox VisualTerrain (BFBC2's or BF1943's) as BFBC2's PC file (the same size)."""
-    got = _run('visual_terrain', x)
-    return got[0] if got is not None else visual_terrain_reference(x)
-
-
-def visual_terrain_reference(x):
-    """The Python visual_terrain (the reference)."""
-    return _visual_terrain(x, '>').done()
+    return _run('visual_terrain', x)[0]
 
 
 ROAD_STRIDE = 28
@@ -354,40 +209,13 @@ def road_strips(pc):
     bytes (V x 28: world position float3, texture coordinate float2, 4 x f16), 'indices': uint32 array}] - the baked
     road and decal strips, each drawn with its shader entry ('second': a second pass, e.g. "..._Zonly"); 'first' /
     'triangles' a range of the block's indices, 'bounds' 6 floats as stored."""
-    nat = _native() if type(pc) is bytes else None
-    got = _answer(nat.terrain_road_strips(pc), TerrainError) if nat is not None else None
-    if got is None:
-        return road_strips_reference(pc)
+    pc = _bytes(pc)
+    if type(pc) is not bytes:
+        raise TypeError(f'visual terrain: bytes needed, not {type(pc).__name__}')
+    got = _answer(_native().terrain_road_strips(pc), TerrainError, 'visual terrain')
     for b in got[0]:
         b['indices'] = np.frombuffer(b['indices'], np.uint32).copy()
     return got[0]
-
-
-def road_strips_reference(pc):
-    """The Python road_strips (the reference)."""
-    w = _Walk(pc, 'visual terrain', '<')
-    n = w.u32()
-    if not 1 <= n <= 256:
-        raise TerrainError(f'visual terrain: {n} terrain blocks - not a VisualTerrain?')
-    out = []
-    for i in range(2 * n):
-        strips = []
-        for _ in range(w.u32()):
-            shader, second, mask = w.string(), w.string(), w.string()
-            first, tri = (int(v) for v in w.arr('u4', 2))
-            bounds = tuple(float(v) for v in w.arr('f4', 6))
-            layer = int(w.arr('u4', 1)[0])
-            strips.append(dict(shader=shader, second=second, mask=mask, first=first, triangles=tri, bounds=bounds,
-                               layer=layer))
-        V, B, I = (w.u32() for _ in range(3))
-        if B != ROAD_STRIDE * V:
-            raise TerrainError(f'visual terrain: road vertices of {B} bytes for {V} (not 28 each)')
-        at = w.o
-        w.arr(ROAD_VERTEX, V)
-        verts = pc[at:w.o]
-        idx = np.array(w.arr('u4', I), np.uint32)
-        out.append(dict(block=i, strips=strips, vertices=verts, indices=idx))
-    return out
 
 
 def road_positions(vertices):
@@ -398,27 +226,10 @@ def road_positions(vertices):
 def visual_terrain_parts(pc):
     """A PC VisualTerrain's parts: [(name, bytes)] ('blocks', 'roads 0' ..., 'patch shaders', 'patch map 0', 'patch
     map 0 cells', 'patch map 0 names', ...)."""
-    nat = _native() if type(pc) is bytes else None
-    got = _answer(nat.terrain_visual_terrain_parts(pc), TerrainError) if nat is not None else None
-    return got[0] if got is not None else visual_terrain_parts_reference(pc)
-
-
-def visual_terrain_parts_reference(pc):
-    """The Python visual_terrain_parts (the reference)."""
-    w = _visual_terrain(pc, '<')
-    w.done()
-    return [(name, pc[a:b]) for name, a, b in w.parts]
-
-
-def _dec3n(u):
-    """Xbox DEC3N (3 x signed 10 bits, 2 bits w) as float32 x, y, z, w."""
-    out = np.zeros((len(u), 4), np.float32)
-    for i, sh in enumerate((0, 10, 20)):
-        v = ((u >> sh) & 0x3FF).astype(np.int32)
-        out[:, i] = np.where(v >= 512, v - 1024, v) / 511.0
-    out[:, 3] = (u >> 30) & 3
-    out[(u & 0x3FFFFFFF) == 0, :3] = -1.5                        # no vector: the PC files have -1.5 there
-    return out
+    pc = _bytes(pc)
+    if type(pc) is not bytes:
+        raise TypeError(f'visual terrain: bytes needed, not {type(pc).__name__}')
+    return _answer(_native().terrain_visual_terrain_parts(pc), TerrainError, 'visual terrain')[0]
 
 
 WATER_VERTEX = {'>': [('pos', 'u2', 4), ('n', 'u4', 1), ('t', 'u4', 1), ('uv', 'u2', 6)],      # Xbox: 28 bytes
@@ -429,83 +240,27 @@ def _water_vertex(e):
     return np.dtype([(k, e + t, c) if c > 1 else (k, e + t) for k, t, c in WATER_VERTEX[e]])
 
 
-def _visual_water(x, e):
-    """(header, vertices, the walk of the rest) of a VisualWater (e '>': Xbox, '<': PC)."""
-    stride = _water_vertex(e).itemsize
-    if len(x) < 12:
-        raise TerrainError(f'visual water: {len(x)} bytes')
-    fmt, s, nb = struct.unpack_from(e + 'III', x, 0)
-    if fmt != 10 or s != stride or nb % stride or 12 + nb > len(x):
-        raise TerrainError(f'visual water: vertex format {fmt}, {s} bytes each, {nb} bytes - expected format 10, '
-                           f'{stride} bytes ({"an Xbox 360" if e == ">" else "a PC"} file)')
-    v = np.frombuffer(x, _water_vertex(e), nb // stride, 12)
-    w = _Walk(x, 'visual water', e)
-    w.o = 12 + nb
-    w.mark('indices')
-    ni = w.u32()
-    if ni % 4:
-        raise TerrainError(f'visual water: {ni} bytes of indices, not u32s')
-    w.arr('u4', ni // 4)
-    w.mark('materials')
-    for _ in range(w.u32()):                                     # shader, second shader (may be empty)
-        w.string(), w.string()
-    w.mark('draw ranges')
-    w.arr('u4', 4 * w.u32())                                     # material, triangles, first index, index count
-    w.arr('f4', 1)
-    w.done()
-    return fmt, v, w
-
-
 def visual_water(x):
     """An Xbox VisualWater (BFBC2's or BF1943's) as BFBC2's PC file: the vertices grow from 28 to 36 bytes (normal
     and tangent DEC3N -> 4 x f16); exact except those two vectors (the Xbox keeps 10 bits of each)."""
-    got = _run('visual_water', x)
-    return got[0] if got is not None else visual_water_reference(x)
-
-
-def visual_water_reference(x):
-    """The Python visual_water (the reference)."""
-    fmt, v, w = _visual_water(x, '>')
-    pc = np.zeros(len(v), _water_vertex('<'))
-    pc['pos'], pc['uv'] = v['pos'], v['uv']
-    pc['n'], pc['t'] = _dec3n(v['n']), _dec3n(v['t'])
-    a = w.parts[0][1]
-    return struct.pack('<III', fmt, pc.itemsize, pc.nbytes) + pc.tobytes() + bytes(w.out[a:])
+    return _run('visual_water', x)[0]
 
 
 def visual_water_parts(pc):
     """A PC VisualWater's vertices (numpy: pos, n, t, uv) and other parts [(name, bytes)]: indices, materials, draw
     ranges."""
-    nat = _native() if type(pc) is bytes else None
-    got = _answer(nat.terrain_visual_water_parts(pc), TerrainError) if nat is not None else None
-    if got is None:
-        return visual_water_parts_reference(pc)
-    n, parts = got[0]
+    pc = _bytes(pc)
+    if type(pc) is not bytes:
+        raise TypeError(f'visual water: bytes needed, not {type(pc).__name__}')
+    n, parts = _answer(_native().terrain_visual_water_parts(pc), TerrainError, 'visual water')[0]
     return np.frombuffer(pc, _water_vertex('<'), n, 12), parts
-
-
-def visual_water_parts_reference(pc):
-    """The Python visual_water_parts (the reference)."""
-    _, v, w = _visual_water(pc, '<')
-    return v, [(name, pc[a:b]) for name, a, b in w.parts]
 
 
 def material_names(pc):
     """The material names of a PC TerrainMaterialMap."""
-    nat = _native() if type(pc) is bytes else None
-    got = _answer(nat.terrain_material_names(pc), TerrainError) if nat is not None else None
-    return got[0] if got is not None else material_names_reference(pc)
+    pc = _bytes(pc)
+    if type(pc) is not bytes:
+        raise TypeError(f'material map: bytes needed, not {type(pc).__name__}')
+    return _answer(_native().terrain_material_names(pc), TerrainError, 'material map')[0]
 
 
-def material_names_reference(pc):
-    """The Python material_names (the reference)."""
-    w, b = struct.unpack_from('<IH', pc, 0)
-    o = 6
-    for _ in range(b):
-        o += 4 + struct.unpack_from('<I', pc, o)[0] + 512
-    names = []
-    while o < len(pc):
-        L = struct.unpack_from('<I', pc, o)[0]
-        names += [n.decode('latin-1') for n in pc[o + 4:o + 4 + L].split(b'\0') if n]
-        o += 4 + L
-    return names

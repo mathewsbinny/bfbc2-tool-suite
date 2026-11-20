@@ -32,7 +32,7 @@ The words are equal on both platforms for the same sound; only the audio and its
 
 [data: 35,811 Xbox 360 / PC twins: every word equal (one file's total differs by an edit of DICE's); word 0x14 is 0 in 33,869 files (audio.py's survey)]
 [test: rust/bc2-formats/src/wave.rs::wave_round_trip] [test: bfbc2-console-convert/tests/test_wave_native.py::main] [code: rust/bc2-formats/src/wave.rs:97-105] [code: rust/bc2-formats/src/wave.rs:153-164]
-[doc: bfbc2-console-convert/audio.py:25-34]
+[doc: bfbc2-console-convert/audio.py:30-39]
 
 ### WAVE-HDR-2: Battlefield 1943 Wave header
 
@@ -55,7 +55,7 @@ A NaN rate is refused.
 
 [data: 2,750 BF1943 Wave files read to their exact end]
 [test: rust/bc2-formats/src/wave.rs::wave_round_trip] [test: bfbc2-console-convert/tests/test_wave_native.py::main] [code: rust/bc2-formats/src/wave.rs:85-96] [code: rust/bc2-formats/src/wave.rs:134-151]
-[doc: bfbc2-console-convert/audio.py:51-61]
+[doc: bfbc2-console-convert/audio.py:56-66]
 
 ### WAVE-SEG-1: Three segments, each a data blob and a stream-information blob
 
@@ -77,7 +77,7 @@ The Xbox 360 leaves the last blob unpadded in a few files.
 
 [data: every Wave of BFBC2's Xbox 360 copy, the PC game copy's twins and BF1943's 2,750 parse to their exact end; 9 Xbox 360 files without the last blob's padding]
 [test: rust/bc2-formats/src/wave.rs::wave_round_trip] [code: rust/bc2-formats/src/wave.rs:107-132] [code: rust/bc2-formats/src/wave.rs:12]
-[doc: bfbc2-console-convert/audio.py:35-44]
+[doc: bfbc2-console-convert/audio.py:40-49]
 
 ### WAVE-SEG-2: In-memory audio or a streamed stub
 
@@ -94,7 +94,7 @@ information (the head of a streamed sound). Which segments are streamed differs 
 vehicle sounds.
 
 [data: PC loop segments 34,038 streamed / 94 streamed with information / 1,618 in memory / 61 in memory with information; BF1943 streamed: 1,536 voice-over and 27 other files (audio.py's surveys)]
-[doc: bfbc2-console-convert/audio.py:36-50]
+[doc: bfbc2-console-convert/audio.py:41-55]
 
 ### WAVE-SEG-3: Stream information is not decoded
 
@@ -105,7 +105,7 @@ differs per platform (the Xbox 360's starts `01 10 01 80`, the PC's `C0 06 10 01
 copies it as it is and writes 0 for the audio it converts to in-memory audio.
 
 [data: the observed first bytes on both platforms (audio.py)]
-[doc: bfbc2-console-convert/audio.py:40-41]
+[doc: bfbc2-console-convert/audio.py:45-46]
 
 ### WAVE-WR-1: Writing a PC Wave
 
@@ -117,7 +117,7 @@ mapped as WAVE-HDR-2) and holds all its audio in memory as EA-XAS framed as SPS 
 `waveDataSns` entry).
 
 [test: rust/bc2-formats/src/wave.rs::wave_round_trip] [test: bfbc2-console-convert/tests/test_audio_native.py::quick] [code: rust/bc2-formats/src/wave.rs:168-205]
-[doc: bfbc2-console-convert/audio.py:96-97]
+[doc: bfbc2-console-convert/audio.py:101-102]
 
 ## The EA audio core stream
 
@@ -141,7 +141,7 @@ The PC's in-memory streams are EA-XAS (codec 4, all 1,846 of them), its streamed
 Xbox 360's audio is EA-XMA (codec 3).
 
 [test: rust/bc2-formats/src/wave.rs::sps_round_trip] [test: rust/bc2-formats/src/wave.rs::snr] [code: rust/bc2-formats/src/wave.rs:210-223]
-[doc: bfbc2-console-convert/audio.py:63-74]
+[doc: bfbc2-console-convert/audio.py:68-79]
 
 ### WAVE-STR-2: SPS framing (version 1, BFBC2)
 
@@ -160,7 +160,7 @@ The header block comes first; the stream ends exactly after the end block. Any o
 writes `48 00 00 0C`, the two words, one `0x44` block per audio block, then `45 00 00 04`.
 
 [test: rust/bc2-formats/src/wave.rs::sps_round_trip] [code: rust/bc2-formats/src/wave.rs:239-271] [code: rust/bc2-formats/src/wave.rs:323-337]
-[doc: bfbc2-console-convert/audio.py:68-69]
+[doc: bfbc2-console-convert/audio.py:73-74]
 
 ### WAVE-STR-3: SNR / SNS framing (version 0, BF1943)
 
@@ -172,7 +172,7 @@ flags 0. Streamed: the Wave holds the 8-byte SNR header only and the blocks are 
 0x80.
 
 [test: rust/bc2-formats/src/wave.rs::snr] [code: rust/bc2-formats/src/wave.rs:276-321]
-[doc: bfbc2-console-convert/audio.py:70-72]
+[doc: bfbc2-console-convert/audio.py:75-77]
 
 ### WAVE-STR-4: EA-XMA block data
 
@@ -187,8 +187,8 @@ padded to whole packets and wrapped as a RIFF WAVE with an `XMA2WAVEFORMATEX` (f
 for ffmpeg's xma2 decoder.
 
 [data: BF1943 streams: 1,539 of 1,563 end their last block with zero bytes]
-[test: rust/bc2-formats/src/audioframe.rs::parts_padded_per_stream] [test: rust/bc2-formats/src/audioframe.rs::riff_layout] [code: rust/bc2-formats/src/audioframe.rs:50-73] [code: rust/bc2-formats/src/audioframe.rs:81-115]
-[doc: bfbc2-console-convert/audio.py:75-81]
+[test: rust/bc2-formats/src/audioframe.rs::parts_padded_per_stream] [test: rust/bc2-formats/src/audioframe.rs::riff_layout] [code: rust/bc2-formats/src/audioframe.rs:70-101] [code: rust/bc2-formats/src/audioframe.rs:109-143]
+[doc: bfbc2-console-convert/audio.py:80-86]
 
 ## EA-XAS v1
 
@@ -201,7 +201,7 @@ channel: frame 0 of every channel, then frame 1 of every channel, and so on. A f
 32 (group g: samples 32g .. 32g + 31).
 
 [test: rust/bc2-convert/src/audio_tests.rs::layout_of_frames] [code: rust/bc2-convert/src/audio.rs:51-53] [code: rust/bc2-convert/src/audio.rs:124-128]
-[doc: bfbc2-console-convert/audio.py:82-83]
+[doc: bfbc2-console-convert/audio.py:87-88]
 
 ### XAS-FRM-2: Frame layout
 
@@ -213,7 +213,7 @@ Status: **verified** · Variants: PC
 | 16 - 75 | 15 rows of 4 bytes: row r, byte g holds group g's samples 2 + 2r (high nibble) and 3 + 2r (low nibble) |
 
 [test: rust/bc2-convert/src/audio_tests.rs::layout_of_frames] [test: rust/bc2-convert/src/audio_tests.rs::frames_decode_as_the_reference] [code: rust/bc2-convert/src/audio.rs:276-303]
-[doc: bfbc2-console-convert/audio.py:84-86]
+[doc: bfbc2-console-convert/audio.py:89-91]
 
 ### XAS-DEC-1: Decoding a group
 
@@ -228,7 +228,7 @@ with d the sample's nibble as a signed 4-bit value (-8 .. 7), k the group's shif
 0 = (0, 0), 1 = (240, 0), 2 = (460, -208), 3 = (392, -220). clip16 clamps to -32768 .. 32767.
 
 [test: rust/bc2-convert/src/audio_tests.rs::frames_decode_as_the_reference] [test: rust/bc2-convert/src/audio_tests.rs::decode_inverts_closely] [code: rust/bc2-convert/src/audio.rs:283-301] [code: rust/bc2-convert/src/audio.rs:56-58]
-[doc: bfbc2-console-convert/audio.py:86-88]
+[doc: bfbc2-console-convert/audio.py:91-93]
 
 ### XAS-ENC-1: The suite's encoder: least squared error per group
 
@@ -242,7 +242,7 @@ game decodes any valid frame.
 
 [data: 41.6 dB SNR on the end credits' music, about 20 - 25 dB on noise-like high-frequency effects (audio.py); every sound of BFBC2's Xbox copy (1,680 Waves) and BF1943 (2,750) gives the retired NumPy reference's bytes (BENCHMARKS E3a, F-round goldens)]
 [test: rust/bc2-convert/src/audio_tests.rs::groups_as_the_reference_on_extremes] [test: rust/bc2-convert/src/audio_tests.rs::need_is_the_float_formula] [test: rust/bc2-convert/src/audio_tests.rs::rint_is_half_to_even] [test: bfbc2-console-convert/tests/test_audio_native.py::shift_rule] [code: rust/bc2-convert/src/audio.rs:157-195]
-[doc: bfbc2-console-convert/audio.py:92-95]
+[doc: bfbc2-console-convert/audio.py:97-100]
 
 ### XAS-BLK-1: DICE's block length
 
@@ -254,8 +254,8 @@ is empty (0 samples) when the count is a multiple of the block length; then the 
 blocks the same way.
 
 [data: all 1,846 PC in-memory EA-XAS streams follow this layout; 3 end with an empty block]
-[test: rust/bc2-formats/src/audioframe.rs::blocks_of_dice] [test: bfbc2-console-convert/tests/test_audio.py::dice_layout] [code: rust/bc2-formats/src/audioframe.rs:119-155]
-[doc: bfbc2-console-convert/audio.py:89-91]
+[test: rust/bc2-formats/src/audioframe.rs::blocks_of_dice] [test: bfbc2-console-convert/tests/test_audio.py::dice_layout] [code: rust/bc2-formats/src/audioframe.rs:147-181]
+[doc: bfbc2-console-convert/audio.py:94-96]
 
 ### XAS-BLK-2: A sound's frames cover whole frames; the sample word holds the true count
 
@@ -266,7 +266,7 @@ encoded as 0 (silence); DICE's blocks (XAS-BLK-1) are then cut from those frames
 samples it holds per channel, the last block the rest. The stream's sample word (WAVE-STR-1) holds the true total,
 so the padding samples of the last frame are not played.
 
-[code: rust/bc2-convert/src/audio.rs:85-94] [code: rust/bc2-convert/src/audio.rs:140] [code: rust/bc2-formats/src/audioframe.rs:129-155]
+[code: rust/bc2-convert/src/audio.rs:85-94] [code: rust/bc2-convert/src/audio.rs:140] [code: rust/bc2-formats/src/audioframe.rs:158-181]
 [inferred: that the game stops at the sample count rather than the frame end is assumed from DICE's own last blocks, which are cut the same way]
 
 ## Open questions

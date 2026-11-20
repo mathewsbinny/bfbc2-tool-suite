@@ -37,8 +37,13 @@ if _ROOT not in sys.path:
 import suite_paths  # noqa: E402
 
 suite_paths.use('core', 'navkit-tools', 'navkit')
+sys.path.insert(0, os.path.join(_ROOT, 'tests'))
+from replay import Replay  # noqa: E402
 
 GOLDEN = os.path.join(HERE, 'navtools_golden.json')
+# round RT2: the answers of the retired NumPy references (obstacle_distance_reference, terrain_blocks_reference),
+# recorded (--record without --game) and compared with
+REPLAY = Replay('e4e_navtools', HERE, [], canon=lambda v: v)
 FIXED_CLOCK = time.struct_time((2026, 11, 17, 12, 0, 0, 1, 321, 0))   # as test_navbuild_native's recordings
 FAILS: list[str] = []
 
@@ -152,11 +157,12 @@ def quick_vehicle(rng: np.random.Generator) -> int:
         gx, gz = nv.gradients(s)
         lo, hi = [(nv.CLEAR_LOW, nv.CLEAR_HIGH), (nv.TERRAIN_RISE, nv.CLEAR_HIGH), (0.1, 1.3)][case % 3]
         radius = [nv.CLEARANCE + 1.0, 1.5, 4.2][case % 4 % 3]
-        want = nv.obstacle_distance_reference(s, cand, solid, extra, gx, gz, lo, hi, radius)
-        got = nv.obstacle_distance(s, cand, solid, extra, gx, gz, lo, hi, radius)
+        args = (s, cand, solid, extra, gx, gz, lo, hi, radius)
+        got = nv.obstacle_distance(*args)
+        ref = getattr(nv, 'obstacle_distance_reference', None)
         calls += 1
-        if not np.array_equal(want.view(np.uint32), got.view(np.uint32)) or got.dtype != want.dtype:
-            check(False, f'obstacle_distance case {case}: {int((want != got).sum())} of {n} differ')
+        if not REPLAY.pair('obstacle_distance', args, digest(got), (lambda ref=ref, args=args: digest(ref(*args))) if ref else None):
+            check(False, f'obstacle_distance case {case}: not the reference\'s answer ({n} surfaces)')
             return calls
     del m
     check(True, f'navvehicle.obstacle_distance: {calls} random runs bit for bit as the reference')
@@ -456,11 +462,12 @@ def quick_offline(rng: np.random.Generator) -> int:
         x[:50] = lo[0] + rng.integers(0, n, 50) * size_m             # on the samples themselves
         y = (rng.uniform(-3, 3, m) + float(heights.mean())).astype(np.float64 if case % 2 else np.float32)
         for bottom in (0.28, 0.6):
-            want = so.terrain_blocks_reference(hf, x, z, y, bottom)
-            got = so.terrain_blocks(hf, x, z, y, bottom)
+            args = (hf, x, z, y, bottom)
+            got = so.terrain_blocks(*args)
+            ref = getattr(so, 'terrain_blocks_reference', None)
             calls += 1
             blocked += int(got.sum())
-            ok &= np.array_equal(want, got)
+            ok &= REPLAY.pair('terrain_blocks', args, digest(got), (lambda ref=ref, args=args: digest(ref(*args))) if ref else None)
     check(ok, f'navsample_offline.terrain_blocks: {calls} random runs ({blocked} of {calls * 4000} surfaces blocked) as '
               f'the reference')
     return calls
@@ -617,12 +624,13 @@ def game(golden: dict[str, Any], record: bool, only: list[str]) -> None:
 def main(argv: list[str]) -> int:
     record = '--record' in argv
     golden = load()
-    if not record:
+    if not record or '--game' not in argv:
         quick()
+        check(REPLAY.finish(), 'the retired references: recorded, or replayed as recorded')
     if '--game' in argv:
         only = argv[argv.index('--only') + 1].split(',') if '--only' in argv else list(GAME)
         game(golden, record, only)
-    if record and not FAILS:
+    if record and '--game' in argv and not FAILS:
         golden['recorded'] = time.strftime('%Y-%m-%d')
         with open(GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
             json.dump(golden, f, indent=1, sort_keys=True)

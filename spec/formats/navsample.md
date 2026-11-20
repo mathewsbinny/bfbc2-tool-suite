@@ -50,7 +50,7 @@ Status: **verified**
 
 A reader refuses another magic or version.
 
-[code: bfbc2-auto-navkit/tools/navsample.py:31] [code: bfbc2-auto-navkit/tools/navsample.py:107-111]
+[code: bfbc2-auto-navkit/tools/navsample.py:36] [code: bfbc2-auto-navkit/tools/navsample.py:84-88]
 [code: rust/bc2-navbuild/src/navsample.rs:12] [code: rust/bc2-navbuild/src/navsample.rs:240-251]
 [test: rust/bc2-navbuild/src/navsample.rs::version_3_written_and_read] [test: tests/test_f3_native.py::area_navsample]
 [data: 165 of 165 files have the magic, a known version and reserved 0]
@@ -63,7 +63,7 @@ Column (i, j) is the vertical line at (min x + i x pitch, min z + j x pitch); mi
 pitch (to f32 precision), as DICE's generator samples at whole multiples of the pitch so that outlines run halfway
 between samples. Columns are stored **j-major**: column index = j x nx + i.
 
-[code: bfbc2-auto-navkit/tools/navsample.py:87-92] [code: opfor:src/dll/navsample.cpp:292-296]
+[code: bfbc2-auto-navkit/tools/navsample.py:71-76] [code: opfor:src/dll/navsample.cpp:292-296]
 [data: 165 of 165 files have min x / pitch and min z / pitch within 0.001 of an integer]
 
 ### NAVS-HDR-3: Run settings
@@ -105,7 +105,7 @@ Status: **verified**
 Each column is a u8 surface count followed by that many records. A file cut short (an interrupted run) ends early: the
 columns not reached are read as empty.
 
-[code: rust/bc2-navbuild/src/navsample.rs:304-345] [code: bfbc2-auto-navkit/tools/navsample.py:132-166]
+[code: rust/bc2-navbuild/src/navsample.rs:304-345]
 [test: rust/bc2-navbuild/src/navsample.rs::records_and_an_interrupted_run]
 
 ### NAVS-COL-2: Counts block and trailer in version 3
@@ -119,7 +119,7 @@ refused. The counts block's offset equals 56 + 20 x the total surface count, and
 counts.
 
 [code: rust/bc2-navbuild/src/navsample.rs:131-151] [code: rust/bc2-navbuild/src/navsample.rs:274-278]
-[code: bfbc2-auto-navkit/tools/navsample.py:119-130]
+
 [test: rust/bc2-navbuild/src/navsample.rs::version_3_written_and_read]
 [data: 129 of 129 version 3 files: trailer present, counts offset + nx x nz + 12 = file size, (offset - 56) a multiple of 20]
 
@@ -142,7 +142,7 @@ about the ray radius of its start began inside geometry and is not recorded: the
 in a row. Each surface is then tested with a capsule of the run's radius from y + bottom to y + top (flag bit 0). The
 offline sampler reproduces this from the triangles of the terrain and the placed objects' collision.
 
-[code: opfor:src/dll/navsample.cpp:144-195] [code: bfbc2-auto-navkit/tools/navsample_offline.py:993]
+[code: opfor:src/dll/navsample.cpp:144-195] [code: bfbc2-auto-navkit/tools/navsample_offline.py:985]
 [doc: bfbc2-auto-navkit/research/KYNAPSE_SPEC.md:168-184]
 
 ## Open questions

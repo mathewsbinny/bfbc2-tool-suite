@@ -852,7 +852,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:25-34"
+     "ref": "bfbc2-console-convert/audio.py:30-39"
     }
    ]
   },
@@ -885,7 +885,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:51-61"
+     "ref": "bfbc2-console-convert/audio.py:56-66"
     }
    ]
   },
@@ -914,7 +914,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:35-44"
+     "ref": "bfbc2-console-convert/audio.py:40-49"
     }
    ]
   },
@@ -931,7 +931,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:36-50"
+     "ref": "bfbc2-console-convert/audio.py:41-55"
     }
    ]
   },
@@ -948,7 +948,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:40-41"
+     "ref": "bfbc2-console-convert/audio.py:45-46"
     }
    ]
   },
@@ -973,7 +973,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:96-97"
+     "ref": "bfbc2-console-convert/audio.py:101-102"
     }
    ]
   },
@@ -998,7 +998,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:63-74"
+     "ref": "bfbc2-console-convert/audio.py:68-79"
     }
    ]
   },
@@ -1023,7 +1023,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:68-69"
+     "ref": "bfbc2-console-convert/audio.py:73-74"
     }
    ]
   },
@@ -1044,7 +1044,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:70-72"
+     "ref": "bfbc2-console-convert/audio.py:75-77"
     }
    ]
   },
@@ -1069,15 +1069,15 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/audioframe.rs:50-73"
+     "ref": "rust/bc2-formats/src/audioframe.rs:70-101"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/audioframe.rs:81-115"
+     "ref": "rust/bc2-formats/src/audioframe.rs:109-143"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:75-81"
+     "ref": "bfbc2-console-convert/audio.py:80-86"
     }
    ]
   },
@@ -1102,7 +1102,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:82-83"
+     "ref": "bfbc2-console-convert/audio.py:87-88"
     }
    ]
   },
@@ -1127,7 +1127,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:84-86"
+     "ref": "bfbc2-console-convert/audio.py:89-91"
     }
    ]
   },
@@ -1156,7 +1156,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:86-88"
+     "ref": "bfbc2-console-convert/audio.py:91-93"
     }
    ]
   },
@@ -1193,7 +1193,7 @@
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:92-95"
+     "ref": "bfbc2-console-convert/audio.py:97-100"
     }
    ]
   },
@@ -1218,11 +1218,11 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/audioframe.rs:119-155"
+     "ref": "rust/bc2-formats/src/audioframe.rs:147-181"
     },
     {
      "kind": "doc",
-     "ref": "bfbc2-console-convert/audio.py:89-91"
+     "ref": "bfbc2-console-convert/audio.py:94-96"
     }
    ]
   },
@@ -1243,7 +1243,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/audioframe.rs:129-155"
+     "ref": "rust/bc2-formats/src/audioframe.rs:158-181"
     },
     {
      "kind": "inferred",
@@ -4301,11 +4301,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/hpdlayout.rs:109"
+     "ref": "rust/bc2-formats/src/hpdlayout.rs:196"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/hpdlayout.rs:195"
+     "ref": "rust/bc2-formats/src/hpdlayout.rs:301"
     },
     {
      "kind": "test",
@@ -5462,11 +5462,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample.py:31"
+     "ref": "bfbc2-auto-navkit/tools/navsample.py:36"
     },
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample.py:107-111"
+     "ref": "bfbc2-auto-navkit/tools/navsample.py:84-88"
     },
     {
      "kind": "code",
@@ -5498,7 +5498,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample.py:87-92"
+     "ref": "bfbc2-auto-navkit/tools/navsample.py:71-76"
     },
     {
      "kind": "code",
@@ -5569,10 +5569,6 @@
      "ref": "rust/bc2-navbuild/src/navsample.rs:304-345"
     },
     {
-     "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample.py:132-166"
-    },
-    {
      "kind": "test",
      "ref": "rust/bc2-navbuild/src/navsample.rs::records_and_an_interrupted_run"
     }
@@ -5591,10 +5587,6 @@
     {
      "kind": "code",
      "ref": "rust/bc2-navbuild/src/navsample.rs:274-278"
-    },
-    {
-     "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample.py:119-130"
     },
     {
      "kind": "test",
@@ -5634,7 +5626,7 @@
     },
     {
      "kind": "code",
-     "ref": "bfbc2-auto-navkit/tools/navsample_offline.py:993"
+     "ref": "bfbc2-auto-navkit/tools/navsample_offline.py:985"
     },
     {
      "kind": "doc",
@@ -5667,7 +5659,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-cli/src/texqa/run.rs:262-276"
+     "ref": "rust/bc2-cli/src/texqa/run.rs:263-277"
     },
     {
      "kind": "code",
@@ -5790,7 +5782,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-cli/src/texqa/run.rs:267-270"
+     "ref": "rust/bc2-cli/src/texqa/run.rs:268-271"
     },
     {
      "kind": "test",

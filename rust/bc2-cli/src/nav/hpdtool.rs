@@ -2,7 +2,8 @@
 //! command line over `bc2_formats::hpd` (parse / write), `hpdlayout::coverage` and `kymesh` (parse / write).
 //!
 //! Where the core refuses a file or a mesh (the reference raises, and prints or reports its own exception text, or a
-//! value is a NaN) the command line is handed to the Python.
+//! value is a NaN) the command line is handed to the Python; `coverage`'s errors of a mesh's walk are printed here as
+//! the Python prints them (round RT2: `hpdlayout` gives the reference's messages).
 
 #![allow(
     clippy::indexing_slicing,
@@ -121,7 +122,14 @@ fn coverage(py: &mut Py, args: &[String]) -> PyResult<i32> {
         let f = parse(&data)?;
         for s in &f.sectors {
             total += 1;
-            let (gaps, overlaps) = hpdlayout::coverage(s.mesh).map_err(|_| Fail::Python)?;
+            let (gaps, overlaps) = match hpdlayout::coverage(s.mesh) {
+                Ok(c) => c,
+                Err(e) => {
+                    // the reference's ValueError / struct.error, caught and printed (round RT2: in Rust)
+                    py.print(&format!("ERROR {p} sector {:#x}: {e}", s.id))?;
+                    continue;
+                }
+            };
             if gaps.is_empty() && overlaps.is_empty() {
                 clean += 1;
                 continue;

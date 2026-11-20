@@ -290,7 +290,7 @@ A record consists exactly of: the header, the tile table, the tiles, the area ob
 data), the tile table's end slot, the neighbour-link table with its lists and link objects, and the trailer. There are
 no other bytes.
 
-[code: rust/bc2-formats/src/hpdlayout.rs:109] [code: rust/bc2-formats/src/hpdlayout.rs:195]
+[code: rust/bc2-formats/src/hpdlayout.rs:196] [code: rust/bc2-formats/src/hpdlayout.rs:301]
 [test: rust/bc2-formats/src/hpdlayout.rs::walks_a_record] [test: tests/test_f3_native.py::area_hpd]
 [data: 7,944 of 7,944 runtime meshes of the base game and Napisal's files, KYNAPSE_SPEC 4.4]
 

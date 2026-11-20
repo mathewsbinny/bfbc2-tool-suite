@@ -1,3 +1,5 @@
+# mypy: disable-error-code="attr-defined"
+# (round RT2: the retired references are named here; at run time tests/replay.py stands in for them)
 r"""Round F0: mesh resource headers in the Rust core - MeshData (mesh.parse / write: bc2_native.mesh_parse /
 mesh_write) and the mesh sets (meshset.parse / write: meshset_parse / meshset_write) - against their Python, the
 reference that stays until the port passes a full test tier (parse_reference, write_reference in both modules).
@@ -14,6 +16,10 @@ damaged inputs and changed dicts the same result or the same error.
                                           damaged copies of each; timings
 
 The module is required (bfbc2core.native): without it this test fails with the error saying how to get it.
+
+The mesh.parse / write and meshset.parse references were retired in round RT2 (meshset.write_reference stays:
+compared live): their answers were recorded first (--record, and --game --record, while they were there:
+f0_meshdata_replay*.json beside this test) and are replayed by tests/replay.py where they are gone.
 """
 import copy
 import glob
@@ -36,9 +42,13 @@ import mesh  # noqa: E402
 import meshset  # noqa: E402
 from bfbc2core import fbrb, native, paths  # noqa: E402
 from f0_parity import Checks, outcome, stdout_utf8  # noqa: E402
+from replay import Replay  # noqa: E402
 
 N = native.require('mesh.py / meshset.py headers', 'mesh_parse')
 SETS = meshset.KINDS
+# round RT2: the references' answers recorded (--record) and replayed once they are retired
+R = Replay('f0_meshdata', HERE, [(mesh, 'parse_reference'), (mesh, 'write_reference'),
+                                 (meshset, 'parse_reference'), (meshset, 'write_reference')])
 
 
 class Tally:
@@ -67,7 +77,7 @@ class Tally:
 def both(t: Tally, label: str, fn: Any, ref: Any, nat: Any, *args: Any) -> Any:
     a, r = outcome(fn, *args), outcome(ref, *args)
     t.add(a == r, f'{label}: {str(a)[:90]} / {str(r)[:90]}', nat(*args) is not None, r[0] == 'ok')
-    return ref(*args) if r[0] == 'ok' else None
+    return fn(*args) if a[0] == 'ok' else None
 
 
 def mesh_all(t: Tally, label: str, b: bytes, big: bool) -> None:
@@ -224,7 +234,8 @@ def main(argv: list[str]) -> int:
     stdout_utf8()
     game = '--game' in argv
     c = Checks()
-    c.check(mesh.use_native(True), 'the Rust core runs mesh.py\'s and meshset.py\'s headers')
+    if hasattr(mesh, 'use_native'):
+        c.check(mesh.use_native(True), 'the Rust core runs mesh.py\'s and meshset.py\'s headers')
     rng = random.Random(0xF04)
 
     t = Tally()
@@ -232,7 +243,7 @@ def main(argv: list[str]) -> int:
     for i in range(300):
         m = build_mesh(rng)
         verts, idx = bytes(rng.randrange(256) for _ in range(rng.randrange(40))), bytes(rng.randrange(8))
-        pc = mesh.write_reference(m, verts, idx)
+        pc = mesh.write(m, verts, idx)
         xb = to_big(m, verts, idx)
         built_meshes += [(pc, False), (xb, True)]
         mesh_all(t, f'built mesh {i} PC', pc, False)
@@ -241,7 +252,7 @@ def main(argv: list[str]) -> int:
     for i in range(300):
         kind = SETS[i % 4]
         s = build_set(rng, kind)
-        b = meshset.write_reference(s, kind)
+        b = meshset.write(s, kind)
         built_sets.append((b, kind))
         set_all(t, f'built {kind} {i}', b, kind, False)
         if kind == 'RigidMeshSet':
@@ -261,12 +272,12 @@ def main(argv: list[str]) -> int:
     tc = Tally()
     for i in range(400):
         b, big = rng.choice(built_meshes)
-        m = mesh.parse_reference(b, big)
+        m = mesh.parse(b, big)
         d = m['data']
         both(tc, f'changed mesh {i}', mesh.write, mesh.write_reference, N.mesh_write, change(m, rng),
              rng.choice([b[d:d + m['vertex_bytes']], bytearray(b'ab'), memoryview(b'ab'), 'ab']), b'')
         b, kind = rng.choice(built_sets)
-        s = meshset.parse_reference(b, kind, False)
+        s = meshset.parse(b, kind, False)
         both(tc, f'changed set {i}', meshset.write, meshset.write_reference, N.meshset_write, change(s, rng),
              rng.choice([kind, kind, kind, rng.choice(SETS), 'Mesh']))
     c.check(not tc.ndiff, f'changed dicts written: {tc.text()}', '; '.join(tc.differ))
@@ -283,7 +294,7 @@ def main(argv: list[str]) -> int:
         for nm, b, kind, big in items:
             kinds[kind] = kinds.get(kind, 0) + 1
             flag = False if (big and kind == 'RigidMeshSet' and nm.startswith('bf1943')) else None
-            for use, cost in ((True, 'n'), (False, 'r')):
+            for use, cost in ((True, 'n'), (False, 'r'))[:1 + R.live(mesh, 'parse_reference')]:
                 t0 = time.perf_counter()
                 try:
                     if kind == 'MeshData':
@@ -313,6 +324,7 @@ def main(argv: list[str]) -> int:
                 '; '.join(tg.differ))
         c.check(not tgd.ndiff, f'damaged game mesh resources: {tgd.text()}', '; '.join(tgd.differ))
         print(f'timing (parse): Python {tr:.2f} s, Rust {tn:.2f} s')
+    c.check(R.finish(), 'the references: recorded, or replayed as recorded')
     return c.done()
 
 
