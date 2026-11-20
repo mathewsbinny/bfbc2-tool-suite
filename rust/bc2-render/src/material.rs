@@ -575,7 +575,6 @@ pub fn prepare(files: &Files, db: &Db, mesh: &str, envmap: &str, cache: &mut Tex
 /// set whose name it is; `None` or a name the mesh set does not list: the first set the database draws whole, as
 /// [`prepare`] (a note says so for a name not listed).
 #[must_use]
-#[allow(clippy::too_many_lines, reason = "renderqa.prepare, step by step")]
 pub fn prepare_set(
     files: &Files,
     db: &Db,
@@ -583,6 +582,28 @@ pub fn prepare_set(
     shader_set: Option<&str>,
     envmap: &str,
     cache: &mut TextureFiles,
+) -> Prepared {
+    prepare_with(files, db, mesh, shader_set, envmap, Some(cache), 0)
+}
+
+/// [`prepare_set`] without reading any texture (the editor's simplified view, round SV1: it reads only the diffuse
+/// texture it draws, small): each draw's [`Draw::textures`] names every texture its material binds, unchecked. `lod`:
+/// the level of detail drawn (0 as [`prepare_set`]; the mesh set lists the others, each with its own
+/// `<mesh>_lod<k>_data` resource and the database's `<mesh>_lod<k>/<part>` layouts).
+#[must_use]
+pub fn prepare_untextured(files: &Files, db: &Db, mesh: &str, shader_set: Option<&str>, lod: usize) -> Prepared {
+    prepare_with(files, db, mesh, shader_set, "", None, lod)
+}
+
+#[allow(clippy::too_many_lines, reason = "renderqa.prepare, step by step")]
+fn prepare_with(
+    files: &Files,
+    db: &Db,
+    mesh: &str,
+    shader_set: Option<&str>,
+    envmap: &str,
+    mut cache: Option<&mut TextureFiles>,
+    lod: usize,
 ) -> Prepared {
     let low = mesh.to_lowercase();
     let mut out = Prepared {
@@ -592,9 +613,10 @@ pub fn prepare_set(
     let (Some(msb), Some(kind), Some(ldata)) = (
         files.read(&format!("{low}.res")),
         files.kind(&format!("{low}.res")).and_then(Kind::of),
-        files.read(&format!("{low}_lod0_data.res")),
+        files.read(&format!("{low}_lod{lod}_data.res")),
     ) else {
-        out.notes.push("no-mesh: mesh set or its LOD 0 data not found".into());
+        out.notes
+            .push(format!("no-mesh: mesh set or its LOD {lod} data not found"));
         return out;
     };
     let (Ok(set), Ok(md)) = (
@@ -604,7 +626,7 @@ pub fn prepare_set(
         out.notes.push("no-mesh: unreadable".into());
         return out;
     };
-    let Some(lod) = set.lods.first() else {
+    let Some(lod_set) = set.lods.get(lod) else {
         out.notes.push("no-mesh: mesh set has no LOD".into());
         return out;
     };
@@ -626,17 +648,18 @@ pub fn prepare_set(
             })
             .count()
     };
-    let named = shader_set.and_then(|want| lod.sets.iter().find(|s| name(&s.0).eq_ignore_ascii_case(want)));
+    let named = shader_set.and_then(|want| lod_set.sets.iter().find(|s| name(&s.0).eq_ignore_ascii_case(want)));
     if let (Some(want), None) = (shader_set, named) {
         out.notes.push(format!(
             "shader-set: {want} is not one of the mesh's sets (the default drawn)"
         ));
     }
     let chosen = named.or_else(|| {
-        lod.sets
+        lod_set
+            .sets
             .iter()
             .find(|s| has(s) == s.1.len())
-            .or_else(|| lod.sets.iter().max_by_key(|s| has(s)))
+            .or_else(|| lod_set.sets.iter().max_by_key(|s| has(s)))
     });
     out.shader_set = chosen.map_or_else(String::new, |s| name(&s.0));
     let shaders: Vec<String> = chosen.map_or_else(Vec::new, |s| s.1.iter().map(|n| name(n)).collect());
@@ -647,7 +670,7 @@ pub fn prepare_set(
         let Some(shader) = shaders.get(i).filter(|_| triangles != 0) else {
             continue;
         };
-        let part_key = query::lower(format!("{low}_lod0/{pn}/standard").as_bytes()).into_owned();
+        let part_key = query::lower(format!("{low}_lod{lod}/{pn}/standard").as_bytes()).into_owned();
         let Some((lg, layout)) = db.parts.get(&part_key).and_then(|g| Some((*g, db.layouts.get(g)?))) else {
             out.notes
                 .push(format!("no-layout: {pn}: no vertex layout in the database"));
@@ -738,6 +761,9 @@ pub fn prepare_set(
                 continue;
             }
             let tn = if r.name == "texture_outdoorLightReflectionEnvmap" && !records.contains_key(&r.point) {
+                if cache.is_none() {
+                    continue;
+                }
                 envmap.to_owned()
             } else if let Some(t) = records.get(&r.point) {
                 t.clone()
@@ -746,6 +772,10 @@ pub fn prepare_set(
                     out.notes
                         .push(format!("bound-empty: {pn}: t{} ({}) has no texture", r.point, r.name));
                 }
+                continue;
+            };
+            let Some(cache) = cache.as_deref_mut() else {
+                d.textures.push((r.point, tn));
                 continue;
             };
             let Some(bytes) = texture(files, cache, &tn) else {

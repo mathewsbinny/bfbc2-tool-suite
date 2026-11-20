@@ -5586,6 +5586,77 @@ hub's "Open in Map Inspector" (the Levels tab opens the map editor, also on a do
 `inspector_load`; `suite_paths`' `map-inspector`. `record_inspector.py` (G1's outliner lists) keeps the inspector's
 layer rule itself. Nothing in OPFOR (`src\`, its scripts and docs' commands) used the inspector.
 
+## SV1: the simplified view draws render meshes (2026-11-20, branch `rust-sv1`)
+
+`EDITOR_ARCHITECTURE.md` 3.10, "Done in round SV1". The user: "in our simplified view trees and objects sometimes look
+unrecognizable, like spike balls". No Python replaced.
+
+**What changed.** The simplified (wgpu) view drew each blueprint's Havok collision; for vegetation that is the render
+mesh's leaf cards without their alpha-tested textures (round RV1's finding). It now draws each object's render mesh,
+read by `bc2_render::simple` with the game-accurate view's own rule and reader (`world::mesh_and_set`,
+`material::prepare_untextured`: `prepare_set` without reading textures), as plain geometry instanced per blueprint:
+alpha-tested parts cut by their diffuse texture's alpha (its level no larger than 64 texels, one atlas), a muted tint
+from the texture's mean colour, blended parts left out beside others. The meshes are read on a thread beside the open
+view (collision until they arrive). Invisible walls, blueprints without a mesh, meshes of blended parts only and
+occluder meshes are the `invisible` group, hidden at the start. Show as (view, object, blueprint), levels of detail and
+destruction states: `display.rs`.
+
+**Reading the render meshes** (release, `examples/simple_meshes.rs`; the editor's debug build, on its loading thread):
+
+| level | placed | render meshes (with more LODs) | destructible blueprints | LOD 0 triangles | read, release (cold / warm) | debug, in the editor |
+|---|---:|---:|---:|---:|---:|---:|
+| MP_005 | 4,831 | 146 (124) | 48 | 207,471 | 0.48 / 0.13 s | 0.5 - 1.0 s |
+| SP_01 | 6,526 | 205 (114) | 38 | 201,789 | 0.57 / 0.15 s | 0.9 s |
+
+**Frame times** (`tests/simplified_view.rs`: the view drawn at 1600 x 950 and the GPU waited for, the camera turning
+0.01 rad a frame, the median of 10 after 2; GeForce RTX 4060 Laptop, Vulkan; two other rounds' builds beside it):
+
+| level, view | triangles listed: collision / render meshes | collision (before), ms | render meshes (after), ms |
+|---|---:|---:|---:|
+| MP_005, the whole level (the opening camera) | 3,919,352 / 5,486,712 | 4.44 | 5.59 |
+| MP_005, near (60 m from the barrack) | | 4.06 | 4.66 |
+| SP_01, the whole level | 5,246,844 / 6,492,925 | 5.65 | 6.52 |
+| SP_01, near (60 m from the guard tower) | | 4.82 | 5.12 |
+
+Release build of the test. The render meshes list 25 - 40 % more triangles than the collision (the buildings' meshes
+are finer than their collision; the vegetation's are the same cards) and the alpha test runs on the leaves: 0.3 - 1.2
+ms more a frame, 5 - 7 ms in all, and the view draws only when the camera or the scene changes. Reading the meshes:
+0.13 s a level warm (release), on a thread beside the open view.
+
+Instanced per blueprint as before: one draw call per (blueprint, level of detail, state) shown, plus one per
+edge mesh in the Both / Wireframe / Bounds displays.
+
+**Proof** (`cargo test -p bc2-editor --test simplified_view`, MP_005 and SP_01 headless):
+
+| what | result |
+|---|---|
+| the view draws the render mesh: indices against `bc2_render::world::World`'s prepared mesh of the same entity | mebush 1,422 / 1,422; acacia 5,250 / 5,250; rock formation 1,755 / 1,755; cliff 3,054 / 3,054; palm 5,610 / 5,610; rock_large 2,490 / 2,490; jungle bush 2,085 / 2,085 (all parts); barrack 18,270 of 18,330 (its glass part, blended, left out); guard tower 13,107 of 13,113 (its intact state: `ruin_downed` hidden) |
+| a leaf-card blueprint renders with holes | MP_005 acacia 12,449 pixels with the leaves cut against 20,655 drawn solid (60 %); SP_01 palm 16,232 against 28,596 (57 %) |
+| the invisible walls (SP_01, 396 `invisiblewall` placements) | hidden at the start; Outline: every one as edges; Solid: every one solid |
+| Show as, by index counts (MP_005 barrack / SP_01 guard tower) | Visual 18,270 / 13,107 (render mesh); Collision 20,346 / 9,963 vertices (collision); Both: the mesh and the collision's edges; Wireframe: the mesh's edges; Bounds: a 36-vertex box |
+| per object and per blueprint | Hidden draws nothing; Collision the collision; the blueprint's others as Bounds; the object's own override wins; the Collision view mode still draws only collision |
+| an override survives the editor's settings saved, read again and the level reopened; Reset view overrides clears it | yes |
+| the LOD picker | barrack LOD 0 18,270 / LOD 1 6,516 indices (its set: 18,330, 6,576, 2,583, 663); guard tower 13,107 / 3,528 (13,113, 4,497, 2,325) |
+| destruction states | guard tower intact / destroyed / all parts 13,107 / 6 / 13,113 indices; MP_005's barrack 18,270 for all three (its mesh holds only its ruin and windows: its parts are another mesh's) |
+| picking: a click where each sampled object is drawn picks it | MP_005 51 of 51, SP_01 37 of 37 |
+| picking at 60 objects' centres, as before (collision drawn) and now | MP_005: the same object 55 times, the object itself 24 before / 23 now (two thin `mp05_sticks` lost: their mesh is thinner than their collision); SP_01: 35, 3 / 13 (the invisible walls and slabs drawn solid before covered the rest) |
+| the six view modes | each draws |
+
+Unit tests: `simple::tests` (DXT1 1-bit alpha, DXT5 alpha and the level chosen, the diffuse texture by name, DICE's
+layered building materials, the guard tower's health states choosing its parts), `display::tests` (overrides in
+order, saved and read, reset).
+
+**Variants the data holds** (the user asked which): levels of detail - yes (the mesh set's `lods`, each with its
+`_lod<k>_data` resource and layouts; 2 - 4 levels on 124 of MP_005's 146 and 114 of SP_01's 205 render meshes);
+destruction states - yes, from the blueprint's `PartComponentData.HealthStates[].MeshName` (SP_01's guard tower:
+`part_1` 500 / `part_1_dest` 400 / gone, `part_2` the same, `ruin` 250 / `ruin_downed` 0), matched to the mesh's
+parts by name; collision per state - not available from what the scene reads (`bc2_scene` gives one triangle list per
+blueprint; the Havok packfile's per-part bodies are not split out), so not offered.
+
+Screenshots (not in the repository): MP_005's rock formation, bushes and barrack, SP_01's palms, invisible walls (also
+outlined) and guard tower, before and after, Dark and Light; the barrack and the guard tower shown as collision and
+as visual + collision.
+
 ## GR2: the Navigation Studio folded into the editor's AI workspace, then retired (2026-11-20, branch `rust-gr2`)
 
 The second round of the user's GUI plan: what `EDITOR_ARCHITECTURE.md` 9.2 listed of the Navigation Studio added to

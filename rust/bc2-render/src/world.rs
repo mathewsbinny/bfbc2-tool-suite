@@ -114,6 +114,30 @@ pub fn mesh_of(files: &Files, blueprint: &str) -> Option<String> {
     (r != "null").then(|| r.get(..r.rfind('/')?).map(str::to_owned))?
 }
 
+/// The mesh a placed thing draws and the shader set it is drawn with: a group member's from its group's facts, else
+/// its blueprint's `Mesh` (read once into `blueprints`) with the placement's override. One rule for both of the
+/// editor's views ([`World::set_placed`]; [`crate::simple`], round SV1).
+#[allow(clippy::implicit_hasher, reason = "the world's own cache")]
+pub fn mesh_and_set(
+    files: &Files,
+    placements: &Placements,
+    blueprints: &mut HashMap<String, Option<String>>,
+    p: &Placed,
+) -> (Option<String>, Option<String>) {
+    let member = p.group.as_ref().and_then(|(f, k)| placements.member(f, *k));
+    let set = match &p.group {
+        Some(_) => member.and_then(|m| m.shader_set.clone()),
+        None => placements.objects.get(&p.guid.to_lowercase()).cloned(),
+    };
+    let mesh = member.and_then(|m| m.mesh.clone()).or_else(|| {
+        blueprints
+            .entry(p.blueprint.clone())
+            .or_insert_with(|| mesh_of(files, &p.blueprint))
+            .clone()
+    });
+    (mesh, set)
+}
+
 impl World {
     /// Loads a level (`lv`: its folder under `work\levels`; `level`: its partition's name, `MP_005`): database,
     /// weather (`weather`: its folder, else `weather/r_<lv without _>`), the placed things, terrain, strips, water and
@@ -347,18 +371,8 @@ impl World {
         for (n, p) in placed.iter().enumerate() {
             // every placed blueprint with a mesh, wherever it lies (round RV1: `terrains/<lv>/props`, `vegetation/...`
             // were left out until then); one without (spawns, logic, sounds) has no `Mesh` and is not drawn
-            let member = p.group.as_ref().and_then(|(f, k)| self.placements.member(f, *k));
-            let set = match &p.group {
-                Some(_) => member.and_then(|m| m.shader_set.clone()),
-                None => self.placements.objects.get(&p.guid.to_lowercase()).cloned(),
-            };
             let files = &self.files;
-            let mesh = member.and_then(|m| m.mesh.clone()).or_else(|| {
-                self.blueprints
-                    .entry(p.blueprint.clone())
-                    .or_insert_with(|| mesh_of(files, &p.blueprint))
-                    .clone()
-            });
+            let (mesh, set) = mesh_and_set(files, &self.placements, &mut self.blueprints, p);
             let Some(mesh) = mesh else { continue };
             let (db, envmap, textures) = (&self.db, &self.envmap, &mut self.textures);
             let prepared = self

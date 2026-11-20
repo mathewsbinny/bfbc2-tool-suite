@@ -139,6 +139,19 @@ pub fn placed_entities(scene: &Scene) -> (Vec<Placed>, Vec<usize>) {
         .unzip()
 }
 
+/// Whether a level lives only in the game copy's `game\Package` (Vietnam, the Pacific War ...): read from its
+/// bundles in place, not from a prepared `work\levels` folder.
+#[must_use]
+pub fn is_package(opfor: &Path, lv: &str) -> bool {
+    !opfor
+        .join("work")
+        .join("levels")
+        .join(lv.to_lowercase())
+        .join("dist")
+        .is_dir()
+        && crate::package::find(opfor, lv).is_some()
+}
+
 /// The scene's placed things as the renderer takes them.
 #[must_use]
 pub fn placed(scene: &Scene) -> Vec<Placed> {
@@ -237,13 +250,7 @@ impl GameView {
             .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)));
         let (placed, entity_of) = placed_entities(scene);
         // a level of game\Package only (Vietnam, the Pacific War ...): read from its bundles in place (round R5c)
-        let package = !opfor
-            .join("work")
-            .join("levels")
-            .join(lv.to_lowercase())
-            .join("dist")
-            .is_dir()
-            && crate::package::find(opfor, lv).is_some();
+        let package = is_package(opfor, lv);
         let world = if package {
             World::load_package(opfor, lv, &scene.name, &placed, weather)?
         } else {

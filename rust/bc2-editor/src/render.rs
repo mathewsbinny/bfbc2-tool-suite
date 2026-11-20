@@ -9,11 +9,23 @@
 //! (areas, routes) are lines. Colours, all tokens: team-owned entities take their team's `view-team-*` colour,
 //! gameplay no team owns `view-unowned` (both lit evenly, as overlays), everything else a muted `scene-*` colour
 //! ([`SceneColors`]).
+//!
+//! Round SV1: once the level's render meshes are read ([`SceneGpu::set_visuals`], `bc2_render::simple`: the meshes
+//! the game-accurate view draws, as plain geometry), each object is drawn with its render mesh instead of its
+//! collision, also instanced per blueprint: the alpha-tested parts (leaf cards, fences) cut by their diffuse
+//! texture's alpha (a small copy in one atlas), the scene-lit objects tinted by their texture's mean colour (trees
+//! green, rocks grey). Objects the game does not show (invisible walls, blueprints without a mesh) are their own
+//! group, [`INVISIBLE`], hidden at the start. The collision view mode still draws collision; the surface queries
+//! (snapping, placing, the ruler) use collision as before.
 
 use std::collections::HashMap;
 use std::ops::Range;
+use std::sync::Arc;
 
-use bc2_scene::scene::{Entity, Scene};
+use bc2_render::simple::{Shape, Simple, SimpleMesh, State, part_shown};
+
+use crate::display::{Display, InvisibleAs, ShowAs};
+use bc2_scene::scene::{Entity, Scene, Source};
 use eframe::egui::Color32;
 use eframe::egui_wgpu::wgpu;
 use wgpu::util::DeviceExt;
@@ -50,6 +62,45 @@ const MASK_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R8Unorm;
 
 /// The selection outline's width in pixels.
 pub const OUTLINE_WIDTH: u32 = 2;
+
+/// The group of the objects the game does not show (invisible walls, blueprints without a mesh): hidden at the
+/// start, shown with the view menu's "Invisible objects".
+pub const INVISIBLE: &str = "invisible";
+
+/// The atlas's cells (texels a side): each part's texture at its level no larger ([`bc2_render::simple`]).
+const CELL: u32 = bc2_render::simple::TEXTURE_WIDTH;
+/// Cells in an atlas row.
+const ATLAS_COLUMNS: u32 = 32;
+/// A render-mesh vertex: position, texture coordinates, material.
+const VISUAL_VERTEX: u64 = 24;
+/// A render-mesh vertex's attributes (`view.wgsl`'s `vs_visual`).
+const VISUAL_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+    wgpu::vertex_attr_array![0 => Float32x3, 7 => Float32x2, 8 => Uint32];
+/// A material: tint, atlas tile, alpha test (three `vec4<f32>`).
+const MATERIAL_SIZE: usize = 48;
+
+/// What the simplified view shows of an entity, from the level's render meshes: `None` when they do not say (not
+/// read yet, or a blueprint placed later).
+#[must_use]
+pub fn shape_of(simple: &Simple, e: &Entity) -> Option<Shape> {
+    match e.source {
+        Source::GroupMember { item, .. } => simple
+            .members
+            .get(&format!("{}#{item}", e.group.as_deref()?.to_lowercase()))
+            .copied(),
+        Source::Instance { .. } => simple.blueprints.get(&e.blueprint.as_deref()?.to_lowercase()).copied(),
+    }
+}
+
+/// Whether a shape is one the game does not show.
+#[must_use]
+pub fn is_invisible(simple: &Simple, shape: Option<Shape>) -> bool {
+    match shape {
+        Some(Shape::Nothing) => true,
+        Some(Shape::Mesh(k)) => simple.meshes.get(k).is_some_and(|m| m.invisible()),
+        None => false,
+    }
+}
 
 /// The GPU the view draws on.
 #[derive(Clone, Debug)]
@@ -237,6 +288,8 @@ struct Instance {
     /// The group (category index) it belongs to, for hiding.
     group: u16,
     mesh: u32,
+    /// Drawn as its mesh's edges (round SV1: the collision over a mesh, wireframes, bounds).
+    wire: bool,
 }
 
 const INSTANCE_SIZE: u64 = 72;
@@ -279,6 +332,8 @@ struct Mesh {
     vertices: wgpu::Buffer,
     indices: Option<wgpu::Buffer>,
     count: u32,
+    /// A render mesh (vertices of [`VISUAL_VERTEX`] bytes, drawn with the materials), else positions only.
+    visual: bool,
 }
 
 fn rgba(c: Color32) -> [u8; 4] {
@@ -358,13 +413,124 @@ fn rows_of(m: &[f64; 16]) -> [[f32; 4]; 4] {
     std::array::from_fn(|r| std::array::from_fn(|c| m.get(r * 4 + c).copied().unwrap_or(0.0) as f32))
 }
 
+/// The indices of a render mesh's drawn parts ([`SimpleMesh::drawn_parts`]) in a destruction state of its parts.
+fn drawn_indices(m: &SimpleMesh, parts: &[bc2_render::simple::Component], state: State) -> Vec<u32> {
+    let mut out = Vec::new();
+    for p in m.drawn_parts().filter(|p| part_shown(parts, &p.name, state)) {
+        let r = p.first as usize..(p.first + p.count) as usize;
+        out.extend_from_slice(m.indices.get(r).unwrap_or_default());
+    }
+    out
+}
+
+/// The box of the vertices some indices use.
+fn box_of(v: &[[f32; 3]], idx: impl Iterator<Item = usize>) -> ([f32; 3], [f32; 3]) {
+    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+    let mut any = false;
+    for p in idx.filter_map(|i| v.get(i)) {
+        any = true;
+        for ((l, h), x) in lo.iter_mut().zip(hi.iter_mut()).zip(p) {
+            *l = l.min(*x);
+            *h = h.max(*x);
+        }
+    }
+    if any { (lo, hi) } else { ([0.0; 3], [0.0; 3]) }
+}
+
+/// An instance's rows for a box `b` of its mesh's space: the unit cube scaled and moved onto it.
+fn box_rows(rows: &[[f32; 4]; 4], b: Box3) -> [[f32; 4]; 4] {
+    let [r0, r1, r2, r3] = *rows;
+    let mut out = [r0, r1, r2, r3];
+    let mut t = r3;
+    for (((row, axis), lo), hi) in out.iter_mut().zip([r0, r1, r2]).zip(b.0).zip(b.1) {
+        let size = (hi - lo).max(0.01);
+        let centre = f32::midpoint(lo, hi);
+        *row = axis.map(|v| v * size);
+        for (tc, ac) in t.iter_mut().zip(axis).take(3) {
+            *tc += ac * centre;
+        }
+    }
+    let [a, b2, c, _] = out;
+    [a, b2, c, t]
+}
+
+/// A render mesh on the GPU (position, texture coordinates and its part's material a vertex; the drawn parts'
+/// indices), its radius and its box.
+fn upload_visual(gpu: &Gpu, m: &SimpleMesh, materials: &[u32], idx: &[u32]) -> (Mesh, f64, ([f32; 3], [f32; 3])) {
+    // each part's vertices are its own (`bc2_render::simple` adds them draw by draw): its material on them
+    let mut material = vec![0u32; m.positions.len()];
+    for (p, mat) in m.parts.iter().zip(materials) {
+        for i in m
+            .indices
+            .get(p.first as usize..(p.first + p.count) as usize)
+            .unwrap_or_default()
+        {
+            if let Some(slot) = material.get_mut(*i as usize) {
+                *slot = *mat;
+            }
+        }
+    }
+    let mut v = Vec::with_capacity(m.positions.len() * VISUAL_VERTEX as usize);
+    let mut radius = 0f64;
+    for ((p, t), mat) in m.positions.iter().zip(&m.uvs).zip(&material) {
+        for c in p.iter().chain(t) {
+            v.extend_from_slice(&c.to_le_bytes());
+        }
+        v.extend_from_slice(&mat.to_le_bytes());
+        radius = radius.max(f64::from(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt());
+    }
+    let mut ib = Vec::with_capacity(idx.len() * 4);
+    for i in idx {
+        ib.extend_from_slice(&i.to_le_bytes());
+    }
+    (
+        Mesh {
+            vertices: buffer(gpu, &m.mesh, &v, wgpu::BufferUsages::VERTEX),
+            indices: Some(buffer(gpu, &m.mesh, &ib, wgpu::BufferUsages::INDEX)),
+            count: idx.len() as u32,
+            visual: true,
+        },
+        radius,
+        box_of(&m.positions, idx.iter().map(|i| *i as usize)),
+    )
+}
+
+/// The render meshes' bind group layout (group 1): the texture atlas and the materials.
+fn visual_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("render-mesh materials"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    })
+}
+
 /// A scene on the GPU: meshes uploaded once (the marker cube, terrain, water, one per blueprint), the instances and
 /// lines built again by [`SceneGpu::refresh`] after an edit (cheap: no geometry is uploaded again).
 #[derive(Debug)]
 pub struct SceneGpu {
     meshes: Vec<Mesh>,
     /// Each blueprint's mesh and radius.
-    blueprint_mesh: HashMap<String, (u32, f64)>,
+    blueprint_mesh: HashMap<String, (u32, f64, Box3)>,
     terrain_mesh: Option<u32>,
     water_mesh: Option<u32>,
     /// The selected entities (outlined).
@@ -398,6 +564,41 @@ pub struct SceneGpu {
     overlay_slots: HashMap<u64, u32>,
     /// Meshes of overlay meshes no longer drawn (emptied), for the next ones.
     free_slots: Vec<u32>,
+    /// The instances drawn as edges, by edge mesh: (edge mesh, range in the instance buffer).
+    wire_batches: Vec<(u32, Range<u32>)>,
+    /// The selection's instances drawn as edges.
+    mask_wire_batches: Vec<(u32, Range<u32>)>,
+    /// The level's render meshes (round SV1), once read.
+    visuals: Option<Arc<Simple>>,
+    /// Each render mesh's GPU mesh, radius and box by (mesh, level of detail, destruction state), uploaded when first
+    /// drawn.
+    visual_mesh: HashMap<VisualKey, (u32, f64, Box3)>,
+    /// Each (render mesh, level of detail)'s parts' materials.
+    part_material: HashMap<(usize, usize), Vec<u32>>,
+    /// The atlas and the materials, bound as group 1 of the render-mesh pipelines.
+    visual_bg: Option<wgpu::BindGroup>,
+    /// Draw with the render meshes (off: collision, as before round SV1; the before / after pictures).
+    pub render_meshes: bool,
+    /// How the objects are shown (round SV1: the view's, the objects', the blueprints', their variants).
+    pub display: Display,
+}
+
+/// A render mesh as uploaded: (its place in the level's render meshes, level of detail, destruction state).
+type VisualKey = (usize, usize, State);
+/// A box in a mesh's space: its lowest and highest corners.
+type Box3 = ([f32; 3], [f32; 3]);
+/// An entity's collision mesh as drawn: (GPU mesh, radius, triangles, box, blueprint).
+type CollisionMesh<'a> = (u32, f64, u64, Box3, &'a str);
+
+/// What an entity is drawn with ([`SceneGpu::drawn`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Drawn {
+    /// Its render mesh (else its collision, or a marker box).
+    pub render_mesh: bool,
+    /// As edges.
+    pub wire: bool,
+    /// The mesh's indices (a render mesh) or vertices (collision, a marker: three a triangle).
+    pub count: u32,
 }
 
 impl SceneGpu {
@@ -410,7 +611,16 @@ impl SceneGpu {
                 vertices: buffer(gpu, "cube", &f32_bytes(&c), wgpu::BufferUsages::VERTEX),
                 indices: None,
                 count: c.len() as u32,
+                visual: false,
             }],
+            visuals: None,
+            visual_mesh: HashMap::new(),
+            part_material: HashMap::new(),
+            visual_bg: None,
+            render_meshes: true,
+            display: Display::default(),
+            wire_batches: Vec::new(),
+            mask_wire_batches: Vec::new(),
             blueprint_mesh: HashMap::new(),
             terrain_mesh: None,
             water_mesh: None,
@@ -425,8 +635,9 @@ impl SceneGpu {
             mask_instance_buf: None,
             mask_line_buf: None,
             mask_line_count: 0,
-            groups: Vec::new(),
-            hidden: Vec::new(),
+            // the objects the game does not show: hidden until asked for
+            groups: vec![INVISIBLE.to_owned()],
+            hidden: vec![true],
             bounds: None,
             triangles: 0,
             sizes: Vec::new(),
@@ -473,7 +684,35 @@ impl SceneGpu {
                 vertices: buffer(gpu, name, &f32_bytes(v), wgpu::BufferUsages::VERTEX),
                 indices: Some(buffer(gpu, name, &u32_bytes(t), wgpu::BufferUsages::INDEX)),
                 count: (t.len() * 3) as u32,
+                visual: false,
             }
+        };
+        // the render meshes (round SV1): not in the collision mode
+        let visuals = self.visuals.clone().filter(|_| !collision_only && self.render_meshes);
+        let display = self.display.clone();
+        let visual_mesh = &mut self.visual_mesh;
+        let part_material = &self.part_material;
+        // an entity's render mesh at its level of detail and destruction state: (GPU mesh, radius, triangles, box)
+        let mut visual_of = |meshes: &mut Vec<Mesh>, k: usize, e: &Entity| -> Option<(u32, f64, u64, Box3)> {
+            let read = visuals.as_ref()?;
+            let lod0 = read.meshes.get(k)?;
+            let lod = display.lod_of(e).min(lod0.lods.len());
+            let parts = e.blueprint.as_deref().map_or(&[][..], |b| read.components_of(b));
+            let state = if parts.is_empty() {
+                State::All
+            } else {
+                display.state_of(e).state()
+            };
+            let m = lod0.at_lod(lod);
+            let (mesh, radius, b) = *visual_mesh.entry((k, lod, state)).or_insert_with(|| {
+                let idx = drawn_indices(m, parts, state);
+                let mats = part_material.get(&(k, lod)).map_or(&[][..], Vec::as_slice);
+                let (gm, r, b) = upload_visual(gpu, m, mats, &idx);
+                meshes.push(gm);
+                ((meshes.len() - 1) as u32, r, b)
+            });
+            let tris = meshes.get(mesh as usize).map_or(0, |g| u64::from(g.count / 3));
+            Some((mesh, radius, tris, b))
         };
         if let Some((v, t)) = &scene.terrain
             && !t.is_empty()
@@ -491,6 +730,7 @@ impl SceneGpu {
                 id: ID_TERRAIN,
                 group: group_of("terrain"),
                 mesh,
+                wire: false,
             });
         }
         if let Some(w) = scene.water.as_ref().filter(|_| !collision_only)
@@ -507,58 +747,158 @@ impl SceneGpu {
                 id: ID_WATER,
                 group: group_of("water"),
                 mesh,
+                wire: false,
             });
         }
-        // collision: one mesh per blueprint, one instance per placed entity
+        // collision: one mesh per blueprint (uploaded once), each entity's blueprints
         let mut sizes = vec![2.0f64; scene.entities.len()];
         let mut with_mesh = vec![false; scene.entities.len()];
         let by_blueprint = &mut self.blueprint_mesh;
+        let mut collision: HashMap<usize, Vec<CollisionMesh<'_>>> = HashMap::new();
         if let Some(col) = &scene.collision {
             for (index, bp) in &col.meshes {
-                if skip(*index) {
-                    continue;
-                }
-                let Some(e) = scene.entities.get(*index) else { continue };
-                let Some(m) = e.matrix else { continue };
                 let Some(Some(tris)) = col.blueprints.get(bp) else {
                     continue;
                 };
-                if tris.is_empty() {
+                if tris.is_empty() || skip(*index) {
                     continue;
                 }
-                let (mesh, radius) = *by_blueprint.entry(bp.clone()).or_insert_with(|| {
+                let (mesh, radius, b) = *by_blueprint.entry(bp.clone()).or_insert_with(|| {
                     let flat: Vec<[f32; 3]> = tris.iter().flat_map(|t| t.iter().copied()).collect();
                     let r = flat
                         .iter()
                         .map(|p| f64::from(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt())
                         .fold(0.0, f64::max);
+                    let b = box_of(&flat, 0..flat.len());
                     meshes.push(Mesh {
                         vertices: buffer(gpu, "blueprint", &f32_bytes(&flat), wgpu::BufferUsages::VERTEX),
                         indices: None,
                         count: flat.len() as u32,
+                        visual: false,
                     });
-                    ((meshes.len() - 1) as u32, r)
+                    ((meshes.len() - 1) as u32, r, b)
                 });
-                triangles += tris.len() as u64;
-                if let Some(s) = sizes.get_mut(*index) {
-                    *s = radius * 2.0;
+                collision
+                    .entry(*index)
+                    .or_default()
+                    .push((mesh, radius, tris.len() as u64, b, bp.as_str()));
+            }
+        }
+        // each placed object as the display says (round SV1): its render mesh, its collision, both, edges, its box
+        for e in &scene.entities {
+            if skip(e.index) {
+                continue;
+            }
+            let Some(m) = e.matrix else { continue };
+            let cols = collision.get(&e.index).map_or(&[][..], Vec::as_slice);
+            let shape = visuals.as_ref().and_then(|s| shape_of(s, e));
+            let invisible = visuals.as_ref().is_some_and(|s| is_invisible(s, shape));
+            let vis = match shape {
+                // an invisible object's own mesh too: its outline when it has no collision
+                Some(Shape::Mesh(k)) => visual_of(meshes, k, e),
+                _ => None,
+            };
+            if cols.is_empty() && vis.is_none() {
+                continue;
+            }
+            if let Some(w) = with_mesh.get_mut(e.index) {
+                *w = true;
+            }
+            sample.push([m[12], m[13], m[14]]);
+            let rows = rows_of(&m);
+            let id = entity_id(e.index);
+            let colour = if invisible {
+                rgba(colors.other)
+            } else {
+                tinted(e.index, entity_rgba(e, palette, &colors))
+            };
+            let group = group_of(if invisible && !collision_only {
+                INVISIBLE
+            } else {
+                &e.category
+            });
+            let show = if collision_only {
+                ShowAs::Collision
+            } else if invisible {
+                match display.invisible {
+                    InvisibleAs::Outline => ShowAs::Wireframe,
+                    InvisibleAs::Hidden | InvisibleAs::Solid => ShowAs::Collision,
                 }
-                if let Some(w) = with_mesh.get_mut(*index) {
-                    *w = true;
-                }
-                sample.push([m[12], m[13], m[14]]);
-                let color = if collision_only {
-                    rgba(blueprint_colour(bp))
-                } else {
-                    tinted(*index, entity_rgba(e, palette, &colors))
-                };
+            } else {
+                display.show_of(e)
+            };
+            let mut size: Option<f64> = None;
+            let mut put = |mesh: u32, rows: [[f32; 4]; 4], color: [u8; 4], wire: bool| {
                 instances.push(Instance {
-                    rows: rows_of(&m),
+                    rows,
                     color,
-                    id: entity_id(*index),
-                    group: group_of(&e.category),
+                    id,
+                    group,
                     mesh,
+                    wire,
                 });
+            };
+            // the collision mode's colour: each blueprint's own hue
+            let hue = |bp: &str| {
+                let c = blueprint_colour(bp);
+                [c.r(), c.g(), c.b(), if collision_only { 255 } else { 0 }]
+            };
+            let solid_collision = |put: &mut dyn FnMut(u32, [[f32; 4]; 4], [u8; 4], bool), tris: &mut u64| {
+                for (mesh, _, t, _, bp) in cols {
+                    put(*mesh, rows, if collision_only { hue(bp) } else { colour }, false);
+                    *tris += t;
+                }
+            };
+            let mut tris = 0u64;
+            match (show, vis) {
+                (ShowAs::Hidden, _) => {}
+                (ShowAs::Visual, Some((vm, r, t, _))) => {
+                    put(vm, rows, colour, false);
+                    tris += t;
+                    size = Some(r * 2.0);
+                }
+                (ShowAs::Both, Some((vm, r, t, _))) => {
+                    put(vm, rows, colour, false);
+                    tris += t;
+                    size = Some(r * 2.0);
+                    for (mesh, _, _, _, bp) in cols {
+                        put(*mesh, rows, hue(bp), true);
+                    }
+                }
+                (ShowAs::Collision | ShowAs::Visual | ShowAs::Both, None) => {
+                    solid_collision(&mut put, &mut tris);
+                }
+                (ShowAs::Collision, Some((vm, r, t, _))) => {
+                    if cols.is_empty() {
+                        // nothing to collide with: the mesh, so the object does not vanish
+                        put(vm, rows, colour, false);
+                        tris += t;
+                        size = Some(r * 2.0);
+                    } else {
+                        solid_collision(&mut put, &mut tris);
+                    }
+                }
+                (ShowAs::Wireframe, _) => match vis {
+                    Some((vm, r, _, _)) => {
+                        put(vm, rows, colour, true);
+                        size = Some(r * 2.0);
+                    }
+                    None => {
+                        for (mesh, _, _, _, _) in cols {
+                            put(*mesh, rows, colour, true);
+                        }
+                    }
+                },
+                (ShowAs::Bounds, _) => {
+                    let b = vis.map(|v| v.3).or_else(|| cols.first().map(|c| c.3));
+                    if let Some(b) = b {
+                        put(0, box_rows(&rows, b), colour, true);
+                    }
+                }
+            }
+            triangles += tris;
+            if let Some(s) = sizes.get_mut(e.index) {
+                *s = size.or_else(|| cols.first().map(|c| c.1 * 2.0)).unwrap_or(2.0);
             }
         }
         // markers for the entities without collision, and spawns' facing
@@ -584,6 +924,7 @@ impl SceneGpu {
                 id: entity_id(e.index),
                 group,
                 mesh: 0,
+                wire: false,
             });
             triangles += 12;
             if let Some(s) = sizes.get_mut(e.index) {
@@ -674,6 +1015,7 @@ impl SceneGpu {
                             vertices: buffer(gpu, "freed", &[], wgpu::BufferUsages::VERTEX),
                             indices: Some(buffer(gpu, "freed", &[], wgpu::BufferUsages::INDEX)),
                             count: 0,
+                            visual: false,
                         };
                     }
                     self.edges.remove(&slot);
@@ -704,6 +1046,7 @@ impl SceneGpu {
                     id: ID_NAV,
                     group: group_of(&m.group),
                     mesh: slot,
+                    wire: false,
                 });
             }
         }
@@ -721,16 +1064,23 @@ impl SceneGpu {
                 }
             }
         }
-        // the wireframe mode: an edge mesh for each mesh drawn, made once
-        if mode == ViewMode::Wireframe {
-            let mut wanted: Vec<u32> = instances.iter().map(|i| i.mesh).collect();
-            wanted.sort_unstable();
-            wanted.dedup();
+        // the edges drawn (the wireframe mode's every mesh, else the instances drawn as edges): an edge mesh for
+        // each, made once
+        let mut wanted: Vec<u32> = instances
+            .iter()
+            .filter(|i| i.wire || mode == ViewMode::Wireframe)
+            .map(|i| i.mesh)
+            .collect();
+        wanted.sort_unstable();
+        wanted.dedup();
+        wanted.retain(|m| !self.edges.contains_key(m));
+        if !wanted.is_empty() {
             let blueprint_of: HashMap<u32, &str> = self
                 .blueprint_mesh
                 .iter()
-                .map(|(name, (m, _))| (*m, name.as_str()))
+                .map(|(name, (m, _, _))| (*m, name.as_str()))
                 .collect();
+            let render_of: HashMap<u32, VisualKey> = self.visual_mesh.iter().map(|(k, (m, _, _))| (*m, *k)).collect();
             for m in wanted {
                 if self.edges.contains_key(&m) {
                     continue;
@@ -747,6 +1097,26 @@ impl SceneGpu {
                         .water
                         .as_ref()
                         .map_or_else(Vec::new, |w| edges_of_indexed(&w.mesh.vertices, &w.mesh.triangles))
+                } else if let Some(&(k, lod, state)) = render_of.get(&m)
+                    && let Some(read) = self.visuals.as_ref()
+                    && let Some(lod0) = read.meshes.get(k)
+                {
+                    let m = lod0.at_lod(lod);
+                    let parts = scene
+                        .entities
+                        .iter()
+                        .find_map(|e| match shape_of(read, e) {
+                            Some(Shape::Mesh(j)) if j == k => e.blueprint.as_deref(),
+                            _ => None,
+                        })
+                        .map_or(&[][..], |b| read.components_of(b));
+                    let tris: Vec<[u32; 3]> = drawn_indices(m, parts, state)
+                        .as_chunks::<3>()
+                        .0
+                        .iter()
+                        .map(|t| [t[0], t[1], t[2]])
+                        .collect();
+                    edges_of_indexed(&m.positions, &tris)
                 } else {
                     blueprint_of
                         .get(&m)
@@ -760,6 +1130,7 @@ impl SceneGpu {
                     vertices: buffer(gpu, "edges", &f32_bytes(&lines_of), wgpu::BufferUsages::VERTEX),
                     indices: None,
                     count: lines_of.len() as u32,
+                    visual: false,
                 });
                 self.edges.insert(m, (self.meshes.len() - 1) as u32);
             }
@@ -769,6 +1140,12 @@ impl SceneGpu {
         }
         let n = self.groups.len();
         self.hidden.resize(n, false);
+        // the objects the game does not show: hidden unless the display asks for them
+        if let Some(k) = self.groups.iter().position(|g| g == INVISIBLE)
+            && let Some(h) = self.hidden.get_mut(k)
+        {
+            *h = self.display.invisible == InvisibleAs::Hidden;
+        }
         self.instances = instances;
         self.lines = lines;
         self.triangles = triangles;
@@ -783,15 +1160,23 @@ impl SceneGpu {
         let hidden = &self.hidden;
         let visible = |g: u16| !hidden.get(usize::from(g)).copied().unwrap_or(false);
         let mut order: Vec<&Instance> = self.instances.iter().filter(|i| visible(i.group)).collect();
-        order.sort_by_key(|i| i.mesh);
+        // the solid ones first, the render meshes after the rest (one switch of pipeline), then the edges
+        let meshes = &self.meshes;
+        order.sort_by_key(|i| (i.wire, meshes.get(i.mesh as usize).is_some_and(|m| m.visual), i.mesh));
         let mut bytes = Vec::with_capacity(order.len() * INSTANCE_SIZE as usize);
         self.batches.clear();
+        self.wire_batches.clear();
         for (k, i) in order.iter().enumerate() {
             i.bytes(&mut bytes);
             let k = k as u32;
-            match self.batches.last_mut() {
+            let list = if i.wire {
+                &mut self.wire_batches
+            } else {
+                &mut self.batches
+            };
+            match list.last_mut() {
                 Some((m, r)) if *m == i.mesh => r.end = k + 1,
-                _ => self.batches.push((i.mesh, k..k + 1)),
+                _ => list.push((i.mesh, k..k + 1)),
             }
         }
         self.instance_buf = buffer(gpu, "instances", &bytes, wgpu::BufferUsages::VERTEX);
@@ -826,9 +1211,179 @@ impl SceneGpu {
             .unwrap_or(false)
     }
 
+    /// Takes the level's render meshes (round SV1): their textures into one atlas, their parts' materials; the
+    /// meshes themselves are uploaded when first drawn. [`SceneGpu::refresh`] draws with them.
+    pub fn set_visuals(&mut self, gpu: &Gpu, simple: Arc<Simple>) {
+        let max_tiles = (ATLAS_COLUMNS * (8192 / CELL)) as usize;
+        let mut tiles: HashMap<String, (u32, [u32; 2])> = HashMap::new();
+        let mut pictures = Vec::new();
+        let every_lod = || {
+            simple.meshes.iter().enumerate().flat_map(|(k, m)| {
+                std::iter::once(m.as_ref())
+                    .chain(m.lods.iter().map(AsRef::as_ref))
+                    .map(move |l| (k, l))
+            })
+        };
+        for p in every_lod().flat_map(|(_, m)| &m.parts) {
+            if let (Some(n), Some(t)) = (&p.texture_name, &p.texture)
+                && !tiles.contains_key(n)
+                && tiles.len() < max_tiles
+            {
+                tiles.insert(n.clone(), (tiles.len() as u32, t.size));
+                pictures.push(Arc::clone(t));
+            }
+        }
+        let n = pictures.len() as u32;
+        let size = [
+            (n.clamp(1, ATLAS_COLUMNS)) * CELL,
+            n.div_ceil(ATLAS_COLUMNS).max(1) * CELL,
+        ];
+        let atlas = texture(
+            gpu,
+            "render-mesh textures",
+            size,
+            COLOR_FORMAT,
+            wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        );
+        for (k, p) in pictures.iter().enumerate() {
+            let k = k as u32;
+            let [w, h] = [p.size[0].min(CELL), p.size[1].min(CELL)];
+            if p.rgba.len() < (p.size[0] * p.size[1] * 4) as usize || w == 0 || h == 0 {
+                continue;
+            }
+            gpu.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &atlas,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: (k % ATLAS_COLUMNS) * CELL,
+                        y: (k / ATLAS_COLUMNS) * CELL,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &p.rgba,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(p.size[0] * 4),
+                    rows_per_image: None,
+                },
+                wgpu::Extent3d {
+                    width: w,
+                    height: h,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        let mut materials: Vec<u8> = Vec::new();
+        let mut part_material = HashMap::new();
+        for (k, m) in every_lod() {
+            let mut mats = Vec::with_capacity(m.parts.len());
+            for p in &m.parts {
+                mats.push((materials.len() / MATERIAL_SIZE) as u32);
+                let tint = p.tint.map_or([0.0; 4], |c| {
+                    [
+                        f32::from(c[0]) / 255.0,
+                        f32::from(c[1]) / 255.0,
+                        f32::from(c[2]) / 255.0,
+                        1.0,
+                    ]
+                });
+                let tile = p
+                    .texture_name
+                    .as_ref()
+                    .and_then(|n| tiles.get(n))
+                    .map_or([0.0; 4], |(k, s)| {
+                        [
+                            ((k % ATLAS_COLUMNS) * CELL) as f32,
+                            ((k / ATLAS_COLUMNS) * CELL) as f32,
+                            s[0].min(CELL) as f32,
+                            s[1].min(CELL) as f32,
+                        ]
+                    });
+                // the alpha test: its reference where the part is tested and has its texture, else none (-1)
+                let test = if p.tested && tile[2] > 0.0 {
+                    f32::from(p.alpha_ref) / 255.0
+                } else {
+                    -1.0
+                };
+                for v in tint.iter().chain(&tile).chain(&[test, 0.0, 0.0, 0.0]) {
+                    materials.extend_from_slice(&v.to_le_bytes());
+                }
+            }
+            part_material.insert((k, m.lod), mats);
+        }
+        let materials = buffer(gpu, "materials", &materials, wgpu::BufferUsages::STORAGE);
+        let view = atlas.create_view(&wgpu::TextureViewDescriptor::default());
+        let layout = visual_layout(&gpu.device);
+        self.visual_bg = Some(gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("render-mesh materials"),
+            layout: &layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: materials.as_entire_binding(),
+                },
+            ],
+        }));
+        self.part_material = part_material;
+        self.visual_mesh.clear();
+        self.edges.clear();
+        self.visuals = Some(simple);
+    }
+
+    /// The level's render meshes, once read.
+    #[must_use]
+    pub fn visuals(&self) -> Option<&Arc<Simple>> {
+        self.visuals.as_ref()
+    }
+
+    /// What an entity is drawn with now: its instances' meshes (empty when it is not drawn: hidden, or nothing to
+    /// draw).
+    #[must_use]
+    pub fn drawn(&self, entity: usize) -> Vec<Drawn> {
+        let id = entity_id(entity);
+        let hidden = &self.hidden;
+        self.instances
+            .iter()
+            .filter(|i| i.id == id && !hidden.get(usize::from(i.group)).copied().unwrap_or(false))
+            .filter_map(|i| {
+                let m = self.meshes.get(i.mesh as usize)?;
+                Some(Drawn {
+                    render_mesh: m.visual,
+                    wire: i.wire,
+                    count: m.count,
+                })
+            })
+            .collect()
+    }
+
+    /// The levels of detail of an entity's render mesh (0: none read).
+    #[must_use]
+    pub fn lod_count(&self, e: &Entity) -> usize {
+        match self.visuals.as_ref().and_then(|s| Some((s, shape_of(s, e)?))) {
+            Some((s, Shape::Mesh(k))) => s.meshes.get(k).map_or(0, |m| m.lods.len() + 1),
+            _ => 0,
+        }
+    }
+
+    /// An entity's destructible parts (empty: it has none, or the render meshes are not read).
+    #[must_use]
+    pub fn components(&self, e: &Entity) -> &[bc2_render::simple::Component] {
+        match (&self.visuals, e.blueprint.as_deref()) {
+            (Some(s), Some(b)) => s.components_of(b),
+            _ => &[],
+        }
+    }
+
     /// Marks entities as the selection (their instances and lines go to the mask); an empty slice for none.
     pub fn set_selection(&mut self, gpu: &Gpu, entities: &[usize]) {
         self.mask_batches.clear();
+        self.mask_wire_batches.clear();
         self.mask_instance_buf = None;
         self.mask_line_buf = None;
         self.mask_line_count = 0;
@@ -841,7 +1396,11 @@ impl SceneGpu {
         for (k, i) in self.instances.iter().filter(|i| ids.contains(&i.id)).enumerate() {
             i.bytes(&mut bytes);
             let k = k as u32;
-            self.mask_batches.push((i.mesh, k..k + 1));
+            if i.wire {
+                self.mask_wire_batches.push((i.mesh, k..k + 1));
+            } else {
+                self.mask_batches.push((i.mesh, k..k + 1));
+            }
         }
         if !bytes.is_empty() {
             self.mask_instance_buf = Some(buffer(gpu, "selection", &bytes, wgpu::BufferUsages::VERTEX));
@@ -911,6 +1470,12 @@ pub struct Renderer {
     composite: wgpu::RenderPipeline,
     /// The wireframe mode: meshes' edge lists placed by their instances.
     wire: wgpu::RenderPipeline,
+    /// The render meshes (round SV1): alpha-tested, tinted.
+    visual: wgpu::RenderPipeline,
+    /// The render meshes into the selection mask (alpha-tested).
+    mask_visual: wgpu::RenderPipeline,
+    /// Edges into the selection mask (an object shown as edges or bounds).
+    mask_wire: wgpu::RenderPipeline,
 }
 
 fn mesh_layouts() -> [wgpu::VertexBufferLayout<'static>; 2] {
@@ -1199,6 +1764,15 @@ impl Renderer {
             None,
             &mask_targets,
         );
+        let mask_wire = pipeline(
+            "mask wire",
+            "vs_mesh",
+            "fs_mask_mesh",
+            &mesh_buffers,
+            lin,
+            None,
+            &mask_targets,
+        );
         let mask_line = pipeline(
             "mask line",
             "vs_line",
@@ -1208,6 +1782,53 @@ impl Renderer {
             None,
             &mask_targets,
         );
+        // the render meshes (round SV1): their vertices, the instances, and group 1's atlas and materials
+        let vis_layout = visual_layout(d);
+        let visual_pl = d.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("render meshes"),
+            bind_group_layouts: &[Some(&globals_layout), Some(&vis_layout)],
+            immediate_size: 0,
+        });
+        let [_, inst] = mesh_layouts();
+        let visual_buffers = [
+            Some(wgpu::VertexBufferLayout {
+                array_stride: VISUAL_VERTEX,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &VISUAL_ATTRIBUTES,
+            }),
+            Some(inst),
+        ];
+        let vpipeline = |label: &str,
+                         fs: &str,
+                         depth_stencil: Option<wgpu::DepthStencilState>,
+                         targets: &[Option<wgpu::ColorTargetState>]| {
+            d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&visual_pl),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_visual"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &visual_buffers,
+                },
+                primitive: wgpu::PrimitiveState {
+                    topology: tri,
+                    ..Default::default()
+                },
+                depth_stencil,
+                multisample: wgpu::MultisampleState::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some(fs),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets,
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
+        let visual = vpipeline("render mesh", "fs_visual", depth(true), &scene_targets);
+        let mask_visual = vpipeline("mask render mesh", "fs_mask_visual", None, &mask_targets);
         let composite = d.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("composite"),
             layout: Some(&comp_pl),
@@ -1244,6 +1865,9 @@ impl Renderer {
             mask_line,
             composite,
             wire,
+            visual,
+            mask_visual,
+            mask_wire,
         }
     }
 
@@ -1370,17 +1994,23 @@ impl Renderer {
             });
             pass.set_bind_group(0, &self.globals_bg, &[]);
             pass.set_vertex_buffer(1, scene.instance_buf.slice(..));
-            if scene.look.mode == ViewMode::Wireframe {
-                pass.set_pipeline(&self.wire);
-                let batches: Vec<(u32, Range<u32>)> = scene
-                    .batches
+            let edges = |batches: &[(u32, Range<u32>)]| -> Vec<(u32, Range<u32>)> {
+                batches
                     .iter()
                     .filter_map(|(m, r)| Some((*scene.edges.get(m)?, r.clone())))
-                    .collect();
-                draw_batches(&mut pass, &scene.meshes, &batches);
+                    .collect()
+            };
+            if scene.look.mode == ViewMode::Wireframe {
+                pass.set_pipeline(&self.wire);
+                draw_batches(&mut pass, &scene.meshes, &edges(&scene.batches));
             } else {
                 pass.set_pipeline(&self.mesh);
-                draw_batches(&mut pass, &scene.meshes, &scene.batches);
+                self.draw_mixed(&mut pass, scene, &scene.batches, &self.mesh, &self.visual);
+            }
+            // what is drawn as edges (round SV1: the collision over a mesh, wireframes, bounds)
+            if !scene.wire_batches.is_empty() {
+                pass.set_pipeline(&self.wire);
+                draw_batches(&mut pass, &scene.meshes, &edges(&scene.wire_batches));
             }
             if scene.line_count > 0 {
                 pass.set_pipeline(&self.line);
@@ -1401,7 +2031,22 @@ impl Renderer {
             if let Some(b) = &scene.mask_instance_buf {
                 pass.set_pipeline(&self.mask_mesh);
                 pass.set_vertex_buffer(1, b.slice(..));
-                draw_batches(&mut pass, &scene.meshes, &scene.mask_batches);
+                self.draw_mixed(
+                    &mut pass,
+                    scene,
+                    &scene.mask_batches,
+                    &self.mask_mesh,
+                    &self.mask_visual,
+                );
+                let edges: Vec<(u32, Range<u32>)> = scene
+                    .mask_wire_batches
+                    .iter()
+                    .filter_map(|(m, r)| Some((*scene.edges.get(m)?, r.clone())))
+                    .collect();
+                if !edges.is_empty() {
+                    pass.set_pipeline(&self.mask_wire);
+                    draw_batches(&mut pass, &scene.meshes, &edges);
+                }
             }
             if let Some(b) = &scene.mask_line_buf {
                 pass.set_pipeline(&self.mask_line);
@@ -1423,6 +2068,36 @@ impl Renderer {
             pass.draw(0..3, 0..1);
         }
         gpu.queue.submit([enc.finish()]);
+    }
+
+    /// Draws batches of collision, marker and render meshes, each with its pipeline (the render meshes with the
+    /// scene's atlas and materials); the pass starts with `plain` set.
+    #[allow(clippy::unused_self, reason = "one of the renderer's draw steps")]
+    fn draw_mixed(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        scene: &SceneGpu,
+        batches: &[(u32, Range<u32>)],
+        plain: &wgpu::RenderPipeline,
+        visual: &wgpu::RenderPipeline,
+    ) {
+        let mut on_visual = false;
+        for (m, range) in batches {
+            let Some(mesh) = scene.meshes.get(*m as usize) else {
+                continue;
+            };
+            if mesh.visual != on_visual {
+                if mesh.visual {
+                    let Some(bg) = &scene.visual_bg else { continue };
+                    pass.set_pipeline(visual);
+                    pass.set_bind_group(1, bg, &[]);
+                } else {
+                    pass.set_pipeline(plain);
+                }
+                on_visual = mesh.visual;
+            }
+            draw_batches(pass, &scene.meshes, &[(*m, range.clone())]);
+        }
     }
 
     /// The id drawn at a pixel: an entity's there, else the nearest entity's within `radius` pixels (thin lines and

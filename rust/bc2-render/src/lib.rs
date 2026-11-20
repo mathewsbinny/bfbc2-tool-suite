@@ -15,6 +15,8 @@
 //! - [`frame`]: the camera, the engine constants and the draw list of a frame.
 //! - [`post`]: DICE's own post-process shaders as full-screen passes; [`tonemap`]: the harness's CPU tonemap.
 //! - [`world`]: a level's whole drawable world (objects, group members, terrain, strips, water, post shaders).
+//! - [`simple`]: the same meshes as plain geometry with their alpha-tested parts and diffuse tints, for the editor's
+//!   simplified view (round SV1).
 //! - [`job`]: a frame as a job for the C++ harness (`shaderview`), for the pixel-for-pixel proofs.
 //! - `d3d` (Windows): the Direct3D 11 device that draws a frame (and its post passes) and reads it back.
 //!
@@ -39,6 +41,7 @@ pub mod live;
 pub mod material;
 pub mod placement;
 pub mod post;
+pub mod simple;
 pub mod terrain;
 pub mod tonemap;
 pub mod water;
