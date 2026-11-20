@@ -14,6 +14,7 @@
 //!       navparity|navregress|sample_all|harness|texqa ...
 //!                                             round O4: NavKit's driver and tools, the test harness, texqa
 //! bfbc2 --source-hash                        the Rust sources' fingerprint it was built from (bfbc2core.native)
+//! bfbc2 --version                            the suite's version (the VERSION file at the repository's root)
 //! ```
 //!
 //! Without a subcommand (or with an unknown one) it prints its usage to stderr and exits 2.
@@ -170,6 +171,10 @@ const SOURCE_HASH: &str = match option_env!("BC2_SOURCE_HASH") {
     None => "",
 };
 
+/// The suite's version: the `VERSION` file at the repository's root, read at build time (round P1, `CHANGELOG.md`).
+/// The file is one of the sources' fingerprint (`bfbc2core.native.sources`): a new version builds a new binary.
+const VERSION: &str = include_str!("../../../VERSION");
+
 const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      fbrbtool unpack|pack|list|big ...   FbrbTool's commands (bfbc2-fbrb-tool\\fbrbtool.py)\n  \
      dbxedit xml|edit|import|check|roundtrip|fixslots ...   DbxEdit's commands (bfbc2-dbx-tools\\dbxedit.py)\n  \
@@ -180,7 +185,8 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      navkit, prepare_level, levelobjects, ladders, ordercheck, navcompare ...   NavKit's driver, prepare and tools\n  \
      graphstats, hpdcheck, hpdview, detailed, navparity, navregress, sample_all ...   NavKit's other tools\n  \
      harness, texqa ...   round O4: the map and bot test harness, the texture QA\n  \
-     --source-hash   the Rust sources' fingerprint this binary was built from\n";
+     --source-hash   the Rust sources' fingerprint this binary was built from\n  \
+     --version   the suite's version\n";
 
 /// What one tool's run gave: exit code, stdout, stderr (lines ended by `\n`) and its log lines.
 struct Run {
@@ -272,6 +278,10 @@ fn main() -> ExitCode {
     };
     if first == "--source-hash" && rest.is_empty() {
         pystdio::emit(&format!("{SOURCE_HASH}\n"), "");
+        return exit(0);
+    }
+    if first == "--version" && rest.is_empty() {
+        pystdio::emit(&format!("bfbc2 {}\n", VERSION.trim()), "");
         return exit(0);
     }
     if let Some(t) = py_tool(first) {
