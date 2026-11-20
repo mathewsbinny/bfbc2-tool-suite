@@ -56,8 +56,9 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| P1 | `process-p1` | this file, `CHANGELOG.md` and `VERSION`, `RELEASING.md`, CI on every push and pull request (`.github/workflows/checks.yml`), `run_tests.py quick --no-game` |
-| E3d | `rust-e3d` | the map export for any map, era and mode: the target as project data (`Op::SetMode`), the closure under the target era's bundles, Install / Uninstall in the editor; the canary conversions (`EDITOR_ARCHITECTURE.md` 3.12) |
+| O5 | `rust-o5` | the last CLI batch: renderqa, xdiff, shaderdb, the BF1943 importer and console readers' command lines; the Python cores behind O3 / O4's hand-offs |
+| CT1 | `rust-ct1` | `bfbc2.exe culltree add` from 1.65 GB peak down, with a persistent cache |
+| E3d | `rust-e3d` | any map exported to any era (BFBC1 / BFBC2 / Vietnam / WW2) and any of its multiplayer modes; objects from other sets bring their bundles; era and mode as project settings, the mode layer as editable project data; Install / Uninstall in the editor; plain errors; the canary conversions (Rush to Conquest, Wake WW2 to BFBC2, Vietnam to WW2, Aurora to WW2 Conquest with WW2 objects, a squad mode; BFBC2 to WW2 Air Superiority pending that mode) |
 
 ## Queued
 
@@ -65,25 +66,24 @@ In priority order (above); the next rounds:
 
 | Round | What |
 |---|---|
-| O5 | the last CLI batch: renderqa, xdiff, shaderdb, the BF1943 importer and console readers' command lines; the Python cores behind O3 / O4's hand-offs |
 | Full tier + retire | the full test tier on main, then the Python twins retired (E4a-f, F0, F2a, F2b, F3, O1-O5 CLI Python) |
 | shaderdb reader | the shader database reader's port |
 | F4 | F3's leftovers (disasm header lines, audio decode / ffmpeg glue, hkpack objects with a handle-based Packfile, navsample_offline hulls, meshview's and texqa's readers, culltree's string table) |
-| culltree memory | `bfbc2.exe culltree add` from 1.65 GB peak down, with a persistent cache |
 | GUIs | Map Inspector, Navigation Studio, mesh viewer, DbxEditGUI, LevelDiff folded into the editor, then retired |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
 | Post-Rust | the 10 improvements |
-| Tests in Rust | the Python tests ported |
+| Tests in Rust | the Python tests ported, with a synthetic test corpus generated from the specification |
 | OPFOR quality 2 | mypy baselines to 0, the tests baseline |
+| V1, L1, A1 | the export's robustness: a compatibility / validation layer (plain errors, spec rules); DICE's placement tendencies studied on the stock maps, driving editor warnings ("stage 3 is 40 m from stage 2"); an optional auto shaping / layering of a mode's gameplay; exports regenerating path data with NavKit and the bot module |
+| Spec layers 3-4 | the engine subsystems; the suite's transformations (grows with each porting round) |
 | E4-E7 | gameplay tools, terrain sculpt and paint, vegetation, Create Level from a height map |
 | RenderDoc | exact sun, exposure and fog |
 | Docs, release | the wiki-style restructure, then the full suite release |
 
 ### Process (round P1's follow-ups)
 
-- Branch protection on `main` (require `checks` green): the user decides; not enabled.
-- The first tag: `v0.9.0` when this round is pushed (`RELEASING.md`).
+- Branch protection on `main`: off (the user's choice). `v0.9.0` is tagged; older versions stay untagged.
 - The game tier still runs only on the development PC (it needs the game copy); CI runs the quick tier's
   game-free entries.
 
@@ -99,6 +99,13 @@ In priority order (above); the next rounds:
 ## Done
 
 Most recent first; each round's details are in its commit messages and its `rust/BENCHMARKS.md` section.
+
+### Process and specification
+
+| Round | Date | What |
+|---|---|---|
+| SP1 | 2026-11-19 | the engine specification, layers 1-2 (`spec/`): 439 rules (250 verified, 48 implemented, 134 observed, 7 inferred), `spec/trace.py` checked by the quick tier |
+| P1 | 2026-11-19 | `ROADMAP.md`, `CHANGELOG.md`, `VERSION` 0.9.0 (tagged), `RELEASING.md`, CI (`checks.yml`), `run_tests.py quick --no-game` |
 
 ### The map editor (`rust/bc2-editor`, `rust/bc2-levelwrite`, `rust/bc2-render`)
 

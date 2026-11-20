@@ -43,7 +43,7 @@ graft = []
 audio = []
 bf1943 = []
 meshview = []
-cull = ["dep:bc2-levelwrite"]
+cull = ["dep:bc2-levelwrite", "caches"]
 # round O4's groups: NavKit's driver and prepare (navkit.py, prepare_level.py, levelobjects, ladders, ordercheck,
 # navcompare); NavKit's other tool command lines; the map and bot test harness; texqa
 navkit = []
