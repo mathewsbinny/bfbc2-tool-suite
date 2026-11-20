@@ -69,6 +69,23 @@ landed on `main`.
   fallback): `ShaderDb.parse`'s choice of byte order and layout and its messages, `pick_database` and
   `dx_from_name` are one Rust implementation shared by `shaderdb.py` and `bfbc2.exe shaderdb`; `load_levels` reads
   each level bundle's database list once instead of once per Dx.
+- **`bfbc2.exe` answers `--help` and usage errors in a console and with `COLUMNS` set** (round RT2): `caches`,
+  `convert`, `audio`, `shaderdb` (and its subcommands), `renderqa`, `xdiff`, `dbxparity`, `portparity` lay their
+  help out at the console's width as Python's argparse does, instead of handing the command line to the Python;
+  `texqa --help` too.
+- **More of the suite reads and converts in the Rust core only** (round RT2: their Python twins retired against
+  their recorded answers): the console converter's terrain, soot, mesh header / console layouts / decode / relayout,
+  mesh set reader, Havok wrapper and class scan, texture levels / decode / check; the menu tools' BIGF reader and
+  executable reader (`menucommon.parse_bigf`, `PEImage`); `navsample.load` (every version); the path-data mesh
+  walk (`hpdtool.mesh_layout` / `mesh_coverage`); the EA-XMA parts, XMA2 RIFF and EA-XAS blocks of `audio.py`; the
+  BF1943 importer's Havok port and MOPP code (`havokport`, `mopp`); `navtune`, `xmlinst`, NavKit's vehicle obstacle
+  distance and offline sampler's terrain blocks. They now need the Rust core (`BFBC2_PURE_PYTHON` no longer switches
+  them to Python). An input the core does not read (damaged data, a value of an unusual type) raises
+  `bfbc2core.native.Refused` (a `ValueError`, and the module's own error class where it has one) with a message in
+  the module's words; real files read as before.
+- **Error messages kept:** the path-data mesh walk raises the Python's own `ValueError` / `struct.error` messages
+  ("mesh trailer not found", "tile table at ...", reads past the end) from the Rust core, so `hpdtool coverage`
+  prints them as before (now without the Python); the EA framing raises `AudioError`'s messages.
 
 ### Removed
 - **Python twins retired (round RT1):** the command lines `bfbc2-auto-navkit\tools\graphstats.py` and
@@ -76,6 +93,14 @@ landed on `main`.
   brings them back), and the Python references `aimanim.parse_reference` / `write_reference` / `to_pc_reference`
   (with aimanim's `use_native` switch) and `navsample_offline.file_bytes_reference`. The answers they gave stay
   recorded as the tests' reference data.
+- **Python twins retired (round RT2):** the `*_reference` functions of `terrain`, `soot`, `mesh` (with
+  `mesh.use_native`), `meshset.parse`, `havok` (`classes_reference`, `convert_wrapper_reference`,
+  `use_native_wrapper`), `texture` (`levels`, `decode`, `check`), `menucommon` (`parse_bigf_reference`, `PEImage`'s),
+  `navsample` (`load_reference`, `use_native`), `hpdtool` (`mesh_layout_reference`, `mesh_coverage_reference`),
+  `audio` (`xma_parts_reference`, `xma2_riff_reference`, `_xas_blocks_reference`), `havokport` (14), `mopp` (5),
+  `navtune` (3), `xmlinst` (2), `navvehicle.obstacle_distance_reference` and
+  `navsample_offline.terrain_blocks_reference`. Their answers are recorded (`*_replay*.json` beside the tests,
+  `tests\f3_golden_*.json`) and the tests check the Rust core against them (`tests\replay.py`).
 
 ### Fixed
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /
