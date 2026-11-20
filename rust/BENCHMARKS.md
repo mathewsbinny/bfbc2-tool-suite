@@ -5242,3 +5242,145 @@ in-process steps one Rust implementation, and `load_levels` reads 89 bundle head
 - The reader for a `bytearray` / `memoryview` (its records keep the buffer's type) and the odd arguments above:
   the reference, by design.
 - `xenos.parse_shader`'s Python for blobs the Rust decoder refuses (damaged blobs; E3f / F4).
+
+## RT1: the full test tier, then the first Python twins retired (2026-11-20, branch `rust-rt1`)
+
+### Part 1: the full tier on main
+
+`python run_tests.py full -j 2 --mem 7` on `rust-rt1` at main `6a7dd68` (the module, `bfbc2.exe`, `bfbc2-editor.exe`
+and `mapexport.exe` built fresh from it; build root `rust-targets\bfbc2-tool-suite-rt1`), 2026-11-20 01:30-06:33:
+**231 of 232 passed in 18,110 s** (5 h 2 min). The one failure was caused by this round, not the code: while the
+tier ran, C: fell to 21 GB free and the round's own `debug` build folder (25 GB) was deleted to stay above the
+25 GB floor. The map editor's headless test had built its test binaries there, so cargo found
+`debug\build\...\factions-*.exe` missing ("never executed", os error 3). Run again alone
+(`run_tests.py full --only "map editor (rust), headless"`) it passed in 1,787 s. So **232 of 232** pass on main.
+
+The longest tests: FbrbTool's round trip of every game bundle 3,890 s; the Rust FBRB unpack against FbrbTool.exe's
+recorded unpacks 3,269 s; O5's command lines live with OPFOR's real calls 1,822 s; the cargo checks (fmt, clippy,
+the workspace's tests, after a rebuild of the debug folder) 1,801 s; F2a's console converter on every BF1943 / Xbox
+resource 1,666 s; DbxEditGUI's classes on the corpus 1,147 s; F2a's model tools 1,051 s; O3's command lines 902 s.
+NavKit's regression on every level with DICE path data took 447 s. Nothing flaky this run. The coordinator reports
+one earlier, load-related flake: O4's navtools failed once only because matplotlib printed "building the font
+cache" on stderr (the first run after a cache reset), and passed on a re-run.
+
+### Part 2: the inventory
+
+Every Python twin of the E4a-f, F0, F2a, F2b, F3 and O1-O5 rounds, what Rust answers, what still goes to Python,
+who imports it in process (the suite outside its tests, and Project OPFOR's `src\`), and its fate. "Hand-offs" are
+the places where `bfbc2.exe` gives the whole command line to the Python (`Fail::Python`, `pyproc::hand_off`) or a
+binding returns `None` and the Python reference answers.
+
+**Two rules that held for every candidate.**
+
+- **A command-line `.py` is usually also a library.** Of the 42 tools in `bfbc2core.native.CLI_TOOLS`, 28 are
+  imported in process by other suite modules or by OPFOR (`hpdtool` by 20 suite modules, `shaderdb` by 54 OPFOR
+  files, `meshview` by 47, `aptgraft` by 10, `bf1943import` by 27). Deleting the file would delete the library: those
+  stay until their library part moves (a thin module over `bc2_native`) - a later round per module.
+- **The hand-offs are not all damaged input.** 15 tools still do real work only in Python (below), and in a console
+  (or with `COLUMNS` set) `--help` and argparse's usage errors of `caches`, `convert`, `audio`, `shaderdb`, `renderqa`,
+  `xdiff`, `dbxparity`, `portparity` and `texqa` are handed off (argparse wraps to the terminal's width; the port
+  answers only the 80-column form). Retiring any of those needs the width port first.
+
+**The command lines (`CLI_TOOLS`)**
+
+| tool | Rust answers | still Python (hand-offs) | in-process users (suite / OPFOR) | fate |
+|---|---|---|---|---|
+| `graphstats` | everything but path data the core refuses | refused path data | none / none | **retired (RT1)** |
+| `prepare_level` | everything (the editor's prepare) | odd inputs before the first progress line | none (the editor ran it as a process) / none | **retired (RT1)** |
+| `fbrbtool`, `dbxedit` | everything (in process since R4) | none | `bfbc2core.fbrbtool` / `dbxedit` are the libraries; OPFOR's `merge_startup.ps1`, `campaign_fill.ps1`, `build_menus.bat` name `fbrbtool.py` as their fallback | keep: 23 / 26-line entry points over the Rust core, not twins |
+| `aptcheck`, `aptrefs`, `bc2loc`, `aptgraft`, `apt`, `stfs`, `xiso` | everything but damaged movies / packages / exe data, `lint` with wildcards first | damaged input | `aptrefs` imports `aptcheck`; `menucommon` imports `bc2loc`; OPFOR imports `aptgraft` (10), `bc2loc` (4), `apt`, `stfs` (2); the hub runs `stfs.py` / `xiso.py` | keep: libraries (OPFOR); `aptrefs` and `xiso` are the next CLI-only candidates (xiso's reader has a `BytesIO` path the Rust lacks) |
+| `exeref`, `crashreader` | everything on BFBC2Game.exe | x86 the decoder refuses (capstone answers), pefile errors, `BFBC2_CRASHREADER_REFERENCE=1` | `exeref` imports `crashreader`; OPFOR's testrun runs `crashreader.py` without the binary | keep: capstone covers other exes; a later round with the binary required |
+| `hpdtool`, `hkpack`, `aimanim`, `convert` | everything but cut / NaN / odd files; console-width usage (`convert`) | damaged input | `hpdtool` 20 suite modules + OPFOR; `hkpack` by `navsample_offline`; `aimanim` by OPFOR and `bf1943import`; `convert.manifest` by 3 tests | keep the files (libraries); their F3 references are below |
+| `caches`, `audio`, `shaderdb` | everything (shaderdb's 8 subcommands with merge) | console-width usage, damaged input | 11 suite modules (`caches`), OPFOR `audio` (2), `shaderdb` (54) | keep: libraries; the argparse width first |
+| `culltree`, `stockmp` | everything (OPFOR's real calls all Rust) | damaged trees / levels, config shapes the port leaves | tests only; OPFOR runs both through `cli_command` | keep this round: next candidates (`stockmp`'s config hand-offs need a look at real hand-written configs) |
+| `levelobjects`, `ladders`, `ordercheck`, `navcompare`, `hpdcheck` | everything but refused inputs | refused inputs | `navkit.py`, `navregress`, the harness, `stockmp.config` | keep: libraries of NavKit |
+| `detailed` | the choice (O5) | `--score` (evaluation) | `navkit.py`, `navregress`, `navsample_offline` | keep: `--score` |
+| `navkit` | `prepare`, `check`, `compare`, `status`, the tools | `build`, `apply`, `all`, `sample` | the hub, NavKit's GUI, Navigation Studio, 10 suite modules | keep: the build stays Python (O5's list) |
+| `navparity`, `navregress` | argument errors, "no reference run" | `run` / every regression build | 13 / 5 suite modules | keep: real work |
+| `hpdview` | argument checks | every drawing (matplotlib) | none | keep: real work |
+| `sample_all` | argument checks | starts the game | none | keep: by rule |
+| `harness` | everything but `run` | `run` (NumPy draws, NavKit builds) | tests | keep: real work |
+| `texqa` | the measures | the DICE copies, BF1943 sources, PIL contact sheets, all argparse help | OPFOR `qa_checks` | keep: real work |
+| `renderqa`, `xdiff` | argparse, the errors before drawing | every drawing (D3D11, NumPy, Pillow), the Xenos interpreter | OPFOR (4 each) | keep: real work |
+| `bf1943import`, `dbxparity`, `portparity`, `dbxcatalogue`, `meshview` | help, `list`, `find`, a current cache | import / check, the parity runs, the pickle cache build, the drawings | OPFOR (27 / 1 / 1 / 8 / 47) | keep: real work |
+
+**The library references (`*_reference`, `use_native`)**
+
+| module (round) | references -> Rust twin | still Python on real data? | recorded answers | fate |
+|---|---|---|---|---|
+| `aimanim` (F3) | `parse` / `write` / `to_pc_reference` -> `aimanim_*` | no (game, Xbox and BF1943 files: 0 refused) | `tests\f3_golden_aim.json` | **retired (RT1)** |
+| `hkpack` (F3, F4) | `Packfile.reference`, `_init_reference`, `_read_classes` -> `hkpack_parse` / F4's `hkpack_open` handle; F4's `read_value_reference` / `read_object_reference` | no | `f3_golden_hkpack.json`, `f4_golden_hkpack.json` | keep: retired on this branch, then put back when main's F4 (merged here) made the handle fall back to `_init_reference` and `test_f4_native` read its Python answers through it (the coordinator: F4's references stay this round) |
+| `navsample_offline.file_bytes` (F3) | `file_bytes_reference` -> `navkit_navsample_write` | no | `f3_golden_navsample.json` | **retired (RT1)** |
+| `navsample.load` (E3c / F3) | `load_reference` -> `navkit_navsample_parse` / `_v3` | no | version 3 only (`f3_golden_navsample`); versions 1 / 2 compared live | keep: record versions 1 / 2 first |
+| `hpdtool.mesh_layout` / `mesh_coverage` (F3) | -> `hpd_mesh_layout` / `_coverage` | no | `f3_golden_hpd.json` | keep: the binding returns `None` where the reference raises its diagnostic ("mesh trailer not found", "tile table at ..."), which `hpdtool verify` prints; port the messages first |
+| `audio.xma_parts` / `xma2_riff` / `_xas_blocks` (F3) | -> `audio_*` | no | `f3_golden_audio.json` | keep this round: same message question (the CLI hands damaged headers off) |
+| `xenos.disasm` (F3), `parse_shader_python` (E3f) | -> `xenos_disasm_body`, `bc2_shader::xenos` | trees whose microcode was read or edited | `f3_golden_disasm.json` | keep: `disasm` needs a path for edited trees; the decoder is kept by ruling (the translator's live reference) |
+| `shaderdb` queries (E4b), its reader (SD1) | -> `ShaderDbHandle`, `bc2_formats::shaderdb::open` | no (0 of 13.6 M answers) | E4b: none (live); SD1: `tests\sd1_golden_*.json` | keep: SD1 (merged here) made them its reference and fallback; they stay this round (the coordinator) |
+| `crashreader` / `exeref` `Image` / `Exe` (E4f) | -> `ExeHandle` | other exes (non-standard PE, unproved encodings) | CLI goldens only | keep: other exes |
+| `aptgraft`, `effectport`, `meshport`, `testharness.ingame`, `emitteratlas.dedupe` | (references of a faster Python algorithm, not of a Rust port) | - | - | keep: not twins |
+| `havokport`, `mopp`, `emitteratlas` (F2b), `terrain`, `mesh`, `skinmesh`, `texwrite`, `soot`, `granny` edits, `havok.convert_wrapper` (F2a), `audio` Wave / SPS, `bc2loc`, `menucommon`, `meshset`, `stfs`, `hpdtool.parse` / `write`, `kymesh` (F0), `navtune`, `xmlinst`, `dbxcatalogue` (F2b), `navsample_offline.terrain_blocks`, `navvehicle` (E4e) | -> each round's binding | no real-data fallback recorded (xmlinst: none needed a Unicode `\w`) | none: their tests compare live | keep: record goldens from the references first, then retire (the RT1 method below); a round of its own |
+| `texture` `tiled` / `packed` / `layout` | -> `texture_*` | `tiled` with NumPy arrays (texqa) | none | keep: texqa's independent decoder (R-rounds' ruling) |
+| `meshview._build_reference` | -> `meshview_index` | an unreadable bundle (it reports and skips) | CLI goldens | keep: move the skip-and-report into Rust first |
+
+### Part 2: how the twins were retired (the method)
+
+1. **Record first, from the reference.** The F3 goldens had one digest per group of inputs, the reference's answers
+   in order. They were recorded again (quick groups; a checkout of main `6a7dd68` with its own module, so the
+   references were there) with a second, *marked* digest: an input the Rust core refuses counts as `HANDED` whatever
+   the reference said, and the count of refused inputs is kept. The game groups recorded in F3 had no refused input,
+   so their digest is their marked one. `prepare_level` had no recording (its proof was live): `test_prepare_o4.py
+   --record` wrote `core\tests\prepare_o4_golden.json` from `prepare_level.py` itself (9 runs on sp_009, sp_004_b,
+   mp_005: exit codes, both streams, the 56,831 files under `work\` by sha256, the day logs).
+2. **Delete, then check against the recording alone.** A retired function must give the recorded answer on every
+   input the core answers and raise on exactly the inputs it refuses (`test_f3_native.py`, `RETIRED`). A retired
+   command line's lines are compared with their recording where Rust answers, and must end with the retirement
+   error where it handed off (`test_cli_o2.retired_check`).
+3. **What changes on purpose is listed, not hidden.** O2's goldens keep the retired Python's answers; the four lines
+   whose answer now differs are in `cli_o2_nav.NOW` with their new answer.
+
+**What a user sees.** `bfbc2core.native.RETIRED_CLI`: `cli_command(tool)` gives `[bfbc2.exe, tool]` or raises
+`CliMissing` ("needs the suite's command-line binary ... python rust\build_native.py --download ... or build it");
+`BFBC2_CLI_PYTHON=1` does not bring the Python back. `bfbc2.exe` never hands a retired tool off: a line its port does
+not read prints `bfbc2 <tool>: this command line is outside what the Rust port reads ... retired in round RT1` (exit
+code 1; `BFBC2_CLI_TRACE` records `retired`). The other tools keep the fallback. `build_native.py --download` now
+fetches `bfbc2.exe` with the module (native.yml publishes it), so the retired command lines work without Rust.
+
+### Part 2: the results
+
+| batch | what | proof |
+|---|---|---|
+| 1 (`839f91a`) | `graphstats.py`, `prepare_level.py` deleted; `RETIRED_CLI`, `CliMissing`, the retirement error in `bfbc2.exe`, the editor on the binary only, `--download` of `bfbc2.exe`, native.yml | `test_cli_o4.py` navtools 222 of 222 (graphstats 30 lines as recorded, 2 the retirement error), navkit 202 of 202 (prepare_level 22 as recorded); `test_prepare_o4.py --game` against the new recording: 9 runs, 56,831 files, the day logs as recorded, 9 of 9 answered by Rust (Rust 61.0 s, the Python 57.1 s when recorded: sp_009's first prepare 46.6 / 37.1 s on a busy PC, the rest 1.1-6.3 s against 1.5-7.8 s); `test_native_required.py` all passed (the download with a stand-in release: no `bfbc2.exe`, a wrong SHA-256, a file that does not run, the real one) |
+| 2 (`a5355ce`) | aimanim's and navsample_offline.file_bytes' references deleted (hkpack's put back at the F4 merge, `a6bed07`) | `test_f3_native.py`: aim 6,024 cases (3,113 answered in Rust as recorded, 2,911 refused and raising, as recorded), navsample 1,500 (784 / 716), the four other areas unchanged; `test_cli_o2.py --group nav` 336 of 336 (2 lines in `NOW`); `test_aimanim.py`, `test_navsample_offline.py`, `test_navbuild_native.py`, `test_geometry_native.py`, `test_f4_native.py` (7 of 7 after the merge) all passed |
+
+Retired on purpose, and what it changed (all on built or damaged inputs; no real input changed):
+
+- aim animations: of the 2,911 inputs the core refuses, the retired reference had answered 288 (NaN values in a
+  file or a dict, bone maps given as lists, damaged files it read without noticing): they now raise `AimError`. The
+  header's own problems keep the reference's words ("too short for an aim animation", "not an aim animation of the
+  known layout (version, size)").
+- navsample writes: of the 716 refused, the reference had written 135 changed samples (float64 heights, int32 flags,
+  a NaN normal); they now raise `ValueError` naming the dtypes the writer takes.
+- `bfbc2.exe aimanim` on a file with a NaN (alone and on one pipe) now ends with the reader's error.
+
+**OPFOR** (not changed; its in-process imports of the suite checked against this branch through a toolkit folder
+whose `bfbc2-tool-suite` is a junction to the worktree, `OPFOR_TOOLKIT` and `OPFOR_ROOT` set):
+`src\tools\tests\run_tests.py` 380 of 380 passed. No OPFOR file imports a retired name (`aimanim.*_reference`,
+`navsample_offline.file_bytes_reference`, `graphstats`, `prepare_level`); `weapon_preview.py` and `bf1943_weapons.py`
+use `aimanim.parse` / `to_pc`, which keep their signatures. OPFOR's mypy reads the suite at `..\bfbc2-tool-suite`
+(its `mypy_path`), so its baseline is unchanged by this branch until merged; ruff unchanged (no OPFOR file changed).
+The WW2 rebuild on this branch (`python src\tools\ww2\rebuild_all.py --no-qa` in OPFOR, the same toolkit folder): all 52
+steps in 21 min, 10,852 files hashed, **10,852 of 10,852 identical** to the oracle (`round0\hashes_oracle.json`;
+saved as `hashes_rt1.json`). `game\` unchanged: 1,582 files, every size and write time the same before and after.
+
+### Left for later rounds
+
+- The next retirements, by the same method: record goldens for the live-compared references (F0, F2a, F2b, E4b,
+  E4e) and retire them; `navsample.load`'s versions 1 / 2; the hpd / audio F3 functions once their bindings carry
+  the reference's error messages; the CLI-only files `aptrefs`, `xiso` (with a bytes entry point), `culltree`,
+  `stockmp`, `exeref` / `crashreader` (with the binary required).
+- argparse's console width in the Rust argument parser (the hand-off every help screen in a terminal takes for 9
+  tools).
+- Library modules that are also command lines: split the library from the `.py` entry point (or make it a thin
+  module over `bc2_native`) so the entry point can go.
+- The module text of `aimanim.py` (its usage, printed by `bfbc2.exe aimanim` and recorded) still names the retired
+  references; change it with the recording (O2's goldens hold it).

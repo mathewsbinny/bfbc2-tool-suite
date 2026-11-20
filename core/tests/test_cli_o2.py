@@ -288,6 +288,24 @@ def run(cmd: list[str], pl: Place, files: dict[str, Any], args: list[str], env: 
         took, pl.who()
 
 
+RETIRED = native.RETIRED_CLI       # round RT1: their .py is gone; bfbc2.exe answers alone
+RETIRED_MARK = 'was retired in round RT1'
+
+
+def retired_check(tool: str, golden: dict[str, Any] | None, got: dict[str, Any], who: str) -> str:
+    """A retired tool's line (round RT1): '' when it passes, else why. A line the Rust answers must still give the
+    recorded answer; a line it handed to the Python when recorded (who 'retired' now) must end with the retirement
+    error (exit code 1, the message on stderr) - the recorded Python answer stays in the golden as the record of
+    what the retired command line said there."""
+    if who == 'retired':
+        text = got.get('err', '') + got.get('out', '')
+        return '' if got.get('code') == 1 and RETIRED_MARK in text else \
+            f'{tool}: expected the retirement error, got exit {got.get("code")}: {text[-200:]!r}'
+    if golden is None:
+        return 'not recorded'
+    return diff(golden, got)
+
+
 def commands(exe: str) -> dict[str, Callable[[str], list[str]]]:
     return {'rust': lambda tool: [exe, tool],
             'python': lambda tool: [sys.executable, os.path.join(REF, os.path.relpath(SCRIPTS[tool], SUITE))]}
@@ -307,6 +325,8 @@ def run_all(rows: list[Case], sides: list[str], exe: str
     def worker(k: int) -> None:
         for key, tool, files, args, env, merged in chunks[k]:
             for side in sides:
+                if side == 'python' and tool in RETIRED:
+                    continue                             # no Python command line any more (round RT1)
                 r, took, w = run(cmd[side](tool), places[k], files, args, env, merged)
                 results[side + '|' + key] = r
                 times[side] += took
@@ -465,13 +485,16 @@ def main(argv: list[str]) -> int:
         sides = ['rust', 'python'] if '--live' in argv else ['rust']
         results, times, who = run_all(rows, sides, exe)
         golden = load_golden(group)
+        now = getattr(mod, 'NOW', {})    # round RT1: lines whose answer changed on purpose (a retired reference)
         bad, live_bad, missing = [], [], []
         for key in keys:
             got = results['rust|' + key]
             if key not in golden:
                 missing.append(key)
-            elif why := diff(golden[key], got):
+            elif why := diff({**golden[key], **now[key]} if key in now else golden[key], got):
                 bad.append(f'{key}: {why}')
+            if '--now' in argv and key in now:
+                print(f'     now: {key}: {json.dumps({k: got[k] for k in got if got[k] != golden[key].get(k)})}')
             if 'python' in sides and (why := diff(results['python|' + key], got)):
                 live_bad.append(f'{key}: {why}')
         tools = sorted({r[1] for r in rows})

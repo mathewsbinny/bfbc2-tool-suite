@@ -156,8 +156,9 @@ Guadalcanal against DbxEdit and the Python `dbxbin` reference: `rust/BENCHMARKS.
   or a `project-opfor-bfbc2` folder beside or above the suite). Click one to open it. A level NavKit has not
   prepared yet, or whose terrain unpack is missing or older than its bundle, is **prepared first, in the editor**:
   "Preparing MP_005 - Step 2 of 4: Unpacking the level", a progress bar, the tools' last line and Cancel, then the
-  map opens. The steps are the suite's own, run by `rust\bc2-editor\prepare_level.py` with Python
-  (`BFBC2_PYTHON`, else `python`, else `py -3`): NavKit's prepare (the shared bundles, the level's bundles, its
+  map opens. The steps are the suite's own, run by `bin\bfbc2.exe prepare_level` (its Python twin
+  `prepare_level.py` was retired in round RT1: the editor needs `python rust\build_native.py`, or `--download`, once):
+  NavKit's prepare (the shared bundles, the level's bundles, its
   objects, collision and spawn points; 10 - 60 s since round E4e) and the Map Inspector's terrain unpack. They write
   only OPFOR's `work\levels\<level>` and `work\navkit`, never the game copy; a failure is said in plain words on the
   start screen.

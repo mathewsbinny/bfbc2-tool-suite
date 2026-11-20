@@ -1058,33 +1058,21 @@ def _write_args(s):
 
 
 def file_bytes(s):
-    """The version-3 file's bytes: in the Rust core when it is built (round F3: navkit_navsample_write, the same
-    bytes; where the reference would raise, a normal is a NaN, or an array is of another dtype or shape, the Python
-    runs), else file_bytes_reference."""
-    nat = navsample._native
-    if nat is not None and hasattr(nat, 'navkit_navsample_write'):
-        args = _write_args(s)
-        got = nat.navkit_navsample_write(*args) if args is not None else None
-        if got is not None:
-            return got
-    return file_bytes_reference(s)
-
-
-def file_bytes_reference(s):
-    """The Python (the reference)."""
-    counts = np.diff(s.start)
-    if len(counts) and counts.max() > 255:
+    """The version-3 file's bytes, written in the Rust core (round F3: navkit_navsample_write; its Python twin was
+    retired in round RT1, its answers kept in tests\\f3_golden_navsample.json). Samples the writer does not take - a
+    column of more than 255 surfaces, a NaN normal, an array of another dtype or shape (y, normal: float32; flags:
+    uint8; start: int64; hit: uint32, n x 3), a header value out of range - raise ValueError."""
+    from bfbc2core import native
+    nat = native.require('writing navsample files (round F3)', 'navkit_navsample_write')
+    start = getattr(s, 'start', None)
+    if isinstance(start, np.ndarray) and len(start) > 1 and np.diff(start).max() > 255:
         raise ValueError('more than 255 surfaces in a column')
-    hdr = navsample.HEADER.pack(b'ONS1', 3, float(s.pitch), float(s.min_x), float(s.min_z), int(s.nx), int(s.nz),
-                                float(s.y_top), float(s.y_bottom), float(s.radius), float(s.cap_bottom),
-                                float(s.cap_top), float(s.ray_radius), 0)
-    rec = np.zeros(len(s.y), np.dtype([('y', '<f4'), ('n', 'i1', 3), ('f', 'u1'), ('h', '<u4', 3)]))
-    rec['y'] = s.y
-    rec['n'] = np.clip(np.rint(s.normal * 127), -127, 127).astype(np.int8)
-    rec['f'] = s.flags
-    rec['h'] = s.hit if s.hit is not None and len(s.hit) else 0
-    body = rec.tobytes()
-    return hdr + body + counts.astype(np.uint8).tobytes() + struct.pack('<Q', len(hdr) + len(body)) + b'CNT3'
+    args = _write_args(s)
+    got = nat.navkit_navsample_write(*args) if args is not None else None
+    if got is None:
+        raise ValueError('the samples cannot be written: a NaN normal, an array of another dtype or shape (y, normal: '
+                         'float32; flags: uint8; start: int64; hit: uint32, n x 3) or a header value out of range')
+    return got
 
 
 # --- comparison with an in-game file ---------------------------------------------------------------------------------
