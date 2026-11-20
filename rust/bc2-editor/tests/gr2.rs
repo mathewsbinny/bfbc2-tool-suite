@@ -327,7 +327,11 @@ fn edit_build_install_restore_on_a_scratch_copy() {
         }
         found.expect("two nodes of one sector")
     };
-    let mid = [(na[0] + nb[0]) / 2.0, (na[1] + nb[1]) / 2.0, (na[2] + nb[2]) / 2.0];
+    let mid = [
+        f64::midpoint(na[0], nb[0]),
+        f64::midpoint(na[1], nb[1]),
+        f64::midpoint(na[2], nb[2]),
+    ];
     for vp in app.view_mut().unwrap().viewports.values_mut() {
         vp.camera.focus(mid, Some(60.0));
     }
