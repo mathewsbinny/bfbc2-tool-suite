@@ -150,16 +150,23 @@ def download() -> None:
     import build_native as bn
     data = open(PYD, 'rb').read()
     good_sha = hashlib.sha256(data).hexdigest()
-    saved = (bn.TARGET, native.STAMP, bn._get)
+    saved = (bn.TARGET, native.STAMP, bn._get, native.BIN)
+    exe = native.cli_exe()                 # this checkout's bfbc2.exe, served as the release's (round RT1)
+    exe_data = open(exe, 'rb').read() if exe else None
     with tempfile.TemporaryDirectory() as tmp:
         try:
             bn.TARGET = os.path.join(tmp, os.path.basename(PYD))
             native.STAMP = os.path.join(tmp, 'bc2_native.json')
+            native.BIN = os.path.join(tmp, 'bin')
             asked: list[str] = []
 
-            def serve(sha: str, body: bytes):
+            def serve(sha: str, body: bytes, exe_sha: str | None = None, exe_body: bytes | None = None):
                 def get(url: str) -> bytes:
                     asked.append(url)
+                    if '/bfbc2.exe' in url:
+                        if exe_body is None:
+                            raise urllib.error.HTTPError(url, 404, 'Not Found', {}, io.BytesIO())  # type: ignore[arg-type]
+                        return f'{exe_sha}  bfbc2.exe\n'.encode() if url.endswith('.sha256') else exe_body
                     if url.endswith('.sha256'):
                         return f'{sha}  bc2_native.pyd\n'.encode()
                     return body
@@ -181,14 +188,66 @@ def download() -> None:
             check(ok and stamp.get('origin') == 'download' and stamp.get('source_hash') == native.checkout_fingerprint(),
                   f'download: the module installed with its stamp ({stamp.get("origin")})')
             fp = native.checkout_fingerprint() or ''
-            check(all(f'/releases/download/native-{fp[:12]}/bc2_native.pyd' in u for u in asked) and len(asked) == 2,
+            mod_urls = [u for u in asked if 'bfbc2.exe' not in u]
+            check(all(f'/releases/download/native-{fp[:12]}/bc2_native.pyd' in u for u in mod_urls) and len(mod_urls) == 2,
                   f'download: the release of the checkout\'s fingerprint ({asked[:1]})')
+            check(not os.path.exists(native.bin_path('bfbc2')),
+                  'download: a release without bfbc2.exe (made before round RT1) installs the module only')
+            if exe_data is None:
+                print('skipped the bfbc2.exe download checks: bin\\bfbc2.exe is not built from this checkout')
+                return
+            bn._get = serve(good_sha, data, '0' * 64, exe_data)
+            check(bn.download() == 1 and not os.path.exists(native.bin_path('bfbc2')),
+                  'download: a bfbc2.exe with a wrong SHA-256 is not installed')
+            junk = b'MZ not a program'
+            bn._get = serve(good_sha, data, hashlib.sha256(junk).hexdigest(), junk)
+            check(bn.download() == 1 and not os.path.exists(native.bin_path('bfbc2')),
+                  'download: a bfbc2.exe that does not run is not installed')
+            bn._get = serve(good_sha, data, hashlib.sha256(exe_data).hexdigest(), exe_data)
+            ok = bn.download() == 0 and open(native.bin_path('bfbc2'), 'rb').read() == exe_data
+            py_txt = os.path.join(native.BIN, 'python.txt')
+            check(ok and bn.binary_hash(native.bin_path('bfbc2')) == fp and os.path.isfile(py_txt),
+                  'download: bfbc2.exe installed in bin\\ with its source hash, bin\\python.txt written')
         finally:
-            bn.TARGET, native.STAMP, bn._get = saved
+            bn.TARGET, native.STAMP, bn._get, native.BIN = saved
+
+
+def retired_cli() -> None:
+    """Round RT1: a retired command line (native.RETIRED_CLI) has only bfbc2.exe - without it cli_command raises
+    CliMissing saying how to get it (BFBC2_CLI_PYTHON=1 does not bring back a Python); a tool that still has its
+    Python falls back to it."""
+    saved_env = os.environ.get(native.CLI_PYTHON_ENV)
+    try:
+        native._cli['exe'] = None                       # as if bin\bfbc2.exe were missing
+        for tool in sorted(native.RETIRED_CLI):
+            check(not os.path.exists(native.CLI_TOOLS[tool]), f'retired: {tool}\'s Python command line is gone')
+            for env in (None, '1'):
+                if env is None:
+                    os.environ.pop(native.CLI_PYTHON_ENV, None)
+                else:
+                    os.environ[native.CLI_PYTHON_ENV] = env
+                try:
+                    native.cli_command(tool)
+                    v = 'no error'
+                except native.CliMissing as e:
+                    v = str(e)
+                check('--download' in v and 'retired' in v and 'bfbc2.exe' in v,
+                      f'retired: {tool} without bfbc2.exe ({native.CLI_PYTHON_ENV}={env}): CliMissing saying how to '
+                      f'get it ({v[:80]})')
+        os.environ.pop(native.CLI_PYTHON_ENV, None)
+        check(native.cli_command('hpdview') == [sys.executable, native.CLI_TOOLS['hpdview']],
+              'retired: a tool that keeps its Python falls back to it without bfbc2.exe')
+    finally:
+        if saved_env is None:
+            os.environ.pop(native.CLI_PYTHON_ENV, None)
+        else:
+            os.environ[native.CLI_PYTHON_ENV] = saved_env
+        native.reset()
 
 
 def main() -> int:
     fingerprints()
+    retired_cli()
     if not os.path.isfile(PYD):
         print('skipped the module checks: the Rust core is not built (python rust\\build_native.py)')
         return 1 if FAILS else 0

@@ -54,7 +54,8 @@ jobs:
           "hash=$fp" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
           gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name' > assets.txt 2>$null
-          $published = (Test-Path assets.txt) -and ((Get-Content assets.txt) -contains 'bc2_native.pyd')
+          $published = (Test-Path assets.txt) -and ((Get-Content assets.txt) -contains 'bc2_native.pyd') -and
+                       ((Get-Content assets.txt) -contains 'bfbc2.exe')
           "published=$($published.ToString().ToLower())" >> $env:GITHUB_OUTPUT
           Write-Output "sources $fp -> $tag (published already: $published)"
           $global:LASTEXITCODE = 0
@@ -109,19 +110,26 @@ jobs:
           $sha = (Get-FileHash -Algorithm SHA256 dist/bc2_native.pyd).Hash.ToLower()
           [IO.File]::WriteAllText("$PWD/dist/bc2_native.pyd.sha256", "$sha  bc2_native.pyd`n")
           Copy-Item core/bfbc2core/bc2_native.json dist/bc2_native.json
+          # round RT1: the command-line binary too (the command lines whose Python was retired have only it)
+          Copy-Item bin/bfbc2.exe dist/bfbc2.exe
+          $exe_sha = (Get-FileHash -Algorithm SHA256 dist/bfbc2.exe).Hash.ToLower()
+          [IO.File]::WriteAllText("$PWD/dist/bfbc2.exe.sha256", "$exe_sha  bfbc2.exe`n")
+          $assets = @('dist/bc2_native.pyd', 'dist/bc2_native.pyd.sha256', 'dist/bc2_native.json',
+                      'dist/bfbc2.exe', 'dist/bfbc2.exe.sha256')
           $short = $env:GITHUB_SHA.Substring(0, 7)
           $notes = @"
-          Prebuilt Rust core (``bc2_native.pyd``) for the BFBC2 Tool Suite.
+          Prebuilt Rust core (``bc2_native.pyd``) and command-line binary (``bfbc2.exe``) for the BFBC2 Tool Suite.
 
           | | |
           |---|---|
           | Platform | Windows 64-bit, Python 3.12 or later |
           | Built from | commit $short |
           | Source fingerprint | ``$($env:HASH.Substring(0, 12))`` |
-          | SHA-256 | ``$sha`` |
+          | SHA-256 (module) | ``$sha`` |
+          | SHA-256 (bfbc2.exe) | ``$exe_sha`` |
 
-          **Install:** run ``python rust\build_native.py --download`` from the suite folder. It downloads this module
-          when your checkout's Rust sources match the fingerprint above; otherwise build it locally with
+          **Install:** run ``python rust\build_native.py --download`` from the suite folder. It downloads both
+          when your checkout's Rust sources match the fingerprint above; otherwise build them locally with
           ``python rust\build_native.py``. See the README, "The Rust core".
 
           Only the newest build is kept as a release.
@@ -129,11 +137,9 @@ jobs:
           gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE) {
             gh release create $env:TAG --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
-              --title "Rust core ($short)" --notes $notes --latest `
-              dist/bc2_native.pyd dist/bc2_native.pyd.sha256 dist/bc2_native.json
+              --title "Rust core ($short)" --notes $notes --latest @assets
           } else {
-            gh release upload $env:TAG --repo $env:GITHUB_REPOSITORY --clobber `
-              dist/bc2_native.pyd dist/bc2_native.pyd.sha256 dist/bc2_native.json
+            gh release upload $env:TAG --repo $env:GITHUB_REPOSITORY --clobber @assets
           }
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 

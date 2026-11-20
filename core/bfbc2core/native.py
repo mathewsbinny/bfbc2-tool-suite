@@ -203,9 +203,9 @@ def status() -> str:
 
 def _fix() -> str:
     py = os.path.basename(sys.executable).removesuffix('.exe') or 'python'
-    return (f'Get the right one with "{py} {BUILD} --download" (the prebuilt module for this checkout: Windows, '
-            f'64-bit Python 3.12 or later) or build it with "{py} {BUILD}" (needs Rust and maturin: README.md, '
-            f'"The Rust core").')
+    return (f'Get the right one with "{py} {BUILD} --download" (the prebuilt module and bfbc2.exe for this '
+            f'checkout: Windows, 64-bit Python 3.12 or later) or build it with "{py} {BUILD}" (needs Rust and '
+            f'maturin: README.md, "The Rust core").')
 
 
 def require(what: str, attr: str | None = None) -> ModuleType:
@@ -364,10 +364,34 @@ def cli_exe() -> str | None:
     return _cli['exe']
 
 
+# Round RT1 (2026-11-20): the command lines whose Python was retired - bfbc2.exe answers them alone, and the
+# lines its port does not read (damaged or unusual input) end with an error instead of the hand-off to the Python.
+# Their CLI_TOOLS paths stay as the record of the file each one ported (it no longer exists).
+RETIRED_CLI = frozenset({'graphstats', 'prepare_level'})
+
+
+class CliMissing(NativeMissing):
+    """A retired command line needs bin\\bfbc2.exe built (or downloaded) from this checkout's Rust sources."""
+
+
+def _cli_why() -> str:
+    exe = find_binary('bfbc2')
+    if exe is None:
+        return 'bin\\bfbc2.exe is not built or downloaded'
+    return f'{exe} was built from other Rust sources than this checkout has'
+
+
 def cli_command(tool: str) -> list[str]:
     """The command line that runs a ported tool (CLI_TOOLS): [bfbc2.exe, tool] when the binary is built from this
     checkout, else (or with BFBC2_CLI_PYTHON=1) [python, the tool's .py] - the same arguments, output and exit
-    codes either way (rust/BENCHMARKS.md, "O1")."""
+    codes either way (rust/BENCHMARKS.md, "O1"). A retired tool (RETIRED_CLI: its .py deleted in round RT1) has
+    only the binary: without it CliMissing says how to get it (BFBC2_CLI_PYTHON does not apply)."""
     script = CLI_TOOLS[tool]
+    if tool in RETIRED_CLI:
+        exe = cli_exe()
+        if exe is None:
+            raise CliMissing(f'bfbc2 {tool} needs the suite\'s command-line binary (its Python command line was '
+                             f'retired): {_cli_why()}. {_fix()}')
+        return [exe, tool]
     exe = None if os.environ.get(CLI_PYTHON_ENV, '').strip() == '1' else cli_exe()
     return [exe, tool] if exe else [sys.executable, script]
