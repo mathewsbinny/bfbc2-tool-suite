@@ -5157,3 +5157,87 @@ under load and passes alone.
 **Not ported, left for a later round:** `xenos.disasm_instruction`, `audio.ffmpeg_decode_xas`, hkpack's
 dict-returning helpers (see the notes above); a tie-aware port of NumPy's SIMD argsort, if the five Railway_Switch
 hulls ever matter; the `*_reference` functions until a full tier retires them.
+
+## SD1: the shader database reader, end to end (2026-11-20, branch `rust-sd1`)
+
+What the queue called "the shaderdb reader port" was mostly done before this round: E1c put the record reader and
+writer in Rust (`bc2_formats::shaderdb::parse` / `write`), E4b kept a parsed database in a `ShaderDbHandle`, E3f / F4
+read the Xenos containers inside Xbox programs (`xenos.parse_shader`, `bc2_shader::xenos`), and `bc2-render`, the
+editor and `meshindex` already call the same `shaderdb::parse`. What was still Python in process was how a database
+is found and opened: `ShaderDb.parse`'s dispatch (the byte order from the first bytes, Dx9 then Dx10 / Dx11, the
+messages), `pick_database` and `dx_from_name`. `bfbc2.exe shaderdb` (O5) had its own Rust copy of the three.
+
+### What moved
+
+| Python (`shaderdb.py`) | binding | Rust |
+|---|---|---|
+| `ShaderDb.parse` (the dispatch and the reader in one call; the database kept in a `ShaderDbHandle`) | `shaderdb_open` | `bc2_formats::shaderdb::open::open` |
+| `pick_database` (after `bundle_databases`) | `shaderdb_pick` | `open::pick_database` |
+| `dx_from_name` (the search of the base name) | `shaderdb_dx_in_name` | `open::dx_in_name` |
+
+- One implementation: `bc2-cli`'s `parse_kind`, `pick_database` and `dx_from_name` now call `open` (its copies gone).
+  The CLI's pick lower-cased bundle entry names as ASCII where Python lower-cases latin-1; the shared code lower-cases
+  latin-1 and hands a name past U+00FF to the Python (none in the game copy).
+- The Python stays the reference and fallback: `ShaderDb.parse_reference` (the dispatch over `_parse_reference`, the
+  `_Reader` code), `pick_database_reference`, `dx_from_name_reference`; `use_native(False)`, `BFBC2_PURE_PYTHON=1`.
+  A binding answers `None` for what only the Python takes (`dx` not an `int` within `u32`, `big_endian` not a
+  `bool`, a `str` subclass or one with a lone surrogate, a `bytearray` / `memoryview`).
+- `load_levels` reads each level bundle's database list once instead of once per Dx (`_pick` with the list given).
+- **Fixed:** `ShaderDb._parse` sent any `dx` to the handle: a float, negative or huge `dx` raised `TypeError` /
+  `OverflowError` where the Python reads the file (with the Dx10 layout, as any `dx` but 9). Found by the goldens
+  (21 of the quick tier's answers differed on the starting commit between its Rust and its Python).
+
+### Proof (`tests/test_sd1_native.py`; goldens from a frozen copy of `102165d`, its Python via `use_native(False)`)
+
+| area | inputs | result |
+|---|---|---|
+| parse, game | 745 databases: 436 in the game copy's and OPFOR's Xbox bundles, 5 BF1943, 304 OPFOR work files (`work/ww2`, `work/levels`); each with its kind, none, the other layout, and 6 damaged copies (cut, bytes changed) with none and its kind | **11,175 answers identical** (values or the same error), all 11,175 answered in Rust; 745 of 745 golden groups as recorded |
+| parse, quick | built Dx9 / 10 / 11 / Xbox v120 / v117 databases, every kind of `dx`, `big_endian`, `where` and buffer, 40 mutations each, short files | 2,112 identical; 2,056 in Rust, 56 handed back (bytearray, memoryview, float / bool / negative / huge `dx`, `big_endian=1`, a surrogate) |
+| pick, game | 148 bundles x Dx9 / 10 / 11 x their entries (none, each database's name, folder, case) | 10,068 identical, all in Rust |
+| pick, quick | 6 built bundles (one per arrangement), Dx9-12, latin-1 and non-latin-1 entries | 433 identical; 385 in Rust, 48 handed back (entries past U+00FF) |
+| load, game | `load_levels` of all 89 levels x Dx9 / 10 / 11 (and an unknown level), `load` of `level:` / bundle / file specs | 126 identical (inner calls: 357 parses and 349 picks, every one in Rust); 66 golden groups as recorded |
+| load, quick | built files and bundles, wrong-kind names, missing files | 208 identical |
+| names | 861 real database names and paths, 19 made-up | all identical; 1 handed back (a surrogate) |
+| `--live` | the whole game tier again with `BFBC2_PURE_PYTHON=1` | 970 of 970 groups the same |
+
+- **OPFOR's WW2 shaders step, in process** (`wake_shaders.merge_stock(wanted, out)` imported from OPFOR, each WW2
+  level's `needs_bfbc2.txt`, the suite found through `OPFOR_TOOLKIT`; the game copy read only, outputs to scratch):
+  the frozen copy, this round, and this round with `BFBC2_PURE_PYTHON=1`: **24 of 24 files byte-identical** (the
+  Dx9 / 10 / 11 databases and `.merge.txt` reports of four levels).
+- **OPFOR's `console_shaders` calls and O5's goldens** (`core/tests/test_cli_o5.py --group shader --live --game`):
+  322 of 322 recorded lines as recorded (shaderdb 252 in Rust); the Python command lines both ways the same; the 30
+  real calls (`needs` and Dx9 / 10 / 11 `merge` of the four Onslaught levels, `info level:`, `cover`, `roundtrip
+  --levels`, `find`) each alone and on one pipe: Rust answered every one as the Python did.
+- Checks: `cargo fmt`; `cargo clippy -p bc2-formats -p bc2-py -p bc2-cli --all-targets --all-features -D warnings`;
+  `cargo test --release -p bc2-formats -p bc2-cli --all-features`; ruff and mypy on the changed Python;
+  `spec/trace.py --check` (the `shaderdb.rs` citations after line 29 moved one line; SHDB-HDR-3 and SHDB-X-1 cite
+  `open.rs` and the test).
+
+### Timings (`rust/bench_sd1.py`, best of 5, `load_levels` best of 3; the game copy, a quiet machine)
+
+| | before (102165d) | SD1 | Python (`BFBC2_PURE_PYTHON=1`) |
+|---|---:|---:|---:|
+| `ShaderDb.parse` mp_005 Dx9 | 1.33 ms | 1.35 ms | 32.1 ms |
+| `ShaderDb.parse` mp_005 Dx10, no kind given (Dx9 tried first) | 1.57 ms | 1.43 ms | 49.6 ms |
+| the same cut in half (both layouts fail) | 0.27 ms | 0.30 ms | 22.5 ms |
+| `pick_database` (a bundle header read each call) | 0.353 ms | 0.352 ms | 0.343 ms |
+| `dx_from_name` | 1.55 us | 1.21 us | 1.61 us |
+| `load('level:mp_005', 11)` | 15.1 ms | 14.5 ms | 44.8 ms |
+| `load_levels`, 89 levels x Dx9 / 10 / 11 | 2.36 s | **2.09 s** | 10.4 s |
+| peak working set of the bench | 1,066 MB | 1,116 MB | 1,579 MB |
+
+OPFOR's `merge_stock` per WW2 level: 2.8-5.5 s in Rust (the frozen copy 3.2-4.1 s; the shared machine's noise),
+9.7-10.7 s in Python. The gains are small by design: the reader itself was Rust already; this round makes the last
+in-process steps one Rust implementation, and `load_levels` reads 89 bundle headers instead of 267.
+
+### Still Python, and why
+
+- `resolve` / `load`'s spec parsing (`level:`, `<bundle>:<entry>`, the `.fbrb` pattern), `level_bundles`,
+  `find_opfor`, `bundle_databases`: path glue over `os.path` (the CLI's twins follow `pyos`'s Python path rules in
+  `bc2-cli`); the bundle reads under them are Rust already. Nothing to gain in process.
+- `Merger` (records, `clone_entry`, `retexture`, `finish`) in process: OPFOR changes `base.entries` / `groups` /
+  `programs` between merges, so the database would have to live on the Rust side end to end (E4b's note). The
+  command line's merge is Rust (O5).
+- The reader for a `bytearray` / `memoryview` (its records keep the buffer's type) and the odd arguments above:
+  the reference, by design.
+- `xenos.parse_shader`'s Python for blobs the Rust decoder refuses (damaged blobs; E3f / F4).
