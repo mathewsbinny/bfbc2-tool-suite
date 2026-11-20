@@ -27,6 +27,8 @@ pub const ID_NONE: u32 = 0;
 pub const ID_TERRAIN: u32 = u32::MAX - 1;
 /// The water's id.
 pub const ID_WATER: u32 = u32::MAX - 2;
+/// The overlay meshes' id (the AI workspace's walkable ground, round GR2): a click there is on the ground.
+pub const ID_NAV: u32 = u32::MAX - 3;
 
 /// The id an entity is drawn with.
 #[must_use]
@@ -37,7 +39,7 @@ pub fn entity_id(index: usize) -> u32 {
 /// The entity an id stands for.
 #[must_use]
 pub fn id_entity(id: u32) -> Option<usize> {
-    (id != ID_NONE && id < ID_WATER).then(|| id as usize - 1)
+    (id != ID_NONE && id < ID_NAV).then(|| id as usize - 1)
 }
 
 /// The colour target's format (gamma-space values, as egui draws).
@@ -191,6 +193,8 @@ pub struct Look {
     pub tint: HashMap<usize, Color32>,
     /// Extra lines in world space, each with its colour.
     pub overlay: Vec<([[f32; 3]; 2], Color32)>,
+    /// Extra meshes in world space (the AI workspace's walkable ground, round GR2), each in its layer, lit evenly.
+    pub meshes: Vec<crate::navview::OverlayMesh>,
 }
 
 /// A colour of its own for each blueprint (the collision mode): a hue from the name's hash, muted.
@@ -390,6 +394,10 @@ pub struct SceneGpu {
     pub look: Look,
     /// The wireframe mode's edge meshes, by the mesh they outline.
     edges: HashMap<u32, u32>,
+    /// The overlay meshes uploaded, by their key: their mesh.
+    overlay_slots: HashMap<u64, u32>,
+    /// Meshes of overlay meshes no longer drawn (emptied), for the next ones.
+    free_slots: Vec<u32>,
 }
 
 impl SceneGpu {
@@ -424,6 +432,8 @@ impl SceneGpu {
             sizes: Vec::new(),
             look: Look::default(),
             edges: HashMap::new(),
+            overlay_slots: HashMap::new(),
+            free_slots: Vec::new(),
         };
         out.refresh(gpu, scene, palette, &|_| false);
         out
@@ -645,6 +655,56 @@ impl SceneGpu {
                 for p in &pts {
                     seg(*p, lift(*p));
                 }
+            }
+        }
+        // the overlay meshes (the AI workspace's ground): uploaded once per key; the slots of those no longer drawn
+        // are emptied for the next ones
+        {
+            let wanted: std::collections::HashSet<u64> = self.look.meshes.iter().map(|m| m.key).collect();
+            let gone: Vec<u64> = self
+                .overlay_slots
+                .keys()
+                .filter(|k| !wanted.contains(k))
+                .copied()
+                .collect();
+            for k in gone {
+                if let Some(slot) = self.overlay_slots.remove(&k) {
+                    if let Some(m) = meshes.get_mut(slot as usize) {
+                        *m = Mesh {
+                            vertices: buffer(gpu, "freed", &[], wgpu::BufferUsages::VERTEX),
+                            indices: Some(buffer(gpu, "freed", &[], wgpu::BufferUsages::INDEX)),
+                            count: 0,
+                        };
+                    }
+                    self.edges.remove(&slot);
+                    self.free_slots.push(slot);
+                }
+            }
+            for m in &self.look.meshes {
+                let slot = if let Some(s) = self.overlay_slots.get(&m.key) {
+                    *s
+                } else {
+                    let mesh = indexed(gpu, "overlay", &m.vertices, &m.triangles);
+                    let s = if let Some(s) = self.free_slots.pop() {
+                        if let Some(x) = meshes.get_mut(s as usize) {
+                            *x = mesh;
+                        }
+                        s
+                    } else {
+                        meshes.push(mesh);
+                        (meshes.len() - 1) as u32
+                    };
+                    self.overlay_slots.insert(m.key, s);
+                    s
+                };
+                triangles += m.triangles.len() as u64;
+                instances.push(Instance {
+                    rows: ident,
+                    color: [m.colour.r(), m.colour.g(), m.colour.b(), 0],
+                    id: ID_NAV,
+                    group: group_of(&m.group),
+                    mesh: slot,
+                });
             }
         }
         // the mode's extra lines: navmesh outlines, cull-tree spheres

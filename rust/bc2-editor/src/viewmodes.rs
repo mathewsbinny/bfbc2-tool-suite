@@ -1,69 +1,18 @@
-//! The data the editor view's navmesh and cull-tree modes draw ([`crate::workspace::ViewMode`]), read on demand from
-//! the game copy and the prepared level (read only):
+//! The data the editor view's cull-tree mode draws ([`crate::workspace::ViewMode`]), read on demand from the prepared
+//! level (read only); the navmesh mode's is [`crate::nav`]'s (round GR2):
 //!
-//! - **Navmesh**: the level's Kynapse path data (`pathdata.hpd`, infantry): the game copy's installed file
-//!   (`game\Output\win32\ai\levels\<lv>\infantry`), else NavKit's newest build (`work\navkit\<lv>`). Each walkable
-//!   area's outline, as the Navigation Studio draws them (stored 0.95 m above the ground; drawn on it).
 //! - **Cull tree**: the level's `ExclusiveStaticCullTree` partition (`bfbc2-culltree/README.md`, "Format"): each leaf's
 //!   sphere (centre key / 16 m, radius W / 4 m), and each placed object's slot (`Enumeration`): none (0: drawn
 //!   see-through and indestructible in game), shared with another object, or its own.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use bc2_formats::dbx::{self, edit::numbers_of};
-use bc2_formats::{hpd, kymesh};
 use bc2_scene::scene::Scene;
 
 /// A line segment in world space.
 pub type Segment = [[f32; 3]; 2];
-
-/// How far above the ground Kynapse stores outlines (`navdata.Y_OFFSET`).
-pub const NAV_Y_OFFSET: f32 = 0.95;
-
-/// The path-data file the navmesh mode reads for a level, if any.
-#[must_use]
-pub fn pathdata_file(opfor: &Path, lv: &str) -> Option<PathBuf> {
-    let lv = lv.to_lowercase();
-    [
-        opfor
-            .join("game")
-            .join("Output")
-            .join("win32")
-            .join("ai")
-            .join("levels")
-            .join(&lv)
-            .join("infantry")
-            .join("pathdata.hpd"),
-        opfor.join("work").join("navkit").join(&lv).join("pathdata.hpd"),
-    ]
-    .into_iter()
-    .find(|p| p.is_file())
-}
-
-/// The walkable areas' outlines of a path-data file, on the ground.
-///
-/// # Errors
-/// The file does not read or is not path data.
-pub fn navmesh_outlines(file: &Path) -> Result<Vec<Segment>, String> {
-    let data = std::fs::read(file).map_err(|e| format!("{}: {e}", file.display()))?;
-    let f = hpd::parse(&data).map_err(|e| format!("{}: not Kynapse path data ({e})", file.display()))?;
-    let mut out = Vec::new();
-    for s in &f.sectors {
-        let Ok(m) = kymesh::parse(s.mesh) else { continue };
-        for a in &m.areas {
-            for line in &a.outline {
-                for w in line.windows(2) {
-                    if let [p, q] = w {
-                        let down = |v: &[f32; 3]| [v[0], v[1] - NAV_Y_OFFSET, v[2]];
-                        out.push([down(p), down(q)]);
-                    }
-                }
-            }
-        }
-    }
-    Ok(out)
-}
 
 /// A leaf's sphere: centre and radius, metres.
 pub type Sphere = ([f32; 3], f32);

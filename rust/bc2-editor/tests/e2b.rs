@@ -179,7 +179,7 @@ fn e2b_through_the_interface() {
         ),
         (
             Workspace::Ai,
-            vec!["Show the navmesh", "Test a path from here"],
+            vec!["Show the navmesh", "Path test from here"],
             vec!["Group", "Set team 1"],
         ),
         (Workspace::View, vec!["Focus", "Copy GUID"], vec!["Delete", "Move"]),
@@ -199,9 +199,13 @@ fn e2b_through_the_interface() {
     let path_test = path_test
         .iter()
         .flatten()
-        .find(|i| i.name == "Test a path from here")
+        .find(|i| i.name == "Path test from here")
         .unwrap();
-    assert_eq!(path_test.why, Some("Comes with the AI workspace's tools (round E5a)"));
+    // the demo level has no path data (round GR2: the path test needs a file read)
+    assert_eq!(
+        path_test.why,
+        Some("The level has no navigation data read (show the navmesh first)")
+    );
     for (w, brushes) in [(Workspace::Terrain, 5usize), (Workspace::Vegetation, 2)] {
         app.run_action(&gpu, &ctx, Action::SetWorkspace(w));
         let items = menu_items(app.view().unwrap(), MenuKind::Ground, None);
