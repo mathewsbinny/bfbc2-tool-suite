@@ -11,8 +11,8 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Write as _};
 
-use crate::fsx::{self, Stat};
 use crate::pylog::{self, LOG_NAME};
+use crate::pyos::files::{self as fsx, Stat};
 
 const MB: f64 = 1_048_576.0;
 /// `caches.LOCK`

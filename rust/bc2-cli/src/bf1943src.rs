@@ -22,8 +22,8 @@ use std::io::Read as _;
 
 use bc2_pyrt::pickle::{self, Value};
 
-use crate::fsx;
 use crate::pyos;
+use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, PyErr, PyResult};
 
 /// `fbrb1943.py`'s SHA-1 (bf1943-tool-suite e56d878): the reader this port follows.

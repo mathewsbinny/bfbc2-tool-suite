@@ -373,7 +373,7 @@ fn copy_file(src: &str, dst: &str) -> PyResult<()> {
         }
         w.sync_all().map_err(|e| (tmp.clone(), e))?;
         drop(w);
-        crate::fsx::replace(&tmp, dst).map_err(|e| (tmp.clone(), e))
+        crate::pyos::files::replace(&tmp, dst).map_err(|e| (tmp.clone(), e))
     })();
     if let Err((p, e)) = done {
         let _ = fs::remove_file(&tmp);
@@ -390,7 +390,7 @@ fn write_text(path: &str, text: &str) -> PyResult<()> {
         w.write_all(text.replace('\n', "\r\n").as_bytes())?;
         w.sync_all()?;
         drop(w);
-        crate::fsx::replace(&tmp, path)
+        crate::pyos::files::replace(&tmp, path)
     })();
     if let Err(e) = done {
         let _ = fs::remove_file(&tmp);

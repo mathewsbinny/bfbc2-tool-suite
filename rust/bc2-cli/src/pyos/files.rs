@@ -1,4 +1,4 @@
-//! The file system as the suite's Python sees it through `os` and `bfbc2core.atomicio` (round O3): a file's `stat`
+//! `pyos::files` (round O5: round O3's `fsx.rs`, folded into round O4's `pyos`): the file system as the suite's Python sees it through `os` and `bfbc2core.atomicio` (round O3): a file's `stat`
 //! (`st_size`, `st_mtime_ns`, the float `st_mtime` / `st_atime`), `os.utime`, `os.remove` that tells "gone" from
 //! "in use", `atomicio.locked` (the same lock between Python and Rust processes) and `atomicio.replace`'s tries.
 
@@ -189,10 +189,8 @@ pub fn scandir(top: &str) -> io::Result<Vec<Entry>> {
     Ok(out)
 }
 
-/// `os.path.normcase` (Windows): lower case, `/` as `\`.
-pub fn normcase(p: &str) -> String {
-    p.replace('/', "\\").to_lowercase()
-}
+/// `os.path.normcase` (Windows): lower case, `/` as `\` - pyos's own (round O5: the two copies were the same).
+pub use super::normcase;
 
 /// `os.path.normpath` (Windows): separators as `\`, repeated ones and `.` parts dropped, `..` taking out the part
 /// before it (never above the drive's root).

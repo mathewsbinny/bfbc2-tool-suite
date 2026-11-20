@@ -415,7 +415,7 @@ fn which(cmd: &str) -> Option<String> {
     }
     let mut seen = std::collections::HashSet::new();
     for d in dirs {
-        if !seen.insert(crate::fsx::normcase(&d)) {
+        if !seen.insert(crate::pyos::files::normcase(&d)) {
             continue;
         }
         for f in &files {
