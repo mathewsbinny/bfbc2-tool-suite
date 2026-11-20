@@ -328,6 +328,15 @@ CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line
     'sample_all': os.path.join(SUITE, 'bfbc2-auto-navkit', 'tools', 'sample_all.py'),
     'harness': os.path.join(SUITE, 'bfbc2-automated-map-and-bot-test-harness', 'harness.py'),
     'texqa': os.path.join(SUITE, 'bfbc2-console-convert', 'texqa.py'),
+    # round O5: the shader tools' command lines
+    'shaderdb': os.path.join(SUITE, 'bfbc2-shader-tools', 'shaderdb.py'),
+    'renderqa': os.path.join(SUITE, 'bfbc2-shader-tools', 'renderqa.py'),
+    'xdiff': os.path.join(SUITE, 'bfbc2-shader-tools', 'xdiff.py'),
+    # round O5: the console readers, the BF1943 importer
+    'apt': os.path.join(SUITE, 'bfbc2-console-readers', 'apt', 'apt.py'),
+    'stfs': os.path.join(SUITE, 'bfbc2-console-readers', 'stfs', 'stfs.py'),
+    'xiso': os.path.join(SUITE, 'bfbc2-console-readers', 'xiso', 'xiso.py'),
+    'bf1943import': os.path.join(SUITE, 'bfbc2-bf1943-import', 'bf1943import.py'),
 }
 _cli: dict[str, str | None] = {}
 

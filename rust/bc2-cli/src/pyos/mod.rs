@@ -15,6 +15,9 @@
     clippy::chunks_exact_to_as_chunks
 )]
 
+// round O5: round O3's fsx (stat, utime, the shared lock, replace's tries, scandir) folded in
+pub mod files;
+
 use std::fmt::Write as _;
 use std::fs;
 use std::io::{Read as _, Write as _};

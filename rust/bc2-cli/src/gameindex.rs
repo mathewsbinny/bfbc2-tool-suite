@@ -13,7 +13,7 @@ use bc2_pyrt::pickle_write;
 use bc2_pyrt::py::{abspath, dirname, isdir, join, suite_root};
 use regex::Regex;
 
-use crate::fsx;
+use crate::pyos::files as fsx;
 use crate::pyproc::{Fail, Py, PyErr, PyResult};
 
 /// `meshview.CACHE_VERSION`

@@ -15,7 +15,7 @@ use bc2_pyrt::py::join;
 
 use crate::gameindex;
 use crate::pyproc::{Fail, Py, PyResult, Tool};
-use crate::{fsx, pystdio};
+use crate::{pyos::files as fsx, pystdio};
 
 /// The group's tools.
 pub const TOOLS: &[Tool] = &[
