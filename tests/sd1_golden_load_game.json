@@ -1,0 +1,332 @@
+{
+"level:bc1_harvest_day_cq": [
+0,
+"851968910e2c7c5a597c",
+5
+],
+"level:bc1_oasis_sdm": [
+0,
+"7210492a7f42cd119858",
+5
+],
+"level:mp_001": [
+0,
+"7ca3d1da53c3d8a5e66e",
+5
+],
+"level:mp_003sr": [
+0,
+"b12f4eea39e6f5943dea",
+5
+],
+"level:mp_006": [
+0,
+"0a88f6a3f177202cea0a",
+5
+],
+"level:mp_008": [
+0,
+"35669866028bba69754a",
+5
+],
+"level:mp_009sr": [
+0,
+"7d25d99acd702d8171e0",
+5
+],
+"level:mp_sp_002sdm": [
+0,
+"ed62a552c83dcfb85631",
+5
+],
+"level:nam_mp_002r": [
+0,
+"0a1c2f5d1d74520310cb",
+5
+],
+"level:nam_mp_003sr": [
+0,
+"b73e230625f630ef1a44",
+5
+],
+"level:nam_mp_006r": [
+0,
+"411cc8996768f7f28a70",
+5
+],
+"level:nam_mp_007sr": [
+0,
+"62faa5408a7f4473bab3",
+5
+],
+"level:nope": [
+0,
+"8bc3462aac9a51865ebe",
+1
+],
+"level:opfor_ons_mp_004": [
+0,
+"00c605ee152e02279572",
+5
+],
+"level:sp_007": [
+0,
+"3361fbfb5abd7721df1d",
+5
+],
+"level:sp_03": [
+0,
+"a6ba2abc9580e54df682",
+5
+],
+"levels:bc1_harvest_day_cq": [
+9,
+"5487ac4b225743495896",
+1
+],
+"levels:coral_sea": [
+8,
+"f9320d0fa7f133e6b677",
+1
+],
+"levels:mp_002sr": [
+8,
+"490bb8c6022f249439ff",
+1
+],
+"levels:mp_006": [
+8,
+"35644b2168558299cb82",
+1
+],
+"levels:mp_008sdm": [
+8,
+"e96c94883c166312b057",
+1
+],
+"levels:mp_common": [
+8,
+"5a7056c107cf9093fac3",
+1
+],
+"levels:nam_mp_002r": [
+8,
+"d03f25598c1c32bd7435",
+1
+],
+"levels:nam_mp_005r": [
+8,
+"db819df1c54ce6e99ab5",
+1
+],
+"levels:nam_mp_007r": [
+8,
+"c86c443b1943d0fca6b5",
+1
+],
+"levels:opfor_ons_mp_004": [
+8,
+"48c6cf87ffbc81431915",
+1
+],
+"levels:sp_008_b": [
+8,
+"0bc9c495c78c4bc5b819",
+1
+],
+"levels:ww2_common": [
+1,
+"f1a111655cbb2eeedac8",
+1
+],
+"work/levels/mp_001sr/dist/levels/mp_001sr/shaders/Dx11_Single.res": [
+26694763,
+"38869b33e4e2fc9b5a0c",
+1
+],
+"work/levels/mp_002/pkg/levels/MP_002/Shaders/Dx9_Single.res": [
+18771213,
+"094fea7862ecdcdc0e21",
+1
+],
+"work/levels/mp_003/pkg/Levels/MP_003/Shaders/Dx10_Single.res": [
+32845580,
+"6b6cf8bc9f943094cec8",
+1
+],
+"work/levels/mp_004sdm/dist/levels/mp_004sdm/shaders/Dx11_Single.res": [
+25847481,
+"f01e9c1fa4acd3fcacd1",
+1
+],
+"work/levels/mp_005/pkg/levels/mp_005/Shaders/Dx9_Single.res": [
+18976863,
+"15a28ed59951228bd440",
+1
+],
+"work/levels/mp_006/pkg/levels/MP_006/Shaders/Dx10_Single.res": [
+36738218,
+"253887810385de5b0eb2",
+1
+],
+"work/levels/mp_006sdm/dist/levels/mp_006sdm/shaders/Dx11_Single.res": [
+27704822,
+"d7d2b1dd1a578fb523ab",
+1
+],
+"work/levels/mp_007/pkg/Levels/MP_007/Shaders/Dx9_Single.res": [
+19643971,
+"5048a28291d4e967db29",
+1
+],
+"work/levels/mp_008/pkg/Levels/MP_008/Shaders/Dx10_Single.res": [
+34940061,
+"7fe6a688012f45267180",
+1
+],
+"work/levels/mp_009gr/dist/levels/mp_009gr/shaders/Dx11_Single.res": [
+26218601,
+"ad33c6622b3e05cce241",
+1
+],
+"work/levels/mp_009sdm/pkg/levels/mp_009sdm/Shaders/Dx9_Single.res": [
+17183758,
+"320de9e2648bc2980fca",
+1
+],
+"work/levels/mp_012sr/pkg/Levels/MP_012SR/Shaders/Dx10_Single.res": [
+33709292,
+"35856372507af4680ffa",
+1
+],
+"work/levels/ons_mp_002/pkg/levels/nam_mp_007r/Shaders/Dx11_Single.res": [
+10538779,
+"b62728beaf9b2de9ab16",
+1
+],
+"work/levels/ons_mp_004/dist/levels/sp_01/shaders/Dx9_Single.res": [
+9864794,
+"65fed17790f790687814",
+1
+],
+"work/levels/ons_mp_004/pkg/levels/sp_007/Shaders/Dx10_Single.res": [
+31325915,
+"14ab85ce273ba17381ec",
+1
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders/Dx11_Single.res": [
+27900050,
+"7bd25b6edfaf1223053f",
+1
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders3/Dx9_Single.res": [
+18648321,
+"dbc6667231630e14a3d0",
+1
+],
+"work/levels/ons_mp_008/pkg/Levels/MP_008/Shaders/Dx10_Single.res": [
+34940061,
+"ea4800b1582721de7eec",
+1
+],
+"work/levels/sp_003_b/pkg/levels/SP_003_B/Shaders/Dx11_Single.res": [
+25904444,
+"f1e30b4d4c8c0df65653",
+1
+],
+"work/levels/sp_005/dist/levels/sp_005/shaders/Dx9_Single.res": [
+14284759,
+"574ef7078672c10ec0e9",
+1
+],
+"work/levels/sp_006/dist/levels/sp_006/shaders/Dx10_Single.res": [
+28888871,
+"405e7e3cdea63c2c343c",
+1
+],
+"work/levels/sp_007/pkg/Levels/SP_007/Shaders/Dx11_Single.res": [
+24535267,
+"a4854356ce71cb490f02",
+1
+],
+"work/levels/sp_008_b/dist/levels/sp_008_b/Shaders/Dx9_Single.res": [
+15054415,
+"aef211a70e7d2fdabea8",
+1
+],
+"work/levels/sp_01/dist/levels/sp_01/shaders/Dx10_Single.res": [
+19413133,
+"0b3b279b5e50aed23929",
+1
+],
+"work/levels/sp_02/pkg/levels/sp_02/Shaders/Dx11_Single.res": [
+25481525,
+"4d20075258ffd9a824a2",
+1
+],
+"work/levels/sp_04/dist/levels/sp_04/shaders/Dx9_Single.res": [
+15116499,
+"f9e76a89fffcc67ebe17",
+1
+],
+"work/ww2/coral_sea/levels/coral_sea/shaders/Dx10_Single.res": [
+44316783,
+"634a90bb2f8612053b41",
+1
+],
+"work/ww2/install/level/Levels/WAKE_ISLAND_S/Shaders/Dx10_Single.res": [
+59684473,
+"84466403bdf400a676bc",
+1
+],
+"work/ww2/install_coral_sea/level/Levels/CORAL_SEA/Shaders/Dx9_Single.res": [
+21881197,
+"2a7a7d3f9c40eaea6756",
+1
+],
+"work/ww2/iwo_jima_s/levels/iwo_jima_s/shaders/Dx10_Single.res": [
+56148052,
+"1a920223e23425ab9a1f",
+1
+],
+"work/ww2/wake/levels/wake_island_s/shaders/Dx11_Single.res": [
+44774098,
+"8325fa09e884b95c044e",
+1
+],
+"work/xbox/dist/xenon/levels/mp_001/level-00.fbrb": [
+25090075,
+"bcc9a4bdbbbb1bd6e7d3",
+1
+],
+"work/xbox/dist/xenon/levels/mp_003/level-00.fbrb": [
+19116410,
+"bec197f572d5ee86cfbc",
+1
+],
+"work/xbox/dist/xenon/levels/mp_005sr/level-00.fbrb": [
+13471019,
+"10d29d234bbc21c2c427",
+1
+],
+"work/xbox/dist/xenon/levels/mp_007/level-00.fbrb": [
+19633975,
+"3e83e324175975c93ec9",
+1
+],
+"work/xbox/dist/xenon/levels/mp_009gr/level-00.fbrb": [
+10394484,
+"e1ba61a0a05869167fa8",
+1
+],
+"work/xbox_dlc/ons_all/levels/ons_mp_002/level-00.fbrb": [
+23588789,
+"de0818921cd6570ea4af",
+1
+],
+"work/xbox_dlc/u3/levels/ons_mp_005/level-00.fbrb": [
+15788900,
+"9f43810c3f57ab5485a5",
+1
+]
+}
