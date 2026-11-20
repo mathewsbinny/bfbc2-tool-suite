@@ -228,7 +228,10 @@ pub fn default_source(suite: &str) -> String {
 /// `bf1943import.fbrb1943()`'s folder: beside the suite first, then `BF1943_SUITE_FBRB`; the reader's SHA-1 checked
 /// (another version is the Python's to read).
 fn reader(suite: &str) -> PyResult<String> {
-    let here = bc2_pyrt::py::join(&bc2_pyrt::py::dirname(suite), &["bf1943-tool-suite", "bf1943-fbrb-tool"]);
+    let here = bc2_pyrt::py::join(
+        &bc2_pyrt::py::dirname(suite),
+        &["bf1943-tool-suite", "bf1943-fbrb-tool"],
+    );
     let there = std::env::var("BF1943_SUITE_FBRB").unwrap_or_default();
     for p in [here, there] {
         if !p.is_empty() && pyos::isfile(&bc2_pyrt::py::join(&p, &["fbrb1943.py"])) {
@@ -259,10 +262,13 @@ fn index_dir() -> Option<String> {
         .ok()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(crate::pylog::home_dir);
-    Some(bc2_pyrt::py::join(&base, &["bfbc2-tool-suite", "cache", "bf1943source"]))
+    Some(bc2_pyrt::py::join(
+        &base,
+        &["bfbc2-tool-suite", "cache", "bf1943source"],
+    ))
 }
 
-/// An index row: (size, mtime_ns, entries or None, compressed, payload start, payload length).
+/// An index row: (size, `mtime_ns`, entries or None, compressed, payload start, payload length).
 type Row = (i128, i128, Option<Vec<Entry>>, bool, u64, u64);
 
 fn int(v: &Value) -> Option<i128> {
@@ -270,6 +276,10 @@ fn int(v: &Value) -> Option<i128> {
 }
 
 /// The rows of a valid index, or None (missing, old, damaged, another reader or folder: the Python checks again).
+#[allow(
+    clippy::many_single_char_names,
+    reason = "the reference's _load_index names: v, f, e and its small readers"
+)]
 fn load_index(p: &str, reader_sig: &str, folder_nc: &str) -> Option<HashMap<String, Row>> {
     let data = std::fs::read(p).ok()?;
     let v = pickle::loads(&data).ok()?;
@@ -346,7 +356,12 @@ impl Source {
         for (dp, _dirs, mut fs) in pyos::walk(&abs)? {
             fs.sort();
             for f in fs {
-                if f.ends_with(".fbrb") {
+                #[allow(
+                    clippy::case_sensitive_file_extension_comparisons,
+                    reason = "Python's f.endswith('.fbrb') is case-sensitive: an .FBRB file is not a bundle to it"
+                )]
+                let bundle = f.ends_with(".fbrb");
+                if bundle {
                     let path = pyos::join2(&dp, &f)?;
                     let rel = pyos::relpath(&path, &abs)?.replace('\\', "/");
                     files.push((rel, path));
