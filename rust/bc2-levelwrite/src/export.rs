@@ -124,6 +124,14 @@ pub struct Identity {
     pub picture: String,
 }
 
+/// The export file beside a project (`<project>.export.json`; the editor keeps the Export form there).
+#[must_use]
+pub fn spec_path_of(project: &Path) -> PathBuf {
+    let mut s = project.as_os_str().to_owned();
+    s.push(".export.json");
+    PathBuf::from(s)
+}
+
 /// The loc keys of a level's own name and description (the loading screen cuts the name's at `_NAME` and finds the
 /// picture under the level's id).
 #[must_use]
@@ -367,7 +375,8 @@ pub fn parse_mft(text: &str) -> Vec<(String, Vec<String>)> {
     }
     out
 }
-
+/// Reads entries (by their [`Found`]) grouped by bundle, through the bundle cache (round E3d: the closure reads the same
+/// large bundles round after round; the disk cache keeps their payloads decompressed once).
 /// Reads entries (by their [`Found`]) grouped by bundle, uncached (an export reads each bundle once).
 ///
 /// # Errors
@@ -380,7 +389,7 @@ pub fn read_found(found: &[&Found]) -> Result<Vec<Vec<u8>>> {
     let mut out = vec![Vec::new(); found.len()];
     for (b, items) in by_bundle {
         let names: Vec<&str> = items.iter().map(|x| x.1).collect();
-        let data = fbrb::read_path_uncached(b, &names).map_err(|e| err(format!("{}: {e}", b.display())))?;
+        let data = fbrb::read_path(b, &names).map_err(|e| err(format!("{}: {e}", b.display())))?;
         for ((i, _), d) in items.into_iter().zip(data) {
             if let Some(slot) = out.get_mut(i) {
                 *slot = d;
@@ -388,6 +397,127 @@ pub fn read_found(found: &[&Found]) -> Result<Vec<Vec<u8>>> {
         }
     }
     Ok(out)
+}
+
+/// The project's partition as its log leaves it (round E3d: a mode choice's donor read from the game copy), and the
+/// base's.
+///
+/// # Errors
+/// The base or a donor is not there, or an operation does not apply.
+pub fn current(game: &Game, project: &MapProject) -> Result<(LevelWriter, LevelWriter)> {
+    let base_bytes = level_partition(game, &project.base.level)?;
+    let base_w = LevelWriter::parse(&base_bytes)?;
+    let schema = Schema::scan([&base_w.d]);
+    let a = crate::write::apply_with(&base_bytes, &project.operations, &schema, &|lv| {
+        level_partition(game, lv).ok()
+    })
+    .map_err(|e| err(e.to_string()))?;
+    Ok((LevelWriter::parse(&a.bytes)?, base_w))
+}
+
+/// The project's target chosen (round E3d): era `profile`, mode `mode` (a key or a name: `goldrush`, `Rush`), its
+/// layer from `donor` (else the profile's default donor of the mode), as the next operation of the log
+/// ([`crate::Op::SetMode`]): placed by the first guess ([`crate::modelayer::choose`]) on the project as it is now,
+/// heights over the two height fields.
+///
+/// # Errors
+/// The mode is not offered or the era has no level of it, the donor is not one, or the project does not apply.
+pub fn choose_mode(
+    game: &Game,
+    project: &MapProject,
+    profile: Profile,
+    mode: &str,
+    donor: Option<&str>,
+) -> Result<crate::modelayer::ModeChoice> {
+    let mode_k = crate::modelayer::mode_key(mode);
+    if let Some(why) = crate::modelayer::not_offered(&mode_k) {
+        return Err(err(why));
+    }
+    let profiles = crate::profile::scan(game, &mode_k)?;
+    let prof = profiles.get(profile)?;
+    let donor_lv = match donor {
+        Some(d) => d.to_ascii_lowercase(),
+        None => prof
+            .default_donor()
+            .map(|d| d.level.clone())
+            .ok_or_else(|| err("the era has no level of the mode"))?,
+    };
+    if prof.donor(&donor_lv).is_none() {
+        return Err(err(format!(
+            "{donor_lv} is not a {} level of the {} mode",
+            profile.word(),
+            crate::modelayer::mode_name(&mode_k)
+        )));
+    }
+    let (cur, base_w) = current(game, project)?;
+    let donor_bytes = level_partition(game, &donor_lv)?;
+    let dw = LevelWriter::parse(&donor_bytes)?;
+    let hb = heightfield(game, &project.base.level.to_ascii_lowercase(), &base_w)?;
+    let hd = heightfield(game, &donor_lv, &dw)?;
+    let ground = match (&hd, &hb) {
+        (Some(d), Some(b)) => Some(Ground { donor: d, base: b }),
+        _ => None,
+    };
+    let seed = format!("{}:mode:{}", project.id, project.next_n());
+    Ok(crate::modelayer::choose(
+        &cur,
+        &dw,
+        &donor_lv,
+        &sha1_hex(&donor_bytes),
+        profile,
+        &mode_k,
+        &seed,
+        ground.as_ref(),
+        None,
+    ))
+}
+
+/// "Use selection" for a flag, base or M-COM of the project's layer (round E3d): the move that puts it, with what
+/// belongs to it ([`crate::modelayer::cluster`]), at `to` (x, z), heights following the base's ground.
+///
+/// # Errors
+/// The project does not apply.
+pub fn move_anchor(game: &Game, project: &MapProject, guid: &str, to: [f32; 2]) -> Result<Vec<crate::ops::Moved>> {
+    let (cur, base_w) = current(game, project)?;
+    let hb = heightfield(game, &project.base.level.to_ascii_lowercase(), &base_w)?;
+    Ok(crate::modelayer::move_cluster(&cur, guid, to, hb.as_ref()))
+}
+
+/// A blueprint's reference (`<partition>/<primary instance guid>`, lower case) for a partition of a bundle of the
+/// game copy (an object placed from another level's or set's bundle: E2b's "+bundle").
+///
+/// # Errors
+/// The partition is not in the bundles, or it does not parse.
+pub fn blueprint_ref(game: &Game, bundles: &[PathBuf], partition: &str) -> Result<String> {
+    let name = if partition.to_ascii_lowercase().ends_with(".dbx") {
+        partition.to_owned()
+    } else {
+        format!("{partition}.dbx")
+    };
+    let data = read_one(game, bundles, &name)?;
+    let d = EditDbx::parse(&data).map_err(|e| err(format!("{name}: {e}")))?;
+    let p = d.partition().ok_or_else(|| err(format!("{name}: no partition")))?;
+    let g = d
+        .attr(p, b"primaryInstance")
+        .ok_or_else(|| err(format!("{name}: no primary instance")))?;
+    Ok(format!(
+        "{}/{}",
+        stem(&name),
+        String::from_utf8_lossy(g).to_ascii_lowercase()
+    ))
+}
+
+/// A level's partition (`Levels/<LV>.dbx`) from the bundles its level block loads.
+///
+/// # Errors
+/// It is not there, or a bundle does not read.
+pub fn level_partition(game: &Game, lv: &str) -> Result<Vec<u8>> {
+    let low = lv.to_ascii_lowercase();
+    read_one(
+        game,
+        &game.loaded(&low, "level"),
+        &format!("Levels/{}.dbx", low.to_ascii_uppercase()),
+    )
 }
 
 fn read_one(game: &Game, bundles: &[PathBuf], name: &str) -> Result<Vec<u8>> {
@@ -482,6 +612,12 @@ pub struct StageRecord {
     /// trigger sets), by name.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub announcer: Vec<String>,
+    /// The partitions the closure copied into the level's bundle (round E3d): from where and why.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub closure: Vec<Copied>,
+    /// The mode layer came from the project's own target (round E3d) rather than the export file's graft.
+    #[serde(default)]
+    pub project_mode: bool,
 }
 
 /// Root files the engine finds by a level's name (`console_onslaught.rename_level_files`, `wake_install.ROOT_FILES`):
@@ -561,6 +697,20 @@ fn new_guids(d: &mut EditDbx, seed: &str) -> crate::write::Result<()> {
 /// The main height field of a level (its `TerrainEntityData`'s terrain), from the bundles its terrain and level
 /// load; `None` when there is none.
 fn heightfield(game: &Game, lv: &str, partition: &LevelWriter) -> Result<Option<bc2_formats::terrain::Heightfield>> {
+    let Some(name) = heightfield_name(partition) else {
+        return Ok(None);
+    };
+    let mut bundles = game.loaded(lv, "terrain");
+    bundles.extend(game.loaded(lv, "level"));
+    let live = game.live(&bundles)?;
+    let Some(f) = live.get(&name) else { return Ok(None) };
+    let data = read_found(&[f])?.pop().unwrap_or_default();
+    Ok(bc2_formats::terrain::parse(&data).ok())
+}
+
+/// The entry of a level's main height field (`terrains/sp_01/sp_01.heightfield-000.res`, lower case), from its
+/// `TerrainEntityData`'s terrain reference; `None` when it has none.
+fn heightfield_name(partition: &LevelWriter) -> Option<String> {
     let terrain = partition
         .d
         .of_type(b".TerrainEntityData")
@@ -574,27 +724,21 @@ fn heightfield(game: &Game, lv: &str, partition: &LevelWriter) -> Result<Option<
             })
         })
         .map(|r| String::from_utf8_lossy(r).into_owned());
-    let Some(r) = terrain else { return Ok(None) };
     // terrains/sp_01/sp_01/<guid> -> Terrains/SP_01/SP_01.Heightfield-000.res
+    let r = terrain?;
     let parts: Vec<&str> = r.split('/').collect();
-    let (Some(a), Some(b)) = (parts.get(1), parts.get(2)) else {
-        return Ok(None);
-    };
-    let name = format!("terrains/{a}/{b}.heightfield-000.res");
-    let mut bundles = game.loaded(lv, "terrain");
-    bundles.extend(game.loaded(lv, "level"));
-    let live = game.live(&bundles)?;
-    let Some(f) = live.get(&name) else { return Ok(None) };
-    let data = read_found(&[f])?.pop().unwrap_or_default();
-    Ok(bc2_formats::terrain::parse(&data).ok())
+    let (a, b) = (parts.get(1)?, parts.get(2)?);
+    Some(format!("terrains/{a}/{b}.heightfield-000.res").to_ascii_lowercase())
 }
 
 /// The new level's `package.mft` blocks: its own bundle first, then (level, terrain) the base level's bundles, the
 /// profile's common bundles of the kind ([`ContentProfile::commons`]: BFBC2 `mp_common`, Vietnam `nam_common` and
 /// `mp_common` ...) and, for the level, the base's other targets after them; (ingame, loader) the profile's common
-/// bundles, as the stock multiplayer levels of the set have.
+/// bundles, as the stock multiplayer levels of the set have. The base's targets that are another set's common bundles
+/// (`foreign`: a WW2 base's `ww2_common` under a BFBC2 profile) are left out (round E3d): the level's closure brings
+/// what it needs of them into its own bundle.
 #[must_use]
-pub fn mft_blocks(game: &Game, lv: &str, base: &str, profile: &ContentProfile) -> Vec<Vec<String>> {
+pub fn mft_blocks(game: &Game, lv: &str, base: &str, profile: &ContentProfile, foreign: &[String]) -> Vec<Vec<String>> {
     let lv = lv.to_ascii_lowercase();
     let base = base.to_ascii_lowercase();
     let mut out = Vec::new();
@@ -612,11 +756,18 @@ pub fn mft_blocks(game: &Game, lv: &str, base: &str, profile: &ContentProfile) -
                 targets.extend(mine.into_iter().filter(|t| game.bundle(t).is_file()));
                 targets.extend(commons.iter().cloned());
                 if kind == "level" {
-                    targets.extend(
-                        other
-                            .into_iter()
-                            .filter(|t| !commons.iter().any(|c| c.eq_ignore_ascii_case(t))),
-                    );
+                    targets.extend(other.into_iter().filter(|t| {
+                        !commons.iter().any(|c| c.eq_ignore_ascii_case(t))
+                            && !foreign.iter().any(|c| c.eq_ignore_ascii_case(t))
+                    }));
+                } else {
+                    // the terrain is the map's, wherever its era keeps it (a Vietnam map's height field is in
+                    // nam_common's terrain bundle): every terrain bundle the base loads stays (round E3d)
+                    for t in other {
+                        if game.bundle(&t).is_file() && !targets.iter().any(|x| x.eq_ignore_ascii_case(&t)) {
+                            targets.push(t);
+                        }
+                    }
                 }
             }
             _ => targets.extend(commons.iter().cloned()),
@@ -689,15 +840,28 @@ pub fn build(
         )));
     }
     let mut report = Vec::new();
-    // 0. the content profile: the set's common bundles, donors and level fields, read from its stock levels
-    let profiles = crate::profile::scan(game, &spec.mode)?;
-    let prof = profiles.get(spec.profile)?;
-    let donor_lv = spec.layer.donor.to_ascii_lowercase();
+    // 0. the target: the project's own (round E3d: its era and mode, the mode's layer in its log), else the export
+    // file's (E3's graft at export time)
+    let target = project.mode();
+    let (profile_sel, mode_k, donor_lv) = match target {
+        Some(c) => (c.profile, c.mode.clone(), c.donor.to_ascii_lowercase()),
+        None => (
+            spec.profile,
+            crate::modelayer::mode_key(&spec.mode),
+            spec.layer.donor.to_ascii_lowercase(),
+        ),
+    };
+    if let Some(why) = crate::modelayer::not_offered(&mode_k) {
+        return Err(err(why));
+    }
+    // the content profile: the set's common bundles, donors and level fields, read from its stock levels
+    let profiles = crate::profile::scan(game, &mode_k)?;
+    let prof = profiles.get(profile_sel)?;
     let donor_info = prof.donor(&donor_lv).ok_or_else(|| {
         err(format!(
             "{donor_lv} is not a {} level of the {} mode (the profile's: {})",
-            spec.profile.word(),
-            spec.mode,
+            profile_sel.word(),
+            crate::modelayer::mode_name(&mode_k),
             prof.donors
                 .iter()
                 .map(|d| d.level.as_str())
@@ -708,7 +872,7 @@ pub fn build(
     report.push(format!(
         "profile: {} (from its {} multiplayer levels): level commons {:?}; donor {} - game mode {}, factions {} / {}, \
          {} kit pictures; level fields {:?}",
-        spec.profile.word(),
+        profile_sel.word(),
         prof.levels.len(),
         prof.commons("level"),
         donor_lv,
@@ -749,58 +913,98 @@ pub fn build(
     }
     let base_w = LevelWriter::parse(&base_bytes)?;
     let schema = Schema::scan([&base_w.d]);
-    let applied = crate::write::apply(&base_bytes, &project.operations, &schema).map_err(|e| err(e.to_string()))?;
+    let applied = crate::write::apply_with(&base_bytes, &project.operations, &schema, &|lv| {
+        level_partition(game, lv).ok()
+    })
+    .map_err(|e| err(e.to_string()))?;
     report.push(format!(
-        "project: {} operations applied ({} transforms, {} deleted, {} duplicated, {} fields)",
-        applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.fields
+        "project: {} operations applied ({} transforms, {} deleted, {} duplicated, {} placed, {} fields)",
+        applied.operations, applied.transforms, applied.deleted, applied.duplicated, applied.placed, applied.fields
     ));
     let mut w = LevelWriter::parse(&applied.bytes)?;
     // 2. multiplayer: the campaign out, the donor's layer in, placed, the level's fields
-    let donor_bytes = read_one(
-        game,
-        &game.loaded(&donor_lv, "level"),
-        &format!("Levels/{}.dbx", donor_lv.to_ascii_uppercase()),
-    )?;
+    let donor_bytes = level_partition(game, &donor_lv)?;
     let donor = LevelWriter::parse(&donor_bytes)?;
     let mut keep = DescriptionKeep::of(&w).ok_or_else(|| err("the base level has no LevelDescription"))?;
     // the base's own name key names its loading picture (SP_01_NAME -> sp_01)
-    let base_picture = keep
-        .name
-        .strip_suffix("_NAME")
-        .unwrap_or(&keep.name)
-        .to_ascii_lowercase();
+    let base_picture = base_picture_name(game, &keep.name, &base)?;
     if spec.identity.is_some() {
         (keep.name, keep.description) = loc_keys(&lv);
     }
     let mut conv = Converted::default();
-    let keep_area: HashSet<String> = [spec.layer.combat_area.to_ascii_uppercase()].into();
-    if w.find(&spec.layer.combat_area).is_none() {
-        return Err(err(format!(
-            "the combat area {} is not in the base level",
-            spec.layer.combat_area
-        )));
-    }
     let choice = project.strip();
     report.push(format!("campaign content: {}", choice.describe()));
-    mpconvert::strip(&mut w, &keep_area, &choice, &mut conv)?;
     let seed = format!("{}:{low}", project.id);
-    let map = mpconvert::graft(&mut w, &donor, &spec.layer, &seed, &mut conv)?;
-    let hb = heightfield(game, &base, &base_w)?;
-    let hd = heightfield(game, &donor_lv, &donor)?;
-    let ground = match (&hd, &hb) {
-        (Some(d), Some(b)) => Some(Ground { donor: d, base: b }),
-        _ => None,
-    };
-    report.push(format!(
-        "ground: {}",
-        if ground.is_some() {
-            "the donor's and the base's height fields"
-        } else {
-            "not found: heights moved as given"
+    let map = if let Some(c) = target {
+        // round E3d: the mode's layer is the project's own (its log brought it in and took the base's out); the
+        // campaign checklist removes the base's campaign scripting, never what the log made
+        let made: HashSet<String> = project
+            .operations
+            .iter()
+            .flat_map(|o| o.op.creates())
+            .map(str::to_ascii_uppercase)
+            .collect();
+        mpconvert::strip(&mut w, &made, &choice, &mut conv)?;
+        let have: HashSet<String> = w.guids().into_iter().collect();
+        let map: HashMap<String, String> = c.map().into_iter().filter(|(_, n)| have.contains(n)).collect();
+        let sig = crate::modelayer::signature(&w);
+        report.push(format!(
+            "mode layer (the project's): {} {} from {}: {} of its {} instances in the level, {} of the base's taken \
+             out; first guess fitted {:?} into {:?} at scale {:.2}; {} bases {:?}, {} flags, {} combat areas, \
+             counters {:?}, {} teams, {} spawns, stages {:?}",
+            c.profile.word(),
+            crate::modelayer::mode_name(&c.mode),
+            c.donor,
+            map.len(),
+            c.items.len(),
+            c.removed.len(),
+            c.fit.from,
+            c.fit.to,
+            c.fit.scale,
+            sig.bases.iter().sum::<usize>(),
+            sig.bases,
+            sig.flags,
+            sig.combat_areas,
+            sig.counters,
+            sig.teams,
+            sig.spawns,
+            sig.stages
+        ));
+        if sha1_hex(&donor_bytes) != c.donor_sha1 {
+            report.push(format!(
+                "  note: {}'s partition changed since the mode was chosen (sha1 {} then)",
+                c.donor, c.donor_sha1
+            ));
         }
-    ));
-    mpconvert::place(&mut w, &donor, &spec.layer, &map, ground.as_ref(), &mut conv)?;
-    mpconvert::enable(&mut w, &spec.layer.combat_area)?;
+        map
+    } else {
+        let keep_area: HashSet<String> = [spec.layer.combat_area.to_ascii_uppercase()].into();
+        if w.find(&spec.layer.combat_area).is_none() {
+            return Err(err(format!(
+                "the combat area {} is not in the base level",
+                spec.layer.combat_area
+            )));
+        }
+        mpconvert::strip(&mut w, &keep_area, &choice, &mut conv)?;
+        let map = mpconvert::graft(&mut w, &donor, &spec.layer, &seed, &mut conv)?;
+        let hb = heightfield(game, &base, &base_w)?;
+        let hd = heightfield(game, &donor_lv, &donor)?;
+        let ground = match (&hd, &hb) {
+            (Some(d), Some(b)) => Some(Ground { donor: d, base: b }),
+            _ => None,
+        };
+        report.push(format!(
+            "ground: {}",
+            if ground.is_some() {
+                "the donor's and the base's height fields"
+            } else {
+                "not found: heights moved as given"
+            }
+        ));
+        mpconvert::place(&mut w, &donor, &spec.layer, &map, ground.as_ref(), &mut conv)?;
+        mpconvert::enable(&mut w, &spec.layer.combat_area)?;
+        map
+    };
     mpconvert::level_fields(&mut w, &donor, &keep, &map, &mut conv)?;
     // the profile's own level fields (Vietnam's sound states ...): the donor's, where the base's differ
     let mine = crate::profile::level_fields(&w);
@@ -818,7 +1022,7 @@ pub fn build(
         conv.grafted.iter().map(|x| x.1).sum::<usize>(),
         conv.connections_grafted,
         donor_lv,
-        spec.mode,
+        crate::modelayer::mode_name(&mode_k),
         conv.not_followed.len()
     ));
     for (n, k, m) in &conv.placed {
@@ -933,7 +1137,9 @@ pub fn build(
     let desc_name = format!("Levels/{lv}_description.dbx");
     report.push(format!(
         "description: {desc_name} ({}'s: {} mode, kits; the base's name {:?}, map and music)",
-        donor_lv, spec.mode, keep.name
+        donor_lv,
+        crate::modelayer::mode_name(&mode_k),
+        keep.name
     ));
     let mut level_all = vec![
         StagedEntry {
@@ -1010,13 +1216,19 @@ pub fn build(
     report.push(format!(
         "announcer: {}'s ({} voice-over): {}",
         donor_lv,
-        spec.profile.word(),
+        profile_sel.word(),
         ann.describe()
     ));
     // the partitions the layer names that the bundles the level loads do not give: the base's deleted markers hide
     // mp_common's flags and spawn camera (SP_01), a WW2 donor's team kits and flags are in its own bundle - copied
     // from the profile's common bundles, else the donor's, into the level's own bundle, which comes first
-    let mut blocks = mft_blocks(game, &low, &base, prof);
+    let foreign: Vec<String> = crate::profile::set_commons(game)?
+        .into_iter()
+        .filter(|(p, _)| *p != profile_sel)
+        .flat_map(|(_, c)| c)
+        .filter(|c| !prof.commons("level").iter().any(|m| m.eq_ignore_ascii_case(c)))
+        .collect();
+    let mut blocks = mft_blocks(game, &low, &base, prof, &foreign);
     let mut block_loaded: Vec<PathBuf> = blocks.first().map_or_default(|b| {
         b.iter()
             .filter_map(|l| l.strip_prefix("BundleTarget "))
@@ -1035,16 +1247,44 @@ pub fn build(
             .collect()
     });
     sources.extend(game.level_bundles(&donor_lv, "level"));
-    let filled = fill_hidden(game, &block_loaded, &level_all, &sources)?;
-    if !filled.is_empty() {
+    // round E3d: the base's own bundle may hold another era's copies of the announcer's banks (a WW2 map's: BF1943's
+    // lines merged into vo_common and vo_en), which come before the commons: the donor's own versions go into the
+    // level's bundle, which comes first, so the level's voices are the target era's
+    let shadowed = announcer_over_base(game, &block_loaded, &donor_lv, &level_all)?;
+    if !shadowed.is_empty() {
         report.push(format!(
-            "hidden partitions: {} entries copied from the level block's bundles or the donor's (the bundles the \
-             level loads hide them, or lack them): {}",
-            filled.len(),
-            filled.iter().map(|e| e.name.as_str()).collect::<Vec<_>>().join(", ")
+            "announcer: {} of the base's own copies replaced by the donor's (the target era's voices): {}",
+            shadowed.len(),
+            shadowed.iter().map(|e| e.name.as_str()).collect::<Vec<_>>().join(", ")
         ));
     }
-    level_all.extend(filled);
+    let mut announcer = announcer;
+    for e in shadowed {
+        announcer.push(e.name.clone());
+        level_all.push(e);
+    }
+    // round E3d: the level's whole closure (what it names, and what the partitions it reaches in its own and its
+    // base's bundles name) resolves under the profile's bundles; what does not is copied (from those bundles read
+    // alone, the donor's, else any level bundle of the game copy: another set's common, another level's own)
+    let mut base_loaded = game.loaded(&base, "level");
+    base_loaded.extend(game.startup());
+    // then what the base itself loads, each read alone (a WW2 base's ww2_common, which a BFBC2 profile drops)
+    for b in game.loaded(&base, "level") {
+        if !sources.contains(&b) {
+            sources.push(b);
+        }
+    }
+    let cl = closure(game, &block_loaded, &base_loaded, &level_all, &sources, true)?;
+    report.push(format!(
+        "closure: {} partitions of the level's own and its base's bundles walked; {} entries copied into the level's \
+         bundle (what the bundles it loads hide or lack); {} references to partitions in no bundle at all (DICE's own)",
+        cl.walked,
+        cl.copied.len(),
+        cl.nowhere.len()
+    ));
+    report.extend(closure_summary(&cl.record));
+    let closure_record = cl.record;
+    level_all.extend(cl.copied);
     // 7. the other bundles: the base's terrain overlay, its minimap, its loading music
     let pick = |bundles: Vec<PathBuf>, keep: &dyn Fn(&str) -> bool| -> Result<Vec<StagedEntry>> {
         let live = game.live(&bundles)?;
@@ -1064,13 +1304,18 @@ pub fn build(
         game.level_bundles(&base, "terrain").into_iter().take(1).collect(),
         &|_| true,
     )?;
-    let ingame = pick(game.level_bundles(&base, "ingame"), &|n| {
-        n.starts_with(&format!("levels/{base}/ui/"))
-    })?;
+    // the level's UI (its minimap) from the base's own ingame bundles and the levels' they load: a mode level's
+    // minimap is its map's (`MP_005GR` reads `levels/mp_005/ui/`), whose bundle the new level does not load
+    let ingame_bundles: Vec<PathBuf> = game
+        .loaded(&base, "ingame")
+        .into_iter()
+        .filter(|b| !is_shared(game, b))
+        .collect();
+    let ingame = pick(ingame_bundles, &|n| n.starts_with("levels/") && n.contains("/ui/"))?;
     let loader = pick(game.level_bundles(&base, "loader"), &|n| n.starts_with("sound/"))?;
     // 8. the level's own name and pictures (round E3b)
     let (strings, pictures, previews) = match &spec.identity {
-        Some(id) => identity(game, spec, id, &lv, &base_picture, &dd, &mut report)?,
+        Some(id) => identity(game, spec, id, &lv, &donor_lv, &base_picture, &dd, &mut report)?,
         None => Default::default(),
     };
     // write the stage
@@ -1080,6 +1325,7 @@ pub fn build(
         }
         let _ = std::fs::remove_dir_all(out.join("awards"));
         let _ = std::fs::remove_dir_all(out.join("vo"));
+        let _ = std::fs::remove_file(out.join("closure.txt"));
         for p in ["preview_loading.png", "preview_level.png"] {
             let _ = std::fs::remove_file(out.join(p));
         }
@@ -1158,7 +1404,7 @@ pub fn build(
         format: format!("{FORMAT}-stage"),
         level: lv.clone(),
         title: spec.title.clone(),
-        mode: mode_title(&spec.mode),
+        mode: mode_title(&mode_k),
         base: base.clone(),
         donor: donor_lv.clone(),
         base_sha1,
@@ -1170,22 +1416,293 @@ pub fn build(
         level_list: vec![format!("{low}.dbx"), format!("{low}_description.dbx")],
         report,
         converted: conv,
-        profile: spec.profile,
+        profile: profile_sel,
         strings,
         awards,
         announcer,
+        closure: closure_record,
+        project_mode: target.is_some(),
     };
     write_record(out, &rec)?;
     Ok(rec)
 }
 
-/// The partitions `ours` reference (transitively) that no bundle of `loaded` gives - hidden by an earlier bundle's
-/// deleted marker, or (a WW2 donor's team kits and flags) in the donor's own bundle - taken from the first of
-/// `sources` that has it (each bundle read alone, its own entries), each with its resources (`<stem>.res`,
-/// `<stem>_*.res`).
+/// A partition the export copied into the level's own bundle (round E3d's closure): its entry, the bundle it was
+/// copied from (relative to the game folder), why, and the first partition that names it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Copied {
+    /// The entry (`objects/props/x/x.dbx`, or one of its resources).
+    pub name: String,
+    /// The bundle it came from, relative to the game folder.
+    pub from: String,
+    /// Why: hidden by a deleted marker of a bundle the level loads, or in none of them.
+    pub why: String,
+    /// The partition that names it first.
+    pub by: String,
+}
+
+/// Whether a bundle is shared (a `_common` folder's or an `async` one): what such a bundle names resolves in the
+/// shared bundles (DICE's and OPFOR's levels load them as they are), so the closure stops there.
+fn is_shared(game: &Game, b: &Path) -> bool {
+    b.strip_prefix(&game.root).is_ok_and(|rel| {
+        rel.components().any(|c| {
+            let n = c.as_os_str().to_string_lossy().to_ascii_lowercase();
+            n.ends_with("_common") || n == "async"
+        })
+    })
+}
+
+fn rel_name(game: &Game, b: &Path) -> String {
+    b.strip_prefix(&game.root)
+        .map_or_else(|_| b.display().to_string(), |x| x.display().to_string())
+}
+
+/// The live entries of bundles in priority order ([`Game::live`]) and, for each name a deleted marker hides, the
+/// bundle whose marker it is.
+fn live_and_hidden(game: &Game, bundles: &[PathBuf]) -> Result<(HashMap<String, Found>, HashMap<String, PathBuf>)> {
+    let mut out: HashMap<String, Found> = HashMap::new();
+    let mut hidden: HashMap<String, PathBuf> = HashMap::new();
+    let _ = game;
+    for b in bundles.iter().filter(|b| b.is_file()) {
+        let h = fbrb::entries_path(b).map_err(|e| err(format!("{}: {e}", b.display())))?;
+        for e in h.entries {
+            let low = e.name.to_ascii_lowercase();
+            if out.contains_key(&low) || hidden.contains_key(&low) {
+                continue;
+            }
+            if e.is_deleted() {
+                hidden.insert(low, b.clone());
+            } else {
+                out.insert(low, (b.clone(), e));
+            }
+        }
+    }
+    Ok((out, hidden))
+}
+
+/// Every level bundle of the game copy (`Package`, then `Dist\win32`: `levels\<x>\level-00.fbrb`): the closure's
+/// last sources, the shared ones first, then the levels' own by name.
+fn all_level_bundles(game: &Game) -> Vec<PathBuf> {
+    let mut shared = Vec::new();
+    let mut own = Vec::new();
+    for top in [
+        game.root.join("Package").join("levels"),
+        game.root.join("Dist").join("win32").join("levels"),
+    ] {
+        let Ok(rd) = std::fs::read_dir(&top) else { continue };
+        let mut dirs: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+        dirs.sort();
+        for d in dirs {
+            let b = d.join("level-00.fbrb");
+            if b.is_file() {
+                if is_shared(game, &b) {
+                    shared.push(b);
+                } else {
+                    own.push(b);
+                }
+            }
+        }
+    }
+    shared.extend(own);
+    shared
+}
+
+/// The partition names a partition's references name (`<path>.dbx`, lower case).
+fn ref_partitions(data: &[u8]) -> Vec<String> {
+    EditDbx::parse(data).map_or_default(|d| {
+        let mut v: Vec<String> = refs_of(&d)
+            .into_iter()
+            .filter_map(|r| {
+                r.rsplit_once('/')
+                    .map(|(p, _)| format!("{}.dbx", p.to_ascii_lowercase()))
+            })
+            .collect();
+        v.sort();
+        v.dedup();
+        v
+    })
+}
+
+/// Where a partition the closure follows is from: `None` the level's own, `Some(None)` a base's partition walked,
+/// `Some(Some(b))` copied from bundle `b`.
+type Origin = Option<Option<PathBuf>>;
+
+/// What [`closure`] found.
+#[derive(Debug, Default)]
+struct Closure {
+    /// Entries copied into the level's bundle.
+    copied: Vec<StagedEntry>,
+    /// Where each came from and why.
+    record: Vec<Copied>,
+    /// Partitions walked in the bundles the level loads that are not shared (the level's own and its base's).
+    walked: usize,
+    /// Partitions named that are in no bundle at all (stock dangling references): (partition, who names it).
+    nowhere: Vec<(String, String)>,
+    /// Partitions named that are in a bundle the level does not load (the check's failures; the build copies them).
+    unresolved: Vec<(String, String)>,
+}
+
+/// The level's closure under the bundles it loads (round E3d, generalising E3b's copy-back): every partition `ours`
+/// names, and what the partitions it reaches in the level's own and its base's bundles name in turn, must resolve in
+/// `loaded` (the level block's bundles and the startup bundles). A shared bundle's partitions are not followed (the
+/// stock levels load them as they are). A partition that does not resolve - hidden by a deleted marker of a bundle
+/// before it (a WW2 export's `ww2_common` over `mp_common`), or in no loaded bundle (a WW2 level's own copies under a
+/// BFBC2 profile, an object placed from another level's or set's bundle) - is copied (`copy`) with its resources
+/// (`<stem>.res`, `<stem>_*.res`) from the first of `sources` that has it (each read alone), else from any level
+/// bundle of the game copy (the shared ones first), and its references are followed too. Without `copy` (the check)
+/// they are listed as unresolved. A partition that only the base's own partitions name and that the base's own
+/// bundles (`base_loaded`: what the stock base level loads) lack too is DICE's dangling reference: the stock level
+/// loads with it, so it is listed with the others in no bundle, never copied from an unrelated level. A copy's own
+/// references are looked for first in the bundle it came from.
 ///
 /// # Errors
 /// A bundle does not read.
+#[allow(clippy::too_many_lines, reason = "the walk's rounds: name, look up, walk or copy")]
+fn closure(
+    game: &Game,
+    loaded: &[PathBuf],
+    base_loaded: &[PathBuf],
+    ours: &[StagedEntry],
+    sources: &[PathBuf],
+    copy: bool,
+) -> Result<Closure> {
+    let (live, hidden) = live_and_hidden(game, loaded)?;
+    let base_live = game.live(base_loaded)?;
+    let mut per: Vec<(PathBuf, HashMap<String, Found>)> = sources
+        .iter()
+        .map(|b| Ok((b.clone(), game.live(std::slice::from_ref(b))?)))
+        .collect::<Result<_>>()?;
+    let mut everywhere: Option<Vec<(PathBuf, HashMap<String, Found>)>> = None;
+    let mut have: HashSet<String> = ours.iter().map(|e| e.name.to_ascii_lowercase()).collect();
+    let mut out = Closure::default();
+    let mut todo: Vec<(Vec<u8>, String, Origin)> = ours
+        .iter()
+        .filter(|e| e.name.to_ascii_lowercase().ends_with(".dbx"))
+        .map(|e| (e.data.clone(), e.name.clone(), None))
+        .collect();
+    let mut seen: HashSet<String> = HashSet::new();
+    while !todo.is_empty() {
+        // one round: every partition the round's partitions name (a walked base partition's naming counts least)
+        let mut wanted: BTreeMap<String, (String, Origin)> = BTreeMap::new();
+        for (data, by, origin) in todo.drain(..) {
+            for n in ref_partitions(&data) {
+                if have.contains(&n) || seen.contains(&n) {
+                    continue;
+                }
+                match wanted.get_mut(&n) {
+                    Some(w) if w.1 == Some(None) && origin != Some(None) => *w = (by.clone(), origin.clone()),
+                    Some(_) => {}
+                    None => {
+                        wanted.insert(n, (by.clone(), origin.clone()));
+                    }
+                }
+            }
+        }
+        let mut visit: Vec<(&Found, String)> = Vec::new();
+        let mut copies: Vec<(String, String, Origin)> = Vec::new();
+        for (n, (by, origin)) in wanted {
+            seen.insert(n.clone());
+            match live.get(&n) {
+                Some(f) if is_shared(game, &f.0) => {}
+                Some(f) => visit.push((f, n)),
+                None => copies.push((n, by, origin)),
+            }
+        }
+        out.walked += visit.len();
+        let found: Vec<&Found> = visit.iter().map(|x| x.0).collect();
+        for ((_, n), data) in visit.iter().zip(read_found(&found)?) {
+            todo.push((data, n.clone(), Some(None)));
+        }
+        for (n, by, origin) in copies {
+            if origin == Some(None) && !base_live.contains_key(&n) {
+                // the stock base names it and does not have it either: DICE's own dangling reference
+                out.nowhere.push((n, by));
+                continue;
+            }
+            let mut from = match &origin {
+                Some(Some(b)) if per.iter().any(|(x, c)| x == b && c.contains_key(&n)) => Some(b.clone()),
+                _ => None,
+            };
+            if from.is_none() {
+                from = per.iter().find(|(_, c)| c.contains_key(&n)).map(|(b, _)| b.clone());
+            }
+            if from.is_none() {
+                let all = everywhere.get_or_insert_with(|| {
+                    all_level_bundles(game)
+                        .into_iter()
+                        .filter_map(|b| game.live(std::slice::from_ref(&b)).ok().map(|l| (b, l)))
+                        .collect()
+                });
+                if let Some((b, l)) = all.iter().find(|(_, c)| c.contains_key(&n)) {
+                    per.push((b.clone(), l.clone()));
+                    from = Some(b.clone());
+                }
+            }
+            let Some(from) = from else {
+                out.nowhere.push((n, by));
+                continue;
+            };
+            if !copy {
+                out.unresolved.push((n, by));
+                continue;
+            }
+            let common = per
+                .iter()
+                .find(|(b, _)| *b == from)
+                .map(|x| &x.1)
+                .ok_or_else(|| err("closure: a source went away"))?;
+            let why = hidden.get(&n).map_or_else(
+                || "in no bundle the level loads".to_owned(),
+                |h| format!("hidden by a deleted marker in {}", rel_name(game, h)),
+            );
+            let st = n.trim_end_matches(".dbx").to_owned();
+            let mut names: Vec<&String> = common
+                .keys()
+                .filter(|k| {
+                    **k == n
+                        || (k.ends_with(".res")
+                            && (k.trim_end_matches(".res") == st || k.starts_with(&format!("{st}_"))))
+                })
+                .filter(|k| !have.contains(*k))
+                .collect();
+            names.sort();
+            let found: Vec<&Found> = names.iter().filter_map(|k| common.get(*k)).collect();
+            for ((_, e), bytes) in found.iter().zip(read_found(&found)?) {
+                have.insert(e.name.to_ascii_lowercase());
+                if e.name.to_ascii_lowercase().ends_with(".dbx") {
+                    todo.push((bytes.clone(), e.name.clone(), Some(Some(from.clone()))));
+                }
+                out.record.push(Copied {
+                    name: e.name.clone(),
+                    from: rel_name(game, &from),
+                    why: why.clone(),
+                    by: by.clone(),
+                });
+                out.copied.push(StagedEntry {
+                    name: e.name.clone(),
+                    type_name: e.type_name.clone(),
+                    data: bytes,
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The closure's copies in words: per source bundle and reason, how many entries (the report).
+fn closure_summary(record: &[Copied]) -> Vec<String> {
+    let mut by: BTreeMap<(String, String), usize> = BTreeMap::new();
+    for c in record {
+        *by.entry((c.from.clone(), c.why.clone())).or_default() += 1;
+    }
+    by.into_iter()
+        .map(|((from, why), n)| format!("  {n} entries from {from} ({why})"))
+        .collect()
+}
+
+/// The partitions `ours` reference (transitively) that no bundle of `loaded` gives (E3b's copy-back; round E3d's
+/// [`closure`] replaces it).
+#[allow(dead_code, reason = "kept until E3d's closure is proven on every export")]
 fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry], sources: &[PathBuf]) -> Result<Vec<StagedEntry>> {
     let live = game.live(loaded)?;
     let per: Vec<HashMap<String, Found>> = sources
@@ -1244,6 +1761,69 @@ fn fill_hidden(game: &Game, loaded: &[PathBuf], ours: &[StagedEntry], sources: &
     Ok(out)
 }
 
+/// The announcer partitions the level names (followed through their references) whose version in the bundles the
+/// level loads (`loaded`, after `ours`) is not the donor's own load's (round E3d: a WW2 base's own bundle holds
+/// BF1943's banks): the donor's versions, with their resources, to put first in the level's bundle.
+///
+/// # Errors
+/// A bundle does not read.
+fn announcer_over_base(game: &Game, loaded: &[PathBuf], donor: &str, ours: &[StagedEntry]) -> Result<Vec<StagedEntry>> {
+    let mut dl = game.loaded(donor, "level");
+    dl.extend(game.startup());
+    let theirs_live = game.live(&dl)?;
+    let mine_live = game.live(loaded)?;
+    let mut have: HashSet<String> = ours.iter().map(|e| e.name.to_ascii_lowercase()).collect();
+    let announcer_refs = |data: &[u8]| -> Vec<String> {
+        ref_partitions(data)
+            .into_iter()
+            .filter(|n| crate::profile::is_announcer(n))
+            .collect()
+    };
+    let mut todo: Vec<String> = ours.first().map_or_default(|e| announcer_refs(&e.data));
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    while let Some(n) = todo.pop() {
+        if !seen.insert(n.clone()) {
+            continue;
+        }
+        let Some(t) = theirs_live.get(&n) else { continue };
+        let theirs = read_found(&[t])?.pop().unwrap_or_default();
+        todo.extend(announcer_refs(&theirs));
+        if have.contains(&n) {
+            continue;
+        }
+        let same = match mine_live.get(&n) {
+            Some(m) if m.0 == t.0 => true,
+            Some(m) => read_found(&[m])?.pop().is_some_and(|d| d == theirs),
+            None => false,
+        };
+        if same {
+            continue;
+        }
+        // the partition and its resources, from the donor's load
+        let st = n.trim_end_matches(".dbx").to_owned();
+        let mut names: Vec<&String> = theirs_live
+            .keys()
+            .filter(|k| {
+                **k == n
+                    || (k.ends_with(".res") && (k.trim_end_matches(".res") == st || k.starts_with(&format!("{st}_"))))
+            })
+            .filter(|k| !have.contains(*k))
+            .collect();
+        names.sort();
+        let found: Vec<&Found> = names.iter().filter_map(|k| theirs_live.get(*k)).collect();
+        for ((_, e), bytes) in found.iter().zip(read_found(&found)?) {
+            have.insert(e.name.to_ascii_lowercase());
+            out.push(StagedEntry {
+                name: e.name.clone(),
+                type_name: e.type_name.clone(),
+                data: bytes,
+            });
+        }
+    }
+    Ok(out)
+}
+
 /// The `Name` loc key of a level's description in the startup bundles (`MP_009_NAME`, `SP_01_NAME`): cut at
 /// `_NAME`, the name of its loading picture.
 ///
@@ -1277,11 +1857,13 @@ fn description_name(desc: &[u8]) -> Result<String> {
 /// pictures: the picture from the user's file or the base's loading picture, in the forms of the donor's own
 /// loading picture (its name key's) and map-list picture.
 #[allow(clippy::type_complexity, reason = "three lists the stage writes")]
+#[allow(clippy::too_many_arguments, reason = "the export's form, the level and its donor")]
 fn identity(
     game: &Game,
     spec: &ExportSpec,
     id: &Identity,
     lv: &str,
+    donor_lv: &str,
     base_picture: &str,
     donor_desc: &[u8],
     report: &mut Vec<String>,
@@ -1296,8 +1878,7 @@ fn identity(
         (dk, id.description.trim().to_owned()),
     ];
     let donor_key = description_name(donor_desc)?;
-    let donor_lv = spec.layer.donor.to_ascii_lowercase();
-    let made = pictures(game, &donor_lv, &donor_key, base_picture, &id.picture)?;
+    let made = pictures(game, donor_lv, &donor_key, base_picture, &id.picture)?;
     let mut pictures = Vec::new();
     let mut previews = Vec::new();
     for (p, what) in made.into_iter().zip(["loading", "level"]) {
@@ -1334,6 +1915,20 @@ fn identity(
         spec.title
     ));
     Ok((strings, pictures, previews))
+}
+
+/// The name of a base level's loading picture (`awards/images/loadingscreens/<name>.res`): its name key cut at
+/// `_NAME` (`SP_01_NAME` -> `sp_01`), else, where the on-demand bundles have no picture of that name, the level's
+/// own (OPFOR's Wake Island: key `WAKEISLAND2_NAME`, picture `wake_island_s.res`; round E3d).
+///
+/// # Errors
+/// An on-demand bundle does not read.
+pub fn base_picture_name(game: &Game, name_key: &str, base: &str) -> Result<String> {
+    let by_key = name_key.strip_suffix("_NAME").unwrap_or(name_key).to_ascii_lowercase();
+    let live = game.live(&game.ondemand_awards())?;
+    let has = |n: &str| live.contains_key(&format!("awards/images/loadingscreens/{n}.res"));
+    let own = base.to_ascii_lowercase();
+    Ok(if !has(&by_key) && has(&own) { own } else { by_key })
 }
 
 /// One picture of the level made: the entry, the stock picture whose form it takes, where it came from, it.
@@ -1404,16 +1999,11 @@ pub fn pictures(
     Ok(out)
 }
 
-/// The maps.ini key of a mode (`conquest` -> `Conquest`).
+/// The maps.ini key of a mode (`conquest` -> `Conquest`, `goldrush` -> `Rush`, `teamdeathmatch` -> `Squad
+/// Deathmatch`: [`crate::modelayer::mode_name`]).
 #[must_use]
 pub fn mode_title(mode: &str) -> String {
-    match mode.to_ascii_lowercase().as_str() {
-        "conquest" => "Conquest".into(),
-        "rush" => "Rush".into(),
-        "squadrush" | "squad rush" => "Squad Rush".into(),
-        "squaddeathmatch" | "squad deathmatch" => "Squad Deathmatch".into(),
-        other => other.to_owned(),
-    }
+    crate::modelayer::mode_name(mode)
 }
 
 /// Whether a level folder of the game copy is an earlier install of an export (`opfor-mapedit-installed.json`
@@ -1449,6 +2039,14 @@ fn write_record(out: &Path, rec: &StageRecord) -> Result<()> {
         rec.description.1, rec.level_list
     );
     std::fs::write(out.join("registration.txt"), reg)?;
+    let mut cl = String::from(
+        "# the partitions the export copied into the level's bundle: entry, from, why, named by
+",
+    );
+    for c in &rec.closure {
+        let _ = writeln!(cl, "{}	{}	{}	{}", c.name, c.from, c.why, c.by);
+    }
+    std::fs::write(out.join("closure.txt"), cl)?;
     Ok(())
 }
 
@@ -1549,6 +2147,9 @@ fn stock_refs(game: &Game, rec: &StageRecord, ours: &str) -> Result<Vec<String>>
         }
     } else if let Some(rest) = o.strip_prefix(&format!("levels/{low}/")) {
         sources.push((game.loaded(&rec.base, "level"), format!("levels/{}/{rest}", rec.base)));
+    } else if let Some(c) = rec.closure.iter().find(|c| c.name.eq_ignore_ascii_case(ours)) {
+        // copied by the closure (round E3d): the bundle it came from
+        sources.push((vec![game.root.join(&c.from)], o));
     } else if rec.announcer.iter().any(|a| a.eq_ignore_ascii_case(ours)) {
         // the donor's own announcer partition (round E3c)
         sources.push((game.level_bundles(&rec.donor, "level"), o));
@@ -1596,6 +2197,7 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     let mut r = CheckReport::default();
     // the bundles parse, each entry reads, every partition parses; the files are the ones recorded
     let mut ours: Vec<(String, EditDbx)> = Vec::new();
+    let mut own_entries: Vec<StagedEntry> = Vec::new();
     for f in &rec.files {
         let p = stage.join(&f.path);
         let bytes = std::fs::read(&p)?;
@@ -1605,6 +2207,19 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         );
         let (h, data) = fbrb::extract_path_uncached(&p).map_err(|e| err(format!("{}: {e}", p.display())))?;
         let mut bad = Vec::new();
+        if f.path == "level-00.fbrb" {
+            own_entries = h
+                .entries
+                .iter()
+                .zip(&data)
+                .filter(|(e, _)| !e.is_deleted())
+                .map(|(e, d)| StagedEntry {
+                    name: e.name.clone(),
+                    type_name: e.type_name.clone(),
+                    data: d.clone(),
+                })
+                .collect();
+        }
         for (e, d) in h.entries.iter().zip(&data) {
             if e.name.to_ascii_lowercase().ends_with(".dbx") && !e.is_deleted() {
                 match EditDbx::parse(d) {
@@ -1822,6 +2437,96 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
         desc_level.as_deref() == Some(format!("Levels/{}", rec.level).as_str()),
         format!("description: LevelName {desc_level:?}"),
     );
+    // round E3d: the level's closure resolves under the profile's bundles (what the partitions it reaches through its
+    // own and its base's bundles name, too), and its mode layer is complete
+    let mut block_loaded: Vec<PathBuf> = level_block
+        .iter()
+        .filter_map(|l| l.strip_prefix("BundleTarget "))
+        .filter(|t| !t.to_ascii_lowercase().contains(&format!("levels/{low}/")))
+        .map(|t| game.bundle(t))
+        .collect();
+    block_loaded.extend(game.startup());
+    let mut base_loaded = game.loaded(&rec.base, "level");
+    base_loaded.extend(game.startup());
+    let cl = closure(game, &block_loaded, &base_loaded, &own_entries, &[], false)?;
+    r.add(
+        cl.unresolved.is_empty(),
+        format!(
+            "closure: every partition the level reaches ({} walked in its own and its base's bundles, {} copied in by              the export from {}) resolves in the bundles it loads under the {} profile; {} references to partitions in              no bundle at all (DICE's own) {:?}",
+            cl.walked,
+            rec.closure.len(),
+            {
+                let mut f: Vec<&str> = rec.closure.iter().map(|c| c.from.as_str()).collect();
+                f.sort_unstable();
+                f.dedup();
+                if f.is_empty() { "nowhere".to_owned() } else { f.join(", ") }
+            },
+            rec.profile.word(),
+            cl.nowhere.len(),
+            cl.unresolved.iter().take(8).map(|(n, by)| format!("{n} (named by {by})")).collect::<Vec<_>>()
+        ),
+    );
+    // the map's ground: its height field is in a bundle the terrain or the level block loads (round E3d: a Vietnam
+    // map's is in nam_common's terrain bundle, which its terrain block keeps under any profile)
+    if let Some((_, lw)) = lvl
+        && let Some(hf) = heightfield_name(&LevelWriter { d: lw.clone() })
+    {
+        let mut tb = vec![stage.join("terrain-00.fbrb")];
+        for b in rec.mft_blocks.iter().take(2) {
+            for t in b.iter().filter_map(|l| l.strip_prefix("BundleTarget ")) {
+                if !t.to_ascii_lowercase().contains(&format!("levels/{low}/")) {
+                    tb.push(game.bundle(t));
+                }
+            }
+        }
+        let there = game.live(&tb)?.get(&hf).map(|f| rel_name(game, &f.0));
+        r.add(
+            there.is_some(),
+            format!(
+                "terrain: the height field {hf} is in {} (the terrain and level blocks' bundles)",
+                there.unwrap_or_else(|| {
+                    "NONE of them: the map would load without ground; keep the base's terrain bundles".into()
+                })
+            ),
+        );
+    }
+    if let Some((_, lw)) = lvl {
+        let mode = mode_key(&rec.mode);
+        let have = crate::modelayer::signature(&LevelWriter { d: lw.clone() });
+        let donor = level_partition(game, &rec.donor)
+            .ok()
+            .and_then(|b| LevelWriter::parse(&b).ok())
+            .map(|w| crate::modelayer::signature(&w));
+        match donor {
+            Some(d) => {
+                let miss = crate::modelayer::missing(&mode, &have, &d);
+                r.add(
+                    miss.is_empty(),
+                    format!(
+                        "mode layer: {} {} - {} bases {:?}, {} flags, {} combat areas, counters {:?} (tickets, lives,                          kills), {} teams, {} spawns, M-COMs per stage {:?} (the donor {}'s: bases {:?}, {} flags,                          stages {:?}) {miss:?}",
+                        if miss.is_empty() { "complete:" } else { "INCOMPLETE:" },
+                        crate::modelayer::mode_name(&mode),
+                        have.bases.iter().sum::<usize>(),
+                        have.bases,
+                        have.flags,
+                        have.combat_areas,
+                        have.counters,
+                        have.teams,
+                        have.spawns,
+                        have.stages,
+                        rec.donor,
+                        d.bases,
+                        d.flags,
+                        d.stages
+                    ),
+                );
+            }
+            None => r.add(
+                false,
+                format!("mode layer: the donor {} is not in the game copy", rec.donor),
+            ),
+        }
+    }
     check_profile(game, stage, &rec, &ours, &live, &mut r)?;
     check_identity(game, stage, &rec, &ours, &mut r)?;
     // the cull tree: one tree, and one object per slot, each slot a leaf of a tree
@@ -1861,9 +2566,9 @@ pub fn check(game: &Game, stage: &Path) -> Result<CheckReport> {
     Ok(r)
 }
 
-/// The mode of a record's maps.ini key (`Conquest` -> `conquest`).
+/// The mode of a record's maps.ini key (`Conquest` -> `conquest`, `Rush` -> `goldrush`).
 fn mode_key(title: &str) -> String {
-    title.to_ascii_lowercase().replace(' ', "")
+    crate::modelayer::mode_key(title)
 }
 
 /// A level description's field (a text, or a reference) in a partition holding one.

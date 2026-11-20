@@ -33,6 +33,7 @@ pub mod culltool;
 pub mod culltree;
 pub mod diff;
 pub mod export;
+pub mod modelayer;
 pub mod mpconvert;
 pub mod ops;
 pub mod profile;
@@ -43,7 +44,7 @@ pub mod write;
 pub use ops::{FieldValue, Op, Operation, Placement, Rows, SinkUnit};
 pub use project::{BaseKind, MapProject, Profile};
 pub use schema::{FieldType, Schema};
-pub use write::{LevelWriteError, LevelWriter, apply};
+pub use write::{LevelWriteError, LevelWriter, apply, apply_with};
 
 /// The namespace of the editor's UUID v5 guids (`dbxbin.new_guid(NAMESPACE, project id, operation, source)`).
 pub const NAMESPACE: &str = "opfor:mapedit";

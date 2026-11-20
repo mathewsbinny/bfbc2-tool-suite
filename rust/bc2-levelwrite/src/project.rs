@@ -25,7 +25,7 @@ pub const EXTENSION: &str = ".mapedit.json";
 pub const AUTOSAVE: &str = ".autosave";
 
 /// The content profile (3.2, item 5): which assets and kits a map may use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default)]
 pub enum Profile {
     /// Battlefield: Bad Company 2.
     #[serde(rename = "BFBC2")]
@@ -452,6 +452,22 @@ impl MapProject {
         })
     }
 
+    /// The project's target (round E3d): the log's last era and mode choice, `None` before one is made (an export
+    /// then grafts the export file's layer, as E3 did).
+    #[must_use]
+    pub fn mode(&self) -> Option<&crate::modelayer::ModeChoice> {
+        self.operations.iter().rev().find_map(|o| match &o.op {
+            Op::SetMode { to } => Some(to.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// The era the project is made for: its target's, else the base level's.
+    #[must_use]
+    pub fn target_profile(&self) -> Profile {
+        self.mode().map_or(self.base.profile, |m| m.profile)
+    }
+
     /// The base-changed check on the partition's current bytes: whether it is another file, and which operations
     /// name objects it does not have.
     #[must_use]
@@ -473,10 +489,13 @@ impl MapProject {
             for c in o.op.creates() {
                 known.insert(c.to_ascii_uppercase());
             }
-            if let Op::Delete { guids } = &o.op {
-                for g in guids {
-                    known.remove(&g.to_ascii_uppercase());
-                }
+            let gone = match &o.op {
+                Op::Delete { guids } => guids.as_slice(),
+                Op::SetMode { to } => to.removed.as_slice(),
+                _ => &[],
+            };
+            for g in gone {
+                known.remove(&g.to_ascii_uppercase());
             }
         }
         out

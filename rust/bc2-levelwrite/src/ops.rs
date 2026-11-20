@@ -319,6 +319,12 @@ pub enum Op {
         /// The choice after.
         to: crate::mpconvert::Strip,
     },
+    /// The project's target chosen (round E3d): its era and multiplayer mode, the mode's layer brought in from a
+    /// donor level of them as ordinary objects, the level's old layer taken out ([`crate::modelayer`]).
+    SetMode {
+        /// The choice.
+        to: Box<crate::modelayer::ModeChoice>,
+    },
 }
 
 impl Op {
@@ -333,6 +339,7 @@ impl Op {
                 | Self::Duplicate { .. }
                 | Self::SetField { .. }
                 | Self::Place { .. }
+                | Self::SetMode { .. }
         )
     }
 
@@ -356,6 +363,7 @@ impl Op {
                 .flat_map(|p| std::iter::once(p.template.as_str()).chain(p.owned.iter().map(|o| o.source.as_str())))
                 .collect(),
             Self::SetField { items } => items.iter().map(|f| f.guid.as_str()).collect(),
+            Self::SetMode { to } => to.removed.iter().map(String::as_str).collect(),
             Self::AddLayer { .. }
             | Self::SetLayer { .. }
             | Self::RemoveLayer { .. }
@@ -376,6 +384,7 @@ impl Op {
                 .iter()
                 .flat_map(|p| std::iter::once(p.guid.as_str()).chain(p.owned.iter().map(|o| o.guid.as_str())))
                 .collect(),
+            Self::SetMode { to } => to.items.iter().map(|i| i.guid.as_str()).collect(),
             _ => Vec::new(),
         }
     }
@@ -459,6 +468,7 @@ impl Op {
             Self::Group { group, guids } => format!("Group {} as {group}", objects(guids.len())),
             Self::Ungroup { group } => format!("Ungroup {group}"),
             Self::SetStrip { to, .. } => format!("Campaign content: {}", to.describe()),
+            Self::SetMode { to } => to.describe(),
         }
     }
 }
@@ -558,6 +568,21 @@ impl Organisation {
         o
     }
 
+    fn delete(&mut self, guids: &[String]) {
+        for g in guids {
+            let g = g.to_ascii_uppercase();
+            self.layer_of.remove(&g);
+            self.folder_of.remove(&g);
+            self.hidden.remove(&g);
+            self.locked.remove(&g);
+            for members in self.groups.values_mut() {
+                members.retain(|m| *m != g);
+            }
+            self.deleted.insert(g);
+        }
+        self.groups.retain(|_, m| !m.is_empty());
+    }
+
     #[allow(clippy::too_many_lines, reason = "one arm per operation, read top to bottom")]
     fn apply(&mut self, op: &Op) {
         let up = |g: &str| g.to_ascii_uppercase();
@@ -569,20 +594,9 @@ impl Organisation {
                     }
                 }
             }
-            Op::Delete { guids } => {
-                for g in guids {
-                    let g = up(g);
-                    self.layer_of.remove(&g);
-                    self.folder_of.remove(&g);
-                    self.hidden.remove(&g);
-                    self.locked.remove(&g);
-                    for members in self.groups.values_mut() {
-                        members.retain(|m| *m != g);
-                    }
-                    self.deleted.insert(g);
-                }
-                self.groups.retain(|_, m| !m.is_empty());
-            }
+            Op::Delete { guids } => self.delete(guids),
+            // the old layer taken out: as a delete
+            Op::SetMode { to } => self.delete(&to.removed),
             Op::Duplicate { items } => {
                 // a copy is on its source's layer and in its folder, not in its group; its placement goes with it
                 let pairs = items.iter().flat_map(|d| {
