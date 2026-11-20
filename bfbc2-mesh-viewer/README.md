@@ -14,6 +14,12 @@ models and textures are embedded in it, so it is game content: keep it in your w
 
 The first run indexes the game copy's bundles (levels, async weapon / character bundles, the rest) and every level's
 Dx9 shader database, and caches that in `work\tools_out\meshview_index.pkl` (rebuilt when a bundle changes). How a
-mesh is read is in the docstring of `meshview.py` and the console converter's FORMAT.md. Needs `numpy` and `Pillow`.
+mesh is read is in the docstring of `meshview.py` and the console converter's FORMAT.md. Needs Python 3.12+, `numpy`,
+`Pillow` and the suite's Rust core (the bundles are read through it; since round F4 its part reader runs there too).
+
+`bin\bfbc2.exe meshview ...` (the suite's `bin\`, round O3) takes the same arguments: it answers `find` and the help
+from a current index in Rust and hands the drawing (the page and the picture) to the Python (the suite's README,
+"bfbc2.exe"). The map editor's asset browser is to take over the viewing (round GR3, `ROADMAP.md`); the picture
+command line stays.
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

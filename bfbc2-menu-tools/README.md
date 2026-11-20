@@ -9,8 +9,13 @@ never write into it. There is no menu viewer here.
 | `aptcheck.py` | checking menu patches before a build reaches the game: the rules whose breaking crashes the menu loader |
 | `aptrefs.py` | what the movies ask of the engine (`extern.<name>`), send it (FSCommands) and handle (engine events), with the exe's name / id table |
 | `bc2loc.py` | the game's localized texts: look up a key, search the texts, the keys a movie uses; write texts |
+| `aptgraft.py` | writing APT movies (round trip, the other byte order) and grafting between movies: a character with what it uses, the Onslaught HUD timer, mode cases and aliases, frame-label aliases, crosshairs; its commands and model are in its docstring (`python aptgraft.py` prints them) |
 
-Python 3.10 or newer (numpy is not needed). Movies are named the same way in all three:
+Python 3.12 or newer (the suite's; numpy is not needed); with the suite's Rust core built, the movies are decoded and
+the rules and scans run in Rust (rounds E3n, E4c), the same answers. Without Python: `bin\bfbc2.exe <tool> ...`
+(`aptcheck`, `aptrefs`, `bc2loc`, `aptgraft`; the suite's `bin\`, rounds O2 / O3) takes the same arguments and gives the same output, files and
+exit codes; a damaged movie is handed to the Python (the suite's README, "bfbc2.exe"). Movies are named the same way
+in all of them:
 
 | You give | Read from |
 |---|---|
@@ -115,6 +120,9 @@ grenade (`JAP_riflegrenade`) has none, and the Type 5 rifle shares the Garand's 
 `tests\test_menu_tools.py`: a movie, patch files, a language file and an exe built in the test (quick tier); with
 `--game`, OPFOR's patch files, every movie of the game copy, the exe's table and getter cases, known events, and the
 English, Russian and Japanese texts (game tier). `tests\test_bc2loc_write.py`: every language written back
-identical and edited with `set` (game tier).
+identical and edited with `set` (game tier). `tests\test_aptgraft.py` (aptgraft's writes and grafts),
+`tests\test_apt_e3n.py` / `test_apt_e4c.py` (the Rust decoder, model and scans against their Python),
+`tests\test_bc2loc_native.py` and `test_pe_native.py` (the localization and PE readers in Rust); the command lines in
+Rust: the suite's `core\tests\test_cli_o2.py` / `test_cli_o3.py`.
 
 Developed for Project OPFOR BFBC2. Battlefield: Bad Company 2 is © Electronic Arts / DICE.

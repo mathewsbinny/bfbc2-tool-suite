@@ -11,6 +11,16 @@ also be computed without the game (`tools\navsample_offline.py`, "Standalone sam
 **To use it, start with [QUICKSTART.md](QUICKSTART.md).** Double-click `navkitGUI.pyw` for the window, or
 run `python navkit.py` from a command prompt.
 
+**Today (2026-11-20):** NavKit needs Python 3.12+ and the suite's Rust core: its generator (the grid walks,
+walkability rules, areas, tracing, route graphs) runs only in Rust since rounds E1d and R1 (2026-11-17 / 18), and
+the tools around the build (round E4e) run there with their Python as the fallback (`tools\navnative.py`,
+`BFBC2_NAVTOOLS_PYTHON=1`). `bin\bfbc2.exe navkit ...` and `bin\bfbc2.exe <tool> ...` for the tools (`hpdtool`,
+`hkpack`, `levelobjects`, `ladders`, `ordercheck`, `navcompare`, `hpdcheck`, `hpdview`, `detailed`, `navparity`,
+`navregress`, `sample_all`, `graphstats`) are the same command lines without Python (rounds O2 - O5); `navkit build`,
+`apply`, `all` and `sample`, the regression builds and the drawings still run in Python behind the binary. NavKit's
+window runs the binary when it is built from the suite's checkout. `tools\graphstats.py` was retired in round RT1
+(2026-11-20): `bfbc2.exe graphstats` is its only form (the suite's README, "bfbc2.exe").
+
 ## Why
 
 BC2's AI uses Autodesk Kynapse. The game ships the Kynapse *runtime* (which loads `pathdata.hpd`)
@@ -42,7 +52,7 @@ QUICKSTART.md        how to build path data for a level, step by step
 navkitGUI.pyw        the NavKit window (Tkinter): the steps below as buttons
 navkit.py            driver: levels / prepare / sample / build / check / install / restore / status / all
 research\            specification (KYNAPSE_SPEC.md) and images (img\)
-tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
+tools\               NavKit tools (Python 3.12+, numpy / matplotlib, the suite's Rust core)
   hpdtool.py         pathdata.hpd: info / sector / roundtrip / coverage / meshtrip
   kymesh.py          per-sector runtime mesh: parse_mesh / write_mesh (byte-exact)
   hpdview.py         render a sector to PNG (outlines, portals, graph)
@@ -77,6 +87,8 @@ tools\               NavKit tools (Python 3.13 + numpy / matplotlib)
                      research\CROSS_DOMAIN_ROUTES.md)
   navsample_offline.py  the in-game sampler's output computed from the level's Havok collision and height field, no
                      game launch; the stock MP batch (see "Standalone sampling")
+  navnative.py       the Rust core's switch for the tools around the build (round E4e; BFBC2_NAVTOOLS_PYTHON=1)
+  (graphstats.py     retired 2026-11-20, round RT1: bfbc2.exe graphstats)
 tests\               NavKit's tests (run by the suite's run_tests.py; the suite README lists them)
 src\                 (reserved, empty)
 ```
