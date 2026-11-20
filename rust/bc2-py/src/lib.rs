@@ -52,6 +52,9 @@
 //! Round F3 (`formats_f3.rs`): `aimanim_*`, `hpd_mesh_layout` / `hpd_mesh_coverage`, `audio_xma_parts` /
 //! `audio_xma2_riff` / `audio_xas_blocks`, `navkit_navsample_v3` /
 //! `navkit_navsample_write`, `hkpack_parse`; `xenos_disasm_body` (`xenos.rs`).
+//!
+//! Round F4 (`formats_f4.rs`): `culltree_strings`, `audio_convert` / `audio_decode`, `hkpack_open` / `HkPackfile`,
+//! `navkit_asset_bodies`, `meshview_part`, `texqa_read`; `xenos_disasm` (`xenos.rs`).
 
 mod apt;
 mod aptmodel;
@@ -65,6 +68,7 @@ mod f2a;
 mod fbrb_cache;
 mod fbrbtool;
 mod formats_f3;
+mod formats_f4;
 mod geometry;
 mod granny;
 mod harness;
@@ -462,7 +466,7 @@ mod bc2_native {
 
     #[pymodule_export]
     use super::xenos::{
-        XenosProgram, xenos_disasm_body, xenos_float_repr, xenos_helpers, xenos_microcode, xenos_parse,
+        XenosProgram, xenos_disasm, xenos_disasm_body, xenos_float_repr, xenos_helpers, xenos_microcode, xenos_parse,
         xenos_parse_many, xenos_translate, xenos_translate_many, xenos_tree_program,
     };
 
@@ -470,6 +474,13 @@ mod bc2_native {
     use super::formats_f3::{
         aimanim_parse, aimanim_to_pc, aimanim_write, audio_xas_blocks, audio_xma_parts, audio_xma2_riff, hkpack_parse,
         hpd_mesh_coverage, hpd_mesh_layout, navkit_navsample_v3, navkit_navsample_write,
+    };
+
+    // round F4: F3's leftovers
+    #[pymodule_export]
+    use super::formats_f4::{
+        HkPackfile, audio_convert, audio_decode, culltree_strings, hkpack_open, meshview_part, navkit_asset_bodies,
+        texqa_read,
     };
 
     #[pymodule_export]

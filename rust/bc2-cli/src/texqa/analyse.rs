@@ -538,7 +538,7 @@ fn analyse_in(name: &str, ours_res: &[u8], source: Option<&[u8]>, orig_res: Opti
             ),
         );
     }
-    let ce = chain_errors(&ours)?;
+    let ce = chain_errors(&ours).map_err(|_| DErr::Py)?;
     let mut sce = None;
     if ours.mips < full && ours.mips > 1 && src.as_ref().is_none_or(|s| ours.mips < s.mips) {
         flags.add(
@@ -552,7 +552,7 @@ fn analyse_in(name: &str, ours_res: &[u8], source: Option<&[u8]>, orig_res: Opti
         );
     }
     if let Some(s) = &src {
-        let sc = chain_errors(s)?;
+        let sc = chain_errors(s).map_err(|_| DErr::Py)?;
         for (m, (x, y)) in ce.iter().zip(&sc).enumerate() {
             let m = m + 1;
             let (Some(x), Some(y)) = (x, y) else { continue };
@@ -888,7 +888,7 @@ fn vs_source(row: &mut Row, flags: &mut Flags, ours: &Tex, src: &Tex, orig: Opti
             ),
         );
     }
-    let lv = compare_levels(ours, src, &ch)?;
+    let lv = compare_levels(ours, src, &ch).map_err(|_| DErr::Py)?;
     row.set("levels", Value::List(lv.iter().map(|l| l.value.clone()).collect()));
     let p0 = lv.first().map(|l| l.psnr);
     row.set("psnr_source", opt_f(p0));
@@ -898,7 +898,7 @@ fn vs_source(row: &mut Row, flags: &mut Flags, ours: &Tex, src: &Tex, orig: Opti
         "identical_source",
         Value::Bool(!lv.is_empty() && lv.iter().all(|l| l.psnr == f64::INFINITY)),
     );
-    let bm = best_match(a0, s0, &ch)?;
+    let bm = best_match(a0, s0, &ch).map_err(|_| DErr::Py)?;
     let (bm_psnr, better) = match &bm {
         Some((p, b)) => (Some(*p), b.clone()),
         None => (None, None),
@@ -921,7 +921,7 @@ fn vs_source(row: &mut Row, flags: &mut Flags, ours: &Tex, src: &Tex, orig: Opti
         && better.is_none()
     {
         if let Some(orig) = orig {
-            let o = compare_levels(orig, src, &ch)?;
+            let o = compare_levels(orig, src, &ch).map_err(|_| DErr::Py)?;
             let po = o.first().map(|l| l.psnr);
             row.set("psnr_orig_source", opt_f(po));
             if let Some(po) = po.filter(|p| *p >= PSNR_SAME) {

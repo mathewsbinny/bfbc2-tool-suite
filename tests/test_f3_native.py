@@ -743,6 +743,12 @@ def area_hkpack(c: Checks) -> None:
     rng = random.Random(0xF3E5)
     root = opfor_root()
     nat = lambda d: N.hkpack_parse(d) if type(d) is bytes else None                     # noqa: E731
+
+    def packfile(d: Any) -> Any:
+        """hkpack.Packfile(d) with its dicts (round F4's handle builds them on their first read)."""
+        pf = hkpack.Packfile(d)
+        _ = pf.ptr
+        return pf
     seeds: list[bytes] = []
     if root:
         for _p, _size, ents in bundle_entries(os.path.join(root, "game", "**", "mp_005", '*.fbrb'), {'HavokPhysicsData'}):
@@ -750,25 +756,25 @@ def area_hkpack(c: Checks) -> None:
             if len(seeds) >= 8:
                 break
     for i, b in enumerate(seeds):
-        t.both(f'seed {i}', 'quick:seed', 0, hkpack.Packfile, hkpack.Packfile.reference, nat, b, real=True)
+        t.both(f'seed {i}', 'quick:seed', 0, packfile, hkpack.Packfile.reference, nat, b, real=True)
     for i in range(800 if seeds else 0):
-        t.both(f'damaged {i}', 'quick:damaged', 0, hkpack.Packfile, hkpack.Packfile.reference, nat,
+        t.both(f'damaged {i}', 'quick:damaged', 0, packfile, hkpack.Packfile.reference, nat,
                damaged(rng.choice(seeds), rng))
-    t.both('no packfile', 'quick:edge', 0, hkpack.Packfile, hkpack.Packfile.reference, nat, b'nothing here')
+    t.both('no packfile', 'quick:edge', 0, packfile, hkpack.Packfile.reference, nat, b'nothing here')
     if GAME and root:
         n = 0
         for pat in (os.path.join(root, 'game', '**', '*.fbrb'), os.path.join(root, 'work', 'ww2', '**', '*.fbrb')):
             for p, size, ents in bundle_entries(pat, {'HavokPhysicsData'}):
                 for _, name, b in ents:
                     n += 1
-                    t.both(f'{rel(p, root)}/{name}', rel(p, root), size, hkpack.Packfile, hkpack.Packfile.reference,
+                    t.both(f'{rel(p, root)}/{name}', rel(p, root), size, packfile, hkpack.Packfile.reference,
                            nat, b, real=hkpack.MAGIC in b)
         # NavKit's offline sampler reads the level folders' *_Havok.res through hkpack (asset_bodies)
         levels = sorted(glob.glob(os.path.join(root, 'work', 'levels', '*', '**', '*_havok.res'), recursive=True))
         for p in levels:
             b = open(p, 'rb').read()
             n += 1
-            t.both(rel(p, root), 'work/levels', len(levels), hkpack.Packfile, hkpack.Packfile.reference, nat, b,
+            t.both(rel(p, root), 'work/levels', len(levels), packfile, hkpack.Packfile.reference, nat, b,
                    real=hkpack.MAGIC in b)
         print(f'packfiles: {n:,}')
     print(f'hkpack timing: Rust {t.t_nat:.2f} s, Python {t.t_ref:.2f} s')
