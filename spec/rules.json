@@ -5811,7 +5811,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:353-418"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:354-419"
     },
     {
      "kind": "test",
@@ -5840,7 +5840,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:353-404"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:354-405"
     },
     {
      "kind": "test",
@@ -5865,11 +5865,23 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:277-295"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:278-296"
     },
     {
      "kind": "test",
      "ref": "rust/bc2-formats/src/shaderdb.rs::layouts_disagree"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs:38-73"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs::opens_as_shaderdb_py"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_sd1_native.py::area_parse"
     },
     {
      "kind": "doc",
@@ -5886,7 +5898,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:297-307"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:298-308"
     },
     {
      "kind": "code",
@@ -5936,7 +5948,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:308-315"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:309-316"
     },
     {
      "kind": "test",
@@ -5961,7 +5973,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:316-323"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:317-324"
     },
     {
      "kind": "test",
@@ -5982,11 +5994,11 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:260-272"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:261-273"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:405-416"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:406-417"
     },
     {
      "kind": "test",
@@ -6007,7 +6019,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:274-295"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:275-296"
     },
     {
      "kind": "code",
@@ -6032,7 +6044,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:36-37"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:37-38"
     },
     {
      "kind": "code",
@@ -6061,15 +6073,15 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:38-41"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:39-42"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:166-170"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:167-171"
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:384-389"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:385-390"
     },
     {
      "kind": "test",
@@ -6094,7 +6106,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:42-43"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:43-44"
     },
     {
      "kind": "code",
@@ -6144,7 +6156,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:392-402"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:393-403"
     },
     {
      "kind": "code",
@@ -6223,7 +6235,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:329-350"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:330-351"
     },
     {
      "kind": "code",
@@ -6281,7 +6293,7 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:473-530"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:474-531"
     },
     {
      "kind": "test",
@@ -6381,11 +6393,23 @@
    "evidence": [
     {
      "kind": "code",
-     "ref": "rust/bc2-formats/src/shaderdb.rs:172-177"
+     "ref": "rust/bc2-formats/src/shaderdb.rs:173-178"
     },
     {
      "kind": "test",
      "ref": "rust/bc2-formats/src/shaderdb.rs::big_endian_detection"
+    },
+    {
+     "kind": "code",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs:38-73"
+    },
+    {
+     "kind": "test",
+     "ref": "rust/bc2-formats/src/shaderdb/open.rs::opens_as_shaderdb_py"
+    },
+    {
+     "kind": "test",
+     "ref": "tests/test_sd1_native.py::area_parse"
     },
     {
      "kind": "test",

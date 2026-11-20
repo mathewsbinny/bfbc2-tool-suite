@@ -65,6 +65,10 @@ landed on `main`.
 - **Aim animations and navsample files** (`aimanim`, `navsample_offline.file_bytes`): read and written by the Rust
   core only. Inputs it refuses now raise (`AimError`, `ValueError`) where the Python twin used to answer some of
   them: an aim animation holding a NaN, samples of another dtype.
+- **Shader databases are opened in the Rust core end to end** (round SD1; the same results, the Python kept as the
+  fallback): `ShaderDb.parse`'s choice of byte order and layout and its messages, `pick_database` and
+  `dx_from_name` are one Rust implementation shared by `shaderdb.py` and `bfbc2.exe shaderdb`; `load_levels` reads
+  each level bundle's database list once instead of once per Dx.
 
 ### Removed
 - **Python twins retired (round RT1):** the command lines `bfbc2-auto-navkit\tools\graphstats.py` and
@@ -72,6 +76,10 @@ landed on `main`.
   brings them back), and the Python references `aimanim.parse_reference` / `write_reference` / `to_pc_reference`
   (with aimanim's `use_native` switch) and `navsample_offline.file_bytes_reference`. The answers they gave stay
   recorded as the tests' reference data.
+
+### Fixed
+- **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /
+  `OverflowError` from the Rust core instead of reading the file as the Python does (round SD1).
 
 ## [0.9.0] - 2026-11-19
 

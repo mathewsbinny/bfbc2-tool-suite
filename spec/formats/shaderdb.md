@@ -25,7 +25,7 @@ to a zero byte. The file is a stream of sections read front to back: records fol
 no offsets, nothing is stored about the file's total size, and the file ends exactly after the last section. A
 reader must consume every byte.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:353-418] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: rust/bc2-formats/src/shaderdb.rs::errors] [test: rust/bc2-formats/tests/shaderdb_robustness.rs::databases_read_back] [doc: bfbc2-shader-tools/FORMAT.md:20-24]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:354-419] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: rust/bc2-formats/src/shaderdb.rs::errors] [test: rust/bc2-formats/tests/shaderdb_robustness.rs::databases_read_back] [doc: bfbc2-shader-tools/FORMAT.md:20-24]
 
 ### SHDB-HDR-2: Header and section order
 
@@ -46,7 +46,7 @@ Status: **verified** · Variants: PC, Xbox 360, BF1943
 
 Every section is `u32 n` then *n* records.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:353-404] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [data: game copy 2026-11-19: version 120 and flag 0 in all 80 distinct Dx9, 80 Dx10 and 80 Dx11 databases read (bundles over 350 MB of payload not read); 270 level databases parse to their last byte (doc)] [doc: bfbc2-shader-tools/FORMAT.md:26-39]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:354-405] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [data: game copy 2026-11-19: version 120 and flag 0 in all 80 distinct Dx9, 80 Dx10 and 80 Dx11 databases read (bundles over 350 MB of payload not read); 270 level databases parse to their last byte (doc)] [doc: bfbc2-shader-tools/FORMAT.md:26-39]
 
 ### SHDB-HDR-3: The three PC kinds differ only in vertex inputs and code
 
@@ -57,7 +57,7 @@ Dx9, Dx10 and Dx11 databases have the same layout except the end of a vertex sha
 (names and GUIDs) and the same numbers of fragments, mesh parts and layouts, but different fragment and layout GUIDs,
 and Dx11 compiles fewer programs than Dx9 / Dx10. A database is merged only with databases of its own kind.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:277-295] [test: rust/bc2-formats/src/shaderdb.rs::layouts_disagree] [doc: bfbc2-shader-tools/FORMAT.md:276-283]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:278-296] [test: rust/bc2-formats/src/shaderdb.rs::layouts_disagree] [code: rust/bc2-formats/src/shaderdb/open.rs:38-73] [test: rust/bc2-formats/src/shaderdb/open.rs::opens_as_shaderdb_py] [test: tests/test_sd1_native.py::area_parse] [doc: bfbc2-shader-tools/FORMAT.md:276-283]
 
 ## Sections
 
@@ -86,7 +86,7 @@ Offsets inside a block count from the block's start, so a block is copied betwee
 textures are in its second block (SHDB-PROG-1); a shader's own block holds sampler states (and on terrain strips,
 engine-named constants). Nothing names a texture's role: only its sampler register.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:297-307] [code: rust/bc2-formats/src/shaderdb/query.rs:32-167] [code: rust/bc2-render/src/material.rs:197-212] [test: rust/bc2-formats/src/shaderdb/query.rs::blocks] [test: bfbc2-shader-tools/tests/test_shaderdb.py::quick] [doc: bfbc2-shader-tools/FORMAT.md:41-91]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:298-308] [code: rust/bc2-formats/src/shaderdb/query.rs:32-167] [code: rust/bc2-render/src/material.rs:197-212] [test: rust/bc2-formats/src/shaderdb/query.rs::blocks] [test: bfbc2-shader-tools/tests/test_shaderdb.py::quick] [doc: bfbc2-shader-tools/FORMAT.md:41-91]
 
 ### SHDB-PB-2: Name hashes are Adler-32 of the lower-case name
 
@@ -106,7 +106,7 @@ Each record: u16 k, u16 first (the first register after the engine's: where a ma
 u8 count (1; the declared element count for bone arrays). The ids are the renderer's per-draw values (view and
 projection matrices, world matrix, bones, camera, time, lights; the table is in the doc cited).
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:308-315] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: rust/bc2-render/src/dxbc.rs::globals_size_rounds_to_registers] [doc: bfbc2-shader-tools/FORMAT.md:93-110]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:309-316] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: rust/bc2-render/src/dxbc.rs::globals_size_rounds_to_registers] [doc: bfbc2-shader-tools/FORMAT.md:93-110]
 
 ### SHDB-REG-1: Register tables (section 3)
 
@@ -116,7 +116,7 @@ Each record: u32 k, then k x 4 bytes: u8 engine id, u8 kind (0x40 2D, 0x42 cube)
 They bind the engine's own textures (the shadow map, the reflection cube) to a shader's slots. A translated Dx10 / 11
 shader must take its slots from its own compiled resource bindings, not a donor's table.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:316-323] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [doc: bfbc2-shader-tools/FORMAT.md:112-124]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:317-324] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [doc: bfbc2-shader-tools/FORMAT.md:112-124]
 
 ### SHDB-SH-1: Shader records (sections 4 and 5)
 
@@ -127,7 +127,7 @@ index (each index inside its section). The code: Dx9, one flag byte (bit 0: crea
 then D3D9 bytecode; Dx10 / 11, a DXBC container; Xbox 360, Xenos microcode in the XDK container (XENOS-CON-1), no flag
 byte. A vertex shader record continues with its vertex input description (SHDB-SH-2); a pixel shader record ends there.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:260-272] [code: rust/bc2-formats/src/shaderdb.rs:405-416] [test: rust/bc2-formats/src/shaderdb.rs::errors] [doc: bfbc2-shader-tools/FORMAT.md:127-150]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:261-273] [code: rust/bc2-formats/src/shaderdb.rs:406-417] [test: rust/bc2-formats/src/shaderdb.rs::errors] [doc: bfbc2-shader-tools/FORMAT.md:127-150]
 
 ### SHDB-SH-2: Vertex input description
 
@@ -139,7 +139,7 @@ Status: **verified** · Variants: PC, Xbox 360, BF1943
 | Dx10 / 11 | u32 n, n bytes (probably the input signature); u32 m, m x 0x1C-byte `D3D10/11_INPUT_ELEMENT_DESC` (the name pointer unused); u32 k, k x cstr semantic names |
 | Xbox 360 | u32 k, k x 12-byte Xenon vertex elements (u16 stream, u16 offset, u32 type, u8 method, usage, usage index, pad; ending with the end element), then 16 bytes: one u8 stride per stream |
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:274-295] [code: rust/bc2-render/src/material.rs:177-195] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [doc: bfbc2-shader-tools/FORMAT.md:139-145]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:275-296] [code: rust/bc2-render/src/material.rs:177-195] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [doc: bfbc2-shader-tools/FORMAT.md:139-145]
 
 ### SHDB-PROG-1: Program records (section 6a)
 
@@ -160,7 +160,7 @@ n x 0x30 bytes:
 
 The loader inserts programs into a sorted map by id: a repeated id would be dropped.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:36-37] [code: rust/bc2-formats/src/shaderdb/query.rs:170-178] [test: rust/bc2-formats/src/shaderdb/query.rs::program_indices] [exe: 0x9CC520 the sorted vector-map insert (FORMAT.md)] [doc: bfbc2-shader-tools/FORMAT.md:152-164]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:37-38] [code: rust/bc2-formats/src/shaderdb/query.rs:170-178] [test: rust/bc2-formats/src/shaderdb/query.rs::program_indices] [exe: 0x9CC520 the sorted vector-map insert (FORMAT.md)] [doc: bfbc2-shader-tools/FORMAT.md:152-164]
 
 ### SHDB-KEY-1: Program keys (section 6b)
 
@@ -174,7 +174,7 @@ composite: one visibility register per part), byte 4 instanced (1: stream 1 carr
 rows), bytes 8 and 14 a point light. The renderer looks a program up by the part's layout guid and the permutation;
 an entry with no matching program draws with something else, silently.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:38-41] [code: rust/bc2-formats/src/shaderdb.rs:166-170] [code: rust/bc2-formats/src/shaderdb.rs:384-389] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: rust/bc2-formats/src/shaderdb.rs::errors] [doc: bfbc2-shader-tools/FORMAT.md:166-175]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:39-42] [code: rust/bc2-formats/src/shaderdb.rs:167-171] [code: rust/bc2-formats/src/shaderdb.rs:385-390] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: rust/bc2-formats/src/shaderdb.rs::errors] [doc: bfbc2-shader-tools/FORMAT.md:166-175]
 
 ### SHDB-LAY-1: Vertex layouts (section 7)
 
@@ -185,7 +185,7 @@ stream; formats and usages in `formats/mesh.md` MESH-VTX-1 / MESH-VTX-2), the el
 followed by a zero byte, and stream 0's stride at body byte 69. Layout GUIDs are unique in a file and named only by
 GUID (program keys, mesh parts).
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:42-43] [code: rust/bc2-convert/src/meshconv.rs:86-98] [code: rust/bc2-convert/src/meshconv.rs:383-440] [test: bfbc2-shader-tools/tests/test_shaderdb.py::xbox] [doc: bfbc2-shader-tools/FORMAT.md:218-221] [doc: bfbc2-console-convert/FORMAT.md:183-185]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:43-44] [code: rust/bc2-convert/src/meshconv.rs:86-98] [code: rust/bc2-convert/src/meshconv.rs:383-440] [test: bfbc2-shader-tools/tests/test_shaderdb.py::xbox] [doc: bfbc2-shader-tools/FORMAT.md:218-221] [doc: bfbc2-console-convert/FORMAT.md:183-185]
 
 ### SHDB-LAY-2: Layout and mesh part strides agree
 
@@ -204,7 +204,7 @@ Status: **verified** · Variants: PC, Xbox 360, BF1943
 decals and terrain patches), in the assets' own case; names are unique. **The guid is MD5 of the name's bytes**
 (Xbox 360: SHDB-X-2). An entry is found only by its exact name.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:392-402] [code: rust/bc2-formats/src/shaderdb/query.rs:323-330] [code: rust/bc2-formats/src/shaderdb/query.rs:468-485] [test: rust/bc2-formats/src/shaderdb/query.rs::md5_vectors] [test: bfbc2-shader-tools/tests/test_shaderdb.py::game] [doc: bfbc2-shader-tools/FORMAT.md:225-232]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:393-403] [code: rust/bc2-formats/src/shaderdb/query.rs:323-330] [code: rust/bc2-formats/src/shaderdb/query.rs:468-485] [test: rust/bc2-formats/src/shaderdb/query.rs::md5_vectors] [test: bfbc2-shader-tools/tests/test_shaderdb.py::game] [doc: bfbc2-shader-tools/FORMAT.md:225-232]
 
 ### SHDB-NAME-2: Fragments (section 8.2)
 
@@ -233,7 +233,7 @@ Status: **verified** · Variants: PC, Xbox 360, BF1943
 sorted by guid, each list ascending; every program in exactly one group, the group of the entry its key names.
 Because the indices are u16, a database holds at most 65,535 programs (the largest seen: 24,932).
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:329-350] [code: rust/bc2-formats/src/shaderdb/query.rs:416-417] [code: rust/bc2-formats/src/shaderdb/query.rs:493-531] [test: bfbc2-shader-tools/tests/test_shaderdb.py::quick] [doc: bfbc2-shader-tools/FORMAT.md:240-242]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:330-351] [code: rust/bc2-formats/src/shaderdb/query.rs:416-417] [code: rust/bc2-formats/src/shaderdb/query.rs:493-531] [test: bfbc2-shader-tools/tests/test_shaderdb.py::quick] [doc: bfbc2-shader-tools/FORMAT.md:240-242]
 
 ### SHDB-CHK-1: What a modified database must satisfy
 
@@ -255,7 +255,7 @@ The suite keeps every record as the file's bytes in the file's byte order; writi
 bytes. Every PC level database of the game copy, every BFBC2 Xbox 360 level database (20) and BF1943's Wake
 round-trip.
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:473-530] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: bfbc2-shader-tools/tests/test_shaderdb.py::xbox] [test: bfbc2-shader-tools/tests/test_shaderdb.py::wake] [doc: bfbc2-shader-tools/FORMAT.md:9-13]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:474-531] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [test: bfbc2-shader-tools/tests/test_shaderdb.py::xbox] [test: bfbc2-shader-tools/tests/test_shaderdb.py::wake] [doc: bfbc2-shader-tools/FORMAT.md:9-13]
 
 ## Render state
 
@@ -317,7 +317,7 @@ program indices, the groups' u16 indices, the parameter blocks' header words and
 sampler. Bytes stay bytes. A file is big-endian when its first byte is 0 and its fourth is not. Version 120 for
 BFBC2's Xbox 360 files, 117 for BF1943 (keys 0x5C bytes).
 
-Evidence: [code: rust/bc2-formats/src/shaderdb.rs:172-177] [test: rust/bc2-formats/src/shaderdb.rs::big_endian_detection] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [doc: bfbc2-shader-tools/FORMAT.md:318-333]
+Evidence: [code: rust/bc2-formats/src/shaderdb.rs:173-178] [test: rust/bc2-formats/src/shaderdb.rs::big_endian_detection] [code: rust/bc2-formats/src/shaderdb/open.rs:38-73] [test: rust/bc2-formats/src/shaderdb/open.rs::opens_as_shaderdb_py] [test: tests/test_sd1_native.py::area_parse] [test: rust/bc2-formats/src/shaderdb.rs::round_trips] [doc: bfbc2-shader-tools/FORMAT.md:318-333]
 
 ### SHDB-X-2: GUIDs have big-endian fields
 
