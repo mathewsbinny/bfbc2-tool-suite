@@ -15,6 +15,12 @@ was retired on 2026-11-17, after the port had given the same bytes on every text
 Onslaught builds and passed the full test tier; its results are recorded in tests/texture_golden.json, which
 tests/test_texture_native.py checks. The layout functions below (tiled, packed, layout) stay: they describe the
 console's format, and texqa.py's independent decoder and the tests build console textures with them.
+
+The checking helpers levels, decode (round F0) and check (round F2a) run in the Rust core; their Python
+(levels_reference, decode_reference, check_reference) was retired in round RT2 against its recorded answers
+(bfbc2-console-convert\\tests\\f0_texture_replay*.json, f2a_console_replay*.json): a texture or level the core
+does not read (cut short or damaged, a format decode does not know) raises a ConvertError that is also a
+bfbc2core.native.Refused.
 """
 import os
 import struct
@@ -226,96 +232,50 @@ def convert_many(items):
 def decode(level, w, h, fmt):
     """One level's blocks (PC order) -> (h, w, 3) int array: DXT1 / DXT3 / DXT5 / BC5 (red, green; blue 0); and the
     8-bit format 10 (the value in all three; rows as stored: DICE pads a row to 4 bytes, the converter does not). In
-    the Rust core when it is built (round F0), else decode_reference."""
+    the Rust core (round F0)."""
     import numpy as np
-    nat = _native() if type(level) is bytes else None
-    got = nat.texture_decode(level, w, h, fmt) if nat is not None else None
-    if got is not None:
-        rows, cols, px = got
-        return np.frombuffer(px, np.int32).reshape(rows, cols, 3)
-    return decode_reference(level, w, h, fmt)
+    if isinstance(level, bytearray | memoryview):
+        level = bytes(level)
+    got = require().texture_decode(level, w, h, fmt) if type(level) is bytes else None
+    if got is None:
+        raise _refused(f'decode: a {w} x {h} level of format {fmt!r} the decoder does not read (cut short, or a '
+                       'format it does not know)')
+    rows, cols, px = got
+    return np.frombuffer(px, np.int32).reshape(rows, cols, 3)
 
 
-def decode_reference(level, w, h, fmt):
-    """The NumPy decoder (the reference)."""
-    import numpy as np
-    if fmt == L8:
-        w, h = max(w, 1), max(h, 1)
-        pitch = max(w, len(level) // h)
-        a = np.frombuffer(level[:pitch * h], np.uint8).reshape(h, pitch)[:, :w].astype(np.int32)
-        return np.repeat(a[:, :, None], 3, 2)
-    bpb = FORMATS[fmt][0]
-    bw, bh = max((w + 3) // 4, 1), max((h + 3) // 4, 1)
-    blk = np.frombuffer(level[:bw * bh * bpb], np.uint8).reshape(-1, bpb)
-
-    def color(c, force4):
-        c0 = c[:, 0].astype(np.int32) | (c[:, 1].astype(np.int32) << 8)
-        c1 = c[:, 2].astype(np.int32) | (c[:, 3].astype(np.int32) << 8)
-        rgb = lambda v: np.stack([((v >> 11) & 31) * 255 // 31, ((v >> 5) & 63) * 255 // 63,   # noqa: E731
-                                  (v & 31) * 255 // 31], -1)
-        p0, p1 = rgb(c0), rgb(c1)
-        four = (c0 > c1) | force4
-        pal = np.stack([p0, p1, np.where(four[:, None], (2 * p0 + p1) // 3, (p0 + p1) // 2),
-                        np.where(four[:, None], (p0 + 2 * p1) // 3, 0)], 1)
-        bits = c[:, 4:8].astype(np.uint32)
-        bits = bits[:, 0] | bits[:, 1] << 8 | bits[:, 2] << 16 | bits[:, 3] << 24
-        idx = np.stack([(bits >> (2 * k)) & 3 for k in range(16)], 1)
-        return np.take_along_axis(pal, idx[:, :, None].repeat(3, 2), 1)
-
-    def alpha(a):
-        a0, a1 = a[:, 0].astype(np.int32), a[:, 1].astype(np.int32)
-        big = a0 > a1
-        pal = np.zeros((len(a), 8), np.int32)
-        pal[:, 0], pal[:, 1] = a0, a1
-        for k in range(1, 7):                               # 8-value mode (a0 > a1): six interpolated values
-            pal[:, k + 1] = ((7 - k) * a0 + k * a1) // 7
-        for k in range(1, 5):                               # 6-value mode: four interpolated, then 0 and 255
-            pal[:, k + 1] = np.where(big, pal[:, k + 1], ((5 - k) * a0 + k * a1) // 5)
-        pal[:, 6] = np.where(big, pal[:, 6], 0)
-        pal[:, 7] = np.where(big, pal[:, 7], 255)
-        bits = np.zeros(len(a), np.uint64)
-        for k in range(6):
-            bits |= a[:, 2 + k].astype(np.uint64) << np.uint64(8 * k)
-        idx = np.stack([(bits >> np.uint64(3 * k)) & np.uint64(7) for k in range(16)], 1).astype(np.int64)
-        return np.take_along_axis(pal, idx, 1)
-
-    if fmt in (0, 18):
-        px = color(blk, False)
-    elif fmt in (1, 2):
-        px = color(blk[:, 8:], True)
-    else:
-        px = np.stack([alpha(blk[:, :8]), alpha(blk[:, 8:]), np.zeros((len(blk), 16), np.int64)], 2)
-    img = px.reshape(bh, bw, 4, 4, 3).transpose(0, 2, 1, 3, 4).reshape(bh * 4, bw * 4, 3)
-    return img[:max(h, 1), :max(w, 1)].astype(np.int32)
+def _refused(message):
+    from bfbc2core import native
+    return native.refused(message, ConvertError)
 
 
 def levels(pc):
-    """[(slice, level, w, h, bytes)] of a PC ITexture resource: in the Rust core when it is built (round F0), else
-    levels_reference."""
-    nat = _native() if type(pc) is bytes else None
-    got = nat.texture_levels(pc) if nat is not None else None
-    return got if got is not None else levels_reference(pc)
-
-
-def levels_reference(pc):
-    """The Python reader (the reference)."""
-    ver, typ, fmt, flags, w, h, depth, mips = struct.unpack_from('<8I', pc, 0)
-    sizes = struct.unpack_from('<15I', pc, 32)
-    out, pos = [], HEADER
-    for s in range(6 if typ == CUBE else 1):
-        for m in range(mips):
-            out.append((s, m, max(w >> m, 1), max(h >> m, 1), pc[pos:pos + sizes[m]]))
-            pos += sizes[m]
-    return out
+    """[(slice, level, w, h, bytes)] of a PC ITexture resource: in the Rust core (round F0)."""
+    if isinstance(pc, bytearray | memoryview):
+        pc = bytes(pc)
+    got = require().texture_levels(pc) if type(pc) is bytes else None
+    if got is None:
+        raise _refused('levels: a PC texture the reader does not read (cut short or damaged)')
+    return got
 
 
 def check(pc, reference=None):
-    """check_reference's answer: the mip-chain error and the block counts in the Rust core when it is built (round
-    F2a: bc2_convert::texcheck::check, NumPy's values to the bit), the correlation with NumPy's corrcoef here."""
-    nat = _native() if type(pc) is bytes and (reference is None or type(reference) is bytes) else None
-    got = nat.texture_check(pc, reference) if nat is not None and hasattr(nat, 'texture_check') else None
+    """(worst mip-chain error, correlation with reference's level 0 or None, blocks identical, blocks): each level
+    should be about its larger neighbour scaled down; a reference (the PC's own file of the asset) should look the
+    same where it is the same art. Every format decode() reads is compared (DECODED: the block formats and L8); for
+    any other (RGBA16F, B8G8R8A8, ...) nothing is measured and the result is (None, None, None, None) - not
+    compared, which a caller must not read as a pass. The mip-chain error and the block counts in the Rust core
+    (round F2a: bc2_convert::texcheck::check, NumPy's values to the bit), the correlation with NumPy's corrcoef
+    here."""
+    if isinstance(pc, bytearray | memoryview):
+        pc = bytes(pc)
+    if isinstance(reference, bytearray | memoryview):
+        reference = bytes(reference)
+    got = None
+    if type(pc) is bytes and (reference is None or type(reference) is bytes):
+        got = require().texture_check(pc, reference)
     if got is None:
-        return check_reference(pc, reference)
+        raise _refused('check: a PC texture (or reference) the checker does not read (cut short or damaged)')
     if got[1] is None:
         return None, None, None, None
     import numpy as np
@@ -329,37 +289,3 @@ def check(pc, reference=None):
     return worst, corr, same, total
 
 
-def check_reference(pc, reference=None):
-    """(worst mip-chain error, correlation with reference's level 0 or None, blocks identical, blocks): each level
-    should be about its larger neighbour scaled down; a reference (the PC's own file of the asset) should look the
-    same where it is the same art. Every format decode() reads is compared (DECODED: the block formats and L8); for
-    any other (RGBA16F, B8G8R8A8, ...) nothing is measured and the result is (None, None, None, None) - not
-    compared, which a caller must not read as a pass."""
-    import numpy as np
-    fmt = struct.unpack_from('<I', pc, 8)[0]
-    if fmt not in DECODED:
-        return None, None, None, None
-    lv = levels(pc)
-    worst = 0.0
-    for (s, _m, w, h, d), (s2, _m2, w2, h2, d2) in zip(lv, lv[1:]):
-        if s != s2 or w < 8 or h < 8:
-            continue
-        a, b = decode(d, w, h, fmt), decode(d2, w2, h2, fmt)
-        small = a[:h // 2 * 2, :w // 2 * 2].reshape(h // 2, 2, w // 2, 2, 3).mean((1, 3))
-        worst = max(worst, float(np.abs(small - b[:small.shape[0], :small.shape[1]]).mean()))
-    corr = same = total = None
-    if reference is not None and reference[:HEADER] == pc[:HEADER]:
-        s0, m0, w, h, d = lv[0]
-        r = levels(reference)[0][4]
-        a, b = decode(d, w, h, fmt).ravel(), decode(r, w, h, fmt).ravel()
-        corr = float(np.corrcoef(a, b)[0, 1]) if a.std() and b.std() else 1.0
-        bpb = FORMATS[fmt][0]
-        total = len(pc[HEADER:]) // bpb
-        if len(reference) >= HEADER + total * bpb:
-            x = np.frombuffer(pc, np.uint8, total * bpb, HEADER).reshape(total, bpb)
-            y = np.frombuffer(reference, np.uint8, total * bpb, HEADER).reshape(total, bpb)
-            same = int((x == y).all(1).sum())
-        else:
-            same = sum(pc[HEADER + i * bpb:HEADER + (i + 1) * bpb] == reference[HEADER + i * bpb:HEADER + (i + 1) * bpb]
-                       for i in range(total))
-    return worst, corr, same, total

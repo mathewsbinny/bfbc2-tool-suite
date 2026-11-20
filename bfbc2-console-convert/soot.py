@@ -17,16 +17,13 @@ SootMesh (PC little-endian, Xbox big-endian; the same size on both):
     I / 2 indices: u16
     256 bytes: 64 x u32
 
-soot_mesh runs in the suite's Rust core when it is built (round F2a: bc2_convert::terrain::soot_mesh, through
-terrain.py's switch: the same bytes and SootError messages); where the reference would raise another error the
-Python runs (soot_mesh_reference, kept as the reference and the fallback; BFBC2_PURE_PYTHON=1 or
-terrain.use_native(False): Python only).
+soot_mesh runs in the suite's Rust core (round F2a: bc2_convert::terrain::soot_mesh, through terrain.py; the same
+bytes and SootError messages). Its Python (soot_mesh_reference) was retired in round RT2 against its recorded answers
+(bfbc2-console-convert\\tests\\f2a_console_replay*.json): where it raised another error (a read past the data) a
+SootError that is also a bfbc2core.native.Refused says the mesh is cut short or damaged.
 """
 import os
-import struct
 import sys
-
-import numpy as np
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
@@ -43,39 +40,7 @@ class SootError(Exception):
 
 def soot_mesh(x):
     """An Xbox SootMesh (BFBC2's or BF1943's) as BFBC2's PC file."""
-    nat = terrain._native() if type(x) is bytes else None
-    got = terrain._answer(nat.terrain_convert('soot_mesh', x), SootError) if nat is not None else None
-    return got[0] if got is not None else soot_mesh_reference(x)
-
-
-def soot_mesh_reference(x):
-    """The Python soot_mesh (the reference)."""
-    out = bytearray(len(x))
-
-    def swap(dt, n, at):
-        if at + n * np.dtype(dt).itemsize > len(x):
-            raise SootError(f'soot mesh: {n} x {dt} at {at:#x} runs past the end ({len(x)} bytes)')
-        out[at:at + n * np.dtype(dt).itemsize] = np.frombuffer(x, '>' + dt, n, at).astype('<' + dt).tobytes()
-    if len(x) == EMPTY:
-        swap('u4', 4, 0)
-        return bytes(out)
-    n = struct.unpack_from('>I', x, 0x10)[0]
-    swap('u4', 5, 0)
-    swap('f4', 6 * n, 0x14)
-    h = 0x14 + 24 * n
-    swap('u4', 4, h)
-    _, vb, ib, _ = struct.unpack_from('>4I', x, h)
-    o = h + 16
-    stride = struct.unpack_from('>I', x, 4)[0]
-    if vb % stride or ib % 2 or o + vb + ib + TAIL != len(x):
-        raise SootError(f'soot mesh: {vb} vertex and {ib} index bytes do not fit a {len(x)}-byte file')
-    if stride != 12:
-        raise SootError(f'soot mesh: {stride}-byte vertices (only the 12-byte one is proven: every BFBC2 soot mesh has it;'
-                        f' BF1943\'s warehouse has 16)')
-    be = np.dtype([('h', '>u2', 4), ('w', '>u4')])
-    le = np.dtype([('h', '<u2', 4), ('w', '<u4')])
-    out[o:o + vb] = np.frombuffer(x, be, vb // 12, o).astype(le).tobytes()
-    o += vb
-    swap('u2', ib // 2, o)
-    swap('u4', TAIL // 4, o + ib)
-    return bytes(out)
+    x = terrain._bytes(x)
+    if type(x) is not bytes:
+        raise TypeError(f'soot mesh: bytes needed, not {type(x).__name__}')
+    return terrain._answer(terrain._native().terrain_convert('soot_mesh', x), SootError, 'soot mesh')[0]

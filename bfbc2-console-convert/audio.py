@@ -20,7 +20,12 @@ its results are recorded in tests\audio_golden.json, which tests\test_audio_nati
 write_sps) run in the Rust core too when it is built (round F0: bc2_native.wave_read and its kin, the same values and
 bytes; where the reference would raise, the Python runs: *_reference, kept as the reference and the fallback, so the
 errors stay this module's; BFBC2_PURE_PYTHON=1 or use_native(False) runs the Python only). Proven in tests\test_audio.py on BFBC2's Xbox / PC twins and on
-Battlefield 1943's sounds.
+Battlefield 1943's sounds. The EA-XMA parts, the XMA2 RIFF and the EA-XAS blocks (xma_parts, xma2_riff, _xas_stream's
+blocks) run in the Rust core only (round F3: bc2_native.audio_xma_parts, audio_xma2_riff, audio_xas_blocks, with the
+reference's errors and messages since round RT2); their Python (xma_parts_reference, xma2_riff_reference,
+_xas_blocks_reference) was retired in round RT2 against its recorded answers (tests\f3_golden_audio.json). An
+argument only the reference took (a float or None where a count goes, a negative sample count) raises
+bfbc2core.native.Refused (a ValueError).
 
 Frostbite Wave resource, BFBC2 (Xbox big-endian, PC little-endian; the words are the same on both, 35,811 twins):
     0x00  u32 flags << 16 | id    flags 1 - 4, 0x13, 0x14, 0x23, 0x24, 0x31; id 0 or a 16-bit value (0xda91 on
@@ -448,52 +453,45 @@ def ffmpeg_decode(data, fmt, channels):
 
 
 def _f3(name):
-    """The Rust core's round-F3 function `name`, or None (not built, or the containers' readers off)."""
+    """The Rust core's function `name` of round F4 (decode, convert), or None (not built, or the containers' readers
+    off: their Python reference runs)."""
     nat = _native()
     return getattr(nat, name, None) if nat is not None else None
 
 
+_F3_ERRORS = {'AudioError': AudioError, 'struct.error': struct.error, 'ZeroDivisionError': ZeroDivisionError}
+
+
+def _f3_answer(got, what):
+    """A round-F3 function's answer: the reference's error raised where the core gives it as (type name, message)
+    (round RT2); an argument the core does not take (None) raises Refused."""
+    if got is None:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        import suite_paths
+        suite_paths.use('core')
+        from bfbc2core import native
+        raise native.refused(f'{what}: an argument the EA framing does not take (a whole number is needed)', AudioError)
+    if type(got) is tuple:
+        raise _F3_ERRORS[got[0]](got[1])
+    return got
+
+
 def xma_parts(st):
-    """The XMA2 packets of each XMA stream (2 channels each), each block's part padded to whole packets. In the Rust
-    core when it is built (round F3: bc2_native.audio_xma_parts, the same bytearrays), else xma_parts_reference."""
-    fn = _f3('audio_xma_parts')
-    got = fn(st) if fn is not None else None
-    return got if got is not None else xma_parts_reference(st)
-
-
-def xma_parts_reference(st):
-    """The Python (the reference)."""
-    k = (st.channels + 1) // 2
-    out = [bytearray() for _ in range(k)]
-    for bi, (_, b) in enumerate(st.blocks):
-        o = 0
-        for i in range(k):
-            if o + 4 > len(b):
-                raise AudioError(f'EA-XMA: block {bi} ends before stream {i}')
-            n = struct.unpack_from('>I', b, o)[0] >> 2
-            if n < 4 or o + n > len(b):
-                raise AudioError(f'EA-XMA: block {bi}, stream {i}: {n} bytes at {o} do not fit {len(b)}')
-            out[i] += b[o + 4:o + n] + bytes((-(n - 4)) % XMA_PACKET)
-            o += n
-        if o != len(b) and any(b[o:]):                       # BF1943's last streamed block: zeros after the parts
-            raise AudioError(f'EA-XMA: block {bi}: the streams end at {o} of {len(b)}')
-    return out
+    """The XMA2 packets of each XMA stream (2 channels each), each block's part padded to whole packets: bytearrays,
+    in the Rust core (round F3: bc2_native.audio_xma_parts; a block that ends before a stream, a part that does not
+    fit or bytes other than zeros after the parts raise AudioError)."""
+    if any(type(b) is not bytes for _, b in st.blocks):
+        st = Stream(st.version, st.codec, st.channels, st.rate, st.type, st.samples,
+                    [(n, bytes(b)) for n, b in st.blocks])
+    return _f3_answer(require().audio_xma_parts(st), 'EA-XMA parts')
 
 
 def xma2_riff(packets, channels, rate, samples):
-    """A RIFF WAVE of XMA2 packets (XMA2WAVEFORMATEX, one stream). In the Rust core when it is built (round F3), else
-    xma2_riff_reference."""
-    fn = _f3('audio_xma2_riff')
-    got = fn(packets, channels, rate, samples) if fn is not None and type(packets) is bytes else None
-    return got if got is not None else xma2_riff_reference(packets, channels, rate, samples)
-
-
-def xma2_riff_reference(packets, channels, rate, samples):
-    """The Python (the reference)."""
-    fmt =struct.pack('<HHIIHHH', 0x166, channels, rate, rate * channels * 2, XMA_PACKET, 16, 34)
-    fmt += struct.pack('<HIIIIIIIBBH', 1, 4 if channels == 1 else 3, samples, XMA_PACKET, 0, 0, 0, 0, 0, 4, 1)
-    body = b'WAVEfmt ' + struct.pack('<I', len(fmt)) + fmt + b'data' + struct.pack('<I', len(packets)) + packets
-    return b'RIFF' + struct.pack('<I', len(body)) + body
+    """A RIFF WAVE of XMA2 packets (XMA2WAVEFORMATEX, one stream), in the Rust core (round F3; a value past its
+    field's width raises struct.error, as struct.pack does)."""
+    return _f3_answer(require().audio_xma2_riff(bytes(packets), channels, rate, samples), 'XMA2 RIFF')
 
 
 def decode_xma(st, trim=True):
@@ -577,24 +575,11 @@ def encode_xas_many(items):
 
 def _xas_stream(frames, n, ch, rate, type_):
     """The Stream of a sound's frames (bytes, frame-major) in DICE's blocks: 256 * ceil(rate / 1280) samples each,
-    the last the rest (empty when the count is a multiple of the block). The blocks are cut in the Rust core when it
-    is built (round F3: bc2_native.audio_xas_blocks), else by _xas_blocks_reference."""
-    fn = _f3('audio_xas_blocks')
-    blocks = fn(frames, n, ch, rate) if fn is not None and type(frames) is bytes else None
-    if blocks is None:
-        blocks = _xas_blocks_reference(frames, n, ch, rate)
+    the last the rest (empty when the count is a multiple of the block). The blocks are cut in the Rust core (round
+    F3: bc2_native.audio_xas_blocks; a rate whose blocks hold no samples raises ZeroDivisionError, as the reference's
+    division did)."""
+    blocks = _f3_answer(require().audio_xas_blocks(bytes(frames), n, ch, rate), 'EA-XAS blocks')
     return Stream(1, 4, ch, rate, type_, n, blocks)
-
-
-def _xas_blocks_reference(frames, n, ch, rate):
-    """The Python (the reference)."""
-    per = xas_block_samples(rate)
-    full = n // per                                                  # an exact multiple: DICE's last block is empty
-    size = per // 128 * ch * XAS_FRAME
-    mv = memoryview(frames)
-    blocks = [(per, bytes(mv[i * size:(i + 1) * size])) for i in range(full)]
-    blocks.append((n - full * per, bytes(mv[full * size:])))
-    return blocks
 
 
 def ffmpeg_decode_xas(st):

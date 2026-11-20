@@ -9,10 +9,11 @@ billboard shader). Format: FORMAT.md section 4.
 A LOD's size field is its MeshData's vertex bytes + index bytes + 12 (all 2,463 console and 619 PC mp_common LODs),
 not the file's length: lod_size().
 
-parse and write run in the suite's Rust core when it is built (round F0: bc2_native.meshset_parse / meshset_write,
-the same dicts and bytes; mesh.use_native switches them with mesh.py's header functions). Where the reference would
-raise, or a value is one the core leaves to it, the Python runs (parse_reference, write_reference: kept as the
-reference and the fallback), so the errors stay this module's.
+parse and write run in the suite's Rust core (round F0: bc2_native.meshset_parse / meshset_write, the same dicts
+and bytes). parse's Python (parse_reference) was retired in round RT2 against its recorded answers
+(bfbc2-console-convert\\tests\\f0_meshdata_replay*.json): a set it does not read (cut short or damaged) raises a
+ConvertError that is also a bfbc2core.native.Refused. write's Python (write_reference) stays the fallback: OPFOR
+edits the dicts it writes (bounds, sizes, shader names) and values the core does not take go to it.
 """
 import struct
 
@@ -28,26 +29,6 @@ class ConvertError(Exception):
     pass
 
 
-class _Reader:
-    def __init__(self, b, be):
-        self.b, self.p, self.e = b, 0, '>' if be else '<'
-
-    def num(self, fmt):
-        v = struct.unpack_from(self.e + fmt, self.b, self.p)
-        self.p += struct.calcsize(fmt)
-        return v if len(v) > 1 else v[0]
-
-    def u8(self):
-        self.p += 1
-        return self.b[self.p - 1]
-
-    def cstr(self):
-        e = self.b.index(b'\0', self.p)
-        s = self.b[self.p:e]
-        self.p = e + 1
-        return s
-
-
 def _native():
     import mesh
     return mesh._native()
@@ -57,48 +38,22 @@ def parse(b, kind, big_endian, flag=None):
     """{a, z, lod_settings, lods: [{x, sets: [(name, [shader names])], bounds, size, extra, flag, parts, masks}]}.
     flag: whether a rigid set's LODs have the flag byte - BFBC2's do (PC and Xbox), Battlefield 1943's do not (its
     rigid sets are one byte a LOD shorter); None: BFBC2's rule. A set read without it gets flag 0, written as BFBC2's.
-    In the Rust core when it is built (round F0), else parse_reference."""
-    nat = _native() if kind in KINDS and type(b) is bytes else None
-    got = nat.meshset_parse(b, kind, bool(big_endian), flag) if nat is not None else None
-    return got if got is not None else parse_reference(b, kind, big_endian, flag)
-
-
-def parse_reference(b, kind, big_endian, flag=None):
-    """The Python reader (the reference)."""
+    In the Rust core (round F0)."""
     if kind not in KINDS:
         raise ConvertError(f'{kind}: only {", ".join(KINDS)} are converted')
-    has_flag = kind != 'SkinnedMeshSet' if flag is None else flag
-    r = _Reader(b, big_endian)
-    s = {'a': r.num('I'), 'z': r.u8(), 'lod_settings': r.cstr(), 'lods': []}
-    for _ in range(r.num('I')):
-        x, n, sets = r.u8(), r.u8(), r.u8()
-        L = {'x': x, 'shaders': n, 'sets': [(r.cstr(), [r.cstr() for _ in range(n)]) for _ in range(sets)]}
-        L['bounds'] = r.num('6f')
-        L['size'], L['extra'] = r.num('2I')
-        if kind == 'SkinnedMeshSet':
-            L['flag'] = None                                            # skinned sets: no flag byte
-        else:
-            L['flag'] = r.u8() if has_flag else 0
-        if kind in COMPOSITE_LIKE:
-            # parts: hash, name, bounds (6 floats), transform (3 rotation rows and the position: 12 floats);
-            # then per shader a 192-bit mask of the parts using it
-            L['parts'] = [(r.num('I'), r.cstr(), r.num('6f'), r.num('12f')) for _ in range(r.num('I'))]
-            L['masks'] = [r.num('3Q') for _ in range(n)]
-        if kind == 'TreeMeshSet':
-            L['billboard'], L['tree_value'] = r.cstr(), r.num('I')
-        if kind == 'SkinnedMeshSet':
-            # the skeleton bones the LOD's parts use, then their name hashes
-            nb = r.num('I')
-            L['bones'] = [r.num('I') for _ in range(nb)]
-            L['bone_hashes'] = [r.num('I') for _ in range(nb)]
-        s['lods'].append(L)
-    if r.p != len(b):
-        raise ConvertError(f'{kind}: {len(b) - r.p} bytes after the last LOD')
-    return s
+    if isinstance(b, bytearray | memoryview):
+        b = bytes(b)
+    got = None
+    if type(b) is bytes:
+        got = _native().meshset_parse(b, kind, bool(big_endian), None if flag is None else bool(flag))
+    if got is None:
+        from bfbc2core import native
+        raise native.refused(f'{kind}: a mesh set the reader does not read (cut short or damaged)', ConvertError)
+    return got
 
 
 def write(s, kind):
-    """PC (little-endian) bytes: in the Rust core when it is built (round F0), else write_reference."""
+    """PC (little-endian) bytes: in the Rust core (round F0), else write_reference (values the core does not take)."""
     nat = _native() if isinstance(kind, str) else None
     got = nat.meshset_write(s, kind) if nat is not None else None
     return got if got is not None else write_reference(s, kind)

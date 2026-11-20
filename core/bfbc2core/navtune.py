@@ -10,10 +10,11 @@ Bases: 'navkit' (NavKit's output; every operation allowed) or 'dice' (the level'
 operations: links, route edges, traversal annotations, notes - DESIGN.md section 5.1, decided 2026-10-16).
 Each operation records who made it (`by`: the PC's name unless set) and when (`when`, local time).
 
-validate, the side file's text (save) and summary run in the suite's Rust core when it is built (round F2b,
-rust/bc2-navbuild/src/navtune.rs): the same problems, bytes and lines; for a value the port does not take (a type
-JSON does not have, a comparison Python would raise on, a value printed with repr) or without the core
-(BFBC2_PURE_PYTHON=1) the Python runs - validate_reference, NavTune.save_text_reference, summary_reference.
+validate, the side file's text (save) and summary run in the suite's Rust core (round F2b,
+rust/bc2-navbuild/src/navtune.rs), which they need (bfbc2core.native.NativeMissing says how to get it). A value the
+port does not take (a type JSON does not have, a comparison Python would raise on, a value printed with repr) raises
+bfbc2core.native.Refused (a ValueError). Their Python (validate_reference, NavTune.save_text_reference,
+summary_reference) was retired in round RT2 against its recorded answers (core/tests/f2b_navtune_replay*.json).
 """
 import copy
 import datetime
@@ -87,61 +88,24 @@ def op(name: str, by: str | None = None, when: str | None = None, **fields: Any)
     return o
 
 
-_NATIVE: list[ModuleType | None] = []
+def _core() -> ModuleType:
+    """The Rust core (bfbc2core.native.require: NativeMissing, saying how to get it, when it is not there)."""
+    from . import native
+    return native.require('navigation side files (bfbc2core.navtune)', 'navtune_validate')
 
 
-def _native() -> ModuleType | None:
-    """The Rust core with the navtune functions, or None."""
-    if not _NATIVE:
-        from . import dbx
-        m = dbx._import_native() if os.environ.get(dbx.PURE_PYTHON_ENV, '') in ('', '0') else None
-        _NATIVE.append(m if m is not None and hasattr(m, 'navtune_validate') else None)
-    return _NATIVE[0]
+def _refused(what: str) -> Exception:
+    from . import native
+    return native.refused(f'{what}: a value the side-file code does not take (a type JSON does not have, or one it '
+                          'cannot compare or print)')
 
 
 def validate(o: dict[str, Any], kind: str = 'navkit') -> list[str]:
     """Problems with one operation (empty list: fine)."""
-    m = _native()
-    got = m.navtune_validate(o, kind) if m is not None and type(kind) is str else None
-    return list(got) if got is not None else validate_reference(o, kind)
-
-
-def validate_reference(o: dict[str, Any], kind: str = 'navkit') -> list[str]:
-    """validate in Python (the reference)."""
-    problems: list[str] = []
-    name = o.get('op')
-    if name not in OPS:
-        return [f'unknown operation {name!r}']
-    for k in OPS[name]:
-        if k not in o:
-            problems.append(f'{name}: {k} missing')
-    if kind == 'dice' and name in REGION_OPS:
-        problems.append(f'{name}: not allowed on a DICE base (region edits need a NavKit base)')
-    for k in ('at', 'a', 'b', 'bottom', 'top'):
-        if k in o and not (isinstance(o[k], list) and len(o[k]) == 3 and all(isinstance(v, (int, float)) for v in o[k])):
-            problems.append(f'{name}: {k} must be [x, y, z]')
-    if 'region' in o:
-        r = o['region']
-        if 'polygon' in r:
-            if len(r['polygon']) < 3 or any(len(p) != 2 for p in r['polygon']):
-                problems.append(f'{name}: a polygon needs 3 or more [x, z] points')
-            if len(r.get('y', [])) != 2 or r['y'][0] > r['y'][1]:
-                problems.append(f'{name}: y must be [low, high]')
-        elif 'box' in r:
-            b = r['box']
-            if len(b) != 6 or any(b[k] > b[k + 3] for k in range(3)):
-                problems.append(f'{name}: box must be [x0, y0, z0, x1, y1, z1] with each low <= high')
-        else:
-            problems.append(f'{name}: region must be a polygon or a box')
-    if 'two-way' in o and not isinstance(o['two-way'], bool):
-        problems.append(f'{name}: two-way must be true or false')
-    if name == 'route-edge' and o.get('action') not in ('add', 'remove'):
-        problems.append('route-edge: action must be add or remove')
-    if name == 'traversal' and o.get('kind') not in TRAVERSALS:
-        problems.append(f'traversal: kind must be one of {", ".join(TRAVERSALS)}')
-    if name == 'note' and not str(o.get('text', '')).strip():
-        problems.append('note: text is empty')
-    return problems
+    got = _core().navtune_validate(o, kind) if type(kind) is str else None
+    if got is None:
+        raise _refused(f'operation {o.get("op") if isinstance(o, dict) else o!r}')
+    return list(got)
 
 
 class NavTune:
@@ -206,13 +170,10 @@ class NavTune:
 
     def save_text(self) -> str:
         """The side file's text."""
-        m = _native()
-        got = m.navtune_dumps(self.to_json()) if m is not None else None
-        return str(got) if got is not None else self.save_text_reference()
-
-    def save_text_reference(self) -> str:
-        """save_text in Python (the reference)."""
-        return json.dumps(self.to_json(), indent=1, ensure_ascii=False) + '\n'
+        got = _core().navtune_dumps(self.to_json())
+        if got is None:
+            raise _refused(f'the side file of {self.level}')
+        return str(got)
 
     def save(self, path: str) -> None:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -225,25 +186,10 @@ class NavTune:
 
     def summary(self, k: int) -> str:
         o = self.operations[k]
-        m = _native()
-        got = m.navtune_summary(o) if m is not None else None
-        return str(got) if got is not None else self.summary_reference(k)
-
-    def summary_reference(self, k: int) -> str:
-        """summary in Python (the reference)."""
-        o = self.operations[k]
-        name = o['op']
-        if 'region' in o:
-            r = o['region']
-            where = f'polygon of {len(r["polygon"])} points, y {r["y"][0]:.1f}..{r["y"][1]:.1f}' if 'polygon' in r else \
-                f'box {r["box"][3] - r["box"][0]:.1f} x {r["box"][4] - r["box"][1]:.1f} x {r["box"][5] - r["box"][2]:.1f} m'
-        elif name == 'traversal':
-            where = f'{o["kind"]}{" (two-way)" if o.get("two-way", True) else ""} {fmt(o["bottom"])} -> {fmt(o["top"])}'
-        elif 'a' in o:
-            where = f'{fmt(o["a"])} -> {fmt(o["b"])}' + (f' ({o["action"]})' if 'action' in o else '')
-        else:
-            where = fmt(o['at']) + (f': {o["text"]}' if 'text' in o else '')
-        return f'{name}: {where}  [{o.get("by", "?")}, {o.get("when", "?")}]'
+        got = _core().navtune_summary(o)
+        if got is None:
+            raise _refused(f'operation {k}')
+        return str(got)
 
 
 def fmt(p: Iterable[float]) -> str:

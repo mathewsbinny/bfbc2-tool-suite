@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 use bc2_formats::aimanim::{self, Aim, Block, Quad};
 use bc2_formats::{audioframe, havok, hpdlayout};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyBytes, PyDict, PyInt, PyList, PyTuple};
 
@@ -155,13 +156,27 @@ pub fn aimanim_to_pc<'py>(
 
 // ------------------------------------------------------------------------------------------------- hpdtool
 
-/// `hpdtool.mesh_layout(m)`: `(regions, tiles, objects, links, tile_offs)`, or `None`.
+/// The reference's exception for a walk that stops: its `ValueError`, or `struct.error` (round RT2).
+fn hpd_err(py: Python<'_>, e: &hpdlayout::Error) -> PyErr {
+    if e.is_struct() {
+        match py.import("struct").and_then(|m| m.getattr("error")) {
+            Ok(cls) => PyErr::from_type(
+                cls.cast_into().unwrap_or_else(|_| py.get_type::<PyValueError>()),
+                e.to_string(),
+            ),
+            Err(err) => err,
+        }
+    } else {
+        PyValueError::new_err(e.to_string())
+    }
+}
+
+/// `hpdtool.mesh_layout(m)`: `(regions, tiles, objects, links, tile_offs)`; where the reference raises, its
+/// `ValueError` or `struct.error` with its message (round RT2: the reference was retired).
 #[pyfunction]
 pub fn hpd_mesh_layout<'py>(py: Python<'py>, m: &Bound<'py, PyBytes>) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let bytes = m.as_bytes();
-    let Ok(l) = py.detach(|| hpdlayout::layout(bytes)) else {
-        return Ok(None);
-    };
+    let l = py.detach(|| hpdlayout::layout(bytes)).map_err(|e| hpd_err(py, &e))?;
     let regions = PyList::empty(py);
     for (s, e, label) in &l.regions {
         regions.append((s, e, label))?;
@@ -170,7 +185,7 @@ pub fn hpd_mesh_layout<'py>(py: Python<'py>, m: &Bound<'py, PyBytes>) -> PyResul
     for (to, its, end) in &l.tiles {
         let li = PyList::empty(py);
         for (p, a, b) in its {
-            li.append((p, f64::from(*a), f64::from(*b)))?;
+            li.append((p, hpdlayout::c_double(*a), hpdlayout::c_double(*b)))?;
         }
         tiles.append((to, li, end))?;
     }
@@ -186,13 +201,11 @@ pub fn hpd_mesh_layout<'py>(py: Python<'py>, m: &Bound<'py, PyBytes>) -> PyResul
     Ok(Some((regions, tiles, objects, links, offs).into_pyobject(py)?))
 }
 
-/// `hpdtool.mesh_coverage(m)`: `(gaps, overlaps)`, or `None`.
+/// `hpdtool.mesh_coverage(m)`: `(gaps, overlaps)`; the reference's error where it raises.
 #[pyfunction]
 pub fn hpd_mesh_coverage<'py>(py: Python<'py>, m: &Bound<'py, PyBytes>) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let bytes = m.as_bytes();
-    let Ok((gaps, overlaps)) = py.detach(|| hpdlayout::coverage(bytes)) else {
-        return Ok(None);
-    };
+    let (gaps, overlaps) = py.detach(|| hpdlayout::coverage(bytes)).map_err(|e| hpd_err(py, &e))?;
     let g = PyList::empty(py);
     for t in &gaps {
         g.append(t)?;
@@ -215,9 +228,17 @@ fn int_of(o: &Bound<'_, PyAny>) -> Option<i64> {
     }
 }
 
-/// `audio.xma_parts(st)` (its `channels` and `blocks`' data), or `None`.
+/// The reference's error as `(python type name, message)` (`audio.py` raises it: round RT2), or `None` where the
+/// port does not answer ([`audioframe::Error::Refused`]).
+fn audio_err<'py>(py: Python<'py>, e: &audioframe::Error) -> Option<Bound<'py, PyAny>> {
+    let t = e.python_type()?;
+    (t, e.to_string()).into_pyobject(py).ok().map(Bound::into_any)
+}
+
+/// `audio.xma_parts(st)` (its `channels` and `blocks`' data): the parts (bytearrays), the reference's error as
+/// `(type name, message)`, or `None` (an argument the port does not take).
 #[pyfunction]
-pub fn audio_xma_parts<'py>(py: Python<'py>, st: &Bound<'py, PyAny>) -> Option<Vec<Bound<'py, PyByteArray>>> {
+pub fn audio_xma_parts<'py>(py: Python<'py>, st: &Bound<'py, PyAny>) -> Option<Bound<'py, PyAny>> {
     let channels = int_of(&st.getattr("channels").ok()?)?;
     let blocks = items(&st.getattr("blocks").ok()?)?;
     let data = blocks
@@ -229,11 +250,20 @@ pub fn audio_xma_parts<'py>(py: Python<'py>, st: &Bound<'py, PyAny>) -> Option<V
         })
         .collect::<Option<Vec<_>>>()?;
     let views: Vec<&[u8]> = data.iter().map(PyBytesMethods::as_bytes).collect();
-    let parts = py.detach(|| audioframe::xma_parts(channels, &views)).ok()?;
-    Some(parts.iter().map(|p| PyByteArray::new(py, p)).collect())
+    match py.detach(|| audioframe::xma_parts(channels, &views)) {
+        Ok(parts) => {
+            let l = PyList::empty(py);
+            for p in &parts {
+                l.append(PyByteArray::new(py, p)).ok()?;
+            }
+            Some(l.into_any())
+        }
+        Err(e) => audio_err(py, &e),
+    }
 }
 
-/// `audio.xma2_riff(packets, channels, rate, samples)`, or `None`.
+/// `audio.xma2_riff(packets, channels, rate, samples)`: the bytes, the reference's error as `(type name, message)`,
+/// or `None`.
 #[pyfunction]
 pub fn audio_xma2_riff<'py>(
     py: Python<'py>,
@@ -241,12 +271,15 @@ pub fn audio_xma2_riff<'py>(
     channels: &Bound<'py, PyAny>,
     rate: &Bound<'py, PyAny>,
     samples: &Bound<'py, PyAny>,
-) -> Option<Bound<'py, PyBytes>> {
-    let out = audioframe::xma2_riff(packets.as_bytes(), int_of(channels)?, int_of(rate)?, int_of(samples)?).ok()?;
-    Some(PyBytes::new(py, &out))
+) -> Option<Bound<'py, PyAny>> {
+    match audioframe::xma2_riff(packets.as_bytes(), int_of(channels)?, int_of(rate)?, int_of(samples)?) {
+        Ok(out) => Some(PyBytes::new(py, &out).into_any()),
+        Err(e) => audio_err(py, &e),
+    }
 }
 
-/// `audio._xas_stream`'s blocks `[(samples, bytes)]` of a sound's frames, or `None`.
+/// `audio._xas_stream`'s blocks `[(samples, bytes)]` of a sound's frames, the reference's error as `(type name,
+/// message)` (a rate whose blocks hold no samples: its `ZeroDivisionError`), or `None`.
 #[pyfunction]
 pub fn audio_xas_blocks<'py>(
     py: Python<'py>,
@@ -254,21 +287,26 @@ pub fn audio_xas_blocks<'py>(
     n: &Bound<'py, PyAny>,
     channels: &Bound<'py, PyAny>,
     rate: &Bound<'py, PyAny>,
-) -> PyResult<Option<Bound<'py, PyList>>> {
+) -> PyResult<Option<Bound<'py, PyAny>>> {
     let (Some(n), Some(ch), Some(rate)) = (int_of(n), int_of(channels), int_of(rate)) else {
         return Ok(None);
     };
+    // the reference's per = 256 * -(-rate // 1280) is 0 for -1280 < rate <= 0: n // per divides by zero first
+    if rate > -1280 && rate <= 0 {
+        return Ok(audio_err(py, &audioframe::Error::ZeroDivision));
+    }
     let (Ok(n), Ok(ch), Ok(rate)) = (u64::try_from(n), u64::try_from(ch), u32::try_from(rate)) else {
         return Ok(None);
     };
-    let Ok(blocks) = audioframe::xas_blocks(frames.as_bytes(), n, ch, rate) else {
-        return Ok(None);
+    let blocks = match audioframe::xas_blocks(frames.as_bytes(), n, ch, rate) {
+        Ok(b) => b,
+        Err(e) => return Ok(audio_err(py, &e)),
     };
     let out = PyList::empty(py);
     for (k, b) in blocks {
         out.append((k, PyBytes::new(py, b)))?;
     }
-    Ok(Some(out))
+    Ok(Some(out.into_any()))
 }
 
 // ------------------------------------------------------------------------------------------------- navsample

@@ -322,7 +322,13 @@ headers (`mesh.py`, `meshset.py`), `texture.py`'s layout helpers and PC texture 
 tools (`texwrite.py`'s encoders, `skinmesh.py`'s vertex work) and Granny's writing side (`granny.py`'s `to_bytes`,
 `add_tracks`, `shift_position`, `set_orientations`), each beside its Python reference (`*_reference`,
 `use_native(False)`, `BFBC2_PURE_PYTHON=1`); `texwrite.py`'s principal axes stay `numpy.linalg.eigh`'s
-(`rust/BENCHMARKS.md`, "F2a").
+(`rust/BENCHMARKS.md`, "F2a"). Round RT2 (2026-11-20) retired most of those references against their recorded
+answers (`tests\replay.py`, the `*_replay*.json` files beside the tests): the console converter's (terrain, soot,
+mesh, `meshset.parse`, `havok.classes` / `convert_wrapper`, texture levels / decode / check), `menucommon`'s BIGF
+and PE readers, `navsample.load`, `hpdtool.mesh_layout` / `mesh_coverage`, `audio.py`'s EA framing, and round F2b's
+`havokport`, `mopp`, `navtune`, `xmlinst`; those functions now need the Rust core and raise
+`bfbc2core.native.Refused` for an input it does not read. The others stay with their reason in `rust/BENCHMARKS.md`,
+"RT2".
 
 **What needs it** (since 2026-11-17): **texture conversion** (`bfbc2-console-convert/texture.py`'s `convert`: the
 console converter, the BF1943 importer's textures, meshes and effects, OPFOR's WW2 and Onslaught pipelines) and
@@ -560,7 +566,8 @@ from the caller's process on every port, as Project OPFOR changes them), and for
 real corpora). `BFBC2_DBXPORT_DUAL=1` runs both on every port and raises `DualMismatch` on any difference;
 `BFBC2_DBXPORT_STATS=1` prints the counts at exit.
 Round F2b (`rust/BENCHMARKS.md`, "F2b") ported the BF1943 importer's remaining Python and three small modules, each
-with its Python kept as the reference and the fallback: `mopp.py` (the MOPP queries, completeness and ray casts),
+with its Python kept as the reference and the fallback (`mopp`, `havokport`, `PEImage`, `xmlinst` and `navtune`'s
+were retired in round RT2 against their recorded answers): `mopp.py` (the MOPP queries, completeness and ray casts),
 `havokport.py` (the 4.6.1 -> 5.5.0 restructure, the material table's swap, the shape subparts and their w lanes, the
 physics materials' readers and writers), `emitteratlas.py` (`build`, `prove`, `same_but_uv`: the same atlases,
 partitions and proof rows, NumPy's float decisions taken on exact integer statistics, a decision too close to call
@@ -726,9 +733,9 @@ per call; `rust/BENCHMARKS.md`, "O1" - "O5"). `python rust\build_native.py --dow
 | `meshview`, `dbxcatalogue`, `dbxparity`, `portparity`, `bf1943import` | `bfbc2-mesh-viewer\meshview.py`, `bfbc2-bf1943-import\<tool>.py` | the drawings, the parity runs, the catalogue's cache build, `bf1943import import` / `check` (Rust answers help, `list`, `find` and a current cache) |
 | `shaderdb`, `renderqa`, `xdiff` | `bfbc2-shader-tools\<tool>.py` | renderqa's and xdiff's drawing (Direct3D 11, NumPy, Pillow; Rust checks the arguments); `shaderdb` is Rust end to end, `merge` included |
 
-In a console (or with `COLUMNS` set) the `--help` screens and argument errors of `caches`, `convert`, `audio`,
-`shaderdb`, `renderqa`, `xdiff`, `dbxparity`, `portparity` and `texqa` are handed to the Python too (argparse wraps
-to the console's width; the port answers the 80-column form). The full inventory: `rust/BENCHMARKS.md`, "RT1".
+The `--help` screens and argument errors of `caches`, `convert`, `audio`, `shaderdb`, `renderqa`, `xdiff`,
+`dbxparity`, `portparity` (and `texqa --help`) are laid out at the console's width (or `COLUMNS`) by `bfbc2.exe`
+itself, as argparse does (round RT2). The full inventory: `rust/BENCHMARKS.md`, "RT1" and "RT2".
 
 **Which one runs.** The suite's tools, the hub and Project OPFOR's scripts ask `bfbc2core.native.cli_command(tool)`:
 `[bin\bfbc2.exe, tool]` while the binary was built from this checkout's Rust sources (its `--source-hash` is the
