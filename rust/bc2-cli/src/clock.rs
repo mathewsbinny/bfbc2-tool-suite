@@ -115,6 +115,41 @@ pub fn local_of(t: f64) -> Local {
     }
 }
 
+/// `time.ctime(t)` (round O5: navkit status' file times): `local_of(t)` as the C runtime's `asctime` writes it,
+/// `Thu Nov  9 17:02:03 2026` (the day padded with a space to two places).
+#[cfg_attr(not(feature = "navkit"), allow(dead_code))]
+#[allow(clippy::many_single_char_names, reason = "days_from_civil's own names")]
+pub fn ctime(t: f64) -> String {
+    const DAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let l = local_of(t);
+    // the weekday of the civil date (Howard Hinnant's days_from_civil; 1970-01-01 was a Thursday)
+    let (y, m, d) = (i64::from(l.year), i64::from(l.month), i64::from(l.day));
+    let y2 = if m <= 2 { y - 1 } else { y };
+    let era = y2.div_euclid(400);
+    let yoe = y2 - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    let wd = (days + 3).rem_euclid(7) as usize; // Monday = 0
+    format!(
+        "{} {}{:3} {:02}:{:02}:{:02} {}",
+        DAYS.get(wd).copied().unwrap_or("???"),
+        MONTHS
+            .get(usize::from(l.month.saturating_sub(1)))
+            .copied()
+            .unwrap_or("???"),
+        l.day,
+        l.hour,
+        l.minute,
+        l.second,
+        l.year
+    )
+}
+
 /// `time.localtime(t)` elsewhere than Windows: UTC.
 #[cfg(not(windows))]
 pub fn local_of(t: f64) -> Local {
