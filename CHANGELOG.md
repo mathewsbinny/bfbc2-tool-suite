@@ -24,6 +24,15 @@ landed on `main`.
 ## [Unreleased]
 
 ### Added
+- **Map editor: the Map Inspector's views** (round GR1). Properties' **All fields**: every field of the selected
+  object, nested, with its type (`int32`, `float32 x16`, `bool`, `text`, `reference`, `array [n]`, `struct`) and its
+  value as DbxEdit's XML writes it; references lead to their object. A **Links** panel: what the object references,
+  what references it, and the event connections it sends and receives (from the level's `EventConnections`); a row
+  goes to that object, Back returns. The links are drawn in the views in the new `view-link` colour (references
+  solid, event connections dashed, arrows by direction; K shows or hides them). **Measure** (M): clicks add points;
+  the last segment's length, horizontal distance, height and slope, the path's total, the height above the terrain
+  and below the water. A project's links and fields are read from its edited partition. The plan for the other
+  GUIs is `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` section 9.
 - **Specification:** the engine specification's first two layers, the file formats and the data model (`spec/`,
   439 rules with their evidence; `spec/trace.py` checks the index).
 
@@ -80,6 +89,12 @@ landed on `main`.
 ### Fixed
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /
   `OverflowError` from the Rust core instead of reading the file as the Python does (round SD1).
+
+### Removed
+- **The Map Inspector** (`bfbc2-map-inspector/inspector.py`, round GR1): its 3D view, layers, search and Selection
+  panel were already the editor's; its property tree, "referenced by", link lines and Measure are the editor's All
+  fields, Links and Measure (above). The hub's Levels tab opens levels in the map editor; the folder keeps
+  `EDITOR_ARCHITECTURE.md` and a README saying where each feature went.
 
 ## [0.9.0] - 2026-11-19
 

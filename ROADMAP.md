@@ -25,11 +25,12 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
    - **culltree `add`'s memory:** the Rust peaks at 1.65 GB against the Python's 200 MB warm; cut it and add a
      persistent cache.
    - **The GUIs:** per GUI, list what the editor lacks, add it, then retire the GUI.
-     - Map Inspector: the link view, the full property tree.
-     - Navigation Studio into the editor's AI workspace (NavKit against DICE side by side, path tests).
-     - The mesh viewer into the asset browser's preview (its PNG command line stays).
-     - DbxEditGUI into a generic DBX inspector panel (the last C#).
-     - LevelDiff as an editor panel or a `bfbc2.exe` command.
+     - ~~Map Inspector: the link view, the full property tree~~ (GR1: All fields, Links, Measure; retired). The
+       other GUIs' features, whether the editor has them and the plan: `EDITOR_ARCHITECTURE.md` section 9.
+     - GR2: Navigation Studio into the editor's AI workspace (NavKit against DICE side by side, path tests).
+     - GR3: the mesh viewer into the asset browser's preview (its PNG command line stays).
+     - GR4: DbxEditGUI into a generic DBX inspector panel (the last C#).
+     - LevelDiff as a `bfbc2.exe leveldiff` command (proven on real level pairs), then LevelDiff.exe retired.
      - The planned AI behaviour simulator, bot AI debugger and tactical map authoring tool become editor workspaces.
      - The hub stays a launcher for now.
    - **OPFOR's pipeline in Rust, in 5 stages:** the WW2 install; the level build; the shader glue; the material grid
@@ -56,7 +57,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| GR1 | `rust-gr1` | the five GUIs' inventory; the Map Inspector's link view and full property tree in the editor, then its GUI retired; LevelDiff as a command if time allows |
+| GR1 | `rust-gr1` | the five GUIs inventoried (`EDITOR_ARCHITECTURE.md` section 9); the Map Inspector folded into the editor (All fields, Links, `view-link` lines, Measure) and retired |
 
 ## Queued
 
@@ -65,7 +66,7 @@ In priority order (above); the next rounds:
 | Round | What |
 |---|---|
 | RT2 | RT1's leftovers: record answers for the live-compared references (F0, F2a, F2b, E4b, E4e) then retire them; navsample.load v1 / v2; the hpd / audio error messages in the bindings; argparse's console width in the Rust parser; the library parts split out of command-line `.py` files; next CLI candidates (aptrefs, xiso, culltree, stockmp, exeref / crashreader) |
-| GUIs | Map Inspector, Navigation Studio, mesh viewer, DbxEditGUI, LevelDiff folded into the editor, then retired |
+| GUIs | GR2 Navigation Studio, GR3 mesh viewer, GR4 DbxEditGUI, LevelDiff as `bfbc2.exe leveldiff`: each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
 | Post-Rust | the 10 improvements |

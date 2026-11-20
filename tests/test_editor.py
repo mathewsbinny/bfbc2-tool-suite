@@ -25,6 +25,9 @@ window.
     and the content browser, deep duplicate, the view modes, polygon selection and Mixed fields, driven headless on
     a made-up level with a partition; levelwrite's scripted log on every prepared level (work\levels and every
     game\Package level, in memory), exactly the expected changes, replayed to the same bytes.
+  - round GR1: the Map Inspector's views folded in - the property tree, references and referrers against what the Map
+    Inspector showed (1,074 objects of four levels, its answers kept as digests), the Links panel (followed and back),
+    All fields, the drawn links and Measure, on the demo level (viewed and as a project) and MP_005 in both themes.
   - round G4: the start flow (Open project, Edit existing level, Create level) driven through its buttons on a
     made-up game copy - no campaign level under Edit existing level, a WW2 map opened, a project from a campaign
     level with its kind recorded, a project opened from the recent list with the recovery offer, the height-map
@@ -64,7 +67,8 @@ def main() -> int:
     keep = ('test result:', 'skipped', 'as the Map Inspector lists them', 'outline pixels', 'levels compared',
             'levels in this game copy', 'median',
             'instances,', 'levels edited and proven', 'editing through the interface', 'placement on MP_005',
-            'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ', 'g4 ')
+            'MP_005 project', 'draws at', 'loaded in', 'e2b through the interface', 'levels, ', 'g4 ', 'as the Map Inspector showed them',
+            'compared with the Map Inspector', 'gr1 ')
     for line in out:
         if any(k in line for k in keep) or (line.startswith('test ') and ' ... ' in line):
             print(line.encode('ascii', errors='backslashreplace').decode('ascii'))

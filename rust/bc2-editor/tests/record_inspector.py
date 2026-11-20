@@ -1,7 +1,8 @@
-r"""Records what the Python Map Inspector lists for a level, for the map editor's outliner test (inspector_parity.rs):
-every entity of level.load(lv) (geometry=True, as inspector.py loads it) in order - index, GUID, category, the
-inspector's layer (inspector.layer_name), team and position (the transform's translation row) - and the inspector's
-count per layer (Inspector.counts). One gzip JSON file per level in tests\data\.
+r"""Records what the Python Map Inspector listed for a level, for the map editor's outliner test (inspector_parity.rs):
+every entity of level.load(lv) (geometry=True, as inspector.py loaded it) in order - index, GUID, category, the
+inspector's layer (layer_name below: inspector.layer_name's rule, kept here since inspector.py was retired in round
+GR1), team and position (the transform's translation row) - and the inspector's count per layer (Inspector.counts).
+One gzip JSON file per level in tests\data\.
 
   python rust\bc2-editor\tests\record_inspector.py [level ...]     default: sp_01 mp_005 mp_009gr ons_mp_004
 
@@ -19,11 +20,18 @@ sys.path.insert(0, SUITE)
 import suite_paths  # noqa: E402
 
 suite_paths.use('core')
-sys.path.insert(0, os.path.join(SUITE, 'bfbc2-map-inspector'))
-import inspector  # noqa: E402
 from bfbc2core import level as levelmod  # noqa: E402
 
 DEFAULT = ['sp_01', 'mp_005', 'mp_009gr', 'ons_mp_004']
+
+
+def layer_name(e: levelmod.Entity) -> str:
+    """The Map Inspector's layer of an entity: spawns by team, else the category."""
+    if e.category == 'soldier spawn':
+        return f'soldier spawn, team {e.team}' if e.team in (1, 2) else 'soldier spawn, no team'
+    if e.category == 'vehicle spawn':
+        return f'vehicle spawn, team {e.team}' if e.team in (1, 2) else 'vehicle spawn, neutral'
+    return e.category
 
 
 def record(lv: str) -> dict:
@@ -31,7 +39,7 @@ def record(lv: str) -> dict:
     entities = []
     counts: dict[str, int] = {}
     for e in lvl.entities:
-        layer = inspector.layer_name(e)
+        layer = layer_name(e)
         counts[layer] = counts.get(layer, 0) + 1
         pos = None if e.position is None else [float(v) for v in e.position]
         entities.append([e.index, e.guid, e.category, layer, e.team, pos])

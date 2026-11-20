@@ -173,6 +173,9 @@ the quick tier.
   references you can follow to other entities.
 - **Search, filter by type, measure** distances and heights.
 
+**Retired (round GR1, 2026-11-20):** everything above is in the map editor (`rust/bc2-editor`), which replaced the
+Map Inspector; `bfbc2-map-inspector/README.md` says where each feature went.
+
 **Map editor (planned, 2026-11-16).** The Map Inspector gets an edit mode: first editing existing maps (BFBC2,
 Vietnam, WW2), then new maps from imported or randomized terrain populated with existing assets, for public
 modders too. The architecture plan is `bfbc2-map-inspector/EDITOR_ARCHITECTURE.md` (milestones E1-E6, S2, S3).
