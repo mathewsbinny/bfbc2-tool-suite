@@ -14,7 +14,6 @@ from __future__ import annotations
 import atexit
 import os
 import shutil
-import struct
 import sys
 import tempfile
 from typing import Any
