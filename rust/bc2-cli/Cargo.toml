@@ -33,7 +33,7 @@ sha1_smol.workspace = true
 
 # the tool groups (rounds O2, O3; all on by default; a group alone builds with --no-default-features --features <group>)
 [features]
-default = ["menu", "crash", "nav", "caches", "stockmp", "graft", "audio", "bf1943", "meshview", "cull", "navkit", "navtools", "harness", "texqa"]
+default = ["menu", "crash", "nav", "caches", "stockmp", "graft", "audio", "bf1943", "meshview", "cull", "navkit", "navtools", "harness", "texqa", "shader"]
 menu = []
 crash = []
 nav = []
@@ -51,6 +51,8 @@ navkit = []
 navtools = []
 harness = []
 texqa = []
+# round O5: the shader tools' command lines (shaderdb, renderqa, xdiff)
+shader = []
 
 # the local time (Python's datetime.now()), the ANSI code page and the console test Python's stdio makes
 [target.'cfg(windows)'.dependencies]
