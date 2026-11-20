@@ -16,6 +16,7 @@ on:
       - 'rust/**'
       - 'core/bfbc2core/native.py'
       - 'VERSION'                          # part of the sources' fingerprint (bfbc2.exe --version reads it)
+      - 'requirements.txt'                 # the pinned Python packages the build and its tests use
       - '.github/workflows/native.yml'
   workflow_dispatch:
 
@@ -71,7 +72,7 @@ jobs:
 
       - name: Python packages
         if: steps.fp.outputs.published != 'true'
-        run: python -m pip install "maturin>=1.16,<2" numpy
+        run: python -m pip install --disable-pip-version-check -r requirements.txt   # pinned (round QW1)
 
       - name: Build the module
         if: steps.fp.outputs.published != 'true'
