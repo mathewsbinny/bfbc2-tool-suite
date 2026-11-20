@@ -13,6 +13,13 @@ Compared: every result (types, order, float bits, array dtype / shape / bytes / 
 (type and message). Counted: how many inputs the Rust core answered and how many it handed back to the Python; a
 real input handed back fails the test (built and damaged inputs may be handed back, each then the reference's).
 
+Round RT1 retired the references of aim (parse_reference, write_reference, to_pc_reference), hkpack
+(Packfile.reference, _init_reference) and navsample_offline.file_bytes_reference (RETIRED; navsample.load_reference
+stays). Their quick groups were recorded again first, from the references, with a second, marked digest: an input the
+Rust core refuses counts as HANDED there, whatever the reference said. Without the reference the function must raise
+on exactly those inputs and give the recorded answer on every other one (the marked digest and the count of refused
+inputs as recorded). The game groups, recorded before, had no refused input: their digest is the marked one.
+
   python tests\test_f3_native.py                    quick: built, seeded and damaged inputs, a few real files
   python tests\test_f3_native.py --game             + every real input: the game copy, OPFOR work\xbox, xbox_dlc,
                                                      navsample*, navkit / navbuild / navgen path data, Battlefield
@@ -60,6 +67,10 @@ GAME = '--game' in sys.argv
 RECORD = '--record' in sys.argv
 ONLY = next((a.split('=', 1)[1] for a in sys.argv if a.startswith('--only=')), '')
 GOLDEN = os.path.join(HERE, 'f3_golden_{}.json')
+# Round RT1: the areas whose Python reference was retired (deleted): checked against the recording alone, an input
+# the Rust core refuses raising where the reference answered or raised (HANDED in the marked digests).
+RETIRED = ('aim', 'hkpack', 'navsample')
+HANDED = "('handed by the Rust core',)"
 SCRATCH = os.environ.get('BFBC2_TEST_SCRATCH') or tempfile.gettempdir()
 
 
@@ -105,6 +116,11 @@ def digest(o: Any) -> str:
     return hashlib.sha1(repr(o).encode()).hexdigest()[:16]
 
 
+def ref(owner: Any, name: str) -> Callable[..., Any] | None:
+    """A reference function, or None once round RT1 retired it (the comparison is then with the recording only)."""
+    return getattr(owner, name, None)
+
+
 class Golden:
     """The reference's answers per group of inputs (a source file, or a quick-tier set): (stamp, digest of every
     answer in order, count). Recording writes them; checking compares the Rust's answers with them; a group whose
@@ -123,25 +139,41 @@ class Golden:
         self.same = self.differ = self.changed = self.missing = 0
         self.bad: list[str] = []
         self.strip: list[str] = []        # text taken out of the answers before digesting (a temporary path)
+        # its reference deleted (round RT1): the marked digests are compared (recorded while it was there)
+        self.retired = area in RETIRED and not RECORD
 
-    def add(self, group: str, stamp: Any, ref: Any, got: Any) -> None:
-        h = self.cur.setdefault(group, [stamp, hashlib.sha1(), hashlib.sha1(), 0])
+    def add(self, group: str, stamp: Any, ref: Any, got: Any, handed: bool = False, handed_ok: bool = False) -> None:
+        """One answer: ref the reference's (None once it is retired), got the Rust's; handed: the Rust core refused
+        the input (the reference answered it while it was there; now the function raises). The marked digests put
+        HANDED in place of a handed input's answer: what the retired function must still match (round RT1)."""
+        h = self.cur.setdefault(group, [stamp, hashlib.sha1(), hashlib.sha1(), 0, hashlib.sha1(), hashlib.sha1(), 0, 0])
         r, a = repr(ref), repr(got)
         for s in self.strip:
             r, a = r.replace(s, '<tmp>'), a.replace(s, '<tmp>')
         h[1].update(r.encode())
         h[2].update(a.encode())
         h[3] += 1
+        h[4].update((HANDED if handed else r).encode())
+        h[5].update((HANDED if handed else a).encode())
+        h[6] += handed
+        h[7] += handed_ok
 
     def close(self) -> None:
-        for group, (stamp, ref, got, n) in self.cur.items():
-            self.new[group] = [stamp, ref.hexdigest()[:20], n]
+        for group, (stamp, ref, got, n, ref_m, got_m, handed, handed_ok) in self.cur.items():
+            # [stamp, the reference's digest, count, the marked digest, handed inputs, of them answered by it]
+            self.new[group] = [stamp, ref.hexdigest()[:20], n, ref_m.hexdigest()[:20], handed, handed_ok]
             want = self.rec.get(group)
+            if self.retired:              # the reference is gone: the marked digest (game groups recorded before
+                ok = want is not None and n == want[2] and (  # RT1 have none: they handed nothing, so it is theirs)
+                    (want[3], want[4]) == (got_m.hexdigest()[:20], handed) if len(want) > 3
+                    else handed == 0 and want[1] == got_m.hexdigest()[:20])
+            else:
+                ok = want is not None and want[1] == got.hexdigest()[:20] and want[2] == n
             if want is None:
                 self.missing += 1
             elif want[0] != stamp:
                 self.changed += 1
-            elif want[1] == got.hexdigest()[:20] and want[2] == n:
+            elif ok:
                 self.same += 1
             else:
                 self.differ += 1
@@ -190,14 +222,17 @@ class Tally:
         self.differ: list[str] = []
         self.t_nat = self.t_ref = 0.0
 
-    def both(self, label: str, group: str, stamp: Any, fn: Callable[..., Any], ref: Callable[..., Any],
+    def both(self, label: str, group: str, stamp: Any, fn: Callable[..., Any], ref: Callable[..., Any] | None,
              nat: Callable[..., Any] | None, *args: Any, real: bool = False) -> tuple[Any, ...]:
+        """fn's answer against ref's (the reference), or with ref None (retired, round RT1) against the recording
+        alone: an input the Rust core refuses must then raise."""
         t0 = time.perf_counter()
         a = outcome(fn, *args)
         t1 = time.perf_counter()
-        r = outcome(ref, *args)
+        r = outcome(ref, *args) if ref is not None else a
         self.t_nat += t1 - t0
         self.t_ref += time.perf_counter() - t1
+        answered = True
         if nat is not None:
             answered = nat(*args) is not None
             self.rust += answered
@@ -207,16 +242,23 @@ class Tally:
                 self.real_handed.append(label)
             if real and not answered:
                 self.real_handed_n = getattr(self, 'real_handed_n', 0) + 1
+            if ref is None and not answered and a[0] != 'error':
+                self.ndiff += 1
+                if len(self.differ) < 8:
+                    self.differ.append(f'{label}: the core refuses it, yet it answered {str(a)[:120]}')
         if a == r:
             self.same += 1
         else:
             self.ndiff += 1
             if len(self.differ) < 8:
                 self.differ.append(f'{label}: {str(a)[:120]} / {str(r)[:120]}')
-        self.g.add(group, stamp, r, a)
+        self.g.add(group, stamp, r if ref is not None else None, a, not answered, (not answered) and r[0] == 'ok')
         return r
 
     def text(self) -> str:
+        if self.g.retired:
+            return (f'{self.same:,} answered, {self.ndiff} wrong; {self.rust:,} answered in Rust, {self.handed:,} '
+                    'refused by the core (they raise: the reference was retired in round RT1)')
         return (f'{self.same:,} identical, {self.ndiff} different; {self.rust:,} answered in Rust, {self.handed:,} '
                 f'handed to the reference ({self.handed_ok:,} of them answered by it)')
 
@@ -333,13 +375,13 @@ def changed_aim(a: dict[str, Any], rng: random.Random) -> Any:
 
 def aim_check(t: Tally, label: str, group: str, stamp: Any, b: bytes, big: bool, real: bool,
               bones: Any = None) -> None:
-    r = t.both(label, group, stamp, aimanim.parse, aimanim.parse_reference, lambda b, e: N.aimanim_parse(b, e), b, big,
+    r = t.both(label, group, stamp, aimanim.parse, ref(aimanim, 'parse_reference'), lambda b, e: N.aimanim_parse(b, e), b, big,
                real=real)
-    if r[0] == 'ok':
-        a = aimanim.parse_reference(b, big)
-        t.both(label + ' write', group, stamp, aimanim.write, aimanim.write_reference, N.aimanim_write, a, real=real)
+    if r[0] == 'ok' and N.aimanim_parse(b, big) is not None:   # (RT1: not on what only the reference read)
+        a = aimanim.parse(b, big)
+        t.both(label + ' write', group, stamp, aimanim.write, ref(aimanim, 'write_reference'), N.aimanim_write, a, real=real)
     if big:
-        t.both(label + ' to_pc', group, stamp, aimanim.to_pc, aimanim.to_pc_reference,
+        t.both(label + ' to_pc', group, stamp, aimanim.to_pc, ref(aimanim, 'to_pc_reference'),
                lambda b, m: N.aimanim_to_pc(b, m), b, bones, real=real and r[0] == 'ok')
 
 
@@ -350,7 +392,7 @@ def area_aim(c: Checks) -> None:
     built = []
     for i in range(400):
         a = aim_dict(rng)
-        b = aimanim.write_reference(a)
+        b = aimanim.write(a)
         built.append((a, b))
         aim_check(t, f'built {i}', 'quick:built', 0, b, False, False)
         bb = big_aim(b)
@@ -362,7 +404,7 @@ def area_aim(c: Checks) -> None:
         a, b = rng.choice(built)
         big = rng.random() < 0.5
         aim_check(t, f'damaged {i}', 'quick:damaged', 0, damaged(big_aim(b) if big else b, rng), big, False)
-        t.both(f'changed {i}', 'quick:changed', 0, aimanim.write, aimanim.write_reference, N.aimanim_write,
+        t.both(f'changed {i}', 'quick:changed', 0, aimanim.write, ref(aimanim, 'write_reference'), N.aimanim_write,
                changed_aim(a, rng))
     if GAME:
         root = opfor_root()
@@ -634,11 +676,11 @@ def area_navsample(c: Checks) -> None:
         for i in range(300):
             s = samples(rng, rng.randrange(0, 60))
             t.both(f'built {i} write', 'quick:write', 0, navsample_offline.file_bytes,
-                   navsample_offline.file_bytes_reference,
+                   ref(navsample_offline, 'file_bytes_reference'),
                    nat_write,
                    s)
             try:
-                b = navsample_offline.file_bytes_reference(s)
+                b = navsample_offline.file_bytes(s)
             except Exception:                                    # noqa: BLE001 - refused by the reference too
                 continue
             for k, data in enumerate([b, damaged(b, rng), damaged(b, rng)]):
@@ -648,7 +690,7 @@ def area_navsample(c: Checks) -> None:
                        lambda p: (lambda d: N.navkit_navsample_v3(d, *struct.unpack_from('<2i', d, 20))
                                   if len(d) >= 56 else None)(open(p, 'rb').read()), path)
             t.both(f'changed {i}', 'quick:changed', 0, navsample_offline.file_bytes,
-                   navsample_offline.file_bytes_reference,
+                   ref(navsample_offline, 'file_bytes_reference'),
                    nat_write,
                    changed_samples(s, rng))
     finally:
@@ -720,7 +762,7 @@ def area_navsample(c: Checks) -> None:
                                navsample.load_reference, nat_load, chunk_path, real=True)
                         part, _ = navsample.load_reference(chunk_path)
                         t.both(f'{group} write {lo}-{hi}', group + ' write', size, navsample_offline.file_bytes,
-                               navsample_offline.file_bytes_reference, nat_write, part, real=True)
+                               ref(navsample_offline, 'file_bytes_reference'), nat_write, part, real=True)
                         del part
                         lo, a = hi, a + n
                 gc.collect()
@@ -750,25 +792,25 @@ def area_hkpack(c: Checks) -> None:
             if len(seeds) >= 8:
                 break
     for i, b in enumerate(seeds):
-        t.both(f'seed {i}', 'quick:seed', 0, hkpack.Packfile, hkpack.Packfile.reference, nat, b, real=True)
+        t.both(f'seed {i}', 'quick:seed', 0, hkpack.Packfile, ref(hkpack.Packfile, 'reference'), nat, b, real=True)
     for i in range(800 if seeds else 0):
-        t.both(f'damaged {i}', 'quick:damaged', 0, hkpack.Packfile, hkpack.Packfile.reference, nat,
+        t.both(f'damaged {i}', 'quick:damaged', 0, hkpack.Packfile, ref(hkpack.Packfile, 'reference'), nat,
                damaged(rng.choice(seeds), rng))
-    t.both('no packfile', 'quick:edge', 0, hkpack.Packfile, hkpack.Packfile.reference, nat, b'nothing here')
+    t.both('no packfile', 'quick:edge', 0, hkpack.Packfile, ref(hkpack.Packfile, 'reference'), nat, b'nothing here')
     if GAME and root:
         n = 0
         for pat in (os.path.join(root, 'game', '**', '*.fbrb'), os.path.join(root, 'work', 'ww2', '**', '*.fbrb')):
             for p, size, ents in bundle_entries(pat, {'HavokPhysicsData'}):
                 for _, name, b in ents:
                     n += 1
-                    t.both(f'{rel(p, root)}/{name}', rel(p, root), size, hkpack.Packfile, hkpack.Packfile.reference,
+                    t.both(f'{rel(p, root)}/{name}', rel(p, root), size, hkpack.Packfile, ref(hkpack.Packfile, 'reference'),
                            nat, b, real=hkpack.MAGIC in b)
         # NavKit's offline sampler reads the level folders' *_Havok.res through hkpack (asset_bodies)
         levels = sorted(glob.glob(os.path.join(root, 'work', 'levels', '*', '**', '*_havok.res'), recursive=True))
         for p in levels:
             b = open(p, 'rb').read()
             n += 1
-            t.both(rel(p, root), 'work/levels', len(levels), hkpack.Packfile, hkpack.Packfile.reference, nat, b,
+            t.both(rel(p, root), 'work/levels', len(levels), hkpack.Packfile, ref(hkpack.Packfile, 'reference'), nat, b,
                    real=hkpack.MAGIC in b)
         print(f'packfiles: {n:,}')
     print(f'hkpack timing: Rust {t.t_nat:.2f} s, Python {t.t_ref:.2f} s')
