@@ -56,7 +56,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| E3d | `rust-e3d` | any map exported to any era (BFBC1 / BFBC2 / Vietnam / WW2) and any of its multiplayer modes; objects from other sets bring their bundles; era and mode as project settings, the mode layer as editable project data; Install / Uninstall in the editor; plain errors; the canary conversions (Rush to Conquest, Wake WW2 to BFBC2, Vietnam to WW2, Aurora to WW2 Conquest with WW2 objects, a squad mode; BFBC2 to WW2 Air Superiority pending that mode) |
+| (none) | | |
 
 ## Queued
 
@@ -109,6 +109,7 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Merged | Result |
 |---|---|---|
+| E3d | 2026-11-20 | any map exported to any era and any of its multiplayer modes: era and mode as project data (the donor's mode layer as editable objects), cross-set closure copied into the level's bundle, the target era's kits / teams / announcer, Era / Mode pickers, Install / Uninstall in the editor, 15 compatibility rules; six canaries pass check and install / revert on a scratch copy (BFBC2 to WW2 Air Superiority pending that mode). Not yet tested in game |
 | E3c | 2026-11-19 | the exported level's announcer voice-over follows its profile (the donor's banks, trigger sets, vo blocks and voice-over bundles); Aurora passes the check on all four profiles |
 | I1 | 2026-11-19 | the suite's application icon (the user's M67 render) in `bfbc2.exe`, `bfbc2-editor.exe`, `mapexport.exe`, the editor's window and the hub's |
 | E3b | 2026-11-19 | exports for every content profile (BFBC2, Vietnam, WW2, BFBC1) with the level's own name and picture, and the campaign strip checklist |
