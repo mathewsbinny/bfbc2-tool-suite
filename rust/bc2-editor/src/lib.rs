@@ -69,6 +69,7 @@ pub mod gizmo;
 pub mod headless;
 pub mod heightmap;
 pub mod help;
+pub mod inspect;
 pub mod levels;
 pub mod math;
 pub mod model;
