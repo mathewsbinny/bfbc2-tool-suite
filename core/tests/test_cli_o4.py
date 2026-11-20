@@ -21,6 +21,12 @@ made in the case folder: no game data) and opfor_calls(opfor) (the --game tier's
 must_succeed)). A group module may also give game_check(check, exe, ref) for a game-tier proof of its own (the level
 prepare's byte-identity: test_prepare_o4.py).
 
+Retired tools (round RT1, bfbc2core.native.RETIRED_CLI: graphstats, prepare_level - their .py deleted): their lines
+run through bfbc2.exe only. A line the Rust answers is compared with its recording as before; a line it handed to
+the Python (BFBC2_CLI_TRACE: 'retired') must end with the retirement error (test_cli_o2.retired_check), its
+recording kept as the record of what the Python said there. --live and --game run no Python for them (a working
+OPFOR call must still work in Rust); --record keeps their recorded lines.
+
 Skipped (exit 0) without the binary or without the Rust core module (the Python command lines need it).
 """
 from __future__ import annotations
@@ -111,6 +117,17 @@ def game(check: Callable[..., None], exe: str, group: str, mod: Any) -> dict[str
                 with open(src, 'rb') as f:
                     files[name] = (f.read(), os.path.getmtime(src))
             got: dict[str, Any] = {}
+            if tool in o2.RETIRED:              # round RT1: Rust alone; a working call must still work in Rust
+                for merged in (False, True):
+                    r, took, w = o2.run([exe, tool], pl, files, args, env, merged)
+                    times['rust'] += took
+                    runs += 1
+                    if not merged:
+                        answered['rust' if w == 'rust' else 'python'] += 1
+                        if must and (w != 'rust' or r['code'] != 0):
+                            bad.append(f'{label}: the retired tool\'s working call failed in Rust (who {w!r}, exit '
+                                       f'{r["code"]}: {(r["err"] or r["out"])[-160:]!r})')
+                continue
             for side in ('python', 'rust'):
                 for merged in (False, True):
                     r, took, w = o2.run(cmd[side](tool), pl, files, args, env, merged)
@@ -164,7 +181,9 @@ def main(argv: list[str]) -> int:
             continue
         if '--record' in argv:
             results, times, _who = o2.run_all(rows, ['python'], exe)
-            names = save_golden(group, {k: results['python|' + k] for k in keys},
+            kept = load_golden(group)                    # a retired tool's lines keep their recording
+            names = save_golden(group, {k: results['python|' + k] if 'python|' + k in results else kept[k]
+                                        for k in keys if 'python|' + k in results or k in kept},
                                 {'recorded': datetime.date.today().isoformat(), 'by': 'the Python command lines',
                                  'python': sys.version.split()[0], 'cases': len(rows)})
             print(f'{group}: recorded {len(rows)} command lines from the Python ({times["python"]:.0f} s): '
@@ -174,8 +193,16 @@ def main(argv: list[str]) -> int:
         results, times, who = o2.run_all(rows, sides, exe)
         golden = load_golden(group)
         bad, live_bad, missing = [], [], []
+        tool_of = {r[0]: r[1] for r in rows}
         for key in keys:
             got = results['rust|' + key]
+            if tool_of[key] in o2.RETIRED:
+                why = o2.retired_check(tool_of[key], golden.get(key), got, who.get(key, ''))
+                if why == 'not recorded':
+                    missing.append(key)
+                elif why:
+                    bad.append(f'{key}: {why}')
+                continue
             if key not in golden:
                 missing.append(key)
             elif why := o2.diff(golden[key], got):
@@ -186,6 +213,9 @@ def main(argv: list[str]) -> int:
         for tool in sorted({r[1] for r in rows}):
             ks = [r[0] for r in rows if r[1] == tool]
             r_n = sum(who.get(k) == 'rust' for k in ks)
+            if tool in o2.RETIRED:
+                per_tool.append(f'{tool} {len(ks)} (Rust {r_n}, the retirement error {len(ks) - r_n})')
+                continue
             per_tool.append(f'{tool} {len(ks)} (Rust {r_n}, Python {len(ks) - r_n})')
             if '--who' in argv:
                 for k in ks:
