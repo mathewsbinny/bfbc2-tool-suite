@@ -1,5 +1,5 @@
 //! A level's whole drawable world (round R5b): its placed objects and model-group members with their shader-set
-//! overrides ([`crate::placement`]), the terrain patches around a point, the baked road and decal strips, the visual
+//! overrides ([`crate::placement`]), the terrain patches, the baked road and decal strips, the visual
 //! water, the weather's light and DICE's post-process chain - what the editor's game-accurate view and the examples
 //! draw.
 
@@ -45,7 +45,8 @@ pub struct Counts {
     pub water: usize,
 }
 
-/// Patches drawn on each side of the patch under the camera's target.
+/// Patches drawn on each side of the patch under the camera's target when the terrain is drawn as a window
+/// ([`World::terrain_radius`]; rounds R5 to R5c drew only this window: 49 x 49 patches of 16 m, 784 m across).
 pub const TERRAIN_RADIUS: usize = 24;
 
 /// The level, ready to draw the game's way.
@@ -82,6 +83,10 @@ pub struct World {
     pub object_of: Vec<usize>,
     /// Each object's identity (its GUID, or its group file and item).
     pub object_keys: Vec<String>,
+    /// `None` (the default): every patch of the terrain is a source, the frame's culling keeps those in view.
+    /// `Some(r)`: only the window of patches `r` on each side of the patch under the camera's target, as rounds R5 to
+    /// R5c drew it (their recorded pictures; [`TERRAIN_RADIUS`]).
+    pub terrain_radius: Option<usize>,
     patches: HashMap<(usize, usize), Arc<Prepared>>,
     no_raw: HashMap<String, crate::terrain::RawTexture>,
     meshes: HashMap<(String, Option<String>), Option<Arc<Prepared>>>,
@@ -300,6 +305,7 @@ impl World {
             counts,
             object_of: Vec::new(),
             object_keys: Vec::new(),
+            terrain_radius: None,
             patches: HashMap::new(),
             no_raw: HashMap::new(),
             meshes: HashMap::new(),
@@ -339,9 +345,8 @@ impl World {
             ..Counts::default()
         };
         for (n, p) in placed.iter().enumerate() {
-            if !p.blueprint.starts_with("objects/") {
-                continue;
-            }
+            // every placed blueprint with a mesh, wherever it lies (round RV1: `terrains/<lv>/props`, `vegetation/...`
+            // were left out until then); one without (spawns, logic, sounds) has no `Mesh` and is not drawn
             let member = p.group.as_ref().and_then(|(f, k)| self.placements.member(f, *k));
             let set = match &p.group {
                 Some(_) => member.and_then(|m| m.shader_set.clone()),
@@ -390,14 +395,45 @@ impl World {
         notes
     }
 
-    /// The patch under a point (the terrain is drawn around the camera's target), if any.
+    /// The patch the terrain's window is around for a camera looking at `target`: `None` when the whole terrain is
+    /// drawn ([`World::terrain_radius`] `None`, the sources do not depend on the target) or the target is off the
+    /// terrain.
     #[must_use]
-    pub fn patch_under(&self, target: [f64; 3]) -> Option<(usize, usize)> {
+    pub fn terrain_window(&self, target: [f64; 3]) -> Option<(usize, usize)> {
+        self.terrain_radius?;
         self.terrain.as_ref()?.patch_at(target[0], target[2])
     }
 
+    /// The terrain patches a frame looking at `target` draws, rows of z then x: every patch of the patch map, or
+    /// with [`World::terrain_radius`] the window around the patch under the target (patches past the map's edge are
+    /// listed and drawn as nothing).
+    fn terrain_patches(&self, target: [f64; 3]) -> Vec<(usize, usize)> {
+        let Some(t) = &self.terrain else { return Vec::new() };
+        let (rows, cols) = match self.terrain_radius {
+            None => {
+                let side = t.visual.maps.first().map_or(0, crate::terrain::PatchMap::side);
+                (0..side, 0..side)
+            }
+            Some(r) => match t.patch_at(target[0], target[2]) {
+                Some((px, pz)) => (pz.saturating_sub(r)..pz + r + 1, px.saturating_sub(r)..px + r + 1),
+                None => return Vec::new(),
+            },
+        };
+        rows.flat_map(|j| cols.clone().map(move |i| (i, j))).collect()
+    }
+
+    /// The prepared patch `(i, j)` (made on first use and kept); `None` when it draws nothing.
+    fn terrain_patch(&mut self, (i, j): (usize, usize)) -> Option<Arc<Prepared>> {
+        let t = self.terrain.as_ref()?;
+        let p = self
+            .patches
+            .entry((i, j))
+            .or_insert_with(|| Arc::new(t.patch(i, j).unwrap_or_default()));
+        (!p.draws.is_empty()).then(|| Arc::clone(p))
+    }
+
     /// The live list's sources for a camera looking at `target`, in the order of [`World::instances`]: the objects
-    /// (each picked as its place in the placed list plus one), the terrain patches around `target`, the strips, the
+    /// (each picked as its place in the placed list plus one), the terrain patches (`terrain_patches`), the strips, the
     /// water.
     pub fn sources(&mut self, target: [f64; 3]) -> Vec<crate::live::Source> {
         use crate::live::{Key, Source};
@@ -413,24 +449,14 @@ impl World {
                 pick: *n as u32 + 1,
             })
             .collect();
-        if let Some(t) = &self.terrain
-            && let Some((px, pz)) = t.patch_at(target[0], target[2])
-        {
-            for j in pz.saturating_sub(TERRAIN_RADIUS)..=pz + TERRAIN_RADIUS {
-                for i in px.saturating_sub(TERRAIN_RADIUS)..=px + TERRAIN_RADIUS {
-                    let p = self
-                        .patches
-                        .entry((i, j))
-                        .or_insert_with(|| Arc::new(t.patch(i, j).unwrap_or_default()));
-                    if !p.draws.is_empty() {
-                        out.push(Source {
-                            prepared: Arc::clone(p),
-                            world: frame::IDENTITY,
-                            key: Key::Patch(i, j),
-                            pick: 0,
-                        });
-                    }
-                }
+        for (i, j) in self.terrain_patches(target) {
+            if let Some(prepared) = self.terrain_patch((i, j)) {
+                out.push(Source {
+                    prepared,
+                    world: frame::IDENTITY,
+                    key: Key::Patch(i, j),
+                    pick: 0,
+                });
             }
         }
         for (k, s) in self.strips.iter().enumerate() {
@@ -481,25 +507,15 @@ impl World {
         [b[0], b[1], b[2], 0.0]
     }
 
-    /// The instances of a frame: the objects, the strips, the water and the terrain patches around `target`.
+    /// The instances of a frame: the objects, the terrain patches (`terrain_patches`), the strips and the water.
     pub fn instances(&mut self, target: [f64; 3]) -> Vec<Instance> {
         let mut out = self.objects.clone();
-        if let Some(t) = &self.terrain
-            && let Some((px, pz)) = t.patch_at(target[0], target[2])
-        {
-            for j in pz.saturating_sub(TERRAIN_RADIUS)..=pz + TERRAIN_RADIUS {
-                for i in px.saturating_sub(TERRAIN_RADIUS)..=px + TERRAIN_RADIUS {
-                    let p = self
-                        .patches
-                        .entry((i, j))
-                        .or_insert_with(|| Arc::new(t.patch(i, j).unwrap_or_default()));
-                    if !p.draws.is_empty() {
-                        out.push(Instance {
-                            prepared: Arc::clone(p),
-                            world: frame::IDENTITY,
-                        });
-                    }
-                }
+        for at in self.terrain_patches(target) {
+            if let Some(prepared) = self.terrain_patch(at) {
+                out.push(Instance {
+                    prepared,
+                    world: frame::IDENTITY,
+                });
             }
         }
         for s in self.strips.iter().chain(&self.water) {
