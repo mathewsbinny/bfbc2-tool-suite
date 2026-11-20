@@ -25,7 +25,8 @@ mod driver;
 mod ladders;
 mod levelobjects;
 mod navcompare;
-mod ordercheck;
+// round O5: stockmp's generate and validate place and check the bots on its PathData (config.Snapper)
+pub(crate) mod ordercheck;
 mod prepare;
 mod project;
 

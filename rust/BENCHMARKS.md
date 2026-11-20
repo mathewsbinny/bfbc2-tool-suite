@@ -4901,3 +4901,140 @@ The other three ways:
   as before).
 - cargo fmt; clippy `-D warnings` on the workspace (all features) and on the cull and caches groups alone; the touched
   crates' cargo tests.
+## O5: the shader tools, the console readers, the BF1943 importer, stockmp's pipeline, NavKit's leftovers (2026-11-19, branch `rust-o5`)
+
+The last batch of O1's plan, plus the Python cores O3 / O4 still handed off. The batch was ported in three helper
+worktrees (`rust-o5a` stockmp, `rust-o5b` shader, `rust-o5c` readers / importer) and in `rust-o5` (NavKit's
+leftovers, the tidy-up), then merged. **Provisional timings:** other sessions' builds and test tiers ran beside every
+figure.
+
+### What was added
+
+| group (feature) | subcommands (the Python they port) |
+|---|---|
+| `shader` | `shaderdb` (all eight subcommands, the merge's `Merger` / `entry_contents` / `verify_merge` and `level_meshes` ported: E4b had left them Python), `renderqa`, `xdiff` (both: argparse and the errors raised before any drawing) |
+| `readers` | `apt`, `stfs`, `xiso` (`bfbc2-console-readers`) over the F0 / F3 readers |
+| `import` | `bf1943import` (`list`, the options and the errors before work; `bf1943src.rs`: `bf1943import.Source` - the walk, `fbrb1943.Bundle`'s check, multi-member gzip, the current source index read) |
+| `stockmp` | `generate`, `build`, `validate`, `all` (`generate.rs`, `build.rs`, `validate.rs`: `config.generate`'s placement on NavKit's path-data model - O4's ordercheck port -, `pipeline.build`'s staging, manifests, sector assets and packing, `validate`'s checks and wording; the feature now pulls in `navkit`) |
+| `navtools` | `detailed`: `choose` itself (flagged objects' collision boxes through `bc2_scene::collision::havok_index` and the Havok triangle reader, the 0.8 m samples' stacked floors through `bc2_navbuild::navsample`) |
+| `navkit` | `navkit status` (`clock::ctime`: `time.ctime` of a file stamp - the local time as the C runtime's `asctime` writes it) |
+
+**Tidy-up (O4's list):** O3's `fsx.rs` is folded into O4's `pyos` (`bc2-cli/src/pyos/mod.rs`; its stat, utime,
+the shared lock, `replace`'s tries and scandir as `pyos::files`; the duplicate `normcase` gone). Both stay in
+`bc2-cli`: `pyos` answers in `PyResult` (the binary's `Fail`), which `bc2-pyrt` does not know.
+
+### Proof (O2's method: `core/tests/test_cli_o5.py`, cases in `cli_o5_<group>.py`; O3's isolation)
+
+Goldens were recorded from the Python first, from a frozen copy of the checkout at `7f21990` (f810613's sources with
+their own module, in the scratch folder: no Project OPFOR walk-up), from synthetic inputs (no EA content).
+
+| group | recorded lines | Rust | handed to Python | `--live` (Python / Rust process time) | `--game`: real calls (Rust / Python) |
+|---|---:|---:|---:|---|---|
+| shader (shaderdb 252, renderqa 52, xdiff 18) | 322 | 320 | 2 | same answers (115 / 10 s) | 30 (30 / 0): console_shaders' `needs` and Dx9 / 10 / 11 `merge` on the four Onslaught levels, `info level:`, `cover`, `roundtrip --levels`, `find` |
+| readers (apt, stfs, xiso) | 212 | 206 | 6 | same (44 / 6 s) | 75 (75 / 0): the user's Update packages and disc image read in place, 8 OPFOR menu movies |
+| bf1943 (bf1943import) | 46 | 42 | 4 | same (12 / 2 s) | 12 (10 / 2): 9 lists of the real BF1943 source, 3 source-index cases |
+| nav (detailed 56, navkit status 36) | 92 | 72 | 20 | same (26 / 8 s) | 74 (74 / 0): `detailed` on the 35 prepared levels of OPFOR's `work\` with their sector offsets (4 with their 0.8 m samples), `navkit status` of the same 35 |
+| stockmp (generate / build / validate / all, config check) | 73 | 71 | 2 | same (50 / 10 s) | 3 (3 / 0): OPFOR's full `generate` calls |
+| **all** | **745** | **711** | **34** | | **194 lines, each alone and on one pipe, both ways: all identical** |
+
+- **stockmp's builds, byte for byte** (`cli_o5_stockmp.game_check`): `stockmp all` of mp_005, mp_002 and mp_008cq in a
+  stand-in OPFOR folder (`game` a junction to the game copy, removed with `rmdir` before the folder; its own `work\`
+  and LOCALAPPDATA; both sides on the same path one after the other): every file under `work\` identical by SHA-256
+  (35,688 / 34,466 / 32,257 files), both streams, exit codes and log records identical; Rust answered all three.
+- O3's stockmp group still passes 236 of 236 as recorded; Rust now answers 218 of them (O3: 214).
+- **shaderdb merge** is Rust end to end: the merged databases and `.merge.txt` reports byte-identical in every
+  recorded case (Dx9, Dx10, Xbox, two donors, `--all-names`, level and bundle donors, a 260-entry database) and on
+  the real Onslaught merges.
+- **detailed's triangles:** the synthetic packfiles the tests can build give the reader no triangles, so the quick
+  cases cover the flag rules, the no-packfile boxes, the refused packfiles and the samples (versions 1, 2, 3); the
+  object boxes from real collision triangles are proven by the 35 real levels. The world box is
+  `x*r0 + y*r1 + z*r2 + t` in float64 as levelobjects' port (proven on 56,831 files in O4); NumPy's `matmul` goes
+  through BLAS, so a last-bit difference could only show where a box edge plus the 5 m margin falls exactly on a
+  100 m sector line.
+
+**Recorded differences, by design** (none in the recorded lines or OPFOR's calls):
+
+- the cases that name the case folder's path in a hash (bf1943's source-index file names) are run both ways in
+  `--game` only, not recorded (O4's rule for location-dependent cases);
+- the bf1943 cases run with `PYTHONDONTWRITEBYTECODE=1` (the Python imported the case folder's `fbrb1943.py` and left
+  a `__pycache__` the Rust does not);
+- O2's log differences (the start line names `bfbc2.exe`) hold here too.
+
+### Still handed to the Python, and why
+
+- **renderqa's drawing** (render, compare, validate, wake, strips, patches): Direct3D 11 through `shaderview.exe`,
+  NumPy measures of the pixels, Pillow contact sheets. bc2-render (R5) has the preparation and the draw but not the
+  measures or the sheets; byte-identical sheets and GPU pixels are not a reasonable port. OPFOR's
+  `ww2_level_checks` strips / patches lines therefore still draw in Python (Rust saves only the start-up).
+- **xdiff's runs:** the Xenos interpreter `xenos_exec.py` (NumPy; kept Python since E3f by measurement), NumPy's
+  seeded inputs, WARP draws. OPFOR calls `xdiff.main` in process, not the command line.
+- **texqa's bench_sweep line** (`texqa <work\ww2\bf1943_vehicles> -o .. --cache .. --worst 4`): it always draws
+  contact sheets of the worst rows with PIL (its bitmap font, its PNG compression), which is not a reasonable
+  byte-identical port. With the sheets Python, answering the BF1943 `Source` (now in Rust, `bf1943src.rs`) and the
+  DICE copies in Rust would not change who answers the line, so it stays handed off and the reference is unchanged.
+  A sheets-only Python step (Rust writes `texqa.json`, Python draws) would need a new Python entry point.
+- **bf1943import `import` / `check`** after the source opens: the `Importer` (the BFBC2 soldier skeleton from the
+  game copy's index, Granny trees compared as Python objects, the undeploys' added tracks). Writing the source index
+  (a pickle of the Python's own bytes plus the cache prune's stamps) also stays Python.
+- **dbxcatalogue's cache build** (decided: kept). The pass itself is Rust since F2b (`catalogue_build`); what the
+  Python adds is the pickle of `dbx.Element` trees, Counters and frozensets that OPFOR's importer modules unpickle in
+  process. A Rust-side format would make the shim rebuild those Python trees on every load (slower than unpickling)
+  for a build that runs once per game-copy change; the CLI's answer from a current cache is Rust (O3).
+- **navkit `build` / `apply` / `all` and navregress's builds** (not feasible this round; what is missing, by
+  function): `navbuild.stage`'s orchestration (navedits' hand edits, `deep_water`, `outside_bounds`, the border
+  nodes' runs and corner sharing, the carried seam nodes, `drop_one_way` / `restore_one_way`'s rows),
+  `navwalk.walkable`'s NumPy glue around the Rust grid walks, `detail_pass` / `navdetail` (D lines, F cells: the
+  iteration order of its sets reaches the output), `sector_links` with the same / cross-grid resolvers,
+  `merge_detailed`, `prune_order_nodes`, `finalize_graph`, `write_file` (`kymesh.write_mesh`, `hpdtool`'s writer),
+  `navislands.note_nodes`; for `apply` `navtune.load` / its operations, `navlinks.apply`, `navtraversal.write`,
+  `navregress.level_water` / `order_points_of` / `reference_bounds`. `sample` / `sample_all` start the game and stay
+  Python by rule.
+- **Damaged or off-type inputs** in every group (cut files, values of another type, text outside what the port
+  reads as Python does), argparse abbreviations / `--` / `-oX`, `detailed --score` (evaluation only).
+
+### Timings (processes, best of 5 unless said; real inputs)
+
+| job | Python | Rust | |
+|---|---:|---:|---:|
+| `shaderdb` start-up (usage) | 0.205 s | 0.011 s | x18 |
+| `shaderdb needs ons_mp_002` | 0.917 s | 0.115 s | x8.0 |
+| `shaderdb merge ons_mp_002` Dx9 / Dx10 / Dx11 | 1.449 / 1.786 / 1.618 s | 1.096 / 1.620 / 1.351 s | x1.1-1.3 |
+| `shaderdb --dx 10 info level:ons_mp_002` | 0.510 s | 0.176 s | x2.9 |
+| `shaderdb cover ons_mp_002` | 1.119 s | 0.311 s | x3.6 |
+| `shaderdb find` (the Onslaught extras over every level) | 10.70 s | 8.27 s | x1.3 |
+| `shaderdb roundtrip --levels` (best of 3) | 90.1 s | 66.4 s | x1.4 |
+| `apt` start-up / `apt info` a menu movie / `apt dump` | 0.182 / 0.190 / 0.195 s | 0.010 / 0.010 / 0.012 s | x16-18 |
+| `stfs list` / `extract mainmenu-00`, an Update package | 0.171 / 0.170 s | 0.010 / 0.013 s | x13-17 |
+| `xiso list` / `extract default.xex`, the disc | 0.170 / 0.172 s | 0.011 / 0.011 s | x16 |
+| `bf1943import list garand` (real source, index off; best of 3) | 2.690 s | 1.716 s | x1.6 |
+| `stockmp summary mp_005`, warm | 0.29 s | 0.08 s | x3.6 |
+| `stockmp generate mp_005`, work folder unpacked (best of 3) | 0.79 s | 0.69 s | |
+| `stockmp build mp_005` / `mp_008cq` (best of 3) | 26.0 / 13.4 s | 10.6 / 6.5 s | x2.1-2.5 |
+| `stockmp validate mp_005` / `mp_008cq` (best of 3) | 2.17 / 1.51 s | 1.76 / 1.18 s | x1.2-1.3 |
+| `stockmp all` mp_005 / mp_002 / mp_008cq (single runs, a fresh work folder: the stock unpack, the same Rust on both sides, sets it) | 56.3 / 53.4 / 40.1 s | 45.5 / 55.8 / 53.0 s | (disk-bound) |
+| `detailed sp_009` / `sp_004_b` (OPFOR's work\, flagged objects' boxes) | 0.236 / 0.243 s | 0.046 / 0.047 s | x5.2 |
+| `detailed ons_mp_002 --samples` (with the 0.8 m samples' stacked floors) | 0.301 s | 0.070 s | x4.3 |
+| `navkit status sp_009` | 0.111 s | 0.011 s | x10 |
+
+### For Project OPFOR (not edited)
+
+- **`src\tools\onslaught\console_shaders.py:178` and `:188`** run `[sys.executable, SHADERDB, 'needs' / 'merge', ...]`
+  (through `run`, which is `cc.dbx_run`): `cc.cli_command('shaderdb') + ['needs', ...]` / `+ ['merge', ...]` saves
+  about 0.2 s of start-up a call (`needs` 0.9 -> 0.1 s) and runs the merge in Rust.
+- **`src\tools\ww2\ww2_level_checks.py` `_renderqa`:** `native.cli_command('renderqa') + [command, '--db', ...]`
+  saves only the start-up (strips / patches still draw in Python).
+- **stockmp:** nothing to change (its lines go through `cli_command('stockmp')` since D1f2).
+- **apt / stfs / bf1943import / xdiff:** imported in process by OPFOR, not run: nothing changes.
+
+### Checks
+
+`cargo fmt`; `cargo clippy -p bc2-cli --all-targets -D warnings` with all features and with each of the 18 groups
+alone (single groups print cargo's "unused dependency" notes for other groups' crates, not clippy errors);
+`cargo test -p bc2-cli -p bc2-pyrt`; ruff and mypy on the new Python. On the merged tree (`9d2ee0a`, this checkout's
+module and `bin\bfbc2.exe` built): `test_cli_o5.py` quick 745 of 745 (533 s), then `--live --game` per group (all
+identical; shader's real calls Python 446.9 s / Rust 290.4 s, readers 27.8 / 3.1 s, bf1943 49.1 / 31.7 s, nav 31.2 /
+5.4 s), stockmp `--live` and `--game` with the three byte-identical builds again (mp_005 41.6 / 42.8 s, mp_002 46.1 /
+40.7 s, mp_008cq 31.6 / 32.9 s); O1-O4's goldens unchanged: `test_cli_o1.py` 722, `o2` 966, `o3` 1,220 (Rust now
+answers 218 of O3's stockmp lines), `o4` 622, all as recorded. `python run_tests.py quick -j 2` was **not run**: drive
+C: had 25.9 GB free after the proofs (other sessions' build folders), and the tier's workspace and editor debug builds
+take 13 GB or more.

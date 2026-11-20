@@ -21,9 +21,16 @@ Versions 0.1.0 to 0.8.0 were assigned afterwards (round P1, 2026-11-19), from th
 `rust/BENCHMARKS.md`; they were not tagged at the time. Each date is the day the last change of that version
 landed on `main`.
 
-## Unreleased
+## [Unreleased]
 
 ### Added
+- **Specification:** the engine specification's first two layers, the file formats and the data model (`spec/`,
+  439 rules with their evidence; `spec/trace.py` checks the index).
+
+- **`bfbc2.exe`:** the shader tools (`shaderdb` with `merge`, `renderqa`, `xdiff`), the console readers (`apt`,
+  `stfs`, `xiso`), `bf1943import`, and stockmp's `generate` / `build` / `validate` / `all` (round O5); NavKit's
+  `detailed` and `navkit status` answered in Rust. `stockmp build` about 2.5 times faster, `shaderdb needs` about 8
+  times.
 - **Map editor:** any map exported for any era and multiplayer mode (round E3d). The era (BFBC1, BFBC2, Vietnam,
   WW2) and the mode are project settings (`Op::SetMode`, set in the New project form and the Export window): the
   modes offered are those the era's stock levels have (WW2: Conquest), the donor's mode layer comes into the project
@@ -37,6 +44,11 @@ landed on `main`.
   ("Rush stage 2 has one M-COM (the donor's has 2)").
 - **Map editor:** Install and Uninstall in the Export window (Project OPFOR's `mapedit_install.py`: the plan first,
   then the install on confirmation).
+
+### Changed
+- **`bfbc2.exe culltree add`** reads the reference levels one at a time: about 80-110 MB instead of 1.65 GB, and
+  0.6-0.9 s with a warm cache instead of 7 s. Its row cache is shared with `culltree.py` (either side's warmed cache
+  serves both) and is pruned within the cache budget.
 
 ## [0.9.0] - 2026-11-19
 
