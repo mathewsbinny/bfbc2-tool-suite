@@ -1,0 +1,3727 @@
+{
+"../operation-rising-sun/work/extracted/dist/xenon/levels/coral_sea/reduced-level-00.fbrb:Levels/Coral_sea/Shaders/Single.res": [
+2333734,
+"095d4a451f2c54192dee",
+15
+],
+"../operation-rising-sun/work/extracted/dist/xenon/levels/guadal_canal/reduced-level-00.fbrb:Levels/Guadal_Canal/Shaders/Single.res": [
+3871864,
+"df7c88fd0b1465a6dc22",
+15
+],
+"../operation-rising-sun/work/extracted/dist/xenon/levels/iwo_jima_s/reduced-level-00.fbrb:Levels/Iwo_Jima_s/Shaders/Single.res": [
+4358425,
+"c120d268e650aad7c9f1",
+15
+],
+"../operation-rising-sun/work/extracted/dist/xenon/levels/wake_island_s/reduced-level-00.fbrb:Levels/Wake_island_s/Shaders/Single.res": [
+4019811,
+"0e902f4ada694a8425cf",
+15
+],
+"../operation-rising-sun/work/extracted/dist/xenon/levels/wake_island_tutorial/reduced-level-00.fbrb:Levels/Wake_island_tutorial/Shaders/Single.res": [
+3964783,
+"2cfa6a881974b2cab49d",
+15
+],
+"game/Dist/win32/async/startup-00.fbrb:Scenes/UIBackground/shaders/dx10_single.res": [
+177113,
+"f6f4d94a32e21205e090",
+15
+],
+"game/Dist/win32/async/startup-00.fbrb:Scenes/UIBackground/shaders/dx11_single.res": [
+188877,
+"b14de1a34e5815e29c59",
+15
+],
+"game/Dist/win32/async/startup-00.fbrb:Scenes/UIBackground/shaders/dx9_single.res": [
+106245,
+"18571ddbcb2974ec0a0a",
+15
+],
+"game/Dist/win32/async/startup-00.fbrb:systems/ui/shaders/dx10_single.res": [
+39613,
+"078946d285e6c805fc6c",
+15
+],
+"game/Dist/win32/async/startup-00.fbrb:systems/ui/shaders/dx11_single.res": [
+43169,
+"b5b7c1e634dab058de8d",
+15
+],
+"game/Dist/win32/async/startup-00.fbrb:systems/ui/shaders/dx9_single.res": [
+21455,
+"797094e98b5048c82bbe",
+15
+],
+"game/Dist/win32/levels/mp_001/level-00.fbrb:Levels/mp_001/shaders/Dx10_Single.res": [
+34407514,
+"f7fb748ab095da675530",
+15
+],
+"game/Dist/win32/levels/mp_001/level-00.fbrb:Levels/mp_001/shaders/Dx11_Single.res": [
+26905158,
+"0fa93a48fe3fdb0d2f4c",
+15
+],
+"game/Dist/win32/levels/mp_001/level-00.fbrb:Levels/mp_001/shaders/Dx9_Single.res": [
+18977542,
+"00dfa2dc934baf7d86cc",
+15
+],
+"game/Dist/win32/levels/mp_001sr/level-00.fbrb:Levels/MP_001SR/shaders/Dx10_Single.res": [
+31939156,
+"ce6ef1f30f4548df0fb5",
+15
+],
+"game/Dist/win32/levels/mp_001sr/level-00.fbrb:Levels/MP_001SR/shaders/Dx11_Single.res": [
+24987413,
+"89adfd6d7e3536853212",
+15
+],
+"game/Dist/win32/levels/mp_001sr/level-00.fbrb:Levels/MP_001SR/shaders/Dx9_Single.res": [
+17482046,
+"6c0a15a425fcf5a88749",
+15
+],
+"game/Dist/win32/levels/mp_002/level-00.fbrb:Levels/MP_002/shaders/Dx10_Single.res": [
+33669802,
+"271552925101b9f54ede",
+15
+],
+"game/Dist/win32/levels/mp_002/level-00.fbrb:Levels/MP_002/shaders/Dx11_Single.res": [
+26325096,
+"fd789526df31b2ce4cc2",
+15
+],
+"game/Dist/win32/levels/mp_002/level-00.fbrb:Levels/MP_002/shaders/Dx9_Single.res": [
+18476450,
+"cdd00ddaa454ec06f7cc",
+15
+],
+"game/Dist/win32/levels/mp_002sr/level-00.fbrb:Levels/MP_002SR/shaders/Dx10_Single.res": [
+30798664,
+"849135e1efca9737a7a3",
+15
+],
+"game/Dist/win32/levels/mp_002sr/level-00.fbrb:Levels/MP_002SR/shaders/Dx11_Single.res": [
+24049837,
+"52893cce9c4cde1ec536",
+15
+],
+"game/Dist/win32/levels/mp_002sr/level-00.fbrb:Levels/MP_002SR/shaders/Dx9_Single.res": [
+16855764,
+"9d52843d0e923213bf30",
+15
+],
+"game/Dist/win32/levels/mp_003/level-00.fbrb:Levels/MP_003/shaders/Dx10_Single.res": [
+32173373,
+"9b4a6359a0506c87ec38",
+15
+],
+"game/Dist/win32/levels/mp_003/level-00.fbrb:Levels/MP_003/shaders/Dx11_Single.res": [
+25362352,
+"90bfd92502fbab0736e2",
+15
+],
+"game/Dist/win32/levels/mp_003/level-00.fbrb:Levels/MP_003/shaders/Dx9_Single.res": [
+17794097,
+"3c9bb82f34d2d40fc090",
+15
+],
+"game/Dist/win32/levels/mp_004/level-00.fbrb:Levels/MP_004/shaders/Dx10_Single.res": [
+34847752,
+"78dd2ebd1330bb2b5e5c",
+15
+],
+"game/Dist/win32/levels/mp_004/level-00.fbrb:Levels/MP_004/shaders/Dx11_Single.res": [
+27420021,
+"1b942d34a6340947568f",
+15
+],
+"game/Dist/win32/levels/mp_004/level-00.fbrb:Levels/MP_004/shaders/Dx9_Single.res": [
+19002455,
+"c5cedea43a0966502bbd",
+15
+],
+"game/Dist/win32/levels/mp_004sdm/level-00.fbrb:Levels/MP_004SDM/shaders/Dx10_Single.res": [
+31662266,
+"73ffddeaddf5313173a4",
+15
+],
+"game/Dist/win32/levels/mp_004sdm/level-00.fbrb:Levels/MP_004SDM/shaders/Dx11_Single.res": [
+24911851,
+"555ac54c494eede96443",
+15
+],
+"game/Dist/win32/levels/mp_004sdm/level-00.fbrb:Levels/MP_004SDM/shaders/Dx9_Single.res": [
+17400645,
+"145616d42882381e9936",
+15
+],
+"game/Dist/win32/levels/mp_005/level-00.fbrb:Levels/MP_005/shaders/Dx10_Single.res": [
+34111739,
+"be240f7222718dce2afc",
+15
+],
+"game/Dist/win32/levels/mp_005/level-00.fbrb:Levels/MP_005/shaders/Dx11_Single.res": [
+26693200,
+"70c6c820a611a347fe46",
+15
+],
+"game/Dist/win32/levels/mp_005/level-00.fbrb:Levels/MP_005/shaders/Dx9_Single.res": [
+18622118,
+"144496a18593fa81f5a3",
+15
+],
+"game/Dist/win32/levels/mp_005sr/level-00.fbrb:Levels/MP_005SR/shaders/Dx10_Single.res": [
+29740158,
+"8b484357dc256e027d6a",
+15
+],
+"game/Dist/win32/levels/mp_005sr/level-00.fbrb:Levels/MP_005SR/shaders/Dx11_Single.res": [
+23243181,
+"72391ddf8c317a479c97",
+15
+],
+"game/Dist/win32/levels/mp_005sr/level-00.fbrb:Levels/MP_005SR/shaders/Dx9_Single.res": [
+16332268,
+"f6210eadcc805b6bfdae",
+15
+],
+"game/Dist/win32/levels/mp_006/level-00.fbrb:Levels/MP_006/shaders/Dx10_Single.res": [
+36061131,
+"eb3ad0bf50f79b20b057",
+15
+],
+"game/Dist/win32/levels/mp_006/level-00.fbrb:Levels/MP_006/shaders/Dx11_Single.res": [
+28352606,
+"067fe8fafe67fe6d9c7c",
+15
+],
+"game/Dist/win32/levels/mp_006/level-00.fbrb:Levels/MP_006/shaders/Dx9_Single.res": [
+19958912,
+"ad3663afdd42077c07d4",
+15
+],
+"game/Dist/win32/levels/mp_006cq/level-00.fbrb:Levels/MP_006CQ/shaders/Dx10_Single.res": [
+35544300,
+"85489a7b53de4370caf2",
+15
+],
+"game/Dist/win32/levels/mp_006cq/level-00.fbrb:Levels/MP_006CQ/shaders/Dx11_Single.res": [
+27938655,
+"d5d8bb5b12cdca0a599f",
+15
+],
+"game/Dist/win32/levels/mp_006cq/level-00.fbrb:Levels/MP_006CQ/shaders/Dx9_Single.res": [
+19724959,
+"c9c3727f2a61fb980ffd",
+15
+],
+"game/Dist/win32/levels/mp_006sdm/level-00.fbrb:Levels/MP_006SDM/shaders/Dx10_Single.res": [
+34033675,
+"277e3b2f9155707132f4",
+15
+],
+"game/Dist/win32/levels/mp_006sdm/level-00.fbrb:Levels/MP_006SDM/shaders/Dx11_Single.res": [
+26763812,
+"3815cb2247b41f66ebdb",
+15
+],
+"game/Dist/win32/levels/mp_006sdm/level-00.fbrb:Levels/MP_006SDM/shaders/Dx9_Single.res": [
+18893130,
+"7329bff6050d09d80118",
+15
+],
+"game/Dist/win32/levels/mp_007/level-00.fbrb:Levels/MP_007/shaders/Dx10_Single.res": [
+34914083,
+"1404e4322491050ed0a4",
+15
+],
+"game/Dist/win32/levels/mp_007/level-00.fbrb:Levels/MP_007/shaders/Dx11_Single.res": [
+27432606,
+"6433338573dc01ce011a",
+15
+],
+"game/Dist/win32/levels/mp_007/level-00.fbrb:Levels/MP_007/shaders/Dx9_Single.res": [
+19340177,
+"25a75b2dcc8441dc6a26",
+15
+],
+"game/Dist/win32/levels/mp_007sdm/level-00.fbrb:Levels/MP_007SDM/shaders/Dx10_Single.res": [
+33089031,
+"9510fa67fb8dd775c09b",
+15
+],
+"game/Dist/win32/levels/mp_007sdm/level-00.fbrb:Levels/MP_007SDM/shaders/Dx11_Single.res": [
+26010252,
+"c8cd820990e5d52acbbb",
+15
+],
+"game/Dist/win32/levels/mp_007sdm/level-00.fbrb:Levels/MP_007SDM/shaders/Dx9_Single.res": [
+18372532,
+"92e719f349adaeadd228",
+15
+],
+"game/Dist/win32/levels/mp_008/level-00.fbrb:Levels/MP_008/shaders/Dx10_Single.res": [
+34264164,
+"a3b4d5255c60e13390d7",
+15
+],
+"game/Dist/win32/levels/mp_008/level-00.fbrb:Levels/MP_008/shaders/Dx11_Single.res": [
+26844580,
+"5041d45559a7c0cc756d",
+15
+],
+"game/Dist/win32/levels/mp_008/level-00.fbrb:Levels/MP_008/shaders/Dx9_Single.res": [
+19051897,
+"46a5616b75c592118ac4",
+15
+],
+"game/Dist/win32/levels/mp_009cq/level-00.fbrb:Levels/MP_009CQ/shaders/Dx10_Single.res": [
+32140977,
+"e68ba6adc13ddfb47732",
+15
+],
+"game/Dist/win32/levels/mp_009cq/level-00.fbrb:Levels/MP_009CQ/shaders/Dx11_Single.res": [
+25126203,
+"8760ef62df9cdb9907d5",
+15
+],
+"game/Dist/win32/levels/mp_009cq/level-00.fbrb:Levels/MP_009CQ/shaders/Dx9_Single.res": [
+17547411,
+"ec5f031259f4c6f2700b",
+15
+],
+"game/Dist/win32/levels/mp_009gr/level-00.fbrb:Levels/MP_009GR/shaders/Dx10_Single.res": [
+32914124,
+"afe2befad9f5c13e747d",
+15
+],
+"game/Dist/win32/levels/mp_009gr/level-00.fbrb:Levels/MP_009GR/shaders/Dx11_Single.res": [
+25754300,
+"bb06d1c133a42778e8f6",
+15
+],
+"game/Dist/win32/levels/mp_009gr/level-00.fbrb:Levels/MP_009GR/shaders/Dx9_Single.res": [
+17965921,
+"6edbc96d351b6b74c3cd",
+15
+],
+"game/Dist/win32/levels/mp_009sdm/level-00.fbrb:Levels/MP_009SDM/shaders/Dx10_Single.res": [
+30040231,
+"24a4b0af5fcfc49b74fd",
+15
+],
+"game/Dist/win32/levels/mp_009sdm/level-00.fbrb:Levels/MP_009SDM/shaders/Dx11_Single.res": [
+23490324,
+"83a3d044bfb83e67895d",
+15
+],
+"game/Dist/win32/levels/mp_009sdm/level-00.fbrb:Levels/MP_009SDM/shaders/Dx9_Single.res": [
+16467637,
+"874ffc99473d8e797202",
+15
+],
+"game/Dist/win32/levels/mp_012gr/level-00.fbrb:Levels/MP_012GR/shaders/Dx10_Single.res": [
+35637735,
+"ab3033df9d9d26101bd3",
+15
+],
+"game/Dist/win32/levels/mp_012gr/level-00.fbrb:Levels/MP_012GR/shaders/Dx11_Single.res": [
+28049111,
+"f40771e9121f94a6e488",
+15
+],
+"game/Dist/win32/levels/mp_012gr/level-00.fbrb:Levels/MP_012GR/shaders/Dx9_Single.res": [
+19678484,
+"120e2f7de43094e81aa4",
+15
+],
+"game/Dist/win32/levels/mp_012sr/level-00.fbrb:Levels/MP_012SR/shaders/Dx10_Single.res": [
+31251967,
+"c552e381bb7a4e1c164a",
+15
+],
+"game/Dist/win32/levels/mp_012sr/level-00.fbrb:Levels/MP_012SR/shaders/Dx11_Single.res": [
+24556069,
+"6413f6608443cf5cde2e",
+15
+],
+"game/Dist/win32/levels/mp_012sr/level-00.fbrb:Levels/MP_012SR/shaders/Dx9_Single.res": [
+17281410,
+"8b12aea3b4f20a0a1fb4",
+15
+],
+"game/Dist/win32/levels/ons_mp_002/level-00.fbrb:Levels/MP_002/shaders/Dx10_Single.res": [
+33669802,
+"2cff5ec765982a000ea3",
+15
+],
+"game/Dist/win32/levels/ons_mp_002/level-00.fbrb:Levels/MP_002/shaders/Dx11_Single.res": [
+26325096,
+"5e6acbe42b1914b5dca2",
+15
+],
+"game/Dist/win32/levels/ons_mp_002/level-00.fbrb:Levels/MP_002/shaders/Dx9_Single.res": [
+18476450,
+"31c00568c36c4b60f5f6",
+15
+],
+"game/Dist/win32/levels/ons_mp_002/level-00.fbrb:Levels/ONS_MP_002/shaders/Dx10_Single.res": [
+33669802,
+"85bcceb0ff403e69d9b0",
+15
+],
+"game/Dist/win32/levels/ons_mp_002/level-00.fbrb:Levels/ONS_MP_002/shaders/Dx11_Single.res": [
+26325096,
+"caf63bfedb86f7db82c2",
+15
+],
+"game/Dist/win32/levels/ons_mp_002/level-00.fbrb:Levels/ONS_MP_002/shaders/Dx9_Single.res": [
+18476450,
+"97bb69e7f29b9ec1c883",
+15
+],
+"game/Dist/win32/levels/ons_mp_004/level-00.fbrb:Levels/MP_004/shaders/Dx10_Single.res": [
+34847752,
+"5e67e371ba85b9494ff1",
+15
+],
+"game/Dist/win32/levels/ons_mp_004/level-00.fbrb:Levels/MP_004/shaders/Dx11_Single.res": [
+27420021,
+"a51af90bf264c43a0b20",
+15
+],
+"game/Dist/win32/levels/ons_mp_004/level-00.fbrb:Levels/MP_004/shaders/Dx9_Single.res": [
+19002455,
+"51d40bc2e0048d5e6620",
+15
+],
+"game/Dist/win32/levels/ons_mp_004/level-00.fbrb:Levels/ONS_MP_004/shaders/Dx10_Single.res": [
+34847752,
+"89c33c9457d3a7df22ca",
+15
+],
+"game/Dist/win32/levels/ons_mp_004/level-00.fbrb:Levels/ONS_MP_004/shaders/Dx11_Single.res": [
+27420021,
+"bf065c058fcce7c5af0e",
+15
+],
+"game/Dist/win32/levels/ons_mp_004/level-00.fbrb:Levels/ONS_MP_004/shaders/Dx9_Single.res": [
+19002455,
+"0b389ad9382f613f735f",
+15
+],
+"game/Dist/win32/levels/ons_mp_005/level-00.fbrb:Levels/MP_005/shaders/Dx10_Single.res": [
+34111739,
+"f590a28664a6c225177d",
+15
+],
+"game/Dist/win32/levels/ons_mp_005/level-00.fbrb:Levels/MP_005/shaders/Dx11_Single.res": [
+26693200,
+"fa92154927c9e3a4ab38",
+15
+],
+"game/Dist/win32/levels/ons_mp_005/level-00.fbrb:Levels/MP_005/shaders/Dx9_Single.res": [
+18622118,
+"ac3f8885ce7d5cd2585c",
+15
+],
+"game/Dist/win32/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/shaders/Dx10_Single.res": [
+34111739,
+"ed7969a02bedc1ef721b",
+15
+],
+"game/Dist/win32/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/shaders/Dx11_Single.res": [
+26693200,
+"c78daa2119bb784689ee",
+15
+],
+"game/Dist/win32/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/shaders/Dx9_Single.res": [
+18622118,
+"cb4a7ce835473298831c",
+15
+],
+"game/Dist/win32/levels/ons_mp_008/level-00.fbrb:Levels/MP_008/shaders/Dx10_Single.res": [
+34264164,
+"19b2b62d83b74d64d6dc",
+15
+],
+"game/Dist/win32/levels/ons_mp_008/level-00.fbrb:Levels/MP_008/shaders/Dx11_Single.res": [
+26844580,
+"9244a0a87d21aac69f35",
+15
+],
+"game/Dist/win32/levels/ons_mp_008/level-00.fbrb:Levels/MP_008/shaders/Dx9_Single.res": [
+19051897,
+"5403e8810a32574a2f85",
+15
+],
+"game/Dist/win32/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/shaders/Dx10_Single.res": [
+34264164,
+"be65800ca240c03fe50d",
+15
+],
+"game/Dist/win32/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/shaders/Dx11_Single.res": [
+26844580,
+"fe4c936375e5caacfa35",
+15
+],
+"game/Dist/win32/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/shaders/Dx9_Single.res": [
+19051897,
+"ec8d993a146afd96224b",
+15
+],
+"game/Dist/win32/levels/sp_003_B/level-00.fbrb:Levels/SP_003_B/shaders/Dx10_Single.res": [
+32056667,
+"851be1b2fa714185151d",
+15
+],
+"game/Dist/win32/levels/sp_003_B/level-00.fbrb:Levels/SP_003_B/shaders/Dx11_Single.res": [
+24948872,
+"3bc92ce09581ebe7be05",
+15
+],
+"game/Dist/win32/levels/sp_003_B/level-00.fbrb:Levels/SP_003_B/shaders/Dx9_Single.res": [
+16860865,
+"1902d4022d6139ee7e77",
+15
+],
+"game/Dist/win32/levels/sp_004_B/level-00.fbrb:Levels/SP_004_B/shaders/Dx10_Single.res": [
+23082705,
+"b8201b057dd931d6dc18",
+15
+],
+"game/Dist/win32/levels/sp_004_B/level-00.fbrb:Levels/SP_004_B/shaders/Dx11_Single.res": [
+18009598,
+"d3a9f14c1e22ea22f5be",
+15
+],
+"game/Dist/win32/levels/sp_004_B/level-00.fbrb:Levels/SP_004_B/shaders/Dx9_Single.res": [
+11975810,
+"c1410acfc26b7841cd4d",
+15
+],
+"game/Dist/win32/levels/sp_005/level-00.fbrb:Levels/SP_005/shaders/Dx10_Single.res": [
+27505596,
+"c01e322266c016f3e7b9",
+15
+],
+"game/Dist/win32/levels/sp_005/level-00.fbrb:Levels/SP_005/shaders/Dx11_Single.res": [
+21491937,
+"c60bc7601267e75a65ba",
+15
+],
+"game/Dist/win32/levels/sp_005/level-00.fbrb:Levels/SP_005/shaders/Dx9_Single.res": [
+14284759,
+"ff9b4602f27b8332dda3",
+15
+],
+"game/Dist/win32/levels/sp_005_B/level-00.fbrb:Levels/SP_005_B/Shaders/Dx10_Single.res": [
+29469807,
+"32f855ffc312fed9b339",
+15
+],
+"game/Dist/win32/levels/sp_005_B/level-00.fbrb:Levels/SP_005_B/Shaders/Dx11_Single.res": [
+23116696,
+"c94b7cd53530f7d0199e",
+15
+],
+"game/Dist/win32/levels/sp_005_B/level-00.fbrb:Levels/SP_005_B/Shaders/Dx9_Single.res": [
+15321140,
+"07d808404924ae4e2d39",
+15
+],
+"game/Dist/win32/levels/sp_006/level-00.fbrb:Levels/SP_006/shaders/Dx10_Single.res": [
+28888871,
+"19343e8f14bb8ea0c8a9",
+15
+],
+"game/Dist/win32/levels/sp_006/level-00.fbrb:Levels/SP_006/shaders/Dx11_Single.res": [
+22585862,
+"7a63ec13dbbc498a2b78",
+15
+],
+"game/Dist/win32/levels/sp_006/level-00.fbrb:Levels/SP_006/shaders/Dx9_Single.res": [
+15156702,
+"10438bf990306b89db84",
+15
+],
+"game/Dist/win32/levels/sp_007/level-00.fbrb:Levels/SP_007/shaders/Dx10_Single.res": [
+30413460,
+"ec1538c0fc5924aa1323",
+15
+],
+"game/Dist/win32/levels/sp_007/level-00.fbrb:Levels/SP_007/shaders/Dx11_Single.res": [
+23823210,
+"75e49079e4af95e81c53",
+15
+],
+"game/Dist/win32/levels/sp_007/level-00.fbrb:Levels/SP_007/shaders/Dx9_Single.res": [
+15842131,
+"bc15bf41eb45d07a5a03",
+15
+],
+"game/Dist/win32/levels/sp_008/level-00.fbrb:Levels/SP_008/shaders/Dx10_Single.res": [
+32789839,
+"d62648fc00987824157b",
+15
+],
+"game/Dist/win32/levels/sp_008/level-00.fbrb:Levels/SP_008/shaders/Dx11_Single.res": [
+25629207,
+"22b2c047b88dc3f94ce5",
+15
+],
+"game/Dist/win32/levels/sp_008/level-00.fbrb:Levels/SP_008/shaders/Dx9_Single.res": [
+17289125,
+"abaaf2a8cc6e0c13aab4",
+15
+],
+"game/Dist/win32/levels/sp_008_B/level-00.fbrb:Levels/SP_008_B/Shaders/Dx10_Single.res": [
+28356549,
+"3a59f9cd44dce1b2b08c",
+15
+],
+"game/Dist/win32/levels/sp_008_B/level-00.fbrb:Levels/SP_008_B/Shaders/Dx11_Single.res": [
+22109201,
+"1d8c125ff5a0bd0c04de",
+15
+],
+"game/Dist/win32/levels/sp_008_B/level-00.fbrb:Levels/SP_008_B/Shaders/Dx9_Single.res": [
+15054415,
+"1a4de2744ba100778490",
+15
+],
+"game/Dist/win32/levels/sp_009/level-00.fbrb:Levels/SP_009/shaders/Dx10_Single.res": [
+21355481,
+"e52aad763afd3bd320c2",
+15
+],
+"game/Dist/win32/levels/sp_009/level-00.fbrb:Levels/SP_009/shaders/Dx11_Single.res": [
+16424302,
+"bc4aedf5eec8790e3d44",
+15
+],
+"game/Dist/win32/levels/sp_009/level-00.fbrb:Levels/SP_009/shaders/Dx9_Single.res": [
+11163751,
+"8125d46d70393d13d70f",
+15
+],
+"game/Dist/win32/levels/sp_01/level-00.fbrb:Levels/SP_01/shaders/Dx10_Single.res": [
+19413133,
+"b587e2b8776b5c3debc5",
+15
+],
+"game/Dist/win32/levels/sp_01/level-00.fbrb:Levels/SP_01/shaders/Dx11_Single.res": [
+15313990,
+"2992c7648a3a7a1fbafc",
+15
+],
+"game/Dist/win32/levels/sp_01/level-00.fbrb:Levels/SP_01/shaders/Dx9_Single.res": [
+9864794,
+"71f1ef3be0102ea78b81",
+15
+],
+"game/Dist/win32/levels/sp_02/level-00.fbrb:Levels/SP_02/shaders/Dx10_Single.res": [
+30946400,
+"2198db3fc9d03ec5a79b",
+15
+],
+"game/Dist/win32/levels/sp_02/level-00.fbrb:Levels/SP_02/shaders/Dx11_Single.res": [
+24293941,
+"a0dc13bf3695ccbc7895",
+15
+],
+"game/Dist/win32/levels/sp_02/level-00.fbrb:Levels/SP_02/shaders/Dx9_Single.res": [
+16179171,
+"962c3d10852f2ebda4d5",
+15
+],
+"game/Dist/win32/levels/sp_03/level-00.fbrb:Levels/SP_03/shaders/Dx10_Single.res": [
+28886021,
+"9883fcd3f32f93e6e586",
+15
+],
+"game/Dist/win32/levels/sp_03/level-00.fbrb:Levels/SP_03/shaders/Dx11_Single.res": [
+22625458,
+"6a11de52bf5a2a8dc603",
+15
+],
+"game/Dist/win32/levels/sp_03/level-00.fbrb:Levels/SP_03/shaders/Dx9_Single.res": [
+15131681,
+"07d885f6bf5b416206dc",
+15
+],
+"game/Dist/win32/levels/sp_04/level-00.fbrb:Levels/SP_04/shaders/Dx10_Single.res": [
+28644873,
+"a8cd628e3fa8073859d3",
+15
+],
+"game/Dist/win32/levels/sp_04/level-00.fbrb:Levels/SP_04/shaders/Dx11_Single.res": [
+22546096,
+"58086b003ebd2b12f1ac",
+15
+],
+"game/Dist/win32/levels/sp_04/level-00.fbrb:Levels/SP_04/shaders/Dx9_Single.res": [
+15116499,
+"1a606cf2ad8e2b1ec187",
+15
+],
+"game/Package/async/startup-00.fbrb:Scenes/UIBackground/shaders/dx10_single.res": [
+177113,
+"c490157135db78fdc819",
+15
+],
+"game/Package/async/startup-00.fbrb:Scenes/UIBackground/shaders/dx11_single.res": [
+188877,
+"e1f1834f4334ead6b182",
+15
+],
+"game/Package/async/startup-00.fbrb:systems/ui/shaders/dx10_single.res": [
+41534,
+"502f3aabc7238b733f6e",
+15
+],
+"game/Package/async/startup-00.fbrb:systems/ui/shaders/dx11_single.res": [
+45182,
+"a03e0ec40f087be0c3d5",
+15
+],
+"game/Package/async/startup-00.fbrb:systems/ui/shaders/dx9_single.res": [
+22441,
+"2780f28c8d349f022b05",
+15
+],
+"game/Package/levels/bc1_harvest_day_cq/level-00.fbrb:Levels/BC1_Harvest_Day_CQ/Shaders/Dx10_Single.res": [
+36093452,
+"89eb47ed8d041f05dfd2",
+15
+],
+"game/Package/levels/bc1_harvest_day_cq/level-00.fbrb:Levels/BC1_Harvest_Day_CQ/Shaders/Dx11_Single.res": [
+28209342,
+"94c8ce3fd5f88bb4f427",
+15
+],
+"game/Package/levels/bc1_harvest_day_cq/level-00.fbrb:Levels/BC1_Harvest_Day_CQ/Shaders/Dx9_Single.res": [
+19827820,
+"514946ad0f733fc4fa84",
+15
+],
+"game/Package/levels/bc1_harvest_day_gr/level-00.fbrb:Levels/BC1_Harvest_Day_GR/Shaders/Dx10_Single.res": [
+36955421,
+"ccef0113bc99c02266c1",
+15
+],
+"game/Package/levels/bc1_harvest_day_gr/level-00.fbrb:Levels/BC1_Harvest_Day_GR/Shaders/Dx11_Single.res": [
+28905780,
+"9a734d1896eec92e2964",
+15
+],
+"game/Package/levels/bc1_harvest_day_gr/level-00.fbrb:Levels/BC1_Harvest_Day_GR/Shaders/Dx9_Single.res": [
+20256190,
+"e6e09da93e161b4ebea3",
+15
+],
+"game/Package/levels/bc1_harvest_day_sdm/level-00.fbrb:Levels/BC1_Harvest_Day_SDM/Shaders/Dx10_Single.res": [
+34850155,
+"78dbd35f9383f70a8253",
+15
+],
+"game/Package/levels/bc1_harvest_day_sdm/level-00.fbrb:Levels/BC1_Harvest_Day_SDM/Shaders/Dx11_Single.res": [
+27238484,
+"9f8417d2331b00386292",
+15
+],
+"game/Package/levels/bc1_harvest_day_sdm/level-00.fbrb:Levels/BC1_Harvest_Day_SDM/Shaders/Dx9_Single.res": [
+19221682,
+"675b1e3adf915ae75879",
+15
+],
+"game/Package/levels/bc1_harvest_day_sr/level-00.fbrb:Levels/BC1_Harvest_Day_SR/Shaders/Dx10_Single.res": [
+34491251,
+"20f02597f8e994e892ce",
+15
+],
+"game/Package/levels/bc1_harvest_day_sr/level-00.fbrb:Levels/BC1_Harvest_Day_SR/Shaders/Dx11_Single.res": [
+26933283,
+"81f70f148dd8dbe11beb",
+15
+],
+"game/Package/levels/bc1_harvest_day_sr/level-00.fbrb:Levels/BC1_Harvest_Day_SR/Shaders/Dx9_Single.res": [
+19062360,
+"f34ef7f054e805b93ebc",
+15
+],
+"game/Package/levels/bc1_oasis_cq/level-00.fbrb:Levels/BC1_Oasis_CQ/Shaders/Dx10_Single.res": [
+37144609,
+"1f3e097b28e1b4cc7661",
+15
+],
+"game/Package/levels/bc1_oasis_cq/level-00.fbrb:Levels/BC1_Oasis_CQ/Shaders/Dx11_Single.res": [
+29075574,
+"b4173bf115b76f97a509",
+15
+],
+"game/Package/levels/bc1_oasis_cq/level-00.fbrb:Levels/BC1_Oasis_CQ/Shaders/Dx9_Single.res": [
+20441755,
+"3ac8349d30e88aefa470",
+15
+],
+"game/Package/levels/bc1_oasis_gr/level-00.fbrb:Levels/BC1_Oasis_GR/Shaders/Dx10_Single.res": [
+38196368,
+"73a1bfcbe771b8a3bf3a",
+15
+],
+"game/Package/levels/bc1_oasis_gr/level-00.fbrb:Levels/BC1_Oasis_GR/Shaders/Dx11_Single.res": [
+29915647,
+"8c1b073dd76849044177",
+15
+],
+"game/Package/levels/bc1_oasis_gr/level-00.fbrb:Levels/BC1_Oasis_GR/Shaders/Dx9_Single.res": [
+20955150,
+"6edc7ca24f4fc0d54533",
+15
+],
+"game/Package/levels/bc1_oasis_sdm/level-00.fbrb:Levels/BC1_Oasis_SDM/Shaders/Dx10_Single.res": [
+35433891,
+"e051b3e6db345e0fd85f",
+15
+],
+"game/Package/levels/bc1_oasis_sdm/level-00.fbrb:Levels/BC1_Oasis_SDM/Shaders/Dx11_Single.res": [
+27733619,
+"8f6288c01eea3a3fb4db",
+15
+],
+"game/Package/levels/bc1_oasis_sdm/level-00.fbrb:Levels/BC1_Oasis_SDM/Shaders/Dx9_Single.res": [
+19666220,
+"6b3e912c190698aebed2",
+15
+],
+"game/Package/levels/bc1_oasis_sr/level-00.fbrb:Levels/BC1_Oasis_SR/Shaders/Dx10_Single.res": [
+35142998,
+"9b4dedbdcf3ae0d5899e",
+15
+],
+"game/Package/levels/bc1_oasis_sr/level-00.fbrb:Levels/BC1_Oasis_SR/Shaders/Dx11_Single.res": [
+27487454,
+"f97c82f8d19f8f00b3b4",
+15
+],
+"game/Package/levels/bc1_oasis_sr/level-00.fbrb:Levels/BC1_Oasis_SR/Shaders/Dx9_Single.res": [
+19547733,
+"16dd0ff2923ab5fe6298",
+15
+],
+"game/Package/levels/coral_sea/level-00.fbrb:Levels/CORAL_SEA/Shaders/Dx10_Single.res": [
+50413762,
+"48512da708ecebc68b64",
+15
+],
+"game/Package/levels/coral_sea/level-00.fbrb:Levels/CORAL_SEA/Shaders/Dx11_Single.res": [
+42028535,
+"af1900b11583b9a505be",
+15
+],
+"game/Package/levels/coral_sea/level-00.fbrb:Levels/CORAL_SEA/Shaders/Dx9_Single.res": [
+21881197,
+"1375bc5ec6f55b2b5ebc",
+15
+],
+"game/Package/levels/guadal_canal/level-00.fbrb:Levels/GUADAL_CANAL/Shaders/Dx10_Single.res": [
+59821826,
+"e692c4d7c5b848247bb0",
+15
+],
+"game/Package/levels/guadal_canal/level-00.fbrb:Levels/GUADAL_CANAL/Shaders/Dx11_Single.res": [
+50837689,
+"bc5d4ad8c4c0f86d60c7",
+15
+],
+"game/Package/levels/guadal_canal/level-00.fbrb:Levels/GUADAL_CANAL/Shaders/Dx9_Single.res": [
+24147495,
+"266568496251d59d41ee",
+15
+],
+"game/Package/levels/iwo_jima_s/level-00.fbrb:Levels/IWO_JIMA_S/Shaders/Dx10_Single.res": [
+62570893,
+"2d01bc7203344d51a582",
+15
+],
+"game/Package/levels/iwo_jima_s/level-00.fbrb:Levels/IWO_JIMA_S/Shaders/Dx11_Single.res": [
+53573199,
+"b5b199c04468abac2fa7",
+15
+],
+"game/Package/levels/iwo_jima_s/level-00.fbrb:Levels/IWO_JIMA_S/Shaders/Dx9_Single.res": [
+24430332,
+"cd2833563359578c0b4b",
+15
+],
+"game/Package/levels/mp_001/level-00.fbrb:Levels/mp_001/Shaders/Dx10_Single.res": [
+35080217,
+"b719c8b9ff71d063dcd1",
+15
+],
+"game/Package/levels/mp_001/level-00.fbrb:Levels/mp_001/Shaders/Dx11_Single.res": [
+27369699,
+"9fcd60a4baa548262c22",
+15
+],
+"game/Package/levels/mp_001/level-00.fbrb:Levels/mp_001/Shaders/Dx9_Single.res": [
+19296114,
+"d99e6e088662da35ead7",
+15
+],
+"game/Package/levels/mp_001sdm/level-00.fbrb:Levels/MP_001SDM/Shaders/Dx10_Single.res": [
+33158743,
+"e7b50071d79baa3a79a7",
+15
+],
+"game/Package/levels/mp_001sdm/level-00.fbrb:Levels/MP_001SDM/Shaders/Dx11_Single.res": [
+25840001,
+"04f643dbe73f2a9b0e06",
+15
+],
+"game/Package/levels/mp_001sdm/level-00.fbrb:Levels/MP_001SDM/Shaders/Dx9_Single.res": [
+18330468,
+"f261b4c0f82c0199580a",
+15
+],
+"game/Package/levels/mp_001sr/level-00.fbrb:Levels/MP_001SR/Shaders/Dx10_Single.res": [
+34206602,
+"4f952f132a5e5318b374",
+15
+],
+"game/Package/levels/mp_001sr/level-00.fbrb:Levels/MP_001SR/Shaders/Dx11_Single.res": [
+26694763,
+"36dc0578865d5f69e6f1",
+15
+],
+"game/Package/levels/mp_001sr/level-00.fbrb:Levels/MP_001SR/Shaders/Dx9_Single.res": [
+18848313,
+"9b076b4a6c848db89440",
+15
+],
+"game/Package/levels/mp_002/level-00.fbrb:Levels/MP_002/Shaders/Dx10_Single.res": [
+34295716,
+"1224feedee11292c9568",
+15
+],
+"game/Package/levels/mp_002/level-00.fbrb:Levels/MP_002/Shaders/Dx11_Single.res": [
+26756351,
+"1eb72ed28dea61573e24",
+15
+],
+"game/Package/levels/mp_002/level-00.fbrb:Levels/MP_002/Shaders/Dx9_Single.res": [
+18771213,
+"75f04fc23d63b9878c49",
+15
+],
+"game/Package/levels/mp_002sr/level-00.fbrb:Levels/MP_002SR/Shaders/Dx10_Single.res": [
+33044658,
+"b85fea1b4506a04af036",
+15
+],
+"game/Package/levels/mp_002sr/level-00.fbrb:Levels/MP_002SR/Shaders/Dx11_Single.res": [
+25741971,
+"3763e441100b8154a18b",
+15
+],
+"game/Package/levels/mp_002sr/level-00.fbrb:Levels/MP_002SR/Shaders/Dx9_Single.res": [
+18216732,
+"e48e5e70f899234e2f4f",
+15
+],
+"game/Package/levels/mp_003/level-00.fbrb:Levels/MP_003/Shaders/Dx10_Single.res": [
+32845580,
+"05ecdec8d2e85ad7346e",
+15
+],
+"game/Package/levels/mp_003/level-00.fbrb:Levels/MP_003/Shaders/Dx11_Single.res": [
+25826645,
+"48e2b09628cd543e29df",
+15
+],
+"game/Package/levels/mp_003/level-00.fbrb:Levels/MP_003/Shaders/Dx9_Single.res": [
+18112581,
+"828449de1d98c7aa0dbe",
+15
+],
+"game/Package/levels/mp_003sr/level-00.fbrb:Levels/MP_003SR/Shaders/Dx10_Single.res": [
+31762378,
+"882df0a68815a3949fb2",
+15
+],
+"game/Package/levels/mp_003sr/level-00.fbrb:Levels/MP_003SR/Shaders/Dx11_Single.res": [
+24961181,
+"ef513c33a874de570efe",
+15
+],
+"game/Package/levels/mp_003sr/level-00.fbrb:Levels/MP_003SR/Shaders/Dx9_Single.res": [
+17645152,
+"333ff916a20a2670b224",
+15
+],
+"game/Package/levels/mp_004/level-00.fbrb:Levels/MP_004/Shaders/Dx10_Single.res": [
+35507969,
+"a4838b4eadf074fc95da",
+15
+],
+"game/Package/levels/mp_004/level-00.fbrb:Levels/MP_004/Shaders/Dx11_Single.res": [
+27877319,
+"dfe8b9a1883f9394933f",
+15
+],
+"game/Package/levels/mp_004/level-00.fbrb:Levels/MP_004/Shaders/Dx9_Single.res": [
+19318525,
+"ce66a99f36ba1a4d4447",
+15
+],
+"game/Package/levels/mp_004sdm/level-00.fbrb:Levels/MP_004SDM/Shaders/Dx10_Single.res": [
+32926666,
+"7332dbc7c5b429f17f78",
+15
+],
+"game/Package/levels/mp_004sdm/level-00.fbrb:Levels/MP_004SDM/Shaders/Dx11_Single.res": [
+25847481,
+"c72c08fa7edbd8e2ec40",
+15
+],
+"game/Package/levels/mp_004sdm/level-00.fbrb:Levels/MP_004SDM/Shaders/Dx9_Single.res": [
+18116958,
+"2cb438cd48c72ec854c8",
+15
+],
+"game/Package/levels/mp_005/level-00.fbrb:Levels/MP_005/Shaders/Dx10_Single.res": [
+34840712,
+"c25fbee97696469e3e78",
+15
+],
+"game/Package/levels/mp_005/level-00.fbrb:Levels/MP_005/Shaders/Dx11_Single.res": [
+27203216,
+"ebb343c5c3f89273f99c",
+15
+],
+"game/Package/levels/mp_005/level-00.fbrb:Levels/MP_005/Shaders/Dx9_Single.res": [
+18976863,
+"ae15fa501c5f313a9c93",
+15
+],
+"game/Package/levels/mp_005gr/level-00.fbrb:Levels/MP_005GR/Shaders/Dx10_Single.res": [
+35703447,
+"4e98532eacdee29466b2",
+15
+],
+"game/Package/levels/mp_005gr/level-00.fbrb:Levels/MP_005GR/Shaders/Dx11_Single.res": [
+27900050,
+"412434c391dc6629f27a",
+15
+],
+"game/Package/levels/mp_005gr/level-00.fbrb:Levels/MP_005GR/Shaders/Dx9_Single.res": [
+19457848,
+"16728148eb95cf2b26e8",
+15
+],
+"game/Package/levels/mp_005sr/level-00.fbrb:Levels/MP_005SR/Shaders/Dx10_Single.res": [
+32069345,
+"9655d6b72b06373d4887",
+15
+],
+"game/Package/levels/mp_005sr/level-00.fbrb:Levels/MP_005SR/Shaders/Dx11_Single.res": [
+24988289,
+"d777cab555f7c9932b29",
+15
+],
+"game/Package/levels/mp_005sr/level-00.fbrb:Levels/MP_005SR/Shaders/Dx9_Single.res": [
+17737249,
+"fb3167587a21bb097dc4",
+15
+],
+"game/Package/levels/mp_006/level-00.fbrb:Levels/MP_006/Shaders/Dx10_Single.res": [
+36738218,
+"f306319a0f4af9f238fc",
+15
+],
+"game/Package/levels/mp_006/level-00.fbrb:Levels/MP_006/Shaders/Dx11_Single.res": [
+28820579,
+"c5b80058037e9368873a",
+15
+],
+"game/Package/levels/mp_006/level-00.fbrb:Levels/MP_006/Shaders/Dx9_Single.res": [
+20282308,
+"3dc00ca359dc4f8a4b51",
+15
+],
+"game/Package/levels/mp_006cq/level-00.fbrb:Levels/MP_006CQ/Shaders/Dx10_Single.res": [
+36407247,
+"5b78da75d3cb58b9b887",
+15
+],
+"game/Package/levels/mp_006cq/level-00.fbrb:Levels/MP_006CQ/Shaders/Dx11_Single.res": [
+28547022,
+"ec7880988d138f3ebbb9",
+15
+],
+"game/Package/levels/mp_006cq/level-00.fbrb:Levels/MP_006CQ/Shaders/Dx9_Single.res": [
+20134478,
+"7f79ada1adb1ef720815",
+15
+],
+"game/Package/levels/mp_006sdm/level-00.fbrb:Levels/MP_006SDM/Shaders/Dx10_Single.res": [
+35304683,
+"9d80b1560e0733312d0b",
+15
+],
+"game/Package/levels/mp_006sdm/level-00.fbrb:Levels/MP_006SDM/Shaders/Dx11_Single.res": [
+27704822,
+"912212acfbc635fb988d",
+15
+],
+"game/Package/levels/mp_006sdm/level-00.fbrb:Levels/MP_006SDM/Shaders/Dx9_Single.res": [
+19609166,
+"3578139194efa9a1a305",
+15
+],
+"game/Package/levels/mp_007/level-00.fbrb:Levels/MP_007/Shaders/Dx10_Single.res": [
+35562440,
+"96117b240dcd439445c0",
+15
+],
+"game/Package/levels/mp_007/level-00.fbrb:Levels/MP_007/Shaders/Dx11_Single.res": [
+27876717,
+"a74823745cbb6ecd2865",
+15
+],
+"game/Package/levels/mp_007/level-00.fbrb:Levels/MP_007/Shaders/Dx9_Single.res": [
+19643971,
+"d29e988d9b6a3fab619f",
+15
+],
+"game/Package/levels/mp_007gr/level-00.fbrb:Levels/MP_007GR/Shaders/Dx10_Single.res": [
+35050086,
+"f1940b4632b82b6c8852",
+15
+],
+"game/Package/levels/mp_007gr/level-00.fbrb:Levels/MP_007GR/Shaders/Dx11_Single.res": [
+27502394,
+"ee89955a222fdfcac918",
+15
+],
+"game/Package/levels/mp_007gr/level-00.fbrb:Levels/MP_007GR/Shaders/Dx9_Single.res": [
+19463519,
+"6ce0f8d72b408366ce75",
+15
+],
+"game/Package/levels/mp_007sdm/level-00.fbrb:Levels/MP_007SDM/Shaders/Dx10_Single.res": [
+34331197,
+"25252f3939c529413cc1",
+15
+],
+"game/Package/levels/mp_007sdm/level-00.fbrb:Levels/MP_007SDM/Shaders/Dx11_Single.res": [
+26927644,
+"c9b76958dadc0ecb650b",
+15
+],
+"game/Package/levels/mp_007sdm/level-00.fbrb:Levels/MP_007SDM/Shaders/Dx9_Single.res": [
+19078315,
+"8ca6423c842d4105f77f",
+15
+],
+"game/Package/levels/mp_008/level-00.fbrb:Levels/MP_008/Shaders/Dx10_Single.res": [
+34940061,
+"c7bd9a009c365252270f",
+15
+],
+"game/Package/levels/mp_008/level-00.fbrb:Levels/MP_008/Shaders/Dx11_Single.res": [
+27311847,
+"ca9548f58701c45466ef",
+15
+],
+"game/Package/levels/mp_008/level-00.fbrb:Levels/MP_008/Shaders/Dx9_Single.res": [
+19372940,
+"1ff9b5e2c572738f19bc",
+15
+],
+"game/Package/levels/mp_008cq/level-00.fbrb:Levels/MP_008CQ/Shaders/Dx10_Single.res": [
+34680449,
+"02eaf745fba6d1763a3f",
+15
+],
+"game/Package/levels/mp_008cq/level-00.fbrb:Levels/MP_008CQ/Shaders/Dx11_Single.res": [
+27105541,
+"028bc95135ebe73a0522",
+15
+],
+"game/Package/levels/mp_008cq/level-00.fbrb:Levels/MP_008CQ/Shaders/Dx9_Single.res": [
+19244328,
+"d3c9d3cf4cd623186a5a",
+15
+],
+"game/Package/levels/mp_008sdm/level-00.fbrb:Levels/MP_008SDM/Shaders/Dx10_Single.res": [
+34532030,
+"7ebd4ac9319178691219",
+15
+],
+"game/Package/levels/mp_008sdm/level-00.fbrb:Levels/MP_008SDM/Shaders/Dx11_Single.res": [
+27010498,
+"65de81a457fd7f6a54e6",
+15
+],
+"game/Package/levels/mp_008sdm/level-00.fbrb:Levels/MP_008SDM/Shaders/Dx9_Single.res": [
+19128862,
+"762631ee69bcdf7bb754",
+15
+],
+"game/Package/levels/mp_009cq/level-00.fbrb:Levels/MP_009CQ/Shaders/Dx10_Single.res": [
+32813200,
+"5e65663aa66ecd7f8252",
+15
+],
+"game/Package/levels/mp_009cq/level-00.fbrb:Levels/MP_009CQ/Shaders/Dx11_Single.res": [
+25590504,
+"19b0d79d82d6f6385603",
+15
+],
+"game/Package/levels/mp_009cq/level-00.fbrb:Levels/MP_009CQ/Shaders/Dx9_Single.res": [
+17865895,
+"3ba67dae5c50c7533b06",
+15
+],
+"game/Package/levels/mp_009gr/level-00.fbrb:Levels/MP_009GR/Shaders/Dx10_Single.res": [
+33586347,
+"cb41351a453cdb85665b",
+15
+],
+"game/Package/levels/mp_009gr/level-00.fbrb:Levels/MP_009GR/Shaders/Dx11_Single.res": [
+26218601,
+"623ad84b5af175fa7098",
+15
+],
+"game/Package/levels/mp_009gr/level-00.fbrb:Levels/MP_009GR/Shaders/Dx9_Single.res": [
+18284405,
+"105e25fdaac678b2ed5d",
+15
+],
+"game/Package/levels/mp_009sdm/level-00.fbrb:Levels/MP_009SDM/Shaders/Dx10_Single.res": [
+31303991,
+"cedae169574a51b292e8",
+15
+],
+"game/Package/levels/mp_009sdm/level-00.fbrb:Levels/MP_009SDM/Shaders/Dx11_Single.res": [
+24425634,
+"5967384cb6d87146a3e3",
+15
+],
+"game/Package/levels/mp_009sdm/level-00.fbrb:Levels/MP_009SDM/Shaders/Dx9_Single.res": [
+17183758,
+"bdfe5dd389705f2207d3",
+15
+],
+"game/Package/levels/mp_009sr/level-00.fbrb:Levels/MP_009SR/Shaders/Dx10_Single.res": [
+31143301,
+"2bef383d624a50272960",
+15
+],
+"game/Package/levels/mp_009sr/level-00.fbrb:Levels/MP_009SR/Shaders/Dx11_Single.res": [
+24280271,
+"b0184ab35f2875fa6ce3",
+15
+],
+"game/Package/levels/mp_009sr/level-00.fbrb:Levels/MP_009SR/Shaders/Dx9_Single.res": [
+17140437,
+"e02606c835b5e5f8d6d9",
+15
+],
+"game/Package/levels/mp_012cq/level-00.fbrb:Levels/MP_012CQ/Shaders/Dx10_Single.res": [
+36004712,
+"fc18edb9908bb8d9e616",
+15
+],
+"game/Package/levels/mp_012cq/level-00.fbrb:Levels/MP_012CQ/Shaders/Dx11_Single.res": [
+28251667,
+"3213a8b7d2c5645ad030",
+15
+],
+"game/Package/levels/mp_012cq/level-00.fbrb:Levels/MP_012CQ/Shaders/Dx9_Single.res": [
+19815605,
+"c415fc3b37a9ae7082dd",
+15
+],
+"game/Package/levels/mp_012gr/level-00.fbrb:Levels/MP_012GR/Shaders/Dx10_Single.res": [
+36261177,
+"9c59b135584ce2b79117",
+15
+],
+"game/Package/levels/mp_012gr/level-00.fbrb:Levels/MP_012GR/Shaders/Dx11_Single.res": [
+28471200,
+"be6362a9e4f35d6c3679",
+15
+],
+"game/Package/levels/mp_012gr/level-00.fbrb:Levels/MP_012GR/Shaders/Dx9_Single.res": [
+19970455,
+"37618c5cfaedcd9e568c",
+15
+],
+"game/Package/levels/mp_012sr/level-00.fbrb:Levels/MP_012SR/Shaders/Dx10_Single.res": [
+33709292,
+"21af5e858c8f77709936",
+15
+],
+"game/Package/levels/mp_012sr/level-00.fbrb:Levels/MP_012SR/Shaders/Dx11_Single.res": [
+26413301,
+"231f0dac1c46902174c9",
+15
+],
+"game/Package/levels/mp_012sr/level-00.fbrb:Levels/MP_012SR/Shaders/Dx9_Single.res": [
+18764549,
+"68918ee962da538b9f29",
+15
+],
+"game/Package/levels/mp_sp_002gr/level-00.fbrb:Levels/MP_SP_002GR/Shaders/Dx10_Single.res": [
+32953946,
+"8aa7a4eeba025897ed2d",
+15
+],
+"game/Package/levels/mp_sp_002gr/level-00.fbrb:Levels/MP_SP_002GR/Shaders/Dx11_Single.res": [
+25734133,
+"ecc6e63f18a8168d1cb3",
+15
+],
+"game/Package/levels/mp_sp_002gr/level-00.fbrb:Levels/MP_SP_002GR/Shaders/Dx9_Single.res": [
+18249110,
+"77aff923199f36346f24",
+15
+],
+"game/Package/levels/mp_sp_002sdm/level-00.fbrb:Levels/MP_SP_002SDM/Shaders/Dx10_Single.res": [
+32178326,
+"e666dd992fa9b1041523",
+15
+],
+"game/Package/levels/mp_sp_002sdm/level-00.fbrb:Levels/MP_SP_002SDM/Shaders/Dx11_Single.res": [
+25149604,
+"3e19355c6c29249f686a",
+15
+],
+"game/Package/levels/mp_sp_002sdm/level-00.fbrb:Levels/MP_SP_002SDM/Shaders/Dx9_Single.res": [
+17879248,
+"0219baaf8fc65dc1fb92",
+15
+],
+"game/Package/levels/mp_sp_002sr/level-00.fbrb:Levels/MP_SP_002SR/Shaders/Dx10_Single.res": [
+31859335,
+"d96c94989f519b613180",
+15
+],
+"game/Package/levels/mp_sp_002sr/level-00.fbrb:Levels/MP_SP_002SR/Shaders/Dx11_Single.res": [
+24873451,
+"bafc2ce87e7c31d746aa",
+15
+],
+"game/Package/levels/mp_sp_002sr/level-00.fbrb:Levels/MP_SP_002SR/Shaders/Dx9_Single.res": [
+17747383,
+"02bce380c298e87ef3a2",
+15
+],
+"game/Package/levels/mp_sp_005cq/level-00.fbrb:Levels/MP_SP_005CQ/Shaders/Dx10_Single.res": [
+34351362,
+"b620e513a7112a3906e9",
+15
+],
+"game/Package/levels/mp_sp_005cq/level-00.fbrb:Levels/MP_SP_005CQ/Shaders/Dx11_Single.res": [
+26823031,
+"9fd9101ca354f832e274",
+15
+],
+"game/Package/levels/mp_sp_005cq/level-00.fbrb:Levels/MP_SP_005CQ/Shaders/Dx9_Single.res": [
+18648321,
+"26b106de6c65c3d973d0",
+15
+],
+"game/Package/levels/mp_sp_005sdm/level-00.fbrb:Levels/MP_SP_005SDM/Shaders/Dx10_Single.res": [
+31315239,
+"11cc7c0f18915b8ba76e",
+15
+],
+"game/Package/levels/mp_sp_005sdm/level-00.fbrb:Levels/MP_SP_005SDM/Shaders/Dx11_Single.res": [
+24451388,
+"764c3d5a35871ce8e076",
+15
+],
+"game/Package/levels/mp_sp_005sdm/level-00.fbrb:Levels/MP_SP_005SDM/Shaders/Dx9_Single.res": [
+17241791,
+"c22fe359d1980ead5700",
+15
+],
+"game/Package/levels/nam_mp_002cq/level-00.fbrb:Levels/NAM_MP_002CQ/Shaders/Dx10_Single.res": [
+13144842,
+"d77c9f20e17f0ec95b41",
+15
+],
+"game/Package/levels/nam_mp_002cq/level-00.fbrb:Levels/NAM_MP_002CQ/Shaders/Dx11_Single.res": [
+10553944,
+"6e7dedd2afb953fb4a08",
+15
+],
+"game/Package/levels/nam_mp_002cq/level-00.fbrb:Levels/NAM_MP_002CQ/Shaders/Dx9_Single.res": [
+6924843,
+"7189177d0912e4efcaf3",
+15
+],
+"game/Package/levels/nam_mp_002r/level-00.fbrb:Levels/NAM_MP_002R/Shaders/Dx10_Single.res": [
+13458562,
+"67b9042fb1c21fbfcd12",
+15
+],
+"game/Package/levels/nam_mp_002r/level-00.fbrb:Levels/NAM_MP_002R/Shaders/Dx11_Single.res": [
+10809467,
+"f4eb125fa57f5045bff4",
+15
+],
+"game/Package/levels/nam_mp_002r/level-00.fbrb:Levels/NAM_MP_002R/Shaders/Dx9_Single.res": [
+7098619,
+"a6b4a9f522d639715f89",
+15
+],
+"game/Package/levels/nam_mp_002sdm/level-00.fbrb:Levels/NAM_MP_002SDM/Shaders/Dx10_Single.res": [
+12547618,
+"3de7d39fc5b9e8f0dbb1",
+15
+],
+"game/Package/levels/nam_mp_002sdm/level-00.fbrb:Levels/NAM_MP_002SDM/Shaders/Dx11_Single.res": [
+10078723,
+"1e525d1587ee57a2bfa7",
+15
+],
+"game/Package/levels/nam_mp_002sdm/level-00.fbrb:Levels/NAM_MP_002SDM/Shaders/Dx9_Single.res": [
+6654585,
+"1e10aa082ff0a0ec1be6",
+15
+],
+"game/Package/levels/nam_mp_002sr/level-00.fbrb:Levels/NAM_MP_002SR/Shaders/Dx10_Single.res": [
+12903918,
+"7452aec08cdb232dc44a",
+15
+],
+"game/Package/levels/nam_mp_002sr/level-00.fbrb:Levels/NAM_MP_002SR/Shaders/Dx11_Single.res": [
+10380145,
+"c0b6df00e464396cd2a9",
+15
+],
+"game/Package/levels/nam_mp_002sr/level-00.fbrb:Levels/NAM_MP_002SR/Shaders/Dx9_Single.res": [
+6825462,
+"078556cac32addeb9702",
+15
+],
+"game/Package/levels/nam_mp_003cq/level-00.fbrb:Levels/NAM_MP_003CQ/Shaders/Dx10_Single.res": [
+12528451,
+"9fc50962feb78a3bed08",
+15
+],
+"game/Package/levels/nam_mp_003cq/level-00.fbrb:Levels/NAM_MP_003CQ/Shaders/Dx11_Single.res": [
+10057787,
+"29c268b491e8d38aa020",
+15
+],
+"game/Package/levels/nam_mp_003cq/level-00.fbrb:Levels/NAM_MP_003CQ/Shaders/Dx9_Single.res": [
+6775844,
+"1923cee76101ae559909",
+15
+],
+"game/Package/levels/nam_mp_003r/level-00.fbrb:Levels/NAM_MP_003R/Shaders/Dx10_Single.res": [
+12893633,
+"0dc32220c2af050c4a25",
+15
+],
+"game/Package/levels/nam_mp_003r/level-00.fbrb:Levels/NAM_MP_003R/Shaders/Dx11_Single.res": [
+10344194,
+"75baeeaaa4e70fea7a91",
+15
+],
+"game/Package/levels/nam_mp_003r/level-00.fbrb:Levels/NAM_MP_003R/Shaders/Dx9_Single.res": [
+6947709,
+"125e8b72a33996cc7216",
+15
+],
+"game/Package/levels/nam_mp_003sdm/level-00.fbrb:Levels/NAM_MP_003SDM/Shaders/Dx10_Single.res": [
+12247720,
+"f27c82dbe7cf2d79ef18",
+15
+],
+"game/Package/levels/nam_mp_003sdm/level-00.fbrb:Levels/NAM_MP_003SDM/Shaders/Dx11_Single.res": [
+9846248,
+"fd7586fedeba1c34023f",
+15
+],
+"game/Package/levels/nam_mp_003sdm/level-00.fbrb:Levels/NAM_MP_003SDM/Shaders/Dx9_Single.res": [
+6639783,
+"4dfb22fb59a245a1aa54",
+15
+],
+"game/Package/levels/nam_mp_003sr/level-00.fbrb:Levels/NAM_MP_003SR/Shaders/Dx10_Single.res": [
+12425036,
+"03d403f69d74870adfd6",
+15
+],
+"game/Package/levels/nam_mp_003sr/level-00.fbrb:Levels/NAM_MP_003SR/Shaders/Dx11_Single.res": [
+9984318,
+"c035eca0974b76d0cf91",
+15
+],
+"game/Package/levels/nam_mp_003sr/level-00.fbrb:Levels/NAM_MP_003SR/Shaders/Dx9_Single.res": [
+6734251,
+"4122dd574c745470a89d",
+15
+],
+"game/Package/levels/nam_mp_005cq/level-00.fbrb:Levels/NAM_MP_005CQ/Shaders/Dx10_Single.res": [
+13939867,
+"6b562863cc2c78dfacb8",
+15
+],
+"game/Package/levels/nam_mp_005cq/level-00.fbrb:Levels/NAM_MP_005CQ/Shaders/Dx11_Single.res": [
+11073251,
+"a7bc2c5e7937e809e4af",
+15
+],
+"game/Package/levels/nam_mp_005cq/level-00.fbrb:Levels/NAM_MP_005CQ/Shaders/Dx9_Single.res": [
+7340742,
+"561af6be0bd0a227aafc",
+15
+],
+"game/Package/levels/nam_mp_005r/level-00.fbrb:Levels/NAM_MP_005R/Shaders/Dx10_Single.res": [
+14124084,
+"61ed612042d8228af3df",
+15
+],
+"game/Package/levels/nam_mp_005r/level-00.fbrb:Levels/NAM_MP_005R/Shaders/Dx11_Single.res": [
+11225079,
+"e3099fd7cd319c6a726e",
+15
+],
+"game/Package/levels/nam_mp_005r/level-00.fbrb:Levels/NAM_MP_005R/Shaders/Dx9_Single.res": [
+7437451,
+"29e75ee3284c53f94bf4",
+15
+],
+"game/Package/levels/nam_mp_005sdm/level-00.fbrb:Levels/NAM_MP_005SDM/Shaders/Dx10_Single.res": [
+13410733,
+"1fc3bffa7f066a020669",
+15
+],
+"game/Package/levels/nam_mp_005sdm/level-00.fbrb:Levels/NAM_MP_005SDM/Shaders/Dx11_Single.res": [
+10644593,
+"449bb28fae1b5f9273d0",
+15
+],
+"game/Package/levels/nam_mp_005sdm/level-00.fbrb:Levels/NAM_MP_005SDM/Shaders/Dx9_Single.res": [
+7096781,
+"74e3d6faee700d73c7fb",
+15
+],
+"game/Package/levels/nam_mp_005sr/level-00.fbrb:Levels/NAM_MP_005SR/Shaders/Dx10_Single.res": [
+13796775,
+"f32ca7418b797eec5251",
+15
+],
+"game/Package/levels/nam_mp_005sr/level-00.fbrb:Levels/NAM_MP_005SR/Shaders/Dx11_Single.res": [
+10971074,
+"fc008719d4a22cf53a6c",
+15
+],
+"game/Package/levels/nam_mp_005sr/level-00.fbrb:Levels/NAM_MP_005SR/Shaders/Dx9_Single.res": [
+7280228,
+"1abb7f7361d58d01059d",
+15
+],
+"game/Package/levels/nam_mp_006cq/level-00.fbrb:Levels/NAM_MP_006CQ/Shaders/Dx10_Single.res": [
+12868952,
+"3a6e9a78cb3178bbb82c",
+15
+],
+"game/Package/levels/nam_mp_006cq/level-00.fbrb:Levels/NAM_MP_006CQ/Shaders/Dx11_Single.res": [
+10320934,
+"801b5c95c4cef2d1bc61",
+15
+],
+"game/Package/levels/nam_mp_006cq/level-00.fbrb:Levels/NAM_MP_006CQ/Shaders/Dx9_Single.res": [
+6787479,
+"a08157dcbe5789556f99",
+15
+],
+"game/Package/levels/nam_mp_006r/level-00.fbrb:Levels/NAM_MP_006R/Shaders/Dx10_Single.res": [
+12418798,
+"aa55518fa0751fe963bc",
+15
+],
+"game/Package/levels/nam_mp_006r/level-00.fbrb:Levels/NAM_MP_006R/Shaders/Dx11_Single.res": [
+9983481,
+"ec710a9b0f4f2c4a783e",
+15
+],
+"game/Package/levels/nam_mp_006r/level-00.fbrb:Levels/NAM_MP_006R/Shaders/Dx9_Single.res": [
+6577344,
+"ec0aa4d82042d712f94d",
+15
+],
+"game/Package/levels/nam_mp_006sdm/level-00.fbrb:Levels/NAM_MP_006SDM/Shaders/Dx10_Single.res": [
+12231641,
+"53bf34cc42dcecb94cd2",
+15
+],
+"game/Package/levels/nam_mp_006sdm/level-00.fbrb:Levels/NAM_MP_006SDM/Shaders/Dx11_Single.res": [
+9835042,
+"af8ade3aa601e933211b",
+15
+],
+"game/Package/levels/nam_mp_006sdm/level-00.fbrb:Levels/NAM_MP_006SDM/Shaders/Dx9_Single.res": [
+6471344,
+"09d243cd0a330363f704",
+15
+],
+"game/Package/levels/nam_mp_006sr/level-00.fbrb:Levels/NAM_MP_006SR/Shaders/Dx10_Single.res": [
+12382546,
+"a2ff8f6b468bd487b52a",
+15
+],
+"game/Package/levels/nam_mp_006sr/level-00.fbrb:Levels/NAM_MP_006SR/Shaders/Dx11_Single.res": [
+9953766,
+"d14107c36d9191828ec5",
+15
+],
+"game/Package/levels/nam_mp_006sr/level-00.fbrb:Levels/NAM_MP_006SR/Shaders/Dx9_Single.res": [
+6556904,
+"e0f052b70f1a9e54c401",
+15
+],
+"game/Package/levels/nam_mp_007cq/level-00.fbrb:Levels/NAM_MP_007CQ/Shaders/Dx10_Single.res": [
+13185919,
+"e458725fc2c40bcf30a7",
+15
+],
+"game/Package/levels/nam_mp_007cq/level-00.fbrb:Levels/NAM_MP_007CQ/Shaders/Dx11_Single.res": [
+10538779,
+"74096ccb3da28244b96c",
+15
+],
+"game/Package/levels/nam_mp_007cq/level-00.fbrb:Levels/NAM_MP_007CQ/Shaders/Dx9_Single.res": [
+6917774,
+"a6f4b58e1f082f453cd4",
+15
+],
+"game/Package/levels/nam_mp_007r/level-00.fbrb:Levels/NAM_MP_007R/Shaders/Dx10_Single.res": [
+13059947,
+"e9ab88adf77cb18dc7f0",
+15
+],
+"game/Package/levels/nam_mp_007r/level-00.fbrb:Levels/NAM_MP_007R/Shaders/Dx11_Single.res": [
+10451856,
+"2926e2258e7e4e9ddfd2",
+15
+],
+"game/Package/levels/nam_mp_007r/level-00.fbrb:Levels/NAM_MP_007R/Shaders/Dx9_Single.res": [
+6863716,
+"8c941d0fd9744da1d3ce",
+15
+],
+"game/Package/levels/nam_mp_007sdm/level-00.fbrb:Levels/NAM_MP_007SDM/Shaders/Dx10_Single.res": [
+12584860,
+"2dc3c829a961ffb1e78d",
+15
+],
+"game/Package/levels/nam_mp_007sdm/level-00.fbrb:Levels/NAM_MP_007SDM/Shaders/Dx11_Single.res": [
+10082602,
+"3c0678443fbe1228d416",
+15
+],
+"game/Package/levels/nam_mp_007sdm/level-00.fbrb:Levels/NAM_MP_007SDM/Shaders/Dx9_Single.res": [
+6622079,
+"1e0a234a388fb80f25fe",
+15
+],
+"game/Package/levels/nam_mp_007sr/level-00.fbrb:Levels/NAM_MP_007SR/Shaders/Dx10_Single.res": [
+12732814,
+"63c81182927545959a4e",
+15
+],
+"game/Package/levels/nam_mp_007sr/level-00.fbrb:Levels/NAM_MP_007SR/Shaders/Dx11_Single.res": [
+10197947,
+"f27efd3dcd96f01eaa7d",
+15
+],
+"game/Package/levels/nam_mp_007sr/level-00.fbrb:Levels/NAM_MP_007SR/Shaders/Dx9_Single.res": [
+6706573,
+"348ef782d54e118a3c4c",
+15
+],
+"game/Package/levels/ons_mp_002/level-00.fbrb:Levels/MP_002/Shaders/Dx10_Single.res": [
+34295716,
+"b56f37c43c05d11c6bbe",
+15
+],
+"game/Package/levels/ons_mp_002/level-00.fbrb:Levels/MP_002/Shaders/Dx11_Single.res": [
+26756351,
+"9d500b664fcd7b0544f9",
+15
+],
+"game/Package/levels/ons_mp_002/level-00.fbrb:Levels/MP_002/Shaders/Dx9_Single.res": [
+18771213,
+"7fdcc03c96ec40f8604d",
+15
+],
+"game/Package/levels/ons_mp_002/level-00.fbrb:Levels/ONS_MP_002/Shaders/Dx10_Single.res": [
+36837182,
+"ca7c07ad04e32ea44982",
+15
+],
+"game/Package/levels/ons_mp_002/level-00.fbrb:Levels/ONS_MP_002/Shaders/Dx11_Single.res": [
+28763954,
+"e448d52511bc326d4b48",
+15
+],
+"game/Package/levels/ons_mp_002/level-00.fbrb:Levels/ONS_MP_002/Shaders/Dx9_Single.res": [
+19989754,
+"a3820ad040dfe9d054e1",
+15
+],
+"game/Package/levels/ons_mp_004/level-00.fbrb:Levels/MP_004/Shaders/Dx10_Single.res": [
+35507969,
+"319b00c05d03754c931b",
+15
+],
+"game/Package/levels/ons_mp_004/level-00.fbrb:Levels/MP_004/Shaders/Dx11_Single.res": [
+27877319,
+"6fa3b4033534da845db8",
+15
+],
+"game/Package/levels/ons_mp_004/level-00.fbrb:Levels/MP_004/Shaders/Dx9_Single.res": [
+19318525,
+"5d80575dd0ea921b933a",
+15
+],
+"game/Package/levels/ons_mp_004/level-00.fbrb:Levels/ONS_MP_004/Shaders/Dx10_Single.res": [
+37964374,
+"64e3874ea0a4c7c10a4e",
+15
+],
+"game/Package/levels/ons_mp_004/level-00.fbrb:Levels/ONS_MP_004/Shaders/Dx11_Single.res": [
+29803574,
+"f93b4d8201f596fee690",
+15
+],
+"game/Package/levels/ons_mp_004/level-00.fbrb:Levels/ONS_MP_004/Shaders/Dx9_Single.res": [
+20538511,
+"68533d1d303431ee3b20",
+15
+],
+"game/Package/levels/ons_mp_005/level-00.fbrb:Levels/MP_005/Shaders/Dx10_Single.res": [
+34840712,
+"61f8fd22796b9a1a169f",
+15
+],
+"game/Package/levels/ons_mp_005/level-00.fbrb:Levels/MP_005/Shaders/Dx11_Single.res": [
+27203216,
+"de53de344eeb779b2d20",
+15
+],
+"game/Package/levels/ons_mp_005/level-00.fbrb:Levels/MP_005/Shaders/Dx9_Single.res": [
+18976863,
+"f84bf8a1633ad1613c6d",
+15
+],
+"game/Package/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/Shaders/Dx10_Single.res": [
+37793620,
+"891b0d903d2590e173cb",
+15
+],
+"game/Package/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/Shaders/Dx11_Single.res": [
+29581347,
+"234fd998b8344233951a",
+15
+],
+"game/Package/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/Shaders/Dx9_Single.res": [
+20548417,
+"bdb723edee1ef334d2f1",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/mp_003/Shaders/Dx10_Single.res": [
+32845580,
+"810988ed2ad11862166a",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/mp_003/Shaders/Dx11_Single.res": [
+25826645,
+"06a7a8698c6f8999e55a",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/mp_003/Shaders/Dx9_Single.res": [
+18112581,
+"203c465070d36002d515",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders/Dx10_Single.res": [
+35703447,
+"762d5dc7bfc4b288b711",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders/Dx11_Single.res": [
+27900050,
+"7f7b17ba5f10f688c4c4",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders/Dx9_Single.res": [
+19457848,
+"a6b77faca6161b310648",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders01/Dx10_Single.res": [
+19443909,
+"e2fd3575b8592a01c7b3",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders01/Dx11_Single.res": [
+15339642,
+"95e60bdd422de86335b8",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders01/Dx9_Single.res": [
+9888450,
+"8b5aeb119baec7ec7f29",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders2/Dx10_Single.res": [
+36261177,
+"4fa262dceb0c9aee4208",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders2/Dx11_Single.res": [
+28471200,
+"09b068ea86a5c121eccb",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders2/Dx9_Single.res": [
+19970455,
+"2d3f69ac4349465ae295",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders3/Dx10_Single.res": [
+34351362,
+"98063f6f4f0a1ace802a",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders3/Dx11_Single.res": [
+26823031,
+"de7cc852e3da7df2e1b8",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/ons_mp_005gr/Shaders3/Dx9_Single.res": [
+18648321,
+"11adf02dd0eecfe175b6",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/sp_007/Shaders/Dx10_Single.res": [
+31325915,
+"94d160c89512548f1d98",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/sp_007/Shaders/Dx11_Single.res": [
+24535267,
+"1a18f17c35609ed019b8",
+15
+],
+"game/Package/levels/ons_mp_005gr/level-00.fbrb:levels/sp_007/Shaders/Dx9_Single.res": [
+16456288,
+"eed87f49c5150483a616",
+15
+],
+"game/Package/levels/ons_mp_008/level-00.fbrb:Levels/MP_008/Shaders/Dx10_Single.res": [
+34940061,
+"7c99e7e170467c249fdb",
+15
+],
+"game/Package/levels/ons_mp_008/level-00.fbrb:Levels/MP_008/Shaders/Dx11_Single.res": [
+27311847,
+"c63025383d0691e66258",
+15
+],
+"game/Package/levels/ons_mp_008/level-00.fbrb:Levels/MP_008/Shaders/Dx9_Single.res": [
+19372940,
+"977d6955acdfa30044c2",
+15
+],
+"game/Package/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/Shaders/Dx10_Single.res": [
+37068016,
+"74f665c61488e622001c",
+15
+],
+"game/Package/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/Shaders/Dx11_Single.res": [
+29020867,
+"35135a78e363ccc5cda4",
+15
+],
+"game/Package/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/Shaders/Dx9_Single.res": [
+20425102,
+"6f50d0772e005e3ff602",
+15
+],
+"game/Package/levels/sp_003_b/level-00.fbrb:Levels/SP_003_B/Shaders/Dx10_Single.res": [
+33317863,
+"b09fe5c894026ab68f47",
+15
+],
+"game/Package/levels/sp_003_b/level-00.fbrb:Levels/SP_003_B/Shaders/Dx11_Single.res": [
+25904444,
+"043bb377147a47f79ad3",
+15
+],
+"game/Package/levels/sp_003_b/level-00.fbrb:Levels/SP_003_B/Shaders/Dx9_Single.res": [
+17647162,
+"848b81ffa6fb2147fbe9",
+15
+],
+"game/Package/levels/sp_004_b/level-00.fbrb:Levels/SP_004_B/Shaders/Dx10_Single.res": [
+24341041,
+"8084faba46aff68faa0f",
+15
+],
+"game/Package/levels/sp_004_b/level-00.fbrb:Levels/SP_004_B/Shaders/Dx11_Single.res": [
+18969134,
+"6c706d05bc6ce8dd07ef",
+15
+],
+"game/Package/levels/sp_004_b/level-00.fbrb:Levels/SP_004_B/Shaders/Dx9_Single.res": [
+12735988,
+"7c36b0272017b2f8721e",
+15
+],
+"game/Package/levels/sp_005/level-00.fbrb:Levels/SP_005/Shaders/Dx10_Single.res": [
+28727149,
+"ce44b0ffedcfa76ac376",
+15
+],
+"game/Package/levels/sp_005/level-00.fbrb:Levels/SP_005/Shaders/Dx11_Single.res": [
+22449567,
+"61f302e9d697dd349356",
+15
+],
+"game/Package/levels/sp_005/level-00.fbrb:Levels/SP_005/Shaders/Dx9_Single.res": [
+15114124,
+"2423686b15a8d23c7d5e",
+15
+],
+"game/Package/levels/sp_005_b/level-00.fbrb:Levels/SP_005_B/Shaders/Dx10_Single.res": [
+30946695,
+"4939d166154875c6977a",
+15
+],
+"game/Package/levels/sp_005_b/level-00.fbrb:Levels/SP_005_B/Shaders/Dx11_Single.res": [
+24244892,
+"f01fe073cd8c776eacd4",
+15
+],
+"game/Package/levels/sp_005_b/level-00.fbrb:Levels/SP_005_B/Shaders/Dx9_Single.res": [
+16234789,
+"165a6e7ece2dfe4dd7cf",
+15
+],
+"game/Package/levels/sp_006/level-00.fbrb:Levels/SP_006/Shaders/Dx10_Single.res": [
+30191219,
+"2466b8b7612ca88ec54a",
+15
+],
+"game/Package/levels/sp_006/level-00.fbrb:Levels/SP_006/Shaders/Dx11_Single.res": [
+23564349,
+"89cbe1e93f221faf47e8",
+15
+],
+"game/Package/levels/sp_006/level-00.fbrb:Levels/SP_006/Shaders/Dx9_Single.res": [
+15917827,
+"01ac85aa4e180fc2d23e",
+15
+],
+"game/Package/levels/sp_007/level-00.fbrb:Levels/SP_007/Shaders/Dx10_Single.res": [
+31325915,
+"5168c0a95fec91a995de",
+15
+],
+"game/Package/levels/sp_007/level-00.fbrb:Levels/SP_007/Shaders/Dx11_Single.res": [
+24535267,
+"c8df029358a83e9e1330",
+15
+],
+"game/Package/levels/sp_007/level-00.fbrb:Levels/SP_007/Shaders/Dx9_Single.res": [
+16456288,
+"be15325e92350d40c349",
+15
+],
+"game/Package/levels/sp_008/level-00.fbrb:Levels/SP_008/Shaders/Dx10_Single.res": [
+34150264,
+"7f88319fb9c524d34075",
+15
+],
+"game/Package/levels/sp_008/level-00.fbrb:Levels/SP_008/Shaders/Dx11_Single.res": [
+26653659,
+"fa78ee73de27c622362b",
+15
+],
+"game/Package/levels/sp_008/level-00.fbrb:Levels/SP_008/Shaders/Dx9_Single.res": [
+18108227,
+"6577afa677a389bc6a69",
+15
+],
+"game/Package/levels/sp_008_b/level-00.fbrb:Levels/SP_008_B/Shaders/Dx10_Single.res": [
+29654406,
+"9b4ac0aab121bb71421b",
+15
+],
+"game/Package/levels/sp_008_b/level-00.fbrb:Levels/SP_008_B/Shaders/Dx11_Single.res": [
+23084165,
+"8b42d1c420a7106d7f73",
+15
+],
+"game/Package/levels/sp_008_b/level-00.fbrb:Levels/SP_008_B/Shaders/Dx9_Single.res": [
+15809605,
+"7a3ca7d0550ab6de2935",
+15
+],
+"game/Package/levels/sp_009/level-00.fbrb:Levels/SP_009/Shaders/Dx10_Single.res": [
+22680336,
+"e90945fdfc6dce0611f0",
+15
+],
+"game/Package/levels/sp_009/level-00.fbrb:Levels/SP_009/Shaders/Dx11_Single.res": [
+17420144,
+"0923ed1163f36078bbb5",
+15
+],
+"game/Package/levels/sp_009/level-00.fbrb:Levels/SP_009/Shaders/Dx9_Single.res": [
+11941311,
+"035b920218dd90b055e9",
+15
+],
+"game/Package/levels/sp_01/level-00.fbrb:Levels/SP_01/Shaders/Dx10_Single.res": [
+19443909,
+"68cbb204b9b5367e81f5",
+15
+],
+"game/Package/levels/sp_01/level-00.fbrb:Levels/SP_01/Shaders/Dx11_Single.res": [
+15339642,
+"7df0b06bea7864292f56",
+15
+],
+"game/Package/levels/sp_01/level-00.fbrb:Levels/SP_01/Shaders/Dx9_Single.res": [
+9888450,
+"b165cc521b5cc3f51526",
+15
+],
+"game/Package/levels/sp_02/level-00.fbrb:Levels/SP_02/Shaders/Dx10_Single.res": [
+32495791,
+"eac38ce14e4c08ab341d",
+15
+],
+"game/Package/levels/sp_02/level-00.fbrb:Levels/SP_02/Shaders/Dx11_Single.res": [
+25481525,
+"b7a5b347a1d430709ea5",
+15
+],
+"game/Package/levels/sp_02/level-00.fbrb:Levels/SP_02/Shaders/Dx9_Single.res": [
+17131931,
+"45972e993068681702fa",
+15
+],
+"game/Package/levels/sp_03/level-00.fbrb:Levels/SP_03/Shaders/Dx10_Single.res": [
+29783235,
+"c1117f5b7ccb5122f043",
+15
+],
+"game/Package/levels/sp_03/level-00.fbrb:Levels/SP_03/Shaders/Dx11_Single.res": [
+23328817,
+"a6488af37d838788849d",
+15
+],
+"game/Package/levels/sp_03/level-00.fbrb:Levels/SP_03/Shaders/Dx9_Single.res": [
+15744801,
+"7b8bb131a5a0e2da6ba6",
+15
+],
+"game/Package/levels/sp_04/level-00.fbrb:Levels/SP_04/Shaders/Dx10_Single.res": [
+30101139,
+"9262c1682dbcf0a4a4aa",
+15
+],
+"game/Package/levels/sp_04/level-00.fbrb:Levels/SP_04/Shaders/Dx11_Single.res": [
+23662858,
+"b28c2cd541a16b1cf957",
+15
+],
+"game/Package/levels/sp_04/level-00.fbrb:Levels/SP_04/Shaders/Dx9_Single.res": [
+16015063,
+"1e3e5f15fe14ce9433ee",
+15
+],
+"game/Package/levels/wake_island_s/level-00.fbrb:Levels/WAKE_ISLAND_S/Shaders/Dx10_Single.res": [
+59684473,
+"254c60266713a1315eb6",
+15
+],
+"game/Package/levels/wake_island_s/level-00.fbrb:Levels/WAKE_ISLAND_S/Shaders/Dx11_Single.res": [
+50763897,
+"5dc4cf1244f6b2eac002",
+15
+],
+"game/Package/levels/wake_island_s/level-00.fbrb:Levels/WAKE_ISLAND_S/Shaders/Dx9_Single.res": [
+24014296,
+"feed79643c14c6893867",
+15
+],
+"work/levels/mp_001/dist/levels/mp_001/shaders/Dx10_Single.res": [
+35080217,
+"274471568bd4e68c0a20",
+15
+],
+"work/levels/mp_001/dist/levels/mp_001/shaders/Dx11_Single.res": [
+27369699,
+"e136881ede52b9d50d42",
+15
+],
+"work/levels/mp_001/dist/levels/mp_001/shaders/Dx9_Single.res": [
+19296114,
+"e3bb3e1aa2a5cf4e5473",
+15
+],
+"work/levels/mp_001/pkg/Levels/MP_001/Shaders/Dx10_Single.res": [
+35080217,
+"3cc652813b6b682f2e19",
+15
+],
+"work/levels/mp_001/pkg/Levels/MP_001/Shaders/Dx11_Single.res": [
+27369699,
+"dfca0720ad5ed0a87157",
+15
+],
+"work/levels/mp_001/pkg/Levels/MP_001/Shaders/Dx9_Single.res": [
+19296114,
+"fd98890b9167d4b213e0",
+15
+],
+"work/levels/mp_001sr/dist/levels/mp_001sr/shaders/Dx10_Single.res": [
+34206602,
+"1076663362b4c936422b",
+15
+],
+"work/levels/mp_001sr/dist/levels/mp_001sr/shaders/Dx11_Single.res": [
+26694763,
+"d09544e500327c9dd761",
+15
+],
+"work/levels/mp_001sr/dist/levels/mp_001sr/shaders/Dx9_Single.res": [
+18848313,
+"8cf03e3128a96d57b1f2",
+15
+],
+"work/levels/mp_001sr/pkg/Levels/MP_001SR/Shaders/Dx10_Single.res": [
+34206602,
+"ee4183e6539ba35db62a",
+15
+],
+"work/levels/mp_001sr/pkg/Levels/MP_001SR/Shaders/Dx11_Single.res": [
+26694763,
+"8405774ea59ed72bd323",
+15
+],
+"work/levels/mp_001sr/pkg/Levels/MP_001SR/Shaders/Dx9_Single.res": [
+18848313,
+"c5c8a566ec40d94713b7",
+15
+],
+"work/levels/mp_002/dist/levels/mp_002/shaders/Dx10_Single.res": [
+34295716,
+"890c54a4f86ce05c849f",
+15
+],
+"work/levels/mp_002/dist/levels/mp_002/shaders/Dx11_Single.res": [
+26756351,
+"6f0dfd2d2ba98d2ae0e6",
+15
+],
+"work/levels/mp_002/dist/levels/mp_002/shaders/Dx9_Single.res": [
+18771213,
+"2444b3b88438e6dcfa13",
+15
+],
+"work/levels/mp_002/pkg/levels/MP_002/Shaders/Dx10_Single.res": [
+34295716,
+"ccc92740347c19fc39ca",
+15
+],
+"work/levels/mp_002/pkg/levels/MP_002/Shaders/Dx11_Single.res": [
+26756351,
+"f5cd9670a86bb03fcf23",
+15
+],
+"work/levels/mp_002/pkg/levels/MP_002/Shaders/Dx9_Single.res": [
+18771213,
+"d5eefa67f294429124a8",
+15
+],
+"work/levels/mp_002sr/dist/levels/mp_002sr/shaders/Dx10_Single.res": [
+33044658,
+"9516006b69879e90c957",
+15
+],
+"work/levels/mp_002sr/dist/levels/mp_002sr/shaders/Dx11_Single.res": [
+25741971,
+"0a1687574af0833710f0",
+15
+],
+"work/levels/mp_002sr/dist/levels/mp_002sr/shaders/Dx9_Single.res": [
+18216732,
+"996dc795fdbc53af26dc",
+15
+],
+"work/levels/mp_002sr/pkg/levels/mp_002sr/Shaders/Dx10_Single.res": [
+33044658,
+"5f4cd35a2c43dde003ed",
+15
+],
+"work/levels/mp_002sr/pkg/levels/mp_002sr/Shaders/Dx11_Single.res": [
+25741971,
+"8dfab2154ebc0df27cec",
+15
+],
+"work/levels/mp_002sr/pkg/levels/mp_002sr/Shaders/Dx9_Single.res": [
+18216732,
+"b4507d1d6309f8e6e9d7",
+15
+],
+"work/levels/mp_003/dist/levels/mp_003/shaders/Dx10_Single.res": [
+32845580,
+"03dda3e377200017c9ed",
+15
+],
+"work/levels/mp_003/dist/levels/mp_003/shaders/Dx11_Single.res": [
+25826645,
+"d8974a9d16ccf14c7f74",
+15
+],
+"work/levels/mp_003/dist/levels/mp_003/shaders/Dx9_Single.res": [
+18112581,
+"05098b97f44d3e3ef12b",
+15
+],
+"work/levels/mp_003/pkg/Levels/MP_003/Shaders/Dx10_Single.res": [
+32845580,
+"b34c70295470a7fd7a87",
+15
+],
+"work/levels/mp_003/pkg/Levels/MP_003/Shaders/Dx11_Single.res": [
+25826645,
+"569f46cb92b0835cf31b",
+15
+],
+"work/levels/mp_003/pkg/Levels/MP_003/Shaders/Dx9_Single.res": [
+18112581,
+"d9af92a96269adb37dcb",
+15
+],
+"work/levels/mp_004/dist/levels/mp_004/shaders/Dx10_Single.res": [
+35507969,
+"1f8801a811530a7e552c",
+15
+],
+"work/levels/mp_004/dist/levels/mp_004/shaders/Dx11_Single.res": [
+27877319,
+"a3e350bbe4d5f5e05930",
+15
+],
+"work/levels/mp_004/dist/levels/mp_004/shaders/Dx9_Single.res": [
+19318525,
+"2f665236f11cc82a5651",
+15
+],
+"work/levels/mp_004/pkg/Levels/MP_004/Shaders/Dx10_Single.res": [
+35507969,
+"e24f531a13c9b5f47f08",
+15
+],
+"work/levels/mp_004/pkg/Levels/MP_004/Shaders/Dx11_Single.res": [
+27877319,
+"b5c44003472e63b63243",
+15
+],
+"work/levels/mp_004/pkg/Levels/MP_004/Shaders/Dx9_Single.res": [
+19318525,
+"40a4ceba23f673549ef0",
+15
+],
+"work/levels/mp_004sdm/dist/levels/mp_004sdm/shaders/Dx10_Single.res": [
+32926666,
+"6ea1d04f681d89590fca",
+15
+],
+"work/levels/mp_004sdm/dist/levels/mp_004sdm/shaders/Dx11_Single.res": [
+25847481,
+"8518644f84399b11b497",
+15
+],
+"work/levels/mp_004sdm/dist/levels/mp_004sdm/shaders/Dx9_Single.res": [
+18116958,
+"e6606a53b311ae5482a3",
+15
+],
+"work/levels/mp_004sdm/pkg/levels/mp_004sdm/Shaders/Dx10_Single.res": [
+32926666,
+"7d4216241e3833bae4e9",
+15
+],
+"work/levels/mp_004sdm/pkg/levels/mp_004sdm/Shaders/Dx11_Single.res": [
+25847481,
+"ef69d0fba3099799e4eb",
+15
+],
+"work/levels/mp_004sdm/pkg/levels/mp_004sdm/Shaders/Dx9_Single.res": [
+18116958,
+"31c681fb2506e43db5c1",
+15
+],
+"work/levels/mp_005/dist/levels/mp_005/shaders/Dx10_Single.res": [
+34840712,
+"c87c8259996330466d78",
+15
+],
+"work/levels/mp_005/dist/levels/mp_005/shaders/Dx11_Single.res": [
+27203216,
+"5a3c76a57204c4dc7fec",
+15
+],
+"work/levels/mp_005/dist/levels/mp_005/shaders/Dx9_Single.res": [
+18976863,
+"fcc3765dc49df22c1255",
+15
+],
+"work/levels/mp_005/pkg/levels/mp_005/Shaders/Dx10_Single.res": [
+34840712,
+"7157777aa358b5353e97",
+15
+],
+"work/levels/mp_005/pkg/levels/mp_005/Shaders/Dx11_Single.res": [
+27203216,
+"885a3e397298feafc690",
+15
+],
+"work/levels/mp_005/pkg/levels/mp_005/Shaders/Dx9_Single.res": [
+18976863,
+"90abb35acad5b8c79dee",
+15
+],
+"work/levels/mp_005sr/dist/levels/mp_005sr/shaders/Dx10_Single.res": [
+32069345,
+"94557d01a3e2a2e16b72",
+15
+],
+"work/levels/mp_005sr/dist/levels/mp_005sr/shaders/Dx11_Single.res": [
+24988289,
+"a14aaa7736c18f9c3e04",
+15
+],
+"work/levels/mp_005sr/dist/levels/mp_005sr/shaders/Dx9_Single.res": [
+17737249,
+"9774a7907c4cc857350c",
+15
+],
+"work/levels/mp_005sr/pkg/levels/mp_005sr/Shaders/Dx10_Single.res": [
+32069345,
+"cc9857aa09a0c930c40a",
+15
+],
+"work/levels/mp_005sr/pkg/levels/mp_005sr/Shaders/Dx11_Single.res": [
+24988289,
+"d5409870ebd8164e4d45",
+15
+],
+"work/levels/mp_005sr/pkg/levels/mp_005sr/Shaders/Dx9_Single.res": [
+17737249,
+"55d19c90268454c79a23",
+15
+],
+"work/levels/mp_006/dist/levels/mp_006/shaders/Dx10_Single.res": [
+36738218,
+"38e9fe6d268207069d6b",
+15
+],
+"work/levels/mp_006/dist/levels/mp_006/shaders/Dx11_Single.res": [
+28820579,
+"fbeec48696ad08d214a6",
+15
+],
+"work/levels/mp_006/dist/levels/mp_006/shaders/Dx9_Single.res": [
+20282308,
+"a72ee931ececb512cbb2",
+15
+],
+"work/levels/mp_006/pkg/levels/MP_006/Shaders/Dx10_Single.res": [
+36738218,
+"63ce159385d70fec265b",
+15
+],
+"work/levels/mp_006/pkg/levels/MP_006/Shaders/Dx11_Single.res": [
+28820579,
+"b33b2c9dbac4413dc897",
+15
+],
+"work/levels/mp_006/pkg/levels/MP_006/Shaders/Dx9_Single.res": [
+20282308,
+"af629717b4e67631ff96",
+15
+],
+"work/levels/mp_006cq/dist/levels/mp_006cq/shaders/Dx10_Single.res": [
+36407247,
+"9c6f8d26ee4a68112bfd",
+15
+],
+"work/levels/mp_006cq/dist/levels/mp_006cq/shaders/Dx11_Single.res": [
+28547022,
+"a911f028c6e3f9432f20",
+15
+],
+"work/levels/mp_006cq/dist/levels/mp_006cq/shaders/Dx9_Single.res": [
+20134478,
+"9c5ea6980f0985387d2c",
+15
+],
+"work/levels/mp_006cq/pkg/levels/mp_006cq/Shaders/Dx10_Single.res": [
+36407247,
+"809436f0512aee0fa5f4",
+15
+],
+"work/levels/mp_006cq/pkg/levels/mp_006cq/Shaders/Dx11_Single.res": [
+28547022,
+"38b3e192aa37b60f137a",
+15
+],
+"work/levels/mp_006cq/pkg/levels/mp_006cq/Shaders/Dx9_Single.res": [
+20134478,
+"5b82722be09397448d3c",
+15
+],
+"work/levels/mp_006sdm/dist/levels/mp_006sdm/shaders/Dx10_Single.res": [
+35304683,
+"594f2c23a020ed09351f",
+15
+],
+"work/levels/mp_006sdm/dist/levels/mp_006sdm/shaders/Dx11_Single.res": [
+27704822,
+"b864f3aaa567e53428b2",
+15
+],
+"work/levels/mp_006sdm/dist/levels/mp_006sdm/shaders/Dx9_Single.res": [
+19609166,
+"a754005d63f1a0c0d2e2",
+15
+],
+"work/levels/mp_006sdm/pkg/levels/mp_006sdm/Shaders/Dx10_Single.res": [
+35304683,
+"6f5923b372d7b6a8824f",
+15
+],
+"work/levels/mp_006sdm/pkg/levels/mp_006sdm/Shaders/Dx11_Single.res": [
+27704822,
+"24102e75904e410fa762",
+15
+],
+"work/levels/mp_006sdm/pkg/levels/mp_006sdm/Shaders/Dx9_Single.res": [
+19609166,
+"bd950e1c21ac0c5e8381",
+15
+],
+"work/levels/mp_007/dist/levels/mp_007/shaders/Dx10_Single.res": [
+35562440,
+"742e3706e20038625c65",
+15
+],
+"work/levels/mp_007/dist/levels/mp_007/shaders/Dx11_Single.res": [
+27876717,
+"3dd868bc80d66dfcd3b1",
+15
+],
+"work/levels/mp_007/dist/levels/mp_007/shaders/Dx9_Single.res": [
+19643971,
+"570a29ca179c0f1758d2",
+15
+],
+"work/levels/mp_007/pkg/Levels/MP_007/Shaders/Dx10_Single.res": [
+35562440,
+"34f27e4c302ed9126850",
+15
+],
+"work/levels/mp_007/pkg/Levels/MP_007/Shaders/Dx11_Single.res": [
+27876717,
+"c109e60921d68b6704e3",
+15
+],
+"work/levels/mp_007/pkg/Levels/MP_007/Shaders/Dx9_Single.res": [
+19643971,
+"1acee1f4a2c57526e4a5",
+15
+],
+"work/levels/mp_007sdm/dist/levels/mp_007sdm/shaders/Dx10_Single.res": [
+34331197,
+"c867f4c6b1ef51ae5ea3",
+15
+],
+"work/levels/mp_007sdm/dist/levels/mp_007sdm/shaders/Dx11_Single.res": [
+26927644,
+"5ee24ef5f6ad27738c24",
+15
+],
+"work/levels/mp_007sdm/dist/levels/mp_007sdm/shaders/Dx9_Single.res": [
+19078315,
+"697fdce47cbcf02d00d5",
+15
+],
+"work/levels/mp_007sdm/pkg/Levels/MP_007SDM/Shaders/Dx10_Single.res": [
+34331197,
+"8c508f40d333cbbcd1cb",
+15
+],
+"work/levels/mp_007sdm/pkg/Levels/MP_007SDM/Shaders/Dx11_Single.res": [
+26927644,
+"4a903db8f845ae2401a6",
+15
+],
+"work/levels/mp_007sdm/pkg/Levels/MP_007SDM/Shaders/Dx9_Single.res": [
+19078315,
+"d257e6dbacd6858127a5",
+15
+],
+"work/levels/mp_008/dist/levels/mp_008/shaders/Dx10_Single.res": [
+34940061,
+"8623593932a46dfdfdf0",
+15
+],
+"work/levels/mp_008/dist/levels/mp_008/shaders/Dx11_Single.res": [
+27311847,
+"ae184c25e2fd0cbf6a89",
+15
+],
+"work/levels/mp_008/dist/levels/mp_008/shaders/Dx9_Single.res": [
+19372940,
+"116df8ee3f247d75db62",
+15
+],
+"work/levels/mp_008/pkg/Levels/MP_008/Shaders/Dx10_Single.res": [
+34940061,
+"69a28ec229e2e6e316fe",
+15
+],
+"work/levels/mp_008/pkg/Levels/MP_008/Shaders/Dx11_Single.res": [
+27311847,
+"f63b5092c0f11f4df120",
+15
+],
+"work/levels/mp_008/pkg/Levels/MP_008/Shaders/Dx9_Single.res": [
+19372940,
+"133c8e3397a173ec1e8c",
+15
+],
+"work/levels/mp_009cq/dist/levels/mp_009cq/shaders/Dx10_Single.res": [
+32813200,
+"3b02bde9cdb3c1571249",
+15
+],
+"work/levels/mp_009cq/dist/levels/mp_009cq/shaders/Dx11_Single.res": [
+25590504,
+"0783af95d42f5041c940",
+15
+],
+"work/levels/mp_009cq/dist/levels/mp_009cq/shaders/Dx9_Single.res": [
+17865895,
+"31a4e30564fdff45018b",
+15
+],
+"work/levels/mp_009cq/pkg/levels/mp_009cq/Shaders/Dx10_Single.res": [
+32813200,
+"591848a32374eb852f31",
+15
+],
+"work/levels/mp_009cq/pkg/levels/mp_009cq/Shaders/Dx11_Single.res": [
+25590504,
+"a1ba4c82e05a139d9e52",
+15
+],
+"work/levels/mp_009cq/pkg/levels/mp_009cq/Shaders/Dx9_Single.res": [
+17865895,
+"70bf4c315cdb0b3ee7e0",
+15
+],
+"work/levels/mp_009gr/dist/levels/mp_009gr/shaders/Dx10_Single.res": [
+33586347,
+"9d1156eff3a8e19d09f4",
+15
+],
+"work/levels/mp_009gr/dist/levels/mp_009gr/shaders/Dx11_Single.res": [
+26218601,
+"3c806e3000d313116569",
+15
+],
+"work/levels/mp_009gr/dist/levels/mp_009gr/shaders/Dx9_Single.res": [
+18284405,
+"7a63ad4726705cf1f837",
+15
+],
+"work/levels/mp_009gr/pkg/levels/mp_009gr/Shaders/Dx10_Single.res": [
+33586347,
+"4edda7908f2f2eb78d0f",
+15
+],
+"work/levels/mp_009gr/pkg/levels/mp_009gr/Shaders/Dx11_Single.res": [
+26218601,
+"1bac7391a19fa3d8bed4",
+15
+],
+"work/levels/mp_009gr/pkg/levels/mp_009gr/Shaders/Dx9_Single.res": [
+18284405,
+"a30bdd2ab680c4461ef7",
+15
+],
+"work/levels/mp_009sdm/dist/levels/mp_009sdm/shaders/Dx10_Single.res": [
+31303991,
+"984b2aa92cc4af0b1921",
+15
+],
+"work/levels/mp_009sdm/dist/levels/mp_009sdm/shaders/Dx11_Single.res": [
+24425634,
+"b236cb99f8eb141f3f4f",
+15
+],
+"work/levels/mp_009sdm/dist/levels/mp_009sdm/shaders/Dx9_Single.res": [
+17183758,
+"a9731fe78a83c0526994",
+15
+],
+"work/levels/mp_009sdm/pkg/levels/mp_009sdm/Shaders/Dx10_Single.res": [
+31303991,
+"c6665bb17fa1cbaf7199",
+15
+],
+"work/levels/mp_009sdm/pkg/levels/mp_009sdm/Shaders/Dx11_Single.res": [
+24425634,
+"82838eab205d03059bbe",
+15
+],
+"work/levels/mp_009sdm/pkg/levels/mp_009sdm/Shaders/Dx9_Single.res": [
+17183758,
+"6426d2a2744b5ba7da00",
+15
+],
+"work/levels/mp_012gr/dist/levels/mp_012gr/shaders/Dx10_Single.res": [
+36261177,
+"15e1d50c52b618770471",
+15
+],
+"work/levels/mp_012gr/dist/levels/mp_012gr/shaders/Dx11_Single.res": [
+28471200,
+"841f372ef5daab6efa93",
+15
+],
+"work/levels/mp_012gr/dist/levels/mp_012gr/shaders/Dx9_Single.res": [
+19970455,
+"c4ea2aeb1f739cfce86a",
+15
+],
+"work/levels/mp_012gr/pkg/levels/mp_012GR/Shaders/Dx10_Single.res": [
+36261177,
+"72c48bf06fd73ba910ad",
+15
+],
+"work/levels/mp_012gr/pkg/levels/mp_012GR/Shaders/Dx11_Single.res": [
+28471200,
+"1766c41366edb430ad50",
+15
+],
+"work/levels/mp_012gr/pkg/levels/mp_012GR/Shaders/Dx9_Single.res": [
+19970455,
+"11244cb84db7321b508e",
+15
+],
+"work/levels/mp_012sr/dist/levels/mp_012sr/shaders/Dx10_Single.res": [
+33709292,
+"ea477c1f467f6837ea1b",
+15
+],
+"work/levels/mp_012sr/dist/levels/mp_012sr/shaders/Dx11_Single.res": [
+26413301,
+"aea7d106234d992da125",
+15
+],
+"work/levels/mp_012sr/dist/levels/mp_012sr/shaders/Dx9_Single.res": [
+18764549,
+"c196075885d579f2e3fa",
+15
+],
+"work/levels/mp_012sr/pkg/Levels/MP_012SR/Shaders/Dx10_Single.res": [
+33709292,
+"402c7e6b4b3a35fd08ba",
+15
+],
+"work/levels/mp_012sr/pkg/Levels/MP_012SR/Shaders/Dx11_Single.res": [
+26413301,
+"dc5633e1a06eb537a0e1",
+15
+],
+"work/levels/mp_012sr/pkg/Levels/MP_012SR/Shaders/Dx9_Single.res": [
+18764549,
+"2579a797c0a7e94ca9fb",
+15
+],
+"work/levels/ons_mp_002/dist/levels/ons_mp_002/shaders/Dx10_Single.res": [
+33669802,
+"3e63a103e6cc81f8a8f2",
+15
+],
+"work/levels/ons_mp_002/dist/levels/ons_mp_002/shaders/Dx11_Single.res": [
+26325096,
+"f37d1b57dd5c9434bf40",
+15
+],
+"work/levels/ons_mp_002/dist/levels/ons_mp_002/shaders/Dx9_Single.res": [
+18476450,
+"e8081cf25455a9ec59e6",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/mp_005/Shaders/Dx10_Single.res": [
+35703447,
+"dd8cb91625c894182213",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/mp_005/Shaders/Dx11_Single.res": [
+27900050,
+"100238a5bdd95ab5537a",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/mp_005/Shaders/Dx9_Single.res": [
+19457848,
+"6fd7bea34426efaf6deb",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/nam_mp_007r/Shaders/Dx10_Single.res": [
+13185919,
+"df7f5397ff636427879b",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/nam_mp_007r/Shaders/Dx11_Single.res": [
+10538779,
+"ee481759828ad08a72bc",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/nam_mp_007r/Shaders/Dx9_Single.res": [
+6917774,
+"20f4cebd2e5760c199a5",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/ons_mp_002/Shaders/Dx10_Single.res": [
+34295716,
+"8d60011b2e8866d30a47",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/ons_mp_002/Shaders/Dx11_Single.res": [
+26756351,
+"f0d086ebbdc4ce20a727",
+15
+],
+"work/levels/ons_mp_002/pkg/levels/ons_mp_002/Shaders/Dx9_Single.res": [
+18771213,
+"7c922f78e1cdcc2a6798",
+15
+],
+"work/levels/ons_mp_004/dist/levels/ons_mp_004/shaders/Dx10_Single.res": [
+34847752,
+"ee1b02ea5699c75d07de",
+15
+],
+"work/levels/ons_mp_004/dist/levels/ons_mp_004/shaders/Dx11_Single.res": [
+27420021,
+"c7413197d0653048529e",
+15
+],
+"work/levels/ons_mp_004/dist/levels/ons_mp_004/shaders/Dx9_Single.res": [
+19002455,
+"68748fd6f0e5eaaf5c13",
+15
+],
+"work/levels/ons_mp_004/dist/levels/sp_01/shaders/Dx10_Single.res": [
+19413133,
+"68689bf86572622163d8",
+15
+],
+"work/levels/ons_mp_004/dist/levels/sp_01/shaders/Dx11_Single.res": [
+15313990,
+"06cf15613193b3b923fc",
+15
+],
+"work/levels/ons_mp_004/dist/levels/sp_01/shaders/Dx9_Single.res": [
+9864794,
+"6389ff3512a918a281d2",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/SP_01/Shaders/Dx10_Single.res": [
+19443909,
+"379cabfe75d0bd0f59bf",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/SP_01/Shaders/Dx11_Single.res": [
+15339642,
+"0ccadd047d0ff4522fdf",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/SP_01/Shaders/Dx9_Single.res": [
+9888450,
+"5d30d05e51e193996a20",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/mp_006/Shaders/Dx10_Single.res": [
+36738218,
+"bca9e72e01632f72166a",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/mp_006/Shaders/Dx11_Single.res": [
+28820579,
+"e4ce2d32bfff9ce390dc",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/mp_006/Shaders/Dx9_Single.res": [
+20282308,
+"b04c20aa320201e5f93d",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/mp_sp_005cq/Shaders/Dx10_Single.res": [
+34351362,
+"ce3c14f1009f1a94b38d",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/mp_sp_005cq/Shaders/Dx11_Single.res": [
+26823031,
+"0a2eba7eb16652ae88b4",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/mp_sp_005cq/Shaders/Dx9_Single.res": [
+18648321,
+"b2af20262091998c3387",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/ons_mp_004/Shaders/Dx10_Single.res": [
+35507969,
+"ade2f4aa9f21577e1b4b",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/ons_mp_004/Shaders/Dx11_Single.res": [
+27877319,
+"8df3b71fd2ce8c56bfaf",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/ons_mp_004/Shaders/Dx9_Single.res": [
+19318525,
+"0201bf4a2ab3d1eddf1d",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/sp_007/Shaders/Dx10_Single.res": [
+31325915,
+"8ca34af10fc9f094e175",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/sp_007/Shaders/Dx11_Single.res": [
+24535267,
+"20ec6b5e72fe50496e53",
+15
+],
+"work/levels/ons_mp_004/pkg/levels/sp_007/Shaders/Dx9_Single.res": [
+16456288,
+"39ca678bd1dea893407c",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/mp_003/Shaders/Dx10_Single.res": [
+32845580,
+"60c979f57db5389068fb",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/mp_003/Shaders/Dx11_Single.res": [
+25826645,
+"4fb6cd6c2a35a85efdc2",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/mp_003/Shaders/Dx9_Single.res": [
+18112581,
+"bbebe81746f3d86cec92",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders/Dx10_Single.res": [
+35703447,
+"faefecf6439fe99c670e",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders/Dx11_Single.res": [
+27900050,
+"1f88f43e2f997205eea9",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders/Dx9_Single.res": [
+19457848,
+"316287bb9eefa79bdaa4",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders01/Dx10_Single.res": [
+19443909,
+"4a20d1149bc4d33f792a",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders01/Dx11_Single.res": [
+15339642,
+"aac2be24f0617c1bd0d6",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders01/Dx9_Single.res": [
+9888450,
+"23535d689723ff474c57",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders2/Dx10_Single.res": [
+36261177,
+"22fa2db9777ed03c47d2",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders2/Dx11_Single.res": [
+28471200,
+"33216a919af65c6daf03",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders2/Dx9_Single.res": [
+19970455,
+"30193dffb70120f38b11",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders3/Dx10_Single.res": [
+34351362,
+"7454a1ada081e0343b27",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders3/Dx11_Single.res": [
+26823031,
+"2ab1bec54dd988bbc188",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/ons_mp_005gr/Shaders3/Dx9_Single.res": [
+18648321,
+"2566d9cdbde309d2bcf7",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/sp_007/Shaders/Dx10_Single.res": [
+31325915,
+"c003379355255e545f62",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/sp_007/Shaders/Dx11_Single.res": [
+24535267,
+"06d877493b027a870a6e",
+15
+],
+"work/levels/ons_mp_005gr/pkg/levels/sp_007/Shaders/Dx9_Single.res": [
+16456288,
+"45bd65a1a556828758f8",
+15
+],
+"work/levels/ons_mp_008/dist/levels/ONS_MP_008/shaders/Dx10_Single.res": [
+34264164,
+"adfec0210cd9dad9a772",
+15
+],
+"work/levels/ons_mp_008/dist/levels/ONS_MP_008/shaders/Dx11_Single.res": [
+26844580,
+"e0347e5917a933dd51db",
+15
+],
+"work/levels/ons_mp_008/dist/levels/ONS_MP_008/shaders/Dx9_Single.res": [
+19051897,
+"19e33bab33459de0fcbb",
+15
+],
+"work/levels/ons_mp_008/dist/levels/mp_008/shaders/Dx10_Single.res": [
+34264164,
+"a177803e8b97a1e086e2",
+15
+],
+"work/levels/ons_mp_008/dist/levels/mp_008/shaders/Dx11_Single.res": [
+26844580,
+"3ec5cf7113bd46f0f209",
+15
+],
+"work/levels/ons_mp_008/dist/levels/mp_008/shaders/Dx9_Single.res": [
+19051897,
+"ccc6a37adb3a0e6a37e2",
+15
+],
+"work/levels/ons_mp_008/pkg/Levels/MP_008/Shaders/Dx10_Single.res": [
+34940061,
+"7065b195be898f61163a",
+15
+],
+"work/levels/ons_mp_008/pkg/Levels/MP_008/Shaders/Dx11_Single.res": [
+27311847,
+"95aa6d18100c3f1d3338",
+15
+],
+"work/levels/ons_mp_008/pkg/Levels/MP_008/Shaders/Dx9_Single.res": [
+19372940,
+"f2b4d9d548bc502aa440",
+15
+],
+"work/levels/ons_mp_008/pkg/Levels/ONS_MP_008/Shaders/Dx10_Single.res": [
+34940061,
+"a31279ae164299c35238",
+15
+],
+"work/levels/ons_mp_008/pkg/Levels/ONS_MP_008/Shaders/Dx11_Single.res": [
+27311847,
+"516daed2f3fbf9756e23",
+15
+],
+"work/levels/ons_mp_008/pkg/Levels/ONS_MP_008/Shaders/Dx9_Single.res": [
+19372940,
+"179b3431b70753672303",
+15
+],
+"work/levels/sp_003_b/dist/levels/sp_003_b/shaders/Dx10_Single.res": [
+32056667,
+"a0cea5baea63b3dbc097",
+15
+],
+"work/levels/sp_003_b/dist/levels/sp_003_b/shaders/Dx11_Single.res": [
+24948872,
+"7f7a9f1f26c1dd1c116b",
+15
+],
+"work/levels/sp_003_b/dist/levels/sp_003_b/shaders/Dx9_Single.res": [
+16860865,
+"cc27fbb61928949127d7",
+15
+],
+"work/levels/sp_003_b/pkg/levels/SP_003_B/Shaders/Dx10_Single.res": [
+33317863,
+"f6cdb1d9d4f37ccbc6da",
+15
+],
+"work/levels/sp_003_b/pkg/levels/SP_003_B/Shaders/Dx11_Single.res": [
+25904444,
+"88238a63dec1fae0a23c",
+15
+],
+"work/levels/sp_003_b/pkg/levels/SP_003_B/Shaders/Dx9_Single.res": [
+17647162,
+"3d87637605ac3c04f20b",
+15
+],
+"work/levels/sp_004_b/dist/levels/sp_004_b/shaders/Dx10_Single.res": [
+23082705,
+"0ca453f193f7d8e0179f",
+15
+],
+"work/levels/sp_004_b/dist/levels/sp_004_b/shaders/Dx11_Single.res": [
+18009598,
+"17876254ab62931dc216",
+15
+],
+"work/levels/sp_004_b/dist/levels/sp_004_b/shaders/Dx9_Single.res": [
+11975810,
+"f3fedf1cd846089b9af1",
+15
+],
+"work/levels/sp_004_b/pkg/levels/SP_004_B/Shaders/Dx10_Single.res": [
+24341041,
+"d5d4badd448130bcbcef",
+15
+],
+"work/levels/sp_004_b/pkg/levels/SP_004_B/Shaders/Dx11_Single.res": [
+18969134,
+"76c45f57ee3178f627d8",
+15
+],
+"work/levels/sp_004_b/pkg/levels/SP_004_B/Shaders/Dx9_Single.res": [
+12735988,
+"5f27ff33e48b4c181495",
+15
+],
+"work/levels/sp_005/dist/levels/sp_005/shaders/Dx10_Single.res": [
+27505596,
+"f4e95ad5c8b8881aef6b",
+15
+],
+"work/levels/sp_005/dist/levels/sp_005/shaders/Dx11_Single.res": [
+21491937,
+"f22e26213596e0fb7cc8",
+15
+],
+"work/levels/sp_005/dist/levels/sp_005/shaders/Dx9_Single.res": [
+14284759,
+"5060a07f170c3cf248fc",
+15
+],
+"work/levels/sp_005/pkg/levels/SP_005/Shaders/Dx10_Single.res": [
+28727149,
+"7e59aae58d6e57abbb16",
+15
+],
+"work/levels/sp_005/pkg/levels/SP_005/Shaders/Dx11_Single.res": [
+22449567,
+"917235a490c8815a9196",
+15
+],
+"work/levels/sp_005/pkg/levels/SP_005/Shaders/Dx9_Single.res": [
+15114124,
+"b8c6007283e4211685ff",
+15
+],
+"work/levels/sp_005_b/dist/levels/sp_005_b/Shaders/Dx10_Single.res": [
+29469807,
+"7e2c0da5497e0263c915",
+15
+],
+"work/levels/sp_005_b/dist/levels/sp_005_b/Shaders/Dx11_Single.res": [
+23116696,
+"677fd37df87dca46e076",
+15
+],
+"work/levels/sp_005_b/dist/levels/sp_005_b/Shaders/Dx9_Single.res": [
+15321140,
+"75c65a64e3b7254790f2",
+15
+],
+"work/levels/sp_005_b/pkg/levels/sp_005_b/Shaders/Dx10_Single.res": [
+30946695,
+"fe739d90966b9752a2b4",
+15
+],
+"work/levels/sp_005_b/pkg/levels/sp_005_b/Shaders/Dx11_Single.res": [
+24244892,
+"bf6d5c9690e982a76bce",
+15
+],
+"work/levels/sp_005_b/pkg/levels/sp_005_b/Shaders/Dx9_Single.res": [
+16234789,
+"ac80780e417958e68df9",
+15
+],
+"work/levels/sp_006/dist/levels/sp_006/shaders/Dx10_Single.res": [
+28888871,
+"848971f628b663b0bc7a",
+15
+],
+"work/levels/sp_006/dist/levels/sp_006/shaders/Dx11_Single.res": [
+22585862,
+"e1198cfcb512cb365472",
+15
+],
+"work/levels/sp_006/dist/levels/sp_006/shaders/Dx9_Single.res": [
+15156702,
+"1171ae39fbb0048d7593",
+15
+],
+"work/levels/sp_006/pkg/Levels/SP_006/Shaders/Dx10_Single.res": [
+30191219,
+"a88884390e45d8dffb56",
+15
+],
+"work/levels/sp_006/pkg/Levels/SP_006/Shaders/Dx11_Single.res": [
+23564349,
+"d7256d800e4de155759a",
+15
+],
+"work/levels/sp_006/pkg/Levels/SP_006/Shaders/Dx9_Single.res": [
+15917827,
+"83bdeeaa6e31e14d9f16",
+15
+],
+"work/levels/sp_007/dist/levels/sp_007/shaders/Dx10_Single.res": [
+30413460,
+"d8b88c5aa715928d7483",
+15
+],
+"work/levels/sp_007/dist/levels/sp_007/shaders/Dx11_Single.res": [
+23823210,
+"f999b4f03223f8b5c9cb",
+15
+],
+"work/levels/sp_007/dist/levels/sp_007/shaders/Dx9_Single.res": [
+15842131,
+"c8c5cb6df417e60afe40",
+15
+],
+"work/levels/sp_007/pkg/Levels/SP_007/Shaders/Dx10_Single.res": [
+31325915,
+"4005b6efcd8bb637987a",
+15
+],
+"work/levels/sp_007/pkg/Levels/SP_007/Shaders/Dx11_Single.res": [
+24535267,
+"73f98948152183b36202",
+15
+],
+"work/levels/sp_007/pkg/Levels/SP_007/Shaders/Dx9_Single.res": [
+16456288,
+"90c4e205733b90e3e69f",
+15
+],
+"work/levels/sp_008/dist/levels/sp_008/shaders/Dx10_Single.res": [
+32789839,
+"eff8c06dfb597cc559a5",
+15
+],
+"work/levels/sp_008/dist/levels/sp_008/shaders/Dx11_Single.res": [
+25629207,
+"8f86f0313689cafa9bee",
+15
+],
+"work/levels/sp_008/dist/levels/sp_008/shaders/Dx9_Single.res": [
+17289125,
+"1689e8c1a8a85f9f8289",
+15
+],
+"work/levels/sp_008/pkg/Levels/SP_008/Shaders/Dx10_Single.res": [
+34150264,
+"d0e0b4261be6e7547952",
+15
+],
+"work/levels/sp_008/pkg/Levels/SP_008/Shaders/Dx11_Single.res": [
+26653659,
+"a40184e8e80f41b1250e",
+15
+],
+"work/levels/sp_008/pkg/Levels/SP_008/Shaders/Dx9_Single.res": [
+18108227,
+"80595321630f833ab85d",
+15
+],
+"work/levels/sp_008_b/dist/levels/sp_008_b/Shaders/Dx10_Single.res": [
+28356549,
+"82c737c7dbdf4e68b144",
+15
+],
+"work/levels/sp_008_b/dist/levels/sp_008_b/Shaders/Dx11_Single.res": [
+22109201,
+"ac065231795442fb4b45",
+15
+],
+"work/levels/sp_008_b/dist/levels/sp_008_b/Shaders/Dx9_Single.res": [
+15054415,
+"68891dccc866b0d9e6af",
+15
+],
+"work/levels/sp_008_b/pkg/levels/sp_008_b/Shaders/Dx10_Single.res": [
+29654406,
+"34bb2c8287e36660476f",
+15
+],
+"work/levels/sp_008_b/pkg/levels/sp_008_b/Shaders/Dx11_Single.res": [
+23084165,
+"6d06e1a0bec7031888cc",
+15
+],
+"work/levels/sp_008_b/pkg/levels/sp_008_b/Shaders/Dx9_Single.res": [
+15809605,
+"c0a85bb6b754dd4e2299",
+15
+],
+"work/levels/sp_009/dist/levels/sp_009/shaders/Dx10_Single.res": [
+21355481,
+"4a1476647c1b69013e59",
+15
+],
+"work/levels/sp_009/dist/levels/sp_009/shaders/Dx11_Single.res": [
+16424302,
+"ef8071bd581f17376970",
+15
+],
+"work/levels/sp_009/dist/levels/sp_009/shaders/Dx9_Single.res": [
+11163751,
+"ce65ed6bb21d8b9859fa",
+15
+],
+"work/levels/sp_009/pkg/Levels/SP_009/Shaders/Dx10_Single.res": [
+22680336,
+"ad5c07fe62c19dfe14c9",
+15
+],
+"work/levels/sp_009/pkg/Levels/SP_009/Shaders/Dx11_Single.res": [
+17420144,
+"5f822978fefc111720c4",
+15
+],
+"work/levels/sp_009/pkg/Levels/SP_009/Shaders/Dx9_Single.res": [
+11941311,
+"209db3d6645180fa23dd",
+15
+],
+"work/levels/sp_01/dist/levels/sp_01/shaders/Dx10_Single.res": [
+19413133,
+"efb62cee273a104dbbf4",
+15
+],
+"work/levels/sp_01/dist/levels/sp_01/shaders/Dx11_Single.res": [
+15313990,
+"5aa5fd2de13dc0abbf38",
+15
+],
+"work/levels/sp_01/dist/levels/sp_01/shaders/Dx9_Single.res": [
+9864794,
+"9b48f3df8f707df7a689",
+15
+],
+"work/levels/sp_01/pkg/Levels/SP_01/Shaders/Dx10_Single.res": [
+19443909,
+"afce7f429ae0e90d6b05",
+15
+],
+"work/levels/sp_01/pkg/Levels/SP_01/Shaders/Dx11_Single.res": [
+15339642,
+"1e45b79d85ded8bc77b4",
+15
+],
+"work/levels/sp_01/pkg/Levels/SP_01/Shaders/Dx9_Single.res": [
+9888450,
+"6a72879e0d98c866f0e6",
+15
+],
+"work/levels/sp_02/dist/levels/sp_02/shaders/Dx10_Single.res": [
+30946400,
+"3356b89514533c413124",
+15
+],
+"work/levels/sp_02/dist/levels/sp_02/shaders/Dx11_Single.res": [
+24293941,
+"e8d3e2527c29e184b16a",
+15
+],
+"work/levels/sp_02/dist/levels/sp_02/shaders/Dx9_Single.res": [
+16179171,
+"fe2ecea7e719b18bbddc",
+15
+],
+"work/levels/sp_02/pkg/levels/sp_02/Shaders/Dx10_Single.res": [
+32495791,
+"c7b72d90782a85bcd67d",
+15
+],
+"work/levels/sp_02/pkg/levels/sp_02/Shaders/Dx11_Single.res": [
+25481525,
+"1498e5111e528182c734",
+15
+],
+"work/levels/sp_02/pkg/levels/sp_02/Shaders/Dx9_Single.res": [
+17131931,
+"8c2db827ba88aab82e7c",
+15
+],
+"work/levels/sp_03/dist/levels/sp_03/shaders/Dx10_Single.res": [
+28886021,
+"6e5340a38ec350aa1688",
+15
+],
+"work/levels/sp_03/dist/levels/sp_03/shaders/Dx11_Single.res": [
+22625458,
+"6da0db296fcbe99f34e6",
+15
+],
+"work/levels/sp_03/dist/levels/sp_03/shaders/Dx9_Single.res": [
+15131681,
+"5e05838b748761e17748",
+15
+],
+"work/levels/sp_03/pkg/Levels/SP_03/Shaders/Dx10_Single.res": [
+29783235,
+"f607cd02e67f1350a9b5",
+15
+],
+"work/levels/sp_03/pkg/Levels/SP_03/Shaders/Dx11_Single.res": [
+23328817,
+"a164a5b986ffc85c4c17",
+15
+],
+"work/levels/sp_03/pkg/Levels/SP_03/Shaders/Dx9_Single.res": [
+15744801,
+"4607672920b3185821f1",
+15
+],
+"work/levels/sp_04/dist/levels/sp_04/shaders/Dx10_Single.res": [
+28644873,
+"7237de9a8ff4f091879c",
+15
+],
+"work/levels/sp_04/dist/levels/sp_04/shaders/Dx11_Single.res": [
+22546096,
+"96c20ba62bd20990fce7",
+15
+],
+"work/levels/sp_04/dist/levels/sp_04/shaders/Dx9_Single.res": [
+15116499,
+"8b1a7c9491a3abfa7251",
+15
+],
+"work/levels/sp_04/pkg/Levels/SP_04/Shaders/Dx10_Single.res": [
+30101139,
+"75eeb8c6d854ae390931",
+15
+],
+"work/levels/sp_04/pkg/Levels/SP_04/Shaders/Dx11_Single.res": [
+23662858,
+"ba6f27bf5dd9249a2e00",
+15
+],
+"work/levels/sp_04/pkg/Levels/SP_04/Shaders/Dx9_Single.res": [
+16015063,
+"c720cd02de84a14b1b55",
+15
+],
+"work/ww2/coral_sea/levels/coral_sea/shaders/Dx10_Single.res": [
+44316783,
+"3914a2a7c48410080a38",
+15
+],
+"work/ww2/coral_sea/levels/coral_sea/shaders/Dx10_Single.res.cloned": [
+37213536,
+"335fb24719d245a2ba38",
+15
+],
+"work/ww2/coral_sea/levels/coral_sea/shaders/Dx11_Single.res": [
+36300515,
+"f033a68e8ccba0a6193e",
+15
+],
+"work/ww2/coral_sea/levels/coral_sea/shaders/Dx11_Single.res.cloned": [
+29002604,
+"bf598643300f0c740183",
+15
+],
+"work/ww2/coral_sea/levels/coral_sea/shaders/Dx9_Single.res": [
+20456749,
+"c81a43c6876e57a8c425",
+15
+],
+"work/ww2/guadal_canal/levels/guadal_canal/shaders/Dx10_Single.res": [
+53414942,
+"6db0a3999e4278ca6cc5",
+15
+],
+"work/ww2/guadal_canal/levels/guadal_canal/shaders/Dx10_Single.res.cloned": [
+40785970,
+"1f1f53b6b4a4c2ad4e43",
+15
+],
+"work/ww2/guadal_canal/levels/guadal_canal/shaders/Dx11_Single.res": [
+44845389,
+"95f7d1641d7dcb252865",
+15
+],
+"work/ww2/guadal_canal/levels/guadal_canal/shaders/Dx11_Single.res.cloned": [
+31878085,
+"7c4bc548391f8c1ebc40",
+15
+],
+"work/ww2/guadal_canal/levels/guadal_canal/shaders/Dx9_Single.res": [
+22559701,
+"555697d6a577200b4172",
+15
+],
+"work/ww2/install/level/Levels/WAKE_ISLAND_S/Shaders/Dx10_Single.res": [
+59684473,
+"62f2cdf0a859ea78a29c",
+15
+],
+"work/ww2/install/level/Levels/WAKE_ISLAND_S/Shaders/Dx11_Single.res": [
+50763897,
+"bf2bcd44a4dbcb146db1",
+15
+],
+"work/ww2/install/level/Levels/WAKE_ISLAND_S/Shaders/Dx9_Single.res": [
+24014296,
+"917b11c33a3e043a1b16",
+15
+],
+"work/ww2/install/startup/Scenes/UIBackground/shaders/dx10_single.res": [
+177113,
+"6358bad9be3ac0b0e540",
+15
+],
+"work/ww2/install/startup/Scenes/UIBackground/shaders/dx11_single.res": [
+188877,
+"46e2a87f435af5440c5d",
+15
+],
+"work/ww2/install/startup/systems/ui/shaders/dx10_single.res": [
+41534,
+"4e9062c3ea52a043e7fb",
+15
+],
+"work/ww2/install/startup/systems/ui/shaders/dx11_single.res": [
+45182,
+"96bdef9fb60d53bb93e9",
+15
+],
+"work/ww2/install/startup/systems/ui/shaders/dx9_single.res": [
+22441,
+"59e24a76f63d37082857",
+15
+],
+"work/ww2/install_coral_sea/level/Levels/CORAL_SEA/Shaders/Dx10_Single.res": [
+50413762,
+"63704dd182271af0b3fa",
+15
+],
+"work/ww2/install_coral_sea/level/Levels/CORAL_SEA/Shaders/Dx11_Single.res": [
+42028535,
+"0b63756598af8c6c4491",
+15
+],
+"work/ww2/install_coral_sea/level/Levels/CORAL_SEA/Shaders/Dx9_Single.res": [
+21881197,
+"82a022f2a8469feb934d",
+15
+],
+"work/ww2/install_guadal_canal/level/Levels/GUADAL_CANAL/Shaders/Dx10_Single.res": [
+59821826,
+"292a58cf4a67d74253fc",
+15
+],
+"work/ww2/install_guadal_canal/level/Levels/GUADAL_CANAL/Shaders/Dx11_Single.res": [
+50837689,
+"6c2d4ca33723c7aeedca",
+15
+],
+"work/ww2/install_guadal_canal/level/Levels/GUADAL_CANAL/Shaders/Dx9_Single.res": [
+24147495,
+"205d7512e95093195262",
+15
+],
+"work/ww2/install_iwo_jima_s/level/Levels/IWO_JIMA_S/Shaders/Dx10_Single.res": [
+62570893,
+"e4314c596942285b12cb",
+15
+],
+"work/ww2/install_iwo_jima_s/level/Levels/IWO_JIMA_S/Shaders/Dx11_Single.res": [
+53573199,
+"b9f50a2b752d57a936cf",
+15
+],
+"work/ww2/install_iwo_jima_s/level/Levels/IWO_JIMA_S/Shaders/Dx9_Single.res": [
+24430332,
+"1414b268fcb52993d408",
+15
+],
+"work/ww2/install_patched/minimap_edges/Systems/UI/Shaders/Dx10_Single.res": [
+41534,
+"cb6fafcfd4a90b3a7346",
+15
+],
+"work/ww2/install_patched/minimap_edges/Systems/UI/Shaders/Dx11_Single.res": [
+45182,
+"cb10a99de2b26ba2c549",
+15
+],
+"work/ww2/install_patched/minimap_edges/Systems/UI/Shaders/Dx9_Single.res": [
+22441,
+"cd9194f8ffc2e106dc81",
+15
+],
+"work/ww2/iwo_jima_s/levels/iwo_jima_s/shaders/Dx10_Single.res": [
+56148052,
+"3bd0be1505661dc957b7",
+15
+],
+"work/ww2/iwo_jima_s/levels/iwo_jima_s/shaders/Dx10_Single.res.cloned": [
+41098661,
+"5f524d4ab7edab73a12c",
+15
+],
+"work/ww2/iwo_jima_s/levels/iwo_jima_s/shaders/Dx11_Single.res": [
+47564597,
+"0cc2c0dfeb6dd71743ea",
+15
+],
+"work/ww2/iwo_jima_s/levels/iwo_jima_s/shaders/Dx11_Single.res.cloned": [
+32098326,
+"77673c8ee0482bbbfcc8",
+15
+],
+"work/ww2/iwo_jima_s/levels/iwo_jima_s/shaders/Dx9_Single.res": [
+22686244,
+"d4b7d189e8309d0cb560",
+15
+],
+"work/ww2/minimap_edges/Systems/UI/Shaders/Dx10_Single.res": [
+41534,
+"ffd19c530bad3aeb26c3",
+15
+],
+"work/ww2/minimap_edges/Systems/UI/Shaders/Dx11_Single.res": [
+45182,
+"d185fd76aadbac1c25ac",
+15
+],
+"work/ww2/minimap_edges/Systems/UI/Shaders/Dx9_Single.res": [
+22441,
+"6dbdab07e7d731163f9a",
+15
+],
+"work/ww2/wake/levels/wake_island_s/shaders/Dx10_Single.res": [
+53276273,
+"c16b90a2098884c3f0d9",
+15
+],
+"work/ww2/wake/levels/wake_island_s/shaders/Dx10_Single.res.cloned": [
+40310995,
+"7aa93ad4cb215bb2167c",
+15
+],
+"work/ww2/wake/levels/wake_island_s/shaders/Dx11_Single.res": [
+44774098,
+"c62cc9b403f806674c2e",
+15
+],
+"work/ww2/wake/levels/wake_island_s/shaders/Dx11_Single.res.cloned": [
+31477224,
+"1d5785ec5188856c3ab9",
+15
+],
+"work/ww2/wake/levels/wake_island_s/shaders/Dx9_Single.res": [
+22343240,
+"a5492c3241f46a24f5bb",
+15
+],
+"work/xbox/dist/xenon/levels/mp_001/level-00.fbrb:Levels/mp_001/shaders/Single.res": [
+8845163,
+"f3e5fccb111396e2be60",
+15
+],
+"work/xbox/dist/xenon/levels/mp_001sr/level-00.fbrb:Levels/MP_001SR/shaders/Single.res": [
+8191381,
+"a19af38d8d59ec898809",
+15
+],
+"work/xbox/dist/xenon/levels/mp_002/level-00.fbrb:Levels/MP_002/shaders/Single.res": [
+8621811,
+"4dc14e6fcb51252203f6",
+15
+],
+"work/xbox/dist/xenon/levels/mp_002sr/level-00.fbrb:Levels/MP_002SR/shaders/Single.res": [
+7883097,
+"35a4f8b6df4a07fdba73",
+15
+],
+"work/xbox/dist/xenon/levels/mp_003/level-00.fbrb:Levels/MP_003/shaders/Single.res": [
+8286136,
+"c41854ac02f4a82492b6",
+15
+],
+"work/xbox/dist/xenon/levels/mp_004/level-00.fbrb:Levels/MP_004/shaders/Single.res": [
+8875203,
+"5628989a2a443df02385",
+15
+],
+"work/xbox/dist/xenon/levels/mp_004sdm/level-00.fbrb:Levels/MP_004SDM/shaders/Single.res": [
+8116235,
+"d914c26a84622fd145a4",
+15
+],
+"work/xbox/dist/xenon/levels/mp_005/level-00.fbrb:Levels/MP_005/shaders/Single.res": [
+8716528,
+"53cfe68994e81d408a17",
+15
+],
+"work/xbox/dist/xenon/levels/mp_005sr/level-00.fbrb:Levels/MP_005SR/shaders/Single.res": [
+7655066,
+"a9d7a427542903fce971",
+15
+],
+"work/xbox/dist/xenon/levels/mp_006/level-00.fbrb:Levels/MP_006/shaders/Single.res": [
+9343998,
+"1c134189edd93e08a43a",
+15
+],
+"work/xbox/dist/xenon/levels/mp_006cq/level-00.fbrb:Levels/MP_006CQ/shaders/Single.res": [
+9228232,
+"0a3d8c48fa860141c53a",
+15
+],
+"work/xbox/dist/xenon/levels/mp_006sdm/level-00.fbrb:Levels/MP_006SDM/shaders/Single.res": [
+8841275,
+"0f2845dc68038f913489",
+15
+],
+"work/xbox/dist/xenon/levels/mp_007/level-00.fbrb:Levels/MP_007/shaders/Single.res": [
+8991122,
+"664427d011b2a2625571",
+15
+],
+"work/xbox/dist/xenon/levels/mp_007sdm/level-00.fbrb:Levels/MP_007SDM/shaders/Single.res": [
+8542134,
+"96277c926e60c12e6662",
+15
+],
+"work/xbox/dist/xenon/levels/mp_008/level-00.fbrb:Levels/MP_008/shaders/Single.res": [
+8873212,
+"b6b9513e2a8c9b8392af",
+15
+],
+"work/xbox/dist/xenon/levels/mp_009cq/level-00.fbrb:Levels/MP_009CQ/shaders/Single.res": [
+8188577,
+"e70775ac9f0fc7de6338",
+15
+],
+"work/xbox/dist/xenon/levels/mp_009gr/level-00.fbrb:Levels/MP_009GR/shaders/Single.res": [
+8381215,
+"85fed8f49bb14078f8d2",
+15
+],
+"work/xbox/dist/xenon/levels/mp_009sdm/level-00.fbrb:Levels/MP_009SDM/shaders/Single.res": [
+7680761,
+"301ce84173a3f7cf072c",
+15
+],
+"work/xbox/dist/xenon/levels/mp_012gr/level-00.fbrb:Levels/MP_012GR/shaders/Single.res": [
+9160771,
+"609f7f9a6824ba468c25",
+15
+],
+"work/xbox/dist/xenon/levels/mp_012sr/level-00.fbrb:Levels/MP_012SR/shaders/Single.res": [
+8049622,
+"98e3b64c14e6a1ea8ab5",
+15
+],
+"work/xbox_dlc/ons_all/levels/ons_mp_002/level-00.fbrb:Levels/ONS_MP_002/Shaders/Single.res": [
+8234104,
+"d9a03529a5143b804739",
+15
+],
+"work/xbox_dlc/ons_all/levels/ons_mp_004/level-00.fbrb:Levels/ONS_MP_004/Shaders/Single.res": [
+8439384,
+"aedd29e64a7eeb52c75a",
+15
+],
+"work/xbox_dlc/ons_all/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/Shaders/Single.res": [
+8266280,
+"96dd1ee9b3e9aeb203c4",
+15
+],
+"work/xbox_dlc/ons_all/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/Shaders/Single.res": [
+8020464,
+"ad73902c67c2c95c5885",
+15
+],
+"work/xbox_dlc/u3/levels/ons_mp_005/level-00.fbrb:Levels/ONS_MP_005/Shaders/Single.res": [
+8266280,
+"17dbee4fb7259c871122",
+15
+],
+"work/xbox_dlc/u3/levels/ons_mp_008/level-00.fbrb:Levels/ONS_MP_008/Shaders/Single.res": [
+8020464,
+"ec246efd822e49f5e914",
+15
+]
+}
