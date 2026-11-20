@@ -64,10 +64,27 @@ landed on `main`.
   collision assets (`asset_bodies`, its convex hulls; about 6 times faster), `hkpack.Packfile` as a handle (its
   dicts built only when read; `read_object` in Rust), `xenos.disasm`'s header (parse and listing about 8 times
   faster than the Python), `meshview`'s part reader and the cull tree tool's string table.
+- **`python rust\build_native.py --download`** also downloads `bfbc2.exe` into `bin\` (checked by its SHA-256 and
+  its source fingerprint), so a PC without Rust gets the command lines whose Python was retired (round RT1). A
+  release made before RT1 has no `bfbc2.exe`: the module is installed alone and the download says so.
+- **The map editor** prepares a level with `bin\bfbc2.exe prepare_level` only; without the binary the start screen
+  says how to build or download it.
+- **Retired command lines** (`graphstats`, `prepare_level`): a damaged or unusual input their Rust port does not
+  read now ends with an error naming the retirement (exit code 1) instead of being handed to the Python.
+- **Aim animations and navsample files** (`aimanim`, `navsample_offline.file_bytes`): read and written by the Rust
+  core only. Inputs it refuses now raise (`AimError`, `ValueError`) where the Python twin used to answer some of
+  them: an aim animation holding a NaN, samples of another dtype.
 - **Shader databases are opened in the Rust core end to end** (round SD1; the same results, the Python kept as the
   fallback): `ShaderDb.parse`'s choice of byte order and layout and its messages, `pick_database` and
   `dx_from_name` are one Rust implementation shared by `shaderdb.py` and `bfbc2.exe shaderdb`; `load_levels` reads
   each level bundle's database list once instead of once per Dx.
+
+### Removed
+- **Python twins retired (round RT1):** the command lines `bfbc2-auto-navkit\tools\graphstats.py` and
+  `rust\bc2-editor\prepare_level.py` (run `bfbc2.exe graphstats` / `prepare_level`; `BFBC2_CLI_PYTHON=1` no longer
+  brings them back), and the Python references `aimanim.parse_reference` / `write_reference` / `to_pc_reference`
+  (with aimanim's `use_native` switch) and `navsample_offline.file_bytes_reference`. The answers they gave stay
+  recorded as the tests' reference data.
 
 ### Fixed
 - **`shaderdb.ShaderDb.parse`** with an unusual kind (a float, a negative or a very large `dx`) raised `TypeError` /

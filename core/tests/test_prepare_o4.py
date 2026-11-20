@@ -1,21 +1,26 @@
-r"""Round O4: the editor's level prepare in Rust (bfbc2.exe prepare_level, rust\bc2-cli\src\navkit) against the Python it
-ports (rust\bc2-editor\prepare_level.py: navkit.prepare and bfbc2core.level.heightfield_of), on real stock levels.
+r"""Round O4: the editor's level prepare in Rust (bfbc2.exe prepare_level, rust\bc2-cli\src\navkit) against the answers
+of the Python it ported (rust\bc2-editor\prepare_level.py: navkit.prepare and bfbc2core.level.heightfield_of; retired
+in round RT1), recorded in prepare_o4_golden.json, on real stock levels.
 
-  python core\tests\test_prepare_o4.py --game [--levels sp_009,sp_004_b,mp_005] [--exe <bfbc2.exe>] [--ref <suite>]
-                                       [--root <scratch folder>] [--keep]
+  python core\tests\test_prepare_o4.py --game [--levels sp_009,sp_004_b,mp_005] [--exe <bfbc2.exe>] [--root <folder>]
+                                       [--keep]
+  python core\tests\test_prepare_o4.py --game --record --ref <a suite checkout that still has prepare_level.py>
 
-For each side a stand-in Project OPFOR folder is made under --root (default: %TEMP%\o4prep): its game\ a junction to
-the real game copy (read only: nothing is written there), its own empty work\, and its own LOCALAPPDATA (the day logs,
-the collision cache). The levels are prepared one after another with prepare_level (the common bundles unpacked by the
-first), then each again (everything already unpacked), then each with --terrain-only. Compared: every run's exit code
-and stdout bytes (the stand-in folder named <root>), every file under work\ (path and sha256), and the day logs'
-records (stamps taken out). The junctions are removed with rmdir before the folders are deleted.
+A stand-in Project OPFOR folder is made under --root (default: %TEMP%\o4prep): its game\ a junction to the real game
+copy (read only: nothing is written there), its own empty work\, and its own LOCALAPPDATA (the day logs, the
+collision cache). The levels are prepared one after another with prepare_level (the common bundles unpacked by the
+first), then each again (everything already unpacked), then each with --terrain-only. Compared with the recording:
+every run's exit code and both streams' bytes (the stand-in folder named <root>; SHA-1), every file under work\ (path
+and sha256: their digest, overall and per top folder), and the day logs' records (stamps taken out). The junctions
+are removed with rmdir before the folders are deleted. Every run must be answered by Rust (BFBC2_CLI_TRACE).
+A changed game copy changes the answers: record again with --ref a checkout from before the retirement (a git worktree of main 6a7dd68 with its module built).
 
 Without the game copy (or with no --game) it is skipped: the quick tier's prepare cases are cli_o4_navkit.py's.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -31,6 +36,8 @@ import suite_paths  # noqa: E402
 
 suite_paths.use('core')
 from bfbc2core import native, paths  # noqa: E402
+
+GOLDEN = os.path.join(HERE, 'prepare_o4_golden.json')
 
 
 def arg(argv: list[str], k: str, d: str | None = None) -> str | None:
@@ -82,6 +89,46 @@ def remove(root: str) -> None:
             os.remove(p)
 
 
+def summary(rows: list) -> dict:
+    """A side's answers as the golden keeps them: each run's arguments, exit code and the SHA-1 of both streams;
+    the files under work\\ (count, a digest of the sorted 'path sha256' lines, and one per top folder, so a
+    difference is placed); the day logs' records (digest)."""
+    out: dict = {'runs': [], 'files': {}, 'logs': ''}
+    for row in rows:
+        if row[0] == 'files':
+            files = row[1]
+            lines = sorted(f'{k.replace(os.sep, "/")} {v}' for k, v in files.items())
+            tops: dict[str, list[str]] = {}
+            for ln in lines:
+                tops.setdefault(ln.split('/', 1)[0] if '/' in ln.split(' ', 1)[0] else '.', []).append(ln)
+            out['files'] = {'count': len(lines), 'all': hashlib.sha1('\n'.join(lines).encode()).hexdigest(),
+                            'tops': {t: [len(v), hashlib.sha1('\n'.join(v).encode()).hexdigest()]
+                                     for t, v in sorted(tops.items())}}
+        elif row[0] == 'logs':
+            out['logs'] = hashlib.sha1(row[1].encode('utf-8')).hexdigest()
+        else:
+            r, code, so, se = row
+            out['runs'].append([' '.join(r), code, hashlib.sha1(so).hexdigest(), hashlib.sha1(se).hexdigest()])
+    return out
+
+
+def compare(want: dict, got: dict) -> list[str]:
+    bad = []
+    for a, b in zip(want['runs'], got['runs']):
+        if a != b:
+            bad.append(f'run {a[0]}: exit {a[1]} / {b[1]}, stdout {"same" if a[2] == b[2] else "differs"}, stderr '
+                       f'{"same" if a[3] == b[3] else "differs"}')
+    if len(want['runs']) != len(got['runs']):
+        bad.append(f'{len(want["runs"])} runs recorded, {len(got["runs"])} now')
+    if want['files'] != got['files']:
+        wt, gt = want['files'].get('tops', {}), got['files'].get('tops', {})
+        bad.append(f'files: {want["files"].get("count")} recorded, {got["files"].get("count")} now; folders that '
+                   f'differ: {sorted(t for t in set(wt) | set(gt) if wt.get(t) != gt.get(t))[:8]}')
+    if want['logs'] != got['logs']:
+        bad.append('the day logs\' records differ')
+    return bad
+
+
 def main(argv: list[str]) -> int:
     if '--game' not in argv:
         print('skipped: the prepare proof needs the game copy (--game)')
@@ -96,56 +143,65 @@ def main(argv: list[str]) -> int:
     ref = os.path.abspath(arg(argv, '--ref') or os.environ.get('BFBC2_O2_REF') or SUITE)
     root = os.path.abspath(arg(argv, '--root') or os.path.join(os.environ.get('TEMP', '.'), 'o4prep'))
     levels = (arg(argv, '--levels') or 'sp_009,sp_004_b,mp_005').split(',')
-    if not exe or not os.path.isfile(exe):
+    record = '--record' in argv
+    script = os.path.join(ref, 'rust', 'bc2-editor', 'prepare_level.py')
+    if record and not os.path.isfile(script):
+        print(f'cannot record: {script} is not there (retired in round RT1; --ref a checkout before it)')
+        return 1
+    if not record and (not exe or not os.path.isfile(exe)):
         print('skipped: bfbc2.exe is not built')
         return 0
     runs = [[lv] for lv in levels] + [[lv] for lv in levels] + [[lv, '--terrain-only'] for lv in levels]
-    got: dict[str, list] = {}
-    times: dict[str, list[float]] = {}
+    goldens = {}
+    if os.path.isfile(GOLDEN):
+        with open(GOLDEN, encoding='utf-8') as f:
+            goldens = json.load(f)
+    key = ','.join(levels)
+    if not record and key not in goldens:
+        print(f'FAIL no recorded answers for --levels {key} (recorded: {sorted(goldens)})')
+        return 1
+    side = 'python' if record else 'rust'
+    took: list[float] = []
     try:
-        for side in ('python', 'rust'):
-            remove(root)
-            opfor, lad = stand_in(root, game)
-            env = {k: v for k, v in os.environ.items() if k.upper() not in ('BFBC2_CLI_PYTHON', 'BFBC2_PURE_PYTHON')}
-            env.update(LOCALAPPDATA=lad, BFBC2_CLI_SUITE=ref, BFBC2_CLI_TRACE=os.path.join(root, 'trace.txt'))
-            cmd = ([sys.executable, os.path.join(ref, 'rust', 'bc2-editor', 'prepare_level.py')] if side == 'python'
-                   else [exe, 'prepare_level'])
-            got[side], times[side] = [], []
-            for r in runs:
-                t = time.perf_counter()
-                p = subprocess.run(cmd + r + ['--opfor', opfor], capture_output=True, env=env, cwd=SUITE)
-                times[side].append(time.perf_counter() - t)
-                out = p.stdout.replace(opfor.encode(), b'<root>')
-                got[side].append((r, p.returncode, out, p.stderr.replace(opfor.encode(), b'<root>')))
-                print(f'  {side:6s} {" ".join(r):24s} exit {p.returncode}  {times[side][-1]:7.1f} s', flush=True)
-            got[side].append(('files', tree(os.path.join(opfor, 'work'))))
-            got[side].append(('logs', log_records(lad)))
-            if side == 'rust':
-                with open(os.path.join(root, 'trace.txt'), encoding='utf-8') as f:
-                    who = f.read().split()
-                print(f'  who answered (Rust side): {who.count("rust")} rust, {who.count("python")} python')
-            if side == 'python' and '--keep' not in argv:
-                remove(root)          # the same folder for both sides: the same paths in every output
-        bad = 0
-        for a, b in zip(got['python'], got['rust']):
-            if a != b:
-                bad += 1
-                if a[0] == 'files':
-                    da, db = a[1], b[1]
-                    only = sorted(set(da) ^ set(db))[:5]
-                    diff = sorted(k for k in set(da) & set(db) if da[k] != db[k])[:5]
-                    print(f'FAIL files: {len(da)} / {len(db)}; only one side: {only}; differ: {diff}')
-                elif a[0] == 'logs':
-                    print(f'FAIL logs:\n{a[1][-800:]}\n---\n{b[1][-800:]}')
-                else:
-                    print(f'FAIL {a[0]}: exit {a[1]} / {b[1]}\n{a[2][-600:]!r}\n{b[2][-600:]!r}\n{a[3][-300:]!r}\n{b[3][-300:]!r}')
-        files = got['python'][-2][1]
-        print(f'{"ok  " if not bad else "FAIL"} prepare_level, {len(runs)} runs on {", ".join(levels)}: output, exit codes, '
-              f'{len(files)} files under work\\ (sha256) and the day logs identical both ways '
-              f'(Python {sum(times["python"]):.1f} s, Rust {sum(times["rust"]):.1f} s)')
+        remove(root)
+        opfor, lad = stand_in(root, game)
+        env = {k: v for k, v in os.environ.items() if k.upper() not in ('BFBC2_CLI_PYTHON', 'BFBC2_PURE_PYTHON')}
+        env.update(LOCALAPPDATA=lad, BFBC2_CLI_SUITE=ref, BFBC2_CLI_TRACE=os.path.join(root, 'trace.txt'))
+        cmd = [sys.executable, script] if record else [str(exe), 'prepare_level']
+        rows: list = []
+        for r in runs:
+            t = time.perf_counter()
+            p = subprocess.run(cmd + r + ['--opfor', opfor], capture_output=True, env=env, cwd=SUITE)
+            took.append(time.perf_counter() - t)
+            rows.append((r, p.returncode, p.stdout.replace(opfor.encode(), b'<root>'),
+                         p.stderr.replace(opfor.encode(), b'<root>')))
+            last = (p.stdout.strip().splitlines() or [b''])[-1].decode('utf-8', 'replace')[:200]
+            print(f'  {side:6s} {" ".join(r):24s} exit {p.returncode}  {took[-1]:7.1f} s' +
+                  (f'  ({last})' if p.returncode else ''), flush=True)
+        rows.append(('files', tree(os.path.join(opfor, 'work'))))
+        rows.append(('logs', log_records(lad)))
+        got = summary(rows)
+        if record:
+            goldens[key] = {**got, 'recorded': time.strftime('%Y-%m-%d'), 'by': 'prepare_level.py',
+                            'seconds': [round(x, 1) for x in took]}
+            with open(GOLDEN, 'w', encoding='utf-8', newline='\n') as f:
+                json.dump(goldens, f, indent=1, sort_keys=True)
+                f.write('\n')
+            print(f'recorded {len(runs)} runs and {got["files"]["count"]} files of prepare_level.py into {GOLDEN}')
+            return 0
+        with open(os.path.join(root, 'trace.txt'), encoding='utf-8') as f:
+            who = f.read().split()
+        want = goldens[key]
+        bad = compare(want, got)
+        for b in bad:
+            print(f'FAIL {b}')
+        print(f'{"ok  " if not bad else "FAIL"} bfbc2.exe prepare_level, {len(runs)} runs on {", ".join(levels)}: '
+              f'output, exit codes, {got["files"]["count"]} files under work\\ (sha256) and the day logs as the retired '
+              f'prepare_level.py answered ({want["recorded"]}); answered by Rust {who.count("rust")} of {len(runs)} '
+              f'(Rust {sum(took):.1f} s, the Python {sum(want["seconds"]):.1f} s when recorded)')
         for i, r in enumerate(runs):
-            print(f'     {" ".join(r):24s} Python {times["python"][i]:7.1f} s  Rust {times["rust"][i]:7.1f} s')
-        return 1 if bad else 0
+            print(f'     {" ".join(r):24s} Rust {took[i]:7.1f} s  Python {want["seconds"][i]:7.1f} s (recorded)')
+        return 1 if bad or who.count('rust') != len(runs) else 0
     finally:
         if '--keep' not in argv:
             remove(root)
@@ -153,3 +209,4 @@ def main(argv: list[str]) -> int:
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
+
