@@ -5514,6 +5514,27 @@ digits).
 two O2 rows that recorded it take the new text. `hpdtool.py`'s usage changed with item 3: its six O2 rows likewise.
 O2's nav group: 336 of 336.
 
+### Proof (the whole branch, after main's GR1 / DOC1 / RV1 were merged in)
+
+- **Quick tier** (`run_tests.py quick -j 2`, 129 tests, 6,527 s on a shared machine): 127 of 129; the two failures
+  passed alone. O4's navtools failed only under load (passed alone, 222 of 222, as RT1 saw); O5's nav group showed
+  two `detailed` lines on a cut version-1 sample run ending in `Refused` instead of `struct.error`: `navsample.load`
+  now gives the retired loop's `struct.error` in its own words (`a2c65ca`), 92 of 92.
+- **Game tier of the retired areas** (`test_f3_native.py --game --only=hpd,audio,navsample`, 566 s): path data 144
+  files / 8,858 sectors, 40,032 answers all in Rust, 290 groups as recorded; audio 24,055 answers, 216 groups as
+  recorded, 125 BF1943 Waves through `audio.convert` byte-identical; navsample 173 files (2.1 billion columns, 1.0
+  billion surfaces in 823 ranges), 365 groups as recorded. The forks' game runs of their tests: 0 wrong, 0 not recorded.
+- **Project OPFOR** (unchanged; its in-process imports of the suite pointed at this branch through a toolkit folder
+  of junctions - `bfbc2-tool-suite`, `bf1943-tool-suite`, `operation-rising-sun`, `project-opfor-bfbc2` - with
+  `OPFOR_TOOLKIT` / `OPFOR_ROOT`): `src\tools\tests\run_tests.py` 380 of 380. The WW2 rebuild (`rebuild_all.py
+  --no-qa`): all 52 steps in 30 min, **10,852 of 10,852 files identical** to the oracle (`round0\hashes_rt2.json`);
+  `game\` unchanged (1,582 files, every size and write time).
+- **Checks:** `cargo fmt --check`; `cargo clippy -p bc2-formats -p bc2-py -p bc2-cli --all-features --all-targets -D
+  warnings`; `cargo test -p bc2-formats` (hpdlayout, audioframe) and `-p bc2-cli` (argfmt); ruff; mypy per folder
+  (`tests/test_types.py`); `spec/trace.py --check` (439 rules; citations moved with their code, navsample's retired
+  loops uncited). The grep for every removed function: nothing in the suite, OPFOR's `src\` or `docs\` calls one;
+  the tests reach retired references only through the replay stubs.
+
 ## GR1: the Map Inspector folded into the editor, then retired (2026-11-20, branch `rust-gr1`)
 
 The first round of the user's GUI plan (2026-11-19): the five older GUIs inventoried (feature, in the editor?, plan:
