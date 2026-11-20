@@ -1022,8 +1022,14 @@ def _cf_text(cf: Obj, is_pixel: bool) -> str:
 def disasm(sh: Obj, show_raw: bool = False, show_header: bool = True) -> str:
     """The program as text: the header comments (show_header), then the listing - in the Rust core for a tree
     parse_shader decoded there whose microcode nobody has read (round F3: bc2_native.xenos_disasm_body, the same
-    lines), else in Python (disasm_reference)."""
+    lines), else in Python (disasm_reference). Round F4: for such a tree the header too (bc2_native.xenos_disasm,
+    read from the tree's attributes as _disasm reads them, cf_slots from the program so the microcode stays unread;
+    a value it does not format as % does gives None, and the header is written here)."""
     prog = native_program(sh) if _native is not None and hasattr(_native, 'xenos_disasm_body') else None
+    if prog is not None and hasattr(_native, 'xenos_disasm'):
+        got = _native.xenos_disasm(sh, prog, bool(show_raw), bool(show_header))
+        if got is not None:
+            return str(got)
     return _disasm(sh, show_raw, show_header, prog)
 
 

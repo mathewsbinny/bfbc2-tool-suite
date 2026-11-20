@@ -49,6 +49,12 @@ landed on `main`.
 - **`bfbc2.exe culltree add`** reads the reference levels one at a time: about 80-110 MB instead of 1.65 GB, and
   0.6-0.9 s with a warm cache instead of 7 s. Its row cache is shared with `culltree.py` (either side's warmed cache
   serves both) and is pruned within the cache budget.
+- **The last Python format paths run in the Rust core** (round F4; the same results, the Python kept as the
+  fallback): `audio.convert` / `decode` whole (the ffmpeg glue included; `convert_many` converts side by side
+  without the interpreter's lock), `texqa`'s texture readers (about 9 times faster), NavKit's offline sampler's
+  collision assets (`asset_bodies`, its convex hulls; about 6 times faster), `hkpack.Packfile` as a handle (its
+  dicts built only when read; `read_object` in Rust), `xenos.disasm`'s header (parse and listing about 8 times
+  faster than the Python), `meshview`'s part reader and the cull tree tool's string table.
 
 ## [0.9.0] - 2026-11-19
 

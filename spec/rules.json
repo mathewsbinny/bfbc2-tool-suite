@@ -5745,7 +5745,7 @@
     },
     {
      "kind": "code",
-     "ref": "rust/bc2-cli/src/texqa/decode.rs:369-375"
+     "ref": "rust/bc2-convert/src/texqa.rs:387-393"
     },
     {
      "kind": "test",
