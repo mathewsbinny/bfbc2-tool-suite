@@ -7,9 +7,10 @@ tier's: console_cull.py's add (Onslaught levels' exclusive trees, OPFOR's --keep
 Linux levels and every unpacked stock level of work\levels as references, read in place), verify and info.
 
 LAD_SKIP: culltree.py keeps each reference level's rows in a pickle cache (%LOCALAPPDATA%\bfbc2-tool-suite\cache\
-culltree, with caches.maybe_prune's stamps); bfbc2.exe reads the reference levels again on every run (on all cores)
-and keeps no cache, so that folder is not compared. The cache never changes an answer (rows from it equal the read
-ones); cases run with it on (cold: each case starts with an empty local app data) and off.
+culltree, with caches.maybe_prune's stamps); bfbc2.exe reads and writes the same entries since round CT1, plus its
+own listing entries, and pickles them with protocol 4 rather than 5, so that folder is not compared byte for byte.
+The cache never changes an answer (rows from it equal the read ones); cases run with it on (cold: each case starts
+with an empty local app data) and off.
 """
 from __future__ import annotations
 

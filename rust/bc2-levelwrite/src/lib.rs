@@ -28,6 +28,7 @@
 )]
 
 pub mod awards;
+pub mod cullcache;
 pub mod culltool;
 pub mod culltree;
 pub mod diff;
