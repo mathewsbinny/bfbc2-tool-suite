@@ -420,20 +420,20 @@ pub struct Converted {
     pub fields: Vec<String>,
 }
 
-fn short(t: &str) -> &str {
+pub(crate) fn short(t: &str) -> &str {
     t.rsplit('.').next().unwrap_or(t)
 }
 
-fn guid_of(d: &EditDbx, e: NodeId) -> String {
+pub(crate) fn guid_of(d: &EditDbx, e: NodeId) -> String {
     String::from_utf8_lossy(d.attr(e, b"guid").unwrap_or_default()).to_ascii_uppercase()
 }
 
-fn type_of(d: &EditDbx, e: NodeId) -> String {
+pub(crate) fn type_of(d: &EditDbx, e: NodeId) -> String {
     String::from_utf8_lossy(d.attr(e, b"type").unwrap_or_default()).into_owned()
 }
 
 /// A local reference (`<guid>`, no partition path), upper case.
-fn local_ref(r: &[u8]) -> Option<String> {
+pub(crate) fn local_ref(r: &[u8]) -> Option<String> {
     (r.len() == 36 && !r.contains(&b'/')).then(|| String::from_utf8_lossy(r).to_ascii_uppercase())
 }
 
@@ -661,6 +661,23 @@ pub fn graft(
         .iter()
         .map(|g| (g.clone(), graft_guid(seed, &spec.donor, g)))
         .collect();
+    graft_map(w, donor, &map, out)?;
+    Ok(map)
+}
+
+/// Grafts the donor's instances named by `map` (donor guid -> new guid, upper case) into `w`: each copied with its
+/// new guid and its local references re-pointed (a reference to an instance not in `map` cut and listed), the
+/// donor's event connections between them, their `LevelData.Objects` items, and the donor's voice-over arrays in
+/// place of the level's (round E3d: [`crate::modelayer`]'s mode layers use it too).
+///
+/// # Errors
+/// A new guid is already in the level, or the writer refuses.
+pub fn graft_map(
+    w: &mut LevelWriter,
+    donor: &LevelWriter,
+    map: &HashMap<String, String>,
+    out: &mut Converted,
+) -> Result<()> {
     let part = w.d.partition().ok_or_else(|| refused("no partition element"))?;
     let mut by_type: HashMap<String, usize> = HashMap::new();
     for e in donor.d.instances() {
@@ -673,7 +690,7 @@ pub fn graft(
         *by_type.entry(short(&t).to_owned()).or_default() += 1;
         let c = w.d.copy_from(&donor.d, e);
         w.d.set_attr(c, b"guid", new.as_bytes())?;
-        remap(&mut w.d, c, &map, &mut out.not_followed, short(&t))?;
+        remap(&mut w.d, c, map, &mut out.not_followed, short(&t))?;
         w.d.children_mut(part)?.push(c);
     }
     let level = w.level_data().ok_or_else(|| refused("no LevelData"))?;
@@ -701,7 +718,7 @@ pub fn graft(
             }
             let copy = w.d.copy_from(&donor.d, c);
             let mut ignore = Vec::new();
-            remap(&mut w.d, copy, &map, &mut ignore, "EventConnections")?;
+            remap(&mut w.d, copy, map, &mut ignore, "EventConnections")?;
             w.d.children_mut(target)?.push(copy);
             out.connections_grafted += 1;
         }
@@ -721,13 +738,13 @@ pub fn graft(
     }
     // the mode's voice-over (the announcer's lines): the donor's arrays in place of the campaign's
     for f in [&b"VoiceOvers"[..], b"VoiceOverLines"] {
-        replace_field(w, donor, level, dl, f, &map, out)?;
+        replace_field(w, donor, level, dl, f, map, out)?;
         out.fields.push(String::from_utf8_lossy(f).into_owned());
     }
     let mut v: Vec<(String, usize)> = by_type.into_iter().collect();
     v.sort();
     out.grafted = v;
-    Ok(map)
+    Ok(())
 }
 
 /// The field `name` of `LevelData` replaced by the donor's (references re-pointed by `map`, the rest kept as the

@@ -57,6 +57,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 | Round | Branch | What |
 |---|---|---|
 | P1 | `process-p1` | this file, `CHANGELOG.md` and `VERSION`, `RELEASING.md`, CI on every push and pull request (`.github/workflows/checks.yml`), `run_tests.py quick --no-game` |
+| E3d | `rust-e3d` | the map export for any map, era and mode: the target as project data (`Op::SetMode`), the closure under the target era's bundles, Install / Uninstall in the editor; the canary conversions (`EDITOR_ARCHITECTURE.md` 3.12) |
 
 ## Queued
 

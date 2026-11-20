@@ -402,6 +402,8 @@ pub struct HelpState {
     pub page: Page,
     /// The search.
     pub query: String,
+    /// The open project's target in words (round E3d: the era and mode its panels follow), shown above the pages.
+    pub target: Option<String>,
 }
 
 impl HelpState {
@@ -441,6 +443,10 @@ pub fn window(ctx: &egui::Context, state: &mut HelpState, p: &Palette, m: &Metri
         .collapsible(false)
         .resizable(true)
         .show(ctx, |ui| {
+            if let Some(t) = &state.target {
+                ui.label(RichText::new(t).color(p.ink_muted));
+                ui.add_space(m.space_2);
+            }
             ui.add(
                 egui::TextEdit::singleline(&mut state.query)
                     .hint_text(RichText::new("Search help (fly, bookmark, faction ...)").color(p.ink_faint))
