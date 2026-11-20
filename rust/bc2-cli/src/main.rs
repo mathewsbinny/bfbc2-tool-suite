@@ -13,6 +13,7 @@
 //! bfbc2 navkit|prepare_level|levelobjects|ladders|ordercheck|navcompare|graphstats|hpdcheck|hpdview|detailed|
 //!       navparity|navregress|sample_all|harness|texqa ...
 //!                                             round O4: NavKit's driver and tools, the test harness, texqa
+//! bfbc2 shaderdb|renderqa|xdiff ...          round O5: the shader tools
 //! bfbc2 --source-hash                        the Rust sources' fingerprint it was built from (bfbc2core.native)
 //! ```
 //!
@@ -25,7 +26,7 @@ mod audio;
 #[cfg(feature = "bf1943")]
 mod bf1943;
 // round O3: the caches' overall budget after a bundle read (fbrb._budget), for the ports that read bundles
-#[cfg(any(feature = "graft", feature = "meshview", feature = "bf1943", feature = "caches"))]
+#[cfg(any(feature = "graft", feature = "meshview", feature = "bf1943", feature = "caches", feature = "shader"))]
 // (its marker fields are read only by the caches group, its budget only by the bundle readers: dead code in a group
 // built alone)
 #[cfg_attr(
@@ -128,6 +129,9 @@ mod pyos;
 )]
 mod pyproc;
 mod pystdio;
+// round O5: the shader tools' command lines (shaderdb, renderqa, xdiff)
+#[cfg(feature = "shader")]
+mod shader;
 #[cfg(feature = "stockmp")]
 mod stockmp;
 #[cfg(feature = "texqa")]
@@ -180,6 +184,7 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      navkit, prepare_level, levelobjects, ladders, ordercheck, navcompare ...   NavKit's driver, prepare and tools\n  \
      graphstats, hpdcheck, hpdview, detailed, navparity, navregress, sample_all ...   NavKit's other tools\n  \
      harness, texqa ...   round O4: the map and bot test harness, the texture QA\n  \
+     shaderdb, renderqa, xdiff ...   round O5: the shader tools\n  \
      --source-hash   the Rust sources' fingerprint this binary was built from\n";
 
 /// What one tool's run gave: exit code, stdout, stderr (lines ended by `\n`) and its log lines.
@@ -252,6 +257,9 @@ fn py_tool(name: &str) -> Option<&'static pyproc::Tool> {
         harness::TOOLS,
         #[cfg(feature = "texqa")]
         texqa::TOOLS,
+        // round O5
+        #[cfg(feature = "shader")]
+        shader::TOOLS,
     ];
     groups.iter().flat_map(|g| g.iter()).find(|t| t.name == name)
 }
