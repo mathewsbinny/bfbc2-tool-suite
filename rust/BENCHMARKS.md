@@ -4755,3 +4755,103 @@ suite's own tools. Nothing changes there; a Rust library for texqa (shape B) wou
   `cargo test -p bc2-cli -p bc2-pyrt`; `test_cli_o2.py` (966 of 966), `test_cli_o3.py` (1,220 of 1,220) and
   `test_cli_o4.py` (622 of 622) quick; O4's `--game` (187 real calls, all identical; Rust 185, Python 2) and the
   prepare proof again.
+
+## CT1: culltree add's memory and speed (2026-11-19, branch `rust-ct1`)
+
+OPFOR's round D1f2 measured console_cull's `culltree add` line on the four Onslaught levels: `bfbc2.exe culltree`
+(O3) took 7.6-8.7 s and about **1.65 GB**, against the Python's 7-8 s and 140-200 MB with a warm row cache.
+
+### Where the memory went
+
+O3's `ref_rows` parsed every reference level partition on all cores and kept them all (87 files, 127 MB of DBX, each
+as a whole `Doc` of `El` nodes: a `Vec` for each element's attributes and another for its value), then parsed the
+46 chosen trees the same way and kept them too, before the rows were taken. The rows themselves are a few MB.
+
+### What changed
+
+- **Streamed reference levels** (`culltool::scan_level`): the element stream is walked as `raw::elements` walks it,
+  but only the first root's children are built, one instance at a time, read and dropped. The same objects, tree
+  references and errors as `Level::read` (its order: element errors, then tags, then instances, then the object
+  check). Also used to read the written level back.
+- **Trees without their documents** (`CullTree::read_only`): the `Nodes` array's items become `NodeData` as they
+  are read. The same nodes and errors as `CullTree::read`. Used for the reference trees, the written tree read back,
+  `--client`, verify and info. Only the target tree, which is written, keeps its document; the target's documents
+  are released once written.
+- **Rows only, shared**: each reference level gives only its rows (`collect` of its objects in its tree). An
+  `Instance`'s label and leaves are `Arc`s, so `collect`'s copies (and the second one after `--misplaced`) share
+  them.
+- **At most 8 levels at once** (`PRE_THREADS`): 16 threads cost about 25 MB more and gained no time.
+- **The row cache** (`bc2_levelwrite::cullcache`): culltree.py's own pickles (below).
+- **The listing**: the 37 `--ref-dir` folders are listed together (they were listed one after another). The walk
+  takes each entry's type from the folder listing, with no stat per entry. The level mark is searched in 256 KiB
+  pieces with `memmem` instead of whole files. A **listing entry** per folder keeps each file's listed size, time and
+  answer, so unchanged files are not read again (825 MB were read every run; when the file cache had been evicted by
+  other work, the listing alone took 12-28 s).
+
+### The cache
+
+- **Row entries are culltree.py's `_RowCache` entries**, read and written by both sides. There is one pickle per
+  reference level file, `<sha1(normcase(abspath))[:24]>.pkl`:
+  `{'code', 'path', 'level': (size, st_mtime_ns), 'trees': {tree: {'stat', 'rows' | 'error'}}, 'ref' | 'notlevel'}`.
+  - **The key** is the level file's and its tree's `(size, st_mtime_ns)` and `code`, culltree.py's own id
+    (`CACHE_VERSION` and a SHA-1 of the file). bfbc2.exe computes it from the copy of culltree.py it embeds, so an
+    entry is used only by code that reads the levels as that file does.
+  - **The writer** is protocol 4 (`pickle_write`, which now writes floats); Python reads it as its own.
+  - **Unknown entries:** an entry of another code, or one this reader cannot read, is a miss and is written again.
+- **Extra rows from the Rust:** when the Rust reads a level anyway, it keeps its tree's rows even if another file of
+  the same name and tree size is chosen. A later run then needs no file again.
+- **Listing entries** (`list-<sha1>.pkl`, the Rust's own): `{'kind', 'code', 'folder', 'files': [(path, size,
+  mtime_ns, hit)]}`. A file that cannot be read is never kept: it is read, and raises, every time.
+- **Pruning:** all entries are `.pkl` files of the culltree cache, so `bfbc2core.caches` counts them under
+  `BFBC2_CULLTREE_CACHE_MB` and the overall budget. After a run that wrote, bfbc2.exe runs
+  `caches::maybe_prune("culltree")`, then the overall budget. Entries are marked used as `caches.touch` marks them.
+- **Settings:** `BFBC2_CULLTREE_CACHE=0`, and `BFBC2_CULLTREE_REFERENCE=1`, turn both caches off, as in the Python.
+
+### Proof
+
+console_cull's exact `add` line (`--auto --misplaced 2.0`, the Linux level as `--ref`, every `work\levels` folder as
+`--ref-dir`) ran on each Onslaught level's installed bundle and on its `.opfor-cull-orig` bundle. Both were unpacked
+into scratch; `work\levels` and `work\onslaught\linux_*` were read in place.
+
+Eight ways were compared: Python cold, Python warm, old Rust (O3's `bin\bfbc2.exe`), new Rust cold, new Rust warm,
+new Rust with `BFBC2_CULLTREE_CACHE=0`, new Rust on the Python's cache, and the Python on the Rust's cache. For all 8
+runs of each way, `tree.dbx`, `level.dbx`, stdout (console_cull's `add_report.txt`), stderr and the exit code are
+**identical** (32 of 32 files each).
+
+Times and peaks below are wall time and peak working set. The machine was mostly idle: other rounds' processes were
+open, at 5% load at the start.
+
+| level / bundle | Python cold | Python warm | old Rust | new Rust cold | new Rust warm |
+|---|---:|---:|---:|---:|---:|
+| ons_mp_002 installed | 39.8 s / 621 MB | 8.7 s / 207 MB | 7.7 s / 1,643 MB | 2.9 s / 95 MB | **0.9 s / 78 MB** |
+| ons_mp_002 orig | 30.8 s / 624 MB | 6.1 s / 165 MB | 7.2 s / 1,674 MB | 3.0 s / 96 MB | **0.8 s / 80 MB** |
+| ons_mp_004 installed | 30.4 s / 586 MB | 6.7 s / 177 MB | 7.5 s / 1,665 MB | 2.5 s / 92 MB | **0.6 s / 82 MB** |
+| ons_mp_004 orig | 31.5 s / 584 MB | 6.8 s / 175 MB | 7.3 s / 1,679 MB | 2.5 s / 98 MB | **0.7 s / 81 MB** |
+| ons_mp_005 installed | 39.7 s / 684 MB | 7.0 s / 202 MB | 7.1 s / 1,649 MB | 3.0 s / 109 MB | **0.7 s / 86 MB** |
+| ons_mp_005 orig | 40.3 s / 681 MB | 7.9 s / 194 MB | 7.1 s / 1,651 MB | 4.1 s / 104 MB | **0.8 s / 91 MB** |
+| ons_mp_008 installed | 47.0 s / 584 MB | 6.7 s / 144 MB | 7.1 s / 1,635 MB | 2.9 s / 93 MB | **0.6 s / 81 MB** |
+| ons_mp_008 orig | 41.0 s / 583 MB | 7.0 s / 176 MB | 7.3 s / 1,666 MB | 2.7 s / 95 MB | **0.7 s / 82 MB** |
+
+The other three ways:
+
+- **New Rust with the cache off:** 2.2-5.1 s, 92-101 MB.
+- **New Rust on the Python's cache:** 1.2-3.1 s, 65-83 MB. The first run adds the listing entries and the
+  duplicates' rows.
+- **The Python on the Rust's cache:** 7.7-12.4 s, 131-193 MB. Its own listing is not cached, and the Rust's entries
+  also carry the duplicates' rows.
+
+**Warm, against the old Rust:** about 10x faster (7.3 to 0.7 s) and 20x less memory (1.65 GB to 80-90 MB).
+**Against the Python warm:** about 10x faster and about half the memory. Cold, the new Rust is 2.5-4 s and about
+100 MB.
+
+**Tests:**
+
+- `bc2-levelwrite/tests/culltool_ct1.rs` checks that the streamed readers answer as the whole-document ones, on:
+  - every level partition, tree and description of `work\levels`: 87 levels and 260 other files;
+  - damaged copies of the first of each every sixth folder (cut at 12 places, 12 bytes changed). Each gives the same
+    values, or the same error kind and text.
+- `cullcache`'s round trip, and its code id against Python's formula.
+- `test_cli_o3.py --group cull --live`: 190 of 190 as recorded, and the same 190 both ways live (Rust 184, Python 6,
+  as before).
+- cargo fmt; clippy `-D warnings` on the workspace (all features) and on the cull and caches groups alone; the touched
+  crates' cargo tests.
