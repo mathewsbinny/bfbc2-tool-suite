@@ -48,5 +48,7 @@ pub mod pyfmt;
 pub mod skinmesh;
 pub mod terrain;
 pub mod texcheck;
+pub mod texqa;
 pub mod texture;
 pub mod texwrite;
+pub mod wavport;

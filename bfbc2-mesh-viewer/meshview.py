@@ -350,6 +350,60 @@ def _values(raw, fmt, count):
     return None
 
 
+_PART_NATIVE: list[bool] = []
+
+
+def use_native(on):
+    """load_mesh's part reader in the Rust core (on, when built) or in Python (off) for this process."""
+    _PART_NATIVE[:] = [bool(on)]
+
+
+def _read_part(b, vbase, ibase, wide, p, els, stride, uv):
+    """(indices less their lowest (m, 3) int64, {usage: values}) of one part: its vertex block from its lowest to its
+    highest index, each usage's first element (stream 0; the texture coordinates' element uv for usage 0) as
+    _values reads it. In the Rust core when it is built (round F4: bc2_native.meshview_part), else
+    _read_part_reference; a part it does not take is the Python's."""
+    on = _PART_NATIVE[0] if _PART_NATIVE else os.environ.get('BFBC2_PURE_PYTHON', '') in ('', '0')
+    fn = None
+    if on:
+        from bfbc2core import native
+        m = native.load()
+        fn = getattr(m, 'meshview_part', None) if m is not None else None
+    got = None
+    vals = (vbase, ibase, p['first_index'], p['triangles'], p['vertex_offset'], stride)
+    if fn is not None and type(b) is bytes and all(type(v) is int and 0 <= v < 1 << 63 for v in vals) \
+            and (uv is None or type(uv) is int and uv >= 0) \
+            and all(type(e) is tuple and len(e) == 4 and all(type(x) is int for x in e) and 0 <= e[0] < 1 << 32
+                    and -(1 << 63) <= e[1] < 1 << 63 and 0 <= e[2] < 1 << 63 and -(1 << 63) <= e[3] < 1 << 63
+                    for e in els):
+        got = fn(b, vbase, ibase, bool(wide), p['first_index'], p['triangles'], p['vertex_offset'], list(els), stride,
+                 uv)
+    if got is None:
+        return _read_part_reference(b, vbase, ibase, wide, p, els, stride, uv)
+    _lo, n, cols, idx = got
+    attr = {u: np.frombuffer(v, np.float32).reshape(n, c) for u, (v, c) in cols.items()}
+    return np.frombuffer(idx, np.int64).reshape(-1, 3), attr
+
+
+def _read_part_reference(b, vbase, ibase, wide, p, els, stride, uv):
+    """The Python (the reference)."""
+    isz = 4 if wide else 2
+    idx = np.frombuffer(b, '<u4' if wide else '<u2', p['triangles'] * 3, ibase + p['first_index'] * isz).astype(np.int64)
+    lo, hi = int(idx.min()), int(idx.max())
+    n = hi - lo + 1
+    start = vbase + p['vertex_offset'] + lo * stride
+    block = np.frombuffer(b, np.uint8, n * stride, start).reshape(n, stride)
+    attr = {}
+    for i, (f, usage, off, stream) in enumerate(els):
+        if stream != 0 or f not in SIZE or (usage == 0 and i != uv):
+            continue
+        raw = np.ascontiguousarray(block[:, off:off + SIZE[f]]).tobytes()
+        v = _values(raw, f, n)
+        if v is not None and usage not in attr:
+            attr[usage] = v
+    return (idx - lo).reshape(-1, 3), attr
+
+
 def load_mesh(ix, name, lod=0):
     """[{name, surface, positions (n,3), normals, uvs, indices (m,3), texture name, image}] of the mesh's LOD."""
     data_name = f'{name}_lod{lod}_data.res'
@@ -371,21 +425,8 @@ def load_mesh(ix, name, lod=0):
             print(f'  {pname}: no vertex layout in any level\'s shader database - skipped', file=sys.stderr)
             continue
         els, stride = meshdata.elements(rec)
-        isz = 4 if wide else 2
-        idx = np.frombuffer(b, '<u4' if wide else '<u2', p['triangles'] * 3, ibase + p['first_index'] * isz).astype(np.int64)
-        lo, hi = int(idx.min()), int(idx.max())
-        n = hi - lo + 1
-        start = vbase + p['vertex_offset'] + lo * stride
-        block = np.frombuffer(b, np.uint8, n * stride, start).reshape(n, stride)
-        attr = {}
         uv = meshdata.texcoord_element(els)                 # not simply the first usage-0 element (soldiers)
-        for i, (f, usage, off, stream) in enumerate(els):
-            if stream != 0 or f not in SIZE or (usage == 0 and i != uv):
-                continue
-            raw = np.ascontiguousarray(block[:, off:off + SIZE[f]]).tobytes()
-            v = _values(raw, f, n)
-            if v is not None and usage not in attr:
-                attr[usage] = v
+        indices, attr = _read_part(b, vbase, ibase, wide, p, els, stride, uv)
         if 1 not in attr:
             print(f'  {pname}: no position element - skipped', file=sys.stderr)
             continue
@@ -394,7 +435,7 @@ def load_mesh(ix, name, lod=0):
         out.append({'name': pname, 'surface': surf, 'positions': attr[1][:, :3].astype(np.float32),
                     'normals': attr[4][:, :3].astype(np.float32) if 4 in attr else None,
                     'uvs': attr[0][:, :2].astype(np.float32) if 0 in attr else None,
-                    'indices': (idx - lo).reshape(-1, 3), 'texture': tname, 'image': img})
+                    'indices': indices, 'texture': tname, 'image': img})
     return out
 
 

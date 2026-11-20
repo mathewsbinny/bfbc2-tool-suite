@@ -118,7 +118,7 @@ A resource in an async on-demand bundle is stored behind a 64-byte header:
 
 In DICE's bundles the bundle entry's size2 is the inner length too (FBRB-ENT-5, FBRB-LAY-4).
 
-Evidence: [code: rust/bc2-levelwrite/src/awards.rs:41-55] [code: rust/bc2-cli/src/texqa/decode.rs:369-375] [test: rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form] [test: rust/bc2-editor/src/catalog.rs::a_texture_decoded] [data: 1,403 wrapped entries: all version 2, the type name equal to the entry type and zero-padded, both length words equal to size - 64; 1,293 of them (all of DICE's) with size2 = size - 64]
+Evidence: [code: rust/bc2-levelwrite/src/awards.rs:41-55] [code: rust/bc2-convert/src/texqa.rs:387-393] [test: rust/bc2-levelwrite/src/awards.rs::pictures_in_a_template_form] [test: rust/bc2-editor/src/catalog.rs::a_texture_decoded] [data: 1,403 wrapped entries: all version 2, the type name equal to the entry type and zero-padded, both length words equal to size - 64; 1,293 of them (all of DICE's) with size2 = size - 64]
 
 ### RES-WRAP-2: Only the async on-demand bundles wrap
 
