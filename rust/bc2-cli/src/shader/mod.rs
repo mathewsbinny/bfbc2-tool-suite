@@ -6,6 +6,17 @@
 //!   run that draws (Direct3D 11 through `shaderview.exe`, NumPy's measures, Pillow's sheets, `xenos_exec.py`'s
 //!   interpreter) is handed to the Python.
 
+// ports of Python functions kept in the reference's shape: its single-letter names, its long functions (argparse's
+// loop, Merger.add_donor, the subcommands' bodies), its tuples of records; extensions compared on names already
+// lower-cased
+#![allow(
+    clippy::many_single_char_names,
+    clippy::too_many_lines,
+    clippy::type_complexity,
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "a port of Python: the reference's names, shapes and lower-cased comparisons kept"
+)]
+
 use crate::pyproc::Tool;
 
 // argparse's loop over the arguments by index (lengths checked before each index)

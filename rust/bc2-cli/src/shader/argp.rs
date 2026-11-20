@@ -95,10 +95,6 @@ impl Args {
     pub fn flag(&self, name: &str) -> bool {
         self.flags.get(name).copied().unwrap_or(false)
     }
-
-    pub fn has(&self, name: &str) -> bool {
-        self.values.contains_key(name)
-    }
 }
 
 /// The outcome of a parse.
@@ -165,7 +161,12 @@ fn py_float(v: &str) -> Option<Result<f64, ()>> {
     let special = ["inf", "infinity", "nan"]
         .iter()
         .any(|s| low.trim_start_matches(['-', '+']) == *s);
-    if v.is_ascii() && !special && !v.bytes().any(|c| c.is_ascii_digit() || c.is_ascii_whitespace() || c == b'.') {
+    if v.is_ascii()
+        && !special
+        && !v
+            .bytes()
+            .any(|c| c.is_ascii_digit() || c.is_ascii_whitespace() || c == b'.')
+    {
         return Some(Err(()));
     }
     None
@@ -189,24 +190,25 @@ fn convert(ty: Ty, name: &str, v: &str) -> Result<Result<(), String>, Fail> {
     }
 }
 
-/// `argument X: invalid choice: 'v' (choose from 'a', 'b')`, or for int choices the numbers bare.
+/// `argument X: invalid choice: 'v' (choose from 'a', 'b')`; int choices too (the reprs of their `str()`).
 fn check_choice(name: &str, v: &str, choices: &[&str], ty: Ty) -> Option<String> {
     if choices.is_empty() {
         return None;
     }
     let (shown, ok): (String, bool) = if ty == Ty::Int {
         let n = v.parse::<i64>().ok()?;
-        (n.to_string(), choices.iter().any(|c| c.parse::<i64>().ok() == Some(n)))
+        (
+            str_repr(&n.to_string()),
+            choices.iter().any(|c| c.parse::<i64>().ok() == Some(n)),
+        )
     } else {
         (str_repr(v), choices.contains(&v))
     };
     if ok {
         return None;
     }
-    let list: Vec<String> = choices
-        .iter()
-        .map(|c| if ty == Ty::Int { (*c).to_owned() } else { str_repr(c) })
-        .collect();
+    // Python 3.13's argparse: the value and every choice as the repr of their str()
+    let list: Vec<String> = choices.iter().map(|c| str_repr(c)).collect();
     Some(format!(
         "argument {name}: invalid choice: {shown} (choose from {})",
         list.join(", ")
@@ -252,7 +254,10 @@ fn match_run(pos: &[Pos], n: usize) -> (Vec<usize>, usize) {
 
 /// `parser.parse_args(argv)` (or, with `sub`, the main parser up to its subcommand: `Args` holds the options before
 /// it, the subcommand under the positional's name, and `rest` the arguments after it).
-#[allow(clippy::too_many_lines, reason = "argparse's loop over options and the run of values, kept in one piece")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "argparse's loop over options and the run of values, kept in one piece"
+)]
 pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec<String>) -> PyResult<Parsed> {
     if !width_ported() {
         return Err(Fail::Python);
@@ -274,7 +279,11 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
                 return Err(Fail::Python); // a second run of values: argparse's rules across options
             }
             had_run = true;
-            if after_option && p.pos.get(pos_done).is_some_and(|q| matches!(q.nargs, Nargs::Star | Nargs::Optional)) {
+            if after_option
+                && p.pos
+                    .get(pos_done)
+                    .is_some_and(|q| matches!(q.nargs, Nargs::Star | Nargs::Optional))
+            {
                 return Err(Fail::Python); // an empty match at the option before it may have taken the positional
             }
             let mut n = 0;
@@ -346,8 +355,7 @@ pub fn parse(py: &mut Py, p: &Parser, argv: &[String], sub: bool, rest: &mut Vec
             if !a.starts_with("--") || inline.is_some() {
                 return Err(Fail::Python); // single-dash forms and --x=v: argparse's own
             }
-            if p
-                .opts
+            if p.opts
                 .iter()
                 .flat_map(|o| o.strings.iter())
                 .chain(["--help"].iter())
