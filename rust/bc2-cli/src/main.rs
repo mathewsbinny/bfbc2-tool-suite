@@ -26,7 +26,13 @@ mod audio;
 #[cfg(feature = "bf1943")]
 mod bf1943;
 // round O3: the caches' overall budget after a bundle read (fbrb._budget), for the ports that read bundles
-#[cfg(any(feature = "graft", feature = "meshview", feature = "bf1943", feature = "caches", feature = "shader"))]
+#[cfg(any(
+    feature = "graft",
+    feature = "meshview",
+    feature = "bf1943",
+    feature = "caches",
+    feature = "shader"
+))]
 // (its marker fields are read only by the caches group, its budget only by the bundle readers: dead code in a group
 // built alone)
 #[cfg_attr(

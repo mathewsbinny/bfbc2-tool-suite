@@ -25,7 +25,16 @@ const SOURCE: &str = include_str!("../../../../bfbc2-shader-tools/shaderdb.py");
 
 // ------------------------------------------------------------------------------------------- the parsers
 
-const COMMANDS: &[&str] = &["info", "list", "textures", "merge", "cover", "roundtrip", "find", "needs"];
+const COMMANDS: &[&str] = &[
+    "info",
+    "list",
+    "textures",
+    "merge",
+    "cover",
+    "roundtrip",
+    "find",
+    "needs",
+];
 const MAIN_USAGE: &str = "usage: shaderdb.py [-h] [--dx {9,10,11}] [--opfor OPFOR]\n                   \
                           {info,list,textures,merge,cover,roundtrip,find,needs} ...\n";
 
@@ -77,99 +86,131 @@ const MAIN_POS: &[Pos] = &[Pos {
 /// A subcommand's parser (its usage and help as `argparse` prints them).
 fn sub_parser(cmd: &str) -> Option<Parser> {
     Some(match cmd {
-        "info" => Parser {
-            prog: "shaderdb.py info",
-            usage: "usage: shaderdb.py info [-h] res\n",
-            help: "usage: shaderdb.py info [-h] res\n\npositional arguments:\n  res\n\noptions:\n  -h, --help  show \
+        "info" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py info",
+                    usage: "usage: shaderdb.py info [-h] res\n",
+                    help: "usage: shaderdb.py info [-h] res\n\npositional arguments:\n  res\n\noptions:\n  -h, --help  show \
                    this help message and exit\n",
-            opts: &[],
-            pos: &[pos("res", Nargs::One)],
-            order: &[Ok(0)],
-        },
-        "list" => Parser {
-            prog: "shaderdb.py list",
-            usage: "usage: shaderdb.py list [-h] [--parts] res [filter]\n",
-            help: "usage: shaderdb.py list [-h] [--parts] res [filter]\n\npositional arguments:\n  res\n  filter\n\n\
+                    opts: &[],
+                    pos: &[pos("res", Nargs::One)],
+                    order: &[Ok(0)],
+                }
+            }
+        }
+        "list" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py list",
+                    usage: "usage: shaderdb.py list [-h] [--parts] res [filter]\n",
+                    help: "usage: shaderdb.py list [-h] [--parts] res [filter]\n\npositional arguments:\n  res\n  filter\n\n\
                    options:\n  -h, --help  show this help message and exit\n  --parts\n",
-            opts: &[opt(&["--parts"], Kind::Flag)],
-            pos: &[pos("res", Nargs::One), pos("filter", Nargs::Optional)],
-            order: &[Ok(0), Ok(1), Err(0)],
-        },
-        "textures" => Parser {
-            prog: "shaderdb.py textures",
-            usage: "usage: shaderdb.py textures [-h] [--constants] res [filter]\n",
-            help: "usage: shaderdb.py textures [-h] [--constants] res [filter]\n\npositional arguments:\n  res\n  \
+                    opts: &[opt(&["--parts"], Kind::Flag)],
+                    pos: &[pos("res", Nargs::One), pos("filter", Nargs::Optional)],
+                    order: &[Ok(0), Ok(1), Err(0)],
+                }
+            }
+        }
+        "textures" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py textures",
+                    usage: "usage: shaderdb.py textures [-h] [--constants] res [filter]\n",
+                    help: "usage: shaderdb.py textures [-h] [--constants] res [filter]\n\npositional arguments:\n  res\n  \
                    filter\n\noptions:\n  -h, --help   show this help message and exit\n  --constants  also the named \
                    constants and their values\n",
-            opts: &[opt(&["--constants"], Kind::Flag)],
-            pos: &[pos("res", Nargs::One), pos("filter", Nargs::Optional)],
-            order: &[Ok(0), Ok(1), Err(0)],
-        },
-        "merge" => Parser {
-            prog: "shaderdb.py merge",
-            usage: "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\n                         base \
+                    opts: &[opt(&["--constants"], Kind::Flag)],
+                    pos: &[pos("res", Nargs::One), pos("filter", Nargs::Optional)],
+                    order: &[Ok(0), Ok(1), Err(0)],
+                }
+            }
+        }
+        "merge" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py merge",
+                    usage: "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\n                         base \
                     donors [donors ...]\n",
-            help: "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\n                         base \
+                    help: "usage: shaderdb.py merge [-h] --need NEED -o OUT [--all-names]\n                         base \
                    donors [donors ...]\n\npositional arguments:\n  base\n  donors\n\noptions:\n  -h, --help     show \
                    this help message and exit\n  --need NEED\n  -o, --out OUT\n  --all-names    also add donor entry \
                    names for meshes the base already has\n                 (other shader sets)\n",
-            opts: &[
-                Opt {
-                    strings: &["--need"],
-                    kind: Kind::Store,
-                    ty: Ty::Str,
-                    choices: &[],
-                    required: true,
-                },
-                Opt {
-                    strings: &["-o", "--out"],
-                    kind: Kind::Store,
-                    ty: Ty::Str,
-                    choices: &[],
-                    required: true,
-                },
-                opt(&["--all-names"], Kind::Flag),
-            ],
-            pos: &[pos("base", Nargs::One), pos("donors", Nargs::Plus)],
-            order: &[Ok(0), Ok(1), Err(0), Err(1), Err(2)],
-        },
-        "cover" => Parser {
-            prog: "shaderdb.py cover",
-            usage: "usage: shaderdb.py cover [-h] [--all] res level\n",
-            help: "usage: shaderdb.py cover [-h] [--all] res level\n\npositional arguments:\n  res\n  level\n\n\
+                    opts: &[
+                        Opt {
+                            strings: &["--need"],
+                            kind: Kind::Store,
+                            ty: Ty::Str,
+                            choices: &[],
+                            required: true,
+                        },
+                        Opt {
+                            strings: &["-o", "--out"],
+                            kind: Kind::Store,
+                            ty: Ty::Str,
+                            choices: &[],
+                            required: true,
+                        },
+                        opt(&["--all-names"], Kind::Flag),
+                    ],
+                    pos: &[pos("base", Nargs::One), pos("donors", Nargs::Plus)],
+                    order: &[Ok(0), Ok(1), Err(0), Err(1), Err(2)],
+                }
+            }
+        }
+        "cover" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py cover",
+                    usage: "usage: shaderdb.py cover [-h] [--all] res level\n",
+                    help: "usage: shaderdb.py cover [-h] [--all] res level\n\npositional arguments:\n  res\n  level\n\n\
                    options:\n  -h, --help  show this help message and exit\n  --all\n",
-            opts: &[opt(&["--all"], Kind::Flag)],
-            pos: &[pos("res", Nargs::One), pos("level", Nargs::One)],
-            order: &[Ok(0), Ok(1), Err(0)],
-        },
-        "roundtrip" => Parser {
-            prog: "shaderdb.py roundtrip",
-            usage: "usage: shaderdb.py roundtrip [-h] [--levels] [res ...]\n",
-            help: "usage: shaderdb.py roundtrip [-h] [--levels] [res ...]\n\npositional arguments:\n  res\n\n\
+                    opts: &[opt(&["--all"], Kind::Flag)],
+                    pos: &[pos("res", Nargs::One), pos("level", Nargs::One)],
+                    order: &[Ok(0), Ok(1), Err(0)],
+                }
+            }
+        }
+        "roundtrip" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py roundtrip",
+                    usage: "usage: shaderdb.py roundtrip [-h] [--levels] [res ...]\n",
+                    help: "usage: shaderdb.py roundtrip [-h] [--levels] [res ...]\n\npositional arguments:\n  res\n\n\
                    options:\n  -h, --help  show this help message and exit\n  --levels    every shader database of the \
                    game copy's level bundles\n",
-            opts: &[opt(&["--levels"], Kind::Flag)],
-            pos: &[pos("res", Nargs::Star)],
-            order: &[Ok(0), Err(0)],
-        },
-        "find" => Parser {
-            prog: "shaderdb.py find",
-            usage: "usage: shaderdb.py find [-h] [--base BASE] need\n",
-            help: "usage: shaderdb.py find [-h] [--base BASE] need\n\npositional arguments:\n  need\n\noptions:\n  -h, \
+                    opts: &[opt(&["--levels"], Kind::Flag)],
+                    pos: &[pos("res", Nargs::Star)],
+                    order: &[Ok(0), Err(0)],
+                }
+            }
+        }
+        "find" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py find",
+                    usage: "usage: shaderdb.py find [-h] [--base BASE] need\n",
+                    help: "usage: shaderdb.py find [-h] [--base BASE] need\n\npositional arguments:\n  need\n\noptions:\n  -h, \
                    --help   show this help message and exit\n  --base BASE\n",
-            opts: &[opt(&["--base"], Kind::Store)],
-            pos: &[pos("need", Nargs::One)],
-            order: &[Ok(0), Err(0)],
-        },
-        "needs" => Parser {
-            prog: "shaderdb.py needs",
-            usage: "usage: shaderdb.py needs [-h] [-o OUT] level\n",
-            help: "usage: shaderdb.py needs [-h] [-o OUT] level\n\npositional arguments:\n  level\n\noptions:\n  -h, \
+                    opts: &[opt(&["--base"], Kind::Store)],
+                    pos: &[pos("need", Nargs::One)],
+                    order: &[Ok(0), Err(0)],
+                }
+            }
+        }
+        "needs" => {
+            const {
+                Parser {
+                    prog: "shaderdb.py needs",
+                    usage: "usage: shaderdb.py needs [-h] [-o OUT] level\n",
+                    help: "usage: shaderdb.py needs [-h] [-o OUT] level\n\npositional arguments:\n  level\n\noptions:\n  -h, \
                    --help     show this help message and exit\n  -o, --out OUT\n",
-            opts: &[opt(&["-o", "--out"], Kind::Store)],
-            pos: &[pos("level", Nargs::One)],
-            order: &[Ok(0), Err(0)],
-        },
+                    opts: &[opt(&["-o", "--out"], Kind::Store)],
+                    pos: &[pos("level", Nargs::One)],
+                    order: &[Ok(0), Err(0)],
+                }
+            }
+        }
         _ => return None,
     })
 }
@@ -356,7 +397,11 @@ impl Loaded {
 
     /// `db.platform`
     pub fn platform(&self) -> String {
-        if self.big { "Xbox 360".into() } else { format!("Dx{}", self.dx) }
+        if self.big {
+            "Xbox 360".into()
+        } else {
+            format!("Dx{}", self.dx)
+        }
     }
 }
 
@@ -452,9 +497,7 @@ fn resolve(spec: &str, dx: Option<u32>, opfor: Option<&str>) -> PyResult<(Vec<u8
         return Err(not_found("No such file", &bundle));
     }
     let entry = entry.filter(|e| !e.is_empty());
-    let dx = dx
-        .or_else(|| dx_from_name(entry.as_deref().unwrap_or("")))
-        .unwrap_or(9);
+    let dx = dx.or_else(|| dx_from_name(entry.as_deref().unwrap_or(""))).unwrap_or(9);
     let name = pick_database(&bundle, dx, entry.as_deref())?;
     let data = fbrb::read_path(&bundle, &[name.to_ascii_lowercase()])
         .map_err(|_| Fail::Python)?
@@ -482,7 +525,9 @@ pub fn load(spec: &str, dx: Option<u32>, opfor: Option<&str>) -> PyResult<Loaded
 /// `ShaderDb.program_refs(i)` (a short record: the reference's `struct.error`, handed off).
 pub fn program_refs(db: &ShaderDb<'_>, i: usize) -> PyResult<[usize; 4]> {
     let p = db.programs.get(i).ok_or(Fail::Python)?;
-    Ok(query::program_refs(p, db.big_endian).ok_or(Fail::Python)?.map(|x| x as usize))
+    Ok(query::program_refs(p, db.big_endian)
+        .ok_or(Fail::Python)?
+        .map(|x| x as usize))
 }
 
 /// `ShaderDb.entry_programs()`: {entry GUID: program indices}, the last group of a GUID kept.
@@ -525,7 +570,10 @@ pub fn coverage(db: &ShaderDb<'_>, meshes: &[String]) -> Vec<u32> {
     let keyed: Vec<Vec<u8>> = bytes
         .iter()
         .enumerate()
-        .map(|(i, b)| b.clone().unwrap_or_else(|| format!("\u{0}{i}\u{0}not latin-1").into_bytes()))
+        .map(|(i, b)| {
+            b.clone()
+                .unwrap_or_else(|| format!("\u{0}{i}\u{0}not latin-1").into_bytes())
+        })
         .collect();
     let (mut c, at) = Coverage::new(keyed.iter().map(Vec::as_slice));
     for e in &db.entries {
@@ -820,7 +868,7 @@ fn cmd_info(py: &mut Py, res: &str, dx: Option<u32>, opfor: Option<&str>) -> PyR
     for p in &problems {
         py.print(&format!("    {p}"))?;
     }
-    Ok(if same && problems.is_empty() { 0 } else { 1 })
+    Ok(i32::from(!(same && problems.is_empty())))
 }
 
 /// The filter's lower case, as latin-1 bytes (a filter with a character no latin-1 name can hold matches nothing:
@@ -834,7 +882,14 @@ fn contains(hay: &[u8], needle: &[u8]) -> bool {
     needle.is_empty() || hay.windows(needle.len()).any(|w| w == needle)
 }
 
-fn cmd_list(py: &mut Py, res: &str, filter: Option<&str>, parts: bool, dx: Option<u32>, opfor: Option<&str>) -> PyResult<i32> {
+fn cmd_list(
+    py: &mut Py,
+    res: &str,
+    filter: Option<&str>,
+    parts: bool,
+    dx: Option<u32>,
+    opfor: Option<&str>,
+) -> PyResult<i32> {
     let l = load(res, dx, opfor)?;
     let db = l.db()?;
     let flt = filter_bytes(filter)?;
@@ -878,7 +933,11 @@ fn cmd_list(py: &mut Py, res: &str, filter: Option<&str>, parts: bool, dx: Optio
     py.print(&format!("{:>8} {:>9}  mesh  |  shader", "programs", "bytes"))?;
     for (mesh, shader, n, size) in &rows {
         let m = if mesh.is_empty() { "-".to_owned() } else { latin(mesh) };
-        py.print(&format!("{n:8} {:>9}  {m}  |  {}", thousands(*size as i128), latin(shader)))?;
+        py.print(&format!(
+            "{n:8} {:>9}  {m}  |  {}",
+            thousands(*size as i128),
+            latin(shader)
+        ))?;
     }
     let distinct: HashSet<Vec<u8>> = rows
         .iter()
@@ -909,7 +968,14 @@ enum Seen {
     Engine(Vec<u8>, u16),
 }
 
-fn cmd_textures(py: &mut Py, res: &str, filter: Option<&str>, constants: bool, dx: Option<u32>, opfor: Option<&str>) -> PyResult<i32> {
+fn cmd_textures(
+    py: &mut Py,
+    res: &str,
+    filter: Option<&str>,
+    constants: bool,
+    dx: Option<u32>,
+    opfor: Option<&str>,
+) -> PyResult<i32> {
     let l = load(res, dx, opfor)?;
     let db = l.db()?;
     let flt = filter_bytes(filter)?;
@@ -928,8 +994,16 @@ fn cmd_textures(py: &mut Py, res: &str, filter: Option<&str>, constants: bool, d
         n += 1;
         py.print(&latin(&e.name))?;
         for t in &tex[last[&*e.name]] {
-            let kind = if t.cube != 0 { "cube map" } else { query::texture_kind(t.name) };
-            let shown = if kind.is_empty() { String::new() } else { format!("   [{kind}]") };
+            let kind = if t.cube != 0 {
+                "cube map"
+            } else {
+                query::texture_kind(t.name)
+            };
+            let shown = if kind.is_empty() {
+                String::new()
+            } else {
+                format!("   [{kind}]")
+            };
             py.print(&format!("    s{:<2}  {}{shown}", t.sampler, latin(t.name)))?;
         }
         if constants {
@@ -1086,7 +1160,12 @@ fn cmd_find(py: &mut Py, need: &str, base: Option<&str>, dx: Option<u32>, opfor:
         let l = load(base, Some(dx), opfor)?;
         let db = l.db()?;
         let cover = coverage(&db, &need);
-        let skip: HashSet<&String> = need.iter().zip(&cover).filter(|(_, n)| **n > 0).map(|(m, _)| m).collect();
+        let skip: HashSet<&String> = need
+            .iter()
+            .zip(&cover)
+            .filter(|(_, n)| **n > 0)
+            .map(|(m, _)| m)
+            .collect();
         let skip: HashSet<String> = skip.into_iter().cloned().collect();
         need.retain(|m| !skip.contains(m));
         py.print(&format!(
@@ -1123,7 +1202,11 @@ fn cmd_find(py: &mut Py, need: &str, base: Option<&str>, dx: Option<u32>, opfor:
     keys.sort();
     for m in &keys {
         let h = &have[m];
-        let shown = if h.is_empty() { "NO LEVEL HAS IT".to_owned() } else { h.join(", ") };
+        let shown = if h.is_empty() {
+            "NO LEVEL HAS IT".to_owned()
+        } else {
+            h.join(", ")
+        };
         py.print(&format!("{m}: {shown}"))?;
     }
     Ok(0)
@@ -1158,7 +1241,10 @@ pub fn run(py: &mut Py, argv: &[String]) -> PyResult<i32> {
         Parsed::Args(a) => a,
         Parsed::Exit(c) => return Ok(c),
     };
-    let dx: Option<u32> = top.one("--dx").map(|v| v.parse::<u32>().map_err(|_| Fail::Python)).transpose()?;
+    let dx: Option<u32> = top
+        .one("--dx")
+        .map(|v| v.parse::<u32>().map_err(|_| Fail::Python))
+        .transpose()?;
     let opfor = top.one("--opfor").map(str::to_owned);
     let opfor = opfor.as_deref();
     let one = |k: &str| a.one(k).map(str::to_owned).ok_or(Fail::Python);

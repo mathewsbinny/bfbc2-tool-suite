@@ -75,7 +75,11 @@ fn kind_of(l: &Loaded, db: &ShaderDb<'_>) -> Kind {
 }
 
 fn platform(k: &Kind) -> String {
-    if k.big { "Xbox 360".into() } else { format!("Dx{}", k.dx) }
+    if k.big {
+        "Xbox 360".into()
+    } else {
+        format!("Dx{}", k.dx)
+    }
 }
 
 /// `Merger(base, need, all_names)` and its state.
@@ -107,7 +111,7 @@ struct Merger<'a> {
     new_programs: Vec<(Vec<u8>, &'a [u8])>,
 }
 
-fn first_index<'a, T: std::hash::Hash + Eq + Copy>(items: impl Iterator<Item = T>) -> HashMap<T, usize> {
+fn first_index<T: std::hash::Hash + Eq + Copy>(items: impl Iterator<Item = T>) -> HashMap<T, usize> {
     let mut ix = HashMap::new();
     for (i, it) in items.enumerate() {
         ix.entry(it).or_insert(i);
@@ -197,7 +201,11 @@ impl<'a> Merger<'a> {
             regs: u32::try_from(regs).map_err(|_| Fail::Python)?,
             tail: s.tail,
         };
-        let (lst, ix) = if vs { (&mut o.vs, &mut self.vs_ix) } else { (&mut o.ps, &mut self.ps_ix) };
+        let (lst, ix) = if vs {
+            (&mut o.vs, &mut self.vs_ix)
+        } else {
+            (&mut o.ps, &mut self.ps_ix)
+        };
         let i = lst.len();
         ix.insert(key, i);
         lst.push(new);
@@ -223,7 +231,9 @@ impl<'a> Merger<'a> {
             return Ok(());
         }
         let Some(r) = layouts.get(lg) else {
-            return Err(shader_error(format!("{label}: a vertex layout it uses is not in the file")));
+            return Err(shader_error(format!(
+                "{label}: a vertex layout it uses is not in the file"
+            )));
         };
         self.out.layouts.push(r);
         self.lay_g.insert(lg);
@@ -258,8 +268,8 @@ impl<'a> Merger<'a> {
             let mut progs = Vec::new();
             for &pi in groups.get(e.guid).copied().unwrap_or_default() {
                 let pi = usize::from(pi);
-                let prog: &'a [u8] = *donor.programs.get(pi).ok_or(Fail::Python)?;
-                let key: &'a [u8] = *donor.keys.get(pi).ok_or(Fail::Python)?;
+                let prog: &'a [u8] = donor.programs.get(pi).ok_or(Fail::Python)?;
+                let key: &'a [u8] = donor.keys.get(pi).ok_or(Fail::Python)?;
                 let pg = field(prog, 0, 16);
                 if let Some(&r) = self.prog_ix.get(pg) {
                     if self.prog_body.get(pg) == Some(&(field(prog, 0, 0x20), key)) {
@@ -333,7 +343,8 @@ impl<'a> Merger<'a> {
             self.part_names.insert(p.name.to_vec(), p.guid);
             parts += 1;
         }
-        self.report.push(format!("{label}: {took} entries, {parts} mesh-part names"));
+        self.report
+            .push(format!("{label}: {took} entries, {parts} mesh-part names"));
         Ok(())
     }
 
@@ -401,7 +412,10 @@ impl<'a> Merger<'a> {
 /// `entry_contents(db, names)`: {entry name: its programs by content}, each program one byte string (the record up
 /// to its indices, the key, both shaders with their tables, both parameter blocks; lengths first, so no two differ
 /// and read the same), in the entries' order (a name twice: its last entry, at its first place).
-fn entry_contents(db: &ShaderDb<'_>, names: Option<&HashSet<Vec<u8>>>) -> PyResult<(Vec<Vec<u8>>, HashMap<Vec<u8>, BTreeSet<Vec<u8>>>)> {
+fn entry_contents(
+    db: &ShaderDb<'_>,
+    names: Option<&HashSet<Vec<u8>>>,
+) -> PyResult<(Vec<Vec<u8>>, HashMap<Vec<u8>, BTreeSet<Vec<u8>>>)> {
     let progs = entry_programs(db);
     let mut order = Vec::new();
     let mut out: HashMap<Vec<u8>, BTreeSet<Vec<u8>>> = HashMap::new();
@@ -518,7 +532,11 @@ pub fn cmd_merge(py: &mut Py, a: &MergeArgs) -> PyResult<i32> {
     let parse_dx = if base_l.dx == 11 { 10 } else { base_l.dx };
     let (again_dx, again_big) = parse_kind(&out, Some(parse_dx), "the merged file")?;
     let again = shaderdb::parse(&out, again_dx, again_big).map_err(|_| Fail::Python)?;
-    let donors: Vec<(&ShaderDb<'_>, &str)> = donor_dbs.iter().zip(&donors_l).map(|(d, l)| (d, l.label.as_str())).collect();
+    let donors: Vec<(&ShaderDb<'_>, &str)> = donor_dbs
+        .iter()
+        .zip(&donors_l)
+        .map(|(d, l)| (d, l.label.as_str()))
+        .collect();
     let mut problems = check(&again)?;
     problems.extend(verify_merge(&again, &base_c, &donors, &m.added)?);
     if shaderdb::write(&again) != out || !problems.is_empty() {
