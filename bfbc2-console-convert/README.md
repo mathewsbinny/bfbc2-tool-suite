@@ -11,6 +11,12 @@ python convert.py texture <console.res> <out.res>
 python convert.py verify-texture <pc folder> <console folder>... [--report <file>]
 ```
 
+Needs Python 3.12+ and the suite's Rust core: texture, mesh, Havok and sound conversion run only there since
+2026-11-17 / 18 (their Python retired); the other readers keep their Python as the fallback. Without Python:
+`bin\bfbc2.exe convert ...`, `bin\bfbc2.exe audio ...` and `bin\bfbc2.exe texqa ...` (the suite's `bin\`, rounds O2 -
+O4) take the same arguments and give the same output, files and exit codes; damaged input and texqa's contact sheets
+(PIL) are handed to the Python (the suite's README, "bfbc2.exe").
+
 | Resource | Status | Checked by |
 |---|---|---|
 | HavokPhysicsData (physics) | done | all 400 shared console / PC files equivalent (FORMAT.md 1.3) |
@@ -106,7 +112,10 @@ Outputs: `texqa.json`, `texqa.txt` (flagged textures, worst first) and `sheets\w
 difference x 4 | alpha). `--cache` skips unchanged textures (sha1 of ours, the source's and DICE's identities);
 `--write-baseline` / `--baseline` turn it into a regression check (a new error flag or a PSNR drop over the
 threshold: exit code 1). The Xbox decoder untiles every block of a level at once (texture.layout / texture.tiled on
-arrays): `tests\test_texqa.py` proves it against `texture.convert` on synthetic textures (quick tier).
+arrays): `tests\test_texqa.py` proves it against `texture.convert` on synthetic textures (quick tier). Since round
+F4 (2026-11-20) texqa's texture readers run in the Rust core (about 9 times faster; OPFOR's WW2 texture QA 212 s ->
+134 s), the Python kept as the fallback; `--workers N` (`BFBC2_TEXQA_WORKERS`) analyses in worker processes (round
+E3o).
 
 ## Sounds (audio.py)
 
@@ -124,7 +133,8 @@ Also `audio.read_wave(bytes, 'bfbc2-xbox' | 'bfbc2-pc' | 'bf1943')` (the Frostbi
 intro / loop / outro segments), `audio.decode(bytes, source, streams)` (int16 samples and the rate),
 `audio.encode_xas(pcm, rate)` / `audio.decode_xas(stream)` (EA-XAS v1 in the suite's Rust core, which they need -
 the NumPy codec was retired on 2026-11-18, its results recorded in `tests\audio_golden.json`; DICE's block layout
-here). EA-XMA is
+here). Since round F4 (2026-11-20) `audio.convert` / `decode` run in Rust whole, the ffmpeg glue included
+(`convert_many` converts side by side without the interpreter's lock), the Python kept as the fallback. EA-XMA is
 decoded by ffmpeg (decoding only, through a pipe: each XMA stream wrapped as an XMA2 RIFF WAVE); ffmpeg is found on
 PATH, in `$FFMPEG` or in the WinGet Gyan.FFmpeg package. The formats are in audio.py's docstring.
 

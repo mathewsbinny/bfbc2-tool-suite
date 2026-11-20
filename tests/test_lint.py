@@ -8,7 +8,7 @@ import sys
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 COVERED = ['bfbc2-auto-navkit', 'bfbc2-automated-map-and-bot-test-harness', 'bfbc2-console-readers', 'bfbc2-culltree',
-           'bfbc2-diff-workbench', 'bfbc2-map-inspector', 'bfbc2-menu-tools', 'bfbc2-mesh-viewer',
+           'bfbc2-diff-workbench', 'bfbc2-menu-tools', 'bfbc2-mesh-viewer',
            'bfbc2-navigation-studio', 'bfbc2-stockmp-ai', 'tests', 'run_tests.py', 'BFBC2 Tool Suite.pyw',
            'core', 'bfbc2-bf1943-import', 'bfbc2-console-convert', 'bfbc2-shader-tools', 'bfbc2-anim-tools',
            'bfbc2-model-tools', 'rust', 'spec',

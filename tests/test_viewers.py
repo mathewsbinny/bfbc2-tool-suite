@@ -1,4 +1,4 @@
-r"""Smoke test of the 3D tools: the Map Inspector and the Navigation Studio open a level, draw it and exit; the
+r"""Smoke test of the 3D tools: the Navigation Studio opens a level, draws it and exits; the
 screenshot must not be blank (some detail in it, not one flat colour). Needs a display and OpenGL 3.3, and
 Project OPFOR BFBC2's game copy. Pixels are not compared: drawing differs between GPUs.
 
@@ -11,7 +11,6 @@ import tempfile
 
 SUITE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 RUNS = [
-    ('Map Inspector', os.path.join(SUITE, 'bfbc2-map-inspector', 'inspector.py'), []),
     ('Navigation Studio, islands', os.path.join(SUITE, 'bfbc2-navigation-studio', 'studio.py'), ['--color', 'island']),
     ('Navigation Studio, difference', os.path.join(SUITE, 'bfbc2-navigation-studio', 'studio.py'), ['--color', 'difference']),
 ]

@@ -33,7 +33,6 @@ FOLDERS = {
     'stfs': os.path.join('bfbc2-console-readers', 'stfs'),
     'xiso': os.path.join('bfbc2-console-readers', 'xiso'),
     'culltree': 'bfbc2-culltree',
-    'map-inspector': 'bfbc2-map-inspector',
     'menu-tools': 'bfbc2-menu-tools',
     'mesh-viewer': 'bfbc2-mesh-viewer',
     'model-tools': 'bfbc2-model-tools',

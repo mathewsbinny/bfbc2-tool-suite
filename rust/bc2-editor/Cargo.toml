@@ -39,6 +39,8 @@ embed-resource.workspace = true
 [dev-dependencies]
 # the recorded Map Inspector lists are gzip JSON (tests/data)
 flate2.workspace = true
+# the recorded property trees are digests (tests/data/inspector_props_*)
+sha1_smol.workspace = true
 
 [lints]
 workspace = true
