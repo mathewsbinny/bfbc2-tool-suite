@@ -329,6 +329,11 @@ CLI_TOOLS = {                            # bfbc2 <tool>: the Python command line
     'shaderdb': os.path.join(SUITE, 'bfbc2-shader-tools', 'shaderdb.py'),
     'renderqa': os.path.join(SUITE, 'bfbc2-shader-tools', 'renderqa.py'),
     'xdiff': os.path.join(SUITE, 'bfbc2-shader-tools', 'xdiff.py'),
+    # round O5: the console readers, the BF1943 importer
+    'apt': os.path.join(SUITE, 'bfbc2-console-readers', 'apt', 'apt.py'),
+    'stfs': os.path.join(SUITE, 'bfbc2-console-readers', 'stfs', 'stfs.py'),
+    'xiso': os.path.join(SUITE, 'bfbc2-console-readers', 'xiso', 'xiso.py'),
+    'bf1943import': os.path.join(SUITE, 'bfbc2-bf1943-import', 'bf1943import.py'),
 }
 _cli: dict[str, str | None] = {}
 

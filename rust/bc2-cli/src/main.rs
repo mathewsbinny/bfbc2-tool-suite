@@ -25,6 +25,10 @@
 mod audio;
 #[cfg(feature = "bf1943")]
 mod bf1943;
+// round O5: BF1943's bundles as bf1943import.Source opens them (the importer's command line, texqa's sources)
+#[cfg(any(feature = "import", feature = "texqa"))]
+#[allow(dead_code)]
+mod bf1943src;
 // round O3: the caches' overall budget after a bundle read (fbrb._budget), for the ports that read bundles
 #[cfg(any(
     feature = "graft",
@@ -75,6 +79,8 @@ mod gameindex;
 mod graft;
 #[cfg(feature = "harness")]
 mod harness;
+#[cfg(feature = "import")]
+mod import;
 #[cfg_attr(
     not(all(
         feature = "menu",
@@ -138,6 +144,8 @@ mod pystdio;
 // round O5: the shader tools' command lines (shaderdb, renderqa, xdiff)
 #[cfg(feature = "shader")]
 mod shader;
+#[cfg(feature = "readers")]
+mod readers;
 #[cfg(feature = "stockmp")]
 mod stockmp;
 #[cfg(feature = "texqa")]
@@ -191,6 +199,7 @@ const USAGE: &str = "usage: bfbc2 <tool> <arguments>\n  \
      graphstats, hpdcheck, hpdview, detailed, navparity, navregress, sample_all ...   NavKit's other tools\n  \
      harness, texqa ...   round O4: the map and bot test harness, the texture QA\n  \
      shaderdb, renderqa, xdiff ...   round O5: the shader tools\n  \
+     apt, stfs, xiso, bf1943import ...   round O5: the console readers, the BF1943 importer\n  \
      --source-hash   the Rust sources' fingerprint this binary was built from\n";
 
 /// What one tool's run gave: exit code, stdout, stderr (lines ended by `\n`) and its log lines.
@@ -266,6 +275,10 @@ fn py_tool(name: &str) -> Option<&'static pyproc::Tool> {
         // round O5
         #[cfg(feature = "shader")]
         shader::TOOLS,
+        #[cfg(feature = "readers")]
+        readers::TOOLS,
+        #[cfg(feature = "import")]
+        import::TOOLS,
     ];
     groups.iter().flat_map(|g| g.iter()).find(|t| t.name == name)
 }
