@@ -10,7 +10,12 @@ there is no decryption, and no keys are involved. The menu reader (`apt.py`) rea
 | `stfs\stfs.py` | Xbox 360 content packages (STFS: LIVE / PIRS / CON), e.g. downloaded map packs | `info <package>`, `list <package> [filter]`, `extract <package> <outdir> [filter]` |
 | `apt\apt.py` | EA APT menu movies (a menu `.res`, or `<name>.apt` with its `.const`), PC and Xbox 360 - the byte order is detected | `info <movie>`, `chars <movie> [type]`, `dump <movie> [out.txt]`, `find <movie> <text>` |
 
-`filter` is a case-insensitive part of the file name. All three need only Python 3.
+`filter` is a case-insensitive part of the file name. All three run on Python alone (3.12+, the suite's); with the
+suite's Rust core built they read in Rust (rounds F0, E3n), the same answers.
+
+Without Python: `bin\bfbc2.exe apt|stfs|xiso <command> ...` (the suite's `bin\`, round O5) takes the same arguments
+and gives the same output, files and exit codes; a damaged file is handed to the Python (the suite's README,
+"bfbc2.exe").
 
 `apt.py` shows a movie's characters (sprites, shapes, images, ...), each sprite's frames with their labels and
 placements, and the menu code (ActionScript bytecode with EA's opcodes). Its header documents the format and the
@@ -22,7 +27,7 @@ example a "shared PushData list" in wag that the movie does not have.) A console
 
 ```
 python stfs\stfs.py extract "D:\Update3" out menu/main/mainmenu-00.fbrb
-FbrbTool unpack out\menu\main\mainmenu-00.fbrb menu
+..\bin\bfbc2.exe fbrbtool unpack out\menu\main\mainmenu-00.fbrb menu      (or python ..\bfbc2-fbrb-tool\fbrbtool.py unpack ...)
 python apt\apt.py dump menu\Menu\main_nav.res main_nav.txt
 ```
 

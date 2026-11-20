@@ -21,7 +21,9 @@ and everything DbxEdit does; the code is written from it.
 
 **The commands** run in the suite's Rust core (`bfbc2core.dbxedit`, `rust/bc2-formats/src/dbxedit`): get it with
 `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core"). `DbxEdit <command>`
-below is `python dbxedit.py <command>` from this folder; Python tools call `bfbc2core.dbxedit.run([...])`, or
+below is `python dbxedit.py <command>` from this folder, or without Python `bin\bfbc2.exe dbxedit <command>` (the
+suite's `bin\`, round O1: the same arguments, files, output and exit codes; the suite's README, "bfbc2.exe"); Python
+tools call `bfbc2core.dbxedit.run([...])`, or
 `run_cmd(['DbxEdit', ...], ...)` as a drop-in for `subprocess.run` (README.md, "DbxEdit in process").
 
 **DbxEdit.exe was retired** (round R4, 2026-11-18): the C# command line was the reference its port was proven
@@ -31,7 +33,9 @@ window and LevelDiff are built on.
 
 **The window:** run `build.bat`. It compiles `DbxEditGUI.exe` (DbxEditGUI.cs and DbxEdit.cs) into this folder with
 the C# compiler that ships with Windows (.NET Framework 4) and needs no install. It stays until the map editor
-replaces it (bfbc2-map-inspector's EDITOR_ARCHITECTURE.md).
+replaces it with a generic DBX inspector panel (round GR4, `ROADMAP.md`; the plan: bfbc2-map-inspector's
+EDITOR_ARCHITECTURE.md section 9.4). The map editor's Properties > All fields already shows every field of a level's
+objects (round GR1).
 
 ## The window
 

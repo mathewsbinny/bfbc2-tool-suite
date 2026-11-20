@@ -24,12 +24,13 @@ You need:
 1. **Project OPFOR BFBC2, set up and built.** NavKit measures levels in OPFOR's copy of the game, through
    OPFOR's in-game sampler. In the OPFOR folder, run `setup_game.bat` (the game copy), then `build.bat`
    (OPFOR's core). `OPFOR BFBC2.exe` must be able to start the game.
-2. **The suite's Rust core** (FbrbTool's and DbxEdit's commands run in it): in the suite folder run
-   `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core").
+2. **The suite's Rust core** (NavKit's generator, FbrbTool's and DbxEdit's commands run in it): in the suite folder
+   run `python rust\build_native.py --download` (or build it: the suite's README, "The Rust core"). It also fetches
+   `bin\bfbc2.exe`, which the window uses for its steps when it is there (the same steps, faster to start).
 3. **Where OPFOR is.** NavKit looks for a `project-opfor-bfbc2` folder next to one of the folders it sits in (for example
    `C:\Programming\Projects\project-opfor-bfbc2` next to `C:\Programming\Projects\bfbc2-tool-suite`). If yours is elsewhere, set the
    environment variable `OPFOR_ROOT` to it, or add `--opfor <folder>` to every command.
-4. **Python 3.10 or newer** from [python.org](https://www.python.org/). When you install it, tick
+4. **Python 3.12 or newer** from [python.org](https://www.python.org/). When you install it, tick
    "Add python.exe to PATH".
 5. **numpy.** Open a command prompt and run:
 
@@ -87,6 +88,10 @@ python navkit.py status  sp_01     what has been done for a level
 python navkit.py all     sp_01     prepare, sample, build and check in one go
 python navkit.py compare sp_01     the original against NavKit's file; --reference / --candidate for any two files
 ```
+
+`..\bin\bfbc2.exe navkit <the same arguments>` runs the same commands without Python when the suite's `bin\bfbc2.exe`
+is there (`prepare`, `check`, `compare` and `status` in Rust; `build`, `sample`, `all` and `apply` are handed to
+`navkit.py`): the same output and files.
 
 ## Reading the check
 
