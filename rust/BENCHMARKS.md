@@ -6093,3 +6093,9 @@ lines and 5 manifest lines; `--revert`: the six shared files back with their sha
 
 Not proven until a playtest (in-game tests paused): that the merged entries draw (a placed bunker visible and no
 0x98BD6E), and that grafted and placed objects cull as on their own levels.
+
+### WW2 rebuild
+
+The shader-database merge moved from `bc2-cli` into `bc2_formats::shaderdb::merge`, so the WW2 rebuild (which merges
+shader databases) was run against the oracle: OPFOR main 86220cd, `OPFOR_TOOLKIT` at a toolkit folder holding this
+worktree, all 52 steps in 24 min, the QA checks clean, **10,852 of 10,852 files identical**.
