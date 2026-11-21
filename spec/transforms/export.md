@@ -82,7 +82,7 @@ their deleted markers). A partition only the base names that the stock base lack
 
 [code: rust/bc2-levelwrite/src/export.rs:1561-1692]
 [test: rust/bc2-levelwrite/tests/export_e3b.rs::a_vietnam_export_with_its_own_name_and_picture] [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1193-1216]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1206-1229]
 
 ### XEXP-VO-1: The announcer is the target era's
 
@@ -96,7 +96,7 @@ Vietnam 13 from `nam_common`, WW2 12, BFBC1 13).
 
 [code: rust/bc2-levelwrite/src/export.rs:1770-1831] [code: rust/bc2-levelwrite/src/export.rs:2740-2760]
 [test: rust/bc2-levelwrite/tests/export_e3c.rs::each_sets_announcer] [test: rust/bc2-levelwrite/tests/export_e3c.rs::a_ww2_export_takes_its_donors_announcer]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1106-1127]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1119-1140]
 
 ### XEXP-REG-1: The registration: one block and one line per bundle, written for the install
 
@@ -109,6 +109,18 @@ writes no game file.
 
 [code: rust/bc2-levelwrite/src/export.rs:741-795] [test: rust/bc2-levelwrite/src/export.rs::root_files_and_names]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
+
+### XEXP-REG-2: No voice-over block without its bundleManifest line
+
+Status: **verified**
+
+The game copy's `Dist\win32\bundleManifest` is read whole or the export stops: a file that is there but does not
+read is an error, never an empty list (round DF1). A donor whose `package.mft` has voice-over
+blocks on a game copy without a `bundleManifest` is refused, so a stage never carries `package.mft` blocks whose
+bundles `bundleManifest` does not name (REG-BM-3's checksum crash).
+
+[code: rust/bc2-levelwrite/src/export.rs:260-283] [code: rust/bc2-levelwrite/src/profile.rs:106-115]
+[test: rust/bc2-levelwrite/tests/df1.rs::a_missing_or_unreadable_bundle_manifest_is_never_read_as_empty]
 
 ### XEXP-ID-1: The level's own name and pictures
 
@@ -131,7 +143,7 @@ Build and check never write the game copy: after a build, check and install plan
 their size and write time and the key shared files their sha256.
 
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
-[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:970-972]
+[doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:983-985]
 
 ## 3. The check
 
