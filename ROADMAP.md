@@ -67,8 +67,7 @@ Last updated: 2026-11-19 (round P1). Version: 0.9.0 (`VERSION`).
 
 | Round | Branch | What |
 |---|---|---|
-| VW1 | `rust-vw1` | the editor's view toggles: effects, lights and sounds with their reach, combat areas, capture areas and spawn protection from the data; the player's-eye camera; the navmesh and cull tree modes checked; collision per destruction state with the state stepper (merge pending) |
-| GR1 | `rust-gr1` | the five GUIs inventoried (`EDITOR_ARCHITECTURE.md` section 9); the Map Inspector folded into the editor (All fields, Links, `view-link` lines, Measure) and retired |
+| RT3 | `rust-rt3` | RT2's leftovers retired; one "Rust cannot answer" rule (A17); `run_tests.py --help`; a guard against test files missing from a crate's `tests/main.rs`; O2's Errno 22 on this PC |
 
 ## Queued
 
@@ -80,8 +79,7 @@ In priority order (above); the next rounds:
 | SG1 | after XF1 (the user, 2026-11-20; audit AU1): editing static group members (their group files), so WW2 maps (Wake: 2,999 members, about 69 % of its objects) are fully editable; needs OP1's multi-file operations, so it lands with or after OP1's first part |
 | OP1 | before E5 (the user, 2026-11-20; audit AU1 R14 / R17 / R18 / R24): project operations that can target any file (group files, terrain, navigation side files), delta storage for brush-scale edits, a journalled autosave, typed errors in the editor and renderer, the UI state split out of the two god objects (ViewState, EditorApp) |
 | IN1 | before the public release (the user, 2026-11-20; audit AU1 R42-R49): the level installer in the suite (no Python, no OPFOR needed), a game-folder setting, portable and anonymised project sharing (no PC name, no absolute paths), a small "install this project" tool for players, old export stages pruned |
-| VW2 | the mode view layer (show / hide by game mode and Rush stage, on the project's mode layer data); time-of-day and weather switches (the weather states each level holds) in both views; Guadalcanal's game view (weather partition not found); Vietnam levels in the game view |
-| RT3 | RT2's leftovers: hpdtool.parse's and the Wave readers' messages ported, then retired; the library parts split out of the command-line `.py` files that are still imported (aptrefs, xiso with a bytes entry point, culltree, stockmp, crashreader), then their command lines retired; argparse's option abbreviations; the kept references in BENCHMARKS RT2 |
+| VW2 | the mode view layer (show / hide by game mode and Rush stage, on the project's mode layer data); time-of-day and weather switches (the weather states each level holds) in both views (Guadalcanal, Iwo Jima and Vietnam open in the game view since GW1); the spawn-time weather state switches (spec RNDR-WTHR-6); VW1's leftovers (overlays following project edits, damage and clear-area triggers, wall collision for the walk camera, the FOV and box-evaluator readings proved) |
 | GUIs | ~~GR2 Navigation Studio~~ (done), GR3 mesh viewer, GR4 DbxEditGUI (~~LevelDiff~~: EX1, done): each folded into the editor, then retired (`EDITOR_ARCHITECTURE.md` section 9) |
 | OPFOR in Rust | 5 stages (WW2 install; level build; shader glue; material grid and pictures; Onslaught, menus, testrun); the export's install side; `rebuild_all` as a step graph |
 | R5d | the editor rendering's visual gaps (list above) |
@@ -129,6 +127,8 @@ Most recent first; each round's details are in its commit messages and its `rust
 
 | Round | Merged | Result |
 |---|---|---|
+| VW1 | 2026-11-20 | the view toggles: effects (emitter spawn volumes), dynamic lights (point-light emitters) and sound emitters (min distance, falloff, sound areas), combat areas, capture areas and radii, spawn protection radii, all from the level's fields; the player's-eye walk camera (Alt+W); navmesh and cull tree modes checked on three levels (cull legend off the selection orange); collision per destruction state from the Havok per-part header with an up / down state stepper |
+| GW1 | 2026-11-20 | the game-accurate view finds a level's weather through its weather entity and the bundle stack (Guadalcanal and Iwo Jima open; all four WW2 levels draw their whole terrain), a default sky when a level has none |
 | EX1 | 2026-11-20 | every name of an export editable and checked together (level id, its folder, the server-browser name, the on-screen name and description per language; the black-screen and checksum rules in `mapexport check`; names in the project's log), Preview export (the stage read only beside the original, the same camera, T switches), the Diff panel (Compare with base / with level, filters, click-to-fly, tints and markers in the 3D view); LevelDiff folded in: `bfbc2.exe leveldiff` identical to LevelDiff.exe on 30 recorded cases, LevelDiff.exe retired |
 | E3d | 2026-11-20 | any map exported to any era and any of its multiplayer modes: era and mode as project data (the donor's mode layer as editable objects), cross-set closure copied into the level's bundle, the target era's kits / teams / announcer, Era / Mode pickers, Install / Uninstall in the editor, 15 compatibility rules; six canaries pass check and install / revert on a scratch copy (BFBC2 to WW2 Air Superiority pending that mode). Not yet tested in game |
 | E3c | 2026-11-19 | the exported level's announcer voice-over follows its profile (the donor's banks, trigger sets, vo blocks and voice-over bundles); Aurora passes the check on all four profiles |
