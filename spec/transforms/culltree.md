@@ -7,8 +7,8 @@ Two transformations give placed objects new leaves in a level's exclusive static
   reference levels (`--ref`, `--ref-dir`) to take shapes from; output the tree and level written back, and a report.
   Used by OPFOR's console conversion (`console_cull`) and the WW2 install.
 - **`reslot`** (`bc2_levelwrite::culltree::reslot`, step 5 of the map export): input the base level, the edited
-  level and the exclusive tree; every object that now stands elsewhere than its slot's owner stood in the base gets
-  new leaves.
+  level and the exclusive tree; every moved base object, and every object the base does not have, gets new leaves
+  of its own blueprint's shape.
 
 Both keep the invariants of CULL-ADD-1; this file states their inputs, refusals and results.
 
@@ -72,18 +72,37 @@ clipped.
 
 ## 3. The export's reslot
 
-### XCULL-RES-1: Who gets new leaves
+### XCULL-RES-1: Who gets new leaves, and whose shape
 
 Status: **verified**
 
-`reslot` gives new leaves to every placed object of the edited level whose slot belongs to a base object and that
-either is that object with a changed transform (moved or turned) or is another object sharing its slot (a
-duplicate). The shape is the slot's own leaves in the base (at most two: up to the next slot), each centre taken into
-the base object's space and out into the new place, radii and `Max` kept. Unmoved objects and objects without a slot
-are left alone; with nothing to do the tree is not rewritten. Old leaves stay unregistered (CULL-ADD-1).
+`reslot` gives new leaves to every placed object of the edited level that is either a base object in its own slot
+with a changed transform (moved or turned: its own leaves in the base, at most two, carried along), or any other
+object but DICE's own unslotted ones: a duplicate, a placed object (made from a template that may be another
+blueprint's placement), a mode layer's object from another level (whose `Enumeration` is that level's). Such an
+object takes the shape of its own blueprint (`ReferencedObject`'s partition): its first slotted placement in the
+base, else in another level (the mode's donor, the levels whose own bundle holds the blueprint, then every level,
+DICE's first), each centre taken into that placement's space and out into the new place, radii and `Max` kept. With
+no shape anywhere the object gets `Enumeration` 0, never a slot that is not its own. Unmoved base objects are left
+alone; with nothing to do the tree is not rewritten. Old leaves stay unregistered (CULL-ADD-1). Before round XF1
+the shape was the slot owner's: Aurora's placed radar bunker took a map prop's one leaf (Guadalcanal's bunker has
+two), Guadalcanal as Rush gave 20 grafted M-COMs the shapes of the base objects that owned Arica Harbor's slot
+numbers.
 
 [code: rust/bc2-levelwrite/src/culltree.rs:543-593] [test: rust/bc2-levelwrite/src/culltree.rs::add_keeps_one_preorder_tree]
 [test: rust/bc2-levelwrite/tests/export_sp01.rs::sp_01_exports_as_a_new_conquest_level]
+
+### XCULL-RES-3: The check holds each new shape to its blueprint
+
+Status: **verified**
+
+`mapexport check` reads each re-slotted object's recorded shape source again, refuses one whose source is another
+blueprint, and compares the object's leaves in the staged tree with the source's shape placed where the object
+stands (centres within 0.5 m, radii within 0.5 m plus 5 %, the keys' rounding: CULL-SPH-1). An object the base does
+not have may stand at slot 0 only when the export recorded that no level slots its blueprint and the base does not.
+
+[code: rust/bc2-levelwrite/src/export.rs:2856-2984]
+[test: rust/bc2-levelwrite/tests/export_xf1.rs::a_cross_set_object_gets_its_entries_and_shape]
 
 ### XCULL-RES-2: The stage's cull check
 
@@ -100,4 +119,7 @@ objects got slots 8,248 and 8,250 (leaves 4,612 -> 4,615) and no slot was shared
 
 - An object whose blueprint has more than two leaves anywhere: `reslot` caps a shape at two leaves as the README's
   "Leaves per object" observes; a blueprint that needs more has not been met.
-- Shapes for blueprints no level slots (new meshes): S3 in the editor plan; neither transformation can add them.
+- Shapes for blueprints no level slots (new meshes): S3 in the editor plan; neither transformation can add them (an
+  export leaves such an object at slot 0 and records it).
+- `reslot` takes a blueprint's first slotted placement; `culltree add` takes a consensus of all of them (tolerance
+  0.5 m). For a blueprint whose placements disagree the two can differ.

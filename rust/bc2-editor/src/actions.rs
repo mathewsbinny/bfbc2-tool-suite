@@ -393,7 +393,8 @@ pub fn registry() -> Vec<Entry> {
             Action::Paste,
             "Paste",
             key(ctrl, Key::V),
-            "Copies the remembered objects to the point under the pointer, keeping their spacing",
+            "Copies the remembered objects to the point under the pointer, keeping their spacing, with the sub-objects \
+             they own (a deep duplicate: a pasted flag has its own capture area)",
         ),
         e(
             Action::PlaceObject,

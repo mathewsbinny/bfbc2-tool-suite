@@ -278,7 +278,12 @@ fn run(game: &Game, c: &Case, projects: &Path, stages: &Path) -> bool {
     for l in &rec.report {
         println!("  | {l}");
     }
+    let built = t.elapsed().as_secs_f64();
     let r = export::check(game, &stage).unwrap();
+    println!(
+        "  built in {built:.1} s, checked in {:.1} s",
+        t.elapsed().as_secs_f64() - built
+    );
     for (ok, w) in &r.checks {
         println!("  {} {w}", if *ok { "ok    " } else { "FAILED" });
     }

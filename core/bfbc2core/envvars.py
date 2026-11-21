@@ -110,6 +110,7 @@ VARIABLES: dict[str, tuple[str, str]] = {
     'BC2_GW1_LEVELS': ('test', "GW1's WW2 game-view test on these levels (default guadal_canal,iwo_jima_s)"),
     'BC2_GW1_OPFOR': ('test', "GW1's WW2 game-view test uses this stand-in OPFOR folder (default: one made in temp)"),
     'BC2_GW1_PACKAGE_LEVELS': ('test', "GW1's weather test on these Package levels (default nam_mp_002cq,ons_mp_002)"),
+    'BC2_XF1_STAGE': ('test', "XF1's cross-set export test keeps its staged export in this folder"),
     'BC2_EDITOR_PREPARE': ('test', "the editor's level prepare test on this level (a stand-in OPFOR folder)"),
     'BC2_EDITOR_G3': ('test', "G3's real Package levels test on these levels"),
     'BC2_EDITOR_G3_ART': ('test', "G3's content browser art test on"),

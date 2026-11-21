@@ -130,7 +130,13 @@ of its layout (`StreamInstancingFloat`: the vertex's own elements plus the insta
 road and stop signs crash at the same address when drawn (console-only entries, open). A part's programs must cover
 every way it is drawn: its own layout, and the instanced layout when it is a group member.
 
-[exe: BFBC2Game.exe 0x98BD6E, renderer]
+The faulting instruction is in the draw-record builder at 0x98BCE0 (cdecl: the part's resolved draw state, its mesh
+part, the 0x58-byte record it zeroes and fills): it copies 16 bytes from `[state + 8] + 8` with no test, where the
+state's +4 pointer one instruction earlier is tested for null. A part whose layout found no program leaves `+8` null:
+the read of address 8 is the crash. A mesh with no entry at all in the level's databases (SHDB-LVL-1) has no program
+for any layout. An export therefore adds the entries of every mesh it brings in (SHDB-LVL-2).
+
+[exe: BFBC2Game.exe 0x98BD6E, renderer; 0x98BCE0-0x98BD7B: `mov edx,[ebx+8]` ... `movups xmm0,[edx+8]`]
 [data: OPFOR: the WallWooden port (fixed by giving its parts a same-stride layout and its instanced variant); ONS_MP_004's road / stop signs (open)]
 [doc: opfor:src/tools/ww2/wake_install.py:2119-2132] [doc: opfor:DEVELOPMENT_NOTES.md:1350] [doc: opfor:research/BFBC2_DECOMP_RESEARCH.md:586]
 [doc: bfbc2-map-editor/EDITOR_ARCHITECTURE.md:1358]

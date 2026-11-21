@@ -1,13 +1,16 @@
 //! Editing a map (round E2): a map project ([`bc2_levelwrite::MapProject`]) open on its base level. The [`Doc`] keeps
 //! the base scene as loaded and derives from it, by the project's log, the scene the views show and the level
 //! partition levelwrite writes ([`bc2_levelwrite::write::LevelWriter`]): a new operation is applied to both at once;
-//! an undo or redo replays the log from the base (operations are few; the base is never edited).
+//! an undo or redo replays the log from the nearest checkpoint (round XF1: the state after a mode choice and after
+//! every [`CHECKPOINT_EVERY`] operations is kept; the base is never edited), and a mode choice's donor level is read
+//! from the game copy once per document.
 //!
 //! Every change is autosaved beside the project at once (crash recovery); **Save** writes the project and removes the
 //! autosave. Entities are named by guid in the log and by index in the scene: base entities keep their index,
 //! deleted ones stay in the scene's list (left out of the views, the outliner and the queries), copies are added at
 //! its end.
 
+use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
@@ -28,6 +31,30 @@ pub struct FieldRow {
     pub value: Option<FieldValue>,
     /// For a text field: the texts the level's data uses there (an enum's names), most used first.
     pub choices: Vec<String>,
+}
+
+/// A checkpoint is kept after every this many operations (and after each mode choice).
+pub const CHECKPOINT_EVERY: usize = 16;
+/// At most this many checkpoints are kept (the oldest ordinary ones go first; a mode choice's stays).
+pub const CHECKPOINTS: usize = 8;
+
+/// The document's state after the log's first `applied` operations (round XF1: undo replays from here).
+#[derive(Clone)]
+struct Checkpoint {
+    applied: usize,
+    /// The last of those operations' number: a checkpoint is good while the log still has it at that place.
+    last_n: u64,
+    /// After a mode choice (kept before ordinary checkpoints when there are too many).
+    mode: bool,
+    /// What the operations change in the scene: its entities, outlines and collision placements (the terrain, the
+    /// water and the geometry stay the base's, shared).
+    entities: Vec<Entity>,
+    shapes: Vec<Shape>,
+    meshes: Option<Vec<(usize, String)>>,
+    deleted: BTreeSet<usize>,
+    by_guid: HashMap<String, usize>,
+    writer: Option<LevelWriter>,
+    problems: Vec<String>,
 }
 
 /// A map project open on its level.
@@ -64,6 +91,12 @@ pub struct Doc {
     known: HashMap<String, (String, Option<String>, bool)>,
     /// The game copy (round E3d): a mode choice's donor level is read from it ([`Doc::set_game`]).
     game: Option<bc2_levelwrite::export::Game>,
+    /// Donor levels' partitions read from the game copy, by level (round XF1: read once, not per replay).
+    donors: RefCell<HashMap<String, Option<Vec<u8>>>>,
+    /// States the log passed through, oldest first (round XF1).
+    checkpoints: Vec<Checkpoint>,
+    /// Operations the last rebuild, undo, redo or History jump applied (the rest came from a checkpoint).
+    pub last_replayed: usize,
 }
 
 /// A blueprint's path (lower case, as the scene keeps it) from its reference (`objects/x/x/<guid>`).
@@ -164,13 +197,97 @@ impl Doc {
             revision: 0,
             known: HashMap::new(),
             game: None,
+            donors: RefCell::new(HashMap::new()),
+            checkpoints: Vec::new(),
+            last_replayed: 0,
         };
         d.rebuild();
         d
     }
 
-    /// The scene and the partition again from the base and the whole log.
+    /// The scene and the partition again from the base and the whole log (the checkpoints made again).
     pub fn rebuild(&mut self) {
+        self.checkpoints.clear();
+        self.replay_from_base();
+    }
+
+    /// Whether the log still passes through a checkpoint: it has the checkpoint's last operation at its place.
+    fn passes(&self, c: &Checkpoint) -> bool {
+        c.applied <= self.project.operations.len()
+            && c.applied
+                .checked_sub(1)
+                .and_then(|i| self.project.operations.get(i))
+                .is_some_and(|o| o.n == c.last_n)
+    }
+
+    /// The scene and the partition for the log as it is now, from the newest checkpoint it still passes through
+    /// (else from the base): undo, redo and History (round XF1, audit AU1 D1).
+    fn restore(&mut self) {
+        let Some(c) = self.checkpoints.iter().rev().find(|c| self.passes(c)).cloned() else {
+            self.replay_from_base();
+            return;
+        };
+        self.revision += 1;
+        self.scene = self.base.clone();
+        for (k, e) in c.entities.iter().enumerate() {
+            let moved = self.scene.entities.get(k).is_some_and(|b| b.matrix != e.matrix);
+            if moved && let Some(m) = e.matrix {
+                self.scene.set_transform(k, m);
+            }
+        }
+        self.scene.entities = c.entities;
+        self.scene.shapes = c.shapes;
+        if let (Some(col), Some(m)) = (self.scene.collision.as_mut(), c.meshes) {
+            col.meshes = m;
+        }
+        self.deleted = c.deleted;
+        self.by_guid = c.by_guid;
+        self.writer = c.writer;
+        self.problems = c.problems;
+        let rest: Vec<Operation> = self.project.operations.get(c.applied..).unwrap_or_default().to_vec();
+        self.last_replayed = rest.len();
+        for (i, o) in rest.iter().enumerate() {
+            self.apply(o);
+            self.checkpoint_after(c.applied + i + 1, o);
+        }
+        self.org = self.project.organisation();
+    }
+
+    /// Keeps the state after `applied` operations (the last `o`) when that is a checkpoint's place: after a mode
+    /// choice, and after every [`CHECKPOINT_EVERY`] operations. Checkpoints the log no longer passes through, or at
+    /// or after this place, are dropped first; at most [`CHECKPOINTS`] are kept.
+    fn checkpoint_after(&mut self, applied: usize, o: &Operation) {
+        let mode = matches!(o.op, Op::SetMode { .. });
+        if !mode && !applied.is_multiple_of(CHECKPOINT_EVERY) {
+            return;
+        }
+        let keep: Vec<bool> = self
+            .checkpoints
+            .iter()
+            .map(|c| c.applied < applied && self.passes(c))
+            .collect();
+        let mut keep = keep.into_iter();
+        self.checkpoints.retain(|_| keep.next().unwrap_or(false));
+        self.checkpoints.push(Checkpoint {
+            applied,
+            last_n: o.n,
+            mode,
+            entities: self.scene.entities.clone(),
+            shapes: self.scene.shapes.clone(),
+            meshes: self.scene.collision.as_ref().map(|c| c.meshes.clone()),
+            deleted: self.deleted.clone(),
+            by_guid: self.by_guid.clone(),
+            writer: self.writer.clone(),
+            problems: self.problems.clone(),
+        });
+        while self.checkpoints.len() > CHECKPOINTS {
+            let drop = self.checkpoints.iter().position(|c| !c.mode).unwrap_or(0);
+            self.checkpoints.remove(drop);
+        }
+    }
+
+    /// The whole log replayed from the base.
+    fn replay_from_base(&mut self) {
         self.revision += 1;
         self.scene = self.base.clone();
         self.deleted.clear();
@@ -192,8 +309,10 @@ impl Doc {
             ));
         }
         let ops = self.project.operations.clone();
-        for o in &ops {
+        self.last_replayed = ops.len();
+        for (i, o) in ops.iter().enumerate() {
             self.apply(o);
+            self.checkpoint_after(i + 1, o);
         }
         self.org = self.project.organisation();
     }
@@ -201,6 +320,7 @@ impl Doc {
     /// The game copy the project's mode choice reads its donor from (round E3d); the log applied again.
     pub fn set_game(&mut self, game: Option<bc2_levelwrite::export::Game>) {
         self.game = game;
+        self.donors.borrow_mut().clear();
         self.rebuild();
     }
 
@@ -212,10 +332,18 @@ impl Doc {
 
     fn apply(&mut self, o: &Operation) {
         self.revision += 1;
-        let game = self.game.clone();
-        let donors = move |lv: &str| {
-            game.as_ref()
-                .and_then(|g| bc2_levelwrite::export::level_partition(g, lv).ok())
+        // a donor level's partition is read from the game copy once (round XF1, audit AU1 D2)
+        let (game, cache) = (&self.game, &self.donors);
+        let donors = |lv: &str| {
+            let key = lv.to_ascii_lowercase();
+            if let Some(b) = cache.borrow().get(&key) {
+                return b.clone();
+            }
+            let b = game
+                .as_ref()
+                .and_then(|g| bc2_levelwrite::export::level_partition(g, lv).ok());
+            cache.borrow_mut().insert(key, b.clone());
+            b
         };
         if let Some(w) = self.writer.as_mut()
             && let Err(e) = apply_one_with(w, o, &self.schema, &mut Applied::default(), &donors)
@@ -491,6 +619,9 @@ impl Doc {
         if !self.project.amend_last(n, op) {
             return false;
         }
+        // a checkpoint after the amended operation holds its old version
+        let len = self.project.operations.len();
+        self.checkpoints.retain(|c| c.applied < len);
         if let Some(o) = self.project.operations.last().cloned() {
             self.apply(&o);
         }
@@ -510,6 +641,8 @@ impl Doc {
         let n = self.project.push(op, label);
         if let Some(o) = self.project.operations.last().cloned() {
             self.apply(&o);
+            let len = self.project.operations.len();
+            self.checkpoint_after(len, &o);
         }
         self.org = self.project.organisation();
         self.changed();
@@ -526,7 +659,7 @@ impl Doc {
         if self.project.undo().is_none() {
             return false;
         }
-        self.rebuild();
+        self.restore();
         self.changed();
         true
     }
@@ -536,7 +669,7 @@ impl Doc {
         if self.project.redo().is_none() {
             return false;
         }
-        self.rebuild();
+        self.restore();
         self.changed();
         true
     }
@@ -545,7 +678,7 @@ impl Doc {
     pub fn go_to(&mut self, applied: usize) {
         if applied != self.project.operations.len() {
             self.project.go_to(applied);
-            self.rebuild();
+            self.restore();
             self.changed();
         }
     }
