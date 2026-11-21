@@ -29,6 +29,7 @@ use eframe::egui::{self, Color32, ColorImage, Pos2, Rect, TextureHandle, Texture
 use eframe::egui_wgpu::wgpu;
 
 use crate::camera::Camera;
+use crate::error::EditorError;
 
 #[cfg(windows)]
 use bc2_render::d3d::Device;
@@ -39,8 +40,10 @@ struct Device;
 
 #[cfg(not(windows))]
 impl Device {
-    fn new(_warp: bool) -> Result<Self, String> {
-        Err("the game-accurate view needs Direct3D 11 (Windows)".into())
+    fn new(_warp: bool) -> Result<Self, EditorError> {
+        Err(EditorError::Gpu(
+            "the game-accurate view needs Direct3D 11 (Windows)".into(),
+        ))
     }
 }
 
@@ -133,6 +136,157 @@ pub struct GameView {
     /// The Direct3D device was removed (round DF1, audit AU4-BUG-9: a driver reset, update or GPU switch), why: the
     /// view cannot draw again and is loaded anew ([`GameView::lost`]).
     lost: Option<String>,
+}
+
+/// A level's drawable world read for the game-accurate view, without a device (round OP1: read on a worker, so the
+/// editor's window keeps drawing while a large level loads; audit AU4 CQ-6's other half).
+pub struct ReadWorld {
+    world: World,
+    entity_of: Vec<usize>,
+    fingerprint: u64,
+    seconds: f64,
+}
+
+/// Reads a level's world for the game-accurate view: its shader database, weather (the level's spawn-time state),
+/// placed objects, group members, terrain, strips, water and the post shaders.
+///
+/// # Errors
+/// The level's database cannot be read.
+pub fn read_world(opfor: &Path, lv: &str, scene: &Scene) -> Result<ReadWorld, EditorError> {
+    let t = Instant::now();
+    // the weather comes from the placed weather entity's references (`World::load`'s `resolve_weather`); this
+    // folder is read by name only when the level places no entity that resolves
+    let weather = scene
+        .entities
+        .iter()
+        .filter_map(|e| e.blueprint.as_deref())
+        .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)));
+    let (placed, entity_of) = placed_entities(scene);
+    // a level of game\Package only (Vietnam, the Pacific War ...): read from its bundles in place (round R5c)
+    let package = is_package(opfor, lv);
+    let mut world = if package {
+        World::load_package(opfor, lv, &scene.name, &placed, weather)?
+    } else {
+        World::load(opfor, lv, &scene.name, &placed, weather)?
+    };
+    // the weather's sky dome behind the level (round R5d)
+    world.sky_pass = true;
+    // round VW2: the level's own state, the one players see as it starts - its spawn-time switch when it names
+    // another state than the settings' ActiveState (spec RNDR-WTHR-6)
+    if let Some(lw) = world.level_weather.clone()
+        && lw.starts_in() != lw.active
+    {
+        match world.set_state(lw.starts_in()) {
+            Ok(()) => world.notes.push(format!(
+                "weather: the level's spawn-time switch {} drawn (its settings' ActiveState is {} {})",
+                lw.name(lw.starts_in()),
+                lw.active,
+                lw.name(lw.active)
+            )),
+            Err(e) => world.notes.push(format!("weather: the spawn-time switch's state: {e}")),
+        }
+    }
+    Ok(ReadWorld {
+        world,
+        entity_of,
+        fingerprint: fingerprint(scene, &HashSet::new()),
+        seconds: t.elapsed().as_secs_f64(),
+    })
+}
+
+/// A game-accurate view being read on a worker (round OP1).
+pub struct GameLoad {
+    rx: std::sync::mpsc::Receiver<Result<ReadWorld, EditorError>>,
+    /// Since when.
+    pub since: Instant,
+}
+
+impl GameLoad {
+    /// Starts reading the level's world on a worker (the scene's placed things taken now).
+    #[must_use]
+    pub fn start(opfor: &Path, lv: &str, scene: &Scene) -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (opfor, lv, scene) = (opfor.to_path_buf(), lv.to_owned(), scene.clone());
+        std::thread::spawn(move || {
+            let r = crate::export_ui::guarded("The game-accurate view", || read_world(&opfor, &lv, &scene));
+            let _ = tx.send(r);
+        });
+        Self {
+            rx,
+            since: Instant::now(),
+        }
+    }
+
+    /// The view, once read (`None`: still reading); a worker that stopped without an answer is an error.
+    pub fn poll(&self) -> Option<Result<GameView, EditorError>> {
+        match self.rx.try_recv() {
+            Ok(r) => Some(r.and_then(GameView::finish)),
+            Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(Err(EditorError::Worker(
+                "the game-accurate view's worker stopped unexpectedly".into(),
+            ))),
+        }
+    }
+
+    /// Waits for the view (headless runs and tests).
+    ///
+    /// # Errors
+    /// As [`GameView::load`].
+    pub fn wait(self) -> Result<GameView, EditorError> {
+        self.rx
+            .recv()
+            .map_err(|_| EditorError::Worker("the game-accurate view's worker stopped unexpectedly".into()))?
+            .and_then(GameView::finish)
+    }
+}
+
+/// The game-accurate view of an open level (round OP1: one state for "loading" and "loaded").
+#[derive(Default)]
+pub enum GameSlot {
+    /// Not loaded.
+    #[default]
+    Off,
+    /// Being read on a worker.
+    Loading(GameLoad),
+    /// Loaded.
+    Ready(Box<GameView>),
+}
+
+impl GameSlot {
+    /// The loaded view.
+    #[must_use]
+    pub fn as_ref(&self) -> Option<&GameView> {
+        match self {
+            Self::Ready(g) => Some(g),
+            _ => None,
+        }
+    }
+
+    /// The loaded view, to change.
+    pub fn as_mut(&mut self) -> Option<&mut GameView> {
+        match self {
+            Self::Ready(g) => Some(g),
+            _ => None,
+        }
+    }
+
+    /// Whether no view is loaded (also while one is being read).
+    #[must_use]
+    pub fn is_none(&self) -> bool {
+        !matches!(self, Self::Ready(_))
+    }
+
+    /// Whether a view is loaded.
+    #[must_use]
+    pub fn is_some(&self) -> bool {
+        matches!(self, Self::Ready(_))
+    }
+
+    /// Whether one is being read.
+    #[must_use]
+    pub fn loading(&self) -> bool {
+        matches!(self, Self::Loading(_))
+    }
 }
 
 /// The scene's placed things as the renderer takes them - the level partition's instances (by GUID) and the group
@@ -271,41 +425,24 @@ impl GameView {
     /// # Errors
     /// No Direct3D 11 device, or the level's database cannot be read. A level without weather data opens under a
     /// default sky ([`GameView::status`]).
-    pub fn load(opfor: &Path, lv: &str, scene: &Scene) -> Result<Self, String> {
+    pub fn load(opfor: &Path, lv: &str, scene: &Scene) -> Result<Self, EditorError> {
+        Self::finish(read_world(opfor, lv, scene)?)
+    }
+
+    /// The view made from a world read on a worker ([`GameLoad`]): the Direct3D device is made here, on the thread
+    /// that draws with it.
+    ///
+    /// # Errors
+    /// No Direct3D 11 device.
+    pub fn finish(w: ReadWorld) -> Result<Self, EditorError> {
         let t = Instant::now();
         let device = Device::new(false)?;
-        // the weather comes from the placed weather entity's references (`World::load`'s `resolve_weather`); this
-        // folder is read by name only when the level places no entity that resolves
-        let weather = scene
-            .entities
-            .iter()
-            .filter_map(|e| e.blueprint.as_deref())
-            .find_map(|b| b.find("/weathersystementity").and_then(|i| b.get(..i)));
-        let (placed, entity_of) = placed_entities(scene);
-        // a level of game\Package only (Vietnam, the Pacific War ...): read from its bundles in place (round R5c)
-        let package = is_package(opfor, lv);
-        let mut world = if package {
-            World::load_package(opfor, lv, &scene.name, &placed, weather)?
-        } else {
-            World::load(opfor, lv, &scene.name, &placed, weather)?
-        };
-        // the weather's sky dome behind the level (round R5d)
-        world.sky_pass = true;
-        // round VW2: the level's own state, the one players see as it starts - its spawn-time switch when it names
-        // another state than the settings' ActiveState (spec RNDR-WTHR-6)
-        if let Some(lw) = world.level_weather.clone()
-            && lw.starts_in() != lw.active
-        {
-            match world.set_state(lw.starts_in()) {
-                Ok(()) => world.notes.push(format!(
-                    "weather: the level's spawn-time switch {} drawn (its settings' ActiveState is {} {})",
-                    lw.name(lw.starts_in()),
-                    lw.active,
-                    lw.name(lw.active)
-                )),
-                Err(e) => world.notes.push(format!("weather: the spawn-time switch's state: {e}")),
-            }
-        }
+        let ReadWorld {
+            world,
+            entity_of,
+            fingerprint: scene_fp,
+            seconds,
+        } = w;
         Ok(Self {
             notes: world.notes.clone(),
             live: Live::new(&world.light),
@@ -315,14 +452,14 @@ impl GameView {
             opened: None,
             shown: None,
             drawn: None,
-            scene: Some(fingerprint(scene, &HashSet::new())),
+            scene: Some(scene_fp),
             window: None,
             sourced: false,
             entity_of,
             copy: std::env::var_os(COPY_ENV).is_some(),
             cull: true,
             timings: Timings::default(),
-            load_seconds: t.elapsed().as_secs_f64(),
+            load_seconds: seconds + t.elapsed().as_secs_f64(),
             error: None,
             depth: None,
             skip: HashSet::new(),
@@ -335,7 +472,7 @@ impl GameView {
     ///
     /// # Errors
     /// The level's weather is not known or the state's partitions are not read.
-    pub fn set_state(&mut self, index: usize) -> Result<(), String> {
+    pub fn set_state(&mut self, index: usize) -> Result<(), EditorError> {
         self.world.set_state(index)?;
         self.live = Live::new(&self.world.light);
         self.sourced = false;
@@ -440,7 +577,7 @@ impl GameView {
                 Ok(()) => self.error = None,
                 Err(e) => {
                     self.lost = self.removed();
-                    self.error = Some(e);
+                    self.error = Some(e.to_string());
                 }
             }
         }
@@ -483,7 +620,7 @@ impl GameView {
         camera: &Camera,
         size: [u32; 2],
         selection: &[usize],
-    ) -> Result<(), String> {
+    ) -> Result<(), EditorError> {
         let t = Instant::now();
         let cam = Self::camera(camera, size);
         self.update_sources(camera.target);
@@ -511,9 +648,9 @@ impl GameView {
         let td = Instant::now();
         self.depth = self.device.read_depth().ok().map(|(s, d)| (cam, s, d));
         let depth_read = td.elapsed().as_secs_f64();
-        let out = post
-            .last()
-            .ok_or("the post-process shaders are missing (startup-00.fbrb): no picture to show")?;
+        let out = post.last().ok_or(EditorError::Gpu(
+            "the post-process shaders are missing (startup-00.fbrb): no picture to show".into(),
+        ))?;
         let picks = self.picks(selection);
         if !picks.is_empty() {
             self.device
@@ -594,13 +731,15 @@ impl GameView {
         _camera: &Camera,
         _size: [u32; 2],
         _selection: &[usize],
-    ) -> Result<(), String> {
-        Err("the game-accurate view needs Direct3D 11 (Windows)".into())
+    ) -> Result<(), EditorError> {
+        Err(EditorError::Gpu(
+            "the game-accurate view needs Direct3D 11 (Windows)".into(),
+        ))
     }
 
     /// Opens the device's three shared textures on egui's device and registers them with egui.
     #[cfg(windows)]
-    fn open(&mut self, g: &crate::app::GpuCtx, generation: u32, size: [u32; 2]) -> Result<(), String> {
+    fn open(&mut self, g: &crate::app::GpuCtx, generation: u32, size: [u32; 2]) -> Result<(), EditorError> {
         let handles = self.device.shared_handles();
         // the old frames freed first (their drop takes the renderer's lock itself)
         drop(self.opened.take());
@@ -611,7 +750,9 @@ impl GameView {
                 for (_, id) in &textures {
                     r.free_texture(id);
                 }
-                return Err("the shared frame could not be opened on the editor's device".into());
+                return Err(EditorError::Gpu(
+                    "the shared frame could not be opened on the editor's device".into(),
+                ));
             };
             let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
             let id = r.register_native_texture(&g.gpu.device, &view, wgpu::FilterMode::Linear);
@@ -633,9 +774,9 @@ impl GameView {
     /// # Errors
     /// No frame drawn yet, or a Direct3D call failed.
     #[cfg(windows)]
-    pub fn pick(&mut self, at: [u32; 2], size: [u32; 2]) -> Result<Option<usize>, String> {
+    pub fn pick(&mut self, at: [u32; 2], size: [u32; 2]) -> Result<Option<usize>, EditorError> {
         let Some(cam) = self.live.camera else {
-            return Err("no game-accurate frame drawn yet".into());
+            return Err(EditorError::Gpu("no game-accurate frame drawn yet".into()));
         };
         let (depth, _) = self.world.passes(&cam, size, false)?;
         let id = self.device.pick(
@@ -657,8 +798,10 @@ impl GameView {
     /// # Errors
     /// Always: no frame.
     #[cfg(not(windows))]
-    pub fn pick(&mut self, _at: [u32; 2], _size: [u32; 2]) -> Result<Option<usize>, String> {
-        Err("the game-accurate view needs Direct3D 11 (Windows)".into())
+    pub fn pick(&mut self, _at: [u32; 2], _size: [u32; 2]) -> Result<Option<usize>, EditorError> {
+        Err(EditorError::Gpu(
+            "the game-accurate view needs Direct3D 11 (Windows)".into(),
+        ))
     }
 
     /// Paints the view: the frame (following the scene's edits, the selection outlined), and its costs in the
@@ -756,7 +899,7 @@ impl GameView {
         camera: &Camera,
         size: [u32; 2],
         selection: &[usize],
-    ) -> Result<frame::Rendered, String> {
+    ) -> Result<frame::Rendered, EditorError> {
         let cam = Self::camera(camera, size);
         self.update_sources(camera.target);
         self.live.build(
@@ -786,6 +929,6 @@ impl GameView {
                 .outline(&self.live, &picks, out, OUTLINE.0, OUTLINE.1, &self.world.textures, raw)?;
         }
         self.drawn = None;
-        self.device.read_scene(post.last())
+        Ok(self.device.read_scene(post.last())?)
     }
 }

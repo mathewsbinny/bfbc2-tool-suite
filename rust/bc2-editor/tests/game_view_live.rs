@@ -55,7 +55,7 @@ fn costs(h: &mut Headless, app: &mut EditorApp) -> Timings {
             .camera
             .yaw += 0.002 * f64::from(k + 1);
         h.settle(app, 1);
-        all.push(app.view().unwrap().game.as_ref().unwrap().timings);
+        all.push(app.view().unwrap().game_view.game.as_ref().unwrap().timings);
     }
     let n = (all.len() - 2) as f64;
     let mut t = Timings::default();
@@ -117,7 +117,7 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
     h.settle(&mut app, 4);
     let ctx = h.ctx.clone();
     app.run_action(&gpu, &ctx, Action::ToggleGameView);
-    if app.view().unwrap().game.is_none() {
+    if app.view().unwrap().game_view.game.is_none() {
         println!("skipped: {}", app.view().unwrap().message);
         return;
     }
@@ -137,7 +137,7 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
     let t_shared = costs(&mut h, &mut app);
     print("shared", &t_shared);
     {
-        let g = app.view().unwrap().game.as_ref().unwrap();
+        let g = app.view().unwrap().game_view.game.as_ref().unwrap();
         assert!(g.error.is_none(), "{:?}", g.error);
         assert_eq!(
             g.timings.shared, shared_on,
@@ -145,8 +145,8 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
         );
     }
     let shared_img = h.image().unwrap();
-    app.view_mut().unwrap().game.as_mut().unwrap().copy = true;
-    app.view_mut().unwrap().game.as_mut().unwrap().redraw();
+    app.view_mut().unwrap().game_view.game.as_mut().unwrap().copy = true;
+    app.view_mut().unwrap().game_view.game.as_mut().unwrap().redraw();
     h.settle(&mut app, 2);
     let copied_img = h.image().unwrap();
     // the costs line at the view's top (its numbers change every frame) left out
@@ -174,7 +174,7 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
     assert_eq!(same, shared_img.len() / 4);
     let t_copy = costs(&mut h, &mut app);
     print("copy fallback", &t_copy);
-    app.view_mut().unwrap().game.as_mut().unwrap().copy = false;
+    app.view_mut().unwrap().game_view.game.as_mut().unwrap().copy = false;
     {
         let v = app.view_mut().unwrap();
         v.viewports.get_mut(&Projection::Perspective).unwrap().camera = warehouse_camera();
@@ -218,7 +218,7 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
     }
     let cam = warehouse_camera();
     let t = std::time::Instant::now();
-    let g = app.view_mut().unwrap().game.as_mut().unwrap();
+    let g = app.view_mut().unwrap().game_view.game.as_mut().unwrap();
     assert!(g.sync(&scene));
     let replayed = g.read_back(&cam, size, &[]).unwrap();
     let replay = t.elapsed().as_secs_f64();
@@ -249,7 +249,7 @@ fn game_view_shares_picks_outlines_and_follows_edits() {
     );
     assert_eq!(ldr_diff, 0, "the post-processed pictures, bit for bit");
     if let Some(d) = &shots {
-        let g = app.view_mut().unwrap().game.as_mut().unwrap();
+        let g = app.view_mut().unwrap().game_view.game.as_mut().unwrap();
         let shown = g.read_back(&cam, size, &[picked]).unwrap();
         let file = std::fs::File::create(d.join("r5c_edit_moved.png")).unwrap();
         let mut enc = png::Encoder::new(std::io::BufWriter::new(file), size[0], size[1]);

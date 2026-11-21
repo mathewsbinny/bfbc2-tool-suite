@@ -33,6 +33,7 @@ use windows::Win32::Graphics::Dxgi::{DXGI_SHARED_RESOURCE_READ, DXGI_SHARED_RESO
 use windows::core::{Interface, PCSTR, PCWSTR, s};
 
 use super::{DEVICE_REMOVED, Device, err, some, state_keys};
+use crate::error::RenderError;
 use crate::live::{Live, Step};
 use crate::material::{Prepared, TextureFiles};
 use crate::post::Pass;
@@ -262,7 +263,7 @@ float4 opaque(float4 pos : SV_Position) : SV_Target {
 }
 ";
 
-fn compile(entry: PCSTR, target: PCSTR) -> Result<Vec<u8>, String> {
+fn compile(entry: PCSTR, target: PCSTR) -> Result<Vec<u8>, RenderError> {
     let mut code: Option<ID3DBlob> = None;
     let mut errors: Option<ID3DBlob> = None;
     // SAFETY: the source outlives the call; the blobs are read within their own sizes
@@ -288,7 +289,9 @@ fn compile(entry: PCSTR, target: PCSTR) -> Result<Vec<u8>, String> {
                 ))
                 .into_owned()
             });
-            return Err(format!("D3DCompile (selection outline): {e} {msg}"));
+            return Err(RenderError::Device(format!(
+                "D3DCompile (selection outline): {e} {msg}"
+            )));
         }
         let b = some(code, "D3DCompile")?;
         Ok(std::slice::from_raw_parts(b.GetBufferPointer().cast::<u8>(), b.GetBufferSize()).to_vec())
@@ -329,7 +332,7 @@ impl Device {
         k: u16,
         files: &TextureFiles,
         raw: &HashMap<String, RawTexture>,
-    ) -> Result<u32, String> {
+    ) -> Result<u32, RenderError> {
         let key = (Arc::as_ptr(p) as usize, k);
         if let Some((id, _)) = self.gpu.ids.get(&key) {
             return Ok(*id);
@@ -423,7 +426,7 @@ impl Device {
     }
 
     /// The frame's constants into the ring (one `Map`); false without constant-buffer offsets.
-    fn upload(&mut self, arena: &[u8]) -> Result<bool, String> {
+    fn upload(&mut self, arena: &[u8]) -> Result<bool, RenderError> {
         if self.ctx1().is_none() {
             return Ok(false);
         }
@@ -464,7 +467,7 @@ impl Device {
         steps: &[Step],
         files: &TextureFiles,
         raw: &HashMap<String, RawTexture>,
-    ) -> Result<(Vec<u32>, usize), String> {
+    ) -> Result<(Vec<u32>, usize), RenderError> {
         let before = self.gpu.mats.len();
         let mut out = Vec::with_capacity(steps.len());
         for s in steps {
@@ -486,7 +489,7 @@ impl Device {
         depth: Option<(usize, &Pass)>,
         files: &TextureFiles,
         raw: &HashMap<String, RawTexture>,
-    ) -> Result<usize, String> {
+    ) -> Result<usize, RenderError> {
         let ctx = self.ctx.clone();
         let ctx1 = if ring { self.ctx1() } else { None };
         let ring_buf: [Option<ID3D11Buffer>; 1] = [self.gpu.ring.clone()];
@@ -670,7 +673,7 @@ impl Device {
     }
 
     /// Makes the scene's targets of `size` (again) when needed, clears them and binds them.
-    fn begin(&mut self, size: [u32; 2], clear: &[f32; 4]) -> Result<(), String> {
+    fn begin(&mut self, size: [u32; 2], clear: &[f32; 4]) -> Result<(), RenderError> {
         if self.target.as_ref().is_none_or(|t| t.size != size) {
             self.target = Some(self.make_target(size)?);
         }
@@ -686,7 +689,7 @@ impl Device {
     }
 
     /// The overlay shaders (the outline, the opaque alpha), compiled on first use.
-    fn overlay_shaders(&mut self) -> Result<(), String> {
+    fn overlay_shaders(&mut self) -> Result<(), RenderError> {
         if self.gpu.outline.is_none() {
             let vs = compile(s!("vs"), s!("vs_5_0"))?;
             let ps = compile(s!("ps"), s!("ps_5_0"))?;
@@ -715,7 +718,7 @@ impl Device {
         post: &[Pass],
         files: &TextureFiles,
         raw: &HashMap<String, RawTexture>,
-    ) -> Result<LiveStats, String> {
+    ) -> Result<LiveStats, RenderError> {
         let size = [size[0].max(1), size[1].max(1)];
         let t0 = Instant::now();
         let steps = &live.built.steps;
@@ -747,7 +750,7 @@ impl Device {
     ///
     /// # Errors
     /// A Direct3D call failed.
-    pub fn finish(&mut self) -> Result<(), String> {
+    pub fn finish(&mut self) -> Result<(), RenderError> {
         if self.gpu.query.is_none() {
             let d = D3D11_QUERY_DESC {
                 Query: D3D11_QUERY_EVENT,
@@ -774,7 +777,12 @@ impl Device {
         };
         // round DF1 (audit AU4-BUG-9): a device removed (a driver reset, update or GPU switch) is an error, never a
         // frame reported finished that was not
-        r.map_err(|e| self.removed().unwrap_or_else(|| format!("GetData (event query): {e}")))
+        r.map_err(|e| {
+            self.removed().map_or_else(
+                || RenderError::Device(format!("GetData (event query): {e}")),
+                RenderError::DeviceRemoved,
+            )
+        })
     }
 
     /// Why the device was removed, in words (`None`: it is working). A removed device stays removed: everything made
@@ -790,7 +798,7 @@ impl Device {
     ///
     /// # Errors
     /// A Direct3D call failed.
-    pub fn read_scene(&mut self, ldr: Option<&Pass>) -> Result<crate::frame::Rendered, String> {
+    pub fn read_scene(&mut self, ldr: Option<&Pass>) -> Result<crate::frame::Rendered, RenderError> {
         let ldr = match ldr {
             Some(p) => self.read_rgba8(p)?,
             None => Vec::new(),
@@ -844,7 +852,7 @@ impl Device {
     ///
     /// # Errors
     /// A Direct3D call failed, or nothing was drawn yet.
-    pub fn read_depth(&mut self) -> Result<([u32; 2], Vec<f32>), String> {
+    pub fn read_depth(&mut self) -> Result<([u32; 2], Vec<f32>), RenderError> {
         let t = some(self.target.as_ref(), "target")?;
         let [w, h] = t.size;
         let (wu, hu) = (w as usize, h as usize);
@@ -875,7 +883,7 @@ impl Device {
     ///
     /// # Errors
     /// A Direct3D call failed.
-    pub fn read_output(&mut self, p: &Pass) -> Result<Vec<u8>, String> {
+    pub fn read_output(&mut self, p: &Pass) -> Result<Vec<u8>, RenderError> {
         self.read_rgba8(p)
     }
 
@@ -893,7 +901,7 @@ impl Device {
         depth_pass: Option<&Pass>,
         files: &TextureFiles,
         raw: &HashMap<String, RawTexture>,
-    ) -> Result<u32, String> {
+    ) -> Result<u32, RenderError> {
         let size = [size[0].max(1), size[1].max(1)];
         if at[0] >= size[0] || at[1] >= size[1] {
             return Ok(0);
@@ -959,7 +967,7 @@ impl Device {
         hidden: [f32; 4],
         files: &TextureFiles,
         raw: &HashMap<String, RawTexture>,
-    ) -> Result<(), String> {
+    ) -> Result<(), RenderError> {
         let steps = live.steps_of(picks);
         if steps.is_empty() {
             return Ok(());
@@ -1016,7 +1024,7 @@ impl Device {
     ///
     /// # Errors
     /// A Direct3D call failed (a driver without NT-handle sharing).
-    pub fn share(&mut self, out: &Pass) -> Result<SharedFrame, String> {
+    pub fn share(&mut self, out: &Pass) -> Result<SharedFrame, RenderError> {
         let (_, tex) = self.pass_target(out)?;
         let size = out.size;
         if self.gpu.shared.is_empty() || self.gpu.shared_size != size {
@@ -1118,7 +1126,7 @@ impl Device {
     ///
     /// # Errors
     /// A Direct3D call failed.
-    pub fn clear(&mut self, size: [u32; 2], clear: [f32; 4]) -> Result<(), String> {
+    pub fn clear(&mut self, size: [u32; 2], clear: [f32; 4]) -> Result<(), RenderError> {
         self.begin([size[0].max(1), size[1].max(1)], &clear)
     }
 }

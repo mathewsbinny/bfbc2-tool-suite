@@ -41,6 +41,7 @@ mod gr3;
 mod inspect_parity;
 mod inspector_parity;
 mod nav_parity;
+mod op1;
 mod real_level_editing;
 mod render;
 mod simplified_view;

@@ -19,6 +19,7 @@
 //! - [`simple`]: the same meshes as plain geometry with their alpha-tested parts and diffuse tints, for the editor's
 //!   simplified view (round SV1).
 //! - [`job`]: a frame as a job for the C++ harness (`shaderview`), for the pixel-for-pixel proofs.
+//! - [`error`]: the renderer's errors by kind (round OP1).
 //! - `d3d` (Windows): the Direct3D 11 device that draws a frame (and its post passes) and reads it back.
 //!
 //! Nothing is written to the game copy; every file is read from OPFOR's `work` folder.
@@ -35,6 +36,7 @@
 )]
 
 pub mod dxbc;
+pub mod error;
 pub mod files;
 pub mod frame;
 pub mod job;
@@ -52,6 +54,8 @@ pub mod world;
 
 #[cfg(windows)]
 pub mod d3d;
+
+pub use error::RenderError;
 
 /// One `f16` (IEEE half) as `f32`.
 #[must_use]

@@ -52,6 +52,7 @@ use windows::Win32::Graphics::Dxgi::Common::{
 };
 use windows::core::s;
 
+use crate::error::RenderError;
 use crate::frame::{DrawCall, Frame, Rendered};
 use crate::material::{Element, TextureFiles};
 use crate::post::{self, Pass};
@@ -128,12 +129,12 @@ pub fn is_rgba8(format: u32) -> bool {
     matches!(format, 27..=32 | 87 | 88 | 90..=93)
 }
 
-fn err(what: &str) -> impl Fn(windows::core::Error) -> String + '_ {
-    move |e| format!("{what}: {e}")
+fn err(what: &str) -> impl Fn(windows::core::Error) -> RenderError + '_ {
+    move |e| RenderError::Device(format!("{what}: {e}"))
 }
 
-fn some<T>(v: Option<T>, what: &str) -> Result<T, String> {
-    v.ok_or_else(|| format!("{what}: nothing returned"))
+fn some<T>(v: Option<T>, what: &str) -> Result<T, RenderError> {
+    v.ok_or_else(|| RenderError::Device(format!("{what}: nothing returned")))
 }
 
 /// A DXBC shader's checksum (bytes 4..20), its key.
@@ -168,7 +169,7 @@ impl Device {
     ///
     /// # Errors
     /// No Direct3D 11 device could be made.
-    pub fn new(warp: bool) -> Result<Self, String> {
+    pub fn new(warp: bool) -> Result<Self, RenderError> {
         let make = |kind: D3D_DRIVER_TYPE| -> Option<(ID3D11Device, ID3D11DeviceContext)> {
             let (mut device, mut ctx) = (None, None);
             // SAFETY: out pointers to locals; the feature level list outlives the call
@@ -252,7 +253,7 @@ impl Device {
         self.textures.clear();
     }
 
-    fn make_sampler(device: &ID3D11Device, d: &D3D11_SAMPLER_DESC) -> Result<ID3D11SamplerState, String> {
+    fn make_sampler(device: &ID3D11Device, d: &D3D11_SAMPLER_DESC) -> Result<ID3D11SamplerState, RenderError> {
         let mut s = None;
         // SAFETY: a valid description; the out pointer is a local
         unsafe { device.CreateSamplerState(d, Some(&raw mut s)) }.map_err(err("CreateSamplerState"))?;
@@ -270,7 +271,7 @@ impl Device {
         format: DXGI_FORMAT,
         cube: bool,
         levels: &[(&[u8], u32)],
-    ) -> Result<ID3D11ShaderResourceView, String> {
+    ) -> Result<ID3D11ShaderResourceView, RenderError> {
         let desc = D3D11_TEXTURE2D_DESC {
             Width: w,
             Height: h,
@@ -332,7 +333,7 @@ impl Device {
 
     /// A BFBC2 PC texture resource uploaded as the game stores it (`shaderview`'s `texres`): its block format, its
     /// mips, an sRGB view when header flag bit 0 is set, a cube when its type is 1.
-    fn texture_res(&self, d: &[u8]) -> Result<ID3D11ShaderResourceView, String> {
+    fn texture_res(&self, d: &[u8]) -> Result<ID3D11ShaderResourceView, RenderError> {
         let (typ, fmt, flags, w, h, mips) = (
             u32_at(d, 4),
             u32_at(d, 8),
@@ -351,10 +352,10 @@ impl Device {
             13 => (DXGI_FORMAT_R16G16B16A16_FLOAT, 0, 8),
             9 => (pick(DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB), 0, 4),
             10 => (DXGI_FORMAT_R8_UNORM, 0, 1),
-            _ => return Err(format!("texture format {fmt} not supported")),
+            _ => return Err(RenderError::Device(format!("texture format {fmt} not supported"))),
         };
         if !(1..=15).contains(&mips) || w == 0 || h == 0 {
-            return Err(format!("{w}x{h}, {mips} mip levels"));
+            return Err(RenderError::Device(format!("{w}x{h}, {mips} mip levels")));
         }
         let cube = typ == 1;
         let faces = if cube { 6 } else { 1 };
@@ -372,7 +373,7 @@ impl Device {
                 let data = d
                     .get(pos..pos + size)
                     .filter(|s| s.len() >= (pitch * rows) as usize)
-                    .ok_or_else(|| format!("level {m} runs past the data"))?;
+                    .ok_or_else(|| RenderError::Device(format!("level {m} runs past the data")))?;
                 levels.push((data, pitch));
                 pos += size;
             }
@@ -402,7 +403,7 @@ impl Device {
 
     /// An engine texture with a full mip chain made by `GenerateMips`, as the C++ harness makes its float textures
     /// (`shaderview`'s `tex`): a terrain pixel shader's implicit-LOD reads of the height map then see the same levels.
-    fn mipped_texture(&self, r: &RawTexture) -> Result<ID3D11ShaderResourceView, String> {
+    fn mipped_texture(&self, r: &RawTexture) -> Result<ID3D11ShaderResourceView, RenderError> {
         let desc = D3D11_TEXTURE2D_DESC {
             Width: r.width,
             Height: r.height,
@@ -434,7 +435,7 @@ impl Device {
         }
     }
 
-    fn buffer(&mut self, data: &Arc<Vec<u8>>, bind: u32) -> Result<ID3D11Buffer, String> {
+    fn buffer(&mut self, data: &Arc<Vec<u8>>, bind: u32) -> Result<ID3D11Buffer, RenderError> {
         let key = (Arc::as_ptr(data) as usize, data.len(), bind);
         if let Some((b, _)) = self.buffers.get(&key) {
             return Ok(b.clone());
@@ -445,7 +446,7 @@ impl Device {
     }
 
     /// An immutable buffer holding `data` (at least 16 bytes: shorter data is padded with zeros).
-    fn make_buffer(&self, data: &[u8], bind: u32) -> Result<ID3D11Buffer, String> {
+    fn make_buffer(&self, data: &[u8], bind: u32) -> Result<ID3D11Buffer, RenderError> {
         let desc = D3D11_BUFFER_DESC {
             ByteWidth: (data.len().max(16)) as u32,
             Usage: D3D11_USAGE_IMMUTABLE,
@@ -476,7 +477,7 @@ impl Device {
     }
 
     /// A constant buffer of `data`'s size for a stage (0 vertex, 1 pixel), filled with it.
-    fn cbuffer(&mut self, data: &[u8], stage: u8) -> Result<Option<ID3D11Buffer>, String> {
+    fn cbuffer(&mut self, data: &[u8], stage: u8) -> Result<Option<ID3D11Buffer>, RenderError> {
         if data.is_empty() {
             return Ok(None);
         }
@@ -511,7 +512,10 @@ impl Device {
         self.samplers.get(desc).cloned()
     }
 
-    fn shaders(&mut self, d: &DrawCall) -> Result<(ID3D11VertexShader, ID3D11PixelShader, ID3D11InputLayout), String> {
+    fn shaders(
+        &mut self,
+        d: &DrawCall,
+    ) -> Result<(ID3D11VertexShader, ID3D11PixelShader, ID3D11InputLayout), RenderError> {
         self.shaders_of(&d.vs, &d.ps, &d.elements)
     }
 
@@ -520,7 +524,7 @@ impl Device {
         vs: &[u8],
         ps: &[u8],
         elements: &[Element],
-    ) -> Result<(ID3D11VertexShader, ID3D11PixelShader, ID3D11InputLayout), String> {
+    ) -> Result<(ID3D11VertexShader, ID3D11PixelShader, ID3D11InputLayout), RenderError> {
         let (kv, kp) = (checksum(vs), checksum(ps));
         if !self.vs.contains_key(&kv) {
             let mut s = None;
@@ -572,7 +576,7 @@ impl Device {
     fn states(
         &mut self,
         d: &DrawCall,
-    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), String> {
+    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), RenderError> {
         let (blend, depth, cull) = state_keys(d.state.as_ref());
         self.keyed_states(blend, depth, cull)
     }
@@ -584,7 +588,7 @@ impl Device {
         blend: [u32; 9],
         depth: [u32; 3],
         cull: u32,
-    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), String> {
+    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), RenderError> {
         self.keyed_states_ex(blend, [depth[0], depth[1], depth[2], 0xff], cull)
     }
 }
@@ -621,7 +625,7 @@ impl Device {
         blend: [u32; 9],
         depth: [u32; 4],
         cull: u32,
-    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), String> {
+    ) -> Result<(ID3D11BlendState, ID3D11DepthStencilState, ID3D11RasterizerState), RenderError> {
         if !self.blends.contains_key(&blend) {
             let [a2c, en, cs, cd, co, a_s, ad, ao, mask] = blend;
             let rt = D3D11_RENDER_TARGET_BLEND_DESC {
@@ -695,7 +699,7 @@ impl Device {
         ))
     }
 
-    fn vertex_shader(&mut self, code: &[u8]) -> Result<ID3D11VertexShader, String> {
+    fn vertex_shader(&mut self, code: &[u8]) -> Result<ID3D11VertexShader, RenderError> {
         let k = checksum(code);
         if !self.vs.contains_key(&k) {
             let mut s = None;
@@ -707,7 +711,7 @@ impl Device {
         some(self.vs.get(&k).cloned(), "vs")
     }
 
-    fn pixel_shader(&mut self, code: &[u8]) -> Result<ID3D11PixelShader, String> {
+    fn pixel_shader(&mut self, code: &[u8]) -> Result<ID3D11PixelShader, RenderError> {
         let k = checksum(code);
         if !self.ps.contains_key(&k) {
             let mut s = None;
@@ -719,7 +723,7 @@ impl Device {
     }
 
     /// `vs2D`'s input layout: `POSITION` (pixels), `COLOR`, `TEXCOORD0`, 32 bytes a vertex.
-    fn quad_layout(&mut self, vs: &[u8]) -> Result<ID3D11InputLayout, String> {
+    fn quad_layout(&mut self, vs: &[u8]) -> Result<ID3D11InputLayout, RenderError> {
         let key = (checksum(vs), vec![[u32::MAX; 5]]);
         if !self.layouts.contains_key(&key) {
             let el = |name, format, offset| D3D11_INPUT_ELEMENT_DESC {
@@ -746,7 +750,7 @@ impl Device {
     }
 
     /// Two triangles over a target of `size` pixels, texture coordinates 0..1 (top left 0, 0).
-    fn quad(&mut self, size: [u32; 2]) -> Result<ID3D11Buffer, String> {
+    fn quad(&mut self, size: [u32; 2]) -> Result<ID3D11Buffer, RenderError> {
         if let Some(b) = self.quads.get(&size) {
             return Ok(b.clone());
         }
@@ -772,7 +776,7 @@ impl Device {
     }
 
     /// A pass's output target, made (again) when its size or format changes.
-    fn pass_target(&mut self, p: &Pass) -> Result<(ID3D11RenderTargetView, ID3D11Texture2D), String> {
+    fn pass_target(&mut self, p: &Pass) -> Result<(ID3D11RenderTargetView, ID3D11Texture2D), RenderError> {
         let key = (p.size, p.format);
         // the scene's linear depth gets a mip chain, as the C++ harness gives every float texture (the water reads it
         // with an implicit level of detail a hair above 0)
@@ -853,7 +857,12 @@ impl Device {
     }
 
     /// Draws one full-screen pass into its target (the scene's targets unbound while it runs).
-    fn run_pass(&mut self, p: &Pass, files: &TextureFiles, raw: &HashMap<String, RawTexture>) -> Result<(), String> {
+    fn run_pass(
+        &mut self,
+        p: &Pass,
+        files: &TextureFiles,
+        raw: &HashMap<String, RawTexture>,
+    ) -> Result<(), RenderError> {
         let vs = self.vertex_shader(&p.vs)?;
         let ps = self.pixel_shader(&p.ps)?;
         let layout = self.quad_layout(&p.vs)?;
@@ -866,7 +875,7 @@ impl Device {
             if let Some(s) = srv.get_mut(*slot as usize) {
                 *s = self.view(key, files, raw);
                 if s.is_none() {
-                    return Err(format!("{}: input {key} not made", p.name));
+                    return Err(RenderError::Device(format!("{}: input {key} not made", p.name)));
                 }
             }
         }
@@ -919,7 +928,7 @@ impl Device {
     }
 
     /// Sets the scene's targets and viewport (again, after a pass).
-    fn bind_scene(&self) -> Result<(), String> {
+    fn bind_scene(&self) -> Result<(), RenderError> {
         let t = some(self.target.as_ref(), "target")?;
         // SAFETY: views made by this device
         unsafe {
@@ -943,7 +952,7 @@ impl Device {
     ///
     /// # Errors
     /// A Direct3D call failed.
-    pub fn read_pass(&mut self, key: &str) -> Result<Option<(u32, u32, Vec<f32>)>, String> {
+    pub fn read_pass(&mut self, key: &str) -> Result<Option<(u32, u32, Vec<f32>)>, RenderError> {
         let Some(t) = self.passes.get(key) else {
             return Ok(None);
         };
@@ -997,13 +1006,13 @@ impl Device {
     }
 
     /// A pass's RGBA8 output read back, row by row.
-    fn read_rgba8(&mut self, p: &Pass) -> Result<Vec<u8>, String> {
+    fn read_rgba8(&mut self, p: &Pass) -> Result<Vec<u8>, RenderError> {
         // the rows are read as four bytes a texel: any other format is refused, never read past its rows
         if !is_rgba8(p.format) {
-            return Err(format!(
+            return Err(RenderError::Device(format!(
                 "pass {}: its output's format {} is not four 8-bit channels: it cannot be read back as RGBA8",
                 p.output, p.format
-            ));
+            )));
         }
         let (_, tex) = self.pass_target(p)?;
         let (w, h) = (p.size[0] as usize, p.size[1] as usize);
@@ -1036,10 +1045,10 @@ impl Device {
             let pitch = m.RowPitch as usize;
             if base.is_null() || pitch < w * 4 {
                 self.ctx.Unmap(&st, 0);
-                return Err(format!(
+                return Err(RenderError::Device(format!(
                     "pass {}: the mapped rows ({pitch} bytes) are shorter than {w} texels",
                     p.output
-                ));
+                )));
             }
             for y in 0..h {
                 out.extend_from_slice(std::slice::from_raw_parts(base.add(y * pitch), w * 4));
@@ -1049,8 +1058,8 @@ impl Device {
         Ok(out)
     }
 
-    fn make_target(&self, size: [u32; 2]) -> Result<Target, String> {
-        let tex = |format, bind: u32, staging: bool| -> Result<ID3D11Texture2D, String> {
+    fn make_target(&self, size: [u32; 2]) -> Result<Target, RenderError> {
+        let tex = |format, bind: u32, staging: bool| -> Result<ID3D11Texture2D, RenderError> {
             let desc = D3D11_TEXTURE2D_DESC {
                 Width: size[0],
                 Height: size[1],
@@ -1153,7 +1162,7 @@ impl Device {
         frame: &Frame,
         files: &TextureFiles,
         raw: &HashMap<String, RawTexture>,
-    ) -> Result<Rendered, String> {
+    ) -> Result<Rendered, RenderError> {
         let t0 = Instant::now();
         let size = [frame.width.max(1), frame.height.max(1)];
         if self.target.as_ref().is_none_or(|t| t.size != size) {

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::error::RenderError;
 use crate::files::{Files, level_folders};
 use crate::frame::{self, Camera, Frame, Instance};
 use crate::material::{self, Db, Prepared, TextureFiles};
@@ -242,7 +243,7 @@ pub fn resolve_weather(
                     Some(format!("weather read by folder name ({f}): {}", tried.join("; "))),
                 );
             }
-            Err(e) => tried.push(e),
+            Err(e) => tried.push(e.to_string()),
         }
     }
     (
@@ -257,7 +258,7 @@ pub fn resolve_weather(
 ///
 /// # Errors
 /// No weather entity resolves (what was tried, in words).
-pub fn level_weather(files: &Files, level: &str, placed: &[Placed]) -> Result<weather::LevelWeather, String> {
+pub fn level_weather(files: &Files, level: &str, placed: &[Placed]) -> Result<weather::LevelWeather, RenderError> {
     let partition = format!("levels/{level}");
     let level_xml = files
         .read(&format!("{partition}.dbx"))
@@ -289,7 +290,7 @@ pub fn level_weather(files: &Files, level: &str, placed: &[Placed]) -> Result<we
     if entities.is_empty() {
         tried.push("no weather entity (WeatherSystemEntityData)".to_owned());
     }
-    Err(tried.join("; "))
+    Err(RenderError::Data(tried.join("; ")))
 }
 
 /// A level's files for its weather alone (round VW2: the editor's weather picker before the game-accurate view is
@@ -304,10 +305,13 @@ pub fn weather_files(
     level: &str,
     placed: &[Placed],
     package: bool,
-) -> Result<(Files, weather::LevelWeather), String> {
+) -> Result<(Files, weather::LevelWeather), RenderError> {
     let files = if package {
-        let stack = crate::files::package_stack(&opfor.join("game"), lv)
-            .ok_or_else(|| format!("{lv}: not in the game's bundle registry (package.mft), or a bundle is missing"))?;
+        let stack = crate::files::package_stack(&opfor.join("game"), lv).ok_or_else(|| {
+            RenderError::Data(format!(
+                "{lv}: not in the game's bundle registry (package.mft), or a bundle is missing"
+            ))
+        })?;
         Files::bundles(&stack)?
     } else {
         Files::new(&level_folders(opfor, lv))
@@ -335,8 +339,11 @@ impl World {
     ///
     /// # Errors
     /// The level's weather is not known, or the state's partitions are not read.
-    pub fn set_state(&mut self, index: usize) -> Result<(), String> {
-        let lw = self.level_weather.as_ref().ok_or("the level's weather is not known")?;
+    pub fn set_state(&mut self, index: usize) -> Result<(), RenderError> {
+        let lw = self
+            .level_weather
+            .as_ref()
+            .ok_or(RenderError::Data("the level's weather is not known".into()))?;
         let w = lw.state(&self.files, index)?;
         self.set_weather(&w);
         self.state_shown = Some(index);
@@ -369,7 +376,13 @@ impl World {
     ///
     /// # Errors
     /// The level's database cannot be read (a level without weather is drawn under a default one).
-    pub fn load(opfor: &Path, lv: &str, level: &str, placed: &[Placed], weather: Option<&str>) -> Result<Self, String> {
+    pub fn load(
+        opfor: &Path,
+        lv: &str,
+        level: &str,
+        placed: &[Placed],
+        weather: Option<&str>,
+    ) -> Result<Self, RenderError> {
         Self::load_from(Files::new(&level_folders(opfor, lv)), opfor, lv, level, placed, weather)
     }
 
@@ -387,9 +400,12 @@ impl World {
         level: &str,
         placed: &[Placed],
         weather: Option<&str>,
-    ) -> Result<Self, String> {
-        let stack = crate::files::package_stack(&opfor.join("game"), lv)
-            .ok_or_else(|| format!("{lv}: not in the game's bundle registry (package.mft), or a bundle is missing"))?;
+    ) -> Result<Self, RenderError> {
+        let stack = crate::files::package_stack(&opfor.join("game"), lv).ok_or_else(|| {
+            RenderError::Data(format!(
+                "{lv}: not in the game's bundle registry (package.mft), or a bundle is missing"
+            ))
+        })?;
         let files = Files::bundles(&stack)?;
         let mut rounds = 0;
         loop {
@@ -434,12 +450,12 @@ impl World {
         level: &str,
         placed: &[Placed],
         weather: Option<&str>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, RenderError> {
         let lv = lv.to_lowercase();
         let db = Db::parse(
             &files
                 .read(&format!("levels/{lv}/shaders/dx11_single.res"))
-                .ok_or_else(|| format!("{lv}: no Dx11 shader database in its prepared files"))?,
+                .ok_or_else(|| RenderError::Data(format!("{lv}: no Dx11 shader database in its prepared files")))?,
         )?;
         let mut notes_early = Vec::new();
         let placements = placement::read(&files, level).unwrap_or_else(|e| {
@@ -804,7 +820,7 @@ impl World {
         cam: &Camera,
         size: [u32; 2],
         post: bool,
-    ) -> Result<(Option<post::Pass>, Vec<post::Pass>), String> {
+    ) -> Result<(Option<post::Pass>, Vec<post::Pass>), RenderError> {
         let Some(s) = &self.post_shaders else {
             return Ok((None, Vec::new()));
         };
@@ -849,7 +865,7 @@ impl World {
     ///
     /// # Errors
     /// A post shader is missing.
-    pub fn frame(&mut self, cam: &Camera, target: [f64; 3], size: [u32; 2], post: bool) -> Result<Frame, String> {
+    pub fn frame(&mut self, cam: &Camera, target: [f64; 3], size: [u32; 2], post: bool) -> Result<Frame, RenderError> {
         let instances = self.instances(target);
         let b = self.background;
         let mut f = Frame {

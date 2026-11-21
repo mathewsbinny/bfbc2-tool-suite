@@ -38,14 +38,62 @@ moves (release): undo 9.1 - 10.9 s before, 78 - 98 ms after; History jumps 1.4 s
 
 Status: **verified**
 
-A save writes the whole file through a temporary file and removes the autosave; every change writes the autosave
-beside it, and an autosave that reads and differs from the saved project is offered for recovery. A file of another
+A save writes the whole file through a temporary file and removes the autosave; every change goes into the autosave
+beside it (XLOG-AUTO-1), and an autosave that reads and differs from the saved project is offered for recovery. A file of another
 format, from a newer editor, or with an operation of an unknown kind is refused in words (the operation named, not
-dropped); an older version is migrated as it loads (version 1 to 2 changes nothing: 2 only added operation kinds).
+dropped); an older version is migrated as it loads, one step at a time (versions 2 - 5 only added operation kinds;
+5 to 6 gives the base an empty `files`). Round OP1 (project format 6): `version` and `min_reader` are read whole -
+a missing, zero, non-numeric or wider-than-32-bit version is refused, never cut or read as 0 (audit AU4 BUG-13); a
+file is written with `min_reader`, the newest operation kind in its log and redo stack (6 when it records base
+files), and a newer file whose `min_reader` this editor reaches is read. The recorded projects of versions 1, 2, 4
+and 5 (synthetic, `tests/data/projects`) load with every operation's JSON unchanged and replay to the partition the
+version-5 editor gives (sha1 checked on main at 082f2d2).
 
-[code: rust/bc2-levelwrite/src/project.rs:25-40] [code: rust/bc2-levelwrite/src/project.rs:685-773]
+[code: rust/bc2-levelwrite/src/project.rs:25-80] [code: rust/bc2-levelwrite/src/project.rs:750-906]
 [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files] [test: rust/bc2-levelwrite/tests/project_versions.rs::canary_projects_load_as_version_1]
-[test: rust/bc2-levelwrite/src/ops.rs::json_shape_and_names]
+[test: rust/bc2-levelwrite/src/ops.rs::json_shape_and_names] [test: rust/bc2-levelwrite/src/project.rs::versions_and_min_reader]
+[test: rust/bc2-levelwrite/src/project.rs::old_projects_load_and_replay_the_same]
+
+### XLOG-AUTO-1: The autosave is a journal: crash-safe, resumable, compacted
+
+Status: **verified**
+
+Since round OP1 (audit AU1 R17 / P3) the autosave `<project>.mapedit.json.autosave` is an append-only journal: a
+first line holding the project as it was at the first change since the last save, then one line per change (an
+operation added or amended, undo, redo, a History jump, a base file recorded). Each line is the JSON's CRC-32 in 8
+hex digits, a space, the JSON and an end of line; it is written and flushed at once and synced to the disk at most
+once a second. Reading takes lines up to the first one that is cut short, fails its checksum or does not follow (an
+operation number out of order, an undo with nothing to undo) and guesses nothing after it; resuming cuts that end off
+and appends after the last good line; after 4,096 lines or 8 MB it is rewritten as one first line, whole or not at
+all. A journal cut at every byte gives the project after its last whole line; a writer killed mid-write (six kills,
+three of them inside a line) is recovered to operations 1 ... k and resumed. An autosave of the whole project, as
+editors before OP1 wrote it, still reads. Project and lock files are written through a synced temporary file moved
+over the file with retries, the temporary removed on any failure (audit AU4 DS-20 / BUG-12).
+
+[code: rust/bc2-levelwrite/src/journal.rs:1-290] [code: rust/bc2-levelwrite/src/project.rs:880-960]
+[code: rust/bc2-editor/src/edit.rs:775-800]
+[test: rust/bc2-levelwrite/src/journal.rs::a_journal_cut_anywhere_gives_its_last_whole_line]
+[test: rust/bc2-levelwrite/src/journal.rs::written_resumed_and_compacted]
+[test: rust/bc2-levelwrite/tests/op1_journal.rs::journal_survives_its_writer_killed]
+[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal]
+
+### XLOG-DELTA-1: Brush strokes are tiles beside the project, named by sha1
+
+Status: **verified**
+
+A `stroke` operation (round OP1, audit AU1 R24 / D19) changes a raster - a height field's stored values or a paint
+layer's weights - and names only the 64 x 64 tiles it changed: their places and the sha1s of their files before and
+after. A tile's file (`BC2TILE1`, width, height, little-endian `u16` samples) is kept once in
+`<project>.mapedit.json.tiles\<sha1>.tile`; a file whose sha1 does not match is never read as the tile. A stroke
+applies only where every tile is still its `before` (else nothing is written and it is refused in words); a paint
+layer starts at 0 at the stroke's size. Rasters keep their tiles shared with the editor's checkpoints, so undo and
+redo cost only the tiles touched. The export does not write rasters yet (round E5) and refuses such a project in words.
+
+[code: rust/bc2-levelwrite/src/delta.rs:1-430] [code: rust/bc2-levelwrite/src/files.rs:270-330]
+[code: rust/bc2-editor/src/edit.rs:800-870]
+[test: rust/bc2-levelwrite/src/delta.rs::rasters_tiles_and_strokes] [test: rust/bc2-levelwrite/src/delta.rs::tiles_in_a_folder]
+[test: rust/bc2-levelwrite/src/files.rs::strokes_apply_from_their_tiles]
+[test: rust/bc2-editor/tests/op1.rs::strokes_are_tiles_and_the_autosave_is_a_journal] [test: rust/bc2-editor/tests/op1.rs::stroke_budgets]
 
 ### XLOG-LOG-4: One editor per project; a save never overwrites another writer's file
 
@@ -80,6 +128,39 @@ whose target is absent from the base as the log would have it at that point (obj
 count as there, deleted ones and those a mode change removed as gone). The log itself is left as it is.
 
 [code: rust/bc2-levelwrite/src/project.rs:641-672] [test: rust/bc2-levelwrite/src/project.rs::log_undo_redo_and_files]
+
+### XLOG-FILE-1: An operation names the files it changes; a multi-file operation is all or nothing
+
+Status: **verified**
+
+Every operation has targets (round OP1, audit AU1 R18): the level partition, a static group file
+(`Levels/<level>/<Name>_HavokAsset.dbx`, by its name in lower case), a height field, a paint layer, the navigation
+side file, or the project itself (organisation and the export's choices). The kinds of versions 1 - 5 keep their
+JSON and have a fixed target. The `files` operation holds edits of several files - partition operations and static
+group members' transforms (16 numbers per member in the group's `Transforms`, each row's fourth word kept) - and
+applies them on copies of the files they name: the copies replace the files only when every edit applied, so a
+failing edit leaves the partition, the group files and the editor's scene as they were. The editor keeps one writer
+per file in its checkpoints, so undo, redo and History jumps bring every file back as one step. A log of the earlier
+kinds applies to the same partition bytes as before and to no other file.
+
+[code: rust/bc2-levelwrite/src/files.rs:20-360] [code: rust/bc2-levelwrite/src/ops.rs:410-460]
+[code: rust/bc2-levelwrite/src/write.rs:1180-1220] [code: rust/bc2-editor/src/edit.rs:360-410]
+[test: rust/bc2-levelwrite/src/files.rs::multi_file_operations_apply_whole_or_not_at_all]
+[test: rust/bc2-editor/tests/op1.rs::a_multi_file_operation_is_one_step_whole_or_not_at_all]
+
+### XLOG-FILE-2: A base file is recorded when first edited; the export writes the edited group files
+
+Status: **implemented**
+
+The first operation that edits a level file besides the partition records the file's sha1 and size in the project
+(`base.files`, keyed `group:<file>` / `terrain:<file>`). The export reads such a file from the base level's bundles
+when the log names it, applies the log to all files at once, writes each edited static group file in place of the
+base's root file of the same name (renamed with the level, as the base's are) and reports whether it is the file the
+project was made on. A target the export does not write yet (a height field, a paint layer) refuses the export in
+words; a project that edits only the partition exports byte for byte as before.
+
+[code: rust/bc2-levelwrite/src/project.rs:766-785] [code: rust/bc2-levelwrite/src/export.rs:585-595]
+[code: rust/bc2-levelwrite/src/export.rs:1015-1060] [code: rust/bc2-levelwrite/src/export.rs:1185-1225]
 
 ## 2. Apply
 
@@ -169,6 +250,5 @@ sub-objects (a ring point moved, the marker renamed) leaves the original's insta
 
 ## Open questions
 
-- Project versioning beyond version 5 (round V1): per-operation migrations (versions 2 - 5 only added kinds).
-- Edits of static model-group members (their group files) and multi-object field edits are not operations yet
-  (EDITOR_ARCHITECTURE section 5, E2).
+- Editing static model-group members in the editor (round SG1): the operation model and the export carry them since
+  OP1 (XLOG-FILE-1, XLOG-FILE-2); the views still treat members as read-only.

@@ -31,6 +31,8 @@ bc2-pyrt.workspace = true
 eframe.workspace = true
 egui_dock.workspace = true
 serde.workspace = true
+# the editor's errors by kind (round OP1)
+thiserror.workspace = true
 serde_json.workspace = true
 bytemuck.workspace = true
 pollster.workspace = true

@@ -23,6 +23,7 @@ use eframe::egui::{
 use super::editui::{self, FormText, StartChoice, StartForm};
 use super::{EditorApp, Then, elided, status_line, style};
 use crate::catalog::{LevelKind, Picture};
+use crate::error::EditorError;
 use crate::levels::{ContentSet, LevelInfo};
 use crate::theme::{Metrics, Palette};
 
@@ -127,19 +128,19 @@ const PATHS: [(&str, &str); 3] = [
 impl EditorApp {
     /// The texture of a picture of the catalog (made once, kept by `key`).
     fn picture(&mut self, ctx: &egui::Context, key: &str, pic: Option<&Picture>) -> Option<TextureHandle> {
-        if let Some(t) = self.pictures.get(key) {
+        if let Some(t) = self.catalog_state.pictures.get(key) {
             return Some(t.clone());
         }
         let pic = pic?;
         let img = egui::ColorImage::from_rgba_unmultiplied(pic.size, &pic.rgba);
         let t = ctx.load_texture(key, img, TextureOptions::LINEAR);
-        self.pictures.insert(key.to_owned(), t.clone());
+        self.catalog_state.pictures.insert(key.to_owned(), t.clone());
         Some(t)
     }
 
     /// The start screen: the page shown, under the trail back to the start.
     pub(super) fn start_screen(&mut self, ui: &mut egui::Ui, p: &Palette, m: &Metrics) {
-        self.start_buttons.clear();
+        self.start_ui.start_buttons.clear();
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
@@ -157,18 +158,18 @@ impl EditorApp {
                     }
                     if let Err(e) = &self.opfor {
                         let e = e.clone();
-                        status_line(ui, p, "Error", p.status_error, &e);
-                        if !matches!(self.start, StartPage::OpenProject | StartPage::ImportProject) {
+                        status_line(ui, p, "Error", p.status_error, &e.to_string());
+                        if !matches!(self.start_ui.start, StartPage::OpenProject | StartPage::ImportProject) {
                             // without a game copy, only projects (a height-map project needs none to be shown)
-                            self.start = StartPage::OpenProject;
+                            self.start_ui.start = StartPage::OpenProject;
                         }
                         ui.add_space(m.space_2);
                     }
-                    if self.start != StartPage::Home {
+                    if self.start_ui.start != StartPage::Home {
                         self.trail(ui, p, m);
                         ui.add_space(m.space_4);
                     }
-                    match self.start {
+                    match self.start_ui.start {
                         StartPage::Home => self.home(ui, p, m, column),
                         StartPage::OpenProject => self.open_page(ui, p, m),
                         StartPage::EditModes => self.mode_cards(ui, p, m, column),
@@ -190,12 +191,12 @@ impl EditorApp {
             let b = ui
                 .add(egui::Button::new("\u{2190} Back").min_size(Vec2::new(0.0, m.control)))
                 .on_hover_text("Up one step");
-            self.start_buttons.push(("Back".into(), b.rect));
+            self.start_ui.start_buttons.push(("Back".into(), b.rect));
             if b.clicked() {
-                go = self.start.parent();
+                go = self.start_ui.start.parent();
             }
             ui.add_space(m.space_3);
-            let trail = self.start.trail();
+            let trail = self.start_ui.start.trail();
             for (k, page) in trail.iter().enumerate() {
                 if k > 0 {
                     ui.label(RichText::new("/").color(p.ink_faint));
@@ -208,7 +209,9 @@ impl EditorApp {
                     );
                 } else {
                     let l = ui.add(egui::Button::new(RichText::new(page.title()).color(p.accent_text)).frame(false));
-                    self.start_buttons.push((format!("Trail:{}", page.title()), l.rect));
+                    self.start_ui
+                        .start_buttons
+                        .push((format!("Trail:{}", page.title()), l.rect));
                     if l.clicked() {
                         go = Some(*page);
                     }
@@ -247,7 +250,7 @@ impl EditorApp {
                 for (label, text) in row {
                     let (rect, resp) = ui.allocate_exact_size(Vec2::new(card_w, card_h), Sense::click());
                     path_card(ui, p, m, rect, label, text, resp.hovered());
-                    self.start_buttons.push(((*label).to_owned(), rect));
+                    self.start_ui.start_buttons.push(((*label).to_owned(), rect));
                     if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                         chosen = Some(*label);
                     }
@@ -261,7 +264,7 @@ impl EditorApp {
             Some("Create level") => self.go(StartPage::CreateChoice),
             _ => {}
         }
-        if let Some(r) = self.recent.first().cloned() {
+        if let Some(r) = self.start_ui.recent.first().cloned() {
             ui.add_space(m.space_2);
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Last project:").color(p.ink_muted));
@@ -274,7 +277,7 @@ impl EditorApp {
                         egui::Button::new(RichText::new(name).color(p.accent_text)).frame(false),
                     )
                     .on_hover_text(r.display().to_string());
-                self.start_buttons.push(("Last project".into(), b.rect));
+                self.start_ui.start_buttons.push(("Last project".into(), b.rect));
                 if b.clicked() {
                     self.open_project(&r);
                 }
@@ -284,19 +287,19 @@ impl EditorApp {
 
     /// Open project.
     fn open_page(&mut self, ui: &mut egui::Ui, p: &Palette, m: &Metrics) {
-        let found = self.found_projects.clone();
-        let folder = self.new_folder.clone();
+        let found = self.start_ui.found_projects.clone();
+        let folder = self.new_project.new_folder.clone();
         let choice = editui::open_card(
             ui,
             p,
             m,
             &mut StartForm {
-                new_level: &mut self.new_level,
-                new_name: &mut self.new_name,
-                new_folder: &mut self.new_folder,
-                open_path: &mut self.open_path,
-                recent: &self.recent,
-                buttons: &mut self.start_buttons,
+                new_level: &mut self.new_project.new_level,
+                new_name: &mut self.new_project.new_name,
+                new_folder: &mut self.new_project.new_folder,
+                open_path: &mut self.start_ui.open_path,
+                recent: &self.start_ui.recent,
+                buttons: &mut self.start_ui.start_buttons,
                 target: None,
                 modes: None,
             },
@@ -327,7 +330,7 @@ impl EditorApp {
         let pic_h = (card_w * 9.0 / 16.0).floor();
         let card_h = pic_h + 64.0;
         let ctx = ui.ctx().clone();
-        let known = self.catalog.is_some();
+        let known = self.catalog_state.catalog.is_some();
         let mut chosen = None;
         for row in CARD_ORDER.chunks(cols) {
             ui.horizontal(|ui| {
@@ -335,7 +338,12 @@ impl EditorApp {
                 for set in row {
                     let installed = self.levels.iter().filter(|l| l.set == *set).count();
                     let n = if known { self.edit_levels(*set).len() } else { installed };
-                    let art = self.catalog.as_ref().and_then(|c| c.cards.get(set)).cloned();
+                    let art = self
+                        .catalog_state
+                        .catalog
+                        .as_ref()
+                        .and_then(|c| c.cards.get(set))
+                        .cloned();
                     let tex = self.picture(&ctx, &format!("card:{}", set.word()), art.as_ref());
                     let sense = if n > 0 { Sense::click() } else { Sense::hover() };
                     let (rect, resp) = ui.allocate_exact_size(Vec2::new(card_w, card_h), sense);
@@ -346,7 +354,7 @@ impl EditorApp {
                         (n, false) => format!("{n} maps installed"),
                     };
                     mode_card(ui, p, m, rect, *set, n, &count, tex.as_ref(), resp.hovered() && n > 0);
-                    self.start_buttons.push((format!("Mode:{}", set.word()), rect));
+                    self.start_ui.start_buttons.push((format!("Mode:{}", set.word()), rect));
                     let resp = if n > 0 {
                         resp.on_hover_text(format!("Show the {} multiplayer maps", set.word()))
                             .on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -371,7 +379,7 @@ impl EditorApp {
     /// A search box `width` wide.
     fn search_box(&mut self, ui: &mut egui::Ui, p: &Palette, hint: &str, width: f32) {
         ui.add(
-            egui::TextEdit::singleline(&mut self.level_filter)
+            egui::TextEdit::singleline(&mut self.start_ui.level_filter)
                 .hint_text(RichText::new(hint).color(p.ink_faint))
                 .desired_width(width),
         );
@@ -379,7 +387,7 @@ impl EditorApp {
 
     /// "Reading each map's game mode": the lists wait for the catalog (it says multiplayer or campaign).
     fn waiting_for_modes(&self, ui: &mut egui::Ui, p: &Palette, m: &Metrics) -> bool {
-        if self.catalog.is_some() {
+        if self.catalog_state.catalog.is_some() {
             return false;
         }
         ui.add_space(m.space_3);
@@ -409,7 +417,7 @@ impl EditorApp {
         if self.waiting_for_modes(ui, p, m) {
             return;
         }
-        let f = self.level_filter.trim().to_lowercase();
+        let f = self.start_ui.level_filter.trim().to_lowercase();
         let rows: Vec<LevelInfo> = self
             .edit_levels(set)
             .into_iter()
@@ -418,7 +426,7 @@ impl EditorApp {
         let asked = self.level_rows(ui, p, m, &rows, RowButtons::OpenAndNew, column);
         match asked {
             Some(RowChoice::Open(lv)) => self.open_level(&lv),
-            Some(RowChoice::New(lv)) => self.new_level = Some(lv),
+            Some(RowChoice::New(lv)) => self.new_project.new_level = Some(lv),
             None => {}
         }
     }
@@ -457,7 +465,7 @@ impl EditorApp {
                 for (label, text) in row {
                     let (rect, resp) = ui.allocate_exact_size(Vec2::new(card_w, 132.0), Sense::click());
                     path_card(ui, p, m, rect, label, text, resp.hovered());
-                    self.start_buttons.push(((*label).to_owned(), rect));
+                    self.start_ui.start_buttons.push(((*label).to_owned(), rect));
                     if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                         chosen = Some(*label);
                     }
@@ -495,7 +503,7 @@ impl EditorApp {
         if self.waiting_for_modes(ui, p, m) {
             return;
         }
-        let f = self.level_filter.trim().to_lowercase();
+        let f = self.start_ui.level_filter.trim().to_lowercase();
         let mut asked = None;
         let mut shown = 0;
         for set in CARD_ORDER {
@@ -535,7 +543,7 @@ impl EditorApp {
             ui.label(RichText::new("No level matches the search.").color(p.ink_muted));
         }
         if let Some(RowChoice::New(lv) | RowChoice::Open(lv)) = asked {
-            self.new_level = Some(lv);
+            self.new_project.new_level = Some(lv);
         }
     }
 
@@ -555,9 +563,15 @@ impl EditorApp {
         let shown: Vec<(LevelInfo, Option<TextureHandle>, String, LevelKind)> = rows
             .iter()
             .map(|l| {
-                let thumb = self.catalog.as_ref().and_then(|c| c.thumbs.get(&l.lv)).cloned();
+                let thumb = self
+                    .catalog_state
+                    .catalog
+                    .as_ref()
+                    .and_then(|c| c.thumbs.get(&l.lv))
+                    .cloned();
                 let tex = self.picture(&ctx, &format!("thumb:{}", l.lv), thumb.as_ref());
                 let mode = self
+                    .catalog_state
                     .catalog
                     .as_ref()
                     .and_then(|c| c.modes.get(&l.lv))
@@ -583,16 +597,18 @@ impl EditorApp {
                     }
                 }
             });
-        self.start_buttons.extend(rects);
+        self.start_ui.start_buttons.extend(rects);
         asked
     }
 
     /// The new project form, over the list it was asked from: Edit existing level's "Start project", Create level's
     /// "Create level" (with a campaign base's note).
     fn new_project_modal(&mut self, ctx: &egui::Context, p: &Palette, m: &Metrics) {
-        let Some(lv) = self.new_level.clone() else { return };
+        let Some(lv) = self.new_project.new_level.clone() else {
+            return;
+        };
         self.read_era_modes();
-        let creating = self.start == StartPage::CreateFromExisting;
+        let creating = self.start_ui.start == StartPage::CreateFromExisting;
         let campaign = self.level_kind(&lv) == LevelKind::Campaign;
         let text = FormText {
             title: if creating {
@@ -622,25 +638,29 @@ impl EditorApp {
                     p,
                     m,
                     &mut StartForm {
-                        new_level: &mut self.new_level,
-                        new_name: &mut self.new_name,
-                        new_folder: &mut self.new_folder,
-                        open_path: &mut self.open_path,
-                        recent: &self.recent,
-                        buttons: &mut self.start_buttons,
-                        target: Some(&mut self.new_target),
-                        modes: self.era_modes.as_ref().and_then(|r| r.as_ref().ok()),
+                        new_level: &mut self.new_project.new_level,
+                        new_name: &mut self.new_project.new_name,
+                        new_folder: &mut self.new_project.new_folder,
+                        open_path: &mut self.start_ui.open_path,
+                        recent: &self.start_ui.recent,
+                        buttons: &mut self.start_ui.start_buttons,
+                        target: Some(&mut self.new_project.new_target),
+                        modes: self.new_project.era_modes.as_ref().and_then(|r| r.as_ref().ok()),
                     },
                     &text,
                 );
             });
         if modal.should_close() {
-            self.new_level = None;
+            self.new_project.new_level = None;
         }
         if let Some(StartChoice::Create(lv, name, folder)) = choice {
-            self.new_level = None;
-            self.pending_target = self.new_target.0.map(|e| (e, self.new_target.1.clone()));
-            self.open_level_then(&lv, Then::Create(name, folder));
+            self.new_project.new_level = None;
+            let target = self
+                .new_project
+                .new_target
+                .0
+                .map(|e| (e, self.new_project.new_target.1.clone()));
+            self.open_level_then(&lv, Then::Create(name, folder, target));
         }
     }
 
@@ -648,21 +668,21 @@ impl EditorApp {
 
     /// Shows a page of the start screen; the search and a half-made new project are cleared.
     pub fn go(&mut self, page: StartPage) {
-        self.start = page;
-        self.level_filter.clear();
-        self.new_level = None;
+        self.start_ui.start = page;
+        self.start_ui.level_filter.clear();
+        self.new_project.new_level = None;
         if page == StartPage::OpenProject {
-            self.found_projects = project_files(std::path::Path::new(self.new_folder.trim()));
+            self.start_ui.found_projects = project_files(std::path::Path::new(self.new_project.new_folder.trim()));
         }
         if page != StartPage::ImportProject {
-            self.import_shown = None;
+            self.start_ui.import_shown = None;
         }
     }
 
     /// The start screen's page.
     #[must_use]
     pub fn start_page(&self) -> StartPage {
-        self.start
+        self.start_ui.start
     }
 
     /// Shows a mode's multiplayer maps (`Some`) or the mode cards (`None`) of "Edit existing level".
@@ -673,7 +693,7 @@ impl EditorApp {
     /// The mode whose maps "Edit existing level" shows (`None`: another page).
     #[must_use]
     pub fn chosen_mode(&self) -> Option<ContentSet> {
-        match self.start {
+        match self.start_ui.start {
             StartPage::EditMaps(set) => Some(set),
             _ => None,
         }
@@ -683,19 +703,26 @@ impl EditorApp {
     /// `Open:mp_005`, `New project:sp_01`, `Start project`, `Back` ...).
     #[must_use]
     pub fn start_button(&self, label: &str) -> Option<Rect> {
-        self.start_buttons.iter().find(|(l, _)| l == label).map(|(_, r)| *r)
+        self.start_ui
+            .start_buttons
+            .iter()
+            .find(|(l, _)| l == label)
+            .map(|(_, r)| *r)
     }
 
     /// The labels of the start screen's buttons drawn in the last frame.
     #[must_use]
     pub fn start_button_labels(&self) -> Vec<String> {
-        self.start_buttons.iter().map(|(l, _)| l.clone()).collect()
+        self.start_ui.start_buttons.iter().map(|(l, _)| l.clone()).collect()
     }
 
     /// A level's kind from its description (`Unknown` until the catalog is read).
     #[must_use]
     pub fn level_kind(&self, lv: &str) -> LevelKind {
-        self.catalog.as_ref().map_or(LevelKind::Unknown, |c| c.kind(lv))
+        self.catalog_state
+            .catalog
+            .as_ref()
+            .map_or(LevelKind::Unknown, |c| c.kind(lv))
     }
 
     /// The kind a new project on `lv` records.
@@ -727,6 +754,7 @@ impl EditorApp {
     /// Whether a level matches a search (lower case): its name, its game mode, multiplayer / campaign.
     fn matches(&self, l: &LevelInfo, f: &str) -> bool {
         let mode = self
+            .catalog_state
             .catalog
             .as_ref()
             .and_then(|c| c.modes.get(&l.lv))
@@ -736,15 +764,15 @@ impl EditorApp {
 
     /// Fills the new project form (the tests: what a user types).
     pub fn set_new_project(&mut self, name: &str, folder: &std::path::Path) {
-        name.clone_into(&mut self.new_name);
-        self.new_folder = folder.display().to_string();
+        name.clone_into(&mut self.new_project.new_name);
+        self.new_project.new_folder = folder.display().to_string();
     }
 
     /// Opens the new project form for a level (what its row's New project button does): its target the base's own
     /// on a multiplayer level, Conquest of the base's era on a campaign level (round E3d).
     pub fn start_new_project(&mut self, lv: &str) {
-        self.new_level = Some(lv.to_lowercase());
-        self.new_target = if self.level_kind(lv) == LevelKind::Campaign {
+        self.new_project.new_level = Some(lv.to_lowercase());
+        self.new_project.new_target = if self.level_kind(lv) == LevelKind::Campaign {
             let set = self
                 .levels
                 .iter()
@@ -764,18 +792,18 @@ impl EditorApp {
 
     /// Sets the new project form's target (the tests: what a user picks).
     pub fn set_new_target(&mut self, era: Option<bc2_levelwrite::Profile>, mode: &str) {
-        self.new_target = (era, mode.to_owned());
+        self.new_project.new_target = (era, mode.to_owned());
     }
 
     /// Reads the game copy's modes per era once (the target pickers).
     pub fn read_era_modes(&mut self) {
-        if self.era_modes.is_some() {
+        if self.new_project.era_modes.is_some() {
             return;
         }
-        self.era_modes = Some(match &self.opfor {
+        self.new_project.era_modes = Some(match &self.opfor {
             Ok(root) => bc2_levelwrite::export::Game::open(&root.join("game"))
                 .and_then(|g| bc2_levelwrite::profile::modes(&g))
-                .map_err(|e| e.to_string()),
+                .map_err(|e| EditorError::Level(e.to_string())),
             Err(e) => Err(e.clone()),
         });
     }
@@ -783,13 +811,13 @@ impl EditorApp {
     /// The level the new project form is open for.
     #[must_use]
     pub fn new_project_level(&self) -> Option<&str> {
-        self.new_level.as_deref()
+        self.new_project.new_level.as_deref()
     }
 
     /// The height-map project shown on the start screen.
     #[must_use]
     pub fn import_project(&self) -> Option<&bc2_levelwrite::MapProject> {
-        self.import_shown.as_ref().map(|(_, p)| p.as_ref())
+        self.start_ui.import_shown.as_ref().map(|(_, p)| p.as_ref())
     }
 }
 

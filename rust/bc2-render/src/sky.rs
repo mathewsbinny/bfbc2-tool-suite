@@ -37,6 +37,7 @@ use std::sync::Arc;
 use bc2_formats::shaderdb::query;
 
 use crate::dxbc;
+use crate::error::RenderError;
 use crate::files::Files;
 use crate::material::{self, Db, Draw, Prepared, RenderState, TextureFiles, sampler_states};
 use crate::weather::{Fields, Weather};
@@ -224,13 +225,15 @@ pub fn load(
     towards: [f32; 3],
     clouds: bool,
     cache: &mut TextureFiles,
-) -> Result<Prepared, String> {
+) -> Result<Prepared, RenderError> {
     if w.dome.enabled == Some(false) {
-        return Err("the weather's settings turn the sky dome off (SkydomeEnable false)".into());
+        return Err(RenderError::Data(
+            "the weather's settings turn the sky dome off (SkydomeEnable false)".into(),
+        ));
     }
     let progs = db
         .entry_programs(ENTRY)
-        .ok_or_else(|| format!("{ENTRY}: not in the database"))?;
+        .ok_or_else(|| RenderError::Data(format!("{ENTRY}: not in the database")))?;
     let has = |name: &Option<String>, cache: &mut TextureFiles| {
         name.as_ref()
             .filter(|n| material::texture(files, cache, n).is_some())
@@ -253,9 +256,12 @@ pub fn load(
         .copied()
         .find(|&k| db.programs.get(k).is_some_and(|p| p.key_byte(0x37) == want))
         .or_else(|| main.first().copied())
-        .ok_or_else(|| format!("{ENTRY}: no main-pass program"))?;
-    let prog = db.programs.get(k).ok_or("program")?;
-    let (vs, ps) = (db.vs.get(prog.vs).ok_or("vs")?, db.ps.get(prog.ps).ok_or("ps")?);
+        .ok_or_else(|| RenderError::Data(format!("{ENTRY}: no main-pass program")))?;
+    let prog = db.programs.get(k).ok_or(RenderError::Data("program".into()))?;
+    let (vs, ps) = (
+        db.vs.get(prog.vs).ok_or(RenderError::Data("vs".into()))?,
+        db.ps.get(prog.ps).ok_or(RenderError::Data("ps".into()))?,
+    );
     let block = db.param(prog.block2);
     let state = RenderState::of(prog.state.0, prog.state.1);
     let ps_reflect = Arc::new(dxbc::reflect(&ps.code));

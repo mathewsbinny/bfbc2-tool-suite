@@ -70,6 +70,7 @@ pub mod content;
 pub mod demo;
 pub mod display;
 pub mod edit;
+pub mod error;
 pub mod export_ui;
 pub mod factions;
 pub mod fonts;

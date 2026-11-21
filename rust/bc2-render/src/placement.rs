@@ -18,6 +18,7 @@ use std::collections::HashMap;
 
 use bc2_formats::dbx::{self, Node};
 
+use crate::error::RenderError;
 use crate::files::Files;
 
 /// How one group item is drawn.
@@ -81,10 +82,12 @@ fn path_of(r: &str) -> Option<String> {
 ///
 /// # Errors
 /// The partition is not found or does not read.
-pub fn read(files: &Files, level: &str) -> Result<Placements, String> {
+pub fn read(files: &Files, level: &str) -> Result<Placements, RenderError> {
     let name = format!("levels/{level}.dbx");
-    let data = files.read(&name).ok_or_else(|| format!("{name}: not found"))?;
-    let tree = dbx::parse_tree(&data).map_err(|e| format!("{name}: {e}"))?;
+    let data = files
+        .read(&name)
+        .ok_or_else(|| RenderError::Data(format!("{name}: not found")))?;
+    let tree = dbx::parse_tree(&data).map_err(|e| RenderError::Data(format!("{name}: {e}")))?;
     let by_guid: HashMap<String, Node<'_, '_>> = tree
         .instances()
         .filter_map(|i| Some((i.attr("guid")?.to_lowercase(), i)))

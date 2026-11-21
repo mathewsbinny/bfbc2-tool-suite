@@ -7,6 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
+use crate::error::RenderError;
 use bc2_formats::fbrb;
 
 /// The environment variable that reads Package bundles without the bundle cache, one after another ([`Files::fetch`]
@@ -65,10 +66,10 @@ impl Files {
     ///
     /// # Errors
     /// A bundle's header cannot be read.
-    pub fn bundles(paths: &[PathBuf]) -> Result<Self, String> {
+    pub fn bundles(paths: &[PathBuf]) -> Result<Self, RenderError> {
         let mut index = HashMap::new();
         for (k, p) in paths.iter().enumerate() {
-            let h = fbrb::entries_path(p).map_err(|e| format!("{}: {e}", p.display()))?;
+            let h = fbrb::entries_path(p).map_err(|e| RenderError::Data(format!("{}: {e}", p.display())))?;
             for e in &h.entries {
                 index
                     .entry(e.name.to_ascii_lowercase())
@@ -106,7 +107,7 @@ impl Files {
     ///
     /// # Errors
     /// A bundle cannot be read.
-    pub fn fetch(&self, names: &[String]) -> Result<usize, String> {
+    pub fn fetch(&self, names: &[String]) -> Result<usize, RenderError> {
         let Some(b) = &self.bundled else { return Ok(0) };
         let mut by_bundle: HashMap<usize, Vec<(String, String)>> = HashMap::new();
         for n in names {
@@ -127,16 +128,18 @@ impl Files {
             .iter()
             .filter_map(|(k, list)| Some((b.paths.get(*k)?, list.iter().map(|(_, s)| s.as_str()).collect())))
             .collect();
-        let got: Vec<Result<Vec<Vec<u8>>, String>> = if std::env::var_os(UNCACHED_ENV).is_some() {
+        let got: Vec<Result<Vec<Vec<u8>>, RenderError>> = if std::env::var_os(UNCACHED_ENV).is_some() {
             items
                 .iter()
-                .map(|(p, n)| fbrb::read_path_uncached(p, n).map_err(|e| format!("{}: {e}", p.display())))
+                .map(|(p, n)| {
+                    fbrb::read_path_uncached(p, n).map_err(|e| RenderError::Data(format!("{}: {e}", p.display())))
+                })
                 .collect()
         } else {
             fbrb::read_many(&items)
                 .into_iter()
                 .zip(&items)
-                .map(|(r, (p, _))| r.map_err(|e| format!("{}: {e}", p.display())))
+                .map(|(r, (p, _))| r.map_err(|e| RenderError::Data(format!("{}: {e}", p.display()))))
                 .collect()
         };
         let mut read = 0;
