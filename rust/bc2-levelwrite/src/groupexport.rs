@@ -64,7 +64,10 @@ fn carry(sphere: &Sphere, from: &crate::Rows, to: &crate::Rows) -> Sphere {
     }
 }
 
-#[allow(clippy::too_many_lines, reason = "the steps in order: leaves freed and moved, leaves given, the files")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the steps in order: leaves freed and moved, leaves given, the files"
+)]
 /// The edited group files made whole for the export: each added member given a leaf (in its group file and its
 /// partition record), each moved one its leaf moved, the client tree written when it changed, each edited group's
 /// physics laid out again. `read` gives a base file of the level's folder by its lower-case name; `edited` holds the
@@ -173,8 +176,10 @@ pub fn stage(
         let (Some(f0), Some(f1)) = (bases.get(file), finals.get_mut(file)) else {
             continue;
         };
-        let r0 = member_transform(f0, inst, kr).ok_or_else(|| bad(format!("{}: no transform", member_guid(inst, *root))))?;
-        let r1 = member_transform(f1, inst, *p).ok_or_else(|| bad(format!("{}: no transform", member_guid(inst, *m))))?;
+        let r0 =
+            member_transform(f0, inst, kr).ok_or_else(|| bad(format!("{}: no transform", member_guid(inst, *root))))?;
+        let r1 =
+            member_transform(f1, inst, *p).ok_or_else(|| bad(format!("{}: no transform", member_guid(inst, *m))))?;
         let (s, mx) = leaf_of(enum_at(f0, inst, kr).unwrap_or(0))?;
         let placed = carry(&s, &r0, &r1);
         let (leaf, how) = if let Some(l) = freed.pop() {
@@ -199,13 +204,17 @@ pub fn stage(
         let g0 = group_entity(base, file).ok_or_else(|| bad(format!("the base level has no group for {file}")))?;
         let res_name = format!("{}.res", file.strip_suffix(".dbx").unwrap_or(file));
         let Some(res) = read(&res_name) else {
-            out.report.push(format!("  {file}: no physics resource in the base (none written)"));
+            out.report
+                .push(format!("  {file}: no physics resource in the base (none written)"));
             continue;
         };
         let counts: Vec<usize> = runs(base, &g0)?.iter().map(|r| r.count).collect();
         let p = GroupPhysics::read(&res).map_err(|e| bad(format!("{res_name}: {e}")))?;
         let lay = layout(w, &g1)?;
-        let again = p.relaid(&counts, &lay).map_err(|e| bad(format!("{res_name}: {e}")))?.write();
+        let again = p
+            .relaid(&counts, &lay)
+            .map_err(|e| bad(format!("{res_name}: {e}")))?
+            .write();
         let members: usize = lay.iter().map(Vec::len).sum();
         let before: usize = counts.iter().sum();
         out.report.push(format!(

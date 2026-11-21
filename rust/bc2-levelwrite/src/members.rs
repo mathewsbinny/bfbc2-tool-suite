@@ -91,7 +91,8 @@ pub fn asset_name(asset: &str) -> String {
     let path = asset.rsplit_once('/').map_or(asset, |x| x.0);
     let last = path.rsplit('/').next().unwrap_or(path);
     let low = last.to_ascii_lowercase();
-    low.strip_suffix("_havok").map_or_else(|| last.to_owned(), |s| last.get(..s.len()).unwrap_or(s).to_owned())
+    low.strip_suffix("_havok")
+        .map_or_else(|| last.to_owned(), |s| last.get(..s.len()).unwrap_or(s).to_owned())
 }
 
 /// The members of one group instance in their current order: the place of each in the file.
@@ -115,7 +116,11 @@ fn ints(d: &EditDbx, n: NodeId) -> Option<(u32, Vec<i64>)> {
     let out = vals
         .iter()
         .map(|v| {
-            let mut x: i64 = if v.first().is_some_and(|b| b & 0x80 != 0) { -1 } else { 0 };
+            let mut x: i64 = if v.first().is_some_and(|b| b & 0x80 != 0) {
+                -1
+            } else {
+                0
+            };
             for b in *v {
                 x = (x << 8) | i64::from(*b);
             }
@@ -243,7 +248,13 @@ pub fn runs(w: &LevelWriter, g: &GroupEntity) -> Result<Vec<TypeRun>> {
     for &t in &g.types {
         let count = int_field(d, t, b"InstanceCount")
             .and_then(|c| usize::try_from(c).ok())
-            .ok_or_else(|| bad(format!("{}: member type {} has no InstanceCount", g.name, guid_of(d, t))))?;
+            .ok_or_else(|| {
+                bad(format!(
+                    "{}: member type {} has no InstanceCount",
+                    g.name,
+                    guid_of(d, t)
+                ))
+            })?;
         let parts = int_field(d, t, b"PhysicsPartCountPerInstance")
             .and_then(|c| u32::try_from(c).ok())
             .ok_or_else(|| {
@@ -410,14 +421,17 @@ pub fn delete(
     let g = group_entity(w, file).ok_or_else(|| bad(format!("the level partition has no group for {file}")))?;
     let rs = runs(w, &g)?;
     let r = run_at(&rs, place)
-        .ok_or_else(|| bad(format!("{name}: its group's member types count fewer members than its file")))?
+        .ok_or_else(|| {
+            bad(format!(
+                "{name}: its group's member types count fewer members than its file"
+            ))
+        })?
         .clone();
     if r.count <= 1 {
-        let what = w
-            .d
-            .child(r.node, b"Name")
-            .and_then(|n| w.d.text(n))
-            .map_or_else(String::new, |t| String::from_utf8_lossy(t).into_owned());
+        let what =
+            w.d.child(r.node, b"Name")
+                .and_then(|n| w.d.text(n))
+                .map_or_else(String::new, |t| String::from_utf8_lossy(t).into_owned());
         return Err(bad(format!(
             "{name} is the last {} of its group: a group keeps at least one of each kind it holds (DICE's groups \
              never have a kind without one; its collision stays in the group's physics). Move it instead",
@@ -430,14 +444,15 @@ pub fn delete(
     if let Some(e) = a.enums {
         remove_numbers(&mut f.d, e, place, 1)?;
     }
-    let spawns = w
-        .d
-        .child(r.node, b"SpawnDatas")
-        .ok_or_else(|| bad(format!("{name}: its member type has no SpawnDatas")))?;
+    let spawns =
+        w.d.child(r.node, b"SpawnDatas")
+            .ok_or_else(|| bad(format!("{name}: its member type has no SpawnDatas")))?;
     let k = place - r.first;
     let items = w.d.children_mut(spawns)?;
     if k >= items.len() {
-        return Err(bad(format!("{name}: its member type has fewer SpawnDatas than instances")));
+        return Err(bad(format!(
+            "{name}: its member type has fewer SpawnDatas than instances"
+        )));
     }
     items.remove(k);
     set_int_field(&mut w.d, r.node, b"InstanceCount", (r.count - 1) as i64)?;
@@ -453,7 +468,10 @@ pub fn delete(
 ///
 /// # Errors
 /// `like` is not in the group, `id` is already, or the group is not in the partition.
-#[allow(clippy::too_many_arguments, reason = "the two files, the member's group, its order and the new member")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the two files, the member's group, its order and the new member"
+)]
 pub fn add(
     f: &mut LevelWriter,
     w: &mut LevelWriter,
@@ -472,15 +490,18 @@ pub fn add(
     let g = group_entity(w, file).ok_or_else(|| bad(format!("the level partition has no group for {file}")))?;
     let rs = runs(w, &g)?;
     let r = run_at(&rs, src)
-        .ok_or_else(|| bad(format!("{src_name}: its group's member types count fewer members than its file")))?
+        .ok_or_else(|| {
+            bad(format!(
+                "{src_name}: its group's member types count fewer members than its file"
+            ))
+        })?
         .clone();
     let at = r.first + r.count;
     let a = arrays(f, instance)?;
-    let item = *f
-        .d
-        .children(a.assets)
-        .and_then(|c| c.get(src))
-        .ok_or_else(|| LevelWriteError::NotFound(src_name.clone()))?;
+    let item =
+        *f.d.children(a.assets)
+            .and_then(|c| c.get(src))
+            .ok_or_else(|| LevelWriteError::NotFound(src_name.clone()))?;
     let copy = f.d.clone_node(item);
     f.d.children_mut(a.assets)?.insert(at, copy);
     let mut t: Vec<Vec<u8>> = Vec::with_capacity(16);
@@ -493,7 +514,9 @@ pub fn add(
             let v = match rows.get(r4).and_then(|row| row.get(c)) {
                 Some(x) => x.to_be_bytes().to_vec(),
                 // each row's fourth word as `like`'s
-                None => old.get(16 * src + 4 * r4 + c).map_or_else(|| vec![0; 4], |x| x.to_vec()),
+                None => old
+                    .get(16 * src + 4 * r4 + c)
+                    .map_or_else(|| vec![0; 4], |x| x.to_vec()),
             };
             t.push(v);
         }
@@ -503,15 +526,14 @@ pub fn add(
         let size = numbers_of(f.d.raw(e)).map_or(4, |(s, _)| s) as usize;
         insert_numbers(&mut f.d, e, at, &[vec![0; size]])?;
     }
-    let spawns = w
-        .d
-        .child(r.node, b"SpawnDatas")
-        .ok_or_else(|| bad(format!("{src_name}: its member type has no SpawnDatas")))?;
-    let src_spawn = *w
-        .d
-        .children(spawns)
-        .and_then(|c| c.get(src - r.first))
-        .ok_or_else(|| bad(format!("{src_name}: its member type has fewer SpawnDatas than instances")))?;
+    let spawns =
+        w.d.child(r.node, b"SpawnDatas")
+            .ok_or_else(|| bad(format!("{src_name}: its member type has no SpawnDatas")))?;
+    let src_spawn = *w.d.children(spawns).and_then(|c| c.get(src - r.first)).ok_or_else(|| {
+        bad(format!(
+            "{src_name}: its member type has fewer SpawnDatas than instances"
+        ))
+    })?;
     let sc = w.d.clone_node(src_spawn);
     set_int_field(&mut w.d, sc, b"Enumeration", 0)?;
     w.d.children_mut(spawns)?.push(sc);
@@ -526,7 +548,14 @@ pub fn add(
 ///
 /// # Errors
 /// No such member, or the group is not in the partition.
-pub fn set_enum(f: &mut LevelWriter, w: &mut LevelWriter, file: &str, instance: &str, place: usize, leaf: i64) -> Result<()> {
+pub fn set_enum(
+    f: &mut LevelWriter,
+    w: &mut LevelWriter,
+    file: &str,
+    instance: &str,
+    place: usize,
+    leaf: i64,
+) -> Result<()> {
     let a = arrays(f, instance)?;
     if let Some(e) = a.enums {
         let (size, mut v) = ints(&f.d, e).ok_or_else(|| bad("damaged Enums"))?;
@@ -602,7 +631,9 @@ impl GroupPhysics {
         let m = u16_le(b, o).ok_or_else(|| damaged("no material table"))? as usize;
         let k2 = u16_le(b, o + 2).ok_or_else(|| damaged("no material table"))? as usize;
         if m == 0 {
-            return Err(damaged("not the material-table form (a blueprint's physics, not a group's)"));
+            return Err(damaged(
+                "not the material-table form (a blueprint's physics, not a group's)",
+            ));
         }
         let ends: Vec<u16> = (0..m)
             .map(|i| u16_le(b, o + 4 + 4 * k2 + 2 * i))
@@ -810,13 +841,19 @@ pub fn check_group(
     let spawn: Vec<i64> = rs.iter().flat_map(|r| r.enums.iter().copied()).collect();
     say(
         assets == total && transforms == 16 * assets,
-        format!("{assets} members in its file ({transforms} transform numbers); its {} member types count {total}", rs.len()),
+        format!(
+            "{assets} members in its file ({transforms} transform numbers); its {} member types count {total}",
+            rs.len()
+        ),
     );
     say(
         rs.iter().all(|r| r.count > 0 && r.enums.len() == r.count),
         "every member type has instances and one SpawnDatas record per instance".into(),
     );
-    say(enums == spawn, "the file's Enums are the SpawnDatas' Enumerations, in order".into());
+    say(
+        enums == spawn,
+        "the file's Enums are the SpawnDatas' Enumerations, in order".into(),
+    );
     let mut sorted = spawn.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -853,15 +890,25 @@ pub fn check_group(
                 let per = p.parts_per_type();
                 say(
                     per.len() == rs.len() && per.iter().zip(&rs).all(|(a, r)| *a == r.parts as usize),
-                    format!("its physics has {} member types with the partition's parts per instance", per.len()),
+                    format!(
+                        "its physics has {} member types with the partition's parts per instance",
+                        per.len()
+                    ),
                 );
                 let words: Vec<u32> = rs
                     .iter()
-                    .flat_map(|r| r.enums.iter().flat_map(move |&e| std::iter::repeat_n(e as u32, r.parts as usize)))
+                    .flat_map(|r| {
+                        r.enums
+                            .iter()
+                            .flat_map(move |&e| std::iter::repeat_n(e as u32, r.parts as usize))
+                    })
                     .collect();
                 say(
                     p.part_words == words,
-                    format!("its physics' {} part words are each part's instance leaf", p.part_words.len()),
+                    format!(
+                        "its physics' {} part words are each part's instance leaf",
+                        p.part_words.len()
+                    ),
                 );
                 let counts: Vec<usize> = rs.iter().map(|r| r.count).collect();
                 let mats_ok = p.materials.is_empty() && p.distinct == 1
@@ -965,18 +1012,43 @@ pub(crate) mod tests {
             Element::container(
                 f,
                 "instance",
-                &[("guid", guid), ("type", "GameSharedResources.StaticModelGroupMemberData")],
+                &[
+                    ("guid", guid),
+                    ("type", "GameSharedResources.StaticModelGroupMemberData"),
+                ],
                 fields,
             )
         };
-        let m1 = member(&mut f, "MMMMMMMM-0000-0000-0000-000000000001", "Objects/Props/Crate", &[1, 2], 2, 1);
-        let m2 = member(&mut f, "MMMMMMMM-0000-0000-0000-000000000002", "Objects/Props/Rock", &[3], 1, 0);
-        let items: Vec<Element> = ["mmmmmmmm-0000-0000-0000-000000000001", "mmmmmmmm-0000-0000-0000-000000000002"]
-            .iter()
-            .map(|r| Element::text(&mut f, "item", &[("ref", r)], ""))
-            .collect();
+        let m1 = member(
+            &mut f,
+            "MMMMMMMM-0000-0000-0000-000000000001",
+            "Objects/Props/Crate",
+            &[1, 2],
+            2,
+            1,
+        );
+        let m2 = member(
+            &mut f,
+            "MMMMMMMM-0000-0000-0000-000000000002",
+            "Objects/Props/Rock",
+            &[3],
+            1,
+            0,
+        );
+        let items: Vec<Element> = [
+            "mmmmmmmm-0000-0000-0000-000000000001",
+            "mmmmmmmm-0000-0000-0000-000000000002",
+        ]
+        .iter()
+        .map(|r| Element::text(&mut f, "item", &[("ref", r)], ""))
+        .collect();
         let md = Element::container(&mut f, "array", &[("name", "MemberDatas")], items);
-        let nm = Element::text(&mut f, "field", &[("name", "Name")], "Levels/Test/StaticModelGroupEntity");
+        let nm = Element::text(
+            &mut f,
+            "field",
+            &[("name", "Name")],
+            "Levels/Test/StaticModelGroupEntity",
+        );
         let ge = Element::container(
             &mut f,
             "instance",
@@ -989,7 +1061,10 @@ pub(crate) mod tests {
         let ld = Element::container(
             &mut f,
             "instance",
-            &[("guid", "LLLLLLLL-0000-0000-0000-000000000001"), ("type", "Entity.LevelData")],
+            &[
+                ("guid", "LLLLLLLL-0000-0000-0000-000000000001"),
+                ("type", "Entity.LevelData"),
+            ],
             vec![],
         );
         let part = Element::container(&mut f, "partition", &[("guid", "P")], vec![ld, ge, m1, m2]);
@@ -1034,12 +1109,18 @@ pub(crate) mod tests {
     fn identities_read_back() {
         assert_eq!(member_guid("abc", Member::Base(3)), "ABC#3");
         assert_eq!(member_guid("abc", Member::Added { added: 2 }), "ABC#+2");
-        assert_eq!(parse_member_guid("ABC#+2"), Some(("ABC".into(), Member::Added { added: 2 })));
+        assert_eq!(
+            parse_member_guid("ABC#+2"),
+            Some(("ABC".into(), Member::Added { added: 2 }))
+        );
         assert_eq!(parse_member_guid("ABC#12"), Some(("ABC".into(), Member::Base(12))));
         assert_eq!(parse_member_guid("ABC"), None);
         // JSON: a base member is the number round OP1 wrote, an added one a small object
         assert_eq!(serde_json::to_string(&Member::Base(4)).unwrap(), "4");
-        assert_eq!(serde_json::to_string(&Member::Added { added: 1 }).unwrap(), "{\"added\":1}");
+        assert_eq!(
+            serde_json::to_string(&Member::Added { added: 1 }).unwrap(),
+            "{\"added\":1}"
+        );
         assert_eq!(serde_json::from_str::<Member>("4").unwrap(), Member::Base(4));
     }
 
@@ -1095,7 +1176,19 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert_eq!(order, [Member::Base(1), new, Member::Base(2)], "after its type's run");
-        assert!(add(&mut f, &mut w, FILE, G, &mut order, Member::Base(1), new, &crate::rows_at([0.0; 3])).is_err());
+        assert!(
+            add(
+                &mut f,
+                &mut w,
+                FILE,
+                G,
+                &mut order,
+                Member::Base(1),
+                new,
+                &crate::rows_at([0.0; 3])
+            )
+            .is_err()
+        );
         let rs = runs(&w, &g).unwrap();
         assert_eq!((rs[0].count, rs[1].first), (2, 2));
         assert_eq!(rs[0].enums, [2, 0], "the new member's leaf is given at export");

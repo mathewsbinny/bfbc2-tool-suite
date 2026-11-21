@@ -31,7 +31,10 @@ pub const FORMAT: &str = "bfbc2-mapedit";
 ///   brush strokes stored as delta tiles beside the project (`stroke`, [`crate::delta`]), the base files' sha1s
 ///   (`base.files`) and the lowest version that reads the file (`min_reader`). A version-5 file is migrated: its
 ///   `base` gets an empty `files`.
-pub const VERSION: u32 = 6;
+/// - 7: round SG1, static group members deleted and added (`files`' `member-delete` and `member-add` edits, an added
+///   member named `{"added": n}`: [`crate::members::Member`]); a version-6 file loads as it is (its member edits name
+///   base members by number, as version 7 does).
+pub const VERSION: u32 = 7;
 
 /// The lowest version that reads an operation of each kind (`op`), the kinds of version 1 left out: what a file's
 /// `min_reader` is made from ([`MapProject::reader_needed`]).
@@ -61,6 +64,7 @@ pub fn migrate(mut v: serde_json::Value, from: u32) -> serde_json::Value {
         // 3 -> 4: the weather operation was added (round VW2); a version-3 log has none
         // 4 -> 5: the typed gameplay operations were added (round XF1); a version-4 log has none
         // 5 -> 6: the base records its other files' sha1s (round OP1); a version-5 project edited none
+        // 6 -> 7: member deletes and adds were added (round SG1); a version-6 log has none
         if at == 5
             && let Some(b) = v.get_mut("base").and_then(serde_json::Value::as_object_mut)
         {
@@ -751,10 +755,26 @@ impl MapProject {
     }
 
     /// The lowest editor version that reads this project: the newest operation kind in its log and redo stack
-    /// ([`OP_VERSIONS`]), and 6 when it records base files (round OP1).
+    /// ([`OP_VERSIONS`]), and 6 when it records base files (round OP1); 7 for a member's delete or add, or an edit
+    /// of a member the project added (round SG1).
     #[must_use]
     pub fn reader_needed(&self) -> u32 {
         let of = |o: &Operation| {
+            if let crate::Op::Files { edits } = &o.op
+                && edits.iter().any(|e| {
+                    matches!(
+                        e,
+                        crate::files::FileEdit::MemberDelete { .. }
+                            | crate::files::FileEdit::MemberAdd { .. }
+                            | crate::files::FileEdit::MemberTransform {
+                                item: crate::members::Member::Added { .. },
+                                ..
+                            }
+                    )
+                })
+            {
+                return 7;
+            }
             serde_json::to_value(&o.op)
                 .ok()
                 .and_then(|v| v.get("op").and_then(|k| k.as_str().map(str::to_owned)))
@@ -1094,6 +1114,57 @@ mod tests {
         // the edits are the same in every version's log (only kinds of later versions were added after them)
         assert!(replayed.iter().all(|s| *s == replayed[0]), "{replayed:?}");
         assert_eq!(replayed[0], OLD_REPLAY_SHA1);
+    }
+
+    /// Round SG1: a version-6 project (round OP1's member move, the member named by its number) loads as version 7,
+    /// its operations written back as they were, still read by a version-6 editor (`min_reader` 6), and its member
+    /// move applies to the same member; a member's delete or add needs version 7.
+    #[test]
+    fn a_version_6_project_loads_and_its_member_edit_applies() {
+        let text = include_str!("../tests/data/projects/v6.mapedit.json");
+        let raw: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            (raw["version"].as_u64(), raw["min_reader"].as_u64()),
+            (Some(6), Some(6))
+        );
+        let p = MapProject::from_json(text).unwrap();
+        assert_eq!((p.version, p.reader_needed()), (VERSION, 6));
+        for (o, r) in p.operations.iter().zip(raw["operations"].as_array().unwrap()) {
+            assert_eq!(&serde_json::to_value(o).unwrap(), r);
+        }
+        let base = crate::write::tests::level();
+        let schema = crate::Schema::scan([&crate::write::LevelWriter::parse(&base).unwrap().d]);
+        let group = crate::files::tests::group_file();
+        let sources = |_: &crate::files::Target| Some(group.clone());
+        let a = crate::files::apply_files(&base, &p.operations, &schema, &|_| None, &sources).unwrap();
+        let (t, bytes) = a.files.iter().next().unwrap();
+        assert_eq!(
+            t,
+            &crate::files::Target::group("staticmodelgroupentity_grid00x00_havokasset.dbx")
+        );
+        let g = crate::write::LevelWriter::parse(bytes).unwrap();
+        let at = crate::files::member_transform(&g, "GGGGGGGG-0000-0000-0000-000000000001", 1).unwrap();
+        assert_eq!(at[3], [9.0, 1.0, 2.0]);
+        // a delete needs version 7
+        let mut q = p.clone();
+        q.push(
+            Op::Files {
+                edits: vec![crate::files::FileEdit::MemberDelete {
+                    file: "x_havokasset.dbx".into(),
+                    instance: "G".into(),
+                    item: crate::members::Member::Base(0),
+                    asset: "objects/x/x_havok/y".into(),
+                    rows: crate::rows_at([0.0; 3]),
+                }],
+            },
+            "",
+        );
+        assert_eq!(q.reader_needed(), 7);
+        let back: serde_json::Value = serde_json::from_str(&q.to_json().unwrap()).unwrap();
+        assert_eq!(
+            (back["version"].as_u64(), back["min_reader"].as_u64()),
+            (Some(7), Some(7))
+        );
     }
 
     /// The test level after the corpus's partition edits (a move, a duplicate, a field set), as the version-5 editor
